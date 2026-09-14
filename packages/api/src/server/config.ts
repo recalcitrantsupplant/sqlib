@@ -4,10 +4,18 @@
  * IMPORTANT: The oxigraph JavaScript/WebAssembly bindings only support in-memory stores.
  * There is NO RocksDB disk-backed persistence like in Rust/Python bindings.
  *
- * - 'oxigraph-persistent': Creates a "durable" store (in-memory, serialized to .nq on shutdown)
- * - 'oxigraph-memory': Creates an ephemeral in-memory store
+ * - 'oxigraph-persistent': a "durable" store — in-memory, serialized to .nq in
+ *   LIBRARY_STORAGE_DIR on a checkpoint interval and on shutdown, restored at boot.
+ * - 'oxigraph-memory': an ephemeral in-memory store. It touches no disk at all:
+ *   no snapshot is restored, no checkpoint loop runs, and nothing is written on
+ *   shutdown. The library lives exactly as long as the process. This is the mode
+ *   for tests and throwaway development, and it is what the test suite defaults to.
  *
  * For true disk-backed persistence, run oxigraph-server as a sidecar and use HTTP backend.
+ *
+ * Note that these name the store the *library* lives in, and are unrelated to the
+ * `oxigraphMemory` / `oxigraphEphemeral` Backend entities that queries run against.
+ * The words overlap; the two axes do not.
  */
 import path from 'node:path';
 import type { OxigraphSourceConfig } from '../persistence/schemas/BackendSchema.js';
@@ -24,7 +32,8 @@ interface HttpEndpointConfig {
 interface OxigraphMemoryConfig {
   type: 'oxigraph-memory';
   /**
-   * @deprecated This field is ignored. Oxigraph JS only supports in-memory stores.
+   * @deprecated This field is ignored. Oxigraph JS only supports in-memory stores,
+   * and an ephemeral library store has no serialization path to point anywhere.
    */
   dbPath?: string;
 }

@@ -79,6 +79,11 @@ where data goes are below.
   `LIBRARY_STORAGE_SPARQL_USERNAME` / `LIBRARY_STORAGE_SPARQL_PASSWORD` for
   basic auth.
 - `oxigraph-memory` – an ephemeral in-process store, for tests and development.
+  It touches no disk: nothing is restored at boot, no checkpoint loop runs, and
+  nothing is written on shutdown, so the library lives as long as the process.
+  `LIBRARY_STORAGE_DIR` and `INTERNAL_OXIGRAPH_DB_PATH` are ignored. This is not
+  the same thing as an `oxigraphMemory` *backend entity*, which is where queries
+  run rather than where the library lives.
 - `oxigraph-persistent` – an in-process store serialised to `.nq` files.
   `LIBRARY_STORAGE_DIR` (default `./storage/library-store`) is the directory
   those files are written to; `INTERNAL_OXIGRAPH_STORE_ID` (default

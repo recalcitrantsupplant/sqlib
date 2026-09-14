@@ -41,16 +41,16 @@ against, which are entities you create through the API.
 
 | Name | Default | Effect |
 | --- | --- | --- |
-| `INTERNAL_BACKEND_TYPE` | `http` | `http`, `oxigraph-memory` or `oxigraph-persistent`. Any other value is treated as `http`. |
+| `INTERNAL_BACKEND_TYPE` | `http` | `http` (external SPARQL endpoint), `oxigraph-persistent` (in-process, snapshotted to `.nq`) or `oxigraph-memory` (in-process, keeps nothing). Any other value is treated as `http`. |
 | `LIBRARY_STORAGE_SPARQL_ENDPOINT` | `http://localhost:3030/sqlib/` | With `INTERNAL_BACKEND_TYPE=http`, the SPARQL endpoint holding the library. The default is a local Fuseki on its conventional port, so an unconfigured server fails against localhost rather than reaching an external host. |
 | `LIBRARY_STORAGE_SPARQL_QUERY_ENDPOINT` | value of `LIBRARY_STORAGE_SPARQL_ENDPOINT` | Query URL, when the store separates query from update. |
 | `LIBRARY_STORAGE_SPARQL_UPDATE_ENDPOINT` | value of `LIBRARY_STORAGE_SPARQL_ENDPOINT` | Update URL, when the store separates query from update. |
 | `LIBRARY_STORAGE_SPARQL_USERNAME` | unset | Basic-auth username for the library endpoint. |
 | `LIBRARY_STORAGE_SPARQL_PASSWORD` | unset | Basic-auth password for the library endpoint. |
-| `LIBRARY_STORAGE_DIR` | `./storage/library-store`, resolved against the process working directory | With `INTERNAL_BACKEND_TYPE=oxigraph-persistent`, the directory holding the `.nq` serialisation of the library. |
-| `INTERNAL_OXIGRAPH_STORE_ID` | `library-store` | Name of the persistent store within that directory. |
-| `INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS` | `60000` | How often the in-memory store is written back to `.nq`. |
-| `INTERNAL_OXIGRAPH_LOAD_METHOD` | `none` | How the store is populated at boot: `file`, `remote-sparql`, `remote-file` or `none`. An unrecognised value falls back to `none`. |
+| `LIBRARY_STORAGE_DIR` | `./storage/library-store`, resolved against the process working directory | With `INTERNAL_BACKEND_TYPE=oxigraph-persistent`, the directory holding the `.nq` serialisation of the library. Ignored under the other two values. |
+| `INTERNAL_OXIGRAPH_STORE_ID` | `library-store` | Name of the persistent store within that directory. `oxigraph-persistent` only. |
+| `INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS` | `60000` | How often the in-memory store is written back to `.nq`. `oxigraph-persistent` only — no checkpoint loop runs under `oxigraph-memory`. |
+| `INTERNAL_OXIGRAPH_LOAD_METHOD` | `none` | How the store is populated at boot: `file`, `remote-sparql`, `remote-file` or `none`. An unrecognised value falls back to `none`. `oxigraph-persistent` only, and only on a first boot with no snapshot to restore. |
 | `INTERNAL_OXIGRAPH_BOOTSTRAP_SOURCE` | unset | A JSON object describing the source for that load method. Invalid JSON is logged as a warning and ignored. |
 | `OXIGRAPH_STORAGE_DIR` | `./storage/oxigraph` | Directory for in-process Oxigraph backends you create as entities — the stores behind `oxigraphEphemeral` and `oxigraphMemory` backends. It is not where the library lives unless `INTERNAL_BACKEND_TYPE=oxigraph-persistent`, in which case `LIBRARY_STORAGE_DIR` takes over for the library store. |
 | `ENABLE_OXIGRAPH` | `false` | Set to `true` to initialise the Oxigraph store manager even when the library is not in Oxigraph, so that Oxigraph-backed backend entities work. It is initialised unconditionally when `INTERNAL_BACKEND_TYPE=oxigraph-persistent`. |
@@ -64,7 +64,7 @@ There is no RocksDB-backed store as there is in the Rust and Python bindings.
 in `LIBRARY_STORAGE_DIR` on shutdown and every
 `INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS` milliseconds, and restored from those
 files at startup. A process killed between checkpoints loses the writes made
-since the last one. `oxigraph-memory` keeps nothing.
+since the last one.
 
 For a store that is durable in the usual sense, run a SPARQL server such as
 Oxigraph's own or Fuseki alongside and use `INTERNAL_BACKEND_TYPE=http`.
@@ -74,7 +74,29 @@ internal backend config are deprecated and ignored. They named a RocksDB
 directory that these bindings cannot open. The variable is still read — into
 `dbPath` under `oxigraph-memory`, into `persistPath` under
 `oxigraph-persistent` — and nothing reads either field, so setting it changes
-nothing. Serialisation goes to `LIBRARY_STORAGE_DIR` regardless.
+nothing. Under `oxigraph-persistent`, serialisation goes to
+`LIBRARY_STORAGE_DIR` regardless; under `oxigraph-memory` there is no
+serialisation at all.
+
+### What `oxigraph-memory` actually does
+
+It keeps nothing. The library store is an in-process Oxigraph store created
+empty on first use: no snapshot is restored at boot, no checkpoint loop runs,
+and nothing is written on shutdown. Both `LIBRARY_STORAGE_DIR` and
+`INTERNAL_OXIGRAPH_DB_PATH` are ignored, since there is no file to name. The
+library lives exactly as long as the process, which makes this the mode for
+tests and throwaway development and the wrong mode for anything else.
+
+It is distinct from an `oxigraphMemory` *backend entity*, which is where queries
+run rather than where the library lives, and which has its own `readOnly` /
+`ephemeral` / `durable` lifecycle under `OXIGRAPH_STORAGE_DIR`. The shared word
+is the engine's, not a shared feature. See
+[storage and caching](../explanation/storage-and-caching.md#the-three-kinds-of-store-and-why-they-share-a-name).
+
+Earlier versions of this mode built the library store through the durable path,
+so it restored a `.nq` left under `OXIGRAPH_STORAGE_DIR` by a previous run and
+wrote one back on a clean shutdown. That is fixed; if you relied on it,
+`oxigraph-persistent` is the mode you wanted.
 
 See [storage and caching](../explanation/storage-and-caching.md) for how the
 store and the in-memory cache relate.

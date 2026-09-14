@@ -199,10 +199,20 @@ supplied per run rather than a reference to a stored table.
 ## Backend
 
 A **Backend** is where a query executes. Three types: `http`, a remote SPARQL
-endpoint; `oxigraphMemory`, an in-process Oxigraph store held in memory whose
-`mode` says whether its contents are serialised to disk on a checkpoint interval
-and on shutdown; and `oxigraphEphemeral`, an in-process store that is never
-serialised and dies with the process.
+endpoint; `oxigraphMemory`, an in-process Oxigraph store hydrated from data
+graph versions in the same library, whose `mode` says whether it is rebuilt from
+those graphs and writable (`readOnly`, `ephemeral`) or seeded once and then
+serialised to disk on a checkpoint interval and on shutdown (`durable`); and
+`oxigraphEphemeral`, an empty in-process store that is never serialised and dies
+with the process.
+
+None of these is the store the library itself lives in, which is chosen by
+`INTERNAL_BACKEND_TYPE` in the environment and whose values (`http`,
+`oxigraph-persistent`, `oxigraph-memory`) spell similar words to mean a
+different axis. A fourth kind of store is never named by any entity: the
+run-scoped one a query group node or a rule set execution creates and destroys
+within a single run. See
+[storage and caching](explanation/storage-and-caching.md#the-three-kinds-of-store-and-why-they-share-a-name).
 
 A backend stores an `authEnvKey`, the *name* of an environment variable group
 rather than a credential. Credentials are read from

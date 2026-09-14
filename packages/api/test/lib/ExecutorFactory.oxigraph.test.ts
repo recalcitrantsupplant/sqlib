@@ -43,6 +43,7 @@ vi.mock('../../src/lib/OxigraphStoreManager.js', () => ({
   oxigraphStoreManager: {
     getPersistentStore: vi.fn(),
     createPersistentStore: vi.fn(),
+    createDurableStore: vi.fn(),
     getEphemeralStore: vi.fn(),
     createEphemeralStore: vi.fn(),
     isInitialized: vi.fn(() => true),
@@ -150,21 +151,25 @@ describe('ExecutorFactory - Oxigraph Integration', () => {
       expect((executor as any).store).toBe(mockOxigraphStore);
     });
 
-    it('should create oxigraph executor for internal memory backend', async () => {
+    /*
+     * The assertion that matters is the negative one: an `oxigraph-memory`
+     * library store must not go near the durable path, because that path
+     * restores a `.nq` left by an earlier run and writes one on shutdown.
+     */
+    it('should create an ephemeral, never-serialized executor for internal memory backend', async () => {
       hoisted.mockConfig.internalBackend = {
         type: 'oxigraph-memory',
         dbPath: '/tmp/oxigraph'
       };
 
-      (oxigraphStoreManager.getPersistentStore as any).mockReturnValueOnce(null);
-      (oxigraphStoreManager.createPersistentStore as any).mockResolvedValueOnce(mockOxigraphStore);
+      (oxigraphStoreManager.getEphemeralStore as any).mockReturnValueOnce(null);
+      (oxigraphStoreManager.createEphemeralStore as any).mockReturnValueOnce(mockOxigraphStore);
 
       const executor = await factory.getExecutorForNode(buildLibraryNode());
-      expect(oxigraphStoreManager.createPersistentStore).toHaveBeenCalledWith(`${LIBRARY_STORAGE_BACKEND_ID}::memory`, {
-        storeType: 'persistent',
-        loadMethod: 'none',
-        persistPath: '/tmp/oxigraph'
-      });
+      expect(oxigraphStoreManager.createEphemeralStore).toHaveBeenCalledWith(`${LIBRARY_STORAGE_BACKEND_ID}::memory`);
+      expect(oxigraphStoreManager.createPersistentStore).not.toHaveBeenCalled();
+      expect(oxigraphStoreManager.createDurableStore).not.toHaveBeenCalled();
+      expect(oxigraphStoreManager.initialize).not.toHaveBeenCalled();
       expect((executor as any).store).toBe(mockOxigraphStore);
     });
   });

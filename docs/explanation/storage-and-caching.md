@@ -104,31 +104,104 @@ shutdown is unacceptable.
 
 ### `oxigraph-memory`
 
-The third value. `server/config.ts` describes it as an ephemeral in-memory
-store, and unlike `oxigraph-persistent` it starts no checkpoint loop and ignores
-`LIBRARY_STORAGE_DIR`. Read the code before relying on it being ephemeral: the
-executor it resolves to still builds the store through
-`OxigraphStoreManager.createDurableStore`, which restores from a `.nq` under
-`OXIGRAPH_STORAGE_DIR` when one is present and serialises on shutdown. No
-`Justfile` recipe uses this value, and the documented intent and the code path
-do not clearly agree, so prefer `oxigraph-persistent` for an in-process store
-and `http` for a durable one.
+The third value, and the only one that keeps nothing. The library store is an
+in-process Oxigraph store that is created empty on first use and dropped when
+the process exits: no snapshot is restored at boot, no checkpoint loop runs, and
+nothing is written on shutdown. `LIBRARY_STORAGE_DIR` and
+`INTERNAL_OXIGRAPH_DB_PATH` are both ignored, because there is no file to name.
+
+This is the mode for tests and throwaway development — a server that comes up
+with an empty library, needs no external endpoint, and leaves nothing behind.
+It is what the API test suite defaults to. No `Justfile` recipe uses it, because
+every recipe wants its library to still be there on the next run.
+
+> **Changed.** This value used to build its store through
+> `OxigraphStoreManager.createDurableStore`, which restored from a `.nq` under
+> `OXIGRAPH_STORAGE_DIR` — the directory that belongs to backend entities, not
+> to the library — and wrote one back on a clean shutdown. That made it neither
+> thing: not durable, since no checkpoint ran and an unclean exit kept nothing;
+> and not disposable, since a snapshot left by an earlier run was silently
+> restored into the next one. It now uses an ephemeral store and touches no
+> disk. If you were relying on the accidental snapshot, `oxigraph-persistent`
+> is what you wanted.
 
 ### Choosing
 
-| | `http` | `oxigraph-persistent` |
-| --- | --- | --- |
-| Library survives a crash | yes, to the store's own guarantees | to the last checkpoint |
-| Size limit | the store's | process memory; dumps stop at 512 MiB of N-Quads |
-| More than one sqlib instance | yes | no |
-| Write latency | a network round trip | in-process |
-| Operational tooling | the store's own | copy a `.nq` file |
-| Extra process to run | yes | no |
+| | `http` | `oxigraph-persistent` | `oxigraph-memory` |
+| --- | --- | --- | --- |
+| Library survives a crash | yes, to the store's own guarantees | to the last checkpoint | no |
+| Library survives a clean restart | yes | yes | no |
+| Size limit | the store's | process memory; dumps stop at 512 MiB of N-Quads | process memory |
+| More than one sqlib instance | yes | no | no |
+| Write latency | a network round trip | in-process | in-process |
+| Operational tooling | the store's own | copy a `.nq` file | none; there is nothing to copy |
+| Extra process to run | yes | no | no |
 
 An external HTTP endpoint is the right answer when any one of durability
 guarantees, backup and restore procedures, size beyond process memory, or more
 than one reader is a requirement. `oxigraph-persistent` is the right answer when
 none of them is and you would rather not run a second process.
+`oxigraph-memory` is the right answer only when you actively want the library
+gone at the end of the run.
+
+## The three kinds of store, and why they share a name
+
+"Oxigraph" names an engine, not a role, and three unrelated things in sqlib are
+backed by it. They are easy to confuse because the words *memory*, *persistent*
+and *ephemeral* appear in all three, meaning something slightly different each
+time. Two questions separate them: **whose store is it**, and **what happens to
+it on restart**.
+
+| | The library store | An execution backend | A run-scoped store |
+| --- | --- | --- | --- |
+| Holds | sqlib's own entities | whatever your queries read and write | one run's intermediate graph |
+| Chosen by | `INTERNAL_BACKEND_TYPE`, in the environment | a `Backend` entity, created through the API or UI | nothing — it is implied by the work |
+| Lives for | the deployment | the deployment | a single execution |
+
+**The library store** is this page's subject, and is configured only by
+environment variable. There is exactly one per server.
+
+**Execution backends** are entities. Besides `http` there are two in-process
+types. An `oxigraphMemory` backend is hydrated from data graph versions held in
+the same library, and its `mode` decides the rest:
+
+- `readOnly` (the default) — rebuilt from its data graphs whenever it is
+  built, writes refused at the executor. A source naming a `dataGraphId`
+  tracks that graph's head, so saving a new version reloads the store.
+- `ephemeral` — seeded the same way, but writable. Scratch space; changes go
+  when the process does.
+- `durable` — seeded from the data graphs on **first boot only**, then
+  restored from its own `.nq` under `OXIGRAPH_STORAGE_DIR` and checkpointed
+  like the library's persistent store. Seed, not mirror: once it has disk
+  state of its own, that state is the truth and drift from the seed graphs is
+  expected, exactly as for a database initialised from seed migrations.
+
+An `oxigraphEphemeral` backend is the degenerate case: an empty in-process
+store, never serialised, that exists so something can be written to and queried
+without any of the above.
+
+**Run-scoped stores** are not configured at all. Two things create them:
+
+- A **query group** node carrying `backendConfig: { type: 'ephemeral-oxigraph',
+  storeId }`. This is what makes a `RDF_GRAPH` edge into a SPARQL node legal —
+  a query needs a store, so the upstream CONSTRUCT is materialised into this
+  one and the downstream node queries it. It is what lets you pull a graph from
+  Wikidata in one node and one from somewhere else in another, load both, and
+  join them in a third: a `SERVICE` clause's job, done as an explicit part of
+  the graph. `GraphBuilder` refuses the edge outright when the store is absent
+  (`EDGE_RDF_GRAPH_TARGET_CANNOT_CONSUME`) rather than transferring nothing.
+- **Rule set execution.** `RuleSetExecutor` creates an ephemeral store per run
+  and destroys it at the end, unconditionally. Rule sets have no other option:
+  they do not execute against a `Backend` at all. Whatever a run needs to see
+  is loaded into that store as an initial graph, and whatever it produces comes
+  back as a serialisation.
+
+Both are torn down with the run and never reach disk.
+
+So: `INTERNAL_BACKEND_TYPE=oxigraph-memory` and an `oxigraphMemory` backend are
+not the same feature, and neither is an `oxigraphEphemeral` backend the same
+thing as a run-scoped ephemeral store. The first column of the table above is
+the only one this page's `INTERNAL_BACKEND_TYPE` values describe.
 
 ## The entity cache
 

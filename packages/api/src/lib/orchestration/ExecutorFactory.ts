@@ -259,16 +259,27 @@ export class ExecutorFactory {
         return new OxigraphSparqlExecutor(store);
       }
       case 'oxigraph-memory': {
+        /*
+         * Genuinely ephemeral, which is the whole difference from
+         * `oxigraph-persistent`. It used to be built through
+         * `createDurableStore`, and so restored from — and on a clean shutdown
+         * wrote — a `.nq` under `OXIGRAPH_STORAGE_DIR`, the directory that
+         * belongs to backend entities rather than to the library. That made the
+         * value neither of the two things a library store can usefully be: not
+         * durable, because no checkpoint loop ran and an unclean exit kept
+         * nothing, and not disposable, because a snapshot left by an earlier
+         * run was silently restored into the next one. A test suite defaulting
+         * to this value inherited the previous run's library.
+         *
+         * An ephemeral store touches no disk, so the mode means what its name
+         * says: the library lives for as long as the process does. Durability
+         * in-process is `oxigraph-persistent`; durability proper is `http`.
+         */
         const storeId = `${LIBRARY_STORAGE_BACKEND_ID}::memory`;
-        let store = oxigraphStoreManager.getPersistentStore(storeId);
-        if (!store) {
-          store = await oxigraphStoreManager.createPersistentStore(storeId, {
-            storeType: 'persistent',
-            loadMethod: 'none',
-            persistPath: backendConfig.dbPath,
-          });
-        }
-        return new OxigraphSparqlExecutor(store);
+        return new OxigraphSparqlExecutor(
+          oxigraphStoreManager.getEphemeralStore(storeId)
+            ?? oxigraphStoreManager.createEphemeralStore(storeId),
+        );
       }
       default:
         throw new Error(`Unsupported internal backend type: ${(backendConfig as { type: string }).type}`);

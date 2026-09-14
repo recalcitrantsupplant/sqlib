@@ -136,17 +136,18 @@ deprecated and ignored. Two consequences worth knowing before choosing it:
   lower, because the store keeps several index permutations. For a library
   larger than that, run a SPARQL server and use `INTERNAL_BACKEND_TYPE=http`.
 
-**`oxigraph-memory`** is for tests and short-lived development. The library
-store is created on first use with no initial load, and its snapshot path is
-under `OXIGRAPH_STORAGE_DIR` (default `./storage/oxigraph`) rather than
-`LIBRARY_STORAGE_DIR`. No checkpoint timer runs in this mode, so the only write
-to disk is the one a clean shutdown performs. `INTERNAL_OXIGRAPH_DB_PATH` is
-accepted and ignored here too.
+**`oxigraph-memory`** is for tests and short-lived development, and keeps
+nothing. The library store is created empty on first use: no snapshot is
+restored, no checkpoint timer runs, and nothing is written on shutdown. There is
+no directory to configure — `LIBRARY_STORAGE_DIR` and
+`INTERNAL_OXIGRAPH_DB_PATH` are both ignored. The library lives for exactly as
+long as the process, which is the point; if you want it to survive, that is
+`oxigraph-persistent` or `http`.
 
 ### What queries execute against: backends
 
 A `Backend` is an entity, so it is created at runtime rather than configured in
-the environment. Two kinds:
+the environment. Three kinds:
 
 - `http` — a SPARQL endpoint, with an optional separate update URL and
   optional basic-auth credentials.
@@ -155,12 +156,40 @@ the environment. Two kinds:
   (writable, never serialised) or `durable` (writable, serialised under
   `OXIGRAPH_STORAGE_DIR`). Its `oxigraphConfig` is a JSON **string**, not a
   nested object.
+- `oxigraphEphemeral` — an empty in-process store, never serialised, that dies
+  with the process. No hydration, no config.
+
+Note that `oxigraphMemory` here is a *backend*, not the `oxigraph-memory` value
+of `INTERNAL_BACKEND_TYPE` above. One is where queries run, the other is where
+the library lives; they share the engine's name and nothing else.
 
 A source entry naming a `dataGraphId` tracks that graph's current version and
 the store is reloaded when a new version is saved; one naming a
-`dataGraphVersionId` pins immutable content. Writes to a `readOnly` backend are
+`dataGraphVersionId` pins immutable content. A `durable` store is seeded from
+its data graphs on first boot only — after that its own snapshot is the truth,
+and drift from the seed graphs is expected. Writes to a `readOnly` backend are
 refused with 403 at the executor, because Oxigraph's store has no read-only
 flag of its own.
+
+### Stores you never configure
+
+A third kind of store exists that is neither a library store nor a backend
+entity: one created for a single execution and destroyed with it. Nothing names
+it in the environment or in the API.
+
+A **query group** node can carry `backendConfig: { type: 'ephemeral-oxigraph',
+storeId }`. An upstream CONSTRUCT is materialised into that store and the node
+queries it, which is the only way a `RDF_GRAPH` edge can feed a SPARQL node —
+a query needs a store to run against. It is how you pull one graph from
+Wikidata and another from somewhere else, load both, and join them in a third
+node: what a `SERVICE` clause would do, spelled out as part of the graph
+instead. Without it the edge is refused at validation rather than silently
+transferring nothing.
+
+**Rule set execution** always uses one. `RuleSetExecutor` creates an ephemeral
+store per run and destroys it at the end; rule sets do not execute against a
+`Backend` at all. An initial graph is loaded into it, the rules iterate, and
+the result comes back as a serialisation.
 
 [The REST walkthrough](rest-api-walkthrough.md) registers one of these and runs
 a query against it.
