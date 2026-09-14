@@ -54,6 +54,10 @@ packages/*/src/**/*.js.map
 packages/*/manual-tests/**/*.js
 packages/*/manual-tests/**/*.js.map
 packages/api/src/**/*.d.ts
+# …except the hand-written ambient shims, which are source. The rule above
+# silently swallowed these once already: the modules they declare have no
+# types of their own, so losing the file breaks `tsc` for the whole package.
+!packages/api/src/shims.d.ts
 
 # Local persistent store (per-machine query library data)
 local_store/
