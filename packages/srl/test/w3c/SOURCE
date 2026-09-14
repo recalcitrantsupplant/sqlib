@@ -1,0 +1,72 @@
+W3C SPARQL-RL test suite — vendored snapshot
+Source: https://github.com/w3c/data-shapes/tree/gh-pages/shacl12-test-suite/tests/sparql-rl
+Branch: gh-pages
+Commit: 9c863967bceaef1a87c24e4dd761eda763823120
+Dirs:   syntax/ wellformed/ stratification/ eval/ eval2/ examples/
+To refresh: re-run the download in packages/srl/test/w3c (see git history of this dir).
+
+This pin is on gh-pages, not on an open pull request: #1175 (the SPARQL-RL
+rename, which the previous pin tracked) has merged, and gh-pages has since moved
+past it. The spec is still in development, so a refresh can still change the
+language under us — as this one did.
+
+What this refresh changed, relative to the #1175 head we pinned before:
+
+  Removed syntax. The changelog entry of 2026-08-12 records "FOR ?var IN
+  <shape>" removed, three weeks after 2026-07-18 added it under GH-1074. The
+  grammar file did not follow until w3c/data-shapes#1191 pointed out that
+  ForClause and the IF rule production were still in the BNF and still used by
+  test files; commits 58fdfc6 ("Remove 'FOR' from SRL grammar and tests") and
+  cfbcd3c ("Remove rule IF syntax") took both out on 2026-08-24. There is now
+  one rule production — RULE iri? HeadTemplate 'WHERE' 'DATA'? BodyPattern —
+  and no FOR, IF or THEN anywhere in the grammar.
+
+  So syntax/ lost the five tests that covered them (syntax-ruleset-structure-07
+  .. -11) and rewrote -06 from the IF form to the RULE form: 144 entries down to
+  139. Both baselines drop those five names; nothing else in either moves. Our
+  parser dropped the same two constructs in step, which is why -06 still passes.
+
+  Renamed prefix. Every manifest now labels the test vocabulary `srlt:` rather
+  than `srt:`. The namespace IRI is unchanged, so the api harness — which
+  resolves the Turtle and matches on the IRI — never saw it. The srl harness
+  matches the prefixed names textually and did: its regex moved with the label.
+  A future refresh that changes the label again has to move it again.
+
+Previous pins, for reference: 628cef6f5d0da8cc3fa8d8e97d015e854fbae37b (head of
+PR #1175, the rename), daf91b75edeca5d4a85a641a97e6f3b223485d9b (branch
+srl-tests, PR #1154 — where the evaluation tests were written), and before that
+a46192d6cd85f3125678995dceaf8b8eee8efeba (gh-pages), which had no eval2/ and 27
+fewer eval/ files.
+
+Two upstream quirks a consistency check will flag, both pre-existing and both
+harmless: eval2/manifest.ttl defines :eval-assign-01 but does not list it in
+mf:entries and does not ship its files, and eval/manifest.ttl has
+:eval-bnodes-04 commented out. Neither harness reads either.
+
+Two harnesses drive this one snapshot, because there are two questions.
+
+  scoreboard.json / expected-pass.json
+      w3c.harness.test.ts, in this package. Does the *parser* conform? Covers
+      syntax/, wellformed/ and stratification/ — a parser and two analyses,
+      which is all `packages/srl` is. The eval categories are not here: they
+      need an executor, a store and graph comparison, none of which belong in a
+      browser-usable parse-and-analyse package.
+
+  library-scoreboard.json / library-expected-pass.json
+      packages/api/test/lib/w3cRulesSuite.harness.test.ts. Can the *library*
+      hold each entry, hand it back unchanged, and judge it? Covers every
+      category, by seeding them as rule sets and Tests
+      (packages/api/src/lib/w3cRulesSuite/) and running them through the
+      ordinary test runner — the same thing a user sees on the Tests screen.
+      See docs/guides/testing-and-conformance.md.
+
+The api harness writes its two files here rather than in its own package so
+every category's score is read in one place. Refreshing the pin means running
+both and reconciling both baselines. That harness also asserts the per-category
+entry counts outright, so a refresh that changes the suite's size fails loudly
+rather than scoring against a shorter suite.
+
+manifest-sparql-rl.ttl is the suite's own index of the six manifests. Nothing
+reads it — both harnesses name their categories — but it is what says which
+directories are part of the suite, so a refresh that adds a seventh is visible
+in the diff.

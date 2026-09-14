@@ -1,0 +1,41 @@
+PREFIX :        <#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+PREFIX ex: <https://example.com/>
+PREFIX fuseki:  <http://jena.apache.org/fuseki#>
+PREFIX rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX schema: <https://schema.org/>
+PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+PREFIX tdb2:    <http://jena.apache.org/2016/tdb#>
+PREFIX text: <http://jena.apache.org/text#>
+
+[] rdf:type fuseki:Server .
+
+# Endpoint (new) style rather than the `fuseki:serviceQuery` (old) style this
+# used to be written in. The two cannot be mixed within one service, and the
+# prefixes service only exists in the new style — the paths below are the same
+# ones the old declarations produced, so nothing pointing at this dataset moves.
+#
+# `prefixes` / `prefixes-rw` are what the prefix manager's endpoint sync talks
+# to. Both operations are
+# built into Fuseki; they need no extension module, but they do have to be
+# declared here, which is exactly why the app detects them rather than assuming
+# them.
+:service1 rdf:type fuseki:Service ;
+  fuseki:name                 "testing123" ;
+  fuseki:endpoint [ fuseki:operation fuseki:query ;       fuseki:name "sparql" ] ;
+  fuseki:endpoint [ fuseki:operation fuseki:query ;       fuseki:name "query" ] ;
+  fuseki:endpoint [ fuseki:operation fuseki:update ;      fuseki:name "update" ] ;
+  fuseki:endpoint [ fuseki:operation fuseki:upload ;      fuseki:name "upload" ] ;
+  fuseki:endpoint [ fuseki:operation fuseki:gsp-rw ;      fuseki:name "data" ] ;
+  fuseki:endpoint [ fuseki:operation fuseki:gsp-r ;       fuseki:name "get" ] ;
+  fuseki:endpoint [ fuseki:operation fuseki:prefixes-r ;  fuseki:name "prefixes" ] ;
+  fuseki:endpoint [ fuseki:operation fuseki:prefixes-rw ; fuseki:name "prefixes-rw" ] ;
+  fuseki:dataset              :tdb_dataset_readwrite ;
+.
+
+:tdb_dataset_readwrite
+  rdf:type       tdb2:DatasetTDB2;
+  tdb2:unionDefaultGraph false ;
+  tdb2:location  "/fuseki/databases/testing123" ;
+.

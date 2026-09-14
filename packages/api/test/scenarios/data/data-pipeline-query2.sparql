@@ -1,0 +1,39 @@
+# Data Transformation Pipeline - Query 2: Clean and Normalize Publication Data
+# Purpose: Clean and normalize the raw publication data from Query 1
+# Input: VALUES (?publication ?rawTitle ?authorList ?rawDate ?venueInfo ?publicationType) from Query 1
+# Expected Output: publication URI, clean title, author count, normalized date, venue type, year
+
+PREFIX ex: <http://example.org/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?publication ?cleanTitle ?authorCount ?normalizedDate ?venueType ?publicationYear WHERE {
+    # VALUES clause will be populated by Query 1 results
+    VALUES (?publication ?rawTitle ?authorList ?rawDate ?venueInfo ?publicationType) {
+        (UNDEF UNDEF UNDEF UNDEF UNDEF UNDEF)
+    }
+
+    # Clean title: remove extra whitespace and convert to title case
+    BIND(REPLACE(REPLACE(?rawTitle, "\\s+", " "), "^\\s+|\\s+$", "") AS ?cleanTitle)
+
+    # Count authors by counting separators + 1
+    BIND(IF(BOUND(?authorList),
+           STRLEN(?authorList) - STRLEN(REPLACE(?authorList, " \\| ", "")) + 1,
+           0) AS ?authorCount)
+
+    # Normalize date to standard format
+    BIND(?rawDate AS ?normalizedDate)
+
+    # Extract year from date
+    BIND(YEAR(?rawDate) AS ?publicationYear)
+
+    # Determine venue type
+    BIND(
+        IF(?publicationType = "journal", "Journal",
+           IF(?publicationType = "conference", "Conference",
+              "Unknown")) AS ?venueType
+    )
+
+    # Only include publications with valid data
+    FILTER(BOUND(?cleanTitle) && BOUND(?normalizedDate))
+}
+ORDER BY ?publicationYear DESC ?cleanTitle

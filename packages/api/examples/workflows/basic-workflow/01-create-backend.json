@@ -1,0 +1,7 @@
+{
+  "id": "urn:example:backend:dbpedia",
+  "name": "DBpedia SPARQL Endpoint",
+  "description": "Public DBpedia SPARQL endpoint for example queries",
+  "backendType": "http",
+  "endpoint": "https://dbpedia.org/sparql"
+}

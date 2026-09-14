@@ -1,0 +1,532 @@
+/*
+ * DESIGN TOKENS — the only file in the web package permitted to contain
+ * literal colour, size, or radius values.
+ *
+ * See docs/reference/ui-design-tokens.md for the rationale.
+ *
+ * Three layers:
+ *   1. Primitive  --gray-500        raw values; do not consume directly
+ *   2. Semantic   --ink-muted       named by role; THIS is what components use
+ *   3. Component  --control-h       only where a component needs its own knob
+ *
+ * Rule: no hex literal and no raw px font-size may appear in components/**.
+ * Enforced by stylelint (see .stylelintrc.json).
+ */
+
+:root {
+  /* ============================================================
+   * 1. PRIMITIVES
+   * ============================================================ */
+
+  /* Neutral ramp — the Bootstrap-derived greys the app already used. */
+  --gray-0: #ffffff;
+  --gray-50: #f8f9fa;
+  --gray-100: #f1f3f5;
+  --gray-200: #e9ecef;
+  --gray-300: #dee2e6;
+  --gray-400: #ced4da;
+  --gray-500: #adb5bd;
+  --gray-600: #6c757d;
+  --gray-700: #495057;
+  --gray-800: #343a40;
+  --gray-900: #212529;
+  --gray-950: #0f172a;
+
+  /* Blue — primary action. */
+  --blue-50: #e7f1ff;
+  --blue-100: #cfe2ff;
+  --blue-200: #b6d4fe;
+  --blue-300: #80bdff;
+  --blue-500: #0d6efd;
+  --blue-600: #0b5ed7;
+  --blue-700: #0a58ca;
+  --blue-900: #084298;
+
+  /* Green — success, valid, save. */
+  --green-50: #d1e7dd;
+  --green-100: #a3e4c2;
+  --green-300: #86efac;
+  --green-500: #28a745;
+  --green-600: #218838;
+  --green-700: #1e7e34;
+  --green-900: #0f5132;
+
+  /* Red — danger, invalid, destructive. */
+  --red-50: #f8d7da;
+  --red-100: #f5c2c7;
+  --red-300: #fca5a5;
+  --red-500: #dc3545;
+  --red-600: #c82333;
+  --red-700: #b02a37;
+  --red-900: #842029;
+
+  /* Amber — warning, stale. */
+  --amber-50: #fff3cd;
+  --amber-100: #ffecb5;
+  --amber-300: #fde68a;
+  --amber-500: #f59e0b;
+  --amber-600: #b26b00;
+  --amber-900: #856404;
+
+  /* Violet — blank nodes, secondary categorical. */
+  --violet-50: #f3f0ff;
+  --violet-100: #e5defc;
+  --violet-300: #b197fc;
+  --violet-500: #6f42c1;
+  --violet-700: #5b32a3;
+
+  /* Cyan — info, timing. */
+  --cyan-50: #e3fafc;
+  --cyan-100: #c5f6fa;
+  --cyan-500: #0ea5e9;
+  --cyan-700: #0b7285;
+
+  /* Orange — SPARQL variables. */
+  --orange-500: #c2410c;
+
+  /* ============================================================
+   * 2. SEMANTIC — components consume these
+   * ============================================================ */
+
+  /* -- Surfaces -- */
+  --surface: var(--gray-0); /* page and card background */
+  --surface-subtle: var(--gray-50); /* toolbars, panel headers, row hover */
+  --surface-sunken: var(--gray-100); /* wells, code backgrounds */
+  --surface-raised: var(--gray-200); /* icon buttons, chips, inactive tabs */
+  --surface-overlay: rgba(255, 255, 255, 0.85); /* loading scrims */
+
+  /* -- Ink -- */
+  --ink: var(--gray-900); /* primary text */
+  --ink-secondary: var(--gray-700); /* body text on chrome */
+  --ink-muted: var(--gray-600); /* labels, captions, placeholders */
+  --ink-disabled: var(--gray-500);
+  --ink-inverse: var(--gray-0);
+
+  /* -- Borders -- */
+  --border-subtle: var(--gray-200);
+  --border-default: var(--gray-300);
+  --border-strong: var(--gray-400);
+  --border-hover: var(--gray-500);
+
+  /* -- Action: primary interactive colour -- */
+  --action: var(--blue-500);
+  --action-hover: var(--blue-600);
+  --action-active: var(--blue-700);
+  --action-fg: var(--gray-0);
+  --action-surface: var(--blue-50);
+  --action-border: var(--blue-200);
+  --action-ink: var(--blue-900);
+
+  /* -- Success -- */
+  --success: var(--green-500);
+  --success-hover: var(--green-600);
+  --success-fg: var(--gray-0);
+  --success-surface: var(--green-50);
+  --success-border: var(--green-100);
+  --success-ink: var(--green-900);
+
+  /* -- Danger -- */
+  --danger: var(--red-500);
+  --danger-hover: var(--red-600);
+  --danger-active: var(--red-700);
+  --danger-fg: var(--gray-0);
+  --danger-surface: var(--red-50);
+  --danger-border: var(--red-100);
+  --danger-ink: var(--red-900);
+
+  /* -- Warning -- */
+  --warning: var(--amber-500);
+  --warning-hover: var(--amber-600);
+  --warning-fg: var(--gray-900);
+  --warning-surface: var(--amber-50);
+  --warning-border: var(--amber-100);
+  --warning-ink: var(--amber-900);
+
+  /* -- Info -- */
+  --info: var(--cyan-500);
+  --info-surface: var(--cyan-50);
+  --info-border: var(--cyan-100);
+  --info-ink: var(--cyan-700);
+
+  /* -- Focus -- */
+  --focus-ring: var(--blue-300);
+  --focus-ring-width: 2px;
+
+  /* ============================================================
+   * 3. DOMAIN SEMANTICS — RDF and execution state
+   * ============================================================ */
+
+  --rdf-iri: var(--blue-600);
+  --rdf-literal: #1a7f37;
+  --rdf-bnode: var(--violet-500);
+  --rdf-var: var(--orange-500);
+  --rdf-prefix: var(--gray-600);
+
+  /*
+   * Syntax colours for the parts of a code document that are not RDF terms —
+   * keywords, comments, punctuation. The terms themselves use the --rdf-*
+   * tokens above, so an IRI is the same colour in an editor as in a results
+   * table (see src/lib/codemirrorHighlight.ts).
+   */
+  --syntax-keyword: var(--violet-700);
+  --syntax-comment: var(--ink-muted);
+  --syntax-punct: var(--ink-secondary);
+
+  /*
+   * Code surfaces. The embedded editors use a dark chrome regardless of app
+   * theme, so these are their own concept rather than aliases of --surface.
+   */
+  --code-surface: #111827;
+  --code-ink: #e2e8f0;
+  --code-gutter-ink: #94a3b8;
+
+  /* Graph canvas (VueFlow). */
+  --graph-edge: #94a3b8;
+  --graph-pattern: var(--border-subtle);
+
+  /*
+   * Result kinds on the Build screen. These are the rail labels beside a
+   * callable's returns — BINDINGS, BOOLEAN, GRAPH — and they are categorical,
+   * not status: none of them is better or worse than another, so they must not
+   * borrow --success / --warning, which would read as one.
+   */
+  --kind-bindings: var(--ink-secondary);
+  --kind-boolean: var(--violet-500);
+  --kind-graph: var(--cyan-700);
+  --kind-update: var(--amber-600);
+
+  /*
+   * The selected half of a segmented control, which the Build screen draws as
+   * near-black on white rather than blue — blue is already the type chips, and
+   * two blue selections in one filter row read as one control.
+   *
+   * This inverts with the theme on purpose (light-on-dark in dark mode), which
+   * is exactly what `background: var(--ink)` would do — but that spelling is
+   * indistinguishable from the codemod bug the theme tests guard against, so
+   * the intent gets a name.
+   */
+  --segment-selected: var(--ink);
+  --segment-selected-ink: var(--ink-inverse);
+
+  /*
+   * Tooltip chrome. A tooltip is deliberately the inverse of the page it sits
+   * on — dark on light, light on dark — which is exactly what
+   * `background: var(--ink)` would do, but that spelling is indistinguishable
+   * from the codemod bug the theme tests guard against, so the intent gets a
+   * name of its own.
+   */
+  --tooltip-surface: var(--ink);
+  --tooltip-ink: var(--ink-inverse);
+
+  /*
+   * A draft row's fill. Lighter than --warning-surface on purpose: this tints
+   * a whole table row rather than a pill, and at amber-50 a list with several
+   * drafts in it reads as a page of warnings. The distinction it carries is
+   * "not saved yet", not "something is wrong".
+   */
+  --draft-surface: #fffdf8;
+
+  /*
+   * The app mark in the nav rail. A brand mark that flipped to a pale tile in
+   * dark mode would stop being the same mark, so this stays dark in both
+   * themes on purpose — which is also why it needs a name of its own rather
+   * than reaching for --ink, where "background: var(--ink)" would read as the
+   * inversion bug the theme tests guard against.
+   */
+  --brand-mark: var(--gray-900);
+  --brand-mark-ink: var(--gray-0);
+
+  /* Brand gradient — decorative, used by the loading spinner. */
+  --brand-1: #5b9dff;
+  --brand-2: #7a5cff;
+  --brand-3: #23c483;
+
+  /*
+   * Stratum palette — categorical, for rule stratification layers. Ordered so
+   * adjacent strata stay distinguishable; all tinted light enough to carry
+   * --ink text. Consumed from script via useStratumPalette().
+   */
+  --stratum-1: #dceafe;
+  --stratum-2: #d7f5f0;
+  --stratum-3: #fef7d1;
+  --stratum-4: #fde2e4;
+  --stratum-5: #e5defc;
+  --stratum-6: #cffafe;
+  --stratum-7: #f5e0ff;
+  --stratum-8: #e8f4ff;
+  --stratum-none: var(--surface-sunken);
+
+  /*
+   * Series palette — categorical, for one-colour-per-backend on the benchmark
+   * screens. A benchmark lane, a support row and a timeline tick for the same
+   * store must carry the same colour or the timeline stops being readable as a
+   * census, so the assignment is by index and the six values are ordered to
+   * stay distinguishable side by side.
+   *
+   * Not --stratum-*: those are pale fills meant to sit behind --ink text, and
+   * these are foreground marks 7px wide that have to hold their own against
+   * white. Same idea, opposite job.
+   */
+  --series-1: #2f6feb;
+  --series-2: #0d7676;
+  --series-3: #b8603a;
+  --series-4: #6b3a7a;
+  --series-5: #15803d;
+  --series-6: #b45309;
+  --series-unknown: var(--gray-500);
+
+  /*
+   * Tag palette — the eight colours a tag may take.
+   *
+   * Same job as --series-* and the same ordering discipline, but assignment
+   * works the other way round: a tag *stores* the hex it was given (the store
+   * is exported as RDF, where a token name is unreadable — tags doc §4.2), so
+   * these are the stylesheet's copy of lib/tagPalette.ts rather than the
+   * source the assignment reads. Change one, change both.
+   */
+  --tag-1: #2f6feb;
+  --tag-2: #0d7676;
+  --tag-3: #b8603a;
+  --tag-4: #6b3a7a;
+  --tag-5: #15803d;
+  --tag-6: #b45309;
+  --tag-7: #0b7285;
+  --tag-8: #6f42c1;
+  --tag-none: #ced4da;
+
+  --state-valid: var(--success);
+  --state-invalid: var(--danger);
+  --state-stale: var(--warning);
+  --state-running: var(--action);
+  --state-idle: var(--gray-500);
+
+  /* ============================================================
+   * 4. DENSITY — the 28/6 grid, promoted from compact-buttons.css
+   * ============================================================ */
+
+  --grid-unit: 28px;
+  --grid-gap: 6px;
+
+  /* Width = (28 x N) + (6 x (N-1)). Use as min-width, never width. */
+  --grid-1: 28px;
+  --grid-2: 62px;
+  --grid-3: 96px;
+  --grid-4: 130px;
+  --grid-5: 164px;
+  --grid-6: 198px;
+  --grid-7: 232px;
+  --grid-8: 266px;
+
+  --control-h-sm: 22px; /* inline and in-table controls */
+  --control-h: 28px; /* DEFAULT — every interactive control */
+  --control-h-lg: 34px; /* primary page actions only */
+
+  /*
+   * Spacing scale. Outer padding 5, inner gaps 4, tight groups 3.
+   *
+   * `padding` and `margin` are lint-enforced onto this scale — a raw px or rem
+   * length in either is a stylelint error (#36). Lengths relative to something
+   * other than the scale are still allowed: vh/vw, em, %, and calc() over
+   * another token family. See docs/reference/ui-design-tokens.md.
+   */
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 6px;
+  --space-4: 8px;
+  --space-5: 12px;
+  --space-6: 16px;
+  --space-7: 24px;
+  --space-8: 32px;
+
+  /*
+   * The generous step, for empty states and hero blocks. Everything above 32px
+   * in the codebase was 48 (3rem) or an alignment offset, so the scale gains
+   * one step rather than a whole second register.
+   */
+  --space-9: 48px;
+
+  /* ============================================================
+   * 5. RADIUS — 14 distinct values collapsed to 5
+   * ============================================================ */
+
+  --radius-sm: 3px; /* chips, inline code, tags */
+  --radius: 4px; /* buttons, inputs — matches Tailwind's rounded-md */
+  --radius-panel: 6px; /* cards and grouped containers */
+  --radius-lg: 8px; /* dialogs, popovers */
+  --radius-xl: 12px; /* large modals */
+  --radius-full: 9999px; /* pills, avatars */
+
+  /* ============================================================
+   * 6. TYPE — 37 distinct declarations collapsed to 11 (6 UI + 5 display)
+   * ============================================================ */
+
+  --text-micro: 10px; /* badges, counts */
+  --text-label: 11px; /* uppercase section labels */
+  --text-body: 12px; /* DEFAULT — controls, tables, everything */
+  --text-body-lg: 13px; /* emphasis within dense chrome */
+  --text-content: 14px; /* dialog and prose body */
+  --text-title: 16px; /* panel and page titles */
+
+  /*
+   * Code. Editors set no size of their own, so they inherited the 16px body
+   * default and rendered larger than every control around them. One step
+   * above the 12px UI default keeps monospace legible without shouting.
+   */
+  --text-code: 13px;
+  --text-heading: 18px; /* section headings */
+  --text-display: 24px; /* empty states */
+  --text-display-lg: 32px;
+  --text-hero: 48px; /* splash and example pages */
+  --text-hero-lg: 64px;
+  --text-hero-fluid: clamp(1.75rem, 4vw, 2.5rem); /* responsive page hero */
+
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+
+  /* ============================================================
+   * 7. ELEVATION
+   * ============================================================ */
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+
+  --z-panel: 1;
+  --z-sticky: 10;
+  --z-dropdown: 100;
+  --z-dialog: 1000;
+  --z-toast: 1100;
+
+  --duration-fast: 0.12s;
+  --duration: 0.2s;
+}
+
+/*
+ * DARK MODE
+ *
+ * Only the semantic layer is redefined — primitives stay fixed. Because every
+ * component references semantics, this block is the entire dark theme.
+ *
+ * NOTE: no theme toggle is wired up yet; this block is currently unreachable
+ * at runtime and is unverified visually. See the design doc's open questions.
+ */
+.dark {
+  --surface: var(--gray-950);
+  --surface-subtle: #172033;
+  --surface-sunken: #1e293b;
+  --surface-raised: #334155;
+  --surface-overlay: rgba(15, 23, 42, 0.85);
+
+  --ink: var(--gray-50);
+  --ink-secondary: #cbd5e1;
+  --ink-muted: #94a3b8;
+  --ink-disabled: #64748b;
+  --ink-inverse: var(--gray-900);
+
+  --border-subtle: #1e293b;
+  --border-default: #334155;
+  --border-strong: #475569;
+  --border-hover: #64748b;
+
+  --action: #3b82f6;
+  --action-hover: #60a5fa;
+  --action-active: #93c5fd;
+  --action-surface: #172554;
+  --action-border: #1e40af;
+  --action-ink: #bfdbfe;
+
+  /*
+   * The hover and active steps go the same way as the base, not the way the
+   * light theme sends them. In light they are *darker* than the base — more
+   * ink against a white page — and left unset they inherited that: --danger-active
+   * (--red-700) sat at 2.75:1 against the dark surface, which is what the
+   * details panel's Delete button was painted in.
+   */
+  --success: #22c55e;
+  --success-hover: #4ade80;
+  --success-surface: #052e16;
+  --success-border: #166534;
+  --success-ink: #bbf7d0;
+
+  --danger: #ef4444;
+  --danger-hover: #f87171;
+  --danger-active: #fca5a5;
+  --danger-surface: #450a0a;
+  --danger-border: #991b1b;
+  --danger-ink: #fecaca;
+
+  --warning: #f59e0b;
+  --warning-hover: #fbbf24;
+  --warning-fg: var(--gray-900);
+  --warning-surface: #422006;
+  --warning-border: #854d0e;
+  --warning-ink: #fde68a;
+
+  --info: #22d3ee;
+  --info-surface: #083344;
+  --info-border: #155e75;
+  --info-ink: #a5f3fc;
+
+  --rdf-iri: #60a5fa;
+  --rdf-literal: #4ade80;
+  --rdf-bnode: #c4b5fd;
+  --rdf-var: #fb923c;
+  --rdf-prefix: #94a3b8;
+
+  /* Lifted off the dark surface, like the RDF terms above them. */
+  --syntax-keyword: #d8b4fe;
+  --syntax-comment: var(--ink-muted);
+  --syntax-punct: var(--ink-secondary);
+
+  /* Result kinds need to lift off a dark surface, not sit in it. */
+  --kind-bindings: var(--ink-secondary);
+  --kind-boolean: #c4b5fd;
+  --kind-graph: #67e8f9;
+  --kind-update: #fcd34d;
+
+  /* Barely-there again, but warm against the dark surface rather than pale. */
+  --draft-surface: #241d10;
+
+  /*
+   * Stratum bands keep their job — a quiet fill behind a label — so they stay
+   * barely-there (1.2-1.4:1 against the surface, as the pale tints are against
+   * white) and swap which side of the label they sit on. Left at their light
+   * values the band was a pale fill under --ink-secondary: the stratification
+   * graph's and the execution replay's band labels rendered at 1.3:1.
+   */
+  --stratum-1: #1e3a5f;
+  --stratum-2: #12403c;
+  --stratum-3: #3f3517;
+  --stratum-4: #4a1f27;
+  --stratum-5: #312a5e;
+  --stratum-6: #0e3b47;
+  --stratum-7: #3c2350;
+  --stratum-8: #1c3350;
+
+  /*
+   * Series marks are the opposite job (see the light block): foreground marks
+   * that have to hold against the surface, so they lift instead of deepening.
+   * The light ramp is mixed against dark — --series-4 (#6b3a7a) came out at
+   * 2.14:1, well under the 3:1 a graphic needs, on every benchmark chart.
+   *
+   * --tag-* is deliberately NOT here: a tag stores its hex in the RDF, so the
+   * stylesheet copy cannot move on its own without disagreeing with the store.
+   */
+  --series-1: #60a5fa;
+  --series-2: #2dd4bf;
+  --series-3: #fb923c;
+  --series-4: #c084fc;
+  --series-5: #4ade80;
+  --series-6: #fbbf24;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.6);
+}

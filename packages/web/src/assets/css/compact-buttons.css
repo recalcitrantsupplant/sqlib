@@ -1,0 +1,216 @@
+/*
+ * COMPACT CONTROLS — the .btn-compact family and the grid width utilities.
+ *
+ * All values come from tokens.css; this file contains no literals.
+ * The grid scale itself (--grid-unit, --grid-gap, --grid-N) now lives in
+ * tokens.css under "DENSITY".
+ *
+ * Grid formula: Width = (28px x N) + (6px x (N-1))
+ *
+ *   Icon button          var(--grid-1)   28px
+ *   Small button         var(--grid-2)   62px
+ *   ID display          var(--grid-3)   96px
+ *   Method toggle        var(--grid-4)  130px
+ *   Save button          var(--grid-5)  164px
+ *   Backend selector     var(--grid-6)  198px
+ *
+ * Use the grid steps as MIN-WIDTH, not width. The step is an alignment floor,
+ * not a cap: a hard width squashes the label's icon when the text needs more
+ * room than the step allows.
+ */
+
+/*
+ * Icons must never absorb layout overflow.
+ *
+ * Lucide renders an explicit width/height on each <svg>, but as a flex child an
+ * svg still shrinks when its row runs out of room. Because the adjacent label
+ * text can't shrink, the icon absorbs 100% of the deficit and renders visibly
+ * distorted (a 12px icon collapsing to 6px wide). Pin every icon at its
+ * intended size and let the container overflow instead.
+ */
+.lucide {
+  flex-shrink: 0;
+}
+
+.btn-compact {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-5);
+  font-size: var(--text-body);
+  white-space: nowrap;
+  font-weight: var(--weight-medium);
+  font-family: var(--font-sans);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink-secondary);
+  cursor: pointer;
+  transition: all var(--duration);
+  height: var(--control-h);
+}
+
+.btn-compact:hover:not(:disabled) {
+  background: var(--surface-subtle);
+  border-color: var(--border-hover);
+}
+
+.btn-compact:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.btn-compact:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.btn-compact.btn-primary {
+  background: var(--action);
+  color: var(--action-fg);
+  border-color: var(--action);
+}
+
+.btn-compact.btn-primary:hover:not(:disabled) {
+  background: var(--action-hover);
+  border-color: var(--action-active);
+}
+
+.btn-compact.btn-edit {
+  background: var(--surface-raised);
+  border-color: var(--border-default);
+  min-width: var(--grid-2);
+}
+
+.btn-compact.btn-save {
+  background: var(--success);
+  color: var(--success-fg);
+  border-color: var(--success);
+}
+
+.btn-compact.btn-save:hover:not(:disabled) {
+  background: var(--success-hover);
+  border-color: var(--green-700);
+}
+
+.btn-compact.btn-delete,
+.btn-compact.btn-danger-compact {
+  background: var(--danger);
+  color: var(--danger-fg);
+  border-color: var(--danger);
+}
+
+.btn-compact.btn-delete:hover:not(:disabled),
+.btn-compact.btn-danger-compact:hover:not(:disabled) {
+  background: var(--danger-hover);
+  border-color: var(--danger-active);
+}
+
+.btn-compact.btn-create {
+  padding: var(--space-3) var(--space-6);
+  font-size: var(--text-body-lg);
+}
+
+.button-group-compact {
+  display: flex;
+  gap: 0;
+}
+
+.button-group-compact .btn-compact {
+  border-radius: 0;
+}
+
+.button-group-compact .btn-compact:first-child {
+  border-top-left-radius: var(--radius);
+  border-bottom-left-radius: var(--radius);
+}
+
+.button-group-compact .btn-compact:last-child {
+  border-top-right-radius: var(--radius);
+  border-bottom-right-radius: var(--radius);
+}
+
+.btn-dropdown-toggle {
+  padding: var(--space-2) var(--space-3);
+  border-left: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.btn-icon {
+  width: var(--control-h);
+  height: var(--control-h);
+  min-width: var(--control-h);
+  padding: 0;
+  background: var(--surface-raised);
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-secondary);
+  transition: all var(--duration);
+}
+
+.btn-icon:hover {
+  background: var(--action);
+  color: var(--action-fg);
+}
+
+.btn-icon:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.btn-icon-copy {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: all var(--duration);
+  flex-shrink: 0;
+}
+
+.btn-icon-copy:hover {
+  background: var(--border-default);
+  color: var(--ink);
+}
+
+/* Grid width utilities. Prefer the min-w-* variants; see the header note. */
+.w-grid-1 { width: var(--grid-1); }
+.w-grid-2 { width: var(--grid-2); }
+.w-grid-3 { width: var(--grid-3); }
+.w-grid-4 { width: var(--grid-4); }
+.w-grid-5 { width: var(--grid-5); }
+.w-grid-6 { width: var(--grid-6); }
+.w-grid-7 { width: var(--grid-7); }
+.w-grid-8 { width: var(--grid-8); }
+
+.min-w-grid-1 { min-width: var(--grid-1); }
+.min-w-grid-2 { min-width: var(--grid-2); }
+.min-w-grid-3 { min-width: var(--grid-3); }
+.min-w-grid-4 { min-width: var(--grid-4); }
+.min-w-grid-5 { min-width: var(--grid-5); }
+.min-w-grid-6 { min-width: var(--grid-6); }
+.min-w-grid-7 { min-width: var(--grid-7); }
+.min-w-grid-8 { min-width: var(--grid-8); }
+
+/*
+ * The one spin. Every busy icon in the app had its own `@keyframes spin` in a
+ * scoped block — eight of them before this — which is the same drift the
+ * design system collapsed for labels and badges, in animation form.
+ */
+.is-spinning {
+  animation: sqlib-spin 900ms linear infinite;
+}
+
+@keyframes sqlib-spin {
+  to { transform: rotate(360deg); }
+}

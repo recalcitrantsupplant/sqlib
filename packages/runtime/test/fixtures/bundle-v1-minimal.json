@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "library": {
+    "id": "urn:sqlib:library:minimal"
+  },
+  "queries": {
+    "people": {
+      "template": {
+        "text": "SELECT ?name WHERE { VALUES (?city) { (UNDEF) } ?person <http://example.org/livesIn> ?city ; <http://example.org/name> ?name . }",
+        "slots": [
+          {
+            "start": 21,
+            "end": 47,
+            "vars": [
+              "city"
+            ]
+          }
+        ],
+        "prefixes": []
+      },
+      "queryType": "SELECT",
+      "limitParameters": [],
+      "offsetParameters": [],
+      "inferredInputs": [
+        [
+          "city"
+        ]
+      ],
+      "textHash": "sha256-f7113e403c229fd27b3ff09e7c9355e198ee19f808349fb77459e711876ba8e5"
+    }
+  }
+}

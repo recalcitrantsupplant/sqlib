@@ -1,0 +1,16 @@
+# Multi-Path Aggregation - Query 1: Get Department Overview
+# Purpose: Extract department information to be processed separately
+# Expected Output: department URI, department name, budget, headcount
+
+PREFIX ex: <http://example.org/>
+PREFIX org: <http://www.w3.org/ns/org#>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?department ?deptName ?budget ?headcount WHERE {
+    ?department a org:OrganizationalUnit ;
+                rdfs:label ?deptName ;
+                ex:budget ?budget ;
+                ex:headcount ?headcount ;
+                org:unitOf ex:techCorpInc .
+}
+ORDER BY ?deptName

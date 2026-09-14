@@ -1,0 +1,281 @@
+{
+  "poc": "POC-3 — blob snapshot round-trip",
+  "issue": 290,
+  "startedAt": "2026-09-08T16:31:06.304Z",
+  "finishedAt": "2026-09-08T16:40:42.133Z",
+  "repeats": 5,
+  "environment": {
+    "node": "v22.22.2",
+    "oxigraph": "0.5.11",
+    "platform": "linux/x64",
+    "note": "Cloud container, not the self-hosted runner. Blob timings are a local-HTTP floor, not a vendor measurement."
+  },
+  "isolation": [
+    {
+      "quadsPerGraph": 50000,
+      "graphsInStore": 1,
+      "storeQuads": 50000,
+      "dumpMs": 84.8,
+      "dumpMsRange": [
+        65,
+        88
+      ],
+      "bytes": 3377780
+    },
+    {
+      "quadsPerGraph": 50000,
+      "graphsInStore": 5,
+      "storeQuads": 250000,
+      "dumpMs": 70.9,
+      "dumpMsRange": [
+        68,
+        125
+      ],
+      "bytes": 3500000
+    },
+    {
+      "quadsPerGraph": 50000,
+      "graphsInStore": 20,
+      "storeQuads": 1000000,
+      "dumpMs": 73.2,
+      "dumpMsRange": [
+        69,
+        96
+      ],
+      "bytes": 3500000
+    },
+    {
+      "quadsPerGraph": 50000,
+      "graphsInStore": 50,
+      "storeQuads": 2500000,
+      "dumpMs": 75.5,
+      "dumpMsRange": [
+        75,
+        99
+      ],
+      "bytes": 3600000
+    }
+  ],
+  "roundTrip": [
+    {
+      "quads": 10000,
+      "bytes": 657780,
+      "bytesPerQuad": 65.8,
+      "gzipBytes": 52495,
+      "gzipRatio": 12.5,
+      "gzipMs": 3,
+      "dumpMs": 11,
+      "dumpMsRange": [
+        11,
+        12
+      ],
+      "dumpLoopBlockedMs": 11,
+      "putMs": 4,
+      "getMs": 4,
+      "parseMs": 24,
+      "parseLoopBlockedMs": 24,
+      "timerControlMs": 3.3,
+      "restoredQuads": 10000,
+      "faithful": true,
+      "byteIdentical": false,
+      "rssMbAfter": 2003
+    },
+    {
+      "quads": 100000,
+      "bytes": 6777780,
+      "bytesPerQuad": 67.8,
+      "gzipBytes": 522845,
+      "gzipRatio": 13,
+      "gzipMs": 26,
+      "dumpMs": 146,
+      "dumpMsRange": [
+        121,
+        149
+      ],
+      "dumpLoopBlockedMs": 146,
+      "putMs": 116,
+      "getMs": 28,
+      "parseMs": 324,
+      "parseLoopBlockedMs": 324,
+      "timerControlMs": 9.8,
+      "restoredQuads": 100000,
+      "faithful": true,
+      "byteIdentical": false,
+      "rssMbAfter": 2126
+    },
+    {
+      "quads": 1000000,
+      "bytes": 69777780,
+      "bytesPerQuad": 69.8,
+      "gzipBytes": 5253879,
+      "gzipRatio": 13.3,
+      "gzipMs": 272,
+      "dumpMs": 1611,
+      "dumpMsRange": [
+        1534,
+        2599
+      ],
+      "dumpLoopBlockedMs": 1611,
+      "putMs": 435,
+      "getMs": 281,
+      "parseMs": 3830,
+      "parseLoopBlockedMs": 3830,
+      "timerControlMs": 1147,
+      "restoredQuads": 1000000,
+      "faithful": true,
+      "byteIdentical": false,
+      "rssMbAfter": 3766
+    }
+  ],
+  "ceiling": [
+    {
+      "quads": 1500000,
+      "approxBytes": 105777780,
+      "loadedOk": true,
+      "dumpedOk": true,
+      "rssMbAfter": 1191,
+      "loadMs": 14307,
+      "dumpMs": 4438
+    },
+    {
+      "quads": 2000000,
+      "approxBytes": 141777780,
+      "loadedOk": true,
+      "dumpedOk": true,
+      "rssMbAfter": 1878,
+      "loadMs": 19192,
+      "dumpMs": 6756
+    },
+    {
+      "quads": 2500000,
+      "approxBytes": 177777780,
+      "loadedOk": true,
+      "dumpedOk": true,
+      "rssMbAfter": 2041,
+      "loadMs": 23647,
+      "dumpMs": 8157
+    },
+    {
+      "quads": 3000000,
+      "approxBytes": 213777780,
+      "loadedOk": true,
+      "dumpedOk": true,
+      "rssMbAfter": 2230,
+      "loadMs": 29139,
+      "dumpMs": 9052
+    },
+    {
+      "quads": 3500000,
+      "approxBytes": 249777780,
+      "loadedOk": true,
+      "dumpedOk": true,
+      "rssMbAfter": 2645,
+      "loadMs": 31671,
+      "dumpMs": 11688
+    },
+    {
+      "quads": 4000000,
+      "approxBytes": 285777780,
+      "loadedOk": true,
+      "dumpedOk": true,
+      "rssMbAfter": 3578,
+      "loadMs": 37675,
+      "dumpMs": 12749
+    },
+    {
+      "quads": 5000000,
+      "approxBytes": 357777780,
+      "loadedOk": true,
+      "dumpedOk": true,
+      "rssMbAfter": 3914,
+      "loadMs": 46896,
+      "dumpMs": 17006
+    },
+    {
+      "quads": 6000000,
+      "approxBytes": 429777780,
+      "loadedOk": true,
+      "dumpedOk": true,
+      "rssMbAfter": 4280,
+      "loadMs": 52795,
+      "dumpMs": 19769
+    },
+    {
+      "quads": 7000000,
+      "approxBytes": 0,
+      "loadedOk": true,
+      "dumpedOk": false,
+      "rssMbAfter": 4124,
+      "loadMs": 62198,
+      "failure": "dump: RuntimeError: unreachable"
+    }
+  ],
+  "conditional": [
+    {
+      "dialect": "azure",
+      "case": "create-if-absent, absent",
+      "status": 201
+    },
+    {
+      "dialect": "azure",
+      "case": "create-if-absent, present",
+      "status": 409,
+      "code": "BlobAlreadyExists"
+    },
+    {
+      "dialect": "azure",
+      "case": "overwrite-if-unchanged, stale etag",
+      "status": 412,
+      "code": "ConditionNotMet"
+    },
+    {
+      "dialect": "azure",
+      "case": "overwrite-if-unchanged, current etag",
+      "status": 200
+    },
+    {
+      "dialect": "azure",
+      "case": "overwrite-if-unchanged, blob deleted",
+      "status": 412,
+      "code": "ConditionNotMet"
+    },
+    {
+      "dialect": "s3",
+      "case": "create-if-absent, absent",
+      "status": 201
+    },
+    {
+      "dialect": "s3",
+      "case": "create-if-absent, present",
+      "status": 412,
+      "code": "PreconditionFailed"
+    },
+    {
+      "dialect": "s3",
+      "case": "overwrite-if-unchanged, stale etag",
+      "status": 412,
+      "code": "PreconditionFailed"
+    },
+    {
+      "dialect": "s3",
+      "case": "overwrite-if-unchanged, current etag",
+      "status": 200
+    },
+    {
+      "dialect": "s3",
+      "case": "overwrite-if-unchanged, blob deleted",
+      "status": 412,
+      "code": "PreconditionFailed"
+    }
+  ],
+  "contention": {
+    "graphQuads": 10000,
+    "loserAttempts": 2,
+    "loserRebaseMs": 48,
+    "uncontendedCheckpointMs": 11,
+    "rebaseMultiple": 4.4,
+    "additionsOnFirstDerive": 0,
+    "additionsOnRebase": 2,
+    "converged": true
+  }
+}

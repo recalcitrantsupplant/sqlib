@@ -1,0 +1,46 @@
+# Multi-Path Aggregation - Query 2B: Calculate Department Performance Metrics
+# Purpose: Calculate performance ratings and sales metrics for each department (Path B)
+# Input: VALUES (?department) from Query 1 results
+# Expected Output: department URI, excellent count, total sales, average performance score
+
+PREFIX ex: <http://example.org/>
+PREFIX org: <http://www.w3.org/ns/org#>
+PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+
+SELECT ?department ?excellentCount ?totalSales ?avgPerformanceScore WHERE {
+    # VALUES clause will be populated by Query 1 results
+    VALUES (?department) { (UNDEF) }
+
+    {
+        SELECT ?department
+               (COUNT(?excellentEmployee) AS ?excellentCount)
+               (COALESCE(SUM(?salesActual), 0) AS ?totalSales)
+               (AVG(?performanceScore) AS ?avgPerformanceScore) WHERE {
+            ?employee a foaf:Person ;
+                      org:memberOf ?department ;
+                      ex:performanceRating ?rating .
+
+            # Count excellent performers
+            OPTIONAL {
+                FILTER(?rating = "excellent")
+                BIND(?employee AS ?excellentEmployee)
+            }
+
+            # Sum sales for sales department
+            OPTIONAL {
+                ?employee ex:salesActual ?salesActual .
+            }
+
+            # Convert performance ratings to numeric scores
+            BIND(
+                IF(?rating = "excellent", 5,
+                   IF(?rating = "good", 4,
+                      IF(?rating = "satisfactory", 3, 2)
+                   )
+                ) AS ?performanceScore
+            )
+        }
+        GROUP BY ?department
+    }
+}
+ORDER BY ?department

@@ -1,0 +1,7 @@
+{
+  "id": "urn:example:querygroup:city-analysis",
+  "name": "City Analysis Workflow",
+  "description": "A workflow for analyzing cities and their characteristics using multiple related queries",
+  "isPartOf": "urn:example:library:knowledge-graphs",
+  "comment": "This query group demonstrates chaining queries to build complex analytical workflows"
+}

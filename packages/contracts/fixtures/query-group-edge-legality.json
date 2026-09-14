@@ -1,0 +1,1076 @@
+[
+  {
+    "source": "select",
+    "flow": "CONTROL_FLOW",
+    "target": "query",
+    "code": null
+  },
+  {
+    "source": "select",
+    "flow": "CONTROL_FLOW",
+    "target": "dynamic",
+    "code": null
+  },
+  {
+    "source": "select",
+    "flow": "CONTROL_FLOW",
+    "target": "ruleset",
+    "code": null
+  },
+  {
+    "source": "select",
+    "flow": "CONTROL_FLOW",
+    "target": "end",
+    "code": "END_NODE_NO_DATA_INPUT",
+    "at": "targetNode"
+  },
+  {
+    "source": "select",
+    "flow": "VARIABLE_BINDINGS",
+    "target": "query",
+    "code": null
+  },
+  {
+    "source": "select",
+    "flow": "VARIABLE_BINDINGS",
+    "target": "dynamic",
+    "code": null
+  },
+  {
+    "source": "select",
+    "flow": "VARIABLE_BINDINGS",
+    "target": "ruleset",
+    "code": "NODE_RULESET_INBOUND_FLOW_TYPE",
+    "at": "targetNode"
+  },
+  {
+    "source": "select",
+    "flow": "VARIABLE_BINDINGS",
+    "target": "end",
+    "code": null
+  },
+  {
+    "source": "select",
+    "flow": "RDF_GRAPH",
+    "target": "query",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "select",
+    "flow": "RDF_GRAPH",
+    "target": "dynamic",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "select",
+    "flow": "RDF_GRAPH",
+    "target": "ruleset",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "select",
+    "flow": "RDF_GRAPH",
+    "target": "end",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "select",
+    "flow": "BOOLEAN",
+    "target": "query",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "select",
+    "flow": "BOOLEAN",
+    "target": "dynamic",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "select",
+    "flow": "BOOLEAN",
+    "target": "ruleset",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "select",
+    "flow": "BOOLEAN",
+    "target": "end",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "select",
+    "flow": "QUERY_ID",
+    "target": "query",
+    "code": "EDGE_QUERY_ID_TARGET_NODE_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "select",
+    "flow": "QUERY_ID",
+    "target": "dynamic",
+    "code": null
+  },
+  {
+    "source": "select",
+    "flow": "QUERY_ID",
+    "target": "ruleset",
+    "code": "EDGE_QUERY_ID_TARGET_NODE_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "select",
+    "flow": "QUERY_ID",
+    "target": "end",
+    "code": "EDGE_QUERY_ID_TARGET_NODE_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "construct",
+    "flow": "CONTROL_FLOW",
+    "target": "query",
+    "code": null
+  },
+  {
+    "source": "construct",
+    "flow": "CONTROL_FLOW",
+    "target": "dynamic",
+    "code": null
+  },
+  {
+    "source": "construct",
+    "flow": "CONTROL_FLOW",
+    "target": "ruleset",
+    "code": null
+  },
+  {
+    "source": "construct",
+    "flow": "CONTROL_FLOW",
+    "target": "end",
+    "code": "END_NODE_NO_DATA_INPUT",
+    "at": "targetNode"
+  },
+  {
+    "source": "construct",
+    "flow": "VARIABLE_BINDINGS",
+    "target": "query",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "construct",
+    "flow": "VARIABLE_BINDINGS",
+    "target": "dynamic",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "construct",
+    "flow": "VARIABLE_BINDINGS",
+    "target": "ruleset",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "construct",
+    "flow": "VARIABLE_BINDINGS",
+    "target": "end",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "construct",
+    "flow": "RDF_GRAPH",
+    "target": "query",
+    "code": "EDGE_RDF_GRAPH_TARGET_CANNOT_CONSUME",
+    "at": "edge"
+  },
+  {
+    "source": "construct",
+    "flow": "RDF_GRAPH",
+    "target": "dynamic",
+    "code": "EDGE_RDF_GRAPH_TARGET_CANNOT_CONSUME",
+    "at": "edge"
+  },
+  {
+    "source": "construct",
+    "flow": "RDF_GRAPH",
+    "target": "ruleset",
+    "code": null
+  },
+  {
+    "source": "construct",
+    "flow": "RDF_GRAPH",
+    "target": "end",
+    "code": null
+  },
+  {
+    "source": "construct",
+    "flow": "BOOLEAN",
+    "target": "query",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "construct",
+    "flow": "BOOLEAN",
+    "target": "dynamic",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "construct",
+    "flow": "BOOLEAN",
+    "target": "ruleset",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "construct",
+    "flow": "BOOLEAN",
+    "target": "end",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "construct",
+    "flow": "QUERY_ID",
+    "target": "query",
+    "code": "EDGE_QUERY_ID_TARGET_NODE_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "construct",
+    "flow": "QUERY_ID",
+    "target": "dynamic",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "construct",
+    "flow": "QUERY_ID",
+    "target": "ruleset",
+    "code": "EDGE_QUERY_ID_TARGET_NODE_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "construct",
+    "flow": "QUERY_ID",
+    "target": "end",
+    "code": "EDGE_QUERY_ID_TARGET_NODE_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "describe",
+    "flow": "CONTROL_FLOW",
+    "target": "query",
+    "code": null
+  },
+  {
+    "source": "describe",
+    "flow": "CONTROL_FLOW",
+    "target": "dynamic",
+    "code": null
+  },
+  {
+    "source": "describe",
+    "flow": "CONTROL_FLOW",
+    "target": "ruleset",
+    "code": null
+  },
+  {
+    "source": "describe",
+    "flow": "CONTROL_FLOW",
+    "target": "end",
+    "code": "END_NODE_NO_DATA_INPUT",
+    "at": "targetNode"
+  },
+  {
+    "source": "describe",
+    "flow": "VARIABLE_BINDINGS",
+    "target": "query",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "describe",
+    "flow": "VARIABLE_BINDINGS",
+    "target": "dynamic",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "describe",
+    "flow": "VARIABLE_BINDINGS",
+    "target": "ruleset",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "describe",
+    "flow": "VARIABLE_BINDINGS",
+    "target": "end",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "describe",
+    "flow": "RDF_GRAPH",
+    "target": "query",
+    "code": "EDGE_RDF_GRAPH_TARGET_CANNOT_CONSUME",
+    "at": "edge"
+  },
+  {
+    "source": "describe",
+    "flow": "RDF_GRAPH",
+    "target": "dynamic",
+    "code": "EDGE_RDF_GRAPH_TARGET_CANNOT_CONSUME",
+    "at": "edge"
+  },
+  {
+    "source": "describe",
+    "flow": "RDF_GRAPH",
+    "target": "ruleset",
+    "code": null
+  },
+  {
+    "source": "describe",
+    "flow": "RDF_GRAPH",
+    "target": "end",
+    "code": null
+  },
+  {
+    "source": "describe",
+    "flow": "BOOLEAN",
+    "target": "query",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "describe",
+    "flow": "BOOLEAN",
+    "target": "dynamic",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "describe",
+    "flow": "BOOLEAN",
+    "target": "ruleset",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "describe",
+    "flow": "BOOLEAN",
+    "target": "end",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "describe",
+    "flow": "QUERY_ID",
+    "target": "query",
+    "code": "EDGE_QUERY_ID_TARGET_NODE_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "describe",
+    "flow": "QUERY_ID",
+    "target": "dynamic",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "describe",
+    "flow": "QUERY_ID",
+    "target": "ruleset",
+    "code": "EDGE_QUERY_ID_TARGET_NODE_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "describe",
+    "flow": "QUERY_ID",
+    "target": "end",
+    "code": "EDGE_QUERY_ID_TARGET_NODE_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "ask",
+    "flow": "CONTROL_FLOW",
+    "target": "query",
+    "code": null
+  },
+  {
+    "source": "ask",
+    "flow": "CONTROL_FLOW",
+    "target": "dynamic",
+    "code": null
+  },
+  {
+    "source": "ask",
+    "flow": "CONTROL_FLOW",
+    "target": "ruleset",
+    "code": null
+  },
+  {
+    "source": "ask",
+    "flow": "CONTROL_FLOW",
+    "target": "end",
+    "code": "END_NODE_NO_DATA_INPUT",
+    "at": "targetNode"
+  },
+  {
+    "source": "ask",
+    "flow": "VARIABLE_BINDINGS",
+    "target": "query",
+    "code": null
+  },
+  {
+    "source": "ask",
+    "flow": "VARIABLE_BINDINGS",
+    "target": "dynamic",
+    "code": null
+  },
+  {
+    "source": "ask",
+    "flow": "VARIABLE_BINDINGS",
+    "target": "ruleset",
+    "code": "NODE_RULESET_INBOUND_FLOW_TYPE",
+    "at": "targetNode"
+  },
+  {
+    "source": "ask",
+    "flow": "VARIABLE_BINDINGS",
+    "target": "end",
+    "code": "EDGE_TARGET_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "ask",
+    "flow": "RDF_GRAPH",
+    "target": "query",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "ask",
+    "flow": "RDF_GRAPH",
+    "target": "dynamic",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "ask",
+    "flow": "RDF_GRAPH",
+    "target": "ruleset",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "ask",
+    "flow": "RDF_GRAPH",
+    "target": "end",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "ask",
+    "flow": "BOOLEAN",
+    "target": "query",
+    "code": null
+  },
+  {
+    "source": "ask",
+    "flow": "BOOLEAN",
+    "target": "dynamic",
+    "code": null
+  },
+  {
+    "source": "ask",
+    "flow": "BOOLEAN",
+    "target": "ruleset",
+    "code": "NODE_RULESET_INBOUND_FLOW_TYPE",
+    "at": "targetNode"
+  },
+  {
+    "source": "ask",
+    "flow": "BOOLEAN",
+    "target": "end",
+    "code": null
+  },
+  {
+    "source": "ask",
+    "flow": "QUERY_ID",
+    "target": "query",
+    "code": "EDGE_QUERY_ID_TARGET_NODE_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "ask",
+    "flow": "QUERY_ID",
+    "target": "dynamic",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "ask",
+    "flow": "QUERY_ID",
+    "target": "ruleset",
+    "code": "EDGE_QUERY_ID_TARGET_NODE_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "ask",
+    "flow": "QUERY_ID",
+    "target": "end",
+    "code": "EDGE_QUERY_ID_TARGET_NODE_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "update",
+    "flow": "CONTROL_FLOW",
+    "target": "query",
+    "code": null
+  },
+  {
+    "source": "update",
+    "flow": "CONTROL_FLOW",
+    "target": "dynamic",
+    "code": null
+  },
+  {
+    "source": "update",
+    "flow": "CONTROL_FLOW",
+    "target": "ruleset",
+    "code": null
+  },
+  {
+    "source": "update",
+    "flow": "CONTROL_FLOW",
+    "target": "end",
+    "code": "END_NODE_NO_DATA_INPUT",
+    "at": "targetNode"
+  },
+  {
+    "source": "update",
+    "flow": "VARIABLE_BINDINGS",
+    "target": "query",
+    "code": "EDGE_DATA_FLOW_MISSING_IO",
+    "at": "edge"
+  },
+  {
+    "source": "update",
+    "flow": "VARIABLE_BINDINGS",
+    "target": "dynamic",
+    "code": "EDGE_DATA_FLOW_MISSING_IO",
+    "at": "edge"
+  },
+  {
+    "source": "update",
+    "flow": "VARIABLE_BINDINGS",
+    "target": "ruleset",
+    "code": "EDGE_DATA_FLOW_MISSING_IO",
+    "at": "edge"
+  },
+  {
+    "source": "update",
+    "flow": "VARIABLE_BINDINGS",
+    "target": "end",
+    "code": "EDGE_DATA_FLOW_MISSING_IO",
+    "at": "edge"
+  },
+  {
+    "source": "update",
+    "flow": "RDF_GRAPH",
+    "target": "query",
+    "code": "EDGE_DATA_FLOW_MISSING_IO",
+    "at": "edge"
+  },
+  {
+    "source": "update",
+    "flow": "RDF_GRAPH",
+    "target": "dynamic",
+    "code": "EDGE_DATA_FLOW_MISSING_IO",
+    "at": "edge"
+  },
+  {
+    "source": "update",
+    "flow": "RDF_GRAPH",
+    "target": "ruleset",
+    "code": "EDGE_DATA_FLOW_MISSING_IO",
+    "at": "edge"
+  },
+  {
+    "source": "update",
+    "flow": "RDF_GRAPH",
+    "target": "end",
+    "code": "EDGE_DATA_FLOW_MISSING_IO",
+    "at": "edge"
+  },
+  {
+    "source": "update",
+    "flow": "BOOLEAN",
+    "target": "query",
+    "code": "EDGE_DATA_FLOW_MISSING_IO",
+    "at": "edge"
+  },
+  {
+    "source": "update",
+    "flow": "BOOLEAN",
+    "target": "dynamic",
+    "code": "EDGE_DATA_FLOW_MISSING_IO",
+    "at": "edge"
+  },
+  {
+    "source": "update",
+    "flow": "BOOLEAN",
+    "target": "ruleset",
+    "code": "EDGE_DATA_FLOW_MISSING_IO",
+    "at": "edge"
+  },
+  {
+    "source": "update",
+    "flow": "BOOLEAN",
+    "target": "end",
+    "code": "EDGE_DATA_FLOW_MISSING_IO",
+    "at": "edge"
+  },
+  {
+    "source": "update",
+    "flow": "QUERY_ID",
+    "target": "query",
+    "code": "EDGE_DATA_FLOW_MISSING_IO",
+    "at": "edge"
+  },
+  {
+    "source": "update",
+    "flow": "QUERY_ID",
+    "target": "dynamic",
+    "code": "EDGE_DATA_FLOW_MISSING_IO",
+    "at": "edge"
+  },
+  {
+    "source": "update",
+    "flow": "QUERY_ID",
+    "target": "ruleset",
+    "code": "EDGE_DATA_FLOW_MISSING_IO",
+    "at": "edge"
+  },
+  {
+    "source": "update",
+    "flow": "QUERY_ID",
+    "target": "end",
+    "code": "EDGE_DATA_FLOW_MISSING_IO",
+    "at": "edge"
+  },
+  {
+    "source": "dynamic",
+    "flow": "CONTROL_FLOW",
+    "target": "query",
+    "code": null
+  },
+  {
+    "source": "dynamic",
+    "flow": "CONTROL_FLOW",
+    "target": "dynamic",
+    "code": null
+  },
+  {
+    "source": "dynamic",
+    "flow": "CONTROL_FLOW",
+    "target": "ruleset",
+    "code": null
+  },
+  {
+    "source": "dynamic",
+    "flow": "CONTROL_FLOW",
+    "target": "end",
+    "code": "END_NODE_NO_DATA_INPUT",
+    "at": "targetNode"
+  },
+  {
+    "source": "dynamic",
+    "flow": "VARIABLE_BINDINGS",
+    "target": "query",
+    "code": null
+  },
+  {
+    "source": "dynamic",
+    "flow": "VARIABLE_BINDINGS",
+    "target": "dynamic",
+    "code": null
+  },
+  {
+    "source": "dynamic",
+    "flow": "VARIABLE_BINDINGS",
+    "target": "ruleset",
+    "code": "NODE_RULESET_INBOUND_FLOW_TYPE",
+    "at": "targetNode"
+  },
+  {
+    "source": "dynamic",
+    "flow": "VARIABLE_BINDINGS",
+    "target": "end",
+    "code": null
+  },
+  {
+    "source": "dynamic",
+    "flow": "RDF_GRAPH",
+    "target": "query",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "dynamic",
+    "flow": "RDF_GRAPH",
+    "target": "dynamic",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "dynamic",
+    "flow": "RDF_GRAPH",
+    "target": "ruleset",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "dynamic",
+    "flow": "RDF_GRAPH",
+    "target": "end",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "dynamic",
+    "flow": "BOOLEAN",
+    "target": "query",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "dynamic",
+    "flow": "BOOLEAN",
+    "target": "dynamic",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "dynamic",
+    "flow": "BOOLEAN",
+    "target": "ruleset",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "dynamic",
+    "flow": "BOOLEAN",
+    "target": "end",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "dynamic",
+    "flow": "QUERY_ID",
+    "target": "query",
+    "code": "EDGE_QUERY_ID_TARGET_NODE_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "dynamic",
+    "flow": "QUERY_ID",
+    "target": "dynamic",
+    "code": null
+  },
+  {
+    "source": "dynamic",
+    "flow": "QUERY_ID",
+    "target": "ruleset",
+    "code": "EDGE_QUERY_ID_TARGET_NODE_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "dynamic",
+    "flow": "QUERY_ID",
+    "target": "end",
+    "code": "EDGE_QUERY_ID_TARGET_NODE_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "ruleset",
+    "flow": "CONTROL_FLOW",
+    "target": "query",
+    "code": null
+  },
+  {
+    "source": "ruleset",
+    "flow": "CONTROL_FLOW",
+    "target": "dynamic",
+    "code": null
+  },
+  {
+    "source": "ruleset",
+    "flow": "CONTROL_FLOW",
+    "target": "ruleset",
+    "code": null
+  },
+  {
+    "source": "ruleset",
+    "flow": "CONTROL_FLOW",
+    "target": "end",
+    "code": "END_NODE_NO_DATA_INPUT",
+    "at": "targetNode"
+  },
+  {
+    "source": "ruleset",
+    "flow": "VARIABLE_BINDINGS",
+    "target": "query",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "ruleset",
+    "flow": "VARIABLE_BINDINGS",
+    "target": "dynamic",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "ruleset",
+    "flow": "VARIABLE_BINDINGS",
+    "target": "ruleset",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "ruleset",
+    "flow": "VARIABLE_BINDINGS",
+    "target": "end",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "ruleset",
+    "flow": "RDF_GRAPH",
+    "target": "query",
+    "code": "EDGE_RDF_GRAPH_TARGET_CANNOT_CONSUME",
+    "at": "edge"
+  },
+  {
+    "source": "ruleset",
+    "flow": "RDF_GRAPH",
+    "target": "dynamic",
+    "code": "EDGE_RDF_GRAPH_TARGET_CANNOT_CONSUME",
+    "at": "edge"
+  },
+  {
+    "source": "ruleset",
+    "flow": "RDF_GRAPH",
+    "target": "ruleset",
+    "code": null
+  },
+  {
+    "source": "ruleset",
+    "flow": "RDF_GRAPH",
+    "target": "end",
+    "code": null
+  },
+  {
+    "source": "ruleset",
+    "flow": "BOOLEAN",
+    "target": "query",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "ruleset",
+    "flow": "BOOLEAN",
+    "target": "dynamic",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "ruleset",
+    "flow": "BOOLEAN",
+    "target": "ruleset",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "ruleset",
+    "flow": "BOOLEAN",
+    "target": "end",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "ruleset",
+    "flow": "QUERY_ID",
+    "target": "query",
+    "code": "EDGE_QUERY_ID_TARGET_NODE_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "ruleset",
+    "flow": "QUERY_ID",
+    "target": "dynamic",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "ruleset",
+    "flow": "QUERY_ID",
+    "target": "ruleset",
+    "code": "EDGE_QUERY_ID_TARGET_NODE_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "ruleset",
+    "flow": "QUERY_ID",
+    "target": "end",
+    "code": "EDGE_QUERY_ID_TARGET_NODE_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "start",
+    "flow": "CONTROL_FLOW",
+    "target": "query",
+    "code": null
+  },
+  {
+    "source": "start",
+    "flow": "CONTROL_FLOW",
+    "target": "dynamic",
+    "code": null
+  },
+  {
+    "source": "start",
+    "flow": "CONTROL_FLOW",
+    "target": "ruleset",
+    "code": null
+  },
+  {
+    "source": "start",
+    "flow": "CONTROL_FLOW",
+    "target": "end",
+    "code": "GRAPH_NO_EXECUTABLE_NODE",
+    "at": "graph"
+  },
+  {
+    "source": "start",
+    "flow": "VARIABLE_BINDINGS",
+    "target": "query",
+    "code": null
+  },
+  {
+    "source": "start",
+    "flow": "VARIABLE_BINDINGS",
+    "target": "dynamic",
+    "code": null
+  },
+  {
+    "source": "start",
+    "flow": "VARIABLE_BINDINGS",
+    "target": "ruleset",
+    "code": "NODE_RULESET_INBOUND_FLOW_TYPE",
+    "at": "targetNode"
+  },
+  {
+    "source": "start",
+    "flow": "VARIABLE_BINDINGS",
+    "target": "end",
+    "code": "GRAPH_NO_EXECUTABLE_NODE",
+    "at": "graph"
+  },
+  {
+    "source": "start",
+    "flow": "RDF_GRAPH",
+    "target": "query",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "start",
+    "flow": "RDF_GRAPH",
+    "target": "dynamic",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "start",
+    "flow": "RDF_GRAPH",
+    "target": "ruleset",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "start",
+    "flow": "RDF_GRAPH",
+    "target": "end",
+    "code": "GRAPH_NO_EXECUTABLE_NODE",
+    "at": "graph"
+  },
+  {
+    "source": "start",
+    "flow": "BOOLEAN",
+    "target": "query",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "start",
+    "flow": "BOOLEAN",
+    "target": "dynamic",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "start",
+    "flow": "BOOLEAN",
+    "target": "ruleset",
+    "code": "EDGE_SOURCE_PORT_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "start",
+    "flow": "BOOLEAN",
+    "target": "end",
+    "code": "GRAPH_NO_EXECUTABLE_NODE",
+    "at": "graph"
+  },
+  {
+    "source": "start",
+    "flow": "QUERY_ID",
+    "target": "query",
+    "code": "EDGE_QUERY_ID_TARGET_NODE_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "start",
+    "flow": "QUERY_ID",
+    "target": "dynamic",
+    "code": null
+  },
+  {
+    "source": "start",
+    "flow": "QUERY_ID",
+    "target": "ruleset",
+    "code": "EDGE_QUERY_ID_TARGET_NODE_TYPE",
+    "at": "edge"
+  },
+  {
+    "source": "start",
+    "flow": "QUERY_ID",
+    "target": "end",
+    "code": "GRAPH_NO_EXECUTABLE_NODE",
+    "at": "graph"
+  }
+]

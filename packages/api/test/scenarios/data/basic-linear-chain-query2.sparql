@@ -1,0 +1,29 @@
+# Basic Linear Chain - Query 2: Match Skills to Projects
+# Purpose: For each person-skill pair from Query 1, find matching projects
+# Input: VALUES (?person ?skill) from Query 1 results
+# Expected Output: person URI, skill URI, project URI, project name, project priority
+
+PREFIX ex: <http://example.org/>
+PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?person ?skill ?project ?projectName ?priority WHERE {
+    # VALUES clause will be populated by Query 1 results
+    VALUES (?person ?skill) { (UNDEF UNDEF) }
+
+    # Find projects that require this skill
+    ?project a ex:Project ;
+             ex:requiredSkill ?skill ;
+             rdfs:label ?projectName ;
+             ex:priority ?priority .
+
+    # Get person availability for additional filtering
+    ?person ex:availability ?availability .
+
+    # Only include full-time people for high priority projects
+    FILTER(
+        ?priority != "high" ||
+        (?priority = "high" && ?availability = "full-time")
+    )
+}
+ORDER BY ?priority DESC(?projectName)

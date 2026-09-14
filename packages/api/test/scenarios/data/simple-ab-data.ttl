@@ -1,0 +1,17 @@
+# Simple A-B data for basic integration test
+# This is the simplest possible test data with just A and B values
+
+@prefix ex: <http://example.org/> .
+
+# Simple entities with A and B properties
+ex:item1 ex:A "value1" ;
+         ex:B "alpha" .
+
+ex:item2 ex:A "value2" ;
+         ex:B "beta" .
+
+ex:item3 ex:A "value3" ;
+         ex:B "gamma" .
+
+ex:item4 ex:A "value4" ;
+         ex:B "delta" .

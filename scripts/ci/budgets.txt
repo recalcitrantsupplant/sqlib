@@ -1,0 +1,23 @@
+# Per-step time budgets, in seconds. One `<script-name> <seconds>` per line.
+#
+# These ALERT, they do not gate. Exceeding a budget prints a GitHub Actions
+# warning annotation on the run and a line in the job summary; the step still
+# passes. See the "why not a ratchet" note in lib.sh.
+#
+# A script with no line here is untimed-but-unjudged: its duration is still
+# reported in the job summary, just never warned about.
+#
+# Budgets are deliberately loose — roughly 3x the observed median — so they fire
+# on "something is structurally wrong" (a cache that stopped working, a step that
+# grew a new install) and not on a slow npm mirror. Raising one should be a
+# deliberate commit with a reason, which is the only ratchet-like property that
+# survives contact with a wall-clock metric.
+install.sh          120
+lint.sh              90
+ratchet-selftest.sh  60
+orphan-ratchet.sh    60
+typecheck.sh        120
+build.sh            180
+test.sh             300
+e2e.sh              900
+docker-build-push.sh 300

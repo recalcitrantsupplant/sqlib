@@ -1,0 +1,26 @@
+{
+  "name": "sparql-query-lib",
+  "version": "1.0.0",
+  "license": "SEE LICENSE IN LICENSE",
+  "private": true,
+  "packageManager": "pnpm@11.1.2",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "pnpm --filter @sparql-query-lib/api dev",
+    "dev:observability": "pnpm --filter @sparql-query-lib/api dev:observability",
+    "dev:full": "pnpm --filter @sparql-query-lib/api dev:full",
+    "dev:stop": "pnpm --filter @sparql-query-lib/api dev:stop",
+    "test": "pnpm --filter @sparql-query-lib/api test",
+    "generate-schemas": "pnpm --filter @sparql-query-lib/api generate-schemas",
+    "any:count": "node scripts/count-any.mjs",
+    "any:update": "node scripts/count-any.mjs --update",
+    "build": "pnpm --filter @sparql-query-lib/types build && pnpm --filter @sparql-query-lib/contracts build && pnpm --filter @sparql-query-lib/runtime build && pnpm --filter @sparql-query-lib/tools build && pnpm --filter @sparql-query-lib/srl build && pnpm --filter @sparql-query-lib/rdf-delta build && pnpm --filter @sparql-query-lib/api build",
+    "ci": "bash scripts/ci/all.sh"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^21.2.2",
+    "@commitlint/config-conventional": "^21.2.2"
+  }
+}

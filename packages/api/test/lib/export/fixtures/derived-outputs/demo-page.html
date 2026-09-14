@@ -1,0 +1,852 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Derived Outputs Fixture — sqlib library</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg:#ffffff; --fg:#16181d; --muted:#6b7280; --faint:#8a919e;
+  --line:#dfe3ea; --line-soft:#eceef2; --panel:#f7f8fa; --panel-2:#f2f4f7;
+  --accent:#2159c9; --accent-soft:#eef4ff; --accent-line:#cfe0ff;
+  --warn:#8a5a11; --warn-bg:#fdf3e3; --danger:#a8341f; --danger-bg:#fdecec;
+  --ok:#1f7a4d;
+  --mono:ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  --sqlib-line:var(--line); --sqlib-panel:var(--panel); --sqlib-bg:var(--bg);
+  --sqlib-muted:var(--muted); --sqlib-accent:var(--accent); --sqlib-mono:var(--mono);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:#16181d; --fg:#e8e8e8; --muted:#9aa0a6; --faint:#7d838d;
+    --line:#333842; --line-soft:#262a32; --panel:#1e2128; --panel-2:#232730;
+    --accent:#7aa7d9; --accent-soft:#1c2637; --accent-line:#2c3c56;
+    --warn:#d6a961; --warn-bg:#2a2418; --danger:#e08b7a; --danger-bg:#2c1d1b; --ok:#5fbf8f;
+  }
+}
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--fg); font-size:13px; line-height:1.5;
+  font-family:'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  -webkit-font-smoothing:antialiased; }
+a { color:var(--accent); text-decoration:none; }
+a:hover { text-decoration:underline; }
+button { font-family:inherit; }
+
+.topbar { position:sticky; top:0; z-index:5; display:flex; align-items:center; gap:10px;
+  min-height:44px; padding:6px 16px; border-bottom:1px solid var(--line); background:var(--bg); flex-wrap:wrap; }
+.topbar__title { font-size:13px; font-weight:600; }
+.topbar__meta { font-size:11px; color:var(--muted); }
+.topbar__spacer { margin-left:auto; }
+.endpoint { display:flex; align-items:center; gap:6px; }
+.endpoint input { width:min(26rem, 46vw); height:28px; padding:0 8px; border:1px solid var(--line);
+  border-radius:5px; background:var(--bg); color:var(--fg); font-family:var(--mono); font-size:11px; }
+.chip-button { height:26px; padding:0 9px; border:1px solid var(--line); border-radius:5px;
+  background:var(--bg); color:var(--fg); font-size:11px; cursor:pointer; }
+.chip-button:hover { background:var(--panel); }
+.anon { font-size:11px; color:var(--warn); background:var(--warn-bg); border-radius:4px; padding:2px 7px; }
+
+.layout { display:flex; align-items:flex-start; }
+.rail { position:sticky; top:51px; width:250px; flex-shrink:0; height:calc(100vh - 51px);
+  overflow:auto; border-right:1px solid var(--line); padding:14px 12px 40px; background:var(--bg); }
+.rail__title { font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.06em;
+  color:var(--faint); margin:0 0 8px; }
+.rail__group { margin-bottom:14px; }
+.rail__group-head { display:flex; align-items:center; gap:6px; font-size:11px; font-weight:600;
+  color:var(--muted); margin-bottom:4px; }
+.rail__count { font-size:10px; color:var(--faint); }
+.rail__link { display:block; padding:4px 7px; border-radius:5px; color:var(--fg); font-size:12px; }
+.rail__link:hover { background:var(--panel); text-decoration:none; }
+.rail__link[data-hidden="true"] { opacity:.35; }
+.rail__link-name { font-family:var(--mono); font-size:11.5px; }
+.rail__link-desc { display:block; font-size:10.5px; color:var(--faint); overflow:hidden;
+  text-overflow:ellipsis; white-space:nowrap; }
+.rail__filters { margin-bottom:14px; }
+.rail__filters input { width:100%; height:26px; padding:0 8px; border:1px solid var(--line);
+  border-radius:5px; background:var(--bg); color:var(--fg); font-size:11.5px; }
+
+main { flex:1; min-width:0; padding:18px 20px 80px; max-width:1100px; }
+.lede { margin-bottom:18px; }
+.lede h1 { font-size:19px; margin:0 0 4px; }
+.lede p { margin:0 0 8px; color:var(--muted); max-width:62ch; }
+.lede__stats { font-size:11.5px; color:var(--faint); }
+
+.tagbar { display:flex; align-items:center; gap:5px; flex-wrap:wrap; margin-top:10px; }
+.tagbar__label { font-size:11px; color:var(--faint); }
+.tag { height:22px; padding:0 8px; border:1px solid var(--line); border-radius:999px;
+  background:var(--bg); color:var(--muted); font-size:11px; cursor:pointer; display:inline-flex; align-items:center; }
+.tag[aria-pressed="true"] { background:var(--accent-soft); border-color:var(--accent-line); color:var(--accent); }
+
+.cell { border:1px solid var(--line); border-radius:6px; margin-bottom:14px; background:var(--bg); }
+.cell[hidden] { display:none; }
+.cell__head { display:flex; align-items:center; gap:8px; padding:10px 12px; border-bottom:1px solid var(--line-soft); flex-wrap:wrap; }
+.cell__name { font-family:var(--mono); font-size:13px; font-weight:600; }
+.kind { height:18px; padding:0 6px; border-radius:3px; background:var(--panel-2); color:var(--muted);
+  font-size:10px; font-weight:600; letter-spacing:.04em; display:inline-flex; align-items:center; }
+.cell__body { padding:12px; }
+.cell__desc { margin:0 0 8px; color:var(--muted); max-width:70ch; }
+.sig { font-family:var(--mono); font-size:11.5px; color:var(--muted); margin-bottom:10px; }
+.sig span + span::before { content:' · '; color:var(--line); }
+
+.section-label { font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em;
+  color:var(--faint); margin:12px 0 5px; }
+.examples { display:flex; gap:5px; flex-wrap:wrap; }
+.example { height:24px; padding:0 9px; border:1px solid var(--line); border-radius:5px;
+  background:var(--bg); color:var(--fg); font-size:11.5px; cursor:pointer; display:inline-flex; align-items:center; gap:5px; }
+.example:hover { background:var(--panel); }
+.example[aria-pressed="true"] { background:var(--accent-soft); border-color:var(--accent-line); color:var(--accent); }
+.badge { padding:0 5px; border-radius:3px; background:var(--warn-bg); color:var(--warn); font-size:9.5px; font-weight:600; }
+
+.panes { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px; }
+@media (max-width:900px) { .panes { grid-template-columns:1fr; } .rail { display:none; } }
+.pane__head { display:flex; align-items:center; gap:6px; height:26px; padding:0 10px;
+  background:var(--panel); border:1px solid var(--line); border-bottom:none; border-radius:5px 5px 0 0; }
+.pane__title { font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); }
+pre { margin:0; padding:9px 10px; border:1px solid var(--line); border-radius:0 0 5px 5px;
+  background:var(--panel); font-family:var(--mono); font-size:11.5px; line-height:1.55;
+  overflow:auto; max-height:20rem; white-space:pre-wrap; word-break:break-word; }
+pre.error { border-color:var(--danger); background:var(--danger-bg); color:var(--danger); }
+.tok-kw { color:#7c3aed; font-weight:600; }
+.tok-iri { color:var(--accent); }
+.tok-string { color:var(--ok); }
+.tok-var { color:var(--fg); }
+.tok-num { color:var(--warn); }
+.tok-comment { color:var(--faint); font-style:italic; }
+@media (prefers-color-scheme: dark) { .tok-kw { color:#b18cff; } .tok-string { color:#7fd6a6; } }
+
+.runbar { display:flex; align-items:center; gap:8px; margin-top:12px; flex-wrap:wrap; }
+.run { height:28px; padding:0 12px; border:1px solid transparent; border-radius:5px;
+  background:var(--accent); color:#fff; font-size:12px; font-weight:600; cursor:pointer; }
+.run:disabled { opacity:.55; cursor:default; }
+.runbar__status { font-size:11px; color:var(--faint); }
+
+.result { margin-top:10px; border:1px solid var(--line); border-radius:5px; overflow:hidden; }
+.result__head { display:flex; align-items:center; gap:8px; height:28px; padding:0 10px;
+  background:var(--panel); border-bottom:1px solid var(--line); }
+.result__title { font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); }
+.result__count { font-size:11px; color:var(--faint); }
+.result__body { overflow:auto; max-height:26rem; }
+.result table { width:100%; border-collapse:collapse; font-size:12px; }
+.result th { position:sticky; top:0; text-align:left; padding:6px 10px; background:var(--bg);
+  font-size:10.5px; font-weight:600; color:var(--muted); border-bottom:1px solid var(--line-soft); cursor:pointer; white-space:nowrap; }
+.result td { padding:5px 10px; border-bottom:1px solid var(--line-soft); font-family:var(--mono);
+  vertical-align:top; word-break:break-word; }
+.result td.is-iri { color:var(--accent); }
+.result td.is-absent { color:var(--faint); }
+.term-meta { margin-left:.35rem; color:var(--faint); font-size:.9em; }
+.result pre { border:none; border-radius:0; max-height:none; }
+
+.chain { list-style:none; margin:0 0 4px; padding:0; }
+.chain__step { display:flex; align-items:center; gap:6px; flex-wrap:wrap; padding:5px 0;
+  border-bottom:1px solid var(--line-soft); font-size:11.5px; }
+.chain__step:last-child { border-bottom:none; }
+.chain__node { font-family:var(--mono); font-size:11.5px; font-weight:600; }
+.chain__query { font-family:var(--mono); font-size:11.5px; }
+.chain__wire, .chain__asks { font-family:var(--mono); font-size:11px; color:var(--muted); }
+.chain__asks { color:var(--accent); }
+.chain__result { margin-left:auto; padding:0 6px; border-radius:3px; background:var(--accent-soft);
+  color:var(--accent); font-size:10px; font-weight:600; }
+
+.note { font-size:11.5px; color:var(--muted); }
+.callout { padding:9px 11px; border-left:3px solid var(--warn); background:var(--warn-bg);
+  color:var(--warn); font-size:11.5px; border-radius:0 4px 4px 0; margin-bottom:14px; }
+.callout ul { margin:5px 0 0; padding-left:18px; }
+details { margin-top:8px; }
+summary { font-size:11.5px; color:var(--muted); cursor:pointer; }
+.empty { color:var(--muted); font-size:12.5px; }
+
+/* argument builder, from @sparql-query-lib/runtime */
+</style>
+<style id="args-styles"></style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="topbar__title">Derived Outputs Fixture</span>
+  <span class="topbar__meta">4 queries · 1 group · exported 2026-09-07T00:00:00.000Z</span>
+  <span class="topbar__spacer"></span>
+  <span class="endpoint">
+    <label for="endpoint" class="topbar__meta">SPARQL endpoint</label>
+    <input id="endpoint" type="url" placeholder="https://example.org/sparql" value="">
+  </span>
+  <span class="anon" title="This page carries no credentials and enforces no permissions of its own.">requests are anonymous — no authorization is sent</span>
+  <button type="button" class="chip-button" id="copy-bundle">Copy bundle JSON</button>
+</div>
+
+<div class="layout">
+  <aside class="rail">
+    <p class="rail__title">Contents</p>
+    <div class="rail__filters">
+      <input id="filter-text" type="search" placeholder="Filter by name or description" aria-label="Filter queries">
+    </div>
+    <div class="rail__group">
+      <div class="rail__group-head">Queries <span class="rail__count">4</span></div>
+        <a class="rail__link" id="rail-q-people-by-city" href="#q-people-by-city"><span class="rail__link-name">people-by-city</span><span class="rail__link-desc">Everyone recorded as living in a given city.</span></a>
+        <a class="rail__link" id="rail-q-paged-people" href="#q-paged-people"><span class="rail__link-name">paged-people</span><span class="rail__link-desc">Everyone, a page at a time.</span></a>
+        <a class="rail__link" id="rail-q-everything" href="#q-everything"><span class="rail__link-name">everything</span></a>
+        <a class="rail__link" id="rail-q-describe-a-person" href="#q-describe-a-person"><span class="rail__link-name">describe-a-person</span><span class="rail__link-desc">The whole record for one person.</span></a>
+    </div>
+    <div class="rail__group">
+      <div class="rail__group-head">Groups <span class="rail__count">1</span></div>
+        <a class="rail__link" id="rail-g-people-and-records" href="#g-people-and-records"><span class="rail__link-name">people-and-records</span><span class="rail__link-desc">Everyone in a city, then the whole record for each of them.</span></a>
+    </div>
+    <div class="rail__group">
+      <div class="rail__group-head">Not included <span class="rail__count">1 draft</span></div>
+      <a class="rail__link" href="#not-included"><span class="rail__link-name">see why</span></a>
+    </div>
+  </aside>
+
+<main>
+  <div class="lede">
+    <h1>Derived Outputs Fixture</h1>
+    <p class="lede__stats"><code>urn:sqlib:library:derived-outputs</code></p>
+    <p class="lede__stats">Runs entirely in this page — no sqlib server. Edit any argument and the substituted query updates beside its template.</p>
+    <div class="tagbar">
+      <span class="tagbar__label">filter by tag</span>
+      <button type="button" class="tag" data-tag="http://example.org/tags/people" aria-pressed="false" title="http://example.org/tags/people">people</button>
+      <button type="button" class="chip-button" id="clear-tags">clear</button>
+    </div>
+  </div>
+
+    <div class="callout" id="not-included">
+      <strong>1 query is in this library but not in this export.</strong>
+      <ul><li>Draft query — The query has no current version.</li></ul>
+    </div>
+  <p class="empty" id="no-matches" hidden>Nothing matches those filters.</p>
+
+    <section class="cell" id="q-people-by-city">
+      <div class="cell__head">
+        <span class="cell__name">people-by-city</span>
+        <span class="kind">SELECT</span>
+        
+      </div>
+      <div class="cell__body">
+        <p class="cell__desc">Everyone recorded as living in a given city.</p>
+        <p class="sig"><span>slot 1: ?city</span></p>
+      <p class="section-label">Examples</p>
+      <div class="examples">
+        <button type="button" class="example" data-example-for="people-by-city" data-example-index="0" aria-pressed="false">Perth</button>
+      </div>
+      <p class="section-label">Arguments</p>
+      <sqlib-args id="args-people-by-city"></sqlib-args>
+      <div class="panes">
+        <div>
+          <div class="pane__head"><span class="pane__title">Template</span></div>
+          <pre><span class="tok-kw">PREFIX</span> ex: <span class="tok-iri">&lt;http://example.org/&gt;</span>
+<span class="tok-kw">SELECT</span> <span class="tok-var">?name</span> <span class="tok-kw">WHERE</span> {
+  <span class="tok-kw">VALUES</span> <span class="tok-var">?city</span> { <span class="tok-kw">UNDEF</span> }
+  <span class="tok-var">?person</span> ex:livesIn <span class="tok-var">?city</span> .
+  <span class="tok-var">?person</span> ex:name <span class="tok-var">?name</span> .
+}</pre>
+        </div>
+        <div>
+          <div class="pane__head"><span class="pane__title">Substituted</span></div>
+          <pre id="sub-people-by-city"></pre>
+        </div>
+      </div>
+      <div class="runbar">
+        <button type="button" class="run" id="run-people-by-city">Run</button>
+        <button type="button" class="chip-button" id="reset-people-by-city">Reset to example</button>
+        <span class="runbar__status" id="status-people-by-city"></span>
+      </div>
+      <div id="res-people-by-city"></div>
+      </div>
+    </section>
+    <section class="cell" id="q-paged-people">
+      <div class="cell__head">
+        <span class="cell__name">paged-people</span>
+        <span class="kind">SELECT</span>
+        
+      </div>
+      <div class="cell__body">
+        <p class="cell__desc">Everyone, a page at a time.</p>
+        <p class="sig"><span>no arguments</span><span>limit 1</span><span>offset 2</span></p>
+      <p class="section-label">Arguments</p>
+      <sqlib-args id="args-paged-people"></sqlib-args>
+      <div class="panes">
+        <div>
+          <div class="pane__head"><span class="pane__title">Template</span></div>
+          <pre><span class="tok-kw">PREFIX</span> ex: <span class="tok-iri">&lt;http://example.org/&gt;</span>
+<span class="tok-kw">SELECT</span> <span class="tok-var">?person</span> <span class="tok-kw">WHERE</span> {
+  <span class="tok-var">?person</span> <span class="tok-iri">&lt;http://www.w3.org/1999/02/22-rdf-syntax-ns#type&gt;</span> ex:Person .
+}
+<span class="tok-kw">LIMIT</span> <span class="tok-num">0001</span> <span class="tok-kw">OFFSET</span> <span class="tok-num">0002</span></pre>
+        </div>
+        <div>
+          <div class="pane__head"><span class="pane__title">Substituted</span></div>
+          <pre id="sub-paged-people"></pre>
+        </div>
+      </div>
+      <div class="runbar">
+        <button type="button" class="run" id="run-paged-people">Run</button>
+        <button type="button" class="chip-button" id="reset-paged-people">Reset to example</button>
+        <span class="runbar__status" id="status-paged-people"></span>
+      </div>
+      <div id="res-paged-people"></div>
+      </div>
+    </section>
+    <section class="cell" id="q-everything">
+      <div class="cell__head">
+        <span class="cell__name">everything</span>
+        <span class="kind">SELECT</span>
+        
+      </div>
+      <div class="cell__body">
+        <p class="sig"><span>no arguments</span></p>
+      <p class="section-label">Arguments</p>
+      <sqlib-args id="args-everything"></sqlib-args>
+      <div class="panes">
+        <div>
+          <div class="pane__head"><span class="pane__title">Template</span></div>
+          <pre><span class="tok-kw">SELECT</span> * <span class="tok-kw">WHERE</span> {
+  <span class="tok-var">?s</span> <span class="tok-var">?p</span> <span class="tok-var">?o</span> .
+}</pre>
+        </div>
+        <div>
+          <div class="pane__head"><span class="pane__title">Substituted</span></div>
+          <pre id="sub-everything"></pre>
+        </div>
+      </div>
+      <div class="runbar">
+        <button type="button" class="run" id="run-everything">Run</button>
+        <button type="button" class="chip-button" id="reset-everything">Reset to example</button>
+        <span class="runbar__status" id="status-everything"></span>
+      </div>
+      <div id="res-everything"></div>
+      </div>
+    </section>
+    <section class="cell" id="q-describe-a-person">
+      <div class="cell__head">
+        <span class="cell__name">describe-a-person</span>
+        <span class="kind">DESCRIBE</span>
+        
+      </div>
+      <div class="cell__body">
+        <p class="cell__desc">The whole record for one person.</p>
+        <p class="sig"><span>slot 1: ?person</span></p>
+      <p class="section-label">Arguments</p>
+      <sqlib-args id="args-describe-a-person"></sqlib-args>
+      <div class="panes">
+        <div>
+          <div class="pane__head"><span class="pane__title">Template</span></div>
+          <pre><span class="tok-kw">PREFIX</span> ex: <span class="tok-iri">&lt;http://example.org/&gt;</span>
+<span class="tok-kw">DESCRIBE</span> <span class="tok-var">?person</span> <span class="tok-kw">WHERE</span> {
+  <span class="tok-kw">VALUES</span> <span class="tok-var">?person</span> { <span class="tok-kw">UNDEF</span> }
+  <span class="tok-var">?person</span> <span class="tok-iri">&lt;http://www.w3.org/1999/02/22-rdf-syntax-ns#type&gt;</span> ex:Person .
+}</pre>
+        </div>
+        <div>
+          <div class="pane__head"><span class="pane__title">Substituted</span></div>
+          <pre id="sub-describe-a-person"></pre>
+        </div>
+      </div>
+      <div class="runbar">
+        <button type="button" class="run" id="run-describe-a-person">Run</button>
+        <button type="button" class="chip-button" id="reset-describe-a-person">Reset to example</button>
+        <span class="runbar__status" id="status-describe-a-person"></span>
+      </div>
+      <div id="res-describe-a-person"></div>
+      </div>
+    </section>
+    <section class="cell" id="g-people-and-records">
+      <div class="cell__head">
+        <span class="cell__name">people-and-records</span>
+        <span class="kind">GROUP</span>
+        <span class="tag" aria-hidden="true">people</span>
+      </div>
+      <div class="cell__body">
+        <p class="cell__desc">Everyone in a city, then the whole record for each of them.</p>
+        <p class="sig"><span>2 steps</span><span>slot 1: ?city</span></p>
+      <p class="section-label">Steps</p>
+      <ol class="chain">
+        <li class="chain__step">
+          <span class="chain__node">people</span>
+          <a class="chain__query" href="#q-people-by-city">people-by-city</a>
+          <span class="kind">SELECT</span>
+          <span class="chain__asks">?city from you</span>
+        </li>
+        <li class="chain__step">
+          <span class="chain__node">records</span>
+          <a class="chain__query" href="#q-describe-a-person">describe-a-person</a>
+          <span class="kind">DESCRIBE</span>
+          <span class="chain__wire">?name→?person from people</span><span class="chain__result">result</span>
+        </li>
+      </ol>
+      <p class="section-label">Arguments</p>
+      <sqlib-args id="gargs-people-and-records"></sqlib-args>
+      <div class="runbar">
+        <button type="button" class="run" id="grun-people-and-records">Run</button>
+        <button type="button" class="chip-button" id="greset-people-and-records">Reset arguments</button>
+        <span class="runbar__status" id="gstatus-people-and-records"></span>
+      </div>
+      <div id="gres-people-and-records"></div>
+      <div id="gran-people-and-records"></div>
+      </div>
+    </section>
+</main>
+</div>
+
+<script>
+(function () {
+  var module = { exports: {} };
+  var exports = module.exports;
+module.exports = { stub: true };
+  window.SQLIB = module.exports;
+  document.getElementById('args-styles').textContent = module.exports.ARGS_ELEMENT_STYLES || '';
+})();
+</script>
+<script>window.SQLIB_BUNDLE = {"version":1,"library":{"id":"urn:sqlib:library:derived-outputs","name":"Derived Outputs Fixture"},"queries":{"people-by-city":{"template":{"text":"PREFIX ex: \u003chttp://example.org/\u003e\nSELECT ?name WHERE {\n  VALUES ?city {\n    \u003curn:sqlib:template-slot:0:city\u003e\n  }\n  ?person ex:livesIn ?city .\n  ?person ex:name ?name .\n}","slots":[{"start":56,"end":111,"vars":["city"]}],"prefixes":[["ex","http://example.org/"]]},"queryType":"SELECT","limitParameters":[],"offsetParameters":[],"inferredInputs":[["city"]],"textHash":"sha256-ab376b8289f81e83febdc7bfb5a11f6b1ba4af1aa61a048fadd9c74e5ff52ae1","sourceVersion":"urn:sqlib:query-version:people-by-city:1","description":"Everyone recorded as living in a given city.","examples":[{"name":"Perth","arguments":[{"head":{"vars":["city"]},"arguments":{"bindings":[{"city":{"type":"uri","value":"http://example.org/Perth"}}]}}]}]},"paged-people":{"template":{"text":"PREFIX ex: \u003chttp://example.org/\u003e\nSELECT ?person WHERE {\n  ?person \u003chttp://www.w3.org/1999/02/22-rdf-syntax-ns#type\u003e ex:Person .\n}\nLIMIT 0001 OFFSET 0002","slots":[],"prefixes":[["ex","http://example.org/"]]},"queryType":"SELECT","limitParameters":["1"],"offsetParameters":["2"],"pageParameters":[{"name":"1","kind":"limit","start":130,"end":140},{"name":"2","kind":"offset","start":141,"end":152}],"inferredInputs":[],"textHash":"sha256-708f9ca1fd95e72a5a4a8b61709525798113fb9931683dea12f5a33418c58474","description":"Everyone, a page at a time."},"everything":{"template":{"text":"SELECT * WHERE {\n  ?s ?p ?o .\n}","slots":[],"prefixes":[]},"queryType":"SELECT","limitParameters":[],"offsetParameters":[],"inferredInputs":[],"textHash":"sha256-b782faf7d6f983a0c4b6659b0caf62b2b19fc781aac233b7a9deac689ff3c292"},"describe-a-person":{"template":{"text":"PREFIX ex: \u003chttp://example.org/\u003e\nDESCRIBE ?person WHERE {\n  VALUES ?person {\n    \u003curn:sqlib:template-slot:0:person\u003e\n  }\n  ?person \u003chttp://www.w3.org/1999/02/22-rdf-syntax-ns#type\u003e ex:Person .\n}","slots":[{"start":60,"end":119,"vars":["person"]}],"prefixes":[["ex","http://example.org/"]]},"queryType":"DESCRIBE","limitParameters":[],"offsetParameters":[],"inferredInputs":[["person"]],"textHash":"sha256-516ba9ee1a6cefa71c4099a23b2c180901bcb26625c25582ff660f3078144203","description":"The whole record for one person."}},"generatedAt":"2026-09-07T00:00:00.000Z","groups":{"people-and-records":{"description":"Everyone in a city, then the whole record for each of them.","tags":["http://example.org/tags/people"],"nodes":{"people":{"query":"people-by-city"},"records":{"query":"describe-a-person"}},"edges":[{"from":"people","to":"records","targetVars":["person"],"mappings":[{"source":"name","target":"person"}]}],"resultNode":"records"}}};
+window.SQLIB_GROUP_PLANS = {"people-and-records":{"steps":[{"node":"people","query":"people-by-city","queryType":"SELECT","from":[],"inputs":[["city"]]},{"node":"records","query":"describe-a-person","queryType":"DESCRIBE","from":[{"node":"people","mappings":[{"source":"name","target":"person"}]}],"inputs":[]}],"inputs":[["city"]],"limits":[],"offsets":[],"resultNode":"records","resultQuery":"describe-a-person"}};</script>
+<script>
+var BUNDLE = window.SQLIB_BUNDLE;
+var SQLIB = window.SQLIB;
+// What the runtime's own walker made of each group at export time: execution
+// order, the slots no edge fills, the page parameters its nodes accept. Derived
+// once, by the same code that walks the group here, rather than twice.
+var GROUP_PLANS = window.SQLIB_GROUP_PLANS || {};
+var ENDPOINT_KEY = 'sqlib-demo-endpoint:' + BUNDLE.library.id;
+var preview = SQLIB.fromBundle(BUNDLE);
+var endpointInput = document.getElementById('endpoint');
+
+SQLIB.defineArgsElement();
+
+try {
+  var saved = window.localStorage.getItem(ENDPOINT_KEY);
+  if (saved && !endpointInput.value) endpointInput.value = saved;
+} catch (e) { /* private window or blocked storage: the box just starts empty */ }
+endpointInput.addEventListener('change', function () {
+  try { window.localStorage.setItem(ENDPOINT_KEY, endpointInput.value); } catch (e) {}
+});
+
+function el(tag, text, className) {
+  var node = document.createElement(tag);
+  if (text !== undefined && text !== null) node.textContent = String(text);
+  if (className) node.className = className;
+  return node;
+}
+
+function copyToClipboard(text, button) {
+  var done = function () {
+    var was = button.textContent;
+    button.textContent = 'Copied';
+    setTimeout(function () { button.textContent = was; }, 1200);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done, function () {});
+    return;
+  }
+  var area = document.createElement('textarea');
+  area.value = text;
+  document.body.appendChild(area);
+  area.select();
+  try { document.execCommand('copy'); done(); } catch (e) {}
+  document.body.removeChild(area);
+}
+
+document.getElementById('copy-bundle').addEventListener('click', function () {
+  copyToClipboard(JSON.stringify(BUNDLE, null, 2), this);
+});
+
+function skeletonPayload(query) {
+  // One all-UNDEF row per slot: that is the wildcard, and the runtime drops the
+  // slot entirely for it, so a query with no examples opens ready to run and
+  // actually returns something. Zero rows would be the *other* empty — a
+  // zero-row VALUES block, which joins to nothing — and opening on a query that
+  // can only return nothing is a poor introduction to it.
+  var payload = { arguments: [] };
+  for (var i = 0; i < query.inferredInputs.length; i++) {
+    payload.arguments.push({
+      head: { vars: query.inferredInputs[i].slice() },
+      arguments: { bindings: [{}] }
+    });
+  }
+  return payload;
+}
+
+function examplePayload(example) {
+  var payload = { arguments: example.arguments };
+  var toMap = function (list) {
+    var map = {};
+    for (var i = 0; i < list.length; i++) map[list[i].name] = list[i].value;
+    return map;
+  };
+  if (example.limits && example.limits.length) payload.limits = toMap(example.limits);
+  if (example.offsets && example.offsets.length) payload.offsets = toMap(example.offsets);
+  return payload;
+}
+
+function describeError(error) {
+  if (error && error.name === 'SparqlEndpointError') {
+    return 'Endpoint returned ' + error.status + '.' + String.fromCharCode(10, 10) + (error.body || '');
+  }
+  if (error instanceof TypeError) {
+    return String(error.message) + String.fromCharCode(10, 10) +
+      'A network-level TypeError here usually means the endpoint refused the browser request - ' +
+      'most often CORS (the endpoint must send Access-Control-Allow-Origin), or a mixed-content ' +
+      'block when an https page calls an http endpoint.';
+  }
+  return error && error.message ? error.message : String(error);
+}
+
+function renderSelect(target, results, prefixes) {
+  var vars = (results.head && results.head.vars) || [];
+  var rows = (results.results && results.results.bindings) || [];
+  if (!rows.length) { target.appendChild(el('p', 'No rows.', 'note')); return 0; }
+  // The same description the app's result table works from, so an IRI reads the
+  // same way here as it does in sqlib — abbreviated against the query's own
+  // prefixes, which are the prefixes the substituted query above used.
+  var abbreviate = SQLIB.prefixTableAbbreviator(prefixes || []);
+
+  var sort = { column: null, dir: 1 };
+  var table = el('table');
+  var thead = document.createElement('thead');
+  var headRow = el('tr');
+  vars.forEach(function (name) {
+    var th = el('th', name);
+    th.title = 'Sort by ' + name;
+    th.addEventListener('click', function () {
+      sort.dir = sort.column === name ? -sort.dir : 1;
+      sort.column = name;
+      draw();
+    });
+    headRow.appendChild(th);
+  });
+  thead.appendChild(headRow);
+  table.appendChild(thead);
+  var tbody = document.createElement('tbody');
+  table.appendChild(tbody);
+
+  function draw() {
+    var ordered = rows.slice();
+    if (sort.column) {
+      ordered.sort(function (a, b) {
+        var x = (a[sort.column] || {}).value || '';
+        var y = (b[sort.column] || {}).value || '';
+        var bothNumeric = x !== '' && y !== '' && !isNaN(Number(x)) && !isNaN(Number(y));
+        var cmp = bothNumeric ? Number(x) - Number(y) : String(x).localeCompare(String(y));
+        return cmp * sort.dir;
+      });
+    }
+    tbody.textContent = '';
+    ordered.forEach(function (row) {
+      var tr = el('tr');
+      vars.forEach(function (name) {
+        var described = SQLIB.describeTerm(row[name], { abbreviate: abbreviate });
+        var td = el('td', described.display);
+        if (described.kind === 'uri') {
+          td.className = 'is-iri';
+          if (described.fullIri) td.title = described.fullIri;
+        }
+        if (described.kind === 'absent') td.className = 'is-absent';
+        if (described.language) td.appendChild(el('span', '@' + described.language, 'term-meta'));
+        if (described.datatype) td.appendChild(el('span', '^^' + described.datatype, 'term-meta'));
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+  }
+
+  draw();
+  target.appendChild(table);
+  return rows.length;
+}
+
+/**
+ * Render one result into a panel: the table, the boolean or the RDF payload.
+ *
+ * Shared by the query cell and the group cell, because a group's answer is its
+ * result node's answer — same three shapes, same reading of them. Returns the
+ * row count for a SELECT and null otherwise, which is what the status line and
+ * the panel's own count both want.
+ */
+function renderResult(target, response, queryType, prefixes) {
+  var panel = el('div', null, 'result');
+  var head = el('div', null, 'result__head');
+  head.appendChild(el('span', 'Result', 'result__title'));
+  var count = el('span', '', 'result__count');
+  head.appendChild(count);
+  var copy = el('button', 'Copy', 'chip-button');
+  copy.style.marginLeft = 'auto';
+  head.appendChild(copy);
+  panel.appendChild(head);
+  var body = el('div', null, 'result__body');
+  panel.appendChild(body);
+  target.appendChild(panel);
+
+  var rowCount = null;
+  if (queryType === 'SELECT') {
+    rowCount = renderSelect(body, response, prefixes);
+    count.textContent = rowCount + (rowCount === 1 ? ' row' : ' rows');
+    copy.addEventListener('click', function () { copyToClipboard(JSON.stringify(response, null, 2), copy); });
+  } else if (queryType === 'ASK') {
+    body.appendChild(el('pre', String(response.boolean)));
+    copy.addEventListener('click', function () { copyToClipboard(String(response.boolean), copy); });
+  } else {
+    body.appendChild(el('pre', response.data));
+    copy.addEventListener('click', function () { copyToClipboard(response.data, copy); });
+  }
+  return rowCount;
+}
+
+function wireQuery(slug) {
+  var query = BUNDLE.queries[slug];
+  var args = document.getElementById('args-' + slug);
+  var out = document.getElementById('sub-' + slug);
+  var results = document.getElementById('res-' + slug);
+  var status = document.getElementById('status-' + slug);
+  var runButton = document.getElementById('run-' + slug);
+
+  args.signature = {
+    inputs: query.inferredInputs,
+    limits: query.limitParameters,
+    offsets: query.offsetParameters
+  };
+
+  function refresh() {
+    out.className = '';
+    try {
+      out.textContent = preview.query(slug).text(args.payload);
+    } catch (error) {
+      out.className = 'error';
+      out.textContent = describeError(error);
+    }
+    // The element already says which cell is wrong and why; Run just stops
+    // offering to send something that cannot be substituted.
+    var ready = args.valid && out.className !== 'error';
+    runButton.disabled = !ready;
+    runButton.title = ready ? '' : 'Fix the arguments above first.';
+  }
+
+  args.addEventListener('change', refresh);
+
+  var buttons = document.querySelectorAll('[data-example-for="' + slug + '"]');
+  function selectExample(index) {
+    for (var b = 0; b < buttons.length; b++) {
+      buttons[b].setAttribute('aria-pressed', String(Number(buttons[b].getAttribute('data-example-index')) === index));
+    }
+  }
+  for (var b = 0; b < buttons.length; b++) {
+    (function (button) {
+      button.addEventListener('click', function () {
+        var index = Number(button.getAttribute('data-example-index'));
+        args.payload = examplePayload(query.examples[index]);
+        selectExample(index);
+        refresh();
+      });
+    })(buttons[b]);
+  }
+
+  document.getElementById('reset-' + slug).addEventListener('click', function () {
+    args.payload = query.examples && query.examples.length
+      ? examplePayload(query.examples[0])
+      : skeletonPayload(query);
+    selectExample(query.examples && query.examples.length ? 0 : -1);
+    refresh();
+  });
+
+  runButton.addEventListener('click', function () {
+    var endpoint = endpointInput.value.trim();
+    results.textContent = '';
+    status.textContent = '';
+    if (!endpoint) {
+      results.appendChild(el('pre', 'Set a SPARQL endpoint URL at the top of the page first.', 'error'));
+      return;
+    }
+    var payload = args.payload;
+    runButton.disabled = true;
+    status.textContent = 'running…';
+    var started = Date.now();
+
+    var lib = SQLIB.fromBundle(BUNDLE, { executor: SQLIB.httpExecutor(endpoint), validate: false });
+    lib.query(slug).run(payload).then(function (response) {
+      var ms = Date.now() - started;
+      results.textContent = '';
+      var rowCount = renderResult(results, response, query.queryType, query.template.prefixes);
+      status.textContent = 'ran in ' + ms + ' ms' + (rowCount === null ? '' : ' · ' + rowCount + ' rows');
+      runButton.disabled = false;
+    }).catch(function (error) {
+      results.textContent = '';
+      results.appendChild(el('pre', describeError(error), 'error'));
+      status.textContent = 'failed';
+      runButton.disabled = false;
+    });
+  });
+
+  // Start on the first example when there is one; otherwise on a skeleton built
+  // from the signature, so the shape of a call is always on screen.
+  args.payload = query.examples && query.examples.length
+    ? examplePayload(query.examples[0])
+    : skeletonPayload(query);
+  if (query.examples && query.examples.length) selectExample(0);
+  refresh();
+}
+
+/**
+ * A group's call, as a payload.
+ *
+ * One all-UNDEF row per external slot, the same wildcard a query cell opens on.
+ * A group has no examples of its own — a test names a query — so this is the
+ * only starting payload there is.
+ */
+function groupSkeletonPayload(plan) {
+  var payload = { arguments: [] };
+  for (var i = 0; i < plan.inputs.length; i++) {
+    payload.arguments.push({
+      head: { vars: plan.inputs[i].slice() },
+      arguments: { bindings: [{}] }
+    });
+  }
+  return payload;
+}
+
+function wireGroup(slug) {
+  var plan = GROUP_PLANS[slug];
+  var args = document.getElementById('gargs-' + slug);
+  var results = document.getElementById('gres-' + slug);
+  var status = document.getElementById('gstatus-' + slug);
+  var ran = document.getElementById('gran-' + slug);
+  var runButton = document.getElementById('grun-' + slug);
+  var resetButton = document.getElementById('greset-' + slug);
+
+  // A group the walker could not read at export time is drawn but not offered:
+  // its cell says so in the markup, and Run would have nothing to walk.
+  if (!plan) {
+    runButton.disabled = true;
+    resetButton.disabled = true;
+    return;
+  }
+
+  args.signature = { inputs: plan.inputs, limits: plan.limits, offsets: plan.offsets };
+
+  function refresh() {
+    // A group has no preview pane to go red — every node past the first takes
+    // its rows from the node above, so there is no one substituted text to show
+    // before the walk happens. The element still says which cell is wrong.
+    runButton.disabled = !args.valid;
+    runButton.title = args.valid ? '' : 'Fix the arguments above first.';
+  }
+
+  args.addEventListener('change', refresh);
+
+  resetButton.addEventListener('click', function () {
+    args.payload = groupSkeletonPayload(plan);
+    refresh();
+  });
+
+  runButton.addEventListener('click', function () {
+    var endpoint = endpointInput.value.trim();
+    results.textContent = '';
+    ran.textContent = '';
+    status.textContent = '';
+    if (!endpoint) {
+      results.appendChild(el('pre', 'Set a SPARQL endpoint URL at the top of the page first.', 'error'));
+      return;
+    }
+    var payload = args.payload;
+    runButton.disabled = true;
+    status.textContent = 'running…';
+    var started = Date.now();
+
+    var lib = SQLIB.fromBundle(BUNDLE, { executor: SQLIB.httpExecutor(endpoint), validate: false });
+    // runDetailed rather than run: the texts are the group's answer to "what
+    // did it send", which is the substituted pane a query cell shows before it
+    // runs and a group can only show afterwards.
+    lib.group(slug).runDetailed(payload).then(function (walk) {
+      var ms = Date.now() - started;
+      results.textContent = '';
+      var resultQuery = BUNDLE.queries[plan.resultQuery];
+      var rowCount = renderResult(results, walk.result, resultQuery.queryType, resultQuery.template.prefixes);
+      status.textContent = 'ran in ' + ms + ' ms' + (rowCount === null ? '' : ' · ' + rowCount + ' rows');
+
+      ran.appendChild(el('p', 'What each step ran', 'section-label'));
+      plan.steps.forEach(function (step) {
+        var text = walk.texts[step.node];
+        if (text === undefined) return;
+        var block = document.createElement('details');
+        block.appendChild(el('summary', step.node + ' · ' + step.query));
+        block.appendChild(el('pre', text));
+        ran.appendChild(block);
+      });
+      runButton.disabled = false;
+    }).catch(function (error) {
+      results.textContent = '';
+      results.appendChild(el('pre', describeError(error), 'error'));
+      status.textContent = 'failed';
+      runButton.disabled = false;
+    });
+  });
+
+  args.payload = groupSkeletonPayload(plan);
+  refresh();
+}
+
+var slugs = Object.keys(BUNDLE.queries);
+for (var s = 0; s < slugs.length; s++) wireQuery(slugs[s]);
+
+var groupSlugs = Object.keys(BUNDLE.groups || {});
+for (var g = 0; g < groupSlugs.length; g++) wireGroup(groupSlugs[g]);
+
+// --- filtering: tags and free text, over cells and their rail entries ---
+var activeTags = {};
+var textFilter = '';
+
+function applyFilters() {
+  var tags = Object.keys(activeTags).filter(function (t) { return activeTags[t]; });
+  var needle = textFilter.trim().toLowerCase();
+  var shown = 0;
+
+  // Queries and groups filter by the same two rules and on the same fields, so
+  // one pass over both: a tag chip that hides half a chain's queries while
+  // leaving the chain itself on screen would be reading the library twice.
+  function filterCell(prefix, slug, entry) {
+    var carried = entry.tags || [];
+    var tagOk = tags.length === 0 || tags.some(function (t) { return carried.indexOf(t) !== -1; });
+    var haystack = (slug + ' ' + (entry.description || '')).toLowerCase();
+    var textOk = needle === '' || haystack.indexOf(needle) !== -1;
+    var visible = tagOk && textOk;
+    if (visible) shown++;
+
+    document.getElementById(prefix + slug).hidden = !visible;
+    // The rail keeps every entry, dimmed: a filtered page should never look
+    // like a smaller library than it is.
+    var link = document.getElementById('rail-' + prefix + slug);
+    if (link) link.setAttribute('data-hidden', String(!visible));
+  }
+
+  slugs.forEach(function (slug) { filterCell('q-', slug, BUNDLE.queries[slug]); });
+  groupSlugs.forEach(function (slug) { filterCell('g-', slug, BUNDLE.groups[slug]); });
+
+  var none = document.getElementById('no-matches');
+  if (none) none.hidden = shown !== 0;
+}
+
+var tagButtons = document.querySelectorAll('[data-tag]');
+for (var t = 0; t < tagButtons.length; t++) {
+  (function (button) {
+    button.addEventListener('click', function () {
+      var tag = button.getAttribute('data-tag');
+      activeTags[tag] = !activeTags[tag];
+      button.setAttribute('aria-pressed', String(!!activeTags[tag]));
+      applyFilters();
+    });
+  })(tagButtons[t]);
+}
+
+var clearTags = document.getElementById('clear-tags');
+if (clearTags) {
+  clearTags.addEventListener('click', function () {
+    activeTags = {};
+    for (var i = 0; i < tagButtons.length; i++) tagButtons[i].setAttribute('aria-pressed', 'false');
+    applyFilters();
+  });
+}
+
+var search = document.getElementById('filter-text');
+if (search) {
+  search.addEventListener('input', function () {
+    textFilter = search.value;
+    applyFilters();
+  });
+}
+</script>
+</body>
+</html>

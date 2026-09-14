@@ -1,0 +1,27 @@
+{
+  "//": "Deliberately does not extend ../../tsconfig.json. That file declares only `files: []` and project `references`, neither of which this package inherits (references are not inherited through extends), so the extends contributed nothing — while causing Playwright to fail loading any config here with 'Failed to resolve references path ./packages/types', which stopped the entire e2e suite from running.",
+  "//runtime-paths": "The @sparql-query-lib/* entries below map to source, not dist. CI typechecks before it builds, so resolving a sibling package through its exports map would make this package's typecheck depend on somebody having built that sibling first — which is exactly how `nuxi typecheck` went red on a runtime that had never been built. nuxt.config.ts carries the same mappings for the bundler; this file is what nuxi typecheck reads.",
+  "//baseUrl": "baseUrl is deprecated in TypeScript 7 but still required here: dropping it changes module resolution enough that @nuxt/schema's optional webpack peer types stop resolving. Silenced rather than migrated.",
+  "//module": "Nuxt's own generated .nuxt/tsconfig.json (extended by nothing here, per the note above) resolves modules with 'preserve'/'bundler', matching what Vite actually does. Without an explicit module here, tsc's default (CommonJS) rejected the `with { type: 'json' }` import attribute in edgeFlowTypeDefaults.ts.",
+  "//include-nuxt-node": "nuxt.node.d.ts (not nuxt.d.ts) is the file that references types/modules.d.ts, which is where Nuxt's codegen declares the `shadcn` key on NuxtConfig for shadcn-nuxt's module options. Without it in scope, nuxt.config.ts's `shadcn: {...}` block has no known type to match.",
+  "compilerOptions": {
+    "ignoreDeprecations": "6.0",
+    "skipLibCheck": true,
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "baseUrl": ".",
+    "paths": {
+      "#imports": ["./.nuxt/imports"],
+      "@/*": ["./src/*"],
+      "~/*": ["./src/*"],
+      "@sparql-query-lib/contracts": ["../contracts/src/index.ts"],
+      "@sparql-query-lib/contracts/*": ["../contracts/src/*"],
+      "@sparql-query-lib/types": ["../types/src/index.ts"],
+      "@sparql-query-lib/types/*": ["../types/src/*"],
+      "@sparql-query-lib/runtime": ["../runtime/src/index.ts"],
+      "@sparql-query-lib/runtime/args-element": ["../runtime/src/args-element.ts"]
+    }
+  },
+  "include": ["nuxt.config.ts", "src/**/*", ".nuxt/nuxt.node.d.ts"],
+  "exclude": ["node_modules", "dist"]
+}

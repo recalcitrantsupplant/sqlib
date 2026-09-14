@@ -1,0 +1,763 @@
+{
+  "machine": {
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+    "threads": 4,
+    "totalmemBytes": 16856092672,
+    "node": "v22.22.2"
+  },
+  "ranAt": "2026-09-08T11:54:19.528Z",
+  "results": [
+    {
+      "profile": "reassert",
+      "ops": 100000,
+      "shape": {
+        "profile": "reassert",
+        "hotPercent": 30,
+        "hotKeys": 50000,
+        "graphs": 8,
+        "seed": 20260908,
+        "ops": 100000,
+        "patches": 200
+      },
+      "logRows": 100000,
+      "distinctQuads": 92208,
+      "stateQuads": 87046,
+      "generateMs": 105.49562000000003,
+      "logBytesDuckdb": 2371584,
+      "logBytesParquetZstd": 1030589,
+      "logBytesRdfPatchText": 12190843,
+      "latestArgMax": {
+        "cold": 41.37964099999999,
+        "median": 39.78785999999991
+      },
+      "latestQualify": {
+        "cold": 41.946455000000014,
+        "median": 41.81389100000001
+      },
+      "asOf": [
+        {
+          "atPatch": 20,
+          "ms": {
+            "cold": 9.407859999999914,
+            "median": 8.747124999999983
+          }
+        },
+        {
+          "atPatch": 100,
+          "ms": {
+            "cold": 23.39353200000005,
+            "median": 23.39353200000005
+          }
+        },
+        {
+          "atPatch": 180,
+          "ms": {
+            "cold": 33.727847999999994,
+            "median": 34.13677499999994
+          }
+        }
+      ],
+      "cadences": [
+        {
+          "atPatch": 50,
+          "tailRows": 75000,
+          "buildMs": 29.510199000000057,
+          "reconstructMs": {
+            "cold": 33.4131890000001,
+            "median": 33.4131890000001
+          }
+        },
+        {
+          "atPatch": 100,
+          "tailRows": 50000,
+          "buildMs": 50.747100000000046,
+          "reconstructMs": {
+            "cold": 27.119817999999896,
+            "median": 29.226212999999916
+          }
+        },
+        {
+          "atPatch": 150,
+          "tailRows": 25000,
+          "buildMs": 93.22772499999996,
+          "reconstructMs": {
+            "cold": 20.79947900000002,
+            "median": 18.50281999999993
+          }
+        },
+        {
+          "atPatch": 180,
+          "tailRows": 10000,
+          "buildMs": 130.09084099999995,
+          "reconstructMs": {
+            "cold": 22.324944999999843,
+            "median": 21.615976000000046
+          }
+        },
+        {
+          "atPatch": 198,
+          "tailRows": 1000,
+          "buildMs": 87.55111299999999,
+          "reconstructMs": {
+            "cold": 20.83478100000002,
+            "median": 20.83478100000002
+          }
+        }
+      ],
+      "snapshotBytesParquetZstd": 730002,
+      "snapshotBuildMs": 86.03506000000016,
+      "snapshotReadMs": {
+        "cold": 10.816299999999956,
+        "median": 10.816299999999956
+      },
+      "oxigraph": {
+        "skipped": false,
+        "nquadsBytes": 10446297,
+        "writeMs": 51.57934400000022,
+        "writeFromSnapshotMs": 49.41182000000026,
+        "readFileMs": 22.372002000000066,
+        "loadMs": 352.27960699999994,
+        "quads": 87046
+      },
+      "fit": {
+        "interceptMs": 18.684204958165136,
+        "msPerMillionTailRows": 187.40344229300828
+      },
+      "cadenceForBudget": [
+        {
+          "budgetMs": 250,
+          "patches": 2468
+        },
+        {
+          "budgetMs": 1000,
+          "patches": 10472
+        }
+      ]
+    },
+    {
+      "profile": "reassert",
+      "ops": 1000000,
+      "shape": {
+        "profile": "reassert",
+        "hotPercent": 30,
+        "hotKeys": 50000,
+        "graphs": 8,
+        "seed": 20260908,
+        "ops": 1000000,
+        "patches": 200
+      },
+      "logRows": 1000000,
+      "distinctQuads": 749976,
+      "stateQuads": 725338,
+      "generateMs": 1191.794002,
+      "logBytesDuckdb": 33566720,
+      "logBytesParquetZstd": 8839172,
+      "logBytesRdfPatchText": 122259020,
+      "latestArgMax": {
+        "cold": 123.8886909999992,
+        "median": 123.8886909999992
+      },
+      "latestQualify": {
+        "cold": 268.3496320000004,
+        "median": 268.3496320000004
+      },
+      "asOf": [
+        {
+          "atPatch": 20,
+          "ms": {
+            "cold": 24.074822999999924,
+            "median": 21.303533000000243
+          }
+        },
+        {
+          "atPatch": 100,
+          "ms": {
+            "cold": 62.30030499999975,
+            "median": 58.24331800000073
+          }
+        },
+        {
+          "atPatch": 180,
+          "ms": {
+            "cold": 103.98124000000007,
+            "median": 103.98124000000007
+          }
+        }
+      ],
+      "cadences": [
+        {
+          "atPatch": 50,
+          "tailRows": 750000,
+          "buildMs": 270.77134900000055,
+          "reconstructMs": {
+            "cold": 130.67432699999972,
+            "median": 125.66012299999966
+          }
+        },
+        {
+          "atPatch": 100,
+          "tailRows": 500000,
+          "buildMs": 503.9883090000003,
+          "reconstructMs": {
+            "cold": 127.01289700000052,
+            "median": 127.01289700000052
+          }
+        },
+        {
+          "atPatch": 150,
+          "tailRows": 250000,
+          "buildMs": 662.1735019999996,
+          "reconstructMs": {
+            "cold": 111.0427720000007,
+            "median": 106.73209499999939
+          }
+        },
+        {
+          "atPatch": 180,
+          "tailRows": 100000,
+          "buildMs": 745.3358159999989,
+          "reconstructMs": {
+            "cold": 114.8593239999991,
+            "median": 99.94268000000011
+          }
+        },
+        {
+          "atPatch": 198,
+          "tailRows": 10000,
+          "buildMs": 811.7879400000002,
+          "reconstructMs": {
+            "cold": 103.57907899999918,
+            "median": 94.62425400000029
+          }
+        }
+      ],
+      "snapshotBytesParquetZstd": 6439228,
+      "snapshotBuildMs": 810.9631469999986,
+      "snapshotReadMs": {
+        "cold": 29.493334000000687,
+        "median": 29.493334000000687
+      },
+      "oxigraph": {
+        "skipped": false,
+        "nquadsBytes": 87474558,
+        "writeMs": 446.3371329999991,
+        "writeFromSnapshotMs": 525.0907709999992,
+        "readFileMs": 636.5866530000003,
+        "loadMs": 3939.0582749999976,
+        "quads": 725338
+      },
+      "fit": {
+        "interceptMs": 95.8693082554272,
+        "msPerMillionTailRows": 46.35124703283475
+      },
+      "cadenceForBudget": [
+        {
+          "budgetMs": 250,
+          "patches": 665
+        },
+        {
+          "budgetMs": 1000,
+          "patches": 3901
+        }
+      ]
+    },
+    {
+      "profile": "reassert",
+      "ops": 10000000,
+      "shape": {
+        "profile": "reassert",
+        "hotPercent": 30,
+        "hotKeys": 50000,
+        "graphs": 8,
+        "seed": 20260908,
+        "ops": 10000000,
+        "patches": 200
+      },
+      "logRows": 10000000,
+      "distinctQuads": 7047575,
+      "stateQuads": 7022614,
+      "generateMs": 7004.284976999999,
+      "logBytesDuckdb": 202911744,
+      "logBytesParquetZstd": 90908470,
+      "logBytesRdfPatchText": 1228989980,
+      "latestArgMax": {
+        "cold": 1300.003471,
+        "median": 1300.003471
+      },
+      "latestQualify": {
+        "cold": 4017.4265740000046,
+        "median": 3314.7651939999996
+      },
+      "asOf": [
+        {
+          "atPatch": 20,
+          "ms": {
+            "cold": 168.71235999999772,
+            "median": 180.26412600000185
+          }
+        },
+        {
+          "atPatch": 100,
+          "ms": {
+            "cold": 563.2378280000048,
+            "median": 563.2378280000048
+          }
+        },
+        {
+          "atPatch": 180,
+          "ms": {
+            "cold": 975.2567750000017,
+            "median": 970.3224699999992
+          }
+        }
+      ],
+      "cadences": [
+        {
+          "atPatch": 50,
+          "tailRows": 7500000,
+          "buildMs": 2223.9821880000018,
+          "reconstructMs": {
+            "cold": 1214.4819900000002,
+            "median": 1150.0238759999993
+          }
+        },
+        {
+          "atPatch": 100,
+          "tailRows": 5000000,
+          "buildMs": 2344.9112659999955,
+          "reconstructMs": {
+            "cold": 996.2681149999989,
+            "median": 937.6014910000013
+          }
+        },
+        {
+          "atPatch": 150,
+          "tailRows": 2500000,
+          "buildMs": 2886.0302169999923,
+          "reconstructMs": {
+            "cold": 843.9088760000013,
+            "median": 843.9088760000013
+          }
+        },
+        {
+          "atPatch": 180,
+          "tailRows": 1000000,
+          "buildMs": 4637.018972999998,
+          "reconstructMs": {
+            "cold": 730.8266779999976,
+            "median": 703.5028520000051
+          }
+        },
+        {
+          "atPatch": 198,
+          "tailRows": 100000,
+          "buildMs": 4358.603443,
+          "reconstructMs": {
+            "cold": 634.2706299999991,
+            "median": 604.207276000001
+          }
+        }
+      ],
+      "snapshotBytesParquetZstd": 67620674,
+      "snapshotBuildMs": 3846.035957,
+      "snapshotReadMs": {
+        "cold": 225.53631100000348,
+        "median": 224.9116340000037
+      },
+      "oxigraph": {
+        "skipped": true,
+        "why": "state is 7022614 quads, above --oxigraph-max 2000000"
+      },
+      "fit": {
+        "interceptMs": 625.1048016480339,
+        "msPerMillionTailRows": 69.17517781117006
+      },
+      "cadenceForBudget": [
+        {
+          "budgetMs": 250,
+          "patches": 0
+        },
+        {
+          "budgetMs": 1000,
+          "patches": 108
+        }
+      ]
+    },
+    {
+      "profile": "revise",
+      "ops": 100000,
+      "shape": {
+        "profile": "revise",
+        "hotPercent": 30,
+        "hotKeys": 50000,
+        "graphs": 8,
+        "seed": 20260908,
+        "ops": 100000,
+        "patches": 200
+      },
+      "logRows": 107792,
+      "distinctQuads": 100000,
+      "stateQuads": 92208,
+      "generateMs": 166.69683099999384,
+      "logBytesDuckdb": 2633728,
+      "logBytesParquetZstd": 1144110,
+      "logBytesRdfPatchText": 13135272,
+      "latestArgMax": {
+        "cold": 46.437020000012126,
+        "median": 39.707462999998825
+      },
+      "latestQualify": {
+        "cold": 53.84298000000126,
+        "median": 53.00239800001145
+      },
+      "asOf": [
+        {
+          "atPatch": 20,
+          "ms": {
+            "cold": 9.998552999997628,
+            "median": 9.998552999997628
+          }
+        },
+        {
+          "atPatch": 100,
+          "ms": {
+            "cold": 24.533420000007027,
+            "median": 26.84702399998787
+          }
+        },
+        {
+          "atPatch": 180,
+          "ms": {
+            "cold": 39.983229999998,
+            "median": 36.59927799999423
+          }
+        }
+      ],
+      "cadences": [
+        {
+          "atPatch": 50,
+          "tailRows": 82224,
+          "buildMs": 31.70506399999431,
+          "reconstructMs": {
+            "cold": 37.86017300000822,
+            "median": 37.86017300000822
+          }
+        },
+        {
+          "atPatch": 100,
+          "tailRows": 55615,
+          "buildMs": 56.70223999999871,
+          "reconstructMs": {
+            "cold": 31.041542999999365,
+            "median": 31.041542999999365
+          }
+        },
+        {
+          "atPatch": 150,
+          "tailRows": 28172,
+          "buildMs": 75.05340999999316,
+          "reconstructMs": {
+            "cold": 20.786911000002874,
+            "median": 20.487819999994827
+          }
+        },
+        {
+          "atPatch": 180,
+          "tailRows": 11371,
+          "buildMs": 139.29240399999253,
+          "reconstructMs": {
+            "cold": 21.841133000008995,
+            "median": 20.983445999998366
+          }
+        },
+        {
+          "atPatch": 198,
+          "tailRows": 1128,
+          "buildMs": 97.01737999999023,
+          "reconstructMs": {
+            "cold": 23.883948999995482,
+            "median": 22.5244529999909
+          }
+        }
+      ],
+      "snapshotBytesParquetZstd": 775742,
+      "snapshotBuildMs": 228.0315089999931,
+      "snapshotReadMs": {
+        "cold": 13.688397000005352,
+        "median": 13.688397000005352
+      },
+      "oxigraph": {
+        "skipped": false,
+        "nquadsBytes": 11061998,
+        "writeMs": 53.22575300000608,
+        "writeFromSnapshotMs": 99.04389499999525,
+        "readFileMs": 24.999947999996948,
+        "loadMs": 318.3467970000056,
+        "quads": 92208
+      },
+      "fit": {
+        "interceptMs": 18.99409731441714,
+        "msPerMillionTailRows": 212.46399881186474
+      },
+      "cadenceForBudget": [
+        {
+          "budgetMs": 250,
+          "patches": 2017
+        },
+        {
+          "budgetMs": 1000,
+          "patches": 8567
+        }
+      ]
+    },
+    {
+      "profile": "revise",
+      "ops": 1000000,
+      "shape": {
+        "profile": "revise",
+        "hotPercent": 30,
+        "hotKeys": 50000,
+        "graphs": 8,
+        "seed": 20260908,
+        "ops": 1000000,
+        "patches": 200
+      },
+      "logRows": 1250024,
+      "distinctQuads": 1000000,
+      "stateQuads": 749976,
+      "generateMs": 2017.9705689999973,
+      "logBytesDuckdb": 25178112,
+      "logBytesParquetZstd": 11398066,
+      "logBytesRdfPatchText": 152610558,
+      "latestArgMax": {
+        "cold": 165.6880999999994,
+        "median": 165.6880999999994
+      },
+      "latestQualify": {
+        "cold": 378.78757499999483,
+        "median": 382.6192580000061
+      },
+      "asOf": [
+        {
+          "atPatch": 20,
+          "ms": {
+            "cold": 23.620114000004833,
+            "median": 22.51088100000925
+          }
+        },
+        {
+          "atPatch": 100,
+          "ms": {
+            "cold": 83.35543700000562,
+            "median": 89.30256999999983
+          }
+        },
+        {
+          "atPatch": 180,
+          "ms": {
+            "cold": 146.69468400000187,
+            "median": 151.31619800000044
+          }
+        }
+      ],
+      "cadences": [
+        {
+          "atPatch": 50,
+          "tailRows": 963411,
+          "buildMs": 292.41517900000326,
+          "reconstructMs": {
+            "cold": 174.02531500000623,
+            "median": 174.02531500000623
+          }
+        },
+        {
+          "atPatch": 100,
+          "tailRows": 647360,
+          "buildMs": 580.5343409999914,
+          "reconstructMs": {
+            "cold": 152.884017999997,
+            "median": 152.884017999997
+          }
+        },
+        {
+          "atPatch": 150,
+          "tailRows": 324474,
+          "buildMs": 713.030396999995,
+          "reconstructMs": {
+            "cold": 127.04275500000222,
+            "median": 115.93150599999353
+          }
+        },
+        {
+          "atPatch": 180,
+          "tailRows": 129963,
+          "buildMs": 822.6275960000057,
+          "reconstructMs": {
+            "cold": 112.02697799999441,
+            "median": 103.93657600000734
+          }
+        },
+        {
+          "atPatch": 198,
+          "tailRows": 13038,
+          "buildMs": 898.9159800000052,
+          "reconstructMs": {
+            "cold": 99.4648770000058,
+            "median": 94.14611500001047
+          }
+        }
+      ],
+      "snapshotBytesParquetZstd": 6693832,
+      "snapshotBuildMs": 894.2610940000013,
+      "snapshotReadMs": {
+        "cold": 27.00429399999848,
+        "median": 27.00429399999848
+      },
+      "oxigraph": {
+        "skipped": false,
+        "nquadsBytes": 90418788,
+        "writeMs": 266.2626029999956,
+        "writeFromSnapshotMs": 491.10165899999265,
+        "readFileMs": 215.30235700000776,
+        "loadMs": 3023.3667910000077,
+        "quads": 749976
+      },
+      "fit": {
+        "interceptMs": 92.10506308136783,
+        "msPerMillionTailRows": 86.80310925327194
+      },
+      "cadenceForBudget": [
+        {
+          "budgetMs": 250,
+          "patches": 291
+        },
+        {
+          "budgetMs": 1000,
+          "patches": 1673
+        }
+      ]
+    },
+    {
+      "profile": "revise",
+      "ops": 10000000,
+      "shape": {
+        "profile": "revise",
+        "hotPercent": 30,
+        "hotKeys": 50000,
+        "graphs": 8,
+        "seed": 20260908,
+        "ops": 10000000,
+        "patches": 200
+      },
+      "logRows": 12952425,
+      "distinctQuads": 10000000,
+      "stateQuads": 7047575,
+      "generateMs": 20558.551999000003,
+      "logBytesDuckdb": 249835520,
+      "logBytesParquetZstd": 112250813,
+      "logBytesRdfPatchText": 1589312913,
+      "latestArgMax": {
+        "cold": 3668.322149000014,
+        "median": 1948.2404270000116
+      },
+      "latestQualify": {
+        "cold": 3954.1383410000126,
+        "median": 4018.19007099999
+      },
+      "asOf": [
+        {
+          "atPatch": 20,
+          "ms": {
+            "cold": 234.51339999999618,
+            "median": 263.7738820000086
+          }
+        },
+        {
+          "atPatch": 100,
+          "ms": {
+            "cold": 880.5167250000231,
+            "median": 880.5167250000231
+          }
+        },
+        {
+          "atPatch": 180,
+          "ms": {
+            "cold": 1411.5635059999768,
+            "median": 1453.1194139999861
+          }
+        }
+      ],
+      "cadences": [
+        {
+          "atPatch": 50,
+          "tailRows": 9751709,
+          "buildMs": 2417.7598810000054,
+          "reconstructMs": {
+            "cold": 1818.258136999997,
+            "median": 1791.236005999992
+          }
+        },
+        {
+          "atPatch": 100,
+          "tailRows": 6501401,
+          "buildMs": 3071.0082990000083,
+          "reconstructMs": {
+            "cold": 1425.3959410000243,
+            "median": 1424.8905469999881
+          }
+        },
+        {
+          "atPatch": 150,
+          "tailRows": 3249347,
+          "buildMs": 3490.2200019999873,
+          "reconstructMs": {
+            "cold": 1009.2355010000174,
+            "median": 986.7992289999966
+          }
+        },
+        {
+          "atPatch": 180,
+          "tailRows": 1300001,
+          "buildMs": 4937.389786999993,
+          "reconstructMs": {
+            "cold": 890.866887000011,
+            "median": 844.9721809999901
+          }
+        },
+        {
+          "atPatch": 198,
+          "tailRows": 130186,
+          "buildMs": 5178.657028000016,
+          "reconstructMs": {
+            "cold": 667.0167979999969,
+            "median": 579.2155419999908
+          }
+        }
+      ],
+      "snapshotBytesParquetZstd": 67985952,
+      "snapshotBuildMs": 4483.844359999988,
+      "snapshotReadMs": {
+        "cold": 214.77523699999438,
+        "median": 202.62730799999554
+      },
+      "oxigraph": {
+        "skipped": true,
+        "why": "state is 7047575 quads, above --oxigraph-max 2000000"
+      },
+      "fit": {
+        "interceptMs": 615.3169408677722,
+        "msPerMillionTailRows": 121.84456013588614
+      },
+      "cadenceForBudget": [
+        {
+          "budgetMs": 250,
+          "patches": 0
+        },
+        {
+          "budgetMs": 1000,
+          "patches": 48
+        }
+      ]
+    }
+  ]
+}

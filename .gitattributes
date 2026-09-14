@@ -1,0 +1,5 @@
+# TupleStore keys join a row's terms with NUL and 0x01 so no term spelling can
+# forge a key boundary. Git sees the NUL in the first 8000 bytes and calls the
+# file binary, which hides every diff of it behind "Bin 9315 -> 10129 bytes".
+# `diff` says: it is text, show it as text.
+packages/api/src/lib/TupleStore.ts diff

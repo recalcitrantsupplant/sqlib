@@ -1,0 +1,50 @@
+{
+  "name": "@sparql-query-lib/mcp-server",
+  "version": "0.0.1",
+  "license": "SEE LICENSE IN LICENSE",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js"
+    },
+    "./http": {
+      "import": "./dist/http-server.js"
+    },
+    "./dual-http": {
+      "import": "./dist/dual-http-server.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "dev": "tsx src/cli.ts",
+    "dev:http": "MCP_TRANSPORT=streamable-http tsx src/cli.ts",
+    "dev:dual-http": "MCP_TRANSPORT=dual-http tsx src/cli.ts",
+    "dev:debug-http": "tsx src/debug-echo-server.ts",
+    "start": "NODE_ENV=production node dist/cli.js",
+    "start:http": "MCP_TRANSPORT=streamable-http NODE_ENV=production node dist/cli.js",
+    "start:dual-http": "MCP_TRANSPORT=dual-http NODE_ENV=production node dist/cli.js",
+    "clean": "rm -rf dist",
+    "lint": "echo \"TODO: add lint\"",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@sparql-query-lib/api": "workspace:*",
+    "@sparql-query-lib/contracts": "workspace:*",
+    "@sparql-query-lib/tools": "workspace:*",
+    "@sparql-query-lib/types": "workspace:*",
+    "dotenv": "^17.4.2",
+    "fastify": "^5.12.3"
+  },
+  "devDependencies": {
+    "json-schema-to-ts": "^3.1.1",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.11",
+    "zod": "^4.5.4"
+  }
+}

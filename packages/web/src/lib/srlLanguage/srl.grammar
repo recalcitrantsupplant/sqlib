@@ -1,0 +1,166 @@
+// SRL — the SHACL 1.2 Shape Rules Language, as a Lezer grammar.
+//
+// This is a *highlighting and folding* grammar, not a second implementation of
+// `@sparql-query-lib/srl`. It is deliberately looser than that parser: it knows
+// the shape of a document (prologue, rules, DATA blocks, TUPLE calls, nested
+// groups) and the shape of a term, and treats everything inside a block as a
+// stream of terms and words. Acceptance is the analyser's job — the editor's
+// job is to colour a half-typed document without turning it grey.
+//
+// Consequences of that split, all deliberate:
+//
+//  - Every bare word that is not one of the six structural keywords lexes as
+//    `Keyword`. `FILTER`, `OPTIONAL`, `NOT`, `SET`, `BIND`, `a`, `STRLEN` — the
+//    body of a rule contains no bare words that are *not* keywords or function
+//    names, since every SPARQL term is an IRI, a prefixed name, a variable, a
+//    literal or a blank node. So one token covers the lot, and a keyword added
+//    upstream needs no change here.
+//  - `NOT { … }` and `NOT DATA { … }` get no node of their own: `NOT` is a
+//    keyword and the braces are a `Block`. Giving `NOT` a production would make
+//    `NOT EXISTS { … }` and `?x NOT IN (…)` — both legal in a body — parse
+//    errors, for a node nothing reads.
+//  - `FOR ?v IN <shape>` and the `IF … THEN` form are *not* here. Both were
+//    taken out of the language upstream (see packages/srl/test/groundData.test.ts),
+//    so neither should look like syntax the editor knows.
+
+@top RuleSet { item* }
+
+// Everything is an `item`, at every nesting depth. A rule can only appear at
+// the top of a real document, but accepting one anywhere costs nothing and
+// keeps the grammar free of context-dependent conflicts.
+item {
+  PrefixDecl |
+  BaseDecl |
+  Rule |
+  DataBlock |
+  Tuple |
+  Block |
+  Paren |
+  Bracket |
+  term
+}
+
+PrefixDecl { PrefixKeyword PrefixedName IRIRef }
+
+BaseDecl { BaseKeyword IRIRef }
+
+// [11]  Rule ::= 'RULE' iri? '{' head '}' 'WHERE' 'DATA'? '{' body '}'
+//
+// The head block is required — `RULE` with no braces has nothing to fold and
+// nothing to colour differently — while the `WHERE` half is optional so that a
+// rule under the cursor stays a rule while its second half is being typed.
+Rule { RuleKeyword iri? Block (WhereKeyword DataKeyword? Block)? }
+
+// A ground-triple block: `DATA { … }` at the top of a document, and equally the
+// `DATA { … }` of a `NOT DATA { … }` inside a body.
+DataBlock { DataKeyword Block }
+
+// The rule-tuples extension (w3c/data-shapes#752): `TUPLE( term, … )`, in a
+// head, in a body, or as a row of the seed strip.
+Tuple { TupleKeyword Paren }
+
+Block { "{" item* "}" }
+
+Paren { "(" item* ")" }
+
+Bracket { "[" item* "]" }
+
+iri { IRIRef | PrefixedName }
+
+term {
+  Keyword |
+  Boolean |
+  Var |
+  IRIRef |
+  PrefixedName |
+  BlankNodeLabel |
+  String |
+  Number |
+  LangTag |
+  DatatypeMark |
+  Assign |
+  Operator |
+  "." |
+  "," |
+  ";"
+}
+
+@tokens {
+  space { $[ \t\r\n\f]+ }
+
+  LineComment { "#" ![\n]* }
+
+  // SPARQL's name character classes, spelled with escapes so the file stays
+  // readable in a terminal.
+  pnCharsBase {
+    $[a-zA-Z\u{c0}-\u{d6}\u{d8}-\u{f6}\u{f8}-\u{2ff}\u{370}-\u{37d}\u{37f}-\u{1fff}\u{200c}-\u{200d}\u{2070}-\u{218f}\u{2c00}-\u{2fef}\u{3001}-\u{d7ff}\u{f900}-\u{fdcf}\u{fdf0}-\u{fffd}]
+  }
+  pnCharsU { pnCharsBase | "_" }
+  pnChars { pnCharsU | "-" | $[0-9\u{b7}\u{300}-\u{36f}\u{203f}-\u{2040}] }
+  hex { $[0-9a-fA-F] }
+
+  // `.` is left out of both halves of a prefixed name: a dot inside one is
+  // legal SPARQL but rare, and reading `:a .` as a single name would swallow
+  // the triple terminator, which is neither rare nor recoverable.
+  PrefixedName { (pnCharsBase pnChars*)? ":" (pnChars | ":" | "%" hex hex)* }
+
+  Var { $[?$] (pnCharsU | $[0-9]) pnChars* }
+
+  BlankNodeLabel { "_:" (pnCharsU | $[0-9]) pnChars* }
+
+  IRIRef { "<" ![\u{0}-\u{20}<>\"{}|^\u{60}\\]* ">" }
+
+  String {
+    '"""' (!["\\] | "\\" _ | '"' !["] | '""' !["])* '"""' |
+    "'''" (!['\\] | "\\" _ | "'" !['] | "''" !['])* "'''" |
+    '"' (!["\\\n] | "\\" _)* '"' |
+    "'" (!['\\\n] | "\\" _)* "'"
+  }
+
+  Number { $[+\-]? ($[0-9]+ ("." $[0-9]+)? | "." $[0-9]+) ($[eE] $[+\-]? $[0-9]+)? }
+
+  LangTag { "@" $[a-zA-Z]+ ("-" $[a-zA-Z0-9]+)* }
+
+  DatatypeMark { "^^" }
+
+  // SRL's assignment, `SET ( ?v := expr )`. Longest-match keeps it out of
+  // `PrefixedName`, which would otherwise read the `:` as an empty prefix and
+  // leave the `=` behind — the same trap the Chevrotain lexer documents.
+  Assign { ":=" }
+
+  Operator { "=" | "!=" | "<" | ">" | "<=" | ">=" | "&&" | "||" | "!" | "+" | "-" | "*" | "/" | "^" | "?" | "|" }
+
+  // Every bare word, keywords included — see `@external specialize` below.
+  Keyword { $[a-zA-Z_] $[a-zA-Z0-9_]* }
+
+  // Declaring the punctuation here — rather than leaving it implicit in the
+  // rules above — is what gives each literal a node of its own, which is what
+  // `styleTags` colours and what `foldInside` measures a block by.
+  "{" "}" "(" ")" "[" "]" "." "," ";"
+
+  // Ordered longest-first. A token listed earlier wins when both match at the
+  // same position, which is what "longest match" means for every pair here:
+  // `ex:rule` is a prefixed name and not the word `ex`, `_:b` is a blank node
+  // and not the word `_`, `?x` is a variable and not the operator `?`, `-1` is
+  // a number and not a minus, `<http://…>` is an IRI and not a less-than.
+  @precedence { IRIRef, Assign, PrefixedName, BlankNodeLabel, Var, Number, Keyword, Operator, "." }
+}
+
+// The structural keywords, matched case-insensitively off the generic word
+// token. A specializer rather than eight character-class tokens: those would
+// out-rank `Keyword` at every position they matched, so `datatype` would lex as
+// `DATA` followed by `type`. Specialization runs on the *whole* matched word,
+// which is the only place the distinction can safely be made.
+@external specialize { Keyword } specializeKeyword from "./keywords" {
+  PrefixKeyword,
+  BaseKeyword,
+  RuleKeyword,
+  WhereKeyword,
+  DataKeyword,
+  TupleKeyword,
+  Boolean
+}
+
+@skip { space | LineComment }
+
+@detectDelim

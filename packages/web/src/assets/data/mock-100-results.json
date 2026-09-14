@@ -1,0 +1,1413 @@
+{
+  "head": {
+    "vars": [
+      "s",
+      "p",
+      "o"
+    ]
+  },
+  "results": {
+    "bindings": [
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject6"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop7"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_hoenk"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject10"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop6"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_oztet"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject12"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop4"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_gclhv"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject8"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop8"
+        },
+        "o": {
+          "type": "uri",
+          "value": "http://example.org/resource/object12"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject13"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop2"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_kypbz"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject13"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop3"
+        },
+        "o": {
+          "type": "uri",
+          "value": "http://example.org/resource/object1"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject5"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop6"
+        },
+        "o": {
+          "type": "uri",
+          "value": "http://example.org/resource/object9"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject11"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop1"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_masjy"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject17"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop3"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_oztet"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject9"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop7"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_dhhhh"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject8"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop1"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_hoenk"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject18"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop5"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_eykbz"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject18"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop5"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_eceaz"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject4"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop2"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_aqvno"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject15"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop2"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_qchtp"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject19"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop3"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_inliq"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject15"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop7"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_kypbz"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject18"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop2"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_qzmrt"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject2"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop8"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_joxut"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject8"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop9"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_eykbz"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject12"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop4"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_stquv"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject3"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop2"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_kidkl"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject7"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop2"
+        },
+        "o": {
+          "type": "uri",
+          "value": "http://example.org/resource/object9"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject17"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop3"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_sqlut"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject13"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop9"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_joxut"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject5"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop2"
+        },
+        "o": {
+          "type": "uri",
+          "value": "http://example.org/resource/object7"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject2"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop4"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_wdlks"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject13"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop8"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_udang"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject3"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop8"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_qzmrt"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject7"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop9"
+        },
+        "o": {
+          "type": "uri",
+          "value": "http://example.org/resource/object5"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject16"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop6"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_hogdj"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject18"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop7"
+        },
+        "o": {
+          "type": "uri",
+          "value": "http://example.org/resource/object3"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject12"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop5"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_eykbz"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject5"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop5"
+        },
+        "o": {
+          "type": "uri",
+          "value": "http://example.org/resource/object11"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject9"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop5"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_joxut"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject6"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop1"
+        },
+        "o": {
+          "type": "uri",
+          "value": "http://example.org/resource/object4"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject16"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop4"
+        },
+        "o": {
+          "type": "uri",
+          "value": "http://example.org/resource/object11"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject9"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop7"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_udang"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject8"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop7"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_kidkl"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject2"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop9"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_eykbz"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject5"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop8"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_aqvno"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject18"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop8"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_tmjym"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject15"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop2"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_hoenk"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject10"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop9"
+        },
+        "o": {
+          "type": "uri",
+          "value": "http://example.org/resource/object14"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject10"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop8"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_wdlks"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject14"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop2"
+        },
+        "o": {
+          "type": "uri",
+          "value": "http://example.org/resource/object5"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject6"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop4"
+        },
+        "o": {
+          "type": "uri",
+          "value": "http://example.org/resource/object2"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject12"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop9"
+        },
+        "o": {
+          "type": "uri",
+          "value": "http://example.org/resource/object3"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject12"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop5"
+        },
+        "o": {
+          "type": "uri",
+          "value": "http://example.org/resource/object12"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject15"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop9"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_xgjsc"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject17"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop8"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_oztet"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject10"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop4"
+        },
+        "o": {
+          "type": "uri",
+          "value": "http://example.org/resource/object2"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject8"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop2"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_hogdj"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject4"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop2"
+        },
+        "o": {
+          "type": "uri",
+          "value": "http://example.org/resource/object8"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject1"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop1"
+        },
+        "o": {
+          "type": "uri",
+          "value": "http://example.org/resource/object6"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject2"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop7"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_kqesy"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject7"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop8"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_xgjsc"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject12"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop2"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_inliq"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject15"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop3"
+        },
+        "o": {
+          "type": "uri",
+          "value": "http://example.org/resource/object6"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject13"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop1"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_inliq"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject4"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop1"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_sqlut"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject17"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop3"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_kqesy"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject2"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop8"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_udang"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject17"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop2"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_dhhhh"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject10"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop9"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_udang"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject12"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop6"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_kidkl"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject11"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop7"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_xgjsc"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject15"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop2"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_eykbz"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject12"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop3"
+        },
+        "o": {
+          "type": "uri",
+          "value": "http://example.org/resource/object4"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject18"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop4"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_umuhl"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject11"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop8"
+        },
+        "o": {
+          "type": "uri",
+          "value": "http://example.org/resource/object11"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject11"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop6"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_hsgrc"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject6"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop1"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_umuhl"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject10"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop8"
+        },
+        "o": {
+          "type": "uri",
+          "value": "http://example.org/resource/object2"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject14"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop4"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_joxut"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject12"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop1"
+        },
+        "o": {
+          "type": "uri",
+          "value": "http://example.org/resource/object2"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject17"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop8"
+        },
+        "o": {
+          "type": "uri",
+          "value": "http://example.org/resource/object5"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject17"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop9"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_aqvno"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject19"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop1"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_qchtp"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject3"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop3"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_sqlut"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject10"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop9"
+        },
+        "o": {
+          "type": "uri",
+          "value": "http://example.org/resource/object7"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject8"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop6"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_kidkl"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject16"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop7"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_kqesy"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject6"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop8"
+        },
+        "o": {
+          "type": "uri",
+          "value": "http://example.org/resource/object1"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject19"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop8"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_pjrzd"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject2"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop6"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_kypbz"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject12"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop9"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_hsgrc"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject13"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop6"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_eykbz"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject15"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop9"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_jtanu"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject8"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop8"
+        },
+        "o": {
+          "type": "uri",
+          "value": "http://example.org/resource/object3"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject4"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop1"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_umuhl"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject2"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop1"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_aqvno"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject4"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop2"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_mgobq"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject5"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop8"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_qchtp"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject11"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop4"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_jtanu"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject4"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop2"
+        },
+        "o": {
+          "type": "uri",
+          "value": "http://example.org/resource/object5"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject13"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop3"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_hsgrc"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject15"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop9"
+        },
+        "o": {
+          "type": "uri",
+          "value": "http://example.org/resource/object1"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject3"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop5"
+        },
+        "o": {
+          "type": "literal",
+          "value": "value_gclhv"
+        }
+      },
+      {
+        "s": {
+          "type": "uri",
+          "value": "http://example.org/resource/subject7"
+        },
+        "p": {
+          "type": "uri",
+          "value": "http://example.org/property/prop7"
+        },
+        "o": {
+          "type": "uri",
+          "value": "http://example.org/resource/object2"
+        }
+      }
+    ]
+  }
+}

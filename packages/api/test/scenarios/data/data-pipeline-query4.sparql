@@ -1,0 +1,64 @@
+# Data Transformation Pipeline - Query 4: Generate Statistical Analysis
+# Purpose: Perform statistical analysis on enriched publication data
+# Input: VALUES from Query 3 enriched publication data
+# Expected Output: Statistical summary with research impact metrics
+
+PREFIX ex: <http://example.org/>
+
+SELECT ?totalPublications ?avgCitationCount ?maxCitedByCount ?avgCollaboration
+       ?topVenueType ?mostProductiveYear ?totalImpactScore ?researchTrend WHERE {
+
+    # Input from Query 3 - enriched publication data
+    VALUES (?publication ?citationCount ?citedByCount ?impactFactor ?collaborationScore ?publicationYear ?venueType) {
+        (UNDEF UNDEF UNDEF UNDEF UNDEF UNDEF UNDEF)
+    }
+
+    {
+        SELECT
+            (COUNT(DISTINCT ?publication) AS ?totalPublications)
+            (AVG(?citationCount) AS ?avgCitationCount)
+            (MAX(?citedByCount) AS ?maxCitedByCount)
+            (AVG(?collaborationScore) AS ?avgCollaboration)
+            (SUM(?impactFactor * ?citationCount) AS ?totalImpactScore)
+        WHERE {
+            VALUES (?publication ?citationCount ?citedByCount ?impactFactor ?collaborationScore ?publicationYear ?venueType) {
+                (UNDEF UNDEF UNDEF UNDEF UNDEF UNDEF UNDEF)
+            }
+        }
+    }
+
+    # Find most common venue type
+    {
+        SELECT ?venueType WHERE {
+            VALUES (?publication ?citationCount ?citedByCount ?impactFactor ?collaborationScore ?publicationYear ?venueType) {
+                (UNDEF UNDEF UNDEF UNDEF UNDEF UNDEF UNDEF)
+            }
+        }
+        GROUP BY ?venueType
+        ORDER BY DESC(COUNT(?venueType))
+        LIMIT 1
+    }
+    BIND(?venueType AS ?topVenueType)
+
+    # Find most productive year
+    {
+        SELECT ?publicationYear WHERE {
+            VALUES (?publication ?citationCount ?citedByCount ?impactFactor ?collaborationScore ?publicationYear ?venueType) {
+                (UNDEF UNDEF UNDEF UNDEF UNDEF UNDEF UNDEF)
+            }
+        }
+        GROUP BY ?publicationYear
+        ORDER BY DESC(COUNT(?publication))
+        LIMIT 1
+    }
+    BIND(?publicationYear AS ?mostProductiveYear)
+
+    # Determine research trend
+    BIND(
+        IF(?avgCitationCount > 75, "High Impact",
+           IF(?avgCitationCount > 40, "Medium Impact",
+              "Emerging Research"
+           )
+        ) AS ?researchTrend
+    )
+}

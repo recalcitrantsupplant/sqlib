@@ -1,0 +1,19 @@
+# Basic Linear Chain - Query 1: Find People with Required Skills
+# Purpose: Get all people who have skills that are required by projects
+# Expected Output: person URI, person name, skill URI, skill label
+
+PREFIX ex: <http://example.org/>
+PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?person ?personName ?skill ?skillLabel WHERE {
+    ?person a foaf:Person ;
+            foaf:name ?personName ;
+            ex:hasSkill ?skill .
+    ?skill rdfs:label ?skillLabel .
+
+    # Ensure this skill is required by at least one project
+    ?project a ex:Project ;
+             ex:requiredSkill ?skill .
+}
+ORDER BY ?personName ?skillLabel

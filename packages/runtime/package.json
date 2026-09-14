@@ -1,0 +1,79 @@
+{
+  "name": "@sparql-query-lib/runtime",
+  "version": "0.1.0",
+  "description": "Parser-free runtime for executing exported sqlib query bundles in a browser or Node, without a sqlib server",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./package.json": "./package.json",
+    "./args-element": {
+      "import": {
+        "types": "./dist/args-element.d.ts",
+        "default": "./dist/args-element.js"
+      },
+      "require": {
+        "types": "./dist/args-element.d.cts",
+        "default": "./dist/args-element.cjs"
+      }
+    },
+    "./browser": {
+      "import": {
+        "types": "./dist/browser.d.ts",
+        "default": "./dist/browser.js"
+      },
+      "require": {
+        "types": "./dist/browser.d.cts",
+        "default": "./dist/browser.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/recalcitrantsupplant/sqlib.git",
+    "directory": "packages/runtime"
+  },
+  "homepage": "https://github.com/recalcitrantsupplant/sqlib/tree/main/packages/runtime#readme",
+  "bugs": {
+    "url": "https://github.com/recalcitrantsupplant/sqlib/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts src/args-element.ts src/browser.ts --format esm,cjs --clean false && tsc --project tsconfig.json --emitDeclarationOnly && node ../../scripts/emit-cjs-declarations.mjs dist",
+    "lint": "echo 'TODO: add lint script'",
+    "test": "vitest run"
+  },
+  "keywords": [
+    "sparql",
+    "rdf",
+    "query",
+    "template"
+  ],
+  "license": "SEE LICENSE IN LICENSE",
+  "devDependencies": {
+    "tsup": "^8.5.1",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.11",
+    "happy-dom": "^20.14.0"
+  }
+}

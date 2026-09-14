@@ -1,0 +1,24 @@
+{
+  "name": "@sparql-query-lib/types",
+  "version": "0.0.0",
+  "license": "SEE LICENSE IN LICENSE",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --clean false && tsc --project tsconfig.json --emitDeclarationOnly",
+    "lint": "echo 'TODO: add lint script'",
+    "test": "echo 'TODO: add tests'"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.1",
+    "typescript": "^7.0.2"
+  }
+}

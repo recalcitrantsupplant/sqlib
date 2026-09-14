@@ -1,0 +1,82 @@
+# Git files
+.git
+.gitignore
+.gitattributes
+
+# Node modules (we install them inside the container)
+**/node_modules
+node_modules
+
+# Build output (created inside the container)
+**/dist
+dist
+
+# Frontend build artifacts (not needed for API-only container)
+packages/web/.nuxt
+packages/web/.output
+packages/web/dist
+packages/web/node_modules
+packages/web/coverage
+packages/web/playwright-report
+packages/web/tests
+
+# Test files and configuration
+**/test
+**/tests
+**/*.test.ts
+**/*.test.js
+**/*.spec.ts
+**/*.spec.js
+**/fuseki-test
+fuseki-test
+jest.config.js
+vitest.config.ts
+playwright.config.ts
+playwright-report
+**/*.tsbuildinfo
+
+# Coverage reports
+coverage
+.nyc_output
+
+# Local environment files (should be passed as env vars to the container)
+.env*
+*.env
+
+# Docker files themselves
+Dockerfile
+.dockerignore
+docker-compose*.yml
+
+# Editor/OS specific files
+.vscode/
+.idea/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.DS_Store
+
+# Development/Documentation/Temporary files
+docs/
+infrastructure/
+traefik/
+certs/
+packages/api/examples
+__blobstorage__/
+__queuestorage__/
+__azurite_*
+*.ts.unused
+*.json.copy
+
+# CI/CD
+.github/
+
+# Other large files not needed
+*.md
+README*
+LICENSE
+.editorconfig
+.prettierrc*
+.eslintrc*

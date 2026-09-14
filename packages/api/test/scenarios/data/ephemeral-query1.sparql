@@ -1,0 +1,22 @@
+# Ephemeral Store Operations - Query 1: Extract Order Data for Processing
+# Purpose: Extract order and customer data to be processed in ephemeral stores
+# Expected Output: order URI, customer URI, customer name, order total, order date
+
+PREFIX ex: <http://example.org/>
+PREFIX schema: <http://schema.org/>
+PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+
+SELECT ?order ?customer ?customerName ?orderTotal ?orderDate ?loyaltyTier WHERE {
+    ?order a schema:Order ;
+           schema:customer ?customer ;
+           schema:orderDate ?orderDate ;
+           ex:totalAmount ?orderTotal .
+
+    ?customer a foaf:Person ;
+              foaf:name ?customerName ;
+              ex:loyaltyTier ?loyaltyTier .
+
+    # Filter for recent orders only
+    FILTER(?orderDate >= "2024-01-01"^^<http://www.w3.org/2001/XMLSchema#date>)
+}
+ORDER BY DESC(?orderDate)

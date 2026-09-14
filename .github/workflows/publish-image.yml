@@ -1,0 +1,66 @@
+# Publish the server image (api + mcp-server) to GHCR.
+# Thin: log in with the built-in GITHUB_TOKEN, then call the shell script.
+# A new GHCR package inherits the repository's visibility settings; check them
+# in the package settings after the first publish.
+#
+# How images get tagged:
+#   - push to main                          -> sha-<short> + latest
+#   - push a vX.Y.Z tag (CLI release)       -> X.Y.Z
+#     (`git tag v0.1.0 && git push origin v0.1.0`)
+#   - "Run workflow" with a version (manual) -> X.Y.Z + a git tag + a GitHub Release
+name: Publish image
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version e.g. 0.1.0 (leave blank for a sha/latest build only)"
+        required: false
+        type: string
+
+permissions:
+  contents: write # create the git tag + GitHub Release on a manual versioned release
+  packages: write # lets GITHUB_TOKEN push to GHCR — no secrets needed
+
+concurrency:
+  group: publish-image-${{ github.ref }}
+  cancel-in-progress: true
+
+# Runs on GitHub-hosted runners, same as ci.yml and for the same reason (see the
+# header there). The push path needs a working docker daemon, which a hosted
+# runner has; ci.yml's `image` job builds on the same runner type, so a green CI
+# is evidence this can publish.
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # docker-container driver: the default `docker` driver cannot export
+      # straight to a registry, which is what the push path relies on.
+      #
+      # No `keep-state`/`cleanup: false`: a hosted runner is a fresh VM, so
+      # there is no BuildKit state to keep and every publish is a cold build — the node base image pulled from Docker Hub, both
+      # `pnpm install`s fetching from npm. That is the price of hosted runners
+      # for this job (observed range 82s to 750s, network-dependent). If it
+      # starts to hurt, the fix is registry-backed layer cache
+      # (`--cache-from/--cache-to type=registry`) in scripts/ci/docker-build-push.sh,
+      # not a named builder.
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - run: bash scripts/ci/docker-build-push.sh
+        env:
+          PUSH: "true"
+          RELEASE_VERSION: ${{ inputs.version }}
+      # Manual versioned release: record it as a git tag + GitHub Release.
+      # Created via GITHUB_TOKEN, so it does not re-trigger this workflow.
+      - if: ${{ github.event_name == 'workflow_dispatch' && inputs.version != '' }}
+        run: gh release create "v${{ inputs.version }}" --title "v${{ inputs.version }}" --generate-notes --target "${{ github.sha }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

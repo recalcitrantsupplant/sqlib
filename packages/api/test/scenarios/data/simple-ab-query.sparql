@@ -1,0 +1,10 @@
+# Simple SELECT query that gets A and B values
+# This is the simplest possible SELECT query for integration testing
+
+PREFIX ex: <http://example.org/>
+
+SELECT ?A ?B WHERE {
+    ?item ex:A ?A ;
+          ex:B ?B .
+}
+ORDER BY ?A

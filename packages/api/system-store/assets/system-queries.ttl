@@ -1,0 +1,126 @@
+@prefix sdo: <https://schema.org/> .
+@prefix sqlib: <https://sparql-query-lib/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+<https://sparql-query-lib/system/library> a sqlib:Library ;
+  sdo:name "System Library" ;
+  sdo:description "Internal LDKit-managed queries for system exports." ;
+  sdo:dateCreated "2025-11-18T00:00:00.000Z"^^xsd:dateTime ;
+  sdo:dateModified "2025-11-18T00:00:00.000Z"^^xsd:dateTime .
+
+<https://sparql-query-lib/system/queries/library-collection> a sqlib:Query ;
+  sdo:name "System Library Collection Export" ;
+  sdo:description "Constructs RDF triples for every stored Library entity." ;
+  sdo:isPartOf <https://sparql-query-lib/system/library> ;
+  sqlib:currentVersion <https://sparql-query-lib/system/query-versions/library-collection@v1> ;
+  sdo:dateCreated "2025-11-18T00:00:00.000Z"^^xsd:dateTime ;
+  sdo:dateModified "2025-11-18T00:00:00.000Z"^^xsd:dateTime .
+
+<https://sparql-query-lib/system/query-versions/library-collection@v1> a sqlib:QueryVersion ;
+  sdo:isPartOf <https://sparql-query-lib/system/queries/library-collection> ;
+  sdo:version 1 ;
+  sqlib:isImmutable true ;
+  sqlib:queryType <https://sparql-query-lib/query-type/construct> ;
+  sqlib:query """PREFIX sdo: <https://schema.org/>
+PREFIX sqlib: <https://sparql-query-lib/>
+
+CONSTRUCT {
+  ?library ?predicate ?object .
+}
+WHERE {
+  ?library a sqlib:Library .
+  ?library ?predicate ?object .
+}""" ;
+  sdo:comment "System-managed RDF dump of every Library entity." ;
+  sdo:dateCreated "2025-11-18T00:00:00.000Z"^^xsd:dateTime ;
+  sdo:dateModified "2025-11-18T00:00:00.000Z"^^xsd:dateTime .
+
+<https://sparql-query-lib/system/queries/library-describe> a sqlib:Query ;
+  sdo:name "System Single Library Export" ;
+  sdo:description "Constructs RDF triples for a specific Library entity." ;
+  sdo:isPartOf <https://sparql-query-lib/system/library> ;
+  sqlib:currentVersion <https://sparql-query-lib/system/query-versions/library-describe@v1> ;
+  sdo:dateCreated "2025-11-18T00:00:00.000Z"^^xsd:dateTime ;
+  sdo:dateModified "2025-11-18T00:00:00.000Z"^^xsd:dateTime .
+
+<https://sparql-query-lib/system/query-versions/library-describe@v1> a sqlib:QueryVersion ;
+  sdo:isPartOf <https://sparql-query-lib/system/queries/library-describe> ;
+  sdo:version 1 ;
+  sqlib:isImmutable true ;
+  sqlib:queryType <https://sparql-query-lib/query-type/construct> ;
+  sqlib:query """PREFIX sdo: <https://schema.org/>
+PREFIX sqlib: <https://sparql-query-lib/>
+
+CONSTRUCT {
+  ?library ?predicate ?object .
+}
+WHERE {
+  VALUES (?library) {
+    (UNDEF)
+  }
+  ?library a sqlib:Library .
+  ?library ?predicate ?object .
+}""" ;
+  sdo:comment "System-managed RDF dump for a specific Library entity." ;
+  sdo:dateCreated "2025-11-18T00:00:00.000Z"^^xsd:dateTime ;
+  sdo:dateModified "2025-11-18T00:00:00.000Z"^^xsd:dateTime .
+
+<https://sparql-query-lib/system/queries/get-queries> a sqlib:Query ;
+  sdo:name "System Query Export" ;
+  sdo:description "Constructs RDF triples for Queries (optionally filtered by ?query)." ;
+  sdo:isPartOf <https://sparql-query-lib/system/library> ;
+  sqlib:currentVersion <https://sparql-query-lib/system/query-versions/get-queries@v1> ;
+  sdo:dateCreated "2025-11-18T00:00:00.000Z"^^xsd:dateTime ;
+  sdo:dateModified "2025-11-18T00:00:00.000Z"^^xsd:dateTime .
+
+<https://sparql-query-lib/system/query-versions/get-queries@v1> a sqlib:QueryVersion ;
+  sdo:isPartOf <https://sparql-query-lib/system/queries/get-queries> ;
+  sdo:version 1 ;
+  sqlib:isImmutable true ;
+  sqlib:queryType <https://sparql-query-lib/query-type/construct> ;
+  sqlib:query """PREFIX sdo: <https://schema.org/>
+PREFIX sqlib: <https://sparql-query-lib/>
+
+CONSTRUCT {
+  ?query ?predicate ?object .
+}
+WHERE {
+  VALUES (?query) {
+    (UNDEF)
+  }
+  ?query a sqlib:Query .
+  ?query ?predicate ?object .
+}""" ;
+  sdo:comment "Placeholder system query to export Queries; update the query string as needed." ;
+  sdo:dateCreated "2025-11-18T00:00:00.000Z"^^xsd:dateTime ;
+  sdo:dateModified "2025-11-18T00:00:00.000Z"^^xsd:dateTime .
+
+<https://sparql-query-lib/system/queries/get-rules> a sqlib:Query ;
+  sdo:name "System Rule Export" ;
+  sdo:description "Constructs RDF triples for Rules (optionally filtered by ?rule)." ;
+  sdo:isPartOf <https://sparql-query-lib/system/library> ;
+  sqlib:currentVersion <https://sparql-query-lib/system/query-versions/get-rules@v1> ;
+  sdo:dateCreated "2025-12-05T00:00:00.000Z"^^xsd:dateTime ;
+  sdo:dateModified "2025-12-05T00:00:00.000Z"^^xsd:dateTime .
+
+<https://sparql-query-lib/system/query-versions/get-rules@v1> a sqlib:QueryVersion ;
+  sdo:isPartOf <https://sparql-query-lib/system/queries/get-rules> ;
+  sdo:version 1 ;
+  sqlib:isImmutable true ;
+  sqlib:queryType <https://sparql-query-lib/query-type/construct> ;
+  sqlib:query """PREFIX sdo: <https://schema.org/>
+PREFIX sqlib: <https://sparql-query-lib/>
+
+CONSTRUCT {
+  ?rule ?predicate ?object .
+}
+WHERE {
+  VALUES (?rule) {
+    (UNDEF)
+  }
+  ?rule a sqlib:Rule .
+  ?rule ?predicate ?object .
+}""" ;
+  sdo:comment "System query to export Rules as RDF." ;
+  sdo:dateCreated "2025-12-05T00:00:00.000Z"^^xsd:dateTime ;
+  sdo:dateModified "2025-12-05T00:00:00.000Z"^^xsd:dateTime .

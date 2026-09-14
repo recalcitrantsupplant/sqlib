@@ -1,0 +1,8 @@
+{
+  "queryVersion": {
+    "queryString": "PREFIX dbo: <http://dbpedia.org/ontology/> PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#> SELECT ?city ?cityName ?population WHERE { VALUES ?minPopulation { UNDEF } ?city a dbo:City ; rdfs:label ?cityName ; dbo:populationTotal ?population . FILTER(?population > ?minPopulation) FILTER(LANG(?cityName) = \"en\")}ORDER BY DESC(?population) LIMIT 10",
+    "queryType": "SELECT",
+    "defaultBackend": "urn:example:backend:dbpedia",
+    "comment": "Version 1 - Basic city population query with parameterization"
+  }
+}

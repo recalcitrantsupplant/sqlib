@@ -1,0 +1,7 @@
+{
+  "id": "urn:example:query:cities-by-population",
+  "name": "Find Cities by Population",
+  "description": "Query to find cities with population greater than a specified threshold",
+  "isPartOf": ["urn:example:library:dbpedia"],
+  "comment": "This query demonstrates parameterized SPARQL with population filtering"
+}

@@ -1,0 +1,22 @@
+{
+  "targetId": "urn:example:query:cities-by-population",
+  "backendId": "urn:example:backend:dbpedia",
+  "arguments": [
+    {
+      "head": {
+        "vars": ["minPopulation"]
+      },
+      "arguments": {
+        "bindings": [
+          {
+            "minPopulation": {
+              "type": "literal",
+              "value": "500000",
+              "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,155 @@
+# Scenario 1: Basic Linear Chain - People with Skills and Projects
+# Flow: Find people → Match skills → Generate project assignments
+
+@prefix ex: <http://example.org/> .
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+@prefix schema: <http://schema.org/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+# People
+ex:alice a foaf:Person ;
+    foaf:name "Alice Johnson" ;
+    foaf:mbox "alice@example.org" ;
+    ex:hasSkill ex:python, ex:dataAnalysis, ex:machineLearning ;
+    ex:experienceLevel "senior" ;
+    ex:availability "full-time" .
+
+ex:bob a foaf:Person ;
+    foaf:name "Bob Smith" ;
+    foaf:mbox "bob@example.org" ;
+    ex:hasSkill ex:javascript, ex:react, ex:nodeJs ;
+    ex:experienceLevel "mid" ;
+    ex:availability "part-time" .
+
+ex:charlie a foaf:Person ;
+    foaf:name "Charlie Brown" ;
+    foaf:mbox "charlie@example.org" ;
+    ex:hasSkill ex:python, ex:devOps, ex:kubernetes ;
+    ex:experienceLevel "senior" ;
+    ex:availability "full-time" .
+
+ex:diana a foaf:Person ;
+    foaf:name "Diana Prince" ;
+    foaf:mbox "diana@example.org" ;
+    ex:hasSkill ex:java, ex:microservices, ex:springBoot ;
+    ex:experienceLevel "senior" ;
+    ex:availability "full-time" .
+
+ex:eve a foaf:Person ;
+    foaf:name "Eve Taylor" ;
+    foaf:mbox "eve@example.org" ;
+    ex:hasSkill ex:javascript, ex:vue, ex:typescript ;
+    ex:experienceLevel "junior" ;
+    ex:availability "full-time" .
+
+# Skills
+ex:python a ex:Skill ;
+    rdfs:label "Python Programming" ;
+    ex:category "programming-language" ;
+    ex:difficulty "medium" .
+
+ex:javascript a ex:Skill ;
+    rdfs:label "JavaScript Programming" ;
+    ex:category "programming-language" ;
+    ex:difficulty "medium" .
+
+ex:java a ex:Skill ;
+    rdfs:label "Java Programming" ;
+    ex:category "programming-language" ;
+    ex:difficulty "medium" .
+
+ex:dataAnalysis a ex:Skill ;
+    rdfs:label "Data Analysis" ;
+    ex:category "analytics" ;
+    ex:difficulty "high" .
+
+ex:machineLearning a ex:Skill ;
+    rdfs:label "Machine Learning" ;
+    ex:category "ai" ;
+    ex:difficulty "high" .
+
+ex:react a ex:Skill ;
+    rdfs:label "React.js" ;
+    ex:category "frontend-framework" ;
+    ex:difficulty "medium" .
+
+ex:vue a ex:Skill ;
+    rdfs:label "Vue.js" ;
+    ex:category "frontend-framework" ;
+    ex:difficulty "medium" .
+
+ex:nodeJs a ex:Skill ;
+    rdfs:label "Node.js" ;
+    ex:category "backend-framework" ;
+    ex:difficulty "medium" .
+
+ex:devOps a ex:Skill ;
+    rdfs:label "DevOps" ;
+    ex:category "infrastructure" ;
+    ex:difficulty "high" .
+
+ex:kubernetes a ex:Skill ;
+    rdfs:label "Kubernetes" ;
+    ex:category "infrastructure" ;
+    ex:difficulty "high" .
+
+ex:microservices a ex:Skill ;
+    rdfs:label "Microservices Architecture" ;
+    ex:category "architecture" ;
+    ex:difficulty "high" .
+
+ex:springBoot a ex:Skill ;
+    rdfs:label "Spring Boot" ;
+    ex:category "backend-framework" ;
+    ex:difficulty "medium" .
+
+ex:typescript a ex:Skill ;
+    rdfs:label "TypeScript" ;
+    ex:category "programming-language" ;
+    ex:difficulty "medium" .
+
+# Projects
+ex:projectA a ex:Project ;
+    rdfs:label "AI-Powered Analytics Platform" ;
+    ex:description "Build machine learning models for business analytics" ;
+    ex:status "planning" ;
+    ex:priority "high" ;
+    ex:requiredSkill ex:python, ex:dataAnalysis, ex:machineLearning ;
+    ex:teamSize 2 ;
+    ex:duration "6 months" .
+
+ex:projectB a ex:Project ;
+    rdfs:label "Customer Portal Redesign" ;
+    ex:description "Modernize customer-facing web application" ;
+    ex:status "planning" ;
+    ex:priority "medium" ;
+    ex:requiredSkill ex:javascript, ex:react, ex:typescript ;
+    ex:teamSize 3 ;
+    ex:duration "4 months" .
+
+ex:projectC a ex:Project ;
+    rdfs:label "Cloud Infrastructure Migration" ;
+    ex:description "Migrate legacy systems to cloud-native architecture" ;
+    ex:status "planning" ;
+    ex:priority "high" ;
+    ex:requiredSkill ex:devOps, ex:kubernetes, ex:python ;
+    ex:teamSize 2 ;
+    ex:duration "8 months" .
+
+ex:projectD a ex:Project ;
+    rdfs:label "Microservices Platform" ;
+    ex:description "Build scalable microservices architecture" ;
+    ex:status "planning" ;
+    ex:priority "medium" ;
+    ex:requiredSkill ex:java, ex:microservices, ex:springBoot ;
+    ex:teamSize 2 ;
+    ex:duration "5 months" .
+
+ex:projectE a ex:Project ;
+    rdfs:label "Internal Dashboard" ;
+    ex:description "Create internal analytics dashboard for operations team" ;
+    ex:status "planning" ;
+    ex:priority "low" ;
+    ex:requiredSkill ex:javascript, ex:vue, ex:nodeJs ;
+    ex:teamSize 1 ;
+    ex:duration "3 months" .

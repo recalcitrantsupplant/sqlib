@@ -1,0 +1,328 @@
+# Scenario 4: Ephemeral Store Operations - Product Catalog and Order Data
+# Flow: Use ephemeral stores for intermediate data processing
+
+@prefix ex: <http://example.org/> .
+@prefix schema: <http://schema.org/> .
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+# Product Categories
+ex:electronics a ex:Category ;
+    rdfs:label "Electronics" ;
+    ex:description "Electronic devices and accessories" .
+
+ex:clothing a ex:Category ;
+    rdfs:label "Clothing" ;
+    ex:description "Apparel and fashion items" .
+
+ex:books a ex:Category ;
+    rdfs:label "Books" ;
+    ex:description "Books and educational materials" .
+
+ex:homeGarden a ex:Category ;
+    rdfs:label "Home & Garden" ;
+    ex:description "Home improvement and garden supplies" .
+
+# Brands
+ex:brandApple a ex:Brand ;
+    rdfs:label "Apple" ;
+    ex:country "USA" ;
+    ex:foundedYear 1976 .
+
+ex:brandSamsung a ex:Brand ;
+    rdfs:label "Samsung" ;
+    ex:country "South Korea" ;
+    ex:foundedYear 1938 .
+
+ex:brandNike a ex:Brand ;
+    rdfs:label "Nike" ;
+    ex:country "USA" ;
+    ex:foundedYear 1964 .
+
+ex:brandAdidas a ex:Brand ;
+    rdfs:label "Adidas" ;
+    ex:country "Germany" ;
+    ex:foundedYear 1949 .
+
+ex:brandPenguin a ex:Brand ;
+    rdfs:label "Penguin Random House" ;
+    ex:country "USA" ;
+    ex:foundedYear 1927 .
+
+# Products
+ex:prod001 a schema:Product ;
+    schema:name "iPhone 15 Pro" ;
+    schema:brand ex:brandApple ;
+    schema:category ex:electronics ;
+    schema:price "999.99"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    schema:description "Latest flagship smartphone with advanced camera system" ;
+    ex:sku "APL-IPH15P-128" ;
+    ex:stockQuantity 150 ;
+    ex:weight "187"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:dimensions "146.6 x 70.6 x 7.8 mm" ;
+    ex:color "Natural Titanium" ;
+    ex:storageCapacity "128GB" ;
+    ex:releaseDate "2023-09-22"^^<http://www.w3.org/2001/XMLSchema#date> .
+
+ex:prod002 a schema:Product ;
+    schema:name "Samsung Galaxy S24" ;
+    schema:brand ex:brandSamsung ;
+    schema:category ex:electronics ;
+    schema:price "799.99"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    schema:description "Premium Android smartphone with AI features" ;
+    ex:sku "SAM-GS24-256" ;
+    ex:stockQuantity 200 ;
+    ex:weight "167"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:dimensions "147.0 x 70.6 x 7.6 mm" ;
+    ex:color "Phantom Black" ;
+    ex:storageCapacity "256GB" ;
+    ex:releaseDate "2024-01-17"^^<http://www.w3.org/2001/XMLSchema#date> .
+
+ex:prod003 a schema:Product ;
+    schema:name "Nike Air Max 270" ;
+    schema:brand ex:brandNike ;
+    schema:category ex:clothing ;
+    schema:price "150.00"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    schema:description "Comfortable running shoes with air cushioning" ;
+    ex:sku "NIK-AM270-10" ;
+    ex:stockQuantity 75 ;
+    ex:weight "380"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:size "10" ;
+    ex:color "Black/White" ;
+    ex:gender "Unisex" ;
+    ex:season "All Season" .
+
+ex:prod004 a schema:Product ;
+    schema:name "Adidas Ultraboost 22" ;
+    schema:brand ex:brandAdidas ;
+    schema:category ex:clothing ;
+    schema:price "180.00"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    schema:description "High-performance running shoes with boost technology" ;
+    ex:sku "ADI-UB22-9" ;
+    ex:stockQuantity 60 ;
+    ex:weight "320"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:size "9" ;
+    ex:color "Core Black" ;
+    ex:gender "Unisex" ;
+    ex:season "All Season" .
+
+ex:prod005 a schema:Product ;
+    schema:name "The Great Gatsby" ;
+    schema:brand ex:brandPenguin ;
+    schema:category ex:books ;
+    schema:price "12.99"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    schema:description "Classic American novel by F. Scott Fitzgerald" ;
+    ex:sku "PEN-GG-PB" ;
+    ex:stockQuantity 300 ;
+    ex:weight "200"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:pages 180 ;
+    ex:isbn "978-0-14-243724-7" ;
+    ex:author "F. Scott Fitzgerald" ;
+    ex:publicationYear 2003 ;
+    ex:format "Paperback" .
+
+ex:prod006 a schema:Product ;
+    schema:name "MacBook Pro 14-inch" ;
+    schema:brand ex:brandApple ;
+    schema:category ex:electronics ;
+    schema:price "1999.00"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    schema:description "Professional laptop with M3 Pro chip" ;
+    ex:sku "APL-MBP14-512" ;
+    ex:stockQuantity 45 ;
+    ex:weight "1600"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:dimensions "312.6 x 221.2 x 15.5 mm" ;
+    ex:color "Space Gray" ;
+    ex:storageCapacity "512GB" ;
+    ex:processorType "M3 Pro" ;
+    ex:screenSize "14.2 inches" .
+
+# Customers
+ex:customer001 a foaf:Person ;
+    foaf:name "John Smith" ;
+    foaf:mbox "john.smith@email.com" ;
+    ex:customerSince "2020-03-15"^^<http://www.w3.org/2001/XMLSchema#date> ;
+    ex:loyaltyTier "Gold" ;
+    ex:totalOrderValue "2547.89"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:orderCount 8 ;
+    schema:address [
+        schema:streetAddress "123 Main St" ;
+        schema:addressLocality "San Francisco" ;
+        schema:addressRegion "CA" ;
+        schema:postalCode "94102" ;
+        schema:addressCountry "USA"
+    ] .
+
+ex:customer002 a foaf:Person ;
+    foaf:name "Sarah Johnson" ;
+    foaf:mbox "sarah.j@email.com" ;
+    ex:customerSince "2019-07-22"^^<http://www.w3.org/2001/XMLSchema#date> ;
+    ex:loyaltyTier "Platinum" ;
+    ex:totalOrderValue "4821.56"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:orderCount 15 ;
+    schema:address [
+        schema:streetAddress "456 Oak Ave" ;
+        schema:addressLocality "New York" ;
+        schema:addressRegion "NY" ;
+        schema:postalCode "10001" ;
+        schema:addressCountry "USA"
+    ] .
+
+ex:customer003 a foaf:Person ;
+    foaf:name "Mike Davis" ;
+    foaf:mbox "mike.davis@email.com" ;
+    ex:customerSince "2021-11-08"^^<http://www.w3.org/2001/XMLSchema#date> ;
+    ex:loyaltyTier "Silver" ;
+    ex:totalOrderValue "1234.67"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:orderCount 5 ;
+    schema:address [
+        schema:streetAddress "789 Pine Rd" ;
+        schema:addressLocality "Chicago" ;
+        schema:addressRegion "IL" ;
+        schema:postalCode "60601" ;
+        schema:addressCountry "USA"
+    ] .
+
+# Orders
+ex:order001 a schema:Order ;
+    schema:orderNumber "ORD-2024-001" ;
+    schema:customer ex:customer001 ;
+    schema:orderDate "2024-01-15"^^<http://www.w3.org/2001/XMLSchema#date> ;
+    schema:orderStatus "delivered" ;
+    ex:totalAmount "1149.98"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:taxAmount "91.99"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:shippingAmount "12.99"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:discountAmount "50.00"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:shippingMethod "standard" ;
+    ex:paymentMethod "credit_card" ;
+    ex:deliveryDate "2024-01-18"^^<http://www.w3.org/2001/XMLSchema#date> .
+
+ex:order002 a schema:Order ;
+    schema:orderNumber "ORD-2024-002" ;
+    schema:customer ex:customer002 ;
+    schema:orderDate "2024-01-20"^^<http://www.w3.org/2001/XMLSchema#date> ;
+    schema:orderStatus "shipped" ;
+    ex:totalAmount "962.98"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:taxAmount "76.99"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:shippingAmount "0.00"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:discountAmount "100.00"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:shippingMethod "express" ;
+    ex:paymentMethod "paypal" ;
+    ex:estimatedDelivery "2024-01-23"^^<http://www.w3.org/2001/XMLSchema#date> .
+
+ex:order003 a schema:Order ;
+    schema:orderNumber "ORD-2024-003" ;
+    schema:customer ex:customer003 ;
+    schema:orderDate "2024-01-25"^^<http://www.w3.org/2001/XMLSchema#date> ;
+    schema:orderStatus "processing" ;
+    ex:totalAmount "342.98"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:taxAmount "27.44"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:shippingAmount "9.99"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:discountAmount "0.00"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:shippingMethod "standard" ;
+    ex:paymentMethod "credit_card" .
+
+# Order Items
+ex:orderItem001 a ex:OrderItem ;
+    ex:order ex:order001 ;
+    ex:product ex:prod001 ;
+    ex:quantity 1 ;
+    ex:unitPrice "999.99"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:totalPrice "999.99"^^<http://www.w3.org/2001/XMLSchema#decimal> .
+
+ex:orderItem002 a ex:OrderItem ;
+    ex:order ex:order001 ;
+    ex:product ex:prod003 ;
+    ex:quantity 1 ;
+    ex:unitPrice "150.00"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:totalPrice "150.00"^^<http://www.w3.org/2001/XMLSchema#decimal> .
+
+ex:orderItem003 a ex:OrderItem ;
+    ex:order ex:order002 ;
+    ex:product ex:prod002 ;
+    ex:quantity 1 ;
+    ex:unitPrice "799.99"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:totalPrice "799.99"^^<http://www.w3.org/2001/XMLSchema#decimal> .
+
+ex:orderItem004 a ex:OrderItem ;
+    ex:order ex:order002 ;
+    ex:product ex:prod004 ;
+    ex:quantity 1 ;
+    ex:unitPrice "180.00"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:totalPrice "180.00"^^<http://www.w3.org/2001/XMLSchema#decimal> .
+
+ex:orderItem005 a ex:OrderItem ;
+    ex:order ex:order003 ;
+    ex:product ex:prod005 ;
+    ex:quantity 2 ;
+    ex:unitPrice "12.99"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:totalPrice "25.98"^^<http://www.w3.org/2001/XMLSchema#decimal> .
+
+ex:orderItem006 a ex:OrderItem ;
+    ex:order ex:order003 ;
+    ex:product ex:prod003 ;
+    ex:quantity 2 ;
+    ex:unitPrice "150.00"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:totalPrice "300.00"^^<http://www.w3.org/2001/XMLSchema#decimal> .
+
+# Product Reviews
+ex:review001 a ex:Review ;
+    ex:product ex:prod001 ;
+    ex:reviewer ex:customer001 ;
+    ex:rating 5 ;
+    ex:title "Excellent phone!" ;
+    ex:comment "The camera quality is amazing and the battery life is great." ;
+    ex:reviewDate "2024-01-20"^^<http://www.w3.org/2001/XMLSchema#date> ;
+    ex:verified true .
+
+ex:review002 a ex:Review ;
+    ex:product ex:prod003 ;
+    ex:reviewer ex:customer003 ;
+    ex:rating 4 ;
+    ex:title "Comfortable shoes" ;
+    ex:comment "Very comfortable for running, though a bit pricey." ;
+    ex:reviewDate "2024-01-28"^^<http://www.w3.org/2001/XMLSchema#date> ;
+    ex:verified true .
+
+# Inventory Tracking
+ex:inventory001 a ex:InventoryRecord ;
+    ex:product ex:prod001 ;
+    ex:warehouse ex:warehouseWest ;
+    ex:quantityOnHand 150 ;
+    ex:reservedQuantity 25 ;
+    ex:availableQuantity 125 ;
+    ex:reorderPoint 50 ;
+    ex:lastUpdated "2024-01-30T10:30:00Z"^^<http://www.w3.org/2001/XMLSchema#dateTime> .
+
+ex:inventory002 a ex:InventoryRecord ;
+    ex:product ex:prod002 ;
+    ex:warehouse ex:warehouseEast ;
+    ex:quantityOnHand 200 ;
+    ex:reservedQuantity 15 ;
+    ex:availableQuantity 185 ;
+    ex:reorderPoint 75 ;
+    ex:lastUpdated "2024-01-30T10:30:00Z"^^<http://www.w3.org/2001/XMLSchema#dateTime> .
+
+# Warehouses
+ex:warehouseWest a ex:Warehouse ;
+    rdfs:label "West Coast Distribution Center" ;
+    schema:address [
+        schema:streetAddress "1000 Industrial Blvd" ;
+        schema:addressLocality "Los Angeles" ;
+        schema:addressRegion "CA" ;
+        schema:postalCode "90021" ;
+        schema:addressCountry "USA"
+    ] ;
+    ex:capacity 100000 ;
+    ex:operatingHours "24/7" .
+
+ex:warehouseEast a ex:Warehouse ;
+    rdfs:label "East Coast Distribution Center" ;
+    schema:address [
+        schema:streetAddress "500 Logistics Way" ;
+        schema:addressLocality "Atlanta" ;
+        schema:addressRegion "GA" ;
+        schema:postalCode "30309" ;
+        schema:addressCountry "USA"
+    ] ;
+    ex:capacity 80000 ;
+    ex:operatingHours "24/7" .

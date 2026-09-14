@@ -1,0 +1,44 @@
+# Phase 2 harness fixture.
+#
+# Deliberately tiny and regular: the legality matrix and the graph fuzzer assert
+# exact result multisets, so every query template below has a result set small
+# enough to write down. Three Things in two Groups, one Group empty of Things,
+# one Thing with no label - enough to produce non-empty, empty, and partial
+# results without any query needing a LIMIT.
+
+@prefix ex: <http://example.org/> .
+
+ex:t1 a ex:Thing ;
+    ex:label "alpha" ;
+    ex:group ex:g1 ;
+    ex:rank 1 .
+
+ex:t2 a ex:Thing ;
+    ex:label "beta" ;
+    ex:group ex:g1 ;
+    ex:rank 2 .
+
+ex:t3 a ex:Thing ;
+    ex:label "gamma" ;
+    ex:group ex:g2 ;
+    ex:rank 3 .
+
+# No ex:label, so joins on label drop it.
+ex:t4 a ex:Thing ;
+    ex:group ex:g2 ;
+    ex:rank 4 .
+
+ex:g1 a ex:Group ;
+    ex:name "Group One" .
+
+ex:g2 a ex:Group ;
+    ex:name "Group Two" .
+
+# Referenced by nothing: gives "match nothing" queries a stable subject.
+ex:g3 a ex:Group ;
+    ex:name "Group Three" .
+
+# A blank node, so a chained edge can be shown to reject one. VALUES cannot bind
+# a blank node, so passing one downstream has to fail with a named error rather
+# than silently dropping the row.
+ex:t1 ex:annotation [ ex:note "anon" ] .

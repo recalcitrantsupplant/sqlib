@@ -1,0 +1,89 @@
+/*
+ * THE RESULTS ACTION BAR — one row, wherever a response is being shown.
+ *
+ * The query panel and the rule set panel carry the identical bar: which view
+ * you are in, the filter over it, and the two things you can do to the response
+ * (download it, pop it out). It is defined once, globally, because two panels
+ * drawing "the same bar" in two scoped stylesheets is how they stop being the
+ * same bar. The run facts that used to sit up here are in ResultsFooter.
+ *
+ * All values come from tokens.css.
+ */
+
+.results-action-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  background: var(--surface-subtle);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.results-action-bar .results-filter {
+  max-width: 260px;
+  height: var(--control-h-sm);
+}
+
+.results-action-bar .action-bar-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+.results-action-bar .btn-action {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--control-h-sm);
+  padding: 0 var(--space-4);
+  font-size: var(--text-label);
+  font-weight: var(--weight-semibold);
+  color: var(--ink-secondary);
+  background: var(--surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.results-action-bar .btn-action:hover {
+  color: var(--action);
+  border-color: var(--action-border);
+}
+
+.results-action-bar .btn-action--icon {
+  padding: 0 var(--space-3);
+}
+
+.results-action-bar .btn-action-label {
+  white-space: nowrap;
+}
+
+@container (max-width: 600px) {
+  .results-action-bar .btn-action-label {
+    display: none;
+  }
+
+  .results-action-bar .results-filter {
+    max-width: 140px;
+  }
+}
+
+/* Dark rules hang off the .dark class the theme switch sets, not the OS
+   preference: a preference pinned in Settings against the OS otherwise
+   left this block applying in light mode, or not applying in dark. */
+.dark .results-action-bar {
+  background: var(--gray-800);
+  border-bottom-color: var(--border-hover);
+}
+
+.dark .results-action-bar .btn-action {
+  background: var(--gray-900);
+  border-color: var(--border-hover);
+}
+
+.dark .results-action-bar .btn-action:hover {
+  color: var(--action);
+  border-color: var(--action-border);
+}

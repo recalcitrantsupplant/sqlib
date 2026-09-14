@@ -1,0 +1,142 @@
+# Thin dispatcher: every step just calls a script in scripts/ci/.
+# All real logic lives there so it is runnable locally (`bash scripts/ci/all.sh`)
+# and debuggable without GitHub Actions or `act`.
+#
+# Runs on GitHub-hosted runners, which give the two things this pipeline needs:
+# jobs that fan out, and PR code that runs on disposable machines.
+#
+# Two consequences worth knowing before editing:
+#   * `cache: pnpm` on setup-node. On a blank VM the ~170MB store tarball from
+#     GitHub's cache service is faster than re-fetching every package from npm.
+#   * The four-way shard matrix on `test`. These runners are 2 vCPU and the api
+#     suite is ~117s of CPU work, so the only lever is more runners. See
+#     scripts/ci/test.sh.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch: # enables the manual e2e job
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Required gate: lint + build (build also typechecks). Green day one.
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: bash scripts/ci/install.sh
+      - run: bash scripts/ci/lint.sh
+      # Checks that the two gates below still fail when they measure nothing,
+      # before trusting the numbers they report. ~1s, no install needed.
+      - run: bash scripts/ci/ratchet-selftest.sh
+      - run: bash scripts/ci/any-ratchet.sh
+      - run: bash scripts/ci/orphan-ratchet.sh
+      - run: bash scripts/ci/typecheck.sh
+      - run: bash scripts/ci/build.sh
+      # After build: it checks the built entry points of the packages that are
+      # not `private: true` (issue #258). Nothing is published here.
+      - run: bash scripts/ci/publish-check.sh
+      - if: github.event_name == 'pull_request'
+        run: bash scripts/ci/commitlint.sh
+
+  # Unit tests, all packages, affected-aware. Green — safe to require as a gate.
+  #
+  # Sharded four ways because the work is CPU-bound on a 2-vCPU runner: the api
+  # suite gets two threads there and takes ~235s, against 105s for the same
+  # 2-thread shape on a Ryzen 7600. Four runners in parallel is the only lever
+  # that moves that, and it costs four installs to pull — worth it on hosted
+  # runners, where the shards genuinely run at once.
+  #
+  # fail-fast: false so one red shard still reports the other three.
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: bash scripts/ci/install.sh
+      - run: bash scripts/ci/test.sh
+        env:
+          SHARD: ${{ matrix.shard }}/4
+
+  # Build the release image without pushing. The node 24 -> 26 bump (e9b49db)
+  # merged itself green and broke every publish afterwards, because nothing in
+  # the PR pipeline built the image — `verify` and `test` never touch the
+  # Dockerfile. This is the gate that would have caught it.
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: bash scripts/ci/docker-build-push.sh # PUSH unset: build only
+
+  # Auto-merge green Dependabot patch/minor bumps. `needs` is the real gate:
+  # this repo is private on the free plan, so branch protection / required
+  # checks are unavailable and nothing else stops a red PR from being merged.
+  dependabot-automerge:
+    needs: [verify, test, image]
+    if: github.event_name == 'pull_request' && github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    # Dependabot-triggered runs get a read-only token by default; these two
+    # scopes are what let the merge (and branch delete) go through.
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dependabot/fetch-metadata@v3
+        id: metadata
+      - run: bash scripts/ci/dependabot-automerge.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          UPDATE_TYPE: ${{ steps.metadata.outputs.update-type }}
+          DEPENDENCY_NAMES: ${{ steps.metadata.outputs.dependency-names }}
+
+  # Playwright e2e — functional specs, mocked API, production preview build.
+  # Visual regression is excluded (font rendering differs per machine); see
+  # scripts/ci/e2e.sh for the reasoning. Also runs packages/api's demo-page
+  # suite (issue #261), which needs no preview build of its own but does need
+  # the topological build below for packages/runtime's built bundle.
+  e2e:
+    runs-on: ubuntu-latest
+    # ETL ships off by default (issue #132). The specs cover the ETL section, and
+    # with ssr:false the flags are baked into the client bundle at build time, so
+    # they have to be set for build.sh as well as e2e.sh — hence job scope.
+    env:
+      FEATURE_ETL: 'true'
+      FEATURE_PLAYGROUND_ETL: 'true'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: bash scripts/ci/install.sh
+      # Playwright serves the built app, and the web build needs contracts/types
+      # compiled to dist/ first — hence the full topological build.
+      - run: bash scripts/ci/build.sh
+      - run: bash scripts/ci/e2e.sh

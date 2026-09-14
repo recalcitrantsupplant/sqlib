@@ -1,0 +1,29 @@
+# Multi-Path Aggregation - Query 3: Merge Department Analytics
+# Purpose: Combine salary statistics and performance metrics to create comprehensive department report
+# Input: VALUES from both Query 2A and Query 2B results
+# Expected Output: Complete department analytics with efficiency metrics
+
+PREFIX ex: <http://example.org/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?department ?deptName ?avgSalary ?totalPayroll ?employeeCount
+       ?excellentCount ?totalSales ?avgPerformanceScore
+       ?salaryEfficiency ?performanceEfficiency ?overallScore WHERE {
+
+    # Input from Query 2A - salary statistics
+    VALUES (?department ?avgSalary ?totalPayroll ?employeeCount) { (UNDEF UNDEF UNDEF UNDEF) }
+
+    # Input from Query 2B - performance metrics
+    VALUES (?department ?excellentCount ?totalSales ?avgPerformanceScore) { (UNDEF UNDEF UNDEF UNDEF) }
+
+    # Get department name
+    ?department rdfs:label ?deptName .
+
+    # Calculate efficiency metrics
+    BIND((?totalSales / ?totalPayroll) AS ?salaryEfficiency)
+    BIND((?excellentCount / ?employeeCount) AS ?performanceEfficiency)
+
+    # Calculate overall departmental score
+    BIND(((?avgPerformanceScore * 0.4) + (?salaryEfficiency * 0.3) + (?performanceEfficiency * 0.3)) AS ?overallScore)
+}
+ORDER BY DESC(?overallScore)

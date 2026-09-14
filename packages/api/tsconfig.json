@@ -1,0 +1,34 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": ".",
+    "types": ["vitest"],
+    "baseUrl": ".",
+    "paths": {
+      "@sparql-query-lib/contracts": ["../contracts/src/index.ts"],
+      "@sparql-query-lib/contracts/*": ["../contracts/src/*"],
+      "@sparql-query-lib/types": ["../types/src/index.ts"],
+      "@sparql-query-lib/types/*": ["../types/src/*"],
+      "@sparql-query-lib/srl": ["../srl/src/index.ts"],
+      "@sparql-query-lib/runtime": ["../runtime/src/index.ts"]
+    }
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "manual-tests",
+    "scripts",
+    "test"
+  ],
+  "references": [
+    { "path": "../types" },
+    { "path": "../contracts" },
+    { "path": "../srl" },
+    { "path": "../runtime" }
+  ]
+}

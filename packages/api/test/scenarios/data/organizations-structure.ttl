@@ -1,0 +1,216 @@
+# Scenario 2: Multi-Path Aggregation - Organizations, Departments, and Employees
+# Flow: Split by departments → Process each → Merge results
+
+@prefix ex: <http://example.org/> .
+@prefix org: <http://www.w3.org/ns/org#> .
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+@prefix schema: <http://schema.org/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+# Organization
+ex:techCorpInc a org:Organization ;
+    rdfs:label "TechCorp Inc." ;
+    ex:foundedYear 2010 ;
+    ex:industry "Technology" ;
+    ex:headquarters "San Francisco, CA" ;
+    ex:revenue "100000000"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:employeeCount 150 .
+
+# Departments
+ex:engineeringDept a org:OrganizationalUnit ;
+    rdfs:label "Engineering Department" ;
+    org:unitOf ex:techCorpInc ;
+    ex:budget "15000000"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:headcount 45 ;
+    ex:location "Building A, Floor 3" .
+
+ex:marketingDept a org:OrganizationalUnit ;
+    rdfs:label "Marketing Department" ;
+    org:unitOf ex:techCorpInc ;
+    ex:budget "8000000"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:headcount 25 ;
+    ex:location "Building B, Floor 2" .
+
+ex:salesDept a org:OrganizationalUnit ;
+    rdfs:label "Sales Department" ;
+    org:unitOf ex:techCorpInc ;
+    ex:budget "12000000"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:headcount 35 ;
+    ex:location "Building B, Floor 1" .
+
+ex:hrDept a org:OrganizationalUnit ;
+    rdfs:label "Human Resources Department" ;
+    org:unitOf ex:techCorpInc ;
+    ex:budget "3000000"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:headcount 12 ;
+    ex:location "Building A, Floor 1" .
+
+ex:financeDept a org:OrganizationalUnit ;
+    rdfs:label "Finance Department" ;
+    org:unitOf ex:techCorpInc ;
+    ex:budget "5000000"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:headcount 18 ;
+    ex:location "Building A, Floor 2" .
+
+ex:operationsDept a org:OrganizationalUnit ;
+    rdfs:label "Operations Department" ;
+    org:unitOf ex:techCorpInc ;
+    ex:budget "6000000"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:headcount 15 ;
+    ex:location "Building C, Floor 1" .
+
+# Engineering Department Employees
+ex:emp001 a foaf:Person ;
+    foaf:name "Sarah Chen" ;
+    org:memberOf ex:engineeringDept ;
+    ex:jobTitle "Senior Software Engineer" ;
+    ex:salary "120000"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:hireDate "2018-03-15"^^<http://www.w3.org/2001/XMLSchema#date> ;
+    ex:performanceRating "excellent" ;
+    ex:yearsExperience 8 .
+
+ex:emp002 a foaf:Person ;
+    foaf:name "Mike Rodriguez" ;
+    org:memberOf ex:engineeringDept ;
+    ex:jobTitle "DevOps Engineer" ;
+    ex:salary "115000"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:hireDate "2019-07-22"^^<http://www.w3.org/2001/XMLSchema#date> ;
+    ex:performanceRating "excellent" ;
+    ex:yearsExperience 6 .
+
+ex:emp003 a foaf:Person ;
+    foaf:name "Emily Davis" ;
+    org:memberOf ex:engineeringDept ;
+    ex:jobTitle "Frontend Developer" ;
+    ex:salary "95000"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:hireDate "2020-11-10"^^<http://www.w3.org/2001/XMLSchema#date> ;
+    ex:performanceRating "good" ;
+    ex:yearsExperience 4 .
+
+ex:emp004 a foaf:Person ;
+    foaf:name "James Wilson" ;
+    org:memberOf ex:engineeringDept ;
+    ex:jobTitle "Engineering Manager" ;
+    ex:salary "140000"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:hireDate "2017-01-08"^^<http://www.w3.org/2001/XMLSchema#date> ;
+    ex:performanceRating "excellent" ;
+    ex:yearsExperience 12 .
+
+# Marketing Department Employees
+ex:emp005 a foaf:Person ;
+    foaf:name "Lisa Thompson" ;
+    org:memberOf ex:marketingDept ;
+    ex:jobTitle "Marketing Manager" ;
+    ex:salary "110000"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:hireDate "2018-09-03"^^<http://www.w3.org/2001/XMLSchema#date> ;
+    ex:performanceRating "excellent" ;
+    ex:yearsExperience 9 .
+
+ex:emp006 a foaf:Person ;
+    foaf:name "David Kim" ;
+    org:memberOf ex:marketingDept ;
+    ex:jobTitle "Content Specialist" ;
+    ex:salary "75000"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:hireDate "2021-05-17"^^<http://www.w3.org/2001/XMLSchema#date> ;
+    ex:performanceRating "good" ;
+    ex:yearsExperience 3 .
+
+ex:emp007 a foaf:Person ;
+    foaf:name "Anna Martinez" ;
+    org:memberOf ex:marketingDept ;
+    ex:jobTitle "Digital Marketing Analyst" ;
+    ex:salary "85000"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:hireDate "2020-02-14"^^<http://www.w3.org/2001/XMLSchema#date> ;
+    ex:performanceRating "excellent" ;
+    ex:yearsExperience 5 .
+
+# Sales Department Employees
+ex:emp008 a foaf:Person ;
+    foaf:name "Robert Johnson" ;
+    org:memberOf ex:salesDept ;
+    ex:jobTitle "Sales Director" ;
+    ex:salary "130000"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:hireDate "2016-04-12"^^<http://www.w3.org/2001/XMLSchema#date> ;
+    ex:performanceRating "excellent" ;
+    ex:yearsExperience 15 ;
+    ex:salesQuota "2000000"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:salesActual "2150000"^^<http://www.w3.org/2001/XMLSchema#decimal> .
+
+ex:emp009 a foaf:Person ;
+    foaf:name "Jennifer Lee" ;
+    org:memberOf ex:salesDept ;
+    ex:jobTitle "Account Executive" ;
+    ex:salary "90000"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:hireDate "2019-12-01"^^<http://www.w3.org/2001/XMLSchema#date> ;
+    ex:performanceRating "good" ;
+    ex:yearsExperience 7 ;
+    ex:salesQuota "800000"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:salesActual "750000"^^<http://www.w3.org/2001/XMLSchema#decimal> .
+
+ex:emp010 a foaf:Person ;
+    foaf:name "Mark Taylor" ;
+    org:memberOf ex:salesDept ;
+    ex:jobTitle "Sales Representative" ;
+    ex:salary "70000"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:hireDate "2021-08-30"^^<http://www.w3.org/2001/XMLSchema#date> ;
+    ex:performanceRating "satisfactory" ;
+    ex:yearsExperience 2 ;
+    ex:salesQuota "500000"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:salesActual "480000"^^<http://www.w3.org/2001/XMLSchema#decimal> .
+
+# HR Department Employees
+ex:emp011 a foaf:Person ;
+    foaf:name "Susan White" ;
+    org:memberOf ex:hrDept ;
+    ex:jobTitle "HR Director" ;
+    ex:salary "125000"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:hireDate "2017-06-20"^^<http://www.w3.org/2001/XMLSchema#date> ;
+    ex:performanceRating "excellent" ;
+    ex:yearsExperience 11 .
+
+ex:emp012 a foaf:Person ;
+    foaf:name "Tom Brown" ;
+    org:memberOf ex:hrDept ;
+    ex:jobTitle "HR Generalist" ;
+    ex:salary "72000"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:hireDate "2020-10-05"^^<http://www.w3.org/2001/XMLSchema#date> ;
+    ex:performanceRating "good" ;
+    ex:yearsExperience 4 .
+
+# Finance Department Employees
+ex:emp013 a foaf:Person ;
+    foaf:name "Carol Garcia" ;
+    org:memberOf ex:financeDept ;
+    ex:jobTitle "Finance Director" ;
+    ex:salary "135000"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:hireDate "2015-11-18"^^<http://www.w3.org/2001/XMLSchema#date> ;
+    ex:performanceRating "excellent" ;
+    ex:yearsExperience 16 .
+
+ex:emp014 a foaf:Person ;
+    foaf:name "Paul Anderson" ;
+    org:memberOf ex:financeDept ;
+    ex:jobTitle "Financial Analyst" ;
+    ex:salary "78000"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:hireDate "2021-02-08"^^<http://www.w3.org/2001/XMLSchema#date> ;
+    ex:performanceRating "good" ;
+    ex:yearsExperience 3 .
+
+# Operations Department Employees
+ex:emp015 a foaf:Person ;
+    foaf:name "Helen Clark" ;
+    org:memberOf ex:operationsDept ;
+    ex:jobTitle "Operations Manager" ;
+    ex:salary "118000"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:hireDate "2018-01-25"^^<http://www.w3.org/2001/XMLSchema#date> ;
+    ex:performanceRating "excellent" ;
+    ex:yearsExperience 10 .
+
+ex:emp016 a foaf:Person ;
+    foaf:name "Kevin Miller" ;
+    org:memberOf ex:operationsDept ;
+    ex:jobTitle "Operations Analyst" ;
+    ex:salary "82000"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:hireDate "2020-07-13"^^<http://www.w3.org/2001/XMLSchema#date> ;
+    ex:performanceRating "good" ;
+    ex:yearsExperience 5 .

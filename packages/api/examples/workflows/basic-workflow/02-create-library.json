@@ -1,0 +1,5 @@
+{
+  "id": "urn:example:library:dbpedia",
+  "name": "Example Queries for DBpedia",
+  "description": "A collection of example queries for exploring DBpedia"
+}

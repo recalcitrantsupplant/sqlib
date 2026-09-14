@@ -1,0 +1,96 @@
+/*
+ * CodeMirror chrome, driven by design tokens.
+ *
+ * Each editor component builds its own EditorView.theme(), and none of them
+ * knew about the app theme — so with .dark applied the editors kept a light
+ * grey gutter and a light-blue active line against a dark page.
+ *
+ * This styles the structural chrome (surface, gutters, active line, selection,
+ * cursor) from tokens so it follows the theme everywhere at once.
+ *
+ * CodeMirror injects its own stylesheet into <head> at runtime, after this
+ * file, under generated class names of equal specificity. A plain .cm-gutters
+ * rule therefore loses the cascade tie, which is why these overrides are
+ * prefixed with .cm-editor and marked !important.
+ *
+ * SCOPE: syntax highlighting is NOT covered here, and cannot be. CodeMirror
+ * emits generated, unstable class names (.ͼ1, .ͼ2, …) for highlight styles,
+ * which no CSS selector can reach — it needs a HighlightStyle extension instead.
+ * That lives in src/lib/codemirrorHighlight.ts, is built from the same tokens,
+ * and is threaded through every editor, so the two halves stay in step (#35).
+ */
+
+.cm-editor {
+  background: transparent;
+  color: var(--ink);
+  font-size: var(--text-code);
+}
+
+.cm-editor .cm-scroller {
+  font-family: var(--font-mono);
+  font-size: var(--text-code);
+}
+
+.cm-editor .cm-gutters {
+  background: var(--surface-subtle) !important;
+  color: var(--ink-muted) !important;
+  border-right: 1px solid var(--border-subtle) !important;
+}
+
+.cm-editor .cm-activeLineGutter {
+  background: var(--surface-raised) !important;
+  color: var(--ink-secondary) !important;
+}
+
+.cm-editor .cm-activeLine {
+  background: color-mix(in srgb, var(--action) 6%, transparent) !important;
+}
+
+.cm-selectionBackground,
+.cm-editor .cm-selectionBackground,
+.cm-content ::selection {
+  background: color-mix(in srgb, var(--action) 22%, transparent) !important;
+}
+
+.cm-editor .cm-cursor,
+.cm-editor .cm-dropCursor {
+  border-left-color: var(--ink) !important;
+}
+
+.cm-editor.cm-focused {
+  outline: none;
+}
+
+.cm-editor .cm-panels {
+  background: var(--surface-subtle) !important;
+  color: var(--ink) !important;
+  border-color: var(--border-default) !important;
+}
+
+.cm-searchMatch {
+  background: color-mix(in srgb, var(--warning) 30%, transparent);
+}
+
+.cm-searchMatch.cm-searchMatch-selected {
+  background: color-mix(in srgb, var(--warning) 55%, transparent);
+}
+
+.cm-tooltip {
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius);
+}
+
+.cm-tooltip-autocomplete > ul > li[aria-selected] {
+  background: var(--action);
+  color: var(--action-fg);
+}
+
+.cm-lintRange-error {
+  text-decoration-color: var(--danger);
+}
+
+.cm-lintRange-warning {
+  text-decoration-color: var(--warning);
+}

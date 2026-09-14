@@ -1,0 +1,42 @@
+# Deep property run for query group orchestration. Separate from ci.yml so the
+# nightly schedule does not drag the whole PR pipeline along with it.
+#
+# Thin dispatcher, same as ci.yml: the logic is in scripts/ci/fuzz-nightly.sh so
+# it can be run locally without GitHub Actions.
+name: Nightly query group fuzz
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      seed:
+        description: 'Seed to reproduce a specific failed run (blank = pick one)'
+        required: false
+        type: string
+      runs:
+        description: 'Number of generated cases (default 1000)'
+        required: false
+        type: string
+
+concurrency:
+  group: nightly-fuzz
+  cancel-in-progress: false
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: bash scripts/ci/install.sh
+      - run: bash scripts/ci/fuzz-nightly.sh
+        env:
+          # Empty values fall through to the script's defaults: a clock-derived
+          # seed and 1000 cases.
+          PHASE2_FUZZ_SEED: ${{ inputs.seed }}
+          PHASE2_FUZZ_RUNS: ${{ inputs.runs }}

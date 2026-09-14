@@ -1,0 +1,265 @@
+# Scenario 3: Data Transformation Pipeline - Scientific Publications with Authors and Citations
+# Flow: Raw data → Clean/normalize → Enrich → Statistical analysis
+
+@prefix ex: <http://example.org/> .
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+@prefix dc: <http://purl.org/dc/elements/1.1/> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix bibo: <http://purl.org/ontology/bibo/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+# Authors
+ex:author1 a foaf:Person ;
+    foaf:name "Dr. Alice Anderson" ;
+    foaf:givenName "Alice" ;
+    foaf:familyName "Anderson" ;
+    ex:affiliation ex:universitaA ;
+    ex:researchField "Machine Learning", "Artificial Intelligence" ;
+    ex:orcid "0000-0001-1111-1111" ;
+    ex:hIndex 45 ;
+    ex:totalCitations 2850 .
+
+ex:author2 a foaf:Person ;
+    foaf:name "Prof. Bob Bennett" ;
+    foaf:givenName "Bob" ;
+    foaf:familyName "Bennett" ;
+    ex:affiliation ex:universitaB ;
+    ex:researchField "Data Science", "Statistics" ;
+    ex:orcid "0000-0002-2222-2222" ;
+    ex:hIndex 38 ;
+    ex:totalCitations 2120 .
+
+ex:author3 a foaf:Person ;
+    foaf:name "Dr. Carol Chen" ;
+    foaf:givenName "Carol" ;
+    foaf:familyName "Chen" ;
+    ex:affiliation ex:universitaA ;
+    ex:researchField "Natural Language Processing", "Machine Learning" ;
+    ex:orcid "0000-0003-3333-3333" ;
+    ex:hIndex 52 ;
+    ex:totalCitations 3240 .
+
+ex:author4 a foaf:Person ;
+    foaf:name "Dr. David Davis" ;
+    foaf:givenName "David" ;
+    foaf:familyName "Davis" ;
+    ex:affiliation ex:universitaC ;
+    ex:researchField "Computer Vision", "Deep Learning" ;
+    ex:orcid "0000-0004-4444-4444" ;
+    ex:hIndex 29 ;
+    ex:totalCitations 1680 .
+
+ex:author5 a foaf:Person ;
+    foaf:name "Prof. Eva Evans" ;
+    foaf:givenName "Eva" ;
+    foaf:familyName "Evans" ;
+    ex:affiliation ex:universitaB ;
+    ex:researchField "Robotics", "Machine Learning" ;
+    ex:orcid "0000-0005-5555-5555" ;
+    ex:hIndex 41 ;
+    ex:totalCitations 2450 .
+
+# Institutions
+ex:universitaA a ex:Institution ;
+    rdfs:label "Tech University" ;
+    ex:country "USA" ;
+    ex:ranking 15 ;
+    ex:foundedYear 1885 .
+
+ex:universitaB a ex:Institution ;
+    rdfs:label "Science Institute" ;
+    ex:country "UK" ;
+    ex:ranking 8 ;
+    ex:foundedYear 1902 .
+
+ex:universitaC a ex:Institution ;
+    rdfs:label "Research Academy" ;
+    ex:country "Germany" ;
+    ex:ranking 22 ;
+    ex:foundedYear 1947 .
+
+# Journals and Conferences
+ex:journalAI a bibo:Journal ;
+    rdfs:label "Journal of Artificial Intelligence" ;
+    ex:impactFactor "4.2"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:publisher "AI Press" ;
+    ex:issn "1234-5678" .
+
+ex:journalML a bibo:Journal ;
+    rdfs:label "Machine Learning Review" ;
+    ex:impactFactor "3.8"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:publisher "ML Publications" ;
+    ex:issn "2345-6789" .
+
+ex:confNeurIPS a ex:Conference ;
+    rdfs:label "Conference on Neural Information Processing Systems" ;
+    ex:acronym "NeurIPS" ;
+    ex:year 2023 ;
+    ex:location "New Orleans, USA" .
+
+ex:confICML a ex:Conference ;
+    rdfs:label "International Conference on Machine Learning" ;
+    ex:acronym "ICML" ;
+    ex:year 2023 ;
+    ex:location "Honolulu, USA" .
+
+# Publications
+ex:paper1 a bibo:Article ;
+    dc:title "Deep Neural Networks for Image Classification: A Comprehensive Survey" ;
+    dc:creator ex:author1, ex:author3 ;
+    dcterms:published "2023-03-15"^^<http://www.w3.org/2001/XMLSchema#date> ;
+    bibo:pageStart "45" ;
+    bibo:pageEnd "72" ;
+    bibo:volume "28" ;
+    bibo:issue "3" ;
+    dc:subject "Deep Learning", "Image Classification", "Computer Vision" ;
+    ex:publicationType "journal" ;
+    ex:venue ex:journalAI ;
+    ex:citationCount 126 ;
+    ex:downloadCount 2847 ;
+    ex:abstract "This paper provides a comprehensive survey of deep neural network architectures for image classification tasks, covering recent advances and future directions." ;
+    ex:doi "10.1000/journal.ai.2023.001" .
+
+ex:paper2 a bibo:Article ;
+    dc:title "Attention Mechanisms in Natural Language Processing: State of the Art" ;
+    dc:creator ex:author2, ex:author3, ex:author5 ;
+    dcterms:published "2023-01-22"^^<http://www.w3.org/2001/XMLSchema#date> ;
+    bibo:pageStart "112" ;
+    bibo:pageEnd "145" ;
+    bibo:volume "15" ;
+    bibo:issue "2" ;
+    dc:subject "Natural Language Processing", "Attention Mechanisms", "Transformers" ;
+    ex:publicationType "journal" ;
+    ex:venue ex:journalML ;
+    ex:citationCount 89 ;
+    ex:downloadCount 1923 ;
+    ex:abstract "We review recent developments in attention mechanisms for NLP, focusing on transformer architectures and their applications." ;
+    ex:doi "10.1000/mlr.2023.002" .
+
+ex:paper3 a bibo:InProceedings ;
+    dc:title "Reinforcement Learning for Robotic Control: Recent Advances" ;
+    dc:creator ex:author4, ex:author5 ;
+    dcterms:published "2023-06-10"^^<http://www.w3.org/2001/XMLSchema#date> ;
+    bibo:pageStart "1245" ;
+    bibo:pageEnd "1253" ;
+    dc:subject "Reinforcement Learning", "Robotics", "Control Systems" ;
+    ex:publicationType "conference" ;
+    ex:venue ex:confNeurIPS ;
+    ex:citationCount 34 ;
+    ex:downloadCount 856 ;
+    ex:abstract "This work explores recent advances in applying reinforcement learning to robotic control problems, with a focus on continuous control tasks." ;
+    ex:doi "10.1000/neurips.2023.003" .
+
+ex:paper4 a bibo:InProceedings ;
+    dc:title "Federated Learning with Differential Privacy: A Practical Approach" ;
+    dc:creator ex:author1, ex:author2, ex:author4 ;
+    dcterms:published "2023-07-18"^^<http://www.w3.org/2001/XMLSchema#date> ;
+    bibo:pageStart "892" ;
+    bibo:pageEnd "901" ;
+    dc:subject "Federated Learning", "Differential Privacy", "Machine Learning" ;
+    ex:publicationType "conference" ;
+    ex:venue ex:confICML ;
+    ex:citationCount 67 ;
+    ex:downloadCount 1547 ;
+    ex:abstract "We present a practical approach to implementing federated learning with differential privacy guarantees." ;
+    ex:doi "10.1000/icml.2023.004" .
+
+ex:paper5 a bibo:Article ;
+    dc:title "Graph Neural Networks for Knowledge Graph Completion" ;
+    dc:creator ex:author3, ex:author4 ;
+    dcterms:published "2023-05-08"^^<http://www.w3.org/2001/XMLSchema#date> ;
+    bibo:pageStart "78" ;
+    bibo:pageEnd "95" ;
+    bibo:volume "29" ;
+    bibo:issue "1" ;
+    dc:subject "Graph Neural Networks", "Knowledge Graphs", "Machine Learning" ;
+    ex:publicationType "journal" ;
+    ex:venue ex:journalAI ;
+    ex:citationCount 52 ;
+    ex:downloadCount 1234 ;
+    ex:abstract "This paper investigates the use of graph neural networks for knowledge graph completion tasks." ;
+    ex:doi "10.1000/journal.ai.2023.005" .
+
+ex:paper6 a bibo:Article ;
+    dc:title "Explainable AI: Methods and Applications" ;
+    dc:creator ex:author1, ex:author5 ;
+    dcterms:published "2023-04-12"^^<http://www.w3.org/2001/XMLSchema#date> ;
+    bibo:pageStart "203" ;
+    bibo:pageEnd "228" ;
+    bibo:volume "16" ;
+    bibo:issue "4" ;
+    dc:subject "Explainable AI", "Machine Learning", "Interpretability" ;
+    ex:publicationType "journal" ;
+    ex:venue ex:journalML ;
+    ex:citationCount 98 ;
+    ex:downloadCount 2156 ;
+    ex:abstract "We survey current methods and applications in explainable artificial intelligence." ;
+    ex:doi "10.1000/mlr.2023.006" .
+
+# Citations (paper A cites paper B)
+ex:citation1 a ex:Citation ;
+    ex:citingPaper ex:paper1 ;
+    ex:citedPaper ex:paper6 ;
+    ex:citationContext "foundational work on explainable AI" .
+
+ex:citation2 a ex:Citation ;
+    ex:citingPaper ex:paper2 ;
+    ex:citedPaper ex:paper1 ;
+    ex:citationContext "image classification techniques" .
+
+ex:citation3 a ex:Citation ;
+    ex:citingPaper ex:paper3 ;
+    ex:citedPaper ex:paper6 ;
+    ex:citationContext "explainable reinforcement learning" .
+
+ex:citation4 a ex:Citation ;
+    ex:citingPaper ex:paper4 ;
+    ex:citedPaper ex:paper2 ;
+    ex:citationContext "privacy-preserving NLP" .
+
+ex:citation5 a ex:Citation ;
+    ex:citingPaper ex:paper5 ;
+    ex:citedPaper ex:paper1 ;
+    ex:citationContext "deep learning architectures" .
+
+ex:citation6 a ex:Citation ;
+    ex:citingPaper ex:paper5 ;
+    ex:citedPaper ex:paper2 ;
+    ex:citationContext "attention in graph processing" .
+
+ex:citation7 a ex:Citation ;
+    ex:citingPaper ex:paper6 ;
+    ex:citedPaper ex:paper3 ;
+    ex:citationContext "explainable robotics" .
+
+# Research Collaborations
+ex:collab1 a ex:Collaboration ;
+    ex:collaborator ex:author1, ex:author3 ;
+    ex:collaborationType "joint research" ;
+    ex:duration "2 years" ;
+    ex:fundingSource "NSF Grant #1234567" .
+
+ex:collab2 a ex:Collaboration ;
+    ex:collaborator ex:author2, ex:author5 ;
+    ex:collaborationType "visiting researcher" ;
+    ex:duration "6 months" ;
+    ex:fundingSource "EU Research Grant" .
+
+# Research Projects
+ex:project1 a ex:ResearchProject ;
+    rdfs:label "AI for Social Good Initiative" ;
+    ex:principalInvestigator ex:author1 ;
+    ex:collaborator ex:author3, ex:author5 ;
+    ex:fundingAmount "500000"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:startDate "2022-01-01"^^<http://www.w3.org/2001/XMLSchema#date> ;
+    ex:endDate "2024-12-31"^^<http://www.w3.org/2001/XMLSchema#date> ;
+    ex:funder "National Science Foundation" .
+
+ex:project2 a ex:ResearchProject ;
+    rdfs:label "Privacy-Preserving Machine Learning" ;
+    ex:principalInvestigator ex:author2 ;
+    ex:collaborator ex:author4 ;
+    ex:fundingAmount "300000"^^<http://www.w3.org/2001/XMLSchema#decimal> ;
+    ex:startDate "2023-06-01"^^<http://www.w3.org/2001/XMLSchema#date> ;
+    ex:endDate "2025-05-31"^^<http://www.w3.org/2001/XMLSchema#date> ;
+    ex:funder "Google Research" .

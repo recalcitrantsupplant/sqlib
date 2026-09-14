@@ -1,0 +1,106 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location": {
+      "value": "westeurope"
+    },
+    "environmentName": {
+      "value": "dev"
+    },
+    "containerAppName": {
+      "value": "sparql-query-lib-api"
+    },
+    "acrLoginServer": {
+      "value": "myregistry.azurecr.io"
+    },
+    "acrUsername": {
+      "value": "myregistry"
+    },
+    "acrPassword": {
+      "value": "REPLACE_WITH_ACR_PASSWORD"
+    },
+    "imageName": {
+      "value": "sparql-query-lib-api"
+    },
+    "imageTag": {
+      "value": "latest"
+    },
+    "targetPort": {
+      "value": 3000
+    },
+    "cpuCores": {
+      "value": "0.5"
+    },
+    "memorySize": {
+      "value": "1.0"
+    },
+    "environmentVariables": {
+      "value": [
+        {
+          "name": "NODE_ENV",
+          "value": "production"
+        },
+        {
+          "name": "PORT",
+          "value": "3000"
+        },
+        {
+          "name": "LOG_LEVEL",
+          "value": "info"
+        },
+        {
+          "name": "LIBRARY_STORAGE_SPARQL_ENDPOINT",
+          "value": "https://example.com/sparql"
+        },
+        {
+          "name": "LIBRARY_STORAGE_SPARQL_USERNAME",
+          "secretRef": "sparql-username"
+        },
+        {
+          "name": "LIBRARY_STORAGE_SPARQL_PASSWORD",
+          "secretRef": "sparql-password"
+        },
+        {
+          "name": "FEATURE_QUERIES",
+          "value": "true"
+        },
+        {
+          "name": "FEATURE_QUERY_GROUPS",
+          "value": "true"
+        },
+        {
+          "name": "FEATURE_RULES_SUITE",
+          "value": "true"
+        },
+        {
+          "name": "FEATURE_ETL",
+          "value": "true"
+        },
+        {
+          "name": "OTEL_ENABLED",
+          "value": "false"
+        }
+      ]
+    },
+    "secrets": {
+      "value": [
+        {
+          "name": "sparql-username",
+          "value": "REPLACE_WITH_SPARQL_USERNAME"
+        },
+        {
+          "name": "sparql-password",
+          "value": "REPLACE_WITH_SPARQL_PASSWORD"
+        }
+      ]
+    },
+    "tags": {
+      "value": {
+        "Environment": "Development",
+        "Project": "SPARQL Query Library",
+        "ManagedBy": "Bicep"
+      }
+    }
+  }
+}

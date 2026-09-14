@@ -1,0 +1,65 @@
+{
+  "name": "@sparql-query-lib/runtime-oxigraph",
+  "version": "0.1.0",
+  "description": "Oxigraph executor for @sparql-query-lib/runtime — run exported sqlib queries against an in-process store, with no endpoint",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/recalcitrantsupplant/sqlib.git",
+    "directory": "packages/runtime-oxigraph"
+  },
+  "homepage": "https://github.com/recalcitrantsupplant/sqlib/tree/main/packages/runtime-oxigraph#readme",
+  "bugs": {
+    "url": "https://github.com/recalcitrantsupplant/sqlib/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --external oxigraph --clean false && tsc --project tsconfig.json --emitDeclarationOnly && node ../../scripts/emit-cjs-declarations.mjs dist",
+    "lint": "echo 'TODO: add lint script'",
+    "test": "vitest run"
+  },
+  "keywords": [
+    "sparql",
+    "rdf",
+    "oxigraph",
+    "wasm"
+  ],
+  "license": "SEE LICENSE IN LICENSE",
+  "dependencies": {
+    "oxigraph": "0.5.11"
+  },
+  "peerDependencies": {
+    "@sparql-query-lib/runtime": "workspace:^"
+  },
+  "devDependencies": {
+    "@sparql-query-lib/runtime": "workspace:*",
+    "tsup": "^8.5.1",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.11"
+  }
+}

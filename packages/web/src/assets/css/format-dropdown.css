@@ -1,0 +1,39 @@
+/*
+ * Mediatype dropdowns, wherever they are drawn.
+ *
+ * Formats are headed by what shape the result is — TABULAR (or BOOLEAN, for an
+ * ASK) and GRAPH — and the query type only suggests: a format that would be
+ * odd for the query is greyed, never removed, so it stays one click away.
+ *
+ * Global rather than scoped: `SelectContent` portals its body to the document
+ * root, so a scoped rule would never reach the rendered options.
+ */
+
+.format-category-label {
+  font-size: var(--text-label);
+  font-weight: var(--weight-semibold);
+  color: var(--ink-muted);
+  background-color: var(--surface-raised);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  padding: var(--space-3) var(--space-4);
+  margin: var(--space-2) 0;
+  border-radius: var(--radius-sm);
+}
+
+/* The first heading in a dropdown does not need the separating margin. */
+[data-slot='select-group']:first-child .format-category-label {
+  margin-top: 0;
+}
+
+/* Not suggested for this query type - still selectable, just played down. */
+.select-item-secondary {
+  opacity: 0.5;
+  font-style: italic;
+  color: var(--ink-muted);
+}
+
+.select-item-secondary:hover {
+  opacity: 0.7;
+  background-color: var(--surface-subtle);
+}

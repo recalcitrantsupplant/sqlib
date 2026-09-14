@@ -1,0 +1,49 @@
+version: 2
+updates:
+  # npm / pnpm workspace (single root lockfile covers all packages).
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    # Group patch+minor to cut PR noise; majors come as individual PRs for review.
+    groups:
+      dev-dependencies:
+        dependency-type: development
+        update-types: [minor, patch]
+      production-dependencies:
+        dependency-type: production
+        update-types: [minor, patch]
+    ignore:
+      # packages/web is pinned to TypeScript 6 on purpose: TS 7 ships no
+      # programmatic compiler API, which Volar / @vue/compiler-sfc need to
+      # resolve imported types in SFCs. Without this rule Dependabot re-opens
+      # a web 6 -> 7 bump on every release and it has to be declined again.
+      #
+      # Trade-off: this is repo-wide, so it also suppresses major bumps for the
+      # packages already on TS 7 (an eventual 8.0 would not be proposed).
+      # Minor and patch updates are unaffected, so TS 7.1 — the release that
+      # adds the new API — still arrives normally. Drop this rule once web can
+      # move to 7 and majors are worth seeing again.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
+
+  # Keep the pinned GitHub Actions current.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    # Same policy as npm above: group patch+minor so routine action bumps land
+    # unattended, and let majors arrive as individual PRs for review. Without
+    # the update-types filter the group swept majors in, so the grouped PR was
+    # always semver-major and never auto-mergeable.
+    groups:
+      github-actions:
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  # Watch the server image's base.
+  - package-ecosystem: docker
+    directory: "/"
+    schedule:
+      interval: weekly

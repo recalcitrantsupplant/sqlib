@@ -1,0 +1,41 @@
+# Ephemeral Store Operations - Query 2: Analyze Order Patterns in Ephemeral Store
+# Purpose: Process order data in ephemeral store to identify patterns and calculate metrics
+# Input: Data from Query 1 loaded into ephemeral store as RDF triples
+# Expected Output: customer segments with spending analysis
+
+PREFIX ex: <http://example.org/>
+PREFIX sqlib: <https://sparql-query-lib/>
+
+SELECT ?customer ?customerName ?loyaltyTier ?totalSpent ?orderCount ?avgOrderValue ?spendingCategory WHERE {
+    # Query the ephemeral store data (loaded from Query 1 results)
+    ?result a sqlib:QueryResult ;
+            sqlib:var/customer ?customer ;
+            sqlib:var/customerName ?customerName ;
+            sqlib:var/loyaltyTier ?loyaltyTier ;
+            sqlib:var/orderTotal ?orderTotal .
+
+    # Aggregate spending by customer
+    {
+        SELECT ?customer
+               (SUM(?orderTotal) AS ?totalSpent)
+               (COUNT(?result) AS ?orderCount)
+               (AVG(?orderTotal) AS ?avgOrderValue) WHERE {
+            ?result sqlib:var/customer ?customer ;
+                   sqlib:var/orderTotal ?orderTotal .
+        }
+        GROUP BY ?customer
+    }
+
+    # Categorize spending levels
+    BIND(
+        IF(?totalSpent > 2000, "High Spender",
+           IF(?totalSpent > 1000, "Medium Spender",
+              "Low Spender"
+           )
+        ) AS ?spendingCategory
+    )
+
+    # Filter for meaningful analysis (customers with multiple orders or high spending)
+    FILTER(?orderCount > 1 || ?totalSpent > 500)
+}
+ORDER BY DESC(?totalSpent)

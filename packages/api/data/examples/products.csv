@@ -1,0 +1,11 @@
+product_id,product_name,category,price,stock_quantity
+P001,Laptop,Electronics,899.99,45
+P002,Desk Chair,Furniture,149.99,120
+P003,Coffee Maker,Appliances,79.99,88
+P004,Notebook Set,Stationery,12.99,250
+P005,Wireless Mouse,Electronics,24.99,175
+P006,Bookshelf,Furniture,199.99,32
+P007,Blender,Appliances,49.99,67
+P008,Pen Pack,Stationery,5.99,400
+P009,Monitor,Electronics,299.99,58
+P010,Table Lamp,Furniture,34.99,95

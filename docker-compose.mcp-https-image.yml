@@ -1,0 +1,70 @@
+services:
+  fuseki:
+    image: fuseki:5.5.0-3
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3030/$/ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    volumes:
+      - ./fuseki-test/config/config.ttl:/opt/fuseki/configuration/config.ttl:ro
+      # Created empty on first run; Fuseki builds the dataset from config.ttl.
+      - ./fuseki-test/databases-mcp:/fuseki/databases
+    networks:
+      - mcpnet
+
+  app:
+    image: sparql-query-lib:aca-local
+    restart: unless-stopped
+    environment:
+      APP_MODE: dual-http
+      HTTP_HOST: 0.0.0.0
+      HTTP_PORT: 3000
+      OTEL_ENABLED: "false"
+      INTERNAL_BACKEND_TYPE: http
+      LIBRARY_STORAGE_SPARQL_ENDPOINT: http://fuseki:3030/testing123
+      LIBRARY_STORAGE_SPARQL_QUERY_ENDPOINT: http://fuseki:3030/testing123
+      LIBRARY_STORAGE_SPARQL_UPDATE_ENDPOINT: http://fuseki:3030/testing123
+    volumes:
+      - ./storage:/app/packages/api/storage
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      fuseki:
+        condition: service_healthy
+    networks:
+      - mcpnet
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.local-app.rule=PathPrefix(`/`)
+      - traefik.http.routers.local-app.entrypoints=websecure
+      - traefik.http.routers.local-app.tls=true
+      - traefik.http.services.local-app.loadbalancer.server.port=3000
+
+  traefik:
+    image: traefik:v3.6.2
+    restart: unless-stopped
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.file.filename=/etc/traefik/dynamic.yml
+      - --providers.file.watch=true
+      - --entrypoints.websecure.address=:3443
+      - --log.level=INFO
+      - --accesslog=true
+    ports:
+      - "3443:3443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/dynamic.docker.yml:/etc/traefik/dynamic.yml:ro
+      - ./certs:/certs:ro
+    depends_on:
+      - app
+    networks:
+      - mcpnet
+
+networks:
+  mcpnet:
+    driver: bridge

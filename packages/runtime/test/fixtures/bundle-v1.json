@@ -1,0 +1,295 @@
+{
+  "version": 1,
+  "library": {
+    "id": "urn:sqlib:library:golden",
+    "name": "Golden fixture library"
+  },
+  "queries": {
+    "people-by-city": {
+      "template": {
+        "text": "PREFIX ex: <http://example.org/>\nSELECT ?name ?city WHERE {\n  VALUES ?city {\n    <urn:sqlib:template-slot:0:city>\n  }\n  ?person ex:livesIn ?city .\n  ?person ex:name ?name .\n}",
+        "slots": [
+          {
+            "start": 62,
+            "end": 117,
+            "vars": [
+              "city"
+            ]
+          }
+        ],
+        "prefixes": [
+          [
+            "ex",
+            "http://example.org/"
+          ]
+        ]
+      },
+      "queryType": "SELECT",
+      "limitParameters": [],
+      "offsetParameters": [],
+      "inferredInputs": [
+        [
+          "city"
+        ]
+      ],
+      "textHash": "sha256-3fa8eae6bf85efcfd31e8614cd0eb879cbfc276e528c5e6046b1e928652a732e",
+      "tags": [
+        "urn:sqlib:tag:reference"
+      ],
+      "sourceQuery": "urn:sqlib:query:people-by-city",
+      "sourceVersion": "urn:sqlib:query-version:people-by-city-1",
+      "description": "Everyone living in the given cities.",
+      "examples": [
+        {
+          "name": "Perth",
+          "arguments": [
+            {
+              "head": {
+                "vars": [
+                  "city"
+                ]
+              },
+              "arguments": {
+                "bindings": [
+                  {
+                    "city": {
+                      "type": "uri",
+                      "value": "http://example.org/city/perth"
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "expected": "{\"head\":{\"vars\":[\"name\",\"city\"]},\"results\":{\"bindings\":[]}}",
+          "expectedFormat": "application/sparql-results+json",
+          "sourceTest": "urn:sqlib:test:people",
+          "sourceCase": "urn:sqlib:test-case:perth"
+        },
+        {
+          "name": "People by city returns rows #1",
+          "arguments": [
+            {
+              "head": {
+                "vars": [
+                  "city"
+                ]
+              },
+              "arguments": {
+                "bindings": [
+                  {
+                    "city": {
+                      "type": "uri",
+                      "value": "http://example.org/city/perth"
+                    }
+                  },
+                  {
+                    "city": {
+                      "type": "uri",
+                      "value": "http://example.org/city/darwin"
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "dataDependent": true,
+          "sourceTest": "urn:sqlib:test:people",
+          "sourceCase": "urn:sqlib:test-case:seeded"
+        }
+      ]
+    },
+    "paged-things": {
+      "template": {
+        "text": "PREFIX ex: <http://example.org/>\nSELECT ?s WHERE {\n  VALUES ?type {\n    <urn:sqlib:template-slot:0:type>\n  }\n  ?s <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> ?type .\n}\nLIMIT 0001 OFFSET 0002",
+        "slots": [
+          {
+            "start": 53,
+            "end": 108,
+            "vars": [
+              "type"
+            ]
+          }
+        ],
+        "prefixes": [
+          [
+            "ex",
+            "http://example.org/"
+          ]
+        ]
+      },
+      "queryType": "SELECT",
+      "limitParameters": [
+        "1"
+      ],
+      "offsetParameters": [
+        "2"
+      ],
+      "pageParameters": [
+        {
+          "name": "1",
+          "kind": "limit",
+          "start": 174,
+          "end": 184
+        },
+        {
+          "name": "2",
+          "kind": "offset",
+          "start": 185,
+          "end": 196
+        }
+      ],
+      "inferredInputs": [
+        [
+          "type"
+        ]
+      ],
+      "textHash": "sha256-f102d146d0c25a913eb50c9c7ef4a9f48fa978c6fae0f5fbee2e2cf48004172a",
+      "sourceQuery": "urn:sqlib:query:paged-things",
+      "sourceVersion": "urn:sqlib:query-version:paged-things-1",
+      "examples": [
+        {
+          "name": "First page",
+          "arguments": [
+            {
+              "head": {
+                "vars": [
+                  "type"
+                ]
+              },
+              "arguments": {
+                "bindings": [
+                  {
+                    "type": {
+                      "type": "uri",
+                      "value": "http://example.org/City"
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "limits": [
+            {
+              "name": "1",
+              "value": 25
+            }
+          ],
+          "offsets": [
+            {
+              "name": "2",
+              "value": 50
+            }
+          ],
+          "sourceTest": "urn:sqlib:test:paged",
+          "sourceCase": "urn:sqlib:test-case:first-page"
+        }
+      ]
+    },
+    "labels": {
+      "template": {
+        "text": "PREFIX ex: <http://example.org/>\nCONSTRUCT {\n  ?s ex:label ?name .\n}\nWHERE {\n  ?s ex:name ?name .\n}",
+        "slots": [],
+        "prefixes": [
+          [
+            "ex",
+            "http://example.org/"
+          ]
+        ]
+      },
+      "queryType": "CONSTRUCT",
+      "limitParameters": [],
+      "offsetParameters": [],
+      "inferredInputs": [],
+      "textHash": "sha256-8d0d11900d330d69b04d94d0ff66b51c70c843454affe6d7245af699f1d03def",
+      "sourceQuery": "urn:sqlib:query:labels",
+      "sourceVersion": "urn:sqlib:query-version:labels-1",
+      "examples": [
+        {
+          "name": "All labels",
+          "arguments": [],
+          "sourceTest": "urn:sqlib:test:labels",
+          "sourceCase": "urn:sqlib:test-case:no-args"
+        }
+      ]
+    },
+    "cities-in-region": {
+      "template": {
+        "text": "PREFIX ex: <http://example.org/>\nSELECT ?city WHERE {\n  VALUES ?region {\n    <urn:sqlib:template-slot:0:region>\n  }\n  ?city ex:inRegion ?region .\n}",
+        "slots": [
+          {
+            "start": 56,
+            "end": 115,
+            "vars": [
+              "region"
+            ]
+          }
+        ],
+        "prefixes": [
+          [
+            "ex",
+            "http://example.org/"
+          ]
+        ]
+      },
+      "queryType": "SELECT",
+      "limitParameters": [],
+      "offsetParameters": [],
+      "inferredInputs": [
+        [
+          "region"
+        ]
+      ],
+      "textHash": "sha256-50a9f8e000f1677dd5ae49c980c610cc1e41f8e38032a21c6a2b5ceaa487e376",
+      "tags": [
+        "urn:sqlib:tag:reference"
+      ],
+      "sourceQuery": "urn:sqlib:query:cities-in-region",
+      "sourceVersion": "urn:sqlib:query-version:cities-in-region-1",
+      "description": "Every city in the given regions."
+    }
+  },
+  "generatedAt": "2026-09-07T00:00:00.000Z",
+  "tags": [
+    "urn:sqlib:tag:reference"
+  ],
+  "groups": {
+    "people-by-region": {
+      "name": "People by region",
+      "description": "Cities in a region, then everyone living in them.",
+      "nodes": {
+        "cities": {
+          "query": "cities-in-region",
+          "sourceNode": "urn:sqlib:query-node:cities"
+        },
+        "people": {
+          "query": "people-by-city",
+          "sourceNode": "urn:sqlib:query-node:people"
+        }
+      },
+      "edges": [
+        {
+          "from": "cities",
+          "to": "people",
+          "targetVars": [
+            "city"
+          ],
+          "mappings": [
+            {
+              "source": "city",
+              "target": "city"
+            }
+          ],
+          "whenEmpty": "propagateEmpty",
+          "sourceEdge": "urn:sqlib:query-edge:cities-to-people"
+        }
+      ],
+      "resultNode": "people",
+      "tags": [
+        "urn:sqlib:tag:reference"
+      ],
+      "sourceGroup": "urn:sqlib:query-group:people-by-region",
+      "sourceVersion": "urn:sqlib:query-group-version:people-by-region-1"
+    }
+  }
+}

@@ -1,0 +1,3 @@
+{
+  "query": "PREFIX dbo: <http://dbpedia.org/ontology/>\nPREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>\n\nSELECT ?country ?countryName ?capital ?capitalName ?population WHERE {\n  ?country a dbo:Country ;\n           rdfs:label ?countryName ;\n           dbo:capital ?capital ;\n           dbo:populationTotal ?population .\n  \n  ?capital rdfs:label ?capitalName .\n  \n  FILTER(LANG(?countryName) = \"en\")\n  FILTER(LANG(?capitalName) = \"en\")\n}\nORDER BY DESC(?population)\nLIMIT 20"
+}

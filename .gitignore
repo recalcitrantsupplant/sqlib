@@ -1,0 +1,100 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+coverage/
+*.tsbuildinfo
+# Nuxt build artifacts
+packages/web/.nuxt/
+packages/web/.output/
+.output/
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+certs/*.pem
+certs/*-key.pem
+
+# Azure/Storage emulation
+__azurite_*
+__blobstorage__/
+__queuestorage__/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Test artifacts
+test/**/*.js
+test/**/*.js.map
+scripts/**/*.js
+scripts/**/*.js.map
+*.log
+# Fuseki fixture stores, wherever they sit. The old pattern was root-anchored,
+# so the copies under packages/ were tracked for months without anyone meaning
+# to commit them.
+**/fuseki-test/databases*/
+*.backup
+
+# TypeScript compilation artifacts in src
+#
+# Deliberately every package, not just `api`: the rule was api-only, so
+# `tsc` output committed under `packages/contracts/src/` (index.js + its map)
+# sat in the tree as source for months. `.d.ts` stays api-only because other
+# packages keep hand-written ambient shims next to their source
+# (`web/src/vue-sonner.d.ts`, `mcp-server/src/shims.d.ts`).
+packages/*/src/**/*.js
+packages/*/src/**/*.js.map
+packages/*/manual-tests/**/*.js
+packages/*/manual-tests/**/*.js.map
+packages/api/src/**/*.d.ts
+
+# Local persistent store (per-machine query library data)
+local_store/
+
+# Local MCP server config (machine-specific paths)
+.mcp.json
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.unused
+*.old
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Claude artifacts
+.claude/
+!data/examples/
+
+# Private planning docs (business/strategy, never committed)
+docs/private/
+
+# runtime store artifacts
+packages/api/tmp/
+
+packages/srl/dist/
+
+# Playwright artifacts (reports, traces, screenshots, .last-run.json)
+playwright-report/
+test-results/
+
+# Runtime oxigraph stores (regenerated at run time)
+tmp/library-store-docker/
+
+# Playwright MCP session artifacts (console log dumps, screenshots).
+.playwright-mcp/

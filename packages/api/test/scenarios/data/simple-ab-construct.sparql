@@ -1,0 +1,16 @@
+# Simple CONSTRUCT query that takes A and B as input parameters
+# Creates trivial output RDF from the input values
+
+PREFIX ex: <http://example.org/>
+
+CONSTRUCT {
+    ?result ex:derivedFrom ?a ;
+            ex:processedValue ?b ;
+            ex:timestamp ?now .
+}
+WHERE {
+    VALUES (?a ?b) { (UNDEF UNDEF) }
+
+    BIND(IRI(CONCAT("http://example.org/result/", ENCODE_FOR_URI(STR(?a)))) AS ?result)
+    BIND("2026-01-01T00:00:00Z"^^<http://www.w3.org/2001/XMLSchema#dateTime> AS ?now)
+}

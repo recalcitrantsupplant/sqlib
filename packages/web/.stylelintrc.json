@@ -1,0 +1,56 @@
+{
+  "overrides": [
+    {
+      "files": ["**/*.vue"],
+      "customSyntax": "postcss-html"
+    }
+  ],
+  "rules": {
+    "color-no-hex": [
+      true,
+      {
+        "message": "Use a design token instead of a hex literal — see src/assets/css/tokens.css and docs/reference/ui-design-tokens.md"
+      }
+    ],
+    "color-named": [
+      "never",
+      {
+        "message": "Use a design token instead of a colour keyword. `color: white` is not caught by color-no-hex but is just as broken in dark mode — see src/assets/css/tokens.css"
+      }
+    ],
+    "declaration-property-unit-allowed-list": [
+      {
+        "font-size": ["vw"]
+      },
+      {
+        "message": "Use a --text-* token instead of a raw font size — see src/assets/css/tokens.css. vw is allowed only inside clamp() for responsive display type."
+      }
+    ],
+    "declaration-property-value-disallowed-list": [
+      {
+        "/^border-radius/": ["/^[0-9]+(px|rem|em)/"]
+      },
+      {
+        "message": "Use a --radius* token instead of a raw radius. 0, 50% and 100% are allowed."
+      }
+    ],
+    "declaration-property-unit-disallowed-list": [
+      {
+        "/^(padding|margin)/": ["px", "rem"]
+      },
+      {
+        "message": "Use a --space-* token instead of a raw padding or margin — see src/assets/css/tokens.css. 0 is allowed, and so is any length relative to something other than the scale: vh/vw, em, %, or calc() over another token. A fixed offset that aligns with chrome rather than the scale belongs in a named custom property, not inline."
+      }
+    ]
+  },
+  "ignoreFiles": [
+    "src/assets/css/tokens.css",
+    "dist/**",
+    ".output/**",
+    ".nuxt/**",
+    "node_modules/**",
+    "coverage/**",
+    "playwright-report/**",
+    "test-results/**"
+  ]
+}

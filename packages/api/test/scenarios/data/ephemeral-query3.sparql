@@ -1,0 +1,67 @@
+# Ephemeral Store Operations - Query 3: Generate Customer Recommendations
+# Purpose: Generate product recommendations based on customer analysis from ephemeral store
+# Input: VALUES (?customer ?spendingCategory ?totalSpent) from Query 2
+# Expected Output: Customer recommendations with targeted products
+
+PREFIX ex: <http://example.org/>
+PREFIX schema: <http://schema.org/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+CONSTRUCT {
+    ?recommendation a ex:CustomerRecommendation ;
+                   ex:targetCustomer ?customer ;
+                   ex:recommendedProduct ?product ;
+                   ex:recommendationType ?recType ;
+                   ex:confidence ?confidence ;
+                   ex:reason ?reason .
+
+    ?customer ex:hasRecommendation ?recommendation .
+}
+WHERE {
+    # VALUES clause will be populated by Query 2 results
+    VALUES (?customer ?spendingCategory ?totalSpent) { (UNDEF UNDEF UNDEF) }
+
+    # Find suitable products based on spending category
+    ?product a schema:Product ;
+             schema:name ?productName ;
+             schema:price ?price ;
+             schema:category ?category .
+
+    # Filter products based on customer spending category
+    FILTER(
+        (?spendingCategory = "High Spender" && ?price > 500) ||
+        (?spendingCategory = "Medium Spender" && ?price >= 100 && ?price <= 800) ||
+        (?spendingCategory = "Low Spender" && ?price < 200)
+    )
+
+    # Generate unique recommendation ID
+    BIND(IRI(CONCAT("http://example.org/recommendation/",
+                    STRAFTER(STR(?customer), "http://example.org/"),
+                    "-",
+                    STRAFTER(STR(?product), "http://example.org/"))) AS ?recommendation)
+
+    # Determine recommendation type based on product category
+    BIND(
+        IF(?category = ex:electronics, "premium-tech",
+           IF(?category = ex:clothing, "lifestyle",
+              IF(?category = ex:books, "educational", "general")
+           )
+        ) AS ?recType
+    )
+
+    # Calculate confidence based on price alignment with spending category
+    BIND(
+        IF(?spendingCategory = "High Spender" && ?price > 800, 0.9,
+           IF(?spendingCategory = "Medium Spender" && ?price >= 200 && ?price <= 600, 0.8,
+              IF(?spendingCategory = "Low Spender" && ?price < 150, 0.7, 0.6)
+           )
+        ) AS ?confidence
+    )
+
+    # Generate recommendation reason
+    BIND(CONCAT("Based on ", ?spendingCategory, " profile, recommended ", ?productName, " in price range $", STR(?price)) AS ?reason)
+
+    # Limit to top 2 recommendations per customer by filtering high confidence
+    FILTER(?confidence >= 0.7)
+}
+LIMIT 10

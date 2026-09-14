@@ -1,0 +1,8 @@
+packages:
+  - 'packages/*'
+allowBuilds:
+  '@parcel/watcher': false
+  esbuild: false
+  msw: false
+  protobufjs: false
+  vue-demi: false

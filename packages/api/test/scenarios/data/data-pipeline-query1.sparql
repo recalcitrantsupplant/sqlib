@@ -1,0 +1,36 @@
+# Data Transformation Pipeline - Query 1: Extract Raw Publication Data
+# Purpose: Get raw publication data that needs cleaning and normalization
+# Expected Output: publication URI, raw title, author list, raw date, venue info
+
+PREFIX ex: <http://example.org/>
+PREFIX dc: <http://purl.org/dc/elements/1.1/>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+PREFIX bibo: <http://purl.org/ontology/bibo/>
+PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+SELECT ?publication ?rawTitle ?authorList ?rawDate ?venueInfo ?publicationType WHERE {
+    ?publication a ?pubClass ;
+                 dc:title ?rawTitle ;
+                 dcterms:published ?rawDate ;
+                 ex:publicationType ?publicationType .
+
+    FILTER(?pubClass IN (bibo:Article, bibo:InProceedings))
+
+    # Concatenate all authors into a single string
+    {
+        SELECT ?publication (GROUP_CONCAT(?authorName; separator=" | ") AS ?authorList) WHERE {
+            ?publication dc:creator ?author .
+            ?author foaf:name ?authorName .
+        }
+        GROUP BY ?publication
+    }
+
+    # Get venue information
+    OPTIONAL {
+        ?publication ex:venue ?venue .
+        ?venue rdfs:label ?venueName .
+        BIND(?venueName AS ?venueInfo)
+    }
+}
+ORDER BY ?rawDate ?rawTitle

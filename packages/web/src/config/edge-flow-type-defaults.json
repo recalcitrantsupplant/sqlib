@@ -1,0 +1,348 @@
+{
+  "$schema": "edge-flow-type-defaults-schema",
+  "description": "Default flow type recommendations for query group canvas edge connections based on source and target node/query types",
+  "version": "1.0.0",
+  "rules": [
+    {
+      "sourceKind": "start",
+      "targetKind": "end",
+      "defaultFlowType": "CONTROL_FLOW",
+      "confidence": "high",
+      "explanation": "Direct start to end connection (control flow only)"
+    },
+    {
+      "sourceKind": "start",
+      "targetKind": "query",
+      "defaultFlowType": "VARIABLE_BINDINGS",
+      "confidence": "high",
+      "explanation": "Start node provides external parameters as tuple bindings"
+    },
+    {
+      "sourceKind": "start",
+      "targetKind": "dynamic",
+      "defaultFlowType": "VARIABLE_BINDINGS",
+      "confidence": "high",
+      "explanation": "Start node provides external parameters to dynamic query"
+    },
+    {
+      "sourceKind": "start",
+      "targetKind": "patch",
+      "defaultFlowType": "VARIABLE_BINDINGS",
+      "confidence": "high",
+      "explanation": "Start node parameterises the update whose effect the patch node derives"
+    },
+    {
+      "sourceQueryType": "https://sparql-query-lib/query-type/select",
+      "targetKind": "end",
+      "defaultFlowType": "VARIABLE_BINDINGS",
+      "confidence": "high",
+      "explanation": "Return SELECT query results as tuple bindings"
+    },
+    {
+      "sourceQueryType": "https://sparql-query-lib/query-type/select",
+      "targetQueryType": "https://sparql-query-lib/query-type/select",
+      "defaultFlowType": "VARIABLE_BINDINGS",
+      "confidence": "high",
+      "explanation": "Chain SELECT results as VALUES input to downstream SELECT"
+    },
+    {
+      "sourceQueryType": "https://sparql-query-lib/query-type/select",
+      "targetQueryType": "https://sparql-query-lib/query-type/construct",
+      "defaultFlowType": "VARIABLE_BINDINGS",
+      "confidence": "high",
+      "explanation": "Use SELECT bindings to parameterize CONSTRUCT query"
+    },
+    {
+      "sourceQueryType": "https://sparql-query-lib/query-type/select",
+      "targetQueryType": "https://sparql-query-lib/query-type/describe",
+      "defaultFlowType": "VARIABLE_BINDINGS",
+      "confidence": "high",
+      "explanation": "Use SELECT bindings to parameterize DESCRIBE query"
+    },
+    {
+      "sourceQueryType": "https://sparql-query-lib/query-type/select",
+      "targetQueryType": "https://sparql-query-lib/query-type/ask",
+      "defaultFlowType": "VARIABLE_BINDINGS",
+      "confidence": "high",
+      "explanation": "Use SELECT bindings in ASK query conditions"
+    },
+    {
+      "sourceQueryType": "https://sparql-query-lib/query-type/select",
+      "targetQueryType": "https://sparql-query-lib/query-type/update",
+      "defaultFlowType": "VARIABLE_BINDINGS",
+      "confidence": "high",
+      "explanation": "Use SELECT bindings to parameterize UPDATE operations"
+    },
+    {
+      "sourceQueryType": "https://sparql-query-lib/query-type/select",
+      "targetKind": "dynamic",
+      "targetHasQueryIdInput": true,
+      "defaultFlowType": "QUERY_ID",
+      "confidence": "medium",
+      "explanation": "Use SELECT result to choose dynamic query variant",
+      "warnings": ["Ensure SELECT produces single-tuple output for query variant selection"]
+    },
+    {
+      "sourceQueryType": "https://sparql-query-lib/query-type/select",
+      "targetKind": "dynamic",
+      "targetHasQueryIdInput": false,
+      "defaultFlowType": "VARIABLE_BINDINGS",
+      "confidence": "high",
+      "explanation": "Pass SELECT results as parameter bindings to dynamic query"
+    },
+    {
+      "sourceQueryType": "https://sparql-query-lib/query-type/construct",
+      "targetKind": "end",
+      "defaultFlowType": "RDF_GRAPH",
+      "confidence": "high",
+      "explanation": "Return constructed RDF graph"
+    },
+    {
+      "sourceQueryType": "https://sparql-query-lib/query-type/construct",
+      "targetQueryType": "https://sparql-query-lib/query-type/select",
+      "defaultFlowType": "RDF_GRAPH",
+      "confidence": "high",
+      "explanation": "Query the constructed RDF graph with SELECT"
+    },
+    {
+      "sourceQueryType": "https://sparql-query-lib/query-type/construct",
+      "targetQueryType": "https://sparql-query-lib/query-type/construct",
+      "defaultFlowType": "RDF_GRAPH",
+      "confidence": "high",
+      "explanation": "Transform RDF graph to another RDF graph"
+    },
+    {
+      "sourceQueryType": "https://sparql-query-lib/query-type/construct",
+      "targetQueryType": "https://sparql-query-lib/query-type/describe",
+      "defaultFlowType": "RDF_GRAPH",
+      "confidence": "high",
+      "explanation": "Describe resources from constructed RDF graph"
+    },
+    {
+      "sourceQueryType": "https://sparql-query-lib/query-type/construct",
+      "targetQueryType": "https://sparql-query-lib/query-type/ask",
+      "defaultFlowType": "RDF_GRAPH",
+      "confidence": "high",
+      "explanation": "Ask queries about constructed RDF graph"
+    },
+    {
+      "sourceQueryType": "https://sparql-query-lib/query-type/construct",
+      "targetQueryType": "https://sparql-query-lib/query-type/update",
+      "defaultFlowType": "RDF_GRAPH",
+      "confidence": "high",
+      "explanation": "Update operations on constructed RDF graph"
+    },
+    {
+      "sourceQueryType": "https://sparql-query-lib/query-type/describe",
+      "targetKind": "end",
+      "defaultFlowType": "RDF_GRAPH",
+      "confidence": "high",
+      "explanation": "Return DESCRIBE RDF graph"
+    },
+    {
+      "sourceQueryType": "https://sparql-query-lib/query-type/describe",
+      "targetQueryType": "https://sparql-query-lib/query-type/select",
+      "defaultFlowType": "RDF_GRAPH",
+      "confidence": "high",
+      "explanation": "Query the described RDF graph with SELECT"
+    },
+    {
+      "sourceQueryType": "https://sparql-query-lib/query-type/describe",
+      "targetQueryType": "https://sparql-query-lib/query-type/construct",
+      "defaultFlowType": "RDF_GRAPH",
+      "confidence": "high",
+      "explanation": "Transform described RDF graph with CONSTRUCT"
+    },
+    {
+      "sourceQueryType": "https://sparql-query-lib/query-type/describe",
+      "targetQueryType": "https://sparql-query-lib/query-type/describe",
+      "defaultFlowType": "RDF_GRAPH",
+      "confidence": "high",
+      "explanation": "Further describe resources from DESCRIBE graph"
+    },
+    {
+      "sourceQueryType": "https://sparql-query-lib/query-type/describe",
+      "targetQueryType": "https://sparql-query-lib/query-type/ask",
+      "defaultFlowType": "RDF_GRAPH",
+      "confidence": "high",
+      "explanation": "Ask queries about described RDF graph"
+    },
+    {
+      "sourceQueryType": "https://sparql-query-lib/query-type/describe",
+      "targetQueryType": "https://sparql-query-lib/query-type/update",
+      "defaultFlowType": "RDF_GRAPH",
+      "confidence": "high",
+      "explanation": "Update operations on described RDF graph"
+    },
+    {
+      "sourceQueryType": "https://sparql-query-lib/query-type/ask",
+      "targetKind": "end",
+      "defaultFlowType": "BOOLEAN",
+      "confidence": "high",
+      "explanation": "Return ASK query boolean result"
+    },
+    {
+      "sourceQueryType": "https://sparql-query-lib/query-type/ask",
+      "targetQueryType": "https://sparql-query-lib/query-type/select",
+      "defaultFlowType": "BOOLEAN",
+      "confidence": "high",
+      "explanation": "Use boolean result for conditional SELECT execution"
+    },
+    {
+      "sourceQueryType": "https://sparql-query-lib/query-type/ask",
+      "targetQueryType": "https://sparql-query-lib/query-type/construct",
+      "defaultFlowType": "BOOLEAN",
+      "confidence": "high",
+      "explanation": "Use boolean result for conditional CONSTRUCT execution"
+    },
+    {
+      "sourceQueryType": "https://sparql-query-lib/query-type/ask",
+      "targetQueryType": "https://sparql-query-lib/query-type/describe",
+      "defaultFlowType": "BOOLEAN",
+      "confidence": "high",
+      "explanation": "Use boolean result for conditional DESCRIBE execution"
+    },
+    {
+      "sourceQueryType": "https://sparql-query-lib/query-type/ask",
+      "targetQueryType": "https://sparql-query-lib/query-type/ask",
+      "defaultFlowType": "BOOLEAN",
+      "confidence": "high",
+      "explanation": "Chain boolean conditions"
+    },
+    {
+      "sourceQueryType": "https://sparql-query-lib/query-type/ask",
+      "targetQueryType": "https://sparql-query-lib/query-type/update",
+      "defaultFlowType": "BOOLEAN",
+      "confidence": "high",
+      "explanation": "Use boolean result for conditional UPDATE execution"
+    },
+    {
+      "sourceQueryType": "https://sparql-query-lib/query-type/ask",
+      "targetKind": "dynamic",
+      "defaultFlowType": "BOOLEAN",
+      "confidence": "high",
+      "explanation": "Use boolean result for conditional dynamic query execution"
+    },
+    {
+      "sourceQueryType": "https://sparql-query-lib/query-type/update",
+      "targetKind": "end",
+      "defaultFlowType": "CONTROL_FLOW",
+      "confidence": "high",
+      "explanation": "UPDATE produces no output data; only control flow",
+      "warnings": ["UPDATE queries produce no data output"]
+    },
+    {
+      "sourceQueryType": "https://sparql-query-lib/query-type/update",
+      "targetQueryType": "https://sparql-query-lib/query-type/select",
+      "defaultFlowType": "CONTROL_FLOW",
+      "confidence": "high",
+      "explanation": "Execute SELECT after UPDATE completes",
+      "warnings": ["UPDATE queries produce no data output"]
+    },
+    {
+      "sourceQueryType": "https://sparql-query-lib/query-type/update",
+      "targetQueryType": "https://sparql-query-lib/query-type/construct",
+      "defaultFlowType": "CONTROL_FLOW",
+      "confidence": "high",
+      "explanation": "Execute CONSTRUCT after UPDATE completes",
+      "warnings": ["UPDATE queries produce no data output"]
+    },
+    {
+      "sourceQueryType": "https://sparql-query-lib/query-type/update",
+      "targetQueryType": "https://sparql-query-lib/query-type/describe",
+      "defaultFlowType": "CONTROL_FLOW",
+      "confidence": "high",
+      "explanation": "Execute DESCRIBE after UPDATE completes",
+      "warnings": ["UPDATE queries produce no data output"]
+    },
+    {
+      "sourceQueryType": "https://sparql-query-lib/query-type/update",
+      "targetQueryType": "https://sparql-query-lib/query-type/ask",
+      "defaultFlowType": "CONTROL_FLOW",
+      "confidence": "high",
+      "explanation": "Execute ASK after UPDATE completes",
+      "warnings": ["UPDATE queries produce no data output"]
+    },
+    {
+      "sourceQueryType": "https://sparql-query-lib/query-type/update",
+      "targetQueryType": "https://sparql-query-lib/query-type/update",
+      "defaultFlowType": "CONTROL_FLOW",
+      "confidence": "high",
+      "explanation": "Execute UPDATE operations sequentially",
+      "warnings": ["UPDATE queries produce no data output"]
+    },
+    {
+      "sourceQueryType": "https://sparql-query-lib/query-type/update",
+      "targetKind": "dynamic",
+      "defaultFlowType": "CONTROL_FLOW",
+      "confidence": "high",
+      "explanation": "Execute dynamic query after UPDATE completes",
+      "warnings": ["UPDATE queries produce no data output"]
+    }
+  ],
+  "validationRules": {
+    "CONTROL_FLOW": {
+      "allowedSources": ["start", "query", "dynamic"],
+      "allowedTargets": ["query", "dynamic", "end"],
+      "requiresData": false
+    },
+    "VARIABLE_BINDINGS": {
+      "allowedSourceQueryTypes": [
+        "https://sparql-query-lib/query-type/select"
+      ],
+      "allowedSourceKinds": ["start"],
+      "disallowedSourceQueryTypes": [
+        "https://sparql-query-lib/query-type/construct",
+        "https://sparql-query-lib/query-type/describe",
+        "https://sparql-query-lib/query-type/ask",
+        "https://sparql-query-lib/query-type/update"
+      ],
+      "requiresData": true,
+      "errorMessages": {
+        "construct": "CONSTRUCT queries produce RDF graphs, not tuple bindings",
+        "describe": "DESCRIBE queries produce RDF graphs, not tuple bindings",
+        "ask": "ASK queries produce boolean values, not tuple bindings",
+        "update": "UPDATE queries produce no output data"
+      }
+    },
+    "RDF_GRAPH": {
+      "allowedSourceQueryTypes": [
+        "https://sparql-query-lib/query-type/construct",
+        "https://sparql-query-lib/query-type/describe"
+      ],
+      "requiresData": true,
+      "errorMessages": {
+        "default": "Only CONSTRUCT/DESCRIBE queries produce RDF graphs"
+      }
+    },
+    "BOOLEAN": {
+      "allowedSourceQueryTypes": [
+        "https://sparql-query-lib/query-type/ask"
+      ],
+      "requiresData": true,
+      "errorMessages": {
+        "default": "Only ASK queries produce boolean values"
+      }
+    },
+    "QUERY_ID": {
+      "allowedSourceQueryTypes": [
+        "https://sparql-query-lib/query-type/select"
+      ],
+      "allowedTargetKinds": ["dynamic"],
+      "requiresData": true,
+      "errorMessages": {
+        "sourceType": "QUERY_ID flow requires SELECT query output",
+        "targetKind": "QUERY_ID flow can only target DynamicQueryNode"
+      },
+      "warnings": [
+        "Ensure SELECT query produces exactly one variable for query ID"
+      ]
+    }
+  },
+  "fallbackRule": {
+    "defaultFlowType": "CONTROL_FLOW",
+    "confidence": "low",
+    "explanation": "Cannot determine appropriate data flow; defaulting to control flow",
+    "warnings": ["Query types not yet determined or unusual connection pattern"]
+  }
+}

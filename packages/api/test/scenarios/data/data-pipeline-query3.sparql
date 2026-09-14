@@ -1,0 +1,73 @@
+# Data Transformation Pipeline - Query 3: Enrich with Citation Data
+# Purpose: Enrich cleaned publication data with citation metrics and network information
+# Input: VALUES (?publication ?cleanTitle ?authorCount ?normalizedDate ?venueType ?publicationYear) from Query 2
+# Expected Output: enriched publication data with citation metrics and impact factors
+
+PREFIX ex: <http://example.org/>
+PREFIX dc: <http://purl.org/dc/elements/1.1/>
+PREFIX bibo: <http://purl.org/ontology/bibo/>
+
+SELECT ?publication ?cleanTitle ?authorCount ?publicationYear ?venueType
+       ?citationCount ?citedByCount ?impactFactor ?hIndexContribution
+       ?collaborationScore ?topicDiversity WHERE {
+
+    # VALUES clause will be populated by Query 2 results
+    VALUES (?publication ?cleanTitle ?authorCount ?normalizedDate ?venueType ?publicationYear) {
+        (UNDEF UNDEF UNDEF UNDEF UNDEF UNDEF)
+    }
+
+    # Get citation count from the publication itself
+    OPTIONAL {
+        ?publication ex:citationCount ?citationCount .
+    }
+    BIND(COALESCE(?citationCount, 0) AS ?citationCount)
+
+    # Count how many other papers cite this publication
+    {
+        SELECT ?publication (COUNT(?citingPaper) AS ?citedByCount) WHERE {
+            OPTIONAL {
+                ?citation ex:citedPaper ?publication ;
+                         ex:citingPaper ?citingPaper .
+            }
+        }
+        GROUP BY ?publication
+    }
+
+    # Get impact factor from venue
+    OPTIONAL {
+        ?publication ex:venue ?venue .
+        ?venue ex:impactFactor ?impactFactor .
+    }
+    BIND(COALESCE(?impactFactor, 0.0) AS ?impactFactor)
+
+    # Calculate H-index contribution (simplified)
+    BIND(IF(?citedByCount >= 1, 1, 0) AS ?hIndexContribution)
+
+    # Calculate collaboration score based on author count
+    BIND(
+        IF(?authorCount = 1, 0.0,
+           IF(?authorCount <= 3, 0.5,
+              IF(?authorCount <= 5, 0.8, 1.0)
+           )
+        ) AS ?collaborationScore
+    )
+
+    # Calculate topic diversity based on subject count
+    {
+        SELECT ?publication (COUNT(DISTINCT ?subject) AS ?subjectCount) WHERE {
+            OPTIONAL {
+                ?publication dc:subject ?subject .
+            }
+        }
+        GROUP BY ?publication
+    }
+
+    BIND(
+        IF(?subjectCount <= 1, 0.2,
+           IF(?subjectCount <= 2, 0.5,
+              IF(?subjectCount <= 3, 0.8, 1.0)
+           )
+        ) AS ?topicDiversity
+    )
+}
+ORDER BY ?citedByCount DESC ?citationCount DESC

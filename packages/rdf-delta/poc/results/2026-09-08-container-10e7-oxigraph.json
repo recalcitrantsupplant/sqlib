@@ -1,0 +1,139 @@
+{
+  "machine": {
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+    "threads": 4,
+    "totalmemBytes": 16856092672,
+    "node": "v22.22.2"
+  },
+  "ranAt": "2026-09-08T11:59:43.340Z",
+  "results": [
+    {
+      "profile": "reassert",
+      "ops": 10000000,
+      "shape": {
+        "profile": "reassert",
+        "hotPercent": 30,
+        "hotKeys": 50000,
+        "graphs": 8,
+        "seed": 20260908,
+        "ops": 10000000,
+        "patches": 200
+      },
+      "logRows": 10000000,
+      "distinctQuads": 7047575,
+      "stateQuads": 7022614,
+      "generateMs": 5756.005209,
+      "logBytesDuckdb": 202387456,
+      "logBytesParquetZstd": 91093938,
+      "logBytesRdfPatchText": 1228989980,
+      "latestArgMax": {
+        "cold": 1139.4989590000005,
+        "median": 1105.1122309999992
+      },
+      "latestQualify": {
+        "cold": 2933.4287569999997,
+        "median": 3082.333064999999
+      },
+      "asOf": [
+        {
+          "atPatch": 20,
+          "ms": {
+            "cold": 182.18040300000212,
+            "median": 165.17533600000024
+          }
+        },
+        {
+          "atPatch": 100,
+          "ms": {
+            "cold": 561.0961859999989,
+            "median": 569.4928809999983
+          }
+        },
+        {
+          "atPatch": 180,
+          "ms": {
+            "cold": 1022.8962049999973,
+            "median": 935.9922960000004
+          }
+        }
+      ],
+      "cadences": [
+        {
+          "atPatch": 50,
+          "tailRows": 7500000,
+          "buildMs": 1989.720852999999,
+          "reconstructMs": {
+            "cold": 1153.8051670000023,
+            "median": 1153.8051670000023
+          }
+        },
+        {
+          "atPatch": 100,
+          "tailRows": 5000000,
+          "buildMs": 2397.2449570000026,
+          "reconstructMs": {
+            "cold": 996.701384,
+            "median": 996.701384
+          }
+        },
+        {
+          "atPatch": 150,
+          "tailRows": 2500000,
+          "buildMs": 2742.385516000002,
+          "reconstructMs": {
+            "cold": 868.0290789999999,
+            "median": 785.0773749999935
+          }
+        },
+        {
+          "atPatch": 180,
+          "tailRows": 1000000,
+          "buildMs": 3822.503289,
+          "reconstructMs": {
+            "cold": 739.4774490000054,
+            "median": 695.9766510000045
+          }
+        },
+        {
+          "atPatch": 198,
+          "tailRows": 100000,
+          "buildMs": 4707.090652999999,
+          "reconstructMs": {
+            "cold": 653.5542429999987,
+            "median": 630.2173570000014
+          }
+        }
+      ],
+      "snapshotBytesParquetZstd": 67613984,
+      "snapshotBuildMs": 4033.2373789999983,
+      "snapshotReadMs": {
+        "cold": 205.7328669999988,
+        "median": 203.78895100000227
+      },
+      "oxigraph": {
+        "skipped": false,
+        "nquadsBytes": 853638262,
+        "writeMs": 2742.5309209999978,
+        "writeFromSnapshotMs": 4528.9434489999985,
+        "readFileMs": 4201.676324,
+        "loadMs": 39013.62035799999,
+        "chunks": 13,
+        "quads": 7022614
+      },
+      "fit": {
+        "interceptMs": 620.8917379811826,
+        "msPerMillionTailRows": 71.88318286298684
+      },
+      "cadenceForBudget": [
+        {
+          "budgetMs": 250,
+          "patches": 0
+        },
+        {
+          "budgetMs": 1000,
+          "patches": 105
+        }
+      ]
+    }
+  ]
+}

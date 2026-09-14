@@ -1,0 +1,17 @@
+{
+  "orphans": [
+    "packages/api/scripts/bench-apply-args.ts",
+    "packages/api/scripts/bench-node-hop.ts",
+    "packages/api/scripts/bench-wasm-boundary.ts",
+    "packages/api/scripts/check-swagger.ts",
+    "packages/api/scripts/debug-nodeParamMapping.ts",
+    "packages/api/scripts/debug-query-node.ts",
+    "packages/api/scripts/debug-rdf-raw.ts",
+    "packages/api/scripts/debug-schema-comparison.ts",
+    "packages/api/scripts/min-test.ts",
+    "packages/api/scripts/run-comparison-test.ts",
+    "packages/api/scripts/setup-test-data.ts",
+    "packages/api/scripts/test-complex-entities.ts",
+    "packages/api/scripts/validate-phase2.ts"
+  ]
+}

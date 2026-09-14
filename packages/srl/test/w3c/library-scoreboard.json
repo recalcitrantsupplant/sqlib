@@ -1,0 +1,26 @@
+{
+  "eval": {
+    "pass": 35,
+    "total": 35
+  },
+  "eval2": {
+    "pass": 6,
+    "total": 6
+  },
+  "examples": {
+    "pass": 5,
+    "total": 5
+  },
+  "stratification": {
+    "pass": 10,
+    "total": 10
+  },
+  "syntax": {
+    "pass": 139,
+    "total": 139
+  },
+  "wellformed": {
+    "pass": 8,
+    "total": 8
+  }
+}

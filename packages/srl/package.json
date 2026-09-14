@@ -1,0 +1,33 @@
+{
+  "name": "@sparql-query-lib/srl",
+  "version": "0.0.0",
+  "license": "SEE LICENSE IN LICENSE",
+  "private": true,
+  "type": "module",
+  "description": "SHACL 1.2 Shape Rules Language (SRL) \u2014 parser, generator, SPARQL-UPDATE compiler and stratifier, built as a Traqula grammar extension.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "lint": "echo 'TODO: add lint'",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@traqula/core": "1.2.0",
+    "@traqula/generator-sparql-1-2": "1.2.1",
+    "@traqula/parser-sparql-1-2": "1.2.1",
+    "@traqula/rules-sparql-1-1": "1.2.1",
+    "@traqula/rules-sparql-1-2": "1.2.1"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.11"
+  }
+}

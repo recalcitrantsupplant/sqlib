@@ -1,0 +1,19 @@
+http:
+  routers:
+    local-app:
+      entryPoints:
+        - websecure
+      rule: "PathPrefix(`/`)"
+      service: local-app
+      tls: {}
+
+  services:
+    local-app:
+      loadBalancer:
+        servers:
+          - url: "http://127.0.0.1:3300"
+
+tls:
+  certificates:
+    - certFile: /certs/localhost.pem
+      keyFile: /certs/localhost-key.pem

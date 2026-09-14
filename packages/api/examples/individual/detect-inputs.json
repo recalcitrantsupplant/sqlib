@@ -1,0 +1,3 @@
+{
+  "query": "PREFIX dbo: <http://dbpedia.org/ontology/>\nPREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>\n\nSELECT ?person ?name ?birthPlace WHERE {\n  VALUES (?occupation) { ({{OCCUPATION}}) }\n  \n  ?person a dbo:Person ;\n          rdfs:label ?name ;\n          dbo:occupation ?occupation ;\n          dbo:birthPlace ?birthPlace .\n  \n  FILTER(LANG(?name) = \"en\")\n}\nLIMIT {{MAX_RESULTS}}"
+}

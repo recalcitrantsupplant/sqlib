@@ -1,0 +1,26 @@
+# Multi-Path Aggregation - Query 2A: Calculate Department Employee Statistics
+# Purpose: Calculate salary statistics for each department (Path A)
+# Input: VALUES (?department) from Query 1 results
+# Expected Output: department URI, average salary, total payroll, employee count
+
+PREFIX ex: <http://example.org/>
+PREFIX org: <http://www.w3.org/ns/org#>
+PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+
+SELECT ?department ?avgSalary ?totalPayroll ?employeeCount WHERE {
+    # VALUES clause will be populated by Query 1 results
+    VALUES (?department) { (UNDEF) }
+
+    {
+        SELECT ?department
+               (AVG(?salary) AS ?avgSalary)
+               (SUM(?salary) AS ?totalPayroll)
+               (COUNT(?employee) AS ?employeeCount) WHERE {
+            ?employee a foaf:Person ;
+                      org:memberOf ?department ;
+                      ex:salary ?salary .
+        }
+        GROUP BY ?department
+    }
+}
+ORDER BY ?department

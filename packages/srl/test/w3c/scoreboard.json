@@ -1,0 +1,14 @@
+{
+  "syntax": {
+    "pass": 139,
+    "total": 139
+  },
+  "wellformed": {
+    "pass": 8,
+    "total": 8
+  },
+  "stratification": {
+    "pass": 10,
+    "total": 10
+  }
+}

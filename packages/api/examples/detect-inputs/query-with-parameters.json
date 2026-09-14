@@ -1,0 +1,3 @@
+{
+  "query": "PREFIX dbo: <http://dbpedia.org/ontology/>\nPREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>\n\nSELECT ?city ?cityName ?population WHERE {\n  VALUES (?minPopulation) { ({{MIN_POPULATION}}) }\n  \n  ?city a dbo:City ;\n        rdfs:label ?cityName ;\n        dbo:populationTotal ?population .\n  \n  FILTER(?population > ?minPopulation)\n  FILTER(LANG(?cityName) = \"en\")\n}\nORDER BY DESC(?population)\nLIMIT {{RESULT_LIMIT}}"
+}

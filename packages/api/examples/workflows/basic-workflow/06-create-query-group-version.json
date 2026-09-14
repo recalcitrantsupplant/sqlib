@@ -1,0 +1,50 @@
+{
+  "queryGroupVersion": {
+    "comment": "Version 1.0 of the city analysis workflow with parameterized queries"
+  },
+  "executionNodes": [
+    {
+      "id": "urn:ui-temp:node:population-query",
+      "queryId": "urn:example:query:cities-by-population",
+      "backendId": "urn:example:backend:dbpedia",
+      "outputTuples": ["urn:ui-temp:output-tuple:city-results"]
+    }
+  ],
+  "edges": [],
+  "tupleMembers": [
+    {
+      "id": "urn:ui-temp:tuple-member:city",
+      "position": 0,
+      "variable": "urn:ui-temp:output:city"
+    },
+    {
+      "id": "urn:ui-temp:tuple-member:city-name",
+      "position": 1,
+      "variable": "urn:ui-temp:output:city-name"
+    },
+    {
+      "id": "urn:ui-temp:tuple-member:population",
+      "position": 2,
+      "variable": "urn:ui-temp:output:population"
+    }
+  ],
+  "inputTuples": [],
+  "outputTuples": [
+    {
+      "id": "urn:ui-temp:output-tuple:city-results",
+      "name": "City Results",
+      "memberEntries": [
+        "urn:ui-temp:tuple-member:city",
+        "urn:ui-temp:tuple-member:city-name",
+        "urn:ui-temp:tuple-member:population"
+      ]
+    }
+  ],
+  "inputs": [],
+  "outputs": [
+    { "id": "urn:ui-temp:output:city", "variableName": "city" },
+    { "id": "urn:ui-temp:output:city-name", "variableName": "cityName" },
+    { "id": "urn:ui-temp:output:population", "variableName": "population" }
+  ],
+  "rdfOutputs": []
+}

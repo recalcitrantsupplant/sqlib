@@ -1,0 +1,43 @@
+# Basic Linear Chain - Query 3: Generate Project Assignments
+# Purpose: Create RDF triples representing project assignments
+# Input: VALUES (?person ?skill ?project) from Query 2 results
+# Expected Output: RDF graph with assignment triples
+
+PREFIX ex: <http://example.org/>
+PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+
+CONSTRUCT {
+    ?assignment a ex:ProjectAssignment ;
+                ex:assignedPerson ?person ;
+                ex:assignedProject ?project ;
+                ex:assignedSkill ?skill ;
+                ex:assignmentDate ?today ;
+                ex:assignmentStatus "proposed" ;
+                ex:confidence ?confidence .
+
+    ?person ex:assignedTo ?project .
+    ?project ex:hasAssignee ?person .
+}
+WHERE {
+    # VALUES clause will be populated by Query 2 results
+    VALUES (?person ?skill ?project) { (UNDEF UNDEF UNDEF) }
+
+    # Generate a unique assignment ID based on person and project
+    BIND(IRI(CONCAT("http://example.org/assignment/",
+                    STRAFTER(STR(?person), "http://example.org/"),
+                    "-",
+                    STRAFTER(STR(?project), "http://example.org/"))) AS ?assignment)
+
+    # Set today's date
+    BIND("2026-01-01T00:00:00Z"^^<http://www.w3.org/2001/XMLSchema#dateTime> AS ?today)
+
+    # Calculate confidence based on person's experience level
+    ?person ex:experienceLevel ?experience .
+
+    BIND(
+        IF(?experience = "senior", 0.9,
+           IF(?experience = "mid", 0.7, 0.5)
+        ) AS ?confidence
+    )
+}

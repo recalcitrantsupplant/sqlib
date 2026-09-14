@@ -1,0 +1,26 @@
+{
+  "targetId": "urn:example:querygroup:city-analysis",
+  "arguments": [
+    {
+      "head": {
+        "vars": ["minPopulation", "resultLimit"]
+      },
+      "arguments": {
+        "bindings": [
+          {
+            "minPopulation": {
+              "type": "literal",
+              "value": "1000000",
+              "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+            },
+            "resultLimit": {
+              "type": "literal",
+              "value": "10",
+              "datatype": "http://www.w3.org/2001/XMLSchema#integer"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

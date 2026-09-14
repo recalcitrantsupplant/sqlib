@@ -1,0 +1,41 @@
+@prefix qb: <http://purl.org/linked-data/cube#> .
+@prefix sdo: <https://schema.org/> .
+@prefix sqlib: <https://sparql-query-lib/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+sqlib:BenchmarkObservationDSD a qb:DataStructureDefinition ;
+  sdo:name "Benchmark observation data structure" ;
+  sdo:description "Subject-level benchmark observation structure for query and query group runs." ;
+  qb:component [ qb:dimension sqlib:refSubject ] ;
+  qb:component [ qb:dimension sqlib:refBackend ] ;
+  qb:component [ qb:dimension sqlib:refArgumentSet ] ;
+  qb:component [ qb:dimension sqlib:runIndex ] ;
+  qb:component [ qb:measure sqlib:durationMs ] ;
+  qb:component [ qb:measure sqlib:resultCount ] ;
+  qb:component [ qb:measure sqlib:success ] ;
+  # An attribute rather than a dimension: the pinned version does not vary
+  # independently of `refArgumentSet`, it is what that reference resolved to at
+  # run time. Not required — the no-arguments sentinel resolves to nothing.
+  qb:component [ qb:attribute sqlib:refArgumentSetVersion ] ;
+  qb:component [ qb:attribute sqlib:timestamp ; qb:componentRequired true ] .
+
+sqlib:BenchmarkNodeObservationDSD a qb:DataStructureDefinition ;
+  sdo:name "Benchmark node observation data structure" ;
+  sdo:description "Node-level benchmark observation structure for query group runs." ;
+  qb:component [ qb:dimension sqlib:refGroupObservation ] ;
+  qb:component [ qb:dimension sqlib:refNode ] ;
+  qb:component [ qb:dimension sqlib:refBackend ] ;
+  qb:component [ qb:dimension sqlib:runIndex ] ;
+  qb:component [ qb:dimension sqlib:nodeIndex ] ;
+  qb:component [ qb:measure sqlib:durationMs ] ;
+  qb:component [ qb:measure sqlib:resultCount ] ;
+  qb:component [ qb:measure sqlib:success ] ;
+  qb:component [ qb:attribute sqlib:timestamp ; qb:componentRequired true ] .
+
+sqlib:NoArguments a sdo:Thing ;
+  sdo:name "No arguments" ;
+  sdo:description "Sentinel for benchmark runs without argument sets." .
+
+sqlib:NotApplicableBackend a sdo:Thing ;
+  sdo:name "Not applicable backend" ;
+  sdo:description "Sentinel for benchmark runs where backend is not applicable (query groups)." .
