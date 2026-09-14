@@ -1,7 +1,7 @@
 /**
  * LDKit Schema for Rule Entity (stable pointer)
  *
- * Mirrors the Query schema but dedicated to SHACL rules.
+ * Mirrors the Query schema but dedicated to SPARQL-RL rules.
  */
 
 import type { Schema } from '../schema.js';

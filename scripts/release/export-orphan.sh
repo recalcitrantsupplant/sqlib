@@ -92,7 +92,7 @@ git commit -q -m "Initial public release
 
 sqlib is a self-hostable server, web UI and MCP server for authoring,
 versioning, parameterising, composing, testing and exporting SPARQL queries
-and SHACL 1.2 inference rules.
+and SPARQL-RL inference rules.
 
 This repository begins at one commit. Its development history is kept
 privately and is not published."

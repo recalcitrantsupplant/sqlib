@@ -68,7 +68,7 @@ export class RuleGrammarValidator {
     return {
       validations: [srl, sparql],
       valid: false,
-      error: `Not valid SHACL Rules (SRL) or SPARQL: ${srl.error ?? ''}`.trim(),
+      error: `Not valid SPARQL-RL (SRL) or SPARQL: ${srl.error ?? ''}`.trim(),
     };
   }
 
@@ -76,7 +76,7 @@ export class RuleGrammarValidator {
   formatRuleOrData(input: string): { formatted: string; grammar: GrammarType } {
     const result = this.validateWithAllGrammars(input);
     if (!result.valid) {
-      throw new Error(result.error ?? 'Invalid SHACL rule or data syntax');
+      throw new Error(result.error ?? 'Invalid SPARQL-RL rule or data syntax');
     }
     return { formatted: input.trim(), grammar: result.primaryGrammar ?? 'srl' };
   }

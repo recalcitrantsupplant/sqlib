@@ -9,7 +9,7 @@
  * toggle, so with the flag off a request cannot turn the toggle on, supply
  * seed rows, or parse a `TUPLE( … )` — the toggle itself is not drawn.
  *
- * The extension is not conformant SHACL 1.2 Rules (w3c/data-shapes#752), so a
+ * The extension is not conformant SPARQL-RL (w3c/data-shapes#752), so a
  * document written with it on cannot be read by other tooling. That is why the
  * flag defaults off: a build that did not ask for the extension should not
  * offer an author a way to write a document only this server can read.

@@ -11,7 +11,7 @@ import type { LdkitRuleVersion } from '../persistence/schemas/RuleVersionSchema.
 
 import { ruleTuplesAllowed } from './ruleTuples.js';
 /**
- * Rule stratification, backed by the SRL (SHACL 1.2 Rules) package.
+ * Rule stratification, backed by the SRL (SPARQL-RL) package.
  *
  * This replaces the previous vendored-sparqljs implementation. Aggregation is
  * no longer supported, so monotonicity is `monotone | negation` (see the SRL

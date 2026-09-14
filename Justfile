@@ -56,7 +56,7 @@ run-docker-https:
 clean-local-memory:
     rm -rf packages/api/tmp/library-store
 
-# Run the API as a rules workbench, with the whole W3C SHACL 1.2 Rules suite
+# Run the API as a rules workbench, with the whole W3C SPARQL-RL suite
 # loaded as runnable Tests
 #
 # Rules, data graphs and tests only — queries, query groups, benchmarks and ETL

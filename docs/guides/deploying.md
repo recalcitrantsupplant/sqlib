@@ -160,7 +160,7 @@ read primitive and, with the httpfs extension, an outbound request primitive;
 the assistant is unauthenticated, calls a paid provider, and can reach a
 configured backend. Turning any of them on is a deliberate decision about what
 the deployment's callers may do. `ruleTuples` is off because the extension it
-enables is not conformant SHACL 1.2 Rules. The full list, with defaults, is in
+enables is not conformant SPARQL-RL. The full list, with defaults, is in
 [feature flags](../reference/feature-flags.md).
 
 **Backend credentials are entity data.** A registered HTTP backend can carry a

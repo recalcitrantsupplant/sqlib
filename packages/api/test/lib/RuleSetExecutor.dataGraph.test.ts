@@ -8,7 +8,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
  * (issue #151): DATA blocks are part of a rule set and appear in its inference
  * graph; the data graph is what the rules run against and never does. Before
  * data graphs existed the only way to supply base data was a DATA block, which
- * is exactly the conflation the SHACL 1.2 Rules semantics forbids — so a test
+ * is exactly the conflation the SPARQL-RL semantics forbids — so a test
  * that the two behave *differently* is the point, not a detail.
  */
 

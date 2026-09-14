@@ -356,7 +356,7 @@ describe('Rules Routes (/rules) - CRUD', () => {
     hoisted.rule.get.mockReturnValue({ $id: id, '@type': 'Rule' });
     hoisted.mockRuleValidatorInstance.validateWithAllGrammars.mockReturnValueOnce({
       valid: false,
-      error: 'Invalid SHACL rule syntax',
+      error: 'Invalid SPARQL-RL rule syntax',
       validations: [],
     });
 
@@ -367,7 +367,7 @@ describe('Rules Routes (/rules) - CRUD', () => {
     });
 
     expect(res.statusCode).toBe(400);
-    expect(res.json()).toEqual({ error: 'Invalid SHACL rule syntax' });
+    expect(res.json()).toEqual({ error: 'Invalid SPARQL-RL rule syntax' });
     expect(hoisted.mockCreateVersion).not.toHaveBeenCalled();
   });
 

@@ -1,5 +1,5 @@
 /**
- * Loading the W3C SHACL 1.2 Rules test suite into a library, as Tests.
+ * Loading the W3C SPARQL-RL test suite into a library, as Tests.
  *
  * All four categories, 166 entries, expressed with entities that already
  * existed. The conformance harness is not a harness: it is a `DataGraph`, a
@@ -75,11 +75,13 @@ import { seedShaclValidationFanOutExample } from './validationExamplesFanOut.js'
  * needs to function. Naming it deterministically is what makes re-seeding a
  * no-op.
  */
+// The slug predates the language's rename to SPARQL-RL; it is a persisted id, so
+// changing it would re-seed a second library beside an existing store's.
 export const W3C_RULES_SUITE_LIBRARY_ID = mintId('library', 'w3c-shacl12-rules');
 
-const LIBRARY_NAME = 'W3C SHACL 1.2 Rules — conformance suite';
+const LIBRARY_NAME = 'W3C SPARQL-RL — conformance suite';
 const LIBRARY_DESCRIPTION =
-  'The W3C SHACL 1.2 Rules test suite, vendored at a pinned commit and loaded as Tests. The eval '
+  'The W3C SPARQL-RL test suite, vendored at a pinned commit and loaded as Tests. The eval '
   + 'tests run a rule set against a data graph and compare the inference graph; the syntax, '
   + 'well-formedness and stratification tests check the document itself, and the ones the spec says '
   + 'must be rejected are stored deliberately invalid. Read-only in spirit — refreshing the '
@@ -575,7 +577,7 @@ async function ensureEvalTest(
     await repos().Test.create({
       $id: testId,
       name: entry.name,
-      description: `W3C SHACL 1.2 Rules conformance: ${entry.rulesetFile} over ${entry.dataFile}`,
+      description: `W3C SPARQL-RL conformance: ${entry.rulesetFile} over ${entry.dataFile}`,
       criterion: entry.criterion,
       subject: ruleSetId,
       subjectKind: 'ruleSet',
@@ -635,7 +637,7 @@ async function ensureDocumentTest(
     await repos().Test.create({
       $id: testId,
       name: entry.name,
-      description: `W3C SHACL 1.2 Rules ${entry.category}: the check must `
+      description: `W3C SPARQL-RL ${entry.category}: the check must `
         + `${entry.accepted ? 'accept' : 'reject'} ${entry.file}`,
       criterion: entry.criterion,
       subject: ruleSetId,

@@ -2,7 +2,7 @@
  * LDKit Schema for DataGraph Entity (stable pointer)
  *
  * A DataGraph is reference/example RDF registered in the library — the *input*
- * a ruleset runs against (`G0` in the SHACL 1.2 Rules semantics), not part of
+ * a ruleset runs against (`G0` in the SPARQL-RL semantics), not part of
  * the ruleset itself. DATA blocks are part of a ruleset and come out in the
  * inference graph; a data graph never does. See `docs/concepts.md`.
  */

@@ -44,7 +44,7 @@ likely to use:
 | `just run-local-memory` | API + MCP on port 3005, durable Oxigraph store under `packages/api/tmp/library-store`, assistant flag on |
 | `just clean-local-memory` | Delete that store |
 | `just run-frontend [API_URL]` | Nuxt dev server on port 3001, pointed at `http://localhost:3005` by default |
-| `just run-local-rules-tests` | API as a rules workbench with the W3C SHACL 1.2 Rules suite seeded as runnable Tests, in its own store |
+| `just run-local-rules-tests` | API as a rules workbench with the W3C SPARQL-RL suite seeded as runnable Tests, in its own store |
 | `just run-frontend-rules` | The SPA with the matching feature flags — the API and the SPA read their own environments, so both halves must be set |
 | `just clean-local-rules-tests` | Delete the rules-test store |
 | `just run-local-patch-demo` / `just run-frontend-patch-demo` | The RDF Patch demo library and its SPA |
@@ -161,7 +161,7 @@ Test layout, per package:
 | --- | --- | --- |
 | `api` | `packages/api/test/` | The large suite. Subdirectories by area: `routes/`, `scenarios/`, `persistence/`, `lib/`, `server/`, `integration/`, `auth/`, `system-store/`, and others. `packages/api/tests/` holds the Playwright demo-page specs. |
 | `web` | `packages/web/test/` | vitest with happy-dom. Playwright specs live in `packages/web/tests/e2e/` and are excluded from the unit run. |
-| `srl` | `packages/srl/test/` | Includes the W3C SHACL 1.2 Rules harness (`w3c.harness.test.ts` and `w3c/`). |
+| `srl` | `packages/srl/test/` | Includes the W3C SPARQL-RL harness (`w3c.harness.test.ts` and `w3c/`). |
 | `runtime`, `runtime-oxigraph`, `rdf-delta`, `tools`, `mcp-server` | `packages/<name>/test/` | |
 | `types`, `contracts` | none | Their `test` script is a placeholder, and `test.sh` selects only packages whose `test` script mentions vitest. |
 

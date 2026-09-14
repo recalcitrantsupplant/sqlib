@@ -280,7 +280,7 @@ describe('usePrefixManager', () => {
   });
 
   describe('autoDiscoverFromRule', () => {
-    it('should extract and add prefixes from SHACL rule string via regex', async () => {
+    it('should extract and add prefixes from an SRL rule string via regex', async () => {
       const { usePrefixManager } = await setup();
       const { prefixSettings, autoDiscoverFromRule } = usePrefixManager();
       prefixSettings.value.mappings = []; // Clear defaults for clean test

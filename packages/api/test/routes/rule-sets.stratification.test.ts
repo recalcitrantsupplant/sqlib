@@ -74,7 +74,7 @@ describe('RuleSets Routes - Stratification regressions', () => {
     await app.close();
   });
 
-  it('POST /rule-sets/:id/versions handles empty SHACL rule bodies', async () => {
+  it('POST /rule-sets/:id/versions handles empty SRL rule bodies', async () => {
     const ruleVersion = {
       $id: RULE_VERSION_ID,
       '@type': 'RuleVersion',

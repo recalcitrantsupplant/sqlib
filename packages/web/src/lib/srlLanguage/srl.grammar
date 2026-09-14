@@ -1,4 +1,4 @@
-// SRL — the SHACL 1.2 Shape Rules Language, as a Lezer grammar.
+// SRL — the SPARQL Rule Language, as a Lezer grammar.
 //
 // This is a *highlighting and folding* grammar, not a second implementation of
 // `@sparql-query-lib/srl`. It is deliberately looser than that parser: it knows

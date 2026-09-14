@@ -1,10 +1,10 @@
-# Authoring and running SHACL 1.2 rules
+# Authoring and running SPARQL-RL rules
 
-sqlib stores and runs inference rules written in SRL, the rule language of the
-SHACL 1.2 Rules specification. This guide covers the entities a rule set is made
-of, how to write a document, what stratification requires of it, and how to run
-one against a data graph. The grammar itself is in the
-[SRL language reference](../reference/srl-language.md).
+sqlib stores and runs inference rules written in SRL, the SPARQL Rule Language
+defined by [SPARQL 1.2 RL](https://www.w3.org/TR/sparql12-rl/) (SPARQL-RL).
+This guide covers the entities a rule set is made of, how to write a document,
+what stratification requires of it, and how to run one against a data graph.
+The grammar itself is in the [SRL language reference](../reference/srl-language.md).
 
 SRL support is behind the `rulesSuite` flag (`FEATURE_RULES_SUITE`, default on);
 see [feature flags](../reference/feature-flags.md).
@@ -190,7 +190,7 @@ an incoming `RDF_GRAPH` edge — see [query groups](query-groups.md).
 
 ## The W3C conformance suite
 
-The SHACL 1.2 Rules test suite is vendored at `packages/srl/test/w3c`, pinned to
+The SPARQL-RL test suite is vendored at `packages/srl/test/w3c`, pinned to
 a commit recorded in `SOURCE` beside it. Its six categories, at the pinned
 snapshot:
 
@@ -234,7 +234,7 @@ suite's results produce — is in
 
 SRL in this repository has an extension, `TUPLE( … )`, which lets a rule read
 and write ordered tuples of RDF terms alongside triples. It is **not conformant
-SHACL 1.2 Rules**, so a document written with it cannot be read by other
+SPARQL-RL**, so a document written with it cannot be read by other
 tooling.
 
 It is gated by the `ruleTuples` feature flag (`FEATURE_RULE_TUPLES`), which

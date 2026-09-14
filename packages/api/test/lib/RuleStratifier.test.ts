@@ -75,7 +75,7 @@ describe('RuleStratifier', () => {
     expect(report.issues.some(issue => issue.toLowerCase().includes('non-stratifiable'))).toBe(true);
   });
 
-  it('handles empty SHACL rule bodies without throwing', () => {
+  it('handles empty SRL rule bodies without throwing', () => {
     const stratifier = new RuleStratifier();
     const empty = rv('empty', 'shacl-rules', 'RULE {} WHERE {}');
 

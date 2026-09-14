@@ -21,7 +21,7 @@ recipe sets does is in [configuration](configuration.md).
 | `setup-local-https` | One-time: installs the mkcert root and writes `certs/localhost.pem` and `certs/localhost-key.pem`. Fails if mkcert is not installed |
 | `run-local-https` | The same dual API+MCP process on port 3300, plus a Traefik container terminating TLS on `https://localhost:3443`. Requires the certificates |
 | `run-docker-https` | The built image plus Fuseki behind Traefik on `https://localhost:3443`, with no host pnpm process. Needs an image tagged `sparql-query-lib:aca-local` and the certificates |
-| `run-local-rules-tests` | API on `http://localhost:3005` in its own store, seeded with the W3C SHACL 1.2 Rules suite as runnable tests. Queries, groups, rules, data graphs and tests on; benchmarks and ETL off; invalid save on, because a third of the suite's documents are meant not to parse. Seeding is idempotent |
+| `run-local-rules-tests` | API on `http://localhost:3005` in its own store, seeded with the W3C SPARQL-RL suite as runnable tests. Queries, groups, rules, data graphs and tests on; benchmarks and ETL off; invalid save on, because a third of the suite's documents are meant not to parse. Seeding is idempotent |
 | `run-frontend-rules API_URL=http://localhost:3005` | The web UI with the `NUXT_PUBLIC_FEATURE_*` flags matching that API |
 | `clean-local-rules-tests` | Deletes `packages/api/tmp/rules-tests-store` |
 | `run-local-patch-demo` | API on `http://localhost:3005` in its own store, seeded with a demo library of update queries for reading RDF patch previews. Queries, backends and data graphs on; everything else off |

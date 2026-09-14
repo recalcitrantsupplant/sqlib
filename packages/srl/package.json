@@ -4,7 +4,7 @@
   "license": "SEE LICENSE IN LICENSE",
   "private": true,
   "type": "module",
-  "description": "SHACL 1.2 Shape Rules Language (SRL) \u2014 parser, generator, SPARQL-UPDATE compiler and stratifier, built as a Traqula grammar extension.",
+  "description": "SPARQL Rule Language (SRL) \u2014 parser, generator, SPARQL-UPDATE compiler and stratifier, built as a Traqula grammar extension.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {

@@ -9,7 +9,7 @@ every other page assumes.
 - [guides/running-and-configuring.md](guides/running-and-configuring.md) — how do I start a server, and which knobs decide what it does?
 - [guides/rest-api-walkthrough.md](guides/rest-api-walkthrough.md) — how do I create a library, save a parameterised query and run it over HTTP?
 - [guides/query-groups.md](guides/query-groups.md) — how do I chain queries on the canvas and feed one's results into the next?
-- [guides/rules-and-srl.md](guides/rules-and-srl.md) — how do I write SHACL 1.2 inference rules and run them against a graph?
+- [guides/rules-and-srl.md](guides/rules-and-srl.md) — how do I write SPARQL-RL inference rules and run them against a graph?
 - [guides/mcp-clients.md](guides/mcp-clients.md) — how do I point an MCP client at the server and what can it then do?
 - [guides/static-export.md](guides/static-export.md) — how do I export a library as a self-contained page that runs without the server?
 - [guides/testing-and-conformance.md](guides/testing-and-conformance.md) — how do I attach tests to a query or rule set and run a conformance suite?

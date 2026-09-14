@@ -57,7 +57,7 @@ because that deployment was upgraded. See the [ETL guide](../guides/etl.md).
 provider, and it can reach a configured backend. See
 [the security model](../explanation/security-model.md).
 
-**`ruleTuples`.** The extension it gates is not conformant SHACL 1.2 Rules, so a
+**`ruleTuples`.** The extension it gates is not conformant SPARQL-RL, so a
 document written with it on cannot be read by other tooling. A build that has
 not asked for the extension should not offer an author a way to write such a
 document; see the section below.

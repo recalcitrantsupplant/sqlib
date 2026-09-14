@@ -1,6 +1,7 @@
 # SRL language reference
 
-SRL is the surface syntax sqlib uses for SHACL 1.2 inference rules. The parser,
+SRL is the surface syntax sqlib uses for SPARQL-RL inference rules — the SPARQL
+Rule Language of [SPARQL 1.2 RL](https://www.w3.org/TR/sparql12-rl/). The parser,
 well-formedness checker, stratifier and SPARQL compiler are in `packages/srl`.
 
 This page documents what the parser accepts and what each stage reports. For
@@ -256,10 +257,10 @@ the rule set.
 
 ## The rule-tuples extension
 
-**This is not conformant SHACL 1.2 Rules.** `TUPLE( … )` is an extension to the
+**This is not conformant SPARQL-RL.** `TUPLE( … )` is an extension to the
 language, gated by the `ruleTuples` feature flag (`FEATURE_RULE_TUPLES`), which
 is **off by default**. A document written with it on cannot be read by other
-SHACL 1.2 Rules tooling.
+SPARQL-RL tooling.
 
 With the extension off, `TUPLE` is a syntax error:
 

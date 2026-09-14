@@ -1,5 +1,5 @@
 /**
- * The W3C SHACL 1.2 Rules conformance suite, run the way a user runs it.
+ * The W3C SPARQL-RL conformance suite, run the way a user runs it.
  *
  * `packages/srl` drives the same snapshot directly against its parser and
  * analyses. This drives it through the *library*: every entry is seeded as a

@@ -28,7 +28,7 @@ import {
   type SrlDocumentBlock,
 } from '@/composables/useApiClient';
 
-const SPEC_LINK = 'https://w3c.github.io/data-shapes/shacl12-rules/#relationship-to-sparql';
+const SPEC_LINK = 'https://w3c.github.io/data-shapes/sparql12-rl/#srl-sparql-relationship';
 
 const TUPLE_HELP = 'Tuple blocks: a read compiles to an all-UNDEF VALUES row — a parameter slot '
   + 'the executor fills from the tuple store, one column per position — so the program is only '

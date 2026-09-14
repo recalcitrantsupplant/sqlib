@@ -93,7 +93,7 @@ async function prepareOxigraphStores(fastifyApp: typeof app): Promise<void> {
 }
 
 /**
- * Optionally load the W3C SHACL 1.2 Rules test suite into a library, as Tests.
+ * Optionally load the W3C SPARQL-RL test suite into a library, as Tests.
  *
  * Off unless asked for, and asked for by the *deployment* rather than a user:
  * it writes 166 tests and their rule sets into the store, which is a fine thing
@@ -290,7 +290,7 @@ async function registerApplicationRoutes(
     }
 
     if (featureFlags.rulesSuite) {
-      swaggerTags.push({ name: 'Rule', description: 'Routes for managing SHACL rules' });
+      swaggerTags.push({ name: 'Rule', description: 'Routes for managing SPARQL-RL rules' });
       swaggerTags.push({ name: 'DataBlock', description: 'Routes for managing data blocks' });
       swaggerTags.push({ name: 'RuleSet', description: 'Routes for managing rule sets' });
     }

@@ -87,7 +87,7 @@ RUN pnpm --filter @sparql-query-lib/rdf-delta build && \
     echo "=== RDF delta dist contents ===" && \
     ls -la packages/rdf-delta/dist/
 
-# The API depends on @sparql-query-lib/srl (the SHACL Rules parser used by the
+# The API depends on @sparql-query-lib/srl (the SPARQL-RL parser used by the
 # rule-set routes). It was never copied into the image, so its types resolved to
 # nothing and the API build failed with a cascade of implicit-any errors.
 RUN pnpm --filter @sparql-query-lib/srl build && \

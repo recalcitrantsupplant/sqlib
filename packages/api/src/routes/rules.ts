@@ -411,7 +411,7 @@ export default async function (fastify: FastifyInstance) {
     const flags = getFeatureFlags();
     const allowInvalidSave = flags.rulesAllowInvalidSave && body.allowInvalidSave === true;
     if (!validation.valid && !allowInvalidSave) {
-      return reply.status(400).send({ error: validation.error ?? 'Provided ruleString is not valid SHACL Rules syntax' });
+      return reply.status(400).send({ error: validation.error ?? 'Provided ruleString is not valid SPARQL-RL (SRL) syntax' });
     }
 
     try {
@@ -679,7 +679,7 @@ export default async function (fastify: FastifyInstance) {
     const ruleString = String(body.ruleString || '');
     const validation = ruleValidator.validateWithAllGrammars(ruleString);
     if (!validation.valid || !validation.normalized) {
-      return reply.status(400).send({ error: validation.error ?? 'Provided ruleString is not valid SHACL Rules syntax' });
+      return reply.status(400).send({ error: validation.error ?? 'Provided ruleString is not valid SPARQL-RL (SRL) syntax' });
     }
     const normalized = ensureTrailingSemicolon(validation.normalized);
     return reply.send({
@@ -717,7 +717,7 @@ function resolveRuleProgram(
 
   const fallback = (ruleString ?? '').trim();
   if (!fallback) {
-    return { error: 'Stored rule is not valid SHACL Rules syntax' };
+    return { error: 'Stored rule is not valid SPARQL-RL (SRL) syntax' };
   }
   return { program: ensureTrailingSemicolon(fallback) };
 }

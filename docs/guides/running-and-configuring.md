@@ -40,7 +40,7 @@ for this first pass.
 | `setup-local-https` | Generates trusted `localhost` certificates into `certs/` with mkcert (one-time) |
 | `run-local-https` | The same dual API+MCP process on port 3300, behind a Traefik container terminating TLS on `https://localhost:3443` |
 | `run-docker-https` | The built image plus Fuseki behind Traefik on `https://localhost:3443`, with no host pnpm process |
-| `run-local-rules-tests` | API on `http://localhost:3005` seeded with the W3C SHACL 1.2 Rules suite as runnable Tests, in its own store |
+| `run-local-rules-tests` | API on `http://localhost:3005` seeded with the W3C SPARQL-RL suite as runnable Tests, in its own store |
 | `run-frontend-rules` | The web UI with the feature flags that recipe's API serves |
 | `clean-local-rules-tests` | Deletes the rules-test store |
 | `run-local-patch-demo` | API on `http://localhost:3005` seeded with a demo library of update queries, for reading RDF Patch previews |

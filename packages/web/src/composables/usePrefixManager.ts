@@ -312,7 +312,7 @@ export function usePrefixManager() {
    * Every prefix declaration any RDF-family document can carry.
    *
    * SPARQL writes `PREFIX foaf: <…>`, Turtle and TriG write `@prefix foaf: <…> .`
-   * and also accept the SPARQL form, and a SHACL rule set carries whichever of
+   * and also accept the SPARQL form, and an SRL rule set carries whichever of
    * the two its author wrote. One expression reads all of them, which is what
    * lets every editor in the app discover prefixes the same way rather than
    * each one discovering the subset its own screen happened to implement.

@@ -301,7 +301,7 @@ export class RuleSetExecutor {
 
       // The baseline is the base graph G0 — the data graph the rules run
       // against — and nothing else. It is captured here, *before* data blocks
-      // run, because SHACL 1.2 Rules initialises the inference graph from the
+      // run, because SPARQL-RL initialises the inference graph from the
       // DATA triples: "a data block is equivalent to a rule with an empty
       // body: its triples are part of the inference graph without any rule
       // being evaluated", formally `GI = { t ∈ D | t ∉ G0 }`. Capturing the

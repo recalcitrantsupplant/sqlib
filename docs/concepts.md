@@ -158,7 +158,8 @@ That difference is why tabular input is a *parameter* and RDF input is *data*.
 
 ## Rule, DataBlock and RuleSet
 
-sqlib authors SHACL 1.2 inference rules in **SRL** (Shape Rules Language), a
+sqlib authors SPARQL-RL inference rules in **SRL** (the SPARQL Rule Language of
+[SPARQL 1.2 RL](https://www.w3.org/TR/sparql12-rl/)), a
 textual syntax parsed, compiled and stratified by `packages/srl`.
 
 - A **Rule** is one inference rule: a head and a body. Its version stores the

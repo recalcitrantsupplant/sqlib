@@ -1,7 +1,8 @@
 # @sparql-query-lib/srl
 
-A parser, generator, SPARQL compiler and stratifier for the SHACL 1.2 Shape
-Rules Language (SRL), written from scratch as a grammar extension on top of
+A parser, generator, SPARQL compiler and stratifier for the SPARQL Rule
+Language (SRL), defined by [SPARQL 1.2 RL](https://www.w3.org/TR/sparql12-rl/),
+written from scratch as a grammar extension on top of
 [Traqula](https://www.npmjs.com/package/@traqula/core)'s SPARQL 1.2 parser and
 generator.
 
@@ -284,9 +285,9 @@ pnpm --filter @sparql-query-lib/srl test
 
 Before this package existed, the rules engine ran on a vendored fork of
 `sparqljs` 3.7.3, kept as a tarball in a `vendor/` directory of this repository.
-Its Jison grammars had been extended by hand to cover SHACL rules, aggregation
+Its Jison grammars had been extended by hand to cover the rules syntax, aggregation
 and negation. That fork has been removed, and this package replaces it: the
-rules engine was re-implemented against the current SHACL 1.2 Rules draft as a
+rules engine was re-implemented against the current SPARQL 1.2 RL draft as a
 Traqula grammar extension, and `packages/api` depends on this package instead —
 `src/lib/RuleStratifier.ts` and `src/lib/RuleGrammarValidator.ts` are the two
 entry points. Aggregation was intentionally dropped in the move. RDF-star now

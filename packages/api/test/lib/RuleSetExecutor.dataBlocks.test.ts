@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 /**
  * DATA blocks and the inference graph.
  *
- * SHACL 1.2 Rules initialises the inference graph from the DATA triples —
+ * SPARQL-RL initialises the inference graph from the DATA triples —
  * "a data block is equivalent to a rule with an empty body: its triples are
  * part of the inference graph without any rule being evaluated", formally
  * `GI = { t ∈ D | t ∉ G0 }`. The executor used to capture its subtraction

@@ -195,7 +195,7 @@ These are read by development recipes and seeders, not by a normal deployment.
 
 | Name | Default | Effect |
 | --- | --- | --- |
-| `SEED_W3C_RULES_SUITE` | unset | Set to exactly `true` to seed the W3C SHACL 1.2 Rules suite as runnable tests at startup. Requires the `rulesSuite` and `tests` flags. Seeding is idempotent. |
+| `SEED_W3C_RULES_SUITE` | unset | Set to exactly `true` to seed the W3C SPARQL-RL suite as runnable tests at startup. Requires the `rulesSuite` and `tests` flags. Seeding is idempotent. |
 | `W3C_RULES_SUITE_DIR` | the suite directory inside `packages/api` | Where that suite is read from. A relative path resolves against the API package root. |
 | `SEED_PATCH_DEMO` | unset | Set to exactly `true` to seed the RDF patch demo library at startup. Requires the `queries` flag. |
 | `SYSTEM_STORE_ASSET_DIR` | `system-store` inside `packages/api` | Where the preloaded system library's assets are read from. |

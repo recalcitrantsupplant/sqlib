@@ -69,7 +69,7 @@ export const validateRuleDataRequestSchema = z
   .strict();
 
 export type ValidateRuleDataRequest = z.infer<typeof validateRuleDataRequestSchema>;
-// One rules dialect: SRL (SHACL 1.2 Rules), plus raw SPARQL for callers that
+// One rules dialect: SRL (SPARQL-RL), plus raw SPARQL for callers that
 // supply an already-normalized UPDATE. The previous tri-grammar split
 // ('shacl-rules' / 'rules-with-aggregation' / 'rules-with-negation') was
 // retired with the vendored sparqljs fork — negation is part of SRL and

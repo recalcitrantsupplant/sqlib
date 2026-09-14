@@ -2,7 +2,7 @@
 
 sqlib (`sparql-query-lib`) is a self-hostable server, web UI and MCP server for
 authoring, versioning, parameterising, composing, testing, benchmarking and
-exporting SPARQL queries and SHACL 1.2 inference rules. It runs them against any
+exporting SPARQL queries and SPARQL-RL inference rules. It runs them against any
 SPARQL endpoint you configure as a backend, or against an in-process Oxigraph
 store.
 

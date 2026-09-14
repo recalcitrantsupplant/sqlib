@@ -93,7 +93,7 @@ export function buildFeatureFlags(
     rulesAllowInvalidSave: false,
     /*
      * Off unless asked for. The rule-tuples extension adds TUPLE( … ) to SRL,
-     * which conformant SHACL 1.2 Rules tooling does not accept: a document
+     * which conformant SPARQL-RL tooling does not accept: a document
      * written with it on cannot be read anywhere else. A build that does not
      * ask for the extension should not offer an author a way to write one, so
      * the toggle, the seed inputs and the API fields are all absent by default.

@@ -19,7 +19,7 @@ it, or things that run without it.
 | `contracts` | Generated JSON Schema and zod schemas for every entity and route | — |
 | `tools` | The MCP tool catalogue: 89 tool definitions and a registry | `contracts` |
 | `types` | Shared constants and types, including the feature-flag table | — |
-| `srl` | The SHACL 1.2 Shape Rules Language parser, compiler and stratifier | — |
+| `srl` | The SPARQL Rule Language (SRL) parser, compiler and stratifier | — |
 | `rdf-delta` | Derives what a SPARQL update would add and remove, without running it | — |
 | `runtime` | The parser-free runtime a static export bundle runs on | — |
 | `runtime-oxigraph` | An Oxigraph-backed executor for that runtime | — |

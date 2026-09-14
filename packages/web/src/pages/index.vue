@@ -289,15 +289,15 @@
         class="content-placeholder rules-suite-overview"
       >
         <div class="overview-inner">
-          <h2>SHACL Rules</h2>
+          <h2>SPARQL-RL Rules</h2>
           <div class="overview-sections">
             <section class="overview-section">
               <h3>Grammars & translation</h3>
               <ul>
-                <li>This implementation uses a single rules dialect: the Shape Rules Language (SRL) from the current shacl12-rules draft, which includes negation (<code>NOT</code>) natively.
+                <li>This implementation uses a single rules dialect: the SPARQL Rule Language (SRL) from the current SPARQL 1.2 RL draft, which includes negation (<code>NOT</code>) natively.
                 The grammar is implemented as an extension of the <a href="https://github.com/comunica/traqula" target="_blank" rel="noreferrer">Traqula</a> SPARQL 1.2 parser, so SPARQL 1.2 / RDF-star support comes for free.
                   In addition, a rule to SPARQL converter is added, a ruleset stratifier, and well-formedness checks. Aggregation and the <code>FOR</code> clause are not supported.</li>
-                <li>The SHACL rules draft spec is available here <a href="https://www.w3.org/TR/shacl12-rules/" target="_blank" rel="noreferrer">w3.org/TR/shacl12-rules</a>.</li>
+                <li>The SPARQL 1.2 RL draft spec is available here <a href="https://www.w3.org/TR/sparql12-rl/" target="_blank" rel="noreferrer">w3.org/TR/sparql12-rl</a>.</li>
                 <li>The translator turns SRL rules and <code>DATA</code> blocks into SPARQL <code>INSERT</code> / <code>INSERT DATA</code>; raw SPARQL updates are also accepted as-is. If it parses, it can be saved and run.</li>
                 <li>Invalid rules can be stored via “Save my sins” in the Save dropdown—kept on here to support negative-rule syntax tests that are expected to fail validation.</li>
               </ul>

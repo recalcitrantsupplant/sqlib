@@ -5,7 +5,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
  *
  * A rule that mints a blank node or assigns a value derives a *fresh* answer on
  * every firing, so iterating it to a fixpoint never terminates: it emits one
- * copy of its output per pass. SHACL 1.2 Rules handles this by promoting such a
+ * copy of its output per pass. SPARQL-RL handles this by promoting such a
  * rule's body dependencies to "closed" (strictly higher stratum, as `NOT` gets)
  * and evaluating it exactly once per stratum instead of iterating it.
  *

@@ -461,7 +461,7 @@ _:result0
     path: earl-report.ttl
 ```
 
-## Seeding the W3C SHACL 1.2 Rules suite locally
+## Seeding the W3C SPARQL-RL suite locally
 
 A snapshot of the suite is vendored at a pinned commit under
 `packages/srl/test/w3c`. Seeding turns each manifest entry into ordinary library

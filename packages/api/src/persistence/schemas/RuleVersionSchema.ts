@@ -1,7 +1,7 @@
 /**
  * LDKit Schema for RuleVersion entity.
  *
- * Represents an immutable snapshot of a SHACL rule definition.
+ * Represents an immutable snapshot of a SPARQL-RL rule definition.
  */
 
 import type { Schema } from '../schema.js';
