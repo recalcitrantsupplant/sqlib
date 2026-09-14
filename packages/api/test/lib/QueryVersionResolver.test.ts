@@ -69,14 +69,14 @@ describe('QueryVersionResolver', () => {
   });
 
   afterEach(() => {
-    vi.unmock('../../src/lib/CacheCoordinatorProvider.js');
-    vi.unmock('../../src/persistence/utils/LimitParameterUtils.js');
-    vi.unmock('../../src/persistence/utils/OffsetParameterUtils.js');
-    vi.unmock('../../src/persistence/utils/QueryInputTupleUtils.js');
-    vi.unmock('../../src/persistence/utils/TupleMemberUtils.js');
-    vi.unmock('../../src/persistence/utils/QueryInputUtils.js');
-    vi.unmock('../../src/persistence/utils/QueryOutputUtils.js');
-    vi.unmock('../../src/persistence/utils/QueryOutputTupleUtils.js');
+    vi.doUnmock('../../src/lib/CacheCoordinatorProvider.js');
+    vi.doUnmock('../../src/persistence/utils/LimitParameterUtils.js');
+    vi.doUnmock('../../src/persistence/utils/OffsetParameterUtils.js');
+    vi.doUnmock('../../src/persistence/utils/QueryInputTupleUtils.js');
+    vi.doUnmock('../../src/persistence/utils/TupleMemberUtils.js');
+    vi.doUnmock('../../src/persistence/utils/QueryInputUtils.js');
+    vi.doUnmock('../../src/persistence/utils/QueryOutputUtils.js');
+    vi.doUnmock('../../src/persistence/utils/QueryOutputTupleUtils.js');
   });
   it('expands linked resources for query version', async () => {
     hoisted.loadLimitParametersByIds.mockResolvedValue([{ $id: 'urn:limit:1', name: 'Limit' }]);
@@ -118,10 +118,10 @@ describe('QueryVersionResolver', () => {
 });
 
 afterAll(() => {
-  vi.unmock('../../src/persistence/utils/LimitParameterUtils.js');
-  vi.unmock('../../src/persistence/utils/OffsetParameterUtils.js');
-  vi.unmock('../../src/persistence/utils/QueryInputTupleUtils.js');
-  vi.unmock('../../src/persistence/utils/TupleMemberUtils.js');
-  vi.unmock('../../src/persistence/utils/QueryOutputTupleUtils.js');
+  vi.doUnmock('../../src/persistence/utils/LimitParameterUtils.js');
+  vi.doUnmock('../../src/persistence/utils/OffsetParameterUtils.js');
+  vi.doUnmock('../../src/persistence/utils/QueryInputTupleUtils.js');
+  vi.doUnmock('../../src/persistence/utils/TupleMemberUtils.js');
+  vi.doUnmock('../../src/persistence/utils/QueryOutputTupleUtils.js');
   vi.resetModules();
 });

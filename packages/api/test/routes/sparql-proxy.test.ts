@@ -524,8 +524,8 @@ describe('SPARQL proxy routes', () => {
 });
 
 afterAll(() => {
-  vi.unmock('../../src/persistence/utils/BackendUtils.js');
-  vi.unmock('../../src/lib/backendAuth.js');
-  vi.unmock('../../src/server/HttpSparqlExecutor.js');
+  vi.doUnmock('../../src/persistence/utils/BackendUtils.js');
+  vi.doUnmock('../../src/lib/backendAuth.js');
+  vi.doUnmock('../../src/server/HttpSparqlExecutor.js');
   vi.resetModules();
 });

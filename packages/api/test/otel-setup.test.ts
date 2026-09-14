@@ -1,14 +1,15 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 const hoisted = vi.hoisted(() => ({
-  NodeSDK: vi.fn().mockImplementation(() => ({
-    start: vi.fn(),
-    shutdown: vi.fn(),
-  })),
+  NodeSDK: vi.fn(function () {
+    return { start: vi.fn(), shutdown: vi.fn() };
+  }),
   ConsoleSpanExporter: vi.fn(),
   HttpInstrumentation: vi.fn(),
   FastifyOtelInstrumentation: vi.fn(),
-  PeriodicExportingMetricReader: vi.fn().mockImplementation((options) => options),
+  // A function expression, not an arrow: otel-setup constructs this with `new`,
+  // and an arrow function cannot be used as a constructor.
+  PeriodicExportingMetricReader: vi.fn(function (options: unknown) { return options; }),
   ConsoleMetricExporter: vi.fn(),
   diag: { setLogger: vi.fn() },
   DiagConsoleLogger: vi.fn(),
@@ -68,6 +69,7 @@ describe('otel-setup', () => {
   it('does not initialize NodeSDK when disabled', async () => {
     process.env.OTEL_ENABLED = 'false';
     await import('../src/otel-setup.js');
+    expect(hoisted.NodeSDK).not.toHaveBeenCalled();
     expect(process.on).not.toHaveBeenCalled();
     expect(consoleLog).not.toHaveBeenCalledWith(expect.stringContaining('OpenTelemetry SDK started'));
     expect(consoleError).not.toHaveBeenCalled();
@@ -76,17 +78,14 @@ describe('otel-setup', () => {
   it('boots NodeSDK and registers shutdown handler when enabled', async () => {
     delete process.env.OTEL_ENABLED;
     await import('../src/otel-setup.js');
+    // Asserting on the mock keeps the module doubles load-bearing: if they are
+    // ever disabled again this fails instead of silently booting a real SDK.
+    expect(hoisted.NodeSDK).toHaveBeenCalledTimes(1);
     expect(process.on).toHaveBeenCalledWith('SIGTERM', expect.any(Function));
     expect(consoleLog).toHaveBeenCalledWith(expect.stringContaining('OpenTelemetry SDK started'));
   });
 });
 
 afterAll(() => {
-  vi.unmock('@opentelemetry/sdk-node');
-  vi.unmock('@opentelemetry/sdk-trace-node');
-  vi.unmock('@opentelemetry/instrumentation-http');
-  vi.unmock('@fastify/otel');
-  vi.unmock('@opentelemetry/sdk-metrics');
-  vi.unmock('@opentelemetry/api');
   vi.resetModules();
 });
