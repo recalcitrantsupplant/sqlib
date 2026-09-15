@@ -25,9 +25,9 @@
     "poc:patch-log": "tsx poc/run.ts"
   },
   "dependencies": {
-    "@traqula/generator-sparql-1-2": "1.2.1",
-    "@traqula/parser-sparql-1-2": "1.2.1",
-    "@traqula/rules-sparql-1-2": "1.2.1"
+    "@traqula/generator-sparql-1-2": "1.3.0",
+    "@traqula/parser-sparql-1-2": "1.3.0",
+    "@traqula/rules-sparql-1-2": "1.3.0"
   },
   "devDependencies": {
     "@duckdb/node-api": "1.5.5-r.4",
