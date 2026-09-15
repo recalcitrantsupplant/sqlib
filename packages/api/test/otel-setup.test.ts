@@ -1,14 +1,15 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 const hoisted = vi.hoisted(() => ({
-  NodeSDK: vi.fn().mockImplementation(() => ({
-    start: vi.fn(),
-    shutdown: vi.fn(),
-  })),
+  // Function expressions, not arrows: otel-setup constructs both of these with
+  // `new`, and an arrow function cannot be used as a constructor.
+  NodeSDK: vi.fn(function () {
+    return { start: vi.fn(), shutdown: vi.fn() };
+  }),
   ConsoleSpanExporter: vi.fn(),
   HttpInstrumentation: vi.fn(),
   FastifyOtelInstrumentation: vi.fn(),
-  PeriodicExportingMetricReader: vi.fn().mockImplementation((options) => options),
+  PeriodicExportingMetricReader: vi.fn(function (options: unknown) { return options; }),
   ConsoleMetricExporter: vi.fn(),
   diag: { setLogger: vi.fn() },
   DiagConsoleLogger: vi.fn(),
@@ -42,31 +43,6 @@ vi.mock('@opentelemetry/api', () => ({
   DiagLogLevel: hoisted.DiagLogLevel,
 }));
 
-/*
- * These sit here, after the mocks they cancel, because that is where they have
- * always run: `vi.unmock` is hoisted with `vi.mock`, so writing them in an
- * `afterAll` never deferred them to the end of the file — it only hid the order
- * from a reader. Vitest 5 refuses to hoist out of a nested scope and says so,
- * which is what surfaced this.
- *
- * They are kept rather than dropped because dropping them turns the mocks above
- * back on, and the `@opentelemetry/sdk-metrics` double is not usable as one:
- * `new PeriodicExportingMetricReader(...)` in `src/otel-setup.ts` throws on it.
- * So this file has been exercising `otel-setup` against the real OpenTelemetry
- * packages, and the two things it asserts — that nothing boots when
- * `OTEL_ENABLED=false`, and that a SIGTERM handler and a started-SDK log arrive
- * when it is unset — have been true of the real ones.
- *
- * Whether it *should* run against doubles is a question for a change that can
- * fix the doubles and re-check what the assertions then mean, not for a
- * dependency bump. Moving these six lines is the whole of the migration.
- */
-vi.unmock('@opentelemetry/sdk-node');
-vi.unmock('@opentelemetry/sdk-trace-node');
-vi.unmock('@opentelemetry/instrumentation-http');
-vi.unmock('@fastify/otel');
-vi.unmock('@opentelemetry/sdk-metrics');
-vi.unmock('@opentelemetry/api');
 
 describe('otel-setup', () => {
   const originalProcessOn = process.on;
@@ -94,6 +70,7 @@ describe('otel-setup', () => {
   it('does not initialize NodeSDK when disabled', async () => {
     process.env.OTEL_ENABLED = 'false';
     await import('../src/otel-setup.js');
+    expect(hoisted.NodeSDK).not.toHaveBeenCalled();
     expect(process.on).not.toHaveBeenCalled();
     expect(consoleLog).not.toHaveBeenCalledWith(expect.stringContaining('OpenTelemetry SDK started'));
     expect(consoleError).not.toHaveBeenCalled();
@@ -102,6 +79,9 @@ describe('otel-setup', () => {
   it('boots NodeSDK and registers shutdown handler when enabled', async () => {
     delete process.env.OTEL_ENABLED;
     await import('../src/otel-setup.js');
+    // Asserting on the double keeps it load-bearing: if these mocks are ever
+    // cancelled again, this fails instead of silently booting a real SDK.
+    expect(hoisted.NodeSDK).toHaveBeenCalledTimes(1);
     expect(process.on).toHaveBeenCalledWith('SIGTERM', expect.any(Function));
     expect(consoleLog).toHaveBeenCalledWith(expect.stringContaining('OpenTelemetry SDK started'));
   });
