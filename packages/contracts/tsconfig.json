@@ -1,10 +1,12 @@
 {
   "extends": "../../tsconfig.base.json",
+  "//tsBuildInfoFile": "Inside outDir, not the default spot beside this file, so `rm -rf dist` drops the incremental state along with the outputs it describes. Left outside, a deleted dist plus a surviving .tsbuildinfo makes tsc consider every output current and emit nothing — a build that reports success and produces no .d.ts files. Here it is silent as well as wrong: tsup rewrites the JS, so only the declarations go missing and consumers fail with TS7016 rather than an empty dist.",
   "compilerOptions": {
     "rootDir": "src",
     "outDir": "dist",
     "declaration": true,
-    "composite": true
+    "composite": true,
+    "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo"
   },
   "include": ["src/**/*.ts"]
 }
