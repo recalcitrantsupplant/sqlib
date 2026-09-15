@@ -1,0 +1,94 @@
+# Semver releases for the server image, driven by conventional commits.
+#
+# What a release is here: a git tag `vX.Y.Z`, a GitHub Release with generated
+# notes, a CHANGELOG.md entry, and `ghcr.io/<owner>/sqlib:X.Y.Z`.
+# The npm packages (`runtime`, `runtime-oxigraph`) are deliberately not part of
+# it — publish-check.sh gates their *shape* on every PR, but nothing publishes
+# them yet. Adding them later is a second entry under `packages` in
+# .release-please-config.json plus an npm-publish job here.
+#
+# How it works: release-please reads the conventional-commit subjects since the
+# last tag and keeps a "release PR" open with the computed next version. Merging
+# that PR is the act of releasing — this workflow then tags it, cuts the GitHub
+# Release, and builds the versioned image.
+#
+# ## Why this calls publish-image.yml instead of letting the tag trigger it
+#
+# publish-image.yml already fires on `tags: ['v*']`, so the obvious wiring is to
+# let release-please push the tag and have that trigger the build. It does not
+# work: GitHub does not raise workflow-triggering events for refs created with
+# the built-in GITHUB_TOKEN, specifically to stop workflows recursing. The tag
+# would appear with no build behind it. The alternative is a PAT, which trades
+# that for a long-lived credential with write access. An explicit `workflow_call`
+# is the same outcome with neither problem, and it keeps the persistent buildx
+# builder and the push logic in the one place that already owns them.
+#
+# ## Pre-1.0 versioning
+#
+# `bump-minor-pre-major: true` in the config means a breaking change while the
+# version is 0.x bumps the *minor* (0.1.0 -> 0.2.0) rather than jumping to
+# 1.0.0. That is the semver convention for 0.x — anything may break — and it is
+# the reason the first release is 0.1.0 rather than 1.0.0. Going to 1.0.0 is
+# then a deliberate act (a `Release-As: 1.0.0` footer), and from that point a
+# breaking change costs a major.
+#
+# ## The first release
+#
+# .release-please-manifest.json starts at 0.0.0, which is "nothing released
+# yet" rather than a version that was ever cut. Left to the commit history the
+# computed first version would be whatever the `feat:` and `fix:` subjects since
+# the initial import add up to, so the commit that introduces this workflow
+# carries an explicit footer instead:
+#
+#     Release-As: 0.1.0
+#
+# That pins the first release PR to 0.1.0 regardless of what is in the log, and
+# it is self-cleaning — it applies to one release only, unlike a `release-as`
+# key in the config, which would pin *every* release until someone removed it.
+# From 0.1.0 on, the subjects decide.
+#
+# `release-type: simple` is the right type for an artefact that is not an npm
+# package: it tracks the released version in version.txt at the repo root and
+# leaves every packages/*/package.json alone. Those stay at their workspace
+# versions, which is correct — none of them is what gets published.
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: release-please-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Keeps the release PR up to date; on the push that merges it, outputs
+  # release_created=true and the version it just tagged.
+  release:
+    # Only ever runs on a push to main, so there is no fork path to guard the
+    # way ci.yml does — the ref already implies write access.
+    runs-on: [self-hosted, Linux, X64]
+    permissions:
+      contents: write # create the tag, the release and the release-PR branch
+      pull-requests: write # open and update the release PR
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          config-file: .release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  # The published artefact. Same workflow the manual dispatch path uses, so a
+  # release image is built and tagged exactly like a hand-cut one.
+  image:
+    needs: release
+    if: needs.release.outputs.release_created == 'true'
+    uses: ./.github/workflows/publish-image.yml
+    with:
+      version: ${{ needs.release.outputs.version }}
+    permissions:
+      contents: read
+      packages: write

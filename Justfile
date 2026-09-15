@@ -1,8 +1,23 @@
 # Run the API with the Oxigraph persistent in-memory backend, with MCP at /mcp
+#
+# The build line covers exactly the packages this recipe cannot get from
+# source. `tsx` resolves workspace imports through packages/api/tsconfig.json's
+# `paths`, which map contracts, types, srl and runtime to `src` — but not tools
+# (loaded by mcp-server) or rdf-delta (imported across api/src/lib and
+# api/src/routes). Those two resolve through their exports maps, which point
+# only at `dist`.
+#
+# The trailing `...` is load-bearing: it selects each package *and its workspace
+# dependencies*, built in topological order, which is what pulls in contracts —
+# tools/dist imports @sparql-query-lib/contracts/schema from contracts/dist. A
+# plain `--filter @sparql-query-lib/tools` runs that one package's script and
+# nothing else, which is how this recipe came to fail with TS2307 on a tree
+# where contracts had never been built.
+#
 # API:  http://localhost:3005
 # MCP:  http://localhost:3005/mcp  (streamable HTTP, same transport as production)
 run-local-memory:
-    pnpm --filter @sparql-query-lib/tools build
+    pnpm --filter "@sparql-query-lib/tools..." --filter "@sparql-query-lib/rdf-delta..." build
     INTERNAL_BACKEND_TYPE="oxigraph-persistent" \
     LIBRARY_STORAGE_DIR="./tmp/library-store" \
     INTERNAL_OXIGRAPH_STORE_ID="library-store" \
@@ -12,7 +27,7 @@ run-local-memory:
     OTEL_ENABLED="false" \
     RULESET_CANON_DEBUG="true" \
     MCP_TRANSPORT="dual-http" \
-    HTTP_PORT=3005 \
+    HTTP_PORT=3010 \
     pnpm --filter @sparql-query-lib/api exec tsx watch ../mcp-server/src/cli.ts
 
 # Generate trusted localhost certificates for the HTTPS proxy (one-time setup).
@@ -85,9 +100,12 @@ clean-local-memory:
 # list by tag in the sidebar to see them, and run a tag — or several — from the
 # tag button beside Run all. Re-running this recipe tags a store seeded before
 # tags existed, without touching any tag you added yourself.
+#
+# What the build line builds, and why the trailing `...`: see run-local-memory.
+#
 # API:  http://localhost:3005
 run-local-rules-tests:
-    pnpm --filter @sparql-query-lib/tools build
+    pnpm --filter "@sparql-query-lib/tools..." --filter "@sparql-query-lib/rdf-delta..." build
     SEED_W3C_RULES_SUITE="true" \
     FEATURE_RULES_SUITE="true" \
     FEATURE_TESTS="true" \
@@ -111,8 +129,6 @@ run-local-rules-tests:
 # The frontend for the above: the same feature set, so the rail matches the API
 # Usage: just run-frontend-rules
 run-frontend-rules API_URL="http://localhost:3005":
-    pnpm --filter @sparql-query-lib/contracts build
-    pnpm --filter @sparql-query-lib/types build
     NUXT_PUBLIC_API_BASE_URL="{{API_URL}}" \
     NUXT_PUBLIC_FEATURE_RULES_SUITE="true" \
     NUXT_PUBLIC_FEATURE_TESTS="true" \
@@ -154,9 +170,12 @@ clean-local-rules-tests:
 # and it will refuse, correctly.
 #
 # Pair it with `just run-frontend-patch-demo`.
+#
+# What the build line builds, and why the trailing `...`: see run-local-memory.
+#
 # API:  http://localhost:3005
 run-local-patch-demo:
-    pnpm --filter @sparql-query-lib/tools build
+    pnpm --filter "@sparql-query-lib/tools..." --filter "@sparql-query-lib/rdf-delta..." build
     SEED_PATCH_DEMO="true" \
     FEATURE_QUERIES="true" \
     FEATURE_BACKENDS="true" \
@@ -179,8 +198,6 @@ run-local-patch-demo:
 # The frontend for the above: the same feature set, so the rail matches the API
 # Usage: just run-frontend-patch-demo
 run-frontend-patch-demo API_URL="http://localhost:3005":
-    pnpm --filter @sparql-query-lib/contracts build
-    pnpm --filter @sparql-query-lib/types build
     NUXT_PUBLIC_API_BASE_URL="{{API_URL}}" \
     NUXT_PUBLIC_FEATURE_QUERIES="true" \
     NUXT_PUBLIC_FEATURE_BACKENDS="true" \
@@ -253,9 +270,14 @@ run-docker-persistent TAG="latest":
     docker run -it --rm -p 3000:3000 -v ./tmp/library-store-docker:/app/packages/api/tmp/library-store -e INTERNAL_BACKEND_TYPE="oxigraph-persistent" -e APP_MODE="api" -e LIBRARY_STORAGE_DIR="/app/packages/api/tmp/library-store" -e INTERNAL_OXIGRAPH_STORE_ID="library-store" -e FEATURE_ETL_ENABLED="false" -e FEATURE_RULES_ENABLED="false" -e FEATURE_QUERIES_ENABLED="true" -e FASTIFY_ADDRESS="0.0.0.0" sparql-query-lib:{{TAG}}
 
 # Run the frontend against any backend URL
+#
+# No sibling builds, here or in the two recipes above that pair with an API:
+# packages/web aliases @sparql-query-lib/{contracts,types,runtime} to source in
+# both nuxt.config.ts and tsconfig.json, precisely so `pnpm dev` never waits on
+# another package's dist.
+#
 # Usage: just run-frontend
 # Usage: just run-frontend https://example.com/
-run-frontend API_URL="http://localhost:3005":
-    pnpm --filter @sparql-query-lib/types build
+run-frontend API_URL="http://localhost:3010":
     NUXT_PUBLIC_API_BASE_URL="{{API_URL}}" \
     pnpm --filter @sparql-query-lib/web dev

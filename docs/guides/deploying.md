@@ -13,8 +13,8 @@ network you do not control. The defaults are development defaults.
 `.github/workflows/publish-image.yml` builds the repository-root `Dockerfile`
 and pushes to GHCR, authenticating with the workflow's own `GITHUB_TOKEN`
 (`packages: write`); no registry secret is configured. The image reference
-defaults to `ghcr.io/<repository owner, lower-cased>/sparql-query-lib` and can
-be overridden with the `IMAGE` environment variable.
+defaults to `ghcr.io/<repository owner, lower-cased>/sqlib` — named for the
+repository — and can be overridden with the `IMAGE` environment variable.
 
 `scripts/ci/docker-build-push.sh` decides the tags:
 
