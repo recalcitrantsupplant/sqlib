@@ -94,13 +94,15 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI,
     timeout: 600000,
     /*
-     * ETL is off by default since #132, and specs cover the ETL section. This
-     * covers the local path, where the line above also does the build; CI builds
-     * in a separate step and sets the same flags at job scope in ci.yml.
+     * ETL and the rule-tuples extension are off by default since #132, and
+     * specs cover both. This covers the local path, where the line above also
+     * does the build; CI builds in a separate step and sets the same flags at
+     * job scope in ci.yml.
      */
     env: {
       NUXT_PUBLIC_FEATURE_ETL: 'true',
       NUXT_PUBLIC_FEATURE_PLAYGROUND_ETL: 'true',
+      NUXT_PUBLIC_FEATURE_RULE_TUPLES: 'true',
     },
   },
 });

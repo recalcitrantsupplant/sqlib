@@ -120,12 +120,14 @@ jobs:
   # the topological build below for packages/runtime's built bundle.
   e2e:
     runs-on: ubuntu-latest
-    # ETL ships off by default (issue #132). The specs cover the ETL section, and
-    # with ssr:false the flags are baked into the client bundle at build time, so
-    # they have to be set for build.sh as well as e2e.sh — hence job scope.
+    # ETL and the rule-tuples extension ship off by default (issue #132). The
+    # specs cover both, and with ssr:false the flags are baked into the client
+    # bundle at build time, so they have to be set for build.sh as well as
+    # e2e.sh — hence job scope.
     env:
       FEATURE_ETL: 'true'
       FEATURE_PLAYGROUND_ETL: 'true'
+      FEATURE_RULE_TUPLES: 'true'
     steps:
       - uses: actions/checkout@v7
         with:
