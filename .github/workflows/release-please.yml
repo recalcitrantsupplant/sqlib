@@ -89,6 +89,14 @@ jobs:
     uses: ./.github/workflows/publish-image.yml
     with:
       version: ${{ needs.release.outputs.version }}
+    # Must cover everything publish-image.yml's own `permissions:` block asks
+    # for, including the `contents: write` its manual-dispatch path needs to
+    # create a tag and release. A called workflow's token cannot exceed the
+    # caller's grant, and GitHub rejects the file at parse time rather than at
+    # run time — `contents: read` here failed the whole Release workflow with
+    # "requesting 'contents: write', but is only allowed 'contents: read'".
+    # The release step itself stays off on this path (it is gated on
+    # workflow_dispatch), so the extra scope is unused here.
     permissions:
-      contents: read
+      contents: write
       packages: write
