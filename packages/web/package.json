@@ -60,13 +60,13 @@
     "@lezer/common": "^1.5.2",
     "@lezer/highlight": "^1.2.3",
     "@lezer/lr": "^1.4.10",
-    "@lucide/vue": "^1.39.0",
+    "@lucide/vue": "^1.45.0",
     "@sparql-query-lib/runtime": "file:../runtime",
     "@sparql-query-lib/types": "file:../types",
     "@tailwindcss/vite": "^4.3.3",
     "@tanstack/vue-table": "^9.2.4",
-    "@traqula/generator-sparql-1-2": "1.2.1",
-    "@traqula/parser-sparql-1-2": "1.2.1",
+    "@traqula/generator-sparql-1-2": "1.3.0",
+    "@traqula/parser-sparql-1-2": "1.3.0",
     "@vite-pwa/nuxt": "^1.1.1",
     "@vue-flow/background": "^1.3.2",
     "@vue-flow/controls": "^1.1.3",
@@ -78,7 +78,7 @@
     "dagre": "^0.8.5",
     "date-fns": "^4.4.0",
     "fuzzysort": "^4.0.2",
-    "n3": "^2.7.9",
+    "n3": "^2.7.12",
     "nuxt": "^4.5.2",
     "oidc-client-ts": "^3.5.0",
     "reka-ui": "^2.10.4",
@@ -90,6 +90,6 @@
     "vue": "^3.5.42",
     "vue-codemirror": "^6.1.1",
     "vue-sonner": "^2.0.9",
-    "zod": "^4.5.4"
+    "zod": "^4.6.2"
   }
 }
