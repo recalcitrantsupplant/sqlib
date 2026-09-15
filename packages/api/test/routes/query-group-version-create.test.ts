@@ -192,9 +192,12 @@ describe('Query Group Version POST route', () => {
       'urn:ui-temp:construct-node': executionNodeIds[1],
     });
 
+    // The third argument is the auth scope: without it the writer cannot check
+    // the query and rule set versions this body's nodes will run, and does not.
     expect(hoisted.createGroupVersionFlat).toHaveBeenCalledWith(
       groupId,
-      expect.objectContaining({ startNode: expect.any(Object), endNode: expect.any(Object) })
+      expect.objectContaining({ startNode: expect.any(Object), endNode: expect.any(Object) }),
+      { request: expect.anything() }
     );
     expect(hoisted.expandGroupVersionDetailed).toHaveBeenCalledWith(expect.objectContaining({ $id: versionId }));
   });

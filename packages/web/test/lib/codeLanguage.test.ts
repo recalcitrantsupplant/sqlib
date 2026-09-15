@@ -32,14 +32,14 @@ const SRC = resolve(import.meta.dirname, '../../src');
 const OWNER = 'lib/codeLanguage.ts';
 
 /**
- * The grammar packages, plus the local SRL module that is one.
+ * The grammar packages.
  *
- * `@codemirror/language` is not here: `StreamLanguage`, `syntaxHighlighting`
- * and the fold/indent extensions are editor machinery every editor composes,
- * not a statement about which language a document is in.
+ * `@codemirror/language` is not here: `syntaxHighlighting` and the fold/indent
+ * extensions are editor machinery every editor composes, not a statement about
+ * which language a document is in.
  */
 const GRAMMAR_IMPORT =
-  /from\s+['"](@codemirror\/lang-[\w-]+|codemirror-lang-[\w-]+|@codemirror\/legacy-modes\/[\w/-]+|[.@/\w-]*lib\/srlLanguage)['"]/;
+  /from\s+['"](@codemirror\/lang-[\w-]+|@kurrawongai\/codemirror-lang-[\w-]+)['"]/;
 
 function sourceFiles(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -112,7 +112,7 @@ describe('the grammar packages', () => {
     const offenders = sourceFiles(SRC)
       .filter((file) => GRAMMAR_IMPORT.test(readFileSync(file, 'utf8')))
       .map((file) => relative(SRC, file).replace(/\\/g, '/'))
-      .filter((file) => file !== OWNER && !file.startsWith('lib/srlLanguage/'));
+      .filter((file) => file !== OWNER);
 
     expect(
       offenders,

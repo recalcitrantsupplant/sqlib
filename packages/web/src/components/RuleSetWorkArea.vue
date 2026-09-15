@@ -434,22 +434,36 @@ const { analysis, analyzing, blocks, stratification, validationState, parseError
 // --- The editor -------------------------------------------------------------
 
 /*
- * SRL's own grammar (`lib/srlLanguage`), which is what colours `RULE`, `DATA`
- * and `TUPLE(…)` and what folds a rule's head and body. The document was
- * highlighted with the SPARQL grammar until #157: close enough for the terms a
- * body is made of, and silent on everything that makes the document SRL.
+ * SRL's own grammar, which is what colours `RULE`, `DATA` and `TUPLE(…)` and
+ * what folds a rule's head and body. The document was highlighted with the
+ * SPARQL grammar until #157: close enough for the terms a body is made of, and
+ * silent on everything that makes the document SRL.
  *
  * Asked for by media type rather than imported, so that swap lives in
  * `lib/codeLanguage.ts` with every other one — this file says which language
  * each editor holds, and that file says which grammar answers for it.
+ *
+ * Computed rather than fixed because `tuplesEnabled` is a property of the
+ * document: `TUPLE( … )` is sqlib's extension rather than SPARQL-RL, and the
+ * completion list must offer it on exactly the terms the same rule set is
+ * parsed with server-side. `vue-codemirror` applies this prop through a
+ * compartment, so a change reconfigures the live editor rather than rebuilding
+ * it, and the document and cursor survive toggling.
  */
 const editorView = shallowRef<EditorView | null>(null);
-const extensions = shallowRef<Extension[]>([
-  ...languageExtensionsFor('application/srl'),
+const extensions = computed<Extension[]>(() => [
+  ...languageExtensionsFor('application/srl', { tuples: tuplesEnabled.value }),
   rdfSyntaxHighlighting,
   stratumGutter(),
   useCommentKeymap(),
   useEditorKeymaps(),
+  /*
+   * Run-on-keystroke. Appended to the array after the fact while this was a
+   * `shallowRef`, because `run` is declared far below; it is folded in here now
+   * that the extensions are computed, which is safe because `run` is a hoisted
+   * function declaration and this getter does not evaluate during setup.
+   */
+  useExecuteKeymap(() => run()),
 ]);
 /*
  * The Inputs tab's two editors, which hold two different languages: the seed
@@ -458,8 +472,8 @@ const extensions = shallowRef<Extension[]>([
  * own here; the graph keeps the SPARQL skin it has always had, which reads its
  * terms correctly and its `@prefix` lines approximately.
  */
-const tupleExtensions = shallowRef<Extension[]>([
-  ...languageExtensionsFor('application/srl'),
+const tupleExtensions = computed<Extension[]>(() => [
+  ...languageExtensionsFor('application/srl', { tuples: tuplesEnabled.value }),
   rdfSyntaxHighlighting,
 ]);
 const inputExtensions = shallowRef<Extension[]>([
@@ -1489,8 +1503,6 @@ const prefixSource = computed(() =>
     isScratch.value ? (props.scratchId ?? null) : (ruleSetIdValue.value || null),
   ),
 );
-
-extensions.value = [...extensions.value, useExecuteKeymap(() => run())];
 
 /*
  * The Code tab.

@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { SparqlLanguage } from 'codemirror-lang-sparql';
-import { TurtleLanguage } from 'codemirror-lang-turtle';
+import { sparqlLanguage } from '@kurrawongai/codemirror-lang-sparql12';
+import { turtleLanguage } from '@kurrawongai/codemirror-lang-turtle12';
 import { toPrefixedNames, toFullIris, readDeclaredPrefixes } from '@/lib/prefixRewrite';
 import { prefixGrammarFor } from '@/lib/codeLanguage';
 import type { PrefixPair } from '@/lib/curie';
 
-const SPARQL = SparqlLanguage.parser;
-const TURTLE = TurtleLanguage.parser;
+const SPARQL = sparqlLanguage.parser;
+const TURTLE = turtleLanguage.parser;
 
 /*
  * The pairs the toolbar buttons work against, longest namespace first — the
@@ -179,20 +179,42 @@ describe('readDeclaredPrefixes', () => {
 
 describe('the grammar a document is converted against', () => {
   /*
-   * The reason the rewrite takes a parser instead of finding one. SRL is
-   * highlighted with the SPARQL grammar because that is far closer than
-   * nothing — but SPARQL has no ':=', so on SRL that grammar reads the ':' of
-   * an assignment as a prefix label. Approximate colouring is free;
-   * an approximate rewrite corrupts the document.
+   * The reason the rewrite takes a parser instead of finding one: only a
+   * grammar that actually describes the document may be used, because
+   * approximate colouring is free and an approximate rewrite corrupts the
+   * document.
+   *
+   * The case that established the rule was SRL under the SPARQL grammar, which
+   * had no ':=' and read the ':' of an assignment as a prefix label. That
+   * particular hazard is gone now the grammars share a lexer — see the case
+   * below — but the rule it bought is not, and TriG is the standing example.
    */
-  it('is not offered for SRL, whose ":=" the SPARQL grammar misreads', () => {
+  it('is not offered for SRL, which has no round-trip evidence yet', () => {
     expect(prefixGrammarFor('application/srl')).toBeNull();
     expect(prefixGrammarFor('text/srl')).toBeNull();
+  });
 
-    // What would happen if it were: the operator becomes an IRI.
+  /*
+   * The hazard this rule was written for is gone, and it is worth recording
+   * which one.
+   *
+   * SRL used to be rewritten against the *SPARQL* grammar, which has no `:=`
+   * and so read the ':' of an assignment as an empty prefix label — expanding
+   * it turned `SET ( ?k := 1 )` into `SET ( ?k <http://example/>= 1 )`, a
+   * silently corrupted document. That is why `prefixGrammarFor` returns null
+   * for SRL.
+   *
+   * The three published grammars share one lexer, so `:=` is a single token in
+   * SPARQL's too and the corruption no longer happens. The buttons stay off all
+   * the same: what is still missing is round-trip evidence over SRL documents,
+   * which is a change with its own tests rather than a line in `codeLanguage`.
+   */
+  it('no longer corrupts an SRL assignment, now that the grammars share a lexer', () => {
     const srl = 'PREFIX : <http://example/>\nRULE { ?x :b ?k } WHERE { SET ( ?k := 1 ) }';
-    const wrong = toFullIris(srl, (p) => (p === '' ? 'http://example/' : undefined), SPARQL);
-    expect(wrong.text).toContain('<http://example/>=');
+    const result = toFullIris(srl, (p) => (p === '' ? 'http://example/' : undefined), SPARQL);
+
+    expect(result.text).not.toContain('<http://example/>=');
+    expect(result.text).toContain(':= 1');
   });
 
   it('is not offered for the line-based formats, which have no prefixes', () => {
@@ -205,6 +227,19 @@ describe('the grammar a document is converted against', () => {
     expect(prefixGrammarFor('application/sparql-update')).toBe(SPARQL);
     expect(prefixGrammarFor('text/turtle')).toBe(TURTLE);
     expect(prefixGrammarFor('text/turtle; charset=utf-8')).toBe(TURTLE);
+  });
+
+  it('gives TriG its own parser rather than borrowing Turtle\'s', () => {
+    /*
+     * They were the same answer while one Lezer grammar covered both. They are
+     * not any more, and a rewrite may not be approximate: the Turtle grammar
+     * reads `GRAPH <g> { … }` as an error, so every term inside a named graph
+     * would be invisible to the walk and silently left unconverted.
+     */
+    const trig = prefixGrammarFor('application/trig');
+
+    expect(trig).not.toBeNull();
+    expect(trig).not.toBe(TURTLE);
   });
 });
 

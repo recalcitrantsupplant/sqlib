@@ -20,7 +20,7 @@ export type AuditDecision = 'allow' | 'deny' | 'would-deny';
 export interface AuditEvent {
   decision: AuditDecision;
   resource: string | null;
-  resourceKind: 'library' | 'backend' | 'everything' | 'route';
+  resourceKind: 'library' | 'backend' | 'everything' | 'route' | 'session';
   mode: string;
   /** Grant IRI, or a marker for a decision made without a stored grant. */
   matchedGrant?: string | null;

@@ -26,7 +26,9 @@
  * out in its inference graph. A data graph goes in and does not come out.
  */
 
+import type { FastifyRequest } from 'fastify';
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
+import { requireLibraryMode, resolveOwningLibrary } from '../auth/enforce.js';
 import type { LdkitDataGraphVersion } from '../persistence/schemas/DataGraphVersionSchema.js';
 import {
   DEFAULT_DATA_GRAPH_FORMAT,
@@ -42,6 +44,30 @@ export interface DataGraphInputRequest {
   dataGraphId?: string | null;
   dataGraphInline?: string | null;
   dataGraphInlineFormat?: string | null;
+}
+
+/**
+ * The caller a stored graph is being resolved *for*.
+ *
+ * A `dataGraphVersionId` or `dataGraphId` in a request body names a stored
+ * entity that need not live in the library the route resolved — the same shape
+ * as `POST /tuple-sets/:id/versions/from-etl`, `POST /data-graphs/:id/versions/
+ * from-query` and the pins `ArgumentSetService.createVersion` checks. The
+ * difference is that those three ask the question at their own call site, and
+ * this one is asked by four routes through one helper, so it is asked here.
+ *
+ * `read`, not `execute`, for the reason `requirePinnedSourcesReadable` gives:
+ * a data graph stores no query and runs nothing. Its triples are copied into
+ * the store a run reads from, which is what Read on that library governs
+ * everywhere else.
+ *
+ * Optional because two callers have already asked it: `ArgumentSetService`
+ * checks its pins at *write*, then re-resolves them at every run, and a set
+ * whose pins were checked when it was composed must keep running for anyone
+ * the set itself is shared with.
+ */
+export interface DataGraphAuthScope {
+  request: FastifyRequest;
 }
 
 export interface ResolvedDataGraph {
@@ -60,8 +86,30 @@ export interface ResolvedDataGraph {
  * Throws `DataGraphContentError` for anything the caller could have got right —
  * an unknown version id, unparseable inline text, both inputs at once. Routes
  * turn that into a 400.
+ *
+ * With an `authScope`, throws `AuthorizationError` (403) for a stored graph in
+ * a library the caller may not read. Routes let that one through to the error
+ * handler rather than flattening it into their 400 or 500: a refusal is
+ * neither the caller's malformed body nor a server fault.
  */
-export function resolveDataGraphInput(request: DataGraphInputRequest): ResolvedDataGraph | null {
+export function resolveDataGraphInput(
+  request: DataGraphInputRequest,
+  authScope?: DataGraphAuthScope,
+): ResolvedDataGraph | null {
+  /**
+   * Read on the library owning a stored graph or one of its versions.
+   *
+   * Applied to whichever entity the cache just produced, before anything is
+   * read off it. An entity whose library does not resolve is refused rather
+   * than abstained on, because `requireLibraryMode(null, …)` denies — so
+   * neither an id naming nothing nor one whose library has since been deleted
+   * is a way through.
+   */
+  const requireReadable = (entity: unknown): void => {
+    if (!authScope) return;
+    requireLibraryMode(authScope.request, resolveOwningLibrary(entity), 'read');
+  };
+
   const pinnedId = request.dataGraphVersionId?.trim() || null;
   const graphId = request.dataGraphId?.trim() || null;
   const inline = request.dataGraphInline ?? null;
@@ -86,6 +134,10 @@ export function resolveDataGraphInput(request: DataGraphInputRequest): ResolvedD
     if (!graph || graph['@type'] !== 'DataGraph') {
       throw new DataGraphContentError(`Data graph ${graphId} not found`);
     }
+    // Before `currentVersion` is read, so an unreadable graph does not answer
+    // whether it has one — the version check below would catch the content
+    // either way, but not that.
+    requireReadable(graph);
     if (!graph.currentVersion) {
       throw new DataGraphContentError(`Data graph ${graphId} has no current version`);
     }
@@ -97,6 +149,11 @@ export function resolveDataGraphInput(request: DataGraphInputRequest): ResolvedD
     if (!version || version['@type'] !== 'DataGraphVersion') {
       throw new DataGraphContentError(`Data graph version ${versionId} not found`);
     }
+    // After the existence check, so an id naming nothing is the 404-shaped 400
+    // it always was and this speaks only about graphs that exist. The residual
+    // signal — 403 rather than 400 says "this IRI is a data graph version
+    // somewhere" — is the one `from-query` already carries.
+    requireReadable(version);
     const format = (version.contentFormat || DEFAULT_DATA_GRAPH_FORMAT) as DataGraphFormat;
     return {
       content: version.contentString ?? '',

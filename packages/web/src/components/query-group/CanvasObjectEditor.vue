@@ -446,14 +446,41 @@
               <p>When connecting to the End Node, the output is automatically passed through as the final result.</p>
             </div>
 
-            <!-- Variable Mapping Visualization -->
-            <div v-if="tupleMapping" class="tuple-mapping-visualization">
-              <div class="mapping-header">
-                <span class="mapping-title">Variable Mapping</span>
-                <span class="mapping-subtitle">{{ tupleMapping.length }} target variables</span>
-              </div>
+            <!--
+              Variable Mapping, behind the one line that says what it does.
 
-              <div class="mapping-grid">
+              The grid is four columns and a row per target variable, and what
+              it almost always says is "?city goes to ?city". That answer fits
+              on the header it was drawn underneath, so the header carries it
+              and the positions are one click away - which is the point of the
+              state note beside it: a mapping the author never opens is one
+              they were told was fine.
+            -->
+            <div v-if="tupleMapping" class="tuple-mapping-visualization">
+              <button
+                type="button"
+                class="mapping-header"
+                data-testid="mapping-summary"
+                :data-mapping-state="mappingState"
+                :aria-expanded="mappingExpanded"
+                aria-controls="variable-mapping-details"
+                :title="mappingExpanded ? 'Collapse the variable mapping' : 'Expand the positional mapping'"
+                @click="mappingExpanded = !mappingExpanded"
+              >
+                <ChevronDown v-if="mappingExpanded" :size="13" class="mapping-chevron" />
+                <ChevronRight v-else :size="13" class="mapping-chevron" />
+                <span class="mapping-title">Variable Mapping</span>
+                <span
+                  class="mapping-summary-line"
+                  data-testid="mapping-summary-line"
+                  :title="mappingSummaryLine"
+                >{{ mappingSummaryLine }}</span>
+                <span class="mapping-spacer"></span>
+                <span class="mapping-state-glyph" aria-hidden="true">{{ mappingStateGlyph }}</span>
+                <span class="mapping-subtitle">{{ mappingStateNote }}</span>
+              </button>
+
+              <div v-if="mappingExpanded" id="variable-mapping-details" class="mapping-grid">
                 <div class="mapping-column-headers">
                   <div class="column-header column-header-position">Position</div>
                   <div class="column-header column-header-source">Source Output</div>
@@ -599,10 +626,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick } from 'vue';
+import { computed, nextTick, ref } from 'vue';
 import { canvasNodeLabel } from '../../composables/queryGroupNodeLabel';
 import type { AcceptableValue } from 'reka-ui';
-import { MoveRight, Trash2 } from '@lucide/vue';
+import { ChevronDown, ChevronRight, MoveRight, Trash2 } from '@lucide/vue';
 import TupleValuesEditor from '../shared/TupleValuesEditor.vue';
 import EmptyState from '../shared/EmptyState.vue';
 import FormField from '../shared/FormField.vue';
@@ -635,6 +662,7 @@ import {
   sourceCandidates,
   targetCandidates,
   validateEdge,
+  type Diagnostic,
 } from '../../composables/queryGroupCompatibility';
 import type {
   TupleDefinition,
@@ -1287,16 +1315,28 @@ const ioMappingWarning = computed(() => {
  * The panel used to restate a couple of them - "QUERY_ID must target a Dynamic
  * Query node" was written out here and again in the flow-type validator.
  */
-const edgeDiagnostics = computed<string[]>(() => {
+const edgeDiagnosticEntries = computed<Diagnostic[]>(() => {
   const current = selection.value;
   if (!current || current.type !== 'edge') return [];
   const sourceNode = props.graphNodes.find(n => n.id === current.edge.source);
   const targetNode = props.graphNodes.find(n => n.id === current.edge.target);
-  return validateEdge(current.edge, sourceNode, targetNode, ioModel.value)
+  return validateEdge(current.edge, sourceNode, targetNode, ioModel.value);
+});
+
+/**
+ * The same diagnostics as prose.
+ *
+ * This used to map to messages at the point it called `validateEdge`, which
+ * threw the level away before anything could read it - and so the panel could
+ * only ever draw one tone of warning, whether the edge was merely lossy or
+ * outright invalid. The level is kept now and the strings are derived from it.
+ */
+const edgeDiagnostics = computed<string[]>(() =>
+  edgeDiagnosticEntries.value
     // Arity already has its own line below; showing it twice reads as two problems.
     .filter(entry => entry.code !== 'mapping-arity-differs' && entry.code !== 'mapping-arity-unknown')
-    .map(entry => entry.message);
-});
+    .map(entry => entry.message),
+);
 
 const tupleMapping = computed(() => {
   if (!selection.value || selection.value.type !== 'edge') return null;
@@ -1316,6 +1356,70 @@ const tupleMapping = computed(() => {
   try { for (const item of JSON.parse(selection.value.edge.variableMappings ?? '[]')) if (typeof item?.source === 'string' && typeof item?.target === 'string') configured.set(item.target, item.source); } catch { /* defaults */ }
   const remaining = sourceNames.filter(name => !targetNames.includes(name));
   return targetNames.map((target, index) => ({ target, source: configured.get(target) ?? (sourceNames.includes(target) ? target : remaining[index] ?? null), sourceOptions: sourceNames }));
+});
+
+/**
+ * Whether the positional grid is open.
+ *
+ * Sticky for as long as the panel lives, rather than reset on every selection:
+ * "show me the positions" is how an author is working, not a fact about one
+ * edge, and an author checking five edges in a row would otherwise open the
+ * same drawer five times. It starts closed, which is what a default is.
+ */
+const mappingExpanded = ref(false);
+
+/**
+ * The mapping on one line: what each target variable is fed, in target order.
+ *
+ * Reads off `tupleMapping`, so the summary and the grid cannot disagree - the
+ * grid's own defaulting (positional fill for the variables that do not simply
+ * share a name) is applied before either of them draws. `UNDEF` is spelled the
+ * way the grid's own empty option spells it, because it is the same answer.
+ */
+const mappingSummaryLine = computed((): string => {
+  const pairs = tupleMapping.value;
+  if (!pairs) return '';
+  const sources = pairs.map(pair => (pair.source ? `?${pair.source}` : 'UNDEF')).join(' ');
+  const targets = pairs.map(pair => `?${pair.target}`).join(' ');
+  return `${sources} → ${targets}`;
+});
+
+/**
+ * Everything the lines under the summary say, with the level each was raised
+ * at. `ioMappingWarning` is this panel's own and has no `Diagnostic` to come
+ * from, so it is given one here rather than counted separately.
+ */
+const mappingIssues = computed((): Diagnostic[] => {
+  const entries = [...edgeDiagnosticEntries.value];
+  if (ioMappingWarning.value) {
+    entries.push({ level: 'warning', code: 'endpoint-unset', message: ioMappingWarning.value });
+  }
+  return entries;
+});
+
+/**
+ * What the summary says about the mapping underneath it.
+ *
+ * The whole reason the grid may be collapsed by default: a closed drawer is
+ * only honest if the header already answered "is this edge all right?". Drawn
+ * from the same diagnostics the panel prints below, so the tone and the
+ * reasons can never disagree.
+ */
+const mappingState = computed((): 'ok' | 'warning' | 'error' => {
+  if (mappingIssues.value.some(entry => entry.level === 'error')) return 'error';
+  if (mappingIssues.value.some(entry => entry.level === 'warning')) return 'warning';
+  return 'ok';
+});
+
+const mappingStateGlyph = computed(() => (mappingState.value === 'ok' ? '✓' : '⚠'));
+
+/** The glyph in words, since the glyph is decoration and a count is not. */
+const mappingStateNote = computed((): string => {
+  const errors = mappingIssues.value.filter(entry => entry.level === 'error').length;
+  if (errors > 0) return `${errors} problem${errors === 1 ? '' : 's'}`;
+  const warnings = mappingIssues.value.filter(entry => entry.level === 'warning').length;
+  if (warnings > 0) return `${warnings} warning${warnings === 1 ? '' : 's'}`;
+  return 'mapped';
 });
 
 const updateVariableMapping = (target: string, source: string) => {
@@ -1660,25 +1764,59 @@ textarea.field-textarea {
   border-color: var(--border-strong);
 }
 
+/*
+ * The padding moved onto the two halves. The box holds a single row when it is
+ * collapsed, and a box with its own padding around a row that has its own is a
+ * header floating in the middle of a card.
+ */
 .tuple-mapping-visualization {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
-  padding: var(--space-5);
+  min-width: 0;
   background: var(--surface);
   border: 1px solid var(--action-border);
   border-radius: var(--radius-panel);
+  overflow: hidden;
 }
 
+/*
+ * The header is the control now, so the whole row is the hit target. A chevron
+ * on its own is 13px of target sitting beside a line of text that reads like a
+ * label and would not respond to being clicked.
+ */
 .mapping-header {
   display: flex;
-  justify-content: space-between;
+  gap: var(--space-3);
   align-items: center;
-  padding-bottom: var(--space-4);
+  width: 100%;
+  padding: var(--space-4) var(--space-5);
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mapping-header[aria-expanded='true'] {
   border-bottom: 1px solid var(--border-subtle);
 }
 
+.mapping-header:hover {
+  background: var(--surface-subtle);
+}
+
+.mapping-header:focus-visible {
+  outline: 2px solid var(--action);
+  outline-offset: -2px;
+}
+
+.mapping-chevron {
+  flex-shrink: 0;
+  color: var(--ink-muted);
+}
+
 .mapping-title {
+  flex-shrink: 0;
   font-size: var(--text-label);
   font-weight: var(--weight-semibold);
   text-transform: uppercase;
@@ -1686,16 +1824,59 @@ textarea.field-textarea {
   color: var(--ink-muted);
 }
 
+/*
+ * The mapping itself, and the only part of the row allowed to be cut short: the
+ * label says which section this is and the state note is the answer, so a tuple
+ * of nine variables ellipsises rather than pushing either off the end. The full
+ * line stays in the `title`.
+ */
+.mapping-summary-line {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mapping-spacer {
+  flex: 1;
+}
+
+.mapping-state-glyph {
+  flex-shrink: 0;
+  font-size: var(--text-label);
+  color: var(--ink-muted);
+}
+
 .mapping-subtitle {
+  flex-shrink: 0;
   font-size: var(--text-label);
   color: var(--ink-muted);
   font-weight: 600;
+}
+
+/* The state, in the one row that is visible whether or not the grid is. */
+.mapping-header[data-mapping-state='ok'] .mapping-state-glyph {
+  color: var(--success-ink);
+}
+
+.mapping-header[data-mapping-state='warning'] .mapping-state-glyph,
+.mapping-header[data-mapping-state='warning'] .mapping-subtitle {
+  color: var(--warning-ink);
+}
+
+.mapping-header[data-mapping-state='error'] .mapping-state-glyph,
+.mapping-header[data-mapping-state='error'] .mapping-subtitle {
+  color: var(--danger-ink);
 }
 
 .mapping-grid {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  padding: var(--space-5);
 }
 
 .mapping-column-headers {

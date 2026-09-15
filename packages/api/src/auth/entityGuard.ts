@@ -13,6 +13,10 @@
  *   2. the request body's containment reference (creates)
  *   3. unresolved → the route is not library-scoped (§ "unowned entities")
  *
+ * Step 1 looks the path parameter up *as written*, which is right only where the
+ * handler does too. `shortIdKinds` is for the plugin where it does not: see that
+ * option, and `test/auth/etlJobRoutes.test.ts` for what it was hiding.
+ *
  * Step 3 has two cases that look identical from here and are not. An entity
  * that names no container at all is unowned by design — a benchmark experiment
  * has no `isPartOf` in its schema — and abstaining is the rule. An entity that
@@ -21,7 +25,14 @@
  */
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
-import { authOf, requireAdmin, requireLibraryMode, resolveOwningLibrary } from './enforce.js';
+import { getPrefix } from '../lib/id.js';
+import {
+  authOf,
+  containerRefsOf,
+  requireAdmin,
+  requireLibraryMode,
+  resolveOwningLibrary,
+} from './enforce.js';
 import type { LibraryMode } from './types.js';
 
 /** Path parameters that name the entity a route acts on. */
@@ -41,6 +52,34 @@ export interface EntityGuardOptions {
    * analyse caller-supplied input and touch no stored entity.
    */
   exemptSuffixes?: readonly string[];
+  /**
+   * Entity kinds (`lib/id.ts` `NS` keys) whose **short** ids this plugin's path
+   * parameters may carry, in the order to try them.
+   *
+   * The guard looks the path parameter up in the cache as written, and treats a
+   * miss as "a 404 the handler will produce". That is sound only while the
+   * handler resolves the same string. `/etl-jobs` is the one plugin where it
+   * does not: every handler goes through `EtlService.toUrn(id, kind)`, which
+   * mints `urn:sqlib:etl-job:<id>` from a bare `<id>` — and the plugin's own
+   * responses report ids in exactly that bare form, so it is the ordinary way
+   * to call it, not an edge case.
+   *
+   * The effect was that the guard abstained on every `/etl-jobs` route called
+   * the ordinary way while the handler answered: a principal holding no grants
+   * at all got 403 on `GET /etl-jobs/urn:sqlib:etl-job:x` and 200 on
+   * `GET /etl-jobs/x`, and the same for `PATCH` and for `/:id/execute`. Found
+   * while closing the narrower gap issue #211 recorded — that one was about an
+   * entity with no resolvable owner, this is about an owner nobody looked for.
+   *
+   * So: on a miss, and only when the parameter is not already a URN, the guard
+   * re-asks under each declared prefix and uses the first entity that resolves.
+   * A short id that resolves under none is still a miss, and still abstains —
+   * that case really is the 404.
+   *
+   * Prefixes are resolved once at registration, so a kind that is not a real
+   * namespace fails at startup rather than per request.
+   */
+  shortIdKinds?: readonly string[];
   /**
    * Paths that require administrator access outright, whatever the caller's
    * library grants say.
@@ -136,15 +175,39 @@ function containerRefsFrom(request: FastifyRequest): string[] {
  * before.
  */
 function danglingContainer(entity: unknown, cache: { get(id: string): unknown }): boolean {
-  const record = entity as { isPartOf?: unknown; targetEntity?: unknown };
-  // Same precedence as `resolveOwningLibrary`, which is what produced the null
-  // this is explaining.
-  const raw = record.isPartOf ?? record.targetEntity;
-  const refs = (Array.isArray(raw) ? raw : typeof raw === 'string' ? [raw] : [])
-    .filter((ref): ref is string => typeof ref === 'string' && ref.length > 0);
+  // `containerRefsOf` is shared with `resolveOwningLibrary`, which is what
+  // produced the null this is explaining. Two copies of the precedence drifted
+  // the moment a third container property was added, and the entity that
+  // gained one would have been abstained on here while being resolved there.
+  const refs = containerRefsOf(entity);
 
   if (refs.length === 0) return false;
   return refs.every(ref => !cache.get(ref));
+}
+
+/**
+ * The entity a path parameter names, under the plugin's own id convention.
+ *
+ * Exact match first, so a plugin that uses full URNs — every one but
+ * `/etl-jobs` — behaves exactly as before. A parameter that already is a URN
+ * and missed is a genuine miss: re-minting it would only produce
+ * `urn:sqlib:etl-job:urn:sqlib:…`, which is what `EtlService.toUrn` declines to
+ * do as well.
+ */
+function targetEntityFor(
+  targetId: string,
+  cache: { get(id: string): unknown },
+  shortIdPrefixes: readonly string[]
+): unknown {
+  const direct = cache.get(targetId);
+  if (direct) return direct;
+  if (targetId.startsWith('urn:sqlib:')) return null;
+
+  for (const prefix of shortIdPrefixes) {
+    const entity = cache.get(prefix + targetId);
+    if (entity) return entity;
+  }
+  return null;
 }
 
 /**
@@ -156,6 +219,10 @@ export function registerEntityAuthGuard(
   fastify: FastifyInstance,
   options: EntityGuardOptions = {}
 ): void {
+  // At registration, so an unknown kind is a startup failure rather than a 500
+  // on the first request that happens to miss.
+  const shortIdPrefixes = (options.shortIdKinds ?? []).map(getPrefix);
+
   fastify.addHook('preHandler', async (request: FastifyRequest) => {
     const context = authOf(request);
     // `disabled` mode and unauthenticated dry-run requests carry a full-access
@@ -182,7 +249,7 @@ export function registerEntityAuthGuard(
 
     const targetId = targetIdFrom(request);
     if (targetId) {
-      const entity = cache.get(targetId);
+      const entity = targetEntityFor(targetId, cache, shortIdPrefixes);
       // A miss is a 404 the handler will produce; denying here would leak
       // existence through the status code.
       if (!entity) return;

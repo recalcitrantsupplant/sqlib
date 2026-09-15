@@ -176,7 +176,7 @@ describe('argument set storage', () => {
       tupleBindings: [{ variables: ['city'], rows: CITY_ROWS }],
     });
     // A version is what the runtime export reads, so save one — which is
-    // what the client does on every save (2026-08-14-query-arguments.md §6).
+    // what the client does on every save.
     await service.createVersion(detail.id, {
       tupleBindings: [{ variables: ['city'], rows: CITY_ROWS }],
     });

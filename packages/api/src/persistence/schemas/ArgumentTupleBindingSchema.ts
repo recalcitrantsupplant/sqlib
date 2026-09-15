@@ -15,7 +15,7 @@ export const ArgumentTupleBindingSchema = {
    *
    * An argument set is payload and a group owns the routing, so the position
    * is the routing key a start-node port pairs against
-   * (`2026-09-07-payload-and-routing.md` §4). Explicit rather than implied by
+   * (`docs/guides/query-groups.md`). Explicit rather than implied by
    * `ArgumentSetVersion.tupleBindings`, because an RDF `@array` is a set and
    * its order does not survive a round-trip. `TupleMember.position` is the
    * precedent. Optional: a set written before this defaults to array order.

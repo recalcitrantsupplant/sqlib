@@ -419,7 +419,7 @@ describe('Query group routes', () => {
     });
 
     expect(res.statusCode).toBe(201);
-    expect(hoisted.createGroupVersionFlat).toHaveBeenCalledWith('urn:group:1', { executionNodes: ['urn:node:1'] });
+    expect(hoisted.createGroupVersionFlat).toHaveBeenCalledWith('urn:group:1', { executionNodes: ['urn:node:1'] }, { request: expect.anything() });
     const creationBody = res.json();
     if (!('iriMap' in creationBody)) {
       // eslint-disable-next-line no-console
@@ -480,7 +480,7 @@ describe('Query group routes', () => {
     });
 
     expect(res.statusCode).toBe(201);
-    expect(hoisted.createGroupVersionFlat).toHaveBeenCalledWith('urn:group:ruleset', expect.any(Object));
+    expect(hoisted.createGroupVersionFlat).toHaveBeenCalledWith('urn:group:ruleset', expect.any(Object), { request: expect.anything() });
     expect(res.json()).toMatchObject({
       queryGroupVersion: { id: 'urn:qgv:ruleset', version: 1, isPartOf: 'urn:group:ruleset' },
     });
@@ -518,7 +518,7 @@ describe('Query group routes', () => {
       },
     });
 
-    expect(hoisted.createGroupVersionFlat).toHaveBeenCalledWith('urn:group:1', {});
+    expect(hoisted.createGroupVersionFlat).toHaveBeenCalledWith('urn:group:1', {}, { request: expect.anything() });
     expect(hoisted.expandGroupVersionDetailed).toHaveBeenCalledWith({
       $id: 'urn:qgv:1',
       groupId: 'urn:group:1',

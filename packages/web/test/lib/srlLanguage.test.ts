@@ -1,16 +1,14 @@
-import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import { EditorState } from '@codemirror/state';
 import { foldable } from '@codemirror/language';
 import { highlightTree, tags as t } from '@lezer/highlight';
 import { HighlightStyle } from '@codemirror/language';
 import type { SyntaxNode } from '@lezer/common';
-import { SrlLanguage, srl } from '@/lib/srlLanguage';
-import { generate, parserPath, termsPath } from '../../scripts/build-srl-parser.mjs';
+import { srlLanguage, srl } from '@kurrawongai/codemirror-lang-srl';
 
 const PREFIX = 'PREFIX : <http://example/>';
 
-const parse = (text: string) => SrlLanguage.parser.parse(text);
+const parse = (text: string) => srlLanguage.parser.parse(text);
 
 /** Every node name in the tree, in document order. */
 function names(text: string): string[] {
@@ -92,7 +90,7 @@ describe('the SRL grammar', () => {
 
     expect(errors(text)).toEqual([]);
     expect(names(text)).toEqual(
-      expect.arrayContaining(['PrefixDecl', 'Rule', 'RuleKeyword', 'Block', 'WhereKeyword']),
+      expect.arrayContaining(['PrefixDecl', 'Rule', 'KwRULE', 'HeadTemplate', 'BodyPattern', 'KwWHERE']),
     );
   });
 
@@ -107,16 +105,18 @@ describe('the SRL grammar', () => {
     const nested = `${PREFIX}\nRULE { ?x :km ?k } WHERE { ?x :mi ?k . NOT DATA { ?x :km ?any } }`;
 
     expect(errors(top)).toEqual([]);
-    expect(names(top)).toContain('DataBlock');
+    expect(names(top)).toContain('SrlDataBlock');
     expect(errors(nested)).toEqual([]);
-    expect(names(nested)).toContain('DataBlock');
+    // `NOT DATA { … }` is a negation against the ground graph, so the node that
+    // names it is the negation rather than a second kind of data block.
+    expect(names(nested)).toEqual(expect.arrayContaining(['Negation', 'KwDATA']));
   });
 
   it('reads a whole-body ground match — WHERE DATA { … }', () => {
     const text = `${PREFIX}\nRULE { :x :msg "seen" } WHERE DATA { :s :p ?o }`;
 
     expect(errors(text)).toEqual([]);
-    expect(names(text)).toContain('DataKeyword');
+    expect(names(text)).toContain('KwDATA');
   });
 
   it('reads the SET assignment SPARQL has no operator for', () => {
@@ -125,7 +125,7 @@ describe('the SRL grammar', () => {
     expect(errors(text)).toEqual([]);
     // The trap the Chevrotain lexer documents: ':' read as an empty prefix,
     // leaving '=' behind. `:=` has to be one token.
-    expect(firstNodeText(text, 'Assign')).toBe(':=');
+    expect(firstNodeText(text, 'AssignOp')).toBe(':=');
   });
 
   it('reads TUPLE( … ) in a head, a body and a seed row', () => {
@@ -133,20 +133,52 @@ describe('the SRL grammar', () => {
     const seeds = `${PREFIX}\nTUPLE( :a, "b" )\nTUPLE( ?open, 2 )`;
 
     expect(errors(inRule)).toEqual([]);
-    expect(names(inRule).filter((n) => n === 'Tuple')).toHaveLength(2);
-    expect(errors(seeds)).toEqual([]);
-    expect(names(seeds).filter((n) => n === 'Tuple')).toHaveLength(2);
+    /*
+     * A tuple in a rule head and one in a rule body are different nodes, which
+     * is what lets `tupleRanges()` say which kind it found without re-reading
+     * the text — the seed strip is a row of head templates with no rule around
+     * them.
+     */
+    expect(names(inRule).filter((n) => n === 'TupleTemplate')).toHaveLength(1);
+    expect(names(inRule).filter((n) => n === 'TuplePattern')).toHaveLength(1);
+
+    /*
+     * KNOWN GAP, and the one thing that did not port cleanly from the grammar
+     * this replaced. The seed-tuples strip is a document of bare `TUPLE( … )`
+     * rows with an optional prologue — `parseTupleSeeds` in
+     * `packages/srl/src/tuples/seeds.ts` reads it, and it is *not* a rule set:
+     * `RuleSet` is `(BaseDecl | PrefixDecl | VersionDecl | Rule |
+     * SrlDataBlock)*`, with no bare tuple among them.
+     *
+     * The old local grammar accepted both shapes under one entry point, so the
+     * strip was highlighted. It no longer is: the parse is all error nodes, and
+     * `@lezer/highlight` emits nothing for those, so the strip renders as plain
+     * text. It does not render as *wrong* — the editors carry no lint
+     * extension, so a parse error draws nothing — which is why this is a
+     * cosmetic gap rather than a false claim about the document.
+     *
+     * Asserted rather than skipped so the day upstream grows a seed-row entry
+     * point, this test fails and says so.
+     */
+    expect(errors(seeds)).not.toEqual([]);
   });
 
-  it('reads the SPARQL a body may contain without a production for each form', () => {
+  it('reads the body forms SRL has', () => {
+    /*
+     * Exactly the five `SrlBodyItem` kinds in `packages/srl/src/ast.ts` — a
+     * basic graph pattern, `FILTER`, `NOT`, `SET` and `TUPLE` — plus the term
+     * syntax a pattern is written with. Kept in step with that type
+     * deliberately: this editor and `POST /rule-sets/srl/analyze` have to agree
+     * about what a rule set is, and the list below is where that is asserted.
+     */
     const text = [
       PREFIX,
       'RULE { ?s :q ?o } WHERE {',
       '  ?s :p ?o .',
-      '  OPTIONAL { ?s :label ?l }',
       '  FILTER NOT EXISTS { ?s :hidden true }',
       '  FILTER ( ?o NOT IN ( 1, 2 ) && ?o > 0.5 )',
-      '  BIND ( STRLEN( ?l ) AS ?n )',
+      '  NOT { ?s :retracted true }',
+      '  SET ( ?n := STRLEN( ?l ) )',
       '  ?s a :Thing ; :note "x"@en, "y"^^<http://www.w3.org/2001/XMLSchema#string> .',
       '  ?s :parent/:name ?ancestor .',
       '  ?s :friend [ :name ?f ] .',
@@ -157,22 +189,46 @@ describe('the SRL grammar', () => {
     expect(errors(text)).toEqual([]);
   });
 
+  /*
+   * The other half of the same rule, and the reason this grammar replaced one
+   * of our own. SRL is not "SPARQL with extra keywords": a rule body has the
+   * five forms above and no others, so `OPTIONAL`, `UNION`, `BIND` and `MINUS`
+   * are not merely unused — `parseRuleSet` rejects every one of them, and a
+   * `TUPLE` needs its commas.
+   *
+   * The grammar this replaced accepted all five, which meant the editor stayed
+   * silent while the author wrote a rule set the API would refuse. Colouring a
+   * document as valid is a claim about whether it will save, so being wrong
+   * here is worse than having no grammar at all.
+   */
+  it.each([
+    ['OPTIONAL', 'RULE { ?s :q ?o } WHERE { ?s :p ?o . OPTIONAL { ?s :l ?o } }'],
+    ['UNION', 'RULE { ?s :q ?o } WHERE { { ?s :p ?o } UNION { ?s :r ?o } }'],
+    ['BIND', 'RULE { ?s :q ?d } WHERE { ?s :p ?o . BIND( datatype(?o) AS ?d ) }'],
+    ['MINUS', 'RULE { ?s :q ?o } WHERE { ?s :p ?o . MINUS { ?s :r ?o } }'],
+    ['a TUPLE without commas', 'RULE { TUPLE( :a :b ) } WHERE { ?s :p ?o }'],
+  ])('refuses %s, as the SRL parser does', (_label, body) => {
+    expect(errors(`${PREFIX}\n${body}`)).not.toEqual([]);
+  });
+
   it('keeps keywords case-insensitive, as SPARQL does', () => {
     const text = 'rule { ?s :q ?o } Where Data { ?s :p ?o }';
 
     expect(errors(text)).toEqual([]);
-    expect(names(text)).toEqual(expect.arrayContaining(['Rule', 'WhereKeyword', 'DataKeyword']));
+    expect(names(text)).toEqual(expect.arrayContaining(['Rule', 'KwWHERE', 'KwDATA']));
   });
 
   it('does not find a keyword inside a longer word', () => {
-    const text = `${PREFIX}\nRULE { ?s :q ?dt } WHERE { ?s :p ?o . BIND ( datatype( ?o ) AS ?dt ) }`;
+    // Written with SET rather than BIND because BIND is not an SRL body form;
+    // `datatype` is the token under test either way.
+    const text = `${PREFIX}\nRULE { ?s :q ?dt } WHERE { ?s :p ?o . SET ( ?dt := datatype( ?o ) ) }`;
 
     expect(errors(text)).toEqual([]);
     // `datatype` opens with DATA. Read as a keyword plus a word it would take
     // the `DATA {` branch and drag the rest of the body into an error node.
     expect(tagOf(text, 'datatype')).toBe('keyword');
-    expect(names(text)).not.toContain('DataKeyword');
-    expect(names(text)).not.toContain('DataBlock');
+    expect(names(text)).not.toContain('KwDATA');
+    expect(names(text)).not.toContain('SrlDataBlock');
   });
 
   it('does not find a keyword inside a prefixed name', () => {
@@ -276,20 +332,5 @@ describe('SRL folding', () => {
 
   it('has nothing to fold on a one-line rule', () => {
     expect(fold('RULE { :a :p :b } WHERE { }', 1)).toBeNull();
-  });
-});
-
-describe('the generated parser', () => {
-  /*
-   * The parser tables are committed so that nothing has to run a code
-   * generator before a typecheck, a test or a dev server. This is what keeps
-   * "committed" from turning into "stale": edit `srl.grammar` without running
-   * `pnpm build:srl-parser` and this fails.
-   */
-  it('matches the grammar it was generated from', () => {
-    const { parser, terms } = generate();
-
-    expect(readFileSync(parserPath, 'utf8')).toBe(parser);
-    expect(readFileSync(termsPath, 'utf8')).toBe(terms);
   });
 });

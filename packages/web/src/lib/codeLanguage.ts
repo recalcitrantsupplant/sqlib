@@ -22,22 +22,20 @@
  * file answers one question and returns extensions that answer nothing else.
  */
 import type { Extension } from '@codemirror/state';
-import { StreamLanguage } from '@codemirror/language';
 import type { PrefixGrammar } from '@/lib/prefixRewrite';
 import { json } from '@codemirror/lang-json';
 import { sql } from '@codemirror/lang-sql';
 import { xml } from '@codemirror/lang-xml';
-import { turtle, TurtleLanguage } from 'codemirror-lang-turtle';
-import { sparql, SparqlLanguage } from 'codemirror-lang-sparql';
-import { srl } from '@/lib/srlLanguage';
-import { turtle as legacyTurtle } from '@codemirror/legacy-modes/mode/turtle';
-
-/**
- * N-Triples and N-Quads are Turtle's line-based subset, and the Lezer Turtle
- * grammar rejects them outright; the legacy stream mode is lenient enough to
- * colour them.
- */
-const turtleStream = StreamLanguage.define(legacyTurtle);
+import {
+  turtle,
+  trig,
+  ntriples,
+  nquads,
+  turtleLanguage,
+  trigLanguage,
+} from '@kurrawongai/codemirror-lang-turtle12';
+import { sparql, sparqlLanguage } from '@kurrawongai/codemirror-lang-sparql12';
+import { srl } from '@kurrawongai/codemirror-lang-srl';
 
 /** `text/turtle; charset=utf-8` and `text/turtle` are the same language. */
 export function normalizeContentType(contentType?: string | null): string | null {
@@ -47,26 +45,69 @@ export function normalizeContentType(contentType?: string | null): string | null
 }
 
 /**
+ * Options a caller may need to pass to the language behind a media type.
+ *
+ * Deliberately not a grammar object: a component still names its language by
+ * media type, and this carries only the facts about the *document* that the
+ * media type cannot express.
+ */
+export interface LanguageOptions {
+  /**
+   * Whether the SRL rule-tuples extension is in play, mirroring the `tuples`
+   * flag the same document is parsed with server-side.
+   *
+   * `TUPLE( … )` is not in SPARQL-RL — it is sqlib's extension — so a rule set
+   * is only allowed to use it when the work area's tuples toggle is on. This
+   * does **not** change what parses: the grammar always reads `TUPLE( … )`,
+   * because a grammar with two shapes can disagree with itself and because an
+   * editor that simply stops colouring `TUPLE` tells the author nothing about
+   * why. What it changes is the *advice* — with `tuples: false` the completion
+   * list stops offering `TUPLE`, matching `parseRuleSet(text, { tuples })`.
+   *
+   * `@kurrawongai/codemirror-lang-srl` also exports `tupleRanges(state)`, which
+   * hands back the spans to raise a diagnostic on when the flag is off.
+   */
+  tuples?: boolean;
+}
+
+/**
  * The language extensions for a media type, or none when it is unknown.
  *
  * An unknown type gets an empty array rather than a guess: plain text with no
  * highlighting reads correctly, whereas Turtle rules applied to something that
  * is not Turtle colours half the document wrong and looks like a parse error.
  */
-export function languageExtensionsFor(contentType?: string | null): Extension[] {
+export function languageExtensionsFor(
+  contentType?: string | null,
+  options: LanguageOptions = {},
+): Extension[] {
   const type = normalizeContentType(contentType);
   if (!type) return [];
 
-  if (type === 'text/turtle' || type === 'application/trig') return [turtle()];
-  if (type === 'application/n-triples' || type === 'application/n-quads') return [turtleStream];
+  if (type === 'text/turtle') return [turtle()];
+  /*
+   * TriG is not Turtle in a lenient mood: it is Turtle plus named graphs, and
+   * borrowing the Turtle entry point for it (which this file did until the
+   * grammars moved to `@kurrawongai/codemirror-lang-turtle12`) colours a `GRAPH`
+   * block as a parse error. Each of the four dialects has its own entry point
+   * for the same reason the package gives them one — a strict subset that is
+   * coloured as valid Turtle is lying about the file it will write.
+   */
+  if (type === 'application/trig') return [trig()];
+  if (type === 'application/n-triples') return [ntriples()];
+  if (type === 'application/n-quads') return [nquads()];
   if (type === 'application/sparql-query' || type === 'application/sparql-update') return [sparql()];
   /*
-   * SRL has a grammar of its own (`lib/srlLanguage`), which is what tells its
+   * SRL has a grammar of its own — `@kurrawongai/codemirror-lang-srl`, which is
+   * the SPARQL 1.2 grammar entered at `SrlUnit` rather than a second grammar,
+   * so the two cannot drift apart about what a term is. It is what tells SRL's
    * block keywords from SPARQL's and what makes a rule foldable. It used to
    * borrow the SPARQL grammar, which coloured `WHERE` and not `RULE` — see
    * issue #157.
    */
-  if (type === 'application/srl' || type === 'text/srl') return [srl()];
+  if (type === 'application/srl' || type === 'text/srl') {
+    return [srl({ tuples: options.tuples ?? true })];
+  }
   /*
    * DuckDB SQL: an ETL job's source query, and the fixture a test supplies for
    * it. `text/x-sql` is the spelling CodeMirror's own mode registry uses and
@@ -100,9 +141,15 @@ export function prefixGrammarFor(contentType?: string | null): PrefixGrammar | n
   const type = normalizeContentType(contentType);
   if (!type) return null;
 
-  if (type === 'text/turtle' || type === 'application/trig') return TurtleLanguage.parser;
+  if (type === 'text/turtle') return turtleLanguage.parser;
+  /*
+   * TriG's own parser, not Turtle's: a rewrite may not be approximate, and the
+   * Turtle grammar reads a `GRAPH` block as an error, so every term inside one
+   * would be invisible to the walk and silently left unconverted.
+   */
+  if (type === 'application/trig') return trigLanguage.parser;
   if (type === 'application/sparql-query' || type === 'application/sparql-update') {
-    return SparqlLanguage.parser;
+    return sparqlLanguage.parser;
   }
 
   return null;

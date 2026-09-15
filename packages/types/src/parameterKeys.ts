@@ -65,11 +65,10 @@ export function orderByPosition<T extends { position?: number | null }>(items: r
  * The key for a graph parameter, from the slot it fills.
  *
  * By slot and nothing else: an argument set carries payload in order and the
- * group routes it, so a graph has no name to be keyed by
- * (`2026-09-07-payload-and-routing.md`). The previous spelling keyed by port
- * name and gave every unnamed graph the key `graph:`, so two positional graphs
- * collapsed into one and the completion check on `/execute` could not tell
- * them apart.
+ * group routes it, so a graph has no name to be keyed by. The previous spelling
+ * keyed by port name and gave every unnamed graph the key `graph:`, so two
+ * positional graphs collapsed into one and the completion check on `/execute`
+ * could not tell them apart.
  */
 export function graphParameterKey(position: number): ParameterKey {
   return `graph:#${Number.isFinite(position) ? position : 0}`;

@@ -248,6 +248,106 @@ describe('GraphBuilder: PatchNode', () => {
     expect(code).toBe('EDGE_RDF_GRAPH_TARGET_CANNOT_CONSUME');
   });
 
+  /**
+   * Both halves at one consumer (the case `staticResultKind` did not see).
+   *
+   * Every multi-input RDF consumer in the engine unions its inputs, so two
+   * halves arriving together come out as one graph with the sign gone. These
+   * assert the refusal at build time, before the derivation runs, because the
+   * merged string is not something a caller can undo.
+   */
+  it('refuses to give one EndNode both halves of the same patch', () => {
+    cache.set('urn:edge:end-additions', {
+      $id: 'urn:edge:end-additions',
+      '@type': 'QueryEdge',
+      sourceNodeId: ids.node,
+      targetNodeId: ids.end,
+      dataFlowType: 'RDF_GRAPH',
+      sourceOutputId: ids.additions,
+      targetInputId: ids.additions,
+    });
+
+    expect(codeOf(() => buildGroup({
+      endNodeInputs: [ids.deletions, ids.additions],
+      extraEdges: ['urn:edge:end-additions'],
+    }))).toBe('EDGE_PATCH_HALVES_MERGED');
+  });
+
+  it('refuses to seed one RuleSetNode with both halves of the same patch', () => {
+    const rulesOut = 'urn:tqio:rules-out';
+
+    const code = codeOf(() => {
+      cache.set(rulesOut, { $id: rulesOut, '@type': 'TriplesQuadsIO', ioType: 'output', outputType: 'RDFGraph' });
+      cache.set(ids.ruleSetVersion, { $id: ids.ruleSetVersion, '@type': 'RuleSetVersion' });
+      cache.set(ids.ruleSetNode, {
+        $id: ids.ruleSetNode,
+        '@type': 'RuleSetNode',
+        ruleSetVersion: ids.ruleSetVersion,
+        inputs: [ids.deletions, ids.additions],
+        outputs: [rulesOut],
+      });
+      for (const half of ['deletions', 'additions'] as const) {
+        cache.set(`urn:edge:rules-${half}`, {
+          $id: `urn:edge:rules-${half}`,
+          '@type': 'QueryEdge',
+          sourceNodeId: ids.node,
+          targetNodeId: ids.ruleSetNode,
+          dataFlowType: 'RDF_GRAPH',
+          sourceOutputId: ids[half],
+          targetInputId: ids[half],
+        });
+      }
+      cache.set('urn:edge:rules-end', {
+        $id: 'urn:edge:rules-end',
+        '@type': 'QueryEdge',
+        sourceNodeId: ids.ruleSetNode,
+        targetNodeId: ids.end,
+        dataFlowType: 'RDF_GRAPH',
+        sourceOutputId: rulesOut,
+        targetInputId: rulesOut,
+      });
+      return buildGroup({
+        endNodeInputs: [rulesOut],
+        endEdge: { sourceNodeId: ids.ruleSetNode, sourceOutputId: rulesOut, targetInputId: rulesOut },
+        extraNodes: [ids.ruleSetNode],
+        extraEdges: ['urn:edge:rules-deletions', 'urn:edge:rules-additions', 'urn:edge:rules-end'],
+      });
+    });
+
+    expect(code).toBe('EDGE_PATCH_HALVES_MERGED');
+  });
+
+  it('allows the two halves when they go to different consumers', () => {
+    const rulesOut = 'urn:tqio:rules-out';
+    cache.set(rulesOut, { $id: rulesOut, '@type': 'TriplesQuadsIO', ioType: 'output', outputType: 'RDFGraph' });
+    cache.set(ids.ruleSetVersion, { $id: ids.ruleSetVersion, '@type': 'RuleSetVersion' });
+    cache.set(ids.ruleSetNode, {
+      $id: ids.ruleSetNode,
+      '@type': 'RuleSetNode',
+      ruleSetVersion: ids.ruleSetVersion,
+      inputs: [ids.additions],
+      outputs: [rulesOut],
+    });
+    // additions → the rule set, deletions → the EndNode. Each consumer sees one
+    // sign, so nothing is unioned across the two.
+    cache.set('urn:edge:rules-additions', {
+      $id: 'urn:edge:rules-additions',
+      '@type': 'QueryEdge',
+      sourceNodeId: ids.node,
+      targetNodeId: ids.ruleSetNode,
+      dataFlowType: 'RDF_GRAPH',
+      sourceOutputId: ids.additions,
+      targetInputId: ids.additions,
+    });
+
+    const graph = buildGroup({
+      extraNodes: [ids.ruleSetNode],
+      extraEdges: ['urn:edge:rules-additions'],
+    });
+
+    expect(graph.nodes.has(ids.ruleSetNode)).toBe(true);
+  });
+
   it('never asks its own store to materialize, whatever consumes it', () => {
     const graph = buildGroup({
       node: { backendConfig: { type: 'ephemeral-oxigraph', storeId: 'store-patch' }, backendId: undefined },

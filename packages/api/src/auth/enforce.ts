@@ -49,6 +49,9 @@ export function authOf(request: FastifyRequest | null | undefined): AuthContext 
  * `dry-run` audits what it *would* have refused and lets the request through;
  * that is the whole point of the mode, and it is why every decision funnels
  * here rather than each route deciding for itself.
+ *
+ * `enforceInEveryMode` is the one exception, and it is narrow on purpose: see
+ * `requireAuthGraphDecision`.
  */
 function decide(
   request: FastifyRequest | null,
@@ -56,11 +59,18 @@ function decide(
   allowed: boolean,
   event: {
     resource: string | null;
-    resourceKind: 'library' | 'backend' | 'everything' | 'route';
+    resourceKind: 'library' | 'backend' | 'everything' | 'route' | 'session';
     mode: string;
     matchedGrant?: string | null;
     message: string;
     statusCode?: number;
+    /**
+     * Refuse in `dry-run` too. The audit row is then a real `deny` rather than
+     * a `would-deny`, while `authMode` still records the mode it happened in —
+     * so the log says both what was refused and that the deployment was not
+     * otherwise enforcing.
+     */
+    enforceInEveryMode?: boolean;
   }
 ): void {
   if (allowed) {
@@ -74,7 +84,7 @@ function decide(
     return;
   }
 
-  const enforcing = context.mode === 'required';
+  const enforcing = context.mode === 'required' || event.enforceInEveryMode === true;
   auditDecision(request, context, {
     decision: enforcing ? 'deny' : 'would-deny',
     resource: event.resource,
@@ -113,6 +123,110 @@ export function requireAdmin(request: FastifyRequest, what = 'this operation'): 
 export function isAdmin(request: FastifyRequest): boolean {
   const context = authOf(request);
   return context.fullAccess || context.grants.admin;
+}
+
+/**
+ * A resource that no grant can name, checked against the principal that made
+ * it. Assistant sessions are the whole of this today.
+ *
+ * Every other helper here resolves a *library* or a *backend* and asks what the
+ * caller holds on it. A chat session is neither: it lives in process memory, it
+ * is explicitly not a library artifact, and no grant in the vocabulary can
+ * mention one. So the only honest question about it is who opened it, and this
+ * is the one place that asks.
+ *
+ * **An administrator is not an owner.** `grants.admin` is deliberately absent
+ * from the decision: an admin grant is over the deployment's entities, and a
+ * half-written prompt is not one of those. `fullAccess` *is* honoured, because
+ * that is `disabled` mode — a single-tenant server where every caller is the
+ * same anonymous subject, and where sessions have always been shared.
+ *
+ * The refusal is a 404 rather than a 403 for the reason the id is a uuid: the
+ * id is the only thing standing between a session and a stranger, so an answer
+ * that distinguishes "not yours" from "not there" would hand out the one bit
+ * the id is keeping. It reads as the route's own "Session not found".
+ */
+export function requireOwner(
+  request: FastifyRequest,
+  owner: string | null | undefined,
+  options: { resource: string; message: string; statusCode?: number }
+): AuthContext {
+  const context = authOf(request);
+  const allowed = context.fullAccess || (!!owner && owner === context.subject);
+  decide(request, context, allowed, {
+    resource: options.resource,
+    resourceKind: 'session',
+    mode: 'owner',
+    matchedGrant: allowed ? 'implicit:owner' : null,
+    message: options.message,
+    statusCode: options.statusCode ?? 404,
+  });
+  return context;
+}
+
+/**
+ * Whether a full-access context is the deployment's answer or the absence of
+ * one.
+ *
+ * `createFullAccessContext` produces both, and they mean opposite things.
+ * In `disabled` mode it is the answer: there is one anonymous subject and
+ * everything is open by configuration. On a `dry-run` request carrying no
+ * token it is a stand-in for a caller nobody identified — the plugin builds it
+ * so an unconverted client keeps working while the audit trail fills up.
+ *
+ * Most enforcement may treat the two alike, because everything `dry-run`
+ * concedes it concedes only until the operator flips to `required`. Anything
+ * writing the state that `required` will then *consult* may not: see
+ * `requireAuthGraphDecision`.
+ */
+export function isOpenDeployment(context: AuthContext): boolean {
+  return context.fullAccess && context.mode === 'disabled';
+}
+
+/**
+ * A decision about the auth graph itself — who holds what, and who may change
+ * it — recorded like every other and refused in every mode.
+ *
+ * Two things make these routes unlike the entity routes around them.
+ *
+ * **`dry-run` does not apply to them.** The mode exists so an operator can see
+ * what enforcement would refuse without refusing it, which is safe precisely
+ * because everything it concedes ends at the switch. A grant does not end at
+ * the switch: it is the state the switch consults. A deployment that ran
+ * `dry-run` to find out what would break, and had a grant written during the
+ * window, does not close the door by flipping to `required` — it enforces the
+ * door someone else fitted.
+ *
+ * **`fullAccess` is not authority here**, for the same reason and via
+ * `isOpenDeployment`. Note that `grants.admin` is `true` on *every*
+ * full-access context (`EMPTY_GRANTS`), so a caller computing standing for one
+ * of these decisions must ask which kind of full access it has rather than ask
+ * its grants.
+ *
+ * Callers pass the standing they computed; this ORs in the open-deployment
+ * case, audits the outcome, and throws on refusal.
+ */
+export function requireAuthGraphDecision(
+  request: FastifyRequest,
+  allowed: boolean,
+  event: {
+    resource: string | null;
+    resourceKind: 'library' | 'backend' | 'everything';
+    mode: string;
+    message: string;
+  }
+): AuthContext {
+  const context = authOf(request);
+  const permitted = allowed || isOpenDeployment(context);
+
+  decide(request, context, permitted, {
+    resource: event.resource,
+    resourceKind: event.resourceKind,
+    mode: event.mode,
+    message: event.message,
+    enforceInEveryMode: true,
+  });
+  return context;
 }
 
 /** Non-throwing check, for list filtering and conditional responses. */
@@ -204,15 +318,21 @@ export function requireBackendMode(
   return context;
 }
 
+/** The two fields of a library that decide which backends its Execute reaches. */
+export interface CuratedBackendFields {
+  allowedBackends?: string[] | null;
+  defaultBackend?: string | null;
+}
+
 /**
- * The backends a library permits its own saved queries to run against.
- * `defaultBackend` is always included: a library whose users cannot reach its
- * own default backend would be broken by construction.
+ * The backends a library permits its own saved queries to run against, read off
+ * a library record rather than out of the cache.
+ *
+ * Split from `allowedBackendsOf` so the escalation guard below compares exactly
+ * the set that grants the reach. It compared `allowedBackends` alone while this
+ * granted `allowedBackends` ∪ `defaultBackend`, and that gap was a door.
  */
-export function allowedBackendsOf(libraryIri: string): string[] {
-  const library = getCacheCoordinator().get(libraryIri) as
-    | { allowedBackends?: string[] | null; defaultBackend?: string | null }
-    | null;
+export function curatedBackendsOf(library: CuratedBackendFields | null | undefined): string[] {
   if (!library) return [];
 
   const allowed = new Set<string>();
@@ -228,6 +348,54 @@ export function allowedBackendsOf(libraryIri: string): string[] {
 }
 
 /**
+ * The backends a library permits its own saved queries to run against.
+ * `defaultBackend` is always included: a library whose users cannot reach its
+ * own default backend would be broken by construction.
+ */
+export function allowedBackendsOf(libraryIri: string): string[] {
+  return curatedBackendsOf(
+    getCacheCoordinator().get(libraryIri) as CuratedBackendFields | null
+  );
+}
+
+/**
+ * The properties an entity names its container with, in precedence order.
+ *
+ * `isPartOf` is the containment link nearly everything uses. The other two are
+ * entity families that reach their parent under a name of their own:
+ *
+ * - `targetEntity` is how an argument set reaches the query or group it
+ *   belongs to.
+ * - `etlJobVersion` is how `EtlExecution` and `EtlColumnMapping` reach the ETL
+ *   job version they are a run of, and a mapping for, respectively. Neither
+ *   has an `isPartOf`, so before this was here both resolved to no library at
+ *   all — and "no library" is where the entity guard *abstains*, so
+ *   `GET /etl-jobs/executions/:executionId`, its `/output`, and
+ *   `GET /etl-jobs/column-mappings/versions/:versionId` were reachable by any
+ *   authenticated principal, a read-only grant on an unrelated library
+ *   included. Found while building the run log (issue #211) and fixed here
+ *   rather than in the three handlers, because the property the guard needs is
+ *   "this entity has an owner", which is a fact about the entity.
+ *
+ * Kept in one place because `danglingContainer` in `entityGuard.ts` must agree
+ * with it exactly: that helper is what turns "names a container that is gone"
+ * into a denial, and a key listed here but not there would be a container the
+ * guard abstains on the moment it dangles.
+ */
+export function containerRefsOf(entity: unknown): string[] {
+  if (!entity || typeof entity !== 'object') return [];
+  const record = entity as {
+    isPartOf?: unknown;
+    targetEntity?: unknown;
+    etlJobVersion?: unknown;
+  };
+
+  const raw = record.isPartOf ?? record.targetEntity ?? record.etlJobVersion;
+  const refs = Array.isArray(raw) ? raw : typeof raw === 'string' ? [raw] : [];
+  return refs.filter((ref): ref is string => typeof ref === 'string' && ref.length > 0);
+}
+
+/**
  * Resolves the library that owns an entity, following one query-group hop.
  *
  * `Query.isPartOf` is an array that may name query groups as well as a library
@@ -240,17 +408,12 @@ export function resolveOwningLibrary(entity: unknown, depth = 0): string | null 
   const record = entity as {
     '@type'?: unknown;
     $id?: unknown;
-    isPartOf?: unknown;
-    targetEntity?: unknown;
   };
   if (record['@type'] === 'Library' && typeof record.$id === 'string') {
     return record.$id;
   }
 
-  // `isPartOf` is the containment link; `targetEntity` is how an argument set
-  // reaches the query or group it belongs to. Both lead to a library.
-  const raw = record.isPartOf ?? record.targetEntity;
-  const parents = Array.isArray(raw) ? raw : typeof raw === 'string' ? [raw] : [];
+  const parents = containerRefsOf(entity);
   if (parents.length === 0) return null;
 
   const cache = getCacheCoordinator();
@@ -307,29 +470,42 @@ export function requireLibraryCreate(request: FastifyRequest): AuthContext {
 }
 
 /**
- * Escalation guard for `Library.allowedBackends` (design §4.3).
+ * Escalation guard for a library's curated backends (design §4.3).
  *
- * Extending the list hands curated-execution reach to everyone holding Execute
+ * Extending the set hands curated-execution reach to everyone holding Execute
  * on the library, so it requires Control on the library *and* an explicit Use
  * grant on each backend being added — you may only share reach you hold
  * yourself. Removal needs Control alone.
+ *
+ * The set is `allowedBackends` ∪ `defaultBackend`, because that is what
+ * `curatedBackendsOf` hands to `canBackend`. The guard used to read
+ * `allowedBackends` alone, so naming a backend as a library's *default* was the
+ * same escalation through a field nobody was watching.
+ *
+ * `previous` is null when the library is being created. There is no library to
+ * hold Control on yet and the creator is granted every mode on what it makes,
+ * so that half is satisfied by construction; the Use half is not, and is the
+ * half this call is for.
  */
-export function requireAllowedBackendsChange(
+export function requireCuratedBackendsChange(
   request: FastifyRequest,
   libraryIri: string,
-  previous: readonly string[] | null | undefined,
-  next: readonly string[] | null | undefined
+  previous: CuratedBackendFields | null,
+  next: CuratedBackendFields
 ): void {
   const context = authOf(request);
   if (context.fullAccess || context.grants.admin) return;
 
-  const before = new Set(previous ?? []);
-  const added = (next ?? []).filter(backend => !before.has(backend));
-  const removed = [...before].filter(backend => !(next ?? []).includes(backend));
+  const before = new Set(curatedBackendsOf(previous));
+  const after = curatedBackendsOf(next);
+  const added = after.filter(backend => !before.has(backend));
+  const removed = [...before].filter(backend => !after.includes(backend));
 
   if (added.length === 0 && removed.length === 0) return;
 
-  requireLibraryMode(request, libraryIri, 'control');
+  if (previous !== null) {
+    requireLibraryMode(request, libraryIri, 'control');
+  }
 
   for (const backend of added) {
     const allowed = hasBackendMode(context.grants, backend, 'use');

@@ -6,16 +6,27 @@
  * them and `changed` events as the service stages drafts. Everything else here
  * is session bookkeeping.
  *
- * Unauthenticated, like `/mcp` beside it. That is not an oversight, it is the
- * gap the plan names in §7: both doors are blocked on the caller-authorization
- * model, and until then this is a single-tenant, local-or-trusted-network
- * feature. The provider key comes from the caller per request precisely so the
- * server does not have to hold one.
+ * The provider key comes from the caller per request precisely so the server
+ * does not have to hold one.
+ *
+ * **Who may call this.** The header here used to say "unauthenticated, like
+ * `/mcp` beside it", from when the caller-authorization model did not exist.
+ * It does: `/assistant` is not a public path, so in `required` mode the auth
+ * plugin rejects every request here without a valid token, and a tool call
+ * runs under the caller's own grants (#127). What was still missing is the
+ * question only this plugin has to answer — *whose session is this?* Nothing
+ * in the grant vocabulary can name one, so `requireOwner` asks the only thing
+ * that is true of a session: the principal that opened it.
  */
 import type { FastifyInstance, FastifyPluginOptions, FastifyReply, FastifyRequest } from 'fastify';
 import { createToolRegistry, type ToolRequest } from '@sparql-query-lib/tools';
 import { assistantToolNames } from '../assistant/allowlist.js';
-import { createAssistantService, type AssistantEvent, type AssistantService } from '../assistant/service.js';
+import {
+  createAssistantService,
+  type AssistantEvent,
+  type AssistantService,
+  type AssistantSession,
+} from '../assistant/service.js';
 import { parseScreenContext } from '../assistant/screen-context.js';
 import {
   unconfiguredModelClientFactory,
@@ -27,6 +38,7 @@ import { DRAFT_TOOL_DEFINITIONS } from '../assistant/draft-tools.js';
 import { tools as catalogue } from '@sparql-query-lib/tools';
 import { createValidatorAjv } from '../lib/validator-setup.js';
 import { writeSseHead } from '../lib/sse.js';
+import { AuthorizationError, authOf, requireLibraryMode, requireOwner } from '../auth/enforce.js';
 
 /**
  * The provider factory, settable once at boot.
@@ -121,15 +133,53 @@ export default async function assistantRoutes(fastify: FastifyInstance, _options
     },
   });
 
+  /**
+   * The session a caller may act on, or null for the 404 every route here
+   * gives an id it will not answer for.
+   *
+   * Ownership is checked *after* the lookup, and its refusal is turned back
+   * into the same null an unknown id gives: the caller gets the route's own
+   * 404 body either way, rather than the global error handler's, which carries
+   * a `route` and a `requestId` and would therefore tell the two apart. The
+   * denial is already in the audit log by the time this catches it — `decide`
+   * records before it throws — so nothing is lost by not rethrowing.
+   *
+   * In `dry-run` mode `requireOwner` audits and returns, which is that mode's
+   * contract and is why this cannot be an `if` on `owner`.
+   */
+  function sessionFor(request: FastifyRequest, id: string): AssistantSession | null {
+    const session = service.get(id);
+    if (!session) return null;
+    try {
+      requireOwner(request, session.owner, {
+        resource: session.id,
+        message: 'Session not found',
+      });
+    } catch (error) {
+      if (error instanceof AuthorizationError) return null;
+      throw error;
+    }
+    return session;
+  }
+
   fastify.post('/sessions', async (request: FastifyRequest, reply: FastifyReply) => {
     const body = (request.body ?? {}) as SessionBody;
-    const session = service.open(body.libraryId ?? null);
+    const libraryId = body.libraryId ?? null;
+    /*
+     * A session names the library its drafts are staged for and its tools are
+     * narrowed to, so opening one on a library is a read of it. The tools
+     * would have refused one by one — they run under the caller's grants — but
+     * the panel would have opened on a library the caller cannot see and found
+     * out a tool at a time.
+     */
+    if (libraryId) requireLibraryMode(request, libraryId, 'read');
+    const session = service.open(libraryId, authOf(request).subject);
     return reply.status(201).send({ id: session.id, createdAt: session.createdAt, libraryId: session.libraryId });
   });
 
   fastify.get('/sessions/:id', async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string };
-    const session = service.get(id);
+    const session = sessionFor(request, id);
     if (!session) return reply.status(404).send({ error: 'Session not found' });
     return reply.send({
       id: session.id,
@@ -190,14 +240,14 @@ export default async function assistantRoutes(fastify: FastifyInstance, _options
 
   fastify.post('/sessions/:id/interrupt', async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string };
-    if (!service.get(id)) return reply.status(404).send({ error: 'Session not found' });
+    if (!sessionFor(request, id)) return reply.status(404).send({ error: 'Session not found' });
     return reply.send({ interrupted: service.interrupt(id) });
   });
 
   fastify.post('/sessions/:id/messages', async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string };
     const body = (request.body ?? {}) as MessageBody;
-    const session = service.get(id);
+    const session = sessionFor(request, id);
     if (!session) return reply.status(404).send({ error: 'Session not found' });
 
     const prompt = typeof body.prompt === 'string' ? body.prompt.trim() : '';

@@ -41,6 +41,7 @@ const CODES = {
   backendConflict: 'NODE_BACKEND_CONFLICT',
   patchPortsMissing: 'NODE_PATCH_OUTPUT_PORTS_MISSING',
   patchQueryNotUpdate: 'NODE_PATCH_QUERY_NOT_UPDATE',
+  patchHalvesMerged: 'EDGE_PATCH_HALVES_MERGED',
   cycle: 'GRAPH_CYCLE',
 } as const;
 
@@ -194,6 +195,66 @@ function nodeIssues(node: GraphNodeState): ValidationIssue[] {
 }
 
 /**
+ * Both halves of one patch arriving at one consumer.
+ *
+ * A per-target rule rather than a per-node or per-edge one, so it lives here
+ * rather than in `nodeIssues` or `validateEdge`: neither edge is wrong on its
+ * own, and the patch node is wired exactly as it should be. It is the pair that
+ * is wrong, because every consumer that takes more than one graph unions them —
+ * and the union of the deletions and the additions is the quads the update
+ * touches with the sign erased.
+ *
+ * An error rather than a warning, and reported against the *second* edge, which
+ * is the one to delete: the API refuses this shape outright
+ * (`EDGE_PATCH_HALVES_MERGED`), so drawing it is not the ordinary
+ * incompleteness of a group under construction.
+ */
+function patchHalfMergeIssues(
+  state: QueryGroupGraphState,
+  nodesById: Map<string, GraphNodeState>,
+): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  // Ports seen arriving at a target, keyed by `${targetId} ${sourceId}`.
+  const seenPorts = new Map<string, Set<string>>();
+  // One pairing is one problem, however many further edges restate it.
+  const reported = new Set<string>();
+
+  for (const edge of state.edges) {
+    if (edge.flowType !== 'RDF_GRAPH' || !edge.sourceOutputId) continue;
+    const source = nodesById.get(edge.source);
+    if (!source || source.kind !== 'patch') continue;
+    const { deletionsOutputId, additionsOutputId } = source;
+    if (!deletionsOutputId || !additionsOutputId || deletionsOutputId === additionsOutputId) continue;
+
+    const key = `${edge.target} ${edge.source}`;
+    let seen = seenPorts.get(key);
+    if (!seen) {
+      seen = new Set<string>();
+      seenPorts.set(key, seen);
+    }
+    seen.add(edge.sourceOutputId);
+
+    if (seen.has(deletionsOutputId) && seen.has(additionsOutputId) && !reported.has(key)) {
+      reported.add(key);
+      const target = nodesById.get(edge.target);
+      issues.push(
+        issue(
+          'error',
+          `${target ? nodeName(target) : edge.target} is given both halves of ${nodeName(source)}'s patch, ` +
+            'and a consumer merges the graphs it is handed — the deletions and the additions would become ' +
+            'indistinguishable. Send each half to its own consumer.',
+          'edge',
+          edge.id,
+          CODES.patchHalvesMerged,
+        ),
+      );
+    }
+  }
+
+  return issues;
+}
+
+/**
  * Everything the canvas can decide about this graph on its own.
  *
  * Pure, so it can be tested against a state rather than a mounted component,
@@ -215,6 +276,8 @@ export function liveValidationIssues(state: QueryGroupGraphState | null): Valida
       if (entry) issues.push(entry);
     }
   }
+
+  issues.push(...patchHalfMergeIssues(state, nodesById));
 
   // The same order the executor needs and `connectNodes` refuses to break. A
   // cycle should be unreachable from the canvas, but a version saved before that

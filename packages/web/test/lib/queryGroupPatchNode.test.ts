@@ -409,4 +409,87 @@ describe('what live validation says about a patch node', () => {
   it('warns when it has no store to read', () => {
     expect(codesFor(patchNodeState({ backendId: null }))).toContain('NODE_BACKEND_UNRESOLVABLE');
   });
+
+  /**
+   * Both halves at one consumer, which neither edge nor node validation sees.
+   *
+   * `validateEdge` is asked about one edge and `nodeIssues` about one node, and
+   * each of these graphs is fine by both: the patch node names two distinct
+   * ports and every edge carries the half it says it does. It is the pair
+   * arriving together that is wrong, because a consumer unions the graphs it is
+   * handed. `GraphBuilder` refuses it as `EDGE_PATCH_HALVES_MERGED`; these keep
+   * the canvas saying so first.
+   */
+  describe('both halves reaching one consumer', () => {
+    const bothHalvesTo = (target: string, targetNode: GraphNodeState): QueryGroupGraphState => ({
+      version: { id: P.groupVersion } as QueryGroupGraphState['version'],
+      nodes: [patchNodeState(), targetNode],
+      edges: [
+        rdfEdge({ id: 'urn:sqlib:edge:deletions', target, sourceOutputId: P.deletions, targetInputId: P.rulesetIn }),
+        rdfEdge({ id: 'urn:sqlib:edge:additions', target, sourceOutputId: P.additions, targetInputId: P.rulesetIn }),
+      ],
+      ioEntities: {},
+      tupleMembers: {},
+      variables: {},
+      queryVersionInterfaces: {},
+      iriMap: {},
+    });
+
+    it('reports both halves reaching one rule set', () => {
+      const issues = liveValidationIssues(bothHalvesTo(P.rulesetNode, otherNodeState('ruleset', P.rulesetNode)));
+      const merged = issues.find(issue => issue.code === 'EDGE_PATCH_HALVES_MERGED');
+
+      expect(merged?.level).toBe('error');
+      // The second edge, which is the one to delete.
+      expect(merged?.entityId).toBe('urn:sqlib:edge:additions');
+    });
+
+    it('reports both halves reaching one end node', () => {
+      const issues = liveValidationIssues(bothHalvesTo(P.endNode, otherNodeState('end', P.endNode)));
+
+      expect(issues.map(issue => issue.code)).toContain('EDGE_PATCH_HALVES_MERGED');
+    });
+
+    it('says nothing when each half goes to its own consumer', () => {
+      const state: QueryGroupGraphState = {
+        version: { id: P.groupVersion } as QueryGroupGraphState['version'],
+        nodes: [patchNodeState(), otherNodeState('ruleset', P.rulesetNode), otherNodeState('end', P.endNode)],
+        edges: [
+          rdfEdge({ id: 'urn:sqlib:edge:additions', target: P.rulesetNode, sourceOutputId: P.additions, targetInputId: P.rulesetIn }),
+          rdfEdge({ id: 'urn:sqlib:edge:deletions', target: P.endNode, sourceOutputId: P.deletions, targetInputId: P.rulesetIn }),
+        ],
+        ioEntities: {},
+        tupleMembers: {},
+        variables: {},
+        queryVersionInterfaces: {},
+        iriMap: {},
+      };
+
+      expect(liveValidationIssues(state).map(issue => issue.code)).not.toContain('EDGE_PATCH_HALVES_MERGED');
+    });
+
+    it('reports one pairing once, however many edges restate it', () => {
+      const state = bothHalvesTo(P.rulesetNode, otherNodeState('ruleset', P.rulesetNode));
+      state.edges.push(
+        rdfEdge({ id: 'urn:sqlib:edge:deletions-again', target: P.rulesetNode, sourceOutputId: P.deletions, targetInputId: P.rulesetIn }),
+      );
+
+      const merged = liveValidationIssues(state).filter(issue => issue.code === 'EDGE_PATCH_HALVES_MERGED');
+      expect(merged).toHaveLength(1);
+    });
+
+    it('says nothing when the same half arrives twice', () => {
+      // Two edges from one port is a duplicate, not a lost sign: the union of a
+      // graph with itself is that graph. Not this rule's business.
+      const state = bothHalvesTo(P.rulesetNode, otherNodeState('ruleset', P.rulesetNode));
+      state.edges[1] = rdfEdge({
+        id: 'urn:sqlib:edge:additions',
+        target: P.rulesetNode,
+        sourceOutputId: P.deletions,
+        targetInputId: P.rulesetIn,
+      });
+
+      expect(liveValidationIssues(state).map(issue => issue.code)).not.toContain('EDGE_PATCH_HALVES_MERGED');
+    });
+  });
 });

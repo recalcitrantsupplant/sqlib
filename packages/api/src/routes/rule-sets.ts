@@ -747,7 +747,10 @@ export default async function (fastify: FastifyInstance) {
     let dataGraph: ResolvedDataGraph | null = null;
     let tupleSeeds: string | null = null;
     try {
-      dataGraph = resolveDataGraphInput(body);
+      // `{ request }` because the guard above checked the *rule set's* library
+      // and `dataGraphVersionId` names a graph that need not live in it: the
+      // second entity this body names, and the caller is reading its triples.
+      dataGraph = resolveDataGraphInput(body, { request });
       tupleSeeds = resolveTupleSeedInput(body.tuples);
     } catch (error) {
       if (error instanceof DataGraphContentError || error instanceof TupleSeedInputError) {
@@ -816,7 +819,10 @@ export default async function (fastify: FastifyInstance) {
     let dataGraph: ResolvedDataGraph | null = null;
     let tupleSeeds: string | null = null;
     try {
-      dataGraph = resolveDataGraphInput(body);
+      // `{ request }` because the guard above checked the *rule set's* library
+      // and `dataGraphVersionId` names a graph that need not live in it: the
+      // second entity this body names, and the caller is reading its triples.
+      dataGraph = resolveDataGraphInput(body, { request });
       tupleSeeds = resolveTupleSeedInput(body.tuples);
     } catch (error) {
       if (error instanceof DataGraphContentError || error instanceof TupleSeedInputError) {

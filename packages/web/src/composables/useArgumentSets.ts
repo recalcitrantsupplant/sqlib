@@ -200,13 +200,12 @@ export function useArgumentSets(
   /**
    * Every set this callable could run with, not only the ones made on it.
    *
-   * Scope has always been provenance rather than a fence
-   * (`2026-08-14-query-arguments.md` §5) — which is why the switcher computes a
-   * fits/partial/mismatch verdict against the open callable at all. Until now
-   * it listed only sets whose `targetEntity` was this one, so the verdict could
-   * never say anything but "fits": there was nothing else to judge. This is the
-   * "elsewhere in the library" listing §7 of that document wanted and could not
-   * have before `GET /argument-sets?libraryId=`.
+   * Scope has always been provenance rather than a fence — which is why the
+   * switcher computes a fits/partial/mismatch verdict against the open callable
+   * at all. Until now it listed only sets whose `targetEntity` was this one, so
+   * the verdict could never say anything but "fits": there was nothing else to
+   * judge. This is the "elsewhere in the library" listing the query arguments
+   * design wanted and could not have before `GET /argument-sets?libraryId=`.
    *
    * The library-wide read is best-effort: if it fails, the target-scoped list
    * still stands, because losing the sets made on this very screen would be a
@@ -455,7 +454,7 @@ export function useArgumentSets(
        * The save is the pin. A reference floats while it is a draft — a run
        * reads whatever the tuple set holds — and this is where it stops
        * floating, so a saved set keeps meaning what it meant however the tuple
-       * set moves afterwards (`2026-08-18-tuple-sets.md` §7.2).
+       * set moves afterwards.
        *
        * A reference that cannot be resolved fails the save rather than being
        * dropped from it: a set saved without one of its sources runs and

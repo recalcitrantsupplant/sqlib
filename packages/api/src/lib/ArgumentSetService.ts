@@ -37,7 +37,7 @@ export interface ArgumentTupleBindingPayload {
   id?: string;
   /**
    * Its slot among the set's ordered inputs. Optional; unset, the position in
-   * the submitted array is used. See `2026-09-07-payload-and-routing.md` §4.
+   * the submitted array is used.
    */
   position?: number;
   variables: string[];
@@ -223,7 +223,7 @@ export class ArgumentSetService {
   /**
    * Every set in a library, whatever query or group it was made for.
    *
-   * The listing `2026-08-14-query-arguments.md` §7 wanted and could not have:
+   * The listing the query arguments design wanted and could not have:
    * the switcher's "elsewhere in the library" needs sets across targets, and
    * enumerating them client-side was one request per query.
    *
@@ -756,8 +756,7 @@ export class ArgumentSetService {
     /*
      * Sorted by the stored slot, because `tupleBindings` and `graphBindings`
      * are RDF arrays: what comes back is a set, in whatever order the store
-     * chose. A group routes these by position, so the order is load-bearing —
-     * see `2026-09-07-payload-and-routing.md` §4.
+     * chose. A group routes these by position, so the order is load-bearing.
      */
     const tupleBindings = orderByPosition(await Promise.all(
       toArray(entity.tupleBindings).map(async (bindingId, index) => this.expandTupleBinding(bindingId, index))
@@ -820,8 +819,7 @@ export class ArgumentSetService {
    * Rows contributed by pinned tuple set versions, projected onto the binding.
    *
    * Matching is by name — the binding's signature is the query's vocabulary, and
-   * there is no rename layer, because renaming belongs to group edges
-   * (`2026-08-18-tuple-sets.md` §6).
+   * there is no rename layer, because renaming belongs to group edges.
    *
    * **Each row is projected onto the binding's variables, and a row left empty
    * is dropped.** This is load-bearing rather than tidying: a row keyed only by

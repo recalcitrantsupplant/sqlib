@@ -4,9 +4,9 @@
  * It used to list only sets whose `targetEntity` was this callable, which made
  * the fits/partial/mismatch verdict beside each row incapable of saying
  * anything but "fits" — there was nothing else in the list to judge. Scope has
- * always been provenance rather than a fence (`2026-08-14-query-arguments.md`
- * §5), and §7 of that document wanted this listing and could not have it before
- * `GET /argument-sets?libraryId=` existed.
+ * always been provenance rather than a fence, and the query arguments design
+ * wanted this listing and could not have it before `GET /argument-sets?libraryId=`
+ * existed.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ref } from 'vue';

@@ -28,6 +28,9 @@ import { SparqlQueryParser } from './parser.js';
 import { ExecutorFactory } from './orchestration/ExecutorFactory.js';
 import type { ISparqlExecutor } from '../server/ISparqlExecutor.js';
 import type { ArgumentSet } from './orchestration/types.js';
+import type { FastifyRequest } from 'fastify';
+import { resolveOwningLibrary } from '../auth/enforce.js';
+import { assertBackendAccess, type ExecutionAuthScope } from '../auth/executionScope.js';
 
 /**
  * The lexical form of a DuckDB value for the literal it is mapped to.
@@ -593,10 +596,21 @@ export class EtlService {
   }
 
   /**
-   * List all ETL jobs
+   * Every ETL job, narrowed by `filter` before it is reported.
+   *
+   * The filter takes the stored entities rather than the details below, and
+   * that is the whole reason it is a parameter instead of the route filtering
+   * the result: `filterReadable` resolves an entity's library through
+   * `isPartOf`, and by the time a job is an `EtlJobDetail` its `libraryIds`
+   * have had their prefixes stripped — so a filter applied to the returned
+   * list would resolve nothing and silently keep everything.
+   *
+   * Left optional because the non-HTTP callers have no request to authorize
+   * against; the route supplies it.
    */
-  async listEtlJobs(): Promise<EtlJobDetail[]> {
-    const allJobs = getCacheCoordinator().list('EtlJob') as LdkitEtlJob[];
+  async listEtlJobs(filter?: (jobs: LdkitEtlJob[]) => LdkitEtlJob[]): Promise<EtlJobDetail[]> {
+    const stored = getCacheCoordinator().list('EtlJob') as LdkitEtlJob[];
+    const allJobs = filter ? filter(stored) : stored;
 
     return allJobs.map((ldkitJob) => ({
       id: this.toShortId(ldkitJob.$id),
@@ -833,6 +847,10 @@ export class EtlService {
    * The SQL alone does not decide what the rows become — the mapping does — so
    * every caller that runs a job has to resolve one, and resolving it in two
    * places is how a test comes to be typed differently from the job it tests.
+   *
+   * A caller-supplied id has to be a mapping *of this version* — every stored
+   * mapping version was read and parsed before, so a request could type one
+   * job's run with the columns of a job in a library it holds nothing on.
    */
   resolveColumnMapping(
     etlJobVersion: LdkitEtlJobVersion,
@@ -846,9 +864,19 @@ export class EtlService {
       throw new Error(`No column mapping version specified and ETL job version has no current mapping`);
     }
 
-    const mappingVersion = getCacheCoordinator().get(mappingVersionUrn) as LdkitEtlColumnMappingVersion | null;
+    const cacheCoordinator = getCacheCoordinator();
+    const mappingVersion = cacheCoordinator.get(mappingVersionUrn) as LdkitEtlColumnMappingVersion | null;
     if (!mappingVersion) {
       throw new Error(`Column mapping version not found: ${mappingVersionUrn}`);
+    }
+
+    if (columnMappingVersionId) {
+      const mapping = cacheCoordinator.get(mappingVersion.isPartOf) as LdkitEtlColumnMapping | null;
+      if (mapping?.etlJobVersion !== etlJobVersion.$id) {
+        throw new Error(
+          `Column mapping version ${mappingVersionUrn} does not map ETL job version ${etlJobVersion.$id}`,
+        );
+      }
     }
 
     return { versionUrn: mappingVersionUrn, columns: JSON.parse(mappingVersion.columns) as ColumnDefinition[] };
@@ -925,10 +953,19 @@ export class EtlService {
   }
 
   /**
-   * Execute an ETL job end-to-end
+   * Execute an ETL job end-to-end.
+   *
+   * `authScope` carries the caller the run is for. It is optional the way
+   * `materializeTupleSetVersionFromEtl`'s is — an internal run (a test fixture,
+   * a scheduled job) is sqlib acting as itself — but the route that serves
+   * `POST /etl-jobs/:id/execute` always passes one, because a run started by a
+   * caller must reach only what that caller may.
    */
-  async executeEtlJob(etlJobId: string, config: ExecutionInput): Promise<ExecutionResult> {
-    const executorFactory = new ExecutorFactory();
+  async executeEtlJob(
+    etlJobId: string,
+    config: ExecutionInput,
+    authScope?: { request: FastifyRequest },
+  ): Promise<ExecutionResult> {
     const cacheCoordinator = getCacheCoordinator();
 
     // 1. Load EtlJobVersion (current or specified)
@@ -951,9 +988,45 @@ export class EtlService {
       throw new Error(`ETL job version not found: ${versionUrn}`);
     }
 
+    /*
+     * A version named in the request has to be a version *of this job*. The
+     * route's guard resolved the job in the path and required Execute on its
+     * library; the version came out of the body and was run whatever it
+     * belonged to, so Execute on one library ran any other library's stored SQL
+     * and SPARQL — the reach #132 closed on `/etl-jobs/preview` and
+     * `materializeTupleSetVersionFromEtl` closed on `from-etl`, arriving by a
+     * third door.
+     *
+     * Checked by containment rather than by a second authorization call: a
+     * version of this job is in this job's library by construction, so one
+     * decision covers the run and everything it reads.
+     *
+     * Only the caller's id is checked. The other branch above is the job's own
+     * `currentVersion`, which `createEtlJobVersion` is the only writer of and
+     * always sets to a version it just created under that job — a pointer the
+     * job makes about itself, not a reach a request can aim.
+     */
+    if (config.etlJobVersionId && etlJobVersion.isPartOf !== etlJobUrn) {
+      throw new Error(
+        `ETL job version ${versionUrn} is not a version of ETL job ${etlJobUrn}`,
+      );
+    }
+
     // 2. Load ColumnMappingVersion (current or specified)
     const mapping = this.resolveColumnMapping(etlJobVersion, config.columnMappingVersionId);
     const columnDefs = mapping.columns;
+
+    /*
+     * The backend the SPARQL leg will write through, checked before the log
+     * opens. `beginEtlExecution` below records a run, and a request refused
+     * for want of a grant is not one — the same reason
+     * `materializeTupleSetVersionFromEtl` opens its record only after every
+     * caller mistake has been answered.
+     */
+    const executionScope: ExecutionAuthScope | undefined = authScope
+      ? { request: authScope.request, viaLibrary: resolveOwningLibrary(etlJobVersion) }
+      : undefined;
+    assertBackendAccess(executionScope, etlJobVersion.backendId);
 
     // 3. Open the run's record in the job's log (status: 'running'). Shared
     // with the tabular sink — see `etlRunLog.ts` for what belongs in it.
@@ -972,7 +1045,17 @@ export class EtlService {
     const output = new EtlOutputFile(path.join(etlOutputDir(), this.toShortId(executionId)));
 
     try {
-      // 5. Get executor via ExecutorFactory
+      /*
+       * 5. Get executor via ExecutorFactory, under the caller's scope.
+       *
+       * `viaLibrary` is the library the version is stored in, which is what
+       * curated execution is defined against (design §4.3 route 2): Execute on
+       * the library reaches the backends that library allows, and nothing else.
+       * Before this the factory was built with no scope at all, which
+       * `assertBackendAccess` reads as sqlib acting as itself — every backend in
+       * the deployment, the entity store's own included.
+       */
+      const executorFactory = new ExecutorFactory(executionScope);
       const executor = await executorFactory.getExecutorForBackendId(etlJobVersion.backendId);
 
       // 6. Chunk loop, over one streamed execution of the source query (#201)

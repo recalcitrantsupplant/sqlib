@@ -276,12 +276,22 @@ export default async function playgroundRoutes(
         request.log.warn({ err: error }, '[Playground] Stratification analysis failed; proceeding without persisted report');
       }
 
-      // The data graph: the base graph these rules run against. Resolved
-      // before anything ephemeral is registered so a bad input is a clean 400
-      // rather than a 400 with a half-populated cache behind it.
+      /*
+       * The data graph: the base graph these rules run against. Resolved
+       * before anything ephemeral is registered so a bad input is a clean 400
+       * rather than a 400 with a half-populated cache behind it.
+       *
+       * `{ request }` is the whole of this route's authorization, and it was
+       * missing. Everything else the playground runs is text the caller just
+       * typed — which is why the route registers no guard, correctly — but
+       * `dataGraphVersionId` names a *stored* graph in any library, and the
+       * rules that run against it are the caller's own. A rule matching the
+       * base graph and writing what it matched puts those triples in the
+       * inference output, which the response carries.
+       */
       let dataGraph: ResolvedDataGraph | null = null;
       try {
-        dataGraph = resolveDataGraphInput(body);
+        dataGraph = resolveDataGraphInput(body, { request });
       } catch (error) {
         if (error instanceof DataGraphContentError) {
           return reply.status(400).send({ error: error.message });

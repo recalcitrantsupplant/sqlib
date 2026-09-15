@@ -24,6 +24,13 @@
  * against, and a data graph the pointer to the version a `from-query` run may
  * be aimed at — so "only names and descriptions" was never the whole answer
  * either.
+ *
+ * `/query-groups` is the seventh and was found the same way, sweeping that
+ * plugin. It is the one where the pointer matters most: a group row carries
+ * `currentVersion`, and a group version is the only entity in the system whose
+ * *content* is a set of references to other libraries' queries and rule sets —
+ * so the collection was a way to find the group ids worth aiming
+ * `GET /:id/v/:version` at, before the guard on that route had anything to say.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
@@ -48,7 +55,11 @@ vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => {
     list: () => byType(type),
   });
   return {
-    getCacheCoordinator: () => ({ get: (id: string) => store.entities.get(id) ?? null }),
+    getCacheCoordinator: () => ({
+      get: (id: string) => store.entities.get(id) ?? null,
+      // `query-groups.ts` lists through the coordinator rather than a repo.
+      list: (type: string) => byType(type),
+    }),
     getEntityRepositories: () => ({
       RuleSet: repo('RuleSet'),
       RuleSetVersion: repo('RuleSetVersion'),
@@ -93,7 +104,7 @@ const authDisabled: AuthContext = {
   mode: 'disabled',
 };
 
-type Plugin = 'rule-sets' | 'tests' | 'rules' | 'data-blocks' | 'data-graphs';
+type Plugin = 'rule-sets' | 'tests' | 'rules' | 'data-blocks' | 'data-graphs' | 'query-groups';
 
 async function list(context: AuthContext, plugin: Plugin, url: string) {
   const app: FastifyInstance = Fastify({ logger: false });
@@ -116,7 +127,9 @@ async function list(context: AuthContext, plugin: Plugin, url: string) {
         ? await import('../../src/routes/rules.js')
         : plugin === 'data-blocks'
           ? await import('../../src/routes/data-blocks.js')
-          : await import('../../src/routes/data-graphs.js');
+          : plugin === 'query-groups'
+            ? await import('../../src/routes/query-groups.js')
+            : await import('../../src/routes/data-graphs.js');
   await app.register(module.default as never, { prefix: `/${plugin}` });
   await app.ready();
   try {
@@ -162,6 +175,13 @@ beforeEach(() => {
     ['urn:sqlib:datagraph:theirs', {
       '@type': 'DataGraph', $id: 'urn:sqlib:datagraph:theirs', name: 'Salary graph', isPartOf: [THEIRS],
       currentVersion: 'urn:sqlib:datagraph:theirs:v1',
+    }],
+    ['urn:sqlib:group:mine', {
+      '@type': 'QueryGroup', $id: 'urn:sqlib:group:mine', name: 'Catchment rollup', isPartOf: MINE,
+    }],
+    ['urn:sqlib:group:theirs', {
+      '@type': 'QueryGroup', $id: 'urn:sqlib:group:theirs', name: 'Payroll rollup', isPartOf: THEIRS,
+      currentVersion: 'urn:sqlib:groupversion:theirs-v1',
     }],
   ]);
 });
@@ -253,6 +273,27 @@ describe('GET /data-graphs', () => {
   });
 });
 
+describe('GET /query-groups', () => {
+  it('shows a reader its own library and not another', async () => {
+    const response = await list(reader, 'query-groups', '/query-groups');
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().map((item: { name: string }) => item.name)).toEqual(['Catchment rollup']);
+    expect(response.body).not.toContain('Payroll rollup');
+  });
+
+  it('does not hand a stranger the version pointer its legs are named in', async () => {
+    // A group row carries `currentVersion`, and that version is the entity
+    // whose content names other libraries' query versions — so the listing was
+    // the way to find which group to aim `GET /:id/v/:version` at.
+    const response = await list(stranger, 'query-groups', '/query-groups');
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual([]);
+    expect(response.body).not.toContain('urn:sqlib:groupversion:theirs-v1');
+  });
+});
+
 describe('disabled mode', () => {
   it('lists everything, as it did before', async () => {
     expect((await list(authDisabled, 'rule-sets', '/rule-sets')).json()).toHaveLength(2);
@@ -260,5 +301,6 @@ describe('disabled mode', () => {
     expect((await list(authDisabled, 'rules', '/rules')).json()).toHaveLength(2);
     expect((await list(authDisabled, 'data-blocks', '/data-blocks')).json()).toHaveLength(2);
     expect((await list(authDisabled, 'data-graphs', '/data-graphs')).json()).toHaveLength(2);
+    expect((await list(authDisabled, 'query-groups', '/query-groups')).json()).toHaveLength(2);
   });
 });

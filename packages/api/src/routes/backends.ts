@@ -926,7 +926,13 @@ export default async function (
   );
 
   // --- GET /:id/references ---
-  // Get all entities that reference this backend as their defaultBackend
+  // Get all entities that reference this backend as their defaultBackend.
+  //
+  // The same question `/:id/usage` above answers, over two of the same four
+  // collections, and it took no check at all until 2026-09-14: a principal
+  // holding no grant on the backend was answered 200 with the id and name of
+  // every library and query in the deployment pointing at it. `use` is the bar
+  // its sibling sets, and this is the same read of the same connection.
   fastify.get<{
     Reply: { libraries: Array<{ id: string; name: string }>; queries: Array<{ id: string; name: string }> } | ErrorResponse
   }>(
@@ -969,6 +975,7 @@ export default async function (
     }, async ({ repos, reply, request }) => {
       const { id: rawId } = request.params;
       const id = decodeURIComponent(rawId);
+      requireBackendMode(request, id, 'use');
 
       // Check if backend exists
       const backend = repos.Backend.get(id);
@@ -1077,13 +1084,14 @@ export default async function (
     }, async ({ repos, reply, request }) => {
       const { id: rawId } = request.params;
       const id = decodeURIComponent(rawId);
+      // Above the lookup, not below it: see the note on `GET /:id/stats`.
+      requireBackendMode(request, id, 'write');
 
       // Get backend from cache
       const ldkitBackend = repos.Backend.get(id) as LdkitBackend | null;
       if (!ldkitBackend) {
         return reply.status(404).send({ error: 'Backend not found' });
       }
-      requireBackendMode(request, id, 'write');
 
       // Verify it's an oxigraph backend
       const backendTypeKey = backendTypeIriToKey(ldkitBackend.backendType);
@@ -1183,6 +1191,18 @@ export default async function (
     }, async ({ repos, reply, request }) => {
       const { id: rawId } = request.params;
       const id = decodeURIComponent(rawId);
+      /*
+       * Above the lookup and above the type test, which is where every other
+       * route in this plugin puts it and where these three did not until
+       * 2026-09-14. Checking last does not make an unauthorized caller's
+       * request succeed, but it answers three different ways before refusing:
+       * 404 for an id that is not stored, 400 for one that is stored and is
+       * not an in-process store, 403 for one that is both. So a principal
+       * holding nothing could enumerate which backend ids exist and which of
+       * them hold their data in this process — which is the set worth
+       * uploading to, clearing, or asking for statistics about.
+       */
+      requireBackendMode(request, id, 'use');
 
       // Get backend from cache
       const ldkitBackend = repos.Backend.get(id) as LdkitBackend | null;
@@ -1195,7 +1215,6 @@ export default async function (
       if (backendTypeKey !== 'oxigraphEphemeral' && backendTypeKey !== 'oxigraphMemory') {
         return reply.status(400).send({ error: 'Backend is not an in-process oxigraph backend' });
       }
-      requireBackendMode(request, id, 'use');
 
       // Reading stats is not a write, so it applies to every in-process store
       // whatever its mode.
@@ -1233,6 +1252,8 @@ export default async function (
     }, async ({ repos, reply, request }) => {
       const { id: rawId } = request.params;
       const id = decodeURIComponent(rawId);
+      // Above the lookup, not below it: see the note on `GET /:id/stats`.
+      requireBackendMode(request, id, 'write');
 
       // Get backend from cache
       const ldkitBackend = repos.Backend.get(id) as LdkitBackend | null;
@@ -1245,8 +1266,6 @@ export default async function (
       if (backendTypeKey !== 'oxigraphEphemeral' && backendTypeKey !== 'oxigraphMemory') {
         return reply.status(400).send({ error: 'Backend is not an in-process oxigraph backend' });
       }
-
-      requireBackendMode(request, id, 'write');
 
       // Clearing is a write, so a read-only store refuses it for the same
       // reason it refuses an update: the next reload would undo it anyway.

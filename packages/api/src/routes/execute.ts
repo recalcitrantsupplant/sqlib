@@ -574,7 +574,12 @@ export default async function (
             let initialDataGraphs: ExecutionDataGraphInput[] = [];
             try {
                 initialDataGraphs = suppliedDataGraphs.map(entry => {
-                    const resolved = resolveDataGraphInput(entry);
+                    // `{ request }` because a run's own `dataGraphs[]` name
+                    // stored graphs that need not live in the target's library,
+                    // and Execute on the target says nothing about them. The
+                    // stored half above came off an argument set, whose pins
+                    // `ArgumentSetService` checked when the set was composed.
+                    const resolved = resolveDataGraphInput(entry, { request });
                     if (!resolved) {
                         throw new DataGraphContentError(
                             'Each data graph needs a dataGraphVersionId, dataGraphId or dataGraphInline',

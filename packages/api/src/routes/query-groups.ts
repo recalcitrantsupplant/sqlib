@@ -24,7 +24,7 @@ import {
 } from '../lib/groupVersionReferences.js';
 import { validateIfMatch, setEntityConcurrencyHeaders, typedRoute, reposRoute, withReposHandler } from './route-helpers.js';
 import { ArgumentSetService } from '../lib/ArgumentSetService.js';
-import { requireEntityMode } from '../auth/enforce.js';
+import { AuthorizationError, filterReadable, requireEntityMode } from '../auth/enforce.js';
 import {
   argumentSetBodySchema,
   argumentSetListResponseSchema,
@@ -106,8 +106,17 @@ export default async function (fastify: FastifyInstance) {
   // GET /query-groups
   fastify.get('/', ...typedRoute(getQueryGroupsSchema, async (request, reply) => {
     try {
+      /*
+       * No `:id` for the guard to resolve, so what the caller sees is this
+       * handler's decision — and it made none: every group in the deployment,
+       * with its name, its library and the `currentVersion` pointer a run would
+       * take, for any authenticated principal. The listings beside it
+       * (`/queries`, `/rule-sets`, `/tuple-sets`, `/rules`, `/data-blocks`,
+       * `/data-graphs`, `/tags`) all filter. An empty array rather than a 403:
+       * it answers "which of these may I see" without saying what exists.
+       */
       const items = cache.getByType('QueryGroup') as LdkitQueryGroup[];
-      return reply.send(items.map(i => toRestApi(i)));
+      return reply.send(filterReadable(request, items).map(i => toRestApi(i)));
     } catch (e__u: unknown) {
       const e = toError(e__u);
       console.error('Error fetching query groups:', e);
@@ -318,7 +327,10 @@ export default async function (fastify: FastifyInstance) {
         const { queryGroupVersion, ...children } = body;
         const flat = { ...children, ...queryGroupVersion };
 
-        const { created, iriMap } = await createGroupVersionFlat(groupId, flat);
+        // `{ request }` is what lets the writer check the query versions and
+        // rule set versions this body's nodes will run; the guard above covers
+        // only the group being written.
+        const { created, iriMap } = await createGroupVersionFlat(groupId, flat, { request });
 
         try {
           const { expandGroupVersionDetailed } = await import('../lib/GraphResolver.js');
@@ -346,6 +358,14 @@ export default async function (fastify: FastifyInstance) {
         if (isUnresolvableReferencesError(e__u)) {
           return reply.status(422).send({ error: e.message, references: e__u.failures });
         }
+        /*
+         * A refusal is not a server fault either, and flattening it into a 500
+         * would report "the server broke" for a node naming a query version in
+         * a library the caller may not execute. Re-thrown to the error handler,
+         * which answers 403 — the same reason `POST /argument-sets` stopped
+         * flattening this into its catch-all 400.
+         */
+        if (e__u instanceof AuthorizationError) throw e__u;
         // If createGroupVersionFlat fails, bubble up the original error message
         return reply.status(500).send({ error: e.message });
       }

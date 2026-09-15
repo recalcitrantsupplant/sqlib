@@ -15,9 +15,18 @@
 #   * One runner means one job at a time. Jobs queue rather than fan out, so the
 #     useful lever is fewer, fatter jobs — hence the unsharded `test` below.
 #
-# Worth knowing: a self-hosted runner executes PR code on a personal machine.
-# That is fine while this repo is private and takes no fork PRs, and stops being
-# fine the day either changes.
+# A self-hosted runner executes job steps directly on the machine: not a
+# sandbox, state persists between runs, and the job can reach whatever that
+# machine can reach. That is why `runs-on` below is an expression rather than a
+# constant. A push, or a pull request from a branch in this repository, runs on
+# the self-hosted box — those come from someone who already has write access,
+# which is strictly more power than running a job. A pull request from a fork
+# runs on a GitHub-hosted runner instead, so code from outside never executes
+# here. Nobody can turn that off by forgetting a repository setting.
+#
+# The fork path pays for itself with a cold pnpm store, since the machine's
+# warm one is not there. Making `cache: pnpm` conditional would mean duplicating
+# every `setup-node` step, which costs more than a slow run on a rare fork PR.
 name: CI
 
 on:
@@ -33,7 +42,9 @@ concurrency:
 jobs:
   # Required gate: lint + build (build also typechecks). Green day one.
   verify:
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ${{ github.event.pull_request.head.repo.fork
+      && fromJSON('["ubuntu-latest"]')
+      || fromJSON('["self-hosted","Linux","X64"]') }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -68,7 +79,9 @@ jobs:
   # If a second runner is ever registered, restore the matrix — the script still
   # honours SHARD=n/N.
   test:
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ${{ github.event.pull_request.head.repo.fork
+      && fromJSON('["ubuntu-latest"]')
+      || fromJSON('["self-hosted","Linux","X64"]') }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -86,7 +99,9 @@ jobs:
   # the PR pipeline built the image — `verify` and `test` never touch the
   # Dockerfile. This is the gate that would have caught it.
   image:
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ${{ github.event.pull_request.head.repo.fork
+      && fromJSON('["ubuntu-latest"]')
+      || fromJSON('["self-hosted","Linux","X64"]') }}
     steps:
       - uses: actions/checkout@v7
       - run: bash scripts/ci/docker-build-push.sh # PUSH unset: build only
@@ -97,7 +112,9 @@ jobs:
   dependabot-automerge:
     needs: [verify, test, image]
     if: github.event_name == 'pull_request' && github.actor == 'dependabot[bot]'
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ${{ github.event.pull_request.head.repo.fork
+      && fromJSON('["ubuntu-latest"]')
+      || fromJSON('["self-hosted","Linux","X64"]') }}
     # Dependabot-triggered runs get a read-only token by default; these two
     # scopes are what let the merge (and branch delete) go through.
     permissions:
@@ -120,7 +137,9 @@ jobs:
   # suite (issue #261), which needs no preview build of its own but does need
   # the topological build below for packages/runtime's built bundle.
   e2e:
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ${{ github.event.pull_request.head.repo.fork
+      && fromJSON('["ubuntu-latest"]')
+      || fromJSON('["self-hosted","Linux","X64"]') }}
     # ETL ships off by default (issue #132), and so does the rule-tuples
     # extension — deliberately, since SRL written with TUPLE( … ) in it cannot be
     # read by conformant SHACL 1.2 tooling, so a build that did not ask for the

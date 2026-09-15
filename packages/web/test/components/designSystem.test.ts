@@ -857,6 +857,202 @@ describe('token layer', () => {
 });
 
 /*
+ * The sixteenth pass: the header axis, closed over `src`, and the components
+ * nothing mounts.
+ *
+ * Issue #37 leads with three axes — labels, empty states and headers. The
+ * fourteenth pass closed the label guard over `src` and the fifteenth did the
+ * same for empty states. The header guard is the one still reading a file list:
+ * `PANEL_HEADERS` names five files and `FOCUS_HEADERS` four, and outside those
+ * a hand-written panel header satisfies nothing and fails nothing.
+ *
+ * It is narrow in a second way the other two were not. Its signature requires
+ * `justify-content: space-between`, so it sees a header only if that file also
+ * happens to lay one out that way — and most do not, because a bar with a title
+ * and one trailing button reaches for `gap` or a spacer instead.
+ *
+ * So the guard reads what the chrome IS rather than which file it is in. The
+ * primitive's `sunken` variant paints one thing: a bottom rule over
+ * `--surface-subtle`, on a bar. Every rule in `src` that paints it is either a
+ * `<PanelHeader>` or listed below with the reason it is not.
+ *
+ * Three narrowings, each load-bearing rather than tidy:
+ *
+ * - **A bar, not a column.** `flex-direction: column` is a panel or a stack of
+ *   rows (`AssistantChat`'s provider panel, `VersionToolbar`'s two-row header),
+ *   and the primitive is one row.
+ * - **A `0` in the padding is a tab strip**, not a title bar — the seventh
+ *   pass's clause, kept for the reason it was written: drop it and the guard
+ *   fails on `InspectorPanel`'s live tab strip.
+ * - **`--surface-subtle` only.** The unsunken primitive paints `--surface`,
+ *   which is also just "this panel's background": widening to it pulls in
+ *   `.option`, `.support-row`, `.request-row` and `.tab-row` — list rows and
+ *   tab rails, none of them a header. The sunken chrome is the part the
+ *   primitive actually owns.
+ *
+ * **Nothing converts, and that is the finding.** All eleven wear the chrome and
+ * none of them holds the primitive's contents: five have no title at all (a run
+ * sentence, a caption strip, a wrapping count strip, a receipt's status line, a
+ * centred control row), three state their title at the *label* spec — which is
+ * `SectionLabel`'s residue list, seen from the other side — one is a `<button>`
+ * that is the whole bar, and one sets a two-line heading against the
+ * primitive's single centred row.
+ *
+ * The eleventh is the one worth naming: `TestRunDetail`'s `.detail-head` is a
+ * title against actions, at `--text-title` over `--space-4 --space-5`. The
+ * primitive names two sizes — `md` is `--text-body-lg` at `--space-3
+ * --space-5`, `lg` is `--text-heading` at `--space-6 --space-7` — and this is
+ * neither. The header scale names two steps and the tree writes three, which is
+ * the fourteenth pass's finding about the label scale one primitive along, and
+ * it is a decision rather than a sweep: converting moves glyphs either way.
+ */
+describe('PanelHeader adoption, closed over src', () => {
+  /* Comments out before the rules are read — the fourteenth pass's reason. */
+  const styleOf = (source: string) => {
+    const at = source.search(/<style[^>]*>/);
+    return at < 0 ? '' : source.slice(at).replace(/\/\*[\s\S]*?\*\//g, '');
+  };
+
+  /*
+   * The `<style scoped>` tag opens the slice, so it arrives inside the first
+   * rule's selector. It is not part of the selector, and leaving it in would
+   * file a file's first matching rule under a different key from the same rule
+   * written second.
+   */
+  const selectorOf = (selector: string) =>
+    selector.replace(/<style[^>]*>/, '').trim().replace(/\s+/g, ' ');
+
+  /** The chrome `<PanelHeader sunken>` paints, and the shape it paints it on. */
+  const CHROME_RULE = /border-bottom:/;
+  const CHROME_PAINT = /background:\s*var\(--surface-subtle\)/;
+  const A_BAR = /display:\s*flex/;
+  const A_COLUMN = /flex-direction:\s*column/;
+
+  /**
+   * A bar wearing the header's chrome that stays hand-written, and why. Exact
+   * in both directions, as the label and empty-state lists are: converting one
+   * of these fails here until its reason goes with it.
+   */
+  const RESIDUE: Record<string, string> = {
+    // No title: the primitive's contents are a title, and these have none.
+    'components/build/AssistantToolReceipt.vue: .receipt-head':
+      'a receipt’s status line — a wrench, the tool that ran and its verdict, at micro type',
+    'components/query-work-area/QueryFocusOverlay.vue: .focus-diff-controls':
+      'controls, centred rather than spaced apart — the sixth pass named it, and only a comment said so',
+    'components/rules/RuleSetInputsPanel.vue: .not-part-strip':
+      'a caption strip: a sentence about the two blocks below it, a help dot and a button',
+    'components/rules/StratificationPanel.vue: .header-strip':
+      'a wrapping strip of counts and chips (flex-wrap), not a title against actions',
+    'components/shared/RunBar.vue: .run-bar':
+      'a primitive of its own — one run sentence, no title',
+
+    // A title, stated at the label spec rather than the primitive's.
+    'components/query-work-area/ArgumentScalarsPanel.vue: .scalars-header':
+      'the md chrome exactly, but `.scalars-title` is an uppercase label — SectionLabel’s residue, from the other side',
+    'components/rules/StratificationPanel.vue: .inspector-header':
+      'the title is a rule’s name, set in --font-mono at --text-body: code, not the UI face',
+    'components/shared/ExpandableEditor.vue: .expand-region.expanded > .expand-header':
+      'the title is a <SectionLabel as="h3" size="lg">, deliberately the label spec',
+
+    // The bar is not a header element, or its contents are not one row.
+    'components/shared/CodePeek.vue: .peek-head':
+      'a <button>: the bar IS the disclosure control (border: 0, cursor: pointer)',
+    'components/query-work-area/TupleBindingEditor.vue: .clause-header':
+      'align-items: flex-start over a two-line heading column; the primitive’s title row is one centred line',
+
+    // The step the scale does not name.
+    'components/tests/TestRunDetail.vue: .detail-head':
+      'a title against actions at --text-title over --space-4 --space-5 — between md and lg, and neither',
+  };
+
+  it('every bar wearing the header chrome is a PanelHeader or recorded as residue', () => {
+    const found: string[] = [];
+    for (const file of vueFiles(SRC)) {
+      const rel = file.slice(SRC.length + 1);
+      if (rel === 'components/shared/PanelHeader.vue' || MOCKUPS.test(rel)) continue;
+      const style = styleOf(readFileSync(file, 'utf8'));
+      if (!style) continue;
+      for (const [, selector, body] of style.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+        if (!CHROME_RULE.test(body) || !CHROME_PAINT.test(body)) continue;
+        if (!A_BAR.test(body) || A_COLUMN.test(body)) continue;
+        // A bar with a zero step in its padding is a tab strip: the tabs sit on
+        // the rule, so there is nothing beneath them.
+        const padding = /padding:([^;]*);/.exec(body)?.[1].trim() ?? '';
+        if (padding.split(/\s+/).includes('0')) continue;
+        found.push(`${rel}: ${selectorOf(selector)}`);
+      }
+    }
+    expect(
+      found.sort(),
+      'a hand-written panel header — use <PanelHeader sunken>, or record it in RESIDUE with its reason',
+    ).toEqual(Object.keys(RESIDUE).sort());
+  });
+
+  /*
+   * And the other half of "adopt the primitives", which is the half #37 leads
+   * with: **six components in `components/shared/` are mounted by nothing.**
+   *
+   * The issue opens on exactly this — "only two files call any of them;
+   * `StatusBadge`, `Toolbar` and `InspectorRail` have no external callers" —
+   * and those three are now mounted 13, 5 and 0 times. Nothing has been
+   * counting, so nothing said that five more had joined the third.
+   *
+   * All six arrived in one merge (#286) and have never been rendered. Four of
+   * them have been *maintained* since, which is what makes this worth a guard
+   * rather than a note: the label sweep edited `CompactMetadataHeader` and
+   * `VersionSelectStrip`, the disabled-ink fix edited `ExecutedTimeBadge`, and
+   * the dark-mode ramps edited `TimingDonut` — four passes spending review on
+   * files no screen renders, none of them able to tell.
+   *
+   * Closed over the directory rather than over the six names the design doc
+   * lists, for the same reason the checks above close over `src`: a list only
+   * knows what it knew. And a mount is a tag OR an `h(…)` call, because
+   * `RdfTermTable` and `QueryResultsViewer` build their cells with render
+   * functions — a tag-only count would report `InlinePrefixAdder` and
+   * `TermIriPopover` as dead while they are on screen in every results table.
+   *
+   * Recorded rather than deleted. Whether the design system keeps a rail with
+   * no instance, or a donut waiting for the screen that wanted it, is a
+   * decision about the archetype and the roadmap — not a tidy-up to take as a
+   * side effect of counting. What the list buys is that the count cannot go
+   * quietly stale in either direction: mounting one fails here until its entry
+   * goes, and the next component to land unmounted fails until it is adopted,
+   * deleted, or explained.
+   */
+  const UNADOPTED: Record<string, string> = {
+    InspectorRail:
+      'the canvas archetype takes its rail as a slot: query groups fill it with a tabbed InspectorPanel, and the stratification graph has no rail at all',
+    CompactMetadataHeader: 'added by #286, never mounted; no docblock names the screen it is for',
+    EditorStrip: 'added by #286, never mounted; no docblock names the screen it is for',
+    ExecutedTimeBadge: 'added by #286, never mounted; no docblock names the screen it is for',
+    TimingDonut: 'added by #286, never mounted; no docblock names the screen it is for',
+    VersionSelectStrip: 'added by #286, never mounted; no docblock names the screen it is for',
+  };
+
+  it('every component in shared/ is mounted somewhere, or recorded as unadopted', () => {
+    const shared = readdirSync(resolve(SRC, 'components/shared'))
+      .filter((entry) => entry.endsWith('.vue'))
+      .map((entry) => entry.slice(0, -'.vue'.length));
+    const callers = vueFiles(SRC)
+      .filter((file) => !MOCKUPS.test(file.slice(SRC.length + 1)))
+      .map((file) => ({ file, source: readFileSync(file, 'utf8') }));
+
+    const unadopted = shared.filter((component) => {
+      const renderCall = new RegExp(`\\bh\\(\\s*${component}\\b`);
+      return !callers.some(
+        ({ file, source }) =>
+          !file.endsWith(`shared/${component}.vue`) &&
+          (openingTags(source, component).length > 0 || renderCall.test(source)),
+      );
+    });
+    expect(
+      unadopted.sort(),
+      'a shared component nothing mounts — adopt it, delete it, or record it in UNADOPTED with the reason',
+    ).toEqual(Object.keys(UNADOPTED).sort());
+  });
+});
+
+/*
  * The eighth pass: the title bar of a full-bleed dialog.
  *
  * Three dialogs opt out of shadcn's padded header and corner ✕ — `p-0 gap-0`
@@ -866,7 +1062,7 @@ describe('token layer', () => {
  *
  * It is not `PanelHeader`: the title has to be `DialogTitle`, because that is
  * what `DialogContent` points `aria-labelledby` at. See
- * docs/reference/ui-design-tokens.md and 2026-08-24-dialogs.md §2.
+ * docs/reference/ui-design-tokens.md.
  */
 describe('DialogTitleBar adoption', () => {
   const BAR_DIALOGS = [

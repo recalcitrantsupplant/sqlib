@@ -42,6 +42,7 @@ export type GraphValidationCode =
   | 'NODE_PATCH_QUERY_NOT_UPDATE'
   | 'NODE_PATCH_OUTBOUND_FLOW_TYPE'
   | 'EDGE_PATCH_SOURCE_PORT_UNNAMED'
+  | 'EDGE_PATCH_HALVES_MERGED'
   | 'NODE_TERMINAL_BINDINGS_OUTPUT';
 
 export type GraphValidationEntityType = 'graph' | 'node' | 'edge' | 'tuple';

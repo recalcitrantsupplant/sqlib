@@ -24,6 +24,8 @@
  */
 import { EventEmitter } from 'node:events';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { resolveOwningLibrary } from '../auth/enforce.js';
+import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
 
 /** A write happened. What it was, not what it now contains. */
 export interface ChangeEvent {
@@ -34,6 +36,18 @@ export interface ChangeEvent {
   id: string | null;
   /** The library it belongs to, when resolvable. Used to scope subscriptions. */
   libraryId: string | null;
+  /**
+   * True when the entity was found and names no container at all — the guard's
+   * "unowned by design" case (`BenchmarkExperiment` has no `isPartOf`).
+   *
+   * `libraryId: null` used to mean two things a subscriber had no way to tell
+   * apart: an entity with no library, and one whose library simply was not
+   * looked up. `events.ts` has to distinguish them, because the first is
+   * readable by any authenticated principal today and the second must not be
+   * broadcast to everyone. Same split `entityGuard.ts` makes with
+   * `danglingContainer`, and for the same reason.
+   */
+  unowned: boolean;
   /** The HTTP method that caused it, so a subscriber can tell a delete apart. */
   method: string;
   /**
@@ -195,6 +209,128 @@ function parsePayload(payload: unknown): Record<string, unknown> | null {
 }
 
 /**
+ * Body properties that name an entity's container.
+ *
+ * The same four `entityGuard.ts` reads, deliberately: a frame's library is the
+ * same question the guard answers about the same request, and answering it two
+ * different ways is how they came to disagree. This module used to look for
+ * `libraryId` alone — a field no entity response carries (stored entities use
+ * `isPartOf`; `libraryId` is an argument-set input and an assistant session
+ * field), so resolution missed on essentially every real write.
+ */
+const CONTAINER_BODY_KEYS = ['isPartOf', 'targetEntity', 'library', 'libraryId'] as const;
+
+/** What the containment resolution found, and which kind of "nothing" it was. */
+interface Containment {
+  libraryId: string | null;
+  unowned: boolean;
+}
+
+const UNRESOLVED: Containment = { libraryId: null, unowned: false };
+
+/**
+ * Where the pre-handler stashes what it resolved.
+ *
+ * A delete is why this exists. `onSend` runs after the handler, and by then the
+ * entity is out of the cache — so the one frame that most wants scoping is the
+ * one that can no longer be scoped after the fact. The guard resolves the same
+ * entity in a `preHandler`, while it is still there; this does too.
+ */
+const RESOLVED_CONTAINMENT = Symbol('sqlib.changeFeed.containment');
+
+/**
+ * What the pre-handler resolved, if it resolved anything.
+ *
+ * A miss is deliberately *not* returned: a create has no path id before its
+ * handler runs, so the pre-handler often finds nothing while `onSend` — with
+ * the new entity in the cache and its id in the response — finds the answer.
+ * Only a hit short-circuits, which is exactly the delete case this is for.
+ */
+function stashed(request: FastifyRequest): Containment | null {
+  const found = (request as unknown as Record<symbol, Containment | undefined>)[
+    RESOLVED_CONTAINMENT
+  ];
+  if (!found) return null;
+  return found.libraryId !== null || found.unowned ? found : null;
+}
+
+function containerRefsFrom(...sources: Array<Record<string, unknown> | null>): string[] {
+  const refs: string[] = [];
+  for (const source of sources) {
+    if (!source) continue;
+    for (const key of CONTAINER_BODY_KEYS) {
+      const value = source[key];
+      if (typeof value === 'string' && value) refs.push(value);
+      else if (Array.isArray(value)) {
+        for (const item of value) {
+          if (typeof item === 'string' && item) refs.push(item);
+        }
+      }
+    }
+  }
+  return refs;
+}
+
+/**
+ * The library a frame belongs to, resolved the way the guard resolves it.
+ *
+ * Order matches `entityGuard.ts`: the entity named by the path first, then the
+ * containment reference a create carries in its body.
+ *
+ * The last step keeps a raw reference that the cache cannot resolve. That is
+ * the pre-existing behaviour for creates whose container is not in this
+ * process's cache, and it is not a way in: the value comes from the *writer*,
+ * while the frame is filtered by the *subscriber's* grant on whatever it names.
+ * Naming a library the subscriber cannot read hides the frame; naming one they
+ * can read tells them an id they already chose.
+ */
+function resolveContainment(
+  entityKind: string,
+  id: string | null,
+  request: FastifyRequest,
+  responseBody: Record<string, unknown> | null
+): Containment {
+  // A library is its own container, and needs no lookup to say so.
+  if (entityKind === 'library' && id) return { libraryId: id, unowned: false };
+
+  const refs = containerRefsFrom(responseBody, asRecord(request.body), asRecord(request.query));
+
+  /*
+   * Every cache read is best-effort.
+   *
+   * The store is not always there — a unit test mounting one route module, the
+   * window before the coordinator is built — and a feed that cannot resolve
+   * must degrade to "unresolved" rather than to a thrown hook. The raw
+   * reference below is what keeps those callers working as they did.
+   */
+  try {
+    const cache = getCacheCoordinator();
+
+    if (id) {
+      const entity = cache.get(id);
+      if (entity) {
+        const library = resolveOwningLibrary(entity);
+        if (library) return { libraryId: library, unowned: false };
+        // Found, but names nothing to resolve: unowned by design.
+        const names = containerRefsFrom(asRecord(entity));
+        return { libraryId: null, unowned: names.length === 0 };
+      }
+    }
+
+    for (const ref of refs) {
+      const referenced = cache.get(ref);
+      if (!referenced) continue;
+      const library = resolveOwningLibrary(referenced);
+      if (library) return { libraryId: library, unowned: false };
+    }
+  } catch {
+    // Fall through to the raw reference.
+  }
+
+  return refs.length > 0 ? { libraryId: refs[0]!, unowned: false } : UNRESOLVED;
+}
+
+/**
  * Build the frame for one mutating response, or `null` if it is not a change
  * worth announcing.
  *
@@ -212,19 +348,15 @@ export function changeEventFor(
   const target = describeRoute(request.url);
   if (!target) return null;
 
-  const body = asRecord(request.body);
   const responseBody = parsePayload(payload);
-  const query = asRecord(request.query);
 
   // A create has no id in its URL; the response it just sent does.
   const id = target.id ?? stringField(responseBody, 'id');
 
-  const libraryId =
-    target.entity === 'library'
-      ? id
-      : stringField(responseBody, 'libraryId') ??
-        stringField(body, 'libraryId') ??
-        stringField(query, 'libraryId');
+  // What the pre-handler resolved while the entity still existed wins: a
+  // delete has nothing left to look up by the time this runs.
+  const containment =
+    stashed(request) ?? resolveContainment(target.entity, id, request, responseBody);
 
   const origin = request.headers['x-sqlib-client-id'];
 
@@ -232,7 +364,8 @@ export function changeEventFor(
     type: 'changed',
     entity: target.entity,
     id,
-    libraryId,
+    libraryId: containment.libraryId,
+    unowned: containment.unowned,
     method: request.method,
     origin: typeof origin === 'string' && origin.length > 0 ? origin : null,
     at: new Date().toISOString(),
@@ -247,6 +380,26 @@ export function changeEventFor(
  * frame with a null id would force every subscriber into a full reload.
  */
 export function registerChangeFeedHook(app: FastifyInstance): void {
+  /*
+   * Resolve the entity's library before the handler can remove it.
+   *
+   * `preHandler` rather than `onRequest` for the same reason the guard uses it:
+   * `params` and the parsed body are both there by then. Only mutating requests
+   * are worth the lookup, and a failure here must never reach the response —
+   * the frame simply goes unresolved, which the feed treats as "withhold".
+   */
+  app.addHook('preHandler', async request => {
+    if (!MUTATING_METHODS.has(request.method)) return;
+    try {
+      const target = describeRoute(request.url);
+      if (!target) return;
+      (request as unknown as Record<symbol, Containment>)[RESOLVED_CONTAINMENT] =
+        resolveContainment(target.entity, target.id, request, null);
+    } catch (error) {
+      request.log.debug({ err: error }, 'Change feed containment lookup failed');
+    }
+  });
+
   app.addHook('onSend', async (request, reply, payload) => {
     // Never let the feed break a response: a write that succeeded must still
     // look like it succeeded, whatever happens here.

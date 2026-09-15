@@ -126,6 +126,11 @@ describe('Library Routes (/libraries) - Unit Tests', () => {
     });
 
     it('should stream RDF when Accept requests Turtle', async () => {
+      // The RDF branch reads the listing now, to narrow the dump to what the
+      // caller may read (test/auth/libraryRoutes.test.ts). Nothing is filtered
+      // out here — these tests mount the plugin with no auth context, which is
+      // full access — so the collection query is still what runs.
+      repo.list.mockReturnValue([{ $id: 'urn:1', name: 'Lib 1' }]);
       systemQueryExecuteMock.mockResolvedValue({
         mode: 'stream',
         contentType: 'text/turtle',
@@ -207,6 +212,9 @@ describe('Library Routes (/libraries) - Unit Tests', () => {
 
   describe('GET /libraries/export', () => {
     it('should stream RDF with attachment filename', async () => {
+      // As above: the export narrows to the readable libraries, and with no
+      // auth context that is all of them.
+      repo.list.mockReturnValue([{ $id: 'urn:1', name: 'Lib 1' }]);
       systemQueryExecuteMock.mockResolvedValue({
         mode: 'stream',
         contentType: 'application/n-triples',

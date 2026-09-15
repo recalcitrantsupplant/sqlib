@@ -84,9 +84,9 @@ export default async function argumentSetRoutes(fastify: FastifyInstance) {
 
   /**
    * `GET /argument-sets?libraryId=…` — the listing the switcher's "elsewhere in
-   * the library" needs (`2026-08-14-query-arguments.md` §7). It could not exist
-   * before `ArgumentSet.isPartOf`, because the only path to a library ran
-   * through each set's target, making enumeration one request per query.
+   * the library" needs. It could not exist before `ArgumentSet.isPartOf`,
+   * because the only path to a library ran through each set's target, making
+   * enumeration one request per query.
    */
   fastify.get('/', ...reposRoute({
       querystring: {

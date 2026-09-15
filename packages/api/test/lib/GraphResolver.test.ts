@@ -91,19 +91,19 @@ describe('GraphResolver utilities', () => {
   });
 
   afterEach(() => {
-    vi.unmock('../../src/persistence/utils/QueryNodeUtils.js');
-    vi.unmock('../../src/persistence/utils/QueryEdgeUtils.js');
-    vi.unmock('../../src/persistence/utils/DynamicQueryNodeUtils.js');
-    vi.unmock('../../src/persistence/utils/StartNodeUtils.js');
-    vi.unmock('../../src/persistence/utils/EndNodeUtils.js');
-    vi.unmock('../../src/persistence/utils/TriplesQuadsIOUtils.js');
-    vi.unmock('../../src/persistence/utils/QueryInputTupleUtils.js');
-    vi.unmock('../../src/persistence/utils/QueryOutputTupleUtils.js');
-    vi.unmock('../../src/persistence/utils/QueryVersionUtils.js');
-    vi.unmock('../../src/persistence/utils/TupleMemberUtils.js');
-    vi.unmock('../../src/persistence/utils/QueryInputVariableUtils.js');
-    vi.unmock('../../src/persistence/utils/QueryOutputVariableUtils.js');
-    vi.unmock('../../src/lib/CacheCoordinatorProvider.js');
+    vi.doUnmock('../../src/persistence/utils/QueryNodeUtils.js');
+    vi.doUnmock('../../src/persistence/utils/QueryEdgeUtils.js');
+    vi.doUnmock('../../src/persistence/utils/DynamicQueryNodeUtils.js');
+    vi.doUnmock('../../src/persistence/utils/StartNodeUtils.js');
+    vi.doUnmock('../../src/persistence/utils/EndNodeUtils.js');
+    vi.doUnmock('../../src/persistence/utils/TriplesQuadsIOUtils.js');
+    vi.doUnmock('../../src/persistence/utils/QueryInputTupleUtils.js');
+    vi.doUnmock('../../src/persistence/utils/QueryOutputTupleUtils.js');
+    vi.doUnmock('../../src/persistence/utils/QueryVersionUtils.js');
+    vi.doUnmock('../../src/persistence/utils/TupleMemberUtils.js');
+    vi.doUnmock('../../src/persistence/utils/QueryInputVariableUtils.js');
+    vi.doUnmock('../../src/persistence/utils/QueryOutputVariableUtils.js');
+    vi.doUnmock('../../src/lib/CacheCoordinatorProvider.js');
   });
 
   it('expands nodes and edges using cache with repository fallback', async () => {

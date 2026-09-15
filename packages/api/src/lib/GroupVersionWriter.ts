@@ -22,7 +22,9 @@
  * to live in it.
  */
 
+import type { FastifyRequest } from 'fastify';
 import { mintId } from './id.js';
+import { AuthorizationError, requireLibraryMode, resolveOwningLibrary } from '../auth/enforce.js';
 import type { LdkitQueryGroup } from '../persistence/schemas/QueryGroupSchema.js';
 import type { LdkitLibrary } from '../persistence/schemas/LibrarySchema.js';
 import type { LdkitQueryVersion } from '../persistence/schemas/QueryVersionSchema.js';
@@ -59,10 +61,17 @@ const NODE_REF: ReferenceRule = {
 
 export async function createGroupVersionFlat(
   groupId: string,
-  body: AnyRecord
+  body: AnyRecord,
+  authScope?: { request: FastifyRequest }
 ): Promise<{ created: LdkitQueryGroupVersion; iriMap: Record<string, string> }> {
   const cacheCoordinator = getCacheCoordinator();
   const iriMap: Record<string, string> = {};
+
+  /**
+   * The stored entities this version's nodes will *run*, collected as they
+   * resolve and checked in one pass at the staging/flush boundary below.
+   */
+  const composed: Array<{ field: string; reference: string }> = [];
 
   // ---------------------------------------------------------------- stage --
 
@@ -265,6 +274,7 @@ export async function createGroupVersionFlat(
         continue;
       }
       const ruleSetVersion = await refs.resolve(at(field), raw, rules.ruleSetVersion);
+      if (ruleSetVersion) composed.push({ field: at(field), reference: ruleSetVersion });
       stage('RuleSetNode', toLdkit({
         $id: id,
         ruleSetVersion,
@@ -288,6 +298,7 @@ export async function createGroupVersionFlat(
         rules.queryId ?? { category: 'external', allowedTypes: ['QueryVersion'] },
       );
       if (resolvedQueryId) {
+        composed.push({ field: at('queryId'), reference: resolvedQueryId });
         queryVersion = cacheCoordinator.get(resolvedQueryId) as LdkitQueryVersion | undefined;
       }
     } else if (!optional.includes('queryId') && rules.queryId) {
@@ -481,6 +492,60 @@ export async function createGroupVersionFlat(
 
   // Nothing has been written yet, so this is a clean rejection.
   refs.throwIfFailed();
+
+  /*
+   * The second entities this body names, and what the caller is doing with
+   * them: *running* them.
+   *
+   * The route guard checks the group being written. A node's `queryId` and a
+   * RuleSetNode's `ruleSetVersion` are stored entities that need not live in
+   * the group's library, and nothing looked at them — so Write on a library you
+   * hold bought the execution of any other library's saved query or rule set,
+   * through `POST /execute`, which requires Execute on the *group's* library
+   * and says nothing about the legs.
+   *
+   * This is the pair `POST /tuple-sets/:id/versions/from-etl` and
+   * `POST /data-graphs/:id/versions/from-query` already carry, and the pins
+   * `ArgumentSetService.createVersion` checks, arriving through a fourth door
+   * — the widest of them, since one group version composes arbitrarily many.
+   *
+   * `execute`, not `read`, and for the reason `from-query` gives: this is not
+   * copying stored data into a payload, it is committing that the query will be
+   * run. Checked at composition rather than at execution because that is where
+   * the other three check, and because binding the *author* is what lets a
+   * library keep curating what its members may run — the same shape as
+   * `allowedBackends` (design §4.3 route 2). A caller who may execute the group
+   * later still runs these legs; what it may not do is put them there.
+   *
+   * After `throwIfFailed`, so a reference that resolves to nothing is still the
+   * 422 it was and this speaks only about references that exist. The residual
+   * signal — 403 rather than 422 says "this IRI is a version somewhere" — is
+   * the one `from-query` carries, and is why the resolver's collapsing of
+   * "missing" and "wrong type" into one reason matters.
+   *
+   * A node's `backendId` is deliberately *not* checked here: a backend is not
+   * library-scoped, and `assertBackendAccess` checks it per leg at execution
+   * with the group's library as `viaLibrary`, which is where curated access is
+   * decided. Composing a group naming a backend the author cannot reach fails
+   * when it runs, which is the existing answer and not this sweep's to change.
+   */
+  if (authScope) {
+    for (const { field, reference } of composed) {
+      const entity = cacheCoordinator.get(reference);
+      try {
+        requireLibraryMode(authScope.request, resolveOwningLibrary(entity), 'execute');
+      } catch (error) {
+        // Named, because a version may compose twenty legs in one request and
+        // "execute is required" about an unnamed one of them is not actionable.
+        // The field is the caller's own payload path, so it discloses nothing
+        // the 403 does not already.
+        if (error instanceof AuthorizationError) {
+          throw new AuthorizationError(`${field} (${reference}): ${error.message}`, error.statusCode);
+        }
+        throw error;
+      }
+    }
+  }
 
   // ---------------------------------------------------------------- flush --
 

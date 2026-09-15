@@ -312,9 +312,8 @@ function loadFromTupleSet(payload: { rows: ArgumentRow[]; replace: boolean }) {
  *
  * The reference arrives floating — no version — because that is what a draft
  * holds: a run reads the set's current version, and the version is written only
- * when the argument set is saved (`2026-08-18-tuple-sets.md` §7.2). The inline
- * rows are left exactly as they are; a reference is another source, not a
- * replacement for the ones typed here.
+ * when the argument set is saved. The inline rows are left exactly as they are;
+ * a reference is another source, not a replacement for the ones typed here.
  */
 function attachTupleSet(payload: { reference: TupleSetReference }) {
   emit('update:modelValue', withReference(props.modelValue, payload.reference));

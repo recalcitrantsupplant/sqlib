@@ -85,10 +85,35 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         }
 
         if (libraryFilter && event.libraryId && event.libraryId !== libraryFilter) return;
-        // Frames name entities, so the same read grant that governs the entity
-        // governs hearing about it. An unresolved library stays visible: it
-        // carries no more than "something changed".
-        if (event.libraryId && !canLibrary(request, event.libraryId, 'read')) return;
+
+        /*
+         * Frames name entities, so the same read grant that governs the entity
+         * governs hearing about it.
+         *
+         * The two ways a frame can name no library are kept apart here exactly
+         * as `entityGuard.ts` keeps them apart, because they are not the same
+         * situation:
+         *
+         * - **Unowned by design.** A `BenchmarkExperiment` has no `isPartOf`,
+         *   there is nothing to hold a grant on, and every one of its routes is
+         *   readable by any authenticated principal today. Withholding the
+         *   frame would be stricter than the route it announces, so it goes.
+         * - **Unresolved.** The entity is gone, or its container is, or it was
+         *   never in this process's cache. Nobody can hold a grant on a library
+         *   that will not resolve, and "no grant reaches it" must not read as
+         *   "everyone may" — the reasoning `danglingContainer` is written
+         *   around. So it is withheld.
+         *
+         * This used to be one branch that let both through, on the grounds that
+         * a null-library frame "carries no more than 'something changed'". It
+         * carries four things: the entity's kind, its IRI, the verb that
+         * changed it and the writer's client id.
+         */
+        if (!event.libraryId) {
+          if (!event.unowned) return;
+        } else if (!canLibrary(request, event.libraryId, 'read')) {
+          return;
+        }
 
         try {
           writeFrame(reply, event);

@@ -22,6 +22,8 @@ import {
   createEtlJobVersionSchema,
 } from '@sparql-query-lib/contracts/schema';
 import { registerEntityAuthGuard } from '../auth/entityGuard.js';
+import { AuthorizationError, filterReadable, requireLibraryMode } from '../auth/enforce.js';
+import { toEntityUrn } from '../lib/id.js';
 
 export default async function etlJobRoutes(fastify: FastifyInstance) {
   /*
@@ -33,10 +35,20 @@ export default async function etlJobRoutes(fastify: FastifyInstance) {
    * instead, which matches the posture the feature flag already takes (ETL is
    * an operator flow, off unless deliberately enabled). See issue #132 §4d and
    * docs/guides/etl.md.
+   *
+   * `shortIdKinds` is the other half, and it is not a refinement: without it the
+   * guard resolved nothing on this plugin in ordinary use. Every handler here
+   * reaches the store through `EtlService.toUrn(id, kind)` and every response
+   * reports ids with the prefix stripped, so the id a caller holds — and sends
+   * back — is `gauges`, not `urn:sqlib:etl-job:gauges`. The guard looked up
+   * `gauges`, missed, and read the miss as a 404 the handler would produce;
+   * the handler then minted the URN and answered 200. One kind per path
+   * parameter this plugin declares, `:versionId` being the one that is two.
    */
   registerEntityAuthGuard(fastify, {
     executeSuffixes: ['/execute', '/execute/stream', '/run'],
     adminSuffixes: ['/preview'],
+    shortIdKinds: ['etlJob', 'etlJobVersion', 'etlColumnMappingVersion', 'etlExecution'],
   });
 
   const etlJobDetailSchema = {
@@ -124,13 +136,19 @@ export default async function etlJobRoutes(fastify: FastifyInstance) {
     }
   }
 
-  // List all ETL jobs
+  // List the ETL jobs the caller may read.
+  //
+  // A collection GET names no entity, so the guard has no `:id` to resolve and
+  // abstains — which on this route meant every ETL job in the deployment, name
+  // and library included, went to any authenticated principal. The same shape
+  // `GET /tests` and `GET /rule-sets` were fixed in, and the filter belongs
+  // here rather than in the service for the reason `listEtlJobs` gives.
   fastify.get('/', ...reposRoute({
       response: {
         200: etlJobListSchema,
       },
-    }, async ({ reply }) => {
-    const result = await etlService.listEtlJobs();
+    }, async ({ request, reply }) => {
+    const result = await etlService.listEtlJobs(jobs => filterReadable(request, jobs));
     return reply.send(result);
   }));
 
@@ -168,6 +186,13 @@ export default async function etlJobRoutes(fastify: FastifyInstance) {
       },
     }, async ({ request, reply }) => {
     const body = request.body;
+    // The guard's body branch resolves `libraryId` as written, and this plugin
+    // is the one whose clients hold it short — `shortIdKinds` re-asks for a
+    // path parameter, not for a container named in a body. So it missed, found
+    // no library, and abstained. Asked here in the spelling the cache holds,
+    // and through `requireLibraryMode`, which denies on a library that does not
+    // resolve rather than abstaining as the guard does.
+    requireLibraryMode(request, toEntityUrn('library', body.libraryId), 'write');
     const result = await etlService.createEtlJob(body as Parameters<typeof etlService.createEtlJob>[0]);
     return reply.code(201).send(result);
   }));
@@ -552,9 +577,21 @@ export default async function etlJobRoutes(fastify: FastifyInstance) {
     try {
       const { id } = request.params;
       const config = request.body;
-      const result = await etlService.executeEtlJob(id, config as Parameters<typeof etlService.executeEtlJob>[1]);
+      // The scope is what makes the run the caller's rather than the server's:
+      // without one `ExecutorFactory` treats the SPARQL leg as sqlib acting as
+      // itself, which reaches every backend the process is configured with —
+      // the one the entity store lives in included.
+      const result = await etlService.executeEtlJob(
+        id,
+        config as Parameters<typeof etlService.executeEtlJob>[1],
+        { request },
+      );
       return reply.send(result);
     } catch (error__u: unknown) {
+      // A refusal is not the caller's body to fix, and a 400 invites a retry
+      // with a different one. Re-thrown so the error handler answers with the
+      // status the decision carries.
+      if (error__u instanceof AuthorizationError) throw error__u;
       const error = toError(error__u);
       if (error.message.includes('not found')) {
         return reply.code(404).send({ error: error.message });

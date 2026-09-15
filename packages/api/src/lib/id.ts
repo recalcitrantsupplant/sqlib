@@ -236,3 +236,15 @@ export function mintId(kind: string, suffix?: string): string {
   const prefix = getPrefix(kind);
   return prefix + (suffix ?? dashlessUUID());
 }
+
+/**
+ * The stored IRI of an id that may arrive either spelling.
+ *
+ * `EtlService` serves ids with the prefix stripped and accepts them back
+ * either way, so a route that has to look one up itself — to decide who may
+ * call it, say — has to normalise it the same way the service does, or it asks
+ * the cache a question about a key that is not in it.
+ */
+export function toEntityUrn(kind: string, id: string): string {
+  return id.startsWith('urn:sqlib:') ? id : mintId(kind, id);
+}

@@ -29,7 +29,7 @@ export const QueryInputTupleSchema = {
    *
    * It exists because the boundary pairs supplied arguments to ports by
    * position, and `StartNode.outputs` is an RDF `@array` whose order does not
-   * survive a round-trip. See `2026-09-07-payload-and-routing.md` §5.
+   * survive a round-trip.
    */
   position: {
     '@id': sqlib.position,

@@ -991,7 +991,7 @@ export class ExecutionEngine {
    *
    * The run supplies an ordered list of tables and the group says where they
    * go: an argument set carries payload, a group owns routing
-   * (`2026-09-07-payload-and-routing.md`). Pairing is by exact signature first
+   * (`docs/guides/query-groups.md`). Pairing is by exact signature first
    * — which is the whole of the previous rule, so every set that worked before
    * still lands where it did — and then by position for whatever is left, so a
    * table whose columns are named differently or ordered differently from the

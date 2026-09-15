@@ -36,11 +36,13 @@
  * holding, and a language with no grammar of its own gets no buttons — see
  * `prefixGrammarFor`.
  *
- * SRL now has one (`lib/srlLanguage`, issue #157), and it lexes `:=` as a
- * single token. Its buttons are still off: this walk keys off node names, and
- * that grammar spells them `IRIRef` and `PrefixedName` — one node where SPARQL
- * has `Pname_ns` and `Pname_ln` — so it wants a mapping and round-trip tests of
- * its own rather than a rename here.
+ * SRL now has one (`@kurrawongai/codemirror-lang-srl`, issue #157), and it lexes
+ * `:=` as a single token. Its buttons are still off, but the reason has changed.
+ * It used to be that the SRL grammar named its nodes differently from SPARQL's;
+ * the three published grammars share one vocabulary, so this walk would read an
+ * SRL document today. What is still missing is the round-trip evidence — the
+ * corpus in `test/lib/prefixRewrite.test.ts` covers Turtle and SPARQL — so
+ * turning the buttons on is a change with its own tests, not a line here.
  *
  * WHY THE DOCUMENT'S OWN DECLARATIONS WIN. A query that declares
  * `PREFIX foaf: <http://example.org/local/>` means that, whatever the prefix
@@ -99,30 +101,39 @@ export interface RewriteResult {
 
 /*
  * Prologue nodes, whose contents are the declaration itself rather than terms
- * to rewrite. Both grammars are covered: Turtle spells them PrefixID (for
- * `@prefix`) and SparqlPrefix/SparqlBase (for the keyword forms it also
- * accepts), SPARQL spells them PrefixDecl and BaseDecl.
+ * to rewrite. Every dialect is covered: Turtle spells them PrefixID (`@prefix`)
+ * and Base (`@base`), plus SparqlPrefix/SparqlBase for the keyword forms it
+ * also accepts; SPARQL and SRL spell them PrefixDecl and BaseDecl.
  *
  * Listed exactly rather than matched on /prefix/i, which would also catch
  * `PrefixedName` — the parent of every prefixed name in the document, and so
  * would exempt the very terms this exists to find.
+ *
+ * `test/lib/grammarContract.test.ts` holds the grammars to these names. They
+ * are the whole interface between this walk and the packages, and a rename
+ * upstream would not throw — it would quietly find no terms and convert
+ * nothing, which is the one failure a user cannot tell from "no IRIs here".
  */
 const DECLARATION_NODES = new Set([
   'PrefixDecl',
   'BaseDecl',
   'PrefixID',
+  'Base',
   'SparqlPrefix',
   'SparqlBase',
 ]);
 
-/** SPARQL spells it IriRef, Turtle spells it Iriref. */
-const IRI_NODES = new Set(['IriRef', 'Iriref']);
+/** One spelling across all six languages since the grammars were unified. */
+const IRI_NODES = new Set(['IRIRef']);
 
 /**
- * A prefixed name: `foaf:name` (Pname_ln) or the bare `foaf:` / `:` form
- * (Pname_ns), both of which denote an IRI and both of which expand.
+ * A prefixed name: `foaf:name` (PNameLN) or the bare `foaf:` / `:` form
+ * (PNameNS), both of which denote an IRI and both of which expand.
  */
-const PREFIXED_NAME_NODES = new Set(['Pname_ln', 'Pname_ns']);
+const PREFIXED_NAME_NODES = new Set(['PNameLN', 'PNameNS']);
+
+/** The declaration nodes that bind the base IRI rather than a prefix. */
+const BASE_NODES = new Set(['BaseDecl', 'Base', 'SparqlBase']);
 
 interface Term {
   kind: 'iri' | 'prefixedName';
@@ -158,7 +169,7 @@ interface Scanned {
  * Comments and string literals need no handling: both grammars emit them as
  * leaf tokens, so a walk never descends into one and an IRI written inside
  * either is simply never seen. Blank node labels are their own node type
- * (`Blank_node_label`) and are not prefixed names, so `_:b0` is excluded by
+ * (`BlankNodeLabel`) and are not prefixed names, so `_:b0` is excluded by
  * the grammar rather than by a rule here.
  */
 function scan(text: string, parser: PrefixGrammar): Scanned {
@@ -182,7 +193,7 @@ function scan(text: string, parser: PrefixGrammar): Scanned {
         pendingPrefix = null;
         // Remember where it starts and ends; BASE never becomes a candidate for
         // removal, so only the prefix forms are tracked.
-        declarationRange = node.name === 'BaseDecl' || node.name === 'SparqlBase'
+        declarationRange = BASE_NODES.has(node.name)
           ? null
           : { from: node.from, to: node.to };
         return true;
@@ -193,7 +204,7 @@ function scan(text: string, parser: PrefixGrammar): Scanned {
       if (declarationDepth > 0) {
         // Inside a declaration: read it, never rewrite it. The label comes
         // first and the namespace second, which is what pairs them.
-        if (node.name === 'Pname_ns') {
+        if (node.name === 'PNameNS') {
           pendingPrefix = slice().slice(0, -1);
         } else if (IRI_NODES.has(node.name) && pendingPrefix !== null) {
           // A later declaration of the same prefix wins, as it does for a

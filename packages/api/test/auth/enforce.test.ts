@@ -12,7 +12,7 @@ import {
   allowedBackendsOf,
   canBackend,
   filterReadable,
-  requireAllowedBackendsChange,
+  requireCuratedBackendsChange,
   requireBackendMode,
   requireLibraryMode,
   resolveOwningLibrary,
@@ -221,7 +221,7 @@ describe('backend access routes (design §4.3)', () => {
   });
 });
 
-describe('allowedBackends escalation guard', () => {
+describe('curated backends escalation guard', () => {
   it('refuses without Control on the library', async () => {
     await store.createGrant({
       principal: ALICE, resourceKind: 'library', resource: LIBRARY, modes: ['write'],
@@ -231,7 +231,7 @@ describe('allowedBackends escalation guard', () => {
     });
     const request = requestFor(contextFor([ALICE]));
 
-    expect(() => requireAllowedBackendsChange(request, LIBRARY, [], [OTHER_BACKEND]))
+    expect(() => requireCuratedBackendsChange(request, LIBRARY, {}, { allowedBackends: [OTHER_BACKEND] }))
       .toThrow(/control/i);
   });
 
@@ -241,7 +241,7 @@ describe('allowedBackends escalation guard', () => {
     });
     const request = requestFor(contextFor([ALICE]));
 
-    expect(() => requireAllowedBackendsChange(request, LIBRARY, [], [OTHER_BACKEND]))
+    expect(() => requireCuratedBackendsChange(request, LIBRARY, {}, { allowedBackends: [OTHER_BACKEND] }))
       .toThrow(/only share backend access you hold yourself/);
   });
 
@@ -254,7 +254,7 @@ describe('allowedBackends escalation guard', () => {
     });
     const request = requestFor(contextFor([ALICE]));
 
-    expect(() => requireAllowedBackendsChange(request, LIBRARY, [], [OTHER_BACKEND])).not.toThrow();
+    expect(() => requireCuratedBackendsChange(request, LIBRARY, {}, { allowedBackends: [OTHER_BACKEND] })).not.toThrow();
   });
 
   it('needs only Control to remove a backend', async () => {
@@ -263,12 +263,62 @@ describe('allowedBackends escalation guard', () => {
     });
     const request = requestFor(contextFor([ALICE]));
 
-    expect(() => requireAllowedBackendsChange(request, LIBRARY, [OTHER_BACKEND], [])).not.toThrow();
+    expect(() => requireCuratedBackendsChange(request, LIBRARY, { allowedBackends: [OTHER_BACKEND] }, {})).not.toThrow();
   });
 
   it('is a no-op when the list is unchanged', () => {
     const request = requestFor(contextFor([ALICE]));
-    expect(() => requireAllowedBackendsChange(request, LIBRARY, [BACKEND], [BACKEND])).not.toThrow();
+    expect(() => requireCuratedBackendsChange(request, LIBRARY, { allowedBackends: [BACKEND] }, { allowedBackends: [BACKEND] })).not.toThrow();
+  });
+
+  /*
+   * `defaultBackend` is in the curated set `canBackend` reads, so naming one is
+   * the same escalation as adding to `allowedBackends`. The guard compared the
+   * `allowedBackends` array alone, which made the default the way around it.
+   */
+  it('refuses a defaultBackend the caller may not use', async () => {
+    await store.createGrant({
+      principal: ALICE, resourceKind: 'library', resource: LIBRARY, modes: ['write', 'control'],
+    });
+    const request = requestFor(contextFor([ALICE]));
+
+    expect(() => requireCuratedBackendsChange(request, LIBRARY, {}, { defaultBackend: OTHER_BACKEND }))
+      .toThrow(/only share backend access you hold yourself/);
+  });
+
+  it('allows a defaultBackend the caller may use', async () => {
+    await store.createGrant({
+      principal: ALICE, resourceKind: 'library', resource: LIBRARY, modes: ['write', 'control'],
+    });
+    await store.createGrant({
+      principal: ALICE, resourceKind: 'backend', resource: OTHER_BACKEND, modes: ['use'],
+    });
+    const request = requestFor(contextFor([ALICE]));
+
+    expect(() => requireCuratedBackendsChange(request, LIBRARY, {}, { defaultBackend: OTHER_BACKEND }))
+      .not.toThrow();
+  });
+
+  /*
+   * Creating: `previous` is null, so Control is not required — there is no
+   * library to hold it on, and the creator is granted every mode on what it
+   * makes. The Use half still binds, which is the half that matters here.
+   */
+  it('checks Use but not Control when the library is being created', async () => {
+    const request = requestFor(contextFor([ALICE]));
+
+    expect(() => requireCuratedBackendsChange(request, LIBRARY, null, { allowedBackends: [OTHER_BACKEND] }))
+      .toThrow(/only share backend access you hold yourself/);
+  });
+
+  it('allows creating with a backend the caller holds, without Control', async () => {
+    await store.createGrant({
+      principal: ALICE, resourceKind: 'backend', resource: OTHER_BACKEND, modes: ['use'],
+    });
+    const request = requestFor(contextFor([ALICE]));
+
+    expect(() => requireCuratedBackendsChange(request, LIBRARY, null, { allowedBackends: [OTHER_BACKEND] }))
+      .not.toThrow();
   });
 });
 

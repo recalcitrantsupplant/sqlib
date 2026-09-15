@@ -1,4 +1,5 @@
-import type { FastifyInstance, FastifyReply } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { EntityRepositories } from '../lib/EntityRepositories.js';
 import { toRestApi } from '../persistence/utils/id-adapter.js';
 import type { LdkitLibrary } from '../persistence/schemas/LibrarySchema.js';
 import type { LibraryRestApi } from '@sparql-query-lib/contracts/schema';
@@ -12,10 +13,12 @@ import {
 import { mintId } from '../lib/id.js';
 import {
   authOf,
+  canReadEntity,
   filterReadable,
-  requireAllowedBackendsChange,
+  requireCuratedBackendsChange,
   requireLibraryCreate,
   requireLibraryMode,
+  type CuratedBackendFields,
 } from '../auth/enforce.js';
 import { getAuthStore } from '../auth/AuthStore.js';
 import { reposRoute, withReposHandler, validateIfMatch, setEntityConcurrencyHeaders } from './route-helpers.js';
@@ -24,7 +27,9 @@ import { SystemQueryRunner, type SystemQueryRunnerResult } from '../lib/system-q
 import { collectLibraryQueries } from '../lib/export/collectLibraryQueries.js';
 import {
   collectLibraryGroups,
+  type ExportGroupInput,
   type GroupGraphEntity,
+  type SkippedGroup,
 } from '../lib/export/collectLibraryGroups.js';
 import { attachGroupsToBundle } from '../lib/export/groupBundle.js';
 import { buildExportBundle, QueryExportError } from '../lib/export/queryBundle.js';
@@ -119,14 +124,110 @@ async function streamSystemQueryResult(
   return reply.send(result.stream.body);
 }
 
+/**
+ * The RDF dump of the library collection, narrowed to what the caller may read.
+ *
+ * `GET /libraries` filters its JSON with `filterReadable`, and the RDF branch
+ * beside it ran `libraryCollection` — which constructs from *every* stored
+ * `Library` — so an `Accept` header was the difference between "the libraries
+ * you may read" and "every library in the deployment". `GET /libraries/export`
+ * is the same query again with no `:id` for a guard to resolve and no check of
+ * its own at all. Both come through here now.
+ *
+ * A caller who may read everything is still answered by `libraryCollection`:
+ * the store is the authority on what exists, and describing the cache's list
+ * instead would silently narrow an administrator's dump to whatever the cache
+ * happens to hold. Everyone else gets `libraryDescribe` bound to the readable
+ * IRIs — its `VALUES (?library)` slot takes as many rows as it is given, and
+ * zero rows when that is none, which `applyArguments` substitutes as an empty
+ * `VALUES` and the store answers with a well-formed empty document.
+ *
+ * Empty rather than 403, for the reason the JSON listing answers `[]`: "which
+ * of these may I see" has an answer even when the answer is none, and it says
+ * nothing about what exists.
+ */
+async function readableLibraryCollection(
+  request: FastifyRequest,
+  repos: EntityRepositories,
+  acceptHeader: string
+): Promise<SystemQueryRunnerResult> {
+  const all = repos.Library.list() as LdkitLibrary[];
+  const visible = filterReadable(request, all);
+
+  if (visible.length === all.length) {
+    return systemQueryRunner.execute('libraryCollection', { acceptHeader });
+  }
+
+  return systemQueryRunner.execute('libraryDescribe', {
+    acceptHeader,
+    parameterBindings: [
+      {
+        vars: ['library'],
+        bindings: visible.map(library => ({
+          library: { type: 'uri', value: library.$id as string },
+        })),
+      },
+    ],
+  });
+}
+
+/**
+ * Splits collected groups into the ones this caller may be handed and the ones
+ * whose legs reach a library they may not read.
+ *
+ * A group is selected for the bundle by *its own* library, but a `QueryNode`'s
+ * `queryId` is a `QueryVersion` that need not live there — the canvas composes
+ * legs across libraries, which is the reach #489 closed at composition time by
+ * requiring Execute on each source. The bundle is the other end of it: it
+ * carries every node's query *text*, so exporting a leg the caller cannot read
+ * would make Read on this library a read of the other one's queries, through a
+ * door that hands the result out as a file.
+ *
+ * **Read, not Execute**, unlike the check at composition: a bundle stores no
+ * query and runs nothing here — it copies stored text into an artifact, which
+ * is what Read on that library governs everywhere else (the argument-set pins
+ * settled the same way).
+ *
+ * Withheld rather than refused, and reported in `skipped` beside the groups the
+ * static runtime cannot run: a library whose one cross-library group may not
+ * travel should still export its queries and its other groups, which is the
+ * policy `collectLibraryGroups` already states for every other reason a group
+ * is left out.
+ */
+function partitionByReadableNodes(
+  request: FastifyRequest,
+  groups: ExportGroupInput[]
+): { exportable: ExportGroupInput[]; withheld: SkippedGroup[] } {
+  const exportable: ExportGroupInput[] = [];
+  const withheld: SkippedGroup[] = [];
+  const cache = getCacheCoordinator();
+
+  for (const group of groups) {
+    const unreadable = group.nodes.find(
+      node => !canReadEntity(request, cache.get(node.sourceVersion))
+    );
+    if (unreadable) {
+      withheld.push({
+        id: group.sourceGroup,
+        name: group.name,
+        reason:
+          `Its node ${unreadable.key} runs query version ${unreadable.sourceVersion}, `
+          + 'which belongs to a library you may not read.',
+      });
+      continue;
+    }
+    exportable.push(group);
+  }
+
+  return { exportable, withheld };
+}
+
 export default async function (fastify: FastifyInstance) {
   fastify.get(
     '/export',
-    withReposHandler(async ({ reply, request }) => {
+    withReposHandler(async ({ repos, reply, request }) => {
       const accept = negotiateRdfMediaType(request.headers.accept) ?? RDF_MEDIA_TYPES.N_TRIPLES;
-      const execution = await systemQueryRunner.execute('libraryCollection', {
-        acceptHeader: accept,
-      });
+      const execution = await readableLibraryCollection(request, repos, accept);
       const ext = mediaTypeToExtension(accept);
       return streamSystemQueryResult(reply, execution, accept, `libraries.${ext}`);
     })
@@ -283,12 +384,14 @@ export default async function (fastify: FastifyInstance) {
             id,
             { tags, match: request.query.match ?? 'any' }
           );
-          const { skipped: skippedGroups } = await attachGroupsToBundle(bundle, groups);
+          const { exportable, withheld } = partitionByReadableNodes(request, groups);
+          const { skipped: skippedGroups } = await attachGroupsToBundle(bundle, exportable);
 
           const allSkipped = [
             ...skipped,
             ...skippedExamples,
             ...skippedGroupReads,
+            ...withheld,
             ...skippedGroups,
           ];
 
@@ -323,9 +426,7 @@ export default async function (fastify: FastifyInstance) {
     ...reposRoute(getLibrarysSchema, async ({ repos, reply, request }) => {
       const rdfType = negotiateRdfMediaType(request.headers.accept);
       if (rdfType) {
-        const execution = await systemQueryRunner.execute('libraryCollection', {
-          acceptHeader: rdfType,
-        });
+        const execution = await readableLibraryCollection(request, repos, rdfType);
         return streamSystemQueryResult(reply, execution, rdfType);
       }
 
@@ -340,12 +441,18 @@ export default async function (fastify: FastifyInstance) {
     '/:id',
     ...reposRoute(getLibrarySchema, async ({ repos, reply, request }) => {
       const { id } = request.params;
+      const library = repos.Library.get(id) as LdkitLibrary | null;
+      if (!library) {
+        return reply.status(404).send({ error: 'Not Found' });
+      }
+      // Before the content negotiation, not inside one arm of it: the RDF
+      // branch below used to run its own get-and-404 and then describe the
+      // library without asking, so `Accept: text/turtle` read a library that
+      // the JSON branch three lines down refuses.
+      requireLibraryMode(request, id, 'read');
+
       const rdfType = negotiateRdfMediaType(request.headers.accept);
       if (rdfType) {
-        const library = repos.Library.get(id) as LdkitLibrary | null;
-        if (!library) {
-          return reply.status(404).send({ error: 'Not Found' });
-        }
         const execution = await systemQueryRunner.execute('libraryDescribe', {
           acceptHeader: rdfType,
           parameterBindings: [
@@ -358,11 +465,6 @@ export default async function (fastify: FastifyInstance) {
         return streamSystemQueryResult(reply, execution, rdfType);
       }
 
-      const library = repos.Library.get(id) as LdkitLibrary | null;
-      if (!library) {
-        return reply.status(404).send({ error: 'Not Found' });
-      }
-      requireLibraryMode(request, id, 'read');
       setEntityConcurrencyHeaders(reply, library);
       return reply.send(toRestApi<any>(library));
     })
@@ -376,6 +478,27 @@ export default async function (fastify: FastifyInstance) {
 
       const { id: providedId, ...rest } = request.body;
       const id = providedId || mintId('library');
+
+      /*
+       * A create that names an existing IRI is not a create. `CacheCoordinator
+       * .create` does not look: it inserts and replaces the cache entry, and
+       * the grant below then hands the caller every mode on that IRI — so
+       * posting a library whose id is one you cannot read was a way to take it
+       * over, along with everything in it. Refused as a conflict, before
+       * anything is written and before any grant is minted.
+       */
+      if (providedId && repos.Library.get(id)) {
+        return reply.status(409).send({
+          error: `Library ${id} already exists. Update it instead, or create one without an id.`,
+        });
+      }
+
+      // The curated-backends escalation guard applies to a library's first
+      // state as much as to a change of it: `allowedBackends` and
+      // `defaultBackend` are both in this body, and both grant reach to anyone
+      // holding Execute here (design §4.3). Checked before the write.
+      requireCuratedBackendsChange(request, id, null, rest);
+
       const libraryData = { ...rest, $id: id };
       const createdLibrary = await repos.Library.create(libraryData);
 
@@ -410,17 +533,24 @@ export default async function (fastify: FastifyInstance) {
 
       requireLibraryMode(request, id, 'write');
 
-      // Extending allowedBackends hands curated-execution reach to everyone
-      // holding Execute here, so it needs Control plus Use on what is added
-      // (design §4.3). Checked before the write, not after.
-      if (Object.prototype.hasOwnProperty.call(body, 'allowedBackends')) {
-        requireAllowedBackendsChange(
-          request,
-          id,
-          current.allowedBackends,
-          (body as { allowedBackends?: string[] | null }).allowedBackends
-        );
-      }
+      // Extending the curated set hands execution reach to everyone holding
+      // Execute here, so it needs Control plus Use on what is added (design
+      // §4.3). Checked before the write, not after.
+      //
+      // Both fields, and unconditionally: the guard was reached only when the
+      // body carried `allowedBackends`, so a PUT naming an unheld backend as
+      // this library's `defaultBackend` — which `curatedBackendsOf` grants the
+      // same reach — walked past it. A field the body omits keeps its current
+      // value, which the guard then reads as unchanged and lets through.
+      const patch = body as CuratedBackendFields;
+      requireCuratedBackendsChange(request, id, current, {
+        allowedBackends: Object.prototype.hasOwnProperty.call(body, 'allowedBackends')
+          ? patch.allowedBackends
+          : current.allowedBackends,
+        defaultBackend: Object.prototype.hasOwnProperty.call(body, 'defaultBackend')
+          ? patch.defaultBackend
+          : current.defaultBackend,
+      });
 
       const { valid, currentTag } = validateIfMatch(request, current);
       if (!valid) {

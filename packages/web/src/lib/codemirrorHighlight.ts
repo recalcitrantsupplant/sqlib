@@ -32,9 +32,8 @@ export const rdfHighlightStyle = HighlightStyle.define([
   { tag: t.comment, color: 'var(--syntax-comment)', fontStyle: 'italic' },
 
   /*
-   * `codemirror-lang-sparql` tags every reserved word as `keyword`, built-in
-   * functions included, so one entry covers the language. `meta` is what the
-   * legacy Turtle stream mode emits for `@prefix` / `@base`, and `modifier` and
+   * The RDF grammars tag every reserved word as `keyword`, built-in functions
+   * included, so one entry covers all six languages. `meta`, `modifier` and
    * `operatorKeyword` cover the SQL and JSON modes the media-type viewer also
    * has to render.
    */
@@ -46,8 +45,8 @@ export const rdfHighlightStyle = HighlightStyle.define([
   /*
    * A literal is a literal whichever syntax spelled it: `"x"`, `42`, `1.5` and
    * `true` are all RDF literals, so they take the literal colour rather than a
-   * separate "number" one. `atom` is the legacy Turtle mode's tag for the same
-   * ground terms.
+   * separate "number" one. `atom` is kept for the other modes the media-type
+   * viewer renders, which tag ground terms with it.
    */
   {
     tag: [t.string, t.number, t.integer, t.float, t.bool, t.atom, t.literal],
@@ -83,6 +82,26 @@ export const rdfHighlightStyle = HighlightStyle.define([
   {
     tag: [t.brace, t.squareBracket, t.paren, t.separator, t.punctuation, t.operator],
     color: 'var(--syntax-punct)',
+  },
+
+  /*
+   * The RDF 1.2 term delimiters: `<< … >>` around a reified triple, `<<( … )>>`
+   * around a triple term, `{| … |}` around an annotation block, and the `~`
+   * before a reifier.
+   *
+   * Each is a `special()` derivation of the ordinary bracket tag, so the rule
+   * above already reaches them and this one exists to colour them *differently*.
+   * That is worth a rule because the whole point of the 1.2 syntax is that what
+   * sits inside the brackets is a term rather than a statement, and leaving the
+   * delimiters punctuation-grey hides the only cue that says so — `:s :p :o`
+   * and `<<( :s :p :o )>>` would read alike.
+   *
+   * Grey-blue like a datatype rather than a colour of their own: they qualify
+   * the term they wrap, which is the same job `^^` and `@en` do above.
+   */
+  {
+    tag: [t.special(t.angleBracket), t.special(t.paren), t.special(t.brace), t.special(t.operator)],
+    color: 'var(--rdf-prefix)',
   },
 
   { tag: t.invalid, color: 'var(--danger)' },

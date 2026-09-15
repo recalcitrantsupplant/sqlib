@@ -87,7 +87,13 @@ if ! git config user.name >/dev/null || ! git config user.email >/dev/null; then
   exit 1
 fi
 
-git add -A
+# --force, because a fresh repository applies the exported .gitignore to this
+# add, and a file can be both tracked upstream and matched by an ignore rule.
+# Two hand-written type shims under packages/api/src/types were dropped exactly
+# that way on the first export, leaving a tree that could not build its own api
+# package. `git archive` already decided what is in the tree; this add must not
+# second-guess it.
+git add -A --force
 git commit -q -m "Initial public release
 
 sqlib is a self-hostable server, web UI and MCP server for authoring,

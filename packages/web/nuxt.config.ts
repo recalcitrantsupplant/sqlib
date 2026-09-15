@@ -194,8 +194,9 @@ export default defineNuxtConfig({
         '@codemirror/search',
         '@codemirror/autocomplete',
         '@codemirror/lint',
-        'codemirror-lang-sparql',
-        'codemirror-lang-turtle',
+        '@kurrawongai/codemirror-lang-sparql12',
+        '@kurrawongai/codemirror-lang-turtle12',
+        '@kurrawongai/codemirror-lang-srl',
       ],
     },
     /*
@@ -237,11 +238,9 @@ export default defineNuxtConfig({
         '@codemirror/lang-sql',
         '@codemirror/lang-xml',
         '@codemirror/merge',
-        // A deep import, and the id has to match the one `lib/codeLanguage.ts`
-        // writes: the optimizer keys on the specifier, not the package.
-        '@codemirror/legacy-modes/mode/turtle',
-        'codemirror-lang-sparql',
-        'codemirror-lang-turtle',
+        '@kurrawongai/codemirror-lang-sparql12',
+        '@kurrawongai/codemirror-lang-turtle12',
+        '@kurrawongai/codemirror-lang-srl',
         '@lezer/highlight',
         '@lezer/lr',
         '@vue-flow/core',
@@ -266,7 +265,7 @@ export default defineNuxtConfig({
     },
   },
   build: {
-    transpile: ['vue-codemirror', 'codemirror', /@codemirror\//, 'codemirror-lang-sparql', 'codemirror-lang-turtle'],
+    transpile: ['vue-codemirror', 'codemirror', /@codemirror\//, /@kurrawongai\/codemirror-lang-/],
   },
   routeRules: {
     '/**': { ssr: false },

@@ -600,6 +600,65 @@ export class GraphBuilder {
     }
 
     this.validateEndNodeFanIn(graph);
+    this.validatePatchHalvesNotMerged(graph);
+  }
+
+  /**
+   * Refuse to hand one consumer both halves of the same patch.
+   *
+   * Everywhere the engine takes more than one RDF input it unions them —
+   * `join('\n')` in `buildRdfSeedForRuleSetNode` for a rule set, and the same in
+   * the EndNode fan-in merge. A union is sound for two CONSTRUCTs, which both
+   * assert that their quads are present. It is not sound for a patch, whose two
+   * ports assert opposite things: the union of "these go" and "these come" is
+   * the set of quads the update touches with the sign erased, which is the one
+   * fact a caller asking "what would this update change?" needs.
+   *
+   * The sign is only recoverable from the port an edge left through, so once the
+   * two halves are in one string nothing downstream — and no caller reading the
+   * result — can separate them again. `PatchNodeSchema` puts it as "a patch is
+   * not a graph, and flattening it into one would lose the sign"; this is the
+   * check that was missing behind that sentence. `staticResultKind` reasons
+   * about a single port ("whichever port an EndNode is fed from") and is right
+   * about it; nothing was reasoning about both at once.
+   *
+   * Deliberately narrow. A half merged with an *unrelated* graph is the same
+   * category error and is not rejected here: what a rule set should be handed
+   * alongside a half is a modelling question with more than one defensible
+   * answer, whereas both halves of one patch has none — they cancel. The whole
+   * patch, sign intact, is already available two ways: the node's own result is
+   * the RDF Patch document, and `text/rdf-patch` on the update query itself.
+   */
+  private validatePatchHalvesNotMerged(graph: ExecutionGraph): void {
+    for (const [targetId, inbound] of Array.from(graph.incomingEdges.entries())) {
+      // Ports already seen arriving at this consumer, per patch source.
+      const portsBySource = new Map<string, Set<string>>();
+
+      for (const e of inbound) {
+        if (e.dataFlowType !== 'RDF_GRAPH' || !e.sourceOutputId) continue;
+        const sourceNode = graph.nodes.get(e.sourceNodeId);
+        if (!sourceNode || (sourceNode.raw)['@type'] !== 'PatchNode') continue;
+
+        let seen = portsBySource.get(e.sourceNodeId);
+        if (!seen) {
+          seen = new Set<string>();
+          portsBySource.set(e.sourceNodeId, seen);
+        }
+        seen.add(e.sourceOutputId);
+
+        const { deletionsOutputId, additionsOutputId } = sourceNode;
+        if (deletionsOutputId && additionsOutputId
+          && seen.has(deletionsOutputId) && seen.has(additionsOutputId)) {
+          throw new GraphValidationError('EDGE_PATCH_HALVES_MERGED',
+            `Edge ${e.id} gives ${targetId} the second half of PatchNode ${e.sourceNodeId}'s patch, ` +
+            `and both halves arriving at one consumer are merged into a single graph — ` +
+            `the deletions and the additions become indistinguishable. ` +
+            `Send each half to its own consumer, or take the whole patch from the node's result ` +
+            `(RDF Patch, sign intact) instead.`,
+            'edge', e.id);
+        }
+      }
+    }
   }
 
   /**
@@ -646,10 +705,14 @@ export class GraphBuilder {
   private staticResultKind(node: ResolvedNode): 'rdf' | 'bindings' | 'boolean' | 'update' | 'unknown' {
     const rawType = (node.raw)['@type'];
     if (rawType === 'RuleSetNode') return 'rdf';
-    // Both halves of a patch are RDF, so whichever port an EndNode is fed
-    // from, the thing arriving there merges like any other graph. Checked
-    // before `queryType`, which says `update` and would otherwise make a
-    // node that writes nothing look like a node that writes.
+    // Both halves of a patch are RDF, so whichever *single* port an EndNode is
+    // fed from, the thing arriving there merges like any other graph. Both at
+    // once does not, and this function cannot see that: it is asked about one
+    // node at a time and answers about its result kind, not about how many of
+    // its ports arrive together. `validatePatchHalvesNotMerged` is the check
+    // for that, and the reason this one may stay a plain `rdf`.
+    // Checked before `queryType`, which says `update` and would otherwise make
+    // a node that writes nothing look like a node that writes.
     if (rawType === 'PatchNode') return 'rdf';
     // A DynamicQueryNode's query - and a DuckDbEtlNode's output shape - are chosen
     // at runtime, so neither can be judged statically.

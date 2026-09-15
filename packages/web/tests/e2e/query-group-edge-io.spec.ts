@@ -44,6 +44,23 @@ const mappingSection = (page: Page) => page.locator('.tuple-mapping-section');
 /** One `<select>` per target variable, in the order the grid lists them. */
 const mappingSelects = (page: Page) => page.locator('.mapping-column-source .mapping-select');
 
+/** The row that stands in for the grid when it is closed, which is by default. */
+const mappingSummary = (page: Page) => editor(page).locator('[data-testid="mapping-summary"]');
+
+/**
+ * Open the positional grid, the way an author has to.
+ *
+ * The grid is collapsed behind its summary, so a spec that wants the selects
+ * asks for them rather than finding them already on screen — and asks only
+ * once, since the disclosure is sticky across edge selections.
+ */
+const expandMapping = async (page: Page) => {
+  const summary = mappingSummary(page);
+  await summary.waitFor();
+  if ((await summary.getAttribute('aria-expanded')) === 'false') await summary.click();
+  await editor(page).locator('#variable-mapping-details').waitFor();
+};
+
 /** The POST that creates the next group version, with the draft as its body. */
 const versionCreateRequest = (page: Page) =>
   page.waitForRequest(
@@ -84,17 +101,53 @@ test.describe('Query group edge I/O (mocked)', () => {
     await selectCanvasEdge(page, DATA_EDGE_ID);
 
     const visualization = editor(page).locator('.tuple-mapping-visualization');
-    await expect(visualization.locator('.mapping-subtitle')).toHaveText('2 target variables');
-    await expect(visualization.locator('.variable-group-target .variable-badge')).toHaveText(['?city', '?region']);
 
     /*
-     * The default mapping is by name and nothing else: `city` exists on both
+     * Said on the closed summary first, because that is the whole of what an
+     * author sees until they ask for more. The line is the same fact the grid
+     * below spells out over two rows and four columns: `city` exists on both
      * sides so it pairs itself, and `region` — which the source does not have —
      * is left UNDEF rather than guessed at from position.
      */
+    await expect(visualization.locator('[data-testid="mapping-summary-line"]'))
+      .toHaveText('?city UNDEF → ?city ?region');
+    // Nothing the compatibility rules object to, and the summary says so.
+    await expect(mappingSummary(page)).toHaveAttribute('data-mapping-state', 'ok');
+    await expect(visualization.locator('.mapping-subtitle')).toHaveText('mapped');
+
+    await expandMapping(page);
+    await expect(visualization.locator('.variable-group-target .variable-badge')).toHaveText(['?city', '?region']);
     await expect(mappingSelects(page).first()).toHaveValue('city');
     await expect(mappingSelects(page).last()).toHaveValue('');
     await expect(mappingSelects(page).last().locator('option')).toHaveText(['UNDEF', '?city', '?country']);
+  });
+
+  test('keeps the grid closed until it is asked for, and then keeps it open', async ({ page }) => {
+    await bootstrapQueryGroupCanvas(page);
+    await openGroupCanvas(page);
+    await selectCanvasEdge(page, DATA_EDGE_ID);
+
+    await expect(editor(page).locator('#variable-mapping-details')).toBeHidden();
+    await expect(mappingSummary(page)).toHaveAttribute('aria-expanded', 'false');
+
+    await mappingSummary(page).click();
+    await expect(editor(page).locator('#variable-mapping-details')).toBeVisible();
+
+    /*
+     * Still open on the way back. "Show me the positions" is how an author is
+     * working rather than a fact about one edge, so walking a graph's edges
+     * does not mean opening the same drawer at each of them — and the control
+     * edge in between has no mapping section at all, which is the case that
+     * would lose the state if it were stored per selection.
+     */
+    await selectCanvasEdge(page, CONTROL_EDGE_ID);
+    await expect(editor(page).locator('.tuple-mapping-visualization')).toBeHidden();
+    await selectCanvasEdge(page, DATA_EDGE_ID);
+    await expect(mappingSummary(page)).toHaveAttribute('aria-expanded', 'true');
+    await expect(editor(page).locator('#variable-mapping-details')).toBeVisible();
+
+    await mappingSummary(page).click();
+    await expect(editor(page).locator('#variable-mapping-details')).toBeHidden();
   });
 
   test('a chosen variable mapping reaches the saved version and comes back with it', async ({ page }) => {
@@ -103,6 +156,7 @@ test.describe('Query group edge I/O (mocked)', () => {
     await selectCanvasEdge(page, DATA_EDGE_ID);
 
     const createVersion = versionCreateRequest(page);
+    await expandMapping(page);
     await mappingSelects(page).last().selectOption('country');
     await saveQueryGroupNewVersion(page);
 
@@ -119,6 +173,14 @@ test.describe('Query group edge I/O (mocked)', () => {
     await page.waitForLoadState('networkidle');
     await openGroupCanvas(page);
     await selectCanvasEdge(page, DATA_EDGE_ID);
+
+    // The reload is the point of the assertion, so it is made on the row that
+    // is visible after one: ?region is fed by ?country now, and the author can
+    // see that without opening anything.
+    await expect(editor(page).locator('[data-testid="mapping-summary-line"]'))
+      .toHaveText('?city ?country → ?city ?region');
+
+    await expandMapping(page);
     await expect(mappingSelects(page).last()).toHaveValue('country');
   });
 

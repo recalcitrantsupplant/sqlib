@@ -47,20 +47,19 @@ test.describe('Nav rail', () => {
      * assets, differing in the shape of their content rather than in kind. A
      * data graph is the store something runs against; a tuple set is rows
      * spliced into a VALUES clause and consumed. RDF input is data, tabular
-     * input is a parameter (2026-08-18-tuple-sets.md).
+     * input is a parameter.
      *
      * Then Argument sets, which is the third of that trio: Graphs and Tuples
      * are pieces you keep, an argument set is one filled-in call to a query or
-     * a group (2026-09-03-assets-and-arguments.md §2). "Data" became "Graphs"
-     * in the same change — the old label said what a graph was *for*, which
-     * stopped being the whole story once a backend could be hydrated from one.
+     * a group. "Data" became "Graphs" in the same change — the old label said
+     * what a graph was *for*, which stopped being the whole story once a backend
+     * could be hydrated from one.
      *
      * Notebook leads, because it is the library's front page — the screen you
      * show someone before they know which type they want, so everything under
-     * it reads as a drill-down from it
-     * (2026-08-26-library-notebook-page-design.md §2.1). It is called Notebook
-     * rather than Library because the library is now the whole window's scope,
-     * named once by the switcher at the head of the rail.
+     * it reads as a drill-down from it. It is called Notebook rather than
+     * Library because the library is now the whole window's scope, named once by
+     * the switcher at the head of the rail.
      */
     expect(labels).toEqual([
       'Notebook', 'Query', 'Groups', 'Rules', 'ETL', 'Bench', 'Tests', 'Graphs', 'Tuples',

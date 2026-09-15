@@ -449,8 +449,8 @@ export interface RequestRow {
    *
    * `runIndex` counts repeats *within* a combination, so the requests sharing
    * this string are the repeats of one thing measured several times. That is
-   * the grouping §5 of `2026-09-07-rule-set-iteration-observations.md`
-   * aggregates passes across, and the grouping its pass-count canary compares.
+   * the grouping passes are aggregated across, and the grouping the pass-count
+   * canary compares.
    */
   combinationKey: string;
   /**

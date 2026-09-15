@@ -34,7 +34,7 @@ export const TriplesQuadsIOSchema = {
   /**
    * The graph a quad is placed in — a term in the data, and deliberately not
    * the IRI of the `DataGraph` a run supplies. The two share a word and
-   * nothing else; see `2026-09-07-payload-and-routing.md` §6.
+   * nothing else.
    */
   specifiedGraph: {
     '@id': sqlib.specifiedGraph,

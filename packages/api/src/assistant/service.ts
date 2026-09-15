@@ -52,6 +52,13 @@ export const DEFAULT_REPAIR_CAP = 3;
 export type AssistantSession = {
   id: string;
   createdAt: string;
+  /**
+   * The principal that opened it, so a session can be answered for rather than
+   * merely found. Null means nobody opened it through a route — a service
+   * built directly in a test — which no authenticated caller can match, so the
+   * default is the closed one.
+   */
+  owner: string | null;
   libraryId: string | null;
   messages: ModelMessage[];
   drafts: DraftStore;
@@ -118,10 +125,11 @@ Before claiming a query works, run it with drafts.runQuery. Before stating what
 a query takes or returns, use detection.detectInputs and detection.detectOutputs
 rather than guessing.`;
 
-export function createSession(libraryId: string | null): AssistantSession {
+export function createSession(libraryId: string | null, owner: string | null = null): AssistantSession {
   return {
     id: `session-${randomUUID()}`,
     createdAt: new Date().toISOString(),
+    owner,
     libraryId,
     messages: [],
     drafts: createDraftStore(),
@@ -379,8 +387,8 @@ export function createAssistantService(options: AssistantServiceOptions) {
   const systemPrompt = options.systemPrompt ?? DEFAULT_SYSTEM_PROMPT;
   const sessions = options.sessions ?? createMemorySessionStore();
 
-  function open(libraryId: string | null): AssistantSession {
-    const session = createSession(libraryId);
+  function open(libraryId: string | null, owner: string | null = null): AssistantSession {
+    const session = createSession(libraryId, owner);
     sessions.set(session);
     return session;
   }

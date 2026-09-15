@@ -33,9 +33,9 @@ export interface ArgumentRow {
 /**
  * A tuple set filling a clause by reference rather than by copy.
  *
- * The two ids are the two lives of one reference (`2026-08-18-tuple-sets.md`
- * §7.2). Attaching one on a draft knows the *set* and nothing more: the rows a
- * run gets are whatever its current version holds, so the reference floats.
+ * The two ids are the two lives of one reference. Attaching one on a draft
+ * knows the *set* and nothing more: the rows a run gets are whatever its
+ * current version holds, so the reference floats.
  * Saving resolves it and writes the *version*, because a saved set has to keep
  * meaning what it meant — the same reason `RuleSetVersion` pins rule versions.
  * A reference read back off the server therefore arrives as a version id alone,
