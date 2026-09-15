@@ -8,6 +8,8 @@
 #   - push a vX.Y.Z tag (CLI release)       -> X.Y.Z
 #     (`git tag v0.1.0 && git push origin v0.1.0`)
 #   - "Run workflow" with a version (manual) -> X.Y.Z + a git tag + a GitHub Release
+#   - called by release-please.yml           -> X.Y.Z (that workflow already
+#     made the tag and the release, so the release step below stays off)
 name: Publish image
 
 on:
@@ -20,13 +22,24 @@ on:
         description: "Release version e.g. 0.1.0 (leave blank for a sha/latest build only)"
         required: false
         type: string
+  # Entry point for release-please.yml. Same input name as the dispatch above,
+  # so both land in `inputs.version` and the job below needs no branching.
+  workflow_call:
+    inputs:
+      version:
+        description: "Release version e.g. 0.1.0"
+        required: true
+        type: string
 
 permissions:
   contents: write # create the git tag + GitHub Release on a manual versioned release
   packages: write # lets GITHUB_TOKEN push to GHCR — no secrets needed
 
+# Keyed on the version when there is one. A release build and the push build
+# for the same commit would otherwise share a group, and `cancel-in-progress`
+# would have one kill the other depending on which started second.
 concurrency:
-  group: publish-image-${{ github.ref }}
+  group: publish-image-${{ inputs.version || github.ref }}
   cancel-in-progress: true
 
 # Runs on the self-hosted runner, same as ci.yml and for the same reason (see
