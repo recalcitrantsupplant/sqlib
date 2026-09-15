@@ -20,7 +20,14 @@ source "$(dirname "$0")/lib.sh"
 
 owner="${GITHUB_REPOSITORY_OWNER:-local}"
 owner_lc="$(printf '%s' "$owner" | tr '[:upper:]' '[:lower:]')"
-IMAGE="${IMAGE:-ghcr.io/${owner_lc}/sparql-query-lib}"
+# Named for *this* repository, not the product. It used to be
+# `sparql-query-lib`, which is a different repository on the same account (the
+# original, still public) — so every push from here was denied with
+# `permission_denied: read_package`: GHCR permissions are per package, and a
+# repository's GITHUB_TOKEN can only write packages linked to that repository,
+# whatever `packages: write` suggests. Nothing had ever published under the old
+# name, so renaming cost nothing.
+IMAGE="${IMAGE:-ghcr.io/${owner_lc}/sqlib}"
 PUSH="${PUSH:-false}"
 
 sha="${GITHUB_SHA:-$(git rev-parse HEAD)}"
