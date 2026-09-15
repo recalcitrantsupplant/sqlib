@@ -56,28 +56,23 @@ if [ "$PUSH" = "true" ]; then
   log "docker buildx build --push ${IMAGE} (${tags[*]})"
   docker buildx build "${build_args[@]}" --provenance=false --push -f Dockerfile .
 
-  # Housekeeping for runners whose BuildKit state outlives the job — the
-  # self-hosted box, or a developer's machine. A cache that is never collected
-  # grows without bound there, so bound it rather than trading a slow build for
-  # a full disk. A GitHub-hosted runner is a fresh VM that is discarded whole,
-  # so the prune would only burn seconds; skip it.
+  # The publish builder is now persistent (see publish-image.yml), which is the
+  # whole point — its BuildKit cache is what keeps this job off the network. A
+  # cache that is never collected grows without bound on a single-tenant runner,
+  # though, so bound it here rather than trading a slow build for a full disk.
   #
   # Deliberately after the push and deliberately non-fatal: a published image is
   # not worth failing over a housekeeping flag. `--keep-storage` is spelled
   # `--reserved-space` on newer buildx, hence the fallback and the `|| true`.
-  if [ "${RUNNER_ENVIRONMENT:-}" != "github-hosted" ]; then
-    log "pruning build cache above 20GB"
-    docker buildx prune --force --reserved-space 20GB >/dev/null 2>&1 \
-      || docker buildx prune --force --keep-storage 20GB >/dev/null 2>&1 \
-      || warn "could not prune the build cache — check disk on the runner"
-  fi
+  log "pruning build cache above 20GB"
+  docker buildx prune --force --reserved-space 20GB >/dev/null 2>&1 \
+    || docker buildx prune --force --keep-storage 20GB >/dev/null 2>&1 \
+    || warn "could not prune the build cache — check disk on the runner"
 else
   # --network=host: RUN steps share the host network namespace instead of each
-  # getting a bridge endpoint. Only applied off GitHub-hosted runners, where a
-  # bridge endpoint works fine and the default isolation is worth keeping. The
-  # Justfile's local recipe has done this since it was written, for the same
-  # reason it is needed on the self-hosted runner, where creating a bridge
-  # endpoint fails:
+  # getting a bridge endpoint. The Justfile's local recipe has done this since
+  # it was written, for the same reason it is needed here — on the self-hosted
+  # runner, creating a bridge endpoint fails:
   #
   #   failed to create endpoint ... on network bridge: Unable to enable DIRECT
   #   ACCESS FILTERING - DROP rule: ERROR: ld.so: object
@@ -97,10 +92,6 @@ else
   # created with `--allow network.host`, so adding it blindly would break
   # publishing to fix building.
   log "docker build ${IMAGE} (${tags[*]})"
-  if [ "${RUNNER_ENVIRONMENT:-}" = "github-hosted" ]; then
-    docker build "${build_args[@]}" -f Dockerfile .
-  else
-    docker build --network=host "${build_args[@]}" -f Dockerfile .
-  fi
+  docker build --network=host "${build_args[@]}" -f Dockerfile .
   warn "PUSH!=true — built only, not pushed"
 fi

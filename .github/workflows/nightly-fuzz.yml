@@ -25,14 +25,14 @@ concurrency:
 
 jobs:
   fuzz:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
-          cache: pnpm
+      - run: bash scripts/ci/pnpm-store.sh
       - run: bash scripts/ci/install.sh
       - run: bash scripts/ci/fuzz-nightly.sh
         env:

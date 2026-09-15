@@ -49,11 +49,18 @@ scripts/**/*.js.map
 # sat in the tree as source for months. `.d.ts` stays api-only because other
 # packages keep hand-written ambient shims next to their source
 # (`web/src/vue-sonner.d.ts`, `mcp-server/src/shims.d.ts`).
+#
+# api has hand-written shims too, in `src/types/`. The blanket rule below
+# swallowed them, which is how this repo shipped without
+# `rdf-canonize.d.ts` and `ajv-formats-draft2019.d.ts` and could not build
+# its own api package. Generated output never lands in `src/types/`, so
+# un-ignoring that directory costs nothing and keeps the shims tracked.
 packages/*/src/**/*.js
 packages/*/src/**/*.js.map
 packages/*/manual-tests/**/*.js
 packages/*/manual-tests/**/*.js.map
 packages/api/src/**/*.d.ts
+!packages/api/src/types/*.d.ts
 
 # Local persistent store (per-machine query library data)
 local_store/

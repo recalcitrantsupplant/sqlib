@@ -2,15 +2,22 @@
 # All real logic lives there so it is runnable locally (`bash scripts/ci/all.sh`)
 # and debuggable without GitHub Actions or `act`.
 #
-# Runs on GitHub-hosted runners, which give the two things this pipeline needs:
-# jobs that fan out, and PR code that runs on disposable machines.
+# Runs on a self-hosted Linux runner, because hosted runners are not available
+# to this account at the moment. A single self-hosted box changes two things
+# that the rest of this file depends on:
+#   * No `cache: pnpm` on setup-node. That option does not cache to the machine
+#     — it round-trips the pnpm store as a ~170MB tarball through GitHub's cache
+#     service. On a blank VM that beats re-fetching every package from npm; here
+#     the store is already on disk and persists between runs, so the round-trip
+#     is pure overhead. scripts/ci/pnpm-store.sh does the part that actually
+#     matters: it points PNPM_HOME at a store outliving pnpm/action-setup's
+#     ~/setup-pnpm, which is recreated (and so refetched from npm) every job.
+#   * One runner means one job at a time. Jobs queue rather than fan out, so the
+#     useful lever is fewer, fatter jobs — hence the unsharded `test` below.
 #
-# Two consequences worth knowing before editing:
-#   * `cache: pnpm` on setup-node. On a blank VM the ~170MB store tarball from
-#     GitHub's cache service is faster than re-fetching every package from npm.
-#   * The four-way shard matrix on `test`. These runners are 2 vCPU and the api
-#     suite is ~117s of CPU work, so the only lever is more runners. See
-#     scripts/ci/test.sh.
+# Worth knowing: a self-hosted runner executes PR code on a personal machine.
+# That is fine while this repo is private and takes no fork PRs, and stops being
+# fine the day either changes.
 name: CI
 
 on:
@@ -26,7 +33,7 @@ concurrency:
 jobs:
   # Required gate: lint + build (build also typechecks). Green day one.
   verify:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -35,7 +42,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
-          cache: pnpm
+      - run: bash scripts/ci/pnpm-store.sh
       - run: bash scripts/ci/install.sh
       - run: bash scripts/ci/lint.sh
       # Checks that the two gates below still fail when they measure nothing,
@@ -53,19 +60,15 @@ jobs:
 
   # Unit tests, all packages, affected-aware. Green — safe to require as a gate.
   #
-  # Sharded four ways because the work is CPU-bound on a 2-vCPU runner: the api
-  # suite gets two threads there and takes ~235s, against 105s for the same
-  # 2-thread shape on a Ryzen 7600. Four runners in parallel is the only lever
-  # that moves that, and it costs four installs to pull — worth it on hosted
-  # runners, where the shards genuinely run at once.
+  # Unsharded. The four-way shard matrix only pays off on runners that genuinely
+  # run at once; on a single box the shards queue instead, and pay four installs
+  # to do it. One job does all of that work — scripts/ci/test.sh runs everything
+  # when SHARD is unset.
   #
-  # fail-fast: false so one red shard still reports the other three.
+  # If a second runner is ever registered, restore the matrix — the script still
+  # honours SHARD=n/N.
   test:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2, 3, 4]
+    runs-on: [self-hosted, Linux, X64]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -74,18 +77,16 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
-          cache: pnpm
+      - run: bash scripts/ci/pnpm-store.sh
       - run: bash scripts/ci/install.sh
       - run: bash scripts/ci/test.sh
-        env:
-          SHARD: ${{ matrix.shard }}/4
 
   # Build the release image without pushing. The node 24 -> 26 bump (e9b49db)
   # merged itself green and broke every publish afterwards, because nothing in
   # the PR pipeline built the image — `verify` and `test` never touch the
   # Dockerfile. This is the gate that would have caught it.
   image:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     steps:
       - uses: actions/checkout@v7
       - run: bash scripts/ci/docker-build-push.sh # PUSH unset: build only
@@ -96,7 +97,7 @@ jobs:
   dependabot-automerge:
     needs: [verify, test, image]
     if: github.event_name == 'pull_request' && github.actor == 'dependabot[bot]'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     # Dependabot-triggered runs get a read-only token by default; these two
     # scopes are what let the merge (and branch delete) go through.
     permissions:
@@ -119,13 +120,21 @@ jobs:
   # suite (issue #261), which needs no preview build of its own but does need
   # the topological build below for packages/runtime's built bundle.
   e2e:
-    runs-on: ubuntu-latest
-    # ETL ships off by default (issue #132). The specs cover the ETL section, and
-    # with ssr:false the flags are baked into the client bundle at build time, so
-    # they have to be set for build.sh as well as e2e.sh — hence job scope.
+    runs-on: [self-hosted, Linux, X64]
+    # ETL ships off by default (issue #132), and so does the rule-tuples
+    # extension — deliberately, since SRL written with TUPLE( … ) in it cannot be
+    # read by conformant SHACL 1.2 tooling, so a build that did not ask for the
+    # extension offers no way to author one. The specs cover both sections. With
+    # ssr:false the flags are baked into the client bundle at build time, so they
+    # have to be set for build.sh as well as e2e.sh — hence job scope.
+    #
+    # Without FEATURE_RULE_TUPLES the tuples toggle, the seed inputs and the
+    # Inputs-tab rows are all absent, and the four specs that drive them fail on
+    # elements that were never rendered.
     env:
       FEATURE_ETL: 'true'
       FEATURE_PLAYGROUND_ETL: 'true'
+      FEATURE_RULE_TUPLES: 'true'
     steps:
       - uses: actions/checkout@v7
         with:
@@ -134,7 +143,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
-          cache: pnpm
+      - run: bash scripts/ci/pnpm-store.sh
       - run: bash scripts/ci/install.sh
       # Playwright serves the built app, and the web build needs contracts/types
       # compiled to dist/ first — hence the full topological build.

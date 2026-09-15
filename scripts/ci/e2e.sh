@@ -18,14 +18,12 @@ source "$(dirname "$0")/lib.sh"
 #
 # Revisit if the baselines ever move into a pinned container image.
 
-# CI binds the preview to a port outside the range anyone reaches for by hand;
-# local runs still default to 3001 (packages/web/tests/e2e/web-port.ts).
-# Playwright refuses to start its web server if the port is taken
-# ("http://localhost:3001 is already used"), which on a runner that shares a
-# machine with local development — the self-hosted box — meant a `just
-# run-frontend` left open could red out a job for reasons that had nothing to do
-# with the change under test. Harmless on a hosted runner, and cheap insurance
-# if that box is ever used again.
+# The self-hosted runner shares a machine with local development, and Playwright
+# refuses to start its web server if the port is taken ("http://localhost:3001 is
+# already used"). A `just run-frontend` left open reds out the job for reasons
+# that have nothing to do with the change under test. So CI binds the preview to
+# a port outside the range anyone reaches for by hand; local runs still default
+# to 3001 (packages/web/tests/e2e/web-port.ts).
 export WEB_PORT="${WEB_PORT:-3701}"
 log "e2e: preview server on port $WEB_PORT"
 
