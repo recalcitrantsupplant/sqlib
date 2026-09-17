@@ -122,7 +122,7 @@
           <div class="kind-row">
             <SegmentedToggle
               :model-value="subjectKind"
-              :options="SUBJECT_KIND_OPTIONS"
+              :options="subjectKindOptions"
               :disabled="!isScratch"
               group-label="What this test is testing"
               @update:model-value="(kind) => onSubjectKindChange(kind as SubjectKind)"
@@ -684,7 +684,13 @@ import { useInheritedTags } from '@/composables/useInheritedTags';
 import { taggableKindFor } from '@/composables/useEntityTags';
 import { useScratchRecord } from '@/composables/useScratchRecord';
 import { useCallableDrafts, UNASSIGNED_LIBRARY_ID } from '@/composables/useCallableDrafts';
-import { INPUTS_FOR_SUBJECT_KIND, checkSubjectKindInputs, type SubjectKind } from '@sparql-query-lib/types';
+import {
+  FEATURE_FOR_SUBJECT_KIND,
+  INPUTS_FOR_SUBJECT_KIND,
+  SUBJECT_KINDS,
+  checkSubjectKindInputs,
+  type SubjectKind,
+} from '@sparql-query-lib/types';
 
 type ExpectationKind = 'graph' | 'bindings' | 'boolean' | 'analysis' | 'smoke';
 
@@ -744,8 +750,20 @@ const testVersions = ref<TestVersion[]>([]);
 const currentVersionId = ref<string | null>(null);
 /** Which version the editor was loaded from — the row Details highlights. */
 const loadedVersionId = ref<string | null>(null);
+const { isEnabled: featureEnabled } = useFeatureFlags();
+
 const subject = ref<string | null>(props.initialSubject?.id ?? null);
-const subjectKind = ref<SubjectKind>(props.initialSubject?.kind ?? 'ruleSet');
+/*
+ * A new test starts on the kind it was opened for, or on the first kind this
+ * build has. Rule sets are the default where they exist; a build with the rules
+ * suite off would otherwise open every new test on a kind it cannot point at.
+ */
+const subjectKind = ref<SubjectKind>(
+  props.initialSubject?.kind
+  ?? (featureEnabled('rulesSuite')
+    ? 'ruleSet'
+    : (SUBJECT_KINDS.find(kind => featureEnabled(FEATURE_FOR_SUBJECT_KIND[kind])) ?? 'ruleSet')),
+);
 
 /**
  * Whether the first save should carry the subject's tags across.
@@ -1038,6 +1056,19 @@ const SUBJECT_KIND_OPTIONS = [
 ] as const;
 
 /**
+ * The kinds this build can actually test.
+ *
+ * A kind whose feature is off has nothing to point at — the chooser under it
+ * would be empty and the API refuses the test — so it is absent rather than
+ * offered. The kind a *saved* test already carries stays listed whatever the
+ * flags say: the toggle is fixed once saved, and dropping the option would
+ * leave the row showing none of its choices selected.
+ */
+const subjectKindOptions = computed(() => SUBJECT_KIND_OPTIONS.filter(
+  option => featureEnabled(FEATURE_FOR_SUBJECT_KIND[option.value]) || option.value === subjectKind.value,
+));
+
+/**
  * Which expectations this kind of subject can be judged by.
  *
  * An ETL job produces the RDF its template constructs and nothing else, so the
@@ -1242,7 +1273,6 @@ const isHermetic = computed(() => {
  * subject is still being read (`null`) the box stays — a field that appears a
  * moment after the page settles is worse than one that was always there.
  */
-const { isEnabled: featureEnabled } = useFeatureFlags();
 const showTupleSeeds = computed(() => (
   // A third condition, and the only one that does not depend on the subject:
   // a build that withholds the rule-tuples extension has no seeds to take, and

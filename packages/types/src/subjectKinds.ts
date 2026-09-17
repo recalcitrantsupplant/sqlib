@@ -30,6 +30,7 @@
  *   It names no backend for the same reason a query group does not: the job
  *   version carries one, and a test never runs against it.
  */
+import type { FeatureFlagKey } from './featureFlags.js';
 
 export type SubjectKind = 'query' | 'queryGroup' | 'ruleSet' | 'etlJob';
 
@@ -56,6 +57,21 @@ export const _subjectKindsCover: Covers<SubjectKind, (typeof SUBJECT_KINDS)[numb
 export function isSubjectKind(value: unknown): value is SubjectKind {
   return typeof value === 'string' && (SUBJECT_KINDS as readonly string[]).includes(value);
 }
+
+/**
+ * The feature each kind of subject belongs to.
+ *
+ * A build with `FEATURE_ETL=0` has no ETL jobs to point a test at, and the API
+ * refuses one, so the writer must not offer the kind either — a picker that
+ * lists it leads to an empty chooser and a refusal. Stated here rather than in
+ * the screen because the same answer is wanted wherever a subject is chosen.
+ */
+export const FEATURE_FOR_SUBJECT_KIND: Record<SubjectKind, FeatureFlagKey> = {
+  query: 'queries',
+  queryGroup: 'queryGroups',
+  ruleSet: 'rulesSuite',
+  etlJob: 'etl',
+};
 
 /** The entity type a subject of each kind must be. */
 export const ENTITY_TYPE_FOR_SUBJECT_KIND: Record<SubjectKind, string> = {
