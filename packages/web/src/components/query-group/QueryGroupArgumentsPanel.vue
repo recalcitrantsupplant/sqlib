@@ -114,12 +114,46 @@
       @discard="args.discard"
       @save="handleSave"
     />
+
+    <!--
+      Delete asks here rather than through `window.confirm`: a browser that has
+      been told to stop showing dialogs answers one `false`, so the menu item
+      silently did nothing.
+    -->
+    <AlertDialog v-model:open="deleteConfirmOpen">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete this argument set?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Every version of it goes with it. A test or a call that pins one of those
+            versions loses what it was pinned to.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Keep it</AlertDialogCancel>
+          <AlertDialogAction
+            data-testid="confirm-delete-argument-set"
+            @click="confirmDeleteArgumentSet"
+          >Delete set</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, toRef } from 'vue';
+import { computed, ref, toRef } from 'vue';
 import { toast } from 'vue-sonner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../ui/alert-dialog';
 import ArgumentSetSwitcher, { type SwitcherEntry } from '../query-work-area/ArgumentSetSwitcher.vue';
 import ArgumentSetFooter from '../query-work-area/ArgumentSetFooter.vue';
 import TupleBindingEditor from '../query-work-area/TupleBindingEditor.vue';
@@ -293,10 +327,23 @@ async function handleSelectArgumentSet(setId: string) {
   await args.selectSet(setId);
 }
 
-async function handleDeleteArgumentSet() {
+/*
+ * The app's own dialog rather than `window.confirm`. A browser stops showing
+ * those once someone ticks "prevent this page from creating more dialogs", and
+ * a suppressed confirm answers `false` — so Delete set silently did nothing,
+ * which is the same fault the rename prompt had.
+ */
+const deleteConfirmOpen = ref(false)
+
+function handleDeleteArgumentSet() {
+  if (!args.selectedSetId.value) return;
+  deleteConfirmOpen.value = true;
+}
+
+async function confirmDeleteArgumentSet() {
   const setId = args.selectedSetId.value;
+  deleteConfirmOpen.value = false;
   if (!setId) return;
-  if (typeof window !== 'undefined' && !window.confirm('Delete this argument set and all its versions?')) return;
   const deleted = await args.deleteSet(setId);
   if (deleted) toast.success('Argument set deleted');
   else if (args.error.value) toast.error(args.error.value);
