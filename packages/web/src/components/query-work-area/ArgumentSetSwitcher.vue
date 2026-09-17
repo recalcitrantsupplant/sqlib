@@ -59,6 +59,23 @@
       <span v-if="stateLabel" class="state-badge" data-testid="argument-set-state" :class="stateBadgeClass">{{ stateLabel }}</span>
       <span v-if="editSummary" class="edit-summary">{{ editSummary }}</span>
 
+      <!--
+        Pop-out sits on the set, next to the ⋮ that acts on it, rather than in
+        the inspector's tab strip: the strip is shared with Details and Code,
+        which have nothing to pop out, and Results already carries its own in
+        the results action bar.
+      -->
+      <button
+        v-if="canExpand"
+        class="btn-more"
+        type="button"
+        data-testid="arguments-expand"
+        title="Pop out"
+        @click="emit('expand')"
+      >
+        <Expand :size="14" />
+      </button>
+
       <DropdownMenu>
         <DropdownMenuTrigger as-child>
           <button class="btn-more" type="button" :disabled="disabled || !hasSelection" title="More">
@@ -106,7 +123,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { ChevronsUpDown, MoreVertical, Plus } from '@lucide/vue';
+import { ChevronsUpDown, Expand, MoreVertical, Plus } from '@lucide/vue';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -142,6 +159,8 @@ const props = defineProps<{
   canDelete?: boolean;
   canCopy?: boolean;
   disabled?: boolean;
+  /** Draws the pop-out button. Off where there is no focus mode to open. */
+  canExpand?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -152,6 +171,7 @@ const emit = defineEmits<{
   (e: 'rename'): void;
   (e: 'copy'): void;
   (e: 'delete'): void;
+  (e: 'expand'): void;
 }>();
 
 const hasVersions = computed(() => props.versions.length > 0);
