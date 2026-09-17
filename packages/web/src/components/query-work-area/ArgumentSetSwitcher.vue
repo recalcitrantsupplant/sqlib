@@ -7,7 +7,32 @@
       filling it (design §4).
     -->
     <div class="identity">
-      <DropdownMenu>
+      <!--
+        Renaming happens here, in the name's own place. It used to be a
+        `window.prompt`, which a browser stops showing once someone ticks
+        "prevent this page from creating more dialogs" — after which Rename…
+        did nothing at all, with no way to tell. Same interaction as a backend's
+        fields: click, type, Enter or blur commits, Esc abandons.
+      -->
+      <form
+        v-if="renaming"
+        class="rename"
+        data-testid="argument-set-rename"
+        @submit.prevent="commitRename"
+      >
+        <input
+          ref="renameInput"
+          v-model="renameDraft"
+          class="rename-input"
+          aria-label="Argument set name"
+          placeholder="Untitled set"
+          data-testid="argument-set-rename-input"
+          @keydown.esc.prevent="renaming = false"
+          @blur="commitRename"
+        >
+      </form>
+
+      <DropdownMenu v-else>
         <DropdownMenuTrigger as-child>
           <button class="name-trigger" type="button" :disabled="disabled" data-testid="argument-set-switcher">
             <span class="name">{{ displayName }}</span>
@@ -78,12 +103,20 @@
 
       <DropdownMenu>
         <DropdownMenuTrigger as-child>
-          <button class="btn-more" type="button" :disabled="disabled || !hasSelection" title="More">
+          <button class="btn-more" type="button" :disabled="disabled || !hasSelection" title="More" data-testid="argument-set-more">
             <MoreVertical :size="14" />
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem @select="emit('rename')">Rename…</DropdownMenuItem>
+        <!--
+          Rename… opens the field as the menu finishes closing, not when it is
+          picked. While a menu is open it traps focus, so a field opened during
+          the select is focused and immediately pulled back inside — arriving
+          as a blur on the new field, which commits it before a character has
+          been typed. `closeAutoFocus` is where the menu hands focus back, so
+          it is where the field can take it instead.
+        -->
+        <DropdownMenuContent align="end" @close-auto-focus="openRenameOnClose">
+          <DropdownMenuItem data-testid="argument-set-rename-open" @select="renameRequested = true">Rename…</DropdownMenuItem>
           <DropdownMenuItem :disabled="!canCopy" @select="emit('copy')">Copy JSON</DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem :disabled="!canDelete" class="menu-danger" @select="emit('delete')">
@@ -122,7 +155,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, nextTick, ref, useTemplateRef } from 'vue';
 import { ChevronsUpDown, Expand, MoreVertical, Plus } from '@lucide/vue';
 import {
   DropdownMenu,
@@ -168,11 +201,40 @@ const emit = defineEmits<{
   (e: 'select-scratch', scratchId: string): void;
   (e: 'create-scratch'): void;
   (e: 'run-with', target: RunTarget): void;
-  (e: 'rename'): void;
+  (e: 'rename', name: string): void;
   (e: 'copy'): void;
   (e: 'delete'): void;
   (e: 'expand'): void;
 }>();
+
+const renaming = ref(false);
+const renameRequested = ref(false);
+const renameDraft = ref('');
+const renameInput = useTemplateRef<HTMLInputElement>('renameInput');
+
+async function startRename() {
+  renameDraft.value = props.displayName === 'No argument set' ? '' : props.displayName;
+  renaming.value = true;
+  await nextTick();
+  renameInput.value?.focus();
+  renameInput.value?.select();
+}
+
+function openRenameOnClose(event: Event) {
+  if (!renameRequested.value) return;
+  renameRequested.value = false;
+  // The field takes the focus the trigger would have been given back.
+  event.preventDefault();
+  void startRename();
+}
+
+function commitRename() {
+  if (!renaming.value) return;
+  const next = renameDraft.value.trim();
+  renaming.value = false;
+  if (!next || next === props.displayName) return;
+  emit('rename', next);
+}
 
 const hasVersions = computed(() => props.versions.length > 0);
 
@@ -304,6 +366,29 @@ const activeRunKey = computed(() =>
   font-size: var(--text-micro);
   color: var(--ink-muted);
   white-space: nowrap;
+}
+
+/* The editing state of the name, matching a backend's inline fields. */
+.rename {
+  display: flex;
+  min-width: 0;
+}
+
+.rename-input {
+  width: var(--grid-6);
+  height: var(--control-h-sm);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--action);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: var(--text-body);
+  box-shadow: 0 0 0 3px var(--action-surface);
+}
+
+.rename-input:focus {
+  outline: none;
 }
 
 .btn-more {

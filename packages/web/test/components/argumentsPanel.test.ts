@@ -3,6 +3,7 @@ import { mount } from '@vue/test-utils';
 import TupleBindingEditor from '@/components/query-work-area/TupleBindingEditor.vue';
 import ArgumentScalarsPanel from '@/components/query-work-area/ArgumentScalarsPanel.vue';
 import ArgumentSetFooter from '@/components/query-work-area/ArgumentSetFooter.vue';
+import ArgumentSetSwitcher from '@/components/query-work-area/ArgumentSetSwitcher.vue';
 import RunBar from '@/components/shared/RunBar.vue';
 import type { ArgumentTupleBinding } from '@/types/argument-sets';
 
@@ -274,5 +275,77 @@ describe('TupleBindingEditor renaming', () => {
     });
     await w.get('[data-testid="argument-clause-remove"]').trigger('click');
     expect(w.emitted('remove')).toHaveLength(1);
+  });
+});
+
+/**
+ * Renaming an argument set.
+ *
+ * It was a `window.prompt`, which a browser stops showing once someone ticks
+ * "prevent this page from creating more dialogs" — after which Rename… did
+ * nothing, silently. The name is edited where it is displayed instead.
+ */
+describe('ArgumentSetSwitcher renaming', () => {
+  const props = {
+    displayName: 'Untitled set 1',
+    stateLabel: 'Draft',
+    isScratch: false,
+    hasDraft: true,
+    hasSelection: true,
+    editCount: 0,
+    draftSavedAt: null,
+    scratchSets: [],
+    savedSets: [],
+    versions: [],
+    runTarget: { kind: 'draft' as const },
+  };
+
+  /** The ⋮ menu is teleported out of the component, so it is driven through the document. */
+  async function openRename(w: ReturnType<typeof mount>) {
+    await w.get('[data-testid="argument-set-more"]').trigger('keydown', { key: 'Enter' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const item = document.querySelector<HTMLElement>('[data-testid="argument-set-rename-open"]');
+    expect(item).not.toBeNull();
+    item!.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+    item!.click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
+  it('edits the name in place and emits what was typed', async () => {
+    const w = mount(ArgumentSetSwitcher, { props, attachTo: document.body });
+    await openRename(w);
+
+    await w.get('[data-testid="argument-set-rename-input"]').setValue('City lookups');
+    await w.get('[data-testid="argument-set-rename"]').trigger('submit');
+
+    expect(w.emitted('rename')?.at(-1)?.[0]).toBe('City lookups');
+    expect(w.find('[data-testid="argument-set-rename-input"]').exists()).toBe(false);
+    w.unmount();
+  });
+
+  it('says nothing for an unchanged or empty name', async () => {
+    const w = mount(ArgumentSetSwitcher, { props, attachTo: document.body });
+
+    await openRename(w);
+    await w.get('[data-testid="argument-set-rename"]').trigger('submit');
+    expect(w.emitted('rename')).toBeUndefined();
+
+    await openRename(w);
+    await w.get('[data-testid="argument-set-rename-input"]').setValue('   ');
+    await w.get('[data-testid="argument-set-rename"]').trigger('submit');
+    expect(w.emitted('rename')).toBeUndefined();
+    w.unmount();
+  });
+
+  it('abandons the edit on Escape', async () => {
+    const w = mount(ArgumentSetSwitcher, { props, attachTo: document.body });
+    await openRename(w);
+
+    await w.get('[data-testid="argument-set-rename-input"]').setValue('Discarded');
+    await w.get('[data-testid="argument-set-rename-input"]').trigger('keydown.esc');
+
+    expect(w.emitted('rename')).toBeUndefined();
+    expect(w.get('[data-testid="argument-set-switcher"]').text()).toContain('Untitled set 1');
+    w.unmount();
   });
 });

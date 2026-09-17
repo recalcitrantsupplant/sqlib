@@ -302,11 +302,9 @@ async function handleDeleteArgumentSet() {
   else if (args.error.value) toast.error(args.error.value);
 }
 
-function handleRename() {
-  if (typeof window === 'undefined') return;
-  const next = window.prompt('Name this argument set', args.name.value);
-  if (next === null) return;
-  args.rename(next.trim());
+/* The switcher edits the name in place and hands over the result. */
+function handleRename(name: string) {
+  args.rename(name);
 }
 
 async function handleSave() {
