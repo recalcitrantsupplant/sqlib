@@ -211,6 +211,24 @@ describe('SubjectTestsPanel', () => {
     expect(listed.get('[data-testid="subject-tests-run-all"]').attributes('disabled')).toBeUndefined();
   });
 
+  /*
+   * The tab is reached from a rule set, a query or a group, so the sentence
+   * names which — "this rule set appears in the following tests" — rather than
+   * leaving a list of names with no stated relation to the record above it.
+   */
+  it('says how the list relates to the record it is filtered to', async () => {
+    store.tests = [{ id: 't1', name: 'A', subject: RULE_SET }];
+    const listed = mountPanel();
+    await flushPromises();
+    expect(listed.get('[data-testid="subject-tests-lead"]').text())
+      .toBe('This rule set appears in the following tests.');
+
+    store.tests = [];
+    const empty = mountPanel();
+    await flushPromises();
+    expect(empty.find('[data-testid="subject-tests-lead"]').exists()).toBe(false);
+  });
+
   it('opens a test rather than navigating on its own', async () => {
     store.tests = [{ id: 't1', name: 'A', subject: RULE_SET }];
 
