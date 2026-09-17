@@ -183,6 +183,15 @@ describe('index bootstrap', () => {
       expect(hoisted.oxigraphStoreManager.initialize).not.toHaveBeenCalled();
     }
     expect(hoisted.app!.register).toHaveBeenCalledWith(hoisted.corsPlugin, expect.any(Object));
+    /*
+     * `Accept` among them, because a report export negotiates its format with
+     * it — `Accept: application/rdf+xml` on a test run returns EARL. That value
+     * is not CORS-safelisted, so the request preflights, and a preflight that
+     * does not list the header fails the whole call from a browser.
+     */
+    const corsOptions = hoisted.app!.register.mock.calls
+      .find(([plugin]) => plugin === hoisted.corsPlugin)?.[1] as { allowedHeaders: string[] };
+    expect(corsOptions.allowedHeaders).toContain('Accept');
     expect(hoisted.app!.listen).toHaveBeenCalledWith({ port: 3000, host: '0.0.0.0' });
     expect(hoisted.app!.register).toHaveBeenCalledWith(hoisted.swaggerUiPlugin, expect.any(Object));
     expect(hoisted.app!.register).toHaveBeenCalledWith(hoisted.backendRoutes, { prefix: '/backends' });
@@ -257,6 +266,15 @@ describe('index bootstrap', () => {
         totalEntities: 3,
         estimatedMemoryBytes: 1024,
       }),
+      /*
+       * Both caps are environment-tunable, so the SPA reads them here rather
+       * than carrying a copy: a deployment that raised the server's cap used to
+       * leave a UI refusing uploads at the old figure.
+       */
+      limits: {
+        dataGraphVersionBytes: expect.any(Number),
+        dataGraphLibraryBytes: expect.any(Number),
+      },
     }));
 
     const metricsReply = {

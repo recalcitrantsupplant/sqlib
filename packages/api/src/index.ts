@@ -30,6 +30,10 @@ import { config } from './server/config.js';
 import { registerAuthPlugin } from './auth/plugin.js';
 import { initializeAuth } from './auth/bootstrap.js';
 import { getAuthConfig, resetAuthConfig } from './auth/config.js';
+import {
+  MAX_DATA_GRAPH_LIBRARY_BYTES,
+  MAX_DATA_GRAPH_VERSION_BYTES,
+} from './lib/dataGraphContent.js';
 import { requireAdmin } from './auth/enforce.js';
 import authRoutes from './routes/auth.js';
 import backendRoutes from './routes/backends.js';
@@ -225,6 +229,16 @@ function getHealthPayload() {
       totalEntities: cacheStats.totalEntities,
       estimatedMemoryBytes: cacheStats.estimatedMemoryBytes,
     },
+    /*
+     * What the server will accept, so a client can say so before it asks. Both
+     * caps are environment-tunable, which is exactly why they are reported: the
+     * SPA used to state a figure of its own, and a deployment that raised the
+     * server's had a UI still refusing uploads at the old one.
+     */
+    limits: {
+      dataGraphVersionBytes: MAX_DATA_GRAPH_VERSION_BYTES,
+      dataGraphLibraryBytes: MAX_DATA_GRAPH_LIBRARY_BYTES,
+    },
   };
 }
 
@@ -366,8 +380,16 @@ async function registerApplicationRoutes(
                 },
                 required: ['ready', 'totalEntities', 'estimatedMemoryBytes'],
               },
+              limits: {
+                type: 'object',
+                properties: {
+                  dataGraphVersionBytes: { type: 'integer' },
+                  dataGraphLibraryBytes: { type: 'integer' },
+                },
+                required: ['dataGraphVersionBytes', 'dataGraphLibraryBytes'],
+              },
             },
-            required: ['status', 'timestamp', 'uptimeSeconds', 'auth', 'cache'],
+            required: ['status', 'timestamp', 'uptimeSeconds', 'auth', 'cache', 'limits'],
           },
           503: {
             type: 'object',
@@ -391,8 +413,16 @@ async function registerApplicationRoutes(
                 },
                 required: ['ready', 'totalEntities', 'estimatedMemoryBytes'],
               },
+              limits: {
+                type: 'object',
+                properties: {
+                  dataGraphVersionBytes: { type: 'integer' },
+                  dataGraphLibraryBytes: { type: 'integer' },
+                },
+                required: ['dataGraphVersionBytes', 'dataGraphLibraryBytes'],
+              },
             },
-            required: ['status', 'timestamp', 'uptimeSeconds', 'auth', 'cache'],
+            required: ['status', 'timestamp', 'uptimeSeconds', 'auth', 'cache', 'limits'],
           },
         },
       },
@@ -614,7 +644,15 @@ async function configureApp(fastifyApp: typeof app, options: ConfigureOptions = 
     // During development, allow all origins
     origin: "*",
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'If-Match', 'mcp-session-id', 'X-Sqlib-Client-Id'],
+    /*
+     * `Accept` is listed because the SPA negotiates a report format with it:
+     * `POST /tests/:id/run` with `Accept: application/rdf+xml` returns EARL
+     * rather than JSON. The header is only CORS-safelisted for a handful of
+     * values, so any other media type preflights — and a preflight that does
+     * not list it fails the whole request, which is why exporting a run failed
+     * from the browser while every other call succeeded.
+     */
+    allowedHeaders: ['Accept', 'Content-Type', 'Authorization', 'If-Match', 'mcp-session-id', 'X-Sqlib-Client-Id'],
     exposedHeaders: ['ETag', 'Last-Modified', 'Server-Timing', 'mcp-session-id'],
     credentials: true
   });
