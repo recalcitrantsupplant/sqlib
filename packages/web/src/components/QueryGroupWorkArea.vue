@@ -3062,6 +3062,22 @@ onUnmounted(() => {
 
 
 <style scoped>
+
+/*
+ * The destructive button in the delete dialog. The class was on the button and
+ * styled only in `QueryWorkArea` and `pages/index.vue` — scoped styles do not
+ * reach across components, so here it did nothing and the button read as an
+ * ordinary one.
+ */
+.delete-action {
+  background: var(--danger);
+  color: var(--danger-fg);
+}
+
+.delete-action:hover {
+  background: var(--danger-hover);
+}
+
 /*
  * The Vue Flow stylesheets, the split, the graph box and its controls are
  * `CanvasShell`/`CanvasSurface`'s. What is left here is the query group's own

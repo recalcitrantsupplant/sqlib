@@ -244,7 +244,13 @@ const onSelect = (value: unknown) => {
  * `ComboboxRoot` cannot be styled from here (see the template), so it is given
  * nothing to do: the wrapper above owns the box and this fills it.
  */
-.search-select__root {
+/*
+ * `:deep` for the same reason the viewport rule below has it: `ComboboxRoot`
+ * renders through a primitive that drops this component's scope attribute, so
+ * the plain rule matched nothing and the root kept its default `min-width:
+ * auto` — which is what stops a flex child from shrinking below its content.
+ */
+:deep(.search-select__root) {
   min-width: 0;
 }
 

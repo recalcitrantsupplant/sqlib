@@ -248,7 +248,7 @@
             <!-- Detected Outputs Section -->
             <div v-if="hasDetectedOutputs" class="outputs-section">
               <div class="outputs-header">
-                <span class="outputs-label">Query Outputs</span>
+                <SectionLabel size="md">Query outputs</SectionLabel>
                 <span class="outputs-count">{{ detectedOutputs.length }}</span>
               </div>
               <div class="outputs-list">
@@ -2215,6 +2215,53 @@ onUnmounted(() => {
 }
 
 /* Argument Groups (Limit, Offset, InputTuple) */
+/*
+ * The outputs block in focus mode. Its six classes were written in the template
+ * and styled nowhere — three existed only in `SparqlEditorPanel`'s scoped
+ * block, which cannot reach here — so the block rendered as bare text between
+ * two styled panels. See `test/components/styledClasses.test.ts`.
+ */
+.outputs-section {
+  margin-bottom: var(--space-6);
+  padding: var(--space-5);
+  background: var(--surface-subtle);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-panel);
+}
+
+.outputs-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.outputs-count {
+  min-width: var(--control-h-sm);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--surface-raised);
+  color: var(--ink-muted);
+  font-size: var(--text-micro);
+  text-align: center;
+}
+
+.outputs-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--grid-gap);
+}
+
+.output-badge {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+}
+
 .argument-group {
   margin-bottom: var(--space-6);
   padding: var(--space-5);
