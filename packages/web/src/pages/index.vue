@@ -1,6 +1,6 @@
 <template>
   <div class="app-layout">
-    <AppNavRail :active-section="railSelection" @select="handleRailSelect" />
+    <AppNavRail :active-section="railSelection" @select="handleRailSelect" @create-library="showAddLibraryDialog" />
 
     <!--
       Backends are account-level and have their own two facts (health and
