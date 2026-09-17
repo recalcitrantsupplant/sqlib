@@ -271,10 +271,12 @@ describe('index bootstrap', () => {
        * than carrying a copy: a deployment that raised the server's cap used to
        * leave a UI refusing uploads at the old figure.
        */
-      limits: {
+      limits: expect.objectContaining({
         dataGraphVersionBytes: expect.any(Number),
         dataGraphLibraryBytes: expect.any(Number),
-      },
+        tupleSetVersionBytes: expect.any(Number),
+        tupleSetLibraryBytes: expect.any(Number),
+      }),
     }));
 
     const metricsReply = {

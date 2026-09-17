@@ -34,6 +34,10 @@ import {
   MAX_DATA_GRAPH_LIBRARY_BYTES,
   MAX_DATA_GRAPH_VERSION_BYTES,
 } from './lib/dataGraphContent.js';
+import {
+  MAX_TUPLE_SET_LIBRARY_BYTES,
+  MAX_TUPLE_SET_VERSION_BYTES,
+} from './lib/TupleSetVersionWriter.js';
 import { requireAdmin } from './auth/enforce.js';
 import authRoutes from './routes/auth.js';
 import backendRoutes from './routes/backends.js';
@@ -238,6 +242,8 @@ function getHealthPayload() {
     limits: {
       dataGraphVersionBytes: MAX_DATA_GRAPH_VERSION_BYTES,
       dataGraphLibraryBytes: MAX_DATA_GRAPH_LIBRARY_BYTES,
+      tupleSetVersionBytes: MAX_TUPLE_SET_VERSION_BYTES,
+      tupleSetLibraryBytes: MAX_TUPLE_SET_LIBRARY_BYTES,
     },
   };
 }
@@ -385,8 +391,15 @@ async function registerApplicationRoutes(
                 properties: {
                   dataGraphVersionBytes: { type: 'integer' },
                   dataGraphLibraryBytes: { type: 'integer' },
+                  tupleSetVersionBytes: { type: 'integer' },
+                  tupleSetLibraryBytes: { type: 'integer' },
                 },
-                required: ['dataGraphVersionBytes', 'dataGraphLibraryBytes'],
+                required: [
+                  'dataGraphVersionBytes',
+                  'dataGraphLibraryBytes',
+                  'tupleSetVersionBytes',
+                  'tupleSetLibraryBytes',
+                ],
               },
             },
             required: ['status', 'timestamp', 'uptimeSeconds', 'auth', 'cache', 'limits'],
@@ -418,8 +431,15 @@ async function registerApplicationRoutes(
                 properties: {
                   dataGraphVersionBytes: { type: 'integer' },
                   dataGraphLibraryBytes: { type: 'integer' },
+                  tupleSetVersionBytes: { type: 'integer' },
+                  tupleSetLibraryBytes: { type: 'integer' },
                 },
-                required: ['dataGraphVersionBytes', 'dataGraphLibraryBytes'],
+                required: [
+                  'dataGraphVersionBytes',
+                  'dataGraphLibraryBytes',
+                  'tupleSetVersionBytes',
+                  'tupleSetLibraryBytes',
+                ],
               },
             },
             required: ['status', 'timestamp', 'uptimeSeconds', 'auth', 'cache', 'limits'],

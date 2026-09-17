@@ -18,7 +18,27 @@ beforeEach(() => {
 });
 
 describe('useServerLimits', () => {
-  it('takes both caps from /health', async () => {
+  /*
+   * Every cap the SPA states or refuses a file against has to be one the server
+   * reports. A hardcoded copy is the bug this composable exists to end: it went
+   * stale the first time a deployment raised the server's figure, in two
+   * screens independently.
+   */
+  it('has a default for every cap, so a newer SPA never refuses at zero', async () => {
+    fetchMock.mockResolvedValue({ json: async () => ({ limits: {} }) });
+    const { limits, ensureLoaded } = useServerLimits();
+    await ensureLoaded();
+
+    expect(Object.keys(limits.value).sort()).toEqual([
+      'dataGraphLibraryBytes',
+      'dataGraphVersionBytes',
+      'tupleSetLibraryBytes',
+      'tupleSetVersionBytes',
+    ]);
+    expect(Object.values(limits.value).every((value) => value > 0)).toBe(true);
+  });
+
+  it('takes every cap from /health', async () => {
     fetchMock.mockResolvedValue({
       json: async () => ({ limits: { dataGraphVersionBytes: 10_485_760, dataGraphLibraryBytes: 104_857_600 } }),
     });
@@ -27,7 +47,7 @@ describe('useServerLimits', () => {
     await ensureLoaded();
 
     expect(fetchMock.mock.calls[0][0]).toMatch(/\/health$/);
-    expect(limits.value).toEqual({
+    expect(limits.value).toMatchObject({
       dataGraphVersionBytes: 10_485_760,
       dataGraphLibraryBytes: 104_857_600,
     });
@@ -55,7 +75,7 @@ describe('useServerLimits', () => {
     const { limits, ensureLoaded } = useServerLimits();
     await ensureLoaded();
 
-    expect(limits.value).toEqual({
+    expect(limits.value).toMatchObject({
       dataGraphVersionBytes: 1_048_576,
       dataGraphLibraryBytes: 16_777_216,
     });

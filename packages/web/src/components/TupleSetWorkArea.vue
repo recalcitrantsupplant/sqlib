@@ -298,6 +298,7 @@ import { usePanelResize } from '@/composables/usePanelResize';
 import { useApiClient, type TupleSetVersion } from '@/composables/useApiClient';
 import { useActiveLibrary } from '@/composables/useActiveLibrary';
 import { useScratchRecord } from '@/composables/useScratchRecord';
+import { useServerLimits } from '@/composables/useServerLimits';
 import { useCallableDrafts, UNASSIGNED_LIBRARY_ID } from '@/composables/useCallableDrafts';
 import {
   TUPLE_IMPORT_FORMATS,
@@ -1031,13 +1032,15 @@ const EXTENSION_FORMATS: Record<string, TupleSourceFormat> = {
 const ACCEPTED_EXTENSIONS = Object.keys(EXTENSION_FORMATS).join(',');
 
 /**
- * Refused before reading, in bytes.
+ * Refused before reading.
  *
- * Stated early for the reason the data-graph editor states it early: reading a
- * 500 MB file into a string to be told no is a hung tab, not a validation
- * message.
+ * The same cap the server enforces, read from it rather than restated here:
+ * both are environment variables on the API, and a copy in the SPA meant a
+ * deployment that raised the server's still had uploads refused at the old
+ * figure. Refusing early is the point — reading a very large file into a string
+ * to be told no is a hung tab, not a validation message.
  */
-const MAX_UPLOAD_BYTES = 1_000_000;
+const { limits: serverLimits, ensureLoaded: loadServerLimits } = useServerLimits();
 
 const fileInputRef = ref<HTMLInputElement | null>(null);
 
@@ -1052,8 +1055,9 @@ async function onFileChosen(event: Event) {
   input.value = '';
   if (!file) return;
 
-  if (file.size > MAX_UPLOAD_BYTES) {
-    const message = `${file.name} is ${formatBytes(file.size)} — the limit is ${formatBytes(MAX_UPLOAD_BYTES)} per tuple set.`;
+  if (file.size > serverLimits.value.tupleSetVersionBytes) {
+    const message = `${file.name} is ${formatBytes(file.size)} — the limit is `
+      + `${formatBytes(serverLimits.value.tupleSetVersionBytes)} per version.`;
     saveError.value = message;
     toast.error(message);
     return;
@@ -1277,6 +1281,7 @@ async function load(id: string) {
 }
 
 onMounted(() => {
+  void loadServerLimits();
   if (props.tupleSetId) void load(props.tupleSetId);
 });
 
