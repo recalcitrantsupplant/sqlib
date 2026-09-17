@@ -19,10 +19,10 @@ import type { CanvasTemplate } from './canvasTemplates';
 import type { CommandResult } from './queryGroupCommands';
 import type { Diagnostic } from './queryGroupCompatibility';
 import { flowTypeLabel } from './edgeFlowTypeDefaults';
+// Not re-exported: Nuxt auto-imports every composable module, so a second
+// module exporting these names makes the two registrations collide and one gets
+// dropped. Callers import them from `queryGroupNodeLabel` directly.
 import { authoredNodeLabel, canvasNodeLabel } from './queryGroupNodeLabel';
-// Re-exported because this module is where the canvas's own state lives, and
-// where every caller already looks for it.
-export { authoredNodeLabel, canvasNodeLabel } from './queryGroupNodeLabel';
 import type {
   CanvasSelection,
   CanvasSelectionDetail,

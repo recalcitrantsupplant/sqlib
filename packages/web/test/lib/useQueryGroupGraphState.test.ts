@@ -4,10 +4,10 @@ import { Position } from '@vue-flow/core';
 
 import {
   buildCanvasNodeData,
-  canvasNodeLabel,
   useQueryGroupGraphState,
   LEFT_TO_RIGHT_HANDLES,
 } from '../../src/composables/useQueryGroupGraphState';
+import { canvasNodeLabel } from '../../src/composables/queryGroupNodeLabel';
 import { createGraphStateFromExpanded, type GraphNodeState } from '../../src/composables/useQueryGroupGraph';
 import { queryVersionInterfaceFromExpanded } from '../../src/composables/queryGroupIoModel';
 import {
