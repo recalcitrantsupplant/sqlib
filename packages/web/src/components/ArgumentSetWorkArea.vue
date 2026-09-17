@@ -45,7 +45,11 @@
             :variables="binding.variables"
             :model-value="binding"
             :library-id="setLibraryId || activeLibraryId"
+            renamable
+            removable
             @update:model-value="updateBinding(index, $event)"
+            @rename="(variables) => renameTable(index, variables)"
+            @remove="removeTable(index)"
           />
 
           <p v-if="!tupleBindings.length" class="empty-hint" data-testid="argument-set-no-tables">
@@ -385,6 +389,47 @@ function addTable() {
   }
   tupleBindings.value = [...tupleBindings.value, { tupleSignature: signature, variables, rows: [] }];
   newTableVariables.value = '';
+  markEdited();
+}
+
+/**
+ * Rename a table's variables.
+ *
+ * A set on this screen has no callable to take a signature from, so the names
+ * are typed — and a typo was permanent: the table could be neither renamed nor
+ * removed, and a table is matched to a clause by exactly these names.
+ *
+ * Values follow their column rather than their name: the term in the first
+ * column stays in the first column. Renaming `city` to `cityName` keeps what
+ * was typed under it; a rename that drops a column drops that column's values
+ * with it, which is what removing a variable means.
+ */
+function renameTable(index: number, variables: string[]) {
+  const existing = tupleBindings.value[index];
+  if (!existing || !variables.length) return;
+  const signature = [...variables].sort().join('|');
+  if (tupleBindings.value.some((binding, at) => at !== index
+    && [...binding.variables].sort().join('|') === signature)) {
+    toast.error('This set already has a table over those variables.');
+    return;
+  }
+
+  const rows = existing.rows.map((row) => ({
+    ...row,
+    values: Object.fromEntries(
+      variables.flatMap((name, position) => {
+        const previous = existing.variables[position];
+        const value = previous === undefined ? undefined : row.values[previous.replace(/^\?/, '')];
+        return value === undefined ? [] : [[name, value] as const];
+      }),
+    ),
+  }));
+
+  updateBinding(index, { ...existing, tupleSignature: signature, variables, rows });
+}
+
+function removeTable(index: number) {
+  tupleBindings.value = tupleBindings.value.filter((_, at) => at !== index);
   markEdited();
 }
 

@@ -227,3 +227,52 @@ describe('RunBar run label', () => {
     expect(label('Run draft', true)).toContain('Running');
   });
 });
+
+/**
+ * Renaming a clause's variables.
+ *
+ * Off by default: on a query the clause is the query text's, and the panel
+ * reads it out of the SPARQL. On the argument-set screen the names are typed,
+ * and before this there was no way to correct one.
+ */
+describe('TupleBindingEditor renaming', () => {
+  it('offers no rename or remove control unless the caller asks for them', () => {
+    const w = mount(TupleBindingEditor, {
+      props: { variables: ['city'], modelValue: clause(['city'], 1) },
+    });
+    expect(w.find('[data-testid="argument-clause-rename-open"]').exists()).toBe(false);
+    expect(w.find('[data-testid="argument-clause-remove"]').exists()).toBe(false);
+  });
+
+  it('emits the typed names, bare and in order', async () => {
+    const w = mount(TupleBindingEditor, {
+      props: { variables: ['city'], modelValue: clause(['city'], 1), renamable: true },
+    });
+
+    await w.get('[data-testid="argument-clause-rename-open"]').trigger('click');
+    await w.get('[data-testid="argument-clause-rename-input"]').setValue('?cityName state');
+    await w.get('[data-testid="argument-clause-rename"]').trigger('submit');
+
+    expect(w.emitted('rename')?.at(-1)?.[0]).toEqual(['cityName', 'state']);
+  });
+
+  it('says nothing when the names come back unchanged', async () => {
+    const w = mount(TupleBindingEditor, {
+      props: { variables: ['city'], modelValue: clause(['city'], 1), renamable: true },
+    });
+
+    await w.get('[data-testid="argument-clause-rename-open"]').trigger('click');
+    await w.get('[data-testid="argument-clause-rename"]').trigger('submit');
+
+    expect(w.emitted('rename')).toBeUndefined();
+    expect(w.find('[data-testid="argument-clause-rename-input"]').exists()).toBe(false);
+  });
+
+  it('removes on request', async () => {
+    const w = mount(TupleBindingEditor, {
+      props: { variables: ['city'], modelValue: clause(['city'], 1), removable: true },
+    });
+    await w.get('[data-testid="argument-clause-remove"]').trigger('click');
+    expect(w.emitted('remove')).toHaveLength(1);
+  });
+});
