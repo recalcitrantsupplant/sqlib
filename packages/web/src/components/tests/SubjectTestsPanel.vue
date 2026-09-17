@@ -5,13 +5,19 @@
     can disagree about what tests exist would be worse than no tab at all.
   -->
   <div class="subject-tests" data-testid="subject-tests">
-    <Toolbar variant="plain">
+    <!--
+      The row is about the tests in the list, so it is drawn only when there
+      are some: over the empty state it was a disabled control offering to run
+      nothing. `.run-all` carries its own spec — inherited type made it the
+      largest thing on the tab, above the heading it sat over.
+    -->
+    <Toolbar v-if="tests.length" variant="plain">
       <template #start>
         <button
           class="run-all"
           type="button"
           data-testid="subject-tests-run-all"
-          :disabled="tests.length === 0 || runningAll"
+          :disabled="runningAll"
           @click="runAll"
         >
           <Play :size="12" />
@@ -148,6 +154,33 @@ onMounted(() => {
 .subject-tests {
   display: flex;
   flex-direction: column;
+}
+
+/* The same object as a row's Run button, with the icon inline beside its label. */
+.run-all {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--control-h-sm);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink-secondary);
+  font-family: inherit;
+  font-size: var(--text-label);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.run-all:hover:not(:disabled) {
+  background: var(--surface-raised);
+  color: var(--ink);
+}
+
+.run-all:disabled {
+  cursor: default;
+  opacity: 0.6;
 }
 
 .summary {

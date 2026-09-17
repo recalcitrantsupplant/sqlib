@@ -195,6 +195,22 @@ describe('SubjectTestsPanel', () => {
     expect(store.runTests).toHaveBeenCalledWith(['t1', 't2']);
   });
 
+  /**
+   * The row acts on the list, so with no list there is nothing for it to act
+   * on: it used to draw a disabled Run all above "No tests yet".
+   */
+  it('draws the run row only when there are tests to run', async () => {
+    const empty = mountPanel();
+    await flushPromises();
+    expect(empty.find('[data-testid="subject-tests-run-all"]').exists()).toBe(false);
+    expect(empty.get('[data-testid="subject-tests-empty"]').exists()).toBe(true);
+
+    store.tests = [{ id: 't1', name: 'A', subject: RULE_SET }];
+    const listed = mountPanel();
+    await flushPromises();
+    expect(listed.get('[data-testid="subject-tests-run-all"]').attributes('disabled')).toBeUndefined();
+  });
+
   it('opens a test rather than navigating on its own', async () => {
     store.tests = [{ id: 't1', name: 'A', subject: RULE_SET }];
 
