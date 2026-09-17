@@ -19,8 +19,10 @@
  * unscoped styles it — an unambiguous owner whose rule cannot land. The fix is
  * `:deep(...)`, which reaches in deliberately and is what this cannot flag.
  *
- * Tagged @perf only to keep it out of the fast suite's budget; it is a
- * correctness check, not a measurement.
+ * It runs in the functional lane rather than the perf one: it measures
+ * nothing, it takes about eight seconds, and a rule that stopped applying is
+ * exactly the kind of thing worth catching before a release rather than when
+ * someone opens the menu.
  */
 import { test, expect } from '@playwright/test';
 import { mockEntityApi } from '../fixtures/entities';
@@ -76,7 +78,7 @@ async function audit(page: import('@playwright/test').Page) {
   });
 }
 
-test('@perf no scoped rule names an element that cannot wear its scope', async ({ page }) => {
+test('no scoped rule names an element that cannot wear its scope', async ({ page }) => {
   await mockEntityApi(page);
   const found: Record<string, unknown> = {};
 

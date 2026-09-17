@@ -25,8 +25,10 @@
  *               rather than zero: the record that arrives has its own work to
  *               do, and this guard is about the pane, not about that.
  *
- * Tagged @perf: out of `test:e2e` / `test:e2e:ci` like the rest of this
- * directory.
+ * It runs in the functional lane rather than the perf one, although it lives
+ * here: the numbers it reads are geometry and request counts, neither of which
+ * moves with the machine, and a pane that starts rebuilding itself is a
+ * regression worth failing a build over.
  */
 import { test, expect, type Page, type Route } from '@playwright/test';
 import { mockEntityApi, LIBRARY, QUERY } from '../fixtures/entities';
@@ -105,7 +107,7 @@ async function startShiftObserver(page: Page) {
 const shiftSoFar = (page: Page) =>
   page.evaluate(() => (window as unknown as { __switchShift: number }).__switchShift);
 
-test('@perf switching between saved tests swaps in place', async ({ page }) => {
+test('switching between saved tests swaps in place', async ({ page }) => {
   test.setTimeout(120_000);
   await bootstrap(page);
 
