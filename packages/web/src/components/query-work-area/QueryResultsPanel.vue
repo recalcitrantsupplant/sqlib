@@ -210,6 +210,7 @@ import {
   compatibility,
   tupleSignature,
 } from '@/lib/argumentSignature';
+import { conceptsDocUrl } from '@/lib/docs';
 import type { QueryExecutionResultPayload, QueryInspectorTab } from '@/types/execution';
 import type { DetailsBackendOption, DetailsVersionOption } from '../shared/EntityDetailsPanel.vue';
 
@@ -305,8 +306,7 @@ const emit = defineEmits<{
 }>();
 
 /* Parameters are a concept, not a field: the panel links the page that defines them. */
-const PARAMETERS_DOC_URL =
-  'https://github.com/recalcitrantsupplant/sqlib/blob/main/docs/concepts.md#parameters';
+const PARAMETERS_DOC_URL = conceptsDocUrl('parameters');
 
 const activeTab = ref<string>(props.activeTab ?? 'details');
 

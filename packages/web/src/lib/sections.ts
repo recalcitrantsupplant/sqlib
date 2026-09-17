@@ -67,6 +67,14 @@ export interface SectionDefinition {
   savedKinds: SavedKind[];
   /** False where the entity has no `isPartOf` and the active library cannot filter it. */
   libraryScoped: boolean;
+  /**
+   * What the section's entity is, in a sentence or two, for the pane that shows
+   * when the section has nothing open. Someone who opened the section without
+   * knowing what it holds is the reader.
+   */
+  blurb: string;
+  /** The heading in `docs/concepts.md` that defines the entity. */
+  docsAnchor: string;
 }
 
 export const SECTION_DEFINITIONS: Record<ListSection, SectionDefinition> = {
@@ -79,6 +87,9 @@ export const SECTION_DEFINITIONS: Record<ListSection, SectionDefinition> = {
     draftSection: 'query',
     savedKinds: [{ type: 'query', label: 'Queries' }],
     libraryScoped: true,
+    blurb:
+      'A query is a named, versioned SPARQL query. Its parameters are declared in the query text — a VALUES clause whose only row is all UNDEF, or a LIMIT or OFFSET written as 000n — and you invoke a version with arguments for them.',
+    docsAnchor: 'query-and-queryversion',
   },
   queryGroups: {
     section: 'queryGroups',
@@ -92,6 +103,9 @@ export const SECTION_DEFINITIONS: Record<ListSection, SectionDefinition> = {
     draftSection: 'group',
     savedKinds: [{ type: 'queryGroup', label: 'Groups' }],
     libraryScoped: true,
+    blurb:
+      'A group is a canvas of execution steps: queries, rule sets and patches wired together, with each edge carrying bindings, triples or a boolean from one step\'s output to the next one\'s input. The start node\'s ports are the group\'s own parameters, so a group is called like a query.',
+    docsAnchor: 'querygroup',
   },
   rules: {
     section: 'rules',
@@ -119,6 +133,9 @@ export const SECTION_DEFINITIONS: Record<ListSection, SectionDefinition> = {
       { type: 'ruleSet', label: 'Rule sets' },
     ],
     libraryScoped: true,
+    blurb:
+      'A rule set is the smallest runnable unit of inference: SRL rules and DATA blocks, stratified and evaluated to fixpoint against a data graph or a backend. Rules and data blocks are edited inside one.',
+    docsAnchor: 'rule-datablock-and-ruleset',
   },
   etl: {
     section: 'etl',
@@ -129,6 +146,9 @@ export const SECTION_DEFINITIONS: Record<ListSection, SectionDefinition> = {
     draftSection: 'etl',
     savedKinds: [{ type: 'etlJob', label: 'Pipelines' }],
     libraryScoped: true,
+    blurb:
+      'A pipeline builds RDF from tabular sources: DuckDB SQL reads the rows, a SPARQL template constructs triples from them, and the result is written to a backend.',
+    docsAnchor: 'etl-pipeline',
   },
   benchmarks: {
     section: 'benchmarks',
@@ -140,6 +160,9 @@ export const SECTION_DEFINITIONS: Record<ListSection, SectionDefinition> = {
     savedKinds: [{ type: 'benchmark', label: 'Benchmarks' }],
     // A BenchmarkExperiment has no isPartOf; experiments are account-level.
     libraryScoped: false,
+    blurb:
+      'A benchmark measures a callable rather than judging it. A run records iterations, per-node runs and observations, so timings can be read per node as well as per call.',
+    docsAnchor: 'benchmark',
   },
   /*
    * Tests earn a section of their own rather than a tab under each callable,
@@ -179,6 +202,9 @@ export const SECTION_DEFINITIONS: Record<ListSection, SectionDefinition> = {
     draftSection: 'dataGraph',
     savedKinds: [{ type: 'dataGraph', label: 'Data graphs' }],
     libraryScoped: true,
+    blurb:
+      'A data graph is reference RDF registered in the library, stored verbatim in whatever serialisation it arrived in. It seeds the store a rule set or a hermetic test runs against, fills a group\'s graph port, or hydrates a backend.',
+    docsAnchor: 'datagraph',
   },
   /*
    * Tuple sets sit beside Data for the reason they are a separate entity at
@@ -206,6 +232,9 @@ export const SECTION_DEFINITIONS: Record<ListSection, SectionDefinition> = {
     draftSection: 'tupleSet',
     savedKinds: [{ type: 'tupleSet', label: 'Tuple sets' }],
     libraryScoped: true,
+    blurb:
+      'A tuple set is a named, versioned table of RDF terms. It is never loaded into a store: its rows are spliced into a query\'s VALUES clause, or matched against a rule set\'s TUPLE( … ) declaration.',
+    docsAnchor: 'tupleset',
   },
   /*
    * An argument set is one call's worth of input to a query or a group: a table
@@ -235,6 +264,9 @@ export const SECTION_DEFINITIONS: Record<ListSection, SectionDefinition> = {
     draftSection: 'argumentSet',
     savedKinds: [{ type: 'argumentSet', label: 'Argument sets' }],
     libraryScoped: true,
+    blurb:
+      'An argument set is one call\'s worth of input: a table for every VALUES clause the callable declares, a number for every named limit or offset, and a graph for each of a group\'s start-node graph ports. A version is immutable, so a test or an MCP call that pins one is reproducible.',
+    docsAnchor: 'argumentset',
   },
   tests: {
     section: 'tests',
@@ -246,6 +278,9 @@ export const SECTION_DEFINITIONS: Record<ListSection, SectionDefinition> = {
     savedKinds: [{ type: 'test', label: 'Tests' }],
     // A Test belongs to a library, like the callables it points at.
     libraryScoped: true,
+    blurb:
+      'A test is an invocation plus an expectation, run once and judged pass or fail. Its subject is a query, a group or a rule set, and its version holds the inputs it supplies and the result it expects.',
+    docsAnchor: 'test',
   },
 };
 
