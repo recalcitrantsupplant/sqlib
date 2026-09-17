@@ -442,7 +442,8 @@ import ExpandableEditor from './shared/ExpandableEditor.vue';
 import ExpandRunStrip from './shared/ExpandRunStrip.vue';
 import { useEditorExpand } from '../composables/useEditorExpand';
 import QueryResultsPanel from './query-work-area/QueryResultsPanel.vue';
-import type { QueryInspectorTab } from '@/types/execution';
+import type { QueryExecutionResultPayload, QueryInspectorTab } from '@/types/execution';
+import { forgetLastRun, loadLastRun, runCacheKey, saveLastRun } from '@/lib/lastRunCache';
 import QueryFocusOverlay from './query-work-area/QueryFocusOverlay.vue';
 import SaveBar from './shared/SaveBar.vue';
 import PanelHeader from './shared/PanelHeader.vue';
@@ -1190,6 +1191,44 @@ const {
     limitParameters: detectedInputs.value?.limitParameters ?? [],
     offsetParameters: detectedInputs.value?.offsetParameters ?? [],
   }),
+});
+
+/**
+ * The last run, kept in the browser between visits.
+ *
+ * A result lived only in this component, so opening another query and coming
+ * back lost it — the rows had to be fetched again to be read again. The cache
+ * holds one run per record, replaced by the next run of that record; see
+ * `lib/lastRunCache.ts` for what it will and will not keep.
+ */
+const lastRunKey = computed(() => (isScratch.value
+  ? runCacheKey('query-scratch', props.scratchId)
+  : runCacheKey('query', currentQueryId.value ?? props.queryId ?? null)));
+
+/** What the cache holds for the open record, so a restore is not re-saved. */
+let heldRun: string | null = null;
+
+watch(
+  lastRunKey,
+  (key, previous) => {
+    if (key === previous) return;
+    const restored = loadLastRun<QueryExecutionResultPayload>(key);
+    heldRun = restored ? JSON.stringify(restored) : null;
+    executionResult.value = restored;
+  },
+  { immediate: true },
+);
+
+watch(executionResult, (result) => {
+  // A run in progress clears the panel first; that is not a run to remember,
+  // and forgetting the last one here would empty the pane on every Run.
+  if (!result) return;
+  const serialised = JSON.stringify(result);
+  // Restoring is not running: re-writing here would move this record to the
+  // front of the eviction queue every time it was merely looked at.
+  if (serialised === heldRun) return;
+  heldRun = serialised;
+  saveLastRun(lastRunKey.value, result);
 });
 
 /* ------------------------------------------------------------------ *
@@ -2020,8 +2059,10 @@ const confirmDeleteQuery = async () => {
   try {
     await queriesStore.deleteQuery(id);
     // Any browser draft for it is now orphaned; leaving it would put a draft
-    // dot beside a query that no longer exists.
+    // dot beside a query that no longer exists. The same goes for its last
+    // run, which is a result for a query nothing can open.
     removeDraft();
+    forgetLastRun(runCacheKey('query', id));
     deleteConfirmOpen.value = false;
     toast.success('Query deleted');
     emit('query-deleted', id);

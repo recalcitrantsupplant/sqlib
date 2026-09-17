@@ -239,6 +239,7 @@ import { usePrefixManager } from '../composables/usePrefixManager';
 import { useActiveLibrary } from '../composables/useActiveLibrary';
 import { useFeatureFlags } from '../composables/useFeatureFlags';
 import { useScratchRecord } from '../composables/useScratchRecord';
+import { loadLastRun, runCacheKey, saveLastRun } from '@/lib/lastRunCache';
 import { useEditorDocumentKey } from '../composables/useEditorDocumentKey';
 import { useSrlAnalysis } from '../composables/useSrlAnalysis';
 import { useCallableDrafts, UNASSIGNED_LIBRARY_ID } from '../composables/useCallableDrafts';
@@ -1391,6 +1392,47 @@ function setTuplesEnabled(next: boolean) {
 const executionResult = ref<any>(null);
 const executionTimestamp = ref<string | null>(null);
 const isExecuting = ref(false);
+
+/**
+ * The last run, kept in the browser between visits — the same bargain the
+ * scratch store makes for unsaved bodies. One run per record, replaced by the
+ * next; see `lib/lastRunCache.ts` for what it will and will not keep.
+ */
+interface CachedRuleSetRun {
+  result: unknown;
+  ranAt: string | null;
+}
+
+const lastRunKey = computed(() => (isScratch.value
+  ? runCacheKey('rule-set-scratch', props.scratchId)
+  : runCacheKey('rule-set', ruleSetIdValue.value)));
+
+/** What the cache holds for the open record, so a restore is not re-saved. */
+let heldRun: string | null = null;
+
+watch(
+  lastRunKey,
+  (key, previous) => {
+    if (key === previous) return;
+    const restored = loadLastRun<CachedRuleSetRun>(key);
+    heldRun = restored ? JSON.stringify(restored) : null;
+    executionResult.value = restored?.result ?? null;
+    executionTimestamp.value = restored?.ranAt ?? null;
+  },
+  { immediate: true },
+);
+
+watch([executionResult, executionTimestamp], ([result, ranAt]) => {
+  // A run in progress clears the panel first; that is not a run to remember.
+  if (!result) return;
+  const run: CachedRuleSetRun = { result, ranAt };
+  const serialised = JSON.stringify(run);
+  // Restoring is not running: re-writing here would move this record to the
+  // front of the eviction queue every time it was merely looked at.
+  if (serialised === heldRun) return;
+  heldRun = serialised;
+  saveLastRun(lastRunKey.value, run);
+});
 
 /**
  * Run: add everything the rules entail to the store.
