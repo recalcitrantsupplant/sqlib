@@ -30,6 +30,20 @@ vi.mock('@/composables/useActiveLibrary', () => ({
 vi.mock('@/composables/useScratchRecord', () => ({
   useScratchRecord: () => ({ isScratch: { value: true }, hydrating: { value: false }, savedAt: { value: null }, flush: vi.fn() }),
 }));
+const serverLimits = vi.hoisted(() => ({
+  value: { dataGraphVersionBytes: 1_048_576, dataGraphLibraryBytes: 16_777_216 },
+}));
+vi.mock('@/composables/useServerLimits', async () => {
+  const { ref } = await import('vue');
+  const limits = ref(serverLimits.value);
+  return {
+    useServerLimits: () => {
+      limits.value = serverLimits.value;
+      return { limits, ensureLoaded: vi.fn().mockResolvedValue(undefined) };
+    },
+  };
+});
+
 vi.mock('vue-sonner', () => ({
   toast: {
     success: vi.fn((m: string) => { toasts.success.push(String(m)); }),
@@ -76,6 +90,7 @@ beforeEach(() => {
   toasts.success.length = 0;
   store.dataGraphs = [];
   store.loadVersions.mockResolvedValue([]);
+  serverLimits.value = { dataGraphVersionBytes: 1_048_576, dataGraphLibraryBytes: 16_777_216 };
 });
 
 describe('DataGraphWorkArea — upload', () => {
@@ -115,6 +130,26 @@ describe('DataGraphWorkArea — upload', () => {
     // Not read: a 5 MB string built only to be rejected is a hung tab.
     expect((area.get('[data-testid="data-graph-content"]').element as HTMLTextAreaElement).value).toBe('');
     expect(area.get('[data-testid="data-graph-error"]').text()).toMatch(/limit is/);
+  });
+
+  /*
+   * Both caps are environment variables on the API. The panel used to state a
+   * figure of its own, so a deployment that raised the server's had a UI that
+   * both said and enforced the old one.
+   */
+  it('states the server\'s caps, and accepts a file the raised one allows', async () => {
+    serverLimits.value = { dataGraphVersionBytes: 10_485_760, dataGraphLibraryBytes: 104_857_600 };
+    const area = mountArea();
+
+    const note = area.get('[data-testid="data-graph-storage-note"]').text();
+    expect(note).toContain('10.0 MB per version');
+    expect(note).toContain('100.0 MB across the library');
+    expect(note).toMatch(/stored on the server/);
+    expect(note).toMatch(/attach it to a backend under Backends/);
+
+    await choose(area, file('big.ttl', ':a :b :c .', 5_000_000));
+    expect((area.get('[data-testid="data-graph-content"]').element as HTMLTextAreaElement).value)
+      .toContain(':a :b :c');
   });
 
   it('reports a save rejection in the editor, not only as a toast', async () => {

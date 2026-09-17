@@ -33,12 +33,17 @@
       <div class="body">
         <section class="group group-grow">
           <SectionLabel as="h3" size="md">Content</SectionLabel>
-          <InlineNote class="group-hint">
-            Reference RDF, registered in this library. It is the input rules run
-            against — the base graph. DATA blocks are part of a rule set and appear
-            in its inferred output; a data graph goes in and does not come out.
-            Parsed on save by the same engine that will run it, so a graph that
-            saves is a graph that loads.
+          <!--
+            What an author has to know before typing, rather than what a data
+            graph is: the size it may be, and where what they save ends up. The
+            conceptual half of this note moved to the section overview, which is
+            what someone opening Graphs with nothing selected now reads.
+          -->
+          <InlineNote class="group-hint" data-testid="data-graph-storage-note">
+            Up to {{ formatBytes(limits.dataGraphVersionBytes) }} per version and
+            {{ formatBytes(limits.dataGraphLibraryBytes) }} across the library. Content is
+            stored on the server, and is not loaded into any in-memory backend by saving it
+            here — to run queries against a graph, attach it to a backend under Backends.
           </InlineNote>
 
           <Toolbar variant="plain" wrap>
@@ -214,6 +219,7 @@ import { useActiveLibrary } from '@/composables/useActiveLibrary';
 import { useScratchRecord } from '@/composables/useScratchRecord';
 import { useCallableDrafts, UNASSIGNED_LIBRARY_ID } from '@/composables/useCallableDrafts';
 import type { DataGraphVersion } from '@/composables/useApiClient';
+import { useServerLimits } from '@/composables/useServerLimits';
 import type { DataGraphFormat } from '@/types/data-graphs';
 
 /*
@@ -621,14 +627,15 @@ const EXTENSION_FORMATS: Record<string, DataGraphFormat> = {
 const ACCEPTED_EXTENSIONS = Object.keys(EXTENSION_FORMATS).join(',');
 
 /**
- * Refused before reading, in bytes.
+ * Refused before reading.
  *
- * The server caps a version at 1 MB and rejects anything over it, so this is
- * the same limit stated early: reading a 500 MB file into a string to be told
- * no is a hung tab, not a validation message. Kept a little under the server's
- * so a file that passes here is not then refused for a rounding difference.
+ * The same cap the server enforces, read from it rather than restated here:
+ * both are environment variables on the API, and a copy in the SPA meant a
+ * deployment that raised the server's still had uploads refused at the old
+ * figure. Refusing early is the point — reading a 500 MB file into a string to
+ * be told no is a hung tab, not a validation message.
  */
-const MAX_UPLOAD_BYTES = 1_000_000;
+const { limits, ensureLoaded: loadServerLimits } = useServerLimits();
 
 const fileInputRef = ref<HTMLInputElement | null>(null);
 
@@ -644,8 +651,9 @@ async function onFileChosen(event: Event) {
   input.value = '';
   if (!file) return;
 
-  if (file.size > MAX_UPLOAD_BYTES) {
-    const message = `${file.name} is ${formatBytes(file.size)} — the limit is ${formatBytes(MAX_UPLOAD_BYTES)} per data graph.`;
+  if (file.size > limits.value.dataGraphVersionBytes) {
+    const message = `${file.name} is ${formatBytes(file.size)} — the limit is `
+      + `${formatBytes(limits.value.dataGraphVersionBytes)} per version.`;
     saveError.value = message;
     toast.error(message);
     return;
@@ -849,6 +857,7 @@ async function load(id: string) {
 }
 
 onMounted(() => {
+  void loadServerLimits();
   if (props.dataGraphId) void load(props.dataGraphId);
 });
 
