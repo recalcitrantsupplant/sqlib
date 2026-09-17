@@ -345,8 +345,19 @@ const onSelect = (value: unknown) => {
   box-shadow: var(--shadow-md);
 }
 
-.search-select__viewport {
-  max-height: var(--grid-8);
+/*
+ * `:deep`, because this is the one element of the menu reka renders through a
+ * primitive that drops the scope attribute Vue stamps on the rest — the plain
+ * `.search-select__viewport` rule matched nothing, and a field with forty
+ * options drew all forty, off the bottom of the window, with nothing to
+ * scroll. The options and the menu box around them do carry the attribute, so
+ * they are styled normally above.
+ *
+ * Half the window, so a long list is worth opening, and never the whole of it:
+ * a menu that reaches the bottom edge covers the screen it was opened over.
+ */
+:deep(.search-select__viewport) {
+  max-height: min(50vh, calc(var(--grid-8) * 2));
   padding: var(--space-1);
   overflow-x: hidden;
   overflow-y: auto;
