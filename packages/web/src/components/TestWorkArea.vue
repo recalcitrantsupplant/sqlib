@@ -2252,6 +2252,14 @@ watch(
     currentVersionId.value = null;
     loadedVersionId.value = null;
     savedBody.value = '';
+    /*
+     * The body too, and before the load rather than after it: this screen swaps
+     * records in place, and `loadTest` returns early for a test with no version
+     * to read — which used to leave the previous test's cases and expectation
+     * on screen under the new test's name.
+     */
+    applyEditorBody({ expectationKind: 'graph', subjectVersion: null, backend: null, cases: [] });
+    selectedCaseIndex.value = 0;
     // The verdict follows the id — the watcher on `testId` clears the
     // could-not-run flag, and the store answers for whichever test this now is.
     if (next) await loadTest(next);

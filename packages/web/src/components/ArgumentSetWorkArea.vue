@@ -917,7 +917,31 @@ onMounted(() => {
 });
 
 watch(() => props.argumentSetId, (next) => {
+  /*
+   * The screen swaps sets in place rather than being rebuilt per id, so
+   * everything the last set left behind is cleared here — including a pending
+   * autosave, which belongs to the set that was open and would otherwise write
+   * its body under the new id.
+   */
+  if (draftHandle) {
+    clearTimeout(draftHandle);
+    draftHandle = null;
+  }
   setId.value = next ?? null;
+  setName.value = '';
+  description.value = '';
+  scope.value = null;
+  targetId.value = null;
+  setLibraryId.value = null;
+  setCreatedAt.value = null;
+  versions.value = [];
+  currentVersionId.value = null;
+  loadedVersionId.value = null;
+  tupleBindings.value = [];
+  scalarBindings.value = [];
+  graphBindings.value = [];
+  saveError.value = null;
+  fits.value = [];
   if (next) void load();
 });
 </script>

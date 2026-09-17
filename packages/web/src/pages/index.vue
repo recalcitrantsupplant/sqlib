@@ -267,7 +267,7 @@
       />
       <DataGraphWorkArea
         v-else-if="dataGraphsEnabled && (selectedItemType === 'dataGraph' || scratchSection === 'dataGraph')"
-        :key="scratchSection === 'dataGraph' ? `scratch-${selectedScratchId}` : `data-graph-${selectedDataGraphId}`"
+        :key="scratchSection === 'dataGraph' ? `scratch-${selectedScratchId}` : 'data-graph'"
         :data-graph-id="scratchSection === 'dataGraph' ? null : selectedDataGraphId"
         :scratch-id="scratchSection === 'dataGraph' ? selectedScratchId : null"
         @scratch-saved="handleDataGraphSaved"
@@ -275,7 +275,7 @@
       />
       <TupleSetWorkArea
         v-else-if="tupleSetsEnabled && (selectedItemType === 'tupleSet' || scratchSection === 'tupleSet')"
-        :key="scratchSection === 'tupleSet' ? `scratch-${selectedScratchId}` : `tuple-set-${selectedTupleSetId}`"
+        :key="scratchSection === 'tupleSet' ? `scratch-${selectedScratchId}` : 'tuple-set'"
         :tuple-set-id="scratchSection === 'tupleSet' ? null : selectedTupleSetId"
         :scratch-id="scratchSection === 'tupleSet' ? selectedScratchId : null"
         @scratch-saved="handleTupleSetSaved"
@@ -283,7 +283,7 @@
       />
       <ArgumentSetWorkArea
         v-else-if="argumentSetsEnabled && (selectedItemType === 'argumentSet' || scratchSection === 'argumentSet')"
-        :key="scratchSection === 'argumentSet' ? `scratch-${selectedScratchId}` : `argument-set-${selectedArgumentSetId}`"
+        :key="scratchSection === 'argumentSet' ? `scratch-${selectedScratchId}` : 'argument-set'"
         :argument-set-id="scratchSection === 'argumentSet' ? null : selectedArgumentSetId"
         :scratch-id="scratchSection === 'argumentSet' ? selectedScratchId : null"
         @scratch-saved="handleArgumentSetSaved"
@@ -292,7 +292,7 @@
       />
       <TestWorkArea
         v-else-if="testsEnabled && (selectedItemType === 'test' || scratchSection === 'test')"
-        :key="scratchSection === 'test' ? `scratch-${selectedScratchId}` : `test-${selectedTestId}`"
+        :key="scratchSection === 'test' ? `scratch-${selectedScratchId}` : 'test'"
         :test-id="scratchSection === 'test' ? null : selectedTestId"
         :scratch-id="scratchSection === 'test' ? selectedScratchId : null"
         :run-view="testRunDetailVisible"
@@ -802,6 +802,19 @@ function handleRailSelect(section: RailSection) {
     router.push({ path: SCREEN_SECTION_PATHS[section], query: activeLibraryId.value ? { library: activeLibraryId.value } : {} });
     return;
   }
+  /*
+   * Picking a section is navigating away from whatever record is open. Without
+   * this the pane kept showing it — a query editor under a Groups sidebar
+   * reading "No groups yet" — because the pane follows the selection and the
+   * selection did not follow the rail.
+   *
+   * A link that names a record (`?scratch=`, `?test=`, …) does not come through
+   * here, so it still opens its record whatever section the URL names beside
+   * it: the record says which section it belongs to, and the rail highlight
+   * follows it.
+   */
+  clearEntitySelection();
+  selectedItemType.value = null;
   activeSection.value = activeSection.value === section ? null : section;
 }
 
@@ -1077,10 +1090,10 @@ const scratchSection = computed<DraftSection | null>(() => {
 const sectionOverview = computed(() => {
   const section = activeListSection.value;
   if (!section) return null;
-  const openSection = selectedItemType.value === 'scratch'
-    ? (scratchSection.value ? listSectionForDraftSection(scratchSection.value) : null)
-    : sectionForItemType(selectedItemType.value);
-  if (openSection === section) return null;
+  // Something is open, and the pane is for what is open — including a record
+  // from another section, which is what a `?scratch=` link across sections
+  // opens deliberately.
+  if (selectedItemType.value) return null;
 
   const definition = SECTION_DEFINITIONS[section];
   return {
