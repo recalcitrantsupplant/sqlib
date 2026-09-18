@@ -32,6 +32,7 @@ every other page assumes.
 - [explanation/storage-and-caching.md](explanation/storage-and-caching.md) — where the library actually lives, and what the in-memory cache is for.
 - [explanation/security-model.md](explanation/security-model.md) — what the auth layer enforces, what it does not, and why some doors are open.
 - [explanation/rdf-patch.md](explanation/rdf-patch.md) — how an update query's effect is derived before it is applied.
+- [explanation/inline-inputs-and-the-rail.md](explanation/inline-inputs-and-the-rail.md) — where a saved input lives, why pasting a graph into a call saves it as a graph, and what the rail shows about where things came from.
 
 ## Examples
 
