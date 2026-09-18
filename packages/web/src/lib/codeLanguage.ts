@@ -106,7 +106,31 @@ export function languageExtensionsFor(
    * issue #157.
    */
   if (type === 'application/srl' || type === 'text/srl') {
-    return [srl({ tuples: options.tuples ?? true })];
+    /*
+     * `sparqlConversions` raises no new error. The package's conformance linter
+     * runs either way — a `BIND` in a rule body is invalid SRL whatever this
+     * flag says — and what the flag changes is what the author is told about it:
+     * with it off the diagnostic reads `Syntax error.`, and with it on it names
+     * the equivalence and carries a one-click rewrite. Three spellings have one:
+     * `BIND(e AS ?v)` → `SET (?v := e)`, `FILTER NOT EXISTS { … }` → `NOT { … }`,
+     * and a `CONSTRUCT` / `INSERT` opening → `RULE` / `DATA`.
+     *
+     * Those are the three ways someone writes SPARQL into an SRL editor out of
+     * habit, so this turns the most common red squiggle in the editor from a
+     * dead end into a fix. It is safe to turn on because each rewrite is local
+     * to a span the linter has *already* marked invalid — it cannot take a
+     * document from valid to invalid.
+     *
+     * That locality is also why it settles nothing about the import and export
+     * dialogs. The same package exports whole-document `sparqlToSrl` /
+     * `srlToSparql`, and they are tempting for the same reason (no round trip),
+     * but they decide a different set from `@sparql-query-lib/srl` — in three
+     * cases they accept a query the server refuses, including a head variable
+     * the body never binds. So those stay on `/srl/from-sparql` and
+     * `/srl/compile`. The divergence is enumerated and pinned in
+     * `packages/srl/test/editorConversionParity.test.ts`.
+     */
+    return [srl({ tuples: options.tuples ?? true, sparqlConversions: true })];
   }
   /*
    * DuckDB SQL: an ETL job's source query, and the fixture a test supplies for

@@ -27,6 +27,7 @@
     "@traqula/rules-sparql-1-2": "1.3.0"
   },
   "devDependencies": {
+    "@kurrawongai/codemirror-lang-srl": "0.3.0",
     "typescript": "^7.0.2",
     "vitest": "^5.0.0"
   }

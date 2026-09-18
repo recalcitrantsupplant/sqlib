@@ -8,11 +8,15 @@
  * files, so a language was chosen in nine places and the file's own claim was
  * false.
  *
- * Two tests, and they fail for different reasons:
+ * Three tests, and they fail for different reasons:
  *
  * 1. **The mapping is pinned**, one case per family, because it had no test at
  *    all — the copies were the only thing describing it and they disagreed.
- * 2. **The grammar packages are imported here and nowhere else in `src`.** This
+ * 2. **The options the mapping passes are pinned too.** A media type chooses a
+ *    grammar *and how it is configured*, and the configuration is the half that
+ *    disappears silently: `sparqlConversions` is one word, and dropping it
+ *    leaves a working editor that has quietly stopped offering its quick fixes.
+ * 3. **The grammar packages are imported here and nowhere else in `src`.** This
  *    is the durable half: a mapping can be re-copied, and a component that
  *    imports `codemirror-lang-sparql` to say "this is SPARQL" is how the last
  *    six copies started. Asking by media type reads as a fact about the
@@ -21,6 +25,10 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { EditorView } from '@codemirror/view';
+import { EditorState, type Extension } from '@codemirror/state';
+import { forceLinting, forEachDiagnostic } from '@codemirror/lint';
+import { srl } from '@kurrawongai/codemirror-lang-srl';
 import { readdirSync, readFileSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 
@@ -104,6 +112,64 @@ describe('the media type to grammar mapping', () => {
     expect(prefixGrammarFor('application/sparql-query')).not.toBeNull();
     expect(prefixGrammarFor('application/n-triples')).toBeNull();
     expect(prefixGrammarFor('application/srl')).toBeNull();
+  });
+});
+
+/**
+ * The SRL editor's conversion quick fixes, which are off by default upstream.
+ *
+ * `srl({ sparqlConversions: true })` adds no diagnostic — the package's
+ * conformance linter flags a SPARQL `BIND` in a rule body either way — so a
+ * count of errors cannot tell the two configurations apart and this asserts the
+ * thing that actually differs: the *action* hung off the error, and the message
+ * that comes with it. With the flag off the author gets `Syntax error.` and no
+ * way forward; with it on they get the reason and a one-click rewrite to `SET`.
+ *
+ * Worth a mounted view rather than a shallower check because the flag is a
+ * single word in `codeLanguage.ts` that nothing else would miss if it were
+ * dropped in a version bump — which is exactly how it would be dropped.
+ */
+describe('SRL conversion quick fixes', () => {
+  const DOC = [
+    'PREFIX : <http://example/>',
+    'RULE { ?s :q ?x } WHERE { ?s :p ?o BIND(?o + 1 AS ?x) FILTER(BOUND(?x)) }',
+  ].join('\n');
+
+  /** Every diagnostic the extensions raise on DOC, with its action names. */
+  async function lint(extensions: Extension[]) {
+    const parent = document.createElement('div');
+    document.body.appendChild(parent);
+    const view = new EditorView({
+      state: EditorState.create({ doc: DOC, extensions }),
+      parent,
+    });
+    forceLinting(view);
+    // The lint source is async; one macrotask is enough for a parsed document.
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    const found: { message: string; actions: string[] }[] = [];
+    forEachDiagnostic(view.state, (d) => {
+      found.push({ message: d.message, actions: (d.actions ?? []).map((a) => a.name) });
+    });
+    view.destroy();
+    parent.remove();
+    return found;
+  }
+
+  it('offers the BIND → SET rewrite in an SRL editor', async () => {
+    expect(await lint(languageExtensionsFor('application/srl'))).toEqual([
+      {
+        message: 'This SPARQL BIND with FILTER(BOUND(...)) is equivalent to SRL SET.',
+        actions: ['Convert SPARQL BIND to SRL SET'],
+      },
+    ]);
+  });
+
+  it('is an opt-in the app makes, not the package default', async () => {
+    // The contrast, so this test fails if upstream flips the default rather
+    // than quietly passing for a new reason. The error is raised either way —
+    // what the option buys is the explanation and the fix.
+    expect(await lint([srl()])).toEqual([{ message: 'Syntax error.', actions: [] }]);
   });
 });
 
