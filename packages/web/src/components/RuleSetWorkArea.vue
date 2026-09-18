@@ -152,6 +152,7 @@
         :graph-edges="graphEdges"
         :analysed-at="analysedAt"
         :tuple-set-options="tupleSetOptions"
+        :tuple-declarations="tupleDeclarations"
         :data-graph-options="dataGraphOptions"
         :saved-tuple-preview="savedTuplePreview"
         :saved-data-preview="savedDataPreview"
@@ -253,6 +254,7 @@ import {
   readProloguePrefixes,
   tupleRowsToTable,
 } from '../lib/srlTupleRows';
+import { parseTupleDeclarations } from '../lib/tupleSetLabels';
 import { rdfSyntaxHighlighting } from '../lib/codemirrorHighlight';
 import type { Library, RuleSetUpdateInput } from '@sparql-query-lib/contracts';
 
@@ -396,6 +398,15 @@ const loadedVersionDocument = ref<string>('');
 const loadedVersionTupleSeeds = ref<string>('');
 
 const hasDocument = computed(() => srlDocument.value.trim().length > 0);
+
+/**
+ * The shapes this document declares, for the Inputs tab's bind-time note.
+ *
+ * Read off the text rather than off an analysis pass: the note is about what is
+ * on screen right now, and a shape typed a keystroke ago is exactly the one
+ * someone is about to bind a tuple set to.
+ */
+const tupleDeclarations = computed(() => parseTupleDeclarations(srlDocument.value));
 
 /** The document a `+ New` rule set starts from — SRL, written as SRL is. */
 const DEFAULT_SRL = `PREFIX ex: <http://example.org/>
