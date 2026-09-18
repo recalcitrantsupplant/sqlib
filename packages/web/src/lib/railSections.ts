@@ -22,6 +22,7 @@
  */
 export const RAIL_SECTIONS = [
   'library',
+  'notebooks',
   'queries',
   'queryGroups',
   'rules',
@@ -40,12 +41,13 @@ export type RailSection = (typeof RAIL_SECTIONS)[number];
 /**
  * The sections that are screens rather than tree scopes.
  *
- * `build` was the first; `library` is the second. Both render the whole library
- * at once with no per-type navigator, and both live at their own route, so
- * neither has a scoping entry in the maps below — the `Exclude` keeps that a
- * type error rather than a dead entry somebody has to invent a value for.
+ * `build` was the first; `library` is the second; `notebooks` is the third.
+ * Each renders the whole library at once with no per-type navigator, and each
+ * lives at its own route, so none has a scoping entry in the maps below — the
+ * `Exclude` keeps that a type error rather than a dead entry somebody has to
+ * invent a value for.
  */
-export const SCREEN_SECTIONS = ['library', 'build'] as const;
+export const SCREEN_SECTIONS = ['library', 'notebooks', 'build'] as const;
 
 export type ScreenSection = (typeof SCREEN_SECTIONS)[number];
 
@@ -56,6 +58,7 @@ export function isScreenSection(section: RailSection): section is ScreenSection 
 /** Where a screen section lives. Every other section is a query on `/`. */
 export const SCREEN_SECTION_PATHS: Record<ScreenSection, string> = {
   library: '/library',
+  notebooks: '/notebook',
   build: '/build',
 };
 

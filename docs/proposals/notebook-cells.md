@@ -1,7 +1,13 @@
 # Proposal: the notebook becomes a portable, server-backed story
 
-Status: proposal. Supersedes the current auto-generated library notebook
-(`packages/web/src/pages/library.vue`, `components/library-notebook/*`).
+Status: partly shipped. Steps 1–4 and 7's `.sqlibnb` half of §10 are in
+(`packages/web/src/pages/notebook.vue`, `components/notebook/*`,
+`composables/useNotebook.ts`, `lib/notebookFormat.ts`, `lib/notebookValues.ts`),
+with the user-facing half written up in [the guide](../guides/notebooks.md).
+Still open: the server-side notebook entity, `dataGraphs` on a query target,
+pass-by-reference, the materialize cell, the ipynb and HTML rewrites, and
+promote-to-query-group. The library page keeps its own screen at `/library`;
+the notebook is a second rail entry beside it rather than a replacement.
 
 ## 1. Two artefacts, two jobs
 
