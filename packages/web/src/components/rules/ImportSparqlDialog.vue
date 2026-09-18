@@ -1,6 +1,6 @@
 <template>
   <Dialog v-model:open="isOpen">
-    <DialogContent class="dialog-large">
+    <DialogContent class="import-dialog">
       <DialogHeader>
         <DialogTitle>Import from SPARQL</DialogTitle>
         <DialogDescription>
@@ -9,7 +9,7 @@
         </DialogDescription>
       </DialogHeader>
 
-      <div class="dialog-body import-body">
+      <div class="import-body">
         <div class="source-tabs" role="tablist">
           <button
             v-for="tab in SOURCE_TABS"
@@ -147,7 +147,7 @@
         </div>
       </div>
 
-      <DialogFooter class="dialog-footer">
+      <DialogFooter>
         <button type="button" class="btn-cancel" @click="close">Cancel</button>
         <button
           type="button"
@@ -414,6 +414,58 @@ function close() {
 </script>
 
 <style scoped>
+/*
+ * The dialog's own box and buttons. It used to borrow `dialog-large`,
+ * `dialog-body`, `dialog-footer`, `btn-cancel` and `btn-select` from the other
+ * dialogs, which style them in their own scoped blocks — so none of them
+ * reached here and the two buttons rendered as bare `<button>`s. See
+ * `test/components/styledClasses.test.ts`.
+ */
+.import-dialog {
+  max-width: 56rem;
+}
+
+.btn-cancel,
+.btn-select {
+  height: var(--control-h);
+  padding: 0 var(--space-5);
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: var(--text-body);
+  cursor: pointer;
+}
+
+.btn-cancel {
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--ink-secondary);
+}
+
+.btn-cancel:hover {
+  background: var(--surface-subtle);
+}
+
+.btn-select {
+  border: 1px solid var(--action);
+  background: var(--action);
+  color: var(--action-fg);
+}
+
+.btn-select:hover:not(:disabled) {
+  background: var(--action-hover);
+}
+
+.btn-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.query-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 .import-body {
   display: flex;
   flex-direction: column;

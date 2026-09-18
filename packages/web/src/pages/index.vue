@@ -1,6 +1,6 @@
 <template>
   <div class="app-layout">
-    <AppNavRail :active-section="railSelection" @select="handleRailSelect" />
+    <AppNavRail :active-section="railSelection" @select="handleRailSelect" @create-library="showAddLibraryDialog" />
 
     <!--
       Backends are account-level and have their own two facts (health and
@@ -171,6 +171,29 @@
         @delete-request="handleDeleteBackendRequest"
         @open-usage="handleRailSelect"
       />
+      <!--
+        The pane follows the rail. A record belongs to the section that lists
+        it, so opening a section used to leave the last record on screen: pick
+        Groups with a query open and the query editor stayed, under a Groups
+        sidebar reading "No groups yet". With nothing from this section open,
+        the pane says what the section holds and where to read more.
+      -->
+      <div v-else-if="sectionOverview" class="content-placeholder" data-testid="section-overview">
+        <EmptyState
+          :title="`No ${sectionOverview.noun} open`"
+          :description="sectionOverview.blurb"
+        >
+          <template #actions>
+            <a
+              class="section-docs-link"
+              :href="sectionOverview.docsUrl"
+              target="_blank"
+              rel="noreferrer"
+              data-testid="section-overview-docs"
+            >{{ sectionOverview.docsLabel }}</a>
+          </template>
+        </EmptyState>
+      </div>
       <QueryWorkArea
         v-else-if="queriesEnabled && (selectedItemType === 'query' || scratchSection === 'query')"
         :key="scratchSection === 'query' ? `scratch-${selectedScratchId}` : 'query'"
@@ -244,7 +267,7 @@
       />
       <DataGraphWorkArea
         v-else-if="dataGraphsEnabled && (selectedItemType === 'dataGraph' || scratchSection === 'dataGraph')"
-        :key="scratchSection === 'dataGraph' ? `scratch-${selectedScratchId}` : `data-graph-${selectedDataGraphId}`"
+        :key="scratchSection === 'dataGraph' ? `scratch-${selectedScratchId}` : 'data-graph'"
         :data-graph-id="scratchSection === 'dataGraph' ? null : selectedDataGraphId"
         :scratch-id="scratchSection === 'dataGraph' ? selectedScratchId : null"
         @scratch-saved="handleDataGraphSaved"
@@ -252,7 +275,7 @@
       />
       <TupleSetWorkArea
         v-else-if="tupleSetsEnabled && (selectedItemType === 'tupleSet' || scratchSection === 'tupleSet')"
-        :key="scratchSection === 'tupleSet' ? `scratch-${selectedScratchId}` : `tuple-set-${selectedTupleSetId}`"
+        :key="scratchSection === 'tupleSet' ? `scratch-${selectedScratchId}` : 'tuple-set'"
         :tuple-set-id="scratchSection === 'tupleSet' ? null : selectedTupleSetId"
         :scratch-id="scratchSection === 'tupleSet' ? selectedScratchId : null"
         @scratch-saved="handleTupleSetSaved"
@@ -260,7 +283,7 @@
       />
       <ArgumentSetWorkArea
         v-else-if="argumentSetsEnabled && (selectedItemType === 'argumentSet' || scratchSection === 'argumentSet')"
-        :key="scratchSection === 'argumentSet' ? `scratch-${selectedScratchId}` : `argument-set-${selectedArgumentSetId}`"
+        :key="scratchSection === 'argumentSet' ? `scratch-${selectedScratchId}` : 'argument-set'"
         :argument-set-id="scratchSection === 'argumentSet' ? null : selectedArgumentSetId"
         :scratch-id="scratchSection === 'argumentSet' ? selectedScratchId : null"
         @scratch-saved="handleArgumentSetSaved"
@@ -269,7 +292,7 @@
       />
       <TestWorkArea
         v-else-if="testsEnabled && (selectedItemType === 'test' || scratchSection === 'test')"
-        :key="scratchSection === 'test' ? `scratch-${selectedScratchId}` : `test-${selectedTestId}`"
+        :key="scratchSection === 'test' ? `scratch-${selectedScratchId}` : 'test'"
         :test-id="scratchSection === 'test' ? null : selectedTestId"
         :scratch-id="scratchSection === 'test' ? selectedScratchId : null"
         :run-view="testRunDetailVisible"
@@ -473,6 +496,7 @@ import BenchmarkWorkArea from '../components/BenchmarkWorkArea.vue';
 import TestWorkArea from '../components/TestWorkArea.vue';
 import RunByTagMenu, { type RunByTagOption } from '../components/tests/RunByTagMenu.vue';
 import TabStrip, { type Tab } from '../components/shared/TabStrip.vue';
+import EmptyState from '../components/shared/EmptyState.vue';
 import TestRunsPanel from '../components/tests/TestRunsPanel.vue';
 import TestRunResults from '../components/tests/TestRunResults.vue';
 import { useTestRunSummary } from '../composables/useTestRunSummary';
@@ -521,6 +545,7 @@ import {
   type ListSection,
   type SectionItemType,
 } from '../lib/sections';
+import { conceptsDocUrl } from '../lib/docs';
 import { useActiveLibrary } from '../composables/useActiveLibrary';
 import { useTagsStore } from '../composables/useTagsStore';
 import { isTaggableKind } from '../composables/useEntityTags';
@@ -777,6 +802,19 @@ function handleRailSelect(section: RailSection) {
     router.push({ path: SCREEN_SECTION_PATHS[section], query: activeLibraryId.value ? { library: activeLibraryId.value } : {} });
     return;
   }
+  /*
+   * Picking a section is navigating away from whatever record is open. Without
+   * this the pane kept showing it — a query editor under a Groups sidebar
+   * reading "No groups yet" — because the pane follows the selection and the
+   * selection did not follow the rail.
+   *
+   * A link that names a record (`?scratch=`, `?test=`, …) does not come through
+   * here, so it still opens its record whatever section the URL names beside
+   * it: the record says which section it belongs to, and the rail highlight
+   * follows it.
+   */
+  clearEntitySelection();
+  selectedItemType.value = null;
   activeSection.value = activeSection.value === section ? null : section;
 }
 
@@ -1040,6 +1078,30 @@ const scratchSection = computed<DraftSection | null>(() => {
    */
   const section = activeListSection.value;
   return section ? SECTION_DEFINITIONS[section].draftSection : null;
+});
+
+/**
+ * What the pane shows when the active section has nothing open.
+ *
+ * `null` where the pane already belongs to the section — a record of its kind
+ * is open, or an unsaved one of its kind is — and where the rail is unscoped,
+ * which is the state the app loads in.
+ */
+const sectionOverview = computed(() => {
+  const section = activeListSection.value;
+  if (!section) return null;
+  // Something is open, and the pane is for what is open — including a record
+  // from another section, which is what a `?scratch=` link across sections
+  // opens deliberately.
+  if (selectedItemType.value) return null;
+
+  const definition = SECTION_DEFINITIONS[section];
+  return {
+    noun: definition.noun,
+    blurb: definition.blurb,
+    docsUrl: conceptsDocUrl(definition.docsAnchor),
+    docsLabel: `What ${definition.nounPlural} are, in the documentation`,
+  };
 });
 
 /*
@@ -2360,6 +2422,13 @@ async function confirmDeleteLibrary() {
   min-width: 0;
   overflow-y: auto;
   background: var(--surface);
+}
+
+/* The documentation link under a section overview's sentence. */
+.section-docs-link {
+  color: var(--action);
+  font-size: var(--text-body);
+  text-decoration: underline;
 }
 
 .content-placeholder {

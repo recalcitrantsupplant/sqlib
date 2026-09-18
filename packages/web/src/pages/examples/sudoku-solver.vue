@@ -97,6 +97,7 @@
 </template>
 
 <script setup lang="ts">
+import { toast } from 'vue-sonner';
 import { ref, computed, watch } from 'vue';
 import SudokuGrid from '@/components/SudokuGrid.vue';
 import EditableRdfViewer from '@/components/EditableRdfViewer.vue';
@@ -312,7 +313,7 @@ const loadExample = () => {
 const copyToDataBlock = () => {
   // In a real implementation, this would copy to a data block in the ruleset editor
   navigator.clipboard.writeText(editableRdf.value);
-  alert('RDF copied to clipboard! Paste it into a data block in your ruleset.');
+  toast.success('RDF copied. Paste it into a data block in your rule set.');
 };
 
 const solve = async () => {
@@ -330,12 +331,16 @@ const solve = async () => {
     await new Promise(resolve => setTimeout(resolve, 1000));
 
     // TODO: Integrate with actual ruleset execution
-    alert('Sudoku solving with rulesets coming soon! This would:\n\n1. Copy current RDF to a data block\n2. Apply inference rules (row/column/box constraints)\n3. Run iteratively until solved\n4. Load result from inference graph');
+    toast.info(
+      'Solving with rule sets is not wired up yet: it would copy this RDF to a data block, '
+      + 'apply the row, column and box constraints, run to fixpoint, and read the result out '
+      + 'of the inference graph.',
+    );
 
     solved.value = true;
   } catch (error) {
     console.error('Error solving:', error);
-    alert('Error solving puzzle');
+    toast.error('Could not solve the puzzle.');
   } finally {
     solving.value = false;
   }

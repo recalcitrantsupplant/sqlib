@@ -8,8 +8,56 @@
         toggle into an ellipsis.
       -->
       <div class="clause-heading">
-        <span class="clause-title">
+        <!--
+          The signature is editable only where the clause is this screen's to
+          name. On a query it is the query text's — the panel reads the clause
+          out of the SPARQL — so renaming it here would say the query declares
+          something it does not.
+        -->
+        <form
+          v-if="renaming"
+          class="clause-rename"
+          data-testid="argument-clause-rename"
+          @submit.prevent="commitRename"
+        >
+          <span class="clause-title">VALUES</span>
+          <input
+            ref="renameInput"
+            v-model="renameDraft"
+            class="clause-rename-input"
+            aria-label="Clause variables"
+            data-testid="argument-clause-rename-input"
+            @keydown.esc="renaming = false"
+          >
+          <button type="submit" class="clause-icon" title="Rename" data-testid="argument-clause-rename-save">
+            <Check :size="13" />
+          </button>
+          <button type="button" class="clause-icon" title="Cancel" @click="renaming = false">
+            <X :size="13" />
+          </button>
+        </form>
+        <span v-else class="clause-title">
           VALUES <span class="clause-sig">{{ signature }}</span>
+          <button
+            v-if="renamable && !disabled"
+            type="button"
+            class="clause-icon"
+            title="Rename the clause's variables"
+            data-testid="argument-clause-rename-open"
+            @click="startRename"
+          >
+            <Pencil :size="13" />
+          </button>
+          <button
+            v-if="removable && !disabled"
+            type="button"
+            class="clause-icon"
+            title="Remove this table"
+            data-testid="argument-clause-remove"
+            @click="emit('remove')"
+          >
+            <Trash2 :size="13" />
+          </button>
         </span>
         <div class="clause-meta">
           <span class="clause-count">{{ rowCountLabel }}</span>
@@ -163,8 +211,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
-import { CopyPlus, Trash2, CirclePlus } from '@lucide/vue';
+import { computed, nextTick, ref, useTemplateRef } from 'vue';
+import { Check, CopyPlus, Pencil, Trash2, X, CirclePlus } from '@lucide/vue';
 import ArgumentValueField from './ArgumentValueField.vue';
 import ValuesGrid from './ValuesGrid.vue';
 import ValuesClauseView from './ValuesClauseView.vue';
@@ -205,10 +253,17 @@ const props = defineProps<{
   /** Which library's tuple sets are on offer. Defaults to the active one. */
   libraryId?: string | null;
   disabled?: boolean;
+  /** Draws the rename control. On where the clause is the caller's to name. */
+  renamable?: boolean;
+  /** Draws the remove control, for the same callers. */
+  removable?: boolean;
 }>();
 
 const emit = defineEmits<{
   'update:modelValue': [value: ArgumentTupleBinding];
+  /** Bare names, in the order typed. The caller rewrites its own rows. */
+  rename: [variables: string[]];
+  remove: [];
 }>();
 
 /**
@@ -227,6 +282,34 @@ const VIEWS = [
 type View = (typeof VIEWS)[number]['value'];
 
 const names = computed(() => props.variables.map(bareVariable));
+
+/*
+ * Renaming, where the caller owns the clause. The field takes the same
+ * space-separated list the caller's "add table" field takes, so one form of
+ * words names a clause whether it is being made or corrected.
+ */
+const renaming = ref(false);
+const renameDraft = ref('');
+const renameInput = useTemplateRef<HTMLInputElement>('renameInput');
+
+async function startRename() {
+  renameDraft.value = names.value.join(' ');
+  renaming.value = true;
+  await nextTick();
+  renameInput.value?.focus();
+  renameInput.value?.select();
+}
+
+function commitRename() {
+  const variables = renameDraft.value
+    .split(/[\s,]+/)
+    .map((part) => part.trim().replace(/^\?/, ''))
+    .filter(Boolean);
+  if (!variables.length) return;
+  renaming.value = false;
+  if (variables.join(' ') === names.value.join(' ')) return;
+  emit('rename', variables);
+}
 const view = ref<View>('rows');
 
 const rows = computed<ArgumentRow[]>(() => props.modelValue?.rows ?? []);
@@ -374,6 +457,43 @@ function setCell(rowIndex: number, name: string, value: SparqlValue) {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--ink-muted);
+}
+
+/* The controls beside the signature: rename, and remove where it is offered. */
+.clause-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+
+.clause-icon:hover {
+  background: var(--surface-raised);
+  color: var(--ink);
+}
+
+.clause-rename {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.clause-rename-input {
+  width: var(--grid-6);
+  height: var(--control-h-sm);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
 }
 
 .clause-sig {

@@ -195,6 +195,40 @@ describe('SubjectTestsPanel', () => {
     expect(store.runTests).toHaveBeenCalledWith(['t1', 't2']);
   });
 
+  /**
+   * The row acts on the list, so with no list there is nothing for it to act
+   * on: it used to draw a disabled Run all above "No tests yet".
+   */
+  it('draws the run row only when there are tests to run', async () => {
+    const empty = mountPanel();
+    await flushPromises();
+    expect(empty.find('[data-testid="subject-tests-run-all"]').exists()).toBe(false);
+    expect(empty.get('[data-testid="subject-tests-empty"]').exists()).toBe(true);
+
+    store.tests = [{ id: 't1', name: 'A', subject: RULE_SET }];
+    const listed = mountPanel();
+    await flushPromises();
+    expect(listed.get('[data-testid="subject-tests-run-all"]').attributes('disabled')).toBeUndefined();
+  });
+
+  /*
+   * The tab is reached from a rule set, a query or a group, so the sentence
+   * names which — "this rule set appears in the following tests" — rather than
+   * leaving a list of names with no stated relation to the record above it.
+   */
+  it('says how the list relates to the record it is filtered to', async () => {
+    store.tests = [{ id: 't1', name: 'A', subject: RULE_SET }];
+    const listed = mountPanel();
+    await flushPromises();
+    expect(listed.get('[data-testid="subject-tests-lead"]').text())
+      .toBe('This rule set appears in the following tests.');
+
+    store.tests = [];
+    const empty = mountPanel();
+    await flushPromises();
+    expect(empty.find('[data-testid="subject-tests-lead"]').exists()).toBe(false);
+  });
+
   it('opens a test rather than navigating on its own', async () => {
     store.tests = [{ id: 't1', name: 'A', subject: RULE_SET }];
 

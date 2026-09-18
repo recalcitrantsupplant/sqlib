@@ -5,21 +5,34 @@
     can disagree about what tests exist would be worse than no tab at all.
   -->
   <div class="subject-tests" data-testid="subject-tests">
-    <Toolbar variant="plain">
-      <template #start>
-        <button
-          class="run-all"
-          type="button"
-          data-testid="subject-tests-run-all"
-          :disabled="tests.length === 0 || runningAll"
-          @click="runAll"
-        >
-          <Play :size="12" />
-          {{ runningAll ? 'Running…' : 'Run all' }}
-        </button>
-      </template>
-      <span v-if="summary" class="summary" data-testid="subject-tests-summary">{{ summary }}</span>
-    </Toolbar>
+    <!--
+      The head says what the list is before offering to act on it, and is drawn
+      only when there is a list: over the empty state Run all was a disabled
+      control offering to run nothing, and the sentence would have contradicted
+      the panel under it. `.run-all` carries its own spec — inherited type made
+      it the largest thing on the tab, above the heading it sat over.
+    -->
+    <div v-if="tests.length" class="tests-head">
+      <InlineNote size="xs" data-testid="subject-tests-lead">
+        This {{ subjectNoun }} appears in the following tests.
+      </InlineNote>
+
+      <Toolbar variant="plain">
+        <template #start>
+          <button
+            class="run-all"
+            type="button"
+            data-testid="subject-tests-run-all"
+            :disabled="runningAll"
+            @click="runAll"
+          >
+            <Play :size="12" />
+            {{ runningAll ? 'Running…' : 'Run all' }}
+          </button>
+        </template>
+        <span v-if="summary" class="summary" data-testid="subject-tests-summary">{{ summary }}</span>
+      </Toolbar>
+    </div>
 
     <EmptyState
       v-if="tests.length === 0"
@@ -70,6 +83,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { Play } from '@lucide/vue';
 import EmptyState from '../shared/EmptyState.vue';
+import InlineNote from '../shared/InlineNote.vue';
 import StatusBadge from '../shared/StatusBadge.vue';
 import Toolbar from '../shared/Toolbar.vue';
 import { useTestsStore } from '@/composables/useTestsStore';
@@ -148,6 +162,45 @@ onMounted(() => {
 .subject-tests {
   display: flex;
   flex-direction: column;
+}
+
+/*
+ * The head shares the list's gutter, so the sentence, the button under it and
+ * the rows below all start on the same line. `Toolbar` in its `plain` variant
+ * brings no padding of its own, which is why the gutter is stated here.
+ */
+.tests-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5) var(--space-2);
+}
+
+/* The same object as a row's Run button, with the icon inline beside its label. */
+.run-all {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--control-h-sm);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink-secondary);
+  font-family: inherit;
+  font-size: var(--text-label);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.run-all:hover:not(:disabled) {
+  background: var(--surface-raised);
+  color: var(--ink);
+}
+
+.run-all:disabled {
+  cursor: default;
+  opacity: 0.6;
 }
 
 .summary {

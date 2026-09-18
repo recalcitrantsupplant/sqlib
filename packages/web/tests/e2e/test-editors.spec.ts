@@ -164,6 +164,42 @@ test.describe('Tests screen editors', () => {
   });
 
   /*
+   * The menu's own height, which is a scoped-styling trap: reka renders the
+   * viewport through a primitive that drops the scope attribute Vue stamps on
+   * the rest of the component, so the `max-height` rule matched nothing and a
+   * library with forty rule sets or data graphs drew all forty, off the bottom
+   * of the window, with nothing to scroll. It cannot be caught by reading the
+   * stylesheet — only by asking the browser what the element ended up with.
+   */
+  test('caps the menu at half the window and scrolls the rest', async ({ page }) => {
+    // A short window, so the twelve rule sets in the fixture are more than the
+    // cap allows and the rows that do not fit have to be reachable.
+    await page.setViewportSize({ width: 1280, height: 480 });
+    await mockTestsScreen(page, { tuplesEnabled: false });
+    await page.goto('/?section=tests&new=test');
+
+    await page.getByTestId('test-subject').click();
+    await expect(page.getByTestId('test-subject-option').first()).toBeVisible();
+
+    const menu = await page.evaluate(() => {
+      const viewport = document.querySelector('.search-select__viewport') as HTMLElement;
+      const style = getComputedStyle(viewport);
+      return {
+        height: viewport.getBoundingClientRect().height,
+        maxHeight: style.maxHeight,
+        overflowY: style.overflowY,
+        scrollable: viewport.scrollHeight > viewport.clientHeight,
+        windowHeight: window.innerHeight,
+      };
+    });
+
+    expect(menu.maxHeight).not.toBe('none');
+    expect(menu.height).toBeLessThanOrEqual(menu.windowHeight / 2 + 1);
+    expect(menu.overflowY).toBe('auto');
+    expect(menu.scrollable).toBe(true);
+  });
+
+  /*
    * reka's listbox filter binds Home and End on the input and calls
    * preventDefault, so the ordinary way to wipe a filter — select to the start,
    * type over it — did nothing in a chooser.
