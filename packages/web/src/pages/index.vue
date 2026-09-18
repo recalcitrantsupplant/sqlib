@@ -206,6 +206,7 @@
         @query-created="handleQueryCreated"
         @query-load-failed="handleQueryLoadFailed"
         @scratch-saved="handleScratchSaved"
+        @argument-set-saved="handleArgumentSetSavedElsewhere"
         @query-deleted="handleQueryDeleted"
         @update:version-number="handleQueryVersionUpdate"
         @open-entity="openCreatedEntity"
@@ -219,6 +220,7 @@
         :version-number="queryGroupVersionNumber"
         @creation-consumed="queryGroupCreationRequest = null"
         @scratch-saved="handleQueryGroupScratchSaved"
+        @argument-set-saved="handleArgumentSetSavedElsewhere"
         @update:version-number="handleQueryGroupVersionUpdate"
         @query-group-deleted="handleQueryGroupDeleted"
         @query-group-cloned="handleQueryGroupCloned"
@@ -1483,6 +1485,21 @@ function handleTupleSetDeleted() {
 
 async function handleArgumentSetSaved(payload: { id: string }) {
   await handleSaved('argumentSet', payload.id);
+}
+
+/**
+ * An argument set saved from a callable's screen: refresh the rail, stay put.
+ *
+ * `handleArgumentSetSaved` above also *selects* the set, which is right when
+ * the save happened in the Argument sets section — you saved the thing you are
+ * looking at. Here you saved a set while working on a query, and navigating to
+ * it would take the query off the screen. What was missing was only the list
+ * refresh: saved sets used to appear on switching to the section, because that
+ * triggers a load, so this was "stale until you navigate" rather than "lost".
+ */
+async function handleArgumentSetSavedElsewhere() {
+  await loadKind('argumentSet');
+  sidebarRefreshKey.value += 1;
 }
 
 function handleArgumentSetDeleted() {

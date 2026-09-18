@@ -161,6 +161,11 @@ function normalize(draft: CallableDraft): CallableDraft {
  * one `getItem` per session thereafter. A record that does not convert is
  * dropped rather than throwing: losing one stale draft is better than a
  * sidebar that will not render.
+ *
+ * Nothing writes the old key any more — `useArgumentSetDrafts` is a view over
+ * this store rather than a second one — so this now runs at most once per
+ * browser instead of being undone after every load. Kept for one release, for
+ * the browsers that still hold a record under it.
  */
 const LEGACY_ARGUMENT_SET_KEY = 'sparql-query-lib-argument-set-drafts';
 
@@ -192,7 +197,10 @@ function migrateLegacyArgumentSetDrafts(): CallableDraft[] {
             basedOnVersion: typeof legacy.basedOnVersion === 'number' ? legacy.basedOnVersion : null,
             tupleBindings: Array.isArray(legacy.tupleBindings) ? legacy.tupleBindings : [],
             scalarBindings: Array.isArray(legacy.scalarBindings) ? legacy.scalarBindings : [],
-            graphBindings: [],
+            // Carried, not dropped. A group's set is mostly graphs, and hard-coding
+            // this to `[]` meant the migration read as a set that had lost its
+            // inputs rather than as a set that had moved key.
+            graphBindings: Array.isArray(legacy.graphBindings) ? legacy.graphBindings : [],
           },
           resultKind: 'BINDINGS',
           inputTuples: [],

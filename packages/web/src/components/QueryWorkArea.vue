@@ -520,6 +520,13 @@ const emit = defineEmits<{
   (e: 'update:versionNumber', version: number | null): void;
   (e: 'query-load-failed'): void;
   (e: 'scratch-saved', payload: { id: string; name: string; libraryId: string }): void;
+  /**
+   * An argument set was saved from this screen — a different event from
+   * `scratch-saved`, which is about the query. The Argument sets rail lists
+   * saved sets from the server, so without this a set saved here was stale
+   * there until something else triggered a load.
+   */
+  (e: 'argument-set-saved', payload: { id: string }): void;
   (e: 'query-deleted', id: string): void;
   /**
    * A test or a benchmark was created from the run sentence, or an existing
@@ -583,7 +590,12 @@ const activeResultsTab = ref<QueryInspectorTab>('details');
 const queryResultsPanelRef = ref<InstanceType<typeof QueryResultsPanel> | null>(null);
 // The library is passed so the switcher can offer sets made elsewhere in it,
 // with their fit against this query. See `useArgumentSets.loadArgumentSets`.
-const argumentSetsComposable = useArgumentSets(queryId, 'query', () => queryLibraryId.value || activeLibraryId.value);
+const argumentSetsComposable = useArgumentSets(
+  queryId,
+  'query',
+  () => queryLibraryId.value || activeLibraryId.value,
+  { onSaved: (id) => emit('argument-set-saved', { id }) },
+);
 
 // Loading state
 const queryLoading = ref(false);
