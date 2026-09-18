@@ -508,7 +508,8 @@ import {
 import QueryResultsViewer from './QueryResultsViewer.vue';
 import { toast } from 'vue-sonner';
 import { usePanelResize } from '../composables/usePanelResize';
-import { authoredNodeLabel, buildCanvasNodeData, LEFT_TO_RIGHT_HANDLES, useQueryGroupGraphState } from '../composables/useQueryGroupGraphState';
+import { buildCanvasNodeData, LEFT_TO_RIGHT_HANDLES, useQueryGroupGraphState } from '../composables/useQueryGroupGraphState';
+import { authoredNodeLabel } from '../composables/queryGroupNodeLabel';
 import { useQueryGroupIO } from '../composables/useQueryGroupIO';
 import { useQueryGroupExecution } from '../composables/useQueryGroupExecution';
 import { useQueryGroupVersions } from '../composables/useQueryGroupVersions';
