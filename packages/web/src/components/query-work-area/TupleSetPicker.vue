@@ -78,19 +78,95 @@
             >
               <Link2 :size="12" /> {{ attached(candidate) ? 'Linked' : 'Attach' }}
             </button>
+            <!--
+              Never disabled by the verdict beside it, which is judged on labels:
+              the conversion is where the labels become variable names, so a set
+              that reads `mismatch` here is exactly the one the dialog is for.
+              The confirm button is what the result's verdict governs.
+            -->
             <button
               type="button"
               class="picker-action"
-              :disabled="candidate.fit.verdict === 'mismatch'"
               title="Copy the rows in as they are now — nothing tracks the set afterwards"
               data-testid="tuple-set-picker-copy"
-              @click="choose(candidate)"
+              @click="startConversion(candidate)"
             >
-              <Copy :size="12" /> Copy rows
+              <Copy :size="12" /> Copy rows…
             </button>
           </div>
         </li>
       </ul>
+
+      <!--
+        The conversion, asked rather than assumed. A tuple set's columns are
+        labels and the query side matches by name, so the pre-fill below is a
+        guess: every column says which variable it fills, the guess is marked
+        unverified until it is touched, and the verdict is computed from the
+        answers rather than from the labels.
+      -->
+      <section v-if="converting" class="conversion" data-testid="tuple-set-conversion">
+        <header class="conversion-header">
+          <span class="conversion-title">Copy from {{ converting.set.name }}</span>
+          <span
+            class="conversion-verdict"
+            :class="{ 'conversion-verdict--mismatch': conversionFit.verdict === 'mismatch' }"
+          >
+            {{ conversionFit.verdict }}<template v-if="conversionFit.reason"> · {{ conversionFit.reason }}</template>
+          </span>
+        </header>
+
+        <InlineNote size="xs">
+          Column names on a tuple set are labels. Say which variable each one fills — this is pre-filled
+          from the labels, which is a guess.
+        </InlineNote>
+
+        <label class="conversion-strip">
+          <input
+            type="checkbox"
+            data-testid="tuple-set-conversion-strip"
+            :checked="stripLeading"
+            @change="toggleStripLeading(($event.target as HTMLInputElement).checked)"
+          />
+          Strip the leading fixed column
+        </label>
+
+        <ul class="conversion-columns">
+          <li v-for="(column, index) in mapping" :key="`${column.label}-${index}`" class="conversion-column">
+            <span class="conversion-label">{{ column.label || '(unnamed)' }}</span>
+            <template v-if="column.stripped">
+              <span class="conversion-stripped">dropped</span>
+            </template>
+            <template v-else>
+              <input
+                class="conversion-input"
+                :class="{ 'conversion-input--unverified': column.unverified }"
+                type="text"
+                :value="column.variable"
+                :placeholder="`?${column.label}`"
+                :data-testid="`tuple-set-conversion-variable-${index}`"
+                @input="setVariable(index, ($event.target as HTMLInputElement).value)"
+              />
+              <span v-if="column.unverified" class="conversion-unverified" title="Pre-filled from the label">?</span>
+            </template>
+          </li>
+        </ul>
+
+        <div class="conversion-actions">
+          <button
+            type="button"
+            class="picker-action picker-action--primary"
+            data-testid="tuple-set-conversion-confirm"
+            :disabled="conversionFit.verdict === 'mismatch'"
+            @click="confirmConversion"
+          >Copy rows</button>
+          <button
+            type="button"
+            class="picker-action"
+            data-testid="tuple-set-conversion-cancel"
+            @click="cancelConversion"
+          >Cancel</button>
+        </div>
+      </section>
 
       <!--
         Append rather than replace is the default, because unioning rows for one
@@ -139,7 +215,14 @@ import { bareVariable, tupleSetFit, type Compatibility } from '@/lib/argumentSig
 import { fuzzyFilter } from '@/lib/fuzzy';
 import FilterBox from '@/components/shared/FilterBox.vue';
 import { readTupleDocument } from '@/types/tuple-sets';
-import type { ArgumentRow, SparqlBinding, SparqlValue, TupleSetReference } from '@/types/argument-sets';
+import type { ArgumentRow, TupleSetReference } from '@/types/argument-sets';
+import {
+  defaultMapping,
+  mappedVariables,
+  projectOnto,
+  toArgumentRows,
+  type ColumnMapping,
+} from '@/lib/tupleTableConversion';
 import type { TupleSetVersion } from '@/composables/useApiClient';
 import type { TupleSet } from '@sparql-query-lib/contracts';
 
@@ -233,30 +316,59 @@ function rank(fit: Compatibility): number {
   return fit.verdict === 'fits' ? 0 : fit.verdict === 'partial' ? 1 : 2;
 }
 
-/**
- * Take a stored row down to the clause's variables.
+/*
+ * Copying is a conversion, and a conversion asks one question.
  *
- * Columns the clause does not declare are dropped — they have nothing to bind
- * to. A variable the tuple set does not carry becomes a blank cell, which is
- * how this editor spells UNDEF, so a partial match leaves that variable
- * unconstrained rather than binding the empty literal.
+ * The query side matches by name, and a tuple set's columns are *labels* — so
+ * which variable a column fills is a guess until someone says otherwise. The
+ * pre-fill comes from the labels and is marked unverified; the person confirms
+ * it. Second question, easy to forget: a rule-set table may lead with a ground
+ * term (`TUPLE(:seed, ?x, ?y)`), which fills no variable at all.
  */
-function toArgumentRow(binding: SparqlBinding): ArgumentRow {
-  const values: SparqlBinding = {};
-  for (const name of names.value) {
-    const term = binding[name] as SparqlValue | undefined;
-    values[name] = term ? { ...term } : { type: 'uri', value: '' };
-  }
-  return { values };
+const converting = ref<Candidate | null>(null);
+const mapping = ref<ColumnMapping[]>([]);
+const stripLeading = ref(false);
+
+/** The verdict against this clause, judged on the mapping rather than on labels. */
+const conversionFit = computed(() => tupleSetFit(names.value, mappedVariables(mapping.value)));
+
+function startConversion(candidate: Candidate) {
+  converting.value = candidate;
+  stripLeading.value = false;
+  mapping.value = defaultMapping(candidate.columns);
 }
 
-function choose(candidate: Candidate) {
+function toggleStripLeading(value: boolean) {
+  stripLeading.value = value;
+  const candidate = converting.value;
+  if (candidate) mapping.value = defaultMapping(candidate.columns, value);
+}
+
+/** Editing a column answers the question this dialog is asking. */
+function setVariable(index: number, value: string) {
+  const column = mapping.value[index];
+  if (!column) return;
+  mapping.value = mapping.value.map((entry, position) =>
+    position === index ? { ...entry, variable: value, unverified: false } : entry);
+}
+
+function cancelConversion() {
+  converting.value = null;
+  mapping.value = [];
+}
+
+function confirmConversion() {
+  const candidate = converting.value;
+  if (!candidate) return;
   const { rows } = readTupleDocument(candidate.version.contentString);
   emit('load', {
-    rows: rows.map(toArgumentRow),
+    // Mapped, then narrowed to the clause: a column the clause does not declare
+    // has nothing to bind to, and a variable the set does not carry is UNDEF.
+    rows: projectOnto(toArgumentRows(rows, mapping.value), names.value),
     replace: replace.value,
     setName: candidate.set.name,
   });
+  cancelConversion();
   open.value = false;
 }
 
@@ -327,6 +439,92 @@ function attach(candidate: Candidate) {
   align-items: center;
   justify-content: space-between;
   margin-bottom: var(--space-3);
+}
+
+.conversion {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.conversion-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.conversion-title {
+  font-size: var(--text-label);
+  color: var(--ink);
+}
+
+.conversion-verdict {
+  font-size: var(--text-micro);
+  color: var(--ink-muted);
+}
+
+.conversion-verdict--mismatch {
+  color: var(--danger-ink);
+}
+
+.conversion-strip,
+.conversion-column {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-label);
+  color: var(--ink-muted);
+}
+
+.conversion-strip {
+  margin: var(--space-2) 0;
+}
+
+.conversion-columns {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.conversion-label {
+  flex: 0 0 10ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conversion-input {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: var(--text-label);
+}
+
+/* The guess, marked as one until it is touched. */
+.conversion-input--unverified {
+  border-style: dashed;
+}
+
+.conversion-unverified,
+.conversion-stripped {
+  font-size: var(--text-micro);
+  color: var(--ink-muted);
+}
+
+.conversion-actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
 }
 
 .picker-title {

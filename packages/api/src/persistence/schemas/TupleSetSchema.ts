@@ -41,6 +41,21 @@ export const TupleSetSchema = {
     '@type': ldkit.IRI,
     '@references': { types: ['Library'], exactlyOne: 'Library' },
   },
+  /**
+   * The argument set this table was copied from, when it was made by
+   * converting one rather than composed here.
+   *
+   * A conversion is a copy, taken once — the two entities go their own ways
+   * afterwards, which is the whole reason a conversion is safe where a
+   * save-time side effect was not. This is recorded so "used by" can be
+   * answered loosely, and is deliberately not a pin: nothing follows it.
+   */
+  copiedFrom: {
+    '@id': sqlib.copiedFrom,
+    '@type': ldkit.IRI,
+    '@optional': true,
+    '@references': { types: ['ArgumentSet'] },
+  },
   tags: {
     '@id': sqlib.hasTag,
     '@array': true,
@@ -67,6 +82,8 @@ export interface LdkitTupleSet {
   description?: string | null;
   currentVersion?: string | null;
   isPartOf: string[];
+  /** The argument set this table was copied from; absent on one composed here. */
+  copiedFrom?: string | null;
   tags?: string[] | null;
   dateCreated?: string | null;
   dateModified?: string | null;

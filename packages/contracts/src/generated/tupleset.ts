@@ -23,6 +23,7 @@ const tupleSetShape = {
   currentVersion: optionalIriString,
   currentVersionNumber: nullableInteger,
   isPartOf: iriArray.min(1, 'isPartOf must contain at least one library'),
+  copiedFrom: optionalIriString,
   tags: optionalIriArray,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
