@@ -567,6 +567,12 @@ const emit = defineEmits<{
   'query-group-moved': [groupId: string, libraryId: string];
   /** A scratch group became a real one; the shell reselects it as saved. */
   'scratch-saved': [payload: { id: string; name: string; libraryId: string }];
+  /**
+   * An argument set was saved from this screen. Separate from `scratch-saved`,
+   * which is about the group: the Argument sets rail lists saved sets from the
+   * server and has no other way to hear that one has arrived.
+   */
+  'argument-set-saved': [payload: { id: string }];
   /** A test or a benchmark was created from the run sentence; open it. */
   'open-entity': [payload: { type: 'test' | 'benchmark'; id: string }];
 }>();
@@ -760,6 +766,7 @@ const argumentSetsState = useArgumentSets(
   queryGroupId,
   'queryGroup',
   () => queryGroupLibraryId.value || activeLibraryId.value,
+  { onSaved: (id) => emit('argument-set-saved', { id }) },
 );
 
 const config = useRuntimeConfig();

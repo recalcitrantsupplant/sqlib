@@ -17,7 +17,8 @@
  * | saved set    | the local draft if there is | Draft (if any) + vN…v1  |
  * |                  | one, else the chosen version |                        |
  *
- * Values live in `useArgumentSetDrafts` while unsaved and on the server
+ * Values live in `useArgumentSetDrafts` — a view over the one browser-local
+ * draft store, keyed by section — while unsaved and on the server
  * once saved; this composable is the seam, and it is the only place that
  * knows which of the two the panel is currently reading.
  */
@@ -70,6 +71,16 @@ export function useArgumentSets(
    * this always returned.
    */
   libraryId?: () => string | null,
+  /**
+   * Told when a save lands, with the set's id.
+   *
+   * The rail is a sibling of whatever screen this is mounted on, and it lists
+   * saved sets from the server, so nothing about a save reaches it on its own:
+   * the list is refreshed when the section is opened, which made a set saved
+   * from a query screen "stale until you navigate". The screen owns the
+   * connection to the rail, so the screen is told and forwards it.
+   */
+  options?: { onSaved?: (setId: string) => void },
 ) {
   const apiClient = useApiClient()
   const local = useArgumentSetDrafts()
@@ -491,6 +502,7 @@ export function useArgumentSets(
         local.remove(selection.value.id)
         await loadArgumentSets()
         await selectSet(created.data.id)
+        options?.onSaved?.(created.data.id)
         return true
       }
 
@@ -506,6 +518,7 @@ export function useArgumentSets(
       if (draft) local.remove(draft.id)
       await loadArgumentSets()
       await selectSet(setId)
+      options?.onSaved?.(setId)
       return true
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to save argument set'
