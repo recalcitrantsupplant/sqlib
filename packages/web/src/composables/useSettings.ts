@@ -13,7 +13,16 @@ export type EntityListDensity = 'compact' | 'comfortable';
  * other's colour (tags mockup 1a). Kept in settings rather than per section so
  * that switching sections does not silently switch the view back.
  */
-export type EntityListGrouping = 'none' | 'tag';
+/**
+ * How the Saved cluster is split.
+ *
+ * `origin` is available only where a section's rows carry one (Graphs, Argument
+ * sets). It is a weak organiser on purpose: a set made on one query is
+ * legitimately what another wants, and a graph minted from a group is an
+ * ordinary graph the moment it exists — so origin is how you *find* things and
+ * tags are how you *mean* things.
+ */
+export type EntityListGrouping = 'none' | 'tag' | 'origin';
 
 interface Settings {
   hofstadterMode: boolean;
@@ -21,7 +30,7 @@ interface Settings {
   theme: ThemePreference;
   /** Row height in the section sidebars: 26px names, or name plus description. */
   entityListDensity: EntityListDensity;
-  /** Whether the Saved cluster is grouped by tag. */
+  /** Whether the Saved cluster is grouped, and by what. */
   entityListGrouping: EntityListGrouping;
 }
 

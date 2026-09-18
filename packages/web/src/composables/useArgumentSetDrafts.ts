@@ -12,16 +12,33 @@
  *   Saving it creates a new version, because a saved version is
  *   immutable and "save" and "create a version" are the same operation.
  *
- * Separate from `useCallableDrafts` on purpose. The callable store's records
- * carry a query body, a section and a result kind — none of which an argument
- * set has — and its sidebar reads every record in it as something that appears
- * in the Scratch cluster, which an argument set must not. One store with a
- * discriminator would put arguments in the nav rail.
+ * **One browser-local draft store, keyed by section.** This module used to own
+ * a second store under its own key, kept separate so that argument sets would
+ * stay out of the nav rail. That reason was retired the day an argument set
+ * became a rail entity, and the split outlived it: the rail read scratch
+ * through `useCallableDrafts`, the query screen wrote here, and a set made on a
+ * query never reached the rail in that session — it appeared after a reload,
+ * because the legacy-key migration runs at module load, which made a missing
+ * write read as a caching glitch. Worse, editing such a set after the first
+ * reload wrote back to the legacy key, whose record the next migration skipped
+ * as a duplicate id before deleting the key: those edits were gone.
+ *
+ * So this is no longer a store. It is a *view* over `useCallableDrafts`'s
+ * `argumentSet` section — one store, one module-level ref, one key — that keeps
+ * speaking in argument-set terms so the panel does not have to unpack a
+ * callable record to read a binding.
  */
-import { computed, ref, type Ref } from 'vue';
+import { computed } from 'vue';
 import type { ArgumentGraphBinding, ArgumentScalarBinding, ArgumentTupleBinding } from '../types/argument-sets';
+import {
+  useCallableDrafts,
+  UNASSIGNED_LIBRARY_ID,
+  CALLABLE_DRAFTS_STORAGE_KEY,
+  type CallableDraft,
+} from './useCallableDrafts';
 
-const STORAGE_KEY = 'sparql-query-lib-argument-set-drafts';
+/** The section every record written here belongs to. */
+const SECTION = 'argumentSet' as const;
 
 /** Marks a set with no server id, matching the callable store's convention. */
 export const SCRATCH_ID_PREFIX = 'urn:ui-temp:argument-set:';
@@ -59,52 +76,46 @@ export type ArgumentSetDraftInput =
   Omit<ArgumentSetDraft, 'edits' | 'createdAt' | 'updatedAt' | 'description' | 'basedOn' | 'basedOnVersion'>
   & Partial<Pick<ArgumentSetDraft, 'edits' | 'createdAt' | 'updatedAt' | 'description' | 'basedOn' | 'basedOnVersion'>>;
 
-function isRecord(value: unknown): value is ArgumentSetDraft {
-  if (typeof value !== 'object' || value === null) return false;
-  const draft = value as Partial<ArgumentSetDraft>;
-  return typeof draft.id === 'string'
-    && typeof draft.targetId === 'string'
-    && (draft.kind === 'scratch' || draft.kind === 'draft');
+/** The argument-set half of a callable record, as `save` writes it. */
+interface ArgumentSetBody {
+  scope: ArgumentSetScope | null;
+  targetId: string | null;
+  basedOnVersion: number | null;
+  tupleBindings: ArgumentTupleBinding[];
+  scalarBindings: ArgumentScalarBinding[];
+  graphBindings: ArgumentGraphBinding[];
 }
 
-function normalize(draft: ArgumentSetDraft): ArgumentSetDraft {
-  const updatedAt = typeof draft.updatedAt === 'string' ? draft.updatedAt : new Date().toISOString();
+function asArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? (value as T[]) : [];
+}
+
+/**
+ * Read a callable record as an argument set.
+ *
+ * Total by construction: a record hand-edited in storage, or written by a
+ * release that did not yet carry one of these fields, reads back as an empty
+ * binding list rather than throwing and taking the panel down with it.
+ */
+function toArgumentSetDraft(record: CallableDraft): ArgumentSetDraft {
+  const body = (typeof record.body === 'object' && record.body !== null ? record.body : {}) as Partial<ArgumentSetBody>;
   return {
-    ...draft,
-    scope: draft.scope === 'queryGroup' ? 'queryGroup' : 'query',
-    name: typeof draft.name === 'string' ? draft.name : '',
-    description: typeof draft.description === 'string' ? draft.description : null,
-    basedOn: typeof draft.basedOn === 'string' ? draft.basedOn : null,
-    basedOnVersion: typeof draft.basedOnVersion === 'number' ? draft.basedOnVersion : null,
-    tupleBindings: Array.isArray(draft.tupleBindings) ? draft.tupleBindings : [],
-    scalarBindings: Array.isArray(draft.scalarBindings) ? draft.scalarBindings : [],
-    graphBindings: Array.isArray(draft.graphBindings) ? draft.graphBindings : [],
-    edits: typeof draft.edits === 'number' ? draft.edits : 0,
-    createdAt: typeof draft.createdAt === 'string' ? draft.createdAt : updatedAt,
-    updatedAt,
+    id: record.id,
+    kind: record.kind === 'draft' ? 'draft' : 'scratch',
+    scope: body.scope === 'queryGroup' ? 'queryGroup' : 'query',
+    targetId: typeof body.targetId === 'string' ? body.targetId : '',
+    name: record.name,
+    description: typeof record.description === 'string' ? record.description : null,
+    basedOn: typeof record.basedOn === 'string' ? record.basedOn : null,
+    basedOnVersion: typeof body.basedOnVersion === 'number' ? body.basedOnVersion : null,
+    tupleBindings: asArray<ArgumentTupleBinding>(body.tupleBindings),
+    scalarBindings: asArray<ArgumentScalarBinding>(body.scalarBindings),
+    graphBindings: asArray<ArgumentGraphBinding>(body.graphBindings),
+    edits: typeof record.edits === 'number' ? record.edits : 0,
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt,
   };
 }
-
-function read(): ArgumentSetDraft[] {
-  if (typeof localStorage === 'undefined') return [];
-  try {
-    const parsed: unknown = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]');
-    if (!Array.isArray(parsed)) return [];
-    // Drop what does not parse rather than throwing: one hand-edited entry
-    // must not take the arguments tab down with it.
-    return parsed.filter(isRecord).map(normalize);
-  } catch {
-    return [];
-  }
-}
-
-function write(drafts: ArgumentSetDraft[]) {
-  if (typeof localStorage === 'undefined') return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(drafts));
-}
-
-/** Module-level so every panel on screen sees the same list. */
-const drafts: Ref<ArgumentSetDraft[]> = ref(read());
 
 let sequence = 0;
 
@@ -116,27 +127,30 @@ export function newScratchId(): string {
 }
 
 export function useArgumentSetDrafts() {
+  const store = useCallableDrafts();
+
+  /** Every argument-set record in the shared store, newest write last. */
+  const records = computed(() => store.allDrafts.value.filter((draft) => draft.section === SECTION));
+
   /** Scratch sets made against one target, newest first. */
   function scratchFor(targetId: string | null): ArgumentSetDraft[] {
     if (!targetId) return [];
-    return drafts.value
-      .map((draft, index) => ({ draft, index }))
-      .filter(({ draft }) => draft.kind === 'scratch' && draft.targetId === targetId)
-      // Two writes in the same millisecond share `updatedAt`; `save` appends,
-      // so a later index is the later write and breaks the tie stably.
-      .sort((a, b) => b.draft.updatedAt.localeCompare(a.draft.updatedAt) || b.index - a.index)
-      .map(({ draft }) => draft);
+    return store.scratchFor(SECTION)
+      .map(toArgumentSetDraft)
+      .filter((draft) => draft.targetId === targetId);
   }
 
   /** The open draft on a saved set, if this browser holds one. */
   function draftFor(setId: string | null): ArgumentSetDraft | null {
     if (!setId) return null;
-    return drafts.value.find((draft) => draft.kind === 'draft' && draft.basedOn === setId) ?? null;
+    const found = records.value.find((draft) => draft.kind === 'draft' && draft.basedOn === setId);
+    return found ? toArgumentSetDraft(found) : null;
   }
 
   function get(id: string | null): ArgumentSetDraft | null {
     if (!id) return null;
-    return drafts.value.find((draft) => draft.id === id) ?? null;
+    const found = records.value.find((draft) => draft.id === id);
+    return found ? toArgumentSetDraft(found) : null;
   }
 
   /**
@@ -144,53 +158,66 @@ export function useArgumentSetDrafts() {
    *
    * The bump is here rather than at the call site because the edit count is
    * what the header pill reads, and a caller that forgets to increment it
-   * saves a set that claims it was never touched.
+   * saves a set that claims it was never touched. The shared store takes the
+   * number as given, so this is the one place that knows how it grows.
    */
   function save(input: ArgumentSetDraftInput): ArgumentSetDraft {
     const now = new Date().toISOString();
-    const previous = drafts.value.find((existing) => existing.id === input.id) ?? null;
-    const record = normalize({
-      ...input,
-      description: input.description ?? previous?.description ?? null,
-      basedOn: input.basedOn ?? previous?.basedOn ?? null,
+    const previous = get(input.id);
+    const body: ArgumentSetBody = {
+      scope: input.scope === 'queryGroup' ? 'queryGroup' : 'query',
+      targetId: input.targetId,
       basedOnVersion: input.basedOnVersion ?? previous?.basedOnVersion ?? null,
+      tupleBindings: asArray<ArgumentTupleBinding>(input.tupleBindings),
+      scalarBindings: asArray<ArgumentScalarBinding>(input.scalarBindings),
+      graphBindings: asArray<ArgumentGraphBinding>(input.graphBindings),
+    };
+    store.save({
+      id: input.id,
+      libraryId: UNASSIGNED_LIBRARY_ID,
+      type: input.scope === 'queryGroup' ? 'group' : 'query',
+      kind: input.kind,
+      section: SECTION,
+      name: typeof input.name === 'string' ? input.name : '',
+      description: input.description ?? previous?.description ?? null,
+      queryString: null,
+      body,
+      resultKind: 'BINDINGS',
+      inputTuples: [],
+      limitParameters: [],
+      offsetParameters: [],
+      outputs: [],
+      basedOn: input.basedOn ?? previous?.basedOn ?? null,
       edits: input.edits ?? (previous ? previous.edits + 1 : 0),
       createdAt: input.createdAt ?? previous?.createdAt ?? now,
       updatedAt: input.updatedAt ?? now,
-    } as ArgumentSetDraft);
-
-    const next = drafts.value.filter((existing) => existing.id !== input.id);
-    next.push(record);
-    drafts.value = next;
-    write(next);
-    return record;
+    });
+    return get(input.id)!;
   }
 
   function remove(id: string) {
-    const next = drafts.value.filter((draft) => draft.id !== id);
-    drafts.value = next;
-    write(next);
+    store.remove(id);
   }
 
   /** Throw away every local record for a target — after its set is deleted. */
   function removeForTarget(targetId: string) {
-    const next = drafts.value.filter((draft) => draft.targetId !== targetId);
-    drafts.value = next;
-    write(next);
+    for (const draft of records.value) {
+      if (toArgumentSetDraft(draft).targetId === targetId) store.remove(draft.id);
+    }
   }
 
   /** Reload from storage — for a spec that seeds records before the app mounts. */
   function reload() {
-    drafts.value = read();
+    store.reload();
   }
 
+  /** Drop the argument-set records only; the shared store holds other sections. */
   function clear() {
-    drafts.value = [];
-    write([]);
+    for (const draft of [...records.value]) store.remove(draft.id);
   }
 
   return {
-    all: computed(() => drafts.value),
+    all: computed(() => records.value.map(toArgumentSetDraft)),
     scratchFor,
     draftFor,
     get,
@@ -202,4 +229,11 @@ export function useArgumentSetDrafts() {
   };
 }
 
-export const ARGUMENT_SET_DRAFTS_STORAGE_KEY = STORAGE_KEY;
+/**
+ * The key these records actually live under, which is the callable store's.
+ *
+ * Kept as an export because callers (and specs) reach for "where do argument
+ * set drafts live" by this name; it resolves to one key now, which is the whole
+ * point of the collapse above.
+ */
+export const ARGUMENT_SET_DRAFTS_STORAGE_KEY = CALLABLE_DRAFTS_STORAGE_KEY;
