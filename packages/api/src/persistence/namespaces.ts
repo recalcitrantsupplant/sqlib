@@ -365,6 +365,10 @@ export const sqlib = createNamespace({
     // declare no graph parameter — their store is their backend. See
     // `docs/concepts.md`.
     "ArgumentGraphBinding",
+    // The argument-set binding a data graph was minted from, when it was
+    // created by pasting RDF into a call rather than composed on the rail.
+    // Origin, for the rail's Origin grouping — not a link and not a fence.
+    "mintedFrom",
     "graphBindings",
     "argumentSets",
     "targetEntity",

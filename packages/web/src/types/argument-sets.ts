@@ -80,16 +80,35 @@ export interface ArgumentTupleBinding {
  * Which start-node port it fills is not here: an argument set carries payload
  * and the group owns the routing, so a graph carries only its slot.
  *
- * Exactly one of `dataGraphVersionId` (pinned, reproducible) or
- * `contentString` + `contentFormat` (pasted, stored with the version).
+ * **A graph binding always pins a `DataGraphVersion`.** Inline is a door, not
+ * a storage class: `contentString` + `contentFormat` are how pasted RDF is
+ * *supplied*, and saving them is a create-then-pin — the server writes a
+ * `DataGraph` with one version in the set's library and the stored binding
+ * names that version. So a binding read back off the server carries a pin, and
+ * a binding read back off a set saved before this rule may still carry content:
+ * a saved version is immutable, so the old ones are left alone rather than
+ * rewritten.
+ *
+ * Running is not saving. `/execute` and `/sparql` keep taking inline graphs as
+ * transport (`dataGraphInline`), and an ad-hoc run mints nothing.
  */
 export interface ArgumentGraphBinding {
   id?: string
   /** Its slot among the set's ordered inputs — the key a group routes against. */
   position?: number
   dataGraphVersionId?: string | null
+  /** Pasted RDF on the way in; never what a saved binding comes back holding. */
   contentString?: string | null
   contentFormat?: DataGraphFormat | null
+  /**
+   * The name to give the graph pasted content is saved as.
+   *
+   * Sent pre-filled and editable rather than asked for in a blocking dialog —
+   * a name arrived at without friction is still a name, and what the earlier
+   * design feared was *unnamed* fragments, not unceremoniously named ones. The
+   * server derives one when this is absent.
+   */
+  name?: string | null
 }
 
 export interface ArgumentScalarBinding {

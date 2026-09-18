@@ -72,6 +72,11 @@ export const argumentScalarBindingSchema = {
  * service rather than here, so the message names which pairing was wrong
  * instead of `anyOf` failing anonymously.
  *
+ * The two are not two ways of *storing* a graph, only two ways of supplying
+ * one: `contentString` is pasted RDF, and saving it writes a `DataGraph` with
+ * one version in the set's library and pins that version. What comes back is
+ * therefore always a pin.
+ *
  * Which start-node port it fills is the group's, not this payload's, so a
  * binding carries only its slot.
  */
@@ -84,6 +89,8 @@ export const argumentGraphBindingSchema = {
     dataGraphVersionId: { type: 'string', nullable: true },
     contentString: { type: 'string', nullable: true },
     contentFormat: { type: 'string', nullable: true },
+    /** The name to give the graph pasted content is saved as; derived if absent. */
+    name: { type: 'string', nullable: true },
   },
   required: [],
   additionalProperties: false,
