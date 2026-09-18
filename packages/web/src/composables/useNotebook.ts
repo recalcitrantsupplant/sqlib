@@ -74,6 +74,8 @@ export interface NotebookTarget {
   limitParameters: string[];
   offsetParameters: string[];
   version: number | null;
+  /** The query's text, where it has one: what the cell shows it will run. */
+  queryString: string | null;
 }
 
 export type CellStatus = 'idle' | 'running' | 'ok' | 'error' | 'skipped';
@@ -100,6 +102,7 @@ function targetFromCallable(callable: Callable): NotebookTarget {
     limitParameters: callable.limitParameters.map((parameter) => parameter.name),
     offsetParameters: callable.offsetParameters.map((parameter) => parameter.name),
     version: callable.version,
+    queryString: callable.queryString ?? null,
   };
 }
 
@@ -159,6 +162,9 @@ export function useNotebook(libraryId: Ref<string | null>) {
         limitParameters: [],
         offsetParameters: [],
         version: ruleSet.currentVersionNumber ?? null,
+        // A rule set is a document of rules, not one query: the cell links to
+        // the editor for it rather than pretending it has a body to show.
+        queryString: null,
       });
     }
     return map;
@@ -248,8 +254,17 @@ export function useNotebook(libraryId: Ref<string | null>) {
     return null;
   }
 
+  /**
+   * Open a document.
+   *
+   * A document that names no library takes the active one as it is opened. It
+   * is not bookkeeping: the library watcher below resets a notebook belonging
+   * to a *different* library, and a document that never learned which library
+   * it was written against would be cleared the moment the library resolved —
+   * which is exactly what happened to a restored notebook on load.
+   */
   function setNotebook(next: Notebook): void {
-    notebook.value = next;
+    notebook.value = next.library ? next : { ...next, library: libraryId.value };
     values.value = {};
     runState.value = {};
   }

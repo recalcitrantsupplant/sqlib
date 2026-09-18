@@ -5,8 +5,20 @@
  * one asserting that cell source cannot produce an element the renderer did not
  * write.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
+
+// A textarea stands in for CodeMirror, as CodePeek's own spec does it: this is
+// about which text reaches the cell, not about how CodeMirror paints it.
+vi.mock('vue-codemirror', () => ({
+  Codemirror: {
+    props: ['modelValue'],
+    emits: ['update:modelValue'],
+    template:
+      '<textarea :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)"></textarea>',
+  },
+}));
+
 import NotebookMarkdownCell from '@/components/notebook/NotebookMarkdownCell.vue';
 
 function render(source: string) {
@@ -31,7 +43,17 @@ describe('markdown cell', () => {
 
   it('emits the edited source', async () => {
     const wrapper = render('');
-    await wrapper.get('[data-testid="notebook-md-editor-md1"]').setValue('# Written');
+    await wrapper.get('[data-testid="notebook-md-editor-md1"] textarea').setValue('# Written');
     expect(wrapper.emitted('update')?.[0]).toEqual(['# Written']);
+  });
+
+  /*
+   * The editor is the app's own CodeEditor rather than a textarea: prose has
+   * headings to weight and code spans to tint, and asking for it by media type
+   * is how every other document in the app gets its language.
+   */
+  it('types prose into the shared editor, as markdown', () => {
+    const wrapper = render('');
+    expect(wrapper.findComponent({ name: 'CodeEditor' }).props('contentType')).toBe('text/markdown');
   });
 });

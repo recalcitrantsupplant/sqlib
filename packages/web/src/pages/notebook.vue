@@ -2,6 +2,33 @@
   <div class="notebook-layout">
     <AppNavRail active-section="notebooks" @select="handleRailSelect" />
 
+    <!--
+      A notebook is an asset like every other one the rail lists, so it is
+      opened from the same list component the other sections use. Scratch-only,
+      as ETL's is: a notebook has no server entity yet, and a `Saved 0` header
+      that can never move off zero reads as something being broken.
+    -->
+    <EntityListSidebar
+      section="notebooks"
+      section-label="Notebooks"
+      item-noun="notebook"
+      item-noun-plural="notebooks"
+      :saved="[]"
+      :scratch="scratchRecords"
+      :selection="sidebarSelection"
+      :supports-saved="false"
+      :supports-scratch="true"
+      @select-scratch="openDocument"
+      @create-scratch="createDocument"
+      @discard-scratch="documents.remove"
+    />
+
+    <!--
+      Kept beside the document even when it is empty, the way the mockup has
+      it: the two lists are what the screen promises — what this notebook says,
+      and what it has produced — and a rail that appears once you have enough
+      cells is a rail you learn about by accident.
+    -->
     <NotebookRail :entries="outlineEntries" :values="boundValues" :stale-names="staleValueNames" />
 
     <main class="page">
@@ -43,6 +70,7 @@
       <div class="page-strip">
         <span v-if="backendLabel">Runs go to <strong>{{ backendLabel }}</strong> — library default</span>
         <span>{{ nb.notebook.value.cells.length }} cells</span>
+        <span v-if="documents.savedAt.value" data-testid="notebook-saved-note">saved locally</span>
         <span v-if="nb.loading.value">loading the library…</span>
       </div>
 
@@ -85,12 +113,18 @@
           />
 
           <div class="add-row">
-            <span class="add-row__label">Add</span>
+            <SectionLabel as="span">Add</SectionLabel>
             <button type="button" class="add" data-testid="notebook-add-markdown" @click="addMarkdown">
-              Markdown
+              <FileText :size="12" /> Markdown
             </button>
-            <button type="button" class="add" data-testid="notebook-add-cell" @click="insertOpen = true">
-              Query, group or rule set…
+            <button type="button" class="add" data-testid="notebook-add-cell" @click="openPicker('query')">
+              <Search :size="12" /> Query
+            </button>
+            <button type="button" class="add" data-testid="notebook-add-group" @click="openPicker('group')">
+              <Workflow :size="12" /> Query group
+            </button>
+            <button type="button" class="add" data-testid="notebook-add-ruleset" @click="openPicker('ruleset')">
+              <Scale :size="12" /> Rule set
             </button>
             <span class="page-header__spacer"></span>
             <button
@@ -109,6 +143,7 @@
 
     <NotebookInsertMenu
       v-model:open="insertOpen"
+      v-model:kind="insertKind"
       :targets="insertTargets"
       @insert="insertTarget"
       @insert-markdown="addMarkdown"
@@ -138,12 +173,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 // @ts-ignore - Nuxt auto-import
 import { useRoute, useRouter } from '#imports';
-import { Download, Play, Upload } from '@lucide/vue';
+import { Download, FileText, Play, Scale, Search, Upload, Workflow } from '@lucide/vue';
 import { defineArgsElement } from '@sparql-query-lib/runtime/args-element';
 import AppNavRail from '../components/AppNavRail.vue';
+import EntityListSidebar, { type SidebarSelection } from '../components/EntityListSidebar.vue';
 import NotebookRail from '../components/notebook/NotebookRail.vue';
 import NotebookMarkdownCell from '../components/notebook/NotebookMarkdownCell.vue';
 import NotebookRunCell from '../components/notebook/NotebookRunCell.vue';
@@ -163,6 +199,8 @@ import { useActiveLibrary } from '../composables/useActiveLibrary';
 import { useBackendsStore } from '../composables/useBackendsStore';
 import { useLibrariesStore } from '../composables/useLibrariesStore';
 import { useNotebook, type NotebookTarget } from '../composables/useNotebook';
+import { useNotebookDocuments } from '../composables/useNotebookDocuments';
+import { useCallableDrafts } from '../composables/useCallableDrafts';
 import { downloadTextFile } from '../lib/downloadFile';
 import { markdownTitle } from '../lib/markdown';
 import {
@@ -200,8 +238,11 @@ const requestedLibraryId = (route.query.library as string) || null;
 const { activeLibraryId: libraryId, activeLibrary, setActiveLibrary } = useActiveLibrary();
 
 const nb = useNotebook(libraryId);
+const documents = useNotebookDocuments(libraryId);
+const draftsStore = useCallableDrafts(libraryId);
 
 const insertOpen = ref(false);
+const insertKind = ref<NotebookTarget['kind']>('query');
 const saveOpen = ref(false);
 const saveName = ref('');
 const saveEntityName = ref('');
@@ -289,11 +330,50 @@ function valueOptionsAbove(index: number) {
     });
 }
 
+/** The records themselves, for the sidebar, which lists drafts rather than documents. */
+const scratchRecords = computed(() => draftsStore.scratchFor('notebook'));
+
+const sidebarSelection = computed<SidebarSelection>(() =>
+  documents.openId.value ? { kind: 'scratch', id: documents.openId.value } : { kind: 'none', id: null },
+);
+
+function createDocument() {
+  const created = documents.create();
+  nb.setNotebook(created.notebook);
+}
+
+function openDocument(id: string) {
+  const opened = documents.open(id);
+  if (opened) nb.setNotebook(opened);
+}
+
+/*
+ * Autosave, the rule the rest of the app follows: there is no Save button, so
+ * the debounce is the safety net. Deep, because a cell's arguments change
+ * inside the document rather than replacing it.
+ */
+watch(
+  () => nb.notebook.value,
+  (notebook) => documents.touch(notebook),
+  { deep: true },
+);
+
+function openPicker(kind: NotebookTarget['kind']) {
+  insertKind.value = kind;
+  insertOpen.value = true;
+}
+
 function setTitle(title: string) {
   nb.notebook.value = { ...nb.notebook.value, title: title.trim() || 'Untitled notebook' };
 }
 
+/** Every insertion writes into a document; one is minted if none is open. */
+function ensureDocument() {
+  if (!documents.openId.value) documents.create(nb.notebook.value);
+}
+
 function addMarkdown() {
+  ensureDocument();
   nb.addCell(markdownCell(''));
 }
 
@@ -305,6 +385,7 @@ function cellForTarget(target: NotebookTarget): RunCell {
 }
 
 function insertTarget(target: NotebookTarget) {
+  ensureDocument();
   nb.addCell(cellForTarget(target) as NotebookCell);
 }
 
@@ -345,6 +426,9 @@ async function importDocument(event: Event) {
   notice.value = null;
   try {
     const parsed = parseNotebookJson(await file.text());
+    // An imported file becomes a document of its own rather than overwriting
+    // whichever one happened to be open.
+    documents.create(parsed);
     nb.setNotebook(parsed);
     if (parsed.library && parsed.library !== libraryId.value) {
       // The document travels; the entities it names do not. Switching to the
@@ -403,6 +487,16 @@ defineArgsElement();
 onMounted(async () => {
   await Promise.all([librariesStore.loadLibraries(), backendsStore.loadBackends()]);
   if (requestedLibraryId && requestedLibraryId !== libraryId.value) setActiveLibrary(requestedLibraryId);
+  /*
+   * After the selection settles, not before: the library watcher clears a
+   * notebook written against another library, and restoring ahead of it means
+   * restoring into a document that watcher is about to replace.
+   */
+  await nextTick();
+  // Land on the notebook last written rather than on an empty one somebody
+  // then has to find their work from.
+  const first = documents.documents.value[0];
+  if (first) openDocument(first.id);
   await nb.load();
 });
 
@@ -514,10 +608,6 @@ watch(libraryId, (id) => {
   border-radius: var(--radius-panel);
 }
 
-.add-row__label {
-  font-size: var(--text-micro);
-  color: var(--ink-muted);
-}
 
 .add {
   height: var(--control-h-sm);

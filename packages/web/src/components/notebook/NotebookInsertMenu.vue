@@ -78,10 +78,16 @@ import type { NotebookTarget } from '../../composables/useNotebook';
  * library have to reason with" is a different question from "which query do I
  * want", and the counts answer the first one on the way past.
  */
-const props = defineProps<{ open: boolean; targets: NotebookTarget[] }>();
+const props = defineProps<{
+  open: boolean;
+  targets: NotebookTarget[];
+  /** Which tab opens — the Add row's buttons each name a kind. */
+  kind?: NotebookTarget['kind'];
+}>();
 
 const emit = defineEmits<{
   (e: 'update:open', open: boolean): void;
+  (e: 'update:kind', kind: NotebookTarget['kind']): void;
   (e: 'insert', target: NotebookTarget): void;
   (e: 'insert-markdown'): void;
 }>();
@@ -93,7 +99,11 @@ const TABS = [
 ];
 
 const search = ref('');
-const kind = ref<NotebookTarget['kind']>('query');
+
+const kind = computed({
+  get: () => props.kind ?? 'query',
+  set: (value: NotebookTarget['kind']) => emit('update:kind', value),
+});
 
 const isOpen = computed({
   get: () => props.open,

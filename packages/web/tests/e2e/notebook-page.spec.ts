@@ -26,6 +26,7 @@ async function insertFirstQuery(page: Page) {
   await page.getByTestId('notebook-insert-urn:sqlib:query:product-search').click();
 }
 
+
 test.describe('Notebook', () => {
   test.beforeEach(async ({ page }) => {
     await mockCallableLibrary(page);
@@ -106,9 +107,10 @@ test.describe('Notebook', () => {
     await openNotebook(page);
     await page.getByTestId('notebook-add-markdown').click();
 
-    const editor = page.locator('[data-testid^="notebook-md-editor-"]').first();
-    await editor.fill('## Candidates\n\nStart here.');
-    await editor.blur();
+    const editor = page.locator('[data-testid^="notebook-md-editor-"] .cm-content').first();
+    await editor.click();
+    await editor.pressSequentially('## Candidates');
+    await page.getByText('Done', { exact: true }).first().click();
 
     await expect(page.locator('[data-testid^="notebook-md-rendered-"]').first().locator('h2')).toHaveText(
       'Candidates',
@@ -133,6 +135,48 @@ test.describe('Notebook', () => {
 
     await expect(second.locator('[data-testid^="notebook-status-"]')).toContainText('ran');
     await expect(page.getByTestId('notebook-value-out2')).toBeVisible();
+  });
+
+  test('shows the query a cell will run, rather than only its name', async ({ page }) => {
+    await openNotebook(page);
+    await insertFirstQuery(page);
+
+    const cell = page.locator('[data-testid^="notebook-cell-"]').first();
+    await expect(cell.locator('[data-testid^="notebook-query-"]').first()).toContainText('SELECT');
+  });
+
+  test('lists notebooks in the sidebar, like every other asset', async ({ page }) => {
+    await openNotebook(page);
+    await expect(page.getByTestId('entity-list-sidebar')).toContainText('Notebooks');
+
+    // Writing into an empty screen mints the document the list then holds.
+    await page.getByTestId('notebook-add-markdown').click();
+    await expect(page.getByTestId('entity-list-sidebar')).toContainText('Untitled notebook');
+  });
+
+  test('keeps a notebook across a reload, and opens it again', async ({ page }) => {
+    await openNotebook(page);
+    await page.getByTestId('notebook-add-markdown').click();
+
+    const editor = page.locator('[data-testid^="notebook-md-editor-"] .cm-content').first();
+    await editor.click();
+    await editor.pressSequentially('## Kept');
+    await expect(page.getByTestId('notebook-saved-note')).toBeVisible();
+
+    await page.reload({ waitUntil: 'domcontentloaded' });
+
+    await expect(page.locator('[data-testid^="notebook-md-rendered-"]').first()).toContainText('Kept');
+  });
+
+  test('starts a second notebook without disturbing the first', async ({ page }) => {
+    await openNotebook(page);
+    await page.getByTestId('notebook-add-markdown').click();
+    await expect(page.getByTestId('entity-list-sidebar')).toContainText('Untitled notebook');
+
+    await page.getByTestId('new-scratch').click();
+
+    await expect(page.locator('[data-testid^="notebook-md-rendered-"]')).toHaveCount(0);
+    await expect(page.getByTestId('entity-list-sidebar').getByText('Untitled notebook')).toHaveCount(2);
   });
 
   test('starts from the library when someone wants every query as a draft', async ({ page }) => {

@@ -11,18 +11,30 @@
         the reason to have markdown cells at all is that the notebook reads as
         something written rather than as something configured.
       -->
-      <div v-if="!editing" class="prose" :data-testid="`notebook-md-rendered-${cell.id}`" v-html="html"></div>
-      <textarea
+      <div
+        v-if="!editing"
+        class="prose"
+        :data-testid="`notebook-md-rendered-${cell.id}`"
+        @dblclick="editing = true"
+        v-html="html"
+      ></div>
+      <!--
+        The same editor every other document in the app is typed into, asked
+        for by media type. Markdown has headings to weight, code spans to tint
+        and links to close — a textarea renders all of it as one grey block,
+        which is the difference between seeing a heading and counting hashes.
+      -->
+      <CodeEditor
         v-else
-        ref="editor"
-        class="editor"
-        :value="cell.source"
-        :data-testid="`notebook-md-editor-${cell.id}`"
-        rows="4"
-        aria-label="Markdown source"
-        @input="$emit('update', ($event.target as HTMLTextAreaElement).value)"
-        @blur="editing = false"
-      ></textarea>
+        :model-value="cell.source"
+        content-type="text/markdown"
+        placeholder="Write about what the cells below do…"
+        :test-id="`notebook-md-editor-${cell.id}`"
+        :show-line-numbers="false"
+        min-height="96px"
+        max-height="60vh"
+        @update:model-value="$emit('update', $event)"
+      />
 
       <div class="cell__actions">
         <button type="button" class="action" @click="toggleEdit">
@@ -37,7 +49,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue';
+import { computed, ref } from 'vue';
+import CodeEditor from '../shared/CodeEditor.vue';
 import { renderMarkdown } from '../../lib/markdown';
 import type { MarkdownCell } from '../../lib/notebookFormat';
 
@@ -61,7 +74,6 @@ defineEmits<{
 }>();
 
 const editing = ref(props.cell.source.length === 0);
-const editor = ref<HTMLTextAreaElement | null>(null);
 
 const html = computed(() =>
   props.cell.source.trim().length > 0
@@ -69,11 +81,8 @@ const html = computed(() =>
     : '<p class="empty">Empty note — Edit to write something.</p>',
 );
 
-async function toggleEdit() {
+function toggleEdit() {
   editing.value = !editing.value;
-  if (!editing.value) return;
-  await nextTick();
-  editor.value?.focus();
 }
 </script>
 
@@ -131,23 +140,6 @@ async function toggleEdit() {
   color: var(--danger);
 }
 
-.editor {
-  width: 100%;
-  box-sizing: border-box;
-  padding: var(--space-4);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius);
-  background: var(--surface);
-  color: var(--ink);
-  font-family: var(--font-mono);
-  font-size: var(--text-body);
-  line-height: var(--leading-normal);
-  resize: vertical;
-}
-
-.editor:focus-visible {
-  outline: var(--focus-ring-width) solid var(--focus-ring);
-}
 
 .prose {
   font-size: var(--text-content);

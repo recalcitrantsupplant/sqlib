@@ -16,10 +16,34 @@
             :data-testid="`notebook-stale-${cell.id}`"
             title="An upstream value was rebound after this cell ran."
           >stale</span>
-          <NuxtLink v-if="editorLink" :to="editorLink" class="head__link">Open in editor</NuxtLink>
-          <button type="button" class="action" aria-label="Move cell up" @click="$emit('move', -1)">Up</button>
-          <button type="button" class="action" aria-label="Move cell down" @click="$emit('move', 1)">Down</button>
-          <button type="button" class="action action--danger" @click="$emit('remove')">Remove</button>
+          <NuxtLink v-if="editorLink" :to="editorLink" class="head__link">
+            <Pencil :size="11" /> Open in editor
+          </NuxtLink>
+          <!--
+            One overflow menu rather than three words. Moving and removing a
+            cell are rare beside running it, and three text buttons in the bar
+            read as loudly as the query's own name.
+          -->
+          <DropdownMenu>
+            <DropdownMenuTrigger as-child>
+              <button
+                type="button"
+                class="menu-button"
+                aria-label="Cell actions"
+                :data-testid="`notebook-menu-${cell.id}`"
+              >
+                <MoreHorizontal :size="13" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem @select="$emit('move', -1)">Move up</DropdownMenuItem>
+              <DropdownMenuItem @select="$emit('move', 1)">Move down</DropdownMenuItem>
+              <DropdownMenuItem
+                :data-testid="`notebook-remove-${cell.id}`"
+                @select="$emit('remove')"
+              >Remove</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </template>
       </PanelHeader>
 
@@ -93,6 +117,22 @@
         <!-- The same builder the library page and the exported page use. -->
         <div v-if="showArgs" class="args">
           <sqlib-args ref="argsEl" @change="onArgsChange"></sqlib-args>
+        </div>
+
+        <!--
+          What the cell will run. A notebook that shows a name and a Run button
+          and never the query is asking for trust it has not earned — and the
+          query is the thing a reader is being walked through. Eight lines,
+          the rest one click away, the same CodePeek the library page uses.
+        -->
+        <div v-if="target.queryString" class="query">
+          <CodePeek
+            label="Query"
+            :content="target.queryString"
+            content-type="application/sparql-query"
+            :collapsed-lines="8"
+            :test-id="`notebook-query-${cell.id}`"
+          />
         </div>
       </template>
 
@@ -173,8 +213,14 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { Play } from '@lucide/vue';
+import { MoreHorizontal, Pencil, Play } from '@lucide/vue';
 import { Badge } from '../ui/badge';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../ui/dropdown-menu';
 import { Button } from '../ui/button';
 import CodePeek from '../shared/CodePeek.vue';
 import InlineNote from '../shared/InlineNote.vue';
@@ -436,25 +482,43 @@ function cellText(row: Record<string, unknown>, column: string): string {
 
 
 .head__link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   font-size: var(--text-micro);
 }
 
-.action {
+/*
+ * The cell's title is the entity's own name, and the app sets an entity's name
+ * in the code face everywhere it is the subject rather than the prose — the
+ * rule `StratificationPanel` follows for a rule's name. `:deep` because the
+ * title belongs to <PanelHeader>; this is the form its guard names.
+ */
+.cell__card :deep(.panel-header__title) {
+  font-family: var(--font-mono);
+  font-size: var(--text-body-lg);
+}
+
+.menu-button {
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border: none;
+  border-radius: var(--radius-sm);
   background: transparent;
-  padding: 0;
-  font-size: var(--text-micro);
   color: var(--ink-muted);
   cursor: pointer;
 }
 
-.action:hover {
+.menu-button:hover {
+  background: var(--surface-raised);
   color: var(--ink);
-  text-decoration: underline;
 }
 
-.action--danger:hover {
-  color: var(--danger);
+.query {
+  padding: var(--space-4) var(--space-4) 0;
 }
 
 .inputs {
