@@ -369,6 +369,9 @@ export const sqlib = createNamespace({
     // created by pasting RDF into a call rather than composed on the rail.
     // Origin, for the rail's Origin grouping — not a link and not a fence.
     "mintedFrom",
+    // The entity a converted table was copied from. A conversion is a copy,
+    // taken once — this answers "used by" loosely and pins nothing.
+    "copiedFrom",
     "graphBindings",
     "argumentSets",
     "targetEntity",

@@ -204,15 +204,81 @@
           @load="loadFromTupleSet"
           @attach="attachTupleSet"
         />
+        <!--
+          The mirror of the picker: rows typed here, taken out as a named
+          tabular asset. A conversion, not a link — the two go their own ways
+          afterwards, which is what makes it safe.
+        -->
+        <button
+          v-if="rows.length > 0"
+          type="button"
+          class="btn-add"
+          data-testid="tuple-set-export-open"
+          :disabled="disabled"
+          @click="exporting = !exporting"
+        >
+          <Table2 :size="13" /> Save as tuple set…
+        </button>
         <InlineNote v-if="rows.length && view === 'rows'" as="span" size="xs">Blank cells bind UNDEF.</InlineNote>
       </div>
+
+      <section v-if="exporting" class="export-panel" data-testid="tuple-set-export">
+        <!--
+          The honest warning. Not "we will drop your names" — they are kept, and
+          a lie here would have to be un-taught the first time someone saw them
+          on the other side.
+        -->
+        <InlineNote size="xs">{{ TO_TUPLE_SET_WARNING }}</InlineNote>
+
+        <label class="export-field">
+          <span class="export-label">Name</span>
+          <input
+            v-model="exportName"
+            class="export-input"
+            type="text"
+            placeholder="Rows from this clause"
+            data-testid="tuple-set-export-name"
+          />
+        </label>
+
+        <!--
+          The mirror question: a declaration may lead with a ground term
+          (`TUPLE(:seed, ?x, ?y)`), so the table it is filled from needs a fixed
+          column in front of the variables.
+        -->
+        <label class="export-field">
+          <span class="export-label">Prepend a fixed IRI</span>
+          <input
+            v-model="exportLeadIri"
+            class="export-input"
+            type="text"
+            placeholder="optional — for TUPLE(:seed, …)"
+            data-testid="tuple-set-export-lead"
+          />
+        </label>
+
+        <p v-if="exportError" class="export-error" data-testid="tuple-set-export-error">{{ exportError }}</p>
+
+        <div class="export-actions">
+          <button
+            type="button"
+            class="btn-add"
+            data-testid="tuple-set-export-confirm"
+            :disabled="exportBusy || exportName.trim().length === 0"
+            @click="saveAsTupleSet"
+          >{{ exportBusy ? 'Saving…' : 'Save as tuple set' }}</button>
+          <button type="button" class="btn-add" data-testid="tuple-set-export-cancel" @click="exporting = false">
+            Cancel
+          </button>
+        </div>
+      </section>
     </div>
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, ref, useTemplateRef } from 'vue';
-import { Check, CopyPlus, Pencil, Trash2, X, CirclePlus } from '@lucide/vue';
+import { Check, CopyPlus, Pencil, Trash2, X, CirclePlus, Table2 } from '@lucide/vue';
 import ArgumentValueField from './ArgumentValueField.vue';
 import ValuesGrid from './ValuesGrid.vue';
 import ValuesClauseView from './ValuesClauseView.vue';
@@ -227,6 +293,9 @@ import type {
   TupleSetReference,
 } from '@/types/argument-sets';
 import { bareVariable, summariseRow, tupleSignature } from '@/lib/argumentSignature';
+import { TO_TUPLE_SET_WARNING, toTupleDocument, toTupleTable } from '@/lib/tupleTableConversion';
+import { useTupleSetsStore } from '@/composables/useTupleSetsStore';
+import { useActiveLibrary } from '@/composables/useActiveLibrary';
 import {
   referencesOf,
   withReference,
@@ -257,6 +326,11 @@ const props = defineProps<{
   renamable?: boolean;
   /** Draws the remove control, for the same callers. */
   removable?: boolean;
+  /**
+   * The argument set these rows belong to, stamped on a tuple set converted out
+   * of them. Absent on a scratch set, which has no id to record yet.
+   */
+  copiedFrom?: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -264,6 +338,8 @@ const emit = defineEmits<{
   /** Bare names, in the order typed. The caller rewrites its own rows. */
   rename: [variables: string[]];
   remove: [];
+  /** These rows now exist as a tuple set too — a copy, not a link. */
+  'exported-tuple-set': [payload: { id: string; name: string }];
 }>();
 
 /**
@@ -282,6 +358,9 @@ const VIEWS = [
 type View = (typeof VIEWS)[number]['value'];
 
 const names = computed(() => props.variables.map(bareVariable));
+
+const tupleSets = useTupleSetsStore();
+const { activeLibraryId } = useActiveLibrary();
 
 /*
  * Renaming, where the caller owns the clause. The field takes the same
@@ -388,6 +467,49 @@ function removeRow(index: number) {
  */
 function loadFromTupleSet(payload: { rows: ArgumentRow[]; replace: boolean }) {
   emitRows(payload.replace ? payload.rows : [...rows.value, ...payload.rows]);
+}
+
+/*
+ * Out the other way: these rows as a named tuple set.
+ *
+ * A copy, taken once, and `copiedFrom` records where it came from so "used by"
+ * can be answered loosely — nothing pins anything, and editing either side
+ * afterwards has no effect on the other.
+ */
+const exporting = ref(false);
+const exportName = ref('');
+const exportLeadIri = ref('');
+const exportBusy = ref(false);
+const exportError = ref<string | null>(null);
+
+async function saveAsTupleSet() {
+  const libraryId = props.libraryId ?? activeLibraryId.value;
+  if (!libraryId) {
+    exportError.value = 'Choose a library first — a tuple set lives in one.';
+    return;
+  }
+  exportBusy.value = true;
+  exportError.value = null;
+  try {
+    const table = toTupleTable(names.value, rows.value, { prependIri: exportLeadIri.value });
+    const created = await tupleSets.createTupleSet({
+      name: exportName.value.trim(),
+      isPartOf: [libraryId],
+      ...(props.copiedFrom ? { copiedFrom: props.copiedFrom } : {}),
+    } as never);
+    await tupleSets.createVersion(created.id, {
+      contentString: toTupleDocument(table),
+      sourceFormat: 'sparql-results-json',
+    } as never);
+    exporting.value = false;
+    exportName.value = '';
+    exportLeadIri.value = '';
+    emit('exported-tuple-set', { id: created.id, name: created.name });
+  } catch (error) {
+    exportError.value = error instanceof Error ? error.message : 'Could not save these rows as a tuple set';
+  } finally {
+    exportBusy.value = false;
+  }
 }
 
 /**
@@ -655,6 +777,49 @@ function setCell(rowIndex: number, name: string, value: SparqlValue) {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+.export-panel {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.export-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  font-size: var(--text-label);
+  color: var(--ink-muted);
+}
+
+.export-label {
+  flex: 0 0 14ch;
+}
+
+.export-input {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: var(--text-label);
+}
+
+.export-error {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-label);
+  color: var(--danger-ink);
+}
+
+.export-actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
 }
 
 .btn-add {

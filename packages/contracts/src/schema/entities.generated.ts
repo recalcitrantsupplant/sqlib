@@ -3529,6 +3529,11 @@ export const tuplesetSchema = {
       },
       "minItems": 1
     },
+    "copiedFrom": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true
+    },
     "tags": {
       "type": "array",
       "items": {
@@ -4387,6 +4392,7 @@ export interface TupleSetRestApi {
   currentVersion?: string | null;
   currentVersionNumber?: number | null;
   isPartOf: string[];
+  copiedFrom?: string | null;
   tags?: string[] | null;
   dateCreated?: string | null;
   dateModified?: string | null;

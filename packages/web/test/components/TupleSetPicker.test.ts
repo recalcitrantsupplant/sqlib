@@ -60,6 +60,17 @@ async function open(variables: string[], props: Record<string, unknown> = {}) {
   return picker;
 }
 
+/**
+ * Copy is a conversion, and the conversion asks which variable each column
+ * fills before it hands anything over — the labels on a tuple set are not
+ * identifiers, so the pre-fill is a guess. These specs take the pre-fill as
+ * offered unless they are about editing it.
+ */
+async function copyRows(picker: Awaited<ReturnType<typeof open>>) {
+  await picker.get('[data-testid="tuple-set-picker-copy"]').trigger('click');
+  await picker.get('[data-testid="tuple-set-conversion-confirm"]').trigger('click');
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   store.tupleSets = [];
@@ -87,10 +98,13 @@ describe('TupleSetPicker — what it offers', () => {
 
     const choice = picker.get('[data-testid="tuple-set-picker-choice"]');
     expect(choice.text()).toContain('no column names in common');
-    for (const testid of ['tuple-set-picker-attach', 'tuple-set-picker-copy']) {
-      expect((picker.get(`[data-testid="${testid}"]`).element as HTMLButtonElement).disabled)
-        .toBe(true);
-    }
+    // Attach is off: a reference stores no mapping, so the names have to match
+    // as they stand. Copy stays on, because copying is a conversion and the
+    // conversion is where a label becomes the variable it fills.
+    expect((picker.get('[data-testid="tuple-set-picker-attach"]').element as HTMLButtonElement).disabled)
+      .toBe(true);
+    expect((picker.get('[data-testid="tuple-set-picker-copy"]').element as HTMLButtonElement).disabled)
+      .toBe(false);
   });
 
   it('sorts the best match to the top', async () => {
@@ -125,7 +139,7 @@ describe('TupleSetPicker — what it emits', () => {
       ]),
     ]);
     const picker = await open(['city']);
-    await picker.get('[data-testid="tuple-set-picker-copy"]').trigger('click');
+    await copyRows(picker);
 
     const [payload] = picker.emitted('load')![0] as [{ rows: Array<{ values: Record<string, unknown> }> }];
     expect(Object.keys(payload.rows[0].values)).toEqual(['city']);
@@ -137,7 +151,7 @@ describe('TupleSetPicker — what it emits', () => {
       candidate('cities', ['city'], [{ city: { type: 'literal', value: 'Paris' } }]),
     ]);
     const picker = await open(['city', 'population']);
-    await picker.get('[data-testid="tuple-set-picker-copy"]').trigger('click');
+    await copyRows(picker);
 
     const [payload] = picker.emitted('load')![0] as [{ rows: Array<{ values: Record<string, { value: string }> }> }];
     expect(payload.rows[0].values.population.value).toBe('');
@@ -148,7 +162,7 @@ describe('TupleSetPicker — what it emits', () => {
       candidate('cities', ['city'], [{ city: { type: 'literal', value: 'Paris' } }]),
     ]);
     const picker = await open(['city']);
-    await picker.get('[data-testid="tuple-set-picker-copy"]').trigger('click');
+    await copyRows(picker);
 
     const [payload] = picker.emitted('load')![0] as [{ replace: boolean }];
     expect(payload.replace).toBe(false);
@@ -160,7 +174,7 @@ describe('TupleSetPicker — what it emits', () => {
     ]);
     const picker = await open(['city']);
     await picker.get('.picker-mode input').setValue(true);
-    await picker.get('[data-testid="tuple-set-picker-copy"]').trigger('click');
+    await copyRows(picker);
 
     const [payload] = picker.emitted('load')![0] as [{ replace: boolean }];
     expect(payload.replace).toBe(true);
@@ -171,7 +185,7 @@ describe('TupleSetPicker — what it emits', () => {
       candidate('cities', ['city'], [{ city: { type: 'literal', value: 'Paris' } }]),
     ]);
     const picker = await open(['city']);
-    await picker.get('[data-testid="tuple-set-picker-copy"]').trigger('click');
+    await copyRows(picker);
 
     expect(picker.find('[data-testid="tuple-set-picker-panel"]').exists()).toBe(false);
   });
@@ -184,6 +198,69 @@ describe('TupleSetPicker — what it emits', () => {
     // primitive took this file's private note class; a test-id rather than a
     // class name, so the assertion outlives the next styling decision.
     expect(picker.get('[data-testid="tuple-set-picker-error"]').text()).toContain('backend unreachable');
+  });
+});
+
+describe('TupleSetPicker — the conversion a copy is', () => {
+  /*
+   * A tuple set's columns are labels, and the query side matches by name, so
+   * which variable a column fills is a guess until someone says otherwise. The
+   * dialog pre-fills it and marks it unverified rather than deciding it.
+   */
+  it('pre-fills from the labels and says the pre-fill is a guess', async () => {
+    store.loadCurrentVersions.mockResolvedValue([
+      candidate('capitals', ['city'], [{ city: { type: 'literal', value: 'Paris' } }]),
+    ]);
+    const picker = await open(['city']);
+    await picker.get('[data-testid="tuple-set-picker-copy"]').trigger('click');
+
+    const field = picker.get('[data-testid="tuple-set-conversion-variable-0"]');
+    expect((field.element as HTMLInputElement).value).toBe('city');
+    expect(field.classes()).toContain('conversion-input--unverified');
+  });
+
+  it('keys the rows by the variable named, not by the label', async () => {
+    store.loadCurrentVersions.mockResolvedValue([
+      candidate('capitals', ['town'], [{ town: { type: 'literal', value: 'Paris' } }]),
+    ]);
+    const picker = await open(['city']);
+    await picker.get('[data-testid="tuple-set-picker-copy"]').trigger('click');
+    await picker.get('[data-testid="tuple-set-conversion-variable-0"]').setValue('city');
+    await picker.get('[data-testid="tuple-set-conversion-confirm"]').trigger('click');
+
+    const [payload] = picker.emitted('load')![0] as [{ rows: Array<{ values: Record<string, { value: string }> }> }];
+    expect(payload.rows[0].values.city.value).toBe('Paris');
+  });
+
+  /*
+   * A rule-set table may lead with a ground term (`TUPLE(:seed, ?x, ?y)`),
+   * which fills no variable at all — the question that is easy to forget.
+   */
+  it('offers to strip the leading fixed column', async () => {
+    store.loadCurrentVersions.mockResolvedValue([
+      candidate('seeded', ['fixed', 'city'], [
+        { fixed: { type: 'uri', value: 'http://ex/seed' }, city: { type: 'literal', value: 'Paris' } },
+      ]),
+    ]);
+    const picker = await open(['city']);
+    await picker.get('[data-testid="tuple-set-picker-copy"]').trigger('click');
+    await picker.get('[data-testid="tuple-set-conversion-strip"]').setValue(true);
+    await picker.get('[data-testid="tuple-set-conversion-confirm"]').trigger('click');
+
+    const [payload] = picker.emitted('load')![0] as [{ rows: Array<{ values: Record<string, unknown> }> }];
+    expect(Object.keys(payload.rows[0].values)).toEqual(['city']);
+  });
+
+  it('hands nothing over when the conversion is cancelled', async () => {
+    store.loadCurrentVersions.mockResolvedValue([
+      candidate('capitals', ['city'], [{ city: { type: 'literal', value: 'Paris' } }]),
+    ]);
+    const picker = await open(['city']);
+    await picker.get('[data-testid="tuple-set-picker-copy"]').trigger('click');
+    await picker.get('[data-testid="tuple-set-conversion-cancel"]').trigger('click');
+
+    expect(picker.emitted('load')).toBeUndefined();
+    expect(picker.find('[data-testid="tuple-set-picker-panel"]').exists()).toBe(true);
   });
 });
 

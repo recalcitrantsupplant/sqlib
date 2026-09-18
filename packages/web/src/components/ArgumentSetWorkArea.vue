@@ -45,6 +45,7 @@
             :variables="binding.variables"
             :model-value="binding"
             :library-id="setLibraryId || activeLibraryId"
+            :copied-from="setId"
             renamable
             removable
             @update:model-value="updateBinding(index, $event)"
