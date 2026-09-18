@@ -24,10 +24,19 @@ describe('bandForLine', () => {
     'RULE { } WHERE { }',
   );
 
-  it('labels the first line of a block and paints the rest unlabelled', () => {
+  it('numbers a run once, at its first line', () => {
     const bands = [rule(3, 3, 0), rule(5, 5, 0)];
     expect(bandForLine(bands, body, 3)).toEqual({ band: bands[0], first: true });
-    expect(bandForLine(bands, body, 5)).toEqual({ band: bands[1], first: true });
+    // Same stratum, one blank line apart: the second rule continues the run,
+    // so it is painted but not numbered again.
+    expect(bandForLine(bands, body, 5)).toEqual({ band: bands[1], first: false });
+  });
+
+  it('paints the rest of a multi-line block unlabelled', () => {
+    const bands = [rule(3, 5, 0)];
+    expect(bandForLine(bands, body, 3)).toEqual({ band: bands[0], first: true });
+    expect(bandForLine(bands, body, 4)).toEqual({ band: bands[0], first: false });
+    expect(bandForLine(bands, body, 5)).toEqual({ band: bands[0], first: false });
   });
 
   it('bridges a blank line between two blocks in the same stratum', () => {
@@ -35,9 +44,10 @@ describe('bandForLine', () => {
     expect(bandForLine(bands, body, 4)).toEqual({ band: bands[0], first: false });
   });
 
-  it('leaves the gap where the stratum changes across it', () => {
+  it('opens a new run, numbered again, where the stratum changes', () => {
     const bands = [rule(3, 3, 0), rule(5, 5, 1)];
     expect(bandForLine(bands, body, 4)).toBeNull();
+    expect(bandForLine(bands, body, 5)).toEqual({ band: bands[1], first: true });
   });
 
   it('leaves the gap where the stratum changes kind across it', () => {
@@ -48,10 +58,11 @@ describe('bandForLine', () => {
     expect(bandForLine(bands, body, 4)).toBeNull();
   });
 
-  it('leaves a gap that holds something other than whitespace', () => {
+  it('leaves a gap that holds something other than whitespace, and numbers what follows', () => {
     const commented = doc('RULE { } WHERE { }', '# why', 'RULE { } WHERE { }');
     const bands = [rule(1, 1, 0), rule(3, 3, 0)];
     expect(bandForLine(bands, commented, 2)).toBeNull();
+    expect(bandForLine(bands, commented, 3)).toEqual({ band: bands[1], first: true });
   });
 
   it('paints nothing above the first band or below the last', () => {
