@@ -40,6 +40,13 @@ async function openQueryArguments(page: Page) {
   await page.locator('[data-testid="arguments-tab"]').click();
 }
 
+/** Pick the one scratch set out of the switcher's Scratch cluster. */
+async function reopenScratchSet(page: Page) {
+  await switcher(page).click();
+  await page.locator('.set-menu .set-row').first().click();
+  await expect(state(page)).toHaveText('Scratch');
+}
+
 /** The Argument sets rail, reached the way a person reaches it. */
 async function openArgumentSetsRail(page: Page) {
   await page.locator('.nav-rail .rail-button').filter({ hasText: 'Argument sets' }).first().click();
@@ -81,6 +88,9 @@ test.describe('Argument sets made on a query reach the rail', () => {
     // record, the edits went back to the legacy key, and the second dropped
     // them as a duplicate id.
     await openQueryArguments(page);
+    // Reopening the query opens no set; the scratch one is where the switcher
+    // says it is, which is itself part of what this is checking.
+    await reopenScratchSet(page);
     await values(page).first().fill('http://example.org/hobart');
     await page.waitForTimeout(700);
 
