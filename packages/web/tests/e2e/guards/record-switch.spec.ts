@@ -33,8 +33,6 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
 import { mockEntityApi, LIBRARY, QUERY } from '../fixtures/entities';
 
-const BASE = process.env.PERF_BASE ?? 'http://localhost:3001';
-
 const TEST_IDS = ['urn:sqlib:test:alpha', 'urn:sqlib:test:beta'] as const;
 
 function storedTest(id: string, name: string) {
@@ -118,7 +116,10 @@ test('switching between saved tests swaps in place', async ({ page }) => {
     if (counting && SCREEN_LISTS.test(url.pathname)) refetches.push(url.pathname);
   });
 
-  await page.goto(`${BASE}/?section=tests`, { waitUntil: 'networkidle' });
+  // Relative, so Playwright's `baseURL` decides the port. CI runs the preview
+  // on a port nobody types by hand — it shares a machine with local development
+  // — so a spec that names 3001 itself connects to nothing there.
+  await page.goto('/?section=tests', { waitUntil: 'networkidle' });
   const row = (name: string) => page.locator('.entity-name', { hasText: name }).first();
   await row('Test 1').click();
   const pane = page.locator('.test-work-area');
