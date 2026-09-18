@@ -122,6 +122,15 @@ export function useNotebook(libraryId: Ref<string | null>) {
   /** Bound values, by name. Session-scoped by design. */
   const values = ref<Record<string, NotebookValue>>({});
   const runState = ref<Record<string, CellRunState>>({});
+  /**
+   * The call each cell last made, and what came back, keyed by cell.
+   *
+   * Kept because "save this as a test" means the call that *ran*, not the one
+   * the form currently describes: a slot fed from a value was filled with rows
+   * this page no longer shows, and re-deriving it from the document would
+   * record a different call from the one whose result is on screen.
+   */
+  const lastRun = ref<Record<string, { payload: unknown; result: unknown }>>({});
 
   const problems = computed(() => validateNotebook(notebook.value));
 
@@ -323,6 +332,12 @@ export function useNotebook(libraryId: Ref<string | null>) {
     const limits = toExecutionParameters(cell.kind === 'query' ? cell.limits : undefined);
     const offsets = toExecutionParameters(cell.kind === 'query' ? cell.offsets : undefined);
 
+    const payload = {
+      ...(args.length ? { arguments: args } : {}),
+      ...(cell.kind === 'query' && cell.limits ? { limits: cell.limits } : {}),
+      ...(cell.kind === 'query' && cell.offsets ? { offsets: cell.offsets } : {}),
+    };
+
     const result = await apiClient.executeTarget({
       targetId: cellTargetId(cell),
       ...(args.length ? { arguments: args as never } : {}),
@@ -336,17 +351,19 @@ export function useNotebook(libraryId: Ref<string | null>) {
 
     let produced: NotebookValue;
     if (isJson) {
-      const payload = JSON.parse(result.body) as {
+      const body = JSON.parse(result.body) as {
         boolean?: boolean;
         head?: { vars?: string[] };
         results?: { bindings?: Array<Record<string, unknown>> };
       };
       produced =
-        typeof payload.boolean === 'boolean'
-          ? booleanValue(source, payload.boolean)
-          : rowsValue(source, payload, result.body);
+        typeof body.boolean === 'boolean'
+          ? booleanValue(source, body.boolean)
+          : rowsValue(source, body, result.body);
+      lastRun.value = { ...lastRun.value, [cell.id]: { payload, result: body } };
     } else {
       produced = graphValue(source, result.body, result.contentType);
+      lastRun.value = { ...lastRun.value, [cell.id]: { payload, result: result.body } };
     }
 
     bind(cell, produced, durationMs);
@@ -529,6 +546,7 @@ export function useNotebook(libraryId: Ref<string | null>) {
     notebook,
     values,
     runState,
+    lastRun,
     problems,
     targets,
     targetFor,

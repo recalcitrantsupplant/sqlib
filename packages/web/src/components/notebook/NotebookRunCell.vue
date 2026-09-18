@@ -26,14 +26,14 @@
           -->
           <DropdownMenu>
             <DropdownMenuTrigger as-child>
-              <button
-                type="button"
-                class="menu-button"
+              <Button
+                size="icon-sm"
+                variant="ghost"
                 aria-label="Cell actions"
                 :data-testid="`notebook-menu-${cell.id}`"
               >
                 <MoreHorizontal :size="13" />
-              </button>
+              </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem @select="$emit('move', -1)">Move up</DropdownMenuItem>
@@ -171,6 +171,21 @@
         >
           Save…
         </Button>
+        <!--
+          The one write a notebook makes to the library, carried over from the
+          screen this replaced: hold a query, its arguments and a result and you
+          are holding a test case. Hidden rather than disabled where tests are
+          off, the rule that screen followed (`test/testsFeatureDoors.test.ts`).
+        -->
+        <Button
+          v-if="canWrite && value"
+          size="sm"
+          variant="outline"
+          :data-testid="`notebook-save-as-test-${cell.id}`"
+          @click="$emit('save-as-test')"
+        >
+          <ClipboardCheck :size="12" /> Save as test…
+        </Button>
       </div>
 
       <p v-if="state.error" class="notice notice--error" :data-testid="`notebook-error-${cell.id}`">
@@ -213,7 +228,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { MoreHorizontal, Pencil, Play } from '@lucide/vue';
+import { ClipboardCheck, MoreHorizontal, Pencil, Play } from '@lucide/vue';
 import { Badge } from '../ui/badge';
 import {
   DropdownMenu,
@@ -250,6 +265,8 @@ const props = defineProps<{
   value: NotebookValue | null;
   /** Values bound above this cell, with a rendered summary for the chip. */
   valueOptions: Array<{ name: string; type: NotebookValue['type']; summary: string }>;
+  /** Whether this reader may write to the library at all. */
+  canWrite?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -259,6 +276,7 @@ const emit = defineEmits<{
   (e: 'rename', name: string): void;
   (e: 'update', patch: Partial<RunCell>): void;
   (e: 'save'): void;
+  (e: 'save-as-test'): void;
 }>();
 
 interface ArgsElement extends HTMLElement {
@@ -499,23 +517,6 @@ function cellText(row: Record<string, unknown>, column: string): string {
   font-size: var(--text-body-lg);
 }
 
-.menu-button {
-  width: var(--control-h-sm);
-  height: var(--control-h-sm);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--ink-muted);
-  cursor: pointer;
-}
-
-.menu-button:hover {
-  background: var(--surface-raised);
-  color: var(--ink);
-}
 
 .query {
   padding: var(--space-4) var(--space-4) 0;
@@ -663,6 +664,163 @@ function cellText(row: Record<string, unknown>, column: string): string {
   font-family: var(--font-mono);
   font-size: var(--text-body-lg);
 }
+
+/*
+ * `<sqlib-args>` in the app's clothes.
+ *
+ * The element is light DOM precisely so each host can theme it: the exported
+ * page injects the runtime's own ARGS_ELEMENT_STYLES, and the app dresses the
+ * same class names in its tokens instead. Without this the element renders as
+ * raw unstyled HTML — which is exactly what shipped, because every test
+ * asserted on DOM text and none of them could see it.
+ */
+:deep(.sqlib-args__modes) {
+  display: inline-flex;
+  gap: 0;
+  padding: var(--space-1);
+  margin-bottom: var(--space-4);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius);
+  background: var(--surface-subtle);
+}
+
+:deep(.sqlib-args__mode) {
+  height: var(--control-h-sm, 24px);
+  padding: 0 var(--space-4);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: var(--text-label);
+  cursor: pointer;
+}
+
+:deep(.sqlib-args__mode[aria-pressed='true']) {
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: var(--weight-semibold);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 8%);
+}
+
+:deep(.sqlib-args__slot) { margin-bottom: var(--space-4); }
+
+:deep(.sqlib-args__slot-label) {
+  margin-bottom: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  color: var(--ink-muted);
+}
+
+:deep(.sqlib-args__table) {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-label);
+}
+
+:deep(.sqlib-args__table th) {
+  padding: 0 var(--space-3) var(--space-2);
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  font-weight: var(--weight-semibold);
+  color: var(--ink-muted);
+}
+
+:deep(.sqlib-args__table td) { padding: var(--space-1) var(--space-3); vertical-align: top; }
+
+:deep(.sqlib-args__cell) {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+:deep(.sqlib-args__cell select),
+:deep(.sqlib-args__cell input),
+:deep(.sqlib-args__limit input) {
+  height: var(--control-h-sm, 24px);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: inherit;
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+}
+
+:deep(.sqlib-args__cell input) { flex: 3 1 14rem; min-width: 8rem; }
+
+/* Datatype and language qualify the value; they should not rival it for width. */
+:deep(.sqlib-args__cell input[placeholder='datatype IRI']),
+:deep(.sqlib-args__cell input[placeholder='lang']) { flex: 1 1 7rem; min-width: 4rem; }
+:deep(.sqlib-args__cell input:focus),
+:deep(.sqlib-args__limit input:focus) { border-color: var(--action); outline: none; }
+:deep(.sqlib-args__cell input.sqlib-args__invalid) { border-color: var(--danger-ink); }
+
+:deep(.sqlib-args__error) {
+  flex-basis: 100%;
+  color: var(--danger-ink);
+  font-size: var(--text-micro);
+}
+
+:deep(.sqlib-args__row-actions) { white-space: nowrap; }
+
+:deep(.sqlib-args__button) {
+  height: var(--control-h-sm, 24px);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink-secondary);
+  font: inherit;
+  font-size: var(--text-label);
+  cursor: pointer;
+}
+
+:deep(.sqlib-args__button:hover) { background: var(--surface-subtle); color: var(--ink); }
+
+:deep(.sqlib-args__limits) {
+  display: flex;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+}
+
+:deep(.sqlib-args__limit) {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  color: var(--ink-muted);
+}
+
+:deep(.sqlib-args__limit input) { width: 6rem; }
+
+:deep(.sqlib-args__json) {
+  width: 100%;
+  min-height: 9rem;
+  padding: var(--space-4);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--surface-subtle);
+  color: inherit;
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  resize: vertical;
+}
+
+:deep(.sqlib-args__note) {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-micro);
+  color: var(--ink-muted);
+}
+
+:deep(.sqlib-args__note--warn) { color: var(--warning-ink, var(--ink-secondary)); }
+:deep(.sqlib-args__empty) { font-size: var(--text-label); color: var(--ink-muted); }
 
 .visually-hidden {
   position: absolute;

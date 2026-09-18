@@ -37,12 +37,18 @@
       />
 
       <div class="cell__actions">
-        <button type="button" class="action" @click="toggleEdit">
+        <Button size="sm" variant="ghost" :data-testid="`notebook-md-edit-${cell.id}`" @click="toggleEdit">
           {{ editing ? 'Done' : 'Edit' }}
-        </button>
-        <button type="button" class="action" aria-label="Move cell up" @click="$emit('move', -1)">Up</button>
-        <button type="button" class="action" aria-label="Move cell down" @click="$emit('move', 1)">Down</button>
-        <button type="button" class="action action--danger" @click="$emit('remove')">Remove</button>
+        </Button>
+        <Button size="sm" variant="ghost" aria-label="Move cell up" @click="$emit('move', -1)">
+          <ChevronUp :size="12" />
+        </Button>
+        <Button size="sm" variant="ghost" aria-label="Move cell down" @click="$emit('move', 1)">
+          <ChevronDown :size="12" />
+        </Button>
+        <Button size="sm" variant="ghost" :data-testid="`notebook-md-remove-${cell.id}`" @click="$emit('remove')">
+          Remove
+        </Button>
       </div>
     </div>
   </section>
@@ -50,6 +56,8 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { ChevronDown, ChevronUp } from '@lucide/vue';
+import { Button } from '../ui/button';
 import CodeEditor from '../shared/CodeEditor.vue';
 import { renderMarkdown } from '../../lib/markdown';
 import type { MarkdownCell } from '../../lib/notebookFormat';
@@ -122,23 +130,6 @@ function toggleEdit() {
   opacity: 1;
 }
 
-.action {
-  border: none;
-  background: transparent;
-  padding: 0;
-  font-size: var(--text-micro);
-  color: var(--ink-muted);
-  cursor: pointer;
-}
-
-.action:hover {
-  color: var(--ink);
-  text-decoration: underline;
-}
-
-.action--danger:hover {
-  color: var(--danger);
-}
 
 
 .prose {

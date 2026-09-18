@@ -2,11 +2,14 @@
 
 A **notebook** is a document you write about a library: prose interleaved with
 runs, in the order that makes sense, with each run's result bound to a name the
-cells below can use. It is the counterpart to the library screen — that one
-*renders* every query the library holds; this one is what you send someone so
-they understand what the library is for.
+cells below can use. It is the library's front page — the first entry on the
+rail, at `/notebook` — and it replaced a screen that rendered every query in the
+library as a cell whether or not anyone had asked for it. The contents of the
+library are what you import here; what you write around them is the point.
 
-Open it from the rail's **Notebook** entry, or at `/notebook`.
+Notebooks are listed in the sidebar like every other asset the rail holds. They
+are kept in this browser (there is no server entity yet), autosave as you type,
+and travel as a file — see §4.
 
 ## 1. What a cell is
 
@@ -113,7 +116,21 @@ A cell floats to its entity's current version by default, so a notebook tracks
 the library it documents. A document may pin a version instead (`"version": 3`
 on the cell), which is what you want for a notebook attached to a release.
 
-## 6. What is not here yet
+## 6. The library's own exports
+
+Two actions under **Export** are about the library rather than about the
+notebook, and live here because this screen is the library's front page:
+
+- **The library, as a runnable page** — the self-contained HTML the
+  [static export](static-export.md) writes, which calls a triplestore with no
+  sqlib in the request path.
+- **Copy the library's bundle JSON** — the compiled bundle that page runs on.
+
+A cell that has run also offers **Save as test…**: hold a query, its arguments
+and a result and you are holding a test case. It records the call that *ran* —
+a slot fed from a value was filled with rows the cell no longer shows.
+
+## 7. What is not here yet
 
 - No server-side notebook entity: a notebook lives in the browser and in the
   file you export. There is no URL to share yet.

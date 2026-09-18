@@ -35,7 +35,7 @@ test.describe('Nav rail', () => {
     await openApp(page);
   });
 
-  test('renders Library and Notebook, then the library sections, then Build, then Backends', async ({ page }) => {
+  test('renders Notebook, then the library sections, then Build, then Backends', async ({ page }) => {
     const labels = await page.locator('.nav-rail .rail-button .rail-label').allTextContents();
     /*
      * v2 order (nav doc §2). No Play: a playground is an unsaved item, not a
@@ -55,17 +55,15 @@ test.describe('Nav rail', () => {
      * what a graph was *for*, which stopped being the whole story once a backend
      * could be hydrated from one.
      *
-     * Library leads, because it is the library's front page — the screen you
+     * Notebook leads, because it is the library's front page — the screen you
      * show someone before they know which type they want, so everything under
-     * it reads as a drill-down from it. Notebook sits beside it rather than
-     * inside it: the library screen *renders* the library, one cell per query,
-     * and a notebook is a document someone wrote about it — prose, a few cells
-     * in a chosen order, each run bound to a name the cells below can read.
-     * Two screens over one library, which is why neither is nested under the
-     * other (docs/proposals/notebook-cells.md §8).
+     * it reads as a drill-down from it. It took that slot from a `library`
+     * screen that rendered every query in the library as a cell, unasked: the
+     * contents are what you import into a notebook, and the notebook is what
+     * someone reads (docs/proposals/notebook-cells.md §8).
      */
     expect(labels).toEqual([
-      'Library', 'Notebook', 'Query', 'Groups', 'Rules', 'ETL', 'Bench', 'Tests', 'Graphs',
+      'Notebook', 'Query', 'Groups', 'Rules', 'ETL', 'Bench', 'Tests', 'Graphs',
       'Tuples', 'Argument sets', 'Build', 'Backends',
     ]);
   });
@@ -80,20 +78,12 @@ test.describe('Nav rail', () => {
     );
   });
 
-  test('Library navigates to the library page, the rail\'s other screen', async ({ page }) => {
-    await railButton(page, 'Library').click();
+  test('Notebook navigates to the notebook screen, the rail\'s other destination', async ({ page }) => {
+    await railButton(page, 'Notebook').click();
     // Same shape as Build below: a screen, not a scope, and it self-selects a
     // library once the store resolves, so the path is what can be anchored on.
-    await expect(page).toHaveURL(/\/library(\?|$)/);
-    await expect(page.locator('.library-layout')).toBeVisible();
-    await expect(page.locator('.nav-sidebar')).toHaveCount(0);
-  });
-
-  test('Notebook navigates to the notebook screen', async ({ page }) => {
-    await railButton(page, 'Notebook').click();
     await expect(page).toHaveURL(/\/notebook(\?|$)/);
     await expect(page.locator('.notebook-layout')).toBeVisible();
-    // A screen, not a scope: the same rule the library page and Build follow.
     await expect(page.locator('.nav-sidebar')).toHaveCount(0);
   });
 

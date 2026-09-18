@@ -49,7 +49,6 @@
 import { computed, ref, type Component } from 'vue';
 import {
   Sparkles,
-  BookOpen,
   NotebookPen,
   FileCode2,
   Workflow,
@@ -104,9 +103,9 @@ const SECTIONS: RailEntry[] = [
   // First, because it is the library's front page — the screen you show
   // someone before they know which type they want. Everything under it reads
   // as a drill-down.
-  { section: 'library', label: 'Library', title: 'Library — every query the library holds, as a runnable, readable page', icon: BookOpen, enabled: () => isEnabled('queries') },
-  // Beside the library and not inside it: a notebook is a document someone
-  // wrote about the library, where the library screen is the library rendered.
+  // The library's front page. It replaced a screen that rendered every query in
+  // the library as a cell whether or not anyone had asked for it: the contents
+  // are what you import here, and what you write around them is the point.
   { section: 'notebooks', label: 'Notebook', title: 'Notebook — prose and cells you write, run in order, with each result named', icon: NotebookPen, enabled: () => isEnabled('queries') },
   { section: 'queries', label: 'Query', title: 'Queries', icon: FileCode2, enabled: () => isEnabled('queries') },
   { section: 'queryGroups', label: 'Groups', title: 'Query groups', icon: Workflow, enabled: () => isEnabled('queryGroups') },

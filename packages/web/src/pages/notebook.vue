@@ -29,8 +29,6 @@
       and what it has produced — and a rail that appears once you have enough
       cells is a rail you learn about by accident.
     -->
-    <NotebookRail :entries="outlineEntries" :values="boundValues" :stale-names="staleValueNames" />
-
     <main class="page">
       <header class="page-header">
         <label class="visually-hidden" for="notebook-title">Notebook title</label>
@@ -51,9 +49,30 @@
           <Play :size="12" />
           {{ running ? 'Running…' : 'Run all' }}
         </Button>
-        <Button size="sm" variant="outline" data-testid="notebook-export" @click="exportDocument">
-          <Download :size="12" /> Export
-        </Button>
+        <!--
+          Three exports behind one control. The notebook's own file is the
+          first; the other two are the library's, and they live here because
+          this screen is the library's front page now that the screen which
+          held them is gone.
+        -->
+        <DropdownMenu>
+          <DropdownMenuTrigger as-child>
+            <Button size="sm" variant="outline" data-testid="notebook-export">
+              <Download :size="12" /> Export
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem data-testid="notebook-export-file" @select="exportDocument">
+              This notebook (.sqlibnb)
+            </DropdownMenuItem>
+            <DropdownMenuItem data-testid="notebook-export-html" :disabled="exporting" @select="exportLibraryHtml">
+              {{ exporting ? 'Exporting…' : 'The library, as a runnable page' }}
+            </DropdownMenuItem>
+            <DropdownMenuItem data-testid="notebook-copy-bundle" @select="copyBundle">
+              {{ bundleCopied ? 'Copied' : 'Copy the library’s bundle JSON' }}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <Button size="sm" variant="outline" data-testid="notebook-import" @click="fileInput?.click()">
           <Upload :size="12" /> Import
         </Button>
@@ -76,68 +95,102 @@
 
       <p v-if="notice" class="notice notice--error" data-testid="notebook-notice">{{ notice }}</p>
 
-      <div class="page-body">
-        <div class="measure">
-          <template v-if="nb.notebook.value.cells.length > 0">
-            <div v-for="(cell, index) in nb.notebook.value.cells" :id="`cell-${cell.id}`" :key="cell.id" class="slot">
-              <NotebookMarkdownCell
-                v-if="cell.kind === 'markdown'"
-                :cell="cell"
-                :index="index + 1"
-                @update="nb.updateCell(cell.id, { source: $event })"
-                @remove="nb.removeCell(cell.id)"
-                @move="nb.moveCell(cell.id, $event)"
-              />
-              <NotebookRunCell
-                v-else
-                :cell="cell"
-                :index="index + 1"
-                :target="nb.targetFor(cell)"
-                :state="nb.stateFor(cell.id)"
-                :value="nb.values.value[cell.out] ?? null"
-                :value-options="valueOptionsAbove(index)"
-                @run="nb.run(cell.id)"
-                @remove="nb.removeCell(cell.id)"
-                @move="nb.moveCell(cell.id, $event)"
-                @rename="rename(cell.id, $event)"
-                @update="nb.updateCell(cell.id, $event)"
-                @save="openSave(cell.out)"
-              />
+      <div class="page-row">
+        <div class="page-body">
+          <div class="measure">
+            <template v-if="nb.notebook.value.cells.length > 0">
+              <div
+                v-for="(cell, index) in nb.notebook.value.cells"
+                :id="`cell-${cell.id}`"
+                :key="cell.id"
+                class="slot"
+              >
+                <NotebookMarkdownCell
+                  v-if="cell.kind === 'markdown'"
+                  :cell="cell"
+                  :index="index + 1"
+                  @update="nb.updateCell(cell.id, { source: $event })"
+                  @remove="nb.removeCell(cell.id)"
+                  @move="nb.moveCell(cell.id, $event)"
+                />
+                <NotebookRunCell
+                  v-else
+                  :cell="cell"
+                  :index="index + 1"
+                  :target="nb.targetFor(cell)"
+                  :state="nb.stateFor(cell.id)"
+                  :value="nb.values.value[cell.out] ?? null"
+                  :value-options="valueOptionsAbove(index)"
+                  :can-write="canWrite"
+                  @run="nb.run(cell.id)"
+                  @remove="nb.removeCell(cell.id)"
+                  @move="nb.moveCell(cell.id, $event)"
+                  @rename="rename(cell.id, $event)"
+                  @update="nb.updateCell(cell.id, $event)"
+                  @save="openSave(cell.out)"
+                  @save-as-test="openSaveAsTest(cell)"
+                />
+              </div>
+            </template>
+
+            <EmptyState
+              v-else
+              title="An empty notebook"
+              description="Write prose, import a query, a group or a rule set, and run it. Each run binds its result to a name the cells below can use."
+            />
+
+            <!--
+              One button per cell kind, each opening the picker on its own tab.
+              They are the app's own <Button>, not a local class: a row of
+              hand-rolled buttons beside the header's real ones is exactly the
+              mismatch the design tokens exist to stop.
+            -->
+            <div class="add-row">
+              <SectionLabel as="span">Add</SectionLabel>
+              <Button size="sm" variant="outline" data-testid="notebook-add-markdown" @click="addMarkdown">
+                <FileText :size="12" /> Markdown
+              </Button>
+              <Button size="sm" variant="outline" data-testid="notebook-add-cell" @click="openPicker('query')">
+                <Search :size="12" /> Query
+              </Button>
+              <Button size="sm" variant="outline" data-testid="notebook-add-group" @click="openPicker('group')">
+                <Workflow :size="12" /> Query group
+              </Button>
+              <Button size="sm" variant="outline" data-testid="notebook-add-ruleset" @click="openPicker('ruleset')">
+                <Scale :size="12" /> Rule set
+              </Button>
+              <span class="page-header__spacer"></span>
+              <Button
+                v-if="nb.notebook.value.cells.length === 0 && queryTargets.length > 0"
+                size="sm"
+                variant="ghost"
+                data-testid="notebook-start-from-library"
+                @click="startFromLibrary"
+              >
+                Start from the library — add {{ queryTargets.length }} query cells
+              </Button>
             </div>
-          </template>
-
-          <EmptyState
-            v-else
-            title="An empty notebook"
-            description="Write prose, import a query, a group or a rule set, and run it. Each run binds its result to a name the cells below can use."
-          />
-
-          <div class="add-row">
-            <SectionLabel as="span">Add</SectionLabel>
-            <button type="button" class="add" data-testid="notebook-add-markdown" @click="addMarkdown">
-              <FileText :size="12" /> Markdown
-            </button>
-            <button type="button" class="add" data-testid="notebook-add-cell" @click="openPicker('query')">
-              <Search :size="12" /> Query
-            </button>
-            <button type="button" class="add" data-testid="notebook-add-group" @click="openPicker('group')">
-              <Workflow :size="12" /> Query group
-            </button>
-            <button type="button" class="add" data-testid="notebook-add-ruleset" @click="openPicker('ruleset')">
-              <Scale :size="12" /> Rule set
-            </button>
-            <span class="page-header__spacer"></span>
-            <button
-              v-if="nb.notebook.value.cells.length === 0 && queryTargets.length > 0"
-              type="button"
-              class="add"
-              data-testid="notebook-start-from-library"
-              @click="startFromLibrary"
-            >
-              Start from the library — add {{ queryTargets.length }} query cells
-            </button>
           </div>
         </div>
+
+        <!--
+          The right-hand panel every other work area keeps its properties in.
+          What the notebook has produced is inspector material, beside the
+          document rather than in the contents rail with what it says.
+        -->
+        <InspectorPanel
+          v-model:active-tab="inspectorTab"
+          v-model:collapsed="inspectorCollapsed"
+          :tabs="inspectorTabs"
+          testid="notebook-inspector"
+        >
+          <template #outline>
+            <NotebookRail :entries="outlineEntries" />
+          </template>
+          <template #values>
+            <NotebookValuesPanel :values="boundValues" :stale-names="staleValueNames" />
+          </template>
+        </InspectorPanel>
       </div>
     </main>
 
@@ -147,6 +200,17 @@
       :targets="insertTargets"
       @insert="insertTarget"
       @insert-markdown="addMarkdown"
+    />
+
+    <SaveAsTestDialog
+      v-model:open="testDialogOpen"
+      :library-id="libraryId"
+      :query-id="testTarget?.queryId ?? null"
+      :query-name="testTarget?.name ?? ''"
+      :query-type="testTarget?.queryType ?? null"
+      :payload="testTarget?.payload ?? null"
+      :result="testTarget?.result ?? null"
+      :backend-id="activeLibrary?.defaultBackend ?? null"
     />
 
     <Dialog v-model:open="saveOpen">
@@ -162,7 +226,7 @@
           <input v-model="saveEntityName" class="field__input" type="text" data-testid="notebook-save-name" />
         </label>
         <DialogFooter>
-          <button type="button" class="add" @click="saveOpen = false">Cancel</button>
+          <Button size="sm" variant="outline" @click="saveOpen = false">Cancel</Button>
           <Button size="sm" :disabled="saving || !saveEntityName.trim()" data-testid="notebook-save-confirm" @click="confirmSave">
             {{ saving ? 'Saving…' : 'Save' }}
           </Button>
@@ -180,7 +244,10 @@ import { Download, FileText, Play, Scale, Search, Upload, Workflow } from '@luci
 import { defineArgsElement } from '@sparql-query-lib/runtime/args-element';
 import AppNavRail from '../components/AppNavRail.vue';
 import EntityListSidebar, { type SidebarSelection } from '../components/EntityListSidebar.vue';
+import SaveAsTestDialog from '../components/notebook/SaveAsTestDialog.vue';
 import NotebookRail from '../components/notebook/NotebookRail.vue';
+import NotebookValuesPanel from '../components/notebook/NotebookValuesPanel.vue';
+import InspectorPanel from '../components/shared/InspectorPanel.vue';
 import NotebookMarkdownCell from '../components/notebook/NotebookMarkdownCell.vue';
 import NotebookRunCell from '../components/notebook/NotebookRunCell.vue';
 import NotebookInsertMenu from '../components/notebook/NotebookInsertMenu.vue';
@@ -195,6 +262,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../components/ui/dropdown-menu';
+import { useApiClient } from '../composables/useApiClient';
+import { useFeatureFlags } from '../composables/useFeatureFlags';
 import { useActiveLibrary } from '../composables/useActiveLibrary';
 import { useBackendsStore } from '../composables/useBackendsStore';
 import { useLibrariesStore } from '../composables/useLibrariesStore';
@@ -237,6 +312,8 @@ const backendsStore = useBackendsStore();
 const requestedLibraryId = (route.query.library as string) || null;
 const { activeLibraryId: libraryId, activeLibrary, setActiveLibrary } = useActiveLibrary();
 
+const apiClient = useApiClient();
+const { isEnabled } = useFeatureFlags();
 const nb = useNotebook(libraryId);
 const documents = useNotebookDocuments(libraryId);
 const draftsStore = useCallableDrafts(libraryId);
@@ -250,6 +327,35 @@ const saving = ref(false);
 const running = ref(false);
 const notice = ref<string | null>(null);
 const fileInput = ref<HTMLInputElement | null>(null);
+const exporting = ref(false);
+const bundleCopied = ref(false);
+const testDialogOpen = ref(false);
+const testTarget = ref<{
+  queryId: string;
+  name: string;
+  queryType: string | null;
+  payload: unknown;
+  result: unknown;
+} | null>(null);
+
+/*
+ * No per-library permission model yet, so "can write" is the flag that decides
+ * whether tests exist at all — the reading the screen this replaced used.
+ */
+const canWrite = computed(() => isEnabled('tests'));
+
+const inspectorTab = ref('outline');
+const inspectorCollapsed = ref(false);
+/*
+ * Two tabs rather than two rails. The outline had a column of its own at
+ * first, which put four panels either side of the document and left the
+ * reading column narrower than the query in it — and "where am I" and "what
+ * have I made" are both questions about the document beside you.
+ */
+const inspectorTabs = computed(() => [
+  { id: 'outline', label: 'Outline', count: nb.notebook.value.cells.length },
+  { id: 'values', label: 'Values', count: boundValues.value.length },
+]);
 
 const backendLabel = computed(
   () =>
@@ -412,6 +518,65 @@ async function runAll() {
   } finally {
     running.value = false;
   }
+}
+
+/**
+ * The library as a self-contained page, and its compiled bundle.
+ *
+ * Both were the old library screen's, and both are facts about the library
+ * rather than about this document — which is why they sit under Export beside
+ * the notebook's own file rather than being lost with the screen.
+ */
+async function exportLibraryHtml() {
+  const id = libraryId.value;
+  if (!id) return;
+  exporting.value = true;
+  notice.value = null;
+  try {
+    const html = await apiClient.getLibraryExportHtml(id, { examples: 'all' });
+    const name = (activeLibrary.value?.name ?? 'library').replace(/[^a-zA-Z0-9-_]+/g, '-').toLowerCase();
+    downloadTextFile(html, `${name}.html`, 'text/html');
+  } catch (cause) {
+    notice.value = cause instanceof Error ? cause.message : String(cause);
+  } finally {
+    exporting.value = false;
+  }
+}
+
+async function copyBundle() {
+  const id = libraryId.value;
+  if (!id) return;
+  notice.value = null;
+  try {
+    const payload = await apiClient.getLibraryExportBundle(id, { examples: 'all' });
+    await navigator.clipboard.writeText(JSON.stringify(payload.bundle, null, 2));
+    bundleCopied.value = true;
+    setTimeout(() => (bundleCopied.value = false), 1500);
+  } catch (cause) {
+    // Silence here reads as "copied" — the one thing that did not happen.
+    notice.value = cause instanceof Error ? `Could not copy the bundle: ${cause.message}` : 'Could not copy the bundle.';
+  }
+}
+
+/**
+ * Hold a query, its arguments and a result, and you are holding a test case.
+ *
+ * The call it names is the one that *ran* (`lastRun`), not the one the form
+ * currently describes: a slot fed from a value was filled with rows the cell no
+ * longer shows.
+ */
+function openSaveAsTest(cell: RunCell) {
+  const target = nb.targetFor(cell);
+  const ran = nb.lastRun.value[cell.id];
+  if (!target || !ran) return;
+  testTarget.value = {
+    queryId: target.id,
+    name: target.name,
+    queryType: target.resultKind === 'BINDINGS' ? 'SELECT' : target.resultKind === 'BOOLEAN' ? 'ASK' : 'CONSTRUCT',
+    payload: ran.payload,
+    result: ran.result,
+  };
+  testDialogOpen.value = true;
 }
 
 function exportDocument() {
@@ -582,14 +747,27 @@ watch(libraryId, (id) => {
   color: var(--ink-muted);
 }
 
-.page-body {
+.page-row {
   flex: 1;
-  overflow-y: auto;
-  padding: var(--space-7) var(--space-5);
+  min-height: 0;
+  display: flex;
 }
 
+.page-body {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: var(--space-7) var(--space-7) var(--space-8);
+}
+
+/*
+ * Centred, at the measure the screen this replaced settled on: 60rem is the
+ * widest a cell wants, and a document pinned to the left of a 1600px monitor
+ * reads as a column that lost an argument with the window.
+ */
 .measure {
-  max-width: 880px;
+  max-width: 60rem;
+  margin-inline: auto;
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
@@ -609,20 +787,6 @@ watch(libraryId, (id) => {
 }
 
 
-.add {
-  height: var(--control-h-sm);
-  padding: 0 var(--space-3);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius);
-  background: var(--surface);
-  color: var(--ink);
-  font-size: var(--text-body);
-  cursor: pointer;
-}
-
-.add:hover {
-  background: var(--surface-subtle);
-}
 
 .notice {
   margin: 0;

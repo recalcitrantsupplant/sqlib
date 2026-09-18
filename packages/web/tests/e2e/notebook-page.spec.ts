@@ -36,7 +36,10 @@ test.describe('Notebook', () => {
     await openNotebook(page);
     await expect(page.getByText('An empty notebook')).toBeVisible();
     await expect(page.getByTestId('notebook-rail')).toContainText('No cells yet');
-    await expect(page.getByTestId('notebook-rail')).toContainText('Nothing has run');
+
+    // What it has produced is the inspector's other tab, beside what it says.
+    await page.getByTestId('values-tab').click();
+    await expect(page.getByTestId('notebook-values')).toContainText('Nothing has run');
   });
 
   test('offers queries, groups and rule sets, which the bundle could not carry', async ({ page }) => {
@@ -61,6 +64,7 @@ test.describe('Notebook', () => {
     await cell.locator('[data-testid^="notebook-run-"]').click();
 
     await expect(cell.locator('[data-testid^="notebook-stats-"]')).toContainText('1 row · 3 cols');
+    await page.getByTestId('values-tab').click();
     await expect(page.getByTestId('notebook-value-out1')).toContainText('1 row · 3 cols');
   });
 
@@ -70,11 +74,12 @@ test.describe('Notebook', () => {
 
     const cell = page.locator('[data-testid^="notebook-cell-"]').first();
     await cell.locator('[data-testid^="notebook-run-"]').click();
-    await expect(page.getByTestId('notebook-value-out1')).toBeVisible();
+    await expect(cell.locator('[data-testid^="notebook-stats-"]')).toBeVisible();
 
     await cell.locator('[data-testid^="notebook-out-"]').fill('candidates');
     await cell.locator('[data-testid^="notebook-out-"]').press('Enter');
 
+    await page.getByTestId('values-tab').click();
     await expect(page.getByTestId('notebook-value-candidates')).toContainText('1 row · 3 cols');
   });
 
@@ -134,6 +139,7 @@ test.describe('Notebook', () => {
     await page.getByTestId('notebook-run-all').click();
 
     await expect(second.locator('[data-testid^="notebook-status-"]')).toContainText('ran');
+    await page.getByTestId('values-tab').click();
     await expect(page.getByTestId('notebook-value-out2')).toBeVisible();
   });
 

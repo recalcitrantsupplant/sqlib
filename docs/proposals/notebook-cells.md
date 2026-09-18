@@ -6,8 +6,14 @@ Status: partly shipped. Steps 1–4 and 7's `.sqlibnb` half of §10 are in
 with the user-facing half written up in [the guide](../guides/notebooks.md).
 Still open: the server-side notebook entity, `dataGraphs` on a query target,
 pass-by-reference, the materialize cell, the ipynb and HTML rewrites, and
-promote-to-query-group. The library page keeps its own screen at `/library`;
-the notebook is a second rail entry beside it rather than a replacement.
+promote-to-query-group.
+
+§8 said the library page would keep a screen of its own. It did not: the
+notebook took that rail entry outright, and `/library` is gone. What was worth
+keeping came with it — the centred reading column, the compact query pane you
+click to expand, the arguments builder, "save as test", and the library's own
+exports (the runnable page, the bundle JSON), which now sit under Export beside
+the notebook's own file.
 
 ## 1. Two artefacts, two jobs
 
@@ -256,17 +262,19 @@ raw SPARQL cells are a problem: they have nothing to promote *to*.
 
 ## 8. Where the current page goes
 
-Do not delete it — demote it.
+*Written as "demote it, don't delete it". What shipped deleted it — one front
+page, and it is the one someone wrote. The rest of this section is what came
+across, which is most of it.*
 
-- The library screen keeps a **Contents** view: the current rendering, minus the
-  per-cell run apparatus, as "everything this library holds". That is a real
-  need — it is the catalogue — and it is honest about being generated. It can
-  read the API rather than the export bundle.
 - **New notebook** starts empty, with a "Start from the library" action that
-  drops in one cell per query: today's page as an *editable draft*, which
-  someone then cuts down to the five that matter and writes prose around.
+  drops in one cell per query: the old page as an *editable draft*, which
+  someone then cuts down to the five that matter and writes prose around. That
+  is the catalogue view's replacement: the contents are what you import.
 - `SaveAsTestDialog`, the args element, `CodePeek`, the result table and the
-  term-display menus move into the query cell unchanged.
+  centred measure move into the notebook unchanged.
+- The library's own exports — the runnable HTML page and the bundle JSON — are
+  facts about the library rather than about a document, and sit under the
+  notebook's Export menu beside its own file.
 
 ## 9. Export, and the bundle's own future
 

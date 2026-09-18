@@ -2,7 +2,7 @@
  * Screens versus scopes on the rail.
  *
  * `build` was the only rail entry that was a destination rather than a filter,
- * and every place that knew it said `section === 'build'`. Library is the
+ * and every place that knew it said `section === 'build'`. Notebook is the
  * second, so the distinction is now a set: what is worth pinning is that the
  * set and the scoping tables stay in step — a screen with a tree scope, or a
  * scope with no route, is the drift these tables exist to prevent.
@@ -44,7 +44,11 @@ describe('screen sections', () => {
     }
   });
 
-  it('puts Library first — it is the library\'s front page, not a drill-down', () => {
-    expect(RAIL_SECTIONS[0]).toBe('library');
+  /*
+   * Notebook took this slot from a `library` screen that rendered every query
+   * in the library as a cell. One front page, and it is the one someone wrote.
+   */
+  it('puts Notebook first — it is the library\'s front page, not a drill-down', () => {
+    expect(RAIL_SECTIONS[0]).toBe('notebooks');
   });
 });
