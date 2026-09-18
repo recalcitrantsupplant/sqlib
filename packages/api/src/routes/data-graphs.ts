@@ -25,6 +25,7 @@ import { createDataGraphSchema, updateDataGraphSchema } from '@sparql-query-lib/
 import { createDataGraphVersion, annotateDataGraphVersion } from '../lib/DataGraphVersionWriter.js';
 import { DATA_GRAPH_FORMATS, DEFAULT_DATA_GRAPH_FORMAT, DataGraphContentError } from '../lib/dataGraphContent.js';
 import { materializeDataGraphVersionFromQuery, DataGraphQuerySourceError } from '../lib/dataGraphFromQuery.js';
+import { pinsOnDataGraph, describePins } from '../lib/dataGraphPins.js';
 import { classifyVersionPatch } from '../lib/versionPatch.js';
 import { ImmutableEntityError } from '../lib/immutability.js';
 import { registerEntityAuthGuard } from '../auth/entityGuard.js';
@@ -41,6 +42,11 @@ export const dataGraphResponseSchema = {
       type: 'array',
       items: { type: 'string' },
     },
+    /**
+     * The argument set this graph was minted from, if it was born by pasting
+     * RDF into a call. Origin, for the rail's Origin grouping — not ownership.
+     */
+    mintedFrom: { type: 'string', nullable: true },
     dateCreated: { type: 'string', format: 'date-time', nullable: true },
     dateModified: { type: 'string', format: 'date-time', nullable: true },
     tags: {
@@ -307,12 +313,47 @@ export default async function (fastify: FastifyInstance) {
       params: idParamSchema,
       response: {
         204: { type: 'null' },
+        409: {
+          type: 'object',
+          properties: {
+            error: { type: 'string' },
+            /** The sets holding a pin, so the refusal can be acted on. */
+            usedBy: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  argumentSetId: { type: 'string' },
+                  argumentSetName: { type: 'string' },
+                  argumentSetVersionId: { type: 'string' },
+                  dataGraphVersionId: { type: 'string' },
+                },
+                required: ['argumentSetId', 'argumentSetName', 'argumentSetVersionId', 'dataGraphVersionId'],
+                additionalProperties: false,
+              },
+            },
+          },
+          required: ['error'],
+          additionalProperties: false,
+        },
       },
     }, async ({ repos, reply, request }) => {
     const { id } = request.params;
     const current = repos.DataGraph.get(id);
     if (!current) {
       return reply.status(404).send({ error: 'Not Found' });
+    }
+
+    /*
+     * Refused, not cascaded. An argument set version is immutable and its graph
+     * binding pins a `DataGraphVersion`; deleting the graph would leave saved
+     * sets — and the tests pinned to them — naming content that is gone, which
+     * they would discover at their next run. The "used by" list is what makes
+     * the refusal actionable rather than a wall.
+     */
+    const pins = pinsOnDataGraph(id);
+    if (pins.length > 0) {
+      return reply.status(409).send({ error: describePins(pins), usedBy: pins });
     }
 
     const versions = (repos.DataGraphVersion.list() as LdkitDataGraphVersion[]).filter(v => v.isPartOf === id);

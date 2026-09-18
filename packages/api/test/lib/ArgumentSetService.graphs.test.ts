@@ -125,14 +125,44 @@ describe('graph bindings', () => {
     ].sort());
   });
 
-  it('round-trips pasted RDF, which a saved set stores as part of the call', async () => {
+  /*
+   * Inline is a door, not a storage class. Pasting RDF into a call and saving
+   * it is a create-then-pin: the bytes become a `DataGraph` with one version in
+   * the set's library, and the stored binding names that version. The run is
+   * byte-identical; what changes is that the content can be found in the
+   * library it is part of.
+   */
+  it('saves pasted RDF as a data graph and pins it', async () => {
     const detail = await service.createForTarget('queryGroup', GROUP, {
       name: 'pasted',
-      graphBindings: [{ contentString: TURTLE, contentFormat: 'text/turtle' }],
+      graphBindings: [{ contentString: TURTLE, contentFormat: 'text/turtle', name: 'orders group · seed' }],
+    });
+
+    const binding = detail.graphBindings[0];
+    expect(binding.dataGraphVersionId).toBeTruthy();
+    expect(binding.contentString).toBeUndefined();
+
+    const minted = [...store.values()].find(entity => entity['@type'] === 'DataGraph');
+    expect(minted).toMatchObject({
+      name: 'orders group · seed',
+      isPartOf: [LIBRARY],
+      // Origin, so the rail can say where the row came from.
+      mintedFrom: detail.id,
     });
 
     const payload = await service.exportRuntimePayload([detail.id]);
     expect(payload.dataGraphs[0].content).toContain('http://ex/p');
+  });
+
+  it('derives a name rather than stopping the save to ask for one', async () => {
+    const detail = await service.createForTarget('queryGroup', GROUP, {
+      name: 'unnamed paste',
+      graphBindings: [{ contentString: TURTLE, contentFormat: 'text/turtle' }],
+    });
+
+    const minted = [...store.values()].find(entity => entity['@type'] === 'DataGraph');
+    expect(String(minted?.name)).toContain('unnamed paste');
+    expect(detail.graphBindings[0].dataGraphVersionId).toBeTruthy();
   });
 
   it('refuses a binding naming both a version and inline content', async () => {

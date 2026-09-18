@@ -2426,6 +2426,11 @@ export const createDataGraphSchema = {
         },
         "minItems": 1
       },
+      "mintedFrom": {
+        "type": "string",
+        "format": "iri",
+        "nullable": true
+      },
       "tags": {
         "type": "array",
         "items": {
@@ -2511,6 +2516,11 @@ export const updateDataGraphSchema = {
           "format": "iri"
         },
         "minItems": 1
+      },
+      "mintedFrom": {
+        "type": "string",
+        "format": "iri",
+        "nullable": true
       },
       "tags": {
         "type": "array",
