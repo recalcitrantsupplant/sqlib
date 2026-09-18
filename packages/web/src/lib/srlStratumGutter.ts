@@ -1,4 +1,4 @@
-import { StateEffect, StateField } from '@codemirror/state';
+import { StateEffect, StateField, type Text } from '@codemirror/state';
 import { EditorView, gutter, GutterMarker } from '@codemirror/view';
 import { STRATUM_NONE, stratumColor, stratumLabel } from '@/composables/useStratumPalette';
 
@@ -98,6 +98,38 @@ const stratumTheme = EditorView.baseTheme({
   },
 });
 
+/**
+ * The band a line belongs to, and whether it carries the label.
+ *
+ * A line inside a block is its own band's. A blank line *between* two blocks in
+ * the same stratum is bridged: the bands come back one per rule, so two rules
+ * of stratum 1 separated by the blank line SRL is normally written with used to
+ * draw as two stripes with a gap, reading as two things where the colour is
+ * saying "one stratum". Only whitespace bridges, and only between neighbours
+ * that agree — a gap holding a comment, or spanning a change of stratum, is a
+ * real break and keeps its gap.
+ */
+export function bandForLine(bands: StratumBand[], doc: Text, number: number): { band: StratumBand; first: boolean } | null {
+  const band = bands.find((entry) => number >= entry.startLine && number <= entry.endLine);
+  if (band) return { band, first: number === band.startLine };
+
+  // Nearest on each side, without assuming the bands arrive in document order.
+  const before = bands
+    .filter((entry) => entry.endLine < number)
+    .reduce<StratumBand | null>((best, entry) => (!best || entry.endLine > best.endLine ? entry : best), null);
+  const after = bands
+    .filter((entry) => entry.startLine > number)
+    .reduce<StratumBand | null>((best, entry) => (!best || entry.startLine < best.startLine ? entry : best), null);
+  if (!before || !after) return null;
+  if (before.kind !== after.kind || before.stratum !== after.stratum) return null;
+
+  for (let line = before.endLine + 1; line < after.startLine; line += 1) {
+    if (line > doc.lines) return null;
+    if (doc.line(line).text.trim().length > 0) return null;
+  }
+  return { band: before, first: false };
+}
+
 /** The gutter extension: install once, then dispatch {@link setStratumBands}. */
 export function stratumGutter() {
   return [
@@ -108,8 +140,8 @@ export function stratumGutter() {
         const bands = view.state.field(bandsField, false);
         if (!bands?.length) return null;
         const number = view.state.doc.lineAt(line.from).number;
-        const band = bands.find((entry) => number >= entry.startLine && number <= entry.endLine);
-        return band ? new BandMarker(band, number === band.startLine) : null;
+        const match = bandForLine(bands, view.state.doc, number);
+        return match ? new BandMarker(match.band, match.first) : null;
       },
       // Without a spacer the gutter collapses to nothing on a document with no
       // rules yet, and the code jumps sideways the moment the first one parses.

@@ -1524,8 +1524,6 @@ describe('the disabled ink', () => {
       'the decorative glyph above the title that carries the message',
     'components/shared/RunBar.vue: .pick-chevron':
       'the menu chevron beside a value the pass has already recoloured',
-    'components/shared/RunBar.vue: .help':
-      'an idle icon button — hover paints it --ink-secondary',
     'components/tests/TestRunsPanel.vue: .tally-sep':
       'the middot between two tallies — punctuation, not a word',
   };

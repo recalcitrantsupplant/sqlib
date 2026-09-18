@@ -190,7 +190,7 @@
             type="button"
             :data-testid="`run-bar-create-${target}`"
             :disabled="Boolean(createDisabledReason[target]) || creating !== null"
-            :title="createDisabledReason[target] ?? CREATE_TITLES[target](recipeNoun)"
+            :title="createDisabledReason[target] ?? createTitles[target] ?? CREATE_TITLES[target](recipeNoun)"
             @click="emit('create', target)"
           >
             {{ creating === target ? 'Creating…' : target }}
@@ -198,14 +198,6 @@
         </div>
       </span>
     </div>
-
-    <!--
-      One `?`, carrying the sentence a competent user reads once. Saying it as
-      body copy on the strip would charge them for it on every visit.
-    -->
-    <button v-if="help" class="help" type="button" tabindex="-1" data-testid="run-bar-help" :title="help">
-      <HelpCircle :size="12" />
-    </button>
 
     <slot name="trailing" />
   </div>
@@ -218,7 +210,6 @@ import {
   Database,
   FlaskConical,
   Gauge,
-  HelpCircle,
   Layers,
   Loader2,
   Play,
@@ -282,7 +273,11 @@ const props = withDefaults(defineProps<{
   creating?: CreateTarget | null;
   /** What the created object would freeze, in words: "inputs", "arguments". */
   recipeNoun?: string;
-  help?: string | null;
+  /**
+   * Per target: the hover text, when the generic phrasing is not the clearest
+   * thing to say on this screen. Absent targets keep {@link CREATE_TITLES}.
+   */
+  createTitles?: Partial<Record<CreateTarget, string>>;
 }>(), {
   runLabel: 'Run',
   runningLabel: 'Running…',
@@ -299,7 +294,7 @@ const props = withDefaults(defineProps<{
   createDisabledReason: () => ({}),
   creating: null,
   recipeNoun: 'inputs',
-  help: null,
+  createTitles: () => ({}),
 });
 
 const emit = defineEmits<{
@@ -598,27 +593,6 @@ const labelOf = (choice: RunBarChoice) =>
 .create-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-}
-
-/* -- Trailing -------------------------------------------------------- */
-
-.help {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  border: none;
-  border-radius: var(--radius);
-  background: transparent;
-  color: var(--ink-disabled);
-  cursor: help;
-}
-
-.help:hover {
-  background: var(--surface-sunken);
-  color: var(--ink-secondary);
 }
 
 </style>

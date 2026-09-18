@@ -6,9 +6,9 @@ import type { StratificationNode } from './StratificationGraph.vue';
  *
  * One graph, one place. This used to be two — a thin tab and a full-screen
  * modal reachable three ways — and two copies of the same picture is how two
- * pictures drift apart. Everything the modal held is here: the counts and the
- * no-cycles verdict, the canvas, and the per-rule inspector (source, what it
- * depends on and why, and the evaluation order).
+ * pictures drift apart. Everything the modal held is here: the counts, the
+ * canvas, and the per-rule inspector (source, what it depends on and why, and
+ * the evaluation order). The verdict is now shown only when it is bad news.
  *
  * What did *not* come with it is the paragraph explaining what a dashed edge
  * means. Reading that is a once-ever act; a wall of explanation above a graph
@@ -33,7 +33,7 @@ export interface StratificationPanelEdge {
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { Check, CircleSlash, CornerDownLeft, HelpCircle, Info, MoveRight } from '@lucide/vue';
+import { CircleSlash, CornerDownLeft, HelpCircle, Info, MoveRight } from '@lucide/vue';
 import StratificationGraph from './StratificationGraph.vue';
 import SectionLabel from '../shared/SectionLabel.vue';
 import { stratumColor } from '@/composables/useStratumPalette';
@@ -148,10 +148,13 @@ const formatTriple = (triple?: { subject?: string; predicate?: string; object?: 
   <div class="strat-pane" data-testid="rules-stratification">
     <div class="header-strip">
       <span class="headline">{{ headline }}</span>
-      <span v-if="!issues.length && nodes.length" class="chip chip-ok" data-testid="stratification-verdict">
-        <Check :size="11" />no cycles through negation
-      </span>
-      <span v-else-if="issues.length" class="chip chip-bad" data-testid="stratification-verdict">
+      <!--
+        Only the bad news. A document that stratifies is the normal case, and a
+        green chip restating it on every visit is a banner for "nothing is
+        wrong" — the headline already says how many strata came out. The chip
+        appears when there is something to act on.
+      -->
+      <span v-if="issues.length" class="chip chip-bad" data-testid="stratification-verdict">
         <CircleSlash :size="11" />does not stratify
       </span>
       <span v-if="computedAge" class="computed">{{ computedAge }}</span>
@@ -339,12 +342,6 @@ const formatTriple = (triple?: { subject?: string; predicate?: string; object?: 
   background: var(--surface);
   font-size: var(--text-label);
   white-space: nowrap;
-}
-
-.chip-ok {
-  background: var(--success-surface);
-  border-color: var(--success-border);
-  color: var(--success-ink);
 }
 
 .chip-bad {

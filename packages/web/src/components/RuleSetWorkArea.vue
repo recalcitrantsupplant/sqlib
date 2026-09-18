@@ -41,9 +41,10 @@
       <!--
         The run, as one sentence (design 3b). Inputs, not definition: the
         pickers and the Inputs tab are two views of one selection, and the
-        document below is SRL and nothing else. A rule set has no backend to
-        choose — it runs in an in-process store by construction — so "against"
-        states that rather than offering a dropdown with one entry in it.
+        document below is SRL and nothing else. There is no "against" clause: a
+        rule set is always evaluated in an in-process store, so naming it would
+        be stating the only possibility there is — which reads as a choice
+        someone made for you rather than a fact.
       -->
       <ExpandRunStrip>
         <RunBar
@@ -51,13 +52,11 @@
           :run-disabled="!hasDocument"
           :run-title="hasDocument ? 'Run this rule set' : 'Write a rule set first'"
           :inputs="runInputs"
-          :backend="RULES_STORE"
           :format="{ value: inferenceFormat, options: INFERENCE_FORMATS, title: 'The format the inferred graph comes back in' }"
           :create-targets="['benchmark', 'test']"
           :create-disabled-reason="{ test: testDisabledReason, benchmark: benchmarkDisabledReason }"
           :creating="savingTest ? 'test' : savingBenchmark ? 'benchmark' : null"
-          recipe-noun="inputs"
-          :help="RUN_HELP"
+          :create-titles="CREATE_TITLES"
           @run="() => run()"
           @pick="() => focusTab('inputs')"
           @update:format="(value) => (inferenceFormat = value)"
@@ -222,7 +221,7 @@ import { useEditorExpand } from '../composables/useEditorExpand';
 import RuleSetEditorFooter from './rules/RuleSetEditorFooter.vue';
 import RuleSetInspectorPanel from './rules/RuleSetInspectorPanel.vue';
 import RunBar from './shared/RunBar.vue';
-import type { CreateTarget, RunBarChoice, RunBarPick } from '../lib/runBar';
+import type { CreateTarget, RunBarPick } from '../lib/runBar';
 import { NO_ARGUMENTS_IRI, emptySettings } from '../lib/benchmarkPlan';
 import type { InputSource } from './rules/RuleSetInputsPanel.vue';
 import type { StratificationPanelNode } from './rules/StratificationPanel.vue';
@@ -302,23 +301,14 @@ const INFERENCE_FORMATS = [
 ];
 
 /*
- * "against", for a subject that does not get to choose. Rules are evaluated in
- * an in-process Oxigraph store seeded with the selected data graph; there is no
- * remote endpoint in the picture, so the sentence says so as a fact. A select
- * with one option in it would read as a decision someone made for you.
+ * What "create test" and "create benchmark" freeze, said in the screen's own
+ * words. The generic phrasing talks about "this recipe", which is a word for
+ * the run strip that only the strip's author uses.
  */
-const RULES_STORE: RunBarChoice = {
-  value: 'ephemeral',
-  options: [],
-  readonly: true,
-  label: 'Ephemeral Oxigraph',
-  title: 'A rule set is evaluated in an in-process store seeded with the data graph above. '
-    + 'There is no backend to choose.',
+const CREATE_TITLES: Partial<Record<CreateTarget, string>> = {
+  test: 'Create a test with this rule set using the selected inputs',
+  benchmark: 'Create a benchmark with this rule set using the selected inputs',
 };
-
-const RUN_HELP = 'Inputs, not definition. Named tuples and a data graph are what you run this rule set '
-  + 'against — the document below stays pure SRL. Edit them in the Inputs tab; keep the pair as a test '
-  + 'with "create test".';
 
 // --- Entity state -----------------------------------------------------------
 

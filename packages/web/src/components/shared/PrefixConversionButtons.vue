@@ -11,28 +11,26 @@
     disabled: a greyed-out button invites a bug report, while a language that
     cannot be converted has nothing to explain to the person typing in it.
   -->
-  <div v-if="supported" class="prefix-conversion-buttons" :class="`is-${variant}`">
+  <div v-if="supported" class="prefix-conversion-buttons">
     <button
       type="button"
-      :class="buttonClass"
+      class="bar-button"
       data-testid="prefix-fold-button"
       :disabled="disabled"
       title="Shorten full IRIs to prefixed names, declaring any prefix the result needs"
       @click="fold"
     >
-      <PrefixFoldIcon :size="iconSize" />
-      <span v-if="variant === 'labelled'">Prefix</span>
+      <PrefixFoldIcon :size="13" />
     </button>
     <button
       type="button"
-      :class="buttonClass"
+      class="bar-button"
       data-testid="iri-unfold-button"
       :disabled="disabled"
       title="Expand every prefixed name to its full IRI (the PREFIX declarations stay)"
       @click="unfold"
     >
-      <IriUnfoldIcon :size="iconSize" />
-      <span v-if="variant === 'labelled'">Expand</span>
+      <IriUnfoldIcon :size="13" />
     </button>
   </div>
 </template>
@@ -45,34 +43,27 @@
  * every editor that hosts it gets both conversions by dropping it in the
  * toolbar, with no handler of its own to write and no way for two hosts to
  * disagree about what the buttons do.
+ *
+ * One chrome, not two. These used to come in a labelled variant as well, which
+ * made the same pair of buttons a different size and shape depending on which
+ * toolbar you found them in. They are the square icon buttons the query
+ * editor's save bar wears, everywhere.
  */
 import { computed } from 'vue';
 import PrefixFoldIcon from '@/components/icons/PrefixFoldIcon.vue';
 import IriUnfoldIcon from '@/components/icons/IriUnfoldIcon.vue';
 import { usePrefixConversion } from '@/composables/usePrefixConversion';
 
-const props = withDefaults(defineProps<{
+const props = defineProps<{
   code: string;
   /** What the document is — it decides which grammar the rewrite may use. */
   contentType: string | null | undefined;
-  /**
-   * Which chrome to wear. `icon` matches the save bar's square icon buttons,
-   * where these sit beside Format; `labelled` is for the roomier toolbars that
-   * spell their controls out.
-   *
-   * Styled here rather than by borrowing the host's classes: the save bar's
-   * styles are scoped, so a class name copied from it would silently do
-   * nothing inside this component.
-   */
-  variant?: 'labelled' | 'icon';
-}>(), { variant: 'labelled' });
+}>();
 const emit = defineEmits<{ (e: 'update:code', value: string): void }>();
 
 const { toPrefixed, toIris, supported } = usePrefixConversion(() => props.contentType);
 
 const disabled = computed(() => !props.code || props.code.trim().length === 0);
-const iconSize = computed(() => (props.variant === 'icon' ? 13 : 12));
-const buttonClass = computed(() => (props.variant === 'icon' ? 'bar-button' : 'btn-compact'));
 
 /*
  * A null result means the conversion changed nothing and has already said so.
@@ -94,10 +85,6 @@ function unfold() {
 .prefix-conversion-buttons {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-}
-
-.prefix-conversion-buttons.is-icon {
   gap: var(--space-1);
 }
 
