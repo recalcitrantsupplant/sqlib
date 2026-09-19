@@ -125,15 +125,18 @@ describe('running a cell', () => {
       await nextTick();
       await nb.run(cell.id);
 
-      expect(executeTarget).toHaveBeenCalledWith({
-        targetId: 'urn:q:people',
-        arguments: [
-          {
-            head: { vars: ['city'] },
-            arguments: { bindings: [{ city: { type: 'uri', value: 'urn:city:1' } }] },
-          },
-        ],
-      });
+      expect(executeTarget).toHaveBeenCalledWith(
+        {
+          targetId: 'urn:q:people',
+          arguments: [
+            {
+              head: { vars: ['city'] },
+              arguments: { bindings: [{ city: { type: 'uri', value: 'urn:city:1' } }] },
+            },
+          ],
+        },
+        undefined,
+      );
     });
   });
 
@@ -153,12 +156,15 @@ describe('running a cell', () => {
       await nb.run(first.id);
       await nb.run(second.id);
 
-      expect(executeTarget).toHaveBeenLastCalledWith({
-        targetId: 'urn:q:second',
-        arguments: [
-          { head: { vars: ['asset'] }, arguments: { bindings: [{ asset: { type: 'uri', value: 'urn:a' } }] } },
-        ],
-      });
+      expect(executeTarget).toHaveBeenLastCalledWith(
+        {
+          targetId: 'urn:q:second',
+          arguments: [
+            { head: { vars: ['asset'] }, arguments: { bindings: [{ asset: { type: 'uri', value: 'urn:a' } }] } },
+          ],
+        },
+        undefined,
+      );
     });
   });
 
@@ -266,6 +272,57 @@ describe('running a cell', () => {
       const value = nb.values.value.closure;
       expect(value?.type).toBe('graph');
       expect(value && value.type === 'graph' && value.tripleCount).toBe(2);
+    });
+  });
+
+  /*
+   * The store is sent explicitly even when it is the library's default: which
+   * backend a cell ran against is a fact the notebook shows, and leaving it out
+   * would let that answer change under the reader when the default moves.
+   */
+  it('runs against the cell backend, falling back to the library default', async () => {
+    callables.value = [selectCallable('urn:q:people')];
+    executeTarget.mockResolvedValue(rowsResponse(['name'], []));
+
+    const scope = effectScope();
+    await scope.run(async () => {
+      const nb = useNotebook(ref(LIBRARY), ref('urn:backend:library-default'));
+      const fallback = queryCell('urn:q:people', 'out1');
+      const named: QueryCell = { ...queryCell('urn:q:people', 'out2'), backend: 'urn:backend:ephemeral' };
+      nb.addCell(fallback);
+      nb.addCell(named);
+      await nextTick();
+
+      await nb.run(fallback.id);
+      expect(executeTarget).toHaveBeenLastCalledWith(
+        expect.objectContaining({ backendId: 'urn:backend:library-default' }),
+        undefined,
+      );
+
+      await nb.run(named.id);
+      expect(executeTarget).toHaveBeenLastCalledWith(
+        expect.objectContaining({ backendId: 'urn:backend:ephemeral' }),
+        undefined,
+      );
+    });
+    scope.stop();
+  });
+
+  it('asks for the format the cell names', async () => {
+    callables.value = [selectCallable('urn:q:people')];
+    executeTarget.mockResolvedValue({
+      body: '<urn:a> <urn:p> <urn:b> .',
+      contentType: 'text/turtle',
+      timing: null,
+    });
+
+    await runIn(async (nb) => {
+      const cell: QueryCell = { ...queryCell('urn:q:people', 'out1'), accept: 'text/turtle' };
+      nb.addCell(cell);
+      await nextTick();
+      await nb.run(cell.id);
+
+      expect(executeTarget).toHaveBeenLastCalledWith(expect.anything(), 'text/turtle');
     });
   });
 

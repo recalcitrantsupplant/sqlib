@@ -95,8 +95,8 @@
 
       <p v-if="notice" class="notice notice--error" data-testid="notebook-notice">{{ notice }}</p>
 
-      <div class="page-row">
-        <div class="page-body">
+      <div ref="pageRow" class="page-row" :class="{ resizing: isResizingInspector }">
+        <div class="page-body" :style="{ width: inspectorCollapsed ? 'calc(100% - 48px)' : `${documentWidth}%` }">
           <div class="measure">
             <template v-if="nb.notebook.value.cells.length > 0">
               <div
@@ -122,6 +122,9 @@
                   :value="nb.values.value[cell.out] ?? null"
                   :value-options="valueOptionsAbove(index)"
                   :can-write="canWrite"
+                  :backend-options="backendOptions"
+                  :default-backend="defaultBackendId"
+                  :backends-loading="backendsStore.loading.value"
                   @run="nb.run(cell.id)"
                   @remove="nb.removeCell(cell.id)"
                   @move="nb.moveCell(cell.id, $event)"
@@ -174,10 +177,29 @@
         </div>
 
         <!--
+          The same split every other work area drags on, with the same floors
+          and the same remembered width: a screen that resized differently from
+          the query screen beside it is the divergence people notice.
+        -->
+        <div
+          class="vertical-resizer"
+          :class="{ hidden: inspectorCollapsed }"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize the inspector panel"
+          title="Drag to resize · double-click to reset"
+          @mousedown="startInspectorResize"
+          @dblclick="resetInspectorWidth"
+        >
+          <div class="resizer-handle"></div>
+        </div>
+
+        <!--
           The right-hand panel every other work area keeps its properties in.
           What the notebook has produced is inspector material, beside the
           document rather than in the contents rail with what it says.
         -->
+        <div class="right-panel" :class="{ collapsed: inspectorCollapsed }">
         <InspectorPanel
           v-model:active-tab="inspectorTab"
           v-model:collapsed="inspectorCollapsed"
@@ -191,6 +213,7 @@
             <NotebookValuesPanel :values="boundValues" :stale-names="staleValueNames" />
           </template>
         </InspectorPanel>
+        </div>
       </div>
     </main>
 
@@ -210,7 +233,7 @@
       :query-type="testTarget?.queryType ?? null"
       :payload="testTarget?.payload ?? null"
       :result="testTarget?.result ?? null"
-      :backend-id="activeLibrary?.defaultBackend ?? null"
+      :backend-id="defaultBackendId"
     />
 
     <Dialog v-model:open="saveOpen">
@@ -271,10 +294,12 @@ import {
 import { useApiClient } from '../composables/useApiClient';
 import { useFeatureFlags } from '../composables/useFeatureFlags';
 import { useActiveLibrary } from '../composables/useActiveLibrary';
+import { EPHEMERAL_BACKEND_ID } from '@sparql-query-lib/types';
 import { useBackendsStore } from '../composables/useBackendsStore';
 import { useLibrariesStore } from '../composables/useLibrariesStore';
 import { useNotebook, type NotebookTarget } from '../composables/useNotebook';
 import { useNotebookDocuments } from '../composables/useNotebookDocuments';
+import { usePanelResize } from '../composables/usePanelResize';
 import { useCallableDrafts } from '../composables/useCallableDrafts';
 import { downloadTextFile } from '../lib/downloadFile';
 import { markdownTitle } from '../lib/markdown';
@@ -314,7 +339,21 @@ const { activeLibraryId: libraryId, activeLibrary, setActiveLibrary } = useActiv
 
 const apiClient = useApiClient();
 const { isEnabled } = useFeatureFlags();
-const nb = useNotebook(libraryId);
+const defaultBackendId = computed(() => activeLibrary.value?.defaultBackend ?? null);
+const nb = useNotebook(libraryId, defaultBackendId);
+
+/**
+ * The stores a cell may run against.
+ *
+ * The ephemeral in-memory store leads, as it does on the query screen: it is
+ * the one that needs no configuration, and a notebook demonstrating something
+ * often wants exactly that.
+ */
+const backendOptions = computed(() => {
+  const options = new Map<string, string>([[EPHEMERAL_BACKEND_ID, 'Ephemeral Oxigraph (in-memory)']]);
+  for (const backend of backendsStore.backends.value) options.set(backend.id, backend.name);
+  return [...options].map(([value, label]) => ({ value, label }));
+});
 const documents = useNotebookDocuments(libraryId);
 const draftsStore = useCallableDrafts(libraryId);
 
@@ -345,7 +384,20 @@ const testTarget = ref<{
 const canWrite = computed(() => isEnabled('tests'));
 
 const inspectorTab = ref('outline');
-const inspectorCollapsed = ref(false);
+
+const pageRow = ref<HTMLElement | null>(null);
+const {
+  panelWidthPercent: documentWidth,
+  startResize: startInspectorResize,
+  isResizing: isResizingInspector,
+  collapsed: inspectorCollapsed,
+  resetWidth: resetInspectorWidth,
+} = usePanelResize({
+  containerRef: pageRow,
+  storageKey: 'notebook',
+  collapsible: true,
+  initialWidthPercent: 68,
+});
 /*
  * Two tabs rather than two rails. The outline had a column of its own at
  * first, which put four panels either side of the document and left the
@@ -358,9 +410,7 @@ const inspectorTabs = computed(() => [
 ]);
 
 const backendLabel = computed(
-  () =>
-    backendsStore.backends.value.find((backend) => backend.id === activeLibrary.value?.defaultBackend)?.name ??
-    null,
+  () => backendsStore.backends.value.find((backend) => backend.id === defaultBackendId.value)?.name ?? null,
 );
 
 const insertTargets = computed(() => [...nb.targets.value.values()]);
@@ -754,10 +804,64 @@ watch(libraryId, (id) => {
 }
 
 .page-body {
-  flex: 1;
   min-width: 0;
   overflow-y: auto;
   padding: var(--space-7) var(--space-7) var(--space-8);
+  transition: width 0.3s ease;
+}
+
+.page-row.resizing .page-body,
+.page-row.resizing .right-panel {
+  transition: none;
+}
+
+.right-panel {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 48px;
+  background: var(--surface);
+  overflow: hidden;
+  transition: flex 0.3s ease, min-width 0.3s ease;
+}
+
+.right-panel.collapsed {
+  flex: 0 0 48px;
+  max-width: 48px;
+}
+
+.vertical-resizer {
+  position: relative;
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 8px;
+  background: var(--surface-raised);
+  cursor: col-resize;
+  transition: opacity 0.3s ease, width 0.3s ease;
+}
+
+.vertical-resizer.hidden {
+  width: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.vertical-resizer:hover {
+  background: var(--action);
+}
+
+.vertical-resizer .resizer-handle {
+  width: 2px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  background: var(--border-hover);
+  pointer-events: none;
+}
+
+.vertical-resizer:hover .resizer-handle {
+  background: var(--surface);
 }
 
 /*

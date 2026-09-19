@@ -115,17 +115,19 @@ describe('doors into the tests feature', () => {
   });
 
   /*
-   * "Save as test" exists twice, and the two were written years apart in
-   * spirit: the notebook's has been behind the flag since it was written
-   * (`canWrite` on `pages/notebook.vue` *is* `isEnabled('tests')`), the rules
-   * screen's was not. Listing both, with the condition each is behind, is what
-   * makes the inventory the thing under test rather than a pattern — a third
-   * door fails here until someone says which condition holds it.
+   * One hand-written "save as test" door is left, the rules screen's. The
+   * notebook's went into `RunBar`'s create targets, which filters them by
+   * `CREATE_TARGET_FEATURE` and renders nothing for a target whose flag is off
+   * — the same hide-rather-than-disable rule, enforced once for every screen
+   * that writes a run sentence rather than per door.
+   *
+   * So the inventory is still the thing under test: a screen that hand-writes
+   * a door instead of taking RunBar's fails here until someone says which
+   * condition holds it.
    */
   it('hides every "save as test" door rather than disabling it', () => {
     const expected: Record<string, RegExp> = {
       'components/rules/RuleSetInputsPanel.vue': /v-if="testsEnabled"/,
-      'components/notebook/NotebookRunCell.vue': /v-if="canWrite && value"/,
     };
     /*
      * The id may be bound rather than literal: a notebook has many cells, so

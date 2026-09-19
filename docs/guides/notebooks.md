@@ -22,6 +22,13 @@ A notebook starts empty. **Add** offers four kinds:
 | Query group | a group reference | `POST /execute` |
 | Rule set | a rule set reference, plus a base graph | `POST /rule-sets/:id/execute` |
 
+A run cell carries the same run sentence the query screen writes, minus its
+"with" clause — a notebook's arguments are the cells above it. What is left is
+**against** (the store this cell runs against, defaulting to the library's) and
+**as** (the format the result comes back in), both per cell: pulling from a
+warehouse and then reasoning over an ephemeral copy is the ordinary case. A rule
+set has neither; it runs in process over the graph it is handed.
+
 Everything runs through the REST API, which is why a rule-set cell works here
 and cannot exist in an [export bundle](static-export.md): the bundle is for
 calling a triplestore with no sqlib in the request path, so it carries compiled

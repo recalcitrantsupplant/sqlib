@@ -85,6 +85,15 @@ export interface QueryCell extends RunCellCommon {
   slots?: SlotSource[];
   limits?: Record<string, number>;
   offsets?: Record<string, number>;
+  /**
+   * The store this cell runs against, and the format it asks for back.
+   *
+   * Per cell rather than per notebook: a notebook that pulls from a warehouse
+   * and then reasons over an ephemeral copy is the ordinary case, and the
+   * library's default backend is only a default. Absent means that default.
+   */
+  backend?: string | null;
+  accept?: string | null;
 }
 
 export interface GroupCell extends RunCellCommon {
@@ -92,6 +101,8 @@ export interface GroupCell extends RunCellCommon {
   /** The QueryGroup IRI. */
   group: string;
   slots?: SlotSource[];
+  backend?: string | null;
+  accept?: string | null;
 }
 
 export interface RuleSetCell extends RunCellCommon {
@@ -344,6 +355,8 @@ function parseCell(raw: unknown, index: number): NotebookCell {
         ...(slots ? { slots } : {}),
         ...(cell.limits ? { limits: cell.limits as Record<string, number> } : {}),
         ...(cell.offsets ? { offsets: cell.offsets as Record<string, number> } : {}),
+        ...(typeof cell.backend === 'string' ? { backend: cell.backend } : {}),
+        ...(typeof cell.accept === 'string' ? { accept: cell.accept } : {}),
       };
     case 'group':
       return {
@@ -353,6 +366,8 @@ function parseCell(raw: unknown, index: number): NotebookCell {
         group: asString(cell.group, `Cell ${index + 1} group`),
         out: asString(cell.out, `Cell ${index + 1} out`),
         ...(slots ? { slots } : {}),
+        ...(typeof cell.backend === 'string' ? { backend: cell.backend } : {}),
+        ...(typeof cell.accept === 'string' ? { accept: cell.accept } : {}),
       };
     case 'ruleset':
       return {

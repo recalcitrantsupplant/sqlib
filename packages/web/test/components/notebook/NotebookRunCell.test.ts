@@ -92,7 +92,7 @@ describe('staleness', () => {
     });
 
     expect(wrapper.get('[data-testid="notebook-stale-c1"]').text()).toBe('stale');
-    expect(wrapper.get('[data-testid="notebook-run-c1"]').text()).toContain('Re-run');
+    expect(wrapper.get('[data-testid="run-bar-run"]').text()).toContain('Re-run');
     expect(wrapper.get('[data-testid="notebook-status-c1"]').text()).toContain('older input');
   });
 });
@@ -133,9 +133,73 @@ describe('wiring a slot', () => {
 });
 
 describe('a cell whose target is gone', () => {
-  it('says so and refuses to offer a run', () => {
+  it('says so, and offers no run at all', () => {
     const wrapper = render({ target: null });
     expect(wrapper.get('[data-testid="notebook-missing-c1"]').text()).toContain('no longer holds');
-    expect(wrapper.get('[data-testid="notebook-run-c1"]').attributes('disabled')).toBeDefined();
+    expect(wrapper.find('[data-testid="run-bar"]').exists()).toBe(false);
+  });
+});
+
+/*
+ * The run sentence is the app's own: a notebook's "with" clause would be the
+ * cell above it, so it is dropped, and what is left is the part a notebook
+ * could not say before — which store, and what format back.
+ */
+describe('the run sentence', () => {
+  /*
+   * Asserted on what the bar is handed rather than on the label it paints: the
+   * trigger is reka-ui's, and in happy-dom it renders its placeholder.
+   */
+  it('offers the stores the library holds, defaulting to its own', () => {
+    const wrapper = render({
+      backendOptions: [
+        { value: 'urn:backend:ephemeral', label: 'Ephemeral Oxigraph (in-memory)' },
+        { value: 'urn:backend:fuseki', label: 'Fuseki' },
+      ],
+      defaultBackend: 'urn:backend:fuseki',
+    });
+
+    const backend = wrapper.getComponent({ name: 'RunBar' }).props('backend') as {
+      value: string;
+      options: Array<{ value: string }>;
+    };
+    expect(backend.value).toBe('urn:backend:fuseki');
+    expect(backend.options.map((option) => option.value)).toEqual([
+      'urn:backend:ephemeral',
+      'urn:backend:fuseki',
+    ]);
+  });
+
+  it('prefers the store the cell names over the library default', () => {
+    const wrapper = render({
+      cell: { ...CELL, backend: 'urn:backend:ephemeral' },
+      backendOptions: [{ value: 'urn:backend:ephemeral', label: 'Ephemeral Oxigraph (in-memory)' }],
+      defaultBackend: 'urn:backend:fuseki',
+    });
+
+    expect((wrapper.getComponent({ name: 'RunBar' }).props('backend') as { value: string }).value).toBe(
+      'urn:backend:ephemeral',
+    );
+  });
+
+  it('emits the cell backend when another store is chosen', async () => {
+    const wrapper = render({
+      backendOptions: [{ value: 'urn:backend:ephemeral', label: 'Ephemeral Oxigraph (in-memory)' }],
+      defaultBackend: 'urn:backend:fuseki',
+    });
+
+    wrapper.getComponent({ name: 'RunBar' }).vm.$emit('update:backend', 'urn:backend:ephemeral');
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.emitted('update')?.[0]).toEqual([{ backend: 'urn:backend:ephemeral' }]);
+  });
+
+  it('says nothing about a store for a rule set, which runs in process', () => {
+    const wrapper = render({
+      cell: { kind: 'ruleset', id: 'c1', ruleSet: 'urn:rs:1', out: 'closure' },
+      target: { ...TARGET, kind: 'ruleset' as const, resultKind: 'GRAPH' as const, slots: [] },
+    });
+
+    expect(wrapper.getComponent({ name: 'RunBar' }).props('backend')).toBeNull();
   });
 });

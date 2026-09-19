@@ -113,8 +113,13 @@ function runErrorMessage(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause);
 }
 
-export function useNotebook(libraryId: Ref<string | null>) {
+export function useNotebook(
+  libraryId: Ref<string | null>,
+  /** The library's default backend — what a cell runs against unless it says otherwise. */
+  defaultBackend: Ref<string | null> = ref(null),
+) {
   const apiClient = useApiClient();
+  const defaultBackendId = defaultBackend;
   const callables = useCallables(libraryId);
   const ruleSetsStore = useRuleSetsStore();
 
@@ -338,12 +343,25 @@ export function useNotebook(libraryId: Ref<string | null>) {
       ...(cell.kind === 'query' && cell.offsets ? { offsets: cell.offsets } : {}),
     };
 
-    const result = await apiClient.executeTarget({
-      targetId: cellTargetId(cell),
-      ...(args.length ? { arguments: args as never } : {}),
-      ...(limits.length ? { limits } : {}),
-      ...(offsets.length ? { offsets } : {}),
-    } as never);
+    /*
+     * The store the cell names, or the library's default. Sent explicitly
+     * either way: "which backend did this run against" is a fact the notebook
+     * shows on the cell, and a request that leaves it out would let the answer
+     * change under the reader when the library's default does.
+     */
+    const backendId = (cell.kind === 'ruleset' ? null : cell.backend) ?? defaultBackendId.value;
+    const accept = cell.kind === 'ruleset' ? null : cell.accept;
+
+    const result = await apiClient.executeTarget(
+      {
+        targetId: cellTargetId(cell),
+        ...(backendId ? { backendId } : {}),
+        ...(args.length ? { arguments: args as never } : {}),
+        ...(limits.length ? { limits } : {}),
+        ...(offsets.length ? { offsets } : {}),
+      } as never,
+      accept ?? undefined,
+    );
 
     const durationMs = Math.round(performance.now() - started);
     const source = { name: cell.out, cellId: cell.id, durationMs };

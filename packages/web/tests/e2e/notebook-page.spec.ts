@@ -61,7 +61,7 @@ test.describe('Notebook', () => {
     const cell = page.locator('[data-testid^="notebook-cell-"]').first();
     await expect(cell).toContainText('Product search');
 
-    await cell.locator('[data-testid^="notebook-run-"]').click();
+    await cell.getByTestId('run-bar-run').click();
 
     await expect(cell.locator('[data-testid^="notebook-stats-"]')).toContainText('1 row · 3 cols');
     await page.getByTestId('values-tab').click();
@@ -73,7 +73,7 @@ test.describe('Notebook', () => {
     await insertFirstQuery(page);
 
     const cell = page.locator('[data-testid^="notebook-cell-"]').first();
-    await cell.locator('[data-testid^="notebook-run-"]').click();
+    await cell.getByTestId('run-bar-run').click();
     await expect(cell.locator('[data-testid^="notebook-stats-"]')).toBeVisible();
 
     await cell.locator('[data-testid^="notebook-out-"]').fill('candidates');
@@ -88,7 +88,7 @@ test.describe('Notebook', () => {
     await insertFirstQuery(page);
 
     const first = page.locator('[data-testid^="notebook-cell-"]').first();
-    await first.locator('[data-testid^="notebook-run-"]').click();
+    await first.getByTestId('run-bar-run').click();
     await expect(first.locator('[data-testid^="notebook-stats-"]')).toBeVisible();
 
     await page.getByTestId('notebook-add-cell').click();
@@ -99,13 +99,13 @@ test.describe('Notebook', () => {
     await source.selectOption('@out1');
     await expect(second).toContainText('by value');
 
-    await second.locator('[data-testid^="notebook-run-"]').click();
+    await second.getByTestId('run-bar-run').click();
     await expect(second.locator('[data-testid^="notebook-status-"]')).toContainText('ran');
 
     // Re-running the source marks the cell below rather than re-running it.
-    await first.locator('[data-testid^="notebook-run-"]').click();
+    await first.getByTestId('run-bar-run').click();
     await expect(second.locator('[data-testid^="notebook-stale-"]')).toHaveText('stale');
-    await expect(second.locator('[data-testid^="notebook-run-"]')).toContainText('Re-run');
+    await expect(second.getByTestId('run-bar-run')).toContainText('Re-run');
   });
 
   test('writes prose between the runs', async ({ page }) => {
@@ -183,6 +183,59 @@ test.describe('Notebook', () => {
 
     await expect(page.locator('[data-testid^="notebook-md-rendered-"]')).toHaveCount(0);
     await expect(page.getByTestId('entity-list-sidebar').getByText('Untitled notebook')).toHaveCount(2);
+  });
+
+  /*
+   * The link out used a generic `item` parameter the editor screen does not
+   * read, so it landed on the right screen with nothing selected — inherited
+   * from the page this one replaced, where it was just as broken.
+   */
+  test('opens the query it names in the editor, not just the queries screen', async ({ page }) => {
+    await openNotebook(page);
+    await insertFirstQuery(page);
+
+    await page.locator('[data-testid^="notebook-cell-"]').first().getByText('Open in editor').click();
+
+    await expect(page).toHaveURL(/query=urn%3Asqlib%3Aquery%3Aproduct-search|query=urn:sqlib:query:product-search/);
+    await expect(page.locator('.query-work-area')).toBeVisible();
+  });
+
+  test('runs against a store you can choose, and asks for a format', async ({ page }) => {
+    await openNotebook(page);
+    await insertFirstQuery(page);
+
+    const cell = page.locator('[data-testid^="notebook-cell-"]').first();
+    // The run sentence, minus the "with" clause a notebook answers itself.
+    await expect(cell.getByTestId('run-bar-backend')).toBeVisible();
+    await expect(cell.getByTestId('run-bar-format')).toBeVisible();
+    await expect(cell.getByTestId('run-bar')).not.toContainText('arguments');
+  });
+
+  test('gives the inspector a drag handle, as every other work area has', async ({ page }) => {
+    await openNotebook(page);
+    await expect(page.locator('.vertical-resizer')).toBeVisible();
+  });
+
+  test('renders a markdown heading scale you can see a step in', async ({ page }) => {
+    await openNotebook(page);
+    await page.getByTestId('notebook-add-markdown').click();
+
+    const editor = page.locator('[data-testid^="notebook-md-editor-"] .cm-content').first();
+    await editor.click();
+    await editor.pressSequentially('# One\n## Two\n### Three\n\nA [link](http://example.com).');
+    await page.getByText('Done', { exact: true }).first().click();
+
+    const prose = page.locator('[data-testid^="notebook-md-rendered-"]').first();
+    const size = (selector: string) =>
+      prose.locator(selector).evaluate((element) => parseFloat(getComputedStyle(element).fontSize));
+
+    expect(await size('h1')).toBeGreaterThan(await size('h2'));
+    expect(await size('h2')).toBeGreaterThan(await size('h3'));
+
+    // And a link that reads as one rather than inheriting the prose colour.
+    const linkColour = await prose.locator('a').evaluate((element) => getComputedStyle(element).color);
+    const proseColour = await prose.evaluate((element) => getComputedStyle(element).color);
+    expect(linkColour).not.toBe(proseColour);
   });
 
   test('starts from the library when someone wants every query as a draft', async ({ page }) => {

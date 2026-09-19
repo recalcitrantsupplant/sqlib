@@ -145,12 +145,42 @@ function toggleEdit() {
   margin: 0 0 var(--space-3);
   color: var(--ink);
   line-height: var(--leading-tight);
+  font-weight: var(--weight-semibold);
 }
 
-.prose :deep(h1) { font-size: var(--text-heading); }
+/*
+ * A scale you can see a step in.
+ *
+ * `h1` and `h2` were both `--text-heading`, which rendered `#`, `##` and `###`
+ * at almost one size — the document's own structure, invisible. These are four
+ * adjacent steps of the type scale, and the top two are the page's display
+ * sizes because a prose cell's heading is the heading of the section of the
+ * notebook it opens, not a label inside a panel.
+ */
+.prose :deep(h1) { font-size: var(--text-display); }
 .prose :deep(h2) { font-size: var(--text-heading); }
 .prose :deep(h3) { font-size: var(--text-title); }
 .prose :deep(h4) { font-size: var(--text-content); }
+
+/* A link that reads as one. Prose sets its own colour, so `a` inherited it. */
+.prose :deep(a) {
+  color: var(--action-ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.prose :deep(a:hover) {
+  color: var(--action);
+}
+
+.prose :deep(strong) {
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+
+.prose :deep(em) {
+  font-style: italic;
+}
 
 .prose :deep(p) {
   margin: 0 0 var(--space-4);

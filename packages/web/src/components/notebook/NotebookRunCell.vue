@@ -136,22 +136,32 @@
         </div>
       </template>
 
-      <div class="runbar">
-        <Button
-          size="sm"
-          :disabled="!target || state.status === 'running'"
-          :data-testid="`notebook-run-${cell.id}`"
-          @click="$emit('run')"
-        >
-          <Play :size="12" />
-          {{ state.status === 'running' ? 'Running…' : state.stale ? 'Re-run' : 'Run' }}
-        </Button>
+      <!--
+        The same run sentence the query screen writes, minus its "with" clause:
+        a notebook's arguments are the cell above it, so the inputs term would
+        be naming something the reader can already see. What is left is the
+        part a notebook could not say at all before — which store this runs
+        against, and what it asks for back.
+      -->
+      <RunBar
+        v-if="target"
+        :running="state.status === 'running'"
+        :run-disabled="!target"
+        :run-label="state.stale ? 'Re-run' : 'Run'"
+        :backend="backendChoice"
+        :format="formatChoice"
+        :create-targets="canWrite && value ? ['test'] : []"
+        recipe-noun="arguments"
+        @run="$emit('run')"
+        @update:backend="$emit('update', { backend: $event } as Partial<RunCell>)"
+        @update:format="$emit('update', { accept: $event } as Partial<RunCell>)"
+        @create="$emit('save-as-test')"
+      />
 
-        <span class="runbar__status" :data-testid="`notebook-status-${cell.id}`">{{ statusLine }}</span>
-
-        <span class="runbar__spacer"></span>
-
-        <span class="runbar__out">out</span>
+      <div class="outbar">
+        <span class="outbar__status" :data-testid="`notebook-status-${cell.id}`">{{ statusLine }}</span>
+        <span class="outbar__spacer"></span>
+        <span class="outbar__label">out</span>
         <label class="visually-hidden" :for="`${cell.id}-out`">Value name</label>
         <input
           :id="`${cell.id}-out`"
@@ -170,21 +180,6 @@
           @click="$emit('save')"
         >
           Save…
-        </Button>
-        <!--
-          The one write a notebook makes to the library, carried over from the
-          screen this replaced: hold a query, its arguments and a result and you
-          are holding a test case. Hidden rather than disabled where tests are
-          off, the rule that screen followed (`test/testsFeatureDoors.test.ts`).
-        -->
-        <Button
-          v-if="canWrite && value"
-          size="sm"
-          variant="outline"
-          :data-testid="`notebook-save-as-test-${cell.id}`"
-          @click="$emit('save-as-test')"
-        >
-          <ClipboardCheck :size="12" /> Save as test…
         </Button>
       </div>
 
@@ -238,10 +233,13 @@ import {
 } from '../ui/dropdown-menu';
 import { Button } from '../ui/button';
 import CodePeek from '../shared/CodePeek.vue';
+import RunBar from '../shared/RunBar.vue';
 import InlineNote from '../shared/InlineNote.vue';
 import PanelHeader from '../shared/PanelHeader.vue';
 import SectionLabel from '../shared/SectionLabel.vue';
 import { describeValue, type NotebookValue } from '../../lib/notebookValues';
+import { getAllMediaTypeOptions, getMediaTypeChoiceGroups } from '../../lib/mediaTypes';
+import { QueryTypeIri } from '@sparql-query-lib/types';
 import type { RunCell, SlotSource } from '../../lib/notebookFormat';
 import type { CellRunState, NotebookTarget } from '../../composables/useNotebook';
 
@@ -267,6 +265,10 @@ const props = defineProps<{
   valueOptions: Array<{ name: string; type: NotebookValue['type']; summary: string }>;
   /** Whether this reader may write to the library at all. */
   canWrite?: boolean;
+  /** Stores this cell may run against, and which one the library defaults to. */
+  backendOptions?: Array<{ value: string; label: string }>;
+  defaultBackend?: string | null;
+  backendsLoading?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -303,11 +305,27 @@ const kindLabel = computed(() => {
 
 const targetName = computed(() => props.target?.name ?? props.cell.label ?? 'Unknown');
 
+/**
+ * The link out to the editor.
+ *
+ * The entity's *own* query parameter, not a generic `item`: the screen reads
+ * `?query=`, `?queryGroup=` and `?ruleSet=` to open something, and `item` is
+ * not among them. Linking with it set the section and selected nothing, so the
+ * link went to the right screen and the wrong place — inherited from the page
+ * this one replaced, where it was just as broken.
+ */
+const EDITOR_PARAM = { query: 'query', group: 'queryGroup', ruleset: 'ruleSet' } as const;
+const EDITOR_SECTION = { query: 'queries', group: 'queryGroups', ruleset: 'rules' } as const;
+
 const editorLink = computed(() => {
   if (!props.target) return null;
-  const section =
-    props.target.kind === 'ruleset' ? 'rules' : props.target.kind === 'group' ? 'queryGroups' : 'queries';
-  return { path: '/', query: { section, item: props.target.id } };
+  return {
+    path: '/',
+    query: {
+      section: EDITOR_SECTION[props.target.kind],
+      [EDITOR_PARAM[props.target.kind]]: props.target.id,
+    },
+  };
 });
 
 const slots = computed<SlotSource[]>(() =>
@@ -441,6 +459,48 @@ function onArgsChange(event: Event) {
   } as Partial<RunCell>);
 }
 
+/**
+ * The store and the format, as the run sentence's two choices.
+ *
+ * A rule set has neither: it runs in process over the graph it is handed, so
+ * the sentence for one is Run and nothing else.
+ */
+/*
+ * What the run asks for when the cell has not been told otherwise. The same
+ * default the query screen opens on, so a query moved into a notebook comes
+ * back in the format its author is used to reading.
+ */
+const DEFAULT_MEDIA_TYPE = 'application/sparql-results+json';
+
+/** The result shape, in the vocabulary the format groups are keyed by. */
+const queryTypeForFormats = computed(() => {
+  if (!props.target) return null;
+  if (props.target.resultKind === 'GRAPH') return QueryTypeIri.construct;
+  if (props.target.resultKind === 'BOOLEAN') return QueryTypeIri.ask;
+  return QueryTypeIri.select;
+});
+
+const backendChoice = computed(() => {
+  if (!props.target || props.target.kind === 'ruleset') return null;
+  return {
+    value: (props.cell.kind === 'ruleset' ? null : props.cell.backend) ?? props.defaultBackend ?? '',
+    options: props.backendOptions ?? [],
+    loading: props.backendsLoading ?? false,
+    title: 'The store this cell runs against',
+  };
+});
+
+const formatChoice = computed(() => {
+  if (!props.target || props.target.kind === 'ruleset') return null;
+  const accept = props.cell.kind === 'ruleset' ? null : props.cell.accept;
+  return {
+    value: accept ?? DEFAULT_MEDIA_TYPE,
+    options: getAllMediaTypeOptions(),
+    groups: getMediaTypeChoiceGroups(queryTypeForFormats.value),
+    title: 'The format the results come back in',
+  };
+});
+
 const statusLine = computed(() => {
   if (props.state.status === 'running') return 'running…';
   if (props.state.status === 'error') return 'failed';
@@ -559,40 +619,26 @@ function cellText(row: Record<string, unknown>, column: string): string {
   padding: var(--space-4) var(--space-4) 0;
 }
 
-.runbar {
+.outbar {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-4);
+  padding: var(--space-3) var(--space-4);
   flex-wrap: wrap;
 }
 
-.runbar__status {
+.outbar__status {
   font-size: var(--text-micro);
   color: var(--ink-muted);
 }
 
-.runbar__spacer {
+.outbar__spacer {
   flex-grow: 1;
 }
 
-.runbar__out {
+.outbar__label {
   font-size: var(--text-micro);
   color: var(--ink-muted);
-}
-
-.out-name {
-  width: var(--grid-4);
-  height: var(--control-h-sm);
-  box-sizing: border-box;
-  padding: 0 var(--space-2);
-  border: 1px solid var(--action-border);
-  border-radius: var(--radius-sm);
-  background: var(--action-surface);
-  color: var(--action-ink);
-  font-family: var(--font-mono);
-  font-size: var(--text-body);
-  font-weight: var(--weight-semibold);
 }
 
 .chip {
