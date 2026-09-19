@@ -43,21 +43,42 @@
         <Check :size="12" :class="['option-check', { hidden: library.id !== activeLibraryId }]" />
       </DropdownMenuItem>
       <DropdownMenuItem v-if="libraries.length === 0" disabled>No libraries</DropdownMenuItem>
+
+      <!--
+        The only other route to a new library is the Libraries section of the
+        navigation sidebar, which several sections replace with a flat list — so
+        on those sections there was no way to create one at all. The menu that
+        names the libraries is where the next one is made.
+      -->
+      <DropdownMenuSeparator />
+      <DropdownMenuItem
+        class="library-menu-item library-menu-new"
+        data-testid="library-create"
+        @select="emit('create-library')"
+      >
+        <span class="option-mark" aria-hidden="true"><Plus :size="12" /></span>
+        <span class="option-text">
+          <span class="option-name">New library</span>
+        </span>
+      </DropdownMenuItem>
     </DropdownMenuContent>
   </DropdownMenu>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted } from 'vue';
-import { Check, ChevronsUpDown } from '@lucide/vue';
+import { Check, ChevronsUpDown, Plus } from '@lucide/vue';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
 import { useActiveLibrary } from '../composables/useActiveLibrary';
+
+const emit = defineEmits<{ (e: 'create-library'): void }>();
 
 const { libraries, activeLibraryId, activeLibraryName, setActiveLibrary, ensureLoaded } =
   useActiveLibrary();
@@ -184,5 +205,9 @@ onMounted(() => {
 
 .option-check.hidden {
   visibility: hidden;
+}
+
+.library-menu-new .option-mark {
+  color: var(--ink-muted);
 }
 </style>

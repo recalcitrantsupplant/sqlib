@@ -508,7 +508,8 @@ import {
 import QueryResultsViewer from './QueryResultsViewer.vue';
 import { toast } from 'vue-sonner';
 import { usePanelResize } from '../composables/usePanelResize';
-import { authoredNodeLabel, buildCanvasNodeData, LEFT_TO_RIGHT_HANDLES, useQueryGroupGraphState } from '../composables/useQueryGroupGraphState';
+import { buildCanvasNodeData, LEFT_TO_RIGHT_HANDLES, useQueryGroupGraphState } from '../composables/useQueryGroupGraphState';
+import { authoredNodeLabel } from '../composables/queryGroupNodeLabel';
 import { useQueryGroupIO } from '../composables/useQueryGroupIO';
 import { useQueryGroupExecution } from '../composables/useQueryGroupExecution';
 import { useQueryGroupVersions } from '../composables/useQueryGroupVersions';
@@ -545,6 +546,7 @@ import { useLibrariesStore } from '../composables/useLibrariesStore';
 import { DATA_FLOW_TYPES } from '@sparql-query-lib/types';
 import { flowTypeLabel, recommendFlowType } from '../composables/edgeFlowTypeDefaults';
 import { CANVAS_TEMPLATES, type CanvasTemplate } from '../composables/canvasTemplates';
+import { loadLastRun, runCacheKey, saveLastRun } from '@/lib/lastRunCache';
 import type { TupleEditorUpdatePayload } from '../types/tuple-editor';
 
 const graphPattern = useCssToken('--graph-pattern', '#e9ecef');
@@ -1138,6 +1140,7 @@ const executionError = execution.executionError;
 const executionResultRaw = execution.executionResultRaw;
 const executionResultJson = execution.executionResultJson;
 const executionContentType = execution.executionContentType;
+
 const showRuleSetSelectorDialog = ref(false);
 const selectedNodeForRuleSet = ref<GraphNodeState | null>(null);
 
@@ -1294,6 +1297,50 @@ const { isScratch, flush: flushScratch } = useScratchRecord({
       canvasData: graph.serializeCanvasSnapshot(),
     } satisfies GroupScratchBody,
   }),
+});
+
+/**
+ * The last run, kept in the browser between visits — the same bargain the
+ * scratch store makes for unsaved bodies. A group's result is three refs
+ * rather than one payload, so they travel together; see `lib/lastRunCache.ts`
+ * for what it will and will not keep.
+ */
+interface CachedGroupRun {
+  raw: string | null;
+  json: unknown;
+  contentType: string | null;
+}
+
+const lastRunKey = computed(() => (isScratch.value
+  ? runCacheKey('query-group-scratch', props.scratchId)
+  : runCacheKey('query-group', queryGroupId.value)));
+
+/** What the cache holds for the open record, so a restore is not re-saved. */
+let heldRun: string | null = null;
+
+watch(
+  lastRunKey,
+  (key, previous) => {
+    if (key === previous) return;
+    const restored = loadLastRun<CachedGroupRun>(key);
+    heldRun = restored ? JSON.stringify(restored) : null;
+    executionResultRaw.value = restored?.raw ?? null;
+    executionResultJson.value = (restored?.json ?? null) as typeof executionResultJson.value;
+    executionContentType.value = restored?.contentType ?? null;
+  },
+  { immediate: true },
+);
+
+watch([executionResultRaw, executionResultJson, executionContentType], ([raw, json, contentType]) => {
+  // A run in progress clears the panel first; that is not a run to remember.
+  if (raw === null && json === null) return;
+  const run: CachedGroupRun = { raw, json, contentType };
+  const serialised = JSON.stringify(run);
+  // Restoring is not running: re-writing here would move this record to the
+  // front of the eviction queue every time it was merely looked at.
+  if (serialised === heldRun) return;
+  heldRun = serialised;
+  saveLastRun(lastRunKey.value, run);
 });
 
 /** A group still wearing its fallback name has to be named before saving. */
@@ -3016,6 +3063,22 @@ onUnmounted(() => {
 
 
 <style scoped>
+
+/*
+ * The destructive button in the delete dialog. The class was on the button and
+ * styled only in `QueryWorkArea` and `pages/index.vue` — scoped styles do not
+ * reach across components, so here it did nothing and the button read as an
+ * ordinary one.
+ */
+.delete-action {
+  background: var(--danger);
+  color: var(--danger-fg);
+}
+
+.delete-action:hover {
+  background: var(--danger-hover);
+}
+
 /*
  * The Vue Flow stylesheets, the split, the graph box and its controls are
  * `CanvasShell`/`CanvasSurface`'s. What is left here is the query group's own

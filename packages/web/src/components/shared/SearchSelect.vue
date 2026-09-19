@@ -244,7 +244,13 @@ const onSelect = (value: unknown) => {
  * `ComboboxRoot` cannot be styled from here (see the template), so it is given
  * nothing to do: the wrapper above owns the box and this fills it.
  */
-.search-select__root {
+/*
+ * `:deep` for the same reason the viewport rule below has it: `ComboboxRoot`
+ * renders through a primitive that drops this component's scope attribute, so
+ * the plain rule matched nothing and the root kept its default `min-width:
+ * auto` — which is what stops a flex child from shrinking below its content.
+ */
+:deep(.search-select__root) {
   min-width: 0;
 }
 
@@ -345,8 +351,19 @@ const onSelect = (value: unknown) => {
   box-shadow: var(--shadow-md);
 }
 
-.search-select__viewport {
-  max-height: var(--grid-8);
+/*
+ * `:deep`, because this is the one element of the menu reka renders through a
+ * primitive that drops the scope attribute Vue stamps on the rest — the plain
+ * `.search-select__viewport` rule matched nothing, and a field with forty
+ * options drew all forty, off the bottom of the window, with nothing to
+ * scroll. The options and the menu box around them do carry the attribute, so
+ * they are styled normally above.
+ *
+ * Half the window, so a long list is worth opening, and never the whole of it:
+ * a menu that reaches the bottom edge covers the screen it was opened over.
+ */
+:deep(.search-select__viewport) {
+  max-height: min(50vh, calc(var(--grid-8) * 2));
   padding: var(--space-1);
   overflow-x: hidden;
   overflow-y: auto;

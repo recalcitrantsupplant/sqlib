@@ -73,4 +73,34 @@ describe('LibrarySwitcher', () => {
     expect(setActiveLibrary).toHaveBeenCalledWith('lib:2');
     wrapper.unmount();
   });
+
+  /**
+   * The other route to a new library is the Libraries section of the navigation
+   * sidebar, and several sections replace that sidebar with a flat list — so on
+   * those sections there was no way to create one at all.
+   */
+  it('offers a new library from the menu that names them', async () => {
+    const wrapper = mount(LibrarySwitcher, { attachTo: document.body });
+    await wrapper.get('[data-testid="library-switcher"]').trigger('keydown', { key: 'Enter' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const create = document.querySelector<HTMLElement>('[data-testid="library-create"]');
+    expect(create).not.toBeNull();
+    create!.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+    create!.click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(wrapper.emitted('create-library')).toHaveLength(1);
+    wrapper.unmount();
+  });
+
+  it('keeps that route open when there is no library yet', async () => {
+    state.libraries.value = [];
+    const wrapper = mount(LibrarySwitcher, { attachTo: document.body });
+    await wrapper.get('[data-testid="library-switcher"]').trigger('keydown', { key: 'Enter' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(document.querySelector('[data-testid="library-create"]')).not.toBeNull();
+    wrapper.unmount();
+  });
 });

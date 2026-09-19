@@ -5,23 +5,10 @@
     :tabs="inspectorTabs"
   >
     <!--
-      The strip is tabs and nothing else. Download and pop-out belong to the
-      response, not to Details or Code, so they live in the results action bar
-      inside the Results tab. Arguments keeps a pop-out here because it has no
-      bar of its own to put one on.
+      The strip is tabs and nothing else. Pop-out belongs to the thing being
+      popped out, so each tab carries its own: the results action bar in
+      Results, the set switcher in Arguments.
     -->
-    <template #actions>
-      <button
-        v-if="activeTab === 'arguments'"
-        class="btn-icon"
-        title="Focus Mode"
-        :disabled="queryLoading"
-        @click="requestFocus()"
-      >
-        <Expand :size="16" />
-      </button>
-    </template>
-
     <!-- Details Tab -->
     <template #details>
       <EntityDetailsPanel
@@ -65,6 +52,8 @@
           :can-delete="!!args.selectedSetId.value"
           :can-copy="hasSelection"
           :disabled="args.isLoading.value"
+          :can-expand="!queryLoading"
+          @expand="requestFocus()"
           @select-set="handleSelectArgumentSet"
           @select-scratch="args.selectScratch"
           @create-scratch="args.createScratch()"
@@ -101,11 +90,26 @@
           </p>
         </template>
 
-        <EmptyState
+        <div
           v-else-if="!hasDetectedArguments && !argumentsOverlayActive"
-          size="sm"
-          title="This query takes no arguments"
-        />
+          class="no-arguments"
+        >
+          <EmptyState size="sm" title="This query takes no arguments" />
+          <!--
+            The empty state says what is missing; this says how to supply it.
+            Parameters are declared in the query text, so there is nothing to
+            click in this panel to create one — without the note the panel is a
+            dead end.
+          -->
+          <p class="arguments-hint" data-testid="arguments-parameter-hint">
+            <Info :size="13" class="arguments-hint-icon" />
+            <span>
+              To add arguments, add a <code>VALUES</code> clause with an all-<code>UNDEF</code>
+              block.
+              <a :href="PARAMETERS_DOC_URL" target="_blank" rel="noreferrer">Documentation</a>
+            </span>
+          </p>
+        </div>
         <EmptyState
           v-else-if="!argumentsOverlayActive"
           size="sm"
@@ -179,15 +183,50 @@
         />
       </div>
     </template>
+
+    <!--
+      Delete asks here rather than through `window.confirm`: a browser that has
+      been told to stop showing dialogs answers one `false`, so the menu item
+      silently did nothing.
+    -->
+    <AlertDialog v-model:open="deleteConfirmOpen">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete this argument set?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Every version of it goes with it. A test or a call that pins one of those
+            versions loses what it was pinned to.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Keep it</AlertDialogCancel>
+          <AlertDialogAction
+            data-testid="confirm-delete-argument-set"
+            @click="confirmDeleteArgumentSet"
+          >Delete set</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   </InspectorPanel>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, computed, nextTick } from 'vue';
-import { Expand } from '@lucide/vue';
+import { Info } from '@lucide/vue';
 import { toast } from 'vue-sonner';
 import QueryResultsViewer from '../QueryResultsViewer.vue';
 import InspectorPanel, { type InspectorTab } from '../shared/InspectorPanel.vue';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../ui/alert-dialog';
+
 import CodeSnippetPanel, {
   type CodeSnippetArgument,
   type CodeSnippetVariant,
@@ -206,6 +245,7 @@ import {
   compatibility,
   tupleSignature,
 } from '@/lib/argumentSignature';
+import { conceptsDocUrl } from '@/lib/docs';
 import type { QueryExecutionResultPayload, QueryInspectorTab } from '@/types/execution';
 import type { DetailsBackendOption, DetailsVersionOption } from '../shared/EntityDetailsPanel.vue';
 
@@ -300,6 +340,9 @@ const emit = defineEmits<{
   (e: 'open-test', testId: string): void;
 }>();
 
+/* Parameters are a concept, not a field: the panel links the page that defines them. */
+const PARAMETERS_DOC_URL = conceptsDocUrl('parameters');
+
 const activeTab = ref<string>(props.activeTab ?? 'details');
 
 /**
@@ -329,7 +372,7 @@ const inspectorTabs = computed<InspectorTab[]>(() => [
 ]);
 
 // Focus mode blows one of the execution panels up to full screen; Details and
-// Code have nothing to expand, so the button is a no-op there rather than a
+// Code have nothing to expand, so the call is a no-op there rather than a
 // broken emit.
 function requestFocus() {
   if (activeTab.value === 'details' || activeTab.value === 'code') return;
@@ -440,20 +483,31 @@ async function handleSelectArgumentSet(setId: string) {
   await args.selectSet(setId)
 }
 
-async function handleDeleteArgumentSet() {
+/*
+ * The app's own dialog rather than `window.confirm`. A browser stops showing
+ * those once someone ticks "prevent this page from creating more dialogs", and
+ * a suppressed confirm answers `false` — so Delete set silently did nothing,
+ * which is the same fault the rename prompt had.
+ */
+const deleteConfirmOpen = ref(false)
+
+function handleDeleteArgumentSet() {
+  if (!args.selectedSetId.value) return
+  deleteConfirmOpen.value = true
+}
+
+async function confirmDeleteArgumentSet() {
   const setId = args.selectedSetId.value
+  deleteConfirmOpen.value = false
   if (!setId) return
-  if (typeof window !== 'undefined' && !window.confirm('Delete this argument set and all its versions?')) return
   const deleted = await args.deleteSet(setId)
   if (deleted) toast.success('Argument set deleted')
   else if (args.error.value) toast.error(args.error.value)
 }
 
-function handleRename() {
-  if (typeof window === 'undefined') return
-  const next = window.prompt('Name this argument set', args.name.value)
-  if (next === null) return
-  args.rename(next.trim())
+/* The switcher edits the name in place and hands over the result. */
+function handleRename(name: string) {
+  args.rename(name)
 }
 
 async function handleSave() {
@@ -666,28 +720,46 @@ const hasDetectedOutputs = computed(() => {
   overflow: auto;
 }
 
-.btn-icon {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: var(--space-3);
-  font-size: var(--text-title);
-  color: var(--ink-muted);
-  border-radius: var(--radius);
-  transition: background-color 0.2s;
+/*
+ * The empty state and the note under it read as one block, so they sit in one
+ * column rather than taking the pane's own 12px rhythm between them.
+ */
+.no-arguments {
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
-.btn-icon:hover:not(:disabled) {
-  background: var(--surface-raised);
-  color: var(--ink);
+/*
+ * The quiet info triple — surface, border, ink — the same shape as the banner
+ * on the rule-set SPARQL pane. See docs/reference/ui-design-tokens.md.
+ */
+.arguments-hint {
+  display: flex;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-4);
+  background: var(--info-surface);
+  border: 1px solid var(--info-border);
+  border-radius: var(--radius-panel);
+  color: var(--info-ink);
+  font-size: var(--text-label);
+  line-height: var(--leading-normal);
 }
 
-.btn-icon:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
+.arguments-hint-icon {
+  flex-shrink: 0;
+  margin-top: var(--space-1);
+}
+
+.arguments-hint code {
+  font-family: var(--font-mono);
+  font-size: var(--text-code);
+}
+
+.arguments-hint a {
+  color: var(--info-ink);
+  text-decoration: underline;
 }
 
 .arguments-content {

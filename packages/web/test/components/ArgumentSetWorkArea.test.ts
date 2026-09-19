@@ -127,6 +127,54 @@ describe('ArgumentSetWorkArea — composing parameters', () => {
     expect(toasts.error.join(' ')).toMatch(/already has a table/);
   });
 
+  /*
+   * A typo in a variable name used to be permanent: the names are typed here,
+   * and a table could be neither renamed nor removed — while the names are
+   * exactly what matches the table to a clause.
+   */
+  it('renames a table\'s variables, keeping each column\'s values', async () => {
+    const area = mountArea();
+    await addTable(area, 'cittyyy');
+
+    await area.get('[data-testid="argument-add-row"]').trigger('click');
+    await flushPromises();
+    await area.get('[data-testid="argument-value"]').setValue('ex:Sydney');
+    await flushPromises();
+
+    await area.get('[data-testid="argument-clause-rename-open"]').trigger('click');
+    await area.get('[data-testid="argument-clause-rename-input"]').setValue('city');
+    await area.get('[data-testid="argument-clause-rename"]').trigger('submit');
+    await flushPromises();
+
+    expect(area.get('[data-testid="argument-clause"]').text()).toContain('?city');
+    expect((area.get('[data-testid="argument-value"]').element as HTMLInputElement).value)
+      .toBe('ex:Sydney');
+  });
+
+  it('refuses a rename onto another table\'s variables', async () => {
+    const area = mountArea();
+    await addTable(area, 'city');
+    await addTable(area, 'state');
+
+    await area.findAll('[data-testid="argument-clause-rename-open"]')[1].trigger('click');
+    await area.get('[data-testid="argument-clause-rename-input"]').setValue('city');
+    await area.get('[data-testid="argument-clause-rename"]').trigger('submit');
+    await flushPromises();
+
+    expect(toasts.error.join(' ')).toMatch(/already has a table over those variables/);
+    expect(area.findAll('[data-testid="argument-clause"]')).toHaveLength(2);
+  });
+
+  it('removes a table', async () => {
+    const area = mountArea();
+    await addTable(area, 'city');
+
+    await area.get('[data-testid="argument-clause-remove"]').trigger('click');
+    await flushPromises();
+
+    expect(area.find('[data-testid="argument-set-no-tables"]').exists()).toBe(true);
+  });
+
   it('adds and removes a number', async () => {
     const area = mountArea();
     await area.get('[data-testid="argument-set-add-scalar"]').trigger('click');

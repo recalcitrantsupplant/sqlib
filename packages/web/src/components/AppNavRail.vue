@@ -5,7 +5,7 @@
       app's only already-global surface, so the thing that reparents every
       section below it belongs above them all (nav doc §2).
     -->
-    <LibrarySwitcher />
+    <LibrarySwitcher @create-library="emit('create-library')" />
 
     <template v-for="entry in visibleSections" :key="entry.section">
       <div v-if="entry.dividerBefore" class="rail-divider" />
@@ -71,7 +71,11 @@ import type { RailSection } from '../lib/railSections';
 
 defineProps<{ activeSection: RailSection | null }>();
 
-const emit = defineEmits<{ (e: 'select', section: RailSection): void }>();
+const emit = defineEmits<{
+  (e: 'select', section: RailSection): void;
+  /** Opens the page's Add Library dialog; the rail holds no dialog of its own. */
+  (e: 'create-library'): void;
+}>();
 
 const { isEnabled } = useFeatureFlags();
 
