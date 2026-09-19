@@ -24,6 +24,7 @@
 import type { Extension } from '@codemirror/state';
 import type { PrefixGrammar } from '@/lib/prefixRewrite';
 import { json } from '@codemirror/lang-json';
+import { markdown } from '@codemirror/lang-markdown';
 import { sql } from '@codemirror/lang-sql';
 import { xml } from '@codemirror/lang-xml';
 import {
@@ -116,6 +117,13 @@ export function languageExtensionsFor(
    * preferred.
    */
   if (type === 'application/sql' || type === 'text/x-sql') return [sql()];
+  /*
+   * A notebook's prose cells. The only language here that is not a
+   * serialisation the product reads or writes — it is what someone types
+   * *about* those documents — but it arrives at an editor the same way, so it
+   * is chosen the same way.
+   */
+  if (type === 'text/markdown' || type === 'text/x-markdown') return [markdown()];
   if (type === 'application/ld+json' || type === 'application/json' || type.endsWith('+json')) return [json()];
   if (type === 'application/rdf+xml' || type === 'application/xml' || type.endsWith('+xml')) return [xml()];
 

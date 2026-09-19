@@ -499,6 +499,21 @@ export async function mockCallableLibrary(page: Page): Promise<RecordedWrite[]> 
       await json(route, QUERIES);
       return;
     }
+    /*
+     * One query by id — what a deep link into the editor (`/?query=<id>`)
+     * fetches first. Without it the catch-all answered with `[]`, the work area
+     * failed to parse it, and the selection was cleared: a link that worked
+     * looked broken, and a link that was broken looked the same.
+     */
+    const queryDetail = /\/queries\/([^/]+)$/.exec(pathname);
+    if (queryDetail) {
+      const id = decodeURIComponent(queryDetail[1]!);
+      const query = QUERIES.find((candidate) => candidate.id === id);
+      if (query) {
+        await json(route, query);
+        return;
+      }
+    }
 
     if (/\/query-groups\/[^/]+\/v\/\d+$/.test(pathname)) {
       await json(route, GROUP_VERSION_EXPANDED);

@@ -1741,6 +1741,13 @@ export function useApiClient() {
       maxIterations?: number | null;
       inferenceFormat?: string | null;
       dataGraphVersionId?: string | null;
+      /**
+       * The graph itself, floating to its current version — the same three ways
+       * in the route takes (`lib/dataGraphInput.ts`). It was missing here while
+       * the other two were carried, so a caller holding a graph id had to look
+       * its version up first to run rules over it.
+       */
+      dataGraphId?: string | null;
       dataGraphInline?: string | null;
       dataGraphInlineFormat?: string | null;
     },
@@ -1757,6 +1764,7 @@ export function useApiClient() {
       body.inferenceFormat = input.inferenceFormat;
     }
     if (input?.dataGraphVersionId) body.dataGraphVersionId = input.dataGraphVersionId;
+    if (input?.dataGraphId) body.dataGraphId = input.dataGraphId;
     if (input?.dataGraphInline) {
       body.dataGraphInline = input.dataGraphInline;
       if (input.dataGraphInlineFormat) body.dataGraphInlineFormat = input.dataGraphInlineFormat;

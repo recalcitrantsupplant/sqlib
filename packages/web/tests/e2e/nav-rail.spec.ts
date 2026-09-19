@@ -57,13 +57,14 @@ test.describe('Nav rail', () => {
      *
      * Notebook leads, because it is the library's front page — the screen you
      * show someone before they know which type they want, so everything under
-     * it reads as a drill-down from it. It is called Notebook rather than
-     * Library because the library is now the whole window's scope, named once by
-     * the switcher at the head of the rail.
+     * it reads as a drill-down from it. It took that slot from a `library`
+     * screen that rendered every query in the library as a cell, unasked: the
+     * contents are what you import into a notebook, and the notebook is what
+     * someone reads (docs/proposals/notebook-cells.md §8).
      */
     expect(labels).toEqual([
-      'Notebook', 'Query', 'Groups', 'Rules', 'ETL', 'Bench', 'Tests', 'Graphs', 'Tuples',
-      'Argument sets', 'Build', 'Backends',
+      'Notebook', 'Query', 'Groups', 'Rules', 'ETL', 'Bench', 'Tests', 'Graphs',
+      'Tuples', 'Argument sets', 'Build', 'Backends',
     ]);
   });
 
@@ -77,12 +78,12 @@ test.describe('Nav rail', () => {
     );
   });
 
-  test('Notebook navigates to the library page, the rail\'s other screen', async ({ page }) => {
+  test('Notebook navigates to the notebook screen, the rail\'s other destination', async ({ page }) => {
     await railButton(page, 'Notebook').click();
     // Same shape as Build below: a screen, not a scope, and it self-selects a
     // library once the store resolves, so the path is what can be anchored on.
-    await expect(page).toHaveURL(/\/library(\?|$)/);
-    await expect(page.locator('.library-layout')).toBeVisible();
+    await expect(page).toHaveURL(/\/notebook(\?|$)/);
+    await expect(page.locator('.notebook-layout')).toBeVisible();
     await expect(page.locator('.nav-sidebar')).toHaveCount(0);
   });
 

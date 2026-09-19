@@ -1054,6 +1054,11 @@ const scratchBySection: Record<DraftSection, ReturnType<typeof useScratchItems>>
   dataGraph: useScratchItems('dataGraph'),
   tupleSet: useScratchItems('tupleSet'),
   argumentSet: useScratchItems('argumentSet'),
+  /*
+   * Present so the map stays total, and unreachable from here: notebooks are a
+   * screen of their own (`/notebook`) with their own list, the way Build is.
+   */
+  notebook: useScratchItems('notebook'),
 };
 
 /** The section whose sidebar is showing, or null when the tree is. */
