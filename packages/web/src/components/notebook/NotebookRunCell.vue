@@ -641,6 +641,26 @@ function cellText(row: Record<string, unknown>, column: string): string {
   color: var(--ink-muted);
 }
 
+/*
+ * The value's name, as a field you can type in rather than a label.
+ *
+ * Tinted like the reference chips a downstream cell shows, because it is the
+ * same name seen from the other end: this is where `@candidates` comes from.
+ */
+.out-name {
+  width: var(--grid-4);
+  height: var(--control-h-sm);
+  box-sizing: border-box;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--action-border);
+  border-radius: var(--radius-sm);
+  background: var(--action-surface);
+  color: var(--action-ink);
+  font-family: var(--font-mono);
+  font-size: var(--text-body);
+  font-weight: var(--weight-semibold);
+}
+
 .chip {
   height: var(--control-h-sm);
   display: inline-flex;
