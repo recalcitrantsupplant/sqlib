@@ -423,6 +423,44 @@ describe('primitive adoption', () => {
     expect(offenders, 'a scoped .panel-header rule lands on every <PanelHeader> the file renders — use :deep() if that is the intent').toEqual([]);
   });
 
+  /*
+   * The results action bar, and the class of bug that made it a component.
+   *
+   * `assets/css/results-chrome.css` styles the bar's parts as *descendants* of
+   * `.results-action-bar` — `.btn-action`, `.results-filter`,
+   * `.action-bar-right`. Markup that reaches for those class names without
+   * sitting inside the container therefore gets no rule at all: the rule set
+   * pop-out drew its own `.focus-controls-bar` and its download button lost its
+   * height, padding and border and stacked its icon over its label, while the
+   * filter drifted to the far right. Nothing about it looked like a missing
+   * stylesheet — which is exactly why a person reviewing it did not see one.
+   *
+   * So the container is spelled once, by `ResultsActionBar`, and a file that
+   * uses the bar's classes has to render it.
+   */
+  it('only ResultsActionBar spells the results action bar', () => {
+    const PARTS = /\b(btn-action|results-filter|action-bar-right)\b/;
+    const offenders: string[] = [];
+    for (const file of vueFiles(SRC)) {
+      const relative = file.slice(SRC.length + 1);
+      if (relative === 'components/shared/ResultsActionBar.vue') continue;
+      if (MOCKUPS.test(relative)) continue;
+      const source = readFileSync(file, 'utf8');
+      const template = source.slice(0, source.search(/<style[^>]*>/) + 1 || undefined);
+      if (!PARTS.test(template)) continue;
+      if (!/<ResultsActionBar[\s>]/.test(template)) {
+        offenders.push(`${relative}: uses the bar's classes without rendering <ResultsActionBar>`);
+      }
+      if (/class="[^"]*\bresults-action-bar\b/.test(template)) {
+        offenders.push(`${relative}: writes .results-action-bar by hand`);
+      }
+    }
+    expect(
+      offenders,
+      'the bar is one component: its styles are descendants of a container only ResultsActionBar draws',
+    ).toEqual([]);
+  });
+
   it('the rules results panel reaches for the primitives, not its own markup', () => {
     const source = readFileSync(resolve(SRC, 'components/RuleSetExecutionResults.vue'), 'utf8');
     expect(source).toContain("import EmptyState from './shared/EmptyState.vue'");
@@ -1524,8 +1562,6 @@ describe('the disabled ink', () => {
       'the decorative glyph above the title that carries the message',
     'components/shared/RunBar.vue: .pick-chevron':
       'the menu chevron beside a value the pass has already recoloured',
-    'components/shared/RunBar.vue: .help':
-      'an idle icon button — hover paints it --ink-secondary',
     'components/tests/TestRunsPanel.vue: .tally-sep':
       'the middot between two tallies — punctuation, not a word',
   };

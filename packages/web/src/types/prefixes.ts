@@ -22,18 +22,17 @@ export interface PrefixMapping {
 export interface PrefixSettings {
   duplicateResolution: 'longest';        // Always use longest (most specific) namespace match
   mappings: PrefixMapping[];             // All prefix mappings
-  /*
-   * Reveal the full IRI as a `title` on an abbreviated term.
-   *
-   * Declared here because it was already being *read* — `RdfTermTable` and
-   * `QueryResultsViewer` both gate their tooltip on it — while no constructor of
-   * this type ever set it. It survived only for users whose localStorage still
-   * carried the key from an older build; anyone starting fresh got `undefined`,
-   * so abbreviating `foaf:Person` hid the IRI with no way to see it and no
-   * setting anywhere to turn it back on. See issue #52.
-   */
-  showTooltips: boolean;
 }
+
+/*
+ * `showTooltips` used to live here: it gated the hover popover that revealed
+ * the full IRI behind an abbreviated term. The popover is gone — a cell's type
+ * badge copies the full IRI, and a column that should *read* as full IRIs is
+ * switched to them from its header menu — so the flag gated nothing and went
+ * with it. A settings blob in localStorage that still carries the key is read
+ * and the key dropped, which is what the spread in `loadFromLocalStorage` does
+ * for every field this type no longer declares.
+ */
 
 export interface PrefixCache {
   namespaceToPrefix: Map<string, string>;  // Fast lookup

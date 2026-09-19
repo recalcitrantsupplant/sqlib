@@ -58,7 +58,6 @@
     -->
     <PrefixConversionButtons
       v-if="code !== undefined"
-      variant="icon"
       :code="code"
       :content-type="contentType"
       @update:code="(value: string) => emit('update:code', value)"

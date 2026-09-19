@@ -197,7 +197,10 @@
           v-for="item in visibleScratch"
           :key="item.id"
           class="entity-row scratch-row"
-          :class="{ selected: selection.kind === 'scratch' && selection.id === item.id }"
+          :class="{
+            selected: selection.kind === 'scratch' && selection.id === item.id,
+            'one-line': !item.description,
+          }"
           data-testid="scratch-row"
           :data-scratch-id="item.id"
           role="button"
@@ -207,7 +210,15 @@
         >
           <span class="scratch-dot" aria-hidden="true" />
           <span class="entity-name scratch-name">{{ item.name }}</span>
-          <span v-if="density === 'comfortable'" class="entity-sub">{{ item.description ?? 'Never saved' }}</span>
+          <!--
+            No "Never saved" line. The cluster header says it once, the dashed
+            dot and the italic name say it again on every row, and a third copy
+            under each one bought a second line of height per scratch to repeat
+            what the reader already knew. A scratch that *has* a description
+            still shows it — that is the only thing the line can say that is
+            not already on screen.
+          -->
+          <span v-if="density === 'comfortable' && item.description" class="entity-sub">{{ item.description }}</span>
           <span class="entity-age">{{ ageOf(item) }}</span>
           <button
             class="discard-button"
@@ -1188,6 +1199,15 @@ function ageOf(item: CallableDraft) {
 
 .density-comfortable .entity-sub {
   line-height: 1.25;
+}
+
+/*
+ * A row with nothing on its second line does not reserve one. Comfortable's
+ * extra height is the description's, and scratch rows rarely carry one — six
+ * of them at the top of the list were paying for six blank lines.
+ */
+.density-comfortable .entity-row.one-line {
+  min-height: 26px;
 }
 
 .entity-row:hover {

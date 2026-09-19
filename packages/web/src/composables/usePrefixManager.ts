@@ -148,7 +148,6 @@ function loadFromLocalStorage(): PrefixSettings {
     return {
       duplicateResolution: 'longest',
       mappings: defaultMappings(),
-      showTooltips: true,
     };
   }
   try {
@@ -191,14 +190,19 @@ function loadFromLocalStorage(): PrefixSettings {
       // (This is implicitly handled by not including it in the return type, but good to be safe)
       const { enabled, ...cleanSettings } = parsedSettings as any;
 
-      // Defaults first, stored second: a settings blob written before
-      // `showTooltips` existed simply takes the default rather than reviving
-      // `undefined` and turning the tooltip off again.
-      return { ...{
+      /*
+       * Only the fields this type declares, never the whole blob.
+       *
+       * Storage written by an older build carries keys nothing reads any more
+       * — `showTooltips`, which gated the IRI popover that no longer exists —
+       * and spreading the blob would carry them straight back into the settings
+       * the app then saves. Naming the fields is what stops a removed setting
+       * living on in every user's localStorage forever.
+       */
+      return {
         duplicateResolution: 'longest',
-        mappings: defaultMappings(),
-        showTooltips: true,
-      }, ...cleanSettings };
+        mappings: cleanSettings.mappings ?? defaultMappings(),
+      };
     }
   } catch (e) {
     console.error("Failed to load prefix settings from localStorage", e);
@@ -207,7 +211,6 @@ function loadFromLocalStorage(): PrefixSettings {
   return {
     duplicateResolution: 'longest',
     mappings: defaultMappings(),
-    showTooltips: true,
   };
 }
 
@@ -224,7 +227,6 @@ function saveToLocalStorage(settings: PrefixSettings): void {
 const prefixSettings = ref<PrefixSettings>({
   duplicateResolution: 'longest',
   mappings: defaultMappings(),
-  showTooltips: true,
 });
 /*
  * Shallow, and the memo below is not reactive at all.
