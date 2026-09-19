@@ -7,6 +7,13 @@
  * drawing "the same bar" in two scoped stylesheets is how they stop being the
  * same bar. The run facts that used to sit up here are in ResultsFooter.
  *
+ * Every rule below is a *descendant* of `.results-action-bar`, so markup that
+ * does not sit inside one gets none of them — a button with no height, no
+ * padding and no border, stacking its icon over its label. That is not a
+ * theoretical hazard: the rule set pop-out shipped exactly that. Which is why
+ * the container is only ever spelled by `shared/ResultsActionBar.vue`, and
+ * `designSystem.test.ts` fails any file that uses these classes without it.
+ *
  * All values come from tokens.css.
  */
 

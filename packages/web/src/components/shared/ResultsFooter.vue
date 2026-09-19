@@ -30,6 +30,15 @@ const props = withDefaults(
     executedAt?: string | null;
     /** The media type the view was rendered from. */
     mediaType?: string | null;
+    /**
+     * How the view stands to that media type.
+     *
+     * A table is *rendered from* a payload — the rows are a reading of it. A
+     * raw view is not rendered from anything; it *is* the payload, so it says
+     * "as". One word, and the sentence stops claiming a transformation that
+     * did not happen.
+     */
+    mediaRelation?: 'rendered from' | 'as';
     /** Total wall-clock, stated as text rather than drawn as a donut. */
     durationMs?: number | null;
     /** The breakdown behind that number, on hover. */
@@ -40,6 +49,7 @@ const props = withDefaults(
     rowNoun: 'row',
     executedAt: null,
     mediaType: null,
+    mediaRelation: 'rendered from',
     durationMs: null,
     durationTitle: null,
   },
@@ -135,14 +145,20 @@ const hasAnything = computed(
       </DropdownMenuContent>
     </DropdownMenu>
 
+    <!--
+      What the rows are, then what they came from, then when. The media type
+      used to trail the timestamp, which read as "executed in the last minute
+      from application/n-triples" — as though the run had been performed on a
+      media type. It belongs beside the count it describes.
+    -->
+    <template v-if="mediaType">
+      <span class="footer-label">{{ mediaRelation }}</span>
+      <span class="footer-pill">{{ mediaType }}</span>
+    </template>
+
     <template v-if="executedRelative">
       <span class="footer-label">executed</span>
       <span class="footer-pill" :title="executedAt ?? undefined">{{ executedRelative }}</span>
-    </template>
-
-    <template v-if="mediaType">
-      <span class="footer-label">from</span>
-      <span class="footer-pill">{{ mediaType }}</span>
     </template>
 
     <span

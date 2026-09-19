@@ -204,7 +204,6 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import DataTable from '@/components/ui/table/DataTable.vue';
 import TermDisplayMenuItems from '@/components/shared/TermDisplayMenuItems.vue';
-import TermIriPopover from '@/components/shared/TermIriPopover.vue';
 import { useTermDisplay, type TermDisplayMode } from '@/composables/useTermDisplay';
 import CodePeek from '@/components/shared/CodePeek.vue';
 import PanelHeader from '@/components/shared/PanelHeader.vue';
@@ -511,9 +510,8 @@ const columns = computed<DataTableColumnDef<Record<string, NotebookTerm>, unknow
     header: name,
     cell: ({ row }) => {
       const term = row.original[name];
-      return h('span', { class: 'term-cell group relative inline-flex items-center' }, [
+      return h('span', { class: 'term-cell inline-flex items-center' }, [
         h('code', { class: 'text-xs' }, termText(term, name)),
-        isPrefixed(name) && term.full ? h(TermIriPopover, { fullIri: term.full }) : null,
       ]);
     },
   })),
