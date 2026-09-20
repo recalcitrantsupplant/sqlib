@@ -59,7 +59,6 @@ const props = withDefaults(defineProps<{
   /** Every rule and DATA block of the document, in document order. */
   blocks: SrlDocumentBlock[];
   stratification: SrlStratificationSummary | null;
-  analyzing: boolean;
   /** The document itself — the SPARQL tab compiles it. */
   document: string;
   tuplesEnabled: boolean;
@@ -193,7 +192,7 @@ const tabs = computed<InspectorTab[]>(() => {
   const list: InspectorTab[] = [
     { id: 'details', label: 'Details' },
     { id: 'inputs', label: 'Inputs' },
-    { id: 'stratification', label: 'Stratification', busy: props.analyzing },
+    { id: 'stratification', label: 'Stratification' },
     { id: 'sparql', label: 'SPARQL' },
     { id: 'results', label: 'Results' },
     { id: 'code', label: 'Code' },

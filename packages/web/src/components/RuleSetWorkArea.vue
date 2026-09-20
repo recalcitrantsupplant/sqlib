@@ -143,7 +143,6 @@
         :details="detailsProps"
         :blocks="blocks"
         :stratification="stratification"
-        :analyzing="analyzing"
         :document="srlDocument"
         :document-valid="validationState !== 'error'"
         :tuples-enabled="tuplesEnabled"
@@ -417,7 +416,7 @@ WHERE {
  * One parse feeds the gutter, the outline, the graph and the footer, so they
  * can never disagree about what the document says.
  */
-const { analysis, analyzing, blocks, stratification, validationState, parseError } = useSrlAnalysis(
+const { analysis, blocks, stratification, validationState, parseError } = useSrlAnalysis(
   srlDocument,
   tuplesEnabled,
 );
