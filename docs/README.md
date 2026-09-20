@@ -35,6 +35,12 @@ every other page assumes.
 - [explanation/rdf-patch.md](explanation/rdf-patch.md) — how an update query's effect is derived before it is applied.
 - [explanation/inline-inputs-and-the-rail.md](explanation/inline-inputs-and-the-rail.md) — where a saved input lives, why pasting a graph into a call saves it as a graph, and what the rail shows about where things came from.
 
+## Design proposals — not built yet
+
+- [design/mcp-app.md](design/mcp-app.md) — a query bench rendered inline in a
+  chat client (MCP Apps / SEP-1865), where a session's queries are persisted as
+  ordinary library entities.
+
 ## Examples
 
 - [examples/sudoku-solver-ruleset.md](examples/sudoku-solver-ruleset.md) — a
