@@ -3,7 +3,12 @@
     <div class="panel-header__text">
       <div class="panel-header__title-row">
         <slot name="icon" />
-        <h3 class="panel-header__title" :title="title">{{ title }}</h3>
+        <!--
+          Titleless is a real case: an editor popped out has its name in the
+          pop-out's own header, and the row below it carries only the controls.
+          An empty `<h3>` would be a heading naming nothing.
+        -->
+        <h3 v-if="title" class="panel-header__title" :title="title">{{ title }}</h3>
         <slot name="meta" />
       </div>
       <p v-if="subtitle" class="panel-header__subtitle" :title="subtitle">{{ subtitle }}</p>
@@ -23,7 +28,8 @@
  */
 withDefaults(
   defineProps<{
-    title: string;
+    /** Absent for a bar that is only controls — see the note in the template. */
+    title?: string;
     subtitle?: string;
     /** Use the sunken chrome when the header sits above a well or code surface. */
     sunken?: boolean;

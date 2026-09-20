@@ -75,44 +75,20 @@
         Authoring belongs to the list you author against. A replaced body is a
         view of something already made — a run — so it gets no New button.
 
-        + New carries the same split-button shape the run strip uses: the main
-        button does the ordinary thing, and the chevron holds the other ways of
-        starting one. A section with no other way has no chevron at all rather
-        than a menu of one.
+        + New starts one, and that is the whole control. Rules used to carry a
+        chevron beside it for "Import from SPARQL…", which opened the same
+        dialog the editor's own Import button opens on the rule set already in
+        front of you — so the menu was a second door onto one room.
       -->
       <div v-if="!$slots['list-body']" class="new-group">
         <button
           class="new-button"
-          :class="{ split: newOptions.length > 0 }"
           data-testid="new-scratch"
           :title="newButtonTitle"
           @click="emit('create-scratch')"
         >
           <Plus :size="13" />New
         </button>
-        <DropdownMenu v-if="newOptions.length">
-          <DropdownMenuTrigger as-child>
-            <button
-              class="new-chevron"
-              type="button"
-              data-testid="new-scratch-options"
-              :title="`Other ways to start a ${noun}`"
-            >
-              <ChevronDown :size="12" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              v-for="option in newOptions"
-              :key="option.key"
-              :data-testid="`new-scratch-option-${option.key}`"
-              :disabled="option.disabled"
-              @select="emit('create-option', option.key)"
-            >
-              {{ option.label }}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
       </div>
     </div>
 
@@ -465,13 +441,6 @@ import { useSettings } from '../composables/useSettings';
 import { useSidebarCollapse } from '../composables/useSidebarCollapse';
 import { formatCompactAge } from '../lib/time';
 
-/** One of the alternative ways a section can start an item. */
-export interface NewOption {
-  key: string;
-  label: string;
-  disabled?: boolean;
-}
-
 const props = defineProps<{
   /**
    * The rail section this list belongs to. It keys the collapsed flag, so
@@ -503,11 +472,6 @@ const props = defineProps<{
    */
   savedKinds?: Array<{ type: string; label: string }>;
   /**
-   * Other ways to start an item, behind a chevron beside + New. Empty (the
-   * default) leaves + New a plain button.
-   */
-  newOptions?: NewOption[];
-  /**
    * False for a section with no server entity at all — ETL. Its list is
    * scratch and nothing else, and a `Saved 0` header that can never move off
    * zero reads as something being broken.
@@ -532,8 +496,6 @@ const emit = defineEmits<{
   (e: 'select-saved', id: string, kind: string): void;
   (e: 'select-scratch', id: string): void;
   (e: 'create-scratch'): void;
-  /** One of `newOptions` was chosen — the page decides what it means. */
-  (e: 'create-option', key: string): void;
   (e: 'discard-scratch', id: string): void;
 }>();
 
@@ -542,7 +504,6 @@ const { collapsed, toggle: toggleCollapsed } = useSidebarCollapse(computed(() =>
 const sectionLabel = computed(() => props.sectionLabel ?? 'Queries');
 const noun = computed(() => props.itemNoun ?? 'query');
 const nounPlural = computed(() => props.itemNounPlural ?? `${noun.value}s`);
-const newOptions = computed(() => props.newOptions ?? []);
 const scratchEnabled = computed(() => props.supportsScratch !== false);
 const savedEnabled = computed(() => props.supportsSaved !== false);
 
@@ -958,33 +919,6 @@ function ageOf(item: CallableDraft) {
   margin-left: auto;
   flex-shrink: 0;
 }
-/* The pair reads as one control: the seam between them is a single border. */
-.new-button.split {
-  margin-left: 0;
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
-}
-.new-chevron {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 26px;
-  border: 1px solid var(--border-default);
-  border-left: none;
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-  background: var(--surface);
-  color: var(--ink-secondary);
-  cursor: pointer;
-}
-.new-chevron:hover {
-  border-color: var(--border-strong);
-  color: var(--ink);
-}
-.new-group:hover .new-button.split {
-  border-color: var(--border-strong);
-}
-
 .filter-bar {
   display: flex;
   gap: 6px;

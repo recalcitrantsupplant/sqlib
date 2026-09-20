@@ -206,16 +206,31 @@
     <!--
       The header row over the code, drawn only by the minimal chrome: the full
       chrome's version toolbar is already this row, and a second one under it
-      would name the editor twice. It carries the editor's name and the Expand
-      button, which is where Expand belongs — in a row with the other controls
-      rather than floating over the first line of the document.
+      would name the editor twice. It carries the editor's name and the
+      controls that act on the document, which is where they belong — in a row
+      with each other rather than floating over the first line of it.
 
-      It stands down while the editor is popped out: the pop-out draws its own
-      header, with the same title in it and Close where Expand was.
+      Popped out, the row stays and loses its two redundant parts: the title,
+      which the pop-out's own header already carries, and Expand, whose job is
+      done by the Close beside that title. What is left is the same strip of
+      document controls in the same place relative to the code, so the editor
+      does not change shape when it is enlarged.
     -->
-    <PanelHeader v-if="expandable && !expanded" :title="editorTitle" sunken>
+    <PanelHeader v-if="expandable" :title="expanded ? undefined : editorTitle" sunken>
       <template #actions>
+        <!--
+          What the section wants to do *to the document*, beside the control
+          that enlarges it — the rules screen puts Format, Import and Diff
+          here. They belong in this row rather than in the save bar above,
+          which is about the item and its versions rather than the text.
+
+          Named for the row it sits in, not for the editor: `editor-actions` is
+          already the full chrome's slot, passed through to `VersionToolbar`
+          above.
+        -->
+        <slot name="header-actions" />
         <ExpandButton
+          v-if="!expanded"
           :subject="editorTitle.toLowerCase()"
           testid="sparql-editor-expand"
           @click="$emit('request-expand')"
@@ -738,6 +753,8 @@ const executeButtonTitle = computed(() => {
 </script>
 
 <style scoped>
+
+
 .editor-section {
   display: flex;
   flex-direction: column;

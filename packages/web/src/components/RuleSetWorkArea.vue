@@ -29,13 +29,10 @@
         :needs-name="needsName"
         :show-format="false"
         :show-more="false"
-        show-import
-        import-title="Append a rule built from a CONSTRUCT query"
+        :show-diff="false"
         @save="save"
         @needs-name="promptForNameInDetails"
         @discard="discardDraft"
-        @toggle-diff="openPreview"
-        @import="openImportDialog"
       />
 
       <!--
@@ -99,6 +96,56 @@
           @editor-ready="handleEditorReady"
           @request-expand="expandEditor"
         >
+          <!--
+            Format, Import and Diff act on the document, so they sit in the
+            document's header rather than in the save bar, which is about the
+            rule set and its versions. Left of Expand, in the order they are
+            reached for: rewrite what is here, add to it, compare it.
+          -->
+          <template #header-actions>
+            <button
+              class="editor-action"
+              type="button"
+              data-testid="format-document"
+              title="Format the rule set"
+              :disabled="!srlDocument.trim() || formatting"
+              @click="formatDocument"
+            >
+              <WandSparkles :size="13" />
+            </button>
+            <!--
+              The prefix conversions, beside Format because they are the same
+              kind of control: one press, whole document rewritten. They work
+              on SRL against SRL's own grammar — see `prefixGrammarFor`.
+            -->
+            <PrefixConversionButtons
+              :code="srlDocument"
+              content-type="application/srl"
+              @update:code="applyEditedDocument"
+            />
+            <button
+              class="editor-action"
+              type="button"
+              data-testid="import-body"
+              title="Append a rule built from a CONSTRUCT or INSERT query"
+              @click="openImportDialog"
+            >
+              <FileInput :size="13" />
+            </button>
+            <button
+              v-if="!isScratch"
+              class="editor-action"
+              type="button"
+              data-testid="diff-query"
+              :title="currentVersionNumberForDisplay
+                ? `Diff draft vs v${currentVersionNumberForDisplay}`
+                : 'Diff draft'"
+              @click="openPreview"
+            >
+              <GitCompare :size="13" />
+            </button>
+          </template>
+
           <template #footer>
             <RuleSetEditorFooter
               :validation-state="validationState"
@@ -207,10 +254,12 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, shallowRef, watch } from 'vue';
 import { toast } from 'vue-sonner';
+import { FileInput, GitCompare, WandSparkles } from '@lucide/vue';
 import { languageExtensionsFor } from '../lib/codeLanguage';
 import { EditorState, type Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import SaveBar from './shared/SaveBar.vue';
+import PrefixConversionButtons from './shared/PrefixConversionButtons.vue';
 import ImportSparqlDialog from './rules/ImportSparqlDialog.vue';
 import SparqlEditorPanel from './shared/SparqlEditorPanel.vue';
 import { prefixSourceToken } from '@/lib/prefixSources';
@@ -1286,9 +1335,43 @@ function openImportDialog() {
   showImportDialog.value = true;
 }
 
-// The page opens the dialog for "+ New ▾ Import from SPARQL…", which creates a
-// scratch rule set and then imports into it.
-defineExpose({ openImport: openImportDialog });
+const formatting = ref(false);
+
+/**
+ * Format the document, through the same `/format` route the query editor uses.
+ *
+ * What comes back for SRL is the document validated and trimmed — the route
+ * treats it as a passthrough rather than re-laying it out (see the SRL branch
+ * in `routes/detection.ts`). So the outcome worth reporting is whether
+ * anything changed, and the button says so rather than claiming a formatting
+ * pass that did not happen. When the route learns to lay SRL out, this button
+ * starts doing it without changing.
+ */
+async function formatDocument() {
+  const document = srlDocument.value;
+  if (!document.trim()) return;
+  formatting.value = true;
+  try {
+    const { formatted } = await apiClient.formatCode(document);
+    /*
+     * Compared without trailing whitespace: the route trims, and a document
+     * that differs only by the newline it ended with has not been formatted —
+     * treating that as a change would turn a press of Format on an untouched
+     * rule set into an unsaved edit.
+     */
+    if (formatted.trimEnd() === document.trimEnd()) {
+      toast.info('Nothing to change — the rule set is already formatted');
+      return;
+    }
+    applyEditedDocument(formatted);
+    toast.success('Rule set formatted');
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Could not format the rule set';
+    toast.error(`Format failed: ${message}`);
+  } finally {
+    formatting.value = false;
+  }
+}
 
 /**
  * Append an imported rule, and the prefixes it needs, to the document.
@@ -2047,6 +2130,45 @@ watch(scratchSavedAt, (value) => {
 </script>
 
 <style scoped>
+/*
+ * The document's own actions, shaped like the Expand button they sit beside —
+ * same height, same border, same muted ink — so the group reads as one row of
+ * controls rather than two kinds of button that happen to be adjacent.
+ */
+.editor-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
+  padding: 0;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: color 0.12s ease, background-color 0.12s ease;
+}
+
+.editor-action:hover:not(:disabled),
+.editor-action:focus-visible {
+  background: var(--surface-raised);
+  color: var(--ink);
+}
+
+.editor-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* The prefix buttons come with the save bar's radius; sized and shaped to
+   their neighbours here so the group reads as one row of controls. */
+:deep(.prefix-conversion-buttons .bar-button) {
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
+  border-radius: var(--radius);
+}
+
 .ruleset-work-area {
   position: relative;
   display: flex;
