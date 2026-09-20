@@ -57,6 +57,11 @@ scripts/**/*.js.map
 # un-ignoring that directory costs nothing and keeps the shims tracked.
 packages/*/src/**/*.js
 packages/*/src/**/*.js.map
+# ...except the MCP App's kit, which is hand-written browser JavaScript, not
+# build output. It is inlined verbatim into each View's <script> tag (the
+# declared CSP lets a View load nothing at runtime), so it is authored as .js
+# rather than compiled to it.
+!packages/mcp-app/src/kit/*.js
 packages/*/manual-tests/**/*.js
 packages/*/manual-tests/**/*.js.map
 packages/api/src/**/*.d.ts

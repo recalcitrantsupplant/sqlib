@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>sqlib MCP App harness</title>
+<style>
+  :root { color-scheme: light dark; --line: #d3d7dd; --muted: #6b717d; }
+  body {
+    margin: 0;
+    font: 13px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    height: 100vh;
+  }
+  aside { border-right: 1px solid var(--line); padding: 12px; overflow: auto; }
+  main { padding: 12px; overflow: auto; display: flex; flex-direction: column; gap: 12px; }
+  h1 { font-size: 14px; margin: 0 0 8px; }
+  h2 { font-size: 12px; margin: 16px 0 6px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 6px 0 2px; }
+  input, select, textarea, button { font: inherit; font-size: 12px; width: 100%; box-sizing: border-box; }
+  input, select, textarea { padding: 4px 6px; border: 1px solid var(--line); border-radius: 4px; background: transparent; color: inherit; }
+  textarea { font-family: ui-monospace, Menlo, monospace; min-height: 90px; }
+  button { padding: 6px 10px; border: 1px solid var(--line); border-radius: 4px; cursor: pointer; background: transparent; color: inherit; }
+  button.primary { background: #2563eb; border-color: #2563eb; color: #fff; font-weight: 600; }
+  .row { display: flex; gap: 6px; margin-top: 8px; }
+  #log { font-family: ui-monospace, Menlo, monospace; font-size: 11px; white-space: pre-wrap; border: 1px solid var(--line); border-radius: 4px; padding: 8px; height: 220px; overflow: auto; }
+  #frame-wrap { border: 1px solid var(--line); border-radius: 6px; overflow: hidden; min-height: 320px; }
+  iframe { width: 100%; border: 0; display: block; height: 520px; }
+  .status { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .pill { display: inline-block; font-size: 11px; border: 1px solid var(--line); border-radius: 999px; padding: 1px 7px; margin: 2px 2px 0 0; }
+</style>
+</head>
+<body>
+<aside>
+  <h1>sqlib MCP App harness</h1>
+  <p class="status">
+    A minimal MCP Apps host: it speaks streamable HTTP to a local sqlib server,
+    renders a <code>ui://</code> resource in a sandboxed iframe, and bridges the
+    View's JSON-RPC back to the server. Everything the real hosts do, and
+    nothing they do for looks.
+  </p>
+
+  <label for="endpoint">MCP endpoint</label>
+  <input id="endpoint" value="http://localhost:3005/mcp">
+  <div class="row"><button class="primary" id="connect" type="button">Connect</button></div>
+  <div class="status" id="connection">not connected</div>
+
+  <h2>UI-bound tools</h2>
+  <select id="tool" size="4"></select>
+
+  <label for="args">Arguments (JSON)</label>
+  <textarea id="args">{}</textarea>
+  <div class="row">
+    <button class="primary" id="call" type="button" disabled>Call tool &amp; render</button>
+  </div>
+  <div class="status" id="call-status"></div>
+
+  <h2>Resources</h2>
+  <div id="resources"></div>
+</aside>
+
+<main>
+  <div id="frame-wrap"><div style="padding:24px;color:var(--muted)">Call a UI-bound tool to render its View.</div></div>
+  <div>
+    <h2 style="margin-top:0">Bridge log</h2>
+    <div id="log"></div>
+  </div>
+</main>
+
+<script>
+/**
+ * The host side of the bridge.
+ *
+ * Written against the specification rather than against our Views: it sends
+ * `ui/initialize`'s result as `hostContext`, pushes `tool-input` then
+ * `tool-result`, and serves `tools/call` and `resources/read` by forwarding to
+ * the MCP server. If a View works here it works because it follows the
+ * protocol, not because the harness was bent to fit it.
+ */
+(function () {
+  var endpointInput = document.getElementById('endpoint');
+  var connectButton = document.getElementById('connect');
+  var connectionStatus = document.getElementById('connection');
+  var toolSelect = document.getElementById('tool');
+  var argsBox = document.getElementById('args');
+  var callButton = document.getElementById('call');
+  var callStatus = document.getElementById('call-status');
+  var resourcesBox = document.getElementById('resources');
+  var frameWrap = document.getElementById('frame-wrap');
+  var logBox = document.getElementById('log');
+
+  var sessionId = null;
+  var endpoint = null;
+  var nextId = 1;
+  var tools = [];
+  var frame = null;
+
+  function log(direction, text) {
+    var stamp = new Date().toISOString().slice(11, 23);
+    logBox.textContent += stamp + ' ' + direction + ' ' + text + '\n';
+    logBox.scrollTop = logBox.scrollHeight;
+  }
+
+  /** One JSON-RPC call over streamable HTTP, JSON or SSE. */
+  async function rpc(method, params, isNotification) {
+    var body = { jsonrpc: '2.0', method: method };
+    if (params) body.params = params;
+    if (!isNotification) body.id = nextId++;
+
+    var headers = {
+      'content-type': 'application/json',
+      // Streamable HTTP lets the server answer either way, so a client must
+      // accept both or the server has nothing it may reply with.
+      accept: 'application/json, text/event-stream',
+    };
+    if (sessionId) headers['mcp-session-id'] = sessionId;
+
+    var response = await fetch(endpoint, { method: 'POST', headers: headers, body: JSON.stringify(body) });
+    var headerSession = response.headers.get('mcp-session-id');
+    if (headerSession) sessionId = headerSession;
+    if (isNotification) return null;
+
+    var text = await response.text();
+    var payload = parseResponse(text);
+    if (!payload) throw new Error('no JSON-RPC response (HTTP ' + response.status + ')');
+    if (payload.error) throw new Error(payload.error.message || 'request failed');
+    return payload.result;
+  }
+
+  function parseResponse(text) {
+    var trimmed = (text || '').trim();
+    if (!trimmed) return null;
+    if (trimmed[0] === '{') return JSON.parse(trimmed);
+    // text/event-stream: the JSON-RPC response rides in a `data:` field.
+    var result = null;
+    trimmed.split(/\r?\n/).forEach(function (line) {
+      if (line.indexOf('data:') !== 0) return;
+      var data = line.slice(5).trim();
+      if (!data) return;
+      try {
+        var parsed = JSON.parse(data);
+        if (parsed && (parsed.result !== undefined || parsed.error !== undefined)) result = parsed;
+      } catch (err) { /* keep looking */ }
+    });
+    return result;
+  }
+
+  async function connect() {
+    endpoint = endpointInput.value.trim();
+    sessionId = null;
+    connectionStatus.textContent = 'connecting…';
+    try {
+      var initialized = await rpc('initialize', {
+        protocolVersion: '2025-06-18',
+        clientInfo: { name: 'sqlib-app-harness', version: '0.0.1' },
+        capabilities: {
+          // The one capability that matters here: without it the server omits
+          // every `_meta.ui`, which is exactly the fallback we want to be able
+          // to test by deleting this block.
+          extensions: {
+            'io.modelcontextprotocol/ui': { mimeTypes: ['text/html;profile=mcp-app'] },
+          },
+        },
+      });
+      await rpc('notifications/initialized', {}, true);
+
+      var toolList = await rpc('tools/list', {});
+      tools = (toolList.tools || []).filter(function (tool) {
+        return tool._meta && tool._meta.ui && tool._meta.ui.resourceUri;
+      });
+      toolSelect.textContent = '';
+      tools.forEach(function (tool, index) {
+        var option = document.createElement('option');
+        option.value = String(index);
+        option.textContent = tool.name + ' → ' + tool._meta.ui.resourceUri;
+        toolSelect.appendChild(option);
+      });
+      if (tools.length) {
+        toolSelect.value = '0';
+        argsBox.value = suggestedArguments(tools[0].name);
+      }
+
+      var resourceList = await rpc('resources/list', {});
+      resourcesBox.textContent = '';
+      (resourceList.resources || []).forEach(function (resource) {
+        var pill = document.createElement('span');
+        pill.className = 'pill';
+        pill.textContent = resource.uri;
+        pill.title = resource.mimeType;
+        resourcesBox.appendChild(pill);
+      });
+
+      callButton.disabled = tools.length === 0;
+      connectionStatus.textContent =
+        'connected — ' + (toolList.tools || []).length + ' tools, ' + tools.length + ' UI-bound, server ' +
+        (initialized.serverInfo ? initialized.serverInfo.name : '?');
+      log('•', 'connected, session ' + sessionId);
+    } catch (err) {
+      connectionStatus.textContent = 'failed: ' + (err.message || err);
+    }
+  }
+
+  function suggestedArguments(name) {
+    if (name.indexOf('app_bench_open') === 0) {
+      return JSON.stringify({ libraryId: 'PASTE_A_LIBRARY_IRI', queryString: 'SELECT * WHERE { ?s ?p ?o } LIMIT 00010' }, null, 2);
+    }
+    if (name.indexOf('sparql_proxyQuery') === 0) {
+      return JSON.stringify({ query: 'SELECT * WHERE { ?s ?p ?o } LIMIT 10', backendId: 'PASTE_A_BACKEND_IRI' }, null, 2);
+    }
+    if (name.indexOf('execute_run') === 0) {
+      return JSON.stringify({ targetId: 'PASTE_A_QUERY_IRI', backendId: 'PASTE_A_BACKEND_IRI' }, null, 2);
+    }
+    return '{}';
+  }
+
+  toolSelect.addEventListener('change', function () {
+    var tool = tools[Number(toolSelect.value)];
+    if (tool) argsBox.value = suggestedArguments(tool.name);
+  });
+
+  async function callAndRender() {
+    var tool = tools[Number(toolSelect.value)];
+    if (!tool) return;
+    var args;
+    try {
+      args = JSON.parse(argsBox.value || '{}');
+    } catch (err) {
+      callStatus.textContent = 'arguments are not valid JSON';
+      return;
+    }
+
+    callButton.disabled = true;
+    callStatus.textContent = 'calling…';
+    try {
+      var result = await rpc('tools/call', { name: tool.name, arguments: args });
+      var resourceUri = (result._meta && result._meta.ui && result._meta.ui.resourceUri) || tool._meta.ui.resourceUri;
+      var resource = await rpc('resources/read', { uri: resourceUri });
+      var contents = (resource.contents || [])[0];
+      if (!contents || !contents.text) throw new Error('resource has no text');
+      renderView(contents.text, tool.name, args, result);
+      callStatus.textContent = 'rendered ' + resourceUri;
+    } catch (err) {
+      callStatus.textContent = 'failed: ' + (err.message || err);
+    } finally {
+      callButton.disabled = false;
+    }
+  }
+
+  function renderView(html, toolName, args, result) {
+    frameWrap.textContent = '';
+    frame = document.createElement('iframe');
+    // No `allow-same-origin`: the View gets an opaque origin, which is the
+    // isolation the specification's sandbox proxy provides. `allow-modals` is
+    // here only because the bench asks for a version comment with `prompt()`.
+    frame.setAttribute('sandbox', 'allow-scripts allow-modals');
+    frame.srcdoc = html;
+    frame.dataset.tool = toolName;
+    frame.dataset.pending = JSON.stringify({ toolName: toolName, args: args, result: result });
+    frameWrap.appendChild(frame);
+  }
+
+  function toFrame(message) {
+    if (!frame || !frame.contentWindow) return;
+    frame.contentWindow.postMessage(message, '*');
+  }
+
+  window.addEventListener('message', async function (event) {
+    if (!frame || event.source !== frame.contentWindow) return;
+    var message = event.data;
+    if (!message || message.jsonrpc !== '2.0' || !message.method) return;
+    log('←', message.method + (message.id ? ' #' + message.id : ''));
+
+    // View-initiated requests.
+    if (message.method === 'ui/initialize') {
+      toFrame({
+        jsonrpc: '2.0',
+        id: message.id,
+        result: {
+          hostContext: {
+            theme: window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light',
+            displayMode: 'inline',
+            containerDimensions: { maxHeight: 720 },
+            locale: navigator.language,
+            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            platform: 'web',
+            styles: {},
+          },
+          hostInfo: { name: 'sqlib-app-harness', version: '0.0.1' },
+        },
+      });
+      return;
+    }
+
+    if (message.method === 'ui/notifications/initialized') {
+      // The View is listening; hand it the call that opened it.
+      var pending = JSON.parse(frame.dataset.pending || '{}');
+      toFrame({ jsonrpc: '2.0', method: 'ui/notifications/tool-input', params: { toolName: pending.toolName, arguments: pending.args } });
+      toFrame({ jsonrpc: '2.0', method: 'ui/notifications/tool-result', params: { result: pending.result } });
+      return;
+    }
+
+    if (message.method === 'tools/call' || message.method === 'resources/read') {
+      try {
+        var result = await rpc(message.method, message.params);
+        toFrame({ jsonrpc: '2.0', id: message.id, result: result });
+        if (message.method === 'tools/call') log('→', 'server ' + message.params.name);
+      } catch (err) {
+        toFrame({ jsonrpc: '2.0', id: message.id, error: { code: -32000, message: String(err.message || err) } });
+      }
+      return;
+    }
+
+    if (message.method === 'ui/update-model-context') {
+      log('↑', 'model context: ' + (message.params && message.params.content));
+      if (message.id) toFrame({ jsonrpc: '2.0', id: message.id, result: {} });
+      return;
+    }
+
+    if (message.method === 'ui/message') {
+      log('↑', 'chat message: ' + String((message.params && message.params.content) || '').slice(0, 200));
+      if (message.id) toFrame({ jsonrpc: '2.0', id: message.id, result: {} });
+      return;
+    }
+
+    if (message.method === 'ui/open-link') {
+      window.open(message.params.url, '_blank', 'noopener');
+      if (message.id) toFrame({ jsonrpc: '2.0', id: message.id, result: {} });
+      return;
+    }
+
+    if (message.method === 'ui/notifications/size-changed') {
+      var height = Math.min(Math.max(Number(message.params.height) || 320, 200), 1200);
+      frame.style.height = height + 'px';
+      return;
+    }
+
+    if (message.id) toFrame({ jsonrpc: '2.0', id: message.id, result: {} });
+  });
+
+  connectButton.addEventListener('click', connect);
+  callButton.addEventListener('click', callAndRender);
+})();
+</script>
+</body>
+</html>

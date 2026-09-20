@@ -1,0 +1,639 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>sqlib bench</title>
+<!--@kit:css-->
+<style>
+  .bench-title { display: flex; align-items: center; gap: var(--space-2); flex: 1 1 auto; }
+  .bench-title input { width: 220px; }
+  .badge {
+    font-size: 11px;
+    padding: 1px 6px;
+    border-radius: var(--radius-full, 999px);
+    border: 1px solid var(--border-default);
+    color: var(--ink-muted);
+  }
+  .cell { display: inline-flex; gap: 2px; margin-right: var(--space-1); margin-bottom: var(--space-1); }
+  .cell select { width: 70px; }
+  .cell input { width: 190px; font-family: var(--font-mono); }
+  .cell label { font-size: 11px; color: var(--ink-muted); align-self: center; margin-right: 2px; }
+  .slot-row { display: flex; align-items: flex-start; gap: var(--space-1); margin-bottom: var(--space-1); }
+  .num { width: 90px; }
+  details summary { cursor: pointer; font-size: 12px; color: var(--ink-secondary); }
+  details[open] summary { margin-bottom: var(--space-2); }
+</style>
+</head>
+<body>
+<div class="panel">
+  <div class="bar">
+    <div class="bench-title">
+      <input id="query-name" type="text" placeholder="Untitled query" aria-label="Query name">
+      <span class="badge" id="version-badge">unsaved</span>
+    </div>
+    <label class="small muted" for="backend">backend</label>
+    <select id="backend" aria-label="Backend"></select>
+  </div>
+
+  <div class="section">
+    <textarea id="editor" rows="10" spellcheck="false" aria-label="SPARQL"></textarea>
+    <div class="status small" id="parse-status"></div>
+  </div>
+
+  <div class="section" id="arguments-section">
+    <div class="muted small">No parameters detected.</div>
+  </div>
+
+  <div class="bar">
+    <button class="primary" id="run" type="button">Run</button>
+    <button id="save" type="button">Save version</button>
+    <button id="explain" type="button">Explain in chat</button>
+    <span class="grow"></span>
+    <span class="status" id="run-status"></span>
+  </div>
+
+  <div class="section" id="results">
+    <div class="empty">Run the query to see results.</div>
+  </div>
+
+  <div class="section">
+    <details id="toy">
+      <summary>Toy data — run this against a few triples you write here</summary>
+      <textarea id="toy-text" rows="5" spellcheck="false" placeholder="@prefix : &lt;http://example.org/&gt; .&#10;:Perth :population 2100000 ."></textarea>
+      <div class="row" style="margin-top: var(--space-2)">
+        <input id="toy-name" type="text" placeholder="toy data name" value="bench toy data">
+        <button id="toy-create" type="button">Create toy backend</button>
+        <span class="status" id="toy-status"></span>
+      </div>
+    </details>
+  </div>
+</div>
+
+<!--@kit:bridge-->
+<!--@kit:results-->
+<script>
+/**
+ * The query bench.
+ *
+ * Everything it does it does through `tools/call` on the host bridge — the same
+ * catalogue tools an agent would use, in the same order a person would use
+ * them: validate, detect, run, save. It holds no credentials, makes no network
+ * request of its own, and writes only through `queries.create`,
+ * `queries.createVersion`, `dataGraphs.*` and `backends.create`.
+ *
+ * MVP scope: no draft store yet (see docs/design/mcp-app.md §6), so an edit
+ * lives in this frame until it is saved as a version.
+ */
+(function () {
+  var app = window.sqlibApp;
+  var kit = window.sqlibResults;
+  var el = kit.el;
+
+  var state = {
+    libraryId: null,
+    libraryName: null,
+    queryId: null,
+    versionNumber: null,
+    savedText: '',
+    backendId: null,
+    backends: [],
+    inputs: { valuesInputs: [], limitParameters: [], offsetParameters: [] },
+    /** slots[i] = rows; row = { <var>: { type, value } } */
+    slots: [],
+    numbers: { limits: {}, offsets: {} },
+  };
+
+  var nodes = {
+    name: document.getElementById('query-name'),
+    version: document.getElementById('version-badge'),
+    backend: document.getElementById('backend'),
+    editor: document.getElementById('editor'),
+    parseStatus: document.getElementById('parse-status'),
+    argumentsSection: document.getElementById('arguments-section'),
+    run: document.getElementById('run'),
+    save: document.getElementById('save'),
+    explain: document.getElementById('explain'),
+    runStatus: document.getElementById('run-status'),
+    results: document.getElementById('results'),
+    toyText: document.getElementById('toy-text'),
+    toyName: document.getElementById('toy-name'),
+    toyCreate: document.getElementById('toy-create'),
+    toyStatus: document.getElementById('toy-status'),
+  };
+
+  function setStatus(node, text, kind) {
+    node.textContent = text || '';
+    node.className = 'status small' + (kind ? ' ' + kind : '');
+  }
+
+  function isDirty() {
+    return nodes.editor.value !== state.savedText;
+  }
+
+  function refreshBadge() {
+    if (!state.queryId) {
+      nodes.version.textContent = 'unsaved';
+      return;
+    }
+    nodes.version.textContent = 'v' + state.versionNumber + (isDirty() ? ', edited' : '');
+  }
+
+  /** Unwrap the MCP server's `{ statusCode, headers, body }` envelope. */
+  function unwrap(envelope, what) {
+    if (!envelope) throw new Error(what + ': no response');
+    if (envelope.statusCode && envelope.statusCode >= 400) {
+      var body = envelope.body;
+      var message = body && body.error ? body.error : JSON.stringify(body);
+      throw new Error(what + ' failed (HTTP ' + envelope.statusCode + '): ' + message);
+    }
+    return envelope.body;
+  }
+
+  // --- backends ------------------------------------------------------------
+
+  async function loadBackends() {
+    try {
+      var list = unwrap(await app.callTool('backends.list', {}), 'backends.list');
+      state.backends = Array.isArray(list) ? list : [];
+    } catch (err) {
+      state.backends = [];
+      setStatus(nodes.runStatus, String(err.message || err), 'error');
+    }
+    renderBackends();
+  }
+
+  function renderBackends() {
+    nodes.backend.textContent = '';
+    if (!state.backends.length) {
+      nodes.backend.appendChild(el('option', null, 'no backends'));
+      nodes.backend.disabled = true;
+      return;
+    }
+    nodes.backend.disabled = false;
+    state.backends.forEach(function (backend) {
+      var id = backend.id || backend['@id'];
+      var option = el('option', null, backend.name || id);
+      option.value = id;
+      if (id === state.backendId) option.selected = true;
+      nodes.backend.appendChild(option);
+    });
+    if (!state.backendId) {
+      state.backendId = nodes.backend.value || null;
+    }
+  }
+
+  // --- parameters ----------------------------------------------------------
+
+  var detectTimer = null;
+
+  function scheduleDetect() {
+    refreshBadge();
+    if (detectTimer) clearTimeout(detectTimer);
+    detectTimer = setTimeout(detect, 400);
+  }
+
+  async function detect() {
+    var query = nodes.editor.value.trim();
+    if (!query) {
+      state.inputs = { valuesInputs: [], limitParameters: [], offsetParameters: [] };
+      renderArguments();
+      setStatus(nodes.parseStatus, '');
+      return;
+    }
+    try {
+      // Validation and detection are two calls because they answer two
+      // questions: "does this parse" and "what does it declare". The second is
+      // only meaningful when the first says yes.
+      var validation = await app.callTool('detection.validateQuery', { query: query });
+      if (validation.statusCode >= 400) {
+        var body = validation.body || {};
+        setStatus(nodes.parseStatus, String(body.error || 'does not parse'), 'error');
+        return;
+      }
+      var detected = unwrap(await app.callTool('detection.detectInputs', { query: query }), 'detection.detectInputs');
+      state.inputs = {
+        valuesInputs: detected.valuesInputs || [],
+        limitParameters: detected.limitParameters || [],
+        offsetParameters: detected.offsetParameters || [],
+      };
+      var count = state.inputs.valuesInputs.length + state.inputs.limitParameters.length + state.inputs.offsetParameters.length;
+      setStatus(nodes.parseStatus, count ? 'parses — ' + count + ' parameter' + (count === 1 ? '' : 's') : 'parses', 'ok');
+      renderArguments();
+    } catch (err) {
+      setStatus(nodes.parseStatus, String(err.message || err), 'error');
+    }
+    app.reportSize();
+  }
+
+  function ensureSlot(index, variables) {
+    if (!state.slots[index]) state.slots[index] = [emptyRow(variables)];
+    return state.slots[index];
+  }
+
+  function emptyRow(variables) {
+    var row = {};
+    variables.forEach(function (name) { row[name] = { type: 'uri', value: '' }; });
+    return row;
+  }
+
+  function renderArguments() {
+    var section = nodes.argumentsSection;
+    section.textContent = '';
+
+    var values = state.inputs.valuesInputs || [];
+    var limits = state.inputs.limitParameters || [];
+    var offsets = state.inputs.offsetParameters || [];
+
+    if (!values.length && !limits.length && !offsets.length) {
+      section.appendChild(el('div', 'muted small', 'No parameters detected. A parameter is a VALUES clause whose only row is all UNDEF, or LIMIT 000n / OFFSET 000n.'));
+      return;
+    }
+
+    values.forEach(function (variables, index) {
+      var rows = ensureSlot(index, variables);
+      var slot = el('div', 'slot');
+      slot.appendChild(el('h2', null, 'slot ' + (index + 1) + ' — (' + variables.map(function (v) { return '?' + v; }).join(' ') + ')'));
+
+      rows.forEach(function (row, rowIndex) {
+        var rowNode = el('div', 'slot-row');
+        variables.forEach(function (variable) {
+          if (!row[variable]) row[variable] = { type: 'uri', value: '' };
+          var cell = el('span', 'cell');
+          cell.appendChild(el('label', null, '?' + variable));
+
+          var typeSelect = el('select');
+          [['uri', 'uri'], ['literal', 'literal']].forEach(function (pair) {
+            var option = el('option', null, pair[1]);
+            option.value = pair[0];
+            if (row[variable].type === pair[0]) option.selected = true;
+            typeSelect.appendChild(option);
+          });
+          typeSelect.addEventListener('change', function () { row[variable].type = typeSelect.value; });
+
+          var input = el('input');
+          input.type = 'text';
+          input.value = row[variable].value;
+          input.placeholder = 'UNDEF';
+          input.addEventListener('input', function () { row[variable].value = input.value; });
+
+          cell.appendChild(typeSelect);
+          cell.appendChild(input);
+          rowNode.appendChild(cell);
+        });
+
+        var remove = el('button', null, '−');
+        remove.title = 'Remove row';
+        remove.addEventListener('click', function () {
+          rows.splice(rowIndex, 1);
+          if (!rows.length) rows.push(emptyRow(variables));
+          renderArguments();
+        });
+        rowNode.appendChild(remove);
+        slot.appendChild(rowNode);
+      });
+
+      var add = el('button', null, '+ row');
+      add.addEventListener('click', function () {
+        rows.push(emptyRow(variables));
+        renderArguments();
+        app.reportSize();
+      });
+      slot.appendChild(add);
+      section.appendChild(slot);
+    });
+
+    if (limits.length || offsets.length) {
+      var numbers = el('div', 'slot');
+      numbers.appendChild(el('h2', null, 'named numbers'));
+      var row = el('div', 'row');
+      [['limits', limits, 'LIMIT'], ['offsets', offsets, 'OFFSET']].forEach(function (group) {
+        group[1].forEach(function (parameter) {
+          var name = typeof parameter === 'string' ? parameter : parameter.name;
+          var cell = el('span', 'cell');
+          cell.appendChild(el('label', null, group[2] + ' "' + name + '"'));
+          var input = el('input', 'num');
+          input.type = 'number';
+          input.min = '0';
+          input.value = state.numbers[group[0]][name] === undefined ? '' : state.numbers[group[0]][name];
+          input.addEventListener('input', function () {
+            if (input.value === '') delete state.numbers[group[0]][name];
+            else state.numbers[group[0]][name] = Number(input.value);
+          });
+          cell.appendChild(input);
+          row.appendChild(cell);
+        });
+      });
+      numbers.appendChild(row);
+      section.appendChild(numbers);
+    }
+  }
+
+  /**
+   * The `arguments` array `/execute` and `/sparql` take: one entry per slot.
+   *
+   * Returns `null` when the user has filled nothing, and the caller then sends
+   * no `arguments` at all. The distinction is not cosmetic: a slot supplied
+   * with an empty binding set propagates empty and the run answers zero rows,
+   * while a slot supplied with nothing leaves the all-UNDEF row in place and
+   * matches everything. An untouched bench should show you your data, not an
+   * empty table.
+   */
+  function buildArguments() {
+    var slots = (state.inputs.valuesInputs || []).map(function (variables, index) {
+      var rows = state.slots[index] || [];
+      var bindings = [];
+      rows.forEach(function (row) {
+        var binding = {};
+        var filled = false;
+        variables.forEach(function (variable) {
+          var cell = row[variable];
+          // An empty cell is left out of the row, which binds it UNDEF — the
+          // documented way to say "any value here" for one column of a slot.
+          if (cell && cell.value !== '') {
+            binding[variable] = { type: cell.type, value: cell.value };
+            filled = true;
+          }
+        });
+        if (filled) bindings.push(binding);
+      });
+      return { head: { vars: variables }, arguments: { bindings: bindings } };
+    });
+
+    var anyFilled = slots.some(function (slot) { return slot.arguments.bindings.length > 0; });
+    return anyFilled ? slots : null;
+  }
+
+  function buildNumbers(kind) {
+    return Object.keys(state.numbers[kind]).map(function (name) {
+      return { name: name, value: state.numbers[kind][name] };
+    });
+  }
+
+  // --- running -------------------------------------------------------------
+
+  async function run() {
+    var query = nodes.editor.value.trim();
+    if (!query) return;
+    if (!state.backendId) {
+      setStatus(nodes.runStatus, 'choose a backend first', 'error');
+      return;
+    }
+
+    nodes.run.disabled = true;
+    setStatus(nodes.runStatus, 'running…', 'running');
+    var started = Date.now();
+
+    var args = buildArguments();
+    var limits = buildNumbers('limits');
+    var offsets = buildNumbers('offsets');
+    var emptySlots = (args || []).filter(function (slot) { return slot.arguments.bindings.length === 0; }).length;
+
+    try {
+      var envelope;
+      if (state.queryId && !isDirty()) {
+        // A saved, unedited query runs by id, so the run names a version and is
+        // reproducible. An edited buffer has no version to name and goes
+        // through the proxy instead — same arguments, nothing saved.
+        envelope = await app.callTool('execute.run', Object.assign({
+          targetId: state.queryId,
+          backendId: state.backendId,
+          limits: limits,
+          offsets: offsets,
+        }, args ? { arguments: args } : {}));
+      } else {
+        envelope = await app.callTool('sparql.proxyQuery', Object.assign({
+          query: query,
+          backendId: state.backendId,
+          limits: limits,
+          offsets: offsets,
+        }, args ? { arguments: args } : {}));
+      }
+
+      var elapsed = Date.now() - started;
+      if (envelope.statusCode >= 400) {
+        var body = envelope.body || {};
+        var message = body.error || JSON.stringify(body);
+        nodes.results.textContent = '';
+        nodes.results.appendChild(el('div', 'error-box', String(message)));
+        setStatus(nodes.runStatus, 'HTTP ' + envelope.statusCode, 'error');
+        app.updateModelContext('The bench ran the query and it failed (HTTP ' + envelope.statusCode + '): ' + String(message).slice(0, 300));
+        return;
+      }
+
+      var shape = kit.renderResults(nodes.results, envelope.body);
+      var summary = kit.summariseResults(shape);
+      // A zero-row run with a slot left empty is almost always that slot, not
+      // the data — say so where the user is already looking.
+      var hint = shape.rowCount === 0 && emptySlots
+        ? ' — ' + emptySlots + ' parameter slot' + (emptySlots === 1 ? '' : 's') + ' left empty propagates empty'
+        : '';
+      setStatus(nodes.runStatus, summary + ' · ' + elapsed + ' ms' + hint, 'ok');
+      app.updateModelContext(
+        'The user ran the bench query against backend ' + state.backendId + ': ' + summary + ' in ' + elapsed + ' ms.' +
+        firstRowsHint(envelope.body)
+      );
+    } catch (err) {
+      setStatus(nodes.runStatus, String(err.message || err), 'error');
+    } finally {
+      nodes.run.disabled = false;
+      app.reportSize();
+    }
+  }
+
+  /** Three rows, flattened — enough for the model to see the shape, no more. */
+  function firstRowsHint(payload) {
+    var bindings = payload && payload.results && payload.results.bindings;
+    if (!bindings || !bindings.length) return '';
+    var sample = bindings.slice(0, 3).map(function (binding) {
+      return Object.keys(binding).map(function (key) {
+        return key + '=' + String(binding[key].value).slice(0, 40);
+      }).join(', ');
+    }).join(' | ');
+    return ' First rows: ' + sample;
+  }
+
+  // --- saving --------------------------------------------------------------
+
+  async function save() {
+    var query = nodes.editor.value.trim();
+    if (!query) return;
+    if (!state.libraryId) {
+      setStatus(nodes.runStatus, 'no library: reopen the bench with a libraryId', 'error');
+      return;
+    }
+
+    nodes.save.disabled = true;
+    setStatus(nodes.runStatus, 'saving…', 'running');
+    try {
+      if (!state.queryId) {
+        var name = nodes.name.value.trim() || 'Untitled query';
+        var created = unwrap(await app.callTool('queries.create', {
+          name: name,
+          isPartOf: [state.libraryId],
+        }), 'queries.create');
+        state.queryId = created.id || created['@id'];
+      }
+
+      var comment = window.prompt('What changed in this version?', 'Saved from the bench');
+      if (comment === null) {
+        setStatus(nodes.runStatus, 'save cancelled');
+        return;
+      }
+
+      // The route answers `{ queryVersion: { … } }`, and the version's own
+      // number is `version` — not `versionNumber`, which is the *query's*
+      // pointer at its current one.
+      var saved = unwrap(await app.callTool('queries.createVersion', {
+        id: state.queryId,
+        body: { queryVersion: { queryString: query, comment: comment } },
+      }), 'queries.createVersion');
+      var version = saved.queryVersion || saved;
+
+      state.versionNumber = version.version;
+      state.savedText = query;
+      refreshBadge();
+      setStatus(nodes.runStatus, 'saved as v' + state.versionNumber, 'ok');
+      app.updateModelContext(
+        'The user saved the bench query as version ' + state.versionNumber + ' of ' + state.queryId +
+        ' ("' + comment + '").'
+      );
+    } catch (err) {
+      setStatus(nodes.runStatus, String(err.message || err), 'error');
+    } finally {
+      nodes.save.disabled = false;
+    }
+  }
+
+  // --- toy data ------------------------------------------------------------
+
+  async function createToyBackend() {
+    var turtle = nodes.toyText.value.trim();
+    if (!turtle) {
+      setStatus(nodes.toyStatus, 'paste some Turtle first', 'error');
+      return;
+    }
+    if (!state.libraryId) {
+      setStatus(nodes.toyStatus, 'no library', 'error');
+      return;
+    }
+
+    nodes.toyCreate.disabled = true;
+    setStatus(nodes.toyStatus, 'creating…', 'running');
+    try {
+      var name = nodes.toyName.value.trim() || 'bench toy data';
+      // Three calls, three entities: the graph, its immutable version, and a
+      // store hydrated from it. The store is read-only because it is hydrated —
+      // the API refuses writes to such a backend, so the toy data cannot drift
+      // from the graph that defines it.
+      var graph = unwrap(await app.callTool('dataGraphs.create', {
+        body: { name: name, isPartOf: [state.libraryId] },
+      }), 'dataGraphs.create');
+      var graphId = graph.id || graph['@id'];
+
+      unwrap(await app.callTool('dataGraphs.createVersion', {
+        id: graphId,
+        // The API takes a media type here, not a nickname: `text/turtle`,
+        // `application/n-triples` or `application/n-quads`.
+        body: { contentString: turtle, contentFormat: 'text/turtle', comment: 'Created from the bench' },
+      }), 'dataGraphs.createVersion');
+
+      var backend = unwrap(await app.callTool('backends.create', {
+        name: name + ' (toy)',
+        backendType: 'oxigraphMemory',
+        oxigraphConfig: JSON.stringify({
+          storeType: 'ephemeral',
+          mode: 'readOnly',
+          sources: [{ dataGraphId: graphId }],
+        }),
+      }), 'backends.create');
+
+      var backendId = backend.id || backend['@id'];
+      state.backendId = backendId;
+      await loadBackends();
+      nodes.backend.value = backendId;
+      setStatus(nodes.toyStatus, 'ready — selected as the backend', 'ok');
+      app.updateModelContext(
+        'The user created toy data in library ' + state.libraryId + ': data graph ' + graphId +
+        ' and a read-only oxigraph backend ' + backendId + ' hydrated from it.'
+      );
+    } catch (err) {
+      setStatus(nodes.toyStatus, String(err.message || err), 'error');
+    } finally {
+      nodes.toyCreate.disabled = false;
+      app.reportSize();
+    }
+  }
+
+  // --- loading a saved query ----------------------------------------------
+
+  async function loadQuery(queryId) {
+    try {
+      var query = unwrap(await app.callTool('queries.get', { id: queryId }), 'queries.get');
+      state.queryId = query.id || query['@id'];
+      nodes.name.value = query.name || '';
+      var versionNumber = query.currentVersionNumber;
+      if (versionNumber === undefined || versionNumber === null) {
+        refreshBadge();
+        return;
+      }
+      var fetched = unwrap(await app.callTool('queries.getVersion', {
+        id: state.queryId,
+        version: String(versionNumber),
+      }), 'queries.getVersion');
+      var version = fetched.queryVersion || fetched;
+      state.versionNumber = versionNumber;
+      state.savedText = version.queryString || '';
+      if (!nodes.editor.value.trim()) nodes.editor.value = state.savedText;
+      refreshBadge();
+      detect();
+    } catch (err) {
+      setStatus(nodes.runStatus, String(err.message || err), 'error');
+    }
+  }
+
+  // --- wiring --------------------------------------------------------------
+
+  nodes.editor.addEventListener('input', scheduleDetect);
+  nodes.backend.addEventListener('change', function () { state.backendId = nodes.backend.value; });
+  nodes.run.addEventListener('click', run);
+  nodes.save.addEventListener('click', save);
+  nodes.toyCreate.addEventListener('click', createToyBackend);
+  nodes.explain.addEventListener('click', function () {
+    app.sendMessage('Here is the query I have on the bench — what would you change?\n\n```sparql\n' + nodes.editor.value + '\n```');
+  });
+
+  app.on('ui/notifications/tool-input', function (params) {
+    var args = (params && params.arguments) || {};
+    if (args.libraryId) state.libraryId = args.libraryId;
+    if (args.backendId) state.backendId = args.backendId;
+    if (args.queryString && !nodes.editor.value) {
+      nodes.editor.value = args.queryString;
+      scheduleDetect();
+    }
+    if (args.queryId) loadQuery(args.queryId);
+  });
+
+  app.on('ui/notifications/tool-result', function (params) {
+    var result = (params && params.result) || params || {};
+    var envelope = result.structuredContent || result;
+    var library = envelope && envelope.body;
+    if (library && (library.id || library['@id'])) {
+      state.libraryId = library.id || library['@id'];
+      state.libraryName = library.name || null;
+      if (!state.backendId && library.defaultBackend) state.backendId = library.defaultBackend;
+    }
+    loadBackends();
+  });
+
+  app.on('ui/notifications/host-context-changed', function (params) {
+    app.applyHostStyles((params && params.hostContext) || params);
+  });
+
+  app.initialize({ availableDisplayModes: ['inline', 'fullscreen'] }).then(function (result) {
+    app.applyHostStyles(result && result.hostContext);
+    app.reportSize();
+  });
+})();
+</script>
+</body>
+</html>

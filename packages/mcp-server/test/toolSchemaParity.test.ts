@@ -309,6 +309,19 @@ const ADDED_SINCE_SNAPSHOT = new Set<string>([
   'argumentSets.exportVersion',
   'queryGroups.listArgumentSets',
   'queryGroups.attachArgumentSet',
+  /*
+   * Data graphs, which had no tools at all: an agent could register a backend
+   * hydrated from a data graph and had no way to create the graph it named.
+   * The MCP App's toy-data flow is the caller that made the gap obvious.
+   */
+  'dataGraphs.list',
+  'dataGraphs.get',
+  'dataGraphs.create',
+  'dataGraphs.createVersion',
+  'dataGraphs.listVersions',
+  'dataGraphs.getVersion',
+  /* The MCP Apps door (see `docs/design/mcp-app.md`). */
+  'app.bench.open',
 ]);
 
 function legacySchemaFor(name: string) {

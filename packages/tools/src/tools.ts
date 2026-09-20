@@ -33,6 +33,7 @@ import {
   acceptArg,
   backendCreateArg,
   backendUpdateBody,
+  benchOpenArg,
   bodyArg,
   detectQueryRequestArg,
   executionRequestArg,
@@ -58,6 +59,25 @@ import {
   stripSchemaIdentity,
   validateRuleDataRequestArg,
 } from './tool-schemas.js';
+
+/**
+ * A tool's binding to an MCP Apps View.
+ *
+ * Protocol-neutral on purpose, like everything else here: this says *which*
+ * View renders a tool's result and *who* may call the tool, not how a given
+ * door spells that. `packages/mcp-server` maps it onto SEP-1865's `_meta.ui`;
+ * the in-app assistant ignores it.
+ *
+ * `visibility` follows the specification's default of `['model', 'app']`. A
+ * tool marked `['app']` is hidden from the agent and callable only by a View
+ * through `tools/call` — the bench's plumbing, not something a model should be
+ * choosing between.
+ */
+export type ToolUiBinding = {
+  /** The `ui://` resource that renders this tool's result. */
+  resourceUri: string;
+  visibility?: ('model' | 'app')[];
+};
 
 export type ToolDefinition = {
   name: string;
@@ -86,6 +106,8 @@ export type ToolDefinition = {
    */
   readOnly?: boolean;
   inputSchema: Record<string, unknown>;
+  /** The View that renders this tool's result, when it has one. */
+  ui?: ToolUiBinding;
   /**
    * Erased to the shape the registry actually holds — validated arguments
    * arrive as a plain object. The *typed* signature is on `defineTool`'s
@@ -124,6 +146,7 @@ export function defineTool<const S extends object>(def: {
   description: string;
   readOnly?: boolean;
   inputSchema: S;
+  ui?: ToolUiBinding;
   buildRequest: (input: ToolInput<S>) => ToolRequest;
 }): ToolDefinition {
   return {
@@ -131,10 +154,25 @@ export function defineTool<const S extends object>(def: {
     ...(def.title ? { title: def.title } : {}),
     description: def.description,
     ...(def.readOnly ? { readOnly: true } : {}),
+    ...(def.ui ? { ui: def.ui } : {}),
     inputSchema: stripSchemaIdentity(def.inputSchema) as Record<string, unknown>,
     buildRequest: def.buildRequest as (input: Record<string, unknown>) => ToolRequest,
   };
 }
+
+/**
+ * The Views this catalogue binds tools to.
+ *
+ * The strings are the contract between three packages: the tool declares one,
+ * `packages/mcp-app` serves a resource under it, and `packages/mcp-server`
+ * publishes both. A test in the MCP server asserts every URI named here is a
+ * resource it actually serves, so a rename cannot leave a tool pointing at
+ * nothing.
+ */
+export const VIEW_URI = {
+  bench: 'ui://sqlib/bench',
+  result: 'ui://sqlib/result',
+} as const;
 
 const jsonHeaders = { 'content-type': 'application/json' };
 const enc = encodeURIComponent;
@@ -368,6 +406,7 @@ export const tools: ToolDefinition[] = [
     description: 'Run a query (targetId = query id, runs its currentVersion; backendId required) or a query group (no backendId). Fill parameter slots with arguments: one SPARQL-results-JSON entry per all-UNDEF VALUES clause, in order; limits/offsets by placeholder name.',
     readOnly: true,
     inputSchema: executionRequestArg,
+    ui: { resourceUri: VIEW_URI.result },
     buildRequest: (body) => ({ method: 'POST', url: '/execute', payload: body, headers: jsonHeaders }),
   }),
 
@@ -377,6 +416,7 @@ export const tools: ToolDefinition[] = [
     description: 'Run ad-hoc SPARQL text against a backend (by backendId or endpoint URL) without saving it. Accepts the same arguments/limits/offsets as execute.run.',
     readOnly: true,
     inputSchema: sparqlRequestArg,
+    ui: { resourceUri: VIEW_URI.result },
     buildRequest: (body) => ({ method: 'POST', url: '/sparql', payload: body, headers: jsonHeaders }),
   }),
 
@@ -779,5 +819,64 @@ export const tools: ToolDefinition[] = [
     readOnly: true,
     inputSchema: idVersionArg,
     buildRequest: ({ id, version }) => ({ method: 'GET', url: `/query-groups/${enc(id)}/v/${enc(version)}/validate` }),
+  }),
+  // Data graphs — reference RDF a library holds, and the only route to toy
+  // data an MCP caller has. The routes existed from the start; the tools did
+  // not, so an agent could register a backend it had no way to fill.
+  defineTool({
+    name: 'dataGraphs.list',
+    description: 'List data graphs',
+    readOnly: true,
+    inputSchema: noArgs,
+    buildRequest: () => ({ method: 'GET', url: '/data-graphs' }),
+  }),
+  defineTool({
+    name: 'dataGraphs.get',
+    description: 'Get a data graph (metadata and its currentVersion pointer; the RDF lives on the version)',
+    readOnly: true,
+    inputSchema: idArg,
+    buildRequest: ({ id }) => ({ method: 'GET', url: `/data-graphs/${enc(id)}` }),
+  }),
+  defineTool({
+    name: 'dataGraphs.create',
+    description: 'Create a data graph: metadata only, body { name, isPartOf: [libraryId], description?, tags? }. The RDF goes in a version — see dataGraphs.createVersion.',
+    inputSchema: bodyArg,
+    buildRequest: ({ body }) => ({ method: 'POST', url: '/data-graphs', payload: body, headers: jsonHeaders }),
+  }),
+  defineTool({
+    name: 'dataGraphs.createVersion',
+    description: 'Save RDF as an immutable data graph version: body { contentString, contentFormat?: "turtle" | "ntriples" | ..., comment? }. A backend whose oxigraphConfig names this graph in `sources` is hydrated from it.',
+    inputSchema: idBodyArg,
+    buildRequest: ({ id, body }) => ({ method: 'POST', url: `/data-graphs/${enc(id)}/versions`, payload: body, headers: jsonHeaders }),
+  }),
+  defineTool({
+    name: 'dataGraphs.listVersions',
+    description: 'List a data graph\'s versions',
+    readOnly: true,
+    inputSchema: idArg,
+    buildRequest: ({ id }) => ({ method: 'GET', url: `/data-graphs/${enc(id)}/versions` }),
+  }),
+  defineTool({
+    name: 'dataGraphs.getVersion',
+    description: 'Get one data graph version, with its serialised RDF',
+    readOnly: true,
+    inputSchema: idVersionArg,
+    buildRequest: ({ id, version }) => ({ method: 'GET', url: `/data-graphs/${enc(id)}/versions/${enc(version)}` }),
+  }),
+
+  // The app door. One tool, because the bench needs somewhere to be opened
+  // from; everything it does afterwards it does with the tools above.
+  defineTool({
+    name: 'app.bench.open',
+    title: 'Open the query bench',
+    description:
+      'Open the interactive query bench on a saved query (`queryId`) or on draft SPARQL (`queryString`), in the library `libraryId`. The bench shows the text, the parameters detected in it, an argument grid, and runs it against a backend. Use it when the user wants to work on a query rather than be told about one; it needs a client that renders MCP Apps.',
+    readOnly: true,
+    inputSchema: benchOpenArg,
+    ui: { resourceUri: VIEW_URI.bench },
+    // The bench needs a library and its backends to open at all; the query, if
+    // there is one, the View fetches for itself. Opening on nothing but draft
+    // text is the common case in a chat, so `libraryId` is what this resolves.
+    buildRequest: ({ libraryId }) => ({ method: 'GET', url: `/libraries/${enc(libraryId)}` }),
   }),
 ];

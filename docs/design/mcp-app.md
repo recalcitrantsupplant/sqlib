@@ -1,7 +1,13 @@
 # Design: the sqlib MCP App — a query bench in the chat
 
-**Status: proposal. Nothing described here is implemented.** It is a design for
-an [MCP Apps (SEP-1865)](https://github.com/modelcontextprotocol/ext-apps)
+**Status: the MVP is built.** The `ui://` resource plumbing with capability
+gating, the bench and result Views, the data-graph tools and the toy-data flow
+all exist; [guides/mcp-app.md](../guides/mcp-app.md) is how to run and test
+them. Phases 4 (the draft store) and 5 (the library View) of §10 do not. The
+rest of this page is kept as it was written, so the reasoning survives the code
+— including the counts and the "today" it was written against.
+
+It designs an [MCP Apps (SEP-1865)](https://github.com/modelcontextprotocol/ext-apps)
 surface on top of the existing `packages/mcp-server`, so that a chat session
 with Claude, ChatGPT, VS Code or any other Apps-capable host becomes a place to
 *author* a library of SPARQL queries, not merely to call one.
@@ -416,14 +422,19 @@ this adds surface, so:
 
 Phasing, each step useful on its own:
 
-1. **Resources plumbing.** `resources` capability, capability gating,
-   `ui://sqlib/result` on `execute.run`. Smallest possible end-to-end proof.
-2. **Data-graph and tuple-set tools** in the catalogue, plus `app.toy.ensure`.
-   Valuable with no UI at all — it closes a real gap in the tool surface.
-3. **The bench**, read-and-run only: text, parameters, arguments, Run.
-4. **Drafts and saving** — the draft store, `queries.createVersion` from the
-   View, argument-set and tuple-set capture.
-5. **`ui://sqlib/library`**, and query-group awareness in the bench.
+1. ~~**Resources plumbing.** `resources` capability, capability gating,
+   `ui://sqlib/result` on `execute.run`.~~ Built.
+2. ~~**Data-graph tools** in the catalogue.~~ Built — six of them; tuple sets
+   are still missing, and `app.toy.ensure` turned out to be unnecessary: the
+   bench makes the graph, its version and the hydrated backend with three
+   ordinary tool calls, which needs no new orchestration on the server.
+3. ~~**The bench**, read-and-run: text, parameters, arguments, Run.~~ Built,
+   including saving a version — the write was a handful of lines once the read
+   path worked, and a bench that cannot save is not a notebook.
+4. **Drafts** — the server-side draft store, so an edit survives
+   `ui/resource-teardown` and the model can see what the user typed. Not built:
+   the MVP's edits live in the frame until saved.
+5. **`ui://sqlib/library`**, and query-group awareness in the bench. Not built.
 
 ## 11. Open questions
 

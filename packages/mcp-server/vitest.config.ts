@@ -44,6 +44,12 @@ export default defineConfig({
         find: '@sparql-query-lib/tools',
         replacement: path.resolve(__dirname, '../tools/src/index.ts'),
       },
+      // The Views are read from disk relative to their own module, so source
+      // and dist both work; pointing at source keeps the suite buildless.
+      {
+        find: '@sparql-query-lib/mcp-app',
+        replacement: path.resolve(__dirname, '../mcp-app/src/index.ts'),
+      },
     ],
   },
 });

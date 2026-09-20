@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>sqlib result</title>
+<!--@kit:css-->
+</head>
+<body>
+<div class="panel">
+  <div class="bar">
+    <h1 class="grow" id="title">Result</h1>
+    <span class="status" id="status"></span>
+    <button id="download" type="button">Download JSON</button>
+  </div>
+  <div class="section" id="body">
+    <div class="empty">Waiting for the result…</div>
+  </div>
+</div>
+
+<!--@kit:bridge-->
+<!--@kit:results-->
+<script>
+/**
+ * The result View: a table for whatever `execute.run` or `sparql.proxyQuery`
+ * returned. It calls no tools of its own — the host has already handed it the
+ * result — which makes it the smallest possible proof that the resource
+ * plumbing works end to end.
+ */
+(function () {
+  var app = window.sqlibApp;
+  var kit = window.sqlibResults;
+  var body = document.getElementById('body');
+  var status = document.getElementById('status');
+  var title = document.getElementById('title');
+  var download = document.getElementById('download');
+  var lastPayload = null;
+
+  function setStatus(text, kind) {
+    status.textContent = text || '';
+    status.className = 'status' + (kind ? ' ' + kind : '');
+  }
+
+  function show(envelope) {
+    // The MCP server's envelope: the HTTP status the API answered with, and
+    // its body. A 4xx is a result too — showing the error beats showing an
+    // empty table and letting the user wonder.
+    var payload = envelope && envelope.body !== undefined ? envelope.body : envelope;
+    var statusCode = envelope && envelope.statusCode;
+    lastPayload = payload;
+
+    if (statusCode && statusCode >= 400) {
+      body.textContent = '';
+      var message = payload && payload.error ? payload.error : JSON.stringify(payload);
+      var box = kit.el('div', 'error-box', String(message));
+      body.appendChild(box);
+      setStatus('HTTP ' + statusCode, 'error');
+      app.updateModelContext('The query failed (HTTP ' + statusCode + '): ' + String(message).slice(0, 200));
+      app.reportSize();
+      return;
+    }
+
+    var shape = kit.renderResults(body, payload);
+    setStatus(kit.summariseResults(shape), 'ok');
+    app.updateModelContext('Result shown to the user: ' + kit.summariseResults(shape) + '.');
+    app.reportSize();
+  }
+
+  download.addEventListener('click', function () {
+    if (lastPayload === null) return;
+    var text = typeof lastPayload === 'string' ? lastPayload : JSON.stringify(lastPayload, null, 2);
+    app.openLink('data:application/json;charset=utf-8,' + encodeURIComponent(text));
+  });
+
+  app.on('ui/notifications/tool-input', function (params) {
+    var args = (params && params.arguments) || {};
+    if (args.targetId) title.textContent = 'Result — ' + args.targetId;
+    else if (args.query) title.textContent = 'Result — ad-hoc query';
+  });
+
+  app.on('ui/notifications/tool-result', function (params) {
+    var result = (params && params.result) || params || {};
+    show(result.structuredContent || result);
+  });
+
+  app.on('ui/notifications/host-context-changed', function (params) {
+    app.applyHostStyles((params && params.hostContext) || params);
+  });
+
+  app.initialize({ availableDisplayModes: ['inline', 'fullscreen'] }).then(function (result) {
+    app.applyHostStyles(result && result.hostContext);
+    app.reportSize();
+  });
+})();
+</script>
+</body>
+</html>

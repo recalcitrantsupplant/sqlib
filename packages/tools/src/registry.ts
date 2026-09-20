@@ -15,7 +15,7 @@
  * - `callApi` is whatever the caller uses to reach the routes. In practice that
  *   is `app.inject`, in the same process, for both doors.
  */
-import { tools as defaultTools, type ToolDefinition, type ToolRequest } from './tools.js';
+import { tools as defaultTools, type ToolDefinition, type ToolRequest, type ToolUiBinding } from './tools.js';
 
 export type ToolCallResult = {
   statusCode: number;
@@ -86,6 +86,8 @@ export type ListedTool = {
   title?: string;
   description: string;
   inputSchema: Record<string, unknown>;
+  /** The View that renders this tool's result, when the catalogue binds one. */
+  ui?: ToolUiBinding;
 };
 
 /**
@@ -244,6 +246,7 @@ export function createToolRegistry(options: ToolRegistryOptions): ToolRegistry {
         description: rewriteToolNames(def.description, catalogueNames, publicName),
         // Already JSON Schema — the protocol's native format.
         inputSchema: def.inputSchema,
+        ...(def.ui ? { ui: def.ui } : {}),
       })),
 
     callTool: async (name, args, authorization) => {

@@ -1,0 +1,131 @@
+/**
+ * Drive the MCP Apps door against a running server, without a browser.
+ *
+ * The harness page proves a View renders; this proves the protocol underneath
+ * it — that a UI-capable client is offered `_meta.ui`, that a plain one is not,
+ * that the `ui://` resources read back as self-contained documents, and that
+ * the tools a View calls answer. It is the check to run first when something
+ * does not render, because it separates "the server is wrong" from "the View
+ * is wrong".
+ *
+ *   node packages/mcp-app/dev/smoke.mjs [http://localhost:3005/mcp]
+ */
+const endpoint = process.argv[2] ?? process.env.MCP_ENDPOINT ?? 'http://localhost:3005/mcp';
+
+let sessionId = null;
+let nextId = 1;
+let failures = 0;
+
+async function rpc(method, params, { notification = false, session = true } = {}) {
+  const body = { jsonrpc: '2.0', method, ...(params ? { params } : {}) };
+  if (!notification) body.id = nextId++;
+
+  const headers = {
+    'content-type': 'application/json',
+    accept: 'application/json, text/event-stream',
+  };
+  if (session && sessionId) headers['mcp-session-id'] = sessionId;
+
+  const response = await fetch(endpoint, { method: 'POST', headers, body: JSON.stringify(body) });
+  const header = response.headers.get('mcp-session-id');
+  if (header) sessionId = header;
+  if (notification) return null;
+
+  const text = await response.text();
+  const payload = parse(text);
+  if (!payload) throw new Error(`${method}: no JSON-RPC response (HTTP ${response.status})`);
+  if (payload.error) throw new Error(`${method}: ${payload.error.message}`);
+  return payload.result;
+}
+
+/** Streamable HTTP answers with JSON or with SSE; both carry one response. */
+function parse(text) {
+  const trimmed = (text ?? '').trim();
+  if (!trimmed) return null;
+  if (trimmed.startsWith('{')) return JSON.parse(trimmed);
+  for (const line of trimmed.split(/\r?\n/)) {
+    if (!line.startsWith('data:')) continue;
+    const data = line.slice(5).trim();
+    if (!data) continue;
+    try {
+      const parsed = JSON.parse(data);
+      if (parsed.result !== undefined || parsed.error !== undefined) return parsed;
+    } catch { /* keep looking */ }
+  }
+  return null;
+}
+
+function check(label, condition, detail) {
+  if (condition) {
+    console.log(`  ok   ${label}`);
+    return true;
+  }
+  failures += 1;
+  console.log(`  FAIL ${label}${detail ? ` — ${detail}` : ''}`);
+  return false;
+}
+
+async function session(capabilities) {
+  sessionId = null;
+  const result = await rpc('initialize', {
+    protocolVersion: '2025-06-18',
+    clientInfo: { name: 'sqlib-app-smoke', version: '0.0.1' },
+    capabilities,
+  }, { session: false });
+  await rpc('notifications/initialized', {}, { notification: true });
+  return result;
+}
+
+const UI_CAPABILITIES = {
+  extensions: { 'io.modelcontextprotocol/ui': { mimeTypes: ['text/html;profile=mcp-app'] } },
+};
+
+console.log(`MCP Apps smoke test against ${endpoint}\n`);
+
+console.log('A UI-capable client');
+await session(UI_CAPABILITIES);
+const { tools } = await rpc('tools/list', {});
+const bound = tools.filter((tool) => tool._meta?.ui?.resourceUri);
+check('tools are offered', tools.length > 0, `${tools.length} tools`);
+check('some tools name a View', bound.length >= 3, bound.map((tool) => tool.name).join(', '));
+check(
+  'the bench is reachable',
+  bound.some((tool) => tool.name === 'app_bench_open'),
+  bound.map((t) => t.name).join(', ')
+);
+
+const { resources } = await rpc('resources/list', {});
+check('the Views are listed as resources', resources.length >= 2, resources.map((r) => r.uri).join(', '));
+check(
+  'each View declares the MCP Apps MIME type',
+  resources.every((resource) => resource.mimeType === 'text/html;profile=mcp-app'),
+  resources.map((r) => r.mimeType).join(', ')
+);
+check(
+  'each View declares an empty connect-src',
+  resources.every((resource) => (resource._meta?.ui?.csp?.connectDomains ?? null)?.length === 0),
+  JSON.stringify(resources.map((r) => r._meta?.ui?.csp))
+);
+
+for (const resource of resources) {
+  const read = await rpc('resources/read', { uri: resource.uri });
+  const html = read.contents?.[0]?.text ?? '';
+  check(
+    `${resource.uri} reads back as a self-contained document`,
+    html.includes('<!doctype html>') && html.includes('window.sqlibApp') && !/<script[^>]+src=/i.test(html),
+    `${html.length} bytes`
+  );
+}
+
+console.log('\nA plain MCP client');
+await session({ tools: {} });
+const plain = await rpc('tools/list', {});
+check(
+  'is offered no _meta.ui at all',
+  plain.tools.every((tool) => tool._meta?.ui === undefined),
+  plain.tools.filter((tool) => tool._meta?.ui).map((tool) => tool.name).join(', ')
+);
+check('still sees the whole catalogue', plain.tools.length === tools.length, `${plain.tools.length} vs ${tools.length}`);
+
+console.log(failures === 0 ? '\nAll checks passed.' : `\n${failures} check(s) failed.`);
+process.exit(failures === 0 ? 0 : 1);

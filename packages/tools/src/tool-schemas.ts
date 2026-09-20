@@ -96,6 +96,26 @@ export const libraryIdArg = {
   required: ['libraryId'],
 } as const;
 
+/**
+ * `app.bench.open` — what the query bench needs to paint its first frame.
+ *
+ * `libraryId` is the only required argument because the bench must know which
+ * library it is saving into and which backends it may run against. Everything
+ * else is optional: opening on a saved query passes `queryId`, opening on text
+ * the model just wrote passes `queryString`, and opening on neither gives an
+ * empty bench.
+ */
+export const benchOpenArg = {
+  type: 'object',
+  properties: {
+    libraryId: { type: 'string', minLength: 1, pattern: '\\S' },
+    queryId: { type: 'string' },
+    queryString: { type: 'string' },
+    backendId: { type: 'string' },
+  },
+  required: ['libraryId'],
+} as const;
+
 /** `z.object({ id: z.string(), body: z.record(z.string(), z.any()) })` */
 export const idBodyArg = {
   type: 'object',

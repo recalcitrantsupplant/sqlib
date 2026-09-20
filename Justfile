@@ -67,6 +67,23 @@ run-docker-https:
     fi
     docker compose -f docker-compose.mcp-https-image.yml up --remove-orphans
 
+# Serve the MCP App harness — a minimal MCP Apps host for the ui:// Views
+#
+# Pair it with `just run-local-memory`: the harness page talks to that server's
+# /mcp, renders a View in a sandboxed iframe and bridges its JSON-RPC back. It
+# is how you see the bench without a host that supports MCP Apps.
+run-mcp-app-harness:
+    pnpm --filter @sparql-query-lib/mcp-app build
+    pnpm --filter @sparql-query-lib/mcp-app dev:harness
+
+# Check the MCP Apps door of a running server, without a browser
+#
+# Proves the protocol underneath the Views: that a UI-capable client is offered
+# _meta.ui, that a plain one is not, and that every ui:// resource reads back as
+# a self-contained document.
+smoke-mcp-app endpoint="http://localhost:3005/mcp":
+    node packages/mcp-app/dev/smoke.mjs {{endpoint}}
+
 # Clean the local temporary database
 clean-local-memory:
     rm -rf packages/api/tmp/library-store

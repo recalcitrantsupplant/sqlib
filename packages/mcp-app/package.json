@@ -1,0 +1,30 @@
+{
+  "name": "@sparql-query-lib/mcp-app",
+  "version": "0.0.1",
+  "license": "SEE LICENSE IN LICENSE",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --project tsconfig.json && node scripts/copy-assets.mjs",
+    "dev:harness": "node dev/serve.mjs",
+    "clean": "rm -rf dist",
+    "lint": "echo \"TODO: add lint\"",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@sparql-query-lib/tools": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^26.5.1",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.0"
+  }
+}

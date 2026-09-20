@@ -2,7 +2,9 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
   CallToolRequestSchema,
+  ListResourcesRequestSchema,
   ListToolsRequestSchema,
+  ReadResourceRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import Fastify, { type FastifyInstance, type InjectOptions } from 'fastify';
 import {
@@ -16,6 +18,15 @@ import {
   type ToolRequest,
   type ToolValidatorCompiler,
 } from '@sparql-query-lib/tools';
+
+import {
+  listUiResources,
+  readUiResource,
+  resultUiMeta,
+  toolVisibleToModel,
+  uiSupported,
+  withUiMeta,
+} from './ui-apps.js';
 
 export { formatValidationErrors };
 
@@ -165,14 +176,42 @@ export async function createMcpServer(options: CreateMcpServerOptions = {}) {
   const server = new Server(
     { name, version },
     {
-      capabilities: { tools: {} },
+      // `resources` is advertised unconditionally: the Views are resources
+      // whatever the client does with them, and a client that ignores the UI
+      // extension simply never reads one.
+      capabilities: { tools: {}, resources: {} },
       ...(instructions ? { instructions } : {}),
     },
   );
 
-  server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: toolsRegistry.listTools(),
+  /**
+   * Whether this session's client renders MCP Apps.
+   *
+   * Read per request rather than captured once: `initialize` may not have
+   * happened when the handlers are registered, and a session is one client, so
+   * the answer cannot change mid-session once it is known.
+   */
+  const clientRendersApps = () => uiSupported(server.getClientCapabilities());
+
+  server.setRequestHandler(ListToolsRequestSchema, async () => {
+    const uiEnabled = clientRendersApps();
+    return {
+      tools: toolsRegistry
+        .listTools()
+        .filter((tool) => toolVisibleToModel(tool))
+        .map((tool) => withUiMeta(tool, uiEnabled)),
+    };
+  });
+
+  server.setRequestHandler(ListResourcesRequestSchema, async () => ({
+    resources: listUiResources(),
   }));
+
+  server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+    const resource = readUiResource(request.params.uri);
+    if (!resource) throw new Error(`Unknown resource: ${request.params.uri}`);
+    return resource;
+  });
 
   server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
     // `extra.requestInfo` carries the inbound HTTP headers on the streamable
@@ -185,6 +224,14 @@ export async function createMcpServer(options: CreateMcpServerOptions = {}) {
       authorization
     );
     // MCP's own envelope, built from the registry's protocol-neutral result.
+    // `_meta.ui` names the View that renders it, which is how a host knows to
+    // open the bench rather than print JSON. The text content stays either
+    // way: a View is an addition to the result, never a replacement for it,
+    // and the model still needs to read what happened.
+    const definition = toolsRegistry.definitions.find(
+      (tool) => sanitizeToolName(tool.name) === request.params.name
+    );
+    const meta = resultUiMeta(definition, clientRendersApps());
     return {
       content: [{ type: 'text' as const, text: result.text }],
       structuredContent: {
@@ -192,6 +239,7 @@ export async function createMcpServer(options: CreateMcpServerOptions = {}) {
         headers: result.headers,
         body: result.body,
       },
+      ...(meta ? { _meta: meta } : {}),
     };
   });
 
