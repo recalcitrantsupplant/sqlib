@@ -89,6 +89,9 @@ export function buildBenchmarkContractDefinition(
     definition: `{
   id: iriString,
   definedBy: iriString,
+  structure: iriString,
+  name: nullableString,
+  description: nullableString,
   runStatus: z.string(),
   tasksTotal: z.number().int(),
   tasksCompleted: z.number().int(),
@@ -98,6 +101,14 @@ export function buildBenchmarkContractDefinition(
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
 }`,
+    /*
+     * `structure`, `name` and `description` are on the wire — the run route's
+     * note records that a run response carries `structure` today — and this
+     * shape is `.strict()` and parses those responses, so omitting them threw
+     * `unrecognized_keys` on every real run. Written out by hand for the same
+     * reason as the shape above: this builder is string literals, not a
+     * projection.
+     */
     comment: 'Reusable field definitions for BenchmarkRun',
   });
 

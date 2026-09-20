@@ -154,7 +154,6 @@ const RULE_EXPANDED_FORM = {
   id: RULE.id,
   name: RULE.name,
   description: RULE.description,
-  comment: null,
   currentVersion: RULE.currentVersion,
   isPartOf: RULE.isPartOf,
   dateCreated: CREATED,
@@ -179,7 +178,6 @@ RULE :ancestorClosure {
 
 INSERT { ?x :ancestorOf ?z }
 WHERE { ?x :parentOf ?y . ?y :ancestorOf ?z }`,
-  ruleFormat: 'srl',
   grammarType: 'srl',
   grammarValid: true,
   validationError: null,
@@ -204,7 +202,6 @@ const DATA_BLOCK_EXPANDED_FORM = {
   id: DATA_BLOCK.id,
   name: DATA_BLOCK.name,
   description: DATA_BLOCK.description,
-  comment: null,
   currentVersion: DATA_BLOCK.currentVersion,
   isPartOf: DATA_BLOCK.isPartOf,
   dateCreated: CREATED,
@@ -224,7 +221,6 @@ DATA {
   :bob :parentOf :carol .
 }`,
   normalizedInsertData: null,
-  dataFormat: 'srl',
   grammarType: 'srl',
   grammarValid: true,
   validationError: null,
