@@ -66,8 +66,10 @@ describe('SaveBar prefix conversions', () => {
   });
 
   it('renders nothing for a body whose language has no grammar', () => {
+    // N-Triples: no prefixes to convert, so nothing to offer. SRL used to be
+    // the case here and has its own grammar now — see `prefixGrammarFor`.
     const wrapper = mount(SaveBar, {
-      props: { ...BASE, code: 'RULE { ?x :b ?k } WHERE {}', contentType: 'application/srl' },
+      props: { ...BASE, code: '<http://example.org/s> <http://example.org/p> "o" .', contentType: 'application/n-triples' },
     });
 
     expect(wrapper.find('[data-testid="prefix-fold-button"]').exists()).toBe(false);
