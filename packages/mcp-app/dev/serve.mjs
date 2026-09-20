@@ -37,5 +37,5 @@ const server = createServer(async (request, response) => {
 
 server.listen(port, '127.0.0.1', () => {
   console.log(`MCP App harness on http://localhost:${port}/`);
-  console.log('Point it at a running sqlib server (just run-local-memory serves /mcp on :3005).');
+  console.log('Point it at a running sqlib server (just run-local-memory serves /mcp on :3010).');
 });

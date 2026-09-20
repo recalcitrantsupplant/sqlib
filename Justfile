@@ -3,9 +3,12 @@
 # The build line covers exactly the packages this recipe cannot get from
 # source. `tsx` resolves workspace imports through packages/api/tsconfig.json's
 # `paths`, which map contracts, types, srl and runtime to `src` — but not tools
-# (loaded by mcp-server) or rdf-delta (imported across api/src/lib and
-# api/src/routes). Those two resolve through their exports maps, which point
-# only at `dist`.
+# (loaded by mcp-server), rdf-delta (imported across api/src/lib and
+# api/src/routes), or mcp-app (whose `ui://` Views mcp-server serves). Those
+# three resolve through their exports maps, which point only at `dist`.
+#
+# mcp-app's build also *copies* its Views and kit beside the built module, so a
+# `tsc`-only build would leave `renderView` reading files that are not there.
 #
 # The trailing `...` is load-bearing: it selects each package *and its workspace
 # dependencies*, built in topological order, which is what pulls in contracts —
@@ -14,10 +17,11 @@
 # nothing else, which is how this recipe came to fail with TS2307 on a tree
 # where contracts had never been built.
 #
-# API:  http://localhost:3005
-# MCP:  http://localhost:3005/mcp  (streamable HTTP, same transport as production)
+# API:  http://localhost:3010
+# MCP:  http://localhost:3010/mcp  (streamable HTTP, same transport as production)
+#       — this recipe sets HTTP_PORT=3010; 3005 is the server's own default.
 run-local-memory:
-    pnpm --filter "@sparql-query-lib/tools..." --filter "@sparql-query-lib/rdf-delta..." build
+    pnpm --filter "@sparql-query-lib/tools..." --filter "@sparql-query-lib/rdf-delta..." --filter "@sparql-query-lib/mcp-app..." build
     INTERNAL_BACKEND_TYPE="oxigraph-persistent" \
     LIBRARY_STORAGE_DIR="./tmp/library-store" \
     INTERNAL_OXIGRAPH_STORE_ID="library-store" \
@@ -81,7 +85,7 @@ run-mcp-app-harness:
 # Proves the protocol underneath the Views: that a UI-capable client is offered
 # _meta.ui, that a plain one is not, and that every ui:// resource reads back as
 # a self-contained document.
-smoke-mcp-app endpoint="http://localhost:3005/mcp":
+smoke-mcp-app endpoint="http://localhost:3010/mcp":
     node packages/mcp-app/dev/smoke.mjs {{endpoint}}
 
 # Clean the local temporary database
@@ -122,7 +126,7 @@ clean-local-memory:
 #
 # API:  http://localhost:3005
 run-local-rules-tests:
-    pnpm --filter "@sparql-query-lib/tools..." --filter "@sparql-query-lib/rdf-delta..." build
+    pnpm --filter "@sparql-query-lib/tools..." --filter "@sparql-query-lib/rdf-delta..." --filter "@sparql-query-lib/mcp-app..." build
     SEED_W3C_RULES_SUITE="true" \
     FEATURE_RULES_SUITE="true" \
     FEATURE_TESTS="true" \
@@ -192,7 +196,7 @@ clean-local-rules-tests:
 #
 # API:  http://localhost:3005
 run-local-patch-demo:
-    pnpm --filter "@sparql-query-lib/tools..." --filter "@sparql-query-lib/rdf-delta..." build
+    pnpm --filter "@sparql-query-lib/tools..." --filter "@sparql-query-lib/rdf-delta..." --filter "@sparql-query-lib/mcp-app..." build
     SEED_PATCH_DEMO="true" \
     FEATURE_QUERIES="true" \
     FEATURE_BACKENDS="true" \

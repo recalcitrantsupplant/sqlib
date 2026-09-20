@@ -73,9 +73,13 @@ thing, and a library exported after a session is the session's real output.
 ### 1. The harness — no Apps-capable client needed
 
 ```bash
-just run-local-memory        # API + MCP on :3005
+just run-local-memory        # API + MCP on :3010
 just run-mcp-app-harness     # the harness on :3006
 ```
+
+`run-local-memory` sets `HTTP_PORT=3010`, so that is where `/mcp` is — the
+README's 3005 is the default port, not this recipe's. The harness's endpoint
+box is editable, so point it wherever your server actually is.
 
 Open <http://localhost:3006/>, press **Connect**, pick `app_bench_open`, put a
 library IRI in the arguments and press **Call tool & render**. The harness is a
@@ -89,14 +93,14 @@ fastest way to see what a View is actually doing.
 You need a library to open it on; create one first:
 
 ```bash
-curl -s -X POST localhost:3005/libraries \
+curl -s -X POST localhost:3010/libraries \
   -H 'content-type: application/json' -d '{"name":"Bench demo"}'
 ```
 
 ### 2. The smoke test — no browser needed
 
 ```bash
-just smoke-mcp-app                       # against localhost:3005/mcp
+just smoke-mcp-app                       # against localhost:3010/mcp
 just smoke-mcp-app https://host/mcp      # or anywhere else
 ```
 

@@ -8,9 +8,12 @@
  * does not render, because it separates "the server is wrong" from "the View
  * is wrong".
  *
- *   node packages/mcp-app/dev/smoke.mjs [http://localhost:3005/mcp]
+ * The default endpoint is the port `just run-local-memory` listens on (3010),
+ * not the 3005 the README quotes — that recipe sets HTTP_PORT=3010.
+ *
+ *   node packages/mcp-app/dev/smoke.mjs [http://localhost:3010/mcp]
  */
-const endpoint = process.argv[2] ?? process.env.MCP_ENDPOINT ?? 'http://localhost:3005/mcp';
+const endpoint = process.argv[2] ?? process.env.MCP_ENDPOINT ?? 'http://localhost:3010/mcp';
 
 let sessionId = null;
 let nextId = 1;
