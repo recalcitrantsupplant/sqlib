@@ -47,7 +47,7 @@ describe('POST /format', () => {
     expect(body.formatted.length).toBeGreaterThan(0);
   });
 
-  it('formats SPARQL through Traqula instead of the SRL validating passthrough', async () => {
+  it('formats SPARQL through the query generator rather than the SRL formatter', async () => {
     const response = await app.inject({
       method: 'POST',
       url: '/format',
@@ -126,6 +126,37 @@ RULE {
     expect(body.formatted).not.toContain('INSERT'); // Formatting does not translate RULE → SPARQL UPDATE
   });
 
+  it('re-indents an SRL rule through the SRL generator, not a passthrough', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/format',
+      payload: {
+        code: 'PREFIX : <http://example/>  RULE :r { ?x :grandparent ?z } WHERE { ?x :parent ?y . ?y :parent ?z }',
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body)).toEqual({
+      formatted:
+        'PREFIX : <http://example/>\n\nRULE :r {\n  ?x :grandparent ?z .\n} WHERE {\n  ?x :parent ?y .\n  ?y :parent ?z .\n}',
+    });
+  });
+
+  it('indents a nested NOT and is idempotent over SRL', async () => {
+    const code = `PREFIX : <http://example/>
+RULE { ?x :p ?y } WHERE DATA { ?x :q ?y . NOT DATA { ?x :blocked ?y } }`;
+
+    const first = await app.inject({ method: 'POST', url: '/format', payload: { code } });
+    expect(first.statusCode).toBe(200);
+    const formatted = JSON.parse(first.body).formatted as string;
+    expect(formatted).toContain('} WHERE DATA {');
+    expect(formatted).toContain('  NOT DATA {\n    ?x :blocked ?y .\n  }');
+
+    const second = await app.inject({ method: 'POST', url: '/format', payload: { code: formatted } });
+    expect(second.statusCode).toBe(200);
+    expect(JSON.parse(second.body).formatted).toBe(formatted);
+  });
+
   it('should format DATA syntax (no translation)', async () => {
     const dataCode = `DATA {
   <http://example.org/book1> <http://purl.org/dc/elements/1.1/title> "Example Book" .
@@ -141,6 +172,10 @@ RULE {
     const body = JSON.parse(response.body);
     expect(body.formatted).toContain('DATA');
     expect(body.formatted).not.toContain('INSERT DATA'); // Formatting does not translate DATA → INSERT DATA
+    // One ground triple per line, inside an indented block.
+    expect(body.formatted).toBe(
+      'DATA {\n  <http://example.org/book1> <http://purl.org/dc/elements/1.1/title> "Example Book" .\n}',
+    );
   });
 
   it('should return 400 for invalid SPARQL', async () => {
