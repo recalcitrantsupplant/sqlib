@@ -94,3 +94,35 @@
 .cm-lintRange-warning {
   text-decoration-color: var(--warning);
 }
+
+/*
+ * A diagnostic's tooltip, and the fix it offers.
+ *
+ * `@kurrawongai/codemirror-lang-srl` raises SRL conformance errors and, in the
+ * editable boxes, attaches a conversion action to the SPARQL spellings it can
+ * rewrite ("Convert SPARQL BIND to SRL SET"). CodeMirror renders that action as
+ * a bare <u>-styled button on its own near-black background, which against the
+ * app's surfaces reads as a rendering fault rather than as something to click.
+ *
+ * Coloured from tokens for the same reason as the rest of this file: the offer
+ * to rewrite a rule is only useful if it looks like a button in both themes.
+ */
+.cm-tooltip .cm-diagnostic {
+  border-left-color: var(--danger);
+  font-family: inherit;
+}
+
+.cm-tooltip .cm-diagnostic-warning {
+  border-left-color: var(--warning);
+}
+
+.cm-tooltip .cm-diagnosticAction {
+  background: var(--action);
+  color: var(--action-fg);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-3);
+  margin-left: var(--space-4);
+  font-size: var(--text-micro);
+  text-decoration: none;
+  cursor: pointer;
+}
