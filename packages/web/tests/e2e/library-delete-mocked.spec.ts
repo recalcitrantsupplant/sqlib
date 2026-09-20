@@ -89,8 +89,8 @@ test.describe('Delete Library Functionality (Mocked)', () => {
     });
 
     // Navigate to home page
-    await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.app-layout').first()).toBeVisible();
   });
 
   async function expandLibrariesSection(page: Page) {

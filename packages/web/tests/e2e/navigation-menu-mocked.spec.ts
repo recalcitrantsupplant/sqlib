@@ -102,8 +102,8 @@ test.describe('Navigation Menu (Mocked)', () => {
     });
 
     // Navigate to main page
-    await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.app-layout').first()).toBeVisible();
   });
 
   test('should display navigation sidebar', async ({ page }) => {

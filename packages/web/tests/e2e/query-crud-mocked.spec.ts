@@ -189,8 +189,8 @@ test.describe('Query CRUD Operations (Mocked)', () => {
     });
 
     // Navigate to main page
-    await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.app-layout').first()).toBeVisible();
   });
 
   /*
@@ -364,8 +364,8 @@ test.describe('Query CRUD Operations (Mocked)', () => {
       }
     });
 
-    await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.app-layout').first()).toBeVisible();
 
     await openAddQueryDialog(page);
 
@@ -432,8 +432,8 @@ test.describe('Query CRUD Operations (Mocked)', () => {
     });
 
     // Reload page to pick up new data
-    await page.reload();
-    await page.waitForLoadState('networkidle');
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.app-layout').first()).toBeVisible();
 
     // Expand library and Queries category
     const libraryToggle = page.locator('.library-toggle').filter({ hasText: 'Test Query Library' });
@@ -485,8 +485,8 @@ test.describe('Query CRUD Operations (Mocked)', () => {
     );
 
     // Reload page
-    await page.reload();
-    await page.waitForLoadState('networkidle');
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.app-layout').first()).toBeVisible();
 
     // Expand library and queries
     const libraryToggle = page.locator('.library-toggle').filter({ hasText: 'Test Query Library' });

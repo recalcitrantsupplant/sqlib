@@ -100,8 +100,8 @@ test.describe('Add Library Dialog (Mocked)', () => {
     });
 
     // Navigate to home page
-    await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.app-layout').first()).toBeVisible();
   });
 
   async function openAddLibraryDialog(page: Page) {
@@ -266,8 +266,8 @@ test.describe('Add Library Dialog (Mocked)', () => {
       }
     });
 
-    await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.app-layout').first()).toBeVisible();
 
     await openAddLibraryDialog(page);
 

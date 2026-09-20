@@ -106,8 +106,8 @@ test.describe('Library Edit - Backend Selection', () => {
     });
 
     // Navigate to home page
-    await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.app-layout').first()).toBeVisible();
   });
 
   /*

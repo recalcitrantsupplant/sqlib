@@ -753,8 +753,8 @@ export async function setupMockApi(page: Page, state: MockState, options: SetupM
 export async function bootstrapQueryGroupCanvas(page: Page, options?: SetupMockApiOptions) {
   const state = createMockState();
   await setupMockApi(page, state, options);
-  await page.goto('/');
-  await page.waitForLoadState('networkidle');
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('.app-layout').first()).toBeVisible();
   return state;
 }
 

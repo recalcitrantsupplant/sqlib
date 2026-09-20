@@ -119,7 +119,7 @@ test('switching between saved tests swaps in place', async ({ page }) => {
   // Relative, so Playwright's `baseURL` decides the port. CI runs the preview
   // on a port nobody types by hand — it shares a machine with local development
   // — so a spec that names 3001 itself connects to nothing there.
-  await page.goto('/?section=tests', { waitUntil: 'networkidle' });
+  await page.goto('/?section=tests', { waitUntil: 'domcontentloaded' });
   const row = (name: string) => page.locator('.entity-name', { hasText: name }).first();
   await row('Test 1').click();
   const pane = page.locator('.test-work-area');

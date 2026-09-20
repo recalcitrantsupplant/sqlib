@@ -93,8 +93,8 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
     await setupRouteHandlers(page);
 
     // Navigate to home page
-    await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.app-layout').first()).toBeVisible();
   });
 
   async function setupRouteHandlers(page: any) {
@@ -444,8 +444,8 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
     });
 
     // Reload page to show new backend
-    await page.reload();
-    await page.waitForLoadState('networkidle');
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.app-layout').first()).toBeVisible();
 
     // Expand backends section if not already expanded
     const backendsSection = page.locator('.section-header').filter({ hasText: 'Backends' });
