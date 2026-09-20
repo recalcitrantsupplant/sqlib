@@ -304,7 +304,6 @@ const props = defineProps<{
   collapsed?: boolean;
   detectedInputs: DetectInputsResponse | null;
   detectedOutputs: string[];
-  validationState: 'idle' | 'validating' | 'valid' | 'error';
   queryId?: string | null;
   /**
    * The query text, only so the arguments tab can put a source line on each
@@ -365,7 +364,7 @@ const testSubjectId = testSubject(() => props.details?.entityId ?? null);
  */
 const inspectorTabs = computed<InspectorTab[]>(() => [
   { id: 'details', label: 'Details', hidden: !props.details },
-  { id: 'arguments', label: 'Arguments', busy: props.validationState === 'validating' },
+  { id: 'arguments', label: 'Arguments' },
   { id: 'results', label: 'Results' },
   { id: 'code', label: 'Code' },
   { id: 'tests', label: 'Tests', hidden: !testSubjectId.value },

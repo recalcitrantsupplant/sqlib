@@ -39,13 +39,11 @@
       :supports-scratch="flatSidebar.supportsScratch"
       :supports-saved="flatSidebar.supportsSaved"
       :saved-kinds="flatSidebar.savedKinds"
-      :new-options="flatSidebar.newOptions"
       :tags="libraryTags"
       :supports-tags="flatSidebar.supportsTags"
       @select-saved="handleSelectSaved"
       @select-scratch="handleSelectScratch"
       @create-scratch="handleCreateFromSidebar"
-      @create-option="handleCreateOption"
       @discard-scratch="requestDiscardScratch"
     >
       <!--
@@ -226,7 +224,6 @@
         @open-entity="openCreatedEntity"
       />
       <RuleSetWorkArea
-        ref="ruleSetWorkAreaRef"
         v-else-if="rulesSuiteEnabled && (selectedItemType === 'ruleSet' || scratchSection === 'rule')"
         :key="scratchSection === 'rule' ? `scratch-${selectedScratchId}` : 'rule-set'"
         :rule-set-id="scratchSection === 'rule' ? null : selectedRuleSetId"
@@ -481,7 +478,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, onMounted, computed, watch } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue';
 import { useRoute, useRouter } from '#imports';
 import { CircleCheck, ListChecks, Play } from '@lucide/vue';
 import AppNavRail from '../components/AppNavRail.vue';
@@ -1246,14 +1243,6 @@ const flatSidebar = computed(() => {
      * so neither has a library for the one tag invariant to judge against.
      */
     supportsTags: definition.savedKinds.every((kind) => isTaggableKind(kind.type)),
-    /*
-     * Other ways to start one. Only Rules has a second: a rule is a CONSTRUCT
-     * with the head and body swapped round, so a library of them is a library
-     * of rules nobody has converted yet.
-     */
-    newOptions: section === 'rules'
-      ? [{ key: 'import-construct', label: 'Import from SPARQL…' }]
-      : [],
     saved: savedFor(section),
     scratch: scratchFor(definition.draftSection),
   };
@@ -1346,24 +1335,6 @@ function handleSelectScratch(id: string) {
  * hydration without writing them back. That keeps "has the user typed
  * anything?" honest, which is what decides whether `×` asks before discarding.
  */
-const ruleSetWorkAreaRef = ref<InstanceType<typeof RuleSetWorkArea> | null>(null);
-
-/**
- * One of + New's alternatives was chosen.
- *
- * Import starts a scratch rule set and opens the import dialog on it, so the
- * imported rule is the first thing in a document that did not exist a moment
- * ago — which is what choosing it from + New says it will do. The work area is
- * keyed and remounts on the new scratch id, so the dialog is opened on the next
- * tick, once the instance the ref points at is the new one.
- */
-async function handleCreateOption(key: string) {
-  if (key !== 'import-construct') return;
-  handleCreateFromSidebar();
-  await nextTick();
-  ruleSetWorkAreaRef.value?.openImport();
-}
-
 function handleCreateFromSidebar() {
   const section = activeListSection.value;
   if (!section) return;

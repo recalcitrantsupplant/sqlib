@@ -136,8 +136,9 @@ export default async function (fastify: FastifyInstance) {
       const { code } = request.body;
 
       try {
-        // SRL formatting is currently a validating passthrough. Do not give it normal
-        // SPARQL, or it will bypass Traqula's canonical generator.
+        // SRL has its own generator (the rule/DATA structure is not SPARQL), so an
+        // SRL document is formatted by the SRL package. Do not send normal SPARQL
+        // down this branch: it would miss the query generator below.
         if (isSrlDocument(code)) {
           const { formatted } = ruleValidator.formatRuleOrData(code);
           return reply.send({ formatted });

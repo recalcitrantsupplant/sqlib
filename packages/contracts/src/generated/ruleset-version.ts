@@ -1,110 +1,40 @@
 /**
  * RuleSet Version Contract Definitions
  *
- * Defines schemas for RuleSetVersion entity and its expanded representations.
- * Includes inline definitions for Rule, RuleVersion, DataBlock, DataBlockVersion
- * to avoid circular dependencies.
+ * The expanded read contract for rule set versions: the envelope the endpoint
+ * returns, and the wire-only schemas beside it.
+ *
+ * The entity shapes it used to restate — Rule, RuleVersion, DataBlock,
+ * DataBlockVersion, RuleSetVersion — are projected from the entity model now
+ * (`version-shapes.ts` and the CRUD contracts, issue #65), for the reason the
+ * hand-written copies proved: they parse responses under `.strict()`, so every
+ * field they fell behind the model on was a thrown parse rather than a dropped
+ * one. `tupleSeeds` and `tuplesEnabled` on the version, and `tags` and
+ * `currentVersionNumber` on an expanded rule, were all missing here.
+ *
+ * Editing a field of an entity means editing `persistence/schemas/`, not here.
  */
 import { isIri, IRI_ERROR_MESSAGE } from '../iri.js';
 import { z } from 'zod';
+import { ruleSchema } from './rule.js';
+import { dataBlockSchema } from './datablock.js';
+import {
+  ruleVersionSchema,
+  dataBlockVersionSchema,
+  ruleSetVersionSchema,
+} from './version-shapes.js';
 
+export { ruleVersionSchema, dataBlockVersionSchema, ruleSetVersionSchema };
+export type { RuleVersion, DataBlockVersion, RuleSetVersion } from './version-shapes.js';
 
 const iriString = z
   .string()
   .min(1, 'IRI must be a non-empty string')
   .refine(isIri, IRI_ERROR_MESSAGE);
 
-const optionalIriString = iriString.optional().nullable();
-const isoDateTime = z.string().datetime({ offset: true }).optional().nullable();
 const nullableString = z.string().optional().nullable();
-const iriArray = z.array(iriString);
 const optionalIriArray = z.array(iriString).optional().nullable();
 
-// Rule schema (inline definition to avoid imports)
-const ruleShape = {
-  id: iriString,
-  name: z.string().min(1),
-  description: nullableString,
-  comment: nullableString,
-  currentVersion: optionalIriString,
-  isPartOf: iriArray,
-  dateCreated: isoDateTime,
-  dateModified: isoDateTime,
-};
-
-const ruleSchema = z.object(ruleShape).strict();
-
-// RuleVersion schema (inline definition)
-const ruleVersionShape = {
-  id: iriString,
-  isPartOf: iriString,
-  version: z.number().int(),
-  immutable: z.boolean().optional().nullable(),
-  comment: nullableString,
-  ruleString: z.string(),
-  normalizedInsert: nullableString,
-  ruleFormat: nullableString,
-  grammarType: nullableString,
-  grammarValid: z.boolean().optional().nullable(),
-  validationError: nullableString,
-  grammarValidations: nullableString,
-  dateCreated: isoDateTime,
-  dateModified: isoDateTime,
-};
-
-const ruleVersionSchema = z.object(ruleVersionShape).strict();
-
-// DataBlock schema (inline definition)
-const dataBlockShape = {
-  id: iriString,
-  name: z.string().min(1),
-  description: nullableString,
-  comment: nullableString,
-  currentVersion: optionalIriString,
-  isPartOf: iriArray,
-  dateCreated: isoDateTime,
-  dateModified: isoDateTime,
-};
-
-const dataBlockSchema = z.object(dataBlockShape).strict();
-
-// DataBlockVersion schema (inline definition)
-const dataBlockVersionShape = {
-  id: iriString,
-  isPartOf: iriString,
-  version: z.number().int(),
-  immutable: z.boolean().optional().nullable(),
-  comment: nullableString,
-  dataString: z.string(),
-  normalizedInsertData: nullableString,
-  dataFormat: nullableString,
-  grammarType: nullableString,
-  grammarValid: z.boolean().optional().nullable(),
-  validationError: nullableString,
-  grammarValidations: nullableString,
-  dateCreated: isoDateTime,
-  dateModified: isoDateTime,
-};
-
-const dataBlockVersionSchema = z.object(dataBlockVersionShape).strict();
-
-// RuleSetVersion base schema
-const ruleSetVersionShape = {
-  id: iriString,
-  isPartOf: iriString,
-  version: z.number().int(),
-  immutable: z.boolean().optional().nullable(),
-  comment: nullableString,
-  hasRule: optionalIriArray,
-  hasDataBlock: optionalIriArray,
-  stratificationReport: nullableString,
-  dateCreated: isoDateTime,
-  dateModified: isoDateTime,
-};
-
-export const ruleSetVersionSchema = z.object(ruleSetVersionShape).strict();
-
-export type RuleSetVersion = z.infer<typeof ruleSetVersionSchema>;
 
 // RuleVersion item schema (for expanded response)
 const ruleVersionItemSchema = z

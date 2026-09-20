@@ -21,7 +21,6 @@
           @click="activeTab = tab.id"
         >
           {{ tab.label }}
-          <Loader2 v-if="tab.busy" :size="14" class="tab-spinner" />
         </button>
       </div>
       <div v-show="!collapsed" class="header-actions">
@@ -52,6 +51,12 @@
  * the list: ETL's Results is hidden until a run produces something, and the
  * strip must not jump between two and three tabs as a side effect of some
  * other state.
+ *
+ * For the same reason no tab carries a spinner. Stratification and Arguments
+ * each had one beside the label while their analysis ran, and analysis is
+ * quick enough that what a reader saw was the strip twitching wider and back
+ * — the tabs after it moving under the pointer. Work in flight is reported by
+ * the panel doing it, where there is room to say what is happening.
  */
 export interface InspectorTab {
   /** Also the slot name. */
@@ -62,15 +67,13 @@ export interface InspectorTab {
   /** In the strip but not selectable, with a reason on hover. */
   disabled?: boolean;
   disabledReason?: string;
-  /** Spins next to the label — the Arguments tab while validation runs. */
-  busy?: boolean;
   testid?: string;
 }
 </script>
 
 <script setup lang="ts">
 import { computed, watch } from 'vue';
-import { Loader2, PanelRightClose, PanelRightOpen } from '@lucide/vue';
+import { PanelRightClose, PanelRightOpen } from '@lucide/vue';
 
 const props = defineProps<{
   tabs: InspectorTab[];
@@ -180,16 +183,6 @@ watch(
   border-bottom-color: var(--action);
   background: var(--surface);
   color: var(--action);
-}
-
-.tab-spinner {
-  animation: inspector-spin 1s linear infinite;
-}
-
-@keyframes inspector-spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 
 .tab-content {

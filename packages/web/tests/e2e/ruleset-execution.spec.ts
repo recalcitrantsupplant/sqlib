@@ -59,7 +59,6 @@ const defaultRuleVersion = {
   comment: null,
   ruleString: 'RULE { ?s <http://example.org/q> ?o } WHERE { ?s <http://example.org/p> ?o }',
   normalizedInsert: null,
-  ruleFormat: 'srl',
   grammarType: 'srl',
   grammarValid: true,
   validationError: null,

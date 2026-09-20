@@ -1,5 +1,5 @@
 /**
- * The version contract leaves, against the entity model.
+ * The response contract leaves, against the entity model.
  *
  * `query-version.ts` and `query-group-version.ts` used to hand-write eighteen
  * entity shapes for entities the model already describes, behind a banner
@@ -8,6 +8,13 @@
  * construction — which is the point. It stays because construction is only an
  * argument until something checks it, and because the wire-only schemas beside
  * those shapes are still hand-written and can still drift.
+ *
+ * `ruleset-version.ts` was the same shape of problem and was missed by that
+ * pass: five more entity shapes, hand-written, two fields behind the model on
+ * the version and two on the rules it expands. Both gaps were thrown parses on
+ * live responses, and the rule set Details panel reported them as "Nothing
+ * saved yet" over a rule set with a saved v1. Those five are projected now, and
+ * the coverage check below is what makes a sixth impossible to miss.
  *
  * It compares two things, both of which have to hold before generation is safe:
  *
@@ -28,27 +35,27 @@ import * as contracts from '@sparql-query-lib/contracts';
 import * as entitySchemas from '@sparql-query-lib/contracts/schema';
 import { deriveFieldZod } from '../../scripts/lib/emitters/entity-contract-builder.js';
 import { VERSION_SHAPES } from '../../scripts/lib/emitters/version-shapes-builder.js';
+import { ENTITY_CONTRACT_MODELS } from '../../scripts/lib/emitters/entity-contract-models.js';
 
-/** Hand-written leaf schema -> the entity document the model emits for it. */
+/**
+ * Leaf schema -> the entity document the model emits for it.
+ *
+ * Derived from the builder rather than listed, so a shape added to
+ * `VERSION_SHAPES` is checked without anyone extending a table here. The
+ * benchmark leaves are named explicitly because their builder writes shapes as
+ * string literals and has no such list to read.
+ */
 const LEAF_TO_ENTITY: Array<{ leaf: string; entity: string }> = [
-  { leaf: 'limitParameterSchema', entity: 'limitparameterSchema' },
-  { leaf: 'offsetParameterSchema', entity: 'offsetparameterSchema' },
-  { leaf: 'queryInputVariableSchema', entity: 'queryinputvariableSchema' },
-  { leaf: 'queryOutputVariableSchema', entity: 'queryoutputvariableSchema' },
-  { leaf: 'tupleMemberSchema', entity: 'tuplememberSchema' },
-  { leaf: 'queryInputTupleSchema', entity: 'queryinputtupleSchema' },
-  { leaf: 'queryOutputTupleSchema', entity: 'queryoutputtupleSchema' },
-  { leaf: 'queryVersionSchema', entity: 'queryversionSchema' },
-  { leaf: 'startNodeSchema', entity: 'startnodeSchema' },
-  { leaf: 'endNodeSchema', entity: 'endnodeSchema' },
-  { leaf: 'dynamicQueryNodeSchema', entity: 'dynamicquerynodeSchema' },
-  { leaf: 'ruleSetNodeSchema', entity: 'rulesetnodeSchema' },
-  { leaf: 'queryNodeSchema', entity: 'querynodeSchema' },
-  { leaf: 'queryEdgeSchema', entity: 'queryedgeSchema' },
-  { leaf: 'triplesQuadsIOSchema', entity: 'triplesquadsioSchema' },
-  { leaf: 'booleanIOSchema', entity: 'booleanioSchema' },
-  { leaf: 'queryIdInputSchema', entity: 'queryidinputSchema' },
-  { leaf: 'queryGroupVersionSchema', entity: 'querygroupversionSchema' },
+  ...VERSION_SHAPES.map(({ varName, entityExport }) => ({
+    leaf: `${varName}Schema`,
+    entity: entityExport,
+  })),
+  { leaf: 'benchmarkExperimentSchema', entity: 'benchmarkexperimentSchema' },
+  { leaf: 'benchmarkExperimentVersionSchema', entity: 'benchmarkexperimentversionSchema' },
+  { leaf: 'benchmarkRunSchema', entity: 'benchmarkrunSchema' },
+  { leaf: 'benchmarkObservationSchema', entity: 'benchmarkobservationSchema' },
+  { leaf: 'benchmarkNodeObservationSchema', entity: 'benchmarknodeobservationSchema' },
+  { leaf: 'benchmarkIterationObservationSchema', entity: 'benchmarkiterationobservationSchema' },
 ];
 
 /**
@@ -93,7 +100,13 @@ function entityKeys(name: string): string[] {
   return Object.keys(schema.properties).sort();
 }
 
-describe('the hand-maintained version leaves against the entity model', () => {
+/** The subset the builders project, and so the subset generation must cover. */
+const PROJECTED_PAIRS = VERSION_SHAPES.map(({ varName, entityExport }) => ({
+  leaf: `${varName}Schema`,
+  entity: entityExport,
+}));
+
+describe('the response leaves against the entity model', () => {
   it.each(LEAF_TO_ENTITY)('$leaf declares no field the model lacks', ({ leaf, entity }) => {
     const unexplained = leafKeys(leaf)
       .filter(key => !entityKeys(entity).includes(key))
@@ -113,10 +126,47 @@ describe('the hand-maintained version leaves against the entity model', () => {
     expect(missing, `${leaf} would throw on a response carrying these`).toEqual([]);
   });
 
-  it.each(LEAF_TO_ENTITY)('$entity is fully derivable, so it could be generated', ({ entity }) => {
+  it('checks every leaf that mirrors an entity, so a new one cannot slip past', () => {
+    /*
+     * The table above is only as good as its coverage. `ruleSetVersionSchema`
+     * was absent from it for as long as it existed, which is why it could fall
+     * two fields behind the model and take the rule set Details panel's version
+     * list down with it — the parse threw, the catch emptied the list, and the
+     * panel read "Nothing saved yet" over a saved rule set.
+     *
+     * So rather than trust the table, this looks for exported response leaves
+     * that mirror an entity document by name and are neither projected by a
+     * builder nor listed above. Anything it finds is the next instance of that
+     * bug, waiting.
+     */
+    const projected = new Set([
+      ...ENTITY_CONTRACT_MODELS.map(model => `${model.varName}Schema`),
+      ...VERSION_SHAPES.map(shape => `${shape.varName}Schema`),
+    ]);
+    const listed = new Set(LEAF_TO_ENTITY.map(pair => pair.leaf));
+    const entityDocuments = new Set(Object.keys(entitySchemas));
+
+    const unchecked = Object.entries(contracts as Record<string, unknown>)
+      .filter(([name]) => name.endsWith('Schema'))
+      .filter(([name]) => !projected.has(name) && !listed.has(name))
+      .filter(([, schema]) => Boolean((schema as { shape?: Shape } | undefined)?.shape))
+      .filter(([name]) => entityDocuments.has(`${name.slice(0, -'Schema'.length).toLowerCase()}Schema`))
+      .map(([name]) => name);
+
+    expect(unchecked, 'these mirror an entity and nothing checks them; project or list them').toEqual([]);
+  });
+
+  it.each(PROJECTED_PAIRS)('$entity is fully derivable, so it could be generated', ({ entity }) => {
     // Generation is blocked on the projection, not the leaf, wherever this
     // throws. `deriveFieldZod` grew integer and boolean cases for exactly these
     // entities — the CRUD entities it served before have neither.
+    //
+    // Scoped to the projected shapes. The benchmark leaves are checked for
+    // field parity above but cannot be projected yet: `benchmarkrun.keywords`
+    // is an array of strings and `benchmarkexperimentversion.subjectSpecs` an
+    // array of objects, and `deriveFieldZod` has no case for either. Until it
+    // does, those six stay string literals in their own builder — which is the
+    // condition that let `benchmarkRunSchema` fall three fields behind.
     const schema = (entitySchemas as Record<string, { properties: Record<string, unknown> }>)[
       entity
     ];

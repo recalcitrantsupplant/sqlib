@@ -118,6 +118,13 @@ export const VERSION_SHAPES: VersionShape[] = [
     entityExport: 'querygroupversionSchema',
     typeName: 'QueryGroupVersion',
   },
+  // The rule set version leaves. `ruleset-version.ts` restated these by hand,
+  // and had fallen two fields behind the model on the version itself and two
+  // more on the rules it expands — both of which threw `unrecognized_keys` on
+  // real responses. Projected here for the same reason as the eighteen above.
+  { varName: 'ruleVersion', entityExport: 'ruleversionSchema', typeName: 'RuleVersion' },
+  { varName: 'dataBlockVersion', entityExport: 'datablockversionSchema', typeName: 'DataBlockVersion' },
+  { varName: 'ruleSetVersion', entityExport: 'rulesetversionSchema', typeName: 'RuleSetVersion' },
 ];
 
 const IRI_STRING: ZodReusableType = {

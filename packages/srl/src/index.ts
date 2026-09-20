@@ -13,6 +13,8 @@ export {
   abbreviateIris,
 } from './split.js';
 export { generateRule, generateRuleSet, generateHead, generateBody, generateDataBlock } from './generate.js';
+export { formatRule, formatRuleSet, formatDataBlock } from './format.js';
+export type { FormatOptions } from './format.js';
 export { sparqlToRule, isSrlImportable, SRL_IMPORT_REVISION } from './from-sparql.js';
 export {
   parseTupleSeeds,

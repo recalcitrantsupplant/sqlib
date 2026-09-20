@@ -15,13 +15,13 @@ import MediaTypeCodeViewer from '@/components/MediaTypeCodeViewer.vue';
 import DataTable from '@/components/ui/table/DataTable.vue';
 import type { DataTableState } from '@/composables/useDataTable';
 import ResultsFooter from '@/components/shared/ResultsFooter.vue';
+import ResultsActionBar from '@/components/shared/ResultsActionBar.vue';
 import SegmentedToggle from '@/components/shared/SegmentedToggle.vue';
 import { Input } from '@/components/ui/input';
 import RdfTermTable from '@/components/shared/RdfTermTable.vue';
 import type { RdfTermTableColumn } from '@/components/shared/RdfTermTable.vue';
 import InlinePrefixAdder from '@/components/shared/InlinePrefixAdder.vue';
 import { usePrefixDiscovery } from '@/composables/usePrefixDiscovery';
-import TermIriPopover from '@/components/shared/TermIriPopover.vue';
 import TermDisplayMenuItems from '@/components/shared/TermDisplayMenuItems.vue';
 import { useTermDisplay, type TermDisplayMode } from '@/composables/useTermDisplay';
 import { useCopyToClipboard } from '@/composables/useCopyToClipboard';
@@ -408,7 +408,7 @@ const renderSparqlCell = (
     supplementary.push(`lang:${described.language}`);
   }
 
-  return h('div', { class: 'term-cell group relative flex flex-col gap-1' }, [
+  return h('div', { class: 'term-cell flex flex-col gap-1' }, [
     h('div', { class: `flex justify-between gap-2 ${supplementary.length > 0 ? 'items-center' : 'items-start'}` }, [
       h(
         'code',
@@ -453,7 +453,6 @@ const renderSparqlCell = (
         ],
       ),
     ]),
-    fullIri ? h(TermIriPopover, { fullIri, typeLabel }) : null,
   ]);
 };
 
@@ -549,7 +548,7 @@ defineExpose({
       above is tabs and nothing else — and carries, in one row: which view you
       are in, the filter over it, and the two things you can do to the response.
     -->
-    <div class="results-action-bar">
+    <ResultsActionBar>
       <SegmentedToggle
         v-model="activeTab"
         :options="viewOptions"
@@ -562,7 +561,7 @@ defineExpose({
         :placeholder="filterPlaceholder"
         data-testid="results-filter"
       />
-      <div class="action-bar-right">
+      <template #actions>
         <button
           v-if="hasDownloadableContent"
           type="button"
@@ -584,8 +583,8 @@ defineExpose({
         >
           <Expand :size="14" />
         </button>
-      </div>
-    </div>
+      </template>
+    </ResultsActionBar>
 
     <div class="viewer-body">
       <div
@@ -671,6 +670,7 @@ defineExpose({
       :row-noun="rowNoun"
       :executed-at="executedAtIso"
       :media-type="normalizedContentType"
+      :media-relation="activeTab === 'table' ? 'rendered from' : 'as'"
       :duration-ms="durationMs"
       :duration-title="durationTitle"
       @set-page="setPage"

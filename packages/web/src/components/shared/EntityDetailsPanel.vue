@@ -122,11 +122,6 @@
       <section class="details-group">
         <div class="group-head">
           <span class="group-label">Versions</span>
-          <!-- What "current" means, said once beside the word rather than
-               guessed at from the pill. -->
-          <InlineNote v-if="showCurrentHint" as="span" class="group-hint">
-            callers with no version pinned get <strong>current</strong>
-          </InlineNote>
         </div>
 
         <!-- Scratch has no versions and needs no essay about it: the Scratch chip
@@ -621,8 +616,6 @@ const visibleVersions = computed(() => {
 
 const hiddenVersionCount = computed(() => props.versionOptions.length - visibleVersions.value.length);
 
-const showCurrentHint = computed(() => !props.isScratch && props.versionOptions.length > 0);
-
 /*
  * One fixed-width slot for the row's action, so `current` and `Set current`
  * occupy the same box: without it the rows are two different shapes and the
@@ -713,21 +706,6 @@ const inputVariables = computed(() => {
   font-weight: var(--weight-semibold);
   letter-spacing: 0.05em;
   text-transform: uppercase;
-}
-
-/* Quieter than the label it sits beside: it explains the section, it does not
-   name it. */
-/* Truncation only: the type and the tone are the note's, and are its own. */
-.group-hint {
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.group-hint strong {
-  color: var(--ink-muted);
-  font-weight: var(--weight-semibold);
 }
 
 .details-rule {

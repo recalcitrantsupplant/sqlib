@@ -168,7 +168,6 @@
         :query-loading="queryLoading"
         :detected-inputs="detectedInputs"
         :detected-outputs="detectedOutputs"
-        :validation-state="validationState"
         :query-id="queryId"
         :query-text="queryCode"
         :argument-sets-composable="argumentSetsComposable"

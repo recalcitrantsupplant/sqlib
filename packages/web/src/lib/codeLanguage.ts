@@ -36,7 +36,7 @@ import {
   trigLanguage,
 } from '@kurrawongai/codemirror-lang-turtle12';
 import { sparql, sparqlLanguage } from '@kurrawongai/codemirror-lang-sparql12';
-import { srl } from '@kurrawongai/codemirror-lang-srl';
+import { srl, srlLanguage } from '@kurrawongai/codemirror-lang-srl';
 
 /** `text/turtle; charset=utf-8` and `text/turtle` are the same language. */
 export function normalizeContentType(contentType?: string | null): string | null {
@@ -159,6 +159,14 @@ export function prefixGrammarFor(contentType?: string | null): PrefixGrammar | n
   if (type === 'application/sparql-query' || type === 'application/sparql-update') {
     return sparqlLanguage.parser;
   }
+  /*
+   * SRL's own grammar, for the same reason TriG has its own: it is the one that
+   * describes the document. It lexes `:=` as a single token, so an assignment
+   * survives the walk — the corruption that kept these buttons off the rules
+   * editor was SRL rewritten against SPARQL's grammar, which read that ':' as a
+   * prefix label. The round-trip evidence is in `test/lib/prefixRewrite.test.ts`.
+   */
+  if (type === 'application/srl' || type === 'text/srl') return srlLanguage.parser;
 
   return null;
 }

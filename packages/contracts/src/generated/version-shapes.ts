@@ -243,6 +243,53 @@ export const queryGroupVersionShape = {
   dateModified: isoDateTime,
   isPartOf: iriString,
 };
+// RuleVersion, projected from the entity model
+export const ruleVersionShape = {
+  id: iriString,
+  isPartOf: iriString,
+  version: z.number().int(),
+  immutable: nullableBoolean,
+  ruleString: z.string().min(1, 'RuleString is required'),
+  comment: nullableString,
+  normalizedInsert: nullableString,
+  grammarType: nullableString,
+  grammarValid: nullableBoolean,
+  validationError: nullableString,
+  grammarValidations: nullableString,
+  dateCreated: isoDateTime,
+  dateModified: isoDateTime,
+};
+// DataBlockVersion, projected from the entity model
+export const dataBlockVersionShape = {
+  id: iriString,
+  isPartOf: iriString,
+  version: z.number().int(),
+  immutable: nullableBoolean,
+  dataString: z.string().min(1, 'DataString is required'),
+  comment: nullableString,
+  normalizedInsertData: nullableString,
+  grammarValid: nullableBoolean,
+  validationError: nullableString,
+  grammarType: nullableString,
+  grammarValidations: nullableString,
+  dateCreated: isoDateTime,
+  dateModified: isoDateTime,
+};
+// RuleSetVersion, projected from the entity model
+export const ruleSetVersionShape = {
+  id: iriString,
+  isPartOf: iriString,
+  version: z.number().int(),
+  immutable: nullableBoolean,
+  comment: nullableString,
+  hasRule: optionalIriArray,
+  hasDataBlock: optionalIriArray,
+  stratificationReport: nullableString,
+  tupleSeeds: nullableString,
+  tuplesEnabled: nullableBoolean,
+  dateCreated: isoDateTime,
+  dateModified: isoDateTime,
+};
 export const limitParameterSchema = z.object(limitParameterShape).strict();
 export const offsetParameterSchema = z.object(offsetParameterShape).strict();
 export const queryInputVariableSchema = z.object(queryInputVariableShape).strict();
@@ -262,6 +309,9 @@ export const triplesQuadsIOSchema = z.object(triplesQuadsIOShape).strict();
 export const booleanIOSchema = z.object(booleanIOShape).strict();
 export const queryIdInputSchema = z.object(queryIdInputShape).strict();
 export const queryGroupVersionSchema = z.object(queryGroupVersionShape).strict();
+export const ruleVersionSchema = z.object(ruleVersionShape).strict();
+export const dataBlockVersionSchema = z.object(dataBlockVersionShape).strict();
+export const ruleSetVersionSchema = z.object(ruleSetVersionShape).strict();
 // LimitParameter entity type
 export type LimitParameter = z.infer<typeof limitParameterSchema>;
 // OffsetParameter entity type
@@ -300,4 +350,10 @@ export type BooleanIO = z.infer<typeof booleanIOSchema>;
 export type QueryIdInput = z.infer<typeof queryIdInputSchema>;
 // QueryGroupVersion entity type
 export type QueryGroupVersion = z.infer<typeof queryGroupVersionSchema>;
+// RuleVersion entity type
+export type RuleVersion = z.infer<typeof ruleVersionSchema>;
+// DataBlockVersion entity type
+export type DataBlockVersion = z.infer<typeof dataBlockVersionSchema>;
+// RuleSetVersion entity type
+export type RuleSetVersion = z.infer<typeof ruleSetVersionSchema>;
 

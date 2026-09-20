@@ -81,7 +81,6 @@ const HOOKS: Record<string, string> = {
   'mapping-select': 'CanvasObjectEditor: `select` is styled by the shared control rule',
   'query-name-hit': 'ImportSparqlDialog: `mark` carries its own highlight',
   'data-body': 'RuleSetInputsPanel: a marker beside `block-body`, which carries the styling',
-  'term-iri-popover': 'TermIriPopover: a handle for specs; the box is Tailwind utilities',
   'querygroup-work-area': 'QueryGroupWorkArea: the handle a dozen specs wait on; CanvasShell draws the pane',
 };
 

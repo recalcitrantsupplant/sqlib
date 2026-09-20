@@ -45,7 +45,6 @@ describe('QueryResultsViewer', () => {
   // dropped during duplicate resolution.) `enabled` is now managed by
   // useSettings and defaults to true, so it is not part of these settings.
   const initialPrefixSettings = {
-    showTooltips: true,
     duplicateResolution: 'longest',
     mappings: [
       { id: 'ex1', prefix: 'ex', namespace: 'http://example.org/', enabled: true, isDefault: false, source: 'user-added', createdAt: Date.now() },
@@ -86,7 +85,7 @@ describe('QueryResultsViewer', () => {
     expect(wrapper.html()).toContain('ex:Alice');
   });
 
-  it('reveals the full IRI in the cell popover, with a copy button', async () => {
+  it('copies the full IRI from an abbreviated cell, with no popover to hover', async () => {
     const { mount, QueryResultsViewer } = await loadComponent();
     const results = {
       head: { vars: ['person'] },
@@ -102,11 +101,12 @@ describe('QueryResultsViewer', () => {
     const wrapper = mount(QueryResultsViewer, { props: { results } });
     await nextTick();
 
-    const popover = wrapper.find('[data-testid="term-iri-popover"]');
-    expect(popover.exists()).toBe(true);
-    expect(popover.find('code').text()).toBe('http://xmlns.com/foaf/0.1/Person');
+    expect(wrapper.find('[data-testid="term-iri-popover"]').exists()).toBe(false);
+    expect(wrapper.find('td code').text()).toBe('foaf:Person');
 
-    await popover.find('button').trigger('click');
+    // The type badge is the way out of an abbreviation, and it yields the IRI
+    // rather than what the cell happens to be showing.
+    await wrapper.find('td .term-cell button').trigger('click');
     expect(mockCopyToClipboard).toHaveBeenCalledWith(
       'http://xmlns.com/foaf/0.1/Person',
       'Copied IRI to clipboard',
@@ -236,9 +236,8 @@ describe('QueryResultsViewer', () => {
     expect(wrapper.html()).toContain('ex:subject'); // ex: is a user-added prefix for example.org
     expect(wrapper.html()).toContain('ex:object');
 
-    // The full IRI is one hover away
-    const popovers = wrapper.findAll('[data-testid="term-iri-popover"] code');
-    expect(popovers.map((c) => c.text())).toContain('http://xmlns.com/foaf/0.1/knows');
+    // Nothing reveals the IRI on hover any more; the badge copies it.
+    expect(wrapper.find('[data-testid="term-iri-popover"]').exists()).toBe(false);
   });
 
   it('should handle unknown binding types gracefully in renderCell', async () => {
@@ -258,32 +257,6 @@ describe('QueryResultsViewer', () => {
     expect(wrapper.html()).toContain('unknown'); // Default typeLabel for unknown
   });
 
-  it('should not show the IRI popover when prefixSettings.showTooltips is false', async () => {
-    const { mount, QueryResultsViewer, usePrefixManager } = await loadComponent();
-    const { prefixSettings } = usePrefixManager();
-    prefixSettings.value.showTooltips = false; // Disable tooltips
-    await nextTick();
-
-    const results = {
-      head: { vars: ['person'] },
-      results: {
-        bindings: [
-          {
-            person: { type: 'uri', value: 'http://xmlns.com/foaf/0.1/Person' },
-          },
-        ],
-      },
-    };
-
-    const wrapper = mount(QueryResultsViewer, { props: { results } });
-    await nextTick();
-
-    // Expect abbreviation, but nothing revealing the IRI on hover
-    const abbreviatedIriElement = wrapper.find('code');
-    expect(abbreviatedIriElement.exists()).toBe(true);
-    expect(abbreviatedIriElement.text()).toContain('foaf:Person');
-    expect(wrapper.find('[data-testid="term-iri-popover"]').exists()).toBe(false);
-  });
   /*
    * Adding a prefix has to reach tables that are already on screen.
    *
@@ -320,12 +293,7 @@ describe('QueryResultsViewer', () => {
     const cells = wrapper.findAll('td code');
     const abbreviated = cells.filter((c) => c.text() === 'vocab:Widget');
     expect(abbreviated.length).toBe(2);
-    // The full IRI survives only in each cell's hover popover.
-    expect(
-      wrapper
-        .findAll('[data-testid="term-iri-popover"] code')
-        .filter((c) => c.text() === 'http://vocab.example.com/Widget').length,
-    ).toBe(2);
+    expect(wrapper.html()).not.toContain('http://vocab.example.com/Widget');
   });
 
   it('re-renders already displayed cells when a prefix is removed', async () => {
@@ -443,18 +411,16 @@ describe('QueryResultsViewer', () => {
   });
 
   /*
-   * Issue #52. `showTooltips` was read by the renderer but declared nowhere and
-   * set by no constructor, so it only ever held a value for users whose
-   * localStorage still carried the key from an older build. The tests above all
-   * seed it, so they passed while a *fresh* install abbreviated `foaf:Person`
-   * with no way to see the IRI behind it and no setting to turn it back on.
-   * This is the case they were missing: no stored settings at all.
+   * Issue #52 in its current form. The IRI behind an abbreviation used to be
+   * reachable only through a hover popover gated on a `showTooltips` flag that
+   * no constructor set, so a fresh install abbreviated `foaf:Person` with no
+   * way to see the IRI behind it. The popover and the flag are both gone: the
+   * badge copies the IRI on any install, seeded settings or not.
    */
-  it('shows the full IRI on a fresh install, with nothing in localStorage', async () => {
+  it('copies the full IRI on a fresh install, with nothing in localStorage', async () => {
     localStorage.clear();
 
-    const { mount, QueryResultsViewer, usePrefixManager } = await loadComponent();
-    expect(usePrefixManager().prefixSettings.value.showTooltips).toBe(true);
+    const { mount, QueryResultsViewer } = await loadComponent();
 
     const results = {
       head: { vars: ['person'] },
@@ -472,19 +438,11 @@ describe('QueryResultsViewer', () => {
 
     const abbreviated = wrapper.find('code');
     expect(abbreviated.text()).toContain('foaf:Person');
-    expect(wrapper.find('[data-testid="term-iri-popover"] code').text()).toBe(
+
+    await wrapper.find('td .term-cell button').trigger('click');
+    expect(mockCopyToClipboard).toHaveBeenCalledWith(
       'http://xmlns.com/foaf/0.1/Person',
+      'Copied IRI to clipboard',
     );
-  });
-
-  // Settings written before `showTooltips` existed must not read back as "off".
-  it('defaults the tooltip on for settings stored without the key', async () => {
-    localStorage.setItem('sparqlQueryLib.prefixSettings', JSON.stringify({
-      duplicateResolution: 'longest',
-      mappings: initialPrefixSettings.mappings,
-    }));
-
-    const { usePrefixManager } = await loadComponent();
-    expect(usePrefixManager().prefixSettings.value.showTooltips).toBe(true);
   });
 });

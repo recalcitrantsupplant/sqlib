@@ -64,14 +64,16 @@ describe('PrefixConversionButtons', () => {
     expect(wrapper.findAll('button').every((b) => b.attributes('disabled') !== undefined)).toBe(true);
   });
 
-  it('is absent for a language with no grammar of its own', () => {
-    // SRL is highlighted with the SPARQL grammar, which is close enough to
-    // colour and not close enough to rewrite. Absent, not disabled.
+  it('is present for SRL, which has a grammar of its own', () => {
+    // It used to be absent: SRL was rewritten against the SPARQL grammar,
+    // which is close enough to colour and not close enough to rewrite. It has
+    // its own now, and the round-trip corpus in `test/lib/prefixRewrite.test.ts`
+    // is what turned these on.
     const wrapper = mount(PrefixConversionButtons, {
       props: { code: 'RULE { ?x :b ?k } WHERE { SET ( ?k := 1 ) }', contentType: 'application/srl' },
     });
 
-    expect(wrapper.findAll('button')).toHaveLength(0);
+    expect(wrapper.findAll('button')).toHaveLength(2);
   });
 
   it('is absent for the line-based formats, which have no prefixes', () => {

@@ -147,9 +147,25 @@ generateHead(rule: SrlRule): string
 generateBody(rule: SrlRule): string
 generateDataBlock(block: SrlDataBlock): string
 ```
-Serialise back to SRL text from the AST rather than from source slices. After
-`expandIris`, the generated text is the same however the author spelled their
-prefixes, which is what makes a prefix-only edit provably not a content change.
+Serialise back to SRL text from the AST rather than from source slices, one rule
+to a line. After `expandIris`, the generated text is the same however the author
+spelled their prefixes, which is what makes a prefix-only edit provably not a
+content change.
+
+```ts
+formatRuleSet(ruleSet: SrlRuleSet, options?: FormatOptions): string
+formatRule(rule: SrlRule, options?: FormatOptions): string
+formatDataBlock(block: SrlDataBlock, options?: FormatOptions): string
+```
+Pretty-print the same ASTs for a human: one pattern per line, nested `NOT`
+blocks indented (`options.indent`, two spaces by default), the prologue
+normalised to one declaration per line, and a blank line between blocks. This is
+what `POST /format` serves an SRL document, as the SPARQL generator serves a
+query. Formatting is idempotent and meaning-preserving — what it emits parses
+back to the same rules — so it is the author-facing counterpart to the
+single-line canonical generator above, not a replacement for it: identity still
+comes from `canonicalRuleText`, which is whitespace-insensitive and so agrees
+with both.
 
 ```ts
 splitRuleSet(ruleSet: SrlRuleSet): SrlRuleDocument[]

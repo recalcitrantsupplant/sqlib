@@ -13,6 +13,7 @@
 import { describe, it, expect } from 'vitest';
 import { mount } from '@vue/test-utils';
 import RuleSetInputsPanel from '@/components/rules/RuleSetInputsPanel.vue';
+import SegmentedToggle from '@/components/shared/SegmentedToggle.vue';
 
 const TUPLE_OPTION = {
   versionId: 'urn:sqlib:tuple-set-version:t1v2',
@@ -91,8 +92,9 @@ describe('RuleSetInputsPanel input sections', () => {
     // Both choosers are `SearchSelect`, stubbed here; the class is what survives
     // shallow mounting, and there is one per block.
     expect(closed.findAll('.entity-picker')).toHaveLength(2);
-    expect(closed.find('[data-testid="tuples-source-saved"]').exists()).toBe(true);
-    expect(closed.find('[data-testid="data-source-saved"]').exists()).toBe(true);
+    // The Saved/Inline choices are one `SegmentedToggle` per block, stubbed by
+    // the shallow mount, so the component is what identifies them here.
+    expect(closed.findAllComponents(SegmentedToggle)).toHaveLength(2);
     expect(closed.find('[data-testid="inputs-tuples"]').exists()).toBe(true);
     expect(closed.find('[data-testid="inputs-data"]').exists()).toBe(true);
   });
@@ -101,8 +103,7 @@ describe('RuleSetInputsPanel input sections', () => {
     // Which is what makes removing `Save to …` safe rather than lossy: rows and
     // triples typed here run without ever becoming a record in a section.
     const closed = panel({ tupleSetSectionOpen: false, dataGraphSectionOpen: false });
-    expect(closed.find('[data-testid="tuples-source-inline"]').exists()).toBe(true);
-    expect(closed.find('[data-testid="data-source-inline"]').exists()).toBe(true);
+    expect(closed.findAllComponents(SegmentedToggle)).toHaveLength(2);
     expect(closed.find('[data-testid="data-format"]').exists()).toBe(true);
   });
 });

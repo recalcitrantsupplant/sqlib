@@ -2,6 +2,7 @@
   <button
     type="button"
     class="expand-button"
+    :class="{ 'expand-button--square': !withText }"
     :data-testid="testid || undefined"
     :title="label"
     :aria-label="label"
@@ -62,6 +63,14 @@ const label = computed(() => `Expand ${props.subject} — Esc to come back`);
 .expand-button:focus-visible {
   background: var(--surface-raised);
   color: var(--ink);
+}
+
+/* Icon only: a square box, like the other icon buttons it sits in a row with.
+   The labelled variant keeps its side padding — it is a word, not a glyph. */
+.expand-button--square {
+  justify-content: center;
+  width: var(--control-h-sm);
+  padding: 0;
 }
 
 .expand-button-text {
