@@ -6,9 +6,9 @@ import type { StratificationNode } from './StratificationGraph.vue';
  *
  * One graph, one place. This used to be two — a thin tab and a full-screen
  * modal reachable three ways — and two copies of the same picture is how two
- * pictures drift apart. Everything the modal held is here: the counts and the
- * no-cycles verdict, the canvas, and the per-rule inspector (source, what it
- * depends on and why, and the evaluation order).
+ * pictures drift apart. Everything the modal held is here: the counts, the
+ * canvas, and the per-rule inspector (source, what it depends on and why, and
+ * the evaluation order). The verdict is now shown only when it is bad news.
  *
  * What did *not* come with it is the paragraph explaining what a dashed edge
  * means. Reading that is a once-ever act; a wall of explanation above a graph
@@ -33,7 +33,13 @@ export interface StratificationPanelEdge {
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { Check, CircleSlash, CornerDownLeft, HelpCircle, Info, MoveRight } from '@lucide/vue';
+import { Codemirror } from 'vue-codemirror';
+import type { Extension } from '@codemirror/state';
+import { EditorState } from '@codemirror/state';
+import { EditorView, lineNumbers } from '@codemirror/view';
+import { CircleSlash, CornerDownLeft, HelpCircle, Info, MoveRight } from '@lucide/vue';
+import { rdfSyntaxHighlighting } from '@/lib/codemirrorHighlight';
+import { languageExtensionsFor } from '@/lib/codeLanguage';
 import StratificationGraph from './StratificationGraph.vue';
 import SectionLabel from '../shared/SectionLabel.vue';
 import { stratumColor } from '@/composables/useStratumPalette';
@@ -136,9 +142,35 @@ const evaluationOrder = computed(() => {
     .map(([stratum, labels]) => ({ stratum, labels }));
 });
 
-/** The selected rule's source, split so the extract can carry line numbers. */
-const sourceLines = computed(() => (selected.value?.code ?? '').split('\n'));
+/** The document line the extract starts on — its first number in the gutter. */
 const sourceFirstLine = computed(() => selected.value?.line ?? 1);
+
+/*
+ * The extract, read-only, numbered as the document numbers it.
+ *
+ * `vue-codemirror` installs `basicSetup` — and so `lineNumbers` — before
+ * anything passed here, and an installed extension cannot be withdrawn. But
+ * `lineNumbers` is one gutter however many times it is added, and its config
+ * facet takes the formatter given here, so asking again with a `formatNumber`
+ * renumbers the existing column rather than growing a second one.
+ */
+const sourceExtensions = computed<Extension[]>(() => {
+  const offset = sourceFirstLine.value - 1;
+  return [
+    ...languageExtensionsFor('application/srl'),
+    EditorState.readOnly.of(true),
+    EditorView.editable.of(false),
+    rdfSyntaxHighlighting,
+    lineNumbers({ formatNumber: (line) => String(line + offset) }),
+    EditorView.lineWrapping,
+    EditorView.theme({
+      '&': { backgroundColor: 'transparent' },
+      '.cm-gutters': { border: 'none', backgroundColor: 'transparent' },
+      '.cm-content': { padding: '0' },
+      '.cm-line': { padding: '0 var(--space-4) 0 var(--space-2)' },
+    }),
+  ];
+});
 
 const formatTriple = (triple?: { subject?: string; predicate?: string; object?: string }) =>
   [triple?.subject, triple?.predicate, triple?.object].filter(Boolean).join(' ').trim();
@@ -148,10 +180,13 @@ const formatTriple = (triple?: { subject?: string; predicate?: string; object?: 
   <div class="strat-pane" data-testid="rules-stratification">
     <div class="header-strip">
       <span class="headline">{{ headline }}</span>
-      <span v-if="!issues.length && nodes.length" class="chip chip-ok" data-testid="stratification-verdict">
-        <Check :size="11" />no cycles through negation
-      </span>
-      <span v-else-if="issues.length" class="chip chip-bad" data-testid="stratification-verdict">
+      <!--
+        Only the bad news. A document that stratifies is the normal case, and a
+        green chip restating it on every visit is a banner for "nothing is
+        wrong" — the headline already says how many strata came out. The chip
+        appears when there is something to act on.
+      -->
+      <span v-if="issues.length" class="chip chip-bad" data-testid="stratification-verdict">
         <CircleSlash :size="11" />does not stratify
       </span>
       <span v-if="computedAge" class="computed">{{ computedAge }}</span>
@@ -204,11 +239,20 @@ const formatTriple = (triple?: { subject?: string; predicate?: string; object?: 
         <template v-if="selected">
           <section v-if="selected.code" class="section">
             <SectionLabel>Source</SectionLabel>
+            <!--
+              The rule as SRL, highlighted the way the editor above highlights
+              it. No gutter: the extract is one rule lifted out of a document,
+              so a column of numbers either counts from 1 and names lines that
+              are not the document's, or carries the document's and asks to be
+              read as a place to navigate — which is the button in the header's
+              job. The header says where it came from; this says what it says.
+            -->
             <div class="source">
-              <div class="source-lines">
-                <span v-for="(_, index) in sourceLines" :key="index">{{ sourceFirstLine + index }}</span>
-              </div>
-              <pre class="source-code">{{ selected.code }}</pre>
+              <Codemirror
+                :model-value="selected.code"
+                :extensions="sourceExtensions"
+                :style="{ width: '100%' }"
+              />
             </div>
           </section>
 
@@ -341,12 +385,6 @@ const formatTriple = (triple?: { subject?: string; predicate?: string; object?: 
   white-space: nowrap;
 }
 
-.chip-ok {
-  background: var(--success-surface);
-  border-color: var(--success-border);
-  color: var(--success-ink);
-}
-
 .chip-bad {
   background: var(--danger-surface);
   border-color: var(--danger-border);
@@ -448,37 +486,56 @@ const formatTriple = (triple?: { subject?: string; predicate?: string; object?: 
 
 .source {
   display: flex;
+  flex-direction: column;
   overflow: hidden;
+  padding: var(--space-3) 0;
   background: var(--surface);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-panel);
 }
 
-.source-lines {
-  display: flex;
-  flex-direction: column;
-  flex-shrink: 0;
-  padding: var(--space-3) var(--space-2) var(--space-3) 0;
-  background: var(--surface-subtle);
-  border-right: 1px solid var(--border-subtle);
-  color: var(--ink-muted);
-  font-family: var(--font-mono);
-  font-size: var(--text-label);
-  line-height: 1.65;
-  text-align: right;
-  min-width: var(--grid-1);
-}
 
-.source-code {
-  overflow: auto;
-  flex: 1;
-  min-width: 0;
-  margin: 0;
-  padding: var(--space-3) var(--space-4);
+/* The editor's own type, at the size the rest of this panel reads at. */
+.source :deep(.cm-editor) {
+  width: 100%;
   color: var(--ink);
   font-family: var(--font-mono);
   font-size: var(--text-label);
   line-height: 1.65;
+}
+
+/*
+ * No active-line band, in the text or the gutter. The extract has no cursor to
+ * put one under, and the app theme's rules carry `!important`, so the editor's
+ * own theme cannot turn them off — this has to be said here, where the scoped
+ * attribute outweighs it.
+ */
+.source :deep(.cm-editor .cm-activeLine),
+.source :deep(.cm-editor .cm-activeLineGutter) {
+  background: transparent !important;
+  color: var(--ink-muted) !important;
+}
+
+/*
+ * A gutter only as wide as the number in it. The editor's defaults size it for
+ * a document of thousands of lines and put a fold column beside it; this holds
+ * a handful of lines and folds nothing, and every pixel it takes is taken from
+ * the rule — which is the thing being read.
+ */
+.source :deep(.cm-editor .cm-gutters) {
+  background: transparent !important;
+  border-right: none !important;
+}
+
+/* `!important` answers CodeMirror's own base theme, which sets the gutter
+   columns to `display: flex !important` to stop their margins collapsing. */
+.source :deep(.cm-editor .cm-foldGutter) {
+  display: none !important;
+}
+
+.source :deep(.cm-editor .cm-lineNumbers .cm-gutterElement) {
+  min-width: 0;
+  padding: 0 var(--space-2) 0 var(--space-3);
 }
 
 .dependency {

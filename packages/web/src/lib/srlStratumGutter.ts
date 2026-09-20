@@ -1,4 +1,4 @@
-import { StateEffect, StateField } from '@codemirror/state';
+import { StateEffect, StateField, type Text } from '@codemirror/state';
 import { EditorView, gutter, GutterMarker } from '@codemirror/view';
 import { STRATUM_NONE, stratumColor, stratumLabel } from '@/composables/useStratumPalette';
 
@@ -54,9 +54,10 @@ class BandMarker extends GutterMarker {
   }
 
   /*
-   * One marker per line, but only the first line of a block is labelled: a
-   * column of repeated "1"s beside a seven-line rule is noise, where an
-   * unbroken block of colour with one number at the top reads as one rule.
+   * One marker per line, but only the first line of an unbroken run is
+   * labelled: a column of repeated "1"s down four rules in the same stratum is
+   * noise, where one band of colour with a single number at its top says the
+   * same thing. The number changes exactly where the stratum does.
    */
   eq(other: BandMarker) {
     return (
@@ -98,6 +99,65 @@ const stratumTheme = EditorView.baseTheme({
   },
 });
 
+/** Whether everything strictly between two bands is whitespace. */
+function onlyBlankBetween(doc: Text, endLine: number, startLine: number) {
+  for (let line = endLine + 1; line < startLine; line += 1) {
+    if (line > doc.lines) return false;
+    if (doc.line(line).text.trim().length > 0) return false;
+  }
+  return true;
+}
+
+/** The nearest band ending above `line`, without assuming document order. */
+const bandBefore = (bands: StratumBand[], line: number) =>
+  bands
+    .filter((entry) => entry.endLine < line)
+    .reduce<StratumBand | null>((best, entry) => (!best || entry.endLine > best.endLine ? entry : best), null);
+
+/** The nearest band starting below `line`. */
+const bandAfter = (bands: StratumBand[], line: number) =>
+  bands
+    .filter((entry) => entry.startLine > line)
+    .reduce<StratumBand | null>((best, entry) => (!best || entry.startLine < best.startLine ? entry : best), null);
+
+/** Two bands are one run when they agree and nothing but blank lines divides them. */
+const joins = (doc: Text, above: StratumBand, below: StratumBand) =>
+  above.kind === below.kind
+  && above.stratum === below.stratum
+  && onlyBlankBetween(doc, above.endLine, below.startLine);
+
+/**
+ * The band a line belongs to, and whether it carries the label.
+ *
+ * Bands arrive one per block, but a reader does not see blocks — they see a
+ * column of colour, and a colour that does not change is saying "still the same
+ * stratum". So neighbouring blocks that agree are treated as one run: the blank
+ * line SRL is normally written with is painted through, and the number is drawn
+ * once, at the top, where it is the answer to "which stratum does this start?".
+ * Repeating it beside every rule in the run restates what the unbroken colour
+ * already said.
+ *
+ * A run ends where the meaning does. A gap holding a comment, or a change of
+ * stratum or kind, is a real break: the colour stops, and the next run opens
+ * with its own number.
+ */
+export function bandForLine(bands: StratumBand[], doc: Text, number: number): { band: StratumBand; first: boolean } | null {
+  const band = bands.find((entry) => number >= entry.startLine && number <= entry.endLine);
+  if (!band) {
+    // A blank line between two blocks of one run — painted, never labelled.
+    const above = bandBefore(bands, number);
+    const below = bandAfter(bands, number);
+    if (!above || !below || !joins(doc, above, below)) return null;
+    return { band: above, first: false };
+  }
+
+  if (number !== band.startLine) return { band, first: false };
+
+  // The label belongs to the run, so a block that continues one does not carry it.
+  const above = bandBefore(bands, band.startLine);
+  return { band, first: !above || !joins(doc, above, band) };
+}
+
 /** The gutter extension: install once, then dispatch {@link setStratumBands}. */
 export function stratumGutter() {
   return [
@@ -108,8 +168,8 @@ export function stratumGutter() {
         const bands = view.state.field(bandsField, false);
         if (!bands?.length) return null;
         const number = view.state.doc.lineAt(line.from).number;
-        const band = bands.find((entry) => number >= entry.startLine && number <= entry.endLine);
-        return band ? new BandMarker(band, number === band.startLine) : null;
+        const match = bandForLine(bands, view.state.doc, number);
+        return match ? new BandMarker(match.band, match.first) : null;
       },
       // Without a spacer the gutter collapses to nothing on a document with no
       // rules yet, and the code jumps sideways the moment the first one parses.

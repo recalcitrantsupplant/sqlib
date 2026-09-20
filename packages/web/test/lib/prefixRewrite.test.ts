@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { sparqlLanguage } from '@kurrawongai/codemirror-lang-sparql12';
+import { srlLanguage } from '@kurrawongai/codemirror-lang-srl';
 import { turtleLanguage } from '@kurrawongai/codemirror-lang-turtle12';
 import { toPrefixedNames, toFullIris, readDeclaredPrefixes } from '@/lib/prefixRewrite';
 import { prefixGrammarFor } from '@/lib/codeLanguage';
@@ -7,6 +8,7 @@ import type { PrefixPair } from '@/lib/curie';
 
 const SPARQL = sparqlLanguage.parser;
 const TURTLE = turtleLanguage.parser;
+const SRL = srlLanguage.parser;
 
 /*
  * The pairs the toolbar buttons work against, longest namespace first — the
@@ -187,11 +189,12 @@ describe('the grammar a document is converted against', () => {
    * The case that established the rule was SRL under the SPARQL grammar, which
    * had no ':=' and read the ':' of an assignment as a prefix label. That
    * particular hazard is gone now the grammars share a lexer — see the case
-   * below — but the rule it bought is not, and TriG is the standing example.
+   * below — but the rule it bought is not, and TriG is the standing example:
+   * SRL is converted against SRL's grammar, not against something close to it.
    */
-  it('is not offered for SRL, which has no round-trip evidence yet', () => {
-    expect(prefixGrammarFor('application/srl')).toBeNull();
-    expect(prefixGrammarFor('text/srl')).toBeNull();
+  it('gives SRL its own parser, now that the corpus below covers it', () => {
+    expect(prefixGrammarFor('application/srl')).toBe(SRL);
+    expect(prefixGrammarFor('text/srl')).toBe(SRL);
   });
 
   /*
@@ -205,9 +208,9 @@ describe('the grammar a document is converted against', () => {
    * for SRL.
    *
    * The three published grammars share one lexer, so `:=` is a single token in
-   * SPARQL's too and the corruption no longer happens. The buttons stay off all
-   * the same: what is still missing is round-trip evidence over SRL documents,
-   * which is a change with its own tests rather than a line in `codeLanguage`.
+   * SPARQL's too and the corruption no longer happens. SRL is still converted
+   * against its own grammar rather than this one — the rule above — and the
+   * evidence for turning its buttons on is the corpus at the foot of this file.
    */
   it('no longer corrupts an SRL assignment, now that the grammars share a lexer', () => {
     const srl = 'PREFIX : <http://example/>\nRULE { ?x :b ?k } WHERE { SET ( ?k := 1 ) }';
@@ -378,5 +381,114 @@ describe('contraction never invents a prefix', () => {
     expect(result.text).toContain('schema:name');
     expect(result.text).toContain('<http://nobody.example/x/y>');
     expect(result.added).toEqual([{ prefix: 'schema', namespace: 'http://schema.org/' }]);
+  });
+});
+
+/**
+ * SRL documents: the round-trip evidence the rules editor's buttons rest on.
+ *
+ * A rule set is not a query with different keywords — it has DATA blocks,
+ * `NOT DATA` blocks, `TUPLE( … )` terms and an assignment operator that spells
+ * itself with a colon. Each of those is a place where a rewrite could either
+ * miss terms it should convert or touch text it must not, so each has a case
+ * here rather than being assumed from the SPARQL corpus above.
+ */
+describe('SRL documents', () => {
+  const SRL_PAIRS: PrefixPair[] = [
+    { prefix: 'foaf', namespace: 'http://xmlns.com/foaf/0.1/' },
+    { prefix: 'ex', namespace: 'http://example.org/' },
+  ];
+  const srlNamespaceFor = (prefix: string) =>
+    SRL_PAIRS.find((p) => p.prefix === prefix)?.namespace;
+
+  const DOCUMENT = [
+    'PREFIX ex: <http://example.org/>',
+    '',
+    'DATA { ex:alice <http://xmlns.com/foaf/0.1/knows> ex:bob }',
+    '',
+    'RULE { ?x <http://example.org/ancestor> ?z }',
+    'WHERE { ?x ex:parent ?y . ?y ex:parent ?z }',
+  ].join('\n');
+
+  it('shortens IRIs in a rule head and in a DATA block', () => {
+    const result = toPrefixedNames(DOCUMENT, SRL_PAIRS, SRL);
+
+    expect(result.converted).toBe(2);
+    expect(result.text).toContain('DATA { ex:alice foaf:knows ex:bob }');
+    expect(result.text).toContain('RULE { ?x ex:ancestor ?z }');
+    expect(result.text).toContain('PREFIX foaf: <http://xmlns.com/foaf/0.1/>');
+  });
+
+  it('expands every prefixed name and sweeps the declaration it emptied', () => {
+    const result = toFullIris(DOCUMENT, srlNamespaceFor, SRL);
+
+    expect(result.text).toContain('<http://example.org/alice> <http://xmlns.com/foaf/0.1/knows>');
+    expect(result.text).toContain('?x <http://example.org/parent> ?y');
+    expect(result.removed).toEqual([{ prefix: 'ex', namespace: 'http://example.org/' }]);
+  });
+
+  /*
+   * From a document already written in prefixed names, so the trip has a fixed
+   * point to come back to. `DOCUMENT` above deliberately mixes the two forms,
+   * and contracting it yields something shorter than it started as — correct,
+   * but not a round trip.
+   */
+  it('round-trips a whole rule set', () => {
+    const prefixed = [
+      'PREFIX ex: <http://example.org/>',
+      'PREFIX foaf: <http://xmlns.com/foaf/0.1/>',
+      '',
+      'DATA { ex:alice foaf:knows ex:bob }',
+      '',
+      'RULE { ?x ex:ancestor ?z }',
+      'WHERE { ?x ex:parent ?y . ?y ex:parent ?z }',
+    ].join('\n');
+
+    const expanded = toFullIris(prefixed, srlNamespaceFor, SRL);
+    const back = toPrefixedNames(expanded.text, SRL_PAIRS, SRL);
+
+    expect(expanded.text).not.toContain('ex:');
+    expect(back.text.trim()).toBe(prefixed.trim());
+  });
+
+  /*
+   * The hazard the buttons were held back for. `SET ( ?k := 1 )` is an
+   * assignment, not a prefixed name, and a walk that read it as one would
+   * write `?k <http://example.org/>= 1` — a document that no longer parses.
+   */
+  it('leaves an assignment operator alone in both directions', () => {
+    const text = 'PREFIX ex: <http://example.org/>\nRULE { ?x ex:b ?k } WHERE { SET ( ?k := 1 ) }';
+
+    expect(toFullIris(text, srlNamespaceFor, SRL).text).toContain('SET ( ?k := 1 )');
+    expect(toPrefixedNames(text, SRL_PAIRS, SRL).text).toContain('SET ( ?k := 1 )');
+  });
+
+  it('converts the terms of a TUPLE, in a head and in a body', () => {
+    const text = [
+      'PREFIX ex: <http://example.org/>',
+      'RULE { TUPLE(ex:a, ?b) } WHERE { TUPLE(<http://example.org/c>, ?b) }',
+    ].join('\n');
+
+    expect(toPrefixedNames(text, SRL_PAIRS, SRL).text).toContain('TUPLE(ex:c, ?b)');
+    expect(toFullIris(text, srlNamespaceFor, SRL).text)
+      .toContain('TUPLE(<http://example.org/a>, ?b)');
+  });
+
+  it('reaches inside a NOT DATA block', () => {
+    const text = 'PREFIX ex: <http://example.org/>\nRULE { ?x ex:f true } WHERE { NOT DATA { ?x ex:ok ?o } }';
+
+    expect(toFullIris(text, srlNamespaceFor, SRL).text).toContain('NOT DATA { ?x <http://example.org/ok> ?o }');
+  });
+
+  it('leaves IRIs in comments and string literals alone', () => {
+    const text = [
+      'PREFIX ex: <http://example.org/>',
+      '# see <http://example.org/spec>',
+      'RULE { ?x ex:f "<http://example.org/lit>" } WHERE { ?x ex:ok ?o }',
+    ].join('\n');
+    const expanded = toFullIris(text, srlNamespaceFor, SRL).text;
+
+    expect(expanded).toContain('# see <http://example.org/spec>');
+    expect(expanded).toContain('"<http://example.org/lit>"');
   });
 });

@@ -309,8 +309,9 @@ test.describe('Rule set SRL authoring', () => {
     await page.locator('[data-testid="stratification-tab"]').click();
     const pane = page.locator('[data-testid="rules-stratification"]');
     await expect(pane).toContainText('2 rules · 2 strata');
-    await expect(page.locator('[data-testid="stratification-verdict"]'))
-      .toContainText(/no cycles through negation/i);
+    // A document that stratifies says so by saying nothing: the verdict chip
+    // is only for the failure.
+    await expect(page.locator('[data-testid="stratification-verdict"]')).toHaveCount(0);
   });
 
   test('previews an unchanged document as a no-op', async ({ page }) => {

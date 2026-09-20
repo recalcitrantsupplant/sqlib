@@ -32,6 +32,7 @@ import { EditorView } from '@codemirror/view';
 import { DATA_GRAPH_FORMATS, type DataGraphFormat, type DataGraphOption, type TupleSetOption } from '@/types/data-graphs';
 import PrefixConversionButtons from '@/components/shared/PrefixConversionButtons.vue';
 import SearchSelect from '@/components/shared/SearchSelect.vue';
+import SegmentedToggle, { type SegmentedOption } from '@/components/shared/SegmentedToggle.vue';
 import SectionLabel from '@/components/shared/SectionLabel.vue';
 
 const HEADER_HELP = 'A rule set defines rules. Named tuples and a data graph are what you run it '
@@ -109,6 +110,21 @@ const emit = defineEmits<{
   (e: 'open-tuple-set', tupleSetId: string): void;
   (e: 'open-data-graph', graphId: string): void;
 }>();
+
+/*
+ * Saved or inline, for each block. Same two words, same control, two subjects —
+ * so the options are spelled once per block and differ only in what their
+ * titles promise.
+ */
+const TUPLE_SOURCES: readonly SegmentedOption[] = [
+  { value: 'saved', label: 'Saved', title: 'Use a tuple set saved under Tuples', testId: 'tuples-source-saved' },
+  { value: 'inline', label: 'Inline', title: 'Type rows here without saving them', testId: 'tuples-source-inline' },
+];
+
+const DATA_SOURCES: readonly SegmentedOption[] = [
+  { value: 'saved', label: 'Saved', title: 'Pick a saved data graph', testId: 'data-source-saved' },
+  { value: 'inline', label: 'Inline', title: 'Type triples here without saving them', testId: 'data-source-inline' },
+];
 
 const tupleSource = defineModel<InputSource>('tupleSource', { default: 'inline' });
 const tupleSetVersionId = defineModel<string | null>('tupleSetVersionId', { default: null });
@@ -244,26 +260,13 @@ const onDataInput = (value: string) => {
         </header>
 
         <div class="block-controls">
-          <div class="mode-toggle" role="group" aria-label="Named tuples source">
-            <button
-              class="mode"
-              type="button"
-              :class="{ on: tupleSource === 'saved' }"
-              :aria-pressed="tupleSource === 'saved'"
-              data-testid="tuples-source-saved"
-              title="Use a tuple set saved under Tuples"
-              @click="tupleSource = 'saved'"
-            >Saved</button>
-            <button
-              class="mode"
-              type="button"
-              :class="{ on: tupleSource === 'inline' }"
-              :aria-pressed="tupleSource === 'inline'"
-              data-testid="tuples-source-inline"
-              title="Type rows here without saving them"
-              @click="tupleSource = 'inline'"
-            >Inline</button>
-          </div>
+          <SegmentedToggle
+            :model-value="tupleSource"
+            size="default"
+            group-label="Named tuples source"
+            :options="TUPLE_SOURCES"
+            @update:model-value="(value) => (tupleSource = value as InputSource)"
+          />
 
           <template v-if="tupleSource === 'saved'">
             <SearchSelect
@@ -326,26 +329,13 @@ const onDataInput = (value: string) => {
         </header>
 
         <div class="block-controls">
-          <div class="mode-toggle" role="group" aria-label="Data graph source">
-            <button
-              class="mode"
-              type="button"
-              :class="{ on: dataSource === 'saved' }"
-              :aria-pressed="dataSource === 'saved'"
-              data-testid="data-source-saved"
-              title="Pick a saved data graph"
-              @click="dataSource = 'saved'"
-            >Saved</button>
-            <button
-              class="mode"
-              type="button"
-              :class="{ on: dataSource === 'inline' }"
-              :aria-pressed="dataSource === 'inline'"
-              data-testid="data-source-inline"
-              title="Type triples here without saving them"
-              @click="dataSource = 'inline'"
-            >Inline</button>
-          </div>
+          <SegmentedToggle
+            :model-value="dataSource"
+            size="default"
+            group-label="Data graph source"
+            :options="DATA_SOURCES"
+            @update:model-value="(value) => (dataSource = value as InputSource)"
+          />
 
           <template v-if="dataSource === 'saved'">
             <SearchSelect
@@ -540,38 +530,17 @@ const onDataInput = (value: string) => {
 }
 
 /*
- * A mode switch, not a primary control: no border, no fill on the inactive
- * side, and a pale chip on the active one. It changes where the rows come
- * from; it is not the thing you came to the tab to press.
+ * Saved / Inline is `SegmentedToggle`, not a pair of borderless buttons.
+ *
+ * It was drawn as "a mode switch, not a primary control": no border, no fill
+ * on the inactive side. The cost of that restraint was that the side you are
+ * *not* on looked like a caption — nothing said the word was pressable, so the
+ * control read as a label with one chip beside it rather than as a choice
+ * between two things.
  */
-.mode-toggle {
-  display: inline-flex;
-  flex-shrink: 0;
-  gap: 2px;
-}
-
-.mode {
-  display: inline-flex;
-  align-items: center;
-  height: 20px;
-  padding: 0 var(--space-3);
-  border: none;
-  border-radius: var(--radius);
-  background: transparent;
-  color: var(--ink-muted);
-  font-family: inherit;
-  font-size: var(--text-label);
-  cursor: pointer;
-}
-
-.mode.on {
-  background: var(--surface-sunken);
-  color: var(--ink);
-  font-weight: var(--weight-semibold);
-}
 
 .format-picker {
-  height: var(--control-h-sm);
+  height: var(--control-h);
   padding: 0 var(--space-3);
   border: 1px solid var(--border-default);
   border-radius: var(--radius);
@@ -595,13 +564,19 @@ const onDataInput = (value: string) => {
   min-width: var(--grid-3);
 }
 
+/*
+ * Everything in this row sits on one step of the control grid — the default
+ * 28px, not the 22px inline step. The row is a section toolbar, not in-table
+ * chrome, and the mixture was visible: Save to Data came out shorter than the
+ * prefix buttons beside it and read as a different class of control.
+ */
 .icon-button {
   display: inline-flex;
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  width: var(--control-h-sm);
-  height: var(--control-h-sm);
+  width: var(--control-h);
+  height: var(--control-h);
   border: 1px solid var(--border-default);
   border-radius: var(--radius);
   background: var(--surface);
@@ -629,7 +604,7 @@ const onDataInput = (value: string) => {
   flex-shrink: 0;
   align-items: center;
   gap: var(--space-3);
-  height: var(--control-h-sm);
+  height: var(--control-h);
   padding: 0 var(--space-4);
   border: 1px solid var(--border-default);
   border-radius: var(--radius);

@@ -36,13 +36,12 @@
  * holding, and a language with no grammar of its own gets no buttons — see
  * `prefixGrammarFor`.
  *
- * SRL now has one (`@kurrawongai/codemirror-lang-srl`, issue #157), and it lexes
- * `:=` as a single token. Its buttons are still off, but the reason has changed.
- * It used to be that the SRL grammar named its nodes differently from SPARQL's;
- * the three published grammars share one vocabulary, so this walk would read an
- * SRL document today. What is still missing is the round-trip evidence — the
- * corpus in `test/lib/prefixRewrite.test.ts` covers Turtle and SPARQL — so
- * turning the buttons on is a change with its own tests, not a line here.
+ * SRL now has one (`@kurrawongai/codemirror-lang-srl`, issue #157), it lexes
+ * `:=` as a single token, and the three published grammars share one node
+ * vocabulary — so this walk reads an SRL document as it reads a query. The
+ * round-trip corpus in `test/lib/prefixRewrite.test.ts` covers it: rule heads
+ * and bodies, DATA and NOT DATA blocks, `TUPLE( … )` terms, and the assignment
+ * that was the original hazard. The rules editor has the buttons.
  *
  * WHY THE DOCUMENT'S OWN DECLARATIONS WIN. A query that declares
  * `PREFIX foaf: <http://example.org/local/>` means that, whatever the prefix

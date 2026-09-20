@@ -99,11 +99,14 @@ describe('the media type to grammar mapping', () => {
 
   it('offers a rewrite grammar only where the walk can read one', () => {
     // Deliberately narrower than the highlighting: highlighting may be
-    // approximate, a rewrite may not. The stream-mode formats build no tree.
+    // approximate, a rewrite may not. The stream-mode formats build no tree,
+    // and a language whose grammar is only *close* gets none — which is what
+    // SRL used to be, before it had one of its own.
     expect(prefixGrammarFor('text/turtle')).not.toBeNull();
     expect(prefixGrammarFor('application/sparql-query')).not.toBeNull();
+    expect(prefixGrammarFor('application/srl')).not.toBeNull();
     expect(prefixGrammarFor('application/n-triples')).toBeNull();
-    expect(prefixGrammarFor('application/srl')).toBeNull();
+    expect(prefixGrammarFor('application/n-quads')).toBeNull();
   });
 });
 

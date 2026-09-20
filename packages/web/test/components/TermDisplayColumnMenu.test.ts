@@ -62,7 +62,7 @@ const closeMenus = async (wrapper: VueWrapper) => {
   }
 };
 
-/** The abbreviated terms on screen, ignoring what the hover popovers carry. */
+/** The terms on screen, in the form their column is currently rendering. */
 const cellTerms = (wrapper: VueWrapper) =>
   wrapper
     .findAll('td .term-cell')
@@ -70,7 +70,6 @@ const cellTerms = (wrapper: VueWrapper) =>
 
 describe('per-column term display', () => {
   const initialPrefixSettings = {
-    showTooltips: true,
     duplicateResolution: 'longest',
     mappings: [
       {
@@ -139,7 +138,8 @@ describe('per-column term display', () => {
     await openMenu(wrapper, 's');
     await wrapper.find('[data-testid="term-display-full"]').trigger('click');
     await nextTick();
-    await openMenu(wrapper, 's');
+    // The buttons leave the menu open — they are a control with a current
+    // value, and flipping between the two forms to compare them is the point.
     await wrapper.find('[data-testid="term-display-apply-all"]').trigger('click');
     await nextTick();
 
@@ -216,10 +216,14 @@ describe('per-column term display', () => {
       'ex:object',
     ]);
 
-    // The copy button in a still-abbreviated cell's popover yields the full IRI.
-    const popover = wrapper.find('[data-testid="term-iri-popover"]');
-    expect(popover.find('code').text()).toBe('http://example.org/subject');
-    await popover.find('button').trigger('click');
+    /*
+     * The IRI behind an abbreviated cell is no longer revealed by a hover
+     * popover — the type badge copies it, whichever form the cell is showing,
+     * and a column that should *read* as full IRIs is switched to them above.
+     */
+    expect(wrapper.find('[data-testid="term-iri-popover"]').exists()).toBe(false);
+    const badge = wrapper.findAll('td .term-cell button').at(0)!;
+    await badge.trigger('click');
     expect(mockCopyToClipboard).toHaveBeenCalledWith(
       'http://example.org/subject',
       'Copied IRI to clipboard',
