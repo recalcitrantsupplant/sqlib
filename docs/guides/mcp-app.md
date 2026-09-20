@@ -112,12 +112,38 @@ a View problem.
 
 ### 3. A real client
 
-Point any Apps-capable MCP client (Claude, ChatGPT, VS Code, Goose) at the
-server as described in [mcp-clients.md](mcp-clients.md). The server checks
-`capabilities.extensions["io.modelcontextprotocol/ui"]` on `initialize`: a
-client that does not advertise it gets the catalogue with no `_meta.ui` at all
-and behaves exactly as it did before this existed. Rendering is up to each
-host, and support differs between them — which is why the harness exists.
+The server checks `capabilities.extensions["io.modelcontextprotocol/ui"]` on
+`initialize`: a client that does not advertise it gets the catalogue with no
+`_meta.ui` at all and behaves exactly as it did before this existed. Whether a
+client that *does* advertise it actually paints the View is that host's
+business, and support differs between them — which is why the harness exists.
+
+Both transports publish the same thing. Over stdio, `resources/list` returns
+`ui://sqlib/bench` and `ui://sqlib/result` with the MCP Apps MIME type, and
+`tools/list` marks the three UI-bound tools, exactly as the HTTP door does.
+
+**Desktop clients that take a local command (stdio).** Nothing to configure
+beyond [the stdio block in mcp-clients.md](mcp-clients.md#client-configuration)
+— no certificates, no ports. `dist/cli.js` needs `pnpm build` first (the Views
+live in `packages/mcp-app/dist`, so a partial build leaves the server unable to
+start).
+
+**Desktop clients that take a URL.** Several require HTTPS and refuse a plain
+`http://localhost` endpoint. The repository already has the answer:
+
+```bash
+just setup-local-https     # once: mkcert installs a local CA and issues a cert
+just run-local-https       # API + MCP behind Traefik on :3443
+```
+
+Then give the client `https://localhost:3443/mcp`. `mkcert -install` puts the
+CA in the system trust store, so a desktop app that uses the OS store trusts it
+without a flag. If the client rejects `localhost` itself — some insist on a
+public hostname — a tunnel (`cloudflared tunnel --url https://localhost:3443`)
+gives you one, but read the warning below first: **`/mcp` has no
+authentication**, so a public tunnel exposes every library on the server and
+every backend it can reach, to anyone with the URL. Keep it short-lived, or run
+the server with `SQLIB_AUTH_MODE=required` before opening it.
 
 ### Editing a View
 

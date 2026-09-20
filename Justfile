@@ -52,6 +52,7 @@ run-local-https:
         echo "Missing certificates. Run: just setup-local-https" >&2; \
         exit 1; \
     fi
+    pnpm --filter "@sparql-query-lib/tools..." --filter "@sparql-query-lib/rdf-delta..." --filter "@sparql-query-lib/mcp-app..." build
     OTEL_ENABLED="${OTEL_ENABLED:-false}" HTTP_PORT=3300 HTTP_HOST=0.0.0.0 \
         pnpm --filter @sparql-query-lib/mcp-server dev:dual-http & \
     app_pid=$!; \
