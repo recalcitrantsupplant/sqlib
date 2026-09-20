@@ -1,5 +1,5 @@
 <template>
-  <div class="segmented" role="group" :aria-label="groupLabel">
+  <div class="segmented" :class="`is-${size}`" role="group" :aria-label="groupLabel">
     <button
       v-for="option in options"
       :key="String(option.value)"
@@ -32,6 +32,12 @@
  * The canonical spec here is the 28px-grid one: `--control-h-sm`,
  * `--radius-sm`, `--text-label`.
  *
+ * `size` is the one thing a caller may vary, and it is a step on that grid
+ * rather than a new spec: `sm` (22px) for a control among in-table chrome,
+ * `default` (28px) for one standing in a toolbar with full-height controls
+ * beside it, where 22px reads as a mistake. Everything else — radius, type,
+ * the selected fill — is the same control at both sizes.
+ *
  * Use it where the options are few, fixed, and worth reading at a glance — a
  * `<select>` is right as soon as they are many or open-ended.
  */
@@ -44,7 +50,7 @@ export interface SegmentedOption {
   testId?: string;
 }
 
-defineProps<{
+withDefaults(defineProps<{
   modelValue: string;
   /** `readonly` so a caller can declare its options `as const` and keep the literal types. */
   options: readonly SegmentedOption[];
@@ -59,7 +65,9 @@ defineProps<{
   groupLabel: string;
   /** Locks the whole control — a choice that is settled rather than unavailable. */
   disabled?: boolean;
-}>();
+  /** Which step of the control grid this sits on. See the note above. */
+  size?: 'sm' | 'default';
+}>(), { size: 'sm' });
 
 defineEmits<{ (e: 'update:modelValue', value: string): void }>();
 </script>
@@ -83,6 +91,10 @@ defineEmits<{ (e: 'update:modelValue', value: string): void }>();
   font-size: var(--text-label);
   white-space: nowrap;
   cursor: pointer;
+}
+
+.is-default .segment {
+  height: var(--control-h);
 }
 
 .segment + .segment {

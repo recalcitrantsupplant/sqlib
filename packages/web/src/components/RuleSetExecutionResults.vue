@@ -31,7 +31,7 @@
         response — one row, and only where a response exists. The run facts are
         in the footer below.
       -->
-      <div class="results-action-bar">
+      <ResultsActionBar>
         <SegmentedToggle
           v-model="viewMode"
           :options="viewOptions"
@@ -64,7 +64,7 @@
           placeholder="Filter triples…"
           data-testid="results-graph-filter"
         />
-        <div class="action-bar-right">
+        <template #actions>
           <button
             v-if="hasDownloadableContent"
             type="button"
@@ -85,8 +85,8 @@
           >
             <Expand :size="14" />
           </button>
-        </div>
-      </div>
+        </template>
+      </ResultsActionBar>
 
       <RuleSetExecutionReplay
         v-if="viewMode === 'replay'"
@@ -322,44 +322,45 @@
           </template>
         </PanelHeader>
         <div class="focus-content">
-          <!-- Status and Controls Bar -->
-          <div class="focus-controls-bar">
-            <div class="focus-controls-left">
-              <Badge
-                :variant="statusVariant"
-                class="result-status"
-              >
-                <component :is="statusIcon" :size="14" />
-                {{ statusMessage }}
-              </Badge>
-            </div>
-            <div class="focus-controls-right">
-              <SegmentedToggle
-                v-model="viewMode"
-                :options="viewOptions"
-                group-label="Rule set results view"
+          <!--
+            The status, then the same bar the panel carries inline. It used to
+            be a second bar with its own class names, which is how it lost every
+            style that is written as a descendant of the real one.
+          -->
+          <div class="status-section">
+            <Badge :variant="statusVariant" class="result-status">
+              <component :is="statusIcon" :size="14" />
+              {{ statusMessage }}
+            </Badge>
+          </div>
+
+          <ResultsActionBar>
+            <SegmentedToggle
+              v-model="viewMode"
+              :options="viewOptions"
+              group-label="Rule set results view"
+            />
+            <label
+              v-if="hasTuples && viewMode === 'summary'"
+              class="tuples-toggle"
+              :class="{ on: showTuples }"
+              :title="showTuples ? 'Hide the tuple store changes rules made' : 'Show the tuple store changes rules made'"
+            >
+              <input
+                type="checkbox"
+                :checked="showTuples"
+                @change="showTuples = ($event.target as HTMLInputElement).checked"
               />
-              <label
-                v-if="hasTuples && viewMode === 'summary'"
-                class="tuples-toggle"
-                :class="{ on: showTuples }"
-                :title="showTuples ? 'Hide the tuple store changes rules made' : 'Show the tuple store changes rules made'"
-              >
-                <input
-                  type="checkbox"
-                  data-testid="results-tuples-toggle"
-                  :checked="showTuples"
-                  @change="showTuples = ($event.target as HTMLInputElement).checked"
-                />
-                <Table2 :size="14" />
-                Show Tuple Store Changes
-              </label>
-              <Input
-                v-if="viewMode === 'graph'"
-                v-model="graphFilter"
-                class="results-filter"
-                placeholder="Filter triples…"
-              />
+              <Table2 :size="14" />
+              Show Tuple Store Changes
+            </label>
+            <Input
+              v-if="viewMode === 'graph'"
+              v-model="graphFilter"
+              class="results-filter"
+              placeholder="Filter triples…"
+            />
+            <template #actions>
               <button
                 v-if="hasDownloadableContent"
                 type="button"
@@ -370,8 +371,8 @@
                 <Download :size="14" />
                 <span class="btn-action-label">Inference graph</span>
               </button>
-            </div>
-          </div>
+            </template>
+          </ResultsActionBar>
 
           <RuleSetExecutionReplay
             v-if="viewMode === 'replay'"
@@ -586,6 +587,7 @@ import RdfContentViewer from './RdfContentViewer.vue';
 import RuleSetExecutionReplay from './rules/RuleSetExecutionReplay.vue';
 import EmptyState from './shared/EmptyState.vue';
 import PanelHeader from './shared/PanelHeader.vue';
+import ResultsActionBar from './shared/ResultsActionBar.vue';
 import ResultsFooter from './shared/ResultsFooter.vue';
 import SectionLabel from './shared/SectionLabel.vue';
 import SegmentedToggle from './shared/SegmentedToggle.vue';
@@ -1546,28 +1548,7 @@ const downloadInferenceGraph = () => {
   }
 }
 
-.focus-controls-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 0 0 var(--space-6) 0;
-  flex-wrap: wrap;
-}
 
-.focus-controls-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.focus-controls-right {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
-}
 
 .btn-icon {
   padding: var(--space-3);

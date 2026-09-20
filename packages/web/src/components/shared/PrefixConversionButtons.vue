@@ -27,7 +27,7 @@
       class="bar-button"
       data-testid="iri-unfold-button"
       :disabled="disabled"
-      title="Expand every prefixed name to its full IRI, removing the declarations left naming nothing"
+      title="Expand every prefixed name to its full IRI"
       @click="unfold"
     >
       <IriUnfoldIcon :size="13" />

@@ -64,6 +64,8 @@ describe('usePrefixManager', () => {
 
   it('should load and save settings from localStorage', async () => {
     const initialSettings = {
+      // A key from an older build. Nothing reads it any more, and the load
+      // must not carry it back into the settings the app then saves.
       showTooltips: false,
       duplicateResolution: 'longest',
       mappings: [
@@ -77,12 +79,12 @@ describe('usePrefixManager', () => {
 
     // `enabled` is managed by useSettings (defaults true) and is no longer part of prefixSettings.
     expect(enabled.value).toBe(true);
-    expect(prefixSettings.value.showTooltips).toBe(false);
+    expect('showTooltips' in prefixSettings.value).toBe(false);
     expect(prefixSettings.value.mappings).toHaveLength(initialSettings.mappings.length + DEFAULT_PREFIXES.length); // User-added + defaults
     expect(prefixSettings.value.mappings).toEqual(expect.arrayContaining([expect.objectContaining({ prefix: 'ex' })]));
 
     // Mutating prefix settings should persist to localStorage.
-    prefixSettings.value.showTooltips = true;
+    prefixSettings.value.mappings = [...prefixSettings.value.mappings];
     await nextTick();
     expect(localStorage.setItem).toHaveBeenCalledWith('sparqlQueryLib.prefixSettings', JSON.stringify(prefixSettings.value));
   });

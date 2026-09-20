@@ -8,7 +8,7 @@
  *
  * Features:
  * - Prefixed names by default, switched per column from the header menu
- * - Hover a cell to read the full IRI and copy it
+ * - The type badge copies the full IRI, whichever form the cell is showing
  * - Type badges (IRI, Literal, BNode)
  * - Datatype and language tag display
  * - Copy to clipboard functionality
@@ -20,7 +20,6 @@ import type { SparqlBindingValue } from '@sparql-query-lib/types';
 import DataTable from '@/components/ui/table/DataTable.vue';
 import type { DataTableState } from '@/composables/useDataTable';
 import InlinePrefixAdder from '@/components/shared/InlinePrefixAdder.vue';
-import TermIriPopover from '@/components/shared/TermIriPopover.vue';
 import TermDisplayMenuItems from '@/components/shared/TermDisplayMenuItems.vue';
 import { usePrefixManager } from '@/composables/usePrefixManager';
 import { useTermDisplay, type TermDisplayMode } from '@/composables/useTermDisplay';
@@ -139,13 +138,12 @@ const renderCell = (
     if (prefixed && (binding.startsWith('http://') || binding.startsWith('https://'))) {
       const result = abbreviateIri(binding);
       if (result.wasAbbreviated) {
-        return h('span', { class: 'term-cell group relative flex items-center' }, [
+        return h('span', { class: 'term-cell flex items-center' }, [
           h(
             'code',
             { class: 'text-xs font-mono break-words rounded bg-muted px-1.5 py-0.5' },
             result.abbreviated,
           ),
-          h(TermIriPopover, { fullIri: result.fullIri, typeLabel: 'IRI' }),
         ]);
       }
     }
@@ -215,7 +213,7 @@ const renderCell = (
     supplementary.push(`lang:${term['xml:lang']}`);
   }
 
-  return h('div', { class: 'term-cell group relative flex flex-col gap-1' }, [
+  return h('div', { class: 'term-cell flex flex-col gap-1' }, [
     h('div', { class: `flex justify-between gap-2 ${supplementary.length > 0 ? 'items-center' : 'items-start'}` }, [
       h(
         'code',
@@ -260,7 +258,6 @@ const renderCell = (
         ],
       ),
     ]),
-    fullIri ? h(TermIriPopover, { fullIri, typeLabel }) : null,
   ]);
 };
 
