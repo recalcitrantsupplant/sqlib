@@ -89,7 +89,7 @@ export function buildBenchmarkContractDefinition(
     definition: `{
   id: iriString,
   definedBy: iriString,
-  structure: iriString,
+  structure: optionalIriString,
   name: nullableString,
   description: nullableString,
   runStatus: z.string(),
@@ -108,6 +108,12 @@ export function buildBenchmarkContractDefinition(
      * `unrecognized_keys` on every real run. Written out by hand for the same
      * reason as the shape above: this builder is string literals, not a
      * projection.
+     *
+     * `structure` is optional here where the model has it required, because
+     * this shape reads responses rather than writing them: a run record
+     * stored without the predicate would otherwise throw on arrival and empty
+     * the list it was filling, which is the failure this whole field set was
+     * added to fix.
      */
     comment: 'Reusable field definitions for BenchmarkRun',
   });

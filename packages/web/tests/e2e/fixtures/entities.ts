@@ -503,6 +503,9 @@ export const BENCHMARK_VERSION = {
 
 export const BENCHMARK_RUN = {
   id: 'urn:sqlib:benchmark-run:visual',
+  // What the runner stamps on every run it writes: the data structure
+  // definition its observations are shaped by (`BenchmarkRunner.ts`).
+  structure: 'https://sparql-query-lib/BenchmarkObservationDSD',
   definedBy: BENCHMARK_VERSION.id,
   runStatus: 'completed',
   tasksTotal: 3,

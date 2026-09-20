@@ -81,7 +81,7 @@ const benchmarkExperimentVersionShape = {
 const benchmarkRunShape = {
   id: iriString,
   definedBy: iriString,
-  structure: iriString,
+  structure: optionalIriString,
   name: nullableString,
   description: nullableString,
   runStatus: z.string(),
