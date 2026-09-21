@@ -183,10 +183,21 @@ added later is refused until someone decides otherwise. The exceptions are the
 routes that compute an answer and store nothing: `/detect-inputs`,
 `/detect-outputs`, `/validate`, `/validate-rule-data`, `/format`, `/substitute`,
 `/execute`, `/sparql`, the SRL compile, analyse and preview routes, the rule and
-rule-set execution routes, and the tuple-set preview. The list lives in
-`packages/api/src/config/readOnly.ts`, and a test fails on an entry that names
-no registered route as well as on a mutating route that is neither listed nor
-refused.
+rule-set execution routes, the tuple-set preview, the two test-run routes, and
+`/mcp`. The list lives in `packages/api/src/config/readOnly.ts`, and a test
+fails on an entry that names no registered route, on a mutating route that is
+neither listed nor refused, and on one of these exceptions losing its way back.
+
+Two of those exceptions are worth their own sentence:
+
+- **Running a test is compute; its history is the write.** `POST /tests/run`
+  and `POST /tests/:id/run` answer with a verdict, and `recordTestRuns` files
+  nothing on a read-only deployment, so no run history accumulates — the same
+  line `?record=patch` draws for SPARQL.
+- **`/mcp` is all POST**, so refusing it would take every tool, reads included,
+  off a read-only deployment. Admitting it opens no write path: a tool call
+  reaches its route through `app.inject` and meets the same hook there, so a
+  mutation tool is refused at the inner route.
 
 Three things it deliberately does **not** do:
 

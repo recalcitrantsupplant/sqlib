@@ -51,7 +51,14 @@ export const MUTATING_METHODS: readonly string[] = ['POST', 'PUT', 'PATCH', 'DEL
  * - `POST /etl-jobs/preview` and `POST /playground/etl/execute` take arbitrary
  *   DuckDB SQL, a host filesystem read primitive. Their own flags default off;
  *   this makes turning a flag on insufficient to expose them here too.
- * - `POST /tests/:id/run` and the benchmark runs record what they did.
+ * - The benchmark runs record what they did.
+ *
+ * `POST /tests/run` and `POST /tests/:id/run` are here, and the recording they
+ * used to do is skipped instead: `recordTestRuns` returns without writing on a
+ * read-only deployment. The verdict is computed before anything is filed
+ * (`routes/tests.ts`), so this is the same separation `?record=patch` draws for
+ * SPARQL — executing is compute, keeping the history is a write. A visitor gets
+ * the verdict and no run is kept, which is what the refusal already promises.
  */
 export const STATELESS_ROUTES: readonly string[] = [
   '/detect-inputs',
@@ -73,9 +80,26 @@ export const STATELESS_ROUTES: readonly string[] = [
   '/rule-sets/:id/execute/stream',
   '/tuple-sets/detect-format',
   '/tuple-sets/preview',
+  '/tests/run',
+  '/tests/:id/run',
 ];
 
-const allowed = new Set(STATELESS_ROUTES);
+/**
+ * Allowlisted routes that belong to another package's Fastify app.
+ *
+ * Separate from `STATELESS_ROUTES` because `readOnly.routes.test.ts` walks the
+ * API's own route table and fails on an entry nothing there serves — these
+ * would read as rot when they are simply registered elsewhere.
+ *
+ * `/mcp` is the streamable-HTTP transport (`packages/mcp-server/src/http-server.ts`),
+ * which is all POST: refusing it takes every tool off a read-only deployment,
+ * reads included. Admitting it opens no write path, because a mutation tool
+ * reaches its route through `app.inject` and meets this same `onRequest` hook
+ * there — the inner route is refused, so the tool call is.
+ */
+export const EXTERNAL_STATELESS_ROUTES: readonly string[] = ['/mcp'];
+
+const allowed = new Set([...STATELESS_ROUTES, ...EXTERNAL_STATELESS_ROUTES]);
 
 /**
  * Fastify registers a plugin's `'/'` route under both `/prefix` and

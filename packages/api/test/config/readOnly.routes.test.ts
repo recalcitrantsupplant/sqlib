@@ -19,6 +19,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { setupValidator } from '../../src/lib/validator-setup.js';
 import * as schemas from '@sparql-query-lib/contracts/schema';
 import {
+  EXTERNAL_STATELESS_ROUTES,
   MUTATING_METHODS,
   STATELESS_ROUTES,
   isRefusedWhenReadOnly,
@@ -141,6 +142,41 @@ describe('the read-only route table', () => {
       const [method, url] = route.split(' ');
       expect(isRefusedWhenReadOnly(method, url), `${route} should be admitted`).toBe(false);
     }
+  });
+
+  /*
+   * The other direction, and the one issue #26 was about: this file walked the
+   * table for refusals only, so a route that *should* answer on a read-only
+   * deployment and does not reads as the gate working. Running a test and
+   * reaching MCP were both refused through a green CI that way.
+   */
+  it('keeps the routes a read-only deployment must still answer', () => {
+    for (const route of [
+      // A verdict is compute; the run history is the write, and
+      // `recordTestRuns` is what declines it. See `TestRunStore`.
+      'POST /tests/run',
+      'POST /tests/:id/run',
+      // All of MCP is POST /mcp, so refusing it removes every tool.
+      'POST /mcp',
+      'GET /mcp',
+      'DELETE /mcp',
+    ]) {
+      const [method, url] = route.split(' ');
+      expect(isRefusedWhenReadOnly(method, url), `${route} should be reachable`).toBe(false);
+    }
+  });
+
+  it('keeps the external allowlist for routes this table does not serve', () => {
+    // An entry this table does serve belongs in `STATELESS_ROUTES`, where the
+    // rot check above covers it. `EXTERNAL_STATELESS_ROUTES` is exempt from
+    // that check, so it must not collect entries the check would have covered.
+    const registered = new Set(
+      routes
+        .filter(route => MUTATING_METHODS.includes(route.method.toUpperCase()))
+        .map(route => normalizeRouteUrl(route.url))
+    );
+    const misplaced = EXTERNAL_STATELESS_ROUTES.filter(entry => registered.has(entry));
+    expect(misplaced).toEqual([]);
   });
 
   it('leaves reads alone', () => {

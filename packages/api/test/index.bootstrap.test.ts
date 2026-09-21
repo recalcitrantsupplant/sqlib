@@ -279,6 +279,23 @@ describe('index bootstrap', () => {
       }),
     }));
 
+    /*
+     * The payload carrying `readOnly` is not enough: Fastify serialises a
+     * response against its schema and drops what the schema does not declare,
+     * which is how a read-only deployment reported itself as writable and the
+     * SPA went on offering Save (issue #26). So the declaration is what this
+     * asserts, on both the ready and the not-ready response.
+     */
+    const healthSchema = hoisted.app!.get.mock.calls.find(([path]) => path === '/health')?.[1]
+      ?.schema?.response as Record<string, any>;
+    for (const status of [200, 503]) {
+      expect(healthSchema[status].properties.readOnly, `${status} declares readOnly`).toEqual({
+        type: 'boolean',
+      });
+      expect(healthSchema[status].required).toContain('readOnly');
+    }
+    expect(healthReply.send.mock.calls[0][0]).toHaveProperty('readOnly', false);
+
     const metricsReply = {
       send: vi.fn(),
     };
