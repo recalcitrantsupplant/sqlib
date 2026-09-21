@@ -11,7 +11,7 @@
  * told the tool "worked".
  */
 import { describe, expect, it } from 'vitest';
-import { tools, type ListedTool } from '@sparql-query-lib/tools';
+import { catalogueGuide, tools, type ListedTool } from '@sparql-query-lib/tools';
 import { views, renderView, canonicalUri, findView, APP_MIME_TYPE } from '@sparql-query-lib/mcp-app';
 import {
   advertisesUiExtension,
@@ -285,5 +285,32 @@ describe('caller authorization', () => {
   it('forwards nothing when the caller sent no token', () => {
     const ctx = { http: { req: new Request('https://example.org/mcp') } };
     expect(authorizationFromContext(ctx)).toBeUndefined();
+  });
+});
+
+/**
+ * A UI-bound tool has to say so in words.
+ *
+ * Hosts strip `_meta` before the model sees a result, so the binding itself is
+ * invisible to it: in one session the model reported that sqlib "exposes only
+ * one rendered UI" and missed the two result tables entirely, because only
+ * `app_bench_open` *looked* like a UI tool by name. The fix is not to rename
+ * `execute.run` — it is the execution tool for every caller — but to state the
+ * rendering in the description, which is the one channel that always reaches
+ * the model.
+ */
+describe('a rendering tool announces itself in text', () => {
+  it('says so in every UI-bound description', () => {
+    for (const tool of tools.filter((entry) => entry.ui)) {
+      expect(tool.description, tool.name).toContain('MCP Apps');
+    }
+  });
+
+  it('says so once in the session guide, naming each one', () => {
+    const guide = catalogueGuide((name) => name.replace(/[^a-zA-Z0-9_-]/g, '_'));
+    expect(guide).toContain('Rendered results');
+    for (const tool of tools.filter((entry) => entry.ui)) {
+      expect(guide, tool.name).toContain(tool.name.replace(/[^a-zA-Z0-9_-]/g, '_'));
+    }
   });
 });

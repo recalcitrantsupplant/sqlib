@@ -40,6 +40,15 @@ The bench is opened by a tool the model calls:
 
 `queryId` opens it on a saved query instead; `backendId` preselects a backend.
 
+**A rendering tool has to say so in words.** Hosts strip `_meta` before the
+model sees a result, so the binding is invisible to it — in one session the
+model reported that sqlib "exposes only one rendered UI" and missed both result
+tables, because only `app_bench_open` *looked* like a UI tool by name. The
+answer is not to rename `execute.run`, which is the execution tool for every
+caller: it is to state the rendering in the description and once in the session
+guide, which is the only channel that always reaches the model. A test asserts
+every UI-bound tool does both.
+
 What the bench does from there it does with the ordinary catalogue tools —
 `detection.validateQuery`, `detection.detectInputs`, `sparql.proxyQuery`,
 `execute.run`, `queries.create`, `queries.createVersion`, `dataGraphs.*`,

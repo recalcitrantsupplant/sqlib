@@ -47,6 +47,9 @@ Running
 - Saved argument sets (\`queries.listArgumentSets\`, \`argumentSets.get\`) hold reusable arguments; pass their ids as \`argumentSetIds\` instead of inline \`arguments\`.
 - \`sparql.proxyQuery\` runs ad-hoc SPARQL text against a backend without saving anything, with the same \`arguments\` mechanism.
 
+Rendered results
+- \`execute.run\` and \`sparql.proxyQuery\` return an interactive result table, and \`app.bench.open\` an editable query bench, in clients that render MCP Apps. Which tools do this is not visible to you — hosts strip the metadata that says so before you see a result — so it is stated here and in those three descriptions. When one renders, the user is already looking at the rows; summarise, do not reprint them.
+
 Typical flow: \`libraries.list\` → \`backends.list\` → \`detection.validateQuery\` → \`detection.detectInputs\` → \`queries.create\` → \`queries.createVersion\` → \`execute.run\`.`;
 
 /** Every backticked dotted token in the guide — tool names, and the odd non-tool. */

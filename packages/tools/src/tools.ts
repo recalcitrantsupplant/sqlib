@@ -403,7 +403,8 @@ export const tools: ToolDefinition[] = [
   // Execution
   defineTool({
     name: 'execute.run',
-    description: 'Run a query (targetId = query id, runs its currentVersion; backendId required) or a query group (no backendId). Fill parameter slots with arguments: one SPARQL-results-JSON entry per all-UNDEF VALUES clause, in order; limits/offsets by placeholder name.',
+    description:
+      'Run a query (targetId = query id, runs its currentVersion; backendId required) or a query group (no backendId). Fill parameter slots with arguments: one SPARQL-results-JSON entry per all-UNDEF VALUES clause, in order; limits/offsets by placeholder name. Results render as an interactive table where the client supports MCP Apps — prefer this over reprinting rows yourself.',
     readOnly: true,
     inputSchema: executionRequestArg,
     ui: { resourceUri: VIEW_URI.result },
@@ -413,7 +414,8 @@ export const tools: ToolDefinition[] = [
   // SPARQL proxy
   defineTool({
     name: 'sparql.proxyQuery',
-    description: 'Run ad-hoc SPARQL text against a backend (by backendId or endpoint URL) without saving it. Accepts the same arguments/limits/offsets as execute.run.',
+    description:
+      'Run ad-hoc SPARQL text against a backend (by backendId or endpoint URL) without saving it. Accepts the same arguments/limits/offsets as execute.run. Results render as an interactive table where the client supports MCP Apps — prefer this over reprinting rows yourself.',
     readOnly: true,
     inputSchema: sparqlRequestArg,
     ui: { resourceUri: VIEW_URI.result },
