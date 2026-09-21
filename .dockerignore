@@ -27,6 +27,14 @@ packages/web/tests
 **/*.test.js
 **/*.spec.ts
 **/*.spec.js
+
+# ...except under the web UI's source tree, where `tests` is a feature of the
+# product and not a test directory: packages/web/src/components/tests/ and
+# packages/web/src/pages/tests/ are the test-runs UI, imported by the home
+# page. Excluded, they take the web bundle image (Dockerfile.web) down with
+# three UNRESOLVED_IMPORT errors. The package's own suites live in
+# packages/web/test and packages/web/tests, which stay excluded above.
+!packages/web/src/**
 **/fuseki-test
 fuseki-test
 jest.config.js
@@ -45,6 +53,7 @@ coverage
 
 # Docker files themselves
 Dockerfile
+Dockerfile.*
 .dockerignore
 docker-compose*.yml
 

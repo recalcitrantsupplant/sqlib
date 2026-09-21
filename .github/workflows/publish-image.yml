@@ -1,4 +1,6 @@
-# Publish the server image (api + mcp-server) to GHCR.
+# Publish the two images to GHCR: the server (api + mcp-server), and the web
+# UI bundle — a carrier image holding the static site at /site, meant to be
+# copied out rather than run (see Dockerfile.web).
 # Thin: log in with the built-in GITHUB_TOKEN, then call the shell script.
 # A new GHCR package inherits the repository's visibility settings; check them
 # in the package settings after the first publish.
@@ -85,3 +87,37 @@ jobs:
         run: gh release create "v${{ inputs.version }}" --title "v${{ inputs.version }}" --generate-notes --target "${{ github.sha }}"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # The web UI bundle, tagged in lockstep with the server image above so that
+  # `sqlib:X.Y.Z` and `sqlib-web:X.Y.Z` are the two halves of one release.
+  #
+  # A separate job rather than two builds in one: they share no layers (one is
+  # a Node runtime, the other is busybox plus static files), so a failure names
+  # which image broke. The git tag and GitHub Release stay in the job above —
+  # they are per release, not per image.
+  #
+  # `needs` is not a data dependency, it is a lock: both jobs ask
+  # setup-buildx-action for a builder called `sqlib-publisher`, and two
+  # concurrent jobs creating and using one named builder on one runner race
+  # over it. Serialising also means this build starts with that builder's
+  # BuildKit cache already warm, which is the whole reason the builder is
+  # named and kept.
+  web-image:
+    needs: image
+    runs-on: [self-hosted, Linux, X64]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+        with:
+          name: sqlib-publisher
+          keep-state: true
+          cleanup: false
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - run: bash scripts/ci/docker-build-push-web.sh
+        env:
+          PUSH: "true"
+          RELEASE_VERSION: ${{ inputs.version }}

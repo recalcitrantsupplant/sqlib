@@ -269,6 +269,25 @@ run-docker-persistent TAG="latest":
     mkdir -p tmp/library-store-docker
     docker run -it --rm -p 3000:3000 -v ./tmp/library-store-docker:/app/packages/api/tmp/library-store -e INTERNAL_BACKEND_TYPE="oxigraph-persistent" -e APP_MODE="api" -e LIBRARY_STORAGE_DIR="/app/packages/api/tmp/library-store" -e INTERNAL_OXIGRAPH_STORE_ID="library-store" -e FEATURE_ETL_ENABLED="false" -e FEATURE_RULES_ENABLED="false" -e FEATURE_QUERIES_ENABLED="true" -e FASTIFY_ADDRESS="0.0.0.0" sparql-query-lib:{{TAG}}
 
+# Build the web UI bundle image: the static site at /site, to copy out and
+# deploy, not to run. See Dockerfile.web.
+# Usage: just build-web-image 0.0.17
+build-web-image TAG="latest":
+    docker build --network=host -t sqlib-web:{{TAG}} -f Dockerfile.web .
+
+# Copy the static site out of a bundle image.
+#
+# `docker create` + `docker cp`, with the container never started: the image
+# has no server in it. DEST must not already exist — `docker cp` would copy
+# `site/` *into* it rather than over it.
+# Usage: just extract-web-bundle 0.0.17 tmp/web-bundle
+extract-web-bundle TAG="latest" DEST="tmp/web-bundle":
+    test ! -e "{{DEST}}" || (echo "{{DEST}} already exists — remove it or pass another DEST" && exit 1)
+    mkdir -p "$(dirname "{{DEST}}")"
+    docker create --name sqlib-web-extract sqlib-web:{{TAG}} >/dev/null
+    docker cp sqlib-web-extract:/site "{{DEST}}"; status=$?; docker rm sqlib-web-extract >/dev/null; exit $status
+    @echo "extracted to {{DEST}} — serve it with any static host, and put /config.json beside index.html"
+
 # Run the frontend against any backend URL
 #
 # No sibling builds, here or in the two recipes above that pair with an API:

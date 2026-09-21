@@ -2,7 +2,8 @@
 
 A deployment has two parts: one container image serving the API and the MCP
 endpoint, and a static build of the web UI served from anywhere that serves
-files. They are independent — the UI is configured at load time with the URL of
+files. The web build is published as an image too — as a
+[bundle to copy out](#the-bundle-image), not as something to run. They are independent — the UI is configured at load time with the URL of
 whichever API it should talk to.
 
 Read [before you expose it](#before-you-expose-it) before putting either on a
@@ -11,7 +12,8 @@ network you do not control. The defaults are development defaults.
 ## The published image
 
 `.github/workflows/publish-image.yml` builds the repository-root `Dockerfile`
-and pushes to GHCR, authenticating with the workflow's own `GITHUB_TOKEN`
+and pushes to GHCR (in a second job it does the same for `Dockerfile.web`, the
+UI bundle described below), authenticating with the workflow's own `GITHUB_TOKEN`
 (`packages: write`); no registry secret is configured. The image reference
 defaults to `ghcr.io/<repository owner, lower-cased>/sqlib` — named for the
 repository — and can be overridden with the `IMAGE` environment variable.
@@ -76,6 +78,53 @@ ever changes.
 package's Nuxt output directory, which any static host can serve.
 `nuxt build` instead produces a Nitro server, which is the right output only if
 you intend to run Node in front of the files.
+
+### The bundle image
+
+The same static build is also published as a container image,
+`ghcr.io/<owner>/sqlib-web`, tagged in step with the server image
+(`sha-<short>` on every trunk push, `latest` on trunk, `X.Y.Z` on a release).
+
+It is a carrier, not a runtime. There is no server in it: the files sit at
+`/site` on a busybox base, and the image exists so that a particular build of
+the UI has a name you can pin, pull, diff and roll back to — `sqlib-web:0.4.1`
+rather than "the zip somebody built on their laptop". A deployment pipeline
+that already knows how to pull images needs nothing new to fetch a UI build.
+
+Three ways to get the files out:
+
+```sh
+# Copy them out of a container that is never started
+id=$(docker create ghcr.io/<owner>/sqlib-web:<tag>)
+docker cp "$id":/site ./dist && docker rm "$id"
+
+# Stream them out
+docker run --rm ghcr.io/<owner>/sqlib-web:<tag> tar -C /site -cf - . | tar -xf - -C ./dist
+
+# Use it as a stage in another image
+COPY --from=ghcr.io/<owner>/sqlib-web:<tag> /site /usr/share/nginx/html
+```
+
+`./dist` is then what you upload — `swa deploy ./dist`, `az storage blob upload-batch`,
+`aws s3 sync`, an nginx image, whatever the host takes. Locally,
+`just build-web-image <tag>` builds it and `just extract-web-bundle <tag> <dest>`
+runs the first recipe above.
+
+`docker run` with no command prints those recipes and the contents of
+`/bundle-info.json`, which records the version, the commit and the build time —
+the same values as the image's OCI labels, kept as a file because the labels do
+not survive `docker cp`.
+
+Nothing environment-specific is baked in. The bundle is built with no
+`NUXT_PUBLIC_*` values set, so one image serves every environment and the
+deployment supplies `/config.json` beside `index.html`, as below.
+
+A host that serves a directory of files serves this unchanged: `nuxt generate`
+prerenders an `index.html` per route, so deep links resolve without a rewrite
+rule. `200.html` is there for hosts that want an explicit SPA fallback (Azure
+Static Web Apps takes one through `navigationFallback` in
+`staticwebapp.config.json`, which the deployment adds beside `/config.json` —
+it is deployment configuration, not part of the bundle).
 
 ### Runtime configuration through `/config.json`
 

@@ -157,9 +157,16 @@ Steps outside that sequence:
   `vX.Y.Z` tag or when `RELEASE_VERSION` is set. It only pushes when
   `PUSH=true`, so running it locally builds and stops. Login is the caller's
   job.
+- `docker-build-push-web.sh` — the same, for the web UI bundle image built from
+  `Dockerfile.web` and tagged under `ghcr.io/<owner>/sqlib-web`. That image
+  carries the static site at `/site` and runs nothing; see
+  [deploying](../guides/deploying.md#the-bundle-image). It passes the commit,
+  version and build time in as build arguments, which become the image's OCI
+  labels and its `/bundle-info.json`.
 - `dependabot-automerge.sh` — merges Dependabot bumps whose CI is green. The
-  calling job's `needs` list is the only gate, `image` included, because a base
-  image bump once merged itself green and broke every publish afterwards.
+  calling job's `needs` list is the only gate, `image` and `web-image` included,
+  because a base image bump once merged itself green and broke every publish
+  afterwards.
 
 `lib.sh` is sourced by each script. It sets `set -euo pipefail`, changes to the
 repository root, and times the step. `scripts/ci/budgets.txt` gives per-step

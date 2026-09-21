@@ -21,3 +21,4 @@ build.sh            180
 test.sh             300
 e2e.sh              420
 docker-build-push.sh 300
+docker-build-push-web.sh 420
