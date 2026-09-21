@@ -124,9 +124,21 @@ Both transports publish the same thing. Over stdio, `resources/list` returns
 
 **Desktop clients that take a local command (stdio).** Nothing to configure
 beyond [the stdio block in mcp-clients.md](mcp-clients.md#client-configuration)
-— no certificates, no ports. `dist/cli.js` needs `pnpm build` first (the Views
-live in `packages/mcp-app/dist`, so a partial build leaves the server unable to
-start).
+— no certificates, no ports.
+
+**Run `pnpm build` first, and again after every `git pull`.** A client of this
+kind runs `node dist/cli.js`, so it reads built JavaScript, not source — unlike
+`just run-local-memory`, which runs from source under `tsx` and is happy with a
+stale or absent `dist`. Two ways that bites:
+
+- The Views live in `packages/mcp-app/dist`, so a partial build leaves the
+  server unable to start at all (`ERR_MODULE_NOT_FOUND` on `mcp-app/dist`).
+- A `dist` built before a dependency change keeps importing the old package,
+  which `pnpm install` has since removed — the error names the *package*
+  (`Cannot find package '@modelcontextprotocol/sdk'`) and says nothing about
+  the build being stale.
+
+Both look like configuration problems and are not.
 
 **Desktop clients that take a URL.** Several require HTTPS and refuse a plain
 `http://localhost` endpoint. The repository already has the answer:
