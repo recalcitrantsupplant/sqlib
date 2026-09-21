@@ -160,6 +160,51 @@ OTLP export only happens when `NODE_ENV=development`. In any other environment
 the SDK starts with console exporters, which means an endpoint set in production
 is not used. Metrics are exported every 30 seconds.
 
+## Read-only deployments
+
+`SQLIB_READ_ONLY=true` turns sqlib into a compute service: it still parses,
+validates, formats and executes, but it refuses every write to its own state.
+The catalogue changes by redeployment, and anything a visitor authors is kept in
+their browser instead. It is what a public demo site runs.
+
+| Name | Default | Effect |
+| --- | --- | --- |
+| `SQLIB_READ_ONLY` | `false` | Exactly `true` turns it on; any other value, including unset, leaves it off. |
+
+It is not an auth mode and does not need one. An auth mode answers "who is this,
+and what may they reach", which needs principals, grants and an issuer; this
+answers "may this deployment's own state change at all", which gives every
+caller the same answer. The two compose — a public site runs
+`SQLIB_AUTH_MODE=disabled` beside this, and the full-access context that mode
+mints still cannot write, because the gate consults no context.
+
+The gate refuses every mutating method and then names its exceptions, so a route
+added later is refused until someone decides otherwise. The exceptions are the
+routes that compute an answer and store nothing: `/detect-inputs`,
+`/detect-outputs`, `/validate`, `/validate-rule-data`, `/format`, `/substitute`,
+`/execute`, `/sparql`, the SRL compile, analyse and preview routes, the rule and
+rule-set execution routes, and the tuple-set preview. The list lives in
+`packages/api/src/config/readOnly.ts`, and a test fails on an entry that names
+no registered route as well as on a mutating route that is neither listed nor
+refused.
+
+Three things it deliberately does **not** do:
+
+- **It does not refuse SPARQL.** `POST /sparql` passes through untouched,
+  UPDATEs included. Whether a store accepts a write is the store's answer:
+  sqlib's own read-only backends refuse through `ReadOnlySparqlExecutor`, and
+  an endpoint somebody else owns refuses, or does not, on its own terms. What
+  it does refuse is `?record=patch`, because recording a patch writes sqlib's
+  state.
+- **It does not enable anything.** `FEATURE_ETL`, `FEATURE_PLAYGROUND_ETL` and
+  `FEATURE_ASSISTANT` are still off by default, and the ETL routes are absent
+  from the exceptions above — turning a flag on is not enough to expose them on
+  a read-only deployment.
+- **It does not authenticate.** Every visitor is the same anonymous caller.
+
+`/health` reports it as `readOnly`, beside the auth mode, so the SPA can offer
+browser-local authoring rather than a button the server will refuse.
+
 ## Authentication
 
 Auth is off unless `SQLIB_AUTH_MODE` says otherwise. An invalid value for any of

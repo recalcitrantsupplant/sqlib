@@ -1,6 +1,10 @@
 import type { FastifyInstance } from 'fastify';
 import { SparqlQueryParser } from '../lib/parser.js';
-import { detectionRouteSchemas } from '@sparql-query-lib/contracts/schema/routes';
+import { detectionRouteSchemas, substituteRouteSchemas } from '@sparql-query-lib/contracts/schema/routes';
+import { applyExecutionArguments, resolveExecutionPayload } from '../lib/executionArguments.js';
+import { ArgumentSetService } from '../lib/ArgumentSetService.js';
+import { detectSparqlOperation } from '../lib/queryTypeDetector.js';
+import { QueryTypeIri } from '../constants/queryTypes.js';
 import { typedRoute } from './route-helpers.js';
 import { deriveQueryVersionMetadata } from '../lib/QueryVersionDeriver.js';
 import { RuleGrammarValidator } from '../lib/RuleGrammarValidator.js';
@@ -149,6 +153,52 @@ export default async function (fastify: FastifyInstance) {
         return reply.send({ formatted });
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Invalid syntax';
+        return reply.status(400).send({ error: message });
+      }
+    })
+  );
+
+  /**
+   * POST /substitute — the substituted query, without running it.
+   *
+   * What a browser-side executor is missing. The runtime can splice a VALUES
+   * block over a span without a parser; finding the spans needs one, and a
+   * named argument set needs the store. So this does both and hands the text
+   * back, and the caller decides where it runs — including at an endpoint sqlib
+   * never sees, which is the whole point of a browser backend.
+   *
+   * Nothing is stored and nothing is executed, which is why a read-only
+   * deployment can serve it (`config/readOnly.ts`).
+   */
+  fastify.post(
+    '/substitute',
+    ...typedRoute(substituteRouteSchemas.substitutePost, async (request, reply) => {
+      const { query, arguments: inlineArguments, limits, offsets, argumentSetIds } = request.body;
+
+      try {
+        /*
+         * Detected from the query the caller wrote, before substitution, for
+         * the reason `/sparql` gives: substituting VALUES rows cannot turn a
+         * SELECT into anything else, and a caller choosing a request shape from
+         * this needs the answer for the query itself.
+         */
+        const operation = detectSparqlOperation(query);
+        const resolved = await resolveExecutionPayload(
+          { arguments: inlineArguments, limits, offsets, argumentSetIds },
+          new ArgumentSetService()
+        );
+        return reply.send({
+          query: applyExecutionArguments(query, {
+            argumentSets: resolved.argumentSets,
+            limits: resolved.limits,
+            offsets: resolved.offsets,
+          }),
+          operation: operation === QueryTypeIri.update ? 'update' : 'query',
+        });
+      } catch (error) {
+        // Every failure here is the caller's payload: an unparseable query, an
+        // argument set that does not fit it, or a conflict with a stored one.
+        const message = error instanceof Error ? error.message : 'Invalid request';
         return reply.status(400).send({ error: message });
       }
     })
