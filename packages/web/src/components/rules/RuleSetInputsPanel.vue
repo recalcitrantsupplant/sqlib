@@ -25,6 +25,8 @@ export type InputSource = 'saved' | 'inline';
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useDeploymentMode } from '../../composables/useDeploymentMode';
+import InlineNote from '../shared/InlineNote.vue';
 import { Codemirror } from 'vue-codemirror';
 import { CircleCheck, Database, ExternalLink, HelpCircle, Save, Table } from '@lucide/vue';
 import { EditorState, type Extension } from '@codemirror/state';
@@ -34,6 +36,10 @@ import PrefixConversionButtons from '@/components/shared/PrefixConversionButtons
 import SearchSelect from '@/components/shared/SearchSelect.vue';
 import SegmentedToggle, { type SegmentedOption } from '@/components/shared/SegmentedToggle.vue';
 import SectionLabel from '@/components/shared/SectionLabel.vue';
+
+const deployment = useDeploymentMode();
+void deployment.ensureLoaded();
+const isReadOnly = deployment.isReadOnly;
 
 const HEADER_HELP = 'A rule set defines rules. Named tuples and a data graph are what you run it '
   + 'against — the same relationship an argument set has to a query. They save as their own '
@@ -227,6 +233,17 @@ const onDataInput = (value: string) => {
 
 <template>
   <div class="inputs-pane" data-testid="rules-inputs">
+    <!--
+      Said where the data is pasted, not in a footer nobody reads. A read-only
+      deployment runs rules on the server against a store built for the request
+      and thrown away after it, so the honest claim is "processed and
+      discarded" — not "never leaves your browser", which is what a browser
+      backend can say and this cannot.
+    -->
+    <InlineNote v-if="isReadOnly" class="transient-note" data-testid="rules-transient-note">
+      Data you paste here is sent to the server, used for this run, and discarded. Nothing you
+      enter on this site is stored.
+    </InlineNote>
     <!--
       The strip states the one thing the tab is for, and hands the rest to a
       `?`. `Save as test` sits here rather than beside either block because it
@@ -630,5 +647,10 @@ const onDataInput = (value: string) => {
 
 .tuples-body {
   min-height: var(--grid-2);
+}
+
+/* Margin only: the note's own spec is InlineNote's. */
+.transient-note {
+  margin-bottom: var(--space-2);
 }
 </style>

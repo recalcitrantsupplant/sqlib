@@ -6,6 +6,8 @@ import { clientId } from '../lib/clientId';
 import { debug } from '../lib/debug';
 import { filenameFromDisposition } from '../lib/downloadFile';
 import { discoverQueryVersionPrefixes } from '../lib/queryVersionPrefixes';
+import { useBrowserBackends } from './useBrowserBackends';
+import { executeOnBrowserBackend, looksLikeUpdate } from '../lib/browserBackendExecution';
 import {
   backendSchema,
   backendCreateSchema,
@@ -2670,11 +2672,76 @@ export function useApiClient() {
     }
   };
 
+  /**
+   * Apply arguments to a query and get the text back, without running it.
+   *
+   * `POST /substitute` — the server half of a browser-side run. Finding a
+   * parameter's span needs a parser and a named argument set needs the store,
+   * so the substitution stays here; where the result runs does not have to.
+   */
+  const substituteQuery = (payload: {
+    query: string;
+    arguments?: SparqlRequest['arguments'];
+    limits?: SparqlRequest['limits'];
+    offsets?: SparqlRequest['offsets'];
+    argumentSetIds?: string[];
+  }) =>
+    requestData(
+      buildUrl('/substitute'),
+      { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(payload) },
+      (body) => body as { query: string; operation: 'query' | 'update' },
+    );
+
+  /**
+   * Run it in the tab, when the chosen backend is one this browser holds.
+   *
+   * Returns `null` when the backend is not a browser backend, so the caller
+   * falls through to the server exactly as before — the check is on the id, and
+   * nothing else about the payload changes shape.
+   *
+   * The two halves are deliberately split: sqlib substitutes, the browser
+   * executes. A query with nothing to substitute skips the round trip entirely,
+   * which is the common case on a demo and the one where the endpoint never
+   * learns that sqlib was involved at all.
+   */
+  const runOnBrowserBackend = async (
+    payload: SparqlRequest,
+    acceptMediaType?: string,
+  ): Promise<ExecuteTargetResult | null> => {
+    const backend = useBrowserBackends().get(payload.backendId ?? null);
+    if (!backend) return null;
+
+    const needsSubstitution = Boolean(
+      payload.arguments?.length ||
+        payload.limits?.length ||
+        payload.offsets?.length ||
+        payload.argumentSetIds?.length,
+    );
+
+    let query = payload.query;
+    let operation: 'query' | 'update' = looksLikeUpdate(query) ? 'update' : 'query';
+    if (needsSubstitution) {
+      const substituted = await substituteQuery({
+        query: payload.query,
+        arguments: payload.arguments,
+        limits: payload.limits,
+        offsets: payload.offsets,
+        argumentSetIds: payload.argumentSetIds,
+      });
+      query = substituted.query;
+      operation = substituted.operation;
+    }
+
+    return executeOnBrowserBackend({ backend, query, acceptMediaType, operation });
+  };
+
   const executeSparqlDirect = async (
     payload: SparqlRequest,
     acceptMediaType?: string
   ): Promise<ExecuteTargetResult> => {
     ensurePlaygroundOrLibraryQueriesEnabled();
+    const inBrowser = await runOnBrowserBackend(payload, acceptMediaType);
+    if (inBrowser) return inBrowser;
     const parsedPayload = sparqlRequestSchema.parse(payload);
     return postForBody(buildUrl('/sparql'), parsedPayload, acceptMediaType, 'executeSparqlDirect');
   };
@@ -2695,8 +2762,14 @@ export function useApiClient() {
     return postForBody(buildUrl('/patches/preview'), payload, PATCH_MEDIA_TYPES.RDF_PATCH, 'previewUpdatePatch');
   };
 
-  const runSparql = (payload: SparqlRequest) => {
+  const runSparql = async (payload: SparqlRequest) => {
     ensurePlaygroundOrLibraryQueriesEnabled();
+    const inBrowser = await runOnBrowserBackend(payload);
+    if (inBrowser) {
+      // The browser path hands back the endpoint's own bytes; this caller wants
+      // them parsed, and the same schema decides what counts as a result.
+      return sparqlResponseSchema.parse(JSON.parse(inBrowser.body)) as SparqlResponse;
+    }
     return requestData(
       buildUrl('/sparql'),
       {
@@ -3239,6 +3312,7 @@ export function useApiClient() {
     executeTarget,
     executeSparqlDirect,
     runSparql,
+    substituteQuery,
     // Argument Sets
     listArgumentSets,
     listLibraryArgumentSets,
