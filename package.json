@@ -16,7 +16,7 @@
     "generate-schemas": "pnpm --filter @sparql-query-lib/api generate-schemas",
     "any:count": "node scripts/count-any.mjs",
     "any:update": "node scripts/count-any.mjs --update",
-    "build": "pnpm --filter @sparql-query-lib/types build && pnpm --filter @sparql-query-lib/contracts build && pnpm --filter @sparql-query-lib/runtime build && pnpm --filter @sparql-query-lib/tools build && pnpm --filter @sparql-query-lib/srl build && pnpm --filter @sparql-query-lib/rdf-delta build && pnpm --filter @sparql-query-lib/api build",
+    "build": "pnpm --filter @sparql-query-lib/types build && pnpm --filter @sparql-query-lib/contracts build && pnpm --filter @sparql-query-lib/runtime build && pnpm --filter @sparql-query-lib/tools build && pnpm --filter @sparql-query-lib/srl build && pnpm --filter @sparql-query-lib/rdf-delta build && pnpm --filter @sparql-query-lib/api build && pnpm --filter @sparql-query-lib/mcp-app build && pnpm --filter @sparql-query-lib/mcp-server build",
     "ci": "bash scripts/ci/all.sh"
   },
   "devDependencies": {

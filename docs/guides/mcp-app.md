@@ -126,7 +126,11 @@ Both transports publish the same thing. Over stdio, `resources/list` returns
 beyond [the stdio block in mcp-clients.md](mcp-clients.md#client-configuration)
 — no certificates, no ports.
 
-**Run `pnpm build` first, and again after every `git pull`.** A client of this
+**Run `pnpm build` first, and again after every `git pull`.** (Before this
+guide existed, the root `build` script listed seven packages by name and
+omitted `mcp-app` and `mcp-server`, so it silently never rebuilt either — if a
+`dist` looks impervious to rebuilding, check that the script still names the
+package you are waiting on.) A client of this
 kind runs `node dist/cli.js`, so it reads built JavaScript, not source — unlike
 `just run-local-memory`, which runs from source under `tsx` and is happy with a
 stale or absent `dist`. Two ways that bites:
