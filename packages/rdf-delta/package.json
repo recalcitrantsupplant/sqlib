@@ -31,11 +31,11 @@
   },
   "devDependencies": {
     "@duckdb/node-api": "1.5.5-r.4",
-    "@types/node": "^26.5.1",
+    "@types/node": "^26.6.1",
     "oxigraph": "0.5.11",
     "rdf-canonize": "^5.0.0",
     "tsx": "^4.23.13",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.0"
+    "vitest": "^5.0.1"
   }
 }

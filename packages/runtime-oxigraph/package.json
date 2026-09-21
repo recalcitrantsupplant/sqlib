@@ -60,6 +60,6 @@
     "@sparql-query-lib/runtime": "workspace:*",
     "tsup": "^8.5.1",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.0"
+    "vitest": "^5.0.1"
   }
 }
