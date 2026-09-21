@@ -14,11 +14,12 @@ import { describe, expect, it } from 'vitest';
 import { tools, type ListedTool } from '@sparql-query-lib/tools';
 import { views, renderView, APP_MIME_TYPE } from '@sparql-query-lib/mcp-app';
 import {
+  advertisesUiExtension,
   listUiResources,
   readUiResource,
   resultUiMeta,
   toolVisibleToModel,
-  uiSupported,
+  uiMetadataEnabled,
   withUiMeta,
 } from '../src/ui-apps.js';
 import { authorizationFromContext } from '../src/index.js';
@@ -29,24 +30,45 @@ const uiCapableClient = {
   },
 };
 
-describe('capability gating', () => {
-  it('accepts a client that advertises the UI extension with our MIME type', () => {
-    expect(uiSupported(uiCapableClient)).toBe(true);
+/**
+ * The regression this file exists for.
+ *
+ * The UI bindings were once gated on the client advertising
+ * `io.modelcontextprotocol/ui`, per the specification's SHOULD. Claude
+ * advertises `roots` and `elicitation`, no `extensions` key at all, and renders
+ * apps anyway — so the gate withheld the binding from the host it mattered most
+ * to, and the bench came back as plain text with the server looking, from its
+ * own side, entirely correct. ChatGPT does advertise, which is what kept the
+ * gate looking right.
+ *
+ * So: publish always. A test that asserts the metadata is withheld from a
+ * client that stays quiet is a test that re-introduces the bug.
+ */
+describe('publishing the UI bindings', () => {
+  it('publishes regardless of what the client advertised', () => {
+    expect(uiMetadataEnabled()).toBe(true);
   });
 
-  it('accepts a client that names the extension without narrowing MIME types', () => {
-    expect(uiSupported({ extensions: { 'io.modelcontextprotocol/ui': {} } })).toBe(true);
-  });
-
-  it('refuses a client that accepts only some other UI MIME type', () => {
+  it('still recognises an advertisement, for diagnostics', () => {
+    expect(advertisesUiExtension(uiCapableClient)).toBe(true);
+    expect(advertisesUiExtension({ extensions: { 'io.modelcontextprotocol/ui': {} } })).toBe(true);
     expect(
-      uiSupported({ extensions: { 'io.modelcontextprotocol/ui': { mimeTypes: ['text/markdown'] } } })
+      advertisesUiExtension({ extensions: { 'io.modelcontextprotocol/ui': { mimeTypes: ['text/markdown'] } } })
     ).toBe(false);
+    // Claude's shape: no extensions key whatsoever, and it renders anyway.
+    expect(advertisesUiExtension({ roots: {}, elicitation: {} })).toBe(false);
+    expect(advertisesUiExtension(undefined)).toBe(false);
   });
 
-  it('refuses a plain MCP client', () => {
-    expect(uiSupported({ tools: {} })).toBe(false);
-    expect(uiSupported(undefined)).toBe(false);
+  it('withholds everything only when explicitly switched off', () => {
+    const previous = process.env.MCP_APPS;
+    try {
+      process.env.MCP_APPS = 'off';
+      expect(uiMetadataEnabled()).toBe(false);
+    } finally {
+      if (previous === undefined) delete process.env.MCP_APPS;
+      else process.env.MCP_APPS = previous;
+    }
   });
 });
 
@@ -65,7 +87,7 @@ describe('tool metadata', () => {
     });
   });
 
-  it('omits _meta.ui entirely for a client that does not, and never leaks the internal binding', () => {
+  it('omits _meta.ui when publishing is switched off, and never leaks the internal binding', () => {
     const listed = withUiMeta(executeRun, false) as Record<string, unknown>;
     expect(listed._meta).toBeUndefined();
     expect(listed.ui).toBeUndefined();

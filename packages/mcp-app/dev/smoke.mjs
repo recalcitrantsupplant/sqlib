@@ -120,15 +120,32 @@ for (const resource of resources) {
   );
 }
 
-console.log('\nA plain MCP client');
-await session({ tools: {} });
-const plain = await rpc('tools/list', {});
+/*
+ * A client shaped like Claude's: roots and elicitation, no `extensions` key.
+ *
+ * It must be offered the bindings anyway. Claude declares no UI extension and
+ * renders apps regardless, so a server that gates on the advertisement hands
+ * the host a tool with nothing to render — which is precisely the bug this
+ * check now guards against. The text content is present either way, so a
+ * client that really cannot render loses nothing.
+ */
+console.log('\nA client that advertises no UI extension (Claude\'s shape)');
+await session({ roots: {}, elicitation: {} });
+const quiet = await rpc('tools/list', {});
+const quietBound = quiet.tools.filter((tool) => tool._meta?.ui?.resourceUri);
 check(
-  'is offered no _meta.ui at all',
-  plain.tools.every((tool) => tool._meta?.ui === undefined),
-  plain.tools.filter((tool) => tool._meta?.ui).map((tool) => tool.name).join(', ')
+  'is offered the same _meta.ui bindings',
+  quietBound.length === bound.length,
+  `${quietBound.length} vs ${bound.length}`
 );
-check('still sees the whole catalogue', plain.tools.length === tools.length, `${plain.tools.length} vs ${tools.length}`);
+check('sees the whole catalogue', quiet.tools.length === tools.length, `${quiet.tools.length} vs ${tools.length}`);
+
+const quietCall = await rpc('tools/call', { name: 'queries_list', arguments: {} });
+check(
+  'gets a text fallback on every result, bindings or not',
+  typeof quietCall.content?.[0]?.text === 'string',
+  JSON.stringify(Object.keys(quietCall))
+);
 
 console.log(failures === 0 ? '\nAll checks passed.' : `\n${failures} check(s) failed.`);
 process.exit(failures === 0 ? 0 : 1);

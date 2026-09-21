@@ -246,6 +246,14 @@ implementation.
 
 ### 5.3 Capability gating and fallback
 
+> **Superseded by what shipped.** The gate described below was built, and it
+> was wrong. Claude advertises no `extensions` key and renders apps regardless,
+> so gating `_meta.ui` on the advertisement withheld the binding from the host
+> it mattered most to. The server now publishes the bindings to every client and
+> relies on `_meta` being ignorable and the text `content` always being present;
+> `MCP_APPS=off` is the deliberate way to get the text-only behaviour. The
+> reasoning below is kept because the *fallback* half of it still holds.
+
 `createMcpServer` inspects the `initialize` result's
 `capabilities.extensions["io.modelcontextprotocol/ui"]`. When absent, or when
 its `mimeTypes` does not include `text/html;profile=mcp-app`:

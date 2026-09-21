@@ -3,29 +3,53 @@
  * to one.
  *
  * Kept out of `index.ts` because it is the one part of this package that is
- * about a *protocol extension* rather than about serving the catalogue, and
- * because all of it is conditional: a client that does not advertise
- * `io.modelcontextprotocol/ui` must see the server it saw before this existed.
- * `uiSupported` is the single gate for that, and everything here goes through
- * it.
+ * about a *protocol extension* rather than about serving the catalogue.
+ *
+ * **The bindings are published unconditionally.** The specification says a
+ * server SHOULD check client capabilities, and this package used to: it gated
+ * `_meta.ui` on the client advertising
+ * `capabilities.extensions["io.modelcontextprotocol/ui"]`. That gate is why
+ * the bench never rendered in Claude. Claude's `initialize` declares `roots`
+ * and `elicitation` and no `extensions` key at all — and renders apps anyway.
+ * Gating on the advertisement therefore withheld exactly the metadata the host
+ * needed, and produced a tool that answers in plain text while looking, from
+ * the server's side, like a client that simply does not do UI. ChatGPT, which
+ * does advertise, worked throughout — which is what made the gate look
+ * correct.
+ *
+ * Publishing unconditionally is safe: `_meta` is ignorable by design, and the
+ * text `content` block is always present, so a client with no idea what
+ * `ui://` means still gets the same result it got before any of this existed.
+ * `MCP_APPS=off` withholds it all, for testing that fallback deliberately
+ * rather than by accident.
  */
 import { views, findView, renderView, APP_MIME_TYPE, UI_EXTENSION } from '@sparql-query-lib/mcp-app';
 import type { ListedTool } from '@sparql-query-lib/tools';
 
 /**
- * Does this client render MCP Apps?
+ * Should this server publish its UI bindings at all?
  *
- * The specification has clients advertise
- * `capabilities.extensions["io.modelcontextprotocol/ui"]` with the MIME types
- * they accept. The extensions map is not in the SDK's `ClientCapabilities`
- * type, hence the read through `unknown` — a structural check against the
- * protocol, not a cast away from one.
- *
- * Absent or malformed means no: an unrenderable `_meta.ui` is worse than none,
- * because a host that half-understands it may show the user an empty frame
- * where the text result used to be.
+ * True unless `MCP_APPS=off`. Deliberately not a function of what the client
+ * advertised — see the note at the top of this file for the failure that
+ * caused.
  */
-export function uiSupported(capabilities: unknown): boolean {
+export function uiMetadataEnabled(): boolean {
+  return process.env.MCP_APPS !== 'off';
+}
+
+/**
+ * Does this client *say* it renders MCP Apps?
+ *
+ * Diagnostic only. It is no longer a gate, because the host that matters most
+ * answers "no" and renders anyway; it survives because knowing what a client
+ * declared is useful when something does not paint, and because the shape of
+ * the declaration is worth keeping written down.
+ *
+ * The extensions map is not in the SDK's `ClientCapabilities` type, hence the
+ * read through `unknown` — a structural check against the protocol, not a cast
+ * away from one.
+ */
+export function advertisesUiExtension(capabilities: unknown): boolean {
   const extensions = (capabilities as { extensions?: Record<string, unknown> } | undefined)?.extensions;
   const ui = extensions?.[UI_EXTENSION] as { mimeTypes?: unknown } | undefined;
   if (!ui) return false;

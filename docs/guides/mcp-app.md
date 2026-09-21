@@ -112,11 +112,28 @@ a View problem.
 
 ### 3. A real client
 
-The server checks `capabilities.extensions["io.modelcontextprotocol/ui"]` on
-`initialize`: a client that does not advertise it gets the catalogue with no
-`_meta.ui` at all and behaves exactly as it did before this existed. Whether a
-client that *does* advertise it actually paints the View is that host's
-business, and support differs between them — which is why the harness exists.
+**The bindings are published to every client, whatever it advertised.** The
+specification says a server SHOULD check
+`capabilities.extensions["io.modelcontextprotocol/ui"]`, and this server used
+to. Claude declares `roots` and `elicitation`, no `extensions` key at all, and
+renders apps anyway — so the check withheld `_meta.ui` from the host most
+likely to use it, and the bench came back as plain text while the server looked
+correct from its own side. ChatGPT does advertise, which is what made the gate
+look sound. Publishing unconditionally costs a client that cannot render
+nothing, because `_meta` is ignorable and the text `content` is always there.
+`MCP_APPS=off` withholds it all, for testing that fallback on purpose.
+
+Whether a client that *receives* the binding then paints the View is still that
+host's business, and support differs between them — which is why the harness
+exists.
+
+**When testing a metadata change against Claude, recreate the connector.**
+Claude caches `tools/list` per connector session and reuses it across chats, so
+a new chat can still be testing the old server and a working fix looks like no
+fix at all. A change to a `tools/call` *result* shows up immediately. The
+connector settings page also counts interactive and app-only tools — if those
+counts look right, the host has parsed your binding and the problem is further
+down.
 
 Both transports publish the same thing. Over stdio, `resources/list` returns
 `ui://sqlib/bench` and `ui://sqlib/result` with the MCP Apps MIME type, and

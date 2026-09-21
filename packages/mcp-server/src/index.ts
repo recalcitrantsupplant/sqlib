@@ -18,7 +18,7 @@ import {
   readUiResource,
   resultUiMeta,
   toolVisibleToModel,
-  uiSupported,
+  uiMetadataEnabled,
   withUiMeta,
 } from './ui-apps.js';
 
@@ -199,13 +199,12 @@ export async function createMcpServer(options: CreateMcpServerOptions = {}) {
   );
 
   /**
-   * Whether this session's client renders MCP Apps.
-   *
-   * Read per request rather than captured once: `initialize` may not have
-   * happened when the handlers are registered, and a session is one client, so
-   * the answer cannot change mid-session once it is known.
+   * Whether to publish the UI bindings, which is not a question about the
+   * client: Claude declares no `extensions` key and renders apps regardless,
+   * so asking would withhold the binding from the host most likely to use it.
+   * See `ui-apps.ts` for the full account.
    */
-  const clientRendersApps = () => uiSupported(server.getClientCapabilities());
+  const clientRendersApps = () => uiMetadataEnabled();
 
   server.setRequestHandler('tools/list', async () => {
     const uiEnabled = clientRendersApps();
