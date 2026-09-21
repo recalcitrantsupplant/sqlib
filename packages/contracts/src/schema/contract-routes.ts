@@ -2866,6 +2866,59 @@ export const sparqlRequestJsonSchema = {
 } as const;
 
 /**
+ * `POST /substitute` — the substituted query, without running it.
+ *
+ * The one piece a browser-side executor cannot do for itself. Applying
+ * arguments is "serialise a VALUES block, splice it over a span", which the
+ * parser-free runtime does happily; deciding *where* those spans are needs a
+ * parser, and naming a stored argument set needs the store. So the server does
+ * the substitution and hands the text back, and whoever asked runs it —
+ * against an endpoint sqlib never sees, if that is where they want it to go.
+ *
+ * It is the read-only half of `POST /sparql`: the same body minus the backend,
+ * because a caller that wanted sqlib to execute it would have said so there.
+ * `operation` comes back too, since the caller needs it to choose a request
+ * shape and has just paid for the parse that knows.
+ */
+export const substituteRouteSchemas = {
+  substitutePost: {
+    tags: ['Utility'],
+    summary: 'Apply arguments to a query and return the text, without executing it',
+    body: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', minLength: 1 },
+        arguments: executionArgumentsJsonSchema,
+        limits: executionParametersJsonSchema,
+        offsets: executionParametersJsonSchema,
+        argumentSetIds: { type: 'array', items: { type: 'string', minLength: 1, format: 'iri' } },
+      },
+      required: ['query'],
+      additionalProperties: false,
+      $id: 'substitute.request',
+    },
+    response: {
+      200: {
+        type: 'object',
+        properties: {
+          query: { type: 'string' },
+          operation: { type: 'string', enum: ['query', 'update'] },
+        },
+        required: ['query', 'operation'],
+        additionalProperties: false,
+        $id: 'substitute.response',
+      },
+      400: {
+        type: 'object',
+        properties: { error: { type: 'string' } },
+        required: ['error'],
+        additionalProperties: false,
+      },
+    },
+  },
+} as const;
+
+/**
  * `?record=patch` — the proxy's one opt-in.
  *
  * A raw update through the proxy is a passthrough: sqlib hands the string to

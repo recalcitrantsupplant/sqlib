@@ -520,6 +520,7 @@ import {
 } from '../components/ui/alert-dialog';
 import { useLibrariesStore } from '../composables/useLibrariesStore';
 import { useBackendsStore } from '../composables/useBackendsStore';
+import { isBrowserBackendId, useBrowserBackends } from '../composables/useBrowserBackends';
 import { useBackendProbes } from '../composables/useBackendProbes';
 import { useQueriesStore } from '../composables/useQueriesStore';
 import { useQueryGroupsStore } from '../composables/useQueryGroupsStore';
@@ -2136,6 +2137,11 @@ async function handleDeleteBackendRequest(payload: { backendId: string; backendN
   backendDeleteConfirmOpen.value = true;
 
   try {
+    // Nothing server-side can reference a backend the server has never seen.
+    if (isBrowserBackendId(payload.backendId)) {
+      backendDeleteReferences.value = { libraries: [], queries: [] };
+      return;
+    }
     // Fetch references before showing the dialog
     const apiClient = useApiClient();
     const references = await apiClient.getBackendReferences(payload.backendId);
@@ -2154,7 +2160,14 @@ async function confirmDeleteBackend() {
 
   try {
     const deletedId = backendDeleteTarget.value.backendId;
-    await backendsStore.deleteBackend(deletedId);
+    // A browser backend has no server record to delete; removing it from this
+    // browser's storage is the whole of it.
+    if (isBrowserBackendId(deletedId)) {
+      useBrowserBackends().remove(deletedId);
+      await backendsStore.loadBackends();
+    } else {
+      await backendsStore.deleteBackend(deletedId);
+    }
     backendProbes.forget(deletedId);
     if (selectedBackendId.value === deletedId) {
       selectedBackendId.value = backends.value[0]?.id ?? null;

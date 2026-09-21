@@ -283,6 +283,37 @@ writes. `POST /sparql` takes arbitrary query text, subject only to a backend
 grant. Parameter values are safe; the query that consumes them is whatever
 somebody with write access to the library put there.
 
+## A read-only deployment
+
+`SQLIB_READ_ONLY=true` refuses every write to sqlib's own state: the catalogue
+changes by redeployment, and anything a visitor authors is kept in their
+browser. It is a separate axis from `SQLIB_AUTH_MODE` and needs no principal —
+see [configuration](../reference/configuration.md#read-only-deployments) for the
+gate and its exceptions.
+
+It is worth stating what it is and is not, because "read-only" invites a reading
+it does not support. It stops sqlib storing what a visitor sends. It does not
+authenticate anybody, it does not stop a visitor reading the whole catalogue,
+and it does not decide whether a *backend* accepts a write — `POST /sparql`
+still passes an update through, and the store refuses it or does not, on its own
+terms. A deployment that wants its own stores immutable configures those stores
+read-only; the flag is not a substitute for that.
+
+**Browser backends.** The SPA lets a visitor register a SPARQL endpoint in their
+own browser (`localStorage`), and runs those queries from the tab rather than
+through sqlib. Neither the endpoint, the query text, any header the visitor
+attached, nor the results reach the server. This is a stronger position than the
+inline-endpoint field it replaces, which posted the endpoint to sqlib and made
+the server fetch it — on a public site, a server that fetches a caller-supplied
+URL is a request forgery primitive pointed at whatever the host can reach. It is
+also why `POST /backends/probes` is absent from the read-only exceptions: it is
+that primitive by another name.
+
+The cost is CORS. A browser can only read an endpoint that sends
+`Access-Control-Allow-Origin`, so an endpoint that answers curl can still be
+unreachable from the page; the SPA says so specifically rather than reporting a
+generic network failure.
+
 ## Before you expose this
 
 1. **Decide what `SQLIB_AUTH_MODE` is.** The default is `disabled`, which means
@@ -290,24 +321,28 @@ somebody with write access to the library put there.
    denied before switching to `required`.
 2. **Do not expose `/mcp` or the assistant to a network you do not control.**
    Neither has authorization of its own. If the API is reachable, so are they.
-3. **Make sqlib the only path to your stores.** Firewall the SPARQL endpoints to
+3. **If it is a demo, set `SQLIB_READ_ONLY=true`.** Authorization is not what
+   keeps a public deployment's catalogue intact; refusing writes is. Under
+   `disabled` mode every visitor holds full access, so without this flag a
+   public site is one where anybody may edit or delete anything.
+4. **Make sqlib the only path to your stores.** Firewall the SPARQL endpoints to
    sqlib. Any bypass path voids every authorization decision sqlib makes.
-4. **Leave `FEATURE_ETL`, `FEATURE_PLAYGROUND_ETL` and `FEATURE_ASSISTANT` off**
+5. **Leave `FEATURE_ETL`, `FEATURE_PLAYGROUND_ETL` and `FEATURE_ASSISTANT` off**
    unless you have decided the deployment can carry them. If you turn ETL on,
    grant no DuckDB capability you do not need, and confine the process with the
    container rather than with a directory allowlist that does not work.
-5. **Turn off the sections you are not using.** A feature flag that is off means
+6. **Turn off the sections you are not using.** A feature flag that is off means
    the routes are never registered, which is a stronger statement than a 403.
-6. **Check `SQLIB_AUTH_PROTECT_DOCS` and `SQLIB_AUTH_ALLOW_LIBRARY_CREATE`.**
+7. **Check `SQLIB_AUTH_PROTECT_DOCS` and `SQLIB_AUTH_ALLOW_LIBRARY_CREATE`.**
    `/docs` is public by default, and library creation is open to any
    authenticated principal by default.
-7. **Keep backend credentials in the environment.** Never put a secret in an
+8. **Keep backend credentials in the environment.** Never put a secret in an
    entity field. Confirm `authEnvKey` names the key you think it does.
-8. **Do not run two sqlib processes against one library store.** Each holds its
+9. **Do not run two sqlib processes against one library store.** Each holds its
    own cache and neither is told when the other writes.
-9. **Review what you export.** A static bundle carries no authorization, and
+10. **Review what you export.** A static bundle carries no authorization, and
    updates are not exportable — read queries only.
-10. **A hosted multi-tenant deployment cannot enable ETL on shared
+11. **A hosted multi-tenant deployment cannot enable ETL on shared
     infrastructure.** There is no setting that makes arbitrary SQL safe to offer
     to tenants who do not trust one another.
 

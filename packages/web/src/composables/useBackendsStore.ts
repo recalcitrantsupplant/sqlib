@@ -2,6 +2,7 @@ import { computed, reactive } from 'vue';
 import type { Backend } from '@sparql-query-lib/contracts';
 import type { BackendFormInput } from '../types/backend.js';
 import { useApiClient } from './useApiClient.js';
+import { useBrowserBackends } from './useBrowserBackends.js';
 
 type BackendState = {
   items: Backend[];
@@ -54,14 +55,25 @@ export function useBackendsStore() {
   const loading = computed(() => state.loading);
   const error = computed(() => state.error);
 
+  /**
+   * The server's backends and this browser's, as one list.
+   *
+   * Browser backends are appended rather than merged in: they cannot collide
+   * with a server id (their own `urn:` namespace sees to that), and a picker
+   * that showed them first would put a visitor's scratch endpoint above the
+   * catalogue the deployment curated. They survive a failed load on purpose —
+   * on a read-only site with the API unreachable, the endpoints a visitor
+   * registered themselves are the ones still worth offering.
+   */
   const loadBackends = async () => {
     state.loading = true;
     state.error = null;
+    const browserBackends = useBrowserBackends().asBackends.value;
     try {
-      state.items = await listBackends();
+      state.items = [...(await listBackends()), ...browserBackends];
     } catch (err: any) {
       state.error = err?.message ?? 'Failed to load backends';
-      state.items = [];
+      state.items = [...browserBackends];
     } finally {
       state.loading = false;
     }

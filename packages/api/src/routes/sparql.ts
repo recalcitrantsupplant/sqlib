@@ -21,10 +21,11 @@ import { oxigraphStoreManager } from '../lib/OxigraphStoreManager.js';
 import * as crypto from 'crypto';
 import { typedRoute } from './route-helpers.js';
 import { AuthorizationError, isAdmin, requireBackendMode } from '../auth/enforce.js';
-import { applyExecutionArguments } from '../lib/executionArguments.js';
+import { applyExecutionArguments, resolveExecutionPayload } from '../lib/executionArguments.js';
 import { ArgumentSetService } from '../lib/ArgumentSetService.js';
 import { describeParameterKey, scalarParameterKey, tableParameterKey } from '@sparql-query-lib/types';
 import { recordPassthroughUpdate } from '../lib/patchService.js';
+import { isReadOnlyDeployment } from '../config/readOnly.js';
 import { UnsupportedUpdateError } from '@sparql-query-lib/rdf-delta';
 import { clientId, toPatchView } from './patches.js';
 
@@ -262,6 +263,25 @@ export default async function (
     const acceptHeader = request.headers.accept;
     const recordPatch = request.query.record === 'patch';
 
+    /*
+     * The one thing this route does that a read-only deployment must not.
+     *
+     * The update itself passes through — whether a store accepts a write is
+     * the store's answer, not this deployment's (see `config/readOnly.ts`).
+     * Recording a patch is different in kind: the patch is sqlib's own state,
+     * written into sqlib's own store. Refusing rather than quietly skipping it
+     * is the same call `ReadOnlySparqlExecutor` makes for the same reason — a
+     * caller that asked to be told which patch it got, and is handed a success
+     * with no record, believes something that is not true.
+     */
+    if (recordPatch && isReadOnlyDeployment()) {
+      return reply.code(405).send({
+        error:
+          'This sqlib deployment is read-only and cannot record patches. ' +
+          'Re-send without ?record=patch to run the update without a record.',
+      });
+    }
+
     let ephemeralStoreId: string | null = null;
     try {
       // Detect before resolving: reads and updates need different grants, so the
@@ -291,39 +311,13 @@ export default async function (
        * a raw run of an edited query had to flatten its set client-side, which
        * is the one place the two paths disagreed about what an argument set is.
        */
-      let argumentSets = inlineArguments;
-      let effectiveLimits = limits;
-      let effectiveOffsets = offsets;
-      if (Array.isArray(argumentSetIds) && argumentSetIds.length > 0) {
-        const stored = await new ArgumentSetService().exportRuntimePayload(argumentSetIds);
-        const filled = stored.filledParameters;
-        const conflicts: string[] = [];
-        for (const argSet of inlineArguments ?? []) {
-          const vars = Array.isArray(argSet?.head?.vars) ? argSet.head.vars : [];
-          if (vars.length && filled.has(tableParameterKey(vars))) {
-            conflicts.push(describeParameterKey(tableParameterKey(vars)));
-          }
-        }
-        for (const limit of limits ?? []) {
-          if (filled.has(scalarParameterKey('limit', limit.name))) {
-            conflicts.push(describeParameterKey(scalarParameterKey('limit', limit.name)));
-          }
-        }
-        for (const offset of offsets ?? []) {
-          if (filled.has(scalarParameterKey('offset', offset.name))) {
-            conflicts.push(describeParameterKey(scalarParameterKey('offset', offset.name)));
-          }
-        }
-        if (conflicts.length) {
-          return reply.code(400).send({
-            error: `The named argument set already fills ${conflicts.join(', ')}; `
-              + 'supply a value only for a parameter it leaves open.',
-          });
-        }
-        argumentSets = [...stored.tupleList, ...(inlineArguments ?? [])];
-        effectiveLimits = [...stored.limits, ...(limits ?? [])];
-        effectiveOffsets = [...stored.offsets, ...(offsets ?? [])];
-      }
+      const resolvedPayload = await resolveExecutionPayload(
+        { arguments: inlineArguments, limits, offsets, argumentSetIds },
+        new ArgumentSetService()
+      );
+      const argumentSets = resolvedPayload.argumentSets;
+      const effectiveLimits = resolvedPayload.limits;
+      const effectiveOffsets = resolvedPayload.offsets;
 
       const executedQuery = applyExecutionArguments(query, {
         argumentSets,

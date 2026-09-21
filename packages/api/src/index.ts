@@ -31,6 +31,11 @@ import { registerAuthPlugin } from './auth/plugin.js';
 import { initializeAuth } from './auth/bootstrap.js';
 import { getAuthConfig, resetAuthConfig } from './auth/config.js';
 import {
+  isReadOnlyDeployment,
+  registerReadOnlyPlugin,
+  resetReadOnly,
+} from './config/readOnly.js';
+import {
   MAX_DATA_GRAPH_LIBRARY_BYTES,
   MAX_DATA_GRAPH_VERSION_BYTES,
 } from './lib/dataGraphContent.js';
@@ -228,6 +233,12 @@ function getHealthPayload() {
     auth: {
       mode: getAuthConfig().mode,
     },
+    /*
+     * Feature-detected the same way, and for the same reason: the SPA turns
+     * Save into "keep in this browser" when this is true, so a build pointed at
+     * a read-only deployment must not offer a button the server will refuse.
+     */
+    readOnly: isReadOnlyDeployment(),
     cache: {
       ready,
       totalEntities: cacheStats.totalEntities,
@@ -689,6 +700,15 @@ async function configureApp(fastifyApp: typeof app, options: ConfigureOptions = 
   // validates tokens here.
   resetAuthConfig();
   await registerAuthPlugin(fastifyApp);
+
+  // After auth so a refusal is logged against a request that already carries a
+  // context, and before every route so no write route can be reached without
+  // passing it. Registering it is a no-op unless SQLIB_READ_ONLY=true.
+  resetReadOnly();
+  if (isReadOnlyDeployment()) {
+    fastifyApp.log.info('SQLIB_READ_ONLY=true: refusing writes to sqlib\'s own state');
+  }
+  await registerReadOnlyPlugin(fastifyApp);
 
   // Set up IRI format validation BEFORE registering schemas
   setupValidator(fastifyApp);
