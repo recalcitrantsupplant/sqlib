@@ -106,11 +106,23 @@ jobs:
       - uses: actions/checkout@v7
       - run: bash scripts/ci/docker-build-push.sh # PUSH unset: build only
 
+  # Same gate for the web bundle image. It has its own Dockerfile and its own
+  # build (`nuxt generate`), so a change that breaks it — a workspace alias, a
+  # dependency that needs a build step the image does not run — is invisible to
+  # every other job here.
+  web-image:
+    runs-on: ${{ github.event.pull_request.head.repo.fork
+      && fromJSON('["ubuntu-latest"]')
+      || fromJSON('["self-hosted","Linux","X64"]') }}
+    steps:
+      - uses: actions/checkout@v7
+      - run: bash scripts/ci/docker-build-push-web.sh # PUSH unset: build only
+
   # Auto-merge green Dependabot patch/minor bumps. `needs` is the real gate:
   # this repo is private on the free plan, so branch protection / required
   # checks are unavailable and nothing else stops a red PR from being merged.
   dependabot-automerge:
-    needs: [verify, test, image]
+    needs: [verify, test, image, web-image]
     if: github.event_name == 'pull_request' && github.actor == 'dependabot[bot]'
     runs-on: ${{ github.event.pull_request.head.repo.fork
       && fromJSON('["ubuntu-latest"]')
