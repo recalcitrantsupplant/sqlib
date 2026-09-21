@@ -388,6 +388,9 @@ async function registerApplicationRoutes(
                 },
                 required: ['mode'],
               },
+              // Declared, or Fastify's serialiser drops it and the SPA reads a
+              // read-only deployment as writable — see `useDeploymentMode`.
+              readOnly: { type: 'boolean' },
               cache: {
                 type: 'object',
                 properties: {
@@ -413,7 +416,7 @@ async function registerApplicationRoutes(
                 ],
               },
             },
-            required: ['status', 'timestamp', 'uptimeSeconds', 'auth', 'cache', 'limits'],
+            required: ['status', 'timestamp', 'uptimeSeconds', 'auth', 'readOnly', 'cache', 'limits'],
           },
           503: {
             type: 'object',
@@ -428,6 +431,9 @@ async function registerApplicationRoutes(
                 },
                 required: ['mode'],
               },
+              // Declared, or Fastify's serialiser drops it and the SPA reads a
+              // read-only deployment as writable — see `useDeploymentMode`.
+              readOnly: { type: 'boolean' },
               cache: {
                 type: 'object',
                 properties: {
@@ -453,7 +459,7 @@ async function registerApplicationRoutes(
                 ],
               },
             },
-            required: ['status', 'timestamp', 'uptimeSeconds', 'auth', 'cache', 'limits'],
+            required: ['status', 'timestamp', 'uptimeSeconds', 'auth', 'readOnly', 'cache', 'limits'],
           },
         },
       },

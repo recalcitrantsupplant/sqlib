@@ -33,6 +33,7 @@ import type { LdkitTestRun, TestRunOutcome } from '../persistence/schemas/TestRu
 import type { LdkitTestRunCase } from '../persistence/schemas/TestRunCaseSchema.js';
 import type { TestCaseResult, TestRunResult } from './TestRunner.js';
 import type { TestReportEntry } from './reportFormats/index.js';
+import { isReadOnlyDeployment } from '../config/readOnly.js';
 
 /**
  * How many runs of one test are kept regardless of what they say.
@@ -190,6 +191,15 @@ async function forget(runIds: string[]): Promise<void> {
  */
 export async function recordTestRuns(records: TestRunRecord[]): Promise<LdkitTestRun[]> {
   if (records.length === 0) return [];
+  /*
+   * A read-only deployment runs tests and keeps no history of having done so.
+   * The check lives here rather than at the two call sites because this is the
+   * write: anything that records a run, now or later, is covered by being
+   * unable to reach the store rather than by remembering to ask. Returning an
+   * empty list is the same answer a swallowed failure below gives, and the
+   * routes already treat the verdict, not the filing, as the caller's answer.
+   */
+  if (isReadOnlyDeployment()) return [];
   const written: LdkitTestRun[] = [];
   try {
     for (const record of records) {

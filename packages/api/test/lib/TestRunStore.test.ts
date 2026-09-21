@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import type { TestRunResult } from '../../src/lib/TestRunner.js';
 import type { LdkitTestRun } from '../../src/persistence/schemas/TestRunSchema.js';
 
@@ -58,6 +58,7 @@ const {
   toReportEntry,
 } = await import('../../src/lib/TestRunStore.js');
 const { toCsv, toJUnitXml } = await import('../../src/lib/reportFormats/index.js');
+const { resetReadOnly } = await import('../../src/config/readOnly.js');
 
 const TEST_ID = 'urn:sqlib:test:t1';
 const VERSION_ID = 'urn:sqlib:test-version:tv1';
@@ -183,6 +184,38 @@ describe('recording a run', () => {
     await expect(recordTestRun({ result: verdict(), suite: TEST_ID })).resolves.toBeNull();
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
+  });
+});
+
+describe('a read-only deployment', () => {
+  /*
+   * The verdict is compute and the history is the write, so a read-only
+   * deployment runs tests and files none of them (issue #26). The check lives
+   * at the store rather than at the routes, so it holds for any caller.
+   */
+  const ORIGINAL = process.env.SQLIB_READ_ONLY;
+
+  afterEach(() => {
+    if (ORIGINAL === undefined) delete process.env.SQLIB_READ_ONLY;
+    else process.env.SQLIB_READ_ONLY = ORIGINAL;
+    resetReadOnly();
+  });
+
+  it('records nothing, and says so by writing nothing', async () => {
+    resetReadOnly({ SQLIB_READ_ONLY: 'true' } as NodeJS.ProcessEnv);
+
+    expect(await recordTestRun({ result: verdict(), subject: 'urn:sqlib:query:q1' })).toBeNull();
+    expect(await recordTestRuns([{ result: verdict(), subject: 'urn:sqlib:query:q1' }])).toEqual([]);
+
+    expect(hoisted.insertRun).not.toHaveBeenCalled();
+    expect(hoisted.insertCase).not.toHaveBeenCalled();
+    expect(hoisted.runs).toEqual([]);
+  });
+
+  it('writes as usual once the flag is off again', async () => {
+    resetReadOnly({} as NodeJS.ProcessEnv);
+    await recordTestRun({ result: verdict(), subject: 'urn:sqlib:query:q1' });
+    expect(hoisted.insertRun).toHaveBeenCalledTimes(1);
   });
 });
 

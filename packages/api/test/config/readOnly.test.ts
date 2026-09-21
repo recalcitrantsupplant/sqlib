@@ -128,6 +128,57 @@ describe('the hook, on a request', () => {
   });
 });
 
+describe('the MCP transport, through the hook', () => {
+  /*
+   * `/mcp` is all POST, so an unlisted `/mcp` takes every tool — reads included
+   * — off a read-only deployment (issue #26). What makes admitting it safe is
+   * that a mutation tool reaches its route through `app.inject`, which runs
+   * this same hook: the inner route is refused, so the tool call is. That is
+   * the property worth pinning, and it is a property of the hook rather than
+   * of the MCP SDK, so a synthetic transport exercises it exactly.
+   */
+  let app: FastifyInstance;
+
+  beforeEach(async () => {
+    process.env.SQLIB_READ_ONLY = 'true';
+    resetReadOnly();
+    app = Fastify({ logger: false });
+    await registerReadOnlyPlugin(app);
+    app.post('/mcp', async request => {
+      const { tool } = (request.body ?? {}) as { tool?: string };
+      if (!tool) return { handshake: 'ok' };
+      // How a tool call reaches its route: the transport re-enters the app.
+      const inner = await app.inject({ method: 'POST', url: `/${tool}` });
+      return { statusCode: inner.statusCode, body: inner.json() };
+    });
+    app.post('/libraries', async () => ({ created: true }));
+    app.get('/libraries', async () => ({ libraries: [] }));
+    await app.ready();
+  });
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  it('completes a handshake', async () => {
+    const response = await app.inject({ method: 'POST', url: '/mcp', payload: {} });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ handshake: 'ok' });
+  });
+
+  it('still refuses a mutation tool, at the route it re-enters', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/mcp',
+      payload: { tool: 'libraries' },
+    });
+    expect(response.statusCode).toBe(200);
+    const body = response.json() as { statusCode: number; body: { error: string } };
+    expect(body.statusCode).toBe(405);
+    expect(body.body.error).toContain('read-only');
+  });
+});
+
 describe('the hook, when the flag is off', () => {
   it('registers nothing, so every write runs as before', async () => {
     delete process.env.SQLIB_READ_ONLY;
