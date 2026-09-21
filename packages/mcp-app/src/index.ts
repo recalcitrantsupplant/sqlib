@@ -12,6 +12,7 @@
  * here knows about MCP beyond the metadata shape, which keeps the Views
  * testable without a server.
  */
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { VIEW_URI } from '@sparql-query-lib/tools';
 
@@ -87,8 +88,45 @@ export const views: ViewDefinition[] = [
 
 const byUri = new Map(views.map((view) => [view.uri, view]));
 
+/**
+ * The URI a View is published under: its stable URI with a content hash.
+ *
+ * Hosts cache a `ui://` resource against its URI. With a fixed URI, a host can
+ * serve a copy it fetched days ago long after the View changed — which looks
+ * exactly like an edit doing nothing, and is indistinguishable from the several
+ * other things in this stack that also look like that.
+ *
+ * The hash is over the assembled document, so any change to the view, the kit
+ * or the CSS moves the URI and the host re-fetches.
+ */
+const canonicalUris = new Map<string, string>();
+
+export function canonicalUri(uri: string): string {
+  const view = byUri.get(uri);
+  if (!view) throw new Error(`Unknown view: ${uri}`);
+  let canonical = canonicalUris.get(view.uri);
+  if (!canonical || noCache) {
+    const hash = createHash('sha256').update(renderView(view.uri)).digest('hex').slice(0, 12);
+    canonical = `${view.uri}-${hash}.html`;
+    canonicalUris.set(view.uri, canonical);
+  }
+  return canonical;
+}
+
+/**
+ * Resolve a View by either of its URIs.
+ *
+ * The stable URI stays resolvable forever, deliberately. A host holds on to
+ * URIs from tool declarations it cached earlier and asks for those too; when
+ * one 404s the user is told the whole connector is unreachable, which is a
+ * spectacular way to fail over a caching detail. Hashing without keeping the
+ * alias just trades a stale View for a dead one.
+ */
 export function findView(uri: string): ViewDefinition | undefined {
-  return byUri.get(uri);
+  const direct = byUri.get(uri);
+  if (direct) return direct;
+  const stable = uri.replace(/-[0-9a-f]{12}\.html$/, '');
+  return byUri.get(stable);
 }
 
 function readAsset(relative: string): string {
@@ -108,11 +146,11 @@ const noCache = process.env.MCP_APP_NO_CACHE === '1';
 
 /** The assembled, self-contained HTML for one View. */
 export function renderView(uri: string): string {
-  const cached = cache.get(uri);
-  if (cached && !noCache) return cached;
-
-  const view = byUri.get(uri);
+  const view = byUri.get(uri) ?? findView(uri);
   if (!view) throw new Error(`Unknown view: ${uri}`);
+
+  const cached = cache.get(view.uri);
+  if (cached && !noCache) return cached;
 
   const html = readAsset(`./views/${view.file}`)
     .replace('<!--@kit:css-->', () => `<style>\n${readAsset('./kit/base.css')}</style>`)
@@ -123,6 +161,6 @@ export function renderView(uri: string): string {
     throw new Error(`View ${uri} has an unresolved kit placeholder`);
   }
 
-  cache.set(uri, html);
+  cache.set(view.uri, html);
   return html;
 }

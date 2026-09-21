@@ -19,6 +19,7 @@ import {
   resultUiMeta,
   toolVisibleToModel,
   uiMetadataEnabled,
+  uiServerCapabilities,
   withUiMeta,
 } from './ui-apps.js';
 
@@ -193,7 +194,7 @@ export async function createMcpServer(options: CreateMcpServerOptions = {}) {
       // `resources` is advertised unconditionally: the Views are resources
       // whatever the client does with them, and a client that ignores the UI
       // extension simply never reads one.
-      capabilities: { tools: {}, resources: {} },
+      capabilities: { tools: {}, resources: {}, ...uiServerCapabilities() },
       ...(instructions ? { instructions } : {}),
     },
   );

@@ -127,6 +127,45 @@ Whether a client that *receives* the binding then paints the View is still that
 host's business, and support differs between them — which is why the harness
 exists.
 
+**Seven server-side things a host needs, each of which fails silently.** From
+[ext-apps#671](https://github.com/modelcontextprotocol/ext-apps/issues/671),
+where someone got a custom connector rendering and wrote down what it took.
+This server does all of them; the list is here because each one hides the next,
+and in this order:
+
+1. **Declare `capabilities.extensions["io.modelcontextprotocol/ui"]` at
+   `initialize`** — at construction, not in reaction to the client. A stateless
+   transport that builds a server per request fires `oninitialized` too late to
+   act on.
+2. **Put `_meta.ui.resourceUri` on the `tools/call` result**, not only the
+   `tools/list` entry, and send the flat `_meta["ui/resourceUri"]` spelling
+   too. Hosts differ on which they read.
+3. **Return `_meta.ui` with its `csp` on the `resources/read` content item.**
+   Empty arrays for a self-contained View. Getting it wrong blocks mounting;
+   omitting it does not.
+4. **Inline everything into the HTML.** A CDN import throws during module
+   evaluation and kills the script before the handshake runs.
+5. **Send `ui/notifications/initialized` unconditionally**, with a timeout as
+   backup — never gated on recognising the `ui/initialize` reply. The host
+   holds the iframe hidden until that notification lands, so a View waiting for
+   a response it does not understand deadlocks: nothing renders, nothing errors.
+6. **Put a content hash in the `ui://` URI.** Hosts cache against the URI, so a
+   fixed one can serve a copy from days ago — indistinguishable from your edit
+   doing nothing.
+7. **Keep the un-hashed URI resolving.** Hosts ask for URIs from tool
+   declarations they cached earlier; a 404 there reports as *Unable to reach
+   &lt;connector&gt;*. Do 6 without 7 and you swap a stale View for a dead one.
+
+Telling the two *Unable to reach* causes apart: a dead cached URI shows two
+`resources/read` calls in the request log, one fine and one failing; a wrong
+`_meta.ui.domain` shows no such split.
+
+And the debugging rule that matters most: **work from a request log between
+host and server** — method, URI, `result` or `error`. Not from what the model
+says it received. Hosts strip `_meta` before the model sees it, so "there was
+no `_meta` on the result" tells you nothing about what you sent. That mistake
+cost this repo a full afternoon.
+
 **When testing a metadata change against Claude, recreate the connector.**
 Claude caches `tools/list` per connector session and reuses it across chats, so
 a new chat can still be testing the old server and a working fix looks like no

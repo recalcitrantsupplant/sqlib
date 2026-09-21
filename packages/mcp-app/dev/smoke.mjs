@@ -86,7 +86,12 @@ const UI_CAPABILITIES = {
 console.log(`MCP Apps smoke test against ${endpoint}\n`);
 
 console.log('A UI-capable client');
-await session(UI_CAPABILITIES);
+const initialized = await session(UI_CAPABILITIES);
+check(
+  'the server declares the UI extension itself',
+  Boolean(initialized.capabilities?.extensions?.['io.modelcontextprotocol/ui']),
+  JSON.stringify(initialized.capabilities)
+);
 const { tools } = await rpc('tools/list', {});
 const bound = tools.filter((tool) => tool._meta?.ui?.resourceUri);
 check('tools are offered', tools.length > 0, `${tools.length} tools`);
@@ -95,6 +100,11 @@ check(
   'the bench is reachable',
   bound.some((tool) => tool.name === 'app_bench_open'),
   bound.map((t) => t.name).join(', ')
+);
+check(
+  'every binding names a hashed URI',
+  bound.every((tool) => /-[0-9a-f]{12}\.html$/.test(tool._meta.ui.resourceUri)),
+  bound.map((tool) => tool._meta.ui.resourceUri).join(', ')
 );
 
 const { resources } = await rpc('resources/list', {});
@@ -109,6 +119,54 @@ check(
   resources.every((resource) => (resource._meta?.ui?.csp?.connectDomains ?? null)?.length === 0),
   JSON.stringify(resources.map((r) => r._meta?.ui?.csp))
 );
+
+check(
+  'each View is published under a content-hashed URI',
+  resources.every((resource) => /-[0-9a-f]{12}\.html$/.test(resource.uri)),
+  resources.map((r) => r.uri).join(', ')
+);
+
+// A host that cached a tool declaration asks for the URI it remembers. If that
+// 404s, the user is told the connector is unreachable — so the un-hashed URI
+// must keep resolving alongside the hashed one.
+for (const stable of ['ui://sqlib/bench', 'ui://sqlib/result']) {
+  let aliasOk = false;
+  try {
+    const read = await rpc('resources/read', { uri: stable });
+    aliasOk = typeof read.contents?.[0]?.text === 'string';
+  } catch (error) {
+    aliasOk = false;
+  }
+  check(`${stable} still resolves for a host that cached it`, aliasOk);
+}
+
+/*
+ * The binding on the *result*, which is the half a host reads per call — and
+ * the half that updates without the host's cached `tools/list` being cleared.
+ * `app.bench.open` needs a real library, so this uses whatever the server has.
+ */
+const librariesCall = await rpc('tools/call', { name: 'libraries_list', arguments: {} });
+// The registry parses a JSON body and leaves anything else as text, so the
+// envelope's `body` is an array here and a string elsewhere. Handle both.
+const rawLibraries = librariesCall.structuredContent?.body ?? [];
+const libraries = typeof rawLibraries === 'string' ? JSON.parse(rawLibraries) : rawLibraries;
+const library = Array.isArray(libraries)
+  ? libraries.find((entry) => entry.id && !entry.id.startsWith('https://sparql-query-lib/system'))
+  : undefined;
+
+if (!library) {
+  console.log('  skip a tool result carries _meta.ui — no library on this server to open the bench on');
+} else {
+  const boundCall = await rpc('tools/call', {
+    name: 'app_bench_open',
+    arguments: { libraryId: library.id },
+  });
+  check(
+    'a tool result carries _meta.ui, in both spellings',
+    Boolean(boundCall._meta?.ui?.resourceUri) && Boolean(boundCall._meta?.['ui/resourceUri']),
+    JSON.stringify(boundCall._meta)
+  );
+}
 
 for (const resource of resources) {
   const read = await rpc('resources/read', { uri: resource.uri });

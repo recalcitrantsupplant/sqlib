@@ -23,7 +23,14 @@
  * `MCP_APPS=off` withholds it all, for testing that fallback deliberately
  * rather than by accident.
  */
-import { views, findView, renderView, APP_MIME_TYPE, UI_EXTENSION } from '@sparql-query-lib/mcp-app';
+import {
+  views,
+  findView,
+  renderView,
+  canonicalUri,
+  APP_MIME_TYPE,
+  UI_EXTENSION,
+} from '@sparql-query-lib/mcp-app';
 import type { ListedTool } from '@sparql-query-lib/tools';
 
 /**
@@ -61,10 +68,25 @@ export function advertisesUiExtension(capabilities: unknown): boolean {
     || mimeTypes.includes(APP_MIME_TYPE);
 }
 
+/**
+ * What this server declares at `initialize`.
+ *
+ * A server announces the extension it speaks; a client that has never heard of
+ * it ignores the key. Declaring it at construction rather than reacting to what
+ * the client advertised also survives a per-request server instance on a
+ * stateless transport, where `oninitialized` fires too late to influence
+ * anything.
+ */
+export function uiServerCapabilities() {
+  return uiMetadataEnabled()
+    ? { extensions: { [UI_EXTENSION]: { mimeTypes: [APP_MIME_TYPE] } } }
+    : {};
+}
+
 /** Every View, in the shape `resources/list` returns. */
 export function listUiResources() {
   return views.map((view) => ({
-    uri: view.uri,
+    uri: canonicalUri(view.uri),
     name: view.name,
     title: view.title,
     description: view.description,
@@ -80,7 +102,10 @@ export function readUiResource(uri: string) {
   return {
     contents: [
       {
-        uri: view.uri,
+        // Echo the URI that was asked for, hashed or stable: a host that kept
+        // an older URI from a cached tool declaration must get its resource,
+        // not a redirect it did not ask for.
+        uri,
         mimeType: view.mimeType,
         text: renderView(view.uri),
         _meta: { ui: view.meta },
@@ -116,13 +141,18 @@ export function withUiMeta(tool: ListedTool, uiEnabled: boolean) {
     return rest;
   }
   const { ui, ...rest } = tool;
+  const resourceUri = canonicalUri(ui.resourceUri);
   return {
     ...rest,
     _meta: {
       ui: {
-        resourceUri: ui.resourceUri,
+        resourceUri,
         visibility: ui.visibility ?? ['model', 'app'],
       },
+      // The flat spelling as well as the nested one. Hosts differ on which
+      // they read, they are three words each, and a host that reads neither is
+      // no worse off than before.
+      'ui/resourceUri': resourceUri,
     },
   };
 }
@@ -130,5 +160,10 @@ export function withUiMeta(tool: ListedTool, uiEnabled: boolean) {
 /** The `_meta` a tool *result* carries, so a host knows what to render it in. */
 export function resultUiMeta(tool: { ui?: { resourceUri: string } } | undefined, uiEnabled: boolean) {
   if (!uiEnabled || !tool?.ui) return undefined;
-  return { ui: { resourceUri: tool.ui.resourceUri } };
+  const resourceUri = canonicalUri(tool.ui.resourceUri);
+  // On the *result*, not only the declaration: a host that decorates from the
+  // tool definition alone never learns what to render this call in. This is
+  // also the copy that shows up without recreating a connector, because a host
+  // caches `tools/list` per session but never a result.
+  return { ui: { resourceUri }, 'ui/resourceUri': resourceUri };
 }

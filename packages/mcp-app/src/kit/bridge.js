@@ -80,13 +80,41 @@
       return app;
     },
 
-    /** The MCP-like handshake. Resolves with the host's `hostContext`. */
-    initialize: async function (appCapabilities) {
-      var result = await request('ui/initialize', {
-        appCapabilities: appCapabilities || {},
-      });
-      notify('ui/notifications/initialized', {});
-      return result || {};
+    /**
+     * The handshake. Resolves with the host's `hostContext` when it sends one.
+     *
+     * `ui/notifications/initialized` goes out **unconditionally** — on the
+     * reply, or on a timer if no reply arrives — and exactly once. The host
+     * keeps the iframe hidden until that notification lands, so a View that
+     * waits for a response it does not recognise deadlocks: nothing renders,
+     * nothing errors, and from the server's side everything looks served. It
+     * is the quietest failure in this whole stack, and the cheapest to rule
+     * out.
+     *
+     * The View therefore paints with its fallbacks when the host says nothing,
+     * rather than waiting to be told what theme to use.
+     */
+    initialize: function (appCapabilities) {
+      var announced = false;
+      var announce = function () {
+        if (announced) return;
+        announced = true;
+        notify('ui/notifications/initialized', {});
+      };
+      var timer = global.setTimeout(announce, 1000);
+
+      return request('ui/initialize', { appCapabilities: appCapabilities || {} })
+        .then(function (result) {
+          global.clearTimeout(timer);
+          announce();
+          return result || {};
+        })
+        .catch(function () {
+          // A host that refuses or never answers still gets the notification
+          // from the timer above; the View continues on its own defaults.
+          announce();
+          return {};
+        });
     },
 
     /**

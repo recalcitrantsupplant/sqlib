@@ -12,10 +12,11 @@
  */
 import { describe, expect, it } from 'vitest';
 import { tools, type ListedTool } from '@sparql-query-lib/tools';
-import { views, renderView, APP_MIME_TYPE } from '@sparql-query-lib/mcp-app';
+import { views, renderView, canonicalUri, findView, APP_MIME_TYPE } from '@sparql-query-lib/mcp-app';
 import {
   advertisesUiExtension,
   listUiResources,
+  uiServerCapabilities,
   readUiResource,
   resultUiMeta,
   toolVisibleToModel,
@@ -81,10 +82,18 @@ describe('tool metadata', () => {
   };
 
   it('publishes _meta.ui with an explicit default visibility when the client renders apps', () => {
-    expect(withUiMeta(executeRun, true)).toMatchObject({
-      name: 'execute_run',
-      _meta: { ui: { resourceUri: 'ui://sqlib/result', visibility: ['model', 'app'] } },
-    });
+    const listed = withUiMeta(executeRun, true) as Record<string, any>;
+    expect(listed.name).toBe('execute_run');
+    expect(listed._meta.ui.resourceUri).toBe(canonicalUri('ui://sqlib/result'));
+    expect(listed._meta.ui.visibility).toEqual(['model', 'app']);
+  });
+
+  it('sends the flat spelling alongside the nested one, since hosts differ', () => {
+    const listed = withUiMeta(executeRun, true) as Record<string, any>;
+    expect(listed._meta['ui/resourceUri']).toBe(listed._meta.ui.resourceUri);
+
+    const result = resultUiMeta({ ui: { resourceUri: 'ui://sqlib/result' } }, true) as Record<string, any>;
+    expect(result['ui/resourceUri']).toBe(result.ui.resourceUri);
   });
 
   it('omits _meta.ui when publishing is switched off, and never leaks the internal binding', () => {
@@ -104,12 +113,73 @@ describe('tool metadata', () => {
     expect(toolVisibleToModel(executeRun)).toBe(true);
   });
 
-  it('marks a result with the View that renders it, only when the client can', () => {
-    expect(resultUiMeta({ ui: { resourceUri: 'ui://sqlib/result' } }, true)).toEqual({
-      ui: { resourceUri: 'ui://sqlib/result' },
+  it('marks a result with the View that renders it, not only the declaration', () => {
+    // A host that decorates from `tools/list` alone never learns what to render
+    // this call in — and the result is the copy that updates without the host's
+    // per-session tool cache being thrown away.
+    expect(resultUiMeta({ ui: { resourceUri: 'ui://sqlib/result' } }, true)).toMatchObject({
+      ui: { resourceUri: canonicalUri('ui://sqlib/result') },
     });
     expect(resultUiMeta({ ui: { resourceUri: 'ui://sqlib/result' } }, false)).toBeUndefined();
     expect(resultUiMeta(undefined, true)).toBeUndefined();
+  });
+});
+
+describe('what the server declares at initialize', () => {
+  it('announces the UI extension rather than waiting to be asked', () => {
+    // Declared at construction: on a stateless transport that builds a server
+    // per request, reacting to the client's advertisement happens too late.
+    expect(uiServerCapabilities()).toEqual({
+      extensions: { 'io.modelcontextprotocol/ui': { mimeTypes: [APP_MIME_TYPE] } },
+    });
+  });
+
+  it('declares nothing when publishing is switched off', () => {
+    const previous = process.env.MCP_APPS;
+    try {
+      process.env.MCP_APPS = 'off';
+      expect(uiServerCapabilities()).toEqual({});
+    } finally {
+      if (previous === undefined) delete process.env.MCP_APPS;
+      else process.env.MCP_APPS = previous;
+    }
+  });
+});
+
+/**
+ * Hosts cache a `ui://` resource against its URI, and hold on to URIs from tool
+ * declarations they cached earlier. So the published URI carries a content hash
+ * — otherwise an edited View is served from a stale copy, which looks exactly
+ * like the edit doing nothing — and the un-hashed URI keeps resolving, because
+ * a host asking for the one it remembers and getting a 404 tells the user the
+ * whole connector is unreachable.
+ */
+describe('cache-busting without breaking cached URIs', () => {
+  it('publishes each View under a content-hashed URI', () => {
+    for (const view of views) {
+      expect(canonicalUri(view.uri)).toMatch(new RegExp(`^${view.uri}-[0-9a-f]{12}\\.html$`));
+    }
+  });
+
+  it('moves the URI when the View changes', () => {
+    const bench = canonicalUri('ui://sqlib/bench');
+    const result = canonicalUri('ui://sqlib/result');
+    expect(bench).not.toBe(result);
+  });
+
+  it('still resolves the stable URI a host cached earlier', () => {
+    expect(findView('ui://sqlib/bench')?.name).toBe('query-bench');
+    expect(findView(canonicalUri('ui://sqlib/bench'))?.name).toBe('query-bench');
+    expect(readUiResource('ui://sqlib/bench')).not.toBeNull();
+    expect(readUiResource(canonicalUri('ui://sqlib/bench'))).not.toBeNull();
+  });
+
+  it('echoes back whichever URI was asked for', () => {
+    const stable = readUiResource('ui://sqlib/bench')!;
+    const hashed = readUiResource(canonicalUri('ui://sqlib/bench'))!;
+    expect(stable.contents[0]!.uri).toBe('ui://sqlib/bench');
+    expect(hashed.contents[0]!.uri).toBe(canonicalUri('ui://sqlib/bench'));
+    expect(stable.contents[0]!.text).toBe(hashed.contents[0]!.text);
   });
 });
 
@@ -120,6 +190,7 @@ describe('UI resources', () => {
     for (const resource of listed) {
       expect(resource.mimeType).toBe(APP_MIME_TYPE);
       expect(resource.uri.startsWith('ui://')).toBe(true);
+      expect(resource.uri).toMatch(/-[0-9a-f]{12}\.html$/);
       expect(resource._meta.ui.csp.connectDomains).toEqual([]);
       expect(resource._meta.ui.permissions).toEqual([]);
     }
