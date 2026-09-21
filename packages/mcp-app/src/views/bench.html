@@ -602,20 +602,32 @@
     app.sendMessage('Here is the query I have on the bench — what would you change?\n\n```sparql\n' + nodes.editor.value + '\n```');
   });
 
-  app.on('ui/notifications/tool-input', function (params) {
-    var args = (params && params.arguments) || {};
+  /**
+   * Apply the arguments the bench was opened with, from whichever of the four
+   * places the host put them. Safe to call more than once: the editor is only
+   * filled while empty, so a late `tool-input` never clobbers typing.
+   */
+  function applyOpenArguments(params, result) {
+    var args = app.toolInputFrom(params, result);
     if (args.libraryId) state.libraryId = args.libraryId;
     if (args.backendId) state.backendId = args.backendId;
     if (args.queryString && !nodes.editor.value) {
       nodes.editor.value = args.queryString;
       scheduleDetect();
     }
-    if (args.queryId) loadQuery(args.queryId);
+    if (args.queryId && !state.queryId) loadQuery(args.queryId);
+  }
+
+  app.on('ui/notifications/tool-input', function (params) {
+    applyOpenArguments(params, null);
   });
 
   app.on('ui/notifications/tool-result', function (params) {
     var result = (params && params.result) || params || {};
     var envelope = result.structuredContent || result;
+    // The result carries the call's own arguments, so a host that never sent
+    // `tool-input` still opens the bench on the right query.
+    applyOpenArguments(null, result);
     var library = envelope && envelope.body;
     if (library && (library.id || library['@id'])) {
       state.libraryId = library.id || library['@id'];

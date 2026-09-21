@@ -185,6 +185,34 @@
     },
 
     toolName: toolName,
+
+    /**
+     * The arguments this View was opened with, from wherever the host put them.
+     *
+     * Hosts disagree. Some push `ui/notifications/tool-input` with `arguments`,
+     * some spell it `input` or `toolInput`, some skip the notification and send
+     * only the result, and ChatGPT's compatibility shim exposes
+     * `window.openai.toolInput` instead. A View that reads one of those opens
+     * blank under the others, which is indistinguishable from the model having
+     * called it wrong.
+     *
+     * `result.structuredContent.toolInput` is this server's own echo, and the
+     * one source that does not depend on the host at all.
+     */
+    toolInputFrom: function (params, result) {
+      var envelope = (result && (result.structuredContent || result)) || {};
+      var candidates = [
+        params && params.arguments,
+        params && params.input,
+        params && params.toolInput,
+        envelope.toolInput,
+        global.openai && global.openai.toolInput,
+      ];
+      for (var i = 0; i < candidates.length; i += 1) {
+        if (candidates[i] && typeof candidates[i] === 'object') return candidates[i];
+      }
+      return {};
+    },
   };
 
   /**

@@ -249,6 +249,18 @@ export async function createMcpServer(options: CreateMcpServerOptions = {}) {
         statusCode: result.statusCode,
         headers: result.headers,
         body: result.body,
+        /*
+         * A View gets its own call's arguments back in the result.
+         *
+         * The specification has the host push `ui/notifications/tool-input`,
+         * and hosts vary: some send it, some send only the result, some spell
+         * the params differently. A View that reads the arguments only from
+         * that notification opens blank when the host skips it — the bench
+         * rendered in ChatGPT with an empty editor while the model reported
+         * having loaded a query into it. Echoing here costs a few bytes and
+         * removes the dependency: the result always carries what opened it.
+         */
+        ...(definition?.ui ? { toolInput: request.params.arguments ?? {} } : {}),
       },
       ...(meta ? { _meta: meta } : {}),
     };

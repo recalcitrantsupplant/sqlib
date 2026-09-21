@@ -71,14 +71,20 @@
     app.openLink('data:application/json;charset=utf-8,' + encodeURIComponent(text));
   });
 
-  app.on('ui/notifications/tool-input', function (params) {
-    var args = (params && params.arguments) || {};
+  function applyTitle(params, result) {
+    var args = app.toolInputFrom(params, result);
     if (args.targetId) title.textContent = 'Result — ' + args.targetId;
     else if (args.query) title.textContent = 'Result — ad-hoc query';
+  }
+
+  app.on('ui/notifications/tool-input', function (params) {
+    applyTitle(params, null);
   });
 
   app.on('ui/notifications/tool-result', function (params) {
     var result = (params && params.result) || params || {};
+    // Same as the bench: the host may never have sent the input separately.
+    applyTitle(null, result);
     show(result.structuredContent || result);
   });
 
