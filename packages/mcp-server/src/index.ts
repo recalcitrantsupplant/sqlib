@@ -223,7 +223,26 @@ export async function createMcpServer(options: CreateMcpServerOptions = {}) {
 
   server.setRequestHandler('resources/read', async (request) => {
     const resource = readUiResource(request.params.uri);
-    if (!resource) throw new Error(`Unknown resource: ${request.params.uri}`);
+    /*
+     * Log the miss, on stderr, always.
+     *
+     * A failed `resources/read` reaches the user as "Unable to reach
+     * <connector>" — the whole server pronounced dead, with no clue which URI
+     * was asked for. Over stdio this line lands in the host's own MCP log,
+     * which is the request log the debugging advice says to work from and the
+     * only place the answer exists. `MCP_APP_DEBUG=1` logs the hits too.
+     */
+    if (!resource) {
+      process.stderr.write(
+        `[mcp-app] resources/read MISS ${request.params.uri} — served: ${listUiResources()
+          .map((entry) => entry.uri)
+          .join(', ')}\n`
+      );
+      throw new Error(`Unknown resource: ${request.params.uri}`);
+    }
+    if (process.env.MCP_APP_DEBUG === '1') {
+      process.stderr.write(`[mcp-app] resources/read OK ${request.params.uri}\n`);
+    }
     return resource;
   });
 

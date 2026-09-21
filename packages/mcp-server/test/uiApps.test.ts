@@ -174,6 +174,26 @@ describe('cache-busting without breaking cached URIs', () => {
     expect(readUiResource(canonicalUri('ui://sqlib/bench'))).not.toBeNull();
   });
 
+  it('resolves every URI shape a host might ask for', () => {
+    // A `resources/read` error reaches the user as "Unable to reach
+    // <connector>" — the whole server pronounced dead over a suffix. So the
+    // resolver takes a normalised URI, an older or shorter hash, a stray
+    // `.html` or a trailing slash, and only a genuinely unknown name misses.
+    for (const uri of [
+      'ui://sqlib/bench',
+      'ui://sqlib/bench.html',
+      'ui://sqlib/bench/',
+      'ui://sqlib/bench-e241683c6f09.html',
+      'ui://sqlib/bench-abc123.html',
+      canonicalUri('ui://sqlib/bench'),
+    ]) {
+      expect(findView(uri)?.name, uri).toBe('query-bench');
+      expect(readUiResource(uri), uri).not.toBeNull();
+    }
+    expect(findView('ui://sqlib/nope')).toBeUndefined();
+    expect(readUiResource('ui://sqlib/nope')).toBeNull();
+  });
+
   it('echoes back whichever URI was asked for', () => {
     const stable = readUiResource('ui://sqlib/bench')!;
     const hashed = readUiResource(canonicalUri('ui://sqlib/bench'))!;

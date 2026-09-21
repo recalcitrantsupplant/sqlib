@@ -125,8 +125,21 @@ export function canonicalUri(uri: string): string {
 export function findView(uri: string): ViewDefinition | undefined {
   const direct = byUri.get(uri);
   if (direct) return direct;
-  const stable = uri.replace(/-[0-9a-f]{12}\.html$/, '');
-  return byUri.get(stable);
+
+  /*
+   * Be liberal. A host asks for the URI it remembers, and it may have
+   * normalised it on the way: a different hash length from an older build, an
+   * added or dropped `.html`, a trailing slash. Every one of those used to
+   * throw, and a `resources/read` error is reported to the user as *Unable to
+   * reach <connector>* — the entire server declared dead over a suffix.
+   *
+   * So strip what looks like a cache-busting suffix and match on the stem.
+   */
+  const stem = uri
+    .replace(/\/+$/, '')
+    .replace(/\.html$/i, '')
+    .replace(/-[0-9a-f]{6,64}$/i, '');
+  return byUri.get(stem);
 }
 
 function readAsset(relative: string): string {
