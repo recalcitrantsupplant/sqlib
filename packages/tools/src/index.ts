@@ -17,6 +17,7 @@ export {
   type ApiCaller,
   type CompiledValidator,
   type ListedTool,
+  type ListedToolSchema,
   type ToolCallResult,
   type ToolRegistry,
   type ToolRegistryOptions,

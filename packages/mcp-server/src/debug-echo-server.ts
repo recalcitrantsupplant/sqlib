@@ -1,15 +1,11 @@
 import { createServer as createHttpServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-} from '@modelcontextprotocol/sdk/types.js';
+import { Server } from '@modelcontextprotocol/server';
+import { NodeStreamableHTTPServerTransport } from '@modelcontextprotocol/node';
 
 type Session = {
   server: Server;
-  transport: StreamableHTTPServerTransport;
+  transport: NodeStreamableHTTPServerTransport;
 };
 
 function createMcpServer(): Server {
@@ -18,7 +14,7 @@ function createMcpServer(): Server {
     { capabilities: { tools: {} } },
   );
 
-  server.setRequestHandler(ListToolsRequestSchema, async () => ({
+  server.setRequestHandler('tools/list', async () => ({
     tools: [
       {
         name: 'echo',
@@ -33,7 +29,7 @@ function createMcpServer(): Server {
     ],
   }));
 
-  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  server.setRequestHandler('tools/call', async (request) => {
     if (request.params.name === 'echo') {
       return {
         content: [
@@ -68,7 +64,7 @@ async function main() {
 
       if (!session) {
         const server = createMcpServer();
-        const transport = new StreamableHTTPServerTransport({
+        const transport = new NodeStreamableHTTPServerTransport({
           sessionIdGenerator: () => randomUUID(),
           onsessioninitialized: (newSessionId) => {
             sessions.set(newSessionId, session!);

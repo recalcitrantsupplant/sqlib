@@ -1,8 +1,8 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import { randomUUID } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
-import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import type { Server } from '@modelcontextprotocol/server';
+import { NodeStreamableHTTPServerTransport } from '@modelcontextprotocol/node';
 import { createMcpServer, type CreateMcpServerOptions } from './index.js';
 
 export type StreamableHttpServerOptions = {
@@ -16,7 +16,7 @@ export type StreamableHttpServerOptions = {
 type Session = {
   id?: string;
   server: Server;
-  transport: StreamableHTTPServerTransport;
+  transport: NodeStreamableHTTPServerTransport;
   shutdown: () => Promise<void>;
   closed: boolean;
 };
@@ -70,12 +70,12 @@ export async function startStreamableHttpMcpServer(options: StreamableHttpServer
     });
     const session: Session = {
       server,
-      transport: null as unknown as StreamableHTTPServerTransport,
+      transport: null as unknown as NodeStreamableHTTPServerTransport,
       shutdown,
       closed: false,
     };
 
-    const transport = new StreamableHTTPServerTransport({
+    const transport = new NodeStreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),
       onsessioninitialized: (newSessionId) => {
         session.id = newSessionId;

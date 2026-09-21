@@ -436,6 +436,35 @@ Phasing, each step useful on its own:
    the MVP's edits live in the frame until saved.
 5. **`ui://sqlib/library`**, and query-group awareness in the bench. Not built.
 
+## 10a. The SDK: v2, without `registerTool`
+
+`packages/mcp-server` runs on the split `@modelcontextprotocol/{server,node}`
+v2 packages. The move was worth making for this feature: v2's
+`setRequestHandler` takes a **method string** (`'tools/list'`) rather than a
+zod request schema, so registering the four handlers this door needs — tools,
+resources and their reads — no longer drags a zod dependency in for schemas
+the catalogue does not express in zod. The low-level `Server`,
+`getClientCapabilities`, stdio and a node-flavoured streamable HTTP transport
+(`NodeStreamableHTTPServerTransport`) all survive the split, so the Fastify
+wiring in `http-server.ts` is unchanged in shape.
+
+What we deliberately do **not** adopt is the `registerAppTool` /
+`registerAppResource` pattern the SDK's own `add-app-to-server` skill
+prescribes. Those helpers take a **zod** `inputSchema`, and this catalogue was
+moved off zod on purpose: a tool's schema is the same JSON Schema document the
+API registers for that route, imported from `@sparql-query-lib/contracts`, so
+MCP and HTTP cannot disagree about what a valid payload is. Taking the helpers
+would re-introduce a second schema source for 96 tools in order to save
+registering four request handlers by hand. The trade is the wrong way round,
+and `fromJsonSchema` exists if that judgement ever changes.
+
+One consequence to know: the caller's bearer token moved from
+`extra.requestInfo.headers` (node headers, values possibly arrays) to
+`ctx.http.req` (a web-standard `Request`). That is the hinge the security model
+turns on — a misread returns `undefined` and silently downgrades every tool call
+to anonymous — so it is lifted into `authorizationFromContext` and tested
+directly.
+
 ## 11. Open questions
 
 - **Chained cells.** Two queries where the second consumes the first's bindings

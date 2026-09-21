@@ -1,11 +1,5 @@
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import {
-  CallToolRequestSchema,
-  ListResourcesRequestSchema,
-  ListToolsRequestSchema,
-  ReadResourceRequestSchema,
-} from '@modelcontextprotocol/sdk/types.js';
+import { Server } from '@modelcontextprotocol/server';
+import { StdioServerTransport } from '@modelcontextprotocol/server/stdio';
 import Fastify, { type FastifyInstance, type InjectOptions } from 'fastify';
 import {
   catalogueGuide,
@@ -29,6 +23,26 @@ import {
 } from './ui-apps.js';
 
 export { formatValidationErrors };
+
+/**
+ * The caller's own bearer token, lifted off the inbound HTTP request.
+ *
+ * Small enough to inline, and deliberately not inlined: this is the hinge the
+ * security model turns on. The token rides every API call the tool makes, so
+ * the API applies *that caller's* grants rather than an ambient service
+ * identity — and a silent `undefined` here would downgrade every call to
+ * anonymous without failing anything. It has a test.
+ *
+ * `ctx.http` is absent over stdio, where there is no HTTP request and no token
+ * to forward. In v2 the request is a web-standard `Request`, so `headers.get`
+ * returns the single joined value or null, and v1's array-or-string dance is
+ * gone.
+ */
+export function authorizationFromContext(ctx: {
+  http?: { req?: { headers: { get(name: string): string | null } } };
+}): string | undefined {
+  return ctx.http?.req?.headers.get('authorization') ?? undefined;
+}
 
 export type CreateMcpServerOptions = {
   name?: string;
@@ -193,7 +207,7 @@ export async function createMcpServer(options: CreateMcpServerOptions = {}) {
    */
   const clientRendersApps = () => uiSupported(server.getClientCapabilities());
 
-  server.setRequestHandler(ListToolsRequestSchema, async () => {
+  server.setRequestHandler('tools/list', async () => {
     const uiEnabled = clientRendersApps();
     return {
       tools: toolsRegistry
@@ -203,21 +217,18 @@ export async function createMcpServer(options: CreateMcpServerOptions = {}) {
     };
   });
 
-  server.setRequestHandler(ListResourcesRequestSchema, async () => ({
+  server.setRequestHandler('resources/list', async () => ({
     resources: listUiResources(),
   }));
 
-  server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+  server.setRequestHandler('resources/read', async (request) => {
     const resource = readUiResource(request.params.uri);
     if (!resource) throw new Error(`Unknown resource: ${request.params.uri}`);
     return resource;
   });
 
-  server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
-    // `extra.requestInfo` carries the inbound HTTP headers on the streamable
-    // transports; stdio has none, and then there is simply no token to forward.
-    const rawAuth = extra?.requestInfo?.headers?.authorization;
-    const authorization = Array.isArray(rawAuth) ? rawAuth[0] : rawAuth;
+  server.setRequestHandler('tools/call', async (request, ctx) => {
+    const authorization = authorizationFromContext(ctx);
     const result = await toolsRegistry.callTool(
       request.params.name,
       (request.params.arguments ?? {}) as Record<string, unknown>,

@@ -21,6 +21,7 @@ import {
   uiSupported,
   withUiMeta,
 } from '../src/ui-apps.js';
+import { authorizationFromContext } from '../src/index.js';
 
 const uiCapableClient = {
   extensions: {
@@ -134,5 +135,42 @@ describe('catalogue ↔ View drift', () => {
     for (const tool of bound) {
       expect(served, `${tool.name} names ${tool.ui!.resourceUri}`).toContain(tool.ui!.resourceUri);
     }
+  });
+});
+
+/**
+ * The caller's bearer token has to survive the v1 → v2 SDK move.
+ *
+ * v1 handed handlers `extra.requestInfo.headers`, a node headers object whose
+ * values could be arrays; v2 hands `ctx.http.req`, a web-standard `Request`.
+ * The failure this guards against is silent: a wrong read returns `undefined`
+ * rather than throwing, every tool call runs anonymous, and nothing looks
+ * broken until a deployment with `SQLIB_AUTH_MODE=required` denies work the
+ * caller was entitled to — or, worse, an authenticated deployment stops
+ * applying the caller's grants and nobody notices.
+ */
+describe('caller authorization', () => {
+  it('lifts the bearer token off an HTTP request', () => {
+    const ctx = {
+      http: { req: new Request('https://example.org/mcp', { headers: { authorization: 'Bearer t0ken' } }) },
+    };
+    expect(authorizationFromContext(ctx)).toBe('Bearer t0ken');
+  });
+
+  it('is case-insensitive about the header name, as HTTP is', () => {
+    const ctx = {
+      http: { req: new Request('https://example.org/mcp', { headers: { Authorization: 'Bearer t0ken' } }) },
+    };
+    expect(authorizationFromContext(ctx)).toBe('Bearer t0ken');
+  });
+
+  it('forwards nothing over stdio, where there is no HTTP request', () => {
+    expect(authorizationFromContext({})).toBeUndefined();
+    expect(authorizationFromContext({ http: {} })).toBeUndefined();
+  });
+
+  it('forwards nothing when the caller sent no token', () => {
+    const ctx = { http: { req: new Request('https://example.org/mcp') } };
+    expect(authorizationFromContext(ctx)).toBeUndefined();
   });
 });
