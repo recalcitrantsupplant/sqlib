@@ -427,10 +427,57 @@ export function useArgumentSets(
     runTarget.value = DRAFT_TARGET
   }
 
-  /** Rename without touching values — the ⋮ menu's Rename. */
-  function rename(next: string) {
-    name.value = next
-    persistLocal()
+  /**
+   * Rename in place — the ⋮ menu's Rename, and the name field beside it.
+   *
+   * A name is entity metadata, not content: no version holds it, so renaming
+   * a saved set writes straight through to `PUT /argument-sets/:id` and makes
+   * no draft and no version. It used to go to the browser-local draft instead,
+   * which showed the new name and lost it on the next save — the version body
+   * a save posts carries bindings only, and the reload that follows re-read
+   * the server's unchanged name over the top.
+   *
+   * A scratch set has no server identity to rename, so it keeps the local
+   * write it always had.
+   */
+  async function rename(next: string): Promise<boolean> {
+    const trimmed = next.trim()
+    if (!trimmed) return false
+    const previous = name.value
+    name.value = trimmed
+
+    if (selection.value.kind === 'scratch') {
+      persistLocal()
+      return true
+    }
+    if (selection.value.kind !== 'set') return false
+
+    const setId = selection.value.id
+    /*
+     * An open draft carries its own copy of the name, and hydrates from it
+     * ahead of the server on the next `selectSet`. Kept in step rather than
+     * left to disagree — and only when one is already open, because renaming
+     * is not an edit to the body and must not manufacture a draft.
+     */
+    const draft = local.draftFor(setId)
+    if (draft) local.save({ ...draft, name: trimmed, edits: draft.edits })
+
+    try {
+      const result = await apiClient.updateArgumentSet(setId, { name: trimmed })
+      currentSet.value = result.data
+      argumentSets.value = argumentSets.value.map((entry) =>
+        entry.id === setId ? { ...entry, name: trimmed } : entry,
+      )
+      return true
+    } catch (err) {
+      // Put the old name back: a refused write that leaves the new one on
+      // screen is the bug this replaced, one layer down.
+      name.value = previous
+      if (draft) local.save({ ...draft, name: previous, edits: draft.edits })
+      error.value = err instanceof Error ? err.message : 'Failed to rename argument set'
+      console.error('[useArgumentSets] Rename error:', err)
+      return false
+    }
   }
 
   // ========================================================================

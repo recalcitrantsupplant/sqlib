@@ -504,9 +504,16 @@ async function confirmDeleteArgumentSet() {
   else if (args.error.value) toast.error(args.error.value)
 }
 
-/* The switcher edits the name in place and hands over the result. */
-function handleRename(name: string) {
-  args.rename(name)
+/*
+ * The switcher edits the name in place and hands over the result.
+ *
+ * On a saved set this is a write, not a local edit — a name lives on the
+ * entity, so it lands without a version — and a failed write has to say so
+ * rather than leaving the new name on screen unexplained.
+ */
+async function handleRename(name: string) {
+  const renamed = await args.rename(name)
+  if (!renamed && args.error.value) toast.error(args.error.value)
 }
 
 async function handleSave() {

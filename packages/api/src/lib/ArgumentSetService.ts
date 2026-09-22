@@ -394,6 +394,34 @@ export class ArgumentSetService {
     return setId;
   }
 
+  /**
+   * Rename a set, or reword its description, without writing a version.
+   *
+   * The same split every other entity has (`PUT /queries/:id`,
+   * `PUT /tuple-sets/:id`): a version holds the bindings and is immutable, and
+   * the stable entity holds the name, which is not content and so does not
+   * invalidate anything that names a version. Argument sets were the one
+   * entity with no such route, so the only door to a new name was the save
+   * bar — which posts a version body carrying no name, and dropped it.
+   */
+  async update(
+    id: string,
+    updates: { name?: string; description?: string | null; tags?: string[] | null },
+  ): Promise<ArgumentSetDetail | null> {
+    const cacheCoordinator = getCacheCoordinator();
+    const entity = cacheCoordinator.get(id) as LdkitArgumentSet | null;
+    if (!entity || entity['@type'] !== 'ArgumentSet') return null;
+
+    const patch: Partial<LdkitArgumentSet> = {};
+    if (updates.name !== undefined) patch.name = updates.name;
+    if (updates.description !== undefined) patch.description = updates.description;
+    if (updates.tags !== undefined) patch.tags = updates.tags;
+
+    await cacheCoordinator.update('ArgumentSet', id, patch);
+    const next = cacheCoordinator.get(id) as LdkitArgumentSet;
+    return this.expandArgumentSet(next);
+  }
+
   async listVersions(argumentSetId: string): Promise<ArgumentSetVersionDetail[]> {
     const versions = this.findVersionsForSet(argumentSetId);
     const expanded = await Promise.all(versions.map(version => this.expandArgumentSetVersion(version)));

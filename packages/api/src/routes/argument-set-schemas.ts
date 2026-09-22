@@ -150,6 +150,25 @@ export const argumentSetCreateBodySchema = {
   additionalProperties: false,
 } as const;
 
+/**
+ * Renaming or rewording a set — the stable entity, not a version.
+ *
+ * Bindings are deliberately absent: they are content, they live on a version,
+ * and a route that accepted them here would be an edit to a frozen snapshot
+ * wearing an entity's clothes. `minProperties` keeps an empty body from
+ * counting as a successful update.
+ */
+export const argumentSetUpdateBodySchema = {
+  type: 'object',
+  properties: {
+    name: { type: 'string', minLength: 1 },
+    description: { type: 'string', nullable: true },
+    tags: { type: 'array', items: iriString, nullable: true },
+  },
+  additionalProperties: false,
+  minProperties: 1,
+} as const;
+
 export const argumentSetVersionResponseSchema = {
   type: 'object',
   properties: {
