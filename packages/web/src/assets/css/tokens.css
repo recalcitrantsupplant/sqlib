@@ -294,6 +294,26 @@
   --tag-8: #6f42c1;
   --tag-none: #ced4da;
 
+  /*
+   * Family palette — which of the three things a rail section holds: what the
+   * library defines, what it takes as input, and what it judges by.
+   *
+   * The landing screen draws one card per section, twelve of them in a block,
+   * and twelve cards in one ink read as a wall. The grouping is the reading
+   * order the sections already have — definitions, then inputs, then evidence
+   * — so tinting the icon by family says out loud what the order implies.
+   *
+   * Not --series-* or --tag-*: those are assigned by index and mean nothing in
+   * themselves. These three are named after what they mark, which is why there
+   * are three of them and no fourth.
+   */
+  --family-definition: var(--blue-600);
+  --family-definition-surface: var(--blue-50);
+  --family-input: var(--violet-500);
+  --family-input-surface: var(--violet-50);
+  --family-evidence: var(--cyan-700);
+  --family-evidence-surface: var(--cyan-50);
+
   --state-valid: var(--success);
   --state-invalid: var(--danger);
   --state-stale: var(--warning);
@@ -525,6 +545,14 @@
   --series-4: #c084fc;
   --series-5: #4ade80;
   --series-6: #fbbf24;
+
+  /* Family palette, mixed against dark for the same reason --series-* is. */
+  --family-definition: #60a5fa;
+  --family-definition-surface: #172554;
+  --family-input: #c084fc;
+  --family-input-surface: #2e1065;
+  --family-evidence: #67e8f9;
+  --family-evidence-surface: #083344;
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.5);

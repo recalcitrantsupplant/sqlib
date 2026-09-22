@@ -350,6 +350,7 @@
       <AppSplash
         v-else
         @select="handleRailSelect"
+        @open-entity="handleSplashOpenEntity"
         @create-library="showAddLibraryDialog"
         @edit-library="handleEditLibraryRequest"
         @delete-library="handleDeleteLibraryRequest"
@@ -483,8 +484,7 @@ import { useBackendsStore } from '../composables/useBackendsStore';
 import { isBrowserBackendId, useBrowserBackends } from '../composables/useBrowserBackends';
 import { useBackendProbes } from '../composables/useBackendProbes';
 import { useQueriesStore } from '../composables/useQueriesStore';
-import { useQueryGroupsStore } from '../composables/useQueryGroupsStore';
-import { useRuleSetsStore } from '../composables/useRuleSetsStore';
+import { useEntityKinds, isInLibrary } from '../composables/useEntityKinds';
 import { useFeatureFlags } from '../composables/useFeatureFlags';
 import { useLibraryEvents } from '../composables/useLibraryEvents';
 import type { Backend, Library } from '@sparql-query-lib/contracts';
@@ -507,13 +507,8 @@ import { conceptsDocUrl } from '../lib/docs';
 import { useActiveLibrary } from '../composables/useActiveLibrary';
 import { useTagsStore } from '../composables/useTagsStore';
 import { isTaggableKind } from '../composables/useEntityTags';
-import { useBenchmarksStore } from '../composables/useBenchmarksStore';
 import { useTestsStore } from '../composables/useTestsStore';
 import { useApiClient, type TagMatchMode } from '../composables/useApiClient';
-import { useDataGraphsStore } from '../composables/useDataGraphsStore';
-import { useTupleSetsStore } from '../composables/useTupleSetsStore';
-import { useArgumentSetsStore } from '../composables/useArgumentSetsStore';
-import { useEtlJobsStore } from '../composables/useEtlJobsStore';
 import { useCallableDrafts, type DraftSection } from '../composables/useCallableDrafts';
 import { useScratchItems, migratePlaygroundTabs } from '../composables/useScratchItems';
 
@@ -546,8 +541,7 @@ type ItemType = SectionItemType | 'scratch';
 const librariesStore = useLibrariesStore();
 const backendsStore = useBackendsStore();
 const queriesStore = useQueriesStore();
-const queryGroupsStore = useQueryGroupsStore();
-const ruleSetsStore = useRuleSetsStore();
+const { entitiesOfKind, loadKind: loadEntityKind } = useEntityKinds();
 const { isEnabled: isFeatureEnabled, labelFor } = useFeatureFlags();
 const queriesEnabled = computed(() => isFeatureEnabled('queries'));
 const queryGroupsEnabled = computed(() => isFeatureEnabled('queryGroups'));
@@ -819,8 +813,6 @@ const libraryTags = computed(() =>
 watch(activeLibraryId, (libraryId) => { void tagsStore.loadTags(libraryId); }, { immediate: true });
 
 const draftsStore = useCallableDrafts();
-const benchmarksStore = useBenchmarksStore();
-const etlJobsStore = useEtlJobsStore();
 const testsStore = useTestsStore();
 
 /*
@@ -993,9 +985,6 @@ async function runTestIds(testIds: string[], kind: 'all' | 'group' | 'test', lab
     runningAll.value = false;
   }
 }
-const dataGraphsStore = useDataGraphsStore();
-const tupleSetsStore = useTupleSetsStore();
-const argumentSetsStore = useArgumentSetsStore();
 
 /**
  * `?argumentSet=` — how "Run with…" on an argument set's Fits list arrives.
@@ -1100,44 +1089,15 @@ function featureForDraftSection(draftSection: DraftSection | null): FeatureFlagK
   return section ? SECTION_DEFINITIONS[section].feature : null;
 }
 
-/** Every saved entity of one kind, whatever library it is in. */
-function entitiesOfKind(type: SectionItemType): SidebarEntity[] {
-  switch (type) {
-    case 'query': return queriesStore.queries.value;
-    case 'queryGroup': return queryGroupsStore.queryGroups.value;
-    case 'ruleSet': return ruleSetsStore.ruleSets.value;
-    case 'benchmark': return benchmarksStore.experiments.value;
-    case 'etlJob': return etlJobsStore.etlJobs.value.map((job) => ({ ...job, isPartOf: job.libraryIds }));
-    case 'test': return testsStore.tests.value;
-    case 'dataGraph': return dataGraphsStore.dataGraphs.value;
-    case 'tupleSet': return tupleSetsStore.tupleSets.value;
-    case 'argumentSet': return argumentSetsStore.argumentSets.value as unknown as SidebarEntity[];
-    default: return [];
-  }
-}
-
-/** Load whatever a section's Saved cluster lists. The tree used to do this. */
+/*
+ * The two switches that used to sit here — which store holds a kind, and how to
+ * load it — moved to `useEntityKinds`, because the splash counts the same nine
+ * kinds and derives its activity log from them. `loadSectionKind` keeps the
+ * one-argument call this file makes everywhere by closing over the active
+ * library, which is the only scoping the listing needs.
+ */
 function loadKind(type: SectionItemType): Promise<unknown> {
-  switch (type) {
-    case 'query': return queriesStore.loadQueries();
-    case 'queryGroup': return queryGroupsStore.loadQueryGroups();
-    case 'ruleSet': return ruleSetsStore.fetchRuleSets();
-    case 'benchmark': return benchmarksStore.loadExperiments();
-    case 'etlJob': return etlJobsStore.loadEtlJobs();
-    case 'test': return testsStore.loadTests();
-    case 'dataGraph': return dataGraphsStore.loadDataGraphs();
-    case 'tupleSet': return tupleSetsStore.loadTupleSets();
-    // Library-scoped by construction: an argument set outside a library is
-    // addressable by no screen, so an unscoped listing has nothing to show.
-    case 'argumentSet': return argumentSetsStore.loadArgumentSets({ library: activeLibraryId.value });
-    default: return Promise.resolve();
-  }
-}
-
-// `isPartOf` is an array on most entities and a bare string on query groups.
-function isInLibrary(entity: { isPartOf?: string | string[] | null }, libraryId: string) {
-  const value = entity.isPartOf;
-  return Array.isArray(value) ? value.includes(libraryId) : value === libraryId;
+  return loadEntityKind(type, { library: activeLibraryId.value });
 }
 
 /**
@@ -1257,6 +1217,22 @@ function clearEntitySelection() {
 
 function handleSelectSaved(id: string, kind: string) {
   selectSavedItem(kind as SectionItemType, id);
+}
+
+/**
+ * A row in the splash's activity log names an entity, so the click opens that
+ * entity rather than the section it lives in — the log would be a list of
+ * headings otherwise.
+ *
+ * The first saved kind is the right one: a section that lists several (Rules
+ * once did) declares the one its own rows are first, and the log is built from
+ * the same table.
+ */
+function handleSplashOpenEntity(payload: { section: ListSection; id: string }) {
+  const kind = SECTION_DEFINITIONS[payload.section].savedKinds[0]?.type;
+  if (!kind) return;
+  activeSection.value = payload.section;
+  selectSavedItem(kind, payload.id);
 }
 
 function selectSavedItem(kind: SectionItemType, id: string) {

@@ -597,6 +597,14 @@ const ROUTES: Array<[RegExp, Handler]> = [
   // Core entities
   [/\/libraries\/[^/]+$/, (r) => json(r, LIBRARY)],
   [/\/libraries$/, (r) => json(r, [LIBRARY])],
+  /*
+   * Health, before the by-id route below: `/backends/probes` matches `[^/]+`
+   * too, and answering it with a backend object is a parse error the client
+   * logs — which is what the smoke spec's "no console errors" check catches.
+   * Empty because nothing here has been probed: `never_probed` is a real state
+   * and the one a fixture deployment is in.
+   */
+  [/\/backends\/probes$/, (r) => json(r, { probes: [] })],
   [/\/backends\/[^/]+\/references$/, (r) => json(r, { libraries: [], queries: [], queryGroups: [] })],
   [/\/backends\/[^/]+$/, (r) => json(r, BACKEND)],
   [/\/backends$/, (r) => json(r, [BACKEND])],
