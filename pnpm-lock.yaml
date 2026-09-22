@@ -32,6 +32,9 @@ importers:
       '@fastify/cors':
         specifier: ^11.3.0
         version: 11.3.0
+      '@fastify/fast-json-stringify-compiler':
+        specifier: ^5.1.0
+        version: 5.1.0
       '@fastify/multipart':
         specifier: ^10.1.1
         version: 10.1.1
