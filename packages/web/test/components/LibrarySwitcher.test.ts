@@ -4,9 +4,11 @@
  *
  * The rail is the app's only already-global surface, and a library reparents
  * every section on it at once, so the control sits above them all rather than
- * over one list where it reads as a filter on that list. What the mark shows is
- * the whole of the visible affordance: the current library's initial, and its
- * name on hover.
+ * over one list where it reads as a filter on that list.
+ *
+ * The head is two controls, not one: the mark carries the current library's
+ * initial and goes to the splash, and the "Library" row under it opens the
+ * switcher and names the library on hover.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount } from '@vue/test-utils';
@@ -43,10 +45,9 @@ beforeEach(() => {
 describe('LibrarySwitcher', () => {
   it('shows the active library as an initial, and names it in full on hover', () => {
     const wrapper = mount(LibrarySwitcher);
-    const trigger = wrapper.get('[data-testid="library-switcher"]');
 
-    expect(trigger.text()).toContain('M');
-    expect(trigger.attributes('title')).toBe('Library — Main');
+    expect(wrapper.get('[data-testid="library-home"]').text()).toContain('M');
+    expect(wrapper.get('[data-testid="library-switcher"]').attributes('title')).toBe('Library — Main');
     wrapper.unmount();
   });
 
@@ -55,7 +56,22 @@ describe('LibrarySwitcher', () => {
     state.activeLibraryName.value = 'No library';
     const wrapper = mount(LibrarySwitcher);
 
-    expect(wrapper.get('[data-testid="library-switcher"]').text()).toContain('S');
+    expect(wrapper.get('[data-testid="library-home"]').text()).toContain('S');
+    wrapper.unmount();
+  });
+
+  /*
+   * The mark asks its host to go home rather than routing itself: the rail is
+   * on three pages, and on `/` the splash is a state the page already holds
+   * rather than somewhere to navigate to.
+   */
+  it('asks to go home when the mark is clicked, and opens no menu', async () => {
+    const wrapper = mount(LibrarySwitcher, { attachTo: document.body });
+
+    await wrapper.get('[data-testid="library-home"]').trigger('click');
+
+    expect(wrapper.emitted('home')).toHaveLength(1);
+    expect(document.querySelector('[data-testid="library-create"]')).toBeNull();
     wrapper.unmount();
   });
 
@@ -75,9 +91,8 @@ describe('LibrarySwitcher', () => {
   });
 
   /**
-   * The other route to a new library is the Libraries section of the navigation
-   * sidebar, and several sections replace that sidebar with a flat list — so on
-   * those sections there was no way to create one at all.
+   * The only route to a new library since the artifact tree went: the menu
+   * that names them is where the next one is made.
    */
   it('offers a new library from the menu that names them', async () => {
     const wrapper = mount(LibrarySwitcher, { attachTo: document.body });

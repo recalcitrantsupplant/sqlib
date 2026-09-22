@@ -1,6 +1,11 @@
 <template>
   <div class="app-layout">
-    <AppNavRail :active-section="railSelection" @select="handleRailSelect" @create-library="showAddLibraryDialog" />
+    <AppNavRail
+      :active-section="railSelection"
+      @select="handleRailSelect"
+      @create-library="showAddLibraryDialog"
+      @home="goHome"
+    />
 
     <!--
       Backends are account-level and have their own two facts (health and
@@ -114,28 +119,6 @@
         </button>
       </template>
     </EntityListSidebar>
-
-    <NavigationSidebar
-      v-else
-      :section="activeSection"
-      :active-query-id="selectedQueryId"
-      :active-query-group-id="selectedQueryGroupId"
-      :active-rule-id="selectedRuleId"
-      :active-data-block-id="selectedDataBlockId"
-      :active-rule-set-id="selectedRuleSetId"
-      :refresh-key="sidebarRefreshKey"
-      @item-selected="handleItemSelected"
-      @create-query="startCreateQuery"
-      @create-query-group="startCreateQueryGroup"
-      @create-ruleset="startCreateRuleSet"
-      @create-library="showAddLibraryDialog"
-      @create-backend="startCreateBackend"
-      @select-backend="handleSelectBackendRequest"
-      @delete-library="handleDeleteLibraryRequest"
-      @delete-backend="handleDeleteBackendRequest"
-      @edit-library="handleEditLibraryRequest"
-      @edit-backend="handleEditBackendRequest"
-    />
 
     <main class="main-content">
       <!--
@@ -359,14 +342,18 @@
         </div>
       </div>
       <!--
-        Nothing selected. There is no ad-hoc editor here any more: an unsaved
-        query is an item in the Queries list, not the screen you get when you
-        have not chosen anything.
+        Nothing selected, and no section picked: the splash. There is no ad-hoc
+        editor here any more — an unsaved query is an item in the Queries list,
+        not the screen you get when you have not chosen anything — and no
+        artifact tree either, which was a second navigator beside the rail.
       -->
-      <div v-else class="content-placeholder">
-        <p v-if="anyFeatureEnabled">Add queries, query groups, rule sets, rules and data blocks from the left hand menu.</p>
-        <p v-else>No optional features are enabled. Adjust your feature flags to make functionality available.</p>
-      </div>
+      <AppSplash
+        v-else
+        @select="handleRailSelect"
+        @create-library="showAddLibraryDialog"
+        @edit-library="handleEditLibraryRequest"
+        @delete-library="handleDeleteLibraryRequest"
+      />
     </main>
 
     <AddLibraryDialog
@@ -375,30 +362,6 @@
       :library-id="editingLibraryId"
       :initial-data="editingLibraryData"
       @submit="handleLibrarySubmit"
-    />
-
-    <AddQueryDialog
-      v-model:open="queryDialogOpen"
-      :library-id="pendingQueryLibraryId"
-      :library-name="pendingQueryLibraryName"
-      :backend-options="queryDialogBackendOptions"
-      :backends="backends"
-      :initial-data="queryDialogInitialData"
-      @submit="handleQuerySubmit"
-    />
-
-    <AddQueryGroupDialog
-      v-model:open="queryGroupDialogOpen"
-      :library-id="pendingQueryGroupLibraryId"
-      :library-name="pendingQueryGroupLibraryName"
-      @submit="handleQueryGroupSubmit"
-    />
-
-    <AddRuleSetDialog
-      v-model:open="ruleSetDialogOpen"
-      :library-id="pendingRuleSetLibraryId"
-      :library-name="pendingRuleSetLibraryName"
-      @submit="handleRuleSetSubmit"
     />
 
     <AlertDialog v-model:open="scratchDiscardOpen">
@@ -482,7 +445,7 @@ import { ref, onMounted, computed, watch } from 'vue';
 import { useRoute, useRouter } from '#imports';
 import { CircleCheck, ListChecks, Play } from '@lucide/vue';
 import AppNavRail from '../components/AppNavRail.vue';
-import NavigationSidebar from '../components/NavigationSidebar.vue';
+import AppSplash from '../components/AppSplash.vue';
 import EntityListSidebar, { type SidebarSelection, type SidebarEntity } from '../components/EntityListSidebar.vue';
 import BackendListSidebar from '../components/BackendListSidebar.vue';
 import BackendWorkArea from '../components/BackendWorkArea.vue';
@@ -505,9 +468,6 @@ import TupleSetWorkArea from '../components/TupleSetWorkArea.vue';
 import ArgumentSetWorkArea from '../components/ArgumentSetWorkArea.vue';
 import EtlPlayground from '../components/EtlPlayground.vue';
 import AddLibraryDialog from '../components/AddLibraryDialog.vue';
-import AddQueryDialog from '../components/AddQueryDialog.vue';
-import AddQueryGroupDialog from '../components/AddQueryGroupDialog.vue';
-import AddRuleSetDialog from '../components/AddRuleSetDialog.vue';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -605,9 +565,6 @@ const backendsEnabled = computed(() => isFeatureEnabled('backends'));
  * items are scratch records in the section itself, gated by the section's own
  * flag. The flags stay in the contract for the API and for rollback.
  */
-const anyFeatureEnabled = computed(
-  () => queriesEnabled.value || queryGroupsEnabled.value || rulesSuiteEnabled.value || benchmarksEnabled.value || etlEnabled.value
-);
 const rulesSuiteOnlyEnabled = computed(
   () => rulesSuiteEnabled.value && !queriesEnabled.value && !queryGroupsEnabled.value && !etlEnabled.value
 );
@@ -794,6 +751,20 @@ const activeSection = ref<RailSection | null>(
 // Kept apart from activeSection so the highlight never leaks into tree scoping.
 const railHighlight = ref<RailSection | null>(null);
 const railSelection = computed(() => activeSection.value ?? railHighlight.value);
+
+/**
+ * Back to the splash.
+ *
+ * A state reset rather than a route change: this page *is* `/`, and it reads
+ * the URL once at setup — pushing `/` over `/?section=rules` would change the
+ * address bar and leave the section open. Clearing the selection and the scope
+ * is what the URL watcher then writes back.
+ */
+function goHome() {
+  clearEntitySelection();
+  selectedItemType.value = null;
+  activeSection.value = null;
+}
 
 function handleRailSelect(section: RailSection) {
   if (isScreenSection(section)) {
@@ -1599,15 +1570,6 @@ const editingLibraryData = ref<{ name: string; description: string | null; defau
 const selectedBackendId = ref<string | null>(null);
 const backendDraft = ref(false);
 const backendDraftName = ref('');
-const queryDialogOpen = ref(false);
-const pendingQueryLibraryId = ref('');
-const pendingQueryLibraryName = ref('');
-const queryGroupDialogOpen = ref(false);
-const pendingQueryGroupLibraryId = ref('');
-const pendingQueryGroupLibraryName = ref('');
-const ruleSetDialogOpen = ref(false);
-const pendingRuleSetLibraryId = ref('');
-const pendingRuleSetLibraryName = ref('');
 const deleteConfirmOpen = ref(false);
 const deleteTarget = ref<{ libraryId: string; libraryName: string } | null>(null);
 const backendDeleteConfirmOpen = ref(false);
@@ -1655,41 +1617,6 @@ function handleBackendCreated(backend: Backend) {
 }
 
 const libraries = computed<Library[]>(() => librariesStore.libraries.value);
-const libraryLookup = computed(() => {
-  const map = new Map<string, Library>();
-  for (const library of libraries.value) {
-    map.set(library.id, library);
-  }
-  return map;
-});
-const pendingQueryLibrary = computed(() => libraryLookup.value.get(pendingQueryLibraryId.value) ?? null);
-
-const queryDialogBackendOptions = computed<Partial<Backend>[]>(() => {
-  const defaultBackendId = pendingQueryLibrary.value?.defaultBackend ?? null;
-  const options: Partial<Backend>[] = [{ id: 'none', name: 'None' }];
-
-  backends.value.forEach((backend) => {
-    const isLibraryDefault = defaultBackendId !== null && backend.id === defaultBackendId;
-    options.push({
-      ...backend,
-      name: isLibraryDefault ? `${backend.name} (Library Default)` : backend.name,
-    });
-  });
-
-  if (defaultBackendId && !options.some((option) => option.id === defaultBackendId)) {
-    options.push({
-      id: defaultBackendId,
-      name: `${defaultBackendId} (Library Default)`,
-    });
-  }
-
-  return options;
-});
-
-const queryDialogInitialData = computed(() => ({
-  defaultBackend: pendingQueryLibrary.value?.defaultBackend ?? '',
-}));
-
 // Sync URL with selection state
 watch([selectedItemType, selectedQueryId, selectedScratchId, selectedQueryGroupId, selectedRuleId, selectedDataBlockId, selectedRuleSetId, selectedBenchmarkId, selectedEtlJobId, selectedTestId, selectedDataGraphId, selectedTupleSetId, selectedArgumentSetId, activeSection], () => {
   const params: Record<string, string> = {};
@@ -1813,49 +1740,6 @@ onMounted(async () => {
     await backendsStore.loadBackends();
   }
 });
-
-/** The tree's selection, which is the same selection the sidebar makes. */
-function handleItemSelected(item: { type: SectionItemType; id: string; name: string }) {
-  if (!isItemFeatureEnabled(item.type)) {
-    clearEntitySelection();
-    selectedItemType.value = item.type;
-    console.warn('Ignoring selection for disabled feature', item.type);
-    return;
-  }
-  selectSavedItem(item.type, item.id);
-}
-
-function startCreateQuery(payload: { libraryId: string; libraryName: string }) {
-  if (!queriesEnabled.value) {
-    console.warn('Queries feature disabled; ignoring create query request.');
-    return;
-  }
-  pendingQueryLibraryId.value = payload.libraryId;
-  pendingQueryLibraryName.value = payload.libraryName;
-  queryDialogOpen.value = true;
-}
-
-function startCreateQueryGroup(payload: { libraryId: string; libraryName: string }) {
-  if (!queryGroupsEnabled.value) {
-    console.warn('Query Groups feature disabled; ignoring create query group request.');
-    return;
-  }
-  pendingQueryGroupLibraryId.value = payload.libraryId;
-  pendingQueryGroupLibraryName.value = payload.libraryName;
-  queryGroupDialogOpen.value = true;
-  selectedQueryGroupId.value = null;
-}
-
-
-function startCreateRuleSet(payload: { libraryId: string; libraryName: string }) {
-  if (!rulesSuiteEnabled.value) {
-    console.warn('Rule Sets feature disabled; ignoring create rule set request.');
-    return;
-  }
-  pendingRuleSetLibraryId.value = payload.libraryId;
-  pendingRuleSetLibraryName.value = payload.libraryName;
-  ruleSetDialogOpen.value = true;
-}
 
 function handleQueryCreated(payload: { id: string; name: string; libraryId: string; libraryName: string }) {
   if (!queriesEnabled.value) {
@@ -1984,109 +1868,6 @@ async function handleLibrarySubmit(data: { name: string; description: string | n
     // The dialog's isSubmitting will remain true, showing the user something went wrong
     // Instead, we should somehow notify the dialog - but emit is fire-and-forget
     // For now, just log the error and don't throw
-  }
-}
-
-async function handleQuerySubmit(data: { name: string; description: string | null; libraryId?: string; defaultBackend: string | null }) {
-  if (!queriesEnabled.value) {
-    console.warn('Queries feature disabled; ignoring query submit.');
-    return;
-  }
-  try {
-    const libraryId = data.libraryId ?? '';
-    const query = await queriesStore.createQueryFromForm({
-      name: data.name,
-      description: data.description,
-      isPartOf: libraryId,
-      defaultBackend: data.defaultBackend,
-    });
-    queryDialogOpen.value = false;
-    sidebarRefreshKey.value += 1;
-
-    // Navigate to the newly created query
-    selectedItemType.value = 'query';
-    selectedQueryId.value = query.id;
-    selectedRuleId.value = null;
-    selectedDataBlockId.value = null;
-    creationRequest.value = null; // Clear creation mode
-
-    // Update URL to reflect the new state
-    router.replace({
-      query: {
-        query: query.id,
-        library: libraryId,
-      }
-    });
-
-  } catch (error) {
-    console.error('Failed to create query:', error);
-    throw error;
-  }
-}
-
-async function handleQueryGroupSubmit(data: { name: string; description: string | null; libraryId?: string }) {
-  if (!queryGroupsEnabled.value) {
-    console.warn('Query Groups feature disabled; ignoring query group submit.');
-    return;
-  }
-  try {
-    const libraryId = data.libraryId ?? '';
-    const queryGroup = await queryGroupsStore.createQueryGroupFromForm({
-      name: data.name,
-      description: data.description,
-      isPartOf: libraryId,
-    });
-    queryGroupDialogOpen.value = false;
-    sidebarRefreshKey.value += 1;
-
-    // Provide creation context so the work area can show the library banner while loading
-  queryGroupCreationRequest.value = {
-    id: Date.now(),
-    libraryId,
-    libraryName: pendingQueryGroupLibraryName.value,
-  };
-  selectedItemType.value = 'queryGroup';
-  selectedQueryGroupId.value = queryGroup.id;
-
-    router.replace({
-      query: {
-        queryGroup: queryGroup.id,
-      }
-    });
-
-  } catch (error) {
-    console.error('Failed to create query group:', error);
-    throw error;
-  }
-}
-
-
-async function handleRuleSetSubmit(data: { name: string; description: string | null; libraryId?: string }) {
-  if (!rulesSuiteEnabled.value) {
-    console.warn('Rule Sets feature disabled; ignoring rule set submit.');
-    return;
-  }
-  try {
-    const ruleSet = await ruleSetsStore.createRuleSetFromForm({
-      name: data.name,
-      description: data.description,
-      libraryId: data.libraryId ?? '',
-    });
-    selectedItemType.value = 'ruleSet';
-    selectedRuleSetId.value = ruleSet.id;
-    selectedQueryId.value = null;
-    selectedRuleId.value = null;
-    selectedDataBlockId.value = null;
-    router.replace({
-      query: {
-        ruleSet: ruleSet.id,
-      }
-    });
-    ruleSetDialogOpen.value = false;
-    sidebarRefreshKey.value += 1;
-  } catch (error) {
-    console.error('Failed to create rule set:', error);
-    throw error;
   }
 }
 

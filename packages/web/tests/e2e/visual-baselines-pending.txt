@@ -16,16 +16,8 @@
 #
 # Paths are relative to packages/web/tests/e2e.
 
-# Renamed in the playground -> section pass, and never re-baselined. Found by
-# hand twice (issue #36's comments, 2026-09-06 and 2026-09-07) before anything
-# checked for it; recorded here so it is a debt with a name rather than a lane
-# that silently fails on three of its own screens.
-visual-regression.spec.ts-snapshots/rules-section-light-chromium-linux.png
-visual-regression.spec.ts-snapshots/rules-section-dark-chromium-linux.png
-visual-regression.spec.ts-snapshots/etl-section-light-chromium-linux.png
-visual-regression.spec.ts-snapshots/etl-section-dark-chromium-linux.png
-visual-regression.spec.ts-snapshots/bench-section-light-chromium-linux.png
-visual-regression.spec.ts-snapshots/bench-section-dark-chromium-linux.png
+# The three section shots that were listed here are baselined: the lane was
+# run on this machine when the splash screen replaced the artifact tree.
 
 # The canvas states (#47 item 5), added from a cloud container. Each was
 # rendered and read there to confirm it frames the state it claims to; the

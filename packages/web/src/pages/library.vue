@@ -1,6 +1,6 @@
 <template>
   <div class="library-layout">
-    <AppNavRail active-section="library" @select="handleRailSelect" />
+    <AppNavRail active-section="library" @select="handleRailSelect" @home="goHome" />
 
     <NotebookContents
       v-if="queries.length > 0"
@@ -371,6 +371,11 @@ async function copyBundle() {
         ? `Could not copy the bundle: ${cause.message}`
         : 'Could not copy the bundle.';
   }
+}
+
+/** The mark at the head of the rail: back to the splash. */
+function goHome() {
+  router.push({ path: '/' });
 }
 
 function handleRailSelect(section: RailSection) {

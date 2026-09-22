@@ -1,6 +1,6 @@
 <template>
   <div class="build-layout">
-    <AppNavRail active-section="build" @select="handleRailSelect" />
+    <AppNavRail active-section="build" @select="handleRailSelect" @home="goHome" />
 
     <AssistantChat
       :style="{ width: `${chatWidth}px` }"
@@ -380,6 +380,11 @@ const backendRows = computed<ConfigRow[]>(() =>
     facts: [backend.backendType, backend.endpoint ?? 'no endpoint'],
   }))
 );
+
+/** The mark at the head of the rail: back to the splash. */
+function goHome() {
+  router.push({ path: '/' });
+}
 
 function handleRailSelect(section: RailSection) {
   if (section === 'build') return;

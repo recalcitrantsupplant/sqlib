@@ -1,3 +1,5 @@
+import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 import { defineNuxtConfig } from 'nuxt/config';
@@ -33,6 +35,46 @@ const frontendFeatureFlagEnv: Record<string, string | undefined> = {
 };
 
 const frontendFeatureFlags = buildFeatureFlags(frontendFeatureFlagEnv);
+
+/*
+ * What build this is, resolved once when the bundle is built.
+ *
+ * The version is release-please's, read from its manifest rather than from a
+ * package.json: `release-type: simple` bumps the manifest and the tag, and the
+ * workspace package.jsons are not part of that — `packages/web` still says
+ * 0.0.1 and always will, which is not a version anybody can report a bug
+ * against.
+ *
+ * Both are overridable by environment, because a container build has neither
+ * file nor git history to read: the image build passes what it knows.
+ */
+function releaseVersion(): string {
+  const fromEnv = process.env.NUXT_PUBLIC_APP_VERSION?.trim();
+  if (fromEnv) return fromEnv;
+  try {
+    const manifest = JSON.parse(
+      readFileSync(resolve(currentDir, '../../.release-please-manifest.json'), 'utf8'),
+    ) as Record<string, string>;
+    return manifest['.'] ?? 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
+
+/** The commit the bundle was built from, short form. Empty when unknown. */
+function buildCommit(): string {
+  const fromEnv = process.env.NUXT_PUBLIC_APP_COMMIT?.trim();
+  if (fromEnv) return fromEnv.slice(0, 7);
+  try {
+    return execFileSync('git', ['rev-parse', '--short=7', 'HEAD'], {
+      cwd: currentDir,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch {
+    return '';
+  }
+}
 
 export default defineNuxtConfig({
   compatibilityDate: '2026-08-06',
@@ -286,6 +328,12 @@ export default defineNuxtConfig({
     public: {
       apiBaseUrl: process.env.NUXT_PUBLIC_API_BASE_URL || 'http://localhost:3000',
       featureFlags: frontendFeatureFlags,
+      // What is running, for the About block on the splash and the line in
+      // Settings. Baked in at build time — `ssr: false` means these are in the
+      // client bundle, which is the thing they describe.
+      appVersion: releaseVersion(),
+      appCommit: buildCommit(),
+      buildTime: process.env.NUXT_PUBLIC_BUILD_TIME || new Date().toISOString(),
       // OIDC settings. Empty by default: the app reads the API's auth mode at
       // boot and only reaches for these when it reports an enforcing mode, so a
       // deployment without auth needs none of them.

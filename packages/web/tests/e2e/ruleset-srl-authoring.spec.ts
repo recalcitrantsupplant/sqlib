@@ -1,4 +1,5 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
+import { openSection } from './navigate';
 
 /**
  * Authoring a rule set as one SRL document.
@@ -227,8 +228,7 @@ test.describe('Rule set SRL authoring', () => {
     // dev server (HMR websocket / ongoing polling) the network never goes idle,
     // so that wait hangs until the test times out. Wait for a concrete element
     // instead.
-    await page.goto('/', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('.section-header').filter({ hasText: 'Libraries' })).toBeVisible();
+    await openSection(page, 'rules');
   });
 
   test('opens on the document, with prefixes, DATA and rules in one editor', async ({ page }) => {
@@ -596,29 +596,17 @@ test.describe('Rule set SRL authoring', () => {
   }
 
   /**
-   * Open the mocked rule set from the sidebar.
-   *
-   * Top-level sections are expanded by default (`expandedSections.libraries` is
-   * true), so the section toggle is deliberately NOT clicked — doing so would
-   * collapse it and the items would never appear. Individual libraries and their
-   * categories start collapsed, so those do get clicked.
+   * The Rules sidebar, which replaced the artifact tree: one flat list of rule
+   * sets, no library row to expand and no category under it.
    *
    * All waits use auto-retrying `expect`s rather than `count()` checks: the
-   * section header renders before the library list has been fetched, so a bare
-   * count races and reads 0.
+   * sidebar renders before the rule sets have been fetched, so a bare count
+   * races and reads 0.
    */
   async function openDefaultRuleSet(page: Page) {
-    const libraryToggle = page.locator('.library-item .library-toggle', { hasText: defaultLibrary.name });
-    await expect(libraryToggle).toBeVisible();
-    await libraryToggle.click();
-
-    const ruleSetsCategory = page.locator('.library-subitems .category-header', { hasText: 'Rule Sets' });
-    await expect(ruleSetsCategory).toBeVisible();
-    await ruleSetsCategory.click();
-
-    const ruleSetButton = page.locator('.library-subitems .item-button', { hasText: defaultRuleSet.name });
-    await expect(ruleSetButton).toBeVisible();
-    await ruleSetButton.click();
+    const row = page.locator(`[data-entity-id="${defaultRuleSet.id}"]`);
+    await expect(row).toBeVisible();
+    await row.click();
 
     await expect(page.locator('.ruleset-work-area')).toBeVisible();
     // The document arrives from the export route; typing before it lands would

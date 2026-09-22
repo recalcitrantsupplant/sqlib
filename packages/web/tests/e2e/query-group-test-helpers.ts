@@ -753,61 +753,34 @@ export async function setupMockApi(page: Page, state: MockState, options: SetupM
 export async function bootstrapQueryGroupCanvas(page: Page, options?: SetupMockApiOptions) {
   const state = createMockState();
   await setupMockApi(page, state, options);
-  await page.goto('/');
-  await page.waitForLoadState('networkidle');
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('[data-testid="app-splash"]');
   return state;
 }
 
-export async function openAddQueryDialog(page: Page, libraryName: string) {
-  const librariesSection = page.locator('.section-header').filter({ hasText: 'Libraries' });
-  const libraryToggle = librariesSection.locator('.section-toggle');
-  await ensureExpanded(libraryToggle, librariesSection.locator('.arrow'));
-
-  const libraryRow = page.locator('.library-item').filter({ hasText: libraryName });
-  const libraryButton = libraryRow.locator('.library-toggle');
-  await ensureExpanded(libraryButton, libraryRow.locator('.library-toggle .arrow'));
-
-  const queriesCategory = libraryRow.locator('.subitem-category').filter({ hasText: 'Queries' });
-  const categoryButton = queriesCategory.locator('.category-header');
-  await ensureExpanded(categoryButton, queriesCategory.locator('.category-header .arrow'));
-
-  await queriesCategory.hover();
-  const addButton = page.getByRole('button', { name: 'Add Query' }).first();
-  await addButton.click();
-  await page.waitForSelector('[role="dialog"]');
+/**
+ * A saved entity, picked in the sidebar of the section that lists it.
+ *
+ * The artifact tree these helpers used to walk is gone — no Libraries section
+ * to expand, no library row under it and no category under that — so the
+ * library name is no longer part of getting anywhere. It stays in the
+ * signature because every caller passes it and it still reads as the scope
+ * they mean.
+ */
+async function selectSectionRow(page: Page, section: string, name: string) {
+  await page.goto(`/?section=${section}`, { waitUntil: 'domcontentloaded' });
+  const sidebar = page.locator('[data-testid="entity-list-sidebar"]');
+  await expect(sidebar).toBeVisible();
+  await sidebar.locator('.entity-row').filter({ hasText: name }).first().click();
 }
 
-export async function ensureExpanded(toggle: Locator, arrow: Locator) {
-  if (!(await hasExpandedClass(arrow))) {
-    await toggle.click();
-    await expect(arrow).toHaveClass(/expanded/);
-  }
-}
-
-export async function hasExpandedClass(arrow: Locator) {
-  const classes = await arrow.getAttribute('class');
-  return classes?.split(' ').includes('expanded') ?? false;
-}
-
-export async function selectSidebarQueryGroup(page: Page, libraryName: string, groupName: string) {
-  const librariesSection = page.locator('.section-header').filter({ hasText: 'Libraries' });
-  const libraryRow = page.locator('.library-item').filter({ hasText: libraryName });
-  await ensureExpanded(librariesSection.locator('.section-toggle'), librariesSection.locator('.arrow'));
-  await ensureExpanded(libraryRow.locator('.library-toggle'), libraryRow.locator('.library-toggle .arrow'));
-  const queryGroupsCategory = libraryRow.locator('.subitem-category').filter({ hasText: 'Query Groups' });
-  await ensureExpanded(queryGroupsCategory.locator('.category-header'), queryGroupsCategory.locator('.category-header .arrow'));
-  await libraryRow.locator('.item-button').filter({ hasText: groupName }).click();
+export async function selectSidebarQueryGroup(page: Page, _libraryName: string, groupName: string) {
+  await selectSectionRow(page, 'queryGroups', groupName);
   await page.waitForSelector('.querygroup-work-area');
 }
 
-export async function selectSidebarQuery(page: Page, libraryName: string, queryName: string) {
-  const librariesSection = page.locator('.section-header').filter({ hasText: 'Libraries' });
-  const libraryRow = page.locator('.library-item').filter({ hasText: libraryName });
-  await ensureExpanded(librariesSection.locator('.section-toggle'), librariesSection.locator('.arrow'));
-  await ensureExpanded(libraryRow.locator('.library-toggle'), libraryRow.locator('.library-toggle .arrow'));
-  const queriesCategory = libraryRow.locator('.subitem-category').filter({ hasText: 'Queries' });
-  await ensureExpanded(queriesCategory.locator('.category-header'), queriesCategory.locator('.category-header .arrow'));
-  await libraryRow.locator('.item-button').filter({ hasText: queryName }).first().click();
+export async function selectSidebarQuery(page: Page, _libraryName: string, queryName: string) {
+  await selectSectionRow(page, 'queries', queryName);
   await page.waitForSelector('.query-work-area');
 }
 
@@ -1074,16 +1047,26 @@ export async function saveQueryGroupNewVersion(page: Page) {
   await saveWorkAreaVersion(page, '.querygroup-work-area');
 }
 
+/**
+ * A query and its v1, made the way the app makes one now.
+ *
+ * There is no Add Query dialog to fill in: `+ New` in the Queries sidebar
+ * opens an unsaved query, the body is typed into it, the name is set in the
+ * Details tab, and Save creates the query and its first version together.
+ */
 export async function createQueryVersionWithCode(page: Page, queryName: string, queryString: string) {
-  await openAddQueryDialog(page, LIBRARY_NAME);
-  await page.locator('#name').fill(queryName);
-  await page.getByRole('button', { name: 'Create Query' }).click();
+  await page.goto('/?section=queries', { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('[data-testid="entity-list-sidebar"]');
+  await page.locator('[data-testid="new-scratch"]').click();
 
   const queryEditor = page.locator('.query-work-area .cm-content').first();
   await queryEditor.click();
   await page.keyboard.press(SELECT_ALL_SHORTCUT);
   await page.keyboard.type(queryString);
   await expect(queryEditor).toContainText(queryString.slice(0, 20));
+
+  await page.locator('.query-work-area [data-testid="details-tab"]').click();
+  await page.locator('.query-work-area [data-testid="details-name"]').fill(queryName);
 
   await saveWorkAreaVersion(page, '.query-work-area');
   await expect(page.locator('.query-work-area [data-testid="version-pill"]')).toContainText('v1');
