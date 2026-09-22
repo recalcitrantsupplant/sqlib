@@ -236,3 +236,33 @@ replaced.
 `NODE_ENV=development`, to `OTEL_EXPORTER_OTLP_ENDPOINT` (default
 `http://localhost:4318`); otherwise traces and metrics go to the console. Set
 `OTEL_ENABLED=false` if you want neither.
+
+## Scaling to zero
+
+An instance that is stopped when idle and started on the next request pays its
+startup on that request, so startup stops being a deployment detail and becomes
+latency someone waits for. The image is set up for this: response serialisers
+compile on first use rather than at boot, the SPARQL grammars and the DuckDB
+binding are built on first use, and a V8 compile cache ships in the image so the
+first container to start is already warm. Turning off the
+[feature flags](../reference/configuration.md#feature-flags) you do not serve and
+setting `OTEL_ENABLED=false` are the two things left worth doing yourself; see
+[startup time](../reference/configuration.md#startup-time).
+
+Two things about the store matter more than any of that:
+
+**An in-memory store is empty on every cold start.**
+`INTERNAL_BACKEND_TYPE=oxigraph-memory` keeps nothing between runs, so a
+scale-to-zero deployment that uses it comes back with an empty library every
+time. Use `oxigraph-persistent` with the snapshot on a volume that survives the
+container — it is the same in-memory Oxigraph, with a `.nq` snapshot restored at
+boot and written on a timer. The restore is the one part of startup that grows
+with your data: roughly one second per 180,000 quads.
+
+**A container killed without warning loses everything since the last
+checkpoint.** The snapshot is written every
+`INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS` (default 60s) and on `SIGTERM`. If
+the platform stops idle instances by killing them, or its shutdown grace period
+is shorter than the dump takes, up to a checkpoint interval of writes is gone.
+Shorten the interval if writes matter, and check that your platform sends
+`SIGTERM` and waits for the process to exit.

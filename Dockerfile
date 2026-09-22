@@ -205,6 +205,32 @@ RUN mkdir -p /app/packages/api/storage/etl-output \
 # Create volume mount point for persistent storage
 VOLUME /app/packages/api/storage
 
+# Bake a V8 compile cache into the image.
+#
+# Node caches the compiled bytecode of every module it loads under
+# NODE_COMPILE_CACHE and reuses it on the next run. Populating it here means the
+# *first* container to start is already warm, which is what matters for a
+# scale-to-zero deployment where most starts are cold starts: it takes ~180ms
+# off the import phase of a ~2.8s boot.
+#
+# Populated by importing the two entrypoints rather than running them: importing
+# `packages/api/dist/index.js` does not start a server (it only listens when it
+# is the main module), and `dual-http-server.js` only defines functions. That
+# covers the import graph both runtime modes share. Telemetry is off for the
+# warm-up so the SDK does not start and hold the process open.
+#
+# Never fatal: a missing or partial cache costs startup time, not correctness,
+# and it is not worth failing an image build over.
+ENV NODE_COMPILE_CACHE=/app/.v8-compile-cache
+RUN mkdir -p /app/.v8-compile-cache \
+    && (cd /app/packages/api \
+        && OTEL_ENABLED=false node -e "import('./dist/index.js').then(() => process.exit(0))" \
+        || echo "warning: could not warm the compile cache for the API entrypoint") \
+    && (cd /app/packages/mcp-server \
+        && OTEL_ENABLED=false node -e "import('./dist/dual-http-server.js').then(() => process.exit(0))" \
+        || echo "warning: could not warm the compile cache for the MCP entrypoint") \
+    && chown -R node:node /app/.v8-compile-cache
+
 EXPOSE 3000
 EXPOSE 3333
 
@@ -212,7 +238,13 @@ EXPOSE 3333
 USER node
 
 # Boot API or MCP runtime based on APP_MODE
-# Set OTEL_ENABLED=false to disable OpenTelemetry for API mode if needed
+# Set OTEL_ENABLED=false to disable OpenTelemetry (worth doing for a
+# scale-to-zero deployment: it is ~250ms of every cold start).
 # Mount a volume to /app/packages/api/storage for persistence:
 #   docker run -v sparql-storage:/app/packages/api/storage ...
-CMD ["sh", "-c", "case \"${APP_MODE:-dual-http}\" in api) cd /app/packages/api && if [ -f ./dist/otel-setup.js ] && [ \"${OTEL_ENABLED:-true}\" = \"true\" ]; then node --require ./dist/otel-setup.js dist/index.js; else node dist/index.js; fi ;; mcp-http) cd /app/packages/mcp-server && MCP_TRANSPORT=streamable-http NODE_ENV=production node dist/cli.js ;; dual-http|*) cd /app/packages/mcp-server && MCP_TRANSPORT=dual-http NODE_ENV=production node dist/cli.js ;; esac"]
+#
+# API mode no longer starts OpenTelemetry with `node --require ./dist/otel-setup.js`:
+# `dist/index.js` imports that module itself, so the flag was only ever a second
+# route to the same side effect, and the module now uses top-level await (to skip
+# loading the SDK when telemetry is off) which `--require` cannot load.
+CMD ["sh", "-c", "case \"${APP_MODE:-dual-http}\" in api) cd /app/packages/api && exec node dist/index.js ;; mcp-http) cd /app/packages/mcp-server && MCP_TRANSPORT=streamable-http NODE_ENV=production exec node dist/cli.js ;; dual-http|*) cd /app/packages/mcp-server && MCP_TRANSPORT=dual-http NODE_ENV=production exec node dist/cli.js ;; esac"]

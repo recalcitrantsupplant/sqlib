@@ -7,6 +7,7 @@ import addFormats from 'ajv-formats';
 import addFormats2019 from 'ajv-formats-draft2019';
 import Ajv2020, { type Options } from 'ajv/dist/2020.js';
 import { isIri } from '@sparql-query-lib/contracts/iri';
+import SerializerSelector from '@fastify/fast-json-stringify-compiler';
 import type { FastifyInstance } from 'fastify';
 
 type AjvInstance = InstanceType<typeof Ajv2020.default>;
@@ -102,5 +103,51 @@ export function setupValidator(app: FastifyInstance): void {
       return ajv.compile(cleanSchema);
     }
     return ajv.compile(schema);
+  });
+}
+
+/**
+ * Sets up a response serialiser that compiles each route's schema on that
+ * route's first response rather than at `ready()`.
+ *
+ * Fastify's default is to build a `fast-json-stringify` serialiser for every
+ * response schema on every route while the server is coming up. That is the
+ * single largest term in this server's startup: measured on a 135-route
+ * instance it is ~890ms of the ~1.4s `ready()` takes, and it scales linearly
+ * with the route count (~10ms per route) whether or not anything ever calls
+ * those routes. For a scale-to-zero deployment, where a cold start sits in
+ * front of a user request, that is most of the wait.
+ *
+ * Deferring it moves the cost to the first response on each route — ~2ms there,
+ * once — and a process that only ever serves `/health` never compiles the other
+ * 134. Nothing else changes: the same compiler, the same options and the same
+ * external-schema bucket produce the same serialiser, just later.
+ *
+ * **The external schemas are the part that has to be right.** Fastify normally
+ * hands the factory `app.getSchemas()` itself, so a serialiser built without
+ * them resolves no `$ref` and every entity route answers 500. They are read
+ * here inside the compiler callback rather than at setup time because
+ * `addSchema` has not run yet when this is called — by first response it has.
+ *
+ * Must be called before any route is registered, and on the same instance the
+ * routes are registered on: a serialiser compiler is per encapsulation context.
+ */
+export function setupLazySerializer(app: FastifyInstance): void {
+  let compile: SerializerSelector.SerializerCompiler | null = null;
+
+  app.setSerializerCompiler((routeDefinition) => {
+    let serialize: SerializerSelector.Serializer | null = null;
+
+    return (data) => {
+      if (!serialize) {
+        if (!compile) {
+          // The same factory fastify would have used, with the same options —
+          // see `serializerOpts` above for why `ajv.formats.iri` matters here.
+          compile = SerializerSelector()(app.getSchemas(), { ...serializerOpts });
+        }
+        serialize = compile(routeDefinition as SerializerSelector.RouteDefinition);
+      }
+      return serialize(data);
+    };
   });
 }

@@ -5,6 +5,11 @@ const createStubApp = () => ({
   ready: vi.fn().mockResolvedValue(undefined),
   close: vi.fn().mockResolvedValue(undefined),
   setValidatorCompiler: vi.fn(),
+  // Startup installs a response serialiser that compiles each route's schema on
+  // that route's first response rather than at `ready()`; `getSchemas` is what
+  // it reads the external `$ref` bucket from, lazily. See `setupLazySerializer`.
+  setSerializerCompiler: vi.fn(),
+  getSchemas: vi.fn(() => ({})),
   addSchema: vi.fn(),
   setErrorHandler: vi.fn(),
   // The auth plugin decorates the request and installs an onRequest hook.

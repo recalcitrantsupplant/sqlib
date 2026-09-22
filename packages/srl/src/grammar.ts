@@ -199,4 +199,34 @@ export const srlParserBuilder: any = ParserBuilder.create(sparql12ParserBuilder 
   .addRule(srlRuleSet)
   .addRule(srlTupleSeedDoc);
 
-export const srlParser: any = srlParserBuilder.build({ tokenVocabulary: srlTokenVocabulary as any });
+/*
+ * Building the parser assembles the whole chevrotain grammar — the SPARQL 1.2
+ * rules this extends, plus the SRL rules added above — which is ~100ms and by
+ * far the most expensive thing this package does at import time. It is deferred
+ * to first use so that importing `@sparql-query-lib/srl` is cheap: the API
+ * imports it on every boot, including boots that never parse a rule.
+ *
+ * `srlParser` stays an object with the grammar's rules as methods, because that
+ * is how both call sites use it (`srlParser.srlRuleSet(...)`). The proxy builds
+ * on the first property read and then forwards everything, so the parser is
+ * still constructed exactly once and shared.
+ */
+let builtSrlParser: any = null;
+
+export function getSrlParser(): any {
+  if (!builtSrlParser) {
+    builtSrlParser = srlParserBuilder.build({ tokenVocabulary: srlTokenVocabulary as any });
+  }
+  return builtSrlParser;
+}
+
+export const srlParser: any = new Proxy({} as any, {
+  get(_target, property) {
+    const parser = getSrlParser();
+    const value = parser[property];
+    return typeof value === 'function' ? value.bind(parser) : value;
+  },
+  has(_target, property) {
+    return property in getSrlParser();
+  },
+});

@@ -6,7 +6,20 @@ export type SparqlOperation = QueryTypeValue;
 // Use the SPARQL 1.2 parser so RDF-star triple terms don't fail parsing during detection.
 // A Traqula Parser instance is stateful and not parallel-safe, so keep it module-scoped and
 // reuse it for sequential calls (matching how sparqljs was used here).
-const parser = new Parser();
+//
+// Built on first use rather than at import: constructing one assembles the whole
+// chevrotain SPARQL 1.2 grammar, ~70ms, and this module is on the API's import
+// path whether or not the process ever detects a query type. Three such
+// constructions were ~210ms of a ~2.8s cold start (issue: startup time). The
+// instance is still made exactly once, and still shared.
+let parser: Parser | null = null;
+
+function getParser(): Parser {
+  if (!parser) {
+    parser = new Parser();
+  }
+  return parser;
+}
 
 // SPARQL 1.1/1.2 update operation forms, keyed by Traqula's lowercase `operation.subType`.
 const SUPPORTED_UPDATE_OPS = new Set([
@@ -33,9 +46,10 @@ export function detectSparqlOperation(queryString: string): SparqlOperation {
     throw new Error('SPARQL query is empty');
   }
 
-  let parsed: ReturnType<typeof parser.parse>;
+  const activeParser = getParser();
+  let parsed: ReturnType<typeof activeParser.parse>;
   try {
-    parsed = parser.parse(queryString);
+    parsed = activeParser.parse(queryString);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(`Failed to parse SPARQL query: ${message}`);

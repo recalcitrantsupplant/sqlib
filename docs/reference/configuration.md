@@ -153,12 +153,42 @@ A value that does not parse as an integer falls back to the default.
 
 | Name | Default | Effect |
 | --- | --- | --- |
-| `OTEL_ENABLED` | `true` | Set to exactly `false` to skip OpenTelemetry SDK startup and OpenTelemetry log export. Any other value leaves it on. The container only loads the OTel setup module in `APP_MODE=api`. |
+| `OTEL_ENABLED` | `true` | Set to exactly `false` to skip OpenTelemetry SDK startup and OpenTelemetry log export. Any other value leaves it on. With it off the SDK is not imported at all, which is worth about 220ms of startup. |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://localhost:4318` | OTLP HTTP collector base URL. Traces go to `/v1/traces` and metrics to `/v1/metrics`. |
 
 OTLP export only happens when `NODE_ENV=development`. In any other environment
 the SDK starts with console exporters, which means an endpoint set in production
 is not used. Metrics are exported every 30 seconds.
+
+## Startup time
+
+Relevant to a deployment that scales to zero, where a cold start sits in front
+of a user request rather than happening once a week.
+
+| Name | Default | Effect |
+| --- | --- | --- |
+| `SQLIB_EAGER_SERIALIZERS` | unset (lazy) | Set to exactly `true` to compile every route's response serialiser while the server starts, instead of on that route's first response. |
+| `NODE_COMPILE_CACHE` | unset in a local run, `/app/.v8-compile-cache` in the container | Node's own variable: a directory where it caches compiled module bytecode and reuses it next boot. The image ships a populated cache, so the first container to start is already warm. |
+
+Response-schema compilation is the largest single term in startup and it scales
+with the number of routes, not with the amount of data: on a 135-route instance
+it was ~890ms of a ~1.4s `ready()`, whether or not anything ever called those
+routes. Compiling each route's serialiser on its first response instead moves
+that off the boot path for ~2ms on that first response, which is why it is the
+default. `SQLIB_EAGER_SERIALIZERS=true` is the way back for a long-lived
+instance that would rather pay the whole bill before it accepts traffic.
+
+Two other things help and are ordinary configuration rather than switches:
+turning off [feature flags](feature-flags.md) you do not serve removes their
+routes, and each route is worth roughly 10ms of startup; and `OTEL_ENABLED=false`
+avoids loading the OpenTelemetry SDK.
+
+What does *not* help much is anything about Oxigraph itself: the WASM module
+instantiates in about 25ms. The data-dependent part of startup is the snapshot,
+which loads at roughly 180,000 quads per second, plus the cache preload — so a
+library of a few thousand entities is lost in the noise and one of a few hundred
+thousand quads is not. See [what `oxigraph-persistent` actually
+does](#what-oxigraph-persistent-actually-does).
 
 ## Read-only deployments
 
