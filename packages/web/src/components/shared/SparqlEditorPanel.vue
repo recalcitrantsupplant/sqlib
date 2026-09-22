@@ -755,11 +755,17 @@ const executeButtonTitle = computed(() => {
 <style scoped>
 
 
+/*
+ * No bottom border: this section is the whole left column, in every layout
+ * that mounts it, so the rule had nothing below it to separate from — it drew
+ * a hairline on the window's own edge and, worse, took a pixel of height with
+ * it. That pixel is what pushed the footer here one row above the results
+ * footer across the divider, which have to meet.
+ */
 .editor-section {
   display: flex;
   flex-direction: column;
   background: var(--surface);
-  border-bottom: 1px solid var(--border-default);
   flex: 1;
   min-height: 0;
 }

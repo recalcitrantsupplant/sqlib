@@ -277,7 +277,7 @@ const saveTitle = computed(() => {
   align-items: center;
   gap: var(--space-2);
   box-sizing: border-box;
-  height: 40px;
+  height: var(--panel-bar-h);
   flex-shrink: 0;
   padding: 0 var(--space-4);
   overflow: hidden;

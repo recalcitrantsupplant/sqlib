@@ -236,11 +236,12 @@ describe('NotebookCell', () => {
 
   /*
    * The results table follows the same rule as the app's other term tables:
-   * no display control in the toolbar, prefixed names by default, and a
-   * column switched to full IRIs from its own header menu. The prefixes are
+   * one browser-wide switch decides prefixed names or full IRIs, so a cell
+   * here reads the same way as the rows in the query panel. The prefixes are
    * the query's own, which is what the exported page abbreviates against.
    */
-  it('switches one result column to full IRIs from its header menu', async () => {
+  it('follows the browser-wide term display switch', async () => {
+    const { useTermDisplay } = await import('@/composables/useTermDisplay');
     execute.mockResolvedValue({
       ok: true,
       data: {
@@ -260,11 +261,7 @@ describe('NotebookCell', () => {
         execute,
       },
       global: {
-        stubs: {
-          NuxtLink: { props: ['to'], template: '<a><slot /></a>' },
-          // The portal renders inline so the menu lands inside this mount.
-          DropdownMenuPortal: { template: '<div><slot /></div>' },
-        },
+        stubs: { NuxtLink: { props: ['to'], template: '<a><slot /></a>' } },
         config: { compilerOptions: { isCustomElement: (tag: string) => tag.startsWith('sqlib-') } },
       },
     });
@@ -273,17 +270,13 @@ describe('NotebookCell', () => {
     await settle();
     expect(wrapper.get('[data-testid="notebook-result"] code').text()).toBe('ex:Perth');
 
-    await wrapper.get('[data-testid="column-menu-city"]').trigger('click');
-    await settle();
-    await wrapper.get('[data-testid="term-display-full"]').trigger('click');
+    useTermDisplay().setMode('full');
     await settle();
     expect(wrapper.get('[data-testid="notebook-result"] code').text()).toBe(
       'http://example.org/Perth',
     );
 
-    // Radix schedules its teardown, so the menu is closed before unmounting.
-    await wrapper.get('[data-testid="column-menu-city"]').trigger('click');
-    await settle();
+    useTermDisplay().setMode('prefixed');
     wrapper.unmount();
     await settle();
   });

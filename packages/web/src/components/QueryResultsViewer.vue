@@ -16,14 +16,14 @@ import DataTable from '@/components/ui/table/DataTable.vue';
 import type { DataTableState } from '@/composables/useDataTable';
 import ResultsFooter from '@/components/shared/ResultsFooter.vue';
 import ResultsActionBar from '@/components/shared/ResultsActionBar.vue';
+import TermDisplayToggle from '@/components/shared/TermDisplayToggle.vue';
 import SegmentedToggle from '@/components/shared/SegmentedToggle.vue';
 import { Input } from '@/components/ui/input';
 import RdfTermTable from '@/components/shared/RdfTermTable.vue';
 import type { RdfTermTableColumn } from '@/components/shared/RdfTermTable.vue';
 import InlinePrefixAdder from '@/components/shared/InlinePrefixAdder.vue';
 import { usePrefixDiscovery } from '@/composables/usePrefixDiscovery';
-import TermDisplayMenuItems from '@/components/shared/TermDisplayMenuItems.vue';
-import { useTermDisplay, type TermDisplayMode } from '@/composables/useTermDisplay';
+import { useTermDisplay } from '@/composables/useTermDisplay';
 import { useCopyToClipboard } from '@/composables/useCopyToClipboard';
 import {
   parseNTriples,
@@ -107,27 +107,15 @@ const emit = defineEmits<{ expand: [] }>();
  */
 const tableState = ref<DataTableState | null>(null);
 const filterText = ref('');
-const tableRef = ref<{
-  setPageIndex: (index: number) => void;
-  setPageSize: (size: number) => void;
-} | null>(null);
-
-const setPage = (index: number) => tableRef.value?.setPageIndex(index);
-const setPageSize = (size: number) => tableRef.value?.setPageSize(size);
 
 const { copyToClipboard } = useCopyToClipboard();
 const { abbreviateIri } = usePrefixManager();
 
 /*
- * Term display is a column property here too — same menu, same defaults as
- * RdfTermTable. See `useTermDisplay`.
+ * Term display is one switch for the whole browser, carried in the action bar
+ * above rather than in each column's header menu. See `useTermDisplay`.
  */
-const { modeFor, isPrefixed, setMode, applyToAll } = useTermDisplay();
-
-const onSelectMode = (columnKey: string, mode: TermDisplayMode) =>
-  setMode(columnKey, mode);
-const onSelectModeForAll = (mode: TermDisplayMode) =>
-  applyToAll(resolvedVariables.value, mode);
+const { isPrefixed } = useTermDisplay();
 
 const resolvedVariables = computed(
   () => props.variables ?? props.results?.head.vars ?? [],
@@ -336,8 +324,8 @@ const filterPlaceholder = computed(() => `Filter ${rowNoun.value}s…`);
  * The inline "+ prefix" affordance for an IRI that abbreviation left alone.
  * See RdfTermTable for the same treatment of the tabular formats.
  */
-const renderPrefixAdder = (iri: string, columnKey: string) => {
-  if (!isPrefixed(columnKey)) return null;
+const renderPrefixAdder = (iri: string) => {
+  if (!isPrefixed.value) return null;
   return h(InlinePrefixAdder, { iri, key: `prefix-adder:${iri}` });
 };
 
@@ -345,11 +333,8 @@ const renderPrefixAdder = (iri: string, columnKey: string) => {
  * Renders a SPARQL JSON binding cell with type badge and prefix abbreviation
  * Only used for SPARQL JSON results, not for RDF tabular formats (those use RdfTermTable)
  */
-const renderSparqlCell = (
-  binding: SparqlBindingValue | undefined,
-  columnKey: string,
-) => {
-  const prefixed = isPrefixed(columnKey);
+const renderSparqlCell = (binding: SparqlBindingValue | undefined) => {
+  const prefixed = isPrefixed.value;
 
   if (!binding) {
     return h('span', { class: 'text-muted-foreground' }, '—');
@@ -418,7 +403,7 @@ const renderSparqlCell = (
         },
         displayValue,
       ),
-      binding.type === 'uri' && !fullIri ? renderPrefixAdder(binding.value, columnKey) : null,
+      binding.type === 'uri' && !fullIri ? renderPrefixAdder(binding.value) : null,
       h(
         'div',
         {
@@ -530,7 +515,7 @@ const sparqlColumns = computed<DataTableColumnDef<SparqlBinding>[]>(() =>
     accessorFn: (row) => row[variable]?.value ?? '',
     enableColumnFilter: true,
     header: () => h('span', { class: 'font-semibold' }, variable),
-    cell: ({ row }) => renderSparqlCell(row.original[variable], variable),
+    cell: ({ row }) => renderSparqlCell(row.original[variable]),
   })),
 );
 
@@ -573,6 +558,7 @@ defineExpose({
           <Download :size="14" />
           <span v-if="serialisationLabel" class="btn-action-label">{{ serialisationLabel }}</span>
         </button>
+        <TermDisplayToggle v-if="activeTab === 'table' && hasStructuredOrTabularResults" />
         <button
           v-if="canExpand"
           type="button"
@@ -612,21 +598,10 @@ defineExpose({
             empty-state-text="No bindings returned for this query."
             :enable-row-numbers="true"
             :enable-pagination="true"
-            :initial-page-size="25"
-            :column-menu-ids="resolvedVariables"
             :hide-filter-row="true"
             :hide-row-count="true"
-            :hide-pagination-bar="true"
             @state="tableState = $event"
-          >
-            <template #column-menu="{ columnId }">
-              <TermDisplayMenuItems
-                :mode="modeFor(columnId)"
-                @select="onSelectMode(columnId, $event)"
-                @select-all="onSelectModeForAll($event)"
-              />
-            </template>
-          </DataTable>
+          />
           <!-- N-Triples / N-Quads / CSV / TSV Table (with prefix abbreviation) -->
           <RdfTermTable
             v-else-if="isTabular"
@@ -638,10 +613,8 @@ defineExpose({
             :enable-filters="true"
             :show-row-numbers="true"
             :enable-pagination="true"
-            :initial-page-size="25"
             :hide-filter-row="true"
             :hide-row-count="true"
-            :hide-pagination-bar="true"
             @state="tableState = $event"
           />
           <div v-else-if="hasRawContent" class="viewer-message">
@@ -673,8 +646,6 @@ defineExpose({
       :media-relation="activeTab === 'table' ? 'rendered from' : 'as'"
       :duration-ms="durationMs"
       :duration-title="durationTitle"
-      @set-page="setPage"
-      @set-page-size="setPageSize"
     />
   </div>
 </template>
@@ -707,7 +678,10 @@ defineExpose({
 .table-container {
   flex: 1;
   overflow: hidden;
-  padding: var(--space-6);
+  /* Tighter at the bottom: the paging row is the last thing in the table's
+     own shell, and the footer band sits directly under it — a full gap on
+     both sides of that seam read as a hole between the two. */
+  padding: var(--space-6) var(--space-6) var(--space-3);
   min-height: 0;
   display: flex;
   flex-direction: column;

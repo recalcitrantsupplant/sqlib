@@ -5,18 +5,13 @@
  * Everything here is a *fact about the response* — how many rows, when it ran,
  * what it was rendered from, how long it took — which is why none of it belongs
  * in the action bar above: that bar is for things you do to the response. The
- * facts are pills so they stay legible at any width, and the row count carries
- * paging as a menu, because a one-page result should not spend a whole band on
- * First / Prev / Next / Last.
+ * facts are pills so they stay legible at any width.
+ *
+ * Paging is not here. It used to hang off the row-count pill as a menu, which
+ * put a menu between the reader and the next page; it is a row of buttons
+ * under the table now (`DataTable`), where the rows it moves through are.
  */
 import { computed } from 'vue';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import type { DataTableState } from '@/composables/useDataTable';
 import { formatRelativeTime } from '@/lib/time';
 
@@ -55,11 +50,6 @@ const props = withDefaults(
   },
 );
 
-const emit = defineEmits<{
-  'set-page': [index: number];
-  'set-page-size': [size: number];
-}>();
-
 const rowCount = computed(() => props.table?.filteredRows ?? 0);
 const isFiltered = computed(
   () => !!props.table && props.table.filteredRows < props.table.totalRows,
@@ -68,10 +58,6 @@ const formatNumber = (value: number) => value.toLocaleString('en-US');
 const rowLabel = computed(
   () => `${formatNumber(rowCount.value)} ${rowCount.value === 1 ? props.rowNoun : `${props.rowNoun}s`}`,
 );
-
-const pageCount = computed(() => props.table?.pageCount ?? 0);
-const pageIndex = computed(() => props.table?.pageIndex ?? 0);
-const canPage = computed(() => pageCount.value > 1);
 
 const executedRelative = computed(() =>
   props.executedAt ? formatRelativeTime(props.executedAt) : null,
@@ -89,61 +75,10 @@ const hasAnything = computed(
 
 <template>
   <div v-if="hasAnything" class="results-footer" data-testid="results-footer">
-    <DropdownMenu v-if="table">
-      <DropdownMenuTrigger as-child>
-        <button type="button" class="footer-pill footer-pill--menu" data-testid="results-rows-pill">
-          {{ rowLabel }}
-          <span v-if="isFiltered" class="footer-pill-note">filtered</span>
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" class="min-w-[220px]">
-        <div class="px-2 py-1.5 text-xs text-muted-foreground">
-          Rows per page
-        </div>
-        <DropdownMenuItem
-          v-for="size in table.pageSizeOptions"
-          :key="size"
-          class="flex items-center justify-between rounded px-2 py-1 text-sm"
-          :class="size === table.pageSize ? 'bg-accent/40 text-accent-foreground' : ''"
-          :data-testid="`results-page-size-${size}`"
-          @select="emit('set-page-size', size)"
-        >
-          <span>{{ size }}</span>
-        </DropdownMenuItem>
-        <template v-if="canPage">
-          <DropdownMenuSeparator />
-          <div class="px-2 py-1.5 text-xs text-muted-foreground">
-            Page {{ pageIndex + 1 }} of {{ pageCount }}
-          </div>
-          <DropdownMenuItem
-            :disabled="pageIndex === 0"
-            data-testid="results-page-prev"
-            @select="emit('set-page', pageIndex - 1)"
-          >
-            Previous page
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            :disabled="pageIndex >= pageCount - 1"
-            data-testid="results-page-next"
-            @select="emit('set-page', pageIndex + 1)"
-          >
-            Next page
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            :disabled="pageIndex === 0"
-            @select="emit('set-page', 0)"
-          >
-            First page
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            :disabled="pageIndex >= pageCount - 1"
-            @select="emit('set-page', pageCount - 1)"
-          >
-            Last page
-          </DropdownMenuItem>
-        </template>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <span v-if="table" class="footer-pill" data-testid="results-rows-pill">
+      {{ rowLabel }}
+      <span v-if="isFiltered" class="footer-pill-note">filtered</span>
+    </span>
 
     <!--
       What the rows are, then what they came from, then when. The media type
@@ -178,7 +113,15 @@ const hasAnything = computed(
   align-items: center;
   gap: var(--space-2);
   flex-wrap: wrap;
-  padding: var(--space-2) var(--space-4);
+  box-sizing: border-box;
+  /*
+   * The same band the editor and the Details tab end on: `--panel-bar-h` tall,
+   * `var(--space-4)` all round, full width, flush to the panel's bottom edge.
+   * It used to be inset from three sides by the padding on `.results-content`,
+   * which made it the one band in the app that floats.
+   */
+  min-height: var(--panel-bar-h);
+  padding: var(--space-4);
   border-top: 1px solid var(--border-default);
   background: var(--surface-subtle);
 }
@@ -199,14 +142,6 @@ const hasAnything = computed(
   background: var(--action-surface);
   border: 1px solid var(--action-border);
   border-radius: var(--radius-full);
-}
-
-.footer-pill--menu {
-  cursor: pointer;
-}
-
-.footer-pill--menu:hover {
-  border-color: var(--action);
 }
 
 .footer-pill-note {

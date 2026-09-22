@@ -110,18 +110,29 @@ watch(
   border-left: 1px solid var(--border-default);
 }
 
+/*
+ * The same 40px band the save bar is, so the two panels' bottom rules meet
+ * across the divider. It used to size itself from the tab buttons plus a
+ * `--space-4` top pad, which came out at 46.5px — half a tab taller than the
+ * bar beside it, and the misalignment read as a panel hanging lower.
+ *
+ * `stretch` rather than `center`: a tab fills the band's height, which is what
+ * puts its 2px underline on the band's own bottom rule.
+ */
 .tabs-header {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: space-between;
-  padding: var(--space-4) var(--space-6) 0;
+  box-sizing: border-box;
+  height: var(--panel-bar-h);
+  padding: 0 var(--space-6);
   background: var(--surface-subtle);
   border-bottom: 1px solid var(--border-default);
 }
 
 .inspector-panel.collapsed .tabs-header {
   justify-content: center;
-  padding: var(--space-4) var(--space-5) 0;
+  padding: 0 var(--space-5);
 }
 
 .collapse-toggle {
@@ -158,7 +169,7 @@ watch(
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: var(--space-4) var(--space-6);
+  padding: 0 var(--space-6);
   border: none;
   border-bottom: 2px solid transparent;
   background: transparent;

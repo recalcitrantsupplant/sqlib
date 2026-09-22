@@ -796,7 +796,13 @@ const hasDetectedOutputs = computed(() => {
 .results-content {
   flex: 1;
   position: relative;
-  padding: 0 var(--space-6) var(--space-6) var(--space-6);
+  /*
+   * No padding: the viewer inside is a stack of full-width bands — action bar,
+   * table, footer — and each one that needs an inset carries its own. Padding
+   * here inset the bars too, which left the footer floating clear of the
+   * panel's bottom and side edges while every other panel's footer met them.
+   */
+  padding: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;

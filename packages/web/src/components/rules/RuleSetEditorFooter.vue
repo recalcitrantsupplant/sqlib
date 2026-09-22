@@ -105,6 +105,8 @@ const swatchCount = computed(() => Math.min(props.strataCount, 4));
   box-sizing: border-box;
   flex-shrink: 0;
   flex-wrap: wrap;
+  /* The band that ends a panel — same as the query editor's footer. */
+  min-height: var(--panel-bar-h);
   padding: var(--space-4);
   background: var(--surface-subtle);
   border-top: 1px solid var(--border-default);

@@ -2,7 +2,18 @@
 import type { RowData } from "@tanstack/vue-table"
 import { FlexRender } from "@tanstack/vue-table"
 import { computed, ref, useSlots, watch, watchEffect } from "vue"
-import { Filter, ArrowUp, ArrowDown, ArrowUpDown, AlertTriangle, MoreVertical } from "@lucide/vue"
+import {
+  Filter,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
+  AlertTriangle,
+  MoreVertical,
+  ChevronFirst,
+  ChevronLeft,
+  ChevronRight,
+  ChevronLast,
+} from "@lucide/vue"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -16,7 +27,13 @@ import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import TableEmpty from "./TableEmpty.vue"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "."
-import { useDataTable, type DataTableColumnDef, type DataTableState } from "@/composables/useDataTable"
+import {
+  DEFAULT_PAGE_SIZE,
+  PAGE_SIZE_OPTIONS,
+  useDataTable,
+  type DataTableColumnDef,
+  type DataTableState,
+} from "@/composables/useDataTable"
 
 const props = withDefaults(defineProps<{
   columns: DataTableColumnDef<TData, TValue>[]
@@ -43,20 +60,17 @@ const props = withDefaults(defineProps<{
   hideFilterRow?: boolean
   /** Hide the row-count line — the results footer states it as a pill. */
   hideRowCount?: boolean
-  /** Hide the paging bar — the results footer carries paging in that pill. */
-  hidePaginationBar?: boolean
 }>(), {
   enableFilters: true,
   globalFilterPlaceholder: "Filter all columns…",
   emptyStateText: "No results found.",
   enableRowNumbers: false,
   enablePagination: false,
-  initialPageSize: 25,
-  pageSizeOptions: () => [25, 50, 100, 250],
+  initialPageSize: DEFAULT_PAGE_SIZE,
+  pageSizeOptions: () => PAGE_SIZE_OPTIONS,
   columnMenuIds: () => [],
   hideFilterRow: false,
   hideRowCount: false,
-  hidePaginationBar: false,
 })
 
 const emit = defineEmits<{ state: [DataTableState] }>()
@@ -328,62 +342,86 @@ const enableFacetsForColumn = (columnId: string) => {
           </TableBody>
         </Table>
       </div>
+      <!--
+        Paging on its own row under the table: rows per page on the left, the
+        page you are on and the four moves through the pages on the right.
+        It used to hang off the row-count pill in the footer as a menu, which
+        made stepping through pages a click into a menu per page.
+      -->
       <div
-        v-if="showPagination && !hidePaginationBar"
+        v-if="showPagination"
         class="pagination-bar flex flex-wrap items-center justify-between gap-2 px-3 py-1 text-xs text-muted-foreground"
+        data-testid="results-pagination"
       >
         <div class="flex items-center gap-2">
-          <span>Rows per page</span>
-          <select
-            v-model.number="pageSize"
-            class="rounded border bg-background px-2 py-1 text-xs"
-          >
-            <option
-              v-for="size in pageSizeOptions"
-              :key="size"
-              :value="size"
+          <label class="flex items-center gap-2">
+            <span>Rows per page</span>
+            <select
+              v-model.number="pageSize"
+              class="rounded border bg-background px-2 py-1 text-xs"
+              data-testid="results-page-size"
             >
-              {{ size }}
-            </option>
-          </select>
+              <option
+                v-for="size in pageSizeOptions"
+                :key="size"
+                :value="size"
+              >
+                {{ size }}
+              </option>
+            </select>
+          </label>
         </div>
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-1">
+          <span class="px-1 tabular-nums" data-testid="results-page-position">
+            Page {{ pageIndex + 1 }} of {{ Math.max(pageCount, 1) }}
+          </span>
           <Button
             variant="ghost"
             size="sm"
-            class="h-6 px-2"
+            class="h-6 w-6 p-0"
+            title="First page"
+            data-testid="results-page-first"
             :disabled="!table.getCanPreviousPage()"
             @click="table.setPageIndex(0)"
           >
-            First
+            <span class="sr-only">First page</span>
+            <ChevronFirst class="h-3 w-3" />
           </Button>
           <Button
             variant="ghost"
             size="sm"
-            class="h-6 px-2"
+            class="h-6 w-6 p-0"
+            title="Previous page"
+            data-testid="results-page-prev"
             :disabled="!table.getCanPreviousPage()"
             @click="table.previousPage()"
           >
-            Prev
+            <span class="sr-only">Previous page</span>
+            <ChevronLeft class="h-3 w-3" />
           </Button>
-          <span>Page {{ pageIndex + 1 }} of {{ pageCount }}</span>
           <Button
             variant="ghost"
             size="sm"
-            class="h-6 px-2"
+            class="h-6 w-6 p-0"
+            title="Next page"
+            data-testid="results-page-next"
             :disabled="!table.getCanNextPage()"
             @click="table.nextPage()"
           >
-            Next
+            <span class="sr-only">Next page</span>
+            <ChevronRight class="h-3 w-3" />
           </Button>
           <Button
             variant="ghost"
             size="sm"
-            class="h-6 px-2"
+            class="h-6 w-6 p-0"
+            title="Last page"
+            data-testid="results-page-last"
             :disabled="!table.getCanNextPage()"
             @click="table.setPageIndex(pageCount - 1)"
           >
-            Last
+            <span class="sr-only">Last page</span>
+            <ChevronLast class="h-3 w-3" />
           </Button>
         </div>
       </div>
