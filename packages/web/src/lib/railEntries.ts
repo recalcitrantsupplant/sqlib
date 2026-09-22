@@ -53,7 +53,7 @@ export const RAIL_ENTRIES: RailEntry[] = [
   // First, because it is the library's front page — the screen you show
   // someone before they know which type they want. Everything under it reads
   // as a drill-down.
-  { section: 'library', label: 'Notebook', title: 'Notebook — every query in the library as a runnable, readable page', icon: BookOpen, feature: 'queries' },
+  { section: 'library', label: 'Notebook', title: 'Notebook — every query in the library as a runnable, readable page', icon: BookOpen, feature: 'notebook' },
   { section: 'queries', label: 'Query', title: 'Queries', icon: FileCode2, feature: 'queries' },
   { section: 'queryGroups', label: 'Groups', title: 'Query groups', icon: Workflow, feature: 'queryGroups' },
   { section: 'rules', label: 'Rules', title: 'Rules, data blocks and rule sets', icon: Scale, feature: 'rulesSuite' },
@@ -75,7 +75,7 @@ export const RAIL_ENTRIES: RailEntry[] = [
   // set is one filled-in call to a query or a group — a table per VALUES
   // clause, a graph per start-node port, and the LIMIT/OFFSET numbers.
   { section: 'argumentSets', label: 'Argument sets', title: 'Argument sets — one call\'s worth of input for a query or a group', icon: Braces, feature: 'argumentSets' },
-  { section: 'build', label: 'Build', title: 'Build — the callable library and the assistant', icon: Sparkles, feature: null },
+  { section: 'build', label: 'Build', title: 'Build — the callable library and the assistant', icon: Sparkles, feature: 'build' },
   {
     section: 'backends',
     label: 'Backends',

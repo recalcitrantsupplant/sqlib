@@ -32,6 +32,11 @@ const frontendFeatureFlagEnv: Record<string, string | undefined> = {
   FEATURE_PLAYGROUND_QUERIES: process.env.NUXT_PUBLIC_FEATURE_PLAYGROUND_QUERIES ?? process.env.FEATURE_PLAYGROUND_QUERIES,
   FEATURE_PLAYGROUND_RULES: process.env.NUXT_PUBLIC_FEATURE_PLAYGROUND_RULES ?? process.env.FEATURE_PLAYGROUND_RULES,
   FEATURE_PLAYGROUND_ETL: process.env.NUXT_PUBLIC_FEATURE_PLAYGROUND_ETL ?? process.env.FEATURE_PLAYGROUND_ETL,
+  // The two screens in the rail — the library's front page and Build. Browser
+  // only: neither gates a route, and what each shows is decided by the section
+  // flags above.
+  FEATURE_NOTEBOOK: process.env.NUXT_PUBLIC_FEATURE_NOTEBOOK ?? process.env.FEATURE_NOTEBOOK,
+  FEATURE_BUILD: process.env.NUXT_PUBLIC_FEATURE_BUILD ?? process.env.FEATURE_BUILD,
 };
 
 const frontendFeatureFlags = buildFeatureFlags(frontendFeatureFlagEnv);

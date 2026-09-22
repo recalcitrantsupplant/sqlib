@@ -32,7 +32,7 @@
             The other view of the same library: Build is where it is made,
             Library is where it reads and runs.
           -->
-          <NuxtLink class="notebook-link" :to="notebookLink">
+          <NuxtLink v-if="isEnabled('notebook')" class="notebook-link" :to="notebookLink">
             <BookOpen :size="12" /> View as notebook
           </NuxtLink>
           <span class="feed-status" :class="eventStatus" :title="eventStatusLabel">
@@ -206,6 +206,7 @@ import { useCallableDrafts } from '../composables/useCallableDrafts';
 import { useApiClient } from '../composables/useApiClient';
 import { useLibraryEvents } from '../composables/useLibraryEvents';
 import { useLastExecutionError } from '../composables/useLastExecutionError';
+import { useFeatureFlags } from '../composables/useFeatureFlags';
 import { buildScreenContext } from '../lib/assistantScreenContext';
 import { workAreaRouteFor, type Callable } from '../lib/callables';
 import { isScreenSection, SCREEN_SECTION_PATHS, type RailSection } from '../lib/railSections';
@@ -213,6 +214,7 @@ import { isScreenSection, SCREEN_SECTION_PATHS, type RailSection } from '../lib/
 const router = useRouter();
 const route = useRoute();
 const config = useRuntimeConfig();
+const { isEnabled } = useFeatureFlags();
 
 const librariesStore = useLibrariesStore();
 const backendsStore = useBackendsStore();

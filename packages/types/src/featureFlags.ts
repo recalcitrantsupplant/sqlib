@@ -1,10 +1,11 @@
-export const FEATURE_FLAG_KEYS = ['queries', 'queryGroups', 'rulesSuite', 'benchmarks', 'tests', 'dataGraphs', 'tupleSets', 'argumentSets', 'etl', 'backends', 'settings', 'rulesAllowInvalidSave', 'ruleTuples', 'playgroundQueries', 'playgroundRules', 'playgroundEtl', 'assistant'] as const;
+export const FEATURE_FLAG_KEYS = ['notebook', 'queries', 'queryGroups', 'rulesSuite', 'benchmarks', 'tests', 'dataGraphs', 'tupleSets', 'argumentSets', 'build', 'etl', 'backends', 'settings', 'rulesAllowInvalidSave', 'ruleTuples', 'playgroundQueries', 'playgroundRules', 'playgroundEtl', 'assistant'] as const;
 
 export type FeatureFlagKey = typeof FEATURE_FLAG_KEYS[number];
 
 export type FeatureFlags = Record<FeatureFlagKey, boolean>;
 
 export const FEATURE_FLAG_ENV_VARS: Record<FeatureFlagKey, string> = {
+  notebook: 'FEATURE_NOTEBOOK',
   queries: 'FEATURE_QUERIES',
   queryGroups: 'FEATURE_QUERY_GROUPS',
   rulesSuite: 'FEATURE_RULES_SUITE',
@@ -13,6 +14,7 @@ export const FEATURE_FLAG_ENV_VARS: Record<FeatureFlagKey, string> = {
   dataGraphs: 'FEATURE_DATA_GRAPHS',
   tupleSets: 'FEATURE_TUPLE_SETS',
   argumentSets: 'FEATURE_ARGUMENT_SETS',
+  build: 'FEATURE_BUILD',
   etl: 'FEATURE_ETL',
   backends: 'FEATURE_BACKENDS',
   settings: 'FEATURE_SETTINGS',
@@ -49,6 +51,15 @@ export function buildFeatureFlags(
   env: Record<string, string | undefined>,
   overrides: Partial<FeatureFlags> = {},
   defaults: FeatureFlags = {
+    /*
+     * On. The notebook is the library's front page — every query in it as a
+     * runnable page — and it draws only what the sections below it already
+     * grant. Its own flag exists because a library whose content is rule sets
+     * and tests has nothing to put on a query-centric front page, and until
+     * now the only way to drop it was to turn `queries` off, which took the
+     * Query section with it.
+     */
+    notebook: true,
     queries: true,
     queryGroups: true,
     rulesSuite: true,
@@ -80,6 +91,13 @@ export function buildFeatureFlags(
      * tab, which is the same entity seen from its callable.
      */
     argumentSets: true,
+    /*
+     * On. Build is a screen rather than a scope — the callable library and the
+     * assistant on one page — and it had no flag at all, so a deployment that
+     * had turned off everything it offers still drew the entry. It grants no
+     * capability of its own: what Build shows is what the other flags allow.
+     */
+    build: true,
     /*
      * Off unless asked for, same reasoning as `assistant` below. Both ETL
      * surfaces take arbitrary DuckDB SQL, which is a host filesystem read
@@ -117,6 +135,7 @@ export function buildFeatureFlags(
   },
 ): FeatureFlags {
   const flags: FeatureFlags = {
+    notebook: coerceFeatureFlagValue(env[FEATURE_FLAG_ENV_VARS.notebook], defaults.notebook),
     queries: coerceFeatureFlagValue(env[FEATURE_FLAG_ENV_VARS.queries], defaults.queries),
     queryGroups: coerceFeatureFlagValue(env[FEATURE_FLAG_ENV_VARS.queryGroups], defaults.queryGroups),
     rulesSuite: coerceFeatureFlagValue(env[FEATURE_FLAG_ENV_VARS.rulesSuite], defaults.rulesSuite),
@@ -125,6 +144,7 @@ export function buildFeatureFlags(
     dataGraphs: coerceFeatureFlagValue(env[FEATURE_FLAG_ENV_VARS.dataGraphs], defaults.dataGraphs),
     tupleSets: coerceFeatureFlagValue(env[FEATURE_FLAG_ENV_VARS.tupleSets], defaults.tupleSets),
     argumentSets: coerceFeatureFlagValue(env[FEATURE_FLAG_ENV_VARS.argumentSets], defaults.argumentSets),
+    build: coerceFeatureFlagValue(env[FEATURE_FLAG_ENV_VARS.build], defaults.build),
     etl: coerceFeatureFlagValue(env[FEATURE_FLAG_ENV_VARS.etl], defaults.etl),
     backends: coerceFeatureFlagValue(env[FEATURE_FLAG_ENV_VARS.backends], defaults.backends),
     settings: coerceFeatureFlagValue(env[FEATURE_FLAG_ENV_VARS.settings], defaults.settings),
@@ -144,6 +164,7 @@ export function buildFeatureFlags(
 
 export function featureFlagLabels(): Record<FeatureFlagKey, string> {
   return {
+    notebook: 'Notebook',
     queries: 'Queries',
     queryGroups: 'Query Groups',
     rulesSuite: 'Rules / Data Blocks / Rule Sets',
@@ -152,6 +173,7 @@ export function featureFlagLabels(): Record<FeatureFlagKey, string> {
     dataGraphs: 'Data graphs',
     tupleSets: 'Tuple sets',
     argumentSets: 'Argument sets',
+    build: 'Build',
     etl: 'ETL',
     backends: 'Backends',
     settings: 'Settings',
