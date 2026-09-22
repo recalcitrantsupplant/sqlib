@@ -468,12 +468,17 @@ const onDataInput = (value: string) => {
   color: var(--ink-secondary);
 }
 
+/*
+ * `--control-h`, like Save to Data in the row under it. It was a step smaller,
+ * which put two button heights in one panel for no reason either of them could
+ * name.
+ */
 .save-test {
   display: inline-flex;
   flex-shrink: 0;
   align-items: center;
   gap: var(--space-3);
-  height: var(--control-h-sm);
+  height: var(--control-h);
   margin-left: auto;
   padding: 0 var(--space-4);
   border: 1px solid var(--border-strong);
@@ -574,6 +579,16 @@ const onDataInput = (value: string) => {
 .entity-picker {
   flex: 1;
   min-width: 0;
+}
+
+/*
+ * The picker is the row's odd one out otherwise: `SearchSelect` is
+ * `--control-h-sm` everywhere it is used, which is right inside a form and
+ * wrong in a toolbar beside Open in Data and Save to Data. Sized here rather
+ * than in the component, because the other fourteen hosts put it in a form.
+ */
+.entity-picker :deep(.search-select__input) {
+  height: var(--control-h);
 }
 
 .format-picker {
