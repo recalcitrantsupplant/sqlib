@@ -46,6 +46,7 @@
       :saved-kinds="flatSidebar.savedKinds"
       :tags="libraryTags"
       :supports-tags="flatSidebar.supportsTags"
+      :supports-origin="flatSidebar.supportsOrigin"
       @select-saved="handleSelectSaved"
       @select-scratch="handleSelectScratch"
       @create-scratch="handleCreateFromSidebar"
@@ -187,6 +188,7 @@
         @query-created="handleQueryCreated"
         @query-load-failed="handleQueryLoadFailed"
         @scratch-saved="handleScratchSaved"
+        @argument-set-saved="handleArgumentSetSavedElsewhere"
         @query-deleted="handleQueryDeleted"
         @update:version-number="handleQueryVersionUpdate"
         @open-entity="openCreatedEntity"
@@ -200,6 +202,7 @@
         :version-number="queryGroupVersionNumber"
         @creation-consumed="queryGroupCreationRequest = null"
         @scratch-saved="handleQueryGroupScratchSaved"
+        @argument-set-saved="handleArgumentSetSavedElsewhere"
         @update:version-number="handleQueryGroupVersionUpdate"
         @query-group-deleted="handleQueryGroupDeleted"
         @query-group-cloned="handleQueryGroupCloned"
@@ -1164,11 +1167,38 @@ function savedFor(section: ListSection): SidebarEntity[] {
         ...entity,
         kind: kind.type,
         tags: (entity as { tags?: string[] | null }).tags ?? [],
+        origin: originFor(kind.type, entity as unknown as Record<string, unknown>),
         ...testRowExtras(kind.type, entity.id),
       });
     }
   }
   return rows;
+}
+
+/**
+ * Where a row came from, for the Origin grouping.
+ *
+ * An argument set says so itself: `scope` records the kind of callable it was
+ * made on, and a set composed on the rail has none. A data graph says so
+ * through `mintedFrom`, the argument set it was born on — and a graph binding
+ * exists only on a group's set (a query declares no graph parameter), so a
+ * minted graph is *From groups* whether or not that set is loaded here.
+ *
+ * Provenance, not a fence: a set made on one query is legitimately what another
+ * wants, which is why the switcher computes a fits verdict at all, and a graph
+ * minted from a group is an ordinary graph the moment it exists.
+ */
+function originFor(kind: string, entity: Record<string, unknown>): SidebarEntity['origin'] {
+  if (kind === 'argumentSet') {
+    const scope = entity.scope;
+    if (scope === 'query') return 'query';
+    if (scope === 'queryGroup') return 'group';
+    return 'composed';
+  }
+  if (kind === 'dataGraph') {
+    return typeof entity.mintedFrom === 'string' && entity.mintedFrom ? 'group' : 'composed';
+  }
+  return 'composed';
 }
 
 /*
@@ -1210,6 +1240,21 @@ const flatSidebar = computed(() => {
      * so neither has a library for the one tag invariant to judge against.
      */
     supportsTags: definition.savedKinds.every((kind) => isTaggableKind(kind.type)),
+    /*
+     * Origin is offered only where rows can differ in it. Everywhere else every
+     * row would land in *Composed here*, and a control that can produce one
+     * cluster is a control that does nothing — the same rule the tag control
+     * follows for Bench and ETL.
+     */
+    supportsOrigin: section === 'dataGraphs' || section === 'argumentSets',
+    /*
+     * Other ways to start one. Only Rules has a second: a rule is a CONSTRUCT
+     * with the head and body swapped round, so a library of them is a library
+     * of rules nobody has converted yet.
+     */
+    newOptions: section === 'rules'
+      ? [{ key: 'import-construct', label: 'Import from SPARQL…' }]
+      : [],
     saved: savedFor(section),
     scratch: scratchFor(definition.draftSection),
   };
@@ -1426,6 +1471,21 @@ function handleTupleSetDeleted() {
 
 async function handleArgumentSetSaved(payload: { id: string }) {
   await handleSaved('argumentSet', payload.id);
+}
+
+/**
+ * An argument set saved from a callable's screen: refresh the rail, stay put.
+ *
+ * `handleArgumentSetSaved` above also *selects* the set, which is right when
+ * the save happened in the Argument sets section — you saved the thing you are
+ * looking at. Here you saved a set while working on a query, and navigating to
+ * it would take the query off the screen. What was missing was only the list
+ * refresh: saved sets used to appear on switching to the section, because that
+ * triggers a load, so this was "stale until you navigate" rather than "lost".
+ */
+async function handleArgumentSetSavedElsewhere() {
+  await loadKind('argumentSet');
+  sidebarRefreshKey.value += 1;
 }
 
 function handleArgumentSetDeleted() {

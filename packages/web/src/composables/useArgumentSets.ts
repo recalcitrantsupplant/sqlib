@@ -17,7 +17,8 @@
  * | saved set    | the local draft if there is | Draft (if any) + vN…v1  |
  * |                  | one, else the chosen version |                        |
  *
- * Values live in `useArgumentSetDrafts` while unsaved and on the server
+ * Values live in `useArgumentSetDrafts` — a view over the one browser-local
+ * draft store, keyed by section — while unsaved and on the server
  * once saved; this composable is the seam, and it is the only place that
  * knows which of the two the panel is currently reading.
  */
@@ -70,6 +71,16 @@ export function useArgumentSets(
    * this always returned.
    */
   libraryId?: () => string | null,
+  /**
+   * Told when a save lands, with the set's id.
+   *
+   * The rail is a sibling of whatever screen this is mounted on, and it lists
+   * saved sets from the server, so nothing about a save reaches it on its own:
+   * the list is refreshed when the section is opened, which made a set saved
+   * from a query screen "stale until you navigate". The screen owns the
+   * connection to the rail, so the screen is told and forwards it.
+   */
+  options?: { onSaved?: (setId: string) => void },
 ) {
   const apiClient = useApiClient()
   const local = useArgumentSetDrafts()
@@ -416,10 +427,57 @@ export function useArgumentSets(
     runTarget.value = DRAFT_TARGET
   }
 
-  /** Rename without touching values — the ⋮ menu's Rename. */
-  function rename(next: string) {
-    name.value = next
-    persistLocal()
+  /**
+   * Rename in place — the ⋮ menu's Rename, and the name field beside it.
+   *
+   * A name is entity metadata, not content: no version holds it, so renaming
+   * a saved set writes straight through to `PUT /argument-sets/:id` and makes
+   * no draft and no version. It used to go to the browser-local draft instead,
+   * which showed the new name and lost it on the next save — the version body
+   * a save posts carries bindings only, and the reload that follows re-read
+   * the server's unchanged name over the top.
+   *
+   * A scratch set has no server identity to rename, so it keeps the local
+   * write it always had.
+   */
+  async function rename(next: string): Promise<boolean> {
+    const trimmed = next.trim()
+    if (!trimmed) return false
+    const previous = name.value
+    name.value = trimmed
+
+    if (selection.value.kind === 'scratch') {
+      persistLocal()
+      return true
+    }
+    if (selection.value.kind !== 'set') return false
+
+    const setId = selection.value.id
+    /*
+     * An open draft carries its own copy of the name, and hydrates from it
+     * ahead of the server on the next `selectSet`. Kept in step rather than
+     * left to disagree — and only when one is already open, because renaming
+     * is not an edit to the body and must not manufacture a draft.
+     */
+    const draft = local.draftFor(setId)
+    if (draft) local.save({ ...draft, name: trimmed, edits: draft.edits })
+
+    try {
+      const result = await apiClient.updateArgumentSet(setId, { name: trimmed })
+      currentSet.value = result.data
+      argumentSets.value = argumentSets.value.map((entry) =>
+        entry.id === setId ? { ...entry, name: trimmed } : entry,
+      )
+      return true
+    } catch (err) {
+      // Put the old name back: a refused write that leaves the new one on
+      // screen is the bug this replaced, one layer down.
+      name.value = previous
+      if (draft) local.save({ ...draft, name: previous, edits: draft.edits })
+      error.value = err instanceof Error ? err.message : 'Failed to rename argument set'
+      console.error('[useArgumentSets] Rename error:', err)
+      return false
+    }
   }
 
   // ========================================================================
@@ -491,6 +549,7 @@ export function useArgumentSets(
         local.remove(selection.value.id)
         await loadArgumentSets()
         await selectSet(created.data.id)
+        options?.onSaved?.(created.data.id)
         return true
       }
 
@@ -506,6 +565,7 @@ export function useArgumentSets(
       if (draft) local.remove(draft.id)
       await loadArgumentSets()
       await selectSet(setId)
+      options?.onSaved?.(setId)
       return true
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to save argument set'

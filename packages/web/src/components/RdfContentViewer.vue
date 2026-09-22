@@ -29,7 +29,6 @@ const props = withDefaults(
     /** Let a caller host the filter, the row count and paging — see DataTable. */
     hideFilterRow?: boolean;
     hideRowCount?: boolean;
-    hidePaginationBar?: boolean;
   }>(),
   {
     title: undefined,
@@ -40,7 +39,6 @@ const props = withDefaults(
     hideViewTabs: false,
     hideFilterRow: false,
     hideRowCount: false,
-    hidePaginationBar: false,
   },
 );
 
@@ -205,7 +203,6 @@ const normalizedContentType = computed(() => {
             :enable-filters="true"
             :hide-filter-row="hideFilterRow"
             :hide-row-count="hideRowCount"
-            :hide-pagination-bar="hidePaginationBar"
             @state="emit('state', $event)"
           />
         </div>

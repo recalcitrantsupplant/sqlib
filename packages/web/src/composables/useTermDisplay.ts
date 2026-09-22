@@ -1,8 +1,8 @@
-import { computed, ref } from 'vue';
+import { computed } from 'vue';
 import { usePrefixManager } from '@/composables/usePrefixManager';
 
 /**
- * How one column renders the IRIs in it.
+ * How a result table renders the IRIs in it.
  *
  * `prefixed` abbreviates against the prefix manager where a namespace matches;
  * `full` shows the IRI as it came back from the store.
@@ -10,53 +10,39 @@ import { usePrefixManager } from '@/composables/usePrefixManager';
 export type TermDisplayMode = 'prefixed' | 'full';
 
 /**
- * Per-column term display for a single table.
+ * Term display, for every table at once.
  *
- * There is deliberately no table-wide control: a table renders prefixed names
- * (the app default from Settings → Result tables), and a reader who wants the
- * IRIs for one column says so in that column's header menu — the menu that
- * already owns sort and filter. Term display is a column property like those
- * two, so `s` can show full IRIs while `p` and `o` stay narrow.
+ * One switch in the browser, not a setting per column and not a setting per
+ * table: reading `rdf:type` in one table and
+ * `http://www.w3.org/1999/02/22-rdf-syntax-ns#type` in the next is not a use
+ * anyone has, and the per-column version cost a trip into a header menu for
+ * each column before a table read the way you wanted it to.
  *
- * State is per table instance, not persisted: it is a way of reading the rows
- * in front of you, not a setting. The app-wide default still lives in
- * `usePrefixManager().enabled`, and a column that was never touched follows it.
+ * It is the same flag Settings → Abbreviate IRIs writes
+ * (`usePrefixManager().enabled`), so the toolbar control and the setting are
+ * two faces of one value, persisted in local storage and applied on the next
+ * load.
  */
 export function useTermDisplay() {
   const { enabled } = usePrefixManager();
 
-  /** Columns the reader has decided about; everything else follows the default. */
-  const overrides = ref<Record<string, TermDisplayMode>>({});
+  const mode = computed<TermDisplayMode>({
+    get: () => (enabled.value ? 'prefixed' : 'full'),
+    set: (next: TermDisplayMode) => {
+      enabled.value = next === 'prefixed';
+    },
+  });
 
-  const defaultMode = computed<TermDisplayMode>(() =>
-    enabled.value ? 'prefixed' : 'full',
-  );
+  /** Read in cell renderers, so a flip re-renders every table on screen. */
+  const isPrefixed = computed(() => mode.value === 'prefixed');
 
-  const modeFor = (columnKey: string): TermDisplayMode =>
-    overrides.value[columnKey] ?? defaultMode.value;
-
-  const isPrefixed = (columnKey: string): boolean =>
-    modeFor(columnKey) === 'prefixed';
-
-  const setMode = (columnKey: string, mode: TermDisplayMode): void => {
-    // Replaced wholesale rather than mutated: the cell renderers read this ref
-    // during the table's render, and a new object is what re-runs them.
-    overrides.value = { ...overrides.value, [columnKey]: mode };
-  };
-
-  const applyToAll = (columnKeys: string[], mode: TermDisplayMode): void => {
-    const next: Record<string, TermDisplayMode> = { ...overrides.value };
-    for (const key of columnKeys) {
-      next[key] = mode;
-    }
-    overrides.value = next;
+  const setMode = (next: TermDisplayMode): void => {
+    mode.value = next;
   };
 
   return {
-    defaultMode,
-    modeFor,
+    mode,
     isPrefixed,
     setMode,
-    applyToAll,
   };
 }

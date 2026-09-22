@@ -361,22 +361,29 @@
             <div class="tab-pane">
               <div class="results-content">
                 <!-- The three states the viewer cannot describe for itself, in the
-                     shared empty-state chrome rather than three hand-drawn cards. -->
-                <EmptyState
-                  v-if="isExecuting"
-                  title="Executing query group…"
-                  description="The latest results will appear here shortly."
-                />
-                <EmptyState
-                  v-else-if="executionError"
-                  title="Execution failed"
-                  :description="executionError"
-                />
-                <EmptyState
-                  v-else-if="requiresBackend && availableBackends.length === 0"
-                  title="No backend available"
-                  description="Add an execution node with a backend before running the query group."
-                />
+                     shared empty-state chrome rather than three hand-drawn cards.
+                     Padded here rather than by `.results-content`, which carries
+                     none so that the viewer's bars reach the panel edges. -->
+                <div
+                  v-if="isExecuting || executionError || (requiresBackend && availableBackends.length === 0)"
+                  class="results-empty"
+                >
+                  <EmptyState
+                    v-if="isExecuting"
+                    title="Executing query group…"
+                    description="The latest results will appear here shortly."
+                  />
+                  <EmptyState
+                    v-else-if="executionError"
+                    title="Execution failed"
+                    :description="executionError"
+                  />
+                  <EmptyState
+                    v-else
+                    title="No backend available"
+                    description="Add an execution node with a backend before running the query group."
+                  />
+                </div>
                 <QueryResultsViewer
                   v-else
                   :results="executionResultJson"
@@ -567,6 +574,12 @@ const emit = defineEmits<{
   'query-group-moved': [groupId: string, libraryId: string];
   /** A scratch group became a real one; the shell reselects it as saved. */
   'scratch-saved': [payload: { id: string; name: string; libraryId: string }];
+  /**
+   * An argument set was saved from this screen. Separate from `scratch-saved`,
+   * which is about the group: the Argument sets rail lists saved sets from the
+   * server and has no other way to hear that one has arrived.
+   */
+  'argument-set-saved': [payload: { id: string }];
   /** A test or a benchmark was created from the run sentence; open it. */
   'open-entity': [payload: { type: 'test' | 'benchmark'; id: string }];
 }>();
@@ -760,6 +773,7 @@ const argumentSetsState = useArgumentSets(
   queryGroupId,
   'queryGroup',
   () => queryGroupLibraryId.value || activeLibraryId.value,
+  { onSaved: (id) => emit('argument-set-saved', { id }) },
 );
 
 const config = useRuntimeConfig();
@@ -3416,10 +3430,20 @@ onUnmounted(() => {
   background: var(--surface);
 }
 
+.results-empty {
+  padding: var(--space-6);
+}
+
 .results-content {
   flex: 1;
   position: relative;
-  padding: 0 var(--space-6) var(--space-6);
+  /*
+   * No padding: the viewer inside is a stack of full-width bands — action bar,
+   * table, footer — and each one that needs an inset carries its own. Padding
+   * here inset the bars too, which left the footer floating clear of the
+   * panel's bottom and side edges while every other panel's footer met them.
+   */
+  padding: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;

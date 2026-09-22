@@ -156,16 +156,7 @@
           :data="rows"
           :enable-filters="false"
           empty-state-text="No rows."
-          :column-menu-ids="resultVars"
-        >
-          <template #column-menu="{ columnId }">
-            <TermDisplayMenuItems
-              :mode="modeFor(columnId)"
-              @select="onSelectMode(columnId, $event)"
-              @select-all="onSelectModeForAll($event)"
-            />
-          </template>
-        </DataTable>
+        />
       </div>
       <CodePeek
         v-else-if="scalarResult"
@@ -203,8 +194,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import DataTable from '@/components/ui/table/DataTable.vue';
-import TermDisplayMenuItems from '@/components/shared/TermDisplayMenuItems.vue';
-import { useTermDisplay, type TermDisplayMode } from '@/composables/useTermDisplay';
+import { useTermDisplay } from '@/composables/useTermDisplay';
 import CodePeek from '@/components/shared/CodePeek.vue';
 import PanelHeader from '@/components/shared/PanelHeader.vue';
 import SectionLabel from '@/components/shared/SectionLabel.vue';
@@ -471,21 +461,15 @@ const rows = computed<Array<Record<string, NotebookTerm>>>(() => {
 });
 
 /*
- * Term display is a column property here as it is in the result tables: no
- * control in the toolbar, a choice per column in its own header menu. The
- * prefixes are the query's own, not the prefix manager's, so what the menu
- * switches between is this query's prologue and the IRIs behind it.
+ * Term display follows the same browser-wide switch the result tables do. The
+ * prefixes are the query's own, not the prefix manager's, so what it switches
+ * between here is this query's prologue and the IRIs behind it.
  */
-const { modeFor, isPrefixed, setMode, applyToAll } = useTermDisplay();
+const { isPrefixed } = useTermDisplay();
 
-const onSelectMode = (columnKey: string, mode: TermDisplayMode) =>
-  setMode(columnKey, mode);
-const onSelectModeForAll = (mode: TermDisplayMode) =>
-  applyToAll(resultVars.value, mode);
-
-/** What one cell reads as, in the spelling its column is set to. */
-const termText = (term: NotebookTerm, columnKey: string): string =>
-  isPrefixed(columnKey) || !term.full
+/** What one cell reads as, in the spelling every table is set to. */
+const termText = (term: NotebookTerm): string =>
+  isPrefixed.value || !term.full
     ? `${term.display}${term.suffix}`
     : `${term.full}${term.suffixFull}`;
 
@@ -506,12 +490,12 @@ const scalarContentType = computed(() =>
 const columns = computed<DataTableColumnDef<Record<string, NotebookTerm>, unknown>[]>(() =>
   resultVars.value.map((name) => ({
     accessorKey: name,
-    accessorFn: (row: Record<string, NotebookTerm>) => termText(row[name], name),
+    accessorFn: (row: Record<string, NotebookTerm>) => termText(row[name]),
     header: name,
     cell: ({ row }) => {
       const term = row.original[name];
       return h('span', { class: 'term-cell inline-flex items-center' }, [
-        h('code', { class: 'text-xs' }, termText(term, name)),
+        h('code', { class: 'text-xs' }, termText(term)),
       ]);
     },
   })),

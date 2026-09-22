@@ -53,6 +53,8 @@ export const tupleSetResponseSchema = {
     description: { type: 'string', nullable: true },
     currentVersion: { type: 'string', nullable: true },
     isPartOf: { type: 'array', items: { type: 'string' } },
+    /** The argument set this table was converted from, if it was. Loose, never a pin. */
+    copiedFrom: { type: 'string', nullable: true },
     tags: { type: 'array', items: { type: 'string' }, nullable: true },
     dateCreated: { type: 'string', format: 'date-time', nullable: true },
     dateModified: { type: 'string', format: 'date-time', nullable: true },

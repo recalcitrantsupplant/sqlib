@@ -23,6 +23,7 @@ const dataGraphShape = {
   currentVersion: optionalIriString,
   currentVersionNumber: nullableInteger,
   isPartOf: iriArray.min(1, 'isPartOf must contain at least one library'),
+  mintedFrom: optionalIriString,
   tags: optionalIriArray,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,

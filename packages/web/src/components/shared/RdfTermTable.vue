@@ -18,11 +18,10 @@ import { computed, h, ref } from 'vue';
 import type { DataTableColumnDef } from '@/composables/useDataTable';
 import type { SparqlBindingValue } from '@sparql-query-lib/types';
 import DataTable from '@/components/ui/table/DataTable.vue';
-import type { DataTableState } from '@/composables/useDataTable';
+import { DEFAULT_PAGE_SIZE, type DataTableState } from '@/composables/useDataTable';
 import InlinePrefixAdder from '@/components/shared/InlinePrefixAdder.vue';
-import TermDisplayMenuItems from '@/components/shared/TermDisplayMenuItems.vue';
 import { usePrefixManager } from '@/composables/usePrefixManager';
-import { useTermDisplay, type TermDisplayMode } from '@/composables/useTermDisplay';
+import { useTermDisplay } from '@/composables/useTermDisplay';
 import { useCopyToClipboard } from '@/composables/useCopyToClipboard';
 
 export interface RdfTermValue {
@@ -58,20 +57,18 @@ const props = withDefaults(defineProps<{
   enablePagination?: boolean;
   /** Initial page size */
   initialPageSize?: number;
-  /** Let a caller host the filter input, row count and paging — see DataTable. */
+  /** Let a caller host the filter input and row count — see DataTable. */
   hideFilterRow?: boolean;
   hideRowCount?: boolean;
-  hidePaginationBar?: boolean;
 }>(), {
   filterPlaceholder: 'Filter results…',
   emptyText: 'No results found.',
   showRowNumbers: false,
   enableFilters: true,
   enablePagination: false,
-  initialPageSize: 25,
+  initialPageSize: DEFAULT_PAGE_SIZE,
   hideFilterRow: false,
   hideRowCount: false,
-  hidePaginationBar: false,
 });
 
 const emit = defineEmits<{ state: [DataTableState] }>();
@@ -93,39 +90,28 @@ const { copyToClipboard } = useCopyToClipboard();
 const { abbreviateIri } = usePrefixManager();
 
 /*
- * Term display is a column property, not a table-wide mode: there is no
- * control in the toolbar, and a column is switched to full IRIs from its own
- * header menu. See `useTermDisplay`.
+ * Term display is one switch for the whole browser, carried in the results
+ * action bar rather than in each column's header menu. See `useTermDisplay`.
  */
-const { modeFor, isPrefixed, setMode, applyToAll } = useTermDisplay();
-
-const columnKeys = computed(() => props.columns.map((col) => col.key));
-
-const onSelectMode = (columnKey: string, mode: TermDisplayMode) =>
-  setMode(columnKey, mode);
-const onSelectModeForAll = (mode: TermDisplayMode) =>
-  applyToAll(columnKeys.value, mode);
+const { isPrefixed } = useTermDisplay();
 
 /**
  * The inline "+ prefix" affordance for an IRI that abbreviation left alone.
  *
- * Only offered while the column is showing prefixed names: in full-IRI mode
- * nothing in that column is abbreviated, so a button on every row would say
- * nothing about which namespaces are actually unregistered.
+ * Only offered while tables are showing prefixed names: in full-IRI mode
+ * nothing is abbreviated, so a button on every row would say nothing about
+ * which namespaces are actually unregistered.
  */
-const renderPrefixAdder = (iri: string, columnKey: string) => {
-  if (!isPrefixed(columnKey)) return null;
+const renderPrefixAdder = (iri: string) => {
+  if (!isPrefixed.value) return null;
   return h(InlinePrefixAdder, { iri, key: `prefix-adder:${iri}` });
 };
 
 /**
  * Renders a single RDF term cell with type badge, prefix abbreviation, and copy button
  */
-const renderCell = (
-  binding: RdfTermValue | SparqlBindingValue | string | undefined,
-  columnKey: string,
-) => {
-  const prefixed = isPrefixed(columnKey);
+const renderCell = (binding: RdfTermValue | SparqlBindingValue | string | undefined) => {
+  const prefixed = isPrefixed.value;
 
   // Handle undefined/null
   if (!binding) {
@@ -150,7 +136,7 @@ const renderCell = (
     if (binding.startsWith('http://') || binding.startsWith('https://')) {
       return h('span', { class: 'flex items-center gap-2' }, [
         h('span', { class: 'text-sm break-words' }, binding),
-        renderPrefixAdder(binding, columnKey),
+        renderPrefixAdder(binding),
       ]);
     }
     return h('span', { class: 'text-sm' }, binding);
@@ -223,7 +209,7 @@ const renderCell = (
         },
         displayValue,
       ),
-      term.type === 'uri' && !fullIri ? renderPrefixAdder(term.value, columnKey) : null,
+      term.type === 'uri' && !fullIri ? renderPrefixAdder(term.value) : null,
       h(
         'div',
         {
@@ -280,7 +266,7 @@ const tableColumns = computed<DataTableColumnDef<TData>[]>(() =>
     accessorFn: (row: TData) => extractValue(row[col.key]),
     enableColumnFilter: col.filterable ?? true,
     header: () => h('span', { class: 'font-semibold' }, col.label),
-    cell: ({ row }) => renderCell(row.original[col.key], col.key),
+    cell: ({ row }) => renderCell(row.original[col.key]),
   })),
 );
 </script>
@@ -297,21 +283,12 @@ const tableColumns = computed<DataTableColumnDef<TData>[]>(() =>
     :enable-filters="enableFilters"
     :enable-pagination="enablePagination"
     :initial-page-size="initialPageSize"
-    :column-menu-ids="columnKeys"
     :hide-filter-row="hideFilterRow"
     :hide-row-count="hideRowCount"
-    :hide-pagination-bar="hidePaginationBar"
     @state="emit('state', $event)"
   >
     <template #filter-actions>
       <slot name="filter-actions"></slot>
-    </template>
-    <template #column-menu="{ columnId }">
-      <TermDisplayMenuItems
-        :mode="modeFor(columnId)"
-        @select="onSelectMode(columnId, $event)"
-        @select-all="onSelectModeForAll($event)"
-      />
     </template>
   </DataTable>
 </template>

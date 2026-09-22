@@ -31,6 +31,9 @@ vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
   }),
   getCacheCoordinator: () => ({
     get: hoisted.coordinatorGet,
+    // Deleting a data graph asks who pins it (`pinsOnDataGraph`), which is a
+    // scan over stored versions and argument sets. Nothing here is pinned.
+    list: () => [],
   }),
 }));
 

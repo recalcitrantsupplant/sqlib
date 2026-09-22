@@ -2909,6 +2909,29 @@ export function useApiClient() {
   };
 
   /**
+   * Rename a set, or reword its description.
+   *
+   * Entity metadata, so it writes no version: the bindings stay where they
+   * are, on the versions that hold them, and nothing that pinned one is
+   * disturbed. The name used to have no door but the save bar, whose version
+   * body carries no name and dropped it.
+   */
+  const updateArgumentSet = (
+    setId: string,
+    input: { name?: string; description?: string | null },
+    options?: { ifMatch?: string | null },
+  ) => {
+    ensureQueriesEnabled();
+    const headers: Record<string, string> = { ...JSON_HEADERS };
+    applyIfMatchHeader(headers, options?.ifMatch ?? null);
+    return request(
+      buildUrl(`/argument-sets/${encodeURIComponent(setId)}`),
+      { method: 'PUT', headers, body: JSON.stringify(input) },
+      (payload) => argumentSetSchema.parse(payload),
+    );
+  };
+
+  /**
    * Delete an argument set
    */
   const deleteArgumentSet = async (setId: string, options?: { ifMatch?: string | null }) => {
@@ -3319,6 +3342,7 @@ export function useApiClient() {
     createStandaloneArgumentSet,
     getArgumentSet,
     createArgumentSet,
+    updateArgumentSet,
     deleteArgumentSet,
     exportArgumentSet,
     exportArgumentSetPayload,

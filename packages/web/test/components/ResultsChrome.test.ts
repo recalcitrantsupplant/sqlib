@@ -4,9 +4,10 @@
  * The panel's tab strip is tabs and nothing else. What you can do to the
  * response — pick a view, filter it, download it, pop it out — is on a bar that
  * exists only where the response does, and what the run *was* — how many rows,
- * when, from what, how long — is stated as pills underneath, paging included.
- * These tests hold both halves of that in place, for the query panel (which ETL
- * and query groups share) and for the rule set panel.
+ * when, from what, how long — is stated as pills underneath. Paging is its own
+ * row under the table, where the rows it moves through are. These tests hold
+ * those parts in place, for the query panel (which ETL and query groups share)
+ * and for the rule set panel.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { nextTick } from 'vue';
@@ -74,7 +75,7 @@ describe('query results chrome', () => {
     wrapper.unmount();
   });
 
-  it('pages from the row-count pill rather than from a band of its own', async () => {
+  it('pages from a row under the table, twenty rows at a time', async () => {
     const QueryResultsViewer = await load();
     const wrapper = mount(QueryResultsViewer, {
       props: { results: results(60), contentType: 'application/sparql-results+json' },
@@ -82,17 +83,58 @@ describe('query results chrome', () => {
     });
     await nextTick();
 
-    // 60 rows at the default 25 per page: three pages, none of them a toolbar.
-    expect(wrapper.findAll('tbody tr')).toHaveLength(25);
+    // 60 rows at the default 20 per page: three pages.
+    expect(wrapper.findAll('tbody tr')).toHaveLength(20);
+    const paging = wrapper.get('[data-testid="results-pagination"]');
+    expect(paging.get('[data-testid="results-page-position"]').text()).toBe('Page 1 of 3');
 
-    await wrapper.get('[data-testid="results-rows-pill"]').trigger('click');
+    await paging.get('[data-testid="results-page-next"]').trigger('click');
+    await nextTick();
+    expect(wrapper.get('[data-testid="results-page-position"]').text()).toBe('Page 2 of 3');
+
+    await paging.get('[data-testid="results-page-last"]').trigger('click');
+    await nextTick();
+    expect(wrapper.get('[data-testid="results-page-position"]').text()).toBe('Page 3 of 3');
+
+    await paging.get('[data-testid="results-page-first"]').trigger('click');
+    await nextTick();
+    expect(wrapper.get('[data-testid="results-page-position"]').text()).toBe('Page 1 of 3');
+
+    wrapper.unmount();
     await tick();
-    await wrapper.get('[data-testid="results-page-size-100"]').trigger('click');
+  });
+
+  it('takes rows per page from the same row', async () => {
+    const QueryResultsViewer = await load();
+    const wrapper = mount(QueryResultsViewer, {
+      props: { results: results(60), contentType: 'application/sparql-results+json' },
+      ...PORTAL_STUB,
+    });
+    await nextTick();
+
+    await wrapper.get('[data-testid="results-page-size"]').setValue('100');
     await nextTick();
 
     expect(wrapper.findAll('tbody tr')).toHaveLength(60);
     wrapper.unmount();
     await tick();
+  });
+
+  /*
+   * The row stays on a single-page result: the moves are disabled, but rows
+   * per page is still the control that decides whether it *is* one page.
+   */
+  it('disables the moves when there is nowhere to page to', async () => {
+    const QueryResultsViewer = await load();
+    const wrapper = mount(QueryResultsViewer, {
+      props: { results: results(3), contentType: 'application/sparql-results+json' },
+      ...PORTAL_STUB,
+    });
+    await nextTick();
+
+    expect(wrapper.get('[data-testid="results-page-position"]').text()).toBe('Page 1 of 1');
+    expect(wrapper.get('[data-testid="results-page-next"]').attributes('disabled')).toBeDefined();
+    wrapper.unmount();
   });
 
   it('filters from the action bar, which is the only filter row there is', async () => {
