@@ -23,8 +23,16 @@
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
+import { EditorState } from '@codemirror/state';
+import { EditorView } from '@codemirror/view';
+import { forEachDiagnostic, forceLinting } from '@codemirror/lint';
 
-import { languageExtensionsFor, normalizeContentType, prefixGrammarFor } from '../../src/lib/codeLanguage';
+import {
+  languageExtensionsFor,
+  normalizeContentType,
+  prefixGrammarFor,
+  type LanguageOptions,
+} from '../../src/lib/codeLanguage';
 
 const SRC = resolve(import.meta.dirname, '../../src');
 
@@ -123,5 +131,95 @@ describe('the grammar packages', () => {
         'own language should ask for it by media type — languageExtensionsFor(\'application/srl\') ' +
         'rather than srl() — so the grammar behind a language is named in one place.',
     ).toEqual([]);
+  });
+});
+
+/**
+ * The SPARQL habits an SRL editor offers to fix.
+ *
+ * `@kurrawongai/codemirror-lang-srl` 0.3.0 reports the SPARQL forms that are
+ * not SRL and, given `sparqlConversions`, attaches the edit that fixes each
+ * one. The flag is the whole feature as far as this app is concerned, and it
+ * is a boolean threaded through two files, so nothing below asserts *which*
+ * forms the grammar knows — that is upstream's suite. What is asserted is that
+ * the flag arrives: with it off the editor underlines and says nothing useful,
+ * with it on the same underline carries a fix that, applied, leaves a document
+ * the grammar accepts.
+ *
+ * That last clause is the one worth the DOM: an action whose replacement text
+ * is wrong still looks like a working button, and the only way to see it is to
+ * press it and lint again.
+ */
+const PASTED_SPARQL = [
+  'PREFIX : <http://example/>',
+  '',
+  'RULE { ?s :q ?x } WHERE { ?s :p ?o BIND(?o + 1 AS ?x) FILTER(BOUND(?x)) }',
+].join('\n');
+
+interface SeenDiagnostic {
+  message: string;
+  actions: Array<{ name: string; apply: (view: EditorView) => void; from: number; to: number }>;
+}
+
+/** An SRL editor holding `doc`, with the linter already run. */
+async function lintedSrlEditor(doc: string, options: LanguageOptions = {}) {
+  const view = new EditorView({
+    state: EditorState.create({ doc, extensions: languageExtensionsFor('application/srl', options) }),
+    parent: document.body,
+  });
+  const lint = async (): Promise<SeenDiagnostic[]> => {
+    forceLinting(view);
+    // The linter answers in a promise, so the diagnostics land a tick later.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const found: SeenDiagnostic[] = [];
+    forEachDiagnostic(view.state, (diagnostic, from, to) => {
+      found.push({
+        message: diagnostic.message,
+        actions: (diagnostic.actions ?? []).map((action) => ({ ...action, from, to })),
+      });
+    });
+    return found;
+  };
+  return { view, lint };
+}
+
+describe('an SRL editor offered SPARQL', () => {
+  it('names the SRL spelling and offers the edit when conversions are on', async () => {
+    const { view, lint } = await lintedSrlEditor(PASTED_SPARQL, { sparqlConversions: true });
+    try {
+      const [diagnostic, ...rest] = await lint();
+
+      expect(rest).toEqual([]);
+      expect(diagnostic.message).toMatch(/SET/);
+      expect(diagnostic.actions.map((action) => action.name)).toEqual([
+        'Convert SPARQL BIND to SRL SET',
+      ]);
+
+      diagnostic.actions[0].apply(view);
+
+      expect(view.state.doc.toString()).toContain('SET ( ?x := ?o + 1 )');
+      // The point of the button: pressing it leaves a rule set, not a second error.
+      expect(await lint()).toEqual([]);
+    } finally {
+      view.destroy();
+    }
+  });
+
+  it('still underlines it with conversions off, but offers nothing it cannot do', async () => {
+    /*
+     * The default, and what the read-only SRL viewers get: the conformance
+     * check is not optional — a `BIND` in a rule body is an error whoever is
+     * looking — but an offer to rewrite a document nobody can type in is an
+     * offer that does nothing when taken.
+     */
+    const { view, lint } = await lintedSrlEditor(PASTED_SPARQL);
+    try {
+      const found = await lint();
+
+      expect(found).toHaveLength(1);
+      expect(found[0].actions).toEqual([]);
+    } finally {
+      view.destroy();
+    }
   });
 });

@@ -50,7 +50,7 @@
                 <Copy v-else :size="12" />
                 Copy bundle JSON
               </Button>
-              <NuxtLink :to="buildLink" class="header-link"><Sparkles :size="12" /> Build</NuxtLink>
+              <NuxtLink v-if="isEnabled('build')" :to="buildLink" class="header-link"><Sparkles :size="12" /> Build</NuxtLink>
             </div>
           </div>
 

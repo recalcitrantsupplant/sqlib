@@ -487,6 +487,25 @@ describe('RuleSets Routes — SRL document authoring', () => {
       expect(rules[1].label).toBe('rule-2');
     });
 
+    /*
+     * The route compiles what parses, and `FILTER NOT EXISTS { … }` used to
+     * parse: the body grammar reuses SPARQL's filter, whose expressions can be
+     * pattern operations. So a document the editor underlined as invalid SRL
+     * came back as SPARQL anyway, and the two answers disagreed on the same
+     * text. The parser refuses it now, and refusing is what this holds.
+     */
+    it('refuses a SPARQL NOT EXISTS rather than compiling it', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/rule-sets/srl/compile',
+        payload: {
+          srl: 'PREFIX : <http://example/>\nRULE { ?s :q ?o } WHERE { ?s :p ?o FILTER NOT EXISTS { ?s :dead ?z } }',
+        },
+      });
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error).toContain('NOT EXISTS is not part of SRL');
+    });
+
     it('compiles SRL constructs a reader would need translated', async () => {
       const res = await app.inject({
         method: 'POST',

@@ -1,6 +1,6 @@
 # Feature flags
 
-Seventeen boolean flags decide which sections of the product a build offers. A
+Nineteen boolean flags decide which sections of the product a build offers. A
 flag is read on the server, where it decides whether routes are registered, and
 again in the browser build, where it decides whether a section and the controls
 leading to it are drawn. The two read separate environments, so a deployment
@@ -21,7 +21,8 @@ A flag's value is parsed leniently, case-insensitively, after trimming:
 
 | Key | Environment variable | Default | What is absent when it is off |
 | --- | --- | --- | --- |
-| `queries` | `FEATURE_QUERIES` | on | The Notebook and Query rail sections; the `/queries` and `/execute` routes |
+| `notebook` | `FEATURE_NOTEBOOK` | on | The Notebook rail section and the links into it. `/library` stays reachable by URL, and its content still follows the section flags |
+| `queries` | `FEATURE_QUERIES` | on | The Query rail section; the `/queries` and `/execute` routes. The Notebook has its own flag above |
 | `queryGroups` | `FEATURE_QUERY_GROUPS` | on | The Groups rail section; the `/query-groups` routes |
 | `rulesSuite` | `FEATURE_RULES_SUITE` | on | The Rules rail section; the `/rules`, `/data-blocks` and `/rule-sets` routes |
 | `benchmarks` | `FEATURE_BENCHMARKS` | on | The Bench rail section; the `/benchmark-experiments` routes |
@@ -29,6 +30,7 @@ A flag's value is parsed leniently, case-insensitively, after trimming:
 | `dataGraphs` | `FEATURE_DATA_GRAPHS` | on | The Graphs rail section and the doors into it. The `/data-graphs` routes stay registered |
 | `tupleSets` | `FEATURE_TUPLE_SETS` | on | The Tuples rail section and the doors into it. The `/tuple-sets` routes stay registered |
 | `argumentSets` | `FEATURE_ARGUMENT_SETS` | on | The Argument sets rail section and the doors into it. The `/argument-sets` routes stay registered while `queries` or `queryGroups` is on |
+| `build` | `FEATURE_BUILD` | on | The Build rail section and the links into it. `/build` stays reachable by URL, and what it shows still follows the section flags |
 | `etl` | `FEATURE_ETL` | **off** | The `/etl-jobs` routes, and the startup writability check on the ETL output directory |
 | `backends` | `FEATURE_BACKENDS` | on | The Backends rail section. The `/backends` routes stay registered unconditionally |
 | `settings` | `FEATURE_SETTINGS` | on | The settings entry in the rail |

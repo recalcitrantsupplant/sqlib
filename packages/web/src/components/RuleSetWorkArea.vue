@@ -488,10 +488,26 @@ const { analysis, blocks, stratification, validationState, parseError } = useSrl
  * parsed with server-side. `vue-codemirror` applies this prop through a
  * compartment, so a change reconfigures the live editor rather than rebuilding
  * it, and the document and cursor survive toggling.
+ *
+ * `sparqlConversions` is on because this is the box a query gets pasted into.
+ * A rule is a CONSTRUCT with the serial numbers filed off, so the way people
+ * arrive here is with SPARQL in the clipboard, and the grammar knows the four
+ * habits that survives the paste — `BIND`, `FILTER NOT EXISTS`, `CONSTRUCT`
+ * and `INSERT DATA` — well enough to name the SRL spelling and offer the edit.
+ * The underline was there without it; what the flag adds is the sentence that
+ * says which SRL form means the same thing, and a click that writes it.
+ *
+ * It does not make the document *valid*: the footer's verdict still comes from
+ * the server parse in `useSrlAnalysis`, which is the parser the rule set is
+ * actually run with. This is the same check arriving sooner and pointing at a
+ * span rather than at a line.
  */
 const editorView = shallowRef<EditorView | null>(null);
 const extensions = computed<Extension[]>(() => [
-  ...languageExtensionsFor('application/srl', { tuples: tuplesEnabled.value }),
+  ...languageExtensionsFor('application/srl', {
+    tuples: tuplesEnabled.value,
+    sparqlConversions: true,
+  }),
   rdfSyntaxHighlighting,
   stratumGutter(),
   useCommentKeymap(),
@@ -512,7 +528,10 @@ const extensions = computed<Extension[]>(() => [
  * terms correctly and its `@prefix` lines approximately.
  */
 const tupleExtensions = computed<Extension[]>(() => [
-  ...languageExtensionsFor('application/srl', { tuples: tuplesEnabled.value }),
+  ...languageExtensionsFor('application/srl', {
+    tuples: tuplesEnabled.value,
+    sparqlConversions: true,
+  }),
   rdfSyntaxHighlighting,
 ]);
 const inputExtensions = shallowRef<Extension[]>([

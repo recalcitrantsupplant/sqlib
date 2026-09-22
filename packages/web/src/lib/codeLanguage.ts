@@ -68,6 +68,27 @@ export interface LanguageOptions {
    * hands back the spans to raise a diagnostic on when the flag is off.
    */
   tuples?: boolean;
+  /**
+   * Whether an SRL editor offers to *fix* the SPARQL spellings it rejects.
+   *
+   * SRL is SPARQL-shaped, so the way a rule set goes wrong is almost always
+   * that a SPARQL habit came along with the paste: `BIND(… AS ?x)` where SRL
+   * writes `SET ( ?x := … )`, `FILTER NOT EXISTS { … }` where it writes
+   * `NOT { … }`, a `CONSTRUCT` or an `INSERT DATA` heading a block that SRL
+   * spells `RULE` and `DATA`. Since 0.3.0 the grammar names each of those and
+   * hands back the exact replacement text, so the editor can offer the edit
+   * rather than only refusing the document.
+   *
+   * Off, the conformance diagnostics are still raised — the grammar always
+   * checks them and the underline is not optional — but they read "Syntax
+   * error." and carry no action. That is the honest answer for a box nobody
+   * can type in: an offer to rewrite a read-only document is an offer that
+   * does nothing when taken. So this is opt-in per editor rather than on by
+   * default, and the editable SRL boxes opt in.
+   *
+   * Only SRL reads it. A media type with no conversions to offer ignores it.
+   */
+  sparqlConversions?: boolean;
 }
 
 /**
@@ -106,7 +127,12 @@ export function languageExtensionsFor(
    * issue #157.
    */
   if (type === 'application/srl' || type === 'text/srl') {
-    return [srl({ tuples: options.tuples ?? true })];
+    return [
+      srl({
+        tuples: options.tuples ?? true,
+        sparqlConversions: options.sparqlConversions ?? false,
+      }),
+    ];
   }
   /*
    * DuckDB SQL: an ETL job's source query, and the fixture a test supplies for
