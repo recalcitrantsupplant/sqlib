@@ -2130,45 +2130,6 @@ watch(scratchSavedAt, (value) => {
 </script>
 
 <style scoped>
-/*
- * The document's own actions, shaped like the Expand button they sit beside —
- * same height, same border, same muted ink — so the group reads as one row of
- * controls rather than two kinds of button that happen to be adjacent.
- */
-.editor-action {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--control-h-sm);
-  height: var(--control-h-sm);
-  padding: 0;
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius);
-  background: var(--surface);
-  color: var(--ink-muted);
-  cursor: pointer;
-  transition: color 0.12s ease, background-color 0.12s ease;
-}
-
-.editor-action:hover:not(:disabled),
-.editor-action:focus-visible {
-  background: var(--surface-raised);
-  color: var(--ink);
-}
-
-.editor-action:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* The prefix buttons come with the save bar's radius; sized and shaped to
-   their neighbours here so the group reads as one row of controls. */
-:deep(.prefix-conversion-buttons .bar-button) {
-  width: var(--control-h-sm);
-  height: var(--control-h-sm);
-  border-radius: var(--radius);
-}
-
 .ruleset-work-area {
   position: relative;
   display: flex;

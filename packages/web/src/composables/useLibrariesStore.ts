@@ -6,6 +6,7 @@ import {
 import type { LibraryFormInput } from '../types/library.js';
 import { useApiClient } from './useApiClient.js';
 import { useSettings } from './useSettings.js';
+import { useDeploymentMode } from './useDeploymentMode.js';
 import { SYSTEM_LIBRARY_ID } from '../lib/constants.js';
 
 type LibraryState = {
@@ -76,10 +77,16 @@ export function useLibrariesStore() {
    * list, picker and dialog reads this rather than `libraries`, otherwise the
    * setting hides it from one surface and leaves it selectable — and therefore
    * writable — from the next.
+   *
+   * A read-only deployment answers no whatever the setting says. The stored
+   * preference survives — it is per browser, and flipping deployments must not
+   * rewrite it — so the check is here as well as on the toggle, which would
+   * otherwise read off while the library it names stayed in every picker.
    */
   const { settings } = useSettings();
+  const { isReadOnly } = useDeploymentMode();
   const visibleLibraries = computed(() =>
-    settings.value.hofstadterMode
+    settings.value.hofstadterMode && !isReadOnly.value
       ? state.items
       : state.items.filter((library) => library.id !== SYSTEM_LIBRARY_ID),
   );

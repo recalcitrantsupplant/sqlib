@@ -311,6 +311,14 @@ read at **build** time and baked into the bundle.
 | `NUXT_PUBLIC_AUTH_AUDIENCE` | empty | Requested audience. |
 | `NUXT_PUBLIC_AUTH_SCOPE` | `openid profile email` | Requested scopes. |
 | `NUXT_PUBLIC_FEATURE_*` | the API-side default for that flag | Per-flag override for the browser build; see [feature flags](feature-flags.md). |
+| `NUXT_PUBLIC_APP_VERSION` | the version in `.release-please-manifest.json` | What the About block on the splash and the line in Settings report. |
+| `NUXT_PUBLIC_APP_COMMIT` | `git rev-parse --short HEAD`, or empty | The commit reported beside the version. Shortened to seven characters. |
+| `NUXT_PUBLIC_BUILD_TIME` | the moment of the build | ISO timestamp shown in the version's tooltip. |
+
+The three build-stamp variables exist for builds that cannot work the values
+out for themselves: an image built from a source copy with no `.git` directory
+finds no commit, and one built outside the repo finds no manifest. Pass what
+the build system knows.
 
 A deployed static build can be re-pointed without rebuilding by serving a
 `/config.json` beside it. The client plugin

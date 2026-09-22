@@ -1,5 +1,6 @@
 import { test, expect, type Route } from '@playwright/test';
 import { mockSidebarCollections } from './fixtures/collections';
+import { openCreateLibraryDialog, openSplash, splashLibraryRow } from './navigate';
 import { chooseSearchOption, searchSelect } from './search-select';
 
 // Mock data
@@ -43,21 +44,10 @@ const mockLibraries = [
 const mockQueries: any[] = [];
 const mockQueryGroups: any[] = [];
 
-async function openAddLibraryDialog(page: any) {
-  // Expand Libraries section if needed
-  const librariesSection = page.locator('.section-header').filter({ hasText: 'Libraries' });
-  const sectionToggle = librariesSection.locator('.section-toggle');
-  await sectionToggle.click();
-
-  // Wait a bit for section to expand
-  await page.waitForTimeout(200);
-
-  // Click the + button next to Libraries section
-  const addButton = librariesSection.locator('.add-button');
-  await addButton.click();
-
-  // Wait for dialog to appear
-  await page.waitForSelector('[role="dialog"]', { timeout: 5000 });
+async function openAddLibraryDialog(page: Page) {
+  // The library switcher at the head of the rail: the only door to this
+  // dialog since the artifact tree went.
+  await openCreateLibraryDialog(page);
 }
 
 test.describe('Library Edit - Backend Selection', () => {
@@ -105,24 +95,18 @@ test.describe('Library Edit - Backend Selection', () => {
       });
     });
 
-    // Navigate to home page
-    await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await openSplash(page);
   });
 
   /*
-   * Drives the real UI. The previous version dispatched a custom event that
-   * nothing listens for, then poked window.__VUE_APP__, then clicked the
-   * "Libraries" text — which COLLAPSES the section, since it starts expanded —
-   * and finally waited for a dialog that was never going to open.
-   *
-   * The edit button lives inside .library-actions and is revealed on hover.
+   * Drives the real UI. Rename moved to the library's row on the splash when
+   * the artifact tree was removed; the button is drawn rather than revealed on
+   * hover, so there is no hover step left.
    */
   async function openLibraryEditDialog(page: Page) {
-    const libraryItem = page.locator('.library-item').filter({ hasText: 'Library Without Backend' }).first();
-    await expect(libraryItem).toBeVisible();
-    await libraryItem.hover();
-    await libraryItem.getByTitle('Edit Library').click();
+    const row = splashLibraryRow(page, 'Library Without Backend').first();
+    await expect(row).toBeVisible();
+    await row.locator('.row-action').first().click();
     await expect(page.getByRole('dialog')).toBeVisible();
   }
 

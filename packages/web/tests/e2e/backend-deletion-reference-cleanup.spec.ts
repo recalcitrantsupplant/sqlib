@@ -1,4 +1,5 @@
-import { test, expect, type Route } from '@playwright/test';
+import { test, expect, type Page, type Route } from '@playwright/test';
+import { openCreateLibraryDialog, openSplash } from './navigate';
 import { chooseSearchOption } from './search-select';
 import { mockSidebarCollections } from './fixtures/collections';
 
@@ -93,8 +94,7 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
     await setupRouteHandlers(page);
 
     // Navigate to home page
-    await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await openSplash(page);
   });
 
   async function setupRouteHandlers(page: any) {
@@ -362,24 +362,12 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
       });
     });
 
-    // Expand backends section if not already expanded
-    const backendsSection = page.locator('.section-header').filter({ hasText: 'Backends' });
-    const backendsSectionContent = page.locator('.nav-section').filter({ has: backendsSection }).locator('.section-content');
-
-    // Check if section is visible, if not click to expand
-    const isVisible = await backendsSectionContent.isVisible().catch(() => false);
-    if (!isVisible) {
-      await backendsSection.locator('.section-toggle').click();
-      await page.waitForTimeout(300);
-    }
-
-    // Wait for backend item to be visible
-    const backendItem = page.locator('.backend-item').filter({ hasText: 'Test Backend 1' }).first();
-    await expect(backendItem).toBeVisible({ timeout: 5000 });
-    await backendItem.hover();
-
-    const deleteButton = backendItem.locator('button[title*="Delete"]').first();
-    await deleteButton.click();
+    // The backend's own record, which is where deleting one happens since
+    // the artifact tree went: pick it in the Backends sidebar, then Delete
+    // backend in the record's overflow menu.
+    await openBackendRecord(page, 'Test Backend 1');
+    await page.locator('[data-testid="backend-overflow"]').click();
+    await page.locator('[data-testid="delete-backend"]').click();
 
     // Wait for confirmation dialog to appear
     await page.waitForTimeout(500);
@@ -443,26 +431,11 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
       });
     });
 
-    // Reload page to show new backend
-    await page.reload();
-    await page.waitForLoadState('networkidle');
-
-    // Expand backends section if not already expanded
-    const backendsSection = page.locator('.section-header').filter({ hasText: 'Backends' });
-    const backendsSectionContent = page.locator('.nav-section').filter({ has: backendsSection }).locator('.section-content');
-    const isVisible = await backendsSectionContent.isVisible().catch(() => false);
-    if (!isVisible) {
-      await backendsSection.locator('.section-toggle').click();
-      await page.waitForTimeout(300);
-    }
-
-    // Find and click delete on unused backend
-    const backendItem = page.locator('.backend-item').filter({ hasText: 'Unused Backend' }).first();
-    await expect(backendItem).toBeVisible({ timeout: 5000 });
-    await backendItem.hover();
-
-    const deleteButton = backendItem.locator('button[title*="Delete"]').first();
-    await deleteButton.click();
+    // The backend's own record, which is where deleting one happens since
+    // the artifact tree went.
+    await openBackendRecord(page, 'Unused Backend');
+    await page.locator('[data-testid="backend-overflow"]').click();
+    await page.locator('[data-testid="delete-backend"]').click();
 
     // Wait for confirmation dialog
     await page.waitForTimeout(500);
@@ -490,22 +463,11 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
 
     const initialBackendCount = mockBackends.length;
 
-    // Expand backends section if not already expanded
-    const backendsSection = page.locator('.section-header').filter({ hasText: 'Backends' });
-    const backendsSectionContent = page.locator('.nav-section').filter({ has: backendsSection }).locator('.section-content');
-    const isVisible = await backendsSectionContent.isVisible().catch(() => false);
-    if (!isVisible) {
-      await backendsSection.locator('.section-toggle').click();
-      await page.waitForTimeout(300);
-    }
-
-    // Click delete on backend 2
-    const backendItem = page.locator('.backend-item').filter({ hasText: 'Test Backend 2' }).first();
-    await expect(backendItem).toBeVisible({ timeout: 5000 });
-    await backendItem.hover();
-
-    const deleteButton = backendItem.locator('button[title*="Delete"]').first();
-    await deleteButton.click();
+    // The backend's own record, which is where deleting one happens since
+    // the artifact tree went.
+    await openBackendRecord(page, 'Test Backend 2');
+    await page.locator('[data-testid="backend-overflow"]').click();
+    await page.locator('[data-testid="delete-backend"]').click();
 
     // Wait for dialog
     await page.waitForTimeout(500);
@@ -553,14 +515,7 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
     });
 
     // Step 1: Create a new library with backend 1 as default
-    const librariesSection = page.locator('.section-header').filter({ hasText: 'Libraries' });
-    await librariesSection.locator('.section-toggle').click();
-    await page.waitForTimeout(200);
-
-    const addLibraryButton = librariesSection.locator('.add-button');
-    await addLibraryButton.click();
-
-    await page.waitForSelector('[role="dialog"]', { timeout: 5000 });
+    await openCreateLibraryDialog(page);
 
     await page.locator('#name').fill('New Library with Backend');
     await page.locator('#description').fill('This library uses Test Backend 1');
@@ -580,20 +535,12 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
     // Just verify the library references it
 
     // Step 3: Delete the backend
-    const backendsSection = page.locator('.section-header').filter({ hasText: 'Backends' });
-    const backendsSectionContent = page.locator('.nav-section').filter({ has: backendsSection }).locator('.section-content');
-    const isVisible = await backendsSectionContent.isVisible().catch(() => false);
-    if (!isVisible) {
-      await backendsSection.locator('.section-toggle').click();
-      await page.waitForTimeout(300);
-    }
-
-    const backendItem = page.locator('.backend-item').filter({ hasText: 'Test Backend 1' }).first();
-    await expect(backendItem).toBeVisible({ timeout: 5000 });
-    await backendItem.hover();
-
-    const deleteButton = backendItem.locator('button[title*="Delete"]').first();
-    await deleteButton.click();
+    // The backend's own record, which is where deleting one happens since
+    // the artifact tree went: pick it in the Backends sidebar, then Delete
+    // backend in the record's overflow menu.
+    await openBackendRecord(page, 'Test Backend 1');
+    await page.locator('[data-testid="backend-overflow"]').click();
+    await page.locator('[data-testid="delete-backend"]').click();
 
     // Wait for confirmation dialog
     await page.waitForTimeout(500);
@@ -646,20 +593,12 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
     const initialQueryCount = mockQueries.length;
 
     // Expand backends section if not already expanded
-    const backendsSection = page.locator('.section-header').filter({ hasText: 'Backends' });
-    const backendsSectionContent = page.locator('.nav-section').filter({ has: backendsSection }).locator('.section-content');
-    const isVisible = await backendsSectionContent.isVisible().catch(() => false);
-    if (!isVisible) {
-      await backendsSection.locator('.section-toggle').click();
-      await page.waitForTimeout(300);
-    }
-
-    const backendItem = page.locator('.backend-item').filter({ hasText: 'Test Backend 2' }).first();
-    await expect(backendItem).toBeVisible({ timeout: 5000 });
-    await backendItem.hover();
-
-    const deleteButton = backendItem.locator('button[title*="Delete"]').first();
-    await deleteButton.click();
+    // The backend's own record, which is where deleting one happens since
+    // the artifact tree went: pick it in the Backends sidebar, then Delete
+    // backend in the record's overflow menu.
+    await openBackendRecord(page, 'Test Backend 2');
+    await page.locator('[data-testid="backend-overflow"]').click();
+    await page.locator('[data-testid="delete-backend"]').click();
 
     // Wait for confirmation dialog
     await page.waitForTimeout(500);
@@ -733,20 +672,12 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
     mockQueries.push(extraQuery);
 
     // Delete backend 1
-    const backendsSection = page.locator('.section-header').filter({ hasText: 'Backends' });
-    const backendsSectionContent = page.locator('.nav-section').filter({ has: backendsSection }).locator('.section-content');
-    const isVisible = await backendsSectionContent.isVisible().catch(() => false);
-    if (!isVisible) {
-      await backendsSection.locator('.section-toggle').click();
-      await page.waitForTimeout(300);
-    }
-
-    const backendItem = page.locator('.backend-item').filter({ hasText: 'Test Backend 1' }).first();
-    await expect(backendItem).toBeVisible({ timeout: 5000 });
-    await backendItem.hover();
-
-    const deleteButton = backendItem.locator('button[title*="Delete"]').first();
-    await deleteButton.click();
+    // The backend's own record, which is where deleting one happens since
+    // the artifact tree went: pick it in the Backends sidebar, then Delete
+    // backend in the record's overflow menu.
+    await openBackendRecord(page, 'Test Backend 1');
+    await page.locator('[data-testid="backend-overflow"]').click();
+    await page.locator('[data-testid="delete-backend"]').click();
 
     // Wait for confirmation dialog
     await page.waitForTimeout(500);
@@ -776,3 +707,12 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
     }
   });
 });
+
+/** A backend's record, opened from the Backends sidebar the rail leads to. */
+async function openBackendRecord(page: Page, backendName: string) {
+  await page.goto('/?section=backends', { waitUntil: 'domcontentloaded' });
+  const row = page.locator('[data-testid="backend-row"]').filter({ hasText: backendName }).first();
+  await expect(row).toBeVisible();
+  await row.click();
+  await expect(page.locator('[data-testid="backend-record-name"]')).toHaveText(backendName);
+}

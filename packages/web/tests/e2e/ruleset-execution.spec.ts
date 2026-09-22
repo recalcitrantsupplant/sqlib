@@ -1,4 +1,5 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
+import { openSection } from './navigate';
 
 type ExecutionResponse = {
   status: 'converged' | 'cycle' | 'maxIterations' | 'failed';
@@ -208,8 +209,7 @@ test.describe('Rule set execution (mocked)', () => {
 
     // Not waitForLoadState('networkidle'): against a live dev server the HMR
     // websocket keeps the network busy, so that wait never resolves.
-    await page.goto('/', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('.section-header').filter({ hasText: 'Libraries' })).toBeVisible();
+    await openSection(page, 'rules');
   });
 
   test('should materialise the rule set and display converged results', async ({ page }) => {
@@ -351,31 +351,17 @@ test.describe('Rule set execution (mocked)', () => {
     await expect(runButton).toContainText(/^Run$/);
   }
 
-  async function openDefaultRuleSet(page: Page) {
-    await openRuleSetFromSidebar(page, defaultLibrary.name, defaultRuleSet.name);
-  }
-
   /**
-   * `expandedSections.libraries` defaults to true, so the section toggle is NOT
-   * clicked — doing so collapses the list and the items never appear. Individual
-   * libraries and their categories do start collapsed.
+   * The Rules sidebar, which replaced the artifact tree: one flat list of rule
+   * sets, no library row to expand and no category under it.
    *
-   * Waits are auto-retrying expects rather than bare clicks: the section header
-   * renders before the library list has been fetched.
+   * Waits are auto-retrying expects rather than bare clicks: the sidebar
+   * renders before the rule sets have been fetched.
    */
-  async function openRuleSetFromSidebar(page: Page, libraryName: string, ruleSetName: string) {
-    const libraryToggle = page.locator('.library-item .library-toggle', { hasText: libraryName });
-    await expect(libraryToggle).toBeVisible();
-    await libraryToggle.click();
-
-    const ruleSetsCategory = page.locator('.library-subitems .category-header', { hasText: 'Rule Sets' });
-    await expect(ruleSetsCategory).toBeVisible();
-    await ruleSetsCategory.click();
-
-    const ruleSetButton = page.locator('.library-subitems .item-button', { hasText: ruleSetName });
-    await expect(ruleSetButton).toBeVisible();
-    await ruleSetButton.click();
-
+  async function openDefaultRuleSet(page: Page) {
+    const row = page.locator(`[data-entity-id="${defaultRuleSet.id}"]`);
+    await expect(row).toBeVisible();
+    await row.click();
     await expect(page.locator('.ruleset-work-area')).toBeVisible();
   }
 });

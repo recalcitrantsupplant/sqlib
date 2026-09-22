@@ -19,7 +19,8 @@
  *   disappears into the dark surface.
  */
 import { test, expect, type Page } from '@playwright/test';
-import { mockEntityApi } from './fixtures/entities';
+import { mockEntityApi, QUERY } from './fixtures/entities';
+import { openCreateLibraryDialog, openSavedEntity, openSplash } from './navigate';
 import { textContrast, backgroundLuminance } from './contrast';
 
 /** WCAG AA for body text. */
@@ -35,16 +36,7 @@ async function setTheme(page: Page, theme: 'light' | 'dark') {
 }
 
 async function openApp(page: Page) {
-  await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await page.waitForSelector('.nav-sidebar');
-}
-
-async function selectSidebarItem(page: Page, category: string, itemName: string) {
-  await openApp(page);
-  await page.locator('.library-toggle').first().click();
-  await expect(page.locator('.library-subitems').first()).toBeVisible();
-  await page.locator('.category-header').filter({ hasText: category }).first().click();
-  await page.locator('.item-button').filter({ hasText: itemName }).first().click();
+  await openSplash(page);
 }
 
 /** The rows of the results table, once the fixture query's response is in it. */
@@ -52,7 +44,7 @@ const RESULT_CELLS = '.results-viewer td:not(.row-number-cell)';
 
 /** The query editor with the fixture query run, so the results table is up. */
 async function runFixtureQuery(page: Page) {
-  await selectSidebarItem(page, 'Queries', 'Countries By Population');
+  await openSavedEntity(page, 'queries', QUERY.id);
   await expect(page.locator('.query-work-area')).toBeVisible();
   await page.locator('[data-testid="run-bar-run"]').click();
   /*
@@ -87,7 +79,7 @@ test.describe('dark mode', () => {
 
     test('the details panel Delete button reads against the panel', async ({ page }) => {
       await setTheme(page, 'dark');
-      await selectSidebarItem(page, 'Queries', 'Countries By Population');
+      await openSavedEntity(page, 'queries', QUERY.id);
       await expect(page.locator('.details-panel .delete-button')).toBeVisible();
 
       // --danger-active had no dark value: it stayed --red-700, at 2.75:1.
@@ -121,8 +113,7 @@ test.describe('dark mode', () => {
     const inkOnAction = async (theme: 'light' | 'dark') => {
       await setTheme(page, theme);
       await openApp(page);
-      await page.locator('.nav-section').filter({ hasText: 'Libraries' }).locator('.add-button').click();
-      await expect(page.getByRole('dialog')).toBeVisible();
+      await openCreateLibraryDialog(page);
       return page.locator('.btn-submit').evaluate((el) => getComputedStyle(el).color);
     };
 

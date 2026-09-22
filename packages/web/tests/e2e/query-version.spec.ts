@@ -511,8 +511,10 @@ test.describe('Query Version', () => {
     await openQuery(page);
 
     await expect(page.locator('.metadata-section-compact')).toHaveCount(0);
-    // And what it uniquely carried is still reachable.
-    await expect(page.locator('[data-testid="query-more"]')).toBeVisible();
+    // And what it uniquely carried is still reachable — in the Details tab,
+    // which is also where Delete went when the save bar's ⋮ was removed.
+    await page.locator('[data-testid="details-tab"]').click();
+    await expect(page.locator('[data-testid="details-delete"]')).toBeVisible();
   });
 
   test('renaming in the Details tab saves it', async ({ page }) => {
@@ -545,31 +547,37 @@ test.describe('Query Version', () => {
     expect(versionPostCount).toBe(0);
   });
 
+  /*
+   * Delete lives in the Details tab, and confirms in place there rather than
+   * in a dialog. The save bar's ⋮ menu held the only other copy and is gone —
+   * one affordance for an irreversible action, in the panel that holds the
+   * rest of the query's identity.
+   */
   test('Delete asks first, then deletes', async ({ page }) => {
     seedOneVersion();
     await openQuery(page);
+    await page.locator('[data-testid="details-tab"]').click();
 
-    await page.locator('[data-testid="query-more"]').click();
-    await page.locator('[data-testid="query-delete"]').click();
+    await page.locator('[data-testid="details-delete"]').click();
 
     // Confirmed rather than immediate: unlike everything else here it is not
     // held in the browser first, and it takes every version with it.
-    await expect(page.getByText('Delete this query?')).toBeVisible();
+    await expect(page.getByText('Delete this query and its one version?')).toBeVisible();
     expect(deleteCount).toBe(0);
 
-    await page.locator('[data-testid="confirm-delete-query"]').click();
+    await page.locator('[data-testid="details-confirm-delete"]').click();
     await expect.poll(() => deleteCount).toBe(1);
   });
 
   test('cancelling the delete confirm deletes nothing', async ({ page }) => {
     seedOneVersion();
     await openQuery(page);
+    await page.locator('[data-testid="details-tab"]').click();
 
-    await page.locator('[data-testid="query-more"]').click();
-    await page.locator('[data-testid="query-delete"]').click();
-    await page.getByRole('button', { name: 'Cancel' }).click();
+    await page.locator('[data-testid="details-delete"]').click();
+    await page.locator('[data-testid="details-cancel-delete"]').click();
 
-    await expect(page.getByText('Delete this query?')).toHaveCount(0);
+    await expect(page.locator('[data-testid="details-confirm-delete"]')).toHaveCount(0);
     expect(deleteCount).toBe(0);
   });
 
@@ -693,14 +701,44 @@ test.describe('Query Version', () => {
     ).toBeVisible();
   });
 
-  test('there is no Edit-details dialog left to open', async ({ page }) => {
+  /*
+   * Diff sits with Format and the prefix conversions in the editor's header
+   * row, not in the save bar: it reframes the document, and the save bar is
+   * about the query and its versions. The rules screen makes the same split.
+   */
+  test('Diff is in the editor header row, and opens the diff', async ({ page }) => {
+    mockQueryVersions = [
+      version(1, 'SELECT ?v1 WHERE { ?s ?p ?o }', 'Version 1'),
+      version(2, 'SELECT ?v2 WHERE { ?s ?p ?o }', 'Version 2'),
+    ];
+    nextVersionNumber = 3;
+    mockQuery.currentVersion = versionIri(2);
+    await openQuery(page);
+
+    const diff = page.locator('.panel-header__actions [data-testid="diff-query"]');
+    await expect(diff).toBeVisible();
+    await diff.click();
+
+    await expect(page.locator('.sparql-diff-viewer')).toBeVisible();
+  });
+
+  test('Diff says so rather than doing nothing when there is one version', async ({ page }) => {
     seedOneVersion();
     await openQuery(page);
 
-    await page.locator('[data-testid="query-more"]').click();
+    const diff = page.locator('.panel-header__actions [data-testid="diff-query"]');
+    await expect(diff).toBeDisabled();
+    await expect(diff).toHaveAttribute('title', 'Nothing to diff yet — there is one version');
+  });
+
+  test('there is no Edit-details dialog left to open, and no menu either', async ({ page }) => {
+    seedOneVersion();
+    await openQuery(page);
+
+    // The ⋮ menu existed for Delete; Delete is in the Details tab, so the menu
+    // is one door too many and is gone with the dialog it used to offer.
+    await expect(page.locator('[data-testid="query-more"]')).toHaveCount(0);
     await expect(page.locator('[data-testid="query-edit-details"]')).toHaveCount(0);
-    // The menu still exists — Delete is the reason it does.
-    await expect(page.locator('[data-testid="query-delete"]')).toBeVisible();
   });
 
   test('save takes one click and asks for nothing', async ({ page }) => {

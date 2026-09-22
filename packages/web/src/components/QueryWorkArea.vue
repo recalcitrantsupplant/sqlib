@@ -17,18 +17,13 @@
         :saving="isSavingVersion"
         :can-save="canSave"
         :needs-name="needsName"
-        :can-format="!!queryCode.trim()"
-        :code="queryCode"
-        content-type="application/sparql-query"
-        :diff-active="showDiff"
+        :show-format="false"
+        :show-diff="false"
         :show-edit="false"
+        :show-more="false"
         @save="save"
         @needs-name="promptForNameInDetails"
         @discard="discardDraft"
-        @delete="requestDeleteQuery"
-        @format="formatQueryCode"
-        @update:code="(value) => (queryCode = value)"
-        @toggle-diff="handleDiffToggle"
       />
 
       <!--
@@ -128,6 +123,57 @@
           @copy-version-id="copyQueryVersionId"
           @toggle-diff="handleDiffToggle"
         >
+          <!--
+            Format and the prefix conversions, in the document's header rather
+            than in the save bar. They rewrite the text below them, while the
+            save bar is about the query and its versions — the same split the
+            rules screen makes, and the same row of 28px boxes, so the two
+            editors do not put the same three buttons in two different places.
+          -->
+          <template #header-actions>
+            <button
+              class="editor-action"
+              type="button"
+              data-testid="format-query"
+              title="Format the query"
+              :disabled="!queryCode.trim()"
+              @click="formatQueryCode"
+            >
+              <WandSparkles :size="13" />
+            </button>
+            <PrefixConversionButtons
+              :code="queryCode"
+              content-type="application/sparql-query"
+              @update:code="(value) => (queryCode = value)"
+            />
+            <!--
+              Diff comes down here with them: it reframes the document rather
+              than acting on the query, and it is a toggle, so it needs to sit
+              where the thing it reframes is. Absent on a scratch query, which
+              has no saved version to differ from.
+
+              Disabled on a query with one version, which is the rule
+              `handleDiffToggle` already enforced by returning immediately —
+              the button was live and did nothing.
+            -->
+            <button
+              v-if="!isScratch"
+              class="editor-action"
+              :class="{ 'editor-action--active': showDiff }"
+              type="button"
+              data-testid="diff-query"
+              :disabled="versionOptions.length <= 1"
+              :title="versionOptions.length <= 1
+                ? 'Nothing to diff yet — there is one version'
+                : currentVersionNumberForDisplay
+                  ? `Diff draft vs v${currentVersionNumberForDisplay}`
+                  : 'Diff draft'"
+              @click="handleDiffToggle"
+            >
+              <GitCompare :size="13" />
+            </button>
+          </template>
+
           <template #footer>
             <QueryEditorFooter
               :validation-state="validationState"
@@ -424,12 +470,13 @@
 
 <script setup lang="ts">
 import { ref, computed, shallowRef, nextTick, onMounted, onUnmounted, watch } from 'vue';
-import { X } from '@lucide/vue';
+import { GitCompare, WandSparkles, X } from '@lucide/vue';
 import { languageExtensionsFor } from '@/lib/codeLanguage';
 import { useCommentKeymap } from '@/composables/useCommentKeymap';
 import { useEditorKeymaps } from '@/composables/useEditorKeymaps';
 import { useExecuteKeymap } from '@/composables/useExecuteKeymap';
 import { EPHEMERAL_BACKEND_ID, EPHEMERAL_BACKEND_LABEL } from '@sparql-query-lib/types';
+import PrefixConversionButtons from './shared/PrefixConversionButtons.vue';
 import RunBar from './shared/RunBar.vue';
 import type { CreateTarget, RunBarPick } from '../lib/runBar';
 import { useBenchmarksStore } from '../composables/useBenchmarksStore';

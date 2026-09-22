@@ -7,7 +7,7 @@
     :title="label"
     :aria-label="label"
   >
-    <Expand :size="13" />
+    <Expand :size="16" />
     <span v-if="withText" class="expand-button-text">Expand</span>
   </button>
 </template>
@@ -43,11 +43,18 @@ const label = computed(() => `Expand ${props.subject} — Esc to come back`);
 </script>
 
 <style scoped>
+/*
+ * `--control-h` (28px), the design system's default for an interactive
+ * control, so this button is the size of whatever it sits beside rather than
+ * one step under it. It used to be `--control-h-sm`, which made it the odd one
+ * out in every row it joined — and each host that noticed grew it back with a
+ * `:deep` rule of its own.
+ */
 .expand-button {
   display: inline-flex;
   align-items: center;
   gap: var(--space-3);
-  height: var(--control-h-sm);
+  height: var(--control-h);
   padding: 0 var(--space-3);
   border: 1px solid var(--border-default);
   border-radius: var(--radius);
@@ -69,7 +76,7 @@ const label = computed(() => `Expand ${props.subject} — Esc to come back`);
    The labelled variant keeps its side padding — it is a word, not a glyph. */
 .expand-button--square {
   justify-content: center;
-  width: var(--control-h-sm);
+  width: var(--control-h);
   padding: 0;
 }
 

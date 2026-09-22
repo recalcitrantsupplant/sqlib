@@ -990,9 +990,14 @@ onBeforeUnmount(() => {
   margin: var(--space-2) 0 var(--space-4);
 }
 
+/*
+ * `--control-h`, the default control height, because these sit in a toolbar
+ * row beside Expand and the prefix conversions rather than inline in a form.
+ * They were a step smaller, which put three heights in one row.
+ */
 .control {
   width: 100%;
-  height: var(--control-h-sm);
+  height: var(--control-h);
   padding: 0 var(--space-4);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-sm);
@@ -1020,7 +1025,7 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   gap: var(--space-3);
-  height: var(--control-h-sm);
+  height: var(--control-h);
   padding: 0 var(--space-5);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-sm);

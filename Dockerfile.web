@@ -20,12 +20,18 @@
 #   # 3. Use it as a build stage in somebody else's image
 #   COPY --from=ghcr.io/<owner>/sqlib-web:<tag> /site /usr/share/nginx/html
 #
-# Nothing environment-specific is baked in. `NUXT_PUBLIC_*` build variables are
+# Nothing environment-specific is baked in. The `NUXT_PUBLIC_*` variables that
+# name an environment — the API URL, the OIDC settings, the feature flags — are
 # deliberately not passed: the SPA reads `/config.json` from its own origin at
 # boot (see docs/guides/deploying.md), so one bundle serves every environment
 # and the deployment supplies that one file. A bundle built against a
 # particular API would be a bundle per environment, which is the property this
 # image exists to avoid.
+#
+# The three build-stamp variables below are the exception that proves it. They
+# say which build this is — version, commit, date — which is a fact about the
+# bundle rather than about where it will run, and it cannot be supplied later
+# because by then the bundle exists.
 
 # Stage 1: build the static site.
 #
@@ -80,9 +86,22 @@ COPY packages/contracts ./packages/contracts
 COPY packages/runtime ./packages/runtime
 COPY packages/web ./packages/web
 
+# What this build is, for the About block the SPA draws from its own bundle.
+# Declared before `generate` rather than beside `/bundle-info.json` below,
+# because `ssr: false` bakes `NUXT_PUBLIC_*` into the client at build time —
+# after the bundle exists there is nothing left to stamp. Without them the
+# build falls back to reading git and release-please's manifest, and this image
+# has neither: no `.git`, and the manifest is not among the files copied in.
+ARG SOURCE_COMMIT=unknown
+ARG BUILD_VERSION=unreleased
+ARG BUILD_DATE=unknown
+
 # `generate`, not `build`: `build` emits a Nitro server that has to be run with
 # Node, which is exactly what this image is not for.
-RUN pnpm --filter @sparql-query-lib/web generate
+RUN NUXT_PUBLIC_APP_VERSION="$BUILD_VERSION" \
+    NUXT_PUBLIC_APP_COMMIT="$SOURCE_COMMIT" \
+    NUXT_PUBLIC_BUILD_TIME="$BUILD_DATE" \
+    pnpm --filter @sparql-query-lib/web generate
 
 # Fail the build rather than publish a bundle that is not a servable site.
 # `ssr: false` plus prerendering is what produces an `index.html` shell here;
@@ -92,10 +111,8 @@ RUN test -f packages/web/.output/public/index.html \
     || (echo "nuxt generate produced no index.html — see Dockerfile.web" && exit 1)
 
 # Provenance, readable without the daemon that knows the image's labels — after
-# `docker cp` the labels are gone and this file is still there.
-ARG SOURCE_COMMIT=unknown
-ARG BUILD_VERSION=unreleased
-ARG BUILD_DATE=unknown
+# `docker cp` the labels are gone and this file is still there. The three args
+# are already in scope from above.
 RUN printf '{\n  "name": "sqlib-web",\n  "version": "%s",\n  "revision": "%s",\n  "built": "%s"\n}\n' \
       "$BUILD_VERSION" "$SOURCE_COMMIT" "$BUILD_DATE" > /bundle-info.json
 

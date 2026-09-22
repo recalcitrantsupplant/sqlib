@@ -8,12 +8,16 @@ vi.mock('vue-sonner', () => ({
 }));
 
 /*
- * The save bar is where Format lives for every work area, so it is where the
- * prefix conversions have to sit. The first version of this feature put them in
- * VersionToolbar's format slot instead, which renders only under
- * `chrome="full"` — and the query editor passes `chrome="minimal"`, so the
- * buttons were invisible in the one place people would look for them. These
- * tests exist so that cannot come back silently.
+ * What the save bar does when a section asks it for Format and the prefix
+ * conversions. No section does today — the rules and query editors both carry
+ * them in the editor's own header row, and every work area passes
+ * `show-format="false"` — so these mount the component directly rather than
+ * claiming a screen renders it.
+ *
+ * Kept because the original bug is still easy to write: the first version of
+ * this feature put the buttons in VersionToolbar's format slot, which renders
+ * only under `chrome="full"`, and both editors pass `chrome="minimal"` — so
+ * the buttons existed and were invisible.
  */
 const BASE = {
   title: 'A query',

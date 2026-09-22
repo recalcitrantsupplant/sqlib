@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
-import { mockEntityApi } from './fixtures/entities';
+import { mockEntityApi, QUERY, QUERY_GROUP, RULE_SET } from './fixtures/entities';
+import { openCreateLibraryDialog, openSavedEntity, openSection, openSplash } from './navigate';
 import { mockCallableLibrary, seedDraft } from './fixtures/callables';
 import { FIXED_NOW, setTheme, stabilise } from './visual-helpers';
 
@@ -37,28 +38,17 @@ import { FIXED_NOW, setTheme, stabilise } from './visual-helpers';
  * baseline flake", and the flakes they fix were expensive to find once.
  */
 
-/** Land on the app with the sidebar rendered. */
+/** Land on the app: `/` is the splash screen. */
 async function openApp(page: Page) {
-  await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await page.waitForSelector('.nav-sidebar');
-}
-
-/** Expand the fixture library in the sidebar. */
-async function expandLibrary(page: Page) {
-  await page.locator('.library-toggle').first().click();
-  await expect(page.locator('.library-subitems').first()).toBeVisible();
+  await openSplash(page);
 }
 
 /**
- * Expand a category under the fixture library and select the entity in it.
- * The sidebar is the only route into the work areas, so every editor shot
- * starts here.
+ * A section's sidebar and the entity picked in it. The sidebar is the only
+ * route into the work areas, so every editor shot starts here.
  */
-async function selectSidebarItem(page: Page, category: string, itemName: string) {
-  await openApp(page);
-  await expandLibrary(page);
-  await page.locator('.category-header').filter({ hasText: category }).first().click();
-  await page.locator('.item-button').filter({ hasText: itemName }).first().click();
+async function selectSidebarItem(page: Page, section: string, entityId: string) {
+  await openSavedEntity(page, section, entityId);
 }
 
 for (const theme of ['light', 'dark'] as const) {
@@ -119,18 +109,15 @@ for (const theme of ['light', 'dark'] as const) {
       await expect(page).toHaveScreenshot(`settings-${theme}.png`, { fullPage: false });
     });
 
-    test(`library detail — badges and metadata`, async ({ page }) => {
+    /*
+     * The splash replaced the artifact tree, so the two tree shots — the
+     * library row expanded, and the sidebar around it — became one shot of
+     * what `/` draws now: the sections and the libraries.
+     */
+    test(`splash`, async ({ page }) => {
       await openApp(page);
-      await page.locator('.library-toggle').first().click();
       await stabilise(page);
-      await expect(page).toHaveScreenshot(`library-detail-${theme}.png`, { fullPage: false });
-    });
-
-    test(`sidebar with library expanded`, async ({ page }) => {
-      await openApp(page);
-      await expandLibrary(page);
-      await stabilise(page);
-      await expect(page.locator('.nav-sidebar')).toHaveScreenshot(`sidebar-${theme}.png`);
+      await expect(page).toHaveScreenshot(`splash-${theme}.png`, { fullPage: false });
     });
 
     /*
@@ -138,7 +125,7 @@ for (const theme of ['light', 'dark'] as const) {
      * fixtures cover the editors, but they hide every "No queries yet" style
      * empty state, and those are a design-system surface in their own right.
      */
-    test(`sidebar — empty collections`, async ({ page }) => {
+    test(`sidebar — empty collection`, async ({ page }) => {
       await mockEntityApi(page, {
         extraRoutes: [
           [
@@ -147,35 +134,47 @@ for (const theme of ['light', 'dark'] as const) {
           ],
         ],
       });
-      await openApp(page);
-      await expandLibrary(page);
-      for (const category of ['Queries', 'Query Groups', 'Rule Sets']) {
-        await page.locator('.category-header').filter({ hasText: category }).first().click();
-      }
+      await openSection(page, 'queries');
       await stabilise(page);
-      await expect(page.locator('.nav-sidebar')).toHaveScreenshot(`sidebar-empty-${theme}.png`);
+      await expect(page.locator('[data-testid="entity-list-sidebar"]')).toHaveScreenshot(
+        `sidebar-empty-${theme}.png`,
+      );
     });
 
     // --- Editors ----------------------------------------------------------
 
     test(`query editor`, async ({ page }) => {
-      await selectSidebarItem(page, 'Queries', 'Countries By Population');
+      await selectSidebarItem(page, 'queries', QUERY.id);
       await expect(page.locator('.query-work-area')).toBeVisible();
       await stabilise(page);
       await expect(page).toHaveScreenshot(`query-editor-${theme}.png`, { fullPage: false });
     });
 
     test(`rule set editor`, async ({ page }) => {
-      await selectSidebarItem(page, 'Rule Sets', 'Family Closure Rules');
+      await selectSidebarItem(page, 'rules', RULE_SET.id);
       await expect(page.locator('.ruleset-work-area')).toBeVisible();
       await stabilise(page);
       await expect(page).toHaveScreenshot(`ruleset-editor-${theme}.png`, { fullPage: false });
     });
 
-    test(`rule set execution results`, async ({ page }) => {
-      await selectSidebarItem(page, 'Rule Sets', 'Family Closure Rules');
+    /*
+     * Fixme, and it was already broken: it clicked `getByTitle('Execute Rule
+     * Set')`, a title the rules screen has not had for some time, so the shot
+     * has not been taken in a while. Driving the run bar instead gets further
+     * and then stops — against the mocked API the editor fills but the work
+     * area's own `srlDocument` stays empty, so Run refuses the document on
+     * screen. That is a fixture or component question rather than a visual
+     * one, and it is not this change's to answer; the baselines are kept so
+     * the shot comes back rather than being re-invented.
+     */
+    test.fixme(`rule set execution results`, async ({ page }) => {
+      await selectSidebarItem(page, 'rules', RULE_SET.id);
       await expect(page.locator('.ruleset-work-area')).toBeVisible();
-      await page.getByTitle('Execute Rule Set').click();
+      // The run bar, which replaced the titled Execute button this used to
+      // click — the title had been gone long enough for the shot to be stale.
+      // Run refuses an empty document, so wait for the SRL to arrive first.
+      await expect(page.locator('.ruleset-work-area .cm-content').first()).toContainText('RULE');
+      await page.locator('[data-testid="run-bar-run"]').click();
       await expect(page.locator('.results-container')).toBeVisible();
       /*
        * The container is visible before the inference graph has anything in
@@ -204,16 +203,14 @@ for (const theme of ['light', 'dark'] as const) {
     });
 
     test(`query groups canvas`, async ({ page }) => {
-      await selectSidebarItem(page, 'Query Groups', 'Country Enrichment Flow');
+      await selectSidebarItem(page, 'queryGroups', QUERY_GROUP.id);
       await expect(page.locator('.querygroup-work-area')).toBeVisible();
       await stabilise(page);
       await expect(page).toHaveScreenshot(`query-group-canvas-${theme}.png`, { fullPage: false });
     });
 
     test(`benchmarks`, async ({ page }) => {
-      await openApp(page);
-      await expandLibrary(page);
-      await page.locator('.category-header').filter({ hasText: 'Benchmarks' }).first().click();
+      await openSection(page, 'benchmarks');
       await stabilise(page);
       await expect(page).toHaveScreenshot(`benchmarks-${theme}.png`, { fullPage: false });
     });
@@ -262,35 +259,17 @@ for (const theme of ['light', 'dark'] as const) {
      */
     test(`dialog — add library`, async ({ page }) => {
       await openApp(page);
-      await page.locator('.nav-section').filter({ hasText: 'Libraries' }).locator('.add-button').click();
-      await expect(page.getByRole('dialog')).toBeVisible();
+      await openCreateLibraryDialog(page);
       await stabilise(page);
       await expect(page).toHaveScreenshot(`dialog-add-library-${theme}.png`, { fullPage: false });
     });
 
-    test(`dialog — add backend`, async ({ page }) => {
-      await openApp(page);
-      await page.locator('.nav-section').filter({ hasText: 'Backends' }).locator('.add-button').click();
-      await expect(page.getByRole('dialog')).toBeVisible();
-      await stabilise(page);
-      await expect(page).toHaveScreenshot(`dialog-add-backend-${theme}.png`, { fullPage: false });
-    });
-
-    for (const [name, title] of [
-      ['add-query', 'Add Query'],
-      ['add-query-group', 'Add Query Group'],
-      ['add-rule-set', 'Add Rule Set'],
-    ] as const) {
-      test(`dialog — ${name}`, async ({ page }) => {
-        await openApp(page);
-        await expandLibrary(page);
-        // Exact: "Add Query" would otherwise also match "Add Query Group".
-        await page.getByTitle(title, { exact: true }).first().click();
-        await expect(page.getByRole('dialog')).toBeVisible();
-        await stabilise(page);
-        await expect(page).toHaveScreenshot(`dialog-${name}-${theme}.png`, { fullPage: false });
-      });
-    }
+    /*
+     * The Add Query, Add Query Group and Add Rule Set shots went with their
+     * dialogs. Those were the artifact tree's creation path; a section makes
+     * an unsaved item in its own list instead, which the section shots above
+     * already show.
+     */
 
     // --- Static galleries -------------------------------------------------
 

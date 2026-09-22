@@ -11,22 +11,51 @@
     The workspace mark is the control rather than a decoration beside it: the
     initial is the current library, and the name is one hover or one click away.
   -->
-  <DropdownMenu>
-    <DropdownMenuTrigger as-child>
-      <button
-        class="library-mark"
-        type="button"
-        data-testid="library-switcher"
-        :title="`Library — ${activeLibraryName}`"
-        :aria-label="`Library — ${activeLibraryName}`"
-      >
-        <span class="mark" aria-hidden="true">{{ initial }}</span>
-        <span class="mark-label">
+  <div class="library-head">
+    <!--
+      The mark goes home, the label switches library.
+
+      They were one button, which made the app's own mark a menu trigger and
+      left the splash reachable only by unpicking whatever section was open.
+      Splitting them is the conventional reading of both halves: the mark is
+      where you are, the chevron is what you can change.
+    -->
+    <button
+      class="mark-button"
+      type="button"
+      data-testid="library-home"
+      title="Home"
+      aria-label="Home"
+      @click="emit('home')"
+    >
+      <span class="mark" aria-hidden="true">{{ initial }}</span>
+    </button>
+
+    <DropdownMenu>
+      <DropdownMenuTrigger as-child>
+        <button
+          class="switcher-button"
+          type="button"
+          data-testid="library-switcher"
+          :title="`Library — ${activeLibraryName}`"
+          :aria-label="`Library — ${activeLibraryName}`"
+        >
           Library<ChevronsUpDown :size="9" class="mark-chevron" />
-        </span>
-      </button>
-    </DropdownMenuTrigger>
-    <DropdownMenuContent align="start" side="right" :side-offset="6" class="library-menu">
+        </button>
+      </DropdownMenuTrigger>
+    <!--
+      Width in utilities rather than in the scoped block below: the menu is
+      teleported, so it carries this component's class but not its scope
+      attribute, and a scoped rule never reaches it. The cap is the point —
+      a menu sized to its content stretched across the window on one library
+      with a paragraph for a description.
+    -->
+    <DropdownMenuContent
+      align="start"
+      side="right"
+      :side-offset="6"
+      class="library-menu min-w-[232px] max-w-[320px]"
+    >
       <DropdownMenuLabel class="library-menu-heading">Libraries</DropdownMenuLabel>
       <DropdownMenuItem
         v-for="library in libraries"
@@ -45,11 +74,13 @@
       <DropdownMenuItem v-if="libraries.length === 0" disabled>No libraries</DropdownMenuItem>
 
       <!--
-        The only other route to a new library is the Libraries section of the
-        navigation sidebar, which several sections replace with a flat list — so
-        on those sections there was no way to create one at all. The menu that
-        names the libraries is where the next one is made.
+        The menu that names the libraries is where the next one is made, and
+        since the tree went it is the only route to one.
+
+        Absent rather than disabled on a read-only deployment: `POST
+        /libraries` is refused there, so the row would be an offer of a 405.
       -->
+      <template v-if="!isReadOnly">
       <DropdownMenuSeparator />
       <DropdownMenuItem
         class="library-menu-item library-menu-new"
@@ -61,8 +92,10 @@
           <span class="option-name">New library</span>
         </span>
       </DropdownMenuItem>
-    </DropdownMenuContent>
-  </DropdownMenu>
+        </template>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -77,11 +110,17 @@ import {
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
 import { useActiveLibrary } from '../composables/useActiveLibrary';
+import { useDeploymentMode } from '../composables/useDeploymentMode';
 
-const emit = defineEmits<{ (e: 'create-library'): void }>();
+const emit = defineEmits<{
+  (e: 'create-library'): void;
+  /** The mark was clicked: go to the splash, whatever page we are on. */
+  (e: 'home'): void;
+}>();
 
 const { libraries, activeLibraryId, activeLibraryName, setActiveLibrary, ensureLoaded } =
   useActiveLibrary();
+const { isReadOnly, ensureLoaded: ensureDeploymentMode } = useDeploymentMode();
 
 function initialOf(name: string | null | undefined): string {
   return (name ?? '').trim().charAt(0).toUpperCase() || 'S';
@@ -92,11 +131,12 @@ const initial = computed(() => (libraries.value.length ? initialOf(activeLibrary
 
 onMounted(() => {
   void ensureLoaded();
+  void ensureDeploymentMode();
 });
 </script>
 
 <style scoped>
-.library-mark {
+.library-head {
   width: 44px;
   flex-shrink: 0;
   display: flex;
@@ -104,7 +144,14 @@ onMounted(() => {
   align-items: center;
   gap: 3px;
   margin-bottom: var(--space-4);
-  padding: var(--space-1) 0;
+}
+
+.mark-button,
+.switcher-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-1);
   border: 1px solid transparent;
   border-radius: var(--radius-panel);
   background: transparent;
@@ -112,10 +159,22 @@ onMounted(() => {
   cursor: pointer;
 }
 
-.library-mark:hover,
-.library-mark[data-state='open'] {
+.mark-button:hover,
+.mark-button:focus-visible,
+.switcher-button:hover,
+.switcher-button:focus-visible,
+.switcher-button[data-state='open'] {
   border-color: var(--border-default);
   background: var(--surface-subtle);
+}
+
+.switcher-button {
+  gap: 1px;
+  padding: var(--space-1);
+  color: var(--ink-muted);
+  font-size: var(--text-micro);
+  font-weight: var(--weight-semibold);
+  line-height: 1;
 }
 
 .mark {
@@ -131,22 +190,8 @@ onMounted(() => {
   font-weight: var(--weight-semibold);
 }
 
-.mark-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 1px;
-  color: var(--ink-muted);
-  font-size: var(--text-micro);
-  font-weight: var(--weight-semibold);
-  line-height: 1;
-}
-
 .mark-chevron {
   flex-shrink: 0;
-}
-
-.library-menu {
-  min-width: 232px;
 }
 
 .library-menu-heading {

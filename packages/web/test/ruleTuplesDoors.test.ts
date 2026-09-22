@@ -92,9 +92,11 @@ describe('the rule-tuples extension is absent when the flag is off', () => {
 
 describe('tuple sets are a different feature and keep working', () => {
   it('the Tuples rail is held by tupleSets, never by ruleTuples', () => {
-    const text = read('components/AppNavRail.vue');
-    expect(text).toMatch(/section: 'tupleSets'[\s\S]*?isEnabled\('tupleSets'\)/);
-    expect(text).not.toContain("isEnabled('ruleTuples')");
+    // The rail's table moved out to `lib/railEntries.ts`, which the splash
+    // screen reads as well, so the flag a section hangs on is asserted there.
+    const text = read('lib/railEntries.ts');
+    expect(text).toMatch(/section: 'tupleSets'[\s\S]*?feature: 'tupleSets'/);
+    expect(text).not.toContain("'ruleTuples'");
   });
 
   it('the tuple-set section definition is untouched by the rule flag', () => {
