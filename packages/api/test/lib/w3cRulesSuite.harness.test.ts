@@ -42,6 +42,7 @@ import type { LdkitQueryGroup } from '../../src/persistence/schemas/QueryGroupSc
 import type { LdkitQueryGroupVersion } from '../../src/persistence/schemas/QueryGroupVersionSchema.js';
 import type { LdkitQueryNode } from '../../src/persistence/schemas/QueryNodeSchema.js';
 import type { LdkitTag } from '../../src/persistence/schemas/TagSchema.js';
+import type { LdkitRule } from '../../src/persistence/schemas/RuleSchema.js';
 import type { LdkitRuleSet } from '../../src/persistence/schemas/RuleSetSchema.js';
 import type { LdkitRuleSetVersion } from '../../src/persistence/schemas/RuleSetVersionSchema.js';
 import type { LdkitTest } from '../../src/persistence/schemas/TestSchema.js';
@@ -220,6 +221,35 @@ describe('W3C SPARQL-RL conformance, as library Tests', () => {
     expect(carrying('must-reject')).toBe(39);
   });
 
+  it('puts the same tags on the rule sets and rules the tests run', () => {
+    const repos = getEntityRepositories();
+    const mine = <T extends { isPartOf?: string[] | null }>(rows: T[]) =>
+      rows.filter(row => row.isPartOf?.includes(W3C_RULES_SUITE_LIBRARY_ID));
+    const ruleSets = mine(repos.RuleSet.list() as LdkitRuleSet[]);
+    const rules = mine(repos.Rule.list() as LdkitRule[]);
+
+    const bare = (rows: Array<{ name?: string | null; tags?: string[] | null }>) =>
+      rows.filter(row => (row.tags ?? []).length === 0).map(row => row.name);
+    expect(bare(ruleSets), 'every seeded rule set carries the tags of the tests that run it').toEqual([]);
+    expect(bare(rules), 'and so does every rule inside one').toEqual([]);
+
+    // A document test is one rule set holding one document, so its rule set
+    // carries exactly what the test does. This is the claim the whole change
+    // rests on: three rails, one set of headings.
+    const test = (repos.Test.list() as LdkitTest[])
+      .find(row => row.name === 'syntax-template-bad-01.srl');
+    expect(test).toBeDefined();
+    const ruleSet = ruleSets.find(row => row.$id === test!.subject);
+    expect(ruleSet?.tags?.slice().sort()).toEqual(test!.tags?.slice().sort());
+    expect(test!.tags).toContain(tagIdFor('must-reject'));
+
+    // A rule set six eval entries share accumulates the union of their tags
+    // rather than whichever entry happened to create it.
+    const rdfs = ruleSets.filter(row => row.name === 'rdfs.srl');
+    expect(rdfs).toHaveLength(1);
+    expect(rdfs[0].tags ?? []).toContain(tagIdFor('rdfs'));
+  });
+
   it('seeding twice creates nothing the second time', async () => {
     const again = await seedW3cRulesSuite();
     expect(again.testsCreated).toBe(0);
@@ -229,6 +259,8 @@ describe('W3C SPARQL-RL conformance, as library Tests', () => {
     // Nothing to add: the first seed tagged them, and tagging is a union, so
     // the second seed performs no writes at all.
     expect(again.testsTagged).toBe(0);
+    expect(again.ruleSetsTagged).toBe(0);
+    expect(again.rulesTagged).toBe(0);
     expect(again.testsExisting).toBe(verdicts.length);
   });
 
