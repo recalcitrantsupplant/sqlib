@@ -1,5 +1,6 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
 import { mockEntityApi, QUERY } from './fixtures/entities';
+import { openSavedEntity } from './navigate';
 
 /**
  * A scratch argument set made on a query, seen in the rail, in one session.
@@ -31,11 +32,7 @@ const values = (page: Page) => page.locator('[data-testid="argument-value"]');
 const scratchRows = (page: Page) => page.locator('[data-testid="scratch-row"]');
 
 async function openQueryArguments(page: Page) {
-  await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await page.waitForSelector('.nav-sidebar');
-  await page.locator('.library-toggle').first().click();
-  await page.locator('.category-header').filter({ hasText: 'Queries' }).first().click();
-  await page.locator('.item-button').filter({ hasText: QUERY.name }).first().click();
+  await openSavedEntity(page, 'queries', QUERY.id);
   await expect(page.locator('.query-work-area')).toBeVisible();
   await page.locator('[data-testid="arguments-tab"]').click();
 }
@@ -94,10 +91,12 @@ test.describe('Argument sets made on a query reach the rail', () => {
     await values(page).first().fill('http://example.org/hobart');
     await page.waitForTimeout(700);
 
+    // Each reload has to boot far enough to run the draft store's module-load
+    // migration — that migration is what the second reload is here to catch.
     await page.reload({ waitUntil: 'domcontentloaded' });
-    await page.waitForSelector('.nav-sidebar');
+    await page.waitForSelector('[data-testid="entity-list-sidebar"]');
     await page.reload({ waitUntil: 'domcontentloaded' });
-    await page.waitForSelector('.nav-sidebar');
+    await page.waitForSelector('[data-testid="entity-list-sidebar"]');
 
     const stored = await page.evaluate(() =>
       JSON.parse(window.localStorage.getItem('sparql-query-lib-callable-drafts') ?? '[]')
