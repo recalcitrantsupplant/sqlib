@@ -548,6 +548,69 @@ test.describe('Rule set SRL authoring', () => {
     expect(lastCompileRequest?.flavour).toBeUndefined();
   });
 
+  /*
+   * The grammar offers a rewrite for a SPARQL spelling it recognises, and
+   * CodeMirror draws that offer inline after the message — at the far end of a
+   * sentence whose length varies with the diagnostic. Stacked under it, the
+   * button is in the same place in every tooltip, and the pair reads in the
+   * order it is needed: the complaint, then the remedy.
+   */
+  test('a conversion offer sits on its own line, under the message', async ({ page }) => {
+    await openDefaultRuleSet(page);
+    await typeDocument(page, 'CONSTRUCT {?s ?p ?o} WHERE {?s ?p ?o}');
+
+    await page.locator('.cm-lintRange-error').first().hover();
+    const diagnostic = page.locator('.cm-tooltip .cm-diagnostic').first();
+    await expect(diagnostic).toBeVisible();
+    await expect(diagnostic.locator('.cm-diagnosticAction')).toBeVisible();
+
+    // Under, not beside: the action's box clears the message's.
+    const action = (await diagnostic.locator('.cm-diagnosticAction').boundingBox())!;
+    const message = (await diagnostic.locator('.cm-diagnosticText').boundingBox())!;
+    expect(action.y).toBeGreaterThanOrEqual(message.y + message.height - 1);
+  });
+
+  /*
+   * A tooltip inside `.cm-editor` inherits the editor's own type — 13px
+   * monospace, set for code — so a sentence of prose rendered a step larger
+   * than every other sentence in the app. Asserted against the tokens rather
+   * than against pixel values, so the scale can move without this moving with
+   * it.
+   */
+  test('a diagnostic is set in the app\'s type, not the editor\'s', async ({ page }) => {
+    await openDefaultRuleSet(page);
+    await typeDocument(page, 'CONSTRUCT {?s ?p ?o} WHERE {?s ?p ?o}');
+
+    await page.locator('.cm-lintRange-error').first().hover();
+    const diagnostic = page.locator('.cm-tooltip .cm-diagnostic').first();
+    await expect(diagnostic).toBeVisible();
+
+    const type = await diagnostic.evaluate((element) => {
+      const tokens = getComputedStyle(document.documentElement);
+      const message = element.querySelector('.cm-diagnosticText') as HTMLElement;
+      const action = element.querySelector('.cm-diagnosticAction') as HTMLElement;
+      const px = (token: string) => {
+        const probe = document.createElement('div');
+        probe.style.fontSize = tokens.getPropertyValue(token);
+        document.body.append(probe);
+        const value = getComputedStyle(probe).fontSize;
+        probe.remove();
+        return value;
+      };
+      return {
+        message: getComputedStyle(message).fontSize,
+        action: getComputedStyle(action).fontSize,
+        body: px('--text-body'),
+        sans: getComputedStyle(message).fontFamily,
+      };
+    });
+
+    expect(type.message).toBe(type.body);
+    // The button is set in the message's size, not a step under it.
+    expect(type.action).toBe(type.body);
+    expect(type.sans).toContain('Inter');
+  });
+
   test('reports a save failure without claiming success', async ({ page }) => {
     importStatus = 400;
     importBody = { error: 'Rule set not found' };

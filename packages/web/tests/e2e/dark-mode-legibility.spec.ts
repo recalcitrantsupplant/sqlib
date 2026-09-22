@@ -105,6 +105,30 @@ test.describe('dark mode', () => {
   });
 
   /*
+   * CodeMirror injects its own `.cm-tooltip` background at editor
+   * construction, and the theme class it picks does not follow the app's — so
+   * a diagnostic in dark mode was the app's near-white ink on CodeMirror's
+   * near-white panel. The panel is the app's surface now, which is what this
+   * holds.
+   */
+  test('a rules diagnostic reads against its own tooltip in dark mode', async ({ page }) => {
+    await setTheme(page, 'dark');
+    await page.goto('/?section=rules', { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('[data-testid="entity-list-sidebar"]');
+    await page.locator('[data-testid="new-scratch"]').click();
+
+    const editor = page.locator('.ruleset-work-area .cm-content').first();
+    await editor.click();
+    await page.keyboard.press('ControlOrMeta+A');
+    await page.keyboard.type('CONSTRUCT {?s ?p ?o} WHERE {?s ?p ?o}');
+    await page.locator('.cm-lintRange-error').first().hover();
+    await expect(page.locator('.cm-tooltip .cm-diagnostic')).toBeVisible();
+
+    expect(await backgroundLuminance(page, '.cm-tooltip')).toBeLessThan(0.1);
+    expect(await textContrast(page, '.cm-tooltip .cm-diagnosticText')).toBeGreaterThan(AA);
+  });
+
+  /*
    * --action is the same blue in both themes, so the ink on it is the same
    * white in both. It was --ink-inverse, which is white in light and near-black
    * in dark, so every primary button flipped under a fill that had not.
