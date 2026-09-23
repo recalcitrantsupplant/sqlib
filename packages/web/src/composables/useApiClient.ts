@@ -765,6 +765,38 @@ export interface SrlDocumentBlock {
   triples: number | null;
 }
 
+export interface SrlTripleSummary {
+  subject?: string;
+  predicate?: string;
+  object?: string;
+}
+
+/** One body pattern that unified with one head template, and whether under `NOT`. */
+export interface SrlDependencyReason {
+  body?: SrlTripleSummary;
+  head?: SrlTripleSummary;
+  label?: 'positive' | 'negative' | 'closed';
+}
+
+export interface SrlStratificationCycle {
+  /** Rule ids, as in `SrlDocumentBlock.id`. */
+  rules: string[];
+  edges: Array<{
+    from: string;
+    to: string;
+    label: 'positive' | 'negative' | 'closed';
+    reasons: SrlDependencyReason[];
+  }>;
+  /**
+   * The shortest loop through a negated or closed dependency, in path order:
+   * the fewest dependencies that show why the rules cannot be ordered.
+   */
+  witness: SrlStratificationCycle['edges'];
+  /** `negation`: a `NOT` sits on the cycle. `run-once`: a run-once rule does. */
+  kind: 'negation' | 'run-once';
+  runOnce?: Array<{ rule: string; reasons: string[] }>;
+}
+
 export interface SrlStratificationSummary {
   strata: Record<string, number>;
   monotonicity: Record<string, 'monotone' | 'negation'>;
@@ -774,12 +806,15 @@ export interface SrlStratificationSummary {
     to: string;
     /** `closed` is a positive dependency promoted because the reader runs once. */
     label?: 'positive' | 'negative' | 'closed';
-    reasons?: Array<{
-      body?: { subject?: string; predicate?: string; object?: string };
-      head?: { subject?: string; predicate?: string; object?: string };
-    }>;
+    reasons?: SrlDependencyReason[];
   }>;
   issues: string[];
+  /**
+   * What stops the document stratifying, as data: the rules on each cycle and
+   * the dependencies between them. Empty when it stratifies; when it does not,
+   * `strata` is empty too and every block's `stratum` is null.
+   */
+  cycles?: SrlStratificationCycle[];
   strataCount: number;
   negationCount: number;
   runOnceCount: number;

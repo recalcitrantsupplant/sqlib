@@ -333,3 +333,49 @@ describe('RuleSetWorkArea (draft) — rule tuples', () => {
     expect(documentText(wrapper)).toContain('TUPLE(:rel, ?x)');
   });
 });
+
+/*
+ * The server refuses a rule set that does not stratify before evaluating
+ * anything, so Run is not offered only to report that refusal: it is off, and
+ * says why.
+ */
+describe('RuleSetWorkArea (draft) — a rule set that does not stratify', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    scratch.body = {};
+    toasts.error.length = 0;
+    api.executeRulesPlayground.mockResolvedValue({ status: 'converged', iterations: [], dataBlocks: [] });
+    api.listDataGraphs.mockResolvedValue([]);
+    api.listDataGraphVersions.mockResolvedValue([]);
+    api.listTupleSets.mockResolvedValue([]);
+    api.listTupleSetVersions.mockResolvedValue([]);
+    api.analyzeRuleSetSrl.mockResolvedValue({
+      valid: true,
+      error: null,
+      ruleCount: 1,
+      dataBlockCount: 0,
+      blocks: [],
+      stratification: {
+        strata: {}, monotonicity: {}, edges: [], issues: ['Non-stratifiable cycle involving: rule at L3'],
+        cycles: [{ kind: 'negation', rules: ['rule-1'], edges: [] }],
+        strataCount: 0, negationCount: 1, runOnceCount: 0, stratified: false,
+      },
+      wellFormedness: [],
+    });
+  });
+
+  it('disables Run and says why', async () => {
+    vi.useFakeTimers();
+    try {
+      const wrapper = await mountWorkArea();
+      await vi.advanceTimersByTimeAsync(500);
+      await nextTick();
+      const run = wrapper.get('[data-testid="run-bar-run"]');
+      expect(run.attributes('disabled')).toBeDefined();
+      expect(run.attributes('title')).toMatch(/does not stratify/);
+      expect(api.executeRulesPlayground).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

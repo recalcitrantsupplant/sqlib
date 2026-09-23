@@ -21,6 +21,12 @@ export interface StratificationNode {
   runOnce?: boolean;
   /** Where it is in the document, when it came from one. */
   line?: number | null;
+  /**
+   * On a cycle that stops the rules stratifying. When any node is, the graph
+   * has no layers to draw: the cycle is the picture, and every other rule is
+   * greyed out behind it.
+   */
+  inCycle?: boolean;
 }
 
 /** A dependency an edge could not usefully be drawn for. */
@@ -37,6 +43,16 @@ export interface StratificationGraphEdge {
    * negated dependency does, so it is drawn the same way.
    */
   label?: 'positive' | 'negative' | 'closed';
+  /**
+   * Written on the line when the edge is part of a cycle: the body pattern and
+   * the head template that unified to make it — what has to change to break it.
+   */
+  cycleLabel?: string | null;
+  /**
+   * On the loop that explains a cycle. When the rules do not stratify, only
+   * these are drawn at full strength; every other edge is context.
+   */
+  onLoop?: boolean;
 }
 </script>
 
@@ -57,6 +73,7 @@ import { useCssToken } from '@/composables/useCssToken';
 import { stratumColor } from '@/composables/useStratumPalette';
 import { stratumLabel } from '@/lib/srlStratumGutter';
 import { useAutoLayout, type LayoutPoint } from '../../composables/useAutoLayout';
+import { bowPoints, CYCLE_BOW, facingEndpoints, labelBox, labelPlacement, type Box } from '@/lib/cycleEdges';
 import CanvasSurface from '../shared/CanvasSurface.vue';
 import StratificationEdge from './StratificationEdge.vue';
 
@@ -97,6 +114,9 @@ const graphPattern = useCssToken('--graph-pattern', '#e9ecef');
 const surfaceRef = ref<InstanceType<typeof CanvasSurface> | null>(null);
 const wrapper = computed<HTMLElement | null>(() => surfaceRef.value?.surfaceEl ?? null);
 const flowNodes = ref<Node[]>([]);
+
+/** Whether the rules fail to stratify — some rule is on a cycle. */
+const unstratified = computed(() => props.nodes.some((node) => node.inCycle));
 const flowEdges = ref<Edge[]>([]);
 
 /*
@@ -188,11 +208,27 @@ const drawnBounds = () => {
   }
 
   for (const edge of flowEdges.value) {
-    for (const point of (edge.data as { layoutPoints?: LayoutPoint[] } | undefined)?.layoutPoints ?? []) {
+    const data = (edge.data ?? {}) as {
+      layoutPoints?: LayoutPoint[];
+      bow?: number;
+      cycleLabel?: string | null;
+      endpoints?: LayoutPoint[];
+    };
+    const laid = data.endpoints ?? data.layoutPoints ?? [];
+    // The curve as drawn — a bowed cycle edge leaves dagre's straight line.
+    for (const point of bowPoints(laid, data.bow ?? 0)) {
       minX = Math.min(minX, point.x);
       minY = Math.min(minY, point.y);
       maxX = Math.max(maxX, point.x);
       maxY = Math.max(maxY, point.y);
+    }
+    // And its label, which is the part of a cycle a reader most needs to see.
+    if (data.cycleLabel && laid.length >= 2) {
+      const box = labelBox(data.cycleLabel, labelPlacement(laid, data.bow ?? 0));
+      minX = Math.min(minX, box.x);
+      maxX = Math.max(maxX, box.x + box.width);
+      minY = Math.min(minY, box.y);
+      maxY = Math.max(maxY, box.y + box.height);
     }
   }
 
@@ -270,7 +306,18 @@ const rebuild = async () => {
 
   const baseNodes: Node[] = props.nodes.map((node) => {
     const selfDependency = loops.get(node.id) ?? null;
-    const marks = (selfDependency ? 1 : 0) + (node.runOnce ? 1 : 0);
+    // The "once" chip is a word, about twice the width of the recursion glyph.
+    const marks = (selfDependency ? 1 : 0) + (node.runOnce ? 2 : 0);
+    /*
+     * Unstratified, colour means "on the cycle" or "not involved" — there are
+     * no strata to colour by. A rule off the cycle is dimmed rather than
+     * hidden: it is still in the document, just not what is wrong with it.
+     */
+    const colours = unstratified.value
+      ? node.inCycle
+        ? { backgroundColor: 'var(--danger-surface)', border: '1px solid var(--danger-border)' }
+        : { backgroundColor: 'var(--surface)', border: '1px solid var(--border-subtle)', opacity: '0.5' }
+      : { backgroundColor: stratumColor(node.stratum), border: '1px solid var(--border-default)' };
     return {
       id: node.id,
       type: 'stratification',
@@ -279,8 +326,7 @@ const rebuild = async () => {
       style: {
         width: `${nodeWidth(node, marks)}px`,
         height: `${NODE_SIZE.height}px`,
-        backgroundColor: stratumColor(node.stratum),
-        border: '1px solid var(--border-default)',
+        ...colours,
         borderRadius: 'var(--radius-panel)',
         color: 'var(--ink)',
       },
@@ -294,19 +340,28 @@ const rebuild = async () => {
    * costs a reserved lane each. A negated reason wins the styling, because
    * "there is negation between these two" is the fact that changes the stratum.
    */
-  const merged = new Map<string, { from: string; to: string; label?: string }>();
+  const merged = new Map<string, { from: string; to: string; label?: string; cycleLabel?: string | null; onLoop?: boolean }>();
   for (const edge of drawable) {
     if (edge.from === edge.to) continue;
     const key = `${edge.from}\u0000${edge.to}`;
     const existing = merged.get(key);
     if (!existing) {
-      merged.set(key, { from: edge.from, to: edge.to, label: edge.label });
+      merged.set(key, { from: edge.from, to: edge.to, label: edge.label, cycleLabel: edge.cycleLabel, onLoop: edge.onLoop });
       continue;
     }
+    existing.cycleLabel = existing.cycleLabel || edge.cycleLabel;
+    existing.onLoop = existing.onLoop || edge.onLoop;
     if (edge.label === 'negative') existing.label = 'negative';
     else if (edge.label === 'closed' && existing.label !== 'negative') existing.label = 'closed';
   }
 
+  /*
+   * Red for a negated dependency, and for every step of the loop that explains
+   * a cycle: in a run-once cycle the loop's steps are closed and positive, and
+   * left grey they would read as context rather than as the problem.
+   */
+  const emphasised = (edge: { label?: string; onLoop?: boolean }) =>
+    edge.label === 'negative' || (unstratified.value && edge.onLoop === true);
   const baseEdges: Edge[] = [...merged.values()]
     .map((edge, index) => ({
       // The arrow points the way evaluation flows: the rule depended on comes
@@ -316,6 +371,14 @@ const rebuild = async () => {
       target: edge.from,
       // Drawn along the lane dagre reserved — see StratificationEdge.vue.
       type: 'routed',
+      data: {
+        // A two-way pair is parted so both lines, and both labels, can be read.
+        bow: merged.has(`${edge.to}\u0000${edge.from}`) ? CYCLE_BOW : 0,
+        // Only the explaining loop is labelled: a label per dependency between
+        // three or four rules crowds the canvas and hides the one that matters.
+        cycleLabel: edge.onLoop ? edge.cycleLabel ?? null : null,
+        onLoop: edge.onLoop === true,
+      },
       /*
        * The head is coloured with the stroke, not left at the default: a red
        * dashed line ending in a grey arrow is a legend and a drawing that
@@ -323,30 +386,68 @@ const rebuild = async () => {
        */
       markerEnd: {
         type: MarkerType.ArrowClosed,
-        color: edge.label === 'negative' ? 'var(--danger)' : 'var(--graph-edge)',
+        color: emphasised(edge) ? 'var(--danger)' : 'var(--graph-edge)',
         width: 14,
         height: 14,
       },
       style: {
-        stroke: edge.label === 'negative' ? 'var(--danger)' : 'var(--graph-edge)',
+        stroke: emphasised(edge) ? 'var(--danger)' : 'var(--graph-edge)',
         strokeWidth: 1.4,
         strokeDasharray: edge.label === 'positive' ? undefined : '4 3',
+        // Off the explaining loop, an edge is context, not the problem.
+        ...(unstratified.value && !edge.onLoop ? { opacity: 0.3 } : {}),
       },
     }));
 
-  const { nodes: laidOutNodes, edges: laidOutEdges, bounds } = layout(baseNodes, baseEdges, {
-    direction: 'TB',
-    rankAccessor: (node) => (node.data as { stratum?: number | null })?.stratum,
+  /*
+   * Unstratified, only the explaining loop is laid out. Given every edge, the
+   * layout is free to seat a rule that is merely in the same cycle between the
+   * two that make the loop, and the loop's arrows and labels then run across
+   * it. The other edges are drawn afterwards, straight and faint.
+   */
+  const isLoop = (edge: Edge) => (edge.data as { onLoop?: boolean } | undefined)?.onLoop === true;
+  const layoutEdges = unstratified.value ? baseEdges.filter(isLoop) : baseEdges;
+  const { nodes: laidOutNodes, edges: routedEdges, bounds } = layout(baseNodes, layoutEdges, {
+    /*
+     * Strata run top to bottom. A cycle has no strata, and its labels are
+     * wide: laid side by side, the rules leave the labels the vertical room
+     * above and below the arrows rather than the panel's scarce width.
+     */
+    direction: unstratified.value ? 'LR' : 'TB',
+    rankAccessor: unstratified.value
+      ? undefined
+      : (node) => (node.data as { stratum?: number | null })?.stratum,
     nodeSize: NODE_SIZE,
     /*
      * Tighter than a whiteboard would be. Rank separation is what a skip edge's
      * lane is carved out of, so it cannot go to nothing — but 140px of it was
      * spending the panel's scarcest axis on white space between two rows.
      */
-    rankSep: 64,
+    // Side by side, the gap is what a two-way pair's arrows are drawn across.
+    rankSep: unstratified.value ? 110 : 64,
     nodeSep: 24,
     margin: { x: 20, y: 16 },
     withEdgePoints: true,
+  });
+
+  /*
+   * A two-way pair is drawn straight across between the facing sides of its
+   * nodes: the layout's handles assume one direction of travel, and the edge
+   * running back against it would otherwise leave from the far side of its node.
+   */
+  const boxes = new Map<string, Box>(laidOutNodes.map((node) => [node.id, {
+    x: node.position.x,
+    y: node.position.y,
+    width: parseFloat(String((node.style as Record<string, unknown>)?.width ?? 0)) || 0,
+    height: parseFloat(String((node.style as Record<string, unknown>)?.height ?? 0)) || 0,
+  }]));
+  const contextEdges = unstratified.value ? baseEdges.filter((edge) => !isLoop(edge)) : [];
+  const laidOutEdges = [...routedEdges, ...contextEdges].map((edge) => {
+    const source = boxes.get(edge.source);
+    const target = boxes.get(edge.target);
+    const across = (edge.data as { bow?: number } | undefined)?.bow || contextEdges.includes(edge);
+    if (!across || !source || !target) return edge;
+    return { ...edge, data: { ...(edge.data ?? {}), endpoints: facingEndpoints(source, target) } };
   });
 
   flowNodes.value = laidOutNodes;
@@ -416,7 +517,8 @@ onBeforeUnmount(() => {
  * transform, which is what keeps a band under its rules through pan and zoom.
  */
 const bandGeometry = computed(() => {
-  if (!props.showBands) return [];
+  // No strata exist when the rules do not stratify, so there is nothing to band.
+  if (!props.showBands || unstratified.value) return [];
   const byStratum = new Map<number, { top: number; bottom: number }>();
   for (const node of flowNodes.value) {
     const stratum = (node.data as { stratum?: number | null })?.stratum ?? 0;
@@ -474,7 +576,7 @@ const handleNodeClick = (event: NodeMouseEvent) => {
       you are looking at, and making them nodes would put them in the graph's
       own hit-testing and selection.
     -->
-    <template v-if="showBands" #underlay>
+    <template v-if="showBands && !unstratified" #underlay>
       <div
         v-for="band in bandGeometry"
         :key="band.stratum"
@@ -512,9 +614,21 @@ const handleNodeClick = (event: NodeMouseEvent) => {
           already says it in colour — the chip is what makes the colour legible
           to someone who cannot use it.
         -->
-        <div class="strat-node" :class="{ selected: slotProps.data.id === selectedId }">
+        <div
+          class="strat-node"
+          :class="{ selected: slotProps.data.id === selectedId, 'in-cycle': slotProps.data.inCycle }"
+          :data-in-cycle="slotProps.data.inCycle ? 'true' : undefined"
+        >
           <div class="node-top">
+            <!-- On a cycle there is no stratum; the mark says why instead. -->
+            <CircleSlash
+              v-if="slotProps.data.inCycle"
+              class="cycle-mark"
+              :size="14"
+              aria-label="on a non-stratifiable cycle"
+            />
             <span
+              v-else-if="slotProps.data.stratum !== null && slotProps.data.stratum !== undefined"
               class="stratum-chip"
               :title="`Stratum ${stratumLabel(slotProps.data.stratum)}`"
             >{{ stratumLabel(slotProps.data.stratum) }}</span>
@@ -636,6 +750,11 @@ const handleNodeClick = (event: NodeMouseEvent) => {
   white-space: nowrap;
   color: var(--ink-secondary);
   font-size: var(--text-label);
+}
+
+.cycle-mark {
+  flex-shrink: 0;
+  color: var(--danger);
 }
 
 .node-mark {

@@ -1,4 +1,5 @@
 <script lang="ts">
+import type { SrlDependencyReason } from '@/composables/useApiClient';
 import type { StratificationNode } from './StratificationGraph.vue';
 
 /**
@@ -14,20 +15,24 @@ import type { StratificationNode } from './StratificationGraph.vue';
  * means. Reading that is a once-ever act; a wall of explanation above a graph
  * you open twenty times a day is a tax. It lives behind the header `?` and in
  * the spec.
+ *
+ * A document that does not stratify has no strata, so the panel stops talking
+ * about them: no bands, no stratum chips, no evaluation order. It shows the
+ * cycle instead — which rules are on it, which dependency joins them and why,
+ * and what would break it.
  */
 export interface StratificationPanelNode extends StratificationNode {
   /** The rule as written, shown in the inspector's Source section. */
   code?: string;
+  /** The author's `RULE <iri>` name, when there is one. */
+  name?: string | null;
 }
 
 export interface StratificationPanelEdge {
   from: string;
   to: string;
   label?: 'positive' | 'negative' | 'closed';
-  reasons?: Array<{
-    body?: { subject?: string; predicate?: string; object?: string };
-    head?: { subject?: string; predicate?: string; object?: string };
-  }>;
+  reasons?: SrlDependencyReason[];
 }
 </script>
 
@@ -41,10 +46,13 @@ import { CircleSlash, CornerDownLeft, HelpCircle, Info, MoveRight } from '@lucid
 import { rdfSyntaxHighlighting } from '@/lib/codemirrorHighlight';
 import { languageExtensionsFor } from '@/lib/codeLanguage';
 import StratificationGraph from './StratificationGraph.vue';
+import DependencyReasons from './DependencyReasons.vue';
 import SectionLabel from '../shared/SectionLabel.vue';
 import { stratumColor } from '@/composables/useStratumPalette';
 import { stratumLabel } from '@/lib/srlStratumGutter';
 import { formatCompactAge } from '@/lib/time';
+import { cycleEdgeLabel } from '@/lib/srlDependencyDisplay';
+import type { SrlStratificationCycle } from '@/composables/useApiClient';
 
 const EDGE_HELP = 'An edge points from the rule depended on to the rule that depends on it. Solid '
   + 'grey is a positive dependency. Dashed red is negated and dashed grey is closed — the rule '
@@ -54,12 +62,17 @@ const props = withDefaults(defineProps<{
   nodes: StratificationPanelNode[];
   edges: StratificationPanelEdge[];
   issues?: string[];
+  /** What stops the rules stratifying, as data; empty when they stratify. */
+  cycles?: SrlStratificationCycle[];
+  stratified?: boolean;
   ruleCount: number;
   strataCount: number;
   /** When the analysis last landed — "computed 1m ago". */
   computedAt?: string | null;
 }>(), {
   issues: () => [],
+  cycles: () => [],
+  stratified: true,
   computedAt: null,
 });
 
@@ -78,10 +91,163 @@ watch(
   () => props.nodes,
   (nodes) => {
     if (selectedId.value && nodes.some((node) => node.id === selectedId.value)) return;
-    selectedId.value = nodes[0]?.id ?? null;
+    // Unstratified, the rules worth opening on are the ones on the cycle.
+    selectedId.value = (nodes.find((node) => node.inCycle) ?? nodes[0])?.id ?? null;
   },
   { immediate: true, deep: true },
 );
+
+const unstratified = computed(() => !props.stratified);
+const cycleRuleIds = computed(() => new Set(props.cycles.flatMap((cycle) => cycle.rules)));
+const nodeById = computed(() => new Map(props.nodes.map((node) => [node.id, node])));
+
+/** A rule's line, as the gutter numbers it — the short form, for sentences. */
+const lineRef = (id: string) => {
+  const node = nodeById.value.get(id);
+  return node?.line ? `L${node.line}` : node?.label ?? id;
+};
+
+/**
+ * A rule as a reader finds it in the document: by the name its author gave it,
+ * or by where it is. Never by the analysis id — nothing on screen says `rule-2`.
+ */
+const ruleRef = (id: string) => {
+  const node = nodeById.value.get(id);
+  if (!node) return id;
+  if (node.name) return node.line ? `${node.label} (L${node.line})` : node.label;
+  return node.line ? `rule at L${node.line}` : node.label;
+};
+
+const listJoin = (items: string[]) =>
+  items.length <= 2 ? items.join(' and ') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+
+type CycleEdge = SrlStratificationCycle['edges'][number];
+
+/** Why a rule runs once, as a clause: "because its head creates …". */
+const RUN_ONCE_WHY: Record<string, string> = {
+  'blank-node head': 'its head creates a new blank node each time',
+  'assignment (SET)': 'it assigns a value with SET',
+};
+const runOnceWhy = (reasons: string[]) =>
+  reasons.map((reason) => RUN_ONCE_WHY[reason] ?? reason).join(' and ') || 'it is run-once';
+
+/** "L9 reads L3's", one step of a loop told in words. */
+const step = (edge: CycleEdge) =>
+  `${lineRef(edge.from)} ${edge.label === 'negative' ? 'negates' : 'reads'} ${lineRef(edge.to)}'s`;
+
+/**
+ * One sentence saying why these rules cannot be ordered, told along the
+ * shortest loop that shows it. A cycle can hold more rules and dependencies
+ * than that loop, but naming them all explains nothing more.
+ */
+function cycleSentence(cycle: SrlStratificationCycle): string {
+  const loop = cycle.witness?.length ? cycle.witness : null;
+  if (!loop) {
+    return `${listJoin(cycle.rules.map(lineRef))} depend on each other in a cycle that cannot be ordered.`;
+  }
+  const [first, ...rest] = loop;
+  const reader = lineRef(first.from);
+  const back = rest.map(step).join(', and ');
+
+  if (cycle.kind === 'run-once') {
+    const why = runOnceWhy(cycle.runOnce?.find((entry) => entry.rule === first.from)?.reasons ?? []);
+    if (!rest.length) {
+      return `${reader} runs once, because ${why}, but it reads its own output, so it would have to run after itself.`;
+    }
+    return `${reader} runs once, because ${why}, but it reads ${lineRef(first.to)}'s output, and ${back}, `
+      + `so ${reader} would have to run after itself.`;
+  }
+
+  if (!rest.length) {
+    return `${reader} negates its own output, so it would have to be evaluated before itself.`;
+  }
+  if (rest.length === 1 && rest[0].label === 'negative') {
+    return `${reader} and ${lineRef(first.to)} negate each other's output, so neither can be evaluated before the other.`;
+  }
+  const verdict = rest.length === 1
+    ? 'neither can be evaluated before the other'
+    : 'none of them can be evaluated before the others';
+  return `${reader} negates ${lineRef(first.to)}'s output, and ${back}, so ${verdict}.`;
+}
+
+const EDGE_VERB = {
+  negative: 'negates the output of',
+  closed: 'runs once over the output of',
+  positive: 'reads the output of',
+} as const;
+
+/** The negated reason first: it is the one that forces the ordering. */
+const byNegationFirst = (reasons: SrlDependencyReason[]) =>
+  [...reasons].sort((a, b) => Number(b.label === 'negative') - Number(a.label === 'negative'));
+
+const edgeKey = (edge: { from: string; to: string }) => `${edge.from}->${edge.to}`;
+
+const edgeView = (edge: CycleEdge) => ({
+  key: edgeKey(edge),
+  reader: edge.from,
+  readerLine: nodeById.value.get(edge.from)?.line ?? null,
+  source: edge.to,
+  sourceLine: nodeById.value.get(edge.to)?.line ?? null,
+  label: edge.label,
+  verb: edge.from === edge.to ? EDGE_VERB[edge.label].replace('the output of', 'its own output') : EDGE_VERB[edge.label],
+  reasons: byNegationFirst(edge.reasons),
+});
+
+/**
+ * The cycles, ready to render: a sentence, the loop that explains it in path
+ * order, and the rest of the dependencies among the same rules, which are
+ * shown folded away because none of them is needed to see the problem.
+ */
+const cycleViews = computed(() =>
+  props.cycles.map((cycle, index) => {
+    const loop = cycle.witness?.length ? cycle.witness : cycle.edges;
+    const onLoop = new Set(loop.map(edgeKey));
+    return {
+      key: `${index}-${cycle.rules.join(',')}`,
+      sentence: cycleSentence(cycle),
+      edges: loop.map(edgeView),
+      others: cycle.edges
+        .filter((edge) => !onLoop.has(edgeKey(edge)))
+        .sort((x, y) => (nodeById.value.get(x.from)?.line ?? 0) - (nodeById.value.get(y.from)?.line ?? 0))
+        .map(edgeView),
+    };
+  }),
+);
+
+/** What would break the cycle, for the kinds of cycle present. */
+const fixHints = computed(() => {
+  const hints: string[] = [];
+  if (props.cycles.some((cycle) => cycle.kind === 'negation')) {
+    hints.push('Remove or rewrite one NOT on the cycle. Breaking any one of these dependencies breaks the cycle.');
+    hints.push('If a NOT is meant to test only the input data, write it as NOT DATA { … }. It then reads the '
+      + 'ground graph, which no rule writes, and depends on no rule.');
+    hints.push('Narrow a pattern so it stops matching the other rule\'s head, for example by using a constant '
+      + 'or a different predicate where it now has a free variable.');
+  }
+  if (props.cycles.some((cycle) => cycle.kind === 'run-once')) {
+    hints.push('Have the run-once rule read only what nothing on the cycle writes. If it need not run once, '
+      + 'drop the blank node or SET that makes it run-once.');
+  }
+  return hints;
+});
+
+/**
+ * Edges for the graph. The loop that explains each cycle is labelled with the
+ * patterns that made it; every other edge is context, drawn faint and without
+ * a label, so the picture shows the problem rather than every dependency.
+ */
+const graphEdges = computed(() => {
+  const loopReasons = new Map<string, SrlDependencyReason[]>();
+  for (const cycle of props.cycles) {
+    for (const edge of cycle.witness?.length ? cycle.witness : cycle.edges) {
+      loopReasons.set(edgeKey(edge), edge.reasons);
+    }
+  }
+  return props.edges.map((edge) => {
+    const reasons = loopReasons.get(edgeKey(edge));
+    return reasons ? { ...edge, onLoop: true, cycleLabel: cycleEdgeLabel(reasons) } : edge;
+  });
+});
 
 const selected = computed(() => props.nodes.find((node) => node.id === selectedId.value) ?? null);
 
@@ -104,6 +270,8 @@ const nodeLabels = computed(() => new Map(props.nodes.map((node) => [node.id, no
 
 const headline = computed(() => {
   const rules = `${props.ruleCount} ${props.ruleCount === 1 ? 'rule' : 'rules'}`;
+  // No strata to count: the verdict chip beside the headline says why.
+  if (unstratified.value) return rules;
   const strata = `${props.strataCount} ${props.strataCount === 1 ? 'stratum' : 'strata'}`;
   return `${rules} · ${strata}`;
 });
@@ -124,11 +292,25 @@ const dependencies = computed(() => {
     .map((edge) => ({
       id: edge.to,
       label: nodeLabels.value.get(edge.to) ?? edge.to,
+      line: nodeById.value.get(edge.to)?.line ?? null,
       negated: edge.label === 'negative',
       closed: edge.label === 'closed',
+      onCycle: cycleRuleIds.value.has(id) && cycleRuleIds.value.has(edge.to),
       reasons: edge.reasons ?? [],
     }));
 });
+
+/*
+ * What a dependency does to the reader. Stratified, that is the stratum it
+ * forces; unstratified there is no stratum to name, so it says whether the
+ * dependency is part of what went wrong.
+ */
+const dependencyKind = (dependency: { negated: boolean; closed: boolean; onCycle: boolean }) => {
+  const kind = dependency.negated ? 'negated' : dependency.closed ? 'closed' : 'positive';
+  if (unstratified.value) return dependency.onCycle ? `${kind} · on the cycle` : kind;
+  if (kind === 'positive') return kind;
+  return `${kind} · forces stratum ${stratumLabel(selected.value?.stratum ?? null)}`;
+};
 
 /** Strata in evaluation order, as chips — stratum 1 runs first. */
 const evaluationOrder = computed(() => {
@@ -171,9 +353,6 @@ const sourceExtensions = computed<Extension[]>(() => {
     }),
   ];
 });
-
-const formatTriple = (triple?: { subject?: string; predicate?: string; object?: string }) =>
-  [triple?.subject, triple?.predicate, triple?.object].filter(Boolean).join(' ').trim();
 </script>
 
 <template>
@@ -208,7 +387,7 @@ const formatTriple = (triple?: { subject?: string; predicate?: string; object?: 
       <StratificationGraph
         flow-id="stratification-panel"
         :nodes="nodes"
-        :edges="edges"
+        :edges="graphEdges"
         :selected-id="selectedId"
         show-bands
         @select="(id) => (selectedId = id)"
@@ -219,7 +398,14 @@ const formatTriple = (triple?: { subject?: string; predicate?: string; object?: 
     <aside class="inspector" data-testid="stratification-inspector">
       <div v-if="selected" class="inspector-header">
         <span class="inspector-title">{{ selected.label }}</span>
+        <template v-if="unstratified">
+          <span v-if="selected.inCycle" class="chip chip-bad" data-testid="stratification-on-cycle">
+            <CircleSlash :size="11" />On the cycle
+          </span>
+          <span v-else class="chip chip-muted">Not on the cycle</span>
+        </template>
         <span
+          v-else
           class="chip chip-stratum"
           :style="{ backgroundColor: stratumColor(selected.stratum) }"
         >Stratum {{ stratumLabel(selected.stratum) }}</span>
@@ -236,6 +422,78 @@ const formatTriple = (triple?: { subject?: string; predicate?: string; object?: 
       </div>
 
       <div class="inspector-body">
+        <!--
+          The document's problem before the selected rule's details: it is the
+          same whichever rule is selected, and it is the reason the tab was
+          opened.
+        -->
+        <section
+          v-if="unstratified && cycleViews.length"
+          class="section"
+          data-testid="stratification-cycles"
+        >
+          <SectionLabel><CircleSlash :size="13" />Why it does not stratify</SectionLabel>
+          <div v-for="cycle in cycleViews" :key="cycle.key" class="cycle">
+            <p class="cycle-sentence" data-testid="stratification-cycle-sentence">{{ cycle.sentence }}</p>
+            <div
+              v-for="edge in cycle.edges"
+              :key="edge.key"
+              class="dependency"
+              :class="{ negated: edge.label === 'negative' }"
+              data-testid="stratification-cycle-edge"
+            >
+              <span class="cycle-edge-head">
+                <button
+                  class="line-link"
+                  type="button"
+                  :disabled="!edge.readerLine"
+                  @click="edge.readerLine && emit('go-to-line', edge.readerLine)"
+                >{{ ruleRef(edge.reader) }}</button>
+                <span class="dependency-kind" :class="{ negated: edge.label === 'negative' }">{{ edge.verb }}</span>
+                <button
+                  v-if="edge.source !== edge.reader"
+                  class="line-link"
+                  type="button"
+                  :disabled="!edge.sourceLine"
+                  @click="edge.sourceLine && emit('go-to-line', edge.sourceLine)"
+                >{{ ruleRef(edge.source) }}</button>
+              </span>
+              <DependencyReasons :reasons="edge.reasons" />
+            </div>
+            <details v-if="cycle.others.length" class="cycle-others" data-testid="stratification-cycle-others">
+              <summary>
+                {{ cycle.others.length }} more {{ cycle.others.length === 1 ? 'dependency' : 'dependencies' }}
+                among these rules
+              </summary>
+              <div v-for="edge in cycle.others" :key="edge.key" class="dependency">
+                <span class="cycle-edge-head">
+                  <button
+                    class="line-link"
+                    type="button"
+                    :disabled="!edge.readerLine"
+                    @click="edge.readerLine && emit('go-to-line', edge.readerLine)"
+                  >{{ ruleRef(edge.reader) }}</button>
+                  <span class="dependency-kind">{{ edge.verb }}</span>
+                  <button
+                    v-if="edge.source !== edge.reader"
+                    class="line-link"
+                    type="button"
+                    :disabled="!edge.sourceLine"
+                    @click="edge.sourceLine && emit('go-to-line', edge.sourceLine)"
+                  >{{ ruleRef(edge.source) }}</button>
+                </span>
+                <DependencyReasons :reasons="edge.reasons" />
+              </div>
+            </details>
+          </div>
+          <div class="fix" data-testid="stratification-fix">
+            <span class="fix-title">To break it</span>
+            <ul class="fix-list">
+              <li v-for="hint in fixHints" :key="hint">{{ hint }}</li>
+            </ul>
+          </div>
+        </section>
+
         <template v-if="selected">
           <section v-if="selected.code" class="section">
             <SectionLabel>Source</SectionLabel>
@@ -273,28 +531,22 @@ const formatTriple = (triple?: { subject?: string; predicate?: string; object?: 
               <span class="dependency-head">
                 <span class="dependency-name">{{ dependency.label }}</span>
                 <span class="dependency-kind" :class="{ negated: dependency.negated }">
-                  {{
-                    dependency.negated
-                      ? `negated · forces stratum ${stratumLabel(selected.stratum)}`
-                      : dependency.closed
-                        ? `closed · forces stratum ${stratumLabel(selected.stratum)}`
-                        : 'positive'
-                  }}
+                  {{ dependencyKind(dependency) }}
                 </span>
-                <span
-                  v-if="nodes.find((node) => node.id === dependency.id)?.line"
+                <button
+                  v-if="dependency.line"
                   class="dependency-line"
-                >L{{ nodes.find((node) => node.id === dependency.id)?.line }}</span>
+                  type="button"
+                  :title="`Go to L${dependency.line}`"
+                  @click="emit('go-to-line', dependency.line)"
+                >L{{ dependency.line }}</button>
               </span>
-              <span v-for="(reason, index) in dependency.reasons" :key="index" class="reason">
-                <code>{{ formatTriple(reason.body) }}</code>
-                <MoveRight :size="13" class="reason-arrow" />
-                <code>{{ formatTriple(reason.head) }}</code>
-              </span>
+              <DependencyReasons :reasons="byNegationFirst(dependency.reasons)" />
             </div>
           </section>
 
-          <section class="section">
+          <!-- There is no order to show when the rules do not stratify. -->
+          <section v-if="!unstratified" class="section">
             <SectionLabel>Evaluation order</SectionLabel>
             <div class="order-row">
               <template v-for="(group, index) in evaluationOrder" :key="group.stratum">
@@ -312,7 +564,8 @@ const formatTriple = (triple?: { subject?: string; predicate?: string; object?: 
         </template>
         <p v-else class="muted">Select a rule to see what it depends on.</p>
 
-        <section v-if="issues.length" class="section">
+        <!-- Cycles are shown above, as data; this is for anything else. -->
+        <section v-if="issues.length && !cycles.length" class="section">
           <SectionLabel><Info :size="13" />Stratification issues</SectionLabel>
           <ul class="issues">
             <li v-for="issue in issues" :key="issue">{{ issue }}</li>
@@ -575,25 +828,98 @@ const formatTriple = (triple?: { subject?: string; predicate?: string; object?: 
 
 .dependency-line {
   margin-left: auto;
+  padding: 0;
+  border: none;
+  background: transparent;
   color: var(--ink-muted);
   font-family: var(--font-mono);
   font-size: var(--text-micro);
+  cursor: pointer;
 }
 
-.reason {
+.dependency-line:hover {
+  color: var(--action);
+  text-decoration: underline;
+}
+
+.chip-muted {
+  color: var(--ink-muted);
+}
+
+.cycle {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.cycle-sentence {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-body);
+  line-height: 1.5;
+}
+
+.cycle-edge-head {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
 }
 
-.reason code {
-  padding: var(--space-1) var(--space-3);
-  background: var(--surface-subtle);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius);
+.line-link {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--action);
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  cursor: pointer;
+}
+
+.line-link:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.line-link:disabled {
+  color: var(--ink-secondary);
+  cursor: default;
+}
+
+.cycle-others {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.cycle-others > summary {
   color: var(--ink-secondary);
   font-size: var(--text-label);
+  cursor: pointer;
+}
+
+.cycle-others[open] > summary {
+  margin-bottom: var(--space-3);
+}
+
+.fix {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.fix-title {
+  color: var(--ink-secondary);
+  font-size: var(--text-label);
+  font-weight: var(--weight-semibold);
+}
+
+.fix-list {
+  margin: 0;
+  padding-left: var(--space-6);
+  list-style: disc;
+  color: var(--ink-secondary);
+  font-size: var(--text-label);
+  line-height: 1.5;
 }
 
 .reason-arrow {

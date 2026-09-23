@@ -167,13 +167,54 @@ export function mergeRuleSet(
   prologueText = '',
   dataBlocks: Array<Pick<SrlDataBlockDocument, 'text'>> = [],
 ): string {
-  const prologue = prologueText.trim();
-  const abbreviate = prefixAbbreviator(prologue);
-  const body = [...dataBlocks, ...docs]
-    .map((d) => abbreviate(d.text.trim()))
-    .filter(Boolean)
-    .join('\n\n');
+  const abbreviate = prefixAbbreviator(prologueText.trim());
+  const parts = [...dataBlocks, ...docs].map((d) => abbreviate(d.text.trim())).filter(Boolean);
+  const prologue = emittedPrologue(prologueText, parts);
+  const body = parts.join('\n\n');
   return prologue ? `${prologue}\n\n${body}\n` : `${body}\n`;
+}
+
+/** A declaration line with its spacing normalised, for comparing two spellings. */
+const normaliseDeclaration = (line: string) => line.trim().replace(/\s+/g, ' ').replace(/\s*:\s*</, ': <');
+
+/** The PREFIX/BASE lines a part opens with, normalised. */
+function ownDeclarations(text: string): Set<string> {
+  const own = new Set<string>();
+  for (const line of text.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    if (!/^(PREFIX|BASE)\b/i.test(trimmed)) break;
+    own.add(normaliseDeclaration(trimmed));
+  }
+  return own;
+}
+
+/**
+ * The prologue lines worth writing: each declaration once, and none that every
+ * part already makes for itself.
+ *
+ * A rule is normally stored without a prologue, but one that does not parse
+ * (kept verbatim, as a test case of bad syntax is) keeps the PREFIX it was
+ * written with. Emitting the caller's prologue above it as well declares the
+ * prefix twice — and a client that sends back the document's declarations as
+ * the next prologue then gets it three times, and so on per reload. Dropping
+ * what the parts already declare makes the export of such a rule its stored
+ * text, and makes the export a fixed point.
+ */
+function emittedPrologue(prologueText: string, parts: string[]): string {
+  const seen = new Set<string>();
+  const everyPart = parts.length > 0 ? parts.map(ownDeclarations) : [];
+  const lines: string[] = [];
+  for (const raw of prologueText.split('\n')) {
+    const line = raw.trim();
+    if (!line) continue;
+    const key = normaliseDeclaration(line);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    if (everyPart.length > 0 && everyPart.every((own) => own.has(key))) continue;
+    lines.push(line);
+  }
+  return lines.join('\n');
 }
 
 /**

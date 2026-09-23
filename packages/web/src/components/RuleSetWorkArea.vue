@@ -46,8 +46,8 @@
       <ExpandRunStrip>
         <RunBar
           :running="isExecuting"
-          :run-disabled="!hasDocument"
-          :run-title="hasDocument ? 'Run this rule set' : 'Write a rule set first'"
+          :run-disabled="runDisabledReason !== null"
+          :run-title="runDisabledReason ?? 'Run this rule set'"
           :inputs="runInputs"
           :format="{ value: inferenceFormat, options: INFERENCE_FORMATS, title: 'The format the inferred graph comes back in' }"
           :create-targets="['benchmark', 'test']"
@@ -194,6 +194,7 @@
         :tuples-enabled="tuplesEnabled"
         :graph-nodes="graphNodes"
         :graph-edges="graphEdges"
+        :graph-cycles="graphCycles"
         :analysed-at="analysedAt"
         :tuple-set-options="tupleSetOptions"
         :tuple-declarations="tupleDeclarations"
@@ -283,7 +284,13 @@ import type { DataGraphFormat, DataGraphOption, TupleSetOption } from '@/types/d
 import { useRuleSetsStore } from '../composables/useRuleSetsStore';
 import { useBenchmarksStore } from '../composables/useBenchmarksStore';
 import { useLibrariesStore } from '../composables/useLibrariesStore';
-import { useApiClient, type RuleSetSrlPreview, type RuleSetVersion } from '../composables/useApiClient';
+import {
+  useApiClient,
+  type RuleSetSrlPreview,
+  type RuleSetVersion,
+  type SrlStratificationCycle,
+} from '../composables/useApiClient';
+import { compactReason } from '../lib/srlDependencyDisplay';
 import { useRuntimeConfig } from '#imports';
 import type { SnippetRequest } from '@/lib/codeSnippets';
 import { usePanelResize } from '../composables/usePanelResize';
@@ -584,17 +591,27 @@ const handleEditorReady = (view: EditorView) => {
 const pushBands = () => {
   const view = editorView.value;
   if (!view) return;
-  const bands: StratumBand[] = blocks.value.map((block) => ({
-    startLine: block.startLine,
-    endLine: block.endLine,
-    stratum: block.stratum,
-    kind: block.kind,
-    label: block.label,
-  }));
+  /*
+   * A document that does not stratify has no strata to band. What the gutter
+   * says instead is which rules are on a cycle; the rest are left unmarked
+   * rather than painted a stratum they do not have.
+   */
+  const unstratified = stratification.value?.stratified === false;
+  const cycleRules = cycleRuleIds.value;
+  const bands: StratumBand[] = blocks.value
+    .filter((block) => !unstratified || block.kind === 'data' || cycleRules.has(block.id))
+    .map((block) => ({
+      startLine: block.startLine,
+      endLine: block.endLine,
+      stratum: block.stratum,
+      kind: block.kind,
+      label: block.label,
+      inCycle: unstratified && cycleRules.has(block.id),
+    }));
   view.dispatch({ effects: setStratumBands.of(bands) });
 };
 
-watch(blocks, pushBands);
+watch([blocks, stratification], pushBands);
 
 /** Put the cursor on a line and bring it into view — the outline and DAG do this. */
 const goToLine = (line: number) => {
@@ -956,11 +973,18 @@ const detailsProps = computed(() => ({
 
 // --- The graph --------------------------------------------------------------
 
+/** Every rule on a cycle that stops the document stratifying. */
+const cycleRuleIds = computed(
+  () => new Set((stratification.value?.cycles ?? []).flatMap((cycle) => cycle.rules)),
+);
+
 const ruleBlocks = computed(() => blocks.value.filter((block) => block.kind === 'rule'));
 
 const graphNodes = computed<StratificationPanelNode[]>(() =>
   ruleBlocks.value.map((block) => ({
     id: block.id,
+    inCycle: cycleRuleIds.value.has(block.id),
+    name: block.name,
     label: block.label,
     stratum: block.stratum,
     monotonicity: block.monotonicity,
@@ -970,7 +994,28 @@ const graphNodes = computed<StratificationPanelNode[]>(() =>
   })),
 );
 
-const graphEdges = computed(() => stratification.value?.edges ?? []);
+/*
+ * The stratifier reports patterns in expanded IRIs, since that is what it
+ * compares; they are shown in the document's own prefixes, as written.
+ */
+const documentPrefixes = computed(() => readProloguePrefixes(srlDocument.value));
+
+const graphEdges = computed(() =>
+  (stratification.value?.edges ?? []).map((edge) => ({
+    ...edge,
+    reasons: (edge.reasons ?? []).map((reason) => compactReason(reason, documentPrefixes.value)),
+  })),
+);
+
+const graphCycles = computed<SrlStratificationCycle[]>(() =>
+  (stratification.value?.cycles ?? []).map((cycle) => {
+    const compactEdge = (edge: SrlStratificationCycle['edges'][number]) => ({
+      ...edge,
+      reasons: edge.reasons.map((reason) => compactReason(reason, documentPrefixes.value)),
+    });
+    return { ...cycle, edges: cycle.edges.map(compactEdge), witness: (cycle.witness ?? []).map(compactEdge) };
+  }),
+);
 
 /*
  * When the analysis last landed, for the Stratification header's "computed 1m
@@ -1101,7 +1146,7 @@ let diffSeq = 0;
 async function diffText(id: string, side: DiffPlanSide): Promise<string> {
   if (side.draft) return srlDocument.value;
   if (side.version === selectedVersionNumber.value) return loadedVersionDocument.value;
-  const response = await apiClient.exportRuleSetSrl(id, { version: side.version, prologue: currentPrologue() });
+  const response = await apiClient.exportRuleSetSrl(id, { version: side.version, prologue: prologueFor(id) });
   return response.srl;
 }
 
@@ -1163,6 +1208,7 @@ const resetState = () => {
   loadedVersionDocument.value = '';
   loadedVersionTupleSeeds.value = '';
   srlDocument.value = '';
+  documentRuleSetId = null;
   tupleSeeds.value = '';
   applyTuplesEnabled(false);
   tupleSource.value = 'inline';
@@ -1220,9 +1266,10 @@ const loadRuleSetVersions = async (
  * Prefixes to render the exported document with.
  *
  * Rules are stored with expanded IRIs, so the server needs a prologue to
- * abbreviate against. It is taken from whatever the editor currently declares,
- * so a reload keeps the author's own prefixes; on first load there is nothing
- * to take, and the default seeds an empty rule set with something usable.
+ * abbreviate against. On a reload of the rule set already on screen it is taken
+ * from what the editor declares, so the author's own prefixes survive; on the
+ * first load of a rule set there is nothing of its own to take, and the default
+ * seeds it with something usable.
  */
 const DEFAULT_PROLOGUE = 'PREFIX : <http://example/>';
 
@@ -1234,8 +1281,35 @@ function prologueLines(): string[] {
     .map((line) => line.trim());
 }
 
-function currentPrologue(): string {
-  const lines = prologueLines();
+/**
+ * The declarations at the head of the document — its prologue proper.
+ *
+ * Not every PREFIX line in it: a rule stored as written (one that did not
+ * parse, kept verbatim as a test case) carries its own PREFIX further down,
+ * and sending that back as the prologue gets it rendered twice, then three
+ * times, once more on every reload.
+ */
+function leadingPrologueLines(): string[] {
+  const lines: string[] = [];
+  for (const line of srlDocument.value.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    if (!/^(PREFIX|BASE)\b/i.test(trimmed)) break;
+    lines.push(trimmed);
+  }
+  return lines;
+}
+
+/**
+ * The rule set whose document the editor holds, or null for anything else (a
+ * draft, a cleared screen). The prologue is only carried into a load of *that*
+ * rule set: carried into another one, it hands rule set B the prefixes rule set
+ * A declared.
+ */
+let documentRuleSetId: string | null = null;
+
+function prologueFor(ruleSetId: string): string {
+  const lines = documentRuleSetId === ruleSetId ? leadingPrologueLines() : [];
   return lines.length ? lines.join('\n') : DEFAULT_PROLOGUE;
 }
 
@@ -1255,7 +1329,7 @@ async function loadDocumentForSelectedVersion(prefetched?: ReturnType<typeof api
   const id = ruleSetIdValue.value;
   if (!id) return;
   const seq = ++loadSeq;
-  const prologue = currentPrologue();
+  const prologue = prologueFor(id);
   const isCurrent = selectedVersionNumber.value === currentVersionNumberForDisplay.value;
   try {
     const response = await ((prefetched && isCurrent) ? prefetched : apiClient.exportRuleSetSrl(id, {
@@ -1277,6 +1351,7 @@ async function loadDocumentForSelectedVersion(prefetched?: ReturnType<typeof api
      */
     hydratingVersion.value = true;
     srlDocument.value = typeof draft?.srl === 'string' ? draft.srl : srl;
+    documentRuleSetId = id;
     loadedVersionTupleSeeds.value = response.tupleSeeds ?? '';
     tupleSeeds.value = draft?.tupleSeeds ?? response.tupleSeeds ?? '';
     applyTuplesEnabled(draft?.tuplesEnabled ?? response.tuplesEnabled === true);
@@ -1306,7 +1381,9 @@ const loadRuleSet = async (id: string) => {
    * open lands on unless a draft says otherwise.
    */
   const versionsRequest = apiClient.listRuleSetVersions(id);
-  const documentRequest = apiClient.exportRuleSetSrl(id, { prologue: currentPrologue() });
+  // Asked for before the editor changes hands, so `prologueFor` still sees
+  // whose document is on screen: another rule set's prefixes are never sent.
+  const documentRequest = apiClient.exportRuleSetSrl(id, { prologue: prologueFor(id) });
   // Either may go unused (a failed open, a non-current selection); neither
   // should surface as an unhandled rejection.
   versionsRequest.catch(() => {});
@@ -1422,7 +1499,7 @@ const updateRuleSetWithRetry = async (payload: RuleSetUpdateInput) => {
  * Import from SPARQL.
  *
  * The dialog is given what the document *actually* declares rather than
- * `currentPrologue()`'s fallback: abbreviating against a prefix the document
+ * `prologueFor()`'s fallback: abbreviating against a prefix the document
  * does not declare would produce a rule spelled `:foo` in a document with no
  * `:` binding, which is a document that no longer parses.
  */
@@ -1647,9 +1724,31 @@ function tupleSeedsForRun(): string | null {
   return text.trim() ? text : null;
 }
 
+/*
+ * Why Run is off, or null when it is on.
+ *
+ * A document that does not stratify is refused by the server before anything
+ * is evaluated — there is no evaluation order to follow — so offering Run only
+ * to report that refusal is a round trip spent on a known answer. The reason
+ * says where the explanation is. The keyboard shortcut goes through `run()`,
+ * which checks the same thing.
+ */
+const runDisabledReason = computed<string | null>(() => {
+  if (!hasDocument.value) return 'Write a rule set first';
+  if (analysis.value?.valid && stratification.value?.stratified === false) {
+    return 'This rule set does not stratify, so it cannot be run. See the Stratification tab.';
+  }
+  return null;
+});
+
 async function run() {
   if (!hasDocument.value) {
     toast.error('Write a rule set first.');
+    return;
+  }
+  if (runDisabledReason.value) {
+    toast.error(runDisabledReason.value);
+    focusTab('stratification');
     return;
   }
   const savedVersion = ruleSetVersions.value.find((entry) => entry.id === selectedVersionId.value);
