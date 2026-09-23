@@ -13,7 +13,7 @@
  */
 import type { Page, Route } from '@playwright/test';
 
-const API_ORIGIN = new URL(process.env.NUXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3000').origin;
+import { API_ORIGIN } from '../api-origin';
 
 const CREATED = '2026-01-01T00:00:00Z';
 const MODIFIED = '2026-01-02T00:00:00Z';
@@ -498,6 +498,21 @@ export async function mockCallableLibrary(page: Page): Promise<RecordedWrite[]> 
     if (/\/queries$/.test(pathname)) {
       await json(route, QUERIES);
       return;
+    }
+    /*
+     * One query by id — what a deep link into the editor (`/?query=<id>`)
+     * fetches first. Without it the catch-all answered with `[]`, the work area
+     * failed to parse it, and the selection was cleared: a link that worked
+     * looked broken, and a link that was broken looked the same.
+     */
+    const queryDetail = /\/queries\/([^/]+)$/.exec(pathname);
+    if (queryDetail) {
+      const id = decodeURIComponent(queryDetail[1]!);
+      const query = QUERIES.find((candidate) => candidate.id === id);
+      if (query) {
+        await json(route, query);
+        return;
+      }
     }
 
     if (/\/query-groups\/[^/]+\/v\/\d+$/.test(pathname)) {

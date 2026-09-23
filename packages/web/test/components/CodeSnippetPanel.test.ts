@@ -136,3 +136,33 @@ describe('CodeSnippetPanel', () => {
     });
   });
 });
+
+/*
+ * The snippet is coloured by the language's grammar, loaded on first use. The
+ * text itself must not change: it is what Copy writes and what a reader
+ * selects, so the spans may only wrap it.
+ */
+describe('CodeSnippetPanel highlighting', () => {
+  const settle = async () => {
+    for (let tick = 0; tick < 20; tick += 1) await new Promise((resolve) => setTimeout(resolve, 0));
+  };
+
+  it.each(['curl', 'javascript', 'python', 'java', 'go'])('colours the %s snippet', async (language) => {
+    const panel = mountPanel();
+    await panel.get(`[data-testid="code-language-${language}"]`).trigger('click');
+    const before = panel.get('[data-testid="code-snippet"]').text();
+    await settle();
+    const pre = panel.get('[data-testid="code-snippet"]');
+    expect(pre.findAll('span[class^="hl-"]').length).toBeGreaterThan(0);
+    // Spans wrap the text; they never add to it or drop any of it.
+    expect(pre.element.textContent).toBe(before);
+  });
+
+  it('colours the keywords as keywords', async () => {
+    const panel = mountPanel();
+    await panel.get('[data-testid="code-language-python"]').trigger('click');
+    await settle();
+    const keywords = panel.findAll('[data-testid="code-snippet"] .hl-keyword').map((span) => span.text());
+    expect(keywords).toContain('import');
+  });
+});

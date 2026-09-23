@@ -118,16 +118,16 @@
         sits beside the filter rather than in a menu: it changes what you are
         looking at, and you have to be able to see that it is on.
       -->
-      <DropdownMenu v-if="taggingEnabled">
+      <DropdownMenu v-if="groupingEnabled">
         <DropdownMenuTrigger as-child>
           <button
             class="group-by-button"
-            :class="{ active: grouping === 'tag' }"
+            :class="{ active: grouping !== 'none' }"
             title="Group by"
             data-testid="group-by"
           >
             <Tags :size="13" />
-            <span class="group-by-label">{{ grouping === 'tag' ? 'Tag' : 'Flat' }}</span>
+            <span class="group-by-label">{{ groupingLabel }}</span>
             <ChevronDown :size="12" />
           </button>
         </DropdownMenuTrigger>
@@ -136,15 +136,34 @@
             <Check :size="13" :class="['library-check', { hidden: grouping !== 'none' }]" />
             <span>No grouping</span>
           </DropdownMenuItem>
-          <DropdownMenuItem class="library-menu-item" data-testid="group-by-tag" @select="setGrouping('tag')">
+          <DropdownMenuItem
+            v-if="taggingEnabled"
+            class="library-menu-item"
+            data-testid="group-by-tag"
+            @select="setGrouping('tag')"
+          >
             <Check :size="13" :class="['library-check', { hidden: grouping !== 'tag' }]" />
             <span>Tag</span>
+          </DropdownMenuItem>
+          <!--
+            Origin is how you find things; tags are how you mean things. It is
+            here rather than as an auto-applied tag for exactly that reason.
+          -->
+          <DropdownMenuItem
+            v-if="originEnabled"
+            class="library-menu-item"
+            data-testid="group-by-origin"
+            @select="setGrouping('origin')"
+          >
+            <Check :size="13" :class="['library-check', { hidden: grouping !== 'origin' }]" />
+            <span>Origin</span>
           </DropdownMenuItem>
           <!--
             Tags are the library's, not the section's, but this is the only
             menu that is about them — the library strip that used to hold it is
             gone, and switching libraries is the rail's job now (tags doc §5).
           -->
+          <template v-if="taggingEnabled">
           <DropdownMenuSeparator />
           <DropdownMenuItem
             class="library-menu-item"
@@ -154,6 +173,7 @@
             <Tags :size="13" class="library-check" />
             <span>Manage tags…</span>
           </DropdownMenuItem>
+          </template>
         </DropdownMenuContent>
       </DropdownMenu>
 
@@ -399,7 +419,26 @@ export interface SidebarEntity {
    * for those rather than the model storing a default tag.
    */
   tags?: string[] | null;
+  /**
+   * Where the row came from, for the Origin grouping.
+   *
+   * *Composed here* is `+ New` on the rail; the other two are rows born on a
+   * callable's screen — read off `targetEntity` for an argument set, and off
+   * the minting binding for a graph.
+   *
+   * Bucketed by kind of origin rather than one cluster per callable, because a
+   * real library would shatter into dozens of single-row clusters. The callable
+   * itself stays in the row's subtitle, where it already was.
+   *
+   * Deliberately not a tag: tags are user-authored and library-wide, and
+   * auto-tagging by provenance would make a tag mean both "I decided this" and
+   * "the system asserted this", which destroys the one job tags do well.
+   */
+  origin?: SidebarOrigin | null;
 }
+
+/** Where a row came from. Absent reads as *Composed here*. */
+export type SidebarOrigin = 'composed' | 'query' | 'group';
 
 /** A tag as the list needs it: enough to draw a heading and a dot. */
 export interface SidebarTag {
@@ -437,7 +476,7 @@ import TagManagerDialog from './tags/TagManagerDialog.vue';
 import { fuzzyMatches } from '../lib/fuzzy';
 import { normalizeTagColor, UNTAGGED_COLOR } from '../lib/tagPalette';
 import { useCallableDrafts, type CallableDraft } from '../composables/useCallableDrafts';
-import { useSettings } from '../composables/useSettings';
+import { useSettings, type EntityListGrouping } from '../composables/useSettings';
 import { useSidebarCollapse } from '../composables/useSidebarCollapse';
 import { formatCompactAge } from '../lib/time';
 
@@ -490,6 +529,12 @@ const props = defineProps<{
    * section says its rows are taggable.
    */
   supportsTags?: boolean;
+  /**
+   * True where the section's rows carry an origin — Graphs and Argument sets.
+   * Elsewhere the mode is absent from the menu rather than disabled: a section
+   * whose every row would land in one cluster has nothing to group by.
+   */
+  supportsOrigin?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -538,10 +583,34 @@ const tagManagerOpen = ref(false);
  */
 const taggingEnabled = computed(() => props.supportsTags === true && savedEnabled.value);
 
-const grouping = computed(() => (taggingEnabled.value ? settings.value.entityListGrouping : 'none'));
-const groupingByTag = computed(() => grouping.value === 'tag');
+const originEnabled = computed(() => props.supportsOrigin === true && savedEnabled.value);
 
-function setGrouping(value: 'none' | 'tag') {
+/**
+ * The grouping control is offered where *either* axis exists, and the stored
+ * mode is honoured only where this section has that axis: the setting is one
+ * preference shared across sections, so Origin selected under Graphs must read
+ * as flat under Queries rather than as an empty split.
+ */
+const groupingEnabled = computed(() => taggingEnabled.value || originEnabled.value);
+
+const grouping = computed<EntityListGrouping>(() => {
+  const mode = settings.value.entityListGrouping;
+  // Tag is the default, so a library with no tags yet must not read as one
+  // lone "Untagged" heading over everything.
+  if (mode === 'tag') return taggingEnabled.value && (props.tags?.length ?? 0) > 0 ? 'tag' : 'none';
+  if (mode === 'origin') return originEnabled.value ? 'origin' : 'none';
+  return 'none';
+});
+const groupingByTag = computed(() => grouping.value === 'tag');
+const groupingByOrigin = computed(() => grouping.value === 'origin');
+
+const groupingLabel = computed(() => {
+  if (grouping.value === 'tag') return 'Tag';
+  if (grouping.value === 'origin') return 'Origin';
+  return 'Flat';
+});
+
+function setGrouping(value: EntityListGrouping) {
   settings.value.entityListGrouping = value;
 }
 
@@ -598,6 +667,7 @@ interface SidebarCluster {
  */
 const savedClusters = computed<SidebarCluster[]>(() => {
   if (groupingByTag.value) return tagClusters.value;
+  if (groupingByOrigin.value) return originClusters.value;
 
   const kinds = props.savedKinds ?? [];
   if (kinds.length <= 1) {
@@ -628,6 +698,44 @@ function kindCluster(
     showHeading,
   };
 }
+
+/*
+ * Three buckets, in a fixed order: what you made here, then what was born on a
+ * query, then what was born on a group. A row with no origin is *Composed
+ * here*, which is what `+ New` on the rail produces and what everything saved
+ * before origin was recorded reads as.
+ *
+ * An empty bucket is dropped, for the same reason an empty tag heading is: it
+ * would say the filter matched nothing there, which the empty list already
+ * says once.
+ */
+const ORIGIN_BUCKETS: Array<{ origin: SidebarOrigin; label: string }> = [
+  { origin: 'composed', label: 'Composed here' },
+  { origin: 'query', label: 'From queries' },
+  { origin: 'group', label: 'From groups' },
+];
+
+const originClusters = computed<SidebarCluster[]>(() => {
+  const type = props.savedKinds?.[0]?.type ?? 'entity';
+  const clusters: SidebarCluster[] = [];
+
+  for (const bucket of ORIGIN_BUCKETS) {
+    const items = visibleSaved.value.filter((entity) => (entity.origin ?? 'composed') === bucket.origin);
+    if (items.length === 0) continue;
+    clusters.push({
+      key: `origin:${bucket.origin}`,
+      type,
+      label: bucket.label,
+      items,
+      tagId: null,
+      color: null,
+      collapsible: true,
+      showHeading: true,
+    });
+  }
+
+  return clusters;
+});
 
 /*
  * One cluster per tag, in the tags' own order, with the untagged remainder

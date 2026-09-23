@@ -65,6 +65,19 @@
             <InlineNote v-if="converting" as="span">Reading the rows…</InlineNote>
           </div>
 
+          <!--
+            Said where the labels are edited, because this is the screen that
+            would otherwise imply they are identifiers. They are kept — names
+            are useful for reading a table, diffing two versions, surviving a
+            CSV import and pre-filling a conversion — and they are never read
+            when this set fills a parameter.
+          -->
+          <InlineNote v-if="mode === 'build'" class="labels-note" data-testid="tuple-set-labels-note">
+            <strong>Column names are labels.</strong>
+            A <code>TUPLE(…)</code> is matched by arity and position; these names are never read when this
+            tuple set fills a parameter. They are here so you can read the table.
+          </InlineNote>
+
           <TupleRowsBuilder
             v-if="mode === 'build'"
             :columns="builderColumns"
@@ -1513,6 +1526,11 @@ onBeforeUnmount(() => {
 }
 
 .format-hint {
+  margin: var(--space-3) 0 var(--space-2);
+}
+
+/* Margin stays with the parent: where the note sits is this screen's fact. */
+.labels-note {
   margin: var(--space-3) 0 var(--space-2);
 }
 

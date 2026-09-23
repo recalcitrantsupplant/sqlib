@@ -60,7 +60,11 @@ describe('the Notebook and Build rails are held by flags of their own', () => {
   it('holds the link each screen keeps to the other', () => {
     // A hidden rail entry with a live link to the same screen beside it would
     // be a door left open on a section the deployment said it does not have.
-    expect(read('pages/library.vue')).toContain('v-if="isEnabled(\'build\')"');
+    // The notebook keeps no link to Build — the screen it replaced did — so a
+    // new one has to arrive with its guard.
     expect(read('pages/build.vue')).toContain('v-if="isEnabled(\'notebook\')"');
+    const notebook = read('pages/notebook.vue');
+    const buildLinks = notebook.match(/<NuxtLink[^>]*build[^>]*>/gi) ?? [];
+    for (const link of buildLinks) expect(link).toContain('v-if="isEnabled(\'build\')"');
   });
 });

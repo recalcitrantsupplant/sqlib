@@ -283,8 +283,8 @@ test.describe('Query group patch node (mocked)', () => {
      * the canvas would happily run — and its halves would be gone, leaving the
      * saved edge pointing at a port the node no longer declares.
      */
-    await page.reload();
-    await page.waitForLoadState('networkidle');
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.app-layout').first()).toBeVisible();
     await openGroupCanvas(page);
 
     const reloaded = page.locator('.vue-flow__node').filter({ hasText: UPDATE_QUERY_NAME });

@@ -152,9 +152,9 @@
               where the thing it reframes is. Absent on a scratch query, which
               has no saved version to differ from.
 
-              Disabled on a query with one version, which is the rule
-              `handleDiffToggle` already enforced by returning immediately —
-              the button was live and did nothing.
+              What it compares is `planVersionDiff`'s rule, shared with rules:
+              edits against the version they were made on, else the open
+              version against current. Disabled when neither exists.
             -->
             <button
               v-if="!isScratch"
@@ -162,12 +162,8 @@
               :class="{ 'editor-action--active': showDiff }"
               type="button"
               data-testid="diff-query"
-              :disabled="versionOptions.length <= 1"
-              :title="versionOptions.length <= 1
-                ? 'Nothing to diff yet — there is one version'
-                : currentVersionNumberForDisplay
-                  ? `Diff draft vs v${currentVersionNumberForDisplay}`
-                  : 'Diff draft'"
+              :disabled="!diffPlan"
+              :title="diffPlan ? `Diff ${diffPlan.left.label} → ${diffPlan.right.label}` : NOTHING_TO_DIFF"
               @click="handleDiffToggle"
             >
               <GitCompare :size="13" />
@@ -241,6 +237,8 @@
       :extensions="extensions"
       :show-diff="showDiff"
       :version-options="versionOptions"
+      :can-diff="Boolean(diffPlan) || showDiff"
+      :has-draft-edits="hasDraftEdits"
       :diff-left-version="diffLeftVersion"
       :diff-right-version="diffRightVersion"
       :diff-left-query="diffLeftQuery"
@@ -479,6 +477,7 @@ import { EPHEMERAL_BACKEND_ID, EPHEMERAL_BACKEND_LABEL } from '@sparql-query-lib
 import PrefixConversionButtons from './shared/PrefixConversionButtons.vue';
 import RunBar from './shared/RunBar.vue';
 import type { CreateTarget, RunBarPick } from '../lib/runBar';
+import { NOTHING_TO_DIFF } from '../lib/versionDiff';
 import { useBenchmarksStore } from '../composables/useBenchmarksStore';
 import { NO_ARGUMENTS_IRI, emptySettings } from '../lib/benchmarkPlan';
 import type { Query as ApiQuery, Backend as ApiBackend, QueryCreateInput } from '@sparql-query-lib/contracts';
@@ -566,6 +565,13 @@ const emit = defineEmits<{
   (e: 'update:versionNumber', version: number | null): void;
   (e: 'query-load-failed'): void;
   (e: 'scratch-saved', payload: { id: string; name: string; libraryId: string }): void;
+  /**
+   * An argument set was saved from this screen — a different event from
+   * `scratch-saved`, which is about the query. The Argument sets rail lists
+   * saved sets from the server, so without this a set saved here was stale
+   * there until something else triggered a load.
+   */
+  (e: 'argument-set-saved', payload: { id: string }): void;
   (e: 'query-deleted', id: string): void;
   /**
    * A test or a benchmark was created from the run sentence, or an existing
@@ -629,7 +635,12 @@ const activeResultsTab = ref<QueryInspectorTab>('details');
 const queryResultsPanelRef = ref<InstanceType<typeof QueryResultsPanel> | null>(null);
 // The library is passed so the switcher can offer sets made elsewhere in it,
 // with their fit against this query. See `useArgumentSets.loadArgumentSets`.
-const argumentSetsComposable = useArgumentSets(queryId, 'query', () => queryLibraryId.value || activeLibraryId.value);
+const argumentSetsComposable = useArgumentSets(
+  queryId,
+  'query',
+  () => queryLibraryId.value || activeLibraryId.value,
+  { onSaved: (id) => emit('argument-set-saved', { id }) },
+);
 
 // Loading state
 const queryLoading = ref(false);
@@ -702,6 +713,8 @@ const {
   diffRightQuery,
   diffLeftLabel,
   diffRightLabel,
+  hasDraftEdits,
+  diffPlan,
   applyCurrentVersionLocalState,
   adoptNewVersion,
   loadVersionsForQuery,
@@ -2041,7 +2054,7 @@ const copyQueryVersionId = async () => {
 };
 
 const handleDiffToggle = async () => {
-  if (versionOptions.value.length <= 1) {
+  if (!diffPlan.value) {
     return;
   }
 

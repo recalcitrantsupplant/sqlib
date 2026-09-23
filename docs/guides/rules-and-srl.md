@@ -136,7 +136,17 @@ RuleSetVersion urn:… is not stratifiable: Non-stratifiable cycle involving: �
 
 The report names the rules in the cycle, and a cycle rejected for a run-once
 rule also names why that rule is run-once (`blank-node head`,
-`assignment (SET)`).
+`assignment (SET)`). A non-stratifiable document has no strata, so none are
+reported.
+
+The rule set editor shows the same thing. Run is disabled and says why. The
+gutter marks each rule on the cycle with ⊘ in place of a stratum number. The
+Stratification tab draws the cycle instead of strata, labelling each dependency
+with the pattern and the head that caused it, such as
+`NOT ?s :p "ABC" → :s :p "ABC"`. It also explains in a sentence why the rules
+cannot be ordered, links each dependency to its lines, and suggests how to break
+the cycle: rewrite one `NOT`, write it as `NOT DATA` if it should test only the
+input, or narrow a pattern so it stops matching the other rule's head.
 
 Evaluation then proceeds one stratum at a time, in ascending order. Within a
 stratum the run-once rules fire on the pass that activates it and never again,

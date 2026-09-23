@@ -26,7 +26,6 @@ export type InputSource = 'saved' | 'inline';
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useDeploymentMode } from '../../composables/useDeploymentMode';
-import InlineNote from '../shared/InlineNote.vue';
 import { Codemirror } from 'vue-codemirror';
 import { CircleCheck, Database, ExternalLink, HelpCircle, Save, Table } from '@lucide/vue';
 import { EditorState, type Extension } from '@codemirror/state';
@@ -36,6 +35,8 @@ import PrefixConversionButtons from '@/components/shared/PrefixConversionButtons
 import SearchSelect from '@/components/shared/SearchSelect.vue';
 import SegmentedToggle, { type SegmentedOption } from '@/components/shared/SegmentedToggle.vue';
 import SectionLabel from '@/components/shared/SectionLabel.vue';
+import InlineNote from '@/components/shared/InlineNote.vue';
+import { tupleBindNotice } from '@/lib/tupleSetLabels';
 
 const deployment = useDeploymentMode();
 void deployment.ensureLoaded();
@@ -96,6 +97,15 @@ const props = withDefaults(defineProps<{
    * caller that has only one skin still gets a consistent pair of boxes.
    */
   tupleEditorExtensions?: Extension[];
+  /**
+   * The `TUPLE(…)` declarations this rule set's document holds, in order.
+   *
+   * Passed in rather than parsed here: the panel is given a rendering of the
+   * rows, not the SRL document they came out of. Empty means the document
+   * declares no shape to fill, and the note below is silent rather than
+   * guessing at one.
+   */
+  tupleDeclarations?: string[][];
 }>(), {
   tuplesEnabled: true,
   savingTuples: false,
@@ -107,6 +117,7 @@ const props = withDefaults(defineProps<{
   testDisabledReason: null,
   editorExtensions: () => [],
   tupleEditorExtensions: () => [],
+  tupleDeclarations: () => [],
 });
 
 const emit = defineEmits<{
@@ -166,6 +177,23 @@ const selectedTupleSet = computed(
 const selectedDataGraph = computed(
   () => props.dataGraphOptions.find((option) => option.versionId === dataGraphVersionId.value) ?? null,
 );
+
+/**
+ * What binding this tuple set to this document's shape is worth saying.
+ *
+ * The only place a column name has any consequence at all — and the consequence
+ * is a sentence, never a decision: matching is positional, and nothing reads
+ * `columns`. Absent when there is no saved set chosen or no declaration to
+ * judge against; the first declaration is the one judged, because a rule set
+ * with several shapes is asking a question this picker cannot answer.
+ */
+const tupleBindNoticeLine = computed(() => {
+  if (tupleSource.value !== 'saved') return null;
+  const set = selectedTupleSet.value;
+  const declaration = props.tupleDeclarations[0];
+  if (!set || !declaration || declaration.length === 0) return null;
+  return tupleBindNotice(set.columns, declaration);
+});
 
 const tupleBody = computed(() =>
   tupleSource.value === 'saved' ? props.savedTuplePreview : inlineTuples.value,
@@ -325,6 +353,20 @@ const onDataInput = (value: string) => {
             </button>
           </template>
         </div>
+
+        <!--
+          Column names are labels. Said here because this is where a person is
+          looking at a table's headers and a declaration's variables at the same
+          time, which is exactly where they would assume the two are matched by
+          name.
+        -->
+        <InlineNote
+          v-if="tupleBindNoticeLine"
+          class="bind-note"
+          :tone="tupleBindNoticeLine.level === 'info' ? 'muted' : 'danger'"
+          size="xs"
+          :data-testid="`tuple-bind-${tupleBindNoticeLine.level}`"
+        >{{ tupleBindNoticeLine.message }}</InlineNote>
 
         <div class="block-body tuples-body">
           <Codemirror
@@ -667,5 +709,12 @@ const onDataInput = (value: string) => {
 /* Margin only: the note's own spec is InlineNote's. */
 .transient-note {
   margin-bottom: var(--space-2);
+}
+
+/* Margin stays with the parent: where a note sits is a fact about this block. */
+.bind-note {
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  border-top: 1px solid var(--border-subtle);
 }
 </style>

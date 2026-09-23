@@ -102,7 +102,10 @@ describe('attaching a tuple set from the picker', () => {
     const editor = render();
     await editor.get('[data-testid="tuple-set-picker-open"]').trigger('click');
     await flushPromises();
+    // Copy opens the conversion — which variable each column fills — and hands
+    // the rows over on confirm.
     await editor.get('[data-testid="tuple-set-picker-copy"]').trigger('click');
+    await editor.get('[data-testid="tuple-set-conversion-confirm"]').trigger('click');
 
     const model = lastModel(editor);
     expect(model.rows).toHaveLength(1);

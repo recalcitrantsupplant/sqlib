@@ -39,22 +39,9 @@ export type Interaction = {
 
 const noop = async () => {};
 
-/** Open one column's header menu, where sort, filter and term display live. */
-async function openColumnMenu(page: Page, columnId: string): Promise<void> {
-  const trigger = page.locator(`[data-testid="column-menu-${columnId}"]`).first();
-  await trigger.click();
-  await page.locator('[data-testid="term-display-menu"]').first().waitFor();
-}
-
-/** Put one column into a term display mode, closing the menu behind it. */
-async function setColumnTermDisplay(
-  page: Page,
-  columnId: string,
-  mode: 'prefixed' | 'full',
-): Promise<void> {
-  await openColumnMenu(page, columnId);
+/** Put every table into a term display mode, from the results action bar. */
+async function setTermDisplay(page: Page, mode: 'prefixed' | 'full'): Promise<void> {
   await page.locator(`[data-testid="term-display-${mode}"]`).first().click();
-  await page.locator('[data-testid="term-display-menu"]').first().waitFor({ state: 'detached' });
 }
 
 export const INTERACTIONS: Interaction[] = [
@@ -178,16 +165,15 @@ export const INTERACTIONS: Interaction[] = [
      * negative here by design — the table was already on screen.
      *
      * Note what this does NOT measure: `abbreviateIri` memoises, and the same
-     * 25 rows are on screen for every repeat, so the warm median is the cache,
+     * page of rows is on screen for every repeat, so the warm median is the cache,
      * not the lookup. Comparing abbreviation implementations needs a
      * cold-cache micro-benchmark; this entry guards the rendered path.
      */
-    name: 'results: column term display @1000 rows',
+    name: 'results: term display @1000 rows',
     url: '/tests/query-results-bench?rows=1000',
     setup: async (page) => {
       await page.locator('.table-container tbody tr').first().waitFor();
-      await setColumnTermDisplay(page, 's', 'full');
-      await openColumnMenu(page, 's');
+      await setTermDisplay(page, 'full');
     },
     trigger: '[data-testid="term-display-prefixed"]',
     appears: '.table-container',
@@ -195,8 +181,7 @@ export const INTERACTIONS: Interaction[] = [
     settleWhen:
       "!!document.querySelector('.table-container tbody tr td:nth-child(2)') && !document.querySelector('.table-container tbody tr td:nth-child(2)').textContent.trim().startsWith('http')",
     reset: async (page) => {
-      await setColumnTermDisplay(page, 's', 'full');
-      await openColumnMenu(page, 's');
+      await setTermDisplay(page, 'full');
     },
     // Measured 40ms settled / 1 janky at cpu=4. Small numbers carry more noise,
     // so this is 3x rather than the 2x the larger entries use.

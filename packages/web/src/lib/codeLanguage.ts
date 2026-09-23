@@ -22,8 +22,10 @@
  * file answers one question and returns extensions that answer nothing else.
  */
 import type { Extension } from '@codemirror/state';
+import { StreamLanguage, type Language } from '@codemirror/language';
 import type { PrefixGrammar } from '@/lib/prefixRewrite';
 import { json } from '@codemirror/lang-json';
+import { markdown } from '@codemirror/lang-markdown';
 import { sql } from '@codemirror/lang-sql';
 import { xml } from '@codemirror/lang-xml';
 import {
@@ -142,6 +144,13 @@ export function languageExtensionsFor(
    * preferred.
    */
   if (type === 'application/sql' || type === 'text/x-sql') return [sql()];
+  /*
+   * A notebook's prose cells. The only language here that is not a
+   * serialisation the product reads or writes — it is what someone types
+   * *about* those documents — but it arrives at an editor the same way, so it
+   * is chosen the same way.
+   */
+  if (type === 'text/markdown' || type === 'text/x-markdown') return [markdown()];
   if (type === 'application/ld+json' || type === 'application/json' || type.endsWith('+json')) return [json()];
   if (type === 'application/rdf+xml' || type === 'application/xml' || type.endsWith('+xml')) return [xml()];
 
@@ -187,4 +196,50 @@ export function prefixGrammarFor(contentType?: string | null): PrefixGrammar | n
   if (type === 'application/srl' || type === 'text/srl') return srlLanguage.parser;
 
   return null;
+}
+
+/*
+ * The general-purpose languages the Code tab writes its snippets in.
+ *
+ * Unlike every grammar above, these are loaded on first use rather than
+ * imported. The app is an RDF tool: its own documents are Turtle, SPARQL and
+ * SRL, which every screen needs. JavaScript, Python, Java and Go are needed
+ * only when someone opens a Code tab *and* picks that language, and together
+ * they weigh about 80 KB gzipped, roughly a tenth of the app's script. Loaded
+ * on demand, each is fetched once, the first time its tab is chosen; cURL, the
+ * tab the panel opens on, costs about 1 KB.
+ */
+const LAZY_LANGUAGES: Record<string, () => Promise<Language>> = {
+  // cURL is a shell command, and CodeMirror's shell mode is a legacy stream mode.
+  'application/x-sh': async () =>
+    StreamLanguage.define((await import('@codemirror/legacy-modes/mode/shell')).shell),
+  'text/javascript': async () => (await import('@codemirror/lang-javascript')).javascriptLanguage,
+  'text/x-python': async () => (await import('@codemirror/lang-python')).pythonLanguage,
+  'text/x-java': async () => (await import('@codemirror/lang-java')).javaLanguage,
+  'text/x-go': async () => (await import('@codemirror/lang-go')).goLanguage,
+};
+
+const loadedLanguages = new Map<string, Promise<Language | null>>();
+
+/**
+ * The grammar for a media type that is loaded on first use, or null when there
+ * is none or it could not be fetched.
+ *
+ * Null rather than a rejection: a snippet with no colour is still the right
+ * snippet, so a failed chunk load degrades to plain text instead of an error.
+ * A failure is not cached, so the next request tries the fetch again.
+ */
+export function loadLanguage(contentType?: string | null): Promise<Language | null> {
+  const type = normalizeContentType(contentType);
+  const loader = type ? LAZY_LANGUAGES[type] : undefined;
+  if (!type || !loader) return Promise.resolve(null);
+  let pending = loadedLanguages.get(type);
+  if (!pending) {
+    pending = loader().catch(() => {
+      loadedLanguages.delete(type);
+      return null;
+    });
+    loadedLanguages.set(type, pending);
+  }
+  return pending;
 }

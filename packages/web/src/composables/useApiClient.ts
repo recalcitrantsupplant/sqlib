@@ -765,6 +765,38 @@ export interface SrlDocumentBlock {
   triples: number | null;
 }
 
+export interface SrlTripleSummary {
+  subject?: string;
+  predicate?: string;
+  object?: string;
+}
+
+/** One body pattern that unified with one head template, and whether under `NOT`. */
+export interface SrlDependencyReason {
+  body?: SrlTripleSummary;
+  head?: SrlTripleSummary;
+  label?: 'positive' | 'negative' | 'closed';
+}
+
+export interface SrlStratificationCycle {
+  /** Rule ids, as in `SrlDocumentBlock.id`. */
+  rules: string[];
+  edges: Array<{
+    from: string;
+    to: string;
+    label: 'positive' | 'negative' | 'closed';
+    reasons: SrlDependencyReason[];
+  }>;
+  /**
+   * The shortest loop through a negated or closed dependency, in path order:
+   * the fewest dependencies that show why the rules cannot be ordered.
+   */
+  witness: SrlStratificationCycle['edges'];
+  /** `negation`: a `NOT` sits on the cycle. `run-once`: a run-once rule does. */
+  kind: 'negation' | 'run-once';
+  runOnce?: Array<{ rule: string; reasons: string[] }>;
+}
+
 export interface SrlStratificationSummary {
   strata: Record<string, number>;
   monotonicity: Record<string, 'monotone' | 'negation'>;
@@ -774,12 +806,15 @@ export interface SrlStratificationSummary {
     to: string;
     /** `closed` is a positive dependency promoted because the reader runs once. */
     label?: 'positive' | 'negative' | 'closed';
-    reasons?: Array<{
-      body?: { subject?: string; predicate?: string; object?: string };
-      head?: { subject?: string; predicate?: string; object?: string };
-    }>;
+    reasons?: SrlDependencyReason[];
   }>;
   issues: string[];
+  /**
+   * What stops the document stratifying, as data: the rules on each cycle and
+   * the dependencies between them. Empty when it stratifies; when it does not,
+   * `strata` is empty too and every block's `stratum` is null.
+   */
+  cycles?: SrlStratificationCycle[];
   strataCount: number;
   negationCount: number;
   runOnceCount: number;
@@ -1743,6 +1778,13 @@ export function useApiClient() {
       maxIterations?: number | null;
       inferenceFormat?: string | null;
       dataGraphVersionId?: string | null;
+      /**
+       * The graph itself, floating to its current version — the same three ways
+       * in the route takes (`lib/dataGraphInput.ts`). It was missing here while
+       * the other two were carried, so a caller holding a graph id had to look
+       * its version up first to run rules over it.
+       */
+      dataGraphId?: string | null;
       dataGraphInline?: string | null;
       dataGraphInlineFormat?: string | null;
     },
@@ -1759,6 +1801,7 @@ export function useApiClient() {
       body.inferenceFormat = input.inferenceFormat;
     }
     if (input?.dataGraphVersionId) body.dataGraphVersionId = input.dataGraphVersionId;
+    if (input?.dataGraphId) body.dataGraphId = input.dataGraphId;
     if (input?.dataGraphInline) {
       body.dataGraphInline = input.dataGraphInline;
       if (input.dataGraphInlineFormat) body.dataGraphInlineFormat = input.dataGraphInlineFormat;
@@ -2909,6 +2952,29 @@ export function useApiClient() {
   };
 
   /**
+   * Rename a set, or reword its description.
+   *
+   * Entity metadata, so it writes no version: the bindings stay where they
+   * are, on the versions that hold them, and nothing that pinned one is
+   * disturbed. The name used to have no door but the save bar, whose version
+   * body carries no name and dropped it.
+   */
+  const updateArgumentSet = (
+    setId: string,
+    input: { name?: string; description?: string | null },
+    options?: { ifMatch?: string | null },
+  ) => {
+    ensureQueriesEnabled();
+    const headers: Record<string, string> = { ...JSON_HEADERS };
+    applyIfMatchHeader(headers, options?.ifMatch ?? null);
+    return request(
+      buildUrl(`/argument-sets/${encodeURIComponent(setId)}`),
+      { method: 'PUT', headers, body: JSON.stringify(input) },
+      (payload) => argumentSetSchema.parse(payload),
+    );
+  };
+
+  /**
    * Delete an argument set
    */
   const deleteArgumentSet = async (setId: string, options?: { ifMatch?: string | null }) => {
@@ -3319,6 +3385,7 @@ export function useApiClient() {
     createStandaloneArgumentSet,
     getArgumentSet,
     createArgumentSet,
+    updateArgumentSet,
     deleteArgumentSet,
     exportArgumentSet,
     exportArgumentSetPayload,

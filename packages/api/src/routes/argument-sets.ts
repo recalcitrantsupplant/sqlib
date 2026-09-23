@@ -5,6 +5,7 @@ import {
   argumentSetIdParamSchema,
   argumentSetListResponseSchema,
   argumentSetResponseSchema,
+  argumentSetUpdateBodySchema,
   argumentSetVersionBodySchema,
   argumentSetVersionListResponseSchema,
   argumentSetVersionParamSchema,
@@ -168,6 +169,46 @@ export default async function argumentSetRoutes(fastify: FastifyInstance) {
     }
     setEntityConcurrencyHeaders(reply, { dateModified: detail.dateModified ?? null });
     return reply.send(detail);
+  }));
+
+  /**
+   * `PUT /argument-sets/:id` — rename a set, or reword its description.
+   *
+   * Entity metadata, so no version is written: the same door
+   * `PUT /queries/:id` and `PUT /tuple-sets/:id` have had all along. Argument
+   * sets were the one versioned entity missing it, which left the save bar as
+   * the only route to a new name — and the version body it posts carries no
+   * name, so a rename was typed, displayed from the browser-local draft, and
+   * lost on the reload that followed the save.
+   */
+  fastify.put('/:id', ...reposRoute({
+      params: argumentSetIdParamSchema,
+      body: argumentSetUpdateBodySchema,
+      response: {
+        200: argumentSetResponseSchema,
+        404: { type: 'object', properties: { error: { type: 'string' } }, required: ['error'] },
+        412: { type: 'object', properties: { error: { type: 'string' } }, required: ['error'] },
+      },
+    }, async ({ request, reply }) => {
+    const { id } = request.params;
+    const detail = await service.getById(id);
+    if (!detail) {
+      return reply.code(404).send({ error: `Argument set ${id} not found` });
+    }
+    const { valid } = validateIfMatch(request, { dateModified: detail.dateModified });
+    if (!valid) {
+      return reply.code(412).send({ error: 'If-Match header does not match current entity tag' });
+    }
+    const updated = await service.update(id, request.body as {
+      name?: string;
+      description?: string | null;
+      tags?: string[] | null;
+    });
+    if (!updated) {
+      return reply.code(404).send({ error: `Argument set ${id} not found` });
+    }
+    setEntityConcurrencyHeaders(reply, { dateModified: updated.dateModified ?? null });
+    return reply.send(updated);
   }));
 
   fastify.delete('/:id', ...reposRoute({

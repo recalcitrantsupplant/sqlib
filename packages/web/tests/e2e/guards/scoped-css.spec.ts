@@ -82,18 +82,18 @@ test('no scoped rule names an element that cannot wear its scope', async ({ page
   await mockEntityApi(page);
   const found: Record<string, unknown> = {};
 
-  await page.goto('/?section=queries', { waitUntil: 'networkidle' });
+  await page.goto('/?section=queries', { waitUntil: 'domcontentloaded' });
   await page.locator('.entity-name').first().click().catch(() => {});
   await page.waitForTimeout(800);
   found['queries'] = await audit(page);
 
-  await page.goto('/?section=tests&new=test', { waitUntil: 'networkidle' });
+  await page.goto('/?section=tests&new=test', { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(800);
   await page.locator('[data-testid="test-subject"]').click().catch(() => {});
   await page.waitForTimeout(500);
   found['tests+menu'] = await audit(page);
 
-  await page.goto('/?section=rules', { waitUntil: 'networkidle' });
+  await page.goto('/?section=rules', { waitUntil: 'domcontentloaded' });
   await page.locator('.entity-name').first().click().catch(() => {});
   await page.waitForTimeout(800);
   found['rules'] = await audit(page);

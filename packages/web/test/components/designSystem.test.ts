@@ -559,7 +559,7 @@ describe('SectionLabel adoption', () => {
     'components/build/CallableComposition.vue: .column-label': 'the dense step, 0.04em',
     'components/build/CallableTable.vue: .column-label': 'the dense step, 0.04em',
     'components/build/CallableTryIt.vue: .field-label': 'the dense step, 0.04em',
-    'components/library-notebook/SaveAsTestDialog.vue: .field__label': 'the dense step, 0.05em',
+    'components/notebook/SaveAsTestDialog.vue: .field__label': 'the dense step, 0.05em',
     'components/query-group/QueryGroupArgumentsPanel.vue: .data-graph-title':
       'the dense step, 0.04em, with no weight of its own',
     'components/query-work-area/ArgumentSetSwitcher.vue: .menu-heading':
@@ -604,7 +604,7 @@ describe('SectionLabel adoption', () => {
     'components/query-group/QueryGroupCanvasNode.vue: .node-name-label':
       'the sm size and ink, but no weight: it inherits the node’s',
     'components/query-work-area/ArgumentSetSwitcher.vue: .state-badge': 'a badge naming a set’s state',
-    'components/rules/SrlPreviewDialog.vue: .tag': 'a tag pill',
+    'components/rules/SrlDiffDialog.vue: .tag': 'a tag pill',
     'components/shared/ExpandButton.vue: .expand-button-text':
       'a control’s own text: tracking and case, no type of its own — the -button exemption the note guard draws',
     'pages/examples/index.vue: .badge': 'a badge on the examples index',
@@ -1312,7 +1312,7 @@ describe('InlineNote', () => {
     'components/build/CallableComposition.vue',
     'components/build/ConfigSection.vue',
     'components/build/ConnectAssistant.vue',
-    'components/library-notebook/SaveAsTestDialog.vue',
+    'components/notebook/SaveAsTestDialog.vue',
     'components/query-work-area/TupleSetPicker.vue',
     'components/rules/RuleSetExecutionReplay.vue',
     'components/tags/InheritTagsToggle.vue',
@@ -1665,7 +1665,6 @@ describe('StatusBadge adoption', () => {
     'components/BackendWorkArea.vue: .history-dot': 'a dot, one per probe in the history strip',
     'components/EntityListSidebar.vue: .draft-dot': 'a dot beside a list row',
     'pages/build.vue: .feed-dot': 'a dot in the feed status line',
-    'pages/library.vue: .backend__dot': 'a dot beside a backend name',
 
     // A pill you can click is a button. StatusBadge renders a <span> and states
     // no hover, focus or active — giving it those would make every badge in the

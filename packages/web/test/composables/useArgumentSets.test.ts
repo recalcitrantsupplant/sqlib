@@ -15,6 +15,9 @@ const api = vi.hoisted(() => ({
   listArgumentSets: vi.fn(),
   listLibraryArgumentSets: vi.fn(),
   listArgumentSetVersions: vi.fn(),
+  getArgumentSet: vi.fn(),
+  updateArgumentSet: vi.fn(),
+  createArgumentSetVersion: vi.fn(),
 }));
 
 vi.mock('@/composables/useApiClient', () => ({ useApiClient: () => api }));
@@ -100,5 +103,96 @@ describe('loadArgumentSets', () => {
 
     expect(args.argumentSets.value).toEqual([]);
     expect(api.listArgumentSets).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Renaming a saved set.
+ *
+ * A name lives on the stable entity, so this writes through and no version is
+ * involved. It used to write to the browser-local draft, which showed the new
+ * name and then lost it: the save bar posts a version body carrying bindings
+ * only, and the reload after the save re-read the server's unchanged name.
+ */
+describe('rename', () => {
+  const SET = 'urn:sqlib:argument-set:s1';
+
+  function openSaved() {
+    const saved = { ...set(SET, 'Untitled set 1', QUERY), currentVersion: undefined };
+    api.listArgumentSets.mockResolvedValue([saved]);
+    api.listLibraryArgumentSets.mockResolvedValue([saved]);
+    api.listArgumentSetVersions.mockResolvedValue([
+      { id: `${SET}:v1`, isPartOf: SET, version: 1, tupleBindings: [], scalarBindings: [] },
+    ]);
+    api.getArgumentSet.mockImplementation(async () => ({ data: saved }));
+    api.updateArgumentSet.mockImplementation(async (_id: string, input: { name?: string }) => {
+      saved.name = input.name ?? saved.name;
+      return { data: saved };
+    });
+    return saved;
+  }
+
+  it('writes the new name to the entity, not to a version', async () => {
+    openSaved();
+    const args = useArgumentSets(ref(QUERY), 'query', () => LIBRARY);
+    await args.loadArgumentSets();
+    await args.selectSet(SET);
+
+    await args.rename('City seeds');
+
+    expect(api.updateArgumentSet).toHaveBeenCalledWith(SET, { name: 'City seeds' });
+    expect(api.createArgumentSetVersion).not.toHaveBeenCalled();
+    expect(args.name.value).toBe('City seeds');
+  });
+
+  /* A rename is not an edit to the body, so it must not make the set dirty. */
+  it('leaves the set clean', async () => {
+    openSaved();
+    const args = useArgumentSets(ref(QUERY), 'query', () => LIBRARY);
+    await args.loadArgumentSets();
+    await args.selectSet(SET);
+
+    await args.rename('City seeds');
+
+    expect(args.hasDraft.value).toBe(false);
+  });
+
+  it('keeps the new name across a later save', async () => {
+    openSaved();
+    api.createArgumentSetVersion.mockResolvedValue({ data: { id: `${SET}:v2`, version: 2 } });
+    const args = useArgumentSets(ref(QUERY), 'query', () => LIBRARY);
+    await args.loadArgumentSets();
+    await args.selectSet(SET);
+
+    await args.rename('City seeds');
+    expect(await args.save()).toBe(true);
+
+    expect(args.name.value).toBe('City seeds');
+  });
+
+  it('puts the old name back when the write is refused', async () => {
+    openSaved();
+    api.updateArgumentSet.mockRejectedValue(new Error('403'));
+    const args = useArgumentSets(ref(QUERY), 'query', () => LIBRARY);
+    await args.loadArgumentSets();
+    await args.selectSet(SET);
+
+    expect(await args.rename('City seeds')).toBe(false);
+    expect(args.name.value).toBe('Untitled set 1');
+    expect(args.error.value).toBe('403');
+  });
+
+  /* A scratch set has no server identity to rename. */
+  it('keeps a scratch set local', async () => {
+    api.listArgumentSets.mockResolvedValue([]);
+    api.listLibraryArgumentSets.mockResolvedValue([]);
+    const args = useArgumentSets(ref(QUERY), 'query', () => LIBRARY);
+    await args.loadArgumentSets();
+    args.createScratch();
+
+    await args.rename('Local name');
+
+    expect(api.updateArgumentSet).not.toHaveBeenCalled();
+    expect(args.name.value).toBe('Local name');
   });
 });

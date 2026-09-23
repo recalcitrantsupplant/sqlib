@@ -30,8 +30,8 @@ const openEmptyCanvas = async (page: Page) => {
   const expanded = state.queryGroupExpanded[GROUP_ID][1];
   state.queryGroupExpanded[GROUP_ID][1] = { ...expanded, executionNodes: [], edges: [] };
   await setupMockApi(page, state);
-  await page.goto('/');
-  await page.waitForLoadState('networkidle');
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('.app-layout').first()).toBeVisible();
   await selectSidebarQueryGroup(page, LIBRARY_NAME, GROUP_NAME);
 };
 

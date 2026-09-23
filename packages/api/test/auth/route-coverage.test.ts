@@ -457,6 +457,7 @@ const MANIFEST: Record<string, Protection> = {
   'GET /argument-sets': 'handler',
   'POST /argument-sets': 'write-from-body',
   'GET /argument-sets/:id': 'read',
+  'PUT /argument-sets/:id': 'write',
   'DELETE /argument-sets/:id': 'delete',
   'GET /argument-sets/:id/export': 'read',
   'GET /argument-sets/:id/v': 'read',

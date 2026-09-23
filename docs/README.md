@@ -9,6 +9,7 @@ every other page assumes.
 - [guides/running-and-configuring.md](guides/running-and-configuring.md) — how do I start a server, and which knobs decide what it does?
 - [guides/rest-api-walkthrough.md](guides/rest-api-walkthrough.md) — how do I create a library, save a parameterised query and run it over HTTP?
 - [guides/query-groups.md](guides/query-groups.md) — how do I chain queries on the canvas and feed one's results into the next?
+- [guides/notebooks.md](guides/notebooks.md) — how do I write a runnable story about a library, with prose between the queries and each result named?
 - [guides/rules-and-srl.md](guides/rules-and-srl.md) — how do I write SHACL 1.2 inference rules and run them against a graph?
 - [guides/mcp-clients.md](guides/mcp-clients.md) — how do I point an MCP client at the server and what can it then do?
 - [guides/static-export.md](guides/static-export.md) — how do I export a library as a self-contained page that runs without the server?
@@ -32,6 +33,7 @@ every other page assumes.
 - [explanation/storage-and-caching.md](explanation/storage-and-caching.md) — where the library actually lives, and what the in-memory cache is for.
 - [explanation/security-model.md](explanation/security-model.md) — what the auth layer enforces, what it does not, and why some doors are open.
 - [explanation/rdf-patch.md](explanation/rdf-patch.md) — how an update query's effect is derived before it is applied.
+- [explanation/inline-inputs-and-the-rail.md](explanation/inline-inputs-and-the-rail.md) — where a saved input lives, why pasting a graph into a call saves it as a graph, and what the rail shows about where things came from.
 
 ## Examples
 

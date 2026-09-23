@@ -57,6 +57,8 @@ withDefaults(
 
 .panel-header--md {
   gap: var(--space-5);
+  box-sizing: border-box;
+  min-height: var(--panel-bar-h);
   padding: var(--space-3) var(--space-5);
 }
 

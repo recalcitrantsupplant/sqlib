@@ -14,12 +14,25 @@
 
     <span class="footer-note" data-testid="srl-counts">{{ contentSummary }}</span>
 
+    <!--
+      A document that does not stratify has no strata to count — the layering
+      does not exist — so the chip says that instead of a number and a legend.
+    -->
     <button
-      v-if="strataCount > 0"
+      v-if="!stratified"
+      class="strata-chip unstratified"
+      data-testid="strata-chip"
+      title="This rule set does not stratify. Show the Stratification tab."
+      @click="emit('focus-stratification')"
+    >
+      <CircleSlash :size="12" />
+      <span class="strata-warn">does not stratify</span>
+    </button>
+    <button
+      v-else-if="strataCount > 0"
       class="strata-chip"
       data-testid="strata-chip"
-      :class="{ unstratified: !stratified }"
-      :title="stratified ? 'Show the Stratification tab' : 'This rule set does not stratify — show the Stratification tab'"
+      title="Show the Stratification tab"
       @click="emit('focus-stratification')"
     >
       <Waypoints :size="12" />
@@ -30,7 +43,6 @@
         class="strata-swatch"
         :style="{ backgroundColor: stratumColor(index - 1) }"
       />
-      <span v-if="!stratified" class="strata-warn">unstratified</span>
     </button>
 
     <span class="footer-spacer" />
@@ -42,6 +54,7 @@ import { computed } from 'vue';
 import {
   AlertCircle,
   Check,
+  CircleSlash,
   Loader2,
   Waypoints,
 } from '@lucide/vue';
@@ -105,6 +118,8 @@ const swatchCount = computed(() => Math.min(props.strataCount, 4));
   box-sizing: border-box;
   flex-shrink: 0;
   flex-wrap: wrap;
+  /* The band that ends a panel — same as the query editor's footer. */
+  min-height: var(--panel-bar-h);
   padding: var(--space-4);
   background: var(--surface-subtle);
   border-top: 1px solid var(--border-default);

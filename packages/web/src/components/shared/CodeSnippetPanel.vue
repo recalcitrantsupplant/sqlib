@@ -71,7 +71,12 @@
       </button>
     </div>
 
-    <pre class="snippet" data-testid="code-snippet">{{ snippet }}</pre>
+    <!--
+      Spans, one per highlighted run, written on one line: any whitespace
+      between them in the template would become text inside the <pre>, and the
+      text here is exactly what Copy writes.
+    -->
+    <pre class="snippet" data-testid="code-snippet"><span v-for="(segment, index) in segments" :key="index" :class="segment.className || undefined">{{ segment.text }}</span></pre>
 
     <section v-if="visibleArguments.length || argumentsHint" class="arguments">
       <h4 v-if="visibleArguments.length" class="arguments-title">Arguments in this call</h4>
@@ -124,7 +129,7 @@ export interface CodeSnippetVariant {
 </script>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { Check, Copy, TriangleAlert } from '@lucide/vue';
 import InlineNote from './InlineNote.vue';
 import {
@@ -133,6 +138,8 @@ import {
   type SnippetLanguage,
   type SnippetRequest,
 } from '@/lib/codeSnippets';
+import { loadLanguage } from '@/lib/codeLanguage';
+import { highlightSegments, type HighlightSegment } from '@/lib/staticHighlight';
 
 const props = withDefaults(
   defineProps<{
@@ -207,6 +214,28 @@ const activeLabel = computed(
 );
 
 const snippet = computed(() => renderSnippet(active.value, activeVariant.value.request));
+
+/*
+ * The snippet as coloured spans. It is shown as plain text at once and coloured
+ * when its grammar arrives, which is immediate once a language has been loaded
+ * and one chunk fetch the first time. Only the latest request may write, so a
+ * slow grammar cannot colour a snippet that has since changed language.
+ */
+const segments = ref<HighlightSegment[]>([]);
+let highlightSeq = 0;
+
+watch(
+  [snippet, active],
+  async ([code, language]) => {
+    const seq = ++highlightSeq;
+    segments.value = [{ text: code, className: '' }];
+    const mediaType = SNIPPET_LANGUAGES.find((entry) => entry.id === language)?.mediaType;
+    const grammar = await loadLanguage(mediaType);
+    if (seq !== highlightSeq || !grammar) return;
+    segments.value = highlightSegments(code, grammar);
+  },
+  { immediate: true },
+);
 
 async function copy() {
   if (props.unavailable) return;
@@ -365,6 +394,39 @@ async function copy() {
   line-height: var(--leading-normal);
   color: var(--ink);
   white-space: pre;
+}
+
+/*
+ * The same tokens the editors' highlight style uses (`lib/codemirrorHighlight.ts`),
+ * so a keyword or a string reads alike in a snippet and in an editor. `:deep()`
+ * because the classes are bound from data, which the design-system check
+ * cannot see written in the template.
+ */
+.snippet :deep(.hl-keyword) {
+  color: var(--syntax-keyword);
+}
+
+.snippet :deep(.hl-string),
+.snippet :deep(.hl-literal) {
+  color: var(--rdf-literal);
+}
+
+.snippet :deep(.hl-comment) {
+  color: var(--syntax-comment);
+  font-style: italic;
+}
+
+.snippet :deep(.hl-function),
+.snippet :deep(.hl-property) {
+  color: var(--rdf-iri);
+}
+
+.snippet :deep(.hl-type) {
+  color: var(--rdf-prefix);
+}
+
+.snippet :deep(.hl-punct) {
+  color: var(--syntax-punct);
 }
 
 .arguments-title {

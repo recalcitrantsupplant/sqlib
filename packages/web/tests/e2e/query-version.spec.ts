@@ -1,5 +1,6 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
 import { mockSidebarCollections } from './fixtures/collections';
+import { API_HOST } from './api-origin';
 
 /**
  * Versions, through the draft/save model that replaced Save.
@@ -136,7 +137,7 @@ test.describe('Query Version', () => {
     // Promise.all resolves instead of taking the whole tree down with it.
     await mockSidebarCollections(page);
 
-    await page.route('**//localhost:3000/backends', async (route: Route) => {
+    await page.route(`**//${API_HOST}/backends`, async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -145,7 +146,7 @@ test.describe('Query Version', () => {
     });
 
     // Mock libraries endpoint
-    await page.route('**//localhost:3000/libraries', async (route: Route) => {
+    await page.route(`**//${API_HOST}/libraries`, async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -154,7 +155,7 @@ test.describe('Query Version', () => {
     });
 
     // Mock queries endpoint
-    await page.route('**//localhost:3000/queries', async (route: Route) => {
+    await page.route(`**//${API_HOST}/queries`, async (route: Route) => {
       if (route.request().method() === 'GET') {
         await route.fulfill({
           status: 200,
@@ -167,7 +168,7 @@ test.describe('Query Version', () => {
     // The query entity: GET reads it, PUT saves its name and description, and
     // DELETE removes it. PUT and DELETE used to fall through unhandled, which
     // was invisible while nothing could issue them.
-    await page.route('**//localhost:3000/queries/urn%3Asqlib%3Aquery%3Atest-1', async (route: Route) => {
+    await page.route(`**//${API_HOST}/queries/urn%3Asqlib%3Aquery%3Atest-1`, async (route: Route) => {
       const method = route.request().method();
       if (method === 'GET') {
         await route.fulfill({
@@ -208,7 +209,7 @@ test.describe('Query Version', () => {
 
     // Mock query versions list endpoint (GET /queries/:queryId/v)
     // Note: URL-encoded version to match actual requests
-    await page.route('**//localhost:3000/queries/urn%3Asqlib%3Aquery%3Atest-1/v', async (route: Route) => {
+    await page.route(`**//${API_HOST}/queries/urn%3Asqlib%3Aquery%3Atest-1/v`, async (route: Route) => {
       if (route.request().method() === 'GET') {
         await route.fulfill({
           status: 200,
@@ -282,7 +283,7 @@ test.describe('Query Version', () => {
 
     // Mock individual version GET/PATCH endpoint
     // Note: URL-encoded version to match actual requests
-    await page.route('**//localhost:3000/queries/urn%3Asqlib%3Aquery%3Atest-1/v/*', async (route: Route) => {
+    await page.route(`**//${API_HOST}/queries/urn%3Asqlib%3Aquery%3Atest-1/v/*`, async (route: Route) => {
       const versionNumber = parseInt(route.request().url().split('/').pop() || '0');
       const version = mockQueryVersions.find(v => v.version === versionNumber);
 
@@ -361,7 +362,7 @@ test.describe('Query Version', () => {
     });
 
     // Mock query groups endpoint
-    await page.route('**//localhost:3000/query-groups', async (route: Route) => {
+    await page.route(`**//${API_HOST}/query-groups`, async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -498,6 +499,22 @@ test.describe('Query Version', () => {
     await expect(page.locator('.cm-content')).toContainText('SELECT * WHERE');
     await draftRow.click();
     await expect(page.locator('.cm-content')).toContainText('SELECT ?pinned');
+  });
+
+  test('each version row copies its own version id', async ({ page, context }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    seedOneVersion();
+    await openQuery(page);
+    await page.locator('[data-testid="details-tab"]').click();
+
+    const row = page.locator('[data-testid="version-row"]').first();
+    await row.hover();
+    await row.locator('[data-testid="copy-version-id"]').click();
+
+    await expect(page.getByText(/Copied v1's version id/)).toBeVisible();
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(versionIri(1));
+    // Copying is not opening: the row's own click must not fire.
+    await expect(row).toHaveClass(/current/);
   });
 
   /*
@@ -717,9 +734,13 @@ test.describe('Query Version', () => {
 
     const diff = page.locator('.panel-header__actions [data-testid="diff-query"]');
     await expect(diff).toBeVisible();
+    // No edits, reading current: the version before it against current.
+    await expect(diff).toHaveAttribute('title', 'Diff v1 → v2 (current)');
     await diff.click();
 
     await expect(page.locator('.sparql-diff-viewer')).toBeVisible();
+    await expect(page.locator('.sparql-diff-viewer')).toContainText('?v1');
+    await expect(page.locator('.sparql-diff-viewer')).toContainText('?v2');
   });
 
   test('Diff says so rather than doing nothing when there is one version', async ({ page }) => {
@@ -728,7 +749,23 @@ test.describe('Query Version', () => {
 
     const diff = page.locator('.panel-header__actions [data-testid="diff-query"]');
     await expect(diff).toBeDisabled();
-    await expect(diff).toHaveAttribute('title', 'Nothing to diff yet — there is one version');
+    await expect(diff).toHaveAttribute('title', 'Nothing to diff against');
+  });
+
+  test('with edits, Diff compares the draft against the version it was made on', async ({ page }) => {
+    seedOneVersion();
+    await openQuery(page);
+    await typeQuery(page, 'SELECT ?edited WHERE { ?s ?p ?o }');
+
+    const diff = page.locator('.panel-header__actions [data-testid="diff-query"]');
+    await expect(diff).toBeEnabled();
+    await expect(diff).toHaveAttribute('title', 'Diff v1 (current) → Draft');
+    await diff.click();
+
+    const viewer = page.locator('.sparql-diff-viewer');
+    await expect(viewer).toBeVisible();
+    await expect(viewer).toContainText('?edited');
+    await expect(viewer).toContainText('SELECT * WHERE');
   });
 
   test('there is no Edit-details dialog left to open, and no menu either', async ({ page }) => {

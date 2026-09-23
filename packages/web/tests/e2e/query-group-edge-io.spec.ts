@@ -169,8 +169,8 @@ test.describe('Query group edge I/O (mocked)', () => {
 
     await expect(page.locator('.querygroup-work-area [data-testid="version-pill"]')).toContainText('v2');
 
-    await page.reload();
-    await page.waitForLoadState('networkidle');
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.app-layout').first()).toBeVisible();
     await openGroupCanvas(page);
     await selectCanvasEdge(page, DATA_EDGE_ID);
 
@@ -205,8 +205,8 @@ test.describe('Query group edge I/O (mocked)', () => {
      * regression test), and a save that stores nothing looks identical in the
      * UI until the page is reloaded.
      */
-    await page.reload();
-    await page.waitForLoadState('networkidle');
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.app-layout').first()).toBeVisible();
     await openGroupCanvas(page);
     await selectCanvasEdge(page, DATA_EDGE_ID);
     await expect(whenEmptySelect(page)).toHaveValue('require');

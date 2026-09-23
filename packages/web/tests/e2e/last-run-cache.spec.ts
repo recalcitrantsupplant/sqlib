@@ -28,8 +28,9 @@ async function bootstrap(page: Page) {
     ],
   });
   await page.goto(`/?section=queries&library=${encodeURIComponent(LIBRARY.id)}`, {
-    waitUntil: 'networkidle',
+    waitUntil: 'domcontentloaded',
   });
+  await expect(page.locator('.entity-name', { hasText: QUERY.name }).first()).toBeVisible();
 }
 
 const row = (page: Page, name: string) => page.locator('.entity-name', { hasText: name }).first();
@@ -56,7 +57,7 @@ test('keeps it across a reload, and only for the query that ran', async ({ page 
   await page.locator('[data-testid="run-bar-run"]').click();
   await expect(page.locator('.viewer-content-area')).toContainText('1411778724');
 
-  await page.reload({ waitUntil: 'networkidle' });
+  await page.reload({ waitUntil: 'domcontentloaded' });
   await expect(page.locator('.viewer-content-area')).toContainText('1411778724');
 
   await row(page, SECOND_QUERY.name).click();

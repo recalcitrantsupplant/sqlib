@@ -342,6 +342,22 @@
   --control-h-lg: 34px; /* primary page actions only */
 
   /*
+   * Every horizontal band in a work area: the save bar and the tab strip that
+   * top the two panels, the run bar and the results action bar under them, a
+   * `PanelHeader`, and the footers that close both panels.
+   *
+   * One value because the panels sit side by side, and a rule that stops and
+   * restarts a few pixels lower across the divider is the first thing you see.
+   * Each of those bands lives in a shared component or in `results-chrome.css`,
+   * so a work area — queries, groups, rule sets, ETL — gets the alignment by
+   * using them rather than by restating a height.
+   *
+   * Border-box, so it includes the 1px rule. Applied as `min-height` wherever
+   * the band's content can wrap onto a second line.
+   */
+  --panel-bar-h: 40px;
+
+  /*
    * Spacing scale. Outer padding 5, inner gaps 4, tight groups 3.
    *
    * `padding` and `margin` are lint-enforced onto this scale — a raw px or rem

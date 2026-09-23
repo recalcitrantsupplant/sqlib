@@ -1408,6 +1408,11 @@ export const datagraphSchema = {
       },
       "minItems": 1
     },
+    "mintedFrom": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true
+    },
     "tags": {
       "type": "array",
       "items": {
@@ -3524,6 +3529,11 @@ export const tuplesetSchema = {
       },
       "minItems": 1
     },
+    "copiedFrom": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true
+    },
     "tags": {
       "type": "array",
       "items": {
@@ -3932,6 +3942,7 @@ export interface DataGraphRestApi {
   currentVersion?: string | null;
   currentVersionNumber?: number | null;
   isPartOf: string[];
+  mintedFrom?: string | null;
   tags?: string[] | null;
   dateCreated?: string | null;
   dateModified?: string | null;
@@ -4381,6 +4392,7 @@ export interface TupleSetRestApi {
   currentVersion?: string | null;
   currentVersionNumber?: number | null;
   isPartOf: string[];
+  copiedFrom?: string | null;
   tags?: string[] | null;
   dateCreated?: string | null;
   dateModified?: string | null;

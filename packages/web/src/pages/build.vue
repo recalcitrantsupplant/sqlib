@@ -306,7 +306,7 @@ const screenContext = computed(() =>
 );
 
 const notebookLink = computed(() => ({
-  path: '/library',
+  path: '/notebook',
   query: libraryId.value ? { library: libraryId.value } : {},
 }));
 

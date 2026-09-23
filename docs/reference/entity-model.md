@@ -59,7 +59,7 @@ because they appear as IRIs in API responses.
 | `QueryInputVariable`, `QueryOutputVariable` | A query group node's ports |
 | `TriplesQuadsIO`, `BooleanIO`, `QueryIdInput` | Non-tabular ports: RDF output, an ASK's boolean, a dynamic node's query identifier |
 | `QueryNode`, `RuleSetNode`, `PatchNode`, `DuckDbEtlNode`, `DynamicQueryNode`, `StartNode`, `EndNode`, `QueryEdge` | A `QueryGroupVersion` |
-| `ArgumentTupleBinding`, `ArgumentScalarBinding`, `ArgumentGraphBinding` | An `ArgumentSetVersion` — a table per `VALUES` clause, a number per named limit, a graph per start-node RDF port |
+| `ArgumentTupleBinding`, `ArgumentScalarBinding`, `ArgumentGraphBinding` | An `ArgumentSetVersion` — a table per `VALUES` clause, a number per named limit, a graph per start-node RDF port. A graph binding always pins a `DataGraphVersion`: pasted RDF is saved as a `DataGraph` in the set's library and the binding names that version. See [inline inputs and the rail](../explanation/inline-inputs-and-the-rail.md). |
 | `TestCase`, `TestCaseDataGraph` | A `TestVersion` |
 | `BenchmarkRun`, `BenchmarkNodeRun`, `BenchmarkIterationRun` and their `*Observation` counterparts | A benchmark execution |
 

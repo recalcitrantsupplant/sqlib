@@ -238,7 +238,7 @@
       </template>
     </PanelHeader>
 
-    <div class="editor-container" :class="{ 'with-overlay': editorOverlayActive }">
+    <div class="editor-container" :class="{ 'with-overlay': editorOverlayActive, 'overlay-shown': overlayShown }">
       <!--
         The editor sits in a box of its own rather than directly under the
         container, so that dimming it while a document loads is one property
@@ -270,7 +270,7 @@
         </CodeSwapTransition>
       </div>
       <Transition name="panel-scrim">
-        <div v-if="editorOverlayActive" class="panel-overlay">
+        <div v-if="overlayShown" class="panel-overlay">
           {{ editorOverlayMessage }}
         </div>
       </Transition>
@@ -520,6 +520,30 @@ const props = withDefaults(defineProps<{
 });
 
 /*
+ * The loading scrim waits before it appears. Most loads finish in well under
+ * this — a record the stores already hold — and a scrim that flashes on and
+ * off for them is the flicker, not progress. Input is still blocked from the
+ * first frame by `with-overlay`; only the dimming and the message wait.
+ */
+const OVERLAY_DELAY_MS = 250;
+const overlayShown = ref(false);
+let overlayTimer: ReturnType<typeof setTimeout> | null = null;
+watch(
+  () => props.editorOverlayActive,
+  (active) => {
+    if (overlayTimer) clearTimeout(overlayTimer);
+    overlayTimer = null;
+    if (!active) {
+      overlayShown.value = false;
+      return;
+    }
+    overlayTimer = setTimeout(() => { overlayShown.value = true; }, OVERLAY_DELAY_MS);
+  },
+  { immediate: true },
+);
+onBeforeUnmount(() => { if (overlayTimer) clearTimeout(overlayTimer); });
+
+/*
  * Prefixes are learned from the document on screen, not from the save that
  * may never come: a draft never saved and a version never re-opened both
  * declare their prefixes in the text you are looking at.
@@ -755,11 +779,17 @@ const executeButtonTitle = computed(() => {
 <style scoped>
 
 
+/*
+ * No bottom border: this section is the whole left column, in every layout
+ * that mounts it, so the rule had nothing below it to separate from — it drew
+ * a hairline on the window's own edge and, worse, took a pixel of height with
+ * it. That pixel is what pushed the footer here one row above the results
+ * footer across the divider, which have to meet.
+ */
 .editor-section {
   display: flex;
   flex-direction: column;
   background: var(--surface);
-  border-bottom: 1px solid var(--border-default);
   flex: 1;
   min-height: 0;
 }
@@ -844,7 +874,7 @@ const executeButtonTitle = computed(() => {
   pointer-events: none;
 }
 
-.with-overlay .editor-surface {
+.overlay-shown .editor-surface {
   opacity: 0.4;
 }
 

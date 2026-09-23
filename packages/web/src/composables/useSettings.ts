@@ -13,7 +13,16 @@ export type EntityListDensity = 'compact' | 'comfortable';
  * other's colour (tags mockup 1a). Kept in settings rather than per section so
  * that switching sections does not silently switch the view back.
  */
-export type EntityListGrouping = 'none' | 'tag';
+/**
+ * How the Saved cluster is split.
+ *
+ * `origin` is available only where a section's rows carry one (Graphs, Argument
+ * sets). It is a weak organiser on purpose: a set made on one query is
+ * legitimately what another wants, and a graph minted from a group is an
+ * ordinary graph the moment it exists — so origin is how you *find* things and
+ * tags are how you *mean* things.
+ */
+export type EntityListGrouping = 'none' | 'tag' | 'origin';
 
 interface Settings {
   hofstadterMode: boolean;
@@ -21,18 +30,28 @@ interface Settings {
   theme: ThemePreference;
   /** Row height in the section sidebars: 26px names, or name plus description. */
   entityListDensity: EntityListDensity;
-  /** Whether the Saved cluster is grouped by tag. */
+  /** Whether the Saved cluster is grouped, and by what. */
   entityListGrouping: EntityListGrouping;
+  settingsVersion: number;
 }
 
 const STORAGE_KEY = 'sparql-query-lib-settings';
+
+/**
+ * Bumped when a default changes in a way stored settings should pick up.
+ * v2: grouping by tag became the default. Every save writes the whole object,
+ * so anyone who had touched any setting carried `entityListGrouping: 'none'`
+ * without ever having chosen it; below v2 that value is dropped on load.
+ */
+const SETTINGS_VERSION = 2;
 
 const DEFAULT_SETTINGS: Settings = {
   hofstadterMode: false, // System library hidden by default
   prefixAbbreviationEnabled: true, // Prefix abbreviation enabled by default
   theme: 'system', // Follow the OS preference unless the user picks a side
   entityListDensity: 'compact', // As drawn: more of the library on screen at once
-  entityListGrouping: 'none', // Flat until asked otherwise; untagged is the normal state
+  entityListGrouping: 'tag', // Grouped by tag; a library with no tags reads as flat
+  settingsVersion: SETTINGS_VERSION,
 };
 
 // Shared reactive state
@@ -49,6 +68,8 @@ function loadSettings(): Settings {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       const parsed = JSON.parse(stored);
+      if ((parsed.settingsVersion ?? 1) < 2) delete parsed.entityListGrouping;
+      parsed.settingsVersion = SETTINGS_VERSION;
       // Merge with defaults to handle missing keys
       return { ...DEFAULT_SETTINGS, ...parsed };
     }

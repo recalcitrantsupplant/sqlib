@@ -234,6 +234,7 @@ test.describe('Rule set SRL authoring', () => {
   test('opens on the document, with prefixes, DATA and rules in one editor', async ({ page }) => {
     exportedSrl = 'PREFIX : <http://example.org/>\n\nDATA { :a :p :b }\n\nRULE { ?s :q ?o } WHERE { ?s :p ?o }\n';
 
+    await reloadForNewMocks(page);
     await openDefaultRuleSet(page);
 
     const editor = documentEditor(page);
@@ -314,20 +315,27 @@ test.describe('Rule set SRL authoring', () => {
     await expect(page.locator('[data-testid="stratification-verdict"]')).toHaveCount(0);
   });
 
-  test('previews an unchanged document as a no-op', async ({ page }) => {
-    previewBody = {
-      ...emptyPreview(),
-      updated: [{ ruleVersionId: 'urn:rv:1', changed: false, text: 'RULE { } WHERE { }' }],
-      unchangedCount: 1,
-    };
-
+  test('with one version and no edits there is nothing to diff', async ({ page }) => {
     await openDefaultRuleSet(page);
+
+    const diff = page.locator('[data-testid="diff-query"]');
+    await expect(diff).toBeDisabled();
+    await expect(diff).toHaveAttribute('title', 'Nothing to diff against');
+  });
+
+  test('diffs the draft against the version it was made on', async ({ page }) => {
+    await openDefaultRuleSet(page);
+    await typeDocument(page, 'PREFIX : <http://example.org/>\nRULE { ?s :edited ?o } WHERE { ?s :p ?o }');
     await openPreview(page);
 
-    await expect(page.getByText(/No changes/i)).toBeVisible();
-    // The document is posted exactly as authored — one editor, one string.
-    expect(String(lastPreviewRequest?.srl)).toContain('PREFIX : <http://example.org/>');
-    expect(String(lastPreviewRequest?.srl)).toContain('RULE {');
+    const dialog = page.locator('[data-testid="srl-diff-dialog"]');
+    await expect(dialog.getByText('v1 (current) → Draft')).toBeVisible();
+    await expect(dialog.locator('.cm-mergeView')).toBeVisible();
+    await expect(dialog.locator('.cm-mergeView')).toContainText(':edited');
+    // A save that changes nothing structural has nothing to add under the diff.
+    await expect(dialog.locator('[data-testid="srl-save-impact"]')).toHaveCount(0);
+    // The draft is posted exactly as authored — one editor, one string.
+    expect(String(lastPreviewRequest?.srl)).toContain(':edited');
     // Regression guard: without an explicit JSON content-type the browser sends
     // text/plain, Fastify never parses the body, and the API rejects the request
     // with a root-level type error ('"Field" must be of type object').
@@ -345,6 +353,7 @@ test.describe('Rule set SRL authoring', () => {
     };
 
     await openDefaultRuleSet(page);
+    await typeDocument(page, 'PREFIX : <http://example.org/>\nRULE { ?s :edited ?o } WHERE { ?s :p ?o }');
     await openPreview(page);
 
     await expect(page.getByText('rule-1-ancestorOf')).toBeVisible();
@@ -361,6 +370,7 @@ test.describe('Rule set SRL authoring', () => {
     previewBody = { error: 'The SRL document contains no rules' };
 
     await openDefaultRuleSet(page);
+    await typeDocument(page, 'PREFIX : <http://example.org/>\nRULE { ?s :edited ?o } WHERE { ?s :p ?o }');
     await openPreview(page);
 
     await expect(page.getByText(/contains no rules/i)).toBeVisible();
@@ -419,6 +429,7 @@ test.describe('Rule set SRL authoring', () => {
     };
 
     await openDefaultRuleSet(page);
+    await typeDocument(page, 'PREFIX : <http://example.org/>\nRULE { ?s :edited ?o } WHERE { ?s :p ?o }');
     await openPreview(page);
 
     await expect(page.getByText('data-1')).toBeVisible();
@@ -456,6 +467,7 @@ test.describe('Rule set SRL authoring', () => {
     exportedTuplesEnabled = true;
     exportedTupleSeeds = 'TUPLE(:reach, :a, :b)';
 
+    await reloadForNewMocks(page);
     await openDefaultRuleSet(page);
 
     // Inputs is the default tab, so the rows are already on screen.
@@ -469,6 +481,7 @@ test.describe('Rule set SRL authoring', () => {
     exportedTuplesEnabled = true;
     exportedSrl = 'PREFIX : <http://example.org/>\n\nRULE { ?x :ok true } WHERE { TUPLE(:rel, ?x) }\n';
 
+    await reloadForNewMocks(page);
     await openDefaultRuleSet(page);
     await page.locator('[data-testid="details-tab"]').click();
     // Not uncheck() — that asserts the box flips, and refusing to flip is the
@@ -649,10 +662,17 @@ test.describe('Rule set SRL authoring', () => {
   }
 
   /**
-   * Preview is the save bar's diff button — this draft against the saved
-   * version, which is what a pre-save check is. It used to sit behind a ⋮ menu
-   * that no longer exists: Code was a shortcut to a tab, Delete moved to
-   * Details, and the menu went with them.
+   * `beforeEach` already opened the Rules section, which opens the rule set
+   * and fetches its document straight away. A test that changes what the
+   * export returns has to load the page again for the change to be seen.
+   */
+  async function reloadForNewMocks(page: Page) {
+    await page.reload({ waitUntil: 'domcontentloaded' });
+  }
+
+  /**
+   * The document header's Diff: the draft against the version it was made on,
+   * with what saving it would create or detach underneath.
    */
   async function openPreview(page: Page) {
     await page.locator('[data-testid="diff-query"]').click();

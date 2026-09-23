@@ -336,8 +336,11 @@ const labelOf = (choice: RunBarChoice) =>
   align-items: center;
   gap: var(--space-4);
   box-sizing: border-box;
-  min-height: 42px;
-  padding: var(--space-3) var(--space-5);
+  min-height: var(--panel-bar-h);
+  /* `--space-2` rather than `--space-3`: a `--control-h` control plus the
+     larger pad came to 41px, one over the band, and the bar is what sets the
+     rule the results action bar has to meet. */
+  padding: var(--space-2) var(--space-5);
   background: var(--surface-subtle);
   border-bottom: 1px solid var(--border-default);
 }

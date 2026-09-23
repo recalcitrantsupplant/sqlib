@@ -192,3 +192,41 @@ describe('mergeRuleSet prefix abbreviation', () => {
     expect(merged).not.toContain('ex:ns/deep');
   });
 });
+
+/*
+ * A rule that does not parse is stored as written, PREFIX and all — the W3C
+ * bad-syntax cases are kept that way on purpose. Exporting it must not stack
+ * the caller's prologue on top of its own declaration, or feeding the export's
+ * declarations back in as the next prologue grows the document on every load.
+ */
+describe('mergeRuleSet with a rule stored verbatim', () => {
+  const verbatim = { text: 'PREFIX :    <http://example/>\nRULE { } WHERE { a :p "abc" }' };
+
+  it('does not declare again what the stored text already declares', () => {
+    expect(mergeRuleSet([verbatim], 'PREFIX : <http://example/>')).toBe(`${verbatim.text}\n`);
+  });
+
+  it('is a fixed point when its own declarations are sent back as the prologue', () => {
+    let document = mergeRuleSet([verbatim], 'PREFIX : <http://example/>');
+    for (let load = 0; load < 3; load += 1) {
+      const declared = document.split('\n').filter((line) => /^\s*PREFIX\b/.test(line)).join('\n');
+      document = mergeRuleSet([verbatim], declared);
+    }
+    expect(document).toBe(`${verbatim.text}\n`);
+  });
+
+  it('writes each prologue declaration once', () => {
+    const merged = mergeRuleSet(
+      [{ text: 'RULE { ?s <http://example/q> ?o } WHERE { ?s <http://example/p> ?o }' }],
+      'PREFIX : <http://example/>\nPREFIX :   <http://example/>',
+    );
+    expect(merged.match(/PREFIX/g)).toHaveLength(1);
+  });
+
+  it('keeps a declaration a canonical part beside it still needs', () => {
+    const canonical = { text: 'RULE { ?s <http://example/q> ?o } WHERE { ?s <http://example/p> ?o }' };
+    const merged = mergeRuleSet([verbatim, canonical], 'PREFIX : <http://example/>');
+    expect(merged.startsWith('PREFIX : <http://example/>\n\n')).toBe(true);
+    expect(merged).toContain('RULE { ?s :q ?o }');
+  });
+});

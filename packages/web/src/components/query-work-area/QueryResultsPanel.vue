@@ -504,9 +504,16 @@ async function confirmDeleteArgumentSet() {
   else if (args.error.value) toast.error(args.error.value)
 }
 
-/* The switcher edits the name in place and hands over the result. */
-function handleRename(name: string) {
-  args.rename(name)
+/*
+ * The switcher edits the name in place and hands over the result.
+ *
+ * On a saved set this is a write, not a local edit — a name lives on the
+ * entity, so it lands without a version — and a failed write has to say so
+ * rather than leaving the new name on screen unexplained.
+ */
+async function handleRename(name: string) {
+  const renamed = await args.rename(name)
+  if (!renamed && args.error.value) toast.error(args.error.value)
 }
 
 async function handleSave() {
@@ -789,7 +796,13 @@ const hasDetectedOutputs = computed(() => {
 .results-content {
   flex: 1;
   position: relative;
-  padding: 0 var(--space-6) var(--space-6) var(--space-6);
+  /*
+   * No padding: the viewer inside is a stack of full-width bands — action bar,
+   * table, footer — and each one that needs an inset carries its own. Padding
+   * here inset the bars too, which left the footer floating clear of the
+   * panel's bottom and side edges while every other panel's footer met them.
+   */
+  padding: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;

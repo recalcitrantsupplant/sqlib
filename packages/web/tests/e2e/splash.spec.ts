@@ -153,7 +153,7 @@ test.describe('Splash', () => {
 
   test('the rail mark comes back to the splash from the notebook', async ({ page }) => {
     await page.locator('.nav-rail .rail-button').filter({ hasText: 'Notebook' }).click();
-    await expect(page).toHaveURL(/\/library(\?|$)/);
+    await expect(page).toHaveURL(/\/notebook(\?|$)/);
 
     await page.locator('[data-testid="library-home"]').click();
 
