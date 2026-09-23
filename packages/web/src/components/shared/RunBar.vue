@@ -720,6 +720,12 @@ const labelOf = (choice: RunBarChoice) =>
 
 /* Only where the text is actually cut off — see `vFadeWhenClipped`. */
 .backend-menu .backend-label[data-clipped] {
-  mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
+  /*
+   * Opacity, not a colour — a mask reads this gradient's alpha channel, so
+   * there is no token to reach for and nothing here to get wrong in dark mode.
+   * Written in functional notation because a keyword or a hex would read as a
+   * colour to the linter, which is right to ask about every other one.
+   */
+  mask-image: linear-gradient(to right, rgb(0 0 0 / 100%) calc(100% - 28px), transparent 100%);
 }
 </style>

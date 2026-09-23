@@ -1463,10 +1463,18 @@ function relativeTime(iso: string): string {
   color: var(--danger-ink);
 }
 
-/* An id wraps rather than pushing the copy button off the row. */
+/*
+ * The same size as the endpoint above it, which is an `InlineField` in mono
+ * and sets `--text-body` for itself. Left to inherit, a plain span took the
+ * larger body size — and monospace renders wider than the sans beside it at
+ * the same nominal size, so the id came out looking like a heading.
+ *
+ * It wraps rather than pushing the copy button off the row.
+ */
 .id-text {
   min-width: 0;
   font-family: var(--font-mono);
+  font-size: var(--text-body);
   word-break: break-all;
 }
 
