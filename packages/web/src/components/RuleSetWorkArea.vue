@@ -137,10 +137,9 @@
               class="editor-action"
               type="button"
               data-testid="diff-query"
-              :title="currentVersionNumberForDisplay
-                ? `Diff draft vs v${currentVersionNumberForDisplay}`
-                : 'Diff draft'"
-              @click="openPreview"
+              :disabled="!diffPlan"
+              :title="diffPlan ? `Diff ${diffPlan.left.label} → ${diffPlan.right.label}` : 'Nothing to diff against'"
+              @click="openDiff"
             >
               <GitCompare :size="13" />
             </button>
@@ -235,10 +234,14 @@
       />
     </div>
 
-    <SrlPreviewDialog
+    <SrlDiffDialog
       v-model:open="showPreviewDialog"
+      :left-label="diffLeft.label"
+      :right-label="diffRight.label"
+      :left-text="diffLeft.text"
+      :right-text="diffRight.text"
+      :text-error="diffTextError"
       :result="previewResult"
-      :loading="previewLoading"
       :error="previewError"
     />
 
@@ -274,7 +277,7 @@ import type { CreateTarget, RunBarPick } from '../lib/runBar';
 import { NO_ARGUMENTS_IRI, emptySettings } from '../lib/benchmarkPlan';
 import type { InputSource } from './rules/RuleSetInputsPanel.vue';
 import type { StratificationPanelNode } from './rules/StratificationPanel.vue';
-import SrlPreviewDialog from './rules/SrlPreviewDialog.vue';
+import SrlDiffDialog from './rules/SrlDiffDialog.vue';
 import type { DataGraphFormat, DataGraphOption, TupleSetOption } from '@/types/data-graphs';
 import { useRuleSetsStore } from '../composables/useRuleSetsStore';
 import { useBenchmarksStore } from '../composables/useBenchmarksStore';
@@ -1073,33 +1076,85 @@ async function saveScratch() {
   }
 }
 
-// --- Preview ----------------------------------------------------------------
+// --- Diff -------------------------------------------------------------------
 
+/*
+ * What the Diff button compares, decided from what is on screen:
+ *
+ * - edits: the version they were made on → the draft;
+ * - no edits, reading an older version: that version → current;
+ * - no edits, reading current: the version before it → current;
+ * - one version and no edits: nothing, and the button says so.
+ */
+type DiffSide = { label: string; version: number | null; draft: boolean };
+
+const diffPlan = computed<{ left: DiffSide; right: DiffSide } | null>(() => {
+  if (isScratch.value || !ruleSetIdValue.value) return null;
+  const open = selectedVersionNumber.value;
+  const current = currentVersionNumberForDisplay.value;
+  const label = (version: number | null) =>
+    version === null ? 'Saved' : `v${version}${version === current ? ' (current)' : ''}`;
+  if (!documentMatchesVersion()) {
+    return { left: { label: label(open), version: open, draft: false }, right: { label: 'Draft', version: null, draft: true } };
+  }
+  if (open !== null && current !== null && open !== current) {
+    return { left: { label: label(open), version: open, draft: false }, right: { label: label(current), version: current, draft: false } };
+  }
+  const previous = versionOptions.value.find((option) => current !== null && option.version < current)?.version ?? null;
+  if (previous === null || current === null) return null;
+  return { left: { label: label(previous), version: previous, draft: false }, right: { label: label(current), version: current, draft: false } };
+});
+
+const diffLeft = ref<{ label: string; text: string | null }>({ label: '', text: null });
+const diffRight = ref<{ label: string; text: string | null }>({ label: '', text: null });
+const diffTextError = ref<string | null>(null);
 const previewResult = ref<RuleSetSrlPreview | null>(null);
-const previewLoading = ref(false);
 const previewError = ref<string | null>(null);
+let diffSeq = 0;
 
-async function openPreview() {
-  showPreviewDialog.value = true;
+/** A side's text: the draft and the open version are already on screen; anything else is fetched. */
+async function diffText(id: string, side: DiffSide): Promise<string> {
+  if (side.draft) return srlDocument.value;
+  if (side.version === selectedVersionNumber.value) return loadedVersionDocument.value;
+  const response = await apiClient.exportRuleSetSrl(id, { version: side.version, prologue: currentPrologue() });
+  return response.srl;
+}
+
+async function openDiff() {
+  const plan = diffPlan.value;
+  const id = ruleSetIdValue.value;
+  if (!plan || !id) return;
+  const seq = ++diffSeq;
+  diffLeft.value = { label: plan.left.label, text: null };
+  diffRight.value = { label: plan.right.label, text: null };
+  diffTextError.value = null;
   previewResult.value = null;
   previewError.value = null;
-  const id = ruleSetIdValue.value;
-  if (!id) {
-    previewError.value = 'Nothing to compare against yet — this rule set has no versions.';
-    return;
-  }
-  previewLoading.value = true;
-  try {
-    previewResult.value = await apiClient.previewRuleSetSrl(
+  showPreviewDialog.value = true;
+
+  // Against a draft, also ask what saving it would detach — the one thing a
+  // text diff cannot show.
+  if (plan.right.draft) {
+    apiClient.previewRuleSetSrl(
       id,
       srlDocument.value,
-      selectedVersionNumber.value,
+      plan.left.version,
       { tuples: tuplesEnabled.value, tupleSeeds: tuplesEnabled.value ? tupleSeeds.value : null },
+    ).then(
+      (result) => { if (seq === diffSeq) previewResult.value = result; },
+      (error) => {
+        if (seq === diffSeq) previewError.value = error instanceof Error ? error.message : 'Could not preview the changes';
+      },
     );
+  }
+
+  try {
+    const [left, right] = await Promise.all([diffText(id, plan.left), diffText(id, plan.right)]);
+    if (seq !== diffSeq) return;
+    diffLeft.value = { label: plan.left.label, text: left };
+    diffRight.value = { label: plan.right.label, text: right };
   } catch (error) {
-    previewError.value = error instanceof Error ? error.message : 'Could not preview the changes';
-  } finally {
-    previewLoading.value = false;
+    if (seq === diffSeq) diffTextError.value = error instanceof Error ? error.message : 'Could not load the versions';
   }
 }
 

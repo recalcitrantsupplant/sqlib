@@ -314,20 +314,27 @@ test.describe('Rule set SRL authoring', () => {
     await expect(page.locator('[data-testid="stratification-verdict"]')).toHaveCount(0);
   });
 
-  test('previews an unchanged document as a no-op', async ({ page }) => {
-    previewBody = {
-      ...emptyPreview(),
-      updated: [{ ruleVersionId: 'urn:rv:1', changed: false, text: 'RULE { } WHERE { }' }],
-      unchangedCount: 1,
-    };
-
+  test('with one version and no edits there is nothing to diff', async ({ page }) => {
     await openDefaultRuleSet(page);
+
+    const diff = page.locator('[data-testid="diff-query"]');
+    await expect(diff).toBeDisabled();
+    await expect(diff).toHaveAttribute('title', 'Nothing to diff against');
+  });
+
+  test('diffs the draft against the version it was made on', async ({ page }) => {
+    await openDefaultRuleSet(page);
+    await typeDocument(page, 'PREFIX : <http://example.org/>\nRULE { ?s :edited ?o } WHERE { ?s :p ?o }');
     await openPreview(page);
 
-    await expect(page.getByText(/No changes/i)).toBeVisible();
-    // The document is posted exactly as authored — one editor, one string.
-    expect(String(lastPreviewRequest?.srl)).toContain('PREFIX : <http://example.org/>');
-    expect(String(lastPreviewRequest?.srl)).toContain('RULE {');
+    const dialog = page.locator('[data-testid="srl-diff-dialog"]');
+    await expect(dialog.getByText('v1 (current) → Draft')).toBeVisible();
+    await expect(dialog.locator('.cm-mergeView')).toBeVisible();
+    await expect(dialog.locator('.cm-mergeView')).toContainText(':edited');
+    // A save that changes nothing structural has nothing to add under the diff.
+    await expect(dialog.locator('[data-testid="srl-save-impact"]')).toHaveCount(0);
+    // The draft is posted exactly as authored — one editor, one string.
+    expect(String(lastPreviewRequest?.srl)).toContain(':edited');
     // Regression guard: without an explicit JSON content-type the browser sends
     // text/plain, Fastify never parses the body, and the API rejects the request
     // with a root-level type error ('"Field" must be of type object').
@@ -345,6 +352,7 @@ test.describe('Rule set SRL authoring', () => {
     };
 
     await openDefaultRuleSet(page);
+    await typeDocument(page, 'PREFIX : <http://example.org/>\nRULE { ?s :edited ?o } WHERE { ?s :p ?o }');
     await openPreview(page);
 
     await expect(page.getByText('rule-1-ancestorOf')).toBeVisible();
@@ -361,6 +369,7 @@ test.describe('Rule set SRL authoring', () => {
     previewBody = { error: 'The SRL document contains no rules' };
 
     await openDefaultRuleSet(page);
+    await typeDocument(page, 'PREFIX : <http://example.org/>\nRULE { ?s :edited ?o } WHERE { ?s :p ?o }');
     await openPreview(page);
 
     await expect(page.getByText(/contains no rules/i)).toBeVisible();
@@ -419,6 +428,7 @@ test.describe('Rule set SRL authoring', () => {
     };
 
     await openDefaultRuleSet(page);
+    await typeDocument(page, 'PREFIX : <http://example.org/>\nRULE { ?s :edited ?o } WHERE { ?s :p ?o }');
     await openPreview(page);
 
     await expect(page.getByText('data-1')).toBeVisible();
@@ -649,10 +659,8 @@ test.describe('Rule set SRL authoring', () => {
   }
 
   /**
-   * Preview is the save bar's diff button — this draft against the saved
-   * version, which is what a pre-save check is. It used to sit behind a ⋮ menu
-   * that no longer exists: Code was a shortcut to a tab, Delete moved to
-   * Details, and the menu went with them.
+   * The document header's Diff: the draft against the version it was made on,
+   * with what saving it would create or detach underneath.
    */
   async function openPreview(page: Page) {
     await page.locator('[data-testid="diff-query"]').click();
