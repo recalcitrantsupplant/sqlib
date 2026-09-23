@@ -1,8 +1,9 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { nextTick } from 'vue';
 import BackendWorkArea from '@/components/BackendWorkArea.vue';
 import { resetBackendProbesForTest } from '@/composables/useBackendProbes';
+import { resetDeploymentMode, useDeploymentMode } from '@/composables/useDeploymentMode';
 
 const backend = {
   id: 'b:wikidata',
@@ -393,5 +394,94 @@ describe('BackendWorkArea', () => {
 
     expect(wrapper.find('[data-testid="attached-library"]').exists()).toBe(false);
     expect(wrapper.find('.card-empty').text()).toBe('None attached.');
+  });
+
+  /*
+   * Each kind is asked for what it has. A browser backend has an endpoint and
+   * a method and nothing else: no environment key, because its credentials
+   * never leave the browser, and no store fields, which belong to the
+   * in-process Oxigraph. They reached it through a `v-else` that caught every
+   * kind that was not `http`.
+   */
+  describe('the draft form asks only for the chosen kind\'s fields', () => {
+    it('gives an HTTP backend its method and environment key', async () => {
+      const wrapper = await mountRecord({ backendId: null, draft: true });
+
+      expect(wrapper.find('[data-testid="backend-draft-env-key"]').exists()).toBe(true);
+      expect(wrapper.find('[data-testid="store-mode-readOnly"]').exists()).toBe(false);
+    });
+
+    it('gives a browser backend its method, and neither the key nor the store', async () => {
+      const wrapper = await mountRecord({ backendId: null, draft: true });
+      await wrapper.find('[data-testid="backend-kind-browser"]').setValue();
+      await nextTick();
+
+      expect(wrapper.find('[data-testid="backend-draft-env-key"]').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="store-mode-readOnly"]').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="browser-backend-note"]').exists()).toBe(true);
+      expect(wrapper.text()).toContain('Query method');
+    });
+
+    it('gives an in-memory backend the store fields and no endpoint', async () => {
+      const wrapper = await mountRecord({ backendId: null, draft: true });
+      await wrapper.find('[data-testid="backend-kind-oxigraphMemory"]').setValue();
+      await nextTick();
+
+      expect(wrapper.find('[data-testid="store-mode-readOnly"]').exists()).toBe(true);
+      expect(wrapper.find('[data-testid="backend-draft-endpoint"]').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="backend-draft-env-key"]').exists()).toBe(false);
+    });
+  });
+
+  /*
+   * A read-only deployment refuses `POST /backends`, so it offers the browser
+   * kind alone — and the draft has to *open* on it. Resetting to `http` left
+   * the form on a kind no radio could select: server-side fields on screen,
+   * nothing chosen, and Create posting for the 405 it was always going to get.
+   */
+  describe('on a read-only deployment', () => {
+    const realFetch = globalThis.fetch;
+
+    beforeEach(async () => {
+      resetDeploymentMode();
+      globalThis.fetch = vi.fn(async () =>
+        new Response(JSON.stringify({ status: 'ok', readOnly: true }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      ) as typeof globalThis.fetch;
+      await useDeploymentMode().ensureLoaded();
+    });
+
+    afterEach(() => {
+      globalThis.fetch = realFetch;
+      resetDeploymentMode();
+    });
+
+    it('opens a new draft on the only kind it can create', async () => {
+      const wrapper = await mountRecord({ backendId: null, draft: true });
+
+      const chosen = wrapper.find('[data-testid="backend-kind-browser"]').element as HTMLInputElement;
+      expect(chosen.checked).toBe(true);
+      expect(wrapper.find('[data-testid="backend-kind-http"]').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="backend-draft-env-key"]').exists()).toBe(false);
+    });
+
+    it('creates it in the browser, without asking the server', async () => {
+      const wrapper = await mountRecord({ backendId: null, draft: true });
+
+      await wrapper.find('[data-testid="backend-draft-name"]').setValue('nlib finland');
+      await wrapper.find('[data-testid="backend-draft-endpoint"]')
+        .setValue('https://data.nationallibrary.fi/bib/sparql');
+      await wrapper.find('[data-testid="create-backend"]').trigger('click');
+      await flushPromises();
+
+      expect(api.createBackend).not.toHaveBeenCalled();
+      expect(api.probeBackend).not.toHaveBeenCalled();
+      const created = wrapper.emitted('created');
+      expect(created).toHaveLength(1);
+      expect((created![0][0] as { endpoint: string }).endpoint)
+        .toBe('https://data.nationallibrary.fi/bib/sparql');
+    });
   });
 });

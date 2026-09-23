@@ -78,7 +78,13 @@
               rows="2"
             />
 
-            <template v-if="draftForm.kind === 'http'">
+            <!--
+              Query method belongs to both kinds that have an endpoint. The
+              environment key does not: a browser backend's credentials stay in
+              the browser, so there are no `SQLIB_BACKEND_*` variables for the
+              server to read.
+            -->
+            <template v-if="draftForm.kind === 'http' || draftForm.kind === 'browser'">
               <span class="form-label">Query method</span>
               <div class="method-choice">
                 <label v-for="method in QUERY_METHODS" :key="method.value" class="method-option" :class="{ active: draftForm.queryMethod === method.value }">
@@ -86,7 +92,9 @@
                   <span>{{ method.label }}</span>
                 </label>
               </div>
+            </template>
 
+            <template v-if="draftForm.kind === 'http'">
               <label class="form-label form-label--top" for="backend-draft-env-key">Environment key</label>
               <div class="form-stack">
                 <input
@@ -98,13 +106,12 @@
                   data-testid="backend-draft-env-key"
                 />
                 <InlineNote as="span">
-                  Letters, numbers and underscores. Determines the <code>SQLIB_BACKEND_*</code> variables —
-                  change it now rather than later.
+                  Letters, numbers and underscores. Determines the <code>SQLIB_BACKEND_*</code> variables.
                 </InlineNote>
               </div>
             </template>
 
-            <template v-else>
+            <template v-else-if="draftForm.kind === 'oxigraphMemory'">
               <span class="form-label form-label--top">Mode</span>
               <div class="mode-choice">
                 <label
@@ -140,14 +147,7 @@
               server. It will still be here when you come back, and clearing your browser data removes it.
             </span>
           </div>
-          <div v-else-if="draftForm.kind === 'http'" class="note-card">
-            <Activity :size="14" />
-            <span>
-              On create we probe the endpoint once: it fills the reported product, sets the health dot, and
-              tells you straight away if the URL is wrong.
-            </span>
-          </div>
-          <div v-else class="note-card">
+          <div v-else-if="draftForm.kind === 'oxigraphMemory'" class="note-card">
             <Activity :size="14" />
             <span>
               The store lives inside the server and is hydrated from the data graphs above.
@@ -1187,7 +1187,17 @@ watch(
   async (isDraft) => {
     if (!isDraft) return;
     draftForm.name = '';
-    draftForm.kind = 'http';
+    /*
+     * The first kind this deployment offers, not `http`.
+     *
+     * A read-only deployment offers only the browser kind, and resetting to
+     * `http` here left the form on a kind no radio could show as selected: the
+     * HTTP fields and the server-side hints were drawn, nothing looked chosen,
+     * and Create posted to `POST /backends` for the 405 it always was. The
+     * coercion watcher below could not save it — it fires when the *list*
+     * changes, and the list is settled by the time a draft is opened.
+     */
+    draftForm.kind = availableBackendKinds.value[0]?.value ?? 'http';
     draftForm.endpoint = '';
     draftForm.description = '';
     draftForm.queryMethod = 'post';
