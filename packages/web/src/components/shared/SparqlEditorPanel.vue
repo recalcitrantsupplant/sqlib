@@ -238,7 +238,7 @@
       </template>
     </PanelHeader>
 
-    <div class="editor-container" :class="{ 'with-overlay': editorOverlayActive }">
+    <div class="editor-container" :class="{ 'with-overlay': editorOverlayActive, 'overlay-shown': overlayShown }">
       <!--
         The editor sits in a box of its own rather than directly under the
         container, so that dimming it while a document loads is one property
@@ -270,7 +270,7 @@
         </CodeSwapTransition>
       </div>
       <Transition name="panel-scrim">
-        <div v-if="editorOverlayActive" class="panel-overlay">
+        <div v-if="overlayShown" class="panel-overlay">
           {{ editorOverlayMessage }}
         </div>
       </Transition>
@@ -518,6 +518,30 @@ const props = withDefaults(defineProps<{
   prefixSource: undefined,
   documentKey: undefined,
 });
+
+/*
+ * The loading scrim waits before it appears. Most loads finish in well under
+ * this — a record the stores already hold — and a scrim that flashes on and
+ * off for them is the flicker, not progress. Input is still blocked from the
+ * first frame by `with-overlay`; only the dimming and the message wait.
+ */
+const OVERLAY_DELAY_MS = 250;
+const overlayShown = ref(false);
+let overlayTimer: ReturnType<typeof setTimeout> | null = null;
+watch(
+  () => props.editorOverlayActive,
+  (active) => {
+    if (overlayTimer) clearTimeout(overlayTimer);
+    overlayTimer = null;
+    if (!active) {
+      overlayShown.value = false;
+      return;
+    }
+    overlayTimer = setTimeout(() => { overlayShown.value = true; }, OVERLAY_DELAY_MS);
+  },
+  { immediate: true },
+);
+onBeforeUnmount(() => { if (overlayTimer) clearTimeout(overlayTimer); });
 
 /*
  * Prefixes are learned from the document on screen, not from the save that
@@ -850,7 +874,7 @@ const executeButtonTitle = computed(() => {
   pointer-events: none;
 }
 
-.with-overlay .editor-surface {
+.overlay-shown .editor-surface {
   opacity: 0.4;
 }
 

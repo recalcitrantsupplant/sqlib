@@ -162,10 +162,18 @@ jobs:
     # Without FEATURE_RULE_TUPLES the tuples toggle, the seed inputs and the
     # Inputs-tab rows are all absent, and the four specs that drive them fail on
     # elements that were never rendered.
+    #
+    # The API address is baked in the same way. No API runs in e2e, but a
+    # request a spec does not mock still goes there, and the runner shares a
+    # machine with local development on 3000–3015 — a dev API on :3000 once held
+    # the live-update stream open and timed out every spec waiting on
+    # `networkidle`. So it points at a port nothing listens on, the default in
+    # packages/web/tests/e2e/api-origin.ts, which the specs mock against.
     env:
       FEATURE_ETL: 'true'
       FEATURE_PLAYGROUND_ETL: 'true'
       FEATURE_RULE_TUPLES: 'true'
+      NUXT_PUBLIC_API_BASE_URL: 'http://localhost:3702'
     steps:
       - uses: actions/checkout@v7
         with:

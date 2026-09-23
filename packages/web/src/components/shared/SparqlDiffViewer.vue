@@ -18,11 +18,14 @@ const props = withDefaults(
     leftLabel?: string
     rightLabel?: string
     height?: string
+    /** The language both sides are highlighted as. */
+    contentType?: string
   }>(),
   {
     leftLabel: 'Original',
     rightLabel: 'Modified',
-    height: '500px'
+    height: '500px',
+    contentType: 'application/sparql-query'
   }
 )
 
@@ -43,7 +46,7 @@ function initializeMergeView() {
       doc: props.leftQuery,
       extensions: [
         basicSetup,
-        ...languageExtensionsFor('application/sparql-query'),
+        ...languageExtensionsFor(props.contentType),
         rdfSyntaxHighlighting,
         EditorView.lineWrapping,
         EditorView.theme({
@@ -56,7 +59,7 @@ function initializeMergeView() {
       doc: props.rightQuery,
       extensions: [
         basicSetup,
-        ...languageExtensionsFor('application/sparql-query'),
+        ...languageExtensionsFor(props.contentType),
         rdfSyntaxHighlighting,
         EditorView.lineWrapping,
         EditorView.theme({
