@@ -46,8 +46,8 @@
       <ExpandRunStrip>
         <RunBar
           :running="isExecuting"
-          :run-disabled="!hasDocument"
-          :run-title="hasDocument ? 'Run this rule set' : 'Write a rule set first'"
+          :run-disabled="runDisabledReason !== null"
+          :run-title="runDisabledReason ?? 'Run this rule set'"
           :inputs="runInputs"
           :format="{ value: inferenceFormat, options: INFERENCE_FORMATS, title: 'The format the inferred graph comes back in' }"
           :create-targets="['benchmark', 'test']"
@@ -195,6 +195,7 @@
         :tuples-enabled="tuplesEnabled"
         :graph-nodes="graphNodes"
         :graph-edges="graphEdges"
+        :graph-cycles="graphCycles"
         :analysed-at="analysedAt"
         :tuple-set-options="tupleSetOptions"
         :tuple-declarations="tupleDeclarations"
@@ -279,7 +280,13 @@ import type { DataGraphFormat, DataGraphOption, TupleSetOption } from '@/types/d
 import { useRuleSetsStore } from '../composables/useRuleSetsStore';
 import { useBenchmarksStore } from '../composables/useBenchmarksStore';
 import { useLibrariesStore } from '../composables/useLibrariesStore';
-import { useApiClient, type RuleSetSrlPreview, type RuleSetVersion } from '../composables/useApiClient';
+import {
+  useApiClient,
+  type RuleSetSrlPreview,
+  type RuleSetVersion,
+  type SrlStratificationCycle,
+} from '../composables/useApiClient';
+import { compactReason } from '../lib/srlDependencyDisplay';
 import { useRuntimeConfig } from '#imports';
 import type { SnippetRequest } from '@/lib/codeSnippets';
 import { usePanelResize } from '../composables/usePanelResize';
@@ -580,17 +587,27 @@ const handleEditorReady = (view: EditorView) => {
 const pushBands = () => {
   const view = editorView.value;
   if (!view) return;
-  const bands: StratumBand[] = blocks.value.map((block) => ({
-    startLine: block.startLine,
-    endLine: block.endLine,
-    stratum: block.stratum,
-    kind: block.kind,
-    label: block.label,
-  }));
+  /*
+   * A document that does not stratify has no strata to band. What the gutter
+   * says instead is which rules are on a cycle; the rest are left unmarked
+   * rather than painted a stratum they do not have.
+   */
+  const unstratified = stratification.value?.stratified === false;
+  const cycleRules = cycleRuleIds.value;
+  const bands: StratumBand[] = blocks.value
+    .filter((block) => !unstratified || block.kind === 'data' || cycleRules.has(block.id))
+    .map((block) => ({
+      startLine: block.startLine,
+      endLine: block.endLine,
+      stratum: block.stratum,
+      kind: block.kind,
+      label: block.label,
+      inCycle: unstratified && cycleRules.has(block.id),
+    }));
   view.dispatch({ effects: setStratumBands.of(bands) });
 };
 
-watch(blocks, pushBands);
+watch([blocks, stratification], pushBands);
 
 /** Put the cursor on a line and bring it into view — the outline and DAG do this. */
 const goToLine = (line: number) => {
@@ -952,11 +969,18 @@ const detailsProps = computed(() => ({
 
 // --- The graph --------------------------------------------------------------
 
+/** Every rule on a cycle that stops the document stratifying. */
+const cycleRuleIds = computed(
+  () => new Set((stratification.value?.cycles ?? []).flatMap((cycle) => cycle.rules)),
+);
+
 const ruleBlocks = computed(() => blocks.value.filter((block) => block.kind === 'rule'));
 
 const graphNodes = computed<StratificationPanelNode[]>(() =>
   ruleBlocks.value.map((block) => ({
     id: block.id,
+    inCycle: cycleRuleIds.value.has(block.id),
+    name: block.name,
     label: block.label,
     stratum: block.stratum,
     monotonicity: block.monotonicity,
@@ -966,7 +990,28 @@ const graphNodes = computed<StratificationPanelNode[]>(() =>
   })),
 );
 
-const graphEdges = computed(() => stratification.value?.edges ?? []);
+/*
+ * The stratifier reports patterns in expanded IRIs, since that is what it
+ * compares; they are shown in the document's own prefixes, as written.
+ */
+const documentPrefixes = computed(() => readProloguePrefixes(srlDocument.value));
+
+const graphEdges = computed(() =>
+  (stratification.value?.edges ?? []).map((edge) => ({
+    ...edge,
+    reasons: (edge.reasons ?? []).map((reason) => compactReason(reason, documentPrefixes.value)),
+  })),
+);
+
+const graphCycles = computed<SrlStratificationCycle[]>(() =>
+  (stratification.value?.cycles ?? []).map((cycle) => ({
+    ...cycle,
+    edges: cycle.edges.map((edge) => ({
+      ...edge,
+      reasons: edge.reasons.map((reason) => compactReason(reason, documentPrefixes.value)),
+    })),
+  })),
+);
 
 /*
  * When the analysis last landed, for the Stratification header's "computed 1m
@@ -1580,9 +1625,31 @@ function tupleSeedsForRun(): string | null {
   return text.trim() ? text : null;
 }
 
+/*
+ * Why Run is off, or null when it is on.
+ *
+ * A document that does not stratify is refused by the server before anything
+ * is evaluated — there is no evaluation order to follow — so offering Run only
+ * to report that refusal is a round trip spent on a known answer. The reason
+ * says where the explanation is. The keyboard shortcut goes through `run()`,
+ * which checks the same thing.
+ */
+const runDisabledReason = computed<string | null>(() => {
+  if (!hasDocument.value) return 'Write a rule set first';
+  if (analysis.value?.valid && stratification.value?.stratified === false) {
+    return 'This rule set does not stratify, so it cannot be run — see the Stratification tab';
+  }
+  return null;
+});
+
 async function run() {
   if (!hasDocument.value) {
     toast.error('Write a rule set first.');
+    return;
+  }
+  if (runDisabledReason.value) {
+    toast.error(`${runDisabledReason.value}.`);
+    focusTab('stratification');
     return;
   }
   const savedVersion = ruleSetVersions.value.find((entry) => entry.id === selectedVersionId.value);

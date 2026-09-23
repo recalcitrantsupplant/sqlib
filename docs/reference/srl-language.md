@@ -154,15 +154,26 @@ S. Each dependency carries a label:
 | `closed` | R is a run-once rule, so it must see its dependencies complete. Same ordering demand as `negative` |
 
 A document is non-stratifiable exactly when a dependency cycle contains a
-negative or a closed edge. The report then carries an issue naming the rules:
+negative or a closed edge. The report then carries an issue naming the rules,
+in the order they were given:
 
 ```
-Non-stratifiable cycle involving: http://example.org/b, http://example.org/a
+Non-stratifiable cycle involving: http://example.org/a, http://example.org/b
+```
+
+It also carries each such cycle as data in `cycles`: the rules on it, every
+dependency between them (with the triple patterns that made it), and whether it
+fails through negation or through a run-once rule:
+
+```
+{ kind: 'negation', rules: ['a', 'b'], edges: [{ from: 'a', to: 'b', label: 'negative', reasons: [ … ] }, … ] }
 ```
 
 The report also gives `strata` (rule IRI to layer number, from 0), `edges` with
 the triple patterns that justified each one, `monotonicity` (`monotone` or
-`negation` per rule) and `runOnce`.
+`negation` per rule) and `runOnce`. `strata` is **empty** for a
+non-stratifiable document: no layering exists, and the layers the algorithm
+had reached when it gave up depend only on its iteration cap and on edge order.
 
 Stratification compares fully expanded IRIs, so `expandIris` must run on the
 document first; two rules spelling the same term with different prefixes are

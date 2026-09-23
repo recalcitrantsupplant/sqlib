@@ -24,6 +24,12 @@ export interface StratumBand {
   kind: 'rule' | 'data';
   /** Hover text — what this block asserts. */
   label: string;
+  /**
+   * On a cycle that stops the document stratifying. There is no stratum to
+   * show then — the layering does not exist — so the band marks membership of
+   * the cycle instead of a number.
+   */
+  inCycle?: boolean;
 }
 
 /** Replace the bands a view is showing. */
@@ -64,6 +70,7 @@ class BandMarker extends GutterMarker {
       other.band.startLine === this.band.startLine
       && other.band.stratum === this.band.stratum
       && other.band.kind === this.band.kind
+      && other.band.inCycle === this.band.inCycle
       && other.first === this.first
     );
   }
@@ -71,6 +78,12 @@ class BandMarker extends GutterMarker {
   toDOM() {
     const element = document.createElement('div');
     element.className = 'cm-stratum-band';
+    if (this.band.inCycle) {
+      element.classList.add('cm-stratum-cycle');
+      element.textContent = this.first ? '⊘' : '';
+      element.title = `${this.band.label} · on a dependency cycle — the rule set does not stratify`;
+      return element;
+    }
     element.style.backgroundColor =
       this.band.kind === 'data' ? STRATUM_NONE : stratumColor(this.band.stratum);
     element.textContent = this.first ? (this.band.kind === 'data' ? 'D' : stratumLabel(this.band.stratum)) : '';
@@ -97,6 +110,11 @@ const stratumTheme = EditorView.baseTheme({
     lineHeight: 'inherit',
     color: 'var(--ink-secondary)',
   },
+  '.cm-stratum-band.cm-stratum-cycle': {
+    backgroundColor: 'var(--danger-surface)',
+    color: 'var(--danger)',
+    fontSize: '12px',
+  },
 });
 
 /** Whether everything strictly between two bands is whitespace. */
@@ -122,7 +140,11 @@ const bandAfter = (bands: StratumBand[], line: number) =>
 
 /** Two bands are one run when they agree and nothing but blank lines divides them. */
 const joins = (doc: Text, above: StratumBand, below: StratumBand) =>
-  above.kind === below.kind
+  // Every rule on a cycle carries its own mark: they are not one stratum, and
+  // "which rules are involved" is exactly what the mark is there to answer.
+  !above.inCycle
+  && !below.inCycle
+  && above.kind === below.kind
   && above.stratum === below.stratum
   && onlyBlankBetween(doc, above.endLine, below.startLine);
 

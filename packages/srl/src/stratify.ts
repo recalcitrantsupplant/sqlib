@@ -33,7 +33,33 @@ export interface StratificationEdge {
   label: DependencyLabel;
   reasons: Array<{ body: TripleSummary; head: TripleSummary; label: DependencyLabel }>;
 }
+/**
+ * One strongly connected group of rules that cannot be layered: a dependency
+ * cycle through a `negative` edge, or through a run-once rule.
+ *
+ * Reported as data, not only as an issue string, so a client can point at the
+ * rules and the dependencies involved without parsing prose.
+ */
+export interface StratificationCycle {
+  /** The rules in the cycle, in the order they were given to `stratify`. */
+  rules: string[];
+  /**
+   * Every dependency between two rules of the cycle. The `negative` and
+   * `closed` ones are what make it illegal; breaking any one of those (or
+   * any positive link that closes the loop) is what makes it stratify.
+   */
+  edges: StratificationEdge[];
+  /** `negation`: a `NOT` sits on the cycle. `run-once`: a run-once rule does. */
+  kind: 'negation' | 'run-once';
+  /** For a `run-once` cycle, which rules are run-once and why. */
+  runOnce?: Array<{ rule: string; reasons: string[] }>;
+}
 export interface StratificationReport {
+  /**
+   * Rule id to layer, from 0. **Empty when the rules do not stratify**: a
+   * non-stratifiable document has no layering, and any numbers left over are
+   * only wherever the layering gave up.
+   */
   strata: Record<string, number>;
   edges: StratificationEdge[];
   monotonicity: Record<string, MonotonicityKind>;
@@ -46,6 +72,8 @@ export interface StratificationReport {
    */
   runOnce: Record<string, boolean>;
   issues: string[];
+  /** The cycles that stop the rules stratifying; empty when they do. */
+  cycles: StratificationCycle[];
 }
 
 type Term = { type?: string; subType?: string; value?: unknown; prefix?: string } | undefined;
@@ -89,12 +117,16 @@ export function stratify(rules: Array<{ id: string; ast: SrlRule }>): Stratifica
 
   const ids = rules.map((r) => r.id);
   const edges = buildEdges(ids, heads, bodies, tupleHeads, tupleBodies, new Set(runOnceReasons.keys()));
-  const { layers, issues } = assignStrata(ids, edges, runOnceReasons);
+  const { layers, issues, cycles } = assignStrata(ids, edges, runOnceReasons);
 
   const runOnce: Record<string, boolean> = {};
   for (const id of ids) runOnce[id] = runOnceReasons.has(id);
 
-  return { strata: layers, edges, monotonicity, runOnce, issues };
+  // No layering exists for a non-stratifiable document. The partial layers the
+  // relaxation reached before giving up depend on the iteration cap and on edge
+  // order, so they are withheld rather than reported as if they meant anything.
+  const strata = issues.length > 0 ? {} : layers;
+  return { strata, edges, monotonicity, runOnce, issues, cycles };
 }
 
 function headHasBlankNode(head: unknown): boolean {
@@ -202,10 +234,26 @@ function summarize(t: Triple): TripleSummary {
   return { subject: formatTerm(t.subject), predicate: formatTerm(t.predicate), object: formatTerm(t.object) };
 }
 
+const XSD = 'http://www.w3.org/2001/XMLSchema#';
+/** Datatypes SPARQL writes bare, so a summary shows `3` rather than a typed string. */
+const BARE_DATATYPES = new Set([`${XSD}integer`, `${XSD}decimal`, `${XSD}double`, `${XSD}boolean`]);
+
 function formatTerm(t: Term): string {
   if (!t) return '';
   if (t.subType === 'variable') return `?${String(t.value ?? '')}`;
-  if (t.subType === 'namedNode') return t.prefix ? `${t.prefix}:${String(t.value ?? '')}` : `<${String(t.value ?? '')}>`;
+  if (t.subType === 'literal') {
+    // Quoted as written, so `"ABC"` is not mistaken for a name.
+    const value = String(t.value ?? '');
+    const tag = (t as { langOrIri?: unknown }).langOrIri;
+    if (typeof tag === 'string' && tag) return `${JSON.stringify(value)}@${tag}`;
+    if (tag && typeof tag === 'object') {
+      const datatype = tag as Term;
+      if (!datatype?.prefix && BARE_DATATYPES.has(String(datatype?.value ?? ''))) return value;
+      if (String(datatype?.value ?? '') !== `${XSD}string`) return `${JSON.stringify(value)}^^${formatTerm(datatype)}`;
+    }
+    return JSON.stringify(value);
+  }
+  if (t.subType === 'namedNode') return typeof t.prefix === 'string' ? `${t.prefix}:${String(t.value ?? '')}` : `<${String(t.value ?? '')}>`;
   return String(t.value ?? '');
 }
 
@@ -254,7 +302,7 @@ function assignStrata(
   ids: string[],
   edges: StratificationEdge[],
   runOnceReasons: Map<string, string[]> = new Map(),
-): { layers: Record<string, number>; issues: string[] } {
+): { layers: Record<string, number>; issues: string[]; cycles: StratificationCycle[] } {
   const layers = new Map<string, number>();
   for (const id of ids) layers.set(id, 0);
 
@@ -278,8 +326,12 @@ function assignStrata(
       if (pLayer <= qLayer) {
         const next = qLayer + 1;
         if (next > limit) {
-          const cycles = detectNonStratifiableCycles(ids, edges, runOnceReasons);
-          return { layers: toObject(layers), issues: cycles.length ? cycles : ['Stratification error: negative cycle'] };
+          const { issues, cycles } = detectNonStratifiableCycles(ids, edges, runOnceReasons);
+          return {
+            layers: toObject(layers),
+            issues: issues.length ? issues : ['Stratification error: negative cycle'],
+            cycles,
+          };
         }
         layers.set(edge.from, next);
         changed = true;
@@ -287,14 +339,15 @@ function assignStrata(
     }
   }
 
-  return { layers: toObject(layers), issues: detectNonStratifiableCycles(ids, edges, runOnceReasons) };
+  return { layers: toObject(layers), ...detectNonStratifiableCycles(ids, edges, runOnceReasons) };
 }
 
 function detectNonStratifiableCycles(
   ids: string[],
   edges: StratificationEdge[],
   runOnceReasons: Map<string, string[]> = new Map(),
-): string[] {
+): { issues: string[]; cycles: StratificationCycle[] } {
+  const order = new Map(ids.map((id, position) => [id, position]));
   const adj = new Map<string, string[]>();
   for (const e of edges) {
     if (!adj.has(e.from)) adj.set(e.from, []);
@@ -306,6 +359,7 @@ function detectNonStratifiableCycles(
   const onStack = new Map<string, boolean>();
   const stack: string[] = [];
   const issues: string[] = [];
+  const cycles: StratificationCycle[] = [];
   let idx = 0;
 
   const strongconnect = (v: string): void => {
@@ -335,9 +389,12 @@ function detectNonStratifiableCycles(
       const set = new Set(component);
       const hasCycle = component.length > 1 || (adj.get(v) ?? []).includes(v);
       if (!hasCycle) return;
-      const negativeInCycle = edges.some((e) => e.label === 'negative' && set.has(e.from) && set.has(e.to));
+      const rules = [...component].sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0));
+      const cycleEdges = edges.filter((e) => set.has(e.from) && set.has(e.to));
+      const negativeInCycle = cycleEdges.some((e) => e.label === 'negative');
       if (negativeInCycle) {
-        issues.push(`Non-stratifiable cycle involving: ${component.join(', ')}`);
+        issues.push(`Non-stratifiable cycle involving: ${rules.join(', ')}`);
+        cycles.push({ rules, edges: cycleEdges, kind: 'negation' });
         return;
       }
       // Even a wholly positive cycle is illegal if it contains a run-once rule:
@@ -349,14 +406,22 @@ function detectNonStratifiableCycles(
           .map((id) => `${id} [${(runOnceReasons.get(id) ?? []).join(', ')}]`)
           .join(', ');
         issues.push(
-          `Non-stratifiable cycle involving run-once rule(s): ${described} (cycle: ${component.join(', ')})`,
+          `Non-stratifiable cycle involving run-once rule(s): ${described} (cycle: ${rules.join(', ')})`,
         );
+        cycles.push({
+          rules,
+          edges: cycleEdges,
+          kind: 'run-once',
+          runOnce: rules
+            .filter((id) => runOnceReasons.has(id))
+            .map((id) => ({ rule: id, reasons: runOnceReasons.get(id) ?? [] })),
+        });
       }
     }
   };
 
   for (const v of ids) if (!index.has(v)) strongconnect(v);
-  return issues;
+  return { issues, cycles };
 }
 
 function toObject(map: Map<string, number>): Record<string, number> {

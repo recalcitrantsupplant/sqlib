@@ -165,3 +165,59 @@ RULE { [] :missing ?s } WHERE { ?s :thing ?o . NOT { ?s :classified true } }`);
     expect(r.issues.join(' ')).toMatch(/assignment/i);
   });
 });
+
+/**
+ * A non-stratifiable document has no layering. What it has instead is the
+ * cycles that stop it, reported as data a client can point at.
+ */
+describe('SRL non-stratifiable reports', () => {
+  const MUTUAL = `${PREFIX}
+RULE { ?s :p "abc" } WHERE { ?s :data "" . NOT { ?s :p "ABC" } }
+RULE { :s :p "ABC" } WHERE { NOT { ?x :p "abc" } ?s :data "" }`;
+
+  it('withholds strata rather than reporting where the layering gave up', () => {
+    const r = strat(MUTUAL);
+    expect(r.issues.length).toBeGreaterThan(0);
+    expect(r.strata).toEqual({});
+  });
+
+  it('reports a mutual negation as one cycle naming both rules and both edges', () => {
+    const r = strat(MUTUAL);
+    expect(r.cycles).toHaveLength(1);
+    const [cycle] = r.cycles;
+    expect(cycle.kind).toBe('negation');
+    expect(cycle.rules).toEqual(['r0', 'r1']);
+    const pairs = cycle.edges.map((e) => `${e.from}->${e.to}:${e.label}`).sort();
+    expect(pairs).toEqual(['r0->r1:negative', 'r1->r0:negative']);
+    // The triple pair that made each edge is carried through for display.
+    const r0 = cycle.edges.find((e) => e.from === 'r0');
+    expect(r0?.reasons[0].body.object).toBe('"ABC"');
+    expect(r0?.reasons[0].head.subject).toBe(':s');
+  });
+
+  it('reports a negative self-loop as a one-rule cycle', () => {
+    const r = strat(`${PREFIX}\nRULE { ?s :p "ABC" } WHERE { ?s :data ?d . NOT { ?s :p "ABC" } }`);
+    expect(r.cycles).toEqual([
+      expect.objectContaining({ kind: 'negation', rules: ['r0'] }),
+    ]);
+  });
+
+  it('names the run-once rule, and why, in a run-once cycle', () => {
+    const r = strat(`${PREFIX}\nRULE { ?s :p ?v } WHERE { ?s :p ?o SET ( ?v := ?o + 1 ) }`);
+    expect(r.cycles).toEqual([
+      expect.objectContaining({
+        kind: 'run-once',
+        rules: ['r0'],
+        runOnce: [{ rule: 'r0', reasons: ['assignment (SET)'] }],
+      }),
+    ]);
+    expect(r.strata).toEqual({});
+  });
+
+  it('reports no cycles for a stratifiable document', () => {
+    const r = strat(`${PREFIX}
+RULE { ?s :classified true } WHERE { ?s :p ?o }
+RULE { ?s :unknown true } WHERE { ?s :thing ?o . NOT { ?s :classified true } }`);
+    expect(r.cycles).toEqual([]);
+  });
+});

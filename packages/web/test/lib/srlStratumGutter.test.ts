@@ -71,3 +71,31 @@ describe('bandForLine', () => {
     expect(bandForLine(bands, body, 2)).toBeNull();
   });
 });
+
+/*
+ * A document that does not stratify has no strata. The gutter then marks which
+ * rules are on the cycle — each one, since "which rules" is the whole question —
+ * rather than merging them into a run the way it merges a stratum.
+ */
+describe('bandForLine on a non-stratifiable cycle', () => {
+  const body = doc(
+    'PREFIX : <http://example/>',
+    '',
+    'RULE { } WHERE { }',
+    '',
+    'RULE { } WHERE { }',
+  );
+  const onCycle = (startLine: number, endLine: number): StratumBand =>
+    ({ ...rule(startLine, endLine, null), inCycle: true });
+
+  it('marks every rule on the cycle at its own first line', () => {
+    const bands = [onCycle(3, 3), onCycle(5, 5)];
+    expect(bandForLine(bands, body, 3)).toEqual({ band: bands[0], first: true });
+    expect(bandForLine(bands, body, 5)).toEqual({ band: bands[1], first: true });
+  });
+
+  it('does not paint the gap between two rules on the cycle', () => {
+    const bands = [onCycle(3, 3), onCycle(5, 5)];
+    expect(bandForLine(bands, body, 4)).toBeNull();
+  });
+});
