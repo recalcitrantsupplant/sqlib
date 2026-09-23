@@ -259,8 +259,9 @@ writable deployment, with the values sent inline to `POST /sparql`.
 A visitor's own SPARQL endpoint is registered the same way. The backend picker
 in the run sentence takes a URL pasted straight into it — `+ SPARQL endpoint…`
 at the foot of the menu — and keeps it as a **browser backend**: stored in that
-browser, named after its own URL until someone names it with `+ name`, and
-never posted to the server. Queries against it run from the browser to the
+browser, named after its own URL, and never posted to the server. Renaming one,
+or changing its query method, is done under **Backends** like any other, and
+writes to the browser rather than to the server. Queries against it run from the browser to the
 endpoint, so the address, any headers and the results do not pass through
 sqlib. Browser backends are not a read-only feature — they work on any
 deployment — but they are what makes a read-only one usable against data it was

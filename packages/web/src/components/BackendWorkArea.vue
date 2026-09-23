@@ -349,7 +349,13 @@
             </section>
 
             <!-- 3. Authentication — HTTP only: an in-process store has no wire to authenticate on. -->
-            <section v-if="isHttp" class="record-section">
+            <!--
+              Authentication is about variables on the machine running the
+              query, and for a browser backend that machine is the visitor's
+              own: its headers live in this browser and are never sent to
+              sqlib, so there is no `SQLIB_BACKEND_*` pair to report on.
+            -->
+            <section v-if="isHttp && !isBrowser" class="record-section">
               <h2 class="backend-section-label">
                 Authentication
                 <InfoHint label="authentication">
@@ -399,8 +405,15 @@
             </section>
           </div>
 
-          <!-- The sidecar: observed, not edited. -->
-          <aside class="record-sidecar" data-testid="backend-sidecar">
+          <!--
+            The sidecar: observed, not edited.
+
+            A probe is the *server* reporting what it found at the URL, and the
+            server does not know this backend exists — so for a browser one the
+            card would say "never probed" beside a button that could only fail.
+            The browser finds out the same thing the first time a query runs.
+          -->
+          <aside v-if="!isBrowser" class="record-sidecar" data-testid="backend-sidecar">
             <section class="sidecar-card" :class="`sidecar-card--${health}`" data-testid="backend-health-card">
               <div class="card-head">
                 <component :is="HEALTH_ICONS[health]" :size="14" class="health-icon" />
@@ -603,7 +616,7 @@ import {
 import { useApiClient, type BackendEnv, type BackendProbe, type BackendUsage } from '../composables/useApiClient';
 import { useBackendProbes } from '../composables/useBackendProbes';
 import { useBackendsStore } from '../composables/useBackendsStore';
-import { isBrowserBackendId, useBrowserBackends } from '../composables/useBrowserBackends';
+import { isBrowserBackendId, useBrowserBackends, type BrowserBackendInput } from '../composables/useBrowserBackends';
 import { validateEndpoint } from '../lib/endpointUrl';
 import { useDeploymentMode } from '../composables/useDeploymentMode';
 import { useLibrariesStore } from '../composables/useLibrariesStore';
@@ -729,6 +742,8 @@ const probe = computed(() => probes.probeFor(backend.value?.id));
 const health = computed(() => probes.healthFor(backend.value?.id));
 
 const isHttp = computed(() => backend.value?.backendType === 'http');
+/** Registered in this browser rather than in the library — see `useBrowserBackends`. */
+const isBrowser = computed(() => isBrowserBackendId(backend.value?.id));
 
 /** The stored oxigraphConfig, read for display and rebuilt on every commit. */
 const memoryConfig = computed(() => parseMemoryConfig(backend.value?.oxigraphConfig));
@@ -888,6 +903,26 @@ watch(
  * ------------------------------------------------------------------ */
 
 /**
+ * Write a change to a browser backend, which the server does not have.
+ *
+ * Every edit on this screen used to go to `PUT /backends/:id` whatever it was
+ * editing, which for one of these is a request about a record the server has
+ * never seen: a 404 where it can write, a 405 where it cannot. This is the
+ * same screen and the same fields, writing to the place the record actually
+ * lives. Returns an error message, like `commitField`, so a rejected edit
+ * stays open over the still-live value.
+ */
+function commitBrowserField(patch: Partial<BrowserBackendInput>): string | null {
+  const current = backend.value;
+  const record = current ? browserBackends.get(current.id) : null;
+  if (!record) return 'This backend is no longer registered in this browser.';
+  backend.value = browserBackends.toBackend(browserBackends.save({ ...record, ...patch }));
+  // The picker and the list read the store, not this component's copy.
+  void backendsStore.loadBackends();
+  return null;
+}
+
+/**
  * Commit one field. Returns an error message, which is what keeps a rejected
  * edit open over the still-live saved value.
  */
@@ -900,6 +935,12 @@ async function commitField(field: 'name' | 'description' | 'endpoint', value: st
   if (field === 'endpoint') {
     const invalid = validateEndpoint(value);
     if (invalid) return invalid;
+  }
+
+  if (isBrowserBackendId(current.id)) {
+    return commitBrowserField(
+      field === 'description' ? { description: trimmed || null } : { [field]: trimmed },
+    );
   }
 
   const input = backendsStore.toFormInput(current);
@@ -953,6 +994,11 @@ async function commitSources(payload: { sources: MemoryStoreSource[]; complete: 
 async function commitQueryMethod(method: 'post' | 'get') {
   const current = backend.value;
   if (!current || !canEdit.value || (current.queryMethod ?? 'post') === method) return;
+  if (isBrowserBackendId(current.id)) {
+    const failed = commitBrowserField({ queryMethod: method });
+    if (failed) toast.error(failed);
+    return;
+  }
   const input = backendsStore.toFormInput(current);
   input.queryMethod = method;
   try {

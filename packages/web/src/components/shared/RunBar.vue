@@ -123,7 +123,8 @@
             An endpoint pasted here is its own name, and endpoint URLs are long
             and alike in their first half — a menu sized to the longest of them
             would be wider than the run sentence it hangs off, and `…` at the
-            cut tells you nothing a fade does not.
+            cut tells you nothing a fade does not. Renaming one is the backends
+            screen's job, where the rest of its fields are.
           -->
           <SelectContent class="backend-menu">
             <SelectItem
@@ -133,18 +134,6 @@
               class="backend-item"
             >
               <span class="backend-label">{{ option.label }}</span>
-              <!--
-                `aside` and not the default slot: the item's default slot is
-                what the trigger reads back as the chosen value, so a button
-                placed there is mirrored into the chip beside the backend name.
-              -->
-              <template #aside>
-                <BrowserBackendName
-                  v-if="isBrowserBackendId(option.value)"
-                  :backend-id="option.value"
-                  :current="option.label"
-                />
-              </template>
             </SelectItem>
             <InlineEndpointAdder @added="selectAddedBackend" />
           </SelectContent>
@@ -258,9 +247,7 @@ import type {
   RunOption,
 } from '../../lib/runBar';
 import { useFeatureFlags } from '../../composables/useFeatureFlags';
-import { isBrowserBackendId } from '../../composables/useBrowserBackends';
 import InlineEndpointAdder from './InlineEndpointAdder.vue';
-import BrowserBackendName from './BrowserBackendName.vue';
 import { useDeploymentMode } from '../../composables/useDeploymentMode';
 
 const ICONS = {
@@ -663,8 +650,6 @@ const labelOf = (choice: RunBarChoice) =>
   nothing at all while they lived in `<style scoped>`, which is why the menu
   kept sizing itself from the trigger. `.backend-menu` and the two classes
   under it are names this file owns, so the global surface is those three.
-  The hover reveal for `+ name` is not here — that button belongs to
-  `BrowserBackendName`, which writes the rule against the row itself.
 -->
 <style>
 /*
@@ -691,6 +676,6 @@ const labelOf = (choice: RunBarChoice) =>
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
-  mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent 100%);
+  mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent 100%);
 }
 </style>

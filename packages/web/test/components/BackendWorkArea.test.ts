@@ -434,6 +434,70 @@ describe('BackendWorkArea', () => {
   });
 
   /*
+   * A browser backend is registered in this browser and nowhere else, so every
+   * edit on this screen has to go there. They all went to `PUT /backends/:id`,
+   * which is a request about a record the server has never seen: a 404 where
+   * it can write, a 405 where it cannot. Renaming one is the whole reason this
+   * screen is where naming a pasted endpoint happens.
+   */
+  describe('a backend registered in this browser', () => {
+    const browserBackend = {
+      id: 'urn:sqlib:browser-backend:wikidata',
+      name: 'query.wikidata.org/sparql',
+      description: null,
+      endpoint: 'https://query.wikidata.org/sparql',
+      queryMethod: null,
+      headers: {},
+      createdAt: '2026-09-01T00:00:00.000Z',
+      updatedAt: '2026-09-01T00:00:00.000Z',
+    };
+
+    beforeEach(async () => {
+      const { useBrowserBackends } = await import('@/composables/useBrowserBackends');
+      const store = useBrowserBackends();
+      for (const record of [...store.records.value]) store.remove(record.id);
+      store.save(browserBackend);
+    });
+
+    it('renames it in the browser, without asking the server', async () => {
+      const { useBrowserBackends } = await import('@/composables/useBrowserBackends');
+      const wrapper = await mountRecord({ backendId: browserBackend.id });
+
+      await wrapper.find('[data-testid="backend-field-name"]').trigger('click');
+      await wrapper.find('[data-testid="backend-field-name-input"]').setValue('Wikidata');
+      await wrapper.find('[data-testid="backend-field-name-input"]').trigger('keydown.enter');
+      await flushPromises();
+
+      expect(api.updateBackend).not.toHaveBeenCalled();
+      expect(useBrowserBackends().get(browserBackend.id)?.name).toBe('Wikidata');
+    });
+
+    it('changes its query method the same way', async () => {
+      const { useBrowserBackends } = await import('@/composables/useBrowserBackends');
+      const wrapper = await mountRecord({ backendId: browserBackend.id });
+
+      const get = wrapper.findAll('button').find((b) => b.text() === 'GET');
+      await get!.trigger('click');
+      await flushPromises();
+
+      expect(api.updateBackend).not.toHaveBeenCalled();
+      expect(useBrowserBackends().get(browserBackend.id)?.queryMethod).toBe('get');
+    });
+
+    /*
+     * A probe is the server reporting what it found at the URL, and it does
+     * not know this backend exists; the environment table is about variables
+     * on the machine running the query, which for this one is the visitor's.
+     */
+    it('shows neither the probe card nor the environment table', async () => {
+      const wrapper = await mountRecord({ backendId: browserBackend.id });
+
+      expect(wrapper.find('[data-testid="backend-sidecar"]').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="backend-env-table"]').exists()).toBe(false);
+    });
+  });
+
+  /*
    * A read-only deployment refuses `POST /backends`, so it offers the browser
    * kind alone — and the draft has to *open* on it. Resetting to `http` left
    * the form on a kind no radio could select: server-side fields on screen,
