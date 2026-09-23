@@ -26,8 +26,8 @@ test.describe('Query group canvas persistence', () => {
     await createQueryVersionWithCode(page, REFRESH_QUERY_NAME, REFRESH_QUERY_STRING);
     await assignQueryVersionToGroupCanvas(page, REFRESH_QUERY_NAME);
 
-    await page.reload();
-    await page.waitForLoadState('networkidle');
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.app-layout').first()).toBeVisible();
 
     await selectSidebarQueryGroup(page, LIBRARY_NAME, GROUP_NAME);
     await page.locator('.vue-flow__node').first().waitFor();

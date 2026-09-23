@@ -1,6 +1,6 @@
 import { test, expect, type Route } from '@playwright/test';
 import { mockSidebarCollections } from './fixtures/collections';
-import { openCreateLibraryDialog, openSplash, splashLibraryRow } from './navigate';
+import { openCreateLibraryDialog, openSplash, openSplashLibraries, splashLibraryRow } from './navigate';
 import { chooseSearchOption, searchSelect } from './search-select';
 
 // Mock data
@@ -104,6 +104,7 @@ test.describe('Library Edit - Backend Selection', () => {
    * hover, so there is no hover step left.
    */
   async function openLibraryEditDialog(page: Page) {
+    await openSplashLibraries(page);
     const row = splashLibraryRow(page, 'Library Without Backend').first();
     await expect(row).toBeVisible();
     await row.locator('.row-action').first().click();

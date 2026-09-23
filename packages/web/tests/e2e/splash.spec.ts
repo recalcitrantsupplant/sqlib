@@ -1,19 +1,20 @@
 /**
  * The splash screen at `/`.
  *
- * It replaced the unscoped artifact tree, which listed every library, backend
- * and artifact beside a rail that already lists every section. What the
- * landing screen claims now is narrower and checkable: which sections this
- * deployment has, which it does not, and which libraries exist.
+ * Three zones, in reading order: a command field, a grid of what this library
+ * holds, and a log of what changed. The grid replaced the list of sections —
+ * same entries, same order, now carrying the count each one has — and the list
+ * of libraries moved behind the Libraries card, because a deployment has a
+ * handful of them and you pick one and forget it.
  *
- * The enabled/disabled distinction is carried by tone, so the assertion is on
- * `aria-disabled` rather than on a word: a disabled section keeps its place in
- * the list, and nothing in the markup spells out "enabled" for the ten that
- * are.
+ * The enabled/disabled distinction is still carried by tone, so the assertion
+ * is on `aria-disabled` rather than on a word: a disabled section keeps its
+ * place in the grid, and nothing in the markup spells out "enabled" for the ten
+ * that are.
  */
 import { test, expect } from '@playwright/test';
-import { mockEntityApi, LIBRARY } from './fixtures/entities';
-import { openSplash, splashLibraryRow } from './navigate';
+import { mockEntityApi, LIBRARY, QUERY } from './fixtures/entities';
+import { openSplash, openSplashLibraries, splashLibraryRow } from './navigate';
 
 test.describe('Splash', () => {
   test.beforeEach(async ({ page }) => {
@@ -21,17 +22,31 @@ test.describe('Splash', () => {
     await openSplash(page);
   });
 
-  test('names the app and the sections, in rail order', async ({ page }) => {
+  test('names the app and every section, in grid order', async ({ page }) => {
     await expect(page.getByRole('heading', { name: 'SQLIB', level: 1 })).toBeVisible();
 
     const labels = await page.locator('[data-testid="app-splash"] .card-label').allTextContents();
-    // The rail's own order, minus Build — which is a screen whose future is
-    // unsettled, so the splash does not name it.
+    // Libraries first, then what the library defines; Backends heads the second
+    // row, where the inputs start; evidence last. Build is not named — it is a
+    // screen whose future is unsettled.
     expect(labels).toEqual([
-      'Notebook', 'Query', 'Groups', 'Rules', 'ETL', 'Bench', 'Tests', 'Graphs', 'Tuples',
-      'Argument sets', 'Backends',
+      'Libraries', 'Notebook', 'Query', 'Groups', 'Rules', 'ETL',
+      'Backends', 'Graphs', 'Tuples', 'Argument sets',
+      'Tests', 'Bench',
     ]);
     await expect(page.locator('[data-testid="splash-section-build"]')).toHaveCount(0);
+  });
+
+  /*
+   * The count is the point of the card. The fixture library holds one query, so
+   * the Query card reads 1 and the Tuples card — which the fixture has none of
+   * — reads 0. Zero is a fact about the library; the em dash is reserved for a
+   * section this deployment does not have.
+   */
+  test('each card carries the count the library holds', async ({ page }) => {
+    await expect(page.locator('[data-testid="splash-section-queries"] .card-count')).toHaveText('1');
+    await expect(page.locator('[data-testid="splash-section-tupleSets"] .card-count')).toHaveText('0');
+    await expect(page.locator('[data-testid="splash-libraries"] .card-count')).toHaveText('1');
   });
 
   test('a section opens from its card', async ({ page }) => {
@@ -40,11 +55,35 @@ test.describe('Splash', () => {
     await expect(page.locator('[data-testid="entity-list-sidebar"]')).toBeVisible();
   });
 
+  test('the field opens the command palette', async ({ page }) => {
+    await page.locator('[data-testid="splash-command-field"]').click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+  });
+
   test('the tree it replaced is gone', async ({ page }) => {
     await expect(page.locator('.nav-sidebar')).toHaveCount(0);
   });
 
-  test('lists the libraries, and the active one is marked', async ({ page }) => {
+  /*
+   * The log is derived from the records themselves — `dateCreated` and
+   * `dateModified` — so it says the same thing to a tab opened tomorrow. The
+   * fixture stamps its query as modified after it was created, so the row reads
+   * "updated" and carries the version it stands at.
+   */
+  test('the activity log names what changed, and opens it', async ({ page }) => {
+    const row = page.locator('[data-testid="splash-activity"] .row').filter({ hasText: QUERY.name });
+    await expect(row.locator('.row-verb')).toHaveText('updated');
+    await expect(row.locator('.row-version')).toHaveText('v1');
+
+    await row.locator('.row-what').click();
+    await expect(page.locator('[data-testid="entity-list-sidebar"]')).toBeVisible();
+  });
+
+  test('lists the libraries behind the Libraries card, and marks the active one', async ({ page }) => {
+    await expect(page.locator('[data-testid="splash-libraries-panel"]')).toHaveCount(0);
+
+    await openSplashLibraries(page);
+
     const row = splashLibraryRow(page, LIBRARY.name);
     await expect(row).toBeVisible();
     await expect(row.locator('.library-active')).toBeVisible();
@@ -56,6 +95,8 @@ test.describe('Splash', () => {
    * what each dialog then does is its own spec.
    */
   test('a library row opens rename and delete', async ({ page }) => {
+    await openSplashLibraries(page);
+
     await page.locator(`[data-testid="splash-library-edit-${LIBRARY.id}"]`).click();
     await expect(page.getByRole('dialog')).toBeVisible();
     await page.keyboard.press('Escape');
@@ -67,8 +108,9 @@ test.describe('Splash', () => {
   /*
    * About lives here rather than on a page of its own: which build this is and
    * where the source and docs are gets read once, and a destination nobody
-   * navigates to is a worse home for it than the screen they land on. The
-   * version is asserted as a shape, not a value — it changes every release.
+   * navigates to is a worse home for it than the screen they land on. It now
+   * shares the strip with the two facts that would otherwise want a panel each.
+   * The version is asserted as a shape, not a value — it changes every release.
    */
   test('says which build is running, and links to the source and the docs', async ({ page }) => {
     const about = page.locator('[data-testid="splash-about"]');
@@ -80,6 +122,11 @@ test.describe('Splash', () => {
       'href',
       'https://github.com/recalcitrantsupplant/sqlib/tree/main/docs',
     );
+  });
+
+  /* The backend the library runs against, beside the build it is running. */
+  test('the strip names the library’s default backend', async ({ page }) => {
+    await expect(page.locator('[data-testid="splash-backend"]')).toContainText('Visual Backend');
   });
 
   test('the same version is reachable from Settings, on any screen', async ({ page }) => {
@@ -106,7 +153,7 @@ test.describe('Splash', () => {
 
   test('the rail mark comes back to the splash from the notebook', async ({ page }) => {
     await page.locator('.nav-rail .rail-button').filter({ hasText: 'Notebook' }).click();
-    await expect(page).toHaveURL(/\/library(\?|$)/);
+    await expect(page).toHaveURL(/\/notebook(\?|$)/);
 
     await page.locator('[data-testid="library-home"]').click();
 
@@ -115,6 +162,7 @@ test.describe('Splash', () => {
   });
 
   test('New library opens the Add Library dialog', async ({ page }) => {
+    await openSplashLibraries(page);
     await page.locator('[data-testid="splash-library-create"]').click();
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();

@@ -90,6 +90,12 @@ export interface Callable {
   outputs: CallableOutput[];
   /** How many nodes a group composes. Null for a query. */
   composes: number | null;
+  /**
+   * The query's own text, for a surface that shows what it will run — the
+   * notebook's cells. Null for a group, which composes queries rather than
+   * holding one, and for a draft whose body lives in the draft record.
+   */
+  queryString?: string | null;
 }
 
 const XSD = 'http://www.w3.org/2001/XMLSchema#';
@@ -168,6 +174,7 @@ export function callableFromQueryVersion(
       description: output.description ?? null,
     })),
     composes: null,
+    queryString: expanded.queryVersion.queryString ?? null,
   };
 }
 

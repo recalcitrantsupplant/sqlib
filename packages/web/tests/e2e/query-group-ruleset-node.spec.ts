@@ -239,8 +239,8 @@ test.describe('Query group ruleset node (mocked)', () => {
      * node with no query would redraw as broken — still naming the version it
      * was pinned to, and still carrying its ports.
      */
-    await page.reload();
-    await page.waitForLoadState('networkidle');
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.app-layout').first()).toBeVisible();
     await openGroupCanvas(page);
 
     const reloaded = page.locator('.vue-flow__node').filter({ hasText: RULE_SET_NAME });

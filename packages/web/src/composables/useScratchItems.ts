@@ -32,6 +32,7 @@ const UNTITLED_PREFIX: Record<DraftSection, string> = {
   dataGraph: 'Untitled data graph',
   tupleSet: 'Untitled tuple set',
   argumentSet: 'Untitled argument set',
+  notebook: 'Untitled notebook',
 };
 
 function scratchId() {

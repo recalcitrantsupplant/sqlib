@@ -37,6 +37,7 @@ applies the same class before first paint to avoid a flash.
 | Focus | `--focus-ring`, `--focus-ring-width` (2px) | `outline` on `:focus-visible` |
 | Domain | `--rdf-*`, `--syntax-*`, `--code-*`, `--graph-*`, `--kind-*`, `--state-*` | RDF terms, editors, canvas, result kinds, execution state |
 | Categorical | `--stratum-1…8` + `--stratum-none`, `--series-1…6` + `--series-unknown`, `--tag-1…8` + `--tag-none` | Palettes assigned by index, not by meaning |
+| Family | `--family-definition`, `--family-input`, `--family-evidence`, each with a `-surface` | What a rail section holds — what the library defines, takes in, or is judged by. Named after what they mark, unlike the categorical palettes above |
 | Named chrome | `--segment-selected(-ink)`, `--tooltip-surface`/`--tooltip-ink`, `--draft-surface`, `--brand-mark(-ink)`, `--brand-1…3` | Intents that would otherwise be spelled `var(--ink)` and read as a bug |
 | Density | `--grid-unit`, `--grid-gap`, `--grid-1…8`, `--control-h-sm`/`--control-h`/`--control-h-lg`, `--space-1…9` | Control heights, aligned widths, spacing |
 | Radius | `--radius-sm`, `--radius`, `--radius-panel`, `--radius-lg`, `--radius-xl`, `--radius-full` | Corners |

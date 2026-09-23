@@ -52,12 +52,11 @@ export function buildFeatureFlags(
   overrides: Partial<FeatureFlags> = {},
   defaults: FeatureFlags = {
     /*
-     * On. The notebook is the library's front page — every query in it as a
-     * runnable page — and it draws only what the sections below it already
-     * grant. Its own flag exists because a library whose content is rule sets
-     * and tests has nothing to put on a query-centric front page, and until
-     * now the only way to drop it was to turn `queries` off, which took the
-     * Query section with it.
+     * On. The notebook is the library's front page — prose and cells someone
+     * wrote, run in order — and it runs only what the sections below it
+     * already grant. Its own flag exists so a deployment can drop the front
+     * page without turning `queries` off, which would take the Query section
+     * with it.
      */
     notebook: true,
     queries: true,

@@ -40,6 +40,23 @@ export async function openCreateLibraryDialog(page: Page): Promise<void> {
   await expect(page.getByRole('dialog')).toBeVisible();
 }
 
+/**
+ * Open the splash's library list, which sits behind the Libraries card.
+ *
+ * The landing screen leads with the grid: a deployment has a handful of
+ * libraries and you pick one and forget it, so the list is a disclosure rather
+ * than a block everyone reads past.
+ */
+export async function openSplashLibraries(page: Page): Promise<void> {
+  const panel = page.locator('[data-testid="splash-libraries-panel"]');
+  // The card toggles, so a second call would close what the first opened —
+  // and a spec that opens the rename dialog twice does exactly that.
+  if (await panel.count() === 0) {
+    await page.locator('[data-testid="splash-libraries"]').click();
+  }
+  await expect(panel).toBeVisible();
+}
+
 /** A library's row on the splash, which carries its rename and delete. */
 export function splashLibraryRow(page: Page, libraryName: string) {
   return page.locator('.library-row').filter({ hasText: libraryName });

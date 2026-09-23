@@ -14,7 +14,7 @@
 import type { Component } from 'vue';
 import {
   Sparkles,
-  BookOpen,
+  NotebookPen,
   FileCode2,
   Workflow,
   Scale,
@@ -52,8 +52,10 @@ export interface RailEntry {
 export const RAIL_ENTRIES: RailEntry[] = [
   // First, because it is the library's front page — the screen you show
   // someone before they know which type they want. Everything under it reads
-  // as a drill-down.
-  { section: 'library', label: 'Notebook', title: 'Notebook — every query in the library as a runnable, readable page', icon: BookOpen, feature: 'notebook' },
+  // as a drill-down. It replaced a screen that rendered every query in the
+  // library as a cell whether or not anyone had asked for it: the contents are
+  // what you import here, and what you write around them is the point.
+  { section: 'notebooks', label: 'Notebook', title: 'Notebook — prose and cells you write, run in order, with each result named', icon: NotebookPen, feature: 'notebook' },
   { section: 'queries', label: 'Query', title: 'Queries', icon: FileCode2, feature: 'queries' },
   { section: 'queryGroups', label: 'Groups', title: 'Query groups', icon: Workflow, feature: 'queryGroups' },
   { section: 'rules', label: 'Rules', title: 'Rules, data blocks and rule sets', icon: Scale, feature: 'rulesSuite' },

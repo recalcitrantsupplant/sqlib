@@ -50,7 +50,7 @@ interface Destination {
  * change everywhere.
  */
 const DESTINATIONS: Destination[] = [
-  { section: 'library', title: 'Go to Library', keys: 'g l', flag: 'queries', keywords: 'notebook front page' },
+  { section: 'notebooks', title: 'Go to Notebook', keys: 'g l', flag: 'queries', keywords: 'notebook front page library' },
   { section: 'queries', title: 'Go to Queries', keys: 'g q', flag: 'queries' },
   { section: 'queryGroups', title: 'Go to Query groups', keys: 'g g', flag: 'queryGroups', keywords: 'groups pipeline' },
   { section: 'rules', title: 'Go to Rules', keys: 'g r', flag: 'rulesSuite', keywords: 'rule sets data blocks' },

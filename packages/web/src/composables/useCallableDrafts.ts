@@ -36,11 +36,18 @@ const DEFAULT_KIND: DraftKind = 'draft';
 const DEFAULT_SECTION: DraftSection = 'query';
 
 export type DraftKind = 'draft' | 'scratch';
-export type DraftSection = 'query' | 'group' | 'rule' | 'etl' | 'bench' | 'test' | 'dataGraph' | 'tupleSet' | 'argumentSet';
+export type DraftSection = 'query' | 'group' | 'rule' | 'etl' | 'bench' | 'test' | 'dataGraph' | 'tupleSet' | 'argumentSet' | 'notebook';
 
 /** Every draft section, for enumeration. See `exhaustiveDomain.ts`. */
 export const DRAFT_SECTIONS = [
   'query', 'group', 'rule', 'etl', 'bench', 'test', 'dataGraph', 'tupleSet', 'argumentSet',
+  /*
+   * A notebook is an asset like the rest, and lives here for the reason ETL
+   * does: it has no server entity yet, so the list a section shows is its
+   * scratch cluster and nothing else. Its `body` holds the notebook document
+   * (`lib/notebookFormat.ts`).
+   */
+  'notebook',
 ] as const satisfies readonly DraftSection[];
 
 export const _draftSectionsCover: Covers<DraftSection, (typeof DRAFT_SECTIONS)[number]> = true;
