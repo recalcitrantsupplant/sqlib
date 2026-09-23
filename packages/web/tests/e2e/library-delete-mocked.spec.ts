@@ -1,5 +1,6 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
 import { mockSidebarCollections } from './fixtures/collections';
+import { openSplash } from './navigate';
 
 let mockLibraries = [
   {
@@ -88,223 +89,99 @@ test.describe('Delete Library Functionality (Mocked)', () => {
       await route.fulfill({ status: 204, body: '' });
     });
 
-    // Navigate to home page
-    await page.goto('/', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('.app-layout').first()).toBeVisible();
+    await openSplash(page);
   });
 
-  async function expandLibrariesSection(page: Page) {
-    const librariesSection = page.locator('.section-header').filter({ hasText: 'Libraries' });
-    const arrow = librariesSection.locator('.arrow');
-    const isExpanded = await arrow.evaluate(el => el.classList.contains('expanded'));
-
-    if (!isExpanded) {
-      await librariesSection.locator('.section-toggle').click();
-      await page.waitForTimeout(200);
-    }
-  }
-
-  test('should show delete button on hover', async ({ page }) => {
-    await expandLibrariesSection(page);
-
-    const firstLibrary = page.locator('.library-item').first();
-    const deleteButton = firstLibrary.locator('.delete-button-small');
-
-    // Delete button should have opacity 0 initially
-    await expect(deleteButton).toHaveCSS('opacity', '0');
-
-    // Hover over library
-    await firstLibrary.hover();
-
-    // Delete button should become visible (opacity 1)
-    await expect(deleteButton).toHaveCSS('opacity', '1');
-  });
-
-  test('should show trash icon in delete button', async ({ page }) => {
-    await expandLibrariesSection(page);
-
-    const firstLibrary = page.locator('.library-item').first();
-    await firstLibrary.hover();
-
-    // Check for trash icon (SVG)
-    const deleteButton = firstLibrary.locator('.delete-button-small');
-    const svg = deleteButton.locator('svg');
-    await expect(svg).toBeVisible();
-  });
+  /*
+   * Deleting a library is done from its row on the splash screen, which is
+   * where the affordance landed when the artifact tree was removed. Two tests
+   * went with the tree rather than moving: the delete button is drawn rather
+   * than revealed on hover, so there is no opacity to assert, and there is no
+   * library row to expand.
+   */
+  const rows = (page: Page) => page.locator('.library-row');
 
   test('should open confirmation dialog when clicking delete', async ({ page }) => {
-    await expandLibrariesSection(page);
+    const firstLibrary = rows(page).first();
+    const libraryName = await firstLibrary.locator('.library-name').textContent();
 
-    const firstLibrary = page.locator('.library-item').first();
-    const libraryName = await firstLibrary.locator('.item-name').textContent();
+    await firstLibrary.locator('.row-action--danger').click();
+    await page.waitForSelector('[role="alertdialog"]');
 
-    // Hover and click delete
-    await firstLibrary.hover();
-    await firstLibrary.locator('.delete-button-small').click();
-
-    // Wait for confirmation dialog
-    await page.waitForSelector('[role="alertdialog"]', { timeout: 3000 });
-
-    // Check dialog contents
     await expect(page.getByRole('heading', { name: 'Delete Library?' })).toBeVisible();
-    await expect(page.getByText(`Are you sure you want to delete "${libraryName}"`)).toBeVisible();
+    await expect(page.getByText(`Are you sure you want to delete "${libraryName!.trim()}"`)).toBeVisible();
     await expect(page.getByText('This action cannot be undone')).toBeVisible();
   });
 
   test('should have Cancel and Delete buttons in confirmation dialog', async ({ page }) => {
-    await expandLibrariesSection(page);
-
-    const firstLibrary = page.locator('.library-item').first();
-    await firstLibrary.hover();
-    await firstLibrary.locator('.delete-button-small').click();
-
+    await rows(page).first().locator('.row-action--danger').click();
     await page.waitForSelector('[role="alertdialog"]');
 
-    // Check buttons
     await expect(page.getByRole('button', { name: 'Cancel' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Delete' })).toBeVisible();
   });
 
   test('should close confirmation dialog when clicking Cancel', async ({ page }) => {
-    await expandLibrariesSection(page);
+    const firstLibrary = rows(page).first();
+    const libraryName = (await firstLibrary.locator('.library-name').textContent())!.trim();
 
-    const firstLibrary = page.locator('.library-item').first();
-    const libraryName = await firstLibrary.locator('.item-name').textContent();
-
-    await firstLibrary.hover();
-    await firstLibrary.locator('.delete-button-small').click();
+    await firstLibrary.locator('.row-action--danger').click();
     await page.waitForSelector('[role="alertdialog"]');
-
-    // Click Cancel
     await page.getByRole('button', { name: 'Cancel' }).click();
 
-    // Dialog should close
     await expect(page.locator('[role="alertdialog"]')).not.toBeVisible();
-
-    // Library should still exist (check in the library items)
-    const libraryStillExists = await page.locator('.library-item').filter({ hasText: libraryName! }).count();
-    expect(libraryStillExists).toBeGreaterThan(0);
+    await expect(rows(page).filter({ hasText: libraryName })).toHaveCount(1);
   });
 
   test('should delete library when confirming', async ({ page }) => {
-    await expandLibrariesSection(page);
+    const initialCount = await rows(page).count();
+    const firstLibrary = rows(page).first();
+    const libraryName = (await firstLibrary.locator('.library-name').textContent())!.trim();
 
-    // Get library name and count before deleting
-    const firstLibrary = page.locator('.library-item').first();
-    const libraryName = await firstLibrary.locator('.item-name').textContent();
-    const initialCount = await page.locator('.library-item').count();
-
-    // Delete it
-    await firstLibrary.hover();
-    await firstLibrary.locator('.delete-button-small').click();
+    await firstLibrary.locator('.row-action--danger').click();
     await page.waitForSelector('[role="alertdialog"]');
     await page.getByRole('button', { name: 'Delete' }).click();
 
-    // Dialog should close
-    await expect(page.locator('[role="alertdialog"]')).not.toBeVisible({ timeout: 2000 });
-
-    // Wait for sidebar refresh
-    await page.waitForTimeout(1000);
-
-    // Check library count decreased
-    const finalCount = await page.locator('.library-item').count();
-    expect(finalCount).toBe(initialCount - 1);
-  });
-
-  test('should update library count after deletion', async ({ page }) => {
-    await expandLibrariesSection(page);
-
-    // Count libraries before
-    const initialCount = await page.locator('.library-item').count();
-
-    // Delete first library
-    const firstLibrary = page.locator('.library-item').first();
-    await firstLibrary.hover();
-    await firstLibrary.locator('.delete-button-small').click();
-    await page.waitForSelector('[role="alertdialog"]');
-    await page.getByRole('button', { name: 'Delete' }).click();
-    await page.waitForTimeout(500);
-
-    // Count libraries after
-    const finalCount = await page.locator('.library-item').count();
-
-    expect(finalCount).toBe(initialCount - 1);
+    await expect(page.locator('[role="alertdialog"]')).not.toBeVisible();
+    await expect(rows(page)).toHaveCount(initialCount - 1);
+    await expect(rows(page).filter({ hasText: libraryName })).toHaveCount(0);
   });
 
   test('should delete correct library when multiple exist', async ({ page }) => {
-    await expandLibrariesSection(page);
+    const libraryCount = await rows(page).count();
+    expect(libraryCount).toBeGreaterThan(1);
 
-    const libraries = page.locator('.library-item');
-    const libraryCount = await libraries.count();
+    const secondLibrary = rows(page).nth(1);
+    const secondLibraryName = (await secondLibrary.locator('.library-name').textContent())!.trim();
+    const firstLibraryName = (await rows(page).first().locator('.library-name').textContent())!.trim();
 
-    if (libraryCount < 2) {
-      console.log('Skipping test: need at least 2 libraries');
-      return;
-    }
-
-    const secondLibrary = libraries.nth(1);
-    const secondLibraryName = await secondLibrary.locator('.item-name').textContent();
-    const firstLibraryName = await libraries.first().locator('.item-name').textContent();
-
-    // Delete second library
-    await secondLibrary.hover();
-    await secondLibrary.locator('.delete-button-small').click();
+    await secondLibrary.locator('.row-action--danger').click();
     await page.waitForSelector('[role="alertdialog"]');
-
-    // Confirm library name in dialog
     await expect(page.getByText(`"${secondLibraryName}"`)).toBeVisible();
-
     await page.getByRole('button', { name: 'Delete' }).click();
-    await page.waitForTimeout(1000);
 
-    // Check the library count decreased
-    const finalCount = await page.locator('.library-item').count();
-    expect(finalCount).toBe(libraryCount - 1);
-
-    // First library should still exist (check within library items)
-    const firstStillExists = await page.locator('.library-item').filter({ hasText: firstLibraryName! }).count();
-    expect(firstStillExists).toBeGreaterThan(0);
+    await expect(rows(page)).toHaveCount(libraryCount - 1);
+    await expect(rows(page).filter({ hasText: firstLibraryName })).toHaveCount(1);
   });
 
-  test('should not trigger delete when clicking library name', async ({ page }) => {
-    await expandLibrariesSection(page);
-
-    const firstLibrary = page.locator('.library-item').first();
-    const libraryToggle = firstLibrary.locator('.library-toggle');
-
-    // Click library toggle
-    await libraryToggle.click();
-
-    // Delete confirmation should NOT appear
+  test('should not trigger delete when clicking the library name', async ({ page }) => {
+    await rows(page).first().locator('.library-open').click();
     await expect(page.locator('[role="alertdialog"]')).not.toBeVisible();
   });
 
   test('should close dialog when pressing ESC key', async ({ page }) => {
-    await expandLibrariesSection(page);
-
-    const firstLibrary = page.locator('.library-item').first();
-    await firstLibrary.hover();
-    await firstLibrary.locator('.delete-button-small').click();
+    await rows(page).first().locator('.row-action--danger').click();
     await page.waitForSelector('[role="alertdialog"]');
 
-    // Press ESC
     await page.keyboard.press('Escape');
-
-    // Dialog should close
     await expect(page.locator('[role="alertdialog"]')).not.toBeVisible();
   });
 
   test('should have distinct styling for delete action button', async ({ page }) => {
-    await expandLibrariesSection(page);
-
-    const firstLibrary = page.locator('.library-item').first();
-    await firstLibrary.hover();
-    await firstLibrary.locator('.delete-button-small').click();
+    await rows(page).first().locator('.row-action--danger').click();
     await page.waitForSelector('[role="alertdialog"]');
 
     const deleteActionButton = page.locator('[role="alertdialog"]').getByRole('button', { name: 'Delete' });
-
-    // Should have red background (delete-action class)
     await expect(deleteActionButton).toHaveCSS('background-color', 'rgb(220, 53, 69)'); // #dc3545
     await expect(deleteActionButton).toHaveCSS('color', 'rgb(255, 255, 255)'); // white
   });

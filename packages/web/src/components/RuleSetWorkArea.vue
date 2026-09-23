@@ -197,6 +197,7 @@
         :graph-edges="graphEdges"
         :analysed-at="analysedAt"
         :tuple-set-options="tupleSetOptions"
+        :tuple-declarations="tupleDeclarations"
         :data-graph-options="dataGraphOptions"
         :saved-tuple-preview="savedTuplePreview"
         :saved-data-preview="savedDataPreview"
@@ -300,6 +301,7 @@ import {
   readProloguePrefixes,
   tupleRowsToTable,
 } from '../lib/srlTupleRows';
+import { parseTupleDeclarations } from '../lib/tupleSetLabels';
 import { rdfSyntaxHighlighting } from '../lib/codemirrorHighlight';
 import type { Library, RuleSetUpdateInput } from '@sparql-query-lib/contracts';
 
@@ -435,6 +437,15 @@ const loadedVersionTupleSeeds = ref<string>('');
 
 const hasDocument = computed(() => srlDocument.value.trim().length > 0);
 
+/**
+ * The shapes this document declares, for the Inputs tab's bind-time note.
+ *
+ * Read off the text rather than off an analysis pass: the note is about what is
+ * on screen right now, and a shape typed a keystroke ago is exactly the one
+ * someone is about to bind a tuple set to.
+ */
+const tupleDeclarations = computed(() => parseTupleDeclarations(srlDocument.value));
+
 /** The document a `+ New` rule set starts from — SRL, written as SRL is. */
 const DEFAULT_SRL = `PREFIX ex: <http://example.org/>
 PREFIX foaf: <http://xmlns.com/foaf/0.1/>
@@ -488,10 +499,26 @@ const { analysis, blocks, stratification, validationState, parseError } = useSrl
  * parsed with server-side. `vue-codemirror` applies this prop through a
  * compartment, so a change reconfigures the live editor rather than rebuilding
  * it, and the document and cursor survive toggling.
+ *
+ * `sparqlConversions` is on because this is the box a query gets pasted into.
+ * A rule is a CONSTRUCT with the serial numbers filed off, so the way people
+ * arrive here is with SPARQL in the clipboard, and the grammar knows the four
+ * habits that survives the paste — `BIND`, `FILTER NOT EXISTS`, `CONSTRUCT`
+ * and `INSERT DATA` — well enough to name the SRL spelling and offer the edit.
+ * The underline was there without it; what the flag adds is the sentence that
+ * says which SRL form means the same thing, and a click that writes it.
+ *
+ * It does not make the document *valid*: the footer's verdict still comes from
+ * the server parse in `useSrlAnalysis`, which is the parser the rule set is
+ * actually run with. This is the same check arriving sooner and pointing at a
+ * span rather than at a line.
  */
 const editorView = shallowRef<EditorView | null>(null);
 const extensions = computed<Extension[]>(() => [
-  ...languageExtensionsFor('application/srl', { tuples: tuplesEnabled.value }),
+  ...languageExtensionsFor('application/srl', {
+    tuples: tuplesEnabled.value,
+    sparqlConversions: true,
+  }),
   rdfSyntaxHighlighting,
   stratumGutter(),
   useCommentKeymap(),
@@ -512,7 +539,10 @@ const extensions = computed<Extension[]>(() => [
  * terms correctly and its `@prefix` lines approximately.
  */
 const tupleExtensions = computed<Extension[]>(() => [
-  ...languageExtensionsFor('application/srl', { tuples: tuplesEnabled.value }),
+  ...languageExtensionsFor('application/srl', {
+    tuples: tuplesEnabled.value,
+    sparqlConversions: true,
+  }),
   rdfSyntaxHighlighting,
 ]);
 const inputExtensions = shallowRef<Extension[]>([
@@ -2130,45 +2160,6 @@ watch(scratchSavedAt, (value) => {
 </script>
 
 <style scoped>
-/*
- * The document's own actions, shaped like the Expand button they sit beside —
- * same height, same border, same muted ink — so the group reads as one row of
- * controls rather than two kinds of button that happen to be adjacent.
- */
-.editor-action {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--control-h-sm);
-  height: var(--control-h-sm);
-  padding: 0;
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius);
-  background: var(--surface);
-  color: var(--ink-muted);
-  cursor: pointer;
-  transition: color 0.12s ease, background-color 0.12s ease;
-}
-
-.editor-action:hover:not(:disabled),
-.editor-action:focus-visible {
-  background: var(--surface-raised);
-  color: var(--ink);
-}
-
-.editor-action:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* The prefix buttons come with the save bar's radius; sized and shaped to
-   their neighbours here so the group reads as one row of controls. */
-:deep(.prefix-conversion-buttons .bar-button) {
-  width: var(--control-h-sm);
-  height: var(--control-h-sm);
-  border-radius: var(--radius);
-}
-
 .ruleset-work-area {
   position: relative;
   display: flex;

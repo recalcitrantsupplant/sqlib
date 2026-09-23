@@ -76,6 +76,7 @@
             <Download :size="14" />
             <span class="btn-action-label">Inference graph</span>
           </button>
+          <TermDisplayToggle v-if="viewMode === 'graph'" />
           <button
             type="button"
             class="btn-action btn-action--icon"
@@ -286,7 +287,6 @@
       -->
       <div v-if="viewMode === 'graph' && finalGraphContent" class="final-graph-content">
         <RdfContentViewer
-          ref="graphTableRef"
           v-model:global-filter="graphFilter"
           :content="finalGraphContent"
           :content-type="finalGraphContentType ?? 'application/n-triples'"
@@ -295,7 +295,6 @@
           :hide-view-tabs="true"
           :hide-filter-row="true"
           :hide-row-count="true"
-          :hide-pagination-bar="true"
           @state="graphTableState = $event"
         />
       </div>
@@ -306,8 +305,6 @@
         :executed-at="executedAt"
         :media-type="viewMode === 'graph' ? finalGraphContentType ?? 'application/n-triples' : null"
         :duration-ms="totalDurationMs"
-        @set-page="setGraphPage"
-        @set-page-size="setGraphPageSize"
       />
     </div>
 
@@ -371,6 +368,7 @@
                 <Download :size="14" />
                 <span class="btn-action-label">Inference graph</span>
               </button>
+              <TermDisplayToggle v-if="viewMode === 'graph'" />
             </template>
           </ResultsActionBar>
 
@@ -542,7 +540,6 @@
               :hide-view-tabs="true"
               :hide-filter-row="true"
               :hide-row-count="true"
-              :hide-pagination-bar="true"
               @state="graphTableState = $event"
             />
           </div>
@@ -553,8 +550,6 @@
             :executed-at="executedAt"
             :media-type="viewMode === 'graph' ? finalGraphContentType ?? 'application/n-triples' : null"
             :duration-ms="totalDurationMs"
-            @set-page="setGraphPage"
-            @set-page-size="setGraphPageSize"
           />
         </div>
       </div>
@@ -588,6 +583,7 @@ import RuleSetExecutionReplay from './rules/RuleSetExecutionReplay.vue';
 import EmptyState from './shared/EmptyState.vue';
 import PanelHeader from './shared/PanelHeader.vue';
 import ResultsActionBar from './shared/ResultsActionBar.vue';
+import TermDisplayToggle from './shared/TermDisplayToggle.vue';
 import ResultsFooter from './shared/ResultsFooter.vue';
 import SectionLabel from './shared/SectionLabel.vue';
 import SegmentedToggle from './shared/SegmentedToggle.vue';
@@ -700,17 +696,11 @@ const viewOptions = computed(() => [
 
 /*
  * The graph table's chrome, hoisted: its filter sits on the action bar and its
- * counts and paging in the footer, so the Graph view reads exactly like the
- * query panel's Table view.
+ * counts in the footer, so the Graph view reads exactly like the query panel's
+ * Table view. Paging stays with the table, on its own row under the rows.
  */
 const graphFilter = ref('');
 const graphTableState = ref<DataTableState | null>(null);
-const graphTableRef = ref<{
-  setPageIndex: (index: number) => void;
-  setPageSize: (size: number) => void;
-} | null>(null);
-const setGraphPage = (index: number) => graphTableRef.value?.setPageIndex(index);
-const setGraphPageSize = (size: number) => graphTableRef.value?.setPageSize(size);
 
 /** What the run cost, summed over every rule in every iteration. */
 const totalDurationMs = computed(() => {

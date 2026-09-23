@@ -37,7 +37,7 @@
             <span class="form-label">Type</span>
             <div class="method-choice">
               <label
-                v-for="kind in BACKEND_KINDS"
+                v-for="kind in availableBackendKinds"
                 :key="kind.value"
                 class="method-option"
                 :class="{ active: draftForm.kind === kind.value }"
@@ -53,7 +53,7 @@
               </label>
             </div>
 
-            <template v-if="draftForm.kind === 'http'">
+            <template v-if="draftForm.kind === 'http' || draftForm.kind === 'browser'">
               <label class="form-label" for="backend-draft-endpoint">Endpoint URL <span class="required">*</span></label>
               <div class="form-stack">
                 <input
@@ -132,7 +132,15 @@
             </template>
           </div>
 
-          <div v-if="draftForm.kind === 'http'" class="note-card">
+          <div v-if="draftForm.kind === 'browser'" class="note-card" data-testid="browser-backend-note">
+            <Activity :size="14" />
+            <span>
+              This backend is registered in your browser only. Queries run directly from your browser to
+              this endpoint, so the address, any headers you add and the results never reach the sqlib
+              server. It will still be here when you come back, and clearing your browser data removes it.
+            </span>
+          </div>
+          <div v-else-if="draftForm.kind === 'http'" class="note-card">
             <Activity :size="14" />
             <span>
               On create we probe the endpoint once: it fills the reported product, sets the health dot, and
@@ -595,6 +603,8 @@ import {
 import { useApiClient, type BackendEnv, type BackendProbe, type BackendUsage } from '../composables/useApiClient';
 import { useBackendProbes } from '../composables/useBackendProbes';
 import { useBackendsStore } from '../composables/useBackendsStore';
+import { isBrowserBackendId, useBrowserBackends } from '../composables/useBrowserBackends';
+import { useDeploymentMode } from '../composables/useDeploymentMode';
 import { useLibrariesStore } from '../composables/useLibrariesStore';
 import { useCopyToClipboard } from '../composables/useCopyToClipboard';
 
@@ -636,6 +646,14 @@ const QUERY_METHODS = [
 const BACKEND_KINDS = [
   { value: 'http' as const, label: 'HTTP endpoint' },
   { value: 'oxigraphMemory' as const, label: 'In-memory (Oxigraph)' },
+  /*
+   * Not a backend type the server knows: a browser backend is an HTTP endpoint
+   * kept in this browser's storage instead of sqlib's. It sits beside the other
+   * two because from where a visitor stands it is the same choice — where do my
+   * queries go — and because on a read-only deployment it is the only one of
+   * the three they can make.
+   */
+  { value: 'browser' as const, label: 'Browser only' },
 ];
 
 const HEALTH_LABELS = {
@@ -674,6 +692,20 @@ const SLOW_MARK_MS = 250;
 
 const client = useApiClient();
 const backendsStore = useBackendsStore();
+const browserBackends = useBrowserBackends();
+const deployment = useDeploymentMode();
+void deployment.ensureLoaded();
+
+/**
+ * A read-only deployment refuses `POST /backends`, so offering the two
+ * server-side kinds would be offering a 405. The browser kind is the one a
+ * visitor can actually complete, and on such a deployment it is the point.
+ */
+const availableBackendKinds = computed(() =>
+  deployment.isReadOnly.value
+    ? BACKEND_KINDS.filter(kind => kind.value === 'browser')
+    : BACKEND_KINDS
+);
 const librariesStore = useLibrariesStore();
 const probes = useBackendProbes();
 const { copyToClipboard } = useCopyToClipboard();
@@ -781,6 +813,19 @@ const attachableLibraries = computed(() =>
 async function loadBackend(id: string) {
   loading.value = true;
   loadError.value = null;
+  /*
+   * A browser backend has no server record to fetch; asking for one is a 404
+   * and an error banner over a backend that is working fine. It is read from
+   * storage and shown as it is — there is no version, no probe history and no
+   * environment behind it to edit.
+   */
+  if (isBrowserBackendId(id)) {
+    const record = browserBackends.get(id);
+    backend.value = record ? browserBackends.toBackend(record) : null;
+    loadError.value = record ? null : 'This browser backend is no longer registered in this browser.';
+    loading.value = false;
+    return;
+  }
   try {
     const result = await backendsStore.fetchBackend(id);
     backend.value = result.backend;
@@ -827,6 +872,8 @@ watch(
     }
     await loadBackend(id);
     if (!backend.value) return;
+    // Nothing server-side to ask about a backend the server does not have.
+    if (isBrowserBackendId(id)) return;
     // No wire, no credentials — the env table only means something over HTTP.
     if (backend.value.backendType === 'http') void loadEnv(id);
     void loadUsage(id);
@@ -1078,7 +1125,7 @@ function copyEndpoint() {
 
 const draftForm = reactive({
   name: '',
-  kind: 'http' as 'http' | 'oxigraphMemory',
+  kind: 'http' as 'http' | 'oxigraphMemory' | 'browser',
   endpoint: '',
   description: '',
   queryMethod: 'post' as 'post' | 'get',
@@ -1118,6 +1165,21 @@ function onDraftSourcesChange(payload: { sources: MemoryStoreSource[]; complete:
   draftSourcesComplete.value = payload.complete;
 }
 
+/*
+ * `/health` answers after the form is already on screen, so a draft started on
+ * a read-only deployment can be sitting on a kind that has just stopped being
+ * offered. Left alone it would show no selected radio and refuse to create.
+ */
+watch(
+  availableBackendKinds,
+  (kinds) => {
+    if (!kinds.some(kind => kind.value === draftForm.kind)) {
+      draftForm.kind = kinds[0]?.value ?? 'browser';
+    }
+  },
+  { immediate: true }
+);
+
 watch(() => draftForm.name, (name) => emit('draft-name', name));
 
 watch(
@@ -1146,6 +1208,26 @@ async function createBackend() {
   creating.value = true;
   createError.value = null;
   try {
+    /*
+     * A browser backend never reaches the API, so it takes neither the create
+     * call nor the probe that follows one: probing is the server reporting what
+     * it found at the URL, and the server is not going to look. The browser
+     * finds out the same thing the first time a query runs, which is the only
+     * moment that matters here.
+     */
+    if (draftForm.kind === 'browser') {
+      const record = browserBackends.save({
+        name: draftForm.name.trim(),
+        description: draftForm.description.trim() || null,
+        endpoint: draftForm.endpoint.trim(),
+        queryMethod: draftForm.queryMethod,
+        headers: {},
+      });
+      await backendsStore.loadBackends();
+      emit('created', browserBackends.toBackend(record));
+      return;
+    }
+
     const created = await backendsStore.createBackend(
       draftForm.kind === 'oxigraphMemory'
         ? {

@@ -118,12 +118,19 @@ async function mockQuery(page: Page, fixture: Fixture) {
 
 const editor = (page: Page) => page.locator('.query-work-area .cm-content').first();
 
-/** The row in the sidebar, which is how a query is switched to in the app. */
+/** The row in the Queries sidebar, which is how a query is switched to. */
 const row = (page: Page, fixture: Fixture) =>
-  page.locator('.nav-sidebar .item-button', { hasText: fixture.name });
+  page.locator(`[data-testid="entity-list-sidebar"] [data-entity-id="${fixture.id}"]`);
 
+/*
+ * Opened with the section as well as the query: switching queries needs the
+ * list to switch from, and `?query=` alone leaves the app unscoped, which is
+ * the splash and no sidebar at all.
+ */
 async function openQuery(page: Page, fixture: Fixture) {
-  await page.goto(`/?query=${encodeURIComponent(fixture.id)}`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`/?section=queries&query=${encodeURIComponent(fixture.id)}`, {
+    waitUntil: 'domcontentloaded',
+  });
   await page.waitForSelector('.query-work-area');
   await expect(editor(page)).toContainText(fixture.body.slice(0, 20));
 }

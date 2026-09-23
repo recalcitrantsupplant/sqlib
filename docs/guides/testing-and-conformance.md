@@ -400,7 +400,7 @@ this test both refer to.
 ### What comes out
 
 ```turtle
-# EARL 1.0 conformance report — urn:sqlib:tag:origin-eval
+# EARL 1.0 conformance report — urn:sqlib:tag:w3c-evaluation
 # 2 assertion(s), one per test
 # Subject: sqlib 0.9.1 <https://example.org/sqlib#project>
 
@@ -448,7 +448,7 @@ _:result0
     curl -sS -X POST "$SQLIB/tests/run" \
       -H 'Accept: text/turtle;profile="earl"' \
       -H 'Content-Type: application/json' \
-      -d '{"tags":["urn:sqlib:tag:origin-eval","urn:sqlib:tag:origin-syntax"],"match":"any"}' \
+      -d '{"tags":["urn:sqlib:tag:w3c-evaluation","urn:sqlib:tag:w3c-document-check"],"match":"any"}' \
       > earl-report.ttl
     # The banner is the check: a report that still names the placeholder
     # subject is not a submission, and failing here is cheaper than a reviewer
@@ -541,8 +541,8 @@ wrote.
 
 ### Tags
 
-The seeder tags each test as it is created, on two axes the directory layout cannot
-give you: what the test *exercises* and what it *asserts*. Three families, from
+The seeder tags each entry on two axes the directory layout cannot give you: what
+it *exercises* and what it *asserts*. Three families, 21 tags, from
 `packages/api/src/lib/w3cRulesSuite/tags.ts`:
 
 - kind: `evaluation` or `document check`;
@@ -550,19 +550,36 @@ give you: what the test *exercises* and what it *asserts*. Three families, from
 - feature: `templates`, `negation`, `data blocks`, `blank nodes`, `RDFS`, `property
   paths`, `reification` and others.
 
-A test carries one of the first, at most one of the second, and one or more of the
-third. The features are inferred from entry names, because the manifests carry no
-`dct:subject` and no keywords, and the names are a consistent taxonomy
-(`syntax-template-bad-01`, `eval-neg-data-01`). Every matching rule applies rather
-than the first, since an entry can be about negation and about data blocks at once.
-An entry matching no feature rule takes no feature tag and lands in the Untagged
-group, which is the signal to add a rule.
+An entry carries one of the first, at most one of the second, and one or more of the
+third, averaging three tags. The features are inferred from entry names, because the
+manifests carry no `dct:subject` and no keywords, and the names are a consistent
+taxonomy (`syntax-template-bad-01`, `eval-neg-data-01`). Every matching rule applies
+rather than the first, since an entry can be about negation and about data blocks at
+once. An entry matching no feature rule takes no feature tag and lands in the
+Untagged group, which is the signal to add a rule.
+
+There is no tag per manifest directory. There was — one `eval/`, `syntax/`, … tag
+each, holding the axis `Test.group` used to — and it went because every entry's name
+already opens with its directory, so those six tags restated the first word of the
+row they labelled. `stratification/`, `wellformed/` and `examples/` are directories
+that name a feature rather than a location, and those three keep a feature tag,
+which is how `stratification-01` says what it checks. Selecting a directory as a
+suite is a kind tag plus a feature, or the `tests` selector on `POST /tests/run`.
+
+The same set goes on the entry's rule set and on the rules inside it, not on the
+test alone: they are one artefact seen from three rails, and grouping the Rules list
+by tag should give the headings the Tests list just gave you. A rule set several
+entries share — `rdfs.srl` is six tests — carries the union of theirs. Data graphs
+and data blocks are left untagged, being the inputs a rule set runs over rather than
+the thing under test.
 
 Tags are ordinary entities, so they can be renamed, recoloured and deleted like any
 others, and re-seeding tags a store that predates them: the union is applied to
-tests that already exist, so re-running the recipe upgrades a library rather than
-needing a clean. Tagging never removes, so a tag you added by hand survives every
-boot.
+tests, rule sets and rules that already exist, so re-running the recipe upgrades a
+library rather than needing a clean. Tagging never removes, so a tag you added by
+hand survives every boot — and so do the retired directory tags, as empty tags, in a
+store seeded before they went. Delete them from Manage tags, or re-seed a clean
+store.
 
 Group the Tests list by tag in the sidebar to see the axes, and run a tag — or
 several — from the tag button beside Run all, or from the run button on a tag

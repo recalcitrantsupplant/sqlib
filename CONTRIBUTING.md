@@ -53,6 +53,8 @@ likely to use:
 | `just run-local-like-docker` | The API alone, with the persistence settings the container uses |
 | `just build-docker [TAG]` | Build the server image |
 | `just run-docker-local [TAG]` / `just run-docker-persistent [TAG]` | Run that image with a mounted store |
+| `just build-web-image [TAG]` | Build the web UI bundle image (static site at `/site`, nothing to run) |
+| `just extract-web-bundle [TAG] [DEST]` | Copy that static site out of the image |
 | `just setup-local-https`, `just run-local-https`, `just run-docker-https` | mkcert certificates and Traefik in front of the API and MCP on `https://localhost:3443` |
 
 ## Running the checks CI runs

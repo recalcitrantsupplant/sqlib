@@ -119,7 +119,20 @@
           aria-hidden="true"
         />
         <span class="row-text">
-          <span class="row-name">{{ backend.name }}</span>
+          <span class="row-name">
+            {{ backend.name }}
+            <!--
+              Said in the list, not only on the record: a visitor scanning for
+              where a query will run needs to see which rows are theirs alone
+              without opening each one.
+            -->
+            <span
+              v-if="isBrowserBackendId(backend.id)"
+              class="row-badge"
+              title="Registered in this browser only"
+              data-testid="browser-backend-badge"
+            >Browser</span>
+          </span>
           <span class="row-host">{{ hostOf(backend) }}</span>
         </span>
         <span class="row-latency">{{ latencyOf(backend.id) }}</span>
@@ -148,6 +161,7 @@ import type { Backend } from '@sparql-query-lib/contracts';
 import InlineNote from './shared/InlineNote.vue';
 import { fuzzyMatches } from '../lib/fuzzy';
 import { useBackendProbes } from '../composables/useBackendProbes';
+import { isBrowserBackendId } from '../composables/useBrowserBackends';
 import { useSidebarCollapse } from '../composables/useSidebarCollapse';
 
 /**
@@ -469,6 +483,16 @@ function healthTitle(id: string): string {
 
 .row-name--draft {
   color: var(--ink-muted);
+}
+
+.row-badge {
+  margin-left: var(--space-1);
+  padding: 0 var(--space-1);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-micro);
+  color: var(--ink-muted);
+  vertical-align: middle;
 }
 
 .row-host {

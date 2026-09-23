@@ -101,6 +101,10 @@ export interface SeedResult {
    * before the suite had tags at all.
    */
   testsTagged: number;
+  /** Rule sets that gained a tag, on the same terms as `testsTagged`. */
+  ruleSetsTagged: number;
+  /** Rules inside those rule sets that gained a tag, on the same terms. */
+  rulesTagged: number;
   /**
    * Tests that gained their `criterion` on this run rather than at creation.
    *
@@ -139,6 +143,8 @@ export async function seedW3cRulesSuite(options: SeedOptions = {}): Promise<Seed
     dataGraphsCreated: 0,
     tagsCreated: 0,
     testsTagged: 0,
+    ruleSetsTagged: 0,
+    rulesTagged: 0,
     testsLinked: 0,
     skipped: [],
   };
@@ -153,8 +159,11 @@ export async function seedW3cRulesSuite(options: SeedOptions = {}): Promise<Seed
       // A prior interrupted seed can leave a stable parent pointing at a
       // missing version; an existing Test must not hide that corruption.
       const dataGraphVersionId = await ensureDataGraph(entry, result, log);
-      const ruleSetId = await ensureRuleSet(entry, result, log);
-      await seedOne(entry.name, testIdFor(entry), tagsForEvalEntry(entry), entry.criterion, result, log, async testId => {
+      // One tag set, three carriers: the rule set, the rules inside it and the
+      // test. See `tagRuleSet` for why the test does not carry them alone.
+      const tagSlugs = tagsForEvalEntry(entry);
+      const ruleSetId = await ensureRuleSet(entry, tagSlugs, result, log);
+      await seedOne(entry.name, testIdFor(entry), tagSlugs, entry.criterion, result, log, async testId => {
         await ensureEvalTest(entry, testId, ruleSetId, dataGraphVersionId);
       });
     }
@@ -163,8 +172,9 @@ export async function seedW3cRulesSuite(options: SeedOptions = {}): Promise<Seed
   for (const category of DOCUMENT_CATEGORIES) {
     const documents = await readW3cRulesDocumentSuite(category, suiteDir);
     for (const entry of documents.entries) {
-      const ruleSetId = await ensureDocumentRuleSet(entry, result, log);
-      await seedOne(entry.name, documentTestIdFor(entry), tagsForDocumentEntry(entry), entry.criterion, result, log, async testId => {
+      const tagSlugs = tagsForDocumentEntry(entry);
+      const ruleSetId = await ensureDocumentRuleSet(entry, tagSlugs, result, log);
+      await seedOne(entry.name, documentTestIdFor(entry), tagSlugs, entry.criterion, result, log, async testId => {
         await ensureDocumentTest(entry, testId, ruleSetId);
       });
     }
@@ -224,15 +234,69 @@ async function seedOne(
  * A union rather than an assignment: these are ordinary entities, and someone
  * tagging one `to-investigate` should not have it swept away by the next boot.
  * The write is skipped entirely when there is nothing to add, so a re-seed of
- * 208 tagged tests performs no writes at all.
+ * 203 tagged tests performs no writes at all.
  */
 async function applyTags(test: LdkitTest, tagSlugs: string[], result: SeedResult): Promise<void> {
+  if (await unionTags('Test', test, tagSlugs)) result.testsTagged += 1;
+}
+
+/**
+ * The union itself, for any of the taggable types the seeder writes.
+ *
+ * Returns whether it wrote, so each caller can count its own kind. `tags` is
+ * read off the entity rather than re-fetched: the caller has just read it, and
+ * a second read would only widen the window in which the two disagree.
+ */
+async function unionTags(
+  type: 'Test' | 'RuleSet' | 'Rule',
+  entity: { $id: string; tags?: string[] | null },
+  tagSlugs: string[],
+): Promise<boolean> {
   const wanted = tagSlugs.map(tagIdFor);
-  const current = test.tags ?? [];
+  const current = entity.tags ?? [];
   const missing = wanted.filter(tag => !current.includes(tag));
-  if (missing.length === 0) return;
-  await repos().Test.update(test.$id, { tags: [...current, ...missing] } as Partial<LdkitTest>);
-  result.testsTagged += 1;
+  if (missing.length === 0) return false;
+  const tags = [...current, ...missing];
+  // Spelt out per type rather than indexed: the repositories are typed to their
+  // own entity, and one `tags` patch is not assignable to all three at once.
+  if (type === 'Test') await repos().Test.update(entity.$id, { tags } as Partial<LdkitTest>);
+  else if (type === 'RuleSet') await repos().RuleSet.update(entity.$id, { tags } as Partial<LdkitRuleSet>);
+  else await repos().Rule.update(entity.$id, { tags } as Partial<LdkitRule>);
+  return true;
+}
+
+/**
+ * The same tags on the rule set and on every rule inside it.
+ *
+ * The test, the rule set it runs and the rules that rule set holds are one
+ * artefact seen from three rails, so a reader who groups the Rules list by tag
+ * should find the headings they just used on the Tests list. Without this only
+ * the Tests rail had them, and the 200-odd rule sets — the documents the suite
+ * is actually *about* — grouped under nothing.
+ *
+ * A rule set shared by several entries accumulates the union of their tags,
+ * which is the honest answer: `rdfs.srl` is what six tests exercise, and it is
+ * about all six things.
+ *
+ * Reached through the current version rather than the ids the creating call had
+ * in hand, so it also reaches a store seeded before rule sets were tagged.
+ * Data graphs and data blocks are left alone: they are the inputs a rule set is
+ * run over, not the thing under test.
+ */
+async function tagRuleSet(ruleSetId: string, tagSlugs: string[], result: SeedResult): Promise<void> {
+  const ruleSet = repos().RuleSet.get(ruleSetId) as LdkitRuleSet | null;
+  if (!ruleSet) return;
+  if (await unionTags('RuleSet', ruleSet, tagSlugs)) result.ruleSetsTagged += 1;
+
+  const version = ruleSet.currentVersion
+    ? repos().RuleSetVersion.get(ruleSet.currentVersion) as { hasRule?: string[] | null } | null
+    : null;
+  for (const ruleVersionId of version?.hasRule ?? []) {
+    const ruleVersion = repos().RuleVersion.get(ruleVersionId) as { isPartOf?: string } | null;
+    if (!ruleVersion?.isPartOf) continue;
+    const rule = repos().Rule.get(ruleVersion.isPartOf) as LdkitRule | null;
+    if (rule && await unionTags('Rule', rule, tagSlugs)) result.rulesTagged += 1;
+  }
 }
 
 /**
@@ -406,11 +470,13 @@ async function ensureDataGraph(
 /** The rule set an eval entry runs, created once per file. */
 async function ensureRuleSet(
   entry: W3cRulesEvalEntry,
+  tagSlugs: string[],
   result: SeedResult,
   log: (message: string) => void,
 ): Promise<string> {
   return ensureRuleSetFromDocument({
     ruleSetId: ruleSetIdFor(entry),
+    tagSlugs,
     name: entry.rulesetFile,
     description: `Rule set from the W3C rules ${entry.category} suite: ${entry.rulesetFile}`,
     document: entry.ruleset,
@@ -447,13 +513,25 @@ async function ensureRuleSet(
  * third of five rules.
  */
 async function ensureRuleSetFromDocument(
-  spec: { ruleSetId: string; name: string; description: string; document: string; source: string },
+  spec: {
+    ruleSetId: string;
+    name: string;
+    description: string;
+    document: string;
+    source: string;
+    tagSlugs: string[];
+  },
   result: SeedResult,
   log: (message: string) => void,
 ): Promise<string> {
   const { ruleSetId } = spec;
   const existing = repos().RuleSet.get(ruleSetId) as LdkitRuleSet | null;
-  if (hasCurrentVersion('RuleSetVersion', ruleSetId, existing?.currentVersion)) return ruleSetId;
+  if (hasCurrentVersion('RuleSetVersion', ruleSetId, existing?.currentVersion)) {
+    // Already built — but a second entry sharing it brings tags of its own, and
+    // a store seeded before rule sets were tagged has none at all.
+    await tagRuleSet(ruleSetId, spec.tagSlugs, result);
+    return ruleSetId;
+  }
 
   let ruleDocs: Array<{ suggestedLabel: string; text: string }>;
   let dataDocs: Array<{ suggestedLabel: string; text: string }>;
@@ -537,6 +615,7 @@ async function ensureRuleSetFromDocument(
     immutable: true,
     allowInvalidSave: refused,
   });
+  await tagRuleSet(ruleSetId, spec.tagSlugs, result);
   return ruleSetId;
 }
 
@@ -606,11 +685,13 @@ async function ensureEvalTest(
 /** A rule set holding one document from `syntax/`, `wellformed/` or `stratification/`. */
 async function ensureDocumentRuleSet(
   entry: W3cRulesDocumentEntry,
+  tagSlugs: string[],
   result: SeedResult,
   log: (message: string) => void,
 ): Promise<string> {
   return ensureRuleSetFromDocument({
     ruleSetId: documentRuleSetIdFor(entry),
+    tagSlugs,
     name: entry.name,
     description: `W3C rules ${entry.category} test: the document must be ${entry.accepted ? 'accepted' : 'rejected'}`,
     document: entry.document,

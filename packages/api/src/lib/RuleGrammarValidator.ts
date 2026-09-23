@@ -39,7 +39,20 @@ export interface MultiGrammarValidationResult {
   usesTuples?: boolean;
 }
 
-const sparqlParser = new SparqlParser();
+/*
+ * Built on first use rather than at import. Constructing a Traqula parser
+ * assembles the whole chevrotain SPARQL 1.2 grammar (~40ms here), and this
+ * module is reached from the API's import graph whether or not the process ever
+ * validates a rule. Still one shared instance, still built once.
+ */
+let sparqlParser: SparqlParser | null = null;
+
+function getSparqlParser(): SparqlParser {
+  if (!sparqlParser) {
+    sparqlParser = new SparqlParser();
+  }
+  return sparqlParser;
+}
 
 export class RuleGrammarValidator {
   /** Validate a rule or data string, producing a normalized SPARQL UPDATE. */
@@ -159,7 +172,7 @@ export class RuleGrammarValidator {
 
   private trySparql(input: string): GrammarValidationResult {
     try {
-      sparqlParser.parse(input);
+      getSparqlParser().parse(input);
       return { grammar: 'sparql', valid: true, normalized: input };
     } catch (error) {
       return { grammar: 'sparql', valid: false, error: error instanceof Error ? error.message : 'SPARQL parse failed' };

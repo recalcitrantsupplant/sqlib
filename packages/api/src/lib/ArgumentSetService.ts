@@ -5,6 +5,8 @@ import { requireLibraryMode, resolveOwningLibrary } from '../auth/enforce.js';
 import { toLdkit } from '../persistence/utils/id-adapter.js';
 import { parseTupleContent, readStoredTupleContent } from './tupleContent.js';
 import { DataGraphContentError, resolveDataGraphInput } from './dataGraphInput.js';
+import { createDataGraphVersion } from './DataGraphVersionWriter.js';
+import { DEFAULT_DATA_GRAPH_FORMAT } from './dataGraphContent.js';
 import { orderByPosition, parameterKeysOf, tableParameterKey, type ParameterKey } from '@sparql-query-lib/types';
 import type { LdkitArgumentSet } from '../persistence/schemas/ArgumentSetSchema.js';
 import type { LdkitArgumentSetVersion } from '../persistence/schemas/ArgumentSetVersionSchema.js';
@@ -62,8 +64,18 @@ export interface ArgumentScalarBindingPayload {
 /**
  * One graph among a set's ordered inputs.
  *
- * Exactly one source: a pinned version, a floating parent id, or inline
- * content. Which start-node port it fills is the group's business, not this
+ * **A graph binding always pins a `DataGraphVersion`.** Inline is a door, not
+ * a storage class: `contentString` + `contentFormat` are how pasted RDF
+ * *arrives*, and saving them is a create-then-pin — a `DataGraph` with one
+ * version, in the set's library, which the stored binding then names. A graph
+ * pasted into a call and a graph stored in the library are the same bytes in
+ * the same serialisation under the same ceiling, and the only thing that used
+ * to differ was which screen they were typed on.
+ *
+ * Running is not saving: `/execute` and `/sparql` keep taking inline graphs as
+ * transport, and an ad-hoc run mints nothing.
+ *
+ * Which start-node port the graph fills is the group's business, not this
  * payload's.
  */
 export interface ArgumentGraphBindingPayload {
@@ -73,6 +85,16 @@ export interface ArgumentGraphBindingPayload {
   dataGraphVersionId?: string | null;
   contentString?: string | null;
   contentFormat?: string | null;
+  /**
+   * The name to give the graph this content is saved as.
+   *
+   * The entity needs a name and the save should not stop to ask for one, so
+   * the client pre-fills it (the callable, the port and the date) and the
+   * person may edit it before hitting save. A caller that sends none gets one
+   * derived here rather than a refusal: an unnamed fragment is what this
+   * design is removing, and an unceremonious name is still a name.
+   */
+  name?: string | null;
 }
 
 export interface ArgumentSetInput {
@@ -191,6 +213,21 @@ const signatureFromVariables = (variables: string[]): string =>
   variables.map(v => v.replace(/^\?/, '')).join('|');
 
 const sanitizeVariableName = (variable: string): string => variable.replace(/^\?/, '');
+
+/**
+ * The name a graph minted from a call gets when the caller sent none.
+ *
+ * The client pre-fills the dialog with the callable, the port and the date and
+ * lets Enter accept it; this is the same sentence assembled from what the
+ * server knows, so a save through the API is never the thing that puts an
+ * unnamed fragment in the library.
+ */
+function graphNameFor(payload: ArgumentGraphBindingPayload, position: number, setName: string): string {
+  const given = payload.name?.trim();
+  if (given) return given;
+  const day = new Date().toISOString().slice(0, 10);
+  return `${setName} · graph ${position + 1} · ${day}`;
+}
 
 const cloneBinding = (binding: SparqlBinding): SparqlBinding =>
   Object.fromEntries(Object.entries(binding).map(([key, value]) => [key, { ...value }])) as SparqlBinding;
@@ -357,6 +394,34 @@ export class ArgumentSetService {
     return setId;
   }
 
+  /**
+   * Rename a set, or reword its description, without writing a version.
+   *
+   * The same split every other entity has (`PUT /queries/:id`,
+   * `PUT /tuple-sets/:id`): a version holds the bindings and is immutable, and
+   * the stable entity holds the name, which is not content and so does not
+   * invalidate anything that names a version. Argument sets were the one
+   * entity with no such route, so the only door to a new name was the save
+   * bar — which posts a version body carrying no name, and dropped it.
+   */
+  async update(
+    id: string,
+    updates: { name?: string; description?: string | null; tags?: string[] | null },
+  ): Promise<ArgumentSetDetail | null> {
+    const cacheCoordinator = getCacheCoordinator();
+    const entity = cacheCoordinator.get(id) as LdkitArgumentSet | null;
+    if (!entity || entity['@type'] !== 'ArgumentSet') return null;
+
+    const patch: Partial<LdkitArgumentSet> = {};
+    if (updates.name !== undefined) patch.name = updates.name;
+    if (updates.description !== undefined) patch.description = updates.description;
+    if (updates.tags !== undefined) patch.tags = updates.tags;
+
+    await cacheCoordinator.update('ArgumentSet', id, patch);
+    const next = cacheCoordinator.get(id) as LdkitArgumentSet;
+    return this.expandArgumentSet(next);
+  }
+
   async listVersions(argumentSetId: string): Promise<ArgumentSetVersionDetail[]> {
     const versions = this.findVersionsForSet(argumentSetId);
     const expanded = await Promise.all(versions.map(version => this.expandArgumentSetVersion(version)));
@@ -455,9 +520,14 @@ export class ArgumentSetService {
       scalarBindingIds.push(scalarId);
     }
 
+    const owner = {
+      argumentSetId,
+      libraryId: parent.isPartOf ?? null,
+      setName: parent.name ?? 'argument set',
+    };
     const graphBindingIds: string[] = [];
     for (const [position, graph] of toArray(input.graphBindings).entries()) {
-      const graphId = await this.createGraphBinding(graph, position);
+      const graphId = await this.createGraphBinding(graph, position, owner);
       graphBindingIds.push(graphId);
     }
 
@@ -943,19 +1013,30 @@ export class ArgumentSetService {
   }
 
   /**
-   * Store one graph binding, refusing anything the caller could have got right.
+   * Store one graph binding — which always means storing a pin.
    *
-   * Exactly-one is checked here rather than in the schema, matching how
+   * Pasted RDF is a create-then-pin, performed here because saving a version
+   * is the moment the content became durable library state anyway. There is no
+   * inline storage class for RDF, so there is no second thing to keep in sync,
+   * no separate size rule, and no content that exists in the library but
+   * cannot be found in it. The run is byte-identical before and after; the set
+   * gets strictly more reproducible, because one pin replaces an embedded copy.
+   *
+   * Exactly-one is still checked here rather than in the schema, matching how
    * `resolveDataGraphInput` checks the same pairing on the execute body — and
    * checked at *write*, so a stored set cannot be a run that fails later.
    */
-  private async createGraphBinding(payload: ArgumentGraphBindingPayload, position = 0): Promise<string> {
-    const versionId = payload.dataGraphVersionId?.trim() || null;
+  private async createGraphBinding(
+    payload: ArgumentGraphBindingPayload,
+    position = 0,
+    owner?: { argumentSetId: string; libraryId: string | null; setName: string },
+  ): Promise<string> {
+    const pastedVersionId = payload.dataGraphVersionId?.trim() || null;
     const inline = typeof payload.contentString === 'string' && payload.contentString.trim().length > 0;
-    if (versionId && inline) {
+    if (pastedVersionId && inline) {
       throw new DataGraphContentError('Provide either dataGraphVersionId or contentString on a graph binding, not both');
     }
-    if (!versionId && !inline) {
+    if (!pastedVersionId && !inline) {
       throw new DataGraphContentError('A graph binding needs either dataGraphVersionId or contentString');
     }
 
@@ -965,10 +1046,14 @@ export class ArgumentSetService {
      * thrown away: the binding stores the reference, and a run re-resolves it.
      */
     resolveDataGraphInput({
-      dataGraphVersionId: versionId,
+      dataGraphVersionId: pastedVersionId,
       dataGraphInline: inline ? payload.contentString : null,
       dataGraphInlineFormat: payload.contentFormat ?? undefined,
     });
+
+    const versionId = inline
+      ? await this.mintDataGraphForBinding(payload, position, owner)
+      : pastedVersionId;
 
     const cacheCoordinator = getCacheCoordinator();
     const bindingId = mintId('argumentGraphBinding');
@@ -977,11 +1062,49 @@ export class ArgumentSetService {
       // The slot, and nothing else. Which port a graph fills is the group's.
       position: payload.position ?? position,
       dataGraphVersion: versionId ?? undefined,
-      contentString: inline ? payload.contentString : undefined,
-      contentFormat: inline ? (payload.contentFormat ?? undefined) : undefined,
     };
     await cacheCoordinator.create('ArgumentGraphBinding', toLdkit({ ...record, '@type': 'ArgumentGraphBinding' }));
     return bindingId;
+  }
+
+  /**
+   * Write pasted RDF as a `DataGraph` with one `DataGraphVersion`, and pin it.
+   *
+   * In the argument set's library, so the graph is findable exactly where the
+   * set is. `mintedFrom` records which set it was born on — origin for the
+   * rail's grouping, and not a fence: it is an ordinary data graph the moment
+   * it exists, reusable anywhere in that library.
+   *
+   * A set with no resolvable library cannot mint into one, and refusing is the
+   * only honest answer: silently keeping the content on the binding would
+   * re-create the second-class storage class this removes.
+   */
+  private async mintDataGraphForBinding(
+    payload: ArgumentGraphBindingPayload,
+    position: number,
+    owner?: { argumentSetId: string; libraryId: string | null; setName: string },
+  ): Promise<string> {
+    if (!owner?.libraryId) {
+      throw new DataGraphContentError(
+        'A pasted graph is saved as a data graph in the set\'s library, and this set resolves to none',
+      );
+    }
+
+    const cacheCoordinator = getCacheCoordinator();
+    const dataGraphId = mintId('dataGraph');
+    await cacheCoordinator.create('DataGraph', toLdkit({
+      $id: dataGraphId,
+      '@type': 'DataGraph',
+      name: graphNameFor(payload, position, owner.setName),
+      isPartOf: [owner.libraryId],
+      mintedFrom: owner.argumentSetId,
+    }));
+
+    const version = await createDataGraphVersion(dataGraphId, {
+      contentString: payload.contentString ?? '',
+      contentFormat: payload.contentFormat ?? DEFAULT_DATA_GRAPH_FORMAT,
+    });
+    return version.$id;
   }
 
   private expandGraphBinding(bindingId: string, fallbackPosition = 0): ArgumentGraphBindingDetail | null {
@@ -991,6 +1114,14 @@ export class ArgumentSetService {
       id: binding.$id,
       position: typeof binding.position === 'number' ? binding.position : fallbackPosition,
       dataGraphVersionId: binding.dataGraphVersion ?? undefined,
+      /*
+       * Read, never written. Nothing mints one of these any more — a saved
+       * binding pins a version — but a set saved before that is still a saved
+       * version, and a saved version is immutable: it keeps running against the
+       * copy it embedded until someone saves a new version of the set, which
+       * mints the graph. Migrating them in place would rewrite a frozen
+       * version, which is the one thing a version is not.
+       */
       contentString: binding.contentString ?? undefined,
       contentFormat: binding.contentFormat ?? undefined,
     };

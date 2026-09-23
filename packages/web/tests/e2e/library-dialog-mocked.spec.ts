@@ -1,4 +1,5 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
+import { openCreateLibraryDialog } from './navigate';
 import { mockSidebarCollections } from './fixtures/collections';
 import { chooseSearchOption, openSearchSelect, searchSelect } from './search-select';
 
@@ -100,25 +101,14 @@ test.describe('Add Library Dialog (Mocked)', () => {
     });
 
     // Navigate to home page
-    await page.goto('/', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('.app-layout').first()).toBeVisible();
+    await page.goto('/');
+    await page.waitForSelector('[data-testid="app-splash"]');
   });
 
   async function openAddLibraryDialog(page: Page) {
-    // Expand Libraries section if needed
-    const librariesSection = page.locator('.section-header').filter({ hasText: 'Libraries' });
-    const sectionToggle = librariesSection.locator('.section-toggle');
-    await sectionToggle.click();
-
-    // Wait a bit for section to expand
-    await page.waitForTimeout(200);
-
-    // Click the + button next to Libraries section
-    const addButton = librariesSection.locator('.add-button');
-    await addButton.click();
-
-    // Wait for dialog to appear
-    await page.waitForSelector('[role="dialog"]', { timeout: 5000 });
+    // The library switcher at the head of the rail, which is the only door to
+    // this dialog since the artifact tree went.
+    await openCreateLibraryDialog(page);
   }
 
   test('should open library dialog when clicking + button', async ({ page }) => {
@@ -266,8 +256,8 @@ test.describe('Add Library Dialog (Mocked)', () => {
       }
     });
 
-    await page.goto('/', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('.app-layout').first()).toBeVisible();
+    await page.goto('/');
+    await page.waitForSelector('[data-testid="app-splash"]');
 
     await openAddLibraryDialog(page);
 

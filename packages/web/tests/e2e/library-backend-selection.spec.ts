@@ -1,4 +1,5 @@
 import { test, expect, type Route } from '@playwright/test';
+import { openCreateLibraryDialog, openSplash } from './navigate';
 import { mockSidebarCollections } from './fixtures/collections';
 import { chooseSearchOption, searchSelect } from './search-select';
 
@@ -98,25 +99,12 @@ test.describe('Library Backend Selection Bug Fix', () => {
       });
     });
 
-    // Navigate to home page
-    await page.goto('/', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('.app-layout').first()).toBeVisible();
+    await openSplash(page);
   });
 
-  async function openAddLibraryDialog(page: any) {
-    // Expand Libraries section if needed
-    const librariesSection = page.locator('.section-header').filter({ hasText: 'Libraries' });
-    const sectionToggle = librariesSection.locator('.section-toggle');
-    await sectionToggle.click();
-    await page.waitForTimeout(200);
-
-    // Click the + button next to Libraries section
-    const addButton = librariesSection.locator('.add-button');
-    await addButton.click();
-
-    // Wait for dialog to appear
-    await page.waitForSelector('[role="dialog"]', { timeout: 5000 });
-  }
+  // The library switcher at the head of the rail: the only door to this
+  // dialog since the artifact tree went.
+  const openAddLibraryDialog = openCreateLibraryDialog;
 
   test('should not auto-submit when selecting backend in new library dialog', async ({ page }) => {
     await openAddLibraryDialog(page);
@@ -253,8 +241,7 @@ test.describe('Library Backend Selection Bug Fix', () => {
       }
     });
 
-    await page.goto('/', { waitUntil: 'domcontentloaded' });
-    await expect(page.locator('.app-layout').first()).toBeVisible();
+    await openSplash(page);
 
     await openAddLibraryDialog(page);
 

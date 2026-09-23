@@ -1,6 +1,12 @@
 import { normalizeUndefBindings as normalizeRuntimeBindings } from '@sparql-query-lib/runtime';
 import { SparqlQueryParser } from './parser.js';
 import type { ArgumentSet as RuntimeArgumentSet } from './query-chaining.js';
+import type { RuntimeArgumentPayload } from './ArgumentSetService.js';
+import {
+  describeParameterKey,
+  scalarParameterKey,
+  tableParameterKey,
+} from '@sparql-query-lib/types';
 
 /**
  * Applying an execution payload to a query string, in one place.
@@ -106,4 +112,74 @@ export function applyExecutionArguments(
   }
 
   return result;
+}
+
+/**
+ * A request's argument fields, as `POST /sparql` and `POST /substitute` take
+ * them. `/execute` names a stored version instead, so it does not pass through
+ * here.
+ */
+export interface WireExecutionPayload {
+  arguments?: WireArgumentSet[];
+  limits?: ExecutionParameter[];
+  offsets?: ExecutionParameter[];
+  argumentSetIds?: string[];
+}
+
+/**
+ * Complete a payload from the stored argument sets it names.
+ *
+ * A named set may be combined with inline values for the parameters it leaves
+ * open; supplying a value for one it already fills is refused naming the
+ * parameter, rather than silently letting one win. That rule is `/execute`'s,
+ * and lives here so the routes that accept raw query text cannot drift from it
+ * — `/substitute` exists precisely to give a browser-side executor the same
+ * substitution the server would have done, and "the same" has to include this.
+ */
+export async function resolveExecutionPayload(
+  payload: WireExecutionPayload,
+  service: { exportRuntimePayload: (ids: string[]) => Promise<RuntimeArgumentPayload> }
+): Promise<{
+  argumentSets: WireArgumentSet[] | undefined;
+  limits: ExecutionParameter[] | undefined;
+  offsets: ExecutionParameter[] | undefined;
+}> {
+  const { arguments: inlineArguments, limits, offsets, argumentSetIds } = payload;
+
+  if (!Array.isArray(argumentSetIds) || argumentSetIds.length === 0) {
+    return { argumentSets: inlineArguments, limits, offsets };
+  }
+
+  const stored = await service.exportRuntimePayload(argumentSetIds);
+  const filled = stored.filledParameters;
+  const conflicts: string[] = [];
+
+  for (const argSet of inlineArguments ?? []) {
+    const vars = Array.isArray(argSet?.head?.vars) ? argSet.head.vars : [];
+    if (vars.length && filled.has(tableParameterKey(vars))) {
+      conflicts.push(describeParameterKey(tableParameterKey(vars)));
+    }
+  }
+  for (const limit of limits ?? []) {
+    if (filled.has(scalarParameterKey('limit', limit.name))) {
+      conflicts.push(describeParameterKey(scalarParameterKey('limit', limit.name)));
+    }
+  }
+  for (const offset of offsets ?? []) {
+    if (filled.has(scalarParameterKey('offset', offset.name))) {
+      conflicts.push(describeParameterKey(scalarParameterKey('offset', offset.name)));
+    }
+  }
+  if (conflicts.length) {
+    throw new ArgumentApplicationError(
+      `The named argument set already fills ${conflicts.join(', ')}; `
+        + 'supply a value only for a parameter it leaves open.'
+    );
+  }
+
+  return {
+    argumentSets: [...stored.tupleList, ...(inlineArguments ?? [])],
+    limits: [...stored.limits, ...(limits ?? [])],
+    offsets: [...stored.offsets, ...(offsets ?? [])],
+  };
 }

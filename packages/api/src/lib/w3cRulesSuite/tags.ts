@@ -3,7 +3,7 @@
  *
  * The suite's first axis of organisation was `Test.group`, a free-text field
  * the seeder set to the manifest directory (`eval`, `syntax`, …). That axis is
- * *where a test came from*, and it was the only one a reader could sort 208
+ * *where a test came from*, and it was the only one a reader could sort 203
  * tests by. It answers "which directory", never "which feature", and the two
  * questions a reader actually asks — *what does this exercise* and *what is it
  * asserting* — cut straight across the directories: templates are in `syntax`
@@ -11,22 +11,27 @@
  * asserts a graph.
  *
  * Tags are the axis that answers those — classification, not containment — so
- * a test carries several and appears under each. `Test.group` is gone, and the
- * directory it held is the fourth family here. Four families:
+ * an entry carries several and appears under each. Three families:
  *
  * - **Kind** — `evaluation` or `document check`. Whether the test runs
  *   something. This is the eval/document split the seeder already makes, said
  *   in a way that survives a refreshed snapshot adding a seventh directory.
  * - **Assertion** — `must accept`, `must reject`, `expects error`. What a pass
- *   means. Without it the 30 documents that are *supposed* to be unparseable
+ *   means. Without it the 39 documents that are *supposed* to be unparseable
  *   read as failures of ours.
  * - **Feature** — `templates`, `negation`, `RDFS`, … Which part of the spec is
  *   under test, inferred from the entry name.
- * - **Origin** — `eval/`, `syntax/`, … The manifest directory the entry came
- *   from, which is the axis `Test.group` used to hold. Named with the trailing
- *   slash it has in the suite, which says *directory* in one character and
- *   keeps `stratification/` from colliding with the `stratification` feature —
- *   two different claims about a test that happen to share a word.
+ *
+ * **No origin family.** There was a fourth, one tag per manifest directory
+ * (`eval/`, `syntax/`, …), holding the axis `Test.group` used to. It is gone:
+ * every entry's name already starts with its directory, so six of the
+ * catalogue's tags restated the first word of the row they labelled, and
+ * `stratification/` sat next to the `stratification` feature as a second tag
+ * with the same word and a different claim. The three directories that *are* a
+ * feature wholesale — `stratification/`, `wellformed/`, `examples/` — keep that
+ * feature tag, so what the directory meant survives where it meant something.
+ * Selecting a directory as a suite is `document check` plus a feature, or the
+ * `tests` selector on `POST /tests/run`.
  *
  * **Inferred from names, deliberately.** The manifests carry no feature
  * vocabulary — no `dct:subject`, no keywords — so there is nothing to read. The
@@ -37,8 +42,13 @@
  * lands in the sidebar's computed Untagged group — a visible gap is better than
  * a wrong label, and it is the signal that a rule is missing here.
  *
- * Applying them is `seed.ts`; the tags themselves are ordinary `Tag` entities in
- * the suite's library, so they rename, recolour and delete like any other.
+ * Applying them is `seed.ts`, which puts the same set on the entry's rule set,
+ * on the rules inside it and on the test that runs it: the three rows are the
+ * same artefact seen from three rails, and a reader who groups any of them by
+ * tag should see the same headings. The tags themselves are ordinary `Tag`
+ * entities in the suite's library, so they rename, recolour and delete like any
+ * other — including the retired origin tags, which a store seeded before this
+ * change keeps as empty tags until someone deletes them.
  */
 
 import type { DocumentCategory, EvalCategory, W3cRulesDocumentEntry, W3cRulesEvalEntry } from './manifest.js';
@@ -107,9 +117,12 @@ export const W3C_SUITE_TAGS: readonly W3cSuiteTag[] = [
     description: 'Evaluation is expected to raise an error rather than produce a graph.',
   },
   // Feature.
-  { slug: 'basic', name: 'basic', description: 'Positive datalog — the plain rule shape everything else builds on.' },
+  {
+    slug: 'patterns',
+    name: 'patterns',
+    description: 'Triple patterns in the rule body — the plain positive shape everything else builds on.',
+  },
   { slug: 'blank-nodes', name: 'blank nodes', description: 'Blank nodes in rule bodies and heads, and the ones inference mints.' },
-  { slug: 'patterns', name: 'patterns', description: 'Triple patterns in the rule body.' },
   { slug: 'data-blocks', name: 'data blocks', description: 'DATA blocks: ground triples a rule set carries, and WHERE DATA / NOT DATA over them.' },
   { slug: 'negation', name: 'negation', description: 'NOT and NOT DATA, and the stratification they require.' },
   { slug: 'filters', name: 'filters', description: 'FILTER in the rule body, including the errors it can raise.' },
@@ -120,28 +133,15 @@ export const W3C_SUITE_TAGS: readonly W3cSuiteTag[] = [
   { slug: 'templates', name: 'templates', description: 'The rule head — the template whose instances become the inference graph.' },
   { slug: 'terms', name: 'terms', description: 'Term syntax: IRIs, literals, datatypes and language tags.' },
   { slug: 'reification', name: 'reification', description: 'RDF 1.2 reifiers and triple terms.' },
-  { slug: 'rule-set-structure', name: 'rule set structure', description: 'The shape of the document as a whole — prologue, rule order, nesting.' },
+  {
+    slug: 'rule-structure',
+    name: 'rule structure',
+    description: 'The shape of the document rather than what it computes: the RULE … WHERE … form, its two blocks, '
+      + 'what may nest inside them, and the prologue and rule order around them.',
+  },
   { slug: 'stratification', name: 'stratification', description: 'Whether the rule set can be stratified at all.' },
   { slug: 'well-formedness', name: 'well-formedness', description: 'Constraints beyond the grammar — legal syntax that is still not a usable rule set.' },
   { slug: 'worked-example', name: 'worked example', description: 'An example from the specification, run as written.' },
-  {
-    slug: 'rule-form',
-    name: 'rule form',
-    description: 'The RULE … WHERE … shape itself — its keywords, its two blocks, and what may nest inside them.',
-  },
-  // Origin. Appended, and to be appended to: the order above fixes the
-  // colours, so slotting these in beside their features would recolour every
-  // feature tag after them.
-  { slug: 'origin-eval', name: 'eval/', description: 'From the eval/ directory of the W3C rules suite.' },
-  { slug: 'origin-eval2', name: 'eval2/', description: 'From the eval2/ directory of the W3C rules suite.' },
-  { slug: 'origin-examples', name: 'examples/', description: 'From the examples/ directory of the W3C rules suite.' },
-  { slug: 'origin-syntax', name: 'syntax/', description: 'From the syntax/ directory of the W3C rules suite.' },
-  { slug: 'origin-wellformed', name: 'wellformed/', description: 'From the wellformed/ directory of the W3C rules suite.' },
-  {
-    slug: 'origin-stratification',
-    name: 'stratification/',
-    description: 'From the stratification/ directory of the W3C rules suite.',
-  },
 ].map((tag, index) => ({ ...tag, color: PALETTE[index % PALETTE.length] }));
 
 const BY_SLUG = new Map(W3C_SUITE_TAGS.map(tag => [tag.slug, tag]));
@@ -164,9 +164,11 @@ export function isW3cSuiteTagSlug(slug: string): boolean {
  * hyphen-separated words throughout, so the word boundary is a hyphen.
  */
 const FEATURE_RULES: ReadonlyArray<{ pattern: RegExp; tag: string }> = [
-  { pattern: /(^|-)basic(-|$)/, tag: 'basic' },
+  // `basic` and `patterns` name the same thing from two directions — a rule
+  // body of plain triple patterns — so they share a tag rather than splitting
+  // 41 entries across two headings a reader has to check both of.
+  { pattern: /(^|-)(basic|patterns?)(-|$)/, tag: 'patterns' },
   { pattern: /(^|-)bnodes?(-|$)/, tag: 'blank-nodes' },
-  { pattern: /(^|-)patterns?(-|$)/, tag: 'patterns' },
   { pattern: /(^|-)data(-|$)/, tag: 'data-blocks' },
   { pattern: /(^|-)(neg|negation)(-|$)|elements-not/, tag: 'negation' },
   { pattern: /(^|-)(filter|elements-filter)(-|$)/, tag: 'filters' },
@@ -177,26 +179,27 @@ const FEATURE_RULES: ReadonlyArray<{ pattern: RegExp; tag: string }> = [
   { pattern: /(^|-)template(-|$)/, tag: 'templates' },
   { pattern: /(^|-)terms(-|$)/, tag: 'terms' },
   { pattern: /(^|-)reification(-|$)/, tag: 'reification' },
-  { pattern: /(^|-)ruleset-structure(-|$)/, tag: 'rule-set-structure' },
+  // Both the document's overall shape (`ruleset-structure-*`) and the RULE …
+  // WHERE … form itself, under one tag: the distinction between "the shape of
+  // the document" and "the shape of a rule in it" is not one the reader was
+  // asking about, and it cost two headings.
+  { pattern: /(^|-)ruleset-structure(-|$)/, tag: 'rule-structure' },
   // Last, and deliberately broad: `syntax-rule-bad-*` is a truncated `RULE`
   // with no other word in its name, and the `syntax-rule-elements/paths/terms`
   // families are all about what may appear inside those two blocks. They keep
   // their specific tag as well — a rule body with a FILTER in it is both.
-  { pattern: /(^|-)rule(-|$)/, tag: 'rule-form' },
+  { pattern: /(^|-)rule(-|$)/, tag: 'rule-structure' },
 ];
 
 /**
- * The tag naming the directory an entry came from.
+ * The feature a category asserts wholesale, where the directory *is* the feature.
  *
- * Derived rather than mapped: every category has one, and a refreshed snapshot
- * growing a seventh directory should fail loudly in the catalogue check rather
- * than quietly file its entries under no origin at all.
+ * These three are what is left of the origin family: for the other directories
+ * the name carries the feature, but nothing in `stratification-01` says which
+ * check it is for. A refreshed snapshot growing a seventh directory adds an
+ * entry here only if the directory names a feature; otherwise its entries take
+ * their tags from their names like everything else.
  */
-function originTag(category: DocumentCategory | EvalCategory): string {
-  return `origin-${category}`;
-}
-
-/** The feature a category asserts wholesale, where the directory is the feature. */
 const CATEGORY_FEATURE: Partial<Record<DocumentCategory | EvalCategory, string>> = {
   stratification: 'stratification',
   wellformed: 'well-formedness',
@@ -210,9 +213,10 @@ function featureTags(key: string): string[] {
 /**
  * Strip the `<category>-` the slug carries, leaving the suite's own name.
  *
- * The category is already said by the origin tag, and leaving it in would make
- * `stratification-01` match nothing while `stratification-stratification-01`
- * matched a rule about the word appearing twice.
+ * Leaving it in would make `stratification-01` match nothing while
+ * `stratification-stratification-01` matched a rule about the word appearing
+ * twice, and would give every `eval/` entry the `data-blocks` tag through its
+ * own directory name.
  */
 function keyOf(slug: string, category: string): string {
   return slug.startsWith(`${category}-`) ? slug.slice(category.length + 1) : slug;
@@ -235,7 +239,7 @@ function order(slugs: Iterable<string>): string[] {
  */
 export function tagsForEvalEntry(entry: W3cRulesEvalEntry): string[] {
   const key = `${keyOf(entry.slug, entry.category)}-${entry.rulesetFile.replace(/\.[^.]+$/, '')}`;
-  const tags = ['evaluation', originTag(entry.category), ...featureTags(key)];
+  const tags = ['evaluation', ...featureTags(key)];
   const categoryFeature = CATEGORY_FEATURE[entry.category];
   if (categoryFeature) tags.push(categoryFeature);
   // `eval-filter-error-1`, `eval-assign-error-1`: the rule set is expected to
@@ -249,7 +253,6 @@ export function tagsForDocumentEntry(entry: W3cRulesDocumentEntry): string[] {
   const key = keyOf(entry.slug, entry.category);
   const tags = [
     'document-check',
-    originTag(entry.category),
     entry.accepted ? 'must-accept' : 'must-reject',
     ...featureTags(key),
   ];

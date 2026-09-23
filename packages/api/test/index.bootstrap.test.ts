@@ -5,6 +5,11 @@ const createStubApp = () => ({
   ready: vi.fn().mockResolvedValue(undefined),
   close: vi.fn().mockResolvedValue(undefined),
   setValidatorCompiler: vi.fn(),
+  // Startup installs a response serialiser that compiles each route's schema on
+  // that route's first response rather than at `ready()`; `getSchemas` is what
+  // it reads the external `$ref` bucket from, lazily. See `setupLazySerializer`.
+  setSerializerCompiler: vi.fn(),
+  getSchemas: vi.fn(() => ({})),
   addSchema: vi.fn(),
   setErrorHandler: vi.fn(),
   // The auth plugin decorates the request and installs an onRequest hook.
@@ -278,6 +283,23 @@ describe('index bootstrap', () => {
         tupleSetLibraryBytes: expect.any(Number),
       }),
     }));
+
+    /*
+     * The payload carrying `readOnly` is not enough: Fastify serialises a
+     * response against its schema and drops what the schema does not declare,
+     * which is how a read-only deployment reported itself as writable and the
+     * SPA went on offering Save (issue #26). So the declaration is what this
+     * asserts, on both the ready and the not-ready response.
+     */
+    const healthSchema = hoisted.app!.get.mock.calls.find(([path]) => path === '/health')?.[1]
+      ?.schema?.response as Record<string, any>;
+    for (const status of [200, 503]) {
+      expect(healthSchema[status].properties.readOnly, `${status} declares readOnly`).toEqual({
+        type: 'boolean',
+      });
+      expect(healthSchema[status].required).toContain('readOnly');
+    }
+    expect(healthReply.send.mock.calls[0][0]).toHaveProperty('readOnly', false);
 
     const metricsReply = {
       send: vi.fn(),

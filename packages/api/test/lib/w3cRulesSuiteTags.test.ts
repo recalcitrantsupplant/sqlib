@@ -20,11 +20,10 @@ import {
   tagsForEvalEntry,
 } from '../../src/lib/w3cRulesSuite/tags.js';
 
-/** Kind, assertion and origin; everything else in the catalogue is a feature. */
+/** Kind and assertion; everything else in the catalogue is a feature. */
 const NON_FEATURE = new Set([
   'evaluation', 'document-check',
   'must-accept', 'must-reject', 'expects-error',
-  ...[...DOCUMENT_CATEGORIES, ...EVAL_CATEGORIES].map(category => `origin-${category}`),
 ]);
 
 async function tagged(): Promise<Array<{ slug: string; tags: string[] }>> {
@@ -70,21 +69,37 @@ describe('W3C rules suite tags', () => {
     }
   });
 
-  it('files every entry under the directory it came from', async () => {
-    // The axis `Test.group` used to hold, now a tag family like any other. A
-    // refreshed snapshot growing a seventh directory fails here rather than
-    // filing its entries under no origin at all.
+  it('carries no tag that only restates the directory', async () => {
+    // The origin family — one tag per manifest directory — was retired because
+    // every entry's name already opens with its directory. This is the guard
+    // against it coming back a tag at a time.
     for (const category of [...DOCUMENT_CATEGORIES, ...EVAL_CATEGORIES]) {
-      expect(isW3cSuiteTagSlug(`origin-${category}`), category).toBe(true);
+      expect(isW3cSuiteTagSlug(`origin-${category}`), category).toBe(false);
     }
+    for (const row of await tagged()) {
+      expect(row.tags.filter(tag => tag.startsWith('origin-')), row.slug).toEqual([]);
+    }
+  });
 
-    const rows = await tagged();
-    for (const row of rows) {
-      const origins = row.tags.filter(tag => tag.startsWith('origin-'));
-      expect(origins, row.slug).toHaveLength(1);
-      // The slug is `<category>-<name>`, so the origin has to agree with it.
-      expect(row.slug.startsWith(`${origins[0].slice('origin-'.length)}-`), row.slug).toBe(true);
+  it('keeps the three directories that are a feature in their own right', async () => {
+    // `stratification-01` says nothing about what it checks, so the directory
+    // is the only source for it. These are what is left of the origin axis.
+    const bySlug = new Map((await tagged()).map(row => [row.slug, row.tags]));
+    const all = [...bySlug].filter(([slug]) => slug.startsWith('stratification-'));
+    for (const [slug, tags] of all) expect(tags, slug).toContain('stratification');
+    expect(all.length).toBe(10);
+    for (const [slug, tags] of [...bySlug].filter(([slug]) => slug.startsWith('wellformed-'))) {
+      expect(tags, slug).toContain('well-formedness');
     }
+    for (const [slug, tags] of [...bySlug].filter(([slug]) => slug.startsWith('examples-'))) {
+      expect(tags, slug).toContain('worked-example');
+    }
+  });
+
+  it('stays small enough to read as a list of headings', () => {
+    // Not an arbitrary cap: the sidebar draws one heading per tag, and a
+    // catalogue that grows past this is worth a merge rather than an entry.
+    expect(W3C_SUITE_TAGS.length).toBeLessThanOrEqual(21);
   });
 
   it('marks every document test with the polarity it asserts, and no eval test', async () => {
@@ -104,21 +119,25 @@ describe('W3C rules suite tags', () => {
     // Two features at once, which is why every matching rule applies rather
     // than the first.
     expect(bySlug.get('eval-eval-neg-data-01')).toEqual([
-      'evaluation', 'data-blocks', 'negation', 'origin-eval',
+      'evaluation', 'data-blocks', 'negation',
     ]);
     // The feature word lives in the rule set's file name, not the entry's.
-    expect(bySlug.get('eval2-link-path-1')).toEqual(['evaluation', 'property-paths', 'origin-eval2']);
+    expect(bySlug.get('eval2-link-path-1')).toEqual(['evaluation', 'property-paths']);
     // An error is an assertion, not a feature: it keeps `filters` too.
     expect(bySlug.get('eval-eval-filter-error-1')).toEqual([
-      'evaluation', 'expects-error', 'filters', 'origin-eval',
+      'evaluation', 'expects-error', 'filters',
     ]);
     expect(bySlug.get('syntax-syntax-template-bad-01')).toEqual([
-      'document-check', 'must-reject', 'templates', 'origin-syntax',
+      'document-check', 'must-reject', 'templates',
     ]);
-    // The two claims that share a word and are not the same claim: the
-    // directory it came from, and the thing it is testing.
     expect(bySlug.get('stratification-stratification-01')).toEqual([
-      'document-check', 'must-accept', 'stratification', 'origin-stratification',
+      'document-check', 'must-accept', 'stratification',
+    ]);
+    // The two merges the simplification made. `basic` and `patterns` are one
+    // tag, and the document's shape and the RULE form are another.
+    expect(bySlug.get('eval-eval-basic-01')).toEqual(['evaluation', 'patterns']);
+    expect(bySlug.get('syntax-syntax-ruleset-structure-01')).toEqual([
+      'document-check', 'must-accept', 'rule-structure',
     ]);
   });
 });

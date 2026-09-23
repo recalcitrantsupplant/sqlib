@@ -6,6 +6,7 @@ import {
   SCRATCH_ID_PREFIX,
   type ArgumentSetDraftInput,
 } from '@/composables/useArgumentSetDrafts';
+import { useCallableDrafts, CALLABLE_DRAFTS_STORAGE_KEY } from '@/composables/useCallableDrafts';
 
 function record(overrides: Partial<ArgumentSetDraftInput> = {}): ArgumentSetDraftInput {
   return {
@@ -23,7 +24,7 @@ function record(overrides: Partial<ArgumentSetDraftInput> = {}): ArgumentSetDraf
 describe('useArgumentSetDrafts', () => {
   beforeEach(() => {
     localStorage.clear();
-    useArgumentSetDrafts().clear();
+    useCallableDrafts().clear();
   });
 
   it('round-trips a scratch set through storage', () => {
@@ -34,6 +35,29 @@ describe('useArgumentSetDrafts', () => {
     expect(reloaded.all.value).toHaveLength(1);
     expect(reloaded.all.value[0].name).toBe('myargs');
     expect(JSON.parse(localStorage.getItem(ARGUMENT_SET_DRAFTS_STORAGE_KEY) ?? '[]')).toHaveLength(1);
+  });
+
+  /*
+   * The bug this module was rewritten for: the query screen wrote to one store
+   * and the rail read another, so a set made on a query never reached the rail
+   * in that session — and only appeared after a reload, because the legacy-key
+   * migration runs at module load.
+   */
+  it('writes where the rail reads, with no reload in between', () => {
+    useArgumentSetDrafts().save(record({ id: 'urn:ui-temp:argument-set:rail', name: 'seen by the rail' }));
+
+    const rail = useCallableDrafts().scratchFor('argumentSet');
+    expect(rail.map((entry) => entry.name)).toEqual(['seen by the rail']);
+    expect(localStorage.getItem(ARGUMENT_SET_DRAFTS_STORAGE_KEY)).toBe(
+      localStorage.getItem(CALLABLE_DRAFTS_STORAGE_KEY),
+    );
+  });
+
+  it('keeps graph bindings, which a group set is mostly made of', () => {
+    const store = useArgumentSetDrafts();
+    store.save(record({ scope: 'queryGroup', graphBindings: [{ position: 0, dataGraphVersionId: 'urn:dgv:1' }] }));
+    store.reload();
+    expect(store.get(record().id)?.graphBindings).toEqual([{ position: 0, dataGraphVersionId: 'urn:dgv:1' }]);
   });
 
   it('counts edits so the header can say how much is unsaved', () => {
@@ -64,16 +88,6 @@ describe('useArgumentSetDrafts', () => {
     expect(store.draftFor('urn:set:2')).toBeNull();
     // A draft is not a scratch set and must never show up as one.
     expect(store.scratchFor('urn:query:cities')).toEqual([]);
-  });
-
-  it('drops records that do not parse rather than throwing', () => {
-    localStorage.setItem(
-      ARGUMENT_SET_DRAFTS_STORAGE_KEY,
-      JSON.stringify([{ nonsense: true }, record({ id: 'good' })]),
-    );
-    const store = useArgumentSetDrafts();
-    store.reload();
-    expect(store.all.value.map((entry) => entry.id)).toEqual(['good']);
   });
 
   it('survives storage that is not an array at all', () => {

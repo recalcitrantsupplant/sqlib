@@ -46,6 +46,18 @@ export type DataTableState = {
   pageSizeOptions: number[]
 }
 
+/**
+ * Rows on a page, unless a caller says otherwise.
+ *
+ * Twenty, because that is about what fits under a results panel in a normal
+ * browser window without the page controls sliding off the bottom — the point
+ * of a page size is that the last row and the paging row are both on screen.
+ */
+export const DEFAULT_PAGE_SIZE = 20
+
+/** What the rows-per-page menu offers, smallest first. */
+export const PAGE_SIZE_OPTIONS = [10, 20, 50, 100, 250]
+
 /** Per-column presentation hooks read by `DataTable.vue` when rendering. */
 export type DataTableColumnMeta = {
   headerClassName?: string
@@ -118,7 +130,7 @@ export function useDataTable<TData extends RowData, TValue>(
 ) {
   const enableRowNumbers = options.enableRowNumbers ?? false
   const enablePagination = options.enablePagination ?? false
-  const initialPageSize = options.initialPageSize ?? 25
+  const initialPageSize = options.initialPageSize ?? DEFAULT_PAGE_SIZE
 
   const sorting: Ref<SortingState> = ref([])
   const columnFilters: Ref<ColumnFiltersState> = ref([])

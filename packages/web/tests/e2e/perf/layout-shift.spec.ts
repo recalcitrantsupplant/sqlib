@@ -112,7 +112,7 @@ interface Screen {
 }
 
 const SCREENS: Screen[] = [
-  { name: 'sidebar', url: '/', ready: '.nav-sidebar', cls: 0.01 },
+  { name: 'splash', url: '/', ready: '[data-testid="app-splash"]', cls: 0.01 },
   { name: 'queries section', url: '/?section=queries', ready: '[data-testid="entity-list-sidebar"]', cls: 0.02 },
   { name: 'rules section', url: '/?section=rules', ready: '[data-testid="entity-list-sidebar"]', cls: 0.02 },
   { name: 'benchmarks section', url: '/?section=benchmarks', ready: '[data-testid="entity-list-sidebar"]', cls: 0.02 },

@@ -1121,6 +1121,9 @@ const inputVariables = computed(() => {
   flex-shrink: 0;
   align-items: center;
   gap: var(--space-4);
+  box-sizing: border-box;
+  /* Same band as the Results tab's footer: switching tabs must not move it. */
+  min-height: var(--panel-bar-h);
   padding: var(--space-4) var(--space-5);
   border-top: 1px solid var(--border-subtle);
   background: var(--surface-subtle);

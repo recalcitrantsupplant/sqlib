@@ -457,6 +457,7 @@ const MANIFEST: Record<string, Protection> = {
   'GET /argument-sets': 'handler',
   'POST /argument-sets': 'write-from-body',
   'GET /argument-sets/:id': 'read',
+  'PUT /argument-sets/:id': 'write',
   'DELETE /argument-sets/:id': 'delete',
   'GET /argument-sets/:id/export': 'read',
   'GET /argument-sets/:id/v': 'read',
@@ -682,6 +683,13 @@ const MANIFEST: Record<string, Protection> = {
   'POST /validate': 'stateless',
   'POST /validate-rule-data': 'stateless',
   'POST /format': 'stateless',
+  /*
+   * Substitution without execution: it names no backend, reaches no executor
+   * and writes nothing, which is what lets a read-only deployment serve it —
+   * see `config/readOnly.ts`. Reading a stored argument set is the one thing it
+   * does touch, and that is a read.
+   */
+  'POST /substitute': 'stateless',
 
   /*
    * One route, and the only one in the API whose answer is a subscription

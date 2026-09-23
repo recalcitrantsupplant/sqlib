@@ -47,6 +47,55 @@ describe('SRL base grammar — parse + compile', () => {
     expect(() => parseRuleSet(`${PREFIX}\nIF { :s :p ?o } THEN { :x :q ?o }`)).toThrow();
   });
 
+  /*
+   * SRL has no EXISTS and no NOT EXISTS: its own `[118] BuiltInCall` lists
+   * every function a constraint may call and omits `ExistsFunc` and
+   * `NotExistsFunc`, and negation is `[21] Negation` — `NOT { … }`, whose
+   * inner body is triple patterns and filters rather than a nested pattern.
+   *
+   * They parsed here because the body rule reuses SPARQL's `filter` and
+   * `expression` for the leaves the two languages share, and SPARQL's
+   * `BuiltInCall` does end with those two. So `FILTER NOT EXISTS { … }` read
+   * as an ordinary SRL filter whose expression happened to be a pattern
+   * operation, compiled to SPARQL, and ran — while the editor's own grammar
+   * underlined it as invalid.
+   */
+  describe('EXISTS and NOT EXISTS are not SRL', () => {
+    const body = (text: string) => `${PREFIX}\nRULE { :x :q ?o } WHERE { :s :p ?o ${text} }`;
+
+    it('rejects FILTER NOT EXISTS, naming the SRL spelling', () => {
+      expect(() => parseRuleSet(body('FILTER NOT EXISTS { :s :dead ?z }')))
+        .toThrow(/NOT EXISTS is not part of SRL — write the negation as NOT/);
+    });
+
+    it('rejects FILTER EXISTS, which a conjunction already says', () => {
+      expect(() => parseRuleSet(body('FILTER EXISTS { :s :alive ?z }')))
+        .toThrow(/EXISTS is not part of SRL — match the pattern in the body/);
+    });
+
+    // The leak is not only the top of a constraint.
+    it('rejects one buried in an operand', () => {
+      expect(() => parseRuleSet(body('FILTER ( ?o > 1 && NOT EXISTS { :s :dead ?z } )')))
+        .toThrow(/NOT EXISTS is not part of SRL/);
+    });
+
+    it('rejects one inside a NOT body', () => {
+      expect(() => parseRuleSet(body('NOT { :s :y ?z FILTER NOT EXISTS { :s :dead ?w } }')))
+        .toThrow(/NOT EXISTS is not part of SRL/);
+    });
+
+    it('rejects one in a SET expression, which takes the same expressions', () => {
+      expect(() => parseRuleSet(`${PREFIX}\nRULE { :x :q ?v } WHERE { :s :p ?o SET ( ?v := NOT EXISTS { :s :dead ?z } ) }`))
+        .toThrow(/NOT EXISTS is not part of SRL/);
+    });
+
+    it('leaves NOT { … } and ordinary filters alone', () => {
+      expect(() => parseRuleSet(body('NOT { :s :dead ?z }'))).not.toThrow();
+      expect(() => parseRuleSet(body('FILTER ( ?o > 1 )'))).not.toThrow();
+      expect(() => parseRuleSet(body('FILTER ( REGEX(STR(?o), "a") )'))).not.toThrow();
+    });
+  });
+
   it('compiles FILTER in the body (W3C eval-filter shape)', () => {
     const rs = parseRuleSet(`${PREFIX}\nRULE { ?x :bothPositive true } WHERE { ?x :p ?v1 FILTER ( ?v1 > 0 ) }`);
     const item = rs.rules[0].body.map((b) => b.kind);

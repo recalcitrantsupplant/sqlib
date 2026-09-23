@@ -33,9 +33,12 @@
     <span class="bar-spacer" />
 
     <!--
-      Format and Diff were buttons in the editor's own toolbar. The mockup puts
-      them here as icons, next to Discard and Save, because they act on the
-      body you are about to save rather than on the editor.
+      Format, and the prefix conversions under it, are off by default now and
+      every work area passes `show-format="false"`: both editors that have a
+      formatter put these in the editor's own header row instead, beside
+      Expand, where they sit with the other things done to the document. The
+      capability stays because the shape is right for a section whose body has
+      no header row of its own — but nothing renders it today.
 
       Format's title names no shortcut: the one it used to advertise was never
       bound to anything.
@@ -274,7 +277,7 @@ const saveTitle = computed(() => {
   align-items: center;
   gap: var(--space-2);
   box-sizing: border-box;
-  height: 40px;
+  height: var(--panel-bar-h);
   flex-shrink: 0;
   padding: 0 var(--space-4);
   overflow: hidden;

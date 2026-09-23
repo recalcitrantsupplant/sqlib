@@ -1,14 +1,14 @@
 import { test, expect, type Page } from '@playwright/test';
-import { mockEntityApi } from './fixtures/entities';
+import { mockEntityApi, QUERY } from './fixtures/entities';
 
 /**
  * The 56px primary nav rail.
  *
  * Two things are being asserted, and they are different: that the rail is a
  * router (Library and Build are screens), and that it is a scope (the rest
- * filter the artifact tree). The scope is opt-in — with no rail entry chosen the tree
- * renders exactly as it did before the rail existed — so "unscoped by default"
- * is itself a test, not an accident.
+ * open their own sidebar). The scope is opt-in — with no rail entry chosen the
+ * app shows the splash and no sidebar at all — so "unscoped by default" is
+ * itself a test, not an accident.
  */
 
 async function openApp(page: Page) {
@@ -16,17 +16,8 @@ async function openApp(page: Page) {
   await page.waitForSelector('.nav-rail');
 }
 
-async function expandLibrary(page: Page) {
-  await page.locator('.library-toggle').first().click();
-  await expect(page.locator('.library-subitems').first()).toBeVisible();
-}
-
 function railButton(page: Page, label: string) {
   return page.locator('.nav-rail .rail-button').filter({ hasText: label });
-}
-
-function categoryHeader(page: Page, name: string) {
-  return page.locator('.category-header').filter({ hasText: name });
 }
 
 test.describe('Nav rail', () => {
@@ -108,18 +99,13 @@ test.describe('Nav rail', () => {
     await expect(page.locator('[data-testid="backend-list-sidebar"]')).toBeVisible();
   });
 
-  test('starts unscoped — every tree section is present', async ({ page }) => {
-    await expect(page.locator('.section-title').filter({ hasText: 'Libraries' })).toBeVisible();
-    await expect(page.locator('.section-title').filter({ hasText: 'Backends' })).toBeVisible();
-    // Two, not three. The Playground branch is gone: every playground folded
-    // into its section's Scratch cluster, and a second door to the same
-    // content is what the nav redesign exists to close (nav doc §1).
-    await expect(page.locator('.section-title').filter({ hasText: 'Playground' })).toHaveCount(0);
-
-    await expandLibrary(page);
-    await expect(categoryHeader(page, 'Queries')).toBeVisible();
-    await expect(categoryHeader(page, 'Query Groups')).toBeVisible();
-    await expect(categoryHeader(page, 'Rule Sets')).toBeVisible();
+  test('starts unscoped — the splash, and no sidebar', async ({ page }) => {
+    await expect(page.locator('[data-testid="app-splash"]')).toBeVisible();
+    await expect(page.locator('[data-testid="entity-list-sidebar"]')).toHaveCount(0);
+    await expect(page.locator('[data-testid="backend-list-sidebar"]')).toHaveCount(0);
+    // The tree that used to be this state is gone, not filtered: it was a
+    // second navigator beside a rail that already lists every section.
+    await expect(page.locator('.nav-sidebar')).toHaveCount(0);
   });
 
   test('Query leaves the tree behind for the flat sidebar', async ({ page }) => {
@@ -165,7 +151,7 @@ test.describe('Nav rail', () => {
 
     await railButton(page, 'Backends').click();
     await expect(page).not.toHaveURL(/section=/);
-    await expect(page.locator('.section-title').filter({ hasText: 'Libraries' })).toBeVisible();
+    await expect(page.locator('[data-testid="app-splash"]')).toBeVisible();
   });
 
   test('restores the scope from the URL', async ({ page }) => {
@@ -176,14 +162,18 @@ test.describe('Nav rail', () => {
     await expect(page.locator('[data-testid="backend-list-sidebar"]')).toBeVisible();
   });
 
+  /*
+   * A link that names a record opens it whatever the URL says about sections,
+   * and the rail follows the record. The highlight is not a scope: no section
+   * was picked, so nothing else on the screen moves.
+   */
   test('highlights the entry matching the open artifact without scoping', async ({ page }) => {
-    await expandLibrary(page);
-    await categoryHeader(page, 'Queries').first().click();
-    await page.locator('.item-button').first().click();
+    await page.goto(`/?query=${encodeURIComponent(QUERY.id)}`, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('.nav-rail');
 
+    await expect(page.locator('.query-work-area')).toBeVisible();
     await expect(railButton(page, 'Query')).toHaveAttribute('aria-current', 'page');
-    // Highlight only — the tree is still unscoped.
-    await expect(page.locator('.section-title').filter({ hasText: 'Backends' })).toBeVisible();
+    await expect(page.locator('[data-testid="entity-list-sidebar"]')).toHaveCount(0);
   });
 
   test('Settings opens from the rail footer', async ({ page }) => {

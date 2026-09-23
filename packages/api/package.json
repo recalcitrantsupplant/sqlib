@@ -49,6 +49,7 @@
     "@ai-sdk/openai": "^4.0.66",
     "@duckdb/node-api": "1.5.5-r.4",
     "@fastify/cors": "^11.3.0",
+    "@fastify/fast-json-stringify-compiler": "^5.1.0",
     "@fastify/multipart": "^10.1.1",
     "@fastify/otel": "^0.21.0",
     "@fastify/swagger": "^9.8.1",

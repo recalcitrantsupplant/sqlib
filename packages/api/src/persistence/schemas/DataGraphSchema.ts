@@ -34,6 +34,23 @@ export const DataGraphSchema = {
     '@type': ldkit.IRI,
     '@references': { types: ['Library'], exactlyOne: 'Library' },
   },
+  /**
+   * The argument set this graph was minted from, when it was born by pasting
+   * RDF into a call rather than composed on the rail.
+   *
+   * Origin, not ownership: the graph is an ordinary `DataGraph` the moment it
+   * exists, reusable anywhere in its library. This is only what lets the rail
+   * say at a glance where a row came from (*Composed here* / *From groups*),
+   * which is a view over one list rather than a move — and deliberately not a
+   * tag, because auto-tagging by provenance makes a tag mean both "I decided
+   * this" and "the system asserted this".
+   */
+  mintedFrom: {
+    '@id': sqlib.mintedFrom,
+    '@type': ldkit.IRI,
+    '@optional': true,
+    '@references': { types: ['ArgumentSet'] },
+  },
   tags: {
     '@id': sqlib.hasTag,
     '@array': true,
@@ -60,6 +77,8 @@ export interface LdkitDataGraph {
   description?: string | null;
   currentVersion?: string | null;
   isPartOf: string[];
+  /** The argument set this graph was minted from; absent on one composed here. */
+  mintedFrom?: string | null;
   tags?: string[] | null;
   dateCreated?: string | null;
   dateModified?: string | null;

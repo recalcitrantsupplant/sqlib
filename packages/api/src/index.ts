@@ -20,16 +20,22 @@ import fastifyMultipart from '@fastify/multipart';
 import fastifySwagger from '@fastify/swagger';
 import fastifySwaggerUi from '@fastify/swagger-ui';
 import fastifyCors from '@fastify/cors';
-import { serializerOpts, setupValidator } from './lib/validator-setup.js';
+import { serializerOpts, setupLazySerializer, setupValidator } from './lib/validator-setup.js';
 import { memoryCacheManager } from './lib/MemoryCacheManager.js';
 import path from 'node:path';
 import { cacheMonitoringService } from './lib/CacheMonitoringService.js';
 import { oxigraphStoreManager } from './lib/OxigraphStoreManager.js';
+import { getDuckDbService } from './lib/DuckDbService.js';
 import { getFeatureFlags, resetFeatureFlags } from './config/featureFlags.js';
 import { config } from './server/config.js';
 import { registerAuthPlugin } from './auth/plugin.js';
 import { initializeAuth } from './auth/bootstrap.js';
 import { getAuthConfig, resetAuthConfig } from './auth/config.js';
+import {
+  isReadOnlyDeployment,
+  registerReadOnlyPlugin,
+  resetReadOnly,
+} from './config/readOnly.js';
 import {
   MAX_DATA_GRAPH_LIBRARY_BYTES,
   MAX_DATA_GRAPH_VERSION_BYTES,
@@ -193,6 +199,15 @@ async function seedPatchDemoLibrary(
 type ConfigureOptions = {
   enableCacheMonitoring?: boolean;
   registerSwagger?: boolean;
+  /**
+   * Compile response serialisers at `ready()` instead of on each route's first
+   * response. See `setupLazySerializer` for what that costs at startup.
+   *
+   * Defaults to lazy. `SQLIB_EAGER_SERIALIZERS=true` is the way back for a
+   * deployment that would rather pay the whole bill up front — a long-lived
+   * instance behind a load balancer gains nothing from deferring it.
+   */
+  eagerSerializers?: boolean;
 };
 
 function buildExternalPath(basePath: string, routePath: string): string {
@@ -228,6 +243,12 @@ function getHealthPayload() {
     auth: {
       mode: getAuthConfig().mode,
     },
+    /*
+     * Feature-detected the same way, and for the same reason: the SPA turns
+     * Save into "keep in this browser" when this is true, so a build pointed at
+     * a read-only deployment must not offer a button the server will refuse.
+     */
+    readOnly: isReadOnlyDeployment(),
     cache: {
       ready,
       totalEntities: cacheStats.totalEntities,
@@ -377,6 +398,9 @@ async function registerApplicationRoutes(
                 },
                 required: ['mode'],
               },
+              // Declared, or Fastify's serialiser drops it and the SPA reads a
+              // read-only deployment as writable — see `useDeploymentMode`.
+              readOnly: { type: 'boolean' },
               cache: {
                 type: 'object',
                 properties: {
@@ -402,7 +426,7 @@ async function registerApplicationRoutes(
                 ],
               },
             },
-            required: ['status', 'timestamp', 'uptimeSeconds', 'auth', 'cache', 'limits'],
+            required: ['status', 'timestamp', 'uptimeSeconds', 'auth', 'readOnly', 'cache', 'limits'],
           },
           503: {
             type: 'object',
@@ -417,6 +441,9 @@ async function registerApplicationRoutes(
                 },
                 required: ['mode'],
               },
+              // Declared, or Fastify's serialiser drops it and the SPA reads a
+              // read-only deployment as writable — see `useDeploymentMode`.
+              readOnly: { type: 'boolean' },
               cache: {
                 type: 'object',
                 properties: {
@@ -442,7 +469,7 @@ async function registerApplicationRoutes(
                 ],
               },
             },
-            required: ['status', 'timestamp', 'uptimeSeconds', 'auth', 'cache', 'limits'],
+            required: ['status', 'timestamp', 'uptimeSeconds', 'auth', 'readOnly', 'cache', 'limits'],
           },
         },
       },
@@ -657,7 +684,17 @@ async function registerApplicationRoutes(
 }
 
 async function configureApp(fastifyApp: typeof app, options: ConfigureOptions = {}) {
-  const { enableCacheMonitoring = true, registerSwagger = true } = options;
+  const {
+    enableCacheMonitoring = true,
+    registerSwagger = true,
+    eagerSerializers = process.env.SQLIB_EAGER_SERIALIZERS === 'true',
+  } = options;
+
+  // Before any route, and before the validator below, because both compilers
+  // belong to the encapsulation context the routes are registered on.
+  if (!eagerSerializers) {
+    setupLazySerializer(fastifyApp);
+  }
 
   // Register CORS plugin
   await fastifyApp.register(fastifyCors, {
@@ -689,6 +726,15 @@ async function configureApp(fastifyApp: typeof app, options: ConfigureOptions = 
   // validates tokens here.
   resetAuthConfig();
   await registerAuthPlugin(fastifyApp);
+
+  // After auth so a refusal is logged against a request that already carries a
+  // context, and before every route so no write route can be reached without
+  // passing it. Registering it is a no-op unless SQLIB_READ_ONLY=true.
+  resetReadOnly();
+  if (isReadOnlyDeployment()) {
+    fastifyApp.log.info('SQLIB_READ_ONLY=true: refusing writes to sqlib\'s own state');
+  }
+  await registerReadOnlyPlugin(fastifyApp);
 
   // Set up IRI format validation BEFORE registering schemas
   setupValidator(fastifyApp);
@@ -818,6 +864,21 @@ async function configureApp(fastifyApp: typeof app, options: ConfigureOptions = 
   if (enableCacheMonitoring) {
     console.log('Starting cache monitoring...');
     cacheMonitoringService.start();
+  }
+
+  /*
+   * DuckDB builds itself on first use now (see `DuckDbService`), so a
+   * deployment that serves ETL starts it here instead — deliberately not
+   * awaited, so it warms alongside the rest of the boot rather than in front of
+   * the first request. This is what the module-load singleton used to do; the
+   * difference is that a deployment with ETL off no longer pays for it.
+   */
+  if (featureFlags.etl || featureFlags.playgroundEtl) {
+    void getDuckDbService()
+      .waitForInit()
+      .catch((error: unknown) => {
+        fastifyApp.log.warn({ err: error }, 'DuckDB warm-up failed; ETL routes will report it unavailable');
+      });
   }
 
   // One hook, before any route: MCP writes arrive through `app.inject` and so

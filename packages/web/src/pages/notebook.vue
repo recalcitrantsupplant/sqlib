@@ -1,6 +1,6 @@
 <template>
   <div class="notebook-layout">
-    <AppNavRail active-section="notebooks" @select="handleRailSelect" />
+    <AppNavRail active-section="notebooks" @select="handleRailSelect" @home="goHome" />
 
     <!--
       A notebook is an asset like every other one the rail lists, so it is
@@ -319,8 +319,8 @@ import { isScreenSection, SCREEN_SECTION_PATHS, type RailSection } from '../lib/
 /**
  * The notebook screen: a document you write, not a library you render.
  *
- * Its counterpart is `/library`, which renders every query the library holds.
- * That screen answers "what is in here"; this one answers "here is how you use
+ * It replaced `/library`, which rendered every query the library holds. That
+ * screen answered "what is in here"; this one answers "here is how you use
  * it" — prose, a handful of cells in the order that makes sense, and each run
  * bound to a name the cells below can read.
  *
@@ -682,6 +682,11 @@ async function confirmSave() {
   } finally {
     saving.value = false;
   }
+}
+
+/** The mark at the head of the rail: back to the splash. */
+function goHome() {
+  router.push({ path: '/' });
 }
 
 function handleRailSelect(section: RailSection) {

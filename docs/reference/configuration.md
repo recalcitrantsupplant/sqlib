@@ -153,12 +153,98 @@ A value that does not parse as an integer falls back to the default.
 
 | Name | Default | Effect |
 | --- | --- | --- |
-| `OTEL_ENABLED` | `true` | Set to exactly `false` to skip OpenTelemetry SDK startup and OpenTelemetry log export. Any other value leaves it on. The container only loads the OTel setup module in `APP_MODE=api`. |
+| `OTEL_ENABLED` | `true` | Set to exactly `false` to skip OpenTelemetry SDK startup and OpenTelemetry log export. Any other value leaves it on. With it off the SDK is not imported at all, which is worth about 220ms of startup. |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://localhost:4318` | OTLP HTTP collector base URL. Traces go to `/v1/traces` and metrics to `/v1/metrics`. |
 
 OTLP export only happens when `NODE_ENV=development`. In any other environment
 the SDK starts with console exporters, which means an endpoint set in production
 is not used. Metrics are exported every 30 seconds.
+
+## Startup time
+
+Relevant to a deployment that scales to zero, where a cold start sits in front
+of a user request rather than happening once a week.
+
+| Name | Default | Effect |
+| --- | --- | --- |
+| `SQLIB_EAGER_SERIALIZERS` | unset (lazy) | Set to exactly `true` to compile every route's response serialiser while the server starts, instead of on that route's first response. |
+| `NODE_COMPILE_CACHE` | unset in a local run, `/app/.v8-compile-cache` in the container | Node's own variable: a directory where it caches compiled module bytecode and reuses it next boot. The image ships a populated cache, so the first container to start is already warm. |
+
+Response-schema compilation is the largest single term in startup and it scales
+with the number of routes, not with the amount of data: on a 135-route instance
+it was ~890ms of a ~1.4s `ready()`, whether or not anything ever called those
+routes. Compiling each route's serialiser on its first response instead moves
+that off the boot path for ~2ms on that first response, which is why it is the
+default. `SQLIB_EAGER_SERIALIZERS=true` is the way back for a long-lived
+instance that would rather pay the whole bill before it accepts traffic.
+
+Two other things help and are ordinary configuration rather than switches:
+turning off [feature flags](feature-flags.md) you do not serve removes their
+routes, and each route is worth roughly 10ms of startup; and `OTEL_ENABLED=false`
+avoids loading the OpenTelemetry SDK.
+
+What does *not* help much is anything about Oxigraph itself: the WASM module
+instantiates in about 25ms. The data-dependent part of startup is the snapshot,
+which loads at roughly 180,000 quads per second, plus the cache preload — so a
+library of a few thousand entities is lost in the noise and one of a few hundred
+thousand quads is not. See [what `oxigraph-persistent` actually
+does](#what-oxigraph-persistent-actually-does).
+
+## Read-only deployments
+
+`SQLIB_READ_ONLY=true` turns sqlib into a compute service: it still parses,
+validates, formats and executes, but it refuses every write to its own state.
+The catalogue changes by redeployment, and anything a visitor authors is kept in
+their browser instead. It is what a public demo site runs.
+
+| Name | Default | Effect |
+| --- | --- | --- |
+| `SQLIB_READ_ONLY` | `false` | Exactly `true` turns it on; any other value, including unset, leaves it off. |
+
+It is not an auth mode and does not need one. An auth mode answers "who is this,
+and what may they reach", which needs principals, grants and an issuer; this
+answers "may this deployment's own state change at all", which gives every
+caller the same answer. The two compose — a public site runs
+`SQLIB_AUTH_MODE=disabled` beside this, and the full-access context that mode
+mints still cannot write, because the gate consults no context.
+
+The gate refuses every mutating method and then names its exceptions, so a route
+added later is refused until someone decides otherwise. The exceptions are the
+routes that compute an answer and store nothing: `/detect-inputs`,
+`/detect-outputs`, `/validate`, `/validate-rule-data`, `/format`, `/substitute`,
+`/execute`, `/sparql`, the SRL compile, analyse and preview routes, the rule and
+rule-set execution routes, the tuple-set preview, the two test-run routes, and
+`/mcp`. The list lives in `packages/api/src/config/readOnly.ts`, and a test
+fails on an entry that names no registered route, on a mutating route that is
+neither listed nor refused, and on one of these exceptions losing its way back.
+
+Two of those exceptions are worth their own sentence:
+
+- **Running a test is compute; its history is the write.** `POST /tests/run`
+  and `POST /tests/:id/run` answer with a verdict, and `recordTestRuns` files
+  nothing on a read-only deployment, so no run history accumulates — the same
+  line `?record=patch` draws for SPARQL.
+- **`/mcp` is all POST**, so refusing it would take every tool, reads included,
+  off a read-only deployment. Admitting it opens no write path: a tool call
+  reaches its route through `app.inject` and meets the same hook there, so a
+  mutation tool is refused at the inner route.
+
+Three things it deliberately does **not** do:
+
+- **It does not refuse SPARQL.** `POST /sparql` passes through untouched,
+  UPDATEs included. Whether a store accepts a write is the store's answer:
+  sqlib's own read-only backends refuse through `ReadOnlySparqlExecutor`, and
+  an endpoint somebody else owns refuses, or does not, on its own terms. What
+  it does refuse is `?record=patch`, because recording a patch writes sqlib's
+  state.
+- **It does not enable anything.** `FEATURE_ETL`, `FEATURE_PLAYGROUND_ETL` and
+  `FEATURE_ASSISTANT` are still off by default, and the ETL routes are absent
+  from the exceptions above — turning a flag on is not enough to expose them on
+  a read-only deployment.
+- **It does not authenticate.** Every visitor is the same anonymous caller.
+
+`/health` reports it as `readOnly`, beside the auth mode, so the SPA can offer
+browser-local authoring rather than a button the server will refuse.
 
 ## Authentication
 
@@ -225,6 +311,14 @@ read at **build** time and baked into the bundle.
 | `NUXT_PUBLIC_AUTH_AUDIENCE` | empty | Requested audience. |
 | `NUXT_PUBLIC_AUTH_SCOPE` | `openid profile email` | Requested scopes. |
 | `NUXT_PUBLIC_FEATURE_*` | the API-side default for that flag | Per-flag override for the browser build; see [feature flags](feature-flags.md). |
+| `NUXT_PUBLIC_APP_VERSION` | the version in `.release-please-manifest.json` | What the About block on the splash and the line in Settings report. |
+| `NUXT_PUBLIC_APP_COMMIT` | `git rev-parse --short HEAD`, or empty | The commit reported beside the version. Shortened to seven characters. |
+| `NUXT_PUBLIC_BUILD_TIME` | the moment of the build | ISO timestamp shown in the version's tooltip. |
+
+The three build-stamp variables exist for builds that cannot work the values
+out for themselves: an image built from a source copy with no `.git` directory
+finds no commit, and one built outside the repo finds no manifest. Pass what
+the build system knows.
 
 A deployed static build can be re-pointed without rebuilding by serving a
 `/config.json` beside it. The client plugin

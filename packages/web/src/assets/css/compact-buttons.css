@@ -214,3 +214,66 @@
 @keyframes sqlib-spin {
   to { transform: rotate(360deg); }
 }
+
+/*
+ * DOCUMENT ACTIONS — the row of icon buttons above an editor.
+ *
+ * Format, the two prefix conversions, Import, Diff and Expand: everything that
+ * rewrites or reframes the document below them, as one row of identical
+ * boxes. Global rather than scoped because three different components put
+ * buttons in that row — the work area writes `.editor-action`, the prefix pair
+ * comes from `PrefixConversionButtons` and Expand from `ExpandButton` — and
+ * scoped copies of these rules had already drifted to two sizes.
+ *
+ * `--control-h` (28px), not `--control-h-sm`: these act on the whole document
+ * on one press, and at 22px they were the smallest targets on the screen.
+ */
+.editor-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-h);
+  height: var(--control-h);
+  padding: 0;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: color 0.12s ease, background-color 0.12s ease;
+}
+
+.editor-action:hover:not(:disabled),
+.editor-action:focus-visible {
+  background: var(--surface-raised);
+  color: var(--ink);
+}
+
+.editor-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* A pressed toggle — Diff, which stays on while the diff is on screen. */
+.editor-action--active {
+  border-color: var(--action);
+  color: var(--action);
+}
+
+/*
+ * The prefix pair brings the save bar's chrome with it — smaller box, tighter
+ * radius — so it is matched to the row here. Expand needs no rule: it is the
+ * standard control height wherever it is drawn.
+ */
+.panel-header__actions .prefix-conversion-buttons .bar-button {
+  width: var(--control-h);
+  height: var(--control-h);
+  border-radius: var(--radius);
+}
+
+/* The glyphs grow with the boxes, or a bigger button is just more padding. */
+.panel-header__actions .editor-action svg,
+.panel-header__actions .prefix-conversion-buttons .bar-button svg {
+  width: 16px;
+  height: 16px;
+}

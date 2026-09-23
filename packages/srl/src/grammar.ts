@@ -6,6 +6,48 @@ import { assignOp, dataKeyword, notKeyword, ruleKeyword, setKeyword } from './to
 import { srlTuple, srlTupleSeedDoc, tupleKeyword } from './tuples/grammar.js';
 
 /**
+ * SRL has no `EXISTS` and no `NOT EXISTS`, and this is where they get in.
+ *
+ * The body rule below reuses SPARQL's `filter` and `expression` for the leaves
+ * SRL shares with it, and SPARQL's `BuiltInCall` ends with `ExistsFunc |
+ * NotExistsFunc`. SRL's grammar defines its own `BuiltInCall` ([118] in
+ * SPARQL-RL) which lists every function it allows and omits those two, so
+ * `FILTER NOT EXISTS { … }` is not an SRL filter at all — negation is `NOT { …
+ * }` ([21] Negation), whose inner body is triple patterns and filters rather
+ * than an arbitrary pattern. The spec says so in as many words: "The syntax of
+ * NOT limits the inner body to triple patterns and filters, and does not allow
+ * nested patterns, unlike SPARQL FILTER NOT EXISTS."
+ *
+ * The walk is recursive because the leak is not only the top of a constraint:
+ * `FILTER ( ?x > 1 && NOT EXISTS { … } )` buries it in an operand, and `SET`
+ * takes the same expressions a filter does.
+ */
+function rejectExistence(expression: unknown): void {
+  if (!expression || typeof expression !== 'object') return;
+  const node = expression as { subType?: unknown; operator?: unknown; args?: unknown };
+  if (node.subType === 'patternOperation' && (node.operator === 'exists' || node.operator === 'notexists')) {
+    /*
+     * Each spelling gets the SRL that means the same thing. They are not the
+     * same advice: a body is a conjunction, so a positive EXISTS is the
+     * pattern written inline, while NOT EXISTS is what `NOT { … }` is for.
+     */
+    const [spelling, instead] = node.operator === 'exists'
+      ? ['EXISTS', 'match the pattern in the body — a rule body is a conjunction']
+      : ['NOT EXISTS', 'write the negation as NOT { … }'];
+    throw new Error(
+      `SRL syntax error: ${spelling} is not part of SRL — ${instead}. `
+      + '(SPARQL-RL [118] BuiltInCall omits ExistsFunc and NotExistsFunc.)',
+    );
+  }
+  const args = node.args;
+  if (Array.isArray(args)) {
+    for (const arg of args) rejectExistence(arg);
+  } else {
+    rejectExistence(args);
+  }
+}
+
+/**
  * A `?var` token carries its name on `.value`. The builder DSL hands rules back
  * untyped, so reading it needs a cast — one here rather than one per caller.
  */
@@ -43,6 +85,7 @@ const srlGroupBody = {
           {
             ALT: () => {
               const filter = SUBRULE(g.filter);
+              ACTION(() => rejectExistence((filter as { expression?: unknown }).expression));
               items.push({ kind: 'filter', filter });
             },
           },
@@ -53,6 +96,7 @@ const srlGroupBody = {
               const variable = SUBRULE(g.var_);
               CONSUME(assignOp);
               const expr = SUBRULE(g.expression);
+              ACTION(() => rejectExistence(expr));
               CONSUME(l.symbols.RParen);
               items.push({ kind: 'set', variable: varName(variable), expr });
             },
@@ -199,4 +243,34 @@ export const srlParserBuilder: any = ParserBuilder.create(sparql12ParserBuilder 
   .addRule(srlRuleSet)
   .addRule(srlTupleSeedDoc);
 
-export const srlParser: any = srlParserBuilder.build({ tokenVocabulary: srlTokenVocabulary as any });
+/*
+ * Building the parser assembles the whole chevrotain grammar — the SPARQL 1.2
+ * rules this extends, plus the SRL rules added above — which is ~100ms and by
+ * far the most expensive thing this package does at import time. It is deferred
+ * to first use so that importing `@sparql-query-lib/srl` is cheap: the API
+ * imports it on every boot, including boots that never parse a rule.
+ *
+ * `srlParser` stays an object with the grammar's rules as methods, because that
+ * is how both call sites use it (`srlParser.srlRuleSet(...)`). The proxy builds
+ * on the first property read and then forwards everything, so the parser is
+ * still constructed exactly once and shared.
+ */
+let builtSrlParser: any = null;
+
+export function getSrlParser(): any {
+  if (!builtSrlParser) {
+    builtSrlParser = srlParserBuilder.build({ tokenVocabulary: srlTokenVocabulary as any });
+  }
+  return builtSrlParser;
+}
+
+export const srlParser: any = new Proxy({} as any, {
+  get(_target, property) {
+    const parser = getSrlParser();
+    const value = parser[property];
+    return typeof value === 'function' ? value.bind(parser) : value;
+  },
+  has(_target, property) {
+    return property in getSrlParser();
+  },
+});

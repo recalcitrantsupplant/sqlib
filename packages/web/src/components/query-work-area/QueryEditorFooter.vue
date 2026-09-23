@@ -82,6 +82,10 @@ const statusLabel = computed(() => {
   box-sizing: border-box;
   flex-shrink: 0;
   flex-wrap: wrap;
+  /* The band that ends a panel, at the height of the one that tops it
+     (`--panel-bar-h`). `min-height` rather than `height`, so a narrow panel
+     can still wrap onto a second line. */
+  min-height: var(--panel-bar-h);
   padding: var(--space-4);
   background: var(--surface-subtle);
   border-top: 1px solid var(--border-default);

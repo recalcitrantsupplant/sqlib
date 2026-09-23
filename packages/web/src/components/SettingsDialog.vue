@@ -70,12 +70,15 @@
               <span class="setting-description">
                 Show the System Library — the queries this app runs against its own store — in the
                 switcher and tree.
+                <template v-if="isReadOnly">Unavailable on a read-only deployment.</template>
               </span>
             </label>
             <Switch
               id="setting-hofstadter-mode"
               class="setting-switch"
-              :model-value="settings.hofstadterMode"
+              data-testid="setting-hofstadter-mode"
+              :disabled="isReadOnly"
+              :model-value="!isReadOnly && settings.hofstadterMode"
               @update:model-value="setHofstadterMode($event)"
             />
           </div>
@@ -83,6 +86,15 @@
       </div>
 
       <DialogFooter class="settings-footer">
+        <!--
+          The version, where it is reachable from any screen. The splash
+          carries the same line with the source and docs links beside it; this
+          is the copy you can get to without closing what you are working on,
+          which is when somebody is usually asking for it.
+        -->
+        <span class="build" data-testid="settings-version" :title="buildTitle">
+          SQLIB {{ buildLabel }}
+        </span>
         <button type="button" class="btn-done" @click="handleClose">Done</button>
       </DialogFooter>
     </DialogContent>
@@ -106,6 +118,8 @@ import SectionLabel from './shared/SectionLabel.vue';
 import DialogTitleBar from './shared/DialogTitleBar.vue';
 import { Monitor, Sun, Moon, ChevronRightIcon } from '@lucide/vue';
 import { useSettings, type ThemePreference } from '../composables/useSettings';
+import { useDeploymentMode } from '../composables/useDeploymentMode';
+import { useBuildInfo } from '../composables/useBuildInfo';
 import { useTheme } from '../composables/useTheme';
 import { usePrefixManager } from '../composables/usePrefixManager';
 
@@ -122,6 +136,19 @@ const isOpen = ref(props.open);
 const { settings, setHofstadterMode, setPrefixAbbreviationEnabled } = useSettings();
 const { preference, setTheme } = useTheme();
 const { prefixSettings } = usePrefixManager();
+/*
+ * A read-only deployment has no System Library worth looking at — nothing
+ * writes it — so the toggle reads off and refuses the press rather than
+ * offering a view of an empty store.
+ */
+const { isReadOnly, ensureLoaded: ensureDeploymentMode } = useDeploymentMode();
+void ensureDeploymentMode();
+
+const { label: buildLabel, commit, builtOn } = useBuildInfo();
+const buildTitle = computed(() => {
+  const parts = [commit.value ? `Commit ${commit.value}` : '', builtOn.value ? `built ${builtOn.value}` : ''];
+  return parts.filter(Boolean).join(', ');
+});
 
 const themeOptions: { value: ThemePreference; label: string; icon: unknown }[] = [
   { value: 'system', label: 'System', icon: Monitor },
@@ -290,10 +317,17 @@ function handleClose() {
 
 .settings-footer {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
   padding: var(--space-5);
   border-top: 1px solid var(--border-default);
   background: var(--surface-subtle);
+}
+
+.build {
+  color: var(--ink-muted);
+  font-size: var(--text-micro);
+  font-variant-numeric: tabular-nums;
 }
 
 /* Settings apply on change, so this dismisses — it does not commit. */

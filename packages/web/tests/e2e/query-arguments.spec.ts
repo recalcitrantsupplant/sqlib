@@ -1,4 +1,5 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
+import { openSavedEntity } from './navigate';
 import { mockEntityApi, QUERY } from './fixtures/entities';
 
 /**
@@ -59,11 +60,7 @@ function argumentSet(name: string, id: string, body: StoredBody = {}) {
 }
 
 async function openArguments(page: Page) {
-  await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await page.waitForSelector('.nav-sidebar');
-  await page.locator('.library-toggle').first().click();
-  await page.locator('.category-header').filter({ hasText: 'Queries' }).first().click();
-  await page.locator('.item-button').filter({ hasText: QUERY.name }).first().click();
+  await openSavedEntity(page, 'queries', QUERY.id);
   await expect(page.locator('.query-work-area')).toBeVisible();
   await page.locator('[data-testid="arguments-tab"]').click();
 }
@@ -157,12 +154,15 @@ test.describe('Query arguments', () => {
     await page.locator('[data-testid="argument-add-row"]').click();
     await values(page).first().fill('http://example.org/perth');
 
+    // One browser-local draft store, keyed by section: an argument set is a
+    // record in the callable store, not a store of its own.
     const stored = await page.evaluate(() =>
-      JSON.parse(window.localStorage.getItem('sparql-query-lib-argument-set-drafts') ?? '[]'),
+      JSON.parse(window.localStorage.getItem('sparql-query-lib-callable-drafts') ?? '[]')
+        .filter((entry: { section?: string }) => entry.section === 'argumentSet'),
     );
     expect(stored).toHaveLength(1);
     expect(stored[0].kind).toBe('scratch');
-    expect(stored[0].tupleBindings[0].rows[0].values.city.value).toBe('http://example.org/perth');
+    expect(stored[0].body.tupleBindings[0].rows[0].values.city.value).toBe('http://example.org/perth');
   });
 
   test('Save v1 creates the set and its version in one call', async ({ page }) => {
@@ -184,7 +184,8 @@ test.describe('Query arguments', () => {
     await expect(save(page)).toHaveCount(0);
 
     const stored = await page.evaluate(() =>
-      JSON.parse(window.localStorage.getItem('sparql-query-lib-argument-set-drafts') ?? '[]'),
+      JSON.parse(window.localStorage.getItem('sparql-query-lib-callable-drafts') ?? '[]')
+        .filter((entry: { section?: string }) => entry.section === 'argumentSet'),
     );
     expect(stored).toEqual([]);
   });

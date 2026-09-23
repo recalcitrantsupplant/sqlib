@@ -316,8 +316,6 @@ function readAllWithDeadline(
   return withDeadline(connection, timeoutMs, () => connection.runAndReadAll(sql));
 }
 
-console.log('[DuckDbService] Module loaded, about to define class');
-
 export class DuckDbService {
   private DuckDBConnection: any;
   /**
@@ -847,7 +845,41 @@ export class DuckDbService {
   }
 }
 
-// Singleton instance
-console.log('[DuckDbService] About to create singleton instance');
-export const duckDbService = new DuckDbService();
-console.log('[DuckDbService] Singleton instance created, available:', duckDbService.isAvailable());
+/*
+ * Singleton instance, constructed on first use.
+ *
+ * The constructor starts `initialize()`, which dynamically imports
+ * `@duckdb/node-api` (~80ms for the native binding) and opens an in-memory
+ * DuckDB. Building it at module load meant every boot paid for it, including
+ * the great majority that run with ETL off and never touch DuckDB at all.
+ *
+ * It stays a `duckDbService` object rather than becoming a `getDuckDbService()`
+ * call so that the dozen call sites — and the `vi.mock` in four test files that
+ * replaces this export with a stub — keep working untouched. The proxy
+ * constructs on the first property read and forwards from there.
+ *
+ * A deployment that *does* serve ETL should not discover DuckDB on its first
+ * request: `configureApp` warms this when the ETL or ETL-playground feature is
+ * on, which starts initialization at boot exactly as before, without blocking.
+ */
+let instance: DuckDbService | null = null;
+
+export function getDuckDbService(): DuckDbService {
+  if (!instance) {
+    instance = new DuckDbService();
+  }
+  return instance;
+}
+
+export const duckDbService: DuckDbService = new Proxy({} as DuckDbService, {
+  get(_target, property) {
+    const service = getDuckDbService();
+    // Deliberately not forwarding the proxy as the receiver: any accessor must
+    // run with `this` bound to the real service, not to the proxy.
+    const value = (service as unknown as Record<string | symbol, unknown>)[property];
+    return typeof value === 'function' ? value.bind(service) : value;
+  },
+  has(_target, property) {
+    return property in getDuckDbService();
+  },
+});

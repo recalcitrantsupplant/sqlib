@@ -14,13 +14,14 @@ directly; even then, the result is written back into the same local registry.
 
 "Abbreviate IRIs" is a display setting, stored separately in
 `sparql-query-lib-settings` under `prefixAbbreviationEnabled`. It is **on by
-default**. Open **Settings**, find **Result tables**, and toggle **Abbreviate
-IRIs** to show the full IRI everywhere instead.
+default**. There are two ways to change it, and they write the same value:
 
-The setting governs the default term display in result tables. It does not govern
-the registry: the abbreviation cache is built from the mappings alone, so a column
-switched explicitly to prefixed names abbreviates whatever the default says, and
-the whole-document conversions work either way.
+- the pair of buttons in the results action bar, beside Download and pop-out;
+- **Settings** → **Result tables** → **Abbreviate IRIs**.
+
+It applies to every result table in the browser at once, and holds across
+reloads. It does not govern the registry: the abbreviation cache is built from
+the mappings alone, so the whole-document conversions work either way.
 
 A `showTooltips` setting, on by default, reveals the full IRI as a `title` on an
 abbreviated term.

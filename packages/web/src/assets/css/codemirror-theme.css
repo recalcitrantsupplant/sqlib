@@ -75,10 +75,18 @@
   background: color-mix(in srgb, var(--warning) 55%, transparent);
 }
 
+/*
+ * `!important`, like the gutter and selection rules above, and for the same
+ * reason: CodeMirror injects `.ͼ2 .cm-tooltip { background: #f5f5f5 }` at
+ * editor construction, which outranks a bare `.cm-tooltip` both on specificity
+ * and on order. The ink here did win, so in dark mode the tooltip was near
+ * white text on CodeMirror's near white panel — the theme class it picks does
+ * not follow the app's.
+ */
 .cm-tooltip {
-  background: var(--surface);
-  color: var(--ink);
-  border: 1px solid var(--border-default);
+  background: var(--surface) !important;
+  color: var(--ink) !important;
+  border: 1px solid var(--border-default) !important;
   border-radius: var(--radius);
 }
 
@@ -93,4 +101,66 @@
 
 .cm-lintRange-warning {
   text-decoration-color: var(--warning);
+}
+
+/*
+ * A diagnostic's tooltip, and the fix it offers.
+ *
+ * `@kurrawongai/codemirror-lang-srl` raises SRL conformance errors and, in the
+ * editable boxes, attaches a conversion action to the SPARQL spellings it can
+ * rewrite ("Convert SPARQL BIND to SRL SET"). CodeMirror renders that action as
+ * a bare <u>-styled button on its own near-black background, which against the
+ * app's surfaces reads as a rendering fault rather than as something to click.
+ *
+ * Coloured from tokens for the same reason as the rest of this file: the offer
+ * to rewrite a rule is only useful if it looks like a button in both themes.
+ */
+/*
+ * Two lines: what is wrong, then the offer to fix it.
+ *
+ * CodeMirror lays the action out inline after the message, which leaves the
+ * button at the far end of a sentence — so where it lands depends on how long
+ * that sentence is, and reaching it is a diagonal across the tooltip. On a
+ * line of its own at the left edge it is in the same place in every tooltip,
+ * and it is read in the order it is needed: the complaint, then the remedy.
+ */
+.cm-tooltip .cm-diagnostic {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  border-left-color: var(--danger);
+  /*
+   * The app's chrome type, not the editor's. A tooltip nested in `.cm-editor`
+   * inherits `--text-code` (13px monospace, set for the code itself), so a
+   * sentence about the code was rendering a step larger than every other
+   * sentence in the app and in a face nothing else uses. Scoped to the
+   * diagnostic rather than to `.cm-tooltip`, because the autocomplete list in
+   * that same tooltip is made of code identifiers and wants the code face.
+   */
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  line-height: var(--leading-normal);
+}
+
+.cm-tooltip .cm-diagnostic-warning {
+  border-left-color: var(--warning);
+}
+
+.cm-tooltip .cm-diagnosticAction {
+  background: var(--action);
+  color: var(--action-fg);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-3);
+  margin-left: 0;
+  /*
+   * The message's own size, so the offer reads as part of the sentence above
+   * it rather than as a footnote to it — and the button grows with the text,
+   * which is the point. It was `--text-micro`, the size the scale reserves for
+   * badges and counts.
+   */
+  font-family: inherit;
+  font-size: var(--text-body);
+  text-decoration: none;
+  cursor: pointer;
 }
