@@ -284,6 +284,15 @@ export async function setupMockApi(page: Page, state: MockState, options: SetupM
   // endpoint takes libraries and queries down with it.
   await mockSidebarCollections(page);
 
+  /*
+   * The live-update stream. Left unmocked it goes to whatever is on :3000:
+   * with nothing there it fails and backs off, but a dev API running on the
+   * same machine as the runner holds it open, and then `networkidle` — which
+   * these specs wait on — never arrives. A 503 is the "no server" case on
+   * purpose: the client backs off between retries, so the page goes quiet.
+   */
+  await page.route(/\/events(\?|$)/, (route) => route.fulfill({ status: 503, body: '' }));
+
   await page.route('**/backends', async (route) => {
     if (route.request().method() === 'GET') {
       await json(route, 200, state.backends);
