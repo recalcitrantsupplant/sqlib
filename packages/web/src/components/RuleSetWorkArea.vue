@@ -1168,6 +1168,7 @@ const resetState = () => {
   loadedVersionDocument.value = '';
   loadedVersionTupleSeeds.value = '';
   srlDocument.value = '';
+  documentRuleSetId = null;
   tupleSeeds.value = '';
   applyTuplesEnabled(false);
   tupleSource.value = 'inline';
@@ -1222,9 +1223,10 @@ const loadRuleSetVersions = async (ruleSetId: string) => {
  * Prefixes to render the exported document with.
  *
  * Rules are stored with expanded IRIs, so the server needs a prologue to
- * abbreviate against. It is taken from whatever the editor currently declares,
- * so a reload keeps the author's own prefixes; on first load there is nothing
- * to take, and the default seeds an empty rule set with something usable.
+ * abbreviate against. On a reload of the rule set already on screen it is taken
+ * from what the editor declares, so the author's own prefixes survive; on the
+ * first load of a rule set there is nothing of its own to take, and the default
+ * seeds it with something usable.
  */
 const DEFAULT_PROLOGUE = 'PREFIX : <http://example/>';
 
@@ -1236,8 +1238,35 @@ function prologueLines(): string[] {
     .map((line) => line.trim());
 }
 
-function currentPrologue(): string {
-  const lines = prologueLines();
+/**
+ * The declarations at the head of the document — its prologue proper.
+ *
+ * Not every PREFIX line in it: a rule stored as written (one that did not
+ * parse, kept verbatim as a test case) carries its own PREFIX further down,
+ * and sending that back as the prologue gets it rendered twice, then three
+ * times, once more on every reload.
+ */
+function leadingPrologueLines(): string[] {
+  const lines: string[] = [];
+  for (const line of srlDocument.value.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    if (!/^(PREFIX|BASE)\b/i.test(trimmed)) break;
+    lines.push(trimmed);
+  }
+  return lines;
+}
+
+/**
+ * The rule set whose document the editor holds, or null for anything else (a
+ * draft, a cleared screen). The prologue is only carried into a load of *that*
+ * rule set: carried into another one, it hands rule set B the prefixes rule set
+ * A declared.
+ */
+let documentRuleSetId: string | null = null;
+
+function prologueFor(ruleSetId: string): string {
+  const lines = documentRuleSetId === ruleSetId ? leadingPrologueLines() : [];
   return lines.length ? lines.join('\n') : DEFAULT_PROLOGUE;
 }
 
@@ -1253,7 +1282,7 @@ async function loadDocumentForSelectedVersion() {
   const id = ruleSetIdValue.value;
   if (!id) return;
   const seq = ++loadSeq;
-  const prologue = currentPrologue();
+  const prologue = prologueFor(id);
   try {
     const response = await apiClient.exportRuleSetSrl(id, {
       version: selectedVersionNumber.value,
@@ -1270,6 +1299,7 @@ async function loadDocumentForSelectedVersion() {
      */
     hydratingVersion.value = true;
     srlDocument.value = typeof draft?.srl === 'string' ? draft.srl : response.srl;
+    documentRuleSetId = id;
     loadedVersionTupleSeeds.value = response.tupleSeeds ?? '';
     tupleSeeds.value = draft?.tupleSeeds ?? response.tupleSeeds ?? '';
     applyTuplesEnabled(draft?.tuplesEnabled ?? response.tuplesEnabled === true);
@@ -1400,7 +1430,7 @@ const updateRuleSetWithRetry = async (payload: RuleSetUpdateInput) => {
  * Import from SPARQL.
  *
  * The dialog is given what the document *actually* declares rather than
- * `currentPrologue()`'s fallback: abbreviating against a prefix the document
+ * `prologueFor()`'s fallback: abbreviating against a prefix the document
  * does not declare would produce a rule spelled `:foo` in a document with no
  * `:` binding, which is a document that no longer parses.
  */
