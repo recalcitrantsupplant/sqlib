@@ -60,29 +60,42 @@
           </button>
         </section>
 
-        <div class="settings-divider" />
+        <!--
+          Advanced holds one setting, and a read-only deployment has no use for
+          it: the System Library it reveals is hidden there whatever the switch
+          says, because nothing on such a deployment can be written and looking
+          at the app's own store is a writer's tool. Absent rather than
+          disabled-with-a-reason — the section was a row explaining why it
+          could not be used, on a screen where Appearance and the Prefix
+          Manager are the whole point.
 
-        <section class="settings-section">
-          <SectionLabel as="h3">Advanced</SectionLabel>
-          <div class="setting-row">
-            <label class="setting-text" for="setting-hofstadter-mode">
-              <span class="setting-label">Hofstadter mode</span>
-              <span class="setting-description">
-                Show the System Library — the queries this app runs against its own store — in the
-                switcher and tree.
-                <template v-if="isReadOnly">Unavailable on a read-only deployment.</template>
-              </span>
-            </label>
-            <Switch
-              id="setting-hofstadter-mode"
-              class="setting-switch"
-              data-testid="setting-hofstadter-mode"
-              :disabled="isReadOnly"
-              :model-value="!isReadOnly && settings.hofstadterMode"
-              @update:model-value="setHofstadterMode($event)"
-            />
-          </div>
-        </section>
+          The stored preference is untouched. It is per browser, so flipping
+          between deployments must not rewrite it, and `useLibrariesStore` is
+          the authority that keeps the library hidden either way.
+        -->
+        <template v-if="!isReadOnly">
+          <div class="settings-divider" />
+
+          <section class="settings-section">
+            <SectionLabel as="h3">Advanced</SectionLabel>
+            <div class="setting-row">
+              <label class="setting-text" for="setting-hofstadter-mode">
+                <span class="setting-label">Hofstadter mode</span>
+                <span class="setting-description">
+                  Show the System Library — the queries this app runs against its own store — in the
+                  switcher and tree.
+                </span>
+              </label>
+              <Switch
+                id="setting-hofstadter-mode"
+                class="setting-switch"
+                data-testid="setting-hofstadter-mode"
+                :model-value="settings.hofstadterMode"
+                @update:model-value="setHofstadterMode($event)"
+              />
+            </div>
+          </section>
+        </template>
       </div>
 
       <DialogFooter class="settings-footer">
@@ -138,8 +151,9 @@ const { preference, setTheme } = useTheme();
 const { prefixSettings } = usePrefixManager();
 /*
  * A read-only deployment has no System Library worth looking at — nothing
- * writes it — so the toggle reads off and refuses the press rather than
- * offering a view of an empty store.
+ * writes it — so the section that reveals it is absent there. Settings itself
+ * is not: the theme and the Prefix Manager are as useful on a public site as
+ * anywhere, and they are the whole of the screen there.
  */
 const { isReadOnly, ensureLoaded: ensureDeploymentMode } = useDeploymentMode();
 void ensureDeploymentMode();

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { nextTick } from 'vue';
 
 /*
@@ -108,5 +108,62 @@ describe('SettingsDialog', () => {
     await click(query('.btn-done'));
     expect(wrapper.emitted('update:open')?.at(-1)).toEqual([false]);
     expect(settings.settings.value.hofstadterMode).toBe(true);
+  });
+
+  /*
+   * Settings stays on a read-only deployment — the theme and the Prefix
+   * Manager are as useful on a public site as anywhere. What goes is the one
+   * section that can do nothing there: the System Library it reveals is hidden
+   * whatever the switch says, so the row could only have explained itself.
+   */
+  describe('on a read-only deployment', () => {
+    const realFetch = globalThis.fetch;
+
+    beforeEach(() => {
+      globalThis.fetch = vi.fn(async () =>
+        new Response(JSON.stringify({ status: 'ok', readOnly: true }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      ) as typeof globalThis.fetch;
+    });
+
+    afterEach(() => {
+      globalThis.fetch = realFetch;
+    });
+
+    async function openReadOnly() {
+      const { resetDeploymentMode, useDeploymentMode } = await import('@/composables/useDeploymentMode');
+      resetDeploymentMode();
+      await useDeploymentMode().ensureLoaded();
+      const opened = await open();
+      await nextTick();
+      return opened;
+    }
+
+    it('keeps the theme and the Prefix Manager', async () => {
+      await openReadOnly();
+
+      expect(document.querySelectorAll('.theme-option')).toHaveLength(3);
+      expect(query('.nav-row').textContent).toContain('Prefix Manager');
+      expect(switchFor('setting-abbreviate-iris')).toBeTruthy();
+    });
+
+    it('takes Hofstadter mode away rather than disabling it', async () => {
+      await openReadOnly();
+
+      expect(document.querySelector('[data-testid="setting-hofstadter-mode"]')).toBeNull();
+      expect(document.body.textContent).not.toContain('Advanced');
+    });
+
+    /* Per browser, so flipping between deployments must not rewrite it. */
+    it('leaves the stored preference alone', async () => {
+      const { resetDeploymentMode, useDeploymentMode } = await import('@/composables/useDeploymentMode');
+      resetDeploymentMode();
+      await useDeploymentMode().ensureLoaded();
+      const { settings } = await open({ hofstadterMode: true });
+
+      expect(settings.settings.value.hofstadterMode).toBe(true);
+    });
   });
 });
