@@ -285,7 +285,7 @@ export async function setupMockApi(page: Page, state: MockState, options: SetupM
   await mockSidebarCollections(page);
 
   /*
-   * The live-update stream. Left unmocked it goes to whatever is on :3000:
+   * The live-update stream. Left unmocked it goes to whatever is on the API port:
    * with nothing there it fails and backs off, but a dev API running on the
    * same machine as the runner holds it open, and then `networkidle` — which
    * these specs wait on — never arrives. A 503 is the "no server" case on

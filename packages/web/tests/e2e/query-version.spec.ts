@@ -1,5 +1,6 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
 import { mockSidebarCollections } from './fixtures/collections';
+import { API_HOST } from './api-origin';
 
 /**
  * Versions, through the draft/save model that replaced Save.
@@ -136,7 +137,7 @@ test.describe('Query Version', () => {
     // Promise.all resolves instead of taking the whole tree down with it.
     await mockSidebarCollections(page);
 
-    await page.route('**//localhost:3000/backends', async (route: Route) => {
+    await page.route(`**//${API_HOST}/backends`, async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -145,7 +146,7 @@ test.describe('Query Version', () => {
     });
 
     // Mock libraries endpoint
-    await page.route('**//localhost:3000/libraries', async (route: Route) => {
+    await page.route(`**//${API_HOST}/libraries`, async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -154,7 +155,7 @@ test.describe('Query Version', () => {
     });
 
     // Mock queries endpoint
-    await page.route('**//localhost:3000/queries', async (route: Route) => {
+    await page.route(`**//${API_HOST}/queries`, async (route: Route) => {
       if (route.request().method() === 'GET') {
         await route.fulfill({
           status: 200,
@@ -167,7 +168,7 @@ test.describe('Query Version', () => {
     // The query entity: GET reads it, PUT saves its name and description, and
     // DELETE removes it. PUT and DELETE used to fall through unhandled, which
     // was invisible while nothing could issue them.
-    await page.route('**//localhost:3000/queries/urn%3Asqlib%3Aquery%3Atest-1', async (route: Route) => {
+    await page.route(`**//${API_HOST}/queries/urn%3Asqlib%3Aquery%3Atest-1`, async (route: Route) => {
       const method = route.request().method();
       if (method === 'GET') {
         await route.fulfill({
@@ -208,7 +209,7 @@ test.describe('Query Version', () => {
 
     // Mock query versions list endpoint (GET /queries/:queryId/v)
     // Note: URL-encoded version to match actual requests
-    await page.route('**//localhost:3000/queries/urn%3Asqlib%3Aquery%3Atest-1/v', async (route: Route) => {
+    await page.route(`**//${API_HOST}/queries/urn%3Asqlib%3Aquery%3Atest-1/v`, async (route: Route) => {
       if (route.request().method() === 'GET') {
         await route.fulfill({
           status: 200,
@@ -282,7 +283,7 @@ test.describe('Query Version', () => {
 
     // Mock individual version GET/PATCH endpoint
     // Note: URL-encoded version to match actual requests
-    await page.route('**//localhost:3000/queries/urn%3Asqlib%3Aquery%3Atest-1/v/*', async (route: Route) => {
+    await page.route(`**//${API_HOST}/queries/urn%3Asqlib%3Aquery%3Atest-1/v/*`, async (route: Route) => {
       const versionNumber = parseInt(route.request().url().split('/').pop() || '0');
       const version = mockQueryVersions.find(v => v.version === versionNumber);
 
@@ -361,7 +362,7 @@ test.describe('Query Version', () => {
     });
 
     // Mock query groups endpoint
-    await page.route('**//localhost:3000/query-groups', async (route: Route) => {
+    await page.route(`**//${API_HOST}/query-groups`, async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',

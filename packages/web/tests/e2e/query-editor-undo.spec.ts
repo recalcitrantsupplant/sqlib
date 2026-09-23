@@ -1,5 +1,6 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
 import { mockSidebarCollections } from './fixtures/collections';
+import { API_HOST } from './api-origin';
 
 /**
  * Undo, after switching to another query.
@@ -93,21 +94,21 @@ const json = (route: Route, body: unknown, headers: Record<string, string> = {})
 
 async function mockQuery(page: Page, fixture: Fixture) {
   const encoded = encodeURIComponent(fixture.id);
-  await page.route(`**//localhost:3000/queries/${encoded}`, async (route: Route) => {
+  await page.route(`**//${API_HOST}/queries/${encoded}`, async (route: Route) => {
     if (route.request().method() !== 'GET') {
       await route.fallback();
       return;
     }
     await json(route, entity(fixture), { ETag: `"etag-${fixture.id}"` });
   });
-  await page.route(`**//localhost:3000/queries/${encoded}/v`, async (route: Route) => {
+  await page.route(`**//${API_HOST}/queries/${encoded}/v`, async (route: Route) => {
     if (route.request().method() !== 'GET') {
       await route.fallback();
       return;
     }
     await json(route, [version(fixture)]);
   });
-  await page.route(`**//localhost:3000/queries/${encoded}/v/*`, async (route: Route) => {
+  await page.route(`**//${API_HOST}/queries/${encoded}/v/*`, async (route: Route) => {
     if (route.request().method() !== 'GET') {
       await route.fallback();
       return;
