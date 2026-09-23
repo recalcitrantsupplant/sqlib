@@ -342,6 +342,36 @@ test.describe('Rule set SRL authoring', () => {
     expect(lastPreviewContentType).toContain('application/json');
   });
 
+  test('diff from the popped-out editor replaces the pop-out at the same size', async ({ page }) => {
+    await openDefaultRuleSet(page);
+    await typeDocument(page, 'PREFIX : <http://example.org/>\nRULE { ?s :edited ?o } WHERE { ?s :p ?o }');
+
+    await page.locator('[data-testid="sparql-editor-expand"]').click();
+    const region = page.locator('[data-testid="rule-set-editor-expand"]');
+    await expect(region).toHaveClass(/expanded/);
+    const expandedBox = await region.boundingBox();
+
+    await region.locator('[data-testid="diff-query"]').click();
+    const dialog = page.locator('[data-testid="srl-diff-dialog"]');
+    await expect(dialog.locator('.cm-mergeView')).toBeVisible();
+
+    // One or the other: the pop-out steps aside rather than sitting over the diff.
+    await expect(region).not.toHaveClass(/expanded/);
+    // Measured once the zoom-in has settled, not part-way through it.
+    await dialog.evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
+    const box = await dialog.boundingBox();
+    const topmost = await page.evaluate(({ x, y }) => {
+      const hit = document.elementFromPoint(x, y);
+      return !!hit?.closest('[data-testid="srl-diff-dialog"]');
+    }, { x: box!.x + box!.width / 2, y: box!.y + box!.height / 2 });
+    expect(topmost).toBe(true);
+
+    // And it takes the pop-out's place, not a smaller box inside it.
+    for (const key of ['x', 'y', 'width', 'height'] as const) {
+      expect(Math.abs(box![key] - expandedBox![key])).toBeLessThan(2);
+    }
+  });
+
   test('previews created rules and distinguishes orphaned from shared detaches', async ({ page }) => {
     previewBody = {
       ...emptyPreview(),

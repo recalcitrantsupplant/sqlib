@@ -1115,6 +1115,8 @@ async function openDiff() {
   diffTextError.value = null;
   previewResult.value = null;
   previewError.value = null;
+  // The diff takes the pop-out's place rather than opening underneath it.
+  editorExpansion.collapse();
   showPreviewDialog.value = true;
 
   // Against a draft, also ask what saving it would detach — the one thing a

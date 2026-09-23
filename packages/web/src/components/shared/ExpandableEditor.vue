@@ -122,7 +122,7 @@ defineExpose({ expanded, toggle, collapse, regionId });
   display: flex;
   flex-direction: column;
   position: fixed;
-  inset: 4vh 4vw;
+  inset: var(--popout-inset);
   z-index: var(--z-dialog);
   background: var(--surface);
   border: 1px solid var(--border-default);

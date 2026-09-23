@@ -420,6 +420,9 @@
   --z-dialog: 1000;
   --z-toast: 1100;
 
+  /* Where a pop-out sits in the viewport: the expanded editor, and the diff that takes its place. */
+  --popout-inset: 4vh 4vw;
+
   --duration-fast: 0.12s;
   --duration: 0.2s;
 }

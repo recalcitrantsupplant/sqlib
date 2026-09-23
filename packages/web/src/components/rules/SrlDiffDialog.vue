@@ -1,6 +1,14 @@
 <template>
   <Dialog :open="open" @update:open="(value) => emit('update:open', value)">
-    <DialogContent class="srl-diff-dialog" data-testid="srl-diff-dialog">
+    <!--
+      The size of the editor pop-out, because it opens in its place: Diff from
+      the popped-out editor closes the pop-out, and a smaller box would read as
+      the page having shrunk.
+    -->
+    <DialogContent
+      class="inset-[var(--popout-inset)] flex w-auto max-w-none translate-x-0 translate-y-0 flex-col sm:max-w-none"
+      data-testid="srl-diff-dialog"
+    >
       <DialogHeader>
         <DialogTitle>{{ leftLabel }} → {{ rightLabel }}</DialogTitle>
         <DialogDescription class="sr-only">
@@ -10,15 +18,16 @@
 
       <p v-if="textError" class="error">{{ textError }}</p>
       <p v-else-if="leftText === null || rightText === null" class="muted">Loading…</p>
-      <SparqlDiffViewer
-        v-else
-        :left-query="leftText"
-        :right-query="rightText"
-        :left-label="leftLabel"
-        :right-label="rightLabel"
-        content-type="application/srl"
-        height="60vh"
-      />
+      <div v-else class="diff-body">
+        <SparqlDiffViewer
+          :left-query="leftText"
+          :right-query="rightText"
+          :left-label="leftLabel"
+          :right-label="rightLabel"
+          content-type="application/srl"
+          height="100%"
+        />
+      </div>
 
       <!--
         What saving the draft would do to the rule set's parts — only when
@@ -154,14 +163,16 @@ const detachExplanation = (orphaned: boolean, otherRuleSets: number) =>
 </script>
 
 <style scoped>
-.srl-diff-dialog {
-  max-width: min(1200px, 92vw);
+.diff-body {
+  flex: 1;
+  min-height: 0;
 }
 
 .preview-body {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  flex-shrink: 0;
   max-height: 20vh;
   overflow: auto;
 }
