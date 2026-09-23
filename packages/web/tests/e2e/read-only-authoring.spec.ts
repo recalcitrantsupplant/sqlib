@@ -30,6 +30,9 @@ const LIBRARY = {
   dateModified: '2024-01-01T00:00:00Z',
 };
 
+/** Pasted into the backend picker, which registers it in the browser. */
+const ENDPOINT = 'https://query.wikidata.org/sparql';
+
 /** A query with one VALUES clause to fill. */
 const QUERY_TEXT = 'SELECT ?city WHERE { VALUES (?city) { (UNDEF) } }';
 
@@ -146,6 +149,40 @@ test.describe('A read-only deployment', () => {
 
     await expect(page.locator('[data-testid="arguments-save"]')).toHaveCount(0);
     await expect(page.locator('[data-testid="arguments-discard"]')).toBeVisible();
+  });
+
+  /*
+   * The other half of running something here: a read-only deployment's
+   * catalogue of backends is fixed too, so an endpoint a visitor brings has to
+   * be registrable from the picker. It becomes a browser backend, which is why
+   * no request goes out to make one.
+   */
+  test('takes a SPARQL endpoint pasted into the backend picker', async ({ page }) => {
+    await openScratchQuery(page);
+
+    await page.locator('[data-testid="run-bar-backend"]').click();
+    await page.locator('[data-testid="run-bar-add-endpoint"]').click();
+    await page.locator('[data-testid="run-bar-endpoint-input"]').fill(ENDPOINT);
+    await page.locator('[data-testid="run-bar-endpoint-input"]').press('Enter');
+
+    // Chosen by the act of pasting it, and the menu is done.
+    await expect(page.locator('[data-testid="run-bar-backend"]')).toContainText('query.wikidata.org/sparql');
+    await expect(page.locator('.backend-menu')).toHaveCount(0);
+  });
+
+  test('names a pasted endpoint from the row that shows it', async ({ page }) => {
+    await openScratchQuery(page);
+    await page.locator('[data-testid="run-bar-backend"]').click();
+    await page.locator('[data-testid="run-bar-add-endpoint"]').click();
+    await page.locator('[data-testid="run-bar-endpoint-input"]').fill(ENDPOINT);
+    await page.locator('[data-testid="run-bar-endpoint-input"]').press('Enter');
+
+    await page.locator('[data-testid="run-bar-backend"]').click();
+    await page.locator('[data-testid="backend-name-endpoint"]').first().click();
+    await page.locator('[data-testid="backend-name-input"]').fill('Wikidata');
+    await page.locator('[data-testid="backend-name-input"]').press('Enter');
+
+    await expect(page.locator('.backend-item').filter({ hasText: 'Wikidata' })).toBeVisible();
   });
 
   test('runs the draft query with the values typed into the draft set', async ({ page }) => {

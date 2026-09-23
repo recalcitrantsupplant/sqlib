@@ -52,6 +52,16 @@ function onScratch(scratchId: string = SCRATCH) {
   });
 }
 
+/**
+ * Let the load the target watcher queued actually run.
+ *
+ * It is deferred by a microtask on purpose — a screen's `libraryId` getter
+ * reads state declared further down its own setup — so a test that asserts on
+ * `error` has to get past it first: the load clears the error as it starts,
+ * and would otherwise wipe whatever the assertion is about.
+ */
+const settled = () => Promise.resolve().then(() => {});
+
 describe('a scratch callable', () => {
   it('creates a scratch set, which is what the panel then shows', () => {
     const args = onScratch();
@@ -110,6 +120,7 @@ describe('a scratch callable', () => {
 
   it('refuses to save, naming what has to happen first', async () => {
     const args = onScratch();
+    await settled();
     args.createScratch();
     args.name.value = 'Cities';
 
@@ -122,6 +133,7 @@ describe('a scratch callable', () => {
     const args = useArgumentSets(ref(''), 'queryGroup', () => LIBRARY, {
       scratchTargetId: () => SCRATCH,
     });
+    await settled();
     args.createScratch();
     args.name.value = 'Cities';
 

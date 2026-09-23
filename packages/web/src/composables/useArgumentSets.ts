@@ -803,7 +803,21 @@ export function useArgumentSets(
       if (newId === oldId) return
       argumentSets.value = []
       clearSelection()
-      if (newId) void loadArgumentSets()
+      /*
+       * The load waits for a microtask, and has to.
+       *
+       * This watcher is immediate, so its first run is *during* the calling
+       * screen's setup — and `loadArgumentSets` reads the `libraryId` getter,
+       * which a screen is invited to write over state it declares further down
+       * that same setup (see the parameter's own note). Called synchronously
+       * there, the getter reaches a `const` in its temporal dead zone and
+       * throws, which Vue catches and reports as a watcher error: the screen
+       * survives, and the library's sets are silently missing from the
+       * switcher. A scratch callable made that the *usual* path rather than an
+       * edge case, because `localTargetId` is set from the first render where
+       * `targetId` was empty.
+       */
+      if (newId) void Promise.resolve().then(() => loadArgumentSets())
     },
     { immediate: true },
   )

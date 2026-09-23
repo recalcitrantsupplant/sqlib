@@ -604,6 +604,7 @@ import { useApiClient, type BackendEnv, type BackendProbe, type BackendUsage } f
 import { useBackendProbes } from '../composables/useBackendProbes';
 import { useBackendsStore } from '../composables/useBackendsStore';
 import { isBrowserBackendId, useBrowserBackends } from '../composables/useBrowserBackends';
+import { validateEndpoint } from '../lib/endpointUrl';
 import { useDeploymentMode } from '../composables/useDeploymentMode';
 import { useLibrariesStore } from '../composables/useLibrariesStore';
 import { useCopyToClipboard } from '../composables/useCopyToClipboard';
@@ -885,23 +886,6 @@ watch(
 /* ------------------------------------------------------------------ *
  * Per-field commit
  * ------------------------------------------------------------------ */
-
-function validateEndpoint(value: string): string | null {
-  const trimmed = value.trim();
-  if (!trimmed) return 'An endpoint URL is required.';
-  try {
-    const url = new URL(trimmed);
-    // `localhost:7878/sparql` parses — as a URL whose scheme is `localhost`.
-    // Only http(s) is a SPARQL endpoint, so the check is on the scheme itself
-    // rather than on whether anything parsed.
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-      return 'Include a scheme, e.g. https://query.wikidata.org/sparql';
-    }
-    return null;
-  } catch {
-    return 'Include a scheme, e.g. https://query.wikidata.org/sparql';
-  }
-}
 
 /**
  * Commit one field. Returns an error message, which is what keeps a rejected

@@ -109,6 +109,7 @@
         </span>
         <Select
           v-else-if="backend"
+          v-model:open="backendMenuOpen"
           :model-value="backend.value"
           :disabled="backend.disabled || backend.loading"
           @update:model-value="(value) => emit('update:backend', String(value))"
@@ -117,10 +118,35 @@
             <Database :size="12" class="chip-icon" />
             <SelectValue placeholder="Backend" />
           </SelectTrigger>
-          <SelectContent>
-            <SelectItem v-for="option in backend.options" :key="option.value" :value="option.value">
-              {{ option.label }}
+          <!--
+            A fixed width with the long labels faded out rather than ellipsised.
+            An endpoint pasted here is its own name, and endpoint URLs are long
+            and alike in their first half — a menu sized to the longest of them
+            would be wider than the run sentence it hangs off, and `…` at the
+            cut tells you nothing a fade does not.
+          -->
+          <SelectContent class="backend-menu">
+            <SelectItem
+              v-for="option in backend.options"
+              :key="option.value"
+              :value="option.value"
+              class="backend-item"
+            >
+              <span class="backend-label">{{ option.label }}</span>
+              <!--
+                `aside` and not the default slot: the item's default slot is
+                what the trigger reads back as the chosen value, so a button
+                placed there is mirrored into the chip beside the backend name.
+              -->
+              <template #aside>
+                <BrowserBackendName
+                  v-if="isBrowserBackendId(option.value)"
+                  :backend-id="option.value"
+                  :current="option.label"
+                />
+              </template>
             </SelectItem>
+            <InlineEndpointAdder @added="selectAddedBackend" />
           </SelectContent>
         </Select>
       </span>
@@ -204,7 +230,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import {
   ChevronDown,
   Database,
@@ -232,6 +258,9 @@ import type {
   RunOption,
 } from '../../lib/runBar';
 import { useFeatureFlags } from '../../composables/useFeatureFlags';
+import { isBrowserBackendId } from '../../composables/useBrowserBackends';
+import InlineEndpointAdder from './InlineEndpointAdder.vue';
+import BrowserBackendName from './BrowserBackendName.vue';
 import { useDeploymentMode } from '../../composables/useDeploymentMode';
 
 const ICONS = {
@@ -316,6 +345,21 @@ const { isEnabled } = useFeatureFlags();
  * Running still works — only keeping the recipe does not.
  */
 const deployment = useDeploymentMode();
+
+/*
+ * Held here so adding an endpoint can close the menu.
+ *
+ * A pasted endpoint is chosen by the act of pasting it — the row it would
+ * otherwise leave you to find is the row you just made. The menu is open at
+ * that moment and does not know a choice was made, because the choice came
+ * from a field inside it rather than from one of its items.
+ */
+const backendMenuOpen = ref(false);
+
+function selectAddedBackend(backendId: string) {
+  emit('update:backend', backendId);
+  backendMenuOpen.value = false;
+}
 
 /**
  * The targets this build can actually create.
@@ -608,4 +652,45 @@ const labelOf = (choice: RunBarChoice) =>
   cursor: not-allowed;
 }
 
+
+</style>
+
+<!--
+  The backend menu, deliberately outside the scoped block.
+
+  Its content is portalled to `body` by `SelectPortal`, and a teleported
+  subtree does not carry this file's scope attribute — the rules below matched
+  nothing at all while they lived in `<style scoped>`, which is why the menu
+  kept sizing itself from the trigger. `.backend-menu` and the two classes
+  under it are names this file owns, so the global surface is those three.
+  The hover reveal for `+ name` is not here — that button belongs to
+  `BrowserBackendName`, which writes the rule against the row itself.
+-->
+<style>
+/*
+ * One width for every row, whatever the URL in it. The label takes what is
+ * left after the check column and the `+ name` button, and anything longer
+ * dissolves into the edge instead of being cut with an ellipsis: endpoints
+ * differ at their *end* far more often than at their start, so a fade says
+ * "there is more" without pretending, as `…` does, that what is hidden is the
+ * unimportant part.
+ */
+.backend-menu {
+  width: 340px;
+  max-width: calc(100vw - 32px);
+}
+
+.backend-menu .backend-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.backend-menu .backend-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent 100%);
+}
 </style>

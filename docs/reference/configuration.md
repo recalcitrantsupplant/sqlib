@@ -256,6 +256,16 @@ and argument sets, the values in them, Discard, and the inline data a rule set
 runs against. A parameterised query is authored and run the same way it is on a
 writable deployment, with the values sent inline to `POST /sparql`.
 
+A visitor's own SPARQL endpoint is registered the same way. The backend picker
+in the run sentence takes a URL pasted straight into it — `+ SPARQL endpoint…`
+at the foot of the menu — and keeps it as a **browser backend**: stored in that
+browser, named after its own URL until someone names it with `+ name`, and
+never posted to the server. Queries against it run from the browser to the
+endpoint, so the address, any headers and the results do not pass through
+sqlib. Browser backends are not a read-only feature — they work on any
+deployment — but they are what makes a read-only one usable against data it was
+not seeded with.
+
 Before `/health` answers, and if it cannot be reached, the SPA assumes it may
 write. That direction is deliberate: a client that wrongly believes it may write
 shows a button and surfaces the server's refusal, while one that wrongly
