@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# A FILTER inside a NOT may use a variable bound before the NOT.
+RULE { ?x :r ?y } WHERE { ?x :p ?y NOT { ?x :q ?z FILTER ( ?z != ?y ) } }

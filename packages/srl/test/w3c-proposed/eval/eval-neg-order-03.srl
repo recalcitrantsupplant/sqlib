@@ -1,0 +1,5 @@
+PREFIX : <http://example/>
+
+# Control for eval-neg-order-02: the same shape where the negated pattern matches
+# nothing anywhere, so the NOT keeps every solution.
+RULE { ?x :r ?y } WHERE { NOT { ?x :zz ?y } ?x :p ?y }

@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# ...but not one bound only after it: at the FILTER, ?y has no value.
+RULE { ?x :r ?y } WHERE { NOT { ?x :q ?z FILTER ( ?z != ?y ) } ?x :p ?y }

@@ -13,7 +13,7 @@ import type { SrlBodyItem, SrlRule, SrlRuleSet } from './ast.js';
 import { expandTerms } from './expand.js';
 import { generateRule } from './generate.js';
 import { abbreviateIris } from './split.js';
-import { checkWellFormed } from './wellformed.js';
+import { boundBy, checkWellFormed, collectVars } from './wellformed.js';
 
 /**
  * SPARQL → SRL rule.
@@ -42,6 +42,8 @@ import { checkWellFormed } from './wellformed.js';
  *    `FILTER NOT EXISTS` → `NOT`, a conjunctive group flattened into the item
  *    sequence, and `BIND(e AS ?v) FILTER(BOUND(?v))` → `SET (?v := e)` — which
  *    is character-for-character what a SET compiles back out to.
+ *    A FILTER (`NOT EXISTS` included) is also moved to the end of its group
+ *    when a later pattern binds one of its variables — see `mapPatterns`.
  *  - **Rewritten with a warning**, where the shapes correspond but something is
  *    lost or gained: a bare `BIND`, and `MINUS` over shared variables.
  *  - **Rejected**, everything else, all of it reported at once.
@@ -66,6 +68,7 @@ export type SparqlImportCode =
   | 'bare-bind'
   | 'minus-as-not'
   | 'positive-exists'
+  | 'filter-moved'
   | 'well-formedness'
   | 'multiple-operations'
   | 'delete-clause'
@@ -138,8 +141,10 @@ export interface SparqlImportOptions {
  *
  *  - 1: CONSTRUCT only.
  *  - 2: `INSERT { … } WHERE { … }` accepted alongside CONSTRUCT.
+ *  - 3: a FILTER written before the pattern that binds its variables is moved
+ *    after it rather than rejected as use-before-bind.
  */
-export const SRL_IMPORT_REVISION = 2;
+export const SRL_IMPORT_REVISION = 3;
 
 const parser = new SparqlParser();
 
@@ -476,8 +481,23 @@ function collectPatterns(where: Pattern | undefined): Pattern[] {
   return [where];
 }
 
+/**
+ * One group's patterns as SRL body items, in SRL's order.
+ *
+ * Order is where the two languages part. A SPARQL FILTER — `FILTER NOT EXISTS`
+ * included — applies to its whole group wherever it is written, while an SRL
+ * FILTER or NOT is checked against the bindings made *before* it. So a filter
+ * written ahead of the pattern that binds one of its variables cannot stay
+ * where it is: as an SRL `FILTER` it is ill-formed, and as an SRL `NOT` it is
+ * worse — well-formed, but a different rule, because the variable is free
+ * inside the negation and the check becomes "does this match anywhere at all".
+ * Moving such a filter to the end of its group gives it the same view SPARQL
+ * does. BIND and MINUS are positional in SPARQL too, so they stay put.
+ */
 function mapPatterns(patterns: Pattern[], issues: SparqlImportIssue[]): SrlBodyItem[] {
   const items: SrlBodyItem[] = [];
+  // Items that came from a FILTER of *this* group, and so are group-scoped.
+  const scoped = new Set<SrlBodyItem>();
 
   for (let index = 0; index < patterns.length; index += 1) {
     const pattern = patterns[index];
@@ -489,7 +509,9 @@ function mapPatterns(patterns: Pattern[], issues: SparqlImportIssue[]): SrlBodyI
       case 'filter': {
         const negated = negatedPattern(pattern);
         if (negated) {
-          items.push({ kind: 'not', body: mapPatterns(collectPatterns(negated), issues) });
+          const item: SrlBodyItem = { kind: 'not', body: mapPatterns(collectPatterns(negated), issues) };
+          items.push(item);
+          scoped.add(item);
           break;
         }
         if (isPatternOperation(pattern.expression, 'exists')) {
@@ -509,7 +531,9 @@ function mapPatterns(patterns: Pattern[], issues: SparqlImportIssue[]): SrlBodyI
               + 'profile — another SRL implementation may reject the rule.',
           });
         }
-        items.push({ kind: 'filter', filter: pattern });
+        const item: SrlBodyItem = { kind: 'filter', filter: pattern };
+        items.push(item);
+        scoped.add(item);
         break;
       }
 
@@ -594,7 +618,48 @@ function mapPatterns(patterns: Pattern[], issues: SparqlImportIssue[]): SrlBodyI
     }
   }
 
-  return items;
+  return moveScopedFilters(items, scoped, issues);
+}
+
+/** Move each group-scoped filter that a later item binds for to the end. */
+function moveScopedFilters(
+  items: SrlBodyItem[],
+  scoped: Set<SrlBodyItem>,
+  issues: SparqlImportIssue[],
+): SrlBodyItem[] {
+  const kept: SrlBodyItem[] = [];
+  const moved: SrlBodyItem[] = [];
+  const bound = new Set<string>();
+  items.forEach((item, index) => {
+    if (scoped.has(item)) {
+      const mentioned = new Set<string>();
+      collectVars(item.kind === 'not' ? item.body : (item as { filter: unknown }).filter, mentioned);
+      const later = new Set(items.slice(index + 1).flatMap((next) => boundBy(next)));
+      const early = [...mentioned].filter((name) => !bound.has(name) && later.has(name));
+      if (early.length > 0) {
+        moved.push(item);
+        const construct = item.kind === 'not' ? 'FILTER NOT EXISTS' : 'FILTER';
+        const vars = early.map((name) => `?${name}`).join(', ');
+        issues.push({
+          severity: 'warning',
+          code: 'filter-moved',
+          construct,
+          message:
+            `${construct} is written before the pattern that binds ${vars}. SPARQL applies a FILTER to its whole `
+            + 'group, but SRL checks it only against what is bound before it, so it has been moved to the end of '
+            + 'the rule body to keep the same meaning.'
+            + (item.kind === 'not'
+              ? ` Left in place, the NOT would treat ${vars} as free and test whether the pattern matches anywhere `
+                + 'at all.'
+              : ''),
+        });
+        return;
+      }
+    }
+    kept.push(item);
+    for (const name of boundBy(item)) bound.add(name);
+  });
+  return [...kept, ...moved];
 }
 
 /** Everything a rule body has no spelling for, each with the reason it has none. */

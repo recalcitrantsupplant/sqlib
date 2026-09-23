@@ -79,11 +79,24 @@ between items is optional.
 | Construct | Form |
 | --- | --- |
 | Triple patterns | `?s :p ?o . ?o :q ?x` |
-| `FILTER` | `FILTER(?age >= 18)`, including `FILTER NOT EXISTS { … }` and the rest of SPARQL's filter syntax |
+| `FILTER` | `FILTER(?age >= 18)`, and the rest of SPARQL's filter syntax except `EXISTS` / `NOT EXISTS` |
 | Negation | `NOT { … }` |
 | Ground negation | `NOT DATA { … }` |
 | Assignment | `SET ( ?v := expr )` |
 | Named tuples | `TUPLE( … )` — extension, off by default; see below |
+
+`NOT { … }` sees only the variables bound before it. A variable it shares with
+the body but that is bound only *after* it is free inside the negation, so
+
+```
+RULE { ?x :r ?y } WHERE { NOT { ?x :q ?y } ?x :p ?y }
+```
+
+means "if no `:q` triple exists anywhere, every `?x :p ?y`", not "every
+`?x :p ?y` unless `?x :q ?y`". Put the `NOT` after the patterns that bind its
+variables for the per-solution reading. `FILTER` and `SET` have no such trap:
+using a variable before it is bound makes the rule ill-formed (`use-before-bind`
+below).
 
 `NOT { … }` nests. `NOT DATA { … }` sends only the negated pattern to the ground
 graph, so a rule can ask "was this absent from the input?" while the rest of its
@@ -108,10 +121,10 @@ error naming the offending token.
 | `MINUS` | `Parse error Expecting --> } <-- but found --> 'MINUS' <--` |
 | `GRAPH` | `Parse error Expecting --> } <-- but found --> 'GRAPH' <--` |
 
-`BIND` has `SET` in its place, and `FILTER NOT EXISTS` — which *is* accepted,
-because it is part of SPARQL's `FILTER` — has `NOT` in its place; the SRL forms
-carry the sequential-evaluation semantics the compiler relies on. The rest have
-no SRL equivalent.
+`BIND` has `SET` in its place, and `FILTER EXISTS` / `FILTER NOT EXISTS` —
+rejected with `NOT EXISTS is not part of SRL — write the negation as NOT { … }`
+— have `NOT` in theirs; the SRL forms carry the sequential-evaluation semantics
+the compiler relies on. The rest have no SRL equivalent.
 
 An earlier `IF … THEN` spelling and a `FOR ?v IN :Shape` clause are both
 rejected: neither is in the language.
@@ -139,7 +152,10 @@ and a message. An empty list means no issues.
 
 Variables introduced inside `NOT { … }` are existentially quantified within the
 negated pattern and are deliberately not required to be bound outside it. They
-also do not count as binding a head variable.
+also do not count as binding a head variable. A `FILTER` or `SET` *inside* a
+`NOT` is held to the same order rule: it may use the variables bound before the
+`NOT` and those the negated pattern binds ahead of it, and nothing bound later
+in the outer body.
 
 ## Stratification
 
@@ -239,6 +255,9 @@ Body items translate as follows:
 | `WHERE DATA { B }` | The whole body wrapped in `GRAPH <urn:sqlib:srl:ground> { B }` |
 | `SET ( ?v := E )` | `BIND(E AS ?v) FILTER(BOUND(?v))`, with everything up to and including the assignment wrapped in a group |
 
+A `NOT` that mentions a variable bound only after it also closes a group: see
+[The order of `NOT`](#the-order-of-not) below.
+
 `urn:sqlib:srl:ground` is the named graph the executor keeps the ground data
 in — the base graph plus every `DATA` block, as it stood before any rule ran.
 The compiler and the executor agree on that IRI; it is exported as
@@ -265,6 +284,34 @@ the expression see the variables bound before it.
 
 If SRL ever gains an `OPTIONAL`-like construct, or an expression that can
 legitimately yield unbound, the `BOUND` test needs revisiting.
+
+### The order of `NOT`
+
+`NOT` needs the same treatment for the same reason. SRL checks a negation
+against the bindings made before it; `FILTER NOT EXISTS` sees its whole group
+wherever it is written. The two agree whenever every variable the `NOT` shares
+with the body is bound before it, and then the `NOT` compiles to a bare
+`FILTER NOT EXISTS` in place. When a later element binds one of its variables,
+everything up to and including the negation is wrapped in a group:
+
+```sparql
+# RULE { ?x :r ?y } WHERE { NOT { ?x :q ?y } ?x :p ?y }
+{ FILTER NOT EXISTS { ?x :q ?y } } ?x :p ?y
+```
+
+Without the group the filter would see `?x` and `?y` from the triple pattern
+after it and check each solution separately, which is a different rule. The
+same applies to a `SET` after the `NOT` and to a `NOT` nested inside another.
+
+Importing SPARQL (`sparqlToRule`) runs the other way. A `FILTER` or
+`FILTER NOT EXISTS` written before a pattern, `BIND` or nested group that binds
+one of its variables is moved to the end of its group, where SRL's in-order
+reading matches SPARQL's, and the import reports a `filter-moved` warning.
+`MINUS` and `BIND` stay where they are: SPARQL evaluates both in place too.
+
+`packages/srl/test/w3c-proposed/` holds evaluation tests for these cases in the
+W3C suite's format, each with data on which the SRL and literal-SPARQL readings
+infer different triples; its README lists both answers.
 
 ## Canonical form and identity
 

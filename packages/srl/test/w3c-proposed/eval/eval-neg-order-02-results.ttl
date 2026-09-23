@@ -1,0 +1,3 @@
+PREFIX : <http://example/>
+
+# Nothing is inferred.

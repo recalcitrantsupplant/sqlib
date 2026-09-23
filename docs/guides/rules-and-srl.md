@@ -80,7 +80,10 @@ Three things a body does differently from SPARQL:
 
 - A body is evaluated **in order**. A `FILTER` or `SET` may only reference
   variables bound earlier in the body, where SPARQL scopes a `FILTER` to its
-  whole group.
+  whole group. A `NOT` may mention a variable bound later, but inside the
+  negation that variable is still unbound: `NOT { ?x :q ?y } ?x :p ?y` fires
+  only if no `:q` triple exists anywhere. Write the `NOT` after the patterns
+  that bind its variables for the per-solution check.
 - `SET` may not re-bind a variable the body already binds.
 - Every variable in a head must be bound by the body. Variables inside `NOT`
   are existentially quantified within the negated pattern and do not count as
@@ -103,7 +106,8 @@ normal case there.
 { body }` with `flavour: "construct"` — one pass of the rule, returning the
 triples instead of writing them, which is what to paste into another endpoint to
 see what a rule would add. In the compiled form `NOT { P }` becomes
-`FILTER NOT EXISTS { P }`, `SET (?v := E)` becomes `BIND(E AS ?v)
+`FILTER NOT EXISTS { P }` (inside a group when a later pattern binds one of its
+variables, so the filter cannot see it), `SET (?v := E)` becomes `BIND(E AS ?v)
 FILTER(BOUND(?v))` inside a group, and `WHERE DATA` / `NOT DATA` become a
 `GRAPH <urn:sqlib:srl:ground>` pattern over a copy of the input the executor
 keeps.

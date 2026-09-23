@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# eval-neg-order-02 inside WHERE DATA.
+RULE { ?x :r ?y } WHERE DATA { NOT { ?x :q ?y } ?x :p ?y }
