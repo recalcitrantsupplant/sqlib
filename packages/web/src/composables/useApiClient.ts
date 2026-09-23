@@ -787,6 +787,11 @@ export interface SrlStratificationCycle {
     label: 'positive' | 'negative' | 'closed';
     reasons: SrlDependencyReason[];
   }>;
+  /**
+   * The shortest loop through a negated or closed dependency, in path order:
+   * the fewest dependencies that show why the rules cannot be ordered.
+   */
+  witness: SrlStratificationCycle['edges'];
   /** `negation`: a `NOT` sits on the cycle. `run-once`: a run-once rule does. */
   kind: 'negation' | 'run-once';
   runOnce?: Array<{ rule: string; reasons: string[] }>;

@@ -221,3 +221,101 @@ RULE { ?s :unknown true } WHERE { ?s :thing ?o . NOT { ?s :classified true } }`)
     expect(r.cycles).toEqual([]);
   });
 });
+
+/*
+ * Turtle's shorthand in a head or a body: `[ … ]`, `( … )`, `<< … >>`,
+ * `~ :r` and `{| … |}`. The parser keeps these nested, and stratification has
+ * to see the triples they stand for (RDF 1.2), not a collection with no terms.
+ */
+describe('SRL stratification through Turtle shorthand', () => {
+  it('sees a triple written inside [ … ] in a head', () => {
+    const r = strat(`${PREFIX}
+RULE { [ :made ?o ] :q 1 } WHERE { ?s :p ?o }
+RULE { ?s :r ?o } WHERE { ?s :made ?o }`);
+    expect(r.edges.find((e) => e.from === 'r1' && e.to === 'r0')).toBeDefined();
+  });
+
+  it('sees a triple written inside [ … ] in a body', () => {
+    const r = strat(`${PREFIX}
+RULE { ?s :made ?o } WHERE { ?s :p ?o }
+RULE { ?x :r ?y } WHERE { [ :made ?x ] :q ?y }`);
+    expect(r.edges.find((e) => e.from === 'r1' && e.to === 'r0')).toBeDefined();
+  });
+
+  it('does not treat << s p o >> as asserting s p o', () => {
+    const r = strat(`${PREFIX}
+RULE { << :a :made :b >> :src :x } WHERE { ?s :p ?o }
+RULE { ?s :r ?o } WHERE { ?s :made ?o }`);
+    expect(r.edges.find((e) => e.from === 'r1' && e.to === 'r0')).toBeUndefined();
+  });
+
+  it('treats an annotated triple as asserted, and its annotation as about the reifier', () => {
+    const r = strat(`${PREFIX}
+RULE { :a :made :b {| :src :x |} } WHERE { ?s :p ?o }
+RULE { ?s :r ?o } WHERE { ?s :made ?o }
+RULE { ?s :r2 ?o } WHERE { ?s :src ?o }`);
+    expect(r.edges.find((e) => e.from === 'r1' && e.to === 'r0')).toBeDefined();
+    expect(r.edges.find((e) => e.from === 'r2' && e.to === 'r0')).toBeDefined();
+  });
+
+  it('no longer matches a pattern against a collection as if it were a triple with no terms', () => {
+    // syntax-template-15: the head is two reified triples.
+    const r = strat(`${PREFIX}\nRULE { << :s :p :o >> :q << ?a ?b ?c >> } WHERE { ?a ?b ?c }`);
+    const reasons = r.edges.flatMap((e) => e.reasons);
+    for (const reason of reasons) {
+      expect([reason.head.subject, reason.head.predicate, reason.head.object]).not.toContain('');
+    }
+    expect(reasons.map((reason) => reason.head.subject)).toContain('<< :s :p :o >>');
+  });
+
+  it('writes blank nodes and triple terms the way they were written', () => {
+    const r = strat(`${PREFIX}
+RULE { [] :q ?o } WHERE { ?s :p ?o }
+RULE { _:b :q2 ?o } WHERE { ?s :q ?o }
+RULE { :s :q3 <<( :a :b :c )>> } WHERE { ?s :q2 ?o }
+RULE { ?s :r ?o } WHERE { ?s :q3 ?o }`);
+    const head = (from: string, to: string) => r.edges.find((e) => e.from === from && e.to === to)?.reasons[0].head;
+    expect(head('r1', 'r0')?.subject).toBe('[]');
+    expect(head('r2', 'r1')?.subject).toBe('_:b');
+    expect(head('r3', 'r2')?.object).toBe('<<( :a :b :c )>>');
+  });
+});
+
+describe('SRL non-stratifiable witness', () => {
+  it('explains W3C stratification-bad-04 with the two rules that make the loop', () => {
+    const r = strat(`${PREFIX}
+RULE { [] :q ?o } WHERE { ?s :p ?o }
+RULE { ?s :p "Rule" } WHERE { ?s ?p "Rule" }
+RULE { ?s :q "Rule" } WHERE { ?s :q ?o }`);
+    const [cycle] = r.cycles;
+    // All three are strongly connected…
+    expect(cycle.rules).toEqual(['r0', 'r1', 'r2']);
+    // …but the loop that shows the problem is r0 (run once) reading r1, which reads r0.
+    expect(cycle.witness.map((e) => `${e.from}->${e.to}:${e.label}`)).toEqual(['r0->r1:closed', 'r1->r0:positive']);
+    expect(cycle.witness[1].reasons[0].head.subject).toBe('[]');
+  });
+
+  it('is a path: each edge ends where the next begins, and it closes', () => {
+    const r = strat(`${PREFIX}
+RULE { ?s :a 1 } WHERE { ?s :c 1 . NOT { ?s :b 1 } }
+RULE { ?s :b 1 } WHERE { ?s :a 1 }
+RULE { ?s :c 1 } WHERE { ?s :b 1 }`);
+    const { witness } = r.cycles[0];
+    expect(witness.length).toBeGreaterThan(0);
+    witness.forEach((edge, index) => expect(edge.to).toBe(witness[(index + 1) % witness.length].from));
+    expect(witness.some((edge) => edge.label === 'negative')).toBe(true);
+  });
+
+  it('is the self-loop when a rule negates its own output', () => {
+    const r = strat(`${PREFIX}\nRULE { ?s :p "ABC" } WHERE { ?s :data ?d . NOT { ?s :p "ABC" } }`);
+    expect(r.cycles[0].witness.map((e) => `${e.from}->${e.to}`)).toEqual(['r0->r0']);
+  });
+});
+
+describe('SRL stratification reasons', () => {
+  it('states a reifier named twice (`~ :r {| … |}`) once', () => {
+    const r = strat(`${PREFIX}\nRULE { :s :p :o ~:r1 {| :q1 :z1 |} } WHERE { ?a ?b ?c }`);
+    const heads = r.edges.flatMap((e) => e.reasons).map((reason) => `${reason.head.subject} ${reason.head.predicate} ${reason.head.object}`);
+    expect(new Set(heads).size).toBe(heads.length);
+  });
+});

@@ -48,6 +48,11 @@ export interface StratificationGraphEdge {
    * the head template that unified to make it — what has to change to break it.
    */
   cycleLabel?: string | null;
+  /**
+   * On the loop that explains a cycle. When the rules do not stratify, only
+   * these are drawn at full strength; every other edge is context.
+   */
+  onLoop?: boolean;
 }
 </script>
 
@@ -301,7 +306,8 @@ const rebuild = async () => {
 
   const baseNodes: Node[] = props.nodes.map((node) => {
     const selfDependency = loops.get(node.id) ?? null;
-    const marks = (selfDependency ? 1 : 0) + (node.runOnce ? 1 : 0);
+    // The "once" chip is a word, about twice the width of the recursion glyph.
+    const marks = (selfDependency ? 1 : 0) + (node.runOnce ? 2 : 0);
     /*
      * Unstratified, colour means "on the cycle" or "not involved" — there are
      * no strata to colour by. A rule off the cycle is dimmed rather than
@@ -334,21 +340,28 @@ const rebuild = async () => {
    * costs a reserved lane each. A negated reason wins the styling, because
    * "there is negation between these two" is the fact that changes the stratum.
    */
-  const merged = new Map<string, { from: string; to: string; label?: string; cycleLabel?: string | null }>();
+  const merged = new Map<string, { from: string; to: string; label?: string; cycleLabel?: string | null; onLoop?: boolean }>();
   for (const edge of drawable) {
     if (edge.from === edge.to) continue;
     const key = `${edge.from}\u0000${edge.to}`;
     const existing = merged.get(key);
     if (!existing) {
-      merged.set(key, { from: edge.from, to: edge.to, label: edge.label, cycleLabel: edge.cycleLabel });
+      merged.set(key, { from: edge.from, to: edge.to, label: edge.label, cycleLabel: edge.cycleLabel, onLoop: edge.onLoop });
       continue;
     }
     existing.cycleLabel = existing.cycleLabel || edge.cycleLabel;
+    existing.onLoop = existing.onLoop || edge.onLoop;
     if (edge.label === 'negative') existing.label = 'negative';
     else if (edge.label === 'closed' && existing.label !== 'negative') existing.label = 'closed';
   }
 
-  const inCycle = new Set(props.nodes.filter((node) => node.inCycle).map((node) => node.id));
+  /*
+   * Red for a negated dependency, and for every step of the loop that explains
+   * a cycle: in a run-once cycle the loop's steps are closed and positive, and
+   * left grey they would read as context rather than as the problem.
+   */
+  const emphasised = (edge: { label?: string; onLoop?: boolean }) =>
+    edge.label === 'negative' || (unstratified.value && edge.onLoop === true);
   const baseEdges: Edge[] = [...merged.values()]
     .map((edge, index) => ({
       // The arrow points the way evaluation flows: the rule depended on comes
@@ -361,7 +374,10 @@ const rebuild = async () => {
       data: {
         // A two-way pair is parted so both lines, and both labels, can be read.
         bow: merged.has(`${edge.to}\u0000${edge.from}`) ? CYCLE_BOW : 0,
-        cycleLabel: edge.cycleLabel ?? null,
+        // Only the explaining loop is labelled: a label per dependency between
+        // three or four rules crowds the canvas and hides the one that matters.
+        cycleLabel: edge.onLoop ? edge.cycleLabel ?? null : null,
+        onLoop: edge.onLoop === true,
       },
       /*
        * The head is coloured with the stroke, not left at the default: a red
@@ -370,20 +386,28 @@ const rebuild = async () => {
        */
       markerEnd: {
         type: MarkerType.ArrowClosed,
-        color: edge.label === 'negative' ? 'var(--danger)' : 'var(--graph-edge)',
+        color: emphasised(edge) ? 'var(--danger)' : 'var(--graph-edge)',
         width: 14,
         height: 14,
       },
       style: {
-        stroke: edge.label === 'negative' ? 'var(--danger)' : 'var(--graph-edge)',
+        stroke: emphasised(edge) ? 'var(--danger)' : 'var(--graph-edge)',
         strokeWidth: 1.4,
         strokeDasharray: edge.label === 'positive' ? undefined : '4 3',
-        // Off the cycle, an edge is context, not the problem.
-        ...(unstratified.value && !(inCycle.has(edge.from) && inCycle.has(edge.to)) ? { opacity: 0.35 } : {}),
+        // Off the explaining loop, an edge is context, not the problem.
+        ...(unstratified.value && !edge.onLoop ? { opacity: 0.3 } : {}),
       },
     }));
 
-  const { nodes: laidOutNodes, edges: routedEdges, bounds } = layout(baseNodes, baseEdges, {
+  /*
+   * Unstratified, only the explaining loop is laid out. Given every edge, the
+   * layout is free to seat a rule that is merely in the same cycle between the
+   * two that make the loop, and the loop's arrows and labels then run across
+   * it. The other edges are drawn afterwards, straight and faint.
+   */
+  const isLoop = (edge: Edge) => (edge.data as { onLoop?: boolean } | undefined)?.onLoop === true;
+  const layoutEdges = unstratified.value ? baseEdges.filter(isLoop) : baseEdges;
+  const { nodes: laidOutNodes, edges: routedEdges, bounds } = layout(baseNodes, layoutEdges, {
     /*
      * Strata run top to bottom. A cycle has no strata, and its labels are
      * wide: laid side by side, the rules leave the labels the vertical room
@@ -417,10 +441,12 @@ const rebuild = async () => {
     width: parseFloat(String((node.style as Record<string, unknown>)?.width ?? 0)) || 0,
     height: parseFloat(String((node.style as Record<string, unknown>)?.height ?? 0)) || 0,
   }]));
-  const laidOutEdges = routedEdges.map((edge) => {
+  const contextEdges = unstratified.value ? baseEdges.filter((edge) => !isLoop(edge)) : [];
+  const laidOutEdges = [...routedEdges, ...contextEdges].map((edge) => {
     const source = boxes.get(edge.source);
     const target = boxes.get(edge.target);
-    if (!(edge.data as { bow?: number } | undefined)?.bow || !source || !target) return edge;
+    const across = (edge.data as { bow?: number } | undefined)?.bow || contextEdges.includes(edge);
+    if (!across || !source || !target) return edge;
     return { ...edge, data: { ...(edge.data ?? {}), endpoints: facingEndpoints(source, target) } };
   });
 

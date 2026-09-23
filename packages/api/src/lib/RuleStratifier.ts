@@ -158,16 +158,18 @@ function rewriteIds(issue: string, versionOf: Map<string, string>): string {
 function collapseCycle(cycle: StratificationCycle, versionOf: Map<string, string>): StratificationCycle {
   const rules = [...new Set(cycle.rules.map((id) => versionOf.get(id) ?? id))];
   const runOnce = cycle.runOnce?.map(({ rule, reasons }) => ({ rule: versionOf.get(rule) ?? rule, reasons }));
+  const toVersion = (edge: StratificationEdge): StratificationEdge => ({
+    ...edge,
+    from: versionOf.get(edge.from) ?? edge.from,
+    to: versionOf.get(edge.to) ?? edge.to,
+  });
   return {
     ...cycle,
     rules,
     // Unlike `collapseEdges`, a version reading itself stays: inside a cycle it
     // may be the very dependency that closes the loop.
-    edges: cycle.edges.map((edge) => ({
-      ...edge,
-      from: versionOf.get(edge.from) ?? edge.from,
-      to: versionOf.get(edge.to) ?? edge.to,
-    })),
+    edges: cycle.edges.map(toVersion),
+    witness: cycle.witness.map(toVersion),
     ...(runOnce ? { runOnce } : {}),
   };
 }

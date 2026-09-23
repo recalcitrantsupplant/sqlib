@@ -46,11 +46,12 @@ import { CircleSlash, CornerDownLeft, HelpCircle, Info, MoveRight } from '@lucid
 import { rdfSyntaxHighlighting } from '@/lib/codemirrorHighlight';
 import { languageExtensionsFor } from '@/lib/codeLanguage';
 import StratificationGraph from './StratificationGraph.vue';
+import DependencyReasons from './DependencyReasons.vue';
 import SectionLabel from '../shared/SectionLabel.vue';
 import { stratumColor } from '@/composables/useStratumPalette';
 import { stratumLabel } from '@/lib/srlStratumGutter';
 import { formatCompactAge } from '@/lib/time';
-import { cycleEdgeLabel, formatBodyPattern, formatTriple } from '@/lib/srlDependencyDisplay';
+import { cycleEdgeLabel } from '@/lib/srlDependencyDisplay';
 import type { SrlStratificationCycle } from '@/composables/useApiClient';
 
 const EDGE_HELP = 'An edge points from the rule depended on to the rule that depends on it. Solid '
@@ -120,34 +121,53 @@ const ruleRef = (id: string) => {
 const listJoin = (items: string[]) =>
   items.length <= 2 ? items.join(' and ') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
 
-/** One sentence saying why these rules cannot be ordered. */
+type CycleEdge = SrlStratificationCycle['edges'][number];
+
+/** Why a rule runs once, as a clause: "because its head creates …". */
+const RUN_ONCE_WHY: Record<string, string> = {
+  'blank-node head': 'its head creates a new blank node each time',
+  'assignment (SET)': 'it assigns a value with SET',
+};
+const runOnceWhy = (reasons: string[]) =>
+  reasons.map((reason) => RUN_ONCE_WHY[reason] ?? reason).join(' and ') || 'it is run-once';
+
+/** "L9 reads L3's", one step of a loop told in words. */
+const step = (edge: CycleEdge) =>
+  `${lineRef(edge.from)} ${edge.label === 'negative' ? 'negates' : 'reads'} ${lineRef(edge.to)}'s`;
+
+/**
+ * One sentence saying why these rules cannot be ordered, told along the
+ * shortest loop that shows it. A cycle can hold more rules and dependencies
+ * than that loop, but naming them all explains nothing more.
+ */
 function cycleSentence(cycle: SrlStratificationCycle): string {
-  const refs = cycle.rules.map(lineRef);
+  const loop = cycle.witness?.length ? cycle.witness : null;
+  if (!loop) {
+    return `${listJoin(cycle.rules.map(lineRef))} depend on each other in a cycle that cannot be ordered.`;
+  }
+  const [first, ...rest] = loop;
+  const reader = lineRef(first.from);
+  const back = rest.map(step).join(', and ');
+
   if (cycle.kind === 'run-once') {
-    const once = (cycle.runOnce ?? []).map(({ rule, reasons }) => `${lineRef(rule)} (${reasons.join(', ')})`);
-    if (cycle.rules.length === 1) {
-      const why = cycle.runOnce?.[0]?.reasons.join(', ') || 'run-once';
-      return `${refs[0]} runs once (${why}) but reads its own output, so it would have to run after itself.`;
+    const why = runOnceWhy(cycle.runOnce?.find((entry) => entry.rule === first.from)?.reasons ?? []);
+    if (!rest.length) {
+      return `${reader} runs once, because ${why}, but it reads its own output, so it would have to run after itself.`;
     }
-    return `${listJoin(refs)} depend on each other, and ${listJoin(once)} runs once: a run-once rule must run `
-      + 'after everything it reads is complete, which a cycle never allows.';
+    return `${reader} runs once, because ${why}, but it reads ${lineRef(first.to)}'s output, and ${back}, `
+      + `so ${reader} would have to run after itself.`;
   }
-  if (cycle.rules.length === 1) {
-    return `${refs[0]} negates its own output, so it would have to be evaluated before itself.`;
+
+  if (!rest.length) {
+    return `${reader} negates its own output, so it would have to be evaluated before itself.`;
   }
-  if (cycle.rules.length === 2) {
-    const [a, b] = cycle.rules;
-    const negates = (from: string, to: string) =>
-      cycle.edges.some((edge) => edge.from === from && edge.to === to && edge.label === 'negative');
-    if (negates(a, b) && negates(b, a)) {
-      return `${lineRef(a)} and ${lineRef(b)} negate each other's output, so neither can be evaluated before the other.`;
-    }
-    const [reader, source] = negates(a, b) ? [a, b] : [b, a];
-    return `${lineRef(reader)} negates ${lineRef(source)}'s output and ${lineRef(source)} depends on `
-      + `${lineRef(reader)}'s, so neither can be evaluated before the other.`;
+  if (rest.length === 1 && rest[0].label === 'negative') {
+    return `${reader} and ${lineRef(first.to)} negate each other's output, so neither can be evaluated before the other.`;
   }
-  return `${listJoin(refs)} depend on each other in a cycle that passes through a NOT, so none of them `
-    + 'can be evaluated before the others.';
+  const verdict = rest.length === 1
+    ? 'neither can be evaluated before the other'
+    : 'none of them can be evaluated before the others';
+  return `${reader} negates ${lineRef(first.to)}'s output, and ${back}, so ${verdict}.`;
 }
 
 const EDGE_VERB = {
@@ -156,24 +176,42 @@ const EDGE_VERB = {
   positive: 'reads the output of',
 } as const;
 
-/** The cycles, ready to render: a sentence, then each dependency with its lines. */
+/** The negated reason first: it is the one that forces the ordering. */
+const byNegationFirst = (reasons: SrlDependencyReason[]) =>
+  [...reasons].sort((a, b) => Number(b.label === 'negative') - Number(a.label === 'negative'));
+
+const edgeKey = (edge: { from: string; to: string }) => `${edge.from}->${edge.to}`;
+
+const edgeView = (edge: CycleEdge) => ({
+  key: edgeKey(edge),
+  reader: edge.from,
+  readerLine: nodeById.value.get(edge.from)?.line ?? null,
+  source: edge.to,
+  sourceLine: nodeById.value.get(edge.to)?.line ?? null,
+  label: edge.label,
+  verb: edge.from === edge.to ? EDGE_VERB[edge.label].replace('the output of', 'its own output') : EDGE_VERB[edge.label],
+  reasons: byNegationFirst(edge.reasons),
+});
+
+/**
+ * The cycles, ready to render: a sentence, the loop that explains it in path
+ * order, and the rest of the dependencies among the same rules, which are
+ * shown folded away because none of them is needed to see the problem.
+ */
 const cycleViews = computed(() =>
-  props.cycles.map((cycle, index) => ({
-    key: `${index}-${cycle.rules.join(',')}`,
-    sentence: cycleSentence(cycle),
-    edges: [...cycle.edges]
-      .sort((x, y) => (nodeById.value.get(x.from)?.line ?? 0) - (nodeById.value.get(y.from)?.line ?? 0))
-      .map((edge) => ({
-        key: `${edge.from}->${edge.to}`,
-        reader: edge.from,
-        readerLine: nodeById.value.get(edge.from)?.line ?? null,
-        source: edge.to,
-        sourceLine: nodeById.value.get(edge.to)?.line ?? null,
-        label: edge.label,
-        verb: edge.from === edge.to ? EDGE_VERB[edge.label].replace('the output of', 'its own output') : EDGE_VERB[edge.label],
-        reasons: edge.reasons,
-      })),
-  })),
+  props.cycles.map((cycle, index) => {
+    const loop = cycle.witness?.length ? cycle.witness : cycle.edges;
+    const onLoop = new Set(loop.map(edgeKey));
+    return {
+      key: `${index}-${cycle.rules.join(',')}`,
+      sentence: cycleSentence(cycle),
+      edges: loop.map(edgeView),
+      others: cycle.edges
+        .filter((edge) => !onLoop.has(edgeKey(edge)))
+        .sort((x, y) => (nodeById.value.get(x.from)?.line ?? 0) - (nodeById.value.get(y.from)?.line ?? 0))
+        .map(edgeView),
+    };
+  }),
 );
 
 /** What would break the cycle, for the kinds of cycle present. */
@@ -193,15 +231,21 @@ const fixHints = computed(() => {
   return hints;
 });
 
-/** Edges for the graph, the cycle's ones labelled with the patterns that made them. */
+/**
+ * Edges for the graph. The loop that explains each cycle is labelled with the
+ * patterns that made it; every other edge is context, drawn faint and without
+ * a label, so the picture shows the problem rather than every dependency.
+ */
 const graphEdges = computed(() => {
-  const cycleReasons = new Map<string, SrlDependencyReason[]>();
+  const loopReasons = new Map<string, SrlDependencyReason[]>();
   for (const cycle of props.cycles) {
-    for (const edge of cycle.edges) cycleReasons.set(`${edge.from}->${edge.to}`, edge.reasons);
+    for (const edge of cycle.witness?.length ? cycle.witness : cycle.edges) {
+      loopReasons.set(edgeKey(edge), edge.reasons);
+    }
   }
   return props.edges.map((edge) => {
-    const reasons = cycleReasons.get(`${edge.from}->${edge.to}`);
-    return reasons ? { ...edge, cycleLabel: cycleEdgeLabel(reasons) } : edge;
+    const reasons = loopReasons.get(edgeKey(edge));
+    return reasons ? { ...edge, onLoop: true, cycleLabel: cycleEdgeLabel(reasons) } : edge;
   });
 });
 
@@ -414,12 +458,33 @@ const sourceExtensions = computed<Extension[]>(() => {
                   @click="edge.sourceLine && emit('go-to-line', edge.sourceLine)"
                 >{{ ruleRef(edge.source) }}</button>
               </span>
-              <span v-for="(reason, index) in edge.reasons" :key="index" class="reason">
-                <code>{{ formatBodyPattern(reason) }}</code>
-                <MoveRight :size="13" class="reason-arrow" />
-                <code>{{ formatTriple(reason.head) }}</code>
-              </span>
+              <DependencyReasons :reasons="edge.reasons" />
             </div>
+            <details v-if="cycle.others.length" class="cycle-others" data-testid="stratification-cycle-others">
+              <summary>
+                {{ cycle.others.length }} more {{ cycle.others.length === 1 ? 'dependency' : 'dependencies' }}
+                among these rules
+              </summary>
+              <div v-for="edge in cycle.others" :key="edge.key" class="dependency">
+                <span class="cycle-edge-head">
+                  <button
+                    class="line-link"
+                    type="button"
+                    :disabled="!edge.readerLine"
+                    @click="edge.readerLine && emit('go-to-line', edge.readerLine)"
+                  >{{ ruleRef(edge.reader) }}</button>
+                  <span class="dependency-kind">{{ edge.verb }}</span>
+                  <button
+                    v-if="edge.source !== edge.reader"
+                    class="line-link"
+                    type="button"
+                    :disabled="!edge.sourceLine"
+                    @click="edge.sourceLine && emit('go-to-line', edge.sourceLine)"
+                  >{{ ruleRef(edge.source) }}</button>
+                </span>
+                <DependencyReasons :reasons="edge.reasons" />
+              </div>
+            </details>
           </div>
           <div class="fix" data-testid="stratification-fix">
             <span class="fix-title">To break it</span>
@@ -476,11 +541,7 @@ const sourceExtensions = computed<Extension[]>(() => {
                   @click="emit('go-to-line', dependency.line)"
                 >L{{ dependency.line }}</button>
               </span>
-              <span v-for="(reason, index) in dependency.reasons" :key="index" class="reason">
-                <code>{{ formatBodyPattern(reason) }}</code>
-                <MoveRight :size="13" class="reason-arrow" />
-                <code>{{ formatTriple(reason.head) }}</code>
-              </span>
+              <DependencyReasons :reasons="byNegationFirst(dependency.reasons)" />
             </div>
           </section>
 
@@ -824,6 +885,22 @@ const sourceExtensions = computed<Extension[]>(() => {
   cursor: default;
 }
 
+.cycle-others {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.cycle-others > summary {
+  color: var(--ink-secondary);
+  font-size: var(--text-label);
+  cursor: pointer;
+}
+
+.cycle-others[open] > summary {
+  margin-bottom: var(--space-3);
+}
+
 .fix {
   display: flex;
   flex-direction: column;
@@ -843,22 +920,6 @@ const sourceExtensions = computed<Extension[]>(() => {
   color: var(--ink-secondary);
   font-size: var(--text-label);
   line-height: 1.5;
-}
-
-.reason {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.reason code {
-  padding: var(--space-1) var(--space-3);
-  background: var(--surface-subtle);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius);
-  color: var(--ink-secondary);
-  font-size: var(--text-label);
 }
 
 .reason-arrow {

@@ -12,24 +12,42 @@ import type { SrlDependencyReason, SrlTripleSummary } from '@/composables/useApi
 /** A local name that can follow `prefix:` without escaping. */
 const PLAIN_LOCAL = /^[A-Za-z_][\w.-]*$|^$/;
 
-/** `<iri>` as `prefix:local` when a declared prefix covers it; anything else unchanged. */
-export function compactTerm(term: string, prefixes: Record<string, string>): string {
-  const match = /^<([^>]*)>$/.exec(term);
-  if (!match) {
-    // A literal's datatype IRI is compacted the same way.
-    const typed = /^(".*")\^\^(<[^>]*>)$/.exec(term);
-    return typed ? `${typed[1]}^^${compactTerm(typed[2], prefixes)}` : term;
-  }
-  const iri = match[1];
+/**
+ * Namespaces a reader knows without being told. `rdf:` is how an RDF 1.2 term
+ * like `<< :s :p :o >>` is explained (its reifier `rdf:reifies` the triple), and
+ * spelling that IRI out in full hides the point in a wall of text. Only used
+ * when the document does not declare the prefix itself.
+ */
+const WELL_KNOWN: Record<string, string> = {
+  rdf: 'http://www.w3.org/1999/02/22-rdf-syntax-ns#',
+};
+
+/** One IRI as `prefix:local` when a prefix covers it, else as written. */
+function compactIri(iri: string, prefixes: Record<string, string>): string {
   let best: string | null = null;
-  for (const [prefix, namespace] of Object.entries(prefixes)) {
+  const declared = new Set(Object.values(prefixes));
+  const candidates = {
+    ...Object.fromEntries(Object.entries(WELL_KNOWN).filter(([prefix, ns]) => !(prefix in prefixes) && !declared.has(ns))),
+    ...prefixes,
+  };
+  for (const [prefix, namespace] of Object.entries(candidates)) {
     if (!namespace || !iri.startsWith(namespace)) continue;
     const local = iri.slice(namespace.length);
     if (!PLAIN_LOCAL.test(local) || local.endsWith('.')) continue;
     const candidate = `${prefix}:${local}`;
     if (best === null || candidate.length < best.length) best = candidate;
   }
-  return best ?? term;
+  return best ?? `<${iri}>`;
+}
+
+/**
+ * Every `<iri>` in a term as `prefix:local` when a prefix covers it. A term can
+ * hold several, as a triple term `<<( <s> <p> <o> )>>` or a typed literal does;
+ * text inside quotes is a literal's value and is left alone.
+ */
+export function compactTerm(term: string, prefixes: Record<string, string>): string {
+  return term.replace(/"(?:[^"\\]|\\.)*"|<([^<>\s"]*)>/g, (match, iri: string | undefined) =>
+    iri === undefined ? match : compactIri(iri, prefixes));
 }
 
 export function compactTriple(

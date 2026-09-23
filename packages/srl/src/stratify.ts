@@ -49,6 +49,14 @@ export interface StratificationCycle {
    * any positive link that closes the loop) is what makes it stratify.
    */
   edges: StratificationEdge[];
+  /**
+   * The shortest loop through a `negative` or `closed` edge: the smallest set
+   * of dependencies that explains why these rules cannot be ordered. In path
+   * order, so each edge's `to` is the next edge's `from` and the last edge's
+   * `to` is the first edge's `from`. The other `edges` of the cycle are real
+   * dependencies too, but none of them is needed to show the problem.
+   */
+  witness: StratificationEdge[];
   /** `negation`: a `NOT` sits on the cycle. `run-once`: a run-once rule does. */
   kind: 'negation' | 'run-once';
   /** For a `run-once` cycle, which rules are run-once and why. */
@@ -76,7 +84,19 @@ export interface StratificationReport {
   cycles: StratificationCycle[];
 }
 
-type Term = { type?: string; subType?: string; value?: unknown; prefix?: string } | undefined;
+type Term = {
+  type?: string;
+  subType?: string;
+  value?: unknown;
+  prefix?: string;
+  label?: string;
+  /** A triple term's own parts (`subType: 'triple'`). */
+  subject?: Term;
+  predicate?: Term;
+  object?: Term;
+  /** How a blank node stands in for what the author wrote, set by `flattenTriples`. */
+  display?: string;
+} | undefined;
 type Triple = { subject: Term; predicate: Term; object: Term };
 type BodyDep = { triple: Triple; label: DependencyLabel };
 /** A tuple read/write: terms in slot order. Arity is `terms.length`. */
@@ -151,7 +171,93 @@ function hasAssignment(items: SrlBodyItem[]): boolean {
 
 function headTriples(head: unknown): Triple[] {
   const triples = (head as any)?.triples;
-  return Array.isArray(triples) ? triples : [];
+  return Array.isArray(triples) ? flattenTriples(triples) : [];
+}
+
+const RDF_REIFIES = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies';
+const reifies: Term = { type: 'term', subType: 'namedNode', value: RDF_REIFIES };
+
+/**
+ * A block's triples as plain `subject predicate object` patterns.
+ *
+ * The parser keeps Turtle's shorthand nested: `[ :p ?x ]`, a list `( … )` and
+ * a reified triple `<< s p o >>` arrive as a triple *collection* standing where
+ * a term would, and an annotation `{| … |}` or reifier `~ :r` hangs off the
+ * triple it annotates. Matching a body against a head needs what they mean, in
+ * RDF 1.2 terms:
+ *
+ * - `[ … ]` and `( … )` assert their triples about a blank node, and stand for
+ *   that node where they appear.
+ * - `<< s p o >>` does **not** assert `s p o`: it asserts that a reifier
+ *   `rdf:reifies` the triple term `<<( s p o )>>`, and stands for the reifier.
+ * - `~ :r` and `{| … |}` assert the triple and that the reifier `rdf:reifies`
+ *   it; the annotation's own triples are asserted about the reifier.
+ *
+ * Without this a collection was matched as a triple with no terms, which any
+ * all-variable pattern unifies with and nothing else can, and the triples
+ * inside it were never seen at all.
+ */
+function flattenTriples(items: unknown[]): Triple[] {
+  const out: Triple[] = [];
+
+  const termOf = (term: any): Term => {
+    if (term?.type !== 'tripleCollection') return tripleTermOf(term);
+    if (term.subType === 'reifiedTriple') {
+      const inner = term.triples?.[0];
+      const triple = tripleTerm(inner);
+      const reifier = { ...term.identifier, display: `<< ${formatTerm(triple.subject)} ${formatTerm(triple.predicate)} ${formatTerm(triple.object)} >>` };
+      out.push({ subject: reifier, predicate: reifies, object: triple });
+      return reifier;
+    }
+    visit(term.triples ?? []);
+    return { ...term.identifier, display: term.subType === 'list' ? '( … )' : '[ … ]' };
+  };
+
+  // A triple term's parts can themselves be written with shorthand.
+  const tripleTermOf = (term: any): Term =>
+    term?.subType === 'triple' ? tripleTerm(term) : (term as Term);
+
+  const tripleTerm = (triple: any): Term & object => ({
+    type: 'term',
+    subType: 'triple',
+    subject: termOf(triple?.subject),
+    predicate: termOf(triple?.predicate),
+    object: termOf(triple?.object),
+  });
+
+  function visit(list: unknown[]): void {
+    for (const item of list as any[]) {
+      if (item?.type === 'tripleCollection') {
+        termOf(item);
+        continue;
+      }
+      if (item?.type !== 'triple') continue;
+      const triple: Triple = { subject: termOf(item.subject), predicate: termOf(item.predicate), object: termOf(item.object) };
+      out.push(triple);
+      for (const annotation of item.annotations ?? []) {
+        // `~ :r` carries its reifier as `val`; `{| … |}` is a collection whose
+        // identifier is the reifier and whose triples describe it.
+        const reifier = annotation?.type === 'tripleCollection' ? annotation.identifier : annotation?.val;
+        if (!reifier) continue;
+        out.push({
+          subject: reifier,
+          predicate: reifies,
+          object: { type: 'term', subType: 'triple', subject: triple.subject, predicate: triple.predicate, object: triple.object },
+        });
+        if (annotation?.type === 'tripleCollection') visit(annotation.triples ?? []);
+      }
+    }
+  }
+
+  visit(items);
+  // `~ :r {| … |}` names the same reifier twice; one statement of it is enough.
+  const seen = new Set<string>();
+  return out.filter((triple) => {
+    const key = `${formatTerm(triple.subject)} ${formatTerm(triple.predicate)} ${formatTerm(triple.object)}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function bodyDeps(items: SrlBodyItem[], label: DependencyLabel): BodyDep[] {
@@ -159,7 +265,7 @@ function bodyDeps(items: SrlBodyItem[], label: DependencyLabel): BodyDep[] {
   for (const item of items) {
     if (item.kind === 'bgp') {
       const triples = (item.triples as any)?.triples;
-      if (Array.isArray(triples)) for (const t of triples) deps.push({ triple: t, label });
+      if (Array.isArray(triples)) for (const t of flattenTriples(triples)) deps.push({ triple: t, label });
     } else if (item.kind === 'not') {
       // `NOT DATA` matches the ground graph, which no rule can add to — so it
       // is a dependency on *nothing*, not a negative dependency on whoever
@@ -219,7 +325,15 @@ function isVar(t: Term): boolean {
 function termEquals(a: Term, b: Term): boolean {
   if (isVar(a) || isVar(b)) return true;
   if (!a || !b) return false;
-  return a.subType === b.subType && a.value === b.value && (a.prefix ?? '') === (b.prefix ?? '');
+  if (a.subType !== b.subType) return false;
+  // Triple terms unify part by part, so `<<( ?s :p ?o )>>` reads `<<( :a :p :b )>>`.
+  if (a.subType === 'triple') {
+    return termEquals(a.subject, b.subject) && termEquals(a.predicate, b.predicate) && termEquals(a.object, b.object);
+  }
+  // Blank nodes are local to the rule that wrote them, so any two may denote
+  // the same node: the conservative answer is that they match.
+  if (a.subType === 'blankNode') return true;
+  return a.value === b.value && (a.prefix ?? '') === (b.prefix ?? '');
 }
 
 function tripleMatches(body: Triple, head: Triple): boolean {
@@ -254,6 +368,16 @@ function formatTerm(t: Term): string {
     return JSON.stringify(value);
   }
   if (t.subType === 'namedNode') return typeof t.prefix === 'string' ? `${t.prefix}:${String(t.value ?? '')}` : `<${String(t.value ?? '')}>`;
+  if (t.subType === 'blankNode') {
+    if (t.display) return t.display;
+    // `_:b` as written keeps its label (the parser marks it `e_`); a node the
+    // parser minted for `[]` has none worth showing.
+    const label = String(t.label ?? '');
+    return label.startsWith('e_') ? `_:${label.slice(2)}` : '[]';
+  }
+  if (t.subType === 'triple') {
+    return `<<( ${formatTerm(t.subject)} ${formatTerm(t.predicate)} ${formatTerm(t.object)} )>>`;
+  }
   return String(t.value ?? '');
 }
 
@@ -391,10 +515,11 @@ function detectNonStratifiableCycles(
       if (!hasCycle) return;
       const rules = [...component].sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0));
       const cycleEdges = edges.filter((e) => set.has(e.from) && set.has(e.to));
+      const witness = shortestWitness(cycleEdges);
       const negativeInCycle = cycleEdges.some((e) => e.label === 'negative');
       if (negativeInCycle) {
         issues.push(`Non-stratifiable cycle involving: ${rules.join(', ')}`);
-        cycles.push({ rules, edges: cycleEdges, kind: 'negation' });
+        cycles.push({ rules, edges: cycleEdges, witness, kind: 'negation' });
         return;
       }
       // Even a wholly positive cycle is illegal if it contains a run-once rule:
@@ -411,6 +536,7 @@ function detectNonStratifiableCycles(
         cycles.push({
           rules,
           edges: cycleEdges,
+          witness,
           kind: 'run-once',
           runOnce: rules
             .filter((id) => runOnceReasons.has(id))
@@ -422,6 +548,52 @@ function detectNonStratifiableCycles(
 
   for (const v of ids) if (!index.has(v)) strongconnect(v);
   return { issues, cycles };
+}
+
+/**
+ * The shortest loop, among one strongly connected group's edges, that passes
+ * through a `negative` or `closed` edge.
+ *
+ * For each such edge `u → v` (u reads v), the shortest path from `v` back to
+ * `u` closes the loop. A self-loop is a loop of one. Ties go to a negated edge,
+ * then to the order the edges were given in, so the answer is stable.
+ */
+function shortestWitness(edges: StratificationEdge[]): StratificationEdge[] {
+  const out = new Map<string, StratificationEdge[]>();
+  for (const edge of edges) out.set(edge.from, [...(out.get(edge.from) ?? []), edge]);
+
+  const pathBetween = (start: string, goal: string): StratificationEdge[] | null => {
+    if (start === goal) return [];
+    const via = new Map<string, StratificationEdge>();
+    const queue = [start];
+    const seen = new Set([start]);
+    while (queue.length) {
+      const node = queue.shift()!;
+      for (const edge of out.get(node) ?? []) {
+        if (seen.has(edge.to)) continue;
+        seen.add(edge.to);
+        via.set(edge.to, edge);
+        if (edge.to === goal) {
+          const path: StratificationEdge[] = [];
+          for (let at = goal; at !== start; at = via.get(at)!.from) path.unshift(via.get(at)!);
+          return path;
+        }
+        queue.push(edge.to);
+      }
+    }
+    return null;
+  };
+
+  let best: StratificationEdge[] | null = null;
+  const rank = (loop: StratificationEdge[]) => loop.length * 2 + (loop[0].label === 'negative' ? 0 : 1);
+  for (const edge of edges) {
+    if (edge.label === 'positive') continue;
+    const back = pathBetween(edge.to, edge.from);
+    if (!back) continue;
+    const loop = [edge, ...back];
+    if (!best || rank(loop) < rank(best)) best = loop;
+  }
+  return best ?? [];
 }
 
 function toObject(map: Map<string, number>): Record<string, number> {

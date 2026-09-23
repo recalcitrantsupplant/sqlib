@@ -1008,13 +1008,13 @@ const graphEdges = computed(() =>
 );
 
 const graphCycles = computed<SrlStratificationCycle[]>(() =>
-  (stratification.value?.cycles ?? []).map((cycle) => ({
-    ...cycle,
-    edges: cycle.edges.map((edge) => ({
+  (stratification.value?.cycles ?? []).map((cycle) => {
+    const compactEdge = (edge: SrlStratificationCycle['edges'][number]) => ({
       ...edge,
       reasons: edge.reasons.map((reason) => compactReason(reason, documentPrefixes.value)),
-    })),
-  })),
+    });
+    return { ...cycle, edges: cycle.edges.map(compactEdge), witness: (cycle.witness ?? []).map(compactEdge) };
+  }),
 );
 
 /*

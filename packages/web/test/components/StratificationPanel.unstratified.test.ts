@@ -19,13 +19,16 @@ const REASON_3_TO_12 = {
   label: 'negative' as const,
 };
 
+const EDGES: SrlStratificationCycle['edges'] = [
+  { from: 'rule-1', to: 'rule-2', label: 'negative', reasons: [REASON_3_TO_12] },
+  { from: 'rule-2', to: 'rule-1', label: 'negative', reasons: [REASON_12_TO_3] },
+];
+
 const cycle: SrlStratificationCycle = {
   kind: 'negation',
   rules: ['rule-1', 'rule-2'],
-  edges: [
-    { from: 'rule-1', to: 'rule-2', label: 'negative', reasons: [REASON_3_TO_12] },
-    { from: 'rule-2', to: 'rule-1', label: 'negative', reasons: [REASON_12_TO_3] },
-  ],
+  edges: EDGES,
+  witness: EDGES,
 };
 
 const nodes = [
@@ -108,3 +111,71 @@ describe('StratificationPanel, unstratified', () => {
     expect(graphEdges.find((edge) => edge.from === 'rule-1')?.cycleLabel).toBe('NOT ?s :p "ABC" → :s :p "ABC"');
   });
 });
+
+/*
+ * W3C stratification-bad-04: three rules all depend on each other, but only two
+ * dependencies are needed to show the problem. Those lead, and the rest are
+ * folded away.
+ */
+describe('StratificationPanel, a cycle wider than the loop that explains it', () => {
+  const edge = (from: string, to: string, label: 'positive' | 'closed', body: string, head: string) => ({
+    from,
+    to,
+    label,
+    reasons: [{
+      body: { subject: '?s', predicate: body, object: '?o' },
+      head: { subject: head, predicate: ':x', object: '?o' },
+      label,
+    }],
+  });
+  const closed = edge('rule-1', 'rule-2', 'closed', ':p', '?s');
+  const back = edge('rule-2', 'rule-1', 'positive', '?p', '[]');
+  const wide: SrlStratificationCycle = {
+    kind: 'run-once',
+    rules: ['rule-1', 'rule-2', 'rule-3'],
+    runOnce: [{ rule: 'rule-1', reasons: ['blank-node head'] }],
+    edges: [closed, back, edge('rule-2', 'rule-3', 'positive', '?p', '?s'), edge('rule-3', 'rule-1', 'positive', ':q', '[]')],
+    witness: [closed, back],
+  };
+  const wideNodes = [
+    { id: 'rule-1', label: ':q', stratum: null, monotonicity: 'monotone' as const, line: 2, inCycle: true, runOnce: true },
+    { id: 'rule-2', label: ':p', stratum: null, monotonicity: 'monotone' as const, line: 3, inCycle: true },
+    { id: 'rule-3', label: ':q', stratum: null, monotonicity: 'monotone' as const, line: 4, inCycle: true },
+  ];
+  const mountWide = () => mount(StratificationPanel, {
+    props: { nodes: wideNodes, edges: wide.edges, cycles: [wide], stratified: false, ruleCount: 3, strataCount: 0 },
+    global: { stubs: { StratificationGraph: true, Codemirror: true } },
+  });
+
+  it('tells the loop, not every rule in the cycle', () => {
+    const sentence = mountWide().get('[data-testid="stratification-cycle-sentence"]').text();
+    expect(sentence).toBe(
+      "L2 runs once, because its head creates a new blank node each time, but it reads L3's output, "
+        + "and L3 reads L2's, so L2 would have to run after itself.",
+    );
+    expect(sentence).not.toContain('L4');
+  });
+
+  it('lists the loop first and folds the other dependencies away', () => {
+    const wrapper = mountWide();
+    const section = wrapper.get('[data-testid="stratification-cycles"]');
+    const loop = section.findAll('[data-testid="stratification-cycle-edge"]');
+    expect(loop).toHaveLength(2);
+    const others = section.get('[data-testid="stratification-cycle-others"]');
+    expect(others.get('summary').text()).toMatch(/2 more dependencies among these rules/);
+    expect(others.attributes('open')).toBeUndefined();
+  });
+
+  it('labels only the loop in the graph', () => {
+    const graphEdges = mountWide().getComponent({ name: 'StratificationGraph' }).props('edges') as Array<{
+      from: string;
+      to: string;
+      onLoop?: boolean;
+      cycleLabel?: string;
+    }>;
+    const onLoop = graphEdges.filter((e) => e.onLoop).map((e) => `${e.from}->${e.to}`);
+    expect(onLoop).toEqual(['rule-1->rule-2', 'rule-2->rule-1']);
+    expect(graphEdges.find((e) => e.from === 'rule-2' && e.to === 'rule-3')?.cycleLabel).toBeUndefined();
+  });
+});
+
