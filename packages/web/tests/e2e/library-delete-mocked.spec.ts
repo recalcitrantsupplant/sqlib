@@ -1,6 +1,6 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
 import { mockSidebarCollections } from './fixtures/collections';
-import { openSplash } from './navigate';
+import { openSplash, openSplashLibraries } from './navigate';
 
 let mockLibraries = [
   {
@@ -90,6 +90,10 @@ test.describe('Delete Library Functionality (Mocked)', () => {
     });
 
     await openSplash(page);
+    // The rows live behind the Libraries card now: a deployment has a handful
+    // of libraries and the landing screen leads with the grid, so the list
+    // opens from its card rather than sitting above everything else.
+    await openSplashLibraries(page);
   });
 
   /*

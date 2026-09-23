@@ -2,54 +2,82 @@
   <!--
     The screen the app opens on, before a section is picked.
 
-    It replaces the unscoped artifact tree, which was the last surface drawn in
-    the pre-rail style: a second navigator listing every library and backend
-    beside a rail that already lists every section. What a landing screen owes
-    someone is what this deployment is and what it has, so that is what this
-    draws — the sections in rail order, the ones that are off in a muted tone,
-    and the libraries.
+    Three reading zones in one column — type, browse, catch up. The field owns
+    the top of the screen, because the fastest way into a library you know is to
+    name the thing you want; the grid says what this library holds, in the rail's
+    own order; and the log at the foot says what has moved lately, in one wide
+    column where long names have room.
+
+    The libraries themselves are one card in that grid rather than a list down
+    the page. A deployment has a handful of them and you pick one and forget it,
+    so the list opens from its card rather than occupying the screen in front of
+    everyone who already knows which library they are in.
   -->
   <div class="splash" data-testid="app-splash">
     <div class="splash-inner">
-      <header>
+      <header class="cold-open">
         <h1 class="wordmark">SQLIB</h1>
         <p class="standfirst">
-          A library of SPARQL queries, groups, rule sets and the inputs they run on.
+          <template v-if="activeLibraryName">
+            {{ activeLibraryName }} · {{ totalItems }} {{ totalItems === 1 ? 'item' : 'items' }}
+          </template>
+          <template v-else>
+            A library of SPARQL queries, groups, rule sets and the inputs they run on.
+          </template>
         </p>
+        <!--
+          A button drawn as a field, not a field: what it opens is the command
+          palette, which has its own input and its own matching. A second search
+          box here would be a second thing to keep in step with it.
+        -->
+        <button
+          type="button"
+          class="command-field"
+          data-testid="splash-command-field"
+          :title="`Open the command palette (${paletteBinding})`"
+          @click="openPalette"
+        >
+          <Search :size="16" class="command-icon" />
+          <span class="command-placeholder">Run, open or create anything…</span>
+          <span class="command-key">{{ paletteBinding }}</span>
+        </button>
       </header>
 
-      <section class="block">
-        <SectionLabel as="h2">Sections</SectionLabel>
-        <ul class="sections">
-          <li v-for="entry in sections" :key="entry.section">
-            <button
-              v-if="entry.enabled"
-              type="button"
-              class="section-card"
-              :title="entry.title"
-              :data-testid="`splash-section-${entry.section}`"
-              @click="emit('select', entry.section)"
-            >
-              <component :is="entry.icon" :size="16" class="section-icon" />
-              <span class="card-label">{{ entry.label }}</span>
-            </button>
-            <div
-              v-else
-              class="section-card section-card--off"
-              :title="`${entry.title} — not enabled in this deployment`"
-              :data-testid="`splash-section-${entry.section}`"
-              aria-disabled="true"
-            >
-              <component :is="entry.icon" :size="16" class="section-icon" />
-              <span class="card-label">{{ entry.label }}</span>
-            </div>
-          </li>
-        </ul>
+      <section class="grid" aria-label="What this library holds">
+        <SplashCountCard
+          label="Libraries"
+          :title="librariesTitle"
+          :icon="Library"
+          :count="libraries.length"
+          family="axis"
+          to
+          data-testid="splash-libraries"
+          :aria-expanded="librariesOpen"
+          @open="librariesOpen = !librariesOpen"
+        />
+        <SplashCountCard
+          v-for="card in cards"
+          :key="card.section"
+          :label="card.label"
+          :title="card.title"
+          :icon="card.icon"
+          :count="card.count"
+          :family="card.family"
+          :to="card.enabled"
+          :disabled="!card.enabled"
+          :data-testid="`splash-section-${card.section}`"
+          @open="emit('select', card.section)"
+        />
       </section>
 
-      <section class="block">
+      <!--
+        Rename and delete live here because the tree they used to live on is
+        gone and nothing else offers them. This is a holding place, not a claim
+        that the landing screen is where a library is managed.
+      -->
+      <section v-if="librariesOpen" class="block" data-testid="splash-libraries-panel">
         <SectionLabel as="h2">Libraries</SectionLabel>
-        <p v-if="libraries.length === 0" class="empty">No libraries yet.</p>
+        <EmptyState v-if="libraries.length === 0" size="sm" title="No libraries yet" />
         <ul v-else class="libraries">
           <li v-for="library in libraries" :key="library.id" class="library-row">
             <button
@@ -67,11 +95,6 @@
                 {{ library.description }}
               </span>
             </button>
-            <!--
-              Rename and delete live here because the tree they used to live on
-              is gone and nothing else offers them. This is a holding place, not
-              a claim that the landing screen is where a library is managed.
-            -->
             <div v-if="!isReadOnly" class="library-actions">
               <button
                 type="button"
@@ -105,23 +128,9 @@
         </button>
       </section>
 
-      <!--
-        About, as a footer rather than a screen of its own. What it holds is
-        read once — which build this is, and where the source and the docs are
-        — and a destination nobody navigates to is a worse home for that than
-        the bottom of the screen they land on.
-      -->
-      <footer class="about" data-testid="splash-about">
-        <span class="build" data-testid="splash-version" :title="buildTitle">
-          Version {{ label }}
-        </span>
-        <a class="about-link" :href="REPO_URL" target="_blank" rel="noreferrer">
-          <Code :size="13" /> Source
-        </a>
-        <a class="about-link" :href="DOCS_URL" target="_blank" rel="noreferrer">
-          <BookOpen :size="13" /> Documentation
-        </a>
-      </footer>
+      <SplashActivityLog :entries="activity" @open="openEntity" />
+
+      <SplashStatusStrip :backend="backendFact" :tests="testsFact" />
     </div>
   </div>
 </template>
@@ -130,54 +139,165 @@
 /**
  * Enabled and disabled are told apart by tone alone, deliberately.
  *
- * A row of badges reading "enabled" next to every section would be a column of
+ * A row of badges reading "enabled" next to every card would be a column of
  * the same word repeated, and the exceptions are what the reader is looking
- * for. A disabled section keeps its place in rail order so the list is the
- * same shape on every deployment.
+ * for. A disabled section keeps its place in rail order so the grid is the
+ * same shape on every deployment, and shows an em dash where its count would
+ * be: zero is a fact about a library, "not in this deployment" is not.
  */
-import { computed, onMounted } from 'vue';
-import { BookOpen, Check, Code, Pencil, Plus, Trash2 } from '@lucide/vue';
+import { computed, onMounted, ref } from 'vue';
+import { Check, Library, Pencil, Plus, Search, Trash2 } from '@lucide/vue';
 import SectionLabel from './shared/SectionLabel.vue';
+import EmptyState from './shared/EmptyState.vue';
+import SplashCountCard from './splash/SplashCountCard.vue';
+import SplashActivityLog from './splash/SplashActivityLog.vue';
+import SplashStatusStrip, { type StripFact } from './splash/SplashStatusStrip.vue';
 import { RAIL_ENTRIES } from '../lib/railEntries';
 import type { RailSection } from '../lib/railSections';
+import { formatBinding } from '../lib/keys';
 import { useFeatureFlags } from '../composables/useFeatureFlags';
 import { useActiveLibrary } from '../composables/useActiveLibrary';
 import { useDeploymentMode } from '../composables/useDeploymentMode';
-import { useBuildInfo } from '../composables/useBuildInfo';
-import { DOCS_URL, REPO_URL } from '../lib/docs';
+import { useCommandPalette } from '../composables/useCommandPalette';
+import { useLibraryInventory, type ActivityEntry } from '../composables/useLibraryInventory';
+import { useBackendsStore } from '../composables/useBackendsStore';
+import { useBackendProbes, type BackendHealth } from '../composables/useBackendProbes';
+import { useTestsStore } from '../composables/useTestsStore';
+import { isInLibrary } from '../composables/useEntityKinds';
+import type { ListSection } from '../lib/sections';
 
 const emit = defineEmits<{
   (e: 'select', section: RailSection): void;
+  (e: 'open-entity', payload: { section: ListSection; id: string }): void;
   (e: 'create-library'): void;
   (e: 'edit-library', payload: { libraryId: string; libraryName: string }): void;
   (e: 'delete-library', payload: { libraryId: string; libraryName: string }): void;
 }>();
 
 const { isEnabled } = useFeatureFlags();
-const { libraries, activeLibraryId, setActiveLibrary, ensureLoaded } = useActiveLibrary();
+const { libraries, activeLibraryId, activeLibraryName, setActiveLibrary, ensureLoaded } = useActiveLibrary();
 const { isReadOnly, ensureLoaded: ensureDeploymentMode } = useDeploymentMode();
-const { label, commit, builtOn } = useBuildInfo();
+const { openPalette } = useCommandPalette();
+const { counts, totalItems, activity, load: loadInventory } = useLibraryInventory(activeLibraryId);
+const backendsStore = useBackendsStore();
+const { healthFor, loadProbes } = useBackendProbes();
+const testsStore = useTestsStore();
 
-/* The build date and full commit belong in the tooltip, not on the line. */
-const buildTitle = computed(() => {
-  const parts = [commit.value ? `Commit ${commit.value}` : '', builtOn.value ? `built ${builtOn.value}` : ''];
-  return parts.filter(Boolean).join(', ');
+const librariesOpen = ref(false);
+
+const paletteBinding = computed(() => formatBinding('Mod+k'));
+
+const librariesTitle = computed(() =>
+  librariesOpen.value ? 'Hide the libraries' : 'Every library on this deployment',
+);
+
+/**
+ * The grid, in the order the mockup settles on: what the library defines, then
+ * the backends it runs against and the inputs it keeps, then what judges it.
+ *
+ * It is the rail's order with one move — Backends, which the rail keeps below a
+ * divider because it is account-level, heads the second row here for the same
+ * reason: it is where the inputs start.
+ *
+ * Build is left out, as it always was. It is a screen rather than a section and
+ * its future is not settled; naming it here would promise something this grid
+ * cannot keep.
+ */
+const CARD_ORDER: RailSection[] = [
+  'notebooks', 'queries', 'queryGroups', 'rules', 'etl',
+  'backends', 'dataGraphs', 'tupleSets', 'argumentSets',
+  'tests', 'benchmarks',
+];
+
+const FAMILY_OF: Record<RailSection, 'definition' | 'input' | 'evidence' | 'axis'> = {
+  notebooks: 'definition',
+  queries: 'definition',
+  queryGroups: 'definition',
+  rules: 'definition',
+  etl: 'definition',
+  build: 'definition',
+  backends: 'axis',
+  dataGraphs: 'input',
+  tupleSets: 'input',
+  argumentSets: 'input',
+  tests: 'evidence',
+  benchmarks: 'evidence',
+};
+
+const cards = computed(() =>
+  CARD_ORDER.map((section) => {
+    const entry = RAIL_ENTRIES.find((candidate) => candidate.section === section)!;
+    const enabled = entry.feature === null || isEnabled(entry.feature);
+    /*
+     * The Notebook has no count of its own: notebooks are drafts held in this
+     * browser, not entities the library stores, so a number under it would
+     * count something other than what every other card counts.
+     */
+    const count = counts.value[section] ?? null;
+    return {
+      section,
+      label: entry.label,
+      title: enabled ? entry.title : `${entry.title} — not enabled in this deployment`,
+      icon: entry.icon,
+      family: FAMILY_OF[section],
+      count: enabled ? count : null,
+      enabled,
+    };
+  }),
+);
+
+/** Which store this library talks to, and whether it answered last time we asked. */
+const TONE_OF_HEALTH: Record<BackendHealth, StripFact['tone']> = {
+  healthy: 'success',
+  slow: 'warning',
+  unreachable: 'danger',
+  never_probed: 'neutral',
+};
+
+const backendFact = computed<StripFact | null>(() => {
+  const id = libraries.value.find((library) => library.id === activeLibraryId.value)?.defaultBackend;
+  if (!id) return null;
+  const backend = backendsStore.backends.value.find((candidate) => candidate.id === id);
+  if (!backend) return null;
+  const health = healthFor(id);
+  return {
+    label: backend.name,
+    title: `Default backend — ${backend.backendType}, last probe: ${health.replace('_', ' ')}`,
+    tone: TONE_OF_HEALTH[health],
+  };
 });
 
-/*
- * Build is left out. It is a screen rather than a section, and its future is
- * not settled — naming it here would promise something this list cannot keep.
+/**
+ * The verdicts this browser holds, as one line.
+ *
+ * `lastRunByTest` is a board rather than a history — one verdict per test, kept
+ * in this browser (`lib/testRunCache.ts`) — so the line is omitted entirely
+ * until something has been run here. A pass rate over no runs would read as
+ * "nothing is passing".
  */
-const sections = computed(() =>
-  RAIL_ENTRIES.filter((entry) => entry.section !== 'build').map((entry) => ({
-    ...entry,
-    enabled: entry.feature === null || isEnabled(entry.feature),
-  })),
-);
+const testsFact = computed<StripFact | null>(() => {
+  const library = activeLibraryId.value;
+  if (!library) return null;
+  const tests = testsStore.tests.value.filter((test) => isInLibrary(test, library));
+  const judged = tests.filter((test) => testsStore.lastRunByTest.value[test.id]);
+  if (judged.length === 0) return null;
+  const passed = judged.filter((test) => testsStore.lastRunByTest.value[test.id]?.passed).length;
+  return {
+    label: `${passed}/${judged.length} passing`,
+    title: `The last verdict held in this browser for ${judged.length} of ${tests.length} tests`,
+    tone: passed === judged.length ? 'success' : 'danger',
+  };
+});
+
+function openEntity(entry: ActivityEntry) {
+  emit('open-entity', { section: entry.section, id: entry.id });
+}
 
 onMounted(() => {
   void ensureLoaded();
   void ensureDeploymentMode();
+  void loadInventory();
+  void loadProbes();
 });
 </script>
 
@@ -188,40 +308,10 @@ onMounted(() => {
   background: var(--surface-raised);
 }
 
-.about {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  margin-top: var(--space-4);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--border-subtle);
-  color: var(--ink-muted);
-  font-size: var(--text-micro);
-}
-
-.build {
-  font-variant-numeric: tabular-nums;
-}
-
-.about-link {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  color: var(--ink-secondary);
-  text-decoration: none;
-}
-
-.about-link:hover,
-.about-link:focus-visible {
-  color: var(--ink);
-  text-decoration: underline;
-}
-
-/* A reading column, centred: the page is prose and two short lists, and a list
-   stretched across a wide monitor is a list nobody reads the right-hand end
-   of. */
+/* A reading column, centred, wide enough for six cards across: the grid is the
+   widest thing on the page and everything else lines up with it. */
 .splash-inner {
-  max-width: 720px;
+  max-width: 960px;
   margin: 0 auto;
   padding: var(--space-8) var(--space-6);
   display: flex;
@@ -229,74 +319,97 @@ onMounted(() => {
   gap: var(--space-7);
 }
 
+/* The cold open: two lines and a field, centred, with room above and below so
+   nothing else competes for the top of the screen. */
+.cold-open {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-8) 0 var(--space-5);
+}
+
 .wordmark {
   margin: 0;
-  font-size: var(--text-hero);
+  font-family: var(--font-mono);
+  font-size: var(--text-hero-fluid);
   font-weight: var(--weight-semibold);
-  letter-spacing: 0.04em;
+  letter-spacing: 0.02em;
   color: var(--ink);
 }
 
 .standfirst {
-  margin: var(--space-2) 0 0;
-  color: var(--ink-secondary);
-  font-size: var(--text-body);
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: var(--text-body-lg);
+  text-align: center;
+}
+
+.command-field {
+  /* Taller than a control, because it is the one thing on the screen you are
+     meant to reach for first. Named rather than inline: it aligns with the
+     block, not with the control scale. */
+  --splash-field-h: 44px;
+
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  width: 100%;
+  max-width: 560px;
+  height: var(--splash-field-h);
+  margin-top: var(--space-2);
+  padding: 0 var(--space-5);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.command-field:hover,
+.command-field:focus-visible {
+  border-color: var(--action-border);
+}
+
+.command-icon {
+  flex-shrink: 0;
+  color: var(--ink-muted);
+}
+
+.command-placeholder {
+  color: var(--ink-muted);
+  font-size: var(--text-content);
+}
+
+.command-key {
+  margin-left: auto;
+  color: var(--ink-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+}
+
+/*
+ * Six across, which is what makes the rows read as the three families: the
+ * libraries and what this one defines, then the backends and the inputs, then
+ * the evidence. Below the width six cards can hold a label in, it falls back to
+ * as many as fit.
+ */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: repeat(auto-fit, minmax(var(--grid-5), 1fr));
+  }
 }
 
 .block {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-}
-
-.sections {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: var(--space-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.section-card {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  height: var(--control-h-lg);
-  padding: 0 var(--space-3);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius);
-  background: var(--surface);
-  color: var(--ink);
-  font-family: inherit;
-  font-size: var(--text-body);
-  text-align: left;
-  cursor: pointer;
-}
-
-button.section-card:hover,
-button.section-card:focus-visible {
-  border-color: var(--border-strong);
-  background: var(--surface-subtle);
-}
-
-/* Off, in tone: muted ink, a subtle border and no pointer. */
-.section-card--off {
-  border-color: var(--border-subtle);
-  background: transparent;
-  color: var(--ink-muted);
-  cursor: default;
-}
-
-.section-icon {
-  flex-shrink: 0;
-}
-
-.card-label {
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
 }
 
 .libraries {
@@ -410,11 +523,5 @@ button.section-card:focus-visible {
 .new-library:focus-visible {
   border-color: var(--border-strong);
   color: var(--ink);
-}
-
-.empty {
-  margin: 0;
-  color: var(--ink-muted);
-  font-size: var(--text-body);
 }
 </style>
