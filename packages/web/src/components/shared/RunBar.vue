@@ -232,6 +232,7 @@ import type {
   RunOption,
 } from '../../lib/runBar';
 import { useFeatureFlags } from '../../composables/useFeatureFlags';
+import { useDeploymentMode } from '../../composables/useDeploymentMode';
 
 const ICONS = {
   tuples: Table,
@@ -309,6 +310,13 @@ const emit = defineEmits<{
 
 const { isEnabled } = useFeatureFlags();
 
+/*
+ * A read-only deployment holds neither a test nor a benchmark it was sent, so
+ * the whole clause goes for the same reason a switched-off feature's does.
+ * Running still works — only keeping the recipe does not.
+ */
+const deployment = useDeploymentMode();
+
 /**
  * The targets this build can actually create.
  *
@@ -319,7 +327,9 @@ const { isEnabled } = useFeatureFlags();
  * that can only refuse teaches nothing.
  */
 const visibleCreateTargets = computed(() =>
-  props.createTargets.filter((target) => isEnabled(CREATE_TARGET_FEATURE[target])),
+  deployment.isReadOnly.value
+    ? []
+    : props.createTargets.filter((target) => isEnabled(CREATE_TARGET_FEATURE[target])),
 );
 
 const iconFor = (icon: PickIcon) => ICONS[icon];

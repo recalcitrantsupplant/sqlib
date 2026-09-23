@@ -18,6 +18,7 @@ import CommandPalette from './components/CommandPalette.vue'
 import ShortcutCheatSheet from './components/ShortcutCheatSheet.vue'
 import PwaUpdatePrompt from './components/PwaUpdatePrompt.vue'
 import { useAppCommands } from './composables/useAppCommands'
+import { useDeploymentMode } from './composables/useDeploymentMode'
 import { useTheme } from '~/composables/useTheme'
 
 // Installs the .dark class watcher; the theme itself is the .dark block in tokens.css.
@@ -30,6 +31,16 @@ useTheme()
  * only routes keystrokes.
  */
 useAppCommands()
+
+/*
+ * Ask `/health` once, here, rather than from each control that reads the
+ * answer. It is one module-level ref and one request per page load either way,
+ * but asking at the root is what makes a bar deep in a work area able to read
+ * the mode without every one of them remembering to trigger the fetch — and
+ * without a mounted component reaching for the network to decide whether to
+ * draw a button. A failure leaves the default, which is "may write".
+ */
+void useDeploymentMode().ensureLoaded()
 </script>
 
 <style>

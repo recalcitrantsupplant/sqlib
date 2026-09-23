@@ -26,6 +26,7 @@ vi.mock('vue-sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 const { useArgumentSets } = await import('@/composables/useArgumentSets');
 
 const QUERY = 'urn:sqlib:query:q1';
+const SCRATCH = 'urn:ui-temp:query-1';
 const LIBRARY = 'urn:sqlib:library:lib1';
 
 function set(id: string, name: string, targetId: string | null) {
@@ -103,6 +104,27 @@ describe('loadArgumentSets', () => {
 
     expect(args.argumentSets.value).toEqual([]);
     expect(api.listArgumentSets).not.toHaveBeenCalled();
+    expect(api.listLibraryArgumentSets).not.toHaveBeenCalled();
+  });
+
+  /*
+   * A scratch callable has no server id to ask about, and asking with the
+   * scratch id would be asking about an entity the server has never seen. The
+   * library's sets are the whole list it can have — and on a read-only
+   * deployment, where nothing can be saved, the only list there is.
+   */
+  it('lists the library\'s sets for a scratch callable', async () => {
+    api.listLibraryArgumentSets.mockResolvedValue([
+      set('urn:sqlib:argument-set:seeded', 'Seeded', 'urn:sqlib:query:q2'),
+    ]);
+
+    const args = useArgumentSets(ref(''), 'query', () => LIBRARY, {
+      scratchTargetId: () => SCRATCH,
+    });
+    await args.loadArgumentSets();
+
+    expect(api.listArgumentSets).not.toHaveBeenCalled();
+    expect(args.argumentSets.value.map((entry) => entry.id)).toEqual(['urn:sqlib:argument-set:seeded']);
   });
 });
 

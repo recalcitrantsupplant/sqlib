@@ -246,6 +246,21 @@ Three things it deliberately does **not** do:
 `/health` reports it as `readOnly`, beside the auth mode, so the SPA can offer
 browser-local authoring rather than a button the server will refuse.
 
+The SPA draws no control whose only outcome is a refusal. Save and the entity ⋮
+go from every work area, the `benchmark` and `test` chips go from the run bar,
+`Save to Tuples`, `Save to Data` and `Save as test` go from a rule set's Inputs
+tab, and the tag controls go from the Details panel — absent rather than
+disabled, the rule the rail already follows for a switched-off section.
+Everything acting on the browser's own copy stays: scratch queries, rule sets
+and argument sets, the values in them, Discard, and the inline data a rule set
+runs against. A parameterised query is authored and run the same way it is on a
+writable deployment, with the values sent inline to `POST /sparql`.
+
+Before `/health` answers, and if it cannot be reached, the SPA assumes it may
+write. That direction is deliberate: a client that wrongly believes it may write
+shows a button and surfaces the server's refusal, while one that wrongly
+believes it may not hides a working feature and looks broken.
+
 ## Authentication
 
 Auth is off unless `SQLIB_AUTH_MODE` says otherwise. An invalid value for any of

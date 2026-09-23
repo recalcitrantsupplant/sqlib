@@ -9,6 +9,7 @@
     >
       {{ tag.name }}
       <button
+        v-if="canWrite"
         type="button"
         class="chip-remove"
         :title="`Remove ${tag.name}`"
@@ -26,6 +27,7 @@
     -->
     <div class="picker-anchor">
       <button
+        v-if="canWrite"
         ref="triggerRef"
         type="button"
         class="add-tag"
@@ -75,6 +77,7 @@ import TagPicker from './TagPicker.vue';
 import { useTagsStore } from '../../composables/useTagsStore';
 import { useEntityTags, type TaggableKind } from '../../composables/useEntityTags';
 import { useActiveLibrary } from '../../composables/useActiveLibrary';
+import { useDeploymentMode } from '../../composables/useDeploymentMode';
 import { normalizeTagColor, tagForeground } from '../../lib/tagPalette';
 
 const props = defineProps<{
@@ -83,6 +86,14 @@ const props = defineProps<{
   kind: TaggableKind;
   entityName: string;
 }>();
+
+/*
+ * A tag click is its own small write, so a read-only deployment refuses it —
+ * assigned tags stay on screen as the labels they are, and the two controls
+ * that would change them go.
+ */
+const deployment = useDeploymentMode();
+const canWrite = computed(() => !deployment.isReadOnly.value);
 
 const tagsStore = useTagsStore();
 const entityTags = useEntityTags();

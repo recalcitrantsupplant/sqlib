@@ -41,6 +41,12 @@ import { tupleBindNotice } from '@/lib/tupleSetLabels';
 const deployment = useDeploymentMode();
 void deployment.ensureLoaded();
 const isReadOnly = deployment.isReadOnly;
+/*
+ * All three save buttons here author a library record — a tuple set, a data
+ * graph, a test — so a read-only deployment refuses every one of them. Inline
+ * is what stays, and it is what the note above the blocks describes.
+ */
+const canWrite = computed(() => !isReadOnly.value);
 
 const HEADER_HELP = 'A rule set defines rules. Named tuples and a data graph are what you run it '
   + 'against — the same relationship an argument set has to a query. They save as their own '
@@ -283,7 +289,7 @@ const onDataInput = (value: string) => {
         <HelpCircle :size="12" />
       </button>
       <button
-        v-if="testsEnabled"
+        v-if="testsEnabled && canWrite"
         class="save-test"
         type="button"
         data-testid="save-as-test"
@@ -341,7 +347,7 @@ const onDataInput = (value: string) => {
           <template v-else>
             <span class="scratch-marker">unsaved · scratch</span>
             <button
-              v-if="tupleSetSectionOpen"
+              v-if="tupleSetSectionOpen && canWrite"
               class="save-button"
               type="button"
               data-testid="save-to-tuples"
@@ -440,7 +446,7 @@ const onDataInput = (value: string) => {
               @update:code="onDataInput"
             />
             <button
-              v-if="dataGraphSectionOpen"
+              v-if="dataGraphSectionOpen && canWrite"
               class="save-button"
               type="button"
               data-testid="save-to-data"

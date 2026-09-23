@@ -519,6 +519,7 @@ import { useQueryMetadata } from '../composables/useQueryMetadata';
 import { useArgumentSets } from '@/composables/useArgumentSets';
 import { useQueryDirtyState } from '../composables/useQueryDirtyState';
 import { useCallableDrafts, UNASSIGNED_LIBRARY_ID } from '../composables/useCallableDrafts';
+import { useArgumentSetDrafts } from '../composables/useArgumentSetDrafts';
 import { useActiveLibrary } from '../composables/useActiveLibrary';
 import { useScratchRecord } from '../composables/useScratchRecord';
 import { useEditorDocumentKey } from '../composables/useEditorDocumentKey';
@@ -639,7 +640,12 @@ const argumentSetsComposable = useArgumentSets(
   queryId,
   'query',
   () => queryLibraryId.value || activeLibraryId.value,
-  { onSaved: (id) => emit('argument-set-saved', { id }) },
+  {
+    onSaved: (id) => emit('argument-set-saved', { id }),
+    // A scratch query's sets key on the scratch id: `queryId` is `''` until
+    // there is a v1, and a query on a read-only deployment never gets one.
+    scratchTargetId: () => props.scratchId ?? null,
+  },
 );
 
 // Loading state
@@ -1204,6 +1210,7 @@ watch(
  * ------------------------------------------------------------------ */
 
 const draftsStore = useCallableDrafts();
+const argumentSetDrafts = useArgumentSetDrafts();
 // Scratch inherits the selected library at save; no target picker in v1
 // (the nav doc's open question, resolved that way in the plan).
 const { activeLibraryId } = useActiveLibrary();
@@ -1697,6 +1704,13 @@ async function saveScratch(name: string) {
     throw error;
   }
 
+  /*
+   * The argument sets made while this was a draft were filed under the scratch
+   * id, which nothing will ask for again. Moved before the id changes under
+   * them, so the switcher on the saved query lists the same sets it did a
+   * moment ago rather than starting empty.
+   */
+  argumentSetDrafts.rekeyTarget(scratchRecordId, created.id);
   draftsStore.remove(scratchRecordId);
   toast.success(`Saved “${name}” as v1`);
   emit('scratch-saved', { id: created.id, name, libraryId });

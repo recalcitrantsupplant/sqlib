@@ -124,7 +124,7 @@ describe('doors into the tests feature', () => {
    */
   it('hides every "save as test" door rather than disabling it', () => {
     const expected: Record<string, RegExp> = {
-      'components/rules/RuleSetInputsPanel.vue': /v-if="testsEnabled"/,
+      'components/rules/RuleSetInputsPanel.vue': /v-if="testsEnabled && canWrite"/,
       'components/library-notebook/NotebookCell.vue': /v-if="canWrite && lastResult"/,
     };
     const doors = files.filter((file) => /data-testid="[a-z-]*save-as-test"/.test(file.text));

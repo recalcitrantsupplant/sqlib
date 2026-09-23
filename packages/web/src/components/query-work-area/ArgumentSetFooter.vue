@@ -10,14 +10,18 @@
     <button type="button" class="btn-discard" data-testid="arguments-discard" :disabled="busy" @click="emit('discard')">
       Discard
     </button>
-    <button type="button" class="btn-save" data-testid="arguments-save" :disabled="busy || !canSave" @click="emit('save')">
+    <!-- Absent on a read-only deployment, as in `SaveBar`: Discard is the
+         only thing left that can act, and it acts on this browser. -->
+    <button v-if="canWrite" type="button" class="btn-save" data-testid="arguments-save" :disabled="busy || !canSave" @click="emit('save')">
       {{ busy ? 'Saving…' : `Save v${nextVersion}` }}
     </button>
   </footer>
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
 import InlineNote from '../shared/InlineNote.vue';
+import { useDeploymentMode } from '../../composables/useDeploymentMode';
 
 defineProps<{
   /** There is unsaved work: a scratch set, or a draft on a saved one. */
@@ -27,6 +31,9 @@ defineProps<{
   canSave: boolean;
   busy?: boolean;
 }>();
+
+const deployment = useDeploymentMode();
+const canWrite = computed(() => !deployment.isReadOnly.value);
 
 const emit = defineEmits<{
   (e: 'discard'): void;

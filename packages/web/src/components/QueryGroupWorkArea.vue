@@ -529,6 +529,7 @@ import { useAutoLayout } from '../composables/useAutoLayout';
 import type { LayoutPoint } from '../composables/useAutoLayout';
 import { useScratchRecord } from '../composables/useScratchRecord';
 import { useCallableDrafts } from '../composables/useCallableDrafts';
+import { useArgumentSetDrafts } from '../composables/useArgumentSetDrafts';
 import { useActiveLibrary } from '../composables/useActiveLibrary';
 import { useArgumentSets } from '../composables/useArgumentSets';
 import { useBenchmarksStore } from '../composables/useBenchmarksStore';
@@ -773,7 +774,11 @@ const argumentSetsState = useArgumentSets(
   queryGroupId,
   'queryGroup',
   () => queryGroupLibraryId.value || activeLibraryId.value,
-  { onSaved: (id) => emit('argument-set-saved', { id }) },
+  {
+    onSaved: (id) => emit('argument-set-saved', { id }),
+    // A scratch group has no server id either; see QueryWorkArea.
+    scratchTargetId: () => props.scratchId ?? null,
+  },
 );
 
 const config = useRuntimeConfig();
@@ -1272,6 +1277,7 @@ const copyQueryGroupVersionId = async () => {
  * ------------------------------------------------------------------ */
 
 const draftsStore = useCallableDrafts();
+const argumentSetDrafts = useArgumentSetDrafts();
 const { activeLibraryId, activeLibraryName } = useActiveLibrary();
 const isSavingVersion = ref(false);
 
@@ -1511,6 +1517,9 @@ async function saveScratch(name: string) {
     throw error;
   }
 
+  // The sets made against the scratch id follow the group to its server id;
+  // see the same move in QueryWorkArea.saveScratch.
+  argumentSetDrafts.rekeyTarget(scratchRecordId, created.id);
   draftsStore.remove(scratchRecordId);
   toast.success(`Saved “${name}” as v1`);
   emit('scratch-saved', { id: created.id, name, libraryId });
