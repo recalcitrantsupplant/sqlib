@@ -573,6 +573,14 @@ const ROUTES: Array<[RegExp, Handler]> = [
   [/\/rule-sets\/[^/]+\/execute$/, (r) => json(r, RULE_SET_EXECUTION)],
   [/\/rule-sets\/[^/]+\/versions\/\d+$/, (r) => json(r, RULE_SET_VERSION_EXPANDED)],
   [/\/rule-sets\/[^/]+\/versions$/, (r) => json(r, [RULE_SET_VERSION])],
+  [/\/rule-sets\/[^/]+\/srl$/, (r) => json(r, {
+    srl: 'PREFIX : <http://example/>\n\nRULE { ?a :ancestor ?b } WHERE { ?a :parent ?b }\n',
+    ruleCount: 1,
+    dataBlockCount: 0,
+    tupleSeeds: '',
+    tuplesEnabled: false,
+    warnings: [],
+  })],
   [/\/rule-sets\/[^/]+$/, (r) => json(r, RULE_SET)],
   [/\/rule-sets$/, (r) => json(r, [RULE_SET])],
 

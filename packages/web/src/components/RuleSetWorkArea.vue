@@ -1185,9 +1185,12 @@ const ensureLibraryPresent = async (libraryId: string | null) => {
   }
 };
 
-const loadRuleSetVersions = async (ruleSetId: string) => {
+const loadRuleSetVersions = async (
+  ruleSetId: string,
+  request?: ReturnType<typeof apiClient.listRuleSetVersions>,
+) => {
   try {
-    const versions = await apiClient.listRuleSetVersions(ruleSetId);
+    const versions = await (request ?? apiClient.listRuleSetVersions(ruleSetId));
     const sorted = [...versions].sort((a, b) => b.version - a.version);
     ruleSetVersions.value = sorted;
     versionOptions.value = sorted.map((entry) => ({
@@ -1244,18 +1247,27 @@ function currentPrologue(): string {
  */
 let loadSeq = 0;
 
-async function loadDocumentForSelectedVersion() {
+/**
+ * `prefetched` is the current version's document, requested alongside the rule
+ * set itself on open; it is used only when current is what is selected.
+ */
+async function loadDocumentForSelectedVersion(prefetched?: ReturnType<typeof apiClient.exportRuleSetSrl>) {
   const id = ruleSetIdValue.value;
   if (!id) return;
   const seq = ++loadSeq;
   const prologue = currentPrologue();
+  const isCurrent = selectedVersionNumber.value === currentVersionNumberForDisplay.value;
   try {
-    const response = await apiClient.exportRuleSetSrl(id, {
+    const response = await ((prefetched && isCurrent) ? prefetched : apiClient.exportRuleSetSrl(id, {
       version: selectedVersionNumber.value,
       prologue,
-    });
+    }));
     if (seq !== loadSeq) return;
-    loadedVersionDocument.value = response.srl;
+    // A reply without a document reads as an empty one rather than as
+    // `undefined` in the editor, which everything downstream calls string
+    // methods on.
+    const srl = typeof response.srl === 'string' ? response.srl : '';
+    loadedVersionDocument.value = srl;
     const draft = draftBody.value;
     /*
      * A draft wins over the saved text, because it is the newer of the two
@@ -1264,7 +1276,7 @@ async function loadDocumentForSelectedVersion() {
      * it.
      */
     hydratingVersion.value = true;
-    srlDocument.value = typeof draft?.srl === 'string' ? draft.srl : response.srl;
+    srlDocument.value = typeof draft?.srl === 'string' ? draft.srl : srl;
     loadedVersionTupleSeeds.value = response.tupleSeeds ?? '';
     tupleSeeds.value = draft?.tupleSeeds ?? response.tupleSeeds ?? '';
     applyTuplesEnabled(draft?.tuplesEnabled ?? response.tuplesEnabled === true);
@@ -1285,6 +1297,20 @@ const loadRuleSet = async (id: string) => {
     return;
   }
   ruleSetLoading.value = true;
+  /*
+   * The three reads opening a rule set needs, started together. They used to
+   * run one after another — rule set, then its library, then its versions,
+   * then the document — so opening one cost four round trips, and the editor
+   * sat under its loading scrim for all of them. The document is asked for
+   * without a version, which the API answers with the current one: what an
+   * open lands on unless a draft says otherwise.
+   */
+  const versionsRequest = apiClient.listRuleSetVersions(id);
+  const documentRequest = apiClient.exportRuleSetSrl(id, { prologue: currentPrologue() });
+  // Either may go unused (a failed open, a non-current selection); neither
+  // should surface as an unhandled rejection.
+  versionsRequest.catch(() => {});
+  documentRequest.catch(() => {});
   try {
     const { ruleSet, ifMatch } = await ruleSetsStore.fetchRuleSet(id);
     ruleSetIdValue.value = ruleSet.id;
@@ -1296,9 +1322,10 @@ const loadRuleSet = async (id: string) => {
     executionResult.value = null;
     executionTimestamp.value = null;
 
-    await ensureLibraryPresent(ruleSetLibraryId.value ?? null);
-    await loadRuleSetVersions(ruleSet.id);
-    await loadDocumentForSelectedVersion();
+    // The library only names where the rule set lives; nothing below waits on it.
+    void ensureLibraryPresent(ruleSetLibraryId.value ?? null);
+    await loadRuleSetVersions(ruleSet.id, versionsRequest);
+    await loadDocumentForSelectedVersion(documentRequest);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to load rule set';
     console.error('[RuleSetWorkArea] Failed to load rule set:', error);
@@ -1747,6 +1774,9 @@ watch(
 
 watch(selectedVersionId, (versionId, previous) => {
   if (!versionId || versionId === previous || !ruleSetIdValue.value) return;
+  // Opening a rule set picks its version and loads that document itself, from
+  // the request it already has in flight; a second fetch here would race it.
+  if (ruleSetLoading.value) return;
   executionResult.value = null;
   executionTimestamp.value = null;
   void loadDocumentForSelectedVersion();

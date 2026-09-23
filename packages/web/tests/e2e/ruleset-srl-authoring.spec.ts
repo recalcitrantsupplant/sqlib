@@ -234,6 +234,7 @@ test.describe('Rule set SRL authoring', () => {
   test('opens on the document, with prefixes, DATA and rules in one editor', async ({ page }) => {
     exportedSrl = 'PREFIX : <http://example.org/>\n\nDATA { :a :p :b }\n\nRULE { ?s :q ?o } WHERE { ?s :p ?o }\n';
 
+    await reloadForNewMocks(page);
     await openDefaultRuleSet(page);
 
     const editor = documentEditor(page);
@@ -466,6 +467,7 @@ test.describe('Rule set SRL authoring', () => {
     exportedTuplesEnabled = true;
     exportedTupleSeeds = 'TUPLE(:reach, :a, :b)';
 
+    await reloadForNewMocks(page);
     await openDefaultRuleSet(page);
 
     // Inputs is the default tab, so the rows are already on screen.
@@ -479,6 +481,7 @@ test.describe('Rule set SRL authoring', () => {
     exportedTuplesEnabled = true;
     exportedSrl = 'PREFIX : <http://example.org/>\n\nRULE { ?x :ok true } WHERE { TUPLE(:rel, ?x) }\n';
 
+    await reloadForNewMocks(page);
     await openDefaultRuleSet(page);
     await page.locator('[data-testid="details-tab"]').click();
     // Not uncheck() — that asserts the box flips, and refusing to flip is the
@@ -656,6 +659,15 @@ test.describe('Rule set SRL authoring', () => {
   /** Save. The bar asks for nothing — the version note is written in Details. */
   async function save(page: Page) {
     await page.locator('[data-testid="save"]').click();
+  }
+
+  /**
+   * `beforeEach` already opened the Rules section, which opens the rule set
+   * and fetches its document straight away. A test that changes what the
+   * export returns has to load the page again for the change to be seen.
+   */
+  async function reloadForNewMocks(page: Page) {
+    await page.reload({ waitUntil: 'domcontentloaded' });
   }
 
   /**

@@ -47,6 +47,8 @@ test.describe('Library page', () => {
   test('groups the contents by what the entries are, not by what they return', async ({ page }) => {
     await openLibrary(page);
     const contents = page.locator('[data-testid="notebook-contents"]');
+    // Tag is the default grouping; this is about the Kind view.
+    await contents.getByRole('button', { name: 'Kind' }).click();
     // "Queries", the app's own word for the artefact — SELECT/ASK/CONSTRUCT is
     // the result form, and it rides on each entry as a badge instead.
     await expect(contents).toContainText('Queries');
