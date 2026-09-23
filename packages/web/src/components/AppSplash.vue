@@ -204,13 +204,13 @@ const librariesTitle = computed(() =>
  * cannot keep.
  */
 const CARD_ORDER: RailSection[] = [
-  'library', 'queries', 'queryGroups', 'rules', 'etl',
+  'notebooks', 'queries', 'queryGroups', 'rules', 'etl',
   'backends', 'dataGraphs', 'tupleSets', 'argumentSets',
   'tests', 'benchmarks',
 ];
 
 const FAMILY_OF: Record<RailSection, 'definition' | 'input' | 'evidence' | 'axis'> = {
-  library: 'definition',
+  notebooks: 'definition',
   queries: 'definition',
   queryGroups: 'definition',
   rules: 'definition',
@@ -229,9 +229,9 @@ const cards = computed(() =>
     const entry = RAIL_ENTRIES.find((candidate) => candidate.section === section)!;
     const enabled = entry.feature === null || isEnabled(entry.feature);
     /*
-     * The Notebook has no count of its own: it is the library read as one page,
-     * not a collection of pages, so a number under it would be a number of
-     * something else.
+     * The Notebook has no count of its own: notebooks are drafts held in this
+     * browser, not entities the library stores, so a number under it would
+     * count something other than what every other card counts.
      */
     const count = counts.value[section] ?? null;
     return {
