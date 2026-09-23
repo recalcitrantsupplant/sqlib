@@ -163,10 +163,18 @@
     <template v-else-if="backend">
       <div class="record-header">
         <span class="record-name" data-testid="backend-record-name">{{ backend.name }}</span>
-        <StatusBadge :tone="HEALTH_TONES[health]" data-testid="backend-health-pill">
-          {{ HEALTH_LABELS[health] }}
-        </StatusBadge>
-        <span class="probe-summary" data-testid="backend-probe-summary">{{ probeSummary }}</span>
+        <!--
+          Health is what a *probe* found, and the server cannot probe a backend
+          it does not have. On a browser one the pair read "Never probed — run
+          Test again" beside no such button, which is the probe card's own
+          reason for being absent one line further down.
+        -->
+        <template v-if="!isBrowser">
+          <StatusBadge :tone="HEALTH_TONES[health]" data-testid="backend-health-pill">
+            {{ HEALTH_LABELS[health] }}
+          </StatusBadge>
+          <span class="probe-summary" data-testid="backend-probe-summary">{{ probeSummary }}</span>
+        </template>
         <div class="header-actions">
           <DropdownMenu>
             <DropdownMenuTrigger as-child>

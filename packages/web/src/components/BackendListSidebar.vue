@@ -111,10 +111,17 @@
         @click="emit('select', backend.id)"
         @keydown.enter="emit('select', backend.id)"
       >
+        <!--
+          A browser backend keeps the dot's space and says nothing in it. The
+          dot reports what a probe found, and the server cannot probe a record
+          it does not have — grey-for-never-probed would be a claim about a
+          probe that is never going to happen. Hidden rather than absent, so a
+          list holding both kinds still lines up.
+        -->
         <span
           class="health-dot"
-          :class="`health-dot--${healthFor(backend.id)}`"
-          :title="healthTitle(backend.id)"
+          :class="isBrowserBackendId(backend.id) ? 'health-dot--none' : `health-dot--${healthFor(backend.id)}`"
+          :title="isBrowserBackendId(backend.id) ? undefined : healthTitle(backend.id)"
           data-testid="backend-health-dot"
           aria-hidden="true"
         />
@@ -135,14 +142,19 @@
           </span>
           <span class="row-host">{{ hostOf(backend) }}</span>
         </span>
-        <span class="row-latency">{{ latencyOf(backend.id) }}</span>
+        <span v-if="!isBrowserBackendId(backend.id)" class="row-latency">{{ latencyOf(backend.id) }}</span>
       </div>
     </div>
 
     <div v-if="!collapsed" class="sidebar-footer">
+      <!--
+        Nothing to probe is not the same as no backends: a list of nothing but
+        browser backends has none the server could reach, so the button would
+        ask it to probe a set it knows nothing about.
+      -->
       <button
         class="probe-all-button"
-        :disabled="probingAll || backends.length === 0"
+        :disabled="probingAll || probableCount === 0"
         data-testid="probe-all"
         @click="emit('probe-all')"
       >
@@ -218,6 +230,11 @@ function latencyOf(id: string): string {
   if (!probe) return '—';
   return probe.latencyMs === null ? '—' : `${probe.latencyMs} ms`;
 }
+
+/** How many of these the server could actually probe. */
+const probableCount = computed(
+  () => props.backends.filter((backend) => !isBrowserBackendId(backend.id)).length,
+);
 
 function healthTitle(id: string): string {
   const probe = probeFor(id);
@@ -455,6 +472,11 @@ function healthTitle(id: string): string {
 
 .health-dot--never_probed {
   background: var(--border-strong);
+}
+
+/* Keeps the column, claims nothing — see the row's own comment. */
+.health-dot--none {
+  visibility: hidden;
 }
 
 .health-dot--draft {

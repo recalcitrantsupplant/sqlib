@@ -495,6 +495,15 @@ describe('BackendWorkArea', () => {
       expect(wrapper.find('[data-testid="backend-sidecar"]').exists()).toBe(false);
       expect(wrapper.find('[data-testid="backend-env-table"]').exists()).toBe(false);
     });
+
+    /* The header said "Never probed — run Test again" beside no such button. */
+    it('claims nothing about a probe in its header', async () => {
+      const wrapper = await mountRecord({ backendId: browserBackend.id });
+
+      expect(wrapper.find('[data-testid="backend-health-pill"]').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="backend-probe-summary"]').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="backend-record-name"]').text()).toBe(browserBackend.name);
+    });
   });
 
   /*
