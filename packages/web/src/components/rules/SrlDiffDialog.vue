@@ -5,10 +5,7 @@
       the popped-out editor closes the pop-out, and a smaller box would read as
       the page having shrunk.
     -->
-    <DialogContent
-      class="inset-[var(--popout-inset)] flex w-auto max-w-none translate-x-0 translate-y-0 flex-col sm:max-w-none"
-      data-testid="srl-diff-dialog"
-    >
+    <DialogContent :style="POPOUT_BOX" data-testid="srl-diff-dialog">
       <DialogHeader>
         <DialogTitle>{{ leftLabel }} → {{ rightLabel }}</DialogTitle>
         <DialogDescription class="sr-only">
@@ -122,6 +119,21 @@ const props = defineProps<{
   result: RuleSetSrlPreview | null;
   error: string | null;
 }>();
+
+/*
+ * Out of the primitive's centred, max-w-lg box and into the pop-out's. Inline,
+ * because the content is teleported and this file's scoped styles never reach
+ * it. The primitive centres with the `translate` property; left in place it
+ * would shift this box by half its own size.
+ */
+const POPOUT_BOX = {
+  display: 'flex',
+  flexDirection: 'column',
+  inset: 'var(--popout-inset)',
+  width: 'auto',
+  maxWidth: 'none',
+  translate: 'none',
+} as const;
 
 const emit = defineEmits<{
   (e: 'update:open', value: boolean): void;
