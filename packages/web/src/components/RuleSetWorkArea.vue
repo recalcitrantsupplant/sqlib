@@ -46,8 +46,8 @@
       <ExpandRunStrip>
         <RunBar
           :running="isExecuting"
-          :run-disabled="!hasDocument"
-          :run-title="hasDocument ? 'Run this rule set' : 'Write a rule set first'"
+          :run-disabled="runDisabledReason !== null"
+          :run-title="runDisabledReason ?? 'Run this rule set'"
           :inputs="runInputs"
           :format="{ value: inferenceFormat, options: INFERENCE_FORMATS, title: 'The format the inferred graph comes back in' }"
           :create-targets="['benchmark', 'test']"
@@ -137,10 +137,9 @@
               class="editor-action"
               type="button"
               data-testid="diff-query"
-              :title="currentVersionNumberForDisplay
-                ? `Diff draft vs v${currentVersionNumberForDisplay}`
-                : 'Diff draft'"
-              @click="openPreview"
+              :disabled="!diffPlan"
+              :title="diffPlan ? `Diff ${diffPlan.left.label} → ${diffPlan.right.label}` : NOTHING_TO_DIFF"
+              @click="openDiff"
             >
               <GitCompare :size="13" />
             </button>
@@ -195,6 +194,7 @@
         :tuples-enabled="tuplesEnabled"
         :graph-nodes="graphNodes"
         :graph-edges="graphEdges"
+        :graph-cycles="graphCycles"
         :analysed-at="analysedAt"
         :tuple-set-options="tupleSetOptions"
         :tuple-declarations="tupleDeclarations"
@@ -235,10 +235,14 @@
       />
     </div>
 
-    <SrlPreviewDialog
+    <SrlDiffDialog
       v-model:open="showPreviewDialog"
+      :left-label="diffLeft.label"
+      :right-label="diffRight.label"
+      :left-text="diffLeft.text"
+      :right-text="diffRight.text"
+      :text-error="diffTextError"
       :result="previewResult"
-      :loading="previewLoading"
       :error="previewError"
     />
 
@@ -274,12 +278,19 @@ import type { CreateTarget, RunBarPick } from '../lib/runBar';
 import { NO_ARGUMENTS_IRI, emptySettings } from '../lib/benchmarkPlan';
 import type { InputSource } from './rules/RuleSetInputsPanel.vue';
 import type { StratificationPanelNode } from './rules/StratificationPanel.vue';
-import SrlPreviewDialog from './rules/SrlPreviewDialog.vue';
+import SrlDiffDialog from './rules/SrlDiffDialog.vue';
+import { NOTHING_TO_DIFF, planVersionDiff, type DiffPlan, type DiffPlanSide } from '../lib/versionDiff';
 import type { DataGraphFormat, DataGraphOption, TupleSetOption } from '@/types/data-graphs';
 import { useRuleSetsStore } from '../composables/useRuleSetsStore';
 import { useBenchmarksStore } from '../composables/useBenchmarksStore';
 import { useLibrariesStore } from '../composables/useLibrariesStore';
-import { useApiClient, type RuleSetSrlPreview, type RuleSetVersion } from '../composables/useApiClient';
+import {
+  useApiClient,
+  type RuleSetSrlPreview,
+  type RuleSetVersion,
+  type SrlStratificationCycle,
+} from '../composables/useApiClient';
+import { compactReason } from '../lib/srlDependencyDisplay';
 import { useRuntimeConfig } from '#imports';
 import type { SnippetRequest } from '@/lib/codeSnippets';
 import { usePanelResize } from '../composables/usePanelResize';
@@ -580,17 +591,27 @@ const handleEditorReady = (view: EditorView) => {
 const pushBands = () => {
   const view = editorView.value;
   if (!view) return;
-  const bands: StratumBand[] = blocks.value.map((block) => ({
-    startLine: block.startLine,
-    endLine: block.endLine,
-    stratum: block.stratum,
-    kind: block.kind,
-    label: block.label,
-  }));
+  /*
+   * A document that does not stratify has no strata to band. What the gutter
+   * says instead is which rules are on a cycle; the rest are left unmarked
+   * rather than painted a stratum they do not have.
+   */
+  const unstratified = stratification.value?.stratified === false;
+  const cycleRules = cycleRuleIds.value;
+  const bands: StratumBand[] = blocks.value
+    .filter((block) => !unstratified || block.kind === 'data' || cycleRules.has(block.id))
+    .map((block) => ({
+      startLine: block.startLine,
+      endLine: block.endLine,
+      stratum: block.stratum,
+      kind: block.kind,
+      label: block.label,
+      inCycle: unstratified && cycleRules.has(block.id),
+    }));
   view.dispatch({ effects: setStratumBands.of(bands) });
 };
 
-watch(blocks, pushBands);
+watch([blocks, stratification], pushBands);
 
 /** Put the cursor on a line and bring it into view — the outline and DAG do this. */
 const goToLine = (line: number) => {
@@ -952,11 +973,18 @@ const detailsProps = computed(() => ({
 
 // --- The graph --------------------------------------------------------------
 
+/** Every rule on a cycle that stops the document stratifying. */
+const cycleRuleIds = computed(
+  () => new Set((stratification.value?.cycles ?? []).flatMap((cycle) => cycle.rules)),
+);
+
 const ruleBlocks = computed(() => blocks.value.filter((block) => block.kind === 'rule'));
 
 const graphNodes = computed<StratificationPanelNode[]>(() =>
   ruleBlocks.value.map((block) => ({
     id: block.id,
+    inCycle: cycleRuleIds.value.has(block.id),
+    name: block.name,
     label: block.label,
     stratum: block.stratum,
     monotonicity: block.monotonicity,
@@ -966,7 +994,28 @@ const graphNodes = computed<StratificationPanelNode[]>(() =>
   })),
 );
 
-const graphEdges = computed(() => stratification.value?.edges ?? []);
+/*
+ * The stratifier reports patterns in expanded IRIs, since that is what it
+ * compares; they are shown in the document's own prefixes, as written.
+ */
+const documentPrefixes = computed(() => readProloguePrefixes(srlDocument.value));
+
+const graphEdges = computed(() =>
+  (stratification.value?.edges ?? []).map((edge) => ({
+    ...edge,
+    reasons: (edge.reasons ?? []).map((reason) => compactReason(reason, documentPrefixes.value)),
+  })),
+);
+
+const graphCycles = computed<SrlStratificationCycle[]>(() =>
+  (stratification.value?.cycles ?? []).map((cycle) => {
+    const compactEdge = (edge: SrlStratificationCycle['edges'][number]) => ({
+      ...edge,
+      reasons: edge.reasons.map((reason) => compactReason(reason, documentPrefixes.value)),
+    });
+    return { ...cycle, edges: cycle.edges.map(compactEdge), witness: (cycle.witness ?? []).map(compactEdge) };
+  }),
+);
 
 /*
  * When the analysis last landed, for the Stratification header's "computed 1m
@@ -1073,33 +1122,69 @@ async function saveScratch() {
   }
 }
 
-// --- Preview ----------------------------------------------------------------
+// --- Diff -------------------------------------------------------------------
 
+/* What the Diff button compares — the one rule every versioned editor uses. */
+const diffPlan = computed<DiffPlan | null>(() => {
+  if (isScratch.value || !ruleSetIdValue.value) return null;
+  return planVersionDiff({
+    hasEdits: !documentMatchesVersion(),
+    open: selectedVersionNumber.value,
+    current: currentVersionNumberForDisplay.value,
+    versions: versionOptions.value.map((option) => option.version),
+  });
+});
+
+const diffLeft = ref<{ label: string; text: string | null }>({ label: '', text: null });
+const diffRight = ref<{ label: string; text: string | null }>({ label: '', text: null });
+const diffTextError = ref<string | null>(null);
 const previewResult = ref<RuleSetSrlPreview | null>(null);
-const previewLoading = ref(false);
 const previewError = ref<string | null>(null);
+let diffSeq = 0;
 
-async function openPreview() {
-  showPreviewDialog.value = true;
+/** A side's text: the draft and the open version are already on screen; anything else is fetched. */
+async function diffText(id: string, side: DiffPlanSide): Promise<string> {
+  if (side.draft) return srlDocument.value;
+  if (side.version === selectedVersionNumber.value) return loadedVersionDocument.value;
+  const response = await apiClient.exportRuleSetSrl(id, { version: side.version, prologue: prologueFor(id) });
+  return response.srl;
+}
+
+async function openDiff() {
+  const plan = diffPlan.value;
+  const id = ruleSetIdValue.value;
+  if (!plan || !id) return;
+  const seq = ++diffSeq;
+  diffLeft.value = { label: plan.left.label, text: null };
+  diffRight.value = { label: plan.right.label, text: null };
+  diffTextError.value = null;
   previewResult.value = null;
   previewError.value = null;
-  const id = ruleSetIdValue.value;
-  if (!id) {
-    previewError.value = 'Nothing to compare against yet — this rule set has no versions.';
-    return;
-  }
-  previewLoading.value = true;
-  try {
-    previewResult.value = await apiClient.previewRuleSetSrl(
+  showPreviewDialog.value = true;
+
+  // Against a draft, also ask what saving it would detach — the one thing a
+  // text diff cannot show.
+  if (plan.right.draft) {
+    apiClient.previewRuleSetSrl(
       id,
       srlDocument.value,
-      selectedVersionNumber.value,
+      plan.left.version,
       { tuples: tuplesEnabled.value, tupleSeeds: tuplesEnabled.value ? tupleSeeds.value : null },
+    ).then(
+      (result) => { if (seq === diffSeq) previewResult.value = result; },
+      (error) => {
+        if (seq === diffSeq) previewError.value = error instanceof Error ? error.message : 'Could not preview the changes';
+      },
     );
+  }
+
+  try {
+    const [left, right] = await Promise.all([diffText(id, plan.left), diffText(id, plan.right)]);
+    if (seq !== diffSeq) return;
+    diffLeft.value = { label: plan.left.label, text: left };
+    diffRight.value = { label: plan.right.label, text: right };
   } catch (error) {
-    previewError.value = error instanceof Error ? error.message : 'Could not preview the changes';
-  } finally {
-    previewLoading.value = false;
+    if (seq === diffSeq) diffTextError.value = error instanceof Error ? error.message : 'Could not load the versions';
   }
 }
 
@@ -1123,6 +1208,7 @@ const resetState = () => {
   loadedVersionDocument.value = '';
   loadedVersionTupleSeeds.value = '';
   srlDocument.value = '';
+  documentRuleSetId = null;
   tupleSeeds.value = '';
   applyTuplesEnabled(false);
   tupleSource.value = 'inline';
@@ -1145,9 +1231,12 @@ const ensureLibraryPresent = async (libraryId: string | null) => {
   }
 };
 
-const loadRuleSetVersions = async (ruleSetId: string) => {
+const loadRuleSetVersions = async (
+  ruleSetId: string,
+  request?: ReturnType<typeof apiClient.listRuleSetVersions>,
+) => {
   try {
-    const versions = await apiClient.listRuleSetVersions(ruleSetId);
+    const versions = await (request ?? apiClient.listRuleSetVersions(ruleSetId));
     const sorted = [...versions].sort((a, b) => b.version - a.version);
     ruleSetVersions.value = sorted;
     versionOptions.value = sorted.map((entry) => ({
@@ -1177,9 +1266,10 @@ const loadRuleSetVersions = async (ruleSetId: string) => {
  * Prefixes to render the exported document with.
  *
  * Rules are stored with expanded IRIs, so the server needs a prologue to
- * abbreviate against. It is taken from whatever the editor currently declares,
- * so a reload keeps the author's own prefixes; on first load there is nothing
- * to take, and the default seeds an empty rule set with something usable.
+ * abbreviate against. On a reload of the rule set already on screen it is taken
+ * from what the editor declares, so the author's own prefixes survive; on the
+ * first load of a rule set there is nothing of its own to take, and the default
+ * seeds it with something usable.
  */
 const DEFAULT_PROLOGUE = 'PREFIX : <http://example/>';
 
@@ -1191,8 +1281,35 @@ function prologueLines(): string[] {
     .map((line) => line.trim());
 }
 
-function currentPrologue(): string {
-  const lines = prologueLines();
+/**
+ * The declarations at the head of the document — its prologue proper.
+ *
+ * Not every PREFIX line in it: a rule stored as written (one that did not
+ * parse, kept verbatim as a test case) carries its own PREFIX further down,
+ * and sending that back as the prologue gets it rendered twice, then three
+ * times, once more on every reload.
+ */
+function leadingPrologueLines(): string[] {
+  const lines: string[] = [];
+  for (const line of srlDocument.value.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    if (!/^(PREFIX|BASE)\b/i.test(trimmed)) break;
+    lines.push(trimmed);
+  }
+  return lines;
+}
+
+/**
+ * The rule set whose document the editor holds, or null for anything else (a
+ * draft, a cleared screen). The prologue is only carried into a load of *that*
+ * rule set: carried into another one, it hands rule set B the prefixes rule set
+ * A declared.
+ */
+let documentRuleSetId: string | null = null;
+
+function prologueFor(ruleSetId: string): string {
+  const lines = documentRuleSetId === ruleSetId ? leadingPrologueLines() : [];
   return lines.length ? lines.join('\n') : DEFAULT_PROLOGUE;
 }
 
@@ -1204,18 +1321,27 @@ function currentPrologue(): string {
  */
 let loadSeq = 0;
 
-async function loadDocumentForSelectedVersion() {
+/**
+ * `prefetched` is the current version's document, requested alongside the rule
+ * set itself on open; it is used only when current is what is selected.
+ */
+async function loadDocumentForSelectedVersion(prefetched?: ReturnType<typeof apiClient.exportRuleSetSrl>) {
   const id = ruleSetIdValue.value;
   if (!id) return;
   const seq = ++loadSeq;
-  const prologue = currentPrologue();
+  const prologue = prologueFor(id);
+  const isCurrent = selectedVersionNumber.value === currentVersionNumberForDisplay.value;
   try {
-    const response = await apiClient.exportRuleSetSrl(id, {
+    const response = await ((prefetched && isCurrent) ? prefetched : apiClient.exportRuleSetSrl(id, {
       version: selectedVersionNumber.value,
       prologue,
-    });
+    }));
     if (seq !== loadSeq) return;
-    loadedVersionDocument.value = response.srl;
+    // A reply without a document reads as an empty one rather than as
+    // `undefined` in the editor, which everything downstream calls string
+    // methods on.
+    const srl = typeof response.srl === 'string' ? response.srl : '';
+    loadedVersionDocument.value = srl;
     const draft = draftBody.value;
     /*
      * A draft wins over the saved text, because it is the newer of the two
@@ -1224,7 +1350,8 @@ async function loadDocumentForSelectedVersion() {
      * it.
      */
     hydratingVersion.value = true;
-    srlDocument.value = typeof draft?.srl === 'string' ? draft.srl : response.srl;
+    srlDocument.value = typeof draft?.srl === 'string' ? draft.srl : srl;
+    documentRuleSetId = id;
     loadedVersionTupleSeeds.value = response.tupleSeeds ?? '';
     tupleSeeds.value = draft?.tupleSeeds ?? response.tupleSeeds ?? '';
     applyTuplesEnabled(draft?.tuplesEnabled ?? response.tuplesEnabled === true);
@@ -1245,6 +1372,22 @@ const loadRuleSet = async (id: string) => {
     return;
   }
   ruleSetLoading.value = true;
+  /*
+   * The three reads opening a rule set needs, started together. They used to
+   * run one after another — rule set, then its library, then its versions,
+   * then the document — so opening one cost four round trips, and the editor
+   * sat under its loading scrim for all of them. The document is asked for
+   * without a version, which the API answers with the current one: what an
+   * open lands on unless a draft says otherwise.
+   */
+  const versionsRequest = apiClient.listRuleSetVersions(id);
+  // Asked for before the editor changes hands, so `prologueFor` still sees
+  // whose document is on screen: another rule set's prefixes are never sent.
+  const documentRequest = apiClient.exportRuleSetSrl(id, { prologue: prologueFor(id) });
+  // Either may go unused (a failed open, a non-current selection); neither
+  // should surface as an unhandled rejection.
+  versionsRequest.catch(() => {});
+  documentRequest.catch(() => {});
   try {
     const { ruleSet, ifMatch } = await ruleSetsStore.fetchRuleSet(id);
     ruleSetIdValue.value = ruleSet.id;
@@ -1256,9 +1399,10 @@ const loadRuleSet = async (id: string) => {
     executionResult.value = null;
     executionTimestamp.value = null;
 
-    await ensureLibraryPresent(ruleSetLibraryId.value ?? null);
-    await loadRuleSetVersions(ruleSet.id);
-    await loadDocumentForSelectedVersion();
+    // The library only names where the rule set lives; nothing below waits on it.
+    void ensureLibraryPresent(ruleSetLibraryId.value ?? null);
+    await loadRuleSetVersions(ruleSet.id, versionsRequest);
+    await loadDocumentForSelectedVersion(documentRequest);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to load rule set';
     console.error('[RuleSetWorkArea] Failed to load rule set:', error);
@@ -1355,7 +1499,7 @@ const updateRuleSetWithRetry = async (payload: RuleSetUpdateInput) => {
  * Import from SPARQL.
  *
  * The dialog is given what the document *actually* declares rather than
- * `currentPrologue()`'s fallback: abbreviating against a prefix the document
+ * `prologueFor()`'s fallback: abbreviating against a prefix the document
  * does not declare would produce a rule spelled `:foo` in a document with no
  * `:` binding, which is a document that no longer parses.
  */
@@ -1580,9 +1724,31 @@ function tupleSeedsForRun(): string | null {
   return text.trim() ? text : null;
 }
 
+/*
+ * Why Run is off, or null when it is on.
+ *
+ * A document that does not stratify is refused by the server before anything
+ * is evaluated — there is no evaluation order to follow — so offering Run only
+ * to report that refusal is a round trip spent on a known answer. The reason
+ * says where the explanation is. The keyboard shortcut goes through `run()`,
+ * which checks the same thing.
+ */
+const runDisabledReason = computed<string | null>(() => {
+  if (!hasDocument.value) return 'Write a rule set first';
+  if (analysis.value?.valid && stratification.value?.stratified === false) {
+    return 'This rule set does not stratify, so it cannot be run. See the Stratification tab.';
+  }
+  return null;
+});
+
 async function run() {
   if (!hasDocument.value) {
     toast.error('Write a rule set first.');
+    return;
+  }
+  if (runDisabledReason.value) {
+    toast.error(runDisabledReason.value);
+    focusTab('stratification');
     return;
   }
   const savedVersion = ruleSetVersions.value.find((entry) => entry.id === selectedVersionId.value);
@@ -1707,6 +1873,9 @@ watch(
 
 watch(selectedVersionId, (versionId, previous) => {
   if (!versionId || versionId === previous || !ruleSetIdValue.value) return;
+  // Opening a rule set picks its version and loads that document itself, from
+  // the request it already has in flight; a second fetch here would race it.
+  if (ruleSetLoading.value) return;
   executionResult.value = null;
   executionTimestamp.value = null;
   void loadDocumentForSelectedVersion();

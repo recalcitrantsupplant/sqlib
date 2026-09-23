@@ -52,7 +52,7 @@ import StratificationPanel, {
   type StratificationPanelNode,
 } from './StratificationPanel.vue';
 import type { DataGraphFormat, DataGraphOption, TupleSetOption } from '@/types/data-graphs';
-import type { SrlDocumentBlock, SrlStratificationSummary } from '@/composables/useApiClient';
+import type { SrlDocumentBlock, SrlStratificationCycle, SrlStratificationSummary } from '@/composables/useApiClient';
 
 const props = withDefaults(defineProps<{
   details: RuleSetDetailsProps;
@@ -71,6 +71,8 @@ const props = withDefaults(defineProps<{
   /** The DAG, with each rule's source for the inspector. */
   graphNodes: StratificationPanelNode[];
   graphEdges: StratificationPanelEdge[];
+  /** What stops the document stratifying; empty when it stratifies. */
+  graphCycles?: SrlStratificationCycle[];
   analysedAt?: string | null;
 
   /** Inputs: what a run is given. */
@@ -323,6 +325,8 @@ const onTuplesChange = async (event: Event) => {
         :nodes="graphNodes"
         :edges="graphEdges"
         :issues="stratification?.issues ?? []"
+        :cycles="graphCycles ?? []"
+        :stratified="stratification?.stratified ?? true"
         :rule-count="ruleCount"
         :strata-count="strataCount"
         :computed-at="analysedAt"

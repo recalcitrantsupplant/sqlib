@@ -19,13 +19,13 @@
  * which keeps mutable state.
  */
 import type { Page, Route } from '@playwright/test';
+import { API_ORIGIN } from '../api-origin';
 
 /**
  * Where the app sends API traffic — must match `runtimeConfig.public.apiBaseUrl`
  * in the build under test. Everything on this origin is answered from fixtures;
  * everything else (the app's own HTML, JS and fonts) is passed through.
  */
-const API_ORIGIN = new URL(process.env.NUXT_PUBLIC_API_BASE_URL ?? 'http://localhost:3000').origin;
 
 const CREATED = '2026-01-01T00:00:00Z';
 const MODIFIED = '2026-01-02T00:00:00Z';
@@ -573,6 +573,14 @@ const ROUTES: Array<[RegExp, Handler]> = [
   [/\/rule-sets\/[^/]+\/execute$/, (r) => json(r, RULE_SET_EXECUTION)],
   [/\/rule-sets\/[^/]+\/versions\/\d+$/, (r) => json(r, RULE_SET_VERSION_EXPANDED)],
   [/\/rule-sets\/[^/]+\/versions$/, (r) => json(r, [RULE_SET_VERSION])],
+  [/\/rule-sets\/[^/]+\/srl$/, (r) => json(r, {
+    srl: 'PREFIX : <http://example/>\n\nRULE { ?a :ancestor ?b } WHERE { ?a :parent ?b }\n',
+    ruleCount: 1,
+    dataBlockCount: 0,
+    tupleSeeds: '',
+    tuplesEnabled: false,
+    warnings: [],
+  })],
   [/\/rule-sets\/[^/]+$/, (r) => json(r, RULE_SET)],
   [/\/rule-sets$/, (r) => json(r, [RULE_SET])],
 

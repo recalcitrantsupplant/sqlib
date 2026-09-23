@@ -1,5 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
 import { WEB_BASE_URL } from './tests/e2e/web-port';
+import { API_BASE_URL } from './tests/e2e/api-origin';
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -102,6 +103,8 @@ export default defineConfig({
      * tuples toggle fails locally against a bundle built without it.
      */
     env: {
+      // Baked into the bundle like the flags below; see tests/e2e/api-origin.ts.
+      NUXT_PUBLIC_API_BASE_URL: API_BASE_URL,
       NUXT_PUBLIC_FEATURE_ETL: 'true',
       NUXT_PUBLIC_FEATURE_PLAYGROUND_ETL: 'true',
       NUXT_PUBLIC_FEATURE_RULE_TUPLES: 'true',

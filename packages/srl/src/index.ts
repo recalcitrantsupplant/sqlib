@@ -39,6 +39,7 @@ export {
 export type {
   StratificationReport,
   StratificationEdge,
+  StratificationCycle,
   MonotonicityKind,
   DependencyLabel,
   TripleSummary,

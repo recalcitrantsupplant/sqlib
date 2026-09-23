@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { mockCallableLibrary } from './fixtures/callables';
+import { API_HOST } from './api-origin';
 
 /**
  * The "Connect your own assistant" panel — door B's entire story.
@@ -25,7 +26,7 @@ test.describe('Connect your assistant', () => {
     // /mcp is served beside the API in every deployment mode, so it is the API
     // base URL plus a path — not a separate host to configure.
     await expect(page.locator('[data-testid="mcp-endpoint"]')).toHaveText(/\/mcp$/);
-    await expect(page.locator('[data-testid="mcp-endpoint"]')).toContainText('localhost:3000');
+    await expect(page.locator('[data-testid="mcp-endpoint"]')).toContainText(API_HOST);
   });
 
   test('gives a config per client, and switches between them', async ({ page }) => {

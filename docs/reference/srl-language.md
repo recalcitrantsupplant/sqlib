@@ -154,15 +154,31 @@ S. Each dependency carries a label:
 | `closed` | R is a run-once rule, so it must see its dependencies complete. Same ordering demand as `negative` |
 
 A document is non-stratifiable exactly when a dependency cycle contains a
-negative or a closed edge. The report then carries an issue naming the rules:
+negative or a closed edge. The report then carries an issue naming the rules,
+in the order they were given:
 
 ```
-Non-stratifiable cycle involving: http://example.org/b, http://example.org/a
+Non-stratifiable cycle involving: http://example.org/a, http://example.org/b
 ```
+
+It also carries each such cycle as data in `cycles`: the rules on it, every
+dependency between them (with the triple patterns that made it), whether it
+fails through negation or through a run-once rule, and a `witness`:
+
+```
+{ kind: 'negation', rules: ['a', 'b'], edges: [ … ], witness: [{ from: 'a', to: 'b', label: 'negative', reasons: [ … ] }, … ] }
+```
+
+The witness is the shortest loop through a `negative` or `closed` edge, in path
+order (each edge's `to` is the next edge's `from`, and the last leads back to
+the first). A cycle can hold more rules and dependencies than that; the witness
+is the smallest part of it that shows why the rules cannot be ordered.
 
 The report also gives `strata` (rule IRI to layer number, from 0), `edges` with
 the triple patterns that justified each one, `monotonicity` (`monotone` or
-`negation` per rule) and `runOnce`.
+`negation` per rule) and `runOnce`. `strata` is **empty** for a
+non-stratifiable document: no layering exists, and the layers the algorithm
+had reached when it gave up depend only on its iteration cap and on edge order.
 
 Stratification compares fully expanded IRIs, so `expandIris` must run on the
 document first; two rules spelling the same term with different prefixes are
@@ -177,9 +193,17 @@ all of its dependencies are promoted to `closed`. This makes a cycle through one
 of these rules non-stratifiable, which is the correct outcome.
 
 Blank-node detection inspects the blank-node terms in the head's triple
-templates. A labelled blank node (`_:b`) in the head marks the rule run-once; an
-anonymous `[ … ]` blank node written in the head is not currently detected as
-one.
+templates, after Turtle's shorthand is expanded. A labelled blank node (`_:b`),
+an anonymous `[ … ]`, a list `( … )` and a reified triple `<< … >>` without a
+named reifier all mint a fresh node on every firing, so each marks the rule
+run-once.
+
+Stratification matches the triples that shorthand stands for, in RDF 1.2 terms,
+in heads and bodies alike. `[ … ]` and `( … )` assert their triples about a
+blank node. `<< s p o >>` does not assert `s p o`: it asserts that its reifier
+`rdf:reifies` the triple term `<<( s p o )>>`. An annotation (`~ :r` or
+`{| … |}`) asserts the triple it follows, that the reifier `rdf:reifies` it, and
+the annotation's own triples about the reifier.
 
 ## How a rule compiles to SPARQL
 

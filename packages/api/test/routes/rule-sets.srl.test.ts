@@ -705,6 +705,29 @@ describe('RuleSets Routes — SRL document authoring', () => {
       expect(stratification.issues.join(' ')).toMatch(/cycle/i);
     });
 
+    it('withholds strata for an unstratified document and reports the cycle as data', async () => {
+      const { blocks, stratification } = (
+        await analyze(
+          'PREFIX : <http://example/>\n'
+          + '\n'
+          + 'RULE { ?s :p "abc" } WHERE { ?s :data "" NOT { ?s :p "ABC" } }\n'
+          + '\n'
+          + 'RULE { :s :p "ABC" } WHERE { NOT { ?x :p "abc" } ?s :data "" }',
+        )
+      ).json();
+      expect(stratification.stratified).toBe(false);
+      expect(stratification.strata).toEqual({});
+      expect(stratification.strataCount).toBe(0);
+      expect(blocks.map((block: { stratum: number | null }) => block.stratum)).toEqual([null, null]);
+      expect(stratification.cycles).toHaveLength(1);
+      expect(stratification.cycles[0]).toMatchObject({ kind: 'negation', rules: ['rule-1', 'rule-2'] });
+      expect(stratification.cycles[0].edges).toHaveLength(2);
+      // Issue text names rules the way the editor does, not by internal id.
+      expect(stratification.issues.join(' ')).toMatch(/rule at L3/);
+      expect(stratification.issues.join(' ')).toMatch(/rule at L5/);
+      expect(stratification.issues.join(' ')).not.toMatch(/rule-\d/);
+    });
+
     it('prefers an author-supplied rule name to the head predicate', async () => {
       const { blocks } = (
         await analyze('PREFIX ex: <http://example/>\nRULE ex:mine { ?s ex:q ?o } WHERE { ?s ex:p ?o }')

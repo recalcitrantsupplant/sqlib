@@ -604,7 +604,7 @@ describe('SectionLabel adoption', () => {
     'components/query-group/QueryGroupCanvasNode.vue: .node-name-label':
       'the sm size and ink, but no weight: it inherits the node’s',
     'components/query-work-area/ArgumentSetSwitcher.vue: .state-badge': 'a badge naming a set’s state',
-    'components/rules/SrlPreviewDialog.vue: .tag': 'a tag pill',
+    'components/rules/SrlDiffDialog.vue: .tag': 'a tag pill',
     'components/shared/ExpandButton.vue: .expand-button-text':
       'a control’s own text: tracking and case, no type of its own — the -button exemption the note guard draws',
     'pages/examples/index.vue: .badge': 'a badge on the examples index',

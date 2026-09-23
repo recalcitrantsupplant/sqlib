@@ -788,6 +788,13 @@ function handleRailSelect(section: RailSection) {
   clearEntitySelection();
   selectedItemType.value = null;
   activeSection.value = activeSection.value === section ? null : section;
+  /*
+   * Land on something in the same tick as the click. Waiting for the section's
+   * list fetch (the watch on `activeListSection`) painted a blank pane, then
+   * the section's "nothing open" state, then the work area — three frames of
+   * flicker for a record that was already in memory.
+   */
+  if (activeListSection.value) restoreSection(activeListSection.value);
 }
 
 /* ------------------------------------------------------------------ *
@@ -1581,6 +1588,40 @@ function selectionBelongsTo(section: ListSection): boolean {
   if (!type) return false;
   if (type === 'scratch') return scratchSection.value === definition.draftSection;
   return definition.savedKinds.some((kind) => kind.type === type);
+}
+
+/*
+ * Where each section was last left, so coming back to it reopens that record
+ * rather than whatever happens to be most recent.
+ */
+const lastSelectionBySection = new Map<ListSection, { type: SectionItemType | 'scratch'; id: string }>();
+
+watch([activeListSection, selectedItemType, savedSelectionId, selectedScratchId], ([section]) => {
+  if (!section || !selectionBelongsTo(section)) return;
+  if (selectedItemType.value === 'scratch' && selectedScratchId.value) {
+    lastSelectionBySection.set(section, { type: 'scratch', id: selectedScratchId.value });
+  } else if (selectedItemType.value && selectedItemType.value !== 'scratch' && savedSelectionId.value) {
+    lastSelectionBySection.set(section, { type: selectedItemType.value, id: savedSelectionId.value });
+  }
+});
+
+/**
+ * Open a section on the record it was left on, if that record still exists,
+ * else on its most recent. Reads only what is already loaded, so on a first
+ * visit it may select nothing — the fetch below then lands the section.
+ */
+function restoreSection(section: ListSection) {
+  const last = lastSelectionBySection.get(section);
+  if (last?.type === 'scratch') {
+    if (scratchFor(SECTION_DEFINITIONS[section].draftSection).some((entry) => entry.id === last.id)) {
+      handleSelectScratch(last.id);
+      return;
+    }
+  } else if (last && savedFor(section).some((entry) => entry.id === last.id)) {
+    selectSavedItem(last.type, last.id);
+    return;
+  }
+  selectMostRecent(section);
 }
 
 /*

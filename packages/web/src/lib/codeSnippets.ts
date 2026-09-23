@@ -10,12 +10,16 @@
 
 export type SnippetLanguage = 'curl' | 'javascript' | 'python' | 'java' | 'go';
 
-export const SNIPPET_LANGUAGES: ReadonlyArray<{ id: SnippetLanguage; label: string }> = [
-  { id: 'curl', label: 'cURL' },
-  { id: 'javascript', label: 'JavaScript' },
-  { id: 'python', label: 'Python' },
-  { id: 'java', label: 'Java' },
-  { id: 'go', label: 'Go' },
+/**
+ * Each language, with the media type its highlighting is asked for by. See
+ * `loadLanguage` in `lib/codeLanguage.ts`, which owns the grammars.
+ */
+export const SNIPPET_LANGUAGES: ReadonlyArray<{ id: SnippetLanguage; label: string; mediaType: string }> = [
+  { id: 'curl', label: 'cURL', mediaType: 'application/x-sh' },
+  { id: 'javascript', label: 'JavaScript', mediaType: 'text/javascript' },
+  { id: 'python', label: 'Python', mediaType: 'text/x-python' },
+  { id: 'java', label: 'Java', mediaType: 'text/x-java' },
+  { id: 'go', label: 'Go', mediaType: 'text/x-go' },
 ];
 
 export interface SnippetRequest {

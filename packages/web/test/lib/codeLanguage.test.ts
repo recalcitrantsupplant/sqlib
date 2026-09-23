@@ -47,7 +47,7 @@ const OWNER = 'lib/codeLanguage.ts';
  * which language a document is in.
  */
 const GRAMMAR_IMPORT =
-  /from\s+['"](@codemirror\/lang-[\w-]+|@kurrawongai\/codemirror-lang-[\w-]+)['"]/;
+  /(?:from\s+|import\(\s*)['"](@codemirror\/lang-[\w-]+|@codemirror\/legacy-modes[\w/-]*|@kurrawongai\/codemirror-lang-[\w-]+)['"]/;
 
 function sourceFiles(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {

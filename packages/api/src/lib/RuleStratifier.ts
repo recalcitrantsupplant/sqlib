@@ -3,6 +3,7 @@ import {
   parseRuleSet,
   stratify,
   type SrlRule,
+  type StratificationCycle,
   type StratificationEdge,
   type MonotonicityKind as SrlMonotonicityKind,
   type StratificationReport as SrlStratificationReport,
@@ -102,6 +103,7 @@ export class RuleStratifier {
       runOnce,
       edges: collapseEdges(report.edges, versionOf),
       issues,
+      cycles: report.cycles.map((cycle) => collapseCycle(cycle, versionOf)),
       generatedAt: new Date().toISOString(),
     };
   }
@@ -150,6 +152,26 @@ function rewriteIds(issue: string, versionOf: Map<string, string>): string {
     if (out.includes(nodeId)) out = out.split(nodeId).join(versionId);
   }
   return out;
+}
+
+/** A cycle between per-rule ids, restated in RuleVersion ids. */
+function collapseCycle(cycle: StratificationCycle, versionOf: Map<string, string>): StratificationCycle {
+  const rules = [...new Set(cycle.rules.map((id) => versionOf.get(id) ?? id))];
+  const runOnce = cycle.runOnce?.map(({ rule, reasons }) => ({ rule: versionOf.get(rule) ?? rule, reasons }));
+  const toVersion = (edge: StratificationEdge): StratificationEdge => ({
+    ...edge,
+    from: versionOf.get(edge.from) ?? edge.from,
+    to: versionOf.get(edge.to) ?? edge.to,
+  });
+  return {
+    ...cycle,
+    rules,
+    // Unlike `collapseEdges`, a version reading itself stays: inside a cycle it
+    // may be the very dependency that closes the loop.
+    edges: cycle.edges.map(toVersion),
+    witness: cycle.witness.map(toVersion),
+    ...(runOnce ? { runOnce } : {}),
+  };
 }
 
 /** Collapse per-rule edges to per-version edges, merging duplicates. */

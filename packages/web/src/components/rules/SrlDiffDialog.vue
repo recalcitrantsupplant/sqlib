@@ -1,22 +1,35 @@
 <template>
   <Dialog :open="open" @update:open="(value) => emit('update:open', value)">
-    <DialogContent class="max-w-2xl">
+    <DialogContent class="srl-diff-dialog" data-testid="srl-diff-dialog">
       <DialogHeader>
-        <DialogTitle>Pending changes</DialogTitle>
-        <DialogDescription>
-          What saving this document would do to the rules and data blocks of this rule set.
-          Nothing is deleted: a rule the document no longer contains is detached from this rule set
-          only.
+        <DialogTitle>{{ leftLabel }} → {{ rightLabel }}</DialogTitle>
+        <DialogDescription class="sr-only">
+          The rule set document, {{ leftLabel }} on the left and {{ rightLabel }} on the right.
         </DialogDescription>
       </DialogHeader>
 
-      <div class="preview-body">
-        <p v-if="loading" class="muted">Working out what would change…</p>
-        <p v-else-if="error" class="error">{{ error }}</p>
+      <p v-if="textError" class="error">{{ textError }}</p>
+      <p v-else-if="leftText === null || rightText === null" class="muted">Loading…</p>
+      <SparqlDiffViewer
+        v-else
+        :left-query="leftText"
+        :right-query="rightText"
+        :left-label="leftLabel"
+        :right-label="rightLabel"
+        content-type="application/srl"
+        height="60vh"
+      />
+
+      <!--
+        What saving the draft would do to the rule set's parts — only when
+        something is being compared against a draft, and only when there is
+        something to say. The text diff above is the answer to "what changed";
+        this is the one thing it cannot show: which rules end up detached.
+      -->
+      <div v-if="error || (result && !isNoOp)" class="preview-body" data-testid="srl-save-impact">
+        <p v-if="error" class="error">{{ error }}</p>
         <template v-else-if="result">
-          <p v-if="isNoOp" class="muted">
-            No changes — {{ unchangedTotal }} part{{ unchangedTotal === 1 ? '' : 's' }} unchanged.
-          </p>
+          <SectionLabel>On save</SectionLabel>
 
           <ul v-if="result.warnings.length" class="list warnings">
             <li v-for="(warning, index) in result.warnings" :key="`w${index}`">⚠ {{ warning }}</li>
@@ -70,12 +83,13 @@
 
 <script setup lang="ts">
 /**
- * The SRL import's dry run.
+ * The rules editor's Diff: two versions of the document side by side, the same
+ * merge view the query editor diffs with.
  *
- * It used to sit under the editor as an always-present section; it is a
- * question you ask once, just before saving a rule set that already has
- * versions, so it is a dialog reached from the save bar's ⋮ menu. A draft
- * has nothing to compare against and never opens it.
+ * Against a draft it also carries the SRL import's dry run, cut down to the
+ * rows that say something — which rules saving would create or detach. That
+ * used to be the whole dialog, and a document with no edits got a paragraph of
+ * preamble and "No changes" instead of a diff.
  */
 import { computed } from 'vue';
 import Dialog from '../ui/dialog/Dialog.vue';
@@ -83,12 +97,20 @@ import DialogContent from '../ui/dialog/DialogContent.vue';
 import DialogDescription from '../ui/dialog/DialogDescription.vue';
 import DialogHeader from '../ui/dialog/DialogHeader.vue';
 import DialogTitle from '../ui/dialog/DialogTitle.vue';
+import SectionLabel from '../shared/SectionLabel.vue';
+import SparqlDiffViewer from '../shared/SparqlDiffViewer.vue';
 import type { RuleSetSrlPreview } from '@/composables/useApiClient';
 
 const props = defineProps<{
   open: boolean;
+  leftLabel: string;
+  rightLabel: string;
+  /** Null while that side is still being fetched. */
+  leftText: string | null;
+  rightText: string | null;
+  textError: string | null;
+  /** The save dry run; null where the right side is not a draft. */
   result: RuleSetSrlPreview | null;
-  loading: boolean;
   error: string | null;
 }>();
 
@@ -99,10 +121,6 @@ const emit = defineEmits<{
 const changed = computed(() => (props.result?.updated ?? []).filter((entry) => entry.changed));
 const dataCreated = computed(() => props.result?.data?.created ?? []);
 const dataDetached = computed(() => props.result?.data?.detached ?? []);
-
-const unchangedTotal = computed(
-  () => (props.result?.unchangedCount ?? 0) + (props.result?.data?.unchangedCount ?? 0),
-);
 
 const isNoOp = computed(
   () =>
@@ -136,13 +154,18 @@ const detachExplanation = (orphaned: boolean, otherRuleSets: number) =>
 </script>
 
 <style scoped>
+.srl-diff-dialog {
+  max-width: min(1200px, 92vw);
+}
+
 .preview-body {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  max-height: 60vh;
+  max-height: 20vh;
   overflow: auto;
 }
+
 
 .list {
   display: flex;

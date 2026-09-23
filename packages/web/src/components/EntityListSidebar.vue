@@ -595,7 +595,9 @@ const groupingEnabled = computed(() => taggingEnabled.value || originEnabled.val
 
 const grouping = computed<EntityListGrouping>(() => {
   const mode = settings.value.entityListGrouping;
-  if (mode === 'tag') return taggingEnabled.value ? 'tag' : 'none';
+  // Tag is the default, so a library with no tags yet must not read as one
+  // lone "Untagged" heading over everything.
+  if (mode === 'tag') return taggingEnabled.value && (props.tags?.length ?? 0) > 0 ? 'tag' : 'none';
   if (mode === 'origin') return originEnabled.value ? 'origin' : 'none';
   return 'none';
 });

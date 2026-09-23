@@ -1,5 +1,6 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
 import { mockSidebarCollections } from './fixtures/collections';
+import { API_HOST } from './api-origin';
 
 /**
  * Popping an editor out over the page, and running it from in there.
@@ -79,7 +80,7 @@ test.describe('Expanding an editor', () => {
 
   test('runs from inside the pop-out', async ({ page }) => {
     let executed: string | null = null;
-    await page.route('**//localhost:3000/sparql', async (route: Route) => {
+    await page.route(`**//${API_HOST}/sparql`, async (route: Route) => {
       executed = route.request().postDataJSON()?.query ?? null;
       await route.fulfill({
         status: 200,

@@ -1482,6 +1482,7 @@ export function analyzeSrlDocument(srl: string, tuples: boolean) {
       runOnce: {} as Record<string, boolean>,
       edges: [] as unknown[],
       issues: [] as string[],
+      cycles: [] as unknown[],
       strataCount: 0,
       negationCount: 0,
       runOnceCount: 0,
@@ -1508,7 +1509,7 @@ export function analyzeSrlDocument(srl: string, tuples: boolean) {
   // its author wrote rather than as a wall of full IRIs; stratification is run
   // after it, because identity there has to compare expanded IRIs.
   const names = ruleSet.rules.map((rule) => rule.name ?? null);
-  const labels = ruleSet.rules.map((rule, index) => headLabel(rule, index));
+  const labels = ruleSet.rules.map((rule) => headLabel(rule, lineAt(rule.span[0])));
   const wellFormedness = checkWellFormed(ruleSet);
 
   expandIris(ruleSet);
@@ -1545,6 +1546,20 @@ export function analyzeSrlDocument(srl: string, tuples: boolean) {
   ].sort((a, b) => a.startLine - b.startLine);
 
   const strataValues = Object.values(report.strata);
+  /*
+   * The ids above are keys for the client, not names for a reader: nothing in
+   * the editor says `rule-2`. Issue text is for a reader, so it names rules the
+   * way the document does — by their `RULE <iri>` name, or by where they are.
+   */
+  const ruleLine = new Map(blocks.filter((block) => block.kind === 'rule').map((block) => [block.id, block.startLine]));
+  const describeRule = (id: string) => {
+    const index = ruleIds.indexOf(id);
+    const line = ruleLine.get(id);
+    const name = index >= 0 ? names[index] : null;
+    if (name) return line ? `${name} (L${line})` : name;
+    return line ? `rule at L${line}` : id;
+  };
+  const issues = report.issues.map((issue) => issue.replace(/\brule-\d+\b/g, (id) => describeRule(id)));
   return {
     valid: true,
     error: null,
@@ -1556,12 +1571,15 @@ export function analyzeSrlDocument(srl: string, tuples: boolean) {
       monotonicity: report.monotonicity,
       runOnce: report.runOnce,
       edges: report.edges,
-      issues: report.issues,
+      issues,
+      cycles: report.cycles,
+      // Zero when the document does not stratify: the stratifier withholds a
+      // layering that does not exist rather than reporting where it gave up.
       strataCount: new Set(strataValues).size,
       negationCount: Object.values(report.monotonicity).filter((kind) => kind === 'negation').length,
       runOnceCount: Object.values(report.runOnce).filter(Boolean).length,
-      // Stratification only fails on a cycle through negation, which the
-      // stratifier reports as an issue rather than by refusing to produce strata.
+      // Stratification fails on a cycle through a negated or closed dependency;
+      // `cycles` says which rules and edges, and `strata` is then empty.
       stratified: report.issues.length === 0,
     },
     wellFormedness,
@@ -1594,19 +1612,26 @@ function lineIndexer(text: string): (offset: number) => number {
  * author-supplied `RULE <iri>` name wins where there is one, since that is
  * someone deliberately naming the thing.
  */
-function headLabel(rule: { name?: string; head: unknown; headTuples: unknown[]; headText: string }, index: number): string {
+function headLabel(rule: { name?: string; head: unknown; headTuples: unknown[]; headText: string }, line: number): string {
   if (rule.name) return rule.name;
-  const first = triplesOf(rule.head)[0] as { predicate?: AnyRecord } | undefined;
+  // The first plain triple: a head can open with `[ … ]` or `<< … >>`, which
+  // the parser keeps as a collection with no predicate of its own.
+  const first = triplesOf(rule.head).find((item) => (item as AnyRecord)?.type === 'triple') as
+    | { predicate?: AnyRecord }
+    | undefined;
   const predicate = first?.predicate;
   if (predicate && typeof predicate === 'object') {
     const value = String((predicate as AnyRecord).value ?? '');
     const prefix = (predicate as AnyRecord).prefix;
+    // A variable predicate is spelled as one, not as a bare word.
+    if ((predicate as AnyRecord).subType === 'variable' && value) return `?${value}`;
     if (typeof prefix === 'string') return `${prefix}:${value}`;
     if (value === RDF_TYPE) return 'a';
     if (value) return value;
   }
   if (rule.headTuples.length > 0) return 'TUPLE';
-  return `rule-${index + 1}`;
+  // Named by place, as the editor names it, never by an analysis id.
+  return `rule at L${line}`;
 }
 
 function triplesOf(bgp: unknown): unknown[] {
