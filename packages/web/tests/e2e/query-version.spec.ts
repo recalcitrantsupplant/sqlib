@@ -733,9 +733,13 @@ test.describe('Query Version', () => {
 
     const diff = page.locator('.panel-header__actions [data-testid="diff-query"]');
     await expect(diff).toBeVisible();
+    // No edits, reading current: the version before it against current.
+    await expect(diff).toHaveAttribute('title', 'Diff v1 → v2 (current)');
     await diff.click();
 
     await expect(page.locator('.sparql-diff-viewer')).toBeVisible();
+    await expect(page.locator('.sparql-diff-viewer')).toContainText('?v1');
+    await expect(page.locator('.sparql-diff-viewer')).toContainText('?v2');
   });
 
   test('Diff says so rather than doing nothing when there is one version', async ({ page }) => {
@@ -744,7 +748,23 @@ test.describe('Query Version', () => {
 
     const diff = page.locator('.panel-header__actions [data-testid="diff-query"]');
     await expect(diff).toBeDisabled();
-    await expect(diff).toHaveAttribute('title', 'Nothing to diff yet — there is one version');
+    await expect(diff).toHaveAttribute('title', 'Nothing to diff against');
+  });
+
+  test('with edits, Diff compares the draft against the version it was made on', async ({ page }) => {
+    seedOneVersion();
+    await openQuery(page);
+    await typeQuery(page, 'SELECT ?edited WHERE { ?s ?p ?o }');
+
+    const diff = page.locator('.panel-header__actions [data-testid="diff-query"]');
+    await expect(diff).toBeEnabled();
+    await expect(diff).toHaveAttribute('title', 'Diff v1 (current) → Draft');
+    await diff.click();
+
+    const viewer = page.locator('.sparql-diff-viewer');
+    await expect(viewer).toBeVisible();
+    await expect(viewer).toContainText('?edited');
+    await expect(viewer).toContainText('SELECT * WHERE');
   });
 
   test('there is no Edit-details dialog left to open, and no menu either', async ({ page }) => {

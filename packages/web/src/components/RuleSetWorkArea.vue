@@ -138,7 +138,7 @@
               type="button"
               data-testid="diff-query"
               :disabled="!diffPlan"
-              :title="diffPlan ? `Diff ${diffPlan.left.label} → ${diffPlan.right.label}` : 'Nothing to diff against'"
+              :title="diffPlan ? `Diff ${diffPlan.left.label} → ${diffPlan.right.label}` : NOTHING_TO_DIFF"
               @click="openDiff"
             >
               <GitCompare :size="13" />
@@ -278,6 +278,7 @@ import { NO_ARGUMENTS_IRI, emptySettings } from '../lib/benchmarkPlan';
 import type { InputSource } from './rules/RuleSetInputsPanel.vue';
 import type { StratificationPanelNode } from './rules/StratificationPanel.vue';
 import SrlDiffDialog from './rules/SrlDiffDialog.vue';
+import { NOTHING_TO_DIFF, planVersionDiff, type DiffPlan, type DiffPlanSide } from '../lib/versionDiff';
 import type { DataGraphFormat, DataGraphOption, TupleSetOption } from '@/types/data-graphs';
 import { useRuleSetsStore } from '../composables/useRuleSetsStore';
 import { useBenchmarksStore } from '../composables/useBenchmarksStore';
@@ -1078,31 +1079,15 @@ async function saveScratch() {
 
 // --- Diff -------------------------------------------------------------------
 
-/*
- * What the Diff button compares, decided from what is on screen:
- *
- * - edits: the version they were made on → the draft;
- * - no edits, reading an older version: that version → current;
- * - no edits, reading current: the version before it → current;
- * - one version and no edits: nothing, and the button says so.
- */
-type DiffSide = { label: string; version: number | null; draft: boolean };
-
-const diffPlan = computed<{ left: DiffSide; right: DiffSide } | null>(() => {
+/* What the Diff button compares — the one rule every versioned editor uses. */
+const diffPlan = computed<DiffPlan | null>(() => {
   if (isScratch.value || !ruleSetIdValue.value) return null;
-  const open = selectedVersionNumber.value;
-  const current = currentVersionNumberForDisplay.value;
-  const label = (version: number | null) =>
-    version === null ? 'Saved' : `v${version}${version === current ? ' (current)' : ''}`;
-  if (!documentMatchesVersion()) {
-    return { left: { label: label(open), version: open, draft: false }, right: { label: 'Draft', version: null, draft: true } };
-  }
-  if (open !== null && current !== null && open !== current) {
-    return { left: { label: label(open), version: open, draft: false }, right: { label: label(current), version: current, draft: false } };
-  }
-  const previous = versionOptions.value.find((option) => current !== null && option.version < current)?.version ?? null;
-  if (previous === null || current === null) return null;
-  return { left: { label: label(previous), version: previous, draft: false }, right: { label: label(current), version: current, draft: false } };
+  return planVersionDiff({
+    hasEdits: !documentMatchesVersion(),
+    open: selectedVersionNumber.value,
+    current: currentVersionNumberForDisplay.value,
+    versions: versionOptions.value.map((option) => option.version),
+  });
 });
 
 const diffLeft = ref<{ label: string; text: string | null }>({ label: '', text: null });
@@ -1113,7 +1098,7 @@ const previewError = ref<string | null>(null);
 let diffSeq = 0;
 
 /** A side's text: the draft and the open version are already on screen; anything else is fetched. */
-async function diffText(id: string, side: DiffSide): Promise<string> {
+async function diffText(id: string, side: DiffPlanSide): Promise<string> {
   if (side.draft) return srlDocument.value;
   if (side.version === selectedVersionNumber.value) return loadedVersionDocument.value;
   const response = await apiClient.exportRuleSetSrl(id, { version: side.version, prologue: currentPrologue() });
