@@ -175,8 +175,8 @@ for (const theme of ['light', 'dark'] as const) {
      */
     const boot = async (page: Page, options: SetupMockApiOptions = {}, state: MockState = healthyGroupState()) => {
       await setupMockApi(page, state, options);
-      await page.goto('/');
-      await page.waitForLoadState('networkidle');
+      await page.goto('/', { waitUntil: 'domcontentloaded' });
+      await expect(page.locator('.app-layout').first()).toBeVisible();
     };
 
     test.beforeEach(async ({ page }) => {

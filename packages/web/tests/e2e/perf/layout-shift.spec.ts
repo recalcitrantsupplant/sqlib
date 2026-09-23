@@ -116,7 +116,7 @@ const SCREENS: Screen[] = [
   { name: 'queries section', url: '/?section=queries', ready: '[data-testid="entity-list-sidebar"]', cls: 0.02 },
   { name: 'rules section', url: '/?section=rules', ready: '[data-testid="entity-list-sidebar"]', cls: 0.02 },
   { name: 'benchmarks section', url: '/?section=benchmarks', ready: '[data-testid="entity-list-sidebar"]', cls: 0.02 },
-  { name: 'library notebook', url: '/library', ready: '.page-header', cls: 0.02 },
+  { name: 'notebook', url: '/notebook', ready: '.page-header', cls: 0.02 },
   /*
    * Higher than the rest, and honestly so: the callable table renders its rows
    * after two requests per callable, and the config sections below it move

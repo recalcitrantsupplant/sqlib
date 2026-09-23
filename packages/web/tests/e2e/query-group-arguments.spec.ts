@@ -246,8 +246,8 @@ test.describe('Query group arguments (mocked)', () => {
 
     // A reload throws the whole client away, drafts included — what the
     // switcher offers now is what the server holds and nothing else.
-    await page.reload();
-    await page.waitForLoadState('networkidle');
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.app-layout').first()).toBeVisible();
     await openGroupArguments(page);
 
     await chooseSavedSet(page, 'Untitled set');

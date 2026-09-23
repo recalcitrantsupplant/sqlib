@@ -123,8 +123,8 @@ async function bootstrap(page: Page, tests: unknown[] = TESTS, path = '/') {
     return found ? json(route, found) : route.fulfill({ status: 404, body: '{}' });
   });
 
-  await page.goto(path);
-  await page.waitForLoadState('networkidle');
+  await page.goto(path, { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('.app-layout').first()).toBeVisible();
 }
 
 const testsTab = (page: Page) => page.getByTestId('tests-tab');

@@ -10,10 +10,10 @@ test.describe('Smoke Tests', () => {
   });
 
   test('should load the main page without errors', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
 
-    // Wait for page to be ready
-    await page.waitForLoadState('networkidle');
+    // Wait for the app to render, rather than for the network to fall idle.
+    await expect(page.locator('.app-layout').first()).toBeVisible();
 
     // Check that we're on a valid page (not a 404 or error page)
     const url = page.url();
@@ -21,8 +21,7 @@ test.describe('Smoke Tests', () => {
   });
 
   test('should display the sidebar', async ({ page }) => {
-    await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
 
     // Check that layout exists
     const layout = page.locator('.app-layout').first();
@@ -42,8 +41,8 @@ test.describe('Smoke Tests', () => {
       consoleErrors.push(error.message);
     });
 
-    await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.app-layout').first()).toBeVisible();
 
     // Allow some time for any async errors
     await page.waitForTimeout(1000);

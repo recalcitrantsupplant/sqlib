@@ -13,7 +13,7 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
-import SaveAsTestDialog from '@/components/library-notebook/SaveAsTestDialog.vue';
+import SaveAsTestDialog from '@/components/notebook/SaveAsTestDialog.vue';
 
 const LIBRARY = 'urn:sqlib:library:lib1';
 const QUERY = 'urn:sqlib:query:q1';

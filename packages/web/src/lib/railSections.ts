@@ -1,14 +1,19 @@
 /**
  * The nav rail's sections, and what each one scopes the artifact tree to.
  *
- * Order is the v2 mockup's, with Library ahead of it: the library's front page,
- * then the library-scoped sections that drill down from it, then Build, then
- * a divider, then Backends. Backends is account-level — libraries point at
+ * Order is the v2 mockup's, with Notebook ahead of it: the library's front
+ * page, then the library-scoped sections that drill down from it, then Build,
+ * then a divider, then Backends. Backends is account-level — libraries point at
  * connections rather than containing them — and the divider says so without a
  * word of explanation.
  *
- * `library` and `build` are the odd ones out among the rest: they are screens
- * (`/library`, `/build`), not scopes, and they render without the tree at all —
+ * Notebook took that first slot from a `library` screen that rendered every
+ * query in the library as a cell, unasked. One screen answers both questions
+ * now: the library's contents are what you import into a notebook, and the
+ * notebook is what someone reads. See `docs/proposals/notebook-cells.md`.
+ *
+ * `notebooks` and `build` are the odd ones out among the rest: they are screens
+ * (`/notebook`, `/build`), not scopes, and they render without the tree at all —
  * inside either the scope is the whole library, so a per-type navigator would
  * only duplicate the rail.
  *
@@ -21,7 +26,7 @@
  * transitional: the rail is opt-in until every screen has an entry.
  */
 export const RAIL_SECTIONS = [
-  'library',
+  'notebooks',
   'queries',
   'queryGroups',
   'rules',
@@ -40,12 +45,12 @@ export type RailSection = (typeof RAIL_SECTIONS)[number];
 /**
  * The sections that are screens rather than tree scopes.
  *
- * `build` was the first; `library` is the second. Both render the whole library
- * at once with no per-type navigator, and both live at their own route, so
+ * `build` was the first, `notebooks` the second. Each renders the whole library
+ * at once with no per-type navigator, and each lives at its own route, so
  * neither has a scoping entry in the maps below — the `Exclude` keeps that a
  * type error rather than a dead entry somebody has to invent a value for.
  */
-export const SCREEN_SECTIONS = ['library', 'build'] as const;
+export const SCREEN_SECTIONS = ['notebooks', 'build'] as const;
 
 export type ScreenSection = (typeof SCREEN_SECTIONS)[number];
 
@@ -55,7 +60,7 @@ export function isScreenSection(section: RailSection): section is ScreenSection 
 
 /** Where a screen section lives. Every other section is a query on `/`. */
 export const SCREEN_SECTION_PATHS: Record<ScreenSection, string> = {
-  library: '/library',
+  notebooks: '/notebook',
   build: '/build',
 };
 

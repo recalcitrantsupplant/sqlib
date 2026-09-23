@@ -282,8 +282,8 @@ test.describe('Query group dynamic query nodes (mocked)', () => {
      * response leaves the reloaded node with a QUERY_ID edge pointing at
      * nothing, which reads on the canvas as an edge the author drew wrong.
      */
-    await page.reload();
-    await page.waitForLoadState('networkidle');
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.locator('.app-layout').first()).toBeVisible();
     await openGroupCanvas(page);
     await selectQueryNode(page, dynamicNodeId);
     await expect(editor(page).locator('.panel-header__title')).toHaveText('Dynamic Query Node');
