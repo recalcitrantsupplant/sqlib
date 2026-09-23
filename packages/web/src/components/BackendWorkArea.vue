@@ -1496,7 +1496,7 @@ function relativeTime(iso: string): string {
   display: flex;
   flex-direction: column;
   gap: var(--space-7);
-  max-width: 640px;
+  max-width: 720px;
 }
 
 .record-column {
@@ -1513,7 +1513,12 @@ function relativeTime(iso: string): string {
   min-width: 0;
 }
 
-@container (min-width: 1060px) {
+/*
+ * 720 + 32 + 360 = 1112, and then the 28px of slack the old 1060 kept over the
+ * 640-wide column it was written for. The threshold is the row's own arithmetic
+ * rather than a round number, so widening a column means moving this too.
+ */
+@container (min-width: 1140px) {
   .record-split {
     flex-direction: row;
     align-items: flex-start;
@@ -1521,10 +1526,16 @@ function relativeTime(iso: string): string {
     max-width: none;
   }
 
-  /* Fixed, not fluid: a wider settings column only stretches the endpoint
-     field, and a 1900px endpoint field is worse than a short one. */
+  /*
+   * Fixed, not fluid: a fluid settings column only stretches the endpoint
+   * field, and a 1900px endpoint field is worse than a short one. 720 rather
+   * than 640 because a browser backend's id — `urn:sqlib:browser-backend:`
+   * and a uuid, 62 characters — wrapped onto a second line at the narrower
+   * width, and an id broken mid-uuid is the one field here nobody can read
+   * across a line break.
+   */
   .record-column {
-    width: 640px;
+    width: 720px;
     flex-shrink: 0;
   }
 
