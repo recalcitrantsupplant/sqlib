@@ -1639,6 +1639,7 @@ const detailsProps = computed(() => ({
     && queryCode.value.trim() !== (loadedVersionQueryString.value ?? '').trim(),
   detectedInputs: detectedInputs.value,
   detectedOutputs: detectedOutputs.value ?? [],
+  queryType: queryType.value,
   // One version is not a comparison, and a scratch query has no saved
   // versions to compare at all.
   canCompareVersions: !isScratch.value && versionOptions.value.length > 1,

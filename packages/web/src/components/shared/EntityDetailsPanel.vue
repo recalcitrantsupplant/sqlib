@@ -281,16 +281,40 @@
 
       <section v-if="showSignature" class="details-group">
         <div class="group-label">Signature</div>
-        <div class="signature-row">
+        <!--
+          Inputs keep the grouping detection already gives them: each VALUES
+          clause is one group, bound together row by row, so its variables sit
+          inside one outline. LIMIT and OFFSET are inputs of another kind and
+          say so with their keyword.
+        -->
+        <div class="signature-row" data-testid="signature-inputs">
           <span class="signature-label">Inputs</span>
-          <template v-if="inputVariables.length > 0">
-            <span v-for="variable in inputVariables" :key="variable" class="chip-mono">{{ variable }}</span>
+          <template v-if="hasInputs">
+            <span
+              v-for="(group, index) in valuesGroups"
+              :key="`values-${index}`"
+              class="input-group"
+              data-testid="signature-input-group"
+            >
+              <span v-for="variable in group" :key="variable" class="chip-mono">{{ variable }}</span>
+            </span>
+            <span
+              v-for="param in pageParameters"
+              :key="`${param.keyword}-${param.name}`"
+              class="chip-mono"
+              data-testid="signature-page-parameter"
+            >
+              <span class="chip-keyword">{{ param.keyword }}</span>{{ param.name }}
+            </span>
           </template>
           <span v-else class="signature-none">none</span>
         </div>
-        <div class="signature-row">
+        <div class="signature-row" data-testid="signature-outputs">
           <span class="signature-label">Outputs</span>
-          <template v-if="detectedOutputs.length > 0">
+          <em v-if="outputKind === 'none'" class="signature-none">None</em>
+          <span v-else-if="outputKind === 'graph'" class="chip-mono">RDF graph</span>
+          <span v-else-if="outputKind === 'boolean'" class="chip-mono">boolean</span>
+          <template v-else-if="detectedOutputs.length > 0">
             <span v-for="output in detectedOutputs" :key="output" class="chip-mono">{{ output }}</span>
           </template>
           <span v-else class="signature-none">none</span>
@@ -375,6 +399,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ChevronDown, ChevronUp, Copy, GitCompare, PencilLine, Trash2 } from '@lucide/vue';
 import { useCopyToClipboard } from '../../composables/useCopyToClipboard';
 import type { DetectInputsResponse } from '@sparql-query-lib/contracts';
+import { isBooleanQueryType, isGraphQueryType, isQueryTypeIri, isResultSetQueryType } from '@sparql-query-lib/types';
 import { formatRelativeTime, formatCompactAge, formatShortDate } from '../../lib/time';
 import EntityTagsField from '../tags/EntityTagsField.vue';
 import InlineNote from './InlineNote.vue';
@@ -405,6 +430,8 @@ const props = withDefaults(defineProps<{
   draftSelected: boolean;
   detectedInputs?: DetectInputsResponse | null;
   detectedOutputs?: string[];
+  /** The detected query type IRI; decides what the Outputs row lists. */
+  queryType?: string | null;
   /**
    * Which taggable kind this entity is, or absent where it is not one.
    *
@@ -451,6 +478,7 @@ const props = withDefaults(defineProps<{
   showSignature: true,
   detectedInputs: null,
   detectedOutputs: () => [],
+  queryType: null,
   taggableKind: null,
   canSetCurrentVersion: false,
   canAnnotateVersions: false,
@@ -678,16 +706,30 @@ const idLabel = computed(() => `${props.entityNoun.charAt(0).toUpperCase()}${pro
 
 const draftAge = computed(() => formatCompactAge(props.draftSavedAt) || 'just now');
 
-// VALUES tuples, limits and offsets are all inputs as far as a signature is
-// concerned; the detail of which kind each one is belongs on the Arguments tab.
-const inputVariables = computed(() => {
-  const detected = props.detectedInputs;
-  if (!detected) return [];
-  return [
-    ...(detected.valuesInputs ?? []).flat(),
-    ...(detected.limitParameters ?? []),
-    ...(detected.offsetParameters ?? []),
-  ];
+// Each VALUES clause is its own group of inputs: its variables are bound
+// together, a row at a time, which is why an argument set can carry more than
+// one set of bindings.
+const valuesGroups = computed(() => props.detectedInputs?.valuesInputs ?? []);
+
+const pageParameters = computed(() => [
+  ...(props.detectedInputs?.limitParameters ?? []).map((name) => ({ keyword: 'LIMIT', name })),
+  ...(props.detectedInputs?.offsetParameters ?? []).map((name) => ({ keyword: 'OFFSET', name })),
+]);
+
+const hasInputs = computed(() => valuesGroups.value.length > 0 || pageParameters.value.length > 0);
+
+/*
+ * What a query hands back follows from its form: SELECT its variables, ASK a
+ * boolean, CONSTRUCT and DESCRIBE a graph, and an update nothing at all. An
+ * unknown type falls back to listing whatever variables were detected.
+ */
+const outputKind = computed<'variables' | 'boolean' | 'graph' | 'none'>(() => {
+  const type = props.queryType;
+  if (!type) return 'variables';
+  if (isBooleanQueryType(type)) return 'boolean';
+  if (isGraphQueryType(type)) return 'graph';
+  if (isResultSetQueryType(type)) return 'variables';
+  return isQueryTypeIri(type) ? 'none' : 'variables';
 });
 </script>
 
@@ -1142,6 +1184,22 @@ const inputVariables = computed(() => {
 .signature-none {
   color: var(--ink-muted);
   font-size: var(--text-body);
+}
+
+.input-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-full);
+}
+
+.chip-keyword {
+  margin-right: var(--space-2);
+  color: var(--ink-muted);
+  font-weight: var(--weight-semibold);
 }
 
 .chip-mono {
