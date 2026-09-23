@@ -62,12 +62,7 @@ test.describe('Grouping the sidebar by tag', () => {
   test('files a query under each of its tags, with the others as dots', async ({ page }) => {
     await openQueries(page);
 
-    // Flat until asked otherwise.
-    await expect(page.locator('[data-testid="saved-row"]')).toHaveCount(2);
-
-    await page.locator('[data-testid="group-by"]').click();
-    await page.locator('[data-testid="group-by-tag"]').click();
-
+    // Grouped by tag without being asked.
     await expect(page.locator('[data-testid="tag-group-urn:sqlib:tag:prod"]')).toBeVisible();
     await expect(page.locator('[data-testid="tag-group-urn:sqlib:tag:geo"]')).toBeVisible();
 
@@ -87,18 +82,21 @@ test.describe('Grouping the sidebar by tag', () => {
     await expect(copies.nth(0).locator('[data-testid="other-tag-dots"] [data-testid="tag-dot"]')).toHaveCount(1);
   });
 
-  test('collapses a group and keeps the choice across sections', async ({ page }) => {
+  test('collapses a group, and a flat choice survives a reload', async ({ page }) => {
     await openQueries(page);
-    await page.locator('[data-testid="group-by"]').click();
-    await page.locator('[data-testid="group-by-tag"]').click();
 
     await page.locator('[data-testid="tag-group-urn:sqlib:tag:geo"]').click();
     await expect(page.locator('[data-testid="saved-row"]').filter({ hasText: QUERY.name })).toHaveCount(1);
 
-    // The grouping is a setting, so it survives a reload rather than resetting
-    // to flat the moment you look away.
+    // Tag is only the default: turning it off is a setting, so it survives a
+    // reload rather than snapping back to grouped.
+    await page.locator('[data-testid="group-by"]').click();
+    await page.locator('[data-testid="group-by-none"]').click();
+    await expect(page.locator('[data-testid="tag-group-urn:sqlib:tag:prod"]')).toHaveCount(0);
+
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.waitForSelector('[data-testid="entity-list-sidebar"]');
-    await expect(page.locator('[data-testid="tag-group-urn:sqlib:tag:prod"]')).toBeVisible();
+    await expect(page.locator('[data-testid="saved-row"]')).toHaveCount(2);
+    await expect(page.locator('[data-testid="tag-group-urn:sqlib:tag:prod"]')).toHaveCount(0);
   });
 });

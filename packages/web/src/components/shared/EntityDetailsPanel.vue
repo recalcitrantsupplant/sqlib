@@ -218,6 +218,20 @@
             </button>
 
             <!--
+              The version's id, for the same reason the entity's id above has a
+              copy button: a caller pinning a version pastes this string, and
+              the row shows only the number people read.
+            -->
+            <button
+              class="copy-version-button"
+              data-testid="copy-version-id"
+              :title="`Copy v${option.label}'s version id`"
+              @click.stop="copyVersionId(option)"
+            >
+              <Copy :size="13" />
+            </button>
+
+            <!--
               Against *current*, with no picker: the comparison anyone wants
               from a version list is "what changed since what callers get".
             -->
@@ -359,6 +373,7 @@ export interface DetailsBackendOption {
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { ChevronDown, ChevronUp, Copy, GitCompare, PencilLine, Trash2 } from '@lucide/vue';
+import { useCopyToClipboard } from '../../composables/useCopyToClipboard';
 import type { DetectInputsResponse } from '@sparql-query-lib/contracts';
 import { formatRelativeTime, formatCompactAge, formatShortDate } from '../../lib/time';
 import EntityTagsField from '../tags/EntityTagsField.vue';
@@ -459,6 +474,12 @@ const emit = defineEmits<{
 }>();
 
 const nameInput = ref<HTMLInputElement | null>(null);
+
+const { copyToClipboard } = useCopyToClipboard();
+
+function copyVersionId(option: DetailsVersionOption) {
+  copyToClipboard(option.value, `Copied v${option.label}'s version id`);
+}
 
 /*
  * The version note, edited in place on its row.
@@ -961,11 +982,31 @@ const inputVariables = computed(() => {
 }
 
 .version-row:hover .note-button,
-.note-button:focus-visible {
+.note-button:focus-visible,
+.version-row:hover .copy-version-button,
+.copy-version-button:focus-visible {
   opacity: 1;
 }
 
-.note-button:hover {
+/* Drawn like the pencil: an id is wanted rarely, and only once you are on the row. */
+.copy-version-button {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--ink-muted);
+  opacity: 0;
+  cursor: pointer;
+}
+
+.note-button:hover,
+.copy-version-button:hover {
   background: var(--surface-raised);
   color: var(--action);
 }

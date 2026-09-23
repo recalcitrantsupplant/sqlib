@@ -500,6 +500,22 @@ test.describe('Query Version', () => {
     await expect(page.locator('.cm-content')).toContainText('SELECT ?pinned');
   });
 
+  test('each version row copies its own version id', async ({ page, context }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    seedOneVersion();
+    await openQuery(page);
+    await page.locator('[data-testid="details-tab"]').click();
+
+    const row = page.locator('[data-testid="version-row"]').first();
+    await row.hover();
+    await row.locator('[data-testid="copy-version-id"]').click();
+
+    await expect(page.getByText(/Copied v1's version id/)).toBeVisible();
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(versionIri(1));
+    // Copying is not opening: the row's own click must not fire.
+    await expect(row).toHaveClass(/current/);
+  });
+
   /*
    * Details is the only place identity lives now. It used to be in two: the
    * metadata panel above the editor, whose Edit dialog saved, and the Details
