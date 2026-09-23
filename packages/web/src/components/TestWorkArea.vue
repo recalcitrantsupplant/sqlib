@@ -2004,7 +2004,16 @@ async function loadDataGraphOptions() {
 async function loadTest(id: string) {
   hydratingRecord.value = true;
   try {
-    const { data } = await apiClient.getTest(id);
+    /*
+     * Both reads before any assignment, so the header and the body land in the
+     * same tick. Setting `subject` first and awaiting the versions after it
+     * rendered a frame with a subject over the blank placeholder case — which
+     * flashed "Every case needs an expected result." on every open.
+     */
+    const [{ data }, versions] = await Promise.all([
+      apiClient.getTest(id),
+      testsStore.loadVersions(id),
+    ]);
     testName.value = data.name;
     testDescription.value = data.description ?? '';
     testCreatedAt.value = (data as { dateCreated?: string | null }).dateCreated ?? null;
@@ -2012,7 +2021,6 @@ async function loadTest(id: string) {
     subjectKind.value = data.subjectKind as SubjectKind;
     testLibraryId.value = (data as { isPartOf?: string[] }).isPartOf?.[0] ?? null;
 
-    const versions = await testsStore.loadVersions(id);
     testVersions.value = versions;
     const current = versions.find((version) => version.id === data.currentVersion) ?? versions.at(-1);
     currentVersionId.value = data.currentVersion ?? current?.id ?? null;

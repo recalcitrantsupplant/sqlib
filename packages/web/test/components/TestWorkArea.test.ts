@@ -374,6 +374,42 @@ describe('TestWorkArea', () => {
     expect(area.get('[data-testid="save"]').attributes('disabled')).toBeDefined();
   });
 
+  /*
+   * Opening a saved test read the record, set its subject, and only then read
+   * the versions — so for the length of that second request the subject sat
+   * over the blank placeholder case and the page flashed "Every case needs an
+   * expected result." about a case nobody wrote.
+   */
+  it('never flashes save problems while a saved test is still loading', async () => {
+    api.getTest.mockResolvedValue({
+      data: {
+        id: 'urn:sqlib:test:t1',
+        name: 'Reaches',
+        subject: 'urn:sqlib:ruleset:rs1',
+        subjectKind: 'ruleSet',
+        currentVersion: 'urn:sqlib:test-version:v1',
+        isPartOf: ['urn:sqlib:library:lib1'],
+      },
+    });
+    let resolveVersions!: (versions: unknown[]) => void;
+    store.loadVersions.mockReturnValue(new Promise((resolve) => { resolveVersions = resolve; }));
+
+    const area = mount(TestWorkArea, { props: { testId: 'urn:sqlib:test:t1', scratchId: null } });
+    await flushPromises();
+    expect(area.find('[data-testid="test-save-problems"]').exists()).toBe(false);
+
+    resolveVersions([{
+      id: 'urn:sqlib:test-version:v1',
+      version: 1,
+      expectationKind: 'graph',
+      subjectVersion: null,
+      backend: null,
+      cases: [{ name: null, expected: '<http://example/a> <http://example/reaches> <http://example/b> .', expectedFormat: 'text/turtle', ordered: null }],
+    }]);
+    await flushPromises();
+    expect(area.find('[data-testid="test-save-problems"]').exists()).toBe(false);
+  });
+
 });
 
 /*
