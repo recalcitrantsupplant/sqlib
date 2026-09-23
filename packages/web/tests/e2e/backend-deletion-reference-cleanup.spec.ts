@@ -364,9 +364,8 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
 
     // The backend's own record, which is where deleting one happens since
     // the artifact tree went: pick it in the Backends sidebar, then Delete
-    // backend in the record's overflow menu.
+    // backend at the foot of the record.
     await openBackendRecord(page, 'Test Backend 1');
-    await page.locator('[data-testid="backend-overflow"]').click();
     await page.locator('[data-testid="delete-backend"]').click();
 
     // Wait for confirmation dialog to appear
@@ -434,7 +433,6 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
     // The backend's own record, which is where deleting one happens since
     // the artifact tree went.
     await openBackendRecord(page, 'Unused Backend');
-    await page.locator('[data-testid="backend-overflow"]').click();
     await page.locator('[data-testid="delete-backend"]').click();
 
     // Wait for confirmation dialog
@@ -466,7 +464,6 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
     // The backend's own record, which is where deleting one happens since
     // the artifact tree went.
     await openBackendRecord(page, 'Test Backend 2');
-    await page.locator('[data-testid="backend-overflow"]').click();
     await page.locator('[data-testid="delete-backend"]').click();
 
     // Wait for dialog
@@ -537,9 +534,8 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
     // Step 3: Delete the backend
     // The backend's own record, which is where deleting one happens since
     // the artifact tree went: pick it in the Backends sidebar, then Delete
-    // backend in the record's overflow menu.
+    // backend at the foot of the record.
     await openBackendRecord(page, 'Test Backend 1');
-    await page.locator('[data-testid="backend-overflow"]').click();
     await page.locator('[data-testid="delete-backend"]').click();
 
     // Wait for confirmation dialog
@@ -595,9 +591,8 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
     // Expand backends section if not already expanded
     // The backend's own record, which is where deleting one happens since
     // the artifact tree went: pick it in the Backends sidebar, then Delete
-    // backend in the record's overflow menu.
+    // backend at the foot of the record.
     await openBackendRecord(page, 'Test Backend 2');
-    await page.locator('[data-testid="backend-overflow"]').click();
     await page.locator('[data-testid="delete-backend"]').click();
 
     // Wait for confirmation dialog
@@ -674,9 +669,8 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
     // Delete backend 1
     // The backend's own record, which is where deleting one happens since
     // the artifact tree went: pick it in the Backends sidebar, then Delete
-    // backend in the record's overflow menu.
+    // backend at the foot of the record.
     await openBackendRecord(page, 'Test Backend 1');
-    await page.locator('[data-testid="backend-overflow"]').click();
     await page.locator('[data-testid="delete-backend"]').click();
 
     // Wait for confirmation dialog

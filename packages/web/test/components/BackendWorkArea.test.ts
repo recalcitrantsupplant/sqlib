@@ -434,6 +434,33 @@ describe('BackendWorkArea', () => {
   });
 
   /*
+   * Copy and Delete sat behind a ⋮ that had to be opened to find out it held
+   * one thing anybody wants and one nobody wants by accident. They are where
+   * every other record keeps them: the id beside a copy button in Identity,
+   * Delete at the foot. The confirm stays the page's dialog, which names what
+   * points at the backend — worth more than an in-place "are you sure".
+   */
+  describe('copy and delete, out of the overflow menu', () => {
+    it('shows the id with a copy button beside it', async () => {
+      const wrapper = await mountRecord();
+
+      expect(wrapper.find('[data-testid="backend-id"]').text()).toBe(backend.id);
+      expect(wrapper.find('[data-testid="copy-backend-id"]').exists()).toBe(true);
+      expect(wrapper.find('[data-testid="backend-overflow"]').exists()).toBe(false);
+    });
+
+    it('asks the page to delete, from the footer', async () => {
+      const wrapper = await mountRecord();
+
+      await wrapper.find('[data-testid="delete-backend"]').trigger('click');
+
+      expect(wrapper.emitted('delete-request')).toEqual([
+        [{ backendId: backend.id, backendName: backend.name }],
+      ]);
+    });
+  });
+
+  /*
    * A browser backend is registered in this browser and nowhere else, so every
    * edit on this screen has to go there. They all went to `PUT /backends/:id`,
    * which is a request about a record the server has never seen: a 404 where

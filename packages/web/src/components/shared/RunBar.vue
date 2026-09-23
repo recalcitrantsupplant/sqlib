@@ -133,7 +133,7 @@
               :value="option.value"
               class="backend-item"
             >
-              <span class="backend-label">{{ option.label }}</span>
+              <span v-fade-when-clipped class="backend-label">{{ option.label }}</span>
             </SelectItem>
             <InlineEndpointAdder @added="selectAddedBackend" />
           </SelectContent>
@@ -332,6 +332,28 @@ const { isEnabled } = useFeatureFlags();
  * Running still works — only keeping the recipe does not.
  */
 const deployment = useDeploymentMode();
+
+/**
+ * Mark a label that does not fit, so only those get the fade.
+ *
+ * A mask cannot ask whether the text it covers was clipped — it just fades the
+ * last few pixels of the box, which for a label that fits is the last few
+ * pixels of the *text*. That is how every row in the menu came to trail off,
+ * including the ones with room to spare. The measurement is the only thing
+ * that knows, so it is what sets the attribute the fade hangs off.
+ *
+ * One pixel of slack: `scrollWidth` and `clientWidth` are integers rounded
+ * from fractional layout, so an exactly-fitting label can report one more than
+ * the other and fade for nothing.
+ */
+const vFadeWhenClipped = {
+  mounted: markClipped,
+  updated: markClipped,
+};
+
+function markClipped(el: HTMLElement) {
+  el.toggleAttribute('data-clipped', el.scrollWidth > el.clientWidth + 1);
+}
 
 /*
  * Held here so adding an endpoint can close the menu.
@@ -665,10 +687,28 @@ const labelOf = (choice: RunBarChoice) =>
   max-width: calc(100vw - 32px);
 }
 
+/*
+ * `min-width: 0` is what makes the label below clip at all. Without it the row
+ * takes its content's width and simply overflows the menu, which the menu then
+ * hides — so a long URL was cut off at the edge while reporting that it fitted,
+ * and the fade had nothing to hang off.
+ */
 .backend-menu .backend-item {
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  width: 100%;
+  min-width: 0;
+}
+
+/*
+ * The row wraps its label in a span of its own (`SelectItemText`), and a flex
+ * item's `min-width` defaults to `auto` — so that wrapper grew to the text's
+ * full width, pushing the row past the menu, which hid the overflow. The label
+ * inside then reported that it fitted, because as far as it knew it did.
+ */
+.backend-menu .backend-item > span {
+  min-width: 0;
 }
 
 .backend-menu .backend-label {
@@ -676,6 +716,10 @@ const labelOf = (choice: RunBarChoice) =>
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
-  mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent 100%);
+}
+
+/* Only where the text is actually cut off — see `vFadeWhenClipped`. */
+.backend-menu .backend-label[data-clipped] {
+  mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
 }
 </style>

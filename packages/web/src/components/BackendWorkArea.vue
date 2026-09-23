@@ -175,21 +175,7 @@
           </StatusBadge>
           <span class="probe-summary" data-testid="backend-probe-summary">{{ probeSummary }}</span>
         </template>
-        <div class="header-actions">
-          <DropdownMenu>
-            <DropdownMenuTrigger as-child>
-              <button class="button button--icon" title="More" aria-label="More actions" data-testid="backend-overflow">
-                <MoreHorizontal :size="14" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem @select="copyId">Copy backend ID</DropdownMenuItem>
-              <DropdownMenuItem data-testid="delete-backend" @select="emit('delete-request', { backendId: backend.id, backendName: backend.name })">
-                Delete backend
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+
       </div>
 
       <!--
@@ -225,6 +211,20 @@
                   :readonly="!canEdit"
                   :commit="(value) => commitField('description', value)"
                 />
+
+                <!--
+                  The id, with the copy button next to it, which is where every
+                  other record puts it (`EntityDetailsPanel`). Behind a ⋮ it was
+                  a menu you had to open to find out what was in it, holding one
+                  thing anybody wants and one nobody wants by accident.
+                -->
+                <span class="field-name">Backend ID</span>
+                <div class="field-with-actions">
+                  <span class="field-value id-text" data-testid="backend-id">{{ backend.id }}</span>
+                  <button class="icon-button" title="Copy backend ID" aria-label="Copy backend ID" data-testid="copy-backend-id" @click="copyId">
+                    <Copy :size="12" />
+                  </button>
+                </div>
               </div>
             </section>
 
@@ -521,6 +521,26 @@
             </section>
           </aside>
         </div>
+
+        <!--
+          The one action that unmakes it, at the foot of the record — the place
+          every other record keeps its Delete, rather than behind a ⋮ that has
+          to be opened to find out what is in it.
+
+          It does not confirm here, as those do. The page answers this with a
+          dialog naming the libraries and queries pointing at the backend, and
+          that is worth more than an in-place "are you sure": it is the thing
+          you would have gone looking for before answering.
+        -->
+        <div class="record-footer" data-testid="backend-footer">
+          <button
+            class="delete-button"
+            data-testid="delete-backend"
+            @click="emit('delete-request', { backendId: backend.id, backendName: backend.name })"
+          >
+            <Trash2 :size="12" />Delete backend
+          </button>
+        </div>
       </div>
     </template>
 
@@ -582,8 +602,8 @@ import {
   Copy,
   ExternalLink,
   Minus,
-  MoreHorizontal,
   Plus,
+  Trash2,
   X,
 } from '@lucide/vue';
 import { toast } from 'vue-sonner';
@@ -1387,12 +1407,6 @@ function relativeTime(iso: string): string {
   cursor: default;
 }
 
-.button--icon {
-  width: var(--control-h);
-  padding: 0;
-  justify-content: center;
-}
-
 .button--primary {
   border-color: transparent;
   background: var(--action);
@@ -1407,6 +1421,53 @@ function relativeTime(iso: string): string {
 .button--primary:disabled {
   background: var(--border-strong);
   color: var(--ink-inverse);
+}
+
+/*
+ * The footer: the same band, the same quiet-red Delete and the same in-place
+ * confirm as every other record's (`EntityDetailsPanel`). Copied rather than
+ * shared because this screen's record is not that panel — what has to match is
+ * what it looks like and how it behaves, not where the markup lives.
+ */
+.record-footer {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--space-4);
+  box-sizing: border-box;
+  min-height: var(--panel-bar-h);
+  padding: var(--space-4) var(--space-5);
+  border-top: 1px solid var(--border-subtle);
+  background: var(--surface-subtle);
+}
+
+.delete-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: var(--control-h-sm);
+  margin-left: auto;
+  padding: 0 var(--space-4);
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--danger-active);
+  font-family: inherit;
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+}
+
+.delete-button:hover {
+  background: var(--danger-surface);
+  color: var(--danger-ink);
+}
+
+/* An id wraps rather than pushing the copy button off the row. */
+.id-text {
+  min-width: 0;
+  font-family: var(--font-mono);
+  word-break: break-all;
 }
 
 .record-body {
