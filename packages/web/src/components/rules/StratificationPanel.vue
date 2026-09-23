@@ -180,14 +180,14 @@ const cycleViews = computed(() =>
 const fixHints = computed(() => {
   const hints: string[] = [];
   if (props.cycles.some((cycle) => cycle.kind === 'negation')) {
-    hints.push('Remove or rewrite one NOT on the cycle — breaking any one of these dependencies breaks the cycle.');
+    hints.push('Remove or rewrite one NOT on the cycle. Breaking any one of these dependencies breaks the cycle.');
     hints.push('If a NOT is meant to test only the input data, write it as NOT DATA { … }. It then reads the '
       + 'ground graph, which no rule writes, and depends on no rule.');
-    hints.push('Narrow a pattern so it stops matching the other rule\'s head — a constant, or a different '
-      + 'predicate, where it now has a free variable.');
+    hints.push('Narrow a pattern so it stops matching the other rule\'s head, for example by using a constant '
+      + 'or a different predicate where it now has a free variable.');
   }
   if (props.cycles.some((cycle) => cycle.kind === 'run-once')) {
-    hints.push('Have the run-once rule read only what nothing on the cycle writes — or, if it need not run once, '
+    hints.push('Have the run-once rule read only what nothing on the cycle writes. If it need not run once, '
       + 'drop the blank node or SET that makes it run-once.');
   }
   return hints;

@@ -1667,7 +1667,7 @@ function tupleSeedsForRun(): string | null {
 const runDisabledReason = computed<string | null>(() => {
   if (!hasDocument.value) return 'Write a rule set first';
   if (analysis.value?.valid && stratification.value?.stratified === false) {
-    return 'This rule set does not stratify, so it cannot be run — see the Stratification tab';
+    return 'This rule set does not stratify, so it cannot be run. See the Stratification tab.';
   }
   return null;
 });
@@ -1678,7 +1678,7 @@ async function run() {
     return;
   }
   if (runDisabledReason.value) {
-    toast.error(`${runDisabledReason.value}.`);
+    toast.error(runDisabledReason.value);
     focusTab('stratification');
     return;
   }

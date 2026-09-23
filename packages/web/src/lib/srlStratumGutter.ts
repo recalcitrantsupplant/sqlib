@@ -81,7 +81,7 @@ class BandMarker extends GutterMarker {
     if (this.band.inCycle) {
       element.classList.add('cm-stratum-cycle');
       element.textContent = this.first ? '⊘' : '';
-      element.title = `${this.band.label} · on a dependency cycle — the rule set does not stratify`;
+      element.title = `${this.band.label} · on a dependency cycle, so the rule set does not stratify`;
       return element;
     }
     element.style.backgroundColor =

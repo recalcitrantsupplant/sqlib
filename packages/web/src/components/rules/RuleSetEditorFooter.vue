@@ -22,7 +22,7 @@
       v-if="!stratified"
       class="strata-chip unstratified"
       data-testid="strata-chip"
-      title="This rule set does not stratify — show the Stratification tab"
+      title="This rule set does not stratify. Show the Stratification tab."
       @click="emit('focus-stratification')"
     >
       <CircleSlash :size="12" />
