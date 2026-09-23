@@ -1,5 +1,6 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
 import { mockSidebarCollections } from './fixtures/collections';
+import { API_HOST } from './api-origin';
 
 /**
  * Editor syntax highlighting follows the app theme, and uses the RDF tokens.
@@ -68,10 +69,10 @@ test.describe('Editor syntax highlighting', () => {
     await page.addInitScript(() => {
       window.localStorage.setItem('sparql-query-lib-scratch-migrated', '2026-08-06T00:00:00Z');
     });
-    await page.route('**//localhost:3000/libraries', async (route: Route) => {
+    await page.route(`**//${API_HOST}/libraries`, async (route: Route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([LIBRARY]) });
     });
-    await page.route('**//localhost:3000/queries', async (route: Route) => {
+    await page.route(`**//${API_HOST}/queries`, async (route: Route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) });
     });
 

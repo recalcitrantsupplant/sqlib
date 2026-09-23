@@ -137,10 +137,9 @@
               class="editor-action"
               type="button"
               data-testid="diff-query"
-              :title="currentVersionNumberForDisplay
-                ? `Diff draft vs v${currentVersionNumberForDisplay}`
-                : 'Diff draft'"
-              @click="openPreview"
+              :disabled="!diffPlan"
+              :title="diffPlan ? `Diff ${diffPlan.left.label} → ${diffPlan.right.label}` : NOTHING_TO_DIFF"
+              @click="openDiff"
             >
               <GitCompare :size="13" />
             </button>
@@ -236,10 +235,14 @@
       />
     </div>
 
-    <SrlPreviewDialog
+    <SrlDiffDialog
       v-model:open="showPreviewDialog"
+      :left-label="diffLeft.label"
+      :right-label="diffRight.label"
+      :left-text="diffLeft.text"
+      :right-text="diffRight.text"
+      :text-error="diffTextError"
       :result="previewResult"
-      :loading="previewLoading"
       :error="previewError"
     />
 
@@ -275,7 +278,8 @@ import type { CreateTarget, RunBarPick } from '../lib/runBar';
 import { NO_ARGUMENTS_IRI, emptySettings } from '../lib/benchmarkPlan';
 import type { InputSource } from './rules/RuleSetInputsPanel.vue';
 import type { StratificationPanelNode } from './rules/StratificationPanel.vue';
-import SrlPreviewDialog from './rules/SrlPreviewDialog.vue';
+import SrlDiffDialog from './rules/SrlDiffDialog.vue';
+import { NOTHING_TO_DIFF, planVersionDiff, type DiffPlan, type DiffPlanSide } from '../lib/versionDiff';
 import type { DataGraphFormat, DataGraphOption, TupleSetOption } from '@/types/data-graphs';
 import { useRuleSetsStore } from '../composables/useRuleSetsStore';
 import { useBenchmarksStore } from '../composables/useBenchmarksStore';
@@ -1118,33 +1122,69 @@ async function saveScratch() {
   }
 }
 
-// --- Preview ----------------------------------------------------------------
+// --- Diff -------------------------------------------------------------------
 
+/* What the Diff button compares — the one rule every versioned editor uses. */
+const diffPlan = computed<DiffPlan | null>(() => {
+  if (isScratch.value || !ruleSetIdValue.value) return null;
+  return planVersionDiff({
+    hasEdits: !documentMatchesVersion(),
+    open: selectedVersionNumber.value,
+    current: currentVersionNumberForDisplay.value,
+    versions: versionOptions.value.map((option) => option.version),
+  });
+});
+
+const diffLeft = ref<{ label: string; text: string | null }>({ label: '', text: null });
+const diffRight = ref<{ label: string; text: string | null }>({ label: '', text: null });
+const diffTextError = ref<string | null>(null);
 const previewResult = ref<RuleSetSrlPreview | null>(null);
-const previewLoading = ref(false);
 const previewError = ref<string | null>(null);
+let diffSeq = 0;
 
-async function openPreview() {
-  showPreviewDialog.value = true;
+/** A side's text: the draft and the open version are already on screen; anything else is fetched. */
+async function diffText(id: string, side: DiffPlanSide): Promise<string> {
+  if (side.draft) return srlDocument.value;
+  if (side.version === selectedVersionNumber.value) return loadedVersionDocument.value;
+  const response = await apiClient.exportRuleSetSrl(id, { version: side.version, prologue: prologueFor(id) });
+  return response.srl;
+}
+
+async function openDiff() {
+  const plan = diffPlan.value;
+  const id = ruleSetIdValue.value;
+  if (!plan || !id) return;
+  const seq = ++diffSeq;
+  diffLeft.value = { label: plan.left.label, text: null };
+  diffRight.value = { label: plan.right.label, text: null };
+  diffTextError.value = null;
   previewResult.value = null;
   previewError.value = null;
-  const id = ruleSetIdValue.value;
-  if (!id) {
-    previewError.value = 'Nothing to compare against yet — this rule set has no versions.';
-    return;
-  }
-  previewLoading.value = true;
-  try {
-    previewResult.value = await apiClient.previewRuleSetSrl(
+  showPreviewDialog.value = true;
+
+  // Against a draft, also ask what saving it would detach — the one thing a
+  // text diff cannot show.
+  if (plan.right.draft) {
+    apiClient.previewRuleSetSrl(
       id,
       srlDocument.value,
-      selectedVersionNumber.value,
+      plan.left.version,
       { tuples: tuplesEnabled.value, tupleSeeds: tuplesEnabled.value ? tupleSeeds.value : null },
+    ).then(
+      (result) => { if (seq === diffSeq) previewResult.value = result; },
+      (error) => {
+        if (seq === diffSeq) previewError.value = error instanceof Error ? error.message : 'Could not preview the changes';
+      },
     );
+  }
+
+  try {
+    const [left, right] = await Promise.all([diffText(id, plan.left), diffText(id, plan.right)]);
+    if (seq !== diffSeq) return;
+    diffLeft.value = { label: plan.left.label, text: left };
+    diffRight.value = { label: plan.right.label, text: right };
   } catch (error) {
-    previewError.value = error instanceof Error ? error.message : 'Could not preview the changes';
-  } finally {
-    previewLoading.value = false;
+    if (seq === diffSeq) diffTextError.value = error instanceof Error ? error.message : 'Could not load the versions';
   }
 }
 
@@ -1191,9 +1231,12 @@ const ensureLibraryPresent = async (libraryId: string | null) => {
   }
 };
 
-const loadRuleSetVersions = async (ruleSetId: string) => {
+const loadRuleSetVersions = async (
+  ruleSetId: string,
+  request?: ReturnType<typeof apiClient.listRuleSetVersions>,
+) => {
   try {
-    const versions = await apiClient.listRuleSetVersions(ruleSetId);
+    const versions = await (request ?? apiClient.listRuleSetVersions(ruleSetId));
     const sorted = [...versions].sort((a, b) => b.version - a.version);
     ruleSetVersions.value = sorted;
     versionOptions.value = sorted.map((entry) => ({
@@ -1278,18 +1321,27 @@ function prologueFor(ruleSetId: string): string {
  */
 let loadSeq = 0;
 
-async function loadDocumentForSelectedVersion() {
+/**
+ * `prefetched` is the current version's document, requested alongside the rule
+ * set itself on open; it is used only when current is what is selected.
+ */
+async function loadDocumentForSelectedVersion(prefetched?: ReturnType<typeof apiClient.exportRuleSetSrl>) {
   const id = ruleSetIdValue.value;
   if (!id) return;
   const seq = ++loadSeq;
   const prologue = prologueFor(id);
+  const isCurrent = selectedVersionNumber.value === currentVersionNumberForDisplay.value;
   try {
-    const response = await apiClient.exportRuleSetSrl(id, {
+    const response = await ((prefetched && isCurrent) ? prefetched : apiClient.exportRuleSetSrl(id, {
       version: selectedVersionNumber.value,
       prologue,
-    });
+    }));
     if (seq !== loadSeq) return;
-    loadedVersionDocument.value = response.srl;
+    // A reply without a document reads as an empty one rather than as
+    // `undefined` in the editor, which everything downstream calls string
+    // methods on.
+    const srl = typeof response.srl === 'string' ? response.srl : '';
+    loadedVersionDocument.value = srl;
     const draft = draftBody.value;
     /*
      * A draft wins over the saved text, because it is the newer of the two
@@ -1298,7 +1350,7 @@ async function loadDocumentForSelectedVersion() {
      * it.
      */
     hydratingVersion.value = true;
-    srlDocument.value = typeof draft?.srl === 'string' ? draft.srl : response.srl;
+    srlDocument.value = typeof draft?.srl === 'string' ? draft.srl : srl;
     documentRuleSetId = id;
     loadedVersionTupleSeeds.value = response.tupleSeeds ?? '';
     tupleSeeds.value = draft?.tupleSeeds ?? response.tupleSeeds ?? '';
@@ -1320,6 +1372,22 @@ const loadRuleSet = async (id: string) => {
     return;
   }
   ruleSetLoading.value = true;
+  /*
+   * The three reads opening a rule set needs, started together. They used to
+   * run one after another — rule set, then its library, then its versions,
+   * then the document — so opening one cost four round trips, and the editor
+   * sat under its loading scrim for all of them. The document is asked for
+   * without a version, which the API answers with the current one: what an
+   * open lands on unless a draft says otherwise.
+   */
+  const versionsRequest = apiClient.listRuleSetVersions(id);
+  // Asked for before the editor changes hands, so `prologueFor` still sees
+  // whose document is on screen: another rule set's prefixes are never sent.
+  const documentRequest = apiClient.exportRuleSetSrl(id, { prologue: prologueFor(id) });
+  // Either may go unused (a failed open, a non-current selection); neither
+  // should surface as an unhandled rejection.
+  versionsRequest.catch(() => {});
+  documentRequest.catch(() => {});
   try {
     const { ruleSet, ifMatch } = await ruleSetsStore.fetchRuleSet(id);
     ruleSetIdValue.value = ruleSet.id;
@@ -1331,9 +1399,10 @@ const loadRuleSet = async (id: string) => {
     executionResult.value = null;
     executionTimestamp.value = null;
 
-    await ensureLibraryPresent(ruleSetLibraryId.value ?? null);
-    await loadRuleSetVersions(ruleSet.id);
-    await loadDocumentForSelectedVersion();
+    // The library only names where the rule set lives; nothing below waits on it.
+    void ensureLibraryPresent(ruleSetLibraryId.value ?? null);
+    await loadRuleSetVersions(ruleSet.id, versionsRequest);
+    await loadDocumentForSelectedVersion(documentRequest);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to load rule set';
     console.error('[RuleSetWorkArea] Failed to load rule set:', error);
@@ -1804,6 +1873,9 @@ watch(
 
 watch(selectedVersionId, (versionId, previous) => {
   if (!versionId || versionId === previous || !ruleSetIdValue.value) return;
+  // Opening a rule set picks its version and loads that document itself, from
+  // the request it already has in flight; a second fetch here would race it.
+  if (ruleSetLoading.value) return;
   executionResult.value = null;
   executionTimestamp.value = null;
   void loadDocumentForSelectedVersion();

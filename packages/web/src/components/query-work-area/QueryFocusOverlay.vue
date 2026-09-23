@@ -4,7 +4,7 @@
       <PanelHeader title="SPARQL Query Editor" size="lg" sunken>
         <template #actions>
           <button
-            v-if="versionOptions.length > 1"
+            v-if="canDiff"
             class="btn-compact btn-icon btn-diff"
             :class="{ 'btn-active': showDiff }"
             title="Compare Versions"
@@ -29,6 +29,7 @@
               <SelectValue placeholder="Select version" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem v-if="hasDraftEdits" :value="DRAFT_SIDE">Draft</SelectItem>
               <SelectItem
                 v-for="option in versionOptions"
                 :key="option.value"
@@ -58,6 +59,7 @@
               <SelectValue placeholder="Select version" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem v-if="hasDraftEdits" :value="DRAFT_SIDE">Draft</SelectItem>
               <SelectItem
                 v-for="option in versionOptions"
                 :key="option.value"
@@ -126,6 +128,7 @@ import SelectValue from '../ui/select/SelectValue.vue';
 import PanelHeader from '../shared/PanelHeader.vue';
 import SectionLabel from '../shared/SectionLabel.vue';
 import SparqlDiffViewer from '../shared/SparqlDiffViewer.vue';
+import { DRAFT_SIDE } from '@/lib/versionDiff';
 import CodeSwapTransition from '../shared/CodeSwapTransition.vue';
 
 interface VersionOption {
@@ -142,6 +145,10 @@ withDefaults(defineProps<{
   extensions: any[];
   showDiff: boolean;
   versionOptions: VersionOption[];
+  /** Whether there is anything to diff — see `planVersionDiff`. */
+  canDiff: boolean;
+  /** Offer the draft as a side when the editor holds unsaved edits. */
+  hasDraftEdits?: boolean;
   diffLeftVersion: string | null;
   diffRightVersion: string | null;
   diffLeftQuery: string | null;
@@ -150,6 +157,7 @@ withDefaults(defineProps<{
   diffRightLabel: string;
 }>(), {
   documentKey: undefined,
+  hasDraftEdits: false,
 });
 
 defineEmits<{

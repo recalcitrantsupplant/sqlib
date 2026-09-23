@@ -1,5 +1,6 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
 import { mockSidebarCollections } from './fixtures/collections';
+import { API_HOST } from './api-origin';
 
 /**
  * A query born scratch: written, run, named at the save moment, and turned
@@ -58,11 +59,11 @@ test.describe('Scratch queries', () => {
       window.localStorage.setItem('sparql-query-lib-scratch-migrated', '2026-08-06T00:00:00Z');
     });
 
-    await page.route('**//localhost:3000/libraries', async (route: Route) => {
+    await page.route(`**//${API_HOST}/libraries`, async (route: Route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([LIBRARY]) });
     });
 
-    await page.route('**//localhost:3000/queries', async (route: Route) => {
+    await page.route(`**//${API_HOST}/queries`, async (route: Route) => {
       if (route.request().method() === 'POST') {
         if (failNextCreate) {
           failNextCreate = false;
@@ -91,7 +92,7 @@ test.describe('Scratch queries', () => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(createdQueries) });
     });
 
-    await page.route('**//localhost:3000/queries/*/v', async (route: Route) => {
+    await page.route(`**//${API_HOST}/queries/*/v`, async (route: Route) => {
       if (route.request().method() === 'POST') {
         if (failNextVersion) {
           failNextVersion = false;
@@ -146,7 +147,7 @@ test.describe('Scratch queries', () => {
       });
     });
 
-    await page.route('**//localhost:3000/queries/*/v/*', async (route: Route) => {
+    await page.route(`**//${API_HOST}/queries/*/v/*`, async (route: Route) => {
       const version = createdVersions.at(-1);
       await route.fulfill({
         status: 200,
@@ -159,7 +160,7 @@ test.describe('Scratch queries', () => {
       });
     });
 
-    await page.route('**//localhost:3000/queries/*', async (route: Route) => {
+    await page.route(`**//${API_HOST}/queries/*`, async (route: Route) => {
       const id = decodeURIComponent(route.request().url().split('/queries/')[1]!);
       const query = createdQueries.find((q) => q.id === id);
       if (!query) {
@@ -188,7 +189,7 @@ test.describe('Scratch queries', () => {
 
   test('runs an unsaved body without saving it first', async ({ page }) => {
     let executed: string | null = null;
-    await page.route('**//localhost:3000/sparql', async (route: Route) => {
+    await page.route(`**//${API_HOST}/sparql`, async (route: Route) => {
       executed = route.request().postDataJSON()?.query ?? null;
       await route.fulfill({
         status: 200,

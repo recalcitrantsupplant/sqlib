@@ -2,6 +2,7 @@ import { computed, ref, watch, type Ref } from 'vue';
 import { prefixSourceToken } from '@/lib/prefixSources';
 import { usePrefixManager } from '@/composables/usePrefixManager';
 import { routeVersionForSelection } from '@/lib/entityLifecycle';
+import { DRAFT_SIDE, planVersionDiff, versionDiffLabel } from '@/lib/versionDiff';
 import { isQueryTypeIri, type QueryTypeValue } from '@sparql-query-lib/types';
 
 type VersionOption = { value: string; label: string; dateModified?: string | null; comment?: string | null };
@@ -58,17 +59,35 @@ export function useQueryVersions(deps: UseQueryVersionsDeps) {
   const diffRightQuery = ref<string | null>(null);
   const suppressVersionWatch = ref(false);
 
-  const diffLeftLabel = computed(() => {
-    if (!diffLeftVersion.value) return 'Version A';
-    const option = versionOptions.value.find((v) => v.value === diffLeftVersion.value);
-    return option ? `Version ${option.label}` : 'Version A';
-  });
+  const versionNumberOf = (versionId: string | null): number | null => {
+    const option = versionOptions.value.find((v) => v.value === versionId);
+    const parsed = option ? parseInt(option.label, 10) : NaN;
+    return Number.isNaN(parsed) ? null : parsed;
+  };
 
-  const diffRightLabel = computed(() => {
-    if (!diffRightVersion.value) return 'Version B';
-    const option = versionOptions.value.find((v) => v.value === diffRightVersion.value);
-    return option ? `Version ${option.label}` : 'Version B';
-  });
+  const sideLabel = (side: string | null, fallback: string) => {
+    if (side === DRAFT_SIDE) return 'Draft';
+    const version = versionNumberOf(side);
+    return version === null ? fallback : versionDiffLabel(version, currentVersionNumberForDisplay.value);
+  };
+
+  const diffLeftLabel = computed(() => sideLabel(diffLeftVersion.value, 'Version A'));
+  const diffRightLabel = computed(() => sideLabel(diffRightVersion.value, 'Version B'));
+
+  /** Whether the editor holds edits the open version does not. */
+  const hasDraftEdits = computed(
+    () => deps.queryCode.value.trim() !== (loadedVersionQueryString.value ?? '').trim(),
+  );
+
+  /** What the Diff button compares — see `planVersionDiff`. */
+  const diffPlan = computed(() => planVersionDiff({
+    hasEdits: hasDraftEdits.value,
+    open: selectedVersionNumber.value,
+    current: currentVersionNumberForDisplay.value,
+    versions: versionOptions.value
+      .map((option) => parseInt(option.label, 10))
+      .filter((version) => !Number.isNaN(version)),
+  }));
 
   const applyCurrentVersionLocalState = (versionId: string | null) => {
     currentVersion.value = versionId;
@@ -217,57 +236,44 @@ export function useQueryVersions(deps: UseQueryVersionsDeps) {
 
   const toggleDiff = async () => {
     showDiff.value = !showDiff.value;
+    if (!showDiff.value) return;
 
-    if (showDiff.value && versionOptions.value.length >= 2) {
-      const sortedVersions = [...versionOptions.value].sort(
-        (a, b) => parseInt(b.label, 10) - parseInt(a.label, 10)
-      );
+    const plan = diffPlan.value;
+    if (!plan) {
+      showDiff.value = false;
+      return;
+    }
+    const sideId = (side: typeof plan.left) =>
+      side.draft
+        ? DRAFT_SIDE
+        : versionOptions.value.find((v) => parseInt(v.label, 10) === side.version)?.value ?? null;
+    diffLeftVersion.value = sideId(plan.left);
+    diffRightVersion.value = sideId(plan.right);
+    await loadDiffVersions();
+  };
 
-      if (!diffRightVersion.value) {
-        diffRightVersion.value = currentVersion.value || sortedVersions[0]?.value || null;
-      }
-      if (!diffLeftVersion.value) {
-        diffLeftVersion.value = sortedVersions[1]?.value || sortedVersions[0]?.value || null;
-      }
-
-      await loadDiffVersions();
+  /** A side's text: the draft is what is in the editor; a version is fetched. */
+  const loadDiffSide = async (side: string | null, which: 'left' | 'right'): Promise<string | null> => {
+    if (side === DRAFT_SIDE) return deps.queryCode.value;
+    const versionNumber = versionNumberOf(side);
+    if (versionNumber === null) return null;
+    try {
+      const result = await deps.apiClient.getQueryVersion(deps.queryId.value, versionNumber);
+      return result.data.queryVersion.queryString || '';
+    } catch (error) {
+      console.error(`[useQueryVersions] Failed to load ${which} diff version:`, error);
+      return '';
     }
   };
 
   const loadDiffVersions = async () => {
     if (!deps.queryId.value) return;
-
-    if (diffLeftVersion.value) {
-      const leftOption = versionOptions.value.find((v) => v.value === diffLeftVersion.value);
-      if (leftOption) {
-        const versionNumber = parseInt(leftOption.label, 10);
-        if (!Number.isNaN(versionNumber)) {
-          try {
-            const result = await deps.apiClient.getQueryVersion(deps.queryId.value, versionNumber);
-            diffLeftQuery.value = result.data.queryVersion.queryString || '';
-          } catch (error) {
-            console.error('[useQueryVersions] Failed to load left diff version:', error);
-            diffLeftQuery.value = '';
-          }
-        }
-      }
-    }
-
-    if (diffRightVersion.value) {
-      const rightOption = versionOptions.value.find((v) => v.value === diffRightVersion.value);
-      if (rightOption) {
-        const versionNumber = parseInt(rightOption.label, 10);
-        if (!Number.isNaN(versionNumber)) {
-          try {
-            const result = await deps.apiClient.getQueryVersion(deps.queryId.value, versionNumber);
-            diffRightQuery.value = result.data.queryVersion.queryString || '';
-          } catch (error) {
-            console.error('[useQueryVersions] Failed to load right diff version:', error);
-            diffRightQuery.value = '';
-          }
-        }
-      }
-    }
+    const [left, right] = await Promise.all([
+      loadDiffSide(diffLeftVersion.value, 'left'),
+      loadDiffSide(diffRightVersion.value, 'right'),
+    ]);
+    if (left !== null) diffLeftQuery.value = left;
+    if (right !== null) diffRightQuery.value = right;
   };
 
   const updateDiffLeftVersion = async (versionId: string) => {
@@ -351,6 +357,8 @@ export function useQueryVersions(deps: UseQueryVersionsDeps) {
     diffRightQuery,
     diffLeftLabel,
     diffRightLabel,
+    hasDraftEdits,
+    diffPlan,
     applyCurrentVersionLocalState,
     adoptNewVersion,
     loadVersionsForQuery,
