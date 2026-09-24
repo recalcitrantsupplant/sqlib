@@ -1,5 +1,5 @@
 /**
- * The Connect page's facts, tested away from the page.
+ * The MCP page's facts, tested away from the page.
  *
  * Each of these is a silent failure in the field: a URL derived with a double
  * slash or a missing `/mcp` sends every user to a dead endpoint and tells them
@@ -8,12 +8,12 @@
  */
 import { describe, it, expect } from 'vitest';
 import {
-  CONNECT_CLIENTS,
+  MCP_CLIENTS,
   claudeConnectorLink,
   describeCatalogue,
   mcpEndpoint,
   parseRpcMessage,
-} from '@/lib/connectTargets';
+} from '@/lib/mcpClients';
 
 describe('mcpEndpoint', () => {
   it('derives /mcp beside the API, which is where every shipped mode serves it', () => {
@@ -47,17 +47,17 @@ describe('claudeConnectorLink', () => {
 
 describe('the client list', () => {
   it('leads with ChatGPT, the one with no install link at all', () => {
-    expect(CONNECT_CLIENTS[0]!.id).toBe('chatgpt');
+    expect(MCP_CLIENTS[0]!.id).toBe('chatgpt');
   });
 
   it('gives every client either steps or a snippet to copy, and no empty tab', () => {
-    for (const client of CONNECT_CLIENTS) {
+    for (const client of MCP_CLIENTS) {
       expect(client.steps.length, `${client.id} has no steps`).toBeGreaterThan(0);
     }
   });
 
   it('puts the endpoint into every snippet it builds', () => {
-    for (const client of CONNECT_CLIENTS) {
+    for (const client of MCP_CLIENTS) {
       if (!client.snippet) continue;
       expect(client.snippet('https://sqlib.example/mcp'), client.id).toContain('https://sqlib.example/mcp');
     }

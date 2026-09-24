@@ -45,7 +45,7 @@ interface Destination {
 /*
  * One letter per destination, mnemonic where the initial was free and adjacent
  * where it was not: Groups took `g`, so Benchmarks is `m` (measure), Backends
- * `k` (the connection it stands for), Connect `a` (inherited from the Build
+ * `k` (the connection it stands for), MCP `a` (inherited from the Build
  * screen it replaced),
  * Tuples `u`. The table is the cheat sheet's source, so a change here is a
  * change everywhere.
@@ -60,7 +60,7 @@ const DESTINATIONS: Destination[] = [
   { section: 'tests', title: 'Go to Tests', keys: 'g t', flag: 'tests' },
   { section: 'dataGraphs', title: 'Go to Data graphs', keys: 'g d', flag: 'dataGraphs', keywords: 'rdf reference data' },
   { section: 'tupleSets', title: 'Go to Tuple sets', keys: 'g u', flag: 'tupleSets', keywords: 'values rows tabular' },
-  { section: 'connect', title: 'Go to Connect', keys: 'g a', flag: 'connect', keywords: 'mcp claude chatgpt assistant connector' },
+  { section: 'mcp', title: 'Go to MCP', keys: 'g a', flag: 'mcp', keywords: 'mcp server claude chatgpt connector connect' },
   { section: 'backends', title: 'Go to Backends', keys: 'g k', flag: 'backends', keywords: 'connections endpoints sparql' },
 ];
 

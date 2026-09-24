@@ -1,15 +1,15 @@
 <template>
-  <div class="connect-layout">
-    <AppNavRail active-section="connect" @select="handleRailSelect" />
+  <div class="mcp-layout">
+    <AppNavRail active-section="mcp" @select="handleRailSelect" />
 
     <main class="page">
       <div class="page-measure">
         <header class="page-header">
-          <h1 class="title">Connect</h1>
+          <h1 class="title">MCP</h1>
           <p class="lede">
-            This sqlib is an MCP server. Point Claude or ChatGPT at it and your libraries become
-            tools they can use — list queries, fill in their parameters, run them against your
-            backends — on your own subscription, with no key to manage here.
+            sqlib provides an MCP server. Point Claude or ChatGPT at it and your libraries become
+            tools they can use: list queries, fill in the parameters a query declares, run them
+            against your backends. It runs on your own subscription, with no key to manage here.
           </p>
         </header>
 
@@ -38,8 +38,8 @@
           </a>
           <InlineNote>
             Opens Claude's connector settings with the name and URL filled in; you press Add.
-            Custom connectors need a paid Claude plan, and if the form opens empty, paste the URL
-            above — the link is not part of Claude's documented interface and the app may change it.
+            Custom connectors need a paid Claude plan. If the form opens empty, paste the URL
+            above: the link is not part of Claude's documented interface, so the app may change it.
           </InlineNote>
         </section>
 
@@ -51,7 +51,7 @@
 
           <div class="client-tabs" role="tablist">
             <button
-              v-for="client in CONNECT_CLIENTS"
+              v-for="client in MCP_CLIENTS"
               :key="client.id"
               type="button"
               class="client-tab"
@@ -80,31 +80,40 @@
         </section>
 
         <!--
-          A check the user can run themselves, because every failure on this
-          page looks identical from the chat side: the client says it cannot
-          reach the connector and names no reason. This speaks MCP to the URL
-          above and reports what came back.
+          Not a connectivity test, deliberately.
+
+          It was one, and a green tick meant nothing worth having: a browser
+          already talking to this app reaching a URL on the same host proves a
+          tautology, while reading as "MCP works" to everyone who saw it. What a
+          chat client can reach is decided on Anthropic's or OpenAI's network,
+          not here, and nothing in this page can speak for that.
+
+          What the request does know is what the server publishes, which is
+          invisible from everywhere else in the app and is the thing worth
+          checking before handing the URL to anyone: how many tools, and whether
+          any of them writes.
         -->
         <section class="block">
           <header class="block-head">
-            <h2 class="block-title">Check it</h2>
+            <h2 class="block-title">What this server publishes</h2>
             <span class="rule" />
           </header>
           <div class="check-row">
-            <button type="button" class="ghost-button" :disabled="probing" data-testid="test-connection" @click="testConnection">
+            <button type="button" class="ghost-button" :disabled="probing" data-testid="read-catalogue" @click="readCatalogue">
               <RefreshCw :size="12" :class="{ spin: probing }" />
-              {{ probing ? 'Checking…' : 'Test connection' }}
+              {{ probing ? 'Reading…' : 'Read the catalogue' }}
             </button>
-            <span v-if="probe" class="probe" :class="probe.ok ? 'ok' : 'bad'" data-testid="test-result">
+            <span v-if="probe" class="probe" :class="probe.ok ? 'ok' : 'bad'" data-testid="catalogue-result">
               <Check v-if="probe.ok" :size="12" />
               <TriangleAlert v-else :size="12" />
               {{ probe.message }}
             </span>
           </div>
-          <InlineNote v-if="probe && !probe.ok">
-            A check that fails from this browser does not prove a chat client will fail: the two
-            reach the server from different places. It does prove the URL is wrong, the server is
-            down, or it refuses cross-origin requests.
+          <InlineNote data-testid="catalogue-note">
+            Asks the server, from this browser, what tools it offers. A read-only server publishes
+            no tool that creates, changes or deletes anything, which is worth confirming before you
+            give the URL out. It says nothing about whether Claude or ChatGPT can reach the server:
+            they connect from their own infrastructure, not from here.
           </InlineNote>
         </section>
 
@@ -115,7 +124,7 @@
           </header>
           <ul class="facts">
             <li>
-              Your libraries, queries and query groups, listed and readable by name — and runnable,
+              Your libraries, queries and query groups, listed and readable by name, and runnable
               with the parameters a query declares filled in from the conversation.
             </li>
             <li>
@@ -132,18 +141,18 @@
             make, and be wrong about for a confusing half hour.
           -->
           <InlineNote>
-            A chat client talks to this server, not to your browser — so backends and drafts kept
-            in this browser's local storage are invisible to it. What it can see is what the server
+            A chat client talks to this server, not to your browser, so backends and drafts kept in
+            this browser's local storage are invisible to it. What it can see is what the server
             holds.
           </InlineNote>
         </section>
 
-        <p class="warning" data-testid="connect-warning">
+        <p class="warning" data-testid="mcp-warning">
           <ShieldAlert :size="13" />
           <span>
             This endpoint has no authentication of its own: anyone who can reach the URL gets the
             tools it publishes. A server started with <code>MCP_READ_ONLY=1</code> publishes only
-            the tools that read — running queries included — and nothing that creates, changes or
+            the tools that read, running queries included, and nothing that creates, changes or
             deletes. Anything else should stay on a network you trust.
           </span>
         </p>
@@ -158,25 +167,30 @@
  *
  * This replaced the Build screen, which paired a callable list with an in-app
  * assistant. The assistant needed an API key per user to be useful, and the
- * audience that matters first already pays for one — in Claude or ChatGPT. So
- * the page stopped being a second place to chat and became the shortest path to
+ * audience that matters first already pays for one, in Claude or ChatGPT. So the
+ * page stopped being a second place to chat and became the shortest path to
  * chatting where they already are: one URL, one link that installs it, and a
  * check for when it does not work.
+ *
+ * The route is `/mcp-server`, not `/mcp`, because `/mcp` is the API's own path.
+ * Nothing this repository ships serves the app and the API from one origin, but
+ * a reverse proxy in front of both is an ordinary thing to build, and a route
+ * that only collides in somebody else's deployment is the worst kind.
  */
 import { computed, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter } from '#imports';
 import { Check, Copy, Plug, RefreshCw, ShieldAlert, TriangleAlert } from '@lucide/vue';
 import AppNavRail from '@/components/AppNavRail.vue';
 import InlineNote from '@/components/shared/InlineNote.vue';
 import { useActiveLibrary } from '@/composables/useActiveLibrary';
 import { isScreenSection, SCREEN_SECTION_PATHS, type RailSection } from '@/lib/railSections';
 import {
-  CONNECT_CLIENTS,
+  MCP_CLIENTS,
   claudeConnectorLink,
   describeCatalogue,
   mcpEndpoint,
   parseRpcMessage,
-} from '@/lib/connectTargets';
+} from '@/lib/mcpClients';
 // @ts-ignore - Nuxt auto-import
 import { useRuntimeConfig } from '#imports';
 
@@ -187,9 +201,9 @@ const { activeLibraryId: libraryId } = useActiveLibrary();
 const mcpUrl = computed(() => mcpEndpoint(config.public));
 const claudeDeeplink = computed(() => claudeConnectorLink(mcpUrl.value));
 
-const activeClient = ref(CONNECT_CLIENTS[0]!.id);
+const activeClient = ref(MCP_CLIENTS[0]!.id);
 const active = computed(
-  () => CONNECT_CLIENTS.find((client) => client.id === activeClient.value) ?? CONNECT_CLIENTS[0]!
+  () => MCP_CLIENTS.find((client) => client.id === activeClient.value) ?? MCP_CLIENTS[0]!
 );
 
 const copied = ref<'url' | 'config' | null>(null);
@@ -242,16 +256,17 @@ async function notify(method: string, sessionId: string | null) {
 }
 
 /**
- * Speak MCP to the URL and say what answered.
+ * Ask the server what it publishes.
  *
- * A full handshake rather than a ping, because a reachable port proves nothing
- * about a connector: `initialize`, the notification the specification requires
- * before anything else, then `tools/list`. What comes back is worth reporting
- * in words — the server's own name, how many tools it publishes, and whether
- * any of them writes — since "is this the read-only one I meant to deploy?" is
- * the question this page is most often opened to settle.
+ * A full handshake because that is the only way to reach `tools/list`:
+ * `initialize`, the notification the specification requires before anything
+ * else, then the listing. The answer is reported in words rather than as a tick,
+ * because the useful part is the catalogue and not the round trip. "Is this the
+ * read-only one I meant to deploy?" is the question this page is most often
+ * opened to settle, and a tool count is the only place in the app that answers
+ * it.
  */
-async function testConnection() {
+async function readCatalogue() {
   probing.value = true;
   probe.value = null;
   try {
@@ -260,7 +275,7 @@ async function testConnection() {
       {
         protocolVersion: '2025-06-18',
         capabilities: {},
-        clientInfo: { name: 'sqlib-connect-page', version: '1' },
+        clientInfo: { name: 'sqlib-mcp-page', version: '1' },
       },
       null
     );
@@ -278,12 +293,12 @@ async function testConnection() {
 
     probe.value = {
       ok: true,
-      message: `Reachable — ${info?.name ?? 'the server'}, ${tools.length} tools, ${mode}.`,
+      message: `${info?.name ?? 'The server'}: ${tools.length} tools, ${mode}.`,
     };
   } catch (error) {
     probe.value = {
       ok: false,
-      message: `No answer from ${mcpUrl.value} (${(error as Error).message}).`,
+      message: `Could not read ${mcpUrl.value} from this browser (${(error as Error).message}).`,
     };
   } finally {
     probing.value = false;
@@ -291,7 +306,7 @@ async function testConnection() {
 }
 
 function handleRailSelect(section: RailSection) {
-  if (section === 'connect') return;
+  if (section === 'mcp') return;
   if (isScreenSection(section)) {
     router.push({
       path: SCREEN_SECTION_PATHS[section],
@@ -304,7 +319,7 @@ function handleRailSelect(section: RailSection) {
 </script>
 
 <style scoped>
-.connect-layout {
+.mcp-layout {
   display: flex;
   height: 100vh;
   overflow: hidden;

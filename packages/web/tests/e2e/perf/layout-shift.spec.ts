@@ -123,7 +123,7 @@ const SCREENS: Screen[] = [
    * down when they arrive. That is one shift on first load, not a loop, and
    * the late-shift assertion is what holds the line on the loop.
    */
-  { name: 'connect', url: '/connect', ready: '.page-measure', cls: 0.05 },
+  { name: 'mcp', url: '/mcp-server', ready: '.page-measure', cls: 0.05 },
   { name: 'tools', url: '/tools', ready: '.page .card', cls: 0.01 },
 ];
 

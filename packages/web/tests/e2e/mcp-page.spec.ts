@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 /**
- * The Connect screen.
+ * The MCP screen.
  *
  * This page has one job — get a URL into somebody's chat client — and every
  * way it can fail is quiet. A URL rendered from an unset config reads as a
@@ -14,9 +14,9 @@ import { test, expect } from '@playwright/test';
 
 const MCP_URL = /\/mcp$/;
 
-test.describe('Connect', () => {
+test.describe('MCP', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/connect', { waitUntil: 'domcontentloaded' });
+    await page.goto('/mcp-server', { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('[data-testid="mcp-endpoint"]');
   });
 
@@ -45,7 +45,7 @@ test.describe('Connect', () => {
     await expect(page.getByTestId('client-config')).toContainText(endpoint);
   });
 
-  test('reports what answered, not just that something did', async ({ page }) => {
+  test('reports what the server publishes, not that something answered', async ({ page }) => {
     // A stubbed server, because the point is the reporting: a real one would
     // make this a test of whichever mode the dev machine happens to run in.
     await page.route('**/mcp', async (route) => {
@@ -74,13 +74,27 @@ test.describe('Connect', () => {
       await route.fulfill({ status: 202, body: '' });
     });
 
-    await page.getByTestId('test-connection').click();
-    await expect(page.getByTestId('test-result')).toContainText('sqlib-mcp');
-    await expect(page.getByTestId('test-result')).toContainText('2 tools');
-    await expect(page.getByTestId('test-result')).toContainText('read-only');
+    await page.getByTestId('read-catalogue').click();
+    await expect(page.getByTestId('catalogue-result')).toContainText('sqlib-mcp');
+    await expect(page.getByTestId('catalogue-result')).toContainText('2 tools');
+    await expect(page.getByTestId('catalogue-result')).toContainText('read-only');
+  });
+
+  /*
+   * The disclaimer is the feature. The earlier version of this section was a
+   * "Test connection" button, and a green tick on it read as "MCP works" while
+   * proving only that a browser already talking to this app could reach a URL
+   * on the same host. Whether a chat client can reach the server is decided on
+   * someone else's network.
+   */
+  test('does not claim a chat client can reach the server', async ({ page }) => {
+    await expect(page.getByTestId('catalogue-note')).toContainText('from this browser');
+    await expect(page.getByTestId('catalogue-note')).toContainText(
+      'says nothing about whether Claude or ChatGPT can reach'
+    );
   });
 
   test('says plainly that the endpoint is unauthenticated', async ({ page }) => {
-    await expect(page.getByTestId('connect-warning')).toContainText('no authentication');
+    await expect(page.getByTestId('mcp-warning')).toContainText('no authentication');
   });
 });
