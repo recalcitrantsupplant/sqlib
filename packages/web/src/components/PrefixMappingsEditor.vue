@@ -50,6 +50,21 @@
             <CheckIcon v-if="conflictsOnly" :size="13" />
             {{ conflictCount }} {{ conflictCount === 1 ? 'conflict' : 'conflicts' }}
           </button>
+          <!--
+            Only once something is ticked: an action on a selection has nothing
+            to say while there is no selection.
+          -->
+          <button
+            v-if="selectedCount > 0"
+            type="button"
+            class="btn-secondary"
+            data-testid="add-prefixes-to-editor"
+            :disabled="!prefixTarget"
+            :title="addToEditorTitle"
+            @click="addSelectedToEditor"
+          >
+            Add to editor
+          </button>
           <button type="button" class="btn-primary" @click="addNewPrefix">
             <PlusIcon :size="13" />
             Add prefix
@@ -57,15 +72,25 @@
         </div>
 
         <div class="prefix-table">
-          <div class="table-head">
-            <span class="column-label">On</span>
-            <span class="column-label">Prefix</span>
-            <span class="column-label">Namespace</span>
-            <span class="column-label">Source</span>
-            <span />
-          </div>
-
+          <!--
+            The head scrolls with the rows rather than sitting above them, and
+            sticks to the top of the box. Outside the scroller it was a
+            scrollbar's width wider than the rows, and the `1fr` namespace
+            column absorbed the difference — so every column after it sat left
+            of its own label.
+          -->
           <div class="table-body">
+            <div class="table-head">
+              <span class="column-label">On</span>
+              <!-- Named for what the ticks are for. No select-all: the ticks
+                   are a handful picked for one document, not a bulk edit. -->
+              <span class="column-label">Add</span>
+              <span class="column-label">Prefix</span>
+              <span class="column-label">Namespace</span>
+              <span class="column-label">Source</span>
+              <span />
+            </div>
+
             <div v-for="row in pagedRows" :key="row.mapping.id" class="table-row" data-testid="prefix-row">
               <div class="cell switch-cell">
                 <Switch
@@ -74,6 +99,15 @@
                   :title="row.mapping.enabled ? 'Enabled' : 'Disabled'"
                   :aria-label="`Enable ${row.mapping.prefix}`"
                   @update:model-value="togglePrefixEnabled(row.mapping.id)"
+                />
+              </div>
+
+              <div class="cell select-cell">
+                <Checkbox
+                  :model-value="selectedIds.has(row.mapping.id)"
+                  :aria-label="`Add ${row.mapping.prefix} to the editor`"
+                  data-testid="select-prefix"
+                  @update:model-value="(value) => setSelected(row.mapping.id, value === true)"
                 />
               </div>
 
@@ -235,6 +269,7 @@
 import { ref, computed, watch } from 'vue';
 import { v4 as uuidv4 } from 'uuid';
 import { usePrefixManager } from '@/composables/usePrefixManager';
+import { usePrefixTarget } from '@/composables/usePrefixTarget';
 import { useCopyToClipboard } from '@/composables/useCopyToClipboard';
 import type { PrefixMapping } from '@/types/prefixes';
 import { fuzzyMatches } from '@/lib/fuzzy';
@@ -242,6 +277,7 @@ import { parsePrefixSource, prefixSourceLabel, prefixSourceRoute } from '@/lib/p
 import { Dialog, DialogContent, DialogDescription } from './ui/dialog';
 import DialogTitleBar from './shared/DialogTitleBar.vue';
 import { Switch } from './ui/switch';
+import { Checkbox } from './ui/checkbox';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -292,8 +328,10 @@ watch(isOpen, (value) => {
   emit('update:open', value);
   if (!value) {
     // A reopened manager should not still be offering to undo a removal from
-    // several minutes ago, nor holding a half-finished edit.
+    // several minutes ago, nor holding a half-finished edit or a selection
+    // made for an editor that may no longer be the one on screen.
     removed.value = null;
+    selectedIds.value = new Set();
     cancelEdit();
   }
 });
@@ -418,6 +456,63 @@ const pageRangeLabel = computed(() => {
   const end = Math.min(page.value * PAGE_SIZE, total);
   return `${start}–${end} of ${total}`;
 });
+
+/* ------------------------------------------------------------------ *
+ * Taking a selection to the editor
+ * ------------------------------------------------------------------ */
+
+/*
+ * Ticked rows, by mapping id rather than by row: the filter and the page are
+ * views of the same list, and a selection made through one of them survives
+ * the other moving.
+ */
+const selectedIds = ref(new Set<string>());
+const selectedCount = computed(() => selectedIds.value.size);
+
+const { target: prefixTarget } = usePrefixTarget();
+
+function setSelected(id: string, selected: boolean) {
+  const next = new Set(selectedIds.value);
+  if (selected) next.add(id);
+  else next.delete(id);
+  selectedIds.value = next;
+}
+
+const addToEditorTitle = computed(() =>
+  prefixTarget.value
+    ? `Declare the ${selectedCount.value === 1 ? 'prefix' : `${selectedCount.value} prefixes`} in ${prefixTarget.value.label}`
+    : 'No editor open to add them to',
+);
+
+/**
+ * Declare the ticked prefixes in the editor behind the dialog.
+ *
+ * The dialog stays open — the ticking and the adding are one task, and a
+ * manager that closed itself would take the rest of the list with it — so the
+ * result is reported rather than seen.
+ */
+function addSelectedToEditor() {
+  const destination = prefixTarget.value;
+  if (!destination) return;
+
+  const pairs = allRows.value
+    .filter((row) => selectedIds.value.has(row.mapping.id))
+    .map((row) => ({ prefix: row.mapping.prefix, namespace: row.mapping.namespace }));
+  if (pairs.length === 0) return;
+
+  const { added, skipped } = destination.add(pairs);
+
+  if (added === 0) {
+    toast.info(`Already declared in ${destination.label}`);
+  } else {
+    const noun = added === 1 ? 'prefix' : 'prefixes';
+    const tail = skipped > 0 ? ` · ${skipped} already declared` : '';
+    toast.success(`Added ${added} ${noun} to ${destination.label}${tail}`);
+  }
+
+  // The selection has been spent; leaving it ticked offers the same click again.
+  selectedIds.value = new Set();
+}
 
 // A new filter starts reading from the top; a shrunken result set must not
 // leave the page pointing past its last row.
@@ -746,6 +841,41 @@ function handleExportRdfa() {
   transition: background var(--duration), border-color var(--duration);
 }
 
+/* The selection's action, beside the one that adds a row. Quieter than the
+   primary next to it: it acts on what is ticked, not on the manager. */
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  height: var(--control-h);
+  padding: 0 var(--space-5);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--surface-subtle);
+  border-color: var(--border-hover);
+}
+
+.btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-secondary:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
 .btn-primary:hover {
   background: var(--action-hover);
   border-color: var(--action-hover);
@@ -772,11 +902,15 @@ function handleExportRdfa() {
 .table-head,
 .table-row {
   display: grid;
-  grid-template-columns: 44px 132px 1fr 184px 60px;
+  grid-template-columns: 44px 28px 132px 1fr 184px 60px;
   gap: var(--space-4);
 }
 
+/* Sticky inside the scroller: see the note in the template. */
 .table-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   align-items: center;
   padding: var(--space-2) var(--space-4);
   background: var(--surface-subtle);
@@ -819,7 +953,8 @@ function handleExportRdfa() {
   gap: var(--space-1);
 }
 
-.switch-cell {
+.switch-cell,
+.select-cell {
   flex-direction: row;
   align-items: center;
   height: var(--control-h-sm);

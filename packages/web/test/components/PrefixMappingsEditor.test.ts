@@ -32,7 +32,7 @@ vi.stubGlobal('localStorage', {
 });
 
 vi.mock('vue-sonner', () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
+  toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
 }));
 
 function mapping(overrides: Partial<PrefixMapping> & { prefix: string; namespace: string }): PrefixMapping {
@@ -114,6 +114,41 @@ function type(el: HTMLInputElement, value: string): Promise<void> {
   el.value = value;
   el.dispatchEvent(new Event('input', { bubbles: true }));
   return nextTick();
+}
+
+/**
+ * A fake editor for the manager to write into, registered the way a work area
+ * registers its own — through the module the component reads, and inside a
+ * scope so the registration can be undone.
+ */
+async function openEditor(text: string) {
+  const { effectScope } = await import('vue');
+  const { useEditorAsPrefixTarget } = await import('@/composables/usePrefixTarget');
+  const document_ = { text };
+  const scope = effectScope();
+  scope.run(() => {
+    useEditorAsPrefixTarget({
+      label: 'the query',
+      contentType: 'application/sparql-query',
+      read: () => document_.text,
+      write: (value) => { document_.text = value; },
+    });
+  });
+  await nextTick();
+  return { document: document_, close: () => scope.stop() };
+}
+
+function addToEditorButton(): HTMLButtonElement | null {
+  return document.querySelector<HTMLButtonElement>('[data-testid="add-prefixes-to-editor"]');
+}
+
+/** Filter to a namespace — solo: and the aliases sort past the first page —
+ *  and tick the row it brings up. */
+async function tick(namespace: string): Promise<void> {
+  await type(query<HTMLInputElement>('.filter-input'), namespace);
+  const box = rowFor(namespace).querySelector('[data-testid="select-prefix"]');
+  if (!box) throw new Error(`no tick box for ${namespace}`);
+  await click(box);
 }
 
 function button(root: ParentNode, title: string): HTMLElement {
@@ -318,6 +353,60 @@ describe('PrefixMappingsEditor', () => {
       prefix: 'renamed',
       namespace: 'http://solo.example/other#',
     });
+  });
+
+  /*
+   * The head is a row of the scrolling list, not a bar above it. Outside the
+   * scroller it is a scrollbar's width wider than the rows, and the `1fr`
+   * namespace column absorbs the difference — so on a platform whose
+   * scrollbars take layout space (the report was a desktop Linux Chrome; a
+   * headless browser's overlay scrollbars hide it), every column after
+   * NAMESPACE sits left of its own label.
+   */
+  it('keeps the column heads in the same scroller as the rows', async () => {
+    await open(ALL);
+    const head = query('.table-head');
+    expect(head.parentElement?.classList.contains('table-body')).toBe(true);
+    // And first in it, so `position: sticky` holds it at the top of the list.
+    expect(head.previousElementSibling).toBeNull();
+  });
+
+  it('offers the editor nothing until a row is ticked', async () => {
+    await open(ALL);
+    await openEditor('SELECT * WHERE { ?s ?p ?o }');
+    expect(addToEditorButton()).toBeNull();
+
+    await tick('http://conflict.example/longer-vocabulary#');
+
+    expect(addToEditorButton()).not.toBeNull();
+    expect(addToEditorButton()!.disabled).toBe(false);
+  });
+
+  it('declares the ticked prefixes in the open editor and spends the selection', async () => {
+    await open(ALL);
+    const editor = await openEditor('SELECT * WHERE { ?s ?p ?o }');
+
+    await tick('http://solo.example/ns#');
+    await tick('http://alias.example/ns#');
+    await click(addToEditorButton()!);
+
+    expect(editor.document.text).toContain('PREFIX solo: <http://solo.example/ns#>');
+    expect(editor.document.text).toContain('PREFIX aliasa: <http://alias.example/ns#>');
+    // The query itself is untouched: this declares, it does not rewrite.
+    expect(editor.document.text).toContain('SELECT * WHERE { ?s ?p ?o }');
+    // Spent: the same click a second time would add what is already there.
+    expect(addToEditorButton()).toBeNull();
+
+    editor.close();
+  });
+
+  it('says there is nowhere to put them rather than doing nothing quietly', async () => {
+    await open(ALL);
+    await tick('http://solo.example/ns#');
+
+    const action = addToEditorButton()!;
+    expect(action.disabled).toBe(true);
+    expect(action.title).toBe('No editor open to add them to');
   });
 
   it('describes the resolution even while abbreviation is switched off', async () => {

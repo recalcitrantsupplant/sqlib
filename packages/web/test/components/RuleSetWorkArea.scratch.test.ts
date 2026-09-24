@@ -122,7 +122,7 @@ async function mountWorkArea() {
       stubs: {
         SparqlEditorPanel: EditorStub,
         RuleSetInspectorPanel: true,
-        SrlDiffDialog: true,
+        SrlDiffPane: true,
         AddRuleSetDialog: true,
         Dialog: true,
       },

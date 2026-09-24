@@ -50,7 +50,27 @@
           @update:backend="(value) => (selectedBackend = value)"
           @update:format="(value) => (selectedMediaType = value)"
           @create="createFromRecipe"
-        />
+        >
+          <!--
+            While the editor is popped out this row is the only one over the
+            code, so the document's own controls come up into it — there is
+            room, and a second row holding three buttons is a row spent on
+            nothing. On the page they stay in the editor's header, beside the
+            control that enlarges it.
+          -->
+          <template #trailing>
+            <QueryDocumentActions
+              v-if="editorExpanded"
+              :code="queryCode"
+              :can-diff="!isScratch"
+              :diff-title="diffButtonTitle"
+              :diff-active="showDiff"
+              @format="formatQueryCode"
+              @diff="handleDiffToggle"
+              @update:code="(value) => (queryCode = value)"
+            />
+          </template>
+        </RunBar>
       </ExpandRunStrip>
 
       <!--
@@ -68,116 +88,107 @@
         half of the answer.
       -->
       <ExpandableEditor
-        v-slot="{ expanded: editorExpanded, toggle: expandEditor }"
+        id="query-editor"
         title="Query Editor"
         testid="query-editor-expand"
+        :layer-open="showDiff"
+        @update:expanded="handleExpandedChange"
       >
-        <SparqlEditorPanel
-          editor-title="Query Editor"
-          expandable
-          :expanded="editorExpanded"
-          :sparql-code="queryCode"
-          :selected-version="selectedVersion"
-          :version-id="selectedVersion"
-          :version-options="versionOptions"
-          :is-new-entity="isNewQuery && !isScratch"
-          :allow-execute-on-validation-error="isScratch"
-          :is-saving="isSaving"
-          :is-loading="queryLoading"
-          :editor-overlay-active="editorOverlayActive"
-          :editor-overlay-message="editorOverlayMessage"
-          :extensions="extensions"
-          :show-execution-row="true"
-          :selected-backend="selectedBackend"
-          :backend-options="backendOptions"
-          :selected-media-type="selectedMediaType"
-          :backends-loading="backendsLoading"
-          :validation-state="validationState"
-          :validation-error="validationError"
-          :query-type="queryType"
-          :detected-outputs="detectedOutputs"
-          :argument-set-options="argumentSetOptions"
-          :selected-argument-set-id="argumentSetsComposable.selectedSetId.value"
-          :argument-set-loading="argumentSetLoading"
-          :is-dirty="isDirty"
-          :show-diff-button="!isScratch"
-          :prefix-source="prefixSource"
-          :document-key="editorDocumentKey"
-          :diff-active="showDiff"
-          chrome="minimal"
-          :show-query-outputs="false"
-          :hide-save-buttons="true"
-          :hide-version-selector="true"
-          @update:sparql-code="applyEditedQueryCode"
-          @update:selected-version="(value) => selectedVersion = value"
-          @update:selected-backend="(value) => selectedBackend = value"
-          @update:selected-media-type="(value) => selectedMediaType = value"
-          @update:selected-argument-set-id="(value) => argumentSetsComposable.selectSet(value)"
-          @request-code-dialog="activeResultsTab = 'code'"
-          @request-focus="openEditorFocus"
-          @request-expand="expandEditor"
-          @request-format="formatQueryCode"
-          @save-new-version="saveNewVersion"
-          @delete="requestDeleteQuery"
-          @execute="executeQuery"
-          @copy-version-id="copyQueryVersionId"
-          @toggle-diff="handleDiffToggle"
-        >
-          <!--
-            Format and the prefix conversions, in the document's header rather
-            than in the save bar. They rewrite the text below them, while the
-            save bar is about the query and its versions — the same split the
-            rules screen makes, and the same row of 28px boxes, so the two
-            editors do not put the same three buttons in two different places.
-          -->
-          <template #header-actions>
-            <button
-              class="editor-action"
-              type="button"
-              data-testid="format-query"
-              title="Format the query"
-              :disabled="!queryCode.trim()"
-              @click="formatQueryCode"
-            >
-              <WandSparkles :size="13" />
-            </button>
-            <PrefixConversionButtons
-              :code="queryCode"
-              content-type="application/sparql-query"
-              @update:code="(value) => (queryCode = value)"
-            />
+        <template #layer>
+          <QueryDiffPane
+            :version-options="versionOptions"
+            :has-draft-edits="hasDraftEdits"
+            :left-version="diffLeftVersion"
+            :right-version="diffRightVersion"
+            :left-query="diffLeftQuery"
+            :right-query="diffRightQuery"
+            :left-label="diffLeftLabel"
+            :right-label="diffRightLabel"
+            @update-left-version="updateDiffLeftVersion"
+            @update-right-version="updateDiffRightVersion"
+            @swap-versions="swapDiffVersions"
+            @close="showDiff = false"
+          />
+        </template>
+
+        <template #default="{ expanded: editorExpanded, toggle: expandEditor }">
+          <SparqlEditorPanel
+            editor-title="Query Editor"
+            expandable
+            :expanded="editorExpanded"
+            :sparql-code="queryCode"
+            :selected-version="selectedVersion"
+            :version-id="selectedVersion"
+            :version-options="versionOptions"
+            :is-new-entity="isNewQuery && !isScratch"
+            :allow-execute-on-validation-error="isScratch"
+            :is-saving="isSaving"
+            :is-loading="queryLoading"
+            :editor-overlay-active="editorOverlayActive"
+            :editor-overlay-message="editorOverlayMessage"
+            :extensions="extensions"
+            :show-execution-row="true"
+            :selected-backend="selectedBackend"
+            :backend-options="backendOptions"
+            :selected-media-type="selectedMediaType"
+            :backends-loading="backendsLoading"
+            :validation-state="validationState"
+            :validation-error="validationError"
+            :query-type="queryType"
+            :detected-outputs="detectedOutputs"
+            :argument-set-options="argumentSetOptions"
+            :selected-argument-set-id="argumentSetsComposable.selectedSetId.value"
+            :argument-set-loading="argumentSetLoading"
+            :is-dirty="isDirty"
+            :show-diff-button="!isScratch"
+            :prefix-source="prefixSource"
+            :document-key="editorDocumentKey"
+            :diff-active="showDiff"
+            chrome="minimal"
+            :show-query-outputs="false"
+            :hide-save-buttons="true"
+            :hide-version-selector="true"
+            @update:sparql-code="applyEditedQueryCode"
+            @update:selected-version="(value) => selectedVersion = value"
+            @update:selected-backend="(value) => selectedBackend = value"
+            @update:selected-media-type="(value) => selectedMediaType = value"
+            @update:selected-argument-set-id="(value) => argumentSetsComposable.selectSet(value)"
+            @request-code-dialog="activeResultsTab = 'code'"
+            @request-expand="expandEditor"
+            @request-format="formatQueryCode"
+            @save-new-version="saveNewVersion"
+            @delete="requestDeleteQuery"
+            @execute="executeQuery"
+            @copy-version-id="copyQueryVersionId"
+            @toggle-diff="handleDiffToggle"
+          >
             <!--
-              Diff comes down here with them: it reframes the document rather
-              than acting on the query, and it is a toggle, so it needs to sit
-              where the thing it reframes is. Absent on a scratch query, which
-              has no saved version to differ from.
-
-              What it compares is `planVersionDiff`'s rule, shared with rules:
-              edits against the version they were made on, else the open
-              version against current. Disabled when neither exists.
+              The document's own controls, in its header rather than in the
+              save bar: they rewrite the text below them, while the save bar is
+              about the query and its versions. Popped out, the same strip
+              moves up into the run row — see `QueryDocumentActions`.
             -->
-            <button
-              v-if="!isScratch"
-              class="editor-action"
-              :class="{ 'editor-action--active': showDiff }"
-              type="button"
-              data-testid="diff-query"
-              :disabled="!diffPlan"
-              :title="diffPlan ? `Diff ${diffPlan.left.label} → ${diffPlan.right.label}` : NOTHING_TO_DIFF"
-              @click="handleDiffToggle"
-            >
-              <GitCompare :size="13" />
-            </button>
-          </template>
+            <template #header-actions>
+              <QueryDocumentActions
+                :code="queryCode"
+                :can-diff="!isScratch"
+                :diff-title="diffButtonTitle"
+                :diff-active="showDiff"
+                @format="formatQueryCode"
+                @diff="handleDiffToggle"
+                @update:code="(value) => (queryCode = value)"
+              />
+            </template>
 
-          <template #footer>
-            <QueryEditorFooter
-              :validation-state="validationState"
-              :query-type-label="queryTypeLabel"
-              :sparql-code="queryCode"
-            />
-          </template>
-        </SparqlEditorPanel>
+            <template #footer>
+              <QueryEditorFooter
+                :validation-state="validationState"
+                :query-type-label="queryTypeLabel"
+                :sparql-code="queryCode"
+              />
+            </template>
+          </SparqlEditorPanel>
+        </template>
       </ExpandableEditor>
 
     </div>
@@ -228,30 +239,6 @@
         @open-test="(testId) => emit('open-entity', { type: 'test', id: testId })"
       />
     </div>
-
-    <QueryFocusOverlay
-      v-if="showEditorFocus"
-      :show="showEditorFocus"
-      :query-code="queryCode"
-      :document-key="editorDocumentKey"
-      :extensions="extensions"
-      :show-diff="showDiff"
-      :version-options="versionOptions"
-      :can-diff="Boolean(diffPlan) || showDiff"
-      :has-draft-edits="hasDraftEdits"
-      :diff-left-version="diffLeftVersion"
-      :diff-right-version="diffRightVersion"
-      :diff-left-query="diffLeftQuery"
-      :diff-right-query="diffRightQuery"
-      :diff-left-label="diffLeftLabel"
-      :diff-right-label="diffRightLabel"
-      @update:show="(value) => showEditorFocus = value"
-      @update:queryCode="applyEditedQueryCode"
-      @toggle-diff="toggleDiff"
-      @update-diff-left-version="updateDiffLeftVersion"
-      @update-diff-right-version="updateDiffRightVersion"
-      @swap-diff-versions="swapDiffVersions"
-    />
 
     <!-- Results Focus Mode Overlay -->
     <div v-if="showResultsFocus" class="focus-overlay" @click.self="showResultsFocus = false">
@@ -468,28 +455,28 @@
 
 <script setup lang="ts">
 import { ref, computed, shallowRef, nextTick, onMounted, onUnmounted, watch } from 'vue';
-import { GitCompare, WandSparkles, X } from '@lucide/vue';
+import { X } from '@lucide/vue';
 import { languageExtensionsFor } from '@/lib/codeLanguage';
 import { useCommentKeymap } from '@/composables/useCommentKeymap';
 import { useEditorKeymaps } from '@/composables/useEditorKeymaps';
 import { useExecuteKeymap } from '@/composables/useExecuteKeymap';
 import { EPHEMERAL_BACKEND_ID, EPHEMERAL_BACKEND_LABEL } from '@sparql-query-lib/types';
-import PrefixConversionButtons from './shared/PrefixConversionButtons.vue';
 import RunBar from './shared/RunBar.vue';
 import type { CreateTarget, RunBarPick } from '../lib/runBar';
-import { NOTHING_TO_DIFF } from '../lib/versionDiff';
 import { useBenchmarksStore } from '../composables/useBenchmarksStore';
 import { NO_ARGUMENTS_IRI, emptySettings } from '../lib/benchmarkPlan';
 import type { Query as ApiQuery, Backend as ApiBackend, QueryCreateInput } from '@sparql-query-lib/contracts';
 import QueryResultsViewer from './QueryResultsViewer.vue';
 import SparqlEditorPanel from './shared/SparqlEditorPanel.vue';
 import ExpandableEditor from './shared/ExpandableEditor.vue';
+import QueryDocumentActions from './query-work-area/QueryDocumentActions.vue';
 import ExpandRunStrip from './shared/ExpandRunStrip.vue';
 import { useEditorExpand } from '../composables/useEditorExpand';
+import { useEditorAsPrefixTarget } from '../composables/usePrefixTarget';
 import QueryResultsPanel from './query-work-area/QueryResultsPanel.vue';
 import type { QueryExecutionResultPayload, QueryInspectorTab } from '@/types/execution';
 import { forgetLastRun, loadLastRun, runCacheKey, saveLastRun } from '@/lib/lastRunCache';
-import QueryFocusOverlay from './query-work-area/QueryFocusOverlay.vue';
+import QueryDiffPane from './query-work-area/QueryDiffPane.vue';
 import SaveBar from './shared/SaveBar.vue';
 import PanelHeader from './shared/PanelHeader.vue';
 import SectionLabel from './shared/SectionLabel.vue';
@@ -632,6 +619,29 @@ const selectedMediaType = ref<string>('application/sparql-results+json');
 // Results, which is the only tab worth being taken to without asking.
 const editorExpansion = useEditorExpand();
 
+/*
+ * The pop-out is named rather than given a generated id: Diff and the version
+ * rows enlarge the editor from outside the slot that would hand them one.
+ */
+const QUERY_EDITOR_REGION = 'query-editor';
+
+/** The diff is a pop-out view; the page below has no room for it. */
+function handleExpandedChange(value: boolean) {
+  if (!value) showDiff.value = false;
+}
+
+/** The run row asks, because it is drawn outside the region that knows. */
+const editorExpanded = computed(() => editorExpansion.isExpanded(QUERY_EDITOR_REGION));
+
+/**
+ * What Diff compares, named on the button — or empty, which is what makes it
+ * disabled. `planVersionDiff`'s rule, shared with rules: edits against the
+ * version they were made on, else the open version against current.
+ */
+const diffButtonTitle = computed(() =>
+  diffPlan.value ? `Diff ${diffPlan.value.left.label} → ${diffPlan.value.right.label}` : '',
+);
+
 const activeResultsTab = ref<QueryInspectorTab>('details');
 const queryResultsPanelRef = ref<InstanceType<typeof QueryResultsPanel> | null>(null);
 // The library is passed so the switcher can offer sets made elsewhere in it,
@@ -765,6 +775,14 @@ function applyEditedQueryCode(value: string) {
   noteQueryCodeEdit();
   queryCode.value = value;
 }
+
+/** Where the Prefix Manager's "Add to editor" lands while this screen is up. */
+useEditorAsPrefixTarget({
+  label: 'the query',
+  contentType: 'application/sparql-query',
+  read: () => queryCode.value,
+  write: applyEditedQueryCode,
+});
 
 // Dirty state tracking for unsaved query changes
 const { isDirty, resetDirtyState } = useQueryDirtyState({
@@ -1809,7 +1827,6 @@ function beginCreate(request: QueryCreationRequest) {
   loadError.value = null;
   queryLoading.value = false;
   queryState.value = 'creating';
-  showEditorFocus.value = false;
   showResultsFocus.value = false;
   showArgumentsFocus.value = false;
   toast.info(`Drafting new query for ${request.libraryName}`);
@@ -2068,22 +2085,25 @@ const copyQueryVersionId = async () => {
   }
 };
 
+/*
+ * Diff shows the comparison in the editor pop-out, over the editor rather than
+ * beside it: two versions side by side need the width, and the editor stays
+ * mounted underneath so coming back is the same document, not a fresh copy of
+ * its text. Pressing it again goes back to the editor without closing the
+ * pop-out.
+ */
 const handleDiffToggle = async () => {
   if (!diffPlan.value) {
     return;
   }
 
-  if (!showEditorFocus.value) {
-    if (!showDiff.value) {
-      await toggleDiff();
-    } else {
-      await loadDiffVersions();
-    }
-    showEditorFocus.value = true;
+  if (showDiff.value) {
+    showDiff.value = false;
     return;
   }
 
   await toggleDiff();
+  editorExpansion.expand(QUERY_EDITOR_REGION);
 };
 
 /*
@@ -2091,8 +2111,8 @@ const handleDiffToggle = async () => {
  *
  * No picker: the comparison a version list is asking about is "what changed
  * between this and what callers get", so the row names the left-hand side and
- * `current` is always the right. It opens in the focus overlay because that is
- * where the diff view lives.
+ * `current` is always the right. It enlarges the editor, which is where the
+ * diff view lives.
  */
 const compareVersionWithCurrent = async (versionId: string) => {
   if (!currentVersion.value || versionId === currentVersion.value) return;
@@ -2101,12 +2121,7 @@ const compareVersionWithCurrent = async (versionId: string) => {
   diffRightVersion.value = currentVersion.value;
   showDiff.value = true;
   await loadDiffVersions();
-  showEditorFocus.value = true;
-};
-
-const openEditorFocus = () => {
-  showDiff.value = false;
-  showEditorFocus.value = true;
+  editorExpansion.expand(QUERY_EDITOR_REGION);
 };
 
 /*
@@ -2173,7 +2188,6 @@ watch(queryType, (newQueryType) => {
 
 
 // Focus mode state
-const showEditorFocus = ref(false);
 const showResultsFocus = ref(false);
 const showArgumentsFocus = ref(false);
 

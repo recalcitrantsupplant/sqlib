@@ -440,6 +440,9 @@
   --z-dialog: 1000;
   --z-toast: 1100;
 
+  /* Where a pop-out sits in the viewport — see ExpandableEditor. */
+  --popout-inset: 4vh 4vw;
+
   --duration-fast: 0.12s;
   --duration: 0.2s;
 }

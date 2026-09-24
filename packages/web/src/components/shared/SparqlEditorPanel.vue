@@ -210,13 +210,13 @@
       controls that act on the document, which is where they belong — in a row
       with each other rather than floating over the first line of it.
 
-      Popped out, the row stays and loses its two redundant parts: the title,
-      which the pop-out's own header already carries, and Expand, whose job is
-      done by the Close beside that title. What is left is the same strip of
-      document controls in the same place relative to the code, so the editor
-      does not change shape when it is enlarged.
+      Popped out, the row goes: the title is already in the pop-out's header,
+      Expand's job is done by the Close beside it, and the document controls
+      move up into the run row, which the pop-out has room for. One control row
+      over the code either way — and the diff replaces that one row rather than
+      opening a second one under it.
     -->
-    <PanelHeader v-if="expandable" :title="expanded ? undefined : editorTitle" sunken>
+    <PanelHeader v-if="expandable && !expanded" :title="editorTitle" sunken>
       <template #actions>
         <!--
           What the section wants to do *to the document*, beside the control
@@ -230,7 +230,6 @@
         -->
         <slot name="header-actions" />
         <ExpandButton
-          v-if="!expanded"
           :subject="editorTitle.toLowerCase()"
           testid="sparql-editor-expand"
           @click="$emit('request-expand')"

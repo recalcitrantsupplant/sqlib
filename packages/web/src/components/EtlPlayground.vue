@@ -435,6 +435,7 @@ import { ref, computed, nextTick, onMounted, onBeforeUnmount, onUnmounted, watch
 import { useRuntimeConfig } from '#imports';
 import { Codemirror } from 'vue-codemirror';
 import ExpandableEditor from './shared/ExpandableEditor.vue';
+import { useEditorAsPrefixTarget } from '@/composables/usePrefixTarget';
 import { prefixSourceToken } from '@/lib/prefixSources';
 import { usePrefixDiscovery } from '@/composables/usePrefixDiscovery';
 import ExpandButton from './shared/ExpandButton.vue';
@@ -546,6 +547,17 @@ const rdfFormatOptions = [
 const selectedExample = ref('');
 const sqlQuery = ref(`SELECT * FROM read_csv('data/examples/people.csv')`);
 const sparqlTemplate = ref('');
+
+/*
+ * Where the Prefix Manager's "Add to editor" lands on this screen: the SPARQL
+ * template. The SQL beside it has no prefixes to declare.
+ */
+useEditorAsPrefixTarget({
+  label: 'the template',
+  contentType: 'application/sparql-query',
+  read: () => sparqlTemplate.value,
+  write: (text) => { sparqlTemplate.value = text; },
+});
 const selectedBackendId = ref(EPHEMERAL_BACKEND_ID);
 const outputFormat = ref('text/turtle');
 const columnMappings = ref<ColumnMapping[]>([]);

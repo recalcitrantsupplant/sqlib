@@ -103,6 +103,40 @@ test.describe('Tests screen editors', () => {
     await expect(peek).toContainText('rdf-schema');
   });
 
+  /*
+   * The fields that hold a document are not labels.
+   *
+   * A `<label>` with no `for` forwards a click anywhere inside it to its first
+   * labelable descendant, so a click in the editor opened the pop-out and a
+   * click on the pop-out's Close collapsed it and then re-opened it through
+   * the Expand button that had just come back.
+   */
+  test('the SQL fixture pop-out opens from Expand only, and Close closes it', async ({ page }) => {
+    await mockTestsScreen(page, { tuplesEnabled: false });
+    await page.goto('/?section=tests', { waitUntil: 'domcontentloaded' });
+    await page.getByTestId('test-kind-etlJob').click();
+
+    const region = page.getByTestId('test-sql-fixture-expand');
+    await expect(region).toBeVisible();
+
+    // A click in the editor is a click in the editor.
+    await region.locator('.cm-content').click();
+    await expect(region).not.toHaveClass(/expanded/);
+
+    await page.getByTestId('test-sql-fixture-expand-button').click();
+    await expect(region).toHaveClass(/expanded/);
+
+    // Typing lands in the document, rather than the first keystroke arriving
+    // after the pop-out has closed itself.
+    await region.locator('.cm-content').click();
+    await page.keyboard.type('SELECT 1');
+    await expect(region.locator('.cm-content')).toContainText('SELECT 1');
+    await expect(region).toHaveClass(/expanded/);
+
+    await page.getByTestId('test-sql-fixture-expand-close').click();
+    await expect(region).not.toHaveClass(/expanded/);
+  });
+
   test('offers named tuples only to a rule set that uses them', async ({ page }) => {
     await mockTestsScreen(page, { tuplesEnabled: false });
     await page.goto('/?section=tests&new=test');

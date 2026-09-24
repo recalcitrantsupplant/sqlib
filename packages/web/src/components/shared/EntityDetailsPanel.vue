@@ -145,6 +145,8 @@
             <span class="version-name">Draft</span>
             <span class="version-comment">{{ editCount }} {{ editCount === 1 ? 'edit' : 'edits' }}</span>
             <span class="version-age">{{ draftAge }}</span>
+            <!-- The slots a version row ends with, held open so the ages line up. -->
+            <span class="version-tools" />
             <span v-if="showActionSlot" class="version-action" />
           </div>
 
@@ -184,9 +186,9 @@
               The text is not itself the control. This cell is the widest part
               of a row whose own job is to open that version, so a button
               spanning it swallows the click most people aim at the row; the
-              pencil beside the age is what starts an edit, and every handler
-              here stops propagation because reaching for the note is not a
-              request to load the version.
+              pencil in the tools at the end of the row is what starts an
+              edit, and every handler there stops propagation because reaching
+              for the note is not a request to load the version.
             -->
             <input
               v-if="canAnnotateVersions && editingComment === option.value"
@@ -205,45 +207,52 @@
             <span v-else class="version-comment" :class="{ empty: !option.comment }">
               {{ option.comment || option.summary || (canAnnotateVersions ? 'No note' : '—') }}
             </span>
+            <!--
+              Before the two fixed-width slots that end the row, so the age
+              lands on the same edge on every row — including the draft above,
+              which has neither a tool nor an action to draw.
+            -->
             <span class="version-age">{{ formatRelativeTime(option.dateModified) }}</span>
 
-            <button
-              v-if="canAnnotateVersions && editingComment !== option.value"
-              class="note-button"
-              data-testid="version-comment-edit"
-              :title="option.comment ? `Edit the note on v${option.label}` : `Add a note to v${option.label}`"
-              @click.stop="startComment(option)"
-            >
-              <PencilLine :size="13" />
-            </button>
+            <span class="version-tools">
+              <button
+                v-if="canAnnotateVersions && editingComment !== option.value"
+                class="note-button"
+                data-testid="version-comment-edit"
+                :title="option.comment ? `Edit the note on v${option.label}` : `Add a note to v${option.label}`"
+                @click.stop="startComment(option)"
+              >
+                <PencilLine :size="13" />
+              </button>
 
-            <!--
-              The version's id, for the same reason the entity's id above has a
-              copy button: a caller pinning a version pastes this string, and
-              the row shows only the number people read.
-            -->
-            <button
-              class="copy-version-button"
-              data-testid="copy-version-id"
-              :title="`Copy v${option.label}'s version id`"
-              @click.stop="copyVersionId(option)"
-            >
-              <Copy :size="13" />
-            </button>
+              <!--
+                The version's id, for the same reason the entity's id above has a
+                copy button: a caller pinning a version pastes this string, and
+                the row shows only the number people read.
+              -->
+              <button
+                class="copy-version-button"
+                data-testid="copy-version-id"
+                :title="`Copy v${option.label}'s version id`"
+                @click.stop="copyVersionId(option)"
+              >
+                <Copy :size="13" />
+              </button>
 
-            <!--
-              Against *current*, with no picker: the comparison anyone wants
-              from a version list is "what changed since what callers get".
-            -->
-            <button
-              v-if="canCompareVersions && option.value !== currentVersion"
-              class="diff-button"
-              data-testid="compare-version"
-              :title="`Compare v${option.label} with the current version`"
-              @click.stop="emit('compare-version', option.value)"
-            >
-              <GitCompare :size="13" />
-            </button>
+              <!--
+                Against *current*, with no picker: the comparison anyone wants
+                from a version list is "what changed since what callers get".
+              -->
+              <button
+                v-if="canCompareVersions && option.value !== currentVersion"
+                class="diff-button"
+                data-testid="compare-version"
+                :title="`Compare v${option.label} with the current version`"
+                @click.stop="emit('compare-version', option.value)"
+              >
+                <GitCompare :size="13" />
+              </button>
+            </span>
 
             <span v-if="showActionSlot" class="version-action">
               <span v-if="option.value === currentVersion" class="current-tag" data-testid="current-version-tag">
@@ -1095,6 +1104,24 @@ const outputKind = computed<'variables' | 'boolean' | 'graph' | 'none'>(() => {
 .diff-button:hover {
   background: var(--surface-raised);
   color: var(--ink);
+}
+
+/*
+ * The row's tools, in a slot of their own width: a current version has no
+ * Diff button and the draft has no tools at all, and without a fixed box the
+ * age beside them would sit at three different depths down the list.
+ *
+ * At the end of the row rather than beside the age, so the middle of a row —
+ * where a click aimed at "this version" lands — is text rather than a button
+ * that means something else.
+ */
+.version-tools {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  width: 74px;
 }
 
 /*

@@ -327,13 +327,11 @@ describe('primitive adoption', () => {
    * As with the well above, the guard looks for the spec rather than the name.
    * The shape is unambiguous: panel chrome (a bottom rule on `--surface-subtle`)
    * laid out as a title against trailing actions, at the dialog padding step.
-   * `.focus-diff-controls` in `QueryWorkArea` shares three of those four and is
-   * not a header — it centres its contents rather than spacing them apart,
-   * which is what keeps it out.
+   * The diff panes' control bars are `PanelHeader` itself, so there is nothing
+   * hand-rolled left to catch there.
    */
   const FOCUS_HEADERS = [
     'components/QueryWorkArea.vue',
-    'components/query-work-area/QueryFocusOverlay.vue',
     'components/EtlPlayground.vue',
     'components/RuleSetExecutionResults.vue',
   ];
@@ -604,7 +602,7 @@ describe('SectionLabel adoption', () => {
     'components/query-group/QueryGroupCanvasNode.vue: .node-name-label':
       'the sm size and ink, but no weight: it inherits the node’s',
     'components/query-work-area/ArgumentSetSwitcher.vue: .state-badge': 'a badge naming a set’s state',
-    'components/rules/SrlDiffDialog.vue: .tag': 'a tag pill',
+    'components/rules/SrlDiffPane.vue: .tag': 'a tag pill',
     'components/shared/ExpandButton.vue: .expand-button-text':
       'a control’s own text: tracking and case, no type of its own — the -button exemption the note guard draws',
     'pages/examples/index.vue: .badge': 'a badge on the examples index',
@@ -1004,8 +1002,6 @@ describe('PanelHeader adoption, closed over src', () => {
     // No title: the primitive's contents are a title, and these have none.
     'components/build/AssistantToolReceipt.vue: .receipt-head':
       'a receipt’s status line — a wrench, the tool that ran and its verdict, at micro type',
-    'components/query-work-area/QueryFocusOverlay.vue: .focus-diff-controls':
-      'controls, centred rather than spaced apart — the sixth pass named it, and only a comment said so',
     'components/rules/RuleSetInputsPanel.vue: .not-part-strip':
       'a caption strip: a sentence about the two blocks below it, a help dot and a button',
     'components/rules/StratificationPanel.vue: .header-strip':
