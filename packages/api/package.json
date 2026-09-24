@@ -47,7 +47,7 @@
     "@ai-sdk/anthropic": "^4.0.58",
     "@ai-sdk/groq": "^4.0.46",
     "@ai-sdk/openai": "^4.0.71",
-    "@duckdb/node-api": "1.5.5-r.4",
+    "@duckdb/node-api": "1.5.5-r.5",
     "@fastify/cors": "^11.3.0",
     "@fastify/fast-json-stringify-compiler": "^5.1.0",
     "@fastify/multipart": "^10.1.1",
