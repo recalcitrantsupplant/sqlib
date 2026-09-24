@@ -45,7 +45,7 @@ export const SECTION_ITEM_TYPES = [
 
 export const _sectionItemTypesCover: Covers<SectionItemType, (typeof SECTION_ITEM_TYPES)[number]> = true;
 
-/** Sections that render the flat sidebar. `connect` and `backends` are not lists. */
+/** Sections that render the flat sidebar. `mcp` and `backends` are not lists. */
 export type ListSection = Extract<RailSection, 'queries' | 'queryGroups' | 'rules' | 'etl' | 'benchmarks' | 'tests' | 'dataGraphs' | 'tupleSets' | 'argumentSets'>;
 
 export interface SavedKind {

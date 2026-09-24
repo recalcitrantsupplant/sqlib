@@ -5,7 +5,7 @@ import { mockEntityApi, QUERY } from './fixtures/entities';
  * The 56px primary nav rail.
  *
  * Two things are being asserted, and they are different: that the rail is a
- * router (Notebook and Connect are screens), and that it is a scope (the rest
+ * router (Notebook and MCP are screens), and that it is a scope (the rest
  * open their own sidebar). The scope is opt-in — with no rail entry chosen the
  * app shows the splash and no sidebar at all — so "unscoped by default" is
  * itself a test, not an accident.
@@ -26,7 +26,7 @@ test.describe('Nav rail', () => {
     await openApp(page);
   });
 
-  test('renders Notebook, then the library sections, then Connect, then Backends', async ({ page }) => {
+  test('renders Notebook, then the library sections, then MCP, then Backends', async ({ page }) => {
     const labels = await page.locator('.nav-rail .rail-button .rail-label').allTextContents();
     /*
      * v2 order (nav doc §2). No Play: a playground is an unsaved item, not a
@@ -55,7 +55,7 @@ test.describe('Nav rail', () => {
      */
     expect(labels).toEqual([
       'Notebook', 'Query', 'Groups', 'Rules', 'ETL', 'Bench', 'Tests', 'Graphs',
-      'Tuples', 'Argument sets', 'Connect', 'Backends',
+      'Tuples', 'Argument sets', 'MCP', 'Backends',
     ]);
   });
 
@@ -71,28 +71,28 @@ test.describe('Nav rail', () => {
 
   test('Notebook navigates to the notebook screen, the rail\'s other destination', async ({ page }) => {
     await railButton(page, 'Notebook').click();
-    // Same shape as Connect below: a screen, not a scope, and it self-selects a
+    // Same shape as MCP below: a screen, not a scope, and it self-selects a
     // library once the store resolves, so the path is what can be anchored on.
     await expect(page).toHaveURL(/\/notebook(\?|$)/);
     await expect(page.locator('.notebook-layout')).toBeVisible();
     await expect(page.locator('.nav-sidebar')).toHaveCount(0);
   });
 
-  test('Connect navigates to the Connect screen', async ({ page }) => {
-    await railButton(page, 'Connect').click();
+  test('MCP navigates to the MCP screen', async ({ page }) => {
+    await railButton(page, 'MCP').click();
     // Path only, not the whole URL: the screen may carry a `?library=` once the
-    // store resolves. Anchoring on `/connect$` only passed while the machine was
+    // store resolves. Anchoring on `/mcp-server$` only passed while the machine was
     // slow enough to be observed mid-flight — the self-hosted runner loses that
     // race every time.
-    await expect(page).toHaveURL(/\/connect(\?|$)/);
-    await expect(page.locator('.connect-layout')).toBeVisible();
-    // §2: no second sidebar inside Connect.
+    await expect(page).toHaveURL(/\/mcp-server(\?|$)/);
+    await expect(page.locator('.mcp-layout')).toBeVisible();
+    // §2: no second sidebar inside MCP.
     await expect(page.locator('.nav-sidebar')).toHaveCount(0);
   });
 
-  test('the rail comes back out of Connect, carrying the section', async ({ page }) => {
-    await railButton(page, 'Connect').click();
-    await expect(page.locator('.connect-layout')).toBeVisible();
+  test('the rail comes back out of MCP, carrying the section', async ({ page }) => {
+    await railButton(page, 'MCP').click();
+    await expect(page.locator('.mcp-layout')).toBeVisible();
 
     await railButton(page, 'Backends').click();
     await expect(page).toHaveURL(/section=backends/);

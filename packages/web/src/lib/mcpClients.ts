@@ -1,21 +1,21 @@
 /**
  * Where to point a chat client, and how each client is told.
  *
- * Extracted from the Connect page rather than written inside it because these
- * are the parts with an answer worth pinning: a URL derived wrongly sends every
- * user to a dead endpoint, and the one-click link is an undocumented interface
- * that will need changing when Claude moves it. A page is awkward to test; this
- * is not.
+ * Extracted from the MCP page rather than written inside it because these are
+ * the parts with an answer worth pinning: a URL derived wrongly sends every user
+ * to a dead endpoint, and the one-click link is an undocumented interface that
+ * will need changing when Claude moves it. A page is awkward to test; this is
+ * not.
  */
 
 /**
  * The MCP endpoint this deployment publishes.
  *
  * `/mcp` is served beside the API on the same origin in every mode this
- * repository ships, so the default is derived — one fewer variable to forget,
+ * repository ships, so the default is derived. One fewer variable to forget,
  * and it is right for anyone running the thing locally. The override is for the
- * deployment the Connect page exists for: a public read-only MCP on its own
- * host, administered from an app somewhere else.
+ * deployment this page exists for: a public read-only MCP on its own host,
+ * administered from an app somewhere else.
  */
 export function mcpEndpoint(config: { apiBaseUrl?: unknown; mcpUrl?: unknown }): string {
   const override = String(config.mcpUrl ?? '').trim();
@@ -26,12 +26,12 @@ export function mcpEndpoint(config: { apiBaseUrl?: unknown; mcpUrl?: unknown }):
 /**
  * Claude's add-a-custom-connector link, with the name and URL prefilled.
  *
- * Not a documented interface: it is the modal Claude's own settings page opens,
+ * Not a documented interface. It is the modal Claude's own settings page opens,
  * addressed by its query string. It is here because "press this, then press
  * Add" is a different thing from "find Settings, find Connectors, find Add
- * custom connector, paste this" — which is the whole difference between a
- * person setting this up and a person giving up. The page says beside it what
- * to do when the form opens empty, because one day it will.
+ * custom connector, paste this", which is the whole difference between a person
+ * setting this up and a person giving up. The page says beside it what to do
+ * when the form opens empty, because one day it will.
  */
 export function claudeConnectorLink(endpoint: string, name = 'sqlib'): string {
   return (
@@ -40,7 +40,7 @@ export function claudeConnectorLink(endpoint: string, name = 'sqlib'): string {
   );
 }
 
-export type ConnectClient = {
+export type McpClient = {
   id: string;
   label: string;
   steps: string[];
@@ -52,7 +52,7 @@ export type ConnectClient = {
  * ChatGPT first, deliberately: it is the only one of these with no install link
  * at all, so its steps are the whole path rather than a fallback.
  */
-export const CONNECT_CLIENTS: ConnectClient[] = [
+export const MCP_CLIENTS: McpClient[] = [
   {
     id: 'chatgpt',
     label: 'ChatGPT',
@@ -67,7 +67,7 @@ export const CONNECT_CLIENTS: ConnectClient[] = [
     id: 'claude-web',
     label: 'Claude (web)',
     steps: [
-      'Settings → Connectors → Add custom connector — or use the one-click link above.',
+      'Settings → Connectors → Add custom connector, or use the one-click link above.',
       'Name it sqlib and paste the server URL.',
       'Add it, then enable sqlib in a chat.',
     ],
@@ -99,8 +99,8 @@ export const CONNECT_CLIENTS: ConnectClient[] = [
  * A server may answer a POST with JSON or with an SSE stream carrying the same
  * message, and which it picks is its business. Both are read rather than
  * negotiated: a check that failed on the encoding would report "cannot reach"
- * about a server answering perfectly, which is precisely the diagnosis this
- * page exists to avoid making.
+ * about a server answering perfectly, which is precisely the diagnosis this page
+ * exists to avoid making.
  */
 export function parseRpcMessage(body: string): Record<string, unknown> | null {
   const trimmed = body.trim();
@@ -126,10 +126,10 @@ export function parseRpcMessage(body: string): Record<string, unknown> | null {
 /**
  * What the connection check says about a catalogue.
  *
- * The tool count alone is a number nobody can interpret; what a user wants to
+ * The tool count alone is a number nobody can interpret. What a user wants to
  * know is whether the server they just published will let a stranger delete
- * their libraries. So the mode is read from the presence of a write, not from a
- * count, and named in words.
+ * their libraries, so the mode is read from the presence of a write rather than
+ * from a count, and named in words.
  */
 export function describeCatalogue(toolNames: string[]): { writable: boolean; mode: string } {
   const writable = toolNames.includes('queries_create');

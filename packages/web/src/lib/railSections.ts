@@ -2,19 +2,19 @@
  * The nav rail's sections, and what each one scopes the artifact tree to.
  *
  * Order is the v2 mockup's, with Notebook ahead of it: the library's front
- * page, then the library-scoped sections that drill down from it, then
- * Connect, then a divider, then Backends. Backends is account-level —
- * libraries point at connections rather than containing them — and the divider
- * says so without a word of explanation.
+ * page, then the library-scoped sections that drill down from it, then MCP,
+ * then a divider, then Backends. Backends is account-level — libraries point
+ * at connections rather than containing them — and the divider says so without
+ * a word of explanation.
  *
  * Notebook took that first slot from a `library` screen that rendered every
  * query in the library as a cell, unasked. One screen answers both questions
  * now: the library's contents are what you import into a notebook, and the
  * notebook is what someone reads. See `docs/proposals/notebook-cells.md`.
  *
- * `notebooks` and `connect` are the odd ones out among the rest: they are
- * screens (`/notebook`, `/connect`), not scopes, and they render without the
- * tree at all —
+ * `notebooks` and `mcp` are the odd ones out among the rest: they are screens
+ * (`/notebook`, `/mcp-server`), not scopes, and they render without the tree
+ * at all —
  * inside either the scope is the whole library, so a per-type navigator would
  * only duplicate the rail.
  *
@@ -37,7 +37,7 @@ export const RAIL_SECTIONS = [
   'dataGraphs',
   'tupleSets',
   'argumentSets',
-  'connect',
+  'mcp',
   'backends',
 ] as const;
 
@@ -46,19 +46,23 @@ export type RailSection = (typeof RAIL_SECTIONS)[number];
 /**
  * The sections that are screens rather than tree scopes.
  *
- * `build` was the first, and `connect` replaced it at the same slot;
- * `notebooks` is the second. Each renders at its own route with no per-type
- * navigator, so neither has a scoping entry in the maps below — the `Exclude`
+ * `build` was the first, and `mcp` replaced it at the same slot; `notebooks`
+ * is the second. Each renders at its own route with no per-type navigator, so
+ * neither has a scoping entry in the maps below — the `Exclude`
  * keeps that a type error rather than a dead entry somebody has to invent a
  * value for.
  *
- * `connect` is the one section that is not about a library at all: it is about
- * this deployment's MCP endpoint, which is the same whichever library is
- * active. It sits in the rail anyway because that is where a user looks for
- * places, and a section that ignores the active library is a smaller surprise
- * than a page with no way to reach it.
+ * `mcp` is the one section that is not about a library at all: it is about this
+ * deployment's MCP endpoint, which is the same whichever library is active. It
+ * sits in the rail anyway because that is where a user looks for places, and a
+ * section that ignores the active library is a smaller surprise than a page
+ * with no way to reach it.
+ *
+ * Its route is `/mcp-server`, not `/mcp`, because `/mcp` is the API's own path.
+ * Nothing here serves the app and the API from one origin, but a reverse proxy
+ * in front of both is an ordinary thing to build.
  */
-export const SCREEN_SECTIONS = ['notebooks', 'connect'] as const;
+export const SCREEN_SECTIONS = ['notebooks', 'mcp'] as const;
 
 export type ScreenSection = (typeof SCREEN_SECTIONS)[number];
 
@@ -69,7 +73,7 @@ export function isScreenSection(section: RailSection): section is ScreenSection 
 /** Where a screen section lives. Every other section is a query on `/`. */
 export const SCREEN_SECTION_PATHS: Record<ScreenSection, string> = {
   notebooks: '/notebook',
-  connect: '/connect',
+  mcp: '/mcp-server',
 };
 
 export function isRailSection(value: unknown): value is RailSection {

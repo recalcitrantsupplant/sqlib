@@ -199,10 +199,10 @@ const librariesTitle = computed(() =>
  * divider because it is account-level, heads the second row here for the same
  * reason: it is where the inputs start.
  *
- * Connect is left out, as Build was before it. It is a screen rather than a
- * section, and it is about this deployment's MCP endpoint rather than about
- * anything the library holds, so it has nothing to count in a grid of
- * library contents.
+ * MCP is left out, as Build was before it. It is a screen rather than a
+ * section, and it is about this deployment's MCP server rather than about
+ * anything the library holds, so it has nothing to count in a grid of library
+ * contents.
  */
 const CARD_ORDER: RailSection[] = [
   'notebooks', 'queries', 'queryGroups', 'rules', 'etl',
@@ -216,7 +216,7 @@ const FAMILY_OF: Record<RailSection, 'definition' | 'input' | 'evidence' | 'axis
   queryGroups: 'definition',
   rules: 'definition',
   etl: 'definition',
-  connect: 'definition',
+  mcp: 'definition',
   backends: 'axis',
   dataGraphs: 'input',
   tupleSets: 'input',

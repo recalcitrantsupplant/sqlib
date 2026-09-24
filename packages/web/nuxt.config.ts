@@ -36,7 +36,7 @@ const frontendFeatureFlagEnv: Record<string, string | undefined> = {
   // only: neither gates a route, and what each shows is decided by the section
   // flags above.
   FEATURE_NOTEBOOK: process.env.NUXT_PUBLIC_FEATURE_NOTEBOOK ?? process.env.FEATURE_NOTEBOOK,
-  FEATURE_CONNECT: process.env.NUXT_PUBLIC_FEATURE_CONNECT ?? process.env.FEATURE_CONNECT,
+  FEATURE_MCP: process.env.NUXT_PUBLIC_FEATURE_MCP ?? process.env.FEATURE_MCP,
 };
 
 const frontendFeatureFlags = buildFeatureFlags(frontendFeatureFlagEnv);

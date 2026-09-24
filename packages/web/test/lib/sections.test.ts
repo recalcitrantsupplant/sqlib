@@ -104,7 +104,7 @@ describe('the section table', () => {
 
   it('recognises only real sections', () => {
     expect(isListSection('rules')).toBe(true);
-    expect(isListSection('connect')).toBe(false);
+    expect(isListSection('mcp')).toBe(false);
     expect(isListSection('playground')).toBe(false);
     expect(isListSection(null)).toBe(false);
   });

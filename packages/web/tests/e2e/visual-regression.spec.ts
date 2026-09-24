@@ -216,11 +216,11 @@ for (const theme of ['light', 'dark'] as const) {
 
     // --- Connect screen ---------------------------------------------------
 
-    test(`connect — how to reach this server from a chat client`, async ({ page }) => {
-      await page.goto('/connect', { waitUntil: 'domcontentloaded' });
+    test(`mcp — how to reach this server from a chat client`, async ({ page }) => {
+      await page.goto('/mcp-server', { waitUntil: 'domcontentloaded' });
       await page.waitForSelector('[data-testid="mcp-endpoint"]');
       await stabilise(page);
-      await expect(page).toHaveScreenshot(`connect-${theme}.png`, { fullPage: false });
+      await expect(page).toHaveScreenshot(`mcp-${theme}.png`, { fullPage: false });
     });
 
     // --- Dialogs ----------------------------------------------------------

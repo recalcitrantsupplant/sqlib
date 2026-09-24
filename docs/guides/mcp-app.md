@@ -234,15 +234,27 @@ rebuild `@sparql-query-lib/mcp-app` if the server is running from `dist`.
 
 ## Telling people how to connect
 
-The app's **Connect** screen (`/connect`, and the rail entry that replaced
-Build) is the user-facing half of all this: the server URL with a copy button, a
-one-click *Add to Claude* link that opens Claude's add-a-connector modal with
-the name and URL prefilled, by-hand steps for ChatGPT, Claude Code, Claude
-Desktop and Cursor, and a **Test connection** button that performs a real
-handshake — `initialize`, the initialized notification, `tools/list` — and
-reports the server's name, its tool count and whether any tool writes. That last
-line is how someone confirms a deployment is the read-only one they meant to
-publish, without reading its environment.
+The app's **MCP** screen (`/mcp-server`, and the rail entry that replaced Build)
+is the user-facing half of all this: the server URL with a copy button, a
+one-click *Add to Claude* link that opens Claude's add-a-connector modal with the
+name and URL prefilled, by-hand steps for ChatGPT, Claude Code, Claude Desktop
+and Cursor, and a **Read the catalogue** button that performs a real handshake
+(`initialize`, the initialized notification, `tools/list`) and reports the
+server's name, its tool count and whether any tool writes.
+
+That button was a *Test connection* button first, and it was worse than useless.
+A browser already talking to this app reaching a URL on the same host proves a
+tautology, while a green tick on it reads as "MCP works" to everyone who sees
+one. Whether a chat client can reach the server is decided on Anthropic's or
+OpenAI's network and nothing in this page can speak for it. What the request
+does know is the catalogue, which is invisible everywhere else in the app and is
+the thing worth confirming before handing the URL out: 53 tools and no writes is
+a read-only deployment, 96 is not. So the section reports that and says plainly
+that it says nothing about reachability.
+
+The route is `/mcp-server` rather than `/mcp` because `/mcp` is the API's own
+path. Nothing here serves the app and the API from one origin, but a reverse
+proxy in front of both is an ordinary thing to build.
 
 The URL is derived as `/mcp` beside the API, which is where every mode in this
 repository serves it. `NUXT_PUBLIC_MCP_URL` overrides it, for a public MCP on a
