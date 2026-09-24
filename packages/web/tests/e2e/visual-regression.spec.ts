@@ -1,7 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { mockEntityApi, QUERY, QUERY_GROUP, RULE_SET } from './fixtures/entities';
 import { openCreateLibraryDialog, openSavedEntity, openSection, openSplash } from './navigate';
-import { mockCallableLibrary, seedDraft } from './fixtures/callables';
 import { FIXED_NOW, setTheme, stabilise } from './visual-helpers';
 
 /**
@@ -215,40 +214,13 @@ for (const theme of ['light', 'dark'] as const) {
       await expect(page).toHaveScreenshot(`benchmarks-${theme}.png`, { fullPage: false });
     });
 
-    // --- Build screen -----------------------------------------------------
+    // --- Connect screen ---------------------------------------------------
 
-    /*
-     * Its own fixtures rather than the shared ones: the shared query's
-     * expanded version has empty inputs and outputs, so a baseline taken with
-     * it would be a screenshot of a signature table rendering no signatures —
-     * the same blind spot the badge pass hit.
-     */
-    test(`build — callable library`, async ({ page }) => {
-      await mockCallableLibrary(page);
-      await seedDraft(page);
-      await page.goto('/build', { waitUntil: 'domcontentloaded' });
-      await page.waitForSelector('.callable-row');
+    test(`connect — how to reach this server from a chat client`, async ({ page }) => {
+      await page.goto('/connect', { waitUntil: 'domcontentloaded' });
+      await page.waitForSelector('[data-testid="mcp-endpoint"]');
       await stabilise(page);
-      await expect(page).toHaveScreenshot(`build-library-${theme}.png`, { fullPage: false });
-    });
-
-    test(`build — expanded signatures`, async ({ page }) => {
-      await mockCallableLibrary(page);
-      await page.goto('/build', { waitUntil: 'domcontentloaded' });
-      await page.waitForSelector('.callable-row');
-      await page.getByRole('button', { name: 'Expand all signatures' }).click();
-      await stabilise(page);
-      await expect(page).toHaveScreenshot(`build-stacked-${theme}.png`, { fullPage: false });
-    });
-
-    test(`build — expanded row`, async ({ page }) => {
-      await mockCallableLibrary(page);
-      await page.goto('/build', { waitUntil: 'domcontentloaded' });
-      await page.waitForSelector('.callable-row');
-      await page.locator('.callable-row').filter({ hasText: 'Product search' }).getByTitle('Code').click();
-      await expect(page.locator('.snippet')).toBeVisible();
-      await stabilise(page);
-      await expect(page).toHaveScreenshot(`build-detail-${theme}.png`, { fullPage: false });
+      await expect(page).toHaveScreenshot(`connect-${theme}.png`, { fullPage: false });
     });
 
     // --- Dialogs ----------------------------------------------------------

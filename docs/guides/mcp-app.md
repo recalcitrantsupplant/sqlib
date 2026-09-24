@@ -232,6 +232,22 @@ the server with `SQLIB_AUTH_MODE=required` before opening it.
 run the server with `MCP_APP_NO_CACHE=1` so a re-render picks up the file, and
 rebuild `@sparql-query-lib/mcp-app` if the server is running from `dist`.
 
+## Telling people how to connect
+
+The app's **Connect** screen (`/connect`, and the rail entry that replaced
+Build) is the user-facing half of all this: the server URL with a copy button, a
+one-click *Add to Claude* link that opens Claude's add-a-connector modal with
+the name and URL prefilled, by-hand steps for ChatGPT, Claude Code, Claude
+Desktop and Cursor, and a **Test connection** button that performs a real
+handshake — `initialize`, the initialized notification, `tools/list` — and
+reports the server's name, its tool count and whether any tool writes. That last
+line is how someone confirms a deployment is the read-only one they meant to
+publish, without reading its environment.
+
+The URL is derived as `/mcp` beside the API, which is where every mode in this
+repository serves it. `NUXT_PUBLIC_MCP_URL` overrides it, for a public MCP on a
+different host from the app that administers it.
+
 ## Publishing it read-only
 
 A public deployment should set `MCP_READ_ONLY=1`. The registry is then built
