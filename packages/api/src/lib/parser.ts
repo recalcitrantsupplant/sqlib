@@ -189,6 +189,35 @@ export class SparqlQueryParser {
   }
 
   /**
+   * Format SPARQL source text, keeping `LIMIT 000<n>` / `OFFSET 000<n>` parameter
+   * placeholders intact. The parser reads those as plain integers, so a straight
+   * parse/generate round trip would print `LIMIT 0002` as `LIMIT 2` and silently
+   * drop the parameter. Each placeholder is swapped for a sentinel integer that
+   * appears nowhere in the source, and swapped back after generation.
+   */
+  formatQueryString(queryString: string): string {
+    const placeholder = /\b(LIMIT|OFFSET)(\s+)000(\d+)\b/gi;
+    const originals = new Map<string, string>();
+    let next = 7_301_000_000_000;
+    const masked = queryString.replace(placeholder, (_match, keyword: string, _space: string, name: string) => {
+      let sentinel = String(next++);
+      while (queryString.includes(sentinel)) sentinel = String(next++);
+      originals.set(sentinel, `000${name}`);
+      return `${keyword} ${sentinel}`;
+    });
+
+    const formatted = this.formatQuery(this.parseQuery(masked));
+    if (originals.size === 0) return formatted;
+    return formatted.replace(
+      /\b(LIMIT|OFFSET)(\s+)(\d+)\b/g,
+      (match, keyword: string, space: string, value: string) => {
+        const original = originals.get(value);
+        return original === undefined ? match : `${keyword}${space}${original}`;
+      },
+    );
+  }
+
+  /**
    * Walk the pattern tree of a group/where clause, invoking `onValues` for every
    * VALUES pattern encountered (recursing through groups, unions, optionals, graphs,
    * services, minus, FILTER EXISTS/NOT EXISTS and nested sub-SELECTs).
