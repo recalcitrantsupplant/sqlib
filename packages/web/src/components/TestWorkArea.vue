@@ -380,7 +380,7 @@
             not here. Nothing stands in its place — an empty slot on a form
             that never showed the field needs no explaining.
           -->
-          <FormField v-if="showTupleSeeds" label="Named tuples">
+          <FormField v-if="showTupleSeeds" label="Named tuples" as="div">
             <!-- Expand sits on the field's label row, not over the seeds. -->
             <template #actions>
               <ExpandButton
@@ -416,7 +416,7 @@
             for a fixture to live in, and only DDL can say a column is
             DECIMAL(18,4) — which is most of what a column mapping is about.
           -->
-          <FormField v-if="slots.sqlFixture" label="SQL fixture">
+          <FormField v-if="slots.sqlFixture" label="SQL fixture" as="div">
             <template #actions>
               <ExpandButton
                 v-if="!sqlFixtureExpanded"
@@ -650,6 +650,7 @@ import ExpandableEditor from './shared/ExpandableEditor.vue';
 import ExpandButton from './shared/ExpandButton.vue';
 import ExpandRunStrip from './shared/ExpandRunStrip.vue';
 import { useEditorExpand } from '../composables/useEditorExpand';
+import { useEditorAsPrefixTarget } from '../composables/usePrefixTarget';
 import CodePeek from './shared/CodePeek.vue';
 import CodeSnippetPanel, { type CodeSnippetVariant } from './shared/CodeSnippetPanel.vue';
 import InspectorPanel, { type InspectorTab } from './shared/InspectorPanel.vue';
@@ -891,6 +892,7 @@ const argumentSetVersion = caseField('argumentSetVersion');
 const tupleSeeds = caseField('tupleSeeds');
 const sqlFixture = caseField('sqlFixture');
 const expected = caseField('expected');
+
 const ordered = caseField('ordered');
 
 function addCase() {
@@ -1300,6 +1302,19 @@ const expectedContentType = computed(() => {
     default:
       return null;
   }
+});
+
+/*
+ * Where the Prefix Manager's "Add to editor" lands on this screen: the
+ * expectation, which is the document written out here. It takes prefixes only
+ * while it is one — a graph expectation is Turtle; bindings and analysis are
+ * JSON, and a smoke test has no expectation at all.
+ */
+useEditorAsPrefixTarget({
+  label: 'the expectation',
+  contentType: () => expectedContentType.value,
+  read: () => expected.value,
+  write: (text) => { expected.value = text; },
 });
 
 const expectedPlaceholder = computed(() => {

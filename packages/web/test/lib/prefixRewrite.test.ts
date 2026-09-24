@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { sparqlLanguage } from '@kurrawongai/codemirror-lang-sparql12';
 import { srlLanguage } from '@kurrawongai/codemirror-lang-srl';
 import { turtleLanguage } from '@kurrawongai/codemirror-lang-turtle12';
-import { toPrefixedNames, toFullIris, readDeclaredPrefixes } from '@/lib/prefixRewrite';
+import { toPrefixedNames, toFullIris, readDeclaredPrefixes, addDeclarations } from '@/lib/prefixRewrite';
 import { prefixGrammarFor } from '@/lib/codeLanguage';
 import type { PrefixPair } from '@/lib/curie';
 
@@ -176,6 +176,67 @@ describe('readDeclaredPrefixes', () => {
       SPARQL,
     );
     expect(declared.get('a')).toBe('http://second.example/');
+  });
+});
+
+describe('addDeclarations', () => {
+  const EX: PrefixPair = { prefix: 'ex', namespace: 'http://example.org/' };
+  const SCHEMA: PrefixPair = { prefix: 'schema', namespace: 'http://schema.org/' };
+
+  it('puts the new declarations below the ones already there', () => {
+    const text = 'PREFIX a: <http://a.example/>\nSELECT * WHERE { ?s ?p ?o }';
+
+    const result = addDeclarations(text, [EX], SPARQL);
+
+    expect(result.text).toBe(
+      'PREFIX a: <http://a.example/>\nPREFIX ex: <http://example.org/>\nSELECT * WHERE { ?s ?p ?o }',
+    );
+    expect(result.added).toEqual([EX]);
+    expect(result.skipped).toEqual([]);
+  });
+
+  it('declares above a document that declares nothing', () => {
+    const result = addDeclarations('SELECT * WHERE { ?s ?p ?o }', [EX, SCHEMA], SPARQL);
+
+    expect(result.text).toBe(
+      'PREFIX ex: <http://example.org/>\nPREFIX schema: <http://schema.org/>\nSELECT * WHERE { ?s ?p ?o }',
+    );
+  });
+
+  /*
+   * The one thing this must not do: a prefix the document has bound already
+   * names things in it, and rebinding it would repoint every one of them.
+   */
+  it('leaves a prefix the document has already bound, whatever it is bound to', () => {
+    const text = 'PREFIX ex: <http://mine.example/>\nSELECT * WHERE { ?s ex:p ?o }';
+
+    const result = addDeclarations(text, [EX, SCHEMA], SPARQL);
+
+    expect(result.text).toContain('PREFIX ex: <http://mine.example/>');
+    expect(result.text).not.toContain('http://example.org/');
+    expect(result.added).toEqual([SCHEMA]);
+    expect(result.skipped).toEqual([EX]);
+  });
+
+  it('changes nothing below the prologue', () => {
+    const body = 'CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }';
+
+    expect(addDeclarations(body, [EX], SPARQL).text.endsWith(body)).toBe(true);
+  });
+
+  it('reads an SRL document with SRL\'s own grammar', () => {
+    const text = 'PREFIX a: <http://a.example/>\nRULE { ?s a:q ?o } WHERE { ?s a:p ?o }';
+
+    const result = addDeclarations(text, [EX], SRL);
+
+    expect(result.text).toContain('PREFIX ex: <http://example.org/>');
+    expect(result.added).toEqual([EX]);
+  });
+
+  it('leaves the document alone when there is nothing to add', () => {
+    const text = 'PREFIX ex: <http://example.org/>\nSELECT * WHERE { ?s ?p ?o }';
+
+    expect(addDeclarations(text, [EX], SPARQL).text).toBe(text);
   });
 });
 

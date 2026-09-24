@@ -328,12 +328,12 @@ test.describe('Rule set SRL authoring', () => {
     await typeDocument(page, 'PREFIX : <http://example.org/>\nRULE { ?s :edited ?o } WHERE { ?s :p ?o }');
     await openPreview(page);
 
-    const dialog = page.locator('[data-testid="srl-diff-dialog"]');
-    await expect(dialog.getByText('v1 (current) → Draft')).toBeVisible();
-    await expect(dialog.locator('.cm-mergeView')).toBeVisible();
-    await expect(dialog.locator('.cm-mergeView')).toContainText(':edited');
+    const pane = page.locator('[data-testid="srl-diff-pane"]');
+    await expect(pane.getByText('v1 (current) → Draft')).toBeVisible();
+    await expect(pane.locator('.cm-mergeView')).toBeVisible();
+    await expect(pane.locator('.cm-mergeView')).toContainText(':edited');
     // A save that changes nothing structural has nothing to add under the diff.
-    await expect(dialog.locator('[data-testid="srl-save-impact"]')).toHaveCount(0);
+    await expect(pane.locator('[data-testid="srl-save-impact"]')).toHaveCount(0);
     // The draft is posted exactly as authored — one editor, one string.
     expect(String(lastPreviewRequest?.srl)).toContain(':edited');
     // Regression guard: without an explicit JSON content-type the browser sends
@@ -342,34 +342,44 @@ test.describe('Rule set SRL authoring', () => {
     expect(lastPreviewContentType).toContain('application/json');
   });
 
-  test('diff from the popped-out editor replaces the pop-out at the same size', async ({ page }) => {
+  test('diff takes the pop-out over, and the editor is still there behind it', async ({ page }) => {
     await openDefaultRuleSet(page);
     await typeDocument(page, 'PREFIX : <http://example.org/>\nRULE { ?s :edited ?o } WHERE { ?s :p ?o }');
 
     await page.locator('[data-testid="sparql-editor-expand"]').click();
     const region = page.locator('[data-testid="rule-set-editor-expand"]');
     await expect(region).toHaveClass(/expanded/);
-    const expandedBox = await region.boundingBox();
+    const expandedBox = (await region.boundingBox())!;
 
+    await expect(region.locator('[data-testid="run-bar"]')).toBeVisible();
+    const editorTop = (await region.locator('.cm-editor').first().boundingBox())!.y;
     await region.locator('[data-testid="diff-query"]').click();
-    const dialog = page.locator('[data-testid="srl-diff-dialog"]');
-    await expect(dialog.locator('.cm-mergeView')).toBeVisible();
+    const pane = page.locator('[data-testid="srl-diff-pane"]');
+    await expect(pane.locator('.cm-mergeView')).toBeVisible();
 
-    // One or the other: the pop-out steps aside rather than sitting over the diff.
-    await expect(region).not.toHaveClass(/expanded/);
-    // Measured once the zoom-in has settled, not part-way through it.
-    await dialog.evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
-    const box = await dialog.boundingBox();
+    // A diff is not run, so the run row steps aside for the diff's own row —
+    // which stands at the same height, so the code does not move.
+    await expect(region.locator('[data-testid="run-bar"]')).toBeHidden();
+    const diffTop = (await pane.locator('.cm-editor').first().boundingBox())!.y;
+    expect(Math.abs(diffTop - editorTop)).toBeLessThan(2);
+
+    // The pop-out stays open and the diff fills it, rather than a second
+    // surface opening over or under it.
+    await expect(region).toHaveClass(/expanded/);
+    const box = (await pane.boundingBox())!;
+    expect(box.width).toBeGreaterThan(expandedBox.width - 4);
+    expect(box.height).toBeLessThanOrEqual(expandedBox.height);
     const topmost = await page.evaluate(({ x, y }) => {
       const hit = document.elementFromPoint(x, y);
-      return !!hit?.closest('[data-testid="srl-diff-dialog"]');
-    }, { x: box!.x + box!.width / 2, y: box!.y + box!.height / 2 });
+      return !!hit?.closest('[data-testid="srl-diff-pane"]');
+    }, { x: box.x + box.width / 2, y: box.y + box.height / 2 });
     expect(topmost).toBe(true);
 
-    // And it takes the pop-out's place, not a smaller box inside it.
-    for (const key of ['x', 'y', 'width', 'height'] as const) {
-      expect(Math.abs(box![key] - expandedBox![key])).toBeLessThan(2);
-    }
+    // Back to the editor, in the same pop-out, with the edit still in it.
+    await pane.locator('[data-testid="close-srl-diff"]').click();
+    await expect(pane).toHaveCount(0);
+    await expect(region).toHaveClass(/expanded/);
+    await expect(region.locator('.cm-content')).toContainText(':edited');
   });
 
   test('previews created rules and distinguishes orphaned from shared detaches', async ({ page }) => {
@@ -391,7 +401,7 @@ test.describe('Rule set SRL authoring', () => {
     await expect(page.getByText(/no longer used anywhere/i)).toBeVisible();
     await expect(page.getByText(/still used by 2 other rule sets/i)).toBeVisible();
     // Detach must never read as deletion — said in the row, not only in the
-    // dialog's own preamble (which also carries the phrase).
+    // pane's own preamble (which also carries the phrase).
     await expect(page.getByText(/no longer used anywhere\. Nothing is deleted/i)).toBeVisible();
   });
 

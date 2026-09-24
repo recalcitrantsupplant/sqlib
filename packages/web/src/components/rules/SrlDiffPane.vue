@@ -1,18 +1,29 @@
 <template>
-  <Dialog :open="open" @update:open="(value) => emit('update:open', value)">
+  <div class="diff-pane" data-testid="srl-diff-pane">
     <!--
-      The size of the editor pop-out, because it opens in its place: Diff from
-      the popped-out editor closes the pop-out, and a smaller box would read as
-      the page having shrunk.
+      The row the run strip is not drawing while this is up: same height, same
+      chrome, so moving between the editor and the diff does not move the code
+      under them. The pair being compared is centred — it is the subject of
+      this view, not an action on it — and the way back sits where actions sit.
     -->
-    <DialogContent :style="POPOUT_BOX" data-testid="srl-diff-dialog">
-      <DialogHeader>
-        <DialogTitle>{{ leftLabel }} → {{ rightLabel }}</DialogTitle>
-        <DialogDescription class="sr-only">
-          The rule set document, {{ leftLabel }} on the left and {{ rightLabel }} on the right.
-        </DialogDescription>
-      </DialogHeader>
+    <div class="diff-controls">
+      <SectionLabel as="h3" size="lg" class="diff-title">{{ leftLabel }} → {{ rightLabel }}</SectionLabel>
 
+      <!--
+        The way back. The editor's own Diff button is underneath this pane, so
+        the toggle has to be reachable from on top of it.
+      -->
+      <button
+        class="btn-compact diff-close"
+        data-testid="close-srl-diff"
+        title="Back to the editor"
+        @click="emit('close')"
+      >
+        Editor
+      </button>
+    </div>
+
+    <div class="diff-content">
       <p v-if="textError" class="error">{{ textError }}</p>
       <p v-else-if="leftText === null || rightText === null" class="muted">Loading…</p>
       <div v-else class="diff-body">
@@ -83,8 +94,8 @@
           <p v-if="seedSummary" class="muted">{{ seedSummary }}</p>
         </template>
       </div>
-    </DialogContent>
-  </Dialog>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -96,19 +107,18 @@
  * rows that say something — which rules saving would create or detach. That
  * used to be the whole dialog, and a document with no edits got a paragraph of
  * preamble and "No changes" instead of a diff.
+ *
+ * It is a pane rather than a dialog because it opens over the editor pop-out
+ * and replaces what that box is showing — see `ExpandableEditor`'s `layer`
+ * slot. The editor underneath keeps its instance, so coming back lands on the
+ * same document, selection and undo history.
  */
 import { computed } from 'vue';
-import Dialog from '../ui/dialog/Dialog.vue';
-import DialogContent from '../ui/dialog/DialogContent.vue';
-import DialogDescription from '../ui/dialog/DialogDescription.vue';
-import DialogHeader from '../ui/dialog/DialogHeader.vue';
-import DialogTitle from '../ui/dialog/DialogTitle.vue';
 import SectionLabel from '../shared/SectionLabel.vue';
 import SparqlDiffViewer from '../shared/SparqlDiffViewer.vue';
 import type { RuleSetSrlPreview } from '@/composables/useApiClient';
 
 const props = defineProps<{
-  open: boolean;
   leftLabel: string;
   rightLabel: string;
   /** Null while that side is still being fetched. */
@@ -120,23 +130,8 @@ const props = defineProps<{
   error: string | null;
 }>();
 
-/*
- * Out of the primitive's centred, max-w-lg box and into the pop-out's. Inline,
- * because the content is teleported and this file's scoped styles never reach
- * it. The primitive centres with the `translate` property; left in place it
- * would shift this box by half its own size.
- */
-const POPOUT_BOX = {
-  display: 'flex',
-  flexDirection: 'column',
-  inset: 'var(--popout-inset)',
-  width: 'auto',
-  maxWidth: 'none',
-  translate: 'none',
-} as const;
-
 const emit = defineEmits<{
-  (e: 'update:open', value: boolean): void;
+  (e: 'close'): void;
 }>();
 
 const changed = computed(() => (props.result?.updated ?? []).filter((entry) => entry.changed));
@@ -175,6 +170,51 @@ const detachExplanation = (orphaned: boolean, otherRuleSets: number) =>
 </script>
 
 <style scoped>
+.diff-pane {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+/*
+ * The run row's own chrome and height (`RunBar`), and three tracks so the pair
+ * is centred on the row rather than on what is left of it once the button
+ * beside it has taken its width.
+ */
+.diff-controls {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  min-height: var(--panel-bar-h);
+  padding: var(--space-2) var(--space-5);
+  background: var(--surface-subtle);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.diff-title {
+  grid-column: 2;
+}
+
+.diff-close {
+  grid-column: 3;
+  justify-self: end;
+}
+
+/*
+ * The diff and, under it, what saving would do. The merge view runs to the
+ * edges, as the editor it replaces does — the padding belongs to the prose
+ * under it, not to the code.
+ */
+.diff-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
 .diff-body {
   flex: 1;
   min-height: 0;
@@ -183,10 +223,18 @@ const detachExplanation = (orphaned: boolean, otherRuleSets: number) =>
 .preview-body {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-4);
   flex-shrink: 0;
   max-height: 20vh;
+  padding: var(--space-5) var(--space-6);
+  border-top: 1px solid var(--border-default);
   overflow: auto;
+}
+
+/* The states that stand in for the diff, set in from the edge as prose is. */
+.diff-content > .error,
+.diff-content > .muted {
+  padding: var(--space-5) var(--space-6);
 }
 
 

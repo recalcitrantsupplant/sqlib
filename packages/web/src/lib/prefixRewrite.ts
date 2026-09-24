@@ -295,6 +295,46 @@ export function toPrefixedNames(
   };
 }
 
+/** What `addDeclarations` did, for the message that reports it. */
+export interface DeclarationsAdded {
+  text: string;
+  added: PrefixPair[];
+  /** Left alone: the document already binds that prefix. */
+  skipped: PrefixPair[];
+}
+
+/**
+ * Declare prefixes the document has not declared, without touching its terms.
+ *
+ * This is the Prefix Manager's "Add to editor": the prefixes go into the
+ * prologue so the editor's completions and the reader both have them, and
+ * nothing below the prologue changes.
+ *
+ * A prefix the document already binds is skipped whatever it is bound to —
+ * rebinding it would silently repoint every name written with it, which is the
+ * failure `toPrefixedNames` refuses for the same reason.
+ */
+export function addDeclarations(
+  text: string,
+  pairs: readonly PrefixPair[],
+  parser: PrefixGrammar,
+): DeclarationsAdded {
+  const declared = readDeclaredPrefixes(text, parser);
+
+  const added: PrefixPair[] = [];
+  const skipped: PrefixPair[] = [];
+  for (const pair of pairs) {
+    if (declared.has(pair.prefix) || added.some((a) => a.prefix === pair.prefix)) skipped.push(pair);
+    else added.push(pair);
+  }
+
+  return {
+    text: added.length > 0 ? insertDeclarations(text, added) : text,
+    added,
+    skipped,
+  };
+}
+
 /**
  * Prefixed names back out to full IRIs.
  *

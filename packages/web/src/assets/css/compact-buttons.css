@@ -261,19 +261,34 @@
 }
 
 /*
+ * The strip itself, wherever it is drawn: the editor's header row on the page,
+ * and the run row while the editor is popped out. Keyed on the strip rather
+ * than on the bar around it, so the buttons are the same size in both.
+ */
+.document-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  /* At the end of whichever row draws it. In the editor's header the row is
+     content-width and this changes nothing; in the run row it holds the strip
+     against the right edge however short the run sentence is. */
+  margin-left: auto;
+}
+
+/*
  * The prefix pair brings the save bar's chrome with it — smaller box, tighter
  * radius — so it is matched to the row here. Expand needs no rule: it is the
  * standard control height wherever it is drawn.
  */
-.panel-header__actions .prefix-conversion-buttons .bar-button {
+.document-actions .prefix-conversion-buttons .bar-button {
   width: var(--control-h);
   height: var(--control-h);
   border-radius: var(--radius);
 }
 
 /* The glyphs grow with the boxes, or a bigger button is just more padding. */
-.panel-header__actions .editor-action svg,
-.panel-header__actions .prefix-conversion-buttons .bar-button svg {
+.document-actions .editor-action svg,
+.document-actions .prefix-conversion-buttons .bar-button svg {
   width: 16px;
   height: 16px;
 }

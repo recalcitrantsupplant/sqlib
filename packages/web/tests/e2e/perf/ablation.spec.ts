@@ -1,10 +1,16 @@
 /**
- * Causal test for the overlay's dropped frames.
+ * Causal test for the dropped frames when the editor opens over the page.
  *
  * Each variant injects a CSS override before measuring, so the only thing that
- * changes between runs is the property under test. If removing
- * `backdrop-filter` collapses `jankyFrames`, the blur is the cost — not the
- * CodeMirror mount, which `processing` already showed to be a few ms.
+ * changes between runs is the property under test. The original run was
+ * against the query focus overlay, which dimmed with `backdrop-filter` and
+ * animated in: removing the blur collapsed `jankyFrames`, while `processing`
+ * had already shown the CodeMirror mount to be a few ms.
+ *
+ * That overlay is gone — the editor pop-out (`ExpandableEditor`) replaced it,
+ * and it dims with a flat colour and does not animate. So the variants run the
+ * experiment the other way round: they put the blur and the animation back on
+ * the pop-out, which is what a future change would be doing.
  */
 import { test } from '@playwright/test';
 import { mockSidebarCollections } from '../fixtures/collections';
@@ -17,26 +23,23 @@ const REPEATS = Number(process.env.PERF_REPEATS ?? 7);
 const VARIANTS: Array<{ name: string; css: string }> = [
   { name: 'baseline (as shipped)', css: '' },
   {
-    name: 'no backdrop-filter',
-    css: `.focus-overlay { backdrop-filter: none !important; }`,
+    name: 'blurred dim',
+    css: `.expand-region.expanded::before { backdrop-filter: blur(4px) !important; }`,
   },
   {
-    name: 'faster animations (0.15s/0.12s)',
-    css: `.focus-overlay { animation-duration: 0.12s !important; }
-          .focus-container { animation-duration: 0.15s !important; }`,
+    name: 'animated in (0.15s)',
+    css: `@keyframes ablation-in { from { opacity: 0; transform: translateY(20px); } }
+          .expand-region.expanded { animation: ablation-in 0.15s ease-out !important; }`,
   },
   {
-    name: 'no blur + faster animations',
-    css: `.focus-overlay { backdrop-filter: none !important; animation-duration: 0.12s !important; }
-          .focus-container { animation-duration: 0.15s !important; }`,
-  },
-  {
-    name: 'no animation at all',
-    css: `.focus-overlay, .focus-container { animation: none !important; }`,
+    name: 'blurred dim + animated in',
+    css: `.expand-region.expanded::before { backdrop-filter: blur(4px) !important; }
+          @keyframes ablation-in { from { opacity: 0; transform: translateY(20px); } }
+          .expand-region.expanded { animation: ablation-in 0.15s ease-out !important; }`,
   },
 ];
 
-test('@perf overlay open: CSS ablation', async ({ page }) => {
+test('@perf pop-out open: CSS ablation', async ({ page }) => {
   test.setTimeout(600_000);
   await mockSidebarCollections(page);
 
@@ -47,20 +50,20 @@ test('@perf overlay open: CSS ablation', async ({ page }) => {
     await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
     await page.goto(BASE, { waitUntil: 'networkidle' });
     if (variant.css) await page.addStyleTag({ content: variant.css });
-    await page.locator('button[title="Focus Mode"]').first().waitFor();
+    await page.locator('[data-testid="sparql-editor-expand"]').first().waitFor();
     await cdp.send('Emulation.setCPUThrottlingRate', { rate: CPU_THROTTLE });
 
     const samples: Sample[] = [];
     for (let i = 0; i < REPEATS; i++) {
       samples.push(
         await measureOpen(page, {
-          trigger: 'button[title="Focus Mode"]',
-          appears: '.focus-overlay .cm-editor',
-          settleRoot: '.focus-overlay',
+          trigger: '[data-testid="sparql-editor-expand"]',
+          appears: '.expand-region.expanded .cm-editor',
+          settleRoot: '.expand-region.expanded',
         })
       );
-      await page.locator('.focus-overlay button[title="Close Focus Mode"]').click();
-      await page.locator('.focus-overlay').waitFor({ state: 'detached' });
+      await page.locator('[data-testid="query-editor-expand-close"]').click();
+      await page.locator('.expand-region.expanded').waitFor({ state: 'detached' });
     }
 
     const warm = summarise(samples.slice(1));
@@ -72,5 +75,5 @@ test('@perf overlay open: CSS ablation', async ({ page }) => {
     );
   }
 
-  console.log(`\n=== overlay CSS ablation, cpu=${CPU_THROTTLE}x, warm median ===\n${rows.join('\n')}\n`);
+  console.log(`\n=== pop-out CSS ablation, cpu=${CPU_THROTTLE}x, warm median ===\n${rows.join('\n')}\n`);
 });

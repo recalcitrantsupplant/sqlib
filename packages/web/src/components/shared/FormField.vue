@@ -1,5 +1,9 @@
 <template>
-  <label class="form-field" :class="{ 'form-field--grow': grow, 'form-field--inline': inline }">
+  <component
+    :is="as"
+    class="form-field"
+    :class="{ 'form-field--grow': grow, 'form-field--inline': inline }"
+  >
     <!--
       The label row is a row, not a lone word: a control that belongs to this
       field but not inside it — Expand, on the fields that hold a document —
@@ -8,8 +12,8 @@
     <div v-if="!inline" class="form-field__header">
       <SectionLabel as="span">{{ label }}</SectionLabel>
       <!--
-        `@click.stop` because the field is a `<label>`: a click on a control in
-        here is about that control, not about the field it labels.
+        `@click.stop` because the field may be a `<label>`: a click on a control
+        in here is about that control, not about the field it labels.
       -->
       <span v-if="$slots.actions" class="form-field__actions" @click.stop>
         <slot name="actions" />
@@ -18,7 +22,7 @@
     <slot />
     <SectionLabel v-if="inline" as="span">{{ label }}</SectionLabel>
     <InlineNote v-if="hint">{{ hint }}</InlineNote>
-  </label>
+  </component>
 </template>
 
 <script setup lang="ts">
@@ -50,8 +54,22 @@ withDefaults(
     grow?: boolean;
     /** Label after the control rather than above it, for checkboxes. */
     inline?: boolean;
+    /**
+     * `div` for a field that holds something other than one form control — an
+     * editor, a picker with its own buttons, a pop-out.
+     *
+     * A `<label>` with no `for` forwards a click anywhere inside it to its
+     * first labelable descendant, which is what makes clicking a field's name
+     * focus its input. Around a document editor that same rule misfires: on
+     * the tests screen a click in the SQL fixture forwarded to Expand and
+     * opened the pop-out, and a click on the pop-out's Close collapsed it and
+     * then forwarded to the Expand button that had just come back — a Close
+     * button that appeared to do nothing. Forwarding is not a listener and
+     * `stopPropagation` does not reach it; the field has to stop being a label.
+     */
+    as?: 'label' | 'div';
   }>(),
-  { hint: '', grow: false, inline: false },
+  { hint: '', grow: false, inline: false, as: 'label' },
 );
 </script>
 

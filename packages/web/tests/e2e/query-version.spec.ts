@@ -743,6 +743,160 @@ test.describe('Query Version', () => {
     await expect(page.locator('.sparql-diff-viewer')).toContainText('?v2');
   });
 
+  test('Diff takes the pop-out over, and the editor is still there behind it', async ({ page }) => {
+    mockQueryVersions = [
+      version(1, 'SELECT ?v1 WHERE { ?s ?p ?o }', 'Version 1'),
+      version(2, 'SELECT ?v2 WHERE { ?s ?p ?o }', 'Version 2'),
+    ];
+    nextVersionNumber = 3;
+    mockQuery.currentVersion = versionIri(2);
+    await openQuery(page);
+
+    await page.locator('[data-testid="sparql-editor-expand"]').click();
+    const region = page.locator('[data-testid="query-editor-expand"]');
+    await expect(region).toHaveClass(/expanded/);
+
+    await typeQuery(page, 'SELECT ?edited WHERE { ?s ?p ?o }');
+    await region.locator('[data-testid="diff-query"]').click();
+
+    const viewer = page.locator('.sparql-diff-viewer');
+    await expect(viewer).toBeVisible();
+    // The pop-out stays open and the diff fills it, rather than a second
+    // surface opening over or under it.
+    await expect(region).toHaveClass(/expanded/);
+    const box = (await viewer.boundingBox())!;
+    const topmost = await page.evaluate(({ x, y }) => {
+      const hit = document.elementFromPoint(x, y);
+      return !!hit?.closest('.sparql-diff-viewer');
+    }, { x: box.x + box.width / 2, y: box.y + box.height / 2 });
+    expect(topmost).toBe(true);
+
+    // Back to the editor, in the same pop-out, with the edit still in it —
+    // the editor was covered rather than torn down.
+    await page.locator('[data-testid="close-query-diff"]').click();
+    await expect(viewer).toHaveCount(0);
+    await expect(region).toHaveClass(/expanded/);
+    await expect(region.locator('.cm-content')).toContainText('?edited');
+  });
+
+  test('closing the pop-out on a diff comes back to the editor, not the diff', async ({ page }) => {
+    mockQueryVersions = [
+      version(1, 'SELECT ?v1 WHERE { ?s ?p ?o }', 'Version 1'),
+      version(2, 'SELECT ?v2 WHERE { ?s ?p ?o }', 'Version 2'),
+    ];
+    nextVersionNumber = 3;
+    mockQuery.currentVersion = versionIri(2);
+    await openQuery(page);
+
+    await page.locator('.panel-header__actions [data-testid="diff-query"]').click();
+    await expect(page.locator('.sparql-diff-viewer')).toBeVisible();
+
+    await page.locator('[data-testid="query-editor-expand-close"]').click();
+    await expect(page.locator('[data-testid="query-editor-expand"]')).not.toHaveClass(/expanded/);
+    // The page underneath has no room for a side-by-side, so the diff does not
+    // come back down with the editor.
+    await expect(page.locator('.sparql-diff-viewer')).toHaveCount(0);
+  });
+
+  test('the diff swap button darkens on hover rather than washing out', async ({ page }) => {
+    mockQueryVersions = [
+      version(1, 'SELECT ?v1 WHERE { ?s ?p ?o }', 'Version 1'),
+      version(2, 'SELECT ?v2 WHERE { ?s ?p ?o }', 'Version 2'),
+    ];
+    nextVersionNumber = 3;
+    mockQuery.currentVersion = versionIri(2);
+    await openQuery(page);
+    await page.locator('.panel-header__actions [data-testid="diff-query"]').click();
+
+    const swap = page.locator('[data-testid="query-diff-pane"] button[title="Swap versions"]');
+    await expect(swap).toBeVisible();
+    const luminance = async () => swap.evaluate((el) => {
+      const [r, g, b] = getComputedStyle(el).backgroundColor.match(/\d+/g)!.map(Number);
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    });
+
+    const resting = await luminance();
+    await swap.hover();
+    // The hover fill is the action colour; the bug was a lighter one, so the
+    // direction is what this pins rather than a particular token.
+    await expect.poll(luminance).toBeLessThan(resting);
+  });
+
+  /*
+   * The Prefix Manager opens from the nav rail, so it has no editor of its
+   * own: the work area on screen registers as the destination. This is the
+   * whole route, which the component tests cover only up to a stand-in.
+   */
+  test('the Prefix Manager declares ticked prefixes in the query on screen', async ({ page }) => {
+    await openQuery(page);
+    await typeQuery(page, 'SELECT * WHERE { ?s ?p ?o }');
+
+    await page.locator('button[title="Prefix manager"]').click();
+    const manager = page.locator('[role="dialog"]').filter({ hasText: 'Prefix Manager' });
+    await expect(manager).toBeVisible();
+
+    await manager.locator('.filter-input').fill('schema.org');
+    const row = manager.locator('[data-testid="prefix-row"]').first();
+    await row.locator('[data-testid="select-prefix"]').click();
+    await manager.locator('[data-testid="add-prefixes-to-editor"]').click();
+
+    // The manager stays up, and the editor behind it has the declaration.
+    await expect(manager).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.cm-content')).toContainText('PREFIX schema: <http://schema.org/>');
+    await expect(page.locator('.cm-content')).toContainText('SELECT * WHERE { ?s ?p ?o }');
+  });
+
+  test('the diff row stands where the run row stood, so the code does not move', async ({ page }) => {
+    mockQueryVersions = [
+      version(1, 'SELECT ?v1 WHERE { ?s ?p ?o }', 'Version 1'),
+      version(2, 'SELECT ?v2 WHERE { ?s ?p ?o }', 'Version 2'),
+    ];
+    nextVersionNumber = 3;
+    mockQuery.currentVersion = versionIri(2);
+    await openQuery(page);
+
+    const region = page.locator('[data-testid="query-editor-expand"]');
+    await page.locator('[data-testid="sparql-editor-expand"]').click();
+    await expect(region).toHaveClass(/expanded/);
+    // One control row over the code: the run row, carrying the document's own
+    // buttons while the editor's header row is not drawn.
+    await expect(region.locator('[data-testid="run-bar"]')).toBeVisible();
+    await expect(region.locator('.panel-header')).toHaveCount(0);
+    const editorTop = (await region.locator('.cm-editor').first().boundingBox())!.y;
+
+    await region.locator('[data-testid="diff-query"]').click();
+    await expect(page.locator('.sparql-diff-viewer')).toBeVisible();
+
+    // A diff is not run, so the run row is not drawn either — the diff's own
+    // row takes its place at the same height.
+    await expect(region.locator('[data-testid="run-bar"]')).toBeHidden();
+    const diffTop = (await page.locator('.sparql-diff-viewer .cm-editor').first().boundingBox())!.y;
+    expect(Math.abs(diffTop - editorTop)).toBeLessThan(2);
+  });
+
+  test('the age reads on one edge, draft row and version rows alike', async ({ page }) => {
+    mockQueryVersions = [
+      version(1, 'SELECT ?v1 WHERE { ?s ?p ?o }', 'Version 1'),
+      version(2, 'SELECT ?v2 WHERE { ?s ?p ?o }', 'Version 2'),
+    ];
+    nextVersionNumber = 3;
+    mockQuery.currentVersion = versionIri(2);
+    await openQuery(page);
+    await typeQuery(page, 'SELECT ?edited WHERE { ?s ?p ?o }');
+    await page.locator('[data-testid="details-tab"]').click();
+
+    const draftAge = page.locator('[data-testid="draft-version-row"] .version-age');
+    const versionAge = page.locator('[data-testid="version-row"] .version-age').first();
+    await expect(draftAge).toBeVisible();
+
+    // Right edges, not left: "15m" and "1 day ago" are different lengths, and
+    // the column they share ends where the fixed action slot begins.
+    const draftBox = (await draftAge.boundingBox())!;
+    const versionBox = (await versionAge.boundingBox())!;
+    expect(Math.abs((draftBox.x + draftBox.width) - (versionBox.x + versionBox.width))).toBeLessThan(2);
+  });
+
   test('Diff says so rather than doing nothing when there is one version', async ({ page }) => {
     seedOneVersion();
     await openQuery(page);
@@ -918,8 +1072,9 @@ test.describe('Query Version', () => {
     // No picker: the comparison is always against what callers get.
     await expect(page.locator('.sparql-diff-viewer')).toBeVisible();
     // Left is the row that was clicked, right is current.
-    await expect(page.locator('.focus-diff-controls')).toContainText('v1');
-    await expect(page.locator('.focus-diff-controls')).toContainText('v2');
+    const pane = page.locator('[data-testid="query-diff-pane"]');
+    await expect(pane).toContainText('v1');
+    await expect(pane).toContainText('v2');
   });
 
   test('the Details list gains a row once the query has versions', async ({ page }) => {

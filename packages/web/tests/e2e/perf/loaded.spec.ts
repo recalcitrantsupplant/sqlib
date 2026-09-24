@@ -92,12 +92,12 @@ test('@perf overlay open cost vs rows rendered behind it', async ({ page }) => {
     for (let i = 0; i < REPEATS; i++) {
       samples.push(
         await measureOpen(page, {
-          trigger: 'button[title="Focus Mode"]',
-          appears: '.focus-overlay .cm-editor',
+          trigger: '[data-testid="sparql-editor-expand"]',
+          appears: '.expand-region.expanded .cm-editor',
         })
       );
-      await page.locator('.focus-overlay button[title="Close Focus Mode"]').click();
-      await page.locator('.focus-overlay').waitFor({ state: 'detached' });
+      await page.locator('[data-testid="query-editor-expand-close"]').click();
+      await page.locator('.expand-region.expanded').waitFor({ state: 'detached' });
     }
 
     const warm = summarise(samples.slice(1));
@@ -149,12 +149,12 @@ test('@perf overlay open cost vs query document size', async ({ page }) => {
     for (let i = 0; i < REPEATS; i++) {
       samples.push(
         await measureOpen(page, {
-          trigger: 'button[title="Focus Mode"]',
-          appears: '.focus-overlay .cm-editor',
+          trigger: '[data-testid="sparql-editor-expand"]',
+          appears: '.expand-region.expanded .cm-editor',
         })
       );
-      await page.locator('.focus-overlay button[title="Close Focus Mode"]').click();
-      await page.locator('.focus-overlay').waitFor({ state: 'detached' });
+      await page.locator('[data-testid="query-editor-expand-close"]').click();
+      await page.locator('.expand-region.expanded').waitFor({ state: 'detached' });
     }
 
     const warm = summarise(samples.slice(1));

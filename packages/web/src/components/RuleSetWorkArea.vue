@@ -58,7 +58,28 @@
           @pick="() => focusTab('inputs')"
           @update:format="(value) => (inferenceFormat = value)"
           @create="createFromRecipe"
-        />
+        >
+          <!--
+            While the editor is popped out this row is the only one over the
+            code, so the document's own controls come up into it — there is
+            room, and a second row holding four buttons is a row spent on
+            nothing. On the page they stay in the editor's header, beside the
+            control that enlarges it.
+          -->
+          <template #trailing>
+            <RuleSetDocumentActions
+              v-if="editorExpanded"
+              :code="srlDocument"
+              :formatting="formatting"
+              :can-diff="!isScratch"
+              :diff-title="diffButtonTitle"
+              @format="formatDocument"
+              @import="openImportDialog"
+              @diff="openDiff"
+              @update:code="applyEditedDocument"
+            />
+          </template>
+        </RunBar>
       </ExpandRunStrip>
 
       <!--
@@ -68,95 +89,82 @@
         be run from inside it.
       -->
       <ExpandableEditor
-        v-slot="{ expanded: editorExpanded, toggle: expandEditor }"
+        id="rule-set-editor"
         title="Rule Set Editor"
         testid="rule-set-editor-expand"
+        :layer-open="showDiffPane"
+        @update:expanded="handleExpandedChange"
       >
-        <SparqlEditorPanel
-          editor-title="Rule Set Editor"
-          expandable
-          :expanded="editorExpanded"
-          placeholder="PREFIX : <http://example/>&#10;&#10;DATA { :a :parent :b }&#10;&#10;RULE { ?s :q ?o } WHERE { ?s :p ?o }"
-          chrome="minimal"
-          content-type="application/srl"
-          validation-label="rule set"
-          :sparql-code="srlDocument"
-          :selected-version="selectedVersionId"
-          :version-options="[]"
-          :is-new-entity="false"
-          :is-saving="false"
-          :is-loading="ruleSetLoading"
-          :editor-overlay-active="ruleSetLoading"
-          editor-overlay-message="Loading rule set…"
-          :extensions="extensions"
-          :show-query-outputs="false"
-          :prefix-source="prefixSource"
-          :document-key="editorDocumentKey"
-          @update:sparql-code="applyEditedDocument"
-          @editor-ready="handleEditorReady"
-          @request-expand="expandEditor"
-        >
-          <!--
-            Format, Import and Diff act on the document, so they sit in the
-            document's header rather than in the save bar, which is about the
-            rule set and its versions. Left of Expand, in the order they are
-            reached for: rewrite what is here, add to it, compare it.
-          -->
-          <template #header-actions>
-            <button
-              class="editor-action"
-              type="button"
-              data-testid="format-document"
-              title="Format the rule set"
-              :disabled="!srlDocument.trim() || formatting"
-              @click="formatDocument"
-            >
-              <WandSparkles :size="13" />
-            </button>
-            <!--
-              The prefix conversions, beside Format because they are the same
-              kind of control: one press, whole document rewritten. They work
-              on SRL against SRL's own grammar — see `prefixGrammarFor`.
-            -->
-            <PrefixConversionButtons
-              :code="srlDocument"
-              content-type="application/srl"
-              @update:code="applyEditedDocument"
-            />
-            <button
-              class="editor-action"
-              type="button"
-              data-testid="import-body"
-              title="Append a rule built from a CONSTRUCT or INSERT query"
-              @click="openImportDialog"
-            >
-              <FileInput :size="13" />
-            </button>
-            <button
-              v-if="!isScratch"
-              class="editor-action"
-              type="button"
-              data-testid="diff-query"
-              :disabled="!diffPlan"
-              :title="diffPlan ? `Diff ${diffPlan.left.label} → ${diffPlan.right.label}` : NOTHING_TO_DIFF"
-              @click="openDiff"
-            >
-              <GitCompare :size="13" />
-            </button>
-          </template>
+        <template #layer>
+          <SrlDiffPane
+            :left-label="diffLeft.label"
+            :right-label="diffRight.label"
+            :left-text="diffLeft.text"
+            :right-text="diffRight.text"
+            :text-error="diffTextError"
+            :result="previewResult"
+            :error="previewError"
+            @close="showDiffPane = false"
+          />
+        </template>
 
-          <template #footer>
-            <RuleSetEditorFooter
-              :validation-state="validationState"
-              :parse-error="parseError"
-              :rule-count="analysis?.ruleCount ?? 0"
-              :data-block-count="analysis?.dataBlockCount ?? 0"
-              :strata-count="stratification?.strataCount ?? 0"
-              :stratified="stratification?.stratified ?? true"
-              @focus-stratification="focusTab('stratification')"
-            />
-          </template>
-        </SparqlEditorPanel>
+        <template #default="{ expanded: editorExpanded, toggle: expandEditor }">
+          <SparqlEditorPanel
+            editor-title="Rule Set Editor"
+            expandable
+            :expanded="editorExpanded"
+            placeholder="PREFIX : <http://example/>&#10;&#10;DATA { :a :parent :b }&#10;&#10;RULE { ?s :q ?o } WHERE { ?s :p ?o }"
+            chrome="minimal"
+            content-type="application/srl"
+            validation-label="rule set"
+            :sparql-code="srlDocument"
+            :selected-version="selectedVersionId"
+            :version-options="[]"
+            :is-new-entity="false"
+            :is-saving="false"
+            :is-loading="ruleSetLoading"
+            :editor-overlay-active="ruleSetLoading"
+            editor-overlay-message="Loading rule set…"
+            :extensions="extensions"
+            :show-query-outputs="false"
+            :prefix-source="prefixSource"
+            :document-key="editorDocumentKey"
+            @update:sparql-code="applyEditedDocument"
+            @editor-ready="handleEditorReady"
+            @request-expand="expandEditor"
+          >
+            <!--
+              The document's own controls, in its header rather than in the
+              save bar: they rewrite the text below them, while the save bar is
+              about the rule set and its versions. Popped out, the same strip
+              moves up into the run row — see `RuleSetDocumentActions`.
+            -->
+            <template #header-actions>
+              <RuleSetDocumentActions
+                :code="srlDocument"
+                :formatting="formatting"
+                :can-diff="!isScratch"
+                :diff-title="diffButtonTitle"
+                @format="formatDocument"
+                @import="openImportDialog"
+                @diff="openDiff"
+                @update:code="applyEditedDocument"
+              />
+            </template>
+
+            <template #footer>
+              <RuleSetEditorFooter
+                :validation-state="validationState"
+                :parse-error="parseError"
+                :rule-count="analysis?.ruleCount ?? 0"
+                :data-block-count="analysis?.dataBlockCount ?? 0"
+                :strata-count="stratification?.strataCount ?? 0"
+                :stratified="stratification?.stratified ?? true"
+                @focus-stratification="focusTab('stratification')"
+              />
+            </template>
+          </SparqlEditorPanel>
+        </template>
       </ExpandableEditor>
     </div>
 
@@ -234,17 +242,6 @@
       />
     </div>
 
-    <SrlDiffDialog
-      v-model:open="showPreviewDialog"
-      :left-label="diffLeft.label"
-      :right-label="diffRight.label"
-      :left-text="diffLeft.text"
-      :right-text="diffRight.text"
-      :text-error="diffTextError"
-      :result="previewResult"
-      :error="previewError"
-    />
-
     <ImportSparqlDialog
       v-model:open="showImportDialog"
       :library-id="ruleSetLibraryId || activeLibraryId"
@@ -258,18 +255,18 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, shallowRef, watch } from 'vue';
 import { toast } from 'vue-sonner';
-import { FileInput, GitCompare, WandSparkles } from '@lucide/vue';
 import { languageExtensionsFor } from '../lib/codeLanguage';
 import { EditorState, type Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import SaveBar from './shared/SaveBar.vue';
-import PrefixConversionButtons from './shared/PrefixConversionButtons.vue';
 import ImportSparqlDialog from './rules/ImportSparqlDialog.vue';
 import SparqlEditorPanel from './shared/SparqlEditorPanel.vue';
 import { prefixSourceToken } from '@/lib/prefixSources';
 import ExpandableEditor from './shared/ExpandableEditor.vue';
+import RuleSetDocumentActions from './rules/RuleSetDocumentActions.vue';
 import ExpandRunStrip from './shared/ExpandRunStrip.vue';
 import { useEditorExpand } from '../composables/useEditorExpand';
+import { useEditorAsPrefixTarget } from '../composables/usePrefixTarget';
 import RuleSetEditorFooter from './rules/RuleSetEditorFooter.vue';
 import RuleSetInspectorPanel from './rules/RuleSetInspectorPanel.vue';
 import RunBar from './shared/RunBar.vue';
@@ -277,8 +274,8 @@ import type { CreateTarget, RunBarPick } from '../lib/runBar';
 import { NO_ARGUMENTS_IRI, emptySettings } from '../lib/benchmarkPlan';
 import type { InputSource } from './rules/RuleSetInputsPanel.vue';
 import type { StratificationPanelNode } from './rules/StratificationPanel.vue';
-import SrlDiffDialog from './rules/SrlDiffDialog.vue';
-import { NOTHING_TO_DIFF, planVersionDiff, type DiffPlan, type DiffPlanSide } from '../lib/versionDiff';
+import SrlDiffPane from './rules/SrlDiffPane.vue';
+import { planVersionDiff, type DiffPlan, type DiffPlanSide } from '../lib/versionDiff';
 import type { DataGraphFormat, DataGraphOption, TupleSetOption } from '@/types/data-graphs';
 import { useRuleSetsStore } from '../composables/useRuleSetsStore';
 import { useBenchmarksStore } from '../composables/useBenchmarksStore';
@@ -574,6 +571,14 @@ function applyEditedDocument(value: string) {
   noteDocumentEdit();
   srlDocument.value = value;
 }
+
+/** Where the Prefix Manager's "Add to editor" lands while this screen is up. */
+useEditorAsPrefixTarget({
+  label: 'the rule set',
+  contentType: 'application/srl',
+  read: () => srlDocument.value,
+  write: applyEditedDocument,
+});
 
 const handleEditorReady = (view: EditorView) => {
   editorView.value = view;
@@ -904,10 +909,24 @@ const inspectorRef = ref<InstanceType<typeof RuleSetInspectorPanel> | null>(null
  */
 const selectedRuleId = ref<string | null>(null);
 
-const showPreviewDialog = ref(false);
+const showDiffPane = ref(false);
 
 /** Show a tab, expanding the panel if it is closed — a tab nobody can see is not shown. */
 const editorExpansion = useEditorExpand();
+
+/*
+ * The pop-out is named rather than given a generated id: Diff enlarges the
+ * editor from outside the slot that would hand it one.
+ */
+const RULE_SET_EDITOR_REGION = 'rule-set-editor';
+
+/** The diff is a pop-out view; the page below has no room for it. */
+function handleExpandedChange(value: boolean) {
+  if (!value) showDiffPane.value = false;
+}
+
+/** The run row asks, because it is drawn outside the region that knows. */
+const editorExpanded = computed(() => editorExpansion.isExpanded(RULE_SET_EDITOR_REGION));
 
 function focusTab(tab: string) {
   /*
@@ -1090,6 +1109,11 @@ const diffPlan = computed<DiffPlan | null>(() => {
   });
 });
 
+/** What Diff compares, named on the button; empty is what disables it. */
+const diffButtonTitle = computed(() =>
+  diffPlan.value ? `Diff ${diffPlan.value.left.label} → ${diffPlan.value.right.label}` : '',
+);
+
 const diffLeft = ref<{ label: string; text: string | null }>({ label: '', text: null });
 const diffRight = ref<{ label: string; text: string | null }>({ label: '', text: null });
 const diffTextError = ref<string | null>(null);
@@ -1115,9 +1139,10 @@ async function openDiff() {
   diffTextError.value = null;
   previewResult.value = null;
   previewError.value = null;
-  // The diff takes the pop-out's place rather than opening underneath it.
-  editorExpansion.collapse();
-  showPreviewDialog.value = true;
+  // The diff is the pop-out's other view: it opens over the editor, which
+  // stays mounted underneath rather than being torn down for a comparison.
+  showDiffPane.value = true;
+  editorExpansion.expand(RULE_SET_EDITOR_REGION);
 
   // Against a draft, also ask what saving it would detach — the one thing a
   // text diff cannot show.
