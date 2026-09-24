@@ -5,6 +5,7 @@ import { toRestApi } from '../../src/persistence/utils/id-adapter.js';
 import { BackendTypeIri, backendTypeIriToKey, type LdkitBackend } from '../../src/persistence/schemas/BackendSchema.js';
 import { setupValidator } from '../../src/lib/validator-setup.js';
 import * as schemas from '@sparql-query-lib/contracts/schema';
+import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
 const repo = vi.hoisted(() => ({
   list: vi.fn(),
@@ -24,13 +25,13 @@ const queryRepo = vi.hoisted(() => ({
   update: vi.fn(),
 }));
 
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
+overrideCacheCoordinatorProvider({
   getEntityRepositories: () => ({
     Backend: repo,
     Library: libraryRepo,
     Query: queryRepo,
   }),
-}));
+});
 
 async function buildTestApp(): Promise<FastifyInstance> {
   const app = Fastify({ logger: false });

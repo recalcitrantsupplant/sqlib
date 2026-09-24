@@ -3,6 +3,7 @@ import Fastify, { FastifyInstance } from 'fastify';
 import queryRoutes from '../../src/routes/queries.js';
 import { setupValidator } from '../../src/lib/validator-setup.js';
 import * as schemas from '@sparql-query-lib/contracts/schema';
+import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
 const hoisted = vi.hoisted(() => ({
   query: {
@@ -29,7 +30,7 @@ const hoisted = vi.hoisted(() => ({
   coordinatorGet: vi.fn(),
 }));
 
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
+overrideCacheCoordinatorProvider({
   getEntityRepositories: () => ({
     Query: hoisted.query,
     QueryVersion: hoisted.queryVersion,
@@ -38,7 +39,7 @@ vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
   getCacheCoordinator: () => ({
     get: hoisted.coordinatorGet,
   }),
-}));
+});
 
 describe('Queries Routes (/queries) - CRUD', () => {
   let app: FastifyInstance;

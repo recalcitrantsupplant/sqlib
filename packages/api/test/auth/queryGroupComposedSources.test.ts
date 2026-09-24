@@ -36,6 +36,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { setupValidator } from '../../src/lib/validator-setup.js';
 import * as schemas from '@sparql-query-lib/contracts/schema';
 import type { AuthContext } from '../../src/auth/types.js';
+import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
 const MINE = 'urn:sqlib:library:mine';
 const THEIRS = 'urn:sqlib:library:theirs';
@@ -50,7 +51,7 @@ const SECRET_QUERY = 'SELECT ?salary WHERE { ?person <urn:salary> ?salary }';
 
 const store = vi.hoisted(() => ({ entities: new Map<string, Record<string, unknown>>() }));
 
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => {
+overrideCacheCoordinatorProvider((() => {
   const get = (id: string) => store.entities.get(id) ?? null;
   return {
     getEntityRepositories: () => ({
@@ -89,7 +90,7 @@ vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => {
       },
     }),
   };
-});
+})());
 
 type Mode = 'read' | 'write' | 'execute' | 'delete' | 'control';
 

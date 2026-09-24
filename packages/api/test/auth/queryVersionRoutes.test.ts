@@ -27,6 +27,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { setupValidator } from '../../src/lib/validator-setup.js';
 import * as schemas from '@sparql-query-lib/contracts/schema';
 import type { AuthContext } from '../../src/auth/types.js';
+import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
 const LIBRARY = 'urn:sqlib:library:hydrology';
 const LIVE_QUERY = 'urn:sqlib:query:live';
@@ -45,7 +46,7 @@ const store = vi.hoisted(() => ({
  * `Query.get` answers by id, `QueryVersion.list` answers regardless of whether
  * any query still names them.
  */
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
+overrideCacheCoordinatorProvider({
   getCacheCoordinator: () => ({
     get: (id: string) => store.entities.get(id) ?? null,
   }),
@@ -64,7 +65,7 @@ vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
       },
     },
   }),
-}));
+});
 
 function libraryMode(...modes: Array<'read' | 'write' | 'execute' | 'delete' | 'control'>): AuthContext {
   return {

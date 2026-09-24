@@ -5,6 +5,7 @@ import { ExecutionEngine } from '../src/lib/orchestration/ExecutionEngine.js';
 import type { ISparqlExecutor, SparqlExecutionResult } from '../src/server/ISparqlExecutor.js';
 import type { ResolvedNode } from '../src/lib/orchestration/types.js';
 import { BackendTypeIri } from '../src/persistence/schemas/BackendSchema.js';
+import { overrideCacheCoordinatorProvider } from '../src/lib/CacheCoordinatorProvider.js';
 
 const HTTP_BACKEND_TYPE = BackendTypeIri.http;
 
@@ -14,13 +15,13 @@ const hoisted = vi.hoisted(() => ({
   getAll: vi.fn(),
 }));
 
-vi.mock('../src/lib/CacheCoordinatorProvider.js', () => ({
+overrideCacheCoordinatorProvider({
   getCacheCoordinator: () => ({
     get: hoisted.get,
     list: hoisted.list,
     getAll: hoisted.getAll,
   }),
-}));
+});
 
 // Mock executor that records last query
 class MockExecutor implements ISparqlExecutor {

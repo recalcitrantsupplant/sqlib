@@ -4,9 +4,10 @@
 
 import { QueryGroups, createQueryGroup, findQueryGroupsByParent, loadQueryGroupsByIds, deleteQueryGroups, createQueryGroups, updateQueryGroup } from '../../src/persistence/utils/QueryGroupUtils.js';
 import { vi } from 'vitest';
+import { overrideRepositoryLenses } from '../../src/persistence/utils/entityRepository.js';
 
 // In-memory LDKit lens for this suite
-vi.mock('../../src/persistence/utils/entityRepository', () => {
+const repositoryLens = (() => {
   const store = new Map<string, any>();
   const lens = {
     insert: async (obj: any) => { const id = obj.$id ?? obj['@id']; const norm = { ...obj, '@id': id, $id: id }; store.set(id, norm); return norm; },
@@ -15,8 +16,9 @@ vi.mock('../../src/persistence/utils/entityRepository', () => {
     update: async (obj: any) => { const id = obj.$id ?? obj['@id']; const ex = store.get(id) ?? { $id: id, '@id': id }; const merged = { ...ex, ...obj, '@id': id, $id: id }; store.set(id, merged); return merged; },
     delete: async (id: string) => { store.delete(id); },
   };
-  return { createRepositoryLens: () => lens, getEntity: async (lens: any, id: string) => lens.findByIri(id) };
-});
+  return lens;
+})();
+overrideRepositoryLenses(() => repositoryLens);
 
 
 describe('QueryGroupUtils (LDKit Integration)', () => {
@@ -116,8 +118,8 @@ describe('QueryGroupUtils (LDKit Integration)', () => {
 
     it('should handle errors during loading', async () => {
       const mockError = new Error('Network error');
-      const originalFindByIri = QueryGroups.findByIri;
-      (QueryGroups.findByIri as any) = vi.fn((id) => {
+      const originalFindByIri = repositoryLens.findByIri;
+      repositoryLens.findByIri = vi.fn((id) => {
         if (id === testGroupId) {
           return Promise.reject(mockError);
         }
@@ -130,7 +132,7 @@ describe('QueryGroupUtils (LDKit Integration)', () => {
       expect(result).toHaveLength(0);
       expect(consoleWarnSpy).toHaveBeenCalledWith('Failed to load QueryGroup http://example.org/test-group:', mockError);
       consoleWarnSpy.mockRestore();
-      QueryGroups.findByIri = originalFindByIri; // Restore original mock
+      repositoryLens.findByIri = originalFindByIri; // Restore original mock
     });
   });
 
@@ -158,8 +160,8 @@ describe('QueryGroupUtils (LDKit Integration)', () => {
         { id: 'http://example.org/group-create-error', name: 'Error Group', currentVersion: testVersionId, isPartOf: testParentId },
         { id: testGroupId, name: 'Valid Group', currentVersion: testVersionId, isPartOf: testParentId },
       ];
-      const originalInsert = QueryGroups.insert;
-      (QueryGroups.insert as any) = vi.fn((obj) => {
+      const originalInsert = repositoryLens.insert;
+      repositoryLens.insert = vi.fn((obj) => {
         if (obj.$id === 'http://example.org/group-create-error') {
           return Promise.reject(new Error('Mock insert error'));
         }
@@ -176,7 +178,7 @@ describe('QueryGroupUtils (LDKit Integration)', () => {
         expect.any(Error)
       );
       consoleErrorSpy.mockRestore();
-      QueryGroups.insert = originalInsert; // Restore original mock
+      repositoryLens.insert = originalInsert; // Restore original mock
     });
   });
 
@@ -250,8 +252,8 @@ describe('QueryGroupUtils (LDKit Integration)', () => {
       await createQueryGroup({ $id: 'http://example.org/group-delete-error', name: 'Error Group', currentVersion: testVersionId, isPartOf: testParentId });
       await createQueryGroup({ $id: testGroupId, name: 'Valid Group', currentVersion: testVersionId, isPartOf: testParentId });
 
-      const originalDelete = QueryGroups.delete;
-      (QueryGroups.delete as any) = vi.fn((id) => {
+      const originalDelete = repositoryLens.delete;
+      repositoryLens.delete = vi.fn((id) => {
         if (id === 'http://example.org/group-delete-error') {
           return Promise.reject(new Error('Mock delete error'));
         }
@@ -267,7 +269,7 @@ describe('QueryGroupUtils (LDKit Integration)', () => {
         expect.any(Error)
       );
       consoleErrorSpy.mockRestore();
-      QueryGroups.delete = originalDelete; // Restore original mock
+      repositoryLens.delete = originalDelete; // Restore original mock
     });
   });
 
@@ -290,8 +292,8 @@ describe('QueryGroupUtils (LDKit Integration)', () => {
 
     it('should handle errors during find operation', async () => {
       const mockError = new Error('Find error');
-      const originalFind = QueryGroups.find;
-      (QueryGroups.find as any) = vi.fn().mockRejectedValue(mockError);
+      const originalFind = repositoryLens.find;
+      repositoryLens.find = vi.fn().mockRejectedValue(mockError);
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       const result = await findQueryGroupsByParent(testParentId);
@@ -302,7 +304,7 @@ describe('QueryGroupUtils (LDKit Integration)', () => {
         mockError
       );
       consoleErrorSpy.mockRestore();
-      QueryGroups.find = originalFind; // Restore original mock
+      repositoryLens.find = originalFind; // Restore original mock
     });
   });
 

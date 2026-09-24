@@ -1,9 +1,9 @@
 
-import { vi } from 'vitest';
 import { findEndNodeById, loadEndNodesByIds } from '../../src/persistence/utils/EndNodeUtils.js';
+import { overrideRepositoryLenses } from '../../src/persistence/utils/entityRepository.js';
 
 // In-memory LDKit lens for this suite
-vi.mock('../../src/persistence/utils/entityRepository', () => {
+const repositoryLens = (() => {
   const store = new Map<string, any>();
   const lens = {
     insert: async (obj: any) => { const id = obj.$id ?? obj['@id']; const norm = { ...obj, '@id': id, $id: id }; store.set(id, norm); return norm; },
@@ -12,8 +12,9 @@ vi.mock('../../src/persistence/utils/entityRepository', () => {
     update: async (obj: any) => { const id = obj.$id ?? obj['@id']; const ex = store.get(id) ?? { $id: id, '@id': id }; const merged = { ...ex, ...obj, '@id': id, $id: id }; store.set(id, merged); return merged; },
     delete: async (id: string) => { store.delete(id); },
   };
-  return { createRepositoryLens: () => lens };
-});
+  return lens;
+})();
+overrideRepositoryLenses(() => repositoryLens);
 
 describe('EndNodeUtils', () => {
   const testNodeId = 'http://example.org/test-node';

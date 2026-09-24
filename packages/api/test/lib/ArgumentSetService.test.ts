@@ -8,7 +8,7 @@ const hoisted = vi.hoisted(() => ({
   delete: vi.fn(),
 }));
 
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
+overrideCacheCoordinatorProvider({
   getCacheCoordinator: () => ({
     list: hoisted.list,
     get: hoisted.get,
@@ -16,9 +16,10 @@ vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
     update: hoisted.update,
     delete: hoisted.delete,
   }),
-}));
+});
 
 import { ArgumentSetService } from '../../src/lib/ArgumentSetService.js';
+import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
 const service = new ArgumentSetService();
 

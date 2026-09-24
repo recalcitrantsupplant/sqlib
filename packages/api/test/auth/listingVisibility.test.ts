@@ -37,6 +37,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { setupValidator } from '../../src/lib/validator-setup.js';
 import * as schemas from '@sparql-query-lib/contracts/schema';
 import type { AuthContext } from '../../src/auth/types.js';
+import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
 const MINE = 'urn:sqlib:library:hydrology';
 const THEIRS = 'urn:sqlib:library:payroll';
@@ -46,7 +47,7 @@ const store = vi.hoisted(() => ({ entities: new Map<string, Record<string, unkno
 const byType = (type: string) =>
   [...store.entities.values()].filter(entity => entity['@type'] === type);
 
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => {
+overrideCacheCoordinatorProvider((() => {
   const repo = (type: string) => ({
     get: (id: string) => {
       const entity = store.entities.get(id);
@@ -74,7 +75,7 @@ vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => {
       TestRun: repo('TestRun'),
     }),
   };
-});
+})());
 
 function contextFor(library: string | null): AuthContext {
   return {

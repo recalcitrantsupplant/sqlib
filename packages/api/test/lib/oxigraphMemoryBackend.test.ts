@@ -8,16 +8,17 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
 const hoisted = vi.hoisted(() => ({
   entities: new Map<string, Record<string, unknown>>(),
 }));
 
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
+overrideCacheCoordinatorProvider({
   getCacheCoordinator: () => ({
     get: (id: string) => hoisted.entities.get(id) ?? null,
   }),
-}));
+});
 
 const { OxigraphStoreManager } = await import('../../src/lib/OxigraphStoreManager.js');
 const { hydrateStoreFromDataGraphs, classifyDataGraphSource, resolveDataGraphSource } = await import(

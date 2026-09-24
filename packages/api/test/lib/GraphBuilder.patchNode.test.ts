@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { QueryTypeIri } from '../../src/constants/queryTypes.js';
 import { GraphBuilder } from '../../src/lib/orchestration/GraphBuilder.js';
 import { isGraphValidationError } from '../../src/lib/orchestration/GraphValidationError.js';
+import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
 /**
  * What a PatchNode is allowed to be wired to (issue #290, MVP-3).
@@ -24,13 +25,13 @@ const hoisted = vi.hoisted(() => ({
   getAll: vi.fn(),
 }));
 
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
+overrideCacheCoordinatorProvider({
   getCacheCoordinator: () => ({
     get: hoisted.get,
     list: hoisted.list,
     getAll: hoisted.getAll,
   }),
-}));
+});
 
 const UPDATE = 'DELETE { ?s <urn:p> ?o } INSERT { ?s <urn:q> ?o } WHERE { ?s <urn:p> ?o }';
 

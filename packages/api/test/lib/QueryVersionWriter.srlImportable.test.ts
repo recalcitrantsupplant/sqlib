@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { QueryTypeIri } from '../../src/constants/queryTypes.js';
 import { SRL_IMPORT_REVISION } from '@sparql-query-lib/srl';
+import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
 /**
  * The `srlImportable` flag, decided once when a version is written.
@@ -17,7 +18,7 @@ type Entity = Record<string, unknown>;
 
 const versions: Entity[] = [];
 
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
+overrideCacheCoordinatorProvider({
   getCacheCoordinator: () => ({
     create: vi.fn(async (entityType: string, entity: Entity) => {
       if (entityType === 'QueryVersion') versions.push(entity);
@@ -27,7 +28,7 @@ vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
     list: vi.fn(() => []),
     get: vi.fn(() => ({ '@type': 'Query' })),
   }),
-}));
+});
 
 /** The version record a write produced. */
 async function write(queryString: string, queryType?: string) {

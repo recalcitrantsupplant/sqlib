@@ -34,6 +34,7 @@ import { setupValidator } from '../../src/lib/validator-setup.js';
 import * as schemas from '@sparql-query-lib/contracts/schema';
 import { backendTypeKeyToIri } from '../../src/persistence/schemas/BackendSchema.js';
 import type { AuthContext } from '../../src/auth/types.js';
+import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
 const HTTP_BACKEND = 'urn:sqlib:backend:private';
 const OXIGRAPH_BACKEND = 'urn:sqlib:backend:in-process';
@@ -53,7 +54,7 @@ const store = vi.hoisted(() => ({ entities: new Map<string, Record<string, unkno
 const byType = (type: string) =>
   [...store.entities.values()].filter(entity => entity['@type'] === type);
 
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => {
+overrideCacheCoordinatorProvider((() => {
   const repo = (type: string) => ({
     get: (id: string) => {
       const entity = store.entities.get(id);
@@ -81,7 +82,7 @@ vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => {
       Patch: repo('Patch'),
     }),
   };
-});
+})());
 
 type BackendMode = 'use' | 'write' | 'control';
 

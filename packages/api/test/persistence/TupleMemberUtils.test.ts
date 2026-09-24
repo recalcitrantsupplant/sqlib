@@ -1,9 +1,9 @@
 
-import { vi } from 'vitest';
 import { findTupleMemberById, loadTupleMembersByIds } from '../../src/persistence/utils/TupleMemberUtils.js';
+import { overrideRepositoryLenses } from '../../src/persistence/utils/entityRepository.js';
 
 // In-memory LDKit lens for this suite
-vi.mock('../../src/persistence/utils/entityRepository', () => {
+const repositoryLens = (() => {
   const store = new Map<string, any>();
   const lens = {
     insert: async (obj: any) => { const id = obj.$id ?? obj['@id']; const norm = { ...obj, '@id': id, $id: id }; store.set(id, norm); return norm; },
@@ -13,8 +13,9 @@ vi.mock('../../src/persistence/utils/entityRepository', () => {
     delete: async (id: string) => { store.delete(id); },
     _store: store,
   };
-  return { createRepositoryLens: () => lens };
-});
+  return lens;
+})();
+overrideRepositoryLenses(() => repositoryLens);
 
 describe('TupleMemberUtils', () => {
   const testMemberId1 = 'http://example.org/test-member-1';
@@ -22,7 +23,7 @@ describe('TupleMemberUtils', () => {
 
   beforeEach(async () => {
     const { TupleMembers } = await import('../../src/persistence/utils/TupleMemberUtils.js');
-    (TupleMembers as any)._store.clear();
+    repositoryLens._store.clear();
   });
 
   it('should find a tuple member by ID', async () => {

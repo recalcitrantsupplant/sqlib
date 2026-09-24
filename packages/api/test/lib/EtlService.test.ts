@@ -7,17 +7,18 @@ const hoisted = vi.hoisted(() => ({
   update: vi.fn(),
 }));
 
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
+overrideCacheCoordinatorProvider({
   getCacheCoordinator: () => ({
     get: hoisted.get,
     list: hoisted.list,
     create: hoisted.create,
     update: hoisted.update,
   }),
-}));
+});
 
 import { EtlService } from '../../src/lib/EtlService.js';
 import type { ColumnDefinition } from '../../src/persistence/schemas/EtlColumnMappingVersionSchema.js';
+import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
 describe('EtlService', () => {
   let service: EtlService;

@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
 /**
  * The runner's job, end to end, for the one subject kind that runs entirely
@@ -13,7 +14,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 const hoisted = vi.hoisted(() => ({ entities: new Map<string, unknown>() }));
 
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
+overrideCacheCoordinatorProvider({
   getCacheCoordinator: () => ({
     get: (id: string) => hoisted.entities.get(id) ?? null,
     list: (type: string) =>
@@ -21,7 +22,7 @@ vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
         (entity) => (entity as { '@type'?: string })['@type'] === type,
       ),
   }),
-}));
+});
 
 const { TestRunner, TestNotRunnableError } = await import('../../src/lib/TestRunner.js');
 

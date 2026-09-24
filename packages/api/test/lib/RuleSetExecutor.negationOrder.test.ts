@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import * as oxigraph from 'oxigraph';
 import { checkWellFormed, parseRuleSet, splitRuleSet } from '@sparql-query-lib/srl';
 import { readW3cRulesDocumentSuite, readW3cRulesEvalSuite } from '../../src/lib/w3cRulesSuite/manifest.js';
+import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
 /**
  * The order of `NOT` in a rule body, run through the executor.
@@ -23,9 +24,9 @@ import { readW3cRulesDocumentSuite, readW3cRulesEvalSuite } from '../../src/lib/
 
 const hoisted = vi.hoisted(() => ({ entities: new Map<string, unknown>() }));
 
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
+overrideCacheCoordinatorProvider({
   getCacheCoordinator: () => ({ get: (id: string) => hoisted.entities.get(id) }),
-}));
+});
 
 const { RuleSetExecutor } = await import('../../src/lib/RuleSetExecutor.js');
 

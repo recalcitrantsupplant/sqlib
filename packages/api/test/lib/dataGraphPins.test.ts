@@ -7,18 +7,19 @@
  * usable if it says *who* is holding on, so that is what these cover.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
 const hoisted = vi.hoisted(() => ({
   entities: new Map<string, Record<string, unknown>>(),
 }));
 
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
+overrideCacheCoordinatorProvider({
   getCacheCoordinator: () => ({
     get: (id: string) => hoisted.entities.get(id) ?? null,
     list: (type: string) =>
       Array.from(hoisted.entities.values()).filter(entity => entity['@type'] === type),
   }),
-}));
+});
 
 const { pinsOnDataGraph, describePins } = await import('../../src/lib/dataGraphPins.js');
 

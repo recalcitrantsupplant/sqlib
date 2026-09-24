@@ -1,9 +1,9 @@
 
-import { vi } from 'vitest';
 import { createQueryGroupVersion, findQueryGroupVersionById, findAllQueryGroupVersions, listVersionsForGroup } from '../../src/persistence/utils/QueryGroupVersionUtils.js';
+import { overrideRepositoryLenses } from '../../src/persistence/utils/entityRepository.js';
 
 // In-memory LDKit lens for this suite
-vi.mock('../../src/persistence/utils/entityRepository', () => {
+const repositoryLens = (() => {
   const store = new Map<string, any>();
   const lens = {
     insert: async (obj: any) => { const id = obj.$id ?? obj['@id']; const norm = { ...obj, '@id': id, $id: id }; store.set(id, norm); return norm; },
@@ -13,8 +13,9 @@ vi.mock('../../src/persistence/utils/entityRepository', () => {
     delete: async (id: string) => { store.delete(id); },
     _store: store,
   };
-  return { createRepositoryLens: () => lens };
-});
+  return lens;
+})();
+overrideRepositoryLenses(() => repositoryLens);
 
 describe('QueryGroupVersionUtils', () => {
   const testGroupId = 'http://example.org/test-group';
@@ -22,8 +23,7 @@ describe('QueryGroupVersionUtils', () => {
   const testVersionId2 = 'http://example.org/test-group/v2';
 
   beforeEach(async () => {
-    const { QueryGroupVersions } = await import('../../src/persistence/utils/QueryGroupVersionUtils.js');
-    (QueryGroupVersions as any)._store.clear();
+    repositoryLens._store.clear();
   });
 
   it('should create and find a query group version', async () => {

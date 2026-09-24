@@ -13,14 +13,15 @@ const hoisted = vi.hoisted(() => ({
   list: vi.fn(),
 }));
 
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
+overrideCacheCoordinatorProvider({
   getCacheCoordinator: () => ({
     get: hoisted.get,
     list: hoisted.list,
   }),
-}));
+});
 
 import { EtlService } from '../../src/lib/EtlService.js';
+import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
 const JOB = 'urn:sqlib:etl-job:job-1';
 const OTHER_JOB = 'urn:sqlib:etl-job:job-2';

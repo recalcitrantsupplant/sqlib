@@ -759,7 +759,30 @@ export class OxigraphStoreManager {
       await Promise.all(serializePromises);
     }
 
-    // Clear all stores
+    this.clearStores();
+
+    console.log('OxigraphStoreManager shutdown complete');
+  }
+
+  /**
+   * Drop every store and return to the uninitialized state, without
+   * serializing anything.
+   *
+   * For tests: the suite runs files in a shared module registry, so this
+   * singleton outlives the file that filled it. `test/setup-vitest.ts` calls
+   * this before each file so that each one starts from an empty manager.
+   */
+  reset(storageDir = './storage/oxigraph'): void {
+    this.stopCheckpointing();
+    this.checkpointRunning = false;
+    this.clearStores();
+    this.pendingDurableStores.clear();
+    this.pendingMemoryStores.clear();
+    this.storageDir = path.resolve(storageDir);
+    this.initialized = false;
+  }
+
+  private clearStores(): void {
     this.durableStores.clear();
     this.ephemeralStores.clear();
     this.memoryStores.clear();
@@ -768,8 +791,6 @@ export class OxigraphStoreManager {
     this.memoryEpochs.clear();
     this.storeStats.clear();
     this.lastCheckpoint.clear();
-
-    console.log('OxigraphStoreManager shutdown complete');
   }
 
   // Private helper methods

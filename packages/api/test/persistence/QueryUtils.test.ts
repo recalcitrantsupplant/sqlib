@@ -1,9 +1,9 @@
 
-import { vi } from 'vitest';
 import { createQuery, updateQuery, deleteQuery, findAllQueries, findQueryById, findQueryByName } from '../../src/persistence/utils/QueryUtils.js';
+import { overrideRepositoryLenses } from '../../src/persistence/utils/entityRepository.js';
 
 // In-memory LDKit lens for this suite
-vi.mock('../../src/persistence/utils/entityRepository', () => {
+const repositoryLens = (() => {
   const store = new Map<string, any>();
   const lens = {
     insert: async (obj: any) => { const id = obj.$id ?? obj['@id']; const norm = { ...obj, '@id': id, $id: id }; store.set(id, norm); return norm; },
@@ -13,16 +13,16 @@ vi.mock('../../src/persistence/utils/entityRepository', () => {
     delete: async (id: string) => { store.delete(id); },
     _store: store,
   };
-  return { createRepositoryLens: () => lens };
-});
+  return lens;
+})();
+overrideRepositoryLenses(() => repositoryLens);
 
 describe('QueryUtils', () => {
   const testQueryId1 = 'http://example.org/test-query-1';
   const testQueryId2 = 'http://example.org/test-query-2';
 
   beforeEach(async () => {
-    const { Queries } = await import('../../src/persistence/utils/QueryUtils.js');
-    (Queries as any)._store.clear();
+    repositoryLens._store.clear();
   });
 
   it('should create and find a query', async () => {

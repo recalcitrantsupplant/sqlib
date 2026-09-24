@@ -10,11 +10,12 @@
  * one the design describes; only the naming convention is narrower than its
  * prose suggests.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
 const store = new Map<string, Record<string, unknown>>();
 
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
+overrideCacheCoordinatorProvider({
   getEntityRepositories: () => ({}),
   getCacheCoordinator: () => ({
     get: (iri: string) => store.get(iri) ?? null,
@@ -23,7 +24,7 @@ vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
     update: async () => null,
     delete: async () => {},
   }),
-}));
+});
 
 const { QueryGroupSignatureService } = await import('../../src/lib/QueryGroupSignatureService.js');
 

@@ -9,12 +9,13 @@ const mockRepos = {
   marker: 'repos',
 } as const satisfies Record<string, unknown>;
 
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
+overrideCacheCoordinatorProvider({
   getCacheCoordinator: vi.fn(() => mockCache),
   getEntityRepositories: vi.fn(() => mockRepos),
-}));
+});
 
 import { withCacheHandler, withReposHandler } from '../../src/routes/route-helpers.js';
+import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
 type MockReply = Pick<FastifyReply, 'sent' | 'status' | 'send'> & {
   status: ReturnType<typeof vi.fn> & ((code: number) => MockReply);

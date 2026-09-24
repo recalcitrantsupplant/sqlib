@@ -5,15 +5,24 @@
  */
 import type { LDKitEntity } from '../persistence/EntityTypes.js';
 import { CacheCoordinator } from './CacheCoordinator.js';
+import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
 import { EntityType } from './EntityRegistry.js';
 
 type CacheErrorMode = 'log' | 'throw';
 
 export class MemoryCacheManager {
-  private coordinator: CacheCoordinator;
+  private readonly resolveCoordinator: () => CacheCoordinator;
 
-  constructor(coordinator?: CacheCoordinator) {
-    this.coordinator = coordinator || new CacheCoordinator();
+  /**
+   * Takes a coordinator, or a function that resolves one on every call. With
+   * neither, the manager gets a private coordinator of its own.
+   */
+  constructor(coordinator: CacheCoordinator | (() => CacheCoordinator) = new CacheCoordinator()) {
+    this.resolveCoordinator = typeof coordinator === 'function' ? coordinator : () => coordinator;
+  }
+
+  private get coordinator(): CacheCoordinator {
+    return this.resolveCoordinator();
   }
 
   // Compatibility with tests that access .cache Map directly
@@ -79,6 +88,11 @@ export class MemoryCacheManager {
   }
 }
 
-// Singleton instance (delegates to the global coordinator)
-import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
-export const memoryCacheManager = new MemoryCacheManager(getCacheCoordinator());
+/**
+ * Singleton instance, delegating to the global coordinator.
+ *
+ * It resolves the coordinator per call rather than capturing it at module load,
+ * so that it follows `clearCacheCoordinator()`: a captured one would leave this
+ * writing to a coordinator the rest of the app had already dropped.
+ */
+export const memoryCacheManager = new MemoryCacheManager(getCacheCoordinator);
