@@ -3,13 +3,11 @@ import { test, expect } from '@playwright/test';
 /**
  * The MCP screen.
  *
- * This page has one job — get a URL into somebody's chat client — and every
+ * This page has one job, getting a URL into somebody's chat client, and every
  * way it can fail is quiet. A URL rendered from an unset config reads as a
- * plausible string and points nowhere; a one-click link that loses the URL in
- * an unescaped query string opens an empty form; a check that reports a healthy
- * server as unreachable sends the user looking for a firewall problem that does
- * not exist. So the assertions here are about what the page *says*, not how it
- * looks — the screenshot test covers that.
+ * plausible string and points nowhere; a one-click link that loses the URL in an
+ * unescaped query string opens an empty form. So the assertions here are about
+ * what the page says, not how it looks. The screenshot test covers that.
  */
 
 const MCP_URL = /\/mcp$/;
@@ -90,7 +88,7 @@ test.describe('MCP', () => {
   test('does not claim a chat client can reach the server', async ({ page }) => {
     await expect(page.getByTestId('catalogue-note')).toContainText('from this browser');
     await expect(page.getByTestId('catalogue-note')).toContainText(
-      'says nothing about whether Claude or ChatGPT can reach'
+      'Not a test of whether Claude or ChatGPT can reach it'
     );
   });
 

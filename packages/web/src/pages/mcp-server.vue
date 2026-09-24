@@ -4,12 +4,11 @@
 
     <main class="page">
       <div class="page-measure">
-        <header class="page-header">
+        <header class="hero">
           <h1 class="title">MCP</h1>
           <p class="lede">
-            sqlib provides an MCP server. Point Claude or ChatGPT at it and your libraries become
-            tools they can use: list queries, fill in the parameters a query declares, run them
-            against your backends. It runs on your own subscription, with no key to manage here.
+            sqlib provides an MCP server. Connect it to Claude or ChatGPT and your libraries become
+            tools they can use.
           </p>
         </header>
 
@@ -23,31 +22,36 @@
           </button>
         </section>
 
-        <!--
-          The one-click path, first, because it is the only one a non-technical
-          user will complete. Everything below it is the same URL delivered by
-          hand for the clients that have no such link.
-        -->
-        <section class="block">
-          <header class="block-head">
-            <h2 class="block-title">One click</h2>
-            <span class="rule" />
-          </header>
-          <a class="deeplink" :href="claudeDeeplink" target="_blank" rel="noopener" data-testid="claude-deeplink">
-            <Plug :size="14" /> Add to Claude
-          </a>
-          <InlineNote>
-            Opens Claude's connector settings with the name and URL filled in; you press Add.
-            Custom connectors need a paid Claude plan. If the form opens empty, paste the URL
-            above: the link is not part of Claude's documented interface, so the app may change it.
-          </InlineNote>
+        <section class="cards">
+          <article class="card">
+            <Play :size="16" class="card-icon" />
+            <h2 class="card-title">Run saved queries</h2>
+            <p class="card-body">Queries and query groups by name, with their parameters filled in from the chat.</p>
+          </article>
+          <article class="card">
+            <Code2 :size="16" class="card-icon" />
+            <h2 class="card-title">Ad-hoc SPARQL</h2>
+            <p class="card-body">Write and run a query against a registered backend without saving it.</p>
+          </article>
+          <article class="card">
+            <LayoutGrid :size="16" class="card-icon" />
+            <h2 class="card-title">Query bench in chat</h2>
+            <p class="card-body">Edit, run and see results as a table, where the client supports MCP Apps.</p>
+          </article>
         </section>
 
+        <!--
+          The one-click path first: it is the only one a non-technical user
+          finishes. Everything under it is the same URL delivered by hand for the
+          clients with no such link.
+        -->
         <section class="block">
-          <header class="block-head">
-            <h2 class="block-title">By hand</h2>
-            <span class="rule" />
-          </header>
+          <div class="add-row">
+            <a class="deeplink" :href="claudeDeeplink" target="_blank" rel="noopener" data-testid="claude-deeplink">
+              <Plug :size="14" /> Add to Claude
+            </a>
+            <span class="muted">Opens Claude's connector settings with the URL filled in. Needs a paid plan.</span>
+          </div>
 
           <div class="client-tabs" role="tablist">
             <button
@@ -80,24 +84,18 @@
         </section>
 
         <!--
-          Not a connectivity test, deliberately.
+          Not a connectivity test.
 
           It was one, and a green tick meant nothing worth having: a browser
           already talking to this app reaching a URL on the same host proves a
           tautology, while reading as "MCP works" to everyone who saw it. What a
-          chat client can reach is decided on Anthropic's or OpenAI's network,
-          not here, and nothing in this page can speak for that.
+          chat client can reach is decided on Anthropic's or OpenAI's network.
 
           What the request does know is what the server publishes, which is
-          invisible from everywhere else in the app and is the thing worth
-          checking before handing the URL to anyone: how many tools, and whether
-          any of them writes.
+          invisible from everywhere else in the app and is worth checking before
+          handing the URL out: how many tools, and whether any of them writes.
         -->
         <section class="block">
-          <header class="block-head">
-            <h2 class="block-title">What this server publishes</h2>
-            <span class="rule" />
-          </header>
           <div class="check-row">
             <button type="button" class="ghost-button" :disabled="probing" data-testid="read-catalogue" @click="readCatalogue">
               <RefreshCw :size="12" :class="{ spin: probing }" />
@@ -108,54 +106,27 @@
               <TriangleAlert v-else :size="12" />
               {{ probe.message }}
             </span>
+            <span v-else class="muted" data-testid="catalogue-note">
+              Asks this server, from this browser, what tools it offers. Not a test of whether Claude
+              or ChatGPT can reach it.
+            </span>
           </div>
-          <InlineNote data-testid="catalogue-note">
-            Asks the server, from this browser, what tools it offers. A read-only server publishes
-            no tool that creates, changes or deletes anything, which is worth confirming before you
-            give the URL out. It says nothing about whether Claude or ChatGPT can reach the server:
-            they connect from their own infrastructure, not from here.
-          </InlineNote>
         </section>
 
-        <section class="block">
-          <header class="block-head">
-            <h2 class="block-title">What you get</h2>
-            <span class="rule" />
-          </header>
-          <ul class="facts">
-            <li>
-              Your libraries, queries and query groups, listed and readable by name, and runnable
-              with the parameters a query declares filled in from the conversation.
-            </li>
-            <li>
-              Ad-hoc SPARQL against a registered backend, without saving anything.
-            </li>
-            <li>
-              A <strong>query bench</strong> rendered in the chat where the client supports MCP
-              Apps: edit the query, fill its arguments, run it and see the rows as a table rather
-              than as JSON in the transcript.
-            </li>
-          </ul>
-          <!--
-            The assumption someone who used the web app first will otherwise
-            make, and be wrong about for a confusing half hour.
-          -->
-          <InlineNote>
-            A chat client talks to this server, not to your browser, so backends and drafts kept in
-            this browser's local storage are invisible to it. What it can see is what the server
-            holds.
-          </InlineNote>
-        </section>
-
-        <p class="warning" data-testid="mcp-warning">
-          <ShieldAlert :size="13" />
-          <span>
-            This endpoint has no authentication of its own: anyone who can reach the URL gets the
-            tools it publishes. A server started with <code>MCP_READ_ONLY=1</code> publishes only
-            the tools that read, running queries included, and nothing that creates, changes or
-            deletes. Anything else should stay on a network you trust.
-          </span>
-        </p>
+        <footer class="footnotes">
+          <p class="warning" data-testid="mcp-warning">
+            <ShieldAlert :size="13" />
+            <span>
+              This endpoint has no authentication. Run it with <code>MCP_READ_ONLY=1</code> to
+              publish only the tools that read.
+            </span>
+          </p>
+          <p class="links">
+            <a :href="docUrl('guides/mcp-app.md')" target="_blank" rel="noopener">MCP guide</a>
+            <a :href="docUrl('guides/mcp-clients.md')" target="_blank" rel="noopener">Client configuration</a>
+            <a :href="docUrl('explanation/security-model.md')" target="_blank" rel="noopener">Security model</a>
+          </p>
+        </footer>
       </div>
     </main>
   </div>
@@ -165,12 +136,15 @@
 /**
  * How to use this sqlib from a chat client.
  *
+ * Nobody works here. They arrive, copy a URL or press one button, and leave for
+ * Claude or ChatGPT, so the page is a product page rather than a screen: the
+ * URL, the install paths, three cards saying what they get, and links to the
+ * documentation for anything longer. Prose that explains rather than directs
+ * belongs in `docs/guides/mcp-app.md`, which is linked at the bottom.
+ *
  * This replaced the Build screen, which paired a callable list with an in-app
- * assistant. The assistant needed an API key per user to be useful, and the
- * audience that matters first already pays for one, in Claude or ChatGPT. So the
- * page stopped being a second place to chat and became the shortest path to
- * chatting where they already are: one URL, one link that installs it, and a
- * check for when it does not work.
+ * assistant. That assistant needed an API key per user to be useful, and the
+ * audience that matters first already pays for one, in Claude or ChatGPT.
  *
  * The route is `/mcp-server`, not `/mcp`, because `/mcp` is the API's own path.
  * Nothing this repository ships serves the app and the API from one origin, but
@@ -179,10 +153,10 @@
  */
 import { computed, ref } from 'vue';
 import { useRouter } from '#imports';
-import { Check, Copy, Plug, RefreshCw, ShieldAlert, TriangleAlert } from '@lucide/vue';
+import { Check, Code2, Copy, LayoutGrid, Play, Plug, RefreshCw, ShieldAlert, TriangleAlert } from '@lucide/vue';
 import AppNavRail from '@/components/AppNavRail.vue';
-import InlineNote from '@/components/shared/InlineNote.vue';
 import { useActiveLibrary } from '@/composables/useActiveLibrary';
+import { docUrl } from '@/lib/docs';
 import { isScreenSection, SCREEN_SECTION_PATHS, type RailSection } from '@/lib/railSections';
 import {
   MCP_CLIENTS,
@@ -221,7 +195,7 @@ async function copy(text: string, what: 'url' | 'config') {
   }
 }
 
-// --- the connection check ------------------------------------------------
+// --- the catalogue readout -----------------------------------------------
 
 const probing = ref(false);
 const probe = ref<{ ok: boolean; message: string } | null>(null);
@@ -260,7 +234,7 @@ async function notify(method: string, sessionId: string | null) {
  *
  * A full handshake because that is the only way to reach `tools/list`:
  * `initialize`, the notification the specification requires before anything
- * else, then the listing. The answer is reported in words rather than as a tick,
+ * else, then the listing. The answer is reported as a fact rather than a tick,
  * because the useful part is the catalogue and not the round trip. "Is this the
  * read-only one I meant to deploy?" is the question this page is most often
  * opened to settle, and a tool count is the only place in the app that answers
@@ -334,13 +308,13 @@ function handleRailSelect(section: RailSection) {
 .page-measure {
   display: flex;
   flex-direction: column;
-  gap: var(--space-8);
-  max-width: 78ch;
-  padding: var(--space-8) var(--space-8) var(--space-9);
+  gap: var(--space-7);
+  max-width: 68rem;
+  padding: var(--space-9) var(--space-8) var(--space-9);
   margin: 0 auto;
 }
 
-.page-header {
+.hero {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -348,15 +322,17 @@ function handleRailSelect(section: RailSection) {
 
 .title {
   margin: 0;
-  font-size: var(--text-title);
+  font-size: 28px;
+  line-height: 1.15;
   font-weight: var(--weight-semibold);
+  letter-spacing: -0.01em;
   color: var(--ink);
 }
 
 .lede {
-  max-width: 70ch;
+  max-width: 56ch;
   margin: 0;
-  font-size: var(--text-body);
+  font-size: var(--text-body-lg);
   line-height: var(--leading-normal);
   color: var(--ink-secondary);
 }
@@ -365,7 +341,7 @@ function handleRailSelect(section: RailSection) {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-4);
+  padding: var(--space-4) var(--space-5);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-panel);
   background: var(--surface-subtle);
@@ -381,8 +357,43 @@ function handleRailSelect(section: RailSection) {
   flex: 1;
   overflow-x: auto;
   font-family: var(--font-mono);
-  font-size: var(--text-label);
+  font-size: var(--text-body);
   color: var(--ink);
+}
+
+/* Three across on a desktop, stacking on anything narrow. */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: var(--space-4);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+}
+
+.card-icon {
+  color: var(--ink-muted);
+}
+
+.card-title {
+  margin: 0;
+  font-size: var(--text-body);
+  font-weight: var(--weight-semibold);
+  color: var(--ink);
+}
+
+.card-body {
+  margin: 0;
+  font-size: var(--text-label);
+  line-height: var(--leading-normal);
+  color: var(--ink-secondary);
 }
 
 .block {
@@ -392,33 +403,19 @@ function handleRailSelect(section: RailSection) {
   align-items: flex-start;
 }
 
-.block-head {
+.add-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-4);
-  width: 100%;
-}
-
-.block-title {
-  margin: 0;
-  font-size: var(--text-body-lg);
-  font-weight: var(--weight-semibold);
-  color: var(--ink);
-  white-space: nowrap;
-}
-
-.rule {
-  flex: 1;
-  height: 1px;
-  background: var(--border-subtle);
 }
 
 .deeplink {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  height: 32px;
-  padding: 0 var(--space-5);
+  height: 34px;
+  padding: 0 var(--space-6);
   border: 1px solid var(--action-border);
   border-radius: var(--radius);
   background: var(--action-surface);
@@ -426,6 +423,13 @@ function handleRailSelect(section: RailSection) {
   font-weight: var(--weight-semibold);
   color: var(--action-ink);
   text-decoration: none;
+}
+
+.muted {
+  max-width: 62ch;
+  font-size: var(--text-label);
+  line-height: var(--leading-normal);
+  color: var(--ink-muted);
 }
 
 .client-tabs {
@@ -456,35 +460,25 @@ function handleRailSelect(section: RailSection) {
 /*
  * Markers restored explicitly. The app's reset strips them from every list,
  * which is right for the menus and trees that make up most of it and wrong
- * here: these are the numbered steps somebody follows with one hand on a
- * settings page, and an unnumbered step is a step you lose your place in.
+ * here: these are numbered steps somebody follows with one hand on a settings
+ * page, and an unnumbered step is a step you lose your place in.
  */
-.steps,
-.facts {
+.steps {
   max-width: 70ch;
   margin: 0;
   padding-left: var(--space-7);
+  list-style: decimal outside;
   font-size: var(--text-body);
   line-height: var(--leading-normal);
   color: var(--ink-secondary);
 }
 
-.steps {
-  list-style: decimal outside;
-}
-
-.facts {
-  list-style: disc outside;
-}
-
-.steps li,
-.facts li {
+.steps li {
   margin-bottom: var(--space-2);
   padding-left: var(--space-1);
 }
 
-.steps li::marker,
-.facts li::marker {
+.steps li::marker {
   color: var(--ink-muted);
 }
 
@@ -542,6 +536,7 @@ function handleRailSelect(section: RailSection) {
 
 .check-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
 }
@@ -571,6 +566,14 @@ function handleRailSelect(section: RailSection) {
   }
 }
 
+.footnotes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--border-subtle);
+}
+
 .warning {
   display: flex;
   align-items: flex-start;
@@ -584,5 +587,17 @@ function handleRailSelect(section: RailSection) {
 
 .warning code {
   font-family: var(--font-mono);
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+  margin: 0;
+  font-size: var(--text-label);
+}
+
+.links a {
+  color: var(--action-ink);
 }
 </style>
