@@ -1,4 +1,4 @@
-export const FEATURE_FLAG_KEYS = ['notebook', 'queries', 'queryGroups', 'rulesSuite', 'benchmarks', 'tests', 'dataGraphs', 'tupleSets', 'argumentSets', 'build', 'etl', 'backends', 'settings', 'rulesAllowInvalidSave', 'ruleTuples', 'playgroundQueries', 'playgroundRules', 'playgroundEtl', 'assistant'] as const;
+export const FEATURE_FLAG_KEYS = ['notebook', 'queries', 'queryGroups', 'rulesSuite', 'benchmarks', 'tests', 'dataGraphs', 'tupleSets', 'argumentSets', 'connect', 'etl', 'backends', 'settings', 'rulesAllowInvalidSave', 'ruleTuples', 'playgroundQueries', 'playgroundRules', 'playgroundEtl', 'assistant'] as const;
 
 export type FeatureFlagKey = typeof FEATURE_FLAG_KEYS[number];
 
@@ -14,7 +14,7 @@ export const FEATURE_FLAG_ENV_VARS: Record<FeatureFlagKey, string> = {
   dataGraphs: 'FEATURE_DATA_GRAPHS',
   tupleSets: 'FEATURE_TUPLE_SETS',
   argumentSets: 'FEATURE_ARGUMENT_SETS',
-  build: 'FEATURE_BUILD',
+  connect: 'FEATURE_CONNECT',
   etl: 'FEATURE_ETL',
   backends: 'FEATURE_BACKENDS',
   settings: 'FEATURE_SETTINGS',
@@ -91,12 +91,13 @@ export function buildFeatureFlags(
      */
     argumentSets: true,
     /*
-     * On. Build is a screen rather than a scope — the callable library and the
-     * assistant on one page — and it had no flag at all, so a deployment that
-     * had turned off everything it offers still drew the entry. It grants no
-     * capability of its own: what Build shows is what the other flags allow.
+     * On. Connect is a screen rather than a scope — this deployment's MCP URL
+     * and the steps for pasting it into a chat client — and it took the slot
+     * Build held. It grants no capability of its own: the endpoint it names is
+     * served whether or not the screen is drawn, so turning it off hides the
+     * instructions, not the server.
      */
-    build: true,
+    connect: true,
     /*
      * Off unless asked for, same reasoning as `assistant` below. Both ETL
      * surfaces take arbitrary DuckDB SQL, which is a host filesystem read
@@ -143,7 +144,7 @@ export function buildFeatureFlags(
     dataGraphs: coerceFeatureFlagValue(env[FEATURE_FLAG_ENV_VARS.dataGraphs], defaults.dataGraphs),
     tupleSets: coerceFeatureFlagValue(env[FEATURE_FLAG_ENV_VARS.tupleSets], defaults.tupleSets),
     argumentSets: coerceFeatureFlagValue(env[FEATURE_FLAG_ENV_VARS.argumentSets], defaults.argumentSets),
-    build: coerceFeatureFlagValue(env[FEATURE_FLAG_ENV_VARS.build], defaults.build),
+    connect: coerceFeatureFlagValue(env[FEATURE_FLAG_ENV_VARS.connect], defaults.connect),
     etl: coerceFeatureFlagValue(env[FEATURE_FLAG_ENV_VARS.etl], defaults.etl),
     backends: coerceFeatureFlagValue(env[FEATURE_FLAG_ENV_VARS.backends], defaults.backends),
     settings: coerceFeatureFlagValue(env[FEATURE_FLAG_ENV_VARS.settings], defaults.settings),
@@ -172,7 +173,7 @@ export function featureFlagLabels(): Record<FeatureFlagKey, string> {
     dataGraphs: 'Data graphs',
     tupleSets: 'Tuple sets',
     argumentSets: 'Argument sets',
-    build: 'Build',
+    connect: 'Connect',
     etl: 'ETL',
     backends: 'Backends',
     settings: 'Settings',

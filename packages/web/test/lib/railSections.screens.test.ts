@@ -1,8 +1,8 @@
 /**
  * Screens versus scopes on the rail.
  *
- * `build` was the only rail entry that was a destination rather than a filter,
- * and every place that knew it said `section === 'build'`. Notebook is the
+ * `connect` (formerly `build`) is a rail entry that is a destination rather
+ * than a filter, and every place that knew it said so by name. Notebook is the
  * second, so the distinction is now a set: what is worth pinning is that the
  * set and the scoping tables stay in step — a screen with a tree scope, or a
  * scope with no route, is the drift these tables exist to prevent.
