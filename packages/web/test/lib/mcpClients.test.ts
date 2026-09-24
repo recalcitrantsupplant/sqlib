@@ -36,9 +36,23 @@ describe('mcpEndpoint', () => {
 });
 
 describe('claudeConnectorLink', () => {
+  /*
+   * The route is the assertion that matters, and it is here because it already
+   * broke once. The link pointed at `claude.ai/settings/connectors`, which
+   * Anthropic turned into a stub reading "Connectors have moved to Customize"
+   * some time before September 2026. Nothing failed: the button still opened a
+   * real page on the right domain, and only a screenshot showed it was a dead
+   * end. A test that names the current documented path turns the next move into
+   * a failing test instead.
+   */
+  it('points at the documented connectors page', () => {
+    expect(claudeConnectorLink('https://sqlib.example/mcp')).toContain(
+      'https://claude.ai/customize/connectors'
+    );
+  });
+
   it('carries the URL through the query string, escaped', () => {
     const link = claudeConnectorLink('https://sqlib.example/mcp');
-    expect(link).toContain('modal=add-custom-connector');
     expect(link).toContain(`mcpServerUrl=${encodeURIComponent('https://sqlib.example/mcp')}`);
     // Unescaped, the host would read the rest of the URL as its own parameters.
     expect(link).not.toContain('mcpServerUrl=https://');

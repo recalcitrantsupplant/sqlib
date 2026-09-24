@@ -235,12 +235,30 @@ rebuild `@sparql-query-lib/mcp-app` if the server is running from `dist`.
 ## Telling people how to connect
 
 The app's **MCP** screen (`/mcp-server`, and the rail entry that replaced Build)
-is the user-facing half of all this: the server URL with a copy button, a
-one-click *Add to Claude* link that opens Claude's add-a-connector modal with the
-name and URL prefilled, by-hand steps for ChatGPT, Claude Code, Claude Desktop
-and Cursor, and a **Read the catalogue** button that performs a real handshake
-(`initialize`, the initialized notification, `tools/list`) and reports the
-server's name, its tool count and whether any tool writes.
+is the user-facing half of all this: the server URL with a copy button, an *Add
+to Claude* button, per-client steps for ChatGPT, Claude web, Claude Code, Claude
+Desktop and Cursor, three cards saying what a chat client gets, and a **Read the
+catalogue** button that performs a real handshake (`initialize`, the initialized
+notification, `tools/list`) and reports the server's name, its tool count and
+whether any tool writes.
+
+**Both vendors move these menus, so the steps carry a date.** Checked 2026-09-24:
+
+| Client | Where a custom MCP server is added |
+| --- | --- |
+| Claude web | `claude.ai/customize/connectors`, then **+** → **Add custom connector**. Team and Enterprise need an owner to add it first at `claude.ai/admin-settings/connectors`. |
+| ChatGPT | **Settings → Apps → Advanced settings**, switch on developer mode, then create a connector on that page. The section has been called Connectors, then Apps, then Plugins. |
+
+*Add to Claude* links `claude.ai/customize/connectors`. It used to link
+`claude.ai/settings/connectors?modal=add-custom-connector`, which opened the
+modal with the name and URL prefilled from the query string; that route now
+renders a stub reading "Connectors have moved to Customize", so the button led
+to a dead end that still looked official. Anthropic documents no prefill
+parameters on the new page, so the interface no longer promises a filled-in
+form. The parameters are still appended, cost nothing and are ignored by a page
+that does not read them. `claudeConnectorLink` has a test asserting the
+documented path, so the next move fails a test rather than waiting for someone
+to notice a screenshot.
 
 That button was a *Test connection* button first, and it was worse than useless.
 A browser already talking to this app reaching a URL on the same host proves a
@@ -259,6 +277,34 @@ proxy in front of both is an ordinary thing to build.
 The URL is derived as `/mcp` beside the API, which is where every mode in this
 repository serves it. `NUXT_PUBLIC_MCP_URL` overrides it, for a public MCP on a
 different host from the app that administers it.
+
+## Testing against a real web client, with a tunnel
+
+Claude and ChatGPT connectors take a URL, and their servers have to reach it.
+`just run-local-https` gives a locally trusted certificate, which satisfies a
+desktop app on the same machine and does nothing for claude.ai. A tunnel is the
+only way to test the web clients without deploying:
+
+```bash
+MCP_READ_ONLY=1 just run-local-memory     # one terminal
+just tunnel-mcp                            # another
+```
+
+`tunnel-mcp` uses ngrok or cloudflared, whichever is installed, and takes
+`tool=ngrok` or `tool=cloudflared` to choose; neither needs an account for a
+random per-run hostname. It refuses to start when nothing answers on the port,
+because a tunnel to a dead port returns 502 and Claude reports that as "unable
+to reach the connector", which sends you looking at the tunnel instead of at the
+server you forgot to start. The endpoint is the printed https URL with `/mcp` on
+the end.
+
+There is no authentication to add here, and no point looking for one: a custom
+connector authenticates with OAuth or not at all, and neither Claude nor ChatGPT
+sends an HTTP basic-auth header, so a tunnel's basic-auth option would lock out
+a browser and not the client you are testing. What protects a quick tunnel is
+that the hostname is random, it dies with the process, and the server behind it
+publishes only what you started it with. Start it read-only. Do not tunnel a
+server holding data you would mind a stranger reading.
 
 ## Publishing it read-only
 

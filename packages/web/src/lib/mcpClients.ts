@@ -24,18 +24,30 @@ export function mcpEndpoint(config: { apiBaseUrl?: unknown; mcpUrl?: unknown }):
 }
 
 /**
- * Claude's add-a-custom-connector link, with the name and URL prefilled.
+ * Where Claude's custom connectors live.
  *
- * Not a documented interface. It is the modal Claude's own settings page opens,
- * addressed by its query string. It is here because "press this, then press
- * Add" is a different thing from "find Settings, find Connectors, find Add
- * custom connector, paste this", which is the whole difference between a person
- * setting this up and a person giving up. The page says beside it what to do
- * when the form opens empty, because one day it will.
+ * `claude.ai/settings/connectors?modal=add-custom-connector` used to open the
+ * add-a-connector modal with the fields prefilled from the query string, and
+ * this page used to link it. As of September 2026 that route renders a stub
+ * reading "Connectors have moved to Customize", so the link took a user to a
+ * dead end that still looked official. Anthropic's own documentation now names
+ * `claude.ai/customize/connectors` and documents no parameters that prefill
+ * anything, so the page no longer promises a prefilled form: this opens the
+ * right list, the user presses Add custom connector and pastes.
+ *
+ * The name and URL are still appended. They cost nothing, they are ignored by a
+ * page that does not read them, and they work if the handler survived the move.
+ * Nothing in the interface claims they will.
+ *
+ * On Team and Enterprise an owner has to add the connector for the
+ * organisation first, at `claude.ai/admin-settings/connectors`; members then
+ * authenticate from the customize page above.
  */
+export const CLAUDE_CONNECTORS_URL = 'https://claude.ai/customize/connectors';
+
 export function claudeConnectorLink(endpoint: string, name = 'sqlib'): string {
   return (
-    'https://claude.ai/settings/connectors?modal=add-custom-connector' +
+    `${CLAUDE_CONNECTORS_URL}?modal=add-custom-connector` +
     `&mcpName=${encodeURIComponent(name)}&mcpServerUrl=${encodeURIComponent(endpoint)}`
   );
 }
@@ -56,9 +68,14 @@ export const MCP_CLIENTS: McpClient[] = [
   {
     id: 'chatgpt',
     label: 'ChatGPT',
+    /*
+     * Named by the path rather than by one label, because the label keeps
+     * moving: this section has been Connectors, then Apps, then Plugins, in
+     * about a year. Settings and Advanced settings have stayed put.
+     */
     steps: [
-      'Settings → Connectors → Create (developer mode may need switching on first).',
-      'Name it sqlib and paste the server URL above.',
+      'Settings → Apps (formerly Connectors) → Advanced settings, and switch on developer mode.',
+      'Back on that page, create a connector: name it sqlib and paste the server URL above.',
       'Choose no authentication, then create it.',
       'In a chat, enable sqlib from the tools menu.',
     ],
@@ -67,9 +84,10 @@ export const MCP_CLIENTS: McpClient[] = [
     id: 'claude-web',
     label: 'Claude (web)',
     steps: [
-      'Settings → Connectors → Add custom connector, or use the one-click link above.',
-      'Name it sqlib and paste the server URL.',
+      'Open claude.ai/customize/connectors, or use the button above.',
+      'Press +, then Add custom connector, and paste the server URL.',
       'Add it, then enable sqlib in a chat.',
+      'On Team and Enterprise an owner adds it first at claude.ai/admin-settings/connectors.',
     ],
   },
   {
