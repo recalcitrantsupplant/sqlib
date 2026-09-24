@@ -1,6 +1,6 @@
 // @ts-ignore - Nuxt auto-imports
 import { defineNuxtPlugin } from '#imports';
-import { createKeyDispatcher } from '../composables/useCommandKeys';
+import { createKeyDispatcher, releaseEditorFocus } from '../composables/useCommandKeys';
 
 /**
  * Installs the global keyboard dispatcher.
@@ -19,6 +19,8 @@ export default defineNuxtPlugin(() => {
   const onKeyDown = (event: KeyboardEvent) => { dispatcher.handle(event); };
 
   document.addEventListener('keydown', onKeyDown, { capture: true });
+  // Bubble phase, so CodeMirror sees Escape first — see `releaseEditorFocus`.
+  document.addEventListener('keydown', releaseEditorFocus);
 
   // Alt-tabbing away mid-sequence should not leave `g` armed for the return.
   const onBlur = () => dispatcher.reset();

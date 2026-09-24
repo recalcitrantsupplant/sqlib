@@ -9,7 +9,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { effectScope } from 'vue';
 
-import { createKeyDispatcher, SEQUENCE_TIMEOUT_MS } from '@/composables/useCommandKeys';
+import { createKeyDispatcher, releaseEditorFocus, SEQUENCE_TIMEOUT_MS } from '@/composables/useCommandKeys';
 import {
   resetCommandsForTest,
   useCommand,
@@ -178,5 +178,49 @@ describe('the dispatcher', () => {
     Object.defineProperty(composing, 'isComposing', { value: true });
     dispatcher.handle(composing);
     expect(dispatcher.pending()).toEqual([]);
+  });
+});
+
+describe('escaping an editor', () => {
+  const editor = () => {
+    const root = document.createElement('div');
+    root.className = 'cm-editor';
+    const content = document.createElement('div');
+    content.className = 'cm-content';
+    content.contentEditable = 'true';
+    content.tabIndex = 0;
+    root.appendChild(content);
+    document.body.appendChild(root);
+    content.focus();
+    return content;
+  };
+
+  it('hands focus back to the page, so `g q` works again', () => {
+    const run = vi.fn();
+    useCommand(command({ id: 'go.queries', keys: 'g q', run }));
+    const content = editor();
+    expect(document.activeElement).toBe(content);
+
+    expect(releaseEditorFocus(press('Escape', {}, content))).toBe(true);
+    expect(document.activeElement).not.toBe(content);
+
+    const dispatcher = createKeyDispatcher();
+    dispatcher.handle(press('g', {}, document.body));
+    dispatcher.handle(press('q', {}, document.body));
+    expect(run).toHaveBeenCalledOnce();
+    content.parentElement?.remove();
+  });
+
+  it('leaves an Escape the editor already used alone', () => {
+    const content = editor();
+    const event = press('Escape', {}, content);
+    event.preventDefault();
+    expect(releaseEditorFocus(event)).toBe(false);
+    expect(document.activeElement).toBe(content);
+    content.parentElement?.remove();
+  });
+
+  it('ignores Escape outside an editor', () => {
+    expect(releaseEditorFocus(press('Escape', {}, document.body))).toBe(false);
   });
 });

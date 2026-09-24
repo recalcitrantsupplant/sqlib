@@ -5,7 +5,8 @@
         <DialogTitle>Keyboard shortcuts</DialogTitle>
         <DialogDescription>
           Press <kbd>{{ paletteBinding }}</kbd> for everything else — every action is in the palette,
-          bound or not.
+          bound or not. Letter shortcuts are off while you are typing in an editor; <kbd>Esc</kbd>
+          leaves it.
         </DialogDescription>
       </DialogHeader>
 

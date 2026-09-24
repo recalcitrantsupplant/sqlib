@@ -93,3 +93,25 @@ export function createKeyDispatcher(now: () => number = () => Date.now()): KeyDi
 
   return { handle, pending: () => [...pending], reset };
 }
+
+/**
+ * Escape out of a CodeMirror editor, so the single-key shortcuts are reachable.
+ *
+ * The query and rule editors take focus when they open, and inside an editor
+ * `g` is a letter, not the start of `g q` — so without a way out the whole
+ * navigation layer looks dead on any screen with an editor on it. This runs in
+ * the bubble phase, after CodeMirror has had the key: an Escape the editor used
+ * (closing autocompletion, the search panel) arrives already prevented and is
+ * left alone.
+ */
+export function releaseEditorFocus(event: KeyboardEvent): boolean {
+  if (event.key !== 'Escape' || event.defaultPrevented) return false;
+  if (event.ctrlKey || event.altKey || event.shiftKey || event.metaKey) return false;
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return false;
+  const editor = target.closest('.cm-editor');
+  if (!editor) return false;
+  (editor.querySelector('.cm-content') as HTMLElement | null)?.blur();
+  target.blur();
+  return true;
+}
