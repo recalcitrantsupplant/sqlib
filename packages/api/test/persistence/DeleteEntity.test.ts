@@ -3,7 +3,11 @@
  */
 
 // In-memory LDKit lens and deleteEntity for this suite
-vi.mock('../../src/persistence/utils/entityRepository', () => {
+import { Backends, createBackend } from '../../src/persistence/utils/BackendUtils.js';
+import type { LdkitBackend } from '../../src/persistence/schemas/BackendSchema.js';
+import { overrideRepositoryLenses } from '../../src/persistence/utils/entityRepository.js';
+
+const repositoryLens = (() => {
   const store = new Map<string, any>();
   const lens = {
     insert: async (obj: any) => { const id = obj.$id ?? obj['@id']; const norm = { ...obj, '@id': id, $id: id }; store.set(id, norm); return norm; },
@@ -12,14 +16,16 @@ vi.mock('../../src/persistence/utils/entityRepository', () => {
     update: async (obj: any) => { const id = obj.$id ?? obj['@id']; const ex = store.get(id) ?? { $id: id, '@id': id }; const merged = { ...ex, ...obj, '@id': id, $id: id }; store.set(id, merged); return merged; },
     delete: async (id: string) => { store.delete(id); },
   };
-  return {
-    createRepositoryLens: () => lens,
-    deleteEntity: async (_lens: any, id: string) => { try { await lens.delete(id); } catch { /*noop*/ } },
-  };
-});
-import { deleteEntity } from '../../src/persistence/utils/entityRepository.js';
-import { Backends, createBackend } from '../../src/persistence/utils/BackendUtils.js';
-import type { LdkitBackend } from '../../src/persistence/schemas/BackendSchema.js';
+  return lens;
+})();
+overrideRepositoryLenses(() => repositoryLens);
+
+// What `deleteEntity` was before the lenses moved to EntityStore: a delete
+// that never throws.
+async function deleteEntity(_lens: unknown, id: string): Promise<void> {
+  try { await repositoryLens.delete(id); } catch { /*noop*/ }
+}
+
 
 describe('deleteEntity function (LDKit replacement for EntityManager.delete)', () => {
   const testBackendId = 'http://example.org/test-delete-backend';

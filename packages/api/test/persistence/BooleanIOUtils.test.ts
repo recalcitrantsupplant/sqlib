@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { findBooleanIOById, loadBooleanIOsByIds } from '../../src/persistence/utils/BooleanIOUtils.js';
+import { overrideRepositoryLenses } from '../../src/persistence/utils/entityRepository.js';
 
 // In-memory LDKit lens for this suite
-vi.mock('../../src/persistence/utils/entityRepository', () => {
+const repositoryLens = (() => {
   const store = new Map<string, any>();
   const lens = {
     insert: async (obj: any) => {
@@ -25,8 +26,9 @@ vi.mock('../../src/persistence/utils/entityRepository', () => {
     },
     _store: store,
   };
-  return { createRepositoryLens: () => lens };
-});
+  return lens;
+})();
+overrideRepositoryLenses(() => repositoryLens);
 
 describe('BooleanIOUtils', () => {
   const testBooleanId1 = 'urn:sqlib:boolean-io:test-1';
@@ -34,7 +36,7 @@ describe('BooleanIOUtils', () => {
 
   beforeEach(async () => {
     const { BooleanIOs } = await import('../../src/persistence/utils/BooleanIOUtils.js');
-    (BooleanIOs as any)._store.clear();
+    repositoryLens._store.clear();
   });
 
   describe('findBooleanIOById', () => {
@@ -68,15 +70,15 @@ describe('BooleanIOUtils', () => {
       const { BooleanIOs } = await import('../../src/persistence/utils/BooleanIOUtils.js');
 
       // Mock findByIri to throw an error
-      const originalFindByIri = BooleanIOs.findByIri;
-      BooleanIOs.findByIri = vi.fn().mockRejectedValue(new Error('Database error'));
+      const originalFindByIri = repositoryLens.findByIri;
+      repositoryLens.findByIri = vi.fn().mockRejectedValue(new Error('Database error'));
 
       const found = await findBooleanIOById(testBooleanId1);
 
       expect(found).toBeNull();
 
       // Restore original method
-      BooleanIOs.findByIri = originalFindByIri;
+      repositoryLens.findByIri = originalFindByIri;
     });
 
     it('should preserve all properties of BooleanIO', async () => {
@@ -195,8 +197,8 @@ describe('BooleanIOUtils', () => {
       });
 
       // Mock findByIri to throw error for specific ID
-      const originalFindByIri = BooleanIOs.findByIri;
-      BooleanIOs.findByIri = vi.fn().mockImplementation(async (id: string) => {
+      const originalFindByIri = repositoryLens.findByIri;
+      repositoryLens.findByIri = vi.fn().mockImplementation(async (id: string) => {
         if (id === testBooleanId1) {
           throw new Error('Database error');
         }
@@ -210,7 +212,7 @@ describe('BooleanIOUtils', () => {
       expect(booleanIOs[0].$id).toBe(testBooleanId2);
 
       // Restore
-      BooleanIOs.findByIri = originalFindByIri;
+      repositoryLens.findByIri = originalFindByIri;
     });
 
     it('should handle mixed valid and empty IDs', async () => {

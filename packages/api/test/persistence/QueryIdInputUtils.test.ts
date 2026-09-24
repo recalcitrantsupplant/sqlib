@@ -1,9 +1,10 @@
 import { LdkitQueryIdInput } from '../../src/persistence/schemas/QueryIdInputSchema.js';
 import * as QueryIdInputUtils from '../../src/persistence/utils/QueryIdInputUtils.js';
 import { vi } from 'vitest';
+import { overrideRepositoryLenses } from '../../src/persistence/utils/entityRepository.js';
 
 // In-memory LDKit lens for this suite
-vi.mock('../../src/persistence/utils/entityRepository', () => {
+const repositoryLens = (() => {
   const store = new Map<string, any>();
   const lens = {
     insert: async (obj: any) => {
@@ -24,8 +25,9 @@ vi.mock('../../src/persistence/utils/entityRepository', () => {
 
     _store: store,
   };
-  return { createRepositoryLens: () => lens };
-});
+  return lens;
+})();
+overrideRepositoryLenses(() => repositoryLens);
 
 describe('QueryIdInputUtils (LDKit Integration)', () => {
   const testId = 'http://example.org/test-id-input';
@@ -33,7 +35,7 @@ describe('QueryIdInputUtils (LDKit Integration)', () => {
 
   beforeEach(async () => {
     const { QueryIdInputs } = await import('../../src/persistence/utils/QueryIdInputUtils.js');
-    (QueryIdInputs as any)._store.clear();
+    repositoryLens._store.clear();
     vi.clearAllMocks();
   });
 

@@ -43,7 +43,7 @@ export interface Lens<T = any> {
  */
 export function createRepositoryLens<S extends Schema>(schema: S): Lens<any> {
   const entitySchema = schema as unknown as EntitySchema;
-  return {
+  const store: Lens<any> = {
     find: () => findAllBySchema(entitySchema),
     findByIri: (id: string) => findByIriBySchema(entitySchema, id),
     insert: (entity) => insertBySchema(entitySchema, entity as Record<string, unknown>),
@@ -51,6 +51,28 @@ export function createRepositoryLens<S extends Schema>(schema: S): Lens<any> {
     update: ({ $id, ...patch }) => updateBySchema(entitySchema, $id, patch as Record<string, unknown>),
     delete: (id: string) => deleteByIri(id),
   };
+  // Resolved per call, because the repositories are built at module load and a
+  // test's override arrives after that.
+  const target = () => lensOverride?.(schema) ?? store;
+  return {
+    find: () => target().find(),
+    findByIri: (id) => target().findByIri(id),
+    insert: (entity) => target().insert(entity),
+    update: (patch) => target().update(patch),
+    delete: (id) => target().delete(id),
+  };
+}
+
+let lensOverride: ((schema: Schema) => Lens<any>) | null = null;
+
+/**
+ * For tests: serve every repository from `factory` instead of the store, or go
+ * back to the store with `null`. Lets a suite fake persistence without
+ * `vi.mock`, which keeps it out of the isolated test project (see
+ * vitest.config.ts).
+ */
+export function overrideRepositoryLenses(factory: ((schema: Schema) => Lens<any>) | null): void {
+  lensOverride = factory;
 }
 
 /**

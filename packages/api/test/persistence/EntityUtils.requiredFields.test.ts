@@ -7,18 +7,17 @@
  * a regression in the derivation itself.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
+import { overrideRepositoryLenses } from '../../src/persistence/utils/entityRepository.js';
 
 // The required-field check runs before any store access, but the modules under
 // test build a repository lens at import time.
-vi.mock('../../src/persistence/utils/entityRepository', () => ({
-  createRepositoryLens: () => ({
-    insert: async () => undefined,
-    findByIri: async () => null,
-    find: async () => [],
-    update: async () => undefined,
-    delete: async () => undefined,
-  }),
+overrideRepositoryLenses(() => ({
+  insert: async () => undefined,
+  findByIri: async () => null,
+  find: async () => [],
+  update: async () => undefined,
+  delete: async () => undefined,
 }));
 
 describe('required fields derived from the entity schema', () => {

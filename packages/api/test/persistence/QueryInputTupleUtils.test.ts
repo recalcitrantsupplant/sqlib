@@ -1,9 +1,9 @@
 
-import { vi } from 'vitest';
 import { createQueryInputTuple, findQueryInputTupleById, loadQueryInputTuplesByIds, updateQueryInputTuple, deleteQueryInputTuple } from '../../src/persistence/utils/QueryInputTupleUtils.js';
+import { overrideRepositoryLenses } from '../../src/persistence/utils/entityRepository.js';
 
 // In-memory LDKit lens for this suite
-vi.mock('../../src/persistence/utils/entityRepository', () => {
+const repositoryLens = (() => {
   const store = new Map<string, any>();
   const lens = {
     insert: async (obj: any) => { const id = obj.$id ?? obj['@id']; const norm = { ...obj, '@id': id, $id: id }; store.set(id, norm); return norm; },
@@ -13,16 +13,16 @@ vi.mock('../../src/persistence/utils/entityRepository', () => {
     delete: async (id: string) => { store.delete(id); },
     _store: store,
   };
-  return { createRepositoryLens: () => lens };
-});
+  return lens;
+})();
+overrideRepositoryLenses(() => repositoryLens);
 
 describe('QueryInputTupleUtils', () => {
   const testTupleId1 = 'http://example.org/test-tuple-1';
   const testTupleId2 = 'http://example.org/test-tuple-2';
 
   beforeEach(async () => {
-    const { QueryInputTuples } = await import('../../src/persistence/utils/QueryInputTupleUtils.js');
-    (QueryInputTuples as any)._store.clear();
+    repositoryLens._store.clear();
   });
 
   it('should create and find a query input tuple', async () => {

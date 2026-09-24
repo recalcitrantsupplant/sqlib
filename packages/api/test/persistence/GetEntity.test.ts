@@ -3,7 +3,13 @@
  */
 
 // In-memory LDKit lens and getEntity for this suite
-vi.mock('../../src/persistence/utils/entityRepository', () => {
+import { createBackend, Backends } from '../../src/persistence/utils/BackendUtils.js';
+import { BackendTypeIri } from '../../src/persistence/schemas/BackendSchema.js';
+
+import type { LdkitBackend } from '../../src/persistence/schemas/BackendSchema.js';
+import { overrideRepositoryLenses } from '../../src/persistence/utils/entityRepository.js';
+
+const repositoryLens = (() => {
   const store = new Map<string, any>();
   const lens = {
     insert: async (obj: any) => { const id = obj.$id ?? obj['@id']; const norm = { ...obj, '@id': id, $id: id }; store.set(id, norm); return norm; },
@@ -12,20 +18,17 @@ vi.mock('../../src/persistence/utils/entityRepository', () => {
     update: async (obj: any) => { const id = obj.$id ?? obj['@id']; const ex = store.get(id) ?? { $id: id, '@id': id }; const merged = { ...ex, ...obj, '@id': id, $id: id }; store.set(id, merged); return merged; },
     delete: async (id: string) => { store.delete(id); },
   };
-  return {
-    createRepositoryLens: () => lens,
-    deleteEntity: async (_lens: any, id: string) => { try { await lens.delete(id); } catch {} },
-    getEntity: async (_lens: any, id: string) => {
-      const e = await lens.findByIri(id);
-      return (e ?? null) as any;
-    }
-  };
-});
-import { getEntity } from '../../src/persistence/utils/entityRepository.js';
-import { createBackend, Backends } from '../../src/persistence/utils/BackendUtils.js';
-import { BackendTypeIri } from '../../src/persistence/schemas/BackendSchema.js';
+  return lens;
+})();
+overrideRepositoryLenses(() => repositoryLens);
 
-import type { LdkitBackend } from '../../src/persistence/schemas/BackendSchema.js';
+// What `getEntity` was before the lenses moved to EntityStore: a read that
+// answers null for anything it cannot find.
+async function getEntity<_L, T>(_lens: unknown, id: string): Promise<T | null> {
+  const e = await repositoryLens.findByIri(id);
+  return (e ?? null) as T | null;
+}
+
 
 describe('getEntity (LDKit replacement for EntityManager.get)', () => {
   // Test IDs

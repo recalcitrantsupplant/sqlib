@@ -23,6 +23,7 @@ import { resetChangeSubscribers } from '../src/lib/changeEvents.js';
 import { oxigraphStoreManager } from '../src/lib/OxigraphStoreManager.js';
 import { clearEntityStoreExecutor } from '../src/persistence/EntityStore.js';
 import { setPersistenceAdapter } from '../src/persistence/adapterRegistry.js';
+import { overrideRepositoryLenses } from '../src/persistence/utils/entityRepository.js';
 import { resetAssistantConfiguration } from '../src/routes/assistant.js';
 
 /*
@@ -69,6 +70,7 @@ oxigraphStoreManager.reset();
 clearEntityStoreExecutor();
 clearCacheCoordinator();
 setPersistenceAdapter(null);
+overrideRepositoryLenses(null);
 setAuthStore(null);
 resetAuthConfig();
 resetTokenVerifier();

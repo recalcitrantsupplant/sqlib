@@ -3,9 +3,10 @@
  */
 
 import { Libraries, findLibraryByName, createLibrary, updateLibrary } from '../../src/persistence/utils/LibraryUtils.js';
+import { overrideRepositoryLenses } from '../../src/persistence/utils/entityRepository.js';
 
 // In-memory LDKit lens for this suite
-vi.mock('../../src/persistence/utils/entityRepository', () => {
+const repositoryLens = (() => {
   const store = new Map<string, any>();
   const lens = {
     insert: async (obj: any) => { const id = obj.$id ?? obj['@id']; const norm = { ...obj, '@id': id, $id: id }; store.set(id, norm); return norm; },
@@ -14,8 +15,9 @@ vi.mock('../../src/persistence/utils/entityRepository', () => {
     update: async (obj: any) => { await new Promise(r => setTimeout(r, 10)); const id = obj.$id ?? obj['@id']; const ex = store.get(id) ?? { $id: id, '@id': id }; const merged = { ...ex, ...obj, '@id': id, $id: id, dateModified: new Date().toISOString() }; store.set(id, merged); return merged; },
     delete: async (id: string) => { store.delete(id); },
   };
-  return { createRepositoryLens: () => lens };
-});
+  return lens;
+})();
+overrideRepositoryLenses(() => repositoryLens);
 
 const SPARQL_ENDPOINT = 'http://localhost:3031/testing123'; // This constant is not used in the mocked environment
 
