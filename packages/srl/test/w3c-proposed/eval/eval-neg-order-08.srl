@@ -1,0 +1,7 @@
+PREFIX : <http://example/>
+
+# Order inside a NOT. The inner NOT comes before ?o is bound, so it asks whether
+# anything at all is :banned. Something is, so the inner body never matches and
+# the outer NOT keeps both solutions. (Literal SPARQL checks the owner of each
+# ?x instead and infers only :a :r 1.)
+RULE { ?x :r ?y } WHERE { ?x :p ?y NOT { NOT { ?o :banned true } ?x :owner ?o } }

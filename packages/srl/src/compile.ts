@@ -9,6 +9,7 @@ import {
   tuplePlaceholder,
   type TupleRef,
 } from './tuples/compile.js';
+import { boundBy, collectVars } from './wellformed.js';
 
 export type { TupleRef } from './tuples/compile.js';
 
@@ -107,6 +108,25 @@ function serialize(rule: string, ast: unknown): string {
  * The wrap also keeps the SET's expression able to see the variables bound
  * before it, which a bare `{ BIND … }` on its own would not.
  *
+ * **`NOT` needs the same scoping, and for the same reason.** SRL checks a
+ * negation against the bindings made *before* it (`evalRuleElements` runs the
+ * body as a sequence), but a SPARQL `FILTER NOT EXISTS` sees its whole group.
+ * The two agree whenever every variable the negation shares with the body is
+ * bound before it. When one is only bound *after* it, they do not:
+ *
+ *     NOT { ?x :q ?y } ?x :p ?y
+ *
+ * is, in SRL, "if no `:q` triple exists anywhere, then every `?x :p ?y`" — the
+ * `?x` and `?y` inside the NOT are free at that point — while the literal
+ * SPARQL translation is the per-solution "`?x :p ?y` unless `?x :q ?y`". The
+ * fix is the SET trick: close everything so far into a group ending in the
+ * filter, so the filter can only see what came before it:
+ *
+ *     { FILTER NOT EXISTS { ?x :q ?y } } ?x :p ?y
+ *
+ * This is done only when it changes the meaning, so a negation written after
+ * its binders — the usual case — compiles exactly as before.
+ *
  * Caveat for the future: if SRL gains an OPTIONAL-like construct, or the spec
  * introduces an expression that can legitimately yield unbound, revisit the
  * BOUND test itself.
@@ -114,9 +134,10 @@ function serialize(rule: string, ast: unknown): string {
  * Plain-SPARQL leaves (BGP, FILTER, expressions) are serialized from their
  * parsed sub-ASTs — no dependence on source spans.
  */
-function compileBody(items: SrlBodyItem[], tupleIndex: { n: number }): string {
+function compileBody(items: SrlBodyItem[], tupleIndex: { n: number }, outerBound: ReadonlySet<string> = new Set()): string {
   let parts: string[] = [];
-  for (const item of items) {
+  const bound = new Set(outerBound);
+  items.forEach((item, index) => {
     switch (item.kind) {
       case 'bgp':
         parts.push(serialize('triplesBlock', item.triples));
@@ -127,7 +148,7 @@ function compileBody(items: SrlBodyItem[], tupleIndex: { n: number }): string {
       case 'not': {
         // Newlines matter: a tuple placeholder ends in a comment (the read
         // marker), so a closing brace on the same line would be commented out.
-        const inner = compileBody(item.body, tupleIndex);
+        const inner = compileBody(item.body, tupleIndex, bound);
         // `NOT DATA` negates against the ground graph. A plain `NOT` inside a
         // `WHERE DATA` rule needs no marker here — the whole body is already
         // inside the GRAPH block, which is exactly the spec's
@@ -135,6 +156,12 @@ function compileBody(items: SrlBodyItem[], tupleIndex: { n: number }): string {
         parts.push(item.data
           ? `FILTER NOT EXISTS {\n  GRAPH <${GROUND_GRAPH_IRI}> {\n  ${inner}\n}\n}`
           : `FILTER NOT EXISTS {\n  ${inner}\n}`);
+        // Close the group here when a later element binds a variable the
+        // negation mentions, so the filter cannot see that binding. See the
+        // note above.
+        if (negationSeesLaterBinding(item, bound, items.slice(index + 1))) {
+          parts = [`{\n  ${parts.join('\n  ')}\n}`];
+        }
         break;
       }
       case 'set': {
@@ -149,8 +176,25 @@ function compileBody(items: SrlBodyItem[], tupleIndex: { n: number }): string {
         tupleIndex.n += 1;
         break;
     }
-  }
+    for (const name of boundBy(item)) bound.add(name);
+  });
   return parts.join('\n  ');
+}
+
+/**
+ * True when a `NOT` mentions a variable that is unbound at its position but
+ * bound by an element after it — the one case where SRL's in-order negation
+ * and SPARQL's group-scoped `FILTER NOT EXISTS` disagree.
+ */
+function negationSeesLaterBinding(
+  item: Extract<SrlBodyItem, { kind: 'not' }>,
+  boundBefore: ReadonlySet<string>,
+  later: SrlBodyItem[],
+): boolean {
+  const mentioned = new Set<string>();
+  collectVars(item.body, mentioned);
+  const boundLater = new Set(later.flatMap((next) => boundBy(next)));
+  return [...mentioned].some((name) => !boundBefore.has(name) && boundLater.has(name));
 }
 
 /** Variables appearing in a rule's head tuple templates, in first-seen order. */

@@ -1,0 +1,119 @@
+## Proposed additions to the SPARQL-RL test suite: the order of NOT.
+## Same layout and vocabulary as eval/manifest.ttl upstream.
+##
+## Each test either tells SRL's in-order NOT apart from SPARQL's
+## group-scoped FILTER NOT EXISTS, or is the control for one that does.
+## ../README.md lists what a literal SPARQL translation gives for each.
+
+PREFIX rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs:   <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX mf:     <http://www.w3.org/2001/sw/DataAccess/tests/test-manifest#>
+PREFIX :       <https://w3c.github.io/rdf-tests/shacl/shacl12/>
+PREFIX srlt:   <http://www.w3.org/ns/sparql-rl-tests#>
+
+<#>  rdf:type mf:Manifest ;
+   rdfs:label "SPARQL-RL Evaluation Tests: order of negation (proposed)"@en ;
+   mf:assumedTestBase <https://w3c.github.io/rdf-tests/shacl/shacl12/> ;
+    mf:entries
+    (
+        :eval-neg-order-01
+        :eval-neg-order-02
+        :eval-neg-order-03
+        :eval-neg-order-04
+        :eval-neg-order-05
+        :eval-neg-order-06
+        :eval-neg-order-07
+        :eval-neg-order-08
+        :eval-neg-order-09
+        :eval-neg-order-10
+    ) .
+
+# NOT after its binders (control)
+:eval-neg-order-01 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-neg-order-01";
+    mf:action
+         [ srlt:ruleset  <eval-neg-order-01.srl> ;
+           srlt:data     <data-neg-order-1.ttl> ] ;
+    mf:result  <eval-neg-order-01-results.ttl>
+    .
+
+# NOT before its binders: an existence check over the whole graph
+:eval-neg-order-02 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-neg-order-02";
+    mf:action
+         [ srlt:ruleset  <eval-neg-order-02.srl> ;
+           srlt:data     <data-neg-order-1.ttl> ] ;
+    mf:result  <eval-neg-order-02-results.ttl>
+    .
+
+# NOT before its binders, matching nothing (control for 02)
+:eval-neg-order-03 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-neg-order-03";
+    mf:action
+         [ srlt:ruleset  <eval-neg-order-03.srl> ;
+           srlt:data     <data-neg-order-1.ttl> ] ;
+    mf:result  <eval-neg-order-03-results.ttl>
+    .
+
+# NOT with one variable bound before it and one after
+:eval-neg-order-04 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-neg-order-04";
+    mf:action
+         [ srlt:ruleset  <eval-neg-order-04.srl> ;
+           srlt:data     <data-neg-order-1.ttl> ] ;
+    mf:result  <eval-neg-order-04-results.ttl>
+    .
+
+# stratification-04 evaluated: the negation holds
+:eval-neg-order-05 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-neg-order-05";
+    mf:action
+         [ srlt:ruleset  <eval-neg-order-05.srl> ;
+           srlt:data     <data-empty.ttl> ] ;
+    mf:result  <eval-neg-order-05-results.ttl>
+    .
+
+# stratification-04 evaluated: a triple for another subject blocks it
+:eval-neg-order-06 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-neg-order-06";
+    mf:action
+         [ srlt:ruleset  <eval-neg-order-06.srl> ;
+           srlt:data     <data-neg-order-3.ttl> ] ;
+    mf:result  <eval-neg-order-06-results.ttl>
+    .
+
+# NOT after a SET that binds its variable (control)
+:eval-neg-order-07 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-neg-order-07";
+    mf:action
+         [ srlt:ruleset  <eval-neg-order-07.srl> ;
+           srlt:data     <data-neg-order-1.ttl> ] ;
+    mf:result  <eval-neg-order-07-results.ttl>
+    .
+
+# order inside a NOT
+:eval-neg-order-08 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-neg-order-08";
+    mf:action
+         [ srlt:ruleset  <eval-neg-order-08.srl> ;
+           srlt:data     <data-neg-order-2.ttl> ] ;
+    mf:result  <eval-neg-order-08-results.ttl>
+    .
+
+# NOT DATA before its binders
+:eval-neg-order-09 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-neg-order-09";
+    mf:action
+         [ srlt:ruleset  <eval-neg-order-09.srl> ;
+           srlt:data     <data-neg-order-1.ttl> ] ;
+    mf:result  <eval-neg-order-09-results.ttl>
+    .
+
+# NOT before its binders in WHERE DATA
+:eval-neg-order-10 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-neg-order-10";
+    mf:action
+         [ srlt:ruleset  <eval-neg-order-10.srl> ;
+           srlt:data     <data-neg-order-1.ttl> ] ;
+    mf:result  <eval-neg-order-10-results.ttl>
+    .

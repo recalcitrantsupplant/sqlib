@@ -172,7 +172,9 @@ describe('sparqlToRule (CONSTRUCT) — well-formedness', () => {
   });
 
   it('explains that SRL evaluates a body in order', () => {
-    const result = sparqlToRule(`${PREFIX} CONSTRUCT { ?s :q ?o } WHERE { FILTER(?o > 2) ?s :p ?o }`);
+    // The filter is scoped to the inner group, which never binds ?o, so moving
+    // it cannot help: it is rejected.
+    const result = sparqlToRule(`${PREFIX} CONSTRUCT { ?s :q ?o } WHERE { { ?s :x ?y FILTER(?o > 2) } ?s :p ?o }`);
     const issue = result.issues.find((i) => i.code === 'well-formedness');
     expect(issue?.message).toContain('in order');
   });

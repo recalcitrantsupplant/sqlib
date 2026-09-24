@@ -1,0 +1,7 @@
+PREFIX : <http://example/>
+
+# eval-neg-order-01 with the NOT moved first. At that point ?x and ?y are
+# unbound, so the NOT asks whether any :q triple exists at all. One does, so no
+# solution survives. (Translated literally to FILTER NOT EXISTS, which sees the
+# whole group, this infers :b :r 2.)
+RULE { ?x :r ?y } WHERE { NOT { ?x :q ?y } ?x :p ?y }

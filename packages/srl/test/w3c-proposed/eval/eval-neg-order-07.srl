@@ -1,0 +1,5 @@
+PREFIX : <http://example/>
+
+# Control for the SET case: the SET binds ?y before the NOT, so the NOT is the
+# per-solution check, as in SPARQL.
+RULE { ?x :r ?y } WHERE { ?x :p ?v SET ( ?y := ?v ) NOT { ?x :q ?y } }

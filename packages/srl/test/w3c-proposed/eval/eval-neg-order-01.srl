@@ -1,0 +1,5 @@
+PREFIX : <http://example/>
+
+# Control. Every variable the NOT shares with the body is bound before it, so
+# SRL and a SPARQL FILTER NOT EXISTS agree: per ?x/?y, unless ?x :q ?y.
+RULE { ?x :r ?y } WHERE { ?x :p ?y NOT { ?x :q ?y } }

@@ -1,0 +1,7 @@
+PREFIX : <http://example/>
+
+:a :p 1 .
+:b :p 2 .
+:a :owner :o1 .
+:b :owner :o2 .
+:o1 :banned true .

@@ -13,9 +13,10 @@ import type { SrlBodyItem, SrlRule, SrlRuleSet } from './ast.js';
  *                      a body sequentially (unlike SPARQL, where FILTER is scoped
  *                      to the whole group), so order matters.
  *
- * Deliberately NOT enforced for `NOT { … }`: its variables are existentially
- * quantified within the negated pattern and need not be bound outside it (see
- * W3C `wellformed-04`, a positive test whose `NOT` introduces a fresh variable).
+ * A `NOT { … }`'s own variables need not be bound outside it: they are
+ * existentially quantified within the negated pattern (see W3C `wellformed-04`,
+ * a positive test whose `NOT` introduces a fresh variable). Only the FILTERs and
+ * SETs inside it are held to the order rule.
  */
 
 export type WellFormednessCategory = 'unbound-head' | 'set-rebinds' | 'use-before-bind';
@@ -75,36 +76,57 @@ function checkRule(rule: SrlRule, ruleIndex: number, issues: WellFormednessIssue
  * Sequential "bound before use": walk body items in order, accumulating bound
  * variables, and require that every variable referenced by a FILTER or SET
  * expression is already bound at that point.
+ *
+ * The walk goes into `NOT { … }` too. The spec's negation condition asks that
+ * the inner pattern be well-formed given the variables bound before the NOT,
+ * so a FILTER inside it may use those plus whatever the inner pattern binds
+ * ahead of it — and nothing bound later in the outer body.
  */
 function checkBindOrder(rule: SrlRule, ruleIndex: number, issues: WellFormednessIssue[]): void {
-  const bound = new Set<string>();
-  for (const item of rule.body) {
-    if (item.kind === 'bgp') {
-      const triples = (item.triples as any)?.triples;
-      if (Array.isArray(triples)) for (const t of triples) collectTermVars(t, bound);
-      continue;
-    }
+  walkBindOrder(rule.body, new Set(), (name, kind) => {
+    issues.push({
+      category: 'use-before-bind',
+      ruleIndex,
+      ruleName: rule.name,
+      message: `?${name} is used by a ${kind === 'filter' ? 'FILTER' : 'SET'} before it is bound`,
+    });
+  });
+}
+
+function walkBindOrder(
+  items: SrlBodyItem[],
+  outer: ReadonlySet<string>,
+  report: (name: string, kind: 'filter' | 'set') => void,
+): void {
+  const bound = new Set(outer);
+  for (const item of items) {
     if (item.kind === 'filter' || item.kind === 'set') {
       const used = new Set<string>();
       collectVars(item.kind === 'filter' ? item.filter : item.expr, used);
-      for (const name of used) {
-        if (!bound.has(name)) {
-          issues.push({
-            category: 'use-before-bind',
-            ruleIndex,
-            ruleName: rule.name,
-            message: `?${name} is used by a ${item.kind === 'filter' ? 'FILTER' : 'SET'} before it is bound`,
-          });
-        }
-      }
-      if (item.kind === 'set') bound.add(item.variable);
+      for (const name of used) if (!bound.has(name)) report(name, item.kind);
+    } else if (item.kind === 'not') {
+      // Binds nothing outside; inside, it sees what is bound so far.
+      walkBindOrder(item.body, bound, report);
     }
-    // 'not' binds nothing and its variables are existentially scoped — skipped.
+    for (const name of boundBy(item)) bound.add(name);
   }
 }
 
+/**
+ * The variables one body element binds for the elements after it: a triple
+ * pattern's and a tuple pattern's variables, and a SET's target. A FILTER binds
+ * nothing, and neither does a NOT — its variables are existential.
+ */
+export function boundBy(item: SrlBodyItem): string[] {
+  const out = new Set<string>();
+  if (item.kind === 'bgp') collectVars(item.triples, out);
+  else if (item.kind === 'tuple') collectVars(item.tuple.terms, out);
+  else if (item.kind === 'set') out.add(item.variable);
+  return [...out];
+}
+
 /** Collect every variable name appearing anywhere in an AST node. */
-function collectVars(node: unknown, into: Set<string>): void {
+export function collectVars(node: unknown, into: Set<string>): void {
   if (!node || typeof node !== 'object') return;
   const n = node as Record<string, any>;
   if (n.type === 'term' && n.subType === 'variable') {

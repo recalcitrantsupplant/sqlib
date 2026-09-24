@@ -1,0 +1,6 @@
+PREFIX : <http://example/>
+
+# One shared variable bound before the NOT (?x), one only after it (?y). The
+# NOT is "?x has no :q triple at all", which drops :a whatever ?y becomes.
+# (Literal SPARQL, where ?y is bound too: :a :r 2, :b :r 1, :b :r 2.)
+RULE { ?x :r ?y } WHERE { ?x :p ?any NOT { ?x :q ?y } ?z :p ?y }

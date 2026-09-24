@@ -1,0 +1,5 @@
+PREFIX : <http://example/>
+
+# eval-neg-order-02 with NOT DATA: the same ordering rule applies when the
+# negation reads the base graph.
+RULE { ?x :r ?y } WHERE { NOT DATA { ?x :q ?y } ?x :p ?y }
