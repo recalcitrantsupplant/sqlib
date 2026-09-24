@@ -322,7 +322,7 @@ function handleRailSelect(section: RailSection) {
 
 .title {
   margin: 0;
-  font-size: 28px;
+  font-size: var(--text-display);
   line-height: 1.15;
   font-weight: var(--weight-semibold);
   letter-spacing: -0.01em;

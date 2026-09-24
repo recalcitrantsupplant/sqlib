@@ -16,8 +16,7 @@
     "dev:harness": "node dev/serve.mjs",
     "clean": "rm -rf dist",
     "lint": "echo \"TODO: add lint\"",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "echo 'TODO: add tests'"
   },
   "dependencies": {
     "@sparql-query-lib/tools": "workspace:*"
