@@ -9,8 +9,7 @@
  * One banner stays as body copy: that each program is one pass and SRL
  * evaluates to fixpoint. It earns the space because it changes how you read
  * everything beneath it. The tuple-surface explanation does not — it is a
- * once-ever read, so it sits behind the `?` beside the flavour control and in
- * the spec.
+ * once-ever read, so it lives in the spec.
  */
 import { computed, ref, watch } from 'vue';
 import { Codemirror } from 'vue-codemirror';
@@ -29,11 +28,6 @@ import {
 } from '@/composables/useApiClient';
 
 const SPEC_LINK = 'https://w3c.github.io/data-shapes/shacl12-rules/#relationship-to-sparql';
-
-const TUPLE_HELP = 'Tuple blocks: a read compiles to an all-UNDEF VALUES row — a parameter slot '
-  + 'the executor fills from the tuple store, one column per position — so the program is only '
-  + 'equivalent once the rows are substituted. A write compiles to a SELECT captured into the '
-  + 'ephemeral store, which is why it has no CONSTRUCT variant. SRL spec § Relationship to SPARQL';
 
 const props = withDefaults(defineProps<{
   /** The document itself — this tab compiles it. */
@@ -191,17 +185,19 @@ const copyProgram = async () => {
   }
 };
 
-/** Every block at once, in evaluation order — what "the whole program" means. */
-const exportPrograms = () => {
-  if (!programs.value.length) return;
-  const text = programs.value
-    .map((program) => `# ${program.label}\n${program.sparql}`)
-    .join('\n\n');
-  const blob = new Blob([text], { type: 'application/sparql-query' });
+/**
+ * The selected block only. Concatenating every block would not be one valid
+ * SPARQL query — two CONSTRUCTs back to back parse as nothing — so an `.rq`
+ * holding the whole rule set would misdescribe itself.
+ */
+const downloadProgram = () => {
+  const program = activeProgram.value;
+  if (!program) return;
+  const blob = new Blob([program.sparql], { type: 'application/sparql-query' });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
-  anchor.download = 'rule-set.rq';
+  anchor.download = `${program.label.replace(/[^\w.-]+/g, '_') || 'rule'}.rq`;
   anchor.click();
   URL.revokeObjectURL(url);
 };
@@ -250,7 +246,6 @@ const exportPrograms = () => {
         v-if="tupleHead"
         class="segmented inert"
         data-testid="sparql-flavour-inert"
-        :title="TUPLE_HELP"
       >
         <span class="segment active">SELECT</span>
       </div>
@@ -269,18 +264,15 @@ const exportPrograms = () => {
           {{ option.label }}
         </button>
       </div>
-      <button class="help-dot" type="button" tabindex="-1" :title="TUPLE_HELP">
-        <Info :size="12" />
-      </button>
       <button
         class="ghost-button export"
         type="button"
         data-testid="sparql-export"
-        :disabled="!programs.length"
-        title="Download every block, in evaluation order"
-        @click="exportPrograms"
+        :disabled="!activeProgram"
+        title="Download the selected block as a .rq file"
+        @click="downloadProgram"
       >
-        <Download :size="12" />Export
+        <Download :size="12" />Download
       </button>
     </div>
 
@@ -436,31 +428,8 @@ const exportPrograms = () => {
   font-weight: var(--weight-semibold);
 }
 
-.segmented.inert {
-  cursor: help;
-}
-
 .segmented.inert .segment {
-  cursor: help;
-}
-
-.help-dot {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  border: none;
-  border-radius: var(--radius);
-  background: transparent;
-  color: var(--ink-muted);
-  cursor: help;
-}
-
-.help-dot:hover {
-  background: var(--surface-sunken);
-  color: var(--ink-secondary);
+  cursor: default;
 }
 
 .ghost-button {
