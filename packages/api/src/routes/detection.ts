@@ -148,8 +148,7 @@ export default async function (fastify: FastifyInstance) {
           return reply.send({ formatted });
         }
 
-        const parsedQuery = parser.parseQuery(code);
-        const formatted = parser.formatQuery(parsedQuery);
+        const formatted = parser.formatQueryString(code);
         return reply.send({ formatted });
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Invalid syntax';

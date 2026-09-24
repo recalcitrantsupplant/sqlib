@@ -60,6 +60,47 @@ describe('POST /format', () => {
     });
   });
 
+  it('keeps LIMIT/OFFSET parameter placeholders (leading 000) through formatting', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/format',
+      payload: {
+        code: `SELECT * WHERE {
+  VALUES( ?s ?p ){
+    ( UNDEF UNDEF )
+  }
+  VALUES ?o {
+    UNDEF
+  }
+  ?s ?p ?o .
+}
+LIMIT 0002`,
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const { formatted } = JSON.parse(response.body);
+    expect(formatted).toMatch(/\nLIMIT 0002$/);
+  });
+
+  it('keeps placeholders in subqueries and leaves literal LIMIT/OFFSET values alone', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/format',
+      payload: {
+        code: 'select * where { { select ?s where { ?s ?p ?o } limit 10 offset 0003 } } limit 0001 offset 5',
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    const { formatted } = JSON.parse(response.body);
+    expect(formatted).toContain('LIMIT 10');
+    expect(formatted).toContain('OFFSET 0003');
+    expect(formatted).toContain('LIMIT 0001');
+    expect(formatted).toContain('OFFSET 5');
+    expect(formatted).not.toMatch(/730100/);
+  });
+
   it('should format a query with prefixes', async () => {
     const queryWithPrefixes = `PREFIX foaf: <http://xmlns.com/foaf/0.1/>
 PREFIX dc: <http://purl.org/dc/elements/1.1/>
