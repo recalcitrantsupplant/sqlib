@@ -199,6 +199,31 @@ export function useArgumentSetDrafts() {
     store.remove(id);
   }
 
+  /**
+   * Move every local record from one target to another.
+   *
+   * Called when a scratch callable is saved: its sets were filed under the
+   * scratch id, because that was the only id it had, and the id it answers to
+   * from now on is the server's. Without this they stay filed under an id
+   * nothing will ask for again — the values are still in storage, but no
+   * switcher lists them, which reads as having lost them.
+   *
+   * Returns how many moved, so a caller can tell whether anything happened.
+   */
+  function rekeyTarget(from: string, to: string): number {
+    if (!from || !to || from === to) return 0
+    let moved = 0
+    for (const record of [...records.value]) {
+      const draft = toArgumentSetDraft(record)
+      if (draft.targetId !== from) continue
+      // `edits` is passed through rather than bumped: re-filing a record is
+      // not an edit to it, and the header pill counts edits.
+      save({ ...draft, targetId: to, edits: draft.edits })
+      moved += 1
+    }
+    return moved
+  }
+
   /** Throw away every local record for a target — after its set is deleted. */
   function removeForTarget(targetId: string) {
     for (const draft of records.value) {
@@ -223,6 +248,7 @@ export function useArgumentSetDrafts() {
     get,
     save,
     remove,
+    rekeyTarget,
     removeForTarget,
     reload,
     clear,

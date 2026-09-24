@@ -246,6 +246,32 @@ Three things it deliberately does **not** do:
 `/health` reports it as `readOnly`, beside the auth mode, so the SPA can offer
 browser-local authoring rather than a button the server will refuse.
 
+The SPA draws no control whose only outcome is a refusal. Save and the entity ⋮
+go from every work area, the `benchmark` and `test` chips go from the run bar,
+`Save to Tuples`, `Save to Data` and `Save as test` go from a rule set's Inputs
+tab, and the tag controls go from the Details panel — absent rather than
+disabled, the rule the rail already follows for a switched-off section.
+Everything acting on the browser's own copy stays: scratch queries, rule sets
+and argument sets, the values in them, Discard, and the inline data a rule set
+runs against. A parameterised query is authored and run the same way it is on a
+writable deployment, with the values sent inline to `POST /sparql`.
+
+A visitor's own SPARQL endpoint is registered the same way. The backend picker
+in the run sentence takes a URL pasted straight into it — `+ SPARQL endpoint…`
+at the foot of the menu — and keeps it as a **browser backend**: stored in that
+browser, named after its own URL, and never posted to the server. Renaming one,
+or changing its query method, is done under **Backends** like any other, and
+writes to the browser rather than to the server. Queries against it run from the browser to the
+endpoint, so the address, any headers and the results do not pass through
+sqlib. Browser backends are not a read-only feature — they work on any
+deployment — but they are what makes a read-only one usable against data it was
+not seeded with.
+
+Before `/health` answers, and if it cannot be reached, the SPA assumes it may
+write. That direction is deliberate: a client that wrongly believes it may write
+shows a button and surfaces the server's refusal, while one that wrongly
+believes it may not hides a working feature and looks broken.
+
 ## Authentication
 
 Auth is off unless `SQLIB_AUTH_MODE` says otherwise. An invalid value for any of

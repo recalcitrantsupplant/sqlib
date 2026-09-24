@@ -78,7 +78,13 @@
               rows="2"
             />
 
-            <template v-if="draftForm.kind === 'http'">
+            <!--
+              Query method belongs to both kinds that have an endpoint. The
+              environment key does not: a browser backend's credentials stay in
+              the browser, so there are no `SQLIB_BACKEND_*` variables for the
+              server to read.
+            -->
+            <template v-if="draftForm.kind === 'http' || draftForm.kind === 'browser'">
               <span class="form-label">Query method</span>
               <div class="method-choice">
                 <label v-for="method in QUERY_METHODS" :key="method.value" class="method-option" :class="{ active: draftForm.queryMethod === method.value }">
@@ -86,7 +92,9 @@
                   <span>{{ method.label }}</span>
                 </label>
               </div>
+            </template>
 
+            <template v-if="draftForm.kind === 'http'">
               <label class="form-label form-label--top" for="backend-draft-env-key">Environment key</label>
               <div class="form-stack">
                 <input
@@ -98,13 +106,12 @@
                   data-testid="backend-draft-env-key"
                 />
                 <InlineNote as="span">
-                  Letters, numbers and underscores. Determines the <code>SQLIB_BACKEND_*</code> variables —
-                  change it now rather than later.
+                  Letters, numbers and underscores. Determines the <code>SQLIB_BACKEND_*</code> variables.
                 </InlineNote>
               </div>
             </template>
 
-            <template v-else>
+            <template v-else-if="draftForm.kind === 'oxigraphMemory'">
               <span class="form-label form-label--top">Mode</span>
               <div class="mode-choice">
                 <label
@@ -140,14 +147,7 @@
               server. It will still be here when you come back, and clearing your browser data removes it.
             </span>
           </div>
-          <div v-else-if="draftForm.kind === 'http'" class="note-card">
-            <Activity :size="14" />
-            <span>
-              On create we probe the endpoint once: it fills the reported product, sets the health dot, and
-              tells you straight away if the URL is wrong.
-            </span>
-          </div>
-          <div v-else class="note-card">
+          <div v-else-if="draftForm.kind === 'oxigraphMemory'" class="note-card">
             <Activity :size="14" />
             <span>
               The store lives inside the server and is hydrated from the data graphs above.
@@ -163,25 +163,19 @@
     <template v-else-if="backend">
       <div class="record-header">
         <span class="record-name" data-testid="backend-record-name">{{ backend.name }}</span>
-        <StatusBadge :tone="HEALTH_TONES[health]" data-testid="backend-health-pill">
-          {{ HEALTH_LABELS[health] }}
-        </StatusBadge>
-        <span class="probe-summary" data-testid="backend-probe-summary">{{ probeSummary }}</span>
-        <div class="header-actions">
-          <DropdownMenu>
-            <DropdownMenuTrigger as-child>
-              <button class="button button--icon" title="More" aria-label="More actions" data-testid="backend-overflow">
-                <MoreHorizontal :size="14" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem @select="copyId">Copy backend ID</DropdownMenuItem>
-              <DropdownMenuItem data-testid="delete-backend" @select="emit('delete-request', { backendId: backend.id, backendName: backend.name })">
-                Delete backend
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+        <!--
+          Health is what a *probe* found, and the server cannot probe a backend
+          it does not have. On a browser one the pair read "Never probed — run
+          Test again" beside no such button, which is the probe card's own
+          reason for being absent one line further down.
+        -->
+        <template v-if="!isBrowser">
+          <StatusBadge :tone="HEALTH_TONES[health]" data-testid="backend-health-pill">
+            {{ HEALTH_LABELS[health] }}
+          </StatusBadge>
+          <span class="probe-summary" data-testid="backend-probe-summary">{{ probeSummary }}</span>
+        </template>
+
       </div>
 
       <!--
@@ -217,6 +211,20 @@
                   :readonly="!canEdit"
                   :commit="(value) => commitField('description', value)"
                 />
+
+                <!--
+                  The id, with the copy button next to it, which is where every
+                  other record puts it (`EntityDetailsPanel`). Behind a ⋮ it was
+                  a menu you had to open to find out what was in it, holding one
+                  thing anybody wants and one nobody wants by accident.
+                -->
+                <span class="field-name">Backend ID</span>
+                <div class="field-with-actions">
+                  <span class="field-value id-text" data-testid="backend-id">{{ backend.id }}</span>
+                  <button class="icon-button" title="Copy backend ID" aria-label="Copy backend ID" data-testid="copy-backend-id" @click="copyId">
+                    <Copy :size="12" />
+                  </button>
+                </div>
               </div>
             </section>
 
@@ -349,7 +357,13 @@
             </section>
 
             <!-- 3. Authentication — HTTP only: an in-process store has no wire to authenticate on. -->
-            <section v-if="isHttp" class="record-section">
+            <!--
+              Authentication is about variables on the machine running the
+              query, and for a browser backend that machine is the visitor's
+              own: its headers live in this browser and are never sent to
+              sqlib, so there is no `SQLIB_BACKEND_*` pair to report on.
+            -->
+            <section v-if="isHttp && !isBrowser" class="record-section">
               <h2 class="backend-section-label">
                 Authentication
                 <InfoHint label="authentication">
@@ -399,8 +413,15 @@
             </section>
           </div>
 
-          <!-- The sidecar: observed, not edited. -->
-          <aside class="record-sidecar" data-testid="backend-sidecar">
+          <!--
+            The sidecar: observed, not edited.
+
+            A probe is the *server* reporting what it found at the URL, and the
+            server does not know this backend exists — so for a browser one the
+            card would say "never probed" beside a button that could only fail.
+            The browser finds out the same thing the first time a query runs.
+          -->
+          <aside v-if="!isBrowser" class="record-sidecar" data-testid="backend-sidecar">
             <section class="sidecar-card" :class="`sidecar-card--${health}`" data-testid="backend-health-card">
               <div class="card-head">
                 <component :is="HEALTH_ICONS[health]" :size="14" class="health-icon" />
@@ -500,6 +521,26 @@
             </section>
           </aside>
         </div>
+
+        <!--
+          The one action that unmakes it, at the foot of the record — the place
+          every other record keeps its Delete, rather than behind a ⋮ that has
+          to be opened to find out what is in it.
+
+          It does not confirm here, as those do. The page answers this with a
+          dialog naming the libraries and queries pointing at the backend, and
+          that is worth more than an in-place "are you sure": it is the thing
+          you would have gone looking for before answering.
+        -->
+        <div class="record-footer" data-testid="backend-footer">
+          <button
+            class="delete-button"
+            data-testid="delete-backend"
+            @click="emit('delete-request', { backendId: backend.id, backendName: backend.name })"
+          >
+            <Trash2 :size="12" />Delete backend
+          </button>
+        </div>
       </div>
     </template>
 
@@ -561,8 +602,8 @@ import {
   Copy,
   ExternalLink,
   Minus,
-  MoreHorizontal,
   Plus,
+  Trash2,
   X,
 } from '@lucide/vue';
 import { toast } from 'vue-sonner';
@@ -603,7 +644,8 @@ import {
 import { useApiClient, type BackendEnv, type BackendProbe, type BackendUsage } from '../composables/useApiClient';
 import { useBackendProbes } from '../composables/useBackendProbes';
 import { useBackendsStore } from '../composables/useBackendsStore';
-import { isBrowserBackendId, useBrowserBackends } from '../composables/useBrowserBackends';
+import { isBrowserBackendId, useBrowserBackends, type BrowserBackendInput } from '../composables/useBrowserBackends';
+import { validateEndpoint } from '../lib/endpointUrl';
 import { useDeploymentMode } from '../composables/useDeploymentMode';
 import { useLibrariesStore } from '../composables/useLibrariesStore';
 import { useCopyToClipboard } from '../composables/useCopyToClipboard';
@@ -728,6 +770,8 @@ const probe = computed(() => probes.probeFor(backend.value?.id));
 const health = computed(() => probes.healthFor(backend.value?.id));
 
 const isHttp = computed(() => backend.value?.backendType === 'http');
+/** Registered in this browser rather than in the library — see `useBrowserBackends`. */
+const isBrowser = computed(() => isBrowserBackendId(backend.value?.id));
 
 /** The stored oxigraphConfig, read for display and rebuilt on every commit. */
 const memoryConfig = computed(() => parseMemoryConfig(backend.value?.oxigraphConfig));
@@ -886,21 +930,24 @@ watch(
  * Per-field commit
  * ------------------------------------------------------------------ */
 
-function validateEndpoint(value: string): string | null {
-  const trimmed = value.trim();
-  if (!trimmed) return 'An endpoint URL is required.';
-  try {
-    const url = new URL(trimmed);
-    // `localhost:7878/sparql` parses — as a URL whose scheme is `localhost`.
-    // Only http(s) is a SPARQL endpoint, so the check is on the scheme itself
-    // rather than on whether anything parsed.
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-      return 'Include a scheme, e.g. https://query.wikidata.org/sparql';
-    }
-    return null;
-  } catch {
-    return 'Include a scheme, e.g. https://query.wikidata.org/sparql';
-  }
+/**
+ * Write a change to a browser backend, which the server does not have.
+ *
+ * Every edit on this screen used to go to `PUT /backends/:id` whatever it was
+ * editing, which for one of these is a request about a record the server has
+ * never seen: a 404 where it can write, a 405 where it cannot. This is the
+ * same screen and the same fields, writing to the place the record actually
+ * lives. Returns an error message, like `commitField`, so a rejected edit
+ * stays open over the still-live value.
+ */
+function commitBrowserField(patch: Partial<BrowserBackendInput>): string | null {
+  const current = backend.value;
+  const record = current ? browserBackends.get(current.id) : null;
+  if (!record) return 'This backend is no longer registered in this browser.';
+  backend.value = browserBackends.toBackend(browserBackends.save({ ...record, ...patch }));
+  // The picker and the list read the store, not this component's copy.
+  void backendsStore.loadBackends();
+  return null;
 }
 
 /**
@@ -916,6 +963,12 @@ async function commitField(field: 'name' | 'description' | 'endpoint', value: st
   if (field === 'endpoint') {
     const invalid = validateEndpoint(value);
     if (invalid) return invalid;
+  }
+
+  if (isBrowserBackendId(current.id)) {
+    return commitBrowserField(
+      field === 'description' ? { description: trimmed || null } : { [field]: trimmed },
+    );
   }
 
   const input = backendsStore.toFormInput(current);
@@ -969,6 +1022,11 @@ async function commitSources(payload: { sources: MemoryStoreSource[]; complete: 
 async function commitQueryMethod(method: 'post' | 'get') {
   const current = backend.value;
   if (!current || !canEdit.value || (current.queryMethod ?? 'post') === method) return;
+  if (isBrowserBackendId(current.id)) {
+    const failed = commitBrowserField({ queryMethod: method });
+    if (failed) toast.error(failed);
+    return;
+  }
   const input = backendsStore.toFormInput(current);
   input.queryMethod = method;
   try {
@@ -1187,7 +1245,17 @@ watch(
   async (isDraft) => {
     if (!isDraft) return;
     draftForm.name = '';
-    draftForm.kind = 'http';
+    /*
+     * The first kind this deployment offers, not `http`.
+     *
+     * A read-only deployment offers only the browser kind, and resetting to
+     * `http` here left the form on a kind no radio could show as selected: the
+     * HTTP fields and the server-side hints were drawn, nothing looked chosen,
+     * and Create posted to `POST /backends` for the 405 it always was. The
+     * coercion watcher below could not save it — it fires when the *list*
+     * changes, and the list is settled by the time a draft is opened.
+     */
+    draftForm.kind = availableBackendKinds.value[0]?.value ?? 'http';
     draftForm.endpoint = '';
     draftForm.description = '';
     draftForm.queryMethod = 'post';
@@ -1339,12 +1407,6 @@ function relativeTime(iso: string): string {
   cursor: default;
 }
 
-.button--icon {
-  width: var(--control-h);
-  padding: 0;
-  justify-content: center;
-}
-
 .button--primary {
   border-color: transparent;
   background: var(--action);
@@ -1359,6 +1421,61 @@ function relativeTime(iso: string): string {
 .button--primary:disabled {
   background: var(--border-strong);
   color: var(--ink-inverse);
+}
+
+/*
+ * The footer: the same band, the same quiet-red Delete and the same in-place
+ * confirm as every other record's (`EntityDetailsPanel`). Copied rather than
+ * shared because this screen's record is not that panel — what has to match is
+ * what it looks like and how it behaves, not where the markup lives.
+ */
+.record-footer {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--space-4);
+  box-sizing: border-box;
+  min-height: var(--panel-bar-h);
+  padding: var(--space-4) var(--space-5);
+  border-top: 1px solid var(--border-subtle);
+  background: var(--surface-subtle);
+}
+
+.delete-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: var(--control-h-sm);
+  margin-left: auto;
+  padding: 0 var(--space-4);
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--danger-active);
+  font-family: inherit;
+  font-size: var(--text-label);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+}
+
+.delete-button:hover {
+  background: var(--danger-surface);
+  color: var(--danger-ink);
+}
+
+/*
+ * The same size as the endpoint above it, which is an `InlineField` in mono
+ * and sets `--text-body` for itself. Left to inherit, a plain span took the
+ * larger body size — and monospace renders wider than the sans beside it at
+ * the same nominal size, so the id came out looking like a heading.
+ *
+ * It wraps rather than pushing the copy button off the row.
+ */
+.id-text {
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-body);
+  word-break: break-all;
 }
 
 .record-body {
@@ -1379,7 +1496,7 @@ function relativeTime(iso: string): string {
   display: flex;
   flex-direction: column;
   gap: var(--space-7);
-  max-width: 640px;
+  max-width: 720px;
 }
 
 .record-column {
@@ -1396,7 +1513,12 @@ function relativeTime(iso: string): string {
   min-width: 0;
 }
 
-@container (min-width: 1060px) {
+/*
+ * 720 + 32 + 360 = 1112, and then the 28px of slack the old 1060 kept over the
+ * 640-wide column it was written for. The threshold is the row's own arithmetic
+ * rather than a round number, so widening a column means moving this too.
+ */
+@container (min-width: 1140px) {
   .record-split {
     flex-direction: row;
     align-items: flex-start;
@@ -1404,10 +1526,16 @@ function relativeTime(iso: string): string {
     max-width: none;
   }
 
-  /* Fixed, not fluid: a wider settings column only stretches the endpoint
-     field, and a 1900px endpoint field is worse than a short one. */
+  /*
+   * Fixed, not fluid: a fluid settings column only stretches the endpoint
+   * field, and a 1900px endpoint field is worse than a short one. 720 rather
+   * than 640 because a browser backend's id — `urn:sqlib:browser-backend:`
+   * and a uuid, 62 characters — wrapped onto a second line at the narrower
+   * width, and an id broken mid-uuid is the one field here nobody can read
+   * across a line break.
+   */
   .record-column {
-    width: 640px;
+    width: 720px;
     flex-shrink: 0;
   }
 

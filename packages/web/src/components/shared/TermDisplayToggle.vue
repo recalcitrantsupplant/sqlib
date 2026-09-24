@@ -57,14 +57,19 @@ const { mode, setMode } = useTermDisplay();
  * would silently do nothing inside this component. `.on` is the addition: one
  * of the two is always the state every table is in, and a control with a
  * current value has to show it.
+ *
+ * Restating a rule means restating its measurements too. This took the default
+ * `--control-h` while everything it sits beside — the view toggle, the filter,
+ * Download, Pop out — is `--control-h-sm`, so the one control in the row that
+ * copied its neighbours stood 6px taller than all of them.
  */
 .term-display-button {
   display: inline-flex;
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  width: var(--control-h);
-  height: var(--control-h);
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
   padding: 0;
   border: 1px solid var(--border-default);
   border-radius: var(--radius-sm);

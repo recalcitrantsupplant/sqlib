@@ -109,6 +109,7 @@
         </span>
         <Select
           v-else-if="backend"
+          v-model:open="backendMenuOpen"
           :model-value="backend.value"
           :disabled="backend.disabled || backend.loading"
           @update:model-value="(value) => emit('update:backend', String(value))"
@@ -117,10 +118,24 @@
             <Database :size="12" class="chip-icon" />
             <SelectValue placeholder="Backend" />
           </SelectTrigger>
-          <SelectContent>
-            <SelectItem v-for="option in backend.options" :key="option.value" :value="option.value">
-              {{ option.label }}
+          <!--
+            A fixed width with the long labels faded out rather than ellipsised.
+            An endpoint pasted here is its own name, and endpoint URLs are long
+            and alike in their first half — a menu sized to the longest of them
+            would be wider than the run sentence it hangs off, and `…` at the
+            cut tells you nothing a fade does not. Renaming one is the backends
+            screen's job, where the rest of its fields are.
+          -->
+          <SelectContent class="backend-menu">
+            <SelectItem
+              v-for="option in backend.options"
+              :key="option.value"
+              :value="option.value"
+              class="backend-item"
+            >
+              <span v-fade-when-clipped class="backend-label">{{ option.label }}</span>
             </SelectItem>
+            <InlineEndpointAdder @added="selectAddedBackend" />
           </SelectContent>
         </Select>
       </span>
@@ -204,7 +219,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import {
   ChevronDown,
   Database,
@@ -232,6 +247,8 @@ import type {
   RunOption,
 } from '../../lib/runBar';
 import { useFeatureFlags } from '../../composables/useFeatureFlags';
+import InlineEndpointAdder from './InlineEndpointAdder.vue';
+import { useDeploymentMode } from '../../composables/useDeploymentMode';
 
 const ICONS = {
   tuples: Table,
@@ -309,6 +326,50 @@ const emit = defineEmits<{
 
 const { isEnabled } = useFeatureFlags();
 
+/*
+ * A read-only deployment holds neither a test nor a benchmark it was sent, so
+ * the whole clause goes for the same reason a switched-off feature's does.
+ * Running still works — only keeping the recipe does not.
+ */
+const deployment = useDeploymentMode();
+
+/**
+ * Mark a label that does not fit, so only those get the fade.
+ *
+ * A mask cannot ask whether the text it covers was clipped — it just fades the
+ * last few pixels of the box, which for a label that fits is the last few
+ * pixels of the *text*. That is how every row in the menu came to trail off,
+ * including the ones with room to spare. The measurement is the only thing
+ * that knows, so it is what sets the attribute the fade hangs off.
+ *
+ * One pixel of slack: `scrollWidth` and `clientWidth` are integers rounded
+ * from fractional layout, so an exactly-fitting label can report one more than
+ * the other and fade for nothing.
+ */
+const vFadeWhenClipped = {
+  mounted: markClipped,
+  updated: markClipped,
+};
+
+function markClipped(el: HTMLElement) {
+  el.toggleAttribute('data-clipped', el.scrollWidth > el.clientWidth + 1);
+}
+
+/*
+ * Held here so adding an endpoint can close the menu.
+ *
+ * A pasted endpoint is chosen by the act of pasting it — the row it would
+ * otherwise leave you to find is the row you just made. The menu is open at
+ * that moment and does not know a choice was made, because the choice came
+ * from a field inside it rather than from one of its items.
+ */
+const backendMenuOpen = ref(false);
+
+function selectAddedBackend(backendId: string) {
+  emit('update:backend', backendId);
+  backendMenuOpen.value = false;
+}
+
 /**
  * The targets this build can actually create.
  *
@@ -319,7 +380,9 @@ const { isEnabled } = useFeatureFlags();
  * that can only refuse teaches nothing.
  */
 const visibleCreateTargets = computed(() =>
-  props.createTargets.filter((target) => isEnabled(CREATE_TARGET_FEATURE[target])),
+  deployment.isReadOnly.value
+    ? []
+    : props.createTargets.filter((target) => isEnabled(CREATE_TARGET_FEATURE[target])),
 );
 
 const iconFor = (icon: PickIcon) => ICONS[icon];
@@ -598,4 +661,71 @@ const labelOf = (choice: RunBarChoice) =>
   cursor: not-allowed;
 }
 
+
+</style>
+
+<!--
+  The backend menu, deliberately outside the scoped block.
+
+  Its content is portalled to `body` by `SelectPortal`, and a teleported
+  subtree does not carry this file's scope attribute — the rules below matched
+  nothing at all while they lived in `<style scoped>`, which is why the menu
+  kept sizing itself from the trigger. `.backend-menu` and the two classes
+  under it are names this file owns, so the global surface is those three.
+-->
+<style>
+/*
+ * One width for every row, whatever the URL in it. The label takes what is
+ * left after the check column and the `+ name` button, and anything longer
+ * dissolves into the edge instead of being cut with an ellipsis: endpoints
+ * differ at their *end* far more often than at their start, so a fade says
+ * "there is more" without pretending, as `…` does, that what is hidden is the
+ * unimportant part.
+ */
+.backend-menu {
+  width: 340px;
+  max-width: calc(100vw - 32px);
+}
+
+/*
+ * `min-width: 0` is what makes the label below clip at all. Without it the row
+ * takes its content's width and simply overflows the menu, which the menu then
+ * hides — so a long URL was cut off at the edge while reporting that it fitted,
+ * and the fade had nothing to hang off.
+ */
+.backend-menu .backend-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-width: 0;
+}
+
+/*
+ * The row wraps its label in a span of its own (`SelectItemText`), and a flex
+ * item's `min-width` defaults to `auto` — so that wrapper grew to the text's
+ * full width, pushing the row past the menu, which hid the overflow. The label
+ * inside then reported that it fitted, because as far as it knew it did.
+ */
+.backend-menu .backend-item > span {
+  min-width: 0;
+}
+
+.backend-menu .backend-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/* Only where the text is actually cut off — see `vFadeWhenClipped`. */
+.backend-menu .backend-label[data-clipped] {
+  /*
+   * Opacity, not a colour — a mask reads this gradient's alpha channel, so
+   * there is no token to reach for and nothing here to get wrong in dark mode.
+   * Written in functional notation because a keyword or a hex would read as a
+   * colour to the linter, which is right to ask about every other one.
+   */
+  mask-image: linear-gradient(to right, rgb(0 0 0 / 100%) calc(100% - 28px), transparent 100%);
+}
 </style>

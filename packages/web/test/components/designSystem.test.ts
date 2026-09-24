@@ -861,6 +861,35 @@ describe('stratum palette', () => {
   });
 });
 
+/*
+ * One row, one height.
+ *
+ * The results action bar holds a view toggle, a filter, Download, Pop out and
+ * the term-display pair, and they come from three files: the bar's own
+ * stylesheet, the shared Input, and a component of its own. `TermDisplayToggle`
+ * restated `.btn-action` — which is scoped to the bar, so it cannot be reused —
+ * and restated it with the default control height, standing 6px taller than
+ * everything beside it. A restated rule is a copy that can drift, so this is
+ * what stops it drifting again.
+ */
+describe('the results action bar', () => {
+  const chrome = readFileSync(resolve(SRC, 'assets/css/results-chrome.css'), 'utf8');
+
+  /** The height token `.btn-action` sets, which the row is measured against. */
+  const barControlHeight =
+    /\.results-action-bar \.btn-action \{[^}]*height:\s*var\((--control-h[\w-]*)\)/.exec(chrome)?.[1];
+
+  it('sizes its own buttons on the small control height', () => {
+    expect(barControlHeight).toBe('--control-h-sm');
+  });
+
+  it('sizes the controls it does not own to match', () => {
+    const toggle = readFileSync(resolve(SRC, 'components/shared/TermDisplayToggle.vue'), 'utf8');
+    expect(toggle).toContain(`height: var(${barControlHeight})`);
+    expect(toggle).toContain(`width: var(${barControlHeight})`);
+  });
+});
+
 describe('token layer', () => {
   const tokens = readFileSync(resolve(SRC, 'assets/css/tokens.css'), 'utf8');
 

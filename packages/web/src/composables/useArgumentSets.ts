@@ -80,11 +80,40 @@ export function useArgumentSets(
    * from a query screen "stale until you navigate". The screen owns the
    * connection to the rail, so the screen is told and forwards it.
    */
-  options?: { onSaved?: (setId: string) => void },
+  options?: {
+    onSaved?: (setId: string) => void
+    /**
+     * The scratch record's id, when the callable has not been saved yet.
+     *
+     * A scratch query or group has no server identity at all — its work area
+     * holds `''` where the entity id would be — so a set made on one had
+     * nothing to key on, and `createScratch` refused. Values could then only
+     * be typed into a query that had already been saved, which on a read-only
+     * deployment is no query at all: nothing there can be saved, so the
+     * Arguments tab was a dead end on every screen.
+     *
+     * Local records key on this instead while it is all there is, and move
+     * over to the server id when the callable is saved (`rekeyTarget`).
+     */
+    scratchTargetId?: () => string | null
+  },
 ) {
   const apiClient = useApiClient()
   const local = useArgumentSetDrafts()
   const tupleSets = useTupleSetsStore()
+
+  /**
+   * What browser-local sets are filed under: the server id once there is one,
+   * the scratch id before that.
+   *
+   * Distinct from `targetId` on purpose. Anything that goes to the server —
+   * listing this callable's sets, creating one against it — needs an id the
+   * server knows, and a scratch id is not one; anything kept in this browser
+   * needs only a stable key, and a scratch id is exactly that.
+   */
+  const localTargetId = computed(
+    () => targetId.value || options?.scratchTargetId?.() || null,
+  )
 
   // ========================================================================
   // Core state
@@ -223,14 +252,20 @@ export function useArgumentSets(
    * worse outcome than not offering the others.
    */
   async function loadArgumentSets(library: string | null = libraryId?.() ?? null) {
-    if (!targetId.value) {
+    if (!localTargetId.value) {
       argumentSets.value = []
       return
     }
     isLoading.value = true
     error.value = null
     try {
-      const own = await apiClient.listArgumentSets(targetId.value, scope)
+      /*
+       * Nothing to ask the server about a callable it has never seen. A
+       * scratch one still gets the library's sets, which is the whole list it
+       * can have — and the one that makes a seeded set usable from a draft
+       * query on a read-only deployment.
+       */
+      const own = targetId.value ? await apiClient.listArgumentSets(targetId.value, scope) : []
       if (!library) {
         argumentSets.value = own
         return
@@ -354,14 +389,15 @@ export function useArgumentSets(
 
   /** A new, empty scratch set — the switcher's "New scratch set". */
   function createScratch(suggestedName?: string): string | null {
-    if (!targetId.value) return null
+    const target = localTargetId.value
+    if (!target) return null
     const id = newScratchId()
-    const existing = local.scratchFor(targetId.value).length
+    const existing = local.scratchFor(target).length
     local.save({
       id,
       kind: 'scratch',
       scope,
-      targetId: targetId.value,
+      targetId: target,
       name: suggestedName ?? `Untitled set ${existing + 1}`,
       description: null,
       basedOn: null,
@@ -388,7 +424,8 @@ export function useArgumentSets(
    */
   function persistLocal() {
     if (hydrating.value) return
-    if (!targetId.value) return
+    const target = localTargetId.value
+    if (!target) return
 
     if (selection.value.kind === 'scratch') {
       const record = local.get(selection.value.id)
@@ -413,7 +450,7 @@ export function useArgumentSets(
       id: existing?.id ?? `${setId}::draft`,
       kind: 'draft',
       scope,
-      targetId: targetId.value,
+      targetId: target,
       name: name.value || currentSet.value?.name || '',
       description: description.value || null,
       basedOn: setId,
@@ -496,7 +533,13 @@ export function useArgumentSets(
    */
   async function save(): Promise<boolean> {
     if (!targetId.value) {
-      error.value = 'No target selected'
+      /*
+       * A set is created *against* a callable, so there is nothing to attach
+       * this one to until that callable has been saved. The values are not at
+       * risk — they are in the browser-local record either way, and stay there
+       * — so this is a refusal to write, not a loss.
+       */
+      error.value = `Save the ${scope === 'queryGroup' ? 'group' : 'query'} first`
       return false
     }
     const trimmed = name.value.trim()
@@ -749,13 +792,32 @@ export function useArgumentSets(
   // Watchers
   // ========================================================================
 
+  /*
+   * Keyed on the local id, not the server one: two scratch queries in a row
+   * both leave `targetId` at `''`, so watching that would carry the first
+   * one's open set into the second.
+   */
   watch(
-    targetId,
+    localTargetId,
     (newId, oldId) => {
       if (newId === oldId) return
       argumentSets.value = []
       clearSelection()
-      if (newId) void loadArgumentSets()
+      /*
+       * The load waits for a microtask, and has to.
+       *
+       * This watcher is immediate, so its first run is *during* the calling
+       * screen's setup — and `loadArgumentSets` reads the `libraryId` getter,
+       * which a screen is invited to write over state it declares further down
+       * that same setup (see the parameter's own note). Called synchronously
+       * there, the getter reaches a `const` in its temporal dead zone and
+       * throws, which Vue catches and reports as a watcher error: the screen
+       * survives, and the library's sets are silently missing from the
+       * switcher. A scratch callable made that the *usual* path rather than an
+       * edge case, because `localTargetId` is set from the first render where
+       * `targetId` was empty.
+       */
+      if (newId) void Promise.resolve().then(() => loadArgumentSets())
     },
     { immediate: true },
   )
@@ -801,7 +863,7 @@ export function useArgumentSets(
     graphBindings,
 
     // Local scratch sets for this target, newest first
-    scratchSets: computed(() => local.scratchFor(targetId.value)),
+    scratchSets: computed(() => local.scratchFor(localTargetId.value)),
 
     // Actions
     loadArgumentSets,

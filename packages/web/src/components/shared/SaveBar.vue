@@ -98,7 +98,14 @@
     >
       Discard
     </button>
+    <!--
+      Save is absent, not disabled, on a read-only deployment: the server
+      refuses every write to its own state, so this button could only ever
+      report that. Discard and the body icons above stay — they act on the
+      browser-local record, which is the one thing a visitor there does own.
+    -->
     <button
+      v-if="canWrite"
       class="bar-button bar-primary"
       data-testid="save"
       :disabled="saveDisabled"
@@ -117,8 +124,13 @@
       copy that can disagree with the first.
       A scratch item has neither entry: it has no server identity to delete and
       nothing to edit on the server, so the menu is saved-only.
+
+      A read-only deployment leaves the menu only where a section put something
+      of its own in it — the rules screen's "Preview changes…", which reads.
+      Both standing entries write to the server, so a ⋮ holding nothing but
+      those is a menu that opens onto two refusals.
     -->
-    <DropdownMenu v-if="showMore && !isScratch">
+    <DropdownMenu v-if="showMore && !isScratch && (canWrite || hasMenuItems)">
       <DropdownMenuTrigger as-child>
         <button class="bar-button bar-icon" data-testid="query-more" title="More actions">
           <EllipsisVertical :size="13" />
@@ -127,10 +139,10 @@
       <DropdownMenuContent align="end">
         <!-- Section-specific entries: the rules screen's "Preview changes…". -->
         <slot name="menu-items" />
-        <DropdownMenuItem v-if="showEdit" data-testid="query-edit-details" @select="emit('edit')">
+        <DropdownMenuItem v-if="showEdit && canWrite" data-testid="query-edit-details" @select="emit('edit')">
           Edit details…
         </DropdownMenuItem>
-        <DropdownMenuItem data-testid="query-delete" @select="emit('delete')">
+        <DropdownMenuItem v-if="canWrite" data-testid="query-delete" @select="emit('delete')">
           Delete
         </DropdownMenuItem>
       </DropdownMenuContent>
@@ -148,7 +160,7 @@
  * varies is the noun and which of the body-specific icons are worth drawing:
  * a canvas has nothing to format and nothing to diff.
  */
-import { computed } from 'vue';
+import { computed, useSlots } from 'vue';
 import {
   FlaskConical,
   PencilLine,
@@ -164,6 +176,7 @@ import {
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu';
 import PrefixConversionButtons from './PrefixConversionButtons.vue';
+import { useDeploymentMode } from '../../composables/useDeploymentMode';
 
 const props = withDefaults(defineProps<{
   title: string;
@@ -215,6 +228,20 @@ const props = withDefaults(defineProps<{
   showImport: false,
   importTitle: 'Import',
 });
+
+/**
+ * Whether this deployment keeps anything at all.
+ *
+ * Read here rather than passed in by each work area: it is a property of the
+ * deployment, not of the item on screen, and a dozen screens each remembering
+ * to forward it is a dozen places to forget. Same reason `RunBar` reads the
+ * feature flags itself.
+ */
+const deployment = useDeploymentMode();
+const canWrite = computed(() => !deployment.isReadOnly.value);
+
+const slots = useSlots();
+const hasMenuItems = computed(() => Boolean(slots['menu-items']));
 
 const emit = defineEmits<{
   (e: 'save'): void;

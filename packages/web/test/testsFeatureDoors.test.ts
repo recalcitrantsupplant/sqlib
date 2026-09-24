@@ -127,7 +127,7 @@ describe('doors into the tests feature', () => {
    */
   it('hides every "save as test" door rather than disabling it', () => {
     const expected: Record<string, RegExp> = {
-      'components/rules/RuleSetInputsPanel.vue': /v-if="testsEnabled"/,
+      'components/rules/RuleSetInputsPanel.vue': /v-if="testsEnabled && canWrite"/,
     };
     /*
      * The id may be bound rather than literal: a notebook has many cells, so

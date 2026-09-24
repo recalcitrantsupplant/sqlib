@@ -106,4 +106,45 @@ describe('BackendListSidebar', () => {
     const wrapper = mountSidebar({ backends: [] });
     expect(wrapper.text()).toContain('No backends yet');
   });
+
+  /*
+   * A browser backend cannot be probed — the server has no record of it — so
+   * the list says nothing about its health rather than showing the grey dot
+   * and the dash that mean "never probed".
+   */
+  describe('a backend registered in this browser', () => {
+    const browser = {
+      id: 'urn:sqlib:browser-backend:wikidata',
+      name: 'query.wikidata.org/sparql',
+      description: null,
+      backendType: 'http' as const,
+      endpoint: 'https://query.wikidata.org/sparql',
+      authEnvKey: null,
+      queryMethod: null,
+      oxigraphConfig: null,
+      dateCreated: '2026-09-01T00:00:00.000Z',
+      dateModified: '2026-09-01T00:00:00.000Z',
+    };
+
+    it('keeps the dot\'s space without claiming a health', () => {
+      const wrapper = mountSidebar({ backends: [browser] });
+
+      const dot = wrapper.find('[data-testid="backend-health-dot"]');
+      expect(dot.classes()).toContain('health-dot--none');
+      expect(dot.attributes('title')).toBeUndefined();
+      expect(wrapper.find('.row-latency').exists()).toBe(false);
+    });
+
+    it('offers no Probe all when nothing in the list can be probed', () => {
+      const wrapper = mountSidebar({ backends: [browser] });
+
+      expect(wrapper.find('[data-testid="probe-all"]').attributes('disabled')).toBeDefined();
+    });
+
+    it('offers it again as soon as one backend is the server\'s', () => {
+      const wrapper = mountSidebar({ backends: [browser, ...backends] });
+
+      expect(wrapper.find('[data-testid="probe-all"]').attributes('disabled')).toBeUndefined();
+    });
+  });
 });

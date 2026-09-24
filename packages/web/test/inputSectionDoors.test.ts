@@ -72,7 +72,9 @@ const DOORS: Door[] = [
     drawnIn: 'components/rules/RuleSetInputsPanel.vue',
     testid: 'save-to-tuples',
     kind: 'tupleSet',
-    condition: /v-if="tupleSetSectionOpen"/,
+    // `canWrite` as well: authoring a tuple set is a write, and a read-only
+    // deployment refuses it. `open-in-tuples` below navigates, so it stays.
+    condition: /v-if="tupleSetSectionOpen && canWrite"/,
   },
   {
     drawnIn: 'components/rules/RuleSetInputsPanel.vue',
@@ -84,7 +86,7 @@ const DOORS: Door[] = [
     drawnIn: 'components/rules/RuleSetInputsPanel.vue',
     testid: 'save-to-data',
     kind: 'dataGraph',
-    condition: /v-if="dataGraphSectionOpen"/,
+    condition: /v-if="dataGraphSectionOpen && canWrite"/,
   },
   {
     drawnIn: 'components/rules/RuleSetInputsPanel.vue',

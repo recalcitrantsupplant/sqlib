@@ -6,9 +6,10 @@
  * later carries or reverts. These assert exactly that, plus the create-and-
  * apply gesture the picker's Enter key stands for.
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import EntityTagsField from '@/components/tags/EntityTagsField.vue';
+import { resetDeploymentMode, useDeploymentMode } from '@/composables/useDeploymentMode';
 
 const api = vi.hoisted(() => ({
   listTags: vi.fn(),
@@ -111,5 +112,39 @@ describe('EntityTagsField', () => {
     await flushPromises();
 
     expect(wrapper.find('[data-testid="entity-tags-error"]').text()).toContain('different library');
+  });
+
+  /*
+   * A read-only deployment refuses the PUT behind every one of these clicks,
+   * so both controls go and the chips stay: an assigned tag is still a label
+   * worth reading, it is only changing it that is unavailable.
+   */
+  describe('on a read-only deployment', () => {
+    const realFetch = globalThis.fetch;
+
+    beforeEach(async () => {
+      resetDeploymentMode();
+      globalThis.fetch = vi.fn(async () =>
+        new Response(JSON.stringify({ status: 'ok', readOnly: true }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      ) as typeof globalThis.fetch;
+      await useDeploymentMode().ensureLoaded();
+    });
+
+    afterEach(() => {
+      globalThis.fetch = realFetch;
+      resetDeploymentMode();
+    });
+
+    it('still shows the tags, without the controls that would change them', async () => {
+      const wrapper = mountField();
+      await flushPromises();
+
+      expect(wrapper.find('[data-testid="entity-tag-chip-tag:geo"]').text()).toContain('Geo');
+      expect(wrapper.find('[data-testid="entity-tag-chip-tag:geo"] button').exists()).toBe(false);
+      expect(wrapper.find('[data-testid="entity-tags-add"]').exists()).toBe(false);
+    });
   });
 });
