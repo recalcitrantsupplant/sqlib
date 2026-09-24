@@ -32,15 +32,23 @@
     "backfill:srl-importable": "tsx scripts/backfill-srl-importable.ts"
   },
   "keywords": [],
-  "author": "",
+  "homepage": "https://github.com/recalcitrantsupplant/sqlib",
+  "repository": "git+https://github.com/recalcitrantsupplant/sqlib.git",
+  "author": "David Habgood <david@kurrawong.ai>",
   "license": "SEE LICENSE IN LICENSE",
   "earlReport": {
     "$comment": "Identity for W3C EARL conformance reports - see docs/guides/testing-and-conformance.md. The npm fields above (name, version, description, homepage, repository, author) fill in the rest, so a release is described once.",
     "projectName": "sqlib",
-    "projectIri": "urn:sqlib:software",
+    "projectIri": "https://github.com/recalcitrantsupplant/sqlib",
+    "downloadPage": "https://sparql-rl.app.dev.kurrawong.ai/?section=tests",
     "programmingLanguages": [
       "TypeScript"
     ],
+    "assertor": {
+      "iri": "mailto:david@kurrawong.ai",
+      "name": "David Habgood",
+      "kind": "Person"
+    },
     "suiteBaseIri": "https://w3c.github.io/rdf-tests/shacl/shacl12/"
   },
   "dependencies": {
