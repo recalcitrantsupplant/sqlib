@@ -39,11 +39,22 @@
             conceptual half of this note moved to the section overview, which is
             what someone opening Graphs with nothing selected now reads.
           -->
-          <InlineNote class="group-hint" data-testid="data-graph-storage-note">
+          <!--
+            A read-only deployment keeps nothing a visitor sends it: an upload
+            is read into this browser, Save is hidden, and the API refuses the
+            write anyway. Saying "stored on the server" there would be false.
+          -->
+          <InlineNote v-if="isReadOnly" class="group-hint" data-testid="data-graph-storage-note">
+            Up to {{ formatBytes(limits.dataGraphVersionBytes) }}. Kept in this browser only.
+            This deployment is read-only, so nothing you upload is saved to the server.
+            Runs that use the graph send it with the request and do not keep it.
+          </InlineNote>
+          <InlineNote v-else class="group-hint" data-testid="data-graph-storage-note">
             Up to {{ formatBytes(limits.dataGraphVersionBytes) }} per version and
-            {{ formatBytes(limits.dataGraphLibraryBytes) }} across the library. Content is
-            stored on the server, and is not loaded into any in-memory backend by saving it
-            here — to run queries against a graph, attach it to a backend under Backends.
+            {{ formatBytes(limits.dataGraphLibraryBytes) }} across the library. Saving stores
+            the content on the server. A backend that tracks this graph picks up the new
+            version the next time it is used; one pinned to a version does not. Tests and
+            rule runs can use a graph directly, without a backend.
           </InlineNote>
 
           <Toolbar variant="plain" wrap>
@@ -220,6 +231,7 @@ import { useScratchRecord } from '@/composables/useScratchRecord';
 import { useCallableDrafts, UNASSIGNED_LIBRARY_ID } from '@/composables/useCallableDrafts';
 import type { DataGraphVersion } from '@/composables/useApiClient';
 import { useServerLimits } from '@/composables/useServerLimits';
+import { useDeploymentMode } from '@/composables/useDeploymentMode';
 import type { DataGraphFormat } from '@/types/data-graphs';
 
 /*
@@ -636,6 +648,7 @@ const ACCEPTED_EXTENSIONS = Object.keys(EXTENSION_FORMATS).join(',');
  * be told no is a hung tab, not a validation message.
  */
 const { limits, ensureLoaded: loadServerLimits } = useServerLimits();
+const { isReadOnly } = useDeploymentMode();
 
 const fileInputRef = ref<HTMLInputElement | null>(null);
 

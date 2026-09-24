@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import DataGraphWorkArea from '@/components/DataGraphWorkArea.vue';
+import { resetDeploymentMode, useDeploymentMode } from '@/composables/useDeploymentMode';
 
 const store = vi.hoisted(() => ({
   dataGraphs: [] as Array<Record<string, unknown>>,
@@ -144,12 +145,33 @@ describe('DataGraphWorkArea — upload', () => {
     const note = area.get('[data-testid="data-graph-storage-note"]').text();
     expect(note).toContain('10.0 MB per version');
     expect(note).toContain('100.0 MB across the library');
-    expect(note).toMatch(/stored on the server/);
-    expect(note).toMatch(/attach it to a backend under Backends/);
+    expect(note).toMatch(/stores the content on the server/);
+    expect(note).toMatch(/tracks this graph picks up the new version/);
 
     await choose(area, file('big.ttl', ':a :b :c .', 5_000_000));
     expect((area.get('[data-testid="data-graph-content"]').element as HTMLTextAreaElement).value)
       .toContain(':a :b :c');
+  });
+
+  it('says an upload stays in the browser on a read-only deployment', async () => {
+    const realFetch = globalThis.fetch;
+    resetDeploymentMode();
+    globalThis.fetch = vi.fn(async () =>
+      new Response(JSON.stringify({ status: 'ok', readOnly: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    ) as typeof globalThis.fetch;
+    try {
+      await useDeploymentMode().ensureLoaded();
+      const note = mountArea().get('[data-testid="data-graph-storage-note"]').text();
+      expect(note).toMatch(/Kept in this browser only/);
+      expect(note).not.toMatch(/on the server\./);
+      expect(note).not.toContain('\u2014');
+    } finally {
+      globalThis.fetch = realFetch;
+      resetDeploymentMode();
+    }
   });
 
   it('reports a save rejection in the editor, not only as a toast', async () => {
