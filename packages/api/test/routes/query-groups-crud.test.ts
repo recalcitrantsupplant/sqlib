@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi, MockInstance } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
+import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
 const hoisted = vi.hoisted(() => ({
   mintId: vi.fn(),
@@ -13,7 +14,7 @@ const hoisted = vi.hoisted(() => ({
   expandGroupVersionDetailed: vi.fn(),
 }));
 
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
+overrideCacheCoordinatorProvider({
   getCacheCoordinator: () => ({
     list: hoisted.list,
     get: hoisted.get,
@@ -21,7 +22,7 @@ vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
     update: hoisted.update,
     delete: hoisted.remove,
   }),
-}));
+});
 
 describe('Query group routes', () => {
   let app: FastifyInstance;

@@ -41,6 +41,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
 import type { AuthContext } from '../../src/auth/types.js';
+import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
 const MINE = 'urn:sqlib:library:hydrology';
 const THEIRS = 'urn:sqlib:library:payroll';
@@ -50,10 +51,10 @@ const EXPERIMENT = 'urn:sqlib:benchmark-experiment:throughput';
 
 const store = vi.hoisted(() => ({ entities: new Map<string, Record<string, unknown>>() }));
 
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
+overrideCacheCoordinatorProvider({
   getCacheCoordinator: () => ({ get: (id: string) => store.entities.get(id) ?? null }),
   getEntityRepositories: () => ({}),
-}));
+});
 
 const {
   changeEventFor,

@@ -17,6 +17,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import backendRoutes from '../../src/routes/backends.js';
 import { setupValidator } from '../../src/lib/validator-setup.js';
 import * as schemas from '@sparql-query-lib/contracts/schema';
+import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
 const BACKEND_ID = 'urn:sqlib:backend:folded';
 const OTHER_BACKEND_ID = 'urn:sqlib:backend:elsewhere';
@@ -45,7 +46,7 @@ function patch(fields: Record<string, unknown>): Record<string, unknown> {
 
 const rows = vi.hoisted(() => ({ patches: [] as Record<string, unknown>[] }));
 
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
+overrideCacheCoordinatorProvider({
   getEntityRepositories: () => ({
     Backend: { list: () => [], get: () => null },
     Library: { list: () => [] },
@@ -53,7 +54,7 @@ vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
     Patch: { list: () => rows.patches, get: () => null },
   }),
   getCacheCoordinator: () => ({ get: () => null }),
-}));
+});
 
 rows.patches = [
   patch({

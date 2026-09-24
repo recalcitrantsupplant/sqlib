@@ -69,7 +69,7 @@ const hoisted = vi.hoisted(() => ({
   delete: vi.fn((type, id) => hoisted.cacheManager!.delete(id, type)),
 }));
 
-vi.mock('../../../src/lib/CacheCoordinatorProvider.js', () => ({
+overrideCacheCoordinatorProvider({
   getCacheCoordinator: () => ({
     list: hoisted.list,
     get: hoisted.get,
@@ -77,7 +77,7 @@ vi.mock('../../../src/lib/CacheCoordinatorProvider.js', () => ({
     update: hoisted.update,
     delete: hoisted.delete,
   }),
-}));
+});
 
 beforeEach(async () => {
   hoisted.cacheManager = new MemoryCacheManager();
@@ -176,13 +176,13 @@ This allows:
 ```typescript
 describe('GraphBuilder validation', () => {
   it('should reject CONTROL_FLOW edges with I/O references', () => {
-    // Mock CacheCoordinatorProvider
-    vi.mock('../../../src/lib/CacheCoordinatorProvider.js', () => ({
+    // Serve a fake coordinator (see "Module isolation" below for why not vi.mock)
+    overrideCacheCoordinatorProvider({
       getCacheCoordinator: () => ({
         get: vi.fn((id) => mockEntities[id]),
         list: vi.fn(),
       }),
-    }));
+    });
 
     const builder = new GraphBuilder();
     // Test validation logic
@@ -190,6 +190,40 @@ describe('GraphBuilder validation', () => {
   });
 });
 ```
+
+---
+
+## Module isolation: `shared` and `isolated` projects
+
+`vitest.config.ts` splits the suite in two, worked out from the files on every
+run:
+
+- **`isolated`** — any file that calls `vi.mock`/`vi.doMock`, directly or through
+  a helper under `test/` it imports, or that imports the server entry point
+  (`src/index.ts`). These get a fresh module graph per file, as before.
+- **`shared`** — everything else, run with `isolate: false`: files in a worker
+  share one module registry, so the ~900 source modules are evaluated once per
+  worker instead of once per file. This is most of the suite's speed.
+
+A shared file inherits whatever module-level state the previous file left, so
+`test/setup-shared-registry.ts` puts the app's singletons (cache coordinator,
+`oxigraphStoreManager`, auth, feature flags, ...), `process.env`,
+`globalThis.fetch` and process error listeners back before each one. Two
+consequences for writing tests:
+
+- **Prefer a setter to `vi.mock`.** `vi.mock` puts a file in `isolated`, which
+  is several times slower per file. To fake the cache, use
+  `overrideCacheCoordinatorProvider({ getCacheCoordinator, getEntityRepositories })`;
+  `setPersistenceAdapter`, `setAuthStore` and `overrideFeatureFlags` do the same
+  for their modules. The reset clears all of them before the next file.
+- **Don't capture a singleton at module load.** `const c = getCacheCoordinator()`
+  at the top of a `src` module keeps the first file's coordinator for every file
+  after it. Resolve it where it is used.
+
+A shared file that passes alone and fails in the full run is almost always a
+module-level singleton the reset does not know about yet: add it to
+`setup-shared-registry.ts`. `vitest run --project shared --sequence.shuffle.files`
+is a quick way to shake out order dependence.
 
 ---
 

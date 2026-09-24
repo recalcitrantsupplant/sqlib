@@ -9,12 +9,13 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
+import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
 const { entities } = vi.hoisted(() => ({ entities: new Map<string, unknown>() }));
 
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
+overrideCacheCoordinatorProvider({
   getCacheCoordinator: () => ({ get: (id: string) => entities.get(id) ?? null }),
-}));
+});
 
 const { currentVersionOfParent, isUnchangedReSnapshot } = await import('../../src/lib/reSnapshot.js');
 

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
 /**
  * `createTupleSetVersion` applies accepted column-type suggestions (issue
@@ -9,7 +10,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const created: Record<string, unknown>[] = [];
 
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
+overrideCacheCoordinatorProvider({
   getCacheCoordinator: () => ({
     create: vi.fn(async (entityType: string, entity: Record<string, unknown>) => {
       created.push({ ...entity, '@type': entityType });
@@ -19,7 +20,7 @@ vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
     get: vi.fn(() => null),
     list: vi.fn(() => []),
   }),
-}));
+});
 
 describe('createTupleSetVersion — column-type suggestions', () => {
   beforeEach(() => { created.length = 0; });

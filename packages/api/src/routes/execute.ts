@@ -76,7 +76,6 @@ const queryExecutionDuration = meter.createHistogram('query.execution.duration',
 
 const argumentSetService = new ArgumentSetService();
 const groupSignatureService = new QueryGroupSignatureService();
-const cacheCoordinator = getCacheCoordinator();
 /*
  * One spelling, shared with the service and the client.
  *
@@ -309,7 +308,7 @@ export default async function (
 
         try {
             // 1. Fetch the target query/group using MEMORY CACHE (no SPARQL queries!)
-            const targetCacheEntity = cacheCoordinator.get(targetId);
+            const targetCacheEntity = getCacheCoordinator().get(targetId);
 
             // Use cache entities directly as LDKit format
             let targetEntity: any = null;
@@ -368,7 +367,7 @@ export default async function (
                     isLibraryStorageBackend = true;
                     request.log.info(`Using internal library storage backend for target ${targetId}.`);
                 } else {
-                    const backendCacheEntity = cacheCoordinator.get(backendId);
+                    const backendCacheEntity = getCacheCoordinator().get(backendId);
                     if (backendCacheEntity) {
                         backendEntity = backendCacheEntity as LdkitBackend;
                     }
@@ -636,7 +635,7 @@ export default async function (
                 if (!current) {
                     return reply.code(409).send({error: `Query ${targetId} has no currentVersion set.`});
                 }
-                const version = cacheCoordinator.get(current) as LdkitQueryVersion | null;
+                const version = getCacheCoordinator().get(current) as LdkitQueryVersion | null;
                 if (!version) {
                     return reply.code(404).send({error: `Current version ${current} for Query ${targetId} not found.`});
                 }
@@ -711,7 +710,7 @@ export default async function (
                 if (!current) {
                     return reply.code(409).send({error: `QueryGroup ${targetId} has no currentVersion set.`});
                 }
-                const version = cacheCoordinator.get(current);
+                const version = getCacheCoordinator().get(current);
                 if (!version || version['@type'] !== 'QueryGroupVersion') {
                     return reply.code(404).send({error: `QueryGroupVersion ${current} not found for ${targetId}.`});
                 }

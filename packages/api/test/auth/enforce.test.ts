@@ -19,6 +19,7 @@ import {
 } from '../../src/auth/enforce.js';
 import type { AuthContext, AuthMode } from '../../src/auth/types.js';
 import { PRINCIPAL_AUTHENTICATED } from '../../src/auth/types.js';
+import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
 const ALICE = 'urn:sqlib:principal:user:alice';
 const LIBRARY = 'urn:sqlib:library:hydrology';
@@ -28,12 +29,12 @@ const OTHER_BACKEND = 'urn:sqlib:backend:secret';
 
 const entities = new Map<string, unknown>();
 
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
+overrideCacheCoordinatorProvider({
   getCacheCoordinator: () => ({
     get: (id: string) => entities.get(id) ?? null,
   }),
   getEntityRepositories: () => ({}),
-}));
+});
 
 let store: AuthStore;
 

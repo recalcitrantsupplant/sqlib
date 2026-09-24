@@ -3,6 +3,7 @@ import Fastify, { FastifyInstance } from 'fastify';
 import tagRoutes from '../../src/routes/tags.js';
 import { setupValidator } from '../../src/lib/validator-setup.js';
 import * as schemas from '@sparql-query-lib/contracts/schema';
+import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
 const hoisted = vi.hoisted(() => ({
   tag: {
@@ -29,7 +30,7 @@ const hoisted = vi.hoisted(() => ({
   coordinatorGet: vi.fn(),
 }));
 
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
+overrideCacheCoordinatorProvider({
   getEntityRepositories: () => ({
     Tag: hoisted.tag,
     Query: hoisted.query,
@@ -46,7 +47,7 @@ vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
   getCacheCoordinator: () => ({
     get: hoisted.coordinatorGet,
   }),
-}));
+});
 
 const LIBRARY_ID = 'urn:sqlib:library:lib1';
 const OTHER_LIBRARY_ID = 'urn:sqlib:library:lib2';

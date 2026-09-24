@@ -46,6 +46,14 @@ async function executor() {
   return executorFactoryInstance.getExecutorForBackendId(LIBRARY_STORAGE_BACKEND_ID);
 }
 
+/**
+ * Forget the factory, and with it the executor it cached against the library
+ * store. For tests that reset the store underneath it.
+ */
+export function clearEntityStoreExecutor(): void {
+  executorFactoryInstance = null;
+}
+
 async function runSelect(query: string): Promise<BindingRow[]> {
   const { result } = await (await executor()).selectQueryParsed(query);
   // An executor configured with a non-JSON Accept header would hand back raw

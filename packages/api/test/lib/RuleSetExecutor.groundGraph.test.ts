@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
 /**
  * What `WHERE DATA` and `NOT DATA` match against: the ground graph `GD`.
@@ -33,9 +34,9 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 const hoisted = vi.hoisted(() => ({ entities: new Map<string, unknown>() }));
 
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
+overrideCacheCoordinatorProvider({
   getCacheCoordinator: () => ({ get: (id: string) => hoisted.entities.get(id) }),
-}));
+});
 
 const { RuleSetExecutor } = await import('../../src/lib/RuleSetExecutor.js');
 

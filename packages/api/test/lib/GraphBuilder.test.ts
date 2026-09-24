@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { QueryTypeIri } from '../../src/constants/queryTypes.js';
 import { GraphBuilder } from '../../src/lib/orchestration/GraphBuilder.js';
+import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
 const hoisted = vi.hoisted(() => ({
   get: vi.fn(),
@@ -8,13 +9,13 @@ const hoisted = vi.hoisted(() => ({
   getAll: vi.fn(),
 }));
 
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
+overrideCacheCoordinatorProvider({
   getCacheCoordinator: () => ({
     get: hoisted.get,
     list: hoisted.list,
     getAll: hoisted.getAll,
   }),
-}));
+});
 
 describe('GraphBuilder', () => {
   let graphBuilder: GraphBuilder;

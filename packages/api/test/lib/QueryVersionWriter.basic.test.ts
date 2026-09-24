@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
 const inserts: Record<string, any[]> = {};
 const recordInsert = (obj: any, entityType: string) => {
@@ -6,7 +7,7 @@ const recordInsert = (obj: any, entityType: string) => {
   inserts[entityType].push(obj);
 };
 
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => {
+overrideCacheCoordinatorProvider((() => {
   return {
     getCacheCoordinator: () => ({
       create: vi.fn(async (entityType: string, e: any) => {
@@ -18,7 +19,7 @@ vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => {
       get: vi.fn(() => ({ '@type': 'Query' })),
     }),
   };
-});
+})());
 
 describe('QueryVersionWriter basic flow', () => {
   beforeEach(() => { Object.keys(inserts).forEach(k => { inserts[k] = []; }); });

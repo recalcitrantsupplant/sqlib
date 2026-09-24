@@ -12,6 +12,7 @@ import { resetAuthConfig } from '../../src/auth/config.js';
 import { resolveEffectiveGrants } from '../../src/auth/grants.js';
 import type { AuthContext } from '../../src/auth/types.js';
 import * as schemas from '@sparql-query-lib/contracts/schema';
+import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
 const repos = vi.hoisted(() => {
   const listRepo = () => ({
@@ -34,9 +35,9 @@ const repos = vi.hoisted(() => {
   };
 });
 
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
+overrideCacheCoordinatorProvider({
   getEntityRepositories: () => repos,
-}));
+});
 
 const BACKEND = 'urn:sqlib:backend:fuseki';
 const READER = 'urn:sqlib:principal:user:reader';

@@ -8,13 +8,14 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
+import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
 const coordinatorGet = vi.fn();
 
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
+overrideCacheCoordinatorProvider({
   getCacheCoordinator: () => ({ get: coordinatorGet }),
   getEntityRepositories: () => ({}),
-}));
+});
 
 const { analyseTags, normalizeTags, TAGGABLE_TYPES } = await import('../../src/lib/tagMembership.js');
 

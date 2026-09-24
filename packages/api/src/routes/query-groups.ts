@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { mintId } from '../lib/id.js';
 import { toError } from '../lib/toError.js';
+import type { CacheCoordinator } from '../lib/CacheCoordinator.js';
 import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
 import { getNodeEphemeralBackendConfig } from '../lib/type-guards.js';
 import type { EntityType } from '../lib/EntityRegistry.js';
@@ -58,17 +59,18 @@ type CachedNodeShape = {
 };
 
 const argumentSetService = new ArgumentSetService();
-const cacheCoordinator = getCacheCoordinator();
+// Resolved per call rather than captured at load, so it follows
+// `clearCacheCoordinator()` like everything else that reaches the cache.
 const cache = {
-  get: (id: string) => cacheCoordinator.get(id),
-  getByType: (type: EntityType) => cacheCoordinator.list(type),
+  get: (id: string) => getCacheCoordinator().get(id),
+  getByType: (type: EntityType) => getCacheCoordinator().list(type),
   create<T = any>(entity: Record<string, unknown>, type: EntityType): Promise<T> {
-    return cacheCoordinator.create(type, entity as Parameters<typeof cacheCoordinator.create>[1]) as Promise<T>;
+    return getCacheCoordinator().create(type, entity as Parameters<CacheCoordinator['create']>[1]) as Promise<T>;
   },
   update<T = any>(id: string, updates: Record<string, unknown>, type: EntityType): Promise<T | null> {
-    return cacheCoordinator.update(type, id, updates as Parameters<typeof cacheCoordinator.update>[2]) as Promise<T | null>;
+    return getCacheCoordinator().update(type, id, updates as Parameters<CacheCoordinator['update']>[2]) as Promise<T | null>;
   },
-  delete: (id: string, type: EntityType) => cacheCoordinator.delete(type, id),
+  delete: (id: string, type: EntityType) => getCacheCoordinator().delete(type, id),
 };
 const groupIdParamSchema = {
   type: 'object',

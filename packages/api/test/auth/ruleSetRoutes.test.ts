@@ -27,6 +27,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { setupValidator } from '../../src/lib/validator-setup.js';
 import * as schemas from '@sparql-query-lib/contracts/schema';
 import type { AuthContext } from '../../src/auth/types.js';
+import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
 const LIBRARY = 'urn:sqlib:library:hydrology';
 const RULE_SET = 'urn:sqlib:ruleset:private';
@@ -45,7 +46,7 @@ const store = vi.hoisted(() => ({
 const byType = (type: string) =>
   [...store.entities.values()].filter(entity => entity['@type'] === type);
 
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => {
+overrideCacheCoordinatorProvider((() => {
   const repo = (type: string) => ({
     get: (id: string) => {
       const entity = store.entities.get(id);
@@ -69,7 +70,7 @@ vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => {
       DataBlockVersion: repo('DataBlockVersion'),
     }),
   };
-});
+})());
 
 function libraryMode(...modes: Array<'read' | 'write' | 'execute' | 'delete' | 'control'>): AuthContext {
   return {

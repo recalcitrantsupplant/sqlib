@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
 /**
  * Version numbering, which four writers used to each compute for themselves.
@@ -11,11 +12,11 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 const hoisted = vi.hoisted(() => ({ entities: [] as Array<Record<string, unknown>> }));
 
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
+overrideCacheCoordinatorProvider({
   getCacheCoordinator: () => ({
     list: (type: string) => hoisted.entities.filter((entity) => entity['@type'] === type),
   }),
-}));
+});
 
 const { nextVersionNumber } = await import('../../src/lib/versionNumbering.js');
 

@@ -10,12 +10,13 @@
  * version stores.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
 const hoisted = vi.hoisted(() => ({ entities: new Map<string, unknown>() }));
 
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
+overrideCacheCoordinatorProvider({
   getCacheCoordinator: () => ({ get: (id: string) => hoisted.entities.get(id) ?? null }),
-}));
+});
 
 const { resolveTupleSeedInput, TupleSeedInputError, bindingsToTupleSeeds } =
   await import('../../src/lib/tupleSeedInput.js');

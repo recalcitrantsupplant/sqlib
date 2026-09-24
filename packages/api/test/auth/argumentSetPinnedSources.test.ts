@@ -35,6 +35,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import { setupValidator } from '../../src/lib/validator-setup.js';
 import * as schemas from '@sparql-query-lib/contracts/schema';
 import type { AuthContext } from '../../src/auth/types.js';
+import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
 const MINE = 'urn:sqlib:library:mine';
 const THEIRS = 'urn:sqlib:library:theirs';
@@ -49,7 +50,7 @@ const SECRET_TRIPLE = 'urn:secret:subject';
 
 const store = vi.hoisted(() => ({ entities: new Map<string, Record<string, unknown>>() }));
 
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
+overrideCacheCoordinatorProvider({
   getEntityRepositories: () => ({}),
   getCacheCoordinator: () => ({
     get: (id: string) => store.entities.get(id) ?? null,
@@ -71,7 +72,7 @@ vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
       store.entities.delete(id);
     },
   }),
-}));
+});
 
 function grantsOn(library: string | null, ...modes: Array<'read' | 'write' | 'execute' | 'delete' | 'control'>): AuthContext {
   return {

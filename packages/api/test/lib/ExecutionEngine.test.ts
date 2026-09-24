@@ -5,16 +5,17 @@ import { SparqlQueryParser } from '../../src/lib/parser.js';
 import type { ExecutionGraph, ResolvedNode, ResolvedEdge, ArgumentSet } from '../../src/lib/orchestration/types.js';
 import type { ISparqlExecutor } from '../../src/server/ISparqlExecutor.js';
 import { QueryTypeIri } from '../../src/constants/queryTypes.js';
+import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
 const hoisted = vi.hoisted(() => ({
   get: vi.fn(),
 }));
 
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
+overrideCacheCoordinatorProvider({
   getCacheCoordinator: () => ({
     get: hoisted.get,
   }),
-}));
+});
 
 // Mock executor
 const mockExecutor: ISparqlExecutor = {

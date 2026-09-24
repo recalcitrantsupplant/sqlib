@@ -9,6 +9,7 @@ import { BackendTypeIri, type LdkitBackend } from '../../src/persistence/schemas
 import { setupValidator } from '../../src/lib/validator-setup.js';
 import { clearProbeResults } from '../../src/lib/backendProbe.js';
 import * as schemas from '@sparql-query-lib/contracts/schema';
+import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
 const repos = vi.hoisted(() => {
   const listRepo = () => ({ list: vi.fn(() => [] as any[]), get: vi.fn(() => null as any), update: vi.fn(), create: vi.fn(), delete: vi.fn() });
@@ -25,9 +26,9 @@ const repos = vi.hoisted(() => {
   };
 });
 
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
+overrideCacheCoordinatorProvider({
   getEntityRepositories: () => repos,
-}));
+});
 
 const httpBackend: LdkitBackend = {
   $id: 'urn:sqlib:backend:main',

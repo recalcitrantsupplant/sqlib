@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
 /**
  * What the writer refuses, and why the entity model cannot refuse it itself.
@@ -14,7 +15,7 @@ const hoisted = vi.hoisted(() => ({
   updated: [] as Array<{ type: string; id: string; updates: Record<string, unknown> }>,
 }));
 
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
+overrideCacheCoordinatorProvider({
   getCacheCoordinator: () => ({
     get: (id: string) => hoisted.entities.get(id) ?? null,
     list: (type: string) =>
@@ -28,7 +29,7 @@ vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
       return { $id: id, ...updates };
     },
   }),
-}));
+});
 
 const { createTestVersion, annotateTestVersion, TestVersionError } = await import(
   '../../src/lib/TestVersionWriter.js'

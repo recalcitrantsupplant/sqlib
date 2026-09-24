@@ -1,10 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
 const hoisted = vi.hoisted(() => ({ entities: new Map<string, unknown>() }));
 
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
+overrideCacheCoordinatorProvider({
   getCacheCoordinator: () => ({ get: (id: string) => hoisted.entities.get(id) ?? null }),
-}));
+});
 
 const { resolveDataGraphInput, DataGraphContentError } = await import('../../src/lib/dataGraphInput.js');
 

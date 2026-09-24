@@ -3,6 +3,7 @@ import { QueryTypeIri } from '../../src/constants/queryTypes.js';
 import { GraphBuilder } from '../../src/lib/orchestration/GraphBuilder.js';
 import { ExecutionEngine } from '../../src/lib/orchestration/ExecutionEngine.js';
 import type { ISparqlExecutor } from '../../src/server/ISparqlExecutor.js';
+import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
 const hoisted = vi.hoisted(() => ({
   get: vi.fn(),
@@ -10,13 +11,13 @@ const hoisted = vi.hoisted(() => ({
   getAll: vi.fn(),
 }));
 
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
+overrideCacheCoordinatorProvider({
   getCacheCoordinator: () => ({
     get: hoisted.get,
     list: hoisted.list,
     getAll: hoisted.getAll,
   }),
-}));
+});
 
 // Mock executor for end-to-end tests
 const mockExecutor: ISparqlExecutor = {

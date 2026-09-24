@@ -17,13 +17,14 @@ import { resolveEffectiveGrants } from '../../src/auth/grants.js';
 import { AuthStore, inMemoryPersistence } from '../../src/auth/AuthStore.js';
 import { setupValidator } from '../../src/lib/validator-setup.js';
 import type { AuthContext } from '../../src/auth/types.js';
+import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
 /** Every read of stored state in this API goes through here. */
 const getCacheCoordinator = vi.fn(() => ({ get: () => null }));
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
+overrideCacheCoordinatorProvider({
   getCacheCoordinator: () => getCacheCoordinator(),
   getEntityRepositories: () => ({}),
-}));
+});
 
 const { default: detectionRoutes } = await import('../../src/routes/detection.js');
 

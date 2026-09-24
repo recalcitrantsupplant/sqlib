@@ -11,7 +11,7 @@
  * someone adds a route without saying who may call it; this header used to
  * claim that job and could not do it.
  */
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { AuthStore, inMemoryPersistence, setAuthStore } from '../../src/auth/AuthStore.js';
 import { resetAuthConfig } from '../../src/auth/config.js';
@@ -19,6 +19,7 @@ import { resolveEffectiveGrants } from '../../src/auth/grants.js';
 import { registerEntityAuthGuard } from '../../src/auth/entityGuard.js';
 import { requireLibraryMode } from '../../src/auth/enforce.js';
 import type { AuthContext } from '../../src/auth/types.js';
+import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
 const OWNER = 'urn:sqlib:principal:user:owner';
 const READER = 'urn:sqlib:principal:user:reader';
@@ -42,10 +43,10 @@ const BENCHMARK = 'urn:sqlib:benchmark:flow-under-load';
 
 const entities = new Map<string, unknown>();
 
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
+overrideCacheCoordinatorProvider({
   getCacheCoordinator: () => ({ get: (id: string) => entities.get(id) ?? null }),
   getEntityRepositories: () => ({}),
-}));
+});
 
 let store: AuthStore;
 

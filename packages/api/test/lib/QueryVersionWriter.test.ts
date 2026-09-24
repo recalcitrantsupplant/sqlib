@@ -9,7 +9,7 @@ const hoisted = vi.hoisted(() => ({
   delete: vi.fn(),
 }));
 
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
+overrideCacheCoordinatorProvider({
   getCacheCoordinator: () => ({
     list: hoisted.list,
     create: hoisted.create,
@@ -17,11 +17,12 @@ vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
     get: hoisted.get,
     delete: hoisted.delete,
   }),
-}));
+});
 
 import { SparqlQueryParser } from '../../src/lib/parser.js';
 import { deriveQueryVersionMetadata } from '../../src/lib/QueryVersionDeriver.js';
 import { createQueryVersionFlat } from '../../src/lib/QueryVersionWriter.js';
+import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
 describe('QueryVersionWriter Integration', () => {
   const parser = new SparqlQueryParser();

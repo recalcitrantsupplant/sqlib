@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
 // Mocks for CacheCoordinatorProvider and LDKit utils used by GroupVersionWriter
 const inserts: Record<string, any[]> = {};
@@ -37,7 +38,7 @@ const hoisted = vi.hoisted(() => {
   };
 });
 
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
+overrideCacheCoordinatorProvider({
   getCacheCoordinator: () => ({
     list: hoisted.list,
     get: hoisted.get,
@@ -51,7 +52,7 @@ vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
       return entity ? { type: entity['@type'], entity } : null;
     },
   }),
-}));
+});
 
 describe('GroupVersionWriter backend resolution', () => {
   beforeEach(() => {
