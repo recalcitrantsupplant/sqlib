@@ -232,6 +232,35 @@ the server with `SQLIB_AUTH_MODE=required` before opening it.
 run the server with `MCP_APP_NO_CACHE=1` so a re-render picks up the file, and
 rebuild `@sparql-query-lib/mcp-app` if the server is running from `dist`.
 
+## Publishing it read-only
+
+A public deployment should set `MCP_READ_ONLY=1`. The registry is then built
+from the definitions marked `readOnly`, so the writes are not refused at call
+time — they are never declared and never listed. `tools/list` returns 53 tools
+instead of 96, `initialize` says so in the instructions, and the bench drops
+Save version and Toy data.
+
+Read-only means "does not mutate the library", not "does not run anything".
+Execution survives, deliberately: `execute.run`, `sparql.proxyQuery`,
+`rules.execute` and `ruleSets.execute` all mutate nothing, and
+`patches.previewUpdate` shows the triples an update *would* write without
+writing them. So a session can still explore, parameterise and run — a scratch
+query with supplied arguments works through `sparql.proxyQuery`, which takes the
+same `arguments`/`limits`/`offsets` payload as `execute.run` — it just leaves
+nothing behind.
+
+One hole read-only does **not** close: `sparql.proxyQuery` accepts a bare
+`endpoint` URL, so an unauthenticated read-only server is an open SPARQL proxy,
+fetching whatever a caller names. `MCP_SPARQL_ENDPOINTS=backends-only` refuses
+those calls, leaving the registered backends as the only reachable targets.
+That is a separate decision from read-only and is spelled separately.
+
+**The browser side does not carry over.** Backends and queries the SPA keeps in
+`localStorage` live in that browser; an MCP client talks to the server over
+HTTPS and has no access to them. Over MCP the server-side library is the only
+store there is, which is worth saying out loud to anyone who used the web app
+first.
+
 ## Security
 
 The [security model](../explanation/security-model.md) applies unchanged, and a

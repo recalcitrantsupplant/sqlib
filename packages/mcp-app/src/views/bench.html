@@ -56,7 +56,7 @@
     <div class="empty">Run the query to see results.</div>
   </div>
 
-  <div class="section">
+  <div class="section" id="toy-section">
     <details id="toy">
       <summary>Toy data — run this against a few triples you write here</summary>
       <textarea id="toy-text" rows="5" spellcheck="false" placeholder="@prefix : &lt;http://example.org/&gt; .&#10;:Perth :population 2100000 ."></textarea>
@@ -101,6 +101,7 @@
     /** slots[i] = rows; row = { <var>: { type, value } } */
     slots: [],
     numbers: { limits: {}, offsets: {} },
+    readOnly: false,
   };
 
   var nodes = {
@@ -119,7 +120,27 @@
     toyName: document.getElementById('toy-name'),
     toyCreate: document.getElementById('toy-create'),
     toyStatus: document.getElementById('toy-status'),
+    toySection: document.getElementById('toy-section'),
   };
+
+  /**
+   * A read-only server publishes no write tools at all, so the buttons that
+   * call them would fail with "unknown tool" — a worse answer than not being
+   * there. The server says so in the result that opened the bench; until it
+   * does, assume writable, because that is what every existing deployment is.
+   */
+  function applyReadOnly(envelope) {
+    if (!envelope || envelope.readOnly !== true || state.readOnly) return;
+    state.readOnly = true;
+    nodes.save.remove();
+    // A note in place of the controls, not a silently shorter bench: someone
+    // who used a writable one needs to know why Save is gone.
+    var note = el('div', 'status small', 'This sqlib server is read-only. Run and explore here; to keep a query, copy it into sqlib itself.');
+    nodes.toySection.textContent = '';
+    nodes.toySection.appendChild(note);
+    refreshBadge();
+    app.reportSize();
+  }
 
   function setStatus(node, text, kind) {
     node.textContent = text || '';
@@ -131,6 +152,10 @@
   }
 
   function refreshBadge() {
+    if (state.readOnly && !state.queryId) {
+      nodes.version.textContent = 'read-only';
+      return;
+    }
     if (!state.queryId) {
       nodes.version.textContent = 'unsaved';
       return;
@@ -628,6 +653,7 @@
     // The result carries the call's own arguments, so a host that never sent
     // `tool-input` still opens the bench on the right query.
     applyOpenArguments(null, result);
+    applyReadOnly(envelope);
     var library = envelope && envelope.body;
     if (library && (library.id || library['@id'])) {
       state.libraryId = library.id || library['@id'];

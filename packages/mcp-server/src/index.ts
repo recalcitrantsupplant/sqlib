@@ -22,6 +22,12 @@ import {
   uiServerCapabilities,
   withUiMeta,
 } from './ui-apps.js';
+import {
+  catalogueForMode,
+  inlineEndpointsAllowed,
+  readOnlyGuideNote,
+  readOnlyModeEnabled,
+} from './read-only.js';
 
 export { formatValidationErrors };
 
@@ -124,7 +130,9 @@ async function buildMcpToolRegistry(app: FastifyInstance): Promise<ToolRegistry>
     compiler,
     validators,
     callApi: injectCaller(app),
-    definitions: tools,
+    // Under `MCP_READ_ONLY=1` the writes are absent from the registry, not
+    // refused by it: nothing to list, nothing to call, nothing to persuade.
+    definitions: catalogueForMode(tools, readOnlyModeEnabled()),
     // MCP clients (notably ChatGPT) enforce ^[a-zA-Z0-9_-]+$ on tool names.
     publicName: sanitizeToolName,
   });
@@ -186,7 +194,9 @@ export async function createMcpServer(options: CreateMcpServerOptions = {}) {
   // Tool names in the guide are rendered the way this door publishes them,
   // so the model reads `queries_createVersion`, which it can call, rather than
   // `queries.createVersion`, which it cannot.
-  const instructions = options.instructions ?? catalogueGuide(sanitizeToolName);
+  const readOnly = readOnlyModeEnabled();
+  const instructions =
+    options.instructions ?? catalogueGuide(sanitizeToolName) + (readOnly ? readOnlyGuideNote() : '');
 
   const server = new Server(
     { name, version },
@@ -248,6 +258,26 @@ export async function createMcpServer(options: CreateMcpServerOptions = {}) {
 
   server.setRequestHandler('tools/call', async (request, ctx) => {
     const authorization = authorizationFromContext(ctx);
+    /*
+     * The one restriction that cannot be expressed by leaving a tool out.
+     *
+     * `sparql.proxyQuery` reads, so read-only mode keeps it — but it accepts a
+     * bare `endpoint` URL, which makes an unauthenticated server an open SPARQL
+     * proxy: it will fetch any endpoint a caller names. A deployment that does
+     * not want that sets `MCP_SPARQL_ENDPOINTS=backends-only`, and the check
+     * has to be here, on the argument, because the tool itself is legitimate.
+     */
+    if (!inlineEndpointsAllowed() && (request.params.arguments as { endpoint?: unknown } | undefined)?.endpoint) {
+      return {
+        isError: true,
+        content: [
+          {
+            type: 'text' as const,
+            text: 'This server does not query endpoint URLs directly. Name a registered backend with backendId instead; backends_list shows what is available.',
+          },
+        ],
+      };
+    }
     const result = await toolsRegistry.callTool(
       request.params.name,
       (request.params.arguments ?? {}) as Record<string, unknown>,
@@ -280,6 +310,13 @@ export async function createMcpServer(options: CreateMcpServerOptions = {}) {
          * removes the dependency: the result always carries what opened it.
          */
         ...(definition?.ui ? { toolInput: request.params.arguments ?? {} } : {}),
+        /*
+         * A View cannot see the server's environment, and it holds buttons that
+         * write. Telling it the mode in the result is the only channel it has:
+         * the bench hides Save version and Create toy backend rather than
+         * offering them and failing on an unknown tool.
+         */
+        ...(definition?.ui && readOnly ? { readOnly: true } : {}),
       },
       ...(meta ? { _meta: meta } : {}),
     };
