@@ -50,7 +50,7 @@
             <a class="deeplink" :href="claudeDeeplink" target="_blank" rel="noopener" data-testid="claude-deeplink">
               <Plug :size="14" /> Add to Claude
             </a>
-            <span class="muted">Opens Claude's connector settings with the URL filled in. Needs a paid plan.</span>
+            <span class="muted">Opens Claude's connector list. Press Add custom connector and paste the URL above.</span>
           </div>
 
           <div class="client-tabs" role="tablist">
