@@ -512,8 +512,9 @@ import { useTagsStore } from '../composables/useTagsStore';
 import { isTaggableKind } from '../composables/useEntityTags';
 import { useTestsStore } from '../composables/useTestsStore';
 import { useApiClient, type TagMatchMode } from '../composables/useApiClient';
-import { useCallableDrafts, type DraftSection } from '../composables/useCallableDrafts';
+import { useCallableDrafts, type CallableDraft, type DraftSection } from '../composables/useCallableDrafts';
 import { useScratchItems, migratePlaygroundTabs } from '../composables/useScratchItems';
+import { decodeSharePayload, sharePayloadFromHash, type ScratchSharePayload } from '../lib/shareLink';
 
 /** Old `?playground=` links, redirected to the section that absorbed each one. */
 const PLAYGROUND_REDIRECTS: Record<string, RailSection> = {
@@ -1028,6 +1029,59 @@ const scratchBySection: Record<DraftSection, ReturnType<typeof useScratchItems>>
    */
   notebook: useScratchItems('notebook'),
 };
+
+/**
+ * A share link for a scratch item (`#share=…`): take the copy it carries into
+ * this browser as a scratch item of our own and open it.
+ *
+ * The address bar then shows *our* `?scratch=` id, not the link — that id is
+ * this browser's, and Share makes a fresh link from the live body whenever one
+ * is wanted (see lib/shareLink.ts for why the body is not kept in the URL).
+ *
+ * Opening the same link twice reopens the first copy rather than making a
+ * second: a reload, or a link clicked again from a chat, is not a request for
+ * a duplicate.
+ */
+async function importSharedFromHash(hash: string) {
+  const encoded = sharePayloadFromHash(hash);
+  if (!encoded) return;
+  const payload = await decodeSharePayload(encoded);
+  // The fragment is spent either way. Cleared before the selection changes so
+  // the watcher's own replace, which keeps no hash, is the last word.
+  await router.replace({ query: route.query, hash: '' });
+  if (!payload) {
+    toast.error('That share link is damaged or incomplete');
+    return;
+  }
+  const record = findSharedCopy(payload) ?? createSharedCopy(payload);
+  activeSection.value = listSectionForDraftSection(payload.section);
+  handleSelectScratch(record.id);
+}
+
+const UNTITLED_SHARED = /^Untitled (query|rule set) \d+$/;
+
+function findSharedCopy(payload: ScratchSharePayload): CallableDraft | undefined {
+  const body = JSON.stringify(payload.body);
+  const untitled = UNTITLED_SHARED.test(payload.name);
+  return scratchBySection[payload.section].items().find((item) =>
+    JSON.stringify(item.body) === body
+    && (untitled ? UNTITLED_SHARED.test(item.name) : item.name === payload.name));
+}
+
+function createSharedCopy(payload: ScratchSharePayload): CallableDraft {
+  const created = scratchBySection[payload.section].create(payload.body);
+  // An "Untitled query 3" from someone else's browser keeps this browser's
+  // next ordinal, so it cannot collide with a scratch item already here.
+  draftsStore.save({
+    ...created,
+    name: UNTITLED_SHARED.test(payload.name) ? created.name : payload.name,
+    description: payload.description,
+    defaultBackend: payload.defaultBackend ?? created.defaultBackend,
+  });
+  return draftsStore.get(created.id) ?? created;
+}
+
+watch(() => route.hash, (hash) => { void importSharedFromHash(hash); }, { immediate: true });
 
 /** The section whose sidebar is showing, or null when the tree is. */
 const activeListSection = computed<ListSection | null>(() => {

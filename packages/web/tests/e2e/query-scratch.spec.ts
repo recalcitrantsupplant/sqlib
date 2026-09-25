@@ -320,4 +320,56 @@ test.describe('Scratch queries', () => {
     await typeQuery(page, 'SELECT ?s WHERE { ?s ?p ?o }');
     await expect(saveButton(page)).toBeEnabled();
   });
+
+  test.describe('share links', () => {
+    test.use({ permissions: ['clipboard-read', 'clipboard-write'] });
+
+    const shareButton = (page: Page) => page.locator('[data-testid="share-link"]');
+    const copiedLink = (page: Page) => page.evaluate(() => navigator.clipboard.readText());
+
+    test('a scratch link carries the body and opens as a new scratch copy elsewhere', async ({ page }) => {
+      await typeQuery(page, 'SELECT ?shared WHERE { ?s ?p ?shared }');
+      await nameIt(page, 'Shared thing');
+      await page.waitForTimeout(700);
+      const ownId = new URL(page.url()).searchParams.get('scratch');
+
+      await shareButton(page).click();
+      await expect(page.getByText(/Link copied/)).toBeVisible();
+      const link = await copiedLink(page);
+      expect(link).toMatch(/#share=z\./);
+      expect(link).not.toContain('urn:ui-temp');
+
+      // Somebody else's browser: nothing of ours in it.
+      await page.evaluate(() => window.localStorage.removeItem('sparql-query-lib-callable-drafts'));
+      await page.goto(link, { waitUntil: 'domcontentloaded' });
+
+      await expect(page).toHaveURL(/[?&]scratch=urn(:|%3A)ui-temp/);
+      expect(page.url()).not.toContain('#share=');
+      expect(new URL(page.url()).searchParams.get('scratch')).not.toBe(ownId);
+      await expect(scratchChip(page)).toBeVisible();
+      await expect(page.locator('.query-title')).toHaveText('Shared thing');
+      await expect(page.locator('.cm-content')).toContainText('SELECT ?shared');
+
+      // Opening it again reopens that copy rather than making another.
+      await page.goto(link, { waitUntil: 'domcontentloaded' });
+      await expect(page).toHaveURL(/scratch=/);
+      await expect(scratchRows(page).filter({ hasText: 'Shared thing' })).toHaveCount(1);
+    });
+
+    test('a saved query shares its own address', async ({ page }) => {
+      await typeQuery(page, 'SELECT ?s WHERE { ?s ?p ?o }');
+      await nameIt(page, 'Saved thing');
+      await saveButton(page).click();
+      await expect(page).toHaveURL(/query=urn(:|%3A)sqlib(:|%3A)query(:|%3A)created-1/);
+
+      await shareButton(page).click();
+      expect(await copiedLink(page)).toBe(page.url());
+    });
+
+    test('a damaged link says so and leaves you where you were', async ({ page }) => {
+      await page.goto('/?section=queries#share=z.not-a-real-payload', { waitUntil: 'domcontentloaded' });
+      await expect(page.getByText('That share link is damaged or incomplete')).toBeVisible();
+      await expect.poll(() => page.url()).not.toContain('#share=');
+    });
+  });
 });

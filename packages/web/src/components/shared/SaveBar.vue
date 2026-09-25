@@ -89,6 +89,21 @@
     >
       <GitCompare :size="13" />
     </button>
+    <!--
+      Share copies a link. A saved item's link is its address; a scratch item
+      has no address anyone else can open, so its link carries the item itself
+      and opens as a new scratch copy — offered only where the section says
+      its body can travel that way (see lib/shareLink.ts).
+    -->
+    <button
+      v-if="canShare"
+      class="bar-button bar-icon"
+      data-testid="share-link"
+      :title="shareTitle"
+      @click="share"
+    >
+      <Link2 :size="13" />
+    </button>
     <button
       v-if="editCount > 0 && !isScratch"
       class="bar-button"
@@ -168,7 +183,9 @@ import {
   FileInput,
   WandSparkles,
   GitCompare,
+  Link2,
 } from '@lucide/vue';
+import { toast } from 'vue-sonner';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -177,6 +194,7 @@ import {
 } from '../ui/dropdown-menu';
 import PrefixConversionButtons from './PrefixConversionButtons.vue';
 import { useDeploymentMode } from '../../composables/useDeploymentMode';
+import { savedShareUrl, scratchShareUrl, type ScratchSharePayload } from '../../lib/shareLink';
 
 const props = withDefaults(defineProps<{
   title: string;
@@ -219,7 +237,16 @@ const props = withDefaults(defineProps<{
   /** What `code` is, which decides whether a conversion is offered. */
   contentType?: string | null;
   diffActive?: boolean;
+  /** False where the item has nothing a link could point at. */
+  showShare?: boolean;
+  /**
+   * A scratch item's contents, for a link that carries them. Only sections
+   * whose scratch body can travel pass it; without it a scratch item has no
+   * Share button, since its `?scratch=` address resolves only in this browser.
+   */
+  shareScratch?: () => ScratchSharePayload | null;
 }>(), {
+  showShare: true,
   noun: 'query',
   showFormat: true,
   showDiff: true,
@@ -280,6 +307,46 @@ function startSave() {
 // Saving is always "create the next version": a versioned entity cannot be
 // edited in place, so the label is the version the click will produce.
 const saveLabel = computed(() => `Save v${(props.currentVersionNumber ?? 0) + 1}`);
+
+const canShare = computed(() => props.showShare && (!props.isScratch || Boolean(props.shareScratch)));
+
+const shareTitle = computed(() => {
+  if (props.isScratch) return `Copy a link that opens a copy of this ${props.noun}`;
+  return props.editCount > 0
+    ? `Copy a link to this ${props.noun} — unsaved edits are not included`
+    : `Copy a link to this ${props.noun}`;
+});
+
+/*
+ * Past this a link starts getting cut off by the places people paste it —
+ * chat previews, issue trackers, some mail clients. Still copied: a long link
+ * that works in a browser is better than none.
+ */
+const LONG_LINK = 8000;
+
+async function share() {
+  let url: string;
+  try {
+    if (props.isScratch) {
+      const payload = props.shareScratch?.();
+      if (!payload) return;
+      url = await scratchShareUrl(window.location, payload);
+    } else {
+      url = savedShareUrl(window.location);
+    }
+    await navigator.clipboard.writeText(url);
+  } catch {
+    toast.error('Could not copy the link');
+    return;
+  }
+  if (!props.isScratch) {
+    toast.success('Link copied');
+  } else if (url.length > LONG_LINK) {
+    toast.warning(`Link copied — it is long (${Math.round(url.length / 1000)}k characters) and may be cut off where you paste it`);
+  } else {
+    toast.success(`Link copied — it opens as a scratch copy of this ${props.noun}`);
+  }
+}
 
 const saveDisabled = computed(() => props.saving || !props.canSave);
 

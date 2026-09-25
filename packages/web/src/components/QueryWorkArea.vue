@@ -21,6 +21,7 @@
         :show-diff="false"
         :show-edit="false"
         :show-more="false"
+        :share-scratch="shareScratch"
         @save="save"
         @needs-name="promptForNameInDetails"
         @discard="discardDraft"
@@ -509,6 +510,7 @@ import { useCallableDrafts, UNASSIGNED_LIBRARY_ID } from '../composables/useCall
 import { useArgumentSetDrafts } from '../composables/useArgumentSetDrafts';
 import { useActiveLibrary } from '../composables/useActiveLibrary';
 import { useScratchRecord } from '../composables/useScratchRecord';
+import type { ScratchSharePayload } from '../lib/shareLink';
 import { useEditorDocumentKey } from '../composables/useEditorDocumentKey';
 import { rdfSyntaxHighlighting } from '../lib/codemirrorHighlight';
 import { prefixSourceToken } from '@/lib/prefixSources';
@@ -1276,6 +1278,21 @@ const {
     offsetParameters: detectedInputs.value?.offsetParameters ?? [],
   }),
 });
+
+/**
+ * What a share link carries for a scratch query: the fields hydration reads,
+ * taken from the editor rather than the record so the last half-second of
+ * typing is in it.
+ */
+function shareScratch(): ScratchSharePayload {
+  return {
+    section: 'query',
+    name: queryName.value,
+    description: toNullable(queryDescription.value),
+    body: queryCode.value,
+    defaultBackend: toStoredBackend(defaultBackend.value),
+  };
+}
 
 /**
  * The last run, kept in the browser between visits.

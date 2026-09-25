@@ -30,6 +30,7 @@
         :show-format="false"
         :show-more="false"
         :show-diff="false"
+        :share-scratch="shareScratch"
         @save="save"
         @needs-name="promptForNameInDetails"
         @discard="discardDraft"
@@ -295,6 +296,7 @@ import { usePrefixManager } from '../composables/usePrefixManager';
 import { useActiveLibrary } from '../composables/useActiveLibrary';
 import { useFeatureFlags } from '../composables/useFeatureFlags';
 import { useScratchRecord } from '../composables/useScratchRecord';
+import type { ScratchSharePayload } from '../lib/shareLink';
 import { loadLastRun, runCacheKey, saveLastRun } from '@/lib/lastRunCache';
 import { useEditorDocumentKey } from '../composables/useEditorDocumentKey';
 import { useSrlAnalysis } from '../composables/useSrlAnalysis';
@@ -721,20 +723,39 @@ const {
   },
   collect: (record) => ({
     name: ruleSetName.value || record.name,
-    body: {
-      srl: srlDocument.value,
-      tupleSeeds: tupleSeeds.value,
-      tuplesEnabled: tuplesEnabled.value,
-      inferenceFormat: inferenceFormat.value,
-      tupleSource: tupleSource.value,
-      tupleSetVersionId: tupleSetVersionId.value,
-      dataSource: dataSource.value,
-      dataGraphVersionId: dataGraphVersionId.value,
-      dataGraphInline: dataGraphInline.value,
-      dataGraphInlineFormat: dataGraphInlineFormat.value,
-    },
+    body: scratchBody(),
   }),
 });
+
+function scratchBody(): RulesScratchBody {
+  return {
+    srl: srlDocument.value,
+    tupleSeeds: tupleSeeds.value,
+    tuplesEnabled: tuplesEnabled.value,
+    inferenceFormat: inferenceFormat.value,
+    tupleSource: tupleSource.value,
+    tupleSetVersionId: tupleSetVersionId.value,
+    dataSource: dataSource.value,
+    dataGraphVersionId: dataGraphVersionId.value,
+    dataGraphInline: dataGraphInline.value,
+    dataGraphInlineFormat: dataGraphInlineFormat.value,
+  };
+}
+
+/**
+ * What a share link carries for a scratch rule set: the same body the record
+ * holds, read from the editor so the last half-second of typing is in it. A
+ * saved tuple set or data graph travels as its version id, which resolves for
+ * anyone on the same server.
+ */
+function shareScratch(): ScratchSharePayload {
+  return {
+    section: 'rule',
+    name: ruleSetName.value,
+    description: ruleSetDescription.value || null,
+    body: scratchBody(),
+  };
+}
 
 /*
  * A saved rule set gets the same browser-local safety net a saved
