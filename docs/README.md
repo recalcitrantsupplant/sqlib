@@ -42,6 +42,10 @@ every other page assumes.
   chat client (MCP Apps / SEP-1865), where a session's queries are persisted as
   ordinary library entities. The MVP is built; see
   [guides/mcp-app.md](guides/mcp-app.md).
+- [design/assistant-surfaces.md](design/assistant-surfaces.md) — where a Claude
+  conversation can run (MCP connector, in-app with a user's key, hosted on
+  sqlib's key, local on a user's subscription), why hosted-plus-subscription is
+  not one of them, and which code serves each.
 
 ## Examples
 
