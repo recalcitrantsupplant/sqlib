@@ -101,7 +101,7 @@ things sqlib already stores and a visitor can already browse:
 | A lesson | A tag whose name starts with a number: `3. DATA blocks`. Its description is the lesson's objectives |
 | A worked example | A rule set or query carrying the lesson's tag |
 | An exercise | A test carrying the lesson's tag. Its subject's **first version** is where the learner starts, its **current version** is the solution, and its cases hold the input data and the expected answer |
-| The prefixes | `PREFIX` lines in the library description, the course's prologue — a rule set is stored with its IRIs expanded, and this is what abbreviates them back |
+| The prefixes | `PREFIX` lines in the library description, the course's prologue — a rule set is stored with its IRIs expanded and one rule to a line, so the View exports it against these prefixes and pretty-prints it with `detection.format` |
 
 Descriptions are rendered as a little Markdown: paragraphs, `-` lists, fenced
 code, `inline code`, bold and emphasis. The demo repository's
