@@ -30,7 +30,23 @@ export const UI_EXTENSION = 'io.modelcontextprotocol/ui';
  * that enforces this CSP makes that structural rather than a promise. Adding a
  * domain here is a security decision, which is the point of declaring it up
  * front where it can be reviewed.
+ *
+ * **`permissions` is a map, not a list**, and the difference is not cosmetic.
+ * The specification keys it by permission name with an empty object as the
+ * value (`{ camera: {} }`), mirroring the iframe `allow` attribute it becomes.
+ * This package sent `[]` for months: Claude ignores the field, so nothing
+ * failed, and ChatGPT rejected the connector outright at registration with
+ * `_meta.ui.permissions must be a dict`. An empty map means the same thing the
+ * empty array was meant to mean, which is that this View is granted no browser
+ * permission at all.
  */
+export type ViewPermissions = {
+  camera?: Record<string, never>;
+  microphone?: Record<string, never>;
+  geolocation?: Record<string, never>;
+  clipboardWrite?: Record<string, never>;
+};
+
 export type ViewMeta = {
   csp: {
     connectDomains: string[];
@@ -38,7 +54,7 @@ export type ViewMeta = {
     frameDomains: string[];
     baseUriDomains: string[];
   };
-  permissions: string[];
+  permissions: ViewPermissions;
   prefersBorder: boolean;
 };
 
@@ -60,7 +76,7 @@ const SEALED_META: ViewMeta = {
     frameDomains: [],
     baseUriDomains: [],
   },
-  permissions: [],
+  permissions: {},
   prefersBorder: true,
 };
 

@@ -120,6 +120,20 @@ check(
   JSON.stringify(resources.map((r) => r._meta?.ui?.csp))
 );
 
+/*
+ * A shape check, not a policy check. ChatGPT validates this field and refuses
+ * the whole connector when it is an array; Claude ignores it. So the only place
+ * a wrong type showed up was a registration error in somebody else's product.
+ */
+check(
+  'each View declares permissions as a map',
+  resources.every((resource) => {
+    const permissions = resource._meta?.ui?.permissions;
+    return permissions !== null && typeof permissions === 'object' && !Array.isArray(permissions);
+  }),
+  JSON.stringify(resources.map((r) => r._meta?.ui?.permissions))
+);
+
 check(
   'each View is published under a content-hashed URI',
   resources.every((resource) => /-[0-9a-f]{12}\.html$/.test(resource.uri)),
