@@ -1,0 +1,1200 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>sqlib tutorial</title>
+<!--@kit:css-->
+<style>
+  .lesson-nav { display: flex; align-items: center; gap: var(--space-2); flex: 1 1 auto; min-width: 0; }
+  .lesson-nav select { flex: 1 1 auto; min-width: 0; max-width: 420px; }
+  .brand { font-weight: 600; white-space: nowrap; }
+  .lesson-head h2 { margin: 0 0 var(--space-1); font-size: 15px; }
+  .prose { color: var(--ink-secondary); }
+  .prose p { margin: 0 0 var(--space-2); }
+  .prose ul { margin: 0 0 var(--space-2); padding-left: 20px; }
+  .prose li { margin: 2px 0; }
+  .prose code { font-family: var(--font-mono); font-size: 12px; background: var(--surface-sunken); padding: 0 3px; border-radius: 3px; }
+  .prose pre { font-family: var(--font-mono); font-size: 12px; background: var(--surface-sunken); padding: var(--space-2); border-radius: var(--radius-sm); overflow: auto; margin: 0 0 var(--space-2); }
+  .prose :last-child { margin-bottom: 0; }
+  .objectives { border-left: 3px solid var(--action); padding-left: var(--space-3); margin-top: var(--space-2); }
+  .objectives-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-muted); margin-bottom: 2px; }
+  .tabs { display: flex; gap: var(--space-1); flex-wrap: wrap; padding: var(--space-2) var(--space-3) 0; border-bottom: 1px solid var(--border-subtle); background: var(--surface-subtle); }
+  .tab { border-bottom-left-radius: 0; border-bottom-right-radius: 0; border-bottom: none; background: transparent; color: var(--ink-secondary); display: inline-flex; align-items: center; gap: 6px; }
+  .tab[aria-selected="true"] { background: var(--surface); color: var(--ink); font-weight: 600; position: relative; top: 1px; }
+  .kind { font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-muted); }
+  .mark-pass { color: var(--success); }
+  .mark-fail { color: var(--danger); }
+  .item-head { display: flex; align-items: baseline; gap: var(--space-2); margin-bottom: var(--space-2); }
+  .item-head h3 { margin: 0; font-size: 13px; }
+  .editor-host { margin-top: var(--space-2); }
+  .analysis { margin-top: var(--space-2); font-size: 12px; }
+  .analysis ul { margin: 4px 0 0; padding-left: 18px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+  .chip { font-family: var(--font-mono); font-size: 11px; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--border-default); color: var(--ink-secondary); }
+  .chip.neg { border-color: var(--danger); color: var(--danger); }
+  .triples { font-family: var(--font-mono); font-size: 12px; max-height: 280px; overflow: auto; }
+  .triple { display: flex; gap: 8px; padding: 2px 0; border-bottom: 1px solid var(--border-subtle); white-space: nowrap; }
+  .triple.missing { background: color-mix(in srgb, var(--danger) 8%, transparent); }
+  .triple.extra { background: color-mix(in srgb, var(--state-running) 10%, transparent); }
+  .verdict { font-weight: 600; margin-bottom: var(--space-2); }
+  .verdict.pass { color: var(--success); }
+  .verdict.fail { color: var(--danger); }
+  details > summary { cursor: pointer; font-size: 12px; color: var(--ink-secondary); margin: var(--space-2) 0 var(--space-1); }
+  .out-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-muted); margin: var(--space-2) 0 var(--space-1); }
+  .kbd { font-family: var(--font-mono); font-size: 11px; color: var(--ink-muted); }
+</style>
+</head>
+<body>
+<div class="panel">
+  <div class="bar">
+    <div class="lesson-nav">
+      <span class="brand" id="course-title">Tutorial</span>
+      <button id="prev" type="button" aria-label="Previous lesson">‹</button>
+      <select id="lesson-select" aria-label="Lesson"></select>
+      <button id="next" type="button" aria-label="Next lesson">›</button>
+    </div>
+    <button id="expand" type="button" title="Open full screen">Expand</button>
+  </div>
+
+  <div class="section lesson-head" id="lesson-head">
+    <div class="empty">Loading the tutorial…</div>
+  </div>
+
+  <div class="tabs" id="tabs" role="tablist" hidden></div>
+
+  <div class="section" id="item" hidden>
+    <div class="item-head">
+      <h3 id="item-title"></h3>
+      <span class="kind" id="item-kind"></span>
+    </div>
+    <div class="prose" id="item-description"></div>
+
+    <details id="data-panel" hidden>
+      <summary id="data-summary">Input data</summary>
+      <div id="data-host"></div>
+    </details>
+
+    <div class="editor-host" id="editor-host"></div>
+    <div class="analysis" id="analysis"></div>
+
+    <div class="row" style="margin-top: var(--space-2)">
+      <button class="primary" id="run" type="button" title="Run (Ctrl/⌘ + Enter)">Run</button>
+      <button id="check" type="button">Check answer</button>
+      <button id="sparql" type="button">Show SPARQL</button>
+      <button id="reset" type="button">Reset</button>
+      <button id="solution" type="button">Show solution</button>
+      <button id="hint" type="button">Ask for a hint</button>
+      <span class="grow"></span>
+      <span class="status" id="status"></span>
+    </div>
+
+    <div id="compiled" hidden>
+      <div class="out-label">Compiled SPARQL — what each rule runs as</div>
+      <div id="compiled-host"></div>
+    </div>
+
+    <div id="output"></div>
+  </div>
+</div>
+
+<!--@kit:bridge-->
+<!--@kit:results-->
+<!--@kit:editor-->
+<script>
+/**
+ * The tutorial: a library read as a course.
+ *
+ * **The course is the library.** Nothing here is tutorial-specific storage:
+ *
+ * - A *lesson* is a tag whose name starts with a number — `3. Filters` — and
+ *   its description is the lesson's objectives.
+ * - An *example* is a rule set or query carrying that tag.
+ * - An *exercise* is a test carrying it. Its subject's first version is the
+ *   starting point the learner edits, and its current version is the
+ *   solution; its cases hold the data and the expected answer.
+ * - PREFIX lines in the library description are the course's prologue, which
+ *   rule sets need because they are stored with their IRIs expanded.
+ *
+ * **It keeps no state.** Which exercises passed lives in this frame and dies
+ * with it; the server is read-only as far as this View is concerned, and
+ * every call it makes is a read or a computation (analyse, compile, run). The
+ * model is the tutor: each run and check is reported to it in one line, and
+ * "Ask for a hint" puts the attempt in the chat.
+ *
+ * Checking is done here, not by running the test: a test runs its *saved*
+ * subject, and what needs judging is the text in the editor. So the View runs
+ * that text over each case's data and compares with the case's expectation —
+ * as sets of N-Triples lines for a rule set (blank nodes compared by count),
+ * as sets of rows for a query.
+ */
+(function () {
+  var app = window.sqlibApp;
+  var kit = window.sqlibResults;
+  var el = kit.el;
+
+  var state = {
+    libraryId: null,
+    library: null,
+    lessonHint: null,
+    prologue: '',
+    lessons: [],
+    lessonIndex: 0,
+    itemIndex: 0,
+    ruleSets: [],
+    queries: [],
+    tests: [],
+    dataGraphs: [],
+    /** dataGraphVersion id -> { content, format } */
+    graphVersions: new Map(),
+    /** item key -> text the learner left in the editor, for this frame only */
+    drafts: new Map(),
+    /** item key -> true / false, for this frame only */
+    verdicts: new Map(),
+    current: null,
+    loaded: false,
+  };
+
+  var nodes = {
+    courseTitle: document.getElementById('course-title'),
+    lessonSelect: document.getElementById('lesson-select'),
+    prev: document.getElementById('prev'),
+    next: document.getElementById('next'),
+    expand: document.getElementById('expand'),
+    lessonHead: document.getElementById('lesson-head'),
+    tabs: document.getElementById('tabs'),
+    item: document.getElementById('item'),
+    itemTitle: document.getElementById('item-title'),
+    itemKind: document.getElementById('item-kind'),
+    itemDescription: document.getElementById('item-description'),
+    dataPanel: document.getElementById('data-panel'),
+    dataSummary: document.getElementById('data-summary'),
+    dataHost: document.getElementById('data-host'),
+    editorHost: document.getElementById('editor-host'),
+    analysis: document.getElementById('analysis'),
+    run: document.getElementById('run'),
+    check: document.getElementById('check'),
+    sparql: document.getElementById('sparql'),
+    reset: document.getElementById('reset'),
+    solution: document.getElementById('solution'),
+    hint: document.getElementById('hint'),
+    status: document.getElementById('status'),
+    compiled: document.getElementById('compiled'),
+    compiledHost: document.getElementById('compiled-host'),
+    output: document.getElementById('output'),
+  };
+
+  var editor = null;
+  var dataEditor = null;
+  var compiledEditor = null;
+
+  // --- small helpers -------------------------------------------------------
+
+  function setStatus(text, kind) {
+    nodes.status.textContent = text || '';
+    nodes.status.className = 'status' + (kind ? ' ' + kind : '');
+  }
+
+  function idOf(entity) {
+    return entity && (entity.id || entity['@id']);
+  }
+
+  function asList(value) {
+    if (Array.isArray(value)) return value;
+    return value ? [value] : [];
+  }
+
+  function belongs(entity) {
+    return asList(entity.isPartOf || entity.libraryId).indexOf(state.libraryId) >= 0;
+  }
+
+  function tagged(entity, tagId) {
+    return asList(entity.tags).indexOf(tagId) >= 0;
+  }
+
+  /** Numbers sort as numbers: "2. x" before "10. y", "1.2" before "1.10". */
+  function naturalCompare(a, b) {
+    return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
+  }
+
+  function unwrap(envelope, what) {
+    if (!envelope) throw new Error(what + ': no response');
+    if (envelope.statusCode && envelope.statusCode >= 400) {
+      var body = envelope.body;
+      var message = body && body.error ? body.error : typeof body === 'string' ? body : JSON.stringify(body);
+      throw new Error(what + ' failed (HTTP ' + envelope.statusCode + '): ' + message);
+    }
+    return envelope.body;
+  }
+
+  async function call(tool, args) {
+    return unwrap(await app.callTool(tool, args || {}), tool);
+  }
+
+  // --- prose ---------------------------------------------------------------
+
+  function escapeHtml(text) {
+    return String(text).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function inline(text) {
+    return escapeHtml(text)
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/(^|[^*\w])\*([^*\s][^*]*)\*(?!\w)/g, '$1<em>$2</em>');
+  }
+
+  /**
+   * Descriptions are written as a little Markdown: paragraphs, `- ` lists,
+   * fenced code, inline code, bold and emphasis. Everything is escaped before any tag is
+   * added, so a description can never inject markup into the View.
+   */
+  function renderProse(node, text) {
+    var html = [];
+    var lines = String(text || '').replace(/\r\n/g, '\n').split('\n');
+    var paragraph = [];
+    var list = null;
+    var fence = null;
+
+    function flushParagraph() {
+      if (paragraph.length) html.push('<p>' + inline(paragraph.join(' ')) + '</p>');
+      paragraph = [];
+    }
+    function flushList() {
+      if (list) html.push('<ul>' + list.map(function (item) { return '<li>' + inline(item) + '</li>'; }).join('') + '</ul>');
+      list = null;
+    }
+
+    lines.forEach(function (line) {
+      if (fence) {
+        if (/^\s*```/.test(line)) {
+          html.push('<pre>' + escapeHtml(fence.join('\n')) + '</pre>');
+          fence = null;
+        } else {
+          fence.push(line);
+        }
+        return;
+      }
+      if (/^\s*```/.test(line)) {
+        flushParagraph();
+        flushList();
+        fence = [];
+        return;
+      }
+      if (/^\s*PREFIX\s/i.test(line) || /^\s*BASE\s/i.test(line)) return;
+      var bullet = /^\s*[-*]\s+(.*)$/.exec(line);
+      if (bullet) {
+        flushParagraph();
+        (list || (list = [])).push(bullet[1]);
+        return;
+      }
+      if (!line.trim()) {
+        flushParagraph();
+        flushList();
+        return;
+      }
+      if (list) {
+        list[list.length - 1] += ' ' + line.trim();
+        return;
+      }
+      paragraph.push(line.trim());
+    });
+    if (fence) html.push('<pre>' + escapeHtml(fence.join('\n')) + '</pre>');
+    flushParagraph();
+    flushList();
+    node.innerHTML = html.join('');
+  }
+
+  // --- RDF terms and N-Triples --------------------------------------------
+
+  var TERM = /<[^>]*>|_:[A-Za-z0-9_.-]+|"(?:[^"\\]|\\.)*"(?:\^\^<[^>]*>|@[A-Za-z]+(?:-[A-Za-z0-9]+)*(?:--(?:ltr|rtl))?)?/g;
+
+  /**
+   * One line of N-Triples/N-Quads as its terms. Four terms is a quad in a
+   * named graph — the executor's ground graph, not part of the answer — and
+   * comes back as null, like a comment or a blank line.
+   */
+  function parseLine(line) {
+    var trimmed = line.trim();
+    if (!trimmed || trimmed.charAt(0) === '#') return null;
+    var terms = trimmed.match(TERM);
+    if (!terms || terms.length !== 3) return null;
+    return terms;
+  }
+
+  function parseTriples(text) {
+    return String(text || '').split('\n').map(parseLine).filter(Boolean);
+  }
+
+  /** Blank node labels are arbitrary, so the comparison forgets them. */
+  function tripleKey(terms) {
+    return terms.map(function (term) { return term.indexOf('_:') === 0 ? '_:b' : term; }).join(' ');
+  }
+
+  function prefixMap() {
+    var map = [];
+    String(state.prologue).split('\n').forEach(function (line) {
+      var match = /^\s*PREFIX\s+([A-Za-z0-9_.-]*):\s*<([^>]*)>/i.exec(line);
+      if (match) map.push([match[1], match[2]]);
+    });
+    // Longest namespace first, so a narrower prefix wins over a broader one.
+    return map.sort(function (a, b) { return b[1].length - a[1].length; });
+  }
+
+  function termNode(term, prefixes) {
+    var span;
+    if (term.charAt(0) === '<') {
+      var iri = term.slice(1, -1);
+      var shown = term;
+      for (var i = 0; i < prefixes.length; i += 1) {
+        var ns = prefixes[i][1];
+        var local = iri.slice(ns.length);
+        if (iri.indexOf(ns) === 0 && /^[A-Za-z0-9_-]*$/.test(local)) {
+          shown = prefixes[i][0] + ':' + local;
+          break;
+        }
+      }
+      span = el('span', 'term-uri', shown);
+      span.title = iri;
+      return span;
+    }
+    if (term.indexOf('_:') === 0) return el('span', 'term-bnode', term);
+    var typed = /\^\^<([^>]*)>$/.exec(term);
+    if (typed) {
+      var bare = term.slice(0, term.length - typed[0].length);
+      var dt = typed[1].replace('http://www.w3.org/2001/XMLSchema#', 'xsd:');
+      span = el('span', 'term-typed', bare);
+      span.appendChild(el('span', 'term-suffix', '^^' + dt));
+      return span;
+    }
+    return el('span', 'term-literal', term);
+  }
+
+  function renderTriples(container, triples, className) {
+    var prefixes = prefixMap();
+    var box = el('div', 'triples');
+    triples.forEach(function (terms) {
+      var row = el('div', 'triple' + (className ? ' ' + className : ''));
+      terms.forEach(function (term) { row.appendChild(termNode(term, prefixes)); });
+      box.appendChild(row);
+    });
+    if (!triples.length) box.appendChild(el('div', 'muted small', 'none'));
+    container.appendChild(box);
+  }
+
+  // --- loading the course --------------------------------------------------
+
+  function prologueFrom(description) {
+    return String(description || '')
+      .split('\n')
+      .filter(function (line) { return /^\s*(PREFIX|BASE)\s/i.test(line); })
+      .map(function (line) { return line.trim(); })
+      .join('\n');
+  }
+
+  var LESSON_NAME = /^\s*(\d+)\s*[.):]\s*(.+)$/;
+
+  async function loadCourse() {
+    if (state.loaded || !state.libraryId) return;
+    state.loaded = true;
+    try {
+      if (!state.library) state.library = await call('libraries.get', { id: state.libraryId });
+      nodes.courseTitle.textContent = state.library.name || 'Tutorial';
+      state.prologue = prologueFrom(state.library.description) || 'PREFIX : <http://example.org/>';
+
+      var results = await Promise.all([
+        call('tags.list', { library: state.libraryId }),
+        call('ruleSets.list', {}),
+        call('queries.list', {}),
+        call('tests.list', {}),
+        call('dataGraphs.list', {}),
+      ]);
+      var tags = asList(results[0]);
+      state.ruleSets = asList(results[1]).filter(belongs);
+      state.queries = asList(results[2]).filter(belongs);
+      state.tests = asList(results[3]).filter(belongs);
+      state.dataGraphs = asList(results[4]).filter(belongs);
+
+      state.lessons = tags
+        .map(function (tag) {
+          var match = LESSON_NAME.exec(tag.name || '');
+          return match ? { tag: tag, number: Number(match[1]), title: match[2].trim() } : null;
+        })
+        .filter(Boolean)
+        .sort(function (a, b) { return a.number - b.number; })
+        .map(function (lesson) {
+          lesson.items = itemsFor(lesson.tag);
+          return lesson;
+        })
+        .filter(function (lesson) { return lesson.items.length > 0; });
+
+      if (!state.lessons.length) {
+        nodes.lessonHead.textContent = '';
+        nodes.lessonHead.appendChild(el('div', 'empty',
+          'This library has no lessons. A lesson is a tag whose name starts with a number, such as "1. Your first rule", on the rule sets, queries and tests that belong to it.'));
+        app.reportSize();
+        return;
+      }
+
+      renderLessonSelect();
+      selectLesson(indexForHint(state.lessonHint));
+    } catch (err) {
+      state.loaded = false;
+      nodes.lessonHead.textContent = '';
+      nodes.lessonHead.appendChild(el('div', 'error-box', String(err.message || err)));
+      app.reportSize();
+    }
+  }
+
+  function indexForHint(hint) {
+    if (!hint) return 0;
+    var text = String(hint).trim();
+    for (var i = 0; i < state.lessons.length; i += 1) {
+      var lesson = state.lessons[i];
+      if (idOf(lesson.tag) === text || String(lesson.number) === text) return i;
+    }
+    return 0;
+  }
+
+  /**
+   * What a lesson holds: examples first, then exercises, each in name order.
+   * A rule set or query that some test is about is that test's subject, not an
+   * example of its own — listing it twice would give away the solution.
+   */
+  function itemsFor(tag) {
+    var tagId = idOf(tag);
+    var subjects = new Set(state.tests.map(function (test) { return test.subject; }));
+    var examples = []
+      .concat(state.ruleSets.map(function (entity) { return { kind: 'ruleSet', role: 'example', entity: entity }; }))
+      .concat(state.queries.map(function (entity) { return { kind: 'query', role: 'example', entity: entity }; }))
+      .filter(function (item) { return tagged(item.entity, tagId) && !subjects.has(idOf(item.entity)); });
+    var exercises = state.tests
+      .filter(function (test) { return tagged(test, tagId); })
+      .map(function (test) {
+        return { kind: test.subjectKind === 'query' ? 'query' : 'ruleSet', role: 'exercise', entity: test };
+      });
+    var byName = function (a, b) { return naturalCompare(a.entity.name, b.entity.name); };
+    return examples.sort(byName).concat(exercises.sort(byName)).map(function (item) {
+      item.key = item.role + ':' + idOf(item.entity);
+      return item;
+    });
+  }
+
+  // --- lessons -------------------------------------------------------------
+
+  function renderLessonSelect() {
+    nodes.lessonSelect.textContent = '';
+    state.lessons.forEach(function (lesson, index) {
+      var option = el('option', null, lesson.number + '. ' + lesson.title);
+      option.value = String(index);
+      nodes.lessonSelect.appendChild(option);
+    });
+  }
+
+  function selectLesson(index) {
+    rememberDraft();
+    state.lessonIndex = Math.max(0, Math.min(index, state.lessons.length - 1));
+    state.itemIndex = 0;
+    var lesson = state.lessons[state.lessonIndex];
+    nodes.lessonSelect.value = String(state.lessonIndex);
+    nodes.prev.disabled = state.lessonIndex === 0;
+    nodes.next.disabled = state.lessonIndex === state.lessons.length - 1;
+
+    nodes.lessonHead.textContent = '';
+    nodes.lessonHead.appendChild(el('h2', null, 'Lesson ' + lesson.number + ' — ' + lesson.title));
+    if (lesson.tag.description) {
+      var objectives = el('div', 'objectives');
+      objectives.appendChild(el('div', 'objectives-label', 'In this lesson'));
+      var prose = el('div', 'prose');
+      renderProse(prose, lesson.tag.description);
+      objectives.appendChild(prose);
+      nodes.lessonHead.appendChild(objectives);
+    }
+
+    renderTabs();
+    openItem(0);
+    app.updateModelContext(
+      'The tutorial is on lesson ' + lesson.number + ' of ' + state.lessons.length + ', "' + lesson.title + '". ' +
+      (lesson.tag.description ? 'Objectives: ' + String(lesson.tag.description).replace(/\s+/g, ' ').slice(0, 300) : '')
+    );
+  }
+
+  function renderTabs() {
+    var lesson = state.lessons[state.lessonIndex];
+    nodes.tabs.textContent = '';
+    nodes.tabs.hidden = false;
+    lesson.items.forEach(function (item, index) {
+      var tab = el('button', 'tab');
+      tab.type = 'button';
+      tab.setAttribute('role', 'tab');
+      tab.setAttribute('aria-selected', index === state.itemIndex ? 'true' : 'false');
+      tab.appendChild(el('span', 'kind', item.role === 'exercise' ? 'Exercise' : 'Example'));
+      tab.appendChild(el('span', null, item.entity.name || idOf(item.entity)));
+      var verdict = state.verdicts.get(item.key);
+      if (verdict === true) tab.appendChild(el('span', 'mark-pass', '✓'));
+      if (verdict === false) tab.appendChild(el('span', 'mark-fail', '✗'));
+      tab.addEventListener('click', function () {
+        rememberDraft();
+        openItem(index);
+      });
+      nodes.tabs.appendChild(tab);
+    });
+  }
+
+  // --- one example or exercise --------------------------------------------
+
+  function rememberDraft() {
+    if (state.current && editor) state.drafts.set(state.current.key, editor.getValue());
+  }
+
+  function ensureEditor(language) {
+    if (!window.sqlibEditor) {
+      nodes.editorHost.textContent = '';
+      nodes.editorHost.appendChild(el('div', 'error-box', 'The editor did not load.'));
+      return null;
+    }
+    if (!editor) {
+      editor = window.sqlibEditor.create(nodes.editorHost, {
+        language: language,
+        minHeight: '140px',
+        onChange: scheduleAnalysis,
+        onRun: run,
+      });
+    } else {
+      editor.setLanguage(language);
+    }
+    return editor;
+  }
+
+  async function openItem(index) {
+    var lesson = state.lessons[state.lessonIndex];
+    var item = lesson.items[index];
+    if (!item) return;
+    state.itemIndex = index;
+    state.current = item;
+    renderTabs();
+
+    nodes.item.hidden = false;
+    nodes.itemTitle.textContent = item.entity.name || idOf(item.entity);
+    nodes.itemKind.textContent = (item.role === 'exercise' ? 'exercise · ' : 'example · ') + (item.kind === 'query' ? 'SPARQL query' : 'SRL rule set');
+    renderProse(nodes.itemDescription, item.entity.description || '');
+    nodes.output.textContent = '';
+    nodes.analysis.textContent = '';
+    nodes.compiled.hidden = true;
+    nodes.sparql.textContent = 'Show SPARQL';
+    nodes.sparql.hidden = item.kind !== 'ruleSet';
+    nodes.check.hidden = item.role !== 'exercise';
+    nodes.solution.hidden = true;
+    nodes.reset.hidden = false;
+    nodes.dataPanel.hidden = true;
+    setStatus('loading…', 'running');
+
+    var target = ensureEditor(item.kind === 'query' ? 'sparql' : 'srl');
+    if (!target) return;
+
+    try {
+      await loadItem(item);
+      if (state.current !== item) return;
+      var draft = state.drafts.get(item.key);
+      target.setValue(draft !== undefined ? draft : item.starter);
+      nodes.solution.hidden = !(item.role === 'exercise' && item.solution && item.solution !== item.starter);
+      renderData(item);
+      setStatus(item.role === 'exercise' ? 'edit, then Check answer' : 'Run it, then change it', null);
+      analyseNow();
+    } catch (err) {
+      setStatus(String(err.message || err), 'error');
+    }
+    app.reportSize();
+  }
+
+  /** Text, data and expectations for an item, fetched once per frame. */
+  async function loadItem(item) {
+    if (item.loaded) return;
+    if (item.role === 'example') {
+      item.subjectId = idOf(item.entity);
+      item.starter = await subjectText(item.kind, item.subjectId, null);
+      item.solution = null;
+      item.cases = [];
+    } else {
+      item.subjectId = item.entity.subject;
+      var texts = await Promise.all([
+        subjectText(item.kind, item.subjectId, '1'),
+        subjectText(item.kind, item.subjectId, null),
+      ]);
+      item.starter = texts[0];
+      item.solution = texts[1];
+      var versions = asList(await call('tests.listVersions', { id: idOf(item.entity) }));
+      var version = versions.filter(function (v) { return idOf(v) === item.entity.currentVersion; })[0] || versions[versions.length - 1];
+      item.cases = version ? asList(version.cases).slice().sort(function (a, b) { return (a.position || 0) - (b.position || 0); }) : [];
+      item.expectationKind = version && version.expectationKind;
+      await Promise.all(item.cases.map(function (testCase) {
+        return testCase.dataGraphVersion ? graphVersion(testCase.dataGraphVersion) : null;
+      }));
+    }
+    item.loaded = true;
+  }
+
+  async function subjectText(kind, id, version) {
+    if (kind === 'query') {
+      var number = version;
+      if (!number) {
+        var query = await call('queries.get', { id: id });
+        number = String(query.currentVersionNumber);
+      }
+      var fetched = await call('queries.getVersion', { id: id, version: number });
+      return (fetched.queryVersion || fetched).queryString || '';
+    }
+    var args = { id: id, prologue: state.prologue };
+    if (version) args.version = version;
+    var exported = await call('ruleSets.exportSrl', args);
+    return exported.srl || '';
+  }
+
+  /**
+   * A case names a data graph *version*, and versions are listed per graph,
+   * so the library's graphs are walked once and every version they hold is
+   * remembered — a tutorial library has a handful.
+   */
+  async function graphVersion(versionId) {
+    if (state.graphVersions.has(versionId)) return state.graphVersions.get(versionId);
+    if (!state.graphsWalked) {
+      state.graphsWalked = true;
+      var lists = await Promise.all(state.dataGraphs.map(function (graph) {
+        return call('dataGraphs.listVersions', { id: idOf(graph) }).then(function (list) {
+          asList(list).forEach(function (v) {
+            state.graphVersions.set(idOf(v), {
+              graphId: idOf(graph),
+              name: graph.name,
+              version: v.version,
+              content: v.contentString || v.content || null,
+              format: v.contentFormat || 'text/turtle',
+            });
+          });
+        }).catch(function () { /* a graph we cannot read is shown as unavailable */ });
+      }));
+      void lists;
+    }
+    var found = state.graphVersions.get(versionId);
+    if (found && found.content === null && found.graphId) {
+      try {
+        var full = await call('dataGraphs.getVersion', { id: found.graphId, version: String(found.version) });
+        found.content = full.contentString || full.content || '';
+      } catch (err) {
+        found.content = '';
+      }
+    }
+    return found || null;
+  }
+
+  function renderData(item) {
+    var first = item.cases && item.cases[0];
+    var graph = first && first.dataGraphVersion ? state.graphVersions.get(first.dataGraphVersion) : null;
+    if (!graph || !graph.content) {
+      nodes.dataPanel.hidden = true;
+      return;
+    }
+    nodes.dataPanel.hidden = false;
+    nodes.dataSummary.textContent = 'Input data — ' + (graph.name || 'data graph') +
+      (item.cases.length > 1 ? ' (first of ' + item.cases.length + ' cases)' : '');
+    if (!dataEditor) {
+      dataEditor = window.sqlibEditor.create(nodes.dataHost, { language: 'turtle', readOnly: true, minHeight: '40px' });
+    }
+    dataEditor.setValue(graph.content);
+  }
+
+  // --- live analysis -------------------------------------------------------
+
+  var analysisTimer = null;
+  var analysisSeq = 0;
+
+  function scheduleAnalysis() {
+    if (analysisTimer) clearTimeout(analysisTimer);
+    analysisTimer = setTimeout(analyseNow, 450);
+  }
+
+  async function analyseNow() {
+    var item = state.current;
+    if (!item || !editor) return;
+    var text = editor.getValue();
+    var seq = (analysisSeq += 1);
+    try {
+      if (item.kind === 'query') {
+        var validation = await app.callTool('detection.validateQuery', { query: text });
+        if (seq !== analysisSeq) return;
+        nodes.analysis.textContent = '';
+        if (validation.statusCode >= 400) {
+          var body = validation.body || {};
+          nodes.analysis.appendChild(el('div', 'status error', String(body.error || 'does not parse')));
+          editor.flagLines(linesIn(body.error));
+        } else {
+          nodes.analysis.appendChild(el('div', 'status ok', 'parses'));
+          editor.flagLines([]);
+        }
+      } else {
+        var report = await call('srl.analyze', { srl: text });
+        if (seq !== analysisSeq) return;
+        renderAnalysis(report);
+      }
+    } catch (err) {
+      if (seq !== analysisSeq) return;
+      nodes.analysis.textContent = '';
+      nodes.analysis.appendChild(el('div', 'status error', String(err.message || err)));
+    }
+    app.reportSize();
+  }
+
+  function linesIn(message) {
+    var lines = [];
+    var pattern = /line[:\s]+(\d+)|\bL(\d+)\b|\((\d+):\d+\)/gi;
+    var match;
+    while ((match = pattern.exec(String(message || '')))) lines.push(Number(match[1] || match[2] || match[3]));
+    return lines;
+  }
+
+  /**
+   * The three questions the spec asks of a document before it runs: does it
+   * parse, is it well-formed, does it stratify. Answered by the server's own
+   * analysis, so what the learner is told here is exactly what the W3C suite
+   * checks.
+   */
+  function renderAnalysis(report) {
+    nodes.analysis.textContent = '';
+    if (!report.valid) {
+      nodes.analysis.appendChild(el('div', 'status error', 'Does not parse: ' + (report.error || 'syntax error')));
+      editor.flagLines(linesIn(report.error));
+      return;
+    }
+    var blocks = asList(report.blocks);
+    var rules = blocks.filter(function (b) { return b.kind === 'rule'; });
+    var strat = report.stratification || {};
+    var issues = asList(report.wellFormedness);
+    var stratIssues = asList(strat.issues);
+    var flagged = [];
+
+    var summary = 'parses · ' + report.ruleCount + ' rule' + (report.ruleCount === 1 ? '' : 's') +
+      (report.dataBlockCount ? ' · ' + report.dataBlockCount + ' DATA block' + (report.dataBlockCount === 1 ? '' : 's') : '');
+    if (strat.stratified !== false && !stratIssues.length) {
+      summary += ' · ' + (strat.strataCount || (report.ruleCount ? 1 : 0)) + ' strat' + ((strat.strataCount || 1) === 1 ? 'um' : 'a');
+    }
+    var ok = !issues.length && !stratIssues.length;
+    nodes.analysis.appendChild(el('div', 'status ' + (ok ? 'ok' : 'error'), summary + (ok ? '' : ' · has problems')));
+
+    if (issues.length) {
+      var list = el('ul');
+      issues.forEach(function (issue) {
+        var rule = rules[issue.ruleIndex];
+        if (rule) flagged.push(rule.startLine);
+        list.appendChild(el('li', 'status error',
+          'Not well-formed (' + issue.category + ')' + (rule ? ', line ' + rule.startLine : '') + ': ' + issue.message));
+      });
+      nodes.analysis.appendChild(list);
+    }
+    if (stratIssues.length) {
+      var slist = el('ul');
+      stratIssues.forEach(function (issue) { slist.appendChild(el('li', 'status error', 'Does not stratify: ' + issue)); });
+      nodes.analysis.appendChild(slist);
+    }
+    if (rules.length && !stratIssues.length) {
+      var chips = el('div', 'chips');
+      rules.forEach(function (rule) {
+        var text = 'L' + rule.startLine + ' ' + (rule.label || rule.id) + ' · stratum ' + (rule.stratum === null ? '?' : rule.stratum) +
+          (rule.monotonicity === 'negation' ? ' · uses NOT' : '') + (rule.runOnce ? ' · runs once' : '');
+        var chip = el('span', 'chip' + (rule.monotonicity === 'negation' ? ' neg' : ''), text);
+        chips.appendChild(chip);
+      });
+      nodes.analysis.appendChild(chips);
+    }
+    editor.flagLines(flagged);
+  }
+
+  // --- running -------------------------------------------------------------
+
+  function dataArgs(testCase) {
+    return testCase && testCase.dataGraphVersion ? { dataGraphVersionId: testCase.dataGraphVersion } : {};
+  }
+
+  async function runRules(text, testCase) {
+    return call('srl.run', Object.assign({ srl: text }, dataArgs(testCase)));
+  }
+
+  /** What the rules added: the DATA blocks' triples and every rule's inserts. */
+  function inferredFrom(result) {
+    var seen = new Set();
+    var triples = [];
+    function add(line) {
+      var terms = parseLine(line);
+      if (!terms) return;
+      var key = terms.join(' ');
+      if (seen.has(key)) return;
+      seen.add(key);
+      triples.push(terms);
+    }
+    asList(result.seededQuads).forEach(add);
+    asList(result.iterations).forEach(function (iteration) {
+      asList(iteration.rules).forEach(function (rule) { asList(rule.insertedQuads).forEach(add); });
+    });
+    return triples;
+  }
+
+  async function run() {
+    var item = state.current;
+    if (!item || !editor) return;
+    var text = editor.getValue();
+    nodes.run.disabled = true;
+    setStatus('running…', 'running');
+    nodes.output.textContent = '';
+    try {
+      if (item.kind === 'query') await runQuery(item, text);
+      else await runRuleSet(item, text);
+    } catch (err) {
+      nodes.output.appendChild(el('div', 'error-box', String(err.message || err)));
+      setStatus('failed', 'error');
+      app.updateModelContext('Tutorial: the user ran "' + item.entity.name + '" and it failed: ' + String(err.message || err).slice(0, 300));
+    } finally {
+      nodes.run.disabled = false;
+      app.reportSize();
+    }
+  }
+
+  async function runRuleSet(item, text) {
+    var result = await runRules(text, item.cases[0]);
+    // `finalGraphNQuads` is the inference graph, as the specification defines
+    // a rule set's result: what the DATA blocks and the rules produced, without
+    // the input data repeated. It is what a test compares, so it is what is
+    // shown. The per-rule inserts are the fallback for a response without it.
+    var inferred = typeof result.finalGraphNQuads === 'string' ? parseTriples(result.finalGraphNQuads) : inferredFrom(result);
+    var iterations = asList(result.iterations).length;
+    var status = result.status === 'converged'
+      ? 'reached a fixpoint after ' + iterations + ' iteration' + (iterations === 1 ? '' : 's')
+      : result.status === 'failed'
+        ? 'the run failed' + (result.error ? ': ' + result.error : ' — see the analysis above')
+        : 'stopped: ' + result.status;
+
+    nodes.output.appendChild(el('div', 'out-label',
+      'Inference graph — ' + inferred.length + ' triple' + (inferred.length === 1 ? '' : 's') +
+      ' produced by the DATA blocks and rules (the input data is not repeated)'));
+    renderTriples(nodes.output, inferred);
+    setStatus(status, result.status === 'converged' ? 'ok' : 'error');
+
+    app.updateModelContext(
+      'Tutorial: the user ran "' + item.entity.name + '" (lesson ' + state.lessons[state.lessonIndex].number + '): ' +
+      status + ', ' + inferred.length + ' triples in the inference graph.' + sampleOf(inferred)
+    );
+  }
+
+  function sampleOf(triples) {
+    if (!triples.length) return '';
+    return ' First: ' + triples.slice(0, 4).map(function (t) { return t.join(' '); }).join(' | ').slice(0, 360);
+  }
+
+  /**
+   * `/sparql` answers `application/sparql-results+json`, which the tool
+   * registry leaves as text because it is not `application/json`; a CONSTRUCT
+   * answers N-Triples, which is text by nature. Both arrive as strings.
+   */
+  function readSparqlBody(body) {
+    if (typeof body !== 'string') return { kind: 'results', value: body };
+    try {
+      return { kind: 'results', value: JSON.parse(body) };
+    } catch (err) {
+      return { kind: 'graph', value: parseTriples(body) };
+    }
+  }
+
+  async function runQuery(item, text) {
+    var backendId = (item.entity.defaultBackend) || (state.library && state.library.defaultBackend);
+    if (!backendId) throw new Error('This library names no default backend to run queries against.');
+    var envelope = await app.callTool('sparql.proxyQuery', { query: text, backendId: backendId });
+    var body = readSparqlBody(unwrap(envelope, 'sparql.proxyQuery'));
+    var summary;
+    if (body.kind === 'graph') {
+      summary = body.value.length + ' triple' + (body.value.length === 1 ? '' : 's');
+      nodes.output.appendChild(el('div', 'out-label', 'Constructed — ' + summary));
+      renderTriples(nodes.output, body.value);
+    } else {
+      var holder = el('div');
+      nodes.output.appendChild(holder);
+      summary = kit.summariseResults(kit.renderResults(holder, body.value));
+    }
+    setStatus(summary, 'ok');
+    app.updateModelContext('Tutorial: the user ran the query "' + item.entity.name + '": ' + summary + '.');
+  }
+
+  // --- checking ------------------------------------------------------------
+
+  async function check() {
+    var item = state.current;
+    if (!item || item.role !== 'exercise' || !editor) return;
+    var text = editor.getValue();
+    nodes.check.disabled = true;
+    setStatus('checking…', 'running');
+    nodes.output.textContent = '';
+    try {
+      /*
+       * A rule set that is not well-formed, or does not stratify, is not an
+       * answer however it runs. That matters because some wrong answers run
+       * *correctly*: a FILTER written before the pattern that binds its
+       * variable compiles to SPARQL, where a FILTER scopes over its whole
+       * group, and gives the right triples. SRL still rejects it, and so does
+       * this check — which is the lesson.
+       */
+      if (item.kind === 'ruleSet') {
+        var report = await call('srl.analyze', { srl: text });
+        var problems = analysisProblems(report);
+        if (problems.length) {
+          state.verdicts.set(item.key, false);
+          renderTabs();
+          nodes.output.appendChild(el('div', 'verdict fail', '✗ Not yet — the rule set has to be valid SRL before its answer counts.'));
+          var list = el('ul');
+          problems.forEach(function (problem) { list.appendChild(el('li', 'status error', problem)); });
+          nodes.output.appendChild(list);
+          setStatus('not yet', 'error');
+          app.updateModelContext('Tutorial: the user checked "' + item.entity.name + '" — rejected before running: ' + problems.join('; ').slice(0, 400));
+          return;
+        }
+      }
+      var verdicts = [];
+      for (var i = 0; i < item.cases.length; i += 1) {
+        var testCase = item.cases[i];
+        verdicts.push(item.kind === 'query' ? await checkQueryCase(text, testCase) : await checkRuleCase(text, testCase));
+      }
+      if (!verdicts.length) throw new Error('This exercise has no cases to check against.');
+      var passed = verdicts.every(function (v) { return v.passed; });
+      state.verdicts.set(item.key, passed);
+      renderTabs();
+      renderVerdicts(item, verdicts, passed);
+      setStatus(passed ? 'correct' : 'not yet', passed ? 'ok' : 'error');
+      app.updateModelContext(
+        'Tutorial: the user checked the exercise "' + item.entity.name + '" (lesson ' + state.lessons[state.lessonIndex].number + ') — ' +
+        (passed ? 'PASSED.' : 'not yet: ' + verdicts.map(function (v) { return v.summary; }).join('; ').slice(0, 400))
+      );
+    } catch (err) {
+      nodes.output.appendChild(el('div', 'error-box', String(err.message || err)));
+      setStatus('could not check', 'error');
+    } finally {
+      nodes.check.disabled = false;
+      app.reportSize();
+    }
+  }
+
+  /**
+   * A rule set's answer is its inference graph, as the test runner judges it:
+   * compared as a set of triples, with blank nodes compared by how many there
+   * are rather than by label.
+   */
+  async function checkRuleCase(text, testCase) {
+    if (testCase.expectedFormat && !/n-triples|n-quads/.test(testCase.expectedFormat)) {
+      throw new Error('This exercise states its expected graph as ' + testCase.expectedFormat + '; the tutorial compares N-Triples.');
+    }
+    var result;
+    try {
+      result = await runRules(text, testCase);
+    } catch (err) {
+      return { name: testCase.name, passed: false, summary: 'did not run: ' + String(err.message || err).slice(0, 200), error: String(err.message || err) };
+    }
+    if (result.status === 'failed') {
+      return { name: testCase.name, passed: false, summary: 'the run failed', error: result.error || 'the run failed' };
+    }
+    var produced = parseTriples(result.finalGraphNQuads);
+    var expected = parseTriples(testCase.expected);
+    var counts = new Map();
+    produced.forEach(function (t) { var k = tripleKey(t); counts.set(k, (counts.get(k) || 0) + 1); });
+    var missing = [];
+    expected.forEach(function (t) {
+      var k = tripleKey(t);
+      var n = counts.get(k) || 0;
+      if (n > 0) counts.set(k, n - 1);
+      else missing.push(t);
+    });
+    var extra = produced.filter(function (t) {
+      var k = tripleKey(t);
+      var n = counts.get(k) || 0;
+      if (n > 0) { counts.set(k, n - 1); return true; }
+      return false;
+    });
+    var passed = !missing.length && !extra.length;
+    return {
+      name: testCase.name,
+      passed: passed,
+      missing: missing,
+      extra: extra,
+      summary: passed ? 'matches' : missing.length + ' expected triple(s) missing, ' + extra.length + ' unexpected',
+    };
+  }
+
+  function rowKey(binding, vars) {
+    return JSON.stringify(vars.map(function (name) {
+      var term = binding[name];
+      return term ? [term.type === 'typed-literal' ? 'literal' : term.type, term.value, term.datatype || '', term['xml:lang'] || ''] : null;
+    }));
+  }
+
+  async function checkQueryCase(text, testCase) {
+    var backendId = state.library && state.library.defaultBackend;
+    var envelope = await app.callTool('sparql.proxyQuery', { query: text, backendId: backendId });
+    if (envelope.statusCode >= 400) {
+      return { name: testCase.name, passed: false, summary: 'the query failed', error: JSON.stringify(envelope.body) };
+    }
+    var read = readSparqlBody(envelope.body);
+    if (read.kind !== 'results') {
+      return { name: testCase.name, passed: false, summary: 'this exercise wants a SELECT; the query returned a graph' };
+    }
+    var got = read.value || {};
+    var want = JSON.parse(testCase.expected || '{}');
+    var vars = asList(want.head && want.head.vars);
+    var gotRows = asList(got.results && got.results.bindings).map(function (b) { return rowKey(b, vars); });
+    var wantRows = asList(want.results && want.results.bindings).map(function (b) { return rowKey(b, vars); });
+    var sameVars = JSON.stringify(asList(got.head && got.head.vars).slice().sort()) === JSON.stringify(vars.slice().sort());
+    var passed;
+    if (testCase.ordered) passed = sameVars && JSON.stringify(gotRows) === JSON.stringify(wantRows);
+    else passed = sameVars && JSON.stringify(gotRows.slice().sort()) === JSON.stringify(wantRows.slice().sort());
+    return {
+      name: testCase.name,
+      passed: passed,
+      summary: passed ? 'matches' : (sameVars ? '' : 'selects different variables; ') + gotRows.length + ' row(s), expected ' + wantRows.length,
+      payload: got,
+    };
+  }
+
+  function analysisProblems(report) {
+    if (!report.valid) return ['Does not parse: ' + (report.error || 'syntax error')];
+    return asList(report.wellFormedness)
+      .map(function (issue) { return 'Not well-formed (' + issue.category + '): ' + issue.message; })
+      .concat(asList(report.stratification && report.stratification.issues).map(function (issue) { return 'Does not stratify: ' + issue; }));
+  }
+
+  function renderVerdicts(item, verdicts, passed) {
+    nodes.output.appendChild(el('div', 'verdict ' + (passed ? 'pass' : 'fail'),
+      passed ? '✓ Correct — every case matches.' : '✗ Not yet.'));
+    verdicts.forEach(function (verdict) {
+      if (verdicts.length > 1) nodes.output.appendChild(el('div', 'out-label', (verdict.name || 'case') + ' — ' + verdict.summary));
+      if (verdict.error) nodes.output.appendChild(el('div', 'error-box', verdict.error));
+      if (verdict.missing && verdict.missing.length) {
+        nodes.output.appendChild(el('div', 'out-label', 'Expected but not produced'));
+        renderTriples(nodes.output, verdict.missing, 'missing');
+      }
+      if (verdict.extra && verdict.extra.length) {
+        nodes.output.appendChild(el('div', 'out-label', 'Produced but not expected'));
+        renderTriples(nodes.output, verdict.extra, 'extra');
+      }
+      if (verdict.payload && !verdict.passed) {
+        nodes.output.appendChild(el('div', 'out-label', 'What your query returned'));
+        var holder = el('div');
+        kit.renderResults(holder, verdict.payload);
+        nodes.output.appendChild(holder);
+      }
+    });
+  }
+
+  // --- the rest of the buttons -------------------------------------------
+
+  async function toggleSparql() {
+    if (!nodes.compiled.hidden) {
+      nodes.compiled.hidden = true;
+      nodes.sparql.textContent = 'Show SPARQL';
+      app.reportSize();
+      return;
+    }
+    try {
+      var compiled = await call('srl.compile', { srl: editor.getValue() });
+      var parts = asList(compiled.dataBlocks).map(function (block) { return '# ' + block.label + '\n' + block.sparql; })
+        .concat(asList(compiled.rules).map(function (rule) { return '# ' + rule.label + '\n' + rule.sparql; }));
+      if (!compiledEditor) {
+        compiledEditor = window.sqlibEditor.create(nodes.compiledHost, { language: 'sparql', readOnly: true, minHeight: '40px' });
+      }
+      compiledEditor.setValue(parts.join('\n\n'));
+      nodes.compiled.hidden = false;
+      nodes.sparql.textContent = 'Hide SPARQL';
+    } catch (err) {
+      setStatus(String(err.message || err), 'error');
+    }
+    app.reportSize();
+  }
+
+  function reset() {
+    var item = state.current;
+    if (!item || !editor) return;
+    state.drafts.delete(item.key);
+    editor.setValue(item.starter || '');
+    nodes.output.textContent = '';
+    setStatus('reset to the starting text', null);
+  }
+
+  function showSolution() {
+    var item = state.current;
+    if (!item || !editor || !item.solution) return;
+    state.drafts.set(item.key, editor.getValue());
+    editor.setValue(item.solution);
+    setStatus('this is the solution — Reset brings back the start', null);
+    app.updateModelContext('Tutorial: the user revealed the solution to "' + item.entity.name + '".');
+  }
+
+  function askForHint() {
+    var item = state.current;
+    if (!item || !editor) return;
+    var lesson = state.lessons[state.lessonIndex];
+    var verdict = state.verdicts.get(item.key);
+    var fence = item.kind === 'query' ? 'sparql' : 'srl';
+    app.sendMessage(
+      'I am on lesson ' + lesson.number + ' ("' + lesson.title + '") of the SPARQL rules tutorial, ' +
+      (item.role === 'exercise' ? 'working on the exercise' : 'looking at the example') + ' "' + item.entity.name + '".' +
+      (verdict === false ? ' My last check did not pass.' : '') +
+      ' Here is what I have:\n\n```' + fence + '\n' + editor.getValue() + '\n```\n\n' +
+      (item.role === 'exercise' ? 'Can you give me a hint, without giving away the whole answer?' : 'Can you explain what this does?')
+    );
+  }
+
+  // --- wiring --------------------------------------------------------------
+
+  nodes.lessonSelect.addEventListener('change', function () { selectLesson(Number(nodes.lessonSelect.value)); });
+  nodes.prev.addEventListener('click', function () { selectLesson(state.lessonIndex - 1); });
+  nodes.next.addEventListener('click', function () { selectLesson(state.lessonIndex + 1); });
+  nodes.expand.addEventListener('click', function () { app.requestDisplayMode('fullscreen'); });
+  nodes.run.addEventListener('click', run);
+  nodes.check.addEventListener('click', check);
+  nodes.sparql.addEventListener('click', toggleSparql);
+  nodes.reset.addEventListener('click', reset);
+  nodes.solution.addEventListener('click', showSolution);
+  nodes.hint.addEventListener('click', askForHint);
+
+  function applyOpenArguments(params, result) {
+    var args = app.toolInputFrom(params, result);
+    if (args.libraryId && !state.libraryId) state.libraryId = args.libraryId;
+    if (args.lesson && !state.lessonHint) state.lessonHint = String(args.lesson);
+  }
+
+  app.on('ui/notifications/tool-input', function (params) {
+    applyOpenArguments(params, null);
+  });
+
+  app.on('ui/notifications/tool-result', function (params) {
+    var result = (params && params.result) || params || {};
+    var envelope = result.structuredContent || result;
+    applyOpenArguments(null, result);
+    var library = envelope && envelope.body;
+    if (envelope && envelope.statusCode >= 400) {
+      nodes.lessonHead.textContent = '';
+      nodes.lessonHead.appendChild(el('div', 'error-box', 'Could not open the library: ' + JSON.stringify(library)));
+      app.reportSize();
+      return;
+    }
+    if (library && idOf(library)) {
+      state.libraryId = idOf(library);
+      state.library = library;
+    }
+    loadCourse();
+  });
+
+  app.on('ui/notifications/host-context-changed', function (params) {
+    app.applyHostStyles((params && params.hostContext) || params);
+  });
+
+  app.initialize({ availableDisplayModes: ['inline', 'fullscreen'] }).then(function (result) {
+    app.applyHostStyles(result && result.hostContext);
+    app.reportSize();
+  });
+})();
+</script>
+</body>
+</html>

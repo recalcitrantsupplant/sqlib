@@ -58,6 +58,13 @@ import {
   patchApplyArg,
   stripSchemaIdentity,
   validateRuleDataRequestArg,
+  ruleSetSrlArg,
+  srlCompileArg,
+  srlDocumentArg,
+  srlRunArg,
+  tagsListArg,
+  testsListArg,
+  tutorialOpenArg,
 } from './tool-schemas.js';
 
 /**
@@ -172,6 +179,7 @@ export function defineTool<const S extends object>(def: {
 export const VIEW_URI = {
   bench: 'ui://sqlib/bench',
   result: 'ui://sqlib/result',
+  tutorial: 'ui://sqlib/tutorial',
 } as const;
 
 const jsonHeaders = { 'content-type': 'application/json' };
@@ -879,6 +887,97 @@ export const tools: ToolDefinition[] = [
     // The bench needs a library and its backends to open at all; the query, if
     // there is one, the View fetches for itself. Opening on nothing but draft
     // text is the common case in a chat, so `libraryId` is what this resolves.
+    buildRequest: ({ libraryId }) => ({ method: 'GET', url: `/libraries/${enc(libraryId)}` }),
+  }),
+
+  // SRL documents as text, stored nowhere. The three questions a rules editor
+  // asks while someone types — does it parse and stratify, what SPARQL is it,
+  // what does it infer — which an agent helping with rules needs as much as
+  // the tutorial does. All three are on a read-only deployment's allowlist.
+  defineTool({
+    name: 'srl.analyze',
+    description:
+      'Analyse an SRL (SPARQL rules) document without storing it: whether it parses (valid/error), each rule\'s stratum and monotonicity, the dependency edges, stratification issues and cycles, and well-formedness issues (unbound-head, set-rebinds, use-before-bind). A syntax error is reported as valid: false, not as a failure.',
+    readOnly: true,
+    inputSchema: srlDocumentArg,
+    buildRequest: (body) => ({ method: 'POST', url: '/rule-sets/srl/analyze', payload: body, headers: jsonHeaders }),
+  }),
+  defineTool({
+    name: 'srl.compile',
+    description:
+      'Compile each rule of an SRL document to the SPARQL it runs as: INSERT … WHERE by default, or CONSTRUCT … WHERE with flavour "construct" (one pass of the rule, returning what it would add). Nothing is stored.',
+    readOnly: true,
+    inputSchema: srlCompileArg,
+    buildRequest: (body) => ({ method: 'POST', url: '/rule-sets/srl/compile', payload: body, headers: jsonHeaders }),
+  }),
+  defineTool({
+    name: 'srl.run',
+    description:
+      'Run an SRL document to fixpoint without saving it, against at most one base graph: a data graph version (dataGraphVersionId), a data graph at its current version (dataGraphId) or inline RDF (dataGraphInline, Turtle by default). Returns the final graph as N-Quads (finalGraphNQuads), the triples the DATA blocks seeded, and per-iteration, per-rule inserts.',
+    readOnly: true,
+    inputSchema: srlRunArg,
+    buildRequest: (body) => ({ method: 'POST', url: '/playground/rules/execute', payload: body, headers: jsonHeaders }),
+  }),
+
+  // What the tutorial reads a library through. App-only: they carry nothing an
+  // agent is short of — it has libraries, rule sets and queries already — and
+  // each would cost every session a listing entry to say so.
+  defineTool({
+    name: 'tags.list',
+    description: 'List tags, optionally one library\'s',
+    readOnly: true,
+    inputSchema: tagsListArg,
+    ui: { resourceUri: VIEW_URI.tutorial, visibility: ['app'] },
+    buildRequest: ({ library }) => ({ method: 'GET', url: library ? `/tags?library=${enc(library)}` : '/tags' }),
+  }),
+  defineTool({
+    name: 'tests.list',
+    description: 'List tests, optionally by subject, subject kind or tags (comma-separated tag ids)',
+    readOnly: true,
+    inputSchema: testsListArg,
+    ui: { resourceUri: VIEW_URI.tutorial, visibility: ['app'] },
+    buildRequest: (query) => {
+      const params = new URLSearchParams();
+      for (const [key, value] of Object.entries(query)) {
+        if (typeof value === 'string' && value) params.set(key, value);
+      }
+      const search = params.toString();
+      return { method: 'GET', url: search ? `/tests?${search}` : '/tests' };
+    },
+  }),
+  defineTool({
+    name: 'tests.listVersions',
+    description: 'List a test\'s versions, each with its cases (data graph version, expected result and its format)',
+    readOnly: true,
+    inputSchema: idArg,
+    ui: { resourceUri: VIEW_URI.tutorial, visibility: ['app'] },
+    buildRequest: ({ id }) => ({ method: 'GET', url: `/tests/${enc(id)}/versions` }),
+  }),
+  defineTool({
+    name: 'ruleSets.exportSrl',
+    description: 'A rule set as one SRL document, at its current version or the version named, abbreviated against `prologue` (PREFIX lines) when given',
+    readOnly: true,
+    inputSchema: ruleSetSrlArg,
+    ui: { resourceUri: VIEW_URI.tutorial, visibility: ['app'] },
+    buildRequest: ({ id, version, prologue }) => {
+      const params = new URLSearchParams();
+      if (version) params.set('version', version);
+      if (prologue) params.set('prologue', prologue);
+      const search = params.toString();
+      return { method: 'GET', url: `/rule-sets/${enc(id)}/srl${search ? `?${search}` : ''}` };
+    },
+  }),
+
+  // The tutorial door: a library read as a course. Lessons are the library's
+  // numbered tags; see docs/guides/mcp-app.md.
+  defineTool({
+    name: 'app.tutorial.open',
+    title: 'Open a rules tutorial',
+    description:
+      'Open the interactive tutorial for a library laid out as lessons (numbered tags such as "1. Your first rule"): each lesson\'s objectives, worked examples and exercises, with an SRL/SPARQL editor that runs, analyses and checks the user\'s answer. Pass `lesson` (a number or tag id) to open on one. Use it when the user wants to learn SPARQL rules (SRL) by doing; it needs a client that renders MCP Apps. The tutorial keeps no progress — you are the tutor, and it tells you when the user runs or checks something.',
+    readOnly: true,
+    inputSchema: tutorialOpenArg,
+    ui: { resourceUri: VIEW_URI.tutorial },
     buildRequest: ({ libraryId }) => ({ method: 'GET', url: `/libraries/${enc(libraryId)}` }),
   }),
 ];

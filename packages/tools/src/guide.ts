@@ -49,6 +49,7 @@ Running
 
 Rendered results
 - \`execute.run\` and \`sparql.proxyQuery\` return an interactive result table, and \`app.bench.open\` an editable query bench, in clients that render MCP Apps. Which tools do this is not visible to you — hosts strip the metadata that says so before you see a result — so it is stated here and in those three descriptions. When one renders, the user is already looking at the rows; summarise, do not reprint them.
+- \`app.tutorial.open\` opens a library laid out as lessons, for a user learning SPARQL rules (SRL). It keeps no progress; it tells you what the user runs and checks, so tutor from that. \`srl.analyze\`, \`srl.compile\` and \`srl.run\` answer the same questions about any SRL text.
 
 Typical flow: \`libraries.list\` → \`backends.list\` → \`detection.validateQuery\` → \`detection.detectInputs\` → \`queries.create\` → \`queries.createVersion\` → \`execute.run\`.`;
 

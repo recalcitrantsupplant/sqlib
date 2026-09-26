@@ -123,6 +123,51 @@ describe('tool metadata', () => {
     expect(resultUiMeta({ ui: { resourceUri: 'ui://sqlib/result' } }, false)).toBeUndefined();
     expect(resultUiMeta(undefined, true)).toBeUndefined();
   });
+
+  it('marks no result of an app-only tool, which a View already open called', () => {
+    // The tutorial reads the library through `tags.list` and friends. Their
+    // results are data for that View; naming a View on them would invite a
+    // host to render a second tutorial for every read.
+    expect(resultUiMeta({ ui: { resourceUri: 'ui://sqlib/tutorial', visibility: ['app'] } }, true)).toBeUndefined();
+    expect(resultUiMeta({ ui: { resourceUri: 'ui://sqlib/tutorial', visibility: ['model', 'app'] } }, true)).toBeDefined();
+  });
+});
+
+describe('the tutorial door', () => {
+  const byName = (name: string) => tools.find((tool) => tool.name === name)!;
+
+  it('opens on a library, and hides its plumbing from the model', () => {
+    expect(byName('app.tutorial.open').ui).toEqual({ resourceUri: 'ui://sqlib/tutorial' });
+    for (const name of ['tags.list', 'tests.list', 'tests.listVersions', 'ruleSets.exportSrl']) {
+      expect(byName(name).ui?.visibility, name).toEqual(['app']);
+    }
+  });
+
+  it('reads and computes, and never writes', () => {
+    // A read-only deployment keeps only `readOnly` tools, and a tutorial that
+    // disappeared on the public demo would be no tutorial at all.
+    for (const name of ['app.tutorial.open', 'srl.analyze', 'srl.compile', 'srl.run', 'tags.list', 'tests.list', 'tests.listVersions', 'ruleSets.exportSrl']) {
+      expect(byName(name).readOnly, name).toBe(true);
+    }
+  });
+
+  it('builds the routes the tutorial reads through', () => {
+    expect(byName('tests.list').buildRequest({ tags: 'urn:t:1,urn:t:2', subject: '' })).toEqual({
+      method: 'GET',
+      url: '/tests?tags=urn%3At%3A1%2Curn%3At%3A2',
+    });
+    expect(byName('tests.list').buildRequest({})).toEqual({ method: 'GET', url: '/tests' });
+    expect(byName('tags.list').buildRequest({ library: 'urn:l:1' })).toEqual({ method: 'GET', url: '/tags?library=urn%3Al%3A1' });
+    expect(byName('ruleSets.exportSrl').buildRequest({ id: 'urn:rs:1', version: '1', prologue: 'PREFIX : <http://e/>' })).toEqual({
+      method: 'GET',
+      url: '/rule-sets/urn%3Ars%3A1/srl?version=1&prologue=PREFIX+%3A+%3Chttp%3A%2F%2Fe%2F%3E',
+    });
+    expect(byName('srl.run').buildRequest({ srl: 'RULE {} WHERE {}', dataGraphVersionId: 'urn:v' })).toMatchObject({
+      method: 'POST',
+      url: '/playground/rules/execute',
+      payload: { srl: 'RULE {} WHERE {}', dataGraphVersionId: 'urn:v' },
+    });
+  });
 });
 
 describe('what the server declares at initialize', () => {
@@ -246,9 +291,25 @@ describe('UI resources', () => {
   });
 
   it('keeps each View inside the size budget a resources/read pays per render', () => {
+    /*
+     * A View that embeds the editor carries CodeMirror, whose view and state
+     * packages alone are ~230 KB minified, and there is no smaller editor
+     * worth the name. It gets its own ceiling rather than a raised one for
+     * everybody, so the bench and the result table stay small, and the
+     * editor's weight is paid only by the View that asked for it. The hashed
+     * URI is what makes it tolerable: a host fetches it once per build.
+     */
     for (const view of views) {
-      expect(renderView(view.uri).length).toBeLessThan(150_000);
+      const html = renderView(view.uri);
+      const budget = html.includes('window.sqlibEditor') ? 600_000 : 150_000;
+      expect(html.length, view.uri).toBeLessThan(budget);
     }
+  });
+
+  it('inlines the editor only where a View asks for it', () => {
+    expect(renderView('ui://sqlib/tutorial')).toContain('window.sqlibEditor');
+    expect(renderView('ui://sqlib/bench')).not.toContain('window.sqlibEditor');
+    expect(renderView('ui://sqlib/tutorial')).not.toMatch(/<script[^>]+src=/i);
   });
 });
 
@@ -312,8 +373,13 @@ describe('caller authorization', () => {
  * the model.
  */
 describe('a rendering tool announces itself in text', () => {
+  // A tool only a View may call is never listed to the model, so it has
+  // nothing to announce and the guide has no reason to name it.
+  const modelFacing = (entry: (typeof tools)[number]) =>
+    Boolean(entry.ui) && (!entry.ui!.visibility || entry.ui!.visibility.includes('model'));
+
   it('says so in every UI-bound description', () => {
-    for (const tool of tools.filter((entry) => entry.ui)) {
+    for (const tool of tools.filter(modelFacing)) {
       expect(tool.description, tool.name).toContain('MCP Apps');
     }
   });
@@ -321,7 +387,7 @@ describe('a rendering tool announces itself in text', () => {
   it('says so once in the session guide, naming each one', () => {
     const guide = catalogueGuide((name) => name.replace(/[^a-zA-Z0-9_-]/g, '_'));
     expect(guide).toContain('Rendered results');
-    for (const tool of tools.filter((entry) => entry.ui)) {
+    for (const tool of tools.filter(modelFacing)) {
       expect(guide, tool.name).toContain(tool.name.replace(/[^a-zA-Z0-9_-]/g, '_'));
     }
   });

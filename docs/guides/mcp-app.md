@@ -1,6 +1,6 @@
 # The query bench in a chat client (MCP App)
 
-The MCP server publishes two **Views** — sandboxed HTML documents an
+The MCP server publishes three **Views** — sandboxed HTML documents an
 Apps-capable chat client renders inline in the conversation — so a session can
 edit, run and save a query instead of reading JSON about one. The design and
 the reasoning behind it are in [design/mcp-app.md](../design/mcp-app.md); this
@@ -19,12 +19,13 @@ scheme with the MIME type `text/html;profile=mcp-app`; a tool names one in
 JSON-RPC to it over `postMessage`. A View is an MCP client: it calls `tools/call`
 back through the host, which is the only way it reads or writes anything.
 
-## The two Views
+## The three Views
 
 | Resource | Rendered for | What it does |
 | --- | --- | --- |
 | `ui://sqlib/bench` | `app.bench.open` | Edits SPARQL, detects its parameters as you type, fills arguments, runs against a backend, saves a version, creates toy data |
 | `ui://sqlib/result` | `execute.run`, `sparql.proxyQuery` | A table of the result, with RDF terms rendered by kind |
+| `ui://sqlib/tutorial` | `app.tutorial.open` | A library read as a course: lessons, examples and exercises in a CodeMirror editor that analyses, runs and checks SRL and SPARQL. See [The rules tutorial](#the-rules-tutorial) |
 
 The bench is opened by a tool the model calls:
 
@@ -76,6 +77,79 @@ The chat is disposable; the library is not. Saving a version writes a `Query`
 (on the first save) and a `QueryVersion`, both ordinary library entities with the
 usual history, export and immutability. Nothing in the bench is a new kind of
 thing, and a library exported after a session is the session's real output.
+
+## The rules tutorial
+
+`app.tutorial.open` opens a library as a course in SPARQL rules (SRL). Each
+lesson shows its objectives, its worked examples and its exercises; the learner
+edits in a CodeMirror editor with the SRL, SPARQL and Turtle grammars the web
+app uses, and gets the same three answers the W3C suite asks of a document —
+does it parse, is it well-formed, does it stratify — under the editor as they
+type, with each rule's stratum beside it.
+
+```json
+{ "name": "app_tutorial_open", "arguments": { "libraryId": "urn:sqlib:library:srl-tutorial", "lesson": "3" } }
+```
+
+### The course is the library
+
+There is no tutorial entity. A library becomes a course by convention, out of
+things sqlib already stores and a visitor can already browse:
+
+| In the course | In the library |
+| --- | --- |
+| A lesson | A tag whose name starts with a number: `3. DATA blocks`. Its description is the lesson's objectives |
+| A worked example | A rule set or query carrying the lesson's tag |
+| An exercise | A test carrying the lesson's tag. Its subject's **first version** is where the learner starts, its **current version** is the solution, and its cases hold the input data and the expected answer |
+| The prefixes | `PREFIX` lines in the library description, the course's prologue — a rule set is stored with its IRIs expanded, and this is what abbreviates them back |
+
+Descriptions are rendered as a little Markdown: paragraphs, `-` lists, fenced
+code, `inline code`, bold and emphasis. The demo repository's
+`instances/main/tutorial/` is a ten-lesson course written this way, from a
+first rule to stratification, the ground graph and how rules compile to SPARQL.
+
+### Checking an answer
+
+A test runs its *saved* subject, and what needs judging is the text in the
+editor, so the View checks it itself, in two steps:
+
+1. `srl.analyze`: a rule set that does not parse, is not well-formed or does not
+   stratify is rejected before it runs. Some wrong answers run *correctly* — a
+   `FILTER` written before the pattern that binds its variable compiles to
+   SPARQL, where a filter scopes over its whole group — and SRL still rejects
+   them.
+2. `srl.run` over each case's data graph version, and a comparison with the
+   case's expectation: the inference graph as a set of N-Triples lines (blank
+   nodes by count), or a query's rows as a set (in order when the case says
+   `ordered`). Differences are listed as triples missing and triples not
+   expected.
+
+The course's own tests stay the authority: they are what CI runs to prove every
+solution still passes.
+
+### No state, and the model as tutor
+
+The tutorial keeps nothing. Which exercises passed lives in the frame and goes
+with it; every call the View makes reads or computes, so it works unchanged on
+a read-only deployment and under `MCP_READ_ONLY`. What it does instead is tell
+the model, in one line each, which lesson is open and what each run and check
+produced, and **Ask for a hint** puts the learner's attempt in the chat. The
+model is the tutor; the View is the blackboard.
+
+### The tools it reads through
+
+`srl.analyze`, `srl.compile` and `srl.run` answer questions about SRL *text*,
+stored nowhere, and are published to the model too: an agent helping with
+rules needs them whether or not a tutorial is open. `tags.list`, `tests.list`,
+`tests.listVersions` and `ruleSets.exportSrl` are app-only (`visibility:
+['app']`): the View reads the course through them, and they would cost every
+session a listing entry to offer the model nothing it lacks.
+
+The editor is CodeMirror 6, bundled by `packages/mcp-app/scripts/bundle-editor.mjs`
+into `src/kit/editor.bundle.js` (a build output, gitignored) and inlined where a
+View writes `<!--@kit:editor-->`. It cannot come from a CDN: the Views declare an
+empty `resourceDomains`. It makes the tutorial about 490 KB, which the size test
+allows for a View carrying the editor and no other.
 
 ## Testing it locally
 

@@ -158,8 +158,14 @@ export function withUiMeta(tool: ListedTool, uiEnabled: boolean) {
 }
 
 /** The `_meta` a tool *result* carries, so a host knows what to render it in. */
-export function resultUiMeta(tool: { ui?: { resourceUri: string } } | undefined, uiEnabled: boolean) {
+export function resultUiMeta(
+  tool: { ui?: { resourceUri: string; visibility?: ('model' | 'app')[] } } | undefined,
+  uiEnabled: boolean
+) {
   if (!uiEnabled || !tool?.ui) return undefined;
+  // An app-only tool is called by a View that is already open. Its result is
+  // data for that View, not something for the host to render a second one in.
+  if (tool.ui.visibility && !tool.ui.visibility.includes('model')) return undefined;
   const resourceUri = canonicalUri(tool.ui.resourceUri);
   // On the *result*, not only the declaration: a host that decorates from the
   // tool definition alone never learns what to render this call in. This is
