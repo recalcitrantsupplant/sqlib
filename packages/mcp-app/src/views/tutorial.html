@@ -648,7 +648,23 @@
     var args = { id: id, prologue: state.prologue };
     if (version) args.version = version;
     var exported = await call('ruleSets.exportSrl', args);
-    return exported.srl || '';
+    return formatSrl(exported.srl || '');
+  }
+
+  /**
+   * A rule set comes back in its canonical form, one line per rule, because
+   * that is how it is stored. `detection.format` pretty-prints SRL — a block
+   * per line, a pattern per line — which is what a learner should be reading.
+   * A document the formatter refuses is shown as exported.
+   */
+  async function formatSrl(text) {
+    if (!text.trim()) return text;
+    try {
+      var formatted = await call('detection.format', { code: text });
+      return (formatted && formatted.formatted) || text;
+    } catch (err) {
+      return text;
+    }
   }
 
   /**
