@@ -1,8 +1,8 @@
 import Fastify, { type FastifyInstance } from 'fastify';
 import { randomUUID } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
-import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import type { Server } from '@modelcontextprotocol/server';
+import { NodeStreamableHTTPServerTransport } from '@modelcontextprotocol/node';
 import { createMcpServer, type CreateMcpServerOptions } from './index.js';
 
 export type StreamableHttpServerOptions = {
@@ -16,7 +16,7 @@ export type StreamableHttpServerOptions = {
 type Session = {
   id?: string;
   server: Server;
-  transport: StreamableHTTPServerTransport;
+  transport: NodeStreamableHTTPServerTransport;
   shutdown: () => Promise<void>;
   closed: boolean;
 };
@@ -70,12 +70,12 @@ export async function startStreamableHttpMcpServer(options: StreamableHttpServer
     });
     const session: Session = {
       server,
-      transport: null as unknown as StreamableHTTPServerTransport,
+      transport: null as unknown as NodeStreamableHTTPServerTransport,
       shutdown,
       closed: false,
     };
 
-    const transport = new StreamableHTTPServerTransport({
+    const transport = new NodeStreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),
       onsessioninitialized: (newSessionId) => {
         session.id = newSessionId;
@@ -93,6 +93,34 @@ export async function startStreamableHttpMcpServer(options: StreamableHttpServer
 
     return session;
   };
+
+  /*
+   * The preflight, without which no browser reaches `/mcp` cross-origin.
+   *
+   * The response headers were already set on every real request, but a POST
+   * carrying `content-type: application/json` and `mcp-session-id` is not a
+   * simple request: the browser asks first, fastify had no OPTIONS route, and
+   * the 404 that came back failed the call before it was made. The Connect
+   * page's own check is the first caller to notice, and any browser-hosted MCP
+   * client would be the second.
+   */
+  app.options('/mcp', async (request, reply) => {
+    const origin = typeof request.headers.origin === 'string' ? request.headers.origin : undefined;
+    reply
+      .header('access-control-allow-origin', origin ?? '*')
+      .header('access-control-allow-credentials', 'true')
+      .header('access-control-allow-methods', 'GET, POST, DELETE, OPTIONS')
+      .header(
+        'access-control-allow-headers',
+        request.headers['access-control-request-headers'] ??
+          'content-type, accept, authorization, mcp-session-id, mcp-protocol-version'
+      )
+      .header('access-control-expose-headers', mcpExposedHeaders)
+      .header('access-control-max-age', '86400')
+      .header('vary', 'Origin')
+      .code(204)
+      .send();
+  });
 
   app.post('/mcp', async (request, reply) => {
     const sessionId = request.headers['mcp-session-id'] as string | undefined;

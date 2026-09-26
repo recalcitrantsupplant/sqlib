@@ -33,3 +33,10 @@ visual-canvas-states.spec.ts-snapshots/canvas-validation-light-chromium-linux.pn
 visual-canvas-states.spec.ts-snapshots/canvas-validation-dark-chromium-linux.png
 visual-canvas-states.spec.ts-snapshots/canvas-arguments-light-chromium-linux.png
 visual-canvas-states.spec.ts-snapshots/canvas-arguments-dark-chromium-linux.png
+
+# The MCP screen, which replaced the three Build shots. Rendered and read
+# in a cloud container in both themes to confirm the layout, the list markers
+# and the check's result line; the images are that machine's rasterisation and
+# would fail against every other baseline here, so they are not committed.
+visual-regression.spec.ts-snapshots/mcp-light-chromium-linux.png
+visual-regression.spec.ts-snapshots/mcp-dark-chromium-linux.png

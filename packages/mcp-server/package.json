@@ -32,9 +32,11 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@modelcontextprotocol/node": "^2.0.0",
+    "@modelcontextprotocol/server": "^2.0.0",
     "@sparql-query-lib/api": "workspace:*",
     "@sparql-query-lib/contracts": "workspace:*",
+    "@sparql-query-lib/mcp-app": "workspace:*",
     "@sparql-query-lib/tools": "workspace:*",
     "@sparql-query-lib/types": "workspace:*",
     "dotenv": "^18.0.1",

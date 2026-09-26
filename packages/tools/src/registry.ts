@@ -15,7 +15,7 @@
  * - `callApi` is whatever the caller uses to reach the routes. In practice that
  *   is `app.inject`, in the same process, for both doors.
  */
-import { tools as defaultTools, type ToolDefinition, type ToolRequest } from './tools.js';
+import { tools as defaultTools, type ToolDefinition, type ToolRequest, type ToolUiBinding } from './tools.js';
 
 export type ToolCallResult = {
   statusCode: number;
@@ -80,12 +80,27 @@ export type ToolRegistryOptions = {
   publicName?: (name: string) => string;
 };
 
+/**
+ * A tool's arguments schema, as published.
+ *
+ * Every schema in the catalogue is an object schema — MCP requires it, and the
+ * hub-sourced route bodies and the local argument shapes are all `type:
+ * 'object'`. `ToolDefinition.inputSchema` stays the loose `Record` it has to be
+ * (it is whatever `stripSchemaIdentity` handed back), and the guarantee is
+ * stated here, at the point where a door publishes it: the MCP SDK's own
+ * `Tool` type demands `type: 'object'`, so without this the invariant would be
+ * re-asserted with a cast in every door instead of once in the listing.
+ */
+export type ListedToolSchema = { type: 'object' } & Record<string, unknown>;
+
 export type ListedTool = {
   name: string;
   /** MCP's `Tool.title`: the human-readable name, absent when the description already is one. */
   title?: string;
   description: string;
-  inputSchema: Record<string, unknown>;
+  inputSchema: ListedToolSchema;
+  /** The View that renders this tool's result, when the catalogue binds one. */
+  ui?: ToolUiBinding;
 };
 
 /**
@@ -242,8 +257,11 @@ export function createToolRegistry(options: ToolRegistryOptions): ToolRegistry {
         // renamed — 89 tools × ~6 tokens, about 9% of the whole listing, for
         // an id the model never produces. The dotted id stays on `definitions`.
         description: rewriteToolNames(def.description, catalogueNames, publicName),
-        // Already JSON Schema — the protocol's native format.
-        inputSchema: def.inputSchema,
+        // Already JSON Schema — the protocol's native format. The assertion is
+        // the one documented on `ListedToolSchema`; a non-object schema would
+        // have failed ajv compilation at startup long before reaching here.
+        inputSchema: def.inputSchema as ListedToolSchema,
+        ...(def.ui ? { ui: def.ui } : {}),
       })),
 
     callTool: async (name, args, authorization) => {

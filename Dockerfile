@@ -29,6 +29,8 @@ COPY packages/api/package.json packages/api/package.json
 COPY packages/api/tsconfig.json packages/api/tsconfig.json
 COPY packages/contracts/package.json packages/contracts/package.json
 COPY packages/contracts/tsconfig.json packages/contracts/tsconfig.json
+COPY packages/mcp-app/package.json packages/mcp-app/package.json
+COPY packages/mcp-app/tsconfig.json packages/mcp-app/tsconfig.json
 COPY packages/mcp-server/package.json packages/mcp-server/package.json
 COPY packages/mcp-server/tsconfig.json packages/mcp-server/tsconfig.json
 COPY packages/rdf-delta/package.json packages/rdf-delta/package.json
@@ -60,6 +62,7 @@ COPY packages/runtime ./packages/runtime
 COPY packages/srl ./packages/srl
 COPY packages/tools ./packages/tools
 COPY packages/api ./packages/api
+COPY packages/mcp-app ./packages/mcp-app
 COPY packages/mcp-server ./packages/mcp-server
 
 # Build shared packages first (generates .d.ts files needed by API)
@@ -103,6 +106,12 @@ RUN pnpm --filter @sparql-query-lib/tools build && \
 # Build the API (includes schema generation)
 RUN pnpm --filter @sparql-query-lib/api build
 
+# The MCP Apps Views, which mcp-server imports to serve as `ui://` resources.
+# Its build bundles CodeMirror into the tutorial's editor, so it needs the
+# devDependencies installed above; what it emits is plain files under dist.
+RUN pnpm --filter @sparql-query-lib/mcp-app build && \
+    ls -la packages/mcp-app/dist/views packages/mcp-app/dist/kit
+
 # Build MCP server runtime (CLI + transports)
 RUN pnpm --filter @sparql-query-lib/mcp-server build
 
@@ -145,6 +154,8 @@ COPY --from=builder /app/packages/tools/dist ./packages/tools/dist
 COPY --from=builder /app/packages/api/package.json ./packages/api/package.json
 COPY --from=builder /app/packages/api/dist ./packages/api/dist
 COPY --from=builder /app/packages/api/system-store ./packages/api/system-store
+COPY --from=builder /app/packages/mcp-app/package.json ./packages/mcp-app/package.json
+COPY --from=builder /app/packages/mcp-app/dist ./packages/mcp-app/dist
 COPY --from=builder /app/packages/mcp-server/package.json ./packages/mcp-server/package.json
 COPY --from=builder /app/packages/mcp-server/dist ./packages/mcp-server/dist
 

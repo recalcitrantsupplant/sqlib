@@ -12,6 +12,7 @@ every other page assumes.
 - [guides/notebooks.md](guides/notebooks.md) — how do I write a runnable story about a library, with prose between the queries and each result named?
 - [guides/rules-and-srl.md](guides/rules-and-srl.md) — how do I write SHACL 1.2 inference rules and run them against a graph?
 - [guides/mcp-clients.md](guides/mcp-clients.md) — how do I point an MCP client at the server and what can it then do?
+- [guides/mcp-app.md](guides/mcp-app.md) — how do I edit, run and save a query from inside a chat client, how do I teach SPARQL rules there with a library laid out as lessons, and how do I test that locally?
 - [guides/static-export.md](guides/static-export.md) — how do I export a library as a self-contained page that runs without the server?
 - [guides/testing-and-conformance.md](guides/testing-and-conformance.md) — how do I attach tests to a query or rule set and run a conformance suite?
 - [guides/etl.md](guides/etl.md) — how do I build RDF from tabular sources with DuckDB SQL?
@@ -34,6 +35,17 @@ every other page assumes.
 - [explanation/security-model.md](explanation/security-model.md) — what the auth layer enforces, what it does not, and why some doors are open.
 - [explanation/rdf-patch.md](explanation/rdf-patch.md) — how an update query's effect is derived before it is applied.
 - [explanation/inline-inputs-and-the-rail.md](explanation/inline-inputs-and-the-rail.md) — where a saved input lives, why pasting a graph into a call saves it as a graph, and what the rail shows about where things came from.
+
+## Design proposals — not built yet
+
+- [design/mcp-app.md](design/mcp-app.md) — a query bench rendered inline in a
+  chat client (MCP Apps / SEP-1865), where a session's queries are persisted as
+  ordinary library entities. The MVP is built; see
+  [guides/mcp-app.md](guides/mcp-app.md).
+- [design/assistant-surfaces.md](design/assistant-surfaces.md) — where a Claude
+  conversation can run (MCP connector, in-app with a user's key, hosted on
+  sqlib's key, local on a user's subscription), why hosted-plus-subscription is
+  not one of them, and which code serves each.
 
 ## Examples
 

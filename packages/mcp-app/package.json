@@ -1,0 +1,39 @@
+{
+  "name": "@sparql-query-lib/mcp-app",
+  "version": "0.0.1",
+  "license": "SEE LICENSE IN LICENSE",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "node scripts/bundle-editor.mjs && tsc --project tsconfig.json && node scripts/copy-assets.mjs",
+    "dev:harness": "node dev/serve.mjs",
+    "clean": "rm -rf dist",
+    "lint": "echo \"TODO: add lint\"",
+    "test": "echo 'TODO: add tests'"
+  },
+  "dependencies": {
+    "@sparql-query-lib/tools": "workspace:*"
+  },
+  "devDependencies": {
+    "@codemirror/autocomplete": "^6.20.3",
+    "@codemirror/commands": "^6.11.1",
+    "@codemirror/language": "^6.12.4",
+    "@codemirror/state": "^6.7.5",
+    "@codemirror/view": "^6.43.12",
+    "@kurrawongai/codemirror-lang-sparql12": "0.3.1",
+    "@kurrawongai/codemirror-lang-srl": "0.3.1",
+    "@kurrawongai/codemirror-lang-turtle12": "0.2.1",
+    "@lezer/highlight": "^1.2.3",
+    "@types/node": "^26.5.1",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.0"
+  }
+}

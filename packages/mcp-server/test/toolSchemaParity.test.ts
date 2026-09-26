@@ -309,6 +309,32 @@ const ADDED_SINCE_SNAPSHOT = new Set<string>([
   'argumentSets.exportVersion',
   'queryGroups.listArgumentSets',
   'queryGroups.attachArgumentSet',
+  /*
+   * Data graphs, which had no tools at all: an agent could register a backend
+   * hydrated from a data graph and had no way to create the graph it named.
+   * The MCP App's toy-data flow is the caller that made the gap obvious.
+   */
+  'dataGraphs.list',
+  'dataGraphs.get',
+  'dataGraphs.create',
+  'dataGraphs.createVersion',
+  'dataGraphs.listVersions',
+  'dataGraphs.getVersion',
+  /* The MCP Apps door (see `docs/design/mcp-app.md`). */
+  'app.bench.open',
+  /*
+   * SRL as text, and what the tutorial View reads a library through. The
+   * routes existed; the first three are what any agent helping with rules
+   * needs, the other four are app-only plumbing for the tutorial.
+   */
+  'srl.analyze',
+  'srl.compile',
+  'srl.run',
+  'tags.list',
+  'tests.list',
+  'tests.listVersions',
+  'ruleSets.exportSrl',
+  'app.tutorial.open',
 ]);
 
 function legacySchemaFor(name: string) {

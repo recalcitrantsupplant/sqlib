@@ -12,6 +12,8 @@
     "packages/api/scripts/run-comparison-test.ts",
     "packages/api/scripts/setup-test-data.ts",
     "packages/api/scripts/test-complex-entities.ts",
-    "packages/api/scripts/validate-phase2.ts"
+    "packages/api/scripts/validate-phase2.ts",
+    "packages/mcp-app/src/kit/bridge.js",
+    "packages/mcp-app/src/kit/results.js"
   ]
 }

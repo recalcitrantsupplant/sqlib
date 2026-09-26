@@ -3,9 +3,12 @@
 # The build line covers exactly the packages this recipe cannot get from
 # source. `tsx` resolves workspace imports through packages/api/tsconfig.json's
 # `paths`, which map contracts, types, srl and runtime to `src` — but not tools
-# (loaded by mcp-server) or rdf-delta (imported across api/src/lib and
-# api/src/routes). Those two resolve through their exports maps, which point
-# only at `dist`.
+# (loaded by mcp-server), rdf-delta (imported across api/src/lib and
+# api/src/routes), or mcp-app (whose `ui://` Views mcp-server serves). Those
+# three resolve through their exports maps, which point only at `dist`.
+#
+# mcp-app's build also *copies* its Views and kit beside the built module, so a
+# `tsc`-only build would leave `renderView` reading files that are not there.
 #
 # The trailing `...` is load-bearing: it selects each package *and its workspace
 # dependencies*, built in topological order, which is what pulls in contracts —
@@ -14,10 +17,11 @@
 # nothing else, which is how this recipe came to fail with TS2307 on a tree
 # where contracts had never been built.
 #
-# API:  http://localhost:3005
-# MCP:  http://localhost:3005/mcp  (streamable HTTP, same transport as production)
+# API:  http://localhost:3010
+# MCP:  http://localhost:3010/mcp  (streamable HTTP, same transport as production)
+#       — this recipe sets HTTP_PORT=3010; 3005 is the server's own default.
 run-local-memory:
-    pnpm --filter "@sparql-query-lib/tools..." --filter "@sparql-query-lib/rdf-delta..." build
+    pnpm --filter "@sparql-query-lib/tools..." --filter "@sparql-query-lib/rdf-delta..." --filter "@sparql-query-lib/mcp-app..." build
     INTERNAL_BACKEND_TYPE="oxigraph-persistent" \
     LIBRARY_STORAGE_DIR="./tmp/library-store" \
     INTERNAL_OXIGRAPH_STORE_ID="library-store" \
@@ -48,6 +52,7 @@ run-local-https:
         echo "Missing certificates. Run: just setup-local-https" >&2; \
         exit 1; \
     fi
+    pnpm --filter "@sparql-query-lib/tools..." --filter "@sparql-query-lib/rdf-delta..." --filter "@sparql-query-lib/mcp-app..." build
     OTEL_ENABLED="${OTEL_ENABLED:-false}" HTTP_PORT=3300 HTTP_HOST=0.0.0.0 \
         pnpm --filter @sparql-query-lib/mcp-server dev:dual-http & \
     app_pid=$!; \
@@ -66,6 +71,85 @@ run-docker-https:
         exit 1; \
     fi
     docker compose -f docker-compose.mcp-https-image.yml up --remove-orphans
+
+# Serve the MCP App harness — a minimal MCP Apps host for the ui:// Views
+#
+# Pair it with `just run-local-memory`: the harness page talks to that server's
+# /mcp, renders a View in a sandboxed iframe and bridges its JSON-RPC back. It
+# is how you see the bench without a host that supports MCP Apps.
+run-mcp-app-harness:
+    pnpm --filter @sparql-query-lib/mcp-app build
+    pnpm --filter @sparql-query-lib/mcp-app dev:harness
+
+# Check the MCP Apps door of a running server, without a browser
+#
+# Proves the protocol underneath the Views: that a UI-capable client is offered
+# _meta.ui, that a plain one is not, and that every ui:// resource reads back as
+# a self-contained document.
+smoke-mcp-app endpoint="http://localhost:3010/mcp":
+    node packages/mcp-app/dev/smoke.mjs {{endpoint}}
+
+# Expose the local MCP server over public HTTPS, for testing a real web client
+#
+# Claude and ChatGPT connectors take a URL, not a command, and their servers
+# have to reach it themselves. `just run-local-https` solves the HTTPS half with
+# a locally trusted certificate, which satisfies a desktop app on this machine
+# and is useless to claude.ai. A tunnel is the only way to test the web clients
+# without deploying.
+#
+# Uses ngrok or cloudflared, whichever is installed; pass `tool=ngrok` or
+# `tool=cloudflared` to choose. Neither needs an account for this: `ngrok http`
+# and a cloudflared quick tunnel both issue a fresh random hostname per run.
+#
+# Start the server first, in another terminal:
+#
+#     MCP_READ_ONLY=1 just run-local-memory
+#
+# **The tunnel is public and unauthenticated, and that cannot be fixed here.** A
+# custom connector authenticates with OAuth or with nothing, and neither Claude
+# nor ChatGPT sends an HTTP basic-auth header, so a tunnel's basic-auth option
+# would lock out a browser and not the client you are testing. What protects a
+# quick tunnel is that the hostname is random, it dies with this process, and
+# the server behind it publishes only what you started it with. Run it
+# read-only, as above; the MCP page's "Read the catalogue" button reports which
+# mode answered, so you can confirm that rather than assume it. Do not tunnel a
+# server holding data you would mind a stranger reading.
+#
+# Give the client the printed https URL with /mcp on the end.
+tunnel-mcp port="3010" tool="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    tool="{{tool}}"
+    if [ -z "$tool" ]; then
+        if command -v ngrok >/dev/null 2>&1; then tool=ngrok
+        elif command -v cloudflared >/dev/null 2>&1; then tool=cloudflared
+        else
+            echo "Install ngrok (https://ngrok.com/download) or cloudflared" >&2
+            echo "(https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)." >&2
+            echo "tailscale funnel {{port}} does the same job if you already run Tailscale." >&2
+            exit 1
+        fi
+    elif ! command -v "$tool" >/dev/null 2>&1; then
+        echo "$tool is not installed." >&2
+        exit 1
+    fi
+    # Checked before the tunnel opens: a tunnel to a dead port answers 502 to
+    # the client, which reads in Claude as "unable to reach the connector" and
+    # sends you looking at the tunnel rather than at the server you forgot to
+    # start.
+    if ! curl -fsS -o /dev/null "http://localhost:{{port}}/health" 2>/dev/null; then
+        echo "Nothing answering on localhost:{{port}}. Start one first:" >&2
+        echo "    MCP_READ_ONLY=1 just run-local-memory" >&2
+        exit 1
+    fi
+    echo "Tunnelling localhost:{{port}} with $tool."
+    echo "The MCP endpoint is the printed https URL with /mcp on the end."
+    echo "It is public and unauthenticated for as long as this runs."
+    if [ "$tool" = "ngrok" ]; then
+        exec ngrok http "{{port}}"
+    else
+        exec cloudflared tunnel --url "http://localhost:{{port}}"
+    fi
 
 # Clean the local temporary database
 clean-local-memory:
@@ -105,7 +189,7 @@ clean-local-memory:
 #
 # API:  http://localhost:3005
 run-local-rules-tests:
-    pnpm --filter "@sparql-query-lib/tools..." --filter "@sparql-query-lib/rdf-delta..." build
+    pnpm --filter "@sparql-query-lib/tools..." --filter "@sparql-query-lib/rdf-delta..." --filter "@sparql-query-lib/mcp-app..." build
     SEED_W3C_RULES_SUITE="true" \
     FEATURE_RULES_SUITE="true" \
     FEATURE_TESTS="true" \
@@ -175,7 +259,7 @@ clean-local-rules-tests:
 #
 # API:  http://localhost:3005
 run-local-patch-demo:
-    pnpm --filter "@sparql-query-lib/tools..." --filter "@sparql-query-lib/rdf-delta..." build
+    pnpm --filter "@sparql-query-lib/tools..." --filter "@sparql-query-lib/rdf-delta..." --filter "@sparql-query-lib/mcp-app..." build
     SEED_PATCH_DEMO="true" \
     FEATURE_QUERIES="true" \
     FEATURE_BACKENDS="true" \
