@@ -394,9 +394,10 @@ server holding data you would mind a stranger reading.
 
 A public deployment should set `MCP_READ_ONLY=1`. The registry is then built
 from the definitions marked `readOnly`, so the writes are not refused at call
-time — they are never declared and never listed. `tools/list` returns 53 tools
-instead of 96, `initialize` says so in the instructions, and the bench drops
-Save version and Toy data.
+time — they are never declared and never listed. `tools/list` returns 57 tools
+instead of 100 (a further four in either mode are app-only: a View calls them,
+and they are never listed), `initialize` says so in the instructions, and the
+bench drops Save version and Toy data.
 
 Read-only means "does not mutate the library", not "does not run anything".
 Execution survives, deliberately: `execute.run`, `sparql.proxyQuery`,
