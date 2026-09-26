@@ -165,6 +165,16 @@ and in this order:
    declarations they cached earlier; a 404 there reports as *Unable to reach
    &lt;connector&gt;*. Do 6 without 7 and you swap a stale View for a dead one.
 
+**`_meta.ui.permissions` is a map, not a list.** The specification keys it by
+permission name with an empty object as the value (`{ camera: {} }`), mirroring
+the iframe `allow` attribute it becomes. This server sent `[]` from the first
+commit until 2026-09-26. Claude ignores the field, so every check here passed
+and the bench rendered; ChatGPT validates it and refused to register the
+connector at all, with `_meta.ui.permissions must be a dict`. An empty map means
+what the empty array was meant to mean: no browser permission is granted. The
+smoke test now checks the type, because it is the one field whose wrongness only
+shows up inside somebody else's product.
+
 Telling the two *Unable to reach* causes apart: a dead cached URI shows two
 `resources/read` calls in the request log, one fine and one failing; a wrong
 `_meta.ui.domain` shows no such split.

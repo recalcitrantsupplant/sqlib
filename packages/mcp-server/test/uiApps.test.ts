@@ -212,7 +212,19 @@ describe('UI resources', () => {
       expect(resource.uri.startsWith('ui://')).toBe(true);
       expect(resource.uri).toMatch(/-[0-9a-f]{12}\.html$/);
       expect(resource._meta.ui.csp.connectDomains).toEqual([]);
-      expect(resource._meta.ui.permissions).toEqual([]);
+      /*
+       * A map, and asserted as one on purpose.
+       *
+       * `permissions` was `[]` here for months and read as correct, because
+       * `toEqual([])` passes for an array and `typeof [] === 'object'` would
+       * let a laxer check pass too. The specification keys it by permission
+       * name; ChatGPT validates that and refused to register the connector at
+       * all, with `_meta.ui.permissions must be a dict`, while Claude ignored
+       * the field and everything looked fine from this side. Hence the explicit
+       * not-an-array assertion.
+       */
+      expect(resource._meta.ui.permissions).toEqual({});
+      expect(Array.isArray(resource._meta.ui.permissions)).toBe(false);
     }
   });
 
