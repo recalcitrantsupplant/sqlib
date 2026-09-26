@@ -207,6 +207,9 @@
     if (name.indexOf('sparql_proxyQuery') === 0) {
       return JSON.stringify({ query: 'SELECT * WHERE { ?s ?p ?o } LIMIT 10', backendId: 'PASTE_A_BACKEND_IRI' }, null, 2);
     }
+    if (name.indexOf('app_tutorial_open') === 0) {
+      return JSON.stringify({ libraryId: 'urn:sqlib:library:srl-tutorial' }, null, 2);
+    }
     if (name.indexOf('execute_run') === 0) {
       return JSON.stringify({ targetId: 'PASTE_A_QUERY_IRI', backendId: 'PASTE_A_BACKEND_IRI' }, null, 2);
     }

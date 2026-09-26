@@ -322,6 +322,19 @@ const ADDED_SINCE_SNAPSHOT = new Set<string>([
   'dataGraphs.getVersion',
   /* The MCP Apps door (see `docs/design/mcp-app.md`). */
   'app.bench.open',
+  /*
+   * SRL as text, and what the tutorial View reads a library through. The
+   * routes existed; the first three are what any agent helping with rules
+   * needs, the other four are app-only plumbing for the tutorial.
+   */
+  'srl.analyze',
+  'srl.compile',
+  'srl.run',
+  'tags.list',
+  'tests.list',
+  'tests.listVersions',
+  'ruleSets.exportSrl',
+  'app.tutorial.open',
 ]);
 
 function legacySchemaFor(name: string) {

@@ -143,7 +143,7 @@ check(
 // A host that cached a tool declaration asks for the URI it remembers. If that
 // 404s, the user is told the connector is unreachable — so the un-hashed URI
 // must keep resolving alongside the hashed one.
-for (const stable of ['ui://sqlib/bench', 'ui://sqlib/result']) {
+for (const stable of ['ui://sqlib/bench', 'ui://sqlib/result', 'ui://sqlib/tutorial']) {
   let aliasOk = false;
   try {
     const read = await rpc('resources/read', { uri: stable });

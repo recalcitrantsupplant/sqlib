@@ -12,7 +12,7 @@ every other page assumes.
 - [guides/notebooks.md](guides/notebooks.md) — how do I write a runnable story about a library, with prose between the queries and each result named?
 - [guides/rules-and-srl.md](guides/rules-and-srl.md) — how do I write SHACL 1.2 inference rules and run them against a graph?
 - [guides/mcp-clients.md](guides/mcp-clients.md) — how do I point an MCP client at the server and what can it then do?
-- [guides/mcp-app.md](guides/mcp-app.md) — how do I edit, run and save a query from inside a chat client, and how do I test that locally?
+- [guides/mcp-app.md](guides/mcp-app.md) — how do I edit, run and save a query from inside a chat client, how do I teach SPARQL rules there with a library laid out as lessons, and how do I test that locally?
 - [guides/static-export.md](guides/static-export.md) — how do I export a library as a self-contained page that runs without the server?
 - [guides/testing-and-conformance.md](guides/testing-and-conformance.md) — how do I attach tests to a query or rule set and run a conformance suite?
 - [guides/etl.md](guides/etl.md) — how do I build RDF from tabular sources with DuckDB SQL?

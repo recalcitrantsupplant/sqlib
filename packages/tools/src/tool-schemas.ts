@@ -116,6 +116,92 @@ export const benchOpenArg = {
   required: ['libraryId'],
 } as const;
 
+/**
+ * `app.tutorial.open` — a library laid out as lessons.
+ *
+ * `lesson` is a tag id or the lesson's number, and is optional: without it the
+ * tutorial opens on its first lesson. It picks where to start, nothing more —
+ * the tutorial keeps no progress, so there is nothing else to resume.
+ */
+export const tutorialOpenArg = {
+  type: 'object',
+  properties: {
+    libraryId: { type: 'string', minLength: 1, pattern: '\\S' },
+    lesson: { type: 'string' },
+  },
+  required: ['libraryId'],
+} as const;
+
+/** One SRL document, posted as text: `srl.analyze`. */
+export const srlDocumentArg = {
+  type: 'object',
+  properties: { srl: { type: 'string' } },
+  required: ['srl'],
+} as const;
+
+/** `srl.compile`: the document, and which SPARQL reading of it to return. */
+export const srlCompileArg = {
+  type: 'object',
+  properties: {
+    srl: { type: 'string' },
+    flavour: { type: 'string', enum: ['insert', 'construct'] },
+  },
+  required: ['srl'],
+} as const;
+
+/**
+ * `srl.run`: a document and, at most, one base graph.
+ *
+ * The three graph fields are the playground route's own, and it refuses more
+ * than one; the schema leaves that to the route rather than restating it.
+ */
+export const srlRunArg = {
+  type: 'object',
+  properties: {
+    srl: { type: 'string' },
+    dataGraphVersionId: { type: 'string' },
+    dataGraphId: { type: 'string' },
+    dataGraphInline: { type: 'string' },
+    dataGraphInlineFormat: { type: 'string', enum: ['text/turtle', 'application/n-triples', 'application/n-quads'] },
+    maxIterations: { type: 'integer', minimum: 1 },
+  },
+  required: ['srl'],
+} as const;
+
+/** `tags.list`: optionally one library's. */
+export const tagsListArg = {
+  type: 'object',
+  properties: { library: { type: 'string' } },
+} as const;
+
+/** `tests.list`: the route's own filters. `tags` is a comma-separated list of tag ids. */
+export const testsListArg = {
+  type: 'object',
+  properties: {
+    subject: { type: 'string' },
+    subjectKind: { type: 'string' },
+    tags: { type: 'string' },
+    match: { type: 'string', enum: ['any', 'all'] },
+  },
+} as const;
+
+/**
+ * `ruleSets.exportSrl`: a rule set, at its current version unless one is named.
+ *
+ * Rules are stored with their IRIs expanded and no prologue, so `prologue` is
+ * how a caller gets prefixed names back: the PREFIX lines to write at the top
+ * and abbreviate against. Presentation only.
+ */
+export const ruleSetSrlArg = {
+  type: 'object',
+  properties: {
+    id: { type: 'string' },
+    version: { type: 'string' },
+    prologue: { type: 'string' },
+  },
+  required: ['id'],
+} as const;
+
 /** `z.object({ id: z.string(), body: z.record(z.string(), z.any()) })` */
 export const idBodyArg = {
   type: 'object',

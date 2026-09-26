@@ -100,6 +100,16 @@ export const views: ViewDefinition[] = [
     meta: SEALED_META,
     file: 'result.html',
   },
+  {
+    uri: VIEW_URI.tutorial,
+    name: 'rules-tutorial',
+    title: 'Rules tutorial',
+    description:
+      'A library read as a course: numbered lessons, each with objectives, worked examples and exercises, and a CodeMirror editor that analyses, runs and checks SRL rules and SPARQL queries.',
+    mimeType: APP_MIME_TYPE,
+    meta: SEALED_META,
+    file: 'tutorial.html',
+  },
 ];
 
 const byUri = new Map(views.map((view) => [view.uri, view]));
@@ -184,7 +194,13 @@ export function renderView(uri: string): string {
   const html = readAsset(`./views/${view.file}`)
     .replace('<!--@kit:css-->', () => `<style>\n${readAsset('./kit/base.css')}</style>`)
     .replace('<!--@kit:bridge-->', () => `<script>\n${readAsset('./kit/bridge.js')}</script>`)
-    .replace('<!--@kit:results-->', () => `<script>\n${readAsset('./kit/results.js')}</script>`);
+    .replace('<!--@kit:results-->', () => `<script>\n${readAsset('./kit/results.js')}</script>`)
+    // CodeMirror, bundled by `scripts/bundle-editor.mjs`. Only a View that asks
+    // for it pays for it: it is most of a tutorial's weight. `</script` cannot
+    // appear inside an inline script, so any in the bundle is broken up.
+    .replace('<!--@kit:editor-->', () =>
+      `<script>\n${readAsset('./kit/editor.bundle.js').replace(/<\/script/gi, '<\\/script')}</script>`
+    );
 
   if (html.includes('<!--@kit:')) {
     throw new Error(`View ${uri} has an unresolved kit placeholder`);
