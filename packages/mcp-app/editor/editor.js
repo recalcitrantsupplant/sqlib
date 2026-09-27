@@ -31,6 +31,7 @@ import {
   indentOnInput,
 } from '@codemirror/language';
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
+import { lintGutter, lintKeymap } from '@codemirror/lint';
 import { tags as t } from '@lezer/highlight';
 import { srl } from '@kurrawongai/codemirror-lang-srl';
 import { sparql } from '@kurrawongai/codemirror-lang-sparql12';
@@ -78,13 +79,37 @@ const chrome = EditorView.theme({
     background: 'color-mix(in srgb, var(--action) 22%, transparent) !important',
   },
   '.cm-line-flagged': { background: 'color-mix(in srgb, var(--danger) 12%, transparent)' },
+  '.cm-tooltip': {
+    background: 'var(--surface)',
+    color: 'var(--ink)',
+    border: '1px solid var(--border-default)',
+    borderRadius: 'var(--radius-sm)',
+    fontFamily: 'var(--font-sans)',
+    fontSize: '12px',
+  },
+  '.cm-diagnosticAction': {
+    background: 'var(--action)',
+    color: 'var(--action-fg)',
+    borderRadius: 'var(--radius-sm)',
+    padding: '2px 8px',
+    font: 'inherit',
+    fontWeight: '600',
+  },
 });
 
+/*
+ * `sparqlConversions` is the grammar's opt-in assistance: SRL's conformance
+ * diagnostics (a SPARQL `BIND`, `FILTER NOT EXISTS`, …) are raised either way,
+ * and with it on they also carry the edit that converts the SPARQL spelling to
+ * SRL's — "Convert SPARQL BIND to SRL SET" — the same flag sqlib's web editors
+ * pass in `lib/codeLanguage.ts`.
+ */
 const languages = {
-  srl: () => srl(),
+  srl: (options) => srl({ tuples: false, sparqlConversions: Boolean(options && options.sparqlConversions) }),
   sparql: () => sparql(),
   turtle: () => turtle(),
 };
+const languageFor = (name, options) => (languages[name] ?? languages.srl)(options);
 
 /** Lines to flag, e.g. the one a parse error names. Replaced wholesale. */
 const setFlagged = StateEffect.define();
@@ -115,6 +140,7 @@ const flaggedLines = StateField.define({
  */
 function create(parent, options = {}) {
   const language = new Compartment();
+  let current = { language: options.language, sparqlConversions: Boolean(options.sparqlConversions) };
   const editable = new Compartment();
   const runKeys = keymap.of([
     {
@@ -140,13 +166,16 @@ function create(parent, options = {}) {
         bracketMatching(),
         closeBrackets(),
         runKeys,
-        keymap.of([...closeBracketsKeymap, ...defaultKeymap, ...historyKeymap, indentWithTab]),
+        keymap.of([...closeBracketsKeymap, ...defaultKeymap, ...historyKeymap, ...lintKeymap, indentWithTab]),
+        // The grammar's diagnostics: an underline, a gutter marker, and on
+        // hover the message with any action it offers.
+        lintGutter(),
         syntaxHighlighting(highlight),
         chrome,
         flaggedLines,
         EditorView.lineWrapping,
         EditorView.theme({ '.cm-content, .cm-gutter': { minHeight: options.minHeight ?? '120px' } }),
-        language.of((languages[options.language] ?? languages.srl)()),
+        language.of(languageFor(options.language, options)),
         editable.of([EditorState.readOnly.of(Boolean(options.readOnly)), EditorView.editable.of(!options.readOnly)]),
         EditorView.updateListener.of((update) => {
           if (update.docChanged && options.onChange) options.onChange(update.state.doc.toString());
@@ -162,8 +191,10 @@ function create(parent, options = {}) {
     setValue(text) {
       view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: String(text ?? '') } });
     },
-    setLanguage(name) {
-      view.dispatch({ effects: language.reconfigure((languages[name] ?? languages.srl)()) });
+    /** Switch grammar; `extra.sparqlConversions` opts an SRL editor into the fix actions. */
+    setLanguage(name, extra) {
+      current = { language: name, sparqlConversions: extra ? Boolean(extra.sparqlConversions) : current.sparqlConversions };
+      view.dispatch({ effects: language.reconfigure(languageFor(current.language, current)) });
     },
     setReadOnly(readOnly) {
       view.dispatch({

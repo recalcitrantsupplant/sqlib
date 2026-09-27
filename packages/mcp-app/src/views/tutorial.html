@@ -42,6 +42,8 @@
   details > summary { cursor: pointer; font-size: 12px; color: var(--ink-secondary); margin: var(--space-2) 0 var(--space-1); }
   .out-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-muted); margin: var(--space-2) 0 var(--space-1); }
   .kbd { font-family: var(--font-mono); font-size: 11px; color: var(--ink-muted); }
+  .toggle { display: inline-flex; align-items: center; gap: 4px; color: var(--ink-secondary); cursor: pointer; user-select: none; }
+  .toggle input { height: auto; margin: 0; }
 </style>
 </head>
 <body>
@@ -83,6 +85,9 @@
       <button id="reset" type="button">Reset</button>
       <button id="solution" type="button">Show solution</button>
       <button id="hint" type="button">Ask for a hint</button>
+      <label class="toggle small" id="convert-label" title="When you write SPARQL that SRL spells differently, such as BIND, the underline offers to rewrite it">
+        <input type="checkbox" id="convert"> Offer to convert SPARQL
+      </label>
       <span class="grow"></span>
       <span class="status" id="status"></span>
     </div>
@@ -171,6 +176,8 @@
     reset: document.getElementById('reset'),
     solution: document.getElementById('solution'),
     hint: document.getElementById('hint'),
+    convert: document.getElementById('convert'),
+    convertLabel: document.getElementById('convert-label'),
     status: document.getElementById('status'),
     output: document.getElementById('output'),
   };
@@ -539,6 +546,22 @@
     if (state.current && editor) state.drafts.set(state.current.key, editor.getValue());
   }
 
+  /*
+   * The grammar's SPARQL-to-SRL fix actions, opt-in as in sqlib's own editors:
+   * off, a SPARQL `BIND` is still underlined as an error; on, the underline
+   * also offers "Convert SPARQL BIND to SRL SET". Remembered per browser where
+   * storage is allowed — a sandboxed frame may refuse it, and then it is simply
+   * off each time.
+   */
+  var CONVERT_KEY = 'sqlib.tutorial.sparqlConversions';
+  function readConvertPreference() {
+    try { return window.localStorage.getItem(CONVERT_KEY) === 'on'; } catch (err) { return false; }
+  }
+  function writeConvertPreference(on) {
+    try { window.localStorage.setItem(CONVERT_KEY, on ? 'on' : 'off'); } catch (err) { /* not kept */ }
+  }
+  nodes.convert.checked = readConvertPreference();
+
   function ensureEditor(language) {
     if (!window.sqlibEditor) {
       nodes.editorHost.textContent = '';
@@ -548,12 +571,13 @@
     if (!editor) {
       editor = window.sqlibEditor.create(nodes.editorHost, {
         language: language,
+        sparqlConversions: nodes.convert.checked,
         minHeight: '140px',
         onChange: scheduleAnalysis,
         onRun: run,
       });
     } else {
-      editor.setLanguage(language);
+      editor.setLanguage(language, { sparqlConversions: nodes.convert.checked });
     }
     return editor;
   }
@@ -573,6 +597,7 @@
     nodes.output.textContent = '';
     nodes.analysis.textContent = '';
     nodes.check.hidden = item.role !== 'exercise';
+    nodes.convertLabel.hidden = item.kind !== 'ruleSet';
     nodes.solution.hidden = true;
     nodes.reset.hidden = false;
     nodes.dataPanel.hidden = true;
@@ -1137,6 +1162,12 @@
   nodes.next.addEventListener('click', function () { selectLesson(state.lessonIndex + 1); });
   nodes.expand.addEventListener('click', function () { app.requestDisplayMode('fullscreen'); });
   nodes.run.addEventListener('click', run);
+  nodes.convert.addEventListener('change', function () {
+    writeConvertPreference(nodes.convert.checked);
+    if (editor && state.current && state.current.kind === 'ruleSet') {
+      editor.setLanguage('srl', { sparqlConversions: nodes.convert.checked });
+    }
+  });
   nodes.check.addEventListener('click', check);
   nodes.reset.addEventListener('click', reset);
   nodes.solution.addEventListener('click', showSolution);

@@ -145,6 +145,13 @@ rules needs them whether or not a tutorial is open. `tags.list`, `tests.list`,
 ['app']`): the View reads the course through them, and they would cost every
 session a listing entry to offer the model nothing it lacks.
 
+**Offer to convert SPARQL**, under an SRL editor, turns on the grammar's
+`sparqlConversions`, the same opt-in sqlib's own rule editors use. SRL's
+conformance errors are underlined either way; with it on, the underline on a
+SPARQL `BIND` or `FILTER NOT EXISTS` also offers the SRL spelling (`SET`,
+`NOT { … }`) as a one-click edit. It is off by default and remembered per
+browser where the frame may use storage.
+
 The editor is CodeMirror 6, bundled by `packages/mcp-app/scripts/bundle-editor.mjs`
 into `src/kit/editor.bundle.js` (a build output, gitignored) and inlined where a
 View writes `<!--@kit:editor-->`. It cannot come from a CDN: the Views declare an
