@@ -24,30 +24,33 @@ export function mcpEndpoint(config: { apiBaseUrl?: unknown; mcpUrl?: unknown }):
 }
 
 /**
- * Where Claude's custom connectors live.
+ * Where Claude's custom connectors live, and the link that fills one in.
  *
- * `claude.ai/settings/connectors?modal=add-custom-connector` used to open the
- * add-a-connector modal with the fields prefilled from the query string, and
- * this page used to link it. As of September 2026 that route renders a stub
- * reading "Connectors have moved to Customize". Anthropic's documentation now
- * names `claude.ai/customize/connectors`, then **+** → **Add custom connector**,
- * and documents no parameters that prefill anything.
+ * Claude documents a deep link to its Add custom connector dialog on the
+ * customize page, prefilled from two parameters:
  *
- * **The link carries no query string.** The old parameters were kept on the new
- * path for a while on the theory that an ignored parameter costs nothing. It
- * did not: with `?modal=add-custom-connector` on it, the customize link landed
- * on the same Settings stub the move was meant to get away from. The user
- * presses Add custom connector and pastes the URL the page shows beside the
- * button.
+ *   https://claude.ai/customize/connectors?modal=add-custom-connector
+ *     &connectorName=<name>&connectorUrl=<URL-encoded endpoint>
+ *
+ * The parameter names are the whole interface, and they have changed. This
+ * page once linked `claude.ai/settings/connectors?...&mcpName=…&mcpServerUrl=…`,
+ * which now renders a stub reading "Connectors have moved to Customize"; moving
+ * only the path, with the old names still attached, landed on the same stub.
+ * The test pins the documented names so the next rename fails a test.
  *
  * On Team and Enterprise an owner has to add the connector for the
  * organisation first, at `claude.ai/admin-settings/connectors`; members then
- * connect from the customize page above.
+ * connect from the customize page.
  */
 export const CLAUDE_CONNECTORS_URL = 'https://claude.ai/customize/connectors';
 
-export function claudeConnectorLink(): string {
-  return CLAUDE_CONNECTORS_URL;
+export function claudeConnectorLink(endpoint: string, name = 'sqlib'): string {
+  const params = new URLSearchParams({
+    modal: 'add-custom-connector',
+    connectorName: name,
+    connectorUrl: endpoint,
+  });
+  return `${CLAUDE_CONNECTORS_URL}?${params.toString()}`;
 }
 
 export type McpClient = {
