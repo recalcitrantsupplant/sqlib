@@ -19,12 +19,12 @@ const CLIENT = resolve(import.meta.dirname, '../src/composables/useApiClient.ts'
 
 /** Header names the client sends under a shorthand key: `{ …, accept }`. */
 const SHORTHAND = ['accept'];
-const API_INDEX = resolve(import.meta.dirname, '../../api/src/index.ts');
+const API_CORS = resolve(import.meta.dirname, '../../api/src/config/cors.ts');
 
-/** The `allowedHeaders: [...]` the API registers `@fastify/cors` with. */
+/** The header list the API registers `@fastify/cors` with (`API_ALLOWED_HEADERS`). */
 function allowedHeaders(): string[] {
-  const source = readFileSync(API_INDEX, 'utf8');
-  const match = source.match(/allowedHeaders:\s*\[([^\]]*)\]/);
+  const source = readFileSync(API_CORS, 'utf8');
+  const match = source.match(/API_ALLOWED_HEADERS\s*=\s*\[([^\]]*)\]/);
   if (!match) throw new Error('No allowedHeaders in the API — has the CORS registration moved?');
   return [...match[1].matchAll(/'([^']+)'/g)].map((m) => m[1].toLowerCase());
 }
@@ -57,7 +57,7 @@ describe('CORS', () => {
   it('admits every header the client sends', () => {
     const allowed = new Set(allowedHeaders());
     const missing = clientHeaders().filter((name) => !allowed.has(name));
-    expect(missing, 'add these to allowedHeaders in packages/api/src/index.ts').toEqual([]);
+    expect(missing, 'add these to API_ALLOWED_HEADERS in packages/api/src/config/cors.ts').toEqual([]);
   });
 
   it('reads a real allowlist, so the check cannot pass by finding nothing', () => {
