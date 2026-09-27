@@ -1,5 +1,5 @@
 /**
- * `POST|GET /sparql?record=patch` — the proxy's opt-in write log.
+ * `/sparql?record=patch` — the proxy's opt-in write log, and GET's refusal to write.
  *
  * The derivation is proved in `packages/rdf-delta` and the storage in
  * `test/routes/patches.test.ts`. What is left here is the part that is specific
@@ -9,13 +9,14 @@
  * is refused before the write rather than after it.
  */
 
-import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterAll, afterEach, vi } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
 import * as oxigraph from 'oxigraph';
 import { oxigraphStoreManager } from '../../src/lib/OxigraphStoreManager.js';
 import { BackendTypeIri } from '../../src/persistence/schemas/BackendSchema.js';
 import { setupValidator } from '../../src/lib/validator-setup.js';
 import { resetChangeSubscribers, subscribeChanges, type FeedEvent } from '../../src/lib/changeEvents.js';
+import { resetReadOnly } from '../../src/config/readOnly.js';
 
 const BACKEND_ID = 'urn:sqlib:backend:proxy-record';
 
@@ -149,15 +150,30 @@ describe('/sparql?record=patch', () => {
     expect(patchStore.get(patch.id)?.dateApplied).toBe(patch.dateApplied);
   });
 
-  it('records a GET update too', async () => {
+  it('refuses a GET update, recorded or not, and runs nothing', async () => {
+    // A GET must not write: any page can make a browser send one.
+    for (const record of ['', '&record=patch']) {
+      const response = await app.inject({
+        method: 'GET',
+        url: `/sparql?backendId=${encodeURIComponent(BACKEND_ID)}&query=${encodeURIComponent(PROMOTE)}${record}`,
+      });
+
+      expect(response.statusCode, `with "${record}"`).toBe(405);
+      expect(response.headers.allow).toBe('POST');
+      expect(response.json().error).toContain('POST /sparql');
+    }
+    expect(patchStore.size).toBe(0);
+    expect(statuses()).toEqual(['draft', 'draft', 'live']);
+  });
+
+  it('still answers a GET read', async () => {
     const response = await app.inject({
       method: 'GET',
-      url: `/sparql?record=patch&backendId=${encodeURIComponent(BACKEND_ID)}&query=${encodeURIComponent(PROMOTE)}`,
+      url: `/sparql?backendId=${encodeURIComponent(BACKEND_ID)}&query=${encodeURIComponent('ASK { ?s ?p ?o }')}`,
     });
 
     expect(response.statusCode).toBe(200);
-    expect(response.json().additionCount).toBe(2);
-    expect(statuses()).toEqual(['live', 'live', 'live']);
+    expect(response.json().boolean).toBe(true);
   });
 
   it('leaves an unrecorded update answering 204, as it always did', async () => {
@@ -246,5 +262,79 @@ describe('/sparql?record=patch', () => {
     ]);
     expect(patch.sourceKind).toBe('proxyUpdate');
     expect(statuses()).toEqual([]);
+  });
+});
+
+describe('/sparql?record=patch on a read-only deployment', () => {
+  /*
+   * The refusal lives in the handler both verbs share, not in the read-only
+   * gate: the gate lets `/sparql` through (a raw update is the store's to
+   * refuse), and GET is not a method it looks at. So it is pinned here, per
+   * verb, with the flag read at request time the way the handler reads it.
+   */
+  let app: FastifyInstance;
+  const original = process.env.SQLIB_READ_ONLY;
+
+  beforeAll(async () => {
+    app = Fastify({ logger: false });
+    setupValidator(app);
+    const sparqlRoutes = (await import('../../src/routes/sparql.js')).default;
+    await app.register(sparqlRoutes, { prefix: '' });
+    await app.ready();
+  });
+
+  beforeEach(() => {
+    patchStore.clear();
+    process.env.SQLIB_READ_ONLY = 'true';
+    resetReadOnly();
+    const fresh = oxigraphStoreManager.createEphemeralStore(BACKEND_ID);
+    fresh.update('DELETE { ?s ?p ?o } WHERE { ?s ?p ?o }');
+    fresh.load(SEED, { format: 'application/n-quads' });
+  });
+
+  afterEach(() => {
+    if (original === undefined) delete process.env.SQLIB_READ_ONLY;
+    else process.env.SQLIB_READ_ONLY = original;
+    resetReadOnly();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('refuses GET /sparql?record=patch and files nothing', async () => {
+    const response = await app.inject({
+      method: 'GET',
+      url: `/sparql?record=patch&backendId=${encodeURIComponent(BACKEND_ID)}&query=${encodeURIComponent(PROMOTE)}`,
+    });
+
+    expect(response.statusCode).toBe(405);
+    expect(response.json().error).toContain('read-only');
+    expect(patchStore.size).toBe(0);
+    expect(statuses()).toEqual(['draft', 'draft', 'live']);
+  });
+
+  it('refuses POST /sparql?record=patch and files nothing', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/sparql?record=patch',
+      payload: { query: PROMOTE, backendId: BACKEND_ID },
+    });
+
+    expect(response.statusCode).toBe(405);
+    expect(response.json().error).toContain('read-only');
+    expect(patchStore.size).toBe(0);
+    expect(statuses()).toEqual(['draft', 'draft', 'live']);
+  });
+
+  it('still passes an unrecorded POST update through to the store', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/sparql',
+      payload: { query: PROMOTE, backendId: BACKEND_ID },
+    });
+
+    expect(response.statusCode).toBe(204);
+    expect(statuses()).toEqual(['live', 'live', 'live']);
   });
 });

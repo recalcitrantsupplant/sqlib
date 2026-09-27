@@ -25,7 +25,7 @@ For the reasoning behind these choices rather than their values, see
 | `HTTP_HOST` | `0.0.0.0` | Listening address in `dual-http` mode. Falls back to `MCP_HTTP_HOST` when unset. |
 | `MCP_HTTP_PORT` | `3333` | Listening port in `streamable-http` mode (MCP only, at `/mcp`). |
 | `MCP_HTTP_HOST` | `0.0.0.0` | Listening address in `streamable-http` mode. |
-| `SQLIB_CORS_ORIGINS` | unset: `http://localhost:3001,http://127.0.0.1:3001` (the SPA dev server) when `NODE_ENV=development`, otherwise none | Browser origins allowed to read `/mcp` responses, comma-separated. A listed origin is echoed in `access-control-allow-origin` with `access-control-allow-credentials: true`; `*` allows every origin and never sends credentials; an origin not on the list gets no CORS headers. Set to the empty string to allow none even in development. Also answers `OPTIONS /mcp` preflights. In `streamable-http` and `dual-http` modes the API's own CORS plugin sits on the same instance and answers preflights first, so until the API reads this variable too, preflights to `/mcp` follow the API's policy. |
+| `SQLIB_CORS_ORIGINS` | unset: `http://localhost:3001,http://127.0.0.1:3001` (the SPA dev server) when `NODE_ENV=development`, otherwise none | Browser origins allowed to read API and `/mcp` responses, comma-separated. A listed origin is echoed in `access-control-allow-origin` with `access-control-allow-credentials: true`; `*` allows every origin and never sends credentials; an origin not on the list gets no CORS headers, and its preflight gets 404. Set to the empty string to allow none even in development. A production deployment whose SPA is served from another origin than the API must list that origin. The API (`packages/api/src/config/cors.ts`) and the MCP transport read it the same way, since in `dual-http` and `streamable-http` modes they share one instance; `/mcp` answers its own `OPTIONS /mcp` preflight, with the MCP headers, and the API's plugin leaves that path alone. |
 | `PORT` | `3000` | Listening port when `packages/api` is started directly (`APP_MODE=api`). A value that does not parse as a number falls back to 3000. |
 | `FASTIFY_ADDRESS` | `0.0.0.0` | Listening address when `packages/api` is started directly. |
 | `APP_BASE_PATH` | empty | Mounts every API route under this prefix. A leading slash is added and trailing slashes are stripped; `/` means no prefix. |
@@ -210,7 +210,9 @@ caller the same answer. The two compose — a public site runs
 mints still cannot write, because the gate consults no context.
 
 The gate refuses every mutating method and then names its exceptions, so a route
-added later is refused until someone decides otherwise. The exceptions are the
+added later is refused until someone decides otherwise. A route that writes on a
+safe method declares it with `config: { readOnlyMutating: true }` in its route
+options, and is refused like an unlisted `POST`. The exceptions are the
 routes that compute an answer and store nothing: `/detect-inputs`,
 `/detect-outputs`, `/validate`, `/validate-rule-data`, `/format`, `/substitute`,
 `/execute`, `/sparql`, the SRL compile, analyse and preview routes, the rule and
@@ -236,8 +238,9 @@ Three things it deliberately does **not** do:
   UPDATEs included. Whether a store accepts a write is the store's answer:
   sqlib's own read-only backends refuse through `ReadOnlySparqlExecutor`, and
   an endpoint somebody else owns refuses, or does not, on its own terms. What
-  it does refuse is `?record=patch`, because recording a patch writes sqlib's
-  state.
+  it does refuse is `?record=patch`, on `GET` and `POST` alike, because
+  recording a patch writes sqlib's state. (`GET /sparql` refuses an UPDATE with
+  405 on every deployment, read-only or not: a GET must not change anything.)
 - **It does not enable anything.** `FEATURE_ETL`, `FEATURE_PLAYGROUND_ETL` and
   `FEATURE_ASSISTANT` are still off by default, and the ETL routes are absent
   from the exceptions above — turning a flag on is not enough to expose them on

@@ -178,6 +178,23 @@ describe('SPARQL proxy routes', () => {
     expect(hoisted.executorInstance.update).toHaveBeenCalledWith('LOAD <http://example.org/data.ttl> INTO GRAPH <http://example.org/graph>');
   });
 
+  it('GET /sparql refuses an UPDATE with 405, before resolving a backend', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/sparql',
+      query: {
+        query: 'INSERT DATA { <http://example.org/s> <http://example.org/p> <http://example.org/o> }',
+        backendId: 'urn:backend:2',
+      },
+    });
+
+    expect(res.statusCode).toBe(405);
+    expect(res.headers.allow).toBe('POST');
+    expect(res.json().error).toMatch(/not accepted over GET/);
+    expect(hoisted.findByIri).not.toHaveBeenCalled();
+    expect(hoisted.executorInstance.update).not.toHaveBeenCalled();
+  });
+
   it('GET /sparql supports ASK queries', async () => {
     hoisted.findByIri.mockResolvedValue({
       backendType: BackendTypeIri.http,

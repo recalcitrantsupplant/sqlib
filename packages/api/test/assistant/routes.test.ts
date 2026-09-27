@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
 import fastifyCors from '@fastify/cors';
+import { buildCorsOptions, resolveCorsPolicy } from '../../src/config/cors.js';
 import assistantRoutes, { configureAssistant, resetAssistantConfiguration } from '../../src/routes/assistant.js';
 import type { ModelClient, ModelRequest, ModelStreamEvent } from '../../src/assistant/model.js';
 import { isForbiddenForAssistant } from '../../src/assistant/allowlist.js';
@@ -445,8 +446,8 @@ describe('assistant SSE headers', () => {
     scripted = [[{ type: 'text', text: 'hi' }]];
     configureAssistant({ modelClientFactory: scriptedFactory });
     app = Fastify({ logger: false });
-    // Mirrors the registration in src/index.ts.
-    await app.register(fastifyCors, { origin: '*', credentials: true });
+    // Registered the way src/index.ts registers it, with the SPA's origin listed.
+    await app.register(fastifyCors, buildCorsOptions(resolveCorsPolicy({ SQLIB_CORS_ORIGINS: 'http://localhost:3001' })));
     await app.register(assistantRoutes, { prefix: '/assistant' });
     await app.ready();
   });
@@ -469,7 +470,7 @@ describe('assistant SSE headers', () => {
 
     expect(response.statusCode).toBe(200);
     // Without this the browser discards a 200 it already received.
-    expect(response.headers['access-control-allow-origin']).toBe('*');
+    expect(response.headers['access-control-allow-origin']).toBe('http://localhost:3001');
     // The stream's own headers still win over the staged ones, so a spread that
     // lands the wrong way round fails here rather than silently serving JSON.
     expect(response.headers['content-type']).toContain('text/event-stream');

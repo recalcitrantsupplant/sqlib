@@ -289,7 +289,10 @@ close a graph pattern or append an update.
 allowed to do. A saved query containing `SERVICE` federates; a saved update
 writes. `POST /sparql` takes arbitrary query text, subject only to a backend
 grant. Parameter values are safe; the query that consumes them is whatever
-somebody with write access to the library put there.
+somebody with write access to the library put there. An update goes over POST
+only: `GET /sparql` answers an UPDATE with 405, because any page a visitor opens
+can make their browser send a GET (a link, an image, a prefetch), and CORS stops
+the page reading the answer, not the request running.
 
 ## A read-only deployment
 
@@ -350,7 +353,12 @@ generic network failure.
    own cache and neither is told when the other writes.
 10. **Review what you export.** A static bundle carries no authorization, and
    updates are not exportable — read queries only.
-11. **A hosted multi-tenant deployment cannot enable ETL on shared
+11. **List the browser origins that may call the API in `SQLIB_CORS_ORIGINS`.**
+    Unset, a production deployment allows none, which is right when the SPA is
+    served from the API's own origin. A listed origin gets credentialed access;
+    `*` allows any origin without credentials. See
+    [configuration](../reference/configuration.md#server-and-transport).
+12. **A hosted multi-tenant deployment cannot enable ETL on shared
     infrastructure.** There is no setting that makes arbitrary SQL safe to offer
     to tenants who do not trust one another.
 
