@@ -6,6 +6,16 @@ import { EntityByType, EntityType, getLensForType, getTtlForType } from './Entit
 
 type CacheErrorMode = 'log' | 'throw';
 
+/** A create named an id that already belongs to an entity. Routes answer 409. */
+export class EntityExistsError extends Error {
+  readonly statusCode = 409;
+
+  constructor(readonly id: string, readonly existingType: string) {
+    super(`${id} already exists. Update it instead, or create without an id.`);
+    this.name = 'EntityExistsError';
+  }
+}
+
 class EntityCache<T extends EntityType | 'Unknown'> {
   public cache = new Map<string, unknown>();
   public lastRefreshedById = new Map<string, number>();
@@ -271,6 +281,7 @@ export class CacheCoordinator {
     if (this.isSystemEntity(entityData.$id)) {
       throw new Error(`System entity ${entityData.$id} is immutable.`);
     }
+    await this.assertAbsent(type, entityData.$id);
     this._ephemeralIds.delete(entityData.$id);
 
     const toInsert = { ...entityData };
@@ -293,6 +304,30 @@ export class CacheCoordinator {
     cache.lastRefreshedByType = Date.now();
 
     return cacheEntity;
+  }
+
+  /**
+   * Refuse a create whose id is already taken, under any type.
+   *
+   * The insert is additive and `setInCache` re-points `_idToType`, so a create
+   * that named an existing IRI used to merge its triples into the old
+   * subject's and re-type it in the cache — posting a Query whose id was a
+   * library's made the library stop resolving as one, and the entity guard
+   * then abstained on everything in it. Checked here rather than per route so
+   * no create path can skip it. An ephemeral entity (a playground stand-in) is
+   * the one exception: creating over it is how it is promoted.
+   *
+   * With `CACHE_PRELOAD=false` the cache is not the whole store, so the store
+   * is asked too — as this type, and as a Library, the takeover worth closing.
+   */
+  private async assertAbsent(type: EntityType, id: string): Promise<void> {
+    if (this._ephemeralIds.has(id)) return;
+    const existingType = this._idToType.get(id);
+    if (existingType) throw new EntityExistsError(id, existingType);
+    if (this.preloadEnabled || !this.isLoaded) return;
+    const candidates: EntityType[] = type === 'Library' ? [type] : [type, 'Library'];
+    const existing = await this.resolveExisting(id, candidates);
+    if (existing) throw new EntityExistsError(id, existing.type);
   }
 
   async update<T extends EntityType>(

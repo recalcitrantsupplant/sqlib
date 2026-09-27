@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { mintId } from '../lib/id.js';
 import { toError } from '../lib/toError.js';
-import type { CacheCoordinator } from '../lib/CacheCoordinator.js';
+import { EntityExistsError, type CacheCoordinator } from '../lib/CacheCoordinator.js';
 import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
 import { getNodeEphemeralBackendConfig } from '../lib/type-guards.js';
 import type { EntityType } from '../lib/EntityRegistry.js';
@@ -168,6 +168,9 @@ export default async function (fastify: FastifyInstance) {
       setEntityConcurrencyHeaders(reply, created);
       return reply.status(201).send(toRestApi(created));
     } catch (e__u: unknown) {
+      if (e__u instanceof EntityExistsError) {
+        return reply.status(409).send({ error: e__u.message });
+      }
       const e = toError(e__u);
       console.error('Error creating query group:', e);
       return reply.status(500).send({

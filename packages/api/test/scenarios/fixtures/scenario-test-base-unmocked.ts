@@ -14,6 +14,8 @@ import ruleSetRoutes from '../../../src/routes/rule-sets.js';
 import executeRoutes from '../../../src/routes/execute.js';
 import detectionRoutes from '../../../src/routes/detection.js';
 import sparqlRoutes from '../../../src/routes/sparql.js';
+import tagRoutes from '../../../src/routes/tags.js';
+import tupleSetRoutes from '../../../src/routes/tuple-sets.js';
 import * as schemas from '@sparql-query-lib/contracts/schema';
 import { serializerOpts, setupValidator } from '../../../src/lib/validator-setup.js';
 import type { BackendRestApi, LibraryRestApi, QueryGroupRestApi } from '@sparql-query-lib/contracts/schema';
@@ -110,6 +112,8 @@ export class ScenarioTestBaseUnmocked {
     await app.register(executeRoutes, { prefix: '/execute' });
     await app.register(detectionRoutes);
     await app.register(sparqlRoutes, { prefix: '/sparql' });
+    await app.register(tagRoutes, { prefix: '/tags' });
+    await app.register(tupleSetRoutes, { prefix: '/tuple-sets' });
 
     await app.ready();
 
