@@ -2646,6 +2646,17 @@ export const ruleSetExecutionResponseJsonSchema = {
         "additionalProperties": false
       }
     },
+    "error": {
+      "description": "Why a failed run failed: the executor's own sentence, such as the stratification cycle that stopped it. Absent unless status is failed.",
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "seededQuads": {
       "anyOf": [
         {
@@ -3297,6 +3308,17 @@ export const playgroundRulesExecuteResponseJsonSchema = {
         ],
         "additionalProperties": false
       }
+    },
+    "error": {
+      "description": "Why a failed run failed: the executor's own sentence, such as the stratification cycle that stopped it. Absent unless status is failed.",
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "seededQuads": {
       "anyOf": [

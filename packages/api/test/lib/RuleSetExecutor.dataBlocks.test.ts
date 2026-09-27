@@ -211,3 +211,30 @@ describe('RuleSetExecutor — seededQuads accounts for the DATA blocks', () => {
     expect(result.seededQuads).toEqual([]);
   });
 });
+
+describe('a rule set refused before it runs', () => {
+  beforeEach(() => hoisted.entities.clear());
+
+  /*
+   * A cycle through NOT has no stratification, so the rule set is refused as a
+   * whole. The refusal used to come after the DATA blocks had been applied, and
+   * a failed run then reported their triples as seeded — which a client showed
+   * as the rule set's output, for a rule set that produced nothing.
+   */
+  it('seeds nothing and says why when the rules do not stratify', async () => {
+    const result = await run(
+      [dataBlock('d', 'DATA { :a :p :b . }')],
+      [
+        rule('approved', 'RULE { ?x :status :approved } WHERE { ?x :p ?y NOT { ?x :status :blocked } }'),
+        rule('blocked', 'RULE { ?x :status :blocked } WHERE { ?x :p ?y NOT { ?x :status :approved } }'),
+      ],
+    );
+
+    expect(result.status).toBe('failed');
+    expect(result.error).toMatch(/not stratifiable/i);
+    expect(result.seededQuads ?? []).toEqual([]);
+    expect(result.dataBlocks).toEqual([]);
+    expect(result.iterations).toEqual([]);
+    expect(result.finalGraphNQuads).toBeUndefined();
+  });
+});

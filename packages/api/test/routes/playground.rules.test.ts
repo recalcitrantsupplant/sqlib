@@ -155,6 +155,25 @@ describe('Playground Rules Routes (/playground/rules)', () => {
       expect(live.filter((t) => t === 'DataBlockVersion')).toHaveLength(1);
     });
 
+    it('reports why a failed run failed', async () => {
+      // The executor always set `error`; the response schema did not declare
+      // it, so the serializer stripped it and a client saw status failed with
+      // no reason — for a cycle through NOT, the only thing worth saying.
+      validate();
+      hoisted.mockExecute.mockResolvedValue({
+        status: 'failed',
+        iterations: [],
+        dataBlocks: [],
+        error: 'RuleSetVersion urn:x is not stratifiable: Non-stratifiable cycle involving: rule-1, rule-2',
+      });
+
+      const res = await app.inject({ method: 'POST', url: '/playground/rules/execute', payload: { srl: DOC } });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.json().status).toBe('failed');
+      expect(res.json().error).toMatch(/not stratifiable/);
+    });
+
     it('names results from the document instead of by position', async () => {
       validate();
       const res = await app.inject({
