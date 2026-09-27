@@ -344,7 +344,7 @@ export default async function (
        * a raw run of an edited query had to flatten its set client-side, which
        * is the one place the two paths disagreed about what an argument set is.
        */
-      const resolvedPayload = await resolveExecutionPayload(payload, new ArgumentSetService());
+      const resolvedPayload = await resolveExecutionPayload(payload, new ArgumentSetService(), { request });
 
       const executedQuery = applyExecutionArguments(query, {
         argumentSets: resolvedPayload.argumentSets,

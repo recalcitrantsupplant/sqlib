@@ -184,7 +184,10 @@ export default async function (fastify: FastifyInstance) {
         const operation = detectSparqlOperation(query);
         const resolved = await resolveExecutionPayload(
           { arguments: inlineArguments, limits, offsets, argumentSetIds },
-          new ArgumentSetService()
+          new ArgumentSetService(),
+          // The route reads no entity of its own, but named sets are stored
+          // content: substituting them needs Read on their libraries.
+          { request },
         );
         return reply.send({
           query: applyExecutionArguments(query, {

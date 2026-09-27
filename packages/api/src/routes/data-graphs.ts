@@ -29,7 +29,7 @@ import { pinsOnDataGraph, describePins } from '../lib/dataGraphPins.js';
 import { classifyVersionPatch } from '../lib/versionPatch.js';
 import { ImmutableEntityError } from '../lib/immutability.js';
 import { registerEntityAuthGuard } from '../auth/entityGuard.js';
-import { filterReadable, resolveOwningLibrary, AuthorizationError } from '../auth/enforce.js';
+import { AuthorizationError, filterReadable, requireContainmentWritable, resolveOwningLibrary } from '../auth/enforce.js';
 
 export const dataGraphResponseSchema = {
   type: 'object',
@@ -264,6 +264,9 @@ export default async function (fastify: FastifyInstance) {
     if (!current) {
       return reply.status(404).send({ error: 'Not Found' });
     }
+
+    // Write on the destination library too, when the body moves it.
+    requireContainmentWritable(request, current, updates);
 
     const { valid, currentTag } = validateIfMatch(request, current);
     if (!valid) {

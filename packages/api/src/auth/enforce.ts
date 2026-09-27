@@ -436,6 +436,26 @@ export function resolveOwningLibrary(entity: unknown, depth = 0): string | null 
   return null;
 }
 
+/**
+ * A PUT that moves an entity into another library needs write there too.
+ *
+ * The guard checks write on the entity in the path, which is the *source*
+ * library. `isPartOf` in the body names the destination, and without this an
+ * author could move their entity into a library they hold nothing on — into
+ * someone else's listing, under someone else's curated backends. Nothing to
+ * check when the body leaves containment alone or keeps the same library.
+ */
+export function requireContainmentWritable(
+  request: FastifyRequest,
+  current: unknown,
+  updates: { isPartOf?: unknown } | null | undefined,
+): void {
+  if (!updates || updates.isPartOf === undefined || updates.isPartOf === null) return;
+  const destination = resolveOwningLibrary({ isPartOf: updates.isPartOf });
+  if (destination && destination === resolveOwningLibrary(current)) return;
+  requireLibraryMode(request, destination, 'write');
+}
+
 /** Convenience: resolve an entity's library and require a mode on it. */
 export function requireEntityMode(
   request: FastifyRequest,

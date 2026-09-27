@@ -663,7 +663,7 @@ export class TestRunner {
 
     let queryString = version.queryString;
     if (testCase.argumentSetVersion) {
-      const payload = await this.argumentSetService.exportRuntimePayload([testCase.argumentSetVersion]);
+      const payload = await this.argumentSetService.exportRuntimePayload([testCase.argumentSetVersion], this.scope);
       if (payload.limits.length > 0 || payload.offsets.length > 0) {
         queryString = this.parser.applyLimitOffsetParameters(queryString, payload.limits, payload.offsets);
       }
@@ -767,7 +767,7 @@ export class TestRunner {
     }
 
     const payload = testCase.argumentSetVersion
-      ? await this.argumentSetService.exportRuntimePayload([testCase.argumentSetVersion])
+      ? await this.argumentSetService.exportRuntimePayload([testCase.argumentSetVersion], this.scope)
       : null;
     const initialArgs = payload?.tupleList ?? [];
 

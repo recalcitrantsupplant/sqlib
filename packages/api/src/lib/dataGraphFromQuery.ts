@@ -138,7 +138,7 @@ export async function materializeDataGraphVersionFromQuery(
         404,
       );
     }
-    const runtimePayload = await argumentSetService.exportRuntimePayload([input.argumentSetVersionId]);
+    const runtimePayload = await argumentSetService.exportRuntimePayload([input.argumentSetVersionId], scope);
     try {
       if (runtimePayload.limits.length > 0 || runtimePayload.offsets.length > 0) {
         queryString = parser.applyLimitOffsetParameters(queryString, runtimePayload.limits, runtimePayload.offsets);

@@ -25,7 +25,7 @@ import {
 } from '../lib/groupVersionReferences.js';
 import { validateIfMatch, setEntityConcurrencyHeaders, typedRoute, reposRoute, withReposHandler } from './route-helpers.js';
 import { ArgumentSetService } from '../lib/ArgumentSetService.js';
-import { AuthorizationError, filterReadable, requireEntityMode } from '../auth/enforce.js';
+import { AuthorizationError, filterReadable, requireContainmentWritable, requireEntityMode } from '../auth/enforce.js';
 import {
   argumentSetBodySchema,
   argumentSetListResponseSchema,
@@ -218,6 +218,9 @@ export default async function (fastify: FastifyInstance) {
         }
       }
 
+      // Write on the destination library too, when the body moves it.
+      requireContainmentWritable(request, current, updates);
+
       const { valid, currentTag } = validateIfMatch(request, current);
       if (!valid) {
         return reply.status(412).send({
@@ -248,6 +251,7 @@ export default async function (fastify: FastifyInstance) {
       setEntityConcurrencyHeaders(reply, updated);
       return reply.send(toRestApi(updated));
     } catch (e__u: unknown) {
+      if (e__u instanceof AuthorizationError) throw e__u;
       const e = toError(e__u);
       return reply.status(500).send({ error: e.message });
     }

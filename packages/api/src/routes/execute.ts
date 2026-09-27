@@ -427,7 +427,7 @@ export default async function (
             let runtimeArgumentSets = inlineArgs as RuntimeArgumentSet[] | undefined;
             let argumentSetMap: Map<string, RuntimeArgumentSet> | null = null;
             if (hasArgumentSetIdRefs) {
-                runtimePayload = await argumentSetService.exportRuntimePayload(argumentSetIds!);
+                runtimePayload = await argumentSetService.exportRuntimePayload(argumentSetIds!, { request });
                 // Stored sets take the same null-as-UNDEF normalization as inline ones,
                 // so `{"x":null}` and `{}` dedupe as one row downstream.
                 runtimeArgumentSets = normalizeUndefBindings(runtimePayload.tupleList) as RuntimeArgumentSet[];

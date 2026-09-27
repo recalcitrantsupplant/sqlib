@@ -777,7 +777,7 @@ export class BenchmarkRunner {
 
     let queryString = versionEntity.queryString;
     if (argumentSetId !== BENCHMARK_NO_ARGUMENTS_IRI) {
-      const runtimePayload = await this.argumentSetService.exportRuntimePayload([argumentSetId]);
+      const runtimePayload = await this.argumentSetService.exportRuntimePayload([argumentSetId], this.scope);
       if (runtimePayload.limits.length > 0 || runtimePayload.offsets.length > 0) {
         queryString = this.parser.applyLimitOffsetParameters(queryString, runtimePayload.limits, runtimePayload.offsets);
       }
@@ -870,7 +870,7 @@ export class BenchmarkRunner {
 
     const initialArgs = argumentSetId === BENCHMARK_NO_ARGUMENTS_IRI
       ? []
-      : (await this.argumentSetService.exportRuntimePayload([argumentSetId])).tupleList;
+      : (await this.argumentSetService.exportRuntimePayload([argumentSetId], this.scope)).tupleList;
 
     const graph = this.graphBuilder.buildFromGroupVersion(versionEntity);
     const engine = new ExecutionEngine(this.executorFactoryFor(subjectId));
