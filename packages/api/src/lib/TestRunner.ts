@@ -35,7 +35,7 @@ import { ArgumentSetService } from './ArgumentSetService.js';
 import { ExecutorFactory } from './orchestration/ExecutorFactory.js';
 import type { FastifyRequest } from 'fastify';
 import { isInternalExecution, type InternalExecution } from '../auth/executionScope.js';
-import { AuthorizationError, requireLibraryMode, resolveOwningLibrary } from '../auth/enforce.js';
+import { AuthorizationError, requireAdmin, requireLibraryMode, resolveOwningLibrary } from '../auth/enforce.js';
 import { ExecutionEngine, type ExecutionHooks, type ExecutionDataGraphInput } from './orchestration/ExecutionEngine.js';
 import { GraphBuilder } from './orchestration/GraphBuilder.js';
 import { SparqlQueryParser } from './parser.js';
@@ -252,8 +252,12 @@ export class TestRunner {
    */
   private executorFactoryFor(subjectId: string): ExecutorFactory {
     if (isInternalExecution(this.scope)) return new ExecutorFactory(this.scope);
-    const subjectLibrary = resolveOwningLibrary(getCacheCoordinator().get(subjectId));
+    const subject = getCacheCoordinator().get(subjectId) as { '@type'?: string } | null;
+    const subjectLibrary = resolveOwningLibrary(subject);
     requireLibraryMode(this.scope.request, subjectLibrary, 'execute');
+    // An ETL job's test runs its DuckDB SQL, and running ETL SQL is
+    // administrator-only on every other route (docs/guides/etl.md).
+    if (subject?.['@type'] === 'EtlJob') requireAdmin(this.scope.request, 'running ETL SQL');
     return new ExecutorFactory({ request: this.scope.request, viaLibrary: subjectLibrary });
   }
 

@@ -363,11 +363,27 @@ describe('POST /tuple-sets/:id/versions/from-etl', () => {
       await instance.close();
     });
 
-    it('admits a caller holding both', async () => {
+    it('refuses a caller holding both who is not an administrator: the job runs SQL', async () => {
       const instance = await appAs(contextWith(new Map([
         [SET_LIBRARY_ID, new Set<LibraryMode>(['read', 'write'])],
         [JOB_LIBRARY_ID, new Set<LibraryMode>(['execute'])],
       ])));
+
+      const res = await instance.inject({
+        method: 'POST',
+        url: `/tuple-sets/${encodeURIComponent(SET_ID)}/versions/from-etl`,
+        payload: { etlJobVersionId: JOB_VERSION_ID },
+      });
+
+      expect(res.statusCode, res.payload).toBe(403);
+      expect(res.json().error).toMatch(/administrator/i);
+      expect(hoisted.streamChunks).not.toHaveBeenCalled();
+      await instance.close();
+    });
+
+    it('admits an administrator', async () => {
+      const context = contextWith(new Map([[SET_LIBRARY_ID, new Set<LibraryMode>(['read', 'write'])]]));
+      const instance = await appAs({ ...context, grants: { ...context.grants, admin: true } });
 
       const res = await instance.inject({
         method: 'POST',

@@ -47,7 +47,7 @@
 import { createHash } from 'node:crypto';
 import type { FastifyRequest } from 'fastify';
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
-import { requireLibraryMode, resolveOwningLibrary } from '../auth/enforce.js';
+import { requireAdmin, requireLibraryMode, resolveOwningLibrary } from '../auth/enforce.js';
 import { duckDbService } from './DuckDbService.js';
 import { EtlService } from './EtlService.js';
 import { createTupleSetVersion, MAX_TUPLE_SET_VERSION_BYTES } from './TupleSetVersionWriter.js';
@@ -139,8 +139,13 @@ export async function materializeTupleSetVersionFromEtl(
   // entity, and running its SQL is an execution. Without this, write on one
   // library would run any other library's stored DuckDB SQL — the reach #132
   // closed on `/etl-jobs/preview`, arriving by a different door.
+  //
+  // And execute is not enough on its own: the SQL runs on the host, which no
+  // library grant describes, so this is administrator like every other route
+  // that runs ETL SQL (docs/guides/etl.md).
   if (authScope) {
     requireLibraryMode(authScope.request, resolveOwningLibrary(jobVersion), 'execute');
+    requireAdmin(authScope.request, 'running ETL SQL');
   }
 
   const mappingVersionId = input.columnMappingVersionId ?? jobVersion.currentColumnMappingVersion;
