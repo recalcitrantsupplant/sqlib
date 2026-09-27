@@ -80,7 +80,6 @@
     <div class="row" style="margin-top: var(--space-2)">
       <button class="primary" id="run" type="button" title="Run (Ctrl/⌘ + Enter)">Run</button>
       <button id="check" type="button">Check answer</button>
-      <button id="sparql" type="button">Show SPARQL</button>
       <button id="reset" type="button">Reset</button>
       <button id="solution" type="button">Show solution</button>
       <button id="hint" type="button">Ask for a hint</button>
@@ -88,10 +87,6 @@
       <span class="status" id="status"></span>
     </div>
 
-    <div id="compiled" hidden>
-      <div class="out-label">Compiled SPARQL — what each rule runs as</div>
-      <div id="compiled-host"></div>
-    </div>
 
     <div id="output"></div>
   </div>
@@ -173,19 +168,15 @@
     analysis: document.getElementById('analysis'),
     run: document.getElementById('run'),
     check: document.getElementById('check'),
-    sparql: document.getElementById('sparql'),
     reset: document.getElementById('reset'),
     solution: document.getElementById('solution'),
     hint: document.getElementById('hint'),
     status: document.getElementById('status'),
-    compiled: document.getElementById('compiled'),
-    compiledHost: document.getElementById('compiled-host'),
     output: document.getElementById('output'),
   };
 
   var editor = null;
   var dataEditor = null;
-  var compiledEditor = null;
 
   // --- small helpers -------------------------------------------------------
 
@@ -581,9 +572,6 @@
     renderProse(nodes.itemDescription, item.entity.description || '');
     nodes.output.textContent = '';
     nodes.analysis.textContent = '';
-    nodes.compiled.hidden = true;
-    nodes.sparql.textContent = 'Show SPARQL';
-    nodes.sparql.hidden = item.kind !== 'ruleSet';
     nodes.check.hidden = item.role !== 'exercise';
     nodes.solution.hidden = true;
     nodes.reset.hidden = false;
@@ -1105,29 +1093,6 @@
 
   // --- the rest of the buttons -------------------------------------------
 
-  async function toggleSparql() {
-    if (!nodes.compiled.hidden) {
-      nodes.compiled.hidden = true;
-      nodes.sparql.textContent = 'Show SPARQL';
-      app.reportSize();
-      return;
-    }
-    try {
-      var compiled = await call('srl.compile', { srl: editor.getValue() });
-      var parts = asList(compiled.dataBlocks).map(function (block) { return '# ' + block.label + '\n' + block.sparql; })
-        .concat(asList(compiled.rules).map(function (rule) { return '# ' + rule.label + '\n' + rule.sparql; }));
-      if (!compiledEditor) {
-        compiledEditor = window.sqlibEditor.create(nodes.compiledHost, { language: 'sparql', readOnly: true, minHeight: '40px' });
-      }
-      compiledEditor.setValue(parts.join('\n\n'));
-      nodes.compiled.hidden = false;
-      nodes.sparql.textContent = 'Hide SPARQL';
-    } catch (err) {
-      setStatus(String(err.message || err), 'error');
-    }
-    app.reportSize();
-  }
-
   function reset() {
     var item = state.current;
     if (!item || !editor) return;
@@ -1152,13 +1117,17 @@
     var lesson = state.lessons[state.lessonIndex];
     var verdict = state.verdicts.get(item.key);
     var fence = item.kind === 'query' ? 'sparql' : 'srl';
+    nodes.hint.disabled = true;
     app.sendMessage(
       'I am on lesson ' + lesson.number + ' ("' + lesson.title + '") of the SPARQL rules tutorial, ' +
       (item.role === 'exercise' ? 'working on the exercise' : 'looking at the example') + ' "' + item.entity.name + '".' +
       (verdict === false ? ' My last check did not pass.' : '') +
       ' Here is what I have:\n\n```' + fence + '\n' + editor.getValue() + '\n```\n\n' +
       (item.role === 'exercise' ? 'Can you give me a hint, without giving away the whole answer?' : 'Can you explain what this does?')
-    );
+    ).then(function (sent) {
+      nodes.hint.disabled = false;
+      setStatus(sent ? 'asked in the chat' : 'this chat client did not accept the message — ask in the chat yourself', sent ? 'ok' : 'error');
+    });
   }
 
   // --- wiring --------------------------------------------------------------
@@ -1169,7 +1138,6 @@
   nodes.expand.addEventListener('click', function () { app.requestDisplayMode('fullscreen'); });
   nodes.run.addEventListener('click', run);
   nodes.check.addEventListener('click', check);
-  nodes.sparql.addEventListener('click', toggleSparql);
   nodes.reset.addEventListener('click', reset);
   nodes.solution.addEventListener('click', showSolution);
   nodes.hint.addEventListener('click', askForHint);

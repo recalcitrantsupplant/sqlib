@@ -14,6 +14,7 @@
   var pending = new Map();
   var listeners = Object.create(null);
   var nextId = 1;
+  var lastHeight = -1;
 
   function post(message) {
     // The host frame is a different origin and, under a sandbox without
@@ -143,18 +144,35 @@
      * This is the *only* path from the View into the conversation's context,
      * and it is deliberately narrow: a bounded string, never a result set. A
      * run that returned 4 000 rows says "4000 rows"; the rows stay here.
+     *
+     * `content` is an array of MCP content blocks, not a string. It was a bare
+     * string until a host that validates the params refused every call, and
+     * nothing here noticed because a refusal is swallowed below by design.
      */
     updateModelContext: function (text) {
       var bounded = String(text == null ? '' : text);
       if (bounded.length > 600) bounded = bounded.slice(0, 597) + '…';
-      return request('ui/update-model-context', { content: bounded }).catch(function () {
+      return request('ui/update-model-context', { content: [{ type: 'text', text: bounded }] }).catch(function () {
         // A host that does not implement it must not break the bench.
       });
     },
 
-    /** Put a message in the chat as if the user had typed it. */
+    /**
+     * Put a message in the chat as if the user had typed it.
+     *
+     * Resolves true when the host took it, false when it refused or failed —
+     * a caller with a button to answer for has to be able to say so. The
+     * params are `{ role: 'user', content: ContentBlock[] }`; a string
+     * `content` is an invalid message to any host that checks.
+     */
     sendMessage: function (text) {
-      return request('ui/message', { content: String(text || '') }).catch(function () {});
+      return request('ui/message', {
+        role: 'user',
+        content: [{ type: 'text', text: String(text || '') }],
+      }).then(
+        function (result) { return !(result && result.isError); },
+        function () { return false; }
+      );
     },
 
     openLink: function (url) {
@@ -168,16 +186,24 @@
     /**
      * Report our own height so a flexible container can follow it.
      *
-     * Twice: once now, and once after a frame. A View calls this the moment it
-     * has appended a results table, and `scrollHeight` read in that same tick
-     * is the height *before* the browser has laid the table out — which is how
-     * a result ends up clipped inside an iframe that was told the old height.
+     * Measured from the body, not `documentElement.scrollHeight`. The latter
+     * is never less than the viewport, and the viewport *is* the iframe the
+     * host sized from our last report — so once the View had grown (a results
+     * table, an expanded panel) it could never report shrinking again, and the
+     * frame kept the old height with blank space below the content.
+     *
+     * Twice: once now, and once after a frame, because a height read in the
+     * tick that appended a table is the height before layout. A
+     * ResizeObserver (below) covers every change nobody called this for.
      */
     reportSize: function () {
       var send = function () {
-        notify('ui/notifications/size-changed', {
-          height: Math.ceil(global.document.documentElement.scrollHeight),
-        });
+        var body = global.document.body;
+        if (!body) return;
+        var height = Math.ceil(body.getBoundingClientRect().height);
+        if (height === lastHeight) return;
+        lastHeight = height;
+        notify('ui/notifications/size-changed', { height: height });
       };
       send();
       if (global.requestAnimationFrame) global.requestAnimationFrame(send);
@@ -239,6 +265,20 @@
     if (styles.fontFamily) root.style.setProperty('--font-sans', String(styles.fontFamily));
     if (styles.fontFamilyMono) root.style.setProperty('--font-mono', String(styles.fontFamilyMono));
   };
+
+  /*
+   * Follow the content's size without being asked: an editor growing a line,
+   * a <details> opening, text wrapping differently. The explicit calls stay,
+   * and the dedupe in `reportSize` keeps the two from repeating each other.
+   */
+  if (global.ResizeObserver) {
+    var observe = function () {
+      if (!global.document.body) return;
+      new global.ResizeObserver(function () { app.reportSize(); }).observe(global.document.body);
+    };
+    if (global.document.readyState === 'loading') global.document.addEventListener('DOMContentLoaded', observe);
+    else observe();
+  }
 
   global.sqlibApp = app;
 })(window);
