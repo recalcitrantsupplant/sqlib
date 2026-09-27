@@ -313,14 +313,37 @@
       return;
     }
 
+    /*
+     * Validated as a strict host validates them: `content` is an array of
+     * content blocks, and `ui/message` carries `role: 'user'`. The harness
+     * answered anything with success for months, while Claude refused the
+     * bare strings the bridge sent, so "Ask for a hint" worked here and
+     * nowhere real.
+     */
+    function textBlocks(params) {
+      var content = params && params.content;
+      if (!Array.isArray(content)) return null;
+      var ok = content.every(function (block) { return block && block.type === 'text' && typeof block.text === 'string'; });
+      return ok ? content.map(function (block) { return block.text; }).join('\n') : null;
+    }
+    function refuse(message, why) {
+      log('✗', message.method + ' refused: ' + why);
+      if (message.id) toFrame({ jsonrpc: '2.0', id: message.id, error: { code: -32602, message: 'Invalid message format: ' + why } });
+    }
+
     if (message.method === 'ui/update-model-context') {
-      log('↑', 'model context: ' + (message.params && message.params.content));
+      var context = textBlocks(message.params);
+      if (context === null) return refuse(message, 'content must be an array of content blocks');
+      log('↑', 'model context: ' + context);
       if (message.id) toFrame({ jsonrpc: '2.0', id: message.id, result: {} });
       return;
     }
 
     if (message.method === 'ui/message') {
-      log('↑', 'chat message: ' + String((message.params && message.params.content) || '').slice(0, 200));
+      var text = textBlocks(message.params);
+      if (!message.params || message.params.role !== 'user') return refuse(message, "role must be 'user'");
+      if (text === null) return refuse(message, 'content must be an array of content blocks');
+      log('↑', 'chat message: ' + text.slice(0, 200));
       if (message.id) toFrame({ jsonrpc: '2.0', id: message.id, result: {} });
       return;
     }
