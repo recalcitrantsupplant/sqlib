@@ -962,11 +962,10 @@
     try {
       /*
        * A rule set that is not well-formed, or does not stratify, is not an
-       * answer however it runs. That matters because some wrong answers run
-       * *correctly*: a FILTER written before the pattern that binds its
-       * variable compiles to SPARQL, where a FILTER scopes over its whole
-       * group, and gives the right triples. SRL still rejects it, and so does
-       * this check — which is the lesson.
+       * answer however it runs. That matters because some wrong answers still
+       * produce the right triples: a FILTER written before the pattern that
+       * binds its variable is one. It is not valid SRL, and this check says
+       * so — which is the lesson.
        */
       if (item.kind === 'ruleSet') {
         var report = await call('srl.analyze', { srl: text });

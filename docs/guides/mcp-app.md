@@ -105,8 +105,9 @@ things sqlib already stores and a visitor can already browse:
 
 Descriptions are rendered as a little Markdown: paragraphs, `-` lists, fenced
 code, `inline code`, bold and emphasis. The demo repository's
-`instances/main/tutorial/` is a ten-lesson course written this way, from a
-first rule to stratification, the ground graph and how rules compile to SPARQL.
+`instances/srl/tutorial/` is a ten-lesson course written this way, from a
+first rule to stratification and the ground graph, ending with what differs for
+someone coming from SPARQL.
 
 ### Checking an answer
 
@@ -114,10 +115,9 @@ A test runs its *saved* subject, and what needs judging is the text in the
 editor, so the View checks it itself, in two steps:
 
 1. `srl.analyze`: a rule set that does not parse, is not well-formed or does not
-   stratify is rejected before it runs. Some wrong answers run *correctly* — a
-   `FILTER` written before the pattern that binds its variable compiles to
-   SPARQL, where a filter scopes over its whole group — and SRL still rejects
-   them.
+   stratify is rejected before it runs. Some wrong answers still produce the
+   right triples — a `FILTER` written before the pattern that binds its
+   variable is one — and they are still not valid SRL.
 2. `srl.run` over each case's data graph version, and a comparison with the
    case's expectation: the inference graph as a set of N-Triples lines (blank
    nodes by count), or a query's rows as a set (in order when the case says
