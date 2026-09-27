@@ -339,8 +339,11 @@ modal with the name and URL prefilled from the query string; that route now
 renders a stub reading "Connectors have moved to Customize", so the button led
 to a dead end that still looked official. Anthropic documents no prefill
 parameters on the new page, so the interface no longer promises a filled-in
-form. The parameters are still appended, cost nothing and are ignored by a page
-that does not read them. `claudeConnectorLink` has a test asserting the
+form, and the link carries no parameters at all: with the old
+`?modal=add-custom-connector` still on it, the customize link landed on the same
+Settings stub. It opens the list; the user presses **+** → **Add custom
+connector** and pastes the URL shown beside the button.
+`claudeConnectorLink` has a test asserting the
 documented path, so the next move fails a test rather than waiting for someone
 to notice a screenshot.
 
@@ -359,8 +362,15 @@ path. Nothing here serves the app and the API from one origin, but a reverse
 proxy in front of both is an ordinary thing to build.
 
 The URL is derived as `/mcp` beside the API, which is where every mode in this
-repository serves it. `NUXT_PUBLIC_MCP_URL` overrides it, for a public MCP on a
-different host from the app that administers it.
+repository serves it, so a production deployment sets nothing for it: the
+`apiBaseUrl` the SPA is given (in `config.json` at run time, or
+`NUXT_PUBLIC_API_BASE_URL` at build time) already names the public host, and
+`/mcp` is on it. Only an MCP endpoint on a *different* host needs saying, as
+`mcpUrl` in `config.json` or `NUXT_PUBLIC_MCP_URL` at build time.
+
+The server side needs no public URL either. The MCP server builds no absolute
+links: Views are `ui://` resources read over the same connection, and a tool
+result carries data, not URLs.
 
 ## Testing against a real web client, with a tunnel
 

@@ -173,7 +173,7 @@ const router = useRouter();
 const { activeLibraryId: libraryId } = useActiveLibrary();
 
 const mcpUrl = computed(() => mcpEndpoint(config.public));
-const claudeDeeplink = computed(() => claudeConnectorLink(mcpUrl.value));
+const claudeDeeplink = claudeConnectorLink();
 
 const activeClient = ref(MCP_CLIENTS[0]!.id);
 const active = computed(

@@ -29,27 +29,25 @@ export function mcpEndpoint(config: { apiBaseUrl?: unknown; mcpUrl?: unknown }):
  * `claude.ai/settings/connectors?modal=add-custom-connector` used to open the
  * add-a-connector modal with the fields prefilled from the query string, and
  * this page used to link it. As of September 2026 that route renders a stub
- * reading "Connectors have moved to Customize", so the link took a user to a
- * dead end that still looked official. Anthropic's own documentation now names
- * `claude.ai/customize/connectors` and documents no parameters that prefill
- * anything, so the page no longer promises a prefilled form: this opens the
- * right list, the user presses Add custom connector and pastes.
+ * reading "Connectors have moved to Customize". Anthropic's documentation now
+ * names `claude.ai/customize/connectors`, then **+** → **Add custom connector**,
+ * and documents no parameters that prefill anything.
  *
- * The name and URL are still appended. They cost nothing, they are ignored by a
- * page that does not read them, and they work if the handler survived the move.
- * Nothing in the interface claims they will.
+ * **The link carries no query string.** The old parameters were kept on the new
+ * path for a while on the theory that an ignored parameter costs nothing. It
+ * did not: with `?modal=add-custom-connector` on it, the customize link landed
+ * on the same Settings stub the move was meant to get away from. The user
+ * presses Add custom connector and pastes the URL the page shows beside the
+ * button.
  *
  * On Team and Enterprise an owner has to add the connector for the
  * organisation first, at `claude.ai/admin-settings/connectors`; members then
- * authenticate from the customize page above.
+ * connect from the customize page above.
  */
 export const CLAUDE_CONNECTORS_URL = 'https://claude.ai/customize/connectors';
 
-export function claudeConnectorLink(endpoint: string, name = 'sqlib'): string {
-  return (
-    `${CLAUDE_CONNECTORS_URL}?modal=add-custom-connector` +
-    `&mcpName=${encodeURIComponent(name)}&mcpServerUrl=${encodeURIComponent(endpoint)}`
-  );
+export function claudeConnectorLink(): string {
+  return CLAUDE_CONNECTORS_URL;
 }
 
 export type McpClient = {

@@ -5,6 +5,12 @@ import { debug } from '../lib/debug';
 
 interface RuntimeConfigOverride {
   apiBaseUrl?: string;
+  /**
+   * The MCP endpoint, when it is not `<apiBaseUrl>/mcp`. Every deployment this
+   * repository ships serves `/mcp` beside the API, so this is normally absent
+   * and the MCP page derives it; see `mcpEndpoint` in `lib/mcpClients.ts`.
+   */
+  mcpUrl?: string;
   featureFlags?: Partial<FeatureFlags>;
   authIssuer?: string;
   authClientId?: string;
@@ -43,6 +49,13 @@ export default defineNuxtPlugin({
     if (config.apiBaseUrl) {
       runtimeConfig.public.apiBaseUrl = config.apiBaseUrl;
       debug('runtime-config', 'API base URL set to', config.apiBaseUrl);
+    }
+
+    // Read at run time like the API URL, so a deployment whose MCP endpoint is
+    // on another host needs no rebuild. NUXT_PUBLIC_MCP_URL is the build-time
+    // equivalent.
+    if (config.mcpUrl) {
+      runtimeConfig.public.mcpUrl = config.mcpUrl;
     }
 
     // OIDC settings, so one build serves every environment.
