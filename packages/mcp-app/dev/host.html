@@ -282,6 +282,9 @@
           hostContext: {
             theme: window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light',
             displayMode: 'inline',
+            // `?modes=inline` in the harness URL plays a host without full
+            // screen, which is how Claude Desktop answers today.
+            availableDisplayModes: (new URLSearchParams(location.search).get('modes') || 'inline,fullscreen').split(','),
             containerDimensions: { maxHeight: 720 },
             locale: navigator.language,
             timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -303,6 +306,11 @@
     }
 
     if (message.method === 'tools/call' || message.method === 'resources/read') {
+      // `?delay=800` in the harness URL holds each call that long, which is what
+      // a real host's round trip feels like and what makes loading states
+      // visible on a local server that answers in milliseconds.
+      var delay = Number(new URLSearchParams(location.search).get('delay') || 0);
+      if (delay > 0) await new Promise(function (resolve) { setTimeout(resolve, delay); });
       try {
         var result = await rpc(message.method, message.params);
         toFrame({ jsonrpc: '2.0', id: message.id, result: result });
@@ -345,6 +353,26 @@
       if (text === null) return refuse(message, 'content must be an array of content blocks');
       log('↑', 'chat message: ' + text.slice(0, 200));
       if (message.id) toFrame({ jsonrpc: '2.0', id: message.id, result: {} });
+      return;
+    }
+
+    /*
+     * Granted only when the harness offers the mode, and answered with the mode
+     * the View ends up in, as the specification requires of a host. Full screen
+     * here is the frame filling the window.
+     */
+    if (message.method === 'ui/request-display-mode') {
+      var offered = (new URLSearchParams(location.search).get('modes') || 'inline,fullscreen').split(',');
+      var wanted = message.params && message.params.mode;
+      var mode = offered.indexOf(wanted) >= 0 ? wanted : (frame.dataset.mode || 'inline');
+      frame.dataset.mode = mode;
+      frame.style.position = mode === 'fullscreen' ? 'fixed' : '';
+      frame.style.inset = mode === 'fullscreen' ? '0' : '';
+      frame.style.zIndex = mode === 'fullscreen' ? '10' : '';
+      frame.style.background = mode === 'fullscreen' ? 'white' : '';
+      log(mode === wanted ? '↔' : '✗', 'display mode ' + wanted + (mode === wanted ? '' : ' refused, stays ' + mode));
+      toFrame({ jsonrpc: '2.0', id: message.id, result: { mode: mode } });
+      toFrame({ jsonrpc: '2.0', method: 'ui/notifications/host-context-changed', params: { displayMode: mode } });
       return;
     }
 

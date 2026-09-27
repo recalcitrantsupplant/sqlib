@@ -42,6 +42,15 @@
   details > summary { cursor: pointer; font-size: 12px; color: var(--ink-secondary); margin: var(--space-2) 0 var(--space-1); }
   .out-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-muted); margin: var(--space-2) 0 var(--space-1); }
   .kbd { font-family: var(--font-mono); font-size: 11px; color: var(--ink-muted); }
+  .editor-host { position: relative; }
+  .editor-host.loading .cm-editor { opacity: 0.35; }
+  .editor-host.loading::after {
+    content: 'Loading…';
+    position: absolute; top: 10px; right: 12px;
+    font-size: 12px; color: var(--ink-muted);
+    background: var(--surface); padding: 2px 8px; border-radius: var(--radius-sm);
+    border: 1px solid var(--border-subtle);
+  }
   .toggle { display: inline-flex; align-items: center; gap: 4px; color: var(--ink-secondary); cursor: pointer; user-select: none; }
   .toggle input { height: auto; margin: 0; }
 </style>
@@ -512,6 +521,8 @@
 
     renderTabs();
     openItem(0);
+    var next = state.lessonIndex + 1;
+    preloadLesson(state.lessonIndex).then(function () { return preloadLesson(next); });
     app.updateModelContext(
       'The tutorial is on lesson ' + lesson.number + ' of ' + state.lessons.length + ', "' + lesson.title + '". ' +
       (lesson.tag.description ? 'Objectives: ' + String(lesson.tag.description).replace(/\s+/g, ' ').slice(0, 300) : '')
@@ -543,7 +554,10 @@
   // --- one example or exercise --------------------------------------------
 
   function rememberDraft() {
-    if (state.current && editor) state.drafts.set(state.current.key, editor.getValue());
+    // Only an item whose text reached the editor has a draft: while one is
+    // loading the editor is blank, and remembering that would replace the
+    // starter with nothing.
+    if (state.current && editor && state.current.shown) state.drafts.set(state.current.key, editor.getValue());
   }
 
   /*
@@ -601,28 +615,91 @@
     nodes.solution.hidden = true;
     nodes.reset.hidden = false;
     nodes.dataPanel.hidden = true;
-    setStatus('loading…', 'running');
 
     var target = ensureEditor(item.kind === 'query' ? 'sparql' : 'srl');
     if (!target) return;
 
+    /*
+     * Until this item's text arrives the editor shows nothing and takes no
+     * typing. It used to keep the previous item's text on screen, which reads
+     * as the new item's — and a learner who started editing it was editing the
+     * wrong thing. Items are preloaded (see `preloadLesson`), so this is
+     * usually a frame, not a wait.
+     */
+    item.shown = false;
+    if (!item.loaded) {
+      state.loadingItem = item;
+      target.setValue('');
+      target.setReadOnly(true);
+      nodes.editorHost.classList.add('loading');
+      setItemButtons(false);
+      setStatus('loading…', 'running');
+    }
+
     try {
       await loadItem(item);
       if (state.current !== item) return;
+      state.loadingItem = null;
+      nodes.editorHost.classList.remove('loading');
+      setItemButtons(true);
+      target.setReadOnly(false);
       var draft = state.drafts.get(item.key);
       target.setValue(draft !== undefined ? draft : item.starter);
+      item.shown = true;
       nodes.solution.hidden = !(item.role === 'exercise' && item.solution && item.solution !== item.starter);
       renderData(item);
       setStatus(item.role === 'exercise' ? 'edit, then Check answer' : 'Run it, then change it', null);
       analyseNow();
     } catch (err) {
-      setStatus(String(err.message || err), 'error');
+      if (state.current === item) {
+        state.loadingItem = null;
+        nodes.editorHost.classList.remove('loading');
+        setItemButtons(true);
+        setStatus(String(err.message || err), 'error');
+      }
     }
     app.reportSize();
   }
 
-  /** Text, data and expectations for an item, fetched once per frame. */
-  async function loadItem(item) {
+  /** Run, Check and the rest act on the editor's text, so not while there is none. */
+  function setItemButtons(enabled) {
+    [nodes.run, nodes.check, nodes.reset, nodes.solution, nodes.hint].forEach(function (button) {
+      button.disabled = !enabled;
+    });
+  }
+
+  /**
+   * Text, data and expectations for an item, fetched once per frame.
+   *
+   * One promise per item, shared: the preload and a click on the tab it has
+   * not finished yet wait on the same requests rather than repeating them. A
+   * failed load is forgotten, so the next open tries again.
+   */
+  function loadItem(item) {
+    if (item.loaded) return Promise.resolve();
+    if (!item.loading) {
+      item.loading = fetchItem(item).catch(function (err) {
+        item.loading = null;
+        throw err;
+      });
+    }
+    return item.loading;
+  }
+
+  /**
+   * Load every item of a lesson at once, then the next lesson's. It is text —
+   * a few documents and their tests — so there is nothing to gain by waiting
+   * for a click, and a click on an unloaded tab was a visible pause.
+   */
+  function preloadLesson(index) {
+    var lesson = state.lessons[index];
+    if (!lesson) return Promise.resolve();
+    return Promise.all(lesson.items.map(function (item) {
+      return loadItem(item).catch(function () { /* retried when opened */ });
+    }));
+  }
+
+  async function fetchItem(item) {
     if (item.loaded) return;
     if (item.role === 'example') {
       item.subjectId = idOf(item.entity);
@@ -744,7 +821,7 @@
 
   async function analyseNow() {
     var item = state.current;
-    if (!item || !editor) return;
+    if (!item || !editor || state.loadingItem === item) return;
     var text = editor.getValue();
     var seq = (analysisSeq += 1);
     try {
@@ -888,17 +965,36 @@
 
   async function runRuleSet(item, text) {
     var result = await runRules(text, item.cases[0]);
+    var iterations = asList(result.iterations).length;
+
+    /*
+     * A refused rule set produced nothing, and shows nothing. It used to show
+     * the DATA triples the executor had seeded before refusing, under the
+     * heading "inference graph", which read as a rule set that had run.
+     */
+    if (result.status === 'failed') {
+      // The executor names rules by internal ids; the analysis above the
+      // editor names the same cycle by line, so a stratification refusal
+      // points there instead of repeating ids a learner has never seen.
+      var reason = /not stratifiable/i.test(result.error || '')
+        ? 'Did not run: these rules cannot be put into strata. The analysis above names the rules on the cycle.'
+        : result.error || 'The rule set could not run. The analysis above says why.';
+      nodes.output.appendChild(el('div', 'error-box', reason));
+      setStatus('did not run', 'error');
+      app.updateModelContext(
+        'Tutorial: the user ran "' + item.entity.name + '" (lesson ' + state.lessons[state.lessonIndex].number + ') and it did not run: ' + reason.slice(0, 300)
+      );
+      return;
+    }
+
     // `finalGraphNQuads` is the inference graph, as the specification defines
     // a rule set's result: what the DATA blocks and the rules produced, without
     // the input data repeated. It is what a test compares, so it is what is
     // shown. The per-rule inserts are the fallback for a response without it.
     var inferred = typeof result.finalGraphNQuads === 'string' ? parseTriples(result.finalGraphNQuads) : inferredFrom(result);
-    var iterations = asList(result.iterations).length;
     var status = result.status === 'converged'
       ? 'reached a fixpoint after ' + iterations + ' iteration' + (iterations === 1 ? '' : 's')
-      : result.status === 'failed'
-        ? 'the run failed' + (result.error ? ': ' + result.error : ' — see the analysis above')
-        : 'stopped: ' + result.status;
+      : 'stopped: ' + result.status;
 
     nodes.output.appendChild(el('div', 'out-label',
       'Inference graph — ' + inferred.length + ' triple' + (inferred.length === 1 ? '' : 's') +
@@ -1022,7 +1118,7 @@
       return { name: testCase.name, passed: false, summary: 'did not run: ' + String(err.message || err).slice(0, 200), error: String(err.message || err) };
     }
     if (result.status === 'failed') {
-      return { name: testCase.name, passed: false, summary: 'the run failed', error: result.error || 'the run failed' };
+      return { name: testCase.name, passed: false, summary: 'the run failed', error: result.error || 'The rule set could not run.' };
     }
     var produced = parseTriples(result.finalGraphNQuads);
     var expected = parseTriples(testCase.expected);
@@ -1159,7 +1255,34 @@
   nodes.lessonSelect.addEventListener('change', function () { selectLesson(Number(nodes.lessonSelect.value)); });
   nodes.prev.addEventListener('click', function () { selectLesson(state.lessonIndex - 1); });
   nodes.next.addEventListener('click', function () { selectLesson(state.lessonIndex + 1); });
-  nodes.expand.addEventListener('click', function () { app.requestDisplayMode('fullscreen'); });
+  /*
+   * Full screen is the host's to grant. The specification says a View checks
+   * the host's `availableDisplayModes` before asking and copes with being
+   * given a different mode back; this did neither, so in a host without full
+   * screen (Claude Desktop, at least for now) Expand did nothing at all. It is
+   * hidden where the host does not list full screen, and it toggles.
+   */
+  var hostContext = {};
+  function applyDisplayMode(context) {
+    if (!context) return;
+    if (context.availableDisplayModes) hostContext.availableDisplayModes = context.availableDisplayModes;
+    if (context.displayMode) hostContext.displayMode = context.displayMode;
+    var modes = hostContext.availableDisplayModes;
+    nodes.expand.hidden = Array.isArray(modes) && modes.indexOf('fullscreen') < 0;
+    var full = hostContext.displayMode === 'fullscreen';
+    nodes.expand.textContent = full ? 'Exit full screen' : 'Expand';
+    nodes.expand.title = full ? 'Back into the conversation' : 'Open full screen';
+  }
+  nodes.expand.addEventListener('click', function () {
+    var wanted = hostContext.displayMode === 'fullscreen' ? 'inline' : 'fullscreen';
+    app.requestDisplayMode(wanted).then(function (result) {
+      var mode = result && result.mode;
+      if (mode) applyDisplayMode({ displayMode: mode });
+      if (wanted === 'fullscreen' && mode !== 'fullscreen') {
+        setStatus('this chat client does not offer full screen', 'error');
+      }
+    });
+  });
   nodes.run.addEventListener('click', run);
   nodes.convert.addEventListener('change', function () {
     writeConvertPreference(nodes.convert.checked);
@@ -1201,11 +1324,14 @@
   });
 
   app.on('ui/notifications/host-context-changed', function (params) {
-    app.applyHostStyles((params && params.hostContext) || params);
+    var context = (params && params.hostContext) || params;
+    app.applyHostStyles(context);
+    applyDisplayMode(context);
   });
 
   app.initialize({ availableDisplayModes: ['inline', 'fullscreen'] }).then(function (result) {
     app.applyHostStyles(result && result.hostContext);
+    applyDisplayMode(result && result.hostContext);
     app.reportSize();
   });
 })();
