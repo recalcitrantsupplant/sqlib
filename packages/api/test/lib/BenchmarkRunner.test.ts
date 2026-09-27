@@ -139,7 +139,7 @@ describe('BenchmarkRunner', () => {
       }),
     };
 
-    const runner = new BenchmarkRunner({} as any, executorFactory as any, {} as any, {} as any);
+    const runner = new BenchmarkRunner({ internal: true }, {} as any, {} as any, {} as any, undefined, () => executorFactory as any);
     await runner.runExperimentVersion(versionId);
 
     expect(mockSelect).toHaveBeenCalledTimes(3);
@@ -156,7 +156,7 @@ describe('BenchmarkRunner', () => {
       subjectSpecs: JSON.stringify([]),
     });
 
-    const runner = new BenchmarkRunner({} as any, {} as any, {} as any, {} as any);
+    const runner = new BenchmarkRunner({ internal: true }, {} as any, {} as any, {} as any);
 
     await expect(runner.runExperimentVersion(versionId)).rejects.toThrow('must be frozen');
   });
@@ -209,7 +209,7 @@ describe('BenchmarkRunner', () => {
       }),
     };
 
-    const runner = new BenchmarkRunner({} as any, executorFactory as any, {} as any, {} as any);
+    const runner = new BenchmarkRunner({ internal: true }, {} as any, {} as any, {} as any, undefined, () => executorFactory as any);
     const result = await runner.runExperimentVersion(versionId);
 
     expect(mockRunInsert).toHaveBeenCalledWith(expect.objectContaining({ tasksTotal: 2, runStatus: 'Running' }));
@@ -287,10 +287,12 @@ describe('BenchmarkRunner', () => {
     };
 
     const runner = new BenchmarkRunner(
+      { internal: true },
       stub({ resolveVersionIdForId, exportRuntimePayload }),
-      stub(executorFactory),
       stub({ applyArguments: vi.fn(), applyLimitOffsetParameters: vi.fn() }),
       stub({}),
+      undefined,
+      () => stub(executorFactory),
     );
     const result = await runner.runExperimentVersion(versionId);
 
@@ -354,10 +356,12 @@ describe('BenchmarkRunner', () => {
     };
 
     const runner = new BenchmarkRunner(
+      { internal: true },
       stub({ resolveVersionIdForId }),
-      stub(executorFactory),
       stub({}),
       stub({}),
+      undefined,
+      () => stub(executorFactory),
     );
     const result = await runner.runExperimentVersion(versionId);
 
@@ -413,7 +417,7 @@ describe('BenchmarkRunner', () => {
       }),
     };
 
-    const runner = new BenchmarkRunner({} as any, executorFactory as any, {} as any, {} as any);
+    const runner = new BenchmarkRunner({ internal: true }, {} as any, {} as any, {} as any, undefined, () => executorFactory as any);
     const result = await runner.runExperimentVersion(versionId);
 
     expect(mockObservationInsert).toHaveBeenCalledTimes(1);
@@ -503,11 +507,12 @@ describe('BenchmarkRunner', () => {
     });
 
     const runner = new BenchmarkRunner(
-      stub({}),
+      { internal: true },
       stub({}),
       stub({}),
       stub({}),
       () => stub({ execute }),
+      () => stub({}),
     );
     const result = await runner.runExperimentVersion(versionId);
 
@@ -552,7 +557,7 @@ describe('BenchmarkRunner', () => {
 
     const execute = vi.fn().mockResolvedValue({ status: 'completed', iterations: [], dataBlocks: [] });
 
-    const runner = new BenchmarkRunner(stub({}), stub({}), stub({}), stub({}), () => stub({ execute }));
+    const runner = new BenchmarkRunner({ internal: true }, stub({}), stub({}), stub({}), () => stub({ execute }), () => stub({}));
     const result = await runner.runExperimentVersion(versionId);
 
     expect(execute).toHaveBeenCalledTimes(1);
@@ -597,7 +602,7 @@ describe('BenchmarkRunner', () => {
       error: 'RuleSet contains invalid RuleVersions: rule-1',
     });
 
-    const runner = new BenchmarkRunner(stub({}), stub({}), stub({}), stub({}), () => stub({ execute }));
+    const runner = new BenchmarkRunner({ internal: true }, stub({}), stub({}), stub({}), () => stub({ execute }), () => stub({}));
     const result = await runner.runExperimentVersion(versionId);
 
     expect(result.run.runStatus).toBe('Failed');
@@ -646,7 +651,7 @@ describe('BenchmarkRunner', () => {
       buildFromGroupVersion: vi.fn().mockReturnValue({}),
     };
 
-    const runner = new BenchmarkRunner({} as any, {} as any, {} as any, graphBuilder as any);
+    const runner = new BenchmarkRunner({ internal: true }, {} as any, {} as any, graphBuilder as any);
     const result = await runner.runExperimentVersion(versionId);
 
     expect(mockNodeRunInsert).toHaveBeenCalledTimes(1);
@@ -693,7 +698,7 @@ describe('BenchmarkRunner', () => {
       finalGraphNQuads: '<urn:a> <urn:b> <urn:c> .',
     });
 
-    const runner = new BenchmarkRunner(stub({}), stub({}), stub({}), stub({}), () => stub({ execute }));
+    const runner = new BenchmarkRunner({ internal: true }, stub({}), stub({}), stub({}), () => stub({ execute }), () => stub({}));
     const result = await runner.runExperimentVersion(versionId);
 
     expect(mockIterationRunInsert).toHaveBeenCalledTimes(1);
@@ -756,7 +761,7 @@ describe('BenchmarkRunner', () => {
       error: 'RuleSet contains invalid RuleVersions: rule-1',
     });
 
-    const runner = new BenchmarkRunner(stub({}), stub({}), stub({}), stub({}), () => stub({ execute }));
+    const runner = new BenchmarkRunner({ internal: true }, stub({}), stub({}), stub({}), () => stub({ execute }), () => stub({}));
     const result = await runner.runExperimentVersion(versionId);
 
     expect(mockIterationRunInsert).not.toHaveBeenCalled();

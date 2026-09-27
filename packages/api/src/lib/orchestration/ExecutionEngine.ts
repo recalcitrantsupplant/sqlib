@@ -2,7 +2,7 @@ import { orderByPosition } from '@sparql-query-lib/types';
 import * as oxigraph from 'oxigraph';
 import { toError } from '../toError.js';
 import type { ExecutionGraph, ResolvedNode, ResolvedEdge, ArgumentSet, SparqlResultsJson, FinalResult, NodeResult } from './types.js';
-import { ExecutorFactory } from './ExecutorFactory.js';
+import type { ExecutorFactory } from './ExecutorFactory.js';
 import { SparqlQueryParser } from '../parser.js';
 import type { SparqlBinding, SparqlValue } from '../query-chaining.js';
 import { getCacheCoordinator } from '../CacheCoordinatorProvider.js';
@@ -81,7 +81,7 @@ export class ExecutionNodeError extends Error {
 
 export class ExecutionEngine {
   constructor(
-    private readonly executorFactory = new ExecutorFactory(),
+    private readonly executorFactory: ExecutorFactory,
     private readonly parser = new SparqlQueryParser(),
     private readonly ruleSetExecutor = new RuleSetExecutor()
   ) {}

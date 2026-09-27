@@ -111,7 +111,7 @@ describe('EtlService.executeEtlJob chunk loop', () => {
   it('counts the chunks it actually read', async () => {
     chunksOf(3, 2);
 
-    const result = await service.executeEtlJob('job-1', {});
+    const result = await service.executeEtlJob('job-1', {}, { internal: true });
 
     expect(result.status).toBe('completed');
     expect(result.totalRows).toBe(6);
@@ -134,7 +134,7 @@ describe('EtlService.executeEtlJob chunk loop', () => {
       return { result: '<a> <b> <c> .', contentType: 'application/n-triples' };
     });
 
-    const result = await service.executeEtlJob('job-1', {});
+    const result = await service.executeEtlJob('job-1', {}, { internal: true });
 
     // Chunk n's result was on disk before chunk n+1 was constructed: nothing
     // waited for the end of the run.
@@ -151,7 +151,7 @@ describe('EtlService.executeEtlJob chunk loop', () => {
 
   it('serves the file it wrote, and nothing outside the output directory', async () => {
     chunksOf(1, 2);
-    const result = await service.executeEtlJob('job-1', {});
+    const result = await service.executeEtlJob('job-1', {}, { internal: true });
     const executionUrn = hoisted.update.mock.calls.at(-1)![1] as string;
     hoisted.get.mockImplementation((id: string) => (
       id === executionUrn
@@ -176,7 +176,7 @@ describe('EtlService.executeEtlJob chunk loop', () => {
       .mockResolvedValueOnce({ result: '<a> <b> <c> .', contentType: 'application/n-triples' })
       .mockRejectedValueOnce(new Error('backend went away'));
 
-    await expect(service.executeEtlJob('job-1', {})).rejects.toThrow('backend went away');
+    await expect(service.executeEtlJob('job-1', {}, { internal: true })).rejects.toThrow('backend went away');
 
     expect(await fs.readdir(outputDir)).toEqual([]);
     expect(hoisted.update).toHaveBeenLastCalledWith('EtlExecution', expect.any(String), expect.objectContaining({
@@ -188,7 +188,7 @@ describe('EtlService.executeEtlJob chunk loop', () => {
   it('records no output for a run that constructed nothing', async () => {
     chunksOf(0, 0);
 
-    const result = await service.executeEtlJob('job-1', {});
+    const result = await service.executeEtlJob('job-1', {}, { internal: true });
 
     expect(result.outputLocation).toBeUndefined();
     expect(await fs.readdir(outputDir)).toEqual([]);
@@ -197,7 +197,7 @@ describe('EtlService.executeEtlJob chunk loop', () => {
   it('reports nothing read for an empty source query', async () => {
     chunksOf(0, 0);
 
-    const result = await service.executeEtlJob('job-1', {});
+    const result = await service.executeEtlJob('job-1', {}, { internal: true });
 
     expect(result.totalRows).toBe(0);
     expect(result.totalChunks).toBe(0);
@@ -206,7 +206,7 @@ describe('EtlService.executeEtlJob chunk loop', () => {
   it('stops the stream after one chunk on a dry run', async () => {
     const taken = chunksOf(10, 2);
 
-    const result = await service.executeEtlJob('job-1', { dryRun: true });
+    const result = await service.executeEtlJob('job-1', { dryRun: true }, { internal: true });
 
     expect(taken.chunks).toBe(1);
     expect(result.totalRows).toBe(2);
@@ -216,7 +216,7 @@ describe('EtlService.executeEtlJob chunk loop', () => {
   it('stops at the first chunk boundary past maxRows', async () => {
     const taken = chunksOf(10, 2);
 
-    const result = await service.executeEtlJob('job-1', { maxRows: 3 });
+    const result = await service.executeEtlJob('job-1', { maxRows: 3 }, { internal: true });
 
     // Chunks are whole: 3 rows means two chunks of two, then stop.
     expect(taken.chunks).toBe(2);
@@ -226,7 +226,7 @@ describe('EtlService.executeEtlJob chunk loop', () => {
   it('streams the source query once, at the configured chunk size', async () => {
     chunksOf(1, 2);
 
-    await service.executeEtlJob('job-1', { chunkSize: 500 });
+    await service.executeEtlJob('job-1', { chunkSize: 500 }, { internal: true });
 
     expect(hoisted.streamChunks).toHaveBeenCalledTimes(1);
     // The third argument is the fixture channel a *test* run uses; a job
@@ -243,7 +243,7 @@ describe('EtlService.executeEtlJob chunk loop', () => {
       throw new Error('INTERRUPT Error: Interrupted!');
     });
 
-    await expect(service.executeEtlJob('job-1', {})).rejects.toThrow('Interrupted');
+    await expect(service.executeEtlJob('job-1', {}, { internal: true })).rejects.toThrow('Interrupted');
     expect(hoisted.update).toHaveBeenCalledWith(
       'EtlExecution',
       expect.any(String),

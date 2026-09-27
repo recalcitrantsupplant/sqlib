@@ -41,7 +41,7 @@ let executorFactoryInstance: ExecutorFactory | null = null;
 async function executor() {
   if (!executorFactoryInstance) {
     const { ExecutorFactory } = await import('../lib/orchestration/ExecutorFactory.js');
-    executorFactoryInstance ??= new ExecutorFactory();
+    executorFactoryInstance ??= new ExecutorFactory({ internal: true });
   }
   return executorFactoryInstance.getExecutorForBackendId(LIBRARY_STORAGE_BACKEND_ID);
 }

@@ -38,6 +38,7 @@ import {
 import { FANOUT_GROUP_ID } from '../../src/lib/w3cRulesSuite/validationExamplesFanOut.js';
 import { GraphBuilder } from '../../src/lib/orchestration/GraphBuilder.js';
 import { ExecutionEngine } from '../../src/lib/orchestration/ExecutionEngine.js';
+import { ExecutorFactory } from '../../src/lib/orchestration/ExecutorFactory.js';
 import type { LdkitQueryGroup } from '../../src/persistence/schemas/QueryGroupSchema.js';
 import type { LdkitQueryGroupVersion } from '../../src/persistence/schemas/QueryGroupVersionSchema.js';
 import type { LdkitQueryNode } from '../../src/persistence/schemas/QueryNodeSchema.js';
@@ -102,7 +103,7 @@ beforeAll(async () => {
   const tests = (repos.Test.list() as LdkitTest[])
     .filter(test => test.isPartOf?.includes(W3C_RULES_SUITE_LIBRARY_ID));
 
-  const runner = new TestRunner();
+  const runner = new TestRunner({ internal: true });
   const results: Verdict[] = [];
   for (const test of tests) {
     if (!test.currentVersion) continue;
@@ -277,7 +278,7 @@ describe('W3C SPARQL-RL conformance, as library Tests', () => {
     expect(example?.subjectKind).toBe('queryGroup');
     expect(example?.currentVersion).toBeTruthy();
 
-    const result = await new TestRunner().runTestVersion(example!.currentVersion!);
+    const result = await new TestRunner({ internal: true }).runTestVersion(example!.currentVersion!);
     expect(result.passed, result.message).toBe(true);
   });
 
@@ -297,7 +298,7 @@ describe('W3C SPARQL-RL conformance, as library Tests', () => {
     expect(example?.subjectKind).toBe('queryGroup');
     expect(example?.currentVersion).toBeTruthy();
 
-    const result = await new TestRunner().runTestVersion(example!.currentVersion!);
+    const result = await new TestRunner({ internal: true }).runTestVersion(example!.currentVersion!);
     expect(result.passed, result.message).toBe(true);
   });
 
@@ -313,7 +314,7 @@ describe('W3C SPARQL-RL conformance, as library Tests', () => {
       .find(test => test.subject === EPHEMERAL_GROUP_ID);
     expect(example?.currentVersion, 'the two-input group has no Test').toBeTruthy();
 
-    const result = await new TestRunner().runTestVersion(example!.currentVersion!);
+    const result = await new TestRunner({ internal: true }).runTestVersion(example!.currentVersion!);
     expect(result.passed, result.message).toBe(true);
 
     // Both graphs are recorded as inputs of the case, not just the first —
@@ -340,7 +341,7 @@ describe('W3C SPARQL-RL conformance, as library Tests', () => {
 
     const graph = new GraphBuilder().buildFromGroupVersion(version);
     // Positional, in the order the start node declares them: shapes, then data.
-    const { result } = await new ExecutionEngine().execute(graph, [], undefined, {
+    const { result } = await new ExecutionEngine(new ExecutorFactory({ internal: true })).execute(graph, [], undefined, {
       dataGraphs: [
         { content: SHACL_VALIDATION_SHAPES, format: 'turtle' },
         { content: SHACL_VALIDATION_DATA, format: 'turtle' },

@@ -25,9 +25,9 @@ import { findAllBenchmarkIterationObservations } from '../persistence/utils/Benc
 import { findAllBenchmarkIterationRuns } from '../persistence/utils/BenchmarkIterationRunUtils.js';
 import { reposRoute, withReposHandler, setEntityConcurrencyHeaders, validateIfMatch } from './route-helpers.js';
 import { registerEntityAuthGuard } from '../auth/entityGuard.js';
+import { AuthorizationError } from '../auth/enforce.js';
 
 const experimentService = new BenchmarkExperimentService();
-const runner = new BenchmarkRunner();
 
 type ErrorResponse = { error: string; [key: string]: unknown };
 
@@ -248,7 +248,7 @@ export default async function benchmarkRoutes(fastify: FastifyInstance) {
       return reply.code(404).send({ error: `Benchmark experiment version ${id} v${version} not found` });
     }
     try {
-      const result = await runner.runExperimentVersion(detail.id);
+      const result = await new BenchmarkRunner({ request }).runExperimentVersion(detail.id);
       const normalized = {
         ...result,
         run: toRestApi(result.run),
@@ -260,6 +260,7 @@ export default async function benchmarkRoutes(fastify: FastifyInstance) {
       };
       return reply.send(normalized);
     } catch (error) {
+      if (error instanceof AuthorizationError) throw error;
       const message = error instanceof Error ? error.message : String(error);
       return reply.code(409).send({ error: message });
     }
