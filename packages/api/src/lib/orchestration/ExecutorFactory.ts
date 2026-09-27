@@ -33,6 +33,17 @@ export class ExecutorFactory {
   }
 
   /**
+   * The caller this factory runs for, or `undefined` for internal work.
+   *
+   * Exposed for the engine, which makes the one authorization decision a
+   * backend check cannot: which *query* a DynamicQueryNode may be pointed at
+   * at runtime.
+   */
+  get callerScope(): ExecutionAuthScope | undefined {
+    return this.authScope;
+  }
+
+  /**
    * Get an executor for a backend ID directly (without requiring a full ResolvedNode).
    * Useful for ETL execution where we only have a backend reference.
    */

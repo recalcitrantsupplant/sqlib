@@ -7,7 +7,8 @@ import { SparqlQueryParser } from '../parser.js';
 import type { SparqlBinding, SparqlValue } from '../query-chaining.js';
 import { getCacheCoordinator } from '../CacheCoordinatorProvider.js';
 import { oxigraphStoreManager } from '../OxigraphStoreManager.js';
-import { QueryTypeIri } from '../../constants/queryTypes.js';
+import { QueryTypeIri, getQueryTypeKeyFromIri, type QueryTypeValue } from '../../constants/queryTypes.js';
+import { requireLibraryMode, resolveOwningLibrary } from '../../auth/enforce.js';
 import { toQueryTypeIri } from '../queryTypes.js';
 import { RuleSetExecutor } from '../RuleSetExecutor.js';
 import { duckDbService } from '../DuckDbService.js';
@@ -258,7 +259,7 @@ export class ExecutionEngine {
         const nodeStart = performance.now();
         hooks?.onNodeStart?.(node, nodeOrderIndex);
 
-        const type = toQueryTypeIri(node.queryType) || QueryTypeIri.select;
+        let type = toQueryTypeIri(node.queryType) || QueryTypeIri.select;
         let nodeResult: NodeResult;
         try {
           // Resolving the executor belongs inside the node's error boundary too:
@@ -274,6 +275,9 @@ export class ExecutionEngine {
           // Argument application belongs inside the node's error boundary: a bad
           // argument set is that node's failure, and must report as one.
           this.applyDynamicQueryOverride(graph, node, results, startNodeOutputs);
+          // A dynamic node runs the query it resolved, so it is dispatched by
+          // that query's type rather than by its declared placeholder's.
+          type = toQueryTypeIri(node.queryType) || QueryTypeIri.select;
           const argSets = this.buildArgumentSetsForNode(graph, node, results, startNodeOutputs);
           const query = this.applyArgumentsInOrder(graph, node, argSets, initialArgs, options);
 
@@ -916,16 +920,17 @@ export class ExecutionEngine {
    * this malformed should cost nothing rather than be reported once half of it
    * has been written.
    *
-   * Skipped where a `DynamicQueryNode` is present, because the query whose
-   * clauses a table might fill is chosen by an upstream node and its text is
-   * not knowable here. Guessing would refuse a legitimate run, which is worse
-   * than the silence this replaces.
+   * A `DynamicQueryNode` is the one node whose clauses are not knowable here:
+   * the query it runs is chosen by an upstream node. So for it alone the check
+   * trusts what the node declares instead — its input tuple ports, and the
+   * clauses of its declared query — and every other node is held to its text
+   * as usual. Letting one dynamic node switch the whole check off would let
+   * a stray table through to every static node beside it.
    */
   private refuseUnroutedArguments(graph: ExecutionGraph, initialArgs?: ArgumentSet[]): void {
     if (!initialArgs?.length) return;
 
     const nodes = Array.from(graph.nodes.values());
-    if (nodes.some(node => (node.raw as { '@type'?: string })['@type'] === 'DynamicQueryNode')) return;
 
     const reachable = new Set<ArgumentSet>();
     for (const node of nodes) {
@@ -937,6 +942,10 @@ export class ExecutionEngine {
 
     const clauseSignatures = new Set<string>();
     for (const node of nodes) {
+      if ((node.raw as { '@type'?: string })['@type'] === 'DynamicQueryNode') {
+        for (const signature of this.dynamicNodeSignatures(node)) clauseSignatures.add(signature);
+        continue;
+      }
       if (!node.queryString) continue;
       try {
         for (const group of this.parser.detectInputs(node.queryString).valuesInputs ?? []) {
@@ -961,6 +970,33 @@ export class ExecutionEngine {
       `This run supplies ${stranded.length} table(s) that fill no input the query group declares: ${described}. `
       + 'Drop them, or declare an input for each on the start node.'
     );
+  }
+
+  /**
+   * The table signatures a dynamic node may consume, as far as they can be
+   * known before it resolves its query.
+   *
+   * Its declared query is only a placeholder for the one that will run, so a
+   * parse failure there says nothing about the run and is ignored rather than
+   * abandoning the check the way a static node's does.
+   */
+  private dynamicNodeSignatures(node: ResolvedNode): string[] {
+    const signatures: string[] = [];
+    for (const portId of node.inputTupleIds) {
+      if ((getCacheCoordinator().get(portId) as { '@type'?: string } | null)?.['@type'] !== 'QueryInputTuple') continue;
+      const names = this.resolveInputTupleNames(portId);
+      if (names.length) signatures.push(this.normalizedSignature(names));
+    }
+    if (node.queryString) {
+      try {
+        for (const group of this.parser.detectInputs(node.queryString).valuesInputs ?? []) {
+          signatures.push(this.normalizedSignature(group));
+        }
+      } catch {
+        // See above: the placeholder's text is not what runs.
+      }
+    }
+    return signatures;
   }
 
   /**
@@ -1407,9 +1443,90 @@ export class ExecutionEngine {
       throw new Error(`QUERY_ID edge ${edge.id} references missing QueryVersion ${queryVersionId}`);
     }
 
+    this.requireDynamicQueryReachable(graph, queryVersionId, resolved);
+    const queryType = toQueryTypeIri(resolved.queryType as string | undefined | null) ?? null;
+    this.requireDynamicQueryTypeFits(graph, node, queryVersionId, queryType);
+
     node.queryVersionId = queryVersionId;
     node.queryVersion = resolved;
     node.queryString = resolved.queryString as string;
-    node.queryType = toQueryTypeIri(resolved.queryType as string | undefined | null) ?? null;
+    node.queryType = queryType;
+  }
+
+  /**
+   * A QUERY_ID value is data — possibly the caller's own, seeded through the
+   * start node — so the version it names is only as trustworthy as whoever
+   * supplied it. Without this, one group could run any QueryVersion in the
+   * process, from any library, against the node's backend.
+   *
+   * The group's own library is always in reach: its author could have wired
+   * that query in statically. Beyond it, a caller may reach a library they may
+   * `execute`, which is exactly what running that query directly would need.
+   * An internal execution has no caller to ask, so it is held to the group's
+   * library alone; only when even that is unknown (a graph assembled without
+   * a stored group) does it keep resolving freely, as sqlib's own work always
+   * has.
+   *
+   * The group's library comes from the graph's `groupVersion`, falling back to
+   * the scope's `viaLibrary` — the route sets that to the same library, and it
+   * is the only answer for a graph whose group version is not stored.
+   */
+  private requireDynamicQueryReachable(
+    graph: ExecutionGraph,
+    queryVersionId: string,
+    resolved: unknown
+  ): void {
+    const scope = this.executorFactory.callerScope;
+    const groupLibrary = resolveOwningLibrary(graph.groupVersion) ?? scope?.viaLibrary ?? null;
+    const queryLibrary = resolveOwningLibrary(resolved);
+
+    if (groupLibrary && queryLibrary === groupLibrary) return;
+    if (scope) {
+      requireLibraryMode(scope.request, queryLibrary, 'execute');
+      return;
+    }
+    if (!groupLibrary) return;
+    throw new Error(
+      `QueryVersion ${queryVersionId} belongs to ${queryLibrary ?? 'no library'}, `
+      + `not to this group's library ${groupLibrary}`
+    );
+  }
+
+  /**
+   * The chosen query must produce what the node's outgoing edges carry.
+   *
+   * The graph was validated against the node's declared query, not the one
+   * chosen at runtime, so nothing upstream has checked this pairing. A SELECT
+   * where an RDF_GRAPH edge expects triples fails confusingly downstream at
+   * best; an UPDATE is never acceptable, because a value flowing along an edge
+   * must not be able to turn a read into a write.
+   *
+   * Control-flow edges carry nothing and constrain nothing, so a node reached
+   * only by them may run any read.
+   */
+  private requireDynamicQueryTypeFits(
+    graph: ExecutionGraph,
+    node: ResolvedNode,
+    queryVersionId: string,
+    queryType: QueryTypeValue | null
+  ): void {
+    const effective = queryType ?? QueryTypeIri.select;
+    if (effective === QueryTypeIri.update) {
+      throw new Error(`DynamicQueryNode ${node.id} cannot run UPDATE QueryVersion ${queryVersionId}`);
+    }
+    const carries: Record<string, QueryTypeValue[]> = {
+      VARIABLE_BINDINGS: [QueryTypeIri.select],
+      QUERY_ID: [QueryTypeIri.select],
+      RDF_GRAPH: [QueryTypeIri.construct, QueryTypeIri.describe],
+      BOOLEAN: [QueryTypeIri.ask],
+    };
+    for (const edge of graph.outgoingEdges.get(node.id) || []) {
+      const accepted = edge.dataFlowType ? carries[edge.dataFlowType] : undefined;
+      if (!accepted || accepted.includes(effective)) continue;
+      throw new Error(
+        `DynamicQueryNode ${node.id} resolved QueryVersion ${queryVersionId} of type `
+        + `${(getQueryTypeKeyFromIri(effective) ?? effective).toUpperCase()}, which its ${edge.dataFlowType} edge ${edge.id} cannot carry`
+      );
+    }
   }
 }
