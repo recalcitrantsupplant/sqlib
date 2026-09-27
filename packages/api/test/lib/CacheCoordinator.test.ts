@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { CacheCoordinator } from '../../src/lib/CacheCoordinator.js';
+import { CacheCoordinator, EntityExistsError } from '../../src/lib/CacheCoordinator.js';
+import { config } from '../../src/server/config.js';
 import { loadAllSystemEntities } from '../../src/persistence/utils/entityRepository.js';
 import { getKnownSystemEntityIds, loadSystemStore } from '../../src/system-store/SystemStoreLoader.js';
 import { Backends } from '../../src/persistence/utils/BackendUtils.js';
@@ -102,6 +103,53 @@ describe('CacheCoordinator', () => {
     
     coordinator.removeEphemeral('temp1');
     expect(coordinator.get('temp1')).toBeNull();
+  });
+
+  describe('create over an existing id', () => {
+    it('refuses an id already cached under the same type, and writes nothing', async () => {
+      await coordinator.loadAll();
+      await coordinator.create('Backend', { $id: 'urn:b:taken', name: 'First' });
+      (Backends.insert as any).mockClear();
+
+      await expect(coordinator.create('Backend', { $id: 'urn:b:taken', name: 'Second' }))
+        .rejects.toBeInstanceOf(EntityExistsError);
+      expect(Backends.insert).not.toHaveBeenCalled();
+      expect(coordinator.get('urn:b:taken')).toMatchObject({ name: 'First' });
+    });
+
+    it('refuses an id cached under another type, which it would otherwise re-type', async () => {
+      (loadAllSystemEntities as any).mockResolvedValue(new Map([
+        ['urn:lib:1', { $id: 'urn:lib:1', '@type': 'Library', name: 'Payroll' }],
+      ]));
+      await coordinator.loadAll();
+
+      await expect(coordinator.create('Backend', { $id: 'urn:lib:1', name: 'Takeover' }))
+        .rejects.toMatchObject({ statusCode: 409 });
+      expect(coordinator.get('urn:lib:1')).toMatchObject({ '@type': 'Library' });
+    });
+
+    it('promotes an ephemeral entity rather than refusing it', async () => {
+      await coordinator.loadAll();
+      coordinator.addEphemeral({ $id: 'urn:b:scratch', name: 'Scratch' }, 'Backend');
+
+      await expect(coordinator.create('Backend', { $id: 'urn:b:scratch', name: 'Kept' }))
+        .resolves.toMatchObject({ name: 'Kept' });
+    });
+
+    it('asks the store when the cache was not preloaded', async () => {
+      const mutable = config as { cachePreloadEnabled: boolean };
+      mutable.cachePreloadEnabled = false;
+      try {
+        await coordinator.loadAll();
+        (Backends.findByIri as any).mockResolvedValue({ $id: 'urn:b:cold', '@type': 'Backend' });
+
+        await expect(coordinator.create('Backend', { $id: 'urn:b:cold', name: 'Again' }))
+          .rejects.toBeInstanceOf(EntityExistsError);
+        expect(Backends.insert).not.toHaveBeenCalled();
+      } finally {
+        mutable.cachePreloadEnabled = true;
+      }
+    });
   });
 
   describe('resolveExisting', () => {
