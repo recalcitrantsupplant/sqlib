@@ -24,6 +24,7 @@
  * abstaining there hands it to anyone: see `danglingContainer` below.
  */
 import type { FastifyInstance, FastifyRequest } from 'fastify';
+import { normalizeRouteUrl } from '../config/readOnly.js';
 import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
 import { getPrefix } from '../lib/id.js';
 import {
@@ -96,11 +97,25 @@ export interface EntityGuardOptions {
   adminSuffixes?: readonly string[];
 }
 
+/**
+ * The route pattern Fastify matched (`/queries/:id/execute`), not the raw URL.
+ *
+ * The suffix lists are claims about routes, so they are matched against routes.
+ * Against the raw URL, whatever route a request reached was exempted, made
+ * admin-only or re-moded by how the caller happened to spell its last segment —
+ * `/queries/preview` reaches `/queries/:id` with `id = "preview"` and still
+ * matched the `/preview` exemption. Same reasoning as `config/readOnly.ts`.
+ */
+function routePatternOf(request: FastifyRequest): string {
+  const routeUrl = request.routeOptions?.url;
+  return routeUrl ? normalizeRouteUrl(routeUrl) : '';
+}
+
 function modeForRequest(
   request: FastifyRequest,
   options: EntityGuardOptions
 ): LibraryMode | null {
-  const path = request.url.split('?')[0];
+  const path = routePatternOf(request);
 
   for (const suffix of options.executeSuffixes ?? []) {
     if (path.endsWith(suffix)) return 'execute';
@@ -229,7 +244,7 @@ export function registerEntityAuthGuard(
     // context; there is nothing to resolve and nothing to deny.
     if (context.fullAccess || context.grants.admin) return;
 
-    const path = request.url.split('?')[0];
+    const path = routePatternOf(request);
     // Before the exempt list: an admin-only path is admin-only even when it is
     // also unresolvable, which is exactly the shape ETL's /preview has.
     for (const suffix of options.adminSuffixes ?? []) {

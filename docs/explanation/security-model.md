@@ -28,10 +28,13 @@ Three values. **The default is `disabled`.**
 | --- | --- | --- |
 | `disabled` (default) | no | Every request gets a synthetic full-access context. Every check exists and passes. |
 | `dry-run` | no | A token, if presented, is verified and grants resolved; a request that would be denied is logged as `would-deny` and served anyway. |
-| `required` | yes | A request without a valid token gets `401` (or `503` if the JWKS endpoint cannot be reached, because that failure is the server's, not the caller's). |
+| `required` | yes | A request without a valid token gets `401` (or `503` if the JWKS endpoint cannot be fetched, because that failure is the server's, not the caller's). A token whose `kid` is not in the published key set is a `401`; an unknown `kid` refetches the key set at most once per 30-second cooldown. |
 
 Setting `dry-run` or `required` without configuring an issuer is a startup
-error, not a silent fallback.
+error, not a silent fallback. So is an issuer without an audience, unless
+`SQLIB_AUTH_AUDIENCE_UNCHECKED=true` says it is deliberate: with no audience the
+`aud` claim goes unchecked and a token the issuer minted for any other
+application is accepted.
 
 The design decision behind all three is that the request path is the same shape
 in every mode. The auth plugin is registered as an `onRequest` hook before any
@@ -40,8 +43,11 @@ skipping the decoration. Nothing downstream branches on "is auth on", so an
 enforcement point cannot be accidentally absent in one mode and present in
 another.
 
-`/health` and `/` are public in every mode. `/docs` is public unless
-`SQLIB_AUTH_PROTECT_DOCS=true`.
+`/health` and `/` are public in every mode. `/docs` and the routes under it are
+public unless `SQLIB_AUTH_PROTECT_DOCS=true`. Public routes are matched by the
+route pattern Fastify registered (after `APP_BASE_PATH`), not by the raw URL, so
+a route such as `/backends/:id/health` is not public because of its last
+segment.
 
 ### What is verified
 

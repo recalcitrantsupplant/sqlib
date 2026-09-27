@@ -57,17 +57,31 @@ async function token(claims: Record<string, unknown>) {
     .sign(privateKey);
 }
 
-async function buildApp(mode: string): Promise<FastifyInstance> {
+async function buildApp(
+  mode: string,
+  options: { basePath?: string; env?: Record<string, string> } = {}
+): Promise<FastifyInstance> {
   resetAuthConfig({
     SQLIB_AUTH_MODE: mode,
     SQLIB_AUTH_ISSUER: ISSUER,
     SQLIB_AUTH_AUDIENCE: AUDIENCE,
     SQLIB_AUTH_JWKS_URI: 'https://issuer.test/jwks',
     SQLIB_AUTH_CLAIM_GROUPS: 'groups',
+    ...options.env,
   } as NodeJS.ProcessEnv);
 
   const app = Fastify({ logger: false });
-  await registerAuthPlugin(app);
+  await registerAuthPlugin(app, { basePath: options.basePath });
+  if (options.basePath) {
+    await app.register(async scoped => registerRoutes(scoped), { prefix: options.basePath });
+  } else {
+    registerRoutes(app);
+  }
+  await app.ready();
+  return app;
+}
+
+function registerRoutes(app: FastifyInstance): void {
   app.get('/whoami', async request => {
     const context = authOf(request);
     return {
@@ -79,8 +93,13 @@ async function buildApp(mode: string): Promise<FastifyInstance> {
     };
   });
   app.get('/health', async () => ({ status: 'ok' }));
-  await app.ready();
-  return app;
+  app.get('/', async () => ({ redirect: 'docs' }));
+  app.get('/docs', async () => ({ docs: true }));
+  app.get('/docs/json', async () => ({ openapi: '3.0.0' }));
+  // Shaped like the routes the raw-URL matcher waved through: a real entity
+  // route that happens to end in `/health` or pass through `/docs/`.
+  app.get('/backends/:id/health', async () => ({ reachable: true }));
+  app.get('/libraries/:id/docs/:page', async () => ({ page: true }));
 }
 
 describe('disabled mode', () => {
@@ -131,6 +150,62 @@ describe('required mode', () => {
   it('leaves /health reachable for load balancers', async () => {
     const app = await buildApp('required');
     expect((await app.inject({ method: 'GET', url: '/health' })).statusCode).toBe(200);
+    await app.close();
+  });
+
+  it('rejects a token minted for another audience with 401', async () => {
+    const app = await buildApp('required');
+    const foreign = await new SignJWT({ sub: 'user-1' })
+      .setProtectedHeader({ alg: 'RS256' })
+      .setIssuedAt()
+      .setIssuer(ISSUER)
+      .setAudience('some-other-api')
+      .setExpirationTime('5m')
+      .sign(privateKey);
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/whoami',
+      headers: { authorization: `Bearer ${foreign}` },
+    });
+
+    expect(response.statusCode).toBe(401);
+    await app.close();
+  });
+
+  it('leaves / and the docs public', async () => {
+    const app = await buildApp('required');
+    for (const url of ['/', '/docs', '/docs/json']) {
+      expect((await app.inject({ method: 'GET', url })).statusCode, url).toBe(200);
+    }
+    await app.close();
+  });
+
+  it('protects the docs when SQLIB_AUTH_PROTECT_DOCS=true', async () => {
+    const app = await buildApp('required', { env: { SQLIB_AUTH_PROTECT_DOCS: 'true' } });
+    expect((await app.inject({ method: 'GET', url: '/docs/json' })).statusCode).toBe(401);
+    expect((await app.inject({ method: 'GET', url: '/health' })).statusCode).toBe(200);
+    await app.close();
+  });
+
+  it('matches public routes by pattern, so an entity route ending in /health is not public', async () => {
+    const app = await buildApp('required');
+    // Both answered 200 without a token while matching was `endsWith('/health')`
+    // and `includes('/docs/')` on the raw URL.
+    expect((await app.inject({ method: 'GET', url: '/backends/b1/health' })).statusCode).toBe(401);
+    expect((await app.inject({ method: 'GET', url: '/libraries/l1/docs/intro' })).statusCode).toBe(401);
+    // An unrouted URL has no pattern: a 401, not a 404 that says what exists.
+    expect((await app.inject({ method: 'GET', url: '/nothing/here/health' })).statusCode).toBe(401);
+    await app.close();
+  });
+
+  it('keeps the public routes public under APP_BASE_PATH, and only those', async () => {
+    const app = await buildApp('required', { basePath: '/sqlib' });
+    for (const url of ['/sqlib', '/sqlib/', '/sqlib/health', '/sqlib/docs/json']) {
+      expect((await app.inject({ method: 'GET', url })).statusCode, url).toBe(200);
+    }
+    expect((await app.inject({ method: 'GET', url: '/sqlib/backends/b1/health' })).statusCode).toBe(401);
+    expect((await app.inject({ method: 'GET', url: '/sqlib/whoami' })).statusCode).toBe(401);
     await app.close();
   });
 
@@ -236,6 +311,50 @@ describe('configuration', () => {
   it('refuses to start an enforcing mode with no issuer', () => {
     expect(() => resetAuthConfig({ SQLIB_AUTH_MODE: 'required' } as NodeJS.ProcessEnv))
       .toThrow(/requires an issuer/);
+  });
+
+  it('refuses to start an enforcing mode with no audience', () => {
+    for (const mode of ['required', 'dry-run']) {
+      expect(() =>
+        resetAuthConfig({ SQLIB_AUTH_MODE: mode, SQLIB_AUTH_ISSUER: ISSUER } as NodeJS.ProcessEnv)
+      ).toThrow(/requires an audience.*SQLIB_AUTH_AUDIENCE_UNCHECKED=true/);
+    }
+  });
+
+  it('refuses an issuer list in which any entry has no audience', () => {
+    expect(() =>
+      resetAuthConfig({
+        SQLIB_AUTH_MODE: 'required',
+        SQLIB_AUTH_ISSUERS_JSON: JSON.stringify([
+          { issuer: ISSUER, audience: AUDIENCE },
+          { issuer: 'https://other.test/', audience: '  ' },
+        ]),
+      } as NodeJS.ProcessEnv)
+    ).toThrow(/missing for https:\/\/other\.test\//);
+  });
+
+  it('starts without an audience only when SQLIB_AUTH_AUDIENCE_UNCHECKED=true says so', () => {
+    expect(() =>
+      resetAuthConfig({
+        SQLIB_AUTH_MODE: 'required',
+        SQLIB_AUTH_ISSUER: ISSUER,
+        SQLIB_AUTH_AUDIENCE_UNCHECKED: 'yes',
+      } as NodeJS.ProcessEnv)
+    ).toThrow(/requires an audience/);
+
+    const config = resetAuthConfig({
+      SQLIB_AUTH_MODE: 'required',
+      SQLIB_AUTH_ISSUER: ISSUER,
+      SQLIB_AUTH_AUDIENCE_UNCHECKED: 'true',
+    } as NodeJS.ProcessEnv);
+    expect(config.audienceUnchecked).toBe(true);
+    expect(config.issuers[0].audience).toBeUndefined();
+  });
+
+  it('does not ask for an audience in disabled mode', () => {
+    expect(() =>
+      resetAuthConfig({ SQLIB_AUTH_MODE: 'disabled', SQLIB_AUTH_ISSUER: ISSUER } as NodeJS.ProcessEnv)
+    ).not.toThrow();
   });
 
   it('rejects an unrecognised mode rather than defaulting to open', () => {

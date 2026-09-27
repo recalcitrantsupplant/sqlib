@@ -285,18 +285,19 @@ and does not cover.
 
 | Name | Default | Effect |
 | --- | --- | --- |
-| `SQLIB_AUTH_MODE` | `disabled` | `disabled`, `dry-run` (or `dryrun`), or `required`. An empty value is `disabled`. Anything else throws. `dry-run` and `required` both require an issuer. |
+| `SQLIB_AUTH_MODE` | `disabled` | `disabled`, `dry-run` (or `dryrun`), or `required`. An empty value is `disabled`. Anything else throws. `dry-run` and `required` both require an issuer, and an audience for every issuer unless `SQLIB_AUTH_AUDIENCE_UNCHECKED=true`. |
 | `SQLIB_AUTH_ISSUER` | unset | OIDC issuer URL for a single-issuer deployment. |
 | `SQLIB_AUTH_AUDIENCE` | unset | Expected `aud` for that issuer. |
+| `SQLIB_AUTH_AUDIENCE_UNCHECKED` | `false` | Set to exactly `true` (case-insensitive) to start `dry-run` or `required` with an issuer that has no audience. Without an audience the `aud` claim is not checked, so any token that issuer minted for any application is accepted; without this flag that configuration throws at startup. Applies to `SQLIB_AUTH_ISSUERS_JSON` entries too. |
 | `SQLIB_AUTH_JWKS_URI` | unset | JWKS URL, when it is not the issuer's discovery default. |
 | `SQLIB_AUTH_CLAIM_GROUPS` | `groups` | Dot-path to the claim carrying group or role membership. |
 | `SQLIB_AUTH_CLAIM_CLIENT_ID` | `azp` | Dot-path to the claim used to recognise a machine-to-machine caller. |
-| `SQLIB_AUTH_ISSUERS_JSON` | unset | A JSON array of issuer objects (`issuer`, and optionally `audience`, `jwksUri`, `claimGroups`, `claimClientId`), for more than one issuer. When set it replaces the single-issuer variables above. Invalid JSON, a non-array, an empty array or an entry without a string `issuer` throws. Per-entry defaults are `groups` and `azp`. |
+| `SQLIB_AUTH_ISSUERS_JSON` | unset | A JSON array of issuer objects (`issuer`, `audience` — required in an enforcing mode unless `SQLIB_AUTH_AUDIENCE_UNCHECKED=true` — and optionally `jwksUri`, `claimGroups`, `claimClientId`), for more than one issuer. When set it replaces the single-issuer variables above. Invalid JSON, a non-array, an empty array or an entry without a string `issuer` throws. Per-entry defaults are `groups` and `azp`. |
 | `SQLIB_AUTH_CLOCK_SKEW_S` | `60` | Allowed clock skew in seconds when validating a token. A negative or non-numeric value throws. |
 | `SQLIB_AUTH_ADMIN_PRINCIPALS` | empty | Comma-separated raw claim values treated as administrators at boot, in the form `iss\|sub` or `iss\|group:value`. |
 | `SQLIB_AUTH_SEED_GRANTS` | unset | Path to a file of grants loaded at startup. |
 | `SQLIB_AUTH_ALLOW_LIBRARY_CREATE` | `all` | `all` or `admin`. Anything else throws. |
-| `SQLIB_AUTH_PROTECT_DOCS` | `false` | Set to exactly `true` (case-insensitive) to require a token for the API documentation routes. |
+| `SQLIB_AUTH_PROTECT_DOCS` | `false` | Set to exactly `true` (case-insensitive) to require a token for the API documentation routes (`/docs` and everything under it). `/` and `/health` stay public regardless. |
 
 ## Feature flags
 

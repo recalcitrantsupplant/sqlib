@@ -190,7 +190,10 @@ reachable by anyone but you.
 which gives every request full access. `dry-run` validates tokens and logs what
 would have happened without refusing anything; `required` refuses. An enforcing
 mode needs at least one issuer — `SQLIB_AUTH_ISSUER` with `SQLIB_AUTH_AUDIENCE`,
-or `SQLIB_AUTH_ISSUERS_JSON` for several — and refuses to start without one.
+or `SQLIB_AUTH_ISSUERS_JSON` for several — and refuses to start without one. It
+also refuses an issuer with no audience, because without one any token that
+issuer minted for any application would be accepted; set
+`SQLIB_AUTH_AUDIENCE_UNCHECKED=true` only if that is really what you want.
 `SQLIB_AUTH_ADMIN_PRINCIPALS` names the principals that are administrators at
 boot.
 

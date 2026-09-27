@@ -92,6 +92,7 @@ beforeEach(async () => {
   resetAuthConfig({
     SQLIB_AUTH_MODE: 'dry-run',
     SQLIB_AUTH_ISSUER: 'https://issuer.test/',
+    SQLIB_AUTH_AUDIENCE: 'sqlib-api',
   } as NodeJS.ProcessEnv);
   store = new AuthStore(inMemoryPersistence());
   await store.load();

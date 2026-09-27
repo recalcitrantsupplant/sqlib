@@ -721,9 +721,11 @@ async function configureApp(fastifyApp: typeof app, options: ConfigureOptions = 
 
   // Registered before any route so every request carries an AuthContext, in all
   // three modes. Grants load later (they need the entity cache); the plugin only
-  // validates tokens here.
+  // validates tokens here. It matches its public routes by registered pattern,
+  // which carries the base path whenever one is set.
+  const basePath = normalizeBasePath(process.env.APP_BASE_PATH);
   resetAuthConfig();
-  await registerAuthPlugin(fastifyApp);
+  await registerAuthPlugin(fastifyApp, { basePath });
 
   // After auth so a refusal is logged against a request that already carries a
   // context, and before every route so no write route can be reached without
@@ -888,7 +890,6 @@ async function configureApp(fastifyApp: typeof app, options: ConfigureOptions = 
   // own cache. See `registerNoStoreHook`.
   registerNoStoreHook(fastifyApp);
 
-  const basePath = normalizeBasePath(process.env.APP_BASE_PATH);
   const publicBasePath = normalizeBasePath(process.env.APP_PUBLIC_BASE_PATH) || basePath;
 
   if (basePath) {
