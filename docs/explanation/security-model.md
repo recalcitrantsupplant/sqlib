@@ -82,10 +82,14 @@ serialised into the log.
 the same Fastify instance as the API, so the auth plugin's `onRequest` hook does
 cover it: under `required`, a request with no bearer token is refused before the
 transport sees it, and a token that is present is forwarded onto every
-`app.inject` call so tools run under that caller's grants. What does not exist
-is anything MCP-specific — no per-session identity, no per-tool authorization —
-and under the default `disabled` mode nothing is checked at all. The repository
-has no test pinning `/mcp` behaviour under `required`.
+`app.inject` call so tools run under that caller's grants. Each MCP session is
+bound to the caller that created it (a digest of the `Authorization` header, or
+of the verified token's issuer and subject), and a request on that session from
+anyone else gets 403, so a leaked session id does not hand over the session.
+What does not exist is per-tool authorization, and under the default `disabled`
+mode no token is checked at all: callers are told apart only by whatever
+`Authorization` header they send. `packages/mcp-server/test/http-server.test.ts`
+pins that `/mcp` refuses a request with no bearer under `required`.
 
 **The in-app assistant has no authorization of its own.** Its route module
 registers no entity guard and calls no enforcement helper. Its own header states

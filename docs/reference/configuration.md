@@ -25,6 +25,7 @@ For the reasoning behind these choices rather than their values, see
 | `HTTP_HOST` | `0.0.0.0` | Listening address in `dual-http` mode. Falls back to `MCP_HTTP_HOST` when unset. |
 | `MCP_HTTP_PORT` | `3333` | Listening port in `streamable-http` mode (MCP only, at `/mcp`). |
 | `MCP_HTTP_HOST` | `0.0.0.0` | Listening address in `streamable-http` mode. |
+| `SQLIB_CORS_ORIGINS` | unset: `http://localhost:3001,http://127.0.0.1:3001` (the SPA dev server) when `NODE_ENV=development`, otherwise none | Browser origins allowed to read `/mcp` responses, comma-separated. A listed origin is echoed in `access-control-allow-origin` with `access-control-allow-credentials: true`; `*` allows every origin and never sends credentials; an origin not on the list gets no CORS headers. Set to the empty string to allow none even in development. Also answers `OPTIONS /mcp` preflights. In `streamable-http` and `dual-http` modes the API's own CORS plugin sits on the same instance and answers preflights first, so until the API reads this variable too, preflights to `/mcp` follow the API's policy. |
 | `PORT` | `3000` | Listening port when `packages/api` is started directly (`APP_MODE=api`). A value that does not parse as a number falls back to 3000. |
 | `FASTIFY_ADDRESS` | `0.0.0.0` | Listening address when `packages/api` is started directly. |
 | `APP_BASE_PATH` | empty | Mounts every API route under this prefix. A leading slash is added and trailing slashes are stripped; `/` means no prefix. |

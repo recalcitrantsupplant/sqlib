@@ -31,8 +31,22 @@ In the Docker image these are selected with `APP_MODE` (`dual-http`, `api` or
 
 Streamable HTTP is session-based: the server mints a session id on
 `initialize`, returns it in the `mcp-session-id` header, and a client sends it
-back on subsequent requests. `DELETE /mcp` ends a session. The header is in the
-CORS exposed-headers list, so a browser client can read it.
+back on subsequent requests. `DELETE /mcp` ends a session. Only an
+`initialize` request without a session id creates one; any other request
+without an id gets 400. A request naming an id the server does not know (it
+expired, the server restarted, or it was deleted) gets 404, which tells the
+client to initialise again.
+
+A session belongs to the caller that created it: the server keeps a SHA-256
+digest of the `Authorization` header (or, when the API's auth mode verified the
+token, of its issuer and subject) and answers 403 to a `POST`, `GET` or `DELETE`
+on that session from anyone else, including a request with no bearer at all.
+
+Browser clients need their origin in `SQLIB_CORS_ORIGINS` (comma-separated; see
+[configuration](../reference/configuration.md#server-and-transport)). A listed
+origin can read the `mcp-session-id` header, which is in the exposed-headers
+list. With the variable unset, only the SPA dev server's origin is allowed, and
+only under `NODE_ENV=development`.
 
 ## Running one locally
 
