@@ -50,7 +50,7 @@
             <a class="deeplink" :href="claudeDeeplink" target="_blank" rel="noopener" data-testid="claude-deeplink">
               <Plug :size="14" /> Add to Claude
             </a>
-            <span class="muted">Opens Claude's connector list. Press Add custom connector and paste the URL above.</span>
+            <span class="muted">Opens Claude's Add custom connector dialog with this server filled in. Press Add.</span>
           </div>
 
           <div class="client-tabs" role="tablist">
@@ -173,7 +173,7 @@ const router = useRouter();
 const { activeLibraryId: libraryId } = useActiveLibrary();
 
 const mcpUrl = computed(() => mcpEndpoint(config.public));
-const claudeDeeplink = claudeConnectorLink();
+const claudeDeeplink = computed(() => claudeConnectorLink(mcpUrl.value));
 
 const activeClient = ref(MCP_CLIENTS[0]!.id);
 const active = computed(

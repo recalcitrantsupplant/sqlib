@@ -22,11 +22,13 @@ test.describe('MCP', () => {
     await expect(page.getByTestId('mcp-endpoint')).toHaveText(MCP_URL);
   });
 
-  test("links Claude's connector list as documented, with no query string", async ({ page }) => {
-    // Claude documents no prefill parameters, and the old `?modal=…` sent
-    // users to the Settings stub; the URL to paste is the one shown above.
+  test("opens Claude's Add custom connector dialog prefilled with that URL", async ({ page }) => {
+    const endpoint = (await page.getByTestId('mcp-endpoint').textContent())!.trim();
     const href = await page.getByTestId('claude-deeplink').getAttribute('href');
-    expect(href).toBe('https://claude.ai/customize/connectors');
+    const link = new URL(href!);
+    expect(`${link.origin}${link.pathname}`).toBe('https://claude.ai/customize/connectors');
+    expect(link.searchParams.get('modal')).toBe('add-custom-connector');
+    expect(link.searchParams.get('connectorUrl')).toBe(endpoint);
   });
 
   test('leads with ChatGPT, which has no install link at all', async ({ page }) => {

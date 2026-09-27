@@ -340,19 +340,20 @@ whether any tool writes.
 | Claude web | `claude.ai/customize/connectors`, then **+** → **Add custom connector**. Team and Enterprise need an owner to add it first at `claude.ai/admin-settings/connectors`. |
 | ChatGPT | **Settings → Apps → Advanced settings**, switch on developer mode, then create a connector on that page. The section has been called Connectors, then Apps, then Plugins. |
 
-*Add to Claude* links `claude.ai/customize/connectors`. It used to link
-`claude.ai/settings/connectors?modal=add-custom-connector`, which opened the
-modal with the name and URL prefilled from the query string; that route now
-renders a stub reading "Connectors have moved to Customize", so the button led
-to a dead end that still looked official. Anthropic documents no prefill
-parameters on the new page, so the interface no longer promises a filled-in
-form, and the link carries no parameters at all: with the old
-`?modal=add-custom-connector` still on it, the customize link landed on the same
-Settings stub. It opens the list; the user presses **+** → **Add custom
-connector** and pastes the URL shown beside the button.
-`claudeConnectorLink` has a test asserting the
-documented path, so the next move fails a test rather than waiting for someone
-to notice a screenshot.
+*Add to Claude* opens Claude's **Add custom connector** dialog with this
+server filled in, using the deep link Claude documents:
+
+```
+https://claude.ai/customize/connectors?modal=add-custom-connector&connectorName=sqlib&connectorUrl=<URL-encoded endpoint>
+```
+
+The parameter names are the interface, and they have moved once already. The
+button used to link `claude.ai/settings/connectors?modal=add-custom-connector`
+with `mcpName` and `mcpServerUrl`; that route now renders a stub reading
+"Connectors have moved to Customize", and moving only the path while keeping the
+old names landed on the same stub. `claudeConnectorLink` has a test pinning the
+documented path and names, so the next move fails a test rather than waiting for
+someone to notice a screenshot.
 
 That button was a *Test connection* button first, and it was worse than useless.
 A browser already talking to this app reaching a URL on the same host proves a

@@ -45,11 +45,21 @@ describe('claudeConnectorLink', () => {
    * end. A test that names the current documented path turns the next move into
    * a failing test instead.
    */
-  it('points at the documented connectors page, and nothing else', () => {
-    // Exactly the page, no query string: `?modal=add-custom-connector` on the
-    // customize path sent users back to the Settings stub. See the note on
-    // `CLAUDE_CONNECTORS_URL`.
-    expect(claudeConnectorLink()).toBe('https://claude.ai/customize/connectors');
+  it('opens the documented Add custom connector dialog', () => {
+    const link = new URL(claudeConnectorLink('https://sqlib.example/mcp'));
+    expect(`${link.origin}${link.pathname}`).toBe('https://claude.ai/customize/connectors');
+    expect(link.searchParams.get('modal')).toBe('add-custom-connector');
+  });
+
+  it('prefills with the documented parameter names, the URL escaped', () => {
+    // `connectorName` and `connectorUrl`, not the retired `mcpName` and
+    // `mcpServerUrl`: with those, the link landed on the Settings stub.
+    const link = claudeConnectorLink('https://sqlib.example/mcp?x=1', 'sqlib demo');
+    const params = new URL(link).searchParams;
+    expect(params.get('connectorName')).toBe('sqlib demo');
+    expect(params.get('connectorUrl')).toBe('https://sqlib.example/mcp?x=1');
+    expect(link).toContain(`connectorUrl=${encodeURIComponent('https://sqlib.example/mcp?x=1')}`);
+    expect(link).not.toMatch(/mcpName|mcpServerUrl/);
   });
 });
 
