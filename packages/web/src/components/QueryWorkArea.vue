@@ -1133,6 +1133,9 @@ async function createBenchmarkFromRecipe() {
     name: `${queryName.value.trim() || 'Query'} — recipe`,
     description: null,
     status: 'Active',
+    // The experiment lives with the query it measures, which is what decides
+    // who may see and run it.
+    isPartOf: (queryLibraryId.value || activeLibraryId.value)!,
   });
   await benchmarksStore.createVersion(experiment.id, {
     subjectSpecs: [{

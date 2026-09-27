@@ -122,8 +122,12 @@ do.
 
 A three-tier model is designed. Tier 1 — claims mapped to allowed backends, so
 a caller without a grant on a backend cannot execute anything against it — is
-what ships, as the backend grants described above. Tiers 2 and 3 are not
-implemented:
+what ships, as the backend grants described above. It holds on every execution
+path a caller can start: `/execute`, `/sparql`, ETL, test runs and benchmark
+runs all acquire their executors from an `ExecutorFactory` carrying the
+caller's scope, and the factory's unscoped form has to be asked for by name
+(`{ internal: true }`), which only sqlib's own storage and system queries do.
+Tiers 2 and 3 are not implemented:
 
 - **Named-graph scoping.** Injecting `default-graph-uri` / `named-graph-uri` on
   every proxied request so the caller's own `FROM` cannot widen the dataset.

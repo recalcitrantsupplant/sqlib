@@ -32,6 +32,7 @@ export function buildBenchmarkContractDefinition(
   name: z.string().min(1, 'Name is required'),
   description: nullableString,
   status: nullableString,
+  isPartOf: optionalIriString,
   currentVersion: optionalIriString,
   currentVersionNumber: nullableInteger,
   dateCreated: isoDateTime,
@@ -203,6 +204,7 @@ export function buildBenchmarkContractDefinition(
   name: benchmarkExperimentShape.name,
   description: benchmarkExperimentShape.description,
   status: benchmarkExperimentShape.status,
+  isPartOf: iriString,
   id: iriString.optional(),
 })`,
           required: true,
@@ -216,7 +218,7 @@ export function buildBenchmarkContractDefinition(
       fields: [
         {
           name: '',
-          zodType: `z.object(benchmarkExperimentShape).partial().omit({ id: true, currentVersionNumber: true, dateCreated: true, dateModified: true })`,
+          zodType: `z.object(benchmarkExperimentShape).partial().omit({ id: true, isPartOf: true, currentVersionNumber: true, dateCreated: true, dateModified: true })`,
           required: true,
         },
       ],

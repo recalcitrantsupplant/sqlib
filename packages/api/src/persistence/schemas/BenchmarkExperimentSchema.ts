@@ -20,6 +20,20 @@ export const BenchmarkExperimentSchema = {
     '@id': sdo.creativeWorkStatus,
     '@optional': true,
   },
+  /**
+   * The library the experiment belongs to, which is what the entity guard
+   * resolves to decide who may read, change or run it. Scalar, like
+   * `QueryGroup.isPartOf`. Optional only because experiments stored before it
+   * existed have none: those are administrator-only until
+   * `scripts/backfill-benchmark-ownership.ts` assigns them, and every create
+   * names one.
+   */
+  isPartOf: {
+    '@id': sdo.isPartOf,
+    '@type': ldkit.IRI,
+    '@optional': true,
+    '@references': { types: ['Library'] },
+  },
   currentVersion: {
     '@id': sqlib.currentVersion,
     '@type': ldkit.IRI,
@@ -47,6 +61,7 @@ export interface LdkitBenchmarkExperiment {
   name: string;
   description?: string | null;
   status?: string | null;
+  isPartOf?: string | null;
   currentVersion?: string | null;
   dateCreated?: string | null;
   dateModified?: string | null;

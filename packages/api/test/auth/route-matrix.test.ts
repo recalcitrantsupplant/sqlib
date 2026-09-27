@@ -38,7 +38,6 @@ const QUERY = 'urn:sqlib:query:flow';
 /** A query in that library: still stored, and now owned by nothing findable. */
 const STRANDED_QUERY = 'urn:sqlib:query:stranded';
 const TEST = 'urn:sqlib:test:flow-is-monotonic';
-/** Account-level: no `isPartOf`, which is the whole point of the rows below. */
 const BENCHMARK = 'urn:sqlib:benchmark:flow-under-load';
 
 const entities = new Map<string, unknown>();
@@ -118,12 +117,7 @@ async function buildApp(principal: string | null): Promise<FastifyInstance> {
     instance.post('/:id/run', async () => ({ ok: true }));
   }, { prefix: '/tests' });
 
-  /*
-   * The benchmark shape: guarded identically, but over an entity with no
-   * owning library. `resolveOwningLibrary` returns null, the guard abstains,
-   * and `benchmarks.ts` adds no check of its own — so these rows record what
-   * the deployment actually does, not what it ought to.
-   */
+  // The benchmark shape: an experiment owned by a library, guarded like a test.
   await app.register(async instance => {
     registerEntityAuthGuard(instance, {
       executeSuffixes: ['/execute', '/execute/stream', '/run'],
@@ -152,8 +146,7 @@ beforeEach(async () => {
   // Deliberately no entry for GHOST_LIBRARY: the container is named and gone.
   entities.set(STRANDED_QUERY, { '@type': 'Query', $id: STRANDED_QUERY, isPartOf: [GHOST_LIBRARY] });
   entities.set(TEST, { '@type': 'Test', $id: TEST, isPartOf: [LIBRARY] });
-  // Deliberately no `isPartOf` — this is how the schema stores an experiment.
-  entities.set(BENCHMARK, { '@type': 'BenchmarkExperiment', $id: BENCHMARK });
+  entities.set(BENCHMARK, { '@type': 'BenchmarkExperiment', $id: BENCHMARK, isPartOf: LIBRARY });
 
   await store.createGrant({
     principal: OWNER, resourceKind: 'library', resource: LIBRARY,
@@ -230,19 +223,17 @@ const MATRIX: Case[] = [
   ['stranger cannot delete a test', STRANGER, 'DELETE', `/tests/${TEST}`, 403],
 
   /*
-   * Benchmarks: every one of these is a 200 or a 204 for a principal holding
-   * no grant whatsoever, because a BenchmarkExperiment has no owning library
-   * for the guard to resolve and the routes add no check of their own.
-   *
-   * These rows are the hole written down. They are not what the matrix wants
-   * to be true; they are what is true, pinned so that giving experiments a
-   * resolvable scope turns these red and says exactly which routes changed.
-   * See `route-coverage.test.ts`, which counts them.
+   * Benchmarks: an experiment belongs to a library, so these are the test rows
+   * again. They were 200s and a 204 for a stranger while experiments had no
+   * owner for the guard to resolve.
    */
-  ['UNGUARDED: stranger reads a benchmark', STRANGER, 'GET', `/benchmark-experiments/${BENCHMARK}`, 200],
-  ['UNGUARDED: stranger rewrites a benchmark', STRANGER, 'PUT', `/benchmark-experiments/${BENCHMARK}`, 200],
-  ['UNGUARDED: stranger deletes a benchmark', STRANGER, 'DELETE', `/benchmark-experiments/${BENCHMARK}`, 204],
-  ['UNGUARDED: stranger runs a benchmark', STRANGER, 'POST', `/benchmark-experiments/${BENCHMARK}/v/1/run`, 200],
+  ['stranger cannot read a benchmark', STRANGER, 'GET', `/benchmark-experiments/${BENCHMARK}`, 403],
+  ['stranger cannot rewrite a benchmark', STRANGER, 'PUT', `/benchmark-experiments/${BENCHMARK}`, 403],
+  ['stranger cannot delete a benchmark', STRANGER, 'DELETE', `/benchmark-experiments/${BENCHMARK}`, 403],
+  ['stranger cannot run a benchmark', STRANGER, 'POST', `/benchmark-experiments/${BENCHMARK}/v/1/run`, 403],
+  ['reader cannot run a benchmark', READER, 'POST', `/benchmark-experiments/${BENCHMARK}/v/1/run`, 403],
+  ['runner runs a benchmark', RUNNER, 'POST', `/benchmark-experiments/${BENCHMARK}/v/1/run`, 200],
+  ['owner rewrites a benchmark', OWNER, 'PUT', `/benchmark-experiments/${BENCHMARK}`, 200],
 
   /*
    * An entity whose library is gone is the other way `resolveOwningLibrary`

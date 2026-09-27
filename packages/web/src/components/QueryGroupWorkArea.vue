@@ -1132,6 +1132,8 @@ async function createBenchmarkFromRecipe() {
     name: `${queryGroupName.value.trim() || 'Query group'} — recipe`,
     description: null,
     status: 'Active',
+    // The experiment lives with the group it measures.
+    isPartOf: (queryGroupLibraryId.value || activeLibraryId.value)!,
   });
   await benchmarksStore.createVersion(experiment.id, {
     subjectSpecs: [{

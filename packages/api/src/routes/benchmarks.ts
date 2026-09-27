@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import {
   benchmarkRunResponseJsonSchema,
   benchmarkRouteSchemas,
@@ -25,7 +25,14 @@ import { findAllBenchmarkIterationObservations } from '../persistence/utils/Benc
 import { findAllBenchmarkIterationRuns } from '../persistence/utils/BenchmarkIterationRunUtils.js';
 import { reposRoute, withReposHandler, setEntityConcurrencyHeaders, validateIfMatch } from './route-helpers.js';
 import { registerEntityAuthGuard } from '../auth/entityGuard.js';
-import { AuthorizationError } from '../auth/enforce.js';
+import {
+  AuthorizationError,
+  filterReadable,
+  requireAdmin,
+  requireLibraryMode,
+  resolveOwningLibrary,
+} from '../auth/enforce.js';
+import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
 
 const experimentService = new BenchmarkExperimentService();
 
@@ -81,6 +88,23 @@ function ensureBenchmarkSchemasRegistered(fastify: FastifyInstance) {
   }
 }
 
+/**
+ * Runs are stored outside the cache, so the entity guard cannot resolve a run
+ * id and abstains on every `/runs/:id` route. The run names the version that
+ * defined it, and that version's experiment names the library — the same read
+ * the experiment's own routes require. A run whose chain resolves to no library
+ * is administrator-only, like an unowned experiment.
+ */
+function requireRunReadable(request: FastifyRequest, run: { definedBy?: string | null }): void {
+  const version = run.definedBy ? getCacheCoordinator().get(run.definedBy) : null;
+  const library = resolveOwningLibrary(version);
+  if (!library) {
+    requireAdmin(request, 'a benchmark run with no owning library');
+    return;
+  }
+  requireLibraryMode(request, library, 'read');
+}
+
 function stripSchemaMeta<T>(schema: T): T {
   if (!schema || typeof schema !== 'object') return schema;
   if (Array.isArray(schema)) {
@@ -99,12 +123,32 @@ export default async function benchmarkRoutes(fastify: FastifyInstance) {
 
   ensureBenchmarkSchemasRegistered(fastify);
 
-  fastify.get('/', ...reposRoute(stripSchemaMeta(benchmarkRouteSchemas.list), async ({ reply }) => {
-    return reply.send(experimentService.listExperiments());
+  /*
+   * An experiment stored before experiments had an owning library resolves to
+   * none, and the guard abstains on an unowned entity by design. Here that
+   * would leave it open to every caller, so it is administrator-only instead
+   * until `scripts/backfill-benchmark-ownership.ts` assigns it a library.
+   */
+  fastify.addHook('preHandler', async (request) => {
+    const { id } = (request.params ?? {}) as { id?: string };
+    if (!id || request.routeOptions.url?.startsWith('/runs/')) return;
+    const entity = getCacheCoordinator().get(id);
+    if (entity?.['@type'] === 'BenchmarkExperiment' && !resolveOwningLibrary(entity)) {
+      requireAdmin(request, 'a benchmark experiment with no owning library');
+    }
+  });
+
+  fastify.get('/', ...reposRoute(stripSchemaMeta(benchmarkRouteSchemas.list), async ({ request, reply }) => {
+    return reply.send(filterReadable(request, experimentService.listExperiments()));
   }));
 
   fastify.post('/', ...reposRoute(stripSchemaMeta(benchmarkRouteSchemas.create), async ({ request, reply }) => {
     const payload = request.body;
+    const library = getCacheCoordinator().get(payload.isPartOf);
+    if (!library || library['@type'] !== 'Library') {
+      return reply.code(400).send({ error: `Library ${payload.isPartOf} does not exist` });
+    }
+    requireLibraryMode(request, payload.isPartOf, 'write');
     const created = await experimentService.createExperiment(payload);
     reply.code(201);
     return reply.send(created);
@@ -272,6 +316,7 @@ export default async function benchmarkRoutes(fastify: FastifyInstance) {
     if (!run) {
       return reply.code(404).send({ error: `Benchmark run ${id} not found` });
     }
+    requireRunReadable(request, run);
     return reply.send(toRestApi(run));
   }));
 
@@ -281,6 +326,7 @@ export default async function benchmarkRoutes(fastify: FastifyInstance) {
     if (!run) {
       return reply.code(404).send({ error: `Benchmark run ${id} not found` });
     }
+    requireRunReadable(request, run);
     const observations = await findAllBenchmarkObservations();
     const filtered = observations
       .filter((obs) => obs.dataSet === id)
@@ -294,6 +340,7 @@ export default async function benchmarkRoutes(fastify: FastifyInstance) {
     if (!run) {
       return reply.code(404).send({ error: `Benchmark run ${id} not found` });
     }
+    requireRunReadable(request, run);
     const nodeRuns = await findAllBenchmarkNodeRuns();
     const nodeRunIds = nodeRuns.filter((nodeRun) => nodeRun.isPartOf === id).map((nodeRun) => nodeRun.$id);
     if (!nodeRunIds.length) {
@@ -317,6 +364,7 @@ export default async function benchmarkRoutes(fastify: FastifyInstance) {
     if (!run) {
       return reply.code(404).send({ error: `Benchmark run ${id} not found` });
     }
+    requireRunReadable(request, run);
     const iterationRuns = await findAllBenchmarkIterationRuns();
     const iterationRunIds = iterationRuns.filter((iterationRun) => iterationRun.isPartOf === id).map((iterationRun) => iterationRun.$id);
     if (!iterationRunIds.length) {
