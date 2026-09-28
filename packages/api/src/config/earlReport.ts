@@ -62,6 +62,13 @@ export interface EarlReportManifestBlock {
   projectIri?: string;
   /** `doap:name`, when the npm package name is not the project's name. */
   projectName?: string;
+  /**
+   * `doap:description`, for the same reason `projectName` exists: this manifest
+   * describes the API package, and a report describes the project. "Fastify
+   * backend for the SPARQL Query Library" is true of the package and is not
+   * what a reviewer should read as the description of the subject under test.
+   */
+  projectDescription?: string;
   /** `doap:download-page` — where a reviewer gets a copy to check the claim. */
   downloadPage?: string;
   /** `doap:programming-language`. */
@@ -189,7 +196,7 @@ export function buildEarlReportConfig(manifest: PackageManifest = {}): EarlRepor
   const project: EarlProjectConfig = {
     iri: projectIri,
     name: text(block.projectName) ?? text(manifest.name) ?? 'sqlib',
-    ...optional('description', text(manifest.description)),
+    ...optional('description', text(block.projectDescription) ?? text(manifest.description)),
     ...optional('homepage', iriText(manifest.homepage)),
     ...optional('version', text(manifest.version)),
     ...optional('repository', repositoryIri(manifest.repository)),
