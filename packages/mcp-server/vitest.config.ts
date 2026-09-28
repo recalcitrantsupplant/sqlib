@@ -8,6 +8,9 @@ export default defineConfig({
     environment: 'node',
     globals: true,
     include: ['test/**/*.test.ts'],
+    // Builds the tutorial's bundled editor when a fresh checkout has none;
+    // see the file for why this suite needs it.
+    globalSetup: ['test/global-setup.ts'],
     alias: [
       // Allow TS source to resolve NodeNext-style `./foo.js` relative imports.
       { find: /^(\.{1,2}\/.*)\.js$/, replacement: '$1' },
