@@ -13,6 +13,7 @@
   .prose p { margin: 0 0 var(--space-2); }
   .prose ul { margin: 0 0 var(--space-2); padding-left: 20px; }
   .prose li { margin: 2px 0; }
+  .prose a { color: var(--action); }
   .prose code { font-family: var(--font-mono); font-size: 12px; background: var(--surface-sunken); padding: 0 3px; border-radius: 3px; }
   .prose pre { font-family: var(--font-mono); font-size: 12px; background: var(--surface-sunken); padding: var(--space-2); border-radius: var(--radius-sm); overflow: auto; margin: 0 0 var(--space-2); }
   .prose :last-child { margin-bottom: 0; }
@@ -249,12 +250,15 @@
     return escapeHtml(text)
       .replace(/`([^`]+)`/g, '<code>$1</code>')
       .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-      .replace(/(^|[^*\w])\*([^*\s][^*]*)\*(?!\w)/g, '$1<em>$2</em>');
+      .replace(/(^|[^*\w])\*([^*\s][^*]*)\*(?!\w)/g, '$1<em>$2</em>')
+      // [text](https://…) — web links only. A View is sandboxed, so the click
+      // is handed to the host (`ui/open-link`, below) rather than followed.
+      .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" data-external="true">$1</a>');
   }
 
   /**
    * Descriptions are written as a little Markdown: paragraphs, `- ` lists,
-   * fenced code, inline code, bold and emphasis. Everything is escaped before any tag is
+   * fenced code, inline code, bold, emphasis and web links. Everything is escaped before any tag is
    * added, so a description can never inject markup into the View.
    */
   function renderProse(node, text) {
@@ -1252,6 +1256,12 @@
 
   // --- wiring --------------------------------------------------------------
 
+  document.addEventListener('click', function (event) {
+    var link = event.target && event.target.closest && event.target.closest('a[data-external]');
+    if (!link) return;
+    event.preventDefault();
+    app.openLink(link.getAttribute('href'));
+  });
   nodes.lessonSelect.addEventListener('change', function () { selectLesson(Number(nodes.lessonSelect.value)); });
   nodes.prev.addEventListener('click', function () { selectLesson(state.lessonIndex - 1); });
   nodes.next.addEventListener('click', function () { selectLesson(state.lessonIndex + 1); });

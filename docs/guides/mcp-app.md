@@ -148,8 +148,10 @@ session a listing entry to offer the model nothing it lacks.
 **Offer to convert SPARQL**, under an SRL editor, turns on the grammar's
 `sparqlConversions`, the same opt-in sqlib's own rule editors use. SRL's
 conformance errors are underlined either way; with it on, the underline on a
-SPARQL `BIND` or `FILTER NOT EXISTS` also offers the SRL spelling (`SET`,
-`NOT { … }`) as a one-click edit. It is off by default and remembered per
+SPARQL `BIND` or `FILTER NOT EXISTS` also offers a one-click rewrite to SRL's
+counterpart (`SET`, `NOT { … }`). They are counterparts, not synonyms — the
+specification defines each differently from its SPARQL form — and the course's
+lessons say so and link its [section on SPARQL](https://w3c.github.io/data-shapes/sparql12-rl/#srl-sparql-relationship). It is off by default and remembered per
 browser where the frame may use storage.
 
 The editor is CodeMirror 6, bundled by `packages/mcp-app/scripts/bundle-editor.mjs`
