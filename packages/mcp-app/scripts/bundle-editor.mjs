@@ -12,7 +12,9 @@ import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('..', import.meta.url));
 
 await build({
-  entryPoints: [`${root}editor/editor.js`],
+  // Named with `new URL` so the reference is visible to tooling that follows
+  // module edges (scripts/check-orphans.mjs does), as an import would be.
+  entryPoints: [fileURLToPath(new URL('../editor/editor.js', import.meta.url))],
   outfile: `${root}src/kit/editor.bundle.js`,
   bundle: true,
   format: 'iife',
