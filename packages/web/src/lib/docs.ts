@@ -10,9 +10,15 @@ export const REPO_URL = 'https://github.com/recalcitrantsupplant/sqlib';
 /** The docs tree on the default branch, which is where the docs live. */
 export const DOCS_URL = `${REPO_URL}/tree/main/docs`;
 
-const CONCEPTS_URL = `${REPO_URL}/blob/main/docs/concepts.md`;
+const DOCS_ROOT = `${REPO_URL}/blob/main/docs`;
+const CONCEPTS_URL = `${DOCS_ROOT}/concepts.md`;
 
 /** `anchor` is a GitHub heading anchor within `docs/concepts.md`, without the `#`. */
 export function conceptsDocUrl(anchor: string): string {
   return `${CONCEPTS_URL}#${anchor}`;
+}
+
+/** `path` is a file under `docs/`, such as `guides/mcp-app.md`. */
+export function docUrl(path: string): string {
+  return `${DOCS_ROOT}/${path}`;
 }

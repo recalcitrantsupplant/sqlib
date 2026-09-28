@@ -1,9 +1,5 @@
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-} from '@modelcontextprotocol/sdk/types.js';
+import { Server } from '@modelcontextprotocol/server';
+import { StdioServerTransport } from '@modelcontextprotocol/server/stdio';
 import Fastify, { type FastifyInstance, type InjectOptions } from 'fastify';
 import {
   catalogueGuide,
@@ -17,7 +13,43 @@ import {
   type ToolValidatorCompiler,
 } from '@sparql-query-lib/tools';
 
+import {
+  listUiResources,
+  readUiResource,
+  resultUiMeta,
+  toolVisibleToModel,
+  uiMetadataEnabled,
+  uiServerCapabilities,
+  withUiMeta,
+} from './ui-apps.js';
+import {
+  catalogueForMode,
+  inlineEndpointsAllowed,
+  readOnlyGuideNote,
+  readOnlyModeEnabled,
+} from './read-only.js';
+
 export { formatValidationErrors };
+
+/**
+ * The caller's own bearer token, lifted off the inbound HTTP request.
+ *
+ * Small enough to inline, and deliberately not inlined: this is the hinge the
+ * security model turns on. The token rides every API call the tool makes, so
+ * the API applies *that caller's* grants rather than an ambient service
+ * identity — and a silent `undefined` here would downgrade every call to
+ * anonymous without failing anything. It has a test.
+ *
+ * `ctx.http` is absent over stdio, where there is no HTTP request and no token
+ * to forward. In v2 the request is a web-standard `Request`, so `headers.get`
+ * returns the single joined value or null, and v1's array-or-string dance is
+ * gone.
+ */
+export function authorizationFromContext(ctx: {
+  http?: { req?: { headers: { get(name: string): string | null } } };
+}): string | undefined {
+  return ctx.http?.req?.headers.get('authorization') ?? undefined;
+}
 
 export type CreateMcpServerOptions = {
   name?: string;
@@ -98,7 +130,9 @@ async function buildMcpToolRegistry(app: FastifyInstance): Promise<ToolRegistry>
     compiler,
     validators,
     callApi: injectCaller(app),
-    definitions: tools,
+    // Under `MCP_READ_ONLY=1` the writes are absent from the registry, not
+    // refused by it: nothing to list, nothing to call, nothing to persuade.
+    definitions: catalogueForMode(tools, readOnlyModeEnabled()),
     // MCP clients (notably ChatGPT) enforce ^[a-zA-Z0-9_-]+$ on tool names.
     publicName: sanitizeToolName,
   });
@@ -160,38 +194,131 @@ export async function createMcpServer(options: CreateMcpServerOptions = {}) {
   // Tool names in the guide are rendered the way this door publishes them,
   // so the model reads `queries_createVersion`, which it can call, rather than
   // `queries.createVersion`, which it cannot.
-  const instructions = options.instructions ?? catalogueGuide(sanitizeToolName);
+  const readOnly = readOnlyModeEnabled();
+  const instructions =
+    options.instructions ?? catalogueGuide(sanitizeToolName) + (readOnly ? readOnlyGuideNote() : '');
 
   const server = new Server(
     { name, version },
     {
-      capabilities: { tools: {} },
+      // `resources` is advertised unconditionally: the Views are resources
+      // whatever the client does with them, and a client that ignores the UI
+      // extension simply never reads one.
+      capabilities: { tools: {}, resources: {}, ...uiServerCapabilities() },
       ...(instructions ? { instructions } : {}),
     },
   );
 
-  server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: toolsRegistry.listTools(),
+  /**
+   * Whether to publish the UI bindings, which is not a question about the
+   * client: Claude declares no `extensions` key and renders apps regardless,
+   * so asking would withhold the binding from the host most likely to use it.
+   * See `ui-apps.ts` for the full account.
+   */
+  const clientRendersApps = () => uiMetadataEnabled();
+
+  server.setRequestHandler('tools/list', async () => {
+    const uiEnabled = clientRendersApps();
+    return {
+      tools: toolsRegistry
+        .listTools()
+        .filter((tool) => toolVisibleToModel(tool))
+        .map((tool) => withUiMeta(tool, uiEnabled)),
+    };
+  });
+
+  server.setRequestHandler('resources/list', async () => ({
+    resources: listUiResources(),
   }));
 
-  server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
-    // `extra.requestInfo` carries the inbound HTTP headers on the streamable
-    // transports; stdio has none, and then there is simply no token to forward.
-    const rawAuth = extra?.requestInfo?.headers?.authorization;
-    const authorization = Array.isArray(rawAuth) ? rawAuth[0] : rawAuth;
+  server.setRequestHandler('resources/read', async (request) => {
+    const resource = readUiResource(request.params.uri);
+    /*
+     * Log the miss, on stderr, always.
+     *
+     * A failed `resources/read` reaches the user as "Unable to reach
+     * <connector>" — the whole server pronounced dead, with no clue which URI
+     * was asked for. Over stdio this line lands in the host's own MCP log,
+     * which is the request log the debugging advice says to work from and the
+     * only place the answer exists. `MCP_APP_DEBUG=1` logs the hits too.
+     */
+    if (!resource) {
+      process.stderr.write(
+        `[mcp-app] resources/read MISS ${request.params.uri} — served: ${listUiResources()
+          .map((entry) => entry.uri)
+          .join(', ')}\n`
+      );
+      throw new Error(`Unknown resource: ${request.params.uri}`);
+    }
+    if (process.env.MCP_APP_DEBUG === '1') {
+      process.stderr.write(`[mcp-app] resources/read OK ${request.params.uri}\n`);
+    }
+    return resource;
+  });
+
+  server.setRequestHandler('tools/call', async (request, ctx) => {
+    const authorization = authorizationFromContext(ctx);
+    /*
+     * The one restriction that cannot be expressed by leaving a tool out.
+     *
+     * `sparql.proxyQuery` reads, so read-only mode keeps it — but it accepts a
+     * bare `endpoint` URL, which makes an unauthenticated server an open SPARQL
+     * proxy: it will fetch any endpoint a caller names. A deployment that does
+     * not want that sets `MCP_SPARQL_ENDPOINTS=backends-only`, and the check
+     * has to be here, on the argument, because the tool itself is legitimate.
+     */
+    if (!inlineEndpointsAllowed() && (request.params.arguments as { endpoint?: unknown } | undefined)?.endpoint) {
+      return {
+        isError: true,
+        content: [
+          {
+            type: 'text' as const,
+            text: 'This server does not query endpoint URLs directly. Name a registered backend with backendId instead; backends_list shows what is available.',
+          },
+        ],
+      };
+    }
     const result = await toolsRegistry.callTool(
       request.params.name,
       (request.params.arguments ?? {}) as Record<string, unknown>,
       authorization
     );
     // MCP's own envelope, built from the registry's protocol-neutral result.
+    // `_meta.ui` names the View that renders it, which is how a host knows to
+    // open the bench rather than print JSON. The text content stays either
+    // way: a View is an addition to the result, never a replacement for it,
+    // and the model still needs to read what happened.
+    const definition = toolsRegistry.definitions.find(
+      (tool) => sanitizeToolName(tool.name) === request.params.name
+    );
+    const meta = resultUiMeta(definition, clientRendersApps());
     return {
       content: [{ type: 'text' as const, text: result.text }],
       structuredContent: {
         statusCode: result.statusCode,
         headers: result.headers,
         body: result.body,
+        /*
+         * A View gets its own call's arguments back in the result.
+         *
+         * The specification has the host push `ui/notifications/tool-input`,
+         * and hosts vary: some send it, some send only the result, some spell
+         * the params differently. A View that reads the arguments only from
+         * that notification opens blank when the host skips it — the bench
+         * rendered in ChatGPT with an empty editor while the model reported
+         * having loaded a query into it. Echoing here costs a few bytes and
+         * removes the dependency: the result always carries what opened it.
+         */
+        ...(definition?.ui ? { toolInput: request.params.arguments ?? {} } : {}),
+        /*
+         * A View cannot see the server's environment, and it holds buttons that
+         * write. Telling it the mode in the result is the only channel it has:
+         * the bench hides Save version and Create toy backend rather than
+         * offering them and failing on an unknown tool.
+         */
+        ...(definition?.ui && readOnly ? { readOnly: true } : {}),
       },
+      ...(meta ? { _meta: meta } : {}),
     };
   });
 

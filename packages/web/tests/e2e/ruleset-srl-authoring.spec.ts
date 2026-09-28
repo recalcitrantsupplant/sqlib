@@ -616,6 +616,13 @@ test.describe('Rule set SRL authoring', () => {
     const diagnostic = page.locator('.cm-tooltip .cm-diagnostic').first();
     await expect(diagnostic).toBeVisible();
     await expect(diagnostic.locator('.cm-diagnosticAction')).toBeVisible();
+    // CodeMirror draws a tooltip parked far off-screen and moves it into place
+    // once it has measured it, and toBeVisible() is already satisfied while it
+    // is parked. Measured there, the action's box read y = -9974 on a loaded
+    // CI runner. Wait until the tooltip has been placed before comparing.
+    await expect
+      .poll(async () => (await diagnostic.boundingBox())?.y ?? -1)
+      .toBeGreaterThanOrEqual(0);
 
     // Under, not beside: the action's box clears the message's.
     const action = (await diagnostic.locator('.cm-diagnosticAction').boundingBox())!;

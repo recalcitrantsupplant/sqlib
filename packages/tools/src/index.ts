@@ -4,7 +4,7 @@
  * Protocol-agnostic on purpose: MCP wraps this for door B, and the in-app
  * assistant drives it directly for door A.
  */
-export { defineTool, tools, debugLog, type ToolDefinition, type ToolRequest } from './tools.js';
+export { defineTool, tools, debugLog, VIEW_URI, type ToolDefinition, type ToolRequest, type ToolUiBinding } from './tools.js';
 export { catalogueGuide, guideToolMentions } from './guide.js';
 export {
   createToolRegistry,
@@ -17,6 +17,7 @@ export {
   type ApiCaller,
   type CompiledValidator,
   type ListedTool,
+  type ListedToolSchema,
   type ToolCallResult,
   type ToolRegistry,
   type ToolRegistryOptions,

@@ -1494,6 +1494,13 @@ export type RuleSetExecutionRequest = z.infer<typeof ruleSetExecutionRequestSche
 export const ruleSetExecutionResponseSchema = z
   .object({
     status: z.enum(['converged', 'cycle', 'maxIterations', 'failed']),
+    /**
+     * Why a failed run failed, in the executor's own words — a stratification
+     * cycle, an invalid rule, a rule's SPARQL error. The executor always set
+     * it; the schema did not declare it, so the serializer stripped it and a
+     * client saw status failed with no reason.
+     */
+    error: z.string().nullable().optional(),
     iterations: z.array(iterationRecordSchema),
     dataBlocks: z.array(dataBlockExecutionSchema),
     /**

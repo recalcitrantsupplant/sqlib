@@ -279,6 +279,23 @@ export class RuleSetExecutor {
         totalDataBlocks: dataBlockIds.length,
       });
 
+      /*
+       * Whether the rules can run at all is settled before anything touches the
+       * store. An invalid rule or a rule set that does not stratify is refused
+       * as a whole, and it used to be refused only after the DATA blocks had
+       * been applied — so a failed run still reported their triples as
+       * seeded, and a client showing "what the rule set produced" showed them
+       * for a rule set that produced nothing. Nothing is seeded now.
+       */
+      const loadedRules = this.loadRuleVersions(ruleIds);
+      const invalidRules = loadedRules.ruleVersions.filter(rv => rv.grammarValid === false);
+      if (invalidRules.length > 0) {
+        const message = `RuleSet contains invalid RuleVersions: ${invalidRules.map(rv => rv.$id).join(', ')}`;
+        return fail(message);
+      }
+      const stratification = this.resolveStratification(ruleSetVersion, loadedRules.ruleVersions);
+      const preparedRules = this.applyStrata(loadedRules.prepared, stratification);
+
       // Seed the tuple store with the ruleset's initial named tuples, before
       // anything runs. Without this a tuple relation can only ever be derived
       // by some rule head — never *given* — so a ruleset cannot take a tuple as
@@ -364,14 +381,6 @@ export class RuleSetExecutor {
         ? diffDatasetStates(baselineState, currentState, 0).inserted
         : currentState.orderedKeys.slice();
 
-      const loadedRules = this.loadRuleVersions(ruleIds);
-      const invalidRules = loadedRules.ruleVersions.filter(rv => rv.grammarValid === false);
-      if (invalidRules.length > 0) {
-        const message = `RuleSet contains invalid RuleVersions: ${invalidRules.map(rv => rv.$id).join(', ')}`;
-        return fail(message);
-      }
-      const stratification = this.resolveStratification(ruleSetVersion, loadedRules.ruleVersions);
-      const preparedRules = this.applyStrata(loadedRules.prepared, stratification);
 
       if (preparedRules.length === 0) {
         const result = withTuples(this.buildResult('converged', iterations, dataBlockRecords, currentState, baselineState, cycleInfo, maxIterations, store, inferenceFormat, seededQuads));

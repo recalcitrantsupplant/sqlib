@@ -33,6 +33,7 @@ import {
   acceptArg,
   backendCreateArg,
   backendUpdateBody,
+  benchOpenArg,
   bodyArg,
   detectQueryRequestArg,
   executionRequestArg,
@@ -57,7 +58,33 @@ import {
   patchApplyArg,
   stripSchemaIdentity,
   validateRuleDataRequestArg,
+  ruleSetSrlArg,
+  srlCompileArg,
+  srlDocumentArg,
+  srlRunArg,
+  tagsListArg,
+  testsListArg,
+  tutorialOpenArg,
 } from './tool-schemas.js';
+
+/**
+ * A tool's binding to an MCP Apps View.
+ *
+ * Protocol-neutral on purpose, like everything else here: this says *which*
+ * View renders a tool's result and *who* may call the tool, not how a given
+ * door spells that. `packages/mcp-server` maps it onto SEP-1865's `_meta.ui`;
+ * the in-app assistant ignores it.
+ *
+ * `visibility` follows the specification's default of `['model', 'app']`. A
+ * tool marked `['app']` is hidden from the agent and callable only by a View
+ * through `tools/call` — the bench's plumbing, not something a model should be
+ * choosing between.
+ */
+export type ToolUiBinding = {
+  /** The `ui://` resource that renders this tool's result. */
+  resourceUri: string;
+  visibility?: ('model' | 'app')[];
+};
 
 export type ToolDefinition = {
   name: string;
@@ -86,6 +113,8 @@ export type ToolDefinition = {
    */
   readOnly?: boolean;
   inputSchema: Record<string, unknown>;
+  /** The View that renders this tool's result, when it has one. */
+  ui?: ToolUiBinding;
   /**
    * Erased to the shape the registry actually holds — validated arguments
    * arrive as a plain object. The *typed* signature is on `defineTool`'s
@@ -124,6 +153,7 @@ export function defineTool<const S extends object>(def: {
   description: string;
   readOnly?: boolean;
   inputSchema: S;
+  ui?: ToolUiBinding;
   buildRequest: (input: ToolInput<S>) => ToolRequest;
 }): ToolDefinition {
   return {
@@ -131,10 +161,26 @@ export function defineTool<const S extends object>(def: {
     ...(def.title ? { title: def.title } : {}),
     description: def.description,
     ...(def.readOnly ? { readOnly: true } : {}),
+    ...(def.ui ? { ui: def.ui } : {}),
     inputSchema: stripSchemaIdentity(def.inputSchema) as Record<string, unknown>,
     buildRequest: def.buildRequest as (input: Record<string, unknown>) => ToolRequest,
   };
 }
+
+/**
+ * The Views this catalogue binds tools to.
+ *
+ * The strings are the contract between three packages: the tool declares one,
+ * `packages/mcp-app` serves a resource under it, and `packages/mcp-server`
+ * publishes both. A test in the MCP server asserts every URI named here is a
+ * resource it actually serves, so a rename cannot leave a tool pointing at
+ * nothing.
+ */
+export const VIEW_URI = {
+  bench: 'ui://sqlib/bench',
+  result: 'ui://sqlib/result',
+  tutorial: 'ui://sqlib/tutorial',
+} as const;
 
 const jsonHeaders = { 'content-type': 'application/json' };
 const enc = encodeURIComponent;
@@ -365,18 +411,22 @@ export const tools: ToolDefinition[] = [
   // Execution
   defineTool({
     name: 'execute.run',
-    description: 'Run a query (targetId = query id, runs its currentVersion; backendId required) or a query group (no backendId). Fill parameter slots with arguments: one SPARQL-results-JSON entry per all-UNDEF VALUES clause, in order; limits/offsets by placeholder name.',
+    description:
+      'Run a query (targetId = query id, runs its currentVersion; backendId required) or a query group (no backendId). Fill parameter slots with arguments: one SPARQL-results-JSON entry per all-UNDEF VALUES clause, in order; limits/offsets by placeholder name. Results render as an interactive table where the client supports MCP Apps — prefer this over reprinting rows yourself.',
     readOnly: true,
     inputSchema: executionRequestArg,
+    ui: { resourceUri: VIEW_URI.result },
     buildRequest: (body) => ({ method: 'POST', url: '/execute', payload: body, headers: jsonHeaders }),
   }),
 
   // SPARQL proxy
   defineTool({
     name: 'sparql.proxyQuery',
-    description: 'Run ad-hoc SPARQL text against a backend (by backendId or endpoint URL) without saving it. Accepts the same arguments/limits/offsets as execute.run.',
+    description:
+      'Run ad-hoc SPARQL text against a backend (by backendId or endpoint URL) without saving it. Accepts the same arguments/limits/offsets as execute.run. Results render as an interactive table where the client supports MCP Apps — prefer this over reprinting rows yourself.',
     readOnly: true,
     inputSchema: sparqlRequestArg,
+    ui: { resourceUri: VIEW_URI.result },
     buildRequest: (body) => ({ method: 'POST', url: '/sparql', payload: body, headers: jsonHeaders }),
   }),
 
@@ -779,5 +829,155 @@ export const tools: ToolDefinition[] = [
     readOnly: true,
     inputSchema: idVersionArg,
     buildRequest: ({ id, version }) => ({ method: 'GET', url: `/query-groups/${enc(id)}/v/${enc(version)}/validate` }),
+  }),
+  // Data graphs — reference RDF a library holds, and the only route to toy
+  // data an MCP caller has. The routes existed from the start; the tools did
+  // not, so an agent could register a backend it had no way to fill.
+  defineTool({
+    name: 'dataGraphs.list',
+    description: 'List data graphs',
+    readOnly: true,
+    inputSchema: noArgs,
+    buildRequest: () => ({ method: 'GET', url: '/data-graphs' }),
+  }),
+  defineTool({
+    name: 'dataGraphs.get',
+    description: 'Get a data graph (metadata and its currentVersion pointer; the RDF lives on the version)',
+    readOnly: true,
+    inputSchema: idArg,
+    buildRequest: ({ id }) => ({ method: 'GET', url: `/data-graphs/${enc(id)}` }),
+  }),
+  defineTool({
+    name: 'dataGraphs.create',
+    description: 'Create a data graph: metadata only, body { name, isPartOf: [libraryId], description?, tags? }. The RDF goes in a version — see dataGraphs.createVersion.',
+    inputSchema: bodyArg,
+    buildRequest: ({ body }) => ({ method: 'POST', url: '/data-graphs', payload: body, headers: jsonHeaders }),
+  }),
+  defineTool({
+    name: 'dataGraphs.createVersion',
+    description: 'Save RDF as an immutable data graph version: body { contentString, contentFormat?: "turtle" | "ntriples" | ..., comment? }. A backend whose oxigraphConfig names this graph in `sources` is hydrated from it.',
+    inputSchema: idBodyArg,
+    buildRequest: ({ id, body }) => ({ method: 'POST', url: `/data-graphs/${enc(id)}/versions`, payload: body, headers: jsonHeaders }),
+  }),
+  defineTool({
+    name: 'dataGraphs.listVersions',
+    description: 'List a data graph\'s versions',
+    readOnly: true,
+    inputSchema: idArg,
+    buildRequest: ({ id }) => ({ method: 'GET', url: `/data-graphs/${enc(id)}/versions` }),
+  }),
+  defineTool({
+    name: 'dataGraphs.getVersion',
+    description: 'Get one data graph version, with its serialised RDF',
+    readOnly: true,
+    inputSchema: idVersionArg,
+    buildRequest: ({ id, version }) => ({ method: 'GET', url: `/data-graphs/${enc(id)}/versions/${enc(version)}` }),
+  }),
+
+  // The app door. One tool, because the bench needs somewhere to be opened
+  // from; everything it does afterwards it does with the tools above.
+  defineTool({
+    name: 'app.bench.open',
+    title: 'Open the query bench',
+    description:
+      'Open the interactive query bench on a saved query (`queryId`) or on draft SPARQL (`queryString`), in the library `libraryId`. The bench shows the text, the parameters detected in it, an argument grid, and runs it against a backend. Use it when the user wants to work on a query rather than be told about one; it needs a client that renders MCP Apps.',
+    readOnly: true,
+    inputSchema: benchOpenArg,
+    ui: { resourceUri: VIEW_URI.bench },
+    // The bench needs a library and its backends to open at all; the query, if
+    // there is one, the View fetches for itself. Opening on nothing but draft
+    // text is the common case in a chat, so `libraryId` is what this resolves.
+    buildRequest: ({ libraryId }) => ({ method: 'GET', url: `/libraries/${enc(libraryId)}` }),
+  }),
+
+  // SRL documents as text, stored nowhere. The three questions a rules editor
+  // asks while someone types — does it parse and stratify, what SPARQL is it,
+  // what does it infer — which an agent helping with rules needs as much as
+  // the tutorial does. All three are on a read-only deployment's allowlist.
+  defineTool({
+    name: 'srl.analyze',
+    description:
+      'Analyse an SRL (SPARQL rules) document without storing it: whether it parses (valid/error), each rule\'s stratum and monotonicity, the dependency edges, stratification issues and cycles, and well-formedness issues (unbound-head, set-rebinds, use-before-bind). A syntax error is reported as valid: false, not as a failure.',
+    readOnly: true,
+    inputSchema: srlDocumentArg,
+    buildRequest: (body) => ({ method: 'POST', url: '/rule-sets/srl/analyze', payload: body, headers: jsonHeaders }),
+  }),
+  defineTool({
+    name: 'srl.compile',
+    description:
+      'Compile each rule of an SRL document to the SPARQL it runs as: INSERT … WHERE by default, or CONSTRUCT … WHERE with flavour "construct" (one pass of the rule, returning what it would add). Nothing is stored.',
+    readOnly: true,
+    inputSchema: srlCompileArg,
+    buildRequest: (body) => ({ method: 'POST', url: '/rule-sets/srl/compile', payload: body, headers: jsonHeaders }),
+  }),
+  defineTool({
+    name: 'srl.run',
+    description:
+      'Run an SRL document to fixpoint without saving it, against at most one base graph: a data graph version (dataGraphVersionId), a data graph at its current version (dataGraphId) or inline RDF (dataGraphInline, Turtle by default). Returns the final graph as N-Quads (finalGraphNQuads), the triples the DATA blocks seeded, and per-iteration, per-rule inserts.',
+    readOnly: true,
+    inputSchema: srlRunArg,
+    buildRequest: (body) => ({ method: 'POST', url: '/playground/rules/execute', payload: body, headers: jsonHeaders }),
+  }),
+
+  // What the tutorial reads a library through. App-only: they carry nothing an
+  // agent is short of — it has libraries, rule sets and queries already — and
+  // each would cost every session a listing entry to say so.
+  defineTool({
+    name: 'tags.list',
+    description: 'List tags, optionally one library\'s',
+    readOnly: true,
+    inputSchema: tagsListArg,
+    ui: { resourceUri: VIEW_URI.tutorial, visibility: ['app'] },
+    buildRequest: ({ library }) => ({ method: 'GET', url: library ? `/tags?library=${enc(library)}` : '/tags' }),
+  }),
+  defineTool({
+    name: 'tests.list',
+    description: 'List tests, optionally by subject, subject kind or tags (comma-separated tag ids)',
+    readOnly: true,
+    inputSchema: testsListArg,
+    ui: { resourceUri: VIEW_URI.tutorial, visibility: ['app'] },
+    buildRequest: (query) => {
+      const params = new URLSearchParams();
+      for (const [key, value] of Object.entries(query)) {
+        if (typeof value === 'string' && value) params.set(key, value);
+      }
+      const search = params.toString();
+      return { method: 'GET', url: search ? `/tests?${search}` : '/tests' };
+    },
+  }),
+  defineTool({
+    name: 'tests.listVersions',
+    description: 'List a test\'s versions, each with its cases (data graph version, expected result and its format)',
+    readOnly: true,
+    inputSchema: idArg,
+    ui: { resourceUri: VIEW_URI.tutorial, visibility: ['app'] },
+    buildRequest: ({ id }) => ({ method: 'GET', url: `/tests/${enc(id)}/versions` }),
+  }),
+  defineTool({
+    name: 'ruleSets.exportSrl',
+    description: 'A rule set as one SRL document, at its current version or the version named, abbreviated against `prologue` (PREFIX lines) when given',
+    readOnly: true,
+    inputSchema: ruleSetSrlArg,
+    ui: { resourceUri: VIEW_URI.tutorial, visibility: ['app'] },
+    buildRequest: ({ id, version, prologue }) => {
+      const params = new URLSearchParams();
+      if (version) params.set('version', version);
+      if (prologue) params.set('prologue', prologue);
+      const search = params.toString();
+      return { method: 'GET', url: `/rule-sets/${enc(id)}/srl${search ? `?${search}` : ''}` };
+    },
+  }),
+
+  // The tutorial door: a library read as a course. Lessons are the library's
+  // numbered tags; see docs/guides/mcp-app.md.
+  defineTool({
+    name: 'app.tutorial.open',
+    title: 'Open a rules tutorial',
+    description:
+      'Open the interactive tutorial for a library laid out as lessons (numbered tags such as "1. Your first rule"): each lesson\'s objectives, worked examples and exercises, with an SRL/SPARQL editor that runs, analyses and checks the user\'s answer. Pass `lesson` (a number or tag id) to open on one. Use it when the user wants to learn SPARQL rules (SRL) by doing; it needs a client that renders MCP Apps. The tutorial keeps no progress — you are the tutor, and it tells you when the user runs or checks something.',
+    readOnly: true,
+    inputSchema: tutorialOpenArg,
+    ui: { resourceUri: VIEW_URI.tutorial },
+    buildRequest: ({ libraryId }) => ({ method: 'GET', url: `/libraries/${enc(libraryId)}` }),
   }),
 ];

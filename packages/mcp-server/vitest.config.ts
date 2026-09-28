@@ -8,6 +8,9 @@ export default defineConfig({
     environment: 'node',
     globals: true,
     include: ['test/**/*.test.ts'],
+    // Builds the tutorial's bundled editor when a fresh checkout has none;
+    // see the file for why this suite needs it.
+    globalSetup: ['test/global-setup.ts'],
     alias: [
       // Allow TS source to resolve NodeNext-style `./foo.js` relative imports.
       { find: /^(\.{1,2}\/.*)\.js$/, replacement: '$1' },
@@ -43,6 +46,12 @@ export default defineConfig({
       {
         find: '@sparql-query-lib/tools',
         replacement: path.resolve(__dirname, '../tools/src/index.ts'),
+      },
+      // The Views are read from disk relative to their own module, so source
+      // and dist both work; pointing at source keeps the suite buildless.
+      {
+        find: '@sparql-query-lib/mcp-app',
+        replacement: path.resolve(__dirname, '../mcp-app/src/index.ts'),
       },
     ],
   },

@@ -36,7 +36,7 @@ const frontendFeatureFlagEnv: Record<string, string | undefined> = {
   // only: neither gates a route, and what each shows is decided by the section
   // flags above.
   FEATURE_NOTEBOOK: process.env.NUXT_PUBLIC_FEATURE_NOTEBOOK ?? process.env.FEATURE_NOTEBOOK,
-  FEATURE_BUILD: process.env.NUXT_PUBLIC_FEATURE_BUILD ?? process.env.FEATURE_BUILD,
+  FEATURE_MCP: process.env.NUXT_PUBLIC_FEATURE_MCP ?? process.env.FEATURE_MCP,
 };
 
 const frontendFeatureFlags = buildFeatureFlags(frontendFeatureFlagEnv);
@@ -332,6 +332,16 @@ export default defineNuxtConfig({
   runtimeConfig: {
     public: {
       apiBaseUrl: process.env.NUXT_PUBLIC_API_BASE_URL || 'http://localhost:3000',
+      /*
+       * Where the Connect page tells people to point their chat client.
+       *
+       * `/mcp` is served beside the API on the same origin in every deployment
+       * mode this repository ships, so the default is derived rather than
+       * configured — one fewer variable to forget. It is overridable because a
+       * public read-only MCP may well be a separate host from the app that
+       * administers it, which is the deployment the Connect page exists for.
+       */
+      mcpUrl: process.env.NUXT_PUBLIC_MCP_URL || '',
       featureFlags: frontendFeatureFlags,
       // What is running, for the About block on the splash and the line in
       // Settings. Baked in at build time — `ssr: false` means these are in the

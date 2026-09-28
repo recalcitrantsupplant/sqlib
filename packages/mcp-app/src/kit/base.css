@@ -1,0 +1,224 @@
+/*
+ * Tokens first, components after — the same three-layer scheme the web package
+ * uses (see docs/reference/ui-design-tokens.md), cut down to what a View needs.
+ *
+ * Every value here is a fallback: `applyHostStyles` overwrites any variable the
+ * host defines, so the View reads as part of Claude, ChatGPT or VS Code, and
+ * falls back to sqlib's own palette for the things no host has an opinion about
+ * (RDF term colours, above all).
+ */
+:root {
+  --surface: #ffffff;
+  --surface-subtle: #f7f8f9;
+  --surface-sunken: #eef0f2;
+  --ink: #16181d;
+  --ink-secondary: #454a54;
+  --ink-muted: #6b717d;
+  --border-subtle: #e6e8eb;
+  --border-default: #d3d7dd;
+  --action: #2563eb;
+  --action-fg: #ffffff;
+  --danger: #c2410c;
+  --danger-surface: #fef2ec;
+  --success: #15803d;
+  --state-running: #a16207;
+  --rdf-uri: #2563eb;
+  --rdf-literal: #15803d;
+  --rdf-typed: #7c3aed;
+  --rdf-blank: #6b717d;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  --radius-sm: 4px;
+  --radius: 6px;
+  --control-h: 28px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+}
+
+:root[data-theme='dark'] {
+  --surface: #16181d;
+  --surface-subtle: #1d2026;
+  --surface-sunken: #24272e;
+  --ink: #f1f3f5;
+  --ink-secondary: #c3c8d0;
+  --ink-muted: #8d94a0;
+  --border-subtle: #2b2f37;
+  --border-default: #3a3f49;
+  --action: #60a5fa;
+  --action-fg: #0b1220;
+  --danger: #fb923c;
+  --danger-surface: #2c1a10;
+  --success: #4ade80;
+  --state-running: #fbbf24;
+  --rdf-uri: #7dd3fc;
+  --rdf-literal: #86efac;
+  --rdf-typed: #c4b5fd;
+  --rdf-blank: #8d94a0;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: var(--space-3);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink);
+  background: var(--surface);
+}
+
+.panel {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.bar + .bar { border-top: none; }
+
+.grow { flex: 1 1 auto; }
+.muted { color: var(--ink-muted); }
+.mono { font-family: var(--font-mono); }
+.small { font-size: 12px; }
+
+h1 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+button {
+  height: var(--control-h);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) { background: var(--surface-sunken); }
+button:disabled { opacity: 0.5; cursor: default; }
+
+button.primary {
+  background: var(--action);
+  border-color: var(--action);
+  color: var(--action-fg);
+  font-weight: 600;
+}
+
+input, select, textarea {
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-2);
+  height: var(--control-h);
+}
+
+textarea {
+  font-family: var(--font-mono);
+  height: auto;
+  padding: var(--space-2);
+  width: 100%;
+  resize: vertical;
+  tab-size: 2;
+}
+
+:focus-visible { outline: 2px solid var(--action); outline-offset: 1px; }
+
+.section {
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.section:last-child { border-bottom: none; }
+
+.slot {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2);
+  margin-bottom: var(--space-2);
+  background: var(--surface-subtle);
+}
+
+.slot h2 {
+  margin: 0 0 var(--space-2);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-secondary);
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12px;
+}
+
+th, td {
+  text-align: left;
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid var(--border-subtle);
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+th {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--ink-secondary);
+  background: var(--surface-subtle);
+  position: sticky;
+  top: 0;
+}
+
+td { font-family: var(--font-mono); }
+
+.scroll { max-height: 320px; overflow: auto; }
+
+.term-uri { color: var(--rdf-uri); }
+.term-literal { color: var(--rdf-literal); }
+.term-typed { color: var(--rdf-typed); }
+.term-bnode { color: var(--rdf-blank); }
+.term-suffix { color: var(--ink-muted); }
+
+.status { font-size: 12px; color: var(--ink-muted); }
+.status.error { color: var(--danger); }
+.status.ok { color: var(--success); }
+.status.running { color: var(--state-running); }
+
+.error-box {
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--danger-surface);
+  color: var(--danger);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+.empty { padding: var(--space-4); text-align: center; color: var(--ink-muted); }
