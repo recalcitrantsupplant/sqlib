@@ -5,8 +5,19 @@ import { resolve } from 'node:path';
 import { defineNuxtConfig } from 'nuxt/config';
 import tailwindcss from '@tailwindcss/vite';
 import { buildFeatureFlags } from '../types/src/featureFlags';
+import { normaliseBase, withBase } from './src/lib/basePath';
 
 const currentDir = fileURLToPath(new URL('.', import.meta.url));
+
+/*
+ * Where this build will be served from.
+ *
+ * Nuxt reads NUXT_APP_BASE_URL on its own, but only for what it generates.
+ * Taking it here as well is what lets the head links below follow it: they are
+ * written as strings, so nothing rewrites them, and under a base path they
+ * would point outside the app. See src/lib/basePath.ts.
+ */
+const baseURL = normaliseBase(process.env.NUXT_APP_BASE_URL);
 
 const frontendFeatureFlagEnv: Record<string, string | undefined> = {
   FEATURE_QUERIES: process.env.NUXT_PUBLIC_FEATURE_QUERIES ?? process.env.FEATURE_QUERIES,
@@ -359,6 +370,7 @@ export default defineNuxtConfig({
     },
   },
   app: {
+    baseURL,
     head: {
       title: 'SPARQL Query Library',
       link: [
@@ -376,14 +388,14 @@ export default defineNuxtConfig({
           rel: 'preload',
           as: 'font',
           type: 'font/woff2',
-          href: '/assets/fonts/inter-variable-latin.woff2',
+          href: withBase('/assets/fonts/inter-variable-latin.woff2', baseURL),
           crossorigin: 'anonymous',
         },
         // SVG first so modern browsers pick it; favicon.ico is the legacy fallback.
-        { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
-        { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico', sizes: '48x48' },
-        { rel: 'apple-touch-icon', href: '/apple-touch-icon.png', sizes: '180x180' },
-        { rel: 'manifest', href: '/site.webmanifest' },
+        { rel: 'icon', type: 'image/svg+xml', href: withBase('/favicon.svg', baseURL) },
+        { rel: 'icon', type: 'image/x-icon', href: withBase('/favicon.ico', baseURL), sizes: '48x48' },
+        { rel: 'apple-touch-icon', href: withBase('/apple-touch-icon.png', baseURL), sizes: '180x180' },
+        { rel: 'manifest', href: withBase('/site.webmanifest', baseURL) },
       ],
       meta: [
         { name: 'theme-color', content: '#85272f' },

@@ -2,6 +2,7 @@
 import { defineNuxtPlugin, useRuntimeConfig } from '#imports';
 import type { FeatureFlags } from '@sparql-query-lib/types';
 import { debug } from '../lib/debug';
+import { withBase } from '../lib/basePath';
 
 interface RuntimeConfigOverride {
   apiBaseUrl?: string;
@@ -26,19 +27,24 @@ export default defineNuxtPlugin({
   async setup() {
   const runtimeConfig = useRuntimeConfig();
 
+  // Beside the app rather than at the site root: a build served under a base
+  // path shares that root with whatever else is hosted there, and `/config.json`
+  // would be that site's file, not this app's.
+  const configUrl = withBase('/config.json', runtimeConfig.app?.baseURL);
+
   try {
     // No trace for the fetch itself: the next line reports what came back, and
     // every way it can fail already warns.
-    const response = await fetch('/config.json');
+    const response = await fetch(configUrl);
 
     if (!response.ok) {
-      console.warn('[runtime-config] Failed to load /config.json, using build-time defaults');
+      console.warn(`[runtime-config] Failed to load ${configUrl}, using build-time defaults`);
       return;
     }
 
     const contentType = response.headers.get('content-type') || '';
     if (!contentType.includes('application/json')) {
-      console.warn('[runtime-config] /config.json is not JSON (content-type:', contentType, '), using build-time defaults');
+      console.warn(`[runtime-config] ${configUrl} is not JSON (content-type:`, contentType, '), using build-time defaults');
       return;
     }
 
