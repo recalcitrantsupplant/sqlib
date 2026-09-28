@@ -30,8 +30,9 @@ this package:
 
 - `NOT { … }` — negation, compiled to `FILTER NOT EXISTS`.
 - `NOT DATA { … }` and `WHERE DATA { … }` — match the *ground* graph (the base
-  graph plus every `DATA` block, as it stood before any rule ran) rather than
-  the growing evaluation graph. Both compile to a `GRAPH <urn:sqlib:srl:ground>`
+  graph alone, as it stood before any `DATA` block or rule ran) rather than
+  the growing evaluation graph. `DATA` block triples are inference output, not
+  ground data. Both compile to a `GRAPH <urn:sqlib:srl:ground>`
   block; the IRI is exported as `GROUND_GRAPH_IRI` so the executor and the
   compiler agree on the name.
 - `SET ( ?v := expr )` — assignment. Compiled to

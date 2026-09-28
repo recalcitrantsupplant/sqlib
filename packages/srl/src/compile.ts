@@ -14,8 +14,12 @@ import { boundBy, collectVars } from './wellformed.js';
 export type { TupleRef } from './tuples/compile.js';
 
 /**
- * The named graph holding `GD` — the base graph plus every DATA block — as it
- * stood before any rule ran.
+ * The named graph holding `GD` — the base graph `G0` and nothing else, as it
+ * stood before any DATA block or rule ran.
+ *
+ * Not `G0 ∪ D`, though the spec's pseudocode says so: its prose ("Ground data
+ * is the triples in the base graph") and the W3C tests `eval-neg-data-03` and
+ * `-06` exclude the DATA blocks, which are inference output, not input.
  *
  * `WHERE DATA` and `NOT DATA` are the spec's way of matching the *input* rather
  * than the growing evaluation graph, and SPARQL's way of matching one graph

@@ -1066,7 +1066,7 @@ function normalizeIdList(value: unknown): string[] {
 
 function captureDatasetState(store: oxigraph.Store): DatasetState {
   // Everything except the ground graph. That named graph is a frozen copy of
-  // `G0 ∪ D` kept so `WHERE DATA` / `NOT DATA` have something to match against
+  // `G0` kept so `WHERE DATA` / `NOT DATA` have something to match against
   // (see `GROUND_GRAPH_IRI`); it is executor bookkeeping, not data. Counting it
   // would double every triple in the fixpoint's convergence check and emit the
   // whole input again as "inferred".

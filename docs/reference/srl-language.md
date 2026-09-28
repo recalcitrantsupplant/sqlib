@@ -48,10 +48,11 @@ one where editing a named rule revises it.
 The head is a set of triple templates. Every variable in the head must be bound
 by the body.
 
-`WHERE DATA` makes the whole body match the *ground* graph — the base graph plus
-every `DATA` block, as it stood before any rule ran — instead of the evaluation
-graph. Such a rule reads only what was given and never what has been inferred,
-and so depends on no other rule.
+`WHERE DATA` makes the whole body match the *ground* graph — the base graph
+alone, as it stood before any `DATA` block or rule ran — instead of the
+evaluation graph. `DATA` block triples are inference output, not ground data.
+Such a rule reads only what was given and never what has been inferred, and so
+depends on no other rule.
 
 ### `DATA`
 
@@ -259,7 +260,10 @@ A `NOT` that mentions a variable bound only after it also closes a group: see
 [The order of `NOT`](#the-order-of-not) below.
 
 `urn:sqlib:srl:ground` is the named graph the executor keeps the ground data
-in — the base graph plus every `DATA` block, as it stood before any rule ran.
+in — the base graph alone, as it stood before any `DATA` block or rule ran.
+This follows the specification's prose ("Ground data is the triples in the base
+graph") and the W3C tests `eval-neg-data-03` and `-06`, not its pseudocode's
+`let GD = G0 ∪ D`.
 The compiler and the executor agree on that IRI; it is exported as
 `GROUND_GRAPH_IRI`.
 

@@ -30,9 +30,9 @@ export type SrlBodyItem =
    * `NOT { … }`, or `NOT DATA { … }` when `data` is true.
    *
    * `data` sends the negated pattern to the ground graph (`GD`, the base graph
-   * plus every DATA block) instead of the evaluation graph, which is how a rule
-   * asks "was this absent from the *input*?" while the rest of its body still
-   * matches inferred triples. Setting a default value is the spec's own example.
+   * alone — DATA blocks excluded) instead of the evaluation graph, which is how
+   * a rule asks "was this absent from the *input*?" while the rest of its body
+   * still matches inferred triples. Setting a default value is the spec's own example.
    */
   | { kind: 'not'; body: SrlBodyItem[]; data?: boolean }
   | { kind: 'set'; variable: string; expr: unknown }
