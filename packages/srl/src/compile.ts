@@ -17,9 +17,10 @@ export type { TupleRef } from './tuples/compile.js';
  * The named graph holding `GD` — the base graph `G0` and nothing else, as it
  * stood before any DATA block or rule ran.
  *
- * Not `G0 ∪ D`, though the spec's pseudocode says so: its prose ("Ground data
- * is the triples in the base graph") and the W3C tests `eval-neg-data-03` and
- * `-06` exclude the DATA blocks, which are inference output, not input.
+ * SPARQL 1.2 RL §3.9: "Ground data is the triples in the base graph"; its §6.5
+ * pseudocode passes `G0` as the ground graph to every `evalRule`. (The
+ * pseudocode's `let GD = G0 ∪ D` only seeds the evaluation graph.) DATA block
+ * triples are inference output, not ground input.
  *
  * `WHERE DATA` and `NOT DATA` are the spec's way of matching the *input* rather
  * than the growing evaluation graph, and SPARQL's way of matching one graph

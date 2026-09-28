@@ -261,9 +261,10 @@ A `NOT` that mentions a variable bound only after it also closes a group: see
 
 `urn:sqlib:srl:ground` is the named graph the executor keeps the ground data
 in — the base graph alone, as it stood before any `DATA` block or rule ran.
-This follows the specification's prose ("Ground data is the triples in the base
-graph") and the W3C tests `eval-neg-data-03` and `-06`, not its pseudocode's
-`let GD = G0 ∪ D`.
+SPARQL 1.2 RL says so in its prose ("Ground data is the triples in the base
+graph", §3.9) and its pseudocode, which evaluates every rule as
+`evalRule(R, GE, G0)` (§6.5). The pseudocode's `let GD = G0 ∪ D` only seeds the
+evaluation graph; despite the name, it is not the ground graph.
 The compiler and the executor agree on that IRI; it is exported as
 `GROUND_GRAPH_IRI`.
 

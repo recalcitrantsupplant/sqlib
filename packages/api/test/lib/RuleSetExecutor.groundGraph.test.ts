@@ -6,18 +6,19 @@ import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinator
  *
  * `GD` is frozen once, in `RuleSetExecutor.execute`, after the base graph is
  * loaded and *before* the DATA blocks run — so it is `G0`, the data graph, and
- * nothing else. Which is a reading rather than a transcription, because the
- * spec says it twice and not quite the same way (issue #174):
+ * nothing else. SPARQL 1.2 RL (WD 2026-09-19) says so in both places:
  *
- * - prose, [Matching Ground Data]: "Ground data is the triples in the base
+ * - prose, §3.9 Matching Ground Data: "Ground data is the triples in the base
  *   graph";
- * - pseudocode, [Evaluation of a Rule Set]: `let GD = G0 ∪ D`.
+ * - pseudocode, §6.5 Evaluation of a Rule Set: every call is
+ *   `evalRule(R, GE, G0)`, and `G0` binds `evalRule`'s ground parameter.
  *
- * The two disagree exactly when a DATA block supplies a triple a `NOT DATA`
- * asks about, and the upstream `eval-neg-data-03` / `-06` cases are that case:
- * base graph empty, `DATA { :s :p :o }`, and the expected result has the rule
- * firing — so the suite sides with the prose, against its own pseudocode. We
- * follow the prose, for the reasons written at the freeze point.
+ * The same pseudocode also has `let GD = G0 ∪ D`, but that local only seeds
+ * the evaluation graph (`let GE = GD`) and is never passed as the ground
+ * graph — a name clash, not a second definition (issue #174 read it as one).
+ * The upstream `eval-neg-data-03` / `-06` cases are where it matters: base
+ * graph empty, `DATA { :s :p :o }`, and the expected result has the rule
+ * firing.
  *
  * Until now the only thing that would have caught that decision being reversed
  * was the W3C conformance ratchet, which scores 203 names and would report the

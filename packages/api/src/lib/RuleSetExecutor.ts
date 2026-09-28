@@ -314,16 +314,16 @@ export class RuleSetExecutor {
       // runs — because ground data is the input, and DATA blocks are part of
       // the rule set rather than the data.
       //
-      // The spec says this twice and not quite the same way. The prose is
-      // "Ground data is the triples in the base graph" (Matching Ground Data);
-      // the pseudocode is `let GD = G0 ∪ D` (Evaluation of a Rule Set). The two
-      // disagree exactly when a DATA block supplies a triple a `NOT DATA` asks
-      // about, and `eval-neg-data-03` is that case: base graph empty, `DATA {
-      // :s :p :o }`, and the expected result has the rule firing — so the test
-      // sides with the prose. It is also the reading that holds together with
-      // §1 of our data-graph design (issue #149): DATA triples are inference
-      // *output*, and a triple cannot sensibly be both inferred output and
-      // ground input. Following the prose; reported upstream.
+      // SPARQL 1.2 RL (WD 2026-09-19): "Ground data is the triples in the base
+      // graph" (§3.9 Matching Ground Data), and the §6.5 pseudocode agrees —
+      // every rule is evaluated as `evalRule(R, GE, G0)`, `G0` in the ground
+      // slot. Its `let GD = G0 ∪ D` is a local that only seeds the evaluation
+      // graph (`let GE = GD`); despite the name it is never the ground graph.
+      // `eval-neg-data-03` is the discriminating case: base graph empty, `DATA
+      // { :s :p :o }`, and the expected result has the rule firing. It is also
+      // what holds together with §1 of our data-graph design (issue #149):
+      // DATA triples are inference *output*, and a triple cannot sensibly be
+      // both inferred output and ground input.
       //
       // Moving this line past the data-block loop below is the other reading,
       // and `test/lib/RuleSetExecutor.groundGraph.test.ts` is where that shows:
