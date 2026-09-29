@@ -42,6 +42,7 @@ function argumentSetsStub() {
     name: ref(''),
     tupleBindings: ref([]),
     scalarBindings: ref([]),
+    declaredScalars: ref({ limit: [], offset: [] }),
     scratchSets: computed(() => []),
     selectScratch: vi.fn(),
     createScratch: vi.fn(),

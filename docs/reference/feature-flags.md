@@ -33,7 +33,7 @@ A flag's value is parsed leniently, case-insensitively, after trimming:
 | `build` | `FEATURE_BUILD` | on | The Build rail section and the links into it. `/build` stays reachable by URL, and what it shows still follows the section flags |
 | `etl` | `FEATURE_ETL` | **off** | The `/etl-jobs` routes, and the startup writability check on the ETL output directory |
 | `backends` | `FEATURE_BACKENDS` | on | The Backends rail section. The `/backends` routes stay registered unconditionally |
-| `settings` | `FEATURE_SETTINGS` | on | The settings entry in the rail |
+| `settings` | `FEATURE_SETTINGS` | on | The Advanced section of Settings (Hofstadter mode). Settings itself — theme and prefixes — is always in the rail, and read-only deployments drop Advanced regardless |
 | `rulesAllowInvalidSave` | `FEATURE_RULES_ALLOW_INVALID_SAVE` | **off** | The ability to save a rule, data block or rule set version that does not parse. With it off, `allowInvalidSave: true` in a request body has no effect |
 | `ruleTuples` | `FEATURE_RULE_TUPLES` | **off** | The SRL rule-tuples extension — see below |
 | `playgroundQueries` | `FEATURE_PLAYGROUND_QUERIES` | on | The unsaved query playground. `/playground` is registered when this or `playgroundRules` is on |

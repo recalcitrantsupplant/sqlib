@@ -73,7 +73,7 @@
           between deployments must not rewrite it, and `useLibrariesStore` is
           the authority that keeps the library hidden either way.
         -->
-        <template v-if="!isReadOnly">
+        <template v-if="advancedAvailable">
           <div class="settings-divider" />
 
           <section class="settings-section">
@@ -135,6 +135,7 @@ import { useDeploymentMode } from '../composables/useDeploymentMode';
 import { useBuildInfo } from '../composables/useBuildInfo';
 import { useTheme } from '../composables/useTheme';
 import { usePrefixManager } from '../composables/usePrefixManager';
+import { useFeatureFlags } from '../composables/useFeatureFlags';
 
 const props = defineProps<{
   open: boolean;
@@ -157,6 +158,13 @@ const { prefixSettings } = usePrefixManager();
  */
 const { isReadOnly, ensureLoaded: ensureDeploymentMode } = useDeploymentMode();
 void ensureDeploymentMode();
+/*
+ * The `settings` flag works the same way: it trims the dialog to what a
+ * viewer needs rather than removing it, since theme and prefixes are never
+ * something a deployment should take away.
+ */
+const { isEnabled } = useFeatureFlags();
+const advancedAvailable = computed(() => !isReadOnly.value && isEnabled('settings'));
 
 const { label: buildLabel, commit, builtOn } = useBuildInfo();
 const buildTitle = computed(() => {

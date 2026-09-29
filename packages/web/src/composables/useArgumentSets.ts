@@ -42,7 +42,7 @@ import {
   type ArgumentSetDraft,
 } from './useArgumentSetDrafts'
 import { useTupleSetsStore } from './useTupleSetsStore'
-import { bareVariable, pruneUndef } from '../lib/argumentSignature'
+import { SCALAR_DEFAULTS, bareVariable, pruneUndef } from '../lib/argumentSignature'
 import { pinBindings, referenceKey, referencesOf } from '../lib/tupleSetReferences'
 import { readTupleDocument } from '../types/tuple-sets'
 
@@ -184,6 +184,33 @@ export function useArgumentSets(
   const description = ref('')
   const tupleBindings = ref<ArgumentTupleBinding[]>([])
   const scalarBindings = ref<ArgumentScalarBinding[]>([])
+  /**
+   * The LIMIT / OFFSET parameters the callable declares, set by the screen.
+   *
+   * The scalars panel shows a default for a parameter nobody has typed into,
+   * and that default is only on screen until something writes it. Knowing what
+   * is declared is what lets the payload carry the number the panel shows,
+   * rather than dropping the parameter and letting the query run its own.
+   */
+  const declaredScalars = ref<{ limit: string[]; offset: string[] }>({ limit: [], offset: [] })
+
+  /** Stored scalars plus the panel's default for every declared one left blank. */
+  function effectiveScalars(): ArgumentScalarBinding[] {
+    const result = [...scalarBindings.value]
+    const add = (parameterKind: 'limit' | 'offset', ids: string[]) => {
+      for (const parameterName of ids) {
+        const present = result.some(
+          (s) => s.parameterKind === parameterKind && s.parameterName === parameterName,
+        )
+        if (!present) {
+          result.push({ parameterKind, parameterName, numericValue: SCALAR_DEFAULTS[parameterKind] })
+        }
+      }
+    }
+    add('limit', declaredScalars.value.limit)
+    add('offset', declaredScalars.value.offset)
+    return result
+  }
   /**
    * The graphs this set hands to a query group, in order.
    *
@@ -576,7 +603,10 @@ export function useArgumentSets(
        */
       const body = {
         tupleBindings: clone(pinned.bindings).map((binding, position) => ({ ...binding, position })),
-        scalarBindings: scalarBindings.value.length > 0 ? clone(scalarBindings.value) : undefined,
+        scalarBindings: (() => {
+          const scalars = effectiveScalars()
+          return scalars.length > 0 ? clone(scalars) : undefined
+        })(),
         graphBindings: graphBindings.value.length > 0
           ? clone(graphBindings.value).map((binding, position) => ({ ...binding, position }))
           : undefined,
@@ -717,10 +747,11 @@ export function useArgumentSets(
       args.push({ head: { vars }, arguments: { bindings } })
     }
 
-    const limits = scalarBindings.value
+    const scalars = effectiveScalars()
+    const limits = scalars
       .filter((s) => s.parameterKind === 'limit')
       .map((s) => ({ name: s.parameterName, value: s.numericValue }))
-    const offsets = scalarBindings.value
+    const offsets = scalars
       .filter((s) => s.parameterKind === 'offset')
       .map((s) => ({ name: s.parameterName, value: s.numericValue }))
 
@@ -861,6 +892,7 @@ export function useArgumentSets(
     tupleBindings,
     scalarBindings,
     graphBindings,
+    declaredScalars,
 
     // Local scratch sets for this target, newest first
     scratchSets: computed(() => local.scratchFor(localTargetId.value)),

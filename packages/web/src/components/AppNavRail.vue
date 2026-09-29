@@ -26,7 +26,6 @@
         <PrefixManagerIcon :size="16" />
       </button>
       <button
-        v-if="settingsEnabled"
         class="rail-icon-button"
         title="Settings"
         aria-label="Settings"
@@ -37,7 +36,6 @@
     </div>
 
     <SettingsDialog
-      v-if="settingsEnabled"
       v-model:open="settingsOpen"
       @open-prefix-manager="prefixEditorOpen = true"
     />
@@ -70,8 +68,6 @@ const { isEnabled } = useFeatureFlags();
 
 const settingsOpen = ref(false);
 const prefixEditorOpen = ref(false);
-
-const settingsEnabled = computed(() => isEnabled('settings'));
 
 const visibleSections = computed(() =>
   RAIL_ENTRIES.filter((entry) => entry.feature === null || isEnabled(entry.feature)),

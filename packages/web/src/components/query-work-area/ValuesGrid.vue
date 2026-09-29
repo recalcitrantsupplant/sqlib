@@ -131,16 +131,13 @@
     <!--
       A keyboard grid holds one control per cell, so the type of the value being
       typed has nowhere to live in the cell itself. It lives here, on the cell
-      that has focus, which is also where the paste and navigation keys are
-      worth saying out loud.
+      that has focus, which is also where the navigation keys are worth saying
+      out loud.
     -->
-    <p class="grid-status" :data-testid="`${testids}-status`">
-      <template v-if="focusedTerm">
-        <span class="grid-status-var">?{{ variables[focused!.col] }}</span>
-        <span class="grid-status-type">{{ termTypeLabel(focusedTerm) }}</span>
-        <span class="grid-status-hint">↑↓ move · Enter next row · ⌘V pastes a block</span>
-      </template>
-      <template v-else>Type a value; ⌘V pastes rows of TSV or CSV. Blank cells bind UNDEF.</template>
+    <p v-if="focusedTerm" class="grid-status" :data-testid="`${testids}-status`">
+      <span class="grid-status-var">?{{ variables[focused!.col] }}</span>
+      <span class="grid-status-type">{{ termTypeLabel(focusedTerm) }}</span>
+      <span class="grid-status-hint">↑↓ move · Enter next row</span>
     </p>
   </div>
 </template>

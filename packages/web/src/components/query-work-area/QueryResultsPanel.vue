@@ -84,10 +84,11 @@
             Verdicts are computed, for now: only from variable names and arity,
             which is all the model knows today (design §5).
           -->
-          <p class="signature-verdict" :class="`signature-verdict--${verdict.verdict}`">
-            <template v-if="verdict.verdict === 'fits'">matches the query signature</template>
-            <template v-else>{{ verdict.reason }}</template>
-          </p>
+          <p
+            v-if="verdict.verdict !== 'fits'"
+            class="signature-verdict"
+            :class="`signature-verdict--${verdict.verdict}`"
+          >{{ verdict.reason }}</p>
         </template>
 
         <div
@@ -398,6 +399,16 @@ const hasSelection = computed(() => args.selection.value.kind !== 'none')
 /** What the query asks for: its VALUES clauses and scalar parameters. */
 const signature = computed(() =>
   buildQuerySignature(props.detectedInputs, props.queryText ?? null),
+)
+
+// Tell the composable what the scalars panel shows defaults for, so the
+// payloads (Run, Code, Copy JSON) carry the same numbers.
+watch(
+  () => [signature.value.limitParameters, signature.value.offsetParameters] as const,
+  ([limit, offset]) => {
+    args.declaredScalars.value = { limit: [...limit], offset: [...offset] }
+  },
+  { immediate: true },
 )
 
 const verdict = computed(() => compatibility(signature.value, args.tupleBindings.value))

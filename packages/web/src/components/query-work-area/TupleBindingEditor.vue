@@ -197,6 +197,7 @@
           tuple set, and this is the seam between the two.
         -->
         <TupleSetPicker
+          v-if="tupleSetsEnabled"
           :variables="names"
           :library-id="libraryId"
           :attached-to="references"
@@ -210,7 +211,7 @@
           afterwards, which is what makes it safe.
         -->
         <button
-          v-if="rows.length > 0"
+          v-if="tupleSetsEnabled && rows.length > 0"
           type="button"
           class="btn-add"
           data-testid="tuple-set-export-open"
@@ -222,7 +223,7 @@
         <InlineNote v-if="rows.length && view === 'rows'" as="span" size="xs">Blank cells bind UNDEF.</InlineNote>
       </div>
 
-      <section v-if="exporting" class="export-panel" data-testid="tuple-set-export">
+      <section v-if="tupleSetsEnabled && exporting" class="export-panel" data-testid="tuple-set-export">
         <!--
           The honest warning. Not "we will drop your names" — they are kept, and
           a lie here would have to be un-taught the first time someone saw them
@@ -296,6 +297,7 @@ import { bareVariable, summariseRow, tupleSignature } from '@/lib/argumentSignat
 import { TO_TUPLE_SET_WARNING, toTupleDocument, toTupleTable } from '@/lib/tupleTableConversion';
 import { useTupleSetsStore } from '@/composables/useTupleSetsStore';
 import { useActiveLibrary } from '@/composables/useActiveLibrary';
+import { useFeatureFlags } from '@/composables/useFeatureFlags';
 import {
   referencesOf,
   withReference,
@@ -360,6 +362,9 @@ type View = (typeof VIEWS)[number]['value'];
 const names = computed(() => props.variables.map(bareVariable));
 
 const tupleSets = useTupleSetsStore();
+/** Loading from and saving to a tuple set is the Tuples feature; off, neither button shows. */
+const { isEnabled } = useFeatureFlags();
+const tupleSetsEnabled = computed(() => isEnabled('tupleSets'));
 const { activeLibraryId } = useActiveLibrary();
 
 /*

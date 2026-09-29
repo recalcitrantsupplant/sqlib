@@ -43,6 +43,7 @@ function stubArgumentSets(overrides: Record<string, unknown> = {}) {
     name: ref(''),
     tupleBindings: ref([]),
     scalarBindings: ref([]),
+    declaredScalars: ref({ limit: [], offset: [] }),
     graphBindings: ref([]),
     scratchSets: ref([]),
     selectSet: async () => {},

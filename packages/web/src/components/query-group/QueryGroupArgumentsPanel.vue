@@ -142,7 +142,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, toRef } from 'vue';
+import { computed, ref, toRef, watchEffect } from 'vue';
 import { toast } from 'vue-sonner';
 import {
   AlertDialog,
@@ -204,6 +204,11 @@ const props = withDefaults(defineProps<{
 
 const groupIdRef = toRef(props, 'groupId');
 const args = props.argumentSetsComposable ?? useArgumentSets(groupIdRef, 'queryGroup');
+
+// Tell the composable what the panel shows defaults for, so the payload does too.
+watchEffect(() => {
+  args.declaredScalars.value = { limit: props.limitParameters, offset: props.offsetParameters };
+});
 const apiClient = useApiClient();
 
 const hasSelection = computed(() => args.selection.value.kind !== 'none');

@@ -41,7 +41,7 @@
               min="0"
               class="cell-input cell-input--number"
               :value="row.numericValue"
-              :placeholder="row.parameterKind === 'limit' ? '100' : '0'"
+              :placeholder="String(SCALAR_DEFAULTS[row.parameterKind])"
               :disabled="disabled"
               @input="updateValue(row, ($event.target as HTMLInputElement).value)"
             />
@@ -56,6 +56,7 @@
 import { computed } from 'vue';
 import type { ArgumentScalarBinding } from '@/types/argument-sets';
 import InlineNote from '../shared/InlineNote.vue';
+import { SCALAR_DEFAULTS } from '@/lib/argumentSignature';
 
 /**
  * The query's LIMIT / OFFSET parameters and the numbers filling them.
@@ -100,7 +101,7 @@ const rows = computed<ScalarRow[]>(() => {
         parameterId,
         parameterKind,
         parameterName: stored?.parameterName ?? parameterId,
-        numericValue: stored?.numericValue ?? (parameterKind === 'limit' ? 100 : 0),
+        numericValue: stored?.numericValue ?? SCALAR_DEFAULTS[parameterKind],
       } satisfies ScalarRow;
     });
 

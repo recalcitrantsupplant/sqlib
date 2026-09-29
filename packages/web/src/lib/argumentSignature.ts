@@ -252,3 +252,11 @@ export function summariseRow(variables: string[], values: SparqlBinding): string
   });
   return parts.join(' · ');
 }
+
+/**
+ * What a LIMIT / OFFSET parameter runs with when nobody typed a number.
+ *
+ * The scalars panel shows these, and the payload builders fill them in, so a
+ * blank on screen and a blank in the call mean the same thing.
+ */
+export const SCALAR_DEFAULTS = { limit: 100, offset: 0 } as const

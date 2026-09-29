@@ -118,6 +118,25 @@ describe('a scratch callable', () => {
     expect(args.executionArgumentSetId.value).toBeNull();
   });
 
+  /*
+   * The scalars panel shows 100 / 0 for a parameter nobody typed into. The
+   * payload (Run, the Code tab, Copy JSON) must carry that same number rather
+   * than dropping the parameter.
+   */
+  it('fills a declared scalar left blank with the default the panel shows', () => {
+    const args = onScratch();
+    args.createScratch();
+    args.declaredScalars.value = { limit: ['1', 'pageSize'], offset: ['2'] };
+    args.scalarBindings.value = [
+      { parameterName: 'pageSize', parameterKind: 'limit', numericValue: 10 },
+    ];
+
+    expect(args.visibleValuesPayload()).toEqual({
+      limits: [{ name: 'pageSize', value: 10 }, { name: '1', value: 100 }],
+      offsets: [{ name: '2', value: 0 }],
+    });
+  });
+
   it('refuses to save, naming what has to happen first', async () => {
     const args = onScratch();
     await settled();
