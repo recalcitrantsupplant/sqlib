@@ -122,6 +122,29 @@ describe('wiring a slot', () => {
     ]);
   });
 
+  it('reads typed values by variable, so a slot the builder left out stays open', async () => {
+    const wrapper = render({ target: { ...TARGET, slots: [['asset'], ['owner']] } });
+    const owner = { owner: { type: 'uri', value: 'urn:o' } };
+    // The builder leaves a slot with no rows out of its payload, so the only
+    // argument here is the second slot's: position 0 is not slot 0.
+    wrapper.get('sqlib-args').element.dispatchEvent(
+      new CustomEvent('change', {
+        detail: {
+          payload: { arguments: [{ head: { vars: ['owner'] }, results: { bindings: [owner] } }] },
+          valid: true,
+        },
+      }),
+    );
+    await wrapper.vm.$nextTick();
+
+    const updates = wrapper.emitted('update') ?? [];
+    const last = updates[updates.length - 1]?.[0] as { slots: unknown[] };
+    expect(last.slots).toEqual([
+      { from: 'typed', bindings: [{}] },
+      { from: 'typed', bindings: [owner] },
+    ]);
+  });
+
   it('shows what a wired slot carries, and that it travels by value', () => {
     const wrapper = render({
       cell: { ...CELL, slots: [{ from: 'value', ref: 'candidates' }] },

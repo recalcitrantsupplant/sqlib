@@ -228,7 +228,7 @@ describe('External Parameters via StartNode', () => {
         arguments: [
           {
             head: { vars: ['targetExperience'] },
-            arguments: {
+            results: {
               bindings: [
                 { targetExperience: { type: 'literal', value: 'senior' } }
               ]

@@ -29,14 +29,14 @@
  *   caller names the *slot's* variables, which is what a bundle can check.
  */
 
-import type { WireArgumentSet } from './arguments.js';
+import { normalizeArguments, type WireArgumentSet } from './arguments.js';
 import type { ExportedGroup, ExportedGroupEdge, ExportedQuery } from './bundle.js';
 import { QueryCallError } from './errors.js';
 import type { ExecutionResult, SparqlSelectResults } from './executor.js';
 import { toExecutionParameters, type ExecutionParameter } from './limit-offset.js';
-import type { EmptyArgumentMode } from './query-template.js';
+import type { EmptyArgumentMode, TemplateArgumentSet } from './query-template.js';
 import type { TermValue } from './sparql-terms.js';
-import type { ParameterInput, QueryHandle } from './library.js';
+import { substituteCall, type ParameterInput, type QueryHandle } from './library.js';
 
 /**
  * A group call.
@@ -188,17 +188,18 @@ export class GroupHandle {
 
   /** Walk the group, keeping every node's result and the query it ran. */
   async runDetailed(payload: GroupCallPayload = {}): Promise<GroupRunResult> {
-    // Left in the wire shape: `QueryHandle.text` normalises the nulls a grid
-    // round-trip leaves behind, and doing it here as well would only mean two
-    // passes over the same rows.
-    const external = payload.arguments ?? [];
-    external.forEach((set, index) => {
+    const wire = payload.arguments ?? [];
+    wire.forEach((set, index) => {
       if (!set?.head || !Array.isArray(set.head.vars)) {
         throw new QueryCallError(
           `Argument set ${index} for group '${this.name}' declares no head.vars. A group has more than one slot to fill, so its arguments say which variables they bind.`,
         );
       }
     });
+    // Normalised once, up front: every node's substitution then works on sets
+    // that have already been checked, and the group's own sets can carry the
+    // author's `whenEmpty`, which the wire shape cannot.
+    const external = normalizeArguments(wire) ?? [];
 
     const limits = toExecutionParameters(payload.limits);
     const offsets = toExecutionParameters(payload.offsets);
@@ -209,14 +210,13 @@ export class GroupHandle {
     for (const node of this.order) {
       const query = this.queryFor(node);
       const handle = this.queries(this.group.nodes[node].query);
-      const call = {
-        arguments: this.argumentsFor(node, query, results, external),
-        limits: forQuery(limits, query.limitParameters),
-        offsets: forQuery(offsets, query.offsetParameters),
-        signal: payload.signal,
-      };
       // Substituted once: the text is both what is kept and what is sent.
-      const text = handle.text(call);
+      const text = substituteCall(
+        query,
+        this.argumentsFor(node, query, results, external),
+        forQuery(limits, query.limitParameters),
+        forQuery(offsets, query.offsetParameters),
+      );
       texts[node] = text;
       results[node] = await handle.runText(text, payload.signal);
     }
@@ -259,8 +259,8 @@ export class GroupHandle {
     node: string,
     query: ExportedQuery,
     results: Record<string, ExecutionResult>,
-    external: readonly WireArgumentSet[],
-  ): WireArgumentSet[] {
+    external: readonly TemplateArgumentSet[],
+  ): TemplateArgumentSet[] {
     const inbound = this.inboundEdges(node);
     const claimed = new Set<string>();
 
@@ -283,7 +283,7 @@ export class GroupHandle {
     vars: readonly string[],
     edges: readonly ExportedGroupEdge[],
     results: Record<string, ExecutionResult>,
-  ): WireArgumentSet {
+  ): TemplateArgumentSet {
     const seen = new Set<string>();
     const bindings: Array<Record<string, TermValue>> = [];
 
@@ -324,7 +324,7 @@ export class GroupHandle {
 
     return {
       head: { vars: [...vars] },
-      arguments: { bindings },
+      results: { bindings },
       ...(whenEmpty !== undefined ? { whenEmpty } : {}),
     };
   }
@@ -340,8 +340,8 @@ export class GroupHandle {
 function externalArgumentSet(
   node: string,
   vars: readonly string[],
-  external: readonly WireArgumentSet[],
-): WireArgumentSet {
+  external: readonly TemplateArgumentSet[],
+): TemplateArgumentSet {
   const supplied = external.find((set) => sameOrder(set.head.vars, vars));
   if (supplied) return supplied;
 
@@ -356,7 +356,7 @@ function externalArgumentSet(
   // is the same default the API applies.
   return {
     head: { vars: [...vars] },
-    arguments: { bindings: [] },
+    results: { bindings: [] },
     whenEmpty: 'unconstrained' satisfies EmptyArgumentMode,
   };
 }

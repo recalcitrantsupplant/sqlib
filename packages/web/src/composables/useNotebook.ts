@@ -297,13 +297,13 @@ export function useNotebook(
   function slotArgument(
     slot: SlotSource | undefined,
     vars: string[],
-  ): { head: { vars: string[] }; arguments: { bindings: Array<Record<string, unknown>> } } | 'skip' | string {
+  ): { head: { vars: string[] }; results: { bindings: Array<Record<string, unknown>> } } | 'skip' | string {
     if (!slot || slot.from === 'typed') {
       // No source is a wildcard row: the runtime drops the slot, which is what
       // makes a freshly inserted cell runnable rather than an error.
       return {
         head: { vars: [...vars] },
-        arguments: { bindings: slot?.from === 'typed' ? slot.bindings : [{}] },
+        results: { bindings: slot?.from === 'typed' ? slot.bindings : [{}] },
       };
     }
 
@@ -318,7 +318,7 @@ export function useNotebook(
   }
 
   async function runQueryLike(cell: RunCell, target: NotebookTarget, started: number): Promise<void> {
-    const args: Array<{ head: { vars: string[] }; arguments: { bindings: Array<Record<string, unknown>> } }> = [];
+    const args: Array<{ head: { vars: string[] }; results: { bindings: Array<Record<string, unknown>> } }> = [];
     const slots = cellSlots(cell);
 
     for (const [index, vars] of target.slots.entries()) {

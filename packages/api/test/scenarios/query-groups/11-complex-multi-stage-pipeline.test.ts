@@ -351,7 +351,7 @@ describe('Complex Multi-Stage Pipeline', () => {
         arguments: [
           {
             head: { vars: ['experienceLevel'] },
-            arguments: {
+            results: {
               bindings: [
                 { experienceLevel: { type: 'literal', value: 'senior' } }
               ]

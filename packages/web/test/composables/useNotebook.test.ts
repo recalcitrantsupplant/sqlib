@@ -131,7 +131,7 @@ describe('running a cell', () => {
           arguments: [
             {
               head: { vars: ['city'] },
-              arguments: { bindings: [{ city: { type: 'uri', value: 'urn:city:1' } }] },
+              results: { bindings: [{ city: { type: 'uri', value: 'urn:city:1' } }] },
             },
           ],
         },
@@ -160,7 +160,7 @@ describe('running a cell', () => {
         {
           targetId: 'urn:q:second',
           arguments: [
-            { head: { vars: ['asset'] }, arguments: { bindings: [{ asset: { type: 'uri', value: 'urn:a' } }] } },
+            { head: { vars: ['asset'] }, results: { bindings: [{ asset: { type: 'uri', value: 'urn:a' } }] } },
           ],
         },
         undefined,

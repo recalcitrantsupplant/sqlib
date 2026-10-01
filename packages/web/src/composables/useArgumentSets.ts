@@ -714,7 +714,7 @@ export function useArgumentSets(
       // An input with no rows is left open, not matched against the empty set —
       // those are opposites in the VALUES contract.
       if (vars.length === 0 || bindings.length === 0) continue
-      args.push({ head: { vars }, arguments: { bindings } })
+      args.push({ head: { vars }, results: { bindings } })
     }
 
     const limits = scalarBindings.value

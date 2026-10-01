@@ -233,7 +233,7 @@ describe('External Parameters with Fan-Out', () => {
         arguments: [
           {
             head: { vars: ['experienceLevel'] },
-            arguments: {
+            results: {
               bindings: [
                 { experienceLevel: { type: 'literal', value: 'senior' } }
               ]

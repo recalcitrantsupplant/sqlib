@@ -75,7 +75,7 @@ describe('walking a group', () => {
       arguments: [
         {
           head: { vars: ['region'] },
-          arguments: { bindings: [{ region: iri('http://example.org/WA') }] },
+          results: { bindings: [{ region: iri('http://example.org/WA') }] },
         },
       ],
     });
@@ -94,7 +94,7 @@ describe('walking a group', () => {
 
     const detailed = await group.runDetailed({
       arguments: [
-        { head: { vars: ['region'] }, arguments: { bindings: [{ region: iri('urn:wa') }] } },
+        { head: { vars: ['region'] }, results: { bindings: [{ region: iri('urn:wa') }] } },
       ],
     });
 
@@ -121,7 +121,7 @@ describe('walking a group', () => {
     });
     await fromBundle(await chainBundle(), { executor })
       .group('people-by-region')
-      .run({ arguments: [{ head: { vars: ['region'] }, arguments: { bindings: [] } }] });
+      .run({ arguments: [{ head: { vars: ['region'] }, results: { bindings: [] } }] });
 
     // ?city upstream, ?place downstream: the mapping is the only reason the row
     // lands in the slot at all.
@@ -169,7 +169,7 @@ describe('walking a group', () => {
     });
     await fromBundle(bundle, { executor })
       .group('both')
-      .run({ arguments: [{ head: { vars: ['region'] }, arguments: { bindings: [] } }] });
+      .run({ arguments: [{ head: { vars: ['region'] }, results: { bindings: [] } }] });
 
     const downstream = seen[seen.length - 1];
     expect(downstream).toContain(
@@ -358,7 +358,7 @@ describe('a group call', () => {
   it('says so when an argument set does not name its variables', async () => {
     const group = fromBundle(await chainBundle()).group('people-by-region');
     await expect(
-      group.run({ arguments: [{ arguments: { bindings: [] } } as never] }),
+      group.run({ arguments: [{ results: { bindings: [] } } as never] }),
     ).rejects.toThrow(/declares no head.vars/);
   });
 
@@ -380,7 +380,7 @@ describe('a group call', () => {
           arguments: [
             {
               head: { vars: ['year', 'city'] },
-              arguments: { bindings: [{ year: literal('2026'), city: iri('urn:perth') }] },
+              results: { bindings: [{ year: literal('2026'), city: iri('urn:perth') }] },
             },
           ],
         }),

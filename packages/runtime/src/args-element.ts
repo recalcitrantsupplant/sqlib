@@ -25,7 +25,7 @@
  */
 
 import { InvalidTermError, serializeTerm, type TermValue } from './sparql-terms.js';
-import { alignArgumentSets } from './query-template.js';
+import { assignArgumentSets } from './query-template.js';
 import type { WireArgumentSet } from './arguments.js';
 
 /** What a query expects, as the bundle describes it. */
@@ -274,19 +274,27 @@ export class SqlibArgsElement extends ArgsElementBase {
      * slots — and reading it positionally filled each slot from the wrong set,
      * then reported the result as "binds variables the query does not declare"
      * and fell back to JSON for a payload the form can show perfectly well.
+     *
+     * A slot the payload leaves out is shown empty: the form spells "no filter"
+     * as a slot with no rows, and leaves such a slot out of what it emits.
      */
-    const sets =
-      alignArgumentSets(this.signatureValue.inputs, given) ?? given;
-    if (sets.length !== this.signatureValue.inputs.length) {
-      if (sets.length > 0) {
-        this.jsonOnlyReason = `This payload has ${sets.length} argument set(s) but the query has ${this.signatureValue.inputs.length} parameter slot(s).`;
-        this.mode = 'json';
-        return;
-      }
+    const { slots: sets, unmatched } = assignArgumentSets(this.signatureValue.inputs, given);
+    if (unmatched.length > 0) {
+      this.jsonOnlyReason = `This payload has ${unmatched.length} argument set(s) that fit none of the query's parameter slots.`;
+      this.mode = 'json';
+      return;
+    }
+    // Zero rows is "the empty set arrived: match nothing", which differs from an
+    // omitted slot and has no spelling in the form. Showing it as an empty slot
+    // would quietly turn it into "no filter" on the next edit.
+    if (sets.some((set) => Array.isArray(set?.results?.bindings) && set.results.bindings.length === 0)) {
+      this.jsonOnlyReason = 'This payload passes an empty argument, which matches nothing; the form can only leave a parameter out.';
+      this.mode = 'json';
+      return;
     }
 
     this.slots = this.signatureValue.inputs.map((vars, index) => {
-      const bindings = sets[index]?.arguments?.bindings ?? [];
+      const bindings = sets[index]?.results?.bindings ?? [];
       const rows = (Array.isArray(bindings) ? bindings : []).map((binding) => {
         const row: Record<string, Cell> = {};
         const source = (binding ?? {}) as Record<string, TermValue | null | undefined>;
@@ -300,7 +308,7 @@ export class SqlibArgsElement extends ArgsElementBase {
     // case the form cannot show without losing information.
     const extra = sets.some((set, index) => {
       const declared = new Set(this.signatureValue.inputs[index] ?? []);
-      return (set?.arguments?.bindings ?? []).some((binding) =>
+      return (set?.results?.bindings ?? []).some((binding) =>
         Object.keys((binding ?? {}) as object).some((key) => !declared.has(key)),
       );
     });
@@ -316,20 +324,24 @@ export class SqlibArgsElement extends ArgsElementBase {
 
   private buildPayload(): ArgsPayload {
     const payload: ArgsPayload = {
-      arguments: this.slots.map((slot) => ({
-        head: { vars: [...slot.vars] },
-        arguments: {
-          bindings: slot.rows.map((row) => {
-            const binding: Record<string, TermValue> = {};
-            for (const variable of slot.vars) {
-              const term = termFromCell(row[variable]);
-              // An UNDEF cell is an absent key, which is what UNDEF means.
-              if (term) binding[variable] = term;
-            }
-            return binding;
-          }),
-        },
-      })),
+      // A slot with no rows is left out: nothing arrived, so the query runs
+      // without that filter.
+      arguments: this.slots
+        .filter((slot) => slot.rows.length > 0)
+        .map((slot) => ({
+          head: { vars: [...slot.vars] },
+          results: {
+            bindings: slot.rows.map((row) => {
+              const binding: Record<string, TermValue> = {};
+              for (const variable of slot.vars) {
+                const term = termFromCell(row[variable]);
+                // An UNDEF cell is an absent key, which is what UNDEF means.
+                if (term) binding[variable] = term;
+              }
+              return binding;
+            }),
+          },
+        })),
     };
     if (Object.keys(this.limitValues).length > 0) payload.limits = { ...this.limitValues };
     if (Object.keys(this.offsetValues).length > 0) payload.offsets = { ...this.offsetValues };

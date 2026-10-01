@@ -1,7 +1,8 @@
 # Arguments are SPARQL Results JSON
 
-Status: proposed, pre-1.0 clean break. No compatibility shim: nothing outside
-this repository sends the old shape.
+Status: implemented, pre-1.0 clean break. No compatibility shim: nothing outside
+this repository sends the old shape. See "As built" at the end for where the
+implementation departs from the plan below.
 
 ## The change in one paragraph
 
@@ -217,3 +218,31 @@ return nothing.
 - Any change to `limits` / `offsets`, `argumentSetIds` or `dataGraphs`.
 - The notebook's own `whenEmpty` vocabulary (`skip` / `stop` in
   `notebookFormat.ts`), which is a cell-level concern, not a slot policy.
+
+## As built
+
+Where the implementation departs from the plan above, and why:
+
+- **The request schema admits `bnode` and `typed-literal`.** Fastify validates
+  against the hand-owned JSON Schema in `contract-routes.ts`, and an enum
+  mismatch there reads as a generic Ajv error. Admitting all four Results JSON
+  term types lets `normalizeArguments` refuse a blank node with a message that
+  says why, and fold `typed-literal`, in one place shared by the API and the
+  runtime. `head.link` and `boolean` are still refused by the schema.
+- **Omitted slots are completed inside the substitution**, by the runtime's
+  `completeArgumentSets`, which both the template path and the parser's AST path
+  call. The execute route's stored-set path no longer pads missing slots itself;
+  it hands over only the sets the query declares. The inline and stored paths
+  therefore share the completion rather than a padding helper.
+- **`packages/types` is unchanged.** Nothing imports an `ExecutionArgument` from
+  it; the web's own `ExecutionArgument` and the contract's zod type carry the
+  new shape.
+- **The changelog entry comes from the commit.** `CHANGELOG.md` is written by
+  release-please, so the breaking change is a `feat!` commit with a
+  `BREAKING CHANGE` footer rather than a hand edit.
+- **Two clients changed meaning, not just spelling.** The `<sqlib-args>` element
+  and the MCP bench used to send every slot, so an empty one matched nothing.
+  Both now leave an empty slot out, which runs it without its filter. The
+  element shows a payload that passes zero rows as JSON, since the form cannot
+  tell that apart from an omission. The notebook, which read the element's
+  output by position, now reads it by variable.

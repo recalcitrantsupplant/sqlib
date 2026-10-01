@@ -103,7 +103,7 @@ describe('buildExportBundle', () => {
         .query('paged')
         .text({
           arguments: [
-            { head: { vars: ['type'] }, arguments: { bindings: [{ type: iri('http://e/T') }] } },
+            { head: { vars: ['type'] }, results: { bindings: [{ type: iri('http://e/T') }] } },
           ],
           limits: { 1: 5 },
         });
@@ -196,7 +196,7 @@ describe('exported bundles substitute exactly as the API does', () => {
   const cases: Array<{
     label: string;
     queryString: string;
-    argumentSets: Array<{ head: { vars: string[] }; arguments: { bindings: unknown[] } }>;
+    argumentSets: Array<{ head: { vars: string[] }; results: { bindings: unknown[] } }>;
   }> = [
     {
       label: 'a single IRI argument',
@@ -204,7 +204,7 @@ describe('exported bundles substitute exactly as the API does', () => {
       argumentSets: [
         {
           head: { vars: ['city'] },
-          arguments: { bindings: [{ city: iri('http://example.org/Perth') }] },
+          results: { bindings: [{ city: iri('http://example.org/Perth') }] },
         },
       ],
     },
@@ -214,7 +214,7 @@ describe('exported bundles substitute exactly as the API does', () => {
       argumentSets: [
         {
           head: { vars: ['city'] },
-          arguments: {
+          results: {
             bindings: [
               { city: iri('http://example.org/Perth') },
               { city: iri('http://example.org/Darwin') },
@@ -229,7 +229,7 @@ describe('exported bundles substitute exactly as the API does', () => {
       argumentSets: [
         {
           head: { vars: ['city'] },
-          arguments: {
+          results: {
             bindings: [{ city: literal('x" } } INSERT DATA { <http://evil> <http://p> "x" } #') }],
           },
         },
@@ -241,7 +241,7 @@ describe('exported bundles substitute exactly as the API does', () => {
       argumentSets: [
         {
           head: { vars: ['city'] },
-          arguments: { bindings: [{ city: literal('Perth', { lang: 'en-AU' }) }] },
+          results: { bindings: [{ city: literal('Perth', { lang: 'en-AU' }) }] },
         },
       ],
     },
@@ -251,7 +251,7 @@ describe('exported bundles substitute exactly as the API does', () => {
       argumentSets: [
         {
           head: { vars: ['city'] },
-          arguments: {
+          results: {
             bindings: [
               { city: literal('42', { datatype: 'http://www.w3.org/2001/XMLSchema#integer' }) },
             ],
@@ -268,10 +268,10 @@ describe('exported bundles substitute exactly as the API does', () => {
           ?a ?b ?c .
         }`,
       argumentSets: [
-        { head: { vars: ['a'] }, arguments: { bindings: [{ a: iri('http://example.org/a') }] } },
+        { head: { vars: ['a'] }, results: { bindings: [{ a: iri('http://example.org/a') }] } },
         {
           head: { vars: ['b', 'c'] },
-          arguments: {
+          results: {
             bindings: [{ b: iri('http://example.org/b'), c: literal('c') }, { b: null, c: literal('d') }],
           },
         },
@@ -294,7 +294,7 @@ describe('exported bundles substitute exactly as the API does', () => {
   it('agrees on page parameters too', async () => {
     const bundle = await bundleOf([{ name: 'paged', queryString: PAGED }]);
     const argumentSets = [
-      { head: { vars: ['type'] }, arguments: { bindings: [{ type: iri('http://example.org/T') }] } },
+      { head: { vars: ['type'] }, results: { bindings: [{ type: iri('http://example.org/T') }] } },
     ];
 
     const fromRuntime = fromBundle(JSON.parse(JSON.stringify(bundle)))

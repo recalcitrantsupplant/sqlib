@@ -222,6 +222,7 @@
 </template>
 
 <script setup lang="ts">
+import { assignArgumentSets } from '@sparql-query-lib/runtime';
 import { computed, ref, watch } from 'vue';
 import { ClipboardCheck, MoreHorizontal, Pencil, Play } from '@lucide/vue';
 import { Badge } from '../ui/badge';
@@ -438,16 +439,26 @@ function onArgsChange(event: Event) {
   const detail = (event as CustomEvent<{ payload: unknown; valid: boolean }>).detail;
   if (!detail || detail.payload === undefined) return;
   const payload = detail.payload as {
-    arguments?: Array<{ arguments?: { bindings?: Array<Record<string, unknown>> } }>;
+    arguments?: Array<{ head?: { vars?: string[] }; results?: { bindings?: Array<Record<string, unknown>> } }>;
     limits?: Record<string, number>;
     offsets?: Record<string, number>;
   };
 
+  /*
+   * By variable, not position: the builder leaves a slot with no rows out of
+   * its payload, so the nth argument need not be the nth typed slot. A slot it
+   * left out reads as a single all-UNDEF row — "no filter", which is what an
+   * omitted argument means.
+   */
+  const { slots: assigned } = assignArgumentSets(
+    typedSlotIndices.value.map((index) => props.target?.slots[index] ?? []),
+    payload.arguments ?? [],
+  );
   const next = [...slots.value];
   typedSlotIndices.value.forEach((slotIndex, position) => {
     next[slotIndex] = {
       from: 'typed',
-      bindings: payload.arguments?.[position]?.arguments?.bindings ?? [{}],
+      bindings: assigned[position]?.results?.bindings ?? [{}],
     };
   });
 

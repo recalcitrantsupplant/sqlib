@@ -93,7 +93,7 @@ describe('running a draft that links a tuple set', () => {
     const args = composableWithScratch({ tupleSetRefs: [{ tupleSetId: CITIES }] });
 
     const payload = args.visibleValuesPayload();
-    expect(payload?.arguments?.[0].arguments.bindings).toEqual([PARIS, LYON]);
+    expect(payload?.arguments?.[0].results.bindings).toEqual([PARIS, LYON]);
   });
 
   it('unions them with the rows typed into the same clause', () => {
@@ -103,17 +103,17 @@ describe('running a draft that links a tuple set', () => {
       tupleSetRefs: [{ tupleSetId: CITIES }],
     });
 
-    const bindings = args.visibleValuesPayload()?.arguments?.[0].arguments.bindings;
+    const bindings = args.visibleValuesPayload()?.arguments?.[0].results.bindings;
     expect(bindings).toEqual([typed.values, PARIS, LYON]);
   });
 
   /* Float on draft: the set's *current* version, not the one it had at attach. */
   it('follows the set while the reference floats', () => {
     const args = composableWithScratch({ tupleSetRefs: [{ tupleSetId: CITIES }] });
-    expect(args.visibleValuesPayload()?.arguments?.[0].arguments.bindings).toHaveLength(2);
+    expect(args.visibleValuesPayload()?.arguments?.[0].results.bindings).toHaveLength(2);
 
     tupleSets.currentVersionIdOf.mockReturnValue(CITIES_V1);
-    expect(args.visibleValuesPayload()?.arguments?.[0].arguments.bindings).toEqual([PARIS]);
+    expect(args.visibleValuesPayload()?.arguments?.[0].results.bindings).toEqual([PARIS]);
   });
 
   /* Pinned: the version named, whatever the set has moved on to. */
@@ -121,7 +121,7 @@ describe('running a draft that links a tuple set', () => {
     const args = composableWithScratch({
       tupleSetRefs: [{ tupleSetId: CITIES, versionId: CITIES_V1 }],
     });
-    expect(args.visibleValuesPayload()?.arguments?.[0].arguments.bindings).toEqual([PARIS]);
+    expect(args.visibleValuesPayload()?.arguments?.[0].results.bindings).toEqual([PARIS]);
   });
 
   /*
@@ -136,7 +136,7 @@ describe('running a draft that links a tuple set', () => {
       tupleSetRefs: [{ versionId: 'urn:sqlib:tupleSetVersion:gone' }],
     });
 
-    expect(args.visibleValuesPayload()?.arguments?.[0].arguments.bindings).toEqual([typed.values]);
+    expect(args.visibleValuesPayload()?.arguments?.[0].results.bindings).toEqual([typed.values]);
   });
 
   /*

@@ -5,11 +5,9 @@
  * forever — the same contract `DataGraphVersion` offers for RDF.
  *
  * `contentString` holds a **standard SPARQL Results JSON document**
- * (`{"head": {"vars": […]}, "results": {"bindings": […]}}`), never the app's
- * arguments-JSON. The two are different serialisations of different things: SRJ
- * serialises a table, arguments-JSON serialises a *call* (it adds `whenEmpty`
- * and one element per clause of a target's signature). Calls are stored as
- * pins, tables as SRJ, so each format has exactly one home.
+ * (`{"head": {"vars": […]}, "results": {"bindings": […]}}`) — the same shape an
+ * execution request takes for each of its arguments, so a stored table can be
+ * passed to a run as it is.
  *
  * Content is one string rather than an entity per cell. The catalog's existing
  * pattern is *content is a string; shape and metadata are entities* —

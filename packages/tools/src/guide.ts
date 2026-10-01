@@ -42,7 +42,7 @@ Parameters
 
 Running
 - \`execute.run\` with \`targetId\` = a query id (runs its currentVersion), a version id, or a query group id. \`backendId\` is required for a query and must be omitted for a query group.
-- \`arguments\` is an array with exactly one entry per parameter slot, in order of appearance, in SPARQL-results-JSON shape: \`{"head": {"vars": ["city"]}, "arguments": {"bindings": [{"city": {"type": "uri", "value": "http://example.org/Perth"}}, {"city": {"type": "literal", "value": "Hobart", "xml:lang": "en"}}]}}\`. \`head.vars\` must match the slot's variables; leave a variable out of a row to bind it UNDEF.
+- \`arguments\` is an array of SPARQL Results JSON documents, at most one per parameter slot, matched to slots by \`head.vars\`: \`{"head": {"vars": ["city"]}, "results": {"bindings": [{"city": {"type": "uri", "value": "http://example.org/Perth"}}, {"city": {"type": "literal", "value": "Hobart", "xml:lang": "en"}}]}}\`. A SELECT result can be passed back as is. Leave a variable out of a row to bind it UNDEF. Leave a slot out to run it unconstrained; give it zero rows to match nothing. Blank nodes are refused.
 - \`limits\` / \`offsets\`: \`[{"name": "1", "value": 20}]\`.
 - Saved argument sets (\`queries.listArgumentSets\`, \`argumentSets.get\`) hold reusable arguments; pass their ids as \`argumentSetIds\` instead of inline \`arguments\`.
 - \`sparql.proxyQuery\` runs ad-hoc SPARQL text against a backend without saving anything, with the same \`arguments\` mechanism.

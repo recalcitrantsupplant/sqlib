@@ -60,7 +60,7 @@ export interface PageParameterSpan {
 export interface QueryExample {
   /** Display name: the case's own name, else `<test name> #<position>`. */
   name: string;
-  /** One argument set per parameter slot — a `CallPayload.arguments`. */
+  /** At most one argument set per parameter slot — a `CallPayload.arguments`. */
   arguments: WireArgumentSet[];
   limits?: ExecutionParameter[];
   offsets?: ExecutionParameter[];
@@ -327,9 +327,9 @@ function assertValidExamples(query: ExportedQuery, where: string): void {
       fail(`${at} has no name.`);
     }
     if (!Array.isArray(example.arguments)) fail(`${at} has no arguments array.`);
-    if (example.arguments.length !== query.template.slots.length) {
+    if (example.arguments.length > query.template.slots.length) {
       fail(
-        `${at} ('${example.name}') supplies ${example.arguments.length} argument sets but the query has ${query.template.slots.length} parameter slots.`,
+        `${at} ('${example.name}') supplies ${example.arguments.length} argument sets but the query has only ${query.template.slots.length} parameter slots.`,
       );
     }
   });

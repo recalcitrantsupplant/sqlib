@@ -165,7 +165,7 @@ pinned.
   "arguments": [
     {
       "head": { "vars": ["city"] },
-      "arguments": {
+      "results": {
         "bindings": [
           { "city": { "type": "literal", "value": "Perth" } }
         ]
@@ -202,7 +202,7 @@ Lower the limit and the result set shortens, which is the point of the slot:
   "arguments": [
     {
       "head": { "vars": ["city"] },
-      "arguments": {
+      "results": {
         "bindings": [
           { "city": { "type": "literal", "value": "Perth" } }
         ]

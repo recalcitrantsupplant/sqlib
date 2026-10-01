@@ -127,8 +127,9 @@ publishes `catalogueGuide()` from `@sparql-query-lib/tools`
   `{"queryVersion": {"queryString": …}}`;
 - how a query declares parameters: a `VALUES` clause whose only row is all
   `UNDEF`, and `LIMIT 000n` / `OFFSET 000n` for named limits and offsets;
-- the exact shape of `execute_run`'s `arguments`, in SPARQL-results-JSON form,
-  one entry per parameter slot in order of appearance.
+- the exact shape of `execute_run`'s `arguments`: SPARQL Results JSON
+  documents, at most one per parameter slot, matched by `head.vars`, with an
+  omitted slot running unconstrained.
 
 Pass `createMcpServer({ instructions })` to replace the text, or `''` to publish
 none. Tool names are rewritten to the door's public spelling

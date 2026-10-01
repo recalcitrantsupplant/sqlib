@@ -29,7 +29,7 @@ export type Row = Record<string, Cell | null | undefined>;
 
 export interface ArgumentSet {
   head: { vars: string[] };
-  arguments: { bindings: Row[] };
+  results: { bindings: Row[] };
 }
 
 /** A node as the oracle sees it: a template plus how its inputs are supplied. */
@@ -260,7 +260,7 @@ export class ReferenceInterpreter {
         if (edge.fromStart) {
           const match = external.find(set => signature(set.head.vars) === signature(edge.sourceVars));
           if (!match) continue; // Nothing supplied for this parameter.
-          sourceRows = match.arguments.bindings;
+          sourceRows = match.results.bindings;
         } else {
           const upstream = results.get(edge.from);
           if (!upstream || upstream.kind !== 'bindings') continue;
@@ -302,7 +302,7 @@ export class ReferenceInterpreter {
             if (wrongOrder) {
               return { kind: 'error', reason: 'wrongOrder', detail: `[${ext.head.vars.join(', ')}]` };
             }
-            supplied = ext.arguments.bindings;
+            supplied = ext.results.bindings;
           }
         }
 

@@ -26,8 +26,7 @@
  * declaration, and column *names* are ignored — `TUPLE(:seed, ?x, ?y)` and
  * `TUPLE(:seed, ?p, ?q)` both match the same relation
  * (`docs/reference/srl-language.md`). So an SRJ document's `head.vars`
- * fixes the column *order* here and nothing else, and `whenEmpty` — a call
- * frame's concern, not a relation's — is ignored.
+ * fixes the column *order* here and nothing else.
  */
 
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
@@ -78,24 +77,19 @@ export function bindingsToTupleSeeds(
     .join('\n');
 }
 
-/** Read an inline args-JSON or SRJ document into columns plus rows. */
+/** Read an inline SPARQL Results JSON document into columns plus rows. */
 function readInlineDocument(document: unknown): { columns: string[]; bindings: Array<Record<string, TermValue>> } {
   if (!document || typeof document !== 'object') {
-    throw new TupleSeedInputError('Inline tuples must be a SPARQL arguments JSON document');
+    throw new TupleSeedInputError('Inline tuples must be a SPARQL Results JSON document');
   }
   const record = document as {
     head?: { vars?: unknown };
-    // `arguments` is the wire spelling, `results` the storage one; both are
-    // accepted because a caller may reasonably be holding either.
-    arguments?: { bindings?: unknown };
     results?: { bindings?: unknown };
   };
   const vars = Array.isArray(record.head?.vars) ? record.head!.vars as string[] : null;
-  const bindings = record.arguments?.bindings ?? record.results?.bindings;
+  const bindings = record.results?.bindings;
   if (!vars || !Array.isArray(bindings)) {
-    throw new TupleSeedInputError(
-      'Inline tuples need head.vars and arguments.bindings (or results.bindings)',
-    );
+    throw new TupleSeedInputError('Inline tuples need head.vars and results.bindings');
   }
   return { columns: vars.map(v => String(v).replace(/^\?/, '')), bindings: bindings as Array<Record<string, TermValue>> };
 }

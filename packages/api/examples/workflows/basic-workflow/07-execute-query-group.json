@@ -5,7 +5,7 @@
       "head": {
         "vars": ["minPopulation", "resultLimit"]
       },
-      "arguments": {
+      "results": {
         "bindings": [
           {
             "minPopulation": {

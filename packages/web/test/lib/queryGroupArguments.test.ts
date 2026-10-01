@@ -8,12 +8,12 @@ import type { ArgumentTupleBinding } from '../../src/types/argument-sets';
  * omitted, never sent as `bindings: []`.
  */
 function buildInlineArguments(bindings: ArgumentTupleBinding[]) {
-  const args: Array<{ head: { vars: string[] }; arguments: { bindings: Array<Record<string, unknown>> } }> = [];
+  const args: Array<{ head: { vars: string[] }; results: { bindings: Array<Record<string, unknown>> } }> = [];
   for (const binding of bindings) {
     const vars = binding?.variables ?? [];
     const rows = (binding?.rows ?? []).filter((row) => row && Object.keys(row.values ?? {}).length > 0);
     if (vars.length === 0 || rows.length === 0) continue;
-    args.push({ head: { vars }, arguments: { bindings: rows.map((row) => ({ ...row.values })) } });
+    args.push({ head: { vars }, results: { bindings: rows.map((row) => ({ ...row.values })) } });
   }
   return args;
 }
@@ -39,7 +39,7 @@ describe('inline group arguments', () => {
     expect(args).toHaveLength(1);
     expect(args[0]).toEqual({
       head: { vars: ['state'] },
-      arguments: { bindings: [{ state: { type: 'literal', value: 'NSW' } }] },
+      results: { bindings: [{ state: { type: 'literal', value: 'NSW' } }] },
     });
   });
 

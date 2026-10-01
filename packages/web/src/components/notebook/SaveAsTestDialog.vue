@@ -99,7 +99,7 @@ const emit = defineEmits<{
 
 /** What `<sqlib-args>` holds: limits and offsets keyed by name, not listed. */
 interface ExecutionPayload {
-  arguments?: Array<{ head: { vars: string[] }; arguments: { bindings: Array<SparqlBinding | null> } }>;
+  arguments?: Array<{ head: { vars: string[] }; results: { bindings: Array<SparqlBinding | null> } }>;
   limits?: Record<string, number>;
   offsets?: Record<string, number>;
 }
@@ -181,7 +181,7 @@ function tupleBindings() {
   return (props.payload?.arguments ?? []).map((argument) => ({
     tupleSignature: argument.head.vars.join('|'),
     variables: [...argument.head.vars],
-    rows: argument.arguments.bindings
+    rows: argument.results.bindings
       .filter((row): row is SparqlBinding => row !== null && Object.keys(row).length > 0)
       .map((values, position) => ({ position, values })),
   }));

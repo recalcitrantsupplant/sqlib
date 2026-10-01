@@ -28,7 +28,7 @@ describe('substitution', () => {
       arguments: [
         {
           head: { vars: ['city'] },
-          arguments: { bindings: [{ city: iri('http://example.org/Perth') }] },
+          results: { bindings: [{ city: iri('http://example.org/Perth') }] },
         },
       ],
     });
@@ -42,23 +42,58 @@ describe('substitution', () => {
     );
   });
 
-  it('keeps a zero-row block when asked to propagate emptiness', async () => {
+  it('keeps a zero-row block for an argument with no rows: the empty set matches nothing', async () => {
     const lib = await library();
-    expect(
-      lib.query('people').text({ arguments: [{ bindings: [], whenEmpty: 'propagateEmpty' }] }),
-    ).toContain('VALUES ?city { }');
+    expect(lib.query('people').text({ arguments: [{ bindings: [] }] })).toContain('VALUES ?city { }');
   });
 
-  it('refuses a required input that arrived empty', async () => {
+  it('drops the slot entirely when the argument is left out', async () => {
+    const lib = await library();
+    expect(lib.query('people').text({ arguments: [] })).toBe(
+      'SELECT ?name WHERE {  ?p :livesIn ?city ; :name ?name }',
+    );
+  });
+
+  it('accepts any SELECT result as an argument, as the endpoint returned it', async () => {
+    const lib = await library();
+    const text = lib.query('people').text({
+      arguments: [
+        {
+          head: { vars: ['city'] },
+          results: {
+            bindings: [
+              { city: { type: 'typed-literal', value: '7', datatype: 'http://www.w3.org/2001/XMLSchema#integer' } },
+            ],
+          },
+        },
+      ],
+    });
+    expect(text).toContain('VALUES ?city { "7"^^<http://www.w3.org/2001/XMLSchema#integer> }');
+  });
+
+  it('refuses a blank node, saying why', async () => {
     const lib = await library();
     expect(() =>
-      lib.query('people').text({ arguments: [{ bindings: [], whenEmpty: 'require' }] }),
-    ).toThrow(/Required input/);
+      lib.query('people').text({
+        arguments: [{ head: { vars: ['city'] }, results: { bindings: [{ city: { type: 'bnode', value: 'b0' } }] } }],
+      }),
+    ).toThrow(/Argument 0, row 0, \?city is a blank node/);
   });
 
-  it('reports an argument count that does not match the query', async () => {
+  it('points a payload still using the old "arguments" key at "results"', async () => {
     const lib = await library();
-    expect(() => lib.query('people').text({ arguments: [] })).toThrow(/1 UNDEF VALUES clauses/);
+    expect(() =>
+      lib.query('people').text({
+        arguments: [{ head: { vars: ['city'] }, arguments: { bindings: [] } } as never],
+      }),
+    ).toThrow(/they go under "results"/);
+  });
+
+  it('reports more arguments than the query has slots', async () => {
+    const lib = await library();
+    expect(() =>
+      lib.query('people').text({ arguments: [{ bindings: [] }, { bindings: [] }] }),
+    ).toThrow(/Received 2 argument sets but the query has 1 parameter slots/);
   });
 
   it('reads a null cell as UNDEF, the way a grid sends a blank', async () => {

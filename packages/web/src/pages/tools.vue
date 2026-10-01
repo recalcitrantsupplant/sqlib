@@ -45,7 +45,7 @@
         </div>
         <label>
           Arguments JSON
-          <textarea v-model="executeForm.arguments" rows="4" placeholder='[{"head":{"vars":["param"]},"arguments":{"bindings":[{"param":{"type":"literal","value":"42"}}]}}]' />
+          <textarea v-model="executeForm.arguments" rows="4" placeholder='[{"head":{"vars":["param"]},"results":{"bindings":[{"param":{"type":"literal","value":"42"}}]}}]' />
         </label>
         <div class="parameter-builders">
           <section class="builder-panel">
