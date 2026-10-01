@@ -1896,6 +1896,11 @@ export const etljobSchema = {
       "readOnly": true,
       "nullable": true
     },
+    "defaultBackend": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true
+    },
     "isPartOf": {
       "type": "array",
       "items": {
@@ -4044,6 +4049,7 @@ export interface EtlJobRestApi {
   description?: string | null;
   currentVersion?: string | null;
   currentVersionNumber?: number | null;
+  defaultBackend?: string | null;
   isPartOf: string[];
   dateCreated?: string | null;
   dateModified?: string | null;

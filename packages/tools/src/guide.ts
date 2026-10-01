@@ -41,7 +41,7 @@ Parameters
 - \`detection.detectInputs\` returns what a query declares (\`valuesInputs\` as groups of variable names, \`limitParameters\`, \`offsetParameters\`). Call it rather than guessing.
 
 Running
-- \`execute.run\` with \`targetId\` = a query id (runs its currentVersion), a version id, or a query group id. \`backendId\` is required for a query and must be omitted for a query group.
+- \`execute.run\` with \`targetId\` = a query id (runs its currentVersion), a version id, or a query group id. For a query, \`backendId\` falls back to the query's \`defaultBackend\`, then its library's; the run is refused when neither is set. It must be omitted for a query group.
 - \`arguments\` is an array with exactly one entry per parameter slot, in order of appearance, in SPARQL-results-JSON shape: \`{"head": {"vars": ["city"]}, "arguments": {"bindings": [{"city": {"type": "uri", "value": "http://example.org/Perth"}}, {"city": {"type": "literal", "value": "Hobart", "xml:lang": "en"}}]}}\`. \`head.vars\` must match the slot's variables; leave a variable out of a row to bind it UNDEF.
 - \`limits\` / \`offsets\`: \`[{"name": "1", "value": 20}]\`.
 - Saved argument sets (\`queries.listArgumentSets\`, \`argumentSets.get\`) hold reusable arguments; pass their ids as \`argumentSetIds\` instead of inline \`arguments\`.

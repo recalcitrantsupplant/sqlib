@@ -25,11 +25,17 @@ const queryRepo = vi.hoisted(() => ({
   update: vi.fn(),
 }));
 
+const etlJobRepo = vi.hoisted(() => ({
+  list: vi.fn(),
+  update: vi.fn(),
+}));
+
 overrideCacheCoordinatorProvider({
   getEntityRepositories: () => ({
     Backend: repo,
     Library: libraryRepo,
     Query: queryRepo,
+    EtlJob: etlJobRepo,
   }),
 });
 
@@ -66,6 +72,9 @@ describe('Backend Routes (/backends) - Unit Tests (v1)', () => {
     queryRepo.update.mockReset();
     libraryRepo.list.mockReturnValue([]);
     queryRepo.list.mockReturnValue([]);
+    etlJobRepo.list.mockReset();
+    etlJobRepo.update.mockReset();
+    etlJobRepo.list.mockReturnValue([]);
   });
 
   afterAll(async () => {
@@ -377,6 +386,21 @@ describe('Backend Routes (/backends) - Unit Tests (v1)', () => {
 
       expect(response.statusCode).toBe(204);
       expect(repo.delete).toHaveBeenCalledWith(backendId);
+    });
+
+    it('clears the default backend of every library, query and ETL job that named it', async () => {
+      repo.get.mockReturnValue({ $id: backendId, '@type': 'Backend' });
+      repo.delete.mockResolvedValue(undefined);
+      libraryRepo.list.mockReturnValue([{ $id: 'lib1', defaultBackend: backendId }, { $id: 'lib2', defaultBackend: 'other' }]);
+      queryRepo.list.mockReturnValue([{ $id: 'q1', defaultBackend: backendId }]);
+      etlJobRepo.list.mockReturnValue([{ $id: 'etl1', defaultBackend: backendId }, { $id: 'etl2' }]);
+
+      const response = await app.inject({ method: 'DELETE', url: `/backends/${backendId}` });
+
+      expect(response.statusCode).toBe(204);
+      expect(libraryRepo.update.mock.calls).toEqual([['lib1', { defaultBackend: null }]]);
+      expect(queryRepo.update.mock.calls).toEqual([['q1', { defaultBackend: null }]]);
+      expect(etlJobRepo.update.mock.calls).toEqual([['etl1', { defaultBackend: null }]]);
     });
 
     it('should return 500 if delete fails', async () => {

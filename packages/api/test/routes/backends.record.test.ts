@@ -22,6 +22,7 @@ const repos = vi.hoisted(() => {
     QueryGroup: listRepo(),
     QueryGroupVersion: listRepo(),
     BenchmarkExperiment: listRepo(),
+    EtlJob: listRepo(),
     BenchmarkExperimentVersion: listRepo(),
   };
 });
@@ -164,12 +165,16 @@ describe('Backend record routes', () => {
   });
 
   describe('GET /:id/usage', () => {
-    it('counts queries, libraries, groups through their current version, and benchmarks', async () => {
+    it('counts queries, libraries, ETL jobs, groups through their current version, and benchmarks', async () => {
       repos.Query.list.mockReturnValue([
         { $id: 'q1', name: 'One', defaultBackend: httpBackend.$id },
         { $id: 'q2', name: 'Two', defaultBackend: 'urn:sqlib:backend:other' },
       ]);
       repos.Library.list.mockReturnValue([{ $id: 'lib1', name: 'Ontology QA', defaultBackend: httpBackend.$id }]);
+      repos.EtlJob.list.mockReturnValue([
+        { $id: 'etl1', name: 'Gauges load', defaultBackend: httpBackend.$id },
+        { $id: 'etl2', name: 'Scratch load' },
+      ]);
       repos.QueryNode.list.mockReturnValue([{ $id: 'node1', backendId: httpBackend.$id }]);
       repos.DynamicQueryNode.list.mockReturnValue([{ $id: 'node2', backendId: 'urn:sqlib:backend:other' }]);
       repos.QueryGroup.list.mockReturnValue([
@@ -193,6 +198,7 @@ describe('Backend record routes', () => {
         queryGroups: { count: 1, sample: [{ id: 'g1', name: 'Group one' }] },
         benchmarks: { count: 1, sample: [{ id: 'b1', name: 'Latency' }] },
         libraries: { count: 1, sample: [{ id: 'lib1', name: 'Ontology QA' }] },
+        etlJobs: { count: 1, sample: [{ id: 'etl1', name: 'Gauges load' }] },
       });
     });
 
