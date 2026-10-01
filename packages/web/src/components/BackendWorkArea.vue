@@ -454,44 +454,86 @@
               </ol>
             </section>
 
-            <section class="sidecar-card">
+            <section class="sidecar-card" data-testid="default-for-card">
               <h2 class="backend-section-label">
-                Attached libraries
-                <InfoHint label="attached libraries">
-                  Attaching points a library at this backend as its default. Members can run queries
-                  against it; they cannot see the endpoint URL or change it.
+                Default backend for
+                <InfoHint label="default backend for">
+                  The libraries, queries and ETL jobs that run here unless told otherwise. A query with
+                  no default of its own uses its library's. Members can run against it; they cannot see
+                  the endpoint URL or change it.
                 </InfoHint>
               </h2>
-              <p v-if="attachedLibraries.length === 0" class="card-empty">None attached.</p>
-              <div v-else class="chip-row">
-                <span v-for="library in attachedLibraries" :key="library.id" class="chip" data-testid="attached-library">
-                  {{ library.name }}
-                  <button
-                    v-if="canEdit"
-                    class="chip-remove"
-                    :title="`Detach ${library.name}`"
-                    :aria-label="`Detach ${library.name}`"
-                    @click="requestDetach(library)"
-                  >
-                    <X :size="12" />
-                  </button>
-                </span>
-              </div>
-              <DropdownMenu v-if="canEdit">
+              <p v-if="defaultForCount === 0" class="card-empty">Nothing defaults to this backend.</p>
+              <template v-for="group in defaultForGroups" :key="group.kind">
+                <div v-if="group.entries.length > 0" class="default-for-group" :data-testid="`default-for-${group.kind}`">
+                  <InlineNote as="span" size="xs">{{ group.label }}</InlineNote>
+                  <div class="chip-row">
+                    <span
+                      v-for="entry in group.entries"
+                      :key="entry.id"
+                      class="chip"
+                      :title="entry.hint ?? undefined"
+                      :data-testid="group.kind === 'library' ? 'attached-library' : `default-for-chip-${group.kind}`"
+                    >
+                      {{ entry.name }}
+                      <button
+                        v-if="canAssignDefaults"
+                        class="chip-remove"
+                        :title="`Stop defaulting ${entry.name} to this backend`"
+                        :aria-label="`Stop defaulting ${entry.name} to this backend`"
+                        :data-testid="`default-for-remove-${group.kind}`"
+                        @click="requestRemoveDefault(entry)"
+                      >
+                        <X :size="12" />
+                      </button>
+                    </span>
+                  </div>
+                </div>
+              </template>
+              <InlineNote v-if="isEphemeralBackend" as="p">
+                The in-memory store cannot be saved as a default. An ETL job with no default runs here.
+              </InlineNote>
+              <DropdownMenu v-else-if="canAssignDefaults" v-model:open="addMenuOpen">
                 <DropdownMenuTrigger as-child>
-                  <button class="attach-button" data-testid="attach-library"><Plus :size="12" />Attach a library</button>
+                  <button class="attach-button" data-testid="attach-library"><Plus :size="12" />Add…</button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
-                  <DropdownMenuItem
-                    v-for="library in attachableLibraries"
-                    :key="library.id"
-                    @select="attachLibrary(library)"
-                  >
-                    {{ library.name }}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem v-if="attachableLibraries.length === 0" disabled>
-                    Every library is attached
-                  </DropdownMenuItem>
+                <DropdownMenuContent align="start" @open-auto-focus="focusAddFilter">
+                  <div class="default-for-menu">
+                    <input
+                      ref="addFilterInput"
+                      v-model="addFilter"
+                      type="text"
+                      class="default-for-filter"
+                      placeholder="Filter libraries, queries, ETL jobs…"
+                      aria-label="Filter"
+                      data-testid="default-for-filter"
+                      @keydown="onAddFilterKeydown"
+                    />
+                    <template v-for="group in addableGroups" :key="group.kind">
+                      <template v-if="group.matches.length > 0">
+                        <SectionLabel class="default-for-menu-label">{{ group.label }}</SectionLabel>
+                        <DropdownMenuItem
+                          v-for="match in group.matches"
+                          :key="match.item.id"
+                          :data-testid="`default-for-option-${group.kind}`"
+                          @select="requestAddDefault(match.item)"
+                        >
+                          <span class="default-for-option">
+                            <span class="default-for-option-name">
+                              <template v-for="(segment, index) in match.segments" :key="index">
+                                <mark v-if="segment.matched" class="default-for-hit">{{ segment.text }}</mark>
+                                <template v-else>{{ segment.text }}</template>
+                              </template>
+                            </span>
+                            <InlineNote v-if="match.item.hint" as="span" size="xs" class="default-for-option-hint">{{ match.item.hint }}</InlineNote>
+                          </span>
+                        </DropdownMenuItem>
+                      </template>
+                    </template>
+                    <DropdownMenuItem v-if="addableCount === 0" disabled>
+                      {{ addFilter.trim() ? 'No matches' : 'Everything already defaults here' }}
+                    </DropdownMenuItem>
+                  </div>
                 </DropdownMenuContent>
               </DropdownMenu>
             </section>
@@ -576,14 +618,29 @@
     <AlertDialog v-model:open="detachConfirmOpen">
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Detach “{{ detachTarget?.name }}”?</AlertDialogTitle>
+          <AlertDialogTitle>Stop defaulting “{{ detachTarget?.name }}” to this backend?</AlertDialogTitle>
           <AlertDialogDescription>
             {{ detachWarning }}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Keep it attached</AlertDialogCancel>
-          <AlertDialogAction data-testid="confirm-detach-library" @click="confirmDetach">Detach</AlertDialogAction>
+          <AlertDialogCancel>Keep it</AlertDialogCancel>
+          <AlertDialogAction data-testid="confirm-detach-library" @click="confirmDetach">Remove default</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+
+    <AlertDialog v-model:open="replaceConfirmOpen">
+      <AlertDialogContent data-testid="replace-default-dialog">
+        <AlertDialogHeader>
+          <AlertDialogTitle>Change the default backend of “{{ replaceTarget?.name }}”?</AlertDialogTitle>
+          <AlertDialogDescription>
+            {{ replaceWarning }}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel @click="replaceTarget = null">Keep {{ replaceOldName }}</AlertDialogCancel>
+          <AlertDialogAction data-testid="confirm-replace-default" @click="confirmReplace">Change it</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
@@ -607,8 +664,9 @@ import {
   X,
 } from '@lucide/vue';
 import { toast } from 'vue-sonner';
-import type { Backend, Library } from '@sparql-query-lib/contracts';
+import type { Backend } from '@sparql-query-lib/contracts';
 import {
+  EPHEMERAL_BACKEND_ID,
   buildBackendAuthEnvVarNames,
   deriveAuthEnvKeyFromName,
   normalizeAuthEnvKey,
@@ -617,6 +675,7 @@ import InlineField from './backends/InlineField.vue';
 import InlineNote from './shared/InlineNote.vue';
 import MemorySourcesEditor from './backends/MemorySourcesEditor.vue';
 import InfoHint from './shared/InfoHint.vue';
+import SectionLabel from './shared/SectionLabel.vue';
 import StatusBadge from './shared/StatusBadge.vue';
 import {
   MEMORY_STORE_MODES,
@@ -648,6 +707,9 @@ import { isBrowserBackendId, useBrowserBackends, type BrowserBackendInput } from
 import { validateEndpoint } from '../lib/endpointUrl';
 import { useDeploymentMode } from '../composables/useDeploymentMode';
 import { useLibrariesStore } from '../composables/useLibrariesStore';
+import { useQueriesStore } from '../composables/useQueriesStore';
+import { useEtlJobsStore } from '../composables/useEtlJobsStore';
+import { fuzzyFilter } from '../lib/fuzzy';
 import { useCopyToClipboard } from '../composables/useCopyToClipboard';
 
 /**
@@ -749,6 +811,8 @@ const availableBackendKinds = computed(() =>
     : BACKEND_KINDS
 );
 const librariesStore = useLibrariesStore();
+const queriesStore = useQueriesStore();
+const etlJobsStore = useEtlJobsStore();
 const probes = useBackendProbes();
 const { copyToClipboard } = useCopyToClipboard();
 
@@ -812,7 +876,7 @@ const envVariables = computed(() => env.value?.variables ?? []);
 
 /*
  * Rows, not tiles, and no libraries row: the section directly above already
- * names every attached library, so a tile counting them was the same fact told
+ * names every library defaulting here, so a tile counting them was the same fact told
  * twice. A row with a zero is dimmed and inert — there is nothing to open.
  */
 const usageRows = computed(() => {
@@ -837,18 +901,159 @@ const usageRows = computed(() => {
 });
 
 /*
- * "Attached" is the library's `defaultBackend` pointer, which is the only
- * backend↔library relation the model has. Attaching therefore means "make this
- * the library's default", and the copy under the chips says so rather than
- * implying a second, separate association.
+ * "Default backend for" is every `defaultBackend` pointer aimed at this
+ * backend — a library's, a query's or an ETL job's. Those pointers are the only
+ * backend↔entity relation the model has, so adding one here means "make this
+ * the entity's default", and removing one clears it.
  */
-const attachedLibraries = computed(() =>
-  librariesStore.visibleLibraries.value.filter((library) => library.defaultBackend === backend.value?.id)
+type DefaultKind = 'library' | 'query' | 'etlJob';
+
+interface DefaultEntry {
+  kind: DefaultKind;
+  id: string;
+  name: string;
+  /** Which libraries it sits in, for telling two same-named queries apart. */
+  hint: string | null;
+  defaultBackend: string | null;
+}
+
+const DEFAULT_KINDS: Array<{ kind: DefaultKind; label: string }> = [
+  { kind: 'library', label: 'Libraries' },
+  { kind: 'query', label: 'Queries' },
+  { kind: 'etlJob', label: 'ETL jobs' },
+];
+
+const visibleLibraryIds = computed(() => new Set(librariesStore.visibleLibraries.value.map((library) => library.id)));
+const libraryNames = computed(
+  () => new Map(librariesStore.libraries.value.map((library) => [library.id, library.name] as const)),
 );
 
-const attachableLibraries = computed(() =>
-  librariesStore.visibleLibraries.value.filter((library) => library.defaultBackend !== backend.value?.id)
+/*
+ * A query or job whose every library is hidden (the System Library outside
+ * Hofstadter mode) is hidden with it: listing it here would make it writable
+ * from the one screen that forgot to hide it.
+ */
+function isVisibleMember(parents: string[] | undefined): boolean {
+  if (!parents || parents.length === 0) return true;
+  return parents.some((id) => visibleLibraryIds.value.has(id) || !libraryNames.value.has(id));
+}
+
+function hintFor(parents: string[] | undefined): string | null {
+  const names = (parents ?? []).map((id) => libraryNames.value.get(id)).filter((name): name is string => !!name);
+  return names.length > 0 ? names.join(', ') : null;
+}
+
+const defaultEntries = computed<DefaultEntry[]>(() => [
+  ...librariesStore.visibleLibraries.value.map((library) => ({
+    kind: 'library' as const,
+    id: library.id,
+    name: library.name,
+    hint: null,
+    defaultBackend: library.defaultBackend ?? null,
+  })),
+  ...queriesStore.queries.value
+    .filter((query) => isVisibleMember(query.isPartOf))
+    .map((query) => ({
+      kind: 'query' as const,
+      id: query.id,
+      name: query.name,
+      hint: hintFor(query.isPartOf),
+      defaultBackend: query.defaultBackend ?? null,
+    })),
+  ...etlJobsStore.etlJobs.value
+    .filter((job) => isVisibleMember(job.libraryIds))
+    .map((job) => ({
+      kind: 'etlJob' as const,
+      id: job.id,
+      name: job.name,
+      hint: hintFor(job.libraryIds),
+      defaultBackend: job.defaultBackend ?? null,
+    })),
+]);
+
+const defaultForGroups = computed(() =>
+  DEFAULT_KINDS.map(({ kind, label }) => ({
+    kind,
+    label,
+    entries: defaultEntries.value.filter((entry) => entry.kind === kind && entry.defaultBackend === backend.value?.id),
+  })),
 );
+
+const defaultForCount = computed(() =>
+  defaultForGroups.value.reduce((total, group) => total + group.entries.length, 0),
+);
+
+/*
+ * The in-memory store is never a stored default: a library refuses it ("Ephemeral
+ * backends cannot be set as library defaults"), a query stores it as no default
+ * at all, and an ETL job with no default already runs on it.
+ */
+const isEphemeralBackend = computed(() => backend.value?.id === EPHEMERAL_BACKEND_ID);
+
+/* Read-only deployments refuse every write, so offering one would be offering a 405. */
+const canAssignDefaults = computed(() => canEdit.value && !deployment.isReadOnly.value && !isEphemeralBackend.value);
+
+const addMenuOpen = ref(false);
+const addFilter = ref('');
+const addFilterInput = ref<HTMLInputElement | null>(null);
+
+const addableGroups = computed(() =>
+  DEFAULT_KINDS.map(({ kind, label }) => ({
+    kind,
+    label,
+    matches: fuzzyFilter(
+      addFilter.value,
+      defaultEntries.value.filter((entry) => entry.kind === kind && entry.defaultBackend !== backend.value?.id),
+      (entry) => entry.name,
+    ),
+  })),
+);
+
+const addableCount = computed(() =>
+  addableGroups.value.reduce((total, group) => total + group.matches.length, 0),
+);
+
+watch(addMenuOpen, (open) => {
+  if (!open) addFilter.value = '';
+});
+
+/** The menu would otherwise focus its first item; the filter is what you type into. */
+function focusAddFilter(event: Event) {
+  event.preventDefault();
+  void nextTick(() => addFilterInput.value?.focus());
+}
+
+/**
+ * Keys typed into the filter stay in the filter. The menu's own typeahead and
+ * arrow handling would otherwise jump focus to an item on the first letter.
+ * Escape and Tab still reach the menu (to close it); ArrowDown steps into the
+ * list; Enter takes the best match.
+ */
+function onAddFilterKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape' || event.key === 'Tab') return;
+  event.stopPropagation();
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    const menu = (event.target as HTMLElement).closest('[role="menu"]');
+    menu?.querySelector<HTMLElement>('[role="menuitem"]:not([data-disabled])')?.focus();
+    return;
+  }
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    const first = addableGroups.value.find((group) => group.matches.length > 0)?.matches[0]?.item;
+    if (!first) return;
+    addMenuOpen.value = false;
+    requestAddDefault(first);
+  }
+}
+
+/** A backend's name for a sentence, falling back to its id when it is not one we know. */
+function backendName(id: string | null | undefined): string {
+  if (!id) return 'no backend';
+  if (id === EPHEMERAL_BACKEND_ID) return 'the in-memory store';
+  if (id === backend.value?.id) return backend.value.name;
+  return backendsStore.backends.value.find((candidate) => candidate.id === id)?.name ?? id;
+}
 
 /* ------------------------------------------------------------------ *
  * Loading
@@ -922,6 +1127,7 @@ watch(
     if (backend.value.backendType === 'http') void loadEnv(id);
     void loadUsage(id);
     void librariesStore.loadLibraries();
+    void loadDefaultCandidates();
   },
   { immediate: true }
 );
@@ -1098,40 +1304,117 @@ async function confirmEnvKeyChange() {
  * ------------------------------------------------------------------ */
 
 const detachConfirmOpen = ref(false);
-const detachTarget = ref<Library | null>(null);
+const detachTarget = ref<DefaultEntry | null>(null);
 
+/*
+ * A query with no default of its own runs on its library's, so clearing a
+ * library's default reaches every such query in it — they are left with no
+ * backend until one is picked. That is the one removal worth a confirm: a
+ * query's or a job's own default is one entity, put back from the Add menu.
+ */
 const detachWarning = computed(() => {
-  const count = usage.value?.queries.count ?? 0;
-  if (count === 0) {
-    return 'Queries in this library will no longer default to this backend.';
-  }
-  return `${count} ${count === 1 ? 'query' : 'queries'} point at this backend. Detaching leaves them unrunnable — we do not rewrite them.`;
+  const name = detachTarget.value?.name ?? 'this library';
+  return `Queries in “${name}” with no default of their own will have no backend until one is picked. `
+    + 'Queries that name their own default keep it.';
 });
 
-function requestDetach(library: Library) {
-  detachTarget.value = library;
-  detachConfirmOpen.value = true;
+const replaceConfirmOpen = ref(false);
+const replaceTarget = ref<DefaultEntry | null>(null);
+
+const replaceOldName = computed(() => backendName(replaceTarget.value?.defaultBackend));
+
+const replaceWarning = computed(() => {
+  const target = replaceTarget.value;
+  if (!target) return '';
+  const here = backendName(backend.value?.id);
+  const base = `It currently defaults to ${replaceOldName.value}. It will default to ${here} instead.`;
+  return target.kind === 'library'
+    ? `${base} Queries in it without a default of their own will run on ${here}.`
+    : base;
+});
+
+async function loadDefaultCandidates() {
+  // Each list fails on its own: a deployment without ETL still lists the rest.
+  const etl = etlJobsStore.loadEtlJobs().catch(() => undefined);
+  const backends = backendsStore.backends.value.length === 0
+    ? backendsStore.loadBackends().catch(() => undefined)
+    : Promise.resolve();
+  await Promise.all([queriesStore.loadQueries(), etl, backends]);
 }
 
-async function setLibraryBackend(library: Library, backendId: string | null) {
+async function setLibraryBackend(libraryId: string, backendId: string | null) {
+  const loaded = await librariesStore.fetchLibrary(libraryId);
+  await librariesStore.updateLibrary(libraryId, { ...loaded.form, defaultBackend: backendId });
+}
+
+/** The freshest If-Match for a query, as the query screen's own saves read it. */
+async function latestQueryToken(id: string): Promise<string | null> {
   try {
-    const loaded = await librariesStore.fetchLibrary(library.id);
-    await librariesStore.updateLibrary(library.id, { ...loaded.form, defaultBackend: backendId });
-    if (backend.value) void loadUsage(backend.value.id);
-  } catch (error: any) {
-    toast.error(error?.message ?? 'Failed to update the library');
+    const detail = await queriesStore.fetchQuery(id);
+    return detail.ifMatch ?? queriesStore.concurrency[id] ?? null;
+  } catch {
+    return queriesStore.concurrency[id] ?? null;
   }
 }
 
-async function attachLibrary(library: Library) {
-  if (!backend.value) return;
-  await setLibraryBackend(library, backend.value.id);
+/**
+ * Same bargain as the query screen's `persistQueryFields`: send against the
+ * latest token, and on a 412 — something wrote in between — re-read once and
+ * try again rather than failing on a race the user never saw.
+ */
+async function setQueryBackend(id: string, backendId: string | null) {
+  const send = async (token: string | null) => queriesStore.updateQuery(id, { defaultBackend: backendId }, token);
+  try {
+    await send(await latestQueryToken(id));
+  } catch (error: any) {
+    if (error?.statusCode !== 412) throw error;
+    await send(await latestQueryToken(id));
+  }
+}
+
+const KIND_NOUN: Record<DefaultKind, string> = { library: 'library', query: 'query', etlJob: 'ETL job' };
+
+async function applyDefault(entry: DefaultEntry, backendId: string | null) {
+  try {
+    if (entry.kind === 'library') await setLibraryBackend(entry.id, backendId);
+    else if (entry.kind === 'query') await setQueryBackend(entry.id, backendId);
+    else await etlJobsStore.updateEtlJob(entry.id, { defaultBackend: backendId });
+    if (backend.value) void loadUsage(backend.value.id);
+  } catch (error: any) {
+    toast.error(error?.message ?? `Failed to update the ${KIND_NOUN[entry.kind]}`);
+  }
+}
+
+function requestAddDefault(entry: DefaultEntry) {
+  const current = backend.value;
+  if (!current) return;
+  if (entry.defaultBackend && entry.defaultBackend !== current.id) {
+    replaceTarget.value = entry;
+    replaceConfirmOpen.value = true;
+    return;
+  }
+  void applyDefault(entry, current.id);
+}
+
+async function confirmReplace() {
+  const entry = replaceTarget.value;
+  replaceTarget.value = null;
+  if (entry && backend.value) await applyDefault(entry, backend.value.id);
+}
+
+function requestRemoveDefault(entry: DefaultEntry) {
+  if (entry.kind === 'library') {
+    detachTarget.value = entry;
+    detachConfirmOpen.value = true;
+    return;
+  }
+  void applyDefault(entry, null);
 }
 
 async function confirmDetach() {
-  const library = detachTarget.value;
+  const entry = detachTarget.value;
   detachTarget.value = null;
-  if (library) await setLibraryBackend(library, null);
+  if (entry) await applyDefault(entry, null);
 }
 
 /* ------------------------------------------------------------------ *
@@ -1910,6 +2193,58 @@ function relativeTime(iso: string): string {
 .attach-button:hover {
   border-color: var(--action);
   color: var(--action);
+}
+
+.default-for-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.default-for-menu {
+  display: flex;
+  flex-direction: column;
+  max-width: 320px;
+}
+
+.default-for-filter {
+  height: var(--control-h-sm);
+  margin-bottom: var(--space-2);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: var(--text-label);
+}
+
+.default-for-filter:focus-visible {
+  border-color: var(--action-border);
+  outline: none;
+}
+
+.default-for-menu-label {
+  padding: var(--space-2) var(--space-3) var(--space-1);
+}
+
+.default-for-option {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.default-for-option-name,
+.default-for-option-hint {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.default-for-hit {
+  background: none;
+  color: var(--action);
+  font-weight: var(--weight-semibold);
 }
 
 .usage-row {

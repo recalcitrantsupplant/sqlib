@@ -52,8 +52,23 @@ const api = vi.hoisted(() => ({
   probeAllBackends: vi.fn(),
   listDataGraphs: vi.fn(),
   listDataGraphVersions: vi.fn(),
+  listQueries: vi.fn(),
+  getQuery: vi.fn(),
+  updateQuery: vi.fn(),
 }));
 vi.mock('@/composables/useApiClient', () => ({ useApiClient: () => api }));
+
+/*
+ * ETL jobs come from their own store over plain `fetch`, not the API client,
+ * so it is the store that is replaced. Its ids are the short ones the ETL
+ * screen uses; `defaultBackend` is still the full backend IRI.
+ */
+const etl = vi.hoisted(() => ({
+  etlJobs: { value: [] as Array<{ id: string; name: string; defaultBackend?: string; libraryIds: string[] }> },
+  loadEtlJobs: vi.fn(),
+  updateEtlJob: vi.fn(),
+}));
+vi.mock('@/composables/useEtlJobsStore', () => ({ useEtlJobsStore: () => etl }));
 vi.mock('vue-sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 async function mountRecord(props: Record<string, unknown> = {}) {
@@ -61,6 +76,8 @@ async function mountRecord(props: Record<string, unknown> = {}) {
     // The confirm dialogs portal into document.body, so let them.
     props: { backendId: backend.id, draft: false, ...props } as never,
     attachTo: document.body,
+    // The Add menu renders in place, so its items can be found on the wrapper.
+    global: { stubs: { DropdownMenuPortal: { template: '<div><slot /></div>' } } },
   });
   await flushPromises();
   return wrapper;
@@ -120,6 +137,18 @@ describe('BackendWorkArea', () => {
       { id: 'dg:species', name: 'Species reference', description: null, currentVersion: 'dgv:species:3', currentVersionNumber: 3, isPartOf: ['lib:qa'] },
       { id: 'dg:regions', name: 'Regions', description: null, currentVersion: 'dgv:regions:1', currentVersionNumber: 1, isPartOf: ['lib:qa'] },
     ]);
+    api.listQueries.mockResolvedValue([]);
+    api.getQuery.mockImplementation(async (id: string) => ({
+      data: { id, name: id, isPartOf: ['lib:qa'], defaultBackend: null, dateModified: '2026-08-01T00:00:00.000Z' },
+      etag: '"q"',
+    }));
+    api.updateQuery.mockImplementation(async (id: string, input: Record<string, unknown>) => ({
+      data: { id, name: id, isPartOf: ['lib:qa'], ...input },
+      etag: '"q2"',
+    }));
+    etl.etlJobs.value = [];
+    etl.loadEtlJobs.mockResolvedValue([]);
+    etl.updateEtlJob.mockImplementation(async (id: string, input: Record<string, unknown>) => ({ id, ...input }));
     api.listDataGraphVersions.mockResolvedValue([
       { id: 'dgv:species:3', isPartOf: 'dg:species', version: 3, contentString: '', contentFormat: 'text/turtle' },
     ]);
@@ -387,13 +416,159 @@ describe('BackendWorkArea', () => {
     expect(JSON.parse(api.updateBackend.mock.calls[0][1].oxigraphConfig).sources).toEqual([]);
   });
 
-  it('says None attached when no library points here', async () => {
+  it('says nothing defaults here when no library, query or ETL job points here', async () => {
     api.listLibraries.mockResolvedValue([{ id: 'lib:other', name: 'Other', defaultBackend: null }]);
     const wrapper = await mountRecord();
     await flushPromises();
 
     expect(wrapper.find('[data-testid="attached-library"]').exists()).toBe(false);
-    expect(wrapper.find('.card-empty').text()).toBe('None attached.');
+    expect(wrapper.find('.card-empty').text()).toBe('Nothing defaults to this backend.');
+  });
+
+  /*
+   * "Default backend for" is every defaultBackend pointer aimed here — a
+   * library's, a query's, an ETL job's — and the Add menu is how one is made.
+   */
+  describe('default backend for', () => {
+    const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+    beforeEach(() => {
+      api.listQueries.mockResolvedValue([
+        { id: 'q:cities', name: 'Cities in a country', isPartOf: ['lib:qa'], defaultBackend: backend.id },
+        { id: 'q:rivers', name: 'Rivers', isPartOf: ['lib:qa'], defaultBackend: 'b:elsewhere' },
+        { id: 'q:lakes', name: 'Lakes', isPartOf: ['lib:qa'], defaultBackend: null },
+      ]);
+      api.listBackends.mockResolvedValue([backend, { ...backend, id: 'b:elsewhere', name: 'Elsewhere' }]);
+      etl.etlJobs.value = [
+        { id: 'load-species', name: 'Load species', defaultBackend: backend.id, libraryIds: ['lib:qa'] },
+        { id: 'load-regions', name: 'Load regions', libraryIds: ['lib:qa'] },
+      ];
+    });
+
+    async function openAddMenu(wrapper: VueWrapper) {
+      await wrapper.find('[data-testid="attach-library"]').trigger('click');
+      await tick();
+      await flushPromises();
+    }
+
+    async function closeAddMenu(wrapper: VueWrapper) {
+      const trigger = wrapper.find('[data-testid="attach-library"]');
+      if (trigger.exists() && trigger.attributes('aria-expanded') === 'true') {
+        await trigger.trigger('click');
+        await tick();
+      }
+    }
+
+    function option(wrapper: VueWrapper, kind: string, name: string) {
+      const found = wrapper
+        .findAll(`[data-testid="default-for-option-${kind}"]`)
+        .find((candidate) => candidate.text().startsWith(name));
+      if (!found) throw new Error(`no ${kind} option "${name}"`);
+      return found;
+    }
+
+    it('lists the libraries, queries and ETL jobs that default here, by kind', async () => {
+      const wrapper = await mountRecord();
+
+      expect(wrapper.findAll('[data-testid="attached-library"]').map((chip) => chip.text())).toEqual(['Ontology QA']);
+      expect(wrapper.findAll('[data-testid="default-for-chip-query"]').map((chip) => chip.text()))
+        .toEqual(['Cities in a country']);
+      expect(wrapper.findAll('[data-testid="default-for-chip-etlJob"]').map((chip) => chip.text()))
+        .toEqual(['Load species']);
+      expect(wrapper.find('[data-testid="default-for-etlJob"]').text()).toContain('ETL jobs');
+      expect(wrapper.find('.card-empty').exists()).toBe(false);
+    });
+
+    it('offers only what does not already default here, filtered by the text box', async () => {
+      const wrapper = await mountRecord();
+      await openAddMenu(wrapper);
+
+      const names = (kind: string) =>
+        wrapper.findAll(`[data-testid="default-for-option-${kind}"]`).map((item) => item.find('.default-for-option-name').text());
+      expect(names('library')).toEqual(['Other']);
+      expect(names('query')).toEqual(['Rivers', 'Lakes']);
+      expect(names('etlJob')).toEqual(['Load regions']);
+
+      await wrapper.find('[data-testid="default-for-filter"]').setValue('lak');
+      expect(names('query')).toEqual(['Lakes']);
+      expect(names('library')).toEqual([]);
+      await closeAddMenu(wrapper);
+    });
+
+    it('sets a default straight away when the pick has none', async () => {
+      const wrapper = await mountRecord();
+      await openAddMenu(wrapper);
+
+      await option(wrapper, 'etlJob', 'Load regions').trigger('click');
+      await flushPromises();
+
+      expect(etl.updateEtlJob).toHaveBeenCalledWith('load-regions', { defaultBackend: backend.id });
+      expect(document.body.textContent).not.toContain('Change the default backend of');
+      await closeAddMenu(wrapper);
+    });
+
+    it('asks before replacing a different default, naming both backends', async () => {
+      // The sidebar has the list loaded by the time a record is open.
+      const { useBackendsStore } = await import('@/composables/useBackendsStore');
+      await useBackendsStore().loadBackends();
+      const wrapper = await mountRecord();
+      await openAddMenu(wrapper);
+
+      await option(wrapper, 'query', 'Rivers').trigger('click');
+      await flushPromises();
+
+      // Nothing written yet — the confirm owns the decision.
+      expect(api.updateQuery).not.toHaveBeenCalled();
+      const text = document.body.textContent ?? '';
+      expect(text).toContain('Change the default backend of “Rivers”?');
+      expect(text).toContain('It currently defaults to Elsewhere. It will default to Wikidata Public instead.');
+
+      (document.body.querySelector('[data-testid="confirm-replace-default"]') as HTMLElement).click();
+      await flushPromises();
+
+      expect(api.updateQuery).toHaveBeenCalledTimes(1);
+      expect(api.updateQuery.mock.calls[0][0]).toBe('q:rivers');
+      expect(api.updateQuery.mock.calls[0][1]).toEqual({ defaultBackend: backend.id });
+      // Sent against the token just read, as the query screen's own saves are.
+      expect(api.updateQuery.mock.calls[0][2]).toEqual({ ifMatch: '"q"' });
+    });
+
+    it('retries a query write once on a 412', async () => {
+      api.updateQuery.mockRejectedValueOnce(Object.assign(new Error('Precondition failed'), { statusCode: 412 }));
+      const wrapper = await mountRecord();
+      await openAddMenu(wrapper);
+
+      await option(wrapper, 'query', 'Lakes').trigger('click');
+      await flushPromises();
+
+      expect(api.updateQuery).toHaveBeenCalledTimes(2);
+      expect(api.getQuery).toHaveBeenCalledTimes(2);
+      await closeAddMenu(wrapper);
+    });
+
+    it('clears a query default from its chip without a confirm', async () => {
+      const wrapper = await mountRecord();
+
+      await wrapper.find('[data-testid="default-for-remove-query"]').trigger('click');
+      await flushPromises();
+
+      expect(api.updateQuery.mock.calls[0][1]).toEqual({ defaultBackend: null });
+    });
+
+    it('confirms before clearing a library default, and says what happens to its queries', async () => {
+      const wrapper = await mountRecord();
+
+      await wrapper.find('[data-testid="default-for-remove-library"]').trigger('click');
+      await flushPromises();
+      expect(api.updateLibrary).not.toHaveBeenCalled();
+      expect(document.body.textContent).toContain('with no default of their own will have no backend until one is picked');
+
+      (document.body.querySelector('[data-testid="confirm-detach-library"]') as HTMLElement).click();
+      await flushPromises();
+
+      expect(api.updateLibrary).toHaveBeenCalledTimes(1);
+      expect(api.updateLibrary.mock.calls[0][1]).toMatchObject({ defaultBackend: null });
+    });
   });
 
   /*
