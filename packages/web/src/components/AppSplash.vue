@@ -146,7 +146,13 @@
           Default backend
         </StatusBadge>
         <div class="library-backend-select">
+          <!--
+            Keyed on the label: the backend list can land after the library,
+            and the combobox only redraws its text when the value changes, so
+            without this it would go on showing the id it first fell back to.
+          -->
           <SearchSelect
+            :key="backendLabel(currentBackendId)"
             test-id="splash-default-backend-select"
             aria-label="Default backend of this library"
             placeholder="None"
