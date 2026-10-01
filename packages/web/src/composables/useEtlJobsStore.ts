@@ -32,6 +32,8 @@ export interface EtlJob {
   name: string;
   description?: string;
   currentVersionId?: string;
+  /** Full backend IRI a run defaults to; absent means the in-memory store. */
+  defaultBackend?: string;
   libraryIds: string[];
   dateCreated?: string;
   dateModified?: string;
@@ -116,7 +118,10 @@ export function useEtlJobsStore() {
     return created;
   }
 
-  async function updateEtlJob(id: string, input: { name?: string; description?: string | null }): Promise<EtlJob> {
+  async function updateEtlJob(
+    id: string,
+    input: { name?: string; description?: string | null; defaultBackend?: string | null },
+  ): Promise<EtlJob> {
     const updated = await request<EtlJob>(`${base()}/${encodeURIComponent(id)}`, {
       method: 'PATCH',
       body: JSON.stringify(input),

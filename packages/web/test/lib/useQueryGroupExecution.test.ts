@@ -233,6 +233,31 @@ describe('useQueryGroupExecution', () => {
       expect(currentGraphState.value.iriMap['urn:sqlib:query-version:1']).toBe('Cities');
     });
 
+    it("gives a node with no backend the query's default, then the library's", async () => {
+      const { execution, queriesStore, librariesStore, currentGraphState } = harness();
+      librariesStore.libraries.value = [{ id: 'urn:sqlib:library:1', defaultBackend: 'urn:sqlib:backend:lib-default' }];
+      currentGraphState.value = makeGraphState([makeNode({ id: 'urn:sqlib:node:1' })]);
+      queriesStore.fetchQueryVersion.mockResolvedValue({ id: 'urn:sqlib:query-version:1' });
+
+      await execution.assignQueryToNode('urn:sqlib:node:1', payload);
+      expect(currentGraphState.value.nodes[0].backendId).toBe('urn:sqlib:backend:lib-default');
+
+      queriesStore.queries.value = [{ id: 'urn:sqlib:query:1', defaultBackend: 'urn:sqlib:backend:query-default' }];
+      currentGraphState.value = makeGraphState([makeNode({ id: 'urn:sqlib:node:1' })]);
+      await execution.assignQueryToNode('urn:sqlib:node:1', payload);
+      expect(currentGraphState.value.nodes[0].backendId).toBe('urn:sqlib:backend:query-default');
+    });
+
+    it('keeps a backend the node already names', async () => {
+      const { execution, queriesStore, currentGraphState } = harness();
+      queriesStore.queries.value = [{ id: 'urn:sqlib:query:1', defaultBackend: 'urn:sqlib:backend:query-default' }];
+      currentGraphState.value = makeGraphState([makeNode({ id: 'urn:sqlib:node:1', backendId: 'urn:sqlib:backend:own' })]);
+      queriesStore.fetchQueryVersion.mockResolvedValue({ id: 'urn:sqlib:query-version:1' });
+
+      await execution.assignQueryToNode('urn:sqlib:node:1', payload);
+      expect(currentGraphState.value.nodes[0].backendId).toBe('urn:sqlib:backend:own');
+    });
+
     it('keeps the query assignment but reports an error when the version fails to load', async () => {
       const { execution, graph, queriesStore, currentGraphState, toast } = harness();
       currentGraphState.value = makeGraphState([makeNode({ id: 'urn:sqlib:node:1' })]);

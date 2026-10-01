@@ -602,6 +602,8 @@ const backendUsageSchema = z.object({
   queryGroups: backendUsageGroupSchema,
   benchmarks: backendUsageGroupSchema,
   libraries: backendUsageGroupSchema,
+  // Older servers do not count ETL jobs; read their absence as none.
+  etlJobs: backendUsageGroupSchema.default({ count: 0, sample: [] }),
 });
 
 export type BackendProbe = z.infer<typeof backendProbeSchema>;
@@ -1087,11 +1089,16 @@ export function useApiClient() {
     );
   };
 
-  const getBackendReferences = async (id: string): Promise<{ libraries: Array<{ id: string; name: string }>; queries: Array<{ id: string; name: string }> }> => {
+  const getBackendReferences = async (id: string): Promise<{
+    libraries: Array<{ id: string; name: string }>;
+    queries: Array<{ id: string; name: string }>;
+    etlJobs: Array<{ id: string; name: string }>;
+  }> => {
     return requestData(buildUrl(`/backends/${encodeURIComponent(id)}/references`), { method: 'GET' }, (payload) => {
       const schema = z.object({
         libraries: z.array(z.object({ id: z.string(), name: z.string() })),
         queries: z.array(z.object({ id: z.string(), name: z.string() })),
+        etlJobs: z.array(z.object({ id: z.string(), name: z.string() })).default([]),
       });
       return schema.parse(payload);
     });

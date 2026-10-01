@@ -53,6 +53,7 @@ import {
 import { useApiClient } from './useApiClient';
 import { useCallables } from './useCallables';
 import { useRuleSetsStore } from './useRuleSetsStore';
+import { resolveQueryDefault } from '../lib/backendDefaults';
 
 /**
  * What a cell can be pointed at, flattened across the three entity kinds.
@@ -186,6 +187,21 @@ export function useNotebook(
 
   function targetFor(cell: RunCell): NotebookTarget | null {
     return targets.value.get(cellTargetId(cell)) ?? null;
+  }
+
+  /*
+   * The backend a cell runs on when it names none: the query's own default,
+   * then the library's — the order `lib/backendDefaults.ts` sets out. A group
+   * has none to fall back to (each of its nodes names its own, and the server
+   * refuses a backend for a group), and a rule set runs in memory.
+   */
+  function defaultBackendFor(cell: RunCell): string | null {
+    if (cell.kind !== 'query') return null;
+    const callable = callables.callables.value.find((entry) => entry.id === cell.query);
+    return resolveQueryDefault({
+      queryDefault: callable?.defaultBackend ?? null,
+      libraryDefault: defaultBackendId.value,
+    });
   }
 
   function stateFor(cellId: string): CellRunState {
@@ -344,12 +360,12 @@ export function useNotebook(
     };
 
     /*
-     * The store the cell names, or the library's default. Sent explicitly
-     * either way: "which backend did this run against" is a fact the notebook
-     * shows on the cell, and a request that leaves it out would let the answer
-     * change under the reader when the library's default does.
+     * The store the cell names, else the query's default, else the library's.
+     * Sent explicitly either way: "which backend did this run against" is a
+     * fact the notebook shows on the cell, and a request that leaves it out
+     * would let the answer change under the reader when a default does.
      */
-    const backendId = (cell.kind === 'ruleset' ? null : cell.backend) ?? defaultBackendId.value;
+    const backendId = (cell.kind === 'ruleset' ? null : cell.backend) ?? defaultBackendFor(cell);
     const accept = cell.kind === 'ruleset' ? null : cell.accept;
 
     const result = await apiClient.executeTarget(
@@ -568,6 +584,7 @@ export function useNotebook(
     problems,
     targets,
     targetFor,
+    defaultBackendFor,
     stateFor,
     loading: callables.loading,
     load: loadTargets,

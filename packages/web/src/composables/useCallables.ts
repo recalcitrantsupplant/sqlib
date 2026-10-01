@@ -54,6 +54,7 @@ function callableFromDraft(draft: CallableDraft): Callable {
     state: 'draft',
     version: null,
     libraryId: draft.libraryId,
+    defaultBackend: draft.defaultBackend ?? null,
     resultKind: draft.resultKind,
     inputTuples: draft.inputTuples.map((members, index) => ({
       id: `${draft.id}#tuple-${index}`,
