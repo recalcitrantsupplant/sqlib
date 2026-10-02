@@ -1,13 +1,13 @@
 {
   "api": {
     "@typescript-eslint/ban-ts-comment": 2,
-    "@typescript-eslint/no-explicit-any": 1098,
+    "@typescript-eslint/no-explicit-any": 1101,
     "@typescript-eslint/no-require-imports": 2,
     "@typescript-eslint/no-this-alias": 1,
     "no-case-declarations": 1,
     "no-control-regex": 2,
     "no-empty": 4,
-    "no-useless-assignment": 13,
+    "no-useless-assignment": 12,
     "no-useless-escape": 5,
     "prefer-const": 6,
     "preserve-caught-error": 32,

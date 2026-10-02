@@ -127,8 +127,7 @@ first boot with no snapshot to restore.
 This is not RocksDB, and not disk-backed in the sense the Oxigraph Rust and
 Python bindings mean. The JavaScript/WebAssembly bindings support in-memory
 stores only, so `oxigraph-persistent` is an in-memory store serialised to
-N-Quads. `INTERNAL_OXIGRAPH_DB_PATH` and the `persistPath` it sets are
-deprecated and ignored. Two consequences worth knowing before choosing it:
+N-Quads (`INTERNAL_OXIGRAPH_DB_PATH` is not read). Two consequences worth knowing before choosing it:
 
 - A process killed between checkpoints loses the writes since the last one.
 - The whole library is in the process's address space. The npm `oxigraph`
@@ -137,11 +136,9 @@ deprecated and ignored. Two consequences worth knowing before choosing it:
   larger than that, run a SPARQL server and use `INTERNAL_BACKEND_TYPE=http`.
 
 **`oxigraph-memory`** is for tests and short-lived development. The library
-store is created on first use with no initial load, and its snapshot path is
-under `OXIGRAPH_STORAGE_DIR` (default `./storage/oxigraph`) rather than
-`LIBRARY_STORAGE_DIR`. No checkpoint timer runs in this mode, so the only write
-to disk is the one a clean shutdown performs. `INTERNAL_OXIGRAPH_DB_PATH` is
-accepted and ignored here too.
+store is created empty on first use and never touches disk: nothing is
+restored at boot and nothing is written at shutdown, so every start is a
+fresh, empty library.
 
 ### What queries execute against: backends
 

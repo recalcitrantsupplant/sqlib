@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { CacheCoordinator, EntityExistsError } from '../../src/lib/CacheCoordinator.js';
+import { ImmutableEntityError } from '../../src/lib/immutability.js';
 import { config } from '../../src/server/config.js';
 import { loadSystemStore } from '../../src/system-store/SystemStoreLoader.js';
 import { installFakePersistenceAdapter } from '../support/fakePersistenceAdapter.js';
@@ -81,6 +82,32 @@ describe('CacheCoordinator', () => {
     
     coordinator.removeEphemeral('temp1');
     expect(coordinator.get('temp1')).toBeNull();
+  });
+
+  describe('frozen versions', () => {
+    const versionTypes = [
+      'QueryVersion', 'QueryGroupVersion', 'RuleVersion', 'DataBlockVersion', 'RuleSetVersion',
+      'DataGraphVersion', 'TestVersion', 'TupleSetVersion', 'ArgumentSetVersion', 'EtlJobVersion',
+      'EtlColumnMappingVersion',
+    ] as const;
+
+    it.each(versionTypes)('refuses a content update to a %s that carries no immutable flag', async (type) => {
+      await coordinator.loadAll();
+      coordinator.cache.set('urn:v:legacy', { $id: 'urn:v:legacy', '@type': type, version: 1 });
+
+      await expect(coordinator.update(type, 'urn:v:legacy', { version: 2 } as never))
+        .rejects.toBeInstanceOf(ImmutableEntityError);
+      expect(coordinator.get('urn:v:legacy')).toMatchObject({ version: 1 });
+    });
+
+    it('refuses a create over an existing version id rather than rewriting the snapshot', async () => {
+      await coordinator.loadAll();
+      coordinator.cache.set('urn:v:frozen', { $id: 'urn:v:frozen', '@type': 'QueryVersion', version: 1, queryString: 'ASK {}' });
+
+      await expect(coordinator.create('QueryVersion', { $id: 'urn:v:frozen', version: 1, queryString: 'SELECT * {}' } as never))
+        .rejects.toBeInstanceOf(EntityExistsError);
+      expect(coordinator.get('urn:v:frozen')).toMatchObject({ queryString: 'ASK {}' });
+    });
   });
 
   describe('create over an existing id', () => {

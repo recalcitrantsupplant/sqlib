@@ -1,4 +1,5 @@
 import { mintId } from './id.js';
+import { allocateVersion, setCurrentVersion } from './versionNumbering.js';
 import type { LdkitQueryVersion } from '../persistence/schemas/QueryVersionSchema.js';
 import type { LdkitQueryOutputTuple } from '../persistence/schemas/QueryOutputTupleSchema.js';
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
@@ -101,18 +102,23 @@ export function srlImportability(
 }
 
 /**
+ * Numbered and pointed at under the parent's version lock (`allocateVersion`),
+ * so concurrent saves get consecutive numbers and the last to finish is current.
+ */
+export async function createQueryVersionFlat(queryId: string, body: AnyRecord): Promise<{ created: LdkitQueryVersion; iriMap: Record<string, string> }> {
+  return allocateVersion('QueryVersion', queryId, (nextVersion) => createQueryVersionFlatNumbered(queryId, body, nextVersion));
+}
+
+/**
  * Create a new QueryVersion with flat child arrays. Accepts temporary URNs
  * (e.g. `urn:ui-temp:<id>`) for new entities and returns an iriMap mapping
  * those temporary identifiers to minted stable IRIs.
  */
-export async function createQueryVersionFlat(queryId: string, body: AnyRecord): Promise<{ created: LdkitQueryVersion; iriMap: Record<string, string> }> {
+async function createQueryVersionFlatNumbered(queryId: string, body: AnyRecord, nextVersion: number): Promise<{ created: LdkitQueryVersion; iriMap: Record<string, string> }> {
   const cacheCoordinator = getCacheCoordinator();
   const iriMap: Record<string, string> = {};
   const tempIdPrefix = 'urn:ui-temp:';
 
-  // 1) Determine next version number
-  const existing = (cacheCoordinator.list('QueryVersion') as LdkitQueryVersion[]).filter(v => v.isPartOf === queryId);
-  const nextVersion = existing.length > 0 ? (existing.sort((a, b) => Number(a.version) - Number(b.version))[existing.length - 1].version as number) + 1 : 1;
   const versionId = mintId('queryVersion');
 
   const registerTempIds = (resources: AnyRecord[] | undefined, kind: string) => {
@@ -314,10 +320,7 @@ export async function createQueryVersionFlat(queryId: string, body: AnyRecord): 
 
   const created = await cacheCoordinator.create('QueryVersion', toCreate);
 
-  const updatedQuery = await cacheCoordinator.update('Query', queryId, { currentVersion: versionId });
-  if (!updatedQuery) {
-    throw new Error(`Failed to set currentVersion on Query ${queryId}`);
-  }
+  await setCurrentVersion('Query', queryId, versionId);
 
 
   return { created, iriMap };

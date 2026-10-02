@@ -70,12 +70,8 @@ since the last one. `oxigraph-memory` keeps nothing.
 For a store that is durable in the usual sense, run a SPARQL server such as
 Oxigraph's own or Fuseki alongside and use `INTERNAL_BACKEND_TYPE=http`.
 
-`INTERNAL_OXIGRAPH_DB_PATH` and the `persistPath` / `dbPath` fields in the
-internal backend config are deprecated and ignored. They named a RocksDB
-directory that these bindings cannot open. The variable is still read — into
-`dbPath` under `oxigraph-memory`, into `persistPath` under
-`oxigraph-persistent` — and nothing reads either field, so setting it changes
-nothing. Serialisation goes to `LIBRARY_STORAGE_DIR` regardless.
+`INTERNAL_OXIGRAPH_DB_PATH` is no longer read. It named a RocksDB directory
+that these bindings cannot open; serialisation goes to `LIBRARY_STORAGE_DIR`.
 
 See [storage and caching](../explanation/storage-and-caching.md) for how the
 store and the in-memory cache relate.

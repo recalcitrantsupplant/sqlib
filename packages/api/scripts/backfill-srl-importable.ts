@@ -57,7 +57,6 @@ async function openStore() {
     storeType: 'persistent',
     loadMethod: backendConfig.loadMethod,
     sourceConfig: backendConfig.sourceConfig,
-    persistPath: backendConfig.persistPath,
   });
   return { backendConfig, store: oxigraphStoreManager.getPersistentStore(backendConfig.storeId) };
 }

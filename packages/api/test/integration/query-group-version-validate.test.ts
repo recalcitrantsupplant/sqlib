@@ -16,6 +16,18 @@ const cacheManager = {
     getCacheCoordinator().update(type, id, updates as never),
 };
 
+/**
+ * Give a version its graph. A version is frozen from creation, so this
+ * recreates it with the graph rather than editing it in place — the shape a
+ * real save has, where nodes are written first and the version last.
+ */
+async function setVersionGraph(versionId: string, graph: Record<string, unknown>): Promise<void> {
+  const coordinator = getCacheCoordinator();
+  const existing = coordinator.get(versionId) as Record<string, unknown>;
+  await coordinator.delete('QueryGroupVersion', versionId);
+  await coordinator.create('QueryGroupVersion', { ...existing, ...graph, $id: versionId } as never);
+}
+
 async function buildTestApp(): Promise<FastifyInstance> {
   const app = Fastify({ logger: false });
   setupValidator(app);
@@ -109,10 +121,10 @@ describe('Query Group Version Validation', () => {
       sourceOutputId: outputTupleId,
       targetInputId: outputTupleId
     }, 'QueryEdge');
-    await cacheManager.update(testGroupVersionId, {
+    await setVersionGraph(testGroupVersionId, {
       executionNodes: [nodeId],
       edges: [edgeStartId, edgeEndId]
-    }, 'QueryGroupVersion');
+    });
 
     const response = await app.inject({
       method: 'GET',
@@ -172,10 +184,10 @@ describe('Query Group Version Validation', () => {
       sourceOutputId: outputTupleId,
       targetInputId: outputTupleId,
     }, 'QueryEdge');
-    await cacheManager.update(testGroupVersionId, {
+    await setVersionGraph(testGroupVersionId, {
       executionNodes: [nodeId],
       edges: ['urn:sqlib:edge:ephemeral-start', 'urn:sqlib:edge:ephemeral-end'],
-    }, 'QueryGroupVersion');
+    });
 
     const response = await app.inject({
       method: 'GET',
@@ -211,10 +223,10 @@ describe('Query Group Version Validation', () => {
       backendId,
       backendConfig: { type: 'ephemeral-oxigraph', storeId: 'urn:sqlib:store:conflict' },
     }, 'QueryNode');
-    await cacheManager.update(testGroupVersionId, {
+    await setVersionGraph(testGroupVersionId, {
       executionNodes: [nodeId],
       edges: [],
-    }, 'QueryGroupVersion');
+    });
 
     const response = await app.inject({
       method: 'GET',
@@ -242,9 +254,9 @@ describe('Query Group Version Validation', () => {
       targetNodeId: 'urn:sqlib:node:missing-target',
       dataFlowType: 'CONTROL_FLOW',
     }, 'QueryEdge');
-    await cacheManager.update(testGroupVersionId, {
+    await setVersionGraph(testGroupVersionId, {
       edges: ['urn:sqlib:edge:broken'],
-    }, 'QueryGroupVersion');
+    });
 
     const response = await app.inject({
       method: 'GET',

@@ -24,10 +24,6 @@ interface HttpEndpointConfig {
 
 interface OxigraphMemoryConfig {
   type: 'oxigraph-memory';
-  /**
-   * @deprecated This field is ignored. Oxigraph JS only supports in-memory stores.
-   */
-  dbPath?: string;
 }
 
 /**
@@ -38,11 +34,6 @@ interface OxigraphMemoryConfig {
 interface OxigraphPersistentConfig {
   type: 'oxigraph-persistent';
   storeId: string;
-  /**
-   * @deprecated This field is ignored. Oxigraph JS does not support RocksDB paths.
-   * Serialization happens to .nq files in storageDir.
-   */
-  persistPath: string;
   loadMethod: 'file' | 'remote-sparql' | 'remote-file' | 'none';
   sourceConfig?: OxigraphSourceConfig;
   /** Directory where .nq serialization files are stored */
@@ -66,16 +57,11 @@ function getInternalBackendConfig(): InternalBackendConfig {
   const backendType = process.env.INTERNAL_BACKEND_TYPE || 'http'; // Default to http
 
   if (backendType === 'oxigraph-memory') {
-    return {
-      type: 'oxigraph-memory',
-      dbPath: process.env.INTERNAL_OXIGRAPH_DB_PATH // Optional path
-    };
+    return { type: 'oxigraph-memory' };
   }
 
   if (backendType === 'oxigraph-persistent') {
     const storageDir = path.resolve(process.env.LIBRARY_STORAGE_DIR || './storage/library-store');
-    const rawPersistPath = process.env.INTERNAL_OXIGRAPH_DB_PATH || path.join(storageDir, 'rocksdb');
-    const persistPath = path.resolve(rawPersistPath);
 
     const allowedLoadMethods = new Set(['file', 'remote-sparql', 'remote-file', 'none']);
     const requestedLoadMethod = (process.env.INTERNAL_OXIGRAPH_LOAD_METHOD || 'none').toLowerCase();
@@ -99,7 +85,6 @@ function getInternalBackendConfig(): InternalBackendConfig {
     return {
       type: 'oxigraph-persistent',
       storeId: process.env.INTERNAL_OXIGRAPH_STORE_ID || 'library-store',
-      persistPath,
       loadMethod,
       sourceConfig,
       storageDir,

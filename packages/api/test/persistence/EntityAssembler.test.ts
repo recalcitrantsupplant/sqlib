@@ -61,8 +61,7 @@ describe('EntityAssembler', () => {
     expect(entity.count).toBe(42);
     expect(entity.ratio).toBe(1.5);
     expect(entity.enabled).toBe(true);
-    expect(entity.createdAt).toBeInstanceOf(Date);
-    expect((entity.createdAt as Date).toISOString()).toBe('2026-01-02T03:04:05.000Z');
+    expect(entity.createdAt).toBe('2026-01-02T03:04:05.000Z');
   });
 
   it('accepts the "1"/"0" lexical forms of xsd:boolean', () => {
@@ -144,5 +143,15 @@ describe('EntityAssembler', () => {
   it('returns null rather than an empty shell when nothing matched', () => {
     expect(assembleEntity(SCHEMA, [])).toBeNull();
     expect(assembleEntities(SCHEMA, [])).toEqual([]);
+  });
+});
+
+describe('assembleEntity dates', () => {
+  it('canonicalises an xsd:dateTime to the ISO string the writers use', () => {
+    const entity = assembleEntity(SCHEMA, [
+      row('http://example.org/a', `${P}/createdAt`, '2026-01-02T03:04:05Z'),
+    ])!;
+
+    expect(entity.createdAt).toBe('2026-01-02T03:04:05.000Z');
   });
 });

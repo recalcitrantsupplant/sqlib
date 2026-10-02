@@ -1,6 +1,6 @@
 import { mintId } from './id.js';
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
-import { nextVersionNumber } from './versionNumbering.js';
+import { allocateVersion, setCurrentVersion } from './versionNumbering.js';
 import type { LdkitDataBlockVersion } from '../persistence/schemas/DataBlockVersionSchema.js';
 import { toLdkit } from '../persistence/utils/id-adapter.js';
 import { RuleGrammarValidator } from './RuleGrammarValidator.js';
@@ -22,12 +22,19 @@ export interface AnnotateDataBlockVersionInput {
 }
 
 /**
+ * Numbered and pointed at under the parent's version lock (`allocateVersion`),
+ * so concurrent saves get consecutive numbers and the last to finish is current.
+ */
+export async function createDataBlockVersion(dataBlockId: string, body: CreateDataBlockVersionInput): Promise<LdkitDataBlockVersion> {
+  return allocateVersion('DataBlockVersion', dataBlockId, (nextVersion) => createDataBlockVersionNumbered(dataBlockId, body, nextVersion));
+}
+
+/**
  * Creates a new immutable DataBlockVersion for the given DataBlock ID, automatically
  * assigning the next version number and updating the parent DataBlock's currentVersion.
  */
-export async function createDataBlockVersion(dataBlockId: string, body: CreateDataBlockVersionInput): Promise<LdkitDataBlockVersion> {
+async function createDataBlockVersionNumbered(dataBlockId: string, body: CreateDataBlockVersionInput, nextVersion: number): Promise<LdkitDataBlockVersion> {
   const cacheCoordinator = getCacheCoordinator();
-  const nextVersion = nextVersionNumber('DataBlockVersion', dataBlockId);
 
   const versionId = mintId('dataBlockVersion');
   const dataString = body.dataString ?? '';
@@ -70,10 +77,7 @@ export async function createDataBlockVersion(dataBlockId: string, body: CreateDa
 
   const created = await cacheCoordinator.create('DataBlockVersion', toLdkit(payload));
 
-  const updated = await cacheCoordinator.update('DataBlock', dataBlockId, { currentVersion: versionId });
-  if (!updated) {
-    throw new Error(`Failed to set currentVersion on DataBlock ${dataBlockId}`);
-  }
+  await setCurrentVersion('DataBlock', dataBlockId, versionId);
 
   return created;
 }

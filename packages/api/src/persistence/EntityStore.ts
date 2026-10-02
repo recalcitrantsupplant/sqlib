@@ -25,6 +25,8 @@ import { assembleEntities, type BindingRow } from './EntityAssembler.js';
 import { generateFindAllQuery, generateFindByIriQuery } from './readQueryGenerator.js';
 import { generateDeleteQuery, generateInsertQuery, generateUpdateQuery } from './writeQueryGenerator.js';
 import { log } from '../lib/log.js';
+import { describeSchema } from './schemaIntrospection.js';
+import { iri, RDF_TYPE } from './sparqlTerms.js';
 
 export type EntitySchema = Record<string, unknown>;
 
@@ -72,6 +74,30 @@ export async function findAllBySchema(schema: EntitySchema): Promise<Record<stri
 export async function findByIriBySchema(schema: EntitySchema, id: string): Promise<Record<string, unknown> | null> {
   const entities = assembleEntities(schema, await runSelect(generateFindByIriQuery(schema, id)));
   return entities[0] ?? null;
+}
+
+/**
+ * The highest `version` stored for a version schema's children of `parentId`,
+ * or 0 when there are none. For numbering when the cache was not preloaded and
+ * so cannot see versions an earlier process wrote.
+ */
+export async function highestVersionInStore(schema: EntitySchema, parentId: string): Promise<number> {
+  const info = describeSchema(schema);
+  const field = (name: string) => {
+    const found = info.fields.find((candidate) => candidate.name === name);
+    if (!found) throw new Error(`${info.classIri} declares no ${name}; it is not a version schema.`);
+    return found.predicate;
+  };
+  const rows = await runSelect(
+    `SELECT (MAX(?version) AS ?highest) WHERE {\n` +
+      `  ?v ${iri(RDF_TYPE)} ${iri(info.classIri)} ;\n` +
+      `     ${iri(field('isPartOf'))} ${iri(parentId)} ;\n` +
+      `     ${iri(field('version'))} ?version .\n` +
+      `}`,
+  );
+  const highest = rows[0]?.highest;
+  const value = Number.parseInt(typeof highest === 'string' ? highest : String((highest as { value?: unknown })?.value ?? ''), 10);
+  return Number.isNaN(value) ? 0 : value;
 }
 
 export async function insertBySchema(schema: EntitySchema, entity: Record<string, unknown>): Promise<void> {

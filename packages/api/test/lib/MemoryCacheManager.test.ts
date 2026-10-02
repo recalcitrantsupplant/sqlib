@@ -9,7 +9,6 @@ import { QueryNodes } from '../../src/persistence/utils/QueryNodeUtils.js';
 import { QueryEdges } from '../../src/persistence/utils/QueryEdgeUtils.js';
 import { Libraries } from '../../src/persistence/utils/LibraryUtils.js';
 import { QueryVersions } from '../../src/persistence/utils/QueryVersionUtils.js';
-import { QueryGroupVersions } from '../../src/persistence/utils/QueryGroupVersionUtils.js';
 
 // Mock external dependencies
 vi.mock('../../src/persistence/utils/entityRepository', () => ({
@@ -420,6 +419,7 @@ describe('MemoryCacheManager', () => {
       const updates = { name: 'New Name', endpoint: 'new.com' };
       const entityType = 'Backend';
       (Backends.update as any).mockResolvedValue(undefined);
+      (Backends.findByIri as any).mockResolvedValueOnce({ ...existingBackend, ...updates });
 
       const updatedEntity = await cacheManager.update('backend1', updates, entityType);
 
@@ -461,53 +461,46 @@ describe('MemoryCacheManager', () => {
     });
 
     it('should merge updates when repository fetch returns partial entity data', async () => {
-      const versionId = 'urn:qgv:merge';
-      const initialVersion = {
-        $id: versionId,
-        '@type': 'QueryGroupVersion',
-        groupId: 'urn:group:merge',
-        version: 1,
+      const groupId = 'urn:group:merge';
+      const initialGroup = {
+        $id: groupId,
+        '@type': 'QueryGroup',
+        name: 'Merge',
+        isPartOf: 'urn:library:merge',
       };
 
       cacheManager = new MemoryCacheManager();
-      (loadAllSystemEntities as any).mockResolvedValue(new Map([[versionId, initialVersion]]));
+      (loadAllSystemEntities as any).mockResolvedValue(new Map([[groupId, initialGroup]]));
       await cacheManager.loadAll();
 
-      (QueryGroupVersions.update as any).mockResolvedValue(undefined);
-      (QueryGroupVersions.findByIri as any).mockResolvedValue({
-        $id: versionId,
-        groupId: 'urn:group:merge',
-        version: 1,
-        '@type': 'QueryGroupVersion',
+      (QueryGroups.update as any).mockResolvedValue(undefined);
+      (QueryGroups.findByIri as any).mockResolvedValue({
+        $id: groupId,
+        name: 'Merge',
+        '@type': 'QueryGroup',
       });
 
       const updates = {
-        executionNodes: ['urn:node:a', 'urn:node:b'],
-        edges: ['urn:edge:a'],
-        startNode: 'urn:start:a',
-        endNode: 'urn:end:a',
+        description: 'merged',
+        currentVersion: 'urn:qgv:merge',
       };
 
-      const updatedEntity = await cacheManager.update(versionId, updates, 'QueryGroupVersion');
+      const updatedEntity = await cacheManager.update(groupId, updates, 'QueryGroup');
 
-      expect(QueryGroupVersions.update).toHaveBeenCalledWith(expect.objectContaining({
-        $id: versionId,
+      expect(QueryGroups.update).toHaveBeenCalledWith(expect.objectContaining({
+        $id: groupId,
         ...updates,
         dateModified: expect.any(String),
       }));
       expect(updatedEntity).not.toBeNull();
       expect(updatedEntity).toMatchObject({
-        executionNodes: updates.executionNodes,
-        edges: updates.edges,
-        startNode: 'urn:start:a',
-        endNode: 'urn:end:a',
+        ...updates,
+        name: 'Merge',
         dateModified: expect.any(String),
       });
-      expect(cacheManager.get(versionId)).toMatchObject({
-        executionNodes: updates.executionNodes,
-        edges: updates.edges,
-        startNode: 'urn:start:a',
-        endNode: 'urn:end:a',
+      expect(cacheManager.get(groupId)).toMatchObject({
+        ...updates,
+        name: 'Merge',
         dateModified: expect.any(String),
       });
     });
@@ -1078,7 +1071,8 @@ describe('MemoryCacheManager', () => {
         updateCallCount++;
         await new Promise(resolve => setTimeout(resolve, 10));
       });
-      (Backends.findByIri as any).mockResolvedValue(null); // No fresh fetch
+      // The store holds the entity; reading it back returns what the cache has.
+      (Backends.findByIri as any).mockImplementation(async (id: string) => cacheManager.get(id));
 
       // Concurrent updates
       const promise1 = cacheManager.update('test-backend', { name: 'Update 1' }, 'Backend');
@@ -1279,6 +1273,9 @@ describe('MemoryCacheManager', () => {
 
       (Backends.update as any).mockResolvedValue(undefined);
       (Queries.update as any).mockResolvedValue(undefined);
+      // A stand-in store that holds what was created: the update reads it back.
+      (Backends.findByIri as any).mockImplementation(async (id: string) => cacheManager.get(id));
+      (Queries.findByIri as any).mockImplementation(async (id: string) => cacheManager.get(id));
 
       (Backends.delete as any).mockResolvedValue(undefined);
       (Queries.delete as any).mockResolvedValue(undefined);

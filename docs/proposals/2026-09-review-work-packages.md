@@ -174,6 +174,15 @@ registered at `/backends/:id/health` is not public.
 
 ## Phase 2 — Cache and persistence correctness
 
+Status: done, WP8–WP12, in #52. What changed from the plan: WP10 covers
+eleven version writers, not five (rules, data blocks, data graphs, tests,
+tuple sets, argument sets and ETL jobs too), and its lock is per process. WP12
+names two exceptions to freezing by type: a benchmark experiment version stays
+a draft until frozen, and an ETL job version may still move its
+`currentColumnMappingVersion`. WP8 refuses an update whose read-back finds
+nothing in the store, which needed suites writing through to stub stores to
+turn write-through off.
+
 ### WP8 — Null clearing, no-op updates, date normalisation · S · deps: none · closes C1, C13 (update half), D8
 
 **Changes.**

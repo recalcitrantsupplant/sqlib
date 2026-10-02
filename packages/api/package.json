@@ -30,7 +30,8 @@
     "clean:test": "find test -type f \\( -name '*.js' -o -name '*.js.map' \\) -delete",
     "clean:scripts": "find scripts -type f \\( -name '*.js' -o -name '*.js.map' \\) -delete",
     "migrate:grammar-type": "tsx scripts/migrate-grammar-type-to-srl.ts",
-    "backfill:srl-importable": "tsx scripts/backfill-srl-importable.ts"
+    "backfill:srl-importable": "tsx scripts/backfill-srl-importable.ts",
+    "backfill:version-immutability": "tsx scripts/backfill-version-immutability.ts"
   },
   "keywords": [],
   "author": "David Habgood <david@kurrawong.ai> (https://orcid.org/0000-0002-3322-1868)",

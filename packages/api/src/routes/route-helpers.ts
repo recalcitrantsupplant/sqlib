@@ -110,37 +110,13 @@ function formatLastModified(tag: string): string | null {
 
 export function setEntityConcurrencyHeaders(
   reply: FastifyReply,
-  entity: { dateModified?: string | Date | null } | null | undefined
+  entity: { dateModified?: string | null } | null | undefined
 ): void {
-  if (!entity) {
+  const dateModifiedStr = entity?.dateModified;
+  if (typeof dateModifiedStr !== 'string' || !dateModifiedStr) {
     return;
   }
-  
-  // Get dateModified and convert to string if needed
-  let dateModifiedStr: string | null = null;
-  
-  if (entity.dateModified !== undefined && entity.dateModified !== null) {
-    if (typeof entity.dateModified === 'string') {
-      dateModifiedStr = entity.dateModified;
-    } else if (entity.dateModified instanceof Date) {
-      dateModifiedStr = entity.dateModified.toISOString();
-    } else {
-      const diag = entity as { '@type'?: unknown; '$id'?: unknown; id?: unknown };
-      reply.log.error(
-        {
-          type: typeof entity.dateModified,
-          value: entity.dateModified,
-          entityType: diag['@type'],
-          entityId: diag['$id'] || diag.id,
-        },
-        'setEntityConcurrencyHeaders: dateModified is not a string or Date',
-      );
-      return;
-    }
-  } else {
-    return;
-  }
-  
+
   reply.header('ETag', formatEtag(dateModifiedStr));
   const lastModified = formatLastModified(dateModifiedStr);
   if (lastModified) {
