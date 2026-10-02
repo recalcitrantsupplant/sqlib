@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { orderByPosition } from '@sparql-query-lib/types';
 import * as oxigraph from 'oxigraph';
 import { toError } from '../toError.js';
@@ -88,11 +89,12 @@ export class ExecutionEngine {
   ) {}
 
   async execute(
-    graph: ExecutionGraph,
+    authoredGraph: ExecutionGraph,
     initialArgs?: ArgumentSet[],
     hooks?: ExecutionHooks,
     options?: ExecutionOptions
   ): Promise<FinalResult> {
+    const graph = ExecutionEngine.scopeEphemeralStores(authoredGraph, randomUUID());
     // Track ephemeral stores created during execution for cleanup
     const ephemeralStores = new Set<string>();
     const acceptHeader = options?.acceptHeader ?? null;
@@ -425,6 +427,30 @@ export class ExecutionEngine {
         oxigraphStoreManager.destroyEphemeralStore(storeId);
       }
     }
+  }
+
+  /**
+   * This run's copy of the graph, with every ephemeral `storeId` prefixed by
+   * the run id.
+   *
+   * A node's `storeId` is a string its author chose and the group version
+   * persists, so two runs of one version name the same store. Keyed verbatim,
+   * concurrent runs would seed into and query one shared store, and whichever
+   * finished first would destroy it under the other. Within one run the
+   * author's ids keep their meaning — nodes naming the same store still share
+   * it — and across runs nothing is shared.
+   *
+   * Nodes are copied, not edited: the built graph may be reused by its caller,
+   * and a dynamic node's resolved query is per-run state too.
+   */
+  static scopeEphemeralStores(graph: ExecutionGraph, runId: string): ExecutionGraph {
+    const nodes = new Map<string, ResolvedNode>();
+    for (const [id, node] of graph.nodes) {
+      nodes.set(id, node.backendConfig?.type === 'ephemeral-oxigraph'
+        ? { ...node, backendConfig: { ...node.backendConfig, storeId: `${runId}:${node.backendConfig.storeId}` } }
+        : { ...node });
+    }
+    return { ...graph, nodes };
   }
 
   /**

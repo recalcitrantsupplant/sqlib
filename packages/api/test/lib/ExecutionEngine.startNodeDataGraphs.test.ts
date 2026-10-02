@@ -306,7 +306,8 @@ describe('ExecutionEngine — data graph inputs on the start node', () => {
     });
 
     expect(hoisted.loadDataFromString).toHaveBeenCalledWith({ store: true }, GRAPH_TEXT, 'turtle');
-    expect(hoisted.destroyEphemeralStore).toHaveBeenCalledWith('store-1');
+    // Namespaced by run, so a concurrent run of the same group cannot share it.
+    expect(hoisted.destroyEphemeralStore).toHaveBeenCalledWith(expect.stringMatching(/^[0-9a-f-]{36}:store-1$/));
   });
 
   it('returns a supplied graph the group passes straight through to its end node', async () => {

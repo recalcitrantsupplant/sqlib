@@ -89,7 +89,8 @@ export class ExecutorFactory {
 
   async getExecutorForNode(node: ResolvedNode): Promise<ISparqlExecutor> {
     // Ephemeral stores need no grant: they exist only inside one execution, are
-    // keyed to it and destroyed with it, so only this caller can ever read them.
+    // keyed to it (the engine prefixes every storeId with its run id) and
+    // destroyed with it, so only this caller can ever read them.
     if (node.backendConfig?.type === 'ephemeral-oxigraph') {
       return this.createEphemeralExecutor(node);
     }
@@ -219,7 +220,8 @@ export class ExecutorFactory {
       throw new Error(`Ephemeral oxigraph node ${node.id} missing storeId`);
     }
 
-    // Get or create ephemeral store
+    // Get or create. Reuse is within one run only: the engine has already
+    // namespaced the id by run, so another run's store is never found here.
     let store = oxigraphStoreManager.getEphemeralStore(node.backendConfig.storeId);
     if (!store) {
       store = oxigraphStoreManager.createEphemeralStore(node.backendConfig.storeId);

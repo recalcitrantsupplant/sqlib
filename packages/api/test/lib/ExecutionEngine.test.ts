@@ -735,7 +735,7 @@ describe('ExecutionEngine', () => {
         const result = await engine.execute(graph);
         expect(result.result).toEqual(mockResult);
         expect(materializeSpy).toHaveBeenCalledTimes(1);
-        expect(materializeSpy).toHaveBeenCalledWith('store-materialize', mockResult, 'nquads');
+        expect(materializeSpy).toHaveBeenCalledWith(expect.stringMatching(/:store-materialize$/), mockResult, 'nquads');
       } finally {
         materializeSpy.mockRestore();
       }
