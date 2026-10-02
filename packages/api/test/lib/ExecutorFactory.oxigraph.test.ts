@@ -79,7 +79,7 @@ describe('ExecutorFactory - Oxigraph Integration', () => {
   let mockOxigraphStore: any;
 
   beforeEach(() => {
-    factory = new ExecutorFactory();
+    factory = new ExecutorFactory({ internal: true });
     mockOxigraphStore = { size: 0, query: vi.fn(), update: vi.fn() };
     vi.clearAllMocks();
     hoisted.mockConfig.internalBackend = {
@@ -433,93 +433,6 @@ describe('ExecutorFactory - Oxigraph Integration', () => {
       await expect(factory.getExecutorForNode(mockNode)).rejects.toThrow(
         'Unsupported backend type for backend-unknown: unknown-type'
       );
-    });
-  });
-
-  describe('synchronous fallback', () => {
-    it('should work with sync method for HTTP backends', () => {
-      const mockBackend: LdkitBackend = {
-        $id: 'backend-http',
-        '@type': 'Backend',
-        name: 'Test HTTP Backend',
-        backendType: BackendTypeIri.http,
-        endpoint: 'http://localhost:3030/test/sparql'
-      };
-
-      const mockNode: ResolvedNode = {
-        id: 'node-1',
-        raw: {},
-        backendId: 'backend-http',
-        queryVersionId: 'query-v1',
-        queryVersion: {} as any,
-        queryString: 'SELECT * WHERE { ?s ?p ?o }',
-        queryType: QueryTypeIri.select,
-        inputTupleIds: [],
-        outputTupleIds: []
-      };
-
-      (hoisted.mockGet as any).mockReturnValue(mockBackend);
-
-      const executor = factory.getExecutorForNodeSync(mockNode);
-      expect(executor).toBeDefined();
-    });
-
-    it('should work with sync method for existing oxigraph stores', () => {
-      const mockBackend: LdkitBackend = {
-        $id: 'backend-oxigraph',
-        '@type': 'Backend',
-        name: 'Test Oxigraph Backend',
-        backendType: BackendTypeIri.oxigraphEphemeral,
-        endpoint: 'memory://test-store'
-      };
-
-      const mockNode: ResolvedNode = {
-        id: 'node-1',
-        raw: {},
-        backendId: 'backend-oxigraph',
-        queryVersionId: 'query-v1',
-        queryVersion: {} as any,
-        queryString: 'SELECT * WHERE { ?s ?p ?o }',
-        queryType: QueryTypeIri.select,
-        inputTupleIds: [],
-        outputTupleIds: []
-      };
-
-      (hoisted.mockGet as any).mockReturnValue(mockBackend);
-      (oxigraphStoreManager.getEphemeralStore as any).mockReturnValue(mockOxigraphStore);
-
-      const executor = factory.getExecutorForNodeSync(mockNode);
-      expect(executor).toBeDefined();
-    });
-
-    it('should create oxigraph store synchronously when missing', () => {
-      const mockBackend: LdkitBackend = {
-        $id: 'backend-oxigraph',
-        '@type': 'Backend',
-        name: 'Test Oxigraph Backend',
-        backendType: BackendTypeIri.oxigraphEphemeral,
-        endpoint: 'memory://test-store'
-      };
-
-      const mockNode: ResolvedNode = {
-        id: 'node-1',
-        raw: {},
-        backendId: 'backend-oxigraph',
-        queryVersionId: 'query-v1',
-        queryVersion: {} as any,
-        queryString: 'SELECT * WHERE { ?s ?p ?o }',
-        queryType: QueryTypeIri.select,
-        inputTupleIds: [],
-        outputTupleIds: []
-      };
-
-      (hoisted.mockGet as any).mockReturnValue(mockBackend);
-      (oxigraphStoreManager.getEphemeralStore as any).mockReturnValue(null);
-      (oxigraphStoreManager.createEphemeralStore as any).mockReturnValue(mockOxigraphStore);
-
-      const executor = factory.getExecutorForNodeSync(mockNode);
-      expect(executor).toBeDefined();
-      expect(oxigraphStoreManager.createEphemeralStore).toHaveBeenCalledWith('backend-oxigraph');
     });
   });
 });

@@ -175,6 +175,12 @@ const BODIES: Record<string, object> = {
     sql: "SELECT 'nobody runs this' AS name",
     limit: 1,
   },
+  'POST /etl-jobs/:id/versions': {
+    sql: "SELECT 'nobody runs this' AS name",
+    sparqlTemplate: 'CONSTRUCT { ?s ?p ?o } WHERE { VALUES (?name) { (UNDEF) } }',
+    backendId: 'urn:sqlib:backend:ephemeral',
+  },
+  'POST /etl-jobs/:id/execute': {},
   'POST /playground/etl/execute': {
     sql: "SELECT 'nobody runs this' AS name",
     sparqlTemplate: 'CONSTRUCT { ?s ?p ?o } WHERE { VALUES (?name) { (UNDEF) } }',
@@ -188,7 +194,7 @@ describe('the SQL-taking routes the ETL guide names', () => {
     const routes = await routesNamedInSqlSection();
 
     // A guard that enumerates nothing passes vacuously.
-    expect(routes.length).toBeGreaterThanOrEqual(2);
+    expect(routes.length).toBeGreaterThanOrEqual(4);
     expect(routes).toContain('POST /etl-jobs/preview');
     expect(routes).toContain('POST /playground/etl/execute');
 

@@ -33,6 +33,9 @@ import { OxigraphSparqlExecutor } from '../server/OxigraphSparqlExecutor.js';
 import type { ISparqlExecutor } from '../server/ISparqlExecutor.js';
 import { ArgumentSetService } from './ArgumentSetService.js';
 import { ExecutorFactory } from './orchestration/ExecutorFactory.js';
+import type { FastifyRequest } from 'fastify';
+import { isInternalExecution, type InternalExecution } from '../auth/executionScope.js';
+import { AuthorizationError, requireAdmin, requireLibraryMode, resolveOwningLibrary } from '../auth/enforce.js';
 import { ExecutionEngine, type ExecutionHooks, type ExecutionDataGraphInput } from './orchestration/ExecutionEngine.js';
 import { GraphBuilder } from './orchestration/GraphBuilder.js';
 import { SparqlQueryParser } from './parser.js';
@@ -208,6 +211,15 @@ export class TestNotRunnableError extends Error {
   }
 }
 
+/** An `AuthorizationError`, or an engine error wrapping one (`ExecutionNodeError`). */
+function isAuthorizationFailure(error: unknown): boolean {
+  for (let current = error, depth = 0; current && depth < 5; depth += 1) {
+    if (current instanceof AuthorizationError) return true;
+    current = (current as { cause?: unknown }).cause;
+  }
+  return false;
+}
+
 function get<T>(id: string | null | undefined, type: string): T | null {
   if (!id) return null;
   const entity = getCacheCoordinator().get(id) as (T & { '@type'?: string }) | null;
@@ -215,13 +227,39 @@ function get<T>(id: string | null | undefined, type: string): T | null {
   return entity;
 }
 
+/**
+ * Who a run executes for: the caller of a request, or sqlib itself (scripts and
+ * tests). A route always passes the request, so a test cannot reach a backend
+ * its runner could not reach directly.
+ */
+export type RunnerScope = { request: FastifyRequest } | InternalExecution;
+
 export class TestRunner {
   constructor(
+    private readonly scope: RunnerScope,
     private readonly argumentSetService = new ArgumentSetService(),
-    private readonly executorFactory = new ExecutorFactory(),
     private readonly parser = new SparqlQueryParser(),
     private readonly graphBuilder = new GraphBuilder(),
   ) {}
+
+  /**
+   * The executors this run may use, scoped to the caller.
+   *
+   * The subject is the saved entity being executed, so its library is both
+   * what the caller must hold `execute` on — a test in a library you can run
+   * may still name a subject in one you cannot — and the library whose curated
+   * backends the run may reach (`viaLibrary`).
+   */
+  private executorFactoryFor(subjectId: string): ExecutorFactory {
+    if (isInternalExecution(this.scope)) return new ExecutorFactory(this.scope);
+    const subject = getCacheCoordinator().get(subjectId) as { '@type'?: string } | null;
+    const subjectLibrary = resolveOwningLibrary(subject);
+    requireLibraryMode(this.scope.request, subjectLibrary, 'execute');
+    // An ETL job's test runs its DuckDB SQL, and running ETL SQL is
+    // administrator-only on every other route (docs/guides/etl.md).
+    if (subject?.['@type'] === 'EtlJob') requireAdmin(this.scope.request, 'running ETL SQL');
+    return new ExecutorFactory({ request: this.scope.request, viaLibrary: subjectLibrary });
+  }
 
   async runTestVersion(testVersionId: string): Promise<TestRunResult> {
     const testVersion = get<LdkitTestVersion>(testVersionId, 'TestVersion');
@@ -285,6 +323,7 @@ export class TestRunner {
         ? duckDbService.isSandboxed()
         : !testVersion.backend;
 
+    const executorFactory = this.executorFactoryFor(test.subject);
     const cases = effectiveCases(testVersion.$id);
     const results: TestCaseResult[] = [];
     let subjectVersionId: string | null = null;
@@ -330,7 +369,7 @@ export class TestRunner {
           continue;
         }
 
-        const invocation = await this.invoke(test.subject, subjectKind, testVersion, testCase);
+        const invocation = await this.invoke(test.subject, subjectKind, testVersion, testCase, executorFactory);
         subjectVersionId = invocation.subjectVersionId;
         produced = invocation.result;
 
@@ -345,6 +384,9 @@ export class TestRunner {
         // query — is a broken run rather than a red test, and says so once
         // instead of once per case.
         if (error instanceof TestNotRunnableError) throw error;
+        // Nor is a refusal: a backend the caller may not reach is a 403 for
+        // the run, not a red case that reads as the subject's fault.
+        if (isAuthorizationFailure(error)) throw error;
         // Anything else is the subject failing, which is a failing case: the
         // report is the point, and one exploding subject must not end a suite.
         const message = error instanceof Error ? error.message : String(error);
@@ -498,14 +540,15 @@ export class TestRunner {
     subjectKind: SubjectKind,
     testVersion: LdkitTestVersion,
     testCase: LdkitTestCase,
+    executorFactory: ExecutorFactory,
   ): Promise<{ result: unknown; subjectVersionId: string | null }> {
     switch (subjectKind) {
       case 'ruleSet':
         return this.invokeRuleSet(subjectId, testVersion, testCase);
       case 'query':
-        return this.invokeQuery(subjectId, testVersion, testCase);
+        return this.invokeQuery(subjectId, testVersion, testCase, executorFactory);
       case 'queryGroup':
-        return this.invokeQueryGroup(subjectId, testVersion, testCase);
+        return this.invokeQueryGroup(subjectId, testVersion, testCase, executorFactory);
       case 'etlJob':
         return this.invokeEtlJob(subjectId, testVersion, testCase);
     }
@@ -609,6 +652,7 @@ export class TestRunner {
     subjectId: string,
     testVersion: LdkitTestVersion,
     testCase: LdkitTestCase,
+    executorFactory: ExecutorFactory,
   ): Promise<{ result: unknown; subjectVersionId: string | null }> {
     const version = testVersion.subjectVersion
       ? get<LdkitQueryVersion>(testVersion.subjectVersion, 'QueryVersion')
@@ -619,7 +663,7 @@ export class TestRunner {
 
     let queryString = version.queryString;
     if (testCase.argumentSetVersion) {
-      const payload = await this.argumentSetService.exportRuntimePayload([testCase.argumentSetVersion]);
+      const payload = await this.argumentSetService.exportRuntimePayload([testCase.argumentSetVersion], this.scope);
       if (payload.limits.length > 0 || payload.offsets.length > 0) {
         queryString = this.parser.applyLimitOffsetParameters(queryString, payload.limits, payload.offsets);
       }
@@ -632,6 +676,7 @@ export class TestRunner {
     const result = await this.withQueryExecutor(
       testVersion,
       testCase,
+      executorFactory,
       executor => this.runQuery(executor, queryString, queryType),
     );
     return { result, subjectVersionId: version.$id };
@@ -670,6 +715,7 @@ export class TestRunner {
   private async withQueryExecutor<T>(
     testVersion: LdkitTestVersion,
     testCase: LdkitTestCase,
+    executorFactory: ExecutorFactory,
     run: (executor: ISparqlExecutor) => Promise<T>,
   ): Promise<T> {
     const dataGraph = this.resolveDataGraph(testCase);
@@ -682,7 +728,7 @@ export class TestRunner {
     }
 
     if (testVersion.backend) {
-      return run(await this.resolveExecutor(testVersion));
+      return run(await this.resolveExecutor(testVersion, executorFactory));
     }
 
     if (!dataGraph) {
@@ -711,6 +757,7 @@ export class TestRunner {
     subjectId: string,
     testVersion: LdkitTestVersion,
     testCase: LdkitTestCase,
+    executorFactory: ExecutorFactory,
   ): Promise<{ result: unknown; subjectVersionId: string | null }> {
     const version = testVersion.subjectVersion
       ? get<LdkitQueryGroupVersion>(testVersion.subjectVersion, 'QueryGroupVersion')
@@ -720,7 +767,7 @@ export class TestRunner {
     }
 
     const payload = testCase.argumentSetVersion
-      ? await this.argumentSetService.exportRuntimePayload([testCase.argumentSetVersion])
+      ? await this.argumentSetService.exportRuntimePayload([testCase.argumentSetVersion], this.scope)
       : null;
     const initialArgs = payload?.tupleList ?? [];
 
@@ -740,7 +787,7 @@ export class TestRunner {
 
     const hooks: ExecutionHooks = { onNodeFinish: () => {}, onNodeError: () => {} };
     const graph = this.graphBuilder.buildFromGroupVersion(version);
-    const { result } = await new ExecutionEngine().execute(graph, initialArgs, hooks, {
+    const { result } = await new ExecutionEngine(executorFactory).execute(graph, initialArgs, hooks, {
       dataGraphs,
       // Discarded until now: a group run refused numbers, so a set carrying
       // them ran without them and said nothing.
@@ -835,7 +882,7 @@ export class TestRunner {
   }
 
   /** The executor for the version's named backend. Only reached when one is named. */
-  private async resolveExecutor(testVersion: LdkitTestVersion) {
+  private async resolveExecutor(testVersion: LdkitTestVersion, executorFactory: ExecutorFactory) {
     if (!testVersion.backend) {
       // `withQueryExecutor` decides between backend and data graph and only
       // calls this on the backend branch, so reaching here means those two
@@ -853,6 +900,6 @@ export class TestRunner {
       inputTupleIds: [],
       outputTupleIds: [],
     };
-    return this.executorFactory.getExecutorForNode(node);
+    return executorFactory.getExecutorForNode(node);
   }
 }

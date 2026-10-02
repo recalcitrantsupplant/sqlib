@@ -253,7 +253,7 @@ export default async function argumentSetRoutes(fastify: FastifyInstance) {
         : reply.code(404).send({ error: `Argument set ${id} not found` });
     }
     try {
-      const payload = await service.exportAsExecutionPayload(resolved.versionId);
+      const payload = await service.exportAsExecutionPayload(resolved.versionId, { request });
       reply.header('Content-Type', SPARQL_ARGUMENTS_MEDIA_TYPE);
       return reply.send(payload);
     } catch (error) {
@@ -389,7 +389,7 @@ export default async function argumentSetRoutes(fastify: FastifyInstance) {
     // three: this answers with the bindings resolved to content, not metadata.
     requireEntityMode(request, { isPartOf: detail.isPartOf }, 'read');
     try {
-      const payload = await service.exportRuntimePayload([detail.id]);
+      const payload = await service.exportRuntimePayload([detail.id], { request });
       reply.header('Content-Type', SPARQL_ARGUMENTS_MEDIA_TYPE);
       return reply.send({
         arguments: payload.tupleList,

@@ -12,7 +12,7 @@ import { createDataBlockSchema, updateDataBlockSchema } from '@sparql-query-lib/
 import { createDataBlockVersion, annotateDataBlockVersion } from '../lib/DataBlockVersionWriter.js';
 import { ImmutableEntityError } from '../lib/immutability.js';
 import { registerEntityAuthGuard } from '../auth/entityGuard.js';
-import { filterReadable } from '../auth/enforce.js';
+import { filterReadable, requireContainmentWritable } from '../auth/enforce.js';
 
 export const dataBlockResponseSchema = {
   type: 'object',
@@ -235,6 +235,9 @@ export default async function (fastify: FastifyInstance) {
     if (!current) {
       return reply.status(404).send({ error: 'Not Found' });
     }
+
+    // Write on the destination library too, when the body moves it.
+    requireContainmentWritable(request, current, updates);
 
     const { valid, currentTag } = validateIfMatch(request, current);
     if (!valid) {

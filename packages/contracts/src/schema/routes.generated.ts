@@ -1641,6 +1641,11 @@ export const createBenchmarkExperimentSchema = {
         "type": "string",
         "nullable": true
       },
+      "isPartOf": {
+        "type": "string",
+        "format": "iri",
+        "nullable": true
+      },
       "currentVersion": {
         "type": "string",
         "format": "iri",
@@ -1712,6 +1717,11 @@ export const updateBenchmarkExperimentSchema = {
       },
       "status": {
         "type": "string",
+        "nullable": true
+      },
+      "isPartOf": {
+        "type": "string",
+        "format": "iri",
         "nullable": true
       },
       "currentVersion": {

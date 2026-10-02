@@ -8,6 +8,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
 import fastifyCors from '@fastify/cors';
+import { buildCorsOptions, resolveCorsPolicy } from '../../src/config/cors.js';
 import eventRoutes from '../../src/routes/events.js';
 import {
   changeEventFor,
@@ -225,8 +226,8 @@ describe('GET /events', () => {
     // A separate instance: the shared one has no CORS plugin, and what is under
     // test is precisely that the plugin's staged headers survive `writeHead`.
     const cors = Fastify({ logger: false });
-    // Mirrors the registration in src/index.ts.
-    await cors.register(fastifyCors, { origin: '*', credentials: true });
+    // Registered the way src/index.ts registers it, with the SPA's origin listed.
+    await cors.register(fastifyCors, buildCorsOptions(resolveCorsPolicy({ SQLIB_CORS_ORIGINS: 'http://localhost:3001' })));
     await cors.register(eventRoutes, { prefix: '/events' });
     const address = await cors.listen({ port: 0, host: '127.0.0.1' });
     const controller = new AbortController();
@@ -240,7 +241,7 @@ describe('GET /events', () => {
       expect(response.status).toBe(200);
       // Without this the browser discards a 200 it already received, and the
       // view goes back to being as stale as it was before the feed existed.
-      expect(response.headers.get('access-control-allow-origin')).toBe('*');
+      expect(response.headers.get('access-control-allow-origin')).toBe('http://localhost:3001');
       // The stream's own headers still win over the staged ones.
       expect(response.headers.get('content-type')).toContain('text/event-stream');
 

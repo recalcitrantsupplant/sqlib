@@ -1,5 +1,7 @@
+import type { FastifyRequest } from 'fastify';
 import { mintId } from './id.js';
 import { allocateVersion, setCurrentVersion } from './versionNumbering.js';
+import { AuthorizationError, requireLibraryMode, resolveOwningLibrary } from '../auth/enforce.js';
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
 import type { LdkitRuleSetVersion } from '../persistence/schemas/RuleSetVersionSchema.js';
 import { toLdkit } from '../persistence/utils/id-adapter.js';
@@ -38,8 +40,13 @@ export interface CreateRuleSetVersionInput {
  * Numbered and pointed at under the parent's version lock (`allocateVersion`),
  * so concurrent saves get consecutive numbers and the last to finish is current.
  */
-export async function createRuleSetVersion(ruleSetId: string, body: CreateRuleSetVersionInput): Promise<LdkitRuleSetVersion> {
-  return allocateVersion('RuleSetVersion', ruleSetId, (nextVersion) => createRuleSetVersionNumbered(ruleSetId, body, nextVersion));
+export async function createRuleSetVersion(
+  ruleSetId: string,
+  body: CreateRuleSetVersionInput,
+  authScope?: { request: FastifyRequest },
+): Promise<LdkitRuleSetVersion> {
+  return allocateVersion('RuleSetVersion', ruleSetId, (nextVersion) =>
+    createRuleSetVersionNumbered(ruleSetId, body, nextVersion, authScope));
 }
 
 /**
@@ -49,7 +56,12 @@ export async function createRuleSetVersion(ruleSetId: string, body: CreateRuleSe
  * IMPORTANT: hasRule and hasDataBlock must contain Version IDs (RuleVersion/DataBlockVersion),
  * not parent entity IDs (Rule/DataBlock). This ensures immutable execution.
  */
-async function createRuleSetVersionNumbered(ruleSetId: string, body: CreateRuleSetVersionInput, nextVersion: number): Promise<LdkitRuleSetVersion> {
+async function createRuleSetVersionNumbered(
+  ruleSetId: string,
+  body: CreateRuleSetVersionInput,
+  nextVersion: number,
+  authScope?: { request: FastifyRequest },
+): Promise<LdkitRuleSetVersion> {
   const cacheCoordinator = getCacheCoordinator();
   // Validate that provided IDs are version entities
   const ruleIds = Array.isArray(body.hasRule) ? body.hasRule : [];
@@ -86,6 +98,26 @@ async function createRuleSetVersionNumbered(ruleSetId: string, body: CreateRuleS
     }
     dataBlockVersions.push(entity as LdkitDataBlockVersion);
   }
+  /*
+   * A pinned rule or data block version need not live in the rule set's
+   * library, and executing the rule set runs it: composing another library's
+   * rules into your own set was a way to run them with only write here. The
+   * same check `GroupVersionWriter` applies to a group's nodes (issue #489),
+   * named per pin because one request may pin dozens.
+   */
+  if (authScope) {
+    for (const pinned of [...ruleVersions, ...dataBlockVersions]) {
+      try {
+        requireLibraryMode(authScope.request, resolveOwningLibrary(pinned), 'execute');
+      } catch (error) {
+        if (error instanceof AuthorizationError) {
+          throw new AuthorizationError(`${pinned.$id}: ${error.message}`, error.statusCode);
+        }
+        throw error;
+      }
+    }
+  }
+
   const invalidDataBlockVersions = dataBlockVersions.filter(db => db.grammarValid === false);
   if (invalidDataBlockVersions.length > 0 && !allowInvalid) {
     const ids = invalidDataBlockVersions.map(db => db.$id).join(', ');

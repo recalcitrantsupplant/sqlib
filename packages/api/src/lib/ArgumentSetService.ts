@@ -3,6 +3,7 @@ import { mintId } from './id.js';
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
 import { allocateVersion, setCurrentVersion } from './versionNumbering.js';
 import { requireLibraryMode, resolveOwningLibrary } from '../auth/enforce.js';
+import { isInternalExecution, type InternalExecution } from '../auth/executionScope.js';
 import { toLdkit } from '../persistence/utils/id-adapter.js';
 import { parseTupleContent, readStoredTupleContent } from './tupleContent.js';
 import { DataGraphContentError, resolveDataGraphInput } from './dataGraphInput.js';
@@ -600,7 +601,20 @@ export class ArgumentSetService {
     }
   }
 
-  async exportRuntimePayload(argumentSetIds: string[]): Promise<RuntimeArgumentPayload> {
+  /**
+   * The values the named argument sets bind, resolved to content.
+   *
+   * `scope` says who is asking. A caller must hold Read on each set's library:
+   * the ids arrive in request bodies (`/execute`, `/sparql`, `/substitute`, a
+   * test case), and a route's own guard checks the entity it runs, not the
+   * sets it is handed — so without this, execute on one library read another
+   * library's argument values into your query. `{ internal: true }` is sqlib's
+   * own reading, and has to be said.
+   */
+  async exportRuntimePayload(
+    argumentSetIds: string[],
+    scope: { request: FastifyRequest } | InternalExecution,
+  ): Promise<RuntimeArgumentPayload> {
     if (!argumentSetIds.length) {
       return {
         tupleMap: new Map(), tupleList: [], limits: [], offsets: [],
@@ -615,6 +629,9 @@ export class ArgumentSetService {
 
     for (const id of argumentSetIds) {
       const detail = await this.resolveVersionDetailForId(id);
+      if (!isInternalExecution(scope)) {
+        requireLibraryMode(scope.request, resolveOwningLibrary(getCacheCoordinator().get(detail.id)), 'read');
+      }
       for (const binding of detail.tupleBindings) {
         const vars = binding.variables;
         const head = { vars };
@@ -690,8 +707,8 @@ export class ArgumentSetService {
     };
   }
 
-  async exportAsExecutionPayload(argumentSetId: string) {
-    const payload = await this.exportRuntimePayload([argumentSetId]);
+  async exportAsExecutionPayload(argumentSetId: string, scope: { request: FastifyRequest } | InternalExecution) {
+    const payload = await this.exportRuntimePayload([argumentSetId], scope);
     return {
       arguments: payload.tupleList,
       limits: payload.limits,

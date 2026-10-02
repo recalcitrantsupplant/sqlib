@@ -179,7 +179,7 @@ Containment is `sdo:isPartOf`. What the predicate points at differs by kind:
 | `TestCase`, `TestCaseDataGraph` | Their `TestVersion` |
 | `Patch` | The `Backend` whose data it describes — containment and target in one predicate, so read access follows the backend's path |
 | `Backend` | Nothing. Backends are account-level and shared by every library |
-| `BenchmarkExperiment` | Nothing in its schema. It is reached through the library's benchmark listing rather than through containment |
+| `BenchmarkExperiment` | A `Library`. Required on create; an experiment stored before it existed has none and is administrator-only until `scripts/backfill-benchmark-ownership.ts` assigns one |
 
 A library is the unit you export, import and copy, and the unit a grant applies
 to. It may name a `defaultBackend` and a list of `allowedBackends`, which is

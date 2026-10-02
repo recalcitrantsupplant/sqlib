@@ -32,7 +32,12 @@ import type { ISparqlExecutor } from '../server/ISparqlExecutor.js';
 import type { ArgumentSet } from './orchestration/types.js';
 import type { FastifyRequest } from 'fastify';
 import { resolveOwningLibrary } from '../auth/enforce.js';
-import { assertBackendAccess, type ExecutionAuthScope } from '../auth/executionScope.js';
+import {
+  assertBackendAccess,
+  isInternalExecution,
+  type ExecutionAuthScope,
+  type InternalExecution,
+} from '../auth/executionScope.js';
 
 /**
  * The lexical form of a DuckDB value for the literal it is mapped to.
@@ -985,16 +990,17 @@ export class EtlService {
   /**
    * Execute an ETL job end-to-end.
    *
-   * `authScope` carries the caller the run is for. It is optional the way
-   * `materializeTupleSetVersionFromEtl`'s is — an internal run (a test fixture,
-   * a scheduled job) is sqlib acting as itself — but the route that serves
-   * `POST /etl-jobs/:id/execute` always passes one, because a run started by a
-   * caller must reach only what that caller may.
+   * `authScope` carries the caller the run is for. An internal run (a test
+   * fixture, a scheduled job) says so with `{ internal: true }` and is sqlib
+   * acting as itself; the route that serves `POST /etl-jobs/:id/execute`
+   * passes the request, because a run started by a caller must reach only
+   * what that caller may. Required, so neither is the result of leaving the
+   * argument out.
    */
   async executeEtlJob(
     etlJobId: string,
     config: ExecutionInput,
-    authScope?: { request: FastifyRequest },
+    authScope: { request: FastifyRequest } | InternalExecution,
   ): Promise<ExecutionResult> {
     const cacheCoordinator = getCacheCoordinator();
 
@@ -1053,9 +1059,9 @@ export class EtlService {
      * `materializeTupleSetVersionFromEtl` opens its record only after every
      * caller mistake has been answered.
      */
-    const executionScope: ExecutionAuthScope | undefined = authScope
-      ? { request: authScope.request, viaLibrary: resolveOwningLibrary(etlJobVersion) }
-      : undefined;
+    const executionScope: ExecutionAuthScope | undefined = isInternalExecution(authScope)
+      ? undefined
+      : { request: authScope.request, viaLibrary: resolveOwningLibrary(etlJobVersion) };
     assertBackendAccess(executionScope, etlJobVersion.backendId);
 
     // 3. Open the run's record in the job's log (status: 'running'). Shared
@@ -1085,7 +1091,7 @@ export class EtlService {
        * `assertBackendAccess` reads as sqlib acting as itself — every backend in
        * the deployment, the entity store's own included.
        */
-      const executorFactory = new ExecutorFactory(executionScope);
+      const executorFactory = new ExecutorFactory(executionScope ?? { internal: true });
       const executor = await executorFactory.getExecutorForBackendId(etlJobVersion.backendId);
 
       // 6. Chunk loop, over one streamed execution of the source query (#201)

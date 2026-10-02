@@ -487,7 +487,7 @@ describe('Query group routes', () => {
     });
   });
 
-  it('POST /query-groups/:id/v surfaces writer failures', async () => {
+  it('POST /query-groups/:id/v reports writer failures without echoing them', async () => {
     hoisted.get.mockReturnValue({ $id: 'urn:group:1', '@type': 'QueryGroup' });
     hoisted.createGroupVersionFlat.mockRejectedValue(new Error('writer boom'));
 
@@ -500,7 +500,9 @@ describe('Query group routes', () => {
     });
 
     expect(res.statusCode).toBe(500);
-    expect(res.json().error).toBe('writer boom');
+    // The writer's message stays in the log: an unanticipated error says
+    // whatever the layer that threw it chose to, which is not the caller's.
+    expect(res.json()).toEqual({ error: 'Failed to create query group version' });
   });
 
   it('POST /query-groups/:id/v preserves error envelope when expansion fails', async () => {
@@ -525,7 +527,7 @@ describe('Query group routes', () => {
       groupId: 'urn:group:1',
       version: 1,
       '@type': 'QueryGroupVersion',
-    });
+    }, { request: expect.anything() });
     expect(res.statusCode).toBe(500);
     expect(res.json()).toEqual({ error: 'Failed to create query group version' });
   });

@@ -24,10 +24,31 @@ export interface ExecutionAuthScope {
 }
 
 /**
+ * sqlib acting as itself, asked for by name.
+ *
+ * `ExecutorFactory` takes this or an `ExecutionAuthScope` and nothing else, so
+ * server identity is never the result of a forgotten argument. The callers
+ * entitled to it do sqlib's own work, never a caller's:
+ *
+ * - `persistence/EntityStore.ts` and `auth/persistence.ts`: entity and auth
+ *   graph storage;
+ * - `lib/system-queries/SystemQueryRunner.ts`: the system library's queries;
+ * - `TestRunner` / `BenchmarkRunner` constructed with it, which only scripts
+ *   and tests do — the routes pass the request.
+ */
+export interface InternalExecution {
+  internal: true;
+}
+
+export function isInternalExecution(scope: ExecutionAuthScope | InternalExecution): scope is InternalExecution {
+  return (scope as InternalExecution).internal === true;
+}
+
+/**
  * Throws unless the scope's caller may reach this backend.
  *
- * An absent scope means sqlib is acting as itself — entity persistence, system
- * queries, the auth graph — and no caller grant applies.
+ * An absent scope means sqlib is acting as itself (see `InternalExecution`) and
+ * no caller grant applies.
  */
 export function assertBackendAccess(
   scope: ExecutionAuthScope | undefined,

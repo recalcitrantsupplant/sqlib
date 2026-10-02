@@ -54,6 +54,7 @@ import { useFeatureFlags } from '@/composables/useFeatureFlags';
 import { useApiClient } from '@/composables/useApiClient';
 import { useCallableDrafts, UNASSIGNED_LIBRARY_ID } from '@/composables/useCallableDrafts';
 import { useScratchRecord } from '@/composables/useScratchRecord';
+import { useActiveLibrary } from '@/composables/useActiveLibrary';
 import BenchmarkPlanSidebar from '@/components/benchmarks/BenchmarkPlanSidebar.vue';
 import BenchmarkCaseEditor from '@/components/benchmarks/BenchmarkCaseEditor.vue';
 import BenchmarkPlanDetail from '@/components/benchmarks/BenchmarkPlanDetail.vue';
@@ -117,6 +118,7 @@ const emit = defineEmits<{
 }>();
 
 const store = useBenchmarksStore();
+const { activeLibraryId } = useActiveLibrary();
 const executionStore = useBenchmarkExecution();
 const backendsStore = useBackendsStore();
 const queriesStore = useQueriesStore();
@@ -275,8 +277,8 @@ function persistDraft() {
   const existing = draftsStore.draftFor(id);
   draftsStore.save({
     id: existing?.id ?? `urn:ui-temp:draft-of-${id}`,
-    // Experiments are account-level rather than library-scoped (sections.ts),
-    // so there is no owning library for the record to carry.
+    // The Bench list is not library-scoped (sections.ts), so the draft record
+    // carries no library; the owning one is chosen when the experiment is saved.
     libraryId: UNASSIGNED_LIBRARY_ID,
     type: 'query',
     kind: 'draft',
@@ -1285,6 +1287,13 @@ async function save() {
 async function saveScratch() {
   const name = experimentName.value.trim();
   const scratchRecordId = props.scratchId;
+  // An experiment belongs to a library, which decides who may see and run it;
+  // a scratch one goes into the library the rail has selected.
+  const libraryId = activeLibraryId.value;
+  if (!libraryId) {
+    toast.error('Select a library before saving');
+    return;
+  }
 
   let created;
   try {
@@ -1292,6 +1301,7 @@ async function saveScratch() {
       name,
       description: experimentDescription.value.trim() || null,
       status: experimentStatus.value.trim() || null,
+      isPartOf: libraryId,
     });
   } catch (error: unknown) {
     console.error('[BenchmarkWorkArea] Failed to save experiment:', error);
@@ -1413,8 +1423,8 @@ const detailsProps = computed(() => ({
   isScratch: isScratch.value,
   entityId: isScratch.value ? null : (props.experimentId || null),
   entityNoun: 'benchmark',
-  // An experiment is account-level rather than library-scoped, and a tag's
-  // library must equal the tagged entity's (tags doc §4.5), so there is no Tags
+  // Tags are not offered on experiments (a tag's library must equal the tagged
+  // entity's, tags doc §4.5, and experiments carry none), so there is no Tags
   // row to draw. It names no backend of its own either — the plan's backend
   // axis is the set it multiplies by — and nothing detects a signature here.
   showBackend: false,

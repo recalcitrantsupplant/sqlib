@@ -37,7 +37,7 @@ export interface SystemQueryRunnerResult {
 
 export class SystemQueryRunner {
   private readonly parser = new SparqlQueryParser();
-  private readonly executorFactory = new ExecutorFactory();
+  private readonly executorFactory = new ExecutorFactory({ internal: true });
 
   async execute(key: SystemQueryKey, options: SystemQueryRunnerOptions = {}): Promise<SystemQueryRunnerResult> {
     const definition = SystemQueryCatalog.getDefinition(key);

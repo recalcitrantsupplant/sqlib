@@ -59,7 +59,7 @@ import {
   datablockSchema,
 } from '@sparql-query-lib/contracts/schema';
 import { registerEntityAuthGuard } from '../auth/entityGuard.js';
-import { filterReadable, requireEntityMode } from '../auth/enforce.js';
+import { AuthorizationError, filterReadable, requireEntityMode } from '../auth/enforce.js';
 import { DATA_GRAPH_FORMATS } from '../lib/dataGraphContent.js';
 import { DataGraphContentError, resolveDataGraphInput, type ResolvedDataGraph } from '../lib/dataGraphInput.js';
 import { TupleSeedInputError, resolveTupleSeedInput } from '../lib/tupleSeedInput.js';
@@ -525,11 +525,12 @@ export default async function (fastify: FastifyInstance) {
         hasDataBlock: body.hasDataBlock ?? [],
         immutable: body.immutable ?? undefined,
         allowInvalidSave: body.allowInvalidSave ?? undefined,
-      });
+      }, { request });
       const expanded = await expandRuleSetVersion(created);
       setEntityConcurrencyHeaders(reply, created);
       return reply.status(201).send(expanded);
     } catch (error) {
+      if (error instanceof AuthorizationError) throw error;
       const message = error instanceof Error ? error.message : String(error);
       return reply.status(400).send({ error: message });
     }
@@ -1223,7 +1224,7 @@ export default async function (fastify: FastifyInstance) {
       hasDataBlock,
       tupleSeeds: seedDocument,
       tuplesEnabled: tuples,
-    });
+    }, { request });
 
     return reply.send({
       ruleSetVersionId: newVersion.$id,

@@ -44,6 +44,7 @@ const benchmarkExperimentShape = {
   name: z.string().min(1, 'Name is required'),
   description: nullableString,
   status: nullableString,
+  isPartOf: optionalIriString,
   currentVersion: optionalIriString,
   currentVersionNumber: nullableInteger,
   dateCreated: isoDateTime,
@@ -151,10 +152,11 @@ export const benchmarkExperimentCreateSchema = z.object({
   name: benchmarkExperimentShape.name,
   description: benchmarkExperimentShape.description,
   status: benchmarkExperimentShape.status,
+  isPartOf: iriString,
   id: iriString.optional(),
 }).strict();
 // BenchmarkExperiment update schema
-export const benchmarkExperimentUpdateSchema = z.object(benchmarkExperimentShape).partial().omit({ id: true, currentVersionNumber: true, dateCreated: true, dateModified: true }).strict()
+export const benchmarkExperimentUpdateSchema = z.object(benchmarkExperimentShape).partial().omit({ id: true, isPartOf: true, currentVersionNumber: true, dateCreated: true, dateModified: true }).strict()
   .refine((data) => Object.keys(data).length > 0, {
     message: 'Update must include at least one field',
     path: [],

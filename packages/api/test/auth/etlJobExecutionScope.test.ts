@@ -115,6 +115,12 @@ const runner = libraryModes('read', 'execute');
 /** Every mode on the one library — and so, on no other. */
 const owner = libraryModes('read', 'write', 'execute', 'delete', 'control');
 
+/**
+ * Running ETL SQL is administrator-only, so the body checks below are asked of
+ * an administrator: they are about what the run may reach once admitted.
+ */
+const administrator: AuthContext = { ...runner, grants: { ...runner.grants, admin: true } };
+
 /** What `disabled` mode hands every request: no principal, full access. */
 const authDisabled: AuthContext = {
   ...stranger,
@@ -224,10 +230,18 @@ describe('executing a job', () => {
     expect(store.runsBegun).toEqual([]);
   });
 
+  it('takes administrator, not execute: running stored SQL is running SQL', async () => {
+    const refused = await inject(runner, 'POST', `/etl-jobs/${short(JOB)}/execute`, {});
+
+    expect(refused.statusCode).toBe(403);
+    expect(refused.json().error).toMatch(/administrator/i);
+    expect(store.runsBegun).toEqual([]);
+  });
+
   it('refuses a version of another job named in the body', async () => {
     // Execute on this caller's own library, aimed at a version stored in one
     // it holds nothing on: before this it ran that library's SQL and template.
-    const response = await inject(runner, 'POST', `/etl-jobs/${short(JOB)}/execute`, {
+    const response = await inject(administrator, 'POST', `/etl-jobs/${short(JOB)}/execute`, {
       etlJobVersionId: short(OTHER_VERSION),
     });
 
@@ -237,29 +251,12 @@ describe('executing a job', () => {
   });
 
   it('refuses a column mapping version belonging to another job\'s version', async () => {
-    const response = await inject(runner, 'POST', `/etl-jobs/${short(JOB)}/execute`, {
+    const response = await inject(administrator, 'POST', `/etl-jobs/${short(JOB)}/execute`, {
       columnMappingVersionId: short(OTHER_MAPPING_VERSION),
     });
 
     expect(response.statusCode).toBe(400);
     expect(response.json().error).toContain('does not map ETL job version');
-    expect(store.runsBegun).toEqual([]);
-  });
-
-  it('refuses a backend the caller may not use, and records no run', async () => {
-    // The version's backend is reached through the caller's own grants or
-    // through its library's curated list — this caller holds `use` on
-    // `BACKEND` alone, so a version naming another one is refused before the
-    // log opens.
-    store.entities.set(VERSION, {
-      ...store.entities.get(VERSION)!,
-      backendId: OTHER_BACKEND,
-    });
-
-    const response = await inject(runner, 'POST', `/etl-jobs/${short(JOB)}/execute`, {});
-
-    expect(response.statusCode).toBe(403);
-    expect(response.json().error).toContain(OTHER_BACKEND);
     expect(store.runsBegun).toEqual([]);
   });
 
@@ -277,12 +274,12 @@ describe('executing a job', () => {
     expect(store.runsBegun).toEqual([]);
   });
 
-  it('lets an execute-holding caller through to the run itself', async () => {
+  it('lets an administrator through to the run itself', async () => {
     // The backend is granted and the version is the job's own, so this gets
     // past every check above and fails on the backend not being stored — which
     // is the run, not the decision. The opened run is the proof: the log is
     // only reached once the request has been allowed.
-    const response = await inject(runner, 'POST', `/etl-jobs/${short(JOB)}/execute`, {});
+    const response = await inject(administrator, 'POST', `/etl-jobs/${short(JOB)}/execute`, {});
 
     expect(response.statusCode).toBe(404);
     expect(response.json().error).toContain('Backend not found');

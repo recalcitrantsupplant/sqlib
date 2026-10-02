@@ -23,6 +23,13 @@ WP that depends on one names it.
 
 ## Phase 1 — Authorization closure
 
+Status: done, WP1–WP7, on `claude/phase-1-changes-2578nw`. D2 was decided
+as an owning library for benchmark experiments, and D3 as refusing UPDATE over
+GET with no flag. What changed from the plan: ETL execution is administrator-only
+through handler checks rather than `adminSuffixes`, because suffixes match every
+method. Caller-supplied ids stay allowed on create, since the coordinator now
+refuses any id already in use under any type.
+
 ### WP1 — Refuse create on an existing id · S · deps: none · closes S1, part of D9
 
 **Goal.** No create path can overwrite an entity that already exists, in any

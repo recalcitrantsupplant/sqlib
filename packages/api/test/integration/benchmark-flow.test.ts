@@ -248,6 +248,9 @@ describe('Benchmark flow integration', () => {
       dateModified: '2026-01-01T00:00:00.000Z',
     };
 
+    const libraryId = 'urn:sqlib:library:e2e';
+    hoisted.entities.set(libraryId, { $id: libraryId, '@type': 'Library', name: 'E2E Library' });
+    addToTypeIndex('Library', libraryId);
     hoisted.entities.set(backendId, backendEntity);
     addToTypeIndex('Backend', backendId);
     hoisted.entities.set(queryVersionId, queryVersionEntity);
@@ -260,6 +263,7 @@ describe('Benchmark flow integration', () => {
         id: experimentId,
         name: 'E2E Benchmark',
         status: 'Active',
+        isPartOf: libraryId,
       },
     });
     expect(experimentRes.statusCode).toBe(201);

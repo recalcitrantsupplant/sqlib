@@ -25,7 +25,7 @@ import {
 } from '../lib/groupVersionReferences.js';
 import { validateIfMatch, setEntityConcurrencyHeaders, typedRoute, reposRoute, withReposHandler } from './route-helpers.js';
 import { ArgumentSetService } from '../lib/ArgumentSetService.js';
-import { AuthorizationError, filterReadable, requireEntityMode } from '../auth/enforce.js';
+import { AuthorizationError, filterReadable, requireContainmentWritable, requireEntityMode } from '../auth/enforce.js';
 import {
   argumentSetBodySchema,
   argumentSetListResponseSchema,
@@ -102,6 +102,26 @@ function unwrapGroupVersionPatch(payload: unknown): Record<string, unknown> {
   return { ...rest, ...wrapped };
 }
 
+/**
+ * The 500 a handler here falls back to once nothing more specific applies.
+ *
+ * Logged in full and answered with a fixed sentence. The message of an error
+ * nobody anticipated is whatever the layer that threw it chose to say — a
+ * store error can carry a SPARQL fragment, an IRI in another library, a file
+ * path — and a response body is the wrong place to find out which. The log
+ * keeps what an operator needs; the caller learns only that it failed.
+ *
+ * A refusal is re-thrown rather than answered. These catch-alls wrap handlers
+ * that now call `requireEntityMode` themselves, and flattening the
+ * `AuthorizationError` into a 500 would report "the server broke" where the
+ * answer is a 403 the error handler gives.
+ */
+function sendInternalError(reply: FastifyReply, error: unknown, failure: string): FastifyReply {
+  if (error instanceof AuthorizationError) throw error;
+  console.error(`${failure}:`, error);
+  return reply.status(500).send({ error: failure });
+}
+
 export default async function (fastify: FastifyInstance) {
   registerEntityAuthGuard(fastify, { executeSuffixes: ['/execute', '/execute/stream', '/run'], exemptSuffixes: ['/preview', '/preview/normalize'] });
 
@@ -120,13 +140,7 @@ export default async function (fastify: FastifyInstance) {
       const items = cache.getByType('QueryGroup') as LdkitQueryGroup[];
       return reply.send(filterReadable(request, items).map(i => toRestApi(i)));
     } catch (e__u: unknown) {
-      const e = toError(e__u);
-      console.error('Error fetching query groups:', e);
-      return reply.status(500).send({
-        error: 'Failed to fetch query groups',
-        details: e.message,
-        stack: process.env.NODE_ENV === 'development' ? e.stack : undefined
-      });
+      return sendInternalError(reply, e__u, 'Failed to fetch query groups');
     }
   }));
 
@@ -171,13 +185,7 @@ export default async function (fastify: FastifyInstance) {
       if (e__u instanceof EntityExistsError) {
         return reply.status(409).send({ error: e__u.message });
       }
-      const e = toError(e__u);
-      console.error('Error creating query group:', e);
-      return reply.status(500).send({
-        error: 'Failed to create query group',
-        details: e.message,
-        stack: process.env.NODE_ENV === 'development' ? e.stack : undefined
-      });
+      return sendInternalError(reply, e__u, 'Failed to create query group');
     }
   }));
 
@@ -191,8 +199,7 @@ export default async function (fastify: FastifyInstance) {
       setEntityConcurrencyHeaders(reply, item);
       return reply.send(base);
     } catch (e__u: unknown) {
-      const e = toError(e__u);
-      return reply.status(500).send({ error: e.message });
+      return sendInternalError(reply, e__u, 'Failed to fetch query group');
     }
   }));
 
@@ -217,6 +224,9 @@ export default async function (fastify: FastifyInstance) {
           return reply.status(400).send({ error: 'Query groups can only belong to libraries' });
         }
       }
+
+      // Write on the destination library too, when the body moves it.
+      requireContainmentWritable(request, current, updates);
 
       const { valid, currentTag } = validateIfMatch(request, current);
       if (!valid) {
@@ -248,8 +258,7 @@ export default async function (fastify: FastifyInstance) {
       setEntityConcurrencyHeaders(reply, updated);
       return reply.send(toRestApi(updated));
     } catch (e__u: unknown) {
-      const e = toError(e__u);
-      return reply.status(500).send({ error: e.message });
+      return sendInternalError(reply, e__u, 'Failed to update query group');
     }
   }));
 
@@ -292,22 +301,41 @@ export default async function (fastify: FastifyInstance) {
       await cache.delete(id, 'QueryGroup');
       return reply.status(204).send();
     } catch (e__u: unknown) {
-      const e = toError(e__u);
-      return reply.status(500).send({ error: e.message });
+      return sendInternalError(reply, e__u, 'Failed to delete query group');
     }
   }));
 
-  // GET /query-groups/:id/v — list versions
+  /*
+   * GET /query-groups/:id/v — list versions
+   *
+   * This route, the version GET and PATCH, and `/validate` match
+   * `QueryGroupVersion` on `isPartOf` and never look the group in the path up,
+   * so the plugin guard's premise does not hold for them — the gap
+   * `queries.ts` documents on its own version routes. The guard resolves `:id`
+   * and abstains on a miss, because "a miss is a 404 the handler will
+   * produce"; here a miss is a 200 over rows nobody checked.
+   *
+   * Not known to be reachable through this API today: `DELETE /:id` cascades
+   * the versions before the group, and a group whose library is gone is
+   * refused by the guard's dangling-container branch. The checks are here so
+   * that stays true when either of those changes, rather than resting on the
+   * DELETE handler's cascade. Each is on the version, not the path's
+   * `:id`: a version whose group no longer resolves has no library, and
+   * `requireLibraryMode(null)` refuses it to everyone below admin.
+   *
+   * `filterReadable` rather than a 404 for the listing, as on the query side:
+   * an unknown id keeps answering with an empty list rather than gaining a
+   * status code that says whether it ever existed.
+   */
   fastify.get('/:id/v', ...typedRoute(listQueryGroupVersionsForGroupSchema, async (request, reply) => {
     try {
       const { id } = request.params;
       const versions = (cache.getByType('QueryGroupVersion') as LdkitQueryGroupVersion[])
         .filter(v => v.isPartOf === id)
         .sort(byVersionAsc);
-      return reply.send(versions.map(v => toRestApi(v)));
+      return reply.send(filterReadable(request, versions).map(v => toRestApi(v)));
     } catch (e__u: unknown) {
-      const e = toError(e__u);
-      return reply.status(500).send({ error: e.message });
+      return sendInternalError(reply, e__u, 'Failed to list query group versions');
     }
   }));
 
@@ -319,6 +347,10 @@ export default async function (fastify: FastifyInstance) {
         const { id: groupId } = request.params;
         const parent = cache.get(groupId) as LdkitQueryGroup | null;
         if (!parent) return reply.status(404).send({ error: 'QueryGroup not found' });
+        // The guard resolved this same id, so this restates its decision; kept
+        // so the handler does not depend on which ids the guard happens to see,
+        // as on the query route beside it.
+        requireEntityMode(request, parent, 'write');
 
         const body = request.body;
 
@@ -339,7 +371,9 @@ export default async function (fastify: FastifyInstance) {
 
         try {
           const { expandGroupVersionDetailed } = await import('../lib/GraphResolver.js');
-          const expanded = await expandGroupVersionDetailed(created);
+          // Composing needed Execute on each leg's library, which is not Read on
+          // it, so the author is not owed the text of every query they wired in.
+          const expanded = await expandGroupVersionDetailed(created, { request });
 
           const payload = ('inputTuples' in expanded)
             ? expanded
@@ -351,9 +385,8 @@ export default async function (fastify: FastifyInstance) {
           const result = reply.status(201).send(responseBody);
           return result;
         } catch (expansionError__u: unknown) {
-      const expansionError = toError(expansionError__u);
-          // If expansion fails, return specific error message
-          return reply.status(500).send({ error: 'Failed to create query group version' });
+          // The version exists by now; only the echo of it failed.
+          return sendInternalError(reply, expansionError__u, 'Failed to create query group version');
         }
       } catch (e__u: unknown) {
       const e = toError(e__u);
@@ -371,8 +404,7 @@ export default async function (fastify: FastifyInstance) {
          * flattening this into its catch-all 400.
          */
         if (e__u instanceof AuthorizationError) throw e__u;
-        // If createGroupVersionFlat fails, bubble up the original error message
-        return reply.status(500).send({ error: e.message });
+        return sendInternalError(reply, e__u, 'Failed to create query group version');
       }
     }));
 
@@ -384,16 +416,26 @@ export default async function (fastify: FastifyInstance) {
       const match = (cache.getByType('QueryGroupVersion') as LdkitQueryGroupVersion[])
         .find(v => v.isPartOf === groupId && Number(v.version) === targetVer);
       if (!match) return reply.status(404).send({ error: 'Not Found' });
+      requireEntityMode(request, match, 'read');
       const detailed = await expandGroupVersion(match);
       // For "flat everything", also include typed arrays and related entities
       try {
         const { expandGroupVersionDetailed } = await import('../lib/GraphResolver.js');
-        const rich = await expandGroupVersionDetailed(match);
+        const rich = await expandGroupVersionDetailed(match, { request });
 
-        // Build iriMap with query version IDs mapped to query names
+        /*
+         * Build iriMap with query version IDs mapped to query names.
+         *
+         * Over the versions the caller may read, not every version in the
+         * deployment: the map is keyed by IRI rather than by this group's
+         * nodes, so unfiltered it named every query in every library to anyone
+         * who could open one group version. A node whose version is withheld
+         * falls back to the canvas's generic label, which is what it shows for
+         * any version it cannot name.
+         */
         const iriMap: Record<string, string> = {};
         const allQueries = cache.getByType('Query') as LdkitQuery[];
-        const allQueryVersions = cache.getByType('QueryVersion') as LdkitQueryVersion[];
+        const allQueryVersions = filterReadable(request, cache.getByType('QueryVersion') as LdkitQueryVersion[]);
 
         // Map each query version ID to its query's name
         for (const queryVersion of allQueryVersions) {
@@ -412,7 +454,7 @@ export default async function (fastify: FastifyInstance) {
          * query node beside it kept its name.
          */
         const allRuleSets = cache.getByType('RuleSet') as LdkitRuleSet[];
-        const allRuleSetVersions = cache.getByType('RuleSetVersion') as LdkitRuleSetVersion[];
+        const allRuleSetVersions = filterReadable(request, cache.getByType('RuleSetVersion') as LdkitRuleSetVersion[]);
         for (const ruleSetVersion of allRuleSetVersions) {
           const ruleSet = allRuleSets.find(r => r.$id === ruleSetVersion.isPartOf);
           if (ruleSet && ruleSet.name) {
@@ -427,8 +469,7 @@ export default async function (fastify: FastifyInstance) {
         return reply.send(detailed);
       }
     } catch (e__u: unknown) {
-      const e = toError(e__u);
-      return reply.status(500).send({ error: e.message });
+      return sendInternalError(reply, e__u, 'Failed to fetch query group version');
     }
   }));
 
@@ -449,6 +490,7 @@ export default async function (fastify: FastifyInstance) {
       const existing = (cache.getByType('QueryGroupVersion') as LdkitQueryGroupVersion[])
         .find(v => v.isPartOf === groupId && Number(v.version) === targetVer);
       if (!existing) return reply.status(404).send({ error: 'Query group version not found' });
+      requireEntityMode(request, existing, 'write');
 
       const { annotations, rejection } = classifyVersionPatch(unwrapGroupVersionPatch(request.body), {
         ignore: ['dateModified'],
@@ -459,7 +501,7 @@ export default async function (fastify: FastifyInstance) {
       if (!valid) {
         try {
           const { expandGroupVersionDetailed } = await import('../lib/GraphResolver.js');
-          const rich = await expandGroupVersionDetailed(existing);
+          const rich = await expandGroupVersionDetailed(existing, { request });
           return reply.status(412).send({
             error: 'Precondition Failed',
             expected: currentTag,
@@ -484,7 +526,7 @@ export default async function (fastify: FastifyInstance) {
       // Return expanded envelope like GET
       try {
         const { expandGroupVersionDetailed } = await import('../lib/GraphResolver.js');
-        const rich = await expandGroupVersionDetailed(updated);
+        const rich = await expandGroupVersionDetailed(updated, { request });
         setEntityConcurrencyHeaders(reply, updated);
         return reply.send(rich);
       } catch {
@@ -493,8 +535,7 @@ export default async function (fastify: FastifyInstance) {
         return reply.send(detailed);
       }
     } catch (e__u: unknown) {
-      const e = toError(e__u);
-      return reply.status(500).send({ error: e.message });
+      return sendInternalError(reply, e__u, 'Failed to update query group version');
     }
   }));
 
@@ -507,6 +548,7 @@ export default async function (fastify: FastifyInstance) {
       const qgv = (cache.getByType('QueryGroupVersion') as LdkitQueryGroupVersion[])
         .find(v => v.isPartOf === groupId && Number(v.version) === targetVer);
       if (!qgv) return reply.status(404).send({ error: 'Query group version not found' });
+      requireEntityMode(request, qgv, 'read');
 
       type ValidationIssue = {
         level: 'error' | 'warning';
@@ -716,8 +758,7 @@ export default async function (fastify: FastifyInstance) {
         issues
       });
     } catch (e__u: unknown) {
-      const e = toError(e__u);
-      return reply.status(500).send({ error: e.message });
+      return sendInternalError(reply, e__u, 'Failed to validate query group version');
     }
   }));
 

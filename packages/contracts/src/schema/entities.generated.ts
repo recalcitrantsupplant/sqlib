@@ -634,6 +634,11 @@ export const benchmarkexperimentSchema = {
       "type": "string",
       "nullable": true
     },
+    "isPartOf": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true
+    },
     "currentVersion": {
       "type": "string",
       "format": "iri",
@@ -3782,6 +3787,7 @@ export interface BenchmarkExperimentRestApi {
   name: string;
   description?: string | null;
   status?: string | null;
+  isPartOf?: string | null;
   currentVersion?: string | null;
   currentVersionNumber?: number | null;
   dateCreated?: string | null;

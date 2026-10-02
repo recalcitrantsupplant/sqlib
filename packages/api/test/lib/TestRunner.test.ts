@@ -174,7 +174,7 @@ describe('TestRunner — rule set subjects', () => {
       dataGraphVersion: dataGraph('@prefix : <http://ex/> . :a :edge :b .'),
     }]);
 
-    const result = await new TestRunner().runTestVersion(testVersionId);
+    const result = await new TestRunner({ internal: true }).runTestVersion(testVersionId);
     expect(result.passed).toBe(true);
     expect(result.message).toBe('');
     expect(result.subjectVersionId).toBe('urn:test:rule-set-version:1');
@@ -187,7 +187,7 @@ describe('TestRunner — rule set subjects', () => {
       dataGraphVersion: dataGraph('@prefix : <http://ex/> . :a :edge :b .'),
     }]);
 
-    const result = await new TestRunner().runTestVersion(testVersionId);
+    const result = await new TestRunner({ internal: true }).runTestVersion(testVersionId);
     expect(result.passed).toBe(false);
     expect(result.cases[0].detail?.missing?.[0]).toContain('http://ex/z');
     expect(result.cases[0].detail?.unexpected?.[0]).toContain('http://ex/b');
@@ -204,7 +204,7 @@ describe('TestRunner — rule set subjects', () => {
       dataGraphVersion: dataGraph('@prefix : <http://ex/> . :a :edge :b .'),
     }]);
 
-    const result = await new TestRunner().runTestVersion(testVersionId);
+    const result = await new TestRunner({ internal: true }).runTestVersion(testVersionId);
     expect(result.passed).toBe(true);
   });
 
@@ -216,14 +216,14 @@ describe('TestRunner — rule set subjects', () => {
       dataGraphVersion: dataGraph('@prefix : <http://ex/> . :a :edge :b .'),
     }]);
 
-    const result = await new TestRunner().runTestVersion(testVersionId);
+    const result = await new TestRunner({ internal: true }).runTestVersion(testVersionId);
     expect(result.passed).toBe(false);
     expect(result.message).toMatch(/Expected graph could not be read/);
   });
 
   it('calls a run hermetic when no backend is named, and not when one is', async () => {
     reachabilityRuleSet();
-    const hermetic = await new TestRunner().runTestVersion(test(
+    const hermetic = await new TestRunner({ internal: true }).runTestVersion(test(
       { expectationKind: 'smoke' },
       [{ dataGraphVersion: dataGraph('@prefix : <http://ex/> . :a :edge :b .') }],
     ));
@@ -231,7 +231,7 @@ describe('TestRunner — rule set subjects', () => {
 
     hoisted.entities.clear();
     reachabilityRuleSet();
-    const integration = await new TestRunner().runTestVersion(test(
+    const integration = await new TestRunner({ internal: true }).runTestVersion(test(
       { expectationKind: 'smoke', backend: 'urn:sqlib:backend:live' },
       [{ dataGraphVersion: dataGraph('@prefix : <http://ex/> . :a :edge :b .') }],
     ));
@@ -243,7 +243,7 @@ describe('TestRunner — rule set subjects', () => {
 
   it('passes a smoke test on nothing more than a clean run', async () => {
     reachabilityRuleSet();
-    const result = await new TestRunner().runTestVersion(test(
+    const result = await new TestRunner({ internal: true }).runTestVersion(test(
       { expectationKind: 'smoke' },
       [{ dataGraphVersion: dataGraph('@prefix : <http://ex/> . :a :edge :b .') }],
     ));
@@ -253,7 +253,7 @@ describe('TestRunner — rule set subjects', () => {
 
   it('runs against an empty base graph when the test names no data graph', async () => {
     reachabilityRuleSet();
-    const result = await new TestRunner().runTestVersion(test(
+    const result = await new TestRunner({ internal: true }).runTestVersion(test(
       { expectationKind: 'graph' },
       [{ expected: '' }],
     ));
@@ -264,7 +264,7 @@ describe('TestRunner — rule set subjects', () => {
 
   it('resolves the subject to its current version when the test pins none', async () => {
     reachabilityRuleSet();
-    const result = await new TestRunner().runTestVersion(test(
+    const result = await new TestRunner({ internal: true }).runTestVersion(test(
       { expectationKind: 'smoke' },
       [{ dataGraphVersion: dataGraph('@prefix : <http://ex/> . :a :edge :b .') }],
     ));
@@ -278,7 +278,7 @@ describe('TestRunner — rule set subjects', () => {
       [{ dataGraphVersion: 'urn:sqlib:data-graph-version:deleted' }],
     );
 
-    await expect(new TestRunner().runTestVersion(testVersionId)).rejects.toThrow(TestNotRunnableError);
+    await expect(new TestRunner({ internal: true }).runTestVersion(testVersionId)).rejects.toThrow(TestNotRunnableError);
   });
 
   it('answers an analysis expectation without invoking the subject', async () => {
@@ -289,7 +289,7 @@ describe('TestRunner — rule set subjects', () => {
       { expected: JSON.stringify({ check: 'syntax', accepted: true }) },
     ]);
 
-    const result = await new TestRunner().runTestVersion(testVersionId);
+    const result = await new TestRunner({ internal: true }).runTestVersion(testVersionId);
     expect(result.passed).toBe(true);
     expect(result.subjectVersionId).toBe('urn:test:rule-set-version:1');
   });
@@ -302,7 +302,7 @@ describe('TestRunner — rule set subjects', () => {
       { name: 'wrong', expected: JSON.stringify({ check: 'syntax', accepted: false }) },
     ]);
 
-    const result = await new TestRunner().runTestVersion(testVersionId);
+    const result = await new TestRunner({ internal: true }).runTestVersion(testVersionId);
     expect(result.passedCount).toBe(2);
     expect(result.failedCount).toBe(1);
     expect(result.cases[2].message).toMatch(/reject the document, but it was accepted/);
@@ -329,7 +329,7 @@ describe('TestRunner — rule set subjects', () => {
       expectationKind: 'smoke',
     });
 
-    await expect(new TestRunner().runTestVersion(testVersionId)).rejects.toThrow(/unknown subject kind/);
+    await expect(new TestRunner({ internal: true }).runTestVersion(testVersionId)).rejects.toThrow(/unknown subject kind/);
   });
 
   /*
@@ -353,7 +353,7 @@ describe('TestRunner — rule set subjects', () => {
       },
     ]);
 
-    const result = await new TestRunner().runTestVersion(testVersionId);
+    const result = await new TestRunner({ internal: true }).runTestVersion(testVersionId);
 
     expect(result.passed).toBe(true);
     expect(result.passedCount).toBe(2);
@@ -378,7 +378,7 @@ describe('TestRunner — rule set subjects', () => {
       },
     ]);
 
-    const result = await new TestRunner().runTestVersion(testVersionId);
+    const result = await new TestRunner({ internal: true }).runTestVersion(testVersionId);
 
     // Both ran: "the second of two arguments is wrong" is only visible if the
     // first case's verdict survives the second's failure.
@@ -391,7 +391,7 @@ describe('TestRunner — rule set subjects', () => {
 
   it('numbers an unnamed case rather than leaving a report with a blank row', async () => {
     reachabilityRuleSet();
-    const result = await new TestRunner().runTestVersion(test({ expectationKind: 'smoke' }, [{}, {}]));
+    const result = await new TestRunner({ internal: true }).runTestVersion(test({ expectationKind: 'smoke' }, [{}, {}]));
 
     expect(result.cases.map(c => c.name)).toEqual(['Case 1', 'Case 2']);
   });
@@ -416,7 +416,7 @@ describe('TestRunner — rule set subjects', () => {
       expectationKind: 'smoke',
     });
 
-    const result = await new TestRunner().runTestVersion(testVersionId);
+    const result = await new TestRunner({ internal: true }).runTestVersion(testVersionId);
     expect(result.cases).toHaveLength(1);
     expect(result.passed).toBe(true);
   });
@@ -424,7 +424,7 @@ describe('TestRunner — rule set subjects', () => {
   it('turns a query test with no store at all into a clear refusal, not a wrong answer', async () => {
     const testVersionId = queryTest('SELECT * WHERE { ?s ?p ?o }', { expectationKind: 'smoke' }, [{}]);
 
-    await expect(new TestRunner().runTestVersion(testVersionId))
+    await expect(new TestRunner({ internal: true }).runTestVersion(testVersionId))
       .rejects.toThrow(/needs somewhere to run/);
   });
 });
@@ -451,7 +451,7 @@ describe('TestRunner — query subjects, hermetic', () => {
       }],
     );
 
-    const result = await new TestRunner().runTestVersion(testVersionId);
+    const result = await new TestRunner({ internal: true }).runTestVersion(testVersionId);
     expect(result.passed).toBe(true);
     // The whole point of the hermetic path: no backend, and the run still
     // happened rather than being refused.
@@ -469,7 +469,7 @@ describe('TestRunner — query subjects, hermetic', () => {
       'ask',
     );
 
-    expect((await new TestRunner().runTestVersion(testVersionId)).passed).toBe(true);
+    expect((await new TestRunner({ internal: true }).runTestVersion(testVersionId)).passed).toBe(true);
   });
 
   it('gives each case its own store, so one case cannot see another\'s data', async () => {
@@ -494,7 +494,7 @@ describe('TestRunner — query subjects, hermetic', () => {
       ],
     );
 
-    const result = await new TestRunner().runTestVersion(testVersionId);
+    const result = await new TestRunner({ internal: true }).runTestVersion(testVersionId);
     expect(result.passed).toBe(true);
     expect(result.passedCount).toBe(2);
   });
@@ -509,7 +509,7 @@ describe('TestRunner — query subjects, hermetic', () => {
     // Not "prefer one": which store a query runs against is the difference
     // between a hermetic test and an integration one, and picking for the
     // author would decide that silently.
-    await expect(new TestRunner().runTestVersion(testVersionId))
+    await expect(new TestRunner({ internal: true }).runTestVersion(testVersionId))
       .rejects.toThrow(/one store/);
   });
 
@@ -520,7 +520,7 @@ describe('TestRunner — query subjects, hermetic', () => {
       [{ dataGraphVersion: dataGraph('@prefix : <http://ex/> . :a :edge :b .') }],
     );
 
-    const result = await new TestRunner().runTestVersion(testVersionId);
+    const result = await new TestRunner({ internal: true }).runTestVersion(testVersionId);
     expect(result.passed).toBe(false);
     expect(result.cases[0].message).toMatch(/Subject failed/);
   });

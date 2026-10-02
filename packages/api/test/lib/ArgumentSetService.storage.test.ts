@@ -181,7 +181,7 @@ describe('argument set storage', () => {
       tupleBindings: [{ variables: ['city'], rows: CITY_ROWS }],
     });
 
-    const payload = await service.exportRuntimePayload([detail.id]);
+    const payload = await service.exportRuntimePayload([detail.id], { internal: true });
     // Keyed canonically rather than by the stored signature string: the map key
     // is opaque, so it is compared against the helper both sides now use.
     expect([...payload.tupleMap.keys()]).toEqual([tableParameterKey(['city'])]);
@@ -224,7 +224,7 @@ describe('tuple set sources', () => {
       }],
     });
 
-    const payload = await service.exportRuntimePayload([detail.id]);
+    const payload = await service.exportRuntimePayload([detail.id], { internal: true });
     expect(payload.tupleList[0].results.bindings).toEqual([
       { city: { type: 'literal', value: 'Perth' } },
       { city: { type: 'literal', value: 'Darwin' } },
@@ -256,7 +256,7 @@ describe('tuple set sources', () => {
       tupleBindings: [{ variables: ['city'], rows: [CITY_ROWS[0]], tupleSetVersions: [VERSION] }],
     });
 
-    const payload = await service.exportRuntimePayload([detail.id]);
+    const payload = await service.exportRuntimePayload([detail.id], { internal: true });
     expect(payload.tupleList[0].results.bindings).toEqual([
       { city: { type: 'literal', value: 'Perth' } },
     ]);
@@ -290,7 +290,7 @@ describe('tuple set sources', () => {
       tupleBindings: [{ variables: ['city'], rows: [], tupleSetVersions: [VERSION] }],
     });
 
-    const payload = await service.exportRuntimePayload([detail.id]);
+    const payload = await service.exportRuntimePayload([detail.id], { internal: true });
     // The extra column is dropped, not passed through as an unbound variable.
     expect(payload.tupleList[0].results.bindings).toEqual([
       { city: { type: 'literal', value: 'Darwin' } },
@@ -313,7 +313,7 @@ describe('tuple set sources', () => {
       }],
     });
 
-    const payload = await service.exportRuntimePayload([detail.id]);
+    const payload = await service.exportRuntimePayload([detail.id], { internal: true });
     expect(payload.tupleList[0].results.bindings).toEqual([
       { city: { type: 'literal', value: 'Perth' } },
     ]);

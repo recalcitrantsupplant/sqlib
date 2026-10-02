@@ -199,6 +199,11 @@ describe('Query Group Version POST route', () => {
       expect.objectContaining({ startNode: expect.any(Object), endNode: expect.any(Object) }),
       { request: expect.anything() }
     );
-    expect(hoisted.expandGroupVersionDetailed).toHaveBeenCalledWith(expect.objectContaining({ $id: versionId }));
+    // And the echo is expanded for the same caller, so it withholds the query
+    // text of any leg they may execute but not read.
+    expect(hoisted.expandGroupVersionDetailed).toHaveBeenCalledWith(
+      expect.objectContaining({ $id: versionId }),
+      { request: expect.anything() }
+    );
   });
 });

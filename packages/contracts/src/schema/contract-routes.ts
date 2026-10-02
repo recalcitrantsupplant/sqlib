@@ -130,13 +130,18 @@ export const benchmarkRouteSchemas = {
             }
           ]
         },
+        "isPartOf": {
+          "type": "string",
+          "minLength": 1
+        },
         "id": {
           "type": "string",
           "minLength": 1
         }
       },
       "required": [
-        "name"
+        "name",
+        "isPartOf"
       ],
       "additionalProperties": false,
       "$id": "benchmarkexperiment.create"

@@ -6,6 +6,7 @@
  * identical in shape across all three modes.
  */
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { normalizeRouteUrl } from '../config/readOnly.js';
 import { getAuthStore } from './AuthStore.js';
 import { getAuthConfig, type AuthConfig } from './config.js';
 import { resolveEffectiveGrants } from './grants.js';
@@ -13,12 +14,36 @@ import { derivePrincipals } from './principals.js';
 import { TokenError, TokenVerifier, getTokenVerifier } from './tokenVerifier.js';
 import { createFullAccessContext, type AuthContext } from './types.js';
 
-/** Paths that never require a token, regardless of mode. */
-function isPublicPath(url: string, config: AuthConfig): boolean {
-  const path = url.split('?')[0];
-  if (path === '/health' || path.endsWith('/health')) return true;
-  if (path === '/' ) return true;
-  if (!config.protectDocs && (path === '/docs' || path.includes('/docs/'))) return true;
+/**
+ * Routes that never require a token, regardless of mode: `/` (a redirect to the
+ * docs), `/health` for load balancers and the SPA's boot probe, and — unless
+ * `SQLIB_AUTH_PROTECT_DOCS=true` — `/docs` and everything the swagger plugins
+ * mount under it (`/docs/json`, `/docs/static/*`, …).
+ *
+ * Matched on `routeOptions.url`, the pattern Fastify registered, as
+ * `config/readOnly.ts` does, never on the raw URL. The raw-URL version matched
+ * `endsWith('/health')` and `includes('/docs/')`, which made
+ * `/backends/:id/health` public, and would have done the same for any route a
+ * plugin mounted under either name. A request no route claimed has no pattern
+ * and is not public: it gets the 401 rather than a 404 that says what exists.
+ */
+function isPublicRoute(routeUrl: string | undefined, config: AuthConfig, basePath: string): boolean {
+  if (!routeUrl) return false;
+  const url = normalizeRouteUrl(routeUrl);
+  // Everything the API serves sits under `APP_BASE_PATH` when one is set.
+  let path: string;
+  if (!basePath) {
+    path = url;
+  } else if (url === basePath) {
+    path = '/';
+  } else if (url.startsWith(`${basePath}/`)) {
+    path = url.slice(basePath.length);
+  } else {
+    return false;
+  }
+
+  if (path === '/' || path === '/health') return true;
+  if (!config.protectDocs && (path === '/docs' || path.startsWith('/docs/'))) return true;
   return false;
 }
 
@@ -61,8 +86,17 @@ async function buildContext(
   };
 }
 
-export async function registerAuthPlugin(app: FastifyInstance): Promise<void> {
+export interface AuthPluginOptions {
+  /** `APP_BASE_PATH`, normalised (`''` or `/prefix`), under which the routes are mounted. */
+  basePath?: string;
+}
+
+export async function registerAuthPlugin(
+  app: FastifyInstance,
+  options: AuthPluginOptions = {}
+): Promise<void> {
   const config = getAuthConfig();
+  const basePath = options.basePath ?? '';
 
   app.decorateRequest('authContext', undefined);
 
@@ -75,7 +109,7 @@ export async function registerAuthPlugin(app: FastifyInstance): Promise<void> {
     const token = TokenVerifier.extractBearer(request.headers.authorization);
 
     if (!token) {
-      if (config.mode === 'required' && !isPublicPath(request.url, config)) {
+      if (config.mode === 'required' && !isPublicRoute(request.routeOptions?.url, config, basePath)) {
         reply
           .header('WWW-Authenticate', 'Bearer error="invalid_token"')
           .code(401)
@@ -116,6 +150,16 @@ export async function registerAuthPlugin(app: FastifyInstance): Promise<void> {
       request.authContext = createFullAccessContext(config.mode);
     }
   });
+
+  if (config.mode !== 'disabled' && config.audienceUnchecked) {
+    const unscoped = config.issuers.filter(entry => !entry.audience).map(entry => entry.issuer);
+    if (unscoped.length > 0) {
+      app.log.warn(
+        { issuers: unscoped },
+        'SQLIB_AUTH_AUDIENCE_UNCHECKED=true: accepting tokens for any audience from these issuers'
+      );
+    }
+  }
 
   app.log.info({ authMode: config.mode, issuers: config.issuers.map(i => i.issuer) }, 'Auth plugin registered');
 }

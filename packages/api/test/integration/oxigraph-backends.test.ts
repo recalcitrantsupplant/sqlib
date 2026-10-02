@@ -35,7 +35,7 @@ describe('Oxigraph Backends Integration', () => {
     storeManager = new OxigraphStoreManager(tempDir);
     await storeManager.initialize();
 
-    executorFactory = new ExecutorFactory();
+    executorFactory = new ExecutorFactory({ internal: true });
     executionEngine = new ExecutionEngine(executorFactory);
   });
 

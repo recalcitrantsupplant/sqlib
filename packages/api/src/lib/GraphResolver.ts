@@ -1,4 +1,6 @@
+import type { FastifyRequest } from 'fastify';
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
+import { filterReadable } from '../auth/enforce.js';
 import type { LdkitQueryGroupVersion } from '../persistence/schemas/QueryGroupVersionSchema.js';
 import type { LdkitQueryNode } from '../persistence/schemas/QueryNodeSchema.js';
 import type { LdkitQueryEdge } from '../persistence/schemas/QueryEdgeSchema.js';
@@ -462,7 +464,21 @@ export async function expandCurrentVersionForGroup(groupId: string): Promise<{
   return null;
 }
 
-export async function expandGroupVersionDetailed(version: LdkitQueryGroupVersion): Promise<{
+/**
+ * Whose view of the graph an expansion is for.
+ *
+ * Optional only in the sense every `auth/enforce.ts` helper is: no request is
+ * full access, which is what the library-level tests and scripts want. Every
+ * route passes the one it is answering.
+ */
+export interface GroupExpansionAccess {
+  request?: FastifyRequest;
+}
+
+export async function expandGroupVersionDetailed(
+  version: LdkitQueryGroupVersion,
+  access: GroupExpansionAccess = {}
+): Promise<{
   queryGroupVersion: ReturnType<typeof toRestApi<LdkitQueryGroupVersion>>;
   executionNodes: AnyRestNodeType[];
   startNode?: AnyRestNodeType;
@@ -559,10 +575,31 @@ export async function expandGroupVersionDetailed(version: LdkitQueryGroupVersion
   }
 
   const queryVersionIdList = Array.from(queryVersionIds);
-  const rawQueryVersions = await resolveEntities<LdkitQueryVersion>(queryVersionIdList, 'QueryVersion', async missing => {
+  const resolvedQueryVersions = await resolveEntities<LdkitQueryVersion>(queryVersionIdList, 'QueryVersion', async missing => {
     const { loadQueryVersionsByIds } = await import('../persistence/utils/QueryVersionUtils.js');
     return loadQueryVersionsByIds(missing);
   });
+
+  /*
+   * A node may run a query version from another library — composition checks
+   * Execute on it (#489), and Execute is deliberately not Read. This payload
+   * carries each version's query *text*, so serving every one would make Read
+   * on the group's library a read of the other library's queries. The same
+   * rule `partitionByReadableNodes` applies to the export bundle, for the same
+   * reason: Read on the version's own library governs its text wherever it is
+   * copied to.
+   *
+   * Withheld rather than refused, again as the bundle does it: the graph is
+   * the group's, and a reader of its library is owed its shape — the node, its
+   * pin, its edges and the ports the node itself persists. The version is
+   * dropped whole rather than stripped of `queryString`, because its comment
+   * and declared interface belong to that library too; its inferred ports are
+   * left out of the closure below for the same reason, so a withheld node shows
+   * the ports the group saved for it.
+   */
+  const rawQueryVersions = access.request
+    ? filterReadable(access.request, resolvedQueryVersions)
+    : resolvedQueryVersions;
 
   // A query version owns the canonical interface of every node that references
   // it. Including it here is what makes a reloaded node show the same ports as

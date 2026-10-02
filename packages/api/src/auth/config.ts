@@ -25,6 +25,11 @@ export interface AuthConfig {
   seedGrantsPath?: string;
   allowLibraryCreate: 'all' | 'admin';
   protectDocs: boolean;
+  /**
+   * The operator has said, in so many words, that an issuer without an
+   * audience is intended. Without it an enforcing mode refuses to start.
+   */
+  audienceUnchecked: boolean;
 }
 
 function parseMode(raw: string | undefined): AuthMode {
@@ -42,6 +47,10 @@ function parseMode(raw: string | undefined): AuthMode {
         `Invalid SQLIB_AUTH_MODE "${raw}". Expected one of: disabled, dry-run, required.`
       );
   }
+}
+
+function parseFlag(raw: string | undefined): boolean {
+  return (raw ?? '').trim().toLowerCase() === 'true';
 }
 
 function parseList(raw: string | undefined): string[] {
@@ -71,7 +80,7 @@ function parseIssuers(env: NodeJS.ProcessEnv): IssuerConfig[] {
       }
       return {
         issuer: item.issuer.trim(),
-        audience: typeof item.audience === 'string' ? item.audience : undefined,
+        audience: typeof item.audience === 'string' && item.audience.trim() ? item.audience.trim() : undefined,
         jwksUri: typeof item.jwksUri === 'string' ? item.jwksUri : undefined,
         claimGroups: typeof item.claimGroups === 'string' ? item.claimGroups : 'groups',
         claimClientId: typeof item.claimClientId === 'string' ? item.claimClientId : 'azp',
@@ -103,6 +112,21 @@ export function buildAuthConfig(env: NodeJS.ProcessEnv = process.env): AuthConfi
     );
   }
 
+  // Without an audience, `jwtVerify` skips the `aud` check and any token the
+  // issuer minted for any application is accepted here. A shared IdP issues
+  // plenty of those, so an unset audience has to be a decision, not a default.
+  const audienceUnchecked = parseFlag(env.SQLIB_AUTH_AUDIENCE_UNCHECKED);
+  if (mode !== 'disabled' && !audienceUnchecked) {
+    const unscoped = issuers.filter(entry => !entry.audience).map(entry => entry.issuer);
+    if (unscoped.length > 0) {
+      throw new Error(
+        `SQLIB_AUTH_MODE=${mode} requires an audience for every issuer (missing for ${unscoped.join(', ')}): ` +
+          'set SQLIB_AUTH_AUDIENCE, or "audience" in SQLIB_AUTH_ISSUERS_JSON. ' +
+          'To accept tokens for any audience, set SQLIB_AUTH_AUDIENCE_UNCHECKED=true.'
+      );
+    }
+  }
+
   const skewRaw = env.SQLIB_AUTH_CLOCK_SKEW_S?.trim();
   const clockSkewSeconds = skewRaw ? Number.parseInt(skewRaw, 10) : 60;
   if (!Number.isFinite(clockSkewSeconds) || clockSkewSeconds < 0) {
@@ -123,7 +147,8 @@ export function buildAuthConfig(env: NodeJS.ProcessEnv = process.env): AuthConfi
     adminPrincipals: parseList(env.SQLIB_AUTH_ADMIN_PRINCIPALS),
     seedGrantsPath: env.SQLIB_AUTH_SEED_GRANTS?.trim() || undefined,
     allowLibraryCreate: allowLibraryCreateRaw,
-    protectDocs: (env.SQLIB_AUTH_PROTECT_DOCS ?? '').trim().toLowerCase() === 'true',
+    protectDocs: parseFlag(env.SQLIB_AUTH_PROTECT_DOCS),
+    audienceUnchecked,
   };
 }
 

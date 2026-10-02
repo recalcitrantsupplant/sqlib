@@ -54,6 +54,7 @@ const sparqlResponses = {
   200: {},
   400: errorResponseSchema,
   404: errorResponseSchema,
+  405: errorResponseSchema,
   500: errorResponseSchema,
 } as const;
 
@@ -257,11 +258,34 @@ export default async function (
     return null;
   };
 
-  // POST /sparql - Direct SPARQL proxy
-  fastify.post('/sparql', ...typedRoute(sparqlPostSchema, async (request, reply) => {
-    const { query, backendId, endpoint, queryMethod, arguments: inlineArguments, limits, offsets, argumentSetIds } = request.body;
+  /**
+   * The body of both verbs, from a request already parsed into one shape.
+   *
+   * GET and POST used to be two copies of this, and the copies drifted: the
+   * read-only refusal for `record=patch` lived in POST only, so a GET could
+   * still file a Patch on a read-only deployment. One function, so a check
+   * added here is a check on both.
+   *
+   * `allowUpdate` is the one real difference. GET is a safe method: a link, an
+   * `<img src>`, a prefetch or a crawler can issue one without anybody meaning
+   * to, and CORS does not stop a cross-site GET from being *sent*, only from
+   * being read. An UPDATE over GET would make every one of those a write, so
+   * GET refuses it outright rather than behind a flag — POST carries the same
+   * update with nothing lost.
+   */
+  const runSparqlRequest = async (params: {
+    request: FastifyRequest;
+    reply: FastifyReply;
+    query: string;
+    backendId?: string | null;
+    endpoint?: string | null;
+    queryMethod?: 'post' | 'get' | null;
+    payload: Parameters<typeof resolveExecutionPayload>[0];
+    recordPatch: boolean;
+    allowUpdate: boolean;
+  }) => {
+    const { request, reply, query, backendId, endpoint, queryMethod, payload, recordPatch, allowUpdate } = params;
     const acceptHeader = request.headers.accept;
-    const recordPatch = request.query.record === 'patch';
 
     /*
      * The one thing this route does that a read-only deployment must not.
@@ -294,6 +318,15 @@ export default async function (
         return reply.code(400).send({ error: error?.message || 'Invalid SPARQL query' });
       }
 
+      if (operation === QueryTypeIri.update && !allowUpdate) {
+        reply.header('Allow', 'POST');
+        return reply.code(405).send({
+          error:
+            'SPARQL UPDATE is not accepted over GET, which must not change anything. ' +
+            'Send the update as POST /sparql instead.',
+        });
+      }
+
       /*
        * The query as it will actually run.
        *
@@ -311,18 +344,12 @@ export default async function (
        * a raw run of an edited query had to flatten its set client-side, which
        * is the one place the two paths disagreed about what an argument set is.
        */
-      const resolvedPayload = await resolveExecutionPayload(
-        { arguments: inlineArguments, limits, offsets, argumentSetIds },
-        new ArgumentSetService()
-      );
-      const argumentSets = resolvedPayload.argumentSets;
-      const effectiveLimits = resolvedPayload.limits;
-      const effectiveOffsets = resolvedPayload.offsets;
+      const resolvedPayload = await resolveExecutionPayload(payload, new ArgumentSetService(), { request });
 
       const executedQuery = applyExecutionArguments(query, {
-        argumentSets,
-        limits: effectiveLimits,
-        offsets: effectiveOffsets,
+        argumentSets: resolvedPayload.argumentSets,
+        limits: resolvedPayload.limits,
+        offsets: resolvedPayload.offsets,
       });
 
       if (recordPatch) {
@@ -402,102 +429,39 @@ export default async function (
         oxigraphStoreManager.destroyEphemeralStore(ephemeralStoreId);
       }
     }
+  };
+
+  // POST /sparql - Direct SPARQL proxy
+  fastify.post('/sparql', ...typedRoute(sparqlPostSchema, async (request, reply) => {
+    const { query, backendId, endpoint, queryMethod, arguments: inlineArguments, limits, offsets, argumentSetIds } = request.body;
+    return runSparqlRequest({
+      request,
+      reply,
+      query,
+      backendId,
+      endpoint,
+      queryMethod,
+      payload: { arguments: inlineArguments, limits, offsets, argumentSetIds },
+      recordPatch: request.query.record === 'patch',
+      allowUpdate: true,
+    });
   }));
 
-  // GET /sparql - Direct SPARQL proxy with query parameters
+  // GET /sparql - Direct SPARQL proxy with query parameters. The querystring
+  // schema admits no arguments, so the payload is empty and the query runs as
+  // written.
   fastify.get('/sparql', ...typedRoute(sparqlGetSchema, async (request, reply) => {
     const { query, backendId, endpoint, queryMethod, record } = request.query;
-    const acceptHeader = request.headers.accept;
-    const recordPatch = record === 'patch';
-
-    let ephemeralStoreId: string | null = null;
-    try {
-      // Detect before resolving: reads and updates need different grants, so the
-      // operation has to be known before an executor is handed out.
-      let operation: SparqlOperation;
-      try {
-        operation = detectSparqlOperation(query);
-      } catch (error__u: unknown) {
-      const error = toError(error__u);
-        return reply.code(400).send({ error: error?.message || 'Invalid SPARQL query' });
-      }
-
-      if (recordPatch) {
-        const refusal = rejectUnrecordableRequest({ operation, backendId, endpoint });
-        if (refusal) return reply.code(400).send({ error: refusal });
-      }
-
-      const resolved = await resolveExecutor({
-        backendId,
-        endpoint,
-        queryMethod,
-        request,
-        isUpdate: operation === QueryTypeIri.update,
-      });
-      const executor = resolved.executor;
-      ephemeralStoreId = resolved.ephemeralStoreId;
-
-      switch (operation) {
-        case QueryTypeIri.select: {
-          const { result: selectResult, duration: selectDuration, contentType: selectContentType } =
-            await executor.selectQueryParsed(query, { acceptHeader });
-          reply.header('Content-Type', resolveContentType(selectContentType, acceptHeader, 'application/sparql-results+json'));
-          setTimingHeader(reply, selectDuration);
-          return reply.send(selectResult);
-        }
-        case QueryTypeIri.construct:
-        case QueryTypeIri.describe: {
-          const { result: constructResult, duration: constructDuration, contentType: constructContentType } =
-            await executor.constructQueryParsed(query, { acceptHeader });
-          reply.header('Content-Type', resolveContentType(constructContentType, acceptHeader, 'application/n-triples'));
-          setTimingHeader(reply, constructDuration);
-          return reply.send(constructResult);
-        }
-        case QueryTypeIri.ask: {
-          const { result: askResult, duration: askDuration, contentType: askContentType } =
-            await executor.askQuery(query, { acceptHeader });
-          reply.header('Content-Type', resolveContentType(askContentType, acceptHeader, 'application/sparql-results+json'));
-          setTimingHeader(reply, askDuration);
-          if (typeof askResult === 'boolean') {
-            return reply.send({ head: {}, boolean: askResult });
-          }
-          return reply.send(askResult);
-        }
-        case QueryTypeIri.update: {
-          if (recordPatch) {
-            return await runRecordedUpdate({
-              request,
-              reply,
-              executor,
-              backendId: backendId!,
-              updateString: query,
-            });
-          }
-          const { duration: updateDuration } = await executor.update(query);
-          setTimingHeader(reply, updateDuration);
-          return reply.code(204).send();
-        }
-        default:
-          return reply.code(400).send({ error: `Unsupported SPARQL query type: ${getQueryTypeKeyFromIri(operation) || operation}` });
-      }
-
-    } catch (error__u: unknown) {
-      const error = toError(error__u);
-      fastify.log.error({
-        err: error,
-        message: error?.message,
-        stack: error?.stack,
-      }, 'SPARQL proxy error');
-      const statusCode = typeof error?.statusCode === 'number'
-        ? error.statusCode
-        // An update form the derivation cannot express is the caller's SPARQL,
-        // not a proxy failure — and with `record=patch` it stops the write.
-        : error instanceof UnsupportedUpdateError ? 400 : 500;
-      return reply.code(statusCode).send({ error: error?.message || 'Internal server error' });
-    } finally {
-      if (ephemeralStoreId) {
-        oxigraphStoreManager.destroyEphemeralStore(ephemeralStoreId);
-      }
-    }
+    return runSparqlRequest({
+      request,
+      reply,
+      query,
+      backendId,
+      endpoint,
+      queryMethod,
+      payload: {},
+      recordPatch: record === 'patch',
+      allowUpdate: false,
+    });
   }));
 }

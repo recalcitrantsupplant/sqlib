@@ -307,7 +307,7 @@ describe('RuleSets Routes (/rule-sets) - CRUD', () => {
       comment: 'Initial',
       hasRule: ['urn:sqlib:rule:1'],
       hasDataBlock: ['urn:sqlib:data-block:1'],
-    });
+    }, expect.objectContaining({ request: expect.anything() }));
   });
 
   it('POST /rule-sets/:id/versions forwards immutable flag', async () => {
@@ -338,7 +338,7 @@ describe('RuleSets Routes (/rule-sets) - CRUD', () => {
     });
 
     expect(res.statusCode).toBe(201);
-    expect(hoisted.mockCreateVersion).toHaveBeenCalledWith(id, expect.objectContaining({ immutable: true }));
+    expect(hoisted.mockCreateVersion).toHaveBeenCalledWith(id, expect.objectContaining({ immutable: true }), expect.objectContaining({ request: expect.anything() }));
   });
 
   it('POST /rule-sets/:id/versions forwards allowInvalidSave to the writer', async () => {
@@ -366,7 +366,7 @@ describe('RuleSets Routes (/rule-sets) - CRUD', () => {
     });
 
     expect(res.statusCode).toBe(201);
-    expect(hoisted.mockCreateVersion).toHaveBeenCalledWith(id, expect.objectContaining({ allowInvalidSave: true }));
+    expect(hoisted.mockCreateVersion).toHaveBeenCalledWith(id, expect.objectContaining({ allowInvalidSave: true }), expect.objectContaining({ request: expect.anything() }));
   });
 
   it('POST /rule-sets/:id/versions defaults optional arrays', async () => {
@@ -414,7 +414,7 @@ describe('RuleSets Routes (/rule-sets) - CRUD', () => {
       comment: null,
       hasRule: [],
       hasDataBlock: [],
-    });
+    }, expect.objectContaining({ request: expect.anything() }));
   });
 
   it('POST /rule-sets/:id/versions returns 404 when parent missing', async () => {

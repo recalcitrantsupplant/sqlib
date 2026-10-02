@@ -163,8 +163,16 @@ describe('index bootstrap', () => {
     const indexModuleUrl = new URL('../src/index.ts', import.meta.url);
     const indexModule = await import(indexModuleUrl.href) as any;
 
-    // Explicitly call start() with the mocked app
-    await indexModule.start(hoisted.app);
+    // Explicitly call start() with the mocked app. An origin is listed so the
+    // CORS registration below has something to answer.
+    const originalCorsOrigins = process.env.SQLIB_CORS_ORIGINS;
+    process.env.SQLIB_CORS_ORIGINS = 'http://localhost:3001';
+    try {
+      await indexModule.start(hoisted.app);
+    } finally {
+      if (originalCorsOrigins === undefined) delete process.env.SQLIB_CORS_ORIGINS;
+      else process.env.SQLIB_CORS_ORIGINS = originalCorsOrigins;
+    }
     await new Promise(resolve => setImmediate(resolve));
 
     const validatorModule = await import('../src/lib/validator-setup.js');
@@ -194,9 +202,16 @@ describe('index bootstrap', () => {
      * is not CORS-safelisted, so the request preflights, and a preflight that
      * does not list the header fails the whole call from a browser.
      */
-    const corsOptions = hoisted.app!.register.mock.calls
-      .find(([plugin]) => plugin === hoisted.corsPlugin)?.[1] as { allowedHeaders: string[] };
+    const { delegator } = hoisted.app!.register.mock.calls
+      .find(([plugin]) => plugin === hoisted.corsPlugin)?.[1] as {
+        delegator: (request: unknown, cb: (err: Error | null, options: Record<string, unknown>) => void) => void;
+      };
+    let corsOptions: Record<string, unknown> = {};
+    delegator({ headers: { origin: 'http://localhost:3001' }, routeOptions: { url: '/tests/:id/run' } }, (_err, options) => {
+      corsOptions = options;
+    });
     expect(corsOptions.allowedHeaders).toContain('Accept');
+    expect(corsOptions.credentials).toBe(true);
     expect(hoisted.app!.listen).toHaveBeenCalledWith({ port: 3000, host: '0.0.0.0' });
     expect(hoisted.app!.register).toHaveBeenCalledWith(hoisted.swaggerUiPlugin, expect.any(Object));
     expect(hoisted.app!.register).toHaveBeenCalledWith(hoisted.backendRoutes, { prefix: '/backends' });

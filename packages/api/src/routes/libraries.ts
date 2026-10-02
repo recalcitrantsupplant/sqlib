@@ -357,7 +357,7 @@ export default async function (fastify: FastifyInstance) {
                 repos.TestVersion.get(versionId) as LdkitTestVersion | null,
               getTestCase: (caseId) => repos.TestCase.get(caseId) as LdkitTestCase | null,
               resolveArgumentPayload: (argumentSetVersionId) =>
-                argumentSetService.exportRuntimePayload([argumentSetVersionId]).then(payload => ({
+                argumentSetService.exportRuntimePayload([argumentSetVersionId], { request }).then(payload => ({
                   arguments: payload.tupleList,
                   limits: payload.limits,
                   offsets: payload.offsets,

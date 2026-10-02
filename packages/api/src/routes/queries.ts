@@ -9,7 +9,7 @@ import { createQueryVersionFlat, cleanupOrphanedAutoTuple, findExistingAutoTuple
 import { deriveQueryVersionMetadata } from '../lib/QueryVersionDeriver.js';
 import { classifyVersionPatch } from '../lib/versionPatch.js';
 import { reposRoute, validateIfMatch, setEntityConcurrencyHeaders } from './route-helpers.js';
-import { filterReadable, requireEntityMode } from '../auth/enforce.js';
+import { filterReadable, requireContainmentWritable, requireEntityMode } from '../auth/enforce.js';
 import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
 import { analyseReferences, describeWrongType } from '../lib/entityReferences.js';
 import { analyseTags } from '../lib/tagMembership.js';
@@ -140,6 +140,9 @@ export default async function (fastify: FastifyInstance) {
       return reply.status(404).send({ error: 'Not Found' });
     }
     requireEntityMode(request, current, 'write');
+
+    // Write on the destination library too, when the body moves it.
+    requireContainmentWritable(request, current, updates);
 
     const { valid, currentTag } = validateIfMatch(request, current);
     if (!valid) {

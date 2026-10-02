@@ -38,6 +38,8 @@ export type BenchmarkSubjectSpec = {
 
 export type BenchmarkExperimentPayload = {
   id?: string;
+  /** The owning library. Required on create; an experiment does not move. */
+  isPartOf?: string;
   name: string;
   description?: string | null;
   status?: string | null;
@@ -140,6 +142,7 @@ export class BenchmarkExperimentService {
       name: payload.name,
       description: payload.description ?? null,
       status: payload.status ?? null,
+      isPartOf: payload.isPartOf ?? null,
     };
     const created = await getCacheCoordinator().create('BenchmarkExperiment', toCreate);
     return toExperimentDetail(created);

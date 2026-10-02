@@ -19,7 +19,7 @@ import { createHash } from 'node:crypto';
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
 import { ArgumentSetService } from './ArgumentSetService.js';
 import { ExecutorFactory } from './orchestration/ExecutorFactory.js';
-import type { ExecutionAuthScope } from '../auth/executionScope.js';
+import { isInternalExecution, type ExecutionAuthScope, type InternalExecution } from '../auth/executionScope.js';
 import { requireLibraryMode, resolveOwningLibrary } from '../auth/enforce.js';
 import { SparqlQueryParser } from './parser.js';
 import { toQueryTypeIri, isGraphQueryType } from './queryTypes.js';
@@ -92,7 +92,7 @@ function hashNQuads(nQuads: string): string {
 export async function materializeDataGraphVersionFromQuery(
   dataGraphId: string,
   input: MaterializeDataGraphVersionInput,
-  authScope?: ExecutionAuthScope,
+  scope: ExecutionAuthScope | InternalExecution,
 ): Promise<MaterializedDataGraphVersion> {
   const cacheCoordinator = getCacheCoordinator();
 
@@ -115,8 +115,8 @@ export async function materializeDataGraphVersionFromQuery(
    * disagree with the one every client already uses. It is a deployment-wide
    * question rather than a data-graph one.
    */
-  if (authScope) {
-    requireLibraryMode(authScope.request, resolveOwningLibrary(versionEntity), 'execute');
+  if (!isInternalExecution(scope)) {
+    requireLibraryMode(scope.request, resolveOwningLibrary(versionEntity), 'execute');
   }
 
   const queryType = toQueryTypeIri(versionEntity.queryType);
@@ -138,7 +138,7 @@ export async function materializeDataGraphVersionFromQuery(
         404,
       );
     }
-    const runtimePayload = await argumentSetService.exportRuntimePayload([input.argumentSetVersionId]);
+    const runtimePayload = await argumentSetService.exportRuntimePayload([input.argumentSetVersionId], scope);
     try {
       if (runtimePayload.limits.length > 0 || runtimePayload.offsets.length > 0) {
         queryString = parser.applyLimitOffsetParameters(queryString, runtimePayload.limits, runtimePayload.offsets);
@@ -160,7 +160,7 @@ export async function materializeDataGraphVersionFromQuery(
     throw new DataGraphQuerySourceError(`Backend ${input.backendId} not found`, 404);
   }
 
-  const executor = await new ExecutorFactory(authScope).getExecutorForBackendId(input.backendId);
+  const executor = await new ExecutorFactory(scope).getExecutorForBackendId(input.backendId);
   const { result, contentType } = await executor.constructQueryParsed(queryString);
   const contentFormat = resolveContentFormat(contentType);
 

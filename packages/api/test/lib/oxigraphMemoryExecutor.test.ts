@@ -74,7 +74,7 @@ describe('ExecutorFactory - oxigraphMemory backends', () => {
   it('serves queries from a store hydrated from the backend sources', async () => {
     registerBackend('b-ro', { storeType: 'ephemeral', mode: 'readOnly', sources: [{ dataGraphVersionId: 'v1' }] });
 
-    const exec = await new ExecutorFactory().getExecutorForBackendId('b-ro');
+    const exec = await new ExecutorFactory({ internal: true }).getExecutorForBackendId('b-ro');
     const { result } = await exec.selectQueryParsed('SELECT ?s WHERE { ?s ?p ?o }');
 
     expect((result as { results: { bindings: unknown[] } }).results.bindings.length).toBe(2);
@@ -85,7 +85,7 @@ describe('ExecutorFactory - oxigraphMemory backends', () => {
       storeType: 'ephemeral', mode: 'readOnly', sources: [{ dataGraphVersionId: 'v1' }],
     }));
 
-    const exec = await new ExecutorFactory().getExecutorForBackendId('b-persisted');
+    const exec = await new ExecutorFactory({ internal: true }).getExecutorForBackendId('b-persisted');
     const { result } = await exec.selectQueryParsed('SELECT ?s WHERE { ?s ?p ?o }');
 
     expect((result as { results: { bindings: unknown[] } }).results.bindings.length).toBe(2);
@@ -99,7 +99,7 @@ describe('ExecutorFactory - oxigraphMemory backends', () => {
       storeType: 'ephemeral', mode: 'ephemeral', sources: [{ dataGraphVersionId: 'v1' }],
     }));
 
-    const exec = await new ExecutorFactory().getExecutorForBackendId('b-persisted-rw');
+    const exec = await new ExecutorFactory({ internal: true }).getExecutorForBackendId('b-persisted-rw');
     await exec.update('INSERT DATA { <http://example.org/x> <http://example.org/y> <http://example.org/z> }');
 
     const { result } = await exec.selectQueryParsed('SELECT ?s WHERE { ?s ?p ?o }');
@@ -111,14 +111,14 @@ describe('ExecutorFactory - oxigraphMemory backends', () => {
     // it would answer every query with nothing at all, so this says so.
     registerBackend('b-mangled', '[object Object]');
 
-    await expect(new ExecutorFactory().getExecutorForBackendId('b-mangled'))
+    await expect(new ExecutorFactory({ internal: true }).getExecutorForBackendId('b-mangled'))
       .rejects.toThrow(/unreadable oxigraphConfig/);
   });
 
   it('refuses updates against a read-only backend', async () => {
     registerBackend('b-ro2', { storeType: 'ephemeral', mode: 'readOnly', sources: [{ dataGraphVersionId: 'v1' }] });
 
-    const exec = await new ExecutorFactory().getExecutorForBackendId('b-ro2');
+    const exec = await new ExecutorFactory({ internal: true }).getExecutorForBackendId('b-ro2');
 
     await expect(
       exec.update('INSERT DATA { <http://example.org/x> <http://example.org/y> <http://example.org/z> }'),
@@ -130,7 +130,7 @@ describe('ExecutorFactory - oxigraphMemory backends', () => {
     // writes that vanish on the next reload is the worse reading.
     registerBackend('b-default', { storeType: 'ephemeral', sources: [{ dataGraphVersionId: 'v1' }] });
 
-    const exec = await new ExecutorFactory().getExecutorForBackendId('b-default');
+    const exec = await new ExecutorFactory({ internal: true }).getExecutorForBackendId('b-default');
 
     await expect(exec.update('DELETE WHERE { ?s ?p ?o }')).rejects.toBeInstanceOf(ReadOnlyBackendError);
   });
@@ -138,7 +138,7 @@ describe('ExecutorFactory - oxigraphMemory backends', () => {
   it('allows updates against an ephemeral backend', async () => {
     registerBackend('b-rw', { storeType: 'ephemeral', mode: 'ephemeral', sources: [{ dataGraphVersionId: 'v1' }] });
 
-    const exec = await new ExecutorFactory().getExecutorForBackendId('b-rw');
+    const exec = await new ExecutorFactory({ internal: true }).getExecutorForBackendId('b-rw');
     await exec.update('INSERT DATA { <http://example.org/x> <http://example.org/y> <http://example.org/z> }');
 
     const { result } = await exec.selectQueryParsed('SELECT ?s WHERE { ?s ?p ?o }');
@@ -149,7 +149,7 @@ describe('ExecutorFactory - oxigraphMemory backends', () => {
     // The factory deliberately does not cache memory executors: some factories
     // are long-lived, and a cached one would keep querying the replaced store.
     registerBackend('b-track', { storeType: 'ephemeral', mode: 'readOnly', sources: [{ dataGraphId: 'g1' }] });
-    const factory = new ExecutorFactory();
+    const factory = new ExecutorFactory({ internal: true });
 
     const before = await factory.getExecutorForBackendId('b-track');
     expect(
@@ -180,6 +180,6 @@ describe('ExecutorFactory - oxigraphMemory backends', () => {
   it('surfaces an unresolvable source as an error rather than an empty dataset', async () => {
     registerBackend('b-broken', { storeType: 'ephemeral', mode: 'readOnly', sources: [{ dataGraphVersionId: 'gone' }] });
 
-    await expect(new ExecutorFactory().getExecutorForBackendId('b-broken')).rejects.toThrow(/not found/);
+    await expect(new ExecutorFactory({ internal: true }).getExecutorForBackendId('b-broken')).rejects.toThrow(/not found/);
   });
 });

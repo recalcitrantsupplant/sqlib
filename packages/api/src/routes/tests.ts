@@ -36,7 +36,8 @@ import {
 import { EXPECTATION_KINDS } from '../lib/testComparators.js';
 import { ImmutableEntityError } from '../lib/immutability.js';
 import { registerEntityAuthGuard } from '../auth/entityGuard.js';
-import { filterReadable, requireLibraryMode } from '../auth/enforce.js';
+import { filterReadable, requireContainmentWritable, requireLibraryMode, resolveOwningLibrary } from '../auth/enforce.js';
+import { assertBackendAccess } from '../auth/executionScope.js';
 import {
   negotiateReportFormat,
   renderReport,
@@ -690,6 +691,12 @@ export default async function (fastify: FastifyInstance) {
       return reply.status(400).send({ error: tagCheck.error });
     }
 
+    // A test is a standing request to execute its subject. The guard checked
+    // write on the test's own library; the subject may live in another, and
+    // composing a test over something you could not run yourself would be a
+    // way to have the next runner run it for you.
+    requireLibraryMode(request, resolveOwningLibrary(subjectEntity), 'execute');
+
     /**
      * A body that says nothing about tags gets the subject's, copied.
      *
@@ -755,6 +762,9 @@ export default async function (fastify: FastifyInstance) {
     if (!current) {
       return reply.status(404).send({ error: 'Not Found' });
     }
+
+    // Write on the destination library too, when the body moves it.
+    requireContainmentWritable(request, current, updates);
 
     const { valid, currentTag } = validateIfMatch(request, current);
     if (!valid) {
@@ -850,8 +860,19 @@ export default async function (fastify: FastifyInstance) {
       response: { 201: testVersionResponseSchema, 400: errorResponseSchema, 404: errorResponseSchema },
     }, async ({ repos, reply, request }) => {
     const { id } = request.params;
-    if (!repos.Test.get(id)) {
+    const test = repos.Test.get(id) as LdkitTest | null;
+    if (!test) {
       return reply.status(404).send({ error: 'Test not found' });
+    }
+
+    // The backend a version names is where every run of it goes, so naming
+    // one needs the same reach running against it would: `use`, directly or
+    // through the subject library's curated backends.
+    if (request.body.backend) {
+      assertBackendAccess(
+        { request, viaLibrary: resolveOwningLibrary(getCacheCoordinator().get(test.subject)) },
+        request.body.backend,
+      );
     }
 
     try {
@@ -1060,7 +1081,7 @@ export default async function (fastify: FastifyInstance) {
       requireLibraryMode(request, owner, 'execute');
     }
 
-    const runner = new TestRunner();
+    const runner = new TestRunner({ request });
     // One list, not three. Every consumer downstream — the JSON summary, the
     // EARL assertions, every export format — is a projection of the same runs,
     // and keeping parallel arrays in step is how a test ends up in the tally but
@@ -1168,7 +1189,7 @@ export default async function (fastify: FastifyInstance) {
     }
 
     try {
-      const result = await new TestRunner().runTestVersion(target.$id);
+      const result = await new TestRunner({ request }).runTestVersion(target.$id);
       await recordTestRun({
         result,
         subject: test.subject,
