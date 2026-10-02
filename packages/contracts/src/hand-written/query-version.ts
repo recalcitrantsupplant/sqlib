@@ -28,7 +28,7 @@ import {
   queryInputTupleSchema,
   queryOutputTupleSchema,
   queryVersionSchema,
-} from './version-shapes.js';
+} from '../generated/version-shapes.js';
 
 export {
   limitParameterSchema,
@@ -49,7 +49,7 @@ export type {
   QueryInputTuple,
   QueryOutputTuple,
   QueryVersion,
-} from './version-shapes.js';
+} from '../generated/version-shapes.js';
 
 const iriString = z
   .string()

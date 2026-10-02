@@ -1,13 +1,18 @@
 /**
- * 🤖 This file is auto-generated from LDKit schemas.
- * Do not edit manually - run 'npm run generate-schemas' instead.
+ * The zod leaf for `POST /sparql`: the raw-query request the web app validates
+ * before sending.
+ *
+ * Hand-written. It used to sit in `generated/` under an "auto-generated" banner
+ * that no generator honoured — nothing writes this file, and there is no entity
+ * behind it to generate it from. The JSON Schema fastify validates the same
+ * request with is `sparqlRequestJsonSchema` in `contract-routes.ts`, beside it.
  */
 import { isIri, IRI_ERROR_MESSAGE } from '../iri.js';
 import { z } from 'zod';
 import {
   executionArgumentSchema,
   executionParameterSchema,
-} from './execution.js';
+} from '../generated/execution.js';
 
 
 const iriString = z
@@ -45,29 +50,3 @@ export const sparqlRequestSchema = z
 export type SparqlRequest = z.infer<typeof sparqlRequestSchema>;
 export const sparqlResponseSchema = z.any();
 export type SparqlResponse = z.infer<typeof sparqlResponseSchema>;
-
-const errorResponseSchema = {
-  type: 'object',
-  properties: {
-    error: { type: 'string' },
-  },
-  required: ['error'],
-  additionalProperties: false,
-} as const;
-
-const sparqlQuerystringSchema = {
-  type: 'object',
-  properties: {
-    query: { type: 'string' },
-    backendId: { type: 'string', format: 'iri' },
-    endpoint: { type: 'string', format: 'uri' },
-    queryMethod: { type: 'string', enum: ['get', 'post'] },
-  },
-  required: ['query'],
-  additionalProperties: false,
-  oneOf: [
-    { required: ['backendId'] },
-    { required: ['endpoint'] },
-  ],
-} as const;
-

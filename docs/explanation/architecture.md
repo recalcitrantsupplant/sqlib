@@ -137,6 +137,13 @@ reads them and writes:
 - `packages/contracts/src/generated/*.ts` — zod schemas and TypeScript types per
   entity.
 
+Everything in those locations is generator output, and CI regenerates it and
+fails on any diff (`scripts/ci/generated-check.sh`). The contract modules that
+describe a wire protocol rather than an entity — the version write/read
+envelopes, `POST /sparql`, and the route schemas behind
+`@sparql-query-lib/contracts/schema/routes` — are hand-written and live in
+`packages/contracts/src/hand-written/`.
+
 Three consumers read the result, and none of them regenerates it:
 
 1. **The API.** `packages/api/src/index.ts` imports `* as schemas from

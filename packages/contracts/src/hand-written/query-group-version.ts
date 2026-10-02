@@ -34,7 +34,7 @@ import {
   booleanIOSchema,
   queryIdInputSchema,
   queryGroupVersionSchema,
-} from './version-shapes.js';
+} from '../generated/version-shapes.js';
 
 export {
   startNodeSchema,
@@ -49,14 +49,14 @@ export {
   queryIdInputSchema,
   queryGroupVersionSchema,
 };
-export type { QueryGroupVersion } from './version-shapes.js';
+export type { QueryGroupVersion } from '../generated/version-shapes.js';
 /*
  * Exported so a client can name the node's shape rather than restating it.
  * The web editor's own `backendConfig` declaration was a hand-copy of the old
  * `string` typing, which is how a save could drop the field while still
  * type-checking (issue #301).
  */
-export type { QueryNode } from './version-shapes.js';
+export type { QueryNode } from '../generated/version-shapes.js';
 
 const iriString = z
   .string()

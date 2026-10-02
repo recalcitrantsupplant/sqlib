@@ -16,16 +16,16 @@
  */
 import { isIri, IRI_ERROR_MESSAGE } from '../iri.js';
 import { z } from 'zod';
-import { ruleSchema } from './rule.js';
-import { dataBlockSchema } from './datablock.js';
+import { ruleSchema } from '../generated/rule.js';
+import { dataBlockSchema } from '../generated/datablock.js';
 import {
   ruleVersionSchema,
   dataBlockVersionSchema,
   ruleSetVersionSchema,
-} from './version-shapes.js';
+} from '../generated/version-shapes.js';
 
 export { ruleVersionSchema, dataBlockVersionSchema, ruleSetVersionSchema };
-export type { RuleVersion, DataBlockVersion, RuleSetVersion } from './version-shapes.js';
+export type { RuleVersion, DataBlockVersion, RuleSetVersion } from '../generated/version-shapes.js';
 
 const iriString = z
   .string()

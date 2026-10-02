@@ -28,10 +28,25 @@ pnpm --filter @sparql-query-lib/api generate-schemas
 
 `pnpm --filter @sparql-query-lib/api build` runs the same script first, so a
 build of the API also refreshes these. Edits made by hand are overwritten on the
-next run.
+next run, and CI fails if the committed files differ from what the generator
+writes (`scripts/ci/generated-check.sh`, and per file
+`packages/api/test/scripts/route-generation.snapshot.test.ts`).
 
-The hand-written files are `src/index.ts`, `src/iri.ts`, `src/schema/index.ts`,
-`src/schema/routes.ts`, `src/schema/contract-routes.ts` and `fixtures/`.
+## Hand-written files
+
+`src/hand-written/` holds the contract modules with no entity behind them —
+they describe a wire protocol, so there is nothing to generate them from:
+
+- `query-version.ts`, `query-group-version.ts`, `ruleset-version.ts` — the
+  version write and expanded read envelopes, built on the generated
+  `version-shapes.ts`
+- `sparql.ts` — the zod leaf for `POST /sparql`
+- `contract-routes.ts` — the JSON Schemas for the benchmark, detection,
+  execution, playground, patch and `/sparql` routes, exported as
+  `./schema/routes`
+
+The other hand-written files are the entry points `src/index.ts`, `src/iri.ts`,
+`src/schema/index.ts` and `src/schema/routes.ts`, and `fixtures/`.
 
 ## Build
 

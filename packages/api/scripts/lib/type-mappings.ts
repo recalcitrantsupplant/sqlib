@@ -9,9 +9,29 @@ import { xsd, ldkit as ldkitNs, rdf as rdfNs } from '../../src/persistence/names
 import { jsonShape } from '../../src/persistence/jsonShapes.js';
 
 /**
+ * One property of an emitted entity document.
+ *
+ * Open-ended on purpose: a declared `@jsonShape` contributes whatever keywords
+ * its document needs, and the emitters copy those through untouched. The named
+ * keywords are the ones the generator itself reads or writes.
+ */
+export interface OpenApiProperty {
+  type?: string | string[];
+  format?: string;
+  enum?: unknown[];
+  items?: OpenApiProperty;
+  nullable?: boolean;
+  readOnly?: boolean;
+  pattern?: string;
+  minLength?: number;
+  minItems?: number;
+  [keyword: string]: unknown;
+}
+
+/**
  * Direct XSD/LDKit type to OpenAPI type mappings
  */
-export const XSD_TO_OPENAPI = new Map<string, any>([
+export const XSD_TO_OPENAPI = new Map<string, OpenApiProperty>([
   [xsd.dateTime, { type: 'string', format: 'date-time', readOnly: true }],
   [xsd.integer, { type: 'integer' }],
   [xsd.int, { type: 'integer' }],
@@ -28,13 +48,13 @@ export const XSD_TO_OPENAPI = new Map<string, any>([
   [xsd.float, { type: 'number' }],
   [xsd.boolean, { type: 'boolean' }],
   [xsd.anyURI, { type: 'string', format: 'iri' }],
-  [(ldkitNs as any).IRI, { type: 'string', format: 'iri' }],
+  [ldkitNs.IRI, { type: 'string', format: 'iri' }],
 ]);
 
 /**
  * Field name pattern-based type inference (fallback when @type not explicit)
  */
-export const FIELD_PATTERNS = new Map<RegExp, any>([
+export const FIELD_PATTERNS = new Map<RegExp, OpenApiProperty>([
   [/date(Created|Modified)?$/i, { type: 'string', format: 'date-time', readOnly: true }],
   [/(url|URI|iri|endpoint)$/i, { type: 'string', format: 'iri' }],
 ]);
@@ -76,8 +96,8 @@ export function inferOpenAPIType(
   ldkitType: string | undefined,
   ldkitId: string | undefined,
   options: TypeInferenceOptions = {}
-): any {
-  let baseType: any = { type: 'string' }; // Default fallback
+): OpenApiProperty {
+  let baseType: OpenApiProperty = { type: 'string' }; // Default fallback
 
   // 0. A declared vocabulary is the property's type — nothing to infer.
   if (options.values) {

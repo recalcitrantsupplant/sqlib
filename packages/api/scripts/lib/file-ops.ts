@@ -86,7 +86,7 @@ export function writeGeneratedFiles(outputDir: string, files: GeneratedFiles): v
  * @param examplePath - Relative path to example file
  * @returns Parsed JSON object or undefined if file doesn't exist
  */
-export function loadExample(examplesDir: string, examplePath: string): any | undefined {
+export function loadExample(examplesDir: string, examplePath: string): unknown {
   try {
     const fullPath = path.join(examplesDir, examplePath);
     if (fs.existsSync(fullPath)) {

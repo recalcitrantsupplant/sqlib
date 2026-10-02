@@ -1,5 +1,17 @@
 /**
- * Route and response JSON Schemas owned by the API.
+ * Route and response JSON Schemas owned by the API: the ones with no entity
+ * behind them.
+ *
+ * Hand-written, and deliberately so (decision D7 of the 2026-09 review). What is
+ * here is the benchmark route family, the three request bodies with no entity
+ * behind them at all (detection, execution, playground), `POST /sparql`, the
+ * patch routes and the response envelopes. The generator projects route schemas
+ * from the entity model, and none of these has one, so "generated" would only
+ * mean a template string inside the generator — the same bytes, edited somewhere
+ * harder to find. Deleting the file in favour of `routes.generated.ts` is not an
+ * option either: that file has no counterpart for anything here except the
+ * benchmark CRUD routes, and its benchmark schemas are not what
+ * `routes/benchmarks.ts` registers (no route uses them).
  *
  * Provenance: snapshotted verbatim from `packages/contracts`' generated
  * `produceJsonSchema()` output during Phase C1 (issue #65), then edited
@@ -11,16 +23,12 @@
  * (route-helpers.ts) — which the round-tripped versions could never be, because
  * they were function return values with no literal type.
  *
- * Phase B/C folds these back into generation from the entity model. Until then
- * they are hand-owned: edit them here.
- *
- * **Backend and RuleSet are gone from this file (Phase B2).** Both now register
- * the documents `routes.generated.ts` emits from the entity model, so the
- * duplicate `backend` `$id` no longer exists and neither does the risk that
- * whichever fastify saw first decided what every `$ref: 'backend#'` meant. What
- * is left is the benchmark family (whose entity-model counterparts are *not*
- * equivalent — see `routes.ts`), the three request bodies with no entity behind
- * them at all (detection, execution, playground), and the response documents.
+ * **No entity document is restated here.** Backend, RuleSet and the four
+ * benchmark entity documents used to be (Phase B2 removed them); every
+ * `$ref: 'backend#'` now resolves to the document the entity model emits.
+ * `packages/api/test/contracts/route-schema-ids.test.ts` keeps it that way: an
+ * `$id` here that collides with an entity document, or two different documents
+ * under one `$id`, fails it.
  */
 
 export const benchmarkRouteSchemas = {

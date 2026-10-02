@@ -9,13 +9,13 @@ export * from './generated/datagraph.js';
 export * from './generated/tupleset.js';
 export * from './generated/test.js';
 export * from './generated/tag.js';
-export * from './generated/query-version.js';
-export * from './generated/query-group-version.js';
-export * from './generated/ruleset-version.js';
+export * from './hand-written/query-version.js';
+export * from './hand-written/query-group-version.js';
+export * from './hand-written/ruleset-version.js';
 export * from './generated/benchmark.js';
 export * from './generated/detection.js';
 export * from './generated/execution.js';
-export * from './generated/sparql.js';
+export * from './hand-written/sparql.js';
 export * from './generated/playground.js';
 
 // Backward compatibility aliases for old naming convention

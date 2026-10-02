@@ -1,90 +1,81 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
-import { fileURLToPath } from 'url';
-import { generateSchemas } from '../../scripts/generate-schemas.js';
+import { generateSchemas, DEFAULT_OUTPUT_DIRS } from '../../scripts/generate-schemas.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
+/**
+ * The committed generator output is exactly what the generator writes.
+ *
+ * Generates into a temp directory and compares, so a test run never touches the
+ * committed files (it used to regenerate them in place and assert only that
+ * they were non-empty). `scripts/ci/generated-check.sh` asks the same question
+ * of a whole `generate-schemas` run with `git diff`; this is the version that
+ * runs with the unit tests and names the file that drifted.
+ */
 describe('route generation snapshot tests', () => {
-  const routesFile = path.join(__dirname, '../../../contracts/src/schema/routes.generated.ts');
-  const entitiesFile = path.join(__dirname, '../../../contracts/src/schema/entities.generated.ts');
-  const indexFile = path.join(__dirname, '../../../contracts/src/schema/index.generated.ts');
+  let tmpRoot: string;
+  let schemaDir: string;
+  let contractsDir: string;
+  let written: string[];
 
-  let originalRoutes: string;
-  let originalEntities: string;
-  let originalIndex: string;
-
-  beforeAll(() => {
-    // Capture original content
-    originalRoutes = fs.readFileSync(routesFile, 'utf-8');
-    originalEntities = fs.readFileSync(entitiesFile, 'utf-8');
-    originalIndex = fs.readFileSync(indexFile, 'utf-8');
+  beforeAll(async () => {
+    tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'generate-schemas-'));
+    schemaDir = path.join(tmpRoot, 'schema');
+    contractsDir = path.join(tmpRoot, 'generated');
+    written = await generateSchemas({ schemaDir, contractsDir });
   });
 
-  it('should generate routes file', async () => {
-    await generateSchemas();
-
-    const newRoutes = fs.readFileSync(routesFile, 'utf-8');
-    expect(newRoutes).toBeTruthy();
-    expect(newRoutes.length).toBeGreaterThan(0);
+  afterAll(() => {
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
   });
 
-  it('should generate entities file', async () => {
-    await generateSchemas();
+  const committedPathFor = (file: string) =>
+    file.startsWith(schemaDir + path.sep)
+      ? path.join(DEFAULT_OUTPUT_DIRS.schemaDir, path.relative(schemaDir, file))
+      : path.join(DEFAULT_OUTPUT_DIRS.contractsDir, path.relative(contractsDir, file));
 
-    const newEntities = fs.readFileSync(entitiesFile, 'utf-8');
-    expect(newEntities).toBeTruthy();
-    expect(newEntities.length).toBeGreaterThan(0);
+  it('writes only into the directories it was given', () => {
+    expect(written.length).toBeGreaterThan(0);
+    for (const file of written) {
+      expect(file.startsWith(schemaDir + path.sep) || file.startsWith(contractsDir + path.sep), file).toBe(true);
+      expect(fs.existsSync(file), file).toBe(true);
+    }
   });
 
-  it('should generate index file', async () => {
-    await generateSchemas();
-
-    const newIndex = fs.readFileSync(indexFile, 'utf-8');
-    expect(newIndex).toBeTruthy();
-    expect(newIndex.length).toBeGreaterThan(0);
+  it('matches every committed generated file byte for byte', () => {
+    const drifted = written.filter(
+      file => fs.readFileSync(file, 'utf-8') !== fs.readFileSync(committedPathFor(file), 'utf-8')
+    );
+    // Regenerate with `pnpm generate-schemas` and commit the result.
+    expect(drifted.map(committedPathFor)).toEqual([]);
   });
 
-  it('should have consistent structure in routes file (ignore timestamp)', async () => {
-    await generateSchemas();
-
-    const newRoutes = fs.readFileSync(routesFile, 'utf-8');
-
-    // Remove timestamp lines for comparison
-    const stripTimestamp = (content: string) =>
-      content.replace(/Generated on: .+\n/, 'Generated on: TIMESTAMP\n');
-
-    const normalizedOriginal = stripTimestamp(originalRoutes);
-    const normalizedNew = stripTimestamp(newRoutes);
-
-    // They should be identical when timestamps are normalized
-    expect(normalizedNew).toBe(normalizedOriginal);
+  it('owns every file in contracts/src/generated — hand-written modules live in src/hand-written', () => {
+    // A file here the generator does not write is either stale output or a
+    // hand-written module in the wrong place; both read as generated and are not.
+    const generated = fs.readdirSync(contractsDir).sort();
+    const committed = fs.readdirSync(DEFAULT_OUTPUT_DIRS.contractsDir).sort();
+    expect(committed).toEqual(generated);
   });
 
-  it('should have consistent structure in entities file (ignore timestamp)', async () => {
-    await generateSchemas();
-
-    const newEntities = fs.readFileSync(entitiesFile, 'utf-8');
-
-    // Remove timestamp lines for comparison
-    const stripTimestamp = (content: string) =>
-      content.replace(/Generated on: .+\n/, 'Generated on: TIMESTAMP\n');
-
-    const normalizedOriginal = stripTimestamp(originalEntities);
-    const normalizedNew = stripTimestamp(newEntities);
-
-    // They should be identical when timestamps are normalized
-    expect(normalizedNew).toBe(normalizedOriginal);
+  it('owns every *.generated.ts file in contracts/src/schema', () => {
+    const generated = fs.readdirSync(schemaDir).sort();
+    const committed = fs
+      .readdirSync(DEFAULT_OUTPUT_DIRS.schemaDir)
+      .filter(name => name.endsWith('.generated.ts'))
+      .sort();
+    expect(committed).toEqual(generated);
+    // The rest of that directory is the two hand-written entry-point barrels.
+    const handWritten = fs
+      .readdirSync(DEFAULT_OUTPUT_DIRS.schemaDir)
+      .filter(name => !name.endsWith('.generated.ts'))
+      .sort();
+    expect(handWritten).toEqual(['index.ts', 'routes.ts']);
   });
 
-  it('should include all expected route schema exports', async () => {
-    await generateSchemas();
-
-    const newRoutes = fs.readFileSync(routesFile, 'utf-8');
-
-    // Check for key route schema exports
+  it('includes all expected route schema exports', () => {
+    const routes = fs.readFileSync(path.join(schemaDir, 'routes.generated.ts'), 'utf-8');
     const expectedExports = [
       'getBackendsSchema',
       'createBackendSchema',
@@ -102,18 +93,13 @@ describe('route generation snapshot tests', () => {
       'detectInputsQueryVersionSchema',
       'detectOutputsQueryVersionSchema'
     ];
-
     for (const exportName of expectedExports) {
-      expect(newRoutes).toContain(`export const ${exportName}`);
+      expect(routes).toContain(`export const ${exportName}`);
     }
   });
 
-  it('should include all expected entity schema exports', async () => {
-    await generateSchemas();
-
-    const newEntities = fs.readFileSync(entitiesFile, 'utf-8');
-
-    // Check for key entity schema exports
+  it('includes all expected entity schema and interface exports', () => {
+    const entities = fs.readFileSync(path.join(schemaDir, 'entities.generated.ts'), 'utf-8');
     const expectedSchemas = [
       'backendSchema',
       'librarySchema',
@@ -127,18 +113,9 @@ describe('route generation snapshot tests', () => {
       'queryinputtupleSchema',
       'queryoutputtupleSchema'
     ];
-
     for (const schemaName of expectedSchemas) {
-      expect(newEntities).toContain(`export const ${schemaName}`);
+      expect(entities).toContain(`export const ${schemaName}`);
     }
-  });
-
-  it('should include all expected interface exports', async () => {
-    await generateSchemas();
-
-    const newEntities = fs.readFileSync(entitiesFile, 'utf-8');
-
-    // Check for key interface exports
     const expectedInterfaces = [
       'BackendRestApi',
       'LibraryRestApi',
@@ -147,9 +124,8 @@ describe('route generation snapshot tests', () => {
       'QueryVersionRestApi',
       'QueryGroupVersionRestApi'
     ];
-
     for (const interfaceName of expectedInterfaces) {
-      expect(newEntities).toContain(`export interface ${interfaceName}`);
+      expect(entities).toContain(`export interface ${interfaceName}`);
     }
   });
 });

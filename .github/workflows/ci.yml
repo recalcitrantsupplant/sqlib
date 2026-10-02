@@ -63,6 +63,9 @@ jobs:
       - run: bash scripts/ci/orphan-ratchet.sh
       - run: bash scripts/ci/typecheck.sh
       - run: bash scripts/ci/build.sh
+      # After build, so it also catches a build that leaves the tree dirty:
+      # regenerates the contracts and fails on any diff under packages/contracts.
+      - run: bash scripts/ci/generated-check.sh
       # After build: it checks the built entry points of the packages that are
       # not `private: true` (issue #258). Nothing is published here.
       - run: bash scripts/ci/publish-check.sh
