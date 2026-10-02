@@ -73,7 +73,8 @@ const NODE_TYPE = { nodeType: 'nullableString' };
 const VERSION_DEFAULT_BACKEND = { defaultBackend: 'optionalIriString' };
 
 /**
- * The eighteen, in the order the two modules declared them.
+ * The eighteen, in the order the two modules declared them, then the leaves
+ * added since.
  *
  * Order is preserved so the emitted module reads like what it replaces, and so
  * a reviewer comparing the two is comparing like with like.
@@ -125,6 +126,15 @@ export const VERSION_SHAPES: VersionShape[] = [
   { varName: 'ruleVersion', entityExport: 'ruleversionSchema', typeName: 'RuleVersion' },
   { varName: 'dataBlockVersion', entityExport: 'datablockversionSchema', typeName: 'DataBlockVersion' },
   { varName: 'ruleSetVersion', entityExport: 'rulesetversionSchema', typeName: 'RuleSetVersion' },
+  // The data, tuple and test version leaves. The web restated each of these by
+  // hand in `useApiClient.ts`, and the test case copy had fallen behind by the
+  // one field that mattered: `dataGraphs`, so re-saving a multi-graph test from
+  // the UI dropped its graphs (review C8). `hand-written/test-version.ts`
+  // builds the expanded read and the write body on top of these.
+  { varName: 'dataGraphVersion', entityExport: 'datagraphversionSchema', typeName: 'DataGraphVersion' },
+  { varName: 'tupleSetVersion', entityExport: 'tuplesetversionSchema', typeName: 'TupleSetVersion' },
+  { varName: 'testCase', entityExport: 'testcaseSchema', typeName: 'TestCase' },
+  { varName: 'testVersion', entityExport: 'testversionSchema', typeName: 'TestVersion' },
 ];
 
 const IRI_STRING: ZodReusableType = {

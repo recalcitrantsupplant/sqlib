@@ -669,6 +669,7 @@ import { usePanelResize } from '../composables/usePanelResize';
 import { useFeatureFlags } from '../composables/useFeatureFlags';
 import { TEST_REPORT_FORMATS } from '../lib/testReportFormats';
 import type { TestReportFormat } from '../lib/testReportFormats';
+import type { TestCaseGraphInput } from '@sparql-query-lib/contracts';
 // @ts-ignore - Nuxt auto-import
 import { useRuntimeConfig } from '#imports';
 import type { RunBarChoice, RunBarPick } from '../lib/runBar';
@@ -838,6 +839,15 @@ const subjectTuplesEnabled = ref<boolean | null>(null);
 interface CaseDraft {
   name: string;
   dataGraphVersion: string | null;
+  /**
+   * The ordered RDF inputs of a case over a subject that takes several.
+   *
+   * Carried through the editor untouched, like `expectedFormat`: this screen
+   * edits the single-graph spelling, and a multi-graph case is written over the
+   * API or by the assistant. Dropping it on read is what made re-saving such a
+   * test from here mint a version with its graphs gone (review C8).
+   */
+  dataGraphs: TestCaseGraphInput[] | null;
   argumentSetVersion: string | null;
   tupleSeeds: string;
   /** DuckDB statements run before an ETL subject's own SQL — the rows it reads. */
@@ -859,6 +869,7 @@ function emptyCase(): CaseDraft {
   return {
     name: '',
     dataGraphVersion: null,
+    dataGraphs: null,
     argumentSetVersion: null,
     tupleSeeds: '',
     sqlFixture: '',
@@ -887,7 +898,18 @@ function caseField<K extends keyof CaseDraft>(key: K) {
   });
 }
 
-const dataGraphVersion = caseField('dataGraphVersion');
+/*
+ * Picking one graph here is choosing the single-graph spelling, so it replaces
+ * a list the case was read with rather than sitting beside it — the server
+ * refuses a case carrying both.
+ */
+const dataGraphVersion = computed({
+  get: () => activeCase.value.dataGraphVersion,
+  set: (value: string | null) => {
+    activeCase.value.dataGraphVersion = value;
+    if (value) activeCase.value.dataGraphs = null;
+  },
+});
 const argumentSetVersion = caseField('argumentSetVersion');
 const tupleSeeds = caseField('tupleSeeds');
 const sqlFixture = caseField('sqlFixture');
@@ -1638,6 +1660,9 @@ function bodyOfVersion(version: TestVersion): TestDraftBody {
     cases: version.cases.map((testCase) => ({
       name: testCase.name ?? '',
       dataGraphVersion: testCase.dataGraphVersion ?? null,
+      dataGraphs: testCase.dataGraphs?.length
+        ? testCase.dataGraphs.map((graph) => ({ dataGraphVersion: graph.dataGraphVersion }))
+        : null,
       argumentSetVersion: testCase.argumentSetVersion ?? null,
       tupleSeeds: testCase.tupleSeeds ?? '',
       sqlFixture: testCase.sqlFixture ?? '',
@@ -1808,8 +1833,13 @@ function onSubjectKindChange(kind: SubjectKind) {
  */
 function savedCaseInputs(testCase: CaseDraft) {
   const applicable = INPUTS_FOR_SUBJECT_KIND[subjectKind.value];
+  // The two spellings of a case's RDF input are exclusive on the server; a
+  // case read with a list keeps the list, and picking a single graph in the
+  // editor replaces it (see `dataGraphVersion`'s setter).
+  const graphs = applicable.dataGraph && testCase.dataGraphs?.length ? testCase.dataGraphs : null;
   return {
-    dataGraphVersion: applicable.dataGraph ? testCase.dataGraphVersion : null,
+    dataGraphVersion: applicable.dataGraph && !graphs ? testCase.dataGraphVersion : null,
+    dataGraphs: graphs,
     tupleSeeds: applicable.tupleSeeds ? testCase.tupleSeeds || null : null,
     sqlFixture: applicable.sqlFixture ? testCase.sqlFixture || null : null,
     argumentSetVersion: applicable.argumentSet ? testCase.argumentSetVersion : null,

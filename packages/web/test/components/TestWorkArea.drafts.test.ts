@@ -244,6 +244,38 @@ describe('TestWorkArea — drafts', () => {
     expect(area.find('[data-testid="draft-pill"]').exists()).toBe(false);
   });
 
+  /*
+   * Review C8: the case a version is read with is the case it is saved with.
+   * A multi-graph case is written over the API (the editor edits the single
+   * graph), and re-saving it from here used to mint a version without its
+   * graphs, because the client's own schema for a case did not know the field.
+   */
+  it('keeps a multi-graph case\'s graphs through an edit and a save', async () => {
+    const graphs = [
+      { dataGraphVersion: 'urn:sqlib:data-graph-version:shapes' },
+      { dataGraphVersion: 'urn:sqlib:data-graph-version:data' },
+    ];
+    store.loadVersions.mockResolvedValue([
+      {
+        id: 'urn:sqlib:test-version:v1',
+        version: 1,
+        expectationKind: 'graph',
+        subjectVersion: null,
+        backend: null,
+        cases: [{ name: null, expected: SAVED_EXPECTED, expectedFormat: 'text/turtle', ordered: null, dataGraphs: graphs }],
+      },
+    ]);
+    store.createVersion.mockResolvedValue({ id: 'urn:sqlib:test-version:v2', version: 2 });
+
+    const area = await mountSaved();
+    await edit(area, 'the edited expectation .');
+    await (area.vm as unknown as { save: () => Promise<void> }).save();
+    await flushPromises();
+
+    const [, body] = store.createVersion.mock.calls[0] as [string, { cases: Array<Record<string, unknown>> }];
+    expect(body.cases[0]).toMatchObject({ expected: 'the edited expectation .', dataGraphs: graphs, dataGraphVersion: null });
+  });
+
   it('writes a rename back to the test, not only into the next version', async () => {
     // Name and description are the test's own fields rather than a version's,
     // and nothing wrote them at all while they sat in the Subject block: a

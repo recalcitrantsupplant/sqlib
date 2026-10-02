@@ -88,6 +88,23 @@ import {
   type RuleSetCreateInput,
   type RuleSetUpdateInput,
   ruleSetVersionSchema,
+  ruleVersionSchema,
+  dataBlockVersionSchema,
+  dataGraphVersionSchema,
+  tupleSetVersionSchema,
+  testVersionExpandedSchema,
+  type RuleVersion,
+  type DataBlockVersion,
+  type DataGraphVersion,
+  type TupleSetVersion,
+  type TestCaseExpanded,
+  type TestVersionExpanded,
+  testRunResultSchema,
+  taggedTestRunSchema,
+  type TestCaseRunResult,
+  type TestRunResult,
+  type TaggedTestRun,
+  type TagMatchMode,
   dataBlockSchema,
   dataBlockCreateSchema,
   dataBlockUpdateSchema,
@@ -292,55 +309,6 @@ function parseServerTiming(
   };
 }
 
-const ruleVersionSchema = z.object({
-  id: z.string(),
-  isPartOf: z.string(),
-  version: z.number(),
-  ruleString: z.string(),
-  comment: z.string().nullable().optional(),
-  normalizedInsert: z.string().nullable().optional(),
-  defaultBackend: z.string().nullable().optional(),
-  grammarValid: z.boolean().nullable().optional(),
-  validationError: z.string().nullable().optional(),
-  dateCreated: z.string().nullable().optional(),
-  dateModified: z.string().nullable().optional(),
-});
-
-const dataBlockVersionSchema = z.object({
-  id: z.string(),
-  isPartOf: z.string(),
-  version: z.number(),
-  dataString: z.string(),
-  normalizedInsertData: z.string().nullable().optional(),
-  comment: z.string().nullable().optional(),
-  defaultBackend: z.string().nullable().optional(),
-  grammarValid: z.boolean().nullable().optional(),
-  validationError: z.string().nullable().optional(),
-  dateCreated: z.string().nullable().optional(),
-  dateModified: z.string().nullable().optional(),
-});
-
-/*
- * A data graph version. `tripleCount` and `byteSize` are computed by the
- * server from the parsed content, so they are read-only facts about the
- * version rather than anything a client sends.
- */
-const dataGraphVersionSchema = z.object({
-  id: z.string(),
-  isPartOf: z.string(),
-  version: z.number(),
-  immutable: z.boolean().nullable().optional(),
-  contentString: z.string(),
-  contentFormat: z.string(),
-  tripleCount: z.number().nullable().optional(),
-  byteSize: z.number().nullable().optional(),
-  grammarValid: z.boolean().nullable().optional(),
-  validationError: z.string().nullable().optional(),
-  comment: z.string().nullable().optional(),
-  dateCreated: z.string().nullable().optional(),
-  dateModified: z.string().nullable().optional(),
-});
-
 const detectTupleFormatSchema = z.object({
   suggested: z.enum(TUPLE_SOURCE_FORMATS),
 });
@@ -366,170 +334,17 @@ const previewTupleContentSchema = z.object({
   columnTypeSuggestions: z.array(columnTypeSuggestionSchema),
 });
 
-/**
- * A tuple set version.
- *
- * `contentString` is always a SPARQL Results JSON document, whatever
- * `sourceFormat` says — that field is provenance, recording which dialect the
- * rows arrived in, not an instruction for reading them back. The server
- * normalises on import precisely so a pinned version cannot change meaning
- * when the reading code does (`docs/concepts.md`).
- *
- * `tupleColumns` is `head.vars` in order, lifted onto the version so a listing
- * can show arity and a compatibility verdict can be computed without parsing a
- * megabyte of content.
- */
-const tupleSetVersionSchema = z.object({
-  id: z.string(),
-  isPartOf: z.string(),
-  version: z.number(),
-  immutable: z.boolean().nullable().optional(),
-  contentString: z.string(),
-  sourceFormat: z.enum(TUPLE_SOURCE_FORMATS).nullable().optional(),
-  tupleColumns: z.array(z.string()).nullable().optional(),
-  rowCount: z.number().nullable().optional(),
-  byteSize: z.number().nullable().optional(),
-  // Present only on a version the ETL sink materialized (#211): what produced
-  // the rows, recorded on the snapshot rather than followed.
-  sourceEtlJobVersion: z.string().nullable().optional(),
-  sourceColumnMappingVersion: z.string().nullable().optional(),
-  sourceExecutedAt: z.string().nullable().optional(),
-  sourceResultHash: z.string().nullable().optional(),
-  comment: z.string().nullable().optional(),
-  dateCreated: z.string().nullable().optional(),
-  dateModified: z.string().nullable().optional(),
-});
 
 /*
- * A test version: the invocation inputs plus the expectation. `expected` is
- * text whatever the kind — JSON for bindings, "true"/"false" for boolean, RDF
- * for graph — because the comparator that reads it is chosen by
- * `expectationKind`, not by the field's type.
+ * Version shapes are the contracts' own, projected from the entity model. A
+ * test version's cases arrive inlined, with their data graphs in the shape a
+ * version is written with, so what the editor reads it can save back.
  */
-/**
- * One parametrised case: its inputs, and what is correct given them.
- *
- * The expectation is on the case rather than the version because changing the
- * arguments changes what is correct. A test with one case is the ordinary
- * single test; N cases is `@pytest.mark.parametrize`.
- */
-const testCaseSchema = z.object({
-  id: z.string(),
-  isPartOf: z.string(),
-  position: z.number(),
-  name: z.string().nullable().optional(),
-  argumentSetVersion: z.string().nullable().optional(),
-  dataGraphVersion: z.string().nullable().optional(),
-  tupleSeeds: z.string().nullable().optional(),
-  /** DuckDB statements run before an ETL subject's own SQL — the rows it reads. */
-  sqlFixture: z.string().nullable().optional(),
-  expected: z.string().nullable().optional(),
-  expectedFormat: z.string().nullable().optional(),
-  ordered: z.boolean().nullable().optional(),
-  dateCreated: z.string().nullable().optional(),
-  dateModified: z.string().nullable().optional(),
-});
+export type TestCase = TestCaseExpanded;
+export type TestVersion = TestVersionExpanded;
+export type { TestCaseRunResult, TestRunResult, TaggedTestRun, TagMatchMode };
 
-const testVersionSchema = z.object({
-  id: z.string(),
-  isPartOf: z.string(),
-  version: z.number(),
-  immutable: z.boolean().nullable().optional(),
-  expectationKind: z.string(),
-  // Inlined by the server, in position order — a case has no endpoint of its own.
-  cases: z.array(testCaseSchema).default([]),
-  subjectVersion: z.string().nullable().optional(),
-  backend: z.string().nullable().optional(),
-  maxIterations: z.number().nullable().optional(),
-  timeoutMs: z.number().nullable().optional(),
-  comment: z.string().nullable().optional(),
-  dateCreated: z.string().nullable().optional(),
-  dateModified: z.string().nullable().optional(),
-});
-
-const comparisonDetailSchema = z
-  .object({
-    missing: z.array(z.string()).optional(),
-    unexpected: z.array(z.string()).optional(),
-    matched: z.number().optional(),
-  })
-  .nullable()
-  .optional();
-
-/**
- * One case's verdict.
- *
- * The diff is here rather than at the top level because it belongs to the case
- * that produced it — one flattened diff across N cases would be a diff of
- * nothing in particular.
- */
-const testCaseRunResultSchema = z.object({
-  caseId: z.string(),
-  name: z.string(),
-  position: z.number(),
-  passed: z.boolean(),
-  message: z.string(),
-  detail: comparisonDetailSchema,
-  /** What the subject produced, capped server-side. The pane shows it beside the diff. */
-  result: z.string().nullable().optional(),
-  resultTruncated: z.boolean().nullable().optional(),
-  inputs: z
-    .object({
-      argumentSetVersion: z.string().nullable().optional(),
-      dataGraphVersion: z.string().nullable().optional(),
-    })
-    .optional(),
-  durationMs: z.number(),
-});
-
-/** One verdict per case, plus the summary across them. */
-const testRunResultSchema = z.object({
-  testId: z.string(),
-  testVersionId: z.string(),
-  passed: z.boolean(),
-  message: z.string(),
-  expectationKind: z.string(),
-  hermetic: z.boolean(),
-  durationMs: z.number(),
-  subjectVersionId: z.string().nullable().optional(),
-  ranAt: z.string(),
-  cases: z.array(testCaseRunResultSchema).default([]),
-  passedCount: z.number().default(0),
-  failedCount: z.number().default(0),
-});
-
-/**
- * The answer to a run-by-tag: the tally, and every verdict behind it.
- *
- * `requested` is how many tests the tags selected — always `results.length`,
- * and present so "no test carries this tag" is a fact a caller can read rather
- * than infer from an empty array.
- */
-const taggedTestRunSchema = z.object({
-  tags: z.array(z.string()),
-  match: z.string(),
-  requested: z.number(),
-  passed: z.number(),
-  failed: z.number(),
-  results: z.array(testRunResultSchema).default([]),
-  reportGraph: z.string().nullable().optional(),
-  reportError: z.string().nullable().optional(),
-});
-
-/** `any` unions the tags, `all` intersects them. The API defaults to `any`. */
-export type TagMatchMode = 'any' | 'all';
-
-export type TaggedTestRun = z.infer<typeof taggedTestRunSchema>;
-
-export type TestCase = z.infer<typeof testCaseSchema>;
-export type TestCaseRunResult = z.infer<typeof testCaseRunResultSchema>;
-export type TestVersion = z.infer<typeof testVersionSchema>;
-export type TestRunResult = z.infer<typeof testRunResultSchema>;
-
-export type RuleVersion = z.infer<typeof ruleVersionSchema>;
-export type DataBlockVersion = z.infer<typeof dataBlockVersionSchema>;
-export type DataGraphVersion = z.infer<typeof dataGraphVersionSchema>;
-export type TupleSetVersion = z.infer<typeof tupleSetVersionSchema>;
+export type { RuleVersion, DataBlockVersion, DataGraphVersion, TupleSetVersion };
 
 /*
  * Backend observations — what the server saw when it last asked the store for
@@ -2282,7 +2097,7 @@ export function useApiClient() {
     return requestData(
       buildUrl(`/tests/${encodeURIComponent(testId)}/versions`),
       { method: 'GET' },
-      (payload) => testVersionSchema.array().parse(payload),
+      (payload) => testVersionExpandedSchema.array().parse(payload),
     );
   };
 
@@ -2291,7 +2106,7 @@ export function useApiClient() {
     return request(
       buildUrl(`/tests/${encodeURIComponent(testId)}/versions`),
       { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(input) },
-      testVersionSchema.parse,
+      testVersionExpandedSchema.parse,
     );
   };
 
@@ -2301,7 +2116,7 @@ export function useApiClient() {
     return request(
       buildUrl(`/tests/${encodeURIComponent(testId)}/versions/${encodeURIComponent(String(version))}`),
       { method: 'PATCH', headers: JSON_HEADERS, body: JSON.stringify({ comment }) },
-      testVersionSchema.parse,
+      testVersionExpandedSchema.parse,
     );
   };
 
