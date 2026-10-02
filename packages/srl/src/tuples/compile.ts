@@ -118,6 +118,8 @@ export function collectTupleReads(items: SrlBodyItem[], negated = false): TupleR
   for (const item of items) {
     if (item.kind === 'tuple') refs.push(toTupleRef(item.tuple, negated));
     else if (item.kind === 'not') refs.push(...collectTupleReads(item.body, true));
+    // In compile order: an aggregate's inner reads come where the aggregate is.
+    else if (item.kind === 'aggregate') refs.push(...collectTupleReads(item.body, negated));
   }
   return refs;
 }

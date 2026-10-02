@@ -424,3 +424,161 @@ extension off it refuses with:
 ```
 SRL syntax error: tuple seed rows require the rule-tuples extension (parse with { tuples: true })
 ```
+
+## The rule-aggregates extension
+
+**This is not conformant SHACL 1.2 Rules.** `AGGREGATE` is an extension to the
+language, following a proposal in
+[w3c/data-shapes#840](https://github.com/w3c/data-shapes/issues/840) that the
+specification does not include. It is gated by the `ruleAggregates` feature flag
+(`FEATURE_RULE_AGGREGATES`), which is **off by default**. A document using it
+cannot be read by other SHACL 1.2 Rules tooling.
+
+With the extension off, `AGGREGATE` is a syntax error:
+
+```
+SRL syntax error: AGGREGATE requires the rule-aggregates extension (parse with { aggregates: true })
+```
+
+### Syntax
+
+`AGGREGATE` is a rule body element. It names the outer variables its pattern may
+see, gives the pattern, and assigns one or more results:
+
+```sparql
+PREFIX : <http://example.org/>
+RULE { ?x :numChildren ?n ; :oldestChild ?oldest }
+WHERE {
+  ?x a :Person .
+  AGGREGATE PER ?x { ?y :childOf ?x ; :age ?age }
+            ( ?n := COUNT(*), ?oldest := MAX(?age) )
+}
+```
+
+The functions are `COUNT(*)`, `COUNT(expr)`, `SUM`, `MIN`, `MAX` and `AVG`, each
+optionally with `DISTINCT`. The argument can be any expression over the
+pattern's variables, such as `SUM(?price * ?qty)`. `SAMPLE` and `GROUP_CONCAT`
+are refused, because their results depend on the order an engine produces rows
+in.
+
+The pattern holds what a `NOT` pattern holds: triple patterns, `FILTER`, `NOT`
+and, with the rule-tuples extension on, `TUPLE( … )`. It cannot hold `SET` or
+another `AGGREGATE`, and an `AGGREGATE` cannot appear inside a `NOT`.
+
+### Join forms
+
+The words after `AGGREGATE` decide how it joins the rest of the body. The
+pattern is always evaluated once per distinct value of the variables it shares
+with the outer body.
+
+| Form | Variables the pattern shares with the outer body | Variables bound after it |
+| --- | --- | --- |
+| `AGGREGATE PER ?x … { … }` | the listed variables | every earlier variable, plus the results |
+| `AGGREGATE { … }` | none: one result over the whole graph | every earlier variable, plus the results |
+| `AGGREGATE PER * { … }` | every pattern variable bound by an earlier element | every earlier variable, plus the results |
+| `AGGREGATE GROUP BY ?x … { … }` | the listed variables | the listed variables and the results only |
+
+`PER` keeps every outer row. A person with two names and three children produces
+two rows, each with a count of 3. The count is not multiplied by the number of
+names, because the pattern is evaluated per person, not per outer row.
+
+`GROUP BY` collapses the outer rows as a SPARQL `GROUP BY` does. A variable
+from before the aggregate that is not listed is unbound afterwards, so a head or
+a later `FILTER` that uses it fails well-formedness.
+
+`PER *` is the implicit form: correlation follows variable names, so renaming an
+outer variable can change what the aggregate counts. `PER ?x` states the same
+correlation explicitly.
+
+### Results
+
+Each assignment is computed over the set of solutions of the pattern, with every
+pattern variable included. Two children aged 10 are two solutions, so
+`SUM(?age)` counts both. `COUNT(DISTINCT ?p)` counts distinct values.
+
+| Pattern matches | `COUNT`, `SUM` | `MIN`, `MAX`, `AVG` |
+| --- | --- | --- |
+| at least one solution | the value | the value |
+| no solution | `0` | no value: the row is dropped |
+
+An error in any assignment, such as `SUM` over a string, drops the row, as an
+error in `SET` does.
+
+### Well-formedness
+
+Violations are reported under the category `aggregate-scope`:
+
+- Each listed variable must be bound before the `AGGREGATE` and used in its
+  pattern.
+- A pattern variable that is not listed belongs to the aggregate. It must not
+  appear anywhere else in the rule, before or after the aggregate or in the
+  head. To correlate it, list it; otherwise rename it. Two aggregates may each
+  use the same name for their own variable.
+- Each result must be a new variable: not bound before, not used in the
+  pattern, and not assigned again by a later `SET` or `AGGREGATE`.
+- Each assignment's argument may use only variables the pattern binds or the
+  listed variables.
+
+A `FILTER` inside the pattern follows the usual order rule, with only the listed
+variables bound from outside.
+
+### Stratification
+
+A rule with an `AGGREGATE` is run-once, with the reason `aggregate (AGGREGATE)`,
+and its monotonicity is reported as `aggregation`. As for any run-once rule,
+every dependency becomes `closed`, so whatever the pattern counts is complete
+before the rule fires. A rule whose result feeds back into its own pattern forms
+a cycle and is refused.
+
+### Compilation
+
+An `AGGREGATE` compiles to an `OPTIONAL` subquery that groups the pattern by the
+listed variables. The pattern's own variables are renamed (`?_agg0_y`), so the
+subquery shares only the listed variables with the rest of the body:
+
+```sparql
+PREFIX : <http://example.org/>
+INSERT {
+  ?x :numChildren ?n
+} WHERE {
+  {
+  ?x <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> :Person .
+  OPTIONAL {
+  SELECT ?x (COUNT(*) AS ?_agg0_count) (COUNT( * ) AS ?_agg0_v0) WHERE {
+  ?_agg0_y :childOf ?x .
+}
+GROUP BY ?x
+}
+  BIND(IF(COALESCE(?_agg0_count, 0) > 0, ?_agg0_v0, 0) AS ?n)
+  FILTER(BOUND(?n))
+}
+}
+```
+
+That is the program `compileRule` returns for the rule
+`RULE { ?x :numChildren ?n } WHERE { ?x a :Person . AGGREGATE PER ?x { ?y :childOf ?x } ( ?n := COUNT(*) ) }`.
+
+`?_agg0_count` tells an empty group (no subquery row) from a failed aggregate (a
+row whose value is unbound). The group is closed for the reason a `SET` is: the
+`BOUND` test must not be satisfied by a pattern written after it.
+
+A listed variable that the pattern uses only in a `FILTER`, such as `?score` in
+`{ ?o :score ?s2 FILTER(?s2 > ?score) }`, cannot be computed by the subquery,
+since SPARQL evaluates a subquery without the outer bindings. The subquery is
+then seeded with the distinct values of the listed variables from the elements
+before the aggregate, which repeats those elements inside it. Ranking within a
+partition uses this form:
+
+```sparql
+PREFIX : <http://example.org/>
+RULE { ?p :rankInDept ?rank }
+WHERE {
+  ?p :dept ?dept ; :score ?score .
+  AGGREGATE PER ?dept ?score { ?o :dept ?dept ; :score ?s2 FILTER(?s2 > ?score) }
+            ( ?better := COUNT(*) )
+  SET(?rank := ?better + 1)
+}
+```
+
+Under `GROUP BY` the compiled group is wrapped in a `SELECT DISTINCT` of the
+listed variables and the results.

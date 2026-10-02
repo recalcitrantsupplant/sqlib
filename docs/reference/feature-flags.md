@@ -1,6 +1,6 @@
 # Feature flags
 
-Nineteen boolean flags decide which sections of the product a build offers. A
+Twenty boolean flags decide which sections of the product a build offers. A
 flag is read on the server, where it decides whether routes are registered, and
 again in the browser build, where it decides whether a section and the controls
 leading to it are drawn. The two read separate environments, so a deployment
@@ -36,6 +36,7 @@ A flag's value is parsed leniently, case-insensitively, after trimming:
 | `settings` | `FEATURE_SETTINGS` | on | The settings entry in the rail |
 | `rulesAllowInvalidSave` | `FEATURE_RULES_ALLOW_INVALID_SAVE` | **off** | The ability to save a rule, data block or rule set version that does not parse. With it off, `allowInvalidSave: true` in a request body has no effect |
 | `ruleTuples` | `FEATURE_RULE_TUPLES` | **off** | The SRL rule-tuples extension — see below |
+| `ruleAggregates` | `FEATURE_RULE_AGGREGATES` | **off** | The SRL rule-aggregates extension — see below |
 | `playgroundQueries` | `FEATURE_PLAYGROUND_QUERIES` | on | The unsaved query playground, which runs through `/execute`; it has no route of its own |
 | `playgroundRules` | `FEATURE_PLAYGROUND_RULES` | on | The unsaved rules playground; `POST /playground/rules/execute` |
 | `playgroundEtl` | `FEATURE_PLAYGROUND_ETL` | **off** | The ETL rail section; `POST /playground/etl/execute` |
@@ -45,9 +46,9 @@ Route-level refusal is a `404 Not Found`: a request to a route behind a flag
 that is off reaches nothing, which is the same answer a route that was never
 added gives.
 
-## Why four flags default off
+## Why five flags default off
 
-The four off-by-default flags are off for stated reasons, not by oversight.
+The five off-by-default flags are off for stated reasons, not by oversight.
 
 **`etl` and `playgroundEtl`.** Both ETL surfaces accept arbitrary DuckDB SQL.
 That is a read primitive over the host filesystem, and with the `httpfs`
@@ -63,6 +64,9 @@ provider, and it can reach a configured backend. See
 document written with it on cannot be read by other tooling. A build that has
 not asked for the extension should not offer an author a way to write such a
 document; see the section below.
+
+**`ruleAggregates`.** Off for the same reason as `ruleTuples`: `AGGREGATE` is
+not in SHACL 1.2 Rules.
 
 `rulesAllowInvalidSave` is off because saving a document that does not parse is
 a deliberate choice rather than a normal one. It is on in the rules-conformance
@@ -167,6 +171,40 @@ documentation a running server serves does not advertise them.
 
 The gate's behaviour is pinned by
 `packages/api/test/routes/ruleTuplesGate.test.ts`.
+
+## `ruleAggregates`: the SRL rule-aggregates extension
+
+`FEATURE_RULE_AGGREGATES`, default **off**.
+
+The flag decides whether the server parses `AGGREGATE` in an SRL document. See
+[the SRL reference](srl-language.md#the-rule-aggregates-extension). There is no
+per-version switch beside it: `ruleTuples` needs one because a rule set version
+carries seed rows that only mean something with that extension on, and an
+aggregate is entirely inside the rule text.
+
+With the flag off, `AGGREGATE` is a syntax error wherever the server parses a
+rule: saving a rule, the rule set analyzer and SRL preview, the SRL import, the
+rules playground and stratification. The message names the extension:
+
+```
+SRL syntax error: AGGREGATE requires the rule-aggregates extension (parse with { aggregates: true })
+```
+
+A rule saved while the flag was on keeps its compiled program, and its rule set
+version keeps a stored stratification report, so a run can reach the rule
+without parsing it. The executor checks each rule for `AGGREGATE` before running
+it, and with the flag off the run ends with status `failed` and the error:
+
+```
+RuleVersion <id> uses the rule-aggregates extension, which is not enabled on this server
+```
+
+The W3C conformance checks parse with the extension off whatever the flag says,
+so an `AGGREGATE` document is never reported as conformant.
+
+The SPA reads `NUXT_PUBLIC_FEATURE_RULE_AGGREGATES` but draws nothing different
+on it; the editor's SRL grammar, `@kurrawongai/codemirror-lang-srl`, does not
+know `AGGREGATE` and colours it as an error whether the flag is on or off.
 
 ## The browser build
 

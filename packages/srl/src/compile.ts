@@ -1,7 +1,8 @@
 import { Parser as SparqlParser } from '@traqula/parser-sparql-1-2';
 import { sparql12GeneratorBuilder } from '@traqula/generator-sparql-1-2';
 import { completeGeneratorContext } from '@traqula/rules-sparql-1-2';
-import type { SrlBodyItem, SrlRule } from './ast.js';
+import type { SrlAggregate, SrlBodyItem, SrlRule } from './ast.js';
+import { aggregateKeys } from './aggregates/scope.js';
 import {
   collectTupleReads,
   resolveSlotVars,
@@ -84,6 +85,8 @@ function serialize(rule: string, ast: unknown): string {
  *  - `SET (?v := E)`     → `BIND(E AS ?v) FILTER(BOUND(?v))`
  *  - `TUPLE( … )`        → a placeholder comment; the executor substitutes a
  *                          `VALUES` block built from the tuple store.
+ *  - `AGGREGATE …`       → an `OPTIONAL` grouped subquery; see
+ *                          {@link compileAggregate}.
  *
  * `BIND` + `FILTER(BOUND(?v))` encodes SRL's "an error in SET drops the
  * solution", which the spec states outright: *"SET(?var := expr) would be the
@@ -134,7 +137,16 @@ function serialize(rule: string, ast: unknown): string {
  * Plain-SPARQL leaves (BGP, FILTER, expressions) are serialized from their
  * parsed sub-ASTs — no dependence on source spans.
  */
-function compileBody(items: SrlBodyItem[], tupleIndex: { n: number }, outerBound: ReadonlySet<string> = new Set()): string {
+interface CompileContext {
+  /** Next tuple-read slot index; shared so slots are numbered across nesting. */
+  tupleIndex: { n: number };
+  /** Next aggregate index, for naming its generated variables. */
+  aggregateIndex: { n: number };
+  /** Every variable name in the program so far, so generated names miss them. */
+  used: Set<string>;
+}
+
+function compileBody(items: SrlBodyItem[], context: CompileContext, outerBound: ReadonlySet<string> = new Set()): string {
   let parts: string[] = [];
   const bound = new Set(outerBound);
   items.forEach((item, index) => {
@@ -148,7 +160,7 @@ function compileBody(items: SrlBodyItem[], tupleIndex: { n: number }, outerBound
       case 'not': {
         // Newlines matter: a tuple placeholder ends in a comment (the read
         // marker), so a closing brace on the same line would be commented out.
-        const inner = compileBody(item.body, tupleIndex, bound);
+        const inner = compileBody(item.body, context, bound);
         // `NOT DATA` negates against the ground graph. A plain `NOT` inside a
         // `WHERE DATA` rule needs no marker here — the whole body is already
         // inside the GRAPH block, which is exactly the spec's
@@ -172,13 +184,157 @@ function compileBody(items: SrlBodyItem[], tupleIndex: { n: number }, outerBound
         break;
       }
       case 'tuple':
-        parts.push(tuplePlaceholder(tupleIndex.n, toTupleRef(item.tuple)));
-        tupleIndex.n += 1;
+        parts.push(tuplePlaceholder(context.tupleIndex.n, toTupleRef(item.tuple)));
+        context.tupleIndex.n += 1;
         break;
+      case 'aggregate': {
+        const keys = aggregateKeys(item, bound);
+        parts = [compileAggregate(item, keys, parts, context)];
+        if (item.mode === 'group') {
+          // Only the listed variables and the results survive a GROUP BY.
+          bound.clear();
+          for (const key of keys) bound.add(key);
+        }
+        break;
+      }
     }
     for (const name of boundBy(item)) bound.add(name);
   });
   return parts.join('\n  ');
+}
+
+/**
+ * Compile one `AGGREGATE` against the body compiled before it.
+ *
+ * `prefix` is the compiled elements before the aggregate (`P`) and `keys` the
+ * variables the inner pattern may see (`K`). For
+ *
+ *     AGGREGATE PER ?x { ?y :childOf ?x } ( ?n := COUNT(*) )
+ *
+ * the result is
+ *
+ *     {
+ *       P
+ *       OPTIONAL {
+ *         SELECT ?x (COUNT(*) AS ?_agg0_count) (COUNT(*) AS ?_agg0_v0)
+ *         WHERE { ?_agg0_y :childOf ?x }
+ *         GROUP BY ?x
+ *       }
+ *       BIND(IF(COALESCE(?_agg0_count, 0) > 0, ?_agg0_v0, 0) AS ?n)
+ *       FILTER(BOUND(?n))
+ *     }
+ *
+ * - **The inner variables are renamed** apart from `K`, so the only variables
+ *   the subquery shares with `P` are the keys. Well-formedness already makes it
+ *   an error to use an inner variable outside the aggregate; the renaming keeps
+ *   the translation right for a caller that compiles without checking.
+ * - **`OPTIONAL` keeps an outer row whose group is empty**, and the hidden
+ *   count tells an empty group (no subquery row: `COUNT` and `SUM` become 0,
+ *   anything else drops the row) apart from an aggregate that failed (a row
+ *   whose value is unbound: the row is dropped, as an error in `SET` drops it).
+ * - **Grouping the inner pattern alone** means the outer pattern's own
+ *   multiplicity never reaches the count: a person with two names and three
+ *   children has three children on both rows.
+ * - **The whole thing is closed into a group**, for the reason `SET` is: the
+ *   `BOUND` test must not be satisfied by a pattern written after it.
+ *
+ * When a key is used by the inner pattern only in a `FILTER` — the rank idiom,
+ * `{ ?o :score ?s FILTER(?s > ?score) }` — the subquery cannot compute it from
+ * its own pattern, since SPARQL evaluates a subquery bottom-up. It is then
+ * seeded with the distinct key rows of `P`, which repeats `P` inside it.
+ *
+ * `GROUP BY` mode adds a projection to the listed variables and the results.
+ */
+function compileAggregate(
+  item: SrlAggregate,
+  keys: string[],
+  prefix: string[],
+  context: CompileContext,
+): string {
+  const index = context.aggregateIndex.n;
+  context.aggregateIndex.n += 1;
+  const fresh = (base: string): string => {
+    let name = `_agg${index}_${base}`;
+    while (context.used.has(name)) name = `_${name}`;
+    context.used.add(name);
+    return name;
+  };
+
+  // Rename every inner variable that is not a key.
+  const innerVars = new Set<string>();
+  collectVars(item.body, innerVars);
+  const renames = new Map<string, string>();
+  for (const name of innerVars) if (!keys.includes(name)) renames.set(name, fresh(name));
+  const body = renameVars(structuredClone(item.body), renames);
+  const assignments = item.assignments.map((a) => ({
+    variable: a.variable,
+    aggregate: renameVars(structuredClone(a.aggregate), renames),
+  }));
+
+  const count = fresh('count');
+  const values = assignments.map((_, j) => fresh(`v${j}`));
+  const keyList = keys.map((k) => `?${k}`).join(' ');
+
+  // Keys the inner pattern binds itself; any other key needs seeding.
+  const patternBound = new Set(body.flatMap((inner) => boundBy(inner)));
+  const seeded = keys.some((k) => !patternBound.has(k));
+  const seed = seeded
+    ? `{\n  SELECT DISTINCT ${keyList} WHERE {\n  ${prefix.join('\n  ')}\n}\n}\n  `
+    : '';
+
+  const inner = compileBody(body, context, new Set(keys));
+  const projection = [
+    keyList,
+    `(COUNT(*) AS ?${count})`,
+    ...assignments.map((a, j) => `(${serialize('expression', a.aggregate)} AS ?${values[j]})`),
+  ].filter(Boolean).join(' ');
+  const groupBy = keys.length > 0 ? `\nGROUP BY ${keyList}` : '';
+  const subquery = `OPTIONAL {\n  SELECT ${projection} WHERE {\n  ${seed}${inner}\n}${groupBy}\n}`;
+
+  const present = `COALESCE(?${count}, 0) > 0`;
+  const after: string[] = [];
+  // MIN, MAX and AVG have no value on an empty group, so the row goes.
+  if (assignments.some((a) => !zeroOnEmpty(a.aggregate))) after.push(`FILTER(${present})`);
+  assignments.forEach((a, j) => {
+    after.push(zeroOnEmpty(a.aggregate)
+      ? `BIND(IF(${present}, ?${values[j]}, 0) AS ?${a.variable})`
+      : `BIND(?${values[j]} AS ?${a.variable})`);
+  });
+  after.push(`FILTER(${assignments.map((a) => `BOUND(?${a.variable})`).join(' && ')})`);
+
+  const closed = `{\n  ${[...prefix, subquery, ...after].join('\n  ')}\n}`;
+  if (item.mode !== 'group') return closed;
+  const kept = [...keys, ...assignments.map((a) => a.variable)].map((v) => `?${v}`).join(' ');
+  return `{\n  SELECT DISTINCT ${kept} WHERE ${closed}\n}`;
+}
+
+/** `COUNT` and `SUM` of an empty group are 0; the others have no value. */
+function zeroOnEmpty(aggregate: unknown): boolean {
+  const name = String((aggregate as { aggregation?: unknown }).aggregation ?? '').toLowerCase();
+  return name === 'count' || name === 'sum';
+}
+
+/** Rename variables throughout an AST node, in place. Returns the node. */
+function renameVars<T>(node: T, renames: ReadonlyMap<string, string>): T {
+  if (renames.size === 0) return node;
+  const visit = (value: unknown): void => {
+    if (!value || typeof value !== 'object') return;
+    const n = value as Record<string, unknown>;
+    if (n.type === 'term' && n.subType === 'variable') {
+      const renamed = renames.get(String(n.value ?? ''));
+      if (renamed) n.value = renamed;
+      return;
+    }
+    for (const [key, child] of Object.entries(n)) {
+      if (key === 'loc') continue;
+      if (Array.isArray(child)) child.forEach(visit);
+      else visit(child);
+    }
+  };
+  // The inner pattern holds no `SET` (the parser rejects one), so every
+  // variable in it is a term node and nothing is named by a plain string.
+  visit(node);
+  return node;
 }
 
 /**
@@ -269,8 +425,16 @@ function headTupleVars(rule: SrlRule): string[] {
  */
 export function compileRule(rule: SrlRule, prologueText = '', options: CompileOptions = {}): CompiledRule {
   const prologue = prologueText.trim();
-  const tupleIndex = { n: 0 };
-  const inner = compileBody(bnodesAsVariables(rule), tupleIndex);
+  // Blank nodes first, so the names the aggregate compiler generates are
+  // chosen against the variables the rewrite introduced as well.
+  const items = bnodesAsVariables(rule);
+  const used = new Set<string>();
+  collectVars(rule.head, used);
+  collectVars(rule.headTuples, used);
+  collectVars(items, used);
+  // SET targets and aggregate results are plain strings, not term nodes.
+  for (const item of items) for (const name of boundBy(item)) used.add(name);
+  const inner = compileBody(items, { tupleIndex: { n: 0 }, aggregateIndex: { n: 0 }, used });
   // `WHERE DATA`: the spec evaluates the whole body with GD in place of G, so
   // one GRAPH block around everything is the exact translation — nested NOTs
   // included, which is why they need no marker of their own.

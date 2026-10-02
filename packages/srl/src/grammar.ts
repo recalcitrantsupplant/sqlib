@@ -4,6 +4,7 @@ import { gram as g, lex as l } from '@traqula/rules-sparql-1-1';
 import { srlTokenVocabulary } from './lexer.js';
 import { assignOp, dataKeyword, notKeyword, ruleKeyword, setKeyword } from './tokens.js';
 import { srlTuple, srlTupleSeedDoc } from './tuples/grammar.js';
+import { srlAggregate } from './aggregates/grammar.js';
 
 /**
  * SRL has no `EXISTS` and no `NOT EXISTS`, and this is where they get in.
@@ -58,9 +59,12 @@ function varName(term: unknown): string {
 /**
  * Body content (no surrounding braces): a sequence of SRL body items.
  * Reuses base SPARQL rules for the plain-SPARQL leaves (triples, filter,
- * expression) and adds SRL's `NOT { … }` and `SET ( ?v := expr )`.
+ * expression) and adds SRL's `NOT { … }` and `SET ( ?v := expr )`, plus the
+ * `AGGREGATE` element of the rule-aggregates extension.
+ *
+ * Exported because the aggregate's inner pattern is a body too.
  */
-const srlGroupBody = {
+export const srlGroupBody = {
   name: 'srlGroupBody',
   impl:
     ({ ACTION, CONSUME, SUBRULE, OR, MANY, OPTION, OPTION2 }: any) =>
@@ -105,6 +109,15 @@ const srlGroupBody = {
             ALT: () => {
               const tuple = SUBRULE(srlTuple);
               items.push({ kind: 'tuple', tuple });
+            },
+          },
+          {
+            ALT: () => {
+              const aggregate = SUBRULE(srlAggregate);
+              ACTION(() => {
+                for (const { aggregate: call } of aggregate.assignments) rejectExistence(call);
+              });
+              items.push(aggregate);
             },
           },
           {
@@ -235,6 +248,7 @@ const srlRuleSet = {
 // types reference transitive chevrotain paths and are not portable in .d.ts.
 export const srlParserBuilder: any = ParserBuilder.create(sparql12ParserBuilder as any)
   .addRule(srlTuple)
+  .addRule(srlAggregate)
   .addRule(srlGroupBody)
   .addRule(srlHead)
   .addRule(srlBodyBlock)

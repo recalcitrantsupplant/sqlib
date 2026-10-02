@@ -36,6 +36,9 @@ const frontendFeatureFlagEnv: Record<string, string | undefined> = {
   // The SRL rule-tuples extension. Off by default, and gated in the browser as
   // well as at the API so the toggle that turns it on is not drawn at all.
   FEATURE_RULE_TUPLES: process.env.NUXT_PUBLIC_FEATURE_RULE_TUPLES ?? process.env.FEATURE_RULE_TUPLES,
+  // The SRL rule-aggregates extension. Off by default; the API is what refuses
+  // AGGREGATE, and the flag is carried here so the two report the same value.
+  FEATURE_RULE_AGGREGATES: process.env.NUXT_PUBLIC_FEATURE_RULE_AGGREGATES ?? process.env.FEATURE_RULE_AGGREGATES,
   // Rail sections in their own right, and missing from this map until now — so
   // the API could turn them off and the SPA would go on showing them.
   FEATURE_TUPLE_SETS: process.env.NUXT_PUBLIC_FEATURE_TUPLE_SETS ?? process.env.FEATURE_TUPLE_SETS,

@@ -266,3 +266,23 @@ This is unrelated to the `TupleSet` entity and the `tupleSets` flag, which share
 the word. A tuple set is a saved table of RDF terms spliced into a query's
 `VALUES` clause; it is reachable from queries and argument sets, and this flag
 does not affect it.
+
+## The rule-aggregates extension
+
+SRL in this repository has a second extension, `AGGREGATE`, which computes
+`COUNT`, `SUM`, `MIN`, `MAX` and `AVG` over a pattern inside a rule body. It
+follows a proposal in
+[w3c/data-shapes#840](https://github.com/w3c/data-shapes/issues/840) and is
+**not conformant SHACL 1.2 Rules**.
+
+It is gated by the `ruleAggregates` feature flag (`FEATURE_RULE_AGGREGATES`),
+which defaults **off**. With the flag off a document containing `AGGREGATE` is a
+syntax error:
+
+```
+SRL syntax error: AGGREGATE requires the rule-aggregates extension (parse with { aggregates: true })
+```
+
+The syntax, the three ways an aggregate can join the rest of a body, and how it
+stratifies and compiles are in
+[the SRL reference](../reference/srl-language.md#the-rule-aggregates-extension).

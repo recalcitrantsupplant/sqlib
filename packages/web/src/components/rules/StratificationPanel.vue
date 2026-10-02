@@ -127,6 +127,7 @@ type CycleEdge = SrlStratificationCycle['edges'][number];
 const RUN_ONCE_WHY: Record<string, string> = {
   'blank-node head': 'its head creates a new blank node each time',
   'assignment (SET)': 'it assigns a value with SET',
+  'aggregate (AGGREGATE)': 'it aggregates with AGGREGATE',
 };
 const runOnceWhy = (reasons: string[]) =>
   reasons.map((reason) => RUN_ONCE_WHY[reason] ?? reason).join(' and ') || 'it is run-once';
@@ -410,6 +411,7 @@ const sourceExtensions = computed<Extension[]>(() => {
           :style="{ backgroundColor: stratumColor(selected.stratum) }"
         >Stratum {{ stratumLabel(selected.stratum) }}</span>
         <span v-if="selected.monotonicity === 'negation'" class="chip chip-bad">Negation</span>
+        <span v-else-if="selected.monotonicity === 'aggregation'" class="chip chip-bad">Aggregation</span>
         <button
           v-if="selected.line"
           class="go-to-line"

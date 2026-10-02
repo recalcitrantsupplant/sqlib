@@ -4,9 +4,9 @@ import type { SrlBodyItem, SrlRule, SrlTuple } from './ast.js';
  * Rule stratification for SRL.
  *
  * Algorithm ported from the app's previous `RuleStratifier` (which walked the
- * vendored sparqljs AST) and retargeted to the SRL/Traqula AST. Aggregation is
- * intentionally dropped — this project does not support it — so monotonicity is
- * just `monotone | negation`.
+ * vendored sparqljs AST) and retargeted to the SRL/Traqula AST. Monotonicity is
+ * `monotone`, `negation`, or `aggregation` for a rule using the rule-aggregates
+ * extension.
  *
  * A rule R depends on rule S when a body triple pattern of R can match a head
  * triple template of S. The dependency is *negative* when it occurs under a
@@ -15,7 +15,7 @@ import type { SrlBodyItem, SrlRule, SrlTuple } from './ast.js';
  * a dependency cycle contains a negative or a closed edge.
  */
 
-export type MonotonicityKind = 'monotone' | 'negation';
+export type MonotonicityKind = 'monotone' | 'negation' | 'aggregation';
 /**
  * `closed` is the spec's promotion of an ordinary (positive) dependency for a
  * run-once rule: the rule sees its dependencies only once, so they must be
@@ -110,7 +110,7 @@ export function stratify(rules: Array<{ id: string; ast: SrlRule }>): Stratifica
   const tupleBodies = new Map<string, TupleDep[]>();
 
   for (const { id, ast } of rules) {
-    monotonicity[id] = hasNegation(ast.body) ? 'negation' : 'monotone';
+    monotonicity[id] = hasAggregate(ast.body) ? 'aggregation' : hasNegation(ast.body) ? 'negation' : 'monotone';
     heads.set(id, headTriples(ast.head));
     // A `WHERE DATA` rule matches the ground graph throughout, so it reads
     // nothing any rule produces and depends on no rule at all. Its body is not
@@ -132,6 +132,11 @@ export function stratify(rules: Array<{ id: string; ast: SrlRule }>): Stratifica
     const reasons: string[] = [];
     if (headHasBlankNode(ast.head)) reasons.push('blank-node head');
     if (hasAssignment(ast.body)) reasons.push('assignment (SET)');
+    // An aggregate's value is only final once everything it counts is, and
+    // re-firing the rule as its stratum grows would add a second value beside
+    // the first. Run-once closes every dependency, so the counted pattern is
+    // complete before the rule fires.
+    if (hasAggregate(ast.body)) reasons.push('aggregate (AGGREGATE)');
     if (reasons.length > 0) runOnceReasons.set(id, reasons);
   }
 
@@ -162,6 +167,11 @@ function hasNegation(items: SrlBodyItem[]): boolean {
   // A `NOT` at any level implies negation; a nested NOT can only exist inside a
   // top-level NOT, so checking for any `not` item here suffices.
   return items.some((it) => it.kind === 'not');
+}
+
+/** An `AGGREGATE` can only stand at the top level of a body (the parser says so). */
+function hasAggregate(items: SrlBodyItem[]): boolean {
+  return items.some((it) => it.kind === 'aggregate');
 }
 
 /** A `SET` anywhere in the body — including inside a `NOT` — is an assignment. */
@@ -279,6 +289,9 @@ function bodyDeps(items: SrlBodyItem[], label: DependencyLabel): BodyDep[] {
       if (item.data) continue;
       // Anything under an ordinary NOT is a negative dependency (negation as failure).
       deps.push(...bodyDeps(item.body, 'negative'));
+    } else if (item.kind === 'aggregate') {
+      // Positive here; the rule is run-once, which closes it.
+      deps.push(...bodyDeps(item.body, label));
     }
     // 'filter' / 'set' contribute no inter-rule triple dependencies.
   }
@@ -297,6 +310,7 @@ function tupleBodyDeps(items: SrlBodyItem[], label: DependencyLabel): TupleDep[]
     // `NOT DATA` reads the ground graph, which holds no tuples and which no
     // rule writes — same reasoning as the triple case in `bodyDeps`.
     else if (item.kind === 'not' && !item.data) deps.push(...tupleBodyDeps(item.body, 'negative'));
+    else if (item.kind === 'aggregate') deps.push(...tupleBodyDeps(item.body, label));
   }
   return deps;
 }

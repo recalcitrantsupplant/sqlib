@@ -275,6 +275,28 @@ These tuples are unrelated to the `TupleSet` entity and the "Tuples" section of
 the web UI, which are a saved table of RDF terms that fills a query's `VALUES`
 clause.
 
+## The rule-aggregates extension
+
+`parseRuleSet(text, { aggregates: true })` enables the `AGGREGATE` body element.
+This is a **non-conformant extension**: it follows a proposal in
+w3c/data-shapes#840, which the specification does not include. It is off by
+default, and without the flag a document using `AGGREGATE` is a syntax error:
+
+```
+SRL syntax error: AGGREGATE requires the rule-aggregates extension (parse with { aggregates: true })
+```
+
+```sparql
+RULE { ?x :numChildren ?n }
+WHERE { ?x a :Person . AGGREGATE PER ?x { ?y :childOf ?x } ( ?n := COUNT(*) ) }
+```
+
+The server gates this behind the `ruleAggregates` feature flag
+(`FEATURE_RULE_AGGREGATES`, default `false`); see
+`packages/api/src/lib/ruleAggregates.ts`. The syntax, join forms, well-formedness
+rules and compilation are in
+[the SRL reference](../../docs/reference/srl-language.md#the-rule-aggregates-extension).
+
 ## Conformance testing
 
 `test/w3c/` holds a pinned snapshot of the W3C SPARQL-RL test suite, and

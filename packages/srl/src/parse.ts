@@ -7,6 +7,8 @@ const defaultContext = completeParseContext({});
 export interface ParseOptions {
   /** Enable the rule-tuples extension (w3c/data-shapes#752). Off by default. */
   tuples?: boolean;
+  /** Enable the rule-aggregates extension (w3c/data-shapes#840). Off by default. */
+  aggregates?: boolean;
 }
 
 interface RawRule {
@@ -99,6 +101,15 @@ export function parseRuleSet(text: string, opts: ParseOptions = {}): SrlRuleSet 
     }
   }
 
+  // Same arrangement as TUPLE: the AGGREGATE rule is always registered, and
+  // acceptance is decided here.
+  if (rules.some((r) => bodyUsesAggregates(r.body))) {
+    if (!opts.aggregates) {
+      throw new Error('SRL syntax error: AGGREGATE requires the rule-aggregates extension (parse with { aggregates: true })');
+    }
+    for (const rule of rules) checkAggregatePlacement(rule.body, false);
+  }
+
   const prologueText = extractPrologueText(text);
 
   return { prologue: ast.prologue, prologueText, rules, dataBlocks };
@@ -115,7 +126,46 @@ export function ruleName(term: any): string {
 }
 
 function bodyUsesTuples(items: SrlRule['body']): boolean {
-  return items.some((it) => it.kind === 'tuple' || (it.kind === 'not' && bodyUsesTuples(it.body)));
+  return items.some((it) =>
+    it.kind === 'tuple' || ((it.kind === 'not' || it.kind === 'aggregate') && bodyUsesTuples(it.body)));
+}
+
+function bodyUsesAggregates(items: SrlRule['body']): boolean {
+  return items.some((it) => it.kind === 'aggregate' || (it.kind === 'not' && bodyUsesAggregates(it.body)));
+}
+
+/** The aggregate functions the extension defines. */
+const AGGREGATE_FUNCTIONS = new Set(['count', 'sum', 'min', 'max', 'avg']);
+
+/**
+ * Reject what the grammar accepts but the extension does not define.
+ *
+ * - An `AGGREGATE` belongs in a rule body, not inside a `NOT` or another
+ *   `AGGREGATE`: nesting would need stratification inside one rule.
+ * - The inner pattern is triple patterns, `FILTER`, `NOT` and `TUPLE`. A `SET`
+ *   there would be an assignment inside a pattern the aggregate counts.
+ * - `SAMPLE` and `GROUP_CONCAT` are SPARQL aggregates whose result depends on
+ *   the order an engine happens to produce rows in, so a rule using them would
+ *   not have one answer.
+ */
+function checkAggregatePlacement(items: SrlRule['body'], nested: boolean): void {
+  for (const item of items) {
+    if (item.kind === 'not') checkAggregatePlacement(item.body, true);
+    if (item.kind !== 'aggregate') continue;
+    if (nested) throw new Error('SRL syntax error: AGGREGATE cannot appear inside NOT or another AGGREGATE');
+    if (item.body.some((inner) => inner.kind === 'set')) {
+      throw new Error('SRL syntax error: SET cannot appear inside an AGGREGATE pattern');
+    }
+    checkAggregatePlacement(item.body, true);
+    for (const { aggregate } of item.assignments) {
+      const name = String((aggregate as { aggregation?: unknown }).aggregation ?? '').toLowerCase();
+      if (!AGGREGATE_FUNCTIONS.has(name)) {
+        throw new Error(
+          `SRL syntax error: ${name.toUpperCase()} is not an AGGREGATE function; use COUNT, SUM, MIN, MAX or AVG`,
+        );
+      }
+    }
+  }
 }
 
 /** Deep search for a SPARQL variable term anywhere within an AST node. */

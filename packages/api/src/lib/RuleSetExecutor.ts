@@ -23,6 +23,7 @@ import { quadToNQuad } from './nquads.js';
 import { log } from './log.js';
 import { abortReason, executionSignal } from './cancellation.js';
 import { executionDeadlineMs, maxRuleIterations } from '../config/executionLimits.js';
+import { RULE_AGGREGATES_DISABLED_MESSAGE, ruleAggregatesAllowed, usesRuleAggregates } from './ruleAggregates.js';
 
 const DEFAULT_MAX_ITERATIONS = 5;
 const DEFAULT_RULE_TIMEOUT_MS = Number.parseInt(process.env.RULE_EXECUTION_TIMEOUT_MS ?? '30000', 10) || 30000;
@@ -763,6 +764,12 @@ export class RuleSetExecutor {
   }
 
   private prepareRule(ruleVersion: LdkitRuleVersion): PreparedRule | null {
+    // A rule saved with the rule-aggregates extension on keeps its compiled
+    // program after the flag goes off. Refuse it by name rather than running a
+    // program this deployment no longer offers, or dropping it silently.
+    if (!ruleAggregatesAllowed() && usesRuleAggregates(ruleVersion.ruleString ?? '')) {
+      throw new Error(`RuleVersion ${ruleVersion.$id} ${RULE_AGGREGATES_DISABLED_MESSAGE}`);
+    }
     // Tuple rules must be compiled from source: their program carries VALUES
     // placeholders plus read/write metadata that a stored `normalizedInsert`
     // cannot express.
@@ -791,7 +798,7 @@ export class RuleSetExecutor {
     const source = (ruleVersion.ruleString ?? '').trim();
     if (!source || !/\bTUPLE\s*\(/i.test(source)) return null;
     try {
-      const ruleSet = expandIris(parseSrl(source, { tuples: true }));
+      const ruleSet = expandIris(parseSrl(source, { tuples: true, aggregates: ruleAggregatesAllowed() }));
       const rule = ruleSet.rules[0];
       if (!rule) return null;
       const compiled = compileSrlRule(rule, ruleSet.prologueText);
@@ -1117,7 +1124,7 @@ function declaredRuleIri(ruleVersion: LdkitRuleVersion): string | undefined {
   const source = (ruleVersion.ruleString ?? '').trim();
   if (!source) return undefined;
   try {
-    return expandIris(parseSrl(source, { tuples: true })).rules[0]?.name;
+    return expandIris(parseSrl(source, { tuples: true, aggregates: ruleAggregatesAllowed() })).rules[0]?.name;
   } catch {
     return undefined;
   }

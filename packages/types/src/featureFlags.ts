@@ -1,4 +1,4 @@
-export const FEATURE_FLAG_KEYS = ['notebook', 'queries', 'queryGroups', 'rulesSuite', 'benchmarks', 'tests', 'dataGraphs', 'tupleSets', 'argumentSets', 'mcp', 'etl', 'backends', 'settings', 'rulesAllowInvalidSave', 'ruleTuples', 'playgroundQueries', 'playgroundRules', 'playgroundEtl', 'assistant'] as const;
+export const FEATURE_FLAG_KEYS = ['notebook', 'queries', 'queryGroups', 'rulesSuite', 'benchmarks', 'tests', 'dataGraphs', 'tupleSets', 'argumentSets', 'mcp', 'etl', 'backends', 'settings', 'rulesAllowInvalidSave', 'ruleTuples', 'ruleAggregates', 'playgroundQueries', 'playgroundRules', 'playgroundEtl', 'assistant'] as const;
 
 export type FeatureFlagKey = typeof FEATURE_FLAG_KEYS[number];
 
@@ -20,6 +20,7 @@ export const FEATURE_FLAG_ENV_VARS: Record<FeatureFlagKey, string> = {
   settings: 'FEATURE_SETTINGS',
   rulesAllowInvalidSave: 'FEATURE_RULES_ALLOW_INVALID_SAVE',
   ruleTuples: 'FEATURE_RULE_TUPLES',
+  ruleAggregates: 'FEATURE_RULE_AGGREGATES',
   playgroundQueries: 'FEATURE_PLAYGROUND_QUERIES',
   playgroundRules: 'FEATURE_PLAYGROUND_RULES',
   playgroundEtl: 'FEATURE_PLAYGROUND_ETL',
@@ -121,6 +122,13 @@ export function buildFeatureFlags(
      * its rail stays drawn.
      */
     ruleTuples: false,
+    /*
+     * Off unless asked for, for the reason `ruleTuples` is. The
+     * rule-aggregates extension adds AGGREGATE to SRL, following a proposal
+     * in w3c/data-shapes#840 that the specification does not include, so a
+     * document using it cannot be read by conformant tooling.
+     */
+    ruleAggregates: false,
     playgroundQueries: true,
     playgroundRules: true,
     /* Off unless asked for — see `etl` above. */
@@ -150,6 +158,7 @@ export function buildFeatureFlags(
     settings: coerceFeatureFlagValue(env[FEATURE_FLAG_ENV_VARS.settings], defaults.settings),
     rulesAllowInvalidSave: coerceFeatureFlagValue(env[FEATURE_FLAG_ENV_VARS.rulesAllowInvalidSave], defaults.rulesAllowInvalidSave),
     ruleTuples: coerceFeatureFlagValue(env[FEATURE_FLAG_ENV_VARS.ruleTuples], defaults.ruleTuples),
+    ruleAggregates: coerceFeatureFlagValue(env[FEATURE_FLAG_ENV_VARS.ruleAggregates], defaults.ruleAggregates),
     playgroundQueries: coerceFeatureFlagValue(env[FEATURE_FLAG_ENV_VARS.playgroundQueries], defaults.playgroundQueries),
     playgroundRules: coerceFeatureFlagValue(env[FEATURE_FLAG_ENV_VARS.playgroundRules], defaults.playgroundRules),
     playgroundEtl: coerceFeatureFlagValue(env[FEATURE_FLAG_ENV_VARS.playgroundEtl], defaults.playgroundEtl),
@@ -179,6 +188,7 @@ export function featureFlagLabels(): Record<FeatureFlagKey, string> {
     settings: 'Settings',
     rulesAllowInvalidSave: 'Rules: Allow Invalid Save',
     ruleTuples: 'Rules: named tuples (extension)',
+    ruleAggregates: 'Rules: aggregates (extension)',
     playgroundQueries: 'Playground: Queries',
     playgroundRules: 'Playground: Rules',
     playgroundEtl: 'Playground: ETL',

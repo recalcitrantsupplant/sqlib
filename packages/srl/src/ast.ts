@@ -36,7 +36,38 @@ export type SrlBodyItem =
    */
   | { kind: 'not'; body: SrlBodyItem[]; data?: boolean }
   | { kind: 'set'; variable: string; expr: unknown }
-  | { kind: 'tuple'; tuple: SrlTuple };
+  | { kind: 'tuple'; tuple: SrlTuple }
+  | SrlAggregate;
+
+/**
+ * How an `AGGREGATE` joins the rest of the body (rule-aggregates extension).
+ *
+ * - `per`     — `PER ?x …`, or no list: the inner pattern sees the listed
+ *               variables, and every outer row is kept with the results added.
+ * - `per-all` — `PER *`: as `per`, with every variable the inner pattern
+ *               shares with the elements before it treated as listed.
+ * - `group`   — `GROUP BY ?x …`: as `per`, but afterwards only the listed
+ *               variables and the results are bound.
+ */
+export type SrlAggregateMode = 'per' | 'per-all' | 'group';
+
+/** One `?var := FUNCTION(…)` of an `AGGREGATE`. */
+export interface SrlAggregateAssignment {
+  variable: string;
+  /** Traqula aggregate expression node (`subType: 'aggregate'`). */
+  aggregate: unknown;
+}
+
+/** `AGGREGATE [PER …|PER *|GROUP BY …] { inner } ( assignments )`. */
+export interface SrlAggregate {
+  kind: 'aggregate';
+  mode: SrlAggregateMode;
+  /** The listed variables. Empty for `PER *` and for an aggregate with no list. */
+  keys: string[];
+  /** The inner pattern: triple patterns, `FILTER`, `NOT` and `TUPLE`. */
+  body: SrlBodyItem[];
+  assignments: SrlAggregateAssignment[];
+}
 
 export interface SrlRule {
   /** Optional author-supplied name from `RULE <iri>` (expanded IRI), else undefined. */
