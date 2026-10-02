@@ -102,7 +102,20 @@ type BodyDep = { triple: Triple; label: DependencyLabel };
 /** A tuple read/write: terms in slot order. Arity is `terms.length`. */
 type TupleDep = { terms: Term[]; label: DependencyLabel };
 
+/**
+ * Stratify a rule set's rules.
+ *
+ * The rules must have been through {@link expandIris} first, and this throws if
+ * they have not. Terms are compared by what they spell, so `ex:q` in one rule's
+ * head and `<http://example.org/q>` in another's body would otherwise never
+ * match — and a missing match is a missing dependency edge, which reports a
+ * negative cycle as stratifiable. A check rather than an expansion here, for
+ * the reason `tuples/compile.ts` gives for its own: the prologue is not in
+ * these arguments, and two components agreeing on a spelling by contract beats
+ * them agreeing by luck.
+ */
 export function stratify(rules: Array<{ id: string; ast: SrlRule }>): StratificationReport {
+  for (const { id, ast } of rules) assertExpandedRule(id, ast);
   const monotonicity: Record<string, MonotonicityKind> = {};
   const heads = new Map<string, Triple[]>();
   const bodies = new Map<string, BodyDep[]>();
@@ -147,6 +160,44 @@ export function stratify(rules: Array<{ id: string; ast: SrlRule }>): Stratifica
   // order, so they are withheld rather than reported as if they meant anything.
   const strata = issues.length > 0 ? {} : layers;
   return { strata, edges, monotonicity, runOnce, issues, cycles };
+}
+
+/**
+ * Throw if any IRI the rule matches on is still a prefixed name.
+ *
+ * Walks the same nodes {@link expandIris} rewrites — head, head tuples, body —
+ * so a rule that went through it passes and one that did not fails at its
+ * first prefixed name, which the parser only produces for a declared prefix.
+ */
+function assertExpandedRule(id: string, ast: SrlRule): void {
+  const prefixed = firstPrefixedName([ast.head, ast.headTuples ?? [], ast.body]);
+  if (prefixed === undefined) return;
+  throw new Error(
+    `stratify: rule ${id} spells \`${prefixed}\` as a prefixed name. Stratification compares `
+    + 'terms by their full IRIs, so a head and a body that spell one IRI two ways would not '
+    + 'match — expand the parsed rule set with expandIris() before stratifying.',
+  );
+}
+
+function firstPrefixedName(node: unknown): string | undefined {
+  if (!node || typeof node !== 'object') return undefined;
+  if (Array.isArray(node)) {
+    for (const item of node) {
+      const found = firstPrefixedName(item);
+      if (found !== undefined) return found;
+    }
+    return undefined;
+  }
+  const n = node as Record<string, unknown>;
+  if (n.type === 'term' && n.subType === 'namedNode') {
+    return typeof n.prefix === 'string' ? `${n.prefix}:${String(n.value ?? '')}` : undefined;
+  }
+  for (const [key, value] of Object.entries(n)) {
+    if (key === 'loc') continue;
+    const found = firstPrefixedName(value);
+    if (found !== undefined) return found;
+  }
+  return undefined;
 }
 
 function headHasBlankNode(head: unknown): boolean {

@@ -56,8 +56,8 @@ export function renderTerm(term: any): string {
  *
  * Deliberately a check, not a normalisation: canonicalising here would need the
  * prologue threaded into the store, and quietly accepting two spellings of one
- * term would leave the *stratifier* — which expands — and the store agreeing by
- * luck rather than by contract.
+ * term would leave the *stratifier* — which makes the same check — and the store
+ * agreeing by luck rather than by contract.
  */
 const EXPANDED_IRI = /^<[^<>"{}|^`\\\s]*>$/;
 const BLANK_NODE = /^_:\S+$/;

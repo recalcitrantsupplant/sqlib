@@ -15,7 +15,7 @@
  * this module cannot drift from the parser's own conformance harness.
  */
 
-import { checkWellFormed, parseRuleSet, stratify } from '@sparql-query-lib/srl';
+import { checkWellFormed, expandIris, parseRuleSet, stratify } from '@sparql-query-lib/srl';
 
 export const SRL_CHECKS = ['syntax', 'wellformed', 'stratification'] as const;
 
@@ -78,6 +78,11 @@ export function runSrlCheck(document: string, check: SrlCheck): SrlCheckVerdict 
       };
   }
 
+  // Expanded first, as every other stratify caller does: stratification matches
+  // terms by full IRI, and `ex:q` in a head against `<http://example.org/q>` in
+  // a body is the same predicate. Only this branch needs it — well-formedness
+  // is about variables, and expanding before it would change nothing it reads.
+  expandIris(ruleSet);
   // `issues` here are already sentences ("Non-stratifiable cycle involving: …").
   const report = stratify(ruleSet.rules.map((ast, index) => ({ id: `r${index}`, ast })));
   return report.issues.length === 0

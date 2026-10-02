@@ -15,7 +15,7 @@ const opts = { tuples: true } as const;
 
 const parse = (doc: string) => parseRuleSet(doc, opts);
 const strat = (doc: string) => {
-  const rs = parse(doc);
+  const rs = expandIris(parse(doc));
   return stratify(rs.rules.map((ast, i) => ({ id: `r${i}`, ast })));
 };
 

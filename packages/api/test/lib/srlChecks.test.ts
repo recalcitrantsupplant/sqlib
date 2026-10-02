@@ -48,6 +48,27 @@ describe('runSrlCheck', () => {
     expect(verdict.reason).not.toBe('');
   });
 
+  it('reports a negative cycle spelled with a prefix on one side and a full IRI on the other', () => {
+    // The head writes `ex:q`, the negated body reads `<http://example.org/q>`:
+    // one predicate, so the rule negates its own output. Compared as written,
+    // the two never matched and the cycle was reported stratifiable.
+    const document = [
+      'PREFIX ex: <http://example.org/>',
+      'RULE { ?x ex:q ?y } WHERE { ?x ex:p ?y . NOT { ?x <http://example.org/q> ?y } }',
+    ].join('\n');
+    const verdict = runSrlCheck(document, 'stratification');
+    expect(verdict.accepted).toBe(false);
+    expect(verdict.reason).toMatch(/Non-stratifiable cycle/);
+  });
+
+  it('still accepts the same rules when the two spellings name different IRIs', () => {
+    const document = [
+      'PREFIX ex: <http://example.org/>',
+      'RULE { ?x ex:q ?y } WHERE { ?x ex:p ?y . NOT { ?x <http://example.org/other> ?y } }',
+    ].join('\n');
+    expect(runSrlCheck(document, 'stratification')).toMatchObject({ accepted: true, reason: '' });
+  });
+
   it('names every check it knows', () => {
     expect(SRL_CHECKS.every(isSrlCheck)).toBe(true);
     expect(isSrlCheck('execution')).toBe(false);
