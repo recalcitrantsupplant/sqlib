@@ -30,17 +30,21 @@ async function tripleCount(): Promise<number> {
 
 describe('oxigraph-memory internal backend', () => {
   let storageDir: string;
+  const backendBefore = config.internalBackend;
 
   beforeAll(async () => {
-    expect(config.internalBackend.type, 'the suite runs on the in-process default').toBe('oxigraph-memory');
+    // Set rather than assumed: in the shared module registry another file may
+    // have left the config singleton pointing elsewhere.
+    config.internalBackend = { type: 'oxigraph-memory' };
     storageDir = await fs.mkdtemp(path.join(os.tmpdir(), 'sqlib-memory-mode-'));
     oxigraphStoreManager.reset(storageDir);
     await oxigraphStoreManager.initialize(storageDir);
   });
 
   afterAll(async () => {
+    config.internalBackend = backendBefore;
     oxigraphStoreManager.reset();
-    await fs.rm(storageDir, { recursive: true, force: true });
+    if (storageDir) await fs.rm(storageDir, { recursive: true, force: true });
   });
 
   it('writes nothing to disk at shutdown and starts empty on the next boot', async () => {
