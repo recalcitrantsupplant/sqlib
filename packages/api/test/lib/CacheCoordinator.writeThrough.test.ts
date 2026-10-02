@@ -20,6 +20,7 @@ import type { EntityType } from '../../src/lib/EntityRegistry.js';
 
 describe('CacheCoordinator write-through', () => {
   let context: ScenarioTestContext;
+  let writeThroughBefore: string | undefined;
 
   const post = (url: string, payload: Record<string, unknown>) =>
     context.app.inject({ method: 'POST', url, payload });
@@ -28,6 +29,7 @@ describe('CacheCoordinator write-through', () => {
     getPersistenceAdapter().findByIri(type, id) as Promise<Record<string, unknown> | null>;
 
   beforeAll(async () => {
+    writeThroughBefore = process.env.CACHE_WRITE_THROUGH;
     context = await ScenarioTestBaseUnmocked.createTestContext('cache-write-through');
     // The scenario harness runs cache-only; the store is the subject here.
     process.env.CACHE_WRITE_THROUGH = 'true';
@@ -36,8 +38,9 @@ describe('CacheCoordinator write-through', () => {
   }, 60000);
 
   afterAll(async () => {
-    process.env.CACHE_WRITE_THROUGH = 'false';
     await ScenarioTestBaseUnmocked.cleanupTestContext(context);
+    if (writeThroughBefore === undefined) delete process.env.CACHE_WRITE_THROUGH;
+    else process.env.CACHE_WRITE_THROUGH = writeThroughBefore;
   });
 
   it('clears a property in the store when it is updated to null', async () => {

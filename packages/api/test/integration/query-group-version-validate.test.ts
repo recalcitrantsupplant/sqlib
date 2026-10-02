@@ -67,6 +67,19 @@ async function buildTestApp(): Promise<FastifyInstance> {
 }
 
 describe('Query Group Version Validation', () => {
+  // The repositories are stubs that keep nothing, so a write-through update
+  // would read back an entity the store never held, which the coordinator
+  // refuses. These suites are about the cache and the routes, not storage.
+  let writeThroughBefore: string | undefined;
+  beforeAll(() => {
+    writeThroughBefore = process.env.CACHE_WRITE_THROUGH;
+    process.env.CACHE_WRITE_THROUGH = 'false';
+  });
+  afterAll(() => {
+    if (writeThroughBefore === undefined) delete process.env.CACHE_WRITE_THROUGH;
+    else process.env.CACHE_WRITE_THROUGH = writeThroughBefore;
+  });
+
   let app: FastifyInstance;
   const testGroupId = 'urn:sqlib:group:test-group';
   const testGroupVersionId = 'urn:sqlib:group-version:test-group-v1';

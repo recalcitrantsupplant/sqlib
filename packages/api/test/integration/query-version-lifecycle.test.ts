@@ -16,7 +16,7 @@
  *
  * Companion to `docs/explanation/versioning-and-immutability.md`.
  */
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
 import Fastify, { FastifyInstance } from 'fastify';
 import { MemoryCacheManager } from '../../src/lib/MemoryCacheManager.js';
 import queryRoutes from '../../src/routes/queries.js';
@@ -177,6 +177,19 @@ function checkInvariants(queryId: string): string[] {
 }
 
 describe('query + version lifecycle invariants', () => {
+  // The repositories are stubs that keep nothing, so a write-through update
+  // would read back an entity the store never held, which the coordinator
+  // refuses. These suites are about the cache and the routes, not storage.
+  let writeThroughBefore: string | undefined;
+  beforeAll(() => {
+    writeThroughBefore = process.env.CACHE_WRITE_THROUGH;
+    process.env.CACHE_WRITE_THROUGH = 'false';
+  });
+  afterAll(() => {
+    if (writeThroughBefore === undefined) delete process.env.CACHE_WRITE_THROUGH;
+    else process.env.CACHE_WRITE_THROUGH = writeThroughBefore;
+  });
+
   let app: FastifyInstance;
 
   beforeEach(async () => {
