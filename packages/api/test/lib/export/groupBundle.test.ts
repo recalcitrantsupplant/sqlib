@@ -230,7 +230,7 @@ describe('the exported group, walked by the runtime', () => {
         arguments: [
           {
             head: { vars: ['region'] },
-            arguments: { bindings: [{ region: iri('http://example.org/WA') }] },
+            results: { bindings: [{ region: iri('http://example.org/WA') }] },
           },
         ],
       });

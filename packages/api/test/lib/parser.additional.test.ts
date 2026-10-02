@@ -125,7 +125,7 @@ describe('SparqlQueryParser - Additional Tests', () => {
         const queryString = 'INSERT { ?s ?p ?o } WHERE { VALUES (?s ?p ?o) { (UNDEF UNDEF UNDEF) } }';
         const argumentSets = [{
             head: { vars: ['s', 'p', 'o'] },
-            arguments: { bindings: [{
+            results: { bindings: [{
                 s: { type: 'uri', value: 'http://example.com/s' },
                 p: { type: 'uri', value: 'http://example.com/p' },
                 o: { type: 'literal', value: 'o' }
@@ -140,7 +140,7 @@ describe('SparqlQueryParser - Additional Tests', () => {
         const queryString = 'DELETE { ?s ?p ?o } INSERT { ?s ?p "new" } WHERE { VALUES ?s { UNDEF } ?s ?p ?o }';
         const argumentSets = [{
             head: { vars: ['s'] },
-            arguments: { bindings: [{
+            results: { bindings: [{
                 s: { type: 'uri', value: 'http://example.com/s' }
             }]}
         }];
@@ -156,7 +156,7 @@ describe('SparqlQueryParser - Additional Tests', () => {
 
     it('should throw an error for invalid argument set structure', () => {
         const queryString = 'SELECT * WHERE { VALUES ?s { UNDEF } }';
-        const argumentSets = [{ head: { vars: ['s'] } }]; // Missing 'arguments'
+        const argumentSets = [{ head: { vars: ['s'] } }]; // Missing 'results'
         expect(() => parser.applyArguments(queryString, argumentSets as any)).toThrow("Invalid structure for argument set at index 0.");
     });
   });

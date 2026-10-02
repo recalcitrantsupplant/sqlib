@@ -869,7 +869,7 @@ describe('ExecutionEngine', () => {
         'SELECT ?entity ?label WHERE { VALUES (?entity) { (UNDEF) } ?entity rdfs:label ?label }', 
         [{
           head: { vars: ['entity'] },
-          arguments: {
+          results: {
             bindings: [
               { entity: { type: 'uri', value: 'http://example.org/entity1' } },
               { entity: { type: 'uri', value: 'http://example.org/entity2' } }
@@ -990,7 +990,7 @@ describe('ExecutionEngine', () => {
         'SELECT ?entity ?label WHERE { VALUES (?entity) { (UNDEF) } ?entity rdfs:label ?label }', 
         [{
           head: { vars: ['entity'] },
-          arguments: { bindings: [] }
+          results: { bindings: [] }
         }]
       );
     });
@@ -1114,7 +1114,7 @@ describe('ExecutionEngine', () => {
         'SELECT ?entity ?label WHERE { VALUES (?entity) { (UNDEF) } ?entity rdfs:label ?label }', 
         [{
           head: { vars: ['entity'] },
-          arguments: {
+          results: {
             bindings: [
               { entity: { type: 'uri', value: 'http://example.org/entity1' } },
               { entity: { type: 'uri', value: 'http://example.org/entity2' } }
@@ -1304,16 +1304,16 @@ describe('ExecutionEngine', () => {
       };
 
       const initialArgs: ArgumentSet[] = [
-        { head: { vars: ['city'] }, arguments: { bindings: [{ city: { type: 'literal', value: 'Sydney' } }] } },
-        { head: { vars: ['state'] }, arguments: { bindings: [{ state: { type: 'literal', value: 'NSW' } }] } },
+        { head: { vars: ['city'] }, results: { bindings: [{ city: { type: 'literal', value: 'Sydney' } }] } },
+        { head: { vars: ['state'] }, results: { bindings: [{ state: { type: 'literal', value: 'NSW' } }] } },
       ];
 
       await engine.execute(graph, initialArgs);
 
       // Both parameters reach the query as bound rows.
       expect(mockParser.applyArguments).toHaveBeenCalledWith(node.queryString, [
-        { head: { vars: ['city'] }, arguments: { bindings: [{ city: { type: 'literal', value: 'Sydney' } }] } },
-        { head: { vars: ['state'] }, arguments: { bindings: [{ state: { type: 'literal', value: 'NSW' } }] } },
+        { head: { vars: ['city'] }, results: { bindings: [{ city: { type: 'literal', value: 'Sydney' } }] } },
+        { head: { vars: ['state'] }, results: { bindings: [{ state: { type: 'literal', value: 'NSW' } }] } },
       ]);
     });
 
@@ -1362,7 +1362,7 @@ describe('ExecutionEngine', () => {
 
       const initialArgs: ArgumentSet[] = [{
         head: { vars: ['entity'] },
-        arguments: {
+        results: {
           bindings: [{ entity: { type: 'uri', value: 'http://example.org/initial' } }]
         }
       }];
@@ -1425,7 +1425,7 @@ describe('ExecutionEngine', () => {
 
       const initialArgs: ArgumentSet[] = [{
         head: { vars: ['state', 'city'] }, // query declares (city, state)
-        arguments: { bindings: [{
+        results: { bindings: [{
           state: { type: 'literal', value: 'NSW' },
           city: { type: 'literal', value: 'Sydney' },
         }] },
@@ -1500,7 +1500,7 @@ describe('ExecutionEngine', () => {
         'SELECT ?entity ?label WHERE { VALUES (?entity) { (UNDEF) } ?entity rdfs:label ?label }',
         [{
           head: { vars: ['entity'] },
-          arguments: { bindings: [] },
+          results: { bindings: [] },
           whenEmpty: 'unconstrained'
         }]
       );

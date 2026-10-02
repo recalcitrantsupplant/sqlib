@@ -174,7 +174,7 @@ export interface ArgumentSetVersionInput {
 
 export interface ExecutionArgument {
   head: { vars: string[] }
-  arguments: { bindings: SparqlBinding[] }
+  results: { bindings: SparqlBinding[] }
 }
 
 /**

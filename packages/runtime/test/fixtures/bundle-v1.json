@@ -49,7 +49,7 @@
                   "city"
                 ]
               },
-              "arguments": {
+              "results": {
                 "bindings": [
                   {
                     "city": {
@@ -75,7 +75,7 @@
                   "city"
                 ]
               },
-              "arguments": {
+              "results": {
                 "bindings": [
                   {
                     "city": {
@@ -157,7 +157,7 @@
                   "type"
                 ]
               },
-              "arguments": {
+              "results": {
                 "bindings": [
                   {
                     "type": {

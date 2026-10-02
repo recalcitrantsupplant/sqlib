@@ -45,7 +45,7 @@ describe('POST /substitute', () => {
       arguments: [
         {
           head: { vars: ['city'] },
-          arguments: { bindings: [{ city: { type: 'uri', value: 'http://example.org/Perth' } }] },
+          results: { bindings: [{ city: { type: 'uri', value: 'http://example.org/Perth' } }] },
         },
       ],
     });
@@ -54,6 +54,67 @@ describe('POST /substitute', () => {
     expect(body.query).toContain('http://example.org/Perth');
     // The UNDEF row it replaced is gone, rather than both being present.
     expect(body.query).not.toContain('UNDEF');
+  });
+
+  it('takes a SELECT result as it came back, folding the legacy typed-literal', async () => {
+    const response = await post({
+      query: QUERY,
+      arguments: [
+        {
+          head: { vars: ['city'] },
+          results: {
+            bindings: [
+              { city: { type: 'typed-literal', value: '7', datatype: 'http://www.w3.org/2001/XMLSchema#integer' } },
+            ],
+          },
+        },
+      ],
+    });
+    expect(response.statusCode).toBe(200);
+    expect((response.json() as { query: string }).query).toMatch(/7/);
+  });
+
+  it('runs a parameter the payload leaves out without its filter', async () => {
+    const response = await post({
+      query: 'SELECT ?s WHERE { VALUES ?city { UNDEF } VALUES ?year { UNDEF } ?s <http://e/in> ?city ; <http://e/at> ?year }',
+      arguments: [{ head: { vars: ['year'] }, results: { bindings: [{ year: { type: 'literal', value: '2026' } }] } }],
+    });
+    expect(response.statusCode).toBe(200);
+    const text = (response.json() as { query: string }).query;
+    expect(text).toContain('"2026"');
+    expect(text).not.toMatch(/VALUES \?city/);
+    expect(text).not.toContain('UNDEF');
+  });
+
+  it('matches nothing for a parameter given zero rows', async () => {
+    const response = await post({
+      query: QUERY,
+      arguments: [{ head: { vars: ['city'] }, results: { bindings: [] } }],
+    });
+    expect(response.statusCode).toBe(200);
+    expect((response.json() as { query: string }).query).toMatch(/VALUES \?city \{\s*\}/);
+  });
+
+  it('answers 400 for a blank node, saying why', async () => {
+    const response = await post({
+      query: QUERY,
+      arguments: [{ head: { vars: ['city'] }, results: { bindings: [{ city: { type: 'bnode', value: 'b0' } }] } }],
+    });
+    expect(response.statusCode).toBe(400);
+    expect((response.json() as { error: string }).error).toMatch(/is a blank node/);
+  });
+
+  it('answers 400 for the retired "arguments" key and for a request-level whenEmpty', async () => {
+    const old = await post({
+      query: QUERY,
+      arguments: [{ head: { vars: ['city'] }, arguments: { bindings: [] } }],
+    });
+    expect(old.statusCode).toBe(400);
+    const policy = await post({
+      query: QUERY,
+      arguments: [{ head: { vars: ['city'] }, results: { bindings: [] }, whenEmpty: 'require' }],
+    });
+    expect(policy.statusCode).toBe(400);
   });
 
   it('reports an update as one, so a caller can pick the request shape', async () => {
@@ -76,7 +137,7 @@ describe('POST /substitute', () => {
       arguments: [
         {
           head: { vars: ['nosuchvar'] },
-          arguments: { bindings: [{ nosuchvar: { type: 'uri', value: 'http://example.org/x' } }] },
+          results: { bindings: [{ nosuchvar: { type: 'uri', value: 'http://example.org/x' } }] },
         },
       ],
     });

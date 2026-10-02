@@ -378,7 +378,7 @@ export const EXPORT_BUNDLE = {
             arguments: [
               {
                 head: { vars: ['term'] },
-                arguments: { bindings: [{ term: { type: 'literal', value: 'jumper' } }] },
+                results: { bindings: [{ term: { type: 'literal', value: 'jumper' } }] },
               },
             ],
             limits: [{ name: '1', value: 10 }],
@@ -389,7 +389,7 @@ export const EXPORT_BUNDLE = {
             arguments: [
               {
                 head: { vars: ['term'] },
-                arguments: { bindings: [{ term: { type: 'literal', value: 'wool' } }] },
+                results: { bindings: [{ term: { type: 'literal', value: 'wool' } }] },
               },
             ],
             expected: '{"head":{"vars":["product"]},"results":{"bindings":[]}}',

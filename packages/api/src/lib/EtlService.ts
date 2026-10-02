@@ -837,7 +837,7 @@ export class EtlService {
     const vars = columnDefs.map(c => c.targetVariable);
     return {
       head: { vars },
-      arguments: { bindings }
+      results: { bindings }
     };
   }
 

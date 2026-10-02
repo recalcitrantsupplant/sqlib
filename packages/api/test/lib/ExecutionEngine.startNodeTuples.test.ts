@@ -161,10 +161,10 @@ describe('ExecutionEngine — tables supplied to the start node', () => {
 
   /** The rows the query was handed for `vars`, by the names it declares. */
   function rowsFor(vars: string[]): Array<Record<string, { value: string }>> {
-    const [, argSets] = parser.applyArguments.mock.calls.at(-1) as [string, Array<{ head: { vars: string[] }; arguments: { bindings: Record<string, { value: string }>[] } }>];
+    const [, argSets] = parser.applyArguments.mock.calls.at(-1) as [string, Array<{ head: { vars: string[] }; results: { bindings: Record<string, { value: string }>[] } }>];
     const key = [...vars].sort().join('|');
     const match = argSets.find(set => [...set.head.vars].sort().join('|') === key);
-    return match?.arguments.bindings ?? [];
+    return match?.results.bindings ?? [];
   }
 
   const uri = (value: string) => ({ type: 'uri' as const, value });
@@ -172,7 +172,7 @@ describe('ExecutionEngine — tables supplied to the start node', () => {
   it('seeds a table whose columns already match, as it always has', async () => {
     const port = tuplePort('urn:io:t1', ['city']);
     await engine.execute(pipeline([port], [['city']]), [
-      { head: { vars: ['city'] }, arguments: { bindings: [{ city: uri('http://ex/paris') }] } },
+      { head: { vars: ['city'] }, results: { bindings: [{ city: uri('http://ex/paris') }] } },
     ]);
 
     expect(rowsFor(['city'])).toEqual([{ city: uri('http://ex/paris') }]);
@@ -186,7 +186,7 @@ describe('ExecutionEngine — tables supplied to the start node', () => {
   it('reaches the port by position when the column names do not line up', async () => {
     const port = tuplePort('urn:io:t1', ['city']);
     await engine.execute(pipeline([port], [['city']]), [
-      { head: { vars: ['town'] }, arguments: { bindings: [{ town: uri('http://ex/paris') }] } },
+      { head: { vars: ['town'] }, results: { bindings: [{ town: uri('http://ex/paris') }] } },
     ]);
 
     expect(rowsFor(['city'])).toEqual([{ city: uri('http://ex/paris') }]);
@@ -197,7 +197,7 @@ describe('ExecutionEngine — tables supplied to the start node', () => {
       variableMappings: JSON.stringify([{ source: 'b', target: 'city' }, { source: 'a', target: 'country' }]),
     });
     await engine.execute(pipeline([port], [['city', 'country']]), [
-      { head: { vars: ['a', 'b'] }, arguments: { bindings: [{ a: uri('http://ex/fr'), b: uri('http://ex/paris') }] } },
+      { head: { vars: ['a', 'b'] }, results: { bindings: [{ a: uri('http://ex/fr'), b: uri('http://ex/paris') }] } },
     ]);
 
     expect(rowsFor(['city', 'country'])).toEqual([
@@ -214,7 +214,7 @@ describe('ExecutionEngine — tables supplied to the start node', () => {
       variableMappings: JSON.stringify([{ source: 'city', target: 'city' }]),
     });
     await engine.execute(pipeline([port], [['city']]), [
-      { head: { vars: ['city', 'note'] }, arguments: { bindings: [{ city: uri('http://ex/paris'), note: uri('http://ex/x') }] } },
+      { head: { vars: ['city', 'note'] }, results: { bindings: [{ city: uri('http://ex/paris'), note: uri('http://ex/x') }] } },
     ]);
 
     expect(rowsFor(['city'])).toEqual([{ city: uri('http://ex/paris') }]);
@@ -224,8 +224,8 @@ describe('ExecutionEngine — tables supplied to the start node', () => {
     const cities = tuplePort('urn:io:t1', ['city'], { position: 0 });
     const years = tuplePort('urn:io:t2', ['year'], { position: 1 });
     await engine.execute(pipeline([cities, years], [['city'], ['year']]), [
-      { head: { vars: ['year'] }, arguments: { bindings: [{ year: uri('http://ex/2026') }] } },
-      { head: { vars: ['city'] }, arguments: { bindings: [{ city: uri('http://ex/paris') }] } },
+      { head: { vars: ['year'] }, results: { bindings: [{ year: uri('http://ex/2026') }] } },
+      { head: { vars: ['city'] }, results: { bindings: [{ city: uri('http://ex/paris') }] } },
     ]);
 
     // Signature wins over order, so naming them out of order still works.
@@ -242,8 +242,8 @@ describe('ExecutionEngine — tables supplied to the start node', () => {
   it('refuses a table that fills no declared input', async () => {
     const port = tuplePort('urn:io:t1', ['city']);
     await expect(engine.execute(pipeline([port], [['city']]), [
-      { head: { vars: ['city'] }, arguments: { bindings: [{ city: uri('http://ex/paris') }] } },
-      { head: { vars: ['spare'] }, arguments: { bindings: [{ spare: uri('http://ex/x') }] } },
+      { head: { vars: ['city'] }, results: { bindings: [{ city: uri('http://ex/paris') }] } },
+      { head: { vars: ['spare'] }, results: { bindings: [{ spare: uri('http://ex/x') }] } },
     ])).rejects.toThrow(/fill no input the query group declares/);
   });
 
@@ -255,8 +255,8 @@ describe('ExecutionEngine — tables supplied to the start node', () => {
   it('refuses without executing a node', async () => {
     const port = tuplePort('urn:io:t1', ['city']);
     await expect(engine.execute(pipeline([port], [['city']]), [
-      { head: { vars: ['city'] }, arguments: { bindings: [{ city: uri('http://ex/paris') }] } },
-      { head: { vars: ['spare'] }, arguments: { bindings: [{ spare: uri('http://ex/x') }] } },
+      { head: { vars: ['city'] }, results: { bindings: [{ city: uri('http://ex/paris') }] } },
+      { head: { vars: ['spare'] }, results: { bindings: [{ spare: uri('http://ex/x') }] } },
     ])).rejects.toThrow(/fill no input the query group declares/);
 
     expect(executor.selectQueryParsed).not.toHaveBeenCalled();
@@ -271,7 +271,7 @@ describe('ExecutionEngine — tables supplied to the start node', () => {
     const cities = tuplePort('urn:io:t1', ['city'], { position: 0 });
     const years = tuplePort('urn:io:t2', ['year'], { position: 1 });
     await expect(engine.execute(pipeline([cities, years], [['city'], ['year']]), [
-      { head: { vars: ['city'] }, arguments: { bindings: [{ city: uri('http://ex/paris') }] } },
+      { head: { vars: ['city'] }, results: { bindings: [{ city: uri('http://ex/paris') }] } },
     ])).resolves.toBeDefined();
 
     expect(rowsFor(['city'])).toEqual([{ city: uri('http://ex/paris') }]);

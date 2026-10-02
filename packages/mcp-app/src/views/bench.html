@@ -354,13 +354,11 @@
   }
 
   /**
-   * The `arguments` array `/execute` and `/sparql` take: one entry per slot.
+   * The `arguments` array `/execute` and `/sparql` take: one SPARQL Results
+   * JSON document per slot the user filled.
    *
    * Returns `null` when the user has filled nothing, and the caller then sends
-   * no `arguments` at all. The distinction is not cosmetic: a slot supplied
-   * with an empty binding set propagates empty and the run answers zero rows,
-   * while a slot supplied with nothing leaves the all-UNDEF row in place and
-   * matches everything. An untouched bench should show you your data, not an
+   * no `arguments` at all. An untouched bench should show you your data, not an
    * empty table.
    */
   function buildArguments() {
@@ -381,11 +379,14 @@
         });
         if (filled) bindings.push(binding);
       });
-      return { head: { vars: variables }, arguments: { bindings: bindings } };
+      return { head: { vars: variables }, results: { bindings: bindings } };
     });
 
-    var anyFilled = slots.some(function (slot) { return slot.arguments.bindings.length > 0; });
-    return anyFilled ? slots : null;
+    // A slot with no rows is left out, so the query runs without that filter:
+    // nothing arrived. Sending it with zero rows would say "the empty set
+    // arrived" instead, which matches nothing.
+    var filled = slots.filter(function (slot) { return slot.results.bindings.length > 0; });
+    return filled.length ? filled : null;
   }
 
   function buildNumbers(kind) {
@@ -411,7 +412,6 @@
     var args = buildArguments();
     var limits = buildNumbers('limits');
     var offsets = buildNumbers('offsets');
-    var emptySlots = (args || []).filter(function (slot) { return slot.arguments.bindings.length === 0; }).length;
 
     try {
       var envelope;
@@ -447,12 +447,7 @@
 
       var shape = kit.renderResults(nodes.results, envelope.body);
       var summary = kit.summariseResults(shape);
-      // A zero-row run with a slot left empty is almost always that slot, not
-      // the data — say so where the user is already looking.
-      var hint = shape.rowCount === 0 && emptySlots
-        ? ' — ' + emptySlots + ' parameter slot' + (emptySlots === 1 ? '' : 's') + ' left empty propagates empty'
-        : '';
-      setStatus(nodes.runStatus, summary + ' · ' + elapsed + ' ms' + hint, 'ok');
+      setStatus(nodes.runStatus, summary + ' · ' + elapsed + ' ms', 'ok');
       app.updateModelContext(
         'The user ran the bench query against backend ' + state.backendId + ': ' + summary + ' in ' + elapsed + ' ms.' +
         firstRowsHint(envelope.body)

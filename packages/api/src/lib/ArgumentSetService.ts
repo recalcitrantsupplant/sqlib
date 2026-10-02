@@ -233,12 +233,12 @@ const cloneBinding = (binding: SparqlBinding): SparqlBinding =>
   Object.fromEntries(Object.entries(binding).map(([key, value]) => [key, { ...value }])) as SparqlBinding;
 
 const mergeArgumentSets = (existing: RuntimeArgumentSet, incoming: RuntimeArgumentSet): RuntimeArgumentSet => {
-  const seen = new Set<string>(existing.arguments.bindings.map(row => JSON.stringify(row)));
-  for (const row of incoming.arguments.bindings) {
+  const seen = new Set<string>(existing.results.bindings.map(row => JSON.stringify(row)));
+  for (const row of incoming.results.bindings) {
     const key = JSON.stringify(row);
     if (seen.has(key)) continue;
     seen.add(key);
-    existing.arguments.bindings.push(row);
+    existing.results.bindings.push(row);
   }
   return existing;
 };
@@ -616,7 +616,7 @@ export class ArgumentSetService {
         ];
         const runtime: RuntimeArgumentSet = {
           head,
-          arguments: { bindings: rows },
+          results: { bindings: rows },
         };
         /*
          * Keyed canonically, not by the stored `tupleSignature` string.

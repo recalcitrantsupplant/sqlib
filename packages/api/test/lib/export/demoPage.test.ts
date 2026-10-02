@@ -174,13 +174,13 @@ describe('examples on the page', () => {
         arguments: [
           {
             head: { vars: ['city'] },
-            arguments: { bindings: [{ city: { type: 'uri', value: 'http://example.org/Perth' } }] },
+            results: { bindings: [{ city: { type: 'uri', value: 'http://example.org/Perth' } }] },
           },
         ],
       },
       {
         name: 'Seeded case',
-        arguments: [{ head: { vars: ['city'] }, arguments: { bindings: [] } }],
+        arguments: [{ head: { vars: ['city'] }, results: { bindings: [] } }],
         dataDependent: true,
         expected: '{"head":{"vars":["name"]}}',
       },
@@ -409,7 +409,7 @@ describe('the inlined runtime is the real one', () => {
       arguments: [
         {
           head: { vars: ['city'] },
-          arguments: { bindings: [{ city: { type: 'uri', value: 'http://example.org/Perth' } }] },
+          results: { bindings: [{ city: { type: 'uri', value: 'http://example.org/Perth' } }] },
         },
       ],
     };

@@ -74,11 +74,11 @@ describe('resolveTupleSeedInput', () => {
       .toBe(resolveTupleSeedInput({ tupleSetVersionId: VERSION_ID }));
   });
 
-  it('renders an inline arguments-JSON document', () => {
+  it('renders an inline SPARQL Results JSON document', () => {
     const seeds = resolveTupleSeedInput({
       inline: {
         head: { vars: ['x', 'y'] },
-        arguments: { bindings: [{ x: { type: 'uri', value: 'http://ex/a' }, y: { type: 'literal', value: 'b' } }] },
+        results: { bindings: [{ x: { type: 'uri', value: 'http://ex/a' }, y: { type: 'literal', value: 'b' } }] },
       },
     });
     expect(seeds).toBe('TUPLE(<http://ex/a>, "b")');
@@ -108,7 +108,7 @@ describe('resolveTupleSeedInput', () => {
 
   it('refuses an inline document that is not one', () => {
     expect(() => resolveTupleSeedInput({ inline: { rows: [] } })).toThrow(/head\.vars/);
-    expect(() => resolveTupleSeedInput({ inline: 'TUPLE(:a)' })).toThrow(/arguments JSON/);
+    expect(() => resolveTupleSeedInput({ inline: 'TUPLE(:a)' })).toThrow(/SPARQL Results JSON/);
   });
 
   /*

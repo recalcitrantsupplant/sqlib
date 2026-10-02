@@ -1,4 +1,4 @@
-import { normalizeUndefBindings as normalizeRuntimeBindings } from '@sparql-query-lib/runtime';
+import { normalizeArguments as normalizeRuntimeArguments } from '@sparql-query-lib/runtime';
 import { SparqlQueryParser } from './parser.js';
 import type { ArgumentSet as RuntimeArgumentSet } from './query-chaining.js';
 import type { RuntimeArgumentPayload } from './ArgumentSetService.js';
@@ -40,34 +40,32 @@ export class ArgumentApplicationError extends Error {
 }
 
 /**
- * An argument set as it arrives on the wire.
+ * An argument as it arrives on the wire: a SPARQL Results JSON document.
  *
  * Deliberately looser than the runtime `ArgumentSet`: a request may carry
- * `null` cells and `null` rows, and normalising those away is exactly what
- * turns one into the other.
+ * `null` cells and `null` rows, `typed-literal` terms and, until it is refused,
+ * blank nodes. Normalising those away is exactly what turns one into the other.
  */
 export interface WireArgumentSet {
   head: { vars: string[] };
-  arguments: { bindings: unknown[] };
-  whenEmpty?: 'unconstrained' | 'propagateEmpty' | 'require';
+  results: { bindings: unknown[] };
 }
 
 /**
- * Drop the nulls a JSON round-trip leaves behind.
+ * Validate wire arguments and bring them to the runtime shape.
  *
- * A row is a partial binding: an absent key is UNDEF. Clients that build rows
- * from a table send `null` for the blank cells instead, and a whole `null` row
- * for a blank row, so both are normalised to "this row binds nothing here"
- * before the parser sees them — which is what makes the result a runtime
- * `ArgumentSet` rather than the wire shape it started as.
+ * Shared with the exported runtime so a bundle accepts precisely the payload
+ * `/execute` accepts, refused in the same words. A refusal is rethrown as an
+ * {@link ArgumentApplicationError} so every route answers it with a 400.
  */
-export function normalizeUndefBindings(
+export function normalizeArguments(
   argumentSets: readonly WireArgumentSet[] | undefined
 ): RuntimeArgumentSet[] | undefined {
-  // Shared with the exported runtime so a bundle accepts precisely the payload
-  // `/execute` accepts; re-exported here because this is where the routes look
-  // for it, and its neighbour `applyExecutionArguments` is server-only.
-  return normalizeRuntimeBindings(argumentSets) as RuntimeArgumentSet[] | undefined;
+  try {
+    return normalizeRuntimeArguments(argumentSets) as RuntimeArgumentSet[] | undefined;
+  } catch (error) {
+    throw new ArgumentApplicationError(error instanceof Error ? error.message : String(error));
+  }
 }
 
 /**
@@ -89,7 +87,7 @@ export function applyExecutionArguments(
 ): string {
   const limits = payload.limits ?? [];
   const offsets = payload.offsets ?? [];
-  const argumentSets = normalizeUndefBindings(payload.argumentSets) ?? [];
+  const argumentSets = normalizeArguments(payload.argumentSets) ?? [];
 
   let result = queryString;
 

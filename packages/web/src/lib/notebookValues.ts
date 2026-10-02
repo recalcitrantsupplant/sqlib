@@ -218,7 +218,7 @@ export function mapColumns(sourceColumns: string[], targetVars: string[]): Array
 export function toSlotArgument(
   value: RowsValue,
   targetVars: string[],
-): { head: { vars: string[] }; arguments: { bindings: SparqlBindingRow[] } } {
+): { head: { vars: string[] }; results: { bindings: SparqlBindingRow[] } } {
   const mappings = mapColumns(value.columns, targetVars);
   const bindings = value.bindings.map((row) => {
     const mapped: SparqlBindingRow = {};
@@ -230,5 +230,5 @@ export function toSlotArgument(
     }
     return mapped;
   });
-  return { head: { vars: [...targetVars] }, arguments: { bindings } };
+  return { head: { vars: [...targetVars] }, results: { bindings } };
 }

@@ -115,7 +115,7 @@ export async function buildFixtureBundle(): Promise<ExportBundle> {
       arguments: [
         {
           head: { vars: ['city'] },
-          arguments: {
+          results: {
             bindings: [{ city: { type: 'uri', value: 'http://example.org/Perth' } }],
           },
         },

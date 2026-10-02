@@ -268,7 +268,7 @@ POST /execute
 { "targetId": "<group IRI>", "argumentSetIds": ["<argument set version IRI>"] }
 ```
 
-or inline, as SPARQL-Results-shaped rows:
+or inline, one SPARQL Results JSON document per parameter to fill:
 
 ```jsonc
 {
@@ -276,7 +276,7 @@ or inline, as SPARQL-Results-shaped rows:
   "arguments": [
     {
       "head": { "vars": ["minPopulation"] },
-      "arguments": { "bindings": [
+      "results": { "bindings": [
         { "minPopulation": { "type": "literal", "value": "1000000",
                              "datatype": "http://www.w3.org/2001/XMLSchema#integer" } }
       ] }
@@ -297,7 +297,7 @@ Argument variable order mismatch for VALUES input [p, s]; received [s, p].
 ### `whenEmpty`
 
 Every parameter slot is rewritten before dispatch — bound rows, clause removed,
-or a zero-row `VALUES`. What happens when an input supplies **no** bound rows is
+or a zero-row `VALUES`. What happens when an edge delivers **no** bound rows is
 the one genuine choice, and it is a property of the edge that feeds the slot:
 
 | Mode | Rewrite | Means |
@@ -306,10 +306,14 @@ the one genuine choice, and it is a property of the edge that feeds the slot:
 | `propagateEmpty` | `VALUES` with zero rows | faithful substitution: the empty set arrived, so match nothing |
 | `require` | the run fails | this input is mandatory |
 
-The defaults, unset (`parser.ts`): an **empty set that arrived**
-(zero rows) is `propagateEmpty`; **nothing arriving at all** — an absent external
-parameter, or the pure singleton wildcard row — is `unconstrained`. An
-all-`UNDEF` row mixed with bound rows is rejected outright.
+Unset, an empty upstream result (zero rows) is `propagateEmpty`, and the pure
+singleton wildcard row is `unconstrained`. An all-`UNDEF` row mixed with bound
+rows is rejected outright.
+
+A run's own `arguments` carry no policy. A caller says the two things it can
+mean by the shape of the argument: leaving a slot out is "nothing arrived" and
+runs it `unconstrained` unless the edge says `require`; supplying it with zero
+rows is "the empty set arrived". `require` is only ever the author's.
 
 ### `LIMIT` / `OFFSET`
 
