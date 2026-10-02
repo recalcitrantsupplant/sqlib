@@ -13,13 +13,18 @@
 import { selfHostedAdapter } from './SelfHostedAdapter.js';
 import type { PersistenceAdapter } from './PersistenceAdapter.js';
 
-let registered: PersistenceAdapter = selfHostedAdapter;
+// Null means "the real one", resolved per call rather than copied at load: this
+// module sits on an import cycle (`EntityStore` -> `ExecutorFactory` -> the
+// cache -> here -> `SelfHostedAdapter` -> `EntityStore`), and reading
+// `selfHostedAdapter` while the module evaluates would throw whenever the cycle
+// is entered from the adapter's side.
+let registered: PersistenceAdapter | null = null;
 
 /** Overridable so tests can substitute a stub; resets to the real adapter on null. */
 export function setPersistenceAdapter(adapter: PersistenceAdapter | null): void {
-  registered = adapter ?? selfHostedAdapter;
+  registered = adapter;
 }
 
 export function getPersistenceAdapter(): PersistenceAdapter {
-  return registered;
+  return registered ?? selfHostedAdapter;
 }

@@ -1,13 +1,14 @@
 /**
  * Materialises `?id ?p ?o` rows into typed entity objects.
  *
- * This is the replacement for LDKit's decoder, and LDKit's observed output is the
- * specification — the parity harness (`test/persistence/readParity.test.ts`) diffs
- * the two against the same store, so any drift in datatype handling shows up as a
- * failing test rather than a subtly wrong entity.
+ * This replaced LDKit's decoder, and LDKit's observed output was the
+ * specification. The parity harness that diffed the two against one store went
+ * with LDKit; the conventions below are now pinned by
+ * `test/persistence/EntityAssembler.test.ts`, so drift in datatype handling shows
+ * up as a failing test rather than a subtly wrong entity.
  *
- * Conventions it reproduces, each confirmed by probing a real lens rather than
- * read off the schema types (the entity interfaces disagree with the runtime in
+ * Conventions it reproduces, each confirmed by probing a real lens at the time
+ * rather than read off the schema types (the entity interfaces disagree with the runtime in
  * one important place — see `dateTime` below):
  * - identity is `$id` alone. The lens emits no `@id`/`@type`; `loadAll` adds them
  *   afterwards, so that normalisation lives in the adapter, not here.

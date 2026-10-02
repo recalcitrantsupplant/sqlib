@@ -14,7 +14,7 @@
  *   LDKit silently writes *no triple* for one — which matters because reads
  *   return `Date`, so a read-modify-write round-trip through LDKit drops the
  *   field. Preserving that would mean reproducing data loss; `EntitySerialiser`
- *   writes it, and `createParity` documents the divergence with a test.
+ *   writes it, and `test/persistence/EntitySerialiser.test.ts` pins that.
  */
 import { describeSchema, type EntityField } from './schemaIntrospection.js';
 import { iri, literal, RDF_TYPE } from './sparqlTerms.js';

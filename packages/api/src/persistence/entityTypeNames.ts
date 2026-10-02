@@ -1,17 +1,15 @@
 /**
  * The names of the entity types, as one list nothing else derives from.
  *
- * `LENS_BY_TYPE` and `SCHEMA_BY_TYPE` describe the same set of types by two
- * routes, and until this existed the only thing holding them together was a
- * test comparing their key sets. Both are now checked against this list by
- * `satisfies Record<EntityTypeName, …>`, so a type added to one and not the
- * other is a compile error at the registry rather than a red test.
+ * `SCHEMA_BY_TYPE`, `EntityRegistry`'s `EntityByType` and the repository map in
+ * `EntityRepositories` are all checked against or built from this list, so a
+ * type added to one and not the others is a compile error rather than a red
+ * test or a type missing at runtime.
  *
- * The reason it is a *standalone* leaf module rather than `keyof typeof
- * LENS_BY_TYPE`: `schema.ts` needs the union to type a property's
- * `@references`, and the registries are inferred from the lens and schema
- * modules, which transitively depend on `schema.ts`. Naming the list here
- * breaks that circularity — it is a leaf, importing nothing.
+ * It is a standalone leaf module, importing nothing, because `schema.ts` needs
+ * the union to type a property's `@references`, and the schema registry is
+ * built from the schema modules, which depend on `schema.ts`. Naming the list
+ * here breaks that circularity.
  */
 
 export const ENTITY_TYPE_NAMES = [

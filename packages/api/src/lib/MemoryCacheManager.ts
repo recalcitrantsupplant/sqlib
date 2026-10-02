@@ -81,11 +81,6 @@ export class MemoryCacheManager {
   getStats() {
     return this.coordinator.getStats();
   }
-
-  // Exposed for tests that previously accessed this private method
-  async getLensForType(entityType: string) {
-    return this.coordinator.getLensForType(entityType as EntityType);
-  }
 }
 
 /**

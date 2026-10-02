@@ -228,11 +228,13 @@ it is:
 - `packages/api/src/persistence/SelfHostedAdapter.ts` — the type-keyed facade
   the cache talks to. It maps an entity type to its schema through
   `SCHEMA_BY_TYPE` and hands off to `EntityStore`.
-- `packages/api/src/lib/EntityRegistry.ts` — `LENS_BY_TYPE`, the per-entity
-  repositories (52 entity types), and `TTL_MS`, the per-type cache lifetime.
+- `packages/api/src/lib/EntityRegistry.ts` — `EntityByType`, the stored shape
+  of each of the 52 entity types named in `entityTypeNames.ts`, and `TTL_MS`,
+  the per-type cache lifetime.
 
-Names carrying `Ldkit`/`LENS` survive in the types and the registry; the
-implementation behind them does not. Any older material describing LDKit lenses,
+Only the `ldkit:IRI` vocabulary term still carries the name, because changing
+it would be a data migration (see
+[entity-model.md](../reference/entity-model.md)). Any older material describing LDKit lenses,
 a `persistPath` RocksDB store, or seven route modules is describing a system
 that no longer exists.
 

@@ -1,11 +1,10 @@
 /**
- * Entity type -> LDKit schema object, for runtime use.
+ * Entity type -> schema object, for runtime use.
  *
- * `EntityRegistry.LENS_BY_TYPE` maps types to *lenses*; the self-hosted mapper
- * needs the schemas those lenses were built from, so it can generate queries and
- * assemble results without LDKit in the path. Both maps are keyed by
- * `ENTITY_TYPE_NAMES`, so a type present in one and missing from the other is a
- * compile error here rather than a runtime gap.
+ * The self-hosted mapper reads and writes by schema: it generates queries and
+ * assembles results from these objects. The map is keyed by
+ * `ENTITY_TYPE_NAMES`, so a type named there and missing here is a compile error
+ * rather than a type silently absent from boot load.
  */
 import { BackendSchema } from '../persistence/schemas/BackendSchema.js';
 import { LibrarySchema } from '../persistence/schemas/LibrarySchema.js';

@@ -1,3 +1,14 @@
+/**
+ * What the cache needs to know per entity type: the stored shape of each, and
+ * how long a cached copy stays fresh.
+ *
+ * The set of types is `ENTITY_TYPE_NAMES`; nothing here derives it. This module
+ * used to also map every type to its repository module, which pulled ~50
+ * `*Utils` modules into everything that needed a TTL or a type name and closed
+ * an import cycle through `EntityStore`. Reads and writes go through
+ * `CacheCoordinator` and the `PersistenceAdapter`, keyed by schema, so nothing
+ * here needs a repository.
+ */
 import type { LdkitArgumentScalarBinding } from '../persistence/schemas/ArgumentScalarBindingSchema.js';
 import type { LdkitArgumentGraphBinding } from '../persistence/schemas/ArgumentGraphBindingSchema.js';
 import type { LdkitArgumentSet } from '../persistence/schemas/ArgumentSetSchema.js';
@@ -50,118 +61,10 @@ import type { LdkitRuleVersion } from '../persistence/schemas/RuleVersionSchema.
 import type { LdkitStartNode } from '../persistence/schemas/StartNodeSchema.js';
 import type { LdkitTriplesQuadsIO } from '../persistence/schemas/TriplesQuadsIOSchema.js';
 import type { LdkitTupleMember } from '../persistence/schemas/TupleMemberSchema.js';
-import { Backends } from '../persistence/utils/BackendUtils.js';
-import { Libraries } from '../persistence/utils/LibraryUtils.js';
-import { Queries } from '../persistence/utils/QueryUtils.js';
-import { QueryVersions } from '../persistence/utils/QueryVersionUtils.js';
-import { Rules } from '../persistence/utils/RuleUtils.js';
-import { RuleVersions } from '../persistence/utils/RuleVersionUtils.js';
-import { DataBlocks } from '../persistence/utils/DataBlockUtils.js';
-import { DataBlockVersions } from '../persistence/utils/DataBlockVersionUtils.js';
-import { RuleSets } from '../persistence/utils/RuleSetUtils.js';
-import { RuleSetVersions } from '../persistence/utils/RuleSetVersionUtils.js';
-import { QueryGroups } from '../persistence/utils/QueryGroupUtils.js';
-import { QueryGroupVersions } from '../persistence/utils/QueryGroupVersionUtils.js';
-import { QueryNodes } from '../persistence/utils/QueryNodeUtils.js';
-import { RuleSetNodes } from '../persistence/utils/RuleSetNodeUtils.js';
-import { PatchNodes } from '../persistence/utils/PatchNodeUtils.js';
-import { QueryEdges } from '../persistence/utils/QueryEdgeUtils.js';
-import { DynamicQueryNodes } from '../persistence/utils/DynamicQueryNodeUtils.js';
-import { StartNodes } from '../persistence/utils/StartNodeUtils.js';
-import { EndNodes } from '../persistence/utils/EndNodeUtils.js';
-import { LimitParameters } from '../persistence/utils/LimitParameterUtils.js';
-import { OffsetParameters } from '../persistence/utils/OffsetParameterUtils.js';
-import { QueryInputVariables } from '../persistence/utils/QueryInputVariableUtils.js';
-import { QueryOutputVariables } from '../persistence/utils/QueryOutputVariableUtils.js';
-import { QueryInputTuples } from '../persistence/utils/QueryInputTupleUtils.js';
-import { QueryOutputTuples } from '../persistence/utils/QueryOutputTupleUtils.js';
-import { TupleMembers } from '../persistence/utils/TupleMemberUtils.js';
-import { TriplesQuadsIOs } from '../persistence/utils/TriplesQuadsIOUtils.js';
-import { BooleanIOs } from '../persistence/utils/BooleanIOUtils.js';
-import { QueryIdInputs } from '../persistence/utils/QueryIdInputUtils.js';
-import {
-  ArgumentSets,
-  ArgumentSetVersions,
-  ArgumentTupleBindings,
-  ArgumentScalarBindings,
-  ArgumentGraphBindings,
-} from '../persistence/utils/ArgumentSetUtils.js';
-import {
-  EtlJobs,
-  EtlJobVersions,
-  EtlColumnMappings,
-  EtlColumnMappingVersions,
-  EtlExecutions,
-  DuckDbEtlNodes,
-} from '../persistence/utils/EtlUtils.js';
-import { BenchmarkExperiments } from '../persistence/utils/BenchmarkExperimentUtils.js';
-import { BenchmarkExperimentVersions } from '../persistence/utils/BenchmarkExperimentVersionUtils.js';
-import { DataGraphs } from '../persistence/utils/DataGraphUtils.js';
-import { DataGraphVersions } from '../persistence/utils/DataGraphVersionUtils.js';
-import { Tests, TestVersions } from '../persistence/utils/TestUtils.js';
-import { TestCases } from '../persistence/utils/TestCaseUtils.js';
-import { TestCaseDataGraphs } from '../persistence/utils/TestCaseDataGraphUtils.js';
-import { Tags } from '../persistence/utils/TagUtils.js';
-import { Patches } from '../persistence/utils/PatchUtils.js';
-import { TupleSets, TupleSetVersions } from '../persistence/utils/TupleSetUtils.js';
 import type { EntityTypeName } from '../persistence/entityTypeNames.js';
 
-export const LENS_BY_TYPE = {
-  Backend: Backends,
-  Library: Libraries,
-  Query: Queries,
-  QueryVersion: QueryVersions,
-  Rule: Rules,
-  RuleVersion: RuleVersions,
-  DataBlock: DataBlocks,
-  DataBlockVersion: DataBlockVersions,
-  RuleSet: RuleSets,
-  RuleSetVersion: RuleSetVersions,
-  QueryGroup: QueryGroups,
-  QueryGroupVersion: QueryGroupVersions,
-  QueryNode: QueryNodes,
-  RuleSetNode: RuleSetNodes,
-  PatchNode: PatchNodes,
-  QueryEdge: QueryEdges,
-  DynamicQueryNode: DynamicQueryNodes,
-  StartNode: StartNodes,
-  EndNode: EndNodes,
-  LimitParameter: LimitParameters,
-  OffsetParameter: OffsetParameters,
-  QueryInputVariable: QueryInputVariables,
-  QueryOutputVariable: QueryOutputVariables,
-  QueryInputTuple: QueryInputTuples,
-  QueryOutputTuple: QueryOutputTuples,
-  TupleMember: TupleMembers,
-  TriplesQuadsIO: TriplesQuadsIOs,
-  BooleanIO: BooleanIOs,
-  QueryIdInput: QueryIdInputs,
-  ArgumentSet: ArgumentSets,
-  ArgumentSetVersion: ArgumentSetVersions,
-  ArgumentTupleBinding: ArgumentTupleBindings,
-  ArgumentScalarBinding: ArgumentScalarBindings,
-  ArgumentGraphBinding: ArgumentGraphBindings,
-  EtlJob: EtlJobs,
-  EtlJobVersion: EtlJobVersions,
-  EtlColumnMapping: EtlColumnMappings,
-  EtlColumnMappingVersion: EtlColumnMappingVersions,
-  EtlExecution: EtlExecutions,
-  DuckDbEtlNode: DuckDbEtlNodes,
-  BenchmarkExperiment: BenchmarkExperiments,
-  BenchmarkExperimentVersion: BenchmarkExperimentVersions,
-  DataGraph: DataGraphs,
-  DataGraphVersion: DataGraphVersions,
-  Test: Tests,
-  TestVersion: TestVersions,
-  TestCase: TestCases,
-  TestCaseDataGraph: TestCaseDataGraphs,
-  Tag: Tags,
-  Patch: Patches,
-  TupleSet: TupleSets,
-  TupleSetVersion: TupleSetVersions,
-} as const satisfies Record<EntityTypeName, unknown>;
-
-export type EntityType = keyof typeof LENS_BY_TYPE;
+/** One of the entity types the cache stores and resolves. */
+export type EntityType = EntityTypeName;
 
 export type EntityByType = {
   Backend: LdkitBackend;
@@ -218,6 +121,11 @@ export type EntityByType = {
   TupleSetVersion: LdkitTupleSetVersion;
 };
 
+// Every name in `ENTITY_TYPE_NAMES` has a shape above, and nothing else does.
+type Exact<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never;
+const _entityByTypeCoversEveryName: Exact<keyof EntityByType, EntityTypeName> = true;
+void _entityByTypeCoversEveryName;
+
 export const TTL_MS: Partial<Record<EntityType, number>> = {
   Backend: 180_000,
   Library: 120_000,
@@ -255,20 +163,4 @@ export const TTL_MS: Partial<Record<EntityType, number>> = {
 
 export function getTtlForType(type: EntityType): number {
   return TTL_MS[type] ?? 60_000;
-}
-
-export interface CommonLens<T> {
-  find(): Promise<T[]>;
-  findByIri(id: string): Promise<T | null>;
-  insert(entity: T): Promise<void>;
-  update(entity: Partial<T>): Promise<void>;
-  delete(id: string): Promise<void>;
-}
-
-export function getLensForType<T extends EntityType>(type: T): CommonLens<EntityByType[T]> {
-  const lens = LENS_BY_TYPE[type];
-  if (!lens) {
-    throw new Error(`Unknown entity type: ${type}`);
-  }
-  return lens as unknown as CommonLens<EntityByType[T]>;
 }

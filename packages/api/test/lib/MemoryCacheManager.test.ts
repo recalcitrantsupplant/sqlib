@@ -671,43 +671,6 @@ describe('MemoryCacheManager', () => {
     });
   });
 
-  describe('getLensForType (private method)', () => {
-    // This is a private method, but we can test it indirectly or by casting to any
-    it('should return the correct lens for Backend type', async () => {
-      const lens = await (cacheManager as any).getLensForType('Backend');
-      expect(lens).toBe(Backends);
-    });
-
-    it('should return the correct lens for Query type', async () => {
-      const lens = await (cacheManager as any).getLensForType('Query');
-      expect(lens).toBe(Queries);
-    });
-
-    it('should return the correct lens for QueryGroup type', async () => {
-      const lens = await (cacheManager as any).getLensForType('QueryGroup');
-      expect(lens).toBe(QueryGroups);
-    });
-
-    it('should return the correct lens for QueryNode type', async () => {
-      const lens = await (cacheManager as any).getLensForType('QueryNode');
-      expect(lens).toBe(QueryNodes);
-    });
-
-    it('should return the correct lens for QueryEdge type', async () => {
-      const lens = await (cacheManager as any).getLensForType('QueryEdge');
-      expect(lens).toBe(QueryEdges);
-    });
-
-    it('should return the correct lens for Library type', async () => {
-      const lens = await (cacheManager as any).getLensForType('Library');
-      expect(lens).toBe(Libraries);
-    });
-
-    it('should throw an error for an unknown entity type', async () => {
-      await expect((cacheManager as any).getLensForType('NonExistentType')).rejects.toThrow('Unknown entity type: NonExistentType');
-    });
-  });
-
   // Comprehensive TTL and Stale-While-Revalidate (SWR) tests
   describe('TTL and Stale-While-Revalidate (SWR)', () => {
     let mockDateNow: number;
