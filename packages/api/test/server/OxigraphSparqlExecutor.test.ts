@@ -132,6 +132,48 @@ describe('OxigraphSparqlExecutor', () => {
         });
     });
 
+    /*
+     * The stream forms are what `SystemQueryRunner` uses for graph-typed
+     * queries. They built their body with `require('stream')`, which does not
+     * exist in an ES module, so every call threw before any query ran.
+     */
+    describe('stream forms', () => {
+        const text = async (body: NodeJS.ReadableStream) => {
+            const chunks: Buffer[] = [];
+            for await (const chunk of body) chunks.push(Buffer.from(chunk as Buffer));
+            return Buffer.concat(chunks).toString('utf8');
+        };
+
+        it('streams a CONSTRUCT result, labelled with the syntax it is in', async () => {
+            const response = await executor.constructQueryStream(
+                'CONSTRUCT { ?s <http://schema.org/name> ?o } WHERE { ?s <http://schema.org/name> ?o }',
+                { acceptHeader: 'text/turtle' },
+            );
+            expect(response.headers['content-type']).toBe('text/turtle');
+            expect(await text(response.body)).toContain('"John Doe"@en');
+        });
+
+        it('streams a SELECT result as SPARQL JSON', async () => {
+            const response = await executor.selectQueryStream('SELECT ?o WHERE { ?s <http://schema.org/name> ?o }');
+            const parsed = JSON.parse(await text(response.body));
+            expect(parsed.results.bindings.length).toBeGreaterThan(0);
+        });
+    });
+
+    /*
+     * In-process stores do not federate: Oxigraph's N-API build has no service
+     * handler, so `SERVICE` cannot reach out of the process from an in-process
+     * backend whatever endpoint it names. HTTP backends leave `SERVICE` to the
+     * store behind them (decision D5).
+     */
+    describe('SERVICE', () => {
+        it('is refused rather than sent anywhere', async () => {
+            await expect(executor.selectQueryParsed(
+                'SELECT * WHERE { SERVICE <http://example.org/sparql> { ?s ?p ?o } }',
+            )).rejects.toThrow(/service <http:\/\/example\.org\/sparql> is not supported/i);
+        });
+    });
+
     describe('update', () => {
         it('should execute UPDATE query successfully', async () => {
             const updateQuery = 'INSERT DATA { <http://example.org/person3> <http://schema.org/name> "Bob Johnson" }';

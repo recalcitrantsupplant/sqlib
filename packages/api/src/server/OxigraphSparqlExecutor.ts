@@ -1,3 +1,4 @@
+import { Readable } from 'node:stream';
 import { Dispatcher } from 'undici'; // Still needed for interface compatibility
 import {ISparqlExecutor, SparqlExecutionResult, SparqlSelectJsonOutput, SparqlQueryOptions} from './ISparqlExecutor.js';
 import { toError } from '../lib/toError.js';
@@ -113,12 +114,7 @@ export class OxigraphSparqlExecutor implements ISparqlExecutor {
         const buffer = Buffer.from(jsonString, 'utf8');
         
         // Create a simple readable stream from the buffer
-        const stream = new (require('stream').Readable)({
-            read() {
-                this.push(buffer);
-                this.push(null); // End the stream
-            }
-        });
+        const stream = Readable.from([buffer]);
         
         return {
             statusCode: 200,
@@ -135,25 +131,20 @@ export class OxigraphSparqlExecutor implements ISparqlExecutor {
      * Executes a SPARQL CONSTRUCT query and returns a stream.
      * For Oxigraph, this converts parsed results to a stream format.
      */
-    async constructQueryStream(sparqlQuery: string): Promise<Dispatcher.ResponseData> {
+    async constructQueryStream(sparqlQuery: string, options?: SparqlQueryOptions): Promise<Dispatcher.ResponseData> {
         debugLog(`Executing Oxigraph CONSTRUCT (Stream): ${sparqlQuery.substring(0, 100)}...`);
         
         // Fallback to parsed results and convert to stream
-        const { result } = await this.constructQueryParsed(sparqlQuery);
+        const { result, contentType } = await this.constructQueryParsed(sparqlQuery, options);
         const buffer = Buffer.from(result, 'utf8');
         
         // Create a simple readable stream from the buffer
-        const stream = new (require('stream').Readable)({
-            read() {
-                this.push(buffer);
-                this.push(null); // End the stream
-            }
-        });
+        const stream = Readable.from([buffer]);
         
         return {
             statusCode: 200,
             statusText: 'OK',
-            headers: { 'content-type': 'application/n-quads' },
+            headers: { 'content-type': contentType ?? 'application/n-quads' },
             body: stream,
             trailers: {},
             opaque: null,

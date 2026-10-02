@@ -143,9 +143,14 @@ Tiers 2 and 3 are not implemented:
 Two consequences follow from the absence, and neither is obvious from the
 presence of an auth layer:
 
-- **`SERVICE` is not stripped or allowlisted.** A federated query reaches
-  whatever endpoint it names, from the server. sqlib parses every query, so the
-  check is available; it is not implemented.
+- **`SERVICE` is not stripped or allowlisted.** On an HTTP backend a
+  federated query reaches whatever endpoint the store behind it will call;
+  sqlib parses every query, so the check is available, and the decision so far
+  is to leave federation to that store's own configuration. On an in-process
+  backend (`oxigraphMemory`, `oxigraphEphemeral`, the library store, a group's
+  ephemeral stores) there is nothing to reach: Oxigraph's Node build has no
+  service handler, so any `SERVICE` clause fails the query
+  (`test/server/OxigraphSparqlExecutor.test.ts` holds this).
 - **Write authorization by graph does not exist.** An update names its target
   graphs in its own body, and the SPARQL protocol's dataset parameters scope
   only the `WHERE` clause, so the design records that this tier would be
