@@ -9,123 +9,97 @@ import type {
   BenchmarkRun,
 } from '@sparql-query-lib/contracts';
 import { useApiClient } from './useApiClient.js';
+import { createVersionedEntityStore, deriveIfMatchToken } from './createVersionedEntityStore';
 
 type BenchmarkState = {
-  experiments: BenchmarkExperiment[];
   selectedExperiment: BenchmarkExperiment | null;
   selectedVersion: BenchmarkExperimentVersion | null;
   runs: BenchmarkRun[];
-  loading: boolean;
-  error: string | null;
-  concurrency: Record<string, string | null>;
+  /** The runs list's own load, beside the experiments list's. */
+  runsLoading: boolean;
+  runsError: string | null;
 };
 
+const useExperimentEntities = createVersionedEntityStore<
+  BenchmarkExperiment,
+  BenchmarkExperimentCreate,
+  BenchmarkExperimentUpdate
+>({
+  noun: 'benchmark experiment',
+  nounPlural: 'benchmark experiments',
+  api: () => {
+    const client = useApiClient();
+    return {
+      list: client.listBenchmarkExperiments,
+      get: client.getBenchmarkExperiment,
+      create: client.createBenchmarkExperiment,
+      update: client.updateBenchmarkExperiment,
+      remove: client.deleteBenchmarkExperiment,
+    };
+  },
+});
+
 const state = reactive<BenchmarkState>({
-  experiments: [],
   selectedExperiment: null,
   selectedVersion: null,
   runs: [],
-  loading: false,
-  error: null,
-  concurrency: {},
+  runsLoading: false,
+  runsError: null,
 });
-
-function deriveIfMatchToken(etag: string | null, entity: BenchmarkExperiment | BenchmarkExperimentVersion | null): string | null {
-  if (etag && typeof etag === 'string' && etag.trim().length > 0) {
-    return etag;
-  }
-  if (!entity) {
-    return null;
-  }
-  return entity.dateModified ?? entity.dateCreated ?? null;
-}
 
 export function useBenchmarksStore() {
   const apiClient = useApiClient();
+  const entities = useExperimentEntities();
+  // Version tokens are kept beside the experiments', keyed `<id>/v/<n>`.
+  const concurrency = entities.concurrency;
 
-  const experiments = computed(() => state.experiments);
+  const experiments = entities.items;
   const selectedExperiment = computed(() => state.selectedExperiment);
   const selectedVersion = computed(() => state.selectedVersion);
   const runs = computed(() => state.runs);
-  const loading = computed(() => state.loading);
-  const error = computed(() => state.error);
+  const loading = computed(() => entities.loading.value || state.runsLoading);
+  const error = computed(() => state.runsError ?? entities.error.value);
 
-  const loadExperiments = async () => {
-    state.loading = true;
-    state.error = null;
-    try {
-      state.experiments = await apiClient.listBenchmarkExperiments();
-    } catch (err: unknown) {
-      state.error = err instanceof Error ? err.message : 'Failed to load benchmark experiments';
-      state.experiments = [];
-    } finally {
-      state.loading = false;
-    }
-  };
+  const loadExperiments = entities.load;
 
   const fetchExperiment = async (id: string) => {
-    const result = await apiClient.getBenchmarkExperiment(id);
-    state.concurrency[id] = deriveIfMatchToken(result.etag, result.data);
-    state.selectedExperiment = result.data;
-    return {
-      experiment: result.data,
-      ifMatch: state.concurrency[id],
-    };
+    const { data, ifMatch } = await entities.fetch(id);
+    state.selectedExperiment = data;
+    return { experiment: data, ifMatch };
   };
 
   const fetchVersion = async (experimentId: string, version: number) => {
     const result = await apiClient.getBenchmarkVersion(experimentId, version);
     const versionKey = `${experimentId}/v/${version}`;
-    state.concurrency[versionKey] = deriveIfMatchToken(result.etag, result.data);
+    concurrency[versionKey] = deriveIfMatchToken(result.etag, result.data);
     state.selectedVersion = result.data;
     return {
       version: result.data,
-      ifMatch: state.concurrency[versionKey],
+      ifMatch: concurrency[versionKey],
     };
   };
 
   const loadRunsForVersion = async (experimentId: string, version: number) => {
-    state.loading = true;
-    state.error = null;
+    state.runsLoading = true;
+    state.runsError = null;
     try {
       state.runs = await apiClient.listBenchmarkRuns(experimentId, version);
     } catch (err: unknown) {
-      state.error = err instanceof Error ? err.message : 'Failed to load benchmark runs';
+      state.runsError = err instanceof Error ? err.message : 'Failed to load benchmark runs';
       state.runs = [];
     } finally {
-      state.loading = false;
+      state.runsLoading = false;
     }
   };
 
-  const createExperiment = async (input: BenchmarkExperimentCreate) => {
-    const result = await apiClient.createBenchmarkExperiment(input);
-    state.concurrency[result.data.id] = deriveIfMatchToken(result.etag, result.data);
-    await loadExperiments();
-    return result.data;
-  };
-
-  const updateExperiment = async (
-    id: string,
-    input: BenchmarkExperimentUpdate,
-    explicitIfMatch?: string | null
-  ) => {
-    const ifMatch = explicitIfMatch ?? state.concurrency[id] ?? null;
-    const result = await apiClient.updateBenchmarkExperiment(id, input, { ifMatch });
-    state.concurrency[id] = deriveIfMatchToken(result.etag, result.data);
-    await loadExperiments();
-    return result.data;
-  };
-
-  const deleteExperiment = async (id: string) => {
-    await apiClient.deleteBenchmarkExperiment(id);
-    delete state.concurrency[id];
-    await loadExperiments();
-  };
+  const createExperiment = entities.create;
+  const updateExperiment = entities.update;
+  const deleteExperiment = entities.remove;
 
   const createVersion = async (experimentId: string, input: BenchmarkExperimentVersionCreate) => {
     const result = await apiClient.createBenchmarkVersion(experimentId, input);
     const versionKey = `${experimentId}/v/${result.data.version}`;
-    state.concurrency[versionKey] = deriveIfMatchToken(result.etag, result.data);
+    concurrency[versionKey] = deriveIfMatchToken(result.etag, result.data);
     return result.data;
   };
 
@@ -136,16 +110,16 @@ export function useBenchmarksStore() {
     explicitIfMatch?: string | null
   ) => {
     const versionKey = `${experimentId}/v/${version}`;
-    const ifMatch = explicitIfMatch ?? state.concurrency[versionKey] ?? null;
+    const ifMatch = explicitIfMatch ?? concurrency[versionKey] ?? null;
     const result = await apiClient.updateBenchmarkVersion(experimentId, version, input, { ifMatch });
-    state.concurrency[versionKey] = deriveIfMatchToken(result.etag, result.data);
+    concurrency[versionKey] = deriveIfMatchToken(result.etag, result.data);
     return result.data;
   };
 
   const freezeVersion = async (experimentId: string, version: number) => {
     const result = await apiClient.freezeBenchmarkVersion(experimentId, version);
     const versionKey = `${experimentId}/v/${version}`;
-    state.concurrency[versionKey] = deriveIfMatchToken(result.etag, result.data);
+    concurrency[versionKey] = deriveIfMatchToken(result.etag, result.data);
     state.selectedVersion = result.data;
     return result.data;
   };
@@ -185,7 +159,7 @@ export function useBenchmarksStore() {
     runs,
     loading,
     error,
-    concurrency: state.concurrency,
+    concurrency,
     loadExperiments,
     fetchExperiment,
     fetchVersion,

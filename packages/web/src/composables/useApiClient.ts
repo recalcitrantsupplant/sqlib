@@ -209,7 +209,7 @@ export interface LibraryNotebookPayload {
 
 const JSON_HEADERS = { 'Content-Type': 'application/json' } as const;
 
-type ApiResult<T> = {
+export type ApiResult<T> = {
   data: T;
   etag: string | null;
   lastModified: string | null;
