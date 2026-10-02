@@ -23,6 +23,7 @@ import { oxigraphDeltaStore } from '../deltaStore.js';
 import { resolvePatchTarget } from '../patchTargets.js';
 import type { WhenEmptyMode } from '../../persistence/schemas/QueryEdgeSchema.js';
 import type { ColumnDefinition } from '../../persistence/schemas/EtlColumnMappingVersionSchema.js';
+import { convertRdf, mergeRdf, rdfFormatFromMediaType, type RdfPayload } from './rdfHandoff.js';
 
 export type ExecutionHooks = {
   onNodeStart?: (node: ResolvedNode, orderIndex: number) => void;
@@ -68,6 +69,14 @@ export type ExecutionOptions = {
    */
   limits?: ExecutionPageParameter[];
   offsets?: ExecutionPageParameter[];
+};
+
+/** Where a run's RDF values are kept, and what syntax each is in. */
+type RdfSources = {
+  results: Map<string, NodeResult>;
+  portResults: Map<string, NodeResult>;
+  startNodeGraphs: Map<string, ExecutionDataGraphInput>;
+  rdfFormats: Map<string, string>;
 };
 
 export class ExecutionNodeError extends Error {
@@ -122,6 +131,14 @@ export class ExecutionEngine {
       // The RDF half of the same idea: one supplied graph per declared data
       // graph input, keyed by the output port it arrived for.
       const startNodeGraphs = new Map<string, ExecutionDataGraphInput>();
+      /**
+       * The syntax of each RDF result, keyed like `results` / `portResults`.
+       * A CONSTRUCT answers in what its backend sent, a rule set in N-Quads, a
+       * patch half in N-Quads; anything combining or relabelling RDF reads
+       * the format from here rather than assuming one.
+       */
+      const rdfFormats = new Map<string, string>();
+      const rdf: RdfSources = { results, portResults, startNodeGraphs, rdfFormats };
       const order: string[] = [];
 
       const startNodeSet = new Set(graph.startNodeIds ?? []);
@@ -163,12 +180,16 @@ export class ExecutionEngine {
             if (!ruleSetVersion) {
               throw new Error(`RuleSetNode ${node.id} missing resolved RuleSetVersion`);
             }
-            const rdfSeed = this.buildRdfSeedForRuleSetNode(graph, node, results, portResults, startNodeGraphs);
+            const rdfSeed = this.buildRdfSeedForRuleSetNode(graph, node, rdf);
             const executionResult = await this.ruleSetExecutor.execute(ruleSetVersion, {
-              initialGraph: rdfSeed || undefined,
+              initialGraph: rdfSeed?.content || undefined,
+              initialGraphFormat: rdfSeed?.format,
             });
             const graphResult = executionResult.finalGraphNQuads ?? executionResult.finalGraphContent ?? '';
             results.set(id, graphResult);
+            rdfFormats.set(id, executionResult.finalGraphNQuads !== undefined
+              ? 'nquads'
+              : rdfFormatFromMediaType(executionResult.finalGraphContentType));
             hooks?.onNodeFinish?.(node, graphResult, performance.now() - nodeStart, nodeOrderIndex);
           } catch (error__u: unknown) {
             const error = toError(error__u);
@@ -210,6 +231,8 @@ export class ExecutionEngine {
             // node, and the only form in which the two halves stay one thing.
             portResults.set(deletionsPort, deletions);
             portResults.set(additionsPort, additions);
+            rdfFormats.set(deletionsPort, 'nquads');
+            rdfFormats.set(additionsPort, 'nquads');
             results.set(id, document);
             hooks?.onNodeFinish?.(node, document, performance.now() - nodeStart, nodeOrderIndex);
           } catch (error__u: unknown) {
@@ -235,8 +258,9 @@ export class ExecutionEngine {
             if (!etlJobVersion) {
               throw new Error(`DuckDbEtlNode ${node.id} missing resolved EtlJobVersion`);
             }
-            const nodeResult = await this.executeDuckDbEtlNode(graph, node, results);
+            const { result: nodeResult, rdfFormat } = await this.executeDuckDbEtlNode(graph, node, results);
             results.set(id, nodeResult);
+            if (rdfFormat) rdfFormats.set(id, rdfFormat);
             hooks?.onNodeFinish?.(node, nodeResult, performance.now() - nodeStart, nodeOrderIndex);
           } catch (error__u: unknown) {
             const error = toError(error__u);
@@ -290,14 +314,34 @@ export class ExecutionEngine {
             await exec.update(query);
             nodeResult = { success: true };
           } else if (type === QueryTypeIri.construct || type === QueryTypeIri.describe) {
-            const { result } = await exec.constructQueryParsed(query, {
+            const { result, contentType } = await exec.constructQueryParsed(query, {
               acceptHeader: acceptHeader || undefined,
             });
             nodeResult = result;
+            // What the backend sent, which need not be what was asked for: the
+            // in-process executor answers N-Quads to anything but Turtle.
+            rdfFormats.set(id, rdfFormatFromMediaType(contentType ?? acceptHeader));
           } else {
             // default to SELECT
             const { result } = await exec.selectQueryParsed(query);
             nodeResult = result;
+          }
+
+          // Inside the node's error boundary: a store this node could not be
+          // loaded into is this node's failure, and must report as one.
+          const shouldMaterializeRdf =
+            node.backendConfig?.type === 'ephemeral-oxigraph' &&
+            node.needsEphemeralMaterialization &&
+            (type === QueryTypeIri.construct || type === QueryTypeIri.describe);
+          if (shouldMaterializeRdf) {
+            if (typeof nodeResult !== 'string') {
+              throw new Error(`Node ${node.id} expected RDF string result for materialization but received ${typeof nodeResult}`);
+            }
+            const storeId = node.backendConfig?.storeId;
+            if (!storeId) {
+              throw new Error(`Node ${node.id} requires storeId to materialize RDF output.`);
+            }
+            await this.materializeRdfResult(storeId, nodeResult, rdfFormats.get(id) ?? 'nquads');
           }
         } catch (err__u: unknown) {
       const err = toError(err__u);
@@ -312,23 +356,6 @@ export class ExecutionEngine {
         hooks?.onNodeFinish?.(node, nodeResult, durationMs, nodeOrderIndex);
         results.set(id, nodeResult);
         order.push(id);
-
-        const shouldMaterializeRdf =
-          node.backendConfig?.type === 'ephemeral-oxigraph' &&
-          node.needsEphemeralMaterialization &&
-          (type === QueryTypeIri.construct || type === QueryTypeIri.describe);
-
-        if (shouldMaterializeRdf) {
-          if (typeof nodeResult !== 'string') {
-            throw new Error(`Node ${node.id} expected RDF string result for materialization but received ${typeof nodeResult}`);
-          }
-          const storeId = node.backendConfig?.storeId;
-          if (!storeId) {
-            throw new Error(`Node ${node.id} requires storeId to materialize RDF output.`);
-          }
-          const format = this.resolveRdfFormatFromAccept(acceptHeader);
-          await this.materializeRdfResult(storeId, nodeResult, format);
-        }
 
         for (const e of graph.outgoingEdges.get(id) || []) {
           const d = (indeg.get(e.targetNodeId) || 0) - 1;
@@ -359,7 +386,7 @@ export class ExecutionEngine {
         throw new Error(`EndNode ${endNodeId} must declare at least one input IO entity`);
       }
 
-      const predecessorResults: Array<{ nodeId: string; result: NodeResult; inputId: string }> = [];
+      const predecessorResults: Array<{ nodeId: string; result: NodeResult; inputId: string; rdfFormat: string }> = [];
 
       // EndNode acts as a "result selector" - it collects outputs from predecessor execution nodes
       // For each input declared by the EndNode, find the edge that supplies it and collect that node's result
@@ -373,37 +400,37 @@ export class ExecutionEngine {
         // A graph the caller supplied and the group passes straight back out is
         // the start node's result for that port: nothing executed, so `results`
         // holds nothing for it.
-        const seededGraph = supplyingEdge.sourceOutputId
-          ? startNodeGraphs.get(supplyingEdge.sourceOutputId)
-          : undefined;
-        const supplierResult = seededGraph
-          ? seededGraph.content
-          : (supplyingEdge.sourceOutputId && portResults.has(supplyingEdge.sourceOutputId)
-            ? portResults.get(supplyingEdge.sourceOutputId)
-            : results.get(supplyingEdge.sourceNodeId));
+        const { result: supplierResult, format } = this.resultForEdge(supplyingEdge, rdf);
         if (supplierResult === undefined) {
           throw new Error(`Missing execution result for node ${supplyingEdge.sourceNodeId} feeding EndNode input ${inputId}`);
         }
 
-        predecessorResults.push({ nodeId: supplyingEdge.sourceNodeId, result: supplierResult, inputId });
+        predecessorResults.push({ nodeId: supplyingEdge.sourceNodeId, result: supplierResult, inputId, rdfFormat: format });
       }
 
       if (predecessorResults.length === 0) {
         throw new Error(`EndNode ${endNodeId} has no data inputs (only control flow); nothing to return`);
       }
 
+      // The caller is told the result is in the format they asked for, so RDF
+      // leaves in that format whichever node produced it.
+      const outputFormat = this.resolveRdfFormatFromAccept(acceptHeader);
+
       // Single predecessor: return its result directly
       if (predecessorResults.length === 1) {
+        const [only] = predecessorResults;
         return {
-          result: predecessorResults[0].result,
-          resultNodeId: predecessorResults[0].nodeId
+          result: typeof only.result === 'string'
+            ? convertRdf({ content: only.result, format: only.rdfFormat }, outputFormat)
+            : only.result,
+          resultNodeId: only.nodeId
         };
       }
 
       // Multiple predecessors: merge RDF outputs
       // For now, all must be RDF strings (CONSTRUCT/DESCRIBE results)
-      const rdfOutputs: string[] = [];
-      for (const { nodeId, result, inputId } of predecessorResults) {
+      const rdfOutputs: RdfPayload[] = [];
+      for (const { nodeId, result, inputId, rdfFormat } of predecessorResults) {
         if (typeof result !== 'string') {
           throw new Error(
             `EndNode input ${inputId} expects RDF string output. ` +
@@ -411,11 +438,12 @@ export class ExecutionEngine {
             `Support for merging bindings/booleans is not yet implemented.`
           );
         }
-        rdfOutputs.push(result);
+        rdfOutputs.push({ content: result, format: rdfFormat });
       }
 
-      // Concatenate all RDF outputs (assumes N-Triples or compatible format)
-      const mergedRdf = rdfOutputs.join('\n');
+      // Parsed and re-written rather than concatenated: the inputs need not
+      // share a syntax, and only N-Triples survives being joined by newline.
+      const mergedRdf = mergeRdf(rdfOutputs, outputFormat);
 
       return {
         result: mergedRdf,
@@ -501,37 +529,47 @@ export class ExecutionEngine {
     return 'ExecutableNode';
   }
 
-  private buildRdfSeedForRuleSetNode(
-    graph: ExecutionGraph,
-    node: ResolvedNode,
-    results: Map<string, NodeResult>,
-    portResults: Map<string, NodeResult>,
-    startNodeGraphs?: Map<string, ExecutionDataGraphInput>
-  ): string {
+  /**
+   * The value an edge carries, and its RDF syntax when it is RDF.
+   *
+   * A graph the caller supplied is the start node's result for its port; a
+   * patch half is addressed by port; everything else by node.
+   */
+  private resultForEdge(edge: ResolvedEdge, rdf: RdfSources): { result: NodeResult; format: string } {
+    const port = edge.sourceOutputId ?? undefined;
+    const seededGraph = port ? rdf.startNodeGraphs.get(port) : undefined;
+    if (seededGraph) return { result: seededGraph.content, format: seededGraph.format };
+    if (port && rdf.portResults.has(port)) {
+      return { result: rdf.portResults.get(port), format: rdf.rdfFormats.get(port) ?? 'nquads' };
+    }
+    return { result: rdf.results.get(edge.sourceNodeId), format: rdf.rdfFormats.get(edge.sourceNodeId) ?? 'nquads' };
+  }
+
+  /**
+   * Everything a RuleSetNode's inbound RDF edges carry, as one document.
+   *
+   * A data graph supplied to the start node is upstream RDF like any other:
+   * the rules run over it exactly as they would over a CONSTRUCT's output.
+   * One input is handed over as it came, with its format; several are merged
+   * into N-Quads, since they need not share a syntax.
+   */
+  private buildRdfSeedForRuleSetNode(graph: ExecutionGraph, node: ResolvedNode, rdf: RdfSources): RdfPayload | null {
     const inbound = graph.incomingEdges.get(node.id) || [];
-    const rdfPayloads: string[] = [];
+    const payloads: RdfPayload[] = [];
     for (const e of inbound) {
       if (e.dataFlowType !== 'RDF_GRAPH') continue;
-      // A data graph supplied to the start node is upstream RDF like any other:
-      // the rules run over it exactly as they would over a CONSTRUCT's output.
-      const seededGraph = e.sourceOutputId ? startNodeGraphs?.get(e.sourceOutputId) : undefined;
-      if (seededGraph) {
-        rdfPayloads.push(seededGraph.content);
-        continue;
-      }
-      // A patch half is addressed by port; everything else by node.
-      const srcResult = e.sourceOutputId && portResults.has(e.sourceOutputId)
-        ? portResults.get(e.sourceOutputId)
-        : results.get(e.sourceNodeId);
+      const { result: srcResult, format } = this.resultForEdge(e, rdf);
       if (typeof srcResult !== 'string') {
         if (srcResult === undefined) {
           throw new Error(`RuleSetNode ${node.id} missing RDF input from ${e.sourceNodeId}`);
         }
         throw new Error(`RuleSetNode ${node.id} expected RDF string from ${e.sourceNodeId} but received ${typeof srcResult}`);
       }
-      rdfPayloads.push(srcResult);
+      payloads.push({ content: srcResult, format });
     }
-    return rdfPayloads.join('\n');
+    if (payloads.length === 0) return null;
+    if (payloads.length === 1) return payloads[0];
+    return { content: mergeRdf(payloads, 'nquads'), format: 'nquads' };
   }
 
   /**
@@ -608,7 +646,7 @@ export class ExecutionEngine {
     graph: ExecutionGraph,
     node: ResolvedNode,
     results: Map<string, NodeResult>
-  ): Promise<NodeResult> {
+  ): Promise<{ result: NodeResult; rdfFormat?: string }> {
     const etlJobVersion = node.etlJobVersion;
     if (!etlJobVersion) {
       throw new Error(`DuckDbEtlNode ${node.id} missing etlJobVersion`);
@@ -633,7 +671,7 @@ export class ExecutionEngine {
 
     // Execute ETL in chunks, over one streamed execution of the source query (#201)
     const chunkSize = defaultChunkSize || 1000;
-    const rdfOutputs: string[] = [];
+    const rdfOutputs: RdfPayload[] = [];
     const allBindings: SparqlBinding[] = [];
 
     for await (const { rows } of duckDbService.streamChunks(sql, chunkSize)) {
@@ -648,10 +686,10 @@ export class ExecutionEngine {
         const query = this.parser.applyArguments(sparqlTemplate, [argSet]);
 
         // Execute SPARQL query
-        const { result } = await executor.constructQueryParsed(query);
+        const { result, contentType } = await executor.constructQueryParsed(query);
 
         if (typeof result === 'string') {
-          rdfOutputs.push(result);
+          rdfOutputs.push({ content: result, format: rdfFormatFromMediaType(contentType) });
         } else {
           // If it's SELECT bindings, accumulate them
           allBindings.push(...bindings);
@@ -661,21 +699,19 @@ export class ExecutionEngine {
 
     // Return RDF output if CONSTRUCT, otherwise return bindings
     if (rdfOutputs.length > 0) {
-      return rdfOutputs.join('\n');
+      return { result: mergeRdf(rdfOutputs, 'nquads'), rdfFormat: 'nquads' };
     } else if (allBindings.length > 0) {
       const vars = columnDefs.map(c => c.targetVariable);
       return {
-        head: { vars },
-        results: { bindings: allBindings }
-      } as SparqlResultsJson;
+        result: { head: { vars }, results: { bindings: allBindings } } as SparqlResultsJson,
+      };
     }
 
     // Empty result
     const vars = columnDefs.map(c => c.targetVariable);
     return {
-      head: { vars },
-      results: { bindings: [] }
-    } as SparqlResultsJson;
+      result: { head: { vars }, results: { bindings: [] } } as SparqlResultsJson,
+    };
   }
 
   /**
@@ -1383,32 +1419,25 @@ export class ExecutionEngine {
     return { head: a.head, results: { bindings: out } };
   }
 
+  /**
+   * Load RDF into a store this run created.
+   *
+   * A missing store is a failure, not a warning: the nodes downstream would
+   * otherwise query a store without the data they were wired to receive and
+   * answer confidently from less than the author meant. An empty payload is a
+   * legitimate empty graph and loads nothing.
+   */
   private async materializeRdfResult(storeId: string, rdf: string, format: string): Promise<void> {
     const store = oxigraphStoreManager.getEphemeralStore(storeId);
     if (!store) {
-      console.warn(`Ephemeral store ${storeId} not found for RDF materialization`);
-      return;
+      throw new Error(`Ephemeral store ${storeId} does not exist, so RDF meant for it cannot be loaded`);
     }
-    if (!rdf || !rdf.trim()) {
-      console.warn(`Skipping RDF materialization for store ${storeId}: empty result payload`);
-      return;
-    }
+    if (!rdf || !rdf.trim()) return;
     await oxigraphStoreManager.loadDataFromString(store, rdf, format);
-    console.log(`Materialized RDF output into ephemeral store ${storeId}`);
   }
 
   private resolveRdfFormatFromAccept(acceptHeader: string | null): string {
-    if (!acceptHeader) {
-      return 'nquads';
-    }
-    const lower = acceptHeader.toLowerCase();
-    if (lower.includes('n-quads')) return 'nquads';
-    if (lower.includes('n-triples')) return 'ntriples';
-    if (lower.includes('turtle')) return 'turtle';
-    if (lower.includes('rdf+xml')) return 'rdfxml';
-    if (lower.includes('json-ld')) return 'jsonld';
-    if (lower.includes('trig')) return 'trig';
-    return 'nquads';
+    return rdfFormatFromMediaType(acceptHeader);
   }
 
   private applyDynamicQueryOverride(

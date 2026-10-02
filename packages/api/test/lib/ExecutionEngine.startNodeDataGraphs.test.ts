@@ -172,7 +172,8 @@ describe('ExecutionEngine — data graph inputs on the start node', () => {
 
     expect(ruleSetExecutor.execute).toHaveBeenCalledWith(
       expect.objectContaining({ $id: 'urn:rsv:1' }),
-      { initialGraph: GRAPH_TEXT },
+      // In the syntax the caller named, not the N-Triples the executor assumes.
+      { initialGraph: GRAPH_TEXT, initialGraphFormat: 'turtle' },
     );
     expect(result).toBe('<urn:inferred> <urn:p> <urn:o> .');
   });
@@ -212,7 +213,7 @@ describe('ExecutionEngine — data graph inputs on the start node', () => {
     // is the one that reaches it — position, not name.
     expect(ruleSetExecutor.execute).toHaveBeenCalledWith(
       expect.anything(),
-      { initialGraph: '<http://example.org/c> <http://example.org/q> <http://example.org/d> .' },
+      { initialGraph: '<http://example.org/c> <http://example.org/q> <http://example.org/d> .', initialGraphFormat: 'turtle' },
     );
   });
 
@@ -267,7 +268,7 @@ describe('ExecutionEngine — data graph inputs on the start node', () => {
       ]),
     );
     // ...and the graph reached the rules, in the same run.
-    expect(ruleSetExecutor.execute).toHaveBeenCalledWith(expect.anything(), { initialGraph: GRAPH_TEXT });
+    expect(ruleSetExecutor.execute).toHaveBeenCalledWith(expect.anything(), { initialGraph: GRAPH_TEXT, initialGraphFormat: 'turtle' });
   });
 
   it('loads a supplied graph into the ephemeral store of a SPARQL node that reads it', async () => {
@@ -334,10 +335,20 @@ describe('ExecutionEngine — data graph inputs on the start node', () => {
     );
 
     const { result } = await engine.execute(graph, [], undefined, {
+      acceptHeader: 'text/turtle',
       dataGraphs: [{ content: GRAPH_TEXT, format: 'turtle' }],
     });
 
+    // Already in the syntax the caller asked for, so handed back untouched.
     expect(result).toBe(GRAPH_TEXT);
+
+    // Asked for N-Quads (the default), the same Turtle is re-written rather
+    // than returned under a media type it is not in.
+    const prefixed = '@prefix ex: <http://example.org/> .\nex:a ex:p ex:b .';
+    const { result: requoted } = await engine.execute(graph, [], undefined, {
+      dataGraphs: [{ content: prefixed, format: 'turtle' }],
+    });
+    expect(requoted).toBe(`${GRAPH_TEXT}\n`);
   });
 
   it('refuses a declared data graph input the run did not supply', async () => {
