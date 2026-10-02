@@ -185,7 +185,7 @@ const subtitle = computed(() => {
   align-items: center;
   justify-content: center;
   width: 24px;
-  height: 24px;
+  height: var(--control-h-sm);
   border: 1px solid var(--border-default);
   border-radius: var(--radius);
   background: var(--surface);

@@ -477,8 +477,8 @@ pre {
   width: 100%;
 }
 .icon-button {
-  width: 2rem;
-  height: 2rem;
+  width: var(--control-h);
+  height: var(--control-h);
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-default);
   background: var(--surface);

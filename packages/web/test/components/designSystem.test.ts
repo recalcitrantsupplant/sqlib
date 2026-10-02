@@ -864,11 +864,12 @@ describe('stratum palette', () => {
  *
  * The results action bar holds a view toggle, a filter, Download, Pop out and
  * the term-display pair, and they come from three files: the bar's own
- * stylesheet, the shared Input, and a component of its own. `TermDisplayToggle`
- * restated `.btn-action` — which is scoped to the bar, so it cannot be reused —
- * and restated it with the default control height, standing 6px taller than
- * everything beside it. A restated rule is a copy that can drift, so this is
- * what stops it drifting again.
+ * stylesheet, the shared Input, and a component of its own. A restated rule is
+ * a copy that can drift, so this is what stops it drifting again.
+ *
+ * The bar stands at the toolbar height, `--control-h`, like every other row
+ * of controls: at `--control-h-sm` it drew the contract/expand pair 6px
+ * smaller than the same pair above the editor.
  */
 describe('the results action bar', () => {
   const chrome = readFileSync(resolve(SRC, 'assets/css/results-chrome.css'), 'utf8');
@@ -877,14 +878,117 @@ describe('the results action bar', () => {
   const barControlHeight =
     /\.results-action-bar \.btn-action \{[^}]*height:\s*var\((--control-h[\w-]*)\)/.exec(chrome)?.[1];
 
-  it('sizes its own buttons on the small control height', () => {
-    expect(barControlHeight).toBe('--control-h-sm');
+  it('sizes its own buttons on the toolbar control height', () => {
+    expect(barControlHeight).toBe('--control-h');
   });
 
   it('sizes the controls it does not own to match', () => {
-    const toggle = readFileSync(resolve(SRC, 'components/shared/TermDisplayToggle.vue'), 'utf8');
-    expect(toggle).toContain(`height: var(${barControlHeight})`);
-    expect(toggle).toContain(`width: var(${barControlHeight})`);
+    const filter = /\.results-action-bar \.results-filter \{[^}]*height:\s*var\((--control-h[\w-]*)\)/.exec(chrome)?.[1];
+    expect(filter).toBe(barControlHeight);
+    for (const file of ['components/QueryResultsViewer.vue', 'components/RuleSetExecutionResults.vue']) {
+      const source = readFileSync(resolve(SRC, file), 'utf8');
+      const toggles = [...source.matchAll(/<ResultsActionBar>\s*(<SegmentedToggle[^>]*>)/g)].map((m) => m[1]);
+      expect(toggles.length, `${file} draws a view toggle in its results bar`).toBeGreaterThan(0);
+      for (const toggle of toggles) {
+        expect(toggle, `${file}: the view toggle in the results bar stands at the toolbar height`).toContain('size="default"');
+      }
+    }
+  });
+});
+
+/*
+ * Button sizes.
+ *
+ * Every button stands on one of the three control heights — `--control-h-sm`
+ * inside a table or list row, `--control-h` in any toolbar, header or action
+ * bar, `--control-h-lg` beside a primary page action — and never on a number
+ * of its own. Before this pass the tree spelled 18, 20, 24, 25, 26 and 32px
+ * besides the three steps, and the same contract/expand pair was 22px in one
+ * row and 28px in the next.
+ *
+ * The guard reads what is a button from the template — every class on a
+ * `<button>` or a menu, select or popover trigger — rather than from class names, because half of them are not
+ * called anything like "button": `.hinge`, `.token`, `.send`, `.swatch`.
+ */
+describe('button sizes', () => {
+  const ON_SCALE = /^(var\(--control-h(-sm|-lg)?\)|var\(--panel-bar-h\)|auto|100%|inherit|0|none|fit-content|unset|initial)$/;
+
+  /*
+   * Buttons whose box is not a control's, and why. A whole-row button is as
+   * tall as the row it is, not as a control in it.
+   */
+  const RESIDUE: Record<string, string> = {
+    'components/AppNavRail.vue: .rail-button': 'a navigation tile: an icon over a caption, sized by the rail',
+    'components/AppSplash.vue: .command-field': 'the splash hero field, on its own --splash-field-h',
+    'components/tests/TestRunResults.vue: .failure-row': 'a whole list row that is clickable, not a control in a row',
+    'components/tests/TestRunsPanel.vue: .test-row': 'a whole list row that is clickable, not a control in a row',
+    'components/query-work-area/ValuesGrid.vue: .grid-type': 'an overlay inside a grid cell’s input, sized to sit within it',
+  };
+
+  it('every button stands on a control height', () => {
+    const found: string[] = [];
+    for (const file of vueFiles(SRC)) {
+      const relative = file.slice(SRC.length + 1);
+      if (MOCKUPS.test(relative)) continue;
+      const source = readFileSync(file, 'utf8');
+      const styleAt = source.search(/<style[^>]*>/);
+      if (styleAt < 0) continue;
+      const template = source.slice(0, styleAt);
+      const classes = new Set<string>();
+      for (const [, attrs] of template.matchAll(/<(?:button|Button|DropdownMenuTrigger|SelectTrigger|PopoverTrigger)\b([^>]*)>/g)) {
+        for (const [, list] of attrs.matchAll(/\bclass="([^"]*)"/g)) for (const c of list.split(/\s+/)) if (c) classes.add(c);
+        for (const [, c] of attrs.matchAll(/'([\w-]+)'\s*:/g)) classes.add(c);
+      }
+      const style = source.slice(styleAt).replace(/\/\*[\s\S]*?\*\//g, '');
+      for (const [, selectorGroup, body] of style.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+        const heights = body.split(';')
+          .map((d) => /^\s*(?:min-|max-)?height\s*:\s*(.+)$/.exec(d)?.[1].trim())
+          .filter((v): v is string => v !== undefined);
+        if (heights.every((v) => ON_SCALE.test(v))) continue;
+        for (const selector of selectorGroup.split(',')) {
+          const last = selector.trim().split(/[\s>+~]+/).pop() ?? '';
+          const names = [...last.replace(/:not\([^)]*\)/g, '').matchAll(/\.([\w-]+)/g)].map((m) => m[1]);
+          if (names.some((n) => classes.has(n))) {
+            found.push(`${relative}: ${selector.trim().replace(/\s+/g, ' ')}`);
+            break;
+          }
+        }
+      }
+    }
+    expect(found.sort(), 'size a button with --control-h-sm, --control-h or --control-h-lg, or record it in RESIDUE with its reason')
+      .toEqual(Object.keys(RESIDUE).sort());
+  });
+
+  /*
+   * The icon-only box is one rule, in `compact-buttons.css`. Every copy of it
+   * in a scoped block was a chance to drift, and they had.
+   */
+  it('the contract/expand pair and its neighbours are the one icon control', () => {
+    for (const file of [
+      'components/shared/PrefixConversionButtons.vue',
+      'components/shared/TermDisplayToggle.vue',
+      'components/query-work-area/QueryDocumentActions.vue',
+      'components/rules/RuleSetDocumentActions.vue',
+    ]) {
+      const source = readFileSync(resolve(SRC, file), 'utf8');
+      const template = source.slice(0, source.search(/<style[^>]*>|<script/));
+      for (const tag of openingTags(template, 'button')) {
+        expect(tag, `${file}: an icon-only button is .icon-control`).toMatch(/class="icon-control"/);
+      }
+      const style = source.slice(Math.max(0, source.search(/<style[^>]*>/)));
+      expect(style, `${file} sizes no button of its own`).not.toMatch(/(?<![-\w])(width|height)\s*:/);
+    }
+  });
+
+  it('no component writes a rule for .icon-control', () => {
+    const found = vueFiles(SRC)
+      .filter((file) => {
+        const source = readFileSync(file, 'utf8');
+        const styleAt = source.search(/<style[^>]*>/);
+        return styleAt >= 0 && /\.icon-control\b/.test(source.slice(styleAt).replace(/\/\*[\s\S]*?\*\//g, ''));
+      })
+      .map((file) => file.slice(SRC.length + 1));
+    expect(found).toEqual([]);
   });
 });
 

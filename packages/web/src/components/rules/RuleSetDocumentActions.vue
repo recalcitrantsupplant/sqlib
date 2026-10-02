@@ -1,14 +1,14 @@
 <template>
   <div class="document-actions">
     <button
-      class="editor-action"
+      class="icon-control"
       type="button"
       data-testid="format-document"
       title="Format the rule set"
       :disabled="!code.trim() || formatting"
       @click="emit('format')"
     >
-      <WandSparkles :size="13" />
+      <WandSparkles :size="16" />
     </button>
 
     <!--
@@ -23,25 +23,25 @@
     />
 
     <button
-      class="editor-action"
+      class="icon-control"
       type="button"
       data-testid="import-body"
       title="Append a rule built from a CONSTRUCT or INSERT query"
       @click="emit('import')"
     >
-      <FileInput :size="13" />
+      <FileInput :size="16" />
     </button>
 
     <button
       v-if="canDiff"
-      class="editor-action"
+      class="icon-control"
       type="button"
       data-testid="diff-query"
       :disabled="!diffTitle"
       :title="diffTitle || NOTHING_TO_DIFF"
       @click="emit('diff')"
     >
-      <GitCompare :size="13" />
+      <GitCompare :size="16" />
     </button>
   </div>
 </template>

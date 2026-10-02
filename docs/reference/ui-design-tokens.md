@@ -64,6 +64,31 @@ maps its `status` prop onto them.
 | `--control-h-sm` | 22px | Inline and in-table controls |
 | `--control-h` | 28px | Default for every interactive control |
 | `--control-h-lg` | 34px | Primary page actions only |
+| `--icon-sm` / `--icon` / `--icon-lg` | 12 / 16 / 20px | The glyph in an icon-only button of each height |
+
+### Button sizes
+
+Every button stands on one of the three control heights, picked by where it
+sits rather than by the button:
+
+- `--control-h` (28px) in any toolbar, header, action bar, composer or dialog
+  footer. This is the default.
+- `--control-h-sm` (22px) only inside a table or list row, or inline with text.
+- `--control-h-lg` (34px) only beside a primary page action.
+
+So the same button is the same size on every screen it appears on. Contract
+and expand prefixes, Format, Import, Diff, Expand, Pop out and the save bar's
+icons are all `.icon-control` from `src/assets/css/compact-buttons.css`: a
+square box at the control height with the glyph at the matching `--icon` step,
+and `--sm`/`--lg` modifiers for the other two rows. A component that needs an
+icon-only button uses that class; it does not restate the box in a scoped
+block. A control that holds several options at once, like `SegmentedToggle`,
+takes the same step through its `size` prop (`default` in a toolbar).
+
+`designSystem.test.ts` ("button sizes") reads every class placed on a
+`<button>` and fails any rule that gives it a height other than the three
+steps. The few buttons that are not controls (a whole clickable list row, the
+nav rail's tiles) are listed there with the reason.
 
 Apply a `--grid-N` step as `min-width`, never `width`. The step is an alignment
 floor, not a cap: a hard width squashes a button's icon when the label needs

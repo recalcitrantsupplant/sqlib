@@ -349,7 +349,7 @@ const isDiffDisabled = computed(
 
 .version-trigger-compact {
   width: var(--grid-5);
-  height: var(--grid-unit);
+  height: var(--control-h);
   font-size: var(--text-body);
 }
 
@@ -369,8 +369,8 @@ const isDiffDisabled = computed(
 
 .btn-menu {
   min-width: auto;
-  width: var(--grid-unit);
-  height: var(--grid-unit);
+  width: var(--control-h);
+  height: var(--control-h);
   padding: 0;
   display: inline-flex;
   align-items: center;
@@ -379,8 +379,8 @@ const isDiffDisabled = computed(
 
 .btn-icon {
   min-width: auto;
-  width: var(--grid-unit);
-  height: var(--grid-unit);
+  width: var(--control-h);
+  height: var(--control-h);
   padding: 0;
   display: inline-flex;
   align-items: center;
@@ -432,8 +432,8 @@ const isDiffDisabled = computed(
 }
 
 .btn-icon-copy {
-  width: 20px;
-  height: 20px;
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
   display: inline-flex;
   align-items: center;
   justify-content: center;

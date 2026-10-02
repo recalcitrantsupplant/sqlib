@@ -204,7 +204,7 @@ function setTerm(rowIndex: number, name: string, value: SparqlValue) {
 
 .token {
   justify-self: stretch;
-  height: 20px;
+  height: var(--control-h-sm);
   max-width: 34ch;
   padding: 0 var(--space-3);
   overflow: hidden;
@@ -246,8 +246,8 @@ function setTerm(rowIndex: number, name: string, value: SparqlValue) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
   border: none;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -269,7 +269,7 @@ function setTerm(rowIndex: number, name: string, value: SparqlValue) {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  height: 20px;
+  height: var(--control-h-sm);
   padding: 0 var(--space-3);
   border: 1px dashed var(--border-subtle);
   border-radius: var(--radius-sm);

@@ -78,8 +78,8 @@ function onCustom(event: Event) {
 }
 
 .swatch {
-  width: 22px;
-  height: 22px;
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
   padding: 0;
   border: none;
   border-radius: var(--radius-sm);

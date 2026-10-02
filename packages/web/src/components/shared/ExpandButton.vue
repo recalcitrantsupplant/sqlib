@@ -1,8 +1,7 @@
 <template>
   <button
     type="button"
-    class="expand-button"
-    :class="{ 'expand-button--square': !withText }"
+    :class="withText ? 'expand-button' : 'icon-control'"
     :data-testid="testid || undefined"
     :title="label"
     :aria-label="label"
@@ -52,6 +51,7 @@ const label = computed(() => `Expand ${props.subject} — Esc to come back`);
  */
 .expand-button {
   display: inline-flex;
+  flex-shrink: 0;
   align-items: center;
   gap: var(--space-3);
   height: var(--control-h);
@@ -72,14 +72,9 @@ const label = computed(() => `Expand ${props.subject} — Esc to come back`);
   color: var(--ink);
 }
 
-/* Icon only: a square box, like the other icon buttons it sits in a row with.
-   The labelled variant keeps its side padding — it is a word, not a glyph. */
-.expand-button--square {
-  justify-content: center;
-  width: var(--control-h);
-  padding: 0;
-}
-
+/* Icon only, it is `.icon-control` from `compact-buttons.css` — the box every
+   other icon button in its row is drawn in. Only the labelled variant, a word
+   rather than a glyph, needs a rule of its own. */
 .expand-button-text {
   text-transform: uppercase;
   letter-spacing: 0.03em;

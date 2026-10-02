@@ -919,8 +919,8 @@ const outputKind = computed<'variables' | 'boolean' | 'graph' | 'none'>(() => {
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
   padding: 0;
   border: none;
   border-radius: var(--radius);
@@ -1021,8 +1021,8 @@ const outputKind = computed<'variables' | 'boolean' | 'graph' | 'none'>(() => {
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
   padding: 0;
   border: none;
   border-radius: var(--radius-sm);
@@ -1045,8 +1045,8 @@ const outputKind = computed<'variables' | 'boolean' | 'graph' | 'none'>(() => {
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
   padding: 0;
   border: none;
   border-radius: var(--radius-sm);
@@ -1091,8 +1091,8 @@ const outputKind = computed<'variables' | 'boolean' | 'graph' | 'none'>(() => {
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
   padding: 0;
   border: none;
   border-radius: var(--radius);
@@ -1141,7 +1141,7 @@ const outputKind = computed<'variables' | 'boolean' | 'graph' | 'none'>(() => {
   align-items: center;
   justify-content: center;
   width: 100%;
-  height: 20px;
+  height: var(--control-h-sm);
   padding: 0;
   border: none;
   border-radius: var(--radius);
@@ -1177,7 +1177,7 @@ const outputKind = computed<'variables' | 'boolean' | 'graph' | 'none'>(() => {
   align-self: flex-start;
   align-items: center;
   gap: var(--space-2);
-  height: 20px;
+  height: var(--control-h-sm);
   margin-left: calc(var(--space-2) * -1);
   padding: 0 var(--space-2);
   border: none;

@@ -395,8 +395,8 @@ const activeRunKey = computed(() =>
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: var(--control-h);
+  height: var(--control-h);
   border: none;
   border-radius: var(--radius-sm);
   background: transparent;

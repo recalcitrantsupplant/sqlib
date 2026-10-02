@@ -166,8 +166,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
   padding: 0;
   border: none;
   background: transparent;
@@ -216,20 +216,23 @@
 }
 
 /*
- * DOCUMENT ACTIONS — the row of icon buttons above an editor.
+ * ICON CONTROL — the one square icon-only button.
  *
- * Format, the two prefix conversions, Import, Diff and Expand: everything that
- * rewrites or reframes the document below them, as one row of identical
- * boxes. Global rather than scoped because three different components put
- * buttons in that row — the work area writes `.editor-action`, the prefix pair
- * comes from `PrefixConversionButtons` and Expand from `ExpandButton` — and
- * scoped copies of these rules had already drifted to two sizes.
+ * Format, the two prefix conversions, Import, Diff, Expand, the save bar's
+ * icons and the results bar's term-display pair are all this box. Each used to
+ * restate it in a scoped block of its own — `.editor-action`, `.bar-button`,
+ * `.term-display-button`, `.expand-button--square` — and the copies had
+ * drifted to 22px and 28px boxes holding 13px and 16px glyphs, so the same
+ * contract/expand pair was a different size on every screen it appeared on.
  *
- * `--control-h` (28px), not `--control-h-sm`: these act on the whole document
- * on one press, and at 22px they were the smallest targets on the screen.
+ * The size is the row's, never the button's: `--control-h` in any toolbar,
+ * header or action bar (the default); `--sm` only for a control inside a table
+ * or list row; `--lg` only beside a primary page action. The glyph follows the
+ * box, whatever `:size` the template asked lucide for.
  */
-.editor-action {
+.icon-control {
   display: inline-flex;
+  flex-shrink: 0;
   align-items: center;
   justify-content: center;
   width: var(--control-h);
@@ -238,32 +241,71 @@
   border: 1px solid var(--border-default);
   border-radius: var(--radius);
   background: var(--surface);
-  color: var(--ink-muted);
+  color: var(--ink-secondary);
+  font-family: inherit;
   cursor: pointer;
-  transition: color 0.12s ease, background-color 0.12s ease;
+  transition: color var(--duration), background-color var(--duration), border-color var(--duration);
 }
 
-.editor-action:hover:not(:disabled),
-.editor-action:focus-visible {
+.icon-control svg {
+  width: var(--icon);
+  height: var(--icon);
+}
+
+.icon-control--sm {
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
+}
+
+.icon-control--sm svg {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
+
+.icon-control--lg {
+  width: var(--control-h-lg);
+  height: var(--control-h-lg);
+}
+
+.icon-control--lg svg {
+  width: var(--icon-lg);
+  height: var(--icon-lg);
+}
+
+.icon-control:hover:not(:disabled),
+.icon-control:focus-visible {
+  border-color: var(--border-strong);
   background: var(--surface-raised);
   color: var(--ink);
 }
 
-.editor-action:disabled {
+.icon-control:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.icon-control:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-/* A pressed toggle — Diff, which stays on while the diff is on screen. */
-.editor-action--active {
+/* A toggle that is on — Diff while the diff is on screen. */
+.icon-control--active {
   border-color: var(--action);
   color: var(--action);
 }
 
+/* One of a set that always has a current value — the term-display pair. */
+.icon-control--selected,
+.icon-control--selected:hover:not(:disabled) {
+  background: var(--segment-selected);
+  border-color: var(--segment-selected);
+  color: var(--segment-selected-ink);
+}
+
 /*
- * The strip itself, wherever it is drawn: the editor's header row on the page,
- * and the run row while the editor is popped out. Keyed on the strip rather
- * than on the bar around it, so the buttons are the same size in both.
+ * DOCUMENT ACTIONS — the row of icon controls above an editor: the editor's
+ * header row on the page, and the run row while the editor is popped out.
  */
 .document-actions {
   display: flex;
@@ -273,22 +315,4 @@
      content-width and this changes nothing; in the run row it holds the strip
      against the right edge however short the run sentence is. */
   margin-left: auto;
-}
-
-/*
- * The prefix pair brings the save bar's chrome with it — smaller box, tighter
- * radius — so it is matched to the row here. Expand needs no rule: it is the
- * standard control height wherever it is drawn.
- */
-.document-actions .prefix-conversion-buttons .bar-button {
-  width: var(--control-h);
-  height: var(--control-h);
-  border-radius: var(--radius);
-}
-
-/* The glyphs grow with the boxes, or a bigger button is just more padding. */
-.document-actions .editor-action svg,
-.document-actions .prefix-conversion-buttons .bar-button svg {
-  width: 16px;
-  height: 16px;
 }
