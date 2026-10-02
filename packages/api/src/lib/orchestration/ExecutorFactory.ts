@@ -273,21 +273,16 @@ export class ExecutorFactory {
             storeType: 'persistent',
             loadMethod: backendConfig.loadMethod,
             sourceConfig: backendConfig.sourceConfig,
-            persistPath: backendConfig.persistPath,
           });
         }
         return new OxigraphSparqlExecutor(store);
       }
       case 'oxigraph-memory': {
+        // An ephemeral store, so nothing restores it at boot or serialises it at
+        // shutdown: this mode starts empty every time, as it says.
         const storeId = `${LIBRARY_STORAGE_BACKEND_ID}::memory`;
-        let store = oxigraphStoreManager.getPersistentStore(storeId);
-        if (!store) {
-          store = await oxigraphStoreManager.createPersistentStore(storeId, {
-            storeType: 'persistent',
-            loadMethod: 'none',
-            persistPath: backendConfig.dbPath,
-          });
-        }
+        const store = oxigraphStoreManager.getEphemeralStore(storeId)
+          ?? oxigraphStoreManager.createEphemeralStore(storeId);
         return new OxigraphSparqlExecutor(store);
       }
       default:

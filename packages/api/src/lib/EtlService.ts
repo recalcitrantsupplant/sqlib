@@ -8,6 +8,7 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { toError } from './toError.js';
 import { mintId } from './id.js';
+import { allocateVersion, setCurrentVersion } from './versionNumbering.js';
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
 import { EPHEMERAL_BACKEND_ID } from '@sparql-query-lib/types';
 import {
@@ -491,11 +492,19 @@ export class EtlService {
       throw new Error(`ETL job not found: ${etlJobId}`);
     }
 
-    // Get existing versions to determine next version number
-    const allVersions = cacheCoordinator.list('EtlJobVersion') as LdkitEtlJobVersion[];
-    const existingVersions = allVersions.filter((v) => v.isPartOf === etlJobUrn);
+    // Numbered from the highest stored version, not a count (which reissues a
+    // number after a delete), and under the job's version lock.
+    return allocateVersion('EtlJobVersion', etlJobUrn, (nextVersion) =>
+      this.createEtlJobVersionNumbered(etlJobId, etlJobUrn, input, nextVersion));
+  }
 
-    const nextVersion = existingVersions.length + 1;
+  private async createEtlJobVersionNumbered(
+    etlJobId: string,
+    etlJobUrn: string,
+    input: EtlJobVersionInput,
+    nextVersion: number,
+  ): Promise<EtlJobVersionDetail> {
+    const cacheCoordinator = getCacheCoordinator();
     const versionId = mintId('etlJobVersion');
     const now = new Date().toISOString();
 
@@ -517,11 +526,7 @@ export class EtlService {
 
     await cacheCoordinator.create('EtlJobVersion', ldkitVersion);
 
-    // Update parent's currentVersion
-    await cacheCoordinator.update('EtlJob', etlJobUrn, {
-      currentVersion: versionId,
-      dateModified: now,
-    });
+    await setCurrentVersion('EtlJob', etlJobUrn, versionId);
 
     return {
       id: this.toShortId(versionId),
@@ -751,9 +756,9 @@ export class EtlService {
     }
 
     /*
-     * `null` is what clears a note: the cache coordinator maps null to
-     * undefined, which drops the property, while an undefined value is skipped
-     * as "not part of this patch" and would leave the old note in place.
+     * `null` is what clears a note: the update clears a property on null,
+     * while an undefined value is skipped as "not part of this patch" and
+     * would leave the old note in place.
      */
     const now = new Date().toISOString();
     await cacheCoordinator.update('EtlJobVersion', versionUrn, {

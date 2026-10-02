@@ -14,7 +14,7 @@
 
 import { mintId } from './id.js';
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
-import { nextVersionNumber } from './versionNumbering.js';
+import { allocateVersion, setCurrentVersion } from './versionNumbering.js';
 import { toLdkit } from '../persistence/utils/id-adapter.js';
 import { applyColumnTypes, parseTupleContent, TupleContentError } from './tupleContent.js';
 import type { SuggestedColumnType } from './tupleContent.js';
@@ -115,12 +115,20 @@ function assertBudget(tupleSetId: string, incomingBytes: number, excludeVersionI
   }
 }
 
-export async function createTupleSetVersion(
+/**
+ * Numbered and pointed at under the parent's version lock (`allocateVersion`),
+ * so concurrent saves get consecutive numbers and the last to finish is current.
+ */
+export async function createTupleSetVersion(tupleSetId: string, body: CreateTupleSetVersionInput): Promise<LdkitTupleSetVersion> {
+  return allocateVersion('TupleSetVersion', tupleSetId, (nextVersion) => createTupleSetVersionNumbered(tupleSetId, body, nextVersion));
+}
+
+async function createTupleSetVersionNumbered(
   tupleSetId: string,
   body: CreateTupleSetVersionInput,
+  nextVersion: number,
 ): Promise<LdkitTupleSetVersion> {
   const cacheCoordinator = getCacheCoordinator();
-  const nextVersion = nextVersionNumber('TupleSetVersion', tupleSetId);
 
   let parsed = parseTupleContent(body.contentString ?? '', body.sourceFormat);
   if (body.columnTypes && Object.keys(body.columnTypes).length > 0) {
@@ -158,10 +166,7 @@ export async function createTupleSetVersion(
 
   const created = await cacheCoordinator.create('TupleSetVersion', toLdkit(payload));
 
-  const updated = await cacheCoordinator.update('TupleSet', tupleSetId, { currentVersion: versionId });
-  if (!updated) {
-    throw new Error(`Failed to set currentVersion on TupleSet ${tupleSetId}`);
-  }
+  await setCurrentVersion('TupleSet', tupleSetId, versionId);
 
   return created;
 }

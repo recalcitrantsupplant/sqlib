@@ -16,6 +16,20 @@ export class EntityExistsError extends Error {
   }
 }
 
+/**
+ * An update was written through but the store does not hold the entity
+ * afterwards — typically one that only ever lived in the cache. Returning the
+ * merged copy would report a write that never happened. Routes answer 500.
+ */
+export class EntityNotPersistedError extends Error {
+  readonly statusCode = 500;
+
+  constructor(readonly id: string, readonly entityType: string) {
+    super(`${entityType} ${id} is not in the store, so the update was not saved.`);
+    this.name = 'EntityNotPersistedError';
+  }
+}
+
 class EntityCache<T extends EntityType | 'Unknown'> {
   public cache = new Map<string, unknown>();
   public lastRefreshedById = new Map<string, number>();
@@ -42,6 +56,19 @@ export class CacheCoordinator {
   private systemEntityIds = getKnownSystemEntityIds();
   private _ephemeralIds = new Set<string>();
   private errorMode: CacheErrorMode = 'log';
+
+  /*
+   * Write sequence, so a refresh can tell what was written while it awaited
+   * the store. Every write takes the next number and records it against its
+   * id and its type; a refresh notes the number it started at, and afterwards
+   * leaves alone anything whose number is higher — that write is newer than
+   * the snapshot the refresh is holding. The per-id map only has to outlive
+   * the refreshes in flight, so it is emptied whenever none are.
+   */
+  private writeSeq = 0;
+  private lastWriteById = new Map<string, number>();
+  private refreshesInFlight = 0;
+  private statsByType = new Map<EntityType | 'Unknown', { count: number; memoryBytes: number }>();
 
   constructor() {}
 
@@ -77,6 +104,7 @@ export class CacheCoordinator {
         coordinator._caches.clear();
         coordinator._idToType.clear();
         coordinator._ephemeralIds.clear();
+        coordinator.statsByType.clear();
       },
       keys() {
         return coordinator._idToType.keys();
@@ -124,6 +152,7 @@ export class CacheCoordinator {
       this._caches.clear();
       this._idToType.clear();
       this._ephemeralIds.clear();
+      this.statsByType.clear();
       this.systemEntityIds = getKnownSystemEntityIds();
 
       // Load system entities
@@ -155,8 +184,28 @@ export class CacheCoordinator {
     }
   }
 
+  private recordWrite(id: string): void {
+    this.lastWriteById.set(id, ++this.writeSeq);
+  }
+
+  private writtenSince(id: string, seq: number): boolean {
+    return (this.lastWriteById.get(id) ?? 0) > seq;
+  }
+
+  private beginRefresh(): number {
+    this.refreshesInFlight++;
+    return this.writeSeq;
+  }
+
+  private endRefresh(): void {
+    if (--this.refreshesInFlight === 0) this.lastWriteById.clear();
+  }
+
   private setInCache<T extends EntityType | 'Unknown'>(id: string, entity: unknown, type: T) {
     if (!id) return;
+    const previousType = this._idToType.get(id);
+    if (previousType) this.statsByType.delete(previousType);
+    this.statsByType.delete(type);
     const cache = this.getCache(type);
     // Ensure @type is set for internal consistency and test compatibility
     const withType = type !== 'Unknown' ? { ...(entity as object), '@type': type } : { ...(entity as object) };
@@ -169,6 +218,7 @@ export class CacheCoordinator {
   private removeFromCache(id: string) {
     const type = this._idToType.get(id);
     if (type) {
+      this.statsByType.delete(type);
       const cache = this.getCache(type);
       cache.cache.delete(id);
       cache.lastRefreshedById.delete(id);
@@ -298,8 +348,9 @@ export class CacheCoordinator {
     }
 
     const cacheEntity = { ...toInsert, '@type': type } as unknown as EntityByType[T];
+    this.recordWrite(entityData.$id);
     this.setInCache(entityData.$id, cacheEntity, type);
-    
+
     const cache = this.getCache(type);
     cache.lastRefreshedByType = Date.now();
 
@@ -316,6 +367,10 @@ export class CacheCoordinator {
    * then abstained on everything in it. Checked here rather than per route so
    * no create path can skip it. An ephemeral entity (a playground stand-in) is
    * the one exception: creating over it is how it is promoted.
+   *
+   * This is also the immutability guard for create: a version is frozen by
+   * type (`lib/immutability.ts`), and the only way a create could rewrite one
+   * is by naming its id, which this refuses whatever the type.
    *
    * With `CACHE_PRELOAD=false` the cache is not the whole store, so the store
    * is asked too — as this type, and as a Library, the takeover worth closing.
@@ -356,10 +411,13 @@ export class CacheCoordinator {
 
     const patch = { dateModified: effectiveDateModified } as unknown as Partial<EntityByType[T]>;
     const patchRecord = patch as Record<string, unknown>;
+    // `null` is kept: the update generator clears a property on `null` and
+    // treats `undefined` as "not patched", so rewriting one into the other made
+    // every clear a silent no-op in the store while the cache showed it cleared.
     (Object.keys(updates) as Array<keyof EntityByType[T]>).forEach((key) => {
       const value = updates[key];
       if (value !== undefined) {
-        patchRecord[String(key)] = value === null ? undefined : value;
+        patchRecord[String(key)] = value;
       }
     });
 
@@ -370,11 +428,20 @@ export class CacheCoordinator {
 
     let fresh: EntityByType[T] | null = null;
     if (config.cacheWriteThroughEnabled) {
+      let readBack = false;
       try {
         fresh = await getPersistenceAdapter().findByIri(type, id);
+        readBack = true;
       } catch (error) {
         console.warn(`[CacheCoordinator] Failed to fetch fresh ${id}`, error);
         if (this.errorMode === 'throw') throw error;
+      }
+      // The update query is anchored on the entity's type triple, so against a
+      // store that does not hold the entity it matches nothing and succeeds.
+      // An ephemeral entity is cache-only by design and is exempt.
+      if (readBack && !fresh && !this._ephemeralIds.has(id)) {
+        console.error(`[CacheCoordinator][audit] update of ${type} ${id} reached no stored entity; refusing to report it saved`);
+        throw new EntityNotPersistedError(id, type);
       }
     }
 
@@ -382,6 +449,7 @@ export class CacheCoordinator {
     (merged as unknown as BaseEntity).dateModified = effectiveDateModified;
 
     const cacheEntity = { ...merged, '@type': type } as unknown as EntityByType[T];
+    this.recordWrite(id);
     this.setInCache(id, cacheEntity, type);
     this.getCache(type).lastRefreshedByType = Date.now();
 
@@ -389,6 +457,7 @@ export class CacheCoordinator {
   }
 
   async delete<T extends EntityType>(type: T, id: string): Promise<void> {
+    this.recordWrite(id);
     if (this._ephemeralIds.has(id)) {
       this.removeFromCache(id);
       this._ephemeralIds.delete(id);
@@ -413,6 +482,7 @@ export class CacheCoordinator {
     if (this.isSystemEntity(entityData.$id)) throw new Error('System entity cannot be ephemeral');
 
     const cacheEntity = { ...entityData, '@type': type } as unknown as EntityByType[T];
+    this.recordWrite(entityData.$id);
     this.setInCache(entityData.$id, cacheEntity, type);
     this._ephemeralIds.add(entityData.$id);
     this.getCache(type).lastRefreshedByType = Date.now();
@@ -423,6 +493,7 @@ export class CacheCoordinator {
   removeEphemeral(id: string): void {
     if (!this.isLoaded) throw new Error('Cache not loaded. Call loadAll() first.');
     if (this.isSystemEntity(id)) throw new Error('System entity cannot be removed as ephemeral');
+    this.recordWrite(id);
     this.removeFromCache(id);
     this._ephemeralIds.delete(id);
   }
@@ -437,29 +508,34 @@ export class CacheCoordinator {
     if (Date.now() - last < ttl || cache.inFlightIdRefresh.has(id)) return;
 
     cache.inFlightIdRefresh.add(id);
+    const startedAt = this.beginRefresh();
     (async () => {
       try {
         const fresh = await getPersistenceAdapter().findByIri(type, id);
-        if (fresh) {
+        // A write that landed during the read is newer than what it returned.
+        if (fresh && !this.writtenSince(id, startedAt)) {
           this.setInCache(id, fresh, type);
         }
       } catch (e) {
         console.warn(`[Cache][SWR] Failed to refresh id ${id} of type ${type}`, e);
       } finally {
         cache.inFlightIdRefresh.delete(id);
+        this.endRefresh();
       }
     })();
   }
 
+  /**
+   * Refresh a type once its TTL has passed since it was last loaded.
+   *
+   * Deliberately not conditional on the type having entries: a type whose
+   * boot load failed is cached empty, and it must still be reloaded rather
+   * than stay empty until a restart.
+   */
   private triggerTypeRefreshIfStale(type: EntityType) {
     if (!this.preloadEnabled) return;
     const ttl = getTtlForType(type);
     if (!isFinite(ttl)) return;
-
-    const hasNonSystemEntries = Array.from(this._idToType.entries()).some(([id, entityType]) => {
-      return entityType === type && !this.isSystemEntity(id) && !this._ephemeralIds.has(id);
-    });
-    if (!hasNonSystemEntries) return;
 
     const cache = this.getCache(type);
     const last = cache.lastRefreshedByType;
@@ -469,30 +545,8 @@ export class CacheCoordinator {
     (async () => {
       try {
         const { config } = await import('../server/config.js');
-        if (!config.cacheWriteThroughEnabled || !this.preloadEnabled) {
-            cache.inFlightTypeRefresh = false;
-            return;
-        }
-
-        const freshEntities = await getPersistenceAdapter().findAll(type);
-
-        // Filter out old non-system non-ephemeral entities
-        for (const [id, entityType] of this._idToType.entries()) {
-          if (entityType === type && !this.isSystemEntity(id) && !this._ephemeralIds.has(id)) {
-            this._idToType.delete(id);
-            cache.cache.delete(id);
-            cache.lastRefreshedById.delete(id);
-          }
-        }
-
-        freshEntities.forEach((entity: EntityByType[EntityType]) => {
-          const id = entity.$id;
-          if (id && !this.isSystemEntity(id)) {
-            this.setInCache(id, entity, type);
-          }
-        });
-
-        cache.lastRefreshedByType = Date.now();
+        if (!config.cacheWriteThroughEnabled || !this.preloadEnabled) return;
+        await this.reloadType(type);
       } catch (e) {
         console.warn(`[CacheCoordinator][SWR] Failed type refresh ${type}`, e);
       } finally {
@@ -506,26 +560,43 @@ export class CacheCoordinator {
       console.log(`[CacheCoordinator] Skipping cache refresh for ${type} (CACHE_PRELOAD=false)`);
       return;
     }
-    const cache = this.getCache(type);
-    const freshEntities = await getPersistenceAdapter().findAll(type);
+    await this.reloadType(type);
+  }
 
-    // Filter out old non-system non-ephemeral entities
-    for (const [id, entityType] of this._idToType.entries()) {
-      if (entityType === type && !this.isSystemEntity(id) && !this._ephemeralIds.has(id)) {
-        this._idToType.delete(id);
-        cache.cache.delete(id);
-        cache.lastRefreshedById.delete(id);
-      }
-    }
+  /**
+   * Bring a type's cache in line with the store without losing a write that
+   * landed while the store was being read.
+   *
+   * The snapshot is applied id by id: an id written after the read started
+   * keeps whatever the cache now says (including having been deleted), and
+   * every other id takes the store's version, or leaves if the store no longer
+   * has it. System and ephemeral entities are never the store's to remove.
+   */
+  private async reloadType(type: EntityType): Promise<void> {
+    const startedAt = this.beginRefresh();
+    try {
+      const freshEntities = await getPersistenceAdapter().findAll(type);
+      const cache = this.getCache(type);
 
-    freshEntities.forEach((entity: EntityByType[EntityType]) => {
-      const id = entity.$id;
-      if (id && !this.isSystemEntity(id)) {
+      const storedIds = new Set<string>();
+      for (const entity of freshEntities as BaseEntity[]) {
+        const id = entity.$id;
+        if (!id || this.isSystemEntity(id)) continue;
+        storedIds.add(id);
+        if (this.writtenSince(id, startedAt) || this._ephemeralIds.has(id)) continue;
         this.setInCache(id, entity, type);
       }
-    });
 
-    cache.lastRefreshedByType = Date.now();
+      for (const id of [...cache.cache.keys()]) {
+        if (storedIds.has(id) || this.isSystemEntity(id) || this._ephemeralIds.has(id)) continue;
+        if (this.writtenSince(id, startedAt)) continue;
+        this.removeFromCache(id);
+      }
+
+      cache.lastRefreshedByType = Date.now();
+    } finally {
+      this.endRefresh();
+    }
   }
 
   private isSystemEntity(id: string | null | undefined): boolean {
@@ -540,19 +611,21 @@ export class CacheCoordinator {
       entityTypes: {} as Record<string, { count: number; memoryBytes: number }>
     };
 
-    this._caches.forEach(cache => {
-        cache.cache.forEach(entity => {
-            const type = (entity as BaseEntity)['@type'] || 'Unknown';
-            const entityJson = JSON.stringify(entity);
-            const entityBytes = Buffer.byteLength(entityJson, 'utf8');
-            
-            if (!stats.entityTypes[type]) {
-              stats.entityTypes[type] = { count: 0, memoryBytes: 0 };
-            }
-            stats.entityTypes[type].count++;
-            stats.entityTypes[type].memoryBytes += entityBytes;
-            stats.estimatedMemoryBytes += entityBytes;
-        });
+    // Serialising every entity is the cost here, so each type's figure is kept
+    // until a write to that type invalidates it.
+    this._caches.forEach((cache, type) => {
+      let typeStats = this.statsByType.get(type);
+      if (!typeStats) {
+        typeStats = { count: 0, memoryBytes: 0 };
+        for (const entity of cache.cache.values()) {
+          typeStats.count++;
+          typeStats.memoryBytes += Buffer.byteLength(JSON.stringify(entity), 'utf8');
+        }
+        this.statsByType.set(type, typeStats);
+      }
+      if (typeStats.count === 0) return;
+      stats.entityTypes[type] = { ...typeStats };
+      stats.estimatedMemoryBytes += typeStats.memoryBytes;
     });
 
     stats.estimatedMemoryBytes += this._idToType.size * 50; // Map overhead

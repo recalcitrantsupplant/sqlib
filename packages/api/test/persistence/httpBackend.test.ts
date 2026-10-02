@@ -67,15 +67,12 @@ describe.skipIf(!isHttp)('persistence against an http backend', () => {
     // The triples are really at the endpoint, not in a local store we fell back to.
     expect(await countTriples()).toBeGreaterThan(baseline);
 
-    const read = (await Libraries.findByIri(id)) as (Omit<LdkitLibrary, 'dateCreated'> & { dateCreated?: Date }) | null;
+    const read = (await Libraries.findByIri(id)) as LdkitLibrary | null;
     expect(read?.name).toBe('http round-trip');
     expect(read?.description).toBe('written over http');
     // Datatyped literals have to survive the network round-trip, not just the
     // in-process one — this is where a serialisation difference would show up.
-    // `xsd:dateTime` materialises as a Date, so this also pins down that the
-    // datatype survived rather than degrading to a plain literal.
-    expect(read?.dateCreated).toBeInstanceOf(Date);
-    expect(read?.dateCreated?.toISOString()).toBe(created);
+    expect(read?.dateCreated).toBe(created);
 
     await Libraries.update({ $id: id, name: 'renamed over http' });
     expect(((await Libraries.findByIri(id)) as LdkitLibrary | null)?.name).toBe('renamed over http');

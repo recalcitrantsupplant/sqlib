@@ -11,7 +11,7 @@ export const DataBlockVersions = DataBlockVersionUtils.Repository;
 export const createDataBlockVersion = DataBlockVersionUtils.create;
 export async function updateDataBlockVersion(id: string, updates: Partial<LdkitDataBlockVersion>): Promise<void> {
   const existing = await findDataBlockVersionById(id);
-  assertMutableEntity('DataBlockVersion', existing as Record<string, unknown> | null);
+  assertMutableEntity('DataBlockVersion', existing as Record<string, unknown> | null, updates as Record<string, unknown>);
   return DataBlockVersionUtils.update(id, updates);
 }
 export const deleteDataBlockVersion = DataBlockVersionUtils.delete;
