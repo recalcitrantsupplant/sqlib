@@ -52,7 +52,8 @@ import { useTupleSetsStore } from '@/composables/useTupleSetsStore';
 import { useDataGraphsStore } from '@/composables/useDataGraphsStore';
 import { useFeatureFlags } from '@/composables/useFeatureFlags';
 import { useApiClient } from '@/composables/useApiClient';
-import { useCallableDrafts, UNASSIGNED_LIBRARY_ID } from '@/composables/useCallableDrafts';
+import { useCallableDrafts } from '@/composables/useCallableDrafts';
+import { useEntityDraft } from '@/composables/useEntityDraft';
 import { useScratchRecord } from '@/composables/useScratchRecord';
 import { useActiveLibrary } from '@/composables/useActiveLibrary';
 import BenchmarkPlanSidebar from '@/components/benchmarks/BenchmarkPlanSidebar.vue';
@@ -149,8 +150,6 @@ const isSaving = ref(false);
 /** What the record points at — the server repoints it on every version. */
 const currentVersionId = ref<string | null>(null);
 const experimentCreatedAt = ref<string | null>(null);
-/** When the browser-local draft was last written, for the Details draft row. */
-const locallySavedAt = ref<string | null>(null);
 
 /** version IRI → what it is, so a plan and a run can both name their subjects. */
 interface SubjectEntry {
@@ -226,12 +225,6 @@ interface BenchDraftBody {
   plan?: BenchmarkPlan;
 }
 
-/** Set while a version is being read, so hydration never lands as an edit. */
-const hydratingRecord = ref(false);
-/** The editor payload of the version on screen, to compare edits against. */
-const savedBody = ref('');
-let draftSaveHandle: ReturnType<typeof setTimeout> | null = null;
-
 /** What the editor holds now, in the shape a draft records it. */
 function editorBody(): BenchDraftBody {
   return {
@@ -261,83 +254,50 @@ const isViewingCurrentVersion = computed(() =>
   selectedVersionNumber.value != null
   && selectedVersionNumber.value === (versions.value[0]?.version ?? null));
 
-const openDraft = computed(() => {
-  void draftsStore.allDrafts.value;
-  return props.experimentId ? draftsStore.draftFor(props.experimentId) : null;
+/*
+ * The draft lifecycle every versioned work area shares: autosave, undo-to-saved,
+ * Discard, and hydration that does not count as typing. Drafting is off while
+ * a historical version is on screen (see above).
+ */
+const {
+  hydrating: hydratingRecord,
+  locallySavedAt,
+  savedBody,
+  openDraft,
+  matchesSaved,
+  cancelDraftSave,
+  removeDraft,
+  hydrate,
+  restoreDraft,
+  discardDraft: discardEntityDraft,
+} = useEntityDraft<BenchDraftBody>({
+  section: 'bench',
+  id: () => props.experimentId ?? null,
+  enabled: () => !isScratch.value && isViewingCurrentVersion.value,
+  // The Bench list is not library-scoped (sections.ts), so the draft record
+  // carries no library; the owning one is chosen when the experiment is saved.
+  libraryId: () => null,
+  name: () => experimentName.value,
+  description: () => experimentDescription.value,
+  editorBody,
+  applyBody: (body) => {
+    applyEditorBody(body);
+    ensureSelection();
+  },
+  sources: [experimentName, experimentDescription, experimentStatus, plan],
+  resultKind: 'BOOLEAN',
 });
 
+// Counted whichever version is on screen: the pill names the draft even while
+// an older version is being read.
 const editCount = computed(() => (isScratch.value ? 0 : openDraft.value?.edits ?? 0));
-
-/** Typing back to what is saved is an undo, not an edit. */
-const matchesSaved = () => JSON.stringify(editorBody()) === savedBody.value;
-
-function persistDraft() {
-  const id = props.experimentId;
-  if (!id || isScratch.value) return;
-  const existing = draftsStore.draftFor(id);
-  draftsStore.save({
-    id: existing?.id ?? `urn:ui-temp:draft-of-${id}`,
-    // The Bench list is not library-scoped (sections.ts), so the draft record
-    // carries no library; the owning one is chosen when the experiment is saved.
-    libraryId: UNASSIGNED_LIBRARY_ID,
-    type: 'query',
-    kind: 'draft',
-    section: 'bench',
-    name: experimentName.value,
-    description: experimentDescription.value || null,
-    queryString: null,
-    body: editorBody(),
-    resultKind: 'BOOLEAN',
-    inputTuples: [],
-    limitParameters: [],
-    offsetParameters: [],
-    outputs: [],
-    basedOn: id,
-    edits: (existing?.edits ?? 0) + 1,
-  });
-  locallySavedAt.value = new Date().toISOString();
-}
-
-function removeDraft() {
-  const id = props.experimentId;
-  if (!id) return;
-  const existing = draftsStore.draftFor(id);
-  if (existing) draftsStore.remove(existing.id);
-  locallySavedAt.value = null;
-}
-
-function cancelDraftSave() {
-  if (!draftSaveHandle) return;
-  clearTimeout(draftSaveHandle);
-  draftSaveHandle = null;
-}
-
-watch(
-  [experimentName, experimentDescription, experimentStatus, plan],
-  () => {
-    if (isScratch.value || hydratingRecord.value || !props.experimentId) return;
-    if (!isViewingCurrentVersion.value) return;
-    cancelDraftSave();
-    draftSaveHandle = setTimeout(() => {
-      draftSaveHandle = null;
-      if (matchesSaved()) {
-        removeDraft();
-        return;
-      }
-      persistDraft();
-    }, 500);
-  },
-  { deep: true },
-);
 
 /** Throw the unsaved edits away and go back to the saved version. */
 function discardDraft() {
-  cancelDraftSave();
-  removeDraft();
-  hydratingRecord.value = true;
-  applyEditorBody(JSON.parse(savedBody.value || '{}') as BenchDraftBody);
-  ensureSelection();
-  void Promise.resolve().then(() => { hydratingRecord.value = false; });
+  const hadSavedBody = Boolean(savedBody.value);
+  discardEntityDraft();
+  // Nothing loaded yet to go back to: an empty editor, as before.
+  if (!hadSavedBody) hydrate(() => { applyEditorBody({}); ensureSelection(); });
   toast.success('Draft discarded');
 }
 
@@ -1462,10 +1422,7 @@ function selectDraft() {
     selectedVersionNumber.value = newest;
     return;
   }
-  hydratingRecord.value = true;
-  applyEditorBody(draft as BenchDraftBody);
-  ensureSelection();
-  void Promise.resolve().then(() => { hydratingRecord.value = false; });
+  restoreDraft();
 }
 
 async function copyExperimentId() {
