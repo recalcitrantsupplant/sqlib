@@ -14,8 +14,10 @@
  * - `@array` properties are *always* an array, `[]` when nothing is stored,
  *   whether or not they are also `@optional`.
  * - an absent `@optional` scalar materialises as `null`, not as a missing key.
- * - `xsd:dateTime` materialises as a **`Date`**, despite the entity interfaces
- *   declaring `string` — they are only honest after JSON serialisation.
+ * - `xsd:dateTime` materialises as an ISO-8601 string, which is what the entity
+ *   interfaces declare and what `CacheCoordinator.create` writes. The lens emitted
+ *   a `Date` here; matching it made an entity's dates depend on which path last
+ *   wrote it.
  * - a non-array property with several stored values keeps the first row seen, which
  *   is what LDKit does; the store is not supposed to contain them.
  */
@@ -30,13 +32,13 @@ function coerceLiteral(raw: string, kind: FieldKind, field: string, id: string):
     case 'string':
       return raw;
     case 'dateTime': {
-      // A `Date`, not a string — matching the lens. An unparseable stored value
-      // would otherwise become `Invalid Date` and travel silently into the cache.
+      // Parsed and re-serialised so every read yields the same canonical form;
+      // an unparseable stored value is refused rather than carried into the cache.
       const value = new Date(raw);
       if (Number.isNaN(value.getTime())) {
         throw new Error(`Expected an xsd:dateTime for ${field} on ${id} but stored value was ${JSON.stringify(raw)}.`);
       }
-      return value;
+      return value.toISOString();
     }
     case 'integer': {
       const value = Number.parseInt(raw, 10);

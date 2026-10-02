@@ -1,4 +1,5 @@
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
+import { allocateVersion, setCurrentVersion } from './versionNumbering.js';
 import { mintId } from './id.js';
 import { toRestApi } from '../persistence/utils/id-adapter.js';
 import type { LdkitBenchmarkExperiment } from '../persistence/schemas/BenchmarkExperimentSchema.js';
@@ -194,13 +195,17 @@ export class BenchmarkExperimentService {
   }
 
   async createVersion(experimentId: string, payload: BenchmarkExperimentVersionPayload): Promise<BenchmarkExperimentVersionDetail> {
+    return allocateVersion('BenchmarkExperimentVersion', experimentId, (nextVersion) =>
+      this.createVersionNumbered(experimentId, payload, nextVersion));
+  }
+
+  private async createVersionNumbered(
+    experimentId: string,
+    payload: BenchmarkExperimentVersionPayload,
+    nextVersion: number,
+  ): Promise<BenchmarkExperimentVersionDetail> {
     const subjectSpecsJson = serializeSubjectSpecs(payload.subjectSpecs);
     const cacheCoordinator = getCacheCoordinator();
-    const versions = cacheCoordinator.list('BenchmarkExperimentVersion') as LdkitBenchmarkExperimentVersion[];
-    const existingVersions = versions.filter(item => item.isPartOf === experimentId);
-    const nextVersion = existingVersions.length
-      ? Math.max(...existingVersions.map(v => v.version)) + 1
-      : 1;
 
     const id = mintId('benchmarkExperimentVersion');
     const toCreate: Partial<LdkitBenchmarkExperimentVersion> & { $id: string } = {
@@ -223,7 +228,7 @@ export class BenchmarkExperimentService {
     };
 
     const created = await cacheCoordinator.create('BenchmarkExperimentVersion', toCreate);
-    await cacheCoordinator.update('BenchmarkExperiment', experimentId, { currentVersion: created.$id });
+    await setCurrentVersion('BenchmarkExperiment', experimentId, created.$id);
     return toExperimentVersionDetail(created);
   }
 

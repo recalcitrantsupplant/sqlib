@@ -11,7 +11,7 @@ export const QueryVersions = QueryVersionUtils.Repository;
 export const createQueryVersion = QueryVersionUtils.create;
 export async function updateQueryVersion(id: string, updates: Partial<LdkitQueryVersion>): Promise<void> { // note: should generally be avoided (immutable)
   const existing = await findQueryVersionById(id);
-  assertMutableEntity('QueryVersion', existing as Record<string, unknown> | null);
+  assertMutableEntity('QueryVersion', existing as Record<string, unknown> | null, updates as Record<string, unknown>);
   return QueryVersionUtils.update(id, updates);
 }
 export const deleteQueryVersion = QueryVersionUtils.delete; // note: should generally be avoided (immutable)

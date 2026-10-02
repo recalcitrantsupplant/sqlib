@@ -67,9 +67,33 @@ async function buildTestApp(): Promise<FastifyInstance> {
 }
 
 describe('Query Group Version Validation', () => {
+  // The repositories are stubs that keep nothing, so a write-through update
+  // would read back an entity the store never held, which the coordinator
+  // refuses. These suites are about the cache and the routes, not storage.
+  let writeThroughBefore: string | undefined;
+  beforeAll(() => {
+    writeThroughBefore = process.env.CACHE_WRITE_THROUGH;
+    process.env.CACHE_WRITE_THROUGH = 'false';
+  });
+  afterAll(() => {
+    if (writeThroughBefore === undefined) delete process.env.CACHE_WRITE_THROUGH;
+    else process.env.CACHE_WRITE_THROUGH = writeThroughBefore;
+  });
+
   let app: FastifyInstance;
   const testGroupId = 'urn:sqlib:group:test-group';
   const testGroupVersionId = 'urn:sqlib:group-version:test-group-v1';
+
+  /**
+   * Give the version its graph. A version is frozen from creation, so this
+   * recreates it with the graph rather than editing it in place — the shape a
+   * real save has, where nodes are written first and the version last.
+   */
+  const setVersionGraph = async (graph: Record<string, unknown>) => {
+    const existing = cacheManager!.get(testGroupVersionId) as Record<string, unknown>;
+    await cacheManager!.delete(testGroupVersionId, 'QueryGroupVersion');
+    await cacheManager!.create({ ...existing, ...graph, $id: testGroupVersionId }, 'QueryGroupVersion');
+  };
 
   beforeEach(async () => {
     vi.clearAllMocks();
@@ -140,10 +164,10 @@ describe('Query Group Version Validation', () => {
       sourceOutputId: outputTupleId,
       targetInputId: outputTupleId
     }, 'QueryEdge');
-    await cacheManager.update(testGroupVersionId, {
+    await setVersionGraph({
       executionNodes: [nodeId],
       edges: [edgeStartId, edgeEndId]
-    }, 'QueryGroupVersion');
+    });
 
     const response = await app.inject({
       method: 'GET',
@@ -203,10 +227,10 @@ describe('Query Group Version Validation', () => {
       sourceOutputId: outputTupleId,
       targetInputId: outputTupleId,
     }, 'QueryEdge');
-    await cacheManager.update(testGroupVersionId, {
+    await setVersionGraph({
       executionNodes: [nodeId],
       edges: ['urn:sqlib:edge:ephemeral-start', 'urn:sqlib:edge:ephemeral-end'],
-    }, 'QueryGroupVersion');
+    });
 
     const response = await app.inject({
       method: 'GET',
@@ -242,10 +266,10 @@ describe('Query Group Version Validation', () => {
       backendId,
       backendConfig: { type: 'ephemeral-oxigraph', storeId: 'urn:sqlib:store:conflict' },
     }, 'QueryNode');
-    await cacheManager.update(testGroupVersionId, {
+    await setVersionGraph({
       executionNodes: [nodeId],
       edges: [],
-    }, 'QueryGroupVersion');
+    });
 
     const response = await app.inject({
       method: 'GET',
@@ -273,9 +297,9 @@ describe('Query Group Version Validation', () => {
       targetNodeId: 'urn:sqlib:node:missing-target',
       dataFlowType: 'CONTROL_FLOW',
     }, 'QueryEdge');
-    await cacheManager.update(testGroupVersionId, {
+    await setVersionGraph({
       edges: ['urn:sqlib:edge:broken'],
-    }, 'QueryGroupVersion');
+    });
 
     const response = await app.inject({
       method: 'GET',

@@ -140,7 +140,6 @@ async function openLibrary(): Promise<void> {
     storeType: 'persistent',
     loadMethod: backendConfig.loadMethod,
     sourceConfig: backendConfig.sourceConfig,
-    persistPath: backendConfig.persistPath,
   });
   // Stores before the cache — the ordering src/index.ts uses on boot.
   await memoryCacheManager.loadAll();

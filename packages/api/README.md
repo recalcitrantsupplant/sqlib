@@ -92,7 +92,7 @@ where data goes are below.
 bindings only support in-memory stores, so the store lives in memory and is
 serialised to `.nq` on shutdown and on the checkpoint interval. For a
 disk-backed store, run `oxigraph-server` as a sidecar and use the `http`
-backend. `INTERNAL_OXIGRAPH_DB_PATH` is accepted for compatibility but ignored.
+backend. `INTERNAL_OXIGRAPH_DB_PATH` is not read.
 
 ### Caching
 

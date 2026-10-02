@@ -1,6 +1,6 @@
 import { mintId } from './id.js';
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
-import { nextVersionNumber } from './versionNumbering.js';
+import { allocateVersion, setCurrentVersion } from './versionNumbering.js';
 import type { LdkitTestVersion } from '../persistence/schemas/TestVersionSchema.js';
 import { toLdkit } from '../persistence/utils/id-adapter.js';
 import { EXPECTATION_KINDS, isExpectationKind, type ExpectationKind } from './testComparators.js';
@@ -251,9 +251,16 @@ function validateSubjectKindInputs(testId: string, body: TestVersionInput, cases
 
 }
 
+/**
+ * Numbered and pointed at under the parent's version lock (`allocateVersion`),
+ * so concurrent saves get consecutive numbers and the last to finish is current.
+ */
 export async function createTestVersion(testId: string, body: TestVersionInput): Promise<LdkitTestVersion> {
+  return allocateVersion('TestVersion', testId, (nextVersion) => createTestVersionNumbered(testId, body, nextVersion));
+}
+
+async function createTestVersionNumbered(testId: string, body: TestVersionInput, nextVersion: number): Promise<LdkitTestVersion> {
   const cacheCoordinator = getCacheCoordinator();
-  const nextVersion = nextVersionNumber('TestVersion', testId);
 
   const expectationKind = validateExpectationKind(body.expectationKind);
 
@@ -290,10 +297,7 @@ export async function createTestVersion(testId: string, body: TestVersionInput):
 
   const created = await cacheCoordinator.create('TestVersion', toLdkit(payload));
 
-  const updated = await cacheCoordinator.update('Test', testId, { currentVersion: versionId });
-  if (!updated) {
-    throw new Error(`Failed to set currentVersion on Test ${testId}`);
-  }
+  await setCurrentVersion('Test', testId, versionId);
 
   return created;
 }

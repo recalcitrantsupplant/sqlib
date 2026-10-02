@@ -54,7 +54,6 @@ async function ensureLibraryStore() {
     storeType: 'persistent',
     loadMethod: backendConfig.loadMethod,
     sourceConfig: backendConfig.sourceConfig,
-    persistPath: backendConfig.persistPath,
   });
 
   return { backendConfig, store };
