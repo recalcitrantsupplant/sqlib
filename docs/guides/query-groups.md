@@ -286,13 +286,17 @@ or inline, one SPARQL Results JSON document per parameter to fill:
 ```
 
 A group's run carries the same argument sets to every node, and each node takes
-only the ones whose variable list matches a `VALUES` group it actually declares.
-A set matching a slot's *length* but not its *order* is a hard error, not a
-silent mis-binding:
+only the ones whose variables match a `VALUES` group it actually declares. The
+match is on the set of variables, not their order: cells are keyed by name, so
+a table listing `[s, p]` fills a `VALUES (?p ?s)` clause exactly as it would on
+`/execute` for the query alone.
 
-```
-Argument variable order mismatch for VALUES input [p, s]; received [s, p].
-```
+Between nodes, a row the upstream query left with nothing bound in the columns
+an edge maps — what an `OPTIONAL` produces when it matched nothing — carries no
+constraint and is dropped rather than passed on as an all-`UNDEF` row. If every
+row is dropped, the input is empty and the edge's `whenEmpty` decides. An edge
+whose variable mapping maps *no* columns at all is a broken edge, and a run that
+reaches it fails naming the edge.
 
 ### `whenEmpty`
 

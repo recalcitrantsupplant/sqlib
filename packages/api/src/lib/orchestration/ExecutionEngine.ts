@@ -836,6 +836,15 @@ export class ExecutionEngine {
       const srcVars = this.getOutputTupleNames(graph, e);
       const tgtVars = this.getInputTupleNames(graph, e);
       const mappings = this.resolveVariableMappings(e, srcVars, tgtVars);
+      // A mapping that maps nothing is a broken edge, not data: every row it
+      // carries would arrive with nothing bound. Said by name, rather than
+      // left to surface as whatever the empty rows turn into downstream.
+      if (mappings.length === 0 && tgtVars.length > 0 && src.results.bindings.length > 0) {
+        throw new Error(
+          `Edge ${e.id} maps none of its source's variables [${srcVars.join(', ')}] onto the input it feeds `
+          + `[${tgtVars.join(', ')}], so every row it carries would arrive empty. Correct the edge's variable mappings.`
+        );
+      }
       const arg: ArgumentSet = {
         head: { vars: tgtVars },
         results: { bindings: [] },
@@ -851,14 +860,19 @@ export class ExecutionEngine {
           b[to] = v as SparqlValue;
         }
         /*
-         * A row with nothing bound in the mapped columns — what an OPTIONAL
-         * upstream produces when it matched nothing — says nothing about this
-         * input. Passed on, it became an all-UNDEF VALUES row beside bound
-         * ones, which the parser rightly refuses as a wildcard, and the run
-         * died on legitimate data. Dropped, it constrains nothing; if every
-         * row goes, the input is empty and the edge's `whenEmpty` decides.
+         * A row an upstream *query* produced with nothing bound in the mapped
+         * columns — what an OPTIONAL yields when it matched nothing — says
+         * nothing about this input. Passed on, it became an all-UNDEF VALUES
+         * row beside bound ones, which the parser rightly refuses as a
+         * wildcard, and the run died on legitimate data. Dropped, it
+         * constrains nothing; if every row goes, the input is empty and the
+         * edge's `whenEmpty` decides.
+         *
+         * Not a caller's row arriving through a start node: an all-UNDEF row
+         * in a supplied table is an explicit "no constraint", and keeps that
+         * meaning (`docs/concepts.md`).
          */
-        if (Object.keys(b).length === 0) continue;
+        if (!fromStartNode && Object.keys(b).length === 0) continue;
         arg.results.bindings.push(b);
       }
       // Merge by union for same target input tuple
