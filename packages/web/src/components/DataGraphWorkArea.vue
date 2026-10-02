@@ -547,7 +547,7 @@ const {
   matchesSaved: () =>
     contentString.value.trim() === savedContent.value.trim()
     && contentFormat.value === savedFormat.value,
-  savedEditorBody: () => ({ contentString: savedContent.value, contentFormat: savedFormat.value }),
+  savedBody: () => ({ contentString: savedContent.value, contentFormat: savedFormat.value }),
   sources: [contentString, contentFormat, description],
   resultKind: 'GRAPH',
 });

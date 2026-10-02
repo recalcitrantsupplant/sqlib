@@ -41,20 +41,25 @@ export interface EntityDraftOptions<B> {
   /** Put a body back into the editor. */
   applyBody: (body: B) => void;
   /**
-   * Whether the editor holds what is saved. Defaults to comparing
-   * `editorBody()` with the body last recorded by `markSaved`; a work area
-   * whose "saved" is judged on part of its body (trimmed content, say) says so
-   * here.
+   * Everything an edit can change: a change to any of these is typing. Omit it
+   * when the work area marks its own edits by calling `scheduleDraftSave`.
+   */
+  sources?: WatchSource | WatchSource[];
+  /**
+   * The saved body, when the work area already tracks it. Given, it is what
+   * Discard puts back, and what typing is compared against, in place of
+   * `markSaved`'s snapshot. It may be the part of the body that is versioned
+   * (content and format, say, without a description that saves on its own).
+   */
+  savedBody?: () => B;
+  /** How the editor body is compared with `savedBody`; JSON equality by default. */
+  sameBody?: (editor: B, saved: B) => boolean;
+  /**
+   * Whether the editor holds what is saved, for a work area whose test is not
+   * a comparison of two bodies (trimmed text against a loaded document, say).
+   * Takes precedence over `savedBody`/`sameBody`.
    */
   matchesSaved?: () => boolean;
-  /**
-   * The body Discard puts back through `applyBody`. Defaults to the body last
-   * recorded by `markSaved`; a work area that tracks its saved body itself
-   * hands it over here.
-   */
-  savedEditorBody?: () => B;
-  /** Everything an edit can change: a change to any of these is typing. */
-  sources: WatchSource | WatchSource[];
   /**
    * The draft envelope's legacy fields. The store's record is query-shaped
    * (`queryString`, `resultKind`, detected inputs); a query supplies them, and
@@ -104,6 +109,10 @@ export function useEntityDraft<B>(options: EntityDraftOptions<B>) {
   /** Typing back to what is saved is an undo, not an edit. */
   function matchesSaved(): boolean {
     if (options.matchesSaved) return options.matchesSaved();
+    if (options.savedBody) {
+      const same = options.sameBody ?? ((a: B, b: B) => JSON.stringify(a) === JSON.stringify(b));
+      return same(options.editorBody(), options.savedBody());
+    }
     return JSON.stringify(options.editorBody()) === savedBody.value;
   }
 
@@ -177,37 +186,39 @@ export function useEntityDraft<B>(options: EntityDraftOptions<B>) {
   function discardDraft() {
     cancelDraftSave();
     removeDraft();
-    if (options.savedEditorBody) {
-      const saved = options.savedEditorBody();
+    if (options.savedBody) {
+      const saved = options.savedBody();
       hydrate(() => options.applyBody(saved));
-      return;
-    }
-    if (savedBody.value) hydrate(() => options.applyBody(JSON.parse(savedBody.value) as B));
+    } else if (savedBody.value) hydrate(() => options.applyBody(JSON.parse(savedBody.value) as B));
   }
 
-  watch(
-    options.sources,
-    () => {
-      if (!options.enabled() || hydrating.value || !options.id()) return;
-      cancelDraftSave();
-      handle = setTimeout(() => {
-        handle = null;
-        if (matchesSaved()) {
-          removeDraft();
-          return;
-        }
-        persistDraft();
-      }, debounceMs);
-    },
-    { deep: true },
-  );
+  /** An edit happened: write it down once typing pauses. */
+  function scheduleDraftSave() {
+    if (!options.enabled() || hydrating.value || !options.id()) return;
+    cancelDraftSave();
+    handle = setTimeout(() => {
+      handle = null;
+      if (matchesSaved()) {
+        removeDraft();
+        return;
+      }
+      persistDraft();
+    }, debounceMs);
+  }
 
-  onBeforeUnmount(() => {
+  /** Write a queued edit now rather than when the debounce would have. */
+  function flushDraft() {
     if (!handle) return;
     cancelDraftSave();
-    // Closing the record mid-debounce should not lose the edit that was queued.
     if (options.enabled() && options.id() && !matchesSaved()) persistDraft();
-  });
+  }
+
+  if (options.sources !== undefined) {
+    watch(options.sources, scheduleDraftSave, { deep: true });
+  }
+
+  // Closing the record mid-debounce should not lose the edit that was queued.
+  onBeforeUnmount(flushDraft);
 
   return {
     hydrating,
@@ -221,6 +232,8 @@ export function useEntityDraft<B>(options: EntityDraftOptions<B>) {
     persistDraft,
     removeDraft,
     cancelDraftSave,
+    scheduleDraftSave,
+    flushDraft,
     hydrate,
     restoreDraft,
     discardDraft,

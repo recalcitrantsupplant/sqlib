@@ -799,7 +799,7 @@ const {
   // Typing back to what is saved is an undo, not an edit; leaving a draft
   // behind would keep the dot lit over a body identical to the version.
   matchesSaved: documentMatchesVersion,
-  savedEditorBody: () => ({ srl: loadedVersionDocument.value }),
+  savedBody: () => ({ srl: loadedVersionDocument.value }),
   sources: [srlDocument, tupleSeeds, tuplesEnabled],
   resultKind: 'GRAPH',
 });

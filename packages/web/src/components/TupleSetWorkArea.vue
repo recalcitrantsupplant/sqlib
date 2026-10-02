@@ -737,7 +737,7 @@ const {
   matchesSaved: () =>
     contentString.value.trim() === savedContent.value.trim()
     && sourceFormat.value === savedFormat.value,
-  savedEditorBody: () => ({ contentString: savedContent.value, sourceFormat: savedFormat.value }),
+  savedBody: () => ({ contentString: savedContent.value, sourceFormat: savedFormat.value }),
   sources: [contentString, sourceFormat, description],
   // Rows are a solution sequence — the stored form is literally SPARQL
   // Results JSON — so BINDINGS is what they are, not an approximation.
