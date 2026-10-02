@@ -748,9 +748,9 @@ export class EtlService {
     }
 
     /*
-     * `null` is what clears a note: the cache coordinator maps null to
-     * undefined, which drops the property, while an undefined value is skipped
-     * as "not part of this patch" and would leave the old note in place.
+     * `null` is what clears a note: the update clears a property on null,
+     * while an undefined value is skipped as "not part of this patch" and
+     * would leave the old note in place.
      */
     const now = new Date().toISOString();
     await cacheCoordinator.update('EtlJobVersion', versionUrn, {

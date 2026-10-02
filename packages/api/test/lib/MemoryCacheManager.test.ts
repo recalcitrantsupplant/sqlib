@@ -472,53 +472,46 @@ describe('MemoryCacheManager', () => {
     });
 
     it('should merge updates when repository fetch returns partial entity data', async () => {
-      const versionId = 'urn:qgv:merge';
-      const initialVersion = {
-        $id: versionId,
-        '@type': 'QueryGroupVersion',
-        groupId: 'urn:group:merge',
-        version: 1,
+      const groupId = 'urn:group:merge';
+      const initialGroup = {
+        $id: groupId,
+        '@type': 'QueryGroup',
+        name: 'Merge',
+        isPartOf: 'urn:library:merge',
       };
 
       cacheManager = new MemoryCacheManager();
-      (loadAllSystemEntities as any).mockResolvedValue(new Map([[versionId, initialVersion]]));
+      (loadAllSystemEntities as any).mockResolvedValue(new Map([[groupId, initialGroup]]));
       await cacheManager.loadAll();
 
-      (QueryGroupVersions.update as any).mockResolvedValue(undefined);
-      (QueryGroupVersions.findByIri as any).mockResolvedValue({
-        $id: versionId,
-        groupId: 'urn:group:merge',
-        version: 1,
-        '@type': 'QueryGroupVersion',
+      (QueryGroups.update as any).mockResolvedValue(undefined);
+      (QueryGroups.findByIri as any).mockResolvedValue({
+        $id: groupId,
+        name: 'Merge',
+        '@type': 'QueryGroup',
       });
 
       const updates = {
-        executionNodes: ['urn:node:a', 'urn:node:b'],
-        edges: ['urn:edge:a'],
-        startNode: 'urn:start:a',
-        endNode: 'urn:end:a',
+        description: 'merged',
+        currentVersion: 'urn:qgv:merge',
       };
 
-      const updatedEntity = await cacheManager.update(versionId, updates, 'QueryGroupVersion');
+      const updatedEntity = await cacheManager.update(groupId, updates, 'QueryGroup');
 
-      expect(QueryGroupVersions.update).toHaveBeenCalledWith(expect.objectContaining({
-        $id: versionId,
+      expect(QueryGroups.update).toHaveBeenCalledWith(expect.objectContaining({
+        $id: groupId,
         ...updates,
         dateModified: expect.any(String),
       }));
       expect(updatedEntity).not.toBeNull();
       expect(updatedEntity).toMatchObject({
-        executionNodes: updates.executionNodes,
-        edges: updates.edges,
-        startNode: 'urn:start:a',
-        endNode: 'urn:end:a',
+        ...updates,
+        name: 'Merge',
         dateModified: expect.any(String),
       });
-      expect(cacheManager.get(versionId)).toMatchObject({
-        executionNodes: updates.executionNodes,
-        edges: updates.edges,
-        startNode: 'urn:start:a',
-        endNode: 'urn:end:a',
+      expect(cacheManager.get(groupId)).toMatchObject({
+        ...updates,
+        name: 'Merge',
         dateModified: expect.any(String),
       });
     });

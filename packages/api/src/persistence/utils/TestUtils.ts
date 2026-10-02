@@ -21,7 +21,7 @@ export const TestVersions = TestVersionUtils.Repository;
 export const createTestVersion = TestVersionUtils.create;
 export async function updateTestVersion(id: string, updates: Partial<LdkitTestVersion>): Promise<void> {
   const existing = await findTestVersionById(id);
-  assertMutableEntity('TestVersion', existing as Record<string, unknown> | null);
+  assertMutableEntity('TestVersion', existing as Record<string, unknown> | null, updates as Record<string, unknown>);
   return TestVersionUtils.update(id, updates);
 }
 export const deleteTestVersion = TestVersionUtils.delete;

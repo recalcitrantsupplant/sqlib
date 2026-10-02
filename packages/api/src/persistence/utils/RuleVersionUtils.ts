@@ -11,7 +11,7 @@ export const RuleVersions = RuleVersionUtils.Repository;
 export const createRuleVersion = RuleVersionUtils.create;
 export async function updateRuleVersion(id: string, updates: Partial<LdkitRuleVersion>): Promise<void> {
   const existing = await findRuleVersionById(id);
-  assertMutableEntity('RuleVersion', existing as Record<string, unknown> | null);
+  assertMutableEntity('RuleVersion', existing as Record<string, unknown> | null, updates as Record<string, unknown>);
   return RuleVersionUtils.update(id, updates);
 }
 export const deleteRuleVersion = RuleVersionUtils.delete;

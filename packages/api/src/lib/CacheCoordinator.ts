@@ -368,6 +368,10 @@ export class CacheCoordinator {
    * no create path can skip it. An ephemeral entity (a playground stand-in) is
    * the one exception: creating over it is how it is promoted.
    *
+   * This is also the immutability guard for create: a version is frozen by
+   * type (`lib/immutability.ts`), and the only way a create could rewrite one
+   * is by naming its id, which this refuses whatever the type.
+   *
    * With `CACHE_PRELOAD=false` the cache is not the whole store, so the store
    * is asked too — as this type, and as a Library, the takeover worth closing.
    */
