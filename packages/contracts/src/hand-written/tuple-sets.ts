@@ -41,6 +41,8 @@ export const columnTypeSuggestionSchema = z.object({
  * What content *would* become, without storing it. Mirrors what a version
  * carries, because it is the same parse.
  */
+export type ColumnTypeSuggestion = z.infer<typeof columnTypeSuggestionSchema>;
+
 export const previewTupleContentResponseSchema = z.object({
   contentString: z.string(),
   tupleColumns: z.array(z.string()),

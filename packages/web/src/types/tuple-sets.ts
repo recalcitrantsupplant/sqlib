@@ -24,6 +24,7 @@ export {
   type TupleSourceFormat,
   SUGGESTED_COLUMN_TYPES,
   type SuggestedColumnType,
+  type ColumnTypeSuggestion,
 } from '@sparql-query-lib/contracts';
 import type { TupleSourceFormat, SuggestedColumnType } from '@sparql-query-lib/contracts';
 
@@ -70,11 +71,6 @@ export const TUPLE_IMPORT_FORMATS: Array<{
  * import-time proposal the author accepts or rejects per column — it changes
  * what gets persisted, never how persisted content is read back.
  */
-
-export interface ColumnTypeSuggestion {
-  column: string;
-  suggested: SuggestedColumnType;
-}
 
 /** How a suggested type reads in the accept/reject control. */
 export const SUGGESTED_COLUMN_TYPE_LABELS: Record<SuggestedColumnType, string> = {
