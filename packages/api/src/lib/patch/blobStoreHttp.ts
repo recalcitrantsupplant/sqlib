@@ -6,18 +6,21 @@
  * adapter is the place that difference stops: it reads both services' way of
  * reporting an error code and folds both refusals into `precondition-failed`.
  *
- * ## The package still has no network dependency
+ * ## It reaches for no network of its own
  *
- * `fetch` is a required argument rather than a reach for a global. That keeps
- * the package's boundary intact — it imports nothing and opens nothing on its
- * own — while letting
- * a caller hand over the one it already has, signed, proxied, retried or
- * instrumented as its deployment needs. A browser passes `window.fetch`; the
- * API passes an undici pool; a test passes the emulator's.
+ * `fetch` is a required argument rather than a reach for a global: the module
+ * imports nothing and opens nothing on its own, and a caller hands over the
+ * one it already has, signed, proxied, retried or instrumented as its
+ * deployment needs. The API passes an undici pool; a test passes the
+ * emulator's.
+ *
+ * This used to live in `packages/rdf-delta`, whose boundary is no `fs` and no
+ * network. A blob store is the storage side of a patch, not its derivation, so
+ * it moved here beside the other sink, `patchLogSql.ts`.
  *
  * The response is taken structurally for the same reason: naming `Response`
- * would put a DOM or undici type in the package's public surface, and every
- * consumer would then have to agree with us about which one.
+ * would pin a DOM or undici type into the signature, and every caller would
+ * then have to agree with us about which one.
  */
 
 import type {
@@ -67,7 +70,7 @@ export class BlobStoreError extends Error {
  *
  * Azure puts it in a header as well as the body; S3 only in the body. Reading
  * the header first is not a preference — a `HEAD`-like error response can carry
- * the header with an empty body, and `poc/blobSnapshot.ts` read only the body,
+ * the header with an empty body, and `poc/patch-log/blobSnapshot.ts` read only the body,
  * so it reported `undefined` for exactly the refusal it was written to explain.
  */
 async function errorCode(response: BlobResponseLike): Promise<string | undefined> {

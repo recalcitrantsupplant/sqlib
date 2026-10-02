@@ -2,14 +2,14 @@
  * One named graph, checkpointed to a blob and restored from it.
  *
  * This is the storage half of the blob sink — MVP-3's other sink, beside the
- * DuckDB log (`patchLog.ts`). It takes the graph as the unit of
+ * DuckDB log (`patchLogSql.ts`). It takes the graph as the unit of
  * serialization, the unit of addressing and the unit of contention, all three
  * at once, which is what makes a checkpoint cost the graph that changed
  * rather than the store it lives in.
  *
  * The measurements that gate it come from the blob-snapshot proof of concept
- * under `poc/`, and three of its findings shape the code here rather than
- * merely reporting a number:
+ * under `poc/patch-log/`, and three of its findings shape the code here rather
+ * than merely reporting a number:
  *
  * 1. **A dump is a stop, not a cost.** `Store.dump` is a synchronous call into
  *    wasm — ~16 ms per MB at 0.7 MB, 42–48 ms/MB above 100 MB — and the process
@@ -29,9 +29,12 @@
  * code checkpoints a server's store to a bucket and a browser's to IndexedDB.
  */
 
-import { derivePatch } from './derive.js';
-import { oxigraphDeltaStore, type OxigraphStoreLike } from './oxigraph.js';
-import { patchToSparqlUpdate } from './patch.js';
+import {
+  derivePatch,
+  oxigraphDeltaStore,
+  patchToSparqlUpdate,
+  type OxigraphStoreLike,
+} from '@sparql-query-lib/rdf-delta';
 import type { BlobPutCondition, ConditionalBlobStore } from './blobStore.js';
 
 /** N-Triples, because a per-graph blob does not repeat its own graph name. */
@@ -100,7 +103,7 @@ const encoder = new TextEncoder();
  * Serialize one named graph.
  *
  * Synchronous, and deliberately so: it is the pause, and a caller that wants to
- * measure it (`poc/blobSnapshot.ts`) has to be able to wrap the call itself
+ * measure it (`poc/patch-log/blobSnapshot.ts`) has to be able to wrap the call itself
  * rather than a promise around it.
  */
 export function dumpGraph(store: SnapshotStoreLike, graph: GraphNameLike): Uint8Array {
@@ -143,7 +146,7 @@ export function loadGraph(store: SnapshotStoreLike, graph: GraphNameLike, body: 
  * `dump` emits insertion order. Sorting the lines asks the question the caller
  * meant.
  *
- * WebCrypto rather than `node:crypto`, so this runs wherever the package does.
+ * WebCrypto rather than `node:crypto`, so this runs wherever the module does.
  */
 export async function contentDigest(body: Uint8Array): Promise<string> {
   const lines = new TextDecoder().decode(body).split('\n').filter(Boolean);
@@ -279,7 +282,7 @@ export interface RebaseResult {
  * contention unit, one number bounds both.
  *
  * A blob that has gone missing between attempts is created rather than treated
- * as unreadable. `poc/blobSnapshot.ts` threw there, which is right for a
+ * as unreadable. `poc/patch-log/blobSnapshot.ts` threw there, which is right for a
  * harness whose blob it created itself, and wrong for a sink: the graph then
  * has no checkpoint at all, and refusing to write one leaves it that way.
  */

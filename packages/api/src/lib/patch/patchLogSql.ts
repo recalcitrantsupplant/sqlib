@@ -5,9 +5,11 @@
  * as a DuckDB log sink plus an AS-OF view. A proof of concept measured the
  * cadence question against a synthetic log, and said of its SQL that *"if the
  * topology survives, the sink writes these statements"*. It survived, so this
- * is that file: the statements, moved out of `poc/patchLogSql.ts` and into the
- * package, with the proof of concept's generator left behind and importing
- * them from here.
+ * is that file: the statements, moved out of `poc/patch-log/patchLogSql.ts`,
+ * with the proof of concept's generator left behind and importing them from
+ * here. They first landed in `packages/rdf-delta` and moved to the API with the
+ * rest of the sink, because a SQL dialect is a storage decision and that
+ * package derives patches without storing them.
  *
  * Nothing here touches a database. These are string builders over a table
  * name, for the reason the POC gave and which holds better now than it did:

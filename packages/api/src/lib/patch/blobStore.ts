@@ -27,7 +27,7 @@
  *
  * ## Why the condition is a union rather than two optional headers
  *
- * `poc/blobSnapshot.ts` took `{ ifMatch?, ifNoneMatch? }`, which spells four
+ * `poc/patch-log/blobSnapshot.ts` took `{ ifMatch?, ifNoneMatch? }`, which spells four
  * states for a protocol that has three — and the fourth, *neither*, is an
  * unconditional overwrite: the one write a checkpoint must never make, since it
  * lands on top of whatever another writer put there and reports success. It is

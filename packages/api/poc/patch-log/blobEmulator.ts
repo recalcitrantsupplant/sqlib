@@ -6,7 +6,7 @@
  * PUT; two concurrent writers, one loses, rebase", and says it "should target
  * the one that will actually be deployed" — which is still undecided, so this
  * targets **both**, the only way to find out whether the choice matters to the
- * caller. It does; see `poc/blobRun.ts`.
+ * caller. It does; see `blobRun.ts`.
  *
  * ## What this is and is not
  *

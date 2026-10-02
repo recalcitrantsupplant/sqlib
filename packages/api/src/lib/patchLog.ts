@@ -3,7 +3,7 @@
  *
  * The delta-storage design puts "patch → DuckDB log" in its third milestone
  * and sizes it as "DuckDB log sink + AS-OF view". The sink's SQL is
- * `@sparql-query-lib/rdf-delta`'s `patchLog.ts`, promoted there from POC-2.
+ * `patch/patchLogSql.ts`, promoted from POC-2.
  * This module is the other half: turning what the triplestore holds into the
  * rows that SQL reads.
  *
@@ -20,7 +20,7 @@
 
 import rdfCanonize from 'rdf-canonize';
 import * as oxigraph from 'oxigraph';
-import { DEFAULT_GRAPH_COLUMN, type PatchLogRow } from '@sparql-query-lib/rdf-delta';
+import { DEFAULT_GRAPH_COLUMN, type PatchLogRow } from './patch/patchLogSql.js';
 import { termToNQuad, type RenderableQuad, type RenderableTerm } from './nquads.js';
 import type { LdkitPatch } from '../persistence/schemas/PatchSchema.js';
 

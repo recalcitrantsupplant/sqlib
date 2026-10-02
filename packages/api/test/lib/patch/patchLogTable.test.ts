@@ -1,7 +1,7 @@
 /**
  * The statements the *sink* writes, as opposed to the ones the POC generated.
  *
- * `test/patchLog.test.ts` checks the reconstruction rule against a replay
+ * `patchLog.test.ts` checks the reconstruction rule against a replay
  * oracle over a generated log, and that log is all named graphs and all ground
  * terms because a generator has no reason to produce anything else. A log built
  * from real patches does: the default graph is the common case, and the two
@@ -12,7 +12,7 @@
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { openDuck, type Duck } from '../poc/duckdb.js';
+import { openDuck, type Duck } from '../../../poc/patch-log/duckdb.js';
 import {
   DEFAULT_GRAPH_COLUMN,
   asOfSql,
@@ -22,7 +22,7 @@ import {
   latestArgMaxSql,
   nquadsSql,
   type PatchLogRow,
-} from '../src/patchLog.js';
+} from '../../../src/lib/patch/patchLogSql.js';
 
 const G = '<http://example.org/g>';
 const D = DEFAULT_GRAPH_COLUMN;

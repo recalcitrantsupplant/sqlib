@@ -20,7 +20,7 @@ it, or things that run without it.
 | `tools` | The MCP tool catalogue: 89 tool definitions and a registry | `contracts` |
 | `types` | Shared constants and types, including the feature-flag table | — |
 | `srl` | The SHACL 1.2 Shape Rules Language parser, compiler and stratifier | — |
-| `rdf-delta` | Derives what a SPARQL update would add and remove, without running it | — |
+| `rdf-delta` | Derives what a SPARQL update would add and remove, without running it; storing patches is the API's (`src/lib/patch/`) | — |
 | `runtime` | The parser-free runtime a static export bundle runs on | — |
 | `runtime-oxigraph` | An Oxigraph-backed executor for that runtime | — |
 
@@ -40,7 +40,11 @@ rather than copying is what makes "the client substitutes exactly as the server
 does" true by construction. The same argument produced `rdf-delta` as a package
 with no Fastify, no `fs` and no network dependency: server-side apply,
 browser-side apply and worker-side apply are then the same code, and where the
-patch log eventually lives becomes a choice of sink rather than a rewrite.
+patch log eventually lives becomes a choice of sink rather than a rewrite. The
+sinks themselves — DuckDB patch-log SQL, a conditional blob store over `fetch`,
+snapshot, checkpoint and rebase — are storage, so they live in
+`packages/api/src/lib/patch/` with their tests, and the proofs of concept behind
+them in `packages/api/poc/patch-log/`, which no build compiles.
 
 **A package exists where two consumers must agree about a document.**
 `contracts` holds the generated schemas, and `tools` holds the MCP catalogue

@@ -17,12 +17,10 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc --project tsconfig.json && tsc --project poc/tsconfig.json",
+    "build": "tsc --project tsconfig.json",
     "lint": "echo 'TODO: add lint'",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "poc:blob-snapshot": "tsx poc/blobRun.ts",
-    "poc:patch-log": "tsx poc/run.ts"
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@traqula/generator-sparql-1-2": "1.4.0",
@@ -30,11 +28,9 @@
     "@traqula/rules-sparql-1-2": "1.4.0"
   },
   "devDependencies": {
-    "@duckdb/node-api": "1.5.5-r.5",
     "@types/node": "^26.6.2",
     "oxigraph": "0.5.11",
     "rdf-canonize": "^5.0.0",
-    "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vitest": "^5.0.2"
   }

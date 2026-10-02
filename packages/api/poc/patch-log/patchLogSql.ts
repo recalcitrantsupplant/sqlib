@@ -15,7 +15,7 @@
  * JavaScript, so the measurement harness is checked for correctness by the
  * unit suite rather than trusted because it produced a number.
  *
- * **Since the topology survived, the reader SQL moved to `src/patchLog.ts`**
+ * **Since the topology survived, the reader SQL moved to `src/lib/patch/patchLogSql.ts`**
  * and is re-exported at the foot of this file, so the generator and the sink
  * cannot disagree about what they are reading. The storage shape below is
  * documented there too, and authoritatively; it is repeated here because the
@@ -200,9 +200,9 @@ FROM emitted;`;
 }
 
 /*
- * The reader SQL used to live here. It is now `src/patchLog.ts`: the POC's
- * question survived, and this file said of those statements that "if the topology survives, the sink
- * writes these statements" — so they moved to where the sink can import them,
+ * The reader SQL used to live here. It is now `src/lib/patch/patchLogSql.ts`:
+ * the POC's question survived, and this file said of those statements that "if
+ * the topology survives, the sink writes these statements" — so they moved to where the sink can import them,
  * and the POC imports them back rather than keeping a second copy that could
  * drift. What stays here is the half that is only ever a POC: the generator.
  */
@@ -213,4 +213,4 @@ export {
   latestArgMaxSql,
   latestQualifySql,
   nquadsSql,
-} from '../src/patchLog.js';
+} from '../../src/lib/patch/patchLogSql.js';

@@ -2,12 +2,12 @@
  * The POC-3 harness, checked rather than trusted.
  *
  * A POC's numbers are only worth as much as the thing that produced them, so
- * the parts of `poc/` that can be wrong in a way a timing would not reveal are
+ * the parts of `poc/patch-log/` that can be wrong in a way a timing would not reveal are
  * pinned here: the conditional-write protocol the emulator models, the two
  * properties the round trip claims about fidelity, and — the one that matters —
  * that a rebase which *re-derives* lands a different graph from one that
  * replays the patch it computed before the race. If those agreed, the design
- * argument in `poc/blobSnapshot.ts` would be decoration.
+ * argument in `poc/patch-log/blobSnapshot.ts` would be decoration.
  *
  * Deliberately small graphs throughout. This suite is about behaviour; the
  * sizes live in the harness, which is not run by CI.
@@ -16,9 +16,9 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import * as oxigraph from 'oxigraph';
 
-import { derivePatch, oxigraphDeltaStore, patchToSparqlUpdate } from '../src/index.js';
-import type { OxigraphStoreLike } from '../src/index.js';
-import { expectedConflictStatus, startBlobEmulator, type BlobEmulator } from '../poc/blobEmulator.js';
+import { derivePatch, oxigraphDeltaStore, patchToSparqlUpdate } from '@sparql-query-lib/rdf-delta';
+import type { OxigraphStoreLike } from '@sparql-query-lib/rdf-delta';
+import { expectedConflictStatus, startBlobEmulator, type BlobEmulator } from '../../../poc/patch-log/blobEmulator.js';
 import {
   contentDigest,
   getSnapshot,
@@ -26,7 +26,7 @@ import {
   rebaseAndRetry,
   restoreGraph,
   snapshotGraph,
-} from '../poc/blobSnapshot.js';
+} from '../../../poc/patch-log/blobSnapshot.js';
 
 const GRAPH = oxigraph.namedNode('http://ex/g');
 const OTHER = oxigraph.namedNode('http://ex/other');

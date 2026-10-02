@@ -25,7 +25,7 @@ export type {
   TemplatePart,
   UpdatePlan,
 } from './plan.js';
-export { derivePatch } from './derive.js';
+export { derivePatch, probeUnionDefaultGraph } from './derive.js';
 export type { DeriveOptions, Patch } from './derive.js';
 export type { DeltaStore, SimulationStore } from './deltaStore.js';
 export type { GraphOperationRecord } from './graphOps.js';
@@ -38,47 +38,6 @@ export {
   patchToSparqlUpdate,
 } from './patch.js';
 export type { RdfPatchOptions } from './patch.js';
-export {
-  SNAPSHOT_FORMAT,
-  SnapshotCapacityError,
-  RebaseExhaustedError,
-  checkpointGraph,
-  contentDigest,
-  dumpGraph,
-  loadGraph,
-  rebaseAndRetry,
-} from './blobSnapshot.js';
-export type {
-  CheckpointInputs,
-  CheckpointOutcome,
-  GraphNameLike,
-  RebaseInputs,
-  RebaseResult,
-  RebaseStoreLike,
-  SnapshotStoreLike,
-} from './blobSnapshot.js';
-export { memoryConditionalBlobStore } from './blobStore.js';
-export type {
-  BlobGetOutcome,
-  BlobPutCondition,
-  BlobPutOutcome,
-  ConditionalBlobStore,
-} from './blobStore.js';
-export { BlobStoreError, httpConditionalBlobStore } from './blobStoreHttp.js';
-export type { BlobFetch, BlobResponseLike, HttpBlobStoreOptions } from './blobStoreHttp.js';
-export {
-  DEFAULT_GRAPH_COLUMN,
-  asOfSql,
-  checkpointSql,
-  churnByPatchSql,
-  createPatchLogTableSql,
-  fromCheckpointSql,
-  hotQuadsSql,
-  latestArgMaxSql,
-  latestQualifySql,
-  nquadsSql,
-} from './patchLog.js';
-export type { PatchLogRow } from './patchLog.js';
 export {
   QuadSet,
   graphIri,

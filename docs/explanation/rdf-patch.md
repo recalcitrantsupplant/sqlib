@@ -169,6 +169,15 @@ caveats come from.
   earlier, so the end state is right — and the patch reports
   `netEffectExact: false`. Give the store a `has` method, which in-process Oxigraph
   has, and the answer is exact.
+- **A union default graph is probed for.** Fuseki with `unionDefaultGraph`,
+  Stardog with `query.all.graphs` and GraphDB answer `?s ?p ?o` with triples only
+  a named graph holds, so the existence check would call a named graph's triple
+  present in the default graph and drop an insertion of it. A store that does not
+  declare `unionDefaultGraph` is probed once with a read-only `SELECT`; on a union
+  store the default-graph check is scoped with `GRAPH ?g`, and a triple some named
+  graph holds is treated as absent from the default graph for an insertion and
+  kept for a deletion — both of which leave the end state right — with the patch
+  reporting `netEffectExact: false`.
 - **Simulation refuses one case outright**: a multi-operation program whose patch
   would carry blank nodes. A fork relabels them, so a deletion would name a node in
   the copy rather than in the store.
@@ -177,7 +186,11 @@ caveats come from.
 
 No Fastify, no `fs`, no network: pure functions over quad arrays and an abstract
 store, so server-side, browser-side and worker-side derivation are the same code,
-and where patches get stored stays a separate decision.
+and where patches get stored stays a separate decision. The storage side lives in
+the API, under `packages/api/src/lib/patch/`: the DuckDB patch-log SQL, the
+conditional blob store over Azure and S3, and per-graph snapshot, checkpoint and
+rebase. Its proofs of concept are in `packages/api/poc/patch-log/`, outside the
+build.
 
 It is also not a transaction manager. The window between deriving a patch and
 applying it is open unless the store closes it. In-process Oxigraph can close it
@@ -187,10 +200,12 @@ patch's content hash, and a mismatch is a 409 with a fresh preview.
 
 The derivation has an oracle, and the test suite is built on it: apply the update
 to store A, apply the derived patch to an identical store B, canonicalise both,
-assert isomorphism. Every supported form runs through it three times — against a
+assert isomorphism. Every supported form runs through it four times — against a
 populated store with exact membership, through the SPARQL-only path an HTTP backend
-takes, and over an empty store — and a harness test checks that the oracle itself
-can fail.
+takes, through a store that also relabels every response's blank nodes as an HTTP
+results parser does (where a patch carrying blank nodes must instead report that it
+cannot be applied as SPARQL text), and over an empty store — and a harness test
+checks that the oracle itself can fail.
 
 ```sh
 pnpm --filter @sparql-query-lib/rdf-delta test
