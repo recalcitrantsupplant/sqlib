@@ -1,4 +1,5 @@
 import { mintId } from './id.js';
+import { allocateVersion, setCurrentVersion } from './versionNumbering.js';
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
 import type { LdkitRuleSetVersion } from '../persistence/schemas/RuleSetVersionSchema.js';
 import { toLdkit } from '../persistence/utils/id-adapter.js';
@@ -34,13 +35,21 @@ export interface CreateRuleSetVersionInput {
 }
 
 /**
+ * Numbered and pointed at under the parent's version lock (`allocateVersion`),
+ * so concurrent saves get consecutive numbers and the last to finish is current.
+ */
+export async function createRuleSetVersion(ruleSetId: string, body: CreateRuleSetVersionInput): Promise<LdkitRuleSetVersion> {
+  return allocateVersion('RuleSetVersion', ruleSetId, (nextVersion) => createRuleSetVersionNumbered(ruleSetId, body, nextVersion));
+}
+
+/**
  * Creates a new immutable RuleSetVersion for the given RuleSet ID, automatically
  * assigning the next version number and updating the parent RuleSet's currentVersion.
  *
  * IMPORTANT: hasRule and hasDataBlock must contain Version IDs (RuleVersion/DataBlockVersion),
  * not parent entity IDs (Rule/DataBlock). This ensures immutable execution.
  */
-export async function createRuleSetVersion(ruleSetId: string, body: CreateRuleSetVersionInput): Promise<LdkitRuleSetVersion> {
+async function createRuleSetVersionNumbered(ruleSetId: string, body: CreateRuleSetVersionInput, nextVersion: number): Promise<LdkitRuleSetVersion> {
   const cacheCoordinator = getCacheCoordinator();
   // Validate that provided IDs are version entities
   const ruleIds = Array.isArray(body.hasRule) ? body.hasRule : [];
@@ -82,11 +91,6 @@ export async function createRuleSetVersion(ruleSetId: string, body: CreateRuleSe
     const ids = invalidDataBlockVersions.map(db => db.$id).join(', ');
     throw new Error(`Cannot add invalid DataBlockVersions to RuleSet: ${ids}`);
   }
-  const existing = (cacheCoordinator.list('RuleSetVersion') as LdkitRuleSetVersion[])
-    .filter(v => v.isPartOf === ruleSetId);
-  const nextVersion = existing.length > 0
-    ? (existing.sort((a, b) => Number(a.version) - Number(b.version))[existing.length - 1].version as number) + 1
-    : 1;
 
   const versionId = mintId('ruleSetVersion');
 
@@ -132,7 +136,7 @@ export async function createRuleSetVersion(ruleSetId: string, body: CreateRuleSe
 
   const created = await cacheCoordinator.create('RuleSetVersion', toLdkit(payload));
 
-  await cacheCoordinator.update('RuleSet', ruleSetId, { currentVersion: versionId });
+  await setCurrentVersion('RuleSet', ruleSetId, versionId);
 
   return created;
 }

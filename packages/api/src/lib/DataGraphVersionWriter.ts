@@ -1,6 +1,6 @@
 import { mintId } from './id.js';
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
-import { nextVersionNumber } from './versionNumbering.js';
+import { allocateVersion, setCurrentVersion } from './versionNumbering.js';
 import type { LdkitDataGraph } from '../persistence/schemas/DataGraphSchema.js';
 import type { LdkitDataGraphVersion } from '../persistence/schemas/DataGraphVersionSchema.js';
 import { toLdkit } from '../persistence/utils/id-adapter.js';
@@ -86,6 +86,14 @@ function assertLibraryBudget(dataGraphId: string, incomingBytes: number, exclude
 }
 
 /**
+ * Numbered and pointed at under the parent's version lock (`allocateVersion`),
+ * so concurrent saves get consecutive numbers and the last to finish is current.
+ */
+export async function createDataGraphVersion(dataGraphId: string, body: CreateDataGraphVersionInput): Promise<LdkitDataGraphVersion> {
+  return allocateVersion('DataGraphVersion', dataGraphId, (nextVersion) => createDataGraphVersionNumbered(dataGraphId, body, nextVersion));
+}
+
+/**
  * Create the next immutable DataGraphVersion and point the parent at it.
  *
  * Same shape as `createDataBlockVersion`, and deliberately so — the difference
@@ -93,12 +101,12 @@ function assertLibraryBudget(dataGraphId: string, incomingBytes: number, exclude
  * a ruleset runs against; a data block is part of the ruleset), not how it is
  * versioned.
  */
-export async function createDataGraphVersion(
+async function createDataGraphVersionNumbered(
   dataGraphId: string,
   body: CreateDataGraphVersionInput,
+  nextVersion: number,
 ): Promise<LdkitDataGraphVersion> {
   const cacheCoordinator = getCacheCoordinator();
-  const nextVersion = nextVersionNumber('DataGraphVersion', dataGraphId);
 
   const facts = inspectDataGraphContent(
     body.contentString ?? '',
@@ -140,10 +148,7 @@ export async function createDataGraphVersion(
 
   const created = await cacheCoordinator.create('DataGraphVersion', toLdkit(payload));
 
-  const updated = await cacheCoordinator.update('DataGraph', dataGraphId, { currentVersion: versionId });
-  if (!updated) {
-    throw new Error(`Failed to set currentVersion on DataGraph ${dataGraphId}`);
-  }
+  await setCurrentVersion('DataGraph', dataGraphId, versionId);
 
   // This is the entire "kept in sync" mechanism for in-memory Oxigraph backends
   // that track this graph's head: the head just moved, so any store hydrated

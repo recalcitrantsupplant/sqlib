@@ -1,6 +1,7 @@
 import type { FastifyRequest } from 'fastify';
 import { mintId } from './id.js';
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
+import { allocateVersion, setCurrentVersion } from './versionNumbering.js';
 import { requireLibraryMode, resolveOwningLibrary } from '../auth/enforce.js';
 import { toLdkit } from '../persistence/utils/id-adapter.js';
 import { parseTupleContent, readStoredTupleContent } from './tupleContent.js';
@@ -482,9 +483,20 @@ export class ArgumentSetService {
     }
   }
 
+  /** Numbered under the set's version lock (`allocateVersion`), with its pointer moved inside it. */
   async createVersion(
     argumentSetId: string,
     input: ArgumentSetVersionInput,
+    options?: { setCurrentVersion?: boolean; authScope?: ArgumentAuthScope }
+  ): Promise<ArgumentSetVersionDetail> {
+    return allocateVersion('ArgumentSetVersion', argumentSetId, (nextVersion) =>
+      this.createVersionNumbered(argumentSetId, input, nextVersion, options));
+  }
+
+  private async createVersionNumbered(
+    argumentSetId: string,
+    input: ArgumentSetVersionInput,
+    nextVersion: number,
     options?: { setCurrentVersion?: boolean; authScope?: ArgumentAuthScope }
   ): Promise<ArgumentSetVersionDetail> {
     const cacheCoordinator = getCacheCoordinator();
@@ -505,7 +517,6 @@ export class ArgumentSetService {
       this.requirePinnedSourcesReadable(input, options.authScope.request);
     }
 
-    const nextVersion = this.getNextVersionNumber(argumentSetId);
     const versionId = mintId('argumentSetVersion');
 
     const tupleBindingIds: string[] = [];
@@ -547,7 +558,7 @@ export class ArgumentSetService {
 
     const shouldSetCurrent = options?.setCurrentVersion ?? true;
     if (shouldSetCurrent) {
-      await cacheCoordinator.update('ArgumentSet', argumentSetId, { currentVersion: versionId });
+      await setCurrentVersion('ArgumentSet', argumentSetId, versionId);
     }
 
     const created = cacheCoordinator.get(versionId) as LdkitArgumentSetVersion;
@@ -991,13 +1002,6 @@ export class ArgumentSetService {
     }
     const all = (cacheCoordinator.list('ArgumentSetVersion') as LdkitArgumentSetVersion[]) || [];
     return all.find(version => version.$id === versionId) ?? null;
-  }
-
-  private getNextVersionNumber(argumentSetId: string): number {
-    const versions = this.findVersionsForSet(argumentSetId);
-    if (!versions.length) return 1;
-    const maxVersion = Math.max(...versions.map(v => v.version ?? 0));
-    return maxVersion + 1;
   }
 
   private async deleteVersionBindings(version: LdkitArgumentSetVersion): Promise<void> {
