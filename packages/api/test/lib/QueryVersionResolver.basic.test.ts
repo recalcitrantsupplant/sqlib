@@ -1,57 +1,28 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { QueryTypeIri } from '../../src/constants/queryTypes.js';
 import { expandQueryVersion } from '../../src/lib/QueryVersionResolver.js';
 import type { LdkitQueryVersion } from '../../src/persistence/schemas/QueryVersionSchema.js';
-
-const hoisted = vi.hoisted(() => ({
-  mockGet: vi.fn().mockReturnValue(null),
-}));
-
-// Mock the CacheCoordinatorProvider
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
-  getCacheCoordinator: () => ({
-    get: hoisted.mockGet,
-  }),
-}));
-
-// Mock all the LDKit persistence utils
-vi.mock('../../src/persistence/utils/LimitParameterUtils.js', () => ({
-  loadLimitParametersByIds: vi.fn().mockResolvedValue([]),
-}));
-
-vi.mock('../../src/persistence/utils/OffsetParameterUtils.js', () => ({
-  loadOffsetParametersByIds: vi.fn().mockResolvedValue([]),
-}));
-
-vi.mock('../../src/persistence/utils/QueryInputTupleUtils.js', () => ({
-  loadQueryInputTuplesByIds: vi.fn().mockResolvedValue([]),
-}));
-
-vi.mock('../../src/persistence/utils/QueryInputUtils.js', () => ({
-  loadQueryInputsByIds: vi.fn().mockResolvedValue([]),
-}));
-
-vi.mock('../../src/persistence/utils/QueryOutputUtils.js', () => ({
-  loadQueryOutputsByIds: vi.fn().mockResolvedValue([]),
-}));
-
-vi.mock('../../src/persistence/utils/QueryOutputTupleUtils.js', () => ({
-  loadQueryOutputTuplesByIds: vi.fn().mockResolvedValue([]),
-}));
-
-vi.mock('../../src/persistence/utils/TriplesQuadsIOUtils.js', () => ({
-  loadTriplesQuadsIOsByIds: vi.fn().mockResolvedValue([]),
-}));
-
-vi.mock('../../src/persistence/utils/BooleanIOUtils.js', () => ({
-  loadBooleanIOsByIds: vi.fn().mockResolvedValue([]),
-}));
-
-vi.mock('../../src/persistence/utils/TupleMemberUtils.js', () => ({
-  loadTupleMembersByIds: vi.fn().mockResolvedValue([]),
-}));
+import { installFakePersistenceAdapter } from '../support/fakePersistenceAdapter.js';
 
 describe('QueryVersionResolver - Basic Tests', () => {
+  let store: Awaited<ReturnType<typeof installFakePersistenceAdapter>>;
+
+  beforeEach(async () => {
+    // One output tuple with one member; the other ids the versions name are unknown.
+    store = await installFakePersistenceAdapter([
+      {
+        type: 'QueryOutputTuple',
+        entity: { $id: 'urn:test:output-tuple:789', '@type': 'QueryOutputTuple', memberEntries: ['urn:test:member:1'] },
+      },
+      {
+        type: 'TupleMember',
+        entity: { $id: 'urn:test:member:1', '@type': 'TupleMember', position: 0, variable: 'urn:test:output:x' },
+      },
+    ]);
+  });
+
+  afterEach(() => store.restore());
+
   it('should return outputTuples field in expanded response', async () => {
     // Create a mock QueryVersion with inferredOutputs
     const mockQueryVersion: LdkitQueryVersion = {
@@ -66,17 +37,15 @@ describe('QueryVersionResolver - Basic Tests', () => {
 
     const expanded = await expandQueryVersion(mockQueryVersion);
 
-    console.log('Test expanded keys:', Object.keys(expanded));
-    console.log('Test outputTuples:', expanded.outputTuples);
-    console.log('Test outputTuples length:', expanded.outputTuples?.length);
-
     // Basic structure checks
     expect(expanded).toHaveProperty('queryVersion');
     expect(expanded).toHaveProperty('outputTuples');
     expect(Array.isArray(expanded.outputTuples)).toBe(true);
 
-    // outputTuples should be defined (may be empty if entities not in cache)
-    expect(expanded.outputTuples).toBeDefined();
+    // The stored output tuple the version names is resolved into it
+    expect(expanded.outputTuples).toEqual([
+      expect.objectContaining({ id: 'urn:test:output-tuple:789', memberEntries: ['urn:test:member:1'] }),
+    ]);
   });
 
   it('should handle empty inferredOutputs correctly', async () => {
@@ -92,10 +61,6 @@ describe('QueryVersionResolver - Basic Tests', () => {
     };
 
     const expanded = await expandQueryVersion(mockQueryVersion);
-
-    console.log('Empty test expanded keys:', Object.keys(expanded));
-    console.log('Empty test outputTuples:', expanded.outputTuples);
-    console.log('Empty test JSON:', JSON.stringify(expanded, null, 2));
 
     // outputTuples should exist even if empty
     expect(expanded).toHaveProperty('outputTuples');
@@ -117,11 +82,6 @@ describe('QueryVersionResolver - Basic Tests', () => {
     const expanded = await expandQueryVersion(mockQueryVersion);
     const jsonString = JSON.stringify(expanded);
     const parsed = JSON.parse(jsonString);
-
-    console.log('JSON test - original keys:', Object.keys(expanded));
-    console.log('JSON test - parsed keys:', Object.keys(parsed));
-    console.log('JSON test - original outputTuples:', expanded.outputTuples);
-    console.log('JSON test - parsed outputTuples:', parsed.outputTuples);
 
     // JSON round-trip should preserve the field
     expect(parsed).toHaveProperty('outputTuples');

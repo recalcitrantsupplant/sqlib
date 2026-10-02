@@ -3,45 +3,9 @@
  */
 
 import * as QueryEdgeUtils from '../../src/persistence/utils/QueryEdgeUtils.js';
-import { vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { log } from '../../src/lib/log.js';
-
-// In-memory LDKit lens for this suite
-vi.mock('../../src/persistence/utils/entityRepository', () => {
-  const store = new Map<string, any>();
-  const lens = {
-    insert: async (obj: any) => {
-      const id = obj.$id ?? obj['@id'];
-      const norm = { ...obj, '@id': id, $id: id };
-      store.set(id, norm);
-      return norm;
-    },
-    findByIri: async (id: string) => store.get(id) ?? null,
-    find: async () => Array.from(store.values()),
-    update: async (obj: any) => {
-      const id = obj.$id ?? obj['@id'];
-      const ex = store.get(id) ?? { '@id': id, $id: id };
-      const merged = { ...ex, ...obj };
-
-      // Explicitly handle properties that are set to undefined or null in the update object
-      for (const key in obj) {
-        if (obj[key] === undefined || obj[key] === null) {
-          delete merged[key];
-        }
-      }
-      store.set(id, merged);
-      return merged;
-    },
-    delete: async (id: string) => { store.delete(id); },
-  };
-  return { createRepositoryLens: () => lens };
-});
-
-vi.mock('../../src/persistence/utils/QueryGroupUtils', () => ({
-  QueryGroups: {
-    findByIri: vi.fn(),
-  },
-}));
+import { installFakePersistenceAdapter } from '../support/fakePersistenceAdapter.js';
 
 describe('QueryEdgeUtils (LDKit Integration)', () => {
   const testEdgeId = 'http://example.org/test-edge';
@@ -49,19 +13,16 @@ describe('QueryEdgeUtils (LDKit Integration)', () => {
   const sourceNodeId = 'http://example.org/from-node';
   const targetNodeId = 'http://example.org/to-node';
   const thirdNodeId = 'http://example.org/third-node';
-  const queryGroupVersionId = 'http://example.org/test-group-version';
 
-  afterEach(async () => {
-    // Clean up test data
-    try {
-      await QueryEdgeUtils.QueryEdges.delete(testEdgeId);
-      await QueryEdgeUtils.QueryEdges.delete(anotherEdgeId);
-      await QueryEdgeUtils.QueryEdges.delete('http://example.org/edge-to-delete');
-      await QueryEdgeUtils.QueryEdges.delete('http://example.org/edge-from-third');
-      await QueryEdgeUtils.QueryEdges.delete('http://example.org/edge-to-third');
-    } catch (error) {
-      // Ignore cleanup errors
-    }
+  let store: Awaited<ReturnType<typeof installFakePersistenceAdapter>>;
+
+  beforeEach(async () => {
+    store = await installFakePersistenceAdapter();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    store.restore();
   });
 
   it('should create and find a query edge', async () => {
@@ -79,7 +40,7 @@ describe('QueryEdgeUtils (LDKit Integration)', () => {
 
     // Find it back
     const found = await QueryEdgeUtils.QueryEdges.findByIri(testEdgeId);
-    expect(found).toBeDefined();
+    expect(found).not.toBeNull();
     expect(found!.sourceNodeId).toBe(sourceNodeId);
     expect(found!.targetNodeId).toBe(targetNodeId);
   });
@@ -92,7 +53,7 @@ describe('QueryEdgeUtils (LDKit Integration)', () => {
     });
     expect(edge.$id).toBe(anotherEdgeId);
     const found = await QueryEdgeUtils.QueryEdges.findByIri(anotherEdgeId);
-    expect(found).toBeDefined();
+    expect(found).not.toBeNull();
   });
 
   it('should create a query edge without optional fields', async () => {
@@ -199,13 +160,13 @@ describe('QueryEdgeUtils (LDKit Integration)', () => {
     await expect(QueryEdgeUtils.createQueryEdge({
       $id: testEdgeId,
       targetNodeId,
-    } as any)).rejects.toThrow('QueryEdge requires both sourceNodeId and targetNodeId');
+    } as never)).rejects.toThrow('QueryEdge requires both sourceNodeId and targetNodeId');
 
     // Missing targetNodeId
     await expect(QueryEdgeUtils.createQueryEdge({
       $id: testEdgeId,
       sourceNodeId,
-    } as any)).rejects.toThrow('QueryEdge requires both sourceNodeId and targetNodeId');
+    } as never)).rejects.toThrow('QueryEdge requires both sourceNodeId and targetNodeId');
   });
 
   describe('updateQueryEdge', () => {
@@ -264,9 +225,7 @@ describe('QueryEdgeUtils (LDKit Integration)', () => {
 
     it('should return false and log error if delete fails', async () => {
       const logErrorSpy = vi.spyOn(log, 'error');
-      // Mock the delete method of the lens to throw an error
-      const originalDelete = QueryEdgeUtils.QueryEdges.delete;
-      (QueryEdgeUtils.QueryEdges.delete as any) = vi.fn().mockRejectedValue(new Error('Mock delete error'));
+      vi.spyOn(QueryEdgeUtils.QueryEdges, 'delete').mockRejectedValue(new Error('Mock delete error'));
 
       const success = await QueryEdgeUtils.deleteQueryEdge('http://example.org/non-existent-edge');
       expect(success).toBe(false);
@@ -274,9 +233,6 @@ describe('QueryEdgeUtils (LDKit Integration)', () => {
         expect.objectContaining({ err: expect.any(Error), id: 'http://example.org/non-existent-edge' }),
         expect.stringContaining('Failed to delete QueryEdge'),
       );
-
-      logErrorSpy.mockRestore();
-      QueryEdgeUtils.QueryEdges.delete = originalDelete; // Restore original mock
     });
   });
 
@@ -320,10 +276,10 @@ describe('QueryEdgeUtils (LDKit Integration)', () => {
       expect(deletedIds).toContain(edge2);
 
       // Verify they are gone
-      expect(await QueryEdgeUtils.QueryEdges.findByIri(edge1)).toBeNull();
-      expect(await QueryEdgeUtils.QueryEdges.findByIri(edge2)).toBeNull();
+      expect(store.get(edge1)).toBeUndefined();
+      expect(store.get(edge2)).toBeUndefined();
       // Verify other edge is still there
-      expect(await QueryEdgeUtils.QueryEdges.findByIri(edge3)).toBeDefined();
+      expect(store.get(edge3)).toMatchObject({ $id: edge3 });
     });
 
     it('should return empty array if no edges connected to node', async () => {
@@ -335,14 +291,10 @@ describe('QueryEdgeUtils (LDKit Integration)', () => {
       // Spy on the LDKit delete function to simulate a failure at a lower level.
       // This is necessary because deleteEdgesByNode calls deleteQueryEdge within the same module,
       // which can bypass spies on deleteQueryEdge itself.
-      const deleteSpy = vi.spyOn(QueryEdgeUtils.QueryEdges, 'delete').mockImplementation(async (...identities: (string | { $id: string })[]) => {
-        const firstIdentity = identities[0];
-        const id = typeof firstIdentity === 'string' ? firstIdentity : firstIdentity.$id;
-        if (id === edge1) {
-          throw new Error('Mock LDKit delete error');
-        }
-        // For edge2, we let it succeed by doing nothing (the underlying mock store won't be changed,
-        // but deleteQueryEdge will return true as no error is thrown).
+      const realDelete = QueryEdgeUtils.QueryEdges.delete.bind(QueryEdgeUtils.QueryEdges);
+      vi.spyOn(QueryEdgeUtils.QueryEdges, 'delete').mockImplementation(async (id: string) => {
+        if (id === edge1) throw new Error('Mock delete error');
+        await realDelete(id);
       });
       const logErrorSpy = vi.spyOn(log, 'error');
 
@@ -359,16 +311,9 @@ describe('QueryEdgeUtils (LDKit Integration)', () => {
         expect.stringContaining('Failed to delete QueryEdge'),
       );
 
-      // Verify state in mock store
-      // edge1 should still exist because its deletion failed
-      expect(await QueryEdgeUtils.QueryEdges.findByIri(edge1)).toBeDefined();
-      // edge2 will also still exist in the mock store because our spy doesn't delete it,
-      // but the test correctly verifies that deleteEdgesByNode reports it as a success.
-      expect(await QueryEdgeUtils.QueryEdges.findByIri(edge2)).toBeDefined();
-
-      // Restore mocks
-      deleteSpy.mockRestore();
-      logErrorSpy.mockRestore();
+      // edge1 is still stored because its deletion failed; edge2 is gone
+      expect(store.get(edge1)).toMatchObject({ $id: edge1 });
+      expect(store.get(edge2)).toBeUndefined();
     });
   });
 });

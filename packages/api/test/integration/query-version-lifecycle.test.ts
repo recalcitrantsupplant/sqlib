@@ -11,89 +11,22 @@
  * (`packages/web/src/lib/entityLifecycle.ts`) relies on all three, and
  * relied on them silently until this file.
  *
- * The store is a real `MemoryCacheManager` rather than a mock, because an
- * invariant asserted against a double is an invariant about the double.
+ * The routes, repositories and cache coordinator are the real ones, over the
+ * in-memory store from `test/support/fakePersistenceAdapter.ts`, and the
+ * invariants are checked against what that store holds: an invariant asserted
+ * against a mocked repository is an invariant about the mock.
  *
  * Companion to `docs/explanation/versioning-and-immutability.md`.
  */
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import Fastify, { FastifyInstance } from 'fastify';
-import { MemoryCacheManager } from '../../src/lib/MemoryCacheManager.js';
 import queryRoutes from '../../src/routes/queries.js';
 import * as schemas from '@sparql-query-lib/contracts/schema';
 import { setupValidator } from '../../src/lib/validator-setup.js';
 import { registerNoStoreHook } from '../../src/lib/httpCaching.js';
+import { installFakePersistenceAdapter } from '../support/fakePersistenceAdapter.js';
 
-let cacheManager: MemoryCacheManager | null = null;
-
-const hoisted = vi.hoisted(() => ({
-  list: vi.fn((type: string) => cacheManager?.getByType(type as never) ?? []),
-  get: vi.fn((id: string) => cacheManager?.get(id) ?? null),
-  create: vi.fn((type: string, entity: never) => cacheManager!.create(entity, type as never)),
-  update: vi.fn((type: string, id: string, updates: never) => cacheManager!.update(id, updates, type as never)),
-  delete: vi.fn((type: string, id: string) => cacheManager!.delete(id, type as never)),
-  resolveExisting: vi.fn(async (id: string) => {
-    const entity = cacheManager?.get(id) as { '@type'?: string } | null;
-    return entity ? { type: entity['@type'], entity } : null;
-  }),
-}));
-
-vi.mock('../../src/persistence/adapterRegistry', async () => {
-  const { lensBackedAdapter } = await import('../persistence/lensBackedAdapter.js');
-  return { getPersistenceAdapter: () => lensBackedAdapter, setPersistenceAdapter: () => {} };
-});
-
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
-  getCacheCoordinator: () => ({
-    list: hoisted.list,
-    get: hoisted.get,
-    create: hoisted.create,
-    update: hoisted.update,
-    delete: hoisted.delete,
-    resolveExisting: hoisted.resolveExisting,
-  }),
-  getEntityRepositories: () => ({
-    Query: {
-      list: () => hoisted.list('Query'),
-      get: (id: string) => hoisted.get(id),
-      create: (entity: never) => hoisted.create('Query', entity),
-      update: (id: string, updates: never) => hoisted.update('Query', id, updates),
-      delete: (id: string) => hoisted.delete('Query', id),
-    },
-    QueryVersion: {
-      list: () => hoisted.list('QueryVersion'),
-      get: (id: string) => hoisted.get(id),
-      create: (entity: never) => hoisted.create('QueryVersion', entity),
-      update: (id: string, updates: never) => hoisted.update('QueryVersion', id, updates),
-      delete: (id: string) => hoisted.delete('QueryVersion', id),
-    },
-    Library: {
-      list: () => hoisted.list('Library'),
-      get: (id: string) => hoisted.get(id),
-      create: (entity: never) => hoisted.create('Library', entity),
-      update: (id: string, updates: never) => hoisted.update('Library', id, updates),
-      delete: (id: string) => hoisted.delete('Library', id),
-    },
-  }),
-}));
-
-vi.mock('../../src/persistence/utils/entityRepository.js', () => ({
-  loadAllSystemEntities: vi.fn().mockResolvedValue(new Map()),
-  createRepositoryLens: vi.fn(() => ({
-    insert: vi.fn().mockResolvedValue(undefined),
-    update: vi.fn().mockResolvedValue(undefined),
-    delete: vi.fn().mockResolvedValue(undefined),
-    find: vi.fn().mockResolvedValue([]),
-    findByIri: vi.fn().mockResolvedValue(null),
-    insertData: vi.fn().mockResolvedValue(undefined),
-    deleteData: vi.fn().mockResolvedValue(undefined),
-  })),
-}));
-
-vi.mock('../../src/persistence/utils/id-adapter.js', () => ({
-  toRestApi: vi.fn((entity) => ({ id: entity.$id, ...entity })),
-  toLdkit: vi.fn((entity) => entity),
-}));
+let store: Awaited<ReturnType<typeof installFakePersistenceAdapter>> | null = null;
 
 const LIBRARY_ID = 'urn:sqlib:library:lifecycle';
 
@@ -128,11 +61,11 @@ interface StoredVersion {
 }
 
 function storedQuery(id: string): StoredQuery | null {
-  return (cacheManager?.get(id) as StoredQuery | null) ?? null;
+  return (store?.get(id) as StoredQuery | undefined) ?? null;
 }
 
 function storedVersions(queryId: string): StoredVersion[] {
-  const all = (cacheManager?.getByType('QueryVersion' as never) ?? []) as unknown as StoredVersion[];
+  const all = (store?.all('QueryVersion') ?? []) as unknown as StoredVersion[];
   return all
     .filter((version) => version.isPartOf === queryId)
     .sort((a, b) => Number(a.version) - Number(b.version));
@@ -179,19 +112,23 @@ function checkInvariants(queryId: string): string[] {
 describe('query + version lifecycle invariants', () => {
   let app: FastifyInstance;
 
+  /** A fresh store holding only the library the queries go in. */
+  async function freshStore(): Promise<void> {
+    store?.restore();
+    store = await installFakePersistenceAdapter([
+      { type: 'Library', entity: { $id: LIBRARY_ID, '@type': 'Library', name: 'Lifecycle' } },
+    ]);
+  }
+
   beforeEach(async () => {
-    vi.clearAllMocks();
-    cacheManager = new MemoryCacheManager();
-    await cacheManager.loadAll();
-    await cacheManager.create(
-      { $id: LIBRARY_ID, '@type': 'Library', name: 'Lifecycle' } as never,
-      'Library' as never
-    );
+    await freshStore();
     app = await buildTestApp();
   });
 
   afterEach(async () => {
     if (app) await app.close();
+    store?.restore();
+    store = null;
   });
 
   async function createQuery(name: string): Promise<string> {
@@ -309,12 +246,7 @@ describe('query + version lifecycle invariants', () => {
     ];
 
     for (const order of interleavings) {
-      cacheManager = new MemoryCacheManager();
-      await cacheManager.loadAll();
-      await cacheManager.create(
-        { $id: LIBRARY_ID, '@type': 'Library', name: 'Lifecycle' } as never,
-        'Library' as never
-      );
+      await freshStore();
 
       const ids = [await createQuery('A'), await createQuery('B')];
       const counts = [0, 0];

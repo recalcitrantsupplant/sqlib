@@ -17,48 +17,22 @@ import { BackendTypeIri } from '../../src/persistence/schemas/BackendSchema.js';
 import { setupValidator } from '../../src/lib/validator-setup.js';
 import { resetChangeSubscribers, subscribeChanges, type FeedEvent } from '../../src/lib/changeEvents.js';
 import { resetReadOnly } from '../../src/config/readOnly.js';
+import { installFakePersistenceAdapter } from '../support/fakePersistenceAdapter.js';
 
 const BACKEND_ID = 'urn:sqlib:backend:proxy-record';
 
-const { patchStore, patchRepo } = vi.hoisted(() => {
-  const store = new Map<string, Record<string, unknown>>();
-  return {
-    patchStore: store,
-    patchRepo: {
-      get: (id: string) => store.get(id) ?? null,
-      list: () => [...store.values()],
-      create: async (entity: Record<string, unknown>) => {
-        const record = { ...entity, '@type': 'Patch', dateCreated: new Date().toISOString() };
-        store.set(entity.$id as string, record);
-        return record;
-      },
-      update: async (id: string, updates: Record<string, unknown>) => {
-        const current = store.get(id);
-        if (!current) return null;
-        const next = { ...current, ...updates };
-        store.set(id, next);
-        return next;
-      },
-      delete: async (id: string) => {
-        store.delete(id);
-      },
+let patchStore: Awaited<ReturnType<typeof installFakePersistenceAdapter>>;
+
+beforeEach(async () => {
+  patchStore = await installFakePersistenceAdapter([
+    {
+      type: 'Backend',
+      entity: { $id: BACKEND_ID, name: 'Proxy record test', backendType: BackendTypeIri.oxigraphEphemeral },
     },
-  };
+  ]);
 });
 
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
-  getEntityRepositories: () => ({ Patch: patchRepo }),
-  getCacheCoordinator: () => ({ get: () => null }),
-}));
-
-vi.mock('../../src/persistence/utils/BackendUtils.js', () => ({
-  Backends: {
-    findByIri: async (iri: string) =>
-      iri === BACKEND_ID
-        ? { $id: BACKEND_ID, name: 'Proxy record test', backendType: BackendTypeIri.oxigraphEphemeral }
-        : null,
-  },
-}));
+afterEach(() => patchStore.restore());
 
 const SEED = `
 <http://ex/a> <http://ex/status> "draft" .
@@ -91,7 +65,6 @@ describe('/sparql?record=patch', () => {
   });
 
   beforeEach(() => {
-    patchStore.clear();
     resetChangeSubscribers();
     const fresh = oxigraphStoreManager.createEphemeralStore(BACKEND_ID);
     fresh.update('DELETE { ?s ?p ?o } WHERE { ?s ?p ?o }');
@@ -162,7 +135,7 @@ describe('/sparql?record=patch', () => {
       expect(response.headers.allow).toBe('POST');
       expect(response.json().error).toContain('POST /sparql');
     }
-    expect(patchStore.size).toBe(0);
+    expect(patchStore.all('Patch')).toHaveLength(0);
     expect(statuses()).toEqual(['draft', 'draft', 'live']);
   });
 
@@ -184,7 +157,7 @@ describe('/sparql?record=patch', () => {
     });
 
     expect(response.statusCode).toBe(204);
-    expect(patchStore.size).toBe(0);
+    expect(patchStore.all('Patch')).toHaveLength(0);
     expect(statuses()).toEqual(['live', 'live', 'live']);
   });
 
@@ -201,7 +174,7 @@ describe('/sparql?record=patch', () => {
     });
 
     expect(response.statusCode).toBe(500);
-    const recorded = [...patchStore.values()];
+    const recorded = patchStore.all('Patch');
     expect(recorded).toHaveLength(1);
     expect(recorded[0].patchStatus).toBe('failed');
     // Nothing landed, so nothing says it did: the log reads `dateApplied` to
@@ -219,7 +192,7 @@ describe('/sparql?record=patch', () => {
 
     expect(response.statusCode).toBe(400);
     expect(response.json().error).toContain('updates only');
-    expect(patchStore.size).toBe(0);
+    expect(patchStore.all('Patch')).toHaveLength(0);
   });
 
   it('refuses to record against an ad-hoc endpoint, before running anything', async () => {
@@ -284,7 +257,6 @@ describe('/sparql?record=patch on a read-only deployment', () => {
   });
 
   beforeEach(() => {
-    patchStore.clear();
     process.env.SQLIB_READ_ONLY = 'true';
     resetReadOnly();
     const fresh = oxigraphStoreManager.createEphemeralStore(BACKEND_ID);
@@ -310,7 +282,7 @@ describe('/sparql?record=patch on a read-only deployment', () => {
 
     expect(response.statusCode).toBe(405);
     expect(response.json().error).toContain('read-only');
-    expect(patchStore.size).toBe(0);
+    expect(patchStore.all('Patch')).toHaveLength(0);
     expect(statuses()).toEqual(['draft', 'draft', 'live']);
   });
 
@@ -323,7 +295,7 @@ describe('/sparql?record=patch on a read-only deployment', () => {
 
     expect(response.statusCode).toBe(405);
     expect(response.json().error).toContain('read-only');
-    expect(patchStore.size).toBe(0);
+    expect(patchStore.all('Patch')).toHaveLength(0);
     expect(statuses()).toEqual(['draft', 'draft', 'live']);
   });
 

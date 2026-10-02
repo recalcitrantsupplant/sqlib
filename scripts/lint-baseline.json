@@ -1,0 +1,36 @@
+{
+  "api": {
+    "@typescript-eslint/ban-ts-comment": 2,
+    "@typescript-eslint/no-explicit-any": 1098,
+    "@typescript-eslint/no-require-imports": 2,
+    "@typescript-eslint/no-this-alias": 1,
+    "no-case-declarations": 1,
+    "no-control-regex": 2,
+    "no-empty": 4,
+    "no-useless-assignment": 13,
+    "no-useless-escape": 5,
+    "prefer-const": 6,
+    "preserve-caught-error": 32,
+    "unused-imports/no-unused-vars": 104
+  },
+  "contracts": {
+    "@typescript-eslint/no-explicit-any": 1,
+    "unused-imports/no-unused-vars": 18
+  },
+  "mcp-server": {
+    "@typescript-eslint/no-explicit-any": 6
+  },
+  "srl": {
+    "@typescript-eslint/no-explicit-any": 54
+  },
+  "types": {
+    "@typescript-eslint/no-explicit-any": 2
+  },
+  "web": {
+    "@typescript-eslint/ban-ts-comment": 13,
+    "@typescript-eslint/no-explicit-any": 75,
+    "@typescript-eslint/no-require-imports": 1,
+    "no-useless-assignment": 2,
+    "unused-imports/no-unused-vars": 5
+  }
+}

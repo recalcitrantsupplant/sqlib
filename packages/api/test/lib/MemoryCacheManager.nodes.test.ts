@@ -1,59 +1,18 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { memoryCacheManager } from '../../src/lib/MemoryCacheManager.js';
 import { toLdkit } from '../../src/persistence/utils/id-adapter.js';
-
-// Mock the LDKit repositories to avoid SPARQL dependencies
-vi.mock('../../src/persistence/utils/QueryNodeUtils.js', () => ({
-  QueryNodes: {
-    insert: vi.fn(),
-    find: vi.fn().mockResolvedValue([]),
-  }
-}));
-
-// The boot load has to be stubbed too, not just the repositories above: it reads
-// every registered type from the store, and this suite never stands one up.
-vi.mock('../../src/persistence/utils/entityRepository.js', () => ({
-  loadAllSystemEntities: vi.fn(async () => new Map()),
-  createRepositoryLens: vi.fn(),
-}));
-
-// This suite's subject is cache logic; storage is a stub. It runs against a
-// double built from those stubs (see lensBackedAdapter), so what is asserted is
-// what the cache did, not what the persistence layer did.
-vi.mock('../../src/persistence/adapterRegistry', async () => {
-  const { lensBackedAdapter } = await import('../persistence/lensBackedAdapter.js');
-  return { getPersistenceAdapter: () => lensBackedAdapter, setPersistenceAdapter: () => {} };
-});
-
-vi.mock('../../src/persistence/utils/StartNodeUtils.js', () => ({
-  StartNodes: {
-    insert: vi.fn(),
-    find: vi.fn().mockResolvedValue([]),
-  }
-}));
-
-vi.mock('../../src/persistence/utils/EndNodeUtils.js', () => ({
-  EndNodes: {
-    insert: vi.fn(),
-    find: vi.fn().mockResolvedValue([]),
-  }
-}));
-
-vi.mock('../../src/persistence/utils/QueryEdgeUtils.js', () => ({
-  QueryEdges: {
-    insert: vi.fn(),
-    find: vi.fn().mockResolvedValue([]),
-  }
-}));
+import { installFakePersistenceAdapter } from '../support/fakePersistenceAdapter.js';
 
 describe('MemoryCacheManager - Node Entity Creation', () => {
-  beforeEach(async () => {
-    // Initialize cache manager (this loads from mocked repositories)
-    await memoryCacheManager.loadAll();
+  let store: Awaited<ReturnType<typeof installFakePersistenceAdapter>>;
 
-    // Reset mocks after loading
-    vi.clearAllMocks();
+  beforeEach(async () => {
+    // An empty store, and the cache manager loaded from it
+    store = await installFakePersistenceAdapter();
+    await memoryCacheManager.loadAll();
   });
+
+  afterEach(() => store.restore());
 
   describe('QueryNode creation', () => {
     it('should create and cache a QueryNode entity', async () => {
@@ -81,6 +40,13 @@ describe('MemoryCacheManager - Node Entity Creation', () => {
       expect(cached).toBeDefined();
       expect(cached).toEqual(created);
       expect((cached as any)['@type']).toBe('QueryNode');
+
+      // And written through to the store
+      expect(store.get('urn:test:node:1')).toMatchObject({
+        queryId: 'urn:test:query-version:1',
+        backendId: 'urn:test:backend:1',
+        outputs: ['urn:test:output-tuple:1'],
+      });
     });
 
     it('should handle QueryNode with minimal required fields', async () => {
@@ -169,6 +135,11 @@ describe('MemoryCacheManager - Node Entity Creation', () => {
       expect(cached).toBeDefined();
       expect((cached as any)['@type']).toBe('QueryEdge');
       expect((cached as any).dataFlowType).toBe('VARIABLE_BINDINGS');
+      expect(store.get('urn:test:edge:1')).toMatchObject({
+        sourceNodeId: 'urn:test:node:source',
+        targetNodeId: 'urn:test:node:target',
+        dataFlowType: 'VARIABLE_BINDINGS',
+      });
     });
   });
 
@@ -247,6 +218,9 @@ describe('MemoryCacheManager - Node Entity Creation', () => {
       expect(stats.entityTypes.QueryNode?.count).toBe(2);
       expect(stats.entityTypes.StartNode?.count).toBe(1);
       expect(stats.entityTypes.EndNode?.count).toBe(1);
+      expect(store.all('QueryNode')).toHaveLength(2);
+      expect(store.all('StartNode')).toHaveLength(1);
+      expect(store.all('EndNode')).toHaveLength(1);
     });
   });
 });

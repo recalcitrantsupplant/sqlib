@@ -50,15 +50,23 @@ function typeOfSchema(schema: Schema): string {
   return iri.slice(Math.max(iri.lastIndexOf('#'), iri.lastIndexOf('/')) + 1) || iri;
 }
 
+/**
+ * What can be seeded: an `LDKitEntity`, or a value typed by one of the schema
+ * interfaces (`LdkitQuery`, `LdkitBackend`, ...), which have no index signature
+ * and so are not assignable to `LDKitEntity` on their own.
+ */
+export type Seedable = LDKitEntity | { readonly $id: string };
+
 export class FakePersistenceAdapter implements PersistenceAdapter {
   private readonly rows = new Map<string, { type: string; entity: LDKitEntity }>();
 
-  constructor(seed: ReadonlyArray<{ type: EntityType; entity: LDKitEntity }> = []) {
+  constructor(seed: ReadonlyArray<{ type: EntityType; entity: Seedable }> = []) {
     for (const { type, entity } of seed) this.put(type, entity);
   }
 
   /** Seeds or replaces an entity without going through `insert`. */
-  put(type: string, entity: LDKitEntity): this {
+  put(type: string, seedable: Seedable): this {
+    const entity = seedable as LDKitEntity;
     this.rows.set(entity.$id, { type, entity: structuredClone({ ...entity, '@type': entity['@type'] ?? type }) });
     return this;
   }
@@ -147,7 +155,7 @@ export class FakePersistenceAdapter implements PersistenceAdapter {
  * the real lenses and an empty coordinator: call it in `afterEach`.
  */
 export async function installFakePersistenceAdapter(
-  seed: ReadonlyArray<{ type: EntityType; entity: LDKitEntity }> = [],
+  seed: ReadonlyArray<{ type: EntityType; entity: Seedable }> = [],
 ): Promise<FakePersistenceAdapter & { restore(): void }> {
   const saved = { CACHE_WRITE_THROUGH: process.env.CACHE_WRITE_THROUGH, CACHE_PRELOAD: process.env.CACHE_PRELOAD };
   process.env.CACHE_WRITE_THROUGH = 'true';

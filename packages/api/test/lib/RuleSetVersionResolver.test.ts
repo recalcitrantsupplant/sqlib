@@ -1,62 +1,51 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { expandRuleSetVersion } from '../../src/lib/RuleSetVersionResolver.js';
 import type { LdkitRuleSetVersion } from '../../src/persistence/schemas/RuleSetVersionSchema.js';
-import type { LdkitRuleVersion } from '../../src/persistence/schemas/RuleVersionSchema.js';
-import type { LdkitDataBlockVersion } from '../../src/persistence/schemas/DataBlockVersionSchema.js';
-
-const hoisted = vi.hoisted(() => ({
-  mockGet: vi.fn(),
-}));
-
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
-  getCacheCoordinator: () => ({
-    get: hoisted.mockGet,
-  }),
-}));
-
-vi.mock('../../src/persistence/utils/RuleVersionUtils.js', () => ({
-  loadRuleVersionsByIds: vi.fn(async (ids: string[]) => ids.map(id => ({
-    $id: id,
-    '@type': 'RuleVersion',
-    isPartOf: 'urn:rule:1',
-    version: 1,
-    ruleString: 'RULE {} WHERE {}',
-    immutable: 'false',
-  } as unknown as LdkitRuleVersion))),
-  findRuleVersionById: vi.fn(),
-}));
-
-vi.mock('../../src/persistence/utils/DataBlockVersionUtils.js', () => ({
-  loadDataBlockVersionsByIds: vi.fn(async (ids: string[]) => ids.map(id => ({
-    $id: id,
-    '@type': 'DataBlockVersion',
-    isPartOf: 'urn:db:1',
-    version: 1,
-    dataString: 'DATA {}',
-    immutable: 'true',
-  } as unknown as LdkitDataBlockVersion))),
-  findDataBlockVersionById: vi.fn(),
-}));
-
-vi.mock('../../src/persistence/utils/RuleUtils.js', () => ({
-  findRuleById: vi.fn(async (_id: string) => null),
-}));
-
-vi.mock('../../src/persistence/utils/DataBlockUtils.js', () => ({
-  findDataBlockById: vi.fn(async (_id: string) => null),
-}));
+import { installFakePersistenceAdapter } from '../support/fakePersistenceAdapter.js';
 
 describe('RuleSetVersionResolver', () => {
+  let store: Awaited<ReturnType<typeof installFakePersistenceAdapter>>;
+
+  beforeEach(async () => {
+    // Stored with the flags as strings, which is how a literal can come back.
+    store = await installFakePersistenceAdapter([
+      {
+        type: 'RuleVersion',
+        entity: {
+          $id: 'urn:sqlib:rule-version:1',
+          '@type': 'RuleVersion',
+          isPartOf: 'urn:rule:1',
+          version: 1,
+          ruleString: 'RULE {} WHERE {}',
+          immutable: 'false',
+        },
+      },
+      {
+        type: 'DataBlockVersion',
+        entity: {
+          $id: 'urn:sqlib:data-block-version:1',
+          '@type': 'DataBlockVersion',
+          isPartOf: 'urn:db:1',
+          version: 1,
+          dataString: 'DATA {}',
+          immutable: 'true',
+        },
+      },
+    ]);
+  });
+
+  afterEach(() => store.restore());
+
   it('coerces immutable flags on rule set version and nested entities to booleans', async () => {
-    const version: LdkitRuleSetVersion = {
+    const version = {
       $id: 'urn:sqlib:ruleset-version:1',
       '@type': 'RuleSetVersion',
       isPartOf: 'urn:sqlib:ruleset:1',
       version: 1,
-      immutable: 'false' as any,
+      immutable: 'false',
       hasRule: ['urn:sqlib:rule-version:1'],
       hasDataBlock: ['urn:sqlib:data-block-version:1'],
-    };
+    } as unknown as LdkitRuleSetVersion;
 
     const expanded = await expandRuleSetVersion(version);
 
