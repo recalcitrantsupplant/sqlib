@@ -40,7 +40,6 @@
   },
   "scripts": {
     "build": "tsup src/index.ts --format esm,cjs --external oxigraph --clean false && tsc --project tsconfig.json --emitDeclarationOnly && node ../../scripts/emit-cjs-declarations.mjs dist",
-    "lint": "echo 'TODO: add lint script'",
     "test": "vitest run"
   },
   "keywords": [

@@ -94,7 +94,7 @@ export function useQueryExecution(deps: UseQueryExecutionDeps) {
 
     isExecuting.value = true;
     executionResult.value = null;
-    deps.activeResultsTab && (deps.activeResultsTab.value = 'results');
+    if (deps.activeResultsTab) deps.activeResultsTab.value = 'results';
     return true;
   };
 
@@ -110,12 +110,6 @@ export function useQueryExecution(deps: UseQueryExecutionDeps) {
     const normalizedContentType = contentType.split(';')[0].trim().toLowerCase();
 
     const isJsonContentType = normalizedContentType.includes('json');
-    const isCsvTsvContentType =
-      normalizedContentType === 'text/csv' ||
-      normalizedContentType === 'text/tab-separated-values';
-    const isNTriplesNQuadsContentType =
-      normalizedContentType === 'application/n-triples' ||
-      normalizedContentType === 'application/n-quads';
 
     if (response.body && response.body.trim().length > 0 && isJsonContentType) {
       try {

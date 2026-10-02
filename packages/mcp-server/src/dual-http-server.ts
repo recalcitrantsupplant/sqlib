@@ -21,7 +21,9 @@ async function loadConfigureApp(): Promise<ConfigureAppFn> {
       // Installed as a package, with no source checkout beside us. Said out
       // loud rather than swallowed: when the source *is* there, a failure here
       // is a broken dev tree, and falling through in silence is what made a
-      // stale `dist` look like a working server.
+      // stale `dist` look like a working server. No Fastify instance, and so no
+      // logger, exists yet.
+      // eslint-disable-next-line no-console
       console.warn(
         `[dual-http-server] Could not load the API source at ${devModulePath} ` +
           `(${error instanceof Error ? error.message : String(error)}); ` +

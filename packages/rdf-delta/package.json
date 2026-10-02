@@ -18,7 +18,6 @@
   ],
   "scripts": {
     "build": "tsc --project tsconfig.json && tsc --project poc/tsconfig.json",
-    "lint": "echo 'TODO: add lint'",
     "test": "vitest run",
     "test:watch": "vitest",
     "poc:blob-snapshot": "tsx poc/blobRun.ts",

@@ -7,7 +7,6 @@ import {
   type QueryVersionExpandedWithIriMap,
   type QueryVersionForQueryCreateInput,
   type QueryVersion,
-  type QueryVersionPatchInput,
 } from '@sparql-query-lib/contracts';
 import type { QueryFormInput } from '../types/query.js';
 import type { QueryVersionFormInput } from '../types/queryVersion.js';

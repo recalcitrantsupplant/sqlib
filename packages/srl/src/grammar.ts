@@ -3,7 +3,7 @@ import { sparql12ParserBuilder } from '@traqula/parser-sparql-1-2';
 import { gram as g, lex as l } from '@traqula/rules-sparql-1-1';
 import { srlTokenVocabulary } from './lexer.js';
 import { assignOp, dataKeyword, notKeyword, ruleKeyword, setKeyword } from './tokens.js';
-import { srlTuple, srlTupleSeedDoc, tupleKeyword } from './tuples/grammar.js';
+import { srlTuple, srlTupleSeedDoc } from './tuples/grammar.js';
 
 /**
  * SRL has no `EXISTS` and no `NOT EXISTS`, and this is where they get in.

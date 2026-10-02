@@ -41,7 +41,7 @@ function parseRdfValue(value: string, detectPlainUris: boolean = false): string 
   }
 
   // Literal with datatype: "value"^^<datatype> (N-Triples/TSV style)
-  const datatypeMatch = trimmed.match(/^"((?:[^"\\]|\\.)*)"(?:\^\^<([^>]+)>)?(?:@([a-zA-Z\-]+))?$/);
+  const datatypeMatch = trimmed.match(/^"((?:[^"\\]|\\.)*)"(?:\^\^<([^>]+)>)?(?:@([a-zA-Z-]+))?$/);
   if (datatypeMatch) {
     const literalValue = datatypeMatch[1]
       .replace(/\\"/g, '"')

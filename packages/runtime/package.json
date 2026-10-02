@@ -60,7 +60,6 @@
   },
   "scripts": {
     "build": "tsup src/index.ts src/args-element.ts src/browser.ts --format esm,cjs --clean false && tsc --project tsconfig.json --emitDeclarationOnly && node ../../scripts/emit-cjs-declarations.mjs dist",
-    "lint": "echo 'TODO: add lint script'",
     "test": "vitest run"
   },
   "keywords": [

@@ -14,7 +14,6 @@
   },
   "scripts": {
     "build": "tsup src/index.ts --format esm,cjs --clean false && tsc --project tsconfig.json --emitDeclarationOnly",
-    "lint": "echo 'TODO: add lint script'",
     "test": "echo 'TODO: add tests'"
   },
   "devDependencies": {
