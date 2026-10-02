@@ -1205,7 +1205,9 @@ const iriString = z
  */
 const sparqlBindingValueSchema = z
   .object({
-    type: z.enum(['uri', 'literal']),
+    // All four SPARQL Results JSON spellings: \`normalizeArguments\` folds
+    // \`typed-literal\` and refuses \`bnode\` with a message that says why.
+    type: z.enum(['uri', 'literal', 'typed-literal', 'bnode']),
     value: z.string(),
     'xml:lang': z.string().optional(),
     datatype: iriString.optional(),
@@ -1223,17 +1225,21 @@ const executionArgumentHeadSchema = z
   })
   .strict();
 
-const executionArgumentPayloadSchema = z
+const executionArgumentResultsSchema = z
   .object({
     bindings: z.array(sparqlBindingSchema),
   })
   .strict();
 
+/**
+ * One argument: a SPARQL Query Results JSON document. At most one per VALUES
+ * parameter; a parameter left out runs unconstrained, one with zero rows
+ * matches nothing.
+ */
 export const executionArgumentSchema = z
   .object({
     head: executionArgumentHeadSchema,
-    arguments: executionArgumentPayloadSchema,
-    whenEmpty: z.enum(['unconstrained', 'propagateEmpty', 'require']).optional(),
+    results: executionArgumentResultsSchema,
   })
   .strict();
 
@@ -1494,6 +1500,13 @@ export type RuleSetExecutionRequest = z.infer<typeof ruleSetExecutionRequestSche
 export const ruleSetExecutionResponseSchema = z
   .object({
     status: z.enum(['converged', 'cycle', 'maxIterations', 'failed']),
+    /**
+     * Why a failed run failed, in the executor's own words — a stratification
+     * cycle, an invalid rule, a rule's SPARQL error. The executor always set
+     * it; the schema did not declare it, so the serializer stripped it and a
+     * client saw status failed with no reason.
+     */
+    error: z.string().nullable().optional(),
     iterations: z.array(iterationRecordSchema),
     dataBlocks: z.array(dataBlockExecutionSchema),
     /**

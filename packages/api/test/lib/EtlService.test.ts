@@ -80,6 +80,40 @@ describe('EtlService', () => {
     });
   });
 
+  describe('defaultBackend', () => {
+    const backend = 'urn:sqlib:backend:warehouse';
+
+    it('is unset on a new job, which means the in-memory store', async () => {
+      const result = await service.createEtlJob({ name: 'Load', libraryId: 'lib1' });
+      expect(result.defaultBackend).toBeUndefined();
+      expect(store.get(`urn:sqlib:etl-job:${result.id}`).defaultBackend).toBeUndefined();
+    });
+
+    it('is set, reported and cleared through updateEtlJob', async () => {
+      const created = await service.createEtlJob({ name: 'Load', libraryId: 'lib1' });
+      const urn = `urn:sqlib:etl-job:${created.id}`;
+
+      const set = await service.updateEtlJob(created.id, { defaultBackend: backend });
+      expect(set?.defaultBackend).toBe(backend);
+      expect(store.get(urn).defaultBackend).toBe(backend);
+      expect((await service.getEtlJob(created.id))?.defaultBackend).toBe(backend);
+
+      const renamed = await service.updateEtlJob(created.id, { name: 'Load 2' });
+      expect(renamed?.defaultBackend).toBe(backend);
+
+      const cleared = await service.updateEtlJob(created.id, { defaultBackend: null });
+      expect(cleared?.defaultBackend).toBeUndefined();
+      expect(store.get(urn).defaultBackend).toBeNull();
+    });
+
+    it('stores the in-memory backend as unset, since that is what unset means', async () => {
+      const created = await service.createEtlJob({
+        name: 'Load', libraryId: 'lib1', defaultBackend: 'urn:sparql-query-lib:backend:ephemeral',
+      });
+      expect(created.defaultBackend).toBeUndefined();
+    });
+  });
+
   describe('createEtlJobVersion', () => {
     it('creates first version with version number 1', async () => {
       store.set('urn:sqlib:etl-job:job1', {

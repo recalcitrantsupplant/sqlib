@@ -137,7 +137,7 @@ describe('GET /argument-sets/:id/export', () => {
     expect(payload.arguments).toHaveLength(1);
     expect(payload.arguments[0]).toEqual({
       head: { vars: ['term'] },
-      arguments: { bindings: [{ term: { type: 'literal', value: 'rdf-star' } }] },
+      results: { bindings: [{ term: { type: 'literal', value: 'rdf-star' } }] },
     });
   });
 
@@ -150,7 +150,7 @@ describe('GET /argument-sets/:id/export', () => {
 
   it('answers a set from its current version', async () => {
     const payload = JSON.parse((await exportOf(SET_ID)).body);
-    expect(payload.arguments[0].arguments.bindings[0].term.value).toBe('rdf-star');
+    expect(payload.arguments[0].results.bindings[0].term.value).toBe('rdf-star');
   });
 
   it('answers a version IRI from that version, not from the set current one', async () => {
@@ -158,7 +158,7 @@ describe('GET /argument-sets/:id/export', () => {
 
     expect(res.statusCode).toBe(200);
     const payload = JSON.parse(res.body);
-    expect(payload.arguments[0].arguments.bindings[0].term.value).toBe('shacl');
+    expect(payload.arguments[0].results.bindings[0].term.value).toBe('shacl');
     // v2's limit belongs to v2 alone.
     expect(payload.limits).toEqual([]);
   });

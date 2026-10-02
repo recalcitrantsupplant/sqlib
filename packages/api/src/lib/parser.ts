@@ -16,8 +16,8 @@ import { logger, SeverityNumber } from './logger.js'; // Import OTEL logger
 // is what makes "the client substitutes exactly as the server does" true by
 // construction (`docs/guides/static-export.md`).
 import {
-  alignArgumentSets,
   applyTemplateArguments,
+  completeArgumentSets,
   isSafeVariableName,
   serializeIri,
   serializeTerm,
@@ -92,7 +92,7 @@ type EmptyArgumentMode = 'unconstrained' | 'propagateEmpty' | 'require';
 
 interface ApplyArgumentSet {
   head: { vars: string[] };
-  arguments: { bindings: Array<Record<string, ArgumentValue | null | undefined>> };
+  results: { bindings: Array<Record<string, ArgumentValue | null | undefined>> };
   whenEmpty?: EmptyArgumentMode;
 }
 
@@ -576,15 +576,15 @@ export class SparqlQueryParser {
 
   /**
    * Applies structured arguments to a SPARQL query by replacing UNDEF values in matching VALUES clauses.
-   * Each argument set in the input array should correspond to one VALUES clause with an UNDEF row, matched in order of appearance.
+   * Each argument set fills at most one VALUES clause with an UNDEF row, matched by the variables it
+   * names. A clause no set names runs unconstrained.
    *
    * @param queryString The original SPARQL query string.
-   * @param argumentSets An array of argument sets, each mimicking SPARQL Results JSON but with an 'arguments' object containing a 'bindings' array.
-   *                     Example: [{ head: { vars: ["var1", "var2"] }, arguments: { bindings: [{ var1: { type: "literal", value: "a" }, var2: { type: "uri", value: "http://example.com/a" } }] } }]
+   * @param argumentSets SPARQL Results JSON documents, already normalised.
+   *                     Example: [{ head: { vars: ["var1", "var2"] }, results: { bindings: [{ var1: { type: "literal", value: "a" }, var2: { type: "uri", value: "http://example.com/a" } }] } }]
    * @returns The modified query string with arguments applied.
-   * @throws Error if the number of UNDEF VALUES clauses doesn't match the number of argument sets,
-   *         if variables in a VALUES clause don't match the corresponding argument set header,
-   *         or if invalid argument types are provided.
+   * @throws Error if an argument set matches no remaining VALUES clause, if a required input
+   *         received no rows, or if invalid argument types are provided.
    */
   applyArguments(queryString: string, argumentSets: ApplyArgumentSet[]): string {
     const template = this.getVerifiedTemplate(queryString);
@@ -630,34 +630,22 @@ export class SparqlQueryParser {
       undefValuesPatterns.push({ pattern, variables: this.valuesVariableNames(pattern) });
     });
 
-    // --- Now apply arguments to the found patterns ---
-    if (undefValuesPatterns.length !== argumentSets.length) {
-      throw new Error(`Mismatch: Found ${undefValuesPatterns.length} UNDEF VALUES clauses, but received ${argumentSets.length} argument sets.`);
-    }
-
     // Prefixes declared by the query, used to keep inserted IRIs abbreviated.
     const prefixes = this.collectPrefixes(parsedQuery);
 
     /*
-     * Pair sets with patterns by the variables they name, not by arrival order —
-     * the same alignment the runtime does, imported rather than repeated, so
-     * what an exported page previews is what this substitutes. A payload with no
-     * matching arrangement keeps the caller's order, leaving the per-pattern
-     * checks below to report the mismatch.
+     * Pair sets with patterns by the variables they name, not by arrival order,
+     * filling an omitted slot as unconstrained and refusing a set that fits no
+     * slot — the runtime's own completion, imported rather than repeated, so
+     * what an exported page previews is what this substitutes.
      */
-    const ordered =
-      alignArgumentSets(
-        undefValuesPatterns.map(({ variables }) => variables),
-        argumentSets,
-      ) ?? argumentSets;
+    const ordered = completeArgumentSets(
+      undefValuesPatterns.map(({ variables }) => variables),
+      argumentSets as TemplateArgumentSet[],
+    ) as ApplyArgumentSet[];
 
     undefValuesPatterns.forEach(({ pattern, variables }, index) => {
       const argSet = ordered[index];
-
-      // Validate argument set structure
-      if (!argSet || !argSet.head || !Array.isArray(argSet.head.vars) || !argSet.arguments || !Array.isArray(argSet.arguments.bindings)) {
-        throw new Error(`Invalid structure for argument set at index ${index}. Expected { head: { vars: [...] }, arguments: { bindings: [...] } }.`);
-      }
 
       const patternVars = [...variables].sort();
       const argVars = [...argSet.head.vars].sort() as string[]; // Sort copies for comparison
@@ -666,7 +654,7 @@ export class SparqlQueryParser {
         throw new Error(`Variable mismatch for VALUES clause ${index + 1}. Query expects [${patternVars.join(', ')}], arguments provide [${argVars.join(', ')}].`);
       }
 
-      const bindings = argSet.arguments.bindings;
+      const bindings = argSet.results.bindings;
       const isAllUndef = (row: Record<string, ArgumentValue | null | undefined> | null | undefined) =>
         row == null || Object.values(row).every(value => value == null);
       const wildcardRows = bindings.filter(isAllUndef);
@@ -925,7 +913,7 @@ export class SparqlQueryParser {
         whenEmpty?: EmptyArgumentMode,
       ): TemplateArgumentSet => ({
         head: { vars },
-        arguments: { bindings },
+        results: { bindings },
         ...(whenEmpty ? { whenEmpty } : {}),
       });
       const candidates: TemplateArgumentSet[] = [

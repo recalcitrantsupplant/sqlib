@@ -130,8 +130,58 @@
 
       <SplashActivityLog :entries="activity" @open="openEntity" />
 
-      <SplashStatusStrip :backend="backendFact" :tests="testsFact" />
+      <!--
+        The library's default backend, editable where the library is: the strip
+        below states it as a fact, and on a deployment that can write it is a
+        fact you can change in place rather than through the library dialog.
+      -->
+      <div v-if="canEditLibraryBackend" class="library-backend" data-testid="splash-default-backend">
+        <StatusBadge
+          :tone="backendFact?.tone ?? 'neutral'"
+          size="xs"
+          :dot="!!backendFact"
+          :title="backendFact?.title ?? 'This library has no default backend'"
+          data-testid="splash-backend"
+        >
+          Default backend
+        </StatusBadge>
+        <div class="library-backend-select">
+          <!--
+            Keyed on the label: the backend list can land after the library,
+            and the combobox only redraws its text when the value changes, so
+            without this it would go on showing the id it first fell back to.
+          -->
+          <SearchSelect
+            :key="backendLabel(currentBackendId)"
+            test-id="splash-default-backend-select"
+            aria-label="Default backend of this library"
+            placeholder="None"
+            empty-label="None"
+            :model-value="pendingBackend ?? currentBackendId"
+            :options="libraryBackendOptions"
+            :disabled="savingBackend"
+            @update:model-value="pickLibraryBackend"
+          />
+        </div>
+      </div>
+
+      <SplashStatusStrip :backend="canEditLibraryBackend ? null : backendFact" :tests="testsFact" />
     </div>
+
+    <AlertDialog v-model:open="backendConfirmOpen">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Change the default backend of “{{ activeLibraryName }}”?</AlertDialogTitle>
+          <AlertDialogDescription>{{ backendConfirmMessage }}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel @click="cancelBackendChange">Keep {{ backendLabel(currentBackendId) }}</AlertDialogCancel>
+          <AlertDialogAction data-testid="confirm-library-backend" @click="confirmBackendChange">
+            Change it
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   </div>
 </template>
 
@@ -145,9 +195,23 @@
  * same shape on every deployment, and shows an em dash where its count would
  * be: zero is a fact about a library, "not in this deployment" is not.
  */
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { Check, Library, Pencil, Plus, Search, Trash2 } from '@lucide/vue';
+import { toast } from 'vue-sonner';
+import { EPHEMERAL_BACKEND_ID } from '@sparql-query-lib/types';
 import SectionLabel from './shared/SectionLabel.vue';
+import SearchSelect from './shared/SearchSelect.vue';
+import StatusBadge from './shared/StatusBadge.vue';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './ui/alert-dialog';
 import EmptyState from './shared/EmptyState.vue';
 import SplashCountCard from './splash/SplashCountCard.vue';
 import SplashActivityLog from './splash/SplashActivityLog.vue';
@@ -161,6 +225,8 @@ import { useDeploymentMode } from '../composables/useDeploymentMode';
 import { useCommandPalette } from '../composables/useCommandPalette';
 import { useLibraryInventory, type ActivityEntry } from '../composables/useLibraryInventory';
 import { useBackendsStore } from '../composables/useBackendsStore';
+import { isBrowserBackendId } from '../composables/useBrowserBackends';
+import { useLibrariesStore } from '../composables/useLibrariesStore';
 import { useBackendProbes, type BackendHealth } from '../composables/useBackendProbes';
 import { useTestsStore } from '../composables/useTestsStore';
 import { isInLibrary } from '../composables/useEntityKinds';
@@ -180,6 +246,7 @@ const { isReadOnly, ensureLoaded: ensureDeploymentMode } = useDeploymentMode();
 const { openPalette } = useCommandPalette();
 const { counts, totalItems, activity, load: loadInventory } = useLibraryInventory(activeLibraryId);
 const backendsStore = useBackendsStore();
+const librariesStore = useLibrariesStore();
 const { healthFor, loadProbes } = useBackendProbes();
 const testsStore = useTestsStore();
 
@@ -199,9 +266,10 @@ const librariesTitle = computed(() =>
  * divider because it is account-level, heads the second row here for the same
  * reason: it is where the inputs start.
  *
- * Build is left out, as it always was. It is a screen rather than a section and
- * its future is not settled; naming it here would promise something this grid
- * cannot keep.
+ * MCP is left out, as Build was before it. It is a screen rather than a
+ * section, and it is about this deployment's MCP server rather than about
+ * anything the library holds, so it has nothing to count in a grid of library
+ * contents.
  */
 const CARD_ORDER: RailSection[] = [
   'notebooks', 'queries', 'queryGroups', 'rules', 'etl',
@@ -215,7 +283,7 @@ const FAMILY_OF: Record<RailSection, 'definition' | 'input' | 'evidence' | 'axis
   queryGroups: 'definition',
   rules: 'definition',
   etl: 'definition',
-  build: 'definition',
+  mcp: 'definition',
   backends: 'axis',
   dataGraphs: 'input',
   tupleSets: 'input',
@@ -267,6 +335,104 @@ const backendFact = computed<StripFact | null>(() => {
   };
 });
 
+/* ------------------------------------------------------------------ *
+ * The library's default backend, in place
+ * ------------------------------------------------------------------ */
+
+const activeLibrary = computed(
+  () => libraries.value.find((library) => library.id === activeLibraryId.value) ?? null,
+);
+const currentBackendId = computed(() => activeLibrary.value?.defaultBackend ?? null);
+
+/* The same rule as the rename and delete buttons above: a read-only deployment writes nothing. */
+const canEditLibraryBackend = computed(() => !!activeLibrary.value && !isReadOnly.value);
+
+/*
+ * The library dialog's list: no in-memory store (an ephemeral backend cannot be
+ * a library default), and no browser backends, which the server has never heard
+ * of. Whatever the library points at now stays listed, so an unknown id shows
+ * as itself rather than as None.
+ */
+const libraryBackendOptions = computed(() => {
+  const options = backendsStore.backends.value
+    .filter((backend) => backend.id !== EPHEMERAL_BACKEND_ID && !isBrowserBackendId(backend.id))
+    .map((backend) => ({ value: backend.id, label: backend.name }));
+  const current = currentBackendId.value;
+  if (current && !options.some((option) => option.value === current)) {
+    options.push({ value: current, label: current });
+  }
+  return options;
+});
+
+function backendLabel(id: string | null): string {
+  if (!id) return 'None';
+  return backendsStore.backends.value.find((backend) => backend.id === id)?.name ?? id;
+}
+
+const pendingBackend = ref<string | null>(null);
+const savingBackend = ref(false);
+const backendConfirmOpen = ref(false);
+
+const backendConfirmMessage = computed(() => {
+  const from = backendLabel(currentBackendId.value);
+  const next = pendingBackend.value;
+  if (!next) {
+    return `This will clear the library's default backend, ${from}. `
+      + 'Queries without their own default will have no backend until one is picked.';
+  }
+  const to = backendLabel(next);
+  return `This will change the library's default backend from ${from} to ${to}. `
+    + `Queries without their own default will run on ${to}.`;
+});
+
+/**
+ * Setting a default where there was none just saves; replacing or clearing one
+ * moves every query that leans on it, so that asks first.
+ */
+function pickLibraryBackend(value: string) {
+  const next = value || null;
+  if (next === currentBackendId.value) return;
+  pendingBackend.value = next;
+  if (currentBackendId.value) {
+    backendConfirmOpen.value = true;
+    return;
+  }
+  void saveLibraryBackend(next);
+}
+
+function cancelBackendChange() {
+  pendingBackend.value = null;
+}
+
+/* Escape or a click outside is a Cancel too; the picker goes back to what is saved. */
+watch(backendConfirmOpen, (open) => {
+  if (!open && !savingBackend.value) pendingBackend.value = null;
+});
+
+function confirmBackendChange() {
+  void saveLibraryBackend(pendingBackend.value);
+}
+
+/**
+ * The library dialog's save, with the record re-read first: that refreshes the
+ * If-Match the update sends and carries the name and description through
+ * unchanged, so this one field cannot overwrite an edit made elsewhere.
+ */
+async function saveLibraryBackend(next: string | null) {
+  const library = activeLibrary.value;
+  if (!library) return;
+  savingBackend.value = true;
+  try {
+    const loaded = await librariesStore.fetchLibrary(library.id);
+    await librariesStore.updateLibrary(library.id, { ...loaded.form, defaultBackend: next });
+  } catch (error) {
+    toast.error(error instanceof Error ? error.message : 'Failed to change the default backend');
+  } finally {
+    savingBackend.value = false;
+    pendingBackend.value = null;
+  }
+}
+
 /**
  * The verdicts this browser holds, as one line.
  *
@@ -298,6 +464,7 @@ onMounted(() => {
   void ensureDeploymentMode();
   void loadInventory();
   void loadProbes();
+  if (backendsStore.backends.value.length === 0) void backendsStore.loadBackends();
 });
 </script>
 
@@ -517,6 +684,17 @@ onMounted(() => {
   font-family: inherit;
   font-size: var(--text-body);
   cursor: pointer;
+}
+
+.library-backend {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.library-backend-select {
+  width: 240px;
+  max-width: 100%;
 }
 
 .new-library:hover,

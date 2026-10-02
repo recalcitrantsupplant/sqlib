@@ -143,6 +143,14 @@ const createRuleSetVersionBodySchema = {
     hasRule: { type: 'array', items: { type: 'string' }, nullable: true },
     hasDataBlock: { type: 'array', items: { type: 'string' }, nullable: true },
     immutable: { type: 'boolean', nullable: true },
+    /*
+     * The rule-set half of the invalid-save override. `POST /rules/:id/versions`
+     * and `POST /data-blocks/:id/versions` already accept it, and
+     * `createRuleSetVersion` documents that both halves are needed: without this
+     * one a caller could store an invalid rule over REST that no rule set could
+     * then reference. Honoured only under `rulesAllowInvalidSave`.
+     */
+    allowInvalidSave: { type: 'boolean', nullable: true },
   },
   additionalProperties: false,
 } as const;
@@ -516,6 +524,7 @@ export default async function (fastify: FastifyInstance) {
         hasRule: body.hasRule ?? [],
         hasDataBlock: body.hasDataBlock ?? [],
         immutable: body.immutable ?? undefined,
+        allowInvalidSave: body.allowInvalidSave ?? undefined,
       }, { request });
       const expanded = await expandRuleSetVersion(created);
       setEntityConcurrencyHeaders(reply, created);

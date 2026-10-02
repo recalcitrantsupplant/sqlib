@@ -60,16 +60,41 @@ detection matches `/\bLIMIT\s+000(\d+)\b/i`. The literal value is what the query
 runs with when no argument is supplied, so an unparameterised run still
 executes.
 
-**How values are applied.** At execution the query is parsed and the reserved
-all-UNDEF row is replaced by the supplied rows inside the parsed structure; a
-named limit or offset has its number substituted. Argument values are never
-concatenated into query text. A supplied row may bind only some of a clause's
-variables — an unbound cell stays `UNDEF`, matching anything — but an all-UNDEF
-row cannot be mixed with bound rows in one argument.
+**How values are applied.** Each argument for a table parameter is a **SPARQL
+Query Results JSON** document, the shape a SELECT returns:
 
-When a parameter receives no rows at all, the edge or input feeding it carries a
-`whenEmpty` policy: `unconstrained` drops the clause and runs open,
-`propagateEmpty` propagates the empty result, `require` refuses the run.
+```json
+{ "head": { "vars": ["city"] },
+  "results": { "bindings": [ { "city": { "type": "uri", "value": "http://example.org/Perth" } } ] } }
+```
+
+So a query's output, a stored tuple set, or another endpoint's response can be
+passed as an argument without being edited. Arguments are matched to `VALUES`
+clauses by the variables in `head.vars`, not by position, and a request carries
+at most one per clause. Blank nodes are refused, because a blank node label only
+means something inside the document it came from. The legacy `typed-literal`
+spelling is read as a `literal` with its datatype.
+
+At execution the query is parsed and the reserved all-UNDEF row is replaced by
+the supplied rows inside the parsed structure; a named limit or offset has its
+number substituted. Argument values are never concatenated into query text. A
+supplied row may bind only some of a clause's variables — an unbound cell stays
+`UNDEF`, matching anything — but an all-UNDEF row cannot be mixed with bound
+rows in one argument.
+
+**Empty input.** A caller says two different things with the same table:
+
+| The request | Means | The clause becomes |
+| --- | --- | --- |
+| leaves the parameter out | nothing arrived, so do not filter | removed |
+| supplies it with zero rows | the empty set arrived, so match nothing | `VALUES` with zero rows |
+
+An argument that fits no clause is refused, naming its variables and the
+clauses the query declares. Inside a query group, the edge feeding a clause may
+also carry a `whenEmpty` policy for when its upstream produces no rows:
+`unconstrained` drops the clause, `propagateEmpty` keeps the zero-row block, and
+`require` refuses the run. That policy is the author's, so it lives on the edge
+and never in a request.
 
 ## ArgumentSet
 
@@ -77,8 +102,8 @@ An **ArgumentSet** is one call's worth of input: one argument for every paramete
 the callable declares. For a query that is a table per `VALUES` clause and a
 number per named limit or offset; for a query group, also one graph per
 start-node graph port. Each table's rows are stored as one SPARQL Results JSON
-string, and a graph binding holds either pasted RDF or a pinned
-`DataGraphVersion`.
+string, which is exactly the document a run takes inline, and a graph binding
+holds either pasted RDF or a pinned `DataGraphVersion`.
 
 Argument sets belong to a library and are listed library-wide. They record where
 they were made as provenance, not as a fence: a set made on one query can be

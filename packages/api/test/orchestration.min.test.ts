@@ -111,7 +111,7 @@ describe('DAG orchestration minimal', () => {
 
     const initialArgs = [{
       head: { vars: ['entity', 'name'] },
-      arguments: { bindings: [
+      results: { bindings: [
         { entity: { type: 'uri', value: 'urn:seed' }, name: { type: 'literal', value: 'Seed' } }
       ] }
     }];

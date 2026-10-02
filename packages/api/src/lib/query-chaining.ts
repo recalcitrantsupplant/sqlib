@@ -14,7 +14,7 @@ export interface ArgumentSet { // Already exported
   head: {
     vars: string[];
   };
-  arguments: {
+  results: {
     bindings: SparqlBinding[];
   };
   /** Explicit policy for an absent input at execution time. */

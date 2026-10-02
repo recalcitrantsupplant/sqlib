@@ -217,6 +217,17 @@ describe('the EARL report configuration', () => {
     expect(config.project.repository).toBe('https://example.org/sqlib.git');
   });
 
+  it('describes the project rather than the package when told to', () => {
+    // The manifest describes the API package; the report describes sqlib. The
+    // same distinction `projectName` already makes, for the other DOAP field a
+    // reviewer reads.
+    const config = buildEarlReportConfig({
+      description: 'Fastify backend',
+      earlReport: { projectDescription: 'Author, version and test SPARQL queries and rules' },
+    });
+    expect(config.project.description).toBe('Author, version and test SPARQL queries and rules');
+  });
+
   it('reads npm\'s author shorthand as the assertor', () => {
     const config = buildEarlReportConfig({
       author: 'D. Chabgood <dc@example.org> (https://example.org/people/dc)',
@@ -238,14 +249,22 @@ describe('the EARL report configuration', () => {
     expect(config.suiteBaseIri).toBe('https://example.org/tests/');
   });
 
-  it('reads the shipped manifest, and it is still a placeholder', () => {
-    // The report says NOT READY TO SUBMIT until this stops being true, so if
-    // the project IRI is ever filled in, this test is the reminder to check the
-    // rest of the block with it.
+  it('reads the shipped manifest, and it is ready to submit', () => {
+    // The counterpart of the banner. A submission needs a subject a reviewer
+    // can resolve and an assertor who stands behind the verdicts, and those are
+    // identity rather than code — nothing else in the suite would notice them
+    // being emptied. Weakening any of these puts NOT READY TO SUBMIT back on
+    // every report this repository produces.
     const shipped = resetEarlReportConfig();
     expect(shipped.project.name).toBe('sqlib');
-    expect(shipped.isPlaceholder).toBe(true);
+    expect(shipped.isPlaceholder).toBe(false);
+    expect(shipped.project.iri).toMatch(/^https:\/\//);
+    expect(shipped.project.homepage).toMatch(/^https:\/\//);
+    expect(shipped.project.repository).toMatch(/^https:\/\//);
+    expect(shipped.assertor.kind).toBe('Person');
+    expect(shipped.assertor.iri).toMatch(/^https:\/\//);
     expect(shipped.suiteBaseIri).toBe(DEFAULT_SUITE_BASE_IRI);
+    expect(toPlainEarlTurtle(input())).not.toContain('NOT READY TO SUBMIT');
   });
 });
 

@@ -1884,8 +1884,16 @@ export const detectionRouteSchemas = {
 } as const;
 
 /**
- * The inline arguments an execution request carries: one entry per VALUES input,
- * each naming its variables and the rows to bind them to.
+ * The inline arguments an execution request carries: at most one per VALUES
+ * parameter, each a SPARQL Query Results JSON document naming its variables and
+ * the rows to bind them to — the shape a SELECT returns, so a result, a stored
+ * argument set or another endpoint's output can be passed as is.
+ *
+ * Term types admit all four Results JSON spellings so that the refusal of a
+ * blank node, and the folding of the legacy `typed-literal`, happen in
+ * `normalizeArguments` with a message that says why, rather than here as an
+ * enum mismatch. A slot left out runs unconstrained; one with zero rows
+ * matches nothing.
  *
  * Named rather than inline because two routes take it. `POST /execute` runs a
  * stored query with these substituted in; `POST /sparql` runs an ad-hoc query
@@ -1913,7 +1921,7 @@ export const executionArgumentsJsonSchema = {
         ],
         "additionalProperties": false
       },
-      "arguments": {
+      "results": {
         "type": "object",
         "properties": {
           "bindings": {
@@ -1931,7 +1939,9 @@ export const executionArgumentsJsonSchema = {
                             "type": "string",
                             "enum": [
                               "uri",
-                              "literal"
+                              "literal",
+                              "typed-literal",
+                              "bnode"
                             ]
                           },
                           "value": {
@@ -1968,19 +1978,11 @@ export const executionArgumentsJsonSchema = {
           "bindings"
         ],
         "additionalProperties": false
-      },
-      "whenEmpty": {
-        "type": "string",
-        "enum": [
-          "unconstrained",
-          "propagateEmpty",
-          "require"
-        ]
       }
     },
     "required": [
       "head",
-      "arguments"
+      "results"
     ],
     "additionalProperties": false
   }
@@ -2651,6 +2653,17 @@ export const ruleSetExecutionResponseJsonSchema = {
         "additionalProperties": false
       }
     },
+    "error": {
+      "description": "Why a failed run failed: the executor's own sentence, such as the stratification cycle that stopped it. Absent unless status is failed.",
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "seededQuads": {
       "anyOf": [
         {
@@ -3302,6 +3315,17 @@ export const playgroundRulesExecuteResponseJsonSchema = {
         ],
         "additionalProperties": false
       }
+    },
+    "error": {
+      "description": "Why a failed run failed: the executor's own sentence, such as the stratification cycle that stopped it. Absent unless status is failed.",
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "seededQuads": {
       "anyOf": [

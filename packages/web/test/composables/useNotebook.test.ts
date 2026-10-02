@@ -131,7 +131,7 @@ describe('running a cell', () => {
           arguments: [
             {
               head: { vars: ['city'] },
-              arguments: { bindings: [{ city: { type: 'uri', value: 'urn:city:1' } }] },
+              results: { bindings: [{ city: { type: 'uri', value: 'urn:city:1' } }] },
             },
           ],
         },
@@ -160,7 +160,7 @@ describe('running a cell', () => {
         {
           targetId: 'urn:q:second',
           arguments: [
-            { head: { vars: ['asset'] }, arguments: { bindings: [{ asset: { type: 'uri', value: 'urn:a' } }] } },
+            { head: { vars: ['asset'] }, results: { bindings: [{ asset: { type: 'uri', value: 'urn:a' } }] } },
           ],
         },
         undefined,
@@ -302,6 +302,27 @@ describe('running a cell', () => {
       await nb.run(named.id);
       expect(executeTarget).toHaveBeenLastCalledWith(
         expect.objectContaining({ backendId: 'urn:backend:ephemeral' }),
+        undefined,
+      );
+    });
+    scope.stop();
+  });
+
+  it("prefers the query's own default backend over the library's", async () => {
+    callables.value = [{ ...selectCallable('urn:q:people'), defaultBackend: 'urn:backend:query-default' }];
+    executeTarget.mockResolvedValue(rowsResponse(['name'], []));
+
+    const scope = effectScope();
+    await scope.run(async () => {
+      const nb = useNotebook(ref(LIBRARY), ref('urn:backend:library-default'));
+      const cell = queryCell('urn:q:people', 'out1');
+      nb.addCell(cell);
+      await nextTick();
+
+      expect(nb.defaultBackendFor(cell)).toBe('urn:backend:query-default');
+      await nb.run(cell.id);
+      expect(executeTarget).toHaveBeenLastCalledWith(
+        expect.objectContaining({ backendId: 'urn:backend:query-default' }),
         undefined,
       );
     });

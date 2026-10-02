@@ -86,13 +86,13 @@ describe('piping rows into a slot', () => {
     const value = rows(['s'], [{ s: { type: 'uri', value: 'urn:a' } }]);
     expect(toSlotArgument(value, ['subject'])).toEqual({
       head: { vars: ['subject'] },
-      arguments: { bindings: [{ subject: { type: 'uri', value: 'urn:a' } }] },
+      results: { bindings: [{ subject: { type: 'uri', value: 'urn:a' } }] },
     });
   });
 
   it('leaves an unbound term out, which is how SPARQL JSON spells UNDEF', () => {
     const value = rows(['a', 'b'], [{ a: { type: 'uri', value: 'urn:a' } }]);
     const argument = toSlotArgument(value, ['a', 'b']);
-    expect(argument.arguments.bindings[0]).toEqual({ a: { type: 'uri', value: 'urn:a' } });
+    expect(argument.results.bindings[0]).toEqual({ a: { type: 'uri', value: 'urn:a' } });
   });
 });

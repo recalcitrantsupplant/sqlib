@@ -27,7 +27,7 @@ const PAYLOAD = {
   arguments: [
     {
       head: { vars: ['city'] },
-      arguments: { bindings: [{ city: { type: 'uri', value: 'http://example.org/Paris' } }] },
+      results: { bindings: [{ city: { type: 'uri', value: 'http://example.org/Paris' } }] },
     },
   ],
   limits: [{ name: '1', value: 10 }],

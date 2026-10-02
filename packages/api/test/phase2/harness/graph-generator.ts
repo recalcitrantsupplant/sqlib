@@ -150,19 +150,19 @@ function externalArgumentSet(shape: ExternalShape, vars: string[]): ArgumentSet 
         for (const name of vars) row[name] = { type: 'uri' as const, value: valuesFor(name)[index] };
         return row;
       });
-      return { head: { vars }, arguments: { bindings } };
+      return { head: { vars }, results: { bindings } };
     }
     case 'emptySet':
-      return { head: { vars }, arguments: { bindings: [] } };
+      return { head: { vars }, results: { bindings: [] } };
     case 'wildcardRow':
-      return { head: { vars }, arguments: { bindings: [{}] } };
+      return { head: { vars }, results: { bindings: [{}] } };
     case 'nullCell':
       // Spelled as explicit nulls rather than omitted keys: the contract says
       // the two are the same thing, and the fuzzer is where that gets checked
       // rather than assumed.
       return {
         head: { vars },
-        arguments: { bindings: [Object.fromEntries(vars.map(name => [name, null])) as Row] },
+        results: { bindings: [Object.fromEntries(vars.map(name => [name, null])) as Row] },
       };
     case 'reorderedRows': {
       // The `rows` bindings under a head that declares the same variables in
@@ -175,7 +175,7 @@ function externalArgumentSet(shape: ExternalShape, vars: string[]): ArgumentSet 
       // read `wrongOrder: 0` for so long: it was inexpressible while the
       // corpus was arity-1, and only arity-2 slots make it reachable (#49).
       const rows = externalArgumentSet('rows', vars)!;
-      return { head: { vars: [...vars].reverse() }, arguments: rows.arguments };
+      return { head: { vars: [...vars].reverse() }, results: rows.results };
     }
     case 'absent':
       return null;

@@ -2,9 +2,8 @@ import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest }
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import { pathToFileURL } from 'node:url';
-import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
+import { isInitializeRequest, type Server } from '@modelcontextprotocol/server';
+import { NodeStreamableHTTPServerTransport } from '@modelcontextprotocol/node';
 import { createMcpServer, type CreateMcpServerOptions } from './index.js';
 
 export type StreamableHttpServerOptions = {
@@ -30,7 +29,7 @@ export type McpHttpSession = {
   /** sha256 of the creating caller's identity; see callerKey. */
   owner: string;
   server: Server;
-  transport: StreamableHTTPServerTransport;
+  transport: NodeStreamableHTTPServerTransport;
   shutdown: () => Promise<void>;
   closed: boolean;
   initTimer?: ReturnType<typeof setTimeout>;
@@ -186,12 +185,12 @@ export async function buildStreamableHttpMcpServer(options: StreamableHttpServer
     const session: McpHttpSession = {
       owner: owner.toString('hex'),
       server,
-      transport: null as unknown as StreamableHTTPServerTransport,
+      transport: null as unknown as NodeStreamableHTTPServerTransport,
       shutdown,
       closed: false,
     };
 
-    const transport = new StreamableHTTPServerTransport({
+    const transport = new NodeStreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),
       onsessioninitialized: (newSessionId) => {
         if (session.closed) return;

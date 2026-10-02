@@ -5,8 +5,19 @@ import { resolve } from 'node:path';
 import { defineNuxtConfig } from 'nuxt/config';
 import tailwindcss from '@tailwindcss/vite';
 import { buildFeatureFlags } from '../types/src/featureFlags';
+import { normaliseBase, withBase } from './src/lib/basePath';
 
 const currentDir = fileURLToPath(new URL('.', import.meta.url));
+
+/*
+ * Where this build will be served from.
+ *
+ * Nuxt reads NUXT_APP_BASE_URL on its own, but only for what it generates.
+ * Taking it here as well is what lets the head links below follow it: they are
+ * written as strings, so nothing rewrites them, and under a base path they
+ * would point outside the app. See src/lib/basePath.ts.
+ */
+const baseURL = normaliseBase(process.env.NUXT_APP_BASE_URL);
 
 const frontendFeatureFlagEnv: Record<string, string | undefined> = {
   FEATURE_QUERIES: process.env.NUXT_PUBLIC_FEATURE_QUERIES ?? process.env.FEATURE_QUERIES,
@@ -36,7 +47,7 @@ const frontendFeatureFlagEnv: Record<string, string | undefined> = {
   // only: neither gates a route, and what each shows is decided by the section
   // flags above.
   FEATURE_NOTEBOOK: process.env.NUXT_PUBLIC_FEATURE_NOTEBOOK ?? process.env.FEATURE_NOTEBOOK,
-  FEATURE_BUILD: process.env.NUXT_PUBLIC_FEATURE_BUILD ?? process.env.FEATURE_BUILD,
+  FEATURE_MCP: process.env.NUXT_PUBLIC_FEATURE_MCP ?? process.env.FEATURE_MCP,
 };
 
 const frontendFeatureFlags = buildFeatureFlags(frontendFeatureFlagEnv);
@@ -332,6 +343,16 @@ export default defineNuxtConfig({
   runtimeConfig: {
     public: {
       apiBaseUrl: process.env.NUXT_PUBLIC_API_BASE_URL || 'http://localhost:3000',
+      /*
+       * Where the Connect page tells people to point their chat client.
+       *
+       * `/mcp` is served beside the API on the same origin in every deployment
+       * mode this repository ships, so the default is derived rather than
+       * configured — one fewer variable to forget. It is overridable because a
+       * public read-only MCP may well be a separate host from the app that
+       * administers it, which is the deployment the Connect page exists for.
+       */
+      mcpUrl: process.env.NUXT_PUBLIC_MCP_URL || '',
       featureFlags: frontendFeatureFlags,
       // What is running, for the About block on the splash and the line in
       // Settings. Baked in at build time — `ssr: false` means these are in the
@@ -349,6 +370,7 @@ export default defineNuxtConfig({
     },
   },
   app: {
+    baseURL,
     head: {
       title: 'SPARQL Query Library',
       link: [
@@ -366,14 +388,14 @@ export default defineNuxtConfig({
           rel: 'preload',
           as: 'font',
           type: 'font/woff2',
-          href: '/assets/fonts/inter-variable-latin.woff2',
+          href: withBase('/assets/fonts/inter-variable-latin.woff2', baseURL),
           crossorigin: 'anonymous',
         },
         // SVG first so modern browsers pick it; favicon.ico is the legacy fallback.
-        { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
-        { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico', sizes: '48x48' },
-        { rel: 'apple-touch-icon', href: '/apple-touch-icon.png', sizes: '180x180' },
-        { rel: 'manifest', href: '/site.webmanifest' },
+        { rel: 'icon', type: 'image/svg+xml', href: withBase('/favicon.svg', baseURL) },
+        { rel: 'icon', type: 'image/x-icon', href: withBase('/favicon.ico', baseURL), sizes: '48x48' },
+        { rel: 'apple-touch-icon', href: withBase('/apple-touch-icon.png', baseURL), sizes: '180x180' },
+        { rel: 'manifest', href: withBase('/site.webmanifest', baseURL) },
       ],
       meta: [
         { name: 'theme-color', content: '#85272f' },

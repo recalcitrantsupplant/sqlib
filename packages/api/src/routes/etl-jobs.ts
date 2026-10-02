@@ -58,6 +58,7 @@ export default async function etlJobRoutes(fastify: FastifyInstance) {
       name: { type: 'string' },
       description: { type: 'string' },
       currentVersionId: { type: 'string' },
+      defaultBackend: { type: 'string' },
       libraryIds: { type: 'array', items: { type: 'string' } },
       dateCreated: { type: 'string' },
       dateModified: { type: 'string' },
@@ -177,6 +178,7 @@ export default async function etlJobRoutes(fastify: FastifyInstance) {
           name: { type: 'string' },
           description: { type: 'string' },
           libraryId: { type: 'string' },
+          defaultBackend: { type: 'string', nullable: true },
         },
         additionalProperties: false,
       },
@@ -197,7 +199,7 @@ export default async function etlJobRoutes(fastify: FastifyInstance) {
     return reply.code(201).send(result);
   }));
 
-  // Update an ETL job's name/description
+  // Update an ETL job's name, description or default backend
   fastify.patch('/:id', ...reposRoute({
       params: {
         type: 'object',
@@ -211,6 +213,7 @@ export default async function etlJobRoutes(fastify: FastifyInstance) {
         properties: {
           name: { type: 'string' },
           description: { type: 'string', nullable: true },
+          defaultBackend: { type: 'string', nullable: true },
         },
         additionalProperties: false,
       },
@@ -220,7 +223,7 @@ export default async function etlJobRoutes(fastify: FastifyInstance) {
       },
     }, async ({ request, reply }) => {
     const { id } = request.params;
-    const body = request.body as { name?: string; description?: string | null };
+    const body = request.body as { name?: string; description?: string | null; defaultBackend?: string | null };
     const result = await etlService.updateEtlJob(id, body);
     if (!result) {
       return reply.code(404).send({ error: `ETL job ${id} not found` });

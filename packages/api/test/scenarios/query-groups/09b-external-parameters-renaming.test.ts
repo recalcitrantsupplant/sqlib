@@ -179,7 +179,7 @@ describe('External Parameters with Variable Renaming', () => {
         arguments: [
           {
             head: { vars: ['experienceFilter'] },  // External name (not targetExperience)
-            arguments: {
+            results: {
               bindings: [
                 { experienceFilter: { type: 'literal', value: 'senior' } }
               ]
@@ -209,7 +209,7 @@ describe('External Parameters with Variable Renaming', () => {
         targetId: queryGroup.id,
         arguments: [{
           head: { vars: ['experienceFilter'] },
-          arguments: { bindings: [{ experienceFilter: { type: 'literal', value: 'no-such-level' } }] },
+          results: { bindings: [{ experienceFilter: { type: 'literal', value: 'no-such-level' } }] },
         }],
       },
     });

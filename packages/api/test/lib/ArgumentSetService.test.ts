@@ -79,7 +79,7 @@ describe('ArgumentSetService', () => {
     const payload = await service.exportRuntimePayload(['version1'], { internal: true });
     expect(payload.tupleList).toHaveLength(1);
     expect(payload.tupleList[0].head.vars).toEqual(['varA']);
-    expect(payload.tupleList[0].arguments.bindings).toEqual([
+    expect(payload.tupleList[0].results.bindings).toEqual([
       { varA: { type: 'literal', value: 'foo' } },
     ]);
     expect(payload.limits).toEqual([{ name: 'page', value: 100 }]);

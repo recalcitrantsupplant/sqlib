@@ -6,7 +6,7 @@
      CI fails when this file and the built declarations disagree, so every
      addition, removal or signature change arrives as a reviewable diff. -->
 
-Version `0.1.0`. 3 entry points, 142 exported names.
+Version `0.1.0`. 3 entry points, 146 exported names.
 
 Private and protected class members are omitted: a consumer cannot reach them.
 Doc comments are omitted too — they are in the source, and repeating them here
@@ -14,7 +14,7 @@ would make every wording change a surface diff.
 
 ## `@sparql-query-lib/runtime`
 
-65 exports, from `index.d.ts`.
+67 exports, from `index.d.ts`.
 
 ### `Abbreviation` — interface, from `describe-term`
 
@@ -24,16 +24,6 @@ interface Abbreviation {
     wasAbbreviated: boolean;
     fullIri?: string | null;
 }
-```
-
-### `alignArgumentSets` — function, from `query-template`
-
-```ts
-declare function alignArgumentSets<T extends {
-    head?: {
-        vars?: string[];
-    };
-}>(slotVars: readonly (readonly string[])[], argumentSets: readonly T[]): T[] | null;
 ```
 
 ### `applyTemplateArguments` — function, from `query-template`
@@ -53,7 +43,6 @@ type ArgumentRow = Record<string, TermValue | null | undefined>;
 ```ts
 type ArgumentSetInput = WireArgumentSet | {
     bindings: readonly (ArgumentRow | null | undefined)[];
-    whenEmpty?: TemplateArgumentSet['whenEmpty'];
 };
 ```
 
@@ -69,6 +58,19 @@ declare function assertPageParameterValue(kind: 'limit' | 'offset', name: string
 declare function assertValidBundle(bundle: unknown): asserts bundle is ExportBundle;
 ```
 
+### `assignArgumentSets` — function, from `query-template`
+
+```ts
+declare function assignArgumentSets<T extends {
+    head?: {
+        vars?: string[];
+    };
+}>(slotVars: readonly (readonly string[])[], argumentSets: readonly T[]): {
+    slots: (T | undefined)[];
+    unmatched: T[];
+};
+```
+
 ### `CallPayload` — interface, from `library`
 
 ```ts
@@ -78,6 +80,12 @@ interface CallPayload {
     offsets?: ParameterInput;
     signal?: AbortSignal;
 }
+```
+
+### `completeArgumentSets` — function, from `query-template`
+
+```ts
+declare function completeArgumentSets(slotVars: readonly (readonly string[])[], argumentSets: readonly TemplateArgumentSet[]): TemplateArgumentSet[];
 ```
 
 ### `describeTerm` — function, from `describe-term`
@@ -315,6 +323,14 @@ interface HttpExecutorOptions {
 }
 ```
 
+### `InvalidArgumentError` — class, from `arguments`
+
+```ts
+declare class InvalidArgumentError extends Error {
+    constructor(message: string);
+}
+```
+
 ### `InvalidBundleError` — class, from `bundle`
 
 ```ts
@@ -360,10 +376,10 @@ declare function literal(value: string, options?: {
 }): TermValue;
 ```
 
-### `normalizeUndefBindings` — function, from `arguments`
+### `normalizeArguments` — function, from `arguments`
 
 ```ts
-declare function normalizeUndefBindings(argumentSets: readonly WireArgumentSet[] | undefined): TemplateArgumentSet[] | undefined;
+declare function normalizeArguments(argumentSets: readonly WireArgumentSet[] | undefined): TemplateArgumentSet[] | undefined;
 ```
 
 ### `PageParameterSpan` — interface, from `bundle`
@@ -543,7 +559,7 @@ interface TemplateArgumentSet {
     head: {
         vars: string[];
     };
-    arguments: {
+    results: {
         bindings: Array<ArgumentRow | null | undefined>;
     };
     whenEmpty?: EmptyArgumentMode;
@@ -611,10 +627,9 @@ interface WireArgumentSet {
     head: {
         vars: string[];
     };
-    arguments: {
+    results: {
         bindings: unknown[];
     };
-    whenEmpty?: EmptyArgumentMode;
 }
 ```
 
@@ -676,6 +691,6 @@ declare class SqlibArgsElement extends ArgsElementBase {
 
 ## `@sparql-query-lib/runtime/browser`
 
-71 exports, from `browser.d.ts`.
+73 exports, from `browser.d.ts`.
 
-71 of them are re-exported unchanged from an entry point above: `Abbreviation`, `alignArgumentSets`, `applyTemplateArguments`, `ARGS_ELEMENT_STYLES`, `ArgsElementBase`, `ArgsPayload`, `ArgsSignature`, `ArgumentRow`, `ArgumentSetInput`, `assertPageParameterValue`, `assertValidBundle`, `CallPayload`, `defineArgsElement`, `describeTerm`, `DescribeTermOptions`, `EmptyArgumentMode`, `escapeLiteralLexical`, `ExecutionParameter`, `ExecutionRequest`, `ExecutionResult`, `Executor`, `ExportBundle`, `ExportedGroup`, `ExportedGroupEdge`, `ExportedGroupNode`, `ExportedQuery`, `ExportedQueryType`, `fromBundle`, `FromBundleOptions`, `GroupCallPayload`, `GroupExternalInput`, `GroupHandle`, `GroupRunResult`, `GroupVariableMapping`, `hashTemplateText`, `httpExecutor`, `HttpExecutorOptions`, `InvalidBundleError`, `InvalidParameterError`, `InvalidTermError`, `iri`, `isSafeVariableName`, `literal`, `normalizeUndefBindings`, `PageParameterSpan`, `ParameterInput`, `PrefixTable`, `prefixTableAbbreviator`, `QueryCallError`, `QueryExample`, `QueryHandle`, `QueryLibrary`, `QueryTemplate`, `RdfPayload`, `renderValuesBlock`, `serializeIri`, `serializeTerm`, `serializeVariable`, `SparqlAskResults`, `SparqlEndpointError`, `SparqlSelectResults`, `SqlibArgsElement`, `substituteLimitOffset`, `TemplateArgumentSet`, `TemplateSlot`, `TermDescription`, `TermValue`, `toExecutionParameters`, `TypedExportBundle`, `verifyBundleIntegrity`, `WireArgumentSet`.
+73 of them are re-exported unchanged from an entry point above: `Abbreviation`, `applyTemplateArguments`, `ARGS_ELEMENT_STYLES`, `ArgsElementBase`, `ArgsPayload`, `ArgsSignature`, `ArgumentRow`, `ArgumentSetInput`, `assertPageParameterValue`, `assertValidBundle`, `assignArgumentSets`, `CallPayload`, `completeArgumentSets`, `defineArgsElement`, `describeTerm`, `DescribeTermOptions`, `EmptyArgumentMode`, `escapeLiteralLexical`, `ExecutionParameter`, `ExecutionRequest`, `ExecutionResult`, `Executor`, `ExportBundle`, `ExportedGroup`, `ExportedGroupEdge`, `ExportedGroupNode`, `ExportedQuery`, `ExportedQueryType`, `fromBundle`, `FromBundleOptions`, `GroupCallPayload`, `GroupExternalInput`, `GroupHandle`, `GroupRunResult`, `GroupVariableMapping`, `hashTemplateText`, `httpExecutor`, `HttpExecutorOptions`, `InvalidArgumentError`, `InvalidBundleError`, `InvalidParameterError`, `InvalidTermError`, `iri`, `isSafeVariableName`, `literal`, `normalizeArguments`, `PageParameterSpan`, `ParameterInput`, `PrefixTable`, `prefixTableAbbreviator`, `QueryCallError`, `QueryExample`, `QueryHandle`, `QueryLibrary`, `QueryTemplate`, `RdfPayload`, `renderValuesBlock`, `serializeIri`, `serializeTerm`, `serializeVariable`, `SparqlAskResults`, `SparqlEndpointError`, `SparqlSelectResults`, `SqlibArgsElement`, `substituteLimitOffset`, `TemplateArgumentSet`, `TemplateSlot`, `TermDescription`, `TermValue`, `toExecutionParameters`, `TypedExportBundle`, `verifyBundleIntegrity`, `WireArgumentSet`.

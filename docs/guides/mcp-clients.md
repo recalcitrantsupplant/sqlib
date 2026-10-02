@@ -1,9 +1,14 @@
 # Connecting an MCP client
 
-`packages/mcp-server` exposes the library to an MCP client as 89 tools that
+`packages/mcp-server` exposes the library to an MCP client as 96 tools that
 mirror the HTTP routes: libraries, backends, queries and versions, argument
-sets, detection, execution, rules and rule sets, query groups, data blocks and
-the SPARQL proxy.
+sets, detection, execution, rules and rule sets, query groups, data blocks, data
+graphs and the SPARQL proxy.
+
+A client that supports [MCP Apps](https://github.com/modelcontextprotocol/ext-apps)
+also gets two rendered Views — a query bench and a result table — and one more
+tool to open the bench with. See [mcp-app.md](mcp-app.md); a client that does
+not advertise the extension sees exactly the catalogue described here.
 
 **`/mcp` carries no authentication of its own.** The MCP layer enforces nothing;
 it forwards whatever the caller sent to the API, which applies `SQLIB_AUTH_MODE`.
@@ -136,8 +141,9 @@ publishes `catalogueGuide()` from `@sparql-query-lib/tools`
   `{"queryVersion": {"queryString": …}}`;
 - how a query declares parameters: a `VALUES` clause whose only row is all
   `UNDEF`, and `LIMIT 000n` / `OFFSET 000n` for named limits and offsets;
-- the exact shape of `execute_run`'s `arguments`, in SPARQL-results-JSON form,
-  one entry per parameter slot in order of appearance.
+- the exact shape of `execute_run`'s `arguments`: SPARQL Results JSON
+  documents, at most one per parameter slot, matched by `head.vars`, with an
+  omitted slot running unconstrained.
 
 Pass `createMcpServer({ instructions })` to replace the text, or `''` to publish
 none. Tool names are rewritten to the door's public spelling

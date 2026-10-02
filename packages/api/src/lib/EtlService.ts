@@ -9,6 +9,7 @@ import * as path from 'node:path';
 import { toError } from './toError.js';
 import { mintId } from './id.js';
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
+import { EPHEMERAL_BACKEND_ID } from '@sparql-query-lib/types';
 import {
   beginEtlExecution,
   completeEtlExecution,
@@ -66,6 +67,7 @@ export interface EtlJobInput {
   name: string;
   description?: string;
   libraryId: string;
+  defaultBackend?: string | null;
 }
 
 export interface EtlJobVersionInput {
@@ -153,6 +155,14 @@ export interface EtlPipelineResult {
   completedChunks: number;
 }
 
+/**
+ * A job's default backend as stored. The in-memory store is what an unset
+ * default already means, so naming it is stored as unset too.
+ */
+function storedDefaultBackend(value: string | null | undefined): string | null {
+  return value && value !== EPHEMERAL_BACKEND_ID ? value : null;
+}
+
 // Detail types
 
 export interface EtlJobDetail {
@@ -160,6 +170,8 @@ export interface EtlJobDetail {
   name: string;
   description?: string;
   currentVersionId?: string;
+  /** Full backend IRI a run defaults to; absent means the in-memory store. */
+  defaultBackend?: string;
   libraryIds: string[];
   dateCreated?: string;
   dateModified?: string;
@@ -404,6 +416,7 @@ export class EtlService {
       $id: id,
       name: input.name,
       description: input.description,
+      defaultBackend: storedDefaultBackend(input.defaultBackend) ?? undefined,
       isPartOf: [this.toUrn(input.libraryId, 'library')],
       dateCreated: now,
       dateModified: now,
@@ -415,6 +428,7 @@ export class EtlService {
       id: this.toShortId(id),
       name: input.name,
       description: input.description,
+      defaultBackend: storedDefaultBackend(input.defaultBackend) ?? undefined,
       libraryIds: [input.libraryId],
       dateCreated: now,
       dateModified: now,
@@ -428,7 +442,10 @@ export class EtlService {
    * so they are edited in place — the same split queries and groups have, and
    * what lets the Details tab save them as you type.
    */
-  async updateEtlJob(id: string, input: { name?: string; description?: string | null }): Promise<EtlJobDetail | null> {
+  async updateEtlJob(
+    id: string,
+    input: { name?: string; description?: string | null; defaultBackend?: string | null },
+  ): Promise<EtlJobDetail | null> {
     const etlJobUrn = this.toUrn(id, 'etlJob');
     const cacheCoordinator = getCacheCoordinator();
     const existing = cacheCoordinator.get(etlJobUrn) as LdkitEtlJob | null;
@@ -440,14 +457,20 @@ export class EtlService {
     const patch: Partial<LdkitEtlJob> & { dateModified: string } = { dateModified: now };
     if (input.name !== undefined) patch.name = input.name;
     if (input.description !== undefined) patch.description = input.description ?? undefined;
+    // null clears it, which puts the job back on the in-memory store.
+    if (input.defaultBackend !== undefined) patch.defaultBackend = storedDefaultBackend(input.defaultBackend);
 
     await cacheCoordinator.update('EtlJob', etlJobUrn, patch);
+    const defaultBackend = (input.defaultBackend !== undefined
+      ? patch.defaultBackend
+      : existing.defaultBackend) || undefined;
 
     return {
       id,
       name: patch.name ?? existing.name,
       description: (patch.description ?? existing.description) || undefined,
       currentVersionId: existing.currentVersion ? this.toShortId(existing.currentVersion) : undefined,
+      defaultBackend,
       libraryIds: existing.isPartOf.map((iri) => this.toShortId(iri)),
       dateCreated: existing.dateCreated || undefined,
       dateModified: now,
@@ -622,6 +645,7 @@ export class EtlService {
       name: ldkitJob.name,
       description: ldkitJob.description || undefined,
       currentVersionId: ldkitJob.currentVersion ? this.toShortId(ldkitJob.currentVersion) : undefined,
+      defaultBackend: ldkitJob.defaultBackend || undefined,
       libraryIds: ldkitJob.isPartOf.map((iri) => this.toShortId(iri)),
       dateCreated: ldkitJob.dateCreated || undefined,
       dateModified: ldkitJob.dateModified || undefined,
@@ -642,6 +666,7 @@ export class EtlService {
       name: ldkitJob.name,
       description: ldkitJob.description || undefined,
       currentVersionId: ldkitJob.currentVersion ? this.toShortId(ldkitJob.currentVersion) : undefined,
+      defaultBackend: ldkitJob.defaultBackend || undefined,
       libraryIds: ldkitJob.isPartOf.map((iri) => this.toShortId(iri)),
       dateCreated: ldkitJob.dateCreated || undefined,
       dateModified: ldkitJob.dateModified || undefined,
@@ -842,7 +867,7 @@ export class EtlService {
     const vars = columnDefs.map(c => c.targetVariable);
     return {
       head: { vars },
-      arguments: { bindings }
+      results: { bindings }
     };
   }
 

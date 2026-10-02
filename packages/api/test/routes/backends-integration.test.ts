@@ -21,6 +21,10 @@ const hoisted = vi.hoisted(() => ({
     list: vi.fn(),
     update: vi.fn(),
   },
+  etlJob: {
+    list: vi.fn(() => []),
+    update: vi.fn(),
+  },
 }));
 
 vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
@@ -28,6 +32,7 @@ vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
     Backend: hoisted.backend,
     Library: hoisted.library,
     Query: hoisted.query,
+    EtlJob: hoisted.etlJob,
   }),
 }));
 

@@ -341,6 +341,34 @@ describe('RuleSets Routes (/rule-sets) - CRUD', () => {
     expect(hoisted.mockCreateVersion).toHaveBeenCalledWith(id, expect.objectContaining({ immutable: true }), expect.objectContaining({ request: expect.anything() }));
   });
 
+  it('POST /rule-sets/:id/versions forwards allowInvalidSave to the writer', async () => {
+    // The rule-set half of the invalid-save override: the rule route already
+    // took it, and without this an invalid rule stored over REST could never be
+    // referenced. Whether it is honoured is the writer's call, under the flag.
+    const id = 'urn:sqlib:rule-set:abc';
+    hoisted.ruleSet.get.mockReturnValue({ $id: id, '@type': 'RuleSet' });
+    hoisted.mockCreateVersion.mockResolvedValue({
+      $id: 'urn:sqlib:rule-set-version:1',
+      '@type': 'RuleSetVersion',
+      isPartOf: id,
+      version: 1,
+    });
+    hoisted.mockExpand.mockResolvedValue({
+      ruleSetVersion: { id: 'urn:sqlib:rule-set-version:1', isPartOf: id, version: 1 },
+      rules: [],
+      dataBlocks: [],
+    });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/rule-sets/${encodeURIComponent(id)}/versions`,
+      payload: { hasRule: ['urn:sqlib:rule-version:1'], allowInvalidSave: true },
+    });
+
+    expect(res.statusCode).toBe(201);
+    expect(hoisted.mockCreateVersion).toHaveBeenCalledWith(id, expect.objectContaining({ allowInvalidSave: true }), expect.objectContaining({ request: expect.anything() }));
+  });
+
   it('POST /rule-sets/:id/versions defaults optional arrays', async () => {
     const id = 'urn:sqlib:rule-set:abc';
     hoisted.ruleSet.get.mockReturnValue({ $id: id, '@type': 'RuleSet' });

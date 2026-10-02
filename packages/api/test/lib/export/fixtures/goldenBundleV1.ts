@@ -149,7 +149,7 @@ const PAYLOADS: Record<string, ResolvedArgumentPayload> = {
     arguments: [
       {
         head: { vars: ['city'] },
-        arguments: {
+        results: {
           bindings: [{ city: { type: 'uri', value: 'http://example.org/city/perth' } }],
         },
       },
@@ -161,7 +161,7 @@ const PAYLOADS: Record<string, ResolvedArgumentPayload> = {
     arguments: [
       {
         head: { vars: ['city'] },
-        arguments: {
+        results: {
           bindings: [
             { city: { type: 'uri', value: 'http://example.org/city/perth' } },
             { city: { type: 'uri', value: 'http://example.org/city/darwin' } },
@@ -178,7 +178,7 @@ const PAYLOADS: Record<string, ResolvedArgumentPayload> = {
     arguments: [
       {
         head: { vars: ['type'] },
-        arguments: {
+        results: {
           bindings: [{ type: { type: 'uri', value: 'http://example.org/City' } }],
         },
       },

@@ -354,6 +354,7 @@ From the `earlReport` key, for what npm has no field for:
 | --- | --- | --- |
 | `projectIri` | `earl:subject`, the `doap:Project` node | Must be dereferenceable for a submission; a `urn:` leaves the banner in place. |
 | `projectName` | `doap:name` | |
+| `projectDescription` | `doap:description` | Overrides npm's `description`, which describes the API package rather than the project. |
 | `downloadPage` | `doap:download-page` | Where a reviewer gets a copy to check the claim. |
 | `programmingLanguages` | `doap:programming-language` | Defaults to `["TypeScript"]`. |
 | `assertor.iri` / `.name` / `.homepage` | `earl:assertedBy`, `foaf:name`, `foaf:homepage` | Overrides `author`. Defaults to the project: an unattended run self-asserts, which is true and is a shape EARL has a term for. |
@@ -370,6 +371,11 @@ writes its entry IRIs against an absolute prefix, but `syntax/manifest.ttl` decl
 exactly the criterion IRI a reviewer will try to look up. Point it at wherever the
 snapshot in `packages/srl/test/w3c` was published and the IRIs come out right; leave
 it wrong and every syntax assertion cites a manifest that does not exist.
+
+This repository ships those fields filled in: the subject is the GitHub
+repository, the assertor is the maintainer named by ORCID, and a report produced
+here carries no banner. `earlPlain.test.ts` pins that, so emptying any of them
+fails the suite rather than being found by a reviewer.
 
 Until those fields are filled in, the document carries a `NOT READY TO SUBMIT`
 banner naming the placeholder subject. A run of tests that declare no `criterion`

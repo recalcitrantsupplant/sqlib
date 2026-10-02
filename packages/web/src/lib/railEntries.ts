@@ -13,7 +13,7 @@
  */
 import type { Component } from 'vue';
 import {
-  Sparkles,
+  Plug,
   NotebookPen,
   FileCode2,
   Workflow,
@@ -45,7 +45,7 @@ export interface RailEntry {
  * the 56px rail without wrapping. There is no Play entry: a playground is an
  * unsaved item inside its own section, not a destination (nav doc §1).
  *
- * The divider sits above Backends, not below Build. Connections are
+ * The divider sits above Backends, not below MCP. Connections are
  * account-level and libraries point at them, so Backends is one level out from
  * everything above it — the rule is the whole explanation (nav doc §2).
  */
@@ -77,7 +77,7 @@ export const RAIL_ENTRIES: RailEntry[] = [
   // set is one filled-in call to a query or a group — a table per VALUES
   // clause, a graph per start-node port, and the LIMIT/OFFSET numbers.
   { section: 'argumentSets', label: 'Argument sets', title: 'Argument sets — one call\'s worth of input for a query or a group', icon: Braces, feature: 'argumentSets' },
-  { section: 'build', label: 'Build', title: 'Build — the callable library and the assistant', icon: Sparkles, feature: 'build' },
+  { section: 'mcp', label: 'MCP', title: 'MCP server: use sqlib from Claude or ChatGPT', icon: Plug, feature: 'mcp' },
   {
     section: 'backends',
     label: 'Backends',

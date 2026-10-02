@@ -550,7 +550,7 @@ describe('End-to-End Query Creation and Execution Flow', () => {
         arguments: [
           {
             head: { vars: ['p'] },
-            arguments: {
+            results: {
               bindings: [
                 { p: { type: 'uri', value: 'http://www.w3.org/2000/01/rdf-schema#label' } }
               ],

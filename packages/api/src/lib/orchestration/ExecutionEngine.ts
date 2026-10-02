@@ -709,7 +709,7 @@ export class ExecutionEngine {
     const vars = columnDefs.map(c => c.targetVariable);
     return {
       head: { vars },
-      arguments: { bindings }
+      results: { bindings }
     };
   }
 
@@ -755,7 +755,7 @@ export class ExecutionEngine {
         const varName = tgtVars[0];
         const arg: ArgumentSet = {
           head: { vars: [varName] },
-          arguments: { bindings: [{
+          results: { bindings: [{
             [varName]: {
               type: 'literal',
               value: srcRes.toString(),
@@ -776,7 +776,7 @@ export class ExecutionEngine {
       const mappings = this.resolveVariableMappings(e, srcVars, tgtVars);
       const arg: ArgumentSet = {
         head: { vars: tgtVars },
-        arguments: { bindings: [] },
+        results: { bindings: [] },
       };
       for (const row of src.results.bindings) {
         const b: SparqlBinding = {};
@@ -788,7 +788,7 @@ export class ExecutionEngine {
           }
           b[to] = v as SparqlValue;
         }
-        arg.arguments.bindings.push(b);
+        arg.results.bindings.push(b);
       }
       // Merge by union for same target input tuple
       const key = e.targetInputId!;
@@ -837,8 +837,9 @@ export class ExecutionEngine {
         // Try to find a matching initial argument set by vars ordering
         const ext = matchingInitialArgs.find(s => s.head?.vars?.length === group.length && s.head.vars.every((v, i) => v === group[i]));
         if (ext) {
-          // A whenEmpty on the request is more specific than the stored default.
-          argSets.push(ext.whenEmpty || !declaredWhenEmpty ? ext : { ...ext, whenEmpty: declaredWhenEmpty });
+          // The author's edge policy applies to what the caller supplied: a
+          // request carries rows, never a policy of its own.
+          argSets.push(declaredWhenEmpty ? { ...ext, whenEmpty: declaredWhenEmpty } : ext);
         } else {
           /*
            * An *order* mismatch means the same variables in a different order.
@@ -856,7 +857,7 @@ export class ExecutionEngine {
           // author asked otherwise (notably `require`, for a mandatory parameter).
           argSets.push({
             head: { vars: group },
-            arguments: { bindings: [] },
+            results: { bindings: [] },
             whenEmpty: declaredWhenEmpty ?? 'unconstrained',
           });
         }
@@ -1112,9 +1113,9 @@ export class ExecutionEngine {
     const mappings = this.variableMappingsFrom(stored, suppliedVars, declaredVars);
     // The common case by far: same names, nothing to rewrite.
     if (mappings.every(({ source, target }) => source === target) && suppliedVars.length === declaredVars.length) {
-      return arg.arguments.bindings;
+      return arg.results.bindings;
     }
-    return arg.arguments.bindings.map(row => {
+    return arg.results.bindings.map(row => {
       const mapped: SparqlBinding = {};
       for (const { source, target } of mappings) {
         const value = row[source];
@@ -1351,9 +1352,9 @@ export class ExecutionEngine {
     );
     const set = new Set<string>();
     const out: SparqlBinding[] = [];
-    for (const r of a.arguments.bindings) { const k = keyOf(r); if (!set.has(k)) { set.add(k); out.push(r);} }
-    for (const r of b.arguments.bindings) { const k = keyOf(r); if (!set.has(k)) { set.add(k); out.push(r);} }
-    return { head: a.head, arguments: { bindings: out } };
+    for (const r of a.results.bindings) { const k = keyOf(r); if (!set.has(k)) { set.add(k); out.push(r);} }
+    for (const r of b.results.bindings) { const k = keyOf(r); if (!set.has(k)) { set.add(k); out.push(r);} }
+    return { head: a.head, results: { bindings: out } };
   }
 
   private async materializeRdfResult(storeId: string, rdf: string, format: string): Promise<void> {

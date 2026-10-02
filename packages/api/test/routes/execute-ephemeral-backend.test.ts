@@ -274,4 +274,44 @@ describe('Execute route - Ephemeral Backend', () => {
     expect(res.statusCode).toBe(400);
     expect(JSON.parse(res.payload).error).toContain('backendId is required');
   });
+  describe('with no backendId', () => {
+    const libId = 'urn:sqlib:library:defaults';
+    const vId = 'urn:sqlib:query-version:defaults-1';
+    const qId = 'urn:sqlib:query:defaults';
+    const entities = (libraryDefault?: string, queryDefault?: string): Record<string, unknown> => ({
+      [libId]: { $id: libId, '@type': 'Library', name: 'Defaults', defaultBackend: libraryDefault },
+      [qId]: { $id: qId, '@type': 'Query', name: 'Q', isPartOf: [libId], defaultBackend: queryDefault },
+      [vId]: { $id: vId, '@type': 'QueryVersion', isPartOf: qId, queryString: 'ASK { ?s ?p ?o }', queryType: QueryTypeIri.ask },
+    });
+    const useEntities = (byId: Record<string, unknown>) =>
+      hoisted.mockCoordinatorGet.mockImplementation((id: string) => byId[id] ?? null);
+    const askStore = () => (oxigraphStoreManager.createEphemeralStore as any).mockReturnValue(Object.assign(
+      new hoisted.MockStore(),
+      { query: vi.fn().mockReturnValue(true), size: 0 },
+    ));
+
+    it("runs on the library's default when the query names none", async () => {
+      useEntities(entities(EPHEMERAL_BACKEND_ID));
+      askStore();
+      const res = await app.inject({ method: 'POST', url: '/execute/', payload: { targetId: vId } });
+      expect(res.statusCode).toBe(200);
+      expect(oxigraphStoreManager.createEphemeralStore).toHaveBeenCalled();
+    });
+
+    it("prefers the query's default over the library's", async () => {
+      useEntities(entities('urn:sqlib:backend:not-registered', EPHEMERAL_BACKEND_ID));
+      askStore();
+      const res = await app.inject({ method: 'POST', url: '/execute/', payload: { targetId: vId } });
+      expect(res.statusCode).toBe(200);
+      expect(oxigraphStoreManager.createEphemeralStore).toHaveBeenCalled();
+    });
+
+    it('refuses the run when neither the query nor its library has a default', async () => {
+      useEntities(entities());
+      const res = await app.inject({ method: 'POST', url: '/execute/', payload: { targetId: vId } });
+      expect(res.statusCode).toBe(400);
+      expect(JSON.parse(res.payload).error).toMatch(/no(r its library has a)? default backend/);
+      expect(oxigraphStoreManager.createEphemeralStore).not.toHaveBeenCalled();
+    });
+  });
 });

@@ -49,6 +49,7 @@
  * automatically rather than leaving slack behind.
  */
 import { readFileSync, writeFileSync, readdirSync, existsSync, statSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative, resolve, posix } from 'node:path';
 
@@ -120,6 +121,9 @@ const IMPORT_RE = new RegExp(
     String.raw`export\s+(?:\*(?:\s+as\s+\w+)?|\{[^}]*\})\s+from\s+['"]([^'"]+)['"]`,
     // require('x') / import('x')
     String.raw`(?:require|import)\(\s*['"]([^'"]+)['"]\s*\)`,
+    // new URL('./x', import.meta.url) — how ESM names a sibling file it reads,
+    // spawns or hands to a bundler rather than importing.
+    String.raw`new\s+URL\(\s*['"](\.{1,2}\/[^'"]+)['"]\s*,\s*import\.meta\.url\s*\)`,
   ].join('|'),
   'g',
 );
@@ -128,7 +132,7 @@ function importsOf(file) {
   const src = readFileSync(file, 'utf8');
   const specs = new Set();
   for (const m of src.matchAll(IMPORT_RE)) {
-    const spec = m[1] ?? m[2] ?? m[3];
+    const spec = m[1] ?? m[2] ?? m[3] ?? m[4];
     if (spec) specs.add(spec);
   }
   return [...specs];
@@ -225,7 +229,29 @@ function externallyNamedFiles(files) {
 
 // --- the check --------------------------------------------------------------
 
-const files = walk(PACKAGES);
+/**
+ * Files git ignores are not in the tree: they are build output a package writes
+ * beside its source (the MCP App's bundled editor is one), present only in a
+ * checkout that has been built. Judging them made the check's answer depend on
+ * whether you had run a build, and a fresh CI checkout never has. Asked of git
+ * rather than re-implemented, and only about the files the walk found. Outside a
+ * git checkout nothing is excluded.
+ */
+function gitIgnored(paths) {
+  if (paths.length === 0) return new Set();
+  const result = spawnSync('git', ['check-ignore', '--stdin'], {
+    cwd: ROOT,
+    input: paths.map(rel).join('\n'),
+    encoding: 'utf8',
+  });
+  // Exit 1 means "none ignored"; anything else but 0 means git could not answer.
+  if (result.status !== 0 && result.status !== 1) return new Set();
+  return new Set(result.stdout.split('\n').filter(Boolean));
+}
+
+const walked = walk(PACKAGES);
+const ignored = gitIgnored(walked);
+const files = walked.filter((f) => !ignored.has(rel(f)));
 const roots = new Set();
 
 for (const name of readdirSync(PACKAGES)) {

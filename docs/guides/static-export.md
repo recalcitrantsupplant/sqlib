@@ -106,6 +106,12 @@ an exported bundle changes the transport rather than the calling code.
 `lib.query(name).text(payload)` returns the substituted query without running it,
 which is useful in tests and for showing someone what will be sent.
 
+Each argument is a SPARQL Results JSON document. The short form above omits
+`head` and fills slots in order; the full form,
+`{ head: { vars }, results: { bindings } }`, is matched by its variables, and a
+SELECT result can be passed back as is. Leave a slot out to run it without its
+filter; give it zero rows to match nothing. Blank nodes are refused.
+
 Argument values are SPARQL Results JSON terms. `iri()` and `literal()` build them;
 `literal('2026', { datatype })` and `literal('Perth', { lang: 'en-AU' })` cover the
 rest. A cell that is `null` or absent is UNDEF, and a whole `null` row — what a
@@ -129,7 +135,8 @@ unsupplied parameter leaves the placeholder text in place.
 Argument sets are matched to slots by the variables they declare rather than by
 position, so a saved payload that lists its variables in a different order than the
 query declares them still applies. Two slots declaring the same variables are
-interchangeable and are taken in order.
+interchangeable and are taken in order. A slot no argument names runs without its
+filter, and an argument that names no free slot is refused.
 
 Caller values become query syntax, so each one is proven to sit inside its SPARQL
 terminal production or rejected: IRIs against `IRIREF`, language tags against
@@ -145,8 +152,8 @@ SELECT rows into a downstream `VALUES` slot. `fromBundle(bundle).group(name)` ru
 every node in topological order through the same handle a direct call uses, renames
 rows crossing an edge by the edge's mapping, and unions and deduplicates where two
 edges feed one slot. The caller supplies argument sets for every slot no edge
-feeds; `limits` and `offsets` are offered to every node and taken by whichever
-declares the name.
+feeds and wants filtered; a slot it leaves out runs open. `limits` and `offsets`
+are offered to every node and taken by whichever declares the name.
 
 A group whose nodes are rule sets, ETL jobs or dynamic queries, whose edges move
 RDF or a boolean, or whose end node has more than one data input, is left out of
@@ -227,6 +234,11 @@ runtime. The exported page inlines it and the sqlib web app imports it, so the
 builder someone learns in one is the builder they use in the other. Each cell is
 validated with the same `serializeTerm` that guards the query, so "the form says
 this is fine" and "this will substitute" cannot drift apart.
+
+A slot left with no rows is left out of the payload the element emits, so the
+query runs without that filter. A payload that passes a slot zero rows, which
+means "match nothing", is shown as JSON, because the form cannot tell the two
+apart.
 
 ```ts
 import { defineArgsElement } from '@sparql-query-lib/runtime/args-element';

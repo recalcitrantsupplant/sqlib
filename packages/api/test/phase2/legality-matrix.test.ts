@@ -188,7 +188,7 @@ describe('Phase 2 legality matrix', () => {
       // A QUERY_ID edge out of the StartNode means "the caller picks the query",
       // so the caller has to actually pick one for the run to be meaningful.
       const externalQueryId = cell.source === 'start' && cell.flow === 'QUERY_ID'
-        ? [{ head: { vars: ['thing'] }, arguments: { bindings: [{ thing: { type: 'uri', value: dynamicTargetVersionId } }] } }]
+        ? [{ head: { vars: ['thing'] }, results: { bindings: [{ thing: { type: 'uri', value: dynamicTargetVersionId } }] } }]
         : undefined;
       const execution = await harness.execute(built!, { arguments: externalQueryId });
 

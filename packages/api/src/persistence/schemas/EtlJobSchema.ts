@@ -26,6 +26,14 @@ export const EtlJobSchema = {
     // beside the entity. See `Property['@projects']`.
     '@projects': { as: 'currentVersionNumber', property: 'version' },
   },
+  // The backend a run uses when the caller picks none. Unset means the
+  // server's in-memory Oxigraph store; ETL never falls back to the library's
+  // default, which is chosen for queries rather than for scratch loads.
+  defaultBackend: {
+    '@id': sqlib.defaultBackend,
+    '@type': ldkit.IRI,
+    '@optional': true,
+  },
   isPartOf: {
     '@id': sdo.isPartOf,
     '@array': true,
@@ -55,6 +63,7 @@ export interface LdkitEtlJob {
   name: string;
   description?: string | null;
   currentVersion?: string | null; // IRI pointing to latest EtlJobVersion
+  defaultBackend?: string | null; // IRI of the backend a run defaults to; unset = in-memory
   isPartOf: string[]; // IRIs - can include libraries
   dateCreated?: string | null; // ISO string format for RDF/JSON-LD compatibility
   dateModified?: string | null; // ISO string format for RDF/JSON-LD compatibility

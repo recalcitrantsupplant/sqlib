@@ -224,7 +224,7 @@ describe('Execute route (v1)', () => {
       .mockReturnValueOnce(backend)
       .mockReturnValueOnce(version);
 
-    const args = [{ head: { vars: ['x'] }, arguments: { bindings: [{ x: { type: 'uri', value: 'http://example.org/x' } }] } }];
+    const args = [{ head: { vars: ['x'] }, results: { bindings: [{ x: { type: 'uri', value: 'http://example.org/x' } }] } }];
     const applied = 'SELECT * WHERE { VALUES ?x { <http://example.org/x> } }';
     const mockExecutor = createMockExecutor();
     mockExecutor.selectQueryParsed.mockResolvedValue({
@@ -336,7 +336,7 @@ describe('Execute route (v1)', () => {
         throw new Error('Invalid argument format');
       });
       
-      const args = [{ head: { vars: ['x'] }, arguments: { bindings: [] } }];
+      const args = [{ head: { vars: ['x'] }, results: { bindings: [] } }];
       const res = await app.inject({ 
         method: 'POST', 
         url: '/execute/', 

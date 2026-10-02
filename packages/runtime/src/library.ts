@@ -19,7 +19,7 @@ import {
   type QueryTemplate,
   type TemplateArgumentSet,
 } from './query-template.js';
-import { normalizeUndefBindings, type WireArgumentSet } from './arguments.js';
+import { normalizeArguments, type WireArgumentSet } from './arguments.js';
 import {
   assertPageParameterValue,
   toExecutionParameters,
@@ -46,7 +46,7 @@ import type { TermValue } from './sparql-terms.js';
  * can be passed straight through.
  *
  * The short form's rows are typed, the full form's are not: the full form is the
- * wire shape, arbitrary JSON until `normalizeUndefBindings` has been over it,
+ * wire shape, arbitrary JSON until `normalizeArguments` has been over it,
  * while the short form is the one written by hand. Its row type is
  * {@link TemplateArgumentSet}'s own, so a `null` row — a blank row, what a JSON
  * round-trip of a grid produces — is accepted here exactly as it is there.
@@ -55,7 +55,6 @@ export type ArgumentSetInput =
   | WireArgumentSet
   | {
       bindings: readonly (ArgumentRow | null | undefined)[];
-      whenEmpty?: TemplateArgumentSet['whenEmpty'];
     };
 
 /*
@@ -70,7 +69,11 @@ type ShortFormArgumentSet = Extract<ArgumentSetInput, { bindings: unknown }>;
 export type ParameterInput = Readonly<Record<string, number>> | readonly ExecutionParameter[];
 
 export interface CallPayload {
-  /** One argument set per parameter slot, in slot order. */
+  /**
+   * At most one argument set per parameter slot. Full-form sets are matched to
+   * slots by the variables they bind; short-form sets fill slots in order. A
+   * slot left out runs unconstrained; a set with zero rows matches nothing.
+   */
   arguments?: readonly ArgumentSetInput[];
   limits?: ParameterInput;
   offsets?: ParameterInput;
@@ -123,8 +126,7 @@ function toWireArgumentSets(
         // Copied rather than passed through: the short form's rows are readonly
         // (a caller may hand us a frozen array), and the wire shape is not.
         head: { vars: [...vars] },
-        arguments: { bindings: [...input.bindings] },
-        ...(input.whenEmpty !== undefined ? { whenEmpty: input.whenEmpty } : {}),
+        results: { bindings: [...input.bindings] },
       };
     }
     return input;
@@ -175,20 +177,13 @@ export class QueryHandle {
    * exactly what `POST /execute` would have sent.
    */
   text(payload: CallPayload = {}): string {
-    // LIMIT/OFFSET first, then VALUES — the order `/execute` has always used, and
-    // the order that keeps caller data out of the page substitution's way: a
-    // literal argument whose text happens to read `LIMIT 0001` must not be
-    // rewritten, and after this step nothing else scans the query.
-    const template = withPageParameters(
+    const wireSets = toWireArgumentSets(payload.arguments ?? [], this.query);
+    return substituteCall(
       this.query,
+      normalizeArguments(wireSets) ?? [],
       toExecutionParameters(payload.limits),
       toExecutionParameters(payload.offsets),
     );
-
-    const wireSets = toWireArgumentSets(payload.arguments ?? [], this.query);
-    const argumentSets = normalizeUndefBindings(wireSets) ?? [];
-
-    return applyTemplateArguments(template, argumentSets);
   }
 
   /** Substitute and run, returning whatever the executor returns. */
@@ -259,6 +254,25 @@ export class QueryHandle {
  * A parameter the caller did not supply is left alone: its placeholder text stays
  * in the query, which is exactly what the API does with an unsupplied `LIMIT 0001`.
  */
+/**
+ * Substitute already-normalised argument sets and page parameters into a query.
+ *
+ * The seam a group walk uses: its sets are built internally and may carry the
+ * author's `whenEmpty`, which the wire shape deliberately cannot.
+ */
+export function substituteCall(
+  query: ExportedQuery,
+  argumentSets: TemplateArgumentSet[],
+  limits: ExecutionParameter[],
+  offsets: ExecutionParameter[],
+): string {
+  // LIMIT/OFFSET first, then VALUES — the order `/execute` has always used, and
+  // the order that keeps caller data out of the page substitution's way: a
+  // literal argument whose text happens to read `LIMIT 0001` must not be
+  // rewritten, and after this step nothing else scans the query.
+  return applyTemplateArguments(withPageParameters(query, limits, offsets), argumentSets);
+}
+
 function withPageParameters(
   query: ExportedQuery,
   limits: ExecutionParameter[],

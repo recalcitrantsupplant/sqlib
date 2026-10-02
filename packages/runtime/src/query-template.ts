@@ -66,7 +66,10 @@ export interface QueryTemplate {
  */
 export type ArgumentRow = Record<string, TermValue | null | undefined>;
 
-/** An argument set as supplied by a caller, in SPARQL Results JSON shape. */
+/**
+ * An argument set ready to substitute: a SPARQL Results JSON document, plus the
+ * empty-input policy the runtime attaches.
+ */
 export interface TemplateArgumentSet {
   head: { vars: string[] };
   /**
@@ -74,7 +77,13 @@ export interface TemplateArgumentSet {
    * That is what a JSON round-trip of a grid produces, so it is part of the
    * shape rather than a tolerance; see `arguments.ts`.
    */
-  arguments: { bindings: Array<ArgumentRow | null | undefined> };
+  results: { bindings: Array<ArgumentRow | null | undefined> };
+  /**
+   * What a slot that received no bound rows means. Never on the wire: a caller
+   * says "nothing arrived" by omitting the slot and "the empty set arrived" by
+   * sending zero rows. The runtime sets it for an omitted slot, and a group sets
+   * it from the author's edge policy (`require` is only ever the author's).
+   */
   whenEmpty?: EmptyArgumentMode;
 }
 
@@ -86,95 +95,109 @@ function isAllUndefRow(row: ArgumentRow | null | undefined): boolean {
 }
 
 /**
- * Apply argument sets to a compiled template, returning the query to dispatch.
- *
- * Mirrors `SparqlQueryParser.applyArguments`'s contract exactly — same arity check,
- * same variable matching, same `whenEmpty` semantics, same rejection of a wildcard
- * row mixed with bound rows. Divergence here is a bug, and the differential suite
- * in parser.template-equivalence.test.ts exists to catch it.
- */
-/**
  * Pair argument sets with the slots they are for, by variable rather than order.
  *
- * A caller supplies one argument set per parameter slot, and the obvious reading
- * is that the nth set fills the nth slot. That is a trap: an argument set knows
- * which variables it binds -- it says so in `head.vars` -- and the order it
+ * A caller supplies at most one argument set per parameter slot, and the obvious
+ * reading is that the nth set fills the nth slot. That is a trap: an argument set
+ * knows which variables it binds -- it says so in `head.vars` -- and the order it
  * happens to arrive in is an artefact of wherever it came from. An argument set
  * stored against a query keeps the order its rows were written in, so a
  * perfectly valid saved payload can present `?facetField` before `?term` for a
- * query that declares `?term` first, and a positional reading rejects it with
- * "Variable mismatch" for arguments that match the query exactly.
+ * query that declares `?term` first.
  *
  * So slots claim their sets by signature, in slot order. Two slots declaring the
  * same variables are genuinely interchangeable, and taking the first unclaimed
  * match keeps them positional with respect to each other -- which is the only
  * signal available when the signatures cannot tell them apart.
  *
- * Returns null when no complete assignment exists, leaving the caller to report
- * the mismatch in its own words: this function's job is to find an arrangement,
- * not to decide what a missing one means.
+ * A slot nothing claims is `undefined` in `slots`: the caller omitted it. A set
+ * that claims no slot is returned in `unmatched`, for the caller to report. This
+ * function finds the arrangement; deciding what an omission or a leftover means
+ * is the caller's.
  */
-export function alignArgumentSets<T extends { head?: { vars?: string[] } }>(
+export function assignArgumentSets<T extends { head?: { vars?: string[] } }>(
   slotVars: readonly (readonly string[])[],
   argumentSets: readonly T[],
-): T[] | null {
-  if (slotVars.length !== argumentSets.length) return null;
-
+): { slots: (T | undefined)[]; unmatched: T[] } {
   const signature = (vars: readonly string[] | undefined) =>
-    vars ? [...vars].slice().sort().join(' ') : null;
+    Array.isArray(vars) ? [...vars].sort().join(' ') : null;
 
   const unclaimed = argumentSets.map((set) => ({ set, taken: false }));
-  const aligned: T[] = [];
-
-  for (const vars of slotVars) {
+  const slots = slotVars.map((vars) => {
     const wanted = signature(vars);
     const at = unclaimed.findIndex(
       (entry) => !entry.taken && signature(entry.set?.head?.vars) === wanted,
     );
-    // A set with no head cannot be matched by signature, and one whose head
-    // matches nothing is a real mismatch. Either way there is no arrangement.
-    if (at === -1) return null;
+    if (at === -1) return undefined;
     unclaimed[at].taken = true;
-    aligned.push(unclaimed[at].set);
-  }
+    return unclaimed[at].set;
+  });
 
-  return aligned;
+  return { slots, unmatched: unclaimed.filter((entry) => !entry.taken).map((entry) => entry.set) };
 }
 
+/**
+ * One argument set per slot, in slot order, ready to substitute.
+ *
+ * A slot the caller omitted runs unconstrained: nothing arrived, so nothing is
+ * filtered. An argument that fits no slot is refused, naming what it binds and
+ * what the query declares, because silently dropping it would run the query
+ * without a filter the caller asked for.
+ */
+export function completeArgumentSets(
+  slotVars: readonly (readonly string[])[],
+  argumentSets: readonly TemplateArgumentSet[],
+): TemplateArgumentSet[] {
+  if (!Array.isArray(argumentSets)) {
+    throw new Error('Invalid arguments format: Expected an array of argument sets.');
+  }
+  argumentSets.forEach((set, index) => {
+    if (!set || !set.head || !Array.isArray(set.head.vars) || !set.results || !Array.isArray(set.results.bindings)) {
+      throw new Error(
+        `Invalid structure for argument set at index ${index}. Expected { head: { vars: [...] }, results: { bindings: [...] } }.`,
+      );
+    }
+  });
+  const { slots, unmatched } = assignArgumentSets(slotVars, argumentSets);
+  if (unmatched.length > 0) {
+    const describe = (vars: readonly string[]) => `[${vars.join(', ')}]`;
+    const declared = slotVars.length > 0 ? slotVars.map(describe).join(', ') : 'no VALUES parameters';
+    throw new Error(
+      `Argument ${unmatched.map((set) => describe(set.head.vars)).join(', ')} matches no VALUES parameter left to fill. The query declares ${declared}.`,
+    );
+  }
+  return slots.map(
+    (set, index) =>
+      set ?? {
+        head: { vars: [...slotVars[index]] },
+        results: { bindings: [] },
+        whenEmpty: 'unconstrained' as const,
+      },
+  );
+}
+
+/**
+ * Apply argument sets to a compiled template, returning the query to dispatch.
+ *
+ * Mirrors `SparqlQueryParser.applyArguments`'s contract exactly — same slot
+ * assignment (omitted slots run open, a leftover argument is refused), same `whenEmpty` semantics, same rejection of a wildcard
+ * row mixed with bound rows. Divergence here is a bug, and the differential suite
+ * in parser.template-equivalence.test.ts exists to catch it.
+ */
 export function applyTemplateArguments(
   template: QueryTemplate,
   argumentSets: TemplateArgumentSet[],
 ): string {
-  if (!Array.isArray(argumentSets)) {
-    throw new Error('Invalid arguments format: Expected an array of argument sets.');
-  }
-  if (template.slots.length !== argumentSets.length) {
-    throw new Error(
-      `Mismatch: Found ${template.slots.length} UNDEF VALUES clauses, but received ${argumentSets.length} argument sets.`,
-    );
-  }
-
-  /*
-   * Order the sets by the slots they name before walking positionally. An
-   * arrangement that matches is used; when none does, the caller's own order is
-   * kept so the per-slot checks below report the mismatch as they always have.
-   */
-  const ordered =
-    alignArgumentSets(
-      template.slots.map((slot) => slot.vars),
-      argumentSets,
-    ) ?? argumentSets;
+  const ordered = completeArgumentSets(
+    template.slots.map((slot) => slot.vars),
+    argumentSets,
+  );
 
   let out = '';
   let cursor = 0;
 
   template.slots.forEach((slot, index) => {
     const argSet = ordered[index];
-    if (!argSet || !argSet.head || !Array.isArray(argSet.head.vars) || !argSet.arguments || !Array.isArray(argSet.arguments.bindings)) {
-      throw new Error(
-        `Invalid structure for argument set at index ${index}. Expected { head: { vars: [...] }, arguments: { bindings: [...] } }.`,
-      );
-    }
 
     const patternVars = [...slot.vars].sort();
     const argVars = [...argSet.head.vars].sort();
@@ -184,7 +207,7 @@ export function applyTemplateArguments(
       );
     }
 
-    const bindings = argSet.arguments.bindings;
+    const bindings = argSet.results.bindings;
     const wildcardRows = bindings.filter(isAllUndefRow);
     if (bindings.length > 1 && wildcardRows.length > 0) {
       throw new Error(

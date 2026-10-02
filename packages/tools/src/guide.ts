@@ -41,11 +41,15 @@ Parameters
 - \`detection.detectInputs\` returns what a query declares (\`valuesInputs\` as groups of variable names, \`limitParameters\`, \`offsetParameters\`). Call it rather than guessing.
 
 Running
-- \`execute.run\` with \`targetId\` = a query id (runs its currentVersion), a version id, or a query group id. \`backendId\` is required for a query and must be omitted for a query group.
-- \`arguments\` is an array with exactly one entry per parameter slot, in order of appearance, in SPARQL-results-JSON shape: \`{"head": {"vars": ["city"]}, "arguments": {"bindings": [{"city": {"type": "uri", "value": "http://example.org/Perth"}}, {"city": {"type": "literal", "value": "Hobart", "xml:lang": "en"}}]}}\`. \`head.vars\` must match the slot's variables; leave a variable out of a row to bind it UNDEF.
+- \`execute.run\` with \`targetId\` = a query id (runs its currentVersion), a version id, or a query group id. \`backendId\` defaults to the query's or its library's; omit it for a group.
+- \`arguments\` is an array of SPARQL Results JSON documents, at most one per slot, matched by \`head.vars\`: \`{"head": {"vars": ["city"]}, "results": {"bindings": [{"city": {"type": "uri", "value": "http://example.org/Perth"}}, {"city": {"type": "literal", "value": "Hobart", "xml:lang": "en"}}]}}\`. A SELECT result works as is. A variable left out of a row is UNDEF. Omit a slot to run it unconstrained; zero rows matches nothing. No blank nodes.
 - \`limits\` / \`offsets\`: \`[{"name": "1", "value": 20}]\`.
 - Saved argument sets (\`queries.listArgumentSets\`, \`argumentSets.get\`) hold reusable arguments; pass their ids as \`argumentSetIds\` instead of inline \`arguments\`.
 - \`sparql.proxyQuery\` runs ad-hoc SPARQL text against a backend without saving anything, with the same \`arguments\` mechanism.
+
+Rendered results
+- \`execute.run\` and \`sparql.proxyQuery\` return an interactive result table, and \`app.bench.open\` an editable query bench, in clients that render MCP Apps. Which tools do this is not visible to you — hosts strip the metadata that says so before you see a result — so it is stated here and in those three descriptions. When one renders, the user is already looking at the rows; summarise, do not reprint them.
+- \`app.tutorial.open\` opens a library laid out as lessons, for a user learning SPARQL rules (SRL). It keeps no progress; it tells you what the user runs and checks, so tutor from that. \`srl.analyze\`, \`srl.compile\` and \`srl.run\` answer the same questions about any SRL text.
 
 Typical flow: \`libraries.list\` → \`backends.list\` → \`detection.validateQuery\` → \`detection.detectInputs\` → \`queries.create\` → \`queries.createVersion\` → \`execute.run\`.`;
 

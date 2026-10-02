@@ -2672,6 +2672,11 @@ export const createEtlJobSchema = {
         "format": "iri",
         "nullable": true
       },
+      "defaultBackend": {
+        "type": "string",
+        "format": "iri",
+        "nullable": true
+      },
       "isPartOf": {
         "type": "array",
         "items": {
@@ -2753,6 +2758,11 @@ export const updateEtlJobSchema = {
         "nullable": true
       },
       "currentVersion": {
+        "type": "string",
+        "format": "iri",
+        "nullable": true
+      },
+      "defaultBackend": {
         "type": "string",
         "format": "iri",
         "nullable": true

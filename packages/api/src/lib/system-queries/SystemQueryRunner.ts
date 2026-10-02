@@ -64,7 +64,7 @@ export class SystemQueryRunner {
         }
         argumentSets.push({
           head: { vars: binding.vars },
-          arguments: { bindings: binding.bindings as unknown as ArgumentSet['arguments']['bindings'] },
+          results: { bindings: binding.bindings as unknown as ArgumentSet['results']['bindings'] },
         });
       }
     }

@@ -179,6 +179,11 @@ test.describe('A read-only deployment', () => {
     await page.locator('[data-testid="argument-value"]').first().fill('http://example.org/Perth');
     await page.waitForTimeout(600);
 
+    // A draft in a library with no default backend waits for one to be chosen.
+    await expect(page.locator('[data-testid="run-bar-run"]')).toBeDisabled();
+    await page.locator('[data-testid="run-bar-backend"]').click();
+    await page.getByRole('option').filter({ hasText: /ephemeral/i }).first().click();
+
     await page.locator('[data-testid="run-bar-run"]').click();
     await expect.poll(() => executions.length).toBeGreaterThan(0);
 
@@ -192,7 +197,7 @@ test.describe('A read-only deployment', () => {
       arguments: [
         {
           head: { vars: ['city'] },
-          arguments: { bindings: [{ city: { type: 'uri', value: 'http://example.org/Perth' } }] },
+          results: { bindings: [{ city: { type: 'uri', value: 'http://example.org/Perth' } }] },
         },
       ],
     });

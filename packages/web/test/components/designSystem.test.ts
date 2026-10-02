@@ -1689,7 +1689,6 @@ describe('StatusBadge adoption', () => {
     'components/BackendListSidebar.vue: .health-dot': 'a dot — the shape StatusBadge renders as its own __dot',
     'components/BackendWorkArea.vue: .history-dot': 'a dot, one per probe in the history strip',
     'components/EntityListSidebar.vue: .draft-dot': 'a dot beside a list row',
-    'pages/build.vue: .feed-dot': 'a dot in the feed status line',
 
     // A pill you can click is a button. StatusBadge renders a <span> and states
     // no hover, focus or active — giving it those would make every badge in the

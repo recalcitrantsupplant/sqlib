@@ -370,6 +370,7 @@ type BackendUsage = {
   queryGroups: UsageGroup;
   benchmarks: UsageGroup;
   libraries: UsageGroup;
+  etlJobs: UsageGroup;
 };
 
 /** First few names, because a delete or detach warning that only counts is not actionable. */
@@ -388,7 +389,7 @@ function toUsageGroup(entities: Array<{ $id: string; name?: string | null }>): U
 /**
  * Everything that points at a backend.
  *
- * Queries and libraries name one directly. A query group does not: its nodes
+ * Queries, libraries and ETL jobs name one directly as their default. A query group does not: its nodes
  * do, one node at a time, so a group counts when its current version holds a
  * node aimed here. Benchmarks name backends inside
  * `subjectSpecs`, which is stored as a JSON string.
@@ -396,6 +397,7 @@ function toUsageGroup(entities: Array<{ $id: string; name?: string | null }>): U
 function collectBackendUsage(repos: EntityRepositories, backendId: string): BackendUsage {
   const queries = repos.Query.list().filter((query) => query.defaultBackend === backendId);
   const libraries = repos.Library.list().filter((library) => library.defaultBackend === backendId);
+  const etlJobs = repos.EtlJob.list().filter((job) => job.defaultBackend === backendId);
 
   const nodeIds = new Set<string>();
   for (const node of repos.QueryNode.list()) {
@@ -429,6 +431,7 @@ function collectBackendUsage(repos: EntityRepositories, backendId: string): Back
     queryGroups: toUsageGroup(queryGroups),
     benchmarks: toUsageGroup(benchmarks),
     libraries: toUsageGroup(libraries),
+    etlJobs: toUsageGroup(etlJobs),
   };
 }
 
@@ -910,6 +913,7 @@ export default async function (
               queryGroups: usageGroupSchema,
               benchmarks: usageGroupSchema,
               libraries: usageGroupSchema,
+              etlJobs: usageGroupSchema,
             },
           },
         },
@@ -934,7 +938,11 @@ export default async function (
   // every library and query in the deployment pointing at it. `use` is the bar
   // its sibling sets, and this is the same read of the same connection.
   fastify.get<{
-    Reply: { libraries: Array<{ id: string; name: string }>; queries: Array<{ id: string; name: string }> } | ErrorResponse
+    Reply: {
+      libraries: Array<{ id: string; name: string }>;
+      queries: Array<{ id: string; name: string }>;
+      etlJobs: Array<{ id: string; name: string }>;
+    } | ErrorResponse
   }>(
     '/:id/references',
     ...reposRoute({
@@ -960,6 +968,16 @@ export default async function (
                 }
               },
               queries: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    id: { type: 'string' },
+                    name: { type: 'string' }
+                  }
+                }
+              },
+              etlJobs: {
                 type: 'array',
                 items: {
                   type: 'object',
@@ -995,16 +1013,21 @@ export default async function (
         .filter(query => query.defaultBackend === id)
         .map(query => ({ id: query.$id, name: query.name }));
 
+      const referencingEtlJobs = repos.EtlJob.list()
+        .filter(job => job.defaultBackend === id)
+        .map(job => ({ id: job.$id, name: job.name }));
+
       return reply.send({
         libraries: referencingLibraries,
         queries: referencingQueries,
+        etlJobs: referencingEtlJobs,
       });
     })
   );
 
   // --- DELETE /:id ---
   // Deletes a Backend using write-through cache
-  // Also clears any defaultBackend references in Libraries and Queries
+  // Also clears any defaultBackend references in Libraries, Queries and ETL jobs
   fastify.delete<{ Reply: { error: string } | null }>(
     '/:id',
     ...reposRoute(deleteBackendSchema,
@@ -1034,6 +1057,14 @@ export default async function (
         if (query.defaultBackend === id) {
           request.log.info(`Clearing defaultBackend reference in Query: ${query.$id}`);
           await repos.Query.update(query.$id, { defaultBackend: null });
+        }
+      }
+
+      // An ETL job whose default goes away runs in memory again.
+      for (const job of repos.EtlJob.list()) {
+        if (job.defaultBackend === id) {
+          request.log.info(`Clearing defaultBackend reference in EtlJob: ${job.$id}`);
+          await repos.EtlJob.update(job.$id, { defaultBackend: null });
         }
       }
 
