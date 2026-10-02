@@ -511,4 +511,36 @@ describe('SparqlQueryParser - detectInputs', () => {
     // expect(() => parser.detectInputs(queryString)).toThrow(/Failed to parse SPARQL query/);
   });
 
+  /*
+   * A placeholder is a clause in the query's code. Text that merely reads like
+   * one — in a comment, a string literal or an IRI — declares nothing, so the
+   * caller is never offered a parameter substitution would then not touch.
+   */
+  describe('LIMIT/OFFSET placeholders outside code', () => {
+    const query = [
+      '# LIMIT 0001 — paging was removed',
+      'SELECT ?s WHERE { ?s <urn:note> "OFFSET 0002" ; <urn:p#LIMIT> ?o }',
+      'LIMIT 0003',
+    ].join('\n');
+
+    it('declares only the clause in code', () => {
+      const detected = parser.detectInputs(query);
+      expect(detected.limitParameters).toEqual(['3']);
+      expect(detected.offsetParameters).toEqual([]);
+    });
+
+    it('substitutes only that clause', () => {
+      const substituted = parser.applyLimitOffsetParameters(query, [{ name: '1', value: 9 }, { name: '3', value: 5 }], [{ name: '2', value: 7 }]);
+      expect(substituted).toContain('# LIMIT 0001');
+      expect(substituted).toContain('"OFFSET 0002"');
+      expect(substituted).toMatch(/LIMIT 5$/);
+    });
+
+    it('keeps the placeholder and the literal through formatting', () => {
+      const formatted = parser.formatQueryString(query);
+      expect(formatted).toContain('"OFFSET 0002"');
+      expect(formatted).toMatch(/LIMIT 0003/);
+      expect(parser.detectInputs(formatted).limitParameters).toEqual(['3']);
+    });
+  });
 });

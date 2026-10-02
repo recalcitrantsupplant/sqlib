@@ -6,7 +6,7 @@
      CI fails when this file and the built declarations disagree, so every
      addition, removal or signature change arrives as a reviewable diff. -->
 
-Version `0.1.0`. 3 entry points, 146 exported names.
+Version `0.1.0`. 3 entry points, 152 exported names.
 
 Private and protected class members are omitted: a consumer cannot reach them.
 Doc comments are omitted too — they are in the source, and repeating them here
@@ -14,7 +14,7 @@ would make every wording change a surface diff.
 
 ## `@sparql-query-lib/runtime`
 
-67 exports, from `index.d.ts`.
+70 exports, from `index.d.ts`.
 
 ### `Abbreviation` — interface, from `describe-term`
 
@@ -225,6 +225,12 @@ interface ExportedQuery {
 type ExportedQueryType = 'SELECT' | 'ASK' | 'CONSTRUCT' | 'DESCRIBE';
 ```
 
+### `findLimitOffsetClauses` — function, from `limit-offset`
+
+```ts
+declare function findLimitOffsetClauses(queryString: string): LimitOffsetClause[];
+```
+
 ### `fromBundle` — function, from `library`
 
 ```ts
@@ -367,6 +373,18 @@ declare function iri(value: string): TermValue;
 declare function isSafeVariableName(name: string): boolean;
 ```
 
+### `LimitOffsetClause` — interface, from `limit-offset`
+
+```ts
+interface LimitOffsetClause {
+    kind: 'limit' | 'offset';
+    lexeme: string;
+    name: string | null;
+    start: number;
+    end: number;
+}
+```
+
 ### `literal` — function, from `library`
 
 ```ts
@@ -493,6 +511,12 @@ interface RdfPayload {
 
 ```ts
 declare function renderValuesBlock(vars: string[], rows: Array<Record<string, TermValue | null | undefined>>, argSetIndex: number, prefixes?: PrefixTable): string;
+```
+
+### `rewriteLimitOffsetClauses` — function, from `limit-offset`
+
+```ts
+declare function rewriteLimitOffsetClauses(queryString: string, replace: (clause: LimitOffsetClause) => string | null): string;
 ```
 
 ### `serializeIri` — function, from `sparql-terms`
@@ -691,6 +715,6 @@ declare class SqlibArgsElement extends ArgsElementBase {
 
 ## `@sparql-query-lib/runtime/browser`
 
-73 exports, from `browser.d.ts`.
+76 exports, from `browser.d.ts`.
 
-73 of them are re-exported unchanged from an entry point above: `Abbreviation`, `applyTemplateArguments`, `ARGS_ELEMENT_STYLES`, `ArgsElementBase`, `ArgsPayload`, `ArgsSignature`, `ArgumentRow`, `ArgumentSetInput`, `assertPageParameterValue`, `assertValidBundle`, `assignArgumentSets`, `CallPayload`, `completeArgumentSets`, `defineArgsElement`, `describeTerm`, `DescribeTermOptions`, `EmptyArgumentMode`, `escapeLiteralLexical`, `ExecutionParameter`, `ExecutionRequest`, `ExecutionResult`, `Executor`, `ExportBundle`, `ExportedGroup`, `ExportedGroupEdge`, `ExportedGroupNode`, `ExportedQuery`, `ExportedQueryType`, `fromBundle`, `FromBundleOptions`, `GroupCallPayload`, `GroupExternalInput`, `GroupHandle`, `GroupRunResult`, `GroupVariableMapping`, `hashTemplateText`, `httpExecutor`, `HttpExecutorOptions`, `InvalidArgumentError`, `InvalidBundleError`, `InvalidParameterError`, `InvalidTermError`, `iri`, `isSafeVariableName`, `literal`, `normalizeArguments`, `PageParameterSpan`, `ParameterInput`, `PrefixTable`, `prefixTableAbbreviator`, `QueryCallError`, `QueryExample`, `QueryHandle`, `QueryLibrary`, `QueryTemplate`, `RdfPayload`, `renderValuesBlock`, `serializeIri`, `serializeTerm`, `serializeVariable`, `SparqlAskResults`, `SparqlEndpointError`, `SparqlSelectResults`, `SqlibArgsElement`, `substituteLimitOffset`, `TemplateArgumentSet`, `TemplateSlot`, `TermDescription`, `TermValue`, `toExecutionParameters`, `TypedExportBundle`, `verifyBundleIntegrity`, `WireArgumentSet`.
+76 of them are re-exported unchanged from an entry point above: `Abbreviation`, `applyTemplateArguments`, `ARGS_ELEMENT_STYLES`, `ArgsElementBase`, `ArgsPayload`, `ArgsSignature`, `ArgumentRow`, `ArgumentSetInput`, `assertPageParameterValue`, `assertValidBundle`, `assignArgumentSets`, `CallPayload`, `completeArgumentSets`, `defineArgsElement`, `describeTerm`, `DescribeTermOptions`, `EmptyArgumentMode`, `escapeLiteralLexical`, `ExecutionParameter`, `ExecutionRequest`, `ExecutionResult`, `Executor`, `ExportBundle`, `ExportedGroup`, `ExportedGroupEdge`, `ExportedGroupNode`, `ExportedQuery`, `ExportedQueryType`, `findLimitOffsetClauses`, `fromBundle`, `FromBundleOptions`, `GroupCallPayload`, `GroupExternalInput`, `GroupHandle`, `GroupRunResult`, `GroupVariableMapping`, `hashTemplateText`, `httpExecutor`, `HttpExecutorOptions`, `InvalidArgumentError`, `InvalidBundleError`, `InvalidParameterError`, `InvalidTermError`, `iri`, `isSafeVariableName`, `LimitOffsetClause`, `literal`, `normalizeArguments`, `PageParameterSpan`, `ParameterInput`, `PrefixTable`, `prefixTableAbbreviator`, `QueryCallError`, `QueryExample`, `QueryHandle`, `QueryLibrary`, `QueryTemplate`, `RdfPayload`, `renderValuesBlock`, `rewriteLimitOffsetClauses`, `serializeIri`, `serializeTerm`, `serializeVariable`, `SparqlAskResults`, `SparqlEndpointError`, `SparqlSelectResults`, `SqlibArgsElement`, `substituteLimitOffset`, `TemplateArgumentSet`, `TemplateSlot`, `TermDescription`, `TermValue`, `toExecutionParameters`, `TypedExportBundle`, `verifyBundleIntegrity`, `WireArgumentSet`.
