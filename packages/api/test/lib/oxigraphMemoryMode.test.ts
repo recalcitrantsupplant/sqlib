@@ -22,7 +22,7 @@ async function filesUnder(dir: string): Promise<string[]> {
 }
 
 async function tripleCount(): Promise<number> {
-  const executor = await new ExecutorFactory().getExecutorForBackendId(LIBRARY_STORAGE_BACKEND_ID);
+  const executor = await new ExecutorFactory({ internal: true }).getExecutorForBackendId(LIBRARY_STORAGE_BACKEND_ID);
   const { result } = await executor.selectQueryParsed('SELECT (COUNT(*) AS ?n) WHERE { ?s ?p ?o }');
   const bindings = typeof result === 'string' ? [] : result.results.bindings;
   return Number((bindings[0]?.n as { value?: string } | undefined)?.value ?? 0);
@@ -48,7 +48,7 @@ describe('oxigraph-memory internal backend', () => {
   });
 
   it('writes nothing to disk at shutdown and starts empty on the next boot', async () => {
-    const executor = await new ExecutorFactory().getExecutorForBackendId(LIBRARY_STORAGE_BACKEND_ID);
+    const executor = await new ExecutorFactory({ internal: true }).getExecutorForBackendId(LIBRARY_STORAGE_BACKEND_ID);
     await executor.update('INSERT DATA { <urn:test:s> <urn:test:p> "o" }');
     expect(await tripleCount()).toBe(1);
 
