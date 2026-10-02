@@ -92,7 +92,6 @@ async function prepareOxigraphStores(fastifyApp: typeof app): Promise<void> {
       storeType: 'persistent',
       loadMethod: backendConfig.loadMethod,
       sourceConfig: backendConfig.sourceConfig,
-      persistPath: backendConfig.persistPath,
     });
     
     if (backendConfig.checkpointIntervalMs && backendConfig.checkpointIntervalMs > 0) {
@@ -101,7 +100,7 @@ async function prepareOxigraphStores(fastifyApp: typeof app): Promise<void> {
 
     fastifyApp.log.info({
       storeId: backendConfig.storeId,
-      persistPath: backendConfig.persistPath,
+      storageDir: backendConfig.storageDir,
     }, 'Library Oxigraph store ready for LDKit persistence');
   }
 }
