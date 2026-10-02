@@ -14,23 +14,23 @@
   <div v-if="supported" class="prefix-conversion-buttons">
     <button
       type="button"
-      class="bar-button"
+      class="icon-control"
       data-testid="prefix-fold-button"
       :disabled="disabled"
       title="Shorten full IRIs to prefixed names, declaring any prefix the result needs"
       @click="fold"
     >
-      <PrefixFoldIcon :size="13" />
+      <PrefixFoldIcon :size="16" />
     </button>
     <button
       type="button"
-      class="bar-button"
+      class="icon-control"
       data-testid="iri-unfold-button"
       :disabled="disabled"
       title="Expand every prefixed name to its full IRI"
       @click="unfold"
     >
-      <IriUnfoldIcon :size="13" />
+      <IriUnfoldIcon :size="16" />
     </button>
   </div>
 </template>
@@ -44,10 +44,12 @@
  * toolbar, with no handler of its own to write and no way for two hosts to
  * disagree about what the buttons do.
  *
- * One chrome, not two. These used to come in a labelled variant as well, which
- * made the same pair of buttons a different size and shape depending on which
- * toolbar you found them in. They are the square icon buttons the query
- * editor's save bar wears, everywhere.
+ * One chrome, not two. These used to come in a labelled variant as well, and
+ * later restated the save bar's button in a scoped block that each host then
+ * resized, which made the same pair of buttons a different size depending on
+ * which toolbar you found them in. They are `.icon-control` from
+ * `compact-buttons.css` — the same box as every other icon button in the row,
+ * on every screen.
  */
 import { computed } from 'vue';
 import PrefixFoldIcon from '@/components/icons/PrefixFoldIcon.vue';
@@ -85,38 +87,6 @@ function unfold() {
 .prefix-conversion-buttons {
   display: flex;
   align-items: center;
-  gap: var(--space-1);
-}
-
-/*
- * The save bar's own button, restated. Its styles are scoped to it, so a
- * component rendered inside it cannot inherit them by class name — these
- * values are copied from `.bar-button`/`.bar-icon` in SaveBar.vue and have to
- * be changed with them.
- */
-.bar-button {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  width: var(--control-h);
-  height: var(--control-h);
-  padding: 0;
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--ink-secondary);
-  font-family: inherit;
-  cursor: pointer;
-}
-
-.bar-button:hover:not(:disabled) {
-  border-color: var(--border-strong);
-  color: var(--ink);
-}
-
-.bar-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+  gap: var(--space-3);
 }
 </style>

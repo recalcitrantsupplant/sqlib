@@ -144,7 +144,7 @@ const swatchCount = computed(() => Math.min(props.strataCount, 4));
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  height: 22px;
+  height: var(--control-h-sm);
   padding: 0 var(--space-4);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-full);

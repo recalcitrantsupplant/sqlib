@@ -14,6 +14,11 @@
  * the container is only ever spelled by `shared/ResultsActionBar.vue`, and
  * `designSystem.test.ts` fails any file that uses these classes without it.
  *
+ * Every control in the row stands at `--control-h`, the toolbar height: the
+ * view toggle at its `default` size, the filter, the buttons below, and the
+ * term-display pair — which is `.icon-control`, the box the same two icons are
+ * drawn in above the editor, so the pair is one size on every screen.
+ *
  * All values come from tokens.css.
  */
 
@@ -30,7 +35,7 @@
 
 .results-action-bar .results-filter {
   max-width: 260px;
-  height: var(--control-h-sm);
+  height: var(--control-h);
 }
 
 .results-action-bar .action-bar-right {
@@ -44,7 +49,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  height: var(--control-h-sm);
+  height: var(--control-h);
   padding: 0 var(--space-4);
   font-size: var(--text-label);
   font-weight: var(--weight-semibold);
@@ -59,10 +64,6 @@
 .results-action-bar .btn-action:hover {
   color: var(--action);
   border-color: var(--action-border);
-}
-
-.results-action-bar .btn-action--icon {
-  padding: 0 var(--space-3);
 }
 
 .results-action-bar .btn-action-label {

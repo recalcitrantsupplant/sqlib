@@ -564,7 +564,7 @@ const labelOf = (choice: RunBarChoice) =>
 /* -- "against" / "as" ------------------------------------------------ */
 
 .chip-select {
-  height: 26px;
+  height: var(--control-h);
   min-width: 0;
   max-width: var(--grid-7);
   gap: var(--space-3);
@@ -623,7 +623,7 @@ const labelOf = (choice: RunBarChoice) =>
 .create-button {
   display: inline-flex;
   align-items: center;
-  height: 26px;
+  height: var(--control-h);
   padding: 0 var(--space-5);
   border: 1px solid var(--border-default);
   border-radius: 0;

@@ -100,7 +100,7 @@ const showLabel = computed(() => props.showLabel ?? true);
 }
 
 .version-trigger-compact {
-  height: 28px;
+  height: var(--control-h);
   font-size: var(--text-body);
 }
 
@@ -148,8 +148,8 @@ const showLabel = computed(() => props.showLabel ?? true);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
   padding: 0;
   border: none;
   border-radius: var(--radius-sm);

@@ -252,7 +252,7 @@ function isSelected(kind: AxisKey, id: string) {
   display: inline-flex;
   align-items: center;
   gap: var(--space-3);
-  height: 40px;
+  height: var(--panel-bar-h);
   padding: 0 var(--space-4);
   border: none;
   border-bottom: 2px solid transparent;
@@ -355,8 +355,8 @@ function isSelected(kind: AxisKey, id: string) {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 20px;
-  height: 20px;
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
   margin-left: auto;
   padding: 0;
   border: 1px solid var(--border-default);

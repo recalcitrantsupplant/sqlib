@@ -282,8 +282,8 @@ const scopeMeta = computed(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: var(--control-h);
+  height: var(--control-h);
   border: 0;
   border-radius: var(--radius-sm);
   background: none;

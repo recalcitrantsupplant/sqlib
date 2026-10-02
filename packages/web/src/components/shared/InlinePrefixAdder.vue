@@ -294,10 +294,10 @@ onBeforeUnmount(() => {
 .popover-input {
   flex: 1;
   min-width: 0;
-  height: 32px;
+  height: var(--control-h);
   padding: 0 var(--space-4);
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius);
   background: transparent;
   font-family: var(--font-mono);
   font-size: var(--text-body);
@@ -315,9 +315,9 @@ onBeforeUnmount(() => {
 
 .popover-add,
 .popover-cancel {
-  height: 32px;
+  height: var(--control-h);
   padding: 0 var(--space-5);
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius);
   font-size: var(--text-body);
   font-weight: 600;
   cursor: pointer;

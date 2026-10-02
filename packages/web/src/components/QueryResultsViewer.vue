@@ -535,6 +535,7 @@ defineExpose({
     -->
     <ResultsActionBar>
       <SegmentedToggle
+        size="default"
         v-model="activeTab"
         :options="viewOptions"
         group-label="Query results view"
@@ -562,12 +563,12 @@ defineExpose({
         <button
           v-if="canExpand"
           type="button"
-          class="btn-action btn-action--icon"
+          class="icon-control"
           data-testid="results-expand"
           title="Pop out"
           @click="emit('expand')"
         >
-          <Expand :size="14" />
+          <Expand :size="16" />
         </button>
       </template>
     </ResultsActionBar>

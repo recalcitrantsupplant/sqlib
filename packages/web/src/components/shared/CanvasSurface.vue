@@ -170,8 +170,8 @@ defineExpose({ surfaceEl });
 }
 
 .canvas-surface--dense :deep(.vue-flow__controls-button) {
-  width: 20px;
-  height: 20px;
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
   padding: var(--space-2);
 }
 </style>

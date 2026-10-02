@@ -114,7 +114,7 @@ const backendId = computed(() => props.backendId ?? null);
 }
 
 .tab {
-  height: 30px;
+  height: var(--control-h);
   padding: 0 var(--space-4);
   border: none;
   border-bottom: 2px solid transparent;
@@ -140,7 +140,7 @@ const backendId = computed(() => props.backendId ?? null);
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  height: 26px;
+  height: var(--control-h);
   margin-left: auto;
   padding: 0 var(--space-4);
   border-radius: var(--radius);

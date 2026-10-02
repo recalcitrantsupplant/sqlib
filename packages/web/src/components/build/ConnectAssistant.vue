@@ -195,8 +195,8 @@ async function copy(text: string, what: 'endpoint' | 'config') {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
   border: 1px solid var(--border-default);
   border-radius: var(--radius);
   background: var(--surface);
@@ -210,7 +210,7 @@ async function copy(text: string, what: 'endpoint' | 'config') {
 }
 
 .client-tab {
-  height: 26px;
+  height: var(--control-h);
   padding: 0 var(--space-4);
   border: 1px solid var(--border-default);
   border-radius: var(--radius);
@@ -254,7 +254,7 @@ async function copy(text: string, what: 'endpoint' | 'config') {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  height: 26px;
+  height: var(--control-h);
   padding: 0 var(--space-4);
   border: 1px solid var(--border-default);
   border-radius: var(--radius);
