@@ -101,6 +101,25 @@ import {
   type TestVersionExpanded,
   testRunResultSchema,
   taggedTestRunSchema,
+  previewTupleContentResponseSchema,
+  detectTupleFormatResponseSchema,
+  backendProbeSchema,
+  backendProbeListSchema,
+  remotePrefixesSchema,
+  prefixPushSchema,
+  backendEnvSchema,
+  backendUsageSchema,
+  type BackendProbe,
+  type BackendPrefixCapability,
+  type RemotePrefixes,
+  type PrefixPushResult,
+  type BackendEnv,
+  type BackendUsage,
+  argumentSetDetailSchema,
+  argumentSetVersionDetailSchema,
+  queryGroupValidationResponseSchema,
+  argumentSetExportSchema,
+  backendReferencesSchema,
   type TestCaseRunResult,
   type TestRunResult,
   type TaggedTestRun,
@@ -252,7 +271,9 @@ async function parseResponse<T>(response: Response, schema?: (payload: unknown) 
   const trimmed = text.trim();
 
   if (!trimmed.startsWith('{') && !trimmed.startsWith('[') && trimmed.length > 0) {
-    console.error('API Response is not JSON. Raw content:', trimmed);
+    // Thrown rather than logged and parsed anyway: the caller's one log line
+    // then says what came back instead of a bare JSON syntax error.
+    throw new Error(`Expected JSON from ${response.url || 'the API'}, got: ${trimmed.slice(0, 200)}`);
   }
 
   const payload = trimmed ? JSON.parse(trimmed) : undefined;
@@ -309,32 +330,6 @@ function parseServerTiming(
   };
 }
 
-const detectTupleFormatSchema = z.object({
-  suggested: z.enum(TUPLE_SOURCE_FORMATS),
-});
-
-/**
- * What content *would* become, without storing it.
- *
- * Mirrors what a version carries, because it is the same parse — the editor
- * uses it to preview unsaved rows and to convert pasted content into the row
- * builder, both of which need the typed interpretation only the server's
- * parser can give.
- */
-const columnTypeSuggestionSchema = z.object({
-  column: z.string(),
-  suggested: z.enum(SUGGESTED_COLUMN_TYPES),
-});
-
-const previewTupleContentSchema = z.object({
-  contentString: z.string(),
-  tupleColumns: z.array(z.string()),
-  rowCount: z.number(),
-  byteSize: z.number(),
-  columnTypeSuggestions: z.array(columnTypeSuggestionSchema),
-});
-
-
 /*
  * Version shapes are the contracts' own, projected from the entity model. A
  * test version's cases arrive inlined, with their data graphs in the shape a
@@ -346,93 +341,8 @@ export type { TestCaseRunResult, TestRunResult, TaggedTestRun, TagMatchMode };
 
 export type { RuleVersion, DataBlockVersion, DataGraphVersion, TupleSetVersion };
 
-/*
- * Backend observations — what the server saw when it last asked the store for
- * its service description. Never persisted, so a fresh server legitimately has
- * nothing to say about a backend that has existed for months.
- */
-const backendProbeSchema = z.object({
-  backendId: z.string(),
-  health: z.enum(['healthy', 'slow', 'unreachable']),
-  latencyMs: z.number().nullable(),
-  product: z.string().nullable(),
-  probedAt: z.string(),
-  error: z.string().nullable(),
-  /** What the endpoint answered with, when it answered. Null when nothing did. */
-  httpStatus: z.number().nullable().optional().default(null),
-  /**
-   * Whether the store exposes its own prefix map, and whether we may write it.
-   * Null when the probe could not establish it — an unreachable store, an
-   * in-process one, or detection switched off server-side — which is not the
-   * same as `read: null`, which means we asked and found nothing.
-   */
-  prefixes: z
-    .object({
-      read: z.enum(['jena-prefixes', 'turtle-scrape']).nullable(),
-      write: z.literal('jena-prefixes').nullable(),
-      readEndpoint: z.string().nullable(),
-      writeEndpoint: z.string().nullable(),
-      count: z.number().nullable(),
-    })
-    .nullable()
-    .optional()
-    .default(null),
-});
+export type { BackendProbe, BackendPrefixCapability, RemotePrefixes, PrefixPushResult, BackendEnv, BackendUsage };
 
-const remotePrefixesSchema = z.object({
-  mappings: z.array(z.object({ prefix: z.string(), namespace: z.string() })),
-  source: z.enum(['jena-prefixes', 'turtle-scrape']),
-  readOnly: z.boolean(),
-  endpoint: z.string().nullable(),
-});
-
-const prefixPushSchema = z.object({
-  results: z.array(z.object({
-    prefix: z.string(),
-    action: z.enum(['upsert', 'delete']),
-    status: z.enum(['ok', 'failed']),
-    error: z.string().optional(),
-  })),
-  applied: z.number(),
-  failed: z.number(),
-});
-
-const backendEnvSchema = z.object({
-  authEnvKey: z.string().nullable(),
-  variables: z.array(z.object({
-    name: z.string(),
-    role: z.string(),
-    // Presence only. A value never crosses this boundary.
-    set: z.boolean(),
-  })),
-});
-
-const backendUsageGroupSchema = z.object({
-  count: z.number(),
-  sample: z.array(z.object({ id: z.string(), name: z.string() })),
-});
-
-const backendUsageSchema = z.object({
-  queries: backendUsageGroupSchema,
-  queryGroups: backendUsageGroupSchema,
-  benchmarks: backendUsageGroupSchema,
-  libraries: backendUsageGroupSchema,
-  // Older servers do not count ETL jobs; read their absence as none.
-  etlJobs: backendUsageGroupSchema.default({ count: 0, sample: [] }),
-});
-
-export type BackendProbe = z.infer<typeof backendProbeSchema>;
-export type BackendPrefixCapability = NonNullable<BackendProbe['prefixes']>;
-export type RemotePrefixes = z.infer<typeof remotePrefixesSchema>;
-export type PrefixPushResult = z.infer<typeof prefixPushSchema>;
-export type BackendEnv = z.infer<typeof backendEnvSchema>;
-export type BackendUsage = z.infer<typeof backendUsageSchema>;
-
-// Schema for serialized errors
-const serializedErrorSchema = z.object({
-  message: z.string(),
-  stack: z.string().optional(),
-});
 
 export type RuleSetVersion = ContractRuleSetVersion;
 export { type RuleSetExecutionResponse, type DataBlockExecution, type IterationRecord, type RuleExecutionRecord };
@@ -729,7 +639,6 @@ export function useApiClient() {
       if (!response.ok) {
         if (response.status === 412) {
           const payload = await response.json().catch(() => ({}));
-          console.error('[useApiClient] 412 Precondition Failed:', payload);
           throw createError({
             statusCode: 412,
             statusMessage: (payload as { error?: string }).error ?? 'Precondition Failed',
@@ -738,11 +647,6 @@ export function useApiClient() {
         }
 
         const payload = await response.json().catch(() => ({}));
-        console.error('[useApiClient] Request failed:', {
-          status: response.status,
-          statusText: response.statusText,
-          payload
-        });
         throw createError({ statusCode: response.status, statusMessage: (payload as { error?: string }).error ?? response.statusText, data: payload });
       }
       
@@ -761,11 +665,14 @@ export function useApiClient() {
       });
       return result;
     } catch (error) {
-      console.error('[useApiClient] Request exception:', {
-        url: input.toString(),
-        error: error,
-        errorMessage: error instanceof Error ? error.message : 'Unknown error'
-      });
+      // Logged once, here, whatever failed — a refused status, a body that did
+      // not parse, or a network error. Each used to log on its own and then
+      // again on the way out, so one failure read as three.
+      const status = (error as { statusCode?: number }).statusCode;
+      console.error(
+        `[useApiClient] ${init.method ?? 'GET'} ${input.toString()} failed${status ? ` (${status})` : ''}:`,
+        error instanceof Error ? error.message : error,
+      );
       throw error;
     }
   };
@@ -909,14 +816,11 @@ export function useApiClient() {
     queries: Array<{ id: string; name: string }>;
     etlJobs: Array<{ id: string; name: string }>;
   }> => {
-    return requestData(buildUrl(`/backends/${encodeURIComponent(id)}/references`), { method: 'GET' }, (payload) => {
-      const schema = z.object({
-        libraries: z.array(z.object({ id: z.string(), name: z.string() })),
-        queries: z.array(z.object({ id: z.string(), name: z.string() })),
-        etlJobs: z.array(z.object({ id: z.string(), name: z.string() })).default([]),
-      });
-      return schema.parse(payload);
-    });
+    return requestData(
+      buildUrl(`/backends/${encodeURIComponent(id)}/references`),
+      { method: 'GET' },
+      backendReferencesSchema.parse,
+    );
   };
 
   const deleteBackend = async (id: string) => {
@@ -934,14 +838,14 @@ export function useApiClient() {
     requestData(
       buildUrl('/backends/probes'),
       { method: 'GET' },
-      (payload) => z.object({ probes: z.array(backendProbeSchema) }).parse(payload).probes,
+      (payload) => backendProbeListSchema.parse(payload).probes,
     );
 
   const probeAllBackends = () =>
     requestData(
       buildUrl('/backends/probes'),
       { method: 'POST' },
-      (payload) => z.object({ probes: z.array(backendProbeSchema) }).parse(payload).probes,
+      (payload) => backendProbeListSchema.parse(payload).probes,
     );
 
   const probeBackend = (id: string) =>
@@ -955,7 +859,7 @@ export function useApiClient() {
     requestData(
       buildUrl(`/backends/${encodeURIComponent(id)}/probe-history`),
       { method: 'GET' },
-      (payload) => z.object({ probes: z.array(backendProbeSchema) }).parse(payload).probes,
+      (payload) => backendProbeListSchema.parse(payload).probes,
     );
 
   /*
@@ -1310,22 +1214,6 @@ export function useApiClient() {
     );
   };
 
-  const idResponseSchema = z.object({ id: z.string() });
-  const validationIssueSchema = z.object({
-    level: z.enum(['error', 'warning']),
-    message: z.string(),
-    entityType: z.string().optional(),
-    entityId: z.string().nullable().optional(),
-    code: z.string().nullable().optional(),
-  });
-
-  const validationResponseSchema = z.object({
-    valid: z.boolean(),
-    errors: z.array(z.string()),
-    warnings: z.array(z.string()),
-    issues: z.array(validationIssueSchema).optional(),
-  });
-
   /**
    * Validate query group version
    */
@@ -1334,7 +1222,7 @@ export function useApiClient() {
     return requestData(
       buildUrl(`/query-groups/${encodeURIComponent(groupId)}/v/${encodeURIComponent(String(version))}/validate`),
       { method: 'GET' },
-      validationResponseSchema.parse,
+      queryGroupValidationResponseSchema.parse,
     );
   };
 
@@ -1986,7 +1874,7 @@ export function useApiClient() {
         headers: JSON_HEADERS,
         body: JSON.stringify(body),
       },
-      (payload) => previewTupleContentSchema.parse(payload),
+      (payload) => previewTupleContentResponseSchema.parse(payload),
     );
   };
 
@@ -1996,7 +1884,7 @@ export function useApiClient() {
     return requestData(
       buildUrl('/tuple-sets/detect-format'),
       { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify({ contentString }) },
-      (payload) => detectTupleFormatSchema.parse(payload).suggested,
+      (payload) => detectTupleFormatResponseSchema.parse(payload).suggested,
     );
   };
 
@@ -2650,36 +2538,6 @@ export function useApiClient() {
   // Argument Sets API
   // ========================================================================
 
-  const argumentSetVersionSchema = z.object({
-    id: z.string(),
-    isPartOf: z.string(),
-    version: z.number(),
-    tupleBindings: z.array(z.any()),
-    scalarBindings: z.array(z.any()),
-    graphBindings: z.array(z.any()).optional(),
-    dateCreated: z.string(),
-    dateModified: z.string(),
-  });
-
-  const argumentSetSchema = z.object({
-    id: z.string(),
-    name: z.string(),
-    description: z.string().nullable().optional(),
-    // Provenance, and null on a set composed from the rail rather than made on
-    // a callable's screen. Nullable here as well as on the server, or the rail
-    // listing would fail to parse exactly the rows it exists to show.
-    scope: z.enum(['query', 'queryGroup']).nullable().optional(),
-    targetId: z.string().nullable().optional(),
-    libraryId: z.string().optional(),
-    currentVersionId: z.string().nullable().optional(),
-    currentVersion: argumentSetVersionSchema.nullable().optional(),
-    tupleBindings: z.array(z.any()),
-    scalarBindings: z.array(z.any()),
-    graphBindings: z.array(z.any()).optional(),
-    dateCreated: z.string(),
-    dateModified: z.string(),
-  });
-
   /**
    * Every argument set in a library, whatever callable it was made for.
    *
@@ -2692,7 +2550,7 @@ export function useApiClient() {
     return requestData(
       buildUrl(`/argument-sets?libraryId=${encodeURIComponent(libraryId)}`),
       { method: 'GET' },
-      (payload) => z.array(argumentSetSchema).parse(payload),
+      (payload) => z.array(argumentSetDetailSchema).parse(payload),
     );
   };
 
@@ -2711,7 +2569,7 @@ export function useApiClient() {
     return request(
       buildUrl('/argument-sets'),
       { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(input) },
-      (payload) => argumentSetSchema.parse(payload),
+      (payload) => argumentSetDetailSchema.parse(payload),
     );
   };
 
@@ -2730,7 +2588,7 @@ export function useApiClient() {
       { method: 'GET' },
       (payload) => {
         // Parse as array of argument sets
-        return z.array(argumentSetSchema).parse(payload);
+        return z.array(argumentSetDetailSchema).parse(payload);
       }
     );
   };
@@ -2744,7 +2602,7 @@ export function useApiClient() {
       buildUrl(`/argument-sets/${encodeURIComponent(setId)}`),
       { method: 'GET' },
       (payload) => {
-        return argumentSetSchema.parse(payload);
+        return argumentSetDetailSchema.parse(payload);
       }
     );
   };
@@ -2768,7 +2626,7 @@ export function useApiClient() {
         body: JSON.stringify(input),
       },
       (payload) => {
-        return argumentSetSchema.parse(payload);
+        return argumentSetDetailSchema.parse(payload);
       }
     );
   };
@@ -2792,7 +2650,7 @@ export function useApiClient() {
     return request(
       buildUrl(`/argument-sets/${encodeURIComponent(setId)}`),
       { method: 'PUT', headers, body: JSON.stringify(input) },
-      (payload) => argumentSetSchema.parse(payload),
+      (payload) => argumentSetDetailSchema.parse(payload),
     );
   };
 
@@ -2824,14 +2682,7 @@ export function useApiClient() {
     return requestData(
       buildUrl(`/argument-sets/${encodeURIComponent(id)}/export`),
       { method: 'GET' },
-      (payload) => {
-        const schema = z.object({
-          arguments: z.array(z.any()),
-          limits: z.array(z.object({ name: z.string(), value: z.number() })),
-          offsets: z.array(z.object({ name: z.string(), value: z.number() })),
-        });
-        return schema.parse(payload);
-      }
+      argumentSetExportSchema.parse
     );
   };
 
@@ -2843,7 +2694,7 @@ export function useApiClient() {
     return requestData(
       buildUrl(`/argument-sets/${encodeURIComponent(setId)}/v`),
       { method: 'GET' },
-      (payload) => z.array(argumentSetVersionSchema).parse(payload),
+      (payload) => z.array(argumentSetVersionDetailSchema).parse(payload),
     );
   };
 
@@ -2852,7 +2703,7 @@ export function useApiClient() {
     return request(
       buildUrl(`/argument-sets/${encodeURIComponent(setId)}/v/${version}`),
       { method: 'GET' },
-      (payload) => argumentSetVersionSchema.parse(payload),
+      (payload) => argumentSetVersionDetailSchema.parse(payload),
     );
   };
 
@@ -2869,7 +2720,7 @@ export function useApiClient() {
         headers: JSON_HEADERS,
         body: JSON.stringify(input),
       },
-      (payload) => argumentSetVersionSchema.parse(payload),
+      (payload) => argumentSetVersionDetailSchema.parse(payload),
     );
   };
 
@@ -2885,7 +2736,7 @@ export function useApiClient() {
         headers: JSON_HEADERS,
         body: JSON.stringify(input),
       },
-      (payload) => argumentSetVersionSchema.parse(payload),
+      (payload) => argumentSetVersionDetailSchema.parse(payload),
     );
   };
 
@@ -2894,14 +2745,7 @@ export function useApiClient() {
     return requestData(
       buildUrl(`/argument-sets/${encodeURIComponent(setId)}/v/${version}/export`),
       { method: 'GET' },
-      (payload) => {
-        const schema = z.object({
-          arguments: z.array(z.any()),
-          limits: z.array(z.object({ name: z.string(), value: z.number() })),
-          offsets: z.array(z.object({ name: z.string(), value: z.number() })),
-        });
-        return schema.parse(payload);
-      }
+      argumentSetExportSchema.parse
     );
   };
 

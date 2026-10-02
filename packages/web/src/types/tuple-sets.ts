@@ -14,23 +14,18 @@
  */
 import type { SparqlBinding, SparqlValue } from './argument-sets';
 
-/**
- * Where a version's rows came from.
- *
- * Provenance only — it records which dialect was parsed at import, never how
- * stored content is read back. Mirrors `TUPLE_SOURCE_FORMATS` in
- * `packages/api/src/persistence/schemas/TupleSetVersionSchema.ts`.
+/*
+ * The source-format and column-type vocabularies are the contracts' — one
+ * declaration the API's persistence schema, its tuple parser and this app all
+ * read, where each used to keep a copy that "mirrored" another.
  */
-export const TUPLE_SOURCE_FORMATS = [
-  'csv',
-  'tsv',
-  'sparql-results-tsv',
-  'sparql-results-json',
-  'query-results',
-  'etl-results',
-] as const;
-
-export type TupleSourceFormat = (typeof TUPLE_SOURCE_FORMATS)[number];
+export {
+  TUPLE_SOURCE_FORMATS,
+  type TupleSourceFormat,
+  SUGGESTED_COLUMN_TYPES,
+  type SuggestedColumnType,
+} from '@sparql-query-lib/contracts';
+import type { TupleSourceFormat, SuggestedColumnType } from '@sparql-query-lib/contracts';
 
 /**
  * What the import dialog offers, and what each choice means for typing.
@@ -70,15 +65,11 @@ export const TUPLE_IMPORT_FORMATS: Array<{
   },
 ];
 
-/**
- * A type an untyped column can be promoted to at import (issue #208).
- *
- * Mirrors `SUGGESTED_COLUMN_TYPES` in `packages/api/src/lib/tupleContent.ts`.
- * Purely an import-time proposal the author accepts or rejects per column —
- * it changes what gets persisted, never how persisted content is read back.
+/*
+ * A type an untyped column can be promoted to at import (issue #208). Purely an
+ * import-time proposal the author accepts or rejects per column — it changes
+ * what gets persisted, never how persisted content is read back.
  */
-export const SUGGESTED_COLUMN_TYPES = ['xsd:integer', 'xsd:date', 'uri'] as const;
-export type SuggestedColumnType = (typeof SUGGESTED_COLUMN_TYPES)[number];
 
 export interface ColumnTypeSuggestion {
   column: string;
