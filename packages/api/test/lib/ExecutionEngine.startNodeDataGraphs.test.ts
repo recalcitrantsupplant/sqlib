@@ -252,7 +252,7 @@ describe('ExecutionEngine — data graph inputs on the start node', () => {
 
     await engine.execute(
       graph,
-      [{ head: { vars: ['x'] }, arguments: { bindings: [{ x: { type: 'uri', value: 'http://example.org/a' } }] } }],
+      [{ head: { vars: ['x'] }, results: { bindings: [{ x: { type: 'uri', value: 'http://example.org/a' } }] } }],
       undefined,
       { dataGraphs: [{ content: GRAPH_TEXT, format: 'turtle' }] },
     );
@@ -262,7 +262,7 @@ describe('ExecutionEngine — data graph inputs on the start node', () => {
       query.queryString,
       expect.arrayContaining([
         expect.objectContaining({
-          arguments: { bindings: [{ x: { type: 'uri', value: 'http://example.org/a' } }] },
+          results: { bindings: [{ x: { type: 'uri', value: 'http://example.org/a' } }] },
         }),
       ]),
     );

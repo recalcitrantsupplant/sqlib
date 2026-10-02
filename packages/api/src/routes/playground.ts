@@ -69,7 +69,7 @@ function bindingsToArgumentSet(bindings: SparqlBinding[], columnDefs: ColumnDefi
   const vars = columnDefs.map((c) => c.targetVariable.replace(/^\?/, ''));
   return {
     head: { vars },
-    arguments: { bindings },
+    results: { bindings },
   };
 }
 

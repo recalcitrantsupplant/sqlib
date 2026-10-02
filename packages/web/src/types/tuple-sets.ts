@@ -9,9 +9,8 @@
  * entities with separate homes.
  *
  * Stored content is always a standard SPARQL Results JSON document, whatever
- * dialect it arrived in. The app's arguments-JSON — which renames `results` to
- * `arguments` and adds `whenEmpty` — is ephemeral wire format and never
- * touches storage. See `docs/concepts.md`.
+ * dialect it arrived in — the same shape `/execute` takes for each argument, so
+ * a version's content can be passed to a run unchanged. See `docs/concepts.md`.
  */
 import type { SparqlBinding, SparqlValue } from './argument-sets';
 

@@ -22,7 +22,7 @@ function argSet(rows: number) {
       label: { type: 'literal', value: `label ${i}` },
     });
   }
-  return { head: { vars: ['s', 'label'] }, arguments: { bindings } };
+  return { head: { vars: ['s', 'label'] }, results: { bindings } };
 }
 
 const ms = (fn: () => void) => {
@@ -48,7 +48,7 @@ for (const rows of [125, 250, 500, 1000, 2000, 4000, 8000]) {
     const prefixes = parser.collectPrefixes(parsed);
     tBuild.push(ms(() => {
       const out: any[] = [];
-      for (const argRow of set.arguments.bindings) {
+      for (const argRow of set.results.bindings) {
         const newRow: any = {};
         for (const v of set.head.vars) newRow[v] = parser.buildValuesTerm((argRow as any)[v], v, 0, prefixes);
         out.push(newRow);

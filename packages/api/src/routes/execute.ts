@@ -40,7 +40,7 @@ import type { NodeResult, ResolvedNode } from '../lib/orchestration/types.js';
 import * as crypto from 'crypto';
 import { ArgumentSetService } from '../lib/ArgumentSetService.js';
 import { QueryGroupSignatureService } from '../lib/QueryGroupSignatureService.js';
-import { applyExecutionArguments, normalizeUndefBindings } from '../lib/executionArguments.js';
+import { applyExecutionArguments, normalizeArguments } from '../lib/executionArguments.js';
 import type { RuntimeArgumentPayload } from '../lib/ArgumentSetService.js';
 import { resolveDataGraphInput, DataGraphContentError } from '../lib/dataGraphInput.js';
 import type { ExecutionDataGraphInput } from '../lib/orchestration/ExecutionEngine.js';
@@ -285,7 +285,12 @@ export default async function (
         }
     ) {
         const {targetId, arguments: rawInlineArgs, limits, offsets, argumentSetIds, dataGraphs, nodeDetail, acceptOverride} = params;
-        const inlineArgs = normalizeUndefBindings(rawInlineArgs);
+        let inlineArgs: ReturnType<typeof normalizeArguments>;
+        try {
+            inlineArgs = normalizeArguments(rawInlineArgs);
+        } catch (argumentError__u: unknown) {
+            return reply.code(400).send({ error: toError(argumentError__u).message });
+        }
         let executionStatus: 'success' | 'failure' = 'failure'; // Default to failure
         let backendTypeAttr: string | undefined = undefined; // To store backend type for metrics
         const startTime = performance.now(); // Start timing
@@ -438,11 +443,11 @@ export default async function (
                 runtimePayload = await argumentSetService.exportRuntimePayload(argumentSetIds!);
                 // Stored sets take the same null-as-UNDEF normalization as inline ones,
                 // so `{"x":null}` and `{}` dedupe as one row downstream.
-                runtimeArgumentSets = normalizeUndefBindings(runtimePayload.tupleList) as RuntimeArgumentSet[];
+                runtimeArgumentSets = normalizeArguments(runtimePayload.tupleList) as RuntimeArgumentSet[];
                 argumentSetMap = new Map(
                     Array.from(runtimePayload.tupleMap.entries()).map(([signature, set]) => [
                         signature,
-                        normalizeUndefBindings([set])![0] as RuntimeArgumentSet,
+                        normalizeArguments([set])![0] as RuntimeArgumentSet,
                     ])
                 );
                 // Stored first, then the inline values for names the set left
@@ -455,7 +460,7 @@ export default async function (
                         if (!vars.length) continue;
                         const key = tableParameterKey(vars);
                         if (argumentSetMap.has(key)) continue;
-                        const normalized = normalizeUndefBindings([argSet])![0] as RuntimeArgumentSet;
+                        const normalized = normalizeArguments([argSet])![0] as RuntimeArgumentSet;
                         argumentSetMap.set(key, normalized);
                     }
                     runtimeArgumentSets = Array.from(argumentSetMap.values());
@@ -616,17 +621,12 @@ export default async function (
                     if (!detected.length) {
                         return [];
                     }
-                    return detected.map((group) => {
-                        const signature = tableParameterKey(group);
-                        const preset = argumentSetMap!.get(signature);
-                        if (preset) return preset;
-                        // No stored set covers this input: nothing arrived, so drop the
-                        // filter rather than substituting an empty (match-nothing) set.
-                        return {
-                            head: { vars: group },
-                            arguments: { bindings: [] },
-                            whenEmpty: 'unconstrained' as const,
-                        };
+                    // Only the sets this query declares. A slot no set covers is
+                    // left out, and the substitution runs it unconstrained:
+                    // nothing arrived, so nothing is filtered.
+                    return detected.flatMap((group) => {
+                        const preset = argumentSetMap!.get(tableParameterKey(group));
+                        return preset ? [preset] : [];
                     });
                 } catch (error) {
                     request.log.error(error, 'Failed to detect VALUES inputs for argument sets');

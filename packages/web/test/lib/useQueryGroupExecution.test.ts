@@ -411,7 +411,7 @@ describe('useQueryGroupExecution', () => {
     });
 
     it('prefers a saved argument set over inline arguments', async () => {
-      const inline = { arguments: [{ head: { vars: [] }, arguments: { bindings: [] } }] };
+      const inline = { arguments: [{ head: { vars: [] }, results: { bindings: [] } }] };
       const getInlineArguments = vi.fn().mockReturnValue(inline);
       const { execution, apiClient } = harness({
         getSelectedArgumentSetId: () => 'urn:sqlib:argument-set-version:1',
@@ -430,7 +430,7 @@ describe('useQueryGroupExecution', () => {
     });
 
     it('sends inline arguments when there is no saved set', async () => {
-      const inline = { arguments: [{ head: { vars: [] }, arguments: { bindings: [] } }] };
+      const inline = { arguments: [{ head: { vars: [] }, results: { bindings: [] } }] };
       const { execution, apiClient } = harness({ getInlineArguments: () => inline });
 
       await execution.executeQueryGroup();

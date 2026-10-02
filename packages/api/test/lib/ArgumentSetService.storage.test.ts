@@ -187,7 +187,7 @@ describe('argument set storage', () => {
     expect([...payload.tupleMap.keys()]).toEqual([tableParameterKey(['city'])]);
     expect(payload.tupleList[0]).toEqual({
       head: { vars: ['city'] },
-      arguments: {
+      results: {
         bindings: [
           { city: { type: 'literal', value: 'Perth' } },
           { city: { type: 'literal', value: 'Hobart' } },
@@ -225,7 +225,7 @@ describe('tuple set sources', () => {
     });
 
     const payload = await service.exportRuntimePayload([detail.id]);
-    expect(payload.tupleList[0].arguments.bindings).toEqual([
+    expect(payload.tupleList[0].results.bindings).toEqual([
       { city: { type: 'literal', value: 'Perth' } },
       { city: { type: 'literal', value: 'Darwin' } },
     ]);
@@ -257,7 +257,7 @@ describe('tuple set sources', () => {
     });
 
     const payload = await service.exportRuntimePayload([detail.id]);
-    expect(payload.tupleList[0].arguments.bindings).toEqual([
+    expect(payload.tupleList[0].results.bindings).toEqual([
       { city: { type: 'literal', value: 'Perth' } },
     ]);
     // And it says so, rather than looking like it worked.
@@ -292,7 +292,7 @@ describe('tuple set sources', () => {
 
     const payload = await service.exportRuntimePayload([detail.id]);
     // The extra column is dropped, not passed through as an unbound variable.
-    expect(payload.tupleList[0].arguments.bindings).toEqual([
+    expect(payload.tupleList[0].results.bindings).toEqual([
       { city: { type: 'literal', value: 'Darwin' } },
     ]);
   });
@@ -314,7 +314,7 @@ describe('tuple set sources', () => {
     });
 
     const payload = await service.exportRuntimePayload([detail.id]);
-    expect(payload.tupleList[0].arguments.bindings).toEqual([
+    expect(payload.tupleList[0].results.bindings).toEqual([
       { city: { type: 'literal', value: 'Perth' } },
     ]);
     expect(warn).toHaveBeenCalled();

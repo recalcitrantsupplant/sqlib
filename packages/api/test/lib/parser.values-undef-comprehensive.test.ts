@@ -4,7 +4,7 @@ import { SparqlQueryParser } from '../../src/lib/parser.js';
 // Define a type for the argument set structure for clarity in tests
 type ArgumentSet = {
   head: { vars: string[] };
-  arguments: {
+  results: {
     bindings: Array<Record<string, { type: 'uri' | 'literal'; value: string; datatype?: string; 'xml:lang'?: string }>>;
   }
 };
@@ -38,7 +38,7 @@ describe('SparqlQueryParser - VALUES UNDEF Comprehensive Scenarios', () => {
       const argumentSets: ArgumentSet[] = [
         {
           head: { vars: ['d', 'type'] },
-          arguments: {
+          results: {
             bindings: [
               {
                 d: { type: 'uri', value: 'http://example.org/deep1' },
@@ -82,7 +82,7 @@ describe('SparqlQueryParser - VALUES UNDEF Comprehensive Scenarios', () => {
       const argumentSets: ArgumentSet[] = [
         {
           head: { vars: ['s'] },
-          arguments: {
+          results: {
             bindings: [
               { s: { type: 'uri', value: 'http://example.org/subject1' } },
               { s: { type: 'uri', value: 'http://example.org/subject2' } }
@@ -91,7 +91,7 @@ describe('SparqlQueryParser - VALUES UNDEF Comprehensive Scenarios', () => {
         },
         {
           head: { vars: ['o'] },
-          arguments: {
+          results: {
             bindings: [
               { o: { type: 'literal', value: 'test value' } }
             ]
@@ -125,7 +125,7 @@ describe('SparqlQueryParser - VALUES UNDEF Comprehensive Scenarios', () => {
       const argumentSets: ArgumentSet[] = [
         {
           head: { vars: ['r', 'type'] },
-          arguments: {
+          results: {
             bindings: [
               {
                 r: { type: 'uri', value: 'http://example.org/related1' },
@@ -157,7 +157,7 @@ describe('SparqlQueryParser - VALUES UNDEF Comprehensive Scenarios', () => {
       const argumentSets: ArgumentSet[] = [
         {
           head: { vars: ['g', 's'] },
-          arguments: {
+          results: {
             bindings: [
               {
                 g: { type: 'uri', value: 'http://example.org/graph1' },
@@ -190,7 +190,7 @@ describe('SparqlQueryParser - VALUES UNDEF Comprehensive Scenarios', () => {
       const argumentSets: ArgumentSet[] = [
         {
           head: { vars: ['exclude'] },
-          arguments: {
+          results: {
             bindings: [
               { exclude: { type: 'uri', value: 'http://example.org/excluded' } }
             ]
@@ -219,7 +219,7 @@ describe('SparqlQueryParser - VALUES UNDEF Comprehensive Scenarios', () => {
       const argumentSets: ArgumentSet[] = [
         {
           head: { vars: ['s', 'p'] },
-          arguments: {
+          results: {
             bindings: [
               {
                 s: { type: 'uri', value: 'http://example.org/subject1' },
@@ -251,7 +251,7 @@ describe('SparqlQueryParser - VALUES UNDEF Comprehensive Scenarios', () => {
       const argumentSets: ArgumentSet[] = [
         {
           head: { vars: ['s'] },
-          arguments: {
+          results: {
             bindings: [
               { s: { type: 'uri', value: 'http://example.org/subject1' } },
               { s: { type: 'uri', value: 'http://example.org/subject2' } }
@@ -283,7 +283,7 @@ describe('SparqlQueryParser - VALUES UNDEF Comprehensive Scenarios', () => {
       const argumentSets: ArgumentSet[] = [
         {
           head: { vars: ['type'] },
-          arguments: {
+          results: {
             bindings: [
               { type: { type: 'uri', value: 'http://example.org/Person' } },
               { type: { type: 'uri', value: 'http://example.org/Organization' } }
@@ -320,7 +320,7 @@ describe('SparqlQueryParser - VALUES UNDEF Comprehensive Scenarios', () => {
       const argumentSets: ArgumentSet[] = [
         {
           head: { vars: ['s'] },
-          arguments: {
+          results: {
             bindings: [
               { s: { type: 'uri', value: 'http://example.org/person1' } },
               { s: { type: 'uri', value: 'http://example.org/person2' } }
@@ -492,7 +492,7 @@ describe('SparqlQueryParser - VALUES UNDEF Comprehensive Scenarios', () => {
       const argumentSets: ArgumentSet[] = [
         {
           head: { vars: ['s', 'role'] },
-          arguments: {
+          results: {
             bindings: [
               {
                 s: { type: 'uri', value: 'http://example.org/user1' },
@@ -551,7 +551,7 @@ describe('SparqlQueryParser - VALUES UNDEF Comprehensive Scenarios', () => {
       const argumentSets: ArgumentSet[] = [
         {
           head: { vars: ['person'] },
-          arguments: {
+          results: {
             bindings: [
               { person: { type: 'uri', value: 'http://example.org/alice' } }
             ]
@@ -559,7 +559,7 @@ describe('SparqlQueryParser - VALUES UNDEF Comprehensive Scenarios', () => {
         },
         {
           head: { vars: ['other', 'otherType'] },
-          arguments: {
+          results: {
             bindings: [
               {
                 other: { type: 'uri', value: 'http://example.org/bob' },
@@ -679,7 +679,7 @@ describe('SparqlQueryParser - VALUES UNDEF Comprehensive Scenarios', () => {
       const argumentSets: ArgumentSet[] = [
         {
           head: { vars: ['r', 'type'] },
-          arguments: {
+          results: {
             bindings: [
               {
                 r: { type: 'uri', value: 'http://example.org/related1' },

@@ -156,7 +156,7 @@ describe('a committed version-1 bundle', () => {
       arguments: [
         {
           head: { vars: ['region'] },
-          arguments: { bindings: [{ region: { type: 'uri', value: 'http://example.org/wa' } }] },
+          results: { bindings: [{ region: { type: 'uri', value: 'http://example.org/wa' } }] },
         },
       ],
     });

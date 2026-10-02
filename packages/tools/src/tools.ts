@@ -412,7 +412,7 @@ export const tools: ToolDefinition[] = [
   defineTool({
     name: 'execute.run',
     description:
-      'Run a query (targetId = query id, runs its currentVersion; backendId optional when the query or its library has a default backend) or a query group (no backendId). Fill parameter slots with arguments: one SPARQL-results-JSON entry per all-UNDEF VALUES clause, in order; limits/offsets by placeholder name. Results render as an interactive table where the client supports MCP Apps — prefer this over reprinting rows yourself.',
+      'Run a query (targetId = query id, runs its currentVersion; backendId optional when the query or its library has a default backend) or a query group (no backendId). Fill parameter slots with arguments: a SPARQL Results JSON document ({head:{vars},results:{bindings}}) per all-UNDEF VALUES clause you want to filter, matched by head.vars; a slot left out runs unconstrained, zero rows matches nothing; limits/offsets by placeholder name. Results render as an interactive table where the client supports MCP Apps — prefer this over reprinting rows yourself.',
     readOnly: true,
     inputSchema: executionRequestArg,
     ui: { resourceUri: VIEW_URI.result },

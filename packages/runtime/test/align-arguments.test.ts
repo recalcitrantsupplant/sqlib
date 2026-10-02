@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { alignArgumentSets } from '../src/query-template.js';
+import { assignArgumentSets } from '../src/query-template.js';
 import { fromBundle, iri, literal } from '../src/library.js';
 import { bundleOf, template } from './helpers.js';
 
@@ -19,46 +19,53 @@ const TWO_SLOT = () =>
 
 const set = (name: string, value: string) => ({
   head: { vars: [name] },
-  arguments: { bindings: [{ [name]: literal(value) }] },
+  results: { bindings: [{ [name]: literal(value) }] },
 });
 
-describe('alignArgumentSets', () => {
+describe('assignArgumentSets', () => {
   it('keeps an order that already matches', () => {
     const sets = [set('term', 'a'), set('facetField', 'b')];
-    expect(alignArgumentSets([['term'], ['facetField']], sets)).toEqual(sets);
+    expect(assignArgumentSets([['term'], ['facetField']], sets)).toEqual({ slots: sets, unmatched: [] });
   });
 
   it('reorders sets that arrived under a different order', () => {
     const [facet, term] = [set('facetField', 'b'), set('term', 'a')];
-    expect(alignArgumentSets([['term'], ['facetField']], [facet, term])).toEqual([term, facet]);
+    expect(assignArgumentSets([['term'], ['facetField']], [facet, term]).slots).toEqual([term, facet]);
   });
 
   it('matches on the set of variables, not the order within one head', () => {
     const pair = {
       head: { vars: ['b', 'a'] },
-      arguments: { bindings: [{ a: literal('1'), b: literal('2') }] },
+      results: { bindings: [{ a: literal('1'), b: literal('2') }] },
     };
-    expect(alignArgumentSets([['a', 'b']], [pair])).toEqual([pair]);
+    expect(assignArgumentSets([['a', 'b']], [pair]).slots).toEqual([pair]);
   });
 
   it('leaves two slots of the same signature in the order they came', () => {
     // Nothing distinguishes them, so position is the only signal there is.
-    const first = { head: { vars: ['x'] }, arguments: { bindings: [{ x: literal('1') }] } };
-    const second = { head: { vars: ['x'] }, arguments: { bindings: [{ x: literal('2') }] } };
-    expect(alignArgumentSets([['x'], ['x']], [first, second])).toEqual([first, second]);
+    const first = { head: { vars: ['x'] }, results: { bindings: [{ x: literal('1') }] } };
+    const second = { head: { vars: ['x'] }, results: { bindings: [{ x: literal('2') }] } };
+    expect(assignArgumentSets([['x'], ['x']], [first, second]).slots).toEqual([first, second]);
   });
 
-  it('refuses when a slot has no set that names it', () => {
-    expect(alignArgumentSets([['term'], ['facetField']], [set('term', 'a'), set('other', 'b')]))
-      .toBeNull();
+  it('leaves a slot nobody names empty, and returns the set that fits nothing', () => {
+    const other = set('other', 'b');
+    expect(assignArgumentSets([['term'], ['facetField']], [set('term', 'a'), other])).toEqual({
+      slots: [set('term', 'a'), undefined],
+      unmatched: [other],
+    });
   });
 
-  it('refuses when the counts differ, leaving the arity error to the caller', () => {
-    expect(alignArgumentSets([['term'], ['facetField']], [set('term', 'a')])).toBeNull();
+  it('treats an omitted slot as unassigned rather than an error', () => {
+    expect(assignArgumentSets([['term'], ['facetField']], [set('facetField', 'a')])).toEqual({
+      slots: [undefined, set('facetField', 'a')],
+      unmatched: [],
+    });
   });
 
-  it('refuses a set with no head rather than guessing which slot it fills', () => {
-    expect(alignArgumentSets([['term']], [{ arguments: { bindings: [] } } as never])).toBeNull();
+  it('never assigns a set with no head, rather than guessing which slot it fills', () => {
+    const headless = { results: { bindings: [] } } as never;
+    expect(assignArgumentSets([['term']], [headless])).toEqual({ slots: [undefined], unmatched: [headless] });
   });
 });
 
@@ -67,23 +74,32 @@ describe('substitution with out-of-order arguments', () => {
     const lib = fromBundle(await bundleOf({ facets: TWO_SLOT() }));
     const text = lib.query('facets').text({
       arguments: [
-        { head: { vars: ['facetField'] }, arguments: { bindings: [{ facetField: literal('type') }] } },
-        { head: { vars: ['term'] }, arguments: { bindings: [{ term: literal('wool') }] } },
+        { head: { vars: ['facetField'] }, results: { bindings: [{ facetField: literal('type') }] } },
+        { head: { vars: ['term'] }, results: { bindings: [{ term: literal('wool') }] } },
       ],
     });
     expect(text).toContain('VALUES ?term { "wool" }');
     expect(text).toContain('VALUES ?facetField { "type" }');
   });
 
-  it('still reports a genuine mismatch against the slot it belongs to', async () => {
+  it('runs a slot the payload leaves out without its filter', async () => {
+    const lib = fromBundle(await bundleOf({ facets: TWO_SLOT() }));
+    const text = lib.query('facets').text({
+      arguments: [{ head: { vars: ['facetField'] }, results: { bindings: [{ facetField: literal('type') }] } }],
+    });
+    expect(text).not.toContain('?term {');
+    expect(text).toContain('VALUES ?facetField { "type" }');
+  });
+
+  it('refuses an argument that fits no slot, naming what the query declares', async () => {
     const lib = fromBundle(await bundleOf({ facets: TWO_SLOT() }));
     expect(() =>
       lib.query('facets').text({
         arguments: [
-          { head: { vars: ['term'] }, arguments: { bindings: [{ term: literal('wool') }] } },
-          { head: { vars: ['nope'] }, arguments: { bindings: [{ nope: iri('http://x/') }] } },
+          { head: { vars: ['term'] }, results: { bindings: [{ term: literal('wool') }] } },
+          { head: { vars: ['nope'] }, results: { bindings: [{ nope: iri('http://x/') }] } },
         ],
       }),
-    ).toThrow(/Variable mismatch/);
+    ).toThrow(/Argument \[nope\] matches no VALUES parameter left to fill\. The query declares \[term\], \[facetField\]/);
   });
 });

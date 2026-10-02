@@ -51,7 +51,7 @@ type ArgValue = { type: 'uri'; value: string } | {
 
 interface ArgSet {
   head: { vars: string[] };
-  arguments: { bindings: Array<Record<string, ArgValue | null>> };
+  results: { bindings: Array<Record<string, ArgValue | null>> };
   whenEmpty?: 'unconstrained' | 'propagateEmpty' | 'require';
 }
 
@@ -112,7 +112,7 @@ const lit = (value: string, extra: Partial<ArgValue> = {}): ArgValue =>
 describe('template/AST equivalence', () => {
   it('agrees on a single-variable slot', () => {
     expectAgreement(QUERIES.singleVar, [
-      { head: { vars: ['l'] }, arguments: { bindings: [{ l: uri('http://example.org/a') }] } },
+      { head: { vars: ['l'] }, results: { bindings: [{ l: uri('http://example.org/a') }] } },
     ]);
   });
 
@@ -120,7 +120,7 @@ describe('template/AST equivalence', () => {
     expectAgreement(QUERIES.multiVar, [
       {
         head: { vars: ['s', 'p'] },
-        arguments: {
+        results: {
           bindings: [
             { s: uri('http://example.org/a'), p: null },
             { s: uri('http://example.org/b'), p: lit('x') },
@@ -132,14 +132,14 @@ describe('template/AST equivalence', () => {
 
   it('agrees on two slots in one query', () => {
     expectAgreement(QUERIES.twoSlots, [
-      { head: { vars: ['s'] }, arguments: { bindings: [{ s: uri('http://example.org/a') }] } },
-      { head: { vars: ['o'] }, arguments: { bindings: [{ o: lit('v') }] } },
+      { head: { vars: ['s'] }, results: { bindings: [{ s: uri('http://example.org/a') }] } },
+      { head: { vars: ['o'] }, results: { bindings: [{ o: lit('v') }] } },
     ]);
   });
 
   it('agrees on a slot nested inside OPTIONAL/GRAPH', () => {
     expectAgreement(QUERIES.nested, [
-      { head: { vars: ['o'] }, arguments: { bindings: [{ o: lit('deep') }] } },
+      { head: { vars: ['o'] }, results: { bindings: [{ o: lit('deep') }] } },
     ]);
   });
 
@@ -147,7 +147,7 @@ describe('template/AST equivalence', () => {
     expectAgreement(QUERIES.update, [
       {
         head: { vars: ['s', 'p', 'o'] },
-        arguments: {
+        results: {
           bindings: [
             { s: uri('http://example.com/s'), p: uri('http://example.com/p'), o: lit('o') },
           ],
@@ -158,13 +158,13 @@ describe('template/AST equivalence', () => {
 
   it('agrees when the query declares prefixes', () => {
     expectAgreement(QUERIES.withPrefix, [
-      { head: { vars: ['s'] }, arguments: { bindings: [{ s: uri('http://example.org/thing') }] } },
+      { head: { vars: ['s'] }, results: { bindings: [{ s: uri('http://example.org/thing') }] } },
     ]);
   });
 
   it('leaves author VALUES data alone, in both paths', () => {
     expectAgreement(QUERIES.authorData, [
-      { head: { vars: ['s'] }, arguments: { bindings: [{ s: uri('http://example.org/a') }] } },
+      { head: { vars: ['s'] }, results: { bindings: [{ s: uri('http://example.org/a') }] } },
     ]);
   });
 
@@ -172,14 +172,14 @@ describe('template/AST equivalence', () => {
     for (const mode of ['unconstrained', 'propagateEmpty', 'require'] as const) {
       it(`agrees on '${mode}' with zero rows`, () => {
         expectAgreement(QUERIES.singleVar, [
-          { head: { vars: ['l'] }, arguments: { bindings: [] }, whenEmpty: mode },
+          { head: { vars: ['l'] }, results: { bindings: [] }, whenEmpty: mode },
         ]);
       });
     }
 
     it('agrees on a bare wildcard row', () => {
       expectAgreement(QUERIES.singleVar, [
-        { head: { vars: ['l'] }, arguments: { bindings: [{ l: null }] } },
+        { head: { vars: ['l'] }, results: { bindings: [{ l: null }] } },
       ]);
     });
   });
@@ -191,31 +191,31 @@ describe('template/AST equivalence', () => {
 
     it('agrees when variables do not match', () => {
       expectAgreement(QUERIES.singleVar, [
-        { head: { vars: ['nope'] }, arguments: { bindings: [{ nope: lit('x') }] } },
+        { head: { vars: ['nope'] }, results: { bindings: [{ nope: lit('x') }] } },
       ]);
     });
 
     it('agrees when a wildcard row is mixed with bound rows', () => {
       expectAgreement(QUERIES.singleVar, [
-        { head: { vars: ['l'] }, arguments: { bindings: [{ l: null }, { l: lit('x') }] } },
+        { head: { vars: ['l'] }, results: { bindings: [{ l: null }, { l: lit('x') }] } },
       ]);
     });
 
     it('agrees when a query has no slots but arguments are supplied', () => {
       expectAgreement(QUERIES.noSlots, [
-        { head: { vars: ['l'] }, arguments: { bindings: [{ l: lit('x') }] } },
+        { head: { vars: ['l'] }, results: { bindings: [{ l: lit('x') }] } },
       ]);
     });
 
     it('agrees on an unsupported argument type', () => {
       expectAgreement(QUERIES.singleVar, [
-        { head: { vars: ['l'] }, arguments: { bindings: [{ l: { type: 'bnode', value: 'b0' } as never }] } },
+        { head: { vars: ['l'] }, results: { bindings: [{ l: { type: 'bnode', value: 'b0' } as never }] } },
       ]);
     });
 
     it('agrees on a hostile IRI', () => {
       expectAgreement(QUERIES.singleVar, [
-        { head: { vars: ['l'] }, arguments: { bindings: [{ l: uri('http://e/a> <http://e/b') }] } },
+        { head: { vars: ['l'] }, results: { bindings: [{ l: uri('http://e/a> <http://e/b') }] } },
       ]);
     });
   });
@@ -242,7 +242,7 @@ describe('template/AST equivalence', () => {
             expectAgreement(QUERIES.singleVar, [
               {
                 head: { vars: ['l'] },
-                arguments: { bindings: bindings as Array<Record<string, ArgValue | null>> },
+                results: { bindings: bindings as Array<Record<string, ArgValue | null>> },
                 ...(whenEmpty ? { whenEmpty: whenEmpty as never } : {}),
               },
             ]);
@@ -261,7 +261,7 @@ describe('template/AST equivalence', () => {
             expectAgreement(QUERIES.multiVar, [
               {
                 head: { vars: ['s', 'p'] },
-                arguments: { bindings: bindings as Array<Record<string, ArgValue | null>> },
+                results: { bindings: bindings as Array<Record<string, ArgValue | null>> },
               },
             ]);
             return true;

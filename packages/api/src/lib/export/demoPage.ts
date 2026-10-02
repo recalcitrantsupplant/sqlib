@@ -547,7 +547,7 @@ function skeletonPayload(query) {
   for (var i = 0; i < query.inferredInputs.length; i++) {
     payload.arguments.push({
       head: { vars: query.inferredInputs[i].slice() },
-      arguments: { bindings: [{}] }
+      results: { bindings: [{}] }
     });
   }
   return payload;
@@ -783,7 +783,7 @@ function groupSkeletonPayload(plan) {
   for (var i = 0; i < plan.inputs.length; i++) {
     payload.arguments.push({
       head: { vars: plan.inputs[i].slice() },
-      arguments: { bindings: [{}] }
+      results: { bindings: [{}] }
     });
   }
   return payload;

@@ -19,7 +19,7 @@ describe('VALUES total-rewrite property', () => {
       ({ bindings, whenEmpty }) => {
         const rendered = parser.applyArguments(query, [{
           head: { vars: ['x'] },
-          arguments: { bindings },
+          results: { bindings },
           ...(whenEmpty ? { whenEmpty } : {}),
         }]);
         expect(rendered).not.toContain('UNDEF');
@@ -37,18 +37,18 @@ describe('VALUES total-rewrite property', () => {
       value => {
         const bound = { type: 'literal' as const, value };
         const omitted = parser.applyArguments(query, [{
-          head: { vars: ['x'] }, arguments: { bindings: [{}] },
+          head: { vars: ['x'] }, results: { bindings: [{}] },
         }]);
         const explicitNull = parser.applyArguments(query, [{
-          head: { vars: ['x'] }, arguments: { bindings: [{ x: null }] },
+          head: { vars: ['x'] }, results: { bindings: [{ x: null }] },
         }]);
 
         expect(explicitNull).toBe(omitted);
         expect(() => parser.applyArguments(query, [{
-          head: { vars: ['x'] }, arguments: { bindings: [{}, { x: bound }] },
+          head: { vars: ['x'] }, results: { bindings: [{}, { x: bound }] },
         }])).toThrow('an all-UNDEF row cannot be mixed with bound rows');
         expect(() => parser.applyArguments(query, [{
-          head: { vars: ['x'] }, arguments: { bindings: [{ x: null }, { x: bound }] },
+          head: { vars: ['x'] }, results: { bindings: [{ x: null }, { x: bound }] },
         }])).toThrow('an all-UNDEF row cannot be mixed with bound rows');
       },
     ), { numRuns: 50, seed: 20260730 });
