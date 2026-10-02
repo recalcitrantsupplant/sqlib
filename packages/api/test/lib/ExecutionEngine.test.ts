@@ -1380,9 +1380,9 @@ describe('ExecutionEngine', () => {
       );
     });
 
-    it('rejects an argument set whose vars are right but ordered wrong', async () => {
-      // The signature filter is order-insensitive while the match is positional, so
-      // a wrong-order set used to fall through to the unconstrained path silently.
+    it('accepts an argument set naming the right vars in another order', async () => {
+      // The match used to be positional, so a wrong-order set either fell
+      // through to the unconstrained path or failed the run.
       (mockExecutor.selectQueryParsed as any).mockResolvedValue({
         result: { head: { vars: [] }, results: { bindings: [] } }, duration: 10,
       });
@@ -1431,15 +1431,13 @@ describe('ExecutionEngine', () => {
         }] },
       }];
 
-      // Reported as a node failure, so the error body can name the offending node.
-      await expect(engine.execute(graph, initialArgs)).rejects.toMatchObject({
-        name: 'ExecutionNodeError',
-        nodeId: 'node1',
-        message: expect.stringContaining(
-          'Argument variable order mismatch for VALUES input [city, state]; received [state, city].'
-        ),
-      });
-      expect(mockParser.applyArguments).not.toHaveBeenCalled();
+      // Accepted, as `/execute` accepts it for a lone query: the parser pairs
+      // columns by name, so the order a table lists them in is not an error.
+      await engine.execute(graph, initialArgs);
+      expect(mockParser.applyArguments).toHaveBeenCalledWith(
+        expect.any(String),
+        [expect.objectContaining({ head: { vars: ['state', 'city'] } })],
+      );
     });
 
     it('falls back to empty UNDEF row when no matching arguments found', async () => {

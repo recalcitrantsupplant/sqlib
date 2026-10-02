@@ -850,6 +850,15 @@ export class ExecutionEngine {
           }
           b[to] = v as SparqlValue;
         }
+        /*
+         * A row with nothing bound in the mapped columns — what an OPTIONAL
+         * upstream produces when it matched nothing — says nothing about this
+         * input. Passed on, it became an all-UNDEF VALUES row beside bound
+         * ones, which the parser rightly refuses as a wildcard, and the run
+         * died on legitimate data. Dropped, it constrains nothing; if every
+         * row goes, the input is empty and the edge's `whenEmpty` decides.
+         */
+        if (Object.keys(b).length === 0) continue;
         arg.results.bindings.push(b);
       }
       // Merge by union for same target input tuple
@@ -885,9 +894,12 @@ export class ExecutionEngine {
       // The author's per-input policy, if they set one on the declared input tuple.
       const declaredWhenEmpty = this.resolveWhenEmptyForGroup(graph, node, group);
 
-      // group is vars in order; find matching tuple key
+      // By the variables named, not their order: the parser pairs columns by
+      // name, so a table naming the same variables in another order fills
+      // this clause exactly as `/execute` lets it fill a lone query's.
+      const signature = this.normalizedSignature(group);
       const matchKey = Array.from(byInputTuple.entries()).find(([, set]) =>
-        set.head.vars.length === group.length && set.head.vars.every((v, i) => v === group[i])
+        this.normalizedSignature(set.head.vars) === signature
       )?.[0];
       if (matchKey) {
         const supplied = byInputTuple.get(matchKey)!;
@@ -896,25 +908,14 @@ export class ExecutionEngine {
         // enrichment"), or fail.
         argSets.push(declaredWhenEmpty ? { ...supplied, whenEmpty: declaredWhenEmpty } : supplied);
       } else {
-        // Try to find a matching initial argument set by vars ordering
-        const ext = matchingInitialArgs.find(s => s.head?.vars?.length === group.length && s.head.vars.every((v, i) => v === group[i]));
+        // The same signature rule `refuseUnroutedArguments` applies, so what
+        // that check let through is what lands here.
+        const ext = matchingInitialArgs.find(s => this.normalizedSignature(s.head?.vars ?? []) === signature);
         if (ext) {
           // The author's edge policy applies to what the caller supplied: a
           // request carries rows, never a policy of its own.
           argSets.push(declaredWhenEmpty ? { ...ext, whenEmpty: declaredWhenEmpty } : ext);
         } else {
-          /*
-           * An *order* mismatch means the same variables in a different order.
-           * Matching on length alone misdiagnosed a node with two clauses of
-           * equal width: a table meant for one of them was reported as the
-           * other written backwards, and the run failed instead of leaving the
-           * unfilled clause open.
-           */
-          const wrongOrder = matchingInitialArgs.find(s =>
-            this.normalizedSignature(s.head?.vars ?? []) === this.normalizedSignature(group));
-          if (wrongOrder) {
-            throw new Error(`Argument variable order mismatch for VALUES input [${group.join(', ')}]; received [${wrongOrder.head.vars.join(', ')}].`);
-          }
           // Nothing arrived. Absent external parameters run unconstrained unless the
           // author asked otherwise (notably `require`, for a mandatory parameter).
           argSets.push({
