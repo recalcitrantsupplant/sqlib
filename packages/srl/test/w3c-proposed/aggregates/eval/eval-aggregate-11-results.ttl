@@ -1,0 +1,6 @@
+PREFIX : <http://example/>
+
+:c1 :childOf :bob .
+:c2 :childOf :bob .
+:bob :givenChildren 1 .
+:amy :givenChildren 0 .

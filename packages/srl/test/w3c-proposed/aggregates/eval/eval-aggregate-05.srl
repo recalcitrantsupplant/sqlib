@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# MIN, MAX and AVG have no value on an empty group, so Amy's row is dropped.
+RULE { ?x :youngest ?lo ; :oldest ?hi ; :meanAge ?m } WHERE { ?x a :Person . AGGREGATE PER ?x { ?y :childOf ?x ; :age ?a } ( ?lo := MIN(?a), ?hi := MAX(?a), ?m := AVG(DISTINCT ?a) ) }

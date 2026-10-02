@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# An empty pattern.
+RULE { :all :one ?n } WHERE { AGGREGATE { } ( ?n := COUNT(*) ) }

@@ -1,0 +1,5 @@
+PREFIX : <http://example/>
+
+# The outer row is kept, so ?name, bound before the aggregate, can reach the
+# head.
+RULE { ?x :label ?name ; :numChildren ?n } WHERE { ?x a :Person ; :name ?name . AGGREGATE PER ?x { ?y :childOf ?x } ( ?n := COUNT(*) ) }

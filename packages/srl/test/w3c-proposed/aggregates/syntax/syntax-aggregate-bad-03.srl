@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# An AGGREGATE inside another AGGREGATE.
+RULE { :all :n ?n } WHERE { AGGREGATE { ?y :c ?x AGGREGATE { ?z :c ?y } ( ?k := COUNT(*) ) } ( ?n := COUNT(*) ) }

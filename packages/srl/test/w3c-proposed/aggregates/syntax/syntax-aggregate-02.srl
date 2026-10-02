@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# No variable list: one result over the whole graph.
+RULE { :all :count ?n } WHERE { AGGREGATE { ?s :p ?o } ( ?n := COUNT(*) ) }

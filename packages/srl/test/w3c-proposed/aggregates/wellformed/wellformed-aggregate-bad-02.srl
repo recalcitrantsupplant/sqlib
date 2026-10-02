@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# A listed variable must be used in the pattern.
+RULE { ?x :n ?n } WHERE { ?x a :Person . AGGREGATE PER ?x { ?y :childOf :bob } ( ?n := COUNT(*) ) }

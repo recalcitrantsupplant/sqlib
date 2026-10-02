@@ -1,0 +1,8 @@
+PREFIX : <http://example/>
+
+:a :rank 1 .
+:b :rank 2 .
+:c :rank 2 .
+:d :rank 4 .
+:e :rank 1 .
+:f :rank 2 .

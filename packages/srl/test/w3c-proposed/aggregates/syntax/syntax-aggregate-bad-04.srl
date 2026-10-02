@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# An AGGREGATE inside a NOT.
+RULE { ?x :r true } WHERE { ?x a :Person NOT { AGGREGATE { ?y :childOf ?x } ( ?n := COUNT(*) ) } }

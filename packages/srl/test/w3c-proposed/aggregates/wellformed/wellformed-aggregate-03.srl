@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# Two aggregates may each have their own variable called ?y.
+RULE { ?x :kids ?n ; :pets ?m } WHERE { ?x a :Person . AGGREGATE PER ?x { ?y :childOf ?x } ( ?n := COUNT(*) ) AGGREGATE PER ?x { ?y :petOf ?x } ( ?m := COUNT(*) ) }

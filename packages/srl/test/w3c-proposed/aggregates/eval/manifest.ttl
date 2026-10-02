@@ -1,0 +1,175 @@
+## Proposed SPARQL-RL tests for aggregates (w3c/data-shapes#840).
+## Same layout and vocabulary as eval/manifest.ttl upstream.
+
+PREFIX rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs:   <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX mf:     <http://www.w3.org/2001/sw/DataAccess/tests/test-manifest#>
+PREFIX :       <https://w3c.github.io/rdf-tests/shacl/shacl12/>
+PREFIX srlt:   <http://www.w3.org/ns/sparql-rl-tests#>
+
+<#>  rdf:type mf:Manifest ;
+   rdfs:label "SPARQL-RL Evaluation Tests: AGGREGATE (proposed)"@en ;
+   mf:assumedTestBase <https://w3c.github.io/rdf-tests/shacl/shacl12/> ;
+    mf:entries
+    (
+        :eval-aggregate-01
+        :eval-aggregate-02
+        :eval-aggregate-03
+        :eval-aggregate-04
+        :eval-aggregate-05
+        :eval-aggregate-06
+        :eval-aggregate-07
+        :eval-aggregate-08
+        :eval-aggregate-09
+        :eval-aggregate-10
+        :eval-aggregate-11
+        :eval-aggregate-12
+        :eval-aggregate-13
+        :eval-aggregate-14
+        :eval-aggregate-15
+        :eval-aggregate-16
+    ) .
+
+# COUNT per person: a person with no children gets 0.
+:eval-aggregate-01 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-aggregate-01";
+    mf:action
+         [ srlt:ruleset  <eval-aggregate-01.srl> ;
+           srlt:data     <data-family.ttl> ] ;
+    mf:result  <eval-aggregate-01-results.ttl>
+    .
+
+# SUM counts every solution, so two children aged 10 both count; an empty group sums to 0.
+:eval-aggregate-02 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-aggregate-02";
+    mf:action
+         [ srlt:ruleset  <eval-aggregate-02.srl> ;
+           srlt:data     <data-family.ttl> ] ;
+    mf:result  <eval-aggregate-02-results.ttl>
+    .
+
+# SUM(DISTINCT) adds each value once.
+:eval-aggregate-03 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-aggregate-03";
+    mf:action
+         [ srlt:ruleset  <eval-aggregate-03.srl> ;
+           srlt:data     <data-family.ttl> ] ;
+    mf:result  <eval-aggregate-03-results.ttl>
+    .
+
+# Every outer row is kept: Bob has two names and each row has 3 children, not 6.
+:eval-aggregate-04 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-aggregate-04";
+    mf:action
+         [ srlt:ruleset  <eval-aggregate-04.srl> ;
+           srlt:data     <data-family.ttl> ] ;
+    mf:result  <eval-aggregate-04-results.ttl>
+    .
+
+# MIN, MAX and AVG have no value on an empty group, so Amy's row is dropped.
+:eval-aggregate-05 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-aggregate-05";
+    mf:action
+         [ srlt:ruleset  <eval-aggregate-05.srl> ;
+           srlt:data     <data-family.ttl> ] ;
+    mf:result  <eval-aggregate-05-results.ttl>
+    .
+
+# COUNT(*) counts solutions; COUNT(DISTINCT ?p) counts people. Ann has two roles.
+:eval-aggregate-06 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-aggregate-06";
+    mf:action
+         [ srlt:ruleset  <eval-aggregate-06.srl> ;
+           srlt:data     <data-staff.ttl> ] ;
+    mf:result  <eval-aggregate-06-results.ttl>
+    .
+
+# Rank within a department: 1 plus the number of people in it with a higher score. Ties share a rank.
+:eval-aggregate-07 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-aggregate-07";
+    mf:action
+         [ srlt:ruleset  <eval-aggregate-07.srl> ;
+           srlt:data     <data-scores.ttl> ] ;
+    mf:result  <eval-aggregate-07-results.ttl>
+    .
+
+# Dense rank with PER *, counting distinct higher scores.
+:eval-aggregate-08 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-aggregate-08";
+    mf:action
+         [ srlt:ruleset  <eval-aggregate-08.srl> ;
+           srlt:data     <data-scores.ttl> ] ;
+    mf:result  <eval-aggregate-08-results.ttl>
+    .
+
+# GROUP BY gives the same counts where the head uses only the listed variable and the result.
+:eval-aggregate-09 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-aggregate-09";
+    mf:action
+         [ srlt:ruleset  <eval-aggregate-09.srl> ;
+           srlt:data     <data-family.ttl> ] ;
+    mf:result  <eval-aggregate-09-results.ttl>
+    .
+
+# The aggregate counts :childOf only after the rule deriving it is complete, so Bob gets 3 and no partial count.
+:eval-aggregate-10 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-aggregate-10";
+    mf:action
+         [ srlt:ruleset  <eval-aggregate-10.srl> ;
+           srlt:data     <data-parents.ttl> ] ;
+    mf:result  <eval-aggregate-10-results.ttl>
+    .
+
+# WHERE DATA counts only the given graph: the derived :childOf triples are not counted.
+:eval-aggregate-11 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-aggregate-11";
+    mf:action
+         [ srlt:ruleset  <eval-aggregate-11.srl> ;
+           srlt:data     <data-parents.ttl> ] ;
+    mf:result  <eval-aggregate-11-results.ttl>
+    .
+
+# An aggregate error drops the row: SUM over strings has no value, SUM over numbers does.
+:eval-aggregate-12 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-aggregate-12";
+    mf:action
+         [ srlt:ruleset  <eval-aggregate-12.srl> ;
+           srlt:data     <data-strings.ttl> ] ;
+    mf:result  <eval-aggregate-12-results.ttl>
+    .
+
+# On an empty graph a whole-graph COUNT is 0 and a MAX has no value.
+:eval-aggregate-13 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-aggregate-13";
+    mf:action
+         [ srlt:ruleset  <eval-aggregate-13.srl> ;
+           srlt:data     <data-empty.ttl> ] ;
+    mf:result  <eval-aggregate-13-results.ttl>
+    .
+
+# A FILTER on the result after the aggregate keeps only people with more than one child.
+:eval-aggregate-14 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-aggregate-14";
+    mf:action
+         [ srlt:ruleset  <eval-aggregate-14.srl> ;
+           srlt:data     <data-family.ttl> ] ;
+    mf:result  <eval-aggregate-14-results.ttl>
+    .
+
+# Two aggregates in one rule, each with its own ?y.
+:eval-aggregate-15 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-aggregate-15";
+    mf:action
+         [ srlt:ruleset  <eval-aggregate-15.srl> ;
+           srlt:data     <data-family.ttl> ] ;
+    mf:result  <eval-aggregate-15-results.ttl>
+    .
+
+# NOT inside the pattern: count the children not aged 7.
+:eval-aggregate-16 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-aggregate-16";
+    mf:action
+         [ srlt:ruleset  <eval-aggregate-16.srl> ;
+           srlt:data     <data-family.ttl> ] ;
+    mf:result  <eval-aggregate-16-results.ttl>
+    .

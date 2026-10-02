@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# An aggregate in a rule head.
+RULE { :all :n COUNT(*) } WHERE { ?s :p ?o }

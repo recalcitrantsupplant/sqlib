@@ -1,0 +1,5 @@
+PREFIX : <http://example/>
+
+# An aggregate error drops the row: SUM over strings has no value, SUM over
+# numbers does.
+RULE { ?x :total ?t } WHERE { ?x a :Thing . AGGREGATE PER ?x { ?x :v ?v } ( ?t := SUM(?v) ) }

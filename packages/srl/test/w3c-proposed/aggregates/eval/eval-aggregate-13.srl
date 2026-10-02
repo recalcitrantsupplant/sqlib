@@ -1,0 +1,5 @@
+PREFIX : <http://example/>
+
+# On an empty graph a whole-graph COUNT is 0 and a MAX has no value.
+RULE { :all :count ?n } WHERE { AGGREGATE { ?s :p ?o } ( ?n := COUNT(*) ) }
+RULE { :all :max ?m } WHERE { AGGREGATE { ?s :p ?o } ( ?m := MAX(?o) ) }

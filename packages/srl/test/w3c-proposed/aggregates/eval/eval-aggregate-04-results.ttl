@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+:bob :label "Bob", "Robert" ; :numChildren 3 .
+:amy :label "Amy" ; :numChildren 0 .

@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# An assignment that is not an aggregate function.
+RULE { :all :n ?n } WHERE { AGGREGATE { ?s :p ?o } ( ?n := ?o ) }

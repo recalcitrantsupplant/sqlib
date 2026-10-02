@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# ?y is used inside the aggregate and in the head.
+RULE { ?x :n ?y } WHERE { ?x a :Person . AGGREGATE PER ?x { ?y :childOf ?x } ( ?n := COUNT(*) ) }

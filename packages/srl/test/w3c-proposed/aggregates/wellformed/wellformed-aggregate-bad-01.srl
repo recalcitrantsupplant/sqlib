@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# A listed variable must be bound before the aggregate.
+RULE { :all :n ?n } WHERE { AGGREGATE PER ?x { ?y :childOf ?x } ( ?n := COUNT(*) ) }

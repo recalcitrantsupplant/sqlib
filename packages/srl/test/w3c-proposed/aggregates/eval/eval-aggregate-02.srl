@@ -1,0 +1,5 @@
+PREFIX : <http://example/>
+
+# SUM counts every solution, so two children aged 10 both count; an empty
+# group sums to 0.
+RULE { ?x :ageSum ?s } WHERE { ?x a :Person . AGGREGATE PER ?x { ?y :childOf ?x ; :age ?a } ( ?s := SUM(?a) ) }

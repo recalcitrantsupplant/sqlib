@@ -1,0 +1,6 @@
+PREFIX : <http://example/>
+
+# The aggregate counts a relation another rule derives, which puts it in a
+# later stratum.
+RULE { ?y :childOf ?x } WHERE { ?x :parentOf ?y }
+RULE { ?x :numChildren ?n } WHERE { ?x a :Person . AGGREGATE PER ?x { ?y :childOf ?x } ( ?n := COUNT(*) ) }

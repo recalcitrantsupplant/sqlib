@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# Dense rank with PER *, counting distinct higher scores.
+RULE { ?p :denseRank ?r } WHERE { ?p :dept ?d ; :score ?s . AGGREGATE PER * { ?o :dept ?d ; :score ?s2 FILTER(?s2 > ?s) } ( ?b := COUNT(DISTINCT ?s2) ) SET(?r := ?b + 1) }

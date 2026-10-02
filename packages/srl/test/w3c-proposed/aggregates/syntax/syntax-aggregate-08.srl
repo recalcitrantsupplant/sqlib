@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# The pattern may hold FILTER and NOT.
+RULE { ?x :adults ?n } WHERE { ?x a :Person . AGGREGATE PER ?x { ?y :childOf ?x ; :age ?a FILTER(?a >= 18) NOT { ?y :deceased true } } ( ?n := COUNT(*) ) }

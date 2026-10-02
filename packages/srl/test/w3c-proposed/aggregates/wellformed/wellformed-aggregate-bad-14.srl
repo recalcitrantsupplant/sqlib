@@ -1,0 +1,5 @@
+PREFIX : <http://example/>
+
+# A FILTER inside the pattern sees only the listed variables from outside, so
+# ?lo is not bound there.
+RULE { ?x :n ?n } WHERE { ?x a :Person ; :min ?lo . AGGREGATE PER ?x { ?y :childOf ?x ; :age ?a FILTER(?a > ?lo) } ( ?n := COUNT(*) ) }

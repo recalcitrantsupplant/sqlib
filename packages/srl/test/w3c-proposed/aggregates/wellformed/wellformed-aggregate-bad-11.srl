@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# An argument variable the pattern does not bind.
+RULE { ?x :n ?n } WHERE { ?x a :Person . AGGREGATE PER ?x { ?y :childOf ?x } ( ?n := SUM(?z) ) }

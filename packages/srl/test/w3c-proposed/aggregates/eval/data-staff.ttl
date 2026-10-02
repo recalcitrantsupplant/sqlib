@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+:ann :worksIn :sales ; :role :manager, :analyst .
+:bo :worksIn :sales ; :role :analyst .

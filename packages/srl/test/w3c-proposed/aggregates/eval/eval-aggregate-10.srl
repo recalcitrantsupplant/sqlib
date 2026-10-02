@@ -1,0 +1,6 @@
+PREFIX : <http://example/>
+
+# The aggregate counts :childOf only after the rule deriving it is complete,
+# so Bob gets 3 and no partial count.
+RULE { ?y :childOf ?x } WHERE { ?x :parentOf ?y }
+RULE { ?x :numChildren ?n } WHERE { ?x a :Person . AGGREGATE PER ?x { ?y :childOf ?x } ( ?n := COUNT(*) ) }

@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# GROUP BY with one listed variable.
+RULE { ?x :numChildren ?n } WHERE { ?x a :Person . AGGREGATE GROUP BY ?x { ?y :childOf ?x } ( ?n := COUNT(*) ) }

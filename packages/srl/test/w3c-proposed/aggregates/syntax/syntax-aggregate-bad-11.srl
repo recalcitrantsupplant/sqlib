@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# GROUP BY with no variables.
+RULE { :all :n ?n } WHERE { AGGREGATE GROUP BY { ?s :p ?o } ( ?n := COUNT(*) ) }

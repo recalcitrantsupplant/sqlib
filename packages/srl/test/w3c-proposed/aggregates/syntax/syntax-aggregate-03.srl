@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# PER * correlates on every shared variable bound earlier.
+RULE { ?x :numChildren ?n } WHERE { ?x a :Person . AGGREGATE PER * { ?y :childOf ?x } ( ?n := COUNT(*) ) }

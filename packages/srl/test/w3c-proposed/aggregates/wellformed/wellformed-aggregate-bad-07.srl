@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# A result must be a new variable.
+RULE { ?x :n ?x } WHERE { ?x a :Person . AGGREGATE PER ?x { ?y :childOf ?x } ( ?x := COUNT(*) ) }

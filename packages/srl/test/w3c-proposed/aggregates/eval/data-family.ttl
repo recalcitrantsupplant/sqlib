@@ -1,0 +1,7 @@
+PREFIX : <http://example/>
+
+:bob a :Person ; :name "Bob", "Robert" .
+:amy a :Person ; :name "Amy" .
+:c1 :childOf :bob ; :age 10 .
+:c2 :childOf :bob ; :age 10 .
+:c3 :childOf :bob ; :age 7 .

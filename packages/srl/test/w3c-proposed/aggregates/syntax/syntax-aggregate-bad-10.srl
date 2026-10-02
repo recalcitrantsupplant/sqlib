@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# PER with no variables.
+RULE { :all :n ?n } WHERE { AGGREGATE PER { ?s :p ?o } ( ?n := COUNT(*) ) }

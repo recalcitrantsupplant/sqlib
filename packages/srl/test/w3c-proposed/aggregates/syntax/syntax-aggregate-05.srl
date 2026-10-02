@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# Several listed variables.
+RULE { ?d :count ?n } WHERE { ?p :dept ?d ; :score ?s . AGGREGATE PER ?d ?s { ?o :dept ?d ; :score ?s2 FILTER(?s2 > ?s) } ( ?n := COUNT(*) ) }

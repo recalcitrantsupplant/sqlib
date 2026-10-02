@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# GROUP_CONCAT depends on row order, so it is not an AGGREGATE function.
+RULE { :all :list ?n } WHERE { AGGREGATE { ?s :p ?o } ( ?n := GROUP_CONCAT(?o) ) }

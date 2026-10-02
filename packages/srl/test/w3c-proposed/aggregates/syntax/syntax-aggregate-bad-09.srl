@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# An aggregate function in a FILTER, outside AGGREGATE.
+RULE { ?s :many true } WHERE { ?s :p ?o FILTER(COUNT(?o) > 1) }

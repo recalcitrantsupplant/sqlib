@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# A later pattern may join on a result.
+RULE { ?x :typical true } WHERE { ?x a :Person . AGGREGATE PER ?x { ?y :childOf ?x } ( ?n := COUNT(*) ) :census :median ?n }

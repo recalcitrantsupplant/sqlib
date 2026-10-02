@@ -1,0 +1,5 @@
+PREFIX : <http://example/>
+
+# ?y is used inside and before the aggregate without being listed: correlation
+# must be written down.
+RULE { ?x :n ?n } WHERE { ?x a :Person ; :knows ?y . AGGREGATE PER ?x { ?y :childOf ?x } ( ?n := COUNT(*) ) }

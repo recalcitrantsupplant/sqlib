@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# A result that is also a pattern variable.
+RULE { ?x :n ?a } WHERE { ?x a :Person . AGGREGATE PER ?x { ?y :childOf ?x ; :age ?a } ( ?a := MAX(?a) ) }

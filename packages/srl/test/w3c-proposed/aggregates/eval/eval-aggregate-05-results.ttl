@@ -1,0 +1,3 @@
+PREFIX : <http://example/>
+
+:bob :youngest 7 ; :oldest 10 ; :meanAge 8.5 .

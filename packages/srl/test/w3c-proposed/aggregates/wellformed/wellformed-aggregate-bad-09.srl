@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# A result assigned again by a later SET.
+RULE { ?x :n ?n } WHERE { ?x a :Person . AGGREGATE PER ?x { ?y :childOf ?x } ( ?n := COUNT(*) ) SET(?n := 0) }

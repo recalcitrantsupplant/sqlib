@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# A FILTER on a result after the aggregate does the work of HAVING.
+RULE { ?x a :Parent } WHERE { ?x a :Person . AGGREGATE PER ?x { ?y :childOf ?x } ( ?n := COUNT(*) ) FILTER(?n > 0) }

@@ -1,0 +1,6 @@
+PREFIX : <http://example/>
+
+# The aggregate reads a predicate that a rule in its own cycle derives through
+# a positive edge.
+RULE { ?x :total ?n } WHERE { ?x a :Account . AGGREGATE PER ?x { ?x :entry ?v } ( ?n := SUM(?v) ) }
+RULE { ?x :entry ?n } WHERE { ?x :total ?n }

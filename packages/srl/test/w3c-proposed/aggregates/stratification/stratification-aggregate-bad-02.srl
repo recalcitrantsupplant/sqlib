@@ -1,0 +1,5 @@
+PREFIX : <http://example/>
+
+# Two rules in a cycle through an aggregate.
+RULE { ?x :score ?n } WHERE { ?x a :Player . AGGREGATE PER ?x { ?x :beat ?y } ( ?n := COUNT(*) ) }
+RULE { ?x :beat ?y } WHERE { ?x :score ?a . ?y :score ?b FILTER(?a > ?b) }

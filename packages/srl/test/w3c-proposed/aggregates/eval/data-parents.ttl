@@ -1,0 +1,5 @@
+PREFIX : <http://example/>
+
+:bob a :Person ; :parentOf :c1, :c2 .
+:amy a :Person .
+:c3 :childOf :bob .

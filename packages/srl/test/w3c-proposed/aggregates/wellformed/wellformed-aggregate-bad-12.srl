@@ -1,0 +1,5 @@
+PREFIX : <http://example/>
+
+# After GROUP BY only the listed variables and the results are bound, so ?name
+# cannot reach the head.
+RULE { ?x :label ?name ; :n ?n } WHERE { ?x a :Person ; :name ?name . AGGREGATE GROUP BY ?x { ?y :childOf ?x } ( ?n := COUNT(*) ) }

@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# NOT inside the pattern: count the children not aged 7.
+RULE { ?x :notSeven ?n } WHERE { ?x a :Person . AGGREGATE PER ?x { ?y :childOf ?x NOT { ?y :age 7 } } ( ?n := COUNT(*) ) }

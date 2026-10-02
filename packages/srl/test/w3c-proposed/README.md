@@ -1,5 +1,8 @@
 # Proposed SPARQL-RL tests: the order of `NOT`
 
+This file covers `eval/` and `wellformed/`. The cases for the rule-aggregates
+extension are in [`aggregates/`](aggregates/README.md).
+
 Tests we'd like to contribute to the W3C suite
 (`w3c/data-shapes`, `shacl12-test-suite/tests/sparql-rl/`). They use the suite's
 own layout and vocabulary, so `eval/` and `wellformed/` can be copied into the

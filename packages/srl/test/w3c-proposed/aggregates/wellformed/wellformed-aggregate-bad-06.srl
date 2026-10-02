@@ -1,0 +1,5 @@
+PREFIX : <http://example/>
+
+# PER * correlates only on what is bound before it, so ?y bound after it
+# clashes.
+RULE { ?x :n ?n } WHERE { ?x a :Person . AGGREGATE PER * { ?y :childOf ?x } ( ?n := COUNT(*) ) ?x :knows ?y }

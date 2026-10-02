@@ -1,0 +1,6 @@
+PREFIX : <http://example/>
+
+# A recursive rule below an aggregate over its result.
+RULE { ?x :anc ?y } WHERE { ?x :parent ?y }
+RULE { ?x :anc ?z } WHERE { ?x :anc ?y . ?y :parent ?z }
+RULE { ?x :numAncestors ?n } WHERE { ?x a :Person . AGGREGATE PER ?x { ?x :anc ?a } ( ?n := COUNT(*) ) }

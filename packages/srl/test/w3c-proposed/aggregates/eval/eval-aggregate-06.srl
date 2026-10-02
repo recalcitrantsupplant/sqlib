@@ -1,0 +1,5 @@
+PREFIX : <http://example/>
+
+# COUNT(*) counts solutions; COUNT(DISTINCT ?p) counts people. Ann has two
+# roles.
+RULE { :sales :rows ?r ; :staff ?s } WHERE { AGGREGATE { ?p :worksIn :sales ; :role ?role } ( ?r := COUNT(*), ?s := COUNT(DISTINCT ?p) ) }

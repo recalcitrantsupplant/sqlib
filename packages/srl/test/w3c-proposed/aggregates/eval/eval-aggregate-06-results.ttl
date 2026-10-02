@@ -1,0 +1,3 @@
+PREFIX : <http://example/>
+
+:sales :rows 3 ; :staff 2 .

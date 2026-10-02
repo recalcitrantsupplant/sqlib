@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# After GROUP BY, a FILTER cannot use an unlisted earlier variable.
+RULE { ?x :n ?n } WHERE { ?x a :Person ; :name ?name . AGGREGATE GROUP BY ?x { ?y :childOf ?x } ( ?n := COUNT(*) ) FILTER(?name != "") }

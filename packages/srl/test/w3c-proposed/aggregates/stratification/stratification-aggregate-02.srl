@@ -1,0 +1,5 @@
+PREFIX : <http://example/>
+
+# A chain: a count feeds a second aggregate in a later stratum.
+RULE { ?x :numChildren ?n } WHERE { ?x a :Person . AGGREGATE PER ?x { ?y :childOf ?x } ( ?n := COUNT(*) ) }
+RULE { :census :maxChildren ?m } WHERE { AGGREGATE { ?x :numChildren ?k } ( ?m := MAX(?k) ) }

@@ -1,0 +1,6 @@
+PREFIX : <http://example/>
+
+# WHERE DATA counts only the given graph: the derived :childOf triples are not
+# counted.
+RULE { ?y :childOf ?x } WHERE { ?x :parentOf ?y }
+RULE { ?x :givenChildren ?n } WHERE DATA { ?x a :Person . AGGREGATE PER ?x { ?y :childOf ?x } ( ?n := COUNT(*) ) }

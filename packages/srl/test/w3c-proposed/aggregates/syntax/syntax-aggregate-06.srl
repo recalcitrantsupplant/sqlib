@@ -1,0 +1,9 @@
+PREFIX : <http://example/>
+
+# Every function, DISTINCT, and an expression argument.
+RULE { ?x :stats ?n } WHERE {
+  ?x a :Order .
+  AGGREGATE PER ?x { ?x :line ?l . ?l :price ?p ; :qty ?q }
+            ( ?n := COUNT(*), ?d := COUNT(DISTINCT ?p), ?t := SUM(?p * ?q),
+              ?lo := MIN(?p), ?hi := MAX(?p), ?avg := AVG(DISTINCT ?p) )
+}

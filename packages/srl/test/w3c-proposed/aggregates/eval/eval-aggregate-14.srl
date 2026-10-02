@@ -1,0 +1,5 @@
+PREFIX : <http://example/>
+
+# A FILTER on the result after the aggregate keeps only people with more than
+# one child.
+RULE { ?x a :Parent } WHERE { ?x a :Person . AGGREGATE PER ?x { ?y :childOf ?x } ( ?n := COUNT(*) ) FILTER(?n > 1) }

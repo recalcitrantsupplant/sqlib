@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# The same result twice in one aggregate.
+RULE { ?x :n ?n } WHERE { ?x a :Person . AGGREGATE PER ?x { ?y :childOf ?x ; :age ?a } ( ?n := COUNT(*), ?n := MAX(?a) ) }

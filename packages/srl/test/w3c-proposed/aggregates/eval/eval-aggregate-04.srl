@@ -1,0 +1,5 @@
+PREFIX : <http://example/>
+
+# Every outer row is kept: Bob has two names and each row has 3 children, not
+# 6.
+RULE { ?x :label ?name ; :numChildren ?n } WHERE { ?x a :Person ; :name ?name . AGGREGATE PER ?x { ?y :childOf ?x } ( ?n := COUNT(*) ) }

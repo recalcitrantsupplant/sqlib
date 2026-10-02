@@ -1,0 +1,5 @@
+PREFIX : <http://example/>
+
+# Keywords are case-insensitive, including a lowercase aggregate beside the
+# keyword a.
+RULE { ?x :numChildren ?n } WHERE { ?x a :Person . aggregate per ?x { ?y :childOf ?x } ( ?n := count(*) ) }

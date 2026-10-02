@@ -1,0 +1,5 @@
+PREFIX : <http://example/>
+
+# GROUP BY gives the same counts where the head uses only the listed variable
+# and the result.
+RULE { ?x :numChildren ?n } WHERE { ?x a :Person ; :name ?name . AGGREGATE GROUP BY ?x { ?y :childOf ?x } ( ?n := COUNT(*) ) }

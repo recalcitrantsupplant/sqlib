@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+:bob :notSeven 2 .
+:amy :notSeven 0 .

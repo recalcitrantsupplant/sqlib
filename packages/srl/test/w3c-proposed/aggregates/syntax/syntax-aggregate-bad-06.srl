@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# No assignment.
+RULE { :all :n ?n } WHERE { AGGREGATE { ?s :p ?o } ( ) }

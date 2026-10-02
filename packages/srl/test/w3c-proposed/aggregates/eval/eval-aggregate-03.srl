@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# SUM(DISTINCT) adds each value once.
+RULE { ?x :distinctAgeSum ?s } WHERE { ?x a :Person . AGGREGATE PER ?x { ?y :childOf ?x ; :age ?a } ( ?s := SUM(DISTINCT ?a) ) }

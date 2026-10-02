@@ -1,0 +1,5 @@
+PREFIX : <http://example/>
+
+# Rank within a department: 1 plus the number of people in it with a higher
+# score. Ties share a rank.
+RULE { ?p :rank ?r } WHERE { ?p :dept ?d ; :score ?s . AGGREGATE PER ?d ?s { ?o :dept ?d ; :score ?s2 FILTER(?s2 > ?s) } ( ?b := COUNT(*) ) SET(?r := ?b + 1) }

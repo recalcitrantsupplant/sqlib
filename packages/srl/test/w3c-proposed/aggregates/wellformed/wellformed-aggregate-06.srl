@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# PER * with no shared variable is a whole-graph aggregate.
+RULE { ?x :population ?n } WHERE { ?x a :Census . AGGREGATE PER * { ?p a :Person } ( ?n := COUNT(*) ) }

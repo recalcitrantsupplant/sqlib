@@ -1,0 +1,8 @@
+PREFIX : <http://example/>
+
+:a :dept :sales ; :score 90 .
+:b :dept :sales ; :score 85 .
+:c :dept :sales ; :score 85 .
+:d :dept :sales ; :score 70 .
+:e :dept :ops ; :score 60 .
+:f :dept :ops ; :score 50 .

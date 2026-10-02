@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# SAMPLE depends on row order, so it is not an AGGREGATE function.
+RULE { :all :some ?n } WHERE { AGGREGATE { ?s :p ?o } ( ?n := SAMPLE(?o) ) }
