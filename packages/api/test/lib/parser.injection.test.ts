@@ -44,32 +44,23 @@ const applyOne = (parser: SparqlQueryParser, value: unknown): string =>
 
 describe('argument injection', () => {
   describe('hostile values are rejected', () => {
-    const hostile: Array<[string, unknown]> = [
-      ['IRI closing its own bracket', { type: 'uri', value: 'http://e/a> <http://e/b' }],
-      ['IRI adding two terms', { type: 'uri', value: 'http://e/a> <http://e/b> <http://e/c' }],
-      ['IRI with a newline', { type: 'uri', value: 'http://e/a>\n<http://e/b' }],
-      ['IRI with a space', { type: 'uri', value: 'http://e/a b' }],
-      ['IRI with a brace', { type: 'uri', value: 'http://e/a} INSERT DATA {' }],
-      ['IRI with a quote', { type: 'uri', value: 'http://e/a"' }],
-      ['IRI with a backslash', { type: 'uri', value: 'http://e/a\\b' }],
-      ['IRI with a control character', { type: 'uri', value: 'http://e/a\u0007b' }],
-      [
-        'language tag breaking out',
-        { type: 'literal', value: 'x', 'xml:lang': 'en" } } INSERT DATA { <http://e> <http://p> "x" } #' },
-      ],
-      ['language tag with a space', { type: 'literal', value: 'x', 'xml:lang': 'en GB' }],
-      ['datatype IRI breaking out', { type: 'literal', value: 'x', datatype: 'http://e/d> } <http://e/x' }],
-    ];
-
-    it.each(hostile)('rejects %s', (_label, value) => {
-      const parser = new SparqlQueryParser();
-      expect(() => applyOne(parser, value)).toThrow();
-    });
-
+    /*
+     * The table of hostile values lives with the module that rejects them:
+     * `packages/runtime/test/sparql-terms.security.test.ts`, which is what an
+     * exported bundle runs with no server behind it. What stays here is the
+     * end-to-end half — that the parser's AST path goes through that module at
+     * all, rather than handing the value to Traqula's generator unchecked.
+     */
     it('rejects the hostile IRI that previously produced three rows', () => {
       const parser = new SparqlQueryParser();
       expect(() => applyOne(parser, { type: 'uri', value: 'http://e/a> <http://e/b> <http://e/c' }))
         .toThrow(/IRI/i);
+    });
+
+    it('rejects a hostile language tag, which the generator would also write verbatim', () => {
+      const parser = new SparqlQueryParser();
+      expect(() => applyOne(parser, { type: 'literal', value: 'x', 'xml:lang': 'en" } } #' }))
+        .toThrow(/language tag/i);
     });
   });
 
