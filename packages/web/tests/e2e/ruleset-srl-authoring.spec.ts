@@ -1,5 +1,6 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
 import { openSection } from './navigate';
+import { API_ORIGIN } from './api-origin';
 
 /**
  * Authoring a rule set as one SRL document.
@@ -168,7 +169,7 @@ test.describe('Rule set SRL authoring', () => {
     await mockNavigationDependencies(page);
     await mockRuleSetApis(page);
 
-    await page.route('**/rule-sets/*/srl**', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/rule-sets/*/srl**`, async (route: Route) => {
       const method = route.request().method();
       if (method === 'GET') {
         await route.fulfill({
@@ -197,7 +198,7 @@ test.describe('Rule set SRL authoring', () => {
     // Playwright matches routes in REVERSE registration order (most recently
     // registered wins), so the specific /srl/* handlers must come LAST — the
     // generic '**/srl**' pattern also matches '/srl/preview' and '/srl/compile'.
-    await page.route('**/rule-sets/srl/analyze', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/rule-sets/srl/analyze`, async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -205,7 +206,7 @@ test.describe('Rule set SRL authoring', () => {
       });
     });
 
-    await page.route('**/rule-sets/srl/compile', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/rule-sets/srl/compile`, async (route: Route) => {
       lastCompileRequest = JSON.parse(route.request().postData() ?? '{}');
       await route.fulfill({
         status: 200,
@@ -214,7 +215,7 @@ test.describe('Rule set SRL authoring', () => {
       });
     });
 
-    await page.route('**/rule-sets/*/srl/preview', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/rule-sets/*/srl/preview`, async (route: Route) => {
       lastPreviewContentType = route.request().headers()['content-type'];
       lastPreviewRequest = JSON.parse(route.request().postData() ?? '{}');
       await route.fulfill({
@@ -746,16 +747,16 @@ test.describe('Rule set SRL authoring', () => {
 });
 
 async function mockNavigationDependencies(page: Page) {
-  await page.route('**/libraries', fulfillWithJson([defaultLibrary]));
-  await page.route('**/queries', fulfillWithJson([]));
-  await page.route('**/query-groups', fulfillWithJson([]));
-  await page.route('**/rules', fulfillWithJson([]));
-  await page.route('**/data-blocks', fulfillWithJson([]));
-  await page.route('**/backends', fulfillWithJson([]));
+  await page.route(`${API_ORIGIN}/libraries`, fulfillWithJson([defaultLibrary]));
+  await page.route(`${API_ORIGIN}/queries`, fulfillWithJson([]));
+  await page.route(`${API_ORIGIN}/query-groups`, fulfillWithJson([]));
+  await page.route(`${API_ORIGIN}/rules`, fulfillWithJson([]));
+  await page.route(`${API_ORIGIN}/data-blocks`, fulfillWithJson([]));
+  await page.route(`${API_ORIGIN}/backends`, fulfillWithJson([]));
 }
 
 async function mockRuleSetApis(page: Page) {
-  await page.route('**/rule-sets', async (route: Route) => {
+  await page.route(`${API_ORIGIN}/rule-sets`, async (route: Route) => {
     if (route.request().method() === 'GET') {
       await route.fulfill({
         status: 200,
@@ -767,9 +768,9 @@ async function mockRuleSetApis(page: Page) {
     await route.fulfill({ status: 405 });
   });
 
-  await page.route('**/rule-sets/*/versions', fulfillWithJson([defaultRuleSetVersion]));
+  await page.route(`${API_ORIGIN}/rule-sets/*/versions`, fulfillWithJson([defaultRuleSetVersion]));
 
-  await page.route('**/rule-sets/*', async (route: Route) => {
+  await page.route(`${API_ORIGIN}/rule-sets/*`, async (route: Route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',

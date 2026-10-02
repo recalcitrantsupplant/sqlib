@@ -16,9 +16,9 @@ export async function openSplash(page: Page): Promise<void> {
   await page.waitForSelector('[data-testid="app-splash"]');
 }
 
-/** A rail section, by the query parameter the rail itself writes. */
+/** A rail section, at the address the rail itself navigates to. */
 export async function openSection(page: Page, section: string): Promise<void> {
-  await page.goto(`/?section=${section}`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`/${section}`, { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('[data-testid="entity-list-sidebar"]');
 }
 
@@ -60,4 +60,30 @@ export async function openSplashLibraries(page: Page): Promise<void> {
 /** A library's row on the splash, which carries its rename and delete. */
 export function splashLibraryRow(page: Page, libraryName: string) {
   return page.locator('.library-row').filter({ hasText: libraryName });
+}
+
+/*
+ * The workspace's addresses (`src/lib/sectionRoutes.ts`): `/<section>` and
+ * `/<section>/<record id>`. The id is matched encoded or not, because which
+ * the address bar shows is the router's choice, not the app's.
+ */
+function idPattern(id: string): string {
+  const escape = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return `(?:${escape(id)}|${escape(encodeURIComponent(id))})`;
+}
+
+/** The URL of a section, with or without a record open in it. */
+export function sectionUrl(section: string): RegExp {
+  return new RegExp(`/${section}(?:[/?#]|$)`);
+}
+
+/** The URL of one saved record in a section. */
+export function recordUrl(section: string, id: string): RegExp {
+  return new RegExp(`/${section}/${idPattern(id)}(?:[?#]|$)`);
+}
+
+/** The URL of an unsaved record — any, or the one with this id. */
+export function scratchUrl(section?: string, id?: string): RegExp {
+  const where = section ? `/${section}/` : '/[a-zA-Z]+/';
+  return new RegExp(`${where}${id ? idPattern(id) : '(?:urn:ui-temp:|urn%3Aui-temp%3A)'}`);
 }

@@ -2,6 +2,7 @@ import { test, expect, type Route } from '@playwright/test';
 import { mockSidebarCollections } from './fixtures/collections';
 import { openCreateLibraryDialog, openSplash, openSplashLibraries, splashLibraryRow } from './navigate';
 import { chooseSearchOption, searchSelect } from './search-select';
+import { API_ORIGIN } from './api-origin';
 
 // Mock data
 const mockBackends = [
@@ -58,7 +59,7 @@ test.describe('Library Edit - Backend Selection', () => {
     // Promise.all resolves instead of taking the whole tree down with it.
     await mockSidebarCollections(page);
 
-    await page.route('**/backends', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/backends`, async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -67,7 +68,7 @@ test.describe('Library Edit - Backend Selection', () => {
     });
 
     // Mock GET /libraries
-    await page.route('**/libraries', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/libraries`, async (route: Route) => {
       if (route.request().method() === 'GET') {
         await route.fulfill({
           status: 200,
@@ -78,7 +79,7 @@ test.describe('Library Edit - Backend Selection', () => {
     });
 
     // Mock GET /queries
-    await page.route('**/queries', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/queries`, async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -87,7 +88,7 @@ test.describe('Library Edit - Backend Selection', () => {
     });
 
     // Mock GET /query-groups
-    await page.route('**/query-groups', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/query-groups`, async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -191,7 +192,7 @@ test.describe('Library Edit - Backend Selection', () => {
     let updateCalled = false;
     let updatedLibraryData: any = null;
 
-    await page.route(`**/libraries/${encodeURIComponent(TEST_LIBRARY_ID)}`, async (route: Route) => {
+    await page.route(`${API_ORIGIN}/libraries/${encodeURIComponent(TEST_LIBRARY_ID)}`, async (route: Route) => {
       if (route.request().method() !== 'PUT') {
         await route.fallback();
         return;
@@ -253,7 +254,7 @@ test.describe('Library Edit - Backend Selection', () => {
 
   test('should reset form state when reopening dialog after successful update', async ({ page }) => {
     // Mock PUT /libraries/:id
-    await page.route(`**/libraries/${encodeURIComponent(TEST_LIBRARY_ID)}`, async (route: Route) => {
+    await page.route(`${API_ORIGIN}/libraries/${encodeURIComponent(TEST_LIBRARY_ID)}`, async (route: Route) => {
       if (route.request().method() === 'PUT') {
         const updatedLibraryData = route.request().postDataJSON();
         const updatedLibrary = {

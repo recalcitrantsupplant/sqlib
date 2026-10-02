@@ -176,113 +176,18 @@
           </template>
         </EmptyState>
       </div>
-      <QueryWorkArea
-        v-else-if="queriesEnabled && (selectedItemType === 'query' || scratchSection === 'query')"
-        :key="scratchSection === 'query' ? `scratch-${selectedScratchId}` : 'query'"
-        :creation-request="creationRequest"
-        :query-id="scratchSection === 'query' ? null : selectedQueryId"
-        :scratch-id="scratchSection === 'query' ? selectedScratchId : null"
-        :version-number="queryVersionNumber"
-        :preselect-argument-set-id="preselectArgumentSetId"
-        @creation-consumed="creationRequest = null"
-        @query-created="handleQueryCreated"
-        @query-load-failed="handleQueryLoadFailed"
-        @scratch-saved="handleScratchSaved"
-        @argument-set-saved="handleArgumentSetSavedElsewhere"
-        @query-deleted="handleQueryDeleted"
-        @update:version-number="handleQueryVersionUpdate"
-        @open-entity="openCreatedEntity"
-      />
-      <QueryGroupWorkArea
-        v-else-if="queryGroupsEnabled && (selectedItemType === 'queryGroup' || scratchSection === 'group')"
-        :key="scratchSection === 'group' ? `scratch-${selectedScratchId}` : 'query-group'"
-        :creation-request="queryGroupCreationRequest"
-        :query-group-id="scratchSection === 'group' ? null : selectedQueryGroupId"
-        :scratch-id="scratchSection === 'group' ? selectedScratchId : null"
-        :version-number="queryGroupVersionNumber"
-        @creation-consumed="queryGroupCreationRequest = null"
-        @scratch-saved="handleQueryGroupScratchSaved"
-        @argument-set-saved="handleArgumentSetSavedElsewhere"
-        @update:version-number="handleQueryGroupVersionUpdate"
-        @query-group-deleted="handleQueryGroupDeleted"
-        @query-group-cloned="handleQueryGroupCloned"
-        @query-group-moved="handleQueryGroupMoved"
-        @open-entity="openCreatedEntity"
-      />
-      <RuleSetWorkArea
-        v-else-if="rulesSuiteEnabled && (selectedItemType === 'ruleSet' || scratchSection === 'rule')"
-        :key="scratchSection === 'rule' ? `scratch-${selectedScratchId}` : 'rule-set'"
-        :rule-set-id="scratchSection === 'rule' ? null : selectedRuleSetId"
-        :scratch-id="scratchSection === 'rule' ? selectedScratchId : null"
-        @ruleset-deleted="handleRuleSetDeleted"
-        @ruleset-load-failed="handleRuleSetLoadFailed"
-        @scratch-saved="handleRuleSetSaved"
-        @open-test="openTest"
-        @open-entity="openInputEntity"
-        @open-benchmark="(id) => openCreatedEntity({ type: 'benchmark', id })"
-        @open-in-query="openSparqlAsScratchQuery"
-      />
       <!--
-        The folded-in playgrounds. Each is the same component it always was,
-        told which unsaved item it is showing instead of keeping its own tab
-        strip — a playground is not a place, it is an unsaved item, and the
-        sidebar is where unsaved items live now (nav doc §1).
-
-        Rules is no longer among them: a draft rule set is the rules work area
-        with nothing saved yet, which is what every other section already
-        does. `RulesPlayground` was a second implementation of one screen, and
-        the two drifted — see the SRL document authoring plan §3.
+        The open record's work area, from one row per kind in
+        `workspace/workAreas.ts`: which component, which prop takes the id,
+        how the pane is keyed, and which of its events mean saved, deleted or
+        could not be read. A scratch record opens in its section's work area.
       -->
-      <EtlPlayground
-        v-else-if="etlEnabled && (selectedItemType === 'etlJob' || scratchSection === 'etl')"
-        :key="scratchSection === 'etl' ? `scratch-${selectedScratchId}` : 'etl-job'"
-        :scratch-id="scratchSection === 'etl' ? selectedScratchId : null"
-        :etl-job-id="scratchSection === 'etl' ? null : selectedEtlJobId"
-        @scratch-saved="handleEtlScratchSaved"
-        @open-entity="openCreatedEntity"
-      />
-      <BenchmarkWorkArea
-        v-else-if="benchmarksEnabled && (selectedItemType === 'benchmark' || scratchSection === 'bench')"
-        :key="scratchSection === 'bench' ? `scratch-${selectedScratchId}` : 'benchmark'"
-        :experiment-id="scratchSection === 'bench' ? null : selectedBenchmarkId"
-        :scratch-id="scratchSection === 'bench' ? selectedScratchId : null"
-        @scratch-saved="handleBenchmarkSaved"
-      />
-      <DataGraphWorkArea
-        v-else-if="dataGraphsEnabled && (selectedItemType === 'dataGraph' || scratchSection === 'dataGraph')"
-        :key="scratchSection === 'dataGraph' ? `scratch-${selectedScratchId}` : 'data-graph'"
-        :data-graph-id="scratchSection === 'dataGraph' ? null : selectedDataGraphId"
-        :scratch-id="scratchSection === 'dataGraph' ? selectedScratchId : null"
-        @scratch-saved="handleDataGraphSaved"
-        @data-graph-deleted="handleDataGraphDeleted"
-      />
-      <TupleSetWorkArea
-        v-else-if="tupleSetsEnabled && (selectedItemType === 'tupleSet' || scratchSection === 'tupleSet')"
-        :key="scratchSection === 'tupleSet' ? `scratch-${selectedScratchId}` : 'tuple-set'"
-        :tuple-set-id="scratchSection === 'tupleSet' ? null : selectedTupleSetId"
-        :scratch-id="scratchSection === 'tupleSet' ? selectedScratchId : null"
-        @scratch-saved="handleTupleSetSaved"
-        @tuple-set-deleted="handleTupleSetDeleted"
-      />
-      <ArgumentSetWorkArea
-        v-else-if="argumentSetsEnabled && (selectedItemType === 'argumentSet' || scratchSection === 'argumentSet')"
-        :key="scratchSection === 'argumentSet' ? `scratch-${selectedScratchId}` : 'argument-set'"
-        :argument-set-id="scratchSection === 'argumentSet' ? null : selectedArgumentSetId"
-        :scratch-id="scratchSection === 'argumentSet' ? selectedScratchId : null"
-        @scratch-saved="handleArgumentSetSaved"
-        @argument-set-deleted="handleArgumentSetDeleted"
-        @open-callable="openCallableWithArguments"
-      />
-      <TestWorkArea
-        v-else-if="testsEnabled && (selectedItemType === 'test' || scratchSection === 'test')"
-        :key="scratchSection === 'test' ? `scratch-${selectedScratchId}` : 'test'"
-        :test-id="scratchSection === 'test' ? null : selectedTestId"
-        :scratch-id="scratchSection === 'test' ? selectedScratchId : null"
-        :run-view="testRunDetailVisible"
-        :run-busy="testRunRunning || runningAll"
-        @scratch-saved="handleTestSaved"
-        @test-deleted="handleTestDeleted"
-        @open-config="openTestConfig"
+      <component
+        :is="workAreaPaneView.component"
+        v-else-if="workAreaPaneView"
+        :key="workAreaPaneView.key"
+        v-bind="workAreaPaneView.props"
+        v-on="workAreaPaneView.on"
       />
       <div
         v-else-if="selectedItemType && !isItemFeatureEnabled(selectedItemType)"
@@ -290,60 +195,7 @@
       >
         <p>{{ featureDisabledMessage }}</p>
       </div>
-      <div
-        v-else-if="rulesSuiteOnlyEnabled && !selectedItemType"
-        class="content-placeholder rules-suite-overview"
-      >
-        <div class="overview-inner">
-          <h2>SHACL Rules</h2>
-          <div class="overview-sections">
-            <section class="overview-section">
-              <h3>Grammars & translation</h3>
-              <ul>
-                <li>This implementation uses a single rules dialect: the Shape Rules Language (SRL) from the current shacl12-rules draft, which includes negation (<code>NOT</code>) natively.
-                The grammar is implemented as an extension of the <a href="https://github.com/comunica/traqula" target="_blank" rel="noreferrer">Traqula</a> SPARQL 1.2 parser, so SPARQL 1.2 / RDF-star support comes for free.
-                  In addition, a rule to SPARQL converter is added, a ruleset stratifier, and well-formedness checks. Aggregation and the <code>FOR</code> clause are not supported.</li>
-                <li>The SHACL rules draft spec is available here <a href="https://www.w3.org/TR/shacl12-rules/" target="_blank" rel="noreferrer">w3.org/TR/shacl12-rules</a>.</li>
-                <li>The translator turns SRL rules and <code>DATA</code> blocks into SPARQL <code>INSERT</code> / <code>INSERT DATA</code>; raw SPARQL updates are also accepted as-is. If it parses, it can be saved and run.</li>
-                <li>Invalid rules can be stored via “Save my sins” in the Save dropdown—kept on here to support negative-rule syntax tests that are expected to fail validation.</li>
-              </ul>
-            </section>
-            <section class="overview-section">
-              <h3>Stratifier</h3>
-              <ul>
-                <li>Classifies each rule as monotone or negation by walking the parsed body.</li>
-                <li>Builds a dependency graph by matching rule heads to bodies; non-monotone edges force a stratum gap.</li>
-                <li>Assigns strata iteratively and flags non-stratifiable cycles using a strongly-connected-components check.</li>
-              </ul>
-            </section>
-            <section class="overview-section">
-              <h3>Execution flow</h3>
-              <ul>
-                <li>Loads DataBlocks into an in-memory Oxigraph store.</li>
-                <li>Normalises rules (when possible) to SPARQL updates, orders them by stratum, and runs them until no new triples are produced or a max-iteration guard trips (5 iterations).</li>
-                <li>Per-rule execution captures deltas and samples to make debugging and provenance easier.</li>
-              </ul>
-            </section>
-            <section class="overview-section">
-              <h3>Blank nodes & convergence</h3>
-              <ul>
-                <li>A rule whose head mints a blank node (or whose body assigns with <code>SET</code>) has no fixpoint of its own —
-                  every pass would mint a fresh node. Such rules are scheduled <code>SL.once</code>: they fire on the pass that activates
-                  their stratum and never again, which is the draft spec's own evaluation loop. Nothing needs to be enabled for this.</li>
-                <li>Test assertions compare graphs up to blank-node relabelling (RDFC-1.1 canonicalisation), so a rule that mints
-                  blank nodes does not fail on labels.</li>
-              </ul>
-            </section>
-            <section class="overview-section">
-              <h3>Background</h3>
-              <ul>
-                <li>This implementation is an extension to a SPARQL Query Library which runs on Node.js and is intended to be deployed close to triplestores, as such,
-                  the libraries/rules are shared and there is no browser based execution or storage.</li>
-              </ul>
-            </section>
-          </div>
-        </div>
-      </div>
+      <RulesSuiteOverview v-else-if="rulesSuiteOnlyEnabled && !selectedItemType" />
       <!--
         Nothing selected, and no section picked: the splash. There is no ad-hoc
         editor here any more — an unsaved query is an item in the Queries list,
@@ -448,30 +300,23 @@
 import { ref, onMounted, computed, watch } from 'vue';
 import { useRoute, useRouter } from '#imports';
 import { CircleCheck, ListChecks, Play } from '@lucide/vue';
-import AppNavRail from '../components/AppNavRail.vue';
-import AppSplash from '../components/AppSplash.vue';
-import EntityListSidebar, { type SidebarSelection, type SidebarEntity } from '../components/EntityListSidebar.vue';
-import BackendListSidebar from '../components/BackendListSidebar.vue';
-import BackendWorkArea from '../components/BackendWorkArea.vue';
-import QueryWorkArea from '../components/QueryWorkArea.vue';
-import QueryGroupWorkArea from '../components/QueryGroupWorkArea.vue';
-import RuleSetWorkArea from '../components/RuleSetWorkArea.vue';
-import BenchmarkWorkArea from '../components/BenchmarkWorkArea.vue';
-import TestWorkArea from '../components/TestWorkArea.vue';
-import RunByTagMenu, { type RunByTagOption } from '../components/tests/RunByTagMenu.vue';
-import TabStrip, { type Tab } from '../components/shared/TabStrip.vue';
-import EmptyState from '../components/shared/EmptyState.vue';
-import TestRunsPanel from '../components/tests/TestRunsPanel.vue';
-import TestRunResults from '../components/tests/TestRunResults.vue';
-import { useTestRunSummary } from '../composables/useTestRunSummary';
+import AppNavRail from '../AppNavRail.vue';
+import AppSplash from '../AppSplash.vue';
+import EntityListSidebar, { type SidebarSelection, type SidebarEntity } from '../EntityListSidebar.vue';
+import BackendListSidebar from '../BackendListSidebar.vue';
+import BackendWorkArea from '../BackendWorkArea.vue';
+import RunByTagMenu, { type RunByTagOption } from '../tests/RunByTagMenu.vue';
+import TabStrip, { type Tab } from '../shared/TabStrip.vue';
+import EmptyState from '../shared/EmptyState.vue';
+import RulesSuiteOverview from './RulesSuiteOverview.vue';
+import TestRunsPanel from '../tests/TestRunsPanel.vue';
+import TestRunResults from '../tests/TestRunResults.vue';
+import { useTestRunSummary } from '../../composables/useTestRunSummary';
 import { toast } from 'vue-sonner';
-import { downloadTextFile } from '../lib/downloadFile';
-import type { TestReportFormat } from '../lib/testReportFormats';
-import DataGraphWorkArea from '../components/DataGraphWorkArea.vue';
-import TupleSetWorkArea from '../components/TupleSetWorkArea.vue';
-import ArgumentSetWorkArea from '../components/ArgumentSetWorkArea.vue';
-import EtlPlayground from '../components/EtlPlayground.vue';
-import AddLibraryDialog from '../components/AddLibraryDialog.vue';
+import { downloadTextFile } from '../../lib/downloadFile';
+import type { TestReportFormat } from '../../lib/testReportFormats';
+import { WORK_AREAS, kindForDraftSection, workAreaPane } from './workAreas';
+import AddLibraryDialog from '../AddLibraryDialog.vue';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -481,47 +326,46 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '../components/ui/alert-dialog';
-import { useLibrariesStore } from '../composables/useLibrariesStore';
-import { useBackendsStore } from '../composables/useBackendsStore';
-import { isBrowserBackendId, useBrowserBackends } from '../composables/useBrowserBackends';
-import { useBackendProbes } from '../composables/useBackendProbes';
-import { useQueriesStore } from '../composables/useQueriesStore';
-import { useEntityKinds, isInLibrary } from '../composables/useEntityKinds';
-import { useFeatureFlags } from '../composables/useFeatureFlags';
-import { useLibraryEvents } from '../composables/useLibraryEvents';
-import type { ChangedEntity } from '../composables/useLibraryRefresh';
+} from '../ui/alert-dialog';
+import { useLibrariesStore } from '../../composables/useLibrariesStore';
+import { useBackendsStore } from '../../composables/useBackendsStore';
+import { isBrowserBackendId, useBrowserBackends } from '../../composables/useBrowserBackends';
+import { useBackendProbes } from '../../composables/useBackendProbes';
+import { useQueriesStore } from '../../composables/useQueriesStore';
+import { useEntityKinds, isInLibrary } from '../../composables/useEntityKinds';
+import { useFeatureFlags } from '../../composables/useFeatureFlags';
+import { useLibraryEvents } from '../../composables/useLibraryEvents';
+import type { ChangedEntity } from '../../composables/useLibraryRefresh';
 import type { Backend, Library } from '@sparql-query-lib/contracts';
 import type { FeatureFlagKey } from '@sparql-query-lib/types';
 import {
-  isRailSection,
   isScreenSection,
   sectionForItemType,
   SCREEN_SECTION_PATHS,
   type RailSection,
-} from '../lib/railSections';
+} from '../../lib/railSections';
 import {
   SECTION_DEFINITIONS,
   isListSection,
   listSectionForDraftSection,
   type ListSection,
   type SectionItemType,
-} from '../lib/sections';
-import { conceptsDocUrl } from '../lib/docs';
-import { useActiveLibrary } from '../composables/useActiveLibrary';
-import { useTagsStore } from '../composables/useTagsStore';
-import { isTaggableKind } from '../composables/useEntityTags';
-import { useTestsStore } from '../composables/useTestsStore';
-import { useApiClient, type TagMatchMode } from '../composables/useApiClient';
-import { useCallableDrafts, type DraftSection } from '../composables/useCallableDrafts';
-import { useScratchItems, migratePlaygroundTabs } from '../composables/useScratchItems';
-
-/** Old `?playground=` links, redirected to the section that absorbed each one. */
-const PLAYGROUND_REDIRECTS: Record<string, RailSection> = {
-  queries: 'queries',
-  rules: 'rules',
-  etl: 'etl',
-};
+} from '../../lib/sections';
+import { conceptsDocUrl } from '../../lib/docs';
+import {
+  isRoutedSection,
+  isScratchId,
+  parseSectionRoute,
+  sectionPath,
+  type SectionRoute,
+} from '../../lib/sectionRoutes';
+import { useActiveLibrary } from '../../composables/useActiveLibrary';
+import { useTagsStore } from '../../composables/useTagsStore';
+import { isTaggableKind } from '../../composables/useEntityTags';
+import { useTestsStore } from '../../composables/useTestsStore';
+import { useApiClient, type TagMatchMode } from '../../composables/useApiClient';
+import { useCallableDrafts, type DraftSection } from '../../composables/useCallableDrafts';
+import { useScratchItems, migratePlaygroundTabs } from '../../composables/useScratchItems';
 
 interface QueryCreationRequest {
   id: number;
@@ -597,8 +441,6 @@ const creationRequest = ref<QueryCreationRequest | null>(null);
 const queryGroupCreationRequest = ref<QueryCreationRequest | null>(null);
 const selectedQueryId = ref<string | null>(null);
 const selectedQueryGroupId = ref<string | null>(null);
-const selectedRuleId = ref<string | null>(null);
-const selectedDataBlockId = ref<string | null>(null);
 const selectedRuleSetId = ref<string | null>(null);
 const selectedScratchId = ref<string | null>(null);
 const selectedBenchmarkId = ref<string | null>(null);
@@ -611,140 +453,58 @@ const sidebarRefreshKey = ref(0);
 const queryVersionNumber = ref<number | null>(null);
 const queryGroupVersionNumber = ref<number | null>(null);
 
-/**
- * Set when an old `?playground=queries` link arrives: that capability is now
- * the Queries section, so the link redirects there rather than 404-ing into a
- * screen that no longer exists.
+/*
+ * Selection comes from the path: `/<section>/<record id>`, the id an entity IRI
+ * or a scratch record's `urn:ui-temp:` id (`lib/sectionRoutes.ts`). Old
+ * `/?section=…&query=…` links are redirected to it before this page sees them.
+ *
+ * Read synchronously at setup so the right work area mounts on the first render,
+ * avoiding a transient null → target transition that would mount two components
+ * in sequence and fire duplicate API calls. Later route changes — a command, the
+ * back button, a link — are followed by the watcher beside the URL sync below.
  */
-let activeSectionFromPlayground: RailSection | null = null;
+const initialRoute: SectionRoute = parseSectionRoute(route.params) ?? { section: null, id: null };
 
-// Initialise selection from URL synchronously so the correct work-area component
-// mounts on the first render, avoiding a transient null → target transition that
-// would mount two components in sequence and fire duplicate API calls.
-const initSelectionFromRoute = () => {
-  const queryId = route.query.query as string | undefined;
-  const queryGroupId = route.query.queryGroup as string | undefined;
-  const ruleId = route.query.rule as string | undefined;
-  const dataBlockId = route.query.dataBlock as string | undefined;
-  const RuleSetId = route.query.ruleSet as string | undefined;
-  const benchmarkParam = route.query.benchmark as string | undefined;
-  const etlJobId = route.query.etlJob as string | undefined;
-  const testId = route.query.test as string | undefined;
-  const dataGraphId = route.query.dataGraph as string | undefined;
-  const tupleSetId = route.query.tupleSet as string | undefined;
-  const argumentSetId = route.query.argumentSet as string | undefined;
-  const playgroundTarget = route.query.playground as string | undefined;
-  const scratchParam = route.query.scratch as string | undefined;
-  const versionParam = route.query.version as string | undefined;
+function versionFromQuery(): number | null {
+  const parsed = Number.parseInt(String(route.query.version ?? ''), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
 
-  if (versionParam) {
-    const parsedVersion = parseInt(versionParam, 10);
-    if (!Number.isNaN(parsedVersion) && parsedVersion > 0) {
-      if (queryId) queryVersionNumber.value = parsedVersion;
-      else if (queryGroupId) queryGroupVersionNumber.value = parsedVersion;
-    }
-  }
-
-  if (scratchParam) {
-    // A scratch link is browser-local by nature: it resolves only where the
-    // record lives. Selection is set regardless so the sidebar can show it
-    // missing rather than silently landing somewhere else.
+/** Open the record a path names, in the section it names. */
+function selectRecordFromRoute(target: SectionRoute) {
+  clearEntitySelection();
+  selectedItemType.value = null;
+  queryVersionNumber.value = null;
+  queryGroupVersionNumber.value = null;
+  const { section, id } = target;
+  if (!section || !id || !isListSection(section)) return;
+  if (isScratchId(id)) {
+    // Browser-local by nature: it resolves only where the record lives. The
+    // selection is set regardless so the work area can say it is missing
+    // rather than the page silently landing somewhere else.
     selectedItemType.value = 'scratch';
-    selectedScratchId.value = scratchParam;
-  } else if (queryId) {
-    selectedItemType.value = 'query';
-    if (queriesEnabled.value) {
-      selectedQueryId.value = queryId;
-      selectedQueryGroupId.value = null;
-      selectedRuleId.value = null;
-      selectedDataBlockId.value = null;
-      selectedRuleSetId.value = null;
-    }
-  } else if (queryGroupId) {
-    selectedItemType.value = 'queryGroup';
-    if (queryGroupsEnabled.value) {
-      selectedQueryGroupId.value = queryGroupId;
-      selectedQueryId.value = null;
-      selectedRuleId.value = null;
-      selectedDataBlockId.value = null;
-      selectedRuleSetId.value = null;
-    }
-  } else if (RuleSetId) {
-    selectedItemType.value = 'ruleSet';
-    if (rulesSuiteEnabled.value) {
-      selectedQueryId.value = null;
-      selectedQueryGroupId.value = null;
-      selectedRuleId.value = null;
-      selectedDataBlockId.value = null;
-      selectedRuleSetId.value = RuleSetId;
-    }
-  } else if (benchmarkParam) {
-    selectedItemType.value = 'benchmark';
-    if (benchmarksEnabled.value) {
-      selectedQueryId.value = null;
-      selectedQueryGroupId.value = null;
-      selectedRuleId.value = null;
-      selectedDataBlockId.value = null;
-      selectedRuleSetId.value = null;
-      // `?benchmark=true` predates experiments being selectable at all and
-      // still means "open the Bench screen"; anything else is an experiment id.
-      selectedBenchmarkId.value = benchmarkParam === 'true' ? null : benchmarkParam;
-    }
-  } else if (etlJobId) {
-    selectedItemType.value = 'etlJob';
-    if (etlEnabled.value) {
-      selectedEtlJobId.value = etlJobId;
-    }
-  } else if (testId) {
-    selectedItemType.value = 'test';
-    if (testsEnabled.value) {
-      selectedTestId.value = testId;
-    }
-  } else if (dataGraphId) {
-    selectedItemType.value = 'dataGraph';
-    if (dataGraphsEnabled.value) {
-      selectedDataGraphId.value = dataGraphId;
-    }
-  } else if (tupleSetId) {
-    selectedItemType.value = 'tupleSet';
-    if (tupleSetsEnabled.value) {
-      selectedTupleSetId.value = tupleSetId;
-    }
-  } else if (argumentSetId) {
-    selectedItemType.value = 'argumentSet';
-    if (argumentSetsEnabled.value) {
-      selectedArgumentSetId.value = argumentSetId;
-    }
-  } else if (playgroundTarget) {
-    /*
-     * The playgrounds are gone as destinations. Each was a screen you could
-     * reach with an unsaved body on it, and an unsaved body is a scratch item
-     * in its section now — so an old link redirects to that section, whose
-     * own landing rule (most recent item, scratch first, else a new scratch
-     * item) picks what to open once there.
-     */
-    activeSectionFromPlayground = PLAYGROUND_REDIRECTS[playgroundTarget] ?? null;
+    selectedScratchId.value = id;
+    return;
   }
+  const kind = SECTION_DEFINITIONS[section].savedKinds[0]?.type;
+  if (!kind) return;
+  selectSavedItem(kind, id);
+  const version = versionFromQuery();
+  if (kind === 'query') queryVersionNumber.value = version;
+  else if (kind === 'queryGroup') queryGroupVersionNumber.value = version;
+}
 
-  /*
-   * Deliberately not taken from the plan: `/` does not default to a section.
-   * The tree is still the unscoped view, and it is the only thing that reaches
-   * libraries and backends. Revisit when the tree retires (plan phase 6d).
-   */
-};
-
-initSelectionFromRoute();
+selectRecordFromRoute(initialRoute);
 
 /*
  * The nav rail's scope. Null means unscoped — the tree renders every section,
  * exactly as it did before the rail existed — and that is the state the app
- * loads in unless `?section=` says otherwise. Selecting an artifact lights up
+ * loads in at `/`; the path's first segment says otherwise. Selecting an
+ * artifact lights up
  * the matching entry without imposing a scope, so the rail reads as "where you
  * are" even when nothing has been clicked in it.
  */
-const activeSection = ref<RailSection | null>(
-  isRailSection(route.query.section) ? route.query.section : activeSectionFromPlayground
-);
+const activeSection = ref<RailSection | null>(initialRoute.section);
 
 // Kept apart from activeSection so the highlight never leaks into tree scoping.
 const railHighlight = ref<RailSection | null>(null);
@@ -753,10 +513,8 @@ const railSelection = computed(() => activeSection.value ?? railHighlight.value)
 /**
  * Back to the splash.
  *
- * A state reset rather than a route change: this page *is* `/`, and it reads
- * the URL once at setup — pushing `/` over `/?section=rules` would change the
- * address bar and leave the section open. Clearing the selection and the scope
- * is what the URL watcher then writes back.
+ * A state reset, which the URL watcher then writes back as `/`: the page holds
+ * the selection, and the address follows it.
  */
 function goHome() {
   clearEntitySelection();
@@ -1013,15 +771,22 @@ async function runTestIds(testIds: string[], kind: 'all' | 'group' | 'test', lab
 }
 
 /**
- * `?argumentSet=` — how "Run with…" on an argument set's Fits list arrives.
+ * The set "Run with…" on an argument set's Fits list chose, for the callable it
+ * opened. It travels in the URL as `?argumentSet=` beside that callable's path,
+ * and applies only while that callable is the one open, so opening another
+ * record never preselects a set chosen for something else.
  *
- * Read here because the page owns the route; the callable screens take it as a
+ * Held here because the page owns the route; the callable screens take it as a
  * prop rather than reaching for router state they otherwise have no use for.
  */
+const preselectedArgumentSet = ref<{ setId: string; forId: string } | null>(
+  typeof route.query.argumentSet === 'string' && route.query.argumentSet && initialRoute.id
+    ? { setId: route.query.argumentSet, forId: initialRoute.id }
+    : null,
+);
 const preselectArgumentSetId = computed(() => {
-  const requested = route.query.argumentSet;
-  const value = Array.isArray(requested) ? requested[0] : requested;
-  return typeof value === 'string' && value ? value : null;
+  const chosen = preselectedArgumentSet.value;
+  return chosen && chosen.forId === savedSelectionId.value ? chosen.setId : null;
 });
 
 /*
@@ -1275,8 +1040,6 @@ const sidebarSelection = computed<SidebarSelection>(() => {
 function clearEntitySelection() {
   selectedQueryId.value = null;
   selectedQueryGroupId.value = null;
-  selectedRuleId.value = null;
-  selectedDataBlockId.value = null;
   selectedRuleSetId.value = null;
   selectedBenchmarkId.value = null;
   selectedEtlJobId.value = null;
@@ -1361,26 +1124,6 @@ function handleCreateFromSidebar() {
 }
 
 /**
- * The handoff at the save moment: the item moves from Scratch to Saved and
- * stays selected, so the screen you are looking at is still the query you were
- * writing — only now it is a v1 in the library.
- */
-/*
- * The deleted query is still the selection, so clear it before the list
- * reloads — otherwise the work area briefly asks the server for something that
- * is no longer there and shows its own load error.
- */
-async function handleQueryDeleted(id: string) {
-  if (selectedQueryId.value === id) {
-    selectedItemType.value = null;
-    selectedQueryId.value = null;
-    queryVersionNumber.value = null;
-  }
-  await queriesStore.loadQueries();
-  sidebarRefreshKey.value += 1;
-}
-
-/**
  * The handoff at the save moment, the same in every section: the item moves
  * from Scratch to Saved and stays selected, so the screen you are looking at is
  * still the thing you were writing — only now it is in the library.
@@ -1391,25 +1134,87 @@ async function handleSaved(kind: SectionItemType, id: string) {
   sidebarRefreshKey.value += 1;
 }
 
-async function handleScratchSaved(payload: { id: string }) {
-  await handleSaved('query', payload.id);
+/** Nothing is open: the selection, and the version it was showing, are cleared. */
+function closeRecord() {
+  clearEntitySelection();
+  selectedItemType.value = null;
+  queryVersionNumber.value = null;
+  queryGroupVersionNumber.value = null;
 }
 
-async function handleQueryGroupScratchSaved(payload: { id: string }) {
-  await handleSaved('queryGroup', payload.id);
+/**
+ * A record was deleted, the same in every section. The deleted record is
+ * still the selection, so it is closed before the list reloads — otherwise the
+ * work area briefly asks the server for something that is no longer there and
+ * shows its own load error.
+ */
+async function handleDeleted(kind: SectionItemType, id: string | null) {
+  if (!id || savedSelectionId.value === id) closeRecord();
+  await loadKind(kind);
+  sidebarRefreshKey.value += 1;
 }
 
-async function handleEtlScratchSaved(payload: { id: string }) {
-  await handleSaved('etlJob', payload.id);
-}
-
-async function handleRuleSetSaved(payload: { id: string }) {
-  await handleSaved('ruleSet', payload.id);
-}
-
-async function handleBenchmarkSaved(payload: { id: string }) {
-  await handleSaved('benchmark', payload.id);
-}
+/*
+ * The main pane: the open record's work area, from `workspace/workAreas.ts`.
+ * The three events every work area shares land on the handlers above; what
+ * only one kind says is wired per kind here.
+ */
+const workAreaPaneView = computed(() => {
+  const kind = selectedItemType.value === 'scratch'
+    ? kindForDraftSection(scratchSection.value)
+    : selectedItemType.value;
+  if (!kind || !isFeatureEnabled(WORK_AREAS[kind].feature)) return null;
+  const scratchId = selectedItemType.value === 'scratch' ? selectedScratchId.value : null;
+  return workAreaPane(
+    { kind, savedId: scratchId ? null : savedSelectionId.value, scratchId },
+    {
+      onSaved: (savedKind, id) => { void handleSaved(savedKind, id); },
+      onDeleted: (deletedKind, id) => { void handleDeleted(deletedKind, id); },
+      onLoadFailed: () => closeRecord(),
+      extra: {
+        query: {
+          props: {
+            creationRequest: creationRequest.value,
+            versionNumber: queryVersionNumber.value,
+            preselectArgumentSetId: preselectArgumentSetId.value,
+          },
+          on: {
+            'creation-consumed': () => { creationRequest.value = null; },
+            'query-created': handleQueryCreated,
+            'argument-set-saved': handleArgumentSetSavedElsewhere,
+            'update:version-number': (version: number | null) => { queryVersionNumber.value = version; },
+            'open-entity': openCreatedEntity,
+          },
+        },
+        queryGroup: {
+          props: { creationRequest: queryGroupCreationRequest.value, versionNumber: queryGroupVersionNumber.value },
+          on: {
+            'creation-consumed': () => { queryGroupCreationRequest.value = null; },
+            'argument-set-saved': handleArgumentSetSavedElsewhere,
+            'update:version-number': (version: number | null) => { queryGroupVersionNumber.value = version; },
+            'query-group-cloned': handleQueryGroupCloned,
+            'query-group-moved': handleQueryGroupMoved,
+            'open-entity': openCreatedEntity,
+          },
+        },
+        ruleSet: {
+          on: {
+            'open-test': openTest,
+            'open-entity': openInputEntity,
+            'open-benchmark': (id: string) => openCreatedEntity({ type: 'benchmark', id }),
+            'open-in-query': openSparqlAsScratchQuery,
+          },
+        },
+        etlJob: { on: { 'open-entity': openCreatedEntity } },
+        test: {
+          props: { runView: testRunDetailVisible.value, runBusy: testRunRunning.value || runningAll.value },
+          on: { 'open-config': openTestConfig },
+        },
+        argumentSet: { on: { 'open-callable': openCallableWithArguments } },
+      },
+    },
+  );
+});
 
 /**
  * "Open in Tuples" / "Open in Data" from a rule set's Inputs tab.
@@ -1455,28 +1260,6 @@ function openTest(testId: string) {
   selectSavedItem('test', testId);
 }
 
-async function handleDataGraphSaved(payload: { id: string }) {
-  await handleSaved('dataGraph', payload.id);
-}
-
-function handleDataGraphDeleted() {
-  clearEntitySelection();
-  selectedItemType.value = null;
-}
-
-async function handleTupleSetSaved(payload: { id: string }) {
-  await handleSaved('tupleSet', payload.id);
-}
-
-function handleTupleSetDeleted() {
-  clearEntitySelection();
-  selectedItemType.value = null;
-}
-
-async function handleArgumentSetSaved(payload: { id: string }) {
-  await handleSaved('argumentSet', payload.id);
-}
-
 /**
  * An argument set saved from a callable's screen: refresh the rail, stay put.
  *
@@ -1492,11 +1275,6 @@ async function handleArgumentSetSavedElsewhere() {
   sidebarRefreshKey.value += 1;
 }
 
-function handleArgumentSetDeleted() {
-  clearEntitySelection();
-  selectedItemType.value = null;
-}
-
 /** "Run with…" on an argument set's Fits list: open the callable, set chosen. */
 function openCallableWithArguments(payload: { id: string; kind: 'query' | 'queryGroup'; argumentSetId: string | null }) {
   clearEntitySelection();
@@ -1504,20 +1282,7 @@ function openCallableWithArguments(payload: { id: string; kind: 'query' | 'query
   if (payload.kind === 'query') selectedQueryId.value = payload.id;
   else selectedQueryGroupId.value = payload.id;
   activeSection.value = payload.kind === 'query' ? 'queries' : 'queryGroups';
-  if (payload.argumentSetId) {
-    void router.replace({
-      query: { ...route.query, [payload.kind === 'query' ? 'query' : 'queryGroup']: payload.id, argumentSet: payload.argumentSetId },
-    });
-  }
-}
-
-async function handleTestSaved(payload: { id: string }) {
-  await handleSaved('test', payload.id);
-}
-
-function handleTestDeleted() {
-  clearEntitySelection();
-  selectedItemType.value = null;
+  preselectedArgumentSet.value = payload.argumentSetId ? { setId: payload.argumentSetId, forId: payload.id } : null;
 }
 
 const scratchDiscardTarget = ref<{ id: string; name: string } | null>(null);
@@ -1665,7 +1430,7 @@ const editingLibraryData = ref<{ name: string; description: string | null; defau
  * inserts a draft row rather than opening a dialog, so creation and editing are
  * the same screen (backends UI doc §Creation).
  */
-const selectedBackendId = ref<string | null>(null);
+const selectedBackendId = ref<string | null>(initialRoute.section === 'backends' ? initialRoute.id : null);
 const backendDraft = ref(false);
 const backendDraftName = ref('');
 const deleteConfirmOpen = ref(false);
@@ -1715,122 +1480,82 @@ function handleBackendCreated(backend: Backend) {
 }
 
 const libraries = computed<Library[]>(() => librariesStore.libraries.value);
-// Sync URL with selection state
-watch([selectedItemType, selectedQueryId, selectedScratchId, selectedQueryGroupId, selectedRuleId, selectedDataBlockId, selectedRuleSetId, selectedBenchmarkId, selectedEtlJobId, selectedTestId, selectedDataGraphId, selectedTupleSetId, selectedArgumentSetId, activeSection], () => {
-  const params: Record<string, string> = {};
-
-  if (activeSection.value) {
-    params.section = activeSection.value;
+/*
+ * The URL follows the selection, and the selection follows the URL.
+ *
+ * `stateRoute` is what the page shows, as a route: the section (the rail's, or
+ * the one the open record belongs to when the rail is unscoped) and the record
+ * open in it. Writing it is one `sectionPath`; it used to be fourteen query
+ * parameters compared one by one, and four of them were once left out.
+ */
+const stateRoute = computed<SectionRoute>(() => {
+  const derived = selectedItemType.value === 'scratch'
+    ? (scratchSection.value ? listSectionForDraftSection(scratchSection.value) : null)
+    : sectionForItemType(selectedItemType.value);
+  const candidate = activeSection.value ?? derived;
+  const section = isRoutedSection(candidate) ? candidate : null;
+  if (section === 'backends') {
+    return { section, id: backendDraft.value ? null : selectedBackendId.value };
   }
-
-  switch (selectedItemType.value) {
-    case 'query':
-      if (selectedQueryId.value) {
-        params.query = selectedQueryId.value;
-      }
-      break;
-    case 'scratch':
-      if (selectedScratchId.value) {
-        params.scratch = selectedScratchId.value;
-      }
-      break;
-    case 'queryGroup':
-      if (selectedQueryGroupId.value) {
-        params.queryGroup = selectedQueryGroupId.value;
-      }
-      break;
-    case 'ruleSet':
-      if (selectedRuleSetId.value) {
-        params.ruleSet = selectedRuleSetId.value;
-      }
-      break;
-    case 'benchmark':
-      // `true` when no experiment is open, so an old bookmark keeps its shape.
-      params.benchmark = selectedBenchmarkId.value ?? 'true';
-      break;
-    case 'etlJob':
-      if (selectedEtlJobId.value) {
-        params.etlJob = selectedEtlJobId.value;
-      }
-      break;
-    case 'test':
-      if (selectedTestId.value) {
-        params.test = selectedTestId.value;
-      }
-      break;
-    case 'dataGraph':
-      if (selectedDataGraphId.value) {
-        params.dataGraph = selectedDataGraphId.value;
-      }
-      break;
-    case 'tupleSet':
-      if (selectedTupleSetId.value) {
-        params.tupleSet = selectedTupleSetId.value;
-      }
-      break;
-    case 'argumentSet':
-      if (selectedArgumentSetId.value) {
-        params.argumentSet = selectedArgumentSetId.value;
-      }
-      break;
-    default:
-      break;
-  }
-
-  // Add version to params if present
-  if ((selectedItemType.value === 'query' && queryVersionNumber.value != null) ||
-      (selectedItemType.value === 'queryGroup' && queryGroupVersionNumber.value != null)) {
-    const versionNum = selectedItemType.value === 'query'
-      ? queryVersionNumber.value
-      : queryGroupVersionNumber.value;
-    if (versionNum != null) {
-      params.version = versionNum.toString();
-    }
-  }
-
-  const currentQuery = route.query.query as string | undefined;
-  const currentQueryGroup = route.query.queryGroup as string | undefined;
-  const currentRule = route.query.rule as string | undefined;
-  const currentDataBlock = route.query.dataBlock as string | undefined;
-  const currentRuleSet = route.query.ruleSet as string | undefined;
-  const currentBenchmark = route.query.benchmark as string | undefined;
-  const currentVersion = route.query.version as string | undefined;
-  const currentPlayground = route.query.playground as string | undefined;
-  const currentScratch = route.query.scratch as string | undefined;
-  const currentSection = route.query.section as string | undefined;
-  /*
-   * The four newest sections were written above but never compared here, so
-   * switching between two saved data graphs (or tests, tuple sets, ETL jobs)
-   * produced no `router.replace` and the URL kept the previous id — a reload or
-   * a shared link then opened the wrong record. Adding `argumentSet` alongside
-   * them rather than inheriting the same gap.
-   */
-  const currentTest = route.query.test as string | undefined;
-  const currentDataGraph = route.query.dataGraph as string | undefined;
-  const currentTupleSet = route.query.tupleSet as string | undefined;
-  const currentEtlJob = route.query.etlJob as string | undefined;
-  const currentArgumentSet = route.query.argumentSet as string | undefined;
-
-  if (
-    currentSection !== params.section ||
-    currentScratch !== params.scratch ||
-    currentQuery !== params.query ||
-    currentQueryGroup !== params.queryGroup ||
-    currentRule !== params.rule ||
-    currentDataBlock !== params.dataBlock ||
-    currentRuleSet !== params.ruleSet ||
-    currentBenchmark !== params.benchmark ||
-    currentVersion !== params.version ||
-    currentPlayground !== params.playground ||
-    currentTest !== params.test ||
-    currentDataGraph !== params.dataGraph ||
-    currentTupleSet !== params.tupleSet ||
-    currentEtlJob !== params.etlJob ||
-    currentArgumentSet !== params.argumentSet
-  ) {
-    router.replace({ query: params });
-  }
+  const id = selectedItemType.value === 'scratch' ? selectedScratchId.value : savedSelectionId.value;
+  return { section, id: section ? id ?? null : null };
 });
+
+/** The version on screen, for a query or group showing one other than current. */
+const stateVersion = computed<number | null>(() => {
+  if (selectedItemType.value === 'query') return queryVersionNumber.value;
+  if (selectedItemType.value === 'queryGroup') return queryGroupVersionNumber.value;
+  return null;
+});
+
+function sameRoute(a: SectionRoute | undefined, b: SectionRoute): boolean {
+  return Boolean(a) && a!.section === b.section && a!.id === b.id;
+}
+
+watch([stateRoute, stateVersion, preselectArgumentSetId], ([target, version, argumentSet]) => {
+  const query: Record<string, string> = {};
+  // The library rides along where a link put it; nothing here writes it.
+  if (typeof route.query.library === 'string' && route.query.library) query.library = route.query.library;
+  if (version != null) query.version = String(version);
+  if (argumentSet) query.argumentSet = argumentSet;
+
+  const current = parseSectionRoute(route.params);
+  const currentQuery = Object.fromEntries(
+    Object.entries(route.query).filter(([, value]) => typeof value === 'string'),
+  ) as Record<string, string>;
+  if (sameRoute(current, target) && JSON.stringify(currentQuery) === JSON.stringify(query)) return;
+  void router.replace({ path: sectionPath(target), query });
+});
+
+/*
+ * And back: a route the page did not write — a command, the back button, a link
+ * from another screen — is applied as a selection. The one the watcher above
+ * just wrote matches the state already, and is left alone.
+ */
+watch(
+  () => route.fullPath,
+  () => {
+    const target = parseSectionRoute(route.params);
+    if (!target) return;
+    if (sameRoute(target, stateRoute.value)) {
+      const version = versionFromQuery();
+      if (selectedItemType.value === 'query' && version !== queryVersionNumber.value) queryVersionNumber.value = version;
+      if (selectedItemType.value === 'queryGroup' && version !== queryGroupVersionNumber.value) queryGroupVersionNumber.value = version;
+      return;
+    }
+    activeSection.value = target.section;
+    if (target.section === 'backends') {
+      clearEntitySelection();
+      selectedItemType.value = null;
+      backendDraft.value = false;
+      selectedBackendId.value = target.id ?? backends.value[0]?.id ?? null;
+      return;
+    }
+    selectRecordFromRoute(target);
+    // A section with nothing named opens on the record it was left on.
+    if (!target.id && target.section && isListSection(target.section)) restoreSection(target.section);
+  },
+);
 
 // Load backends on mount
 onMounted(async () => {
@@ -1846,54 +1571,7 @@ function handleQueryCreated(payload: { id: string; name: string; libraryId: stri
   }
   selectedItemType.value = 'query';
   selectedQueryId.value = payload.id;
-  selectedRuleId.value = null;
-  selectedDataBlockId.value = null;
   sidebarRefreshKey.value += 1;
-
-  // Update URL (watcher will handle this, but being explicit for clarity)
-  router.replace({
-    query: {
-      query: payload.id,
-      library: payload.libraryId,
-    }
-  });
-}
-
-function handleQueryVersionUpdate(version: number | null) {
-  queryVersionNumber.value = version;
-}
-
-function handleQueryGroupVersionUpdate(version: number | null) {
-  queryGroupVersionNumber.value = version;
-}
-
-function handleQueryLoadFailed() {
-  selectedItemType.value = null;
-  selectedQueryId.value = null;
-  selectedRuleId.value = null;
-  selectedDataBlockId.value = null;
-  queryVersionNumber.value = null;
-  // Clear URL params
-  router.replace({ query: {} });
-}
-
-function handleRuleLoadFailed() {
-  selectedItemType.value = null;
-  selectedRuleId.value = null;
-  router.replace({ query: {} });
-}
-
-function handleDataBlockLoadFailed() {
-  selectedItemType.value = null;
-  selectedDataBlockId.value = null;
-  router.replace({ query: {} });
-}
-
-function handleQueryGroupDeleted() {
-  selectedQueryGroupId.value = null;
-  selectedItemType.value = null;
-  sidebarRefreshKey.value += 1;
-  router.replace({ query: {} });
 }
 
 // Open the copy so the user lands on what they just made.
@@ -1901,39 +1579,10 @@ function handleQueryGroupCloned(groupId: string, libraryId: string) {
   selectedQueryGroupId.value = groupId;
   selectedItemType.value = 'queryGroup';
   sidebarRefreshKey.value += 1;
-  router.replace({ query: { queryGroup: groupId, library: libraryId } });
 }
 
 function handleQueryGroupMoved(groupId: string, libraryId: string) {
   sidebarRefreshKey.value += 1;
-  router.replace({ query: { queryGroup: groupId, library: libraryId } });
-}
-
-function handleRuleDeleted() {
-  selectedRuleId.value = null;
-  selectedItemType.value = null;
-  sidebarRefreshKey.value += 1;
-  router.replace({ query: {} });
-}
-
-function handleDataBlockDeleted() {
-  selectedDataBlockId.value = null;
-  selectedItemType.value = null;
-  sidebarRefreshKey.value += 1;
-  router.replace({ query: {} });
-}
-
-function handleRuleSetDeleted() {
-  selectedRuleSetId.value = null;
-  selectedItemType.value = null;
-  sidebarRefreshKey.value += 1;
-  router.replace({ query: {} });
-}
-
-function handleRuleSetLoadFailed() {
-  selectedItemType.value = null;
-  selectedRuleSetId.value = null;
-  router.replace({ query: {} });
 }
 
 // Dialog handlers
@@ -2318,68 +1967,15 @@ async function confirmDeleteLibrary() {
   max-width: 500px;
 }
 
-.rules-suite-overview {
-  align-items: flex-start;
-  justify-content: flex-start;
-  text-align: left;
-  color: var(--ink);
-}
 
-.rules-suite-overview .overview-inner {
-  width: 100%;
-  max-width: 1100px;
-  margin: 0 auto;
-}
 
-.rules-suite-overview p {
-  max-width: none;
-}
 
-.rules-suite-overview .overview-sections {
-  display: flex;
-  flex-direction: column;
-  gap: 0.8rem;
-  width: 100%;
-}
 
-.rules-suite-overview .overview-section {
-  background: linear-gradient(90deg, var(--surface-subtle) 0%, var(--surface) 100%);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-xl);
-  padding: var(--space-6) var(--space-7);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65), 0 6px 18px rgba(0, 0, 0, 0.03);
-  transition: transform 120ms ease, box-shadow 120ms ease;
-}
 
-.rules-suite-overview .overview-section:hover {
-  transform: translateY(-1px);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65), 0 10px 24px rgba(0, 0, 0, 0.05);
-}
 
-.rules-suite-overview h3 {
-  margin: 0 0 var(--space-3) 0;
-  font-size: var(--text-heading);
-  color: var(--ink);
-}
 
-.rules-suite-overview ul {
-  margin: 0;
-  padding-left: var(--space-6);
-  color: var(--ink-secondary);
-  display: grid;
-  gap: 0.35rem;
-  list-style: disc;
-  list-style-position: outside;
-}
 
-.rules-suite-overview .overview-section a {
-  color: var(--action-ink);
-  text-decoration: none;
-}
 
-.rules-suite-overview .overview-section a:hover {
-  text-decoration: underline;
-}
 
 .delete-action {
   background: var(--danger);

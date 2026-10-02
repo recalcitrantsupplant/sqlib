@@ -28,6 +28,8 @@ import {
   LIBRARY_ID,
   LIBRARY_NAME,
 } from './fixtures/query-group-mock-state';
+import { recordUrl, sectionUrl } from './navigate';
+import { API_ORIGIN } from './api-origin';
 
 const QUERY_TEST_ID = 'urn:sqlib:test:countries-return-rows';
 const QUERY_TEST_NAME = 'Countries query returns rows';
@@ -97,7 +99,7 @@ async function bootstrap(page: Page, tests: unknown[] = TESTS, path = '/') {
   const state = createMockState();
   await setupMockApi(page, state);
 
-  await page.route('**/tests*', async (route: Route) => {
+  await page.route(`${API_ORIGIN}/tests*`, async (route: Route) => {
     if (route.request().method() !== 'GET') return route.fallback();
     const url = new URL(route.request().url());
     // The tab filters client-side off the whole listing, but the route honours
@@ -107,16 +109,17 @@ async function bootstrap(page: Page, tests: unknown[] = TESTS, path = '/') {
     const body = subject ? tests.filter((t) => (t as { subject: string }).subject === subject) : tests;
     return json(route, body);
   });
-  await page.route('**/tests/*/versions*', (route: Route) => json(route, []));
+  await page.route(`${API_ORIGIN}/tests/*/versions*`, (route: Route) => json(route, []));
 
   // The ETL section is not part of the group helper's world.
-  await page.route('**/etl-jobs', (route: Route) =>
+  await page.route(`${API_ORIGIN}/etl-jobs`, (route: Route) =>
     route.request().method() === 'GET' ? json(route, [ETL_JOB]) : route.fallback());
-  await page.route('**/etl-jobs/*/versions*', (route: Route) => json(route, []));
+  await page.route(`${API_ORIGIN}/etl-jobs/*/versions*`, (route: Route) => json(route, []));
   await page.route(/\/etl-jobs\/[^/?]+$/, async (route: Route) =>
     route.request().method() === 'GET' ? json(route, ETL_JOB) : route.fallback());
 
-  await page.route(/\/tests\/[^/?]+$/, async (route: Route) => {
+  // Scoped to the API: the workspace's own address for a test is `/tests/<id>` too.
+  await page.route((url) => url.origin === API_ORIGIN && /\/tests\/[^/?]+$/.test(url.pathname), async (route: Route) => {
     if (route.request().method() !== 'GET') return route.fallback();
     const id = decodeURIComponent(route.request().url().split('/tests/')[1] ?? '');
     const found = tests.find((t) => (t as { id: string }).id === id);
@@ -178,9 +181,9 @@ test.describe('Tests tab on a callable record page', () => {
      * Tests section is where one is read or edited. Asserted through the URL
      * because that is what a reload has to reproduce.
      */
-    await expect(page).toHaveURL(/section=tests/);
+    await expect(page).toHaveURL(sectionUrl('tests'));
     // Vue Router leaves the IRI's colons alone, so the id is matched as written.
-    await expect(page).toHaveURL(new RegExp(`test=${QUERY_TEST_ID}`));
+    await expect(page).toHaveURL(recordUrl('tests', QUERY_TEST_ID));
   });
 
   test('says so when nothing tests this subject', async ({ page }) => {

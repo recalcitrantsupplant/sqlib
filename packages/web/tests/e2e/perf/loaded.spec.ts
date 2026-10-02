@@ -11,6 +11,7 @@
 import { test, expect } from '@playwright/test';
 import { mockSidebarCollections } from '../fixtures/collections';
 import { measureOpen, summarise, type Sample } from './measure';
+import { API_ORIGIN } from '../api-origin';
 
 const BASE = process.env.PERF_BASE ?? 'http://localhost:3002';
 const CPU_THROTTLE = Number(process.env.PERF_CPU ?? 4);
@@ -53,7 +54,7 @@ test('@perf overlay open cost vs rows rendered behind it', async ({ page }) => {
     ],
   });
 
-  await page.route('**/sparql', async (route) => {
+  await page.route(`${API_ORIGIN}/sparql`, async (route) => {
     if (route.request().method() !== 'POST') return route.fallback();
     await route.fulfill({
       status: 200,

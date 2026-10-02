@@ -16,6 +16,7 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
 import { mockSidebarCollections } from './fixtures/collections';
 import { textContrast } from './contrast';
+import { API_ORIGIN } from './api-origin';
 
 const library = {
   id: 'urn:sqlib:library:run-contrast',
@@ -124,22 +125,22 @@ async function mockTestScreen(page: Page) {
 
   // Registered narrow-to-wide in reverse: the most recent handler wins, so the
   // run route must come after the collection and detail ones.
-  await page.route('**/tests*', async (route: Route) => {
+  await page.route(`${API_ORIGIN}/tests*`, async (route: Route) => {
     if (route.request().method() !== 'GET') return route.fallback();
     await json(route, [testEntity]);
   });
-  await page.route('**/tests/*', async (route: Route) => {
+  await page.route(`${API_ORIGIN}/tests/*`, async (route: Route) => {
     if (route.request().method() !== 'GET') return route.fallback();
     await json(route, testEntity);
   });
-  await page.route('**/tests/*/versions', async (route: Route) => {
+  await page.route(`${API_ORIGIN}/tests/*/versions`, async (route: Route) => {
     if (route.request().method() !== 'GET') return route.fallback();
     await json(route, [testVersion]);
   });
-  await page.route('**/tests/*/run', async (route: Route) => json(route, runResult));
-  await page.route('**/rule-sets/*/versions*', async (route: Route) => json(route, []));
-  await page.route('**/data-graphs*', async (route: Route) => json(route, []));
-  await page.route('**/argument-sets*', async (route: Route) => json(route, []));
+  await page.route(`${API_ORIGIN}/tests/*/run`, async (route: Route) => json(route, runResult));
+  await page.route(`${API_ORIGIN}/rule-sets/*/versions*`, async (route: Route) => json(route, []));
+  await page.route(`${API_ORIGIN}/data-graphs*`, async (route: Route) => json(route, []));
+  await page.route(`${API_ORIGIN}/argument-sets*`, async (route: Route) => json(route, []));
 }
 
 test.describe('Test run result legibility', () => {

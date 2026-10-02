@@ -288,7 +288,7 @@ function handleRailSelect(section: RailSection) {
     });
     return;
   }
-  router.push({ path: '/', query: { section, ...(libraryId.value ? { library: libraryId.value } : {}) } });
+  router.push({ path: `/${section}`, query: libraryId.value ? { library: libraryId.value } : {} });
 }
 </script>
 

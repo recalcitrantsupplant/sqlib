@@ -6,6 +6,7 @@ import { defineNuxtConfig } from 'nuxt/config';
 import tailwindcss from '@tailwindcss/vite';
 import { buildFeatureFlags } from '../types/src/featureFlags';
 import { normaliseBase, withBase } from './src/lib/basePath';
+import { ROUTED_SECTIONS } from './src/lib/sectionRoutes';
 
 const currentDir = fileURLToPath(new URL('.', import.meta.url));
 
@@ -327,6 +328,18 @@ export default defineNuxtConfig({
   },
   routeRules: {
     '/**': { ssr: false },
+  },
+  /*
+   * The workspace's section addresses (`/queries`, `/rules`, …) prerendered as
+   * files of their own, so a static host serves a link to a section without a
+   * rewrite rule, as it does `/notebook`. A record's address carries its id
+   * and cannot be prerendered; it needs the host's SPA fallback (`200.html`,
+   * or `404.html`), as docs/guides/deploying.md says.
+   */
+  nitro: {
+    prerender: {
+      routes: ROUTED_SECTIONS.map((section) => `/${section}`),
+    },
   },
   alias: {
     '@sparql-query-lib/contracts': resolve(currentDir, '../contracts/src/index.ts'),

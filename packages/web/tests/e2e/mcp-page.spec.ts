@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { API_ORIGIN } from './api-origin';
 
 /**
  * The MCP screen.
@@ -48,7 +49,7 @@ test.describe('MCP', () => {
   test('reports what the server publishes, not that something answered', async ({ page }) => {
     // A stubbed server, because the point is the reporting: a real one would
     // make this a test of whichever mode the dev machine happens to run in.
-    await page.route('**/mcp', async (route) => {
+    await page.route(`${API_ORIGIN}/mcp`, async (route) => {
       const body = JSON.parse(route.request().postData() ?? '{}');
       if (body.method === 'initialize') {
         await route.fulfill({
