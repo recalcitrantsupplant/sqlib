@@ -11,6 +11,7 @@
         :is-scratch="isScratch"
         :current-version-number="currentVersionNumber"
         :edit-count="editCount"
+        :draft-not-kept="draftNotKept"
         :saving="isSaving"
         :can-save="canSave"
         :needs-name="!setName.trim()"
@@ -557,6 +558,7 @@ const { isScratch } = useScratchRecord({
 const {
   locallySavedAt,
   editCount,
+  notPersisted: draftNotKept,
   removeDraft,
   cancelDraftSave,
   scheduleDraftSave,

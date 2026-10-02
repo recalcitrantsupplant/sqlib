@@ -264,6 +264,7 @@ const {
   locallySavedAt,
   savedBody,
   openDraft,
+  notPersisted: draftNotKept,
   matchesSaved,
   cancelDraftSave,
   removeDraft,
@@ -1590,6 +1591,7 @@ const runSubtitle = computed(() => {
       :is-scratch="isScratch"
       :current-version-number="currentVersionNumber"
       :edit-count="editCount"
+      :draft-not-kept="draftNotKept"
       :saving="isSaving"
       :can-save="canSave"
       :needs-name="!experimentName.trim()"

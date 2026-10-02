@@ -26,6 +26,7 @@
       :is-scratch="isScratch"
       :current-version-number="currentVersionNumber"
       :edit-count="editCount"
+      :draft-not-kept="draftNotKept"
       :saving="isSaving"
       :can-save="canSave"
       :needs-name="!testName.trim()"
@@ -1680,6 +1681,7 @@ const {
   savedBody,
   openDraft,
   editCount: draftEditCount,
+  notPersisted: draftNotKept,
   matchesSaved,
   cancelDraftSave,
   removeDraft,

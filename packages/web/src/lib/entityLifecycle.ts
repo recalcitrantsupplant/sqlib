@@ -13,6 +13,11 @@
  * each saves by minting the next version. There is no configuration here
  * to get wrong, because there is nothing left for a section to differ about.
  *
+ * The code every section runs is `composables/useEntityDraft.ts`: the eight
+ * versioned work areas keep their drafts through it, and
+ * `test/composables/useEntityDraft.matrix.test.ts` runs the same rows over
+ * each of their sections, read from the work areas' own source.
+ *
  * It was configurable until #190. `LifecycleCapabilities` carried three flags;
  * #191 deleted `overwrite` when versions became snapshots, `concurrency`
  * described how a write was sent rather than what states exist, and `drafts`

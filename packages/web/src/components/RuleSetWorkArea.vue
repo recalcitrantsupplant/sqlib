@@ -24,6 +24,7 @@
         :is-scratch="isScratch"
         :current-version-number="currentVersionNumberForDisplay"
         :edit-count="editCount"
+        :draft-not-kept="draftNotKept"
         :saving="isSaving"
         :can-save="canSave"
         :needs-name="needsName"
@@ -782,6 +783,7 @@ const {
   locallySavedAt,
   openDraft,
   editCount,
+  notPersisted: draftNotKept,
   removeDraft,
   hydrate,
   restoreDraft,
