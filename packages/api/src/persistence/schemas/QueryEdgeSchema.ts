@@ -5,7 +5,7 @@
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, sqlib, sdo } from '../namespaces.js';
+import { ldkit, sqlib } from '../namespaces.js';
 
 export const QueryEdgeSchema = {
   '@type': sqlib.QueryEdge,

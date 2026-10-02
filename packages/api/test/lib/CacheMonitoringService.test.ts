@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { CacheMonitoringService } from '../../src/lib/CacheMonitoringService.js';
 import { getCacheCoordinator } from '../../src/lib/CacheCoordinatorProvider.js';
 import { oxigraphStoreManager } from '../../src/lib/OxigraphStoreManager.js';
+import { log } from '../../src/lib/log.js';
 
 // Mock the dependencies
 vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
@@ -29,12 +30,14 @@ vi.mock('@opentelemetry/api', () => ({
 
 describe('CacheMonitoringService', () => {
   let monitoringService: CacheMonitoringService;
-  let consoleSpy: any;
+  let infoSpy: ReturnType<typeof vi.spyOn>;
+  let debugSpy: ReturnType<typeof vi.spyOn>;
   let cacheCoordinatorMock: { isReady: any; getStats: any };
 
   beforeEach(() => {
     monitoringService = new CacheMonitoringService();
-    consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    infoSpy = vi.spyOn(log, 'info');
+    debugSpy = vi.spyOn(log, 'debug');
     vi.clearAllMocks();
     cacheCoordinatorMock = {
       isReady: vi.fn(),
@@ -45,25 +48,26 @@ describe('CacheMonitoringService', () => {
 
   afterEach(() => {
     monitoringService.stop();
-    consoleSpy.mockRestore();
+    infoSpy.mockRestore();
+    debugSpy.mockRestore();
   });
 
   describe('start and stop', () => {
     it('should start monitoring service', () => {
       monitoringService.start(1000);
-      expect(consoleSpy).toHaveBeenCalledWith('Starting cache monitoring with 1000ms interval');
+      expect(infoSpy).toHaveBeenCalledWith({ intervalMs: 1000 }, 'Starting cache monitoring');
     });
 
     it('should not start multiple intervals', () => {
       monitoringService.start(1000);
       monitoringService.start(1000);
-      expect(consoleSpy).toHaveBeenCalledWith('Cache monitoring already running');
+      expect(debugSpy).toHaveBeenCalledWith('Cache monitoring already running');
     });
 
     it('should stop monitoring service', () => {
       monitoringService.start(1000);
       monitoringService.stop();
-      expect(consoleSpy).toHaveBeenCalledWith('Cache monitoring stopped');
+      expect(infoSpy).toHaveBeenCalledWith('Cache monitoring stopped');
     });
 
     it('should handle stop when not running', () => {
@@ -98,7 +102,7 @@ describe('CacheMonitoringService', () => {
       monitoringService.collectMetrics();
 
       expect(cacheCoordinatorMock.getStats).toHaveBeenCalled();
-      expect(consoleSpy).toHaveBeenCalledWith('[Cache Metrics] 10 entities, ~0.00MB memory');
+      expect(debugSpy).toHaveBeenCalledWith({ entities: 10, memoryMB: '0.00' }, 'Cache metrics');
     });
 
     it('should collect Oxigraph metrics', () => {
@@ -120,7 +124,7 @@ describe('CacheMonitoringService', () => {
       monitoringService.collectMetrics();
 
       expect(oxigraphStoreManager.getAllStoreStats).toHaveBeenCalled();
-      expect(consoleSpy).toHaveBeenCalledWith('[Oxigraph Metrics] 2 stores, 300 triples, ~0.01MB memory');
+      expect(debugSpy).toHaveBeenCalledWith({ stores: 2, triples: 300, memoryMB: '0.01' }, 'Oxigraph metrics');
     });
   });
 

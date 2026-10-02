@@ -21,6 +21,10 @@
  * top-level await; nothing needs to, since importing it is what starts it.
  */
 
+// pino does not touch node:http, so loading it ahead of the SDK leaves the
+// instrumentation ordering above intact.
+import { log } from './lib/log.js';
+
 // Check if OpenTelemetry should be enabled (defaults to true)
 const OTEL_ENABLED = process.env.OTEL_ENABLED !== 'false';
 
@@ -97,13 +101,16 @@ if (OTEL_ENABLED) {
 
   // --- Start the SDK ---
   sdk.start();
-  console.log(`OpenTelemetry SDK started ${USE_OTLP ? `with OTLP export to ${OTEL_EXPORTER_OTLP_ENDPOINT}` : 'with console export'}`);
+  log.info(
+    USE_OTLP ? { exporter: 'otlp', endpoint: OTEL_EXPORTER_OTLP_ENDPOINT } : { exporter: 'console' },
+    'OpenTelemetry SDK started',
+  );
 
   // --- Graceful Shutdown ---
   process.on('SIGTERM', () => {
     sdk.shutdown()
-      .then(() => console.log('OpenTelemetry SDK terminated.'))
-      .catch((error) => console.error('Error terminating OpenTelemetry SDK', error))
+      .then(() => log.info('OpenTelemetry SDK terminated'))
+      .catch((error) => log.error({ err: error }, 'Error terminating OpenTelemetry SDK'))
       .finally(() => process.exit(0));
   });
 }

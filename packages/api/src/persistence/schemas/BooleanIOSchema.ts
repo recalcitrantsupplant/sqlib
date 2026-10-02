@@ -7,7 +7,7 @@
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, sqlib, sdo } from '../namespaces.js';
+import { xsd, sqlib, sdo } from '../namespaces.js';
 
 export const BooleanIOSchema = {
   '@type': sqlib.BooleanIO,

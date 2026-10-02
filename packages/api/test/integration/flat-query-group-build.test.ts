@@ -1,5 +1,5 @@
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import Fastify, { FastifyInstance } from 'fastify';
 import { MemoryCacheManager } from '../../src/lib/MemoryCacheManager.js';
 import queryGroupRoutes from '../../src/routes/query-groups.js';

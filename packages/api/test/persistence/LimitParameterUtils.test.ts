@@ -10,6 +10,7 @@ import {
 import { LdkitLimitParameter } from '../../src/persistence/schemas/LimitParameterSchema.js';
 import { toLdkit } from '../../src/persistence/utils/id-adapter.js';
 import { vi, Mocked } from 'vitest';
+import { log } from '../../src/lib/log.js';
 
 // Mock the dependencies
 vi.mock('../../src/persistence/utils/entityRepository', () => ({
@@ -65,12 +66,15 @@ describe('LimitParameterUtils', () => {
     it('should return null and log warning if findByIri throws an error', async () => {
       const error = new Error('DB error');
       (mockLimitParameters.findByIri as any).mockRejectedValue(error);
-      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const logWarnSpy = vi.spyOn(log, 'warn');
 
       const result = await findLimitParameterById('error-id');
       expect(result).toBeNull();
-      expect(consoleWarnSpy).toHaveBeenCalledWith('Failed to find LimitParameter error-id:', error);
-      consoleWarnSpy.mockRestore();
+      expect(logWarnSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ err: error, id: 'error-id' }),
+        expect.stringContaining('Failed to find LimitParameter'),
+      );
+      logWarnSpy.mockRestore();
     });
   });
 
@@ -193,11 +197,14 @@ describe('LimitParameterUtils', () => {
     it('should throw and log error if delete fails', async () => {
       const error = new Error('Delete failed');
       (mockLimitParameters.delete as any).mockRejectedValue(error);
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const logErrorSpy = vi.spyOn(log, 'error');
 
       await expect(deleteLimitParameter('error-id')).rejects.toThrow('Delete failed');
-      expect(consoleErrorSpy).toHaveBeenCalledWith('Failed to delete LimitParameter error-id:', error);
-      consoleErrorSpy.mockRestore();
+      expect(logErrorSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ err: error, id: 'error-id' }),
+        expect.stringContaining('Failed to delete LimitParameter'),
+      );
+      logErrorSpy.mockRestore();
     });
   });
 });

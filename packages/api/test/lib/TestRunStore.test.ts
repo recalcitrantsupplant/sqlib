@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import type { TestRunResult } from '../../src/lib/TestRunner.js';
 import type { LdkitTestRun } from '../../src/persistence/schemas/TestRunSchema.js';
+import { log } from '../../src/lib/log.js';
 
 /**
  * What a stored run keeps, what it forgets, and what it can be turned back into.
@@ -177,12 +178,12 @@ describe('recording a run', () => {
   });
 
   it('never lets a storage failure fail the run that produced it', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const warn = vi.spyOn(log, 'warn');
     hoisted.insertRun.mockImplementationOnce(() => {
       throw new Error('library store unreachable');
     });
     await expect(recordTestRun({ result: verdict(), suite: TEST_ID })).resolves.toBeNull();
-    expect(warn).toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(expect.objectContaining({ err: expect.any(Error) }), expect.any(String));
     warn.mockRestore();
   });
 });

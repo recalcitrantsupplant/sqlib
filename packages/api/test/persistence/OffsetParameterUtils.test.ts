@@ -1,6 +1,5 @@
 import {
   findOffsetParameterById,
-  findOffsetParameterByName,
   loadOffsetParametersByIds,
   createOffsetParameter,
   updateOffsetParameter,
@@ -10,6 +9,7 @@ import {
 import { LdkitOffsetParameter } from '../../src/persistence/schemas/OffsetParameterSchema.js';
 import { toLdkit } from '../../src/persistence/utils/id-adapter.js';
 import { vi, Mocked } from 'vitest';
+import { log } from '../../src/lib/log.js';
 
 // Mock the dependencies
 vi.mock('../../src/persistence/utils/entityRepository', () => ({
@@ -65,12 +65,15 @@ describe('OffsetParameterUtils', () => {
     it('should return null and log warning if findByIri throws an error', async () => {
       const error = new Error('DB error');
       (mockOffsetParameters.findByIri as any).mockRejectedValue(error);
-      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const logWarnSpy = vi.spyOn(log, 'warn');
 
       const result = await findOffsetParameterById('error-id');
       expect(result).toBeNull();
-      expect(consoleWarnSpy).toHaveBeenCalledWith('Failed to find OffsetParameter error-id:', error);
-      consoleWarnSpy.mockRestore();
+      expect(logWarnSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ err: error, id: 'error-id' }),
+        expect.stringContaining('Failed to find OffsetParameter'),
+      );
+      logWarnSpy.mockRestore();
     });
   });
 
@@ -177,11 +180,14 @@ describe('OffsetParameterUtils', () => {
     it('should throw and log error if delete fails', async () => {
       const error = new Error('Delete failed');
       (mockOffsetParameters.delete as any).mockRejectedValue(error);
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const logErrorSpy = vi.spyOn(log, 'error');
 
       await expect(deleteOffsetParameter('error-id')).rejects.toThrow('Delete failed');
-      expect(consoleErrorSpy).toHaveBeenCalledWith('Failed to delete OffsetParameter error-id:', error);
-      consoleErrorSpy.mockRestore();
+      expect(logErrorSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ err: error, id: 'error-id' }),
+        expect.stringContaining('Failed to delete OffsetParameter'),
+      );
+      logErrorSpy.mockRestore();
     });
   });
 });

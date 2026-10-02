@@ -3,6 +3,7 @@ import type { FromSchema, JSONSchema } from 'json-schema-to-ts';
 import type { CacheCoordinator } from '../lib/CacheCoordinator.js';
 import type { EntityRepositories } from '../lib/EntityRepositories.js';
 import { getCacheCoordinator, getEntityRepositories } from '../lib/CacheCoordinatorProvider.js';
+import { log } from '../lib/log.js';
 
 type RouteHandlerContext = {
   request: FastifyRequest;
@@ -53,10 +54,10 @@ export function normalizeDateModified(dateModified: string | Date | null | undef
     return dateModified;
   }
 
-  console.error('[normalizeDateModified] Unexpected dateModified type:', {
-    type: typeof dateModified,
-    value: dateModified
-  });
+  log.error(
+    { type: typeof dateModified, value: dateModified },
+    'normalizeDateModified: unexpected dateModified type',
+  );
   return null;
 }
 
@@ -125,12 +126,15 @@ export function setEntityConcurrencyHeaders(
       dateModifiedStr = entity.dateModified.toISOString();
     } else {
       const diag = entity as { '@type'?: unknown; '$id'?: unknown; id?: unknown };
-      console.error('[setEntityConcurrencyHeaders] dateModified is not a string or Date:', {
-        type: typeof entity.dateModified,
-        value: entity.dateModified,
-        entityType: diag['@type'],
-        entityId: diag['$id'] || diag.id
-      });
+      reply.log.error(
+        {
+          type: typeof entity.dateModified,
+          value: entity.dateModified,
+          entityType: diag['@type'],
+          entityId: diag['$id'] || diag.id,
+        },
+        'setEntityConcurrencyHeaders: dateModified is not a string or Date',
+      );
       return;
     }
   } else {
@@ -163,12 +167,6 @@ export function withCacheHandler<TResult>(
         statusCode: (error as { statusCode?: number }).statusCode,
         errorType: error.constructor.name
       }, 'Route handler failure');
-      console.error('withCacheHandler error', {
-        env: process.env.NODE_ENV,
-        route: `${request.method} ${request.url}`,
-        message: error.message,
-        stack: error.stack,
-      });
 
       if (!reply.sent) {
         const statusCode = (error as { statusCode?: number }).statusCode ?? 500;
@@ -310,12 +308,6 @@ export function withReposHandler<TResult>(
         statusCode: (error as { statusCode?: number }).statusCode,
         errorType: error.constructor.name
       }, 'Route handler failure');
-      console.error('withReposHandler error', {
-        env: process.env.NODE_ENV,
-        route: `${request.method} ${request.url}`,
-        message: error.message,
-        stack: error.stack,
-      });
 
       if (!reply.sent) {
         const statusCode = (error as { statusCode?: number }).statusCode ?? 500;

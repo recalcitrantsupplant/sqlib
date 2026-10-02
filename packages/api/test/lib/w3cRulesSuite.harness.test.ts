@@ -159,7 +159,6 @@ describe('W3C SPARQL-RL conformance, as library Tests', () => {
     }
     if (skipped.length > 0) scoreboard.unseedable = { pass: 0, total: skipped.length };
     writeFileSync(SCOREBOARD_FILE, `${JSON.stringify(scoreboard, null, 2)}\n`);
-    // eslint-disable-next-line no-console
     console.log(
       `[W3C conformance, as Tests] ${Object.entries(scoreboard)
         .map(([category, score]) => `${category}: ${score.pass}/${score.total}`)
@@ -188,7 +187,6 @@ describe('W3C SPARQL-RL conformance, as library Tests', () => {
     const baseSet = new Set(baseline);
     const gained = verdicts.filter(v => v.passed && !baseSet.has(v.name)).map(v => v.name);
     if (gained.length > 0) {
-      // eslint-disable-next-line no-console
       console.log(`[W3C conformance, as Tests] ${gained.length} newly conforming: ${gained.join(', ')}`);
     }
     // Informational — a gain is good news and must never fail a run.

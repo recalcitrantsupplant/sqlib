@@ -13,17 +13,16 @@ import type { LdkitQueryVersion } from '../persistence/schemas/QueryVersionSchem
 import type { LdkitRuleSet } from '../persistence/schemas/RuleSetSchema.js';
 import type { LdkitRuleSetVersion } from '../persistence/schemas/RuleSetVersionSchema.js';
 import type { LdkitQueryEdge } from '../persistence/schemas/QueryEdgeSchema.js';
-import { expandCurrentVersionForGroup, expandGroupVersion } from '../lib/GraphResolver.js';
+import { expandGroupVersion } from '../lib/GraphResolver.js';
 import { createGroupVersionFlat } from '../lib/GroupVersionWriter.js';
 import { classifyVersionPatch } from '../lib/versionPatch.js';
 import {
   BACKEND_TYPES,
-  IO_REFERENCE_TYPES,
   QUERY_VERSION_TYPES,
   RULESET_VERSION_TYPES,
   isUnresolvableReferencesError,
 } from '../lib/groupVersionReferences.js';
-import { validateIfMatch, setEntityConcurrencyHeaders, typedRoute, reposRoute, withReposHandler } from './route-helpers.js';
+import { validateIfMatch, setEntityConcurrencyHeaders, typedRoute, reposRoute } from './route-helpers.js';
 import { ArgumentSetService } from '../lib/ArgumentSetService.js';
 import { AuthorizationError, filterReadable, requireContainmentWritable, requireEntityMode } from '../auth/enforce.js';
 import {
@@ -118,7 +117,7 @@ function unwrapGroupVersionPatch(payload: unknown): Record<string, unknown> {
  */
 function sendInternalError(reply: FastifyReply, error: unknown, failure: string): FastifyReply {
   if (error instanceof AuthorizationError) throw error;
-  console.error(`${failure}:`, error);
+  reply.log.error({ err: error }, failure);
   return reply.status(500).send({ error: failure });
 }
 

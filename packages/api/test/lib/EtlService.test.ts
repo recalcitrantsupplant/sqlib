@@ -19,6 +19,7 @@ overrideCacheCoordinatorProvider({
 import { EtlService } from '../../src/lib/EtlService.js';
 import type { ColumnDefinition } from '../../src/persistence/schemas/EtlColumnMappingVersionSchema.js';
 import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
+import { log } from '../../src/lib/log.js';
 
 describe('EtlService', () => {
   let service: EtlService;
@@ -451,7 +452,7 @@ describe('EtlService', () => {
     });
 
     it('skips invalid IRIs with warning', () => {
-      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const warnSpy = vi.spyOn(log, 'warn');
       const rows = [{ id: 'invalid value' }];
 
       const columnDefs: ColumnDefinition[] = [
@@ -467,11 +468,12 @@ describe('EtlService', () => {
 
       expect(bindings).toHaveLength(1);
       expect(bindings[0]).not.toHaveProperty('uri');
-      expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Invalid IRI generated')
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ iri: 'invalid value' }),
+        expect.stringContaining('Invalid IRI generated'),
       );
 
-      consoleSpy.mockRestore();
+      warnSpy.mockRestore();
     });
   });
 

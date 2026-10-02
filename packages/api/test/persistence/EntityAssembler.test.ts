@@ -8,6 +8,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { assembleEntities, assembleEntity, type BindingRow } from '../../src/persistence/EntityAssembler.js';
 import { LDKIT_IRI_TYPE, RDF_JSON_TYPE } from '../../src/persistence/schemaIntrospection.js';
+import { log } from '../../src/lib/log.js';
 
 const XSD = 'http://www.w3.org/2001/XMLSchema#';
 const P = 'http://example.org/p';
@@ -127,14 +128,14 @@ describe('EntityAssembler', () => {
    * graph builder rejects it with the error that names the real problem.
    */
   it('reads an unparseable JSON literal as absent instead of throwing', () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const warn = vi.spyOn(log, 'warn');
     try {
       const entity = assembleEntity(SCHEMA, [
         row('http://example.org/a', `${P}/config`, '[object Object]'),
       ])!;
 
       expect(entity.config).toBeNull();
-      expect(warn).toHaveBeenCalledWith(expect.stringContaining('not readable as JSON'));
+      expect(warn).toHaveBeenCalledWith(expect.anything(), expect.stringContaining('not readable as JSON'));
     } finally {
       warn.mockRestore();
     }

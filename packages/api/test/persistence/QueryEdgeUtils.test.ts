@@ -3,8 +3,8 @@
  */
 
 import * as QueryEdgeUtils from '../../src/persistence/utils/QueryEdgeUtils.js';
-import { QueryGroups } from '../../src/persistence/utils/QueryGroupUtils.js';
 import { vi } from 'vitest';
+import { log } from '../../src/lib/log.js';
 
 // In-memory LDKit lens for this suite
 vi.mock('../../src/persistence/utils/entityRepository', () => {
@@ -263,19 +263,19 @@ describe('QueryEdgeUtils (LDKit Integration)', () => {
     });
 
     it('should return false and log error if delete fails', async () => {
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const logErrorSpy = vi.spyOn(log, 'error');
       // Mock the delete method of the lens to throw an error
       const originalDelete = QueryEdgeUtils.QueryEdges.delete;
       (QueryEdgeUtils.QueryEdges.delete as any) = vi.fn().mockRejectedValue(new Error('Mock delete error'));
 
       const success = await QueryEdgeUtils.deleteQueryEdge('http://example.org/non-existent-edge');
       expect(success).toBe(false);
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        'Failed to delete QueryEdge http://example.org/non-existent-edge:',
-        expect.any(Error)
+      expect(logErrorSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ err: expect.any(Error), id: 'http://example.org/non-existent-edge' }),
+        expect.stringContaining('Failed to delete QueryEdge'),
       );
 
-      consoleErrorSpy.mockRestore();
+      logErrorSpy.mockRestore();
       QueryEdgeUtils.QueryEdges.delete = originalDelete; // Restore original mock
     });
   });
@@ -344,7 +344,7 @@ describe('QueryEdgeUtils (LDKit Integration)', () => {
         // For edge2, we let it succeed by doing nothing (the underlying mock store won't be changed,
         // but deleteQueryEdge will return true as no error is thrown).
       });
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const logErrorSpy = vi.spyOn(log, 'error');
 
       const deletedIds = await QueryEdgeUtils.deleteEdgesByNode(nodeToDelete);
 
@@ -354,9 +354,9 @@ describe('QueryEdgeUtils (LDKit Integration)', () => {
       expect(deletedIds).not.toContain(edge1);
 
       // Verify that the error was logged for the failed deletion
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        `Failed to delete QueryEdge ${edge1}:`,
-        expect.any(Error)
+      expect(logErrorSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ err: expect.any(Error), id: edge1 }),
+        expect.stringContaining('Failed to delete QueryEdge'),
       );
 
       // Verify state in mock store
@@ -368,7 +368,7 @@ describe('QueryEdgeUtils (LDKit Integration)', () => {
 
       // Restore mocks
       deleteSpy.mockRestore();
-      consoleErrorSpy.mockRestore();
+      logErrorSpy.mockRestore();
     });
   });
 });

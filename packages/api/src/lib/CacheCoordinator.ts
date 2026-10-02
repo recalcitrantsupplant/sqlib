@@ -3,6 +3,7 @@ import { getPersistenceAdapter } from '../persistence/adapterRegistry.js';
 import { getKnownSystemEntityIds, loadSystemStore } from '../system-store/SystemStoreLoader.js';
 import { assertMutableEntity } from './immutability.js';
 import { EntityByType, EntityType, getLensForType, getTtlForType } from './EntityRegistry.js';
+import { log } from './log.js';
 
 type CacheErrorMode = 'log' | 'throw';
 
@@ -113,7 +114,7 @@ export class CacheCoordinator {
   }
 
   async loadAll(): Promise<void> {
-    console.log('[CacheCoordinator] Loading all entities...');
+    log.info('CacheCoordinator: loading all entities');
     try {
       const { config } = await import('../server/config.js');
       this.preloadEnabled = config.cachePreloadEnabled;
@@ -134,7 +135,10 @@ export class CacheCoordinator {
       }
 
       if (!this.preloadEnabled) {
-        console.log(`[CacheCoordinator] Skipping cache preload (CACHE_PRELOAD=false); loaded ${systemEntries.size} system entities from ${assetDir}`);
+        log.info(
+          { systemEntities: systemEntries.size, assetDir },
+          'CacheCoordinator: skipping cache preload (CACHE_PRELOAD=false); loaded system entities only',
+        );
         this.finalizeLoad();
         return;
       }
@@ -147,9 +151,9 @@ export class CacheCoordinator {
       });
 
       this.finalizeLoad();
-      console.log(`[CacheCoordinator] Cache loaded with ${this._idToType.size} entities`);
+      log.info({ entities: this._idToType.size }, 'CacheCoordinator: cache loaded');
     } catch (error) {
-      console.error('[CacheCoordinator] Failed to load entities:', error);
+      log.error({ err: error }, 'CacheCoordinator: failed to load entities');
       this.isLoaded = false;
       throw error;
     }
@@ -244,7 +248,7 @@ export class CacheCoordinator {
           return { type, entity: entity as EntityByType[EntityType] };
         }
       } catch (error) {
-        console.warn(`[CacheCoordinator] Failed to resolve ${id} as ${type}`, error);
+        log.warn({ err: error, id, type }, 'CacheCoordinator: failed to resolve entity');
         if (this.errorMode === 'throw') throw error;
       }
     }
@@ -343,7 +347,7 @@ export class CacheCoordinator {
       try {
         canonical = (await getPersistenceAdapter().findByIri(type, id)) ?? null;
       } catch (error) {
-        console.warn(`[CacheCoordinator] Failed to resolve canonical ${id}`, error);
+        log.warn({ err: error, id }, 'CacheCoordinator: failed to resolve canonical entity');
         if (this.errorMode === 'throw') throw error;
       }
     }
@@ -373,7 +377,7 @@ export class CacheCoordinator {
       try {
         fresh = await getPersistenceAdapter().findByIri(type, id);
       } catch (error) {
-        console.warn(`[CacheCoordinator] Failed to fetch fresh ${id}`, error);
+        log.warn({ err: error, id }, 'CacheCoordinator: failed to fetch fresh entity');
         if (this.errorMode === 'throw') throw error;
       }
     }
@@ -444,7 +448,7 @@ export class CacheCoordinator {
           this.setInCache(id, fresh, type);
         }
       } catch (e) {
-        console.warn(`[Cache][SWR] Failed to refresh id ${id} of type ${type}`, e);
+        log.warn({ err: e, id, type }, 'CacheCoordinator: stale-while-revalidate refresh of entity failed');
       } finally {
         cache.inFlightIdRefresh.delete(id);
       }
@@ -494,7 +498,7 @@ export class CacheCoordinator {
 
         cache.lastRefreshedByType = Date.now();
       } catch (e) {
-        console.warn(`[CacheCoordinator][SWR] Failed type refresh ${type}`, e);
+        log.warn({ err: e, type }, 'CacheCoordinator: stale-while-revalidate type refresh failed');
       } finally {
         cache.inFlightTypeRefresh = false;
       }
@@ -503,7 +507,7 @@ export class CacheCoordinator {
 
   async refreshEntityType(type: EntityType): Promise<void> {
     if (!this.preloadEnabled) {
-      console.log(`[CacheCoordinator] Skipping cache refresh for ${type} (CACHE_PRELOAD=false)`);
+      log.debug({ type }, 'CacheCoordinator: skipping cache refresh (CACHE_PRELOAD=false)');
       return;
     }
     const cache = this.getCache(type);

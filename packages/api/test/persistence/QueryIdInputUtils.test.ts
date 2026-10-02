@@ -1,4 +1,3 @@
-import { LdkitQueryIdInput } from '../../src/persistence/schemas/QueryIdInputSchema.js';
 import * as QueryIdInputUtils from '../../src/persistence/utils/QueryIdInputUtils.js';
 import { vi } from 'vitest';
 import { overrideRepositoryLenses } from '../../src/persistence/utils/entityRepository.js';

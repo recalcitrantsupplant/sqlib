@@ -3,7 +3,7 @@
  * Generated using EntityUtils for standardized CRUD operations
  */
 
-import { BackendSchema, backendTypeIriToKey, backendTypeKeyToIri, queryMethodKeyToIri, queryMethodIriToKey, type LdkitBackend } from '../schemas/BackendSchema.js';
+import { BackendSchema, backendTypeIriToKey, backendTypeKeyToIri, queryMethodKeyToIri, type LdkitBackend } from '../schemas/BackendSchema.js';
 import { createEntityUtilsWithFields } from './EntityUtils.js';
 
 // Create standardized Backend utilities
@@ -38,7 +38,7 @@ export function createBackend(data: Parameters<typeof BackendUtils.create>[0]): 
     throw new Error(`Unsupported backend type: ${backendTypeValue}`);
   }
 
-  let payload: Parameters<typeof BackendUtils.create>[0] = { ...data, backendType: backendTypeKeyToIri(backendTypeKey) } as Parameters<typeof BackendUtils.create>[0];
+  const payload: Parameters<typeof BackendUtils.create>[0] = { ...data, backendType: backendTypeKeyToIri(backendTypeKey) } as Parameters<typeof BackendUtils.create>[0];
 
   // Convert queryMethod key to IRI if provided
   if (data.queryMethod && typeof data.queryMethod === 'string') {

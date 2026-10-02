@@ -1,14 +1,15 @@
+// `log` rather than `app.log`: these can fire before the Fastify instance
+// exists. pino's default destination writes synchronously, so the fatal line is
+// out before `process.exit`. `keys` is kept for throwables that are not Errors.
 process.on('uncaughtException', (e) => {
-  console.error('Uncaught:', e);
-  console.error('proto:', Object.getPrototypeOf(e));
-  console.error('keys:', Object.keys(e ?? {}));
-  console.error('stack:', (e)?.stack);
+  log.fatal({ err: e, keys: Object.keys(e ?? {}) }, 'Uncaught exception');
   process.exit(1);
 });
 process.on('unhandledRejection', (e) => {
-  console.error('UnhandledRejection:', e);
+  log.error({ err: e }, 'Unhandled promise rejection');
 });
 
+import { log } from './lib/log.js';
 import { toError } from './lib/toError.js';
 import './otel-setup.js';
 
@@ -763,16 +764,9 @@ async function configureApp(fastifyApp: typeof app, options: ConfigureOptions = 
       replySent: reply.sent
     };
 
-    console.error('🚨 Global error handler triggered:');
-    console.error('📍 Context:', errorContext);
-    console.error('💥 Error:', error.message);
-    console.error('📊 Stack trace:', error.stack);
-
-    // Use structured logging for better monitoring
-    request.log.error({
-      err: error,
-      context: errorContext
-    }, 'Global error handler triggered');
+    // Structured, on the request logger so the line carries the request id;
+    // `err` is serialised with its message and stack.
+    request.log.error({ err: error, ...errorContext }, 'Global error handler triggered');
 
     // Don't send response if already sent
     if (reply.sent) {
@@ -845,10 +839,9 @@ async function configureApp(fastifyApp: typeof app, options: ConfigureOptions = 
   await prepareOxigraphStores(fastifyApp);
 
   // Initialize memory cache manager - load all entities from SPARQL into memory
-  console.log('Initializing memory cache...');
+  fastifyApp.log.info('Initializing memory cache');
   await memoryCacheManager.loadAll();
-  console.log('Memory cache initialization complete.');
-  console.log('Cache stats:', memoryCacheManager.getStats());
+  fastifyApp.log.info({ cacheStats: memoryCacheManager.getStats() }, 'Memory cache initialization complete');
 
   // Grants load after the entity cache: resolving a library grant needs the
   // library, and an enforcing mode must not serve a request before the store is
@@ -862,7 +855,7 @@ async function configureApp(fastifyApp: typeof app, options: ConfigureOptions = 
 
   // Start cache monitoring with OpenTelemetry metrics
   if (enableCacheMonitoring) {
-    console.log('Starting cache monitoring...');
+    fastifyApp.log.info('Starting cache monitoring');
     cacheMonitoringService.start();
   }
 
@@ -931,14 +924,14 @@ const start = async (fastifyApp: typeof app) => {
 
     // Setup graceful shutdown for oxigraph stores and cache monitoring
     const gracefulShutdown = async () => {
-      console.log('Graceful shutdown initiated...');
+      fastifyApp.log.info('Graceful shutdown initiated');
       try {
         await teardown();
-        console.log('Server shutdown complete.');
+        fastifyApp.log.info('Server shutdown complete');
         process.exit(0);
       } catch (error__u: unknown) {
       const error = toError(error__u);
-        console.error('Error during shutdown:', error);
+        fastifyApp.log.error({ err: error }, 'Error during shutdown');
         process.exit(1);
       }
     };
@@ -951,12 +944,12 @@ const start = async (fastifyApp: typeof app) => {
 
     try {
       await fastifyApp.listen({ port, host });
-      console.log(`Server listening on http://localhost:${port}`);
+      fastifyApp.log.info({ url: `http://localhost:${port}` }, 'Server listening');
     } catch (err__u: unknown) {
       const err = toError(err__u);
       fastifyApp.log.error(err);
       if (err.code === 'EADDRINUSE') {
-        console.error(`Port ${port} is already in use. Please use a different port.`);
+        fastifyApp.log.error({ port }, 'Port is already in use. Please use a different port.');
       }
       process.exit(1);
     }

@@ -5,7 +5,7 @@
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, rdf, sqlib, sdo } from '../namespaces.js';
+import { ldkit, rdf, sqlib } from '../namespaces.js';
 
 export const QueryNodeSchema = {
   '@type': sqlib.QueryNode,

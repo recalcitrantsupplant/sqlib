@@ -42,7 +42,6 @@ import {
 } from '@sparql-query-lib/contracts/schema/routes';
 import type {
   PlaygroundRulesExecuteRequest,
-  PlaygroundRulesExecuteResponse,
 } from '@sparql-query-lib/contracts';
 
 const responseErrorSchema = {

@@ -20,6 +20,7 @@ import {
 } from '@sparql-query-lib/srl';
 import { TupleStore, injectTupleReads, renderBindingValue } from './TupleStore.js';
 import { quadToNQuad } from './nquads.js';
+import { log } from './log.js';
 
 const DEFAULT_MAX_ITERATIONS = 5;
 const DEFAULT_RULE_TIMEOUT_MS = Number.parseInt(process.env.RULE_EXECUTION_TIMEOUT_MS ?? '30000', 10) || 30000;
@@ -616,14 +617,17 @@ export class RuleSetExecutor {
     for (const id of ids) {
       const entity = getCacheCoordinator().get(id);
       if (!entity) {
-        console.warn(`[RuleSetExecutor] DataBlockVersion ${id} not found in cache; skipping.`);
+        log.warn({ dataBlockVersionId: id }, 'RuleSetExecutor: DataBlockVersion not found in cache; skipping');
         continue;
       }
 
       // Validate entity type to catch configuration errors
       const entityType = entity['@type'];
       if (entityType !== 'DataBlockVersion') {
-        console.error(`[RuleSetExecutor] ERROR: Entity ${id} has type '${entityType}', expected 'DataBlockVersion'. RuleSets must reference DataBlockVersions, not DataBlocks!`);
+        log.error(
+          { id, entityType },
+          'RuleSetExecutor: expected a DataBlockVersion; RuleSets must reference DataBlockVersions, not DataBlocks',
+        );
         throw new Error(`Invalid entity type for ${id}: expected DataBlockVersion, got ${entityType}. RuleSets must reference version entities for immutable execution.`);
       }
 
@@ -652,13 +656,13 @@ export class RuleSetExecutor {
           // Written before run-once scheduling existed, so its strata predate
           // closed-edge promotion too: reusing it would keep executing the rule
           // set the old, wrong way. Recompute rather than trust the snapshot.
-          console.info('[RuleSetExecutor] stratificationReport predates run-once scheduling; recomputing');
+          log.info('RuleSetExecutor: stratificationReport predates run-once scheduling; recomputing');
           return null;
         }
         return parsed;
       }
     } catch (error) {
-      console.warn('[RuleSetExecutor] Failed to parse stratificationReport; will recompute', error);
+      log.warn({ err: error }, 'RuleSetExecutor: failed to parse stratificationReport; will recompute');
     }
     return null;
   }
@@ -691,14 +695,17 @@ export class RuleSetExecutor {
     for (const id of ids) {
       const entity = getCacheCoordinator().get(id);
       if (!entity) {
-        console.warn(`[RuleSetExecutor] RuleVersion ${id} not found in cache; skipping.`);
+        log.warn({ ruleVersionId: id }, 'RuleSetExecutor: RuleVersion not found in cache; skipping');
         continue;
       }
 
       // Validate entity type to catch configuration errors
       const entityType = entity['@type'];
       if (entityType !== 'RuleVersion') {
-        console.error(`[RuleSetExecutor] ERROR: Entity ${id} has type '${entityType}', expected 'RuleVersion'. RuleSets must reference RuleVersions, not Rules!`);
+        log.error(
+          { id, entityType },
+          'RuleSetExecutor: expected a RuleVersion; RuleSets must reference RuleVersions, not Rules',
+        );
         throw new Error(`Invalid entity type for ${id}: expected RuleVersion, got ${entityType}. RuleSets must reference version entities for immutable execution.`);
       }
 
@@ -721,7 +728,7 @@ export class RuleSetExecutor {
 
     const normalized = this.normalizeRuleContent(ruleVersion.ruleString, ruleVersion.normalizedInsert);
     if (!normalized) {
-      console.warn(`[RuleSetExecutor] RuleVersion ${ruleVersion.$id} has no executable content; skipping.`);
+      log.warn({ ruleVersionId: ruleVersion.$id }, 'RuleSetExecutor: RuleVersion has no executable content; skipping');
       return null;
     }
 
@@ -758,9 +765,9 @@ export class RuleSetExecutor {
         },
       };
     } catch (error) {
-      console.warn(
-        `[RuleSetExecutor] RuleVersion ${ruleVersion.$id} looks like a tuple rule but failed to compile: ` +
-          `${error instanceof Error ? error.message : String(error)}`,
+      log.warn(
+        { err: error, ruleVersionId: ruleVersion.$id },
+        'RuleSetExecutor: RuleVersion looks like a tuple rule but failed to compile',
       );
       return null;
     }
@@ -811,7 +818,7 @@ export class RuleSetExecutor {
         dataStringLength: version.dataString?.length ?? 0,
         dataStringPreview: version.dataString?.substring(0, 100) ?? '(null)',
       };
-      console.error(`[RuleSetExecutor] DataBlockVersion ${version.$id} missing content:`, debugInfo);
+      log.error({ dataBlockVersionId: version.$id, ...debugInfo }, 'RuleSetExecutor: DataBlockVersion missing content');
       record.error = {
         message: `DataBlockVersion ${version.$id} has no executable content (dataString: ${debugInfo.hasDataString ? `${debugInfo.dataStringLength} chars` : 'null'}, normalized: ${debugInfo.hasNormalized ? `${debugInfo.normalizedLength} chars` : 'null'})`
       };
@@ -984,7 +991,7 @@ export class RuleSetExecutor {
           result.finalGraphContent = serialized.content;
           result.finalGraphContentType = serialized.contentType;
         } catch (error) {
-          console.error('Failed to serialize final graph:', error);
+          log.error({ err: error }, 'RuleSetExecutor: failed to serialize final graph');
           result.finalGraphContent = inferredGraph;
           result.finalGraphContentType = 'application/n-triples';
         }

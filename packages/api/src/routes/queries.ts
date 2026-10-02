@@ -1,11 +1,11 @@
 import type { FastifyInstance } from 'fastify';
 import { mintId } from '../lib/id.js';
-import { toRestApi, toLdkit } from '../persistence/utils/id-adapter.js';
+import { toRestApi } from '../persistence/utils/id-adapter.js';
 import type { LdkitQuery } from '../persistence/schemas/QuerySchema.js';
 import type { LdkitQueryVersion } from '../persistence/schemas/QueryVersionSchema.js';
 import { expandQueryVersion } from '../lib/QueryVersionResolver.js';
 import { SparqlQueryParser } from '../lib/parser.js';
-import { createQueryVersionFlat, cleanupOrphanedAutoTuple, findExistingAutoTuple } from '../lib/QueryVersionWriter.js';
+import { createQueryVersionFlat } from '../lib/QueryVersionWriter.js';
 import { deriveQueryVersionMetadata } from '../lib/QueryVersionDeriver.js';
 import { classifyVersionPatch } from '../lib/versionPatch.js';
 import { reposRoute, validateIfMatch, setEntityConcurrencyHeaders } from './route-helpers.js';
@@ -332,7 +332,7 @@ export default async function (fastify: FastifyInstance) {
         setEntityConcurrencyHeaders(reply, created);
         return reply.status(201).send({ ...expanded, iriMap });
       } catch (error) {
-        console.error('Error creating query version:', error);
+        request.log.error({ err: error }, 'Error creating query version');
         return reply.status(500).send({
           error: 'Failed to create query version',
           details: error instanceof Error ? error.message : String(error)

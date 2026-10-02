@@ -5,6 +5,7 @@
 import { QueryNodeSchema, type LdkitQueryNode } from '../schemas/QueryNodeSchema.js';
 import { createRepositoryLens } from './entityRepository.js';
 import { toLdkit } from './id-adapter.js';
+import { log } from '../../lib/log.js';
 
 export const QueryNodes = createRepositoryLens(QueryNodeSchema);
 
@@ -76,7 +77,7 @@ export async function deleteQueryNode(nodeId: string): Promise<boolean> {
     await QueryNodes.delete(nodeId);
     return true;
   } catch (error) {
-    console.error(`Failed to delete QueryNode ${nodeId}:`, error);
+    log.error({ err: error, id: nodeId }, 'Failed to delete QueryNode');
     return false;
   }
 }

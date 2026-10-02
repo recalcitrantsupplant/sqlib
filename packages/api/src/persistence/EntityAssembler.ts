@@ -21,6 +21,7 @@
  */
 import type { SparqlBindingValue } from '@sparql-query-lib/types';
 import { describeSchema, type EntityField, type FieldKind } from './schemaIntrospection.js';
+import { log } from '../lib/log.js';
 
 export type BindingRow = Record<string, SparqlBindingValue | undefined>;
 
@@ -76,9 +77,9 @@ function coerceJson(raw: string, field: string, id: string): unknown {
   try {
     return JSON.parse(raw);
   } catch {
-    console.warn(
-      `[Persistence] ${field} on ${id} is not readable as JSON (stored value: ${JSON.stringify(raw)}); ` +
-        `treating it as absent. A value written before this property became rdf:JSON needs rewriting.`,
+    log.warn(
+      { field, id, storedValue: raw },
+      'Persistence: stored value is not readable as JSON; treating it as absent. A value written before this property became rdf:JSON needs rewriting.',
     );
     return null;
   }

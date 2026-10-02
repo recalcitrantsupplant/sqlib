@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
 import { QueryNodeSchema } from '../../../src/persistence/schemas/QueryNodeSchema.js';
-import { ldkit, sqlib, sdo } from '../../../src/persistence/namespaces.js';
+import { ldkit, sqlib } from '../../../src/persistence/namespaces.js';
 
 describe('QueryNodeSchema', () => {
   it('defines correct @type and properties', () => {

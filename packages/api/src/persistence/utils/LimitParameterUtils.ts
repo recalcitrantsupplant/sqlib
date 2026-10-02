@@ -5,6 +5,7 @@
 import { LimitParameterSchema, type LdkitLimitParameter } from '../schemas/LimitParameterSchema.js';
 import { createRepositoryLens } from './entityRepository.js';
 import { toLdkit } from './id-adapter.js';
+import { log } from '../../lib/log.js';
 
 export const LimitParameters = createRepositoryLens(LimitParameterSchema);
 
@@ -16,7 +17,7 @@ export async function findLimitParameterById(id: string): Promise<LdkitLimitPara
     const parameter = await LimitParameters.findByIri(id);
     return parameter ? (parameter as LdkitLimitParameter) : null;
   } catch (error) {
-    console.warn(`Failed to find LimitParameter ${id}:`, error);
+    log.warn({ err: error, id }, 'Failed to find LimitParameter');
     return null;
   }
 }
@@ -88,7 +89,7 @@ export async function deleteLimitParameter(id: string): Promise<void> {
   try {
     await LimitParameters.delete(id);
   } catch (error) {
-    console.error(`Failed to delete LimitParameter ${id}:`, error);
+    log.error({ err: error, id }, 'Failed to delete LimitParameter');
     throw error;
   }
 }

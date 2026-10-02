@@ -9,6 +9,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { tableParameterKey } from '@sparql-query-lib/types';
+import { log } from '../../src/lib/log.js';
 
 const store = new Map<string, Record<string, unknown>>();
 
@@ -236,7 +237,7 @@ describe('tuple set sources', () => {
     // object, so passing it through would render as a row where every one of
     // *this* clause's variables is UNDEF — a wildcard matching everything,
     // inverting the query rather than narrowing it.
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const warn = vi.spyOn(log, 'warn');
     store.set(VERSION, {
       $id: VERSION,
       '@type': 'TupleSetVersion',
@@ -261,7 +262,10 @@ describe('tuple set sources', () => {
       { city: { type: 'literal', value: 'Perth' } },
     ]);
     // And it says so, rather than looking like it worked.
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('contributes nothing'));
+    expect(warn).toHaveBeenCalledWith(
+      expect.objectContaining({ tupleSetVersionId: VERSION }),
+      expect.stringContaining('contributes nothing'),
+    );
     warn.mockRestore();
   });
 
@@ -300,7 +304,7 @@ describe('tuple set sources', () => {
   it('skips a version that has gone missing rather than failing the run', async () => {
     // A saved set pins version ids; a dangling one means the version was
     // deleted, and refusing to run an otherwise valid set is the worse answer.
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const warn = vi.spyOn(log, 'warn');
     const detail = await service.createForTarget('query', QUERY, {
       name: 'dangling',
       tupleBindings: [{ variables: ['city'], rows: [CITY_ROWS[0]] }],

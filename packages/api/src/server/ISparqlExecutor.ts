@@ -6,7 +6,7 @@ import { Dispatcher } from 'undici';
  * with the actual data bindings (query outputs).
  * Uses the canonical SparqlValue and SparqlResultsJson types.
  */
-import type { SparqlResultsJson as SparqlSelectJsonOutput, SparqlValue } from '../lib/query-chaining.js';
+import type { SparqlResultsJson as SparqlSelectJsonOutput } from '../lib/query-chaining.js';
 
 // Re-export SparqlSelectJsonOutput for clarity in this module if needed elsewhere,
 // but ISparqlExecutor methods will use the imported type directly.

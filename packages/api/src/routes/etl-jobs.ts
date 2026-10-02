@@ -2,7 +2,7 @@ import * as fs from 'node:fs/promises';
 import type { FastifyInstance } from 'fastify';
 import { etlService } from '../lib/EtlService.js';
 import { toError } from '../lib/toError.js';
-import { reposRoute, withReposHandler, setEntityConcurrencyHeaders } from './route-helpers.js';
+import { reposRoute, setEntityConcurrencyHeaders } from './route-helpers.js';
 import {
   etljobSchema,
   etljobversionSchema,
@@ -11,16 +11,6 @@ import {
   etlexecutionSchema,
 } from '@sparql-query-lib/contracts/schema';
 import { setupValidator } from '../lib/validator-setup.js';
-import {
-  getEtlJobsSchema,
-  getEtlJobSchema,
-  createEtlJobSchema,
-  updateEtlJobSchema,
-  deleteEtlJobSchema,
-  getEtlJobVersionsSchema,
-  getEtlJobVersionSchema,
-  createEtlJobVersionSchema,
-} from '@sparql-query-lib/contracts/schema';
 import { registerEntityAuthGuard } from '../auth/entityGuard.js';
 import { AuthorizationError, filterReadable, requireAdmin, requireLibraryMode } from '../auth/enforce.js';
 import { toEntityUrn } from '../lib/id.js';

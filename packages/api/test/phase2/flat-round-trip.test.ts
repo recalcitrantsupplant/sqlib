@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import fc from 'fast-check';
 import { GroupHarness, START, END, type BuiltGroup } from './harness/group-harness.js';
-import { ALL_TEMPLATES, getTemplate, queryIdSelect } from './harness/query-templates.js';
+import { ALL_TEMPLATES, queryIdSelect } from './harness/query-templates.js';
 import { caseArbitrary, type GeneratedCase } from './harness/graph-generator.js';
 import { fuzzBudget } from './harness/fuzz-budget.js';
 

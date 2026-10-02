@@ -504,7 +504,6 @@ describe('POST /tuple-sets/:id/versions/from-etl', () => {
   it('reports a SQL failure as a 502 naming the source', async () => {
     hoisted.streamChunks.mockImplementation(async function* () {
       throw new Error('Catalog Error: Table with name cities does not exist!');
-      // eslint-disable-next-line no-unreachable
       yield undefined;
     });
 
@@ -616,7 +615,6 @@ describe('POST /tuple-sets/:id/versions/from-etl', () => {
     it('records a run whose SQL failed, with the failure it reported', async () => {
       hoisted.streamChunks.mockImplementation(async function* () {
         throw new Error('Catalog Error: Table with name cities does not exist!');
-        // eslint-disable-next-line no-unreachable
         yield undefined;
       });
 
@@ -632,7 +630,6 @@ describe('POST /tuple-sets/:id/versions/from-etl', () => {
     it('reports the run’s own failure even when the log cannot be written', async () => {
       hoisted.streamChunks.mockImplementation(async function* () {
         throw new Error('Catalog Error: Table with name cities does not exist!');
-        // eslint-disable-next-line no-unreachable
         yield undefined;
       });
       hoisted.updateEntity.mockRejectedValue(new Error('store unavailable'));

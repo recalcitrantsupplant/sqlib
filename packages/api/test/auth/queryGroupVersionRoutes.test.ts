@@ -135,9 +135,14 @@ async function inject(
   context: AuthContext,
   method: 'GET' | 'POST' | 'PATCH',
   url: string,
-  options: { payload?: object; headers?: Record<string, string> } = {},
+  options: { payload?: object; headers?: Record<string, string>; logLines?: string[] } = {},
 ) {
-  const app = Fastify({ logger: false });
+  // The routes log through `reply.log`; a test that asserts on that passes
+  // `logLines` to collect what the request logger writes.
+  const { logLines } = options;
+  const app = Fastify({
+    logger: logLines ? { level: 'error', stream: { write: (line: string) => void logLines.push(line) } } : false,
+  });
   setupValidator(app);
   for (const schema of Object.values(schemas)) {
     if (schema && typeof schema === 'object' && '$id' in schema) app.addSchema(schema);
@@ -319,15 +324,14 @@ describe('500 bodies', () => {
     ['a version', `${GROUP_PATH}/v/1`, 'Failed to fetch query group version'],
   ])('do not echo the internal message on %s', async (_what, url, failure) => {
     store.failListing = INTERNAL;
-    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const logLines: string[] = [];
 
-    const response = await inject(mine, 'GET', url);
+    const response = await inject(mine, 'GET', url, { logLines });
 
     expect(response.statusCode).toBe(500);
     expect(response.json()).toEqual({ error: failure });
     expect(response.body).not.toContain('oxigraph');
     // Still logged: the operator needs it even if the caller does not.
-    expect(errors.mock.calls.flat().map(String).join('\n')).toContain(INTERNAL);
-    errors.mockRestore();
+    expect(logLines.join('\n')).toContain(INTERNAL);
   });
 });

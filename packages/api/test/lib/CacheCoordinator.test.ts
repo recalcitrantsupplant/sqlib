@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { CacheCoordinator, EntityExistsError } from '../../src/lib/CacheCoordinator.js';
 import { config } from '../../src/server/config.js';
 import { loadAllSystemEntities } from '../../src/persistence/utils/entityRepository.js';
-import { getKnownSystemEntityIds, loadSystemStore } from '../../src/system-store/SystemStoreLoader.js';
+import { loadSystemStore } from '../../src/system-store/SystemStoreLoader.js';
 import { Backends } from '../../src/persistence/utils/BackendUtils.js';
 
 // Mock all external dependencies

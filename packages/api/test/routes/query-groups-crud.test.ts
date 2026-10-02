@@ -423,7 +423,6 @@ describe('Query group routes', () => {
     expect(hoisted.createGroupVersionFlat).toHaveBeenCalledWith('urn:group:1', { executionNodes: ['urn:node:1'] }, { request: expect.anything() });
     const creationBody = res.json();
     if (!('iriMap' in creationBody)) {
-      // eslint-disable-next-line no-console
       console.error('POST /query-groups/:id/v response body', creationBody);
     }
     expect(creationBody).toMatchObject({
@@ -631,9 +630,7 @@ describe('Query group routes', () => {
     });
     const body = res.json();
     if (res.statusCode !== 200) {
-      // eslint-disable-next-line no-console
       console.error('PATCH /query-groups/:id/v/:version response', body);
-      // eslint-disable-next-line no-console
       console.error('fastify error logs', (app.log.error as any)?.mock?.calls ?? []);
     }
 

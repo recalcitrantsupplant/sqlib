@@ -15,7 +15,8 @@ import type { LdkitArgumentTupleBinding } from '../persistence/schemas/ArgumentT
 import type { LdkitArgumentScalarBinding } from '../persistence/schemas/ArgumentScalarBindingSchema.js';
 import type { LdkitArgumentGraphBinding } from '../persistence/schemas/ArgumentGraphBindingSchema.js';
 import type { LdkitTupleSetVersion } from '../persistence/schemas/TupleSetVersionSchema.js';
-import type { ArgumentSet as RuntimeArgumentSet, SparqlBinding, SparqlValue } from './query-chaining.js';
+import type { ArgumentSet as RuntimeArgumentSet, SparqlBinding } from './query-chaining.js';
+import { log } from './log.js';
 
 export type ArgumentScope = 'query' | 'queryGroup';
 
@@ -933,7 +934,7 @@ export class ArgumentSetService {
     for (const versionId of versionIds) {
       const version = cacheCoordinator.get(versionId) as LdkitTupleSetVersion | null;
       if (!version || version['@type'] !== 'TupleSetVersion' || !version.contentString) {
-        console.warn(`[ArgumentSetService] TupleSetVersion ${versionId} is missing; skipping its rows.`);
+        log.warn({ tupleSetVersionId: versionId }, 'ArgumentSetService: TupleSetVersion is missing; skipping its rows');
         continue;
       }
 
@@ -950,10 +951,9 @@ export class ArgumentSetService {
       }
 
       if (contributed === 0 && document.results.bindings.length > 0) {
-        console.warn(
-          `[ArgumentSetService] TupleSetVersion ${versionId} has columns ` +
-            `[${(version.tupleColumns ?? []).join(', ')}] and contributes nothing to ` +
-            `[${variables.join(', ')}]; matching is by name.`
+        log.warn(
+          { tupleSetVersionId: versionId, tupleColumns: version.tupleColumns ?? [], variables },
+          'ArgumentSetService: TupleSetVersion contributes nothing to the requested variables; matching is by name',
         );
       }
     }

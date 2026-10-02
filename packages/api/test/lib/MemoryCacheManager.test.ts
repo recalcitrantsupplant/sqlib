@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { MemoryCacheManager } from '../../src/lib/MemoryCacheManager.js';
+import { log } from '../../src/lib/log.js';
 import { loadAllSystemEntities } from '../../src/persistence/utils/entityRepository.js';
 import { Backends } from '../../src/persistence/utils/BackendUtils.js';
 import { Queries } from '../../src/persistence/utils/QueryUtils.js';
@@ -226,9 +227,7 @@ vi.mock('../../src/persistence/utils/RdfOutputUtils', () => ({
 
 describe('MemoryCacheManager', () => {
   let cacheManager: MemoryCacheManager;
-  let originalConsoleLog: any;
-  let originalConsoleError: any;
-  let originalConsoleWarn: any;
+  let warnSpy: ReturnType<typeof vi.spyOn>;
   let originalDateNow: any;
   let originalCacheWriteThrough: string | undefined;
   let originalCachePreload: string | undefined;
@@ -237,13 +236,7 @@ describe('MemoryCacheManager', () => {
     cacheManager = new MemoryCacheManager();
     // Reset all mocks before each test
     vi.clearAllMocks();
-    // Mock console methods to reduce noise in tests
-    originalConsoleLog = console.log;
-    originalConsoleError = console.error;
-    originalConsoleWarn = console.warn;
-    console.log = vi.fn();
-    console.error = vi.fn();
-    console.warn = vi.fn();
+    warnSpy = vi.spyOn(log, 'warn');
     
     // Store original Date.now
     originalDateNow = Date.now;
@@ -252,10 +245,7 @@ describe('MemoryCacheManager', () => {
   });
 
   afterEach(() => {
-    // Restore console methods
-    console.log = originalConsoleLog;
-    console.error = originalConsoleError;
-    console.warn = originalConsoleWarn;
+    warnSpy.mockRestore();
     
     // Restore Date.now
     Date.now = originalDateNow;
@@ -854,9 +844,9 @@ describe('MemoryCacheManager', () => {
       await vi.advanceTimersByTimeAsync(10);
 
       // Should have logged a warning about failed refresh
-      expect(console.warn).toHaveBeenCalledWith(
-        expect.stringContaining('[Cache][SWR] Failed to refresh id query1 of type Query'),
-        expect.any(Error)
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ err: expect.any(Error), id: 'query1', type: 'Query' }),
+        expect.stringContaining('refresh'),
       );
     });
 

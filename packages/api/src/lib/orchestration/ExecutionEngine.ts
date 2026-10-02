@@ -22,6 +22,7 @@ import { oxigraphDeltaStore } from '../deltaStore.js';
 import { resolvePatchTarget } from '../patchTargets.js';
 import type { WhenEmptyMode } from '../../persistence/schemas/QueryEdgeSchema.js';
 import type { ColumnDefinition } from '../../persistence/schemas/EtlColumnMappingVersionSchema.js';
+import { log } from '../log.js';
 
 export type ExecutionHooks = {
   onNodeStart?: (node: ResolvedNode, orderIndex: number) => void;
@@ -1360,15 +1361,15 @@ export class ExecutionEngine {
   private async materializeRdfResult(storeId: string, rdf: string, format: string): Promise<void> {
     const store = oxigraphStoreManager.getEphemeralStore(storeId);
     if (!store) {
-      console.warn(`Ephemeral store ${storeId} not found for RDF materialization`);
+      log.warn({ storeId }, 'Ephemeral store not found for RDF materialization');
       return;
     }
     if (!rdf || !rdf.trim()) {
-      console.warn(`Skipping RDF materialization for store ${storeId}: empty result payload`);
+      log.warn({ storeId }, 'Skipping RDF materialization: empty result payload');
       return;
     }
     await oxigraphStoreManager.loadDataFromString(store, rdf, format);
-    console.log(`Materialized RDF output into ephemeral store ${storeId}`);
+    log.debug({ storeId }, 'Materialized RDF output into ephemeral store');
   }
 
   private resolveRdfFormatFromAccept(acceptHeader: string | null): string {

@@ -1,6 +1,7 @@
-import { request, Dispatcher, Agent } from 'undici'; // Import Agent
+import { Dispatcher, Agent } from 'undici'; // Import Agent
 import { ISparqlExecutor, SparqlSelectJsonOutput, SparqlQueryOptions, SparqlExecutionResult } from './ISparqlExecutor.js'; // Import SparqlQueryOptions
 import { config } from './config.js';
+import { log } from '../lib/log.js';
 // Define a simpler config type specifically for the HTTP executor's needs
 // This avoids requiring a full Backend entity for internal setup.
 interface HttpExecutorConfig {
@@ -57,7 +58,7 @@ async function executeHttpRequestRaw(
   const effectiveAuth = basicAuth || authHeader || undefined;
 
   let requestOptions: Dispatcher.RequestOptions; // Use the standard RequestOptions type
-  let targetUrl = new URL(endpointUrl); // Start with the base URL as a URL object
+  const targetUrl = new URL(endpointUrl); // Start with the base URL as a URL object
 
   // Build common headers
   const baseHeaders: Record<string, string> = {
@@ -105,7 +106,6 @@ async function executeHttpRequestRaw(
 
   const requestUrlString = targetUrl.toString(); // Get the full URL string for logging/request
   const requestLabel = `HTTP SPARQL ${isUpdate ? 'UPDATE' : 'Query'} Request (${requestOptions.method}) to ${requestUrlString}`;
-  if (config.enableTimingLogs) console.time(requestLabel);
   const startTime = performance.now();
   try {
     // Use keepAliveAgent.request instead of global request
@@ -114,12 +114,12 @@ async function executeHttpRequestRaw(
         ...requestOptions // Spread the rest of the options (method, path, headers, body)
     });
     const duration = performance.now() - startTime;
-    if (config.enableTimingLogs) console.timeEnd(requestLabel);
+    if (config.enableTimingLogs) log.info({ durationMs: Math.round(duration) }, requestLabel);
     return { response, duration };
   } catch (error) {
     const duration = performance.now() - startTime;
-    if (config.enableTimingLogs) console.timeEnd(requestLabel); // Ensure timer ends on error
-    console.error(`Error executing ${requestLabel}:`, error);
+    if (config.enableTimingLogs) log.info({ durationMs: Math.round(duration) }, requestLabel);
+    log.error({ err: error, url: requestUrlString }, `Error executing ${requestLabel}`);
     throw error; // Re-throw network or setup errors
   }
 }
@@ -193,7 +193,7 @@ export class HttpSparqlExecutor implements ISparqlExecutor {
         }
         return { result: results, duration, contentType: response.headers['content-type']?.toString() };
       } catch (error) {
-        console.error('Error parsing SPARQL JSON output:', error);
+        log.error({ err: error }, 'Error parsing SPARQL JSON output');
         throw new Error(`Failed to parse SPARQL JSON output: ${error instanceof Error ? error.message : String(error)}`);
       }
     } else {
@@ -202,7 +202,7 @@ export class HttpSparqlExecutor implements ISparqlExecutor {
         const textResult = await response.body.text();
         return { result: textResult, duration, contentType: response.headers['content-type']?.toString() };
       } catch (error) {
-        console.error('Error reading response body as text:', error);
+        log.error({ err: error }, 'Error reading response body as text');
         throw new Error(`Failed to read response body: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
@@ -226,7 +226,7 @@ export class HttpSparqlExecutor implements ISparqlExecutor {
       // Optional: Add basic validation (e.g., check if empty) if needed
       return { result: nquadsString, duration, contentType: response.headers['content-type']?.toString() };
     } catch (error) {
-      console.error('Error reading N-Quads response body:', error);
+      log.error({ err: error }, 'Error reading N-Quads response body');
       throw new Error(`Failed to read N-Quads response body: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
@@ -297,7 +297,7 @@ export class HttpSparqlExecutor implements ISparqlExecutor {
         }
         return { result: results.boolean, duration, contentType: response.headers['content-type']?.toString() };
       } catch (error) {
-        console.error('Error parsing SPARQL ASK JSON output:', error);
+        log.error({ err: error }, 'Error parsing SPARQL ASK JSON output');
         throw new Error(`Failed to parse SPARQL ASK JSON output: ${error instanceof Error ? error.message : String(error)}`);
       }
     } else {
@@ -306,7 +306,7 @@ export class HttpSparqlExecutor implements ISparqlExecutor {
         const textResult = await response.body.text();
         return { result: textResult, duration, contentType: response.headers['content-type']?.toString() };
       } catch (error) {
-        console.error('Error reading response body as text:', error);
+        log.error({ err: error }, 'Error reading response body as text');
         throw new Error(`Failed to read response body: ${error instanceof Error ? error.message : String(error)}`);
       }
     }

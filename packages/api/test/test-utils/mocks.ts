@@ -1,5 +1,5 @@
 import { vi } from 'vitest'; // Use vi from vitest
-import { SparqlQueryParser } from '../../src/lib/parser.js'; // Import the actual type
+// Import the actual type
 
 // --- Mock SparqlQueryParser (Instance) ---
 // Create a simple mock object for the parser instance

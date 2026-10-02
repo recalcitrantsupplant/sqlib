@@ -13,7 +13,6 @@
  */
 import {
   describeSchema,
-  projectionPredicate,
   type EntitySchemaInfo,
 } from './schemaIntrospection.js';
 import { iri, RDF_TYPE } from './sparqlTerms.js';
