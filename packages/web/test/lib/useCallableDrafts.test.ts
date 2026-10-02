@@ -1,8 +1,9 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { ref } from 'vue';
 import {
   useCallableDrafts,
   CALLABLE_DRAFTS_STORAGE_KEY,
+  MAX_ENTRY_BYTES,
   type CallableDraft,
   type CallableDraftInput,
 } from '@/composables/useCallableDrafts';
@@ -211,6 +212,85 @@ describe('useCallableDrafts — sections that are not queries', () => {
       expect(reloaded.scratchFor(section)).toHaveLength(1);
     },
   );
+});
+
+/*
+ * Review C12: a `QuotaExceededError` thrown inside a work area's debounce timer
+ * used to stop every section's drafts from persisting, with nothing on screen
+ * to say so.
+ */
+describe('useCallableDrafts — storage limits', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    useCallableDrafts().clear();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function stored(): CallableDraft[] {
+    return JSON.parse(localStorage.getItem(CALLABLE_DRAFTS_STORAGE_KEY) ?? '[]');
+  }
+
+  it('keeps a record too large to store in memory, reports it, and persists the rest', () => {
+    const store = useCallableDrafts();
+    store.save(draft({ id: 'urn:ui-temp:query-one', section: 'query' }));
+    store.save(draft({
+      id: 'urn:ui-temp:huge-graph',
+      section: 'dataGraph',
+      queryString: null,
+      body: { contentString: 'x'.repeat(MAX_ENTRY_BYTES) },
+    }));
+
+    expect(store.get('urn:ui-temp:huge-graph')).not.toBeNull();
+    expect(store.isUnpersisted('urn:ui-temp:huge-graph')).toBe(true);
+    expect(store.isUnpersisted('urn:ui-temp:query-one')).toBe(false);
+    expect(stored().map((record) => record.id)).toEqual(['urn:ui-temp:query-one']);
+  });
+
+  it('survives a quota error: other sections\' drafts stay saved, and the state is visible', () => {
+    const store = useCallableDrafts();
+    store.save(draft({ id: 'urn:ui-temp:query-one', section: 'query' }));
+
+    // The next write does not fit: storage refuses anything holding the new record.
+    const realSetItem = localStorage.setItem.bind(localStorage);
+    const full = vi.spyOn(localStorage, 'setItem').mockImplementation((key: string, value: string) => {
+      if (value.includes('urn:ui-temp:tuple-rows')) {
+        throw new DOMException('The quota has been exceeded.', 'QuotaExceededError');
+      }
+      return realSetItem(key, value);
+    });
+
+    expect(() => store.save(draft({
+      id: 'urn:ui-temp:tuple-rows',
+      section: 'tupleSet',
+      queryString: null,
+      body: { contentString: 'rows' },
+    }))).not.toThrow();
+
+    expect(store.isUnpersisted('urn:ui-temp:tuple-rows')).toBe(true);
+    expect(store.get('urn:ui-temp:tuple-rows')).not.toBeNull();
+    expect(stored().map((record) => record.id)).toEqual(['urn:ui-temp:query-one']);
+
+    // And once there is room again, the next write persists it and clears the state.
+    full.mockRestore();
+    store.save(draft({ id: 'urn:ui-temp:query-one', section: 'query', name: 'renamed' }));
+    expect(store.isUnpersisted('urn:ui-temp:tuple-rows')).toBe(false);
+    expect(stored().map((record) => record.id).sort()).toEqual(['urn:ui-temp:query-one', 'urn:ui-temp:tuple-rows']);
+  });
+
+  it('converges with another tab: a storage event replaces the list with what that tab wrote', () => {
+    const store = useCallableDrafts();
+    store.save(draft({ id: 'urn:ui-temp:mine' }));
+
+    const theirs = [...stored(), { ...stored()[0], id: 'urn:ui-temp:theirs', name: 'From the other tab' }];
+    localStorage.setItem(CALLABLE_DRAFTS_STORAGE_KEY, JSON.stringify(theirs));
+    window.dispatchEvent(new StorageEvent('storage', { key: CALLABLE_DRAFTS_STORAGE_KEY }));
+
+    expect(store.get('urn:ui-temp:theirs')?.name).toBe('From the other tab');
+    expect(store.get('urn:ui-temp:mine')).not.toBeNull();
+  });
 });
 
 describe('useCallableDrafts — legacy argument-set migration', () => {
