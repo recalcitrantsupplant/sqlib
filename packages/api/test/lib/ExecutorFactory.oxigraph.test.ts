@@ -129,7 +129,6 @@ describe('ExecutorFactory - Oxigraph Integration', () => {
       hoisted.mockConfig.internalBackend = {
         type: 'oxigraph-persistent',
         storeId: 'library-store',
-        persistPath: '/var/lib/rocks',
         loadMethod: 'none',
         storageDir: '/var/lib/library',
         sourceConfig: undefined
@@ -145,26 +144,20 @@ describe('ExecutorFactory - Oxigraph Integration', () => {
         storeType: 'persistent',
         loadMethod: 'none',
         sourceConfig: undefined,
-        persistPath: '/var/lib/rocks'
       });
       expect((executor as any).store).toBe(mockOxigraphStore);
     });
 
-    it('should create oxigraph executor for internal memory backend', async () => {
-      hoisted.mockConfig.internalBackend = {
-        type: 'oxigraph-memory',
-        dbPath: '/tmp/oxigraph'
-      };
+    it('should create an ephemeral oxigraph executor for the internal memory backend', async () => {
+      hoisted.mockConfig.internalBackend = { type: 'oxigraph-memory' };
 
-      (oxigraphStoreManager.getPersistentStore as any).mockReturnValueOnce(null);
-      (oxigraphStoreManager.createPersistentStore as any).mockResolvedValueOnce(mockOxigraphStore);
+      (oxigraphStoreManager.getEphemeralStore as any).mockReturnValueOnce(null);
+      (oxigraphStoreManager.createEphemeralStore as any).mockReturnValueOnce(mockOxigraphStore);
 
       const executor = await factory.getExecutorForNode(buildLibraryNode());
-      expect(oxigraphStoreManager.createPersistentStore).toHaveBeenCalledWith(`${LIBRARY_STORAGE_BACKEND_ID}::memory`, {
-        storeType: 'persistent',
-        loadMethod: 'none',
-        persistPath: '/tmp/oxigraph'
-      });
+      expect(oxigraphStoreManager.createEphemeralStore).toHaveBeenCalledWith(`${LIBRARY_STORAGE_BACKEND_ID}::memory`);
+      // Never a durable store: those are restored at boot and serialised at shutdown.
+      expect(oxigraphStoreManager.createPersistentStore).not.toHaveBeenCalled();
       expect((executor as any).store).toBe(mockOxigraphStore);
     });
   });

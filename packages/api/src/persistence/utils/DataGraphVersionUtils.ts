@@ -11,7 +11,7 @@ export const DataGraphVersions = DataGraphVersionUtils.Repository;
 export const createDataGraphVersion = DataGraphVersionUtils.create;
 export async function updateDataGraphVersion(id: string, updates: Partial<LdkitDataGraphVersion>): Promise<void> {
   const existing = await findDataGraphVersionById(id);
-  assertMutableEntity('DataGraphVersion', existing as Record<string, unknown> | null);
+  assertMutableEntity('DataGraphVersion', existing as Record<string, unknown> | null, updates as Record<string, unknown>);
   return DataGraphVersionUtils.update(id, updates);
 }
 export const deleteDataGraphVersion = DataGraphVersionUtils.delete;

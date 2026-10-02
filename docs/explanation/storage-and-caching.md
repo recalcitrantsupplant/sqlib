@@ -57,8 +57,7 @@ comes from a `.nq` snapshot in `LIBRARY_STORAGE_DIR`, written:
 - on a timer, `INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS`, default 60000; and
 - on clean shutdown.
 
-`INTERNAL_OXIGRAPH_DB_PATH` and the `persistPath` field it fills are marked
-`@deprecated` and ignored — there is no RocksDB path to set.
+There is no RocksDB path to set; `INTERNAL_OXIGRAPH_DB_PATH` is not read.
 
 Four consequences follow from "one in-memory store plus a whole-store dump",
 and each is measured rather than assumed:
@@ -104,15 +103,12 @@ shutdown is unacceptable.
 
 ### `oxigraph-memory`
 
-The third value. `server/config.ts` describes it as an ephemeral in-memory
-store, and unlike `oxigraph-persistent` it starts no checkpoint loop and ignores
-`LIBRARY_STORAGE_DIR`. Read the code before relying on it being ephemeral: the
-executor it resolves to still builds the store through
-`OxigraphStoreManager.createDurableStore`, which restores from a `.nq` under
-`OXIGRAPH_STORAGE_DIR` when one is present and serialises on shutdown. No
-`Justfile` recipe uses this value, and the documented intent and the code path
-do not clearly agree, so prefer `oxigraph-persistent` for an in-process store
-and `http` for a durable one.
+The third value: an in-process store that lives only as long as the process.
+It is created empty on first use, is never restored from or written to disk —
+no checkpoint, no snapshot at shutdown — and the next boot starts empty again.
+It is what the test suite runs on, and suits a throwaway development server.
+For an in-process library that survives a restart use `oxigraph-persistent`,
+and for a durable one `http`.
 
 ### Choosing
 

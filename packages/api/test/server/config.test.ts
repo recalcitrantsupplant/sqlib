@@ -158,22 +158,16 @@ describe('server/config', () => {
 
       const { config } = await import('../../src/server/config.js');
 
-      expect(config.internalBackend).toEqual({
-        type: 'oxigraph-memory',
-        dbPath: undefined,
-      });
+      expect(config.internalBackend).toEqual({ type: 'oxigraph-memory' });
     });
 
-    it('should configure oxigraph-memory backend with custom db path', async () => {
+    it('takes no path for oxigraph-memory, which never touches disk', async () => {
       process.env.INTERNAL_BACKEND_TYPE = 'oxigraph-memory';
       process.env.INTERNAL_OXIGRAPH_DB_PATH = '/custom/path/to/db';
 
       const { config } = await import('../../src/server/config.js');
 
-      expect(config.internalBackend).toEqual({
-        type: 'oxigraph-memory',
-        dbPath: '/custom/path/to/db',
-      });
+      expect(config.internalBackend).toEqual({ type: 'oxigraph-memory' });
     });
 
     it('should ignore oxigraph db path when not using oxigraph backend', async () => {
@@ -188,7 +182,7 @@ describe('server/config', () => {
 
     it('should configure oxigraph-persistent backend with defaults', async () => {
       // Note: oxigraph-persistent is a "durable" store (in-memory with .nq serialization)
-      // NOT a true disk-backed RocksDB store. The persistPath is deprecated and ignored.
+      // NOT a true disk-backed RocksDB store.
       process.env.INTERNAL_BACKEND_TYPE = 'oxigraph-persistent';
 
       const { config } = await import('../../src/server/config.js');
@@ -196,8 +190,6 @@ describe('server/config', () => {
       expect(config.internalBackend).toEqual({
         type: 'oxigraph-persistent',
         storeId: 'library-store',
-        // persistPath is deprecated - oxigraph JS doesn't support RocksDB
-        persistPath: path.resolve('./storage/library-store/rocksdb'),
         loadMethod: 'none',
         sourceConfig: undefined,
         storageDir: path.resolve('./storage/library-store'),
@@ -207,10 +199,10 @@ describe('server/config', () => {
 
     it('should honor custom persistent settings and bootstrap source', async () => {
       // Note: oxigraph-persistent is a "durable" store (in-memory with .nq serialization)
-      // NOT a true disk-backed RocksDB store. The persistPath is deprecated and ignored.
+      // NOT a true disk-backed RocksDB store; INTERNAL_OXIGRAPH_DB_PATH is not read.
       process.env.INTERNAL_BACKEND_TYPE = 'oxigraph-persistent';
       process.env.LIBRARY_STORAGE_DIR = '/data/library';
-      process.env.INTERNAL_OXIGRAPH_DB_PATH = './relative/path/db'; // Deprecated, ignored
+      process.env.INTERNAL_OXIGRAPH_DB_PATH = './relative/path/db';
       process.env.INTERNAL_OXIGRAPH_STORE_ID = 'custom-store';
       process.env.INTERNAL_OXIGRAPH_LOAD_METHOD = 'REMOTE-SPARQL';
       process.env.INTERNAL_OXIGRAPH_BOOTSTRAP_SOURCE = JSON.stringify({
@@ -223,8 +215,6 @@ describe('server/config', () => {
       expect(config.internalBackend).toEqual({
         type: 'oxigraph-persistent',
         storeId: 'custom-store',
-        // persistPath is deprecated - oxigraph JS doesn't support RocksDB
-        persistPath: path.resolve('./relative/path/db'),
         loadMethod: 'remote-sparql',
         sourceConfig: {
           remoteEndpoint: 'https://example.org/sparql',

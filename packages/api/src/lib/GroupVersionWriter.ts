@@ -24,6 +24,7 @@
 
 import type { FastifyRequest } from 'fastify';
 import { mintId } from './id.js';
+import { allocateVersion, setCurrentVersion } from './versionNumbering.js';
 import { AuthorizationError, requireLibraryMode, resolveOwningLibrary } from '../auth/enforce.js';
 import type { LdkitQueryGroup } from '../persistence/schemas/QueryGroupSchema.js';
 import type { LdkitLibrary } from '../persistence/schemas/LibrarySchema.js';
@@ -59,9 +60,23 @@ const NODE_REF: ReferenceRule = {
   allowedTypes: NODE_REFERENCE_TYPES,
 };
 
+/**
+ * Numbered and pointed at under the group's version lock (`allocateVersion`),
+ * so concurrent saves get consecutive numbers and the last to finish is current.
+ */
 export async function createGroupVersionFlat(
   groupId: string,
   body: AnyRecord,
+  authScope?: { request: FastifyRequest }
+): Promise<{ created: LdkitQueryGroupVersion; iriMap: Record<string, string> }> {
+  return allocateVersion('QueryGroupVersion', groupId, (nextVersion) =>
+    createGroupVersionFlatNumbered(groupId, body, nextVersion, authScope));
+}
+
+async function createGroupVersionFlatNumbered(
+  groupId: string,
+  body: AnyRecord,
+  nextVersion: number,
   authScope?: { request: FastifyRequest }
 ): Promise<{ created: LdkitQueryGroupVersion; iriMap: Record<string, string> }> {
   const cacheCoordinator = getCacheCoordinator();
@@ -558,16 +573,6 @@ export async function createGroupVersionFlat(
     await cacheCoordinator.create(type, payload as never);
   }
 
-  // Computed here rather than at the top so the window between reading the
-  // highest version and writing the new one is as small as it can be without a
-  // store-side primitive. It does not close the race — see the plan's
-  // out-of-scope notes.
-  const existing = (cacheCoordinator.list('QueryGroupVersion') as LdkitQueryGroupVersion[])
-    .filter(v => v.isPartOf === groupId);
-  const nextVersion = existing.length > 0
-    ? Math.max(...existing.map(v => Number(v.version))) + 1
-    : 1;
-
   const versionId = mintId('groupVersion');
   const created = await cacheCoordinator.create('QueryGroupVersion', toLdkit({
     $id: versionId,
@@ -586,7 +591,7 @@ export async function createGroupVersionFlat(
     edges: edgeIds,
   }) as Partial<LdkitQueryGroupVersion> & { $id: string });
 
-  await cacheCoordinator.update('QueryGroup', groupId, { currentVersion: versionId });
+  await setCurrentVersion('QueryGroup', groupId, versionId);
 
   return { created: (created ?? { $id: versionId }) as LdkitQueryGroupVersion, iriMap };
 }

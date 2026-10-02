@@ -33,7 +33,6 @@ async function ensureLibraryStore() {
     storeType: 'persistent',
     loadMethod: backendConfig.loadMethod,
     sourceConfig: backendConfig.sourceConfig,
-    persistPath: backendConfig.persistPath,
   });
 
   return backendConfig;
@@ -41,7 +40,7 @@ async function ensureLibraryStore() {
 
 async function exportLibraryStore(outPath?: string) {
   const backendConfig = await ensureLibraryStore();
-  console.log(`Exporting library store "${backendConfig.storeId}" from ${backendConfig.persistPath}`);
+  console.log(`Exporting library store "${backendConfig.storeId}" from ${backendConfig.storageDir}`);
 
   await oxigraphStoreManager.serializePersistentStore(backendConfig.storeId);
   const defaultDumpName = `${backendConfig.storeId.replace(/[^a-zA-Z0-9]/g, '_')}.nq`;
