@@ -149,7 +149,7 @@ describe('ExecutionEngine', () => {
         result: mockResult,
         resultNodeId: 'node1'
       });
-      expect(mockExecutor.selectQueryParsed).toHaveBeenCalledWith('SELECT ?entity WHERE { ?entity ?p ?o }');
+      expect(mockExecutor.selectQueryParsed).toHaveBeenCalledWith('SELECT ?entity WHERE { ?entity ?p ?o }', { signal: expect.any(AbortSignal) });
     });
 
     it('executes a single ASK node', async () => {
@@ -198,7 +198,7 @@ describe('ExecutionEngine', () => {
         result: true,
         resultNodeId: 'node1'
       });
-      expect(mockExecutor.askQuery).toHaveBeenCalledWith('ASK WHERE { ?x ?p ?o }');
+      expect(mockExecutor.askQuery).toHaveBeenCalledWith('ASK WHERE { ?x ?p ?o }', { signal: expect.any(AbortSignal) });
     });
 
     it('executes a single CONSTRUCT node', async () => {
@@ -250,7 +250,7 @@ describe('ExecutionEngine', () => {
       });
       expect(mockExecutor.constructQueryParsed).toHaveBeenCalledWith(
         'CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }',
-        { acceptHeader: undefined }
+        { acceptHeader: undefined, signal: expect.any(AbortSignal) }
       );
     });
 
@@ -352,7 +352,7 @@ describe('ExecutionEngine', () => {
       });
       expect(mockExecutor.constructQueryParsed).toHaveBeenCalledWith(
         'DESCRIBE <http://example.org/resource>',
-        { acceptHeader: undefined }
+        { acceptHeader: undefined, signal: expect.any(AbortSignal) }
       );
     });
 
@@ -461,8 +461,8 @@ describe('ExecutionEngine', () => {
         result: dynamicResult,
         resultNodeId: 'dynamic'
       });
-      expect(mockExecutor.selectQueryParsed).toHaveBeenCalledWith('SELECT ?queryId WHERE { ?s ?p ?o }');
-      expect(mockExecutor.selectQueryParsed).toHaveBeenCalledWith('SELECT ?value WHERE { ?s ?p ?o }');
+      expect(mockExecutor.selectQueryParsed).toHaveBeenCalledWith('SELECT ?queryId WHERE { ?s ?p ?o }', { signal: expect.any(AbortSignal) });
+      expect(mockExecutor.selectQueryParsed).toHaveBeenCalledWith('SELECT ?value WHERE { ?s ?p ?o }', { signal: expect.any(AbortSignal) });
     });
 
     it('defaults to SELECT when query type is missing', async () => {
@@ -516,7 +516,7 @@ describe('ExecutionEngine', () => {
         result: mockResult,
         resultNodeId: 'node1'
       });
-      expect(mockExecutor.selectQueryParsed).toHaveBeenCalledWith('SELECT ?entity WHERE { ?entity ?p ?o }');
+      expect(mockExecutor.selectQueryParsed).toHaveBeenCalledWith('SELECT ?entity WHERE { ?entity ?p ?o }', { signal: expect.any(AbortSignal) });
     });
   });
 
@@ -864,7 +864,7 @@ describe('ExecutionEngine', () => {
       });
 
       // Verify execution order and argument application
-      expect(mockExecutor.selectQueryParsed).toHaveBeenNthCalledWith(1, 'SELECT ?entity WHERE { ?entity ?p ?o }');
+      expect(mockExecutor.selectQueryParsed).toHaveBeenNthCalledWith(1, 'SELECT ?entity WHERE { ?entity ?p ?o }', { signal: expect.any(AbortSignal) });
       expect(mockParser.applyArguments).toHaveBeenNthCalledWith(2, 
         'SELECT ?entity ?label WHERE { VALUES (?entity) { (UNDEF) } ?entity rdfs:label ?label }', 
         [{

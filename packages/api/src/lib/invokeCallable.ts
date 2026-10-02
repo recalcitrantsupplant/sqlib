@@ -14,6 +14,12 @@ export type InvokeCallableOptions = {
   offsets?: PageParameter[];
   /** For CONSTRUCT/DESCRIBE: the RDF syntax to ask the backend for. */
   acceptHeader?: string | null;
+  /**
+   * Stops a query in flight. Not passed to an UPDATE: aborting a write a
+   * remote store may already be applying would leave its outcome unknown, so
+   * an update is never cancelled once sent (a caller may stop waiting for it).
+   */
+  signal?: AbortSignal;
   parser?: SparqlQueryParser;
 };
 
@@ -51,10 +57,11 @@ export async function invokeCallable(
     ? parser.applyLimitOffsetParameters(queryString, limits, offsets)
     : queryString;
   const query = parser.applyArguments(paged, options.argumentSets ?? []);
+  const signal = options.signal;
 
   const type = toQueryTypeIri(queryType) || QueryTypeIri.select;
   if (type === QueryTypeIri.ask) {
-    const { result } = await executor.askQuery(query);
+    const { result } = await executor.askQuery(query, { signal });
     return { result };
   }
   if (type === QueryTypeIri.update) {
@@ -64,9 +71,10 @@ export async function invokeCallable(
   if (type === QueryTypeIri.construct || type === QueryTypeIri.describe) {
     const { result, contentType } = await executor.constructQueryParsed(query, {
       acceptHeader: options.acceptHeader || undefined,
+      signal,
     });
     return { result, contentType };
   }
-  const { result } = await executor.selectQueryParsed(query);
+  const { result } = await executor.selectQueryParsed(query, { signal });
   return { result };
 }

@@ -5,6 +5,7 @@ import { toError } from '../lib/toError.js';
 import * as oxigraph from 'oxigraph';
 import { quadToNQuad, termToNQuad } from '../lib/nquads.js';
 import { markStoreWritten } from '../lib/storeWrites.js';
+import { throwIfAborted } from '../lib/cancellation.js';
 
 /**
  * One term in SPARQL JSON results.
@@ -44,8 +45,10 @@ export class OxigraphSparqlExecutor implements ISparqlExecutor {
      * Converts Oxigraph's native result format to standard SPARQL JSON.
      * Note: Oxigraph always returns JSON format, does not support alternative formats.
      */
-    async selectQueryParsed(sparqlQuery: string): Promise<SparqlExecutionResult<SparqlSelectJsonOutput | string>> {
+    async selectQueryParsed(sparqlQuery: string, options?: SparqlQueryOptions): Promise<SparqlExecutionResult<SparqlSelectJsonOutput | string>> {
         debugLog(`Executing Oxigraph SELECT: ${sparqlQuery.substring(0, 100)}...`);
+        // Checked before, never during: an Oxigraph query is synchronous.
+        throwIfAborted(options?.signal);
         const startTime = performance.now();
         try {
             const results = this.store.query(sparqlQuery);
@@ -70,6 +73,7 @@ export class OxigraphSparqlExecutor implements ISparqlExecutor {
      */
     async constructQueryParsed(sparqlQuery: string, options?: SparqlQueryOptions): Promise<SparqlExecutionResult<string>> {
         debugLog(`Executing Oxigraph CONSTRUCT: ${sparqlQuery.substring(0, 100)}...`);
+        throwIfAborted(options?.signal);
         const startTime = performance.now();
         try {
             const results = this.store.query(sparqlQuery);
@@ -316,8 +320,9 @@ export class OxigraphSparqlExecutor implements ISparqlExecutor {
      * Executes a SPARQL ASK query against the Oxigraph store.
      * Returns a promise resolving to a boolean.
      */
-    async askQuery(sparqlAskQuery: string): Promise<SparqlExecutionResult<boolean | string>> {
+    async askQuery(sparqlAskQuery: string, options?: SparqlQueryOptions): Promise<SparqlExecutionResult<boolean | string>> {
         debugLog(`Executing Oxigraph ASK: ${sparqlAskQuery.substring(0, 100)}...`);
+        throwIfAborted(options?.signal);
         const startTime = performance.now();
         try {
             const result = this.store.query(sparqlAskQuery);

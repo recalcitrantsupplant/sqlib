@@ -14,6 +14,8 @@ import { toQueryTypeIri } from '../queryTypes.js';
 import { RuleSetExecutor } from '../RuleSetExecutor.js';
 import { etlService } from '../EtlService.js';
 import { invokeCallable } from '../invokeCallable.js';
+import { executionSignal, raceAbort, throwIfAborted } from '../cancellation.js';
+import { executionDeadlineMs, etlNodeMaxRows } from '../../config/executionLimits.js';
 import { tupleVariableNames } from './tupleNames.js';
 import {
   derivePatch,
@@ -70,6 +72,15 @@ export type ExecutionOptions = {
    */
   limits?: ExecutionPageParameter[];
   offsets?: ExecutionPageParameter[];
+  /** Stops the run: a route aborts it when the client disconnects. */
+  signal?: AbortSignal;
+  /**
+   * The most the whole run may take, in milliseconds; `0` for no deadline.
+   * Defaults to `SQLIB_EXECUTION_TIMEOUT_MS`. Checked before every node and
+   * aborting in-flight HTTP requests; see `config/executionLimits.ts` for what
+   * it cannot interrupt.
+   */
+  deadlineMs?: number;
 };
 
 const NODE_TYPES = ['StartNode', 'EndNode', 'QueryNode', 'DynamicQueryNode', 'RuleSetNode', 'PatchNode', 'DuckDbEtlNode'] as const;
@@ -111,6 +122,8 @@ type RunState = {
   rdf: RdfSources;
   /** Ephemeral stores this run created, destroyed when it ends. */
   ephemeralStores: Set<string>;
+  /** Fires at the run's deadline or when its caller stops it. */
+  signal: AbortSignal;
 };
 
 /** Runs one node, records what it produced, and returns its node-level result. */
@@ -153,6 +166,7 @@ export class ExecutionEngine {
     const portResults = new Map<string, NodeResult>();
     const startNodeGraphs = new Map<string, ExecutionDataGraphInput>();
     const rdfFormats = new Map<string, string>();
+    const stop = executionSignal(options?.signal, options?.deadlineMs ?? executionDeadlineMs());
     const run: RunState = {
       graph,
       initialArgs,
@@ -165,6 +179,7 @@ export class ExecutionEngine {
       rdfFormats,
       rdf: { results, portResults, startNodeGraphs, rdfFormats },
       ephemeralStores: new Set(),
+      signal: stop.signal,
     };
 
     try {
@@ -205,6 +220,7 @@ export class ExecutionEngine {
 
       return this.collectEndNodeResult(run);
     } finally {
+      stop.dispose();
       for (const storeId of run.ephemeralStores) {
         oxigraphStoreManager.destroyEphemeralStore(storeId);
       }
@@ -243,7 +259,11 @@ export class ExecutionEngine {
     hooks?.onNodeStart?.(node, orderIndex);
     let result: NodeResult;
     try {
-      result = await this.runners.get(nodeType)!(node, run);
+      // A run stopped by its deadline or its caller fails at the node it
+      // would have run next, or at the one it was waiting on: either way the
+      // failure names a node.
+      throwIfAborted(run.signal);
+      result = await raceAbort(this.runners.get(nodeType)!(node, run), run.signal);
     } catch (error__u: unknown) {
       const error = toError(error__u);
       hooks?.onNodeError?.(node, error, performance.now() - startedAt, orderIndex);
@@ -281,6 +301,7 @@ export class ExecutionEngine {
       limits,
       offsets,
       acceptHeader: run.acceptHeader,
+      signal: run.signal,
       parser: this.parser,
     });
     run.results.set(node.id, result);
@@ -311,6 +332,7 @@ export class ExecutionEngine {
     const executionResult = await this.ruleSetExecutor.execute(ruleSetVersion, {
       initialGraph: rdfSeed?.content || undefined,
       initialGraphFormat: rdfSeed?.format,
+      signal: run.signal,
     });
     const graphResult = executionResult.finalGraphNQuads ?? executionResult.finalGraphContent ?? '';
     run.results.set(node.id, graphResult);
@@ -362,6 +384,11 @@ export class ExecutionEngine {
       columnDefs: columns,
       executor,
       chunkSize: etlJobVersion.chunkSize || 1000,
+      // Whole or not at all: a truncated source would hand the rest of the
+      // group a confident answer over part of the data.
+      maxRows: etlNodeMaxRows(),
+      maxRowsPolicy: 'fail',
+      signal: run.signal,
       onOutput: async (rdf, chunk) => {
         outputs.push({ content: rdf, format: rdfFormatFromMediaType(chunk.contentType) });
       },

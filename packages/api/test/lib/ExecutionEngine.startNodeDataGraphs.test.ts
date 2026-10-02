@@ -173,7 +173,7 @@ describe('ExecutionEngine — data graph inputs on the start node', () => {
     expect(ruleSetExecutor.execute).toHaveBeenCalledWith(
       expect.objectContaining({ $id: 'urn:rsv:1' }),
       // In the syntax the caller named, not the N-Triples the executor assumes.
-      { initialGraph: GRAPH_TEXT, initialGraphFormat: 'turtle' },
+      { initialGraph: GRAPH_TEXT, initialGraphFormat: 'turtle', signal: expect.any(AbortSignal) },
     );
     expect(result).toBe('<urn:inferred> <urn:p> <urn:o> .');
   });
@@ -213,7 +213,7 @@ describe('ExecutionEngine — data graph inputs on the start node', () => {
     // is the one that reaches it — position, not name.
     expect(ruleSetExecutor.execute).toHaveBeenCalledWith(
       expect.anything(),
-      { initialGraph: '<http://example.org/c> <http://example.org/q> <http://example.org/d> .', initialGraphFormat: 'turtle' },
+      { initialGraph: '<http://example.org/c> <http://example.org/q> <http://example.org/d> .', initialGraphFormat: 'turtle', signal: expect.any(AbortSignal) },
     );
   });
 
@@ -268,7 +268,7 @@ describe('ExecutionEngine — data graph inputs on the start node', () => {
       ]),
     );
     // ...and the graph reached the rules, in the same run.
-    expect(ruleSetExecutor.execute).toHaveBeenCalledWith(expect.anything(), { initialGraph: GRAPH_TEXT, initialGraphFormat: 'turtle' });
+    expect(ruleSetExecutor.execute).toHaveBeenCalledWith(expect.anything(), { initialGraph: GRAPH_TEXT, initialGraphFormat: 'turtle', signal: expect.any(AbortSignal) });
   });
 
   it('loads a supplied graph into the ephemeral store of a SPARQL node that reads it', async () => {
@@ -398,6 +398,6 @@ describe('ExecutionEngine — data graph inputs on the start node', () => {
     const { result } = await engine.execute(graph);
 
     expect(result).toBe('<urn:inferred> <urn:p> <urn:o> .');
-    expect(ruleSetExecutor.execute).toHaveBeenCalledWith(expect.anything(), { initialGraph: undefined });
+    expect(ruleSetExecutor.execute).toHaveBeenCalledWith(expect.anything(), { initialGraph: undefined, signal: expect.any(AbortSignal) });
   });
 });
