@@ -13,6 +13,10 @@
  * that CI checks what the Tests screen shows would be gone.
  *
  * The assertion is a **ratchet**: nothing that conformed may stop conforming.
+ * The baseline and scoreboard are committed and rewritten only by a run with
+ * `SRL_W3C_UPDATE=1` — the same switch the srl harness reads — so a plain run
+ * never dirties the tree, and a missing baseline fails instead of being seeded
+ * from whatever this run happened to get.
  */
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -53,6 +57,7 @@ import type { LdkitTestVersion } from '../../src/persistence/schemas/TestVersion
 const w3cUrl = (rel: string) => fileURLToPath(new URL(`../../../srl/test/w3c/${rel}`, import.meta.url));
 const BASELINE_FILE = w3cUrl('library-expected-pass.json');
 const SCOREBOARD_FILE = w3cUrl('library-scoreboard.json');
+const UPDATE = process.env.SRL_W3C_UPDATE === '1';
 
 interface Verdict {
   name: string;
@@ -150,7 +155,7 @@ describe('W3C SPARQL-RL conformance, as library Tests', () => {
     expect(skipped, `entries the library could not express: ${JSON.stringify(skipped)}`).toEqual([]);
   });
 
-  it('writes the scoreboard', () => {
+  it('scores every category', () => {
     const scoreboard: Record<string, { pass: number; total: number }> = {};
     for (const verdict of verdicts) {
       const entry = (scoreboard[verdict.category] ??= { pass: 0, total: 0 });
@@ -158,7 +163,7 @@ describe('W3C SPARQL-RL conformance, as library Tests', () => {
       if (verdict.passed) entry.pass += 1;
     }
     if (skipped.length > 0) scoreboard.unseedable = { pass: 0, total: skipped.length };
-    writeFileSync(SCOREBOARD_FILE, `${JSON.stringify(scoreboard, null, 2)}\n`);
+    if (UPDATE) writeFileSync(SCOREBOARD_FILE, `${JSON.stringify(scoreboard, null, 2)}\n`);
     // eslint-disable-next-line no-console
     console.log(
       `[W3C conformance, as Tests] ${Object.entries(scoreboard)
@@ -170,9 +175,9 @@ describe('W3C SPARQL-RL conformance, as library Tests', () => {
 
   it('does not regress the ratchet baseline', () => {
     const passingNow = verdicts.filter(v => v.passed).map(v => v.name).sort();
-    if (!existsSync(BASELINE_FILE)) {
-      writeFileSync(BASELINE_FILE, `${JSON.stringify(passingNow, null, 2)}\n`);
-    }
+    if (UPDATE) writeFileSync(BASELINE_FILE, `${JSON.stringify(passingNow, null, 2)}\n`);
+    expect(existsSync(BASELINE_FILE), 'library-expected-pass.json is missing — run with SRL_W3C_UPDATE=1 to record one')
+      .toBe(true);
     const baseline: string[] = JSON.parse(readFileSync(BASELINE_FILE, 'utf8'));
     const nowSet = new Set(passingNow);
     const regressed = baseline.filter(name => !nowSet.has(name));
@@ -183,7 +188,7 @@ describe('W3C SPARQL-RL conformance, as library Tests', () => {
     expect(regressed, `these previously conformed and now fail: ${why}`).toEqual([]);
   });
 
-  it('reports newly-conforming entries (add them to library-expected-pass.json to lock them in)', () => {
+  it('reports newly-conforming entries (run with SRL_W3C_UPDATE=1 to lock them in)', () => {
     const baseline: string[] = existsSync(BASELINE_FILE) ? JSON.parse(readFileSync(BASELINE_FILE, 'utf8')) : [];
     const baseSet = new Set(baseline);
     const gained = verdicts.filter(v => v.passed && !baseSet.has(v.name)).map(v => v.name);

@@ -280,11 +280,17 @@ clause.
 `test/w3c/` holds a pinned snapshot of the W3C SPARQL-RL test suite, and
 `test/w3c.harness.test.ts` runs the three categories a parser-and-analyses
 package can answer — `syntax/`, `wellformed/` and `stratification/` — against
-the baseline in `test/w3c/expected-pass.json`. The current scores are recorded
-in `test/w3c/scoreboard.json`. The evaluation categories need a store and graph
-comparison, so they are driven from `packages/api` instead
-(`test/lib/w3cRulesSuite.harness.test.ts`), which writes its baseline back into
-this directory so every category's score is read in one place.
+the baseline in `test/w3c/expected-pass.json`. The evaluation categories
+(`eval/`, `eval2/`, `examples/`) assert an inferred graph, which needs a store,
+so they are evaluated through the library by `packages/api`
+(`test/lib/w3cRulesSuite.harness.test.ts`); this harness checks only that every
+rule set they evaluate parses, is well-formed and stratifies. The current
+scores are in `test/w3c/scoreboard.json` and, for the library run,
+`test/w3c/library-scoreboard.json`.
+
+Both harnesses only read their baselines and scoreboards. To record new results
+— after a snapshot refresh, or to lock in a gain — run them with
+`SRL_W3C_UPDATE=1` and commit the files they rewrite.
 
 ```bash
 pnpm --filter @sparql-query-lib/srl test
