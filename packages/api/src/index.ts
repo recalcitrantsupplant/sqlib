@@ -36,6 +36,7 @@ import {
   registerReadOnlyPlugin,
   resetReadOnly,
 } from './config/readOnly.js';
+import { buildCorsOptions, resolveCorsPolicy } from './config/cors.js';
 import {
   MAX_DATA_GRAPH_LIBRARY_BYTES,
   MAX_DATA_GRAPH_VERSION_BYTES,
@@ -696,23 +697,20 @@ async function configureApp(fastifyApp: typeof app, options: ConfigureOptions = 
     setupLazySerializer(fastifyApp);
   }
 
-  // Register CORS plugin
-  await fastifyApp.register(fastifyCors, {
-    // During development, allow all origins
-    origin: "*",
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    /*
-     * `Accept` is listed because the SPA negotiates a report format with it:
-     * `POST /tests/:id/run` with `Accept: application/rdf+xml` returns EARL
-     * rather than JSON. The header is only CORS-safelisted for a handful of
-     * values, so any other media type preflights — and a preflight that does
-     * not list it fails the whole request, which is why exporting a run failed
-     * from the browser while every other call succeeded.
-     */
-    allowedHeaders: ['Accept', 'Content-Type', 'Authorization', 'If-Match', 'mcp-session-id', 'X-Sqlib-Client-Id'],
-    exposedHeaders: ['ETag', 'Last-Modified', 'Server-Timing', 'mcp-session-id'],
-    credentials: true
-  });
+  /*
+   * An allowlist from `SQLIB_CORS_ORIGINS` (see `config/cors.ts`), read the
+   * same way the MCP transport reads it, since in `dual-http` both answer on
+   * this instance. Unset, only the SPA's dev server is allowed, and only under
+   * `NODE_ENV=development`: the SPA calls this API cross-origin from :3001.
+   */
+  const corsPolicy = resolveCorsPolicy();
+  if (corsPolicy.any || corsPolicy.origins.size > 0) {
+    fastifyApp.log.info(
+      { corsOrigins: [...(corsPolicy.any ? ['*'] : []), ...corsPolicy.origins] },
+      'CORS origins resolved'
+    );
+  }
+  await fastifyApp.register(fastifyCors, buildCorsOptions(corsPolicy));
 
   // Register multipart plugin
   await fastifyApp.register(fastifyMultipart);
@@ -723,9 +721,11 @@ async function configureApp(fastifyApp: typeof app, options: ConfigureOptions = 
 
   // Registered before any route so every request carries an AuthContext, in all
   // three modes. Grants load later (they need the entity cache); the plugin only
-  // validates tokens here.
+  // validates tokens here. It matches its public routes by registered pattern,
+  // which carries the base path whenever one is set.
+  const basePath = normalizeBasePath(process.env.APP_BASE_PATH);
   resetAuthConfig();
-  await registerAuthPlugin(fastifyApp);
+  await registerAuthPlugin(fastifyApp, { basePath });
 
   // After auth so a refusal is logged against a request that already carries a
   // context, and before every route so no write route can be reached without
@@ -890,7 +890,6 @@ async function configureApp(fastifyApp: typeof app, options: ConfigureOptions = 
   // own cache. See `registerNoStoreHook`.
   registerNoStoreHook(fastifyApp);
 
-  const basePath = normalizeBasePath(process.env.APP_BASE_PATH);
   const publicBasePath = normalizeBasePath(process.env.APP_PUBLIC_BASE_PATH) || basePath;
 
   if (basePath) {

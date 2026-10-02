@@ -120,10 +120,12 @@ vi.mock('../../src/persistence/utils/LibraryUtils.js', () => ({
   },
 }));
 
-// Mock crypto for consistent ID generation in tests
-vi.mock('crypto', () => ({
-  randomUUID: vi.fn(() => 'testuuid123'),
-}));
+// Mock crypto for consistent ID generation in tests. Counted, because two
+// entities minted at one id is a collision the coordinator refuses.
+vi.mock('crypto', () => {
+  let n = 0;
+  return { randomUUID: vi.fn(() => `testuuid${++n}`) };
+});
 
 vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => {
   const coordinator = {

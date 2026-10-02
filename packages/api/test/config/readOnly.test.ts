@@ -71,6 +71,16 @@ describe('the refusal policy', () => {
     expect(normalizeRouteUrl('/')).toBe('/');
   });
 
+  it('refuses a safe method on a route that declares it writes', () => {
+    for (const method of ['GET', 'HEAD']) {
+      expect(isRefusedWhenReadOnly(method, '/queries', { readOnlyMutating: true })).toBe(true);
+    }
+    // The opt-in outranks the allowlist: it is the handler's own statement.
+    expect(isRefusedWhenReadOnly('POST', '/format', { readOnlyMutating: true })).toBe(true);
+    expect(isRefusedWhenReadOnly('GET', '/queries', { readOnlyMutating: false })).toBe(false);
+    expect(isRefusedWhenReadOnly('GET', '/queries', {})).toBe(false);
+  });
+
   it('matches the route pattern, not a literal that resembles it', () => {
     // The hook is handed `routeOptions.url`, so a concrete id arrives as the
     // pattern that claimed it. A literal spelling must not be admitted.
@@ -90,11 +100,18 @@ describe('the hook, on a request', () => {
     app.post('/queries', async () => ({ handlerRan: true }));
     app.post('/format', async () => ({ handlerRan: true }));
     app.get('/queries', async () => ({ handlerRan: true }));
+    app.get('/writes-on-get', { config: { readOnlyMutating: true } }, async () => ({ handlerRan: true }));
     await app.ready();
   });
 
   afterEach(async () => {
     await app.close();
+  });
+
+  it('refuses a GET whose route opted in with readOnlyMutating', async () => {
+    const response = await app.inject({ method: 'GET', url: '/writes-on-get' });
+    expect(response.statusCode).toBe(405);
+    expect(response.body).not.toContain('handlerRan');
   });
 
   it('refuses a write with 405 and says why', async () => {

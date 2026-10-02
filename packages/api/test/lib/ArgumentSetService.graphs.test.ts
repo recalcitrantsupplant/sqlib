@@ -91,7 +91,7 @@ describe('graph bindings', () => {
     expect(detail.graphBindings).toHaveLength(1);
     expect(detail.graphBindings[0]).toMatchObject({ position: 0, dataGraphVersionId: GRAPH_VERSION });
 
-    const payload = await service.exportRuntimePayload([detail.id]);
+    const payload = await service.exportRuntimePayload([detail.id], { internal: true });
     expect(payload.dataGraphs).toEqual([
       { content: TURTLE, format: expect.any(String) },
     ]);
@@ -114,7 +114,7 @@ describe('graph bindings', () => {
 
     expect(detail.graphBindings.map(binding => binding.position)).toEqual([0, 1]);
 
-    const payload = await service.exportRuntimePayload([detail.id]);
+    const payload = await service.exportRuntimePayload([detail.id], { internal: true });
     expect(payload.dataGraphs.map(graph => graph.content)).toEqual([
       expect.stringContaining('http://ex/p'),
       expect.stringContaining('http://ex/q'),
@@ -150,7 +150,7 @@ describe('graph bindings', () => {
       mintedFrom: detail.id,
     });
 
-    const payload = await service.exportRuntimePayload([detail.id]);
+    const payload = await service.exportRuntimePayload([detail.id], { internal: true });
     expect(payload.dataGraphs[0].content).toContain('http://ex/p');
   });
 
@@ -195,7 +195,7 @@ describe('graph bindings', () => {
       name: 'positional',
       graphBindings: [{ dataGraphVersionId: GRAPH_VERSION }],
     });
-    const payload = await service.exportRuntimePayload([detail.id]);
+    const payload = await service.exportRuntimePayload([detail.id], { internal: true });
     expect(Object.keys(payload.dataGraphs[0]).sort()).toEqual(['content', 'format']);
     expect(payload.filledParameters).toContain(graphParameterKey(0));
   });
@@ -210,7 +210,7 @@ describe('parameter keys a set reports as filled', () => {
       graphBindings: [{ dataGraphVersionId: GRAPH_VERSION }],
     });
 
-    const payload = await service.exportRuntimePayload([detail.id]);
+    const payload = await service.exportRuntimePayload([detail.id], { internal: true });
     expect([...payload.filledParameters].sort()).toEqual([
       graphParameterKey(0),
       scalarParameterKey('limit', 'pageSize'),

@@ -51,6 +51,29 @@ function decodeIssuerUnverified(token: string): string | null {
   }
 }
 
+/**
+ * Key-resolution failures that are the token's doing, not the key set's.
+ *
+ * Everything else `createRemoteJWKSet` can throw comes from fetching the set —
+ * a timeout, a refused connection, a non-200, a body that is not a JWKS — and
+ * is ours to answer for with a 503. A `kid` the set does not hold is not one of
+ * those: the set was fetched fine and the token names a key nobody published.
+ * Reporting that as 503 blamed the server for a forged or stale token, and
+ * invited a client to retry it forever. jose already refuses to refetch for an
+ * unknown `kid` inside `cooldownDuration`, so a stream of made-up key ids costs
+ * one fetch per cooldown rather than one per request.
+ */
+const TOKEN_KEY_MISMATCH_CODES = new Set([
+  'ERR_JWKS_NO_MATCHING_KEY',
+  'ERR_JWKS_MULTIPLE_MATCHING_KEYS',
+  'ERR_JOSE_NOT_SUPPORTED',
+]);
+
+function isTokenKeyMismatch(error: unknown): boolean {
+  const code = (error as { code?: unknown } | null)?.code;
+  return typeof code === 'string' && TOKEN_KEY_MISMATCH_CODES.has(code);
+}
+
 function defaultJwksUri(issuer: string): string {
   const base = issuer.endsWith('/') ? issuer.slice(0, -1) : issuer;
   return `${base}/.well-known/jwks.json`;
@@ -115,10 +138,18 @@ export class TokenVerifier {
     }
 
     const keySet = this.jwksFor(issuerConfig);
+    const getKey: JWTVerifyGetKey = async (protectedHeader, flattened) => {
+      try {
+        return await keySet(protectedHeader, flattened);
+      } catch (error) {
+        if (isTokenKeyMismatch(error)) throw error;
+        throw new TokenError('jwks-unavailable', `Unable to fetch signing keys for ${issuer}.`);
+      }
+    };
 
     let payload: JWTPayload;
     try {
-      const verified = await jwtVerify(token, keySet, {
+      const verified = await jwtVerify(token, getKey, {
         issuer: issuerConfig.issuer,
         audience: issuerConfig.audience,
         algorithms: ALLOWED_ALGORITHMS,
@@ -126,12 +157,8 @@ export class TokenVerifier {
       });
       payload = verified.payload;
     } catch (error) {
-      const err = error as { code?: string; message?: string };
-      // Distinguish "we cannot check" from "the token is bad": a JWKS fetch
-      // failure must not be reported to the caller as an invalid token.
-      if (err.code === 'ERR_JWKS_NO_MATCHING_KEY' || err.code === 'ERR_JWKS_TIMEOUT') {
-        throw new TokenError('jwks-unavailable', `Unable to resolve signing keys for ${issuer}.`);
-      }
+      if (error instanceof TokenError) throw error;
+      const err = error as { message?: string };
       throw new TokenError('invalid', err.message ?? 'Token verification failed.');
     }
 

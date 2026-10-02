@@ -25,6 +25,7 @@ For the reasoning behind these choices rather than their values, see
 | `HTTP_HOST` | `0.0.0.0` | Listening address in `dual-http` mode. Falls back to `MCP_HTTP_HOST` when unset. |
 | `MCP_HTTP_PORT` | `3333` | Listening port in `streamable-http` mode (MCP only, at `/mcp`). |
 | `MCP_HTTP_HOST` | `0.0.0.0` | Listening address in `streamable-http` mode. |
+| `SQLIB_CORS_ORIGINS` | unset: `http://localhost:3001,http://127.0.0.1:3001` (the SPA dev server) when `NODE_ENV=development`, otherwise none | Browser origins allowed to read API and `/mcp` responses, comma-separated. A listed origin is echoed in `access-control-allow-origin` with `access-control-allow-credentials: true`; `*` allows every origin and never sends credentials; an origin not on the list gets no CORS headers, and its preflight gets 404. Set to the empty string to allow none even in development. A production deployment whose SPA is served from another origin than the API must list that origin. The API (`packages/api/src/config/cors.ts`) and the MCP transport read it the same way, since in `dual-http` and `streamable-http` modes they share one instance; `/mcp` answers its own `OPTIONS /mcp` preflight, with the MCP headers, and the API's plugin leaves that path alone. |
 | `PORT` | `3000` | Listening port when `packages/api` is started directly (`APP_MODE=api`). A value that does not parse as a number falls back to 3000. |
 | `FASTIFY_ADDRESS` | `0.0.0.0` | Listening address when `packages/api` is started directly. |
 | `APP_BASE_PATH` | empty | Mounts every API route under this prefix. A leading slash is added and trailing slashes are stripped; `/` means no prefix. |
@@ -209,7 +210,9 @@ caller the same answer. The two compose — a public site runs
 mints still cannot write, because the gate consults no context.
 
 The gate refuses every mutating method and then names its exceptions, so a route
-added later is refused until someone decides otherwise. The exceptions are the
+added later is refused until someone decides otherwise. A route that writes on a
+safe method declares it with `config: { readOnlyMutating: true }` in its route
+options, and is refused like an unlisted `POST`. The exceptions are the
 routes that compute an answer and store nothing: `/detect-inputs`,
 `/detect-outputs`, `/validate`, `/validate-rule-data`, `/format`, `/substitute`,
 `/execute`, `/sparql`, the SRL compile, analyse and preview routes, the rule and
@@ -235,8 +238,9 @@ Three things it deliberately does **not** do:
   UPDATEs included. Whether a store accepts a write is the store's answer:
   sqlib's own read-only backends refuse through `ReadOnlySparqlExecutor`, and
   an endpoint somebody else owns refuses, or does not, on its own terms. What
-  it does refuse is `?record=patch`, because recording a patch writes sqlib's
-  state.
+  it does refuse is `?record=patch`, on `GET` and `POST` alike, because
+  recording a patch writes sqlib's state. (`GET /sparql` refuses an UPDATE with
+  405 on every deployment, read-only or not: a GET must not change anything.)
 - **It does not enable anything.** `FEATURE_ETL`, `FEATURE_PLAYGROUND_ETL` and
   `FEATURE_ASSISTANT` are still off by default, and the ETL routes are absent
   from the exceptions above — turning a flag on is not enough to expose them on
@@ -281,18 +285,19 @@ and does not cover.
 
 | Name | Default | Effect |
 | --- | --- | --- |
-| `SQLIB_AUTH_MODE` | `disabled` | `disabled`, `dry-run` (or `dryrun`), or `required`. An empty value is `disabled`. Anything else throws. `dry-run` and `required` both require an issuer. |
+| `SQLIB_AUTH_MODE` | `disabled` | `disabled`, `dry-run` (or `dryrun`), or `required`. An empty value is `disabled`. Anything else throws. `dry-run` and `required` both require an issuer, and an audience for every issuer unless `SQLIB_AUTH_AUDIENCE_UNCHECKED=true`. |
 | `SQLIB_AUTH_ISSUER` | unset | OIDC issuer URL for a single-issuer deployment. |
 | `SQLIB_AUTH_AUDIENCE` | unset | Expected `aud` for that issuer. |
+| `SQLIB_AUTH_AUDIENCE_UNCHECKED` | `false` | Set to exactly `true` (case-insensitive) to start `dry-run` or `required` with an issuer that has no audience. Without an audience the `aud` claim is not checked, so any token that issuer minted for any application is accepted; without this flag that configuration throws at startup. Applies to `SQLIB_AUTH_ISSUERS_JSON` entries too. |
 | `SQLIB_AUTH_JWKS_URI` | unset | JWKS URL, when it is not the issuer's discovery default. |
 | `SQLIB_AUTH_CLAIM_GROUPS` | `groups` | Dot-path to the claim carrying group or role membership. |
 | `SQLIB_AUTH_CLAIM_CLIENT_ID` | `azp` | Dot-path to the claim used to recognise a machine-to-machine caller. |
-| `SQLIB_AUTH_ISSUERS_JSON` | unset | A JSON array of issuer objects (`issuer`, and optionally `audience`, `jwksUri`, `claimGroups`, `claimClientId`), for more than one issuer. When set it replaces the single-issuer variables above. Invalid JSON, a non-array, an empty array or an entry without a string `issuer` throws. Per-entry defaults are `groups` and `azp`. |
+| `SQLIB_AUTH_ISSUERS_JSON` | unset | A JSON array of issuer objects (`issuer`, `audience` — required in an enforcing mode unless `SQLIB_AUTH_AUDIENCE_UNCHECKED=true` — and optionally `jwksUri`, `claimGroups`, `claimClientId`), for more than one issuer. When set it replaces the single-issuer variables above. Invalid JSON, a non-array, an empty array or an entry without a string `issuer` throws. Per-entry defaults are `groups` and `azp`. |
 | `SQLIB_AUTH_CLOCK_SKEW_S` | `60` | Allowed clock skew in seconds when validating a token. A negative or non-numeric value throws. |
 | `SQLIB_AUTH_ADMIN_PRINCIPALS` | empty | Comma-separated raw claim values treated as administrators at boot, in the form `iss\|sub` or `iss\|group:value`. |
 | `SQLIB_AUTH_SEED_GRANTS` | unset | Path to a file of grants loaded at startup. |
 | `SQLIB_AUTH_ALLOW_LIBRARY_CREATE` | `all` | `all` or `admin`. Anything else throws. |
-| `SQLIB_AUTH_PROTECT_DOCS` | `false` | Set to exactly `true` (case-insensitive) to require a token for the API documentation routes. |
+| `SQLIB_AUTH_PROTECT_DOCS` | `false` | Set to exactly `true` (case-insensitive) to require a token for the API documentation routes (`/docs` and everything under it). `/` and `/health` stay public regardless. |
 
 ## Feature flags
 

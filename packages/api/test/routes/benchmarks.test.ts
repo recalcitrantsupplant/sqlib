@@ -111,10 +111,14 @@ describe('Benchmark Routes (/benchmark-experiments)', () => {
     };
     hoisted.mockCreate.mockResolvedValue(created);
 
+    const library = 'urn:sqlib:library:bench';
+    hoisted.mockGet.mockImplementation((id: string) =>
+      id === library ? { $id: library, '@type': 'Library' } : null);
+
     const res = await app.inject({
       method: 'POST',
       url: '/benchmark-experiments',
-      payload: { name: 'Benchmark A', status: 'Draft' },
+      payload: { name: 'Benchmark A', status: 'Draft', isPartOf: library },
     });
 
     expect(res.statusCode).toBe(201);

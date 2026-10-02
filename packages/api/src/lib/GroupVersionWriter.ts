@@ -77,11 +77,14 @@ export async function createGroupVersionFlat(
 
   // Mint permanent IRIs for every temporary id first, so that references
   // between resources in this payload resolve regardless of declaration order.
+  // An id that already names an entity is treated the same way: the canvas
+  // re-saves the IRIs of the version it loaded, and creating over them would
+  // edit that frozen snapshot's nodes (the coordinator refuses it).
   const processAndMapIds = (resources: AnyRecord[] | undefined, kind: string) => {
     if (!resources) return;
     for (const resource of resources) {
       const id = resource.id;
-      if (id && typeof id === 'string' && id.startsWith(TEMP_ID_PREFIX)) {
+      if (id && typeof id === 'string' && (id.startsWith(TEMP_ID_PREFIX) || cacheCoordinator.get(id))) {
         if (iriMap[id]) {
           throw new Error(`Duplicate temporary ID '${id}' detected.`);
         }
@@ -251,12 +254,14 @@ export async function createGroupVersionFlat(
      * payload is minting has no previous type to lose.
      */
     if (nodeType !== 'PatchNode' && !n.id?.startsWith?.(TEMP_ID_PREFIX)) {
-      const previous = cacheCoordinator.get(id) as { '@type'?: string } | null;
+      // Looked up by the IRI the payload carried, not `id`: a carried-over
+      // IRI is re-minted above, so `id` names the node about to be created.
+      const previous = cacheCoordinator.get(n.id) as { '@type'?: string } | null;
       if (previous?.['@type'] === 'PatchNode') {
         refs.fail(
           at('nodeType'),
           nodeType,
-          `would turn PatchNode ${id} into a ${nodeType}, which would run the update it only derives. ` +
+          `would turn PatchNode ${n.id} into a ${nodeType}, which would run the update it only derives. ` +
             `Send it back as a PatchNode, or delete the node and add a new one`,
         );
         continue;
@@ -331,12 +336,12 @@ export async function createGroupVersionFlat(
      * a legitimate edit and passes.
      */
     if (n.backendConfig === undefined && !n.id?.startsWith?.(TEMP_ID_PREFIX)) {
-      const previous = cacheCoordinator.get(id) as { backendConfig?: EphemeralBackendConfig } | null;
+      const previous = cacheCoordinator.get(n.id) as { backendConfig?: EphemeralBackendConfig } | null;
       if (previous?.backendConfig?.type === 'ephemeral-oxigraph') {
         refs.fail(
           at('backendConfig'),
           '',
-          `is absent, but node ${id} currently runs against ephemeral store ` +
+          `is absent, but node ${n.id} currently runs against ephemeral store ` +
             `${previous.backendConfig.storeId}; omitting it would silently drop that store. ` +
             `Send the config back, or null to clear it deliberately`,
         );
@@ -574,7 +579,7 @@ export async function createGroupVersionFlat(
     // it could still change. `immutable` on the request body is ignored rather
     // than honoured — there is no such thing as a mutable version.
     immutable: true,
-    canvasData: body.canvasData,
+    canvasData: remapCanvasData(body.canvasData, iriMap),
     startNode: startNodeId,
     endNode: endNodeId,
     executionNodes: nodeIds,
@@ -584,4 +589,41 @@ export async function createGroupVersionFlat(
   await cacheCoordinator.update('QueryGroup', groupId, { currentVersion: versionId });
 
   return { created: (created ?? { $id: versionId }) as LdkitQueryGroupVersion, iriMap };
+}
+
+/**
+ * The canvas snapshot, with every id this payload re-minted replaced by its
+ * minted IRI.
+ *
+ * The snapshot keys a node's position and label by the node's id as the client
+ * sent it — a temporary id, or the IRI of the version it loaded. Both are
+ * re-minted above, so without this the saved version would carry a layout
+ * keyed by ids none of its nodes have, and the canvas would lose it on reload.
+ * Any string value equal to a mapped id is replaced.
+ */
+function remapCanvasData(canvasData: unknown, iriMap: Record<string, string>): unknown {
+  if (typeof canvasData !== 'string' || canvasData.length === 0) return canvasData;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(canvasData);
+  } catch {
+    return canvasData;
+  }
+  let changed = false;
+  const remap = (value: unknown): unknown => {
+    if (typeof value === 'string') {
+      const minted = iriMap[value];
+      if (minted === undefined) return value;
+      changed = true;
+      return minted;
+    }
+    if (Array.isArray(value)) return value.map(remap);
+    if (value && typeof value === 'object') {
+      return Object.fromEntries(Object.entries(value).map(([key, inner]) => [key, remap(inner)]));
+    }
+    return value;
+  };
+  const remapped = remap(parsed);
+  // Untouched snapshots are stored byte for byte as they came.
+  return changed ? JSON.stringify(remapped) : canvasData;
 }

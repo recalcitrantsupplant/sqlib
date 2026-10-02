@@ -18,10 +18,10 @@
  *   unsaved body at all. Every section scratches today; the field stays
  *   nullable because "cannot hold an unsaved body" is a real shape a section
  *   can have, and the sidebar draws differently when it does.
- * - **What scopes it.** `libraryScoped` is false for Bench, because a
- *   benchmark experiment has no `isPartOf` — experiments are account-level,
- *   like backends. The rail's library switcher still scopes the rest of the
- *   app, it just does not filter this list.
+ * - **What scopes it.** `libraryScoped` is false for Bench. An experiment has
+ *   an owning library (`isPartOf`, which decides who may see and run it), but
+ *   it measures subjects that may come from several, so the list shows every
+ *   experiment the caller may read rather than the rail library's alone.
  */
 import type { FeatureFlagKey } from '@sparql-query-lib/types';
 import type { DraftSection } from '../composables/useCallableDrafts';
@@ -158,7 +158,7 @@ export const SECTION_DEFINITIONS: Record<ListSection, SectionDefinition> = {
     nounPlural: 'benchmarks',
     draftSection: 'bench',
     savedKinds: [{ type: 'benchmark', label: 'Benchmarks' }],
-    // A BenchmarkExperiment has no isPartOf; experiments are account-level.
+    // Owned by a library, but listed across them; see the header.
     libraryScoped: false,
     blurb:
       'A benchmark measures a callable rather than judging it. A run records iterations, per-node runs and observations, so timings can be read per node as well as per call.',

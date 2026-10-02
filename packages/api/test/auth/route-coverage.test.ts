@@ -148,37 +148,33 @@ type Protection =
 
 const MANIFEST: Record<string, Protection> = {
   /*
-   * Benchmark experiments are account-level: the schema has no `isPartOf`, so
-   * `resolveOwningLibrary` returns null and the entity guard abstains on every
-   * one of these routes. `benchmarks.ts` adds no handler-level check either.
+   * Benchmark experiments belong to a library (`isPartOf`), which the guard
+   * resolves for every `/:id` route. They used to have none, and these rows
+   * were fifteen `unguarded-unowned` and one `unfiltered-listing`: any
+   * authenticated principal could read, rewrite, delete and run any experiment
+   * in the deployment. An experiment stored before then still resolves to no
+   * library; `benchmarks.ts` makes that administrator-only rather than open.
    *
-   * In `required` mode that means any authenticated principal — including one
-   * holding no grants at all — may read, rewrite, delete and run any benchmark
-   * experiment in the deployment. `route-matrix.test.ts` pins that behaviour
-   * as it stands, labelled, so the fix has a failing expectation to flip
-   * rather than a silent gap to discover.
-   *
-   * The listing below is unfiltered for the same reason: there is nothing to
-   * filter it *by*. It is the one `unfiltered-listing` that a `filterReadable`
-   * call would not fix — that would empty the collection for everyone below
-   * admin — so it moves when experiments gain a scope, with the rows under it.
+   * The `/runs/:id` routes are `handler`: runs are stored outside the cache,
+   * so the guard cannot resolve a run id, and the handler follows the run to
+   * the version that defined it and requires Read on that library.
    */
-  'GET /benchmark-experiments': 'unfiltered-listing',
-  'POST /benchmark-experiments': 'unguarded-unowned',
-  'GET /benchmark-experiments/:id': 'unguarded-unowned',
-  'PUT /benchmark-experiments/:id': 'unguarded-unowned',
-  'DELETE /benchmark-experiments/:id': 'unguarded-unowned',
-  'GET /benchmark-experiments/:id/v': 'unguarded-unowned',
-  'POST /benchmark-experiments/:id/v': 'unguarded-unowned',
-  'GET /benchmark-experiments/:id/v/:version': 'unguarded-unowned',
-  'PATCH /benchmark-experiments/:id/v/:version': 'unguarded-unowned',
-  'GET /benchmark-experiments/:id/v/:version/runs': 'unguarded-unowned',
-  'POST /benchmark-experiments/:id/v/:version/freeze': 'unguarded-unowned',
-  'POST /benchmark-experiments/:id/v/:version/run': 'unguarded-unowned',
-  'GET /benchmark-experiments/runs/:id': 'unguarded-unowned',
-  'GET /benchmark-experiments/runs/:id/observations': 'unguarded-unowned',
-  'GET /benchmark-experiments/runs/:id/node-observations': 'unguarded-unowned',
-  'GET /benchmark-experiments/runs/:id/iteration-observations': 'unguarded-unowned',
+  'GET /benchmark-experiments': 'readable-listing',
+  'POST /benchmark-experiments': 'write-from-body',
+  'GET /benchmark-experiments/:id': 'read',
+  'PUT /benchmark-experiments/:id': 'write',
+  'DELETE /benchmark-experiments/:id': 'delete',
+  'GET /benchmark-experiments/:id/v': 'read',
+  'POST /benchmark-experiments/:id/v': 'write',
+  'GET /benchmark-experiments/:id/v/:version': 'read',
+  'PATCH /benchmark-experiments/:id/v/:version': 'write',
+  'GET /benchmark-experiments/:id/v/:version/runs': 'read',
+  'POST /benchmark-experiments/:id/v/:version/freeze': 'write',
+  'POST /benchmark-experiments/:id/v/:version/run': 'execute',
+  'GET /benchmark-experiments/runs/:id': 'handler',
+  'GET /benchmark-experiments/runs/:id/observations': 'handler',
+  'GET /benchmark-experiments/runs/:id/node-observations': 'handler',
+  'GET /benchmark-experiments/runs/:id/iteration-observations': 'handler',
 
   // Tests are library-scoped, so the guard resolves and enforces normally.
   'GET /tests': 'readable-listing',
@@ -996,33 +992,29 @@ describe('route coverage', () => {
 
   it('records how many routes are protected by nothing at all', async () => {
     /*
-     * Pinned as a number so it can only move deliberately. Every one of these
-     * is a benchmark route: the fix is to give BenchmarkExperiment an owning
-     * scope the guard can resolve, at which point this count drops and this
-     * expectation is what says so.
+     * Pinned as a number so it can only move deliberately. It was fifteen, all
+     * benchmark routes, until BenchmarkExperiment gained an owning library the
+     * guard could resolve. A route classified this way now is a new hole.
      */
     const unguarded = Object.entries(MANIFEST)
       .filter(([, protection]) => protection === 'unguarded-unowned')
       .map(([route]) => route);
 
-    expect(unguarded.length, unguarded.join('\n')).toBe(15);
-    expect(unguarded.every((route) => route.includes('/benchmark-experiments'))).toBe(true);
+    expect(unguarded, unguarded.join('\n')).toEqual([]);
   });
 
   it('records how many collection listings answer with everything', async () => {
     /*
      * The listing counterpart of the count above, and pinned for the same
      * reason: `unfiltered-listing` is a hole with a size rather than a design.
-     * It reached one after `GET /rule-sets` and `GET /tests` learned to filter,
-     * and the one left is the benchmark collection, which cannot filter until
-     * an experiment has a scope to filter by — so this count and the one above
-     * move together or not at all.
+     * The last was the benchmark collection, which filters now that an
+     * experiment has a library to filter by.
      */
     const unfiltered = Object.entries(MANIFEST)
       .filter(([, protection]) => protection === 'unfiltered-listing')
       .map(([route]) => route);
 
-    expect(unfiltered, unfiltered.join('\n')).toEqual(['GET /benchmark-experiments']);
+    expect(unfiltered, unfiltered.join('\n')).toEqual([]);
   });
 
   /*

@@ -147,12 +147,15 @@ export class ExecutorFactory {
 }
 ```
 
-Similarly for `ExecutionEngine`:
+`ExecutionEngine` is the exception: its `ExecutorFactory` has no default,
+because the factory carries whose grants the run is checked against. Pass
+`new ExecutorFactory({ request })` for a caller, `{ internal: true }` for sqlib
+itself, or a test double:
 
 ```typescript
 export class ExecutionEngine {
   constructor(
-    private readonly executorFactory = new ExecutorFactory(),  // Default
+    private readonly executorFactory: ExecutorFactory,  // Required
     private readonly parser = new SparqlQueryParser()
   ) {}
 }

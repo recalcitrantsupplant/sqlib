@@ -151,7 +151,7 @@ describeWithDuckDb('TestRunner — ETL job subjects', () => {
       [{ sqlFixture: PEOPLE_FIXTURE, expected: EXPECTED }],
     );
 
-    const result = await new TestRunner().runTestVersion(versionId);
+    const result = await new TestRunner({ internal: true }).runTestVersion(versionId);
 
     expect(result.message).toBe('');
     expect(result.passed).toBe(true);
@@ -171,7 +171,7 @@ describeWithDuckDb('TestRunner — ETL job subjects', () => {
       }],
     );
 
-    const result = await new TestRunner().runTestVersion(versionId);
+    const result = await new TestRunner({ internal: true }).runTestVersion(versionId);
 
     expect(result.passed).toBe(false);
     expect(result.cases[0].detail?.unexpected?.join('\n')).toContain('Grace');
@@ -191,7 +191,7 @@ describeWithDuckDb('TestRunner — ETL job subjects', () => {
       },
     ]);
 
-    const result = await new TestRunner().runTestVersion(versionId);
+    const result = await new TestRunner({ internal: true }).runTestVersion(versionId);
 
     expect(result.message).toBe('');
     expect(result.passed).toBe(true);
@@ -205,7 +205,7 @@ describeWithDuckDb('TestRunner — ETL job subjects', () => {
       [{ sqlFixture: 'CREATE TABLE people AS SELECT * FROM (' }],
     );
 
-    const result = await new TestRunner().runTestVersion(versionId);
+    const result = await new TestRunner({ internal: true }).runTestVersion(versionId);
 
     expect(result.passed).toBe(false);
     // Named as the fixture rather than as the source query: they are different
@@ -217,7 +217,7 @@ describeWithDuckDb('TestRunner — ETL job subjects', () => {
     etlJob();
     const versionId = etlTest({ expectationKind: 'smoke' }, [{}]);
 
-    const result = await new TestRunner().runTestVersion(versionId);
+    const result = await new TestRunner({ internal: true }).runTestVersion(versionId);
 
     expect(result.passed).toBe(false);
     expect(result.cases[0].message).toContain('people');
@@ -249,7 +249,7 @@ describeWithDuckDb('TestRunner — ETL job subjects', () => {
       }],
     );
 
-    const result = await new TestRunner().runTestVersion(versionId);
+    const result = await new TestRunner({ internal: true }).runTestVersion(versionId);
 
     expect(result.message).toBe('');
     expect(result.passed).toBe(true);
@@ -271,8 +271,8 @@ describe('TestRunner — ETL job expectations', () => {
       [{ sqlFixture: PEOPLE_FIXTURE, expected: '{"head":{"vars":[]},"results":{"bindings":[]}}' }],
     );
 
-    await expect(new TestRunner().runTestVersion(versionId)).rejects.toBeInstanceOf(TestNotRunnableError);
-    await expect(new TestRunner().runTestVersion(versionId)).rejects.toThrow(/graph expectation/);
+    await expect(new TestRunner({ internal: true }).runTestVersion(versionId)).rejects.toBeInstanceOf(TestNotRunnableError);
+    await expect(new TestRunner({ internal: true }).runTestVersion(versionId)).rejects.toThrow(/graph expectation/);
   });
 
   it('refuses an analysis expectation, which asks about an SRL document', async () => {
@@ -282,7 +282,7 @@ describe('TestRunner — ETL job expectations', () => {
       [{ expected: '{"check":"syntax","accepted":true}' }],
     );
 
-    await expect(new TestRunner().runTestVersion(versionId)).rejects.toBeInstanceOf(TestNotRunnableError);
+    await expect(new TestRunner({ internal: true }).runTestVersion(versionId)).rejects.toBeInstanceOf(TestNotRunnableError);
   });
 
   it('says which subject it could not find a version for', async () => {
@@ -292,7 +292,7 @@ describe('TestRunner — ETL job expectations', () => {
     // A missing subject version is "this test cannot run", not a red case: the
     // per-case catch re-raises `TestNotRunnableError` so it is reported once
     // rather than once per case.
-    await expect(new TestRunner().runTestVersion(versionId))
+    await expect(new TestRunner({ internal: true }).runTestVersion(versionId))
       .rejects.toThrow(/No ETL job version to run/);
   });
 });

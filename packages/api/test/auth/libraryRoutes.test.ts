@@ -49,10 +49,12 @@ vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => {
       return entity && entity['@type'] === type ? entity : null;
     },
     list: () => byType(type),
-    // Write-through the way the coordinator does it: no existence check on
-    // create, and the cache entry replaced outright — which is the behaviour
-    // `POST /libraries` leaned on. See `CacheCoordinator.create`.
+    // Write-through the way the coordinator does it, including its refusal to
+    // create over an id that is already taken. See `CacheCoordinator.create`.
     create: async (entity: Record<string, unknown>) => {
+      if (entities.has(entity.$id as string)) {
+        throw Object.assign(new Error(`${entity.$id} already exists.`), { statusCode: 409 });
+      }
       const stored = { ...entity, '@type': type };
       entities.set(entity.$id as string, stored);
       return stored;

@@ -2266,6 +2266,8 @@ async function saveAsBenchmark() {
       name: `${ruleSetName.value.trim() || 'Rule set'} — inputs`,
       description: null,
       status: 'Active',
+      // The experiment lives with the rule set it measures.
+      isPartOf: (ruleSetLibraryId.value || activeLibraryId.value)!,
     });
     await benchmarksStore.createVersion(experiment.id, {
       subjectSpecs: [{

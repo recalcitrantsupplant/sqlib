@@ -9,8 +9,8 @@ import { resolveBackendEnvAuth } from '../backendAuth.js';
 import { oxigraphStoreManager } from '../OxigraphStoreManager.js';
 import { backendTypeIriToKey, queryMethodIriToKey, resolveOxigraphConfig, type LdkitBackend } from '../../persistence/schemas/BackendSchema.js';
 import { config } from '../../server/config.js';
-import type { ExecutionAuthScope } from '../../auth/executionScope.js';
-import { assertBackendAccess } from '../../auth/executionScope.js';
+import type { ExecutionAuthScope, InternalExecution } from '../../auth/executionScope.js';
+import { assertBackendAccess, isInternalExecution } from '../../auth/executionScope.js';
 
 export class ExecutorFactory {
   private cache = new Map<string, ISparqlExecutor>();
@@ -22,8 +22,26 @@ export class ExecutorFactory {
    * group leg cannot run against a backend the caller may not reach — the
    * confused-deputy hole closes by construction rather than by remembering to
    * check in each orchestrator.
+   *
+   * The unscoped form has to be asked for (`{ internal: true }`), so a new
+   * caller cannot get server identity by leaving the argument out.
    */
-  constructor(private readonly authScope?: ExecutionAuthScope) {}
+  private readonly authScope: ExecutionAuthScope | undefined;
+
+  constructor(scope: ExecutionAuthScope | InternalExecution) {
+    this.authScope = isInternalExecution(scope) ? undefined : scope;
+  }
+
+  /**
+   * The caller this factory runs for, or `undefined` for internal work.
+   *
+   * Exposed for the engine, which makes the one authorization decision a
+   * backend check cannot: which *query* a DynamicQueryNode may be pointed at
+   * at runtime.
+   */
+  get callerScope(): ExecutionAuthScope | undefined {
+    return this.authScope;
+  }
 
   /**
    * Get an executor for a backend ID directly (without requiring a full ResolvedNode).
@@ -272,79 +290,6 @@ export class ExecutorFactory {
       }
       default:
         throw new Error(`Unsupported internal backend type: ${(backendConfig as { type: string }).type}`);
-    }
-  }
-
-  /**
-   * Synchronous version for backward compatibility
-   * Note: This will not work with oxigraph backends that need async initialization
-   */
-  getExecutorForNodeSync(node: ResolvedNode): ISparqlExecutor {
-    // Handle ephemeral oxigraph backends
-    if (node.backendConfig?.type === 'ephemeral-oxigraph') {
-      return this.createEphemeralExecutor(node);
-    }
-
-    const id = node.backendId;
-    if (!id) {
-      throw new Error(`Node ${node.id} requires a backendId because it does not have an ephemeral backend configuration.`);
-    }
-
-    if (id === LIBRARY_STORAGE_BACKEND_ID) {
-      const cachedInternal = this.cache.get(LIBRARY_STORAGE_BACKEND_ID);
-      if (cachedInternal) {
-        return cachedInternal;
-      }
-      if (config.internalBackend.type === 'http') {
-        const exec = this.createInternalHttpExecutor();
-        this.cache.set(LIBRARY_STORAGE_BACKEND_ID, exec);
-        return exec;
-      }
-      throw new Error('Library storage executor requires async initialization. Use getExecutorForNode() instead.');
-    }
-
-    const cached = this.cache.get(id);
-    if (cached) return cached;
-
-    // Handle regular backends
-    const backend = getCacheCoordinator().get(id) as LdkitBackend | null;
-    if (!backend || backend['@type'] !== 'Backend') {
-      throw new Error(`Backend not found for node ${node.id}: ${id}`);
-    }
-
-    const backendTypeKey = backendTypeIriToKey(backend.backendType);
-    if (!backendTypeKey) {
-      throw new Error(`Unsupported backend type for ${id}: ${backend.backendType}`);
-    }
-
-    switch (backendTypeKey) {
-      case 'http':
-        const exec = this.createHttpExecutor(backend);
-        this.cache.set(id, exec);
-        return exec;
-      
-      case 'oxigraphEphemeral':
-        const ephemeralStore = oxigraphStoreManager.getEphemeralStore(backend.$id) ?? oxigraphStoreManager.createEphemeralStore(backend.$id);
-        const ephemeralExec = new OxigraphSparqlExecutor(ephemeralStore);
-        this.cache.set(id, ephemeralExec);
-        return ephemeralExec;
-
-      case 'oxigraphMemory': {
-        // Hydration reads data graph content, which is async. A store that is
-        // already built can still be served synchronously; one that is not has
-        // to go through `getExecutorForNode()`.
-        const built = oxigraphStoreManager.getMemoryStore(backend.$id);
-        if (!built) {
-          throw new Error(
-            `Backend ${id} is an in-memory Oxigraph store that has not been hydrated yet. Use getExecutorForNode() instead.`,
-          );
-        }
-        // Not cached — see `createMemoryExecutor`.
-        return this.wrapForMode(new OxigraphSparqlExecutor(built), backend);
-      }
-      
-      default:
-        throw new Error(`Unsupported backend type for ${id}: ${backend.backendType}`);
     }
   }
 

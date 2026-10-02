@@ -28,10 +28,13 @@ Three values. **The default is `disabled`.**
 | --- | --- | --- |
 | `disabled` (default) | no | Every request gets a synthetic full-access context. Every check exists and passes. |
 | `dry-run` | no | A token, if presented, is verified and grants resolved; a request that would be denied is logged as `would-deny` and served anyway. |
-| `required` | yes | A request without a valid token gets `401` (or `503` if the JWKS endpoint cannot be reached, because that failure is the server's, not the caller's). |
+| `required` | yes | A request without a valid token gets `401` (or `503` if the JWKS endpoint cannot be fetched, because that failure is the server's, not the caller's). A token whose `kid` is not in the published key set is a `401`; an unknown `kid` refetches the key set at most once per 30-second cooldown. |
 
 Setting `dry-run` or `required` without configuring an issuer is a startup
-error, not a silent fallback.
+error, not a silent fallback. So is an issuer without an audience, unless
+`SQLIB_AUTH_AUDIENCE_UNCHECKED=true` says it is deliberate: with no audience the
+`aud` claim goes unchecked and a token the issuer minted for any other
+application is accepted.
 
 The design decision behind all three is that the request path is the same shape
 in every mode. The auth plugin is registered as an `onRequest` hook before any
@@ -40,8 +43,11 @@ skipping the decoration. Nothing downstream branches on "is auth on", so an
 enforcement point cannot be accidentally absent in one mode and present in
 another.
 
-`/health` and `/` are public in every mode. `/docs` is public unless
-`SQLIB_AUTH_PROTECT_DOCS=true`.
+`/health` and `/` are public in every mode. `/docs` and the routes under it are
+public unless `SQLIB_AUTH_PROTECT_DOCS=true`. Public routes are matched by the
+route pattern Fastify registered (after `APP_BASE_PATH`), not by the raw URL, so
+a route such as `/backends/:id/health` is not public because of its last
+segment.
 
 ### What is verified
 
@@ -82,10 +88,14 @@ serialised into the log.
 the same Fastify instance as the API, so the auth plugin's `onRequest` hook does
 cover it: under `required`, a request with no bearer token is refused before the
 transport sees it, and a token that is present is forwarded onto every
-`app.inject` call so tools run under that caller's grants. What does not exist
-is anything MCP-specific — no per-session identity, no per-tool authorization —
-and under the default `disabled` mode nothing is checked at all. The repository
-has no test pinning `/mcp` behaviour under `required`.
+`app.inject` call so tools run under that caller's grants. Each MCP session is
+bound to the caller that created it (a digest of the `Authorization` header, or
+of the verified token's issuer and subject), and a request on that session from
+anyone else gets 403, so a leaked session id does not hand over the session.
+What does not exist is per-tool authorization, and under the default `disabled`
+mode no token is checked at all: callers are told apart only by whatever
+`Authorization` header they send. `packages/mcp-server/test/http-server.test.ts`
+pins that `/mcp` refuses a request with no bearer under `required`.
 
 **The in-app assistant has no authorization of its own.** Its route module
 registers no entity guard and calls no enforcement helper. Its own header states
@@ -118,8 +128,12 @@ do.
 
 A three-tier model is designed. Tier 1 — claims mapped to allowed backends, so
 a caller without a grant on a backend cannot execute anything against it — is
-what ships, as the backend grants described above. Tiers 2 and 3 are not
-implemented:
+what ships, as the backend grants described above. It holds on every execution
+path a caller can start: `/execute`, `/sparql`, ETL, test runs and benchmark
+runs all acquire their executors from an `ExecutorFactory` carrying the
+caller's scope, and the factory's unscoped form has to be asked for by name
+(`{ internal: true }`), which only sqlib's own storage and system queries do.
+Tiers 2 and 3 are not implemented:
 
 - **Named-graph scoping.** Injecting `default-graph-uri` / `named-graph-uri` on
   every proxied request so the caller's own `FROM` cannot widen the dataset.
@@ -281,7 +295,10 @@ close a graph pattern or append an update.
 allowed to do. A saved query containing `SERVICE` federates; a saved update
 writes. `POST /sparql` takes arbitrary query text, subject only to a backend
 grant. Parameter values are safe; the query that consumes them is whatever
-somebody with write access to the library put there.
+somebody with write access to the library put there. An update goes over POST
+only: `GET /sparql` answers an UPDATE with 405, because any page a visitor opens
+can make their browser send a GET (a link, an image, a prefetch), and CORS stops
+the page reading the answer, not the request running.
 
 ## A read-only deployment
 
@@ -342,7 +359,12 @@ generic network failure.
    own cache and neither is told when the other writes.
 10. **Review what you export.** A static bundle carries no authorization, and
    updates are not exportable — read queries only.
-11. **A hosted multi-tenant deployment cannot enable ETL on shared
+11. **List the browser origins that may call the API in `SQLIB_CORS_ORIGINS`.**
+    Unset, a production deployment allows none, which is right when the SPA is
+    served from the API's own origin. A listed origin gets credentialed access;
+    `*` allows any origin without credentials. See
+    [configuration](../reference/configuration.md#server-and-transport).
+12. **A hosted multi-tenant deployment cannot enable ETL on shared
     infrastructure.** There is no setting that makes arbitrary SQL safe to offer
     to tenants who do not trust one another.
 

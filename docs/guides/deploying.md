@@ -190,7 +190,10 @@ reachable by anyone but you.
 which gives every request full access. `dry-run` validates tokens and logs what
 would have happened without refusing anything; `required` refuses. An enforcing
 mode needs at least one issuer — `SQLIB_AUTH_ISSUER` with `SQLIB_AUTH_AUDIENCE`,
-or `SQLIB_AUTH_ISSUERS_JSON` for several — and refuses to start without one.
+or `SQLIB_AUTH_ISSUERS_JSON` for several — and refuses to start without one. It
+also refuses an issuer with no audience, because without one any token that
+issuer minted for any application would be accepted; set
+`SQLIB_AUTH_AUDIENCE_UNCHECKED=true` only if that is really what you want.
 `SQLIB_AUTH_ADMIN_PRINCIPALS` names the principals that are administrators at
 boot.
 
@@ -199,9 +202,12 @@ it is a complete tool surface over every library and backend on the server. If
 the deployment serves `dual-http` or `mcp-http`, either enforce authentication
 or do not publish that path. See [connecting an MCP client](mcp-clients.md).
 
-**CORS is wide open.** The API registers `origin: "*"` with
-`credentials: true`. Narrow it, or front the API with something that does,
-before serving a browser origin you care about.
+**CORS allows no browser origin by default.** `SQLIB_CORS_ORIGINS` lists the
+origins that may read the API and `/mcp` (comma-separated). Unset, a production
+deployment allows none, which is what you want when the SPA and the API share an
+origin; if the SPA is served from another one, list it. A listed origin gets
+credentialed access; `*` allows every origin and never sends credentials. See
+[configuration](../reference/configuration.md#server-and-transport).
 
 **Check the feature flags.** `etl`, `playgroundEtl` and `assistant` default off
 for stated reasons: ETL takes arbitrary DuckDB SQL, which is a host filesystem

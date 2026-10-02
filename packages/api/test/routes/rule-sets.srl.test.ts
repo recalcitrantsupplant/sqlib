@@ -172,7 +172,7 @@ describe('RuleSets Routes — SRL document authoring', () => {
     expect(hoisted.createRuleVersion).not.toHaveBeenCalled();
     expect(hoisted.createRuleSetVersion).toHaveBeenCalledWith(
       RULESET_ID,
-      expect.objectContaining({ hasRule: ['urn:rv:1'] }),
+      expect.objectContaining({ hasRule: ['urn:rv:1'] }), expect.objectContaining({ request: expect.anything() })
     );
   });
 
@@ -286,7 +286,7 @@ describe('RuleSets Routes — SRL document authoring', () => {
       );
       expect(hoisted.createRuleSetVersion).toHaveBeenCalledWith(
         RULESET_ID,
-        expect.objectContaining({ hasDataBlock: ['urn:dbv:new'] }),
+        expect.objectContaining({ hasDataBlock: ['urn:dbv:new'] }), expect.objectContaining({ request: expect.anything() })
       );
     });
 
@@ -304,7 +304,7 @@ describe('RuleSets Routes — SRL document authoring', () => {
       expect(res.json().dataDetached).toEqual(['urn:dbv:1']);
       expect(hoisted.createRuleSetVersion).toHaveBeenCalledWith(
         RULESET_ID,
-        expect.objectContaining({ hasDataBlock: [] }),
+        expect.objectContaining({ hasDataBlock: [] }), expect.objectContaining({ request: expect.anything() })
       );
     });
 
@@ -323,7 +323,7 @@ describe('RuleSets Routes — SRL document authoring', () => {
       expect(hoisted.createDataBlockVersion).not.toHaveBeenCalled();
       expect(hoisted.createRuleSetVersion).toHaveBeenCalledWith(
         RULESET_ID,
-        expect.objectContaining({ hasDataBlock: ['urn:dbv:1'] }),
+        expect.objectContaining({ hasDataBlock: ['urn:dbv:1'] }), expect.objectContaining({ request: expect.anything() })
       );
     });
 
@@ -425,7 +425,7 @@ describe('RuleSets Routes — SRL document authoring', () => {
           // the same canonical form rules are stored in.
           tupleSeeds: 'TUPLE(<http://example/rel>, <http://example/a>)',
           tuplesEnabled: true,
-        }),
+        }), expect.objectContaining({ request: expect.anything() })
       );
     });
 
@@ -459,7 +459,7 @@ describe('RuleSets Routes — SRL document authoring', () => {
       });
       expect(hoisted.createRuleSetVersion).toHaveBeenCalledWith(
         RULESET_ID,
-        expect.objectContaining({ tupleSeeds: '', tuplesEnabled: false }),
+        expect.objectContaining({ tupleSeeds: '', tuplesEnabled: false }), expect.objectContaining({ request: expect.anything() })
       );
     });
   });

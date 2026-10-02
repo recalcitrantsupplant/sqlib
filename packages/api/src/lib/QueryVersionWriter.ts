@@ -131,7 +131,10 @@ export async function createQueryVersionFlat(queryId: string, body: AnyRecord): 
       if (!resource || typeof resource !== 'object') continue;
       const rawId = resource.id;
       if (typeof rawId !== 'string') continue;
-      if (!rawId.startsWith(tempIdPrefix)) continue;
+      // An id that already names an entity is a stand-in too: the client is
+      // re-saving a version it loaded, and creating over the old version's
+      // parts would edit that frozen snapshot (the coordinator refuses it).
+      if (!rawId.startsWith(tempIdPrefix) && !cacheCoordinator.get(rawId)) continue;
       if (!(rawId in iriMap)) {
         iriMap[rawId] = mintId(kind);
       }

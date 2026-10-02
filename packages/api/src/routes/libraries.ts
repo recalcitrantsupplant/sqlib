@@ -357,7 +357,7 @@ export default async function (fastify: FastifyInstance) {
                 repos.TestVersion.get(versionId) as LdkitTestVersion | null,
               getTestCase: (caseId) => repos.TestCase.get(caseId) as LdkitTestCase | null,
               resolveArgumentPayload: (argumentSetVersionId) =>
-                argumentSetService.exportRuntimePayload([argumentSetVersionId]).then(payload => ({
+                argumentSetService.exportRuntimePayload([argumentSetVersionId], { request }).then(payload => ({
                   arguments: payload.tupleList,
                   limits: payload.limits,
                   offsets: payload.offsets,
@@ -479,19 +479,10 @@ export default async function (fastify: FastifyInstance) {
       const { id: providedId, ...rest } = request.body;
       const id = providedId || mintId('library');
 
-      /*
-       * A create that names an existing IRI is not a create. `CacheCoordinator
-       * .create` does not look: it inserts and replaces the cache entry, and
-       * the grant below then hands the caller every mode on that IRI — so
-       * posting a library whose id is one you cannot read was a way to take it
-       * over, along with everything in it. Refused as a conflict, before
-       * anything is written and before any grant is minted.
-       */
-      if (providedId && repos.Library.get(id)) {
-        return reply.status(409).send({
-          error: `Library ${id} already exists. Update it instead, or create one without an id.`,
-        });
-      }
+      // A create that names an existing IRI is refused as a conflict (409) by
+      // `CacheCoordinator.create`, before anything is written and so before
+      // the grant below is minted: otherwise posting a library whose id is one
+      // you cannot read would hand you every mode on it.
 
       // The curated-backends escalation guard applies to a library's first
       // state as much as to a change of it: `allowedBackends` and

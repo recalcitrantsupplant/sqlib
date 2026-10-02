@@ -76,7 +76,7 @@ describe('ArgumentSetService', () => {
       scalarBindings: ['scalar1'],
     });
 
-    const payload = await service.exportRuntimePayload(['version1']);
+    const payload = await service.exportRuntimePayload(['version1'], { internal: true });
     expect(payload.tupleList).toHaveLength(1);
     expect(payload.tupleList[0].head.vars).toEqual(['varA']);
     expect(payload.tupleList[0].results.bindings).toEqual([
@@ -105,7 +105,7 @@ describe('ArgumentSetService', () => {
       scalarBindings: [],
     });
 
-    const payload = await service.exportRuntimePayload(['set1']);
+    const payload = await service.exportRuntimePayload(['set1'], { internal: true });
     expect(payload.tupleList).toHaveLength(0);
     expect(getSpy).toHaveBeenCalledWith('set1');
   });

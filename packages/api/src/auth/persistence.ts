@@ -12,7 +12,7 @@ import { AUTH_GRAPH_IRI } from './vocabulary.js';
 
 async function libraryStorageExecutor() {
   const { ExecutorFactory } = await import('../lib/orchestration/ExecutorFactory.js');
-  return new ExecutorFactory().getExecutorForBackendId(LIBRARY_STORAGE_BACKEND_ID);
+  return new ExecutorFactory({ internal: true }).getExecutorForBackendId(LIBRARY_STORAGE_BACKEND_ID);
 }
 
 /**

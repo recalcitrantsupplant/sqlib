@@ -229,6 +229,9 @@ describe('RuleSetWorkArea — create benchmark from the recipe', () => {
     await nextTick();
 
     expect(benchmarks.createExperiment).toHaveBeenCalledTimes(1);
+    // The experiment is owned by the rule set's library, which decides who may
+    // see and run it.
+    expect(benchmarks.createExperiment.mock.calls[0][0].isPartOf).toBe(LIBRARY_ID);
     const spec = sentSpec();
     expect(spec.subject).toBe(VERSION_ID);
     expect('backends' in spec).toBe(false);

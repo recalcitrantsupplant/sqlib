@@ -2,6 +2,8 @@ import { normalizeArguments as normalizeRuntimeArguments } from '@sparql-query-l
 import { SparqlQueryParser } from './parser.js';
 import type { ArgumentSet as RuntimeArgumentSet } from './query-chaining.js';
 import type { RuntimeArgumentPayload } from './ArgumentSetService.js';
+import type { FastifyRequest } from 'fastify';
+import type { InternalExecution } from '../auth/executionScope.js';
 import {
   describeParameterKey,
   scalarParameterKey,
@@ -136,7 +138,14 @@ export interface WireExecutionPayload {
  */
 export async function resolveExecutionPayload(
   payload: WireExecutionPayload,
-  service: { exportRuntimePayload: (ids: string[]) => Promise<RuntimeArgumentPayload> }
+  service: {
+    exportRuntimePayload: (
+      ids: string[],
+      scope: { request: FastifyRequest } | InternalExecution,
+    ) => Promise<RuntimeArgumentPayload>;
+  },
+  /** Who named the sets; see `ArgumentSetService.exportRuntimePayload`. */
+  scope: { request: FastifyRequest } | InternalExecution,
 ): Promise<{
   argumentSets: WireArgumentSet[] | undefined;
   limits: ExecutionParameter[] | undefined;
@@ -148,7 +157,7 @@ export async function resolveExecutionPayload(
     return { argumentSets: inlineArguments, limits, offsets };
   }
 
-  const stored = await service.exportRuntimePayload(argumentSetIds);
+  const stored = await service.exportRuntimePayload(argumentSetIds, scope);
   const filled = stored.filledParameters;
   const conflicts: string[] = [];
 

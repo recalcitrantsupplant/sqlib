@@ -43,7 +43,7 @@ import { materializeTupleSetVersionFromEtl, TupleSetEtlSourceError } from '../li
 import { ImmutableEntityError } from '../lib/immutability.js';
 import { createTupleSetSchema, updateTupleSetSchema } from '@sparql-query-lib/contracts/schema';
 import { registerEntityAuthGuard } from '../auth/entityGuard.js';
-import { filterReadable, requireEntityMode, AuthorizationError } from '../auth/enforce.js';
+import { AuthorizationError, filterReadable, requireContainmentWritable, requireEntityMode } from '../auth/enforce.js';
 
 export const tupleSetResponseSchema = {
   type: 'object',
@@ -442,6 +442,9 @@ export default async function (fastify: FastifyInstance) {
     if (!current) {
       return reply.status(404).send({ error: 'Not Found' });
     }
+
+    // Write on the destination library too, when the body moves it.
+    requireContainmentWritable(request, current, updates);
 
     const { valid, currentTag } = validateIfMatch(request, current);
     if (!valid) {

@@ -136,13 +136,21 @@ trust one another.
 
 ## Who may submit SQL
 
-Under `SQLIB_AUTH_MODE=required`, both SQL-taking routes require administrator
-access:
+Under `SQLIB_AUTH_MODE=required`, every route that takes or runs DuckDB SQL
+requires administrator access:
 
 - `POST /etl-jobs/preview`, via `adminSuffixes` on the route plugin's entity guard
   (`packages/api/src/routes/etl-jobs.ts`).
+- `POST /etl-jobs/:id/versions`, which stores the SQL every later run executes,
+  via an explicit `requireAdmin` in the handler.
+- `POST /etl-jobs/:id/execute`, which runs stored SQL, likewise.
 - `POST /playground/etl/execute`, via an explicit `requireAdmin` in the handler
   (`packages/api/src/routes/playground.ts`).
+
+Two paths run a stored job's SQL from outside this plugin and apply the same
+rule: `POST /tuple-sets/:id/versions/from-etl`
+(`packages/api/src/lib/tupleSetFromEtl.ts`) and running a test whose subject is
+an ETL job (`TestRunner`).
 
 Administrator rather than a library grant, because a library grant answers the wrong
 question. "May do anything to my own queries" is not "may read the host filesystem":
@@ -151,7 +159,7 @@ per-library mode describes it. `/etl-jobs/preview` owns no entity, so it was
 previously exempt from library resolution — which left it reachable by any
 authenticated principal at all.
 
-Both bullets are executed rather than described.
+Every bullet is executed rather than described.
 `packages/api/test/auth/sqlRoutesAdminOnly.test.ts` reads that list out of this
 documentation, mounts the real plugin behind each route, and requires a principal
 holding every mode on a library — and not administrator — to be refused. A route

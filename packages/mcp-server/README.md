@@ -19,6 +19,8 @@ Transport modes
 - Production defaults to streamable HTTP when `NODE_ENV=production` (or `MCP_TRANSPORT=streamable-http`), listening on `MCP_HTTP_HOST`/`MCP_HTTP_PORT`.
 - Force a mode manually with `MCP_TRANSPORT=stdio` or `MCP_TRANSPORT=streamable-http`.
 - Dual HTTP mode (single process, shared app): `MCP_TRANSPORT=dual-http` to expose API + MCP (`/mcp`) on one port.
+- Browser access to `/mcp` is limited to the origins in `SQLIB_CORS_ORIGINS` (comma-separated, or `*` for any origin without credentials). Unset, it allows the SPA dev server (`http://localhost:3001`) under `NODE_ENV=development` and nothing otherwise.
+- HTTP sessions are created only by `initialize`, answer 404 once unknown (re-initialise), and are bound to the creating caller's `Authorization` header: another caller gets 403.
 
 Local HTTPS (Traefik)
 ---------------------

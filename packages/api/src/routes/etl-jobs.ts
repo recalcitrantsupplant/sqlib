@@ -22,7 +22,7 @@ import {
   createEtlJobVersionSchema,
 } from '@sparql-query-lib/contracts/schema';
 import { registerEntityAuthGuard } from '../auth/entityGuard.js';
-import { AuthorizationError, filterReadable, requireLibraryMode } from '../auth/enforce.js';
+import { AuthorizationError, filterReadable, requireAdmin, requireLibraryMode } from '../auth/enforce.js';
 import { toEntityUrn } from '../lib/id.js';
 
 export default async function etlJobRoutes(fastify: FastifyInstance) {
@@ -274,6 +274,10 @@ export default async function etlJobRoutes(fastify: FastifyInstance) {
         },
       },
     }, async ({ request, reply }) => {
+    // A version is DuckDB SQL that `/:id/execute` and every test of the job
+    // will run, so storing one is submitting SQL: administrator, like
+    // `/preview`, rather than a library grant (docs/guides/etl.md).
+    requireAdmin(request, 'storing ETL SQL');
     const { id } = request.params;
     const body = request.body;
     const result = await etlService.createEtlJobVersion(id, body as Parameters<typeof etlService.createEtlJobVersion>[1]);
@@ -577,6 +581,9 @@ export default async function etlJobRoutes(fastify: FastifyInstance) {
         },
       },
     }, async ({ request, reply }) => {
+    // Running stored SQL is running SQL. Checked outside the try below, whose
+    // catch would otherwise have to remember to rethrow it.
+    requireAdmin(request, 'running ETL SQL');
     try {
       const { id } = request.params;
       const config = request.body;

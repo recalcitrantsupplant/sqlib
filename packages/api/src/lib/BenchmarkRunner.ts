@@ -5,6 +5,9 @@ import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
 import { mintId } from './id.js';
 import { SparqlQueryParser } from './parser.js';
 import { ExecutorFactory } from './orchestration/ExecutorFactory.js';
+import { assertBackendAccess, isInternalExecution, type ExecutionAuthScope, type InternalExecution } from '../auth/executionScope.js';
+import { requireLibraryMode, resolveOwningLibrary } from '../auth/enforce.js';
+import type { RunnerScope } from './TestRunner.js';
 import { ExecutionEngine, type ExecutionHooks } from './orchestration/ExecutionEngine.js';
 import { GraphBuilder } from './orchestration/GraphBuilder.js';
 import type { NodeResult, ResolvedNode } from './orchestration/types.js';
@@ -254,8 +257,9 @@ async function runWithConcurrency<T>(
 
 export class BenchmarkRunner {
   constructor(
+    /** Who the run executes for; see `RunnerScope` in `TestRunner`. */
+    private readonly scope: RunnerScope,
     private readonly argumentSetService = new ArgumentSetService(),
-    private readonly executorFactory = new ExecutorFactory(),
     private readonly parser = new SparqlQueryParser(),
     private readonly graphBuilder = new GraphBuilder(),
     /*
@@ -265,7 +269,33 @@ export class BenchmarkRunner {
      * caller does too.
      */
     private readonly ruleSetExecutorFactory: () => RuleSetExecutor = () => new RuleSetExecutor(),
+    /** How a scope becomes executors; a seam for tests, never a way to drop the scope. */
+    private readonly makeExecutorFactory: (scope: ExecutionAuthScope | InternalExecution) => ExecutorFactory =
+      scope => new ExecutorFactory(scope),
   ) {}
+
+  private readonly factoriesByLibrary = new Map<string | null, ExecutorFactory>();
+
+  /**
+   * The executors one subject's tasks may use, scoped to the caller.
+   *
+   * A version may measure subjects from several libraries, so the scope is per
+   * subject rather than per run: the caller needs `execute` on each subject's
+   * library, and each subject reaches its own library's curated backends.
+   * Called once per subject while planning, so a run the caller may not make
+   * is refused before any task starts.
+   */
+  private executorFactoryFor(subjectId: string): ExecutorFactory {
+    if (isInternalExecution(this.scope)) return this.makeExecutorFactory(this.scope);
+    const subjectLibrary = resolveOwningLibrary(getCacheCoordinator().get(subjectId));
+    requireLibraryMode(this.scope.request, subjectLibrary, 'execute');
+    let factory = this.factoriesByLibrary.get(subjectLibrary);
+    if (!factory) {
+      factory = this.makeExecutorFactory({ request: this.scope.request, viaLibrary: subjectLibrary });
+      this.factoriesByLibrary.set(subjectLibrary, factory);
+    }
+    return factory;
+  }
 
   async runExperimentVersion(versionId: string): Promise<BenchmarkRunResult> {
     const versionEntity = getCacheCoordinator().get(versionId) as LdkitBenchmarkExperimentVersion | null;
@@ -585,6 +615,7 @@ export class BenchmarkRunner {
       if (subjectType !== 'QueryVersion' && subjectType !== 'QueryGroupVersion' && subjectType !== 'RuleSetVersion') {
         throw new Error(`Unsupported benchmark subject type ${subjectType} for ${spec.subject}`);
       }
+      this.executorFactoryFor(spec.subject);
 
       const inputs = (spec.inputs && spec.inputs.length > 0)
         ? spec.inputs
@@ -596,6 +627,17 @@ export class BenchmarkRunner {
 
       if (subjectType === 'QueryVersion' && backends.length === 0) {
         throw new Error(`Benchmark subject ${spec.subject} requires at least one backend`);
+      }
+      // Checked here as well as when each executor is made, so a backend the
+      // caller may not use refuses the run rather than recording a column of
+      // failed observations. A group's backends are its nodes', checked per
+      // leg by the engine.
+      if (subjectType === 'QueryVersion' && !isInternalExecution(this.scope)) {
+        const viaLibrary = resolveOwningLibrary(subjectEntity);
+        for (const backend of backends) {
+          if (backend === EPHEMERAL_BACKEND_ID) continue;
+          assertBackendAccess({ request: this.scope.request, viaLibrary }, backend);
+        }
       }
 
       /*
@@ -735,7 +777,7 @@ export class BenchmarkRunner {
 
     let queryString = versionEntity.queryString;
     if (argumentSetId !== BENCHMARK_NO_ARGUMENTS_IRI) {
-      const runtimePayload = await this.argumentSetService.exportRuntimePayload([argumentSetId]);
+      const runtimePayload = await this.argumentSetService.exportRuntimePayload([argumentSetId], this.scope);
       if (runtimePayload.limits.length > 0 || runtimePayload.offsets.length > 0) {
         queryString = this.parser.applyLimitOffsetParameters(queryString, runtimePayload.limits, runtimePayload.offsets);
       }
@@ -745,7 +787,7 @@ export class BenchmarkRunner {
     }
 
     const queryType = toQueryTypeIri(versionEntity.queryType) || QueryTypeIri.select;
-    const executor = await this.resolveExecutorForBackend(backendId);
+    const executor = await this.resolveExecutorForBackend(subjectId, backendId);
 
     if (queryType === QueryTypeIri.ask) {
       const { result } = await executor.askQuery(queryString);
@@ -828,18 +870,18 @@ export class BenchmarkRunner {
 
     const initialArgs = argumentSetId === BENCHMARK_NO_ARGUMENTS_IRI
       ? []
-      : (await this.argumentSetService.exportRuntimePayload([argumentSetId])).tupleList;
+      : (await this.argumentSetService.exportRuntimePayload([argumentSetId], this.scope)).tupleList;
 
     const graph = this.graphBuilder.buildFromGroupVersion(versionEntity);
-    const engine = new ExecutionEngine();
+    const engine = new ExecutionEngine(this.executorFactoryFor(subjectId));
     const { result } = await engine.execute(graph, initialArgs, hooks);
     return result;
   }
 
-  private async resolveExecutorForBackend(backendId: string) {
+  private async resolveExecutorForBackend(subjectId: string, backendId: string) {
     if (backendId === LIBRARY_STORAGE_BACKEND_ID) {
       const fakeNode = this.buildBackendNode(backendId);
-      return this.executorFactory.getExecutorForNode(fakeNode);
+      return this.executorFactoryFor(subjectId).getExecutorForNode(fakeNode);
     }
 
     if (backendId === EPHEMERAL_BACKEND_ID) {
@@ -849,7 +891,7 @@ export class BenchmarkRunner {
     }
 
     const fakeNode = this.buildBackendNode(backendId);
-    return this.executorFactory.getExecutorForNode(fakeNode);
+    return this.executorFactoryFor(subjectId).getExecutorForNode(fakeNode);
   }
 
   private buildBackendNode(backendId: string): ResolvedNode {

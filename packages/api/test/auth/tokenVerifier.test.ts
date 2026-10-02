@@ -3,7 +3,7 @@
  * out of it. These cover the attacks that actually get used — algorithm
  * confusion, audience/issuer mix-ups, and expiry edges — not just the happy path.
  */
-import { describe, it, expect, beforeAll, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
 import { SignJWT, exportJWK, generateKeyPair, type JWK } from 'jose';
 import { buildAuthConfig } from '../../src/auth/config.js';
 import { TokenError, TokenVerifier } from '../../src/auth/tokenVerifier.js';
@@ -14,6 +14,7 @@ const AUDIENCE = 'sqlib-api';
 let privateKey: CryptoKey;
 let publicJwk: JWK;
 let fetchCalls = 0;
+let serveJwks: typeof fetch;
 
 function configFor(overrides: Record<string, string> = {}) {
   return buildAuthConfig({
@@ -44,7 +45,7 @@ beforeAll(async () => {
   publicJwk.alg = 'RS256';
 
   // Serve the JWKS locally: these tests must not depend on the network.
-  globalThis.fetch = (async (input: unknown) => {
+  serveJwks = globalThis.fetch = (async (input: unknown) => {
     fetchCalls += 1;
     const url = String(input);
     if (url.includes('/jwks')) {
@@ -59,7 +60,19 @@ beforeAll(async () => {
 
 afterEach(() => {
   fetchCalls = 0;
+  globalThis.fetch = serveJwks;
+  vi.useRealTimers();
 });
+
+/** What the plugin would answer for this rejection. */
+async function rejectionOf(promise: Promise<unknown>): Promise<TokenError> {
+  const error = await promise.then(
+    () => null,
+    (reason: unknown) => reason
+  );
+  expect(error).toBeInstanceOf(TokenError);
+  return error as TokenError;
+}
 
 describe('TokenVerifier.extractBearer', () => {
   it('reads a bearer token case-insensitively', () => {
@@ -109,11 +122,55 @@ describe('TokenVerifier.verify', () => {
     await expect(verifier.verify(token)).rejects.toMatchObject({ kind: 'invalid' });
   });
 
-  it('rejects a token for a different audience', async () => {
+  it('rejects a token for a different audience with 401', async () => {
     const verifier = new TokenVerifier(configFor());
     const token = await sign({ sub: 'user-1', aud: 'some-other-api' });
 
-    await expect(verifier.verify(token)).rejects.toMatchObject({ kind: 'invalid' });
+    const error = await rejectionOf(verifier.verify(token));
+    expect(error.kind).toBe('invalid');
+    expect(error.statusCode).toBe(401);
+  });
+
+  it('rejects a token naming an unpublished kid with 401, without refetching inside the cooldown', async () => {
+    const verifier = new TokenVerifier(configFor());
+    await verifier.verify(await sign({ sub: 'user-1' }));
+    expect(fetchCalls).toBe(1);
+
+    const forged = await new SignJWT({ sub: 'user-1' })
+      .setProtectedHeader({ alg: 'RS256', kid: 'not-published' })
+      .setIssuedAt()
+      .setIssuer(ISSUER)
+      .setAudience(AUDIENCE)
+      .setExpirationTime('5m')
+      .sign(privateKey);
+
+    // Was 503: the server blamed itself for the token's key id, and every
+    // retry was an invitation to refetch.
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const error = await rejectionOf(verifier.verify(forged));
+      expect(error.kind).toBe('invalid');
+      expect(error.statusCode).toBe(401);
+    }
+    expect(fetchCalls).toBe(1);
+
+    // Past the 30s cooldown an unknown kid may refetch once — a rotated key is
+    // how a legitimate one first appears — and is still a 401 when it is absent.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(Date.now() + 31_000);
+    const error = await rejectionOf(verifier.verify(forged));
+    expect(error.statusCode).toBe(401);
+    expect(fetchCalls).toBe(2);
+  });
+
+  it('reports an unreachable JWKS endpoint as 503', async () => {
+    globalThis.fetch = (async () => {
+      throw new TypeError('fetch failed');
+    }) as typeof fetch;
+    const verifier = new TokenVerifier(configFor());
+
+    const error = await rejectionOf(verifier.verify(await sign({ sub: 'user-1' })));
+    expect(error.kind).toBe('jwks-unavailable');
+    expect(error.statusCode).toBe(503);
   });
 
   it('rejects a token from an unconfigured issuer without fetching keys', async () => {

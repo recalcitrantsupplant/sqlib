@@ -166,9 +166,9 @@ describe('ExecutorFactory integration', () => {
     ).rejects.toThrow(AuthorizationError);
   });
 
-  it('leaves internal callers (no scope) unaffected', async () => {
+  it('leaves internal callers ({ internal: true }) unaffected', async () => {
     const { ExecutorFactory } = await import('../../src/lib/orchestration/ExecutorFactory.js');
-    const factory = new ExecutorFactory();
+    const factory = new ExecutorFactory({ internal: true });
 
     // No grant exists, but this factory carries no caller — it fails on the
     // missing backend, not on authorization.

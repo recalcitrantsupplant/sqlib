@@ -18,6 +18,9 @@
  * **Deny by default.** The gate refuses every mutating method and then names
  * the exceptions. Listing what to refuse instead would silently admit every
  * write route added afterwards, which is the failure this exists to prevent.
+ * The method is a proxy for "writes", and a route whose handler writes on a
+ * safe method says so itself with `config: { readOnlyMutating: true }` in its
+ * route options; the gate then refuses it like any unlisted POST.
  *
  * **What it does not do is refuse SPARQL.** `POST /sparql` passes through
  * untouched, UPDATEs included. Whether a store accepts a write is the store's
@@ -26,10 +29,23 @@
  * on its own terms. A gate here would be sqlib inventing a policy for a
  * database it does not own, and refusing an update a visitor is entitled to
  * make against their own triplestore. What it does refuse is `?record=patch`,
- * because recording a patch writes sqlib's state — see `routes/sparql.ts`.
+ * on either verb, because recording a patch writes sqlib's state — see
+ * `routes/sparql.ts`, which also refuses an UPDATE over GET on every
+ * deployment, since that is about the method rather than about this flag.
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+
+declare module 'fastify' {
+  interface FastifyContextConfig {
+    /**
+     * This route writes sqlib's own state even though its method is safe, so a
+     * read-only deployment refuses it. Beside the handler rather than in a list
+     * here, because the claim is about the handler and should move with it.
+     */
+    readOnlyMutating?: boolean;
+  }
+}
 
 /** Methods the gate refuses unless the route is named below. */
 export const MUTATING_METHODS: readonly string[] = ['POST', 'PUT', 'PATCH', 'DELETE'];
@@ -112,8 +128,19 @@ export function normalizeRouteUrl(url: string): string {
   return path;
 }
 
-/** Whether a read-only deployment refuses this route. */
-export function isRefusedWhenReadOnly(method: string, routeUrl: string): boolean {
+/**
+ * Whether a read-only deployment refuses this route.
+ *
+ * A route that opted in with `readOnlyMutating` is refused whatever its method
+ * and whatever the allowlist says: the opt-in is the handler's own statement
+ * that it writes, and an allowlist entry is a claim that it does not.
+ */
+export function isRefusedWhenReadOnly(
+  method: string,
+  routeUrl: string,
+  routeConfig?: { readOnlyMutating?: boolean }
+): boolean {
+  if (routeConfig?.readOnlyMutating === true) return true;
   if (!MUTATING_METHODS.includes(method.toUpperCase())) return false;
   return !allowed.has(normalizeRouteUrl(routeUrl));
 }
@@ -154,7 +181,7 @@ export async function registerReadOnlyPlugin(app: FastifyInstance): Promise<void
     // would answer 405 for every typo, and say that a write route exists.
     if (!routeUrl) return;
 
-    if (isRefusedWhenReadOnly(request.method, routeUrl)) {
+    if (isRefusedWhenReadOnly(request.method, routeUrl, request.routeOptions.config)) {
       request.log.info(
         { readOnly: true, route: `${request.method} ${routeUrl}` },
         'Refused a write on a read-only deployment'
