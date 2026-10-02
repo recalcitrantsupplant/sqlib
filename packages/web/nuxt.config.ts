@@ -129,6 +129,7 @@ export default defineNuxtConfig({
           '@sparql-query-lib/types/*': ['../types/src/*'],
           '@sparql-query-lib/runtime': ['../runtime/src/index.ts'],
           '@sparql-query-lib/runtime/args-element': ['../runtime/src/args-element.ts'],
+          '@sparql-query-lib/runtime/internal': ['../runtime/src/internal.ts'],
         },
       },
     },
@@ -338,6 +339,7 @@ export default defineNuxtConfig({
      * first. The other two workspace packages are aliased for the same reason.
      */
     '@sparql-query-lib/runtime/args-element': resolve(currentDir, '../runtime/src/args-element.ts'),
+    '@sparql-query-lib/runtime/internal': resolve(currentDir, '../runtime/src/internal.ts'),
     '@sparql-query-lib/runtime': resolve(currentDir, '../runtime/src/index.ts'),
   },
   runtimeConfig: {

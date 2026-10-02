@@ -19,6 +19,9 @@
  * - **Blank nodes are refused.** A blank node label is scoped to the document
  *   it appears in, so as a VALUES term it could join with nothing in the target
  *   store. Tuple set import refuses them for the same reason.
+ * - **A literal with both a datatype and a language tag is refused**, unless
+ *   the datatype is `rdf:langString` (or `rdf:dirLangString`), which is what a
+ *   language tag implies anyway and some RDF 1.1 stores spell out.
  *
  * Extracted so an exported bundle and `POST /execute` accept exactly the same
  * payload, refused with exactly the same messages.
@@ -43,7 +46,20 @@ export class InvalidArgumentError extends Error {
 
 const XSD_STRING = 'http://www.w3.org/2001/XMLSchema#string';
 
-function normalizeTerm(term: unknown, where: string): TermValue | undefined {
+/** The datatypes a language-tagged literal has by definition. */
+const LANG_DATATYPES = new Set([
+  'http://www.w3.org/1999/02/22-rdf-syntax-ns#langString',
+  'http://www.w3.org/1999/02/22-rdf-syntax-ns#dirLangString',
+]);
+
+/**
+ * Bring one wire term to the runtime shape: `uri`, or `literal` with at most
+ * one of a datatype and a language tag. `null`/`undefined` is an unbound cell.
+ *
+ * Also what a group runs an upstream row's cells through before splicing them
+ * downstream, so a Virtuoso-shaped answer chains exactly as it pastes.
+ */
+export function normalizeWireTerm(term: unknown, where: string): TermValue | undefined {
   if (term === null || term === undefined) return undefined;
   if (typeof term !== 'object') {
     throw new InvalidArgumentError(`${where} is not an RDF term object.`);
@@ -61,6 +77,11 @@ function normalizeTerm(term: unknown, where: string): TermValue | undefined {
   if (type === 'uri') return { type: 'uri', value };
   if (type === 'literal' || type === 'typed-literal') {
     const out: TermValue = { type: 'literal', value };
+    if (typeof lang === 'string' && typeof datatype === 'string' && !LANG_DATATYPES.has(datatype)) {
+      throw new InvalidArgumentError(
+        `${where} is a literal with both a datatype and a language tag; RDF allows one or the other.`,
+      );
+    }
     if (typeof lang === 'string') out['xml:lang'] = lang;
     else if (typeof datatype === 'string') out.datatype = datatype;
     else if (type === 'typed-literal') out.datatype = XSD_STRING;
@@ -108,7 +129,7 @@ export function normalizeArguments(
       }
       const out: Record<string, TermValue> = {};
       for (const [name, term] of Object.entries(row as Record<string, unknown>)) {
-        const normalized = normalizeTerm(term, `${at}, row ${rowIndex}, ?${name}`);
+        const normalized = normalizeWireTerm(term, `${at}, row ${rowIndex}, ?${name}`);
         if (normalized) out[name] = normalized;
       }
       return out;

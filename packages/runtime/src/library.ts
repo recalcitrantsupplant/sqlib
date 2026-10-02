@@ -35,7 +35,7 @@ import type {
   SparqlAskResults,
   SparqlSelectResults,
 } from './executor.js';
-import type { TermValue } from './sparql-terms.js';
+import { InvalidTermError, type TermValue } from './sparql-terms.js';
 
 /**
  * An argument set, in either the full wire form or the short form.
@@ -90,6 +90,11 @@ export function literal(
   value: string,
   options: { datatype?: string; lang?: string } = {},
 ): TermValue {
+  if (options.datatype !== undefined && options.lang !== undefined) {
+    throw new InvalidTermError(
+      'A literal takes a datatype or a language tag, not both: RDF does not allow a literal to carry both.',
+    );
+  }
   const term: TermValue = { type: 'literal', value };
   if (options.datatype !== undefined) term.datatype = options.datatype;
   if (options.lang !== undefined) term['xml:lang'] = options.lang;
@@ -133,8 +138,19 @@ function toWireArgumentSets(
   });
 }
 
+/** Freeze a value and everything reachable from it. */
+function deepFreeze<T>(value: T): T {
+  if (value !== null && typeof value === 'object' && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const child of Object.values(value)) deepFreeze(child);
+  }
+  return value;
+}
+
 /** A single exported query, bound to an executor. */
 export class QueryHandle {
+  private snapshot: Readonly<ExportedQuery> | undefined;
+
   constructor(
     readonly name: string,
     private readonly query: ExportedQuery,
@@ -149,11 +165,14 @@ export class QueryHandle {
    * The compiled query behind this handle.
    *
    * Read by {@link GroupHandle}, which has to see a node's slots to know which
-   * of them an edge fills. Treat it as the bundle's own data: it is frozen at
-   * export time and editing it invalidates the spans.
+   * of them an edge fills. It is a frozen deep copy, taken once: the spans are
+   * only true of the text they were exported with, so a caller that could edit
+   * the handle's own template could make every later splice land in the wrong
+   * place — and the bundle it came from stays theirs to do with as they like.
    */
-  get exported(): ExportedQuery {
-    return this.query;
+  get exported(): Readonly<ExportedQuery> {
+    this.snapshot ??= deepFreeze(structuredClone(this.query));
+    return this.snapshot;
   }
 
   /** The query's call signature: slot variables, and the page parameter names. */

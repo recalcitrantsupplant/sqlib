@@ -29,6 +29,12 @@
  * invisible in the workspace, where every internal caller imports the declaring
  * module directly.
  *
+ * An entry whose subpath ends in `/internal` is **not** surface: it is where a
+ * package keeps what its own workspace siblings share with it under no semver
+ * promise. It must still resolve and export something, but its names are left
+ * out of the report — listed by entry only — and do not count as "nameable"
+ * for a public signature, which must be writable from a promised entry.
+ *
  * Requires a build: the reports are generated from `dist/**\/*.d.ts`. CI runs
  * this from scripts/ci/publish-check.sh, after build.sh.
  *
@@ -351,6 +357,9 @@ const LONG_STRING_LITERAL = /"(?:[^"\\]|\\.){120,}"/g;
 
 // --- the report -------------------------------------------------------------
 
+/** A subpath carrying no semver promise: `./internal`, or anything ending in it. */
+const isInternalSubpath = (subpath) => subpath === './internal' || subpath.endsWith('/internal');
+
 /** Entry subpaths whose `types` condition names a declaration inside the package. */
 function entryPoints(manifest, dir) {
   const entries = [];
@@ -363,7 +372,7 @@ function entryPoints(manifest, dir) {
   return entries;
 }
 
-function renderReport(pkg, surfaces) {
+function renderReport(pkg, surfaces, internals) {
   const total = surfaces.reduce((sum, s) => sum + s.exports.length, 0);
   const lines = [
     `# Public API — \`${pkg.manifest.name}\``,
@@ -383,6 +392,13 @@ function renderReport(pkg, surfaces) {
     'would make every wording change a surface diff.',
     '',
   ];
+
+  if (internals.length > 0) {
+    const names = internals
+      .map((surface) => `\`${pkg.manifest.name}/${surface.subpath.slice(2)}\``)
+      .join(', ');
+    lines.push(`Not listed: ${names} — shared with sqlib's own packages, under no semver promise.`, '');
+  }
 
   // A subpath that re-exports another one — `./browser` is `.` plus the element
   // — would otherwise print every declaration twice, and a reader would have to
@@ -480,10 +496,11 @@ for (const pkg of publishable) {
   }
 
   let surfaces;
+  let internals;
   let declared;
   try {
     const cache = new Map();
-    surfaces = entries.map(({ subpath, file }) => {
+    const all = entries.map(({ subpath, file }) => {
       if (!existsSync(file)) {
         throw new SurfaceError(`${subpath} points at missing ${path.relative(pkg.dir, file)} — build first?`);
       }
@@ -494,6 +511,8 @@ for (const pkg of publishable) {
         exports: [...exportsMap.values()].sort((a, b) => a.name.localeCompare(b.name)),
       };
     });
+    surfaces = all.filter((surface) => !isInternalSubpath(surface.subpath));
+    internals = all.filter((surface) => isInternalSubpath(surface.subpath));
     declared = declaredNames(path.join(pkg.dir, 'dist'));
   } catch (error) {
     if (!(error instanceof SurfaceError)) throw error;
@@ -501,7 +520,7 @@ for (const pkg of publishable) {
     continue;
   }
 
-  const empty = surfaces.find((surface) => surface.exports.length === 0);
+  const empty = [...surfaces, ...internals].find((surface) => surface.exports.length === 0);
   if (empty) {
     fail(`${pkg.relDir}: entry "${empty.subpath}" exports nothing — a build that emitted no declarations reads the same as a package with no API.`);
     continue;
@@ -518,7 +537,7 @@ for (const pkg of publishable) {
     }
   }
 
-  const report = renderReport(pkg, surfaces);
+  const report = renderReport(pkg, surfaces, internals);
   const reportFile = path.join(pkg.dir, REPORT_NAME);
   const current = existsSync(reportFile) ? readFileSync(reportFile, 'utf8') : null;
 

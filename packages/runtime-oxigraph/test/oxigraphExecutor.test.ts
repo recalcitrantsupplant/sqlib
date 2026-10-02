@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { fromBundle, hashTemplateText, iri, type ExportBundle } from '@sparql-query-lib/runtime';
+import { fromBundle, iri, type ExportBundle } from '@sparql-query-lib/runtime';
+import { hashTemplateText } from '@sparql-query-lib/runtime/internal';
 import { oxigraphExecutor } from '../src/index.js';
 
 const DATA = `

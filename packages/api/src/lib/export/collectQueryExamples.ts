@@ -26,6 +26,7 @@
  */
 
 import type { ExportBundle, QueryExample, WireArgumentSet } from '@sparql-query-lib/runtime';
+import { sealBundle } from '@sparql-query-lib/runtime/internal';
 import type { LdkitTest } from '../../persistence/schemas/TestSchema.js';
 import type { LdkitTestVersion } from '../../persistence/schemas/TestVersionSchema.js';
 import type { LdkitTestCase } from '../../persistence/schemas/TestCaseSchema.js';
@@ -240,5 +241,7 @@ export async function attachExamplesToBundle(
   for (const [slug, list] of Object.entries(examples)) {
     bundle.queries[slug].examples = list;
   }
+  // An example is part of the query entry its integrity hash covers.
+  await sealBundle(bundle);
   return { bundle, skipped };
 }

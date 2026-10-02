@@ -22,6 +22,7 @@ import type {
   ExportedGroupEdge,
   ExportedQuery,
 } from '@sparql-query-lib/runtime';
+import { sealBundle } from '@sparql-query-lib/runtime/internal';
 import { SparqlQueryParser } from '../parser.js';
 import { QueryExportError, compileExportQuery, slugify } from './queryBundle.js';
 import type { ExportGroupInput, SkippedGroup } from './collectLibraryGroups.js';
@@ -196,5 +197,7 @@ export async function attachGroupsToBundle(
     bundle.groups = { ...(bundle.groups ?? {}), ...compiled };
   }
 
+  // The groups, and any query a node brought with it, get their integrity hash.
+  await sealBundle(bundle);
   return { bundle, skipped };
 }

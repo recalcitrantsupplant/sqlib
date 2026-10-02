@@ -33,8 +33,10 @@ The split follows three lines, and each one is a dependency direction somebody
 needed rather than a tidiness exercise.
 
 **A package exists where a second host needs the same code.** `runtime` holds
-the argument-application code — `serializeTerm`, `alignArgumentSets`,
-`substituteLimitOffset` — and `packages/api/src/lib/parser.ts` imports it rather
+the argument-application code — `serializeTerm`, `assignArgumentSets`,
+`substituteLimitOffset`, exported to sqlib's own packages from
+`@sparql-query-lib/runtime/internal` rather than the semver-promised root
+entry — and `packages/api/src/lib/parser.ts` imports it rather
 than reimplementing it. The comment at that import states the reason: importing
 rather than copying is what makes "the client substitutes exactly as the server
 does" true by construction. The same argument produced `rdf-delta` as a package

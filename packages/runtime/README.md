@@ -123,9 +123,15 @@ const lib = fromBundle(bundle, { executor: await oxigraphExecutor({ data: turtle
   scoping.
 - **Updates are not exported.** Read queries only: SELECT, ASK, CONSTRUCT, DESCRIBE.
 - **Bundles are generated, never edited.** Slot positions are offsets into the
-  query text, so editing that text by hand silently moves them. `fromBundle`
-  checks the structure on load; `verifyBundleIntegrity(bundle)` re-hashes the text
-  and is worth calling for a bundle fetched from somewhere you do not control.
+  query text, so editing that text by hand silently moves them, and editing a
+  prefix namespace silently changes which IRI every abbreviated term means.
+  `fromBundle` checks the structure on load, prefix rows included;
+  `verifyBundleIntegrity(bundle)` re-hashes every query and group whole and is
+  worth calling for a bundle fetched from somewhere you do not control.
+- **The supported surface is the root entry, `/browser` and `/args-element`.**
+  `@sparql-query-lib/runtime/internal` holds the machinery sqlib's own packages
+  share with the runtime (term serialisation, slot assignment, bundle hashing)
+  and carries no semver promise; `public-api.md` lists what does.
 
 ## The bundle format
 

@@ -105,22 +105,25 @@ const readJson = (file) => JSON.parse(readFileSync(file, 'utf8'));
 const CONSUMERS = {
   '@sparql-query-lib/runtime': {
     unloadable: {},
-    source: `import { fromBundle, iri, serializeTerm } from '@sparql-query-lib/runtime';
+    source: `import { describeTerm, fromBundle, iri } from '@sparql-query-lib/runtime';
 import type { QueryLibrary, TermValue } from '@sparql-query-lib/runtime';
 import { defineArgsElement } from '@sparql-query-lib/runtime/args-element';
 import { httpExecutor } from '@sparql-query-lib/runtime/browser';
+import { serializeTerm } from '@sparql-query-lib/runtime/internal';
 
 // Every entry point of the exports map, reached by specifier: a subpath that
-// resolves in the workspace and not in the tarball fails here.
+// resolves in the workspace and not in the tarball fails here. The internal
+// entry promises nothing about its names, but it still has to resolve.
 const term: TermValue = iri('https://example.org/thing');
 const rendered: string = serializeTerm(term, 'object');
+const described: string = describeTerm(term).display;
 
 declare const bundle: Parameters<typeof fromBundle>[0];
 const library: QueryLibrary = fromBundle(bundle, {
   executor: httpExecutor('https://example.org/sparql'),
 });
 
-export { rendered, library, defineArgsElement };
+export { rendered, described, library, defineArgsElement };
 `,
   },
   '@sparql-query-lib/runtime-oxigraph': {

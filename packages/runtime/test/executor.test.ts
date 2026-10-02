@@ -104,6 +104,28 @@ describe('httpExecutor', () => {
     ).toThrow(/No fetch implementation/);
   });
 
+  it('reports a 200 whose body is not JSON as an endpoint error, with the body', async () => {
+    // A login page, a proxy's error page, an endpoint that ignored Accept: all
+    // of these arrive as 200s, and a bare SyntaxError from JSON.parse said
+    // nothing about which endpoint had answered with what.
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response('<html>Please sign in</html>', { status: 200, headers: { 'content-type': 'text/html' } }),
+    );
+    const error = await httpExecutor('https://example.org/sparql', { fetch: fetchMock })
+      .execute(SELECT)
+      .catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(SparqlEndpointError);
+    expect(error).toMatchObject({ status: 200, body: '<html>Please sign in</html>' });
+    expect((error as Error).message).toMatch(/not SPARQL Results JSON \(text\/html\)/);
+  });
+
+  it('reports a 200 whose JSON is not an object as an endpoint error', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse('just a string'));
+    await expect(
+      httpExecutor('https://example.org/sparql', { fetch: fetchMock }).execute(SELECT),
+    ).rejects.toBeInstanceOf(SparqlEndpointError);
+  });
+
   it('reports a SPARQL endpoint error as its own type', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response('nope', { status: 500 }));
     const error = await httpExecutor('https://example.org/sparql', { fetch: fetchMock })

@@ -536,7 +536,7 @@ describe('SparqlQueryParser - applyArguments', () => {
       }
     ];
     expect(() => parser.applyArguments(queryString, argumentSets)).toThrow(
-      "Invalid argument type 'bnode' for variable 'bnode' in argument set 1. Only 'uri' and 'literal' are supported."
+      "Invalid argument for variable 'bnode' in argument set 1: a blank node cannot be passed as an argument"
     );
   });
 

@@ -1,4 +1,4 @@
-import { normalizeArguments as normalizeRuntimeArguments } from '@sparql-query-lib/runtime';
+import { normalizeArguments as normalizeRuntimeArguments } from '@sparql-query-lib/runtime/internal';
 import { SparqlQueryParser } from './parser.js';
 import type { ArgumentSet as RuntimeArgumentSet } from './query-chaining.js';
 import type { RuntimeArgumentPayload } from './ArgumentSetService.js';

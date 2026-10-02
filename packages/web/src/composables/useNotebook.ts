@@ -25,7 +25,7 @@
  *   promote-to-query-group is for.
  */
 import { computed, ref, watch, type Ref } from 'vue';
-import { toExecutionParameters } from '@sparql-query-lib/runtime';
+import { toExecutionParameters } from '@sparql-query-lib/runtime/internal';
 import type { Callable } from '../lib/callables';
 import {
   booleanValue,

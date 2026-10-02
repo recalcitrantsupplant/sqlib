@@ -11,6 +11,7 @@
  * stops exercising a branch is a golden that stops testing it.
  */
 
+import { sealBundle } from '@sparql-query-lib/runtime/internal';
 import { buildExportBundle } from '../../../../src/lib/export/queryBundle.js';
 import type { ExportBundle } from '@sparql-query-lib/runtime';
 
@@ -136,5 +137,6 @@ export async function buildFixtureBundle(): Promise<ExportBundle> {
     },
   };
 
-  return bundle;
+  // Hand-attached after the build, so sealed again as the route's stages do.
+  return sealBundle(bundle);
 }

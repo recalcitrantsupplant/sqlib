@@ -77,6 +77,7 @@ describe('attachGroupsToBundle', () => {
     expect(skipped).toEqual([]);
     expect(Object.keys(bundle.queries).sort()).toEqual(['cities-in-region', 'people-in-place']);
     expect(bundle.groups?.['people-by-region']).toEqual({
+      integrity: expect.stringMatching(/^sha256-[0-9a-f]{64}$/),
       name: 'People by region',
       nodes: {
         cities: { query: 'cities-in-region', sourceNode: 'n1' },

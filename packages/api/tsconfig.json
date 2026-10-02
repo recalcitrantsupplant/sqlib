@@ -11,7 +11,8 @@
       "@sparql-query-lib/types": ["../types/src/index.ts"],
       "@sparql-query-lib/types/*": ["../types/src/*"],
       "@sparql-query-lib/srl": ["../srl/src/index.ts"],
-      "@sparql-query-lib/runtime": ["../runtime/src/index.ts"]
+      "@sparql-query-lib/runtime": ["../runtime/src/index.ts"],
+      "@sparql-query-lib/runtime/internal": ["../runtime/src/internal.ts"]
     }
   },
   "include": [

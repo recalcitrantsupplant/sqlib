@@ -173,6 +173,51 @@ describe('term safety', () => {
     ).toThrow(/forbids in an IRIREF/);
   });
 
+  it('refuses a literal carrying both a datatype and a language tag', async () => {
+    // RDF 1.1 allows one or the other. The serialiser used to let the datatype
+    // win silently, which guessed at what the caller meant.
+    const lib = await library();
+    const both = {
+      type: 'literal' as const,
+      value: 'Perth',
+      datatype: 'http://www.w3.org/2001/XMLSchema#string',
+      'xml:lang': 'en',
+    };
+    expect(() =>
+      lib.query('people').text({
+        arguments: [{ head: { vars: ['city'] }, results: { bindings: [{ city: both }] } }],
+      }),
+    ).toThrow(/both a datatype and a language tag/);
+    expect(() => lib.query('people').text({ arguments: [{ bindings: [{ city: both }] }] })).toThrow(
+      /both a datatype and a language tag/,
+    );
+    expect(() => literal('Perth', { datatype: both.datatype, lang: 'en' })).toThrow(/not both/);
+  });
+
+  it('accepts rdf:langString beside a language tag, which is what the tag implies', async () => {
+    const lib = await library();
+    const text = lib.query('people').text({
+      arguments: [
+        {
+          head: { vars: ['city'] },
+          results: {
+            bindings: [
+              {
+                city: {
+                  type: 'literal',
+                  value: 'Perth',
+                  datatype: 'http://www.w3.org/1999/02/22-rdf-syntax-ns#langString',
+                  'xml:lang': 'en',
+                },
+              },
+            ],
+          },
+        },
+      ],
+    });
+    expect(text).toContain('VALUES ?city { "Perth"@en }');
+  });
+
   it('rejects a language tag outside the LANGTAG production', async () => {
     const lib = await library();
     expect(() =>
@@ -260,6 +305,27 @@ describe('running queries', () => {
   it('names the available queries when asked for one that is absent', async () => {
     const lib = await library();
     expect(() => lib.query('nope')).toThrow(/Available: people/);
+  });
+
+  it('hands out a frozen copy of the compiled query, not the bundle entry itself', async () => {
+    const bundle = await bundleOf({ people: PEOPLE() });
+    const handle = fromBundle(bundle).query('people');
+    const exported = handle.exported;
+
+    expect(exported).toEqual(bundle.queries.people);
+    expect(exported).not.toBe(bundle.queries.people);
+    expect(Object.isFrozen(exported)).toBe(true);
+    expect(Object.isFrozen(exported.template.slots[0])).toBe(true);
+    expect(Object.isFrozen(exported.template.prefixes)).toBe(true);
+    // Strict-mode code throws on a write to a frozen object, so a caller that
+    // tries to "adjust" a span finds out at once instead of corrupting splices.
+    expect(() => {
+      (exported.template.slots[0] as { start: number }).start = 0;
+    }).toThrow(TypeError);
+    expect(handle.exported).toBe(exported);
+
+    // A copy, so freezing it leaves the caller's own bundle as mutable as it was.
+    expect(Object.isFrozen(bundle.queries.people)).toBe(false);
   });
 
   it('exposes the call signature without reading spans', async () => {

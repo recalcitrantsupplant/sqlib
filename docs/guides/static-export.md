@@ -22,7 +22,11 @@ id and name, and a `queries` map keyed by a stable slug. Each entry carries
   placeholders, and the parameter names that fill them;
 - `inferredInputs`: the variables of each parameter slot, which is what a
   generated form or a typed declaration is built from;
-- `textHash`: a SHA-256 of `template.text`;
+- `textHash`: a SHA-256 of `template.text` alone, kept for readers that
+  predate `integrity`;
+- `integrity`: a SHA-256 of the canonical JSON (keys sorted, no whitespace) of
+  the whole entry except `integrity` itself — template, slots, prefixes, page
+  parameters, examples and provenance;
 - provenance: the QueryVersion the entry was compiled from.
 
 Optional members: `groups` (see [Query groups](#query-groups) below), per-query
@@ -31,9 +35,13 @@ export was filtered by.
 
 The bundle is generated, never edited. Slots are offsets into `template.text`, so
 editing that text by hand moves every slot after the edit without changing
-anything that looks wrong. `fromBundle` checks the structure on load;
-`verifyBundleIntegrity(bundle)` re-hashes the text and catches any edit, which is
-worth calling for a bundle fetched from somewhere you do not control.
+anything that looks wrong, and a prefix namespace decides which IRI every
+abbreviated term means. `fromBundle` checks the structure on load, including that
+every prefix row is a `[prefix, namespace]` pair with an emittable label and an
+absolute namespace. `verifyBundleIntegrity(bundle)` re-hashes each query's and
+each group's `integrity` and catches any edit to either, which is worth calling
+for a bundle fetched from somewhere you do not control. A bundle exported before
+`integrity` existed still loads, but does not verify: re-export it.
 
 ### Version 1 and what it promises
 

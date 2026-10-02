@@ -105,6 +105,12 @@ export default defineConfig({
         find: '@sparql-query-lib/tools',
         replacement: path.resolve(__dirname, '../tools/src/index.ts'),
       },
+      // Before the root entry: a string `find` also matches as a path prefix,
+      // so the root alias would turn `/internal` into `index.ts/internal`.
+      {
+        find: '@sparql-query-lib/runtime/internal',
+        replacement: path.resolve(__dirname, '../runtime/src/internal.ts'),
+      },
       {
         find: '@sparql-query-lib/runtime',
         replacement: path.resolve(__dirname, '../runtime/src/index.ts'),

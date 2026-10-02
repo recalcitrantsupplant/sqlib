@@ -149,8 +149,25 @@ export function httpExecutor(endpoint: string, options: HttpExecutorOptions = {}
         };
       }
 
-      const payload = (await response.json()) as SparqlSelectResults | SparqlAskResults;
-      return payload;
+      // A 200 is not proof of an answer: a login page, a proxy's error page or
+      // an endpoint that ignored `Accept` all arrive as 200s. Read the text so
+      // the caller gets the endpoint's own words, not a JSON parser's.
+      const body = await response.text();
+      let payload: unknown;
+      try {
+        payload = JSON.parse(body);
+      } catch {
+        payload = undefined;
+      }
+      if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) {
+        const contentType = response.headers.get('content-type') ?? 'no content type';
+        throw new SparqlEndpointError(
+          `SPARQL endpoint returned ${response.status} with a body that is not SPARQL Results JSON (${contentType}).`,
+          response.status,
+          body.slice(0, 2000),
+        );
+      }
+      return payload as SparqlSelectResults | SparqlAskResults;
     },
   };
 }

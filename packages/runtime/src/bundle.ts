@@ -13,12 +13,14 @@
  *   so the splice this runtime performs is known to agree with what the server
  *   would have produced.
  * - **The bundle is generated-only.** A slot is a span into `template.text`, so
- *   editing that text by hand silently moves every slot after the edit.
- *   {@link assertValidBundle} catches structural corruption on load, and
- *   {@link verifyBundleIntegrity} catches *any* edit by re-hashing the text.
+ *   editing that text by hand silently moves every slot after the edit, and
+ *   editing a prefix namespace silently changes which IRI every abbreviated term
+ *   means. {@link assertValidBundle} catches structural corruption on load, and
+ *   {@link verifyBundleIntegrity} catches *any* edit to a query or a group by
+ *   re-hashing the whole entry ({@link ExportedQuery.integrity}).
  */
 
-import { isSafeVariableName } from './sparql-terms.js';
+import { isAbsoluteIri, isSafePrefixLabel, isSafeVariableName } from './sparql-terms.js';
 import type { EmptyArgumentMode, QueryTemplate } from './query-template.js';
 import type { WireArgumentSet } from './arguments.js';
 import type { ExecutionParameter } from './limit-offset.js';
@@ -101,8 +103,21 @@ export interface ExportedQuery {
    * call without reading spans out of the template.
    */
   inferredInputs: string[][];
-  /** `sha256-<hex>` of `template.text`; see {@link verifyBundleIntegrity}. */
+  /**
+   * `sha256-<hex>` of `template.text` alone. Still written and still checked,
+   * because a reader older than {@link ExportedQuery.integrity} requires it,
+   * but it covers none of the slots, prefixes or page parameters — the hash
+   * that does is `integrity`.
+   */
   textHash: string;
+  /**
+   * `sha256-<hex>` of the canonical JSON of this whole entry, every field but
+   * `integrity` itself — template, slots, prefixes, page parameters, examples,
+   * provenance, and any field a newer exporter adds. See
+   * {@link verifyBundleIntegrity}. Optional only so a bundle exported before it
+   * existed still loads; verifying such a bundle fails and asks for a re-export.
+   */
+  integrity?: string;
   /** The QueryVersion this was compiled from. Provenance only, never resolved. */
   sourceVersion?: string;
   /**
@@ -180,6 +195,12 @@ export interface ExportedGroup {
   /** Provenance: the QueryGroup and the QueryGroupVersion compiled from. */
   sourceGroup?: string;
   sourceVersion?: string;
+  /**
+   * `sha256-<hex>` of the canonical JSON of this whole group but `integrity`
+   * itself: nodes, edges, mappings, result node. The same rule as
+   * {@link ExportedQuery.integrity}.
+   */
+  integrity?: string;
 }
 
 /** A library subset, compiled for client-side execution. */
@@ -265,6 +286,14 @@ function assertValidPageParameters(query: ExportedQuery, where: string): void {
   }
 }
 
+/** An `integrity` field is optional, but when present it must be a hash. */
+function assertIntegrityShape(integrity: unknown, where: string): void {
+  if (integrity === undefined) return;
+  if (typeof integrity !== 'string' || !integrity.startsWith('sha256-')) {
+    fail(`${where}: integrity must be a 'sha256-<hex>' string.`);
+  }
+}
+
 function assertValidTemplate(template: QueryTemplate, where: string): void {
   if (!template || typeof template !== 'object') fail(`${where}: template is missing.`);
   if (typeof template.text !== 'string' || template.text.length === 0) {
@@ -272,6 +301,23 @@ function assertValidTemplate(template: QueryTemplate, where: string): void {
   }
   if (!Array.isArray(template.slots)) fail(`${where}: template.slots must be an array.`);
   if (!Array.isArray(template.prefixes)) fail(`${where}: template.prefixes must be an array.`);
+  // A prefix row decides what `prefix:local` means in every spliced term, and
+  // nothing downstream re-checks it: the splice trusts the table it is handed.
+  template.prefixes.forEach((row: unknown, index) => {
+    const at = `${where}: prefix row ${index}`;
+    if (!Array.isArray(row) || row.length !== 2 || typeof row[0] !== 'string' || typeof row[1] !== 'string') {
+      fail(`${at} must be a [prefix, namespace] pair of strings.`);
+    }
+    const [prefix, namespace] = row as [string, string];
+    // The empty prefix (`PREFIX : <…>`) is legal SPARQL; the splice never
+    // abbreviates with it, so it is carried but harmless.
+    if (prefix !== '' && !isSafePrefixLabel(prefix)) {
+      fail(`${at} has a prefix label '${prefix}' the runtime cannot emit.`);
+    }
+    if (!isAbsoluteIri(namespace)) {
+      fail(`${at} ('${prefix}') maps to '${namespace}', which is not an absolute IRI.`);
+    }
+  });
 
   let previousEnd = 0;
   template.slots.forEach((slot, index) => {
@@ -360,6 +406,8 @@ function assertValidGroup(
 
   const nodeKeys = Object.keys(group.nodes);
   if (nodeKeys.length === 0) fail(`${where} has no nodes.`);
+
+  assertIntegrityShape(group.integrity, where);
 
   for (const [key, node] of Object.entries(group.nodes)) {
     const at = `${where}: node '${key}'`;
@@ -476,6 +524,7 @@ export function assertValidBundle(bundle: unknown): asserts bundle is ExportBund
     if (typeof query.textHash !== 'string' || !query.textHash.startsWith('sha256-')) {
       fail(`${where}: textHash must be a 'sha256-<hex>' string.`);
     }
+    assertIntegrityShape(query.integrity, where);
     assertValidExamples(query, where);
   }
 
@@ -489,8 +538,8 @@ export function assertValidBundle(bundle: unknown): asserts bundle is ExportBund
   }
 }
 
-/** Hash a template text the way {@link ExportedQuery.textHash} spells it. */
-export async function hashTemplateText(text: string): Promise<string> {
+/** `sha256-<hex>` of a string's UTF-8 bytes. */
+async function sha256(text: string): Promise<string> {
   const subtle = globalThis.crypto?.subtle;
   if (!subtle) {
     throw new InvalidBundleError(
@@ -503,21 +552,97 @@ export async function hashTemplateText(text: string): Promise<string> {
     .join('')}`;
 }
 
+/** Hash a template text the way {@link ExportedQuery.textHash} spells it. */
+export async function hashTemplateText(text: string): Promise<string> {
+  return sha256(text);
+}
+
 /**
- * Re-hash every template and compare against the recorded hash.
+ * JSON with every object's keys sorted, and no whitespace.
+ *
+ * The bytes a hash is taken over must not depend on the order an exporter
+ * happened to assign fields in, nor on how a bundle was pretty-printed on its
+ * way to disk. Values are written exactly as `JSON.stringify` writes them —
+ * including dropping an `undefined` field — so an object hashes the same before
+ * and after a trip through a JSON file.
+ */
+export function canonicalJson(value: unknown): string {
+  if (value === null || typeof value !== 'object') {
+    // `undefined` at the top level, or as an array element, is `null` in JSON.
+    return JSON.stringify(value) ?? 'null';
+  }
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+  const record = value as Record<string, unknown>;
+  const fields = Object.keys(record)
+    .filter((key) => record[key] !== undefined)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${canonicalJson(record[key])}`);
+  return `{${fields.join(',')}}`;
+}
+
+/**
+ * The `integrity` an exported query or group should carry: the hash of its
+ * canonical JSON with `integrity` itself left out.
+ */
+export async function computeIntegrity(entry: ExportedQuery | ExportedGroup): Promise<string> {
+  const rest: Record<string, unknown> = { ...entry };
+  delete rest.integrity;
+  return sha256(canonicalJson(rest));
+}
+
+/**
+ * Stamp every query and group in a bundle with its `integrity`, in place.
+ *
+ * The exporter's last step, and safe to repeat: each stage that changes a
+ * bundle (examples, groups) re-seals it, so whatever stage a caller stops at
+ * leaves a bundle that verifies.
+ */
+export async function sealBundle<T extends ExportBundle>(bundle: T): Promise<T> {
+  // Deleted before it is set so it is always written last, after whatever a
+  // later stage added: the hash reads as a seal over the fields above it.
+  for (const entry of [...Object.values(bundle.queries), ...Object.values(bundle.groups ?? {})]) {
+    const integrity = await computeIntegrity(entry);
+    delete entry.integrity;
+    entry.integrity = integrity;
+  }
+  return bundle;
+}
+
+/**
+ * Re-hash every query and group and compare against the recorded hashes.
  *
  * Optional at runtime and asynchronous, because it needs Web Crypto. Worth calling
  * once after fetching a bundle you did not build in the same step — from a CDN, or
- * out of a repository where someone might have "fixed" the query text by hand.
- * The export command and its CI check call it unconditionally.
+ * out of a repository where someone might have "fixed" the query text or a prefix
+ * by hand. The export command and its CI check call it unconditionally.
+ *
+ * An entry with no `integrity` fails: it was exported before the hash covered
+ * the whole entry, so nothing proves its slots and prefixes are the exported
+ * ones. Re-exporting fixes it.
  */
 export async function verifyBundleIntegrity(bundle: ExportBundle): Promise<void> {
   for (const [name, query] of Object.entries(bundle.queries)) {
-    const actual = await hashTemplateText(query.template.text);
-    if (actual !== query.textHash) {
+    if ((await hashTemplateText(query.template.text)) !== query.textHash) {
       throw new InvalidBundleError(
         `Query '${name}' does not match its recorded hash: the template text has been edited, which invalidates its parameter slot offsets. Re-export the bundle.`,
       );
     }
+    await verifyEntry(query, `Query '${name}'`);
+  }
+  for (const [name, group] of Object.entries(bundle.groups ?? {})) {
+    await verifyEntry(group, `Group '${name}'`);
+  }
+}
+
+async function verifyEntry(entry: ExportedQuery | ExportedGroup, where: string): Promise<void> {
+  if (entry.integrity === undefined) {
+    throw new InvalidBundleError(
+      `${where} carries no integrity hash, so an edit to it cannot be detected: it was exported by an older sqlib. Re-export the bundle.`,
+    );
+  }
+  if ((await computeIntegrity(entry)) !== entry.integrity) {
+    throw new InvalidBundleError(
+      `${where} does not match its recorded integrity hash: it has been edited since it was exported (a prefix, a slot, an edge — any field). Re-export the bundle.`,
+    );
   }
 }

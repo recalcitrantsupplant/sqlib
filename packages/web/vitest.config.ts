@@ -11,6 +11,7 @@ export default defineConfig({
       '@sparql-query-lib/contracts': path.resolve(__dirname, '../contracts/src/index.ts'),
       '@sparql-query-lib/types': path.resolve(__dirname, '../types/src/index.ts'),
       '@sparql-query-lib/runtime/args-element': path.resolve(__dirname, '../runtime/src/args-element.ts'),
+      '@sparql-query-lib/runtime/internal': path.resolve(__dirname, '../runtime/src/internal.ts'),
       '@sparql-query-lib/runtime': path.resolve(__dirname, '../runtime/src/index.ts'),
       '@': path.resolve(__dirname, 'src'),
       // Nuxt supplies `#imports` in the app build; unit tests run without Nuxt.
