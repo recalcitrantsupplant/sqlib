@@ -47,6 +47,21 @@ export default defineConfig({
         find: '@sparql-query-lib/tools',
         replacement: path.resolve(__dirname, '../tools/src/index.ts'),
       },
+      // The api's routes, which a session's initialize loads through
+      // `createMcpServer`, import these three: without source aliases a
+      // buildless run cannot resolve them and the initialize answers 500.
+      {
+        find: '@sparql-query-lib/srl',
+        replacement: path.resolve(__dirname, '../srl/src/index.ts'),
+      },
+      {
+        find: '@sparql-query-lib/runtime',
+        replacement: path.resolve(__dirname, '../runtime/src/index.ts'),
+      },
+      {
+        find: '@sparql-query-lib/rdf-delta',
+        replacement: path.resolve(__dirname, '../rdf-delta/src/index.ts'),
+      },
       // The Views are read from disk relative to their own module, so source
       // and dist both work; pointing at source keeps the suite buildless.
       {
