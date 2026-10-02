@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { TriplesQuadsIOs, findTriplesQuadsIOById, loadTriplesQuadsIOsByIds } from '../../../src/persistence/utils/TriplesQuadsIOUtils.js';
-import type { LdkitTriplesQuadsIO } from '../../../src/persistence/schemas/TriplesQuadsIOSchema.js';
+import type { TriplesQuadsIOEntity } from '../../../src/persistence/schemas/TriplesQuadsIOSchema.js';
 import { overrideRepositoryLenses } from '../../../src/persistence/utils/entityRepository.js';
 
 // In-memory LDKit lens for this suite
@@ -18,7 +18,7 @@ const repositoryLens = (() => {
 overrideRepositoryLenses(() => repositoryLens);
 
 describe('TriplesQuadsIOUtils', () => {
-  const mockTriplesQuadsIO: LdkitTriplesQuadsIO = {
+  const mockTriplesQuadsIO: TriplesQuadsIOEntity = {
     $id: 'urn:test:triplesquads:1',
     '@type': 'TriplesQuadsIO',
     name: 'Test RDF Output',
@@ -96,7 +96,7 @@ describe('TriplesQuadsIOUtils', () => {
       expect(TriplesQuadsIOs).toBeDefined();
 
       // Test that we can create a valid entity structure
-      const validEntity: Partial<LdkitTriplesQuadsIO> = {
+      const validEntity: Partial<TriplesQuadsIOEntity> = {
         $id: 'urn:test:valid',
         name: 'Valid Entity',
         ioType: 'input',
@@ -111,12 +111,12 @@ describe('TriplesQuadsIOUtils', () => {
 
   describe('type safety', () => {
     it('enforces correct ioType values', () => {
-      const inputEntity: Partial<LdkitTriplesQuadsIO> = {
+      const inputEntity: Partial<TriplesQuadsIOEntity> = {
         $id: 'urn:test:input',
         ioType: 'input'
       };
 
-      const outputEntity: Partial<LdkitTriplesQuadsIO> = {
+      const outputEntity: Partial<TriplesQuadsIOEntity> = {
         $id: 'urn:test:output',
         ioType: 'output'
       };
@@ -126,12 +126,12 @@ describe('TriplesQuadsIOUtils', () => {
     });
 
     it('enforces correct triplesOrQuads values', () => {
-      const triplesEntity: Partial<LdkitTriplesQuadsIO> = {
+      const triplesEntity: Partial<TriplesQuadsIOEntity> = {
         $id: 'urn:test:triples',
         triplesOrQuads: 'triples'
       };
 
-      const quadsEntity: Partial<LdkitTriplesQuadsIO> = {
+      const quadsEntity: Partial<TriplesQuadsIOEntity> = {
         $id: 'urn:test:quads',
         triplesOrQuads: 'quads'
       };

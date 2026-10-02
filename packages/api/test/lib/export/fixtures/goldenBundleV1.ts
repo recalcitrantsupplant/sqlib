@@ -32,9 +32,9 @@ import {
   type ResolvedArgumentPayload,
 } from '../../../../src/lib/export/collectQueryExamples.js';
 import type { ExportGroupInput } from '../../../../src/lib/export/collectLibraryGroups.js';
-import type { LdkitTest } from '../../../../src/persistence/schemas/TestSchema.js';
-import type { LdkitTestVersion } from '../../../../src/persistence/schemas/TestVersionSchema.js';
-import type { LdkitTestCase } from '../../../../src/persistence/schemas/TestCaseSchema.js';
+import type { TestEntity } from '../../../../src/persistence/schemas/TestSchema.js';
+import type { TestVersionEntity } from '../../../../src/persistence/schemas/TestVersionSchema.js';
+import type { TestCaseEntity } from '../../../../src/persistence/schemas/TestCaseSchema.js';
 
 const LIBRARY = { id: 'urn:sqlib:library:golden', name: 'Golden fixture library' };
 
@@ -188,13 +188,13 @@ const PAYLOADS: Record<string, ResolvedArgumentPayload> = {
   },
 };
 
-const asTest = (partial: Partial<LdkitTest> & { $id: string; name: string; subject: string }) =>
+const asTest = (partial: Partial<TestEntity> & { $id: string; name: string; subject: string }) =>
   ({
     subjectKind: 'query',
     isPartOf: [LIBRARY.id],
     currentVersion: `${partial.$id}:v1`,
     ...partial,
-  }) as LdkitTest;
+  }) as TestEntity;
 
 const asVersion = (testId: string, cases: string[]) =>
   ({
@@ -203,10 +203,10 @@ const asVersion = (testId: string, cases: string[]) =>
     version: 1,
     expectationKind: 'bindings',
     cases,
-  }) as LdkitTestVersion;
+  }) as TestVersionEntity;
 
-const asCase = (partial: Partial<LdkitTestCase> & { $id: string; isPartOf: string }) =>
-  ({ position: 0, ...partial }) as LdkitTestCase;
+const asCase = (partial: Partial<TestCaseEntity> & { $id: string; isPartOf: string }) =>
+  ({ position: 0, ...partial }) as TestCaseEntity;
 
 const TESTS = [
   asTest({ $id: 'urn:sqlib:test:people', name: 'People by city returns rows', subject: QUERY_PEOPLE }),
@@ -214,7 +214,7 @@ const TESTS = [
   asTest({ $id: 'urn:sqlib:test:labels', name: 'Labels are built', subject: QUERY_LABELS }),
 ];
 
-const VERSIONS: Record<string, LdkitTestVersion> = {
+const VERSIONS: Record<string, TestVersionEntity> = {
   'urn:sqlib:test:people:v1': asVersion('urn:sqlib:test:people', [
     'urn:sqlib:test-case:perth',
     'urn:sqlib:test-case:seeded',
@@ -223,7 +223,7 @@ const VERSIONS: Record<string, LdkitTestVersion> = {
   'urn:sqlib:test:labels:v1': asVersion('urn:sqlib:test:labels', ['urn:sqlib:test-case:no-args']),
 };
 
-const CASES: Record<string, LdkitTestCase> = {
+const CASES: Record<string, TestCaseEntity> = {
   // Named, with a recorded answer: `expected` and `expectedFormat`.
   'urn:sqlib:test-case:perth': asCase({
     $id: 'urn:sqlib:test-case:perth',

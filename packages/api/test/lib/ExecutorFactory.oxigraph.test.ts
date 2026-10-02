@@ -11,7 +11,7 @@ import { QueryTypeIri } from '../../src/constants/queryTypes.js';
 import { ExecutorFactory } from '../../src/lib/orchestration/ExecutorFactory.js';
 import { oxigraphStoreManager } from '../../src/lib/OxigraphStoreManager.js';
 import type { ResolvedNode } from '../../src/lib/orchestration/types.js';
-import { BackendTypeIri, type LdkitBackend } from '../../src/persistence/schemas/BackendSchema.js';
+import { BackendTypeIri, type BackendEntity } from '../../src/persistence/schemas/BackendSchema.js';
 import { LIBRARY_STORAGE_BACKEND_ID } from '@sparql-query-lib/types';
 
 const hoisted = vi.hoisted(() => ({
@@ -164,7 +164,7 @@ describe('ExecutorFactory - Oxigraph Integration', () => {
 
   describe('HTTP backends', () => {
     it('should create HTTP executor for HTTP backend', async () => {
-      const mockBackend: LdkitBackend = {
+      const mockBackend: BackendEntity = {
         $id: 'backend-http',
         '@type': 'Backend',
         name: 'Test HTTP Backend',
@@ -194,7 +194,7 @@ describe('ExecutorFactory - Oxigraph Integration', () => {
 
   describe('in-process oxigraph backends', () => {
     it('should reuse existing store for oxigraphEphemeral backend', async () => {
-      const mockBackend: LdkitBackend = {
+      const mockBackend: BackendEntity = {
         $id: 'backend-oxigraph',
         '@type': 'Backend',
         name: 'Test Oxigraph Backend',
@@ -224,7 +224,7 @@ describe('ExecutorFactory - Oxigraph Integration', () => {
     });
 
     it('should create new store when none exists for oxigraphEphemeral backend', async () => {
-      const mockBackend: LdkitBackend = {
+      const mockBackend: BackendEntity = {
         $id: 'backend-oxigraph',
         '@type': 'Backend',
         name: 'Test Oxigraph Backend',
@@ -329,7 +329,7 @@ describe('ExecutorFactory - Oxigraph Integration', () => {
 
   describe('caching', () => {
     it('should cache executors for oxigraph backends', async () => {
-      const mockBackend: LdkitBackend = {
+      const mockBackend: BackendEntity = {
         $id: 'backend-oxigraph',
         '@type': 'Backend',
         name: 'Test Oxigraph Backend',
@@ -408,7 +408,7 @@ describe('ExecutorFactory - Oxigraph Integration', () => {
     });
 
     it('should throw error for unsupported backend type', async () => {
-      const mockBackend: LdkitBackend = {
+      const mockBackend: BackendEntity = {
         $id: 'backend-unknown',
         '@type': 'Backend',
         name: 'Unknown Backend',

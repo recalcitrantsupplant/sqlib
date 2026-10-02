@@ -15,12 +15,12 @@
 import { mintId } from './id.js';
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
 import { allocateVersion, setCurrentVersion } from './versionNumbering.js';
-import { toLdkit } from '../persistence/utils/id-adapter.js';
+import { toEntity } from '../persistence/utils/id-adapter.js';
 import { applyColumnTypes, parseTupleContent, TupleContentError } from './tupleContent.js';
 import type { SuggestedColumnType } from './tupleContent.js';
-import type { LdkitTupleSet } from '../persistence/schemas/TupleSetSchema.js';
+import type { TupleSetEntity } from '../persistence/schemas/TupleSetSchema.js';
 import type {
-  LdkitTupleSetVersion,
+  TupleSetVersionEntity,
   TupleSourceFormat,
 } from '../persistence/schemas/TupleSetVersionSchema.js';
 
@@ -75,7 +75,7 @@ export interface AnnotateTupleSetVersionInput {
   immutable?: boolean;
 }
 
-function libraryOf(tupleSet: LdkitTupleSet | null): string | null {
+function libraryOf(tupleSet: TupleSetEntity | null): string | null {
   const parents = Array.isArray(tupleSet?.isPartOf) ? tupleSet.isPartOf : [];
   return parents[0] ?? null;
 }
@@ -84,12 +84,12 @@ function libraryOf(tupleSet: LdkitTupleSet | null): string | null {
 function libraryBytesInUse(libraryId: string, excludeVersionId?: string): number {
   const cacheCoordinator = getCacheCoordinator();
   const setsInLibrary = new Set(
-    (cacheCoordinator.list('TupleSet') as LdkitTupleSet[])
+    (cacheCoordinator.list('TupleSet') as TupleSetEntity[])
       .filter(set => libraryOf(set) === libraryId)
       .map(set => set.$id),
   );
 
-  return (cacheCoordinator.list('TupleSetVersion') as LdkitTupleSetVersion[])
+  return (cacheCoordinator.list('TupleSetVersion') as TupleSetVersionEntity[])
     .filter(version => version.$id !== excludeVersionId && setsInLibrary.has(version.isPartOf))
     .reduce((total, version) => total + (Number(version.byteSize) || 0), 0);
 }
@@ -101,7 +101,7 @@ function assertBudget(tupleSetId: string, incomingBytes: number, excludeVersionI
     );
   }
 
-  const parent = getCacheCoordinator().get(tupleSetId) as LdkitTupleSet | null;
+  const parent = getCacheCoordinator().get(tupleSetId) as TupleSetEntity | null;
   const libraryId = libraryOf(parent);
   // Unresolvable library: the per-version cap has already applied, so this is
   // bounded either way.
@@ -119,7 +119,7 @@ function assertBudget(tupleSetId: string, incomingBytes: number, excludeVersionI
  * Numbered and pointed at under the parent's version lock (`allocateVersion`),
  * so concurrent saves get consecutive numbers and the last to finish is current.
  */
-export async function createTupleSetVersion(tupleSetId: string, body: CreateTupleSetVersionInput): Promise<LdkitTupleSetVersion> {
+export async function createTupleSetVersion(tupleSetId: string, body: CreateTupleSetVersionInput): Promise<TupleSetVersionEntity> {
   return allocateVersion('TupleSetVersion', tupleSetId, (nextVersion) => createTupleSetVersionNumbered(tupleSetId, body, nextVersion));
 }
 
@@ -127,7 +127,7 @@ async function createTupleSetVersionNumbered(
   tupleSetId: string,
   body: CreateTupleSetVersionInput,
   nextVersion: number,
-): Promise<LdkitTupleSetVersion> {
+): Promise<TupleSetVersionEntity> {
   const cacheCoordinator = getCacheCoordinator();
 
   let parsed = parseTupleContent(body.contentString ?? '', body.sourceFormat);
@@ -164,7 +164,7 @@ async function createTupleSetVersionNumbered(
       : {}),
   };
 
-  const created = await cacheCoordinator.create('TupleSetVersion', toLdkit(payload));
+  const created = await cacheCoordinator.create('TupleSetVersion', toEntity(payload));
 
   await setCurrentVersion('TupleSet', tupleSetId, versionId);
 
@@ -182,9 +182,9 @@ async function createTupleSetVersionNumbered(
 export async function annotateTupleSetVersion(
   versionId: string,
   body: AnnotateTupleSetVersionInput,
-): Promise<LdkitTupleSetVersion> {
+): Promise<TupleSetVersionEntity> {
   const cacheCoordinator = getCacheCoordinator();
-  const current = cacheCoordinator.get(versionId) as LdkitTupleSetVersion | null;
+  const current = cacheCoordinator.get(versionId) as TupleSetVersionEntity | null;
   if (!current || current['@type'] !== 'TupleSetVersion') {
     throw new Error(`TupleSetVersion ${versionId} not found`);
   }

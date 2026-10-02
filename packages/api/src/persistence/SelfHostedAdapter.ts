@@ -16,7 +16,7 @@
  * being dogfooded is the same one either way.
  */
 import type { EntityByType, EntityType } from '../lib/EntityRegistry.js';
-import type { LDKitEntity } from './EntityTypes.js';
+import type { UntypedEntity } from './EntityTypes.js';
 import type { PersistenceAdapter } from './PersistenceAdapter.js';
 import { SCHEMA_BY_TYPE } from './schemaRegistry.js';
 import {
@@ -45,8 +45,8 @@ export class SelfHostedAdapter implements PersistenceAdapter {
   }
 
   /** Boot load of every registered type. See `EntityStore.loadAllEntities`. */
-  async loadAll(): Promise<Map<string, LDKitEntity>> {
-    return (await loadAllEntities(SCHEMA_BY_TYPE as unknown as Record<string, EntitySchema>)) as Map<string, LDKitEntity>;
+  async loadAll(): Promise<Map<string, UntypedEntity>> {
+    return (await loadAllEntities(SCHEMA_BY_TYPE as unknown as Record<string, EntitySchema>)) as Map<string, UntypedEntity>;
   }
 
   async insert<T extends EntityType>(type: T, entity: EntityByType[T]): Promise<void> {

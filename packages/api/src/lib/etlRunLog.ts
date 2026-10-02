@@ -34,7 +34,7 @@
 import { mintId } from './id.js';
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
 import { toError } from './toError.js';
-import type { LdkitEtlExecution } from '../persistence/schemas/EtlExecutionSchema.js';
+import type { EtlExecutionEntity } from '../persistence/schemas/EtlExecutionSchema.js';
 
 export interface BeginEtlExecutionInput {
   /** The version whose SQL is being run, as an IRI. */
@@ -50,7 +50,7 @@ export interface BeginEtlExecutionInput {
 /** Fields a finished run adds. `status` and `completedAt` are set here. */
 export type EtlExecutionOutcome = Partial<
   Pick<
-    LdkitEtlExecution,
+    EtlExecutionEntity,
     | 'totalChunks'
     | 'completedChunks'
     | 'totalRows'
@@ -64,7 +64,7 @@ export type EtlExecutionOutcome = Partial<
 /** Open a run's record, before anything has been read. */
 export async function beginEtlExecution(input: BeginEtlExecutionInput): Promise<string> {
   const executionId = mintId('etlExecution');
-  const execution: LdkitEtlExecution = {
+  const execution: EtlExecutionEntity = {
     $id: executionId,
     etlJobVersion: input.etlJobVersionId,
     columnMappingVersion: input.columnMappingVersionId,

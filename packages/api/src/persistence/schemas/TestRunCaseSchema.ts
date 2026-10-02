@@ -102,7 +102,7 @@ export const TestRunCaseSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitTestRunCase {
+export interface TestRunCaseEntity {
   $id: string;
   '@type'?: 'TestRunCase';
   isPartOf: string;

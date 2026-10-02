@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for QueryIdInput Entity
+ * Schema for QueryIdInput Entity
  *
  * QueryIdInput represents a queryId input slot on a DynamicQueryNode.
  * This enables dynamic query selection where a previous query outputs
@@ -35,7 +35,7 @@ export const QueryIdInputSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitQueryIdInput {
+export interface QueryIdInputEntity {
   $id: string;
   '@type'?: 'QueryIdInput';
   name?: string | null;        // e.g., "dynamicQuery"

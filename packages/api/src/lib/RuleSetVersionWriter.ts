@@ -3,11 +3,11 @@ import { mintId } from './id.js';
 import { allocateVersion, setCurrentVersion } from './versionNumbering.js';
 import { AuthorizationError, requireLibraryMode, resolveOwningLibrary } from '../auth/enforce.js';
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
-import type { LdkitRuleSetVersion } from '../persistence/schemas/RuleSetVersionSchema.js';
-import { toLdkit } from '../persistence/utils/id-adapter.js';
+import type { RuleSetVersionEntity } from '../persistence/schemas/RuleSetVersionSchema.js';
+import { toEntity } from '../persistence/utils/id-adapter.js';
 import { RuleStratifier } from './RuleStratifier.js';
-import type { LdkitRuleVersion } from '../persistence/schemas/RuleVersionSchema.js';
-import type { LdkitDataBlockVersion } from '../persistence/schemas/DataBlockVersionSchema.js';
+import type { RuleVersionEntity } from '../persistence/schemas/RuleVersionSchema.js';
+import type { DataBlockVersionEntity } from '../persistence/schemas/DataBlockVersionSchema.js';
 import { getFeatureFlags } from '../config/featureFlags.js';
 import { ruleTuplesRefusal, hasSeedText } from './ruleTuples.js';
 
@@ -44,7 +44,7 @@ export async function createRuleSetVersion(
   ruleSetId: string,
   body: CreateRuleSetVersionInput,
   authScope?: { request: FastifyRequest },
-): Promise<LdkitRuleSetVersion> {
+): Promise<RuleSetVersionEntity> {
   return allocateVersion('RuleSetVersion', ruleSetId, (nextVersion) =>
     createRuleSetVersionNumbered(ruleSetId, body, nextVersion, authScope));
 }
@@ -61,14 +61,14 @@ async function createRuleSetVersionNumbered(
   body: CreateRuleSetVersionInput,
   nextVersion: number,
   authScope?: { request: FastifyRequest },
-): Promise<LdkitRuleSetVersion> {
+): Promise<RuleSetVersionEntity> {
   const cacheCoordinator = getCacheCoordinator();
   // Validate that provided IDs are version entities
   const ruleIds = Array.isArray(body.hasRule) ? body.hasRule : [];
   const dataBlockIds = Array.isArray(body.hasDataBlock) ? body.hasDataBlock : [];
 
-  const ruleVersions: LdkitRuleVersion[] = [];
-  const dataBlockVersions: LdkitDataBlockVersion[] = [];
+  const ruleVersions: RuleVersionEntity[] = [];
+  const dataBlockVersions: DataBlockVersionEntity[] = [];
   for (const id of ruleIds) {
     const entity = cacheCoordinator.get(id) as AnyRecord | null;
     if (!entity) {
@@ -77,7 +77,7 @@ async function createRuleSetVersionNumbered(
     if ((entity['@type'] as string) !== 'RuleVersion') {
       throw new Error(`Invalid entity type for ${id}: expected RuleVersion, got ${entity['@type']}. RuleSets must reference RuleVersions, not Rules.`);
     }
-    ruleVersions.push(entity as LdkitRuleVersion);
+    ruleVersions.push(entity as RuleVersionEntity);
   }
   const flags = getFeatureFlags();
   const allowInvalid = flags.rulesAllowInvalidSave && body.allowInvalidSave === true;
@@ -96,7 +96,7 @@ async function createRuleSetVersionNumbered(
     if ((entity['@type'] as string) !== 'DataBlockVersion') {
       throw new Error(`Invalid entity type for ${id}: expected DataBlockVersion, got ${entity['@type']}. RuleSets must reference DataBlockVersions, not DataBlocks.`);
     }
-    dataBlockVersions.push(entity as LdkitDataBlockVersion);
+    dataBlockVersions.push(entity as DataBlockVersionEntity);
   }
   /*
    * A pinned rule or data block version need not live in the rule set's
@@ -166,7 +166,7 @@ async function createRuleSetVersionNumbered(
     payload.stratificationReport = JSON.stringify(report);
   }
 
-  const created = await cacheCoordinator.create('RuleSetVersion', toLdkit(payload));
+  const created = await cacheCoordinator.create('RuleSetVersion', toEntity(payload));
 
   await setCurrentVersion('RuleSet', ruleSetId, versionId);
 

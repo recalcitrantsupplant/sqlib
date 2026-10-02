@@ -97,7 +97,7 @@ server mint one.
 | `id` | In REST request and response bodies |
 
 The adapters in `packages/api/src/persistence/utils/id-adapter.ts` convert at
-the boundary — `toLdkit` on the way in, `toRestApi` on the way out — so no route
+the boundary — `toEntity` on the way in, `toRestApi` on the way out — so no route
 handler does it by hand. In a schema definition, `'@id'` on a *property* means
 something else entirely: it names the RDF predicate that property maps to. Only
 `'@id'` on an entity is identity.

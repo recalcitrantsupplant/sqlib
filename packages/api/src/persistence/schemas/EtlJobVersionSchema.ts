@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for EtlJobVersion Entity (Immutable Version)
+ * Schema for EtlJobVersion Entity (Immutable Version)
  *
  * Represents an immutable version of an ETL job. Each version has a stable
  * parent EtlJob and contains the SQL query, SPARQL template, and configuration.
@@ -62,7 +62,7 @@ export const EtlJobVersionSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitEtlJobVersion {
+export interface EtlJobVersionEntity {
   $id: string;
   '@type'?: 'EtlJobVersion';
   isPartOf: string; // IRI back to stable EtlJob

@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for StartNode Entity
+ * Schema for StartNode Entity
  * 
  * StartNode represents the entry point for query execution in a canvas.
  * It provides external input interface for the QueryGroup and passes inputs through to other nodes.
@@ -29,7 +29,7 @@ export const StartNodeSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitStartNode {
+export interface StartNodeEntity {
   '$id': string;
   '@type'?: 'StartNode';
   outputs?: string[] | null; // External outputs that become the query group's external inputs - any output entities (QueryOutputTuple, TriplesQuadsIO, etc.)

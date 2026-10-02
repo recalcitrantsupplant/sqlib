@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for RuleSetNode Entity
+ * Schema for RuleSetNode Entity
  *
  * Represents a query group execution node that runs a RuleSetVersion
  * against an ephemeral Oxigraph store. The node only accepts/produces
@@ -34,7 +34,7 @@ export const RuleSetNodeSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitRuleSetNode {
+export interface RuleSetNodeEntity {
   '$id': string;
   '@type'?: 'RuleSetNode';
   ruleSetVersion: string;

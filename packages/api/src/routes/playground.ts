@@ -7,13 +7,13 @@ import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
 import { RuleStratifier } from '../lib/RuleStratifier.js';
 import { getFeatureFlags } from '../config/featureFlags.js';
 import { ruleTuplesAllowed, ruleTuplesRefusal, hasSeedText } from '../lib/ruleTuples.js';
-import type { LdkitDataBlockVersion } from '../persistence/schemas/DataBlockVersionSchema.js';
-import type { LdkitRuleVersion } from '../persistence/schemas/RuleVersionSchema.js';
-import type { LdkitRuleSetVersion } from '../persistence/schemas/RuleSetVersionSchema.js';
+import type { DataBlockVersionEntity } from '../persistence/schemas/DataBlockVersionSchema.js';
+import type { RuleVersionEntity } from '../persistence/schemas/RuleVersionSchema.js';
+import type { RuleSetVersionEntity } from '../persistence/schemas/RuleSetVersionSchema.js';
 import type { ColumnDefinition } from '../persistence/schemas/EtlColumnMappingVersionSchema.js';
-import type { LdkitEtlJob } from '../persistence/schemas/EtlJobSchema.js';
-import type { LdkitEtlJobVersion } from '../persistence/schemas/EtlJobVersionSchema.js';
-import type { LdkitEtlColumnMappingVersion } from '../persistence/schemas/EtlColumnMappingVersionSchema.js';
+import type { EtlJobEntity } from '../persistence/schemas/EtlJobSchema.js';
+import type { EtlJobVersionEntity } from '../persistence/schemas/EtlJobVersionSchema.js';
+import type { EtlColumnMappingVersionEntity } from '../persistence/schemas/EtlColumnMappingVersionSchema.js';
 import { duckDbService } from '../lib/DuckDbService.js';
 import { SparqlQueryParser } from '../lib/parser.js';
 import { ExecutorFactory } from '../lib/orchestration/ExecutorFactory.js';
@@ -208,7 +208,7 @@ export default async function playgroundRoutes(
       const ruleSetId = mintId('ruleset');
       const now = new Date().toISOString();
 
-      const dataBlockVersions: LdkitDataBlockVersion[] = dataBlocks.map((source, idx) => {
+      const dataBlockVersions: DataBlockVersionEntity[] = dataBlocks.map((source, idx) => {
         const payload = buildValidationPayload(source);
         if (!payload.grammarValid) {
           errors.push(`Data block ${idx + 1} invalid: ${payload.error ?? 'Unknown error'}`);
@@ -229,7 +229,7 @@ export default async function playgroundRoutes(
         };
       });
 
-      const ruleVersions: LdkitRuleVersion[] = rules.map((source, idx) => {
+      const ruleVersions: RuleVersionEntity[] = rules.map((source, idx) => {
         const payload = buildValidationPayload(source);
         if (!payload.grammarValid) {
           errors.push(`Rule ${idx + 1} invalid: ${payload.error ?? 'Unknown error'}`);
@@ -254,7 +254,7 @@ export default async function playgroundRoutes(
         return reply.status(400).send({ error: errors.join('; ') });
       }
 
-      const ruleSetVersion: LdkitRuleSetVersion = {
+      const ruleSetVersion: RuleSetVersionEntity = {
         $id: `${ruleSetId}:version-1`,
         '@type': 'RuleSetVersion',
         isPartOf: ruleSetId,
@@ -444,7 +444,7 @@ export default async function playgroundRoutes(
     let ephemeralStoreId: string | null = null;
 
     try {
-      const etlJob: LdkitEtlJob = {
+      const etlJob: EtlJobEntity = {
         $id: etlJobId,
         '@type': 'EtlJob',
         name: 'Playground ETL Job',
@@ -455,7 +455,7 @@ export default async function playgroundRoutes(
         dateModified: now,
       };
 
-      const etlJobVersion: LdkitEtlJobVersion = {
+      const etlJobVersion: EtlJobVersionEntity = {
         $id: etlJobVersionId,
         '@type': 'EtlJobVersion',
         isPartOf: etlJobId,
@@ -469,7 +469,7 @@ export default async function playgroundRoutes(
         dateModified: now,
       };
 
-      const mappingVersion: LdkitEtlColumnMappingVersion = {
+      const mappingVersion: EtlColumnMappingVersionEntity = {
         $id: mappingVersionId,
         '@type': 'EtlColumnMappingVersion',
         isPartOf: mappingId,

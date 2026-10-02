@@ -1,8 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import { mintId } from '../lib/id.js';
-import { toRestApi, toLdkit } from '../persistence/utils/id-adapter.js';
-import type { LdkitQuery } from '../persistence/schemas/QuerySchema.js';
-import type { LdkitQueryVersion } from '../persistence/schemas/QueryVersionSchema.js';
+import { toRestApi, toEntity } from '../persistence/utils/id-adapter.js';
+import type { QueryEntity } from '../persistence/schemas/QuerySchema.js';
+import type { QueryVersionEntity } from '../persistence/schemas/QueryVersionSchema.js';
 import { expandQueryVersion } from '../lib/QueryVersionResolver.js';
 import { SparqlQueryParser } from '../lib/parser.js';
 import { createQueryVersionFlat, cleanupOrphanedAutoTuple, findExistingAutoTuple } from '../lib/QueryVersionWriter.js';
@@ -60,7 +60,7 @@ export default async function (fastify: FastifyInstance) {
   } as const;
   // GET /queries — list all stable queries (from cache)
   fastify.get('/', ...reposRoute(getQuerysSchema, async ({ repos, reply, request }) => {
-    const items = repos.Query.list() as LdkitQuery[];
+    const items = repos.Query.list() as QueryEntity[];
     return reply.send(filterReadable(request, items).map(q => toRestApi(q)));
   }));
 
@@ -105,7 +105,7 @@ export default async function (fastify: FastifyInstance) {
     requireEntityMode(request, { isPartOf: isPartOfArray }, 'write');
 
     const id = body.id || mintId('query');
-    const toCreate: Partial<LdkitQuery> & { $id: string } = {
+    const toCreate: Partial<QueryEntity> & { $id: string } = {
       $id: id,
       name: body.name,
       description: body.description,
@@ -122,7 +122,7 @@ export default async function (fastify: FastifyInstance) {
   // GET /queries/:id — get a stable Query
   fastify.get('/:id', ...reposRoute(getQuerySchema, async ({ repos, reply, request }) => {
     const { id } = request.params;
-    const item = repos.Query.get(id) as LdkitQuery | null;
+    const item = repos.Query.get(id) as QueryEntity | null;
     if (!item) return reply.status(404).send({ error: 'Not Found' });
     requireEntityMode(request, item, 'read');
     setEntityConcurrencyHeaders(reply, item);
@@ -135,7 +135,7 @@ export default async function (fastify: FastifyInstance) {
     const updates = request.body;
     const cacheCoordinator = getCacheCoordinator();
 
-    const current = repos.Query.get(id) as LdkitQuery | null;
+    const current = repos.Query.get(id) as QueryEntity | null;
     if (!current) {
       return reply.status(404).send({ error: 'Not Found' });
     }
@@ -207,7 +207,7 @@ export default async function (fastify: FastifyInstance) {
   // DELETE /queries/:id — delete stable Query
   fastify.delete('/:id', ...reposRoute(deleteQuerySchema, async ({ repos, reply, request }) => {
     const { id } = request.params;
-    const existing = repos.Query.get(id) as LdkitQuery | null;
+    const existing = repos.Query.get(id) as QueryEntity | null;
     if (existing) requireEntityMode(request, existing, 'delete');
     await repos.Query.delete(id);
     return reply.status(204).send();
@@ -232,9 +232,9 @@ export default async function (fastify: FastifyInstance) {
   fastify.get('/:id/v', ...reposRoute(listQueryVersionsForQuerySchema, async ({ repos, reply, request }) => {
     const { id } = request.params;
 
-    const readAllVersions = async (): Promise<LdkitQueryVersion[]> => {
+    const readAllVersions = async (): Promise<QueryVersionEntity[]> => {
       try {
-        const items = repos.QueryVersion.list() as LdkitQueryVersion[] | undefined;
+        const items = repos.QueryVersion.list() as QueryVersionEntity[] | undefined;
         return Array.isArray(items) ? items : [];
       } catch (err) {
         const error = err instanceof Error ? err : new Error(String(err));
@@ -261,7 +261,7 @@ export default async function (fastify: FastifyInstance) {
     '/:id/v',
     ...reposRoute(createQueryVersionForQuerySchema, async ({ repos, reply, request }) => {
       const { id: queryId } = request.params;
-      const parent = repos.Query.get(queryId) as LdkitQuery | null;
+      const parent = repos.Query.get(queryId) as QueryEntity | null;
       if (!parent) return reply.status(404).send({ error: 'Query not found' });
       requireEntityMode(request, parent, 'write');
 
@@ -345,7 +345,7 @@ export default async function (fastify: FastifyInstance) {
   fastify.get('/:id/v/:version', ...reposRoute(getQueryVersionForQuerySchema, async ({ repos, reply, request }) => {
     const { id: queryId, version } = request.params;
     const targetVer = parseInt(version, 10);
-    const match = (repos.QueryVersion.list() as LdkitQueryVersion[])
+    const match = (repos.QueryVersion.list() as QueryVersionEntity[])
       .find(v => v.isPartOf === queryId && Number(v.version) === targetVer);
     if (!match) return reply.status(404).send({ error: 'Not Found' });
     // The version, not the path's `:id`: a version whose query no longer
@@ -368,7 +368,7 @@ export default async function (fastify: FastifyInstance) {
     const targetVer = parseInt(version, 10);
 
     // Find the existing version
-    const existing = (repos.QueryVersion.list() as LdkitQueryVersion[])
+    const existing = (repos.QueryVersion.list() as QueryVersionEntity[])
       .find(v => v.isPartOf === queryId && Number(v.version) === targetVer);
     if (!existing) return reply.status(404).send({ error: 'Query version not found' });
     requireEntityMode(request, existing, 'write');
@@ -409,7 +409,7 @@ export default async function (fastify: FastifyInstance) {
     },
   }, async ({ repos, reply, request }) => {
     const { id } = request.params;
-    const query = repos.Query.get(id) as LdkitQuery | null;
+    const query = repos.Query.get(id) as QueryEntity | null;
     if (!query) {
       return reply.status(404).send({ error: `Query ${id} not found` });
     }
@@ -427,7 +427,7 @@ export default async function (fastify: FastifyInstance) {
     },
   }, async ({ repos, reply, request }) => {
     const { id } = request.params;
-    const query = repos.Query.get(id) as LdkitQuery | null;
+    const query = repos.Query.get(id) as QueryEntity | null;
     if (!query) {
       return reply.status(404).send({ error: `Query ${id} not found` });
     }

@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for QueryInputVariable Entity
+ * Schema for QueryInputVariable Entity
  * 
  * Represents individual input variables within input tuples for SPARQL queries.
  * Each input variable has its own IRI for cross-query linking.
@@ -24,7 +24,7 @@ export const QueryInputVariableSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitQueryInputVariable {
+export interface QueryInputVariableEntity {
   '$id': string;
   '@type'?: 'QueryInputVariable';
   variableName: string;

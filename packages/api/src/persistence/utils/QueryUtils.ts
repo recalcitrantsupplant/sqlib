@@ -1,7 +1,7 @@
 import { createEntityUtilsWithFields } from './EntityUtils.js';
-import { QuerySchema, type LdkitQuery } from '../schemas/QuerySchema.js';
+import { QuerySchema, type QueryEntity } from '../schemas/QuerySchema.js';
 
-const QueryUtils = createEntityUtilsWithFields<LdkitQuery>(
+const QueryUtils = createEntityUtilsWithFields<QueryEntity>(
   QuerySchema,
   'Query',
   {
@@ -20,7 +20,7 @@ export const deleteQuery = QueryUtils.delete;
 export const findAllQueries = QueryUtils.findAll;
 export const findQueryById = QueryUtils.findById;
 
-export async function findQueryByName(name: string): Promise<LdkitQuery | null> {
+export async function findQueryByName(name: string): Promise<QueryEntity | null> {
   const items = await QueryUtils.findBy('name', name);
   return items[0] || null;
 }

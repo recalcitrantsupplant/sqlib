@@ -23,7 +23,7 @@ import { isInternalExecution, type ExecutionAuthScope, type InternalExecution } 
 import { requireLibraryMode, resolveOwningLibrary } from '../auth/enforce.js';
 import { SparqlQueryParser } from './parser.js';
 import { toQueryTypeIri, isGraphQueryType } from './queryTypes.js';
-import type { LdkitQueryVersion } from '../persistence/schemas/QueryVersionSchema.js';
+import type { QueryVersionEntity } from '../persistence/schemas/QueryVersionSchema.js';
 import {
   DEFAULT_DATA_GRAPH_FORMAT,
   type DataGraphFormat,
@@ -32,7 +32,7 @@ import {
 } from './dataGraphContent.js';
 import { createDataGraphVersion } from './DataGraphVersionWriter.js';
 import { currentVersionOfParent, isUnchangedReSnapshot } from './reSnapshot.js';
-import type { LdkitDataGraphVersion } from '../persistence/schemas/DataGraphVersionSchema.js';
+import type { DataGraphVersionEntity } from '../persistence/schemas/DataGraphVersionSchema.js';
 
 const argumentSetService = new ArgumentSetService();
 const parser = new SparqlQueryParser();
@@ -51,7 +51,7 @@ export class DataGraphQuerySourceError extends Error {
  * it into 200 rather than 201.
  */
 export interface MaterializedDataGraphVersion {
-  version: LdkitDataGraphVersion;
+  version: DataGraphVersionEntity;
   reused: boolean;
 }
 
@@ -96,7 +96,7 @@ export async function materializeDataGraphVersionFromQuery(
 ): Promise<MaterializedDataGraphVersion> {
   const cacheCoordinator = getCacheCoordinator();
 
-  const versionEntity = cacheCoordinator.get(input.queryVersionId) as LdkitQueryVersion | null;
+  const versionEntity = cacheCoordinator.get(input.queryVersionId) as QueryVersionEntity | null;
   if (!versionEntity || versionEntity['@type'] !== 'QueryVersion') {
     throw new DataGraphQuerySourceError(`QueryVersion ${input.queryVersionId} not found`, 404);
   }
@@ -174,7 +174,7 @@ export async function materializeDataGraphVersionFromQuery(
   // cutting a second one against the library budget. Nothing else has to be
   // undone by taking this branch: no head moves, so the Oxigraph stores
   // tracking this graph are not stale and are deliberately not invalidated.
-  const current = currentVersionOfParent<LdkitDataGraphVersion & Record<string, unknown>>(
+  const current = currentVersionOfParent<DataGraphVersionEntity & Record<string, unknown>>(
     dataGraphId,
     'DataGraphVersion',
   );

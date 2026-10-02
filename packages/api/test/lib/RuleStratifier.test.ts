@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { RuleStratifier } from '../../src/lib/RuleStratifier.js';
-import type { LdkitRuleVersion } from '../../src/persistence/schemas/RuleVersionSchema.js';
+import type { RuleVersionEntity } from '../../src/persistence/schemas/RuleVersionSchema.js';
 
 const PREFIX = 'PREFIX : <http://example/> ';
 
-function rv(id: string, grammarType: string, ruleString: string): LdkitRuleVersion {
+function rv(id: string, grammarType: string, ruleString: string): RuleVersionEntity {
   return {
     $id: id,
     '@type': 'RuleVersion',

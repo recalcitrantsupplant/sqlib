@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for QueryVersion Entity (Immutable Version)
+ * Schema for QueryVersion Entity (Immutable Version)
  * 
  * Represents an immutable version of a query. Each version has a stable
  * parent Query and contains the actual SPARQL query string and metadata.
@@ -110,7 +110,7 @@ export const QueryVersionSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitQueryVersion {
+export interface QueryVersionEntity {
   $id: string;
   '@type'?: 'QueryVersion';
   isPartOf: string; // IRI back to stable Query

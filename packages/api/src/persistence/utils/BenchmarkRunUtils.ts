@@ -1,7 +1,7 @@
 import { createEntityUtilsWithFields } from './EntityUtils.js';
-import { BenchmarkRunSchema, type LdkitBenchmarkRun } from '../schemas/BenchmarkRunSchema.js';
+import { BenchmarkRunSchema, type BenchmarkRunEntity } from '../schemas/BenchmarkRunSchema.js';
 
-const BenchmarkRunUtils = createEntityUtilsWithFields<LdkitBenchmarkRun>(
+const BenchmarkRunUtils = createEntityUtilsWithFields<BenchmarkRunEntity>(
   BenchmarkRunSchema,
   'BenchmarkRun'
 );

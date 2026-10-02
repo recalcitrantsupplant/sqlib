@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for PatchNode Entity
+ * Schema for PatchNode Entity
  *
  * A query group execution node that answers "what would this update change?"
  * without changing it. It names an update `QueryVersion` and a store to read,
@@ -89,7 +89,7 @@ export const PatchNodeSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitPatchNode {
+export interface PatchNodeEntity {
   '$id': string;
   '@type'?: 'PatchNode';
   /** The update QueryVersion whose effect is derived. */

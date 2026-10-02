@@ -2,42 +2,42 @@
  * LDKit utilities for QueryNode entities
  */
 
-import { QueryNodeSchema, type LdkitQueryNode } from '../schemas/QueryNodeSchema.js';
+import { QueryNodeSchema, type QueryNodeEntity } from '../schemas/QueryNodeSchema.js';
 import { createRepositoryLens } from './entityRepository.js';
-import { toLdkit } from './id-adapter.js';
+import { toEntity } from './id-adapter.js';
 
 export const QueryNodes = createRepositoryLens(QueryNodeSchema);
 
 /**
  * Find QueryNodes by queryId (StoredQuery reference)
  */
-export async function findQueryNodesByQuery(queryId: string): Promise<LdkitQueryNode[]> {
+export async function findQueryNodesByQuery(queryId: string): Promise<QueryNodeEntity[]> {
   const allNodes = await QueryNodes.find();
-  return allNodes.filter(node => node.queryId === queryId) as unknown as LdkitQueryNode[];
+  return allNodes.filter(node => node.queryId === queryId) as unknown as QueryNodeEntity[];
 }
 
 /**
  * Find QueryNodes by backendId (Backend reference)
  */
-export async function findQueryNodesByBackend(backendId: string): Promise<LdkitQueryNode[]> {
+export async function findQueryNodesByBackend(backendId: string): Promise<QueryNodeEntity[]> {
   const allNodes = await QueryNodes.find();
-  return allNodes.filter(node => node.backendId === backendId) as unknown as LdkitQueryNode[];
+  return allNodes.filter(node => node.backendId === backendId) as unknown as QueryNodeEntity[];
 }
 
 
 /**
  * Create a QueryNode with validation
  */
-type FlexibleNodeInput = Omit<LdkitQueryNode, '$id' | '@id'> & { '@id'?: string; $id?: string };
+type FlexibleNodeInput = Omit<QueryNodeEntity, '$id' | '@id'> & { '@id'?: string; $id?: string };
 
-export async function createQueryNode(data: FlexibleNodeInput): Promise<LdkitQueryNode> {
+export async function createQueryNode(data: FlexibleNodeInput): Promise<QueryNodeEntity> {
   // Validate required fields
   if (!data.queryId || !data.backendId) {
     throw new Error('QueryNode requires both queryId and backendId');
   }
 
   // Convert null to undefined for LDKit insert
-  const normalized = toLdkit<LdkitQueryNode>({ ...(data) });
+  const normalized = toEntity<QueryNodeEntity>({ ...(data) });
   const insertData = {
     ...normalized,
     queryId: normalized.queryId || undefined,
@@ -51,7 +51,7 @@ export async function createQueryNode(data: FlexibleNodeInput): Promise<LdkitQue
 /**
  * Update a QueryNode
  */
-export async function updateQueryNode(nodeId: string, updates: Partial<Omit<LdkitQueryNode, '$id'>>): Promise<LdkitQueryNode | null> {
+export async function updateQueryNode(nodeId: string, updates: Partial<Omit<QueryNodeEntity, '$id'>>): Promise<QueryNodeEntity | null> {
   const existingNode = await QueryNodes.findByIri(nodeId);
   if (!existingNode) {
     return null;
@@ -65,7 +65,7 @@ export async function updateQueryNode(nodeId: string, updates: Partial<Omit<Ldki
 
   await QueryNodes.update(updateData);
   const result = await QueryNodes.findByIri(nodeId);
-  return result ? (result as unknown as LdkitQueryNode) : null;
+  return result ? (result as unknown as QueryNodeEntity) : null;
 }
 
 /**
@@ -84,7 +84,7 @@ export async function deleteQueryNode(nodeId: string): Promise<boolean> {
 /**
  * Find QueryNodes by group ID
  */
-export async function findQueryNodesByGroup(groupId: string): Promise<LdkitQueryNode[]> {
+export async function findQueryNodesByGroup(groupId: string): Promise<QueryNodeEntity[]> {
   // Nodes belong to QueryGroupVersion, not QueryGroup.
   // Load versions for the group and use the latest version's executionNodes array.
   const { listVersionsForGroup } = await import('./QueryGroupVersionUtils.js');
@@ -94,5 +94,5 @@ export async function findQueryNodesByGroup(groupId: string): Promise<LdkitQuery
   const nodeIds = (latest.executionNodes || []).filter(Boolean) as string[];
   if (!nodeIds.length) return [];
   const nodes = await Promise.all(nodeIds.map(id => QueryNodes.findByIri(id)));
-  return nodes.filter(Boolean) as unknown as LdkitQueryNode[];
+  return nodes.filter(Boolean) as unknown as QueryNodeEntity[];
 }

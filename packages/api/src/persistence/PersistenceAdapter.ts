@@ -10,11 +10,11 @@
  * and stubbable, which is worth having with one implementation.
  */
 import type { EntityByType, EntityType } from '../lib/EntityRegistry.js';
-import type { LDKitEntity } from './EntityTypes.js';
+import type { UntypedEntity } from './EntityTypes.js';
 
 export interface PersistenceAdapter {
   /** Boot-time load of every known entity type, keyed by IRI. */
-  loadAll(): Promise<Map<string, LDKitEntity>>;
+  loadAll(): Promise<Map<string, UntypedEntity>>;
   findByIri<T extends EntityType>(type: T, id: string): Promise<EntityByType[T] | null>;
   findAll<T extends EntityType>(type: T): Promise<EntityByType[T][]>;
   insert<T extends EntityType>(type: T, entity: EntityByType[T]): Promise<void>;

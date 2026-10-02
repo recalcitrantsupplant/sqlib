@@ -12,10 +12,10 @@
  * they are the first entity minted from a call.
  */
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
-import type { LdkitDataGraphVersion } from '../persistence/schemas/DataGraphVersionSchema.js';
-import type { LdkitArgumentGraphBinding } from '../persistence/schemas/ArgumentGraphBindingSchema.js';
-import type { LdkitArgumentSetVersion } from '../persistence/schemas/ArgumentSetVersionSchema.js';
-import type { LdkitArgumentSet } from '../persistence/schemas/ArgumentSetSchema.js';
+import type { DataGraphVersionEntity } from '../persistence/schemas/DataGraphVersionSchema.js';
+import type { ArgumentGraphBindingEntity } from '../persistence/schemas/ArgumentGraphBindingSchema.js';
+import type { ArgumentSetVersionEntity } from '../persistence/schemas/ArgumentSetVersionSchema.js';
+import type { ArgumentSetEntity } from '../persistence/schemas/ArgumentSetSchema.js';
 
 /** One holder of a pin: the set, named, so the refusal can be read. */
 export interface DataGraphPin {
@@ -43,19 +43,19 @@ export function pinsOnDataGraph(dataGraphId: string): DataGraphPin[] {
   const cacheCoordinator = getCacheCoordinator();
 
   const versionIds = new Set(
-    (cacheCoordinator.list('DataGraphVersion') as LdkitDataGraphVersion[])
+    (cacheCoordinator.list('DataGraphVersion') as DataGraphVersionEntity[])
       .filter(version => version.isPartOf === dataGraphId)
       .map(version => version.$id),
   );
   if (versionIds.size === 0) return [];
 
   const pins: DataGraphPin[] = [];
-  for (const setVersion of cacheCoordinator.list('ArgumentSetVersion') as LdkitArgumentSetVersion[]) {
+  for (const setVersion of cacheCoordinator.list('ArgumentSetVersion') as ArgumentSetVersionEntity[]) {
     for (const bindingId of toArray(setVersion.graphBindings)) {
-      const binding = cacheCoordinator.get(bindingId) as LdkitArgumentGraphBinding | null;
+      const binding = cacheCoordinator.get(bindingId) as ArgumentGraphBindingEntity | null;
       const pinned = binding?.dataGraphVersion ?? null;
       if (!pinned || !versionIds.has(pinned)) continue;
-      const set = cacheCoordinator.get(setVersion.isPartOf) as LdkitArgumentSet | null;
+      const set = cacheCoordinator.get(setVersion.isPartOf) as ArgumentSetEntity | null;
       pins.push({
         argumentSetId: setVersion.isPartOf,
         argumentSetName: set?.name ?? setVersion.isPartOf,

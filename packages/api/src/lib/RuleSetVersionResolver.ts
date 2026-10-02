@@ -1,8 +1,8 @@
-import type { LdkitRuleSetVersion } from '../persistence/schemas/RuleSetVersionSchema.js';
-import type { LdkitRuleVersion } from '../persistence/schemas/RuleVersionSchema.js';
-import type { LdkitRule } from '../persistence/schemas/RuleSchema.js';
-import type { LdkitDataBlockVersion } from '../persistence/schemas/DataBlockVersionSchema.js';
-import type { LdkitDataBlock } from '../persistence/schemas/DataBlockSchema.js';
+import type { RuleSetVersionEntity } from '../persistence/schemas/RuleSetVersionSchema.js';
+import type { RuleVersionEntity } from '../persistence/schemas/RuleVersionSchema.js';
+import type { RuleEntity } from '../persistence/schemas/RuleSchema.js';
+import type { DataBlockVersionEntity } from '../persistence/schemas/DataBlockVersionSchema.js';
+import type { DataBlockEntity } from '../persistence/schemas/DataBlockSchema.js';
 import { toRestApi } from '../persistence/utils/id-adapter.js';
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
 import { loadRuleVersionsByIds } from '../persistence/utils/RuleVersionUtils.js';
@@ -121,18 +121,18 @@ function coerceExpandedImmutable(expanded: ExpandedRuleSetVersion): ExpandedRule
 }
 
 export interface ExpandedRuleSetVersion {
-  ruleSetVersion: RestEntity<LdkitRuleSetVersion>;
+  ruleSetVersion: RestEntity<RuleSetVersionEntity>;
   rules: Array<{
-    ruleVersion: RestEntity<LdkitRuleVersion>;
-    rule?: RestEntity<LdkitRule>;
+    ruleVersion: RestEntity<RuleVersionEntity>;
+    rule?: RestEntity<RuleEntity>;
   }>;
   dataBlocks: Array<{
-    dataBlockVersion: RestEntity<LdkitDataBlockVersion>;
-    dataBlock?: RestEntity<LdkitDataBlock>;
+    dataBlockVersion: RestEntity<DataBlockVersionEntity>;
+    dataBlock?: RestEntity<DataBlockEntity>;
   }>;
 }
 
-export async function expandRuleSetVersion(version: LdkitRuleSetVersion): Promise<ExpandedRuleSetVersion> {
+export async function expandRuleSetVersion(version: RuleSetVersionEntity): Promise<ExpandedRuleSetVersion> {
   const versionRest = coerceImmutable(toRestEntity(version));
 
   const ruleVersionIds = Array.isArray(version.hasRule)
@@ -143,12 +143,12 @@ export async function expandRuleSetVersion(version: LdkitRuleSetVersion): Promis
     : [];
 
   const [ruleVersions, dataBlockVersions] = await Promise.all([
-    resolveEntities<LdkitRuleVersion>(ruleVersionIds, 'RuleVersion', loadRuleVersionsByIds),
-    resolveEntities<LdkitDataBlockVersion>(dataBlockVersionIds, 'DataBlockVersion', loadDataBlockVersionsByIds),
+    resolveEntities<RuleVersionEntity>(ruleVersionIds, 'RuleVersion', loadRuleVersionsByIds),
+    resolveEntities<DataBlockVersionEntity>(dataBlockVersionIds, 'DataBlockVersion', loadDataBlockVersionsByIds),
   ]);
 
   const rules = await Promise.all(ruleVersions.map(async (ruleVersion) => {
-    const rule = await resolveStableEntity<LdkitRule>(ruleVersion.isPartOf, 'Rule', findRuleById);
+    const rule = await resolveStableEntity<RuleEntity>(ruleVersion.isPartOf, 'Rule', findRuleById);
     return {
       ruleVersion: coerceImmutable(toRestEntity(ruleVersion)),
       ...(rule ? { rule: toRestEntity(rule) } : {}),
@@ -156,7 +156,7 @@ export async function expandRuleSetVersion(version: LdkitRuleSetVersion): Promis
   }));
 
   const dataBlocks = await Promise.all(dataBlockVersions.map(async (dataBlockVersion) => {
-    const dataBlock = await resolveStableEntity<LdkitDataBlock>(dataBlockVersion.isPartOf, 'DataBlock', findDataBlockById);
+    const dataBlock = await resolveStableEntity<DataBlockEntity>(dataBlockVersion.isPartOf, 'DataBlock', findDataBlockById);
     return {
       dataBlockVersion: coerceImmutable(toRestEntity(dataBlockVersion)),
       ...(dataBlock ? { dataBlock: toRestEntity(dataBlock) } : {}),

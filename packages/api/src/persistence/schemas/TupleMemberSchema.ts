@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for TupleMember Entity
+ * Schema for TupleMember Entity
  * 
  * Represents a single member in an ordered tuple with position and variable IRI.
  * Used by both QueryInputTuple and QueryOutputTuple to maintain order.
@@ -20,7 +20,7 @@ export const TupleMemberSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitTupleMember {
+export interface TupleMemberEntity {
   '$id': string;
   '@type'?: 'TupleMember';
   position: number; // 0-based position in the tuple

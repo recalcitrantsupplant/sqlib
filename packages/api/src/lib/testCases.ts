@@ -8,12 +8,12 @@
  */
 
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
-import type { LdkitTestCase } from '../persistence/schemas/TestCaseSchema.js';
-import type { LdkitTestCaseDataGraph } from '../persistence/schemas/TestCaseDataGraphSchema.js';
+import type { TestCaseEntity } from '../persistence/schemas/TestCaseSchema.js';
+import type { TestCaseDataGraphEntity } from '../persistence/schemas/TestCaseDataGraphSchema.js';
 
 /** A version's stored cases, in `position` order. Empty for a version written before cases existed. */
-export function listStoredCases(testVersionId: string): LdkitTestCase[] {
-  return (getCacheCoordinator().list('TestCase') as unknown as LdkitTestCase[])
+export function listStoredCases(testVersionId: string): TestCaseEntity[] {
+  return (getCacheCoordinator().list('TestCase') as unknown as TestCaseEntity[])
     .filter(testCase => testCase.isPartOf === testVersionId)
     .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
 }
@@ -25,7 +25,7 @@ export function listStoredCases(testVersionId: string): LdkitTestCase[] {
  * shape stored before cases existed. Reporting a vacuous pass over zero cases
  * would be worse than either running it or refusing to.
  */
-export function effectiveCases(testVersionId: string): LdkitTestCase[] {
+export function effectiveCases(testVersionId: string): TestCaseEntity[] {
   const stored = listStoredCases(testVersionId);
   if (stored.length > 0) return stored;
   return [{ $id: `${testVersionId}#case-0`, isPartOf: testVersionId, position: 0 }];
@@ -42,8 +42,8 @@ export function effectiveCases(testVersionId: string): LdkitTestCase[] {
  * list, matching how `listStoredCases` reads a version's cases — the child
  * knows its parent, and one direction is enough.
  */
-export function listCaseDataGraphs(testCaseId: string): LdkitTestCaseDataGraph[] {
-  return (getCacheCoordinator().list('TestCaseDataGraph') as unknown as LdkitTestCaseDataGraph[])
+export function listCaseDataGraphs(testCaseId: string): TestCaseDataGraphEntity[] {
+  return (getCacheCoordinator().list('TestCaseDataGraph') as unknown as TestCaseDataGraphEntity[])
     .filter(entry => entry.isPartOf === testCaseId)
     .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
 }

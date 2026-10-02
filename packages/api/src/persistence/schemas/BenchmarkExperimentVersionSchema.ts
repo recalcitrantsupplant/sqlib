@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for BenchmarkExperimentVersion Entity (Immutable Version)
+ * Schema for BenchmarkExperimentVersion Entity (Immutable Version)
  *
  * Represents a versioned benchmark configuration.
  */
@@ -93,7 +93,7 @@ export const BenchmarkExperimentVersionSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitBenchmarkExperimentVersion {
+export interface BenchmarkExperimentVersionEntity {
   $id: string;
   '@type'?: 'BenchmarkExperimentVersion';
   isPartOf: string;

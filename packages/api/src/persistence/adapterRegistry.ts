@@ -1,7 +1,7 @@
 /**
  * Resolves the persistence adapter.
  *
- * There used to be two — `LdkitAdapter` and `SelfHostedAdapter` — chosen per
+ * There used to be two — `AdapterEntity` and `SelfHostedAdapter` — chosen per
  * operation class by four feature flags, so each migration phase could ship dark
  * (plan §2). The migration is done: the self-hosted adapter is in store-state
  * parity with LDKit across every entity type on both internal backend modes, so

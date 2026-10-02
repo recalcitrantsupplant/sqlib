@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for TestCase entity.
+ * Schema for TestCase entity.
  *
  * One parametrised case: the inputs, and what is correct *given those inputs*.
  *
@@ -129,7 +129,7 @@ export const TestCaseSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitTestCase {
+export interface TestCaseEntity {
   $id: string;
   '@type'?: 'TestCase';
   isPartOf: string;

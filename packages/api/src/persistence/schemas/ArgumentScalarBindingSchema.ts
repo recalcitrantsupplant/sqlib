@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for ArgumentScalarBinding Entity
+ * Schema for ArgumentScalarBinding Entity
  *
  * Represents LIMIT/OFFSET overrides captured inside an argument set.
  */
@@ -26,7 +26,7 @@ export const ArgumentScalarBindingSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitArgumentScalarBinding {
+export interface ArgumentScalarBindingEntity {
   '$id': string;
   '@type'?: 'ArgumentScalarBinding';
   parameterKind: 'limit' | 'offset';

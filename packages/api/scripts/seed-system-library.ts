@@ -19,10 +19,10 @@ import {
   createQueryVersion,
   updateQueryVersion,
 } from '../src/persistence/utils/QueryVersionUtils.js';
-import type { LDKitEntity } from '../src/persistence/utils/entityRepository.js';
-import type { LdkitLibrary } from '../src/persistence/schemas/LibrarySchema.js';
-import type { LdkitQuery } from '../src/persistence/schemas/QuerySchema.js';
-import type { LdkitQueryVersion } from '../src/persistence/schemas/QueryVersionSchema.js';
+import type { UntypedEntity } from '../src/persistence/utils/entityRepository.js';
+import type { LibraryEntity } from '../src/persistence/schemas/LibrarySchema.js';
+import type { QueryEntity } from '../src/persistence/schemas/QuerySchema.js';
+import type { QueryVersionEntity } from '../src/persistence/schemas/QueryVersionSchema.js';
 import { loadSystemStore } from '../src/system-store/SystemStoreLoader.js';
 
 function arraysEqual<T>(a: T[] | undefined | null, b: T[]): boolean {
@@ -31,7 +31,7 @@ function arraysEqual<T>(a: T[] | undefined | null, b: T[]): boolean {
   return a.every((value, idx) => value === b[idx]);
 }
 
-function getTypedAsset<T extends LDKitEntity>(assets: Map<string, LDKitEntity>, id: string, expectedType: string): T {
+function getTypedAsset<T extends UntypedEntity>(assets: Map<string, UntypedEntity>, id: string, expectedType: string): T {
   const asset = assets.get(id);
   if (!asset) {
     throw new Error(`Missing system asset ${id}`);
@@ -43,8 +43,8 @@ function getTypedAsset<T extends LDKitEntity>(assets: Map<string, LDKitEntity>, 
   return asset as T;
 }
 
-async function ensureSystemLibrary(systemAssets: Map<string, LDKitEntity>): Promise<void> {
-  const seed = getTypedAsset<LdkitLibrary>(systemAssets, SYSTEM_LIBRARY_ID, 'Library');
+async function ensureSystemLibrary(systemAssets: Map<string, UntypedEntity>): Promise<void> {
+  const seed = getTypedAsset<LibraryEntity>(systemAssets, SYSTEM_LIBRARY_ID, 'Library');
   const desiredName = seed.name;
   const desiredDescription = seed.description ?? null;
   const existing = await findLibraryById(SYSTEM_LIBRARY_ID);
@@ -78,10 +78,10 @@ async function ensureSystemLibrary(systemAssets: Map<string, LDKitEntity>): Prom
   }
 }
 
-async function ensureSystemQuery(key: SystemQueryKey, systemAssets: Map<string, LDKitEntity>): Promise<void> {
+async function ensureSystemQuery(key: SystemQueryKey, systemAssets: Map<string, UntypedEntity>): Promise<void> {
   const metadata = SYSTEM_QUERY_METADATA[key];
-  const querySeed = getTypedAsset<LdkitQuery>(systemAssets, metadata.queryId, 'Query');
-  const versionSeed = getTypedAsset<LdkitQueryVersion>(systemAssets, metadata.versionId, 'QueryVersion');
+  const querySeed = getTypedAsset<QueryEntity>(systemAssets, metadata.queryId, 'Query');
+  const versionSeed = getTypedAsset<QueryVersionEntity>(systemAssets, metadata.versionId, 'QueryVersion');
   const desiredMembership = querySeed.isPartOf?.length ? querySeed.isPartOf : [SYSTEM_LIBRARY_ID];
   const desiredCurrentVersion = querySeed.currentVersion ?? metadata.versionId;
   const parentQueryId = versionSeed.isPartOf ?? metadata.queryId;

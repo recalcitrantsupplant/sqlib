@@ -7,7 +7,7 @@
 
 import type { Property, Schema } from '../schema.js';
 import { createRepositoryLens } from './entityRepository.js';
-import { toLdkit } from './id-adapter.js';
+import { toEntity } from './id-adapter.js';
 import { cleanNullValues } from './type-conversions.js';
 
 /**
@@ -31,7 +31,7 @@ function requiredFieldsFrom(schema: Schema): string[] {
 /**
  * Base interface that all LDKit entities must have
  */
-interface BaseLdkitEntity {
+interface EntityWithId {
   $id: string;
   '@type'?: string;
   dateCreated?: string | null; // ISO string format for RDF/JSON-LD compatibility
@@ -42,7 +42,7 @@ interface BaseLdkitEntity {
  * Generic entity utilities factory
  * Generates standardized CRUD operations for any LDKit entity
  */
-export function createEntityUtils<T extends BaseLdkitEntity>(
+export function createEntityUtils<T extends EntityWithId>(
   schema: Schema,
   entityName: string,
   requiredFields: (keyof T)[] = requiredFieldsFrom(schema) as (keyof T)[],
@@ -114,7 +114,7 @@ export function createEntityUtils<T extends BaseLdkitEntity>(
       }
 
       const now = new Date().toISOString();
-      const entity = toLdkit<T>({ ...data });
+      const entity = toEntity<T>({ ...data });
       entity.dateCreated = now;
       entity.dateModified = now;
 
@@ -175,7 +175,7 @@ export function createEntityUtils<T extends BaseLdkitEntity>(
  * `config.requiredFields` overrides what the schema says is mandatory; omit it
  * unless the API's create-time contract genuinely differs from the RDF shape.
  */
-export function createEntityUtilsWithFields<T extends BaseLdkitEntity>(
+export function createEntityUtilsWithFields<T extends EntityWithId>(
   schema: Schema,
   entityName: string,
   config: {

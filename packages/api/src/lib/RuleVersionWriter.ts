@@ -1,8 +1,8 @@
 import { mintId } from './id.js';
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
 import { allocateVersion, setCurrentVersion } from './versionNumbering.js';
-import type { LdkitRuleVersion } from '../persistence/schemas/RuleVersionSchema.js';
-import { toLdkit } from '../persistence/utils/id-adapter.js';
+import type { RuleVersionEntity } from '../persistence/schemas/RuleVersionSchema.js';
+import { toEntity } from '../persistence/utils/id-adapter.js';
 import { RuleGrammarValidator } from './RuleGrammarValidator.js';
 import { getFeatureFlags } from '../config/featureFlags.js';
 
@@ -25,7 +25,7 @@ export interface AnnotateRuleVersionInput {
  * Numbered and pointed at under the parent's version lock (`allocateVersion`),
  * so concurrent saves get consecutive numbers and the last to finish is current.
  */
-export async function createRuleVersion(ruleId: string, body: CreateRuleVersionInput): Promise<LdkitRuleVersion> {
+export async function createRuleVersion(ruleId: string, body: CreateRuleVersionInput): Promise<RuleVersionEntity> {
   return allocateVersion('RuleVersion', ruleId, (nextVersion) => createRuleVersionNumbered(ruleId, body, nextVersion));
 }
 
@@ -33,7 +33,7 @@ export async function createRuleVersion(ruleId: string, body: CreateRuleVersionI
  * Creates a new immutable RuleVersion for the given Rule ID, automatically
  * assigning the next version number and updating the parent Rule's currentVersion.
  */
-async function createRuleVersionNumbered(ruleId: string, body: CreateRuleVersionInput, nextVersion: number): Promise<LdkitRuleVersion> {
+async function createRuleVersionNumbered(ruleId: string, body: CreateRuleVersionInput, nextVersion: number): Promise<RuleVersionEntity> {
   const cacheCoordinator = getCacheCoordinator();
 
   const versionId = mintId('ruleVersion');
@@ -75,7 +75,7 @@ async function createRuleVersionNumbered(ruleId: string, body: CreateRuleVersion
     defaultBackend: body.defaultBackend ?? undefined,
   };
 
-  const created = await cacheCoordinator.create('RuleVersion', toLdkit(payload));
+  const created = await cacheCoordinator.create('RuleVersion', toEntity(payload));
 
   await setCurrentVersion('Rule', ruleId, versionId);
 
@@ -93,9 +93,9 @@ async function createRuleVersionNumbered(ruleId: string, body: CreateRuleVersion
 export async function annotateRuleVersion(
   versionId: string,
   body: AnnotateRuleVersionInput,
-): Promise<LdkitRuleVersion> {
+): Promise<RuleVersionEntity> {
   const cacheCoordinator = getCacheCoordinator();
-  const current = cacheCoordinator.get(versionId) as LdkitRuleVersion | null;
+  const current = cacheCoordinator.get(versionId) as RuleVersionEntity | null;
   if (!current || current['@type'] !== 'RuleVersion') {
     throw new Error(`RuleVersion ${versionId} not found`);
   }

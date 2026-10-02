@@ -31,7 +31,7 @@
 
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
 import { readStoredTupleContent } from './tupleContent.js';
-import type { LdkitTupleSetVersion } from '../persistence/schemas/TupleSetVersionSchema.js';
+import type { TupleSetVersionEntity } from '../persistence/schemas/TupleSetVersionSchema.js';
 
 /** Anything the caller could have got right is this, and routes answer it 400. */
 export class TupleSeedInputError extends Error {}
@@ -132,7 +132,7 @@ export function resolveTupleSeedInput(request: TupleSeedInputRequest | null | un
     versionId = set.currentVersion;
   }
 
-  const version = cacheCoordinator.get(versionId!) as LdkitTupleSetVersion | null;
+  const version = cacheCoordinator.get(versionId!) as TupleSetVersionEntity | null;
   if (!version || version['@type'] !== 'TupleSetVersion') {
     throw new TupleSeedInputError(`Tuple set version ${versionId} not found`);
   }

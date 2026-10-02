@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for Tag Entity
+ * Schema for Tag Entity
  *
  * A tag classifies entities inside one library. It is not a container: nothing
  * is `sdo:isPartOf` a tag, and deleting one unlabels rather than cascading.
@@ -70,7 +70,7 @@ export const TagSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitTag {
+export interface TagEntity {
   $id: string;
   '@type'?: 'Tag';
   name: string;

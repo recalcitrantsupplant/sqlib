@@ -4,7 +4,7 @@
  *
  * Several cache suites stub the repositories and `loadAllSystemEntities`, then
  * assert on what the cache did with them. They used to pin the coordinator to
- * `LdkitAdapter`, which happened to have exactly this shape; that class is gone
+ * `AdapterEntity`, which happened to have exactly this shape; that class is gone
  * with LDKit, so the double is defined here instead of borrowed from production
  * code that no longer works this way.
  *
@@ -17,7 +17,7 @@
  * wait on itself and hang the file before a test runs.
  */
 import type { EntityByType, EntityType } from '../../src/lib/EntityRegistry.js';
-import type { LDKitEntity } from '../../src/persistence/EntityTypes.js';
+import type { UntypedEntity } from '../../src/persistence/EntityTypes.js';
 import type { PersistenceAdapter } from '../../src/persistence/PersistenceAdapter.js';
 
 interface Repository<T> {
@@ -38,7 +38,7 @@ async function getLensForType<T extends EntityType>(type: T): Promise<Repository
 }
 
 export const lensBackedAdapter: PersistenceAdapter = {
-  async loadAll(): Promise<Map<string, LDKitEntity>> {
+  async loadAll(): Promise<Map<string, UntypedEntity>> {
     const { loadAllSystemEntities } = await import('../../src/persistence/utils/entityRepository.js');
     return loadAllSystemEntities();
   },

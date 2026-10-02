@@ -15,9 +15,9 @@ import type { FastifyInstance, FastifyReply } from 'fastify';
 import { classifyVersionPatch } from '../lib/versionPatch.js';
 import { mintId } from '../lib/id.js';
 import { toRestApi } from '../persistence/utils/id-adapter.js';
-import type { LdkitTest } from '../persistence/schemas/TestSchema.js';
-import type { LdkitTestVersion } from '../persistence/schemas/TestVersionSchema.js';
-import type { LdkitTestCase } from '../persistence/schemas/TestCaseSchema.js';
+import type { TestEntity } from '../persistence/schemas/TestSchema.js';
+import type { TestVersionEntity } from '../persistence/schemas/TestVersionSchema.js';
+import type { TestCaseEntity } from '../persistence/schemas/TestCaseSchema.js';
 import { reposRoute, validateIfMatch, setEntityConcurrencyHeaders, findVersionByNumber } from './route-helpers.js';
 import type { EntityRepositories } from '../lib/EntityRepositories.js';
 import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
@@ -413,7 +413,7 @@ function reportSuite(tags: string[]): string {
   return tags.length > 0 ? tags.join(', ') : 'selected tests';
 }
 
-function matchesTags(test: LdkitTest, tags: string[], match: TagMatchMode): boolean {
+function matchesTags(test: TestEntity, tags: string[], match: TagMatchMode): boolean {
   if (tags.length === 0) return true;
   const carried = test.tags ?? [];
   return match === 'all'
@@ -583,7 +583,7 @@ const listQuerySchema = {
  * differ between "created" and "fetched" — which is the divergence that would
  * otherwise show up as a UI that renders cases only after a reload.
  */
-function serializeVersion(version: LdkitTestVersion, allCases: LdkitTestCase[]): Record<string, unknown> {
+function serializeVersion(version: TestVersionEntity, allCases: TestCaseEntity[]): Record<string, unknown> {
   const cases = allCases
     .filter(testCase => testCase.isPartOf === version.$id)
     .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
@@ -599,7 +599,7 @@ function serializeVersion(version: LdkitTestVersion, allCases: LdkitTestCase[]):
  * reach and nothing will ever clean up.
  */
 async function deleteVersionCascade(repos: EntityRepositories, versionId: string): Promise<void> {
-  const cases = (repos.TestCase.list() as LdkitTestCase[]).filter(testCase => testCase.isPartOf === versionId);
+  const cases = (repos.TestCase.list() as TestCaseEntity[]).filter(testCase => testCase.isPartOf === versionId);
   for (const testCase of cases) {
     await repos.TestCase.delete(testCase.$id);
   }
@@ -619,7 +619,7 @@ export default async function (fastify: FastifyInstance) {
     }, async ({ repos, reply, request }) => {
     const { subject, subjectKind, match } = request.query;
     const tags = parseTagList(request.query.tags);
-    const items = (repos.Test.list() as LdkitTest[])
+    const items = (repos.Test.list() as TestEntity[])
       .filter(test => (subject ? test.subject === subject : true))
       .filter(test => (subjectKind ? test.subjectKind === subjectKind : true))
       .filter(test => matchesTags(test, tags, match === 'all' ? 'all' : 'any'));
@@ -728,7 +728,7 @@ export default async function (fastify: FastifyInstance) {
       subjectKind,
       isPartOf: isPartOfArray,
       ...(tags.length > 0 || tagCheck.tags !== undefined ? { tags } : {}),
-    } as Partial<LdkitTest> & { $id: string });
+    } as Partial<TestEntity> & { $id: string });
     setEntityConcurrencyHeaders(reply, created);
     return reply.status(201).send(toRestApi(created));
   }));
@@ -740,7 +740,7 @@ export default async function (fastify: FastifyInstance) {
       response: { 200: testResponseSchema, 404: errorResponseSchema },
     }, async ({ repos, reply, request }) => {
     const { id } = request.params;
-    const entity = repos.Test.get(id) as LdkitTest | null;
+    const entity = repos.Test.get(id) as TestEntity | null;
     if (!entity) {
       return reply.status(404).send({ error: 'Not Found' });
     }
@@ -758,7 +758,7 @@ export default async function (fastify: FastifyInstance) {
     const { id } = request.params;
     const updates = request.body;
 
-    const current = repos.Test.get(id) as LdkitTest | null;
+    const current = repos.Test.get(id) as TestEntity | null;
     if (!current) {
       return reply.status(404).send({ error: 'Not Found' });
     }
@@ -808,7 +808,7 @@ export default async function (fastify: FastifyInstance) {
       ...updates,
       ...(ids ? { isPartOf: ids } : {}),
       ...(tagCheck.tags !== undefined ? { tags: tagCheck.tags } : {}),
-    } as Partial<LdkitTest>);
+    } as Partial<TestEntity>);
     if (!updated) {
       return reply.status(404).send({ error: 'Not Found' });
     }
@@ -827,7 +827,7 @@ export default async function (fastify: FastifyInstance) {
       return reply.status(404).send({ error: 'Not Found' });
     }
 
-    const versions = (repos.TestVersion.list() as LdkitTestVersion[]).filter(v => v.isPartOf === id);
+    const versions = (repos.TestVersion.list() as TestVersionEntity[]).filter(v => v.isPartOf === id);
     for (const version of versions) {
       await deleteVersionCascade(repos, version.$id);
     }
@@ -845,8 +845,8 @@ export default async function (fastify: FastifyInstance) {
     if (!repos.Test.get(id)) {
       return reply.status(404).send({ error: 'Test not found' });
     }
-    const allCases = repos.TestCase.list() as LdkitTestCase[];
-    const versions = (repos.TestVersion.list() as LdkitTestVersion[])
+    const allCases = repos.TestCase.list() as TestCaseEntity[];
+    const versions = (repos.TestVersion.list() as TestVersionEntity[])
       .filter(v => v.isPartOf === id)
       .sort((a, b) => (a.version ?? 0) - (b.version ?? 0));
     return reply.send(versions.map(v => serializeVersion(v, allCases)));
@@ -860,7 +860,7 @@ export default async function (fastify: FastifyInstance) {
       response: { 201: testVersionResponseSchema, 400: errorResponseSchema, 404: errorResponseSchema },
     }, async ({ repos, reply, request }) => {
     const { id } = request.params;
-    const test = repos.Test.get(id) as LdkitTest | null;
+    const test = repos.Test.get(id) as TestEntity | null;
     if (!test) {
       return reply.status(404).send({ error: 'Test not found' });
     }
@@ -883,7 +883,7 @@ export default async function (fastify: FastifyInstance) {
         immutable: request.body.immutable ?? undefined,
       });
       setEntityConcurrencyHeaders(reply, created);
-      return reply.status(201).send(serializeVersion(created, repos.TestCase.list() as LdkitTestCase[]));
+      return reply.status(201).send(serializeVersion(created, repos.TestCase.list() as TestCaseEntity[]));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return reply.status(400).send({ error: message });
@@ -901,7 +901,7 @@ export default async function (fastify: FastifyInstance) {
       return reply.status(404).send({ error: 'Test not found' });
     }
     const lookup = findVersionByNumber(
-      repos.TestVersion.list() as LdkitTestVersion[],
+      repos.TestVersion.list() as TestVersionEntity[],
       id,
       version,
       'test',
@@ -911,7 +911,7 @@ export default async function (fastify: FastifyInstance) {
     }
     const match = lookup.version;
     setEntityConcurrencyHeaders(reply, match);
-    return reply.send(serializeVersion(match, repos.TestCase.list() as LdkitTestCase[]));
+    return reply.send(serializeVersion(match, repos.TestCase.list() as TestCaseEntity[]));
   }));
 
   // PATCH /tests/:id/versions/:version — annotate a version
@@ -936,7 +936,7 @@ export default async function (fastify: FastifyInstance) {
       return reply.status(404).send({ error: 'Test not found' });
     }
     const lookup = findVersionByNumber(
-      repos.TestVersion.list() as LdkitTestVersion[],
+      repos.TestVersion.list() as TestVersionEntity[],
       id,
       version,
       'test',
@@ -955,7 +955,7 @@ export default async function (fastify: FastifyInstance) {
         immutable: annotations.immutable as boolean | undefined,
       });
       setEntityConcurrencyHeaders(reply, updated);
-      return reply.send(serializeVersion(updated, repos.TestCase.list() as LdkitTestCase[]));
+      return reply.send(serializeVersion(updated, repos.TestCase.list() as TestCaseEntity[]));
     } catch (error) {
       if (error instanceof ImmutableEntityError) {
         return reply.status(409).send({ error: error.message });
@@ -976,7 +976,7 @@ export default async function (fastify: FastifyInstance) {
       return reply.status(404).send({ error: 'Test not found' });
     }
     const lookup = findVersionByNumber(
-      repos.TestVersion.list() as LdkitTestVersion[],
+      repos.TestVersion.list() as TestVersionEntity[],
       id,
       version,
       'test',
@@ -1054,9 +1054,9 @@ export default async function (fastify: FastifyInstance) {
 
     const match: TagMatchMode = body.match === 'all' ? 'all' : 'any';
     const library = body.library ? String(body.library) : null;
-    const all = (repos.Test.list() as LdkitTest[])
+    const all = (repos.Test.list() as TestEntity[])
       .filter(test => (library ? test.isPartOf?.includes(library) : true));
-    let selected: LdkitTest[];
+    let selected: TestEntity[];
     if (named.length > 0) {
       const byId = new Map(all.map(test => [test.$id, test]));
       const missing = named.find(id => !byId.has(id));
@@ -1068,7 +1068,7 @@ export default async function (fastify: FastifyInstance) {
       }
       // The caller's order, not the repository's: the run reads back as the
       // list it was asked for.
-      selected = named.map(id => byId.get(id) as LdkitTest);
+      selected = named.map(id => byId.get(id) as TestEntity);
     } else {
       selected = all.filter(test => matchesTags(test, tags, match));
     }
@@ -1089,7 +1089,7 @@ export default async function (fastify: FastifyInstance) {
     const entries: TestReportEntry[] = [];
 
     for (const test of selected) {
-      const versions = (repos.TestVersion.list() as LdkitTestVersion[]).filter(v => v.isPartOf === test.$id);
+      const versions = (repos.TestVersion.list() as TestVersionEntity[]).filter(v => v.isPartOf === test.$id);
       const target = versions.find(v => v.$id === test.currentVersion)
         ?? versions.sort((a, b) => (a.version ?? 0) - (b.version ?? 0)).at(-1);
       if (!target) {
@@ -1172,13 +1172,13 @@ export default async function (fastify: FastifyInstance) {
       });
     }
 
-    const test = repos.Test.get(id) as LdkitTest | null;
+    const test = repos.Test.get(id) as TestEntity | null;
     if (!test) {
       return reply.status(404).send({ error: 'Test not found' });
     }
 
     const requestedVersion = request.body?.version;
-    const versions = (repos.TestVersion.list() as LdkitTestVersion[]).filter(v => v.isPartOf === id);
+    const versions = (repos.TestVersion.list() as TestVersionEntity[]).filter(v => v.isPartOf === id);
     const target = typeof requestedVersion === 'number'
       ? versions.find(v => Number(v.version) === requestedVersion)
       : versions.find(v => v.$id === test.currentVersion)
@@ -1283,7 +1283,7 @@ export default async function (fastify: FastifyInstance) {
       });
     }
 
-    const test = repos.Test.get(id) as LdkitTest | null;
+    const test = repos.Test.get(id) as TestEntity | null;
     if (!test) {
       return reply.status(404).send({ error: 'Test not found' });
     }

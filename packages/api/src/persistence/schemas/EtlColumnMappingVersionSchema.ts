@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for EtlColumnMappingVersion Entity (Immutable Version)
+ * Schema for EtlColumnMappingVersion Entity (Immutable Version)
  *
  * Represents an immutable snapshot of column mapping configuration.
  */
@@ -56,7 +56,7 @@ export interface ColumnDefinition {
   nullPolicy: 'undef' | 'skipRow'; // default 'undef'
 }
 
-export interface LdkitEtlColumnMappingVersion {
+export interface EtlColumnMappingVersionEntity {
   $id: string;
   '@type'?: 'EtlColumnMappingVersion';
   isPartOf: string; // IRI back to stable EtlColumnMapping

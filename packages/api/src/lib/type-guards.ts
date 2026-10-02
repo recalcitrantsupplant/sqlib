@@ -2,27 +2,27 @@
  * Type guards for LDKit entities to replace unsafe `any` casting
  */
 
-import type { LdkitQueryNode } from '../persistence/schemas/QueryNodeSchema.js';
-import type { LdkitStartNode } from '../persistence/schemas/StartNodeSchema.js';
-import type { LdkitEndNode } from '../persistence/schemas/EndNodeSchema.js';
-import type { LdkitDynamicQueryNode } from '../persistence/schemas/DynamicQueryNodeSchema.js';
-import type { LdkitRuleSetNode } from '../persistence/schemas/RuleSetNodeSchema.js';
-import type { LdkitPatchNode } from '../persistence/schemas/PatchNodeSchema.js';
-import type { LdkitDuckDbEtlNode } from '../persistence/schemas/DuckDbEtlNodeSchema.js';
-import type { LdkitQueryEdge } from '../persistence/schemas/QueryEdgeSchema.js';
-import type { LdkitQueryGroup } from '../persistence/schemas/QueryGroupSchema.js';
-import type { LdkitQueryGroupVersion } from '../persistence/schemas/QueryGroupVersionSchema.js';
-import type { LdkitQueryVersion } from '../persistence/schemas/QueryVersionSchema.js';
-import type { LdkitQueryIdInput } from '../persistence/schemas/QueryIdInputSchema.js';
-import type { LdkitQueryInputTuple } from '../persistence/schemas/QueryInputTupleSchema.js';
-import type { LdkitQueryOutputTuple } from '../persistence/schemas/QueryOutputTupleSchema.js';
-import type { LdkitTriplesQuadsIO } from '../persistence/schemas/TriplesQuadsIOSchema.js';
-import type { LdkitBooleanIO } from '../persistence/schemas/BooleanIOSchema.js';
+import type { QueryNodeEntity } from '../persistence/schemas/QueryNodeSchema.js';
+import type { StartNodeEntity } from '../persistence/schemas/StartNodeSchema.js';
+import type { EndNodeEntity } from '../persistence/schemas/EndNodeSchema.js';
+import type { DynamicQueryNodeEntity } from '../persistence/schemas/DynamicQueryNodeSchema.js';
+import type { RuleSetNodeEntity } from '../persistence/schemas/RuleSetNodeSchema.js';
+import type { PatchNodeEntity } from '../persistence/schemas/PatchNodeSchema.js';
+import type { DuckDbEtlNodeEntity } from '../persistence/schemas/DuckDbEtlNodeSchema.js';
+import type { QueryEdgeEntity } from '../persistence/schemas/QueryEdgeSchema.js';
+import type { QueryGroupEntity } from '../persistence/schemas/QueryGroupSchema.js';
+import type { QueryGroupVersionEntity } from '../persistence/schemas/QueryGroupVersionSchema.js';
+import type { QueryVersionEntity } from '../persistence/schemas/QueryVersionSchema.js';
+import type { QueryIdInputEntity } from '../persistence/schemas/QueryIdInputSchema.js';
+import type { QueryInputTupleEntity } from '../persistence/schemas/QueryInputTupleSchema.js';
+import type { QueryOutputTupleEntity } from '../persistence/schemas/QueryOutputTupleSchema.js';
+import type { TriplesQuadsIOEntity } from '../persistence/schemas/TriplesQuadsIOSchema.js';
+import type { BooleanIOEntity } from '../persistence/schemas/BooleanIOSchema.js';
 
 /**
  * Base entity type guard - checks for basic LDKit entity structure
  */
-function isLdkitEntity(obj: unknown): obj is { $id: string; '@type': string } {
+function isTypedEntity(obj: unknown): obj is { $id: string; '@type': string } {
   const rec = obj as { $id?: unknown; '@type'?: unknown };
   return typeof obj === 'object' &&
          obj !== null &&
@@ -33,74 +33,74 @@ function isLdkitEntity(obj: unknown): obj is { $id: string; '@type': string } {
 /**
  * Type guards for specific node types
  */
-export function isQueryNode(obj: unknown): obj is LdkitQueryNode {
-  return isLdkitEntity(obj) && obj['@type'] === 'QueryNode';
+export function isQueryNode(obj: unknown): obj is QueryNodeEntity {
+  return isTypedEntity(obj) && obj['@type'] === 'QueryNode';
 }
 
-export function isStartNode(obj: unknown): obj is LdkitStartNode {
-  return isLdkitEntity(obj) && obj['@type'] === 'StartNode';
+export function isStartNode(obj: unknown): obj is StartNodeEntity {
+  return isTypedEntity(obj) && obj['@type'] === 'StartNode';
 }
 
-export function isEndNode(obj: unknown): obj is LdkitEndNode {
-  return isLdkitEntity(obj) && obj['@type'] === 'EndNode';
+export function isEndNode(obj: unknown): obj is EndNodeEntity {
+  return isTypedEntity(obj) && obj['@type'] === 'EndNode';
 }
 
-export function isDynamicQueryNode(obj: unknown): obj is LdkitDynamicQueryNode {
-  return isLdkitEntity(obj) && obj['@type'] === 'DynamicQueryNode';
+export function isDynamicQueryNode(obj: unknown): obj is DynamicQueryNodeEntity {
+  return isTypedEntity(obj) && obj['@type'] === 'DynamicQueryNode';
 }
 
-export function isRuleSetNode(obj: unknown): obj is LdkitRuleSetNode {
-  return isLdkitEntity(obj) && obj['@type'] === 'RuleSetNode';
+export function isRuleSetNode(obj: unknown): obj is RuleSetNodeEntity {
+  return isTypedEntity(obj) && obj['@type'] === 'RuleSetNode';
 }
 
-export function isPatchNode(obj: unknown): obj is LdkitPatchNode {
-  return isLdkitEntity(obj) && obj['@type'] === 'PatchNode';
+export function isPatchNode(obj: unknown): obj is PatchNodeEntity {
+  return isTypedEntity(obj) && obj['@type'] === 'PatchNode';
 }
 
-export function isDuckDbEtlNode(obj: unknown): obj is LdkitDuckDbEtlNode {
-  return isLdkitEntity(obj) && obj['@type'] === 'DuckDbEtlNode';
+export function isDuckDbEtlNode(obj: unknown): obj is DuckDbEtlNodeEntity {
+  return isTypedEntity(obj) && obj['@type'] === 'DuckDbEtlNode';
 }
 
-export function isQueryEdge(obj: unknown): obj is LdkitQueryEdge {
-  return isLdkitEntity(obj) && obj['@type'] === 'QueryEdge';
+export function isQueryEdge(obj: unknown): obj is QueryEdgeEntity {
+  return isTypedEntity(obj) && obj['@type'] === 'QueryEdge';
 }
 
-export function isQueryGroup(obj: unknown): obj is LdkitQueryGroup {
-  return isLdkitEntity(obj) && obj['@type'] === 'QueryGroup';
+export function isQueryGroup(obj: unknown): obj is QueryGroupEntity {
+  return isTypedEntity(obj) && obj['@type'] === 'QueryGroup';
 }
 
-export function isQueryGroupVersion(obj: unknown): obj is LdkitQueryGroupVersion {
-  return isLdkitEntity(obj) && obj['@type'] === 'QueryGroupVersion';
+export function isQueryGroupVersion(obj: unknown): obj is QueryGroupVersionEntity {
+  return isTypedEntity(obj) && obj['@type'] === 'QueryGroupVersion';
 }
 
-export function isQueryVersion(obj: unknown): obj is LdkitQueryVersion {
-  return isLdkitEntity(obj) && obj['@type'] === 'QueryVersion';
+export function isQueryVersion(obj: unknown): obj is QueryVersionEntity {
+  return isTypedEntity(obj) && obj['@type'] === 'QueryVersion';
 }
 
-export function isQueryIdInput(obj: unknown): obj is LdkitQueryIdInput {
-  return isLdkitEntity(obj) && obj['@type'] === 'QueryIdInput';
+export function isQueryIdInput(obj: unknown): obj is QueryIdInputEntity {
+  return isTypedEntity(obj) && obj['@type'] === 'QueryIdInput';
 }
 
-export function isQueryInputTuple(obj: unknown): obj is LdkitQueryInputTuple {
-  return isLdkitEntity(obj) && obj['@type'] === 'QueryInputTuple';
+export function isQueryInputTuple(obj: unknown): obj is QueryInputTupleEntity {
+  return isTypedEntity(obj) && obj['@type'] === 'QueryInputTuple';
 }
 
-export function isQueryOutputTuple(obj: unknown): obj is LdkitQueryOutputTuple {
-  return isLdkitEntity(obj) && obj['@type'] === 'QueryOutputTuple';
+export function isQueryOutputTuple(obj: unknown): obj is QueryOutputTupleEntity {
+  return isTypedEntity(obj) && obj['@type'] === 'QueryOutputTuple';
 }
 
-export function isTriplesQuadsIO(obj: unknown): obj is LdkitTriplesQuadsIO {
-  return isLdkitEntity(obj) && obj['@type'] === 'TriplesQuadsIO';
+export function isTriplesQuadsIO(obj: unknown): obj is TriplesQuadsIOEntity {
+  return isTypedEntity(obj) && obj['@type'] === 'TriplesQuadsIO';
 }
 
-export function isBooleanIO(obj: unknown): obj is LdkitBooleanIO {
-  return isLdkitEntity(obj) && obj['@type'] === 'BooleanIO';
+export function isBooleanIO(obj: unknown): obj is BooleanIOEntity {
+  return isTypedEntity(obj) && obj['@type'] === 'BooleanIO';
 }
 
 /**
  * Union type for all node types (LDKit entities)
  */
-export type AnyNodeType = LdkitQueryNode | LdkitStartNode | LdkitEndNode | LdkitDynamicQueryNode | LdkitRuleSetNode | LdkitPatchNode | LdkitDuckDbEtlNode;
+export type AnyNodeType = QueryNodeEntity | StartNodeEntity | EndNodeEntity | DynamicQueryNodeEntity | RuleSetNodeEntity | PatchNodeEntity | DuckDbEtlNodeEntity;
 
 /**
  * Union type for all REST API node types - avoiding circular imports
@@ -131,11 +131,11 @@ export function getNodeType(node: AnyNodeType): 'QueryNode' | 'StartNode' | 'End
 /**
  * Property access helpers with proper typing
  */
-export function hasQueryId(node: AnyNodeType): node is LdkitQueryNode | LdkitDynamicQueryNode | LdkitPatchNode {
+export function hasQueryId(node: AnyNodeType): node is QueryNodeEntity | DynamicQueryNodeEntity | PatchNodeEntity {
   return isQueryNode(node) || isDynamicQueryNode(node) || isPatchNode(node);
 }
 
-export function hasBackendId(node: AnyNodeType): node is LdkitQueryNode | LdkitDynamicQueryNode | LdkitPatchNode {
+export function hasBackendId(node: AnyNodeType): node is QueryNodeEntity | DynamicQueryNodeEntity | PatchNodeEntity {
   return isQueryNode(node) || isDynamicQueryNode(node) || isPatchNode(node);
 }
 

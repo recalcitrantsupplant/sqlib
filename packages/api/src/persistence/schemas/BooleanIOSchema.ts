@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for BooleanIO Entity
+ * Schema for BooleanIO Entity
  *
  * Represents boolean input/output for ASK queries.
  * ASK queries return a single boolean value indicating whether
@@ -39,7 +39,7 @@ export const BooleanIOSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitBooleanIO {
+export interface BooleanIOEntity {
   $id: string;
   '@type'?: 'BooleanIO';
   name?: string | null; // Optional descriptive name

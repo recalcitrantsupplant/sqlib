@@ -8,12 +8,12 @@
 
 import { describe, expect, it } from 'vitest';
 import { buildPatchLog, orderPatchLog, PATCH_LOG_STATUSES } from '../../src/lib/patchLog.js';
-import type { LdkitPatch } from '../../src/persistence/schemas/PatchSchema.js';
+import type { PatchEntity } from '../../src/persistence/schemas/PatchSchema.js';
 
 const A = '<http://example.org/a>';
 const P = '<http://example.org/p>';
 
-function patch(fields: Partial<LdkitPatch> & { $id: string }): LdkitPatch {
+function patch(fields: Partial<PatchEntity> & { $id: string }): PatchEntity {
   return {
     isPartOf: 'urn:sqlib:backend:one',
     additions: '',
@@ -26,7 +26,7 @@ function patch(fields: Partial<LdkitPatch> & { $id: string }): LdkitPatch {
     contentHash: `hash-${fields.$id}`,
     sourceKind: 'updateString',
     ...fields,
-  } as LdkitPatch;
+  } as PatchEntity;
 }
 
 describe('PATCH_LOG_STATUSES', () => {

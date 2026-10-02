@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for ArgumentGraphBinding Entity
+ * Schema for ArgumentGraphBinding Entity
  *
  * A data graph bound to one of a query group's start-node graph ports.
  *
@@ -64,7 +64,7 @@ export const ArgumentGraphBindingSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitArgumentGraphBinding {
+export interface ArgumentGraphBindingEntity {
   '$id': string;
   '@type'?: 'ArgumentGraphBinding';
   position?: number | null;

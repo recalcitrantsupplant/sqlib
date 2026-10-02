@@ -4,10 +4,10 @@ import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
 import { analyseReferences, describeWrongType } from '../lib/entityReferences.js';
 import { analyseTags } from '../lib/tagMembership.js';
 import { toRestApi } from '../persistence/utils/id-adapter.js';
-import type { LdkitRuleSet } from '../persistence/schemas/RuleSetSchema.js';
-import type { LdkitRule } from '../persistence/schemas/RuleSchema.js';
-import type { LdkitRuleSetVersion } from '../persistence/schemas/RuleSetVersionSchema.js';
-import type { LdkitRuleVersion } from '../persistence/schemas/RuleVersionSchema.js';
+import type { RuleSetEntity } from '../persistence/schemas/RuleSetSchema.js';
+import type { RuleEntity } from '../persistence/schemas/RuleSchema.js';
+import type { RuleSetVersionEntity } from '../persistence/schemas/RuleSetVersionSchema.js';
+import type { RuleVersionEntity } from '../persistence/schemas/RuleVersionSchema.js';
 import type { MemoryCacheManager } from '../lib/MemoryCacheManager.js';
 import { reposRoute, validateIfMatch, setEntityConcurrencyHeaders, findVersionByNumber } from './route-helpers.js';
 import { ruleSetExecutionResponseJsonSchema } from '@sparql-query-lib/contracts/schema/routes';
@@ -42,8 +42,8 @@ import {
   type SrlDataBlockDocument,
   type SrlRuleDocument,
 } from '@sparql-query-lib/srl';
-import type { LdkitDataBlock } from '../persistence/schemas/DataBlockSchema.js';
-import type { LdkitDataBlockVersion } from '../persistence/schemas/DataBlockVersionSchema.js';
+import type { DataBlockEntity } from '../persistence/schemas/DataBlockSchema.js';
+import type { DataBlockVersionEntity } from '../persistence/schemas/DataBlockVersionSchema.js';
 import { createDataBlockVersion } from '../lib/DataBlockVersionWriter.js';
 import { createRuleVersion } from '../lib/RuleVersionWriter.js';
 import {
@@ -331,7 +331,7 @@ export default async function (fastify: FastifyInstance) {
    * descriptions and current-version pointers included, whatever they held.
    */
   fastify.get('/', ...reposRoute(getRuleSetsSchema, async ({ repos, reply, request }) => {
-    const items = repos.RuleSet.list() as LdkitRuleSet[];
+    const items = repos.RuleSet.list() as RuleSetEntity[];
     return reply.send(filterReadable(request, items).map(ruleSet => toRestApi(ruleSet)));
   }));
 
@@ -379,7 +379,7 @@ export default async function (fastify: FastifyInstance) {
     }
 
     const id = mintId('ruleSet');
-    const toCreate: Partial<LdkitRuleSet> & { $id: string } = {
+    const toCreate: Partial<RuleSetEntity> & { $id: string } = {
       $id: id,
       name,
       description: body.description ?? null,
@@ -394,7 +394,7 @@ export default async function (fastify: FastifyInstance) {
 
   fastify.get('/:id', ...reposRoute(getRuleSetSchema, async ({ repos, reply, request }) => {
     const { id } = request.params;
-    const entity = repos.RuleSet.get(id) as LdkitRuleSet | null;
+    const entity = repos.RuleSet.get(id) as RuleSetEntity | null;
     if (!entity) {
       return reply.status(404).send({ error: 'Not Found' });
     }
@@ -407,7 +407,7 @@ export default async function (fastify: FastifyInstance) {
     const updates = request.body;
     const cacheCoordinator = getCacheCoordinator();
 
-    const current = repos.RuleSet.get(id) as LdkitRuleSet | null;
+    const current = repos.RuleSet.get(id) as RuleSetEntity | null;
     if (!current) {
       return reply.status(404).send({ error: 'Not Found' });
     }
@@ -445,7 +445,7 @@ export default async function (fastify: FastifyInstance) {
     const updated = await repos.RuleSet.update(id, {
       ...updates,
       ...(tagCheck.tags !== undefined ? { tags: tagCheck.tags } : {}),
-    } as Partial<LdkitRuleSet>);
+    } as Partial<RuleSetEntity>);
     if (!updated) {
       return reply.status(404).send({ error: 'Not Found' });
     }
@@ -461,7 +461,7 @@ export default async function (fastify: FastifyInstance) {
     }
 
     // Delete all ruleset versions first
-    const versions = (repos.RuleSetVersion.list() as LdkitRuleSetVersion[]).filter(v => v.isPartOf === id);
+    const versions = (repos.RuleSetVersion.list() as RuleSetVersionEntity[]).filter(v => v.isPartOf === id);
     for (const version of versions) {
       await repos.RuleSetVersion.delete(version.$id);
     }
@@ -491,7 +491,7 @@ export default async function (fastify: FastifyInstance) {
     if (!parent) {
       return reply.status(404).send({ error: 'Rule set not found' });
     }
-    const versions = (repos.RuleSetVersion.list() as LdkitRuleSetVersion[])
+    const versions = (repos.RuleSetVersion.list() as RuleSetVersionEntity[])
       .filter(v => v.isPartOf === id)
       .sort((a, b) => (a.version ?? 0) - (b.version ?? 0));
     return reply.send(versions.map(v => toRestApi(v)));
@@ -563,7 +563,7 @@ export default async function (fastify: FastifyInstance) {
     }
 
     const lookup = findVersionByNumber(
-      repos.RuleSetVersion.list() as LdkitRuleSetVersion[],
+      repos.RuleSetVersion.list() as RuleSetVersionEntity[],
       id,
       version,
       'rule set',
@@ -606,7 +606,7 @@ export default async function (fastify: FastifyInstance) {
     const { id: ruleSetId, version } = request.params;
 
     const lookup = findVersionByNumber(
-      repos.RuleSetVersion.list() as LdkitRuleSetVersion[],
+      repos.RuleSetVersion.list() as RuleSetVersionEntity[],
       ruleSetId,
       version,
       'rule set',
@@ -649,9 +649,9 @@ export default async function (fastify: FastifyInstance) {
       return reply.send(unchanged);
     }
 
-    let updated: LdkitRuleSetVersion | null = null;
+    let updated: RuleSetVersionEntity | null = null;
     try {
-      updated = await repos.RuleSetVersion.update(existing.$id, annotations as Partial<LdkitRuleSetVersion>);
+      updated = await repos.RuleSetVersion.update(existing.$id, annotations as Partial<RuleSetVersionEntity>);
     } catch (error) {
       if (error instanceof ImmutableEntityError) {
         return reply.status(409).send({ error: error.message });
@@ -662,7 +662,7 @@ export default async function (fastify: FastifyInstance) {
       return reply.status(404).send({ error: 'Rule set version not found' });
     }
 
-    const expanded = await expandRuleSetVersion(updated as LdkitRuleSetVersion);
+    const expanded = await expandRuleSetVersion(updated as RuleSetVersionEntity);
     setEntityConcurrencyHeaders(reply, updated);
     return reply.send(expanded);
   }));
@@ -697,7 +697,7 @@ export default async function (fastify: FastifyInstance) {
     }
 
     const lookup = findVersionByNumber(
-      repos.RuleSetVersion.list() as LdkitRuleSetVersion[],
+      repos.RuleSetVersion.list() as RuleSetVersionEntity[],
       id,
       version,
       'rule set',
@@ -730,7 +730,7 @@ export default async function (fastify: FastifyInstance) {
       },
     }, async ({ repos, reply, request }) => {
     const { id } = request.params;
-    const parent = repos.RuleSet.get(id) as LdkitRuleSet | null;
+    const parent = repos.RuleSet.get(id) as RuleSetEntity | null;
     if (!parent) {
       return reply.status(404).send({ error: 'Rule set not found' });
     }
@@ -801,7 +801,7 @@ export default async function (fastify: FastifyInstance) {
       },
     }, async ({ repos, reply, request }) => {
     const { id } = request.params;
-    const parent = repos.RuleSet.get(id) as LdkitRuleSet | null;
+    const parent = repos.RuleSet.get(id) as RuleSetEntity | null;
     if (!parent) {
       return reply.status(404).send({ error: 'Rule set not found' });
     }
@@ -952,7 +952,7 @@ export default async function (fastify: FastifyInstance) {
     }, async ({ repos, reply, request }) => {
     const { id } = request.params;
     const query = request.query ?? {};
-    const parent = repos.RuleSet.get(id) as LdkitRuleSet | undefined;
+    const parent = repos.RuleSet.get(id) as RuleSetEntity | undefined;
     if (!parent) {
       return reply.status(404).send({ error: 'Rule set not found' });
     }
@@ -1035,7 +1035,7 @@ export default async function (fastify: FastifyInstance) {
       return reply.status(400).send({ error: tupleRefusal });
     }
 
-    const parent = repos.RuleSet.get(id) as LdkitRuleSet | undefined;
+    const parent = repos.RuleSet.get(id) as RuleSetEntity | undefined;
     if (!parent) {
       return reply.status(404).send({ error: 'Rule set not found' });
     }
@@ -1129,7 +1129,7 @@ export default async function (fastify: FastifyInstance) {
       return reply.status(400).send({ error: tupleRefusal });
     }
 
-    const parent = repos.RuleSet.get(id) as LdkitRuleSet | undefined;
+    const parent = repos.RuleSet.get(id) as RuleSetEntity | undefined;
     if (!parent) {
       return reply.status(404).send({ error: 'Rule set not found' });
     }
@@ -1654,11 +1654,11 @@ function countTriples(bgp: unknown): number {
 }
 
 function resolveRuleSetVersionForExecution(
-  repos: { RuleSetVersion: { list: () => LdkitRuleSetVersion[] } },
+  repos: { RuleSetVersion: { list: () => RuleSetVersionEntity[] } },
   ruleSetId: string,
-  parent: LdkitRuleSet,
+  parent: RuleSetEntity,
   requestedVersion?: number,
-): { ok: true; version: LdkitRuleSetVersion } | { ok: false; status: number; message: string } {
+): { ok: true; version: RuleSetVersionEntity } | { ok: false; status: number; message: string } {
   const versions = repos.RuleSetVersion.list()
     .filter((v) => v.isPartOf === ruleSetId);
 
@@ -1815,11 +1815,11 @@ function toDataBlockText(dataString?: string | null): string | null {
 /** DataBlockVersion IDs referenced by a rule set version, resolved to entities. */
 function loadDataBlockVersions(
   repos: { DataBlockVersion: { get: (id: string) => unknown } },
-  version: LdkitRuleSetVersion,
-): LdkitDataBlockVersion[] {
-  const out: LdkitDataBlockVersion[] = [];
+  version: RuleSetVersionEntity,
+): DataBlockVersionEntity[] {
+  const out: DataBlockVersionEntity[] = [];
   for (const dataBlockVersionId of normalizeIdList(version.hasDataBlock)) {
-    const found = repos.DataBlockVersion.get(dataBlockVersionId) as LdkitDataBlockVersion | undefined;
+    const found = repos.DataBlockVersion.get(dataBlockVersionId) as DataBlockVersionEntity | undefined;
     if (found) out.push(found);
   }
   return out;
@@ -1830,7 +1830,7 @@ function loadDataBlockVersions(
  * {@link canonicalizeStoredRule}. A block with no `DATA` form stays addressable
  * under an `unparseable:` identity so re-import never silently drops it.
  */
-function canonicalizeStoredDataBlock(version: LdkitDataBlockVersion): { identity: string; text: string } {
+function canonicalizeStoredDataBlock(version: DataBlockVersionEntity): { identity: string; text: string } {
   const fallback = { identity: `unparseable:${version.$id}`, text: (version.dataString ?? '').trim() };
   const text = toDataBlockText(version.dataString);
   if (!text) return fallback;
@@ -1847,8 +1847,8 @@ function canonicalizeStoredDataBlock(version: LdkitDataBlockVersion): { identity
 
 /** Describe a data block being detached from this rule set. Detach never deletes. */
 function describeDetachedDataBlock(
-  repos: { RuleSetVersion: { list: () => LdkitRuleSetVersion[] } },
-  version: LdkitDataBlockVersion,
+  repos: { RuleSetVersion: { list: () => RuleSetVersionEntity[] } },
+  version: DataBlockVersionEntity,
   currentRuleSetId: string,
 ): { dataBlockVersionId: string; otherRuleSets: number; orphaned: boolean } {
   const others = repos.RuleSetVersion.list().filter(
@@ -1863,9 +1863,9 @@ function describeDetachedDataBlock(
 
 /** Create the parent DataBlock entity for a newly-imported data block. */
 async function createDataBlockForImport(
-  repos: { DataBlock: { create: (entity: Partial<LdkitDataBlock> & { $id: string }) => Promise<LdkitDataBlock> } },
+  repos: { DataBlock: { create: (entity: Partial<DataBlockEntity> & { $id: string }) => Promise<DataBlockEntity> } },
   doc: SrlDataBlockDocument,
-  ruleSet: LdkitRuleSet,
+  ruleSet: RuleSetEntity,
 ): Promise<string> {
   const created = await repos.DataBlock.create({
     $id: mintId('dataBlock'),
@@ -1879,11 +1879,11 @@ async function createDataBlockForImport(
 /** RuleVersion IDs referenced by a rule set version, resolved to entities. */
 function loadRuleVersions(
   repos: { RuleVersion: { get: (id: string) => unknown } },
-  version: LdkitRuleSetVersion,
-): LdkitRuleVersion[] {
-  const out: LdkitRuleVersion[] = [];
+  version: RuleSetVersionEntity,
+): RuleVersionEntity[] {
+  const out: RuleVersionEntity[] = [];
   for (const ruleVersionId of normalizeIdList(version.hasRule)) {
-    const found = repos.RuleVersion.get(ruleVersionId) as LdkitRuleVersion | undefined;
+    const found = repos.RuleVersion.get(ruleVersionId) as RuleVersionEntity | undefined;
     if (found) out.push(found);
   }
   return out;
@@ -1898,7 +1898,7 @@ function loadRuleVersions(
  * generated text would report a spurious change (differing whitespace or IRI
  * spelling) and mint a pointless new version on every import.
  */
-function canonicalizeStoredRule(ruleVersion: LdkitRuleVersion): { identity: string; text: string } {
+function canonicalizeStoredRule(ruleVersion: RuleVersionEntity): { identity: string; text: string } {
   const raw = (ruleVersion.ruleString ?? '').trim();
   const fallback = { identity: `unparseable:${ruleVersion.$id}`, text: raw };
   if (!raw) return fallback;
@@ -1918,8 +1918,8 @@ function canonicalizeStoredRule(ruleVersion: LdkitRuleVersion): { identity: stri
  * distinguish "still used elsewhere" from "now orphaned".
  */
 function describeDetached(
-  repos: { RuleSetVersion: { list: () => LdkitRuleSetVersion[] } },
-  ruleVersion: LdkitRuleVersion,
+  repos: { RuleSetVersion: { list: () => RuleSetVersionEntity[] } },
+  ruleVersion: RuleVersionEntity,
   currentRuleSetId: string,
 ): { ruleVersionId: string; ruleId: string; otherRuleSets: number; orphaned: boolean } {
   const others = repos.RuleSetVersion.list().filter(
@@ -1938,11 +1938,11 @@ function describeDetached(
  * as the owning rule set.
  */
 async function createRuleForImport(
-  repos: { Rule: { create: (entity: Partial<LdkitRule> & { $id: string }) => Promise<LdkitRule> } },
+  repos: { Rule: { create: (entity: Partial<RuleEntity> & { $id: string }) => Promise<RuleEntity> } },
   doc: SrlRuleDocument,
-  ruleSet: LdkitRuleSet,
+  ruleSet: RuleSetEntity,
 ): Promise<string> {
-  const toCreate: Partial<LdkitRule> & { $id: string; rulesetMembership?: unknown } = {
+  const toCreate: Partial<RuleEntity> & { $id: string; rulesetMembership?: unknown } = {
     $id: mintId('rule'),
     name: doc.suggestedLabel,
     description: null,

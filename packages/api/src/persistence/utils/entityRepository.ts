@@ -79,9 +79,9 @@ export function overrideRepositoryLenses(factory: ((schema: Schema) => Lens<any>
  * Entity shapes live in the backend-neutral `persistence/` module; re-exported
  * here for the existing import sites.
  */
-import type { BaseEntity, LDKitEntity } from '../EntityTypes.js';
+import type { BaseEntity, UntypedEntity } from '../EntityTypes.js';
 
-export type { BaseEntity, LDKitEntity };
+export type { BaseEntity, UntypedEntity };
 
 /**
  * Boot load: every entity in the store, keyed by IRI.
@@ -96,8 +96,8 @@ export type { BaseEntity, LDKitEntity };
  * cache. Deriving the list from `SCHEMA_BY_TYPE` is what fixes that, and
  * `entityTypeCoverage.test.ts` keeps it honest.
  */
-export async function loadAllSystemEntities(): Promise<Map<string, LDKitEntity>> {
-  return (await loadAllEntities(SCHEMA_BY_TYPE as unknown as Record<string, EntitySchema>)) as Map<string, LDKitEntity>;
+export async function loadAllSystemEntities(): Promise<Map<string, UntypedEntity>> {
+  return (await loadAllEntities(SCHEMA_BY_TYPE as unknown as Record<string, EntitySchema>)) as Map<string, UntypedEntity>;
 }
 
 /**

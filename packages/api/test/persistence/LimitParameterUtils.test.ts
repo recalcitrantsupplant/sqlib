@@ -7,8 +7,8 @@ import {
   deleteLimitParameter,
   LimitParameters
 } from '../../src/persistence/utils/LimitParameterUtils.js';
-import { LdkitLimitParameter } from '../../src/persistence/schemas/LimitParameterSchema.js';
-import { toLdkit } from '../../src/persistence/utils/id-adapter.js';
+import { LimitParameterEntity } from '../../src/persistence/schemas/LimitParameterSchema.js';
+import { toEntity } from '../../src/persistence/utils/id-adapter.js';
 import { vi, Mocked } from 'vitest';
 
 // Mock the dependencies
@@ -23,7 +23,7 @@ vi.mock('../../src/persistence/utils/entityRepository', () => ({
 }));
 
 vi.mock('../../src/persistence/utils/id-adapter', () => ({
-  toLdkit: vi.fn((apiEntity) => {
+  toEntity: vi.fn((apiEntity) => {
     const id = apiEntity['@id'] || 'mock-id';
     return { ...apiEntity, '$id': id, '@id': id };
   }),
@@ -32,7 +32,7 @@ vi.mock('../../src/persistence/utils/id-adapter', () => ({
 const mockLimitParameters = LimitParameters as Mocked<typeof LimitParameters>;
 
 describe('LimitParameterUtils', () => {
-  const mockLimitParameter: LdkitLimitParameter = {
+  const mockLimitParameter: LimitParameterEntity = {
     '$id': 'urn:test:limit-parameter:1',
     '@type': 'LimitParameter',
     name: 'test-limit'
@@ -128,15 +128,15 @@ describe('LimitParameterUtils', () => {
       const newParamData = { name: 'new-limit' };
       const expectedCreatedParam = {
         ...newParamData,
-        '@id': 'mock-id', // from toLdkit mock
-        '$id': 'mock-id', // from toLdkit mock
+        '@id': 'mock-id', // from toEntity mock
+        '$id': 'mock-id', // from toEntity mock
         '@type': 'LimitParameter'
       };
 
       (mockLimitParameters.findByIri as any).mockResolvedValue(expectedCreatedParam);
 
       const result = await createLimitParameter(newParamData);
-      expect(toLdkit).toHaveBeenCalledWith(expect.objectContaining(newParamData));
+      expect(toEntity).toHaveBeenCalledWith(expect.objectContaining(newParamData));
       expect(mockLimitParameters.insert).toHaveBeenCalledWith(expect.objectContaining({
         $id: expect.any(String),
         '@id': expect.any(String),

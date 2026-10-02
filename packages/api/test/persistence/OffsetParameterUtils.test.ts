@@ -7,8 +7,8 @@ import {
   deleteOffsetParameter,
   OffsetParameters
 } from '../../src/persistence/utils/OffsetParameterUtils.js';
-import { LdkitOffsetParameter } from '../../src/persistence/schemas/OffsetParameterSchema.js';
-import { toLdkit } from '../../src/persistence/utils/id-adapter.js';
+import { OffsetParameterEntity } from '../../src/persistence/schemas/OffsetParameterSchema.js';
+import { toEntity } from '../../src/persistence/utils/id-adapter.js';
 import { vi, Mocked } from 'vitest';
 
 // Mock the dependencies
@@ -23,7 +23,7 @@ vi.mock('../../src/persistence/utils/entityRepository', () => ({
 }));
 
 vi.mock('../../src/persistence/utils/id-adapter', () => ({
-  toLdkit: vi.fn((apiEntity) => {
+  toEntity: vi.fn((apiEntity) => {
     const id = apiEntity['@id'] || 'mock-id';
     return { ...apiEntity, '$id': id, '@id': id };
   }),
@@ -32,7 +32,7 @@ vi.mock('../../src/persistence/utils/id-adapter', () => ({
 const mockOffsetParameters = OffsetParameters as Mocked<typeof OffsetParameters>;
 
 describe('OffsetParameterUtils', () => {
-  const mockOffsetParameter: LdkitOffsetParameter = {
+  const mockOffsetParameter: OffsetParameterEntity = {
     '$id': 'urn:test:offset-parameter:1',
     '@type': 'OffsetParameter',
     name: "1"
@@ -112,7 +112,7 @@ describe('OffsetParameterUtils', () => {
       const newParamData = { name: 'new-offset' };
       const expectedCreatedParam = {
         ...newParamData,
-        '$id': 'mock-id', // from toLdkit mock
+        '$id': 'mock-id', // from toEntity mock
         '@id': 'mock-id',
         '@type': 'OffsetParameter'
       };
@@ -120,7 +120,7 @@ describe('OffsetParameterUtils', () => {
       (mockOffsetParameters.findByIri as any).mockResolvedValue(expectedCreatedParam);
 
       const result = await createOffsetParameter(newParamData);
-      expect(toLdkit).toHaveBeenCalledWith(expect.objectContaining(newParamData));
+      expect(toEntity).toHaveBeenCalledWith(expect.objectContaining(newParamData));
       expect(mockOffsetParameters.insert).toHaveBeenCalledWith(expect.objectContaining({
         $id: expect.any(String),
         '@id': expect.any(String),

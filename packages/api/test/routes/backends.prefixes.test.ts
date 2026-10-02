@@ -5,7 +5,7 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll, afterEach, vi } from 'vitest';
 import Fastify, { FastifyInstance } from 'fastify';
 import backendRoutes from '../../src/routes/backends.js';
-import { BackendTypeIri, type LdkitBackend } from '../../src/persistence/schemas/BackendSchema.js';
+import { BackendTypeIri, type BackendEntity } from '../../src/persistence/schemas/BackendSchema.js';
 import { setupValidator } from '../../src/lib/validator-setup.js';
 import { AuthStore, inMemoryPersistence, setAuthStore } from '../../src/auth/AuthStore.js';
 import { resetAuthConfig } from '../../src/auth/config.js';
@@ -42,14 +42,14 @@ overrideCacheCoordinatorProvider({
 const BACKEND = 'urn:sqlib:backend:fuseki';
 const READER = 'urn:sqlib:principal:user:reader';
 
-const fusekiBackend: LdkitBackend = {
+const fusekiBackend: BackendEntity = {
   $id: BACKEND,
   name: 'Fuseki',
   backendType: BackendTypeIri.http,
   endpoint: 'http://store.example/ds/sparql',
 };
 
-const memoryBackend: LdkitBackend = {
+const memoryBackend: BackendEntity = {
   $id: 'urn:sqlib:backend:memory',
   name: 'Scratch',
   backendType: BackendTypeIri.oxigraphEphemeral,

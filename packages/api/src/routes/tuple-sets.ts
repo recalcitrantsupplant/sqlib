@@ -14,8 +14,8 @@ import type { FastifyInstance } from 'fastify';
 import { classifyVersionPatch } from '../lib/versionPatch.js';
 import { mintId } from '../lib/id.js';
 import { toRestApi } from '../persistence/utils/id-adapter.js';
-import type { LdkitTupleSet } from '../persistence/schemas/TupleSetSchema.js';
-import type { LdkitTupleSetVersion } from '../persistence/schemas/TupleSetVersionSchema.js';
+import type { TupleSetEntity } from '../persistence/schemas/TupleSetSchema.js';
+import type { TupleSetVersionEntity } from '../persistence/schemas/TupleSetVersionSchema.js';
 import { TUPLE_SOURCE_FORMATS } from '../persistence/schemas/TupleSetVersionSchema.js';
 import {
   reposRoute,
@@ -345,7 +345,7 @@ export default async function (fastify: FastifyInstance) {
       },
     }, async ({ repos, reply, request }) => {
     const { library } = request.query;
-    const items = repos.TupleSet.list() as LdkitTupleSet[];
+    const items = repos.TupleSet.list() as TupleSetEntity[];
     const scoped = library ? items.filter(set => set.isPartOf?.includes(library)) : items;
     return reply.send(filterReadable(request, scoped).map(set => toRestApi(set)));
   }));
@@ -398,7 +398,7 @@ export default async function (fastify: FastifyInstance) {
       description: body.description ?? null,
       isPartOf: isPartOfArray,
       ...(tagCheck.tags !== undefined ? { tags: tagCheck.tags } : {}),
-    } as Partial<LdkitTupleSet> & { $id: string });
+    } as Partial<TupleSetEntity> & { $id: string });
 
     setEntityConcurrencyHeaders(reply, created);
     return reply.status(201).send(toRestApi(created));
@@ -414,7 +414,7 @@ export default async function (fastify: FastifyInstance) {
       },
     }, async ({ repos, reply, request }) => {
     const { id } = request.params;
-    const entity = repos.TupleSet.get(id) as LdkitTupleSet | null;
+    const entity = repos.TupleSet.get(id) as TupleSetEntity | null;
     if (!entity) {
       return reply.status(404).send({ error: 'Not Found' });
     }
@@ -438,7 +438,7 @@ export default async function (fastify: FastifyInstance) {
     const updates = request.body;
     const cacheCoordinator = getCacheCoordinator();
 
-    const current = repos.TupleSet.get(id) as LdkitTupleSet | null;
+    const current = repos.TupleSet.get(id) as TupleSetEntity | null;
     if (!current) {
       return reply.status(404).send({ error: 'Not Found' });
     }
@@ -478,7 +478,7 @@ export default async function (fastify: FastifyInstance) {
       ...updates,
       ...(ids ? { isPartOf: ids } : {}),
       ...(tagCheck.tags !== undefined ? { tags: tagCheck.tags } : {}),
-    } as Partial<LdkitTupleSet>);
+    } as Partial<TupleSetEntity>);
     if (!updated) {
       return reply.status(404).send({ error: 'Not Found' });
     }
@@ -501,7 +501,7 @@ export default async function (fastify: FastifyInstance) {
       return reply.status(404).send({ error: 'Not Found' });
     }
 
-    const versions = (repos.TupleSetVersion.list() as LdkitTupleSetVersion[]).filter(
+    const versions = (repos.TupleSetVersion.list() as TupleSetVersionEntity[]).filter(
       version => version.isPartOf === id
     );
     for (const version of versions) {
@@ -525,7 +525,7 @@ export default async function (fastify: FastifyInstance) {
     if (!repos.TupleSet.get(id)) {
       return reply.status(404).send({ error: 'Tuple set not found' });
     }
-    const versions = (repos.TupleSetVersion.list() as LdkitTupleSetVersion[])
+    const versions = (repos.TupleSetVersion.list() as TupleSetVersionEntity[])
       .filter(version => version.isPartOf === id)
       .sort((a, b) => (a.version ?? 0) - (b.version ?? 0));
     return reply.send(versions.map(version => toRestApi(version)));
@@ -643,7 +643,7 @@ export default async function (fastify: FastifyInstance) {
       },
     }, async ({ repos, reply, request }) => {
     const { id, version } = request.params;
-    const versions = repos.TupleSetVersion.list() as LdkitTupleSetVersion[];
+    const versions = repos.TupleSetVersion.list() as TupleSetVersionEntity[];
     const lookup = findVersionByNumber(versions, id, version, 'tuple set');
     if (!lookup.ok) {
       return reply.status(lookup.status).send({ error: lookup.error });
@@ -671,7 +671,7 @@ export default async function (fastify: FastifyInstance) {
       },
     }, async ({ repos, reply, request }) => {
     const { id, version } = request.params;
-    const versions = repos.TupleSetVersion.list() as LdkitTupleSetVersion[];
+    const versions = repos.TupleSetVersion.list() as TupleSetVersionEntity[];
     const lookup = findVersionByNumber(versions, id, version, 'tuple set');
     if (!lookup.ok) {
       return reply.status(lookup.status).send({ error: lookup.error });
@@ -711,7 +711,7 @@ export default async function (fastify: FastifyInstance) {
       },
     }, async ({ repos, reply, request }) => {
     const { id, version } = request.params;
-    const versions = repos.TupleSetVersion.list() as LdkitTupleSetVersion[];
+    const versions = repos.TupleSetVersion.list() as TupleSetVersionEntity[];
     const lookup = findVersionByNumber(versions, id, version, 'tuple set');
     if (!lookup.ok) {
       return reply.status(lookup.status).send({ error: lookup.error });
@@ -727,14 +727,14 @@ export default async function (fastify: FastifyInstance) {
 
     // Deleting what the parent points at would leave a dangling pointer, so it
     // falls back to the highest remaining version — or to nothing.
-    const parent = repos.TupleSet.get(id) as LdkitTupleSet | null;
+    const parent = repos.TupleSet.get(id) as TupleSetEntity | null;
     if (parent?.currentVersion === lookup.version.$id) {
-      const remaining = (repos.TupleSetVersion.list() as LdkitTupleSetVersion[])
+      const remaining = (repos.TupleSetVersion.list() as TupleSetVersionEntity[])
         .filter(candidate => candidate.isPartOf === id)
         .sort((a, b) => (b.version ?? 0) - (a.version ?? 0));
       await repos.TupleSet.update(id, {
         currentVersion: remaining[0]?.$id ?? null,
-      } as Partial<LdkitTupleSet>);
+      } as Partial<TupleSetEntity>);
     }
 
     return reply.status(204).send();

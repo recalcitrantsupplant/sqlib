@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for Patch entity.
+ * Schema for Patch entity.
  *
  * A patch is the ground set of quads one write added and removed: a preview
  * before it happens, an audit record after, an undo when reversed, and a
@@ -189,7 +189,7 @@ export type PatchApplyMode = 'ground-sparql' | 'store' | 'graph-ops';
  */
 export type PatchSourceKind = 'updateString' | 'revert' | 'proxyUpdate';
 
-export interface LdkitPatch {
+export interface PatchEntity {
   $id: string;
   '@type'?: 'Patch';
   isPartOf: string;

@@ -42,14 +42,14 @@ import {
 } from '../src/lib/export/collectQueryExamples.js';
 import { generateDemoPage } from '../src/lib/export/demoPage.js';
 import { ArgumentSetService } from '../src/lib/ArgumentSetService.js';
-import type { LdkitTest } from '../src/persistence/schemas/TestSchema.js';
-import type { LdkitTestVersion } from '../src/persistence/schemas/TestVersionSchema.js';
-import type { LdkitTestCase } from '../src/persistence/schemas/TestCaseSchema.js';
-import type { LdkitLibrary } from '../src/persistence/schemas/LibrarySchema.js';
-import type { LdkitQuery } from '../src/persistence/schemas/QuerySchema.js';
-import type { LdkitQueryVersion } from '../src/persistence/schemas/QueryVersionSchema.js';
-import type { LdkitQueryGroup } from '../src/persistence/schemas/QueryGroupSchema.js';
-import type { LdkitQueryGroupVersion } from '../src/persistence/schemas/QueryGroupVersionSchema.js';
+import type { TestEntity } from '../src/persistence/schemas/TestSchema.js';
+import type { TestVersionEntity } from '../src/persistence/schemas/TestVersionSchema.js';
+import type { TestCaseEntity } from '../src/persistence/schemas/TestCaseSchema.js';
+import type { LibraryEntity } from '../src/persistence/schemas/LibrarySchema.js';
+import type { QueryEntity } from '../src/persistence/schemas/QuerySchema.js';
+import type { QueryVersionEntity } from '../src/persistence/schemas/QueryVersionSchema.js';
+import type { QueryGroupEntity } from '../src/persistence/schemas/QueryGroupSchema.js';
+import type { QueryGroupVersionEntity } from '../src/persistence/schemas/QueryGroupVersionSchema.js';
 
 interface Args {
   library?: string;
@@ -149,13 +149,13 @@ export async function exportBundle(args: Args): Promise<void> {
   await openLibrary();
   const repos = getEntityRepositories();
 
-  const library = repos.Library.get(args.library!) as LdkitLibrary | null;
+  const library = repos.Library.get(args.library!) as LibraryEntity | null;
   if (!library) throw new Error(`Library ${args.library} was not found.`);
 
   const { queries, skipped } = collectLibraryQueries(
     {
-      listQueries: () => repos.Query.list() as LdkitQuery[],
-      getQueryVersion: (id) => repos.QueryVersion.get(id) as LdkitQueryVersion | null,
+      listQueries: () => repos.Query.list() as QueryEntity[],
+      getQueryVersion: (id) => repos.QueryVersion.get(id) as QueryVersionEntity | null,
     },
     args.library!,
     { tags: args.tags, match: args.match },
@@ -173,9 +173,9 @@ export async function exportBundle(args: Args): Promise<void> {
   const { skipped: skippedExamples } = await attachExamplesToBundle(
     bundle,
     {
-      listTests: () => repos.Test.list() as LdkitTest[],
-      getTestVersion: (id) => repos.TestVersion.get(id) as LdkitTestVersion | null,
-      getTestCase: (id) => repos.TestCase.get(id) as LdkitTestCase | null,
+      listTests: () => repos.Test.list() as TestEntity[],
+      getTestVersion: (id) => repos.TestVersion.get(id) as TestVersionEntity | null,
+      getTestCase: (id) => repos.TestCase.get(id) as TestCaseEntity | null,
       resolveArgumentPayload: (id) =>
         argumentSetService.exportRuntimePayload([id]).then((payload) => ({
           arguments: payload.tupleList,
@@ -191,8 +191,8 @@ export async function exportBundle(args: Args): Promise<void> {
   // needs a store the static runtime does not have is reported, not fatal.
   const { groups, skipped: skippedGroupReads } = collectLibraryGroups(
     {
-      listGroups: () => repos.QueryGroup.list() as LdkitQueryGroup[],
-      getGroupVersion: (id) => repos.QueryGroupVersion.get(id) as LdkitQueryGroupVersion | null,
+      listGroups: () => repos.QueryGroup.list() as QueryGroupEntity[],
+      getGroupVersion: (id) => repos.QueryGroupVersion.get(id) as QueryGroupVersionEntity | null,
       getEntity: (id) => getCacheCoordinator().get(id) as GroupGraphEntity | null,
     },
     args.library!,

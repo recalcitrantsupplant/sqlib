@@ -1,8 +1,8 @@
 import { mintId } from './id.js';
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
 import { allocateVersion, setCurrentVersion } from './versionNumbering.js';
-import type { LdkitDataBlockVersion } from '../persistence/schemas/DataBlockVersionSchema.js';
-import { toLdkit } from '../persistence/utils/id-adapter.js';
+import type { DataBlockVersionEntity } from '../persistence/schemas/DataBlockVersionSchema.js';
+import { toEntity } from '../persistence/utils/id-adapter.js';
 import { RuleGrammarValidator } from './RuleGrammarValidator.js';
 import { getFeatureFlags } from '../config/featureFlags.js';
 
@@ -25,7 +25,7 @@ export interface AnnotateDataBlockVersionInput {
  * Numbered and pointed at under the parent's version lock (`allocateVersion`),
  * so concurrent saves get consecutive numbers and the last to finish is current.
  */
-export async function createDataBlockVersion(dataBlockId: string, body: CreateDataBlockVersionInput): Promise<LdkitDataBlockVersion> {
+export async function createDataBlockVersion(dataBlockId: string, body: CreateDataBlockVersionInput): Promise<DataBlockVersionEntity> {
   return allocateVersion('DataBlockVersion', dataBlockId, (nextVersion) => createDataBlockVersionNumbered(dataBlockId, body, nextVersion));
 }
 
@@ -33,7 +33,7 @@ export async function createDataBlockVersion(dataBlockId: string, body: CreateDa
  * Creates a new immutable DataBlockVersion for the given DataBlock ID, automatically
  * assigning the next version number and updating the parent DataBlock's currentVersion.
  */
-async function createDataBlockVersionNumbered(dataBlockId: string, body: CreateDataBlockVersionInput, nextVersion: number): Promise<LdkitDataBlockVersion> {
+async function createDataBlockVersionNumbered(dataBlockId: string, body: CreateDataBlockVersionInput, nextVersion: number): Promise<DataBlockVersionEntity> {
   const cacheCoordinator = getCacheCoordinator();
 
   const versionId = mintId('dataBlockVersion');
@@ -75,7 +75,7 @@ async function createDataBlockVersionNumbered(dataBlockId: string, body: CreateD
     defaultBackend: body.defaultBackend ?? undefined,
   };
 
-  const created = await cacheCoordinator.create('DataBlockVersion', toLdkit(payload));
+  const created = await cacheCoordinator.create('DataBlockVersion', toEntity(payload));
 
   await setCurrentVersion('DataBlock', dataBlockId, versionId);
 
@@ -93,9 +93,9 @@ async function createDataBlockVersionNumbered(dataBlockId: string, body: CreateD
 export async function annotateDataBlockVersion(
   versionId: string,
   body: AnnotateDataBlockVersionInput,
-): Promise<LdkitDataBlockVersion> {
+): Promise<DataBlockVersionEntity> {
   const cacheCoordinator = getCacheCoordinator();
-  const current = cacheCoordinator.get(versionId) as LdkitDataBlockVersion | null;
+  const current = cacheCoordinator.get(versionId) as DataBlockVersionEntity | null;
   if (!current || current['@type'] !== 'DataBlockVersion') {
     throw new Error(`DataBlockVersion ${versionId} not found`);
   }

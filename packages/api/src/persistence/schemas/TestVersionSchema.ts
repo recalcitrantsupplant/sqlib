@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for TestVersion entity (immutable version)
+ * Schema for TestVersion entity (immutable version)
  *
  * The invocation inputs and the expectation, versioned together because they
  * only mean anything together: an expectation is an expectation *given* those
@@ -106,7 +106,7 @@ export const TestVersionSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitTestVersion {
+export interface TestVersionEntity {
   $id: string;
   '@type'?: 'TestVersion';
   isPartOf: string;

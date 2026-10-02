@@ -21,6 +21,6 @@ export interface BaseEntity {
  * Generic entity type with unknown properties.
  * Use strict typed repositories or type guards when accessing specific fields.
  */
-export interface LDKitEntity extends BaseEntity {
+export interface UntypedEntity extends BaseEntity {
   [key: string]: unknown;
 }

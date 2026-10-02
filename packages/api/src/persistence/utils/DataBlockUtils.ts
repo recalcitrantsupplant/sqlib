@@ -1,7 +1,7 @@
 import { createEntityUtilsWithFields } from './EntityUtils.js';
-import { DataBlockSchema, type LdkitDataBlock } from '../schemas/DataBlockSchema.js';
+import { DataBlockSchema, type DataBlockEntity } from '../schemas/DataBlockSchema.js';
 
-const DataBlockUtils = createEntityUtilsWithFields<LdkitDataBlock>(
+const DataBlockUtils = createEntityUtilsWithFields<DataBlockEntity>(
   DataBlockSchema,
   'DataBlock'
 );
@@ -13,7 +13,7 @@ export const deleteDataBlock = DataBlockUtils.delete;
 export const findAllDataBlocks = DataBlockUtils.findAll;
 export const findDataBlockById = DataBlockUtils.findById;
 
-export async function findDataBlockByName(name: string): Promise<LdkitDataBlock | null> {
+export async function findDataBlockByName(name: string): Promise<DataBlockEntity | null> {
   const items = await DataBlockUtils.findBy('name', name);
   return items[0] || null;
 }

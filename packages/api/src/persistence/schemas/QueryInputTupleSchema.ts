@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for QueryInputTuple Entity
+ * Schema for QueryInputTuple Entity
  * 
  * Represents ordered tuples of input variables that belong together in VALUES clauses.
  * Each tuple has its own IRI and an ordered list of variable names.
@@ -53,7 +53,7 @@ export const QueryInputTupleSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitQueryInputTuple {
+export interface QueryInputTupleEntity {
   '$id': string;
   '@type'?: 'QueryInputTuple';
   name?: string | null; // Optional descriptive name, can be auto-generated

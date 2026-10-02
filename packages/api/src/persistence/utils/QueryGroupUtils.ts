@@ -2,9 +2,9 @@
  * LDKit utilities for QueryGroup entities
  */
 
-import { QueryGroupSchema, type LdkitQueryGroup } from '../schemas/QueryGroupSchema.js';
+import { QueryGroupSchema, type QueryGroupEntity } from '../schemas/QueryGroupSchema.js';
 import { createRepositoryLens } from './entityRepository.js';
-import { toLdkit } from './id-adapter.js';
+import { toEntity } from './id-adapter.js';
 import { stringToDate, dateToIsoString } from './type-conversions.js';
 
 export const QueryGroups = createRepositoryLens(QueryGroupSchema);
@@ -12,15 +12,15 @@ export const QueryGroups = createRepositoryLens(QueryGroupSchema);
 /**
  * Load QueryGroup entities by IDs using LDKit
  */
-export async function loadQueryGroupsByIds(ids: string[]): Promise<LdkitQueryGroup[]> {
-  const results: LdkitQueryGroup[] = [];
+export async function loadQueryGroupsByIds(ids: string[]): Promise<QueryGroupEntity[]> {
+  const results: QueryGroupEntity[] = [];
   
   for (const id of ids) {
     try {
       const group = await QueryGroups.findByIri(id);
       if (group) {
         // Convert null to undefined for type compatibility  
-        const compatibleGroup: LdkitQueryGroup = {
+        const compatibleGroup: QueryGroupEntity = {
           ...group,
           description: group.description || undefined,
           currentVersion: group.currentVersion || undefined,
@@ -43,9 +43,9 @@ export async function loadQueryGroupsByIds(ids: string[]): Promise<LdkitQueryGro
  * Create multiple QueryGroup entities
  */
 export async function createQueryGroups(
-  groupsData: Array<Omit<LdkitQueryGroup, '$id'> & { id: string }>
-): Promise<LdkitQueryGroup[]> {
-  const results: LdkitQueryGroup[] = [];
+  groupsData: Array<Omit<QueryGroupEntity, '$id'> & { id: string }>
+): Promise<QueryGroupEntity[]> {
+  const results: QueryGroupEntity[] = [];
   
   for (const data of groupsData) {
     try {
@@ -65,7 +65,7 @@ export async function createQueryGroups(
       };
       await QueryGroups.insert(insertGroup as unknown as Parameters<typeof QueryGroups.insert>[0]);
       // Return API-shaped group (string dates)
-      const apiGroup: LdkitQueryGroup = {
+      const apiGroup: QueryGroupEntity = {
         $id: id,
         ...groupData,
         currentVersion: groupData.currentVersion || undefined,
@@ -86,8 +86,8 @@ export async function createQueryGroups(
  */
 export async function updateQueryGroup(
   id: string,
-  updates: Partial<Omit<LdkitQueryGroup, '$id' | 'argumentSets'>>
-): Promise<LdkitQueryGroup | null> {
+  updates: Partial<Omit<QueryGroupEntity, '$id' | 'argumentSets'>>
+): Promise<QueryGroupEntity | null> {
   // Check if the entity exists first
   const existing = await QueryGroups.findByIri(id);
   if (!existing) {
@@ -143,7 +143,7 @@ export async function deleteQueryGroups(ids: string[]): Promise<boolean[]> {
 /**
  * Find QueryGroups by library/parent
  */
-export async function findQueryGroupsByParent(parentId: string): Promise<LdkitQueryGroup[]> {
+export async function findQueryGroupsByParent(parentId: string): Promise<QueryGroupEntity[]> {
   try {
     const allGroups = await QueryGroups.find();
     const filtered = allGroups.filter(group =>
@@ -173,15 +173,15 @@ export async function findQueryGroupsByParent(parentId: string): Promise<LdkitQu
 /**
  * Create a QueryGroup with validation
  */
-type FlexibleGroupInput = Omit<LdkitQueryGroup, '$id' | '@id'> & { '@id'?: string; $id?: string };
+type FlexibleGroupInput = Omit<QueryGroupEntity, '$id' | '@id'> & { '@id'?: string; $id?: string };
 
-export async function createQueryGroup(data: FlexibleGroupInput): Promise<LdkitQueryGroup> {
+export async function createQueryGroup(data: FlexibleGroupInput): Promise<QueryGroupEntity> {
   // Validate required fields
   if (!data.name || !data.currentVersion || !data.isPartOf) {
     throw new Error('QueryGroup requires name, currentVersion, and isPartOf');
   }
   
-  const normalized = toLdkit<LdkitQueryGroup>({ 
+  const normalized = toEntity<QueryGroupEntity>({ 
     ...(data),
     // Convert string dates to Date objects for LDKit
     dateCreated: stringToDate(data.dateCreated),

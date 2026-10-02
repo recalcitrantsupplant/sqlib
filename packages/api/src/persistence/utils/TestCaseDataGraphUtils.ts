@@ -1,7 +1,7 @@
 import { createEntityUtilsWithFields } from './EntityUtils.js';
-import { TestCaseDataGraphSchema, type LdkitTestCaseDataGraph } from '../schemas/TestCaseDataGraphSchema.js';
+import { TestCaseDataGraphSchema, type TestCaseDataGraphEntity } from '../schemas/TestCaseDataGraphSchema.js';
 
-const TestCaseDataGraphUtils = createEntityUtilsWithFields<LdkitTestCaseDataGraph>(
+const TestCaseDataGraphUtils = createEntityUtilsWithFields<TestCaseDataGraphEntity>(
   TestCaseDataGraphSchema,
   'TestCaseDataGraph',
 );

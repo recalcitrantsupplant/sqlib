@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for EtlJob Entity (Stable Pointer)
+ * Schema for EtlJob Entity (Stable Pointer)
  *
  * Represents a stable ETL job entity that points to versioned ETL job implementations.
  * The stable IRI never changes, but currentVersion points to the latest EtlJobVersion.
@@ -57,7 +57,7 @@ export const EtlJobSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitEtlJob {
+export interface EtlJobEntity {
   $id: string;
   '@type'?: 'EtlJob';
   name: string;

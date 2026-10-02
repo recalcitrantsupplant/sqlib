@@ -27,9 +27,9 @@
 
 import type { ExportBundle, QueryExample, WireArgumentSet } from '@sparql-query-lib/runtime';
 import { sealBundle } from '@sparql-query-lib/runtime/internal';
-import type { LdkitTest } from '../../persistence/schemas/TestSchema.js';
-import type { LdkitTestVersion } from '../../persistence/schemas/TestVersionSchema.js';
-import type { LdkitTestCase } from '../../persistence/schemas/TestCaseSchema.js';
+import type { TestEntity } from '../../persistence/schemas/TestSchema.js';
+import type { TestVersionEntity } from '../../persistence/schemas/TestVersionSchema.js';
+import type { TestCaseEntity } from '../../persistence/schemas/TestCaseSchema.js';
 
 /** How many of a query's tests become examples. */
 export type ExampleMode = 'all' | 'first' | 'none';
@@ -43,9 +43,9 @@ export interface ResolvedArgumentPayload {
 
 /** The reads this module needs, so a route and a script can both supply them. */
 export interface ExampleSource {
-  listTests(): LdkitTest[];
-  getTestVersion(id: string): LdkitTestVersion | null;
-  getTestCase(id: string): LdkitTestCase | null;
+  listTests(): TestEntity[];
+  getTestVersion(id: string): TestVersionEntity | null;
+  getTestCase(id: string): TestCaseEntity | null;
   resolveArgumentPayload(argumentSetVersionId: string): Promise<ResolvedArgumentPayload>;
 }
 
@@ -78,7 +78,7 @@ export interface CollectedExamples {
 }
 
 /** Order tests deterministically, so re-exporting an unchanged library matches. */
-function byNameThenId(a: LdkitTest, b: LdkitTest): number {
+function byNameThenId(a: TestEntity, b: TestEntity): number {
   return (a.name ?? '').localeCompare(b.name ?? '') || a.$id.localeCompare(b.$id);
 }
 
@@ -99,7 +99,7 @@ export async function collectQueryExamples(
   const skipped: SkippedExample[] = [];
   if (mode === 'none' || targets.length === 0) return { examples, skipped };
 
-  const testsByQuery = new Map<string, LdkitTest[]>();
+  const testsByQuery = new Map<string, TestEntity[]>();
   for (const test of source.listTests()) {
     if (test.subjectKind !== 'query') continue;
     if (!test.isPartOf?.includes(libraryId)) continue;
@@ -132,7 +132,7 @@ export async function collectQueryExamples(
 
       const cases = (version.cases ?? [])
         .map((id) => source.getTestCase(id))
-        .filter((testCase): testCase is LdkitTestCase => testCase !== null)
+        .filter((testCase): testCase is TestCaseEntity => testCase !== null)
         .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
 
       for (const testCase of cases) {
@@ -191,8 +191,8 @@ export async function collectQueryExamples(
 function buildExample(
   name: string,
   payload: ResolvedArgumentPayload,
-  test: LdkitTest,
-  testCase: LdkitTestCase,
+  test: TestEntity,
+  testCase: TestCaseEntity,
   options: CollectExamplesOptions,
 ): QueryExample {
   // A case that seeded its own data still yields a valid payload; it is only its

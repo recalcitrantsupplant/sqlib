@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for BenchmarkExperiment Entity
+ * Schema for BenchmarkExperiment Entity
  *
  * Stable pointer to the current BenchmarkExperimentVersion.
  */
@@ -55,7 +55,7 @@ export const BenchmarkExperimentSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitBenchmarkExperiment {
+export interface BenchmarkExperimentEntity {
   $id: string;
   '@type'?: 'BenchmarkExperiment';
   name: string;

@@ -3,7 +3,7 @@ import Fastify, { FastifyInstance } from 'fastify';
 import { Readable } from 'node:stream';
 import libraryRoutes from '../../src/routes/libraries.js';
 import { toRestApi } from '../../src/persistence/utils/id-adapter.js';
-import { LdkitLibrary } from '../../src/persistence/schemas/LibrarySchema.js';
+import { LibraryEntity } from '../../src/persistence/schemas/LibrarySchema.js';
 import { setupValidator } from '../../src/lib/validator-setup.js';
 import * as schemas from '@sparql-query-lib/contracts/schema';
 
@@ -71,7 +71,7 @@ describe('Library Routes (/libraries) - Unit Tests', () => {
   describe('POST /libraries', () => {
     const libraryPayload = { name: 'Test Library', description: 'A description' };
     const mockLibraryId = 'urn:sqlib:library:test-library';
-    const createdLibrary: LdkitLibrary = {
+    const createdLibrary: LibraryEntity = {
       $id: mockLibraryId,
       name: libraryPayload.name,
       description: libraryPayload.description,
@@ -111,7 +111,7 @@ describe('Library Routes (/libraries) - Unit Tests', () => {
 
   describe('GET /libraries', () => {
     it('should retrieve all libraries', async () => {
-      const mockLibrariesData: LdkitLibrary[] = [
+      const mockLibrariesData: LibraryEntity[] = [
         { $id: 'urn:1', name: 'Lib 1' } as any,
         { $id: 'urn:2', name: 'Lib 2' } as any,
       ];
@@ -159,7 +159,7 @@ describe('Library Routes (/libraries) - Unit Tests', () => {
 
   describe('GET /libraries/:id', () => {
     const libraryId = 'urn:sqlib:library:specific-lib';
-    const expectedLibrary: LdkitLibrary = { $id: libraryId, name: 'Specific Lib', dateModified: '2024-03-01T12:00:00.000Z' } as any;
+    const expectedLibrary: LibraryEntity = { $id: libraryId, name: 'Specific Lib', dateModified: '2024-03-01T12:00:00.000Z' } as any;
 
     it('should retrieve a specific library by ID', async () => {
       repo.get.mockReturnValue(expectedLibrary);
@@ -270,8 +270,8 @@ describe('Library Routes (/libraries) - Unit Tests', () => {
   describe('PUT /libraries/:id', () => {
     const libraryId = 'urn:sqlib:library:update-test';
     const updatePayload = { name: 'Updated Name' };
-    const currentLibrary: LdkitLibrary = { $id: libraryId, '@type': 'Library', name: 'Current', dateModified: '2024-01-01T00:00:00.000Z' } as any;
-    const updatedLibrary: LdkitLibrary = { $id: libraryId, ...updatePayload, '@type': 'Library', dateModified: '2024-01-02T00:00:00.000Z' } as any;
+    const currentLibrary: LibraryEntity = { $id: libraryId, '@type': 'Library', name: 'Current', dateModified: '2024-01-01T00:00:00.000Z' } as any;
+    const updatedLibrary: LibraryEntity = { $id: libraryId, ...updatePayload, '@type': 'Library', dateModified: '2024-01-02T00:00:00.000Z' } as any;
 
     it('should update and return the library', async () => {
       repo.get.mockReturnValue(currentLibrary);

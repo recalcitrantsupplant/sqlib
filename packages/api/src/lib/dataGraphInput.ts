@@ -29,7 +29,7 @@
 import type { FastifyRequest } from 'fastify';
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
 import { requireLibraryMode, resolveOwningLibrary } from '../auth/enforce.js';
-import type { LdkitDataGraphVersion } from '../persistence/schemas/DataGraphVersionSchema.js';
+import type { DataGraphVersionEntity } from '../persistence/schemas/DataGraphVersionSchema.js';
 import {
   DEFAULT_DATA_GRAPH_FORMAT,
   DataGraphContentError,
@@ -145,7 +145,7 @@ export function resolveDataGraphInput(
   }
 
   if (versionId) {
-    const version = getCacheCoordinator().get(versionId) as LdkitDataGraphVersion | null;
+    const version = getCacheCoordinator().get(versionId) as DataGraphVersionEntity | null;
     if (!version || version['@type'] !== 'DataGraphVersion') {
       throw new DataGraphContentError(`Data graph version ${versionId} not found`);
     }

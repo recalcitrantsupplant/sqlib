@@ -2,9 +2,9 @@ import { createHash } from 'node:crypto';
 import * as oxigraph from 'oxigraph';
 import { mintId } from './id.js';
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
-import { LdkitRuleSetVersion } from '../persistence/schemas/RuleSetVersionSchema.js';
-import { LdkitDataBlockVersion } from '../persistence/schemas/DataBlockVersionSchema.js';
-import { LdkitRuleVersion } from '../persistence/schemas/RuleVersionSchema.js';
+import { RuleSetVersionEntity } from '../persistence/schemas/RuleSetVersionSchema.js';
+import { DataBlockVersionEntity } from '../persistence/schemas/DataBlockVersionSchema.js';
+import { RuleVersionEntity } from '../persistence/schemas/RuleVersionSchema.js';
 import { oxigraphStoreManager } from './OxigraphStoreManager.js';
 import { OxigraphSparqlExecutor } from '../server/OxigraphSparqlExecutor.js';
 import { RuleStratifier, type StratificationReport, type MonotonicityKind } from './RuleStratifier.js';
@@ -217,7 +217,7 @@ export interface RuleSetExecutionOptions {
 export class RuleSetExecutor {
   private ruleValidator = new RuleGrammarValidator();
 
-  async execute(ruleSetVersion: LdkitRuleSetVersion, options: RuleSetExecutionOptions = {}): Promise<RuleSetExecutionResult> {
+  async execute(ruleSetVersion: RuleSetVersionEntity, options: RuleSetExecutionOptions = {}): Promise<RuleSetExecutionResult> {
     const maxIterations = options.maxIterations ?? DEFAULT_MAX_ITERATIONS;
     const timeoutMs = options.timeoutMs ?? DEFAULT_RULE_TIMEOUT_MS;
     const sampleLimit = options.sampleLimit ?? DEFAULT_RULE_SAMPLE_LIMIT;
@@ -592,7 +592,7 @@ export class RuleSetExecutor {
    */
   private seedTupleStore(
     tupleStore: TupleStore,
-    ruleSetVersion: LdkitRuleSetVersion,
+    ruleSetVersion: RuleSetVersionEntity,
     override?: string | null,
   ): string | null {
     // An empty string is a deliberate "no rows", distinct from an absent
@@ -611,8 +611,8 @@ export class RuleSetExecutor {
     }
   }
 
-  private loadDataBlockVersions(ids: string[]): LdkitDataBlockVersion[] {
-    const versions: LdkitDataBlockVersion[] = [];
+  private loadDataBlockVersions(ids: string[]): DataBlockVersionEntity[] {
+    const versions: DataBlockVersionEntity[] = [];
     for (const id of ids) {
       const entity = getCacheCoordinator().get(id);
       if (!entity) {
@@ -627,12 +627,12 @@ export class RuleSetExecutor {
         throw new Error(`Invalid entity type for ${id}: expected DataBlockVersion, got ${entityType}. RuleSets must reference version entities for immutable execution.`);
       }
 
-      versions.push(entity as LdkitDataBlockVersion);
+      versions.push(entity as DataBlockVersionEntity);
     }
     return versions;
   }
 
-  private resolveStratification(ruleSetVersion: LdkitRuleSetVersion, ruleVersions: LdkitRuleVersion[]): StratificationReport | undefined {
+  private resolveStratification(ruleSetVersion: RuleSetVersionEntity, ruleVersions: RuleVersionEntity[]): StratificationReport | undefined {
     if (!ruleVersions || ruleVersions.length === 0) return undefined;
     const parsed = this.parseStratificationReport(ruleSetVersion.stratificationReport ?? undefined);
     const stratifier = new RuleStratifier();
@@ -685,9 +685,9 @@ export class RuleSetExecutor {
     return annotated;
   }
 
-  private loadRuleVersions(ids: string[]): { prepared: PreparedRule[]; ruleVersions: LdkitRuleVersion[] } {
+  private loadRuleVersions(ids: string[]): { prepared: PreparedRule[]; ruleVersions: RuleVersionEntity[] } {
     const prepared: PreparedRule[] = [];
-    const ruleVersions: LdkitRuleVersion[] = [];
+    const ruleVersions: RuleVersionEntity[] = [];
     for (const id of ids) {
       const entity = getCacheCoordinator().get(id);
       if (!entity) {
@@ -702,7 +702,7 @@ export class RuleSetExecutor {
         throw new Error(`Invalid entity type for ${id}: expected RuleVersion, got ${entityType}. RuleSets must reference version entities for immutable execution.`);
       }
 
-      const ruleVersion = entity as LdkitRuleVersion;
+      const ruleVersion = entity as RuleVersionEntity;
       ruleVersions.push(ruleVersion);
       const preparedRule = this.prepareRule(ruleVersion);
       if (preparedRule) {
@@ -712,7 +712,7 @@ export class RuleSetExecutor {
     return { prepared, ruleVersions };
   }
 
-  private prepareRule(ruleVersion: LdkitRuleVersion): PreparedRule | null {
+  private prepareRule(ruleVersion: RuleVersionEntity): PreparedRule | null {
     // Tuple rules must be compiled from source: their program carries VALUES
     // placeholders plus read/write metadata that a stored `normalizedInsert`
     // cannot express.
@@ -737,7 +737,7 @@ export class RuleSetExecutor {
    * Compile a rule that uses the rule-tuples extension, or return null when it
    * does not (or cannot be parsed as SRL, in which case the normal path applies).
    */
-  private compileTupleRule(ruleVersion: LdkitRuleVersion): PreparedRule | null {
+  private compileTupleRule(ruleVersion: RuleVersionEntity): PreparedRule | null {
     const source = (ruleVersion.ruleString ?? '').trim();
     if (!source || !/\bTUPLE\s*\(/i.test(source)) return null;
     try {
@@ -792,7 +792,7 @@ export class RuleSetExecutor {
   private async runDataBlock(
     executor: OxigraphSparqlExecutor,
     store: oxigraph.Store,
-    version: LdkitDataBlockVersion,
+    version: DataBlockVersionEntity,
   ): Promise<DataBlockExecutionRecord> {
     const record: DataBlockExecutionRecord = {
       dataBlockVersionId: version.$id,
@@ -1055,7 +1055,7 @@ function renderTupleRow(row: string[]): string {
  * A rule that will not parse simply has no declared IRI — execution falls back
  * to the entity id, and the parse failure surfaces on the paths that report it.
  */
-function declaredRuleIri(ruleVersion: LdkitRuleVersion): string | undefined {
+function declaredRuleIri(ruleVersion: RuleVersionEntity): string | undefined {
   const source = (ruleVersion.ruleString ?? '').trim();
   if (!source) return undefined;
   try {

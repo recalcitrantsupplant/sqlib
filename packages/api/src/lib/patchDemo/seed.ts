@@ -19,10 +19,10 @@
  * re-running against a persistent library store writes nothing.
  */
 
-import { BackendTypeIri, type LdkitBackend } from '../../persistence/schemas/BackendSchema.js';
-import type { LdkitDataGraph } from '../../persistence/schemas/DataGraphSchema.js';
-import type { LdkitLibrary } from '../../persistence/schemas/LibrarySchema.js';
-import type { LdkitQuery } from '../../persistence/schemas/QuerySchema.js';
+import { BackendTypeIri, type BackendEntity } from '../../persistence/schemas/BackendSchema.js';
+import type { DataGraphEntity } from '../../persistence/schemas/DataGraphSchema.js';
+import type { LibraryEntity } from '../../persistence/schemas/LibrarySchema.js';
+import type { QueryEntity } from '../../persistence/schemas/QuerySchema.js';
 import { QueryTypeIri } from '../../constants/queryTypes.js';
 import { getEntityRepositories } from '../CacheCoordinatorProvider.js';
 import { createDataGraphVersion } from '../DataGraphVersionWriter.js';
@@ -99,22 +99,22 @@ async function ensureLibrary(): Promise<void> {
     $id: PATCH_DEMO_LIBRARY_ID,
     name: LIBRARY_NAME,
     description: LIBRARY_DESCRIPTION,
-  } as Partial<LdkitLibrary> & { $id: string });
+  } as Partial<LibraryEntity> & { $id: string });
 }
 
 async function ensureDataGraph(id: string, name: string, content: string): Promise<void> {
-  let graph = repos().DataGraph.get(id) as LdkitDataGraph | null;
+  let graph = repos().DataGraph.get(id) as DataGraphEntity | null;
   if (!graph) {
     graph = await repos().DataGraph.create({
       $id: id,
       name,
       isPartOf: [PATCH_DEMO_LIBRARY_ID],
-    } as Partial<LdkitDataGraph> & { $id: string });
+    } as Partial<DataGraphEntity> & { $id: string });
   }
   if (!graph.currentVersion) {
     await createDataGraphVersion(id, { contentString: content, contentFormat: 'text/turtle' });
   }
-  if (!(repos().DataGraph.get(id) as LdkitDataGraph | null)?.currentVersion) {
+  if (!(repos().DataGraph.get(id) as DataGraphEntity | null)?.currentVersion) {
     throw new Error(`DataGraph ${id} has no current version after seeding`);
   }
 }
@@ -131,7 +131,7 @@ async function ensureDataGraph(id: string, name: string, content: string): Promi
 async function ensureBackend(): Promise<void> {
   // A JSON string, not an object: the property is not declared `rdf:JSON`, so
   // an object reaches the store as `"[object Object]"` and comes back as a
-  // config with no sources at all. See `LdkitBackend.oxigraphConfig`.
+  // config with no sources at all. See `BackendEntity.oxigraphConfig`.
   const oxigraphConfig = JSON.stringify({
     storeType: 'ephemeral',
     mode: 'ephemeral',
@@ -141,7 +141,7 @@ async function ensureBackend(): Promise<void> {
     ],
   });
 
-  const existing = repos().Backend.get(PATCH_DEMO_BACKEND_ID) as LdkitBackend | null;
+  const existing = repos().Backend.get(PATCH_DEMO_BACKEND_ID) as BackendEntity | null;
   if (existing) {
     // Repairs a store seeded by an earlier build rather than assuming the
     // config on disk is the one this version writes.
@@ -157,7 +157,7 @@ async function ensureBackend(): Promise<void> {
     description: BACKEND_DESCRIPTION,
     backendType: BackendTypeIri.oxigraphMemory,
     oxigraphConfig,
-  } as Partial<LdkitBackend> & { $id: string });
+  } as Partial<BackendEntity> & { $id: string });
 }
 
 /**
@@ -177,7 +177,7 @@ async function ensureQuery(
   queryString: string,
 ): Promise<boolean> {
   const id = queryIdFor(slug);
-  let query = repos().Query.get(id) as LdkitQuery | null;
+  let query = repos().Query.get(id) as QueryEntity | null;
   if (!query) {
     query = await repos().Query.create({
       $id: id,
@@ -185,7 +185,7 @@ async function ensureQuery(
       description,
       defaultBackend: PATCH_DEMO_BACKEND_ID,
       isPartOf: [PATCH_DEMO_LIBRARY_ID],
-    } as Partial<LdkitQuery> & { $id: string });
+    } as Partial<QueryEntity> & { $id: string });
   }
   if (query.currentVersion) return false;
 

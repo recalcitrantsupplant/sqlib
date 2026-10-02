@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for QueryOutputTuple Entity
+ * Schema for QueryOutputTuple Entity
  * 
  * Represents user-defined ordered groupings of SELECT variables from a query.
  * These tuples are created at design time to enable linking query outputs 
@@ -25,7 +25,7 @@ export const QueryOutputTupleSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitQueryOutputTuple {
+export interface QueryOutputTupleEntity {
   '$id': string;
   '@type'?: 'QueryOutputTuple';
   name: string; // User-defined name for the tuple (e.g., "entity-properties")

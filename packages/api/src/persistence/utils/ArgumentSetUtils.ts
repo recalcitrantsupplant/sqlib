@@ -1,8 +1,8 @@
-import { ArgumentSetSchema, type LdkitArgumentSet } from '../schemas/ArgumentSetSchema.js';
-import { ArgumentTupleBindingSchema, type LdkitArgumentTupleBinding } from '../schemas/ArgumentTupleBindingSchema.js';
-import { ArgumentScalarBindingSchema, type LdkitArgumentScalarBinding } from '../schemas/ArgumentScalarBindingSchema.js';
-import { ArgumentGraphBindingSchema, type LdkitArgumentGraphBinding } from '../schemas/ArgumentGraphBindingSchema.js';
-import { ArgumentSetVersionSchema, type LdkitArgumentSetVersion } from '../schemas/ArgumentSetVersionSchema.js';
+import { ArgumentSetSchema, type ArgumentSetEntity } from '../schemas/ArgumentSetSchema.js';
+import { ArgumentTupleBindingSchema, type ArgumentTupleBindingEntity } from '../schemas/ArgumentTupleBindingSchema.js';
+import { ArgumentScalarBindingSchema, type ArgumentScalarBindingEntity } from '../schemas/ArgumentScalarBindingSchema.js';
+import { ArgumentGraphBindingSchema, type ArgumentGraphBindingEntity } from '../schemas/ArgumentGraphBindingSchema.js';
+import { ArgumentSetVersionSchema, type ArgumentSetVersionEntity } from '../schemas/ArgumentSetVersionSchema.js';
 import { createRepositoryLens } from './entityRepository.js';
 
 export const ArgumentSets = createRepositoryLens(ArgumentSetSchema);
@@ -12,9 +12,9 @@ export const ArgumentScalarBindings = createRepositoryLens(ArgumentScalarBinding
 export const ArgumentGraphBindings = createRepositoryLens(ArgumentGraphBindingSchema);
 
 export type {
-  LdkitArgumentSet,
-  LdkitArgumentSetVersion,
-  LdkitArgumentTupleBinding,
-  LdkitArgumentScalarBinding,
-  LdkitArgumentGraphBinding,
+  ArgumentSetEntity,
+  ArgumentSetVersionEntity,
+  ArgumentTupleBindingEntity,
+  ArgumentScalarBindingEntity,
+  ArgumentGraphBindingEntity,
 };

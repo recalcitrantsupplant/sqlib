@@ -3,7 +3,7 @@
  * 
  * Facade that delegates to CacheCoordinator for typed entity handling.
  */
-import type { LDKitEntity } from '../persistence/EntityTypes.js';
+import type { UntypedEntity } from '../persistence/EntityTypes.js';
 import { CacheCoordinator } from './CacheCoordinator.js';
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
 import { EntityType } from './EntityRegistry.js';
@@ -38,23 +38,23 @@ export class MemoryCacheManager {
     await this.coordinator.loadAll();
   }
 
-  get(id: string): LDKitEntity | null {
-    return this.coordinator.get(id) as LDKitEntity | null;
+  get(id: string): UntypedEntity | null {
+    return this.coordinator.get(id) as UntypedEntity | null;
   }
 
-  getByType(type: string): LDKitEntity[] {
-    return this.coordinator.list(type as EntityType) as LDKitEntity[];
+  getByType(type: string): UntypedEntity[] {
+    return this.coordinator.list(type as EntityType) as UntypedEntity[];
   }
 
-  getAll(): LDKitEntity[] {
-    return this.coordinator.getAll() as LDKitEntity[];
+  getAll(): UntypedEntity[] {
+    return this.coordinator.getAll() as UntypedEntity[];
   }
 
-  async create<T extends LDKitEntity>(entityData: Partial<T> & { '$id': string }, entityType: string): Promise<T> {
+  async create<T extends UntypedEntity>(entityData: Partial<T> & { '$id': string }, entityType: string): Promise<T> {
     return this.coordinator.create(entityType as EntityType, entityData as unknown as Parameters<typeof this.coordinator.create>[1]) as Promise<T>;
   }
 
-  addEphemeral<T extends LDKitEntity>(entityData: Partial<T> & { '$id': string }, entityType: string): T {
+  addEphemeral<T extends UntypedEntity>(entityData: Partial<T> & { '$id': string }, entityType: string): T {
     return this.coordinator.addEphemeral(entityData as unknown as Parameters<typeof this.coordinator.addEphemeral>[0], entityType as EntityType) as T;
   }
 
@@ -62,7 +62,7 @@ export class MemoryCacheManager {
     this.coordinator.removeEphemeral(id);
   }
 
-  async update<T extends LDKitEntity>(id: string, updates: Partial<T>, entityType: string): Promise<T | null> {
+  async update<T extends UntypedEntity>(id: string, updates: Partial<T>, entityType: string): Promise<T | null> {
     return this.coordinator.update(entityType as EntityType, id, updates as unknown as Parameters<typeof this.coordinator.update>[2]) as Promise<T | null>;
   }
 

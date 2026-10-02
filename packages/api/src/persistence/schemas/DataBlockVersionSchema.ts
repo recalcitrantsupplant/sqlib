@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for DataBlockVersion entity.
+ * Schema for DataBlockVersion entity.
  *
  * Represents an immutable snapshot of a data block.
  */
@@ -68,7 +68,7 @@ export const DataBlockVersionSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitDataBlockVersion {
+export interface DataBlockVersionEntity {
   $id: string;
   '@type'?: 'DataBlockVersion';
   isPartOf: string;

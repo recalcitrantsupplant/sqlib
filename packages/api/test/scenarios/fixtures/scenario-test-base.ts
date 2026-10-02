@@ -15,9 +15,9 @@ import detectionRoutes from '../../../src/routes/detection.js';
 import sparqlRoutes from '../../../src/routes/sparql.js';
 import * as schemas from '@sparql-query-lib/contracts/schema';
 import { serializerOpts, setupValidator } from '../../../src/lib/validator-setup.js';
-import type { LdkitBackend } from '../../../src/persistence/schemas/BackendSchema.js';
-import type { LdkitLibrary } from '../../../src/persistence/schemas/LibrarySchema.js';
-import type { LdkitQueryGroup } from '../../../src/persistence/schemas/QueryGroupSchema.js';
+import type { BackendEntity } from '../../../src/persistence/schemas/BackendSchema.js';
+import type { LibraryEntity } from '../../../src/persistence/schemas/LibrarySchema.js';
+import type { QueryGroupEntity } from '../../../src/persistence/schemas/QueryGroupSchema.js';
 
 const hoisted = vi.hoisted(() => ({
   cacheManager: null as MemoryCacheManager | null,
@@ -224,7 +224,7 @@ vi.mock('../../../src/persistence/utils/id-adapter.js', () => ({
     const { $id, ...rest } = entity;
     return { id: $id, ...rest };
   }),
-  toLdkit: vi.fn((entity: any) => {
+  toEntity: vi.fn((entity: any) => {
     if (entity.id && !entity.$id) {
       const { id, ...rest } = entity;
       return { $id: id, ...rest };

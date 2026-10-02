@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for Library Entity
+ * Schema for Library Entity
  * 
  * This entity represents collections or libraries of queries and query groups.
  */
@@ -43,7 +43,7 @@ export const LibrarySchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitLibrary {
+export interface LibraryEntity {
   $id: string;
   '@type'?: 'Library';
   name: string;

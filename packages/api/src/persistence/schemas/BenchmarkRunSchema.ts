@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for BenchmarkRun Entity (subject-level dataset).
+ * Schema for BenchmarkRun Entity (subject-level dataset).
  */
 
 import type { Schema } from '../schema.js';
@@ -61,7 +61,7 @@ export const BenchmarkRunSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitBenchmarkRun {
+export interface BenchmarkRunEntity {
   $id: string;
   '@type'?: 'BenchmarkRun';
   name?: string | null;

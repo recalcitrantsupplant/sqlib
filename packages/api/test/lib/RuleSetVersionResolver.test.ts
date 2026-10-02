@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
 import { expandRuleSetVersion } from '../../src/lib/RuleSetVersionResolver.js';
-import type { LdkitRuleSetVersion } from '../../src/persistence/schemas/RuleSetVersionSchema.js';
-import type { LdkitRuleVersion } from '../../src/persistence/schemas/RuleVersionSchema.js';
-import type { LdkitDataBlockVersion } from '../../src/persistence/schemas/DataBlockVersionSchema.js';
+import type { RuleSetVersionEntity } from '../../src/persistence/schemas/RuleSetVersionSchema.js';
+import type { RuleVersionEntity } from '../../src/persistence/schemas/RuleVersionSchema.js';
+import type { DataBlockVersionEntity } from '../../src/persistence/schemas/DataBlockVersionSchema.js';
 
 const hoisted = vi.hoisted(() => ({
   mockGet: vi.fn(),
@@ -22,7 +22,7 @@ vi.mock('../../src/persistence/utils/RuleVersionUtils.js', () => ({
     version: 1,
     ruleString: 'RULE {} WHERE {}',
     immutable: 'false',
-  } as unknown as LdkitRuleVersion))),
+  } as unknown as RuleVersionEntity))),
   findRuleVersionById: vi.fn(),
 }));
 
@@ -34,7 +34,7 @@ vi.mock('../../src/persistence/utils/DataBlockVersionUtils.js', () => ({
     version: 1,
     dataString: 'DATA {}',
     immutable: 'true',
-  } as unknown as LdkitDataBlockVersion))),
+  } as unknown as DataBlockVersionEntity))),
   findDataBlockVersionById: vi.fn(),
 }));
 
@@ -48,7 +48,7 @@ vi.mock('../../src/persistence/utils/DataBlockUtils.js', () => ({
 
 describe('RuleSetVersionResolver', () => {
   it('coerces immutable flags on rule set version and nested entities to booleans', async () => {
-    const version: LdkitRuleSetVersion = {
+    const version: RuleSetVersionEntity = {
       $id: 'urn:sqlib:ruleset-version:1',
       '@type': 'RuleSetVersion',
       isPartOf: 'urn:sqlib:ruleset:1',

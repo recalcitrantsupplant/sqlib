@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import * as oxigraph from 'oxigraph';
 import { QueryTypeIri } from '../constants/queryTypes.js';
 import { SYSTEM_LIBRARY_ID, SystemQueryCatalog, type SystemQueryKey } from '../lib/system-queries/SystemQueryCatalog.js';
-import type { LDKitEntity } from '../persistence/utils/entityRepository.js';
+import type { UntypedEntity } from '../persistence/utils/entityRepository.js';
 
 const PACKAGE_ROOT = path.resolve(fileURLToPath(new URL('../..', import.meta.url))); // packages/api
 const DEFAULT_ASSET_DIR = path.join(PACKAGE_ROOT, 'system-store', 'assets');
@@ -20,7 +20,7 @@ export interface SystemStoreLoadOptions {
 }
 
 export interface SystemStoreLoadResult {
-  cacheEntries: Map<string, LDKitEntity>;
+  cacheEntries: Map<string, UntypedEntity>;
   store: oxigraph.Store;
   assetDir: string;
 }
@@ -69,8 +69,8 @@ export async function loadSystemStore(options: SystemStoreLoadOptions = {}): Pro
   return { cacheEntries, store, assetDir };
 }
 
-function buildCacheEntries(store: oxigraph.Store): Map<string, LDKitEntity> {
-  const entries = new Map<string, LDKitEntity>();
+function buildCacheEntries(store: oxigraph.Store): Map<string, UntypedEntity> {
+  const entries = new Map<string, UntypedEntity>();
 
   const library = buildLibrary(store);
   entries.set(library.$id, library);
@@ -86,7 +86,7 @@ function buildCacheEntries(store: oxigraph.Store): Map<string, LDKitEntity> {
   return entries;
 }
 
-function buildLibrary(store: oxigraph.Store): LDKitEntity {
+function buildLibrary(store: oxigraph.Store): UntypedEntity {
   const name = requireString(getStringObject(store, SYSTEM_LIBRARY_ID, `${SDO}name`), 'System library missing sdo:name');
   const description = getStringObject(store, SYSTEM_LIBRARY_ID, `${SDO}description`);
   const defaultBackend = getIriObject(store, SYSTEM_LIBRARY_ID, `${SQLIB}defaultBackend`);
@@ -105,7 +105,7 @@ function buildLibrary(store: oxigraph.Store): LDKitEntity {
   };
 }
 
-function buildQuery(store: oxigraph.Store, key: SystemQueryKey): LDKitEntity {
+function buildQuery(store: oxigraph.Store, key: SystemQueryKey): UntypedEntity {
   const def = SystemQueryCatalog.getDefinition(key);
   const name = requireString(getStringObject(store, def.queryId, `${SDO}name`), `System query ${def.queryId} missing sdo:name`);
   const description = getStringObject(store, def.queryId, `${SDO}description`);
@@ -132,7 +132,7 @@ function buildQuery(store: oxigraph.Store, key: SystemQueryKey): LDKitEntity {
   };
 }
 
-function buildQueryVersion(store: oxigraph.Store, key: SystemQueryKey): LDKitEntity {
+function buildQueryVersion(store: oxigraph.Store, key: SystemQueryKey): UntypedEntity {
   const def = SystemQueryCatalog.getDefinition(key);
   const isPartOf = requireString(getIriObject(store, def.versionId, `${SDO}isPartOf`), `System query version ${def.versionId} missing parent query`);
   const version = requireNumber(getNumberObject(store, def.versionId, `${SDO}version`), `System query version ${def.versionId} missing sdo:version`);

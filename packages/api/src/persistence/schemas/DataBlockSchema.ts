@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for DataBlock Entity (stable pointer)
+ * Schema for DataBlock Entity (stable pointer)
  *
  * A DataBlock represents a set of triples to be inserted as-is.
  */
@@ -50,7 +50,7 @@ export const DataBlockSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitDataBlock {
+export interface DataBlockEntity {
   $id: string;
   '@type'?: 'DataBlock';
   name: string;
