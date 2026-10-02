@@ -490,6 +490,7 @@ import { useQueriesStore } from '../composables/useQueriesStore';
 import { useEntityKinds, isInLibrary } from '../composables/useEntityKinds';
 import { useFeatureFlags } from '../composables/useFeatureFlags';
 import { useLibraryEvents } from '../composables/useLibraryEvents';
+import type { ChangedEntity } from '../composables/useLibraryRefresh';
 import type { Backend, Library } from '@sparql-query-lib/contracts';
 import type { FeatureFlagKey } from '@sparql-query-lib/types';
 import {
@@ -804,11 +805,26 @@ const { activeLibraryId, activeLibraryName, ensureLoaded: ensureLibrariesLoaded 
 
 /*
  * The change feed. An external MCP client writing to this library refreshes the
- * query list and, crucially, the open query's concurrency token — a write that
- * bypassed this store leaves a stale etag, and the user's next save would fail
- * with a 412 they did nothing to earn.
+ * touched entity's list and, crucially, the open record's concurrency token —
+ * a write that bypassed the store leaves a stale etag, and the user's next save
+ * would fail with a 412 they did nothing to earn. The open record is named by
+ * the feed's entity name, whichever section it belongs to.
  */
-useLibraryEvents({ libraryId: activeLibraryId, openEntityId: selectedQueryId });
+const openEntity = computed<ChangedEntity | null>(() => {
+  const open: Partial<Record<ItemType, [string, string | null]>> = {
+    query: ['query', selectedQueryId.value],
+    queryGroup: ['queryGroup', selectedQueryGroupId.value],
+    ruleSet: ['ruleSet', selectedRuleSetId.value],
+    test: ['test', selectedTestId.value],
+    dataGraph: ['dataGraph', selectedDataGraphId.value],
+    argumentSet: ['argumentSet', selectedArgumentSetId.value],
+    etlJob: ['etlJob', selectedEtlJobId.value],
+    benchmark: ['benchmarkExperiment', selectedBenchmarkId.value],
+  };
+  const entry = selectedItemType.value ? open[selectedItemType.value] : undefined;
+  return entry && entry[1] ? { entity: entry[0], id: entry[1] } : null;
+});
+useLibraryEvents({ libraryId: activeLibraryId, openEntity });
 
 /*
  * The library's tags, fetched once per library and handed to whichever section

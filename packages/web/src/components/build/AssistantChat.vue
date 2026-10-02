@@ -292,8 +292,13 @@ async function submit() {
     return;
   }
 
-  // Once, at the end of the turn — not after every tool call.
-  await refreshEntities({ changedIds });
+  // Once, at the end of the turn — not after every tool call. The assistant
+  // stages query drafts only, so what it touched is the query list and the
+  // queries its drafts are based on.
+  await refreshEntities({
+    changed: [{ entity: 'query', id: null }, ...changedIds.map((id) => ({ entity: 'query', id }))],
+    libraryId: props.libraryId ?? null,
+  });
 }
 </script>
 
