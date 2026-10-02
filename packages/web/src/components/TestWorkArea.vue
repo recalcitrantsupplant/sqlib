@@ -1702,7 +1702,11 @@ const editCount = draftEditCount;
 
 /** Throw the unsaved edits away and go back to the saved version. */
 function discardDraft() {
+  // With no version read yet there is no saved body to go back to, so the
+  // editor goes back to empty, as it did before the lifecycle was shared.
+  const hadSavedBody = Boolean(savedBody.value);
   discardEntityDraft();
+  if (!hadSavedBody) hydrate(() => applyEditorBody({}));
   toast.success('Draft discarded');
 }
 
