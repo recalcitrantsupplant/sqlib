@@ -312,7 +312,7 @@ import { useApiClient, type TupleSetVersion } from '@/composables/useApiClient';
 import { useActiveLibrary } from '@/composables/useActiveLibrary';
 import { useScratchRecord } from '@/composables/useScratchRecord';
 import { useServerLimits } from '@/composables/useServerLimits';
-import { useCallableDrafts, UNASSIGNED_LIBRARY_ID } from '@/composables/useCallableDrafts';
+import { useEntityDraft } from '@/composables/useEntityDraft';
 import {
   TUPLE_IMPORT_FORMATS,
   SUGGESTED_COLUMN_TYPE_LABELS,
@@ -347,7 +347,6 @@ const emit = defineEmits<{
 const store = useTupleSetsStore();
 const apiClient = useApiClient();
 const { activeLibraryId } = useActiveLibrary();
-const draftsStore = useCallableDrafts();
 
 const setId = ref<string | null>(props.tupleSetId ?? null);
 const setName = ref('');
@@ -688,99 +687,71 @@ const previewRows = computed(() => (previewDoc.value?.rows ?? []).slice(0, PREVI
 /* ------------------------------------------------------------ draft state */
 
 const setLibraryId = ref<string | null>(null);
-/** When the browser-local draft was last written, for the Details draft row. */
-const locallySavedAt = ref<string | null>(null);
-let draftSaveHandle: ReturnType<typeof setTimeout> | null = null;
-/** Set while a set is being read from the server, so a load is not an edit. */
-const hydratingRecord = ref(false);
 
 /** The body the editor was last loaded from, to compare against. */
 const savedContent = ref('');
 const savedFormat = ref<TupleSourceFormat>('csv');
 
-const openDraft = computed(() => {
-  void draftsStore.allDrafts.value;
-  return setId.value ? draftsStore.draftFor(setId.value) : null;
-});
+/** What the editor holds now, in the shape a draft records it. */
+function editorBody(): TupleSetBody {
+  return {
+    description: description.value,
+    contentString: contentString.value,
+    sourceFormat: sourceFormat.value,
+    mode: mode.value,
+  };
+}
 
-const editCount = computed(() => (isScratch.value ? 0 : openDraft.value?.edits ?? 0));
+/** Put a body back into the editor; a field the body does not carry is left alone. */
+function applyEditorBody(body: TupleSetBody) {
+  if (typeof body.contentString === 'string') contentString.value = body.contentString;
+  if (body.sourceFormat) sourceFormat.value = body.sourceFormat;
+  if (typeof body.description === 'string') description.value = body.description;
+  if (body.mode) mode.value = body.mode;
+  if (mode.value === 'build' && typeof body.contentString === 'string') adoptBuilderFrom(body.contentString);
+}
+
+/*
+ * The draft lifecycle every versioned work area shares: autosave, undo-to-saved,
+ * Discard, and hydration that does not count as typing. "Saved" is judged on
+ * the content alone, and Discard puts back the saved content and format.
+ */
+const {
+  hydrating: hydratingRecord,
+  locallySavedAt,
+  openDraft,
+  editCount,
+  removeDraft,
+  cancelDraftSave,
+  discardDraft: discardEntityDraft,
+} = useEntityDraft<TupleSetBody>({
+  section: 'tupleSet',
+  id: () => setId.value,
+  enabled: () => !isScratch.value,
+  libraryId: () => setLibraryId.value || activeLibraryId.value,
+  name: () => setName.value,
+  description: () => description.value,
+  editorBody,
+  applyBody: applyEditorBody,
+  // Typing back to what is saved is an undo, not an edit.
+  matchesSaved: () =>
+    contentString.value.trim() === savedContent.value.trim()
+    && sourceFormat.value === savedFormat.value,
+  savedEditorBody: () => ({ contentString: savedContent.value, sourceFormat: savedFormat.value }),
+  sources: [contentString, sourceFormat, description],
+  // Rows are a solution sequence — the stored form is literally SPARQL
+  // Results JSON — so BINDINGS is what they are, not an approximation.
+  resultKind: 'BINDINGS',
+});
 
 const draftBody = computed(() => {
   const body = openDraft.value?.body;
   return body && typeof body === 'object' ? (body as TupleSetBody) : null;
 });
 
-/** Typing back to what is saved is an undo, not an edit. */
-const matchesSaved = () =>
-  contentString.value.trim() === savedContent.value.trim()
-  && sourceFormat.value === savedFormat.value;
-
-function persistDraft() {
-  const id = setId.value;
-  if (!id || isScratch.value) return;
-  const existing = draftsStore.draftFor(id);
-  draftsStore.save({
-    id: existing?.id ?? `urn:ui-temp:draft-of-${id}`,
-    libraryId: setLibraryId.value || activeLibraryId.value || UNASSIGNED_LIBRARY_ID,
-    type: 'query',
-    kind: 'draft',
-    section: 'tupleSet',
-    name: setName.value,
-    description: description.value || null,
-    queryString: null,
-    body: {
-      description: description.value,
-      contentString: contentString.value,
-      sourceFormat: sourceFormat.value,
-      mode: mode.value,
-    } satisfies TupleSetBody,
-    // Rows are a solution sequence — the stored form is literally SPARQL
-    // Results JSON — so BINDINGS is what they are, not an approximation.
-    resultKind: 'BINDINGS',
-    inputTuples: [],
-    limitParameters: [],
-    offsetParameters: [],
-    outputs: [],
-    basedOn: id,
-    edits: (existing?.edits ?? 0) + 1,
-  });
-  locallySavedAt.value = new Date().toISOString();
-}
-
-function removeDraft() {
-  const id = setId.value;
-  if (!id) return;
-  const existing = draftsStore.draftFor(id);
-  if (existing) draftsStore.remove(existing.id);
-  locallySavedAt.value = null;
-}
-
-watch([contentString, sourceFormat, description], () => {
-  if (isScratch.value || hydratingRecord.value) return;
-  if (!setId.value) return;
-  if (draftSaveHandle) clearTimeout(draftSaveHandle);
-  draftSaveHandle = setTimeout(() => {
-    draftSaveHandle = null;
-    if (matchesSaved()) {
-      removeDraft();
-      return;
-    }
-    persistDraft();
-  }, 500);
-});
-
 /** Throw the unsaved edits away and go back to the saved version. */
 function discardDraft() {
-  if (draftSaveHandle) {
-    clearTimeout(draftSaveHandle);
-    draftSaveHandle = null;
-  }
-  removeDraft();
-  hydratingRecord.value = true;
-  contentString.value = savedContent.value;
-  sourceFormat.value = savedFormat.value;
-  if (mode.value === 'build') adoptBuilderFrom(savedContent.value);
-  void Promise.resolve().then(() => { hydratingRecord.value = false; });
+  discardEntityDraft();
   toast.success('Draft discarded');
 }
 
@@ -1207,10 +1178,7 @@ async function save() {
     versions.value = await store.loadVersions(setId.value!);
     savedContent.value = contentString.value;
     savedFormat.value = sourceFormat.value;
-    if (draftSaveHandle) {
-      clearTimeout(draftSaveHandle);
-      draftSaveHandle = null;
-    }
+    cancelDraftSave();
     removeDraft();
     toast.success(
       `Saved v${version.version} — ${version.rowCount ?? 0} rows, ${(version.tupleColumns ?? []).length} columns`,
@@ -1303,10 +1271,7 @@ watch(
   (next) => {
     // A pending autosave belongs to the set that was open, not the one being
     // opened; letting it fire would write the old body under the new id.
-    if (draftSaveHandle) {
-      clearTimeout(draftSaveHandle);
-      draftSaveHandle = null;
-    }
+    cancelDraftSave();
     setId.value = next ?? null;
     setLibraryId.value = null;
     setCreatedAt.value = null;
@@ -1330,11 +1295,6 @@ onBeforeUnmount(() => {
     clearTimeout(previewHandle);
     previewHandle = null;
   }
-  if (!draftSaveHandle) return;
-  clearTimeout(draftSaveHandle);
-  draftSaveHandle = null;
-  // Closing the tab mid-debounce should not lose the edit that was queued.
-  if (!isScratch.value && setId.value && !matchesSaved()) persistDraft();
 });
 </script>
 

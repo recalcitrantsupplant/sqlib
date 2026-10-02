@@ -40,6 +40,19 @@ export interface EntityDraftOptions<B> {
   editorBody: () => B;
   /** Put a body back into the editor. */
   applyBody: (body: B) => void;
+  /**
+   * Whether the editor holds what is saved. Defaults to comparing
+   * `editorBody()` with the body last recorded by `markSaved`; a work area
+   * whose "saved" is judged on part of its body (trimmed content, say) says so
+   * here.
+   */
+  matchesSaved?: () => boolean;
+  /**
+   * The body Discard puts back through `applyBody`. Defaults to the body last
+   * recorded by `markSaved`; a work area that tracks its saved body itself
+   * hands it over here.
+   */
+  savedEditorBody?: () => B;
   /** Everything an edit can change: a change to any of these is typing. */
   sources: WatchSource | WatchSource[];
   /**
@@ -90,6 +103,7 @@ export function useEntityDraft<B>(options: EntityDraftOptions<B>) {
 
   /** Typing back to what is saved is an undo, not an edit. */
   function matchesSaved(): boolean {
+    if (options.matchesSaved) return options.matchesSaved();
     return JSON.stringify(options.editorBody()) === savedBody.value;
   }
 
@@ -163,6 +177,11 @@ export function useEntityDraft<B>(options: EntityDraftOptions<B>) {
   function discardDraft() {
     cancelDraftSave();
     removeDraft();
+    if (options.savedEditorBody) {
+      const saved = options.savedEditorBody();
+      hydrate(() => options.applyBody(saved));
+      return;
+    }
     if (savedBody.value) hydrate(() => options.applyBody(JSON.parse(savedBody.value) as B));
   }
 
