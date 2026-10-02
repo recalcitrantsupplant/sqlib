@@ -9,7 +9,7 @@
   "type": "module",
   "scripts": {
     "seed:system-library": "tsx scripts/seed-system-library.ts",
-    "dev": "NODE_ENV=development OTEL_ENABLED=false RULESET_CANON_DEBUG=true tsx watch src/index.ts",
+    "dev": "NODE_ENV=development OTEL_ENABLED=false tsx watch src/index.ts",
     "dev:observability": "docker compose -f ../../docker-compose.dev.yml up -d",
     "dev:full": "npm run dev:observability && npm run dev",
     "dev:stop": "docker compose -f ../../docker-compose.dev.yml down",

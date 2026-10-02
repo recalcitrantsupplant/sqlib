@@ -17,9 +17,8 @@
 # nothing else, which is how this recipe came to fail with TS2307 on a tree
 # where contracts had never been built.
 #
-# API:  http://localhost:3010
-# MCP:  http://localhost:3010/mcp  (streamable HTTP, same transport as production)
-#       — this recipe sets HTTP_PORT=3010; 3005 is the server's own default.
+# API:  http://localhost:3005
+# MCP:  http://localhost:3005/mcp  (streamable HTTP, same transport as production)
 run-local-memory:
     pnpm --filter "@sparql-query-lib/tools..." --filter "@sparql-query-lib/rdf-delta..." --filter "@sparql-query-lib/mcp-app..." build
     INTERNAL_BACKEND_TYPE="oxigraph-persistent" \
@@ -29,9 +28,8 @@ run-local-memory:
     FEATURE_ASSISTANT=true \
     NODE_ENV="development" \
     OTEL_ENABLED="false" \
-    RULESET_CANON_DEBUG="true" \
     MCP_TRANSPORT="dual-http" \
-    HTTP_PORT=3010 \
+    HTTP_PORT=3005 \
     pnpm --filter @sparql-query-lib/api exec tsx watch ../mcp-server/src/cli.ts
 
 # Generate trusted localhost certificates for the HTTPS proxy (one-time setup).
@@ -86,7 +84,7 @@ run-mcp-app-harness:
 # Proves the protocol underneath the Views: that a UI-capable client is offered
 # _meta.ui, that a plain one is not, and that every ui:// resource reads back as
 # a self-contained document.
-smoke-mcp-app endpoint="http://localhost:3010/mcp":
+smoke-mcp-app endpoint="http://localhost:3005/mcp":
     node packages/mcp-app/dev/smoke.mjs {{endpoint}}
 
 # Expose the local MCP server over public HTTPS, for testing a real web client
@@ -116,7 +114,7 @@ smoke-mcp-app endpoint="http://localhost:3010/mcp":
 # server holding data you would mind a stranger reading.
 #
 # Give the client the printed https URL with /mcp on the end.
-tunnel-mcp port="3010" tool="":
+tunnel-mcp port="3005" tool="":
     #!/usr/bin/env bash
     set -euo pipefail
     tool="{{tool}}"
@@ -318,9 +316,6 @@ run-local-like-docker:
     LIBRARY_STORAGE_DIR="./tmp/library-store" \
     INTERNAL_OXIGRAPH_STORE_ID="library-store" \
     INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS="60000" \
-    FEATURE_ETL_ENABLED="false" \
-    FEATURE_RULES_ENABLED="false" \
-    FEATURE_QUERIES_ENABLED="true" \
     pnpm --filter @sparql-query-lib/api run dev
 
 # Build a Docker image with a specific tag
@@ -341,17 +336,12 @@ run-docker-local TAG="latest":
         -e INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS="60000" \
         -e OTEL_ENABLED="false" \
         -e CACHE_WRITE_THROUGH="true" \
-        -e FEATURE_ETL_ENABLED="false" \
-        -e FEATURE_RULES_ENABLED="false" \
-        -e FEATURE_QUERIES_ENABLED="true" \
-        -e SQLIB_BACKEND_QMS_FUSEKI_DEV_USERNAME \
-        -e SQLIB_BACKEND_QMS_FUSEKI_DEV_PASSWORD \
         sparql-query-lib:{{TAG}}
 
 # Run Docker with persistence
 run-docker-persistent TAG="latest":
     mkdir -p tmp/library-store-docker
-    docker run -it --rm -p 3000:3000 -v ./tmp/library-store-docker:/app/packages/api/tmp/library-store -e INTERNAL_BACKEND_TYPE="oxigraph-persistent" -e APP_MODE="api" -e LIBRARY_STORAGE_DIR="/app/packages/api/tmp/library-store" -e INTERNAL_OXIGRAPH_STORE_ID="library-store" -e FEATURE_ETL_ENABLED="false" -e FEATURE_RULES_ENABLED="false" -e FEATURE_QUERIES_ENABLED="true" -e FASTIFY_ADDRESS="0.0.0.0" sparql-query-lib:{{TAG}}
+    docker run -it --rm -p 3000:3000 -v ./tmp/library-store-docker:/app/packages/api/tmp/library-store -e INTERNAL_BACKEND_TYPE="oxigraph-persistent" -e APP_MODE="api" -e LIBRARY_STORAGE_DIR="/app/packages/api/tmp/library-store" -e INTERNAL_OXIGRAPH_STORE_ID="library-store" -e FASTIFY_ADDRESS="0.0.0.0" sparql-query-lib:{{TAG}}
 
 # Build the web UI bundle image: the static site at /site, to copy out and
 # deploy, not to run. See Dockerfile.web.
@@ -381,6 +371,6 @@ extract-web-bundle TAG="latest" DEST="tmp/web-bundle":
 #
 # Usage: just run-frontend
 # Usage: just run-frontend https://example.com/
-run-frontend API_URL="http://localhost:3010":
+run-frontend API_URL="http://localhost:3005":
     NUXT_PUBLIC_API_BASE_URL="{{API_URL}}" \
     pnpm --filter @sparql-query-lib/web dev

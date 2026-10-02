@@ -318,17 +318,6 @@ These are read by development recipes and seeders, not by a normal deployment.
 | `SYSTEM_STORE_ASSET_DIR` | `system-store` inside `packages/api` | Where the preloaded system library's assets are read from. |
 | `VITEST` | set by vitest | Presence suppresses OpenTelemetry log export during tests. |
 
-## Names that are set but not read
-
-Some recipes in the `Justfile` and the API package's `dev` script export
-variables that no code reads. They are inert, and changing them changes nothing:
-
-- `FEATURE_QUERIES_ENABLED`, `FEATURE_RULES_ENABLED`, `FEATURE_ETL_ENABLED` in
-  `run-local-like-docker`, `run-docker-local` and `run-docker-persistent`. The
-  real names have no `_ENABLED` suffix; see [feature flags](feature-flags.md).
-- `RULESET_CANON_DEBUG` in `run-local-memory` and in `packages/api`'s `dev`
-  script.
-
 ## The web application
 
 `packages/web` is a Nuxt SPA built ahead of time (`ssr: false`), so these are
