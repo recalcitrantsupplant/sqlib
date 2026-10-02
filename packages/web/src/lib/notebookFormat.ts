@@ -24,6 +24,7 @@
  * cells that have not been run — exactly as an `.ipynb` with cleared outputs
  * does.
  */
+import type { SparqlBindingRow } from './notebookValues';
 
 /** The format tag written into every document, and the only one read back. */
 export const NOTEBOOK_FORMAT = 'sqlib-notebook/1';
@@ -50,7 +51,7 @@ export interface MarkdownCell {
  * when the upstream returns nothing is the author's decision, not a default.
  */
 export type SlotSource =
-  | { from: 'typed'; bindings: Array<Record<string, unknown>> }
+  | { from: 'typed'; bindings: SparqlBindingRow[] }
   | { from: 'value'; ref: string; whenEmpty?: NotebookEmptyMode };
 
 /** The policy when a referenced value has no rows. Mirrors a group edge's. */
@@ -328,7 +329,7 @@ function parseSlots(raw: unknown, what: string): SlotSource[] | undefined {
     }
     return {
       from: 'typed',
-      bindings: Array.isArray(slot.bindings) ? (slot.bindings as Array<Record<string, unknown>>) : [],
+      bindings: Array.isArray(slot.bindings) ? (slot.bindings as SparqlBindingRow[]) : [],
     };
   });
 }

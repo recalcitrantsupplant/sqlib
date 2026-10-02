@@ -440,7 +440,7 @@ function selectDraft() {
 async function setCurrentVersion(versionId: string) {
   if (!graphId.value) return;
   try {
-    await store.updateDataGraph(graphId.value, { currentVersion: versionId } as never);
+    await store.updateDataGraph(graphId.value, { currentVersion: versionId });
     currentVersionId.value = versionId;
     const version = versions.value.find((candidate) => candidate.id === versionId);
     toast.success(version ? `v${version.version} is now current` : 'Current version updated');
@@ -759,14 +759,14 @@ async function save() {
         name: graphName.value.trim(),
         description: description.value.trim() || null,
         isPartOf: [libraryId],
-      } as never);
+      });
       graphId.value = created.id;
       emit('scratch-saved', { id: created.id, name: created.name, libraryId });
     } else {
       await store.updateDataGraph(graphId.value, {
         name: graphName.value.trim(),
         description: description.value.trim() || null,
-      } as never);
+      });
     }
 
     const version = await store.createVersion(graphId.value!, {

@@ -1145,7 +1145,7 @@ function savedFor(section: ListSection): SidebarEntity[] {
   const rows: SidebarEntity[] = [];
   for (const kind of definition.savedKinds) {
     const matching = entitiesOfKind(kind.type)
-      .filter((entity) => !definition.libraryScoped || isInLibrary(entity as never, libraryId!))
+      .filter((entity) => !definition.libraryScoped || isInLibrary(entity, libraryId!))
       .slice()
       .sort((a, b) => a.name.localeCompare(b.name));
     for (const entity of matching) {

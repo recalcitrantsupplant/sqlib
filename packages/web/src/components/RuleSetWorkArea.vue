@@ -2175,7 +2175,7 @@ async function saveAsTest() {
       subject: ruleSetIdValue.value!,
       subjectKind: 'ruleSet',
       isPartOf: [libraryId],
-    } as never);
+    });
     await apiClient.createTestVersion(created.id, {
       expectationKind: 'smoke',
       subjectVersion: selectedVersionId.value,

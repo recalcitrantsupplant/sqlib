@@ -596,7 +596,7 @@ function selectDraft() {
 async function setCurrentVersion(versionId: string) {
   if (!setId.value) return;
   try {
-    await store.updateTupleSet(setId.value, { currentVersion: versionId } as never);
+    await store.updateTupleSet(setId.value, { currentVersion: versionId });
     currentVersionId.value = versionId;
     const version = versions.value.find((candidate) => candidate.id === versionId);
     toast.success(version ? `v${version.version} is now current` : 'Current version updated');
@@ -1179,14 +1179,14 @@ async function save() {
         name: setName.value.trim(),
         description: description.value.trim() || null,
         isPartOf: [libraryId],
-      } as never);
+      });
       setId.value = created.id;
       emit('scratch-saved', { id: created.id, name: created.name, libraryId });
     } else {
       await store.updateTupleSet(setId.value, {
         name: setName.value.trim(),
         description: description.value.trim() || null,
-      } as never);
+      });
     }
 
     const version = await store.createVersion(setId.value!, {

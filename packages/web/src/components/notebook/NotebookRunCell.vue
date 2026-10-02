@@ -238,7 +238,7 @@ import RunBar from '../shared/RunBar.vue';
 import InlineNote from '../shared/InlineNote.vue';
 import PanelHeader from '../shared/PanelHeader.vue';
 import SectionLabel from '../shared/SectionLabel.vue';
-import { describeValue, type NotebookValue } from '../../lib/notebookValues';
+import { describeValue, type NotebookValue, type SparqlBindingRow } from '../../lib/notebookValues';
 import { getAllMediaTypeOptions, getMediaTypeChoiceGroups } from '../../lib/mediaTypes';
 import { QueryTypeIri } from '@sparql-query-lib/types';
 import type { RunCell, SlotSource } from '../../lib/notebookFormat';
@@ -439,7 +439,7 @@ function onArgsChange(event: Event) {
   const detail = (event as CustomEvent<{ payload: unknown; valid: boolean }>).detail;
   if (!detail || detail.payload === undefined) return;
   const payload = detail.payload as {
-    arguments?: Array<{ head?: { vars?: string[] }; results?: { bindings?: Array<Record<string, unknown>> } }>;
+    arguments?: Array<{ head?: { vars?: string[] }; results?: { bindings?: SparqlBindingRow[] } }>;
     limits?: Record<string, number>;
     offsets?: Record<string, number>;
   };

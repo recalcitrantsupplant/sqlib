@@ -1162,7 +1162,7 @@ const support = computed<SupportRow[]>(() => {
  * the same rule set over a bigger graph.
  *
  * Rows come from the plan's graphs rather than from the run's, so a graph added
- * since the last run shows as never run instead of vanishing — the same
+ * since the last run shows run instead of vanishing — the same
  * relationship `support` has to the backend axis. A rules case with no graph
  * named has no rows, and the editor keeps the prose it has today.
  */
@@ -1331,7 +1331,7 @@ async function saveVersion() {
     await store.updateExperiment(props.experimentId, {
       name: experimentName.value.trim(),
       description: experimentDescription.value.trim() || null,
-    } as never);
+    });
     const created = await store.createVersion(props.experimentId, {
       subjectSpecs: specsPayload(),
       ...plan.value.settings,

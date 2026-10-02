@@ -1183,9 +1183,8 @@ async function createTestFromRecipe() {
     name: `${queryName.value.trim() || 'Query'} — recipe`,
     subject: queryId.value,
     subjectKind: 'query',
-    group: null,
     isPartOf: [libraryId],
-  } as never);
+  });
   await apiClient.createTestVersion(created.id, {
     expectationKind: 'smoke',
     subjectVersion: selectedVersion.value,

@@ -1465,7 +1465,7 @@ function selectDraft() {
 async function setCurrentVersion(versionId: string) {
   if (!testId.value) return;
   try {
-    await apiClient.updateTest(testId.value, { currentVersion: versionId } as never);
+    await apiClient.updateTest(testId.value, { currentVersion: versionId });
     currentVersionId.value = versionId;
     const version = testVersions.value.find((candidate) => candidate.id === versionId);
     if (version) currentVersionNumber.value = version.version;
@@ -1864,7 +1864,7 @@ async function save() {
         // unticked box says none. Sending the list we drew would be a second
         // implementation of the same rule, and the one that goes stale.
         ...(copySubjectTags.value ? {} : { tags: [] }),
-      } as never);
+      });
       testId.value = created.id;
       emit('scratch-saved', { id: created.id, name: created.name, libraryId });
     } else {
@@ -1874,7 +1874,7 @@ async function save() {
       await apiClient.updateTest(testId.value, {
         name: testName.value.trim(),
         description: testDescription.value.trim() || null,
-      } as never);
+      });
       await testsStore.loadTests();
     }
 
