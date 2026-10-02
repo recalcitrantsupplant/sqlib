@@ -113,7 +113,8 @@ export class OxigraphSparqlExecutor implements ISparqlExecutor {
         const jsonString = JSON.stringify(result);
         const buffer = Buffer.from(jsonString, 'utf8');
         
-        // Create a simple readable stream from the buffer
+        // A plain Readable: callers iterate the body, and none use undici's
+        // body mixins (`text()`, `json()`) on an in-process response.
         const stream = Readable.from([buffer]);
         
         return {
@@ -124,7 +125,7 @@ export class OxigraphSparqlExecutor implements ISparqlExecutor {
             trailers: {},
             opaque: null,
             context: {}
-        } as Dispatcher.ResponseData;
+        } as unknown as Dispatcher.ResponseData;
     }
 
     /**
@@ -138,7 +139,8 @@ export class OxigraphSparqlExecutor implements ISparqlExecutor {
         const { result, contentType } = await this.constructQueryParsed(sparqlQuery, options);
         const buffer = Buffer.from(result, 'utf8');
         
-        // Create a simple readable stream from the buffer
+        // A plain Readable: callers iterate the body, and none use undici's
+        // body mixins (`text()`, `json()`) on an in-process response.
         const stream = Readable.from([buffer]);
         
         return {
@@ -149,7 +151,7 @@ export class OxigraphSparqlExecutor implements ISparqlExecutor {
             trailers: {},
             opaque: null,
             context: {}
-        } as Dispatcher.ResponseData;
+        } as unknown as Dispatcher.ResponseData;
     }
 
     // --- Private Helper Methods ---
