@@ -4,13 +4,14 @@ import { assertBenchmarkVersionDependencies, parseSubjectSpecs } from './Benchma
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
 import { mintId } from './id.js';
 import { SparqlQueryParser } from './parser.js';
+import { invokeCallable } from './invokeCallable.js';
 import { ExecutorFactory } from './orchestration/ExecutorFactory.js';
 import { assertBackendAccess, isInternalExecution, type ExecutionAuthScope, type InternalExecution } from '../auth/executionScope.js';
 import { requireLibraryMode, resolveOwningLibrary } from '../auth/enforce.js';
 import type { RunnerScope } from './TestRunner.js';
 import { ExecutionEngine, type ExecutionHooks } from './orchestration/ExecutionEngine.js';
 import { GraphBuilder } from './orchestration/GraphBuilder.js';
-import type { NodeResult, ResolvedNode } from './orchestration/types.js';
+import type { NodeResult } from './orchestration/types.js';
 import type { LdkitBenchmarkExperimentVersion } from '../persistence/schemas/BenchmarkExperimentVersionSchema.js';
 import type { LdkitBenchmarkObservation } from '../persistence/schemas/BenchmarkObservationSchema.js';
 import type { LdkitBenchmarkNodeObservation } from '../persistence/schemas/BenchmarkNodeObservationSchema.js';
@@ -31,8 +32,6 @@ import { BenchmarkIterationObservations } from '../persistence/utils/BenchmarkIt
 import { BenchmarkIterationRuns, updateBenchmarkIterationRun } from '../persistence/utils/BenchmarkIterationRunUtils.js';
 import { BenchmarkRuns, updateBenchmarkRun } from '../persistence/utils/BenchmarkRunUtils.js';
 import { BenchmarkNodeRuns, updateBenchmarkNodeRun } from '../persistence/utils/BenchmarkNodeRunUtils.js';
-import { QueryTypeIri } from '../constants/queryTypes.js';
-import { toQueryTypeIri } from './queryTypes.js';
 import {
   BENCHMARK_ITERATION_OBSERVATION_DSD_IRI,
   BENCHMARK_NODE_OBSERVATION_DSD_IRI,
@@ -42,10 +41,9 @@ import {
   DEFAULT_BENCHMARK_EXECUTION_STRATEGY,
   DEFAULT_BENCHMARK_REPEATS,
 } from '../constants/benchmarks.js';
-import { EPHEMERAL_BACKEND_ID, LIBRARY_STORAGE_BACKEND_ID } from '@sparql-query-lib/types';
+import { EPHEMERAL_BACKEND_ID } from '@sparql-query-lib/types';
 import { OxigraphSparqlExecutor } from '../server/OxigraphSparqlExecutor.js';
-import { oxigraphStoreManager } from './OxigraphStoreManager.js';
-import crypto from 'node:crypto';
+import * as oxigraph from 'oxigraph';
 
 type BenchmarkTask = {
   subjectId: string;
@@ -775,33 +773,16 @@ export class BenchmarkRunner {
       throw new Error(`QueryVersion ${subjectId} not found`);
     }
 
-    let queryString = versionEntity.queryString;
-    if (argumentSetId !== BENCHMARK_NO_ARGUMENTS_IRI) {
-      const runtimePayload = await this.argumentSetService.exportRuntimePayload([argumentSetId], this.scope);
-      if (runtimePayload.limits.length > 0 || runtimePayload.offsets.length > 0) {
-        queryString = this.parser.applyLimitOffsetParameters(queryString, runtimePayload.limits, runtimePayload.offsets);
-      }
-      if (runtimePayload.tupleList.length > 0) {
-        queryString = this.parser.applyArguments(queryString, runtimePayload.tupleList);
-      }
-    }
-
-    const queryType = toQueryTypeIri(versionEntity.queryType) || QueryTypeIri.select;
+    const runtimePayload = argumentSetId !== BENCHMARK_NO_ARGUMENTS_IRI
+      ? await this.argumentSetService.exportRuntimePayload([argumentSetId], this.scope)
+      : null;
     const executor = await this.resolveExecutorForBackend(subjectId, backendId);
-
-    if (queryType === QueryTypeIri.ask) {
-      const { result } = await executor.askQuery(queryString);
-      return result;
-    }
-    if (queryType === QueryTypeIri.update) {
-      await executor.update(queryString);
-      return { success: true };
-    }
-    if (queryType === QueryTypeIri.construct || queryType === QueryTypeIri.describe) {
-      const { result } = await executor.constructQueryParsed(queryString);
-      return result;
-    }
-    const { result } = await executor.selectQueryParsed(queryString);
+    const { result } = await invokeCallable(executor, versionEntity.queryString, versionEntity.queryType, {
+      argumentSets: runtimePayload?.tupleList ?? [],
+      limits: runtimePayload?.limits ?? [],
+      offsets: runtimePayload?.offsets ?? [],
+      parser: this.parser,
+    });
     return result;
   }
 
@@ -879,32 +860,12 @@ export class BenchmarkRunner {
   }
 
   private async resolveExecutorForBackend(subjectId: string, backendId: string) {
-    if (backendId === LIBRARY_STORAGE_BACKEND_ID) {
-      const fakeNode = this.buildBackendNode(backendId);
-      return this.executorFactoryFor(subjectId).getExecutorForNode(fakeNode);
-    }
-
     if (backendId === EPHEMERAL_BACKEND_ID) {
-      const storeId = `benchmark-ephemeral-${crypto.randomUUID()}`;
-      const store = oxigraphStoreManager.createEphemeralStore(storeId);
-      return new OxigraphSparqlExecutor(store);
+      // A store of its own that nothing else can reach, and that is garbage
+      // once the task is: registering it with the store manager would keep
+      // one per task alive for the life of the process.
+      return new OxigraphSparqlExecutor(new oxigraph.Store());
     }
-
-    const fakeNode = this.buildBackendNode(backendId);
-    return this.executorFactoryFor(subjectId).getExecutorForNode(fakeNode);
-  }
-
-  private buildBackendNode(backendId: string): ResolvedNode {
-    return {
-      id: `benchmark-backend:${backendId}`,
-      raw: {},
-      backendId,
-      queryVersionId: undefined,
-      queryVersion: undefined,
-      queryString: undefined,
-      queryType: undefined,
-      inputTupleIds: [],
-      outputTupleIds: [],
-    };
+    return this.executorFactoryFor(subjectId).getExecutorForBackendId(backendId);
   }
 }

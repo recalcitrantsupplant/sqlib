@@ -5,6 +5,7 @@ import { QueryTypeIri } from '../../constants/queryTypes.js';
 import type { QueryTypeValue } from '../../constants/queryTypes.js';
 import { getQueryTypeKeyFromIri, toQueryTypeIri } from '../queryTypes.js';
 import { GraphValidationError } from './GraphValidationError.js';
+import { tupleVariableNames } from './tupleNames.js';
 import { WHEN_EMPTY_MODES } from '../../persistence/schemas/QueryEdgeSchema.js';
 import type { WhenEmptyMode } from '../../persistence/schemas/QueryEdgeSchema.js';
 import type { GraphValidationCode } from './GraphValidationError.js';
@@ -607,7 +608,7 @@ export class GraphBuilder {
    * Refuse to hand one consumer both halves of the same patch.
    *
    * Everywhere the engine takes more than one RDF input it unions them —
-   * `join('\n')` in `buildRdfSeedForRuleSetNode` for a rule set, and the same in
+   * `mergeRdf` in `buildRdfSeedForRuleSetNode` for a rule set, and the same in
    * the EndNode fan-in merge. A union is sound for two CONSTRUCTs, which both
    * assert that their quads are present. It is not sound for a patch, whose two
    * ports assert opposite things: the union of "these go" and "these come" is
@@ -663,7 +664,7 @@ export class GraphBuilder {
 
   /**
    * The engine can only merge multiple EndNode inputs when every one of them is an
-   * RDF string (it concatenates them); anything else hits an explicit "not yet
+   * RDF string (it merges them as graphs); anything else hits an explicit "not yet
    * implemented" throw at execution time. Reject that here so validation stays a
    * sound predictor of executability rather than deferring to a runtime surprise.
    *
@@ -728,42 +729,10 @@ export class GraphBuilder {
   }
 
   private resolveInputTupleNames(tupleId: string): string[] {
-    const t = getCacheCoordinator().get(tupleId) as QueryInputTuple | null;
-    if (!t) throw new GraphValidationError('TUPLE_MISSING', `Missing QueryInputTuple ${tupleId}`, 'tuple', tupleId);
-    const members = (t.memberEntries || []) as string[];
-    const entries: { pos: number; name: string }[] = [];
-    for (const mId of members) {
-      const m = getCacheCoordinator().get(mId) as TupleMember | null;
-      if (!m) continue;
-      const memberAny = m;
-      const varId = memberAny.variable as string | undefined;
-      if (!varId) continue;
-      const qi = getCacheCoordinator().get(varId) as QueryInputVariable | null;
-      const name = (qi)?.variableName as string | undefined;
-      if (typeof memberAny.position !== 'number') throw new Error(`TupleMember ${mId} missing position`);
-      entries.push({ pos: memberAny.position as number, name: name || '' });
-    }
-    entries.sort((a, b) => a.pos - b.pos);
-    return entries.map(e => e.name);
+    return tupleVariableNames(tupleId, { strict: true, kind: 'QueryInputTuple' });
   }
 
   private resolveOutputTupleNames(tupleId: string): string[] {
-    const t = getCacheCoordinator().get(tupleId) as QueryOutputTuple | null;
-    if (!t) throw new GraphValidationError('TUPLE_MISSING', `Missing QueryOutputTuple ${tupleId}`, 'tuple', tupleId);
-    const members = (t.memberEntries || []) as string[];
-    const entries: { pos: number; name: string }[] = [];
-    for (const mId of members) {
-      const m = getCacheCoordinator().get(mId) as TupleMember | null;
-      if (!m) continue;
-      const memberAny = m;
-      const varId = memberAny.variable as string | undefined;
-      if (!varId) continue;
-      const qo = getCacheCoordinator().get(varId) as QueryOutputVariable | null;
-      const name = (qo)?.variableName as string | undefined;
-      if (typeof memberAny.position !== 'number') throw new Error(`TupleMember ${mId} missing position`);
-      entries.push({ pos: memberAny.position as number, name: name || '' });
-    }
-    entries.sort((a, b) => a.pos - b.pos);
-    return entries.map(e => e.name);
+    return tupleVariableNames(tupleId, { strict: true, kind: 'QueryOutputTuple' });
   }
 }

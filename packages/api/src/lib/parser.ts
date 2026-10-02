@@ -92,7 +92,7 @@ interface ArgumentValue {
 /** How a parameter slot is rewritten when it has no bound rows. */
 type EmptyArgumentMode = 'unconstrained' | 'propagateEmpty' | 'require';
 
-interface ApplyArgumentSet {
+export interface ApplyArgumentSet {
   head: { vars: string[] };
   results: { bindings: Array<Record<string, ArgumentValue | null | undefined>> };
   whenEmpty?: EmptyArgumentMode;
