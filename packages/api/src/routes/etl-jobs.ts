@@ -2,7 +2,7 @@ import * as fs from 'node:fs/promises';
 import type { FastifyInstance } from 'fastify';
 import { etlService } from '../lib/EtlService.js';
 import { toError } from '../lib/toError.js';
-import { reposRoute, withReposHandler, setEntityConcurrencyHeaders } from './route-helpers.js';
+import { reposRoute, withReposHandler, setEntityConcurrencyHeaders, validateIfMatch } from './route-helpers.js';
 import {
   etljobSchema,
   etljobversionSchema,
@@ -220,10 +220,21 @@ export default async function etlJobRoutes(fastify: FastifyInstance) {
       response: {
         200: etlJobDetailSchema,
         404: { type: 'object', properties: { error: { type: 'string' } } },
+        412: { type: 'object', properties: { error: { type: 'string' }, expected: { type: 'string', nullable: true } } },
       },
     }, async ({ request, reply }) => {
     const { id } = request.params;
     const body = request.body as { name?: string; description?: string | null; defaultBackend?: string | null };
+    // Guarded like every other saved entity's write: the GET above sends the
+    // ETag, and a PATCH that ignored it let two editors overwrite each other.
+    const current = await etlService.getEtlJob(id);
+    if (!current) {
+      return reply.code(404).send({ error: `ETL job ${id} not found` });
+    }
+    const { valid, currentTag } = validateIfMatch(request, { dateModified: current.dateModified ?? null });
+    if (!valid) {
+      return reply.code(412).send({ error: 'Precondition Failed', expected: currentTag });
+    }
     const result = await etlService.updateEtlJob(id, body);
     if (!result) {
       return reply.code(404).send({ error: `ETL job ${id} not found` });

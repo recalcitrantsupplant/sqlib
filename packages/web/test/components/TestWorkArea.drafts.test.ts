@@ -45,6 +45,8 @@ const store = vi.hoisted(() => {
       return result;
     }),
     createTest: vi.fn(),
+    // Delegates, so a spec can assert on what reached the API.
+    updateTest: vi.fn((id: string, input: unknown) => api.updateTest(id, input)),
     createVersion: vi.fn(),
     deleteTest: vi.fn(),
     loadVersions: vi.fn(),

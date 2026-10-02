@@ -1481,7 +1481,7 @@ function selectDraft() {
 async function setCurrentVersion(versionId: string) {
   if (!testId.value) return;
   try {
-    await apiClient.updateTest(testId.value, { currentVersion: versionId });
+    await testsStore.updateTest(testId.value, { currentVersion: versionId });
     currentVersionId.value = versionId;
     const version = testVersions.value.find((candidate) => candidate.id === versionId);
     if (version) currentVersionNumber.value = version.version;
@@ -1848,7 +1848,7 @@ async function save() {
       // Name and description live on the test rather than on a version, and
       // nothing else on this screen writes them: before Details owned them
       // they were editable here and silently dropped on save.
-      await apiClient.updateTest(testId.value, {
+      await testsStore.updateTest(testId.value, {
         name: testName.value.trim(),
         description: testDescription.value.trim() || null,
       });

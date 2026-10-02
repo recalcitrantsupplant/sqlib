@@ -15,6 +15,7 @@
 import { computed, reactive } from 'vue';
 // @ts-ignore - Nuxt auto-imports
 import { useRuntimeConfig } from '#imports';
+import { deriveIfMatchToken, sendGuarded } from './createVersionedEntityStore';
 
 /** A column of the SQL result, and the RDF term it becomes. */
 export interface EtlColumnMapping {
@@ -58,6 +59,8 @@ interface EtlJobsState {
   loading: boolean;
   error: string | null;
   versions: Record<string, EtlJobVersion[]>;
+  /** If-Match tokens per job, for the guarded PATCH. */
+  concurrency: Record<string, string | null>;
 }
 
 const state = reactive<EtlJobsState>({
@@ -65,9 +68,10 @@ const state = reactive<EtlJobsState>({
   loading: false,
   error: null,
   versions: {},
+  concurrency: {},
 });
 
-async function request<T>(url: string, init?: RequestInit): Promise<T> {
+async function requestWithEtag<T>(url: string, init?: RequestInit): Promise<{ data: T; etag: string | null }> {
   const response = await fetch(url, {
     ...init,
     headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
@@ -76,9 +80,16 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
     // The API answers `{ error }` on every failure path here; anything else is
     // a proxy or a crash, and the status is the only honest thing to report.
     const body = await response.json().catch(() => null) as { error?: string } | null;
-    throw new Error(body?.error ?? `Request failed with ${response.status}`);
+    // The status travels with the error so a lost race reads as one.
+    throw Object.assign(new Error(body?.error ?? `Request failed with ${response.status}`), {
+      statusCode: response.status,
+    });
   }
-  return await response.json() as T;
+  return { data: await response.json() as T, etag: response.headers.get('etag') };
+}
+
+async function request<T>(url: string, init?: RequestInit): Promise<T> {
+  return (await requestWithEtag<T>(url, init)).data;
 }
 
 export function useEtlJobsStore() {
@@ -100,7 +111,9 @@ export function useEtlJobsStore() {
   }
 
   async function fetchEtlJob(id: string): Promise<EtlJob> {
-    return await request<EtlJob>(`${base()}/${encodeURIComponent(id)}`);
+    const { data, etag } = await requestWithEtag<EtlJob>(`${base()}/${encodeURIComponent(id)}`);
+    state.concurrency[id] = deriveIfMatchToken(etag, data);
+    return data;
   }
 
   async function createEtlJob(input: { name: string; description?: string | null; libraryId: string }): Promise<EtlJob> {
@@ -122,9 +135,25 @@ export function useEtlJobsStore() {
     id: string,
     input: { name?: string; description?: string | null; defaultBackend?: string | null },
   ): Promise<EtlJob> {
-    const updated = await request<EtlJob>(`${base()}/${encodeURIComponent(id)}`, {
-      method: 'PATCH',
-      body: JSON.stringify(input),
+    // Guarded like every saved entity's write, and a lost race replayed once.
+    const updated = await sendGuarded<EtlJob>({
+      noun: 'ETL job',
+      id,
+      token: state.concurrency[id] ?? null,
+      readFirst: true,
+      readToken: async () => {
+        await fetchEtlJob(id);
+        return state.concurrency[id] ?? null;
+      },
+      send: async (ifMatch) => {
+        const { data, etag } = await requestWithEtag<EtlJob>(`${base()}/${encodeURIComponent(id)}`, {
+          method: 'PATCH',
+          headers: ifMatch ? { 'If-Match': ifMatch } : {},
+          body: JSON.stringify(input),
+        });
+        return { data, etag, lastModified: null, status: 200 };
+      },
+      onToken: (token) => { state.concurrency[id] = token; },
     });
     state.items = state.items.map((job) => (job.id === id ? updated : job));
     return updated;

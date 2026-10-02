@@ -56,6 +56,47 @@ export class EntityConflictError extends Error {
   }
 }
 
+/**
+ * Send a guarded write, and answer a lost race the one way this app does.
+ *
+ * `token` is the record's known token. With `readFirst`, a missing token is
+ * read before the write, so it is guarded rather than sent blind. On a 412 the
+ * token is re-read and the write replayed once; a second 412 is an
+ * `EntityConflictError`. Exported for the stores whose lists are not built on
+ * `createVersionedEntityStore` (tests, ETL jobs, argument sets) but whose
+ * writes should behave the same.
+ */
+export async function sendGuarded<T>(options: {
+  noun: string;
+  id: string;
+  token: string | null;
+  /** Read a token before writing when none is known. */
+  readFirst?: boolean;
+  readToken: () => Promise<string | null>;
+  send: (ifMatch: string | null) => Promise<ApiResult<T>>;
+  /** Told the token each successful write returns. */
+  onToken: (token: string | null) => void;
+}): Promise<T> {
+  const attempt = async (ifMatch: string | null) => {
+    const result = await options.send(ifMatch);
+    options.onToken(deriveIfMatchToken(result.etag, result.data as Tokened | null));
+    return result.data;
+  };
+  const token = options.token ?? (options.readFirst ? await options.readToken() : null);
+  try {
+    return await attempt(token);
+  } catch (first: unknown) {
+    if (!isPreconditionFailed(first)) throw first;
+    // Lost a race: re-read, then replay the same partial update once.
+    try {
+      return await attempt(await options.readToken());
+    } catch (second: unknown) {
+      if (isPreconditionFailed(second)) throw new EntityConflictError(options.noun, options.id, second);
+      throw second;
+    }
+  }
+}
+
 export interface EntityApi<T, C, U> {
   list: () => Promise<T[]>;
   get: (id: string) => Promise<ApiResult<T>>;
@@ -123,26 +164,17 @@ export function createVersionedEntityStore<T extends Tokened, C = never, U = nev
     async function update(id: string, input: U, explicitIfMatch?: string | null): Promise<T> {
       const send = api.update;
       if (!send) throw new Error(`Updating a ${config.noun} is not supported here`);
-      const attempt = async (ifMatch: string | null) => {
-        const result = await send(id, input, { ifMatch });
-        state.concurrency[id] = deriveIfMatchToken(result.etag, result.data);
-        return result.data;
-      };
-
-      let updated: T;
-      try {
-        updated = await attempt(explicitIfMatch ?? state.concurrency[id] ?? null);
-      } catch (first: unknown) {
-        if (!isPreconditionFailed(first)) throw first;
-        // Lost a race: re-read, then replay the same partial update once.
-        const fresh = await fetch(id);
-        try {
-          updated = await attempt(fresh.ifMatch);
-        } catch (second: unknown) {
-          if (isPreconditionFailed(second)) throw new EntityConflictError(config.noun, id, second);
-          throw second;
-        }
-      }
+      const known = explicitIfMatch ?? state.concurrency[id] ?? null;
+      const updated = await sendGuarded<T>({
+        noun: config.noun,
+        id,
+        // A store that has never read the record sends unguarded, as it always
+        // has; a 412 can only follow a guarded write.
+        token: known,
+        readToken: async () => (await fetch(id)).ifMatch,
+        send: (ifMatch) => send(id, input, { ifMatch }),
+        onToken: (token) => { state.concurrency[id] = token; },
+      });
       await load();
       return updated;
     }
