@@ -429,7 +429,7 @@ describe('SPARQL proxy routes', () => {
           arguments: [
             {
               head: { vars: ['city'] },
-              arguments: {
+              results: {
                 bindings: [{ city: { type: 'uri', value: 'http://example.org/city/Paris' } }],
               },
             },
@@ -478,7 +478,7 @@ describe('SPARQL proxy routes', () => {
           arguments: [
             {
               head: { vars: ['city'] },
-              arguments: {
+              results: {
                 bindings: [{ city: { type: 'uri', value: 'http://example.org/city/Paris' } }],
               },
             },

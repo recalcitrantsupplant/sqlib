@@ -227,7 +227,7 @@ describe('Phase 2 graph mutations', () => {
     const wrongOrder = await harness.execute(built, {
       arguments: [{
         head: { vars: ['thing', 'label'] },
-        arguments: {
+        results: {
           bindings: [{
             thing: { type: 'uri', value: 'http://example.org/t1' },
             label: { type: 'literal', value: 'alpha' },
@@ -243,7 +243,7 @@ describe('Phase 2 graph mutations', () => {
     const rightOrder = await harness.execute(built, {
       arguments: [{
         head: { vars: ['label', 'thing'] },
-        arguments: {
+        results: {
           bindings: [{
             label: { type: 'literal', value: 'alpha' },
             thing: { type: 'uri', value: 'http://example.org/t1' },

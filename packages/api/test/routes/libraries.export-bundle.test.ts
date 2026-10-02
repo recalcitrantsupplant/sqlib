@@ -221,7 +221,7 @@ function seedTests(subject: string, overrides: Record<string, unknown> = {}) {
     tupleList: [
       {
         head: { vars: ['city'] },
-        arguments: { bindings: [{ city: { type: 'uri', value: 'http://example.org/Perth' } }] },
+        results: { bindings: [{ city: { type: 'uri', value: 'http://example.org/Perth' } }] },
       },
     ],
     limits: [],
@@ -375,7 +375,7 @@ describe('GET /libraries/:id/export-bundle', () => {
         arguments: [
           {
             head: { vars: ['region'] },
-            arguments: { bindings: [{ region: iri('http://example.org/WA') }] },
+            results: { bindings: [{ region: iri('http://example.org/WA') }] },
           },
         ],
       });

@@ -39,7 +39,7 @@ const SINGLE = 'SELECT ?s WHERE { VALUES (?l) { (UNDEF) } ?s ?p ?l . }';
 
 const applyOne = (parser: SparqlQueryParser, value: unknown): string =>
   parser.applyArguments(SINGLE, [
-    { head: { vars: ['l'] }, arguments: { bindings: [{ l: value as never }] } },
+    { head: { vars: ['l'] }, results: { bindings: [{ l: value as never }] } },
   ]);
 
 describe('argument injection', () => {

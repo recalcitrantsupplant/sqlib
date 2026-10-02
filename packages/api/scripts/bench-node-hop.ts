@@ -103,7 +103,7 @@ for (const rows of ROW_COUNTS) {
       for (const r of json.results.bindings) seen.add(JSON.stringify(r));
     }));
 
-    const argSet = { head: { vars: json.head.vars }, arguments: { bindings: json.results.bindings } };
+    const argSet = { head: { vars: json.head.vars }, results: { bindings: json.results.bindings } };
     let applied!: string;
     tApply.push(time(() => { applied = parser.applyArguments(DOWNSTREAM, [argSet as never]); }));
 

@@ -98,7 +98,7 @@ describe('worked calls', () => {
         arguments: [
           {
             head: { vars: ['city'] },
-            arguments: { bindings: [{ city: { type: 'uri', value: 'http://example.org/Perth' } }] },
+            results: { bindings: [{ city: { type: 'uri', value: 'http://example.org/Perth' } }] },
           },
         ],
       },

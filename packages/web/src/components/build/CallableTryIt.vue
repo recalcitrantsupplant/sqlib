@@ -198,7 +198,7 @@ function buildArguments() {
       if (rows.length === 0) return null;
       return {
         head: { vars: tuple.members },
-        arguments: {
+        results: {
           bindings: rows.map((row) =>
             Object.fromEntries(
               tuple.members.map((member) => [

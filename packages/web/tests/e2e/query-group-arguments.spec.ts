@@ -168,7 +168,7 @@ test.describe('Query group arguments (mocked)', () => {
     expect(payload.arguments).toEqual([
       {
         head: { vars: ['city', 'country'] },
-        arguments: {
+        results: {
           bindings: [
             {
               city: { type: 'uri', value: 'https://example.org/city/perth' },
@@ -193,7 +193,7 @@ test.describe('Query group arguments (mocked)', () => {
 
     const payload = await runGroup(page);
     expect(payload.argumentSetIds).toBeUndefined();
-    expect(payload.arguments[0].arguments.bindings[0].city.value).toBe('https://example.org/city/broome');
+    expect(payload.arguments[0].results.bindings[0].city.value).toBe('https://example.org/city/broome');
 
     // Both are still on offer, and pointing Run with back at v1 restores the id
     // form — the run target moves without the body being retyped.

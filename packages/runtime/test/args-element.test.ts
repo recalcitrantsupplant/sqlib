@@ -21,7 +21,7 @@ const literal = (value: string) => ({ type: 'literal', value });
 const ONE_SLOT = { inputs: [['city']] };
 const PERTH = {
   arguments: [
-    { head: { vars: ['city'] }, arguments: { bindings: [{ city: iri('http://example.org/Perth') }] } },
+    { head: { vars: ['city'] }, results: { bindings: [{ city: iri('http://example.org/Perth') }] } },
   ],
 };
 
@@ -35,7 +35,7 @@ describe('building a form from the signature', () => {
       arguments: [
         {
           head: { vars: ['from', 'to'] },
-          arguments: { bindings: [{ from: iri('urn:a'), to: iri('urn:b') }] },
+          results: { bindings: [{ from: iri('urn:a'), to: iri('urn:b') }] },
         },
       ],
     });
@@ -51,14 +51,14 @@ describe('building a form from the signature', () => {
   it('explains what a zero-row slot actually does, rather than showing a blank table', () => {
     // Zero rows is not "no constraint": it is an empty VALUES block, which joins
     // to nothing. The wildcard — one row, every cell UNDEF — is the other thing.
-    const element = mount(ONE_SLOT, { arguments: [{ head: { vars: ['city'] }, arguments: { bindings: [] } }] });
+    const element = mount(ONE_SLOT, { arguments: [{ head: { vars: ['city'] }, results: { bindings: [] } }] });
     expect(element.textContent).toContain('matches nothing');
   });
 
   it('treats an all-UNDEF row as a wildcard the form can show', () => {
-    const element = mount(ONE_SLOT, { arguments: [{ head: { vars: ['city'] }, arguments: { bindings: [{}] } }] });
+    const element = mount(ONE_SLOT, { arguments: [{ head: { vars: ['city'] }, results: { bindings: [{}] } }] });
     expect(element.valid).toBe(true);
-    expect(element.payload.arguments[0].arguments.bindings).toEqual([{}]);
+    expect(element.payload.arguments[0].results.bindings).toEqual([{}]);
   });
 
   it('offers a numeric input per page parameter', () => {
@@ -77,10 +77,10 @@ describe('round-tripping a payload', () => {
   it('reads an UNDEF cell as an absent key, which is what UNDEF means', () => {
     const element = mount({ inputs: [['a', 'b']] }, {
       arguments: [
-        { head: { vars: ['a', 'b'] }, arguments: { bindings: [{ a: iri('urn:a'), b: null }] } },
+        { head: { vars: ['a', 'b'] }, results: { bindings: [{ a: iri('urn:a'), b: null }] } },
       ],
     });
-    expect(element.payload.arguments[0].arguments.bindings[0]).toEqual({ a: iri('urn:a') });
+    expect(element.payload.arguments[0].results.bindings[0]).toEqual({ a: iri('urn:a') });
   });
 
   it('carries a literal with its language tag', () => {
@@ -88,12 +88,12 @@ describe('round-tripping a payload', () => {
       arguments: [
         {
           head: { vars: ['city'] },
-          arguments: { bindings: [{ city: { type: 'literal', value: 'Perth', 'xml:lang': 'en-AU' } }] },
+          results: { bindings: [{ city: { type: 'literal', value: 'Perth', 'xml:lang': 'en-AU' } }] },
         },
       ],
     };
     const element = mount(ONE_SLOT, payload);
-    expect(element.payload.arguments[0].arguments.bindings[0].city).toEqual({
+    expect(element.payload.arguments[0].results.bindings[0].city).toEqual({
       type: 'literal',
       value: 'Perth',
       'xml:lang': 'en-AU',
@@ -113,7 +113,7 @@ describe('validation is the runtime own check, surfaced per cell', () => {
       arguments: [
         {
           head: { vars: ['city'] },
-          arguments: { bindings: [{ city: iri('http://e/a> <http://e/b') }] },
+          results: { bindings: [{ city: iri('http://e/a> <http://e/b') }] },
         },
       ],
     });
@@ -126,7 +126,7 @@ describe('validation is the runtime own check, surfaced per cell', () => {
       arguments: [
         {
           head: { vars: ['city'] },
-          arguments: { bindings: [{ city: { type: 'literal', value: 'x', 'xml:lang': 'en"@x' } }] },
+          results: { bindings: [{ city: { type: 'literal', value: 'x', 'xml:lang': 'en"@x' } }] },
         },
       ],
     });
@@ -152,11 +152,11 @@ describe('editing', () => {
     const element = mount(ONE_SLOT, PERTH);
     const add = [...element.querySelectorAll('button')].find((b) => b.textContent === 'Add binding')!;
     add.click();
-    expect(element.payload.arguments[0].arguments.bindings).toHaveLength(2);
+    expect(element.payload.arguments[0].results.bindings).toHaveLength(2);
 
     const remove = [...element.querySelectorAll('button')].filter((b) => b.textContent === 'Remove');
     remove[1].click();
-    expect(element.payload.arguments[0].arguments.bindings).toHaveLength(1);
+    expect(element.payload.arguments[0].results.bindings).toHaveLength(1);
   });
 
   it('emits change when a value is edited', () => {
@@ -168,7 +168,7 @@ describe('editing', () => {
     input.dispatchEvent(new Event('input', { bubbles: true }));
 
     expect(seen).toBe(1);
-    expect(element.payload.arguments[0].arguments.bindings[0].city).toEqual(iri('http://example.org/Darwin'));
+    expect(element.payload.arguments[0].results.bindings[0].city).toEqual(iri('http://example.org/Darwin'));
   });
 
   it('clears the language tag when a datatype is given, since RDF forbids both', () => {
@@ -176,7 +176,7 @@ describe('editing', () => {
       arguments: [
         {
           head: { vars: ['city'] },
-          arguments: { bindings: [{ city: { type: 'literal', value: '42', 'xml:lang': 'en' } }] },
+          results: { bindings: [{ city: { type: 'literal', value: '42', 'xml:lang': 'en' } }] },
         },
       ],
     });
@@ -184,7 +184,7 @@ describe('editing', () => {
     datatype.value = 'http://www.w3.org/2001/XMLSchema#integer';
     datatype.dispatchEvent(new Event('input', { bubbles: true }));
 
-    expect(element.payload.arguments[0].arguments.bindings[0].city).toEqual({
+    expect(element.payload.arguments[0].results.bindings[0].city).toEqual({
       type: 'literal',
       value: '42',
       datatype: 'http://www.w3.org/2001/XMLSchema#integer',
@@ -196,7 +196,7 @@ describe('editing', () => {
     const kind = element.querySelector<HTMLSelectElement>('select[aria-label="Kind for ?city"]')!;
     kind.value = 'undef';
     kind.dispatchEvent(new Event('change', { bubbles: true }));
-    expect(element.payload.arguments[0].arguments.bindings[0]).toEqual({});
+    expect(element.payload.arguments[0].results.bindings[0]).toEqual({});
   });
 });
 
@@ -204,27 +204,39 @@ describe('payloads the form cannot hold', () => {
   it('falls back to JSON rather than dropping what it cannot show', () => {
     const element = mount(ONE_SLOT, {
       arguments: [
-        { head: { vars: ['city'] }, arguments: { bindings: [{ city: iri('urn:a'), extra: iri('urn:b') }] } },
+        { head: { vars: ['city'] }, results: { bindings: [{ city: iri('urn:a'), extra: iri('urn:b') }] } },
       ],
     });
     expect(element.textContent).toContain('binds variables the query does not declare');
     expect(element.querySelector('textarea')).not.toBeNull();
   });
 
-  it('falls back when the argument-set count disagrees with the signature', () => {
+  it('falls back when an argument set fits none of the slots', () => {
     const element = mount(ONE_SLOT, {
       arguments: [
-        { head: { vars: ['a'] }, arguments: { bindings: [] } },
-        { head: { vars: ['b'] }, arguments: { bindings: [] } },
+        { head: { vars: ['city'] }, results: { bindings: [{ city: iri('urn:a') }] } },
+        { head: { vars: ['b'] }, results: { bindings: [{ b: iri('urn:b') }] } },
       ],
     });
-    expect(element.textContent).toContain('2 argument set(s) but the query has 1');
+    expect(element.textContent).toContain("1 argument set(s) that fit none of the query's parameter slots");
+  });
+
+  it('falls back on an empty argument, which the form cannot tell from an omitted one', () => {
+    const element = mount(ONE_SLOT, {
+      arguments: [{ head: { vars: ['city'] }, results: { bindings: [] } }],
+    });
+    expect(element.textContent).toContain('passes an empty argument, which matches nothing');
+  });
+
+  it('shows an omitted slot empty, and leaves it out of what it emits', () => {
+    const element = mount(ONE_SLOT, { arguments: [] });
+    expect(element.payload).toEqual({ arguments: [] });
   });
 
   it('keeps such a payload intact rather than mangling it', () => {
     const payload = {
       arguments: [
-        { head: { vars: ['city'] }, arguments: { bindings: [{ city: iri('urn:a'), extra: iri('urn:b') }] } },
+        { head: { vars: ['city'] }, results: { bindings: [{ city: iri('urn:a'), extra: iri('urn:b') }] } },
       ],
     };
     const element = mount(ONE_SLOT, payload);
@@ -243,11 +255,11 @@ describe('the JSON view', () => {
 
     area.value = JSON.stringify({
       arguments: [
-        { head: { vars: ['city'] }, arguments: { bindings: [{ city: iri('http://example.org/Darwin') }] } },
+        { head: { vars: ['city'] }, results: { bindings: [{ city: iri('http://example.org/Darwin') }] } },
       ],
     });
     area.dispatchEvent(new Event('input', { bubbles: true }));
-    expect(element.payload.arguments[0].arguments.bindings[0].city).toEqual(
+    expect(element.payload.arguments[0].results.bindings[0].city).toEqual(
       iri('http://example.org/Darwin'),
     );
   });
@@ -266,8 +278,8 @@ describe('a payload whose sets arrive in another order', () => {
   const TWO_SLOT = { inputs: [['term'], ['facetField']] };
   const OUT_OF_ORDER = {
     arguments: [
-      { head: { vars: ['facetField'] }, arguments: { bindings: [{ facetField: literal('type') }] } },
-      { head: { vars: ['term'] }, arguments: { bindings: [{ term: literal('wool') }] } },
+      { head: { vars: ['facetField'] }, results: { bindings: [{ facetField: literal('type') }] } },
+      { head: { vars: ['term'] }, results: { bindings: [{ term: literal('wool') }] } },
     ],
   };
 

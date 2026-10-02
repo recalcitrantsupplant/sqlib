@@ -61,7 +61,7 @@ SELECT ?name WHERE {
       arguments: [
         {
           head: { vars: ['term'] },
-          arguments: { bindings: [{ term: { type: 'literal', value: 'jumper' } }] },
+          results: { bindings: [{ term: { type: 'literal', value: 'jumper' } }] },
         },
       ],
     },

@@ -29,8 +29,9 @@ export {
 } from './sparql-terms.js';
 
 export {
-  alignArgumentSets,
   applyTemplateArguments,
+  assignArgumentSets,
+  completeArgumentSets,
   type ArgumentRow,
   type EmptyArgumentMode,
   type QueryTemplate,
@@ -38,7 +39,7 @@ export {
   type TemplateSlot,
 } from './query-template.js';
 
-export { normalizeUndefBindings, type WireArgumentSet } from './arguments.js';
+export { InvalidArgumentError, normalizeArguments, type WireArgumentSet } from './arguments.js';
 
 export {
   describeTerm,

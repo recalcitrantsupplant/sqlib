@@ -14,7 +14,7 @@ const QUERY = 'urn:sqlib:query:people';
 
 const PAYLOAD: ResolvedArgumentPayload = {
   arguments: [
-    { head: { vars: ['city'] }, arguments: { bindings: [{ city: { type: 'uri', value: 'urn:Perth' } }] } },
+    { head: { vars: ['city'] }, results: { bindings: [{ city: { type: 'uri', value: 'urn:Perth' } }] } },
   ],
   limits: [],
   offsets: [],

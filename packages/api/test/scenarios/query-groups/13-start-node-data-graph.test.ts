@@ -147,7 +147,7 @@ describe('Data graph inputs on the StartNode', () => {
         arguments: [
           {
             head: { vars: ['targetExperience'] },
-            arguments: { bindings: [{ targetExperience: { type: 'literal', value: 'senior' } }] },
+            results: { bindings: [{ targetExperience: { type: 'literal', value: 'senior' } }] },
           },
         ],
         // One graph for the one declared input: routing is by position, so the
@@ -175,7 +175,7 @@ describe('Data graph inputs on the StartNode', () => {
         arguments: [
           {
             head: { vars: ['targetExperience'] },
-            arguments: { bindings: [{ targetExperience: { type: 'literal', value: 'senior' } }] },
+            results: { bindings: [{ targetExperience: { type: 'literal', value: 'senior' } }] },
           },
         ],
         dataGraphs: [

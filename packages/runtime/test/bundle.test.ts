@@ -95,19 +95,29 @@ describe('examples', () => {
   };
 
   it('accepts an example whose arity matches the query', async () => {
-    const bundle = await withExample([{ head: { vars: ['s'] }, arguments: { bindings: [] } }]);
+    const bundle = await withExample([{ head: { vars: ['s'] }, results: { bindings: [] } }]);
     expect(() => assertValidBundle(bundle)).not.toThrow();
   });
 
+  const TWO = [
+    { head: { vars: ['s'] }, results: { bindings: [] } },
+    { head: { vars: ['s'] }, results: { bindings: [] } },
+  ];
+
   it('rejects an example written against a different signature', async () => {
-    // The failure that actually happens: the query gained or lost a slot and
-    // every example from before is now unusable.
+    // The failure that actually happens: the query lost a slot and every
+    // example from before now supplies more arguments than it can take.
+    const bundle = await withExample(TWO);
+    expect(() => assertValidBundle(bundle)).toThrow(/supplies 2 argument sets but the query has only 1/);
+  });
+
+  it('accepts an example that leaves a slot out, since an omitted slot runs open', async () => {
     const bundle = await withExample([]);
-    expect(() => assertValidBundle(bundle)).toThrow(/supplies 0 argument sets but the query has 1/);
+    expect(() => assertValidBundle(bundle)).not.toThrow();
   });
 
   it('names the offending example so it can be found', async () => {
-    const bundle = await withExample([], 'By city');
+    const bundle = await withExample(TWO, 'By city');
     expect(() => assertValidBundle(bundle)).toThrow(/'By city'/);
   });
 

@@ -4,7 +4,7 @@ import { SparqlQueryParser } from '../../src/lib/parser.js';
 // Define a type for the argument set structure for clarity in tests
 type ArgumentSet = {
   head: { vars: string[] };
-  arguments: {
+  results: {
     bindings: Array<Record<string, { type: 'uri' | 'literal'; value: string; datatype?: string; 'xml:lang'?: string }>>;
   }
 };
@@ -19,7 +19,7 @@ describe('SparqlQueryParser - applyArguments', () => {
   it('rewrites an explicit empty set to a zero-row VALUES clause', () => {
     const result = parser.applyArguments(
       'SELECT ?s WHERE { ?s ?p ?o . VALUES (?s) { (UNDEF) } }',
-      [{ head: { vars: ['s'] }, arguments: { bindings: [] } }]
+      [{ head: { vars: ['s'] }, results: { bindings: [] } }]
     );
 
     const parsed = parser.parseQuery(result) as any;
@@ -31,10 +31,10 @@ describe('SparqlQueryParser - applyArguments', () => {
   it('removes an unconstrained or explicit wildcard parameter slot', () => {
     const query = 'SELECT ?s WHERE { ?s ?p ?o . VALUES (?s) { (UNDEF) } }';
     const absent = parser.applyArguments(query, [{
-      head: { vars: ['s'] }, arguments: { bindings: [] }, whenEmpty: 'unconstrained'
+      head: { vars: ['s'] }, results: { bindings: [] }, whenEmpty: 'unconstrained'
     }]);
     const wildcard = parser.applyArguments(query, [{
-      head: { vars: ['s'] }, arguments: { bindings: [{}] }
+      head: { vars: ['s'] }, results: { bindings: [{}] }
     }]);
 
     for (const result of [absent, wildcard]) {
@@ -48,7 +48,7 @@ describe('SparqlQueryParser - applyArguments', () => {
       'SELECT ?s WHERE { VALUES (?s) { (UNDEF) } ?s ?p ?o }',
       [{
         head: { vars: ['s'] },
-        arguments: { bindings: [
+        results: { bindings: [
           {},
           { s: { type: 'uri', value: 'urn:example:bound' } },
         ] },
@@ -59,7 +59,7 @@ describe('SparqlQueryParser - applyArguments', () => {
   it('fails a required input with a named error', () => {
     expect(() => parser.applyArguments(
       'SELECT ?s WHERE { VALUES (?s) { (UNDEF) } ?s ?p ?o }',
-      [{ head: { vars: ['s'] }, arguments: { bindings: [] }, whenEmpty: 'require' }],
+      [{ head: { vars: ['s'] }, results: { bindings: [] }, whenEmpty: 'require' }],
     )).toThrow('Required input for VALUES clause 1 received no bindings');
 
     // A required input that *was* satisfied is not an error.
@@ -67,7 +67,7 @@ describe('SparqlQueryParser - applyArguments', () => {
       'SELECT ?s WHERE { VALUES (?s) { (UNDEF) } ?s ?p ?o }',
       [{
         head: { vars: ['s'] },
-        arguments: { bindings: [{ s: { type: 'uri', value: 'urn:example:bound' } }] },
+        results: { bindings: [{ s: { type: 'uri', value: 'urn:example:bound' } }] },
         whenEmpty: 'require',
       }],
     )).toContain('urn:example:bound');
@@ -81,7 +81,7 @@ describe('SparqlQueryParser - applyArguments', () => {
         'SELECT ?s WHERE { ?s ?p ?o . VALUES (?s) { (UNDEF) } }',
         [{
           head: { vars: ['s'] },
-          arguments: { bindings: [{ s: { type: 'uri', value: 'urn:example:kept' } }] },
+          results: { bindings: [{ s: { type: 'uri', value: 'urn:example:kept' } }] },
           whenEmpty,
         }],
       );
@@ -112,7 +112,7 @@ describe('SparqlQueryParser - applyArguments', () => {
         head: {
           vars: ['subject', 'predicate']
         },
-        arguments: { // Note: 'arguments' key here matches the structure expected by the parser method
+        results: {
           bindings: [
           {
             subject: {
@@ -172,7 +172,7 @@ describe('SparqlQueryParser - applyArguments', () => {
     const argumentSets: ArgumentSet[] = [
       {
         head: { vars: ['subject', 'predicate'] },
-        arguments: {
+        results: {
           bindings: [
             {
               subject: { type: 'uri', value: 'http://example.org/subject1' },
@@ -184,7 +184,7 @@ describe('SparqlQueryParser - applyArguments', () => {
     ];
 
     expect(() => parser.applyArguments(queryString, argumentSets))
-      .toThrow('Mismatch: Found 0 UNDEF VALUES clauses, but received 1 argument sets.');
+      .toThrow('Argument [subject, predicate] matches no VALUES parameter left to fill. The query declares no VALUES parameters.');
 
     // With no argument sets the author's block survives untouched.
     const untouched = parser.applyArguments(queryString, []);
@@ -216,7 +216,7 @@ describe('SparqlQueryParser - applyArguments', () => {
         head: { // Updated vars to match test data
           vars: ['subject', 'predicate', 'object', 'value', 'flag']
         },
-        arguments: { // Note: 'arguments' key here
+        results: {
           bindings: [
           {
             // URI
@@ -344,7 +344,7 @@ describe('SparqlQueryParser - applyArguments', () => {
         head: {
           vars: ['label']
         },
-        arguments: {
+        results: {
           bindings: [
           {
             label: {
@@ -366,7 +366,7 @@ describe('SparqlQueryParser - applyArguments', () => {
         head: {
           vars: ['value']
         },
-        arguments: {
+        results: {
           bindings: [
           {
             value: {
@@ -428,7 +428,7 @@ describe('SparqlQueryParser - applyArguments', () => {
     expect(foundValueValues).toBe(true);
   });
 
-  it('should throw error if argument set count does not match UNDEF VALUES count', () => { // Test unchanged, but confirms error handling
+  it('runs a VALUES clause the payload leaves out without its filter', () => {
      // Arrange
      const queryString = `
        SELECT * WHERE {
@@ -437,25 +437,34 @@ describe('SparqlQueryParser - applyArguments', () => {
        }
      `; // Query has 2 UNDEF clauses
      const argumentSets: ArgumentSet[] = [ // Only one set provided
-       { head: { vars: ['a'] }, arguments: { bindings: [{ a: { type: 'uri', value: 'http://example.org/a1' } }] } }
+       { head: { vars: ['a'] }, results: { bindings: [{ a: { type: 'uri', value: 'http://example.org/a1' } }] } }
      ];
 
-     // Act & Assert
-     expect(() => parser.applyArguments(queryString, argumentSets)).toThrow(
-       'Mismatch: Found 2 UNDEF VALUES clauses, but received 1 argument sets.'
+     // ?b was left out: nothing arrived, so its clause is dropped rather than
+     // substituted with an empty (match-nothing) set.
+     const result = parser.applyArguments(queryString, argumentSets);
+     expect(result).toContain('VALUES ?a { <http://example.org/a1> }');
+     expect(result).not.toMatch(/VALUES \?b/);
+   });
+
+  it('refuses a second argument for a VALUES clause that already has one', () => {
+     const queryString = 'SELECT * WHERE { VALUES ?a { UNDEF } }';
+     const one = { head: { vars: ['a'] }, results: { bindings: [{ a: { type: 'uri', value: 'http://example.org/a1' } }] } };
+     expect(() => parser.applyArguments(queryString, [one, one])).toThrow(
+       'Argument [a] matches no VALUES parameter left to fill. The query declares [a].'
      );
    });
 
-  it('should throw error if argument header misses variables', () => { // Test unchanged, but confirms error handling
+  it('should throw error if argument header misses variables', () => {
     const queryString = 'SELECT * WHERE { VALUES (?a ?b) { (UNDEF UNDEF) } }';
     const argumentSets: ArgumentSet[] = [
       {
         head: { vars: ['a'] }, // Missing 'b'
-        arguments: { bindings: [ { a: { type: 'uri', value: 'http://example.org/a1' } } ] }
+        results: { bindings: [ { a: { type: 'uri', value: 'http://example.org/a1' } } ] }
       } // Argument set header doesn't match VALUES clause variables
     ];
     expect(() => parser.applyArguments(queryString, argumentSets)).toThrow(
-      'Variable mismatch for VALUES clause 1. Query expects [a, b], arguments provide [a].'
+      'Argument [a] matches no VALUES parameter left to fill. The query declares [a, b].'
     );
   });
 
@@ -464,7 +473,7 @@ describe('SparqlQueryParser - applyArguments', () => {
     const argumentSets: ArgumentSet[] = [
       {
         head: { vars: ['a', 'b'] },
-        arguments: {
+        results: {
           bindings: [
           { a: { type: 'uri', value: 'http://example.org/a1' } }, // Missing 'b' here
           { a: { type: 'uri', value: 'http://example.org/a2' }, b: { type: 'uri', value: 'http://example.org/b2' } }
@@ -490,7 +499,7 @@ describe('SparqlQueryParser - applyArguments', () => {
     const argumentSets: ArgumentSet[] = [
       {
         head: { vars: ['lit'] },
-        arguments: { bindings: [ { lit: { type: 'literal', value: 'Simple Literal' } } ] } // No datatype
+        results: { bindings: [ { lit: { type: 'literal', value: 'Simple Literal' } } ] } // No datatype
       }
     ];
     const result = parser.applyArguments(queryString, argumentSets); // Use applyArguments
@@ -510,7 +519,7 @@ describe('SparqlQueryParser - applyArguments', () => {
     const argumentSets: ArgumentSet[] = [
       {
         head: { vars: ['unknown'] },
-        arguments: { bindings: [ { unknown: { type: 'weird', value: 'data' } as any } ] } // Cast to any to bypass type check
+        results: { bindings: [ { unknown: { type: 'weird', value: 'data' } as any } ] } // Cast to any to bypass type check
       }
     ];
     expect(() => parser.applyArguments(queryString, argumentSets)).toThrow(
@@ -523,7 +532,7 @@ describe('SparqlQueryParser - applyArguments', () => {
     const argumentSets: ArgumentSet[] = [
       {
         head: { vars: ['bnode'] },
-        arguments: { bindings: [ { bnode: { type: 'bnode', value: 'b1' } as any } ] } // Cast to allow bnode type for test
+        results: { bindings: [ { bnode: { type: 'bnode', value: 'b1' } as any } ] } // Cast to allow bnode type for test
       }
     ];
     expect(() => parser.applyArguments(queryString, argumentSets)).toThrow(
@@ -531,17 +540,15 @@ describe('SparqlQueryParser - applyArguments', () => {
     );
   });
 
-  it('should throw error for empty arguments array when UNDEF exists', () => { // Changed expectation
+  it('drops the VALUES clause for an empty arguments array: nothing arrived', () => {
      const queryString = `
        SELECT * WHERE {
          VALUES (?a) { (UNDEF) }
        }
      `;
-     const argumentSets: ArgumentSet[] = []; // Empty array
-     // Expect applyArguments to throw an error because 1 UNDEF clause exists but 0 sets provided
-     expect(() => parser.applyArguments(queryString, argumentSets)).toThrow(
-       'Mismatch: Found 1 UNDEF VALUES clauses, but received 0 argument sets.'
-     );
+     const result = parser.applyArguments(queryString, []);
+     expect(result).not.toContain('VALUES');
+     expect(result).not.toContain('UNDEF');
    });
 
    it('should rewrite an empty argument set to a zero-row VALUES clause', async () => {
@@ -551,7 +558,7 @@ describe('SparqlQueryParser - applyArguments', () => {
        }
      `;
      const argumentSets: ArgumentSet[] = [
-       { head: { vars: ['a'] }, arguments: { bindings: [] } } // Empty arguments list
+       { head: { vars: ['a'] }, results: { bindings: [] } } // Empty arguments list
      ];
      
      const result = parser.applyArguments(queryString, argumentSets);
@@ -593,7 +600,7 @@ describe('SparqlQueryParser - applyArguments', () => {
     const argumentSets: ArgumentSet[] = [
       {
         head: { vars: ['assessment'] },
-        arguments: {
+        results: {
           bindings: [
           { assessment: { type: 'uri', value: 'http://example.org/assessment/123' } },
           { assessment: { type: 'uri', value: 'http://example.org/assessment/456' } }
@@ -648,7 +655,7 @@ describe('SparqlQueryParser - applyArguments', () => {
 
     const named = (name: string, value: string): ArgumentSet => ({
       head: { vars: [name] },
-      arguments: { bindings: [{ [name]: { type: 'literal', value } }] },
+      results: { bindings: [{ [name]: { type: 'literal', value } }] },
     });
 
     it('fills each VALUES clause from the set that names it', () => {
@@ -670,7 +677,7 @@ describe('SparqlQueryParser - applyArguments', () => {
     it('still rejects a set that names no clause at all', () => {
       expect(() =>
         parser.applyArguments(QUERY, [named('term', 'wool'), named('nope', 'x')]),
-      ).toThrow(/Variable mismatch/);
+      ).toThrow(/Argument \[nope\] matches no VALUES parameter left to fill/);
     });
   });
 
