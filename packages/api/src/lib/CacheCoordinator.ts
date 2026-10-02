@@ -16,6 +16,20 @@ export class EntityExistsError extends Error {
   }
 }
 
+/**
+ * An update was written through but the store does not hold the entity
+ * afterwards — typically one that only ever lived in the cache. Returning the
+ * merged copy would report a write that never happened. Routes answer 500.
+ */
+export class EntityNotPersistedError extends Error {
+  readonly statusCode = 500;
+
+  constructor(readonly id: string, readonly entityType: string) {
+    super(`${entityType} ${id} is not in the store, so the update was not saved.`);
+    this.name = 'EntityNotPersistedError';
+  }
+}
+
 class EntityCache<T extends EntityType | 'Unknown'> {
   public cache = new Map<string, unknown>();
   public lastRefreshedById = new Map<string, number>();
@@ -356,10 +370,13 @@ export class CacheCoordinator {
 
     const patch = { dateModified: effectiveDateModified } as unknown as Partial<EntityByType[T]>;
     const patchRecord = patch as Record<string, unknown>;
+    // `null` is kept: the update generator clears a property on `null` and
+    // treats `undefined` as "not patched", so rewriting one into the other made
+    // every clear a silent no-op in the store while the cache showed it cleared.
     (Object.keys(updates) as Array<keyof EntityByType[T]>).forEach((key) => {
       const value = updates[key];
       if (value !== undefined) {
-        patchRecord[String(key)] = value === null ? undefined : value;
+        patchRecord[String(key)] = value;
       }
     });
 
@@ -370,11 +387,20 @@ export class CacheCoordinator {
 
     let fresh: EntityByType[T] | null = null;
     if (config.cacheWriteThroughEnabled) {
+      let readBack = false;
       try {
         fresh = await getPersistenceAdapter().findByIri(type, id);
+        readBack = true;
       } catch (error) {
         console.warn(`[CacheCoordinator] Failed to fetch fresh ${id}`, error);
         if (this.errorMode === 'throw') throw error;
+      }
+      // The update query is anchored on the entity's type triple, so against a
+      // store that does not hold the entity it matches nothing and succeeds.
+      // An ephemeral entity is cache-only by design and is exempt.
+      if (readBack && !fresh && !this._ephemeralIds.has(id)) {
+        console.error(`[CacheCoordinator][audit] update of ${type} ${id} reached no stored entity; refusing to report it saved`);
+        throw new EntityNotPersistedError(id, type);
       }
     }
 
