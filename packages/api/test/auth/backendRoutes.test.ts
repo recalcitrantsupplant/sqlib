@@ -78,6 +78,7 @@ overrideCacheCoordinatorProvider((() => {
       QueryGroup: repo('QueryGroup'),
       QueryGroupVersion: repo('QueryGroupVersion'),
       BenchmarkExperiment: repo('BenchmarkExperiment'),
+      EtlJob: repo('EtlJob'),
       BenchmarkExperimentVersion: repo('BenchmarkExperimentVersion'),
       Patch: repo('Patch'),
     }),
@@ -286,6 +287,7 @@ describe('GET /:id/references', () => {
     expect(response.json()).toEqual({
       libraries: [{ id: LIBRARY, name: 'Hydrology' }],
       queries: [{ id: QUERY, name: 'Gauges' }],
+      etlJobs: [],
     });
   });
 

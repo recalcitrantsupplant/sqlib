@@ -124,9 +124,13 @@ test.describe('Splash', () => {
     );
   });
 
-  /* The backend the library runs against, beside the build it is running. */
-  test('the strip names the library’s default backend', async ({ page }) => {
-    await expect(page.locator('[data-testid="splash-backend"]')).toContainText('Visual Backend');
+  /*
+   * The backend the library runs against, beside the build it is running —
+   * and, where the deployment can write, a picker that changes it in place.
+   */
+  test('names the library’s default backend in an editable picker', async ({ page }) => {
+    await expect(page.locator('[data-testid="splash-backend"]')).toContainText('Default backend');
+    await expect(page.locator('[data-testid="splash-default-backend-select"]')).toHaveValue('Visual Backend');
   });
 
   test('the same version is reachable from Settings, on any screen', async ({ page }) => {

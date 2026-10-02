@@ -35,6 +35,7 @@ import { oxigraphStoreManager } from '../lib/OxigraphStoreManager.js';
 import { OxigraphSparqlExecutor } from '../server/OxigraphSparqlExecutor.js';
 import { ExecutorFactory } from '../lib/orchestration/ExecutorFactory.js';
 import { requireLibraryMode, resolveOwningLibrary } from '../auth/enforce.js';
+import { resolveQueryDefaultBackend } from '../lib/defaultBackend.js';
 import type { NodeResult, ResolvedNode } from '../lib/orchestration/types.js';
 import * as crypto from 'crypto';
 import { ArgumentSetService } from '../lib/ArgumentSetService.js';
@@ -283,7 +284,7 @@ export default async function (
             acceptOverride?: string;
         }
     ) {
-        const {targetId, backendId, arguments: rawInlineArgs, limits, offsets, argumentSetIds, dataGraphs, nodeDetail, acceptOverride} = params;
+        const {targetId, arguments: rawInlineArgs, limits, offsets, argumentSetIds, dataGraphs, nodeDetail, acceptOverride} = params;
         let inlineArgs: ReturnType<typeof normalizeArguments>;
         try {
             inlineArgs = normalizeArguments(rawInlineArgs);
@@ -309,6 +310,7 @@ export default async function (
             return duration;
         };
         let targetTypeForError: string | undefined;
+        let backendId = params.backendId;
         let ephemeralStoreId: string | null = null; // Track ephemeral store for cleanup
 
         try {
@@ -344,11 +346,17 @@ export default async function (
 
             // 3. Validate backendId based on target type
             if (targetTypeForError === 'Query' || targetTypeForError === 'QueryVersion') {
-                // Query execution REQUIRES backendId
+                // A query runs on the backend the caller names, else the
+                // query's default, else its library's.
                 if (!backendId) {
-                    return reply.code(400).send({
-                        error: 'backendId is required when executing a Query or QueryVersion'
-                    });
+                    const fallback = resolveQueryDefaultBackend(targetEntity, (id) => getCacheCoordinator().get(id));
+                    if (!fallback) {
+                        return reply.code(400).send({
+                            error: 'backendId is required: neither the query nor its library has a default backend'
+                        });
+                    }
+                    backendId = fallback.backendId;
+                    request.log.info(`No backendId given; using the ${fallback.source} default backend ${backendId}.`);
                 }
             } else if (targetTypeForError === 'QueryGroup' || targetTypeForError === 'QueryGroupVersion') {
                 // Query group execution should NOT have backendId

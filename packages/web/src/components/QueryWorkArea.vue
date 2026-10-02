@@ -36,8 +36,8 @@
         <RunBar
           :run-label="runLabel"
           :running="isExecuting"
-          :run-disabled="!queryCode.trim()"
-          :run-title="queryCode.trim() ? 'Run this query' : 'Write a query first'"
+          :run-disabled="!queryCode.trim() || !selectedBackend"
+          :run-title="!queryCode.trim() ? 'Write a query first' : !selectedBackend ? 'Choose a backend to run against' : 'Run this query'"
           :inputs="runInputs"
           :backend="{ value: selectedBackend, options: backendOptions, loading: backendsLoading, title: 'The store this query runs against' }"
           :format="{ value: selectedMediaType, options: mediaTypeOptions, groups: mediaTypeChoiceGroups, title: 'The format the results come back in' }"
@@ -47,7 +47,7 @@
           recipe-noun="arguments"
           @run="() => executeQuery()"
           @pick="showArgumentsTab"
-          @update:backend="(value) => (selectedBackend = value)"
+          @update:backend="pickRunBackend"
           @update:format="(value) => (selectedMediaType = value)"
           @create="createFromRecipe"
         >
@@ -150,7 +150,7 @@
             :hide-version-selector="true"
             @update:sparql-code="applyEditedQueryCode"
             @update:selected-version="(value) => selectedVersion = value"
-            @update:selected-backend="(value) => selectedBackend = value"
+            @update:selected-backend="pickRunBackend"
             @update:selected-media-type="(value) => selectedMediaType = value"
             @update:selected-argument-set-id="(value) => argumentSetsComposable.selectSet(value)"
             @request-code-dialog="activeResultsTab = 'code'"
@@ -421,6 +421,25 @@
       </div>
     </div>
 
+    <AlertDialog v-model:open="defaultBackendConfirmOpen">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Change this query’s default backend?</AlertDialogTitle>
+          <AlertDialogDescription>
+            “{{ queryName || 'Untitled query' }}” currently defaults to
+            {{ backendLabel(toStoredBackend(defaultBackend)) }}. It will default to
+            {{ backendLabel(pendingDefaultBackend) }} instead.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Keep {{ backendLabel(toStoredBackend(defaultBackend)) }}</AlertDialogCancel>
+          <AlertDialogAction data-testid="confirm-default-backend" @click="confirmDefaultBackendChange">
+            Change default
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+
     <AlertDialog v-model:open="deleteConfirmOpen">
       <AlertDialogContent>
         <AlertDialogHeader>
@@ -508,6 +527,8 @@ import { useQueryDirtyState } from '../composables/useQueryDirtyState';
 import { useCallableDrafts, UNASSIGNED_LIBRARY_ID } from '../composables/useCallableDrafts';
 import { useArgumentSetDrafts } from '../composables/useArgumentSetDrafts';
 import { useActiveLibrary } from '../composables/useActiveLibrary';
+import { useLibrariesStore } from '../composables/useLibrariesStore';
+import { getLastBackend, resolveQueryBackend, setLastBackend } from '@/lib/backendDefaults';
 import { useScratchRecord } from '../composables/useScratchRecord';
 import { useEditorDocumentKey } from '../composables/useEditorDocumentKey';
 import { rdfSyntaxHighlighting } from '../lib/codemirrorHighlight';
@@ -591,12 +612,20 @@ const queryId = ref('');
 const queryCreatedAt = ref<string | null>(null);
 const queryConcurrency = ref<string | null>(null);
 
-// Backend selection (query level - default backend)
-const NONE_BACKEND = 'none';
-const defaultBackend = ref<string>(EPHEMERAL_BACKEND_ID);
+/** The library the open query belongs to — where a save would land. */
+const queryLibraryId = ref<string | null>(null);
+/** The query's `isPartOf` as loaded: its library and any groups it is in. */
+const queryParents = ref<string[]>([]);
 
-// Backend selection (execution context - which backend to execute against)
-const selectedBackend = ref<string>(EPHEMERAL_BACKEND_ID);
+// Backend selection (query level - default backend). NONE_BACKEND is "names
+// no backend of its own", which falls back to the library's default.
+const NONE_BACKEND = 'none';
+const defaultBackend = ref<string>(NONE_BACKEND);
+
+// Backend selection (execution context - which backend to execute against).
+// Empty until something resolves one; Run waits for a choice rather than
+// quietly running against the empty in-memory store.
+const selectedBackend = ref<string>('');
 
 /**
  * What a chosen default backend is stored as.
@@ -917,18 +946,50 @@ const backendOptions = computed(() => {
 });
 
 /*
+ * The library this query belongs to, and the default it hands down.
+ *
+ * A query that names no backend of its own runs on its library's default; see
+ * `lib/backendDefaults.ts` for the whole order. A query being drafted belongs
+ * to the library it is being drafted in.
+ */
+const librariesStore = useLibrariesStore();
+const owningLibraryId = computed(() => {
+  // `isPartOf` can name groups beside the one library; the library is the one
+  // the libraries store knows.
+  const known = queryParents.value.find((id) => librariesStore.libraries.value.some((library) => library.id === id));
+  return known || queryLibraryId.value || creationContext.value?.libraryId || activeLibraryId.value || null;
+});
+const libraryDefaultBackend = computed<string | null>(() => {
+  const libraryId = owningLibraryId.value;
+  if (!libraryId) return null;
+  return librariesStore.libraries.value.find((library) => library.id === libraryId)?.defaultBackend ?? null;
+});
+
+function backendLabel(id: string | null | undefined): string {
+  if (!id) return '';
+  if (id === EPHEMERAL_BACKEND_ID) return EPHEMERAL_BACKEND_LABEL;
+  return availableBackends.value.find((backend) => backend.id === id)?.name ?? id;
+}
+
+/*
  * The Details tab's Default Backend dropdown.
  *
- * No None: a query that points at no backend cannot be run, and there is
- * always somewhere to run it — the in-memory Oxigraph needs no configuring and
- * is never unavailable, so it heads the list and is what a query falls back to
- * when it names nothing. Whatever the query currently points at stays in the
+ * None heads it, and says what None means here: the library's default when the
+ * library has one, otherwise a choice made at run time. The in-memory store is
+ * not offered as a default — it is empty at the start of every run, so it is a
+ * run-bar choice, never a standing one; a query's last run there is remembered
+ * by the run bar instead. Whatever the query currently points at stays in the
  * list even if it is no longer a known backend, so opening such a query shows
- * the id rather than silently reading as the first option.
+ * the id rather than silently reading as None.
  */
 const detailsBackendOptions = computed(() => {
   const optionMap = new Map<string, string>();
-  optionMap.set(EPHEMERAL_BACKEND_ID, EPHEMERAL_BACKEND_LABEL);
+  optionMap.set(
+    NONE_BACKEND,
+    libraryDefaultBackend.value
+      ? `Library default (${backendLabel(libraryDefaultBackend.value)})`
+      : 'None — choose when running',
+  );
   for (const backend of availableBackends.value) {
     optionMap.set(backend.id, backend.name);
   }
@@ -938,6 +999,37 @@ const detailsBackendOptions = computed(() => {
   }
   return Array.from(optionMap.entries()).map(([value, label]) => ({ value, label }));
 });
+
+/** The default this query runs on: its own, else its library's. */
+const effectiveDefaultBackend = computed<string | null>(
+  () => toStoredBackend(defaultBackend.value) ?? libraryDefaultBackend.value,
+);
+
+/*
+ * Whether a backend can still be run against. Until the list has loaded every
+ * candidate is taken at its word, so a slow list does not empty the run bar.
+ */
+function isBackendAvailable(id: string): boolean {
+  if (id === EPHEMERAL_BACKEND_ID || availableBackends.value.length === 0) return true;
+  return availableBackends.value.some((backend) => backend.id === id);
+}
+
+/** Point the run bar where this query should start: last pick, default, library default. */
+function resolveRunBackend() {
+  selectedBackend.value = resolveQueryBackend({
+    lastPick: getLastBackend('query', queryId.value),
+    queryDefault: toStoredBackend(defaultBackend.value),
+    libraryDefault: libraryDefaultBackend.value,
+    isAvailable: isBackendAvailable,
+  }) ?? '';
+}
+
+/** The run bar's own choice, remembered in this browser for this query. */
+function pickRunBackend(value: string) {
+  selectedBackend.value = value;
+  setLastBackend('query', queryId.value, value || null);
+}
+
 
 const mediaTypeOptions = computed(() => getAllMediaTypeOptions());
 // The run bar heads the formats by result shape and greys the ones this query
@@ -1047,7 +1139,9 @@ const creatingFromRecipe = ref<CreateTarget | null>(null);
  * gives every case a data graph, and this screen has no data graph to give.
  */
 const createDisabledReason = computed<Partial<Record<CreateTarget, string | null>>>(() => {
-  const noBackend = toStoredBackend(selectedBackend.value) === null
+  const noBackend = !selectedBackend.value
+    ? 'Choose a backend to run against first.'
+    : toStoredBackend(selectedBackend.value) === null
     ? 'Choose a real backend first — an ephemeral store is empty at the start of every run, '
       + 'so there would be nothing to measure or to assert against.'
     : null;
@@ -1260,8 +1354,8 @@ const {
     // Chosen in Details before save; without it the choice survives only
     // until the tab is reloaded, which is the kind of silent loss the scratch
     // record exists to prevent.
-    defaultBackend.value = record.defaultBackend ?? EPHEMERAL_BACKEND_ID;
-    selectedBackend.value = defaultBackend.value;
+    defaultBackend.value = record.defaultBackend ?? NONE_BACKEND;
+    resolveRunBackend();
     // Nothing on the server to compare against, so nothing is ever "dirty".
     loadedVersionQueryString.value = queryCode.value;
   },
@@ -1405,9 +1499,40 @@ watch([queryName, queryDescription], () => {
 function handleDetailsBackendChange(value: string) {
   const previous = defaultBackend.value;
   if (value === previous) return;
+  /*
+   * Replacing a default someone set is asked about first; it changes where
+   * everyone's runs of this query go. Setting one where there was none, or
+   * clearing one, is plain enough not to.
+   */
+  const previousStored = toStoredBackend(previous);
+  const nextStored = toStoredBackend(value);
+  if (previousStored && nextStored) {
+    pendingDefaultBackend.value = value;
+    return;
+  }
+  applyDefaultBackend(value);
+}
+
+/** A replacement the Details picker is waiting on the user to confirm. */
+const pendingDefaultBackend = ref<string | null>(null);
+const defaultBackendConfirmOpen = computed({
+  get: () => pendingDefaultBackend.value !== null,
+  set: (open: boolean) => {
+    if (!open) pendingDefaultBackend.value = null;
+  },
+});
+
+function confirmDefaultBackendChange() {
+  const value = pendingDefaultBackend.value;
+  pendingDefaultBackend.value = null;
+  if (value !== null) applyDefaultBackend(value);
+}
+
+function applyDefaultBackend(value: string) {
+  const previousEffective = effectiveDefaultBackend.value;
   defaultBackend.value = value;
-  if (selectedBackend.value === previous) {
-    selectedBackend.value = value;
+  if (!selectedBackend.value || selectedBackend.value === previousEffective) {
+    selectedBackend.value = effectiveDefaultBackend.value ?? '';
   }
   if (isScratch.value || queryLoading.value || isNewQuery.value) return;
   void persistQueryFields({ defaultBackend: toStoredBackend(value) }, 'Failed to save default backend');
@@ -1493,8 +1618,6 @@ async function annotateVersion({ value, comment }: { value: string; comment: str
  * seen three ways.
  * ------------------------------------------------------------------ */
 
-/** The library the open query belongs to — where a save would land. */
-const queryLibraryId = ref<string | null>(null);
 const isSavingVersion = ref(false);
 const locallySavedAt = ref<string | null>(null);
 let draftSaveHandle: ReturnType<typeof setTimeout> | null = null;
@@ -1635,7 +1758,7 @@ const detailsProps = computed(() => ({
   taggableKind: 'query' as const,
   // A query saved before the field existed, or through a surface that could
   // still write None, reads as what it actually runs on.
-  backendValue: defaultBackend.value === NONE_BACKEND ? EPHEMERAL_BACKEND_ID : defaultBackend.value,
+  backendValue: defaultBackend.value || NONE_BACKEND,
   backendOptions: detailsBackendOptions.value,
   versionOptions: versionOptions.value.map((option) => ({
     value: option.value,
@@ -1730,6 +1853,11 @@ async function saveScratch(name: string) {
    * moment ago rather than starting empty.
    */
   argumentSetDrafts.rekeyTarget(scratchRecordId, created.id);
+  // A backend picked in the run bar while this was a draft stays picked: the
+  // saved query would otherwise reopen on its default.
+  if (selectedBackend.value && selectedBackend.value !== effectiveDefaultBackend.value) {
+    setLastBackend('query', created.id, selectedBackend.value);
+  }
   draftsStore.remove(scratchRecordId);
   toast.success(`Saved “${name}” as v1`);
   emit('scratch-saved', { id: created.id, name, libraryId });
@@ -1809,8 +1937,10 @@ function resetDraftState() {
   queryCreatedAt.value = null;
   currentQueryId.value = null;
   queryConcurrency.value = null;
-  defaultBackend.value = EPHEMERAL_BACKEND_ID;
-  selectedBackend.value = EPHEMERAL_BACKEND_ID;
+  defaultBackend.value = NONE_BACKEND;
+  selectedBackend.value = '';
+  queryLibraryId.value = null;
+  queryParents.value = [];
   currentVersion.value = null;
   selectedVersion.value = null;
   currentVersionNumberForDisplay.value = null;
@@ -1824,6 +1954,8 @@ function beginCreate(request: QueryCreationRequest) {
     libraryName: request.libraryName,
   };
   resetDraftState();
+  // A new query has no default of its own yet, so it starts on its library's.
+  resolveRunBackend();
   loadError.value = null;
   queryLoading.value = false;
   queryState.value = 'creating';
@@ -1841,16 +1973,31 @@ function hydrateFromQuery(query: ApiQuery, options: { ifMatch?: string | null } 
   // The comment lives on the version, not the query; it is set for real once
   // the version content loads (useQueryVersions#loadVersionContent).
   versionComment.value = '';
-  // A query that names no backend runs against the in-memory store rather than
-  // against nothing; see `detailsBackendOptions`.
-  defaultBackend.value = query.defaultBackend ?? EPHEMERAL_BACKEND_ID;
-  selectedBackend.value = defaultBackend.value;
+  defaultBackend.value = query.defaultBackend ?? NONE_BACKEND;
   applyCurrentVersionLocalState(query.currentVersion ?? null);
   // versionOptions will be populated when we load the full version list
   versionOptions.value = [];
   queryConcurrency.value = options.ifMatch ?? queriesStore.concurrency[query.id] ?? null;
   queryLibraryId.value = Array.isArray(query.isPartOf) ? (query.isPartOf[0] ?? null) : null;
+  queryParents.value = Array.isArray(query.isPartOf) ? query.isPartOf : [];
+  // After the library is known: last pick, then this default, then the library's.
+  resolveRunBackend();
 }
+
+/*
+ * The library list and the backend list both arrive after the query can; when
+ * they do, a run bar left empty — or pointed at a backend deleted since — gets
+ * another chance to resolve.
+ */
+watch(
+  [libraryDefaultBackend, () => availableBackends.value.length],
+  () => {
+    if (queryLoading.value) return;
+    if (!selectedBackend.value || !isBackendAvailable(selectedBackend.value)) {
+      resolveRunBackend();
+    }
+  },
+);
 
 async function loadQuery(id: string, versionOverride?: number | null) {
   if (!id) {

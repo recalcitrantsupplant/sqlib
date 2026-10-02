@@ -185,7 +185,7 @@ test.describe('Backends record page (mocked)', () => {
     const sidecar = page.locator('[data-testid="backend-sidecar"]');
 
     await expect(sidecar.locator('[data-testid="backend-health-card"]')).toBeVisible();
-    await expect(sidecar.getByText('None attached.')).toBeVisible();
+    await expect(sidecar.getByText('Nothing defaults to this backend.')).toBeVisible();
     // Three rows, no libraries row — the card above it already answers that.
     await expect(sidecar.locator('[data-testid="usage-row"]')).toHaveCount(3);
     await expect(sidecar.locator('[data-testid="usage-row"]').first()).toContainText('Queries');

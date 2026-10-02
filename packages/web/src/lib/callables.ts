@@ -96,6 +96,8 @@ export interface Callable {
    * holding one, and for a draft whose body lives in the draft record.
    */
   queryString?: string | null;
+  /** The query's own default backend; null when it defers to its library. Absent for a group. */
+  defaultBackend?: string | null;
 }
 
 const XSD = 'http://www.w3.org/2001/XMLSchema#';
@@ -159,6 +161,7 @@ export function callableFromQueryVersion(
     state: 'live',
     version: expanded.queryVersion.version,
     libraryId: query.isPartOf[0] ?? null,
+    defaultBackend: query.defaultBackend ?? null,
     resultKind: resultKindForQueryType(expanded.queryVersion.queryType),
     inputTuples: tuplesFrom(expanded.inputTuples, expanded.tupleMembers, expanded.inputs),
     limitParameters: expanded.limitParameters.map((parameter) => ({

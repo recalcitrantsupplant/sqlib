@@ -47,7 +47,7 @@
             :format="{ value: outputFormat, options: rdfFormatOptions, title: 'The format the generated RDF comes back in' }"
             :download-disabled="!executionResult"
             @run="executeEtl"
-            @update:backend="(value) => (selectedBackendId = value)"
+            @update:backend="onRunBackendChange"
             @update:format="(value) => (outputFormat = value)"
           />
         </ExpandRunStrip>
@@ -305,6 +305,7 @@
               @select-version="loadVersion"
               @annotate-version="annotateVersion"
               @copy-id="copyEtlJobId"
+              @update:backend="handleDetailsBackendChange"
             />
           </template>
 
@@ -377,6 +378,22 @@
         </div>
       </div>
     </div>
+
+    <AlertDialog v-model:open="defaultBackendConfirmOpen">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Change the default backend?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This will change the default backend of “{{ pipelineName }}” from
+            {{ backendLabel(jobDefaultBackend) }} to {{ backendLabel(pendingDefaultBackend ?? '') }}.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel @click="pendingDefaultBackend = null">Cancel</AlertDialogCancel>
+          <AlertDialogAction data-testid="confirm-default-backend" @click="confirmDefaultBackendChange">Change</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
 
     <!-- Peek Focus Mode Overlay -->
     <div v-if="showPeekFocus && peekResult" class="focus-overlay" @click.self="showPeekFocus = false">
@@ -454,6 +471,17 @@ import SubjectTestsPanel from './tests/SubjectTestsPanel.vue';
 import EmptyState from './shared/EmptyState.vue';
 import PanelHeader from './shared/PanelHeader.vue';
 import TupleSetSink from './etl/TupleSetSink.vue';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './ui/alert-dialog';
+import { getLastBackend, resolveEtlBackend, setLastBackend } from '../lib/backendDefaults';
 import { useFeatureFlags } from '../composables/useFeatureFlags';
 import { useTestsSurface } from '../composables/useTestsSurface';
 import { usePanelResize } from '../composables/usePanelResize';
@@ -716,6 +744,8 @@ const isLoadingJob = ref(false);
 const jobVersions = ref<EtlJobVersion[]>([]);
 const selectedVersionId = ref<string | null>(null);
 const currentVersionId = ref<string | null>(null);
+/** The job's default backend; the in-memory store stands for "none set". */
+const jobDefaultBackend = ref<string>(EPHEMERAL_BACKEND_ID);
 const detailsPanelRef = ref<InstanceType<typeof EntityDetailsPanel> | null>(null);
 
 const currentVersionNumber = computed(() => {
@@ -741,13 +771,15 @@ const needsName = computed(() => isScratch.value && UNTITLED_PATTERN.test(pipeli
  * One draft over all three bodies, because they are one thing: a mapping that
  * does not match the SQL it was inferred from is not a state worth restoring
  * half of. Name and description belong to the job rather than to a version and
- * already autosave directly, so they are not in here.
+ * already autosave directly, so they are not in here. Nor is the run bar's
+ * backend: for a saved pipeline it is a run preference (last pick, then the
+ * job's default), not part of the body, so changing it is not an edit. A draft
+ * written before that may still carry a `backendId`; it is ignored.
  * ------------------------------------------------------------------ */
 
 interface EtlDraftBody {
   sql?: string;
   sparqlTemplate?: string;
-  backendId?: string;
   columnMappings?: ColumnMapping[];
 }
 
@@ -760,7 +792,6 @@ function editorBody(): EtlDraftBody {
   return {
     sql: sqlQuery.value,
     sparqlTemplate: sparqlTemplate.value,
-    backendId: selectedBackendId.value,
     columnMappings: columnMappings.value.map((mapping) => ({ ...mapping })),
   };
 }
@@ -768,7 +799,6 @@ function editorBody(): EtlDraftBody {
 function applyEditorBody(body: EtlDraftBody) {
   sqlQuery.value = body.sql ?? DEFAULT_SQL;
   sparqlTemplate.value = body.sparqlTemplate ?? '';
-  selectedBackendId.value = body.backendId ?? EPHEMERAL_BACKEND_ID;
   columnMappings.value = body.columnMappings ? body.columnMappings.map((mapping) => ({ ...mapping })) : [];
   // A body that was saved is the author's, never the generator's: editing the
   // mappings must not overwrite the template it came back with.
@@ -851,7 +881,7 @@ function cancelDraftSave() {
 }
 
 watch(
-  [sqlQuery, sparqlTemplate, selectedBackendId, columnMappings],
+  [sqlQuery, sparqlTemplate, columnMappings],
   () => {
     if (isScratch.value || isLoadingJob.value || !props.etlJobId) return;
     cancelDraftSave();
@@ -893,9 +923,11 @@ const detailsProps = computed(() => ({
   isScratch: isScratch.value,
   entityId: isScratch.value ? null : (props.etlJobId ?? null),
   entityNoun: 'pipeline',
-  // The backend belongs to the version rather than to the job, and it is
-  // already a field in the template editor's header.
-  showBackend: false,
+  // A saved job's default backend: where its run bar starts when this browser
+  // has no last pick. A scratch pipeline has no job to hold one yet.
+  showBackend: !isScratch.value && !!props.etlJobId,
+  backendValue: jobDefaultBackend.value,
+  backendOptions: detailsBackendOptions.value,
   // Nothing detects a pipeline's signature: its inputs are SQL columns and its
   // output is whatever the CONSTRUCT builds.
   showSignature: false,
@@ -981,7 +1013,8 @@ const applyVersion = async (version: EtlJobVersion) => {
     selectedVersionId.value = version.id;
     sqlQuery.value = version.sql;
     sparqlTemplate.value = version.sparqlTemplate;
-    selectedBackendId.value = version.backendId;
+    // The version's `backendId` records where it was saved from; it no longer
+    // moves the run bar, which follows the job (see `resolveRunBackend`).
     // A saved template is by definition the author's, not the generator's, so
     // editing the mappings must never overwrite it.
     hasUserEditedSparql.value = true;
@@ -1020,6 +1053,7 @@ const loadEtlJob = async (id: string) => {
     ]);
     pipelineName.value = job.name;
     pipelineDescription.value = job.description ?? '';
+    jobDefaultBackend.value = job.defaultBackend || EPHEMERAL_BACKEND_ID;
     jobVersions.value = versions;
     currentVersionId.value = job.currentVersionId ?? versions[0]?.id ?? null;
     const target = versions.find((version) => version.id === currentVersionId.value) ?? versions[0];
@@ -1033,6 +1067,7 @@ const loadEtlJob = async (id: string) => {
      */
     const draft = openDraft.value?.body;
     if (draft && typeof draft === 'object') applyEditorBody(draft as EtlDraftBody);
+    resolveRunBackend(id);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to load the pipeline';
     toast.error(message);
@@ -1224,6 +1259,102 @@ const backendOptions = computed(() => {
   }
   return Array.from(optionMap.entries()).map(([value, label]) => ({ value, label }));
 });
+
+/*
+ * The Details picker's list: the in-memory store first — here it means "no
+ * default" — then the configured backends, then the job's default by its id
+ * if that backend has since been deleted.
+ */
+const detailsBackendOptions = computed(() => {
+  const options = [
+    { value: EPHEMERAL_BACKEND_ID, label: EPHEMERAL_BACKEND_LABEL },
+    ...backendsStore.backends.value
+      .filter((backend) => backend.id !== EPHEMERAL_BACKEND_ID)
+      .map((backend) => ({ value: backend.id, label: backend.name })),
+  ];
+  if (!options.some((option) => option.value === jobDefaultBackend.value)) {
+    options.push({ value: jobDefaultBackend.value, label: jobDefaultBackend.value });
+  }
+  return options;
+});
+
+const backendIsKnown = (id: string) => (
+  id === EPHEMERAL_BACKEND_ID || backendsStore.backends.value.some((backend) => backend.id === id)
+);
+
+const backendLabel = (id: string) => (
+  id === EPHEMERAL_BACKEND_ID
+    ? EPHEMERAL_BACKEND_LABEL
+    : backendsStore.backends.value.find((backend) => backend.id === id)?.name ?? id
+);
+
+/*
+ * Where a saved pipeline's run bar starts: this browser's last pick, then the
+ * job's default, then the in-memory store. A pick or default naming a deleted
+ * backend is skipped — once the list has loaded; before that each is taken at
+ * its word, and `onMounted` checks again when the list arrives.
+ */
+function resolveRunBackend(jobId: string) {
+  const listLoaded = backendsStore.backends.value.length > 0;
+  selectedBackendId.value = resolveEtlBackend({
+    lastPick: getLastBackend('etlJob', jobId),
+    jobDefault: jobDefaultBackend.value,
+    isAvailable: listLoaded ? backendIsKnown : undefined,
+  });
+}
+
+/** A run bar pick is remembered per job, in this browser only. */
+function onRunBackendChange(value: string) {
+  selectedBackendId.value = value;
+  if (!isScratch.value && props.etlJobId) setLastBackend('etlJob', props.etlJobId, value);
+}
+
+/*
+ * The Details tab's default backend saves immediately. Moving a job off a
+ * real default asks first, because other people's runs start there too;
+ * moving it off "none" (the in-memory store) does not.
+ */
+const defaultBackendConfirmOpen = ref(false);
+const pendingDefaultBackend = ref<string | null>(null);
+
+function handleDetailsBackendChange(value: string) {
+  if (!props.etlJobId || isScratch.value || value === jobDefaultBackend.value) return;
+  if (jobDefaultBackend.value !== EPHEMERAL_BACKEND_ID) {
+    pendingDefaultBackend.value = value;
+    defaultBackendConfirmOpen.value = true;
+    return;
+  }
+  void applyDefaultBackend(value);
+}
+
+function confirmDefaultBackendChange() {
+  const value = pendingDefaultBackend.value;
+  pendingDefaultBackend.value = null;
+  if (value !== null) void applyDefaultBackend(value);
+}
+
+/*
+ * The run bar follows only when it was sitting on the old default, as on the
+ * query screen; the remembered pick goes with it, so a reload lands on the new
+ * default rather than on a pick that was only ever the old one.
+ */
+async function applyDefaultBackend(value: string) {
+  const id = props.etlJobId;
+  if (!id) return;
+  const previous = jobDefaultBackend.value;
+  jobDefaultBackend.value = value;
+  if (selectedBackendId.value === previous) {
+    selectedBackendId.value = value;
+    setLastBackend('etlJob', id, null);
+  }
+  try {
+    await etlJobsStore.updateEtlJob(id, { defaultBackend: value === EPHEMERAL_BACKEND_ID ? null : value });
+  } catch (error) {
+    if (jobDefaultBackend.value === value) jobDefaultBackend.value = previous;
+    console.error('[EtlPlayground] Failed to save the default backend', error);
+    toast.error(error instanceof Error ? error.message : 'Failed to save the default backend');
+  }
+}
 
 /*
  * The duration for the results footer. ETL's own split — SQL, binding, SPARQL
@@ -1647,6 +1778,11 @@ onMounted(async () => {
   await backendsStore.loadBackends();
   if (!selectedBackendId.value) {
     selectedBackendId.value = EPHEMERAL_BACKEND_ID;
+  }
+  // The job may have resolved its backend before the list arrived.
+  if (!isScratch.value && props.etlJobId && !isLoadingJob.value && !backendIsKnown(selectedBackendId.value)
+    && backendsStore.backends.value.length > 0) {
+    resolveRunBackend(props.etlJobId);
   }
 
   // Trigger initial preview if SQL query has default value

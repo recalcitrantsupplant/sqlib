@@ -123,7 +123,7 @@
                   :value-options="valueOptionsAbove(index)"
                   :can-write="canWrite"
                   :backend-options="backendOptions"
-                  :default-backend="defaultBackendId"
+                  :default-backend="nb.defaultBackendFor(cell)"
                   :backends-loading="backendsStore.loading.value"
                   @run="nb.run(cell.id)"
                   @remove="nb.removeCell(cell.id)"

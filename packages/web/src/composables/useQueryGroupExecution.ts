@@ -1,6 +1,7 @@
 import { ref, computed, watch } from 'vue';
 import { QueryTypeIri, toQueryTypeIri, type SparqlResults } from '@sparql-query-lib/types';
 import type { ExecutionRequest, QueryVersionExpanded } from '@sparql-query-lib/contracts';
+import { resolveQueryDefault } from '../lib/backendDefaults';
 import type {
   UseQueryGroupExecutionDeps,
   UseQueryGroupExecutionResult,
@@ -180,7 +181,16 @@ export function useQueryGroupExecution(deps: UseQueryGroupExecutionDeps): UseQue
     const queryEntityId = payload.queryId;
     const queryName = payload.queryName;
     const targetNode = graph.currentGraphState.value.nodes.find(node => node.id === nodeId) ?? null;
-    const fallbackBackend = targetNode?.backendId ?? selectedBackendId.value ?? null;
+    /*
+     * A node with no backend of its own takes the query's default, then the
+     * library's — the order a query run uses (`lib/backendDefaults.ts`) — and
+     * only then whatever the canvas was last pointed at.
+     */
+    const queryDefault = queriesStore.queries.value.find(q => q.id === queryEntityId)?.defaultBackend ?? null;
+    const fallbackBackend = targetNode?.backendId
+      ?? resolveQueryDefault({ queryDefault, libraryDefault: libraryDefaultBackend.value })
+      ?? selectedBackendId.value
+      ?? null;
 
     /*
      * A patch node checks before it assigns, where every other node assigns and
@@ -252,19 +262,8 @@ export function useQueryGroupExecution(deps: UseQueryGroupExecutionDeps): UseQue
       io.ingestQueryVersionDrafts(selectedVersion);
       graph.updateNodeIoFromQueryVersion(nodeId, selectedVersion);
 
-      // `defaultBackend` was read off the *version* here, and a QueryVersion has
-      // never had one — it is a property of the stable `Query`. The leaf schema
-      // declared it anyway, so this typechecked and silently evaluated to null
-      // on every path: picking a query version for a node has never adopted
-      // that query's default backend. Found when the leaf shapes were projected
-      // from the entity model (issue #65), which removed the field that was
-      // hiding it.
-      //
-      // Not restored here on purpose. The stable query is in reach —
-      // `queriesStore.queries.value.find(q => q.id === queryEntityId)?.defaultBackend`,
-      // the same lookup this file already does above — but making nodes start
-      // adopting a backend they never adopted is a product change, not a schema
-      // one, and it does not belong in a refactor.
+      // The query's default backend is a property of the stable Query, not the
+      // version, so it is adopted above from the queries store.
     } catch (error) {
       console.error('Failed to load query version metadata for node:', nodeId, error);
       // The node keeps its query reference: the assignment happened, only the
