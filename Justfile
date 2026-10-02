@@ -111,9 +111,8 @@ smoke-mcp-app endpoint="http://localhost:3010/mcp":
 # would lock out a browser and not the client you are testing. What protects a
 # quick tunnel is that the hostname is random, it dies with this process, and
 # the server behind it publishes only what you started it with. Run it
-# read-only, as above; the MCP page's "Read the catalogue" button reports which
-# mode answered, so you can confirm that rather than assume it. Do not tunnel a
-# server holding data you would mind a stranger reading.
+# read-only, as above. Do not tunnel a server holding data you would mind a
+# stranger reading.
 #
 # Give the client the printed https URL with /mcp on the end.
 tunnel-mcp port="3010" tool="":

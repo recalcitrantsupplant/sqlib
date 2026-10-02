@@ -83,44 +83,7 @@
           </div>
         </section>
 
-        <!--
-          Not a connectivity test.
-
-          It was one, and a green tick meant nothing worth having: a browser
-          already talking to this app reaching a URL on the same host proves a
-          tautology, while reading as "MCP works" to everyone who saw it. What a
-          chat client can reach is decided on Anthropic's or OpenAI's network.
-
-          What the request does know is what the server publishes, which is
-          invisible from everywhere else in the app and is worth checking before
-          handing the URL out: how many tools, and whether any of them writes.
-        -->
-        <section class="block">
-          <div class="check-row">
-            <button type="button" class="ghost-button" :disabled="probing" data-testid="read-catalogue" @click="readCatalogue">
-              <RefreshCw :size="12" :class="{ spin: probing }" />
-              {{ probing ? 'Reading…' : 'Read the catalogue' }}
-            </button>
-            <span v-if="probe" class="probe" :class="probe.ok ? 'ok' : 'bad'" data-testid="catalogue-result">
-              <Check v-if="probe.ok" :size="12" />
-              <TriangleAlert v-else :size="12" />
-              {{ probe.message }}
-            </span>
-            <span v-else class="muted" data-testid="catalogue-note">
-              Asks this server, from this browser, what tools it offers. Not a test of whether Claude
-              or ChatGPT can reach it.
-            </span>
-          </div>
-        </section>
-
         <footer class="footnotes">
-          <p class="warning" data-testid="mcp-warning">
-            <ShieldAlert :size="13" />
-            <span>
-              This endpoint has no authentication. Run it with <code>MCP_READ_ONLY=1</code> to
-              publish only the tools that read.
-            </span>
-          </p>
           <p class="links">
             <a :href="docUrl('guides/mcp-app.md')" target="_blank" rel="noopener">MCP guide</a>
             <a :href="docUrl('guides/mcp-clients.md')" target="_blank" rel="noopener">Client configuration</a>
@@ -153,18 +116,12 @@
  */
 import { computed, ref } from 'vue';
 import { useRouter } from '#imports';
-import { Check, Code2, Copy, LayoutGrid, Play, Plug, RefreshCw, ShieldAlert, TriangleAlert } from '@lucide/vue';
+import { Check, Code2, Copy, LayoutGrid, Play, Plug } from '@lucide/vue';
 import AppNavRail from '@/components/AppNavRail.vue';
 import { useActiveLibrary } from '@/composables/useActiveLibrary';
 import { docUrl } from '@/lib/docs';
 import { isScreenSection, SCREEN_SECTION_PATHS, type RailSection } from '@/lib/railSections';
-import {
-  MCP_CLIENTS,
-  claudeConnectorLink,
-  describeCatalogue,
-  mcpEndpoint,
-  parseRpcMessage,
-} from '@/lib/mcpClients';
+import { MCP_CLIENTS, claudeConnectorLink, mcpEndpoint } from '@/lib/mcpClients';
 // @ts-ignore - Nuxt auto-import
 import { useRuntimeConfig } from '#imports';
 
@@ -192,90 +149,6 @@ async function copy(text: string, what: 'url' | 'config') {
   } catch {
     // The text is on screen and selectable; a refused clipboard is not an error
     // state worth showing.
-  }
-}
-
-// --- the catalogue readout -----------------------------------------------
-
-const probing = ref(false);
-const probe = ref<{ ok: boolean; message: string } | null>(null);
-
-async function rpc(method: string, params: unknown, sessionId: string | null) {
-  const response = await fetch(mcpUrl.value, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      accept: 'application/json, text/event-stream',
-      ...(sessionId ? { 'mcp-session-id': sessionId } : {}),
-    },
-    body: JSON.stringify({ jsonrpc: '2.0', id: Date.now(), method, params }),
-  });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-  return {
-    sessionId: response.headers.get('mcp-session-id'),
-    message: parseRpcMessage(await response.text()),
-  };
-}
-
-async function notify(method: string, sessionId: string | null) {
-  await fetch(mcpUrl.value, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      accept: 'application/json, text/event-stream',
-      ...(sessionId ? { 'mcp-session-id': sessionId } : {}),
-    },
-    body: JSON.stringify({ jsonrpc: '2.0', method, params: {} }),
-  });
-}
-
-/**
- * Ask the server what it publishes.
- *
- * A full handshake because that is the only way to reach `tools/list`:
- * `initialize`, the notification the specification requires before anything
- * else, then the listing. The answer is reported as a fact rather than a tick,
- * because the useful part is the catalogue and not the round trip. "Is this the
- * read-only one I meant to deploy?" is the question this page is most often
- * opened to settle, and a tool count is the only place in the app that answers
- * it.
- */
-async function readCatalogue() {
-  probing.value = true;
-  probe.value = null;
-  try {
-    const init = await rpc(
-      'initialize',
-      {
-        protocolVersion: '2025-06-18',
-        capabilities: {},
-        clientInfo: { name: 'sqlib-mcp-page', version: '1' },
-      },
-      null
-    );
-    if (!init.message?.result) throw new Error('the server did not answer initialize');
-    const info = (init.message.result as { serverInfo?: { name?: string } }).serverInfo;
-    const session = init.sessionId;
-
-    // Required by the specification before any other request, and refused by
-    // servers that enforce it. A notification, so nothing comes back.
-    await notify('notifications/initialized', session);
-
-    const listed = await rpc('tools/list', {}, session);
-    const tools = (listed.message?.result as { tools?: { name: string }[] } | undefined)?.tools ?? [];
-    const { mode } = describeCatalogue(tools.map((tool) => tool.name));
-
-    probe.value = {
-      ok: true,
-      message: `${info?.name ?? 'The server'}: ${tools.length} tools, ${mode}.`,
-    };
-  } catch (error) {
-    probe.value = {
-      ok: false,
-      message: `Could not read ${mcpUrl.value} from this browser (${(error as Error).message}).`,
-    };
-  } finally {
-    probing.value = false;
   }
 }
 
@@ -529,64 +402,12 @@ function handleRailSelect(section: RailSection) {
   padding: 0 var(--space-4);
 }
 
-.ghost-button:disabled {
-  cursor: default;
-  opacity: 0.6;
-}
-
-.check-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.probe {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-size: var(--text-label);
-}
-
-.probe.ok {
-  color: var(--success-ink);
-}
-
-.probe.bad {
-  color: var(--warning-ink);
-}
-
-.spin {
-  animation: spin 900ms linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
 .footnotes {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
   padding-top: var(--space-6);
   border-top: 1px solid var(--border-subtle);
-}
-
-.warning {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-2);
-  max-width: 70ch;
-  margin: 0;
-  font-size: var(--text-label);
-  line-height: var(--leading-normal);
-  color: var(--warning-ink);
-}
-
-.warning code {
-  font-family: var(--font-mono);
 }
 
 .links {
