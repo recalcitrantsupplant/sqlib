@@ -25,6 +25,7 @@ import type { LdkitEtlColumnMappingVersion, ColumnDefinition } from '../persiste
 import type { LdkitEtlExecution, EtlExecutionStatus } from '../persistence/schemas/EtlExecutionSchema.js';
 import type { SparqlBinding } from './query-chaining.js';
 import { SparqlQueryParser } from './parser.js';
+import { throwIfAborted } from './cancellation.js';
 import { ExecutorFactory } from './orchestration/ExecutorFactory.js';
 import type { ISparqlExecutor } from '../server/ISparqlExecutor.js';
 import type { ArgumentSet } from './orchestration/types.js';
@@ -127,6 +128,8 @@ export interface EtlPipelineRun {
    */
   maxRowsPolicy?: 'stop' | 'fail';
   dryRun?: boolean;
+  /** Stops the run at the next chunk, and aborts a chunk's request in flight. */
+  signal?: AbortSignal;
   /**
    * Where each chunk's CONSTRUCT result goes, as soon as it exists.
    *
@@ -939,6 +942,7 @@ export class EtlService {
     for await (const { rows } of duckDbService.streamChunks(run.sql, run.chunkSize, {
       fixtureSql: run.fixtureSql,
     })) {
+      throwIfAborted(run.signal);
       totalRows += rows.length;
 
       // Checked before the rows are used rather than at the chunk boundary
@@ -956,7 +960,7 @@ export class EtlService {
       if (bindings.length > 0) {
         const argSet = this.bindingsToArgumentSet(bindings, run.columnDefs);
         const query = parser.applyArguments(run.sparqlTemplate, [argSet]);
-        const { result, contentType } = await run.executor.constructQueryParsed(query);
+        const { result, contentType } = await run.executor.constructQueryParsed(query, { signal: run.signal });
 
         if (typeof result === 'string') {
           await run.onOutput(result, { index: completedChunks, contentType });

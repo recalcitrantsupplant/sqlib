@@ -293,7 +293,7 @@ describe('End-to-End Query Creation and Execution Flow', () => {
       // Verify the executor was called with the modified query (LIMIT 0001 → LIMIT 5)
       expect(mockExecutor.selectQueryParsed).toHaveBeenCalledWith(
         expect.stringContaining('LIMIT 5'),
-        { acceptHeader: 'application/sparql-results+json' }
+        { acceptHeader: 'application/sparql-results+json', signal: expect.any(AbortSignal) }
       );
 
       // Verify HttpSparqlExecutor was instantiated with correct config
@@ -398,7 +398,7 @@ describe('End-to-End Query Creation and Execution Flow', () => {
       // Verify executor was called with limit substitution
       expect(mockExecutor.selectQueryParsed).toHaveBeenCalledWith(
         expect.stringContaining('LIMIT 20'),
-        { acceptHeader: 'application/sparql-results+json' }
+        { acceptHeader: 'application/sparql-results+json', signal: expect.any(AbortSignal) }
       );
     });
 

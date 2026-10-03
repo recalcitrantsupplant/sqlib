@@ -21,6 +21,8 @@ import {
 import { TupleStore, injectTupleReads, renderBindingValue } from './TupleStore.js';
 import { quadToNQuad } from './nquads.js';
 import { log } from './log.js';
+import { abortReason, executionSignal } from './cancellation.js';
+import { executionDeadlineMs, maxRuleIterations } from '../config/executionLimits.js';
 
 const DEFAULT_MAX_ITERATIONS = 5;
 const DEFAULT_RULE_TIMEOUT_MS = Number.parseInt(process.env.RULE_EXECUTION_TIMEOUT_MS ?? '30000', 10) || 30000;
@@ -94,8 +96,14 @@ export interface RuleExecutionRecord {
   stratum?: number;
   programSource: ProgramSource;
   durationMs: number;
+  /**
+   * Triples the rule inserted and deleted. Exact under `trace`; otherwise the
+   * net change in the store's size, split by sign, since telling a rule's
+   * inserts from its deletes costs a capture of the whole dataset.
+   */
   triplesInserted: number;
   triplesDeleted: number;
+  /** The quads themselves, under `trace` only; empty otherwise. */
   quadSamples: string[];
   insertedQuads: string[];
   deletedQuads: string[];
@@ -197,6 +205,26 @@ export interface RuleSetExecutionOptions {
   inferenceFormat?: string;
   callbacks?: RuleSetExecutionCallbacks;
   shouldAbort?: () => boolean;
+  /** Stops the run before its next rule or DATA block. */
+  signal?: AbortSignal;
+  /**
+   * The most the whole run may take, in milliseconds; `0` for none. Defaults
+   * to `SQLIB_EXECUTION_TIMEOUT_MS`. Distinct from `timeoutMs`, which judges
+   * each rule after it has run: this is checked *before* each rule, so a run
+   * past its deadline starts nothing further.
+   */
+  deadlineMs?: number;
+  /**
+   * Record which quads each rule inserted and deleted.
+   *
+   * That costs a capture (and hash) of the whole dataset after every rule of
+   * every iteration, and a full quad diff per rule in the result — the price of
+   * a trace someone is going to read, and nothing a caller that only wants the
+   * inferred graph should pay. Without it the dataset is captured once per
+   * iteration, which is all fixpoint detection needs, and a rule's record
+   * carries its net triple delta and no quads.
+   */
+  trace?: boolean;
   initialGraph?: string | null;
   /**
    * How to read `initialGraph`. Query-group chaining hands over N-Triples,
@@ -219,12 +247,20 @@ export class RuleSetExecutor {
   private ruleValidator = new RuleGrammarValidator();
 
   async execute(ruleSetVersion: LdkitRuleSetVersion, options: RuleSetExecutionOptions = {}): Promise<RuleSetExecutionResult> {
-    const maxIterations = options.maxIterations ?? DEFAULT_MAX_ITERATIONS;
+    // Whatever a caller asks for, never past the deployment's cap.
+    const maxIterations = Math.min(options.maxIterations ?? DEFAULT_MAX_ITERATIONS, maxRuleIterations());
+    const trace = options.trace === true;
+    const stop = executionSignal(options.signal, options.deadlineMs ?? executionDeadlineMs());
     const timeoutMs = options.timeoutMs ?? DEFAULT_RULE_TIMEOUT_MS;
     const sampleLimit = options.sampleLimit ?? DEFAULT_RULE_SAMPLE_LIMIT;
     const inferenceFormat = options.inferenceFormat ?? 'application/n-triples';
     const callbacks = options.callbacks;
     const shouldAbort = options.shouldAbort ?? (() => false);
+    /** Why the run must stop now, or null to carry on. */
+    const stopReason = (): string | null => {
+      if (stop.signal.aborted) return abortReason(stop.signal).message;
+      return shouldAbort() ? 'Execution aborted by caller' : null;
+    };
 
     const dataBlockRecords: DataBlockExecutionRecord[] = [];
     const iterations: IterationRecord[] = [];
@@ -359,8 +395,9 @@ export class RuleSetExecutor {
         return fail(message);
       }
       for (let idx = 0; idx < dataBlocks.length; idx += 1) {
-        if (shouldAbort()) {
-          return fail('Execution aborted by caller');
+        const stopped = stopReason();
+        if (stopped) {
+          return fail(stopped);
         }
 
         const record = await this.runDataBlock(executor, store, dataBlocks[idx]!);
@@ -437,8 +474,9 @@ export class RuleSetExecutor {
           status = 'maxIterations';
           break;
         }
-        if (shouldAbort()) {
-          return fail('Execution aborted by caller');
+        const stopped = stopReason();
+        if (stopped) {
+          return fail(stopped);
         }
 
         if (!currentState) {
@@ -478,8 +516,9 @@ export class RuleSetExecutor {
             // `SL.once`: already evaluated for its stratum.
             continue;
           }
-          if (shouldAbort()) {
-            return fail('Execution aborted by caller');
+          const stopped = stopReason();
+          if (stopped) {
+            return fail(stopped);
           }
 
           const preparedRule = preparedRules[ruleOrder]!;
@@ -491,6 +530,7 @@ export class RuleSetExecutor {
             timeoutMs,
             sampleLimit,
             tupleStore,
+            trace,
           );
           if (preparedRule.runOnce) firedOnce.add(ruleOrder);
 
@@ -505,10 +545,12 @@ export class RuleSetExecutor {
             executionFailed = true;
           }
 
-          stateBeforeRule = nextState;
+          if (nextState) stateBeforeRule = nextState;
         }
 
-        const iterationEndState: DatasetState = stateBeforeRule;
+        // Under `trace` the last rule's capture is the iteration's end state;
+        // otherwise this is the one capture the iteration makes.
+        const iterationEndState: DatasetState = trace ? stateBeforeRule : captureDatasetState(store);
         currentState = iterationEndState;
         iterationRecord.signature = iterationEndState.hash;
         iterationRecord.tripleCount = iterationEndState.tripleCount;
@@ -578,6 +620,7 @@ export class RuleSetExecutor {
     } catch (error) {
       return fail(error instanceof Error ? error.message : String(error));
     } finally {
+      stop.dispose();
       oxigraphStoreManager.destroyEphemeralStore(storeId);
     }
   }
@@ -852,7 +895,8 @@ export class RuleSetExecutor {
     timeoutMs: number,
     sampleLimit: number,
     tupleStore?: TupleStore,
-  ): Promise<{ record: RuleExecutionRecord; nextState: DatasetState }> {
+    trace = true,
+  ): Promise<{ record: RuleExecutionRecord; nextState: DatasetState | null }> {
     const record: RuleExecutionRecord = {
       ruleVersionId: preparedRule.ruleVersionId,
       ruleIri: preparedRule.ruleIri,
@@ -869,6 +913,7 @@ export class RuleSetExecutor {
     };
 
     const start = performance.now();
+    const sizeBefore = store.size;
     let updateError: Error | undefined;
     // What the workspace held before this rule ran, so the rows it adds can be
     // attributed to it the same way inserted triples are.
@@ -902,18 +947,24 @@ export class RuleSetExecutor {
       }
     }
 
-    const afterState = captureDatasetState(store);
-    const diff = diffDatasetStates(beforeState, afterState, sampleLimit);
-
     record.insertedTuples = tupleStore && tuplesBefore
       ? tupleStore.addedSince(tuplesBefore).map(renderTupleRow)
       : [];
 
-    record.triplesInserted = diff.insertedCount;
-    record.triplesDeleted = diff.deletedCount;
-    record.quadSamples = diff.sampledInserted;
-    record.insertedQuads = diff.inserted;
-    record.deletedQuads = diff.deleted;
+    let afterState: DatasetState | null = null;
+    if (trace) {
+      afterState = captureDatasetState(store);
+      const diff = diffDatasetStates(beforeState, afterState, sampleLimit);
+      record.triplesInserted = diff.insertedCount;
+      record.triplesDeleted = diff.deletedCount;
+      record.quadSamples = diff.sampledInserted;
+      record.insertedQuads = diff.inserted;
+      record.deletedQuads = diff.deleted;
+    } else {
+      const delta = store.size - sizeBefore;
+      record.triplesInserted = Math.max(delta, 0);
+      record.triplesDeleted = Math.max(-delta, 0);
+    }
 
     if (updateError) {
       record.error = { message: updateError.message, stack: updateError.stack };

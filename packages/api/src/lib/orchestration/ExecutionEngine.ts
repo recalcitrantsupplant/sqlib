@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { orderByPosition } from '@sparql-query-lib/types';
 import * as oxigraph from 'oxigraph';
 import { toError } from '../toError.js';
@@ -11,7 +12,11 @@ import { QueryTypeIri, getQueryTypeKeyFromIri, type QueryTypeValue } from '../..
 import { requireLibraryMode, resolveOwningLibrary } from '../../auth/enforce.js';
 import { toQueryTypeIri } from '../queryTypes.js';
 import { RuleSetExecutor } from '../RuleSetExecutor.js';
-import { duckDbService } from '../DuckDbService.js';
+import { etlService } from '../EtlService.js';
+import { invokeCallable } from '../invokeCallable.js';
+import { executionSignal, raceAbort, throwIfAborted } from '../cancellation.js';
+import { executionDeadlineMs, etlNodeMaxRows } from '../../config/executionLimits.js';
+import { tupleVariableNames } from './tupleNames.js';
 import {
   derivePatch,
   patchToRdfPatch,
@@ -21,8 +26,7 @@ import {
 import { oxigraphDeltaStore } from '../deltaStore.js';
 import { resolvePatchTarget } from '../patchTargets.js';
 import type { WhenEmptyMode } from '../../persistence/schemas/QueryEdgeSchema.js';
-import type { ColumnDefinition } from '../../persistence/schemas/EtlColumnMappingVersionSchema.js';
-import { log } from '../log.js';
+import { convertRdf, mergeRdf, rdfFormatFromMediaType, type RdfPayload } from './rdfHandoff.js';
 
 export type ExecutionHooks = {
   onNodeStart?: (node: ResolvedNode, orderIndex: number) => void;
@@ -68,6 +72,69 @@ export type ExecutionOptions = {
    */
   limits?: ExecutionPageParameter[];
   offsets?: ExecutionPageParameter[];
+  /** Stops the run: a route aborts it when the client disconnects. */
+  signal?: AbortSignal;
+  /**
+   * The most the whole run may take, in milliseconds; `0` for no deadline.
+   * Defaults to `SQLIB_EXECUTION_TIMEOUT_MS`. Checked before every node and
+   * aborting in-flight HTTP requests; see `config/executionLimits.ts` for what
+   * it cannot interrupt.
+   */
+  deadlineMs?: number;
+};
+
+const NODE_TYPES = ['StartNode', 'EndNode', 'QueryNode', 'DynamicQueryNode', 'RuleSetNode', 'PatchNode', 'DuckDbEtlNode'] as const;
+type NodeType = typeof NODE_TYPES[number];
+type ExecutableNodeType = Exclude<NodeType, 'StartNode' | 'EndNode'>;
+
+/** Everything one run accumulates as its nodes execute. */
+type RunState = {
+  graph: ExecutionGraph;
+  initialArgs: ArgumentSet[] | undefined;
+  options: ExecutionOptions | undefined;
+  acceptHeader: string | null;
+  results: Map<string, NodeResult>;
+  /**
+   * Results addressed by output port rather than by node.
+   *
+   * Every other node kind produces one value that all of its outgoing edges
+   * share, so `results` keyed by node is enough. A PatchNode produces two —
+   * deletions and additions — and an edge says which it carries through
+   * `sourceOutputId`. Consumers therefore consult this first and fall back
+   * to the node's result, so nothing else has to know a port map exists.
+   */
+  portResults: Map<string, NodeResult>;
+  /**
+   * A StartNode carries one independent parameter per output tuple, so its
+   * seeded data is keyed by output tuple rather than by node like executed
+   * results.
+   */
+  startNodeOutputs: Map<string, SparqlResultsJson>;
+  /** The RDF half of the same idea: one supplied graph per declared input port. */
+  startNodeGraphs: Map<string, ExecutionDataGraphInput>;
+  /**
+   * The syntax of each RDF result, keyed like `results` / `portResults`.
+   * A CONSTRUCT answers in what its backend sent, a rule set in N-Quads, a
+   * patch half in N-Quads; anything combining or relabelling RDF reads
+   * the format from here rather than assuming one.
+   */
+  rdfFormats: Map<string, string>;
+  rdf: RdfSources;
+  /** Ephemeral stores this run created, destroyed when it ends. */
+  ephemeralStores: Set<string>;
+  /** Fires at the run's deadline or when its caller stops it. */
+  signal: AbortSignal;
+};
+
+/** Runs one node, records what it produced, and returns its node-level result. */
+type NodeRunner = (node: ResolvedNode, run: RunState) => Promise<NodeResult>;
+
+/** Where a run's RDF values are kept, and what syntax each is in. */
+type RdfSources = {
+  results: Map<string, NodeResult>;
+  portResults: Map<string, NodeResult>;
+  startNodeGraphs: Map<string, ExecutionDataGraphInput>;
+  rdfFormats: Map<string, string>;
 };
 
 export class ExecutionNodeError extends Error {
@@ -89,343 +156,362 @@ export class ExecutionEngine {
   ) {}
 
   async execute(
-    graph: ExecutionGraph,
+    authoredGraph: ExecutionGraph,
     initialArgs?: ArgumentSet[],
     hooks?: ExecutionHooks,
     options?: ExecutionOptions
   ): Promise<FinalResult> {
-    // Track ephemeral stores created during execution for cleanup
-    const ephemeralStores = new Set<string>();
-    const acceptHeader = options?.acceptHeader ?? null;
-    
+    const graph = ExecutionEngine.scopeEphemeralStores(authoredGraph, randomUUID());
+    const results = new Map<string, NodeResult>();
+    const portResults = new Map<string, NodeResult>();
+    const startNodeGraphs = new Map<string, ExecutionDataGraphInput>();
+    const rdfFormats = new Map<string, string>();
+    const stop = executionSignal(options?.signal, options?.deadlineMs ?? executionDeadlineMs());
+    const run: RunState = {
+      graph,
+      initialArgs,
+      options,
+      acceptHeader: options?.acceptHeader ?? null,
+      results,
+      portResults,
+      startNodeOutputs: new Map(),
+      startNodeGraphs,
+      rdfFormats,
+      rdf: { results, portResults, startNodeGraphs, rdfFormats },
+      ephemeralStores: new Set(),
+      signal: stop.signal,
+    };
+
     try {
-      // Topological order (Kahn)
-      const indeg = new Map<string, number>();
-      for (const id of Array.from(graph.nodes.keys())) indeg.set(id, 0);
-      for (const e of graph.edges) indeg.set(e.targetNodeId, (indeg.get(e.targetNodeId) || 0) + 1);
-      const q: string[] = Array.from(graph.nodes.keys()).filter(id => (indeg.get(id) || 0) === 0);
-      const results = new Map<string, NodeResult>();
-      /**
-       * Results addressed by output port rather than by node.
-       *
-       * Every other node kind produces one value that all of its outgoing edges
-       * share, so `results` keyed by node is enough. A PatchNode produces two —
-       * deletions and additions — and an edge says which it carries through
-       * `sourceOutputId`. Consumers therefore consult this first and fall back
-       * to the node's result, so nothing else has to know a port map exists.
-       */
-      const portResults = new Map<string, NodeResult>();
-      // A StartNode carries one independent parameter per output tuple, so its seeded
-      // data is keyed by output tuple rather than by node like executed results.
-      const startNodeOutputs = new Map<string, SparqlResultsJson>();
-      // The RDF half of the same idea: one supplied graph per declared data
-      // graph input, keyed by the output port it arrived for.
-      const startNodeGraphs = new Map<string, ExecutionDataGraphInput>();
-      const order: string[] = [];
-
-      const startNodeSet = new Set(graph.startNodeIds ?? []);
-      const endNodeSet = new Set(graph.endNodeIds ?? []);
-
       // Before anything runs: a group may contain UPDATE nodes, and a bad
       // request must not be reported only after half of it has been applied.
       this.refuseUnroutedArguments(graph, initialArgs);
 
-      while (q.length) {
-        const id = q.shift()!;
-        const node = graph.nodes.get(id)!;
-
-        // Get node type to determine if execution is needed
-        const nodeType = this.determineNodeType(node, startNodeSet, endNodeSet);
-
-        // StartNode and EndNode are control flow markers - they don't execute queries
-        if (nodeType === 'StartNode' || nodeType === 'EndNode') {
-          if (nodeType === 'StartNode') {
-            this.seedStartNodeResult(graph, node, results, startNodeOutputs, initialArgs);
-            this.seedStartNodeDataGraphs(graph, node, startNodeGraphs, options?.dataGraphs);
-          }
-          order.push(id);
-          // Advance the topological order for downstream nodes
-          for (const e of graph.outgoingEdges.get(id) || []) {
-            const d = (indeg.get(e.targetNodeId) || 0) - 1;
-            indeg.set(e.targetNodeId, d);
-            if (d === 0) q.push(e.targetNodeId);
-          }
-          continue;
-        }
-
-        if (nodeType === 'RuleSetNode') {
-          const nodeOrderIndex = order.length;
-          const nodeStart = performance.now();
-          hooks?.onNodeStart?.(node, nodeOrderIndex);
-          try {
-            const ruleSetVersion = node.ruleSetVersion;
-            if (!ruleSetVersion) {
-              throw new Error(`RuleSetNode ${node.id} missing resolved RuleSetVersion`);
-            }
-            const rdfSeed = this.buildRdfSeedForRuleSetNode(graph, node, results, portResults, startNodeGraphs);
-            const executionResult = await this.ruleSetExecutor.execute(ruleSetVersion, {
-              initialGraph: rdfSeed || undefined,
-            });
-            const graphResult = executionResult.finalGraphNQuads ?? executionResult.finalGraphContent ?? '';
-            results.set(id, graphResult);
-            hooks?.onNodeFinish?.(node, graphResult, performance.now() - nodeStart, nodeOrderIndex);
-          } catch (error__u: unknown) {
-            const error = toError(error__u);
-            hooks?.onNodeError?.(node, error, performance.now() - nodeStart, nodeOrderIndex);
-            throw new ExecutionNodeError(node.id, (node.raw as { name?: string }).name ?? node.id, error);
-          }
-          order.push(id);
-          for (const e of graph.outgoingEdges.get(id) || []) {
-            const d = (indeg.get(e.targetNodeId) || 0) - 1;
-            indeg.set(e.targetNodeId, d);
-            if (d === 0) q.push(e.targetNodeId);
-          }
-          continue;
-        }
-
-        if (nodeType === 'PatchNode') {
-          const nodeOrderIndex = order.length;
-          const nodeStart = performance.now();
-          hooks?.onNodeStart?.(node, nodeOrderIndex);
-          try {
-            const deletionsPort = node.deletionsOutputId;
-            const additionsPort = node.additionsOutputId;
-            if (!deletionsPort || !additionsPort) {
-              throw new Error(
-                `PatchNode ${node.id} reached execution without both output ports; ` +
-                `there is no way to say which half is which`,
-              );
-            }
-            // The store this node derives against is torn down with the run,
-            // like any other ephemeral one - it is created here when an
-            // upstream node has not already made it.
-            if (node.backendConfig?.type === 'ephemeral-oxigraph') {
-              ephemeralStores.add(node.backendConfig.storeId);
-            }
-            const { document, deletions, additions } = await this.executePatchNode(node);
-            // Both halves are addressed by port, because they are only
-            // distinguishable by which port they left through. The node-level
-            // result is the patch document — what a run report shows for the
-            // node, and the only form in which the two halves stay one thing.
-            portResults.set(deletionsPort, deletions);
-            portResults.set(additionsPort, additions);
-            results.set(id, document);
-            hooks?.onNodeFinish?.(node, document, performance.now() - nodeStart, nodeOrderIndex);
-          } catch (error__u: unknown) {
-            const error = toError(error__u);
-            hooks?.onNodeError?.(node, error, performance.now() - nodeStart, nodeOrderIndex);
-            throw new ExecutionNodeError(node.id, (node.raw as { name?: string }).name ?? node.id, error);
-          }
-          order.push(id);
-          for (const e of graph.outgoingEdges.get(id) || []) {
-            const d = (indeg.get(e.targetNodeId) || 0) - 1;
-            indeg.set(e.targetNodeId, d);
-            if (d === 0) q.push(e.targetNodeId);
-          }
-          continue;
-        }
-
-        if (nodeType === 'DuckDbEtlNode') {
-          const nodeOrderIndex = order.length;
-          const nodeStart = performance.now();
-          hooks?.onNodeStart?.(node, nodeOrderIndex);
-          try {
-            const etlJobVersion = node.etlJobVersion;
-            if (!etlJobVersion) {
-              throw new Error(`DuckDbEtlNode ${node.id} missing resolved EtlJobVersion`);
-            }
-            const nodeResult = await this.executeDuckDbEtlNode(graph, node, results);
-            results.set(id, nodeResult);
-            hooks?.onNodeFinish?.(node, nodeResult, performance.now() - nodeStart, nodeOrderIndex);
-          } catch (error__u: unknown) {
-            const error = toError(error__u);
-            hooks?.onNodeError?.(node, error, performance.now() - nodeStart, nodeOrderIndex);
-            throw new ExecutionNodeError(node.id, (node.raw as { name?: string }).name ?? node.id, error);
-          }
-          order.push(id);
-          for (const e of graph.outgoingEdges.get(id) || []) {
-            const d = (indeg.get(e.targetNodeId) || 0) - 1;
-            indeg.set(e.targetNodeId, d);
-            if (d === 0) q.push(e.targetNodeId);
-          }
-          continue;
-        }
-
-        // Track ephemeral stores for cleanup
-        if (node.backendConfig?.type === 'ephemeral-oxigraph') {
-          ephemeralStores.add(node.backendConfig.storeId);
-        }
-
-        const nodeOrderIndex = order.length;
-        const nodeStart = performance.now();
-        hooks?.onNodeStart?.(node, nodeOrderIndex);
-
-        let type = toQueryTypeIri(node.queryType) || QueryTypeIri.select;
-        let nodeResult: NodeResult;
-        try {
-          // Resolving the executor belongs inside the node's error boundary too:
-          // a node pointing at a missing or unsupported backend is that node's
-          // failure, and a run that cannot say which node broke is the opaque
-          // error the structured failure body exists to replace.
-          const exec = await this.executorFactory.getExecutorForNode(node);
-          // A start node holds no store of its own, so RDF it supplies reaches a
-          // SPARQL node the only way RDF ever does: loaded into the ephemeral
-          // store that node queries. Done after the executor call because that
-          // is what creates the store.
-          await this.loadStartNodeGraphsIntoNode(graph, node, startNodeGraphs);
-          // Argument application belongs inside the node's error boundary: a bad
-          // argument set is that node's failure, and must report as one.
-          this.applyDynamicQueryOverride(graph, node, results, startNodeOutputs);
-          // A dynamic node runs the query it resolved, so it is dispatched by
-          // that query's type rather than by its declared placeholder's.
-          type = toQueryTypeIri(node.queryType) || QueryTypeIri.select;
-          const argSets = this.buildArgumentSetsForNode(graph, node, results, startNodeOutputs);
-          const query = this.applyArgumentsInOrder(graph, node, argSets, initialArgs, options);
-
-          if (type === QueryTypeIri.ask) {
-            const { result } = await exec.askQuery(query);
-            nodeResult = result;
-          } else if (type === QueryTypeIri.update) {
-            await exec.update(query);
-            nodeResult = { success: true };
-          } else if (type === QueryTypeIri.construct || type === QueryTypeIri.describe) {
-            const { result } = await exec.constructQueryParsed(query, {
-              acceptHeader: acceptHeader || undefined,
-            });
-            nodeResult = result;
-          } else {
-            // default to SELECT
-            const { result } = await exec.selectQueryParsed(query);
-            nodeResult = result;
-          }
-        } catch (err__u: unknown) {
-      const err = toError(err__u);
-          const durationMs = performance.now() - nodeStart;
-          const error = err instanceof Error ? err : new Error(String(err));
-          hooks?.onNodeError?.(node, error, durationMs, nodeOrderIndex);
-          const originalMessage = err?.message || String(err);
-          const queryName = (node.queryVersion as { name?: string } | undefined)?.name || (node.raw as { name?: string }).name || node.id;
-          throw new ExecutionNodeError(node.id, queryName, new Error(originalMessage));
-        }
-        const durationMs = performance.now() - nodeStart;
-        hooks?.onNodeFinish?.(node, nodeResult, durationMs, nodeOrderIndex);
-        results.set(id, nodeResult);
+      // Topological order (Kahn).
+      const indeg = new Map<string, number>();
+      for (const id of graph.nodes.keys()) indeg.set(id, 0);
+      for (const e of graph.edges) indeg.set(e.targetNodeId, (indeg.get(e.targetNodeId) || 0) + 1);
+      const queue: string[] = Array.from(graph.nodes.keys()).filter(id => (indeg.get(id) || 0) === 0);
+      const order: string[] = [];
+      const advance = (id: string) => {
         order.push(id);
-
-        const shouldMaterializeRdf =
-          node.backendConfig?.type === 'ephemeral-oxigraph' &&
-          node.needsEphemeralMaterialization &&
-          (type === QueryTypeIri.construct || type === QueryTypeIri.describe);
-
-        if (shouldMaterializeRdf) {
-          if (typeof nodeResult !== 'string') {
-            throw new Error(`Node ${node.id} expected RDF string result for materialization but received ${typeof nodeResult}`);
-          }
-          const storeId = node.backendConfig?.storeId;
-          if (!storeId) {
-            throw new Error(`Node ${node.id} requires storeId to materialize RDF output.`);
-          }
-          const format = this.resolveRdfFormatFromAccept(acceptHeader);
-          await this.materializeRdfResult(storeId, nodeResult, format);
-        }
-
         for (const e of graph.outgoingEdges.get(id) || []) {
           const d = (indeg.get(e.targetNodeId) || 0) - 1;
           indeg.set(e.targetNodeId, d);
-          if (d === 0) q.push(e.targetNodeId);
+          if (d === 0) queue.push(e.targetNodeId);
         }
-      }
-
-      // Choose final result
-      // All query groups MUST have an EndNode
-      if (graph.endNodeIds.length === 0) {
-        throw new Error('Query group execution graph must have an EndNode');
-      }
-
-      const endNodeId = graph.endNodeIds[0]; // Single EndNode per query group
-      const endNode = graph.nodes.get(endNodeId);
-      if (!endNode) {
-        throw new Error(`EndNode ${endNodeId} is missing from execution graph`);
-      }
-
-      // EndNode is always a control-flow-only node - collect results from execution nodes feeding its inputs
-      const incomingToEnd = graph.incomingEdges.get(endNodeId) || [];
-      const endNodeInputs: string[] = Array.isArray((endNode.raw as { inputs?: unknown }).inputs)
-        ? ((endNode.raw as { inputs?: unknown }).inputs as string[]).filter(Boolean)
-        : [];
-
-      if (endNodeInputs.length === 0) {
-        throw new Error(`EndNode ${endNodeId} must declare at least one input IO entity`);
-      }
-
-      const predecessorResults: Array<{ nodeId: string; result: NodeResult; inputId: string }> = [];
-
-      // EndNode acts as a "result selector" - it collects outputs from predecessor execution nodes
-      // For each input declared by the EndNode, find the edge that supplies it and collect that node's result
-      // Note: For EndNode edges, sourceOutputId === targetInputId (pass-through semantics)
-      for (const inputId of endNodeInputs) {
-        const supplyingEdge = incomingToEnd.find(edge => edge.targetInputId === inputId);
-        if (!supplyingEdge) {
-          throw new Error(`No incoming edge supplies EndNode input ${inputId}`);
-        }
-
-        // A graph the caller supplied and the group passes straight back out is
-        // the start node's result for that port: nothing executed, so `results`
-        // holds nothing for it.
-        const seededGraph = supplyingEdge.sourceOutputId
-          ? startNodeGraphs.get(supplyingEdge.sourceOutputId)
-          : undefined;
-        const supplierResult = seededGraph
-          ? seededGraph.content
-          : (supplyingEdge.sourceOutputId && portResults.has(supplyingEdge.sourceOutputId)
-            ? portResults.get(supplyingEdge.sourceOutputId)
-            : results.get(supplyingEdge.sourceNodeId));
-        if (supplierResult === undefined) {
-          throw new Error(`Missing execution result for node ${supplyingEdge.sourceNodeId} feeding EndNode input ${inputId}`);
-        }
-
-        predecessorResults.push({ nodeId: supplyingEdge.sourceNodeId, result: supplierResult, inputId });
-      }
-
-      if (predecessorResults.length === 0) {
-        throw new Error(`EndNode ${endNodeId} has no data inputs (only control flow); nothing to return`);
-      }
-
-      // Single predecessor: return its result directly
-      if (predecessorResults.length === 1) {
-        return {
-          result: predecessorResults[0].result,
-          resultNodeId: predecessorResults[0].nodeId
-        };
-      }
-
-      // Multiple predecessors: merge RDF outputs
-      // For now, all must be RDF strings (CONSTRUCT/DESCRIBE results)
-      const rdfOutputs: string[] = [];
-      for (const { nodeId, result, inputId } of predecessorResults) {
-        if (typeof result !== 'string') {
-          throw new Error(
-            `EndNode input ${inputId} expects RDF string output. ` +
-            `Node ${nodeId} produced ${typeof result}. ` +
-            `Support for merging bindings/booleans is not yet implemented.`
-          );
-        }
-        rdfOutputs.push(result);
-      }
-
-      // Concatenate all RDF outputs (assumes N-Triples or compatible format)
-      const mergedRdf = rdfOutputs.join('\n');
-
-      return {
-        result: mergedRdf,
-        resultNodeId: endNodeId
       };
+
+      while (queue.length) {
+        const id = queue.shift()!;
+        const node = graph.nodes.get(id)!;
+        const nodeType = this.nodeTypeOf(node);
+
+        // StartNode and EndNode are control-flow markers; a start node also
+        // seeds what the run supplied, and executes nothing.
+        if (nodeType === 'StartNode') {
+          this.seedStartNodeResult(graph, node, results, run.startNodeOutputs, initialArgs);
+          this.seedStartNodeDataGraphs(graph, node, startNodeGraphs, options?.dataGraphs);
+        } else if (nodeType !== 'EndNode') {
+          await this.runNode(node, nodeType, run, hooks, order.length);
+        }
+        advance(id);
+      }
+
+      return this.collectEndNodeResult(run);
     } finally {
-      // Clean up ephemeral stores
-      for (const storeId of Array.from(ephemeralStores)) {
+      stop.dispose();
+      for (const storeId of run.ephemeralStores) {
         oxigraphStoreManager.destroyEphemeralStore(storeId);
       }
     }
+  }
+
+  /** How each executable node type runs. Start and end nodes run nothing. */
+  private readonly runners: ReadonlyMap<ExecutableNodeType, NodeRunner> = new Map<ExecutableNodeType, NodeRunner>([
+    ['QueryNode', (node, run) => this.runQueryNode(node, run)],
+    ['DynamicQueryNode', (node, run) => this.runQueryNode(node, run)],
+    ['RuleSetNode', (node, run) => this.runRuleSetNode(node, run)],
+    ['PatchNode', (node, run) => this.runPatchNode(node, run)],
+    ['DuckDbEtlNode', (node, run) => this.runDuckDbEtlNode(node, run)],
+  ]);
+
+  /**
+   * One node, inside its own error boundary.
+   *
+   * Everything a node does — resolving its executor, applying arguments,
+   * loading the RDF handed to it — belongs inside the boundary: a run that
+   * cannot say which node broke is the opaque error the structured failure
+   * body exists to replace.
+   */
+  private async runNode(
+    node: ResolvedNode,
+    nodeType: ExecutableNodeType,
+    run: RunState,
+    hooks: ExecutionHooks | undefined,
+    orderIndex: number,
+  ): Promise<void> {
+    // The run's ephemeral stores are torn down with it, whichever node made them.
+    if (node.backendConfig?.type === 'ephemeral-oxigraph') {
+      run.ephemeralStores.add(node.backendConfig.storeId);
+    }
+    const startedAt = performance.now();
+    hooks?.onNodeStart?.(node, orderIndex);
+    let result: NodeResult;
+    try {
+      // A run stopped by its deadline or its caller fails at the node it
+      // would have run next, or at the one it was waiting on: either way the
+      // failure names a node.
+      throwIfAborted(run.signal);
+      result = await raceAbort(this.runners.get(nodeType)!(node, run), run.signal);
+    } catch (error__u: unknown) {
+      const error = toError(error__u);
+      hooks?.onNodeError?.(node, error, performance.now() - startedAt, orderIndex);
+      throw new ExecutionNodeError(node.id, this.nodeName(node), error);
+    }
+    hooks?.onNodeFinish?.(node, result, performance.now() - startedAt, orderIndex);
+  }
+
+  /** The name a failure reports: the query's, the node's, or its id. */
+  private nodeName(node: ResolvedNode): string {
+    return (node.queryVersion as { name?: string } | undefined)?.name
+      || (node.raw as { name?: string }).name
+      || node.id;
+  }
+
+  private async runQueryNode(node: ResolvedNode, run: RunState): Promise<NodeResult> {
+    const { graph, results, startNodeOutputs, startNodeGraphs } = run;
+    const exec = await this.executorFactory.getExecutorForNode(node);
+    // A start node holds no store of its own, so RDF it supplies reaches a
+    // SPARQL node the only way RDF ever does: loaded into the ephemeral
+    // store that node queries. Done after the executor call because that
+    // is what creates the store.
+    await this.loadStartNodeGraphsIntoNode(graph, node, startNodeGraphs);
+    // A dynamic node runs the query it resolved, so it is dispatched by that
+    // query's type rather than by its declared placeholder's.
+    this.applyDynamicQueryOverride(graph, node, results, startNodeOutputs);
+    if (!node.queryString) {
+      throw new Error(`Node ${node.id} has no query to run`);
+    }
+    const supplied = this.buildArgumentSetsForNode(graph, node, results, startNodeOutputs);
+    const { argumentSets, limits, offsets } = this.resolveNodeArguments(graph, node, supplied, run.initialArgs, run.options);
+
+    const { result, contentType } = await invokeCallable(exec, node.queryString, node.queryType, {
+      argumentSets,
+      limits,
+      offsets,
+      acceptHeader: run.acceptHeader,
+      signal: run.signal,
+      parser: this.parser,
+    });
+    run.results.set(node.id, result);
+
+    const type = toQueryTypeIri(node.queryType) || QueryTypeIri.select;
+    const producesRdf = type === QueryTypeIri.construct || type === QueryTypeIri.describe;
+    if (producesRdf) {
+      // What the backend sent, which need not be what was asked for: the
+      // in-process executor answers N-Quads to anything but Turtle.
+      run.rdfFormats.set(node.id, rdfFormatFromMediaType(contentType ?? run.acceptHeader));
+    }
+
+    if (node.backendConfig?.type === 'ephemeral-oxigraph' && node.needsEphemeralMaterialization && producesRdf) {
+      if (typeof result !== 'string') {
+        throw new Error(`Node ${node.id} expected RDF string result for materialization but received ${typeof result}`);
+      }
+      await this.materializeRdfResult(node.backendConfig.storeId, result, run.rdfFormats.get(node.id) ?? 'nquads');
+    }
+    return result;
+  }
+
+  private async runRuleSetNode(node: ResolvedNode, run: RunState): Promise<NodeResult> {
+    const ruleSetVersion = node.ruleSetVersion;
+    if (!ruleSetVersion) {
+      throw new Error(`RuleSetNode ${node.id} missing resolved RuleSetVersion`);
+    }
+    const rdfSeed = this.buildRdfSeedForRuleSetNode(run.graph, node, run.rdf);
+    const executionResult = await this.ruleSetExecutor.execute(ruleSetVersion, {
+      initialGraph: rdfSeed?.content || undefined,
+      initialGraphFormat: rdfSeed?.format,
+      signal: run.signal,
+    });
+    const graphResult = executionResult.finalGraphNQuads ?? executionResult.finalGraphContent ?? '';
+    run.results.set(node.id, graphResult);
+    run.rdfFormats.set(node.id, executionResult.finalGraphNQuads !== undefined
+      ? 'nquads'
+      : rdfFormatFromMediaType(executionResult.finalGraphContentType));
+    return graphResult;
+  }
+
+  private async runPatchNode(node: ResolvedNode, run: RunState): Promise<NodeResult> {
+    const deletionsPort = node.deletionsOutputId;
+    const additionsPort = node.additionsOutputId;
+    if (!deletionsPort || !additionsPort) {
+      throw new Error(
+        `PatchNode ${node.id} reached execution without both output ports; ` +
+        `there is no way to say which half is which`,
+      );
+    }
+    const { document, deletions, additions } = await this.executePatchNode(node);
+    // Both halves are addressed by port, because they are only
+    // distinguishable by which port they left through. The node-level
+    // result is the patch document — what a run report shows for the
+    // node, and the only form in which the two halves stay one thing.
+    run.portResults.set(deletionsPort, deletions);
+    run.portResults.set(additionsPort, additions);
+    run.rdfFormats.set(deletionsPort, 'nquads');
+    run.rdfFormats.set(additionsPort, 'nquads');
+    run.results.set(node.id, document);
+    return document;
+  }
+
+  /**
+   * An ETL job as a node: the same pipeline `POST /etl-jobs/:id/execute`
+   * runs, so a job yields the same triples — the same IRIs, the same
+   * skipped rows — run directly or inside a group.
+   */
+  private async runDuckDbEtlNode(node: ResolvedNode, run: RunState): Promise<NodeResult> {
+    const etlJobVersion = node.etlJobVersion;
+    if (!etlJobVersion) {
+      throw new Error(`DuckDbEtlNode ${node.id} missing resolved EtlJobVersion`);
+    }
+    const { columns } = etlService.resolveColumnMapping(etlJobVersion);
+    const executor = await this.executorFactory.getExecutorForBackendId(etlJobVersion.backendId);
+
+    const outputs: RdfPayload[] = [];
+    await etlService.runPipeline({
+      sql: etlJobVersion.sql,
+      sparqlTemplate: etlJobVersion.sparqlTemplate,
+      columnDefs: columns,
+      executor,
+      chunkSize: etlJobVersion.chunkSize || 1000,
+      // Whole or not at all: a truncated source would hand the rest of the
+      // group a confident answer over part of the data.
+      maxRows: etlNodeMaxRows(),
+      maxRowsPolicy: 'fail',
+      signal: run.signal,
+      onOutput: async (rdf, chunk) => {
+        outputs.push({ content: rdf, format: rdfFormatFromMediaType(chunk.contentType) });
+      },
+    });
+
+    const result = outputs.length ? mergeRdf(outputs, 'nquads') : '';
+    run.results.set(node.id, result);
+    run.rdfFormats.set(node.id, 'nquads');
+    return result;
+  }
+
+  /**
+   * What the EndNode returns: the result feeding its one declared input, or
+   * the RDF merge of several.
+   */
+  private collectEndNodeResult(run: RunState): FinalResult {
+    const { graph } = run;
+    // All query groups MUST have an EndNode
+    if (graph.endNodeIds.length === 0) {
+      throw new Error('Query group execution graph must have an EndNode');
+    }
+
+    const endNodeId = graph.endNodeIds[0]; // Single EndNode per query group
+    const endNode = graph.nodes.get(endNodeId);
+    if (!endNode) {
+      throw new Error(`EndNode ${endNodeId} is missing from execution graph`);
+    }
+
+    // EndNode is always a control-flow-only node - collect results from execution nodes feeding its inputs
+    const incomingToEnd = graph.incomingEdges.get(endNodeId) || [];
+    const endNodeInputs: string[] = Array.isArray((endNode.raw as { inputs?: unknown }).inputs)
+      ? ((endNode.raw as { inputs?: unknown }).inputs as string[]).filter(Boolean)
+      : [];
+
+    if (endNodeInputs.length === 0) {
+      throw new Error(`EndNode ${endNodeId} must declare at least one input IO entity`);
+    }
+
+    const predecessorResults: Array<{ nodeId: string; result: NodeResult; inputId: string; rdfFormat: string }> = [];
+
+    // EndNode acts as a "result selector" - it collects outputs from predecessor execution nodes
+    // For each input declared by the EndNode, find the edge that supplies it and collect that node's result
+    // Note: For EndNode edges, sourceOutputId === targetInputId (pass-through semantics)
+    for (const inputId of endNodeInputs) {
+      const supplyingEdge = incomingToEnd.find(edge => edge.targetInputId === inputId);
+      if (!supplyingEdge) {
+        throw new Error(`No incoming edge supplies EndNode input ${inputId}`);
+      }
+
+      // A graph the caller supplied and the group passes straight back out is
+      // the start node's result for that port: nothing executed, so `results`
+      // holds nothing for it.
+      const { result: supplierResult, format } = this.resultForEdge(supplyingEdge, run.rdf);
+      if (supplierResult === undefined) {
+        throw new Error(`Missing execution result for node ${supplyingEdge.sourceNodeId} feeding EndNode input ${inputId}`);
+      }
+
+      predecessorResults.push({ nodeId: supplyingEdge.sourceNodeId, result: supplierResult, inputId, rdfFormat: format });
+    }
+
+    if (predecessorResults.length === 0) {
+      throw new Error(`EndNode ${endNodeId} has no data inputs (only control flow); nothing to return`);
+    }
+
+    // The caller is told the result is in the format they asked for, so RDF
+    // leaves in that format whichever node produced it.
+    const outputFormat = this.resolveRdfFormatFromAccept(run.acceptHeader);
+
+    // Single predecessor: return its result directly
+    if (predecessorResults.length === 1) {
+      const [only] = predecessorResults;
+      return {
+        result: typeof only.result === 'string'
+          ? convertRdf({ content: only.result, format: only.rdfFormat }, outputFormat)
+          : only.result,
+        resultNodeId: only.nodeId
+      };
+    }
+
+    // Multiple predecessors: merge RDF outputs
+    // For now, all must be RDF strings (CONSTRUCT/DESCRIBE results)
+    const rdfOutputs: RdfPayload[] = [];
+    for (const { nodeId, result, inputId, rdfFormat } of predecessorResults) {
+      if (typeof result !== 'string') {
+        throw new Error(
+          `EndNode input ${inputId} expects RDF string output. ` +
+          `Node ${nodeId} produced ${typeof result}. ` +
+          `Support for merging bindings/booleans is not yet implemented.`
+        );
+      }
+      rdfOutputs.push({ content: result, format: rdfFormat });
+    }
+
+    // Parsed and re-written rather than concatenated: the inputs need not
+    // share a syntax, and only N-Triples survives being joined by newline.
+    return {
+      result: mergeRdf(rdfOutputs, outputFormat),
+      resultNodeId: endNodeId
+    };
+  }
+
+  /**
+   * This run's copy of the graph, with every ephemeral `storeId` prefixed by
+   * the run id.
+   *
+   * A node's `storeId` is a string its author chose and the group version
+   * persists, so two runs of one version name the same store. Keyed verbatim,
+   * concurrent runs would seed into and query one shared store, and whichever
+   * finished first would destroy it under the other. Within one run the
+   * author's ids keep their meaning — nodes naming the same store still share
+   * it — and across runs nothing is shared.
+   *
+   * Nodes are copied, not edited: the built graph may be reused by its caller,
+   * and a dynamic node's resolved query is per-run state too.
+   */
+  static scopeEphemeralStores(graph: ExecutionGraph, runId: string): ExecutionGraph {
+    const nodes = new Map<string, ResolvedNode>();
+    for (const [id, node] of graph.nodes) {
+      nodes.set(id, node.backendConfig?.type === 'ephemeral-oxigraph'
+        ? { ...node, backendConfig: { ...node.backendConfig, storeId: `${runId}:${node.backendConfig.storeId}` } }
+        : { ...node });
+    }
+    return { ...graph, nodes };
   }
 
   /**
@@ -441,72 +527,63 @@ export class ExecutionEngine {
   }
 
   /**
-   * Determine if a node is a StartNode, EndNode, RuleSetNode, PatchNode, DuckDbEtlNode, or executable QueryNode/DynamicQueryNode
-   * Uses @type if available, otherwise infers from graph structure and node properties
+   * A node's type, read from its `@type` and nothing else.
+   *
+   * There used to be a fallback that guessed from the node's shape (no query
+   * string at a root means a start node, a rule set version means a rule set
+   * node), kept for unit tests. Every stored node carries its type, and a
+   * guess is how a PatchNode — which holds an update — came within one
+   * misordered branch of running that update. An untyped node is refused.
    */
-  private determineNodeType(node: ResolvedNode, startNodeSet: Set<string>, endNodeSet: Set<string>): 'StartNode' | 'EndNode' | 'RuleSetNode' | 'PatchNode' | 'DuckDbEtlNode' | 'ExecutableNode' {
-    // Check @type if available
-    const rawType = (node.raw)['@type'];
-    if (rawType === 'StartNode') return 'StartNode';
-    if (rawType === 'EndNode') return 'EndNode';
-    if (rawType === 'RuleSetNode') return 'RuleSetNode';
-    /*
-     * Before the fallbacks, and deliberately so. A PatchNode carries an update
-     * query string, so anything that reasons from "has a query" downwards
-     * classifies it as executable and *runs the update* — the one outcome this
-     * node type exists to avoid.
-     */
-    if (rawType === 'PatchNode') return 'PatchNode';
-    if (rawType === 'DuckDbEtlNode') return 'DuckDbEtlNode';
-    if (rawType === 'QueryNode' || rawType === 'DynamicQueryNode') return 'ExecutableNode';
-
-    // Fallback: infer from graph structure and node properties
-    // StartNode/EndNode don't have queryString
-    if (!node.queryString) {
-      if (startNodeSet.has(node.id)) return 'StartNode';
-      if (endNodeSet.has(node.id)) return 'EndNode';
-    }
-
-    // Default to executable node for unit tests and backwards compatibility
-    if (node.ruleSetVersion) return 'RuleSetNode';
-    // Two signed ports is a shape no other node has, so it identifies one here
-    // for the same reason `ruleSetVersion` does above.
-    if (node.deletionsOutputId && node.additionsOutputId) return 'PatchNode';
-    if (node.etlJobVersion) return 'DuckDbEtlNode';
-    return 'ExecutableNode';
+  private nodeTypeOf(node: ResolvedNode): NodeType {
+    const rawType = (node.raw as { '@type'?: string })['@type'];
+    if (rawType && (NODE_TYPES as readonly string[]).includes(rawType)) return rawType as NodeType;
+    throw new ExecutionNodeError(node.id, this.nodeName(node), new Error(
+      rawType ? `Unsupported node type ${rawType}` : 'Node has no @type, so there is no way to know how to run it',
+    ));
   }
 
-  private buildRdfSeedForRuleSetNode(
-    graph: ExecutionGraph,
-    node: ResolvedNode,
-    results: Map<string, NodeResult>,
-    portResults: Map<string, NodeResult>,
-    startNodeGraphs?: Map<string, ExecutionDataGraphInput>
-  ): string {
+  /**
+   * The value an edge carries, and its RDF syntax when it is RDF.
+   *
+   * A graph the caller supplied is the start node's result for its port; a
+   * patch half is addressed by port; everything else by node.
+   */
+  private resultForEdge(edge: ResolvedEdge, rdf: RdfSources): { result: NodeResult; format: string } {
+    const port = edge.sourceOutputId ?? undefined;
+    const seededGraph = port ? rdf.startNodeGraphs.get(port) : undefined;
+    if (seededGraph) return { result: seededGraph.content, format: seededGraph.format };
+    if (port && rdf.portResults.has(port)) {
+      return { result: rdf.portResults.get(port), format: rdf.rdfFormats.get(port) ?? 'nquads' };
+    }
+    return { result: rdf.results.get(edge.sourceNodeId), format: rdf.rdfFormats.get(edge.sourceNodeId) ?? 'nquads' };
+  }
+
+  /**
+   * Everything a RuleSetNode's inbound RDF edges carry, as one document.
+   *
+   * A data graph supplied to the start node is upstream RDF like any other:
+   * the rules run over it exactly as they would over a CONSTRUCT's output.
+   * One input is handed over as it came, with its format; several are merged
+   * into N-Quads, since they need not share a syntax.
+   */
+  private buildRdfSeedForRuleSetNode(graph: ExecutionGraph, node: ResolvedNode, rdf: RdfSources): RdfPayload | null {
     const inbound = graph.incomingEdges.get(node.id) || [];
-    const rdfPayloads: string[] = [];
+    const payloads: RdfPayload[] = [];
     for (const e of inbound) {
       if (e.dataFlowType !== 'RDF_GRAPH') continue;
-      // A data graph supplied to the start node is upstream RDF like any other:
-      // the rules run over it exactly as they would over a CONSTRUCT's output.
-      const seededGraph = e.sourceOutputId ? startNodeGraphs?.get(e.sourceOutputId) : undefined;
-      if (seededGraph) {
-        rdfPayloads.push(seededGraph.content);
-        continue;
-      }
-      // A patch half is addressed by port; everything else by node.
-      const srcResult = e.sourceOutputId && portResults.has(e.sourceOutputId)
-        ? portResults.get(e.sourceOutputId)
-        : results.get(e.sourceNodeId);
+      const { result: srcResult, format } = this.resultForEdge(e, rdf);
       if (typeof srcResult !== 'string') {
         if (srcResult === undefined) {
           throw new Error(`RuleSetNode ${node.id} missing RDF input from ${e.sourceNodeId}`);
         }
         throw new Error(`RuleSetNode ${node.id} expected RDF string from ${e.sourceNodeId} but received ${typeof srcResult}`);
       }
-      rdfPayloads.push(srcResult);
+      payloads.push({ content: srcResult, format });
     }
-    return rdfPayloads.join('\n');
+    if (payloads.length === 0) return null;
+    if (payloads.length === 1) return payloads[0];
+    return { content: mergeRdf(payloads, 'nquads'), format: 'nquads' };
   }
 
   /**
@@ -576,144 +653,6 @@ export class ExecutionEngine {
     return target.deltaStore;
   }
 
-  /**
-   * Execute a DuckDbEtlNode by running ETL transformation and returning SPARQL bindings or RDF
-   */
-  private async executeDuckDbEtlNode(
-    graph: ExecutionGraph,
-    node: ResolvedNode,
-    results: Map<string, NodeResult>
-  ): Promise<NodeResult> {
-    const etlJobVersion = node.etlJobVersion;
-    if (!etlJobVersion) {
-      throw new Error(`DuckDbEtlNode ${node.id} missing etlJobVersion`);
-    }
-
-    const { sql, sparqlTemplate, backendId, currentColumnMappingVersion, chunkSize: defaultChunkSize } = etlJobVersion;
-
-    // Load column mapping version
-    if (!currentColumnMappingVersion) {
-      throw new Error(`DuckDbEtlNode ${node.id}: EtlJobVersion missing currentColumnMappingVersion`);
-    }
-
-    const columnMapping = getCacheCoordinator().get(currentColumnMappingVersion);
-    if (!columnMapping || columnMapping['@type'] !== 'EtlColumnMappingVersion') {
-      throw new Error(`DuckDbEtlNode ${node.id}: Column mapping version not found: ${currentColumnMappingVersion}`);
-    }
-
-    const columnDefs: ColumnDefinition[] = JSON.parse(columnMapping.columns);
-
-    // Get executor for the backend
-    const executor = await this.executorFactory.getExecutorForBackendId(backendId);
-
-    // Execute ETL in chunks, over one streamed execution of the source query (#201)
-    const chunkSize = defaultChunkSize || 1000;
-    const rdfOutputs: string[] = [];
-    const allBindings: SparqlBinding[] = [];
-
-    for await (const { rows } of duckDbService.streamChunks(sql, chunkSize)) {
-      // Convert rows to SPARQL bindings
-      const bindings = this.convertRowsToBindings(rows, columnDefs);
-
-      if (bindings.length > 0) {
-        // Build ArgumentSet for VALUES substitution
-        const argSet = this.buildArgumentSetFromBindings(bindings, columnDefs);
-
-        // Apply bindings to SPARQL template
-        const query = this.parser.applyArguments(sparqlTemplate, [argSet]);
-
-        // Execute SPARQL query
-        const { result } = await executor.constructQueryParsed(query);
-
-        if (typeof result === 'string') {
-          rdfOutputs.push(result);
-        } else {
-          // If it's SELECT bindings, accumulate them
-          allBindings.push(...bindings);
-        }
-      }
-    }
-
-    // Return RDF output if CONSTRUCT, otherwise return bindings
-    if (rdfOutputs.length > 0) {
-      return rdfOutputs.join('\n');
-    } else if (allBindings.length > 0) {
-      const vars = columnDefs.map(c => c.targetVariable);
-      return {
-        head: { vars },
-        results: { bindings: allBindings }
-      } as SparqlResultsJson;
-    }
-
-    // Empty result
-    const vars = columnDefs.map(c => c.targetVariable);
-    return {
-      head: { vars },
-      results: { bindings: [] }
-    } as SparqlResultsJson;
-  }
-
-  /**
-   * Convert DuckDB rows to SPARQL bindings (replicating EtlService logic)
-   */
-  private convertRowsToBindings(rows: Record<string, any>[], columnDefs: ColumnDefinition[]): SparqlBinding[] {
-    const bindings: SparqlBinding[] = [];
-
-    for (const row of rows) {
-      const binding: SparqlBinding = {};
-      let skipRow = false;
-
-      for (const col of columnDefs) {
-        const value = row[col.columnName];
-
-        // Handle null policy
-        if (value === null || value === undefined) {
-          if (col.nullPolicy === 'skipRow') {
-            skipRow = true;
-            break;
-          }
-          // 'undef' - skip this variable (don't add to binding)
-          continue;
-        }
-
-        // Build SPARQL value
-        const sparqlValue: SparqlValue = { value: String(value), type: col.termType as 'uri' | 'literal' };
-
-        if (col.termType === 'uri') {
-          if (col.iriTemplate) {
-            sparqlValue.value = col.iriTemplate.replace('{value}', String(value));
-          }
-        } else if (col.termType === 'literal') {
-          if (col.datatypeIri) {
-            sparqlValue.datatype = col.datatypeIri;
-          }
-          if (col.lang) {
-            sparqlValue['xml:lang'] = col.lang;
-          }
-        }
-
-        binding[col.targetVariable] = sparqlValue;
-      }
-
-      if (!skipRow) {
-        bindings.push(binding);
-      }
-    }
-
-    return bindings;
-  }
-
-  /**
-   * Convert SPARQL bindings to ArgumentSet format
-   */
-  private buildArgumentSetFromBindings(bindings: SparqlBinding[], columnDefs: ColumnDefinition[]): ArgumentSet {
-    const vars = columnDefs.map(c => c.targetVariable);
-    return {
-      head: { vars },
-      results: { bindings }
-    };
-  }
-
   private buildArgumentSetsForNode(
     graph: ExecutionGraph,
     node: ResolvedNode,
@@ -775,6 +714,15 @@ export class ExecutionEngine {
       const srcVars = this.getOutputTupleNames(graph, e);
       const tgtVars = this.getInputTupleNames(graph, e);
       const mappings = this.resolveVariableMappings(e, srcVars, tgtVars);
+      // A mapping that maps nothing is a broken edge, not data: every row it
+      // carries would arrive with nothing bound. Said by name, rather than
+      // left to surface as whatever the empty rows turn into downstream.
+      if (mappings.length === 0 && tgtVars.length > 0 && src.results.bindings.length > 0) {
+        throw new Error(
+          `Edge ${e.id} maps none of its source's variables [${srcVars.join(', ')}] onto the input it feeds `
+          + `[${tgtVars.join(', ')}], so every row it carries would arrive empty. Correct the edge's variable mappings.`
+        );
+      }
       const arg: ArgumentSet = {
         head: { vars: tgtVars },
         results: { bindings: [] },
@@ -789,6 +737,20 @@ export class ExecutionEngine {
           }
           b[to] = v as SparqlValue;
         }
+        /*
+         * A row an upstream *query* produced with nothing bound in the mapped
+         * columns — what an OPTIONAL yields when it matched nothing — says
+         * nothing about this input. Passed on, it became an all-UNDEF VALUES
+         * row beside bound ones, which the parser rightly refuses as a
+         * wildcard, and the run died on legitimate data. Dropped, it
+         * constrains nothing; if every row goes, the input is empty and the
+         * edge's `whenEmpty` decides.
+         *
+         * Not a caller's row arriving through a start node: an all-UNDEF row
+         * in a supplied table is an explicit "no constraint", and keeps that
+         * meaning (`docs/concepts.md`).
+         */
+        if (!fromStartNode && Object.keys(b).length === 0) continue;
         arg.results.bindings.push(b);
       }
       // Merge by union for same target input tuple
@@ -804,11 +766,18 @@ export class ExecutionEngine {
     return byInputTuple;
   }
 
-  private applyArgumentsInOrder(graph: ExecutionGraph, node: ResolvedNode, byInputTuple: Map<string, ArgumentSet>, initialArgs?: ArgumentSet[], options?: ExecutionOptions): string {
-    if (!node.queryString) {
-      return '';
-    }
-    const inputs = this.parser.detectInputs(node.queryString);
+  /**
+   * What fills each of a node's parameters: one argument set per VALUES
+   * clause, in clause order, and the page numbers it declares.
+   */
+  private resolveNodeArguments(
+    graph: ExecutionGraph,
+    node: ResolvedNode,
+    byInputTuple: Map<string, ArgumentSet>,
+    initialArgs?: ArgumentSet[],
+    options?: ExecutionOptions,
+  ): { argumentSets: ArgumentSet[]; limits: ExecutionPageParameter[]; offsets: ExecutionPageParameter[] } {
+    const inputs = this.parser.detectInputs(node.queryString ?? '');
     const detected = inputs.valuesInputs; // string[][]
     const allowedSignatures = new Set(detected.map(group => this.normalizedSignature(group)));
 
@@ -824,9 +793,12 @@ export class ExecutionEngine {
       // The author's per-input policy, if they set one on the declared input tuple.
       const declaredWhenEmpty = this.resolveWhenEmptyForGroup(graph, node, group);
 
-      // group is vars in order; find matching tuple key
+      // By the variables named, not their order: the parser pairs columns by
+      // name, so a table naming the same variables in another order fills
+      // this clause exactly as `/execute` lets it fill a lone query's.
+      const signature = this.normalizedSignature(group);
       const matchKey = Array.from(byInputTuple.entries()).find(([, set]) =>
-        set.head.vars.length === group.length && set.head.vars.every((v, i) => v === group[i])
+        this.normalizedSignature(set.head.vars) === signature
       )?.[0];
       if (matchKey) {
         const supplied = byInputTuple.get(matchKey)!;
@@ -835,25 +807,14 @@ export class ExecutionEngine {
         // enrichment"), or fail.
         argSets.push(declaredWhenEmpty ? { ...supplied, whenEmpty: declaredWhenEmpty } : supplied);
       } else {
-        // Try to find a matching initial argument set by vars ordering
-        const ext = matchingInitialArgs.find(s => s.head?.vars?.length === group.length && s.head.vars.every((v, i) => v === group[i]));
+        // The same signature rule `refuseUnroutedArguments` applies, so what
+        // that check let through is what lands here.
+        const ext = matchingInitialArgs.find(s => this.normalizedSignature(s.head?.vars ?? []) === signature);
         if (ext) {
           // The author's edge policy applies to what the caller supplied: a
           // request carries rows, never a policy of its own.
           argSets.push(declaredWhenEmpty ? { ...ext, whenEmpty: declaredWhenEmpty } : ext);
         } else {
-          /*
-           * An *order* mismatch means the same variables in a different order.
-           * Matching on length alone misdiagnosed a node with two clauses of
-           * equal width: a table meant for one of them was reported as the
-           * other written backwards, and the run failed instead of leaving the
-           * unfilled clause open.
-           */
-          const wrongOrder = matchingInitialArgs.find(s =>
-            this.normalizedSignature(s.head?.vars ?? []) === this.normalizedSignature(group));
-          if (wrongOrder) {
-            throw new Error(`Argument variable order mismatch for VALUES input [${group.join(', ')}]; received [${wrongOrder.head.vars.join(', ')}].`);
-          }
           // Nothing arrived. Absent external parameters run unconstrained unless the
           // author asked otherwise (notably `require`, for a mandatory parameter).
           argSets.push({
@@ -865,25 +826,19 @@ export class ExecutionEngine {
       }
     }
     /*
-     * Numbers first, then rows, matching `applyExecutionArguments` on the query
-     * path — substitution rewrites `LIMIT 000name` in the text, so it has to
-     * happen before the AST rewrite that splices the VALUES blocks.
-     *
      * Filtered to what this node declares. A group's run carries the union of
      * its members' placeholder names, and handing a node a name it never
      * declared would make `substituteLimitOffset` a no-op at best; keeping the
      * filter here means the route can validate names against the group and the
-     * engine still cannot mis-apply one.
+     * engine still cannot mis-apply one. `invokeCallable` applies them, numbers
+     * before rows.
      */
     const declaredLimits = new Set(inputs.limitParameters);
     const declaredOffsets = new Set(inputs.offsetParameters);
     const limits = (options?.limits ?? []).filter(parameter => declaredLimits.has(parameter.name));
     const offsets = (options?.offsets ?? []).filter(parameter => declaredOffsets.has(parameter.name));
-    const parameterised = (limits.length || offsets.length)
-      ? this.parser.applyLimitOffsetParameters(node.queryString, limits, offsets)
-      : node.queryString;
 
-    return this.parser.applyArguments(parameterised, argSets);
+    return { argumentSets: argSets, limits, offsets };
   }
 
   /**
@@ -1294,43 +1249,12 @@ export class ExecutionEngine {
     return mappings;
   }
 
-  // Local tuple resolvers (duplicate minimal logic to avoid tight coupling)
   private resolveInputTupleNames(tupleId: string): string[] {
-    const t = getCacheCoordinator().get(tupleId);
-    if (!t) return [];
-    const members = ((t as { memberEntries?: string[] }).memberEntries || []) as string[];
-    const entries: { pos: number; name: string }[] = [];
-    for (const mId of members) {
-      const m = getCacheCoordinator().get(mId);
-      if (!m) continue;
-      const memberAny = m as { variable?: string; position?: number };
-      const varId = memberAny.variable as string | undefined;
-      if (!varId) continue;
-      const qi = getCacheCoordinator().get(varId);
-      const name = (qi as { variableName?: string } | undefined)?.variableName;
-      entries.push({ pos: (memberAny.position as number) ?? 0, name: name || '' });
-    }
-    entries.sort((a, b) => a.pos - b.pos);
-    return entries.map(e => e.name);
+    return tupleVariableNames(tupleId);
   }
 
   private resolveOutputTupleNames(tupleId: string): string[] {
-    const t = getCacheCoordinator().get(tupleId);
-    if (!t) return [];
-    const members = ((t as { memberEntries?: string[] }).memberEntries || []) as string[];
-    const entries: { pos: number; name: string }[] = [];
-    for (const mId of members) {
-      const m = getCacheCoordinator().get(mId);
-      if (!m) continue;
-      const memberAny = m as { variable?: string; position?: number };
-      const varId = memberAny.variable as string | undefined;
-      if (!varId) continue;
-      const qo = getCacheCoordinator().get(varId);
-      const name = (qo as { variableName?: string } | undefined)?.variableName;
-      entries.push({ pos: (memberAny.position as number) ?? 0, name: name || '' });
-    }
-    entries.sort((a, b) => a.pos - b.pos);
-    return entries.map(e => e.name);
+    return tupleVariableNames(tupleId);
   }
 
   private normalizedSignature(vars: string[]): string {
@@ -1358,32 +1282,25 @@ export class ExecutionEngine {
     return { head: a.head, results: { bindings: out } };
   }
 
+  /**
+   * Load RDF into a store this run created.
+   *
+   * A missing store is a failure, not a warning: the nodes downstream would
+   * otherwise query a store without the data they were wired to receive and
+   * answer confidently from less than the author meant. An empty payload is a
+   * legitimate empty graph and loads nothing.
+   */
   private async materializeRdfResult(storeId: string, rdf: string, format: string): Promise<void> {
     const store = oxigraphStoreManager.getEphemeralStore(storeId);
     if (!store) {
-      log.warn({ storeId }, 'Ephemeral store not found for RDF materialization');
-      return;
+      throw new Error(`Ephemeral store ${storeId} does not exist, so RDF meant for it cannot be loaded`);
     }
-    if (!rdf || !rdf.trim()) {
-      log.warn({ storeId }, 'Skipping RDF materialization: empty result payload');
-      return;
-    }
+    if (!rdf || !rdf.trim()) return;
     await oxigraphStoreManager.loadDataFromString(store, rdf, format);
-    log.debug({ storeId }, 'Materialized RDF output into ephemeral store');
   }
 
   private resolveRdfFormatFromAccept(acceptHeader: string | null): string {
-    if (!acceptHeader) {
-      return 'nquads';
-    }
-    const lower = acceptHeader.toLowerCase();
-    if (lower.includes('n-quads')) return 'nquads';
-    if (lower.includes('n-triples')) return 'ntriples';
-    if (lower.includes('turtle')) return 'turtle';
-    if (lower.includes('rdf+xml')) return 'rdfxml';
-    if (lower.includes('json-ld')) return 'jsonld';
-    if (lower.includes('trig')) return 'trig';
-    return 'nquads';
+    return rdfFormatFromMediaType(acceptHeader);
   }
 
   private applyDynamicQueryOverride(

@@ -40,7 +40,8 @@ async function executeHttpRequestRaw(
   executorConfig: HttpExecutorConfig, // Use the simpler config type
   query: string,
   acceptHeader: string,
-  isUpdate: boolean = false // Flag to determine which endpoint to use
+  isUpdate: boolean = false, // Flag to determine which endpoint to use
+  signal?: AbortSignal,
 ): Promise<{response: Dispatcher.ResponseData, duration: number}> { // Return duration
   // Destructure the simpler config type
   const { username, password, authHeader, queryUrl, updateUrl: configUpdateUrl, queryMethod = 'post' } = executorConfig;
@@ -111,7 +112,9 @@ async function executeHttpRequestRaw(
     // Use keepAliveAgent.request instead of global request
     const response = await keepAliveAgent.request({
         origin: targetUrl.origin, // Need to provide origin separately for agent.request
-        ...requestOptions // Spread the rest of the options (method, path, headers, body)
+        ...requestOptions, // Spread the rest of the options (method, path, headers, body)
+        // Aborts the request and its body when the execution it serves stops.
+        ...(signal ? { signal } : {}),
     });
     const duration = performance.now() - startTime;
     if (config.enableTimingLogs) log.info({ durationMs: Math.round(duration) }, requestLabel);
@@ -177,7 +180,7 @@ export class HttpSparqlExecutor implements ISparqlExecutor {
     // Determine the Accept header: use provided option or default
     const acceptHeader = options?.acceptHeader || 'application/sparql-results+json';
     // Use the stored executorConfig
-    const { response, duration } = await executeHttpRequestRaw(this.executorConfig, sparqlQuery, acceptHeader, false);
+    const { response, duration } = await executeHttpRequestRaw(this.executorConfig, sparqlQuery, acceptHeader, false, options?.signal);
     await checkHttpResponseStatus(response); // Throw on non-2xx status
 
     // Check the actual Content-Type returned by the server
@@ -218,7 +221,7 @@ export class HttpSparqlExecutor implements ISparqlExecutor {
     // Determine the Accept header: use provided option or default (N-Quads is a reasonable default for parsed string)
     const acceptHeader = options?.acceptHeader || 'application/n-quads';
     // Use the stored executorConfig
-    const { response, duration } = await executeHttpRequestRaw(this.executorConfig, sparqlQuery, acceptHeader, false);
+    const { response, duration } = await executeHttpRequestRaw(this.executorConfig, sparqlQuery, acceptHeader, false, options?.signal);
     await checkHttpResponseStatus(response); // Throw on non-2xx status
 
     try {
@@ -241,7 +244,7 @@ export class HttpSparqlExecutor implements ISparqlExecutor {
       // Determine the Accept header: use provided option or default
       const acceptHeader = options?.acceptHeader || 'application/sparql-results+json';
       // Use the stored executorConfig
-      const { response } = await executeHttpRequestRaw(this.executorConfig, sparqlQuery, acceptHeader, false);
+      const { response } = await executeHttpRequestRaw(this.executorConfig, sparqlQuery, acceptHeader, false, options?.signal);
       await checkHttpResponseStatus(response); // Ensure it's a successful response before returning stream
       return response;
   }
@@ -256,7 +259,7 @@ export class HttpSparqlExecutor implements ISparqlExecutor {
       // Determine the Accept header: use provided option or default
       const acceptHeader = options?.acceptHeader || 'application/n-triples';
       // Use the stored executorConfig
-      const { response } = await executeHttpRequestRaw(this.executorConfig, sparqlQuery, acceptHeader, false);
+      const { response } = await executeHttpRequestRaw(this.executorConfig, sparqlQuery, acceptHeader, false, options?.signal);
       await checkHttpResponseStatus(response); // Ensure it's a successful response before returning stream
       return response;
   }
@@ -281,7 +284,7 @@ export class HttpSparqlExecutor implements ISparqlExecutor {
   ): Promise<SparqlExecutionResult<boolean | string>> {
     // ASK queries typically return JSON with a "boolean" field
     const acceptHeader = options?.acceptHeader || 'application/sparql-results+json';
-    const { response, duration } = await executeHttpRequestRaw(this.executorConfig, sparqlAskQuery, acceptHeader, false);
+    const { response, duration } = await executeHttpRequestRaw(this.executorConfig, sparqlAskQuery, acceptHeader, false, options?.signal);
     await checkHttpResponseStatus(response); // Throw on non-2xx status
 
     // Check the actual Content-Type returned by the server

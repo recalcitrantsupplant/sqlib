@@ -27,6 +27,7 @@ try {
 const hoisted = vi.hoisted(() => ({
   listEtlJobs: vi.fn(),
   getEtlJob: vi.fn(),
+  updateEtlJob: vi.fn(),
   createEtlJob: vi.fn(),
   createEtlJobVersion: vi.fn(),
   createColumnMapping: vi.fn(),
@@ -40,6 +41,7 @@ vi.mock('../../src/lib/EtlService.js', () => ({
   etlService: {
     listEtlJobs: hoisted.listEtlJobs,
     getEtlJob: hoisted.getEtlJob,
+    updateEtlJob: hoisted.updateEtlJob,
     createEtlJob: hoisted.createEtlJob,
     createEtlJobVersion: hoisted.createEtlJobVersion,
     createColumnMapping: hoisted.createColumnMapping,
@@ -252,6 +254,56 @@ describe('ETL Jobs Routes', () => {
    * template and backend are the snapshot. Saving collects no comment, so this
    * route is how an ETL version gets one at all.
    */
+  describe('PATCH /etl-jobs/:id', () => {
+    const job = {
+      id: 'urn:sqlib:etl-job:1',
+      name: 'People',
+      libraryIds: ['urn:sqlib:library:1'],
+      dateModified: '2026-10-02T10:00:00.000Z',
+    };
+
+    it('applies an update sent against the current tag', async () => {
+      hoisted.getEtlJob.mockResolvedValue(job);
+      hoisted.updateEtlJob.mockResolvedValue({ ...job, name: 'People v2', dateModified: '2026-10-02T10:05:00.000Z' });
+
+      const response = await app.inject({
+        method: 'PATCH',
+        url: `/etl-jobs/${encodeURIComponent(job.id)}`,
+        headers: { 'if-match': '"2026-10-02T10:00:00.000Z"' },
+        payload: { name: 'People v2' },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.headers.etag).toBe('"2026-10-02T10:05:00.000Z"');
+    });
+
+    it('refuses an update sent against a stale tag, and writes nothing', async () => {
+      hoisted.getEtlJob.mockResolvedValue(job);
+
+      const response = await app.inject({
+        method: 'PATCH',
+        url: `/etl-jobs/${encodeURIComponent(job.id)}`,
+        headers: { 'if-match': '"2026-10-01T00:00:00.000Z"' },
+        payload: { name: 'Mine' },
+      });
+
+      expect(response.statusCode).toBe(412);
+      expect(hoisted.updateEtlJob).not.toHaveBeenCalled();
+    });
+
+    it('answers 404 for a job that does not exist', async () => {
+      hoisted.getEtlJob.mockResolvedValue(null);
+
+      const response = await app.inject({
+        method: 'PATCH',
+        url: `/etl-jobs/${encodeURIComponent(job.id)}`,
+        payload: { name: 'Mine' },
+      });
+
+      expect(response.statusCode).toBe(404);
+    });
+  });
+
   describe('PATCH /etl-jobs/versions/:versionId', () => {
     const version = {
       id: 'version-1',

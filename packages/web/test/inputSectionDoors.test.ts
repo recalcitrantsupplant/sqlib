@@ -155,7 +155,7 @@ describe('doors into an input section', () => {
     const openers = files
       .filter((file) => !file.name.startsWith('components/ArgumentSet'))
       .filter((file) => /type: 'argumentSet'/.test(file.text))
-      .filter((file) => file.name !== 'lib/sections.ts' && file.name !== 'pages/index.vue')
+      .filter((file) => file.name !== 'lib/sections.ts' && file.name !== 'components/workspace/LibraryWorkspace.vue')
       .map((file) => file.name);
     expect(openers).toEqual([]);
   });

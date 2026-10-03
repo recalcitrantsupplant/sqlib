@@ -1,5 +1,6 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
 import { openSection } from './navigate';
+import { API_ORIGIN } from './api-origin';
 
 type ExecutionResponse = {
   status: 'converged' | 'cycle' | 'maxIterations' | 'failed';
@@ -162,7 +163,7 @@ test.describe('Rule set execution (mocked)', () => {
      * load and analyzes it on every pause in typing. Without these two the
      * editor is empty and Run is disabled for the wrong reason.
      */
-    await page.route('**/rule-sets/*/srl**', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/rule-sets/*/srl**`, async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -177,7 +178,7 @@ test.describe('Rule set execution (mocked)', () => {
       });
     });
 
-    await page.route('**/rule-sets/srl/analyze', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/rule-sets/srl/analyze`, async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -185,7 +186,7 @@ test.describe('Rule set execution (mocked)', () => {
       });
     });
 
-    await page.route('**/rule-sets/*/execute', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/rule-sets/*/execute`, async (route: Route) => {
       await delay(50);
       if (executionResponseStatus >= 400) {
         await route.fulfill({
@@ -367,7 +368,7 @@ test.describe('Rule set execution (mocked)', () => {
 });
 
 async function mockNavigationDependencies(page: Page) {
-  await page.route('**/libraries', async (route) => {
+  await page.route(`${API_ORIGIN}/libraries`, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -375,17 +376,17 @@ async function mockNavigationDependencies(page: Page) {
     });
   });
 
-  await page.route('**/queries', fulfillWithJson([]));
-  await page.route('**/query-groups', fulfillWithJson([]));
-  await page.route('**/data-blocks', fulfillWithJson([]));
-  await page.route('**/backends', fulfillWithJson([]));
+  await page.route(`${API_ORIGIN}/queries`, fulfillWithJson([]));
+  await page.route(`${API_ORIGIN}/query-groups`, fulfillWithJson([]));
+  await page.route(`${API_ORIGIN}/data-blocks`, fulfillWithJson([]));
+  await page.route(`${API_ORIGIN}/backends`, fulfillWithJson([]));
 
   // The rule set's version references a rule version, and the work area
   // resolves it by listing rules and matching currentVersion. With /rules
   // empty that lookup fails, no rules load, and Execute stays disabled.
-  await page.route('**/rules', fulfillWithJson([defaultRule]));
-  await page.route('**/rules/*/versions', fulfillWithJson([defaultRuleVersion]));
-  await page.route('**/rules/*/versions/*', fulfillWithJson(defaultRuleVersion));
+  await page.route(`${API_ORIGIN}/rules`, fulfillWithJson([defaultRule]));
+  await page.route(`${API_ORIGIN}/rules/*/versions`, fulfillWithJson([defaultRuleVersion]));
+  await page.route(`${API_ORIGIN}/rules/*/versions/*`, fulfillWithJson(defaultRuleVersion));
 }
 
 async function mockRuleSetApis(
@@ -396,7 +397,7 @@ async function mockRuleSetApis(
     getRuleSetVersions: (id: string) => Array<typeof defaultRuleSetVersion>;
   },
 ) {
-  await page.route('**/rule-sets', async (route: Route) => {
+  await page.route(`${API_ORIGIN}/rule-sets`, async (route: Route) => {
     if (route.request().method() === 'GET') {
       await route.fulfill({
         status: 200,
@@ -408,7 +409,7 @@ async function mockRuleSetApis(
     await route.fulfill({ status: 405 });
   });
 
-  await page.route('**/rule-sets/*/versions', async (route: Route) => {
+  await page.route(`${API_ORIGIN}/rule-sets/*/versions`, async (route: Route) => {
     const url = new URL(route.request().url());
     // /rule-sets/{id}/versions -> ['rule-sets', id, 'versions']. This read
     // segments[2] ('versions'), so the id never matched, the version list came
@@ -428,7 +429,7 @@ async function mockRuleSetApis(
   // and the '**/versions' pattern also matches '**/versions/1' — without this
   // the detail request is served an array, no version is selected, and Execute
   // stays disabled.
-  await page.route('**/rule-sets/*/versions/*', async (route: Route) => {
+  await page.route(`${API_ORIGIN}/rule-sets/*/versions/*`, async (route: Route) => {
     const url = new URL(route.request().url());
     // /rule-sets/{id}/versions/{n} -> ['rule-sets', id, 'versions', n]
     const segments = url.pathname.split('/').filter(Boolean);
@@ -455,7 +456,7 @@ async function mockRuleSetApis(
     });
   });
 
-  await page.route('**/rule-sets/*', async (route: Route) => {
+  await page.route(`${API_ORIGIN}/rule-sets/*`, async (route: Route) => {
     const url = new URL(route.request().url());
     const ruleSetId = decodeURIComponent(url.pathname.split('/').slice(-1)[0]);
     const entity = options.getRuleSetById(ruleSetId);

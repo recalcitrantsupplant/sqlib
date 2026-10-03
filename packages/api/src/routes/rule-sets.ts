@@ -1,5 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { mintId } from '../lib/id.js';
+import { maxRuleIterations } from '../config/executionLimits.js';
+import { abortOnDisconnect } from '../lib/cancellation.js';
 import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
 import { analyseReferences, describeWrongType } from '../lib/entityReferences.js';
 import { analyseTags } from '../lib/tagMembership.js';
@@ -169,7 +171,7 @@ const executeRuleSetBodySchema = {
   type: 'object',
   properties: {
     version: { type: 'integer', nullable: true },
-    maxIterations: { type: 'integer', minimum: 1, nullable: true },
+    maxIterations: { type: 'integer', minimum: 1, maximum: maxRuleIterations(), nullable: true },
     inferenceFormat: {
       type: 'string',
       enum: ['application/n-triples', 'text/turtle', 'application/rdf+xml', 'application/ld+json'],
@@ -767,15 +769,19 @@ export default async function (fastify: FastifyInstance) {
       throw error;
     }
 
+    // The caller reads every rule's quads, and may leave before the fixpoint.
+    const disconnect = abortOnDisconnect(reply.raw);
     const executionOptions = {
       maxIterations,
       inferenceFormat,
       initialGraph: dataGraph?.content ?? null,
       initialGraphFormat: dataGraph?.format ?? null,
       tupleSeeds,
+      trace: true,
+      signal: disconnect.signal,
     };
     const executor = new RuleSetExecutor();
-    const result = await executor.execute(resolution.version, executionOptions);
+    const result = await executor.execute(resolution.version, executionOptions).finally(disconnect.dispose);
 
     return reply.send(result);
   }));
@@ -901,6 +907,8 @@ export default async function (fastify: FastifyInstance) {
       initialGraphFormat: dataGraph?.format ?? null,
       tupleSeeds,
       callbacks,
+      // The stream exists to show every rule's quads.
+      trace: true,
       shouldAbort: () => clientAborted,
     });
   }));

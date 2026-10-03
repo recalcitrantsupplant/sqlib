@@ -435,6 +435,30 @@ logs `would-deny` per hidden item in `dry-run`.
 
 ## Phase 5 — Web
 
+Status: done, WP23–WP27, on `claude/determined-fermat-2462b3`. What changed
+from the plan:
+
+- WP24 did not wait for WP31. The test, data graph and tuple set version
+  leaves are now projected by the generator; the rest of the web's wire
+  schemas moved to `contracts/src/hand-written/` (outside `generated/`). The
+  web client is not yet generated from `routes.generated.ts` or split into
+  `api/<entity>.ts` modules — that still needs WP31's route snapshot decision.
+  The API now returns a case's `dataGraphs` in the shape it is written with;
+  `port` is accepted on write but not stored, as before.
+- WP25: the 412 path re-reads the record and replays the partial update once,
+  and a second 412 is an `EntityConflictError`, rather than a reload/overwrite
+  toast — updates are field-level, so the replay is the overwrite. The drafts
+  envelope is built in one place (`useEntityDraft`) but the stored record is
+  still query-shaped. The ETL job PATCH route now validates `If-Match`.
+- WP26: one page, `pages/[[section]]/[[id]].vue`, serves `/`, `/<section>` and
+  `/<section>/<id>`, so the workspace is not remounted when leaving the
+  splash. The workspace itself is `components/workspace/LibraryWorkspace.vue`
+  (about 2,000 lines); its work areas come from `workspace/workAreas.ts`
+  rather than `lib/sections.ts`, because `lib/` imports no components.
+  Record deep links need a static host's SPA fallback (deploying.md).
+- WP27: `pages/tests/query-results-bench.vue` stays, because the perf budget
+  suite drives it against the production build.
+
 ### WP23 — Change feed dispatches by entity · S · deps: none · closes C7
 
 **Changes.** `composables/useLibraryRefresh.ts`: a registry

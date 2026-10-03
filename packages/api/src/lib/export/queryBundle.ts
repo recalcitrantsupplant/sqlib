@@ -17,7 +17,9 @@
  */
 
 import {
+  findLimitOffsetClauses,
   hashTemplateText,
+  rewriteLimitOffsetClauses,
   type ExportBundle,
   type ExportedQuery,
   type ExportedQueryType,
@@ -153,18 +155,16 @@ function locatePageParameters(
     if (!unique.has(key)) unique.set(key, parameter);
   }
 
-  let sentinelQuery = queryString;
+  // By clause, as detection found them, so a placeholder's text inside a
+  // comment or string literal is left as the text it is.
   const occurrences = new Map<string, number>();
-  for (const parameter of unique.values()) {
-    const keyword = parameter.kind === 'limit' ? 'LIMIT' : 'OFFSET';
-    const placeholder = new RegExp(`\\b${keyword}\\s+000${parameter.name}\\b`, 'gi');
-    let count = 0;
-    sentinelQuery = sentinelQuery.replace(placeholder, () => {
-      count++;
-      return `${keyword} ${parameter.sentinel}`;
-    });
-    occurrences.set(`${parameter.kind}:${parameter.name}`, count);
-  }
+  const sentinelQuery = rewriteLimitOffsetClauses(queryString, (clause) => {
+    const parameter = clause.name === null ? undefined : unique.get(`${clause.kind}:${clause.name}`);
+    if (!parameter) return null;
+    const key = `${parameter.kind}:${parameter.name}`;
+    occurrences.set(key, (occurrences.get(key) ?? 0) + 1);
+    return `${clause.kind === 'limit' ? 'LIMIT' : 'OFFSET'} ${parameter.sentinel}`;
+  });
 
   const template = parser.compileVerifiedTemplate(sentinelQuery);
   if (!template) return null;
@@ -174,24 +174,24 @@ function locatePageParameters(
   const found: PageParameterSpan[] = [];
   let text = template.text;
   const edits: Array<{ start: number; end: number; replacement: string; span: PageParameterSpan }> = [];
+  const clauses = findLimitOffsetClauses(text);
   for (const parameter of unique.values()) {
     const keyword = parameter.kind === 'limit' ? 'LIMIT' : 'OFFSET';
-    const pattern = new RegExp(`\\b${keyword}\\s+${parameter.sentinel}\\b`, 'gi');
-    let match: RegExpExecArray | null;
     let seen = 0;
-    while ((match = pattern.exec(text)) !== null) {
+    for (const clause of clauses) {
+      if (clause.kind !== parameter.kind || clause.lexeme !== String(parameter.sentinel)) continue;
       seen++;
       const replacement = `${keyword} 000${parameter.name}`;
       edits.push({
-        start: match.index,
-        end: match.index + match[0].length,
+        start: clause.start,
+        end: clause.end,
         replacement,
         span: { name: parameter.name, kind: parameter.kind, start: 0, end: 0 },
       });
     }
     // A sentinel that collided with a literal integer already in the query, or
     // one the generator dropped, would silently mislocate the parameter.
-    if (seen !== occurrences.get(`${parameter.kind}:${parameter.name}`)) {
+    if (seen !== (occurrences.get(`${parameter.kind}:${parameter.name}`) ?? 0)) {
       throw new QueryExportError(
         `Query '${name}' declares ${keyword} parameter ${parameter.name}, but it could not be located unambiguously in the compiled query. Rewrite the query to avoid a literal ${keyword} ${parameter.sentinel}.`,
       );

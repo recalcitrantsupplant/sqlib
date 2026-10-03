@@ -114,7 +114,7 @@ describe('RuleSets Routes (/rule-sets) - Execution', () => {
     expect(hoisted.mockExecutorCtor).toHaveBeenCalledTimes(1);
     // `tupleSeeds: null` means "run the seeds the version stored", which is what
     // a request naming no tuples has always done.
-    expect(hoisted.mockExecute).toHaveBeenCalledWith(currentVersion, { inferenceFormat: 'application/n-triples', maxIterations: undefined, initialGraph: null, initialGraphFormat: null, tupleSeeds: null });
+    expect(hoisted.mockExecute).toHaveBeenCalledWith(currentVersion, { inferenceFormat: 'application/n-triples', maxIterations: undefined, initialGraph: null, initialGraphFormat: null, tupleSeeds: null, trace: true, signal: expect.any(AbortSignal) });
   });
 
   it('executes the requested version with custom maxIterations', async () => {
@@ -149,7 +149,7 @@ describe('RuleSets Routes (/rule-sets) - Execution', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual(executionResult);
-    expect(hoisted.mockExecute).toHaveBeenCalledWith(requestedVersion, { maxIterations: 5, inferenceFormat: 'application/n-triples', initialGraph: null, initialGraphFormat: null, tupleSeeds: null });
+    expect(hoisted.mockExecute).toHaveBeenCalledWith(requestedVersion, { maxIterations: 5, inferenceFormat: 'application/n-triples', initialGraph: null, initialGraphFormat: null, tupleSeeds: null, trace: true, signal: expect.any(AbortSignal) });
   });
 
   it('returns 404 when the rule set is missing', async () => {

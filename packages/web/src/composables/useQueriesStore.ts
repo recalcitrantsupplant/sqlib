@@ -1,4 +1,4 @@
-import { computed, reactive } from 'vue';
+import { reactive } from 'vue';
 import {
   type Query,
   type QueryCreateInput,
@@ -11,22 +11,30 @@ import {
 import type { QueryFormInput } from '../types/query.js';
 import type { QueryVersionFormInput } from '../types/queryVersion.js';
 import { useApiClient } from './useApiClient.js';
+import { createVersionedEntityStore } from './createVersionedEntityStore';
 
-type QueryState = {
-  items: Query[];
-  loading: boolean;
-  error: string | null;
-  concurrency: Record<string, string | null>;
+type QueryVersionState = {
   versions: Record<string, QueryVersion[]>;
   versionLoading: Record<string, boolean>;
   versionError: Record<string, string | null>;
 };
 
-const state = reactive<QueryState>({
-  items: [],
-  loading: false,
-  error: null,
-  concurrency: {},
+const useQueryEntities = createVersionedEntityStore<Query, QueryCreateInput, QueryUpdateInput>({
+  noun: 'query',
+  nounPlural: 'queries',
+  api: () => {
+    const client = useApiClient();
+    return {
+      list: client.listQueries,
+      get: client.getQuery,
+      create: client.createQuery,
+      update: client.updateQuery,
+      remove: client.deleteQuery,
+    };
+  },
+});
+
+const state = reactive<QueryVersionState>({
   versions: {},
   versionLoading: {},
   versionError: {},
@@ -36,19 +44,6 @@ const extractQueryIdFromVersion = (versionId: string): string => {
   const match = versionId.match(/^(.*):v\d+$/);
   return match ? match[1] : versionId;
 };
-
-function deriveIfMatchToken(
-  etag: string | null,
-  entity: { dateModified?: string | null; dateCreated?: string | null } | null,
-): string | null {
-  if (etag && typeof etag === 'string' && etag.trim().length > 0) {
-    return etag;
-  }
-  if (!entity) {
-    return null;
-  }
-  return entity.dateModified ?? entity.dateCreated ?? null;
-}
 
 function toNullable(value: string | null | undefined) {
   if (value === null || value === undefined) {
@@ -95,61 +90,25 @@ function buildUpdatePayload(input: QueryFormInput): QueryUpdateInput {
 }
 
 export function useQueriesStore() {
+  const entities = useQueryEntities();
   const {
-    listQueries,
-    getQuery,
-    createQuery,
-    updateQuery,
-    deleteQuery,
     listQueryVersions,
     getQueryVersion,
     createQueryVersion,
     patchQueryVersion,
   } = useApiClient();
 
-  const queries = computed(() => state.items);
-  const loading = computed(() => state.loading);
-  const error = computed(() => state.error);
-
-  const loadQueries = async () => {
-    state.loading = true;
-    state.error = null;
-    try {
-      state.items = await listQueries();
-    } catch (err: unknown) {
-      state.error = err instanceof Error ? err.message : 'Failed to load queries';
-      state.items = [];
-    } finally {
-      state.loading = false;
-    }
-  };
+  const queries = entities.items;
+  const loading = entities.loading;
+  const error = entities.error;
+  const loadQueries = entities.load;
 
   const fetchQuery = async (id: string) => {
-    try {
-      const result = await getQuery(id);
-      state.concurrency[id] = deriveIfMatchToken(result.etag, result.data);
-      return {
-        query: result.data,
-        ifMatch: state.concurrency[id],
-        form: toFormInput(result.data),
-      };
-    } catch (error) {
-      console.error('[useQueriesStore] fetchQuery error:', {
-        queryId: id,
-        error: error,
-        errorMessage: error instanceof Error ? error.message : 'Unknown error',
-        errorType: error instanceof Error ? error.constructor.name : typeof error
-      });
-      throw error;
-    }
+    const { data, ifMatch } = await entities.fetch(id);
+    return { query: data, ifMatch, form: toFormInput(data) };
   };
 
-  const create = async (input: QueryCreateInput) => {
-    const result = await createQuery(input);
-    state.concurrency[result.data.id] = deriveIfMatchToken(result.etag, result.data);
-    await loadQueries();
-    return result.data;
-  };
+  const create = entities.create;
 
   const createFromForm = async (form: QueryFormInput) => {
     const payload = buildCreatePayload(form);
@@ -159,13 +118,7 @@ export function useQueriesStore() {
     return create(payload);
   };
 
-  const update = async (id: string, input: QueryUpdateInput, explicitIfMatch?: string | null) => {
-    const ifMatch = explicitIfMatch ?? state.concurrency[id] ?? null;
-    const result = await updateQuery(id, input, { ifMatch });
-    state.concurrency[id] = deriveIfMatchToken(result.etag, result.data);
-    await loadQueries();
-    return result.data;
-  };
+  const update = entities.update;
 
   const updateFromForm = async (id: string, form: QueryFormInput, explicitIfMatch?: string | null) => {
     const payload = buildUpdatePayload(form);
@@ -175,18 +128,14 @@ export function useQueriesStore() {
     return update(id, payload, explicitIfMatch);
   };
 
-  const remove = async (id: string) => {
-    await deleteQuery(id);
-    delete state.concurrency[id];
-    await loadQueries();
-  };
+  const remove = entities.remove;
 
   const getQueryNameByVersionId = (versionId: string): string | null => {
     if (!versionId || typeof versionId !== 'string') {
       return null;
     }
     const queryId = extractQueryIdFromVersion(versionId);
-    const query = state.items.find((entry) => entry.id === queryId);
+    const query = entities.items.value.find((entry) => entry.id === queryId);
     return query?.name ?? null;
   };
 
@@ -249,7 +198,7 @@ export function useQueriesStore() {
     queries,
     loading,
     error,
-    concurrency: state.concurrency,
+    concurrency: entities.concurrency,
     versions: state.versions,
     versionLoading: state.versionLoading,
     versionError: state.versionError,

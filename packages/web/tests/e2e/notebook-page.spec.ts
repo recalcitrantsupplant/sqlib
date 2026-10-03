@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { mockCallableLibrary, LIBRARY } from './fixtures/callables';
+import { recordUrl } from './navigate';
 
 /**
  * The notebook screen — a document you write, run in order.
@@ -196,7 +197,7 @@ test.describe('Notebook', () => {
 
     await page.locator('[data-testid^="notebook-cell-"]').first().getByText('Open in editor').click();
 
-    await expect(page).toHaveURL(/query=urn%3Asqlib%3Aquery%3Aproduct-search|query=urn:sqlib:query:product-search/);
+    await expect(page).toHaveURL(recordUrl('queries', 'urn:sqlib:query:product-search'));
     await expect(page.locator('.query-work-area')).toBeVisible();
   });
 

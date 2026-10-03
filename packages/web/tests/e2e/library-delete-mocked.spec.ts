@@ -1,6 +1,7 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
 import { mockSidebarCollections } from './fixtures/collections';
 import { openSplash, openSplashLibraries } from './navigate';
+import { API_ORIGIN } from './api-origin';
 
 let mockLibraries = [
   {
@@ -62,7 +63,7 @@ test.describe('Delete Library Functionality (Mocked)', () => {
      * '/', so '/libraries/urn%3A...' never matched and every DELETE went to
      * the network instead of the mock.
      */
-    await page.route('**/libraries', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/libraries`, async (route: Route) => {
       if (route.request().method() !== 'GET') {
         await route.fallback();
         return;
@@ -74,7 +75,7 @@ test.describe('Delete Library Functionality (Mocked)', () => {
       });
     });
 
-    await page.route('**/libraries/*', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/libraries/*`, async (route: Route) => {
       if (route.request().method() !== 'DELETE') {
         await route.fallback();
         return;

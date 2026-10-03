@@ -9,7 +9,8 @@
  * `lib/testRunCache.ts` for what that cache will and will not keep.
  */
 import { computed, type MaybeRefOrGetter, reactive, toValue } from 'vue';
-import type { Test } from '@sparql-query-lib/contracts';
+import type { Test, TestUpdateInput } from '@sparql-query-lib/contracts';
+import { deriveIfMatchToken, sendGuarded } from './createVersionedEntityStore';
 import { loadRuns, pruneStaleRuns, saveRuns } from '../lib/testRunCache.js';
 import {
   useApiClient,
@@ -26,6 +27,8 @@ type TestsState = {
   runningTestIds: string[];
   loading: boolean;
   error: string | null;
+  /** If-Match tokens per test, for the guarded writes below. */
+  concurrency: Record<string, string | null>;
 };
 
 const state = reactive<TestsState>({
@@ -38,6 +41,7 @@ const state = reactive<TestsState>({
   runningTestIds: [],
   loading: false,
   error: null,
+  concurrency: {},
 });
 
 /**
@@ -113,6 +117,25 @@ export function useTestsStore() {
     state.versionsByTest[testId] = versions;
     return versions;
   };
+
+  /**
+   * Write the test's own fields — name, description, current version — guarded
+   * by If-Match like every other saved entity's write. Two tabs renaming one
+   * test used to last-writer-wins without either knowing.
+   */
+  const updateTest = (id: string, input: TestUpdateInput) =>
+    sendGuarded({
+      noun: 'test',
+      id,
+      token: state.concurrency[id] ?? null,
+      readFirst: true,
+      readToken: async () => {
+        const { data, etag } = await apiClient.getTest(id);
+        return (state.concurrency[id] = deriveIfMatchToken(etag, data));
+      },
+      send: (ifMatch) => apiClient.updateTest(id, input, { ifMatch }),
+      onToken: (token) => { state.concurrency[id] = token; },
+    });
 
   const versionsFor = (testId: string) => computed(() => state.versionsByTest[testId] ?? []);
 
@@ -251,6 +274,7 @@ export function useTestsStore() {
     loadVersions,
     versionsFor,
     createTest,
+    updateTest,
     createVersion,
     annotateVersion,
     deleteTest,

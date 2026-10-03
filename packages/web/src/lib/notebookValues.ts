@@ -12,11 +12,15 @@
  * run is not part of it (`lib/notebookFormat.ts`).
  */
 import { Parser as N3Parser } from 'n3';
+import type { ExecutionArgument } from '@sparql-query-lib/contracts';
 
 export type NotebookValueType = 'rows' | 'graph' | 'boolean';
 
-/** A SPARQL JSON binding, as the results come back. */
-export type SparqlBindingRow = Record<string, unknown>;
+/**
+ * A SPARQL JSON binding, as the results come back — the same row an execution
+ * argument carries, so a value can be sent on without converting it.
+ */
+export type SparqlBindingRow = NonNullable<ExecutionArgument['results']['bindings'][number]>;
 
 interface ValueCommon {
   /** The name, without `@`. */
@@ -218,7 +222,7 @@ export function mapColumns(sourceColumns: string[], targetVars: string[]): Array
 export function toSlotArgument(
   value: RowsValue,
   targetVars: string[],
-): { head: { vars: string[] }; results: { bindings: SparqlBindingRow[] } } {
+): ExecutionArgument {
   const mappings = mapColumns(value.columns, targetVars);
   const bindings = value.bindings.map((row) => {
     const mapped: SparqlBindingRow = {};

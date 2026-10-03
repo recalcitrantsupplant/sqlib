@@ -440,6 +440,50 @@ printf "export const load = () => import('./lazy.js');\n" \
   >> "$orph_root/packages/thing/src/index.ts"
 expect pass "orphans: dynamic import with a literal specifier is followed" run_orph
 
+# The web app. Nuxt auto-imports components and composables, so nothing imports
+# them by path; they are alive only if something reached uses their name. The
+# fixture: a page that renders `<SharedUsed>` (components/shared/Used.vue) as
+# kebab-case, and a plugin that calls an auto-imported composable.
+orph_web() {
+  local web="$orph_root/packages/web"
+  mkdir -p "$web/src/pages" "$web/src/plugins" "$web/src/components/shared" "$web/src/composables" "$web/test"
+  printf '{"name": "@scope/web", "version": "0.1.0", "private": true}\n' > "$web/package.json"
+  printf '<template><shared-used /></template>\n' > "$web/src/pages/index.vue"
+  printf '<template><span /></template>\n' > "$web/src/components/shared/Used.vue"
+  printf 'export default () => useThing();\n' > "$web/src/plugins/thing.client.ts"
+  printf 'export function useThing() { return 1; }\n' > "$web/src/composables/useThing.ts"
+}
+
+orph_reset
+orph_web
+expect pass "orphans: web components and composables reached by auto-import name" run_orph
+
+# The case WP27 added this for: a component nothing renders. When every file
+# under components/ was a root it could never be reported.
+orph_reset
+orph_web
+printf '<template><span /></template>\n' > "$orph_root/packages/web/src/components/shared/Stranded.vue"
+expect fail "orphans: a web component nothing renders" run_orph
+
+# A path prefix is part of the tag: `<Used>` is not `<SharedUsed>`.
+orph_reset
+orph_web
+printf '<template><Used /></template>\n' > "$orph_root/packages/web/src/pages/index.vue"
+expect fail "orphans: a web component used under the wrong auto-import name" run_orph
+
+# Its own unit test keeps a component compiling, not used.
+orph_reset
+orph_web
+printf '<template><span /></template>\n' > "$orph_root/packages/web/src/components/Stranded.vue"
+printf "import Stranded from '../src/components/Stranded.vue';\nexport { Stranded };\n" \
+  > "$orph_root/packages/web/test/Stranded.test.ts"
+expect fail "orphans: a web component only its unit test imports" run_orph
+
+orph_reset
+orph_web
+printf 'export function useNobody() { return 1; }\n' > "$orph_root/packages/web/src/composables/useNobody.ts"
+expect fail "orphans: a web composable nothing calls" run_orph
+
 # The measured-nothing cases. A scan that walked no files, or found no roots to
 # walk from, reports zero orphans — the same answer a clean tree gives.
 orph_reset

@@ -125,6 +125,7 @@ ETL is off by default; see [feature flags](feature-flags.md) and the
 | Name | Default | Effect |
 | --- | --- | --- |
 | `ETL_OUTPUT_DIR` | `./storage/etl-output`, resolved against the process working directory | Where an ETL execution writes its RDF output files. The container creates this path with the right ownership, so it is writable on a fresh volume. |
+| `SQLIB_ETL_NODE_MAX_ROWS` | `1000000` | The most rows an ETL node inside a query group may read from its source. A source with more fails the node, naming the cap, rather than handing the rest of the group a truncated result. Running a job directly is not affected. |
 
 ## Entity size limits
 
@@ -141,7 +142,9 @@ A value that does not parse as an integer falls back to the default.
 
 | Name | Default | Effect |
 | --- | --- | --- |
-| `RULE_EXECUTION_TIMEOUT_MS` | `30000` | Per-rule timeout during a rule set run. |
+| `RULE_EXECUTION_TIMEOUT_MS` | `30000` | Per-rule timeout during a rule set run. A rule is judged against it after it finishes; to stop a run, use `SQLIB_EXECUTION_TIMEOUT_MS`. |
+| `SQLIB_EXECUTION_TIMEOUT_MS` | `300000` (5 minutes) | The most one query group run or rule set run may take. Checked before every group node and every rule and DATA block, and aborts HTTP requests to backends in flight; a run past it fails at the node it was on, with status 504 from `/execute`. It cannot interrupt a single query against an in-process Oxigraph store, which runs synchronously, so such a run stops at the next boundary after the deadline. `0` turns it off. A client that disconnects from `/execute` or a rule set's execute route cancels its run the same way. |
+| `SQLIB_MAX_RULE_ITERATIONS` | `1000` | The most fixpoint iterations a rule set run may take per stratum. A request asking for more `maxIterations` is refused by the route schema (read at startup); the executor clamps to the value in force whatever it is asked. |
 | `RULE_EXECUTION_SAMPLE_LIMIT` | `10` | How many sample bindings a rule run reports per rule. |
 | `PATCH_PREVIEW_TTL_MS` | `3600000` (1 hour) | How long a derived, unapplied RDF patch preview is retained. See [RDF patch](../explanation/rdf-patch.md). |
 | `PATCH_SWEEP_INTERVAL_MS` | `600000` (10 minutes) | How often expired previews are swept. |

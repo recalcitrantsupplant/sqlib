@@ -28,6 +28,19 @@
       <span v-if="editCount > 0" class="chip chip-draft" data-testid="draft-pill">
         <PencilLine :size="11" />{{ editCount }} unsaved {{ editCount === 1 ? 'edit' : 'edits' }}
       </span>
+      <!--
+        The edits are held for this session only: the browser refused to keep
+        them (too large, or storage full). Said, because a reload loses them,
+        and saving a version is the way to keep them.
+      -->
+      <span
+        v-if="editCount > 0 && draftNotKept"
+        class="chip chip-draft-lost"
+        data-testid="draft-not-kept"
+        title="This browser could not keep these edits — they are too large, or its storage is full. They will be lost on reload; save a version to keep them."
+      >
+        not kept on reload
+      </span>
     </template>
 
     <span class="bar-spacer" />
@@ -199,6 +212,8 @@ const props = withDefaults(defineProps<{
   currentVersionNumber: number | null;
   /** Autosaves held in the browser and not yet saved. */
   editCount: number;
+  /** True when the browser could not store the draft, so a reload would lose it. */
+  draftNotKept?: boolean;
   saving: boolean;
   /** False when there is nothing to save — an empty body, or no changes. */
   canSave: boolean;
@@ -359,6 +374,12 @@ const saveTitle = computed(() => {
   background: var(--warning-surface);
   border: 1px solid var(--warning-border);
   color: var(--warning-ink);
+}
+
+.chip-draft-lost {
+  background: var(--danger-surface);
+  border: 1px solid var(--danger-border);
+  color: var(--danger-ink);
 }
 
 .chip-scratch {

@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { mockEntityApi, LIBRARY, QUERY_GROUP } from './fixtures/entities';
+import { recordUrl, scratchUrl } from './navigate';
 
 /**
  * The Groups sidebar — the second section to leave the artifact tree.
@@ -72,7 +73,7 @@ test.describe('Groups sidebar', () => {
 
     await expect(page.locator('.querygroup-work-area')).toBeVisible();
     // The router writes the IRI unescaped, so match it as written.
-    await expect(page).toHaveURL(new RegExp(`queryGroup=${QUERY_GROUP.id}`));
+    await expect(page).toHaveURL(recordUrl('queryGroups', QUERY_GROUP.id));
   });
 
   test('the selected group is the highlighted row', async ({ page }) => {
@@ -100,7 +101,7 @@ test.describe('Groups sidebar', () => {
     await openGroups(page);
     await page.locator('[data-testid="new-scratch"]').click();
 
-    await expect(page).toHaveURL(/scratch=/);
+    await expect(page).toHaveURL(scratchUrl('queryGroups'));
     await expect(page.locator('[data-testid="scratch-row"]')).toHaveCount(1);
     await expect(page.locator('[data-testid="scratch-chip"]')).toBeVisible();
   });

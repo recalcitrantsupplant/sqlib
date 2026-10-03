@@ -500,7 +500,13 @@ export function useArgumentSets(
     if (draft) local.save({ ...draft, name: trimmed, edits: draft.edits })
 
     try {
-      const result = await apiClient.updateArgumentSet(setId, { name: trimmed })
+      // Guarded by the set's own tag, as the delete below is: a rename racing
+      // another tab's must not silently win.
+      const result = await apiClient.updateArgumentSet(
+        setId,
+        { name: trimmed },
+        { ifMatch: currentSet.value?.id === setId ? currentSet.value.dateModified ?? null : null },
+      )
       currentSet.value = result.data
       argumentSets.value = argumentSets.value.map((entry) =>
         entry.id === setId ? { ...entry, name: trimmed } : entry,

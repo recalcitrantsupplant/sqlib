@@ -1,32 +1,35 @@
-import { computed, reactive } from 'vue';
 import type { Backend } from '@sparql-query-lib/contracts';
 import type { BackendFormInput } from '../types/backend.js';
 import { useApiClient } from './useApiClient.js';
 import { useBrowserBackends } from './useBrowserBackends.js';
+import { createVersionedEntityStore } from './createVersionedEntityStore';
 
-type BackendState = {
-  items: Backend[];
-  loading: boolean;
-  error: string | null;
-  concurrency: Record<string, string | null>;
-};
-
-const state = reactive<BackendState>({
-  items: [],
-  loading: false,
-  error: null,
-  concurrency: {},
+const useBackendEntities = createVersionedEntityStore<Backend, BackendFormInput, BackendFormInput>({
+  noun: 'backend',
+  nounPlural: 'backends',
+  api: () => {
+    const client = useApiClient();
+    return {
+      /*
+       * The server's backends and this browser's, as one list.
+       *
+       * Browser backends are appended rather than merged in: they cannot collide
+       * with a server id (their own `urn:` namespace sees to that), and a picker
+       * that showed them first would put a visitor's scratch endpoint above the
+       * catalogue the deployment curated.
+       */
+      list: async () => [...(await client.listBackends()), ...useBrowserBackends().asBackends.value],
+      get: client.getBackend,
+      create: client.createBackend,
+      update: client.updateBackend,
+      remove: client.deleteBackend,
+    };
+  },
+  // They survive a failed load on purpose — on a read-only site with the API
+  // unreachable, the endpoints a visitor registered themselves are the ones
+  // still worth offering.
+  fallbackItems: () => [...useBrowserBackends().asBackends.value],
 });
-
-function deriveIfMatchToken(etag: string | null, backend: Backend | null): string | null {
-  if (etag && typeof etag === 'string' && etag.trim().length > 0) {
-    return etag;
-  }
-  if (!backend) {
-    return null;
-  }
-  return backend.dateModified ?? backend.dateCreated ?? null;
-}
 
 function toFormInput(backend: Backend): BackendFormInput {
   return {
@@ -43,82 +46,22 @@ function toFormInput(backend: Backend): BackendFormInput {
 }
 
 export function useBackendsStore() {
-  const {
-    listBackends,
-    getBackend,
-    createBackend,
-    updateBackend,
-    deleteBackend,
-  } = useApiClient();
-
-  const backends = computed(() => state.items);
-  const loading = computed(() => state.loading);
-  const error = computed(() => state.error);
-
-  /**
-   * The server's backends and this browser's, as one list.
-   *
-   * Browser backends are appended rather than merged in: they cannot collide
-   * with a server id (their own `urn:` namespace sees to that), and a picker
-   * that showed them first would put a visitor's scratch endpoint above the
-   * catalogue the deployment curated. They survive a failed load on purpose —
-   * on a read-only site with the API unreachable, the endpoints a visitor
-   * registered themselves are the ones still worth offering.
-   */
-  const loadBackends = async () => {
-    state.loading = true;
-    state.error = null;
-    const browserBackends = useBrowserBackends().asBackends.value;
-    try {
-      state.items = [...(await listBackends()), ...browserBackends];
-    } catch (err: any) {
-      state.error = err?.message ?? 'Failed to load backends';
-      state.items = [...browserBackends];
-    } finally {
-      state.loading = false;
-    }
-  };
+  const entities = useBackendEntities();
 
   const fetchBackend = async (id: string) => {
-    const result = await getBackend(id);
-    state.concurrency[id] = deriveIfMatchToken(result.etag, result.data);
-    return {
-      backend: result.data,
-      ifMatch: state.concurrency[id],
-      form: toFormInput(result.data),
-    };
-  };
-
-  const create = async (input: BackendFormInput) => {
-    const result = await createBackend(input);
-    state.concurrency[result.data.id] = deriveIfMatchToken(result.etag, result.data);
-    await loadBackends();
-    return result.data;
-  };
-
-  const update = async (id: string, input: BackendFormInput, explicitIfMatch?: string | null) => {
-    const ifMatch = explicitIfMatch ?? state.concurrency[id] ?? null;
-    const result = await updateBackend(id, input, { ifMatch });
-    state.concurrency[id] = deriveIfMatchToken(result.etag, result.data);
-    await loadBackends();
-    return result.data;
-  };
-
-  const remove = async (id: string) => {
-    await deleteBackend(id);
-    delete state.concurrency[id];
-    await loadBackends();
+    const { data, ifMatch } = await entities.fetch(id);
+    return { backend: data, ifMatch, form: toFormInput(data) };
   };
 
   return {
-    backends,
-    loading,
-    error,
-    concurrency: state.concurrency,
-    loadBackends,
-    createBackend: create,
-    updateBackend: update,
-    deleteBackend: remove,
+    backends: entities.items,
+    loading: entities.loading,
+    error: entities.error,
+    concurrency: entities.concurrency,
+    loadBackends: entities.load,
+    createBackend: entities.create,
+    updateBackend: entities.update,
+    deleteBackend: entities.remove,
     fetchBackend,
     toFormInput,
   };

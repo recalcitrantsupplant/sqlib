@@ -12,6 +12,7 @@
  * a later `page.route('**\/libraries*', ...)` still wins.
  */
 import type { Page, Route } from '@playwright/test';
+import { API_ORIGIN } from '../api-origin';
 
 export type Collections = {
   libraries?: unknown[];
@@ -24,13 +25,13 @@ export type Collections = {
 };
 
 const PATHS: Array<[keyof Collections, string]> = [
-  ['libraries', '**/libraries'],
-  ['backends', '**/backends'],
-  ['queries', '**/queries'],
-  ['queryGroups', '**/query-groups'],
-  ['rules', '**/rules'],
-  ['dataBlocks', '**/data-blocks'],
-  ['ruleSets', '**/rule-sets'],
+  ['libraries', `${API_ORIGIN}/libraries`],
+  ['backends', `${API_ORIGIN}/backends`],
+  ['queries', `${API_ORIGIN}/queries`],
+  ['queryGroups', `${API_ORIGIN}/query-groups`],
+  ['rules', `${API_ORIGIN}/rules`],
+  ['dataBlocks', `${API_ORIGIN}/data-blocks`],
+  ['ruleSets', `${API_ORIGIN}/rule-sets`],
 ];
 
 export async function mockSidebarCollections(page: Page, collections: Collections = {}) {
@@ -41,7 +42,7 @@ export async function mockSidebarCollections(page: Page, collections: Collection
    * developer's machine, and a spec that clicks New library passes or fails on
    * that. Read-only is a mode a spec should ask for, not inherit.
    */
-  await page.route('**/health', async (route: Route) => {
+  await page.route(`${API_ORIGIN}/health`, async (route: Route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',

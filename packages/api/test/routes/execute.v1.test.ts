@@ -119,7 +119,7 @@ describe('Execute route (v1)', () => {
     expect(res.statusCode).toBe(200);
     expect(res.headers['x-resolved-target']).toBe(vId);
     expect(executorFactoryInstance.getExecutorForNode).toHaveBeenCalledTimes(1);
-    expect(mockExecutor.selectQueryParsed).toHaveBeenCalledWith(version.queryString, { acceptHeader: 'application/sparql-results+json' });
+    expect(mockExecutor.selectQueryParsed).toHaveBeenCalledWith(version.queryString, { acceptHeader: 'application/sparql-results+json', signal: expect.any(AbortSignal) });
   });
 
   it('executes a QueryVersion directly', async () => {
@@ -137,7 +137,7 @@ describe('Execute route (v1)', () => {
     expect(res.statusCode).toBe(200);
     expect(res.headers['x-resolved-target']).toBe(vId);
     expect(executorFactoryInstance.getExecutorForNode).toHaveBeenCalled();
-    expect(mockExecutor.constructQueryParsed).toHaveBeenCalledWith(version.queryString, { acceptHeader: 'text/turtle' });
+    expect(mockExecutor.constructQueryParsed).toHaveBeenCalledWith(version.queryString, { acceptHeader: 'text/turtle', signal: expect.any(AbortSignal) });
   });
 
   it('accepts nodeDetail without changing non-group execution responses', async () => {
@@ -238,7 +238,7 @@ describe('Execute route (v1)', () => {
     expect(res.statusCode).toBe(200);
     expect(MockSparqlQueryParser.prototype.applyArguments).toHaveBeenCalledWith(version.queryString, args);
     expect(executorFactoryInstance.getExecutorForNode).toHaveBeenCalled();
-    expect(mockExecutor.selectQueryParsed).toHaveBeenCalledWith(applied, { acceptHeader: 'application/sparql-results+json' });
+    expect(mockExecutor.selectQueryParsed).toHaveBeenCalledWith(applied, { acceptHeader: 'application/sparql-results+json', signal: expect.any(AbortSignal) });
   });
 
   // Section 1: Entity Fetching and Validation
@@ -487,7 +487,7 @@ describe('Execute route (v1)', () => {
       });
       
       expect(res.statusCode).toBe(200);
-      expect(mockExecutor.constructQueryParsed).toHaveBeenCalledWith(version.queryString, { acceptHeader: 'text/turtle' });
+      expect(mockExecutor.constructQueryParsed).toHaveBeenCalledWith(version.queryString, { acceptHeader: 'text/turtle', signal: expect.any(AbortSignal) });
     });
 
     it('executes DESCRIBE query', async () => {
@@ -512,7 +512,7 @@ describe('Execute route (v1)', () => {
       });
       
       expect(res.statusCode).toBe(200);
-      expect(mockExecutor.constructQueryParsed).toHaveBeenCalledWith(version.queryString, { acceptHeader: 'text/turtle' });
+      expect(mockExecutor.constructQueryParsed).toHaveBeenCalledWith(version.queryString, { acceptHeader: 'text/turtle', signal: expect.any(AbortSignal) });
     });
 
     it('executes ASK query', async () => {
@@ -535,7 +535,7 @@ describe('Execute route (v1)', () => {
       
       expect(res.statusCode).toBe(200);
       expect(JSON.parse(res.body)).toEqual({ head: {}, boolean: true });
-      expect(mockExecutor.askQuery).toHaveBeenCalledWith(version.queryString, { acceptHeader: 'application/sparql-results+json' });
+      expect(mockExecutor.askQuery).toHaveBeenCalledWith(version.queryString, { acceptHeader: 'application/sparql-results+json', signal: expect.any(AbortSignal) });
     });
 
     it('executes UPDATE query with INSERT', async () => {

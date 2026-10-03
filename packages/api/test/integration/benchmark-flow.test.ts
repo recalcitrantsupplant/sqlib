@@ -13,7 +13,7 @@ let store: Awaited<ReturnType<typeof installFakePersistenceAdapter>>;
 // store; only the SPARQL endpoint the benchmark times is stood in for.
 vi.mock('../../src/lib/orchestration/ExecutorFactory.js', () => ({
   ExecutorFactory: class {
-    async getExecutorForNode() {
+    async getExecutorForBackendId() {
       return {
         selectQueryParsed: async () => ({ result: { results: { bindings: [] } } }),
         askQuery: async () => ({ result: true }),
