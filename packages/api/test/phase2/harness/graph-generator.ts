@@ -41,8 +41,7 @@ const WHEN_EMPTY: (WhenEmpty | undefined)[] = [undefined, 'unconstrained', 'prop
  * The shapes an edge's explicit variable mapping can take. `malformed` and
  * `unknownVars` are the interesting ones: the first must fall back to the
  * default pairing, the second survives as an empty mapping and therefore binds
- * nothing - which turns every row into an all-UNDEF row and runs headlong into
- * the §1.1 wildcard rules.
+ * nothing - which the engine refuses by name as a broken edge.
  */
 export type MappingShape = 'default' | 'identity' | 'reversed' | 'partial' | 'malformed' | 'unknownVars';
 const MAPPING_SHAPES: MappingShape[] = ['default', 'identity', 'reversed', 'partial', 'malformed', 'unknownVars'];
@@ -166,14 +165,12 @@ function externalArgumentSet(shape: ExternalShape, vars: string[]): ArgumentSet 
       };
     case 'reorderedRows': {
       // The `rows` bindings under a head that declares the same variables in
-      // the opposite order — the §1.3 order mismatch. Bindings are keyed by
-      // name, so reversing only the head is exactly "declared in the wrong
-      // order" and nothing else.
+      // the opposite order. Bindings are keyed by name, so reversing only the
+      // head is exactly "declared in another order" and nothing else; it
+      // fills the slot as `rows` would (it was once the §1.3 order mismatch).
       //
       // On an arity-1 slot this is byte-identical to `rows` and the case
-      // degenerates harmlessly. That is the whole reason the coverage tally
-      // read `wrongOrder: 0` for so long: it was inexpressible while the
-      // corpus was arity-1, and only arity-2 slots make it reachable (#49).
+      // degenerates harmlessly; only arity-2 slots make it reachable (#49).
       const rows = externalArgumentSet('rows', vars)!;
       return { head: { vars: [...vars].reverse() }, results: rows.results };
     }

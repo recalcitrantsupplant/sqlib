@@ -197,8 +197,9 @@ describe('Phase 2 legal-shape execution', () => {
       endNodeMediaType: 'application/n-triples',
     });
 
-    // Concatenation, not set union: both producers emit the same four triples.
-    expect(triplesOf(await harness.execute(built, { accept: 'application/n-triples' }))).toHaveLength(8);
+    // An RDF merge, not a concatenation: both producers emit the same four
+    // triples, and a graph holds each triple once.
+    expect(triplesOf(await harness.execute(built, { accept: 'application/n-triples' }))).toHaveLength(4);
   }, 30000);
 
   it('rejects a multi-input EndNode whose inputs are not all RDF', async () => {

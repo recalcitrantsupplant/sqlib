@@ -129,7 +129,7 @@ export type OracleResult =
   | { kind: 'rdf'; triples: string[] }
   | { kind: 'boolean'; value: boolean }
   | { kind: 'update' }
-  | { kind: 'error'; reason: 'require' | 'wrongOrder' | 'mixedWildcard'; detail: string };
+  | { kind: 'error'; reason: 'require' | 'mixedWildcard' | 'unmappedEdge'; detail: string };
 
 /** Escape a literal lexical form for insertion into a SPARQL string. */
 const escapeLiteral = (value: string): string =>
@@ -268,6 +268,15 @@ export class ReferenceInterpreter {
         }
 
         const mappings = resolveMappings(edge.variableMappings, edge.sourceVars, edge.targetVars);
+        // An edge whose mapping maps nothing is refused by name: every row it
+        // carried would arrive with nothing bound.
+        if (mappings.length === 0 && edge.targetVars.length > 0 && sourceRows.length > 0) {
+          return { kind: 'error', reason: 'unmappedEdge', detail: `${edge.from} -> ${edge.to}` };
+        }
+        // A row an upstream query left with nothing bound in the mapped columns
+        // (an OPTIONAL that matched nothing) constrains nothing and is dropped.
+        // A caller's all-UNDEF row through the start node is an explicit "no
+        // constraint" and is kept for the §1.1 table to judge.
         const mapped = sourceRows.map(row => {
           const out: Row = {};
           for (const { source, target } of mappings) {
@@ -275,7 +284,7 @@ export class ReferenceInterpreter {
             if (cell != null) out[target] = cell;
           }
           return out;
-        });
+        }).filter(row => edge.fromStart || !isAllUndef(row, edge.targetVars));
 
         const tupleKey = signature(edge.targetVars);
         const existing = byTuple.get(tupleKey);
@@ -295,13 +304,10 @@ export class ReferenceInterpreter {
           supplied = fromEdge.rows;
           whenEmpty = fromEdge.whenEmpty;
         } else {
+          // Matched by the variables named, in any order: cells are keyed by
+          // name, so a table listing them differently fills the same slot.
           const ext = external.find(set => signature(set.head.vars) === signature(slot.vars));
           if (ext) {
-            const wrongOrder = ext.head.vars.length === slot.vars.length
-              && !ext.head.vars.every((v, i) => v === slot.vars[i]);
-            if (wrongOrder) {
-              return { kind: 'error', reason: 'wrongOrder', detail: `[${ext.head.vars.join(', ')}]` };
-            }
             supplied = ext.results.bindings;
           }
         }

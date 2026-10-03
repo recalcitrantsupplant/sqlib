@@ -149,7 +149,7 @@ describe('ExecutionEngine', () => {
         result: mockResult,
         resultNodeId: 'node1'
       });
-      expect(mockExecutor.selectQueryParsed).toHaveBeenCalledWith('SELECT ?entity WHERE { ?entity ?p ?o }');
+      expect(mockExecutor.selectQueryParsed).toHaveBeenCalledWith('SELECT ?entity WHERE { ?entity ?p ?o }', { signal: expect.any(AbortSignal) });
     });
 
     it('executes a single ASK node', async () => {
@@ -162,7 +162,7 @@ describe('ExecutionEngine', () => {
         queryString: 'ASK WHERE { ?x ?p ?o }',
         queryType: QueryTypeIri.ask,
         backendId: 'backend1',
-        raw: {} as any,
+        raw: { '@type': 'QueryNode' } as any,
         queryVersionId: 'qv1',
         queryVersion: {} as any,
         inputTupleIds: [],
@@ -198,7 +198,7 @@ describe('ExecutionEngine', () => {
         result: true,
         resultNodeId: 'node1'
       });
-      expect(mockExecutor.askQuery).toHaveBeenCalledWith('ASK WHERE { ?x ?p ?o }');
+      expect(mockExecutor.askQuery).toHaveBeenCalledWith('ASK WHERE { ?x ?p ?o }', { signal: expect.any(AbortSignal) });
     });
 
     it('executes a single CONSTRUCT node', async () => {
@@ -212,7 +212,7 @@ describe('ExecutionEngine', () => {
         queryString: 'CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }',
         queryType: QueryTypeIri.construct,
         backendId: 'backend1',
-        raw: {} as any,
+        raw: { '@type': 'QueryNode' } as any,
         queryVersionId: 'qv1',
         queryVersion: {} as any,
         inputTupleIds: [],
@@ -250,7 +250,7 @@ describe('ExecutionEngine', () => {
       });
       expect(mockExecutor.constructQueryParsed).toHaveBeenCalledWith(
         'CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }',
-        { acceptHeader: undefined }
+        { acceptHeader: undefined, signal: expect.any(AbortSignal) }
       );
     });
 
@@ -264,7 +264,7 @@ describe('ExecutionEngine', () => {
         queryString: 'INSERT DATA { <urn:s> <urn:p> <urn:o> }',
         queryType: QueryTypeIri.update,
         backendId: 'backend1',
-        raw: {} as any,
+        raw: { '@type': 'QueryNode' } as any,
         queryVersionId: 'qv1',
         queryVersion: {} as any,
         inputTupleIds: [],
@@ -314,7 +314,7 @@ describe('ExecutionEngine', () => {
         queryString: 'DESCRIBE <http://example.org/resource>',
         queryType: QueryTypeIri.describe,
         backendId: 'backend1',
-        raw: {} as any,
+        raw: { '@type': 'QueryNode' } as any,
         queryVersionId: 'qv1',
         queryVersion: {} as any,
         inputTupleIds: [],
@@ -352,7 +352,7 @@ describe('ExecutionEngine', () => {
       });
       expect(mockExecutor.constructQueryParsed).toHaveBeenCalledWith(
         'DESCRIBE <http://example.org/resource>',
-        { acceptHeader: undefined }
+        { acceptHeader: undefined, signal: expect.any(AbortSignal) }
       );
     });
 
@@ -461,8 +461,8 @@ describe('ExecutionEngine', () => {
         result: dynamicResult,
         resultNodeId: 'dynamic'
       });
-      expect(mockExecutor.selectQueryParsed).toHaveBeenCalledWith('SELECT ?queryId WHERE { ?s ?p ?o }');
-      expect(mockExecutor.selectQueryParsed).toHaveBeenCalledWith('SELECT ?value WHERE { ?s ?p ?o }');
+      expect(mockExecutor.selectQueryParsed).toHaveBeenCalledWith('SELECT ?queryId WHERE { ?s ?p ?o }', { signal: expect.any(AbortSignal) });
+      expect(mockExecutor.selectQueryParsed).toHaveBeenCalledWith('SELECT ?value WHERE { ?s ?p ?o }', { signal: expect.any(AbortSignal) });
     });
 
     it('defaults to SELECT when query type is missing', async () => {
@@ -480,7 +480,7 @@ describe('ExecutionEngine', () => {
         queryString: 'SELECT ?entity WHERE { ?entity ?p ?o }',
         queryType: null,
         backendId: 'backend1',
-        raw: {} as any,
+        raw: { '@type': 'QueryNode' } as any,
         queryVersionId: 'qv1',
         queryVersion: {} as any,
         inputTupleIds: [],
@@ -516,7 +516,7 @@ describe('ExecutionEngine', () => {
         result: mockResult,
         resultNodeId: 'node1'
       });
-      expect(mockExecutor.selectQueryParsed).toHaveBeenCalledWith('SELECT ?entity WHERE { ?entity ?p ?o }');
+      expect(mockExecutor.selectQueryParsed).toHaveBeenCalledWith('SELECT ?entity WHERE { ?entity ?p ?o }', { signal: expect.any(AbortSignal) });
     });
   });
 
@@ -735,7 +735,7 @@ describe('ExecutionEngine', () => {
         const result = await engine.execute(graph);
         expect(result.result).toEqual(mockResult);
         expect(materializeSpy).toHaveBeenCalledTimes(1);
-        expect(materializeSpy).toHaveBeenCalledWith('store-materialize', mockResult, 'nquads');
+        expect(materializeSpy).toHaveBeenCalledWith(expect.stringMatching(/:store-materialize$/), mockResult, 'nquads');
       } finally {
         materializeSpy.mockRestore();
       }
@@ -800,7 +800,7 @@ describe('ExecutionEngine', () => {
         queryString: 'SELECT ?entity WHERE { ?entity ?p ?o }',
         queryType: QueryTypeIri.select,
         backendId: 'backend1',
-        raw: {} as any,
+        raw: { '@type': 'QueryNode' } as any,
         queryVersionId: 'qv1',
         queryVersion: {} as any,
         inputTupleIds: [],
@@ -812,7 +812,7 @@ describe('ExecutionEngine', () => {
         queryString: 'SELECT ?entity ?label WHERE { VALUES (?entity) { (UNDEF) } ?entity rdfs:label ?label }',
         queryType: QueryTypeIri.select,
         backendId: 'backend1',
-        raw: {} as any,
+        raw: { '@type': 'QueryNode' } as any,
         queryVersionId: 'qv1',
         queryVersion: {} as any,
         inputTupleIds: [],
@@ -864,7 +864,7 @@ describe('ExecutionEngine', () => {
       });
 
       // Verify execution order and argument application
-      expect(mockExecutor.selectQueryParsed).toHaveBeenNthCalledWith(1, 'SELECT ?entity WHERE { ?entity ?p ?o }');
+      expect(mockExecutor.selectQueryParsed).toHaveBeenNthCalledWith(1, 'SELECT ?entity WHERE { ?entity ?p ?o }', { signal: expect.any(AbortSignal) });
       expect(mockParser.applyArguments).toHaveBeenNthCalledWith(2, 
         'SELECT ?entity ?label WHERE { VALUES (?entity) { (UNDEF) } ?entity rdfs:label ?label }', 
         [{
@@ -922,7 +922,7 @@ describe('ExecutionEngine', () => {
         queryString: 'SELECT ?entity WHERE { ?entity ?p ?o }',
         queryType: QueryTypeIri.select,
         backendId: 'backend1',
-        raw: {} as any,
+        raw: { '@type': 'QueryNode' } as any,
         queryVersionId: 'qv1',
         queryVersion: {} as any,
         inputTupleIds: [],
@@ -934,7 +934,7 @@ describe('ExecutionEngine', () => {
         queryString: 'SELECT ?entity ?label WHERE { VALUES (?entity) { (UNDEF) } ?entity rdfs:label ?label }',
         queryType: QueryTypeIri.select,
         backendId: 'backend1',
-        raw: {} as any,
+        raw: { '@type': 'QueryNode' } as any,
         queryVersionId: 'qv1',
         queryVersion: {} as any,
         inputTupleIds: [],
@@ -1046,7 +1046,7 @@ describe('ExecutionEngine', () => {
         queryString: 'SELECT ?entity ?optional WHERE { ?entity ?p ?o }',
         queryType: QueryTypeIri.select,
         backendId: 'backend1',
-        raw: {} as any,
+        raw: { '@type': 'QueryNode' } as any,
         queryVersionId: 'qv1',
         queryVersion: {} as any,
         inputTupleIds: [],
@@ -1058,7 +1058,7 @@ describe('ExecutionEngine', () => {
         queryString: 'SELECT ?entity ?label WHERE { VALUES (?entity) { (UNDEF) } ?entity rdfs:label ?label }',
         queryType: QueryTypeIri.select,
         backendId: 'backend1',
-        raw: {} as any,
+        raw: { '@type': 'QueryNode' } as any,
         queryVersionId: 'qv1',
         queryVersion: {} as any,
         inputTupleIds: [],
@@ -1170,7 +1170,7 @@ describe('ExecutionEngine', () => {
         queryString: 'SELECT ?entity WHERE { ?entity ?p ?o }',
         queryType: QueryTypeIri.select,
         backendId: 'backend1',
-        raw: {} as any,
+        raw: { '@type': 'QueryNode' } as any,
         queryVersionId: 'qv1',
         queryVersion: {} as any,
         inputTupleIds: [],
@@ -1182,7 +1182,7 @@ describe('ExecutionEngine', () => {
         queryString: 'SELECT ?entity ?type WHERE { ?entity a ?type }',
         queryType: QueryTypeIri.select,
         backendId: 'backend1',
-        raw: {} as any,
+        raw: { '@type': 'QueryNode' } as any,
         queryVersionId: 'qv1',
         queryVersion: {} as any,
         inputTupleIds: [],
@@ -1194,7 +1194,7 @@ describe('ExecutionEngine', () => {
         queryString: 'SELECT ?entity ?label WHERE { ?entity rdfs:label ?label }',
         queryType: QueryTypeIri.select,
         backendId: 'backend1',
-        raw: {} as any,
+        raw: { '@type': 'QueryNode' } as any,
         queryVersionId: 'qv1',
         queryVersion: {} as any,
         inputTupleIds: [],
@@ -1330,7 +1330,7 @@ describe('ExecutionEngine', () => {
         queryString: 'SELECT ?entity ?label WHERE { VALUES (?entity) { (UNDEF) } ?entity rdfs:label ?label }',
         queryType: QueryTypeIri.select,
         backendId: 'backend1',
-        raw: {} as any,
+        raw: { '@type': 'QueryNode' } as any,
         queryVersionId: 'qv1',
         queryVersion: {} as any,
         inputTupleIds: [],
@@ -1380,9 +1380,9 @@ describe('ExecutionEngine', () => {
       );
     });
 
-    it('rejects an argument set whose vars are right but ordered wrong', async () => {
-      // The signature filter is order-insensitive while the match is positional, so
-      // a wrong-order set used to fall through to the unconstrained path silently.
+    it('accepts an argument set naming the right vars in another order', async () => {
+      // The match used to be positional, so a wrong-order set either fell
+      // through to the unconstrained path or failed the run.
       (mockExecutor.selectQueryParsed as any).mockResolvedValue({
         result: { head: { vars: [] }, results: { bindings: [] } }, duration: 10,
       });
@@ -1393,7 +1393,7 @@ describe('ExecutionEngine', () => {
         queryString: 'SELECT * WHERE { VALUES (?city ?state) { (UNDEF UNDEF) } ?city ?p ?state }',
         queryType: QueryTypeIri.select,
         backendId: 'backend1',
-        raw: {} as any,
+        raw: { '@type': 'QueryNode' } as any,
         queryVersionId: 'qv1',
         queryVersion: {} as any,
         inputTupleIds: [],
@@ -1431,15 +1431,13 @@ describe('ExecutionEngine', () => {
         }] },
       }];
 
-      // Reported as a node failure, so the error body can name the offending node.
-      await expect(engine.execute(graph, initialArgs)).rejects.toMatchObject({
-        name: 'ExecutionNodeError',
-        nodeId: 'node1',
-        message: expect.stringContaining(
-          'Argument variable order mismatch for VALUES input [city, state]; received [state, city].'
-        ),
-      });
-      expect(mockParser.applyArguments).not.toHaveBeenCalled();
+      // Accepted, as `/execute` accepts it for a lone query: the parser pairs
+      // columns by name, so the order a table lists them in is not an error.
+      await engine.execute(graph, initialArgs);
+      expect(mockParser.applyArguments).toHaveBeenCalledWith(
+        expect.any(String),
+        [expect.objectContaining({ head: { vars: ['state', 'city'] } })],
+      );
     });
 
     it('falls back to empty UNDEF row when no matching arguments found', async () => {
@@ -1457,7 +1455,7 @@ describe('ExecutionEngine', () => {
         queryString: 'SELECT ?entity ?label WHERE { VALUES (?entity) { (UNDEF) } ?entity rdfs:label ?label }',
         queryType: QueryTypeIri.select,
         backendId: 'backend1',
-        raw: {} as any,
+        raw: { '@type': 'QueryNode' } as any,
         queryVersionId: 'qv1',
         queryVersion: {} as any,
         inputTupleIds: [],
@@ -1545,7 +1543,7 @@ describe('ExecutionEngine', () => {
         queryString: 'SELECT ?entity WHERE { ?entity ?p ?o }',
         queryType: QueryTypeIri.select,
         backendId: 'backend1',
-        raw: {} as any,
+        raw: { '@type': 'QueryNode' } as any,
         queryVersionId: 'qv1',
         queryVersion: {} as any,
         inputTupleIds: [],
@@ -1557,7 +1555,7 @@ describe('ExecutionEngine', () => {
         queryString: 'SELECT ?entity ?label WHERE { VALUES (?entity) { (UNDEF) } ?entity rdfs:label ?label }',
         queryType: QueryTypeIri.select,
         backendId: 'backend1',
-        raw: {} as any,
+        raw: { '@type': 'QueryNode' } as any,
         queryVersionId: 'qv1',
         queryVersion: {} as any,
         inputTupleIds: [],
@@ -1622,7 +1620,7 @@ describe('ExecutionEngine', () => {
         queryString: 'SELECT ?entity WHERE { ?entity ?p ?o }',
         queryType: QueryTypeIri.select,
         backendId: 'backend1',
-        raw: {} as any,
+        raw: { '@type': 'QueryNode' } as any,
         queryVersionId: 'qv1',
         queryVersion: {} as any,
         inputTupleIds: [],
@@ -1634,7 +1632,7 @@ describe('ExecutionEngine', () => {
         queryString: 'SELECT ?entity WHERE { ?entity ?p ?o }',
         queryType: QueryTypeIri.select,
         backendId: 'backend1',
-        raw: { inputs: ['missing-tuple'] } as any,
+        raw: { '@type': 'QueryNode', inputs: ['missing-tuple'] } as any,
         queryVersionId: 'qv1',
         queryVersion: {} as any,
         inputTupleIds: [],
@@ -1703,7 +1701,7 @@ describe('ExecutionEngine', () => {
         queryString: 'SELECT ?entity WHERE { ?entity ?p ?o }',
         queryType: QueryTypeIri.select,
         backendId: 'backend1',
-        raw: {} as any,
+        raw: { '@type': 'QueryNode' } as any,
         queryVersionId: 'qv1',
         queryVersion: {} as any,
         inputTupleIds: [],
@@ -1715,7 +1713,7 @@ describe('ExecutionEngine', () => {
         queryString: 'SELECT ?entity WHERE { ?entity ?p ?o }',
         queryType: QueryTypeIri.select,
         backendId: 'backend1',
-        raw: {} as any,
+        raw: { '@type': 'QueryNode' } as any,
         queryVersionId: 'qv1',
         queryVersion: {} as any,
         inputTupleIds: [],
@@ -1807,7 +1805,7 @@ describe('ExecutionEngine', () => {
         queryString: 'SELECT ?entity WHERE { ?entity ?p ?o }',
         queryType: QueryTypeIri.select,
         backendId: 'backend1',
-        raw: {} as any,
+        raw: { '@type': 'QueryNode' } as any,
         queryVersionId: 'qv1',
         queryVersion: {} as any,
         inputTupleIds: [],
@@ -1819,7 +1817,7 @@ describe('ExecutionEngine', () => {
         queryString: 'SELECT ?label WHERE { ?x rdfs:label ?label }',
         queryType: QueryTypeIri.select,
         backendId: 'backend1',
-        raw: {} as any,
+        raw: { '@type': 'QueryNode' } as any,
         queryVersionId: 'qv1',
         queryVersion: {} as any,
         inputTupleIds: [],
@@ -1885,7 +1883,7 @@ describe('ExecutionEngine', () => {
         queryString: 'SELECT ?entity WHERE { ?entity ?p ?o }',
         queryType: QueryTypeIri.select,
         backendId: 'backend1',
-        raw: {} as any,
+        raw: { '@type': 'QueryNode' } as any,
         queryVersionId: 'qv1',
         queryVersion: {} as any,
         inputTupleIds: [],
@@ -1897,7 +1895,7 @@ describe('ExecutionEngine', () => {
         queryString: 'SELECT ?label WHERE { ?x rdfs:label ?label }',
         queryType: QueryTypeIri.select,
         backendId: 'backend1',
-        raw: {} as any,
+        raw: { '@type': 'QueryNode' } as any,
         queryVersionId: 'qv1',
         queryVersion: {} as any,
         inputTupleIds: [],

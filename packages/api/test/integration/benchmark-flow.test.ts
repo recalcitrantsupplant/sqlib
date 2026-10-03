@@ -179,7 +179,7 @@ vi.mock('../../src/persistence/utils/BenchmarkIterationRunUtils.js', () => ({
 
 vi.mock('../../src/lib/orchestration/ExecutorFactory.js', () => ({
   ExecutorFactory: class {
-    async getExecutorForNode() {
+    async getExecutorForBackendId() {
       return {
         selectQueryParsed: async () => ({ result: { results: { bindings: [] } } }),
         askQuery: async () => ({ result: true }),

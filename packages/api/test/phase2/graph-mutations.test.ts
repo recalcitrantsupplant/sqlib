@@ -208,11 +208,11 @@ describe('Phase 2 graph mutations', () => {
     expect(execution.json().failedNodeId).toBe(built.nodeIris.b);
   }, 30000);
 
-  it('rejects external arguments whose variables are in the wrong order', async () => {
-    // §1.3: right variables, wrong order used to pass the order-insensitive
-    // filter, fail the order-sensitive match, and fall through to running
-    // unconstrained. It is a named error now, and needs a two-variable slot to
-    // be expressible at all.
+  it('accepts external arguments naming their variables in another order', async () => {
+    // §1.3 used to make this a named error: right variables, wrong order. The
+    // parser pairs columns by name, and `/execute` accepts the same table for a
+    // lone query, so a group now accepts it too (WP15). Needs a two-variable
+    // slot to be expressible at all.
     const built = await harness.build({
       nodes: [{ key: 'a', query: 'pairFilter' }],
       edges: [
@@ -235,11 +235,10 @@ describe('Phase 2 graph mutations', () => {
         },
       }],
     });
-    expect(wrongOrder.statusCode).toBe(400);
-    expect(wrongOrder.payload).toContain('order mismatch');
+    expect(wrongOrder.statusCode).toBe(200);
+    expect(wrongOrder.json().results.bindings).toHaveLength(1);
 
-    // The same values in the declared order are accepted, so the rejection is
-    // about order rather than about the arguments being unusable.
+    // And it answers exactly as the same values in the declared order do.
     const rightOrder = await harness.execute(built, {
       arguments: [{
         head: { vars: ['label', 'thing'] },
@@ -252,6 +251,6 @@ describe('Phase 2 graph mutations', () => {
       }],
     });
     expect(rightOrder.statusCode).toBe(200);
-    expect(rightOrder.json().results.bindings).toHaveLength(1);
+    expect(rightOrder.json().results.bindings).toEqual(wrongOrder.json().results.bindings);
   }, 30000);
 });

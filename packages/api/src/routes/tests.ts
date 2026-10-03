@@ -12,6 +12,7 @@
  */
 
 import type { FastifyInstance, FastifyReply } from 'fastify';
+import { maxRuleIterations } from '../config/executionLimits.js';
 import { classifyVersionPatch } from '../lib/versionPatch.js';
 import { mintId } from '../lib/id.js';
 import { toRestApi } from '../persistence/utils/id-adapter.js';
@@ -175,7 +176,7 @@ const testVersionBodyProperties = {
   cases: { type: 'array', items: testCaseBodySchema, nullable: true },
   subjectVersion: { type: 'string', nullable: true },
   backend: { type: 'string', nullable: true },
-  maxIterations: { type: 'integer', minimum: 1, nullable: true },
+  maxIterations: { type: 'integer', minimum: 1, maximum: maxRuleIterations(), nullable: true },
   timeoutMs: { type: 'integer', minimum: 1, nullable: true },
   comment: { type: 'string', nullable: true },
   immutable: { type: 'boolean', nullable: true },

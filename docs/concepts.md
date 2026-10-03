@@ -56,7 +56,8 @@ table parameters, matched in order of appearance.
 
 **A named number is `LIMIT 000n` or `OFFSET 000n`.** In `LIMIT 00010` the
 parameter's name is `10` — the digits after the `000`. Names are digits only:
-detection matches `/\bLIMIT\s+000(\d+)\b/i`. The literal value is what the query
+detection matches `/\bLIMIT\s+000(\d+)\b/i` against the query's code, so the same
+text in a comment or a string literal declares nothing. The literal value is what the query
 runs with when no argument is supplied, so an unparameterised run still
 executes.
 
