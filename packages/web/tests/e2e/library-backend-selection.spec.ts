@@ -2,6 +2,7 @@ import { test, expect, type Route } from '@playwright/test';
 import { openCreateLibraryDialog, openSplash } from './navigate';
 import { mockSidebarCollections } from './fixtures/collections';
 import { chooseSearchOption, searchSelect } from './search-select';
+import { API_ORIGIN } from './api-origin';
 
 /**
  * Test for library backend selection bug fix:
@@ -47,7 +48,7 @@ test.describe('Library Backend Selection Bug Fix', () => {
     // Promise.all resolves instead of taking the whole tree down with it.
     await mockSidebarCollections(page);
 
-    await page.route('**/backends', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/backends`, async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -55,7 +56,7 @@ test.describe('Library Backend Selection Bug Fix', () => {
       });
     });
 
-    await page.route('**/libraries', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/libraries`, async (route: Route) => {
       if (route.request().method() === 'GET') {
         await route.fulfill({
           status: 200,
@@ -83,7 +84,7 @@ test.describe('Library Backend Selection Bug Fix', () => {
       }
     });
 
-    await page.route('**/queries', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/queries`, async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -91,7 +92,7 @@ test.describe('Library Backend Selection Bug Fix', () => {
       });
     });
 
-    await page.route('**/query-groups', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/query-groups`, async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -212,7 +213,7 @@ test.describe('Library Backend Selection Bug Fix', () => {
 
   test('should show loading state only when actually clicking submit button', async ({ page }) => {
     // Add a delay to the POST request to see loading state
-    await page.route('**/libraries', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/libraries`, async (route: Route) => {
       if (route.request().method() === 'POST') {
         await new Promise(resolve => setTimeout(resolve, 1000));
         const body = route.request().postDataJSON();

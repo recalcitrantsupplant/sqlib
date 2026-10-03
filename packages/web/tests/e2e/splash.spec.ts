@@ -14,7 +14,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { mockEntityApi, LIBRARY, QUERY } from './fixtures/entities';
-import { openSplash, openSplashLibraries, splashLibraryRow } from './navigate';
+import { openSplash, openSplashLibraries, splashLibraryRow, sectionUrl } from './navigate';
 
 test.describe('Splash', () => {
   test.beforeEach(async ({ page }) => {
@@ -51,7 +51,7 @@ test.describe('Splash', () => {
 
   test('a section opens from its card', async ({ page }) => {
     await page.locator('[data-testid="splash-section-rules"]').click();
-    await expect(page).toHaveURL(/section=rules/);
+    await expect(page).toHaveURL(sectionUrl('rules'));
     await expect(page.locator('[data-testid="entity-list-sidebar"]')).toBeVisible();
   });
 
@@ -152,7 +152,7 @@ test.describe('Splash', () => {
 
     await expect(page.locator('[data-testid="app-splash"]')).toBeVisible();
     await expect(page.locator('[data-testid="entity-list-sidebar"]')).toHaveCount(0);
-    await expect(page).not.toHaveURL(/section=/);
+    await expect(page).toHaveURL(/^https?:\/\/[^/]+\/(\?.*)?$/);
   });
 
   test('the rail mark comes back to the splash from the notebook', async ({ page }) => {
@@ -161,7 +161,7 @@ test.describe('Splash', () => {
 
     await page.locator('[data-testid="library-home"]').click();
 
-    await expect(page).toHaveURL(/\/(\?|$)/);
+    await expect(page).toHaveURL(/^https?:\/\/[^/]+\/(\?.*)?$/);
     await expect(page.locator('[data-testid="app-splash"]')).toBeVisible();
   });
 

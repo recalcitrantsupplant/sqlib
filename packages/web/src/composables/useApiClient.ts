@@ -88,6 +88,42 @@ import {
   type RuleSetCreateInput,
   type RuleSetUpdateInput,
   ruleSetVersionSchema,
+  ruleVersionSchema,
+  dataBlockVersionSchema,
+  dataGraphVersionSchema,
+  tupleSetVersionSchema,
+  testVersionExpandedSchema,
+  type RuleVersion,
+  type DataBlockVersion,
+  type DataGraphVersion,
+  type TupleSetVersion,
+  type TestCaseExpanded,
+  type TestVersionExpanded,
+  testRunResultSchema,
+  taggedTestRunSchema,
+  previewTupleContentResponseSchema,
+  detectTupleFormatResponseSchema,
+  backendProbeSchema,
+  backendProbeListSchema,
+  remotePrefixesSchema,
+  prefixPushSchema,
+  backendEnvSchema,
+  backendUsageSchema,
+  type BackendProbe,
+  type BackendPrefixCapability,
+  type RemotePrefixes,
+  type PrefixPushResult,
+  type BackendEnv,
+  type BackendUsage,
+  argumentSetDetailSchema,
+  argumentSetVersionDetailSchema,
+  queryGroupValidationResponseSchema,
+  argumentSetExportSchema,
+  backendReferencesSchema,
+  type TestCaseRunResult,
+  type TestRunResult,
+  type TaggedTestRun,
+  type TagMatchMode,
   dataBlockSchema,
   dataBlockCreateSchema,
   dataBlockUpdateSchema,
@@ -173,7 +209,7 @@ export interface LibraryNotebookPayload {
 
 const JSON_HEADERS = { 'Content-Type': 'application/json' } as const;
 
-type ApiResult<T> = {
+export type ApiResult<T> = {
   data: T;
   etag: string | null;
   lastModified: string | null;
@@ -235,7 +271,9 @@ async function parseResponse<T>(response: Response, schema?: (payload: unknown) 
   const trimmed = text.trim();
 
   if (!trimmed.startsWith('{') && !trimmed.startsWith('[') && trimmed.length > 0) {
-    console.error('API Response is not JSON. Raw content:', trimmed);
+    // Thrown rather than logged and parsed anyway: the caller's one log line
+    // then says what came back instead of a bare JSON syntax error.
+    throw new Error(`Expected JSON from ${response.url || 'the API'}, got: ${trimmed.slice(0, 200)}`);
   }
 
   const payload = trimmed ? JSON.parse(trimmed) : undefined;
@@ -292,332 +330,19 @@ function parseServerTiming(
   };
 }
 
-const ruleVersionSchema = z.object({
-  id: z.string(),
-  isPartOf: z.string(),
-  version: z.number(),
-  ruleString: z.string(),
-  comment: z.string().nullable().optional(),
-  normalizedInsert: z.string().nullable().optional(),
-  defaultBackend: z.string().nullable().optional(),
-  grammarValid: z.boolean().nullable().optional(),
-  validationError: z.string().nullable().optional(),
-  dateCreated: z.string().nullable().optional(),
-  dateModified: z.string().nullable().optional(),
-});
-
-const dataBlockVersionSchema = z.object({
-  id: z.string(),
-  isPartOf: z.string(),
-  version: z.number(),
-  dataString: z.string(),
-  normalizedInsertData: z.string().nullable().optional(),
-  comment: z.string().nullable().optional(),
-  defaultBackend: z.string().nullable().optional(),
-  grammarValid: z.boolean().nullable().optional(),
-  validationError: z.string().nullable().optional(),
-  dateCreated: z.string().nullable().optional(),
-  dateModified: z.string().nullable().optional(),
-});
-
 /*
- * A data graph version. `tripleCount` and `byteSize` are computed by the
- * server from the parsed content, so they are read-only facts about the
- * version rather than anything a client sends.
+ * Version shapes are the contracts' own, projected from the entity model. A
+ * test version's cases arrive inlined, with their data graphs in the shape a
+ * version is written with, so what the editor reads it can save back.
  */
-const dataGraphVersionSchema = z.object({
-  id: z.string(),
-  isPartOf: z.string(),
-  version: z.number(),
-  immutable: z.boolean().nullable().optional(),
-  contentString: z.string(),
-  contentFormat: z.string(),
-  tripleCount: z.number().nullable().optional(),
-  byteSize: z.number().nullable().optional(),
-  grammarValid: z.boolean().nullable().optional(),
-  validationError: z.string().nullable().optional(),
-  comment: z.string().nullable().optional(),
-  dateCreated: z.string().nullable().optional(),
-  dateModified: z.string().nullable().optional(),
-});
+export type TestCase = TestCaseExpanded;
+export type TestVersion = TestVersionExpanded;
+export type { TestCaseRunResult, TestRunResult, TaggedTestRun, TagMatchMode };
 
-const detectTupleFormatSchema = z.object({
-  suggested: z.enum(TUPLE_SOURCE_FORMATS),
-});
+export type { RuleVersion, DataBlockVersion, DataGraphVersion, TupleSetVersion };
 
-/**
- * What content *would* become, without storing it.
- *
- * Mirrors what a version carries, because it is the same parse — the editor
- * uses it to preview unsaved rows and to convert pasted content into the row
- * builder, both of which need the typed interpretation only the server's
- * parser can give.
- */
-const columnTypeSuggestionSchema = z.object({
-  column: z.string(),
-  suggested: z.enum(SUGGESTED_COLUMN_TYPES),
-});
+export type { BackendProbe, BackendPrefixCapability, RemotePrefixes, PrefixPushResult, BackendEnv, BackendUsage };
 
-const previewTupleContentSchema = z.object({
-  contentString: z.string(),
-  tupleColumns: z.array(z.string()),
-  rowCount: z.number(),
-  byteSize: z.number(),
-  columnTypeSuggestions: z.array(columnTypeSuggestionSchema),
-});
-
-/**
- * A tuple set version.
- *
- * `contentString` is always a SPARQL Results JSON document, whatever
- * `sourceFormat` says — that field is provenance, recording which dialect the
- * rows arrived in, not an instruction for reading them back. The server
- * normalises on import precisely so a pinned version cannot change meaning
- * when the reading code does (`docs/concepts.md`).
- *
- * `tupleColumns` is `head.vars` in order, lifted onto the version so a listing
- * can show arity and a compatibility verdict can be computed without parsing a
- * megabyte of content.
- */
-const tupleSetVersionSchema = z.object({
-  id: z.string(),
-  isPartOf: z.string(),
-  version: z.number(),
-  immutable: z.boolean().nullable().optional(),
-  contentString: z.string(),
-  sourceFormat: z.enum(TUPLE_SOURCE_FORMATS).nullable().optional(),
-  tupleColumns: z.array(z.string()).nullable().optional(),
-  rowCount: z.number().nullable().optional(),
-  byteSize: z.number().nullable().optional(),
-  // Present only on a version the ETL sink materialized (#211): what produced
-  // the rows, recorded on the snapshot rather than followed.
-  sourceEtlJobVersion: z.string().nullable().optional(),
-  sourceColumnMappingVersion: z.string().nullable().optional(),
-  sourceExecutedAt: z.string().nullable().optional(),
-  sourceResultHash: z.string().nullable().optional(),
-  comment: z.string().nullable().optional(),
-  dateCreated: z.string().nullable().optional(),
-  dateModified: z.string().nullable().optional(),
-});
-
-/*
- * A test version: the invocation inputs plus the expectation. `expected` is
- * text whatever the kind — JSON for bindings, "true"/"false" for boolean, RDF
- * for graph — because the comparator that reads it is chosen by
- * `expectationKind`, not by the field's type.
- */
-/**
- * One parametrised case: its inputs, and what is correct given them.
- *
- * The expectation is on the case rather than the version because changing the
- * arguments changes what is correct. A test with one case is the ordinary
- * single test; N cases is `@pytest.mark.parametrize`.
- */
-const testCaseSchema = z.object({
-  id: z.string(),
-  isPartOf: z.string(),
-  position: z.number(),
-  name: z.string().nullable().optional(),
-  argumentSetVersion: z.string().nullable().optional(),
-  dataGraphVersion: z.string().nullable().optional(),
-  tupleSeeds: z.string().nullable().optional(),
-  /** DuckDB statements run before an ETL subject's own SQL — the rows it reads. */
-  sqlFixture: z.string().nullable().optional(),
-  expected: z.string().nullable().optional(),
-  expectedFormat: z.string().nullable().optional(),
-  ordered: z.boolean().nullable().optional(),
-  dateCreated: z.string().nullable().optional(),
-  dateModified: z.string().nullable().optional(),
-});
-
-const testVersionSchema = z.object({
-  id: z.string(),
-  isPartOf: z.string(),
-  version: z.number(),
-  immutable: z.boolean().nullable().optional(),
-  expectationKind: z.string(),
-  // Inlined by the server, in position order — a case has no endpoint of its own.
-  cases: z.array(testCaseSchema).default([]),
-  subjectVersion: z.string().nullable().optional(),
-  backend: z.string().nullable().optional(),
-  maxIterations: z.number().nullable().optional(),
-  timeoutMs: z.number().nullable().optional(),
-  comment: z.string().nullable().optional(),
-  dateCreated: z.string().nullable().optional(),
-  dateModified: z.string().nullable().optional(),
-});
-
-const comparisonDetailSchema = z
-  .object({
-    missing: z.array(z.string()).optional(),
-    unexpected: z.array(z.string()).optional(),
-    matched: z.number().optional(),
-  })
-  .nullable()
-  .optional();
-
-/**
- * One case's verdict.
- *
- * The diff is here rather than at the top level because it belongs to the case
- * that produced it — one flattened diff across N cases would be a diff of
- * nothing in particular.
- */
-const testCaseRunResultSchema = z.object({
-  caseId: z.string(),
-  name: z.string(),
-  position: z.number(),
-  passed: z.boolean(),
-  message: z.string(),
-  detail: comparisonDetailSchema,
-  /** What the subject produced, capped server-side. The pane shows it beside the diff. */
-  result: z.string().nullable().optional(),
-  resultTruncated: z.boolean().nullable().optional(),
-  inputs: z
-    .object({
-      argumentSetVersion: z.string().nullable().optional(),
-      dataGraphVersion: z.string().nullable().optional(),
-    })
-    .optional(),
-  durationMs: z.number(),
-});
-
-/** One verdict per case, plus the summary across them. */
-const testRunResultSchema = z.object({
-  testId: z.string(),
-  testVersionId: z.string(),
-  passed: z.boolean(),
-  message: z.string(),
-  expectationKind: z.string(),
-  hermetic: z.boolean(),
-  durationMs: z.number(),
-  subjectVersionId: z.string().nullable().optional(),
-  ranAt: z.string(),
-  cases: z.array(testCaseRunResultSchema).default([]),
-  passedCount: z.number().default(0),
-  failedCount: z.number().default(0),
-});
-
-/**
- * The answer to a run-by-tag: the tally, and every verdict behind it.
- *
- * `requested` is how many tests the tags selected — always `results.length`,
- * and present so "no test carries this tag" is a fact a caller can read rather
- * than infer from an empty array.
- */
-const taggedTestRunSchema = z.object({
-  tags: z.array(z.string()),
-  match: z.string(),
-  requested: z.number(),
-  passed: z.number(),
-  failed: z.number(),
-  results: z.array(testRunResultSchema).default([]),
-  reportGraph: z.string().nullable().optional(),
-  reportError: z.string().nullable().optional(),
-});
-
-/** `any` unions the tags, `all` intersects them. The API defaults to `any`. */
-export type TagMatchMode = 'any' | 'all';
-
-export type TaggedTestRun = z.infer<typeof taggedTestRunSchema>;
-
-export type TestCase = z.infer<typeof testCaseSchema>;
-export type TestCaseRunResult = z.infer<typeof testCaseRunResultSchema>;
-export type TestVersion = z.infer<typeof testVersionSchema>;
-export type TestRunResult = z.infer<typeof testRunResultSchema>;
-
-export type RuleVersion = z.infer<typeof ruleVersionSchema>;
-export type DataBlockVersion = z.infer<typeof dataBlockVersionSchema>;
-export type DataGraphVersion = z.infer<typeof dataGraphVersionSchema>;
-export type TupleSetVersion = z.infer<typeof tupleSetVersionSchema>;
-
-/*
- * Backend observations — what the server saw when it last asked the store for
- * its service description. Never persisted, so a fresh server legitimately has
- * nothing to say about a backend that has existed for months.
- */
-const backendProbeSchema = z.object({
-  backendId: z.string(),
-  health: z.enum(['healthy', 'slow', 'unreachable']),
-  latencyMs: z.number().nullable(),
-  product: z.string().nullable(),
-  probedAt: z.string(),
-  error: z.string().nullable(),
-  /** What the endpoint answered with, when it answered. Null when nothing did. */
-  httpStatus: z.number().nullable().optional().default(null),
-  /**
-   * Whether the store exposes its own prefix map, and whether we may write it.
-   * Null when the probe could not establish it — an unreachable store, an
-   * in-process one, or detection switched off server-side — which is not the
-   * same as `read: null`, which means we asked and found nothing.
-   */
-  prefixes: z
-    .object({
-      read: z.enum(['jena-prefixes', 'turtle-scrape']).nullable(),
-      write: z.literal('jena-prefixes').nullable(),
-      readEndpoint: z.string().nullable(),
-      writeEndpoint: z.string().nullable(),
-      count: z.number().nullable(),
-    })
-    .nullable()
-    .optional()
-    .default(null),
-});
-
-const remotePrefixesSchema = z.object({
-  mappings: z.array(z.object({ prefix: z.string(), namespace: z.string() })),
-  source: z.enum(['jena-prefixes', 'turtle-scrape']),
-  readOnly: z.boolean(),
-  endpoint: z.string().nullable(),
-});
-
-const prefixPushSchema = z.object({
-  results: z.array(z.object({
-    prefix: z.string(),
-    action: z.enum(['upsert', 'delete']),
-    status: z.enum(['ok', 'failed']),
-    error: z.string().optional(),
-  })),
-  applied: z.number(),
-  failed: z.number(),
-});
-
-const backendEnvSchema = z.object({
-  authEnvKey: z.string().nullable(),
-  variables: z.array(z.object({
-    name: z.string(),
-    role: z.string(),
-    // Presence only. A value never crosses this boundary.
-    set: z.boolean(),
-  })),
-});
-
-const backendUsageGroupSchema = z.object({
-  count: z.number(),
-  sample: z.array(z.object({ id: z.string(), name: z.string() })),
-});
-
-const backendUsageSchema = z.object({
-  queries: backendUsageGroupSchema,
-  queryGroups: backendUsageGroupSchema,
-  benchmarks: backendUsageGroupSchema,
-  libraries: backendUsageGroupSchema,
-  // Older servers do not count ETL jobs; read their absence as none.
-  etlJobs: backendUsageGroupSchema.default({ count: 0, sample: [] }),
-});
-
-export type BackendProbe = z.infer<typeof backendProbeSchema>;
-export type BackendPrefixCapability = NonNullable<BackendProbe['prefixes']>;
-export type RemotePrefixes = z.infer<typeof remotePrefixesSchema>;
-export type PrefixPushResult = z.infer<typeof prefixPushSchema>;
-export type BackendEnv = z.infer<typeof backendEnvSchema>;
-export type BackendUsage = z.infer<typeof backendUsageSchema>;
-
-// Schema for serialized errors
-const serializedErrorSchema = z.object({
-  message: z.string(),
-  stack: z.string().optional(),
-});
 
 export type RuleSetVersion = ContractRuleSetVersion;
 export { type RuleSetExecutionResponse, type DataBlockExecution, type IterationRecord, type RuleExecutionRecord };
@@ -914,7 +639,6 @@ export function useApiClient() {
       if (!response.ok) {
         if (response.status === 412) {
           const payload = await response.json().catch(() => ({}));
-          console.error('[useApiClient] 412 Precondition Failed:', payload);
           throw createError({
             statusCode: 412,
             statusMessage: (payload as { error?: string }).error ?? 'Precondition Failed',
@@ -923,11 +647,6 @@ export function useApiClient() {
         }
 
         const payload = await response.json().catch(() => ({}));
-        console.error('[useApiClient] Request failed:', {
-          status: response.status,
-          statusText: response.statusText,
-          payload
-        });
         throw createError({ statusCode: response.status, statusMessage: (payload as { error?: string }).error ?? response.statusText, data: payload });
       }
       
@@ -946,11 +665,14 @@ export function useApiClient() {
       });
       return result;
     } catch (error) {
-      console.error('[useApiClient] Request exception:', {
-        url: input.toString(),
-        error: error,
-        errorMessage: error instanceof Error ? error.message : 'Unknown error'
-      });
+      // Logged once, here, whatever failed — a refused status, a body that did
+      // not parse, or a network error. Each used to log on its own and then
+      // again on the way out, so one failure read as three.
+      const status = (error as { statusCode?: number }).statusCode;
+      console.error(
+        `[useApiClient] ${init.method ?? 'GET'} ${input.toString()} failed${status ? ` (${status})` : ''}:`,
+        error instanceof Error ? error.message : error,
+      );
       throw error;
     }
   };
@@ -1094,14 +816,11 @@ export function useApiClient() {
     queries: Array<{ id: string; name: string }>;
     etlJobs: Array<{ id: string; name: string }>;
   }> => {
-    return requestData(buildUrl(`/backends/${encodeURIComponent(id)}/references`), { method: 'GET' }, (payload) => {
-      const schema = z.object({
-        libraries: z.array(z.object({ id: z.string(), name: z.string() })),
-        queries: z.array(z.object({ id: z.string(), name: z.string() })),
-        etlJobs: z.array(z.object({ id: z.string(), name: z.string() })).default([]),
-      });
-      return schema.parse(payload);
-    });
+    return requestData(
+      buildUrl(`/backends/${encodeURIComponent(id)}/references`),
+      { method: 'GET' },
+      backendReferencesSchema.parse,
+    );
   };
 
   const deleteBackend = async (id: string) => {
@@ -1119,14 +838,14 @@ export function useApiClient() {
     requestData(
       buildUrl('/backends/probes'),
       { method: 'GET' },
-      (payload) => z.object({ probes: z.array(backendProbeSchema) }).parse(payload).probes,
+      (payload) => backendProbeListSchema.parse(payload).probes,
     );
 
   const probeAllBackends = () =>
     requestData(
       buildUrl('/backends/probes'),
       { method: 'POST' },
-      (payload) => z.object({ probes: z.array(backendProbeSchema) }).parse(payload).probes,
+      (payload) => backendProbeListSchema.parse(payload).probes,
     );
 
   const probeBackend = (id: string) =>
@@ -1140,7 +859,7 @@ export function useApiClient() {
     requestData(
       buildUrl(`/backends/${encodeURIComponent(id)}/probe-history`),
       { method: 'GET' },
-      (payload) => z.object({ probes: z.array(backendProbeSchema) }).parse(payload).probes,
+      (payload) => backendProbeListSchema.parse(payload).probes,
     );
 
   /*
@@ -1495,22 +1214,6 @@ export function useApiClient() {
     );
   };
 
-  const idResponseSchema = z.object({ id: z.string() });
-  const validationIssueSchema = z.object({
-    level: z.enum(['error', 'warning']),
-    message: z.string(),
-    entityType: z.string().optional(),
-    entityId: z.string().nullable().optional(),
-    code: z.string().nullable().optional(),
-  });
-
-  const validationResponseSchema = z.object({
-    valid: z.boolean(),
-    errors: z.array(z.string()),
-    warnings: z.array(z.string()),
-    issues: z.array(validationIssueSchema).optional(),
-  });
-
   /**
    * Validate query group version
    */
@@ -1519,7 +1222,7 @@ export function useApiClient() {
     return requestData(
       buildUrl(`/query-groups/${encodeURIComponent(groupId)}/v/${encodeURIComponent(String(version))}/validate`),
       { method: 'GET' },
-      validationResponseSchema.parse,
+      queryGroupValidationResponseSchema.parse,
     );
   };
 
@@ -2171,7 +1874,7 @@ export function useApiClient() {
         headers: JSON_HEADERS,
         body: JSON.stringify(body),
       },
-      (payload) => previewTupleContentSchema.parse(payload),
+      (payload) => previewTupleContentResponseSchema.parse(payload),
     );
   };
 
@@ -2181,7 +1884,7 @@ export function useApiClient() {
     return requestData(
       buildUrl('/tuple-sets/detect-format'),
       { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify({ contentString }) },
-      (payload) => detectTupleFormatSchema.parse(payload).suggested,
+      (payload) => detectTupleFormatResponseSchema.parse(payload).suggested,
     );
   };
 
@@ -2282,7 +1985,7 @@ export function useApiClient() {
     return requestData(
       buildUrl(`/tests/${encodeURIComponent(testId)}/versions`),
       { method: 'GET' },
-      (payload) => testVersionSchema.array().parse(payload),
+      (payload) => testVersionExpandedSchema.array().parse(payload),
     );
   };
 
@@ -2291,7 +1994,7 @@ export function useApiClient() {
     return request(
       buildUrl(`/tests/${encodeURIComponent(testId)}/versions`),
       { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(input) },
-      testVersionSchema.parse,
+      testVersionExpandedSchema.parse,
     );
   };
 
@@ -2301,7 +2004,7 @@ export function useApiClient() {
     return request(
       buildUrl(`/tests/${encodeURIComponent(testId)}/versions/${encodeURIComponent(String(version))}`),
       { method: 'PATCH', headers: JSON_HEADERS, body: JSON.stringify({ comment }) },
-      testVersionSchema.parse,
+      testVersionExpandedSchema.parse,
     );
   };
 
@@ -2835,36 +2538,6 @@ export function useApiClient() {
   // Argument Sets API
   // ========================================================================
 
-  const argumentSetVersionSchema = z.object({
-    id: z.string(),
-    isPartOf: z.string(),
-    version: z.number(),
-    tupleBindings: z.array(z.any()),
-    scalarBindings: z.array(z.any()),
-    graphBindings: z.array(z.any()).optional(),
-    dateCreated: z.string(),
-    dateModified: z.string(),
-  });
-
-  const argumentSetSchema = z.object({
-    id: z.string(),
-    name: z.string(),
-    description: z.string().nullable().optional(),
-    // Provenance, and null on a set composed from the rail rather than made on
-    // a callable's screen. Nullable here as well as on the server, or the rail
-    // listing would fail to parse exactly the rows it exists to show.
-    scope: z.enum(['query', 'queryGroup']).nullable().optional(),
-    targetId: z.string().nullable().optional(),
-    libraryId: z.string().optional(),
-    currentVersionId: z.string().nullable().optional(),
-    currentVersion: argumentSetVersionSchema.nullable().optional(),
-    tupleBindings: z.array(z.any()),
-    scalarBindings: z.array(z.any()),
-    graphBindings: z.array(z.any()).optional(),
-    dateCreated: z.string(),
-    dateModified: z.string(),
-  });
-
   /**
    * Every argument set in a library, whatever callable it was made for.
    *
@@ -2877,7 +2550,7 @@ export function useApiClient() {
     return requestData(
       buildUrl(`/argument-sets?libraryId=${encodeURIComponent(libraryId)}`),
       { method: 'GET' },
-      (payload) => z.array(argumentSetSchema).parse(payload),
+      (payload) => z.array(argumentSetDetailSchema).parse(payload),
     );
   };
 
@@ -2896,7 +2569,7 @@ export function useApiClient() {
     return request(
       buildUrl('/argument-sets'),
       { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(input) },
-      (payload) => argumentSetSchema.parse(payload),
+      (payload) => argumentSetDetailSchema.parse(payload),
     );
   };
 
@@ -2915,7 +2588,7 @@ export function useApiClient() {
       { method: 'GET' },
       (payload) => {
         // Parse as array of argument sets
-        return z.array(argumentSetSchema).parse(payload);
+        return z.array(argumentSetDetailSchema).parse(payload);
       }
     );
   };
@@ -2929,7 +2602,7 @@ export function useApiClient() {
       buildUrl(`/argument-sets/${encodeURIComponent(setId)}`),
       { method: 'GET' },
       (payload) => {
-        return argumentSetSchema.parse(payload);
+        return argumentSetDetailSchema.parse(payload);
       }
     );
   };
@@ -2953,7 +2626,7 @@ export function useApiClient() {
         body: JSON.stringify(input),
       },
       (payload) => {
-        return argumentSetSchema.parse(payload);
+        return argumentSetDetailSchema.parse(payload);
       }
     );
   };
@@ -2977,7 +2650,7 @@ export function useApiClient() {
     return request(
       buildUrl(`/argument-sets/${encodeURIComponent(setId)}`),
       { method: 'PUT', headers, body: JSON.stringify(input) },
-      (payload) => argumentSetSchema.parse(payload),
+      (payload) => argumentSetDetailSchema.parse(payload),
     );
   };
 
@@ -3009,14 +2682,7 @@ export function useApiClient() {
     return requestData(
       buildUrl(`/argument-sets/${encodeURIComponent(id)}/export`),
       { method: 'GET' },
-      (payload) => {
-        const schema = z.object({
-          arguments: z.array(z.any()),
-          limits: z.array(z.object({ name: z.string(), value: z.number() })),
-          offsets: z.array(z.object({ name: z.string(), value: z.number() })),
-        });
-        return schema.parse(payload);
-      }
+      argumentSetExportSchema.parse
     );
   };
 
@@ -3028,7 +2694,7 @@ export function useApiClient() {
     return requestData(
       buildUrl(`/argument-sets/${encodeURIComponent(setId)}/v`),
       { method: 'GET' },
-      (payload) => z.array(argumentSetVersionSchema).parse(payload),
+      (payload) => z.array(argumentSetVersionDetailSchema).parse(payload),
     );
   };
 
@@ -3037,7 +2703,7 @@ export function useApiClient() {
     return request(
       buildUrl(`/argument-sets/${encodeURIComponent(setId)}/v/${version}`),
       { method: 'GET' },
-      (payload) => argumentSetVersionSchema.parse(payload),
+      (payload) => argumentSetVersionDetailSchema.parse(payload),
     );
   };
 
@@ -3054,7 +2720,7 @@ export function useApiClient() {
         headers: JSON_HEADERS,
         body: JSON.stringify(input),
       },
-      (payload) => argumentSetVersionSchema.parse(payload),
+      (payload) => argumentSetVersionDetailSchema.parse(payload),
     );
   };
 
@@ -3070,7 +2736,7 @@ export function useApiClient() {
         headers: JSON_HEADERS,
         body: JSON.stringify(input),
       },
-      (payload) => argumentSetVersionSchema.parse(payload),
+      (payload) => argumentSetVersionDetailSchema.parse(payload),
     );
   };
 
@@ -3079,14 +2745,7 @@ export function useApiClient() {
     return requestData(
       buildUrl(`/argument-sets/${encodeURIComponent(setId)}/v/${version}/export`),
       { method: 'GET' },
-      (payload) => {
-        const schema = z.object({
-          arguments: z.array(z.any()),
-          limits: z.array(z.object({ name: z.string(), value: z.number() })),
-          offsets: z.array(z.object({ name: z.string(), value: z.number() })),
-        });
-        return schema.parse(payload);
-      }
+      argumentSetExportSchema.parse
     );
   };
 

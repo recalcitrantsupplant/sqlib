@@ -11,6 +11,7 @@
         :is-scratch="isScratch"
         :current-version-number="currentVersionNumber"
         :edit-count="editCount"
+        :draft-not-kept="draftNotKept"
         :saving="isSaving"
         :can-save="canSave"
         :needs-name="!setName.trim()"
@@ -314,7 +315,7 @@ import { usePanelResize } from '@/composables/usePanelResize';
 import { useApiClient } from '@/composables/useApiClient';
 import { useActiveLibrary } from '@/composables/useActiveLibrary';
 import { useScratchRecord } from '@/composables/useScratchRecord';
-import { useCallableDrafts, UNASSIGNED_LIBRARY_ID } from '@/composables/useCallableDrafts';
+import { useEntityDraft } from '@/composables/useEntityDraft';
 import { useTupleSetsStore } from '@/composables/useTupleSetsStore';
 import { buildQuerySignature, compatibility } from '@/lib/argumentSignature';
 import { pinBindings, referencesOf } from '@/lib/tupleSetReferences';
@@ -342,7 +343,6 @@ const dataGraphsStore = useDataGraphsStore();
 const tupleSetsStore = useTupleSetsStore();
 const apiClient = useApiClient();
 const { activeLibraryId } = useActiveLibrary();
-const draftsStore = useCallableDrafts();
 
 const setId = ref<string | null>(props.argumentSetId ?? null);
 const setName = ref('');
@@ -363,7 +363,6 @@ const loadedVersionId = ref<string | null>(null);
 const isSaving = ref(false);
 const isDeleting = ref(false);
 const saveError = ref<string | null>(null);
-const locallySavedAt = ref<string | null>(null);
 const newTableVariables = ref('');
 const dataGraphOptions = ref<DataGraphOption[]>([]);
 /* Typed at rather than scrolled — the library's graphs are many and hand-named. */
@@ -550,59 +549,47 @@ const { isScratch } = useScratchRecord({
   }),
 });
 
-const openDraft = computed(() => (setId.value ? draftsStore.draftFor(setId.value) : null));
-const editCount = computed(() => (isScratch.value ? 0 : openDraft.value?.edits ?? 0));
-
-let draftHandle: ReturnType<typeof setTimeout> | null = null;
+/*
+ * The draft lifecycle every versioned work area shares. This screen marks its
+ * own edits — a change to the bindings through one of the handlers above —
+ * rather than watching its fields, so loading a set and swapping to another
+ * one are never edits, and a rename or a description is not one either.
+ */
+const {
+  locallySavedAt,
+  editCount,
+  notPersisted: draftNotKept,
+  removeDraft,
+  cancelDraftSave,
+  scheduleDraftSave,
+  discardDraft: discardEntityDraft,
+} = useEntityDraft<ArgumentSetDraftBody & { description: string }>({
+  section: 'argumentSet',
+  id: () => setId.value,
+  enabled: () => !isScratch.value,
+  libraryId: () => setLibraryId.value || activeLibraryId.value,
+  name: () => setName.value,
+  description: () => description.value || null,
+  editorBody: () => ({
+    description: description.value,
+    scope: scope.value,
+    targetId: targetId.value,
+    basedOnVersion: null,
+    tupleBindings: tupleBindings.value,
+    scalarBindings: scalarBindings.value,
+    graphBindings: graphBindings.value,
+  }),
+  // Discard reloads the set from the server rather than restoring a body.
+  applyBody: () => {},
+});
 
 /** Debounced, like every other record page's draft: a keystroke is not a save. */
 function markEdited() {
-  if (isScratch.value || !setId.value) return;
-  if (draftHandle) clearTimeout(draftHandle);
-  draftHandle = setTimeout(persistDraft, 500);
-}
-
-function persistDraft() {
-  const id = setId.value;
-  if (!id || isScratch.value) return;
-  const existing = draftsStore.draftFor(id);
-  draftsStore.save({
-    id: existing?.id ?? `urn:ui-temp:draft-of-${id}`,
-    libraryId: setLibraryId.value || activeLibraryId.value || UNASSIGNED_LIBRARY_ID,
-    type: 'query',
-    kind: 'draft',
-    section: 'argumentSet',
-    name: setName.value,
-    description: description.value || null,
-    queryString: null,
-    body: {
-      description: description.value,
-      scope: scope.value,
-      targetId: targetId.value,
-      basedOnVersion: null,
-      tupleBindings: tupleBindings.value,
-      scalarBindings: scalarBindings.value,
-      graphBindings: graphBindings.value,
-    },
-    resultKind: 'BINDINGS',
-    inputTuples: [],
-    limitParameters: [],
-    offsetParameters: [],
-    outputs: [],
-    basedOn: id,
-    edits: (existing?.edits ?? 0) + 1,
-  });
-  locallySavedAt.value = new Date().toISOString();
-}
-
-function removeDraft() {
-  const existing = setId.value ? draftsStore.draftFor(setId.value) : null;
-  if (existing) draftsStore.remove(existing.id);
-  locallySavedAt.value = null;
+  scheduleDraftSave();
 }
 
 function discardDraft() {
-  removeDraft();
+  discardEntityDraft();
   void load();
 }
 
@@ -882,10 +869,7 @@ async function save(payload?: { name?: string }) {
       versions.value = await store.loadVersions(setId.value);
       toast.success(`Saved v${version.version}`);
     }
-    if (draftHandle) {
-      clearTimeout(draftHandle);
-      draftHandle = null;
-    }
+    cancelDraftSave();
     removeDraft();
     await loadFits();
   } catch (error) {
@@ -924,10 +908,7 @@ watch(() => props.argumentSetId, (next) => {
    * autosave, which belongs to the set that was open and would otherwise write
    * its body under the new id.
    */
-  if (draftHandle) {
-    clearTimeout(draftHandle);
-    draftHandle = null;
-  }
+  cancelDraftSave();
   setId.value = next ?? null;
   setName.value = '';
   description.value = '';

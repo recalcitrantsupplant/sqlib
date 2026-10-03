@@ -7,9 +7,9 @@ import {
   RAIL_SECTIONS,
   SCREEN_SECTION_PATHS,
   isScreenSection,
-  isRailSection,
   type RailSection,
 } from '../lib/railSections';
+import { parseSectionRoute, sectionPath, type RoutedSection } from '../lib/sectionRoutes';
 import { useActiveLibrary } from './useActiveLibrary';
 import { useCommandPalette } from './useCommandPalette';
 import { useCommand, useCommandProvider, type Command } from './useCommandRegistry';
@@ -78,16 +78,16 @@ export function useAppCommands(): void {
    * Where a rail section lives as a route.
    *
    * The two screen sections are pages of their own; every other section is the
-   * home page under `?section=`, which is exactly what `AppNavRail` drives on
-   * index.vue — so a command and a rail click land in the same place, and the
-   * destination survives a reload and a shared link.
+   * workspace at `/<section>` (`lib/sectionRoutes.ts`), which is where a rail
+   * click lands too — so a command and a click arrive at the same place, and
+   * the destination survives a reload and a shared link.
    */
   const go = (section: RailSection) => {
     const library = activeLibraryId.value ? { library: activeLibraryId.value } : {};
     if (isScreenSection(section)) {
       return router.push({ path: SCREEN_SECTION_PATHS[section], query: library });
     }
-    return router.push({ path: '/', query: { ...library, section } });
+    return router.push({ path: sectionPath({ section: section as RoutedSection, id: null }), query: library });
   };
 
   /*
@@ -96,7 +96,7 @@ export function useAppCommands(): void {
    * clicking the hinge are the same state.
    */
   const sidebarKey = computed(() => {
-    const section = isRailSection(route.query.section) ? route.query.section : null;
+    const section = parseSectionRoute(route.params)?.section ?? null;
     if (!section) return 'tree';
     return section === 'backends' ? 'backends' : section;
   });
@@ -179,13 +179,9 @@ export function useAppCommands(): void {
    * as long as the library and changes under you, and none of it is bindable.
    * The palette asks the stores to load when it opens; here we only read them.
    */
-  const jumpTo = (section: RailSection, key: string, id: string) => router.push({
-    path: '/',
-    query: {
-      ...(activeLibraryId.value ? { library: activeLibraryId.value } : {}),
-      section,
-      [key]: id,
-    },
+  const jumpTo = (section: RoutedSection, id: string) => router.push({
+    path: sectionPath({ section, id }),
+    query: activeLibraryId.value ? { library: activeLibraryId.value } : {},
   });
 
   useCommandProvider(() => [
@@ -194,14 +190,14 @@ export function useAppCommands(): void {
       title: `Query: ${query.name}`,
       group: 'Go to' as const,
       keywords: query.description ?? undefined,
-      run: () => jumpTo('queries', 'query', query.id),
+      run: () => jumpTo('queries', query.id),
     })),
     ...queryGroupsStore.queryGroups.value.map((group) => ({
       id: `go.queryGroup.${group.id}`,
       title: `Query group: ${group.name}`,
       group: 'Go to' as const,
       keywords: group.description ?? undefined,
-      run: () => jumpTo('queryGroups', 'queryGroup', group.id),
+      run: () => jumpTo('queryGroups', group.id),
     })),
   ]);
 }

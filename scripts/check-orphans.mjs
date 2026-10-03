@@ -28,11 +28,23 @@
  *
  * Roots are the things something outside the source graph can start from:
  * package entry points (`main`, `module`, `exports`, `bin`), files named in
- * package scripts, tests, tool configs, Nuxt's convention directories (a page
- * or component is reached by the router, not by an import), and any file a
+ * package scripts, tests, tool configs, the Nuxt directories the framework
+ * itself loads (`pages/`, `plugins/`, `layouts/`, `middleware/`, `app.vue` —
+ * a page is reached by the router, not by an import), and any file a
  * root-level script, Justfile, Taskfile, Dockerfile or workflow names. From
  * those we follow static imports, re-exports, `require()` and dynamic
  * `import()` with a literal specifier.
+ *
+ * `components/` and `composables/` are deliberately not roots. Nuxt
+ * auto-imports them, so they are reached two ways: an explicit import, or
+ * their auto-import name used by a file that is itself reached — a component
+ * by its tag in a template (`components/query-group/Foo.vue` is
+ * `<QueryGroupFoo>`, see `nuxtComponentName`), a composable by one of its
+ * exported names. Rooting the whole directories, as this check first did, made
+ * every component look alive whether anything rendered it or not. And a
+ * component or composable reached only from its own unit test is still dead
+ * code — the test keeps it compiling, not used — so for those two directories
+ * reachability is measured from product roots alone.
  *
  * Dynamic specifiers built at runtime are not followed — the resolver cannot
  * know them. That is the one way this check can be wrong in the direction that
@@ -58,8 +70,11 @@ const BASELINE_PATH = join(ROOT, 'scripts', 'orphan-baseline.json');
 const PACKAGES = join(ROOT, 'packages');
 
 const SOURCE_EXT = ['.ts', '.tsx', '.vue', '.mjs', '.cjs', '.js'];
+// `build` is not here: `packages/web/src/components/build/` is source (the
+// Build screen), and skipping it hid that whole directory and everything only
+// it imports. Build output called `build` is caught by the git-ignore filter.
 const IGNORE_DIR = new Set([
-  'node_modules', 'dist', '.nuxt', '.output', '.git', 'coverage', 'build', 'vendor',
+  'node_modules', 'dist', '.nuxt', '.output', '.git', 'coverage', 'vendor',
 ]);
 
 const rel = (p) => relative(ROOT, p).split('\\').join('/');
@@ -141,12 +156,17 @@ function importsOf(file) {
 // --- roots ------------------------------------------------------------------
 
 const TEST_RE = /\.(test|spec)\.[jt]sx?$|(^|\/)(test|tests|__tests__|manual-tests)(\/|$)/;
+// Under the web app's source tree `tests` is a product feature (the test-runs
+// UI lives in `components/tests/`), not a test directory — `.dockerignore`
+// makes the same exception. Only real test files count as tests there.
+const WEB_SRC_TEST_RE = /\.(test|spec)\.[jt]sx?$|(^|\/)__tests__(\/|$)/;
+const isTest = (r) => (r.startsWith('packages/web/src/') ? WEB_SRC_TEST_RE : TEST_RE).test(r);
 const CONFIG_RE = /^(vitest|vite|playwright|playwright\.\w+|nuxt|tailwind|stylelint|eslint|commitlint|drizzle)\.config\.[cm]?[jt]s$/;
-// Nuxt reaches these by convention (routing, auto-import, auto-registration),
-// so no import edge points at them and they would all read as orphans.
-const WEB_CONVENTION_DIRS = [
-  'pages', 'components', 'composables', 'plugins', 'layouts', 'middleware', 'server', 'app',
-];
+// Nuxt loads these itself (routing, plugin and layout registration), so no
+// import edge points at them and they would all read as orphans. Components
+// and composables are not here: they are reached through auto-import names,
+// below, and are only alive if something reached uses them.
+const WEB_CONVENTION_DIRS = ['pages', 'plugins', 'layouts', 'middleware', 'server', 'app'];
 
 function packageRoots(pkgDir, files) {
   const roots = new Set();
@@ -227,6 +247,126 @@ function externallyNamedFiles(files) {
   return new Set(files.filter((f) => blob.includes(rel(f))));
 }
 
+// --- Nuxt auto-imports (packages/web) ---------------------------------------
+//
+// The second kind of edge: a file in the web app that names a component in its
+// template, or calls a composable, without importing it. Nuxt resolves those
+// names at build time, so we resolve them the same way.
+const WEB_COMPONENTS = join(WEB_SRC, 'components');
+const WEB_COMPOSABLES = join(WEB_SRC, 'composables');
+// shadcn-nuxt registers what each `components/ui/<name>/index.ts` exports, under
+// the export's own name, instead of the default path-prefixed name.
+const WEB_UI = join(WEB_COMPONENTS, 'ui');
+
+/** scule's `splitByCase`, which Nuxt uses to build component names. */
+function splitByCase(s) {
+  return s
+    .split(/[-_\s./\\]+/)
+    .flatMap((part) => part.match(/[A-Z]+(?![a-z])|[A-Z]?[a-z]+|\d+/g) ?? [])
+    .filter(Boolean);
+}
+
+const pascal = (parts) => parts.map((p) => p[0].toUpperCase() + p.slice(1)).join('');
+
+/**
+ * The tag Nuxt's default component scan gives a file: its directories as a
+ * prefix, then its own name, with a prefix the file name already repeats
+ * dropped (`query-group/QueryGroupCanvasNode.vue` is `QueryGroupCanvasNode`,
+ * not `QueryGroupQueryGroupCanvasNode`). Mirrors `resolveComponentNameSegments`
+ * in nuxt/src/components/scan.ts.
+ */
+function nuxtComponentName(file) {
+  const parts = relative(WEB_COMPONENTS, file).split(/[\\/]/);
+  let fileName = parts.pop().replace(/\.[^.]+$/, '');
+  if (fileName.toLowerCase() === 'index' && parts.length) fileName = parts.pop();
+  const fileNameParts = splitByCase(fileName);
+  const fileNameContent = fileNameParts.join('/').toLowerCase();
+  const nameParts = parts.flatMap((p) => splitByCase(p));
+  const matched = [];
+  let prefixLength = nameParts.length;
+  let consumed = nameParts.length;
+  for (let index = parts.length - 1; index >= 0; index--) {
+    const segment = splitByCase(parts[index]);
+    consumed -= segment.length;
+    matched.unshift(...segment.map((p) => p.toLowerCase()));
+    const suffix = matched.join('/');
+    if (fileNameContent === suffix || fileNameContent.startsWith(`${suffix}/`)) prefixLength = consumed;
+  }
+  return pascal([...nameParts.slice(0, prefixLength), ...fileNameParts]);
+}
+
+const kebab = (name) => splitByCase(name).map((p) => p.toLowerCase()).join('-');
+
+/** Names a module exports, for composables and shadcn index files. */
+function exportedNames(file) {
+  const src = readFileSync(file, 'utf8');
+  const names = new Set();
+  for (const m of src.matchAll(/export\s+(?:declare\s+)?(?:async\s+)?(?:function\*?|const|let|var|class|enum)\s+([A-Za-z_$][\w$]*)/g)) {
+    names.add(m[1]);
+  }
+  for (const m of src.matchAll(/export\s+(?!type\b)\{([^}]*)\}/g)) {
+    for (const item of m[1].split(',')) {
+      const name = item.trim().replace(/^type\s+/, '').split(/\s+as\s+/).pop().trim();
+      if (/^[A-Za-z_$][\w$]*$/.test(name) && name !== 'default') names.add(name);
+    }
+  }
+  return names;
+}
+
+/**
+ * tag -> component file, and identifier -> composable file, for every
+ * component and composable Nuxt would auto-import from this tree.
+ */
+function autoImportTables(files) {
+  const tags = new Map();
+  const identifiers = new Map();
+  for (const file of files) {
+    if (file.startsWith(`${WEB_UI}/`)) {
+      // ui/<name>/index.ts, one level down: shadcn's registration.
+      if (/^[^/\\]+[/\\]index\.ts$/.test(relative(WEB_UI, file))) {
+        for (const name of exportedNames(file)) if (/^[A-Z]/.test(name)) tags.set(name, file);
+      }
+    } else if (file.startsWith(`${WEB_COMPONENTS}/`) && file.endsWith('.vue')) {
+      tags.set(nuxtComponentName(file), file);
+    } else if (file.startsWith(`${WEB_COMPOSABLES}/`)) {
+      // Nuxt scans the top level of composables/ and `<dir>/index.ts`.
+      const r = relative(WEB_COMPOSABLES, file).split(/[\\/]/);
+      const scanned = r.length === 1 || (r.length === 2 && /^index\.[jt]s$/.test(r[1]));
+      if (scanned && !isTest(rel(file))) {
+        for (const name of exportedNames(file)) identifiers.set(name, file);
+      }
+    }
+  }
+  // Kebab-case and `Lazy`-prefixed tags resolve to the same component.
+  for (const [name, file] of [...tags]) {
+    tags.set(kebab(name), file);
+    tags.set(`Lazy${name}`, file);
+    tags.set(`lazy-${kebab(name)}`, file);
+  }
+  return { tags, identifiers };
+}
+
+let autoImports = null;
+
+/** Files a web source file reaches by auto-import name rather than by import. */
+function autoImportedBy(file) {
+  if (!file.startsWith(`${WEB_SRC}/`)) return [];
+  const src = readFileSync(file, 'utf8');
+  const out = new Set();
+  if (file.endsWith('.vue')) {
+    for (const m of src.matchAll(/<([A-Za-z][\w-]*)/g)) {
+      const hit = autoImports.tags.get(m[1]);
+      if (hit) out.add(hit);
+    }
+  }
+  for (const m of src.matchAll(/[A-Za-z_$][\w$]*/g)) {
+    const hit = autoImports.identifiers.get(m[0]);
+    if (hit) out.add(hit);
+  }
+  out.delete(file);
+  return [...out];
+}
+
 // --- the check --------------------------------------------------------------
 
 /**
@@ -261,25 +401,45 @@ for (const name of readdirSync(PACKAGES)) {
   for (const r of packageRoots(pkgDir, pkgFiles)) roots.add(r);
 }
 
+const testRoots = new Set();
 for (const file of files) {
   const r = rel(file);
-  if (TEST_RE.test(r) || CONFIG_RE.test(r.split('/').pop())) roots.add(file);
+  if (isTest(r)) testRoots.add(file);
+  else if (CONFIG_RE.test(r.split('/').pop())) roots.add(file);
 }
 for (const file of externallyNamedFiles(files)) roots.add(file);
 
-const reachable = new Set();
-const queue = [...roots];
-while (queue.length) {
-  const file = queue.pop();
-  if (reachable.has(file)) continue;
-  reachable.add(file);
-  for (const spec of importsOf(file)) {
-    const target = resolveSpecifier(file, spec);
-    if (target && !reachable.has(target)) queue.push(target);
+autoImports = autoImportTables(files);
+
+function reach(from) {
+  const reached = new Set();
+  const queue = [...from];
+  while (queue.length) {
+    const file = queue.pop();
+    if (reached.has(file)) continue;
+    reached.add(file);
+    for (const spec of importsOf(file)) {
+      const target = resolveSpecifier(file, spec);
+      if (target && !reached.has(target)) queue.push(target);
+    }
+    for (const target of autoImportedBy(file)) {
+      if (!reached.has(target)) queue.push(target);
+    }
   }
+  return reached;
 }
 
-const orphans = files.filter((f) => !reachable.has(f)).map(rel).sort();
+// Reachable from the product alone, and from the product plus its tests.
+const productReachable = reach(roots);
+const reachable = reach([...roots, ...testRoots]);
+for (const file of testRoots) roots.add(file);
+
+// A web component or composable only a test reaches is dead all the same.
+const productOnly = (f) => f.startsWith(`${WEB_COMPONENTS}/`) || f.startsWith(`${WEB_COMPOSABLES}/`);
+const orphans = files
+  .filter((f) => !reachable.has(f) || (productOnly(f) && !isTest(rel(f)) && !productReachable.has(f)))
+  .map(rel)
+  .sort();
 
 // The measures-nothing guard every gate in this repo needs: a scan that found
 // no files reports zero orphans, which is the same answer a spotless tree

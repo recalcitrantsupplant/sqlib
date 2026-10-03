@@ -29,16 +29,8 @@ import { ldkit, xsd, sqlib, sdo } from '../namespaces.js';
  * differ in what a reader can conclude about the content, which is the only
  * thing this field is for.
  */
-export const TUPLE_SOURCE_FORMATS = [
-  'csv',
-  'tsv',
-  'sparql-results-tsv',
-  'sparql-results-json',
-  'query-results',
-  'etl-results',
-] as const;
-
-export type TupleSourceFormat = (typeof TUPLE_SOURCE_FORMATS)[number];
+export { TUPLE_SOURCE_FORMATS, type TupleSourceFormat } from '@sparql-query-lib/contracts';
+import type { TupleSourceFormat } from '@sparql-query-lib/contracts';
 
 export const TupleSetVersionSchema = {
   '@type': sqlib.TupleSetVersion,

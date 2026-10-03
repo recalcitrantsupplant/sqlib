@@ -18,31 +18,43 @@
  * fetches.
  */
 import { computed, onScopeDispose, ref, watch, type Ref } from 'vue';
+import { z } from 'zod';
 // @ts-ignore - Nuxt auto-import
 import { useRuntimeConfig } from '#imports';
 import { parseSseStream } from '../lib/sse';
 import { clientId } from '../lib/clientId';
 import { useAuth } from './useAuth';
-import { useLibraryRefresh } from './useLibraryRefresh';
+import { useLibraryRefresh, type ChangedEntity } from './useLibraryRefresh';
 
 export type LibraryEventStatus = 'idle' | 'connecting' | 'live' | 'offline';
 
-/** A frame off the feed. Notification only — never the entity itself. */
-export interface LibraryChangeEvent {
-  type: 'changed';
-  entity: string;
-  id: string | null;
-  libraryId: string | null;
-  method: string;
-  origin: string | null;
-  at: string;
-}
+/**
+ * A frame off the feed. Notification only — never the entity itself.
+ *
+ * Parsed rather than cast: a frame from a newer or older server that does not
+ * carry an entity name cannot be dispatched to a store, and is dropped here
+ * instead of being sent to the wrong one.
+ */
+export const libraryChangeEventSchema = z.object({
+  type: z.literal('changed'),
+  entity: z.string().min(1),
+  id: z.string().nullable().default(null),
+  libraryId: z.string().nullable().default(null),
+  method: z.string().default(''),
+  origin: z.string().nullable().default(null),
+  at: z.string(),
+});
+
+export type LibraryChangeEvent = z.infer<typeof libraryChangeEventSchema>;
 
 export interface UseLibraryEventsOptions {
   /** Subscribe to one library's changes. Follows the picker when it changes. */
   libraryId: Ref<string | null>;
-  /** The entity the user has open, so its concurrency token is refreshed too. */
-  openEntityId?: Ref<string | null>;
+  /**
+   * The entity the user has open, of whatever kind, so its concurrency token
+   * is refreshed too.
+   */
+  openEntity?: Ref<ChangedEntity | null>;
   /**
    * Anything else the screen needs to reload — the Build screen's callable
    * list, say, which is not the queries store.
@@ -105,11 +117,19 @@ export function useLibraryEvents(options: UseLibraryEventsOptions) {
     pending = [];
     if (batch.length === 0 && !force) return;
 
-    const changedIds = batch.map((event) => event.id).filter((id): id is string => Boolean(id));
+    const open = options.openEntity?.value ?? null;
+    const changed: ChangedEntity[] = batch.map((event) => ({ entity: event.entity, id: event.id }));
+    // A reconnect has nothing to name — the gap is unknown — so it reloads the
+    // lists most screens read and whatever is open.
+    if (force && changed.length === 0) {
+      changed.push({ entity: 'query', id: null });
+      if (open) changed.push({ entity: open.entity, id: null });
+    }
 
     await refreshEntities({
-      changedIds,
-      openEntityId: options.openEntityId?.value ?? null,
+      changed,
+      open,
+      libraryId: options.libraryId.value ?? null,
     }).catch(() => undefined);
 
     await Promise.resolve(options.onChange?.(batch)).catch(() => undefined);
@@ -183,8 +203,8 @@ export function useLibraryEvents(options: UseLibraryEventsOptions) {
 
       for await (const raw of parseSseStream(response.body)) {
         if (mine !== generation) return;
-        const event = raw as unknown as LibraryChangeEvent;
-        if (event.type === 'changed') enqueue(event);
+        const parsed = libraryChangeEventSchema.safeParse(raw);
+        if (parsed.success) enqueue(parsed.data);
       }
 
       // The server ended the stream — a restart, a proxy, a deploy.

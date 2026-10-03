@@ -1,12 +1,12 @@
 {
-  "srcTotal": 202,
-  "testTotal": 1024,
+  "srcTotal": 199,
+  "testTotal": 1022,
   "src": {
     "asAny": 46,
-    "colonAny": 156
+    "colonAny": 153
   },
   "test": {
-    "asAny": 759,
+    "asAny": 757,
     "colonAny": 265
   }
 }

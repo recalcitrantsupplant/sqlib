@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { mockEntityApi, RULE, RULE_SET, DATA_BLOCK, BENCHMARK_EXPERIMENT } from './fixtures/entities';
+import { recordUrl, scratchUrl } from './navigate';
 
 /**
  * The flat sidebar in the three sections that used to be stuck on the tree.
@@ -99,9 +100,7 @@ test.describe('Rules sidebar', () => {
     await openSection(page, 'rules');
 
     await page.locator(`[data-entity-id="${RULE_SET.id}"]`).click();
-    await expect(page).toHaveURL(
-      new RegExp(`ruleSet=${encodeURIComponent(RULE_SET.id)}|ruleSet=${RULE_SET.id}`),
-    );
+    await expect(page).toHaveURL(recordUrl('rules', RULE_SET.id));
     await expect(page.locator('.ruleset-work-area')).toBeVisible();
   });
 
@@ -109,7 +108,7 @@ test.describe('Rules sidebar', () => {
     await openSection(page, 'rules');
     await page.locator('[data-testid="new-scratch"]').click();
 
-    await expect(page).toHaveURL(/scratch=/);
+    await expect(page).toHaveURL(scratchUrl());
     await expect(page.locator('[data-testid="scratch-row"]')).toHaveCount(1);
     await expect(page.locator('[data-testid="scratch-chip"]')).toBeVisible();
     // The same rules screen a saved rule set opens, with nothing saved yet.
@@ -166,7 +165,7 @@ test.describe('ETL sidebar', () => {
 
   test('lands on a pipeline rather than an empty screen', async ({ page }) => {
     await openSection(page, 'etl');
-    await expect(page).toHaveURL(/scratch=/);
+    await expect(page).toHaveURL(scratchUrl());
     await expect(page.locator('[data-testid="scratch-row"]')).toHaveCount(1);
   });
 
@@ -214,14 +213,14 @@ test.describe('Bench sidebar', () => {
   test('opens the experiment the sidebar selected', async ({ page }) => {
     await openSection(page, 'benchmarks');
     await page.locator(`[data-entity-id="${BENCHMARK_EXPERIMENT.id}"]`).click();
-    await expect(page).toHaveURL(/benchmark=urn/);
+    await expect(page).toHaveURL(/\/benchmarks\/urn/);
   });
 
   test('+ New starts an unsaved benchmark', async ({ page }) => {
     await openSection(page, 'benchmarks');
     await page.locator('[data-testid="new-scratch"]').click();
 
-    await expect(page).toHaveURL(/scratch=/);
+    await expect(page).toHaveURL(scratchUrl());
     await expect(page.locator('[data-testid="scratch-chip"]')).toBeVisible();
     // Nothing to run yet: no name, no target. The button is the shared save
     // bar's now, as on every other section.

@@ -26,6 +26,7 @@
  */
 import { computed, ref, watch, type Ref } from 'vue';
 import { toExecutionParameters } from '@sparql-query-lib/runtime';
+import type { ExecutionArgument } from '@sparql-query-lib/contracts';
 import type { Callable } from '../lib/callables';
 import {
   booleanValue,
@@ -34,6 +35,7 @@ import {
   toSlotArgument,
   type NotebookValue,
   type RowsValue,
+  type SparqlBindingRow,
 } from '../lib/notebookValues';
 import {
   cellSlots,
@@ -313,7 +315,7 @@ export function useNotebook(
   function slotArgument(
     slot: SlotSource | undefined,
     vars: string[],
-  ): { head: { vars: string[] }; results: { bindings: Array<Record<string, unknown>> } } | 'skip' | string {
+  ): ExecutionArgument | 'skip' | string {
     if (!slot || slot.from === 'typed') {
       // No source is a wildcard row: the runtime drops the slot, which is what
       // makes a freshly inserted cell runnable rather than an error.
@@ -334,7 +336,7 @@ export function useNotebook(
   }
 
   async function runQueryLike(cell: RunCell, target: NotebookTarget, started: number): Promise<void> {
-    const args: Array<{ head: { vars: string[] }; results: { bindings: Array<Record<string, unknown>> } }> = [];
+    const args: ExecutionArgument[] = [];
     const slots = cellSlots(cell);
 
     for (const [index, vars] of target.slots.entries()) {
@@ -372,10 +374,10 @@ export function useNotebook(
       {
         targetId: cellTargetId(cell),
         ...(backendId ? { backendId } : {}),
-        ...(args.length ? { arguments: args as never } : {}),
+        ...(args.length ? { arguments: args } : {}),
         ...(limits.length ? { limits } : {}),
         ...(offsets.length ? { offsets } : {}),
-      } as never,
+      },
       accept ?? undefined,
     );
 
@@ -388,7 +390,7 @@ export function useNotebook(
       const body = JSON.parse(result.body) as {
         boolean?: boolean;
         head?: { vars?: string[] };
-        results?: { bindings?: Array<Record<string, unknown>> };
+        results?: { bindings?: SparqlBindingRow[] };
       };
       produced =
         typeof body.boolean === 'boolean'
@@ -537,7 +539,7 @@ export function useNotebook(
         name: entityName,
         description: `Bound to @${name} in a notebook.`,
         isPartOf: [library],
-      } as never);
+      });
       await apiClient.createDataGraphVersion(graph.id, {
         contentString: value.content,
         contentFormat: value.format,
@@ -551,7 +553,7 @@ export function useNotebook(
         name: entityName,
         description: `Bound to @${name} in a notebook.`,
         isPartOf: [library],
-      } as never);
+      });
       await apiClient.createTupleSetVersion(tupleSet.id, {
         contentString: JSON.stringify({
           head: { vars: value.columns },

@@ -190,8 +190,9 @@ describe('visual regression baselines', () => {
   const pending = pendingBaselines();
 
   it('takes shots the parser can account for', () => {
-    // A guard that resolved nothing would pass everything below it.
-    expect(expected.size).toBeGreaterThan(40);
+    // A guard that resolved nothing would pass everything below it. 38 shots
+    // since the wireframe and mockup galleries went with their pages (WP27).
+    expect(expected.size).toBeGreaterThan(30);
   });
 
   it('has a committed baseline for every shot, or a pending entry saying why not', () => {

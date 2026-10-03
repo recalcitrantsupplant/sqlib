@@ -50,8 +50,8 @@ export interface ParsedTupleContent {
 }
 
 /** A column-level type an untyped column can be promoted to at import. */
-export const SUGGESTED_COLUMN_TYPES = ['xsd:integer', 'xsd:date', 'uri'] as const;
-export type SuggestedColumnType = (typeof SUGGESTED_COLUMN_TYPES)[number];
+export { SUGGESTED_COLUMN_TYPES, type SuggestedColumnType } from '@sparql-query-lib/contracts';
+import { SUGGESTED_COLUMN_TYPES, type SuggestedColumnType } from '@sparql-query-lib/contracts';
 
 export interface ColumnTypeSuggestion {
   column: string;

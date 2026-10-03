@@ -1,4 +1,4 @@
-import { computed, reactive } from 'vue';
+import { computed } from 'vue';
 import {
   type Library,
   type LibraryCreateInput,
@@ -8,30 +8,23 @@ import { useApiClient } from './useApiClient.js';
 import { useSettings } from './useSettings.js';
 import { useDeploymentMode } from './useDeploymentMode.js';
 import { SYSTEM_LIBRARY_ID } from '../lib/constants.js';
+import { createVersionedEntityStore } from './createVersionedEntityStore';
 
-type LibraryState = {
-  items: Library[];
-  loading: boolean;
-  error: string | null;
-  concurrency: Record<string, string | null>;
-};
-
-const state = reactive<LibraryState>({
-  items: [],
-  loading: false,
-  error: null,
-  concurrency: {},
+const useLibraryEntities = createVersionedEntityStore<Library, LibraryFormInput, LibraryFormInput>({
+  noun: 'library',
+  nounPlural: 'libraries',
+  api: () => {
+    const client = useApiClient();
+    return {
+      list: client.listLibraries,
+      get: client.getLibrary,
+      // Normalised on the way out, so the form's empty strings are sent as nulls.
+      create: (input) => client.createLibrary(normalizeInput(input)),
+      update: (id, input, options) => client.updateLibrary(id, normalizeInput(input), options),
+      remove: client.deleteLibrary,
+    };
+  },
 });
-
-function deriveIfMatchToken(etag: string | null, entity: Library | null): string | null {
-  if (etag && typeof etag === 'string' && etag.trim().length > 0) {
-    return etag;
-  }
-  if (!entity) {
-    return null;
-  }
-  return entity.dateModified ?? entity.dateCreated ?? null;
-}
 
 function normalizeInput(input: LibraryFormInput): LibraryCreateInput {
   const toNullable = (value: string | null | undefined) => {
@@ -59,15 +52,8 @@ function toFormInput(library: Library): LibraryFormInput {
 }
 
 export function useLibrariesStore() {
-  const {
-    listLibraries,
-    getLibrary,
-    createLibrary,
-    updateLibrary,
-    deleteLibrary,
-  } = useApiClient();
-
-  const libraries = computed(() => state.items);
+  const entities = useLibraryEntities();
+  const libraries = entities.items;
 
   /**
    * The libraries the UI is allowed to show.
@@ -87,69 +73,25 @@ export function useLibrariesStore() {
   const { isReadOnly } = useDeploymentMode();
   const visibleLibraries = computed(() =>
     settings.value.hofstadterMode && !isReadOnly.value
-      ? state.items
-      : state.items.filter((library) => library.id !== SYSTEM_LIBRARY_ID),
+      ? entities.items.value
+      : entities.items.value.filter((library) => library.id !== SYSTEM_LIBRARY_ID),
   );
 
-  const loading = computed(() => state.loading);
-  const error = computed(() => state.error);
-
-  const loadLibraries = async () => {
-    state.loading = true;
-    state.error = null;
-    try {
-      state.items = await listLibraries();
-    } catch (err: any) {
-      state.error = err?.message ?? 'Failed to load libraries';
-      state.items = [];
-    } finally {
-      state.loading = false;
-    }
-  };
-
   const fetchLibrary = async (id: string) => {
-    const result = await getLibrary(id);
-    state.concurrency[id] = deriveIfMatchToken(result.etag, result.data);
-    return {
-      library: result.data,
-      ifMatch: state.concurrency[id],
-      form: toFormInput(result.data),
-    };
-  };
-
-  const create = async (input: LibraryFormInput) => {
-    const payload = normalizeInput(input);
-    const result = await createLibrary(payload);
-    state.concurrency[result.data.id] = deriveIfMatchToken(result.etag, result.data);
-    await loadLibraries();
-    return result.data;
-  };
-
-  const update = async (id: string, input: LibraryFormInput, explicitIfMatch?: string | null) => {
-    const payload = normalizeInput(input);
-    const ifMatch = explicitIfMatch ?? state.concurrency[id] ?? null;
-    const result = await updateLibrary(id, payload, { ifMatch });
-    state.concurrency[id] = deriveIfMatchToken(result.etag, result.data);
-    await loadLibraries();
-    return result.data;
-  };
-
-  const remove = async (id: string) => {
-    await deleteLibrary(id);
-    delete state.concurrency[id];
-    await loadLibraries();
+    const { data, ifMatch } = await entities.fetch(id);
+    return { library: data, ifMatch, form: toFormInput(data) };
   };
 
   return {
     libraries,
     visibleLibraries,
-    loading,
-    error,
-    concurrency: state.concurrency,
-    loadLibraries,
-    createLibrary: create,
-    updateLibrary: update,
-    deleteLibrary: remove,
+    loading: entities.loading,
+    error: entities.error,
+    concurrency: entities.concurrency,
+    loadLibraries: entities.load,
+    createLibrary: entities.create,
+    updateLibrary: entities.update,
+    deleteLibrary: entities.remove,
     fetchLibrary,
     toFormInput,
     normalizeInput,

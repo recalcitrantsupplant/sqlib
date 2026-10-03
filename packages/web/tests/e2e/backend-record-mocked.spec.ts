@@ -4,6 +4,8 @@
  */
 import { test, expect, type Page, type Route } from '@playwright/test';
 import { mockSidebarCollections } from './fixtures/collections';
+import { sectionUrl } from './navigate';
+import { API_ORIGIN } from './api-origin';
 
 const existingBackend = {
   id: 'urn:sqlib:backend:test-1',
@@ -29,7 +31,7 @@ test.describe('Backends record page (mocked)', () => {
 
     await mockSidebarCollections(page);
 
-    await page.route('**/backends', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/backends`, async (route: Route) => {
       if (route.request().method() === 'GET') {
         await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(backendsStore) });
         return;
@@ -51,11 +53,11 @@ test.describe('Backends record page (mocked)', () => {
 
     // The record page's reads. Probes and usage are observations the record
     // renders around; env presence is names only.
-    await page.route('**/backends/probes', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/backends/probes`, async (route: Route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ probes: [] }) });
     });
 
-    await page.route('**/backends/*/probe', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/backends/*/probe`, async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -71,7 +73,7 @@ test.describe('Backends record page (mocked)', () => {
       });
     });
 
-    await page.route('**/backends/*/probe-history', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/backends/*/probe-history`, async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -84,7 +86,7 @@ test.describe('Backends record page (mocked)', () => {
       });
     });
 
-    await page.route('**/backends/*/env', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/backends/*/env`, async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -99,7 +101,7 @@ test.describe('Backends record page (mocked)', () => {
       });
     });
 
-    await page.route('**/backends/*/usage', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/backends/*/usage`, async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -112,7 +114,7 @@ test.describe('Backends record page (mocked)', () => {
       });
     });
 
-    await page.route('**/backends/*', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/backends/*`, async (route: Route) => {
       const method = route.request().method();
       if (method === 'GET') {
         await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(backendsStore[0]) });
@@ -204,7 +206,7 @@ test.describe('Backends record page (mocked)', () => {
   test('a Used by row opens the list that holds them', async ({ page }) => {
     await page.locator('[data-testid="usage-row"]').first().click();
 
-    await expect(page).toHaveURL(/section=queries/);
+    await expect(page).toHaveURL(sectionUrl('queries'));
   });
 
   test('creation is a draft record: + adds an unsaved row and the pane fills it in', async ({ page }) => {

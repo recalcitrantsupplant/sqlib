@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { mockEntityApi, QUERY } from './fixtures/entities';
+import { sectionUrl, recordUrl } from './navigate';
 
 /**
  * The 56px primary nav rail.
@@ -95,7 +96,18 @@ test.describe('Nav rail', () => {
     await expect(page.locator('.mcp-layout')).toBeVisible();
 
     await railButton(page, 'Backends').click();
-    await expect(page).toHaveURL(/section=backends/);
+    await expect(page).toHaveURL(sectionUrl('backends'));
+    await expect(page.locator('[data-testid="backend-list-sidebar"]')).toBeVisible();
+  });
+
+  /*
+   * The workspace moved from `/?section=…` to `/<section>`. Links of the old
+   * shape — bookmarks, the docs — are redirected for one release rather than
+   * landing on a splash that ignores them.
+   */
+  test('an old /?section= link lands on the section at its new address', async ({ page }) => {
+    await page.goto('/?section=backends', { waitUntil: 'domcontentloaded' });
+    await expect(page).toHaveURL(sectionUrl('backends'));
     await expect(page.locator('[data-testid="backend-list-sidebar"]')).toBeVisible();
   });
 
@@ -110,7 +122,7 @@ test.describe('Nav rail', () => {
 
   test('Query leaves the tree behind for the flat sidebar', async ({ page }) => {
     await railButton(page, 'Query').click();
-    await expect(page).toHaveURL(/section=queries/);
+    await expect(page).toHaveURL(sectionUrl('queries'));
 
     // Queries is the first section converted: it does not scope the tree, it
     // replaces it. Coverage of the list itself is in query-sidebar.spec.ts.
@@ -150,7 +162,7 @@ test.describe('Nav rail', () => {
     await expect(page.locator('[data-testid="backend-list-sidebar"]')).toBeVisible();
 
     await railButton(page, 'Backends').click();
-    await expect(page).not.toHaveURL(/section=/);
+    await expect(page).toHaveURL(/^https?:\/\/[^/]+\/(\?.*)?$/);
     await expect(page.locator('[data-testid="app-splash"]')).toBeVisible();
   });
 
@@ -163,17 +175,18 @@ test.describe('Nav rail', () => {
   });
 
   /*
-   * A link that names a record opens it whatever the URL says about sections,
-   * and the rail follows the record. The highlight is not a scope: no section
-   * was picked, so nothing else on the screen moves.
+   * A link that names a record opens it, in the section that lists it: the
+   * address is `/<section>/<id>`, so the rail and the sidebar follow the
+   * record. An old `/?query=` link is redirected to that address.
    */
-  test('highlights the entry matching the open artifact without scoping', async ({ page }) => {
+  test('a record link opens the record in its section', async ({ page }) => {
     await page.goto(`/?query=${encodeURIComponent(QUERY.id)}`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('.nav-rail');
 
+    await expect(page).toHaveURL(recordUrl('queries', QUERY.id));
     await expect(page.locator('.query-work-area')).toBeVisible();
     await expect(railButton(page, 'Query')).toHaveAttribute('aria-current', 'page');
-    await expect(page.locator('[data-testid="entity-list-sidebar"]')).toHaveCount(0);
+    await expect(page.locator('[data-testid="entity-list-sidebar"]')).toBeVisible();
   });
 
   test('Settings opens from the rail footer', async ({ page }) => {

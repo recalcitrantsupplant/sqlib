@@ -242,23 +242,5 @@ for (const theme of ['light', 'dark'] as const) {
      * an unsaved item in its own list instead, which the section shots above
      * already show.
      */
-
-    // --- Static galleries -------------------------------------------------
-
-    /*
-     * They need no fixtures and render a lot of chrome — headers, toolbars,
-     * buttons, labels, empty states — in one shot.
-     */
-    for (const [name, route] of [
-      ['query-details-wireframe', '/wireframe-query-details-compact'],
-      ['button-variants-wireframe', '/wireframe-add-button-variants'],
-      ['rule-viewer-mockups', '/tests/rule-viewer-mockups'],
-    ] as const) {
-      test(`gallery — ${name}`, async ({ page }) => {
-        await page.goto(route);
-        await stabilise(page);
-        await expect(page).toHaveScreenshot(`${name}-${theme}.png`, { fullPage: true });
-      });
-    }
   });
 }

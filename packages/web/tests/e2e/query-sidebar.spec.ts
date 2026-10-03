@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { mockEntityApi, LIBRARY, QUERY } from './fixtures/entities';
+import { recordUrl, scratchUrl } from './navigate';
 
 /**
  * The Queries sidebar: a flat list with a pinned scratch cluster, replacing
@@ -132,7 +133,7 @@ test.describe('Queries sidebar', () => {
     await expect(scratchRows(page).first()).toContainText('Untitled query 1');
     // Selected, and the URL says which one — a scratch item is addressable.
     await expect(scratchRows(page).first()).toHaveClass(/selected/);
-    await expect(page).toHaveURL(/scratch=urn%3Aui-temp%3A|scratch=urn:ui-temp:/);
+    await expect(page).toHaveURL(scratchUrl('queries'));
   });
 
   test('allocates the next free ordinal rather than reusing a discarded one', async ({ page }) => {
@@ -192,12 +193,12 @@ test.describe('Queries sidebar', () => {
     const scratchId = await scratchRows(page).first().getAttribute('data-scratch-id');
 
     await savedRows(page).first().click();
-    await expect(page).toHaveURL(new RegExp(`query=${QUERY.id}`));
+    await expect(page).toHaveURL(recordUrl('queries', QUERY.id));
     await expect(scratchRows(page)).toHaveCount(1);
 
     // The list *is* the tab strip; switching back is one click, not a reload.
     await scratchRows(page).first().click();
-    await expect(page).toHaveURL(new RegExp(`scratch=${scratchId!}`));
+    await expect(page).toHaveURL(scratchUrl('queries', scratchId!));
     await expect(scratchRows(page).first()).toHaveClass(/selected/);
   });
 
