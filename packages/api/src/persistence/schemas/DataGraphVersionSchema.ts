@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for DataGraphVersion entity.
+ * Schema for DataGraphVersion entity.
  *
  * An immutable snapshot of a data graph's content. Text-first storage, as the
  * design calls for: the content is held as a string and loaded into the
@@ -110,7 +110,7 @@ export const DataGraphVersionSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitDataGraphVersion {
+export interface DataGraphVersionEntity {
   $id: string;
   '@type'?: 'DataGraphVersion';
   isPartOf: string;

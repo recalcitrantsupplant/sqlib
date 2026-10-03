@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for QueryGroup Entity (Stable Pointer)
+ * Schema for QueryGroup Entity (Stable Pointer)
  * 
  * Represents a stable query group entity that points to versioned group implementations.
  * The stable IRI never changes, but currentVersion points to the latest QueryGroupVersion.
@@ -56,7 +56,7 @@ export const QueryGroupSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitQueryGroup {
+export interface QueryGroupEntity {
   $id: string;
   '@type'?: 'QueryGroup';
   name: string;

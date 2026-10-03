@@ -6,13 +6,13 @@ import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
 import { getNodeEphemeralBackendConfig } from '../lib/type-guards.js';
 import type { EntityType } from '../lib/EntityRegistry.js';
 import { toRestApi } from '../persistence/utils/id-adapter.js';
-import type { LdkitQueryGroup } from '../persistence/schemas/QueryGroupSchema.js';
-import type { LdkitQueryGroupVersion } from '../persistence/schemas/QueryGroupVersionSchema.js';
-import type { LdkitQuery } from '../persistence/schemas/QuerySchema.js';
-import type { LdkitQueryVersion } from '../persistence/schemas/QueryVersionSchema.js';
-import type { LdkitRuleSet } from '../persistence/schemas/RuleSetSchema.js';
-import type { LdkitRuleSetVersion } from '../persistence/schemas/RuleSetVersionSchema.js';
-import type { LdkitQueryEdge } from '../persistence/schemas/QueryEdgeSchema.js';
+import type { QueryGroupEntity } from '../persistence/schemas/QueryGroupSchema.js';
+import type { QueryGroupVersionEntity } from '../persistence/schemas/QueryGroupVersionSchema.js';
+import type { QueryEntity } from '../persistence/schemas/QuerySchema.js';
+import type { QueryVersionEntity } from '../persistence/schemas/QueryVersionSchema.js';
+import type { RuleSetEntity } from '../persistence/schemas/RuleSetSchema.js';
+import type { RuleSetVersionEntity } from '../persistence/schemas/RuleSetVersionSchema.js';
+import type { QueryEdgeEntity } from '../persistence/schemas/QueryEdgeSchema.js';
 import { expandCurrentVersionForGroup, expandGroupVersion } from '../lib/GraphResolver.js';
 import { createGroupVersionFlat } from '../lib/GroupVersionWriter.js';
 import { classifyVersionPatch } from '../lib/versionPatch.js';
@@ -137,7 +137,7 @@ export default async function (fastify: FastifyInstance) {
        * `/data-graphs`, `/tags`) all filter. An empty array rather than a 403:
        * it answers "which of these may I see" without saying what exists.
        */
-      const items = cache.getByType('QueryGroup') as LdkitQueryGroup[];
+      const items = cache.getByType('QueryGroup') as QueryGroupEntity[];
       return reply.send(filterReadable(request, items).map(i => toRestApi(i)));
     } catch (e__u: unknown) {
       return sendInternalError(reply, e__u, 'Failed to fetch query groups');
@@ -170,7 +170,7 @@ export default async function (fastify: FastifyInstance) {
       }
 
       const id = body.id || mintId('group');
-      const toCreate: Partial<LdkitQueryGroup> = {
+      const toCreate: Partial<QueryGroupEntity> = {
         $id: id,
         name: body.name,
         description: body.description,
@@ -178,7 +178,7 @@ export default async function (fastify: FastifyInstance) {
         ...(tagCheck.tags !== undefined ? { tags: tagCheck.tags } : {}),
       };
 
-      const created = await cache.create<LdkitQueryGroup>(toCreate, 'QueryGroup');
+      const created = await cache.create<QueryGroupEntity>(toCreate, 'QueryGroup');
       setEntityConcurrencyHeaders(reply, created);
       return reply.status(201).send(toRestApi(created));
     } catch (e__u: unknown) {
@@ -193,7 +193,7 @@ export default async function (fastify: FastifyInstance) {
   fastify.get('/:id', ...typedRoute(getQueryGroupSchema, async (request, reply) => {
     try {
       const { id } = request.params;
-      const item = cache.get(id) as LdkitQueryGroup | null;
+      const item = cache.get(id) as QueryGroupEntity | null;
       if (!item) return reply.status(404).send({ error: 'Not Found' });
       const base = toRestApi(item);
       setEntityConcurrencyHeaders(reply, item);
@@ -208,7 +208,7 @@ export default async function (fastify: FastifyInstance) {
     try {
       const { id } = request.params;
       const updates = request.body;
-      const current = cache.get(id) as LdkitQueryGroup | null;
+      const current = cache.get(id) as QueryGroupEntity | null;
       if (!current) {
         return reply.status(404).send({ error: 'Not Found' });
       }
@@ -247,7 +247,7 @@ export default async function (fastify: FastifyInstance) {
         return reply.status(400).send({ error: tagCheck.error });
       }
 
-      const updated = await cache.update<LdkitQueryGroup>(
+      const updated = await cache.update<QueryGroupEntity>(
         id,
         { ...updates, ...(tagCheck.tags !== undefined ? { tags: tagCheck.tags } : {}) },
         'QueryGroup'
@@ -266,7 +266,7 @@ export default async function (fastify: FastifyInstance) {
   fastify.delete('/:id', ...typedRoute(deleteQueryGroupSchema, async (request, reply) => {
     try {
       const { id } = request.params;
-      const versions = (cache.getByType('QueryGroupVersion') as LdkitQueryGroupVersion[])
+      const versions = (cache.getByType('QueryGroupVersion') as QueryGroupVersionEntity[])
         .filter(version => version.isPartOf === id);
 
       const ownedTypes = new Set<EntityType>([
@@ -330,7 +330,7 @@ export default async function (fastify: FastifyInstance) {
   fastify.get('/:id/v', ...typedRoute(listQueryGroupVersionsForGroupSchema, async (request, reply) => {
     try {
       const { id } = request.params;
-      const versions = (cache.getByType('QueryGroupVersion') as LdkitQueryGroupVersion[])
+      const versions = (cache.getByType('QueryGroupVersion') as QueryGroupVersionEntity[])
         .filter(v => v.isPartOf === id)
         .sort(byVersionAsc);
       return reply.send(filterReadable(request, versions).map(v => toRestApi(v)));
@@ -345,7 +345,7 @@ export default async function (fastify: FastifyInstance) {
     ...typedRoute(createQueryGroupVersionForGroupFlatSchema, async (request, reply) => {
       try {
         const { id: groupId } = request.params;
-        const parent = cache.get(groupId) as LdkitQueryGroup | null;
+        const parent = cache.get(groupId) as QueryGroupEntity | null;
         if (!parent) return reply.status(404).send({ error: 'QueryGroup not found' });
         // The guard resolved this same id, so this restates its decision; kept
         // so the handler does not depend on which ids the guard happens to see,
@@ -413,7 +413,7 @@ export default async function (fastify: FastifyInstance) {
     try {
       const { id: groupId, version } = request.params;
       const targetVer = parseInt(version, 10);
-      const match = (cache.getByType('QueryGroupVersion') as LdkitQueryGroupVersion[])
+      const match = (cache.getByType('QueryGroupVersion') as QueryGroupVersionEntity[])
         .find(v => v.isPartOf === groupId && Number(v.version) === targetVer);
       if (!match) return reply.status(404).send({ error: 'Not Found' });
       requireEntityMode(request, match, 'read');
@@ -434,8 +434,8 @@ export default async function (fastify: FastifyInstance) {
          * any version it cannot name.
          */
         const iriMap: Record<string, string> = {};
-        const allQueries = cache.getByType('Query') as LdkitQuery[];
-        const allQueryVersions = filterReadable(request, cache.getByType('QueryVersion') as LdkitQueryVersion[]);
+        const allQueries = cache.getByType('Query') as QueryEntity[];
+        const allQueryVersions = filterReadable(request, cache.getByType('QueryVersion') as QueryVersionEntity[]);
 
         // Map each query version ID to its query's name
         for (const queryVersion of allQueryVersions) {
@@ -453,8 +453,8 @@ export default async function (fastify: FastifyInstance) {
          * assigned rule set came back as "Unknown" on every reload, while the
          * query node beside it kept its name.
          */
-        const allRuleSets = cache.getByType('RuleSet') as LdkitRuleSet[];
-        const allRuleSetVersions = filterReadable(request, cache.getByType('RuleSetVersion') as LdkitRuleSetVersion[]);
+        const allRuleSets = cache.getByType('RuleSet') as RuleSetEntity[];
+        const allRuleSetVersions = filterReadable(request, cache.getByType('RuleSetVersion') as RuleSetVersionEntity[]);
         for (const ruleSetVersion of allRuleSetVersions) {
           const ruleSet = allRuleSets.find(r => r.$id === ruleSetVersion.isPartOf);
           if (ruleSet && ruleSet.name) {
@@ -487,7 +487,7 @@ export default async function (fastify: FastifyInstance) {
       const targetVer = parseInt(version, 10);
 
       // Find the existing version
-      const existing = (cache.getByType('QueryGroupVersion') as LdkitQueryGroupVersion[])
+      const existing = (cache.getByType('QueryGroupVersion') as QueryGroupVersionEntity[])
         .find(v => v.isPartOf === groupId && Number(v.version) === targetVer);
       if (!existing) return reply.status(404).send({ error: 'Query group version not found' });
       requireEntityMode(request, existing, 'write');
@@ -516,7 +516,7 @@ export default async function (fastify: FastifyInstance) {
       }
 
       const updated = Object.keys(annotations).length > 0
-        ? await cache.update<LdkitQueryGroupVersion>(existing.$id, annotations, 'QueryGroupVersion')
+        ? await cache.update<QueryGroupVersionEntity>(existing.$id, annotations, 'QueryGroupVersion')
         : existing;
 
       if (!updated) {
@@ -545,7 +545,7 @@ export default async function (fastify: FastifyInstance) {
       const { id: groupId, version } = request.params;
       const targetVer = parseInt(version, 10);
 
-      const qgv = (cache.getByType('QueryGroupVersion') as LdkitQueryGroupVersion[])
+      const qgv = (cache.getByType('QueryGroupVersion') as QueryGroupVersionEntity[])
         .find(v => v.isPartOf === groupId && Number(v.version) === targetVer);
       if (!qgv) return reply.status(404).send({ error: 'Query group version not found' });
       requireEntityMode(request, qgv, 'read');
@@ -591,7 +591,7 @@ export default async function (fastify: FastifyInstance) {
       // Validate that edges reference existing nodes
       for (const edgeRef of (qgv.edges || [])) {
         const edgeId = typeof edgeRef === 'string' ? edgeRef : String(edgeRef);
-        const edge = cache.get(edgeId) as LdkitQueryEdge | null;
+        const edge = cache.get(edgeId) as QueryEdgeEntity | null;
         if (!edge) {
           pushIssue('error', `Edge ${edgeId} not found`, 'edge', edgeId, 'EDGE_MISSING');
           continue;
@@ -770,7 +770,7 @@ export default async function (fastify: FastifyInstance) {
       },
     }, async ({ repos, reply, request }) => {
     const { id } = request.params;
-    const group = repos.QueryGroup.get(id) as LdkitQueryGroup | null;
+    const group = repos.QueryGroup.get(id) as QueryGroupEntity | null;
     if (!group) {
       return reply.status(404).send({ error: `QueryGroup ${id} not found` });
     }
@@ -788,7 +788,7 @@ export default async function (fastify: FastifyInstance) {
       },
     }, async ({ repos, reply, request }) => {
     const { id } = request.params;
-    const group = repos.QueryGroup.get(id) as LdkitQueryGroup | null;
+    const group = repos.QueryGroup.get(id) as QueryGroupEntity | null;
     if (!group) {
       return reply.status(404).send({ error: `QueryGroup ${id} not found` });
     }

@@ -4,8 +4,8 @@ import {
   type GroupGraphEntity,
   type LibraryGroupSource,
 } from '../../../src/lib/export/collectLibraryGroups.js';
-import type { LdkitQueryGroup } from '../../../src/persistence/schemas/QueryGroupSchema.js';
-import type { LdkitQueryGroupVersion } from '../../../src/persistence/schemas/QueryGroupVersionSchema.js';
+import type { QueryGroupEntity } from '../../../src/persistence/schemas/QueryGroupSchema.js';
+import type { QueryGroupVersionEntity } from '../../../src/persistence/schemas/QueryGroupVersionSchema.js';
 
 const LIBRARY = 'urn:sqlib:library:main';
 const OTHER = 'urn:sqlib:library:other';
@@ -72,19 +72,19 @@ function graph(overrides: Record<string, GroupGraphEntity> = {}): Record<string,
 
 function source(
   entities: Record<string, GroupGraphEntity>,
-  group: Partial<LdkitQueryGroup> = {},
-  version: Partial<LdkitQueryGroupVersion> = {},
+  group: Partial<QueryGroupEntity> = {},
+  version: Partial<QueryGroupVersionEntity> = {},
 ): LibraryGroupSource {
-  const groups: LdkitQueryGroup[] = [
+  const groups: QueryGroupEntity[] = [
     {
       $id: 'g1',
       name: 'People by region',
       isPartOf: LIBRARY,
       currentVersion: 'gv1',
       ...group,
-    } as LdkitQueryGroup,
+    } as QueryGroupEntity,
   ];
-  const versions: Record<string, LdkitQueryGroupVersion> = {
+  const versions: Record<string, QueryGroupVersionEntity> = {
     gv1: {
       $id: 'gv1',
       isPartOf: 'g1',
@@ -94,7 +94,7 @@ function source(
       executionNodes: ['n1', 'n2'],
       edges: ['e1', 'e2'],
       ...version,
-    } as LdkitQueryGroupVersion,
+    } as QueryGroupVersionEntity,
   };
 
   return {

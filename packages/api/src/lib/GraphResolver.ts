@@ -1,24 +1,24 @@
 import type { FastifyRequest } from 'fastify';
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
 import { filterReadable } from '../auth/enforce.js';
-import type { LdkitQueryGroupVersion } from '../persistence/schemas/QueryGroupVersionSchema.js';
-import type { LdkitQueryNode } from '../persistence/schemas/QueryNodeSchema.js';
-import type { LdkitQueryEdge } from '../persistence/schemas/QueryEdgeSchema.js';
-import type { LdkitDynamicQueryNode } from '../persistence/schemas/DynamicQueryNodeSchema.js';
-import type { LdkitRuleSetNode } from '../persistence/schemas/RuleSetNodeSchema.js';
-import type { LdkitPatchNode } from '../persistence/schemas/PatchNodeSchema.js';
-import type { LdkitStartNode } from '../persistence/schemas/StartNodeSchema.js';
-import type { LdkitEndNode } from '../persistence/schemas/EndNodeSchema.js';
-import type { LdkitTriplesQuadsIO } from '../persistence/schemas/TriplesQuadsIOSchema.js';
-import type { LdkitBooleanIO } from '../persistence/schemas/BooleanIOSchema.js';
-import type { LdkitQueryIdInput } from '../persistence/schemas/QueryIdInputSchema.js';
-import type { LdkitQueryInputVariable } from '../persistence/schemas/QueryInputVariableSchema.js';
-import type { LdkitQueryInputTuple } from '../persistence/schemas/QueryInputTupleSchema.js';
-import type { LdkitQueryOutputVariable } from '../persistence/schemas/QueryOutputVariableSchema.js';
-import type { LdkitQueryOutputTuple } from '../persistence/schemas/QueryOutputTupleSchema.js';
-import type { LdkitTupleMember } from '../persistence/schemas/TupleMemberSchema.js';
-import type { LdkitQueryVersion } from '../persistence/schemas/QueryVersionSchema.js';
-import type { LdkitQueryGroup } from '../persistence/schemas/QueryGroupSchema.js';
+import type { QueryGroupVersionEntity } from '../persistence/schemas/QueryGroupVersionSchema.js';
+import type { QueryNodeEntity } from '../persistence/schemas/QueryNodeSchema.js';
+import type { QueryEdgeEntity } from '../persistence/schemas/QueryEdgeSchema.js';
+import type { DynamicQueryNodeEntity } from '../persistence/schemas/DynamicQueryNodeSchema.js';
+import type { RuleSetNodeEntity } from '../persistence/schemas/RuleSetNodeSchema.js';
+import type { PatchNodeEntity } from '../persistence/schemas/PatchNodeSchema.js';
+import type { StartNodeEntity } from '../persistence/schemas/StartNodeSchema.js';
+import type { EndNodeEntity } from '../persistence/schemas/EndNodeSchema.js';
+import type { TriplesQuadsIOEntity } from '../persistence/schemas/TriplesQuadsIOSchema.js';
+import type { BooleanIOEntity } from '../persistence/schemas/BooleanIOSchema.js';
+import type { QueryIdInputEntity } from '../persistence/schemas/QueryIdInputSchema.js';
+import type { QueryInputVariableEntity } from '../persistence/schemas/QueryInputVariableSchema.js';
+import type { QueryInputTupleEntity } from '../persistence/schemas/QueryInputTupleSchema.js';
+import type { QueryOutputVariableEntity } from '../persistence/schemas/QueryOutputVariableSchema.js';
+import type { QueryOutputTupleEntity } from '../persistence/schemas/QueryOutputTupleSchema.js';
+import type { TupleMemberEntity } from '../persistence/schemas/TupleMemberSchema.js';
+import type { QueryVersionEntity } from '../persistence/schemas/QueryVersionSchema.js';
+import type { QueryGroupEntity } from '../persistence/schemas/QueryGroupSchema.js';
 import { toRestApi } from '../persistence/utils/id-adapter.js';
 import { QueryGroupSignatureService } from './QueryGroupSignatureService.js';
 import {
@@ -275,10 +275,10 @@ function addNodeToCollections(
 type ResolvedGroupMembers = {
   startNodeId: string | null;
   endNodeId: string | null;
-  nodes: (LdkitQueryNode | LdkitStartNode | LdkitEndNode | LdkitDynamicQueryNode | LdkitRuleSetNode | LdkitPatchNode)[];
+  nodes: (QueryNodeEntity | StartNodeEntity | EndNodeEntity | DynamicQueryNodeEntity | RuleSetNodeEntity | PatchNodeEntity)[];
   startNodeRef: { value: any };
   endNodeRef: { value: any };
-  edges: LdkitQueryEdge[];
+  edges: QueryEdgeEntity[];
 };
 
 /**
@@ -298,7 +298,7 @@ const NODE_REPOSITORY_LOOKUPS: ReadonlyArray<(id: string) => Promise<any>> = [
   async id => (await import('../persistence/utils/PatchNodeUtils.js')).PatchNodes.findByIri(id),
 ];
 
-async function resolveGroupMembers(version: LdkitQueryGroupVersion): Promise<ResolvedGroupMembers> {
+async function resolveGroupMembers(version: QueryGroupVersionEntity): Promise<ResolvedGroupMembers> {
   const cacheCoordinator = getCacheCoordinator();
 
   // Include nodes from explicit startNode/endNode references in addition to intermediate nodes
@@ -324,7 +324,7 @@ async function resolveGroupMembers(version: LdkitQueryGroupVersion): Promise<Res
   const nodes: ResolvedGroupMembers['nodes'] = [];
   const startNodeRef = { value: null };
   const endNodeRef = { value: null };
-  const edges: LdkitQueryEdge[] = [];
+  const edges: QueryEdgeEntity[] = [];
 
   // Resolve nodes via cache, falling back to each node repository in turn
   for (const id of nodeIds) {
@@ -372,12 +372,12 @@ async function resolveGroupMembers(version: LdkitQueryGroupVersion): Promise<Res
  * Resolve and expand a QueryGroupVersion's node and edge references into full objects.
  * Falls back to LDKit repositories for types not cached.
  */
-export async function expandGroupVersion(version: LdkitQueryGroupVersion): Promise<{
-  queryGroupVersion: ReturnType<typeof toRestApi<LdkitQueryGroupVersion>>;
+export async function expandGroupVersion(version: QueryGroupVersionEntity): Promise<{
+  queryGroupVersion: ReturnType<typeof toRestApi<QueryGroupVersionEntity>>;
   executionNodes: AnyRestNodeType[];
   startNode?: AnyRestNodeType;
   endNode?: AnyRestNodeType;
-  edges: ReturnType<typeof toRestApi<LdkitQueryEdge>>[];
+  edges: ReturnType<typeof toRestApi<QueryEdgeEntity>>[];
   /**
    * The `LIMIT` / `OFFSET` names this group accepts: the union of its members'.
    *
@@ -407,11 +407,11 @@ export async function expandGroupVersion(version: LdkitQueryGroupVersion): Promi
   const pageParameters = new QueryGroupSignatureService().pageParametersFor(version.$id);
 
   return {
-    queryGroupVersion: toRestApi<LdkitQueryGroupVersion>(version),
+    queryGroupVersion: toRestApi<QueryGroupVersionEntity>(version),
     executionNodes,
     startNode: startNodeRef.value ? toRestExecutionNode(startNodeRef.value) : null,
     endNode: endNodeRef.value ? toRestExecutionNode(endNodeRef.value) : null,
-    edges: edges.map(e => toRestApi<LdkitQueryEdge>(e)),
+    edges: edges.map(e => toRestApi<QueryEdgeEntity>(e)),
     limitParameters: pageParameters.limitParameters,
     offsetParameters: pageParameters.offsetParameters,
   };
@@ -421,11 +421,11 @@ export async function expandGroupVersion(version: LdkitQueryGroupVersion): Promi
  * Optionally expand currentVersion for a stable QueryGroup, returning combined shape.
  */
 export async function expandCurrentVersionForGroup(groupId: string): Promise<{
-  version?: ReturnType<typeof toRestApi<LdkitQueryGroupVersion>>;
+  version?: ReturnType<typeof toRestApi<QueryGroupVersionEntity>>;
   executionNodes?: AnyRestNodeType[];
   startNode?: AnyRestNodeType | null;
   endNode?: AnyRestNodeType | null;
-  edges?: ReturnType<typeof toRestApi<LdkitQueryEdge>>[];
+  edges?: ReturnType<typeof toRestApi<QueryEdgeEntity>>[];
 } | null> {
   const cacheCoordinator = getCacheCoordinator();
   const group = cacheCoordinator.get(groupId);
@@ -435,7 +435,7 @@ export async function expandCurrentVersionForGroup(groupId: string): Promise<{
   if (!current) return { version: undefined, executionNodes: undefined, startNode: undefined, endNode: undefined, edges: undefined };
 
   // Try to get the actual version entity by ID from cache first (by ID not by type)
-  const maybe = cacheCoordinator.get(current) as LdkitQueryGroupVersion | null;
+  const maybe = cacheCoordinator.get(current) as QueryGroupVersionEntity | null;
   if (maybe) {
     const expanded = await expandGroupVersion(maybe);
     return {
@@ -448,7 +448,7 @@ export async function expandCurrentVersionForGroup(groupId: string): Promise<{
   }
 
   // Fallback: scan cached versions of type and match by IRI
-  const versions = cacheCoordinator.list('QueryGroupVersion') as LdkitQueryGroupVersion[];
+  const versions = cacheCoordinator.list('QueryGroupVersion') as QueryGroupVersionEntity[];
   const found = versions.find(v => v.$id === current);
   if (found) {
     const expanded = await expandGroupVersion(found);
@@ -476,38 +476,38 @@ export interface GroupExpansionAccess {
 }
 
 export async function expandGroupVersionDetailed(
-  version: LdkitQueryGroupVersion,
+  version: QueryGroupVersionEntity,
   access: GroupExpansionAccess = {}
 ): Promise<{
-  queryGroupVersion: ReturnType<typeof toRestApi<LdkitQueryGroupVersion>>;
+  queryGroupVersion: ReturnType<typeof toRestApi<QueryGroupVersionEntity>>;
   executionNodes: AnyRestNodeType[];
   startNode?: AnyRestNodeType;
   endNode?: AnyRestNodeType;
-  edges: ReturnType<typeof toRestApi<LdkitQueryEdge>>[];
-  queryNodes: ReturnType<typeof toRestApi<LdkitQueryNode>>[];
-  dynamicQueryNodes: ReturnType<typeof toRestApi<LdkitDynamicQueryNode>>[];
-  ruleSetNodes: ReturnType<typeof toRestApi<LdkitRuleSetNode>>[];
-  patchNodes: ReturnType<typeof toRestApi<LdkitPatchNode>>[];
-  startNodes: ReturnType<typeof toRestApi<LdkitStartNode>>[];
-  endNodes: ReturnType<typeof toRestApi<LdkitEndNode>>[];
-  rdfOutputs: ReturnType<typeof toRestApi<LdkitTriplesQuadsIO>>[];
-  booleanOutputs: ReturnType<typeof toRestApi<LdkitBooleanIO>>[];
-  queryIdInputs: ReturnType<typeof toRestApi<LdkitQueryIdInput>>[];
-  inputs: ReturnType<typeof toRestApi<LdkitQueryInputVariable>>[];
-  inputTuples: ReturnType<typeof toRestApi<LdkitQueryInputTuple>>[];
-  outputs: ReturnType<typeof toRestApi<LdkitQueryOutputVariable>>[];
-  outputTuples: ReturnType<typeof toRestApi<LdkitQueryOutputTuple>>[];
-  tupleMembers: ReturnType<typeof toRestApi<LdkitTupleMember>>[];
-  queryVersions: ReturnType<typeof toRestApi<LdkitQueryVersion>>[];
+  edges: ReturnType<typeof toRestApi<QueryEdgeEntity>>[];
+  queryNodes: ReturnType<typeof toRestApi<QueryNodeEntity>>[];
+  dynamicQueryNodes: ReturnType<typeof toRestApi<DynamicQueryNodeEntity>>[];
+  ruleSetNodes: ReturnType<typeof toRestApi<RuleSetNodeEntity>>[];
+  patchNodes: ReturnType<typeof toRestApi<PatchNodeEntity>>[];
+  startNodes: ReturnType<typeof toRestApi<StartNodeEntity>>[];
+  endNodes: ReturnType<typeof toRestApi<EndNodeEntity>>[];
+  rdfOutputs: ReturnType<typeof toRestApi<TriplesQuadsIOEntity>>[];
+  booleanOutputs: ReturnType<typeof toRestApi<BooleanIOEntity>>[];
+  queryIdInputs: ReturnType<typeof toRestApi<QueryIdInputEntity>>[];
+  inputs: ReturnType<typeof toRestApi<QueryInputVariableEntity>>[];
+  inputTuples: ReturnType<typeof toRestApi<QueryInputTupleEntity>>[];
+  outputs: ReturnType<typeof toRestApi<QueryOutputVariableEntity>>[];
+  outputTuples: ReturnType<typeof toRestApi<QueryOutputTupleEntity>>[];
+  tupleMembers: ReturnType<typeof toRestApi<TupleMemberEntity>>[];
+  queryVersions: ReturnType<typeof toRestApi<QueryVersionEntity>>[];
 }> {
   const { startNodeId, endNodeId, nodes, startNodeRef, endNodeRef, edges } = await resolveGroupMembers(version);
 
-  const queryNodes: LdkitQueryNode[] = [];
-  const dynamicQueryNodes: LdkitDynamicQueryNode[] = [];
-  const ruleSetNodes: LdkitRuleSetNode[] = [];
-  const patchNodes: LdkitPatchNode[] = [];
-  const startNodes: LdkitStartNode[] = [];
-  const endNodes: LdkitEndNode[] = [];
+  const queryNodes: QueryNodeEntity[] = [];
+  const dynamicQueryNodes: DynamicQueryNodeEntity[] = [];
+  const ruleSetNodes: RuleSetNodeEntity[] = [];
+  const patchNodes: PatchNodeEntity[] = [];
+  const startNodes: StartNodeEntity[] = [];
+  const endNodes: EndNodeEntity[] = [];
   const queryVersionIds = new Set<string>();
 
   /**
@@ -528,32 +528,32 @@ export async function expandGroupVersionDetailed(
   // Classify nodes by trying lenses
   for (const node of nodes) {
     if (isQueryNode(node)) {
-        queryNodes.push(node as unknown as LdkitQueryNode);
+        queryNodes.push(node as unknown as QueryNodeEntity);
         if (node.queryId) queryVersionIds.add(node.queryId);
         continue;
     }
     if (isDynamicQueryNode(node)) {
-        dynamicQueryNodes.push(node as LdkitDynamicQueryNode);
+        dynamicQueryNodes.push(node as DynamicQueryNodeEntity);
         if (node.queryId) queryVersionIds.add(node.queryId);
         continue;
     }
     if (isRuleSetNode(node)) {
-        ruleSetNodes.push(node as LdkitRuleSetNode);
+        ruleSetNodes.push(node as RuleSetNodeEntity);
         continue;
     }
     if (isPatchNode(node)) {
-        patchNodes.push(node as LdkitPatchNode);
+        patchNodes.push(node as PatchNodeEntity);
         // The update it derives is a QueryVersion like any other node's query,
         // and the client needs it to show what the node does.
         if (node.queryId) queryVersionIds.add(node.queryId);
         continue;
     }
     if (isStartNode(node)) {
-        startNodes.push(node as LdkitStartNode);
+        startNodes.push(node as StartNodeEntity);
         continue;
     }
     if (isEndNode(node)) {
-        endNodes.push(node as LdkitEndNode);
+        endNodes.push(node as EndNodeEntity);
         addPortRefs((node as { rdfOutputs?: unknown }).rdfOutputs);
         continue;
     }
@@ -575,7 +575,7 @@ export async function expandGroupVersionDetailed(
   }
 
   const queryVersionIdList = Array.from(queryVersionIds);
-  const resolvedQueryVersions = await resolveEntities<LdkitQueryVersion>(queryVersionIdList, 'QueryVersion', async missing => {
+  const resolvedQueryVersions = await resolveEntities<QueryVersionEntity>(queryVersionIdList, 'QueryVersion', async missing => {
     const { loadQueryVersionsByIds } = await import('../persistence/utils/QueryVersionUtils.js');
     return loadQueryVersionsByIds(missing);
   });
@@ -618,18 +618,18 @@ export async function expandGroupVersionDetailed(
     );
   }
 
-  const rawInputTuples = portClosure.byKind.QueryInputTuple as LdkitQueryInputTuple[];
-  const rawOutputTuples = portClosure.byKind.QueryOutputTuple as LdkitQueryOutputTuple[];
-  const rawRdfOutputs = portClosure.byKind.TriplesQuadsIO as LdkitTriplesQuadsIO[];
-  const rawBooleanOutputs = portClosure.byKind.BooleanIO as LdkitBooleanIO[];
-  const rawQueryIdInputs = portClosure.byKind.QueryIdInput as LdkitQueryIdInput[];
+  const rawInputTuples = portClosure.byKind.QueryInputTuple as QueryInputTupleEntity[];
+  const rawOutputTuples = portClosure.byKind.QueryOutputTuple as QueryOutputTupleEntity[];
+  const rawRdfOutputs = portClosure.byKind.TriplesQuadsIO as TriplesQuadsIOEntity[];
+  const rawBooleanOutputs = portClosure.byKind.BooleanIO as BooleanIOEntity[];
+  const rawQueryIdInputs = portClosure.byKind.QueryIdInput as QueryIdInputEntity[];
 
-  const rdfOutputs = rawRdfOutputs.map(o => toRestApi<LdkitTriplesQuadsIO>(o));
-  const booleanOutputs = rawBooleanOutputs.map(o => toRestApi<LdkitBooleanIO>(o));
-  const queryIdInputs = rawQueryIdInputs.map(o => toRestApi<LdkitQueryIdInput>(o));
-  const inputTuples = rawInputTuples.map(t => toRestApi<LdkitQueryInputTuple>(t));
-  const outputTuples = rawOutputTuples.map(t => toRestApi<LdkitQueryOutputTuple>(t));
-  const queryVersions = rawQueryVersions.map(v => toRestApi<LdkitQueryVersion>(v));
+  const rdfOutputs = rawRdfOutputs.map(o => toRestApi<TriplesQuadsIOEntity>(o));
+  const booleanOutputs = rawBooleanOutputs.map(o => toRestApi<BooleanIOEntity>(o));
+  const queryIdInputs = rawQueryIdInputs.map(o => toRestApi<QueryIdInputEntity>(o));
+  const inputTuples = rawInputTuples.map(t => toRestApi<QueryInputTupleEntity>(t));
+  const outputTuples = rawOutputTuples.map(t => toRestApi<QueryOutputTupleEntity>(t));
+  const queryVersions = rawQueryVersions.map(v => toRestApi<QueryVersionEntity>(v));
 
   const normalizedInputTuples = Array.isArray(inputTuples) ? inputTuples : [];
   // From tuples, collect tupleMembers and then variables → inputs/outputs
@@ -637,11 +637,11 @@ export async function expandGroupVersionDetailed(
   inputTuples.forEach((t: any) => (t.memberEntries || []).forEach((id: string) => id && tupleMemberIds.add(id)));
   outputTuples.forEach((t: any) => (t.memberEntries || []).forEach((id: string) => id && tupleMemberIds.add(id)));
   const tupleMemberIdList = Array.from(tupleMemberIds);
-  const rawTupleMembers = await resolveEntities<LdkitTupleMember>(tupleMemberIdList, 'TupleMember', async missing => {
+  const rawTupleMembers = await resolveEntities<TupleMemberEntity>(tupleMemberIdList, 'TupleMember', async missing => {
     const { loadTupleMembersByIds } = await import('../persistence/utils/TupleMemberUtils.js');
     return loadTupleMembersByIds(missing);
   });
-  const tupleMembers: ReturnType<typeof toRestApi<LdkitTupleMember>>[] = rawTupleMembers.map(m => toRestApi<LdkitTupleMember>(m));
+  const tupleMembers: ReturnType<typeof toRestApi<TupleMemberEntity>>[] = rawTupleMembers.map(m => toRestApi<TupleMemberEntity>(m));
 
   // Collect all variable IDs from tuple members for bulk loading
   const variableIds = new Set<string>();
@@ -654,11 +654,11 @@ export async function expandGroupVersionDetailed(
   const variableIdList = Array.from(variableIds);
 
   // Bulk load all variables as inputs and outputs to classify them
-  const rawInputCandidates = await resolveEntities<LdkitQueryInputVariable>(variableIdList, 'QueryInputVariable', async missing => {
+  const rawInputCandidates = await resolveEntities<QueryInputVariableEntity>(variableIdList, 'QueryInputVariable', async missing => {
     const { loadQueryInputVariablesByIds } = await import('../persistence/utils/QueryInputVariableUtils.js');
     return loadQueryInputVariablesByIds(missing);
   });
-  const rawOutputCandidates = await resolveEntities<LdkitQueryOutputVariable>(variableIdList, 'QueryOutputVariable', async missing => {
+  const rawOutputCandidates = await resolveEntities<QueryOutputVariableEntity>(variableIdList, 'QueryOutputVariable', async missing => {
     const { loadQueryOutputVariablesByIds } = await import('../persistence/utils/QueryOutputVariableUtils.js');
     return loadQueryOutputVariablesByIds(missing);
   });
@@ -667,8 +667,8 @@ export async function expandGroupVersionDetailed(
   const inputIds = new Set<string>(rawInputCandidates.map(i => i.$id).filter(Boolean));
   const outputIds = new Set<string>(rawOutputCandidates.map(o => o.$id).filter(Boolean));
   // Use the already loaded data from classification
-  const inputs = rawInputCandidates.map(i => toRestApi<LdkitQueryInputVariable>(i));
-  const outputs = rawOutputCandidates.map(o => toRestApi<LdkitQueryOutputVariable>(o));
+  const inputs = rawInputCandidates.map(i => toRestApi<QueryInputVariableEntity>(i));
+  const outputs = rawOutputCandidates.map(o => toRestApi<QueryOutputVariableEntity>(o));
 
   // Create executionNodes array - all nodes with nodeType field, start/end nodes omitted from duplicates
   const executionNodes = nodes
@@ -685,17 +685,17 @@ export async function expandGroupVersionDetailed(
     .map(n => toRestExecutionNode(n));
 
   return {
-    queryGroupVersion: toRestApi<LdkitQueryGroupVersion>(version),
+    queryGroupVersion: toRestApi<QueryGroupVersionEntity>(version),
     executionNodes,
     startNode: startNodeRef.value ? toRestExecutionNode(startNodeRef.value) : null,
     endNode: endNodeRef.value ? toRestExecutionNode(endNodeRef.value) : null,
-    edges: edges.map(e => toRestApi<LdkitQueryEdge>(e)),
-    queryNodes: queryNodes.map(n => toRestApi<LdkitQueryNode>(n)),
-    dynamicQueryNodes: dynamicQueryNodes.map(n => toRestApi<LdkitDynamicQueryNode>(n)),
-    ruleSetNodes: ruleSetNodes.map(n => toRestApi<LdkitRuleSetNode>(n)),
-    patchNodes: patchNodes.map(n => toRestApi<LdkitPatchNode>(n)),
-    startNodes: startNodes.map(n => toRestApi<LdkitStartNode>(n)),
-    endNodes: endNodes.map(n => toRestApi<LdkitEndNode>(n)),
+    edges: edges.map(e => toRestApi<QueryEdgeEntity>(e)),
+    queryNodes: queryNodes.map(n => toRestApi<QueryNodeEntity>(n)),
+    dynamicQueryNodes: dynamicQueryNodes.map(n => toRestApi<DynamicQueryNodeEntity>(n)),
+    ruleSetNodes: ruleSetNodes.map(n => toRestApi<RuleSetNodeEntity>(n)),
+    patchNodes: patchNodes.map(n => toRestApi<PatchNodeEntity>(n)),
+    startNodes: startNodes.map(n => toRestApi<StartNodeEntity>(n)),
+    endNodes: endNodes.map(n => toRestApi<EndNodeEntity>(n)),
     rdfOutputs,
     booleanOutputs,
     queryIdInputs,

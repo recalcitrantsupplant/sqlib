@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for TupleSetVersion Entity
+ * Schema for TupleSetVersion Entity
  *
  * Immutable tabular content, so a run naming a version id is reproducible
  * forever — the same contract `DataGraphVersion` offers for RDF.
@@ -132,7 +132,7 @@ export const TupleSetVersionSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitTupleSetVersion {
+export interface TupleSetVersionEntity {
   $id: string;
   '@type'?: 'TupleSetVersion';
   isPartOf: string;

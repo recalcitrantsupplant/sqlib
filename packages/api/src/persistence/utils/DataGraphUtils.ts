@@ -1,7 +1,7 @@
 import { createEntityUtilsWithFields } from './EntityUtils.js';
-import { DataGraphSchema, type LdkitDataGraph } from '../schemas/DataGraphSchema.js';
+import { DataGraphSchema, type DataGraphEntity } from '../schemas/DataGraphSchema.js';
 
-const DataGraphUtils = createEntityUtilsWithFields<LdkitDataGraph>(
+const DataGraphUtils = createEntityUtilsWithFields<DataGraphEntity>(
   DataGraphSchema,
   'DataGraph'
 );
@@ -13,7 +13,7 @@ export const deleteDataGraph = DataGraphUtils.delete;
 export const findAllDataGraphs = DataGraphUtils.findAll;
 export const findDataGraphById = DataGraphUtils.findById;
 
-export async function findDataGraphByName(name: string): Promise<LdkitDataGraph | null> {
+export async function findDataGraphByName(name: string): Promise<DataGraphEntity | null> {
   const items = await DataGraphUtils.findBy('name', name);
   return items[0] || null;
 }

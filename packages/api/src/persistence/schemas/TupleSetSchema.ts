@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for TupleSet Entity (Stable Pointer)
+ * Schema for TupleSet Entity (Stable Pointer)
  *
  * A named, versioned solution sequence — a table of RDF terms — registered in a
  * library. The tabular sibling of `DataGraph`: where a data graph is the RDF a
@@ -75,7 +75,7 @@ export const TupleSetSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitTupleSet {
+export interface TupleSetEntity {
   $id: string;
   '@type'?: 'TupleSet';
   name: string;

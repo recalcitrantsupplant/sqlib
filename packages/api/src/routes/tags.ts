@@ -19,7 +19,7 @@
 import type { FastifyInstance } from 'fastify';
 import { mintId } from '../lib/id.js';
 import { toRestApi } from '../persistence/utils/id-adapter.js';
-import type { LdkitTag } from '../persistence/schemas/TagSchema.js';
+import type { TagEntity } from '../persistence/schemas/TagSchema.js';
 import { reposRoute, validateIfMatch, setEntityConcurrencyHeaders } from './route-helpers.js';
 import type { EntityRepositories } from '../lib/EntityRepositories.js';
 import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
@@ -80,9 +80,9 @@ function findNameClash(
   library: string,
   name: string,
   excludingId?: string,
-): LdkitTag | null {
+): TagEntity | null {
   const key = nameKey(name);
-  const existing = repos.Tag.list() as LdkitTag[];
+  const existing = repos.Tag.list() as TagEntity[];
   return (
     existing.find(
       tag => tag.isPartOf === library && tag.$id !== excludingId && nameKey(tag.name) === key,
@@ -102,7 +102,7 @@ export default async function (fastify: FastifyInstance) {
       },
     }, async ({ repos, reply, request }) => {
     const { library } = request.query;
-    const items = repos.Tag.list() as LdkitTag[];
+    const items = repos.Tag.list() as TagEntity[];
     const scoped = library ? items.filter(tag => tag.isPartOf === library) : items;
     return reply.send(filterReadable(request, scoped).map(tag => toRestApi(tag)));
   }));
@@ -147,7 +147,7 @@ export default async function (fastify: FastifyInstance) {
       description: body.description ?? null,
       color: body.color ?? null,
       isPartOf: library,
-    } as Partial<LdkitTag> & { $id: string });
+    } as Partial<TagEntity> & { $id: string });
 
     setEntityConcurrencyHeaders(reply, created);
     return reply.status(201).send(toRestApi(created));
@@ -163,7 +163,7 @@ export default async function (fastify: FastifyInstance) {
       },
     }, async ({ repos, reply, request }) => {
     const { id } = request.params;
-    const tag = repos.Tag.get(id) as LdkitTag | null;
+    const tag = repos.Tag.get(id) as TagEntity | null;
     if (!tag) {
       return reply.status(404).send({ error: 'Not Found' });
     }
@@ -187,7 +187,7 @@ export default async function (fastify: FastifyInstance) {
     const { id } = request.params;
     const updates = request.body;
 
-    const current = repos.Tag.get(id) as LdkitTag | null;
+    const current = repos.Tag.get(id) as TagEntity | null;
     if (!current) {
       return reply.status(404).send({ error: 'Not Found' });
     }
@@ -225,7 +225,7 @@ export default async function (fastify: FastifyInstance) {
       ...updates,
       ...(name !== undefined ? { name } : {}),
       isPartOf: current.isPartOf,
-    } as Partial<LdkitTag>);
+    } as Partial<TagEntity>);
     if (!updated) {
       return reply.status(404).send({ error: 'Not Found' });
     }
@@ -243,7 +243,7 @@ export default async function (fastify: FastifyInstance) {
       },
     }, async ({ repos, reply, request }) => {
     const { id } = request.params;
-    const tag = repos.Tag.get(id) as LdkitTag | null;
+    const tag = repos.Tag.get(id) as TagEntity | null;
     if (!tag) {
       return reply.status(404).send({ error: 'Not Found' });
     }

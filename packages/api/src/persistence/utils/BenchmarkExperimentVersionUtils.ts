@@ -1,7 +1,7 @@
 import { createEntityUtilsWithFields } from './EntityUtils.js';
-import { BenchmarkExperimentVersionSchema, type LdkitBenchmarkExperimentVersion } from '../schemas/BenchmarkExperimentVersionSchema.js';
+import { BenchmarkExperimentVersionSchema, type BenchmarkExperimentVersionEntity } from '../schemas/BenchmarkExperimentVersionSchema.js';
 
-const BenchmarkExperimentVersionUtils = createEntityUtilsWithFields<LdkitBenchmarkExperimentVersion>(
+const BenchmarkExperimentVersionUtils = createEntityUtilsWithFields<BenchmarkExperimentVersionEntity>(
   BenchmarkExperimentVersionSchema,
   'BenchmarkExperimentVersion'
 );

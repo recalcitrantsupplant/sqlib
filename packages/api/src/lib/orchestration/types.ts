@@ -1,51 +1,51 @@
-import type { LdkitQueryVersion } from '../../persistence/schemas/QueryVersionSchema.js';
-import type { LdkitQueryNode } from '../../persistence/schemas/QueryNodeSchema.js';
-import type { LdkitDynamicQueryNode } from '../../persistence/schemas/DynamicQueryNodeSchema.js';
-import type { LdkitRuleSetNode } from '../../persistence/schemas/RuleSetNodeSchema.js';
-import type { LdkitPatchNode } from '../../persistence/schemas/PatchNodeSchema.js';
-import type { LdkitDuckDbEtlNode } from '../../persistence/schemas/DuckDbEtlNodeSchema.js';
-import type { LdkitStartNode } from '../../persistence/schemas/StartNodeSchema.js';
-import type { LdkitEndNode } from '../../persistence/schemas/EndNodeSchema.js';
-import type { LdkitQueryEdge, WhenEmptyMode } from '../../persistence/schemas/QueryEdgeSchema.js';
-import type { LdkitQueryGroupVersion } from '../../persistence/schemas/QueryGroupVersionSchema.js';
-import type { LdkitQueryInputVariable } from '../../persistence/schemas/QueryInputVariableSchema.js';
-import type { LdkitQueryOutputVariable } from '../../persistence/schemas/QueryOutputVariableSchema.js';
-import type { LdkitQueryInputTuple } from '../../persistence/schemas/QueryInputTupleSchema.js';
-import type { LdkitQueryOutputTuple } from '../../persistence/schemas/QueryOutputTupleSchema.js';
-import type { LdkitTupleMember } from '../../persistence/schemas/TupleMemberSchema.js';
-import type { LdkitBackend } from '../../persistence/schemas/BackendSchema.js';
-import type { LdkitTriplesQuadsIO } from '../../persistence/schemas/TriplesQuadsIOSchema.js';
-import type { LdkitBooleanIO } from '../../persistence/schemas/BooleanIOSchema.js';
-import type { LdkitQueryIdInput } from '../../persistence/schemas/QueryIdInputSchema.js';
-import type { LdkitRuleSetVersion } from '../../persistence/schemas/RuleSetVersionSchema.js';
-import type { LdkitEtlJobVersion } from '../../persistence/schemas/EtlJobVersionSchema.js';
+import type { QueryVersionEntity } from '../../persistence/schemas/QueryVersionSchema.js';
+import type { QueryNodeEntity } from '../../persistence/schemas/QueryNodeSchema.js';
+import type { DynamicQueryNodeEntity } from '../../persistence/schemas/DynamicQueryNodeSchema.js';
+import type { RuleSetNodeEntity } from '../../persistence/schemas/RuleSetNodeSchema.js';
+import type { PatchNodeEntity } from '../../persistence/schemas/PatchNodeSchema.js';
+import type { DuckDbEtlNodeEntity } from '../../persistence/schemas/DuckDbEtlNodeSchema.js';
+import type { StartNodeEntity } from '../../persistence/schemas/StartNodeSchema.js';
+import type { EndNodeEntity } from '../../persistence/schemas/EndNodeSchema.js';
+import type { QueryEdgeEntity, WhenEmptyMode } from '../../persistence/schemas/QueryEdgeSchema.js';
+import type { QueryGroupVersionEntity } from '../../persistence/schemas/QueryGroupVersionSchema.js';
+import type { QueryInputVariableEntity } from '../../persistence/schemas/QueryInputVariableSchema.js';
+import type { QueryOutputVariableEntity } from '../../persistence/schemas/QueryOutputVariableSchema.js';
+import type { QueryInputTupleEntity } from '../../persistence/schemas/QueryInputTupleSchema.js';
+import type { QueryOutputTupleEntity } from '../../persistence/schemas/QueryOutputTupleSchema.js';
+import type { TupleMemberEntity } from '../../persistence/schemas/TupleMemberSchema.js';
+import type { BackendEntity } from '../../persistence/schemas/BackendSchema.js';
+import type { TriplesQuadsIOEntity } from '../../persistence/schemas/TriplesQuadsIOSchema.js';
+import type { BooleanIOEntity } from '../../persistence/schemas/BooleanIOSchema.js';
+import type { QueryIdInputEntity } from '../../persistence/schemas/QueryIdInputSchema.js';
+import type { RuleSetVersionEntity } from '../../persistence/schemas/RuleSetVersionSchema.js';
+import type { EtlJobVersionEntity } from '../../persistence/schemas/EtlJobVersionSchema.js';
 
 import type { ArgumentSet, SparqlResultsJson } from '../query-chaining.js';
 import type { QueryTypeValue } from '../../constants/queryTypes.js';
 
 // Re-export types with shorter names for orchestration
 export type {
-  LdkitQueryVersion as QueryVersion,
-  LdkitQueryNode as QueryNode,
-  LdkitDynamicQueryNode as DynamicQueryNode,
-  LdkitRuleSetNode as RuleSetNode,
-  LdkitPatchNode as PatchNode,
-  LdkitDuckDbEtlNode as DuckDbEtlNode,
-  LdkitStartNode as StartNode,
-  LdkitEndNode as EndNode,
-  LdkitQueryEdge as QueryEdge,
-  LdkitQueryGroupVersion as QueryGroupVersion,
-  LdkitQueryInputVariable as QueryInputVariable,
-  LdkitQueryOutputVariable as QueryOutputVariable,
-  LdkitQueryInputTuple as QueryInputTuple,
-  LdkitQueryOutputTuple as QueryOutputTuple,
-  LdkitTupleMember as TupleMember,
-  LdkitBackend as Backend,
-  LdkitTriplesQuadsIO as TriplesQuadsIO,
-  LdkitBooleanIO as BooleanIO,
-  LdkitQueryIdInput as QueryIdInput,
-  LdkitRuleSetVersion as RuleSetVersion,
-  LdkitEtlJobVersion as EtlJobVersion,
+  QueryVersionEntity as QueryVersion,
+  QueryNodeEntity as QueryNode,
+  DynamicQueryNodeEntity as DynamicQueryNode,
+  RuleSetNodeEntity as RuleSetNode,
+  PatchNodeEntity as PatchNode,
+  DuckDbEtlNodeEntity as DuckDbEtlNode,
+  StartNodeEntity as StartNode,
+  EndNodeEntity as EndNode,
+  QueryEdgeEntity as QueryEdge,
+  QueryGroupVersionEntity as QueryGroupVersion,
+  QueryInputVariableEntity as QueryInputVariable,
+  QueryOutputVariableEntity as QueryOutputVariable,
+  QueryInputTupleEntity as QueryInputTuple,
+  QueryOutputTupleEntity as QueryOutputTuple,
+  TupleMemberEntity as TupleMember,
+  BackendEntity as Backend,
+  TriplesQuadsIOEntity as TriplesQuadsIO,
+  BooleanIOEntity as BooleanIO,
+  QueryIdInputEntity as QueryIdInput,
+  RuleSetVersionEntity as RuleSetVersion,
+  EtlJobVersionEntity as EtlJobVersion,
   ArgumentSet,
   SparqlResultsJson,
 };
@@ -98,18 +98,18 @@ export function requiresDynamicQueryNode(flowType: EdgeFlowType | null | undefin
  * Output I/O entity types
  */
 export type OutputIOEntity =
-  | LdkitQueryOutputTuple
-  | LdkitTriplesQuadsIO
-  | LdkitBooleanIO;
+  | QueryOutputTupleEntity
+  | TriplesQuadsIOEntity
+  | BooleanIOEntity;
 
 /**
  * Input I/O entity types
  */
 export type InputIOEntity =
-  | LdkitQueryInputTuple
-  | LdkitTriplesQuadsIO
-  | LdkitBooleanIO
-  | LdkitQueryIdInput;
+  | QueryInputTupleEntity
+  | TriplesQuadsIOEntity
+  | BooleanIOEntity
+  | QueryIdInputEntity;
 
 export const OUTPUT_IO_TYPES = [
   'QueryOutputTuple',
@@ -134,16 +134,16 @@ export interface BackendConfig {
 
 export interface ResolvedNode {
   id: string;
-  raw: LdkitQueryNode | LdkitDynamicQueryNode | LdkitRuleSetNode | LdkitPatchNode | LdkitDuckDbEtlNode | LdkitStartNode | LdkitEndNode | Record<string, any>;
+  raw: QueryNodeEntity | DynamicQueryNodeEntity | RuleSetNodeEntity | PatchNodeEntity | DuckDbEtlNodeEntity | StartNodeEntity | EndNodeEntity | Record<string, any>;
   backendId: string | undefined;
   queryVersionId: string | undefined;
-  queryVersion: LdkitQueryVersion | undefined;
+  queryVersion: QueryVersionEntity | undefined;
   queryString: string | undefined;
   queryType: QueryTypeValue | undefined | null;
   ruleSetVersionId?: string;
-  ruleSetVersion?: LdkitRuleSetVersion;
+  ruleSetVersion?: RuleSetVersionEntity;
   etlJobVersionId?: string;
-  etlJobVersion?: LdkitEtlJobVersion;
+  etlJobVersion?: EtlJobVersionEntity;
   /** PatchNode: the port carrying the quads the update would remove. */
   deletionsOutputId?: string;
   /** PatchNode: the port carrying the quads the update would add. */
@@ -160,7 +160,7 @@ export interface ResolvedNode {
 
 export interface ResolvedEdge {
   id: string;
-  raw: LdkitQueryEdge;
+  raw: QueryEdgeEntity;
   sourceNodeId: string;
   targetNodeId: string;
   dataFlowType?: EdgeFlowType | null;
@@ -171,7 +171,7 @@ export interface ResolvedEdge {
 }
 
 export interface ExecutionGraph {
-  groupVersion: LdkitQueryGroupVersion;
+  groupVersion: QueryGroupVersionEntity;
   nodes: Map<string, ResolvedNode>;
   edges: ResolvedEdge[];
   incomingEdges: Map<string, ResolvedEdge[]>;

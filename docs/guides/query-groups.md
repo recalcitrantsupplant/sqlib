@@ -255,7 +255,7 @@ data graphs — `README-TEST-SCENARIOS.md` in that directory is the index, and
 they are the most reliable examples in the repository because CI runs them.
 
 The full write contract, field by field, is
-`packages/contracts/src/generated/query-group-version.ts`
+`packages/contracts/src/hand-written/query-group-version.ts`
 (`queryGroupVersionForGroupCreateSchema` for writes,
 `queryGroupVersionExpandedSchema` for reads).
 
@@ -415,7 +415,7 @@ which one you are looking at.
 
 - `packages/api/test/scenarios/query-groups/` — sixteen executable examples,
   indexed by `README-TEST-SCENARIOS.md` in that directory.
-- `packages/contracts/src/generated/query-group-version.ts` — the write and read
+- `packages/contracts/src/hand-written/query-group-version.ts` — the write and read
   contracts, field by field.
 - [Running and configuring](running-and-configuring.md) — starting a server with
   query groups enabled.

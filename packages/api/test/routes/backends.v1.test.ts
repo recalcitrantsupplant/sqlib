@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vites
 import Fastify, { FastifyInstance } from 'fastify';
 import backendRoutes from '../../src/routes/backends.js';
 import { toRestApi } from '../../src/persistence/utils/id-adapter.js';
-import { BackendTypeIri, backendTypeIriToKey, type LdkitBackend } from '../../src/persistence/schemas/BackendSchema.js';
+import { BackendTypeIri, backendTypeIriToKey, type BackendEntity } from '../../src/persistence/schemas/BackendSchema.js';
 import { setupValidator } from '../../src/lib/validator-setup.js';
 import * as schemas from '@sparql-query-lib/contracts/schema';
 import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
@@ -90,7 +90,7 @@ describe('Backend Routes (/backends) - Unit Tests (v1)', () => {
     };
     const mockBackendId = 'urn:sqlib:backend:test-backend';
     const createdTimestamp = '2024-01-01T12:00:00.000Z';
-    const createdBackend: LdkitBackend = {
+    const createdBackend: BackendEntity = {
       $id: mockBackendId,
       name: backendPayload.name,
       description: backendPayload.description,
@@ -148,7 +148,7 @@ describe('Backend Routes (/backends) - Unit Tests (v1)', () => {
         backendType: 'oxigraphEphemeral' as const,
         oxigraphConfig: JSON.stringify({ storeType: 'durable', loadMethod: 'none' })
       };
-      const createdEphemeral: LdkitBackend = {
+      const createdEphemeral: BackendEntity = {
         $id: mockBackendId,
         name: payload.name,
         description: payload.description,
@@ -172,7 +172,7 @@ describe('Backend Routes (/backends) - Unit Tests (v1)', () => {
       expect(response.json()).toEqual(expected);
       // Written as the JSON string the store round-trips, not as an object:
       // an object reaches the literal as "[object Object]" and the config is
-      // gone at the next reload. See `LdkitBackend.oxigraphConfig`.
+      // gone at the next reload. See `BackendEntity.oxigraphConfig`.
       expect(repo.create).toHaveBeenCalledWith(
         expect.objectContaining({
           backendType: BackendTypeIri.oxigraphEphemeral,
@@ -234,7 +234,7 @@ describe('Backend Routes (/backends) - Unit Tests (v1)', () => {
 
   describe('GET /backends', () => {
     it('should retrieve all backends', async () => {
-      const mockBackendsData: LdkitBackend[] = [
+      const mockBackendsData: BackendEntity[] = [
         { $id: 'urn:sqlib:backend:test-1', name: 'B 1', backendType: BackendTypeIri.http, endpoint: 'http://a' } as any,
         { $id: 'urn:sqlib:backend:test-2', name: 'B 2', backendType: BackendTypeIri.oxigraphEphemeral, endpoint: 'http://b' } as any,
       ];
@@ -255,7 +255,7 @@ describe('Backend Routes (/backends) - Unit Tests (v1)', () => {
   describe('GET /backends/:id', () => {
     const backendId = 'urn:sqlib:backend:specific-backend';
     const backendTimestamp = '2024-01-05T00:00:00.000Z';
-    const expectedBackend: LdkitBackend = {
+    const expectedBackend: BackendEntity = {
       $id: backendId,
       name: 'Specific Backend',
       backendType: BackendTypeIri.http,
@@ -289,14 +289,14 @@ describe('Backend Routes (/backends) - Unit Tests (v1)', () => {
   describe('PUT /backends/:id', () => {
     const backendId = 'urn:sqlib:backend:update-test';
     const updatePayload = { name: 'Updated Name' };
-    const currentBackend: LdkitBackend = {
+    const currentBackend: BackendEntity = {
       $id: backendId,
       name: 'Existing Name',
       backendType: BackendTypeIri.http,
       endpoint: 'http://example.org/sparql',
       dateModified: '2024-01-01T00:00:00.000Z',
     } as any;
-    const updatedBackend: LdkitBackend = {
+    const updatedBackend: BackendEntity = {
       ...currentBackend,
       ...updatePayload,
       dateModified: '2024-01-02T00:00:00.000Z',

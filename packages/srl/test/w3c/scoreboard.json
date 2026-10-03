@@ -10,5 +10,17 @@
   "stratification": {
     "pass": 10,
     "total": 10
+  },
+  "eval": {
+    "pass": 34,
+    "total": 35
+  },
+  "eval2": {
+    "pass": 6,
+    "total": 6
+  },
+  "examples": {
+    "pass": 5,
+    "total": 5
   }
 }

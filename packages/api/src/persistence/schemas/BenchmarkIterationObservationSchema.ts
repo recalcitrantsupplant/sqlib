@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for BenchmarkIterationObservation Entity (iteration-level
+ * Schema for BenchmarkIterationObservation Entity (iteration-level
  * observation of a rule-set request).
  *
  * The fixpoint loop's counterpart to `BenchmarkNodeObservation`: one row per
@@ -86,7 +86,7 @@ export const BenchmarkIterationObservationSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitBenchmarkIterationObservation {
+export interface BenchmarkIterationObservationEntity {
   $id: string;
   '@type'?: 'BenchmarkIterationObservation';
   dataSet: string;

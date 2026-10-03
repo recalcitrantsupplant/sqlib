@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for Query Entity (Stable Pointer)
+ * Schema for Query Entity (Stable Pointer)
  * 
  * Represents a stable query entity that points to versioned query implementations.
  * The stable IRI never changes, but currentVersion points to the latest QueryVersion.
@@ -63,7 +63,7 @@ export const QuerySchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitQuery {
+export interface QueryEntity {
   $id: string;
   '@type'?: 'Query';
   name: string;

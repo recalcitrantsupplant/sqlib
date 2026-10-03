@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for BenchmarkIterationRun Entity (iteration-level dataset).
+ * Schema for BenchmarkIterationRun Entity (iteration-level dataset).
  *
  * The rule-set counterpart of `BenchmarkNodeRun`. Per-iteration observations
  * have their own data structure definition, so they need their own `qb:DataSet`
@@ -55,7 +55,7 @@ export const BenchmarkIterationRunSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitBenchmarkIterationRun {
+export interface BenchmarkIterationRunEntity {
   $id: string;
   '@type'?: 'BenchmarkIterationRun';
   name?: string | null;

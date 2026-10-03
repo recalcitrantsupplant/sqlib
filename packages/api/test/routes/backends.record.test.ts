@@ -5,7 +5,7 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll, afterEach, vi } from 'vitest';
 import Fastify, { FastifyInstance } from 'fastify';
 import backendRoutes from '../../src/routes/backends.js';
-import { BackendTypeIri, type LdkitBackend } from '../../src/persistence/schemas/BackendSchema.js';
+import { BackendTypeIri, type BackendEntity } from '../../src/persistence/schemas/BackendSchema.js';
 import { setupValidator } from '../../src/lib/validator-setup.js';
 import { clearProbeResults } from '../../src/lib/backendProbe.js';
 import * as schemas from '@sparql-query-lib/contracts/schema';
@@ -31,7 +31,7 @@ overrideCacheCoordinatorProvider({
   getEntityRepositories: () => repos,
 });
 
-const httpBackend: LdkitBackend = {
+const httpBackend: BackendEntity = {
   $id: 'urn:sqlib:backend:main',
   name: 'Main store',
   backendType: BackendTypeIri.http,

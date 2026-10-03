@@ -31,7 +31,9 @@ inverse) and a replication unit.
 
 No Fastify, no `fs`, no network: pure functions over quad arrays and an abstract
 store, so server-side, browser-side and worker-side derivation are the same
-code, and where patches get *stored* stays a separate, later decision.
+code, and where patches get *stored* stays a separate, later decision. The
+storage side — the DuckDB patch-log SQL, the Azure/S3 blob store, snapshot,
+checkpoint and rebase — lives in `packages/api/src/lib/patch/`.
 
 It is also not a transaction manager. The window between deriving a patch and
 applying it is open unless the store closes it; in-process Oxigraph can do that
@@ -147,14 +149,24 @@ kept (they were matched out of the store a moment earlier, so the end state is
 right) and the patch reports `netEffectExact: false`. Give the store a `has`
 — in-process Oxigraph has one — and the answer is exact.
 
+A store whose default graph is the union of all its graphs (Fuseki's
+`unionDefaultGraph`, Stardog's `query.all.graphs`, GraphDB) shows a named
+graph's triples in the default graph, which would make an insertion of one look
+like a no-op. A store that does not declare `unionDefaultGraph` is probed once
+(`probeUnionDefaultGraph`, a read-only `SELECT`); on a union store the
+default-graph check is scoped with `GRAPH ?g`, a triple some named graph holds is
+treated as absent for an insertion and kept for a deletion, and the patch reports
+`netEffectExact: false`.
+
 ## Testing
 
 The rewrite has an oracle, and the suite is built on it: apply the update to
 store A, apply the derived patch to an identical store B, canonicalise both,
-assert isomorphism. Every supported form runs through it three times — against a
+assert isomorphism. Every supported form runs through it four times — against a
 populated store with exact membership, through the SPARQL-only path an HTTP
-backend takes, and over an empty store — and `test/harness.test.ts` checks the
-oracle itself can fail.
+backend takes, through a store that also relabels each response's blank nodes as
+an HTTP results parser does, and over an empty store — and `test/harness.test.ts`
+checks the oracle itself can fail.
 
 ```
 pnpm --filter @sparql-query-lib/rdf-delta test

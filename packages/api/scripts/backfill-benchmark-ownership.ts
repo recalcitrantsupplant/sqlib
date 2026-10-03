@@ -23,8 +23,8 @@ import { resolveOwningLibrary } from '../src/auth/enforce.js';
 import { getCacheCoordinator } from '../src/lib/CacheCoordinatorProvider.js';
 import { parseSubjectSpecs } from '../src/lib/BenchmarkExperimentService.js';
 import type { CacheCoordinator } from '../src/lib/CacheCoordinator.js';
-import type { LdkitBenchmarkExperiment } from '../src/persistence/schemas/BenchmarkExperimentSchema.js';
-import type { LdkitBenchmarkExperimentVersion } from '../src/persistence/schemas/BenchmarkExperimentVersionSchema.js';
+import type { BenchmarkExperimentEntity } from '../src/persistence/schemas/BenchmarkExperimentSchema.js';
+import type { BenchmarkExperimentVersionEntity } from '../src/persistence/schemas/BenchmarkExperimentVersionSchema.js';
 
 export interface OwnershipDecision {
   experiment: string;
@@ -45,8 +45,8 @@ export async function backfillBenchmarkOwnership(
     throw new Error(`--library ${fallback} is not a library`);
   }
 
-  const experiments = coordinator.list('BenchmarkExperiment') as LdkitBenchmarkExperiment[];
-  const versions = coordinator.list('BenchmarkExperimentVersion') as LdkitBenchmarkExperimentVersion[];
+  const experiments = coordinator.list('BenchmarkExperiment') as BenchmarkExperimentEntity[];
+  const versions = coordinator.list('BenchmarkExperimentVersion') as BenchmarkExperimentVersionEntity[];
   const decisions: OwnershipDecision[] = [];
 
   for (const experiment of experiments) {

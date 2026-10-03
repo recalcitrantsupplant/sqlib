@@ -43,13 +43,13 @@ import { createDataGraphVersion } from '../DataGraphVersionWriter.js';
 import { createRuleVersion } from '../RuleVersionWriter.js';
 import { createRuleSetVersion } from '../RuleSetVersionWriter.js';
 import { createTestVersion } from '../TestVersionWriter.js';
-import type { LdkitDataBlock } from '../../persistence/schemas/DataBlockSchema.js';
-import type { LdkitDataGraph } from '../../persistence/schemas/DataGraphSchema.js';
-import type { LdkitLibrary } from '../../persistence/schemas/LibrarySchema.js';
-import type { LdkitRule } from '../../persistence/schemas/RuleSchema.js';
-import type { LdkitRuleSet } from '../../persistence/schemas/RuleSetSchema.js';
-import type { LdkitTag } from '../../persistence/schemas/TagSchema.js';
-import type { LdkitTest } from '../../persistence/schemas/TestSchema.js';
+import type { DataBlockEntity } from '../../persistence/schemas/DataBlockSchema.js';
+import type { DataGraphEntity } from '../../persistence/schemas/DataGraphSchema.js';
+import type { LibraryEntity } from '../../persistence/schemas/LibrarySchema.js';
+import type { RuleEntity } from '../../persistence/schemas/RuleSchema.js';
+import type { RuleSetEntity } from '../../persistence/schemas/RuleSetSchema.js';
+import type { TagEntity } from '../../persistence/schemas/TagSchema.js';
+import type { TestEntity } from '../../persistence/schemas/TestSchema.js';
 import { getFeatureFlags } from '../../config/featureFlags.js';
 import { RuleGrammarValidator } from '../RuleGrammarValidator.js';
 import type { SrlCheck } from '../srlChecks.js';
@@ -206,7 +206,7 @@ async function seedOne(
   log: (message: string) => void,
   create: (testId: string) => Promise<void>,
 ): Promise<void> {
-  const existing = repos().Test.get(testId) as LdkitTest | null;
+  const existing = repos().Test.get(testId) as TestEntity | null;
   if (existing?.currentVersion) {
     result.testsExisting += 1;
     await applyTags(existing, tagSlugs, result);
@@ -216,7 +216,7 @@ async function seedOne(
   try {
     await create(testId);
     result.testsCreated += 1;
-    const created = repos().Test.get(testId) as LdkitTest | null;
+    const created = repos().Test.get(testId) as TestEntity | null;
     if (created) {
       await applyTags(created, tagSlugs, result);
       await applyCriterion(created, criterion, result);
@@ -236,7 +236,7 @@ async function seedOne(
  * The write is skipped entirely when there is nothing to add, so a re-seed of
  * 203 tagged tests performs no writes at all.
  */
-async function applyTags(test: LdkitTest, tagSlugs: string[], result: SeedResult): Promise<void> {
+async function applyTags(test: TestEntity, tagSlugs: string[], result: SeedResult): Promise<void> {
   if (await unionTags('Test', test, tagSlugs)) result.testsTagged += 1;
 }
 
@@ -259,9 +259,9 @@ async function unionTags(
   const tags = [...current, ...missing];
   // Spelt out per type rather than indexed: the repositories are typed to their
   // own entity, and one `tags` patch is not assignable to all three at once.
-  if (type === 'Test') await repos().Test.update(entity.$id, { tags } as Partial<LdkitTest>);
-  else if (type === 'RuleSet') await repos().RuleSet.update(entity.$id, { tags } as Partial<LdkitRuleSet>);
-  else await repos().Rule.update(entity.$id, { tags } as Partial<LdkitRule>);
+  if (type === 'Test') await repos().Test.update(entity.$id, { tags } as Partial<TestEntity>);
+  else if (type === 'RuleSet') await repos().RuleSet.update(entity.$id, { tags } as Partial<RuleSetEntity>);
+  else await repos().Rule.update(entity.$id, { tags } as Partial<RuleEntity>);
   return true;
 }
 
@@ -284,7 +284,7 @@ async function unionTags(
  * run over, not the thing under test.
  */
 async function tagRuleSet(ruleSetId: string, tagSlugs: string[], result: SeedResult): Promise<void> {
-  const ruleSet = repos().RuleSet.get(ruleSetId) as LdkitRuleSet | null;
+  const ruleSet = repos().RuleSet.get(ruleSetId) as RuleSetEntity | null;
   if (!ruleSet) return;
   if (await unionTags('RuleSet', ruleSet, tagSlugs)) result.ruleSetsTagged += 1;
 
@@ -294,7 +294,7 @@ async function tagRuleSet(ruleSetId: string, tagSlugs: string[], result: SeedRes
   for (const ruleVersionId of version?.hasRule ?? []) {
     const ruleVersion = repos().RuleVersion.get(ruleVersionId) as { isPartOf?: string } | null;
     if (!ruleVersion?.isPartOf) continue;
-    const rule = repos().Rule.get(ruleVersion.isPartOf) as LdkitRule | null;
+    const rule = repos().Rule.get(ruleVersion.isPartOf) as RuleEntity | null;
     if (rule && await unionTags('Rule', rule, tagSlugs)) result.rulesTagged += 1;
   }
 }
@@ -311,9 +311,9 @@ async function tagRuleSet(ruleSetId: string, tagSlugs: string[], result: SeedRes
  * annotation the way a tag is (a changed value means the suite was republished
  * elsewhere, and the report must follow it).
  */
-async function applyCriterion(test: LdkitTest, criterion: string, result: SeedResult): Promise<void> {
+async function applyCriterion(test: TestEntity, criterion: string, result: SeedResult): Promise<void> {
   if (test.criterion === criterion) return;
-  await repos().Test.update(test.$id, { criterion } as Partial<LdkitTest>);
+  await repos().Test.update(test.$id, { criterion } as Partial<TestEntity>);
   result.testsLinked += 1;
 }
 
@@ -397,7 +397,7 @@ async function ensureLibrary(log: (message: string) => void): Promise<void> {
     $id: W3C_RULES_SUITE_LIBRARY_ID,
     name: LIBRARY_NAME,
     description: LIBRARY_DESCRIPTION,
-  } as Partial<LdkitLibrary> & { $id: string });
+  } as Partial<LibraryEntity> & { $id: string });
   log(`Created library ${W3C_RULES_SUITE_LIBRARY_ID}`);
 }
 
@@ -419,7 +419,7 @@ async function ensureTags(result: SeedResult, log: (message: string) => void): P
       description: tag.description,
       color: tag.color,
       isPartOf: W3C_RULES_SUITE_LIBRARY_ID,
-    } as Partial<LdkitTag> & { $id: string });
+    } as Partial<TagEntity> & { $id: string });
     result.tagsCreated += 1;
     log(`Created tag ${tag.name}`);
   }
@@ -439,7 +439,7 @@ async function ensureDataGraph(
   log: (message: string) => void,
 ): Promise<string> {
   const dataGraphId = dataGraphIdFor(entry);
-  const existing = repos().DataGraph.get(dataGraphId) as LdkitDataGraph | null;
+  const existing = repos().DataGraph.get(dataGraphId) as DataGraphEntity | null;
   if (hasCurrentVersion('DataGraphVersion', dataGraphId, existing?.currentVersion)) {
     return existing!.currentVersion!;
   }
@@ -450,7 +450,7 @@ async function ensureDataGraph(
       name: entry.dataFile,
       description: `Base graph (G0) from the W3C rules ${entry.category} suite: ${entry.dataFile}`,
       isPartOf: [W3C_RULES_SUITE_LIBRARY_ID],
-    } as Partial<LdkitDataGraph> & { $id: string });
+    } as Partial<DataGraphEntity> & { $id: string });
     result.dataGraphsCreated += 1;
     log(`Created data graph ${entry.dataFile}`);
   }
@@ -525,7 +525,7 @@ async function ensureRuleSetFromDocument(
   log: (message: string) => void,
 ): Promise<string> {
   const { ruleSetId } = spec;
-  const existing = repos().RuleSet.get(ruleSetId) as LdkitRuleSet | null;
+  const existing = repos().RuleSet.get(ruleSetId) as RuleSetEntity | null;
   if (hasCurrentVersion('RuleSetVersion', ruleSetId, existing?.currentVersion)) {
     // Already built — but a second entry sharing it brings tags of its own, and
     // a store seeded before rule sets were tagged has none at all.
@@ -569,7 +569,7 @@ async function ensureRuleSetFromDocument(
       name: spec.name,
       description: spec.description,
       isPartOf: [W3C_RULES_SUITE_LIBRARY_ID],
-    } as Partial<LdkitRuleSet> & { $id: string });
+    } as Partial<RuleSetEntity> & { $id: string });
     result.ruleSetsCreated += 1;
     log(`Created rule set ${spec.name}`);
   }
@@ -582,7 +582,7 @@ async function ensureRuleSetFromDocument(
       name: memberName(spec.name, doc.suggestedLabel, ruleDocs.length),
       description: `From ${spec.source}`,
       isPartOf: [W3C_RULES_SUITE_LIBRARY_ID],
-    } as Partial<LdkitRule> & { $id: string });
+    } as Partial<RuleEntity> & { $id: string });
     const version = await createRuleVersion(ruleId, {
       ruleString: doc.text,
       immutable: true,
@@ -599,7 +599,7 @@ async function ensureRuleSetFromDocument(
       name: memberName(spec.name, doc.suggestedLabel, dataDocs.length),
       description: `From ${spec.source}`,
       isPartOf: [W3C_RULES_SUITE_LIBRARY_ID],
-    } as Partial<LdkitDataBlock> & { $id: string });
+    } as Partial<DataBlockEntity> & { $id: string });
     const version = await createDataBlockVersion(dataBlockId, {
       dataString: doc.text,
       immutable: true,
@@ -659,7 +659,7 @@ async function ensureEvalTest(
       subject: ruleSetId,
       subjectKind: 'ruleSet',
       isPartOf: [W3C_RULES_SUITE_LIBRARY_ID],
-    } as Partial<LdkitTest> & { $id: string });
+    } as Partial<TestEntity> & { $id: string });
   }
 
   await createTestVersion(testId, {
@@ -722,7 +722,7 @@ async function ensureDocumentTest(
       subject: ruleSetId,
       subjectKind: 'ruleSet',
       isPartOf: [W3C_RULES_SUITE_LIBRARY_ID],
-    } as Partial<LdkitTest> & { $id: string });
+    } as Partial<TestEntity> & { $id: string });
   }
 
   await createTestVersion(testId, {

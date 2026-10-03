@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for EtlColumnMapping Entity (Stable Pointer)
+ * Schema for EtlColumnMapping Entity (Stable Pointer)
  *
  * Represents a stable column mapping configuration that points to versioned implementations.
  */
@@ -41,7 +41,7 @@ export const EtlColumnMappingSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitEtlColumnMapping {
+export interface EtlColumnMappingEntity {
   $id: string;
   '@type'?: 'EtlColumnMapping';
   name: string;

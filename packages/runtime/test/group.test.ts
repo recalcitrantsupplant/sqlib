@@ -228,7 +228,56 @@ describe('walking a group', () => {
       fromBundle(await chainBundle(), { executor })
         .group('people-by-region')
         .run(),
-    ).rejects.toThrow(/bnode, which cannot be chained/);
+    ).rejects.toThrow(/blank node, which cannot be chained/);
+  });
+
+  it('chains a Virtuoso-shaped typed-literal row as the literal it is', async () => {
+    // Virtuoso answers with the 2008 draft spelling. A caller pasting those rows
+    // in as arguments was already accepted; a group feeding them downstream
+    // threw, so the same endpoint worked one way and not the other.
+    const { executor, seen } = recordingExecutor({
+      '?city': {
+        head: { vars: ['city'] },
+        results: {
+          bindings: [
+            { city: { type: 'typed-literal', value: '6000', datatype: 'http://www.w3.org/2001/XMLSchema#integer' } },
+            { city: { type: 'typed-literal', value: 'Perth' } },
+          ],
+        },
+      },
+      '?name': rows('name', 'http://example.org/Ada'),
+    });
+
+    await fromBundle(await chainBundle(), { executor }).group('people-by-region').run();
+
+    expect(seen[1]).toContain(
+      'VALUES ?place { "6000"^^<http://www.w3.org/2001/XMLSchema#integer> "Perth"^^<http://www.w3.org/2001/XMLSchema#string> }',
+    );
+  });
+
+  it('refuses to chain a literal carrying both a datatype and a language tag', async () => {
+    const { executor } = recordingExecutor({
+      '?city': {
+        head: { vars: ['city'] },
+        results: {
+          bindings: [
+            {
+              city: {
+                type: 'literal',
+                value: 'Perth',
+                datatype: 'http://www.w3.org/2001/XMLSchema#string',
+                'xml:lang': 'en',
+              },
+            },
+          ],
+        },
+      },
+      '?name': rows('name', 'http://example.org/Ada'),
+    });
+
+    await expect(
+      fromBundle(await chainBundle(), { executor }).group('people-by-region').run(),
+    ).rejects.toThrow(/both a datatype and a language tag[\s\S]*cannot be chained into 'people'/);
   });
 
   it('refuses to chain a node that did not return rows', async () => {

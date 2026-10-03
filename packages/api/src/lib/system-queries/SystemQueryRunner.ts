@@ -1,8 +1,8 @@
 import type { Dispatcher } from 'undici';
 import { SparqlQueryParser } from '../parser.js';
 import { getCacheCoordinator } from '../CacheCoordinatorProvider.js';
-import type { LdkitQuery } from '../../persistence/schemas/QuerySchema.js';
-import type { LdkitQueryVersion } from '../../persistence/schemas/QueryVersionSchema.js';
+import type { QueryEntity } from '../../persistence/schemas/QuerySchema.js';
+import type { QueryVersionEntity } from '../../persistence/schemas/QueryVersionSchema.js';
 import { ExecutorFactory } from '../orchestration/ExecutorFactory.js';
 import { SystemQueryCatalog, type SystemQueryKey } from './SystemQueryCatalog.js';
 import { isGraphQueryType, isResultSetQueryType } from '../queryTypes.js';
@@ -41,7 +41,7 @@ export class SystemQueryRunner {
 
   async execute(key: SystemQueryKey, options: SystemQueryRunnerOptions = {}): Promise<SystemQueryRunnerResult> {
     const definition = SystemQueryCatalog.getDefinition(key);
-    const queryEntity = getCacheCoordinator().get(definition.queryId) as LdkitQuery | null;
+    const queryEntity = getCacheCoordinator().get(definition.queryId) as QueryEntity | null;
     if (!queryEntity) {
       throw new Error(`System query not loaded in cache: ${definition.queryId}`);
     }
@@ -49,7 +49,7 @@ export class SystemQueryRunner {
     if (!versionId) {
       throw new Error(`System query ${definition.queryId} does not have a current version.`);
     }
-    const versionEntity = getCacheCoordinator().get(versionId) as LdkitQueryVersion | null;
+    const versionEntity = getCacheCoordinator().get(versionId) as QueryVersionEntity | null;
     if (!versionEntity) {
       throw new Error(`System query version not found for ${versionId}`);
     }

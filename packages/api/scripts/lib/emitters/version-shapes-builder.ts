@@ -1,7 +1,7 @@
 /**
  * The entity shapes the two version contract modules used to hand-write.
  *
- * `contracts/src/generated/query-version.ts` and `query-group-version.ts` are
+ * `contracts/src/hand-written/query-version.ts` and `query-group-version.ts` are
  * the flat write/read contracts for the two most complex endpoints. Most of
  * what they contain is genuinely wire-only — draft schemas that accept
  * `urn:ui-temp:` ids, expanded response envelopes, param schemas — and stays

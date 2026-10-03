@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for ArgumentSet Entity
+ * Schema for ArgumentSet Entity
  *
  * Top-level container for saved argument presets associated with a query or query group.
  */
@@ -93,7 +93,7 @@ export const ArgumentSetSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitArgumentSet {
+export interface ArgumentSetEntity {
   '$id': string;
   '@type'?: 'ArgumentSet';
   name: string;

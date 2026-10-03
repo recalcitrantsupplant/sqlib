@@ -2,7 +2,7 @@ import type { BaseEntity } from '../persistence/EntityTypes.js';
 import { getPersistenceAdapter } from '../persistence/adapterRegistry.js';
 import { getKnownSystemEntityIds, loadSystemStore } from '../system-store/SystemStoreLoader.js';
 import { assertMutableEntity } from './immutability.js';
-import { EntityByType, EntityType, getLensForType, getTtlForType } from './EntityRegistry.js';
+import { EntityByType, EntityType, getTtlForType } from './EntityRegistry.js';
 
 type CacheErrorMode = 'log' | 'throw';
 
@@ -630,9 +630,5 @@ export class CacheCoordinator {
 
     stats.estimatedMemoryBytes += this._idToType.size * 50; // Map overhead
     return stats;
-  }
-
-  async getLensForType<T extends EntityType>(type: T) {
-    return getLensForType(type);
   }
 }

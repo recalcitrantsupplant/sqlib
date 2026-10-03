@@ -222,7 +222,7 @@
 </template>
 
 <script setup lang="ts">
-import { assignArgumentSets } from '@sparql-query-lib/runtime';
+import { assignArgumentSets } from '@sparql-query-lib/runtime/internal';
 import { computed, ref, watch } from 'vue';
 import { ClipboardCheck, MoreHorizontal, Pencil, Play } from '@lucide/vue';
 import { Badge } from '../ui/badge';

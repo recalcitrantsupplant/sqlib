@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for DynamicQueryNode Entity
+ * Schema for DynamicQueryNode Entity
  * 
  * DynamicQueryNode represents a query execution node where the query to execute
  * can be determined at runtime. This supports two main use cases:
@@ -66,7 +66,7 @@ export const DynamicQueryNodeSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitDynamicQueryNode {
+export interface DynamicQueryNodeEntity {
   '$id': string;
   '@type'?: 'DynamicQueryNode';
   queryId?: string | null; // Runtime-determined query reference

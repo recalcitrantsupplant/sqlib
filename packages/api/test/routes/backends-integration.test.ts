@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import Fastify, { FastifyInstance } from 'fastify';
 
-import { BackendTypeIri, type LdkitBackend } from '../../src/persistence/schemas/BackendSchema.js';
+import { BackendTypeIri, type BackendEntity } from '../../src/persistence/schemas/BackendSchema.js';
 import { setupValidator } from '../../src/lib/validator-setup.js';
 import * as schemas from '@sparql-query-lib/contracts/schema';
 
@@ -43,7 +43,7 @@ vi.mock('crypto', () => ({
 
 
 
-function createMockBackend(overrides: Partial<LdkitBackend> = {}): LdkitBackend {
+function createMockBackend(overrides: Partial<BackendEntity> = {}): BackendEntity {
   return {
     $id: `urn:sqlib:backend:${Math.random().toString(36).substr(2, 9)}`,
     '@type': 'Backend',

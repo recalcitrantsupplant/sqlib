@@ -16,14 +16,14 @@
  * See `docs/guides/static-export.md`.
  */
 
-import {
-  hashTemplateText,
-  type ExportBundle,
-  type ExportedQuery,
-  type ExportedQueryType,
-  type PageParameterSpan,
-  type QueryTemplate,
+import type {
+  ExportBundle,
+  ExportedQuery,
+  ExportedQueryType,
+  PageParameterSpan,
+  QueryTemplate,
 } from '@sparql-query-lib/runtime';
+import { hashTemplateText, sealBundle } from '@sparql-query-lib/runtime/internal';
 import { SparqlQueryParser } from '../parser.js';
 import { detectSparqlOperation } from '../queryTypeDetector.js';
 import { QueryTypeIri, type QueryTypeValue } from '../queryTypes.js';
@@ -312,11 +312,13 @@ export async function buildExportBundle(options: BuildExportBundleOptions): Prom
     ),
   );
 
-  return {
+  // Sealed here and again by every later stage that adds to the bundle
+  // (examples, groups), so the bundle verifies wherever a caller stops.
+  return sealBundle({
     version: 1,
     library: options.library,
     queries: Object.fromEntries(entries),
     generatedAt: options.generatedAt ?? new Date().toISOString(),
     ...(options.tags && options.tags.length > 0 ? { tags: options.tags } : {}),
-  };
+  });
 }

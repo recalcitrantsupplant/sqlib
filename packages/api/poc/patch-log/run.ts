@@ -16,8 +16,8 @@
  *
  * ## Running it
  *
- *   pnpm --filter @sparql-query-lib/rdf-delta exec tsx poc/run.ts
- *   pnpm --filter @sparql-query-lib/rdf-delta exec tsx poc/run.ts --scales 1e5,1e6,1e7 --out poc2.json
+ *   pnpm --filter @sparql-query-lib/api poc:patch-log
+ *   pnpm --filter @sparql-query-lib/api poc:patch-log --scales 1e5,1e6,1e7 --out poc2.json
  *
  * `exec` rather than the `poc:patch-log` script when passing flags: pnpm 11
  * does not forward trailing arguments to run-scripts (the same trap
@@ -129,7 +129,7 @@ function materialiseSql(inner: string): string {
  * `ERR_STRING_TOO_LONG` before Oxigraph is reached at all — no memory pressure,
  * no parse error, just a graph that cannot be handed over in one piece. Every
  * in-process materialisation in this repository loads from a string
- * (`OxigraphStoreLike.load` in `src/oxigraph.ts`, and the API's store manager
+ * (`OxigraphStoreLike.load` in `packages/rdf-delta/src/oxigraph.ts`, and the API's store manager
  * above it), so the ceiling is not the POC's.
  *
  * N-Quads is line-oriented, so the fix is to hand it over a chunk at a time,

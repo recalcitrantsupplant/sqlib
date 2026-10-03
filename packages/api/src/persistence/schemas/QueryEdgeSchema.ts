@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for QueryEdge Entity
+ * Schema for QueryEdge Entity
  * 
  * This entity represents connections between QueryNodes in a query graph.
  */
@@ -58,7 +58,7 @@ export type WhenEmptyMode = 'unconstrained' | 'propagateEmpty' | 'require';
 
 export const WHEN_EMPTY_MODES: readonly WhenEmptyMode[] = ['unconstrained', 'propagateEmpty', 'require'];
 
-export interface LdkitQueryEdge {
+export interface QueryEdgeEntity {
   '$id': string;
   '@type'?: 'QueryEdge';
   sourceNodeId?: string | null; // Optional at creation, resolved from sourceLocalId

@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for EtlExecution Entity
+ * Schema for EtlExecution Entity
  *
  * Records each execution of an ETL job for audit/history.
  *
@@ -88,7 +88,7 @@ export const EtlExecutionSchema = {
 
 export type EtlExecutionStatus = 'pending' | 'running' | 'completed' | 'failed' | 'partial';
 
-export interface LdkitEtlExecution {
+export interface EtlExecutionEntity {
   $id: string;
   '@type'?: 'EtlExecution';
   etlJobVersion: string; // IRI to EtlJobVersion

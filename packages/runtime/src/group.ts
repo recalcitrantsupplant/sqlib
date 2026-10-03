@@ -29,7 +29,12 @@
  *   caller names the *slot's* variables, which is what a bundle can check.
  */
 
-import { normalizeArguments, type WireArgumentSet } from './arguments.js';
+import {
+  InvalidArgumentError,
+  normalizeArguments,
+  normalizeWireTerm,
+  type WireArgumentSet,
+} from './arguments.js';
 import type { ExportedGroup, ExportedGroupEdge, ExportedQuery } from './bundle.js';
 import { QueryCallError } from './errors.js';
 import type { ExecutionResult, SparqlSelectResults } from './executor.js';
@@ -299,16 +304,25 @@ export class GroupHandle {
       for (const row of asSelectResults(upstream, edge.from, node).results.bindings) {
         const mapped: Record<string, TermValue> = {};
         for (const { source, target } of edge.mappings) {
-          const term = row[source];
+          const cell = row[source];
           // An unbound upstream cell leaves the target unbound: UNDEF, not an
           // error. A blank node cannot be written into a VALUES block at all.
-          if (!term) continue;
-          if (term.type !== 'uri' && term.type !== 'literal') {
+          if (!cell) continue;
+          if (cell.type === 'bnode') {
             throw new QueryCallError(
-              `Node '${edge.from}' bound ?${source} to a ${term.type}, which cannot be chained into '${node}'.`,
+              `Node '${edge.from}' bound ?${source} to a blank node, which cannot be chained into '${node}': a blank node label only means something inside the answer it came from.`,
             );
           }
-          mapped[target] = term;
+          // Through the same gate as a caller's argument, so an endpoint that
+          // answers `typed-literal` (Virtuoso) chains exactly as its rows paste.
+          let term: TermValue | undefined;
+          try {
+            term = normalizeWireTerm(cell, `Node '${edge.from}' bound ?${source} to a term that`);
+          } catch (error) {
+            if (!(error instanceof InvalidArgumentError)) throw error;
+            throw new QueryCallError(`${error.message} It cannot be chained into '${node}'.`);
+          }
+          if (term) mapped[target] = term;
         }
         const key = rowKey(mapped);
         if (seen.has(key)) continue;

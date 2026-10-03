@@ -19,7 +19,7 @@ import type {
   ExportedQueryType,
   PageParameterSpan,
 } from '../src/bundle.js';
-import { hashTemplateText } from '../src/bundle.js';
+import { hashTemplateText, sealBundle } from '../src/bundle.js';
 import type { QueryTemplate } from '../src/query-template.js';
 
 /**
@@ -102,9 +102,11 @@ export async function bundleOf(
       'template' in value ? value : await exportedQuery(value),
     ]),
   );
-  return {
+  // Sealed as the exporter seals: a test that edits the bundle afterwards is
+  // then exactly the hand edit `verifyBundleIntegrity` exists to catch.
+  return sealBundle({
     version: 1,
     library: { id: 'urn:sqlib:library:test', name: 'Test' },
     queries: Object.fromEntries(entries) as Record<string, ExportedQuery>,
-  };
+  });
 }

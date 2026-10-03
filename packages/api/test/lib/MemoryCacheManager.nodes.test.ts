@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { memoryCacheManager } from '../../src/lib/MemoryCacheManager.js';
-import { toLdkit } from '../../src/persistence/utils/id-adapter.js';
+import { toEntity } from '../../src/persistence/utils/id-adapter.js';
 
 // Mock the LDKit repositories to avoid SPARQL dependencies
 vi.mock('../../src/persistence/utils/QueryNodeUtils.js', () => ({
@@ -57,7 +57,7 @@ describe('MemoryCacheManager - Node Entity Creation', () => {
 
   describe('QueryNode creation', () => {
     it('should create and cache a QueryNode entity', async () => {
-      const queryNodeData = toLdkit({
+      const queryNodeData = toEntity({
         $id: 'urn:test:node:1',
         queryId: 'urn:test:query-version:1',
         backendId: 'urn:test:backend:1',
@@ -84,7 +84,7 @@ describe('MemoryCacheManager - Node Entity Creation', () => {
     });
 
     it('should handle QueryNode with minimal required fields', async () => {
-      const minimalNodeData = toLdkit({
+      const minimalNodeData = toEntity({
         $id: 'urn:test:node:minimal',
         queryId: 'urn:test:query-version:1',
         backendId: 'urn:test:backend:1',
@@ -104,7 +104,7 @@ describe('MemoryCacheManager - Node Entity Creation', () => {
 
   describe('StartNode creation', () => {
     it('should create and cache a StartNode entity', async () => {
-      const startNodeData = toLdkit({
+      const startNodeData = toEntity({
         $id: 'urn:test:start-node:1',
         inputs: [],
         outputs: ['urn:test:output-tuple:1'],
@@ -126,7 +126,7 @@ describe('MemoryCacheManager - Node Entity Creation', () => {
 
   describe('EndNode creation', () => {
     it('should create and cache an EndNode entity', async () => {
-      const endNodeData = toLdkit({
+      const endNodeData = toEntity({
         $id: 'urn:test:end-node:1',
         inputs: ['urn:test:output-tuple:1'],
         mediaType: 'application/n-triples',
@@ -148,7 +148,7 @@ describe('MemoryCacheManager - Node Entity Creation', () => {
 
   describe('QueryEdge creation', () => {
     it('should create and cache a QueryEdge entity', async () => {
-      const edgeData = toLdkit({
+      const edgeData = toEntity({
         $id: 'urn:test:edge:1',
         sourceNodeId: 'urn:test:node:source',
         targetNodeId: 'urn:test:node:target',
@@ -178,7 +178,7 @@ describe('MemoryCacheManager - Node Entity Creation', () => {
       const { isQueryNode, isStartNode, isEndNode, isAnyNode } = await import('../../src/lib/type-guards.js');
 
       // Create a QueryNode
-      const queryNodeData = toLdkit({
+      const queryNodeData = toEntity({
         $id: 'urn:test:node:type-guard',
         queryId: 'urn:test:query-version:1',
         backendId: 'urn:test:backend:1',
@@ -196,7 +196,7 @@ describe('MemoryCacheManager - Node Entity Creation', () => {
       expect(isEndNode(cachedNode)).toBe(false);
 
       // Create a StartNode
-      const startNodeData = toLdkit({
+      const startNodeData = toEntity({
         $id: 'urn:test:start-node:type-guard',
         '@type': 'StartNode',
       });
@@ -221,7 +221,7 @@ describe('MemoryCacheManager - Node Entity Creation', () => {
       ];
 
       for (const nodeSpec of nodes) {
-        const nodeData = toLdkit({
+        const nodeData = toEntity({
           $id: nodeSpec.id,
           '@type': nodeSpec.type,
           nodeType: nodeSpec.type,

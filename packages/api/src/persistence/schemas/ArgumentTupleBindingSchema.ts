@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for ArgumentTupleBinding Entity
+ * Schema for ArgumentTupleBinding Entity
  *
  * A VALUES signature (ordered variables) and the sources that fill it:
  * inline rows as SPARQL Results JSON, plus any pinned tuple set versions.
@@ -67,7 +67,7 @@ export const ArgumentTupleBindingSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitArgumentTupleBinding {
+export interface ArgumentTupleBindingEntity {
   '$id': string;
   '@type'?: 'ArgumentTupleBinding';
   position?: number | null;

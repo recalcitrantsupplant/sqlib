@@ -25,8 +25,8 @@
 import * as oxigraph from 'oxigraph';
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
 import { markStoreWritten } from './storeWrites.js';
-import type { LdkitDataGraph } from '../persistence/schemas/DataGraphSchema.js';
-import type { LdkitDataGraphVersion } from '../persistence/schemas/DataGraphVersionSchema.js';
+import type { DataGraphEntity } from '../persistence/schemas/DataGraphSchema.js';
+import type { DataGraphVersionEntity } from '../persistence/schemas/DataGraphVersionSchema.js';
 import type { OxigraphDataGraphSource } from '../persistence/schemas/BackendSchema.js';
 import {
   DEFAULT_DATA_GRAPH_FORMAT,
@@ -94,8 +94,8 @@ export function classifyDataGraphSource(source: OxigraphDataGraphSource): {
   return versionId ? { tracked: false, id: versionId } : { tracked: true, id: graphId as string };
 }
 
-function loadVersion(versionId: string): LdkitDataGraphVersion {
-  const version = getCacheCoordinator().get(versionId) as LdkitDataGraphVersion | null;
+function loadVersion(versionId: string): DataGraphVersionEntity {
+  const version = getCacheCoordinator().get(versionId) as DataGraphVersionEntity | null;
   if (!version || version['@type'] !== 'DataGraphVersion') {
     throw new DataGraphContentError(`Data graph version ${versionId} not found`);
   }
@@ -117,7 +117,7 @@ export function resolveDataGraphSource(source: OxigraphDataGraphSource): Resolve
   let dataGraphId: string | undefined;
 
   if (tracked) {
-    const graph = getCacheCoordinator().get(id) as LdkitDataGraph | null;
+    const graph = getCacheCoordinator().get(id) as DataGraphEntity | null;
     if (!graph || graph['@type'] !== 'DataGraph') {
       throw new DataGraphContentError(`Data graph ${id} not found`);
     }

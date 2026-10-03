@@ -14,9 +14,9 @@
  * the package root (which is zod) so a consumer that only wants JSON Schema does
  * not pull zod into its graph.
  *
- * `contract-routes.ts` is NOT re-exported here. It is a second, independent
- * description of five of these same entities, and the two disagree — see the
- * header of that file. Merging them into one namespace registers two schemas
- * under one `$id`. Import it explicitly from `@sparql-query-lib/contracts/schema/routes`.
+ * The hand-written route schemas (`hand-written/contract-routes.ts`) are NOT
+ * re-exported here. The API registers every `$id`-carrying export of this barrel
+ * at boot, and those documents are registered by the routes that use them
+ * instead. Import them from `@sparql-query-lib/contracts/schema/routes`.
  */
 export * from './index.generated.js';

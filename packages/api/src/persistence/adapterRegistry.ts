@@ -1,7 +1,7 @@
 /**
  * Resolves the persistence adapter.
  *
- * There used to be two — `LdkitAdapter` and `SelfHostedAdapter` — chosen per
+ * There used to be two — `AdapterEntity` and `SelfHostedAdapter` — chosen per
  * operation class by four feature flags, so each migration phase could ship dark
  * (plan §2). The migration is done: the self-hosted adapter is in store-state
  * parity with LDKit across every entity type on both internal backend modes, so
@@ -13,13 +13,18 @@
 import { selfHostedAdapter } from './SelfHostedAdapter.js';
 import type { PersistenceAdapter } from './PersistenceAdapter.js';
 
-let registered: PersistenceAdapter = selfHostedAdapter;
+// Null means "the real one", resolved per call rather than copied at load: this
+// module sits on an import cycle (`EntityStore` -> `ExecutorFactory` -> the
+// cache -> here -> `SelfHostedAdapter` -> `EntityStore`), and reading
+// `selfHostedAdapter` while the module evaluates would throw whenever the cycle
+// is entered from the adapter's side.
+let registered: PersistenceAdapter | null = null;
 
 /** Overridable so tests can substitute a stub; resets to the real adapter on null. */
 export function setPersistenceAdapter(adapter: PersistenceAdapter | null): void {
-  registered = adapter ?? selfHostedAdapter;
+  registered = adapter;
 }
 
 export function getPersistenceAdapter(): PersistenceAdapter {
-  return registered;
+  return registered ?? selfHostedAdapter;
 }

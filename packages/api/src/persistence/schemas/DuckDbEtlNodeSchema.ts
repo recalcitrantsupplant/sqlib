@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for DuckDbEtlNode Entity
+ * Schema for DuckDbEtlNode Entity
  *
  * This entity represents DuckDB ETL nodes in a query execution graph.
  */
@@ -31,7 +31,7 @@ export const DuckDbEtlNodeSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitDuckDbEtlNode {
+export interface DuckDbEtlNodeEntity {
   '$id': string;
   '@type'?: 'DuckDbEtlNode';
   etlJobVersionId: string; // Required - reference to EtlJobVersion

@@ -81,6 +81,7 @@ Run one with `pnpm --filter @sparql-query-lib/<pkg> <script>`.
 | `smoke:etl-extensions` | Checks DuckDB community extensions install on this platform |
 | `smoke:storage` | Checks the storage directory is writable by this process |
 | `clean`, `clean:test`, `clean:scripts` | Remove `dist` and any stray compiled `.js` beside the TypeScript sources |
+| `poc:blob-snapshot`, `poc:patch-log` | The blob-snapshot and DuckDB patch-log proofs of concept in `poc/patch-log/`, which no build compiles |
 
 The smoke scripts need a running service or network and are not part of the CI
 pipeline.
@@ -113,9 +114,6 @@ have a vitest `test`.
 `mcp-server` also has `dev` (stdio), `dev:http`, `dev:dual-http`,
 `dev:debug-http` and the matching `start*` scripts, which set `MCP_TRANSPORT`
 and run the built output.
-
-`rdf-delta` has `poc:blob-snapshot` and `poc:patch-log`, two proof-of-concept
-runners kept beside the package.
 
 Nine of the ten packages define `lint` as `echo "TODO: add lint"`. The only
 real linting in the repository is stylelint over `packages/web`. `pnpm -r

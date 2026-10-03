@@ -50,7 +50,7 @@ export const TestCaseDataGraphSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitTestCaseDataGraph {
+export interface TestCaseDataGraphEntity {
   $id: string;
   '@type'?: 'TestCaseDataGraph';
   isPartOf: string;

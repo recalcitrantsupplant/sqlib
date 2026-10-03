@@ -8,7 +8,7 @@ import {
   OXIGRAPH_STORE_MODES,
   resolveOxigraphConfig,
   type BackendTypeKey,
-  type LdkitBackend,
+  type BackendEntity,
   type OxigraphConfig,
 } from '../persistence/schemas/BackendSchema.js';
 import { classifyDataGraphSource } from '../lib/dataGraphHydration.js';
@@ -118,7 +118,7 @@ function normalizeDateValue(value: unknown): string | undefined {
   return undefined;
 }
 
-function serializeBackend(entity: LdkitBackend): Backend {
+function serializeBackend(entity: BackendEntity): Backend {
   const rest = toRestApi<any>(entity);
   delete rest.username;
   delete rest.password;
@@ -232,7 +232,7 @@ function validateOxigraphMemoryConfig(
   }
 }
 
-function buildCreateBackendPayload(input: BackendCreate, generatedId: string): (Partial<LdkitBackend> & { $id: string }) {
+function buildCreateBackendPayload(input: BackendCreate, generatedId: string): (Partial<BackendEntity> & { $id: string }) {
   const {
     id: _dropId,
     endpoint,
@@ -249,7 +249,7 @@ function buildCreateBackendPayload(input: BackendCreate, generatedId: string): (
   }
   const backendTypeIri = backendTypeKeyToIri(backendTypeKey);
 
-  const payload: Partial<LdkitBackend> & { $id: string } = {
+  const payload: Partial<BackendEntity> & { $id: string } = {
     $id: generatedId,
     name,
     backendType: backendTypeIri,
@@ -276,8 +276,8 @@ function buildCreateBackendPayload(input: BackendCreate, generatedId: string): (
 }
 
 /** The backends this caller may see — the same rule `GET /` applies. */
-function visibleBackends(repos: EntityRepositories, request: FastifyRequest): LdkitBackend[] {
-  const all = repos.Backend.list() as LdkitBackend[];
+function visibleBackends(repos: EntityRepositories, request: FastifyRequest): BackendEntity[] {
+  const all = repos.Backend.list() as BackendEntity[];
   const context = authOf(request);
   if (context.fullAccess || context.grants.admin) {
     return all;
@@ -285,7 +285,7 @@ function visibleBackends(repos: EntityRepositories, request: FastifyRequest): Ld
   return all.filter((backend) => context.grants.backends.has(backend.$id));
 }
 
-function toProbeTarget(backend: LdkitBackend): ProbeTarget {
+function toProbeTarget(backend: BackendEntity): ProbeTarget {
   const backendTypeKey = backendTypeIriToKey(backend.backendType) ?? 'http';
   return {
     id: backend.$id,
@@ -338,7 +338,7 @@ const prefixPairSchema = {
 type RemotePrefixesReply = Awaited<ReturnType<typeof fetchRemotePrefixes>>;
 type PrefixPushReply = { results: Awaited<ReturnType<typeof pushPrefixes>>; applied: number; failed: number };
 
-function toPrefixTarget(backend: LdkitBackend): PrefixTarget {
+function toPrefixTarget(backend: BackendEntity): PrefixTarget {
   const backendTypeKey = backendTypeIriToKey(backend.backendType) ?? 'http';
   if (backendTypeKey !== 'http') {
     throw new PrefixServiceError('Prefix sync applies to HTTP backends only', 409);
@@ -435,7 +435,7 @@ function collectBackendUsage(repos: EntityRepositories, backendId: string): Back
   };
 }
 
-function buildUpdateBackendPayload(input: BackendUpdate): Partial<LdkitBackend> {
+function buildUpdateBackendPayload(input: BackendUpdate): Partial<BackendEntity> {
   const {
     endpoint,
     authEnvKey,
@@ -445,7 +445,7 @@ function buildUpdateBackendPayload(input: BackendUpdate): Partial<LdkitBackend> 
     backendType,
   } = input;
 
-  const payload: Partial<LdkitBackend> = {};
+  const payload: Partial<BackendEntity> = {};
 
   if (name !== undefined) {
     payload.name = name;
@@ -498,7 +498,7 @@ export default async function (
     ...reposRoute(getBackendsSchema,
     async ({ repos, reply, request }) => {
       // Use memory cache for fast reads
-      const ldkitBackends = repos.Backend.list() as LdkitBackend[];
+      const ldkitBackends = repos.Backend.list() as BackendEntity[];
       // Backends are infrastructure: a caller sees the ones they hold a grant on
       // (which includes anything granted to the authenticated sentinel).
       const context = authOf(request);
@@ -521,7 +521,7 @@ export default async function (
       const id = decodeURIComponent(rawId);
 
       // Use memory cache for fast lookup
-      const ldkitBackend = repos.Backend.get(id) as LdkitBackend | null;
+      const ldkitBackend = repos.Backend.get(id) as BackendEntity | null;
 
       if (!ldkitBackend) {
         return reply.status(404).send({ error: 'Backend not found' });
@@ -545,7 +545,7 @@ export default async function (
 
       const body = request.body;
       const generatedId = body.id ?? mintId('backend');
-      let backendData: Partial<LdkitBackend> & { $id: string };
+      let backendData: Partial<BackendEntity> & { $id: string };
       try {
         backendData = buildCreateBackendPayload(body, generatedId);
       } catch (error) {
@@ -573,7 +573,7 @@ export default async function (
       requireAdmin(request, 'updating backends');
       const { id: rawId } = request.params;
       const id = decodeURIComponent(rawId);
-      let updateData: Partial<LdkitBackend>;
+      let updateData: Partial<BackendEntity>;
       try {
         updateData = buildUpdateBackendPayload(request.body);
       } catch (error) {
@@ -583,7 +583,7 @@ export default async function (
         throw error;
       }
 
-      const current = repos.Backend.get(id) as LdkitBackend | null;
+      const current = repos.Backend.get(id) as BackendEntity | null;
       if (!current) {
         return reply.status(404).send({ error: 'Backend not found' });
       }
@@ -671,7 +671,7 @@ export default async function (
       const id = decodeURIComponent(request.params.id);
       requireBackendMode(request, id, 'use');
 
-      const backend = repos.Backend.get(id) as LdkitBackend | null;
+      const backend = repos.Backend.get(id) as BackendEntity | null;
       if (!backend) {
         return reply.status(404).send({ error: 'Backend not found' });
       }
@@ -738,7 +738,7 @@ export default async function (
       const id = decodeURIComponent(request.params.id);
       requireBackendMode(request, id, 'use');
 
-      const backend = repos.Backend.get(id) as LdkitBackend | null;
+      const backend = repos.Backend.get(id) as BackendEntity | null;
       if (!backend) {
         return reply.status(404).send({ error: 'Backend not found' });
       }
@@ -804,7 +804,7 @@ export default async function (
       const id = decodeURIComponent(request.params.id);
       requireBackendMode(request, id, 'write');
 
-      const backend = repos.Backend.get(id) as LdkitBackend | null;
+      const backend = repos.Backend.get(id) as BackendEntity | null;
       if (!backend) {
         return reply.status(404).send({ error: 'Backend not found' });
       }
@@ -869,7 +869,7 @@ export default async function (
       requireAdmin(request, 'reading backend environment variables');
       const id = decodeURIComponent(request.params.id);
 
-      const backend = repos.Backend.get(id) as LdkitBackend | null;
+      const backend = repos.Backend.get(id) as BackendEntity | null;
       if (!backend) {
         return reply.status(404).send({ error: 'Backend not found' });
       }
@@ -1119,7 +1119,7 @@ export default async function (
       requireBackendMode(request, id, 'write');
 
       // Get backend from cache
-      const ldkitBackend = repos.Backend.get(id) as LdkitBackend | null;
+      const ldkitBackend = repos.Backend.get(id) as BackendEntity | null;
       if (!ldkitBackend) {
         return reply.status(404).send({ error: 'Backend not found' });
       }
@@ -1236,7 +1236,7 @@ export default async function (
       requireBackendMode(request, id, 'use');
 
       // Get backend from cache
-      const ldkitBackend = repos.Backend.get(id) as LdkitBackend | null;
+      const ldkitBackend = repos.Backend.get(id) as BackendEntity | null;
       if (!ldkitBackend) {
         return reply.status(404).send({ error: 'Backend not found' });
       }
@@ -1287,7 +1287,7 @@ export default async function (
       requireBackendMode(request, id, 'write');
 
       // Get backend from cache
-      const ldkitBackend = repos.Backend.get(id) as LdkitBackend | null;
+      const ldkitBackend = repos.Backend.get(id) as BackendEntity | null;
       if (!ldkitBackend) {
         return reply.status(404).send({ error: 'Backend not found' });
       }

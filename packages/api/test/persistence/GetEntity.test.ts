@@ -6,7 +6,7 @@
 import { createBackend, Backends } from '../../src/persistence/utils/BackendUtils.js';
 import { BackendTypeIri } from '../../src/persistence/schemas/BackendSchema.js';
 
-import type { LdkitBackend } from '../../src/persistence/schemas/BackendSchema.js';
+import type { BackendEntity } from '../../src/persistence/schemas/BackendSchema.js';
 import { overrideRepositoryLenses } from '../../src/persistence/utils/entityRepository.js';
 
 const repositoryLens = (() => {
@@ -45,7 +45,7 @@ describe('getEntity (LDKit replacement for EntityManager.get)', () => {
   describe('getEntity function', () => {
     it('should retrieve an existing backend entity', async () => {
       // Create a test backend
-      const testBackend: Omit<LdkitBackend, 'dateCreated' | 'dateModified'> & { $id: string } = {
+      const testBackend: Omit<BackendEntity, 'dateCreated' | 'dateModified'> & { $id: string } = {
         $id: testBackendId,
         name: 'Get Test Backend',
         description: 'A backend for testing get functionality',
@@ -56,7 +56,7 @@ describe('getEntity (LDKit replacement for EntityManager.get)', () => {
       await createBackend(testBackend);
 
       // Test getEntity
-      const retrievedBackend = await getEntity<any, LdkitBackend>(Backends, testBackendId);
+      const retrievedBackend = await getEntity<any, BackendEntity>(Backends, testBackendId);
       
       expect(retrievedBackend).not.toBeNull();
       expect(retrievedBackend!.$id).toBe(testBackendId);
@@ -67,13 +67,13 @@ describe('getEntity (LDKit replacement for EntityManager.get)', () => {
 
     it('should return null for non-existent entity', async () => {
       const nonExistentId = 'http://example.org/non-existent-backend';
-      const result = await getEntity<any, LdkitBackend>(Backends, nonExistentId);
+      const result = await getEntity<any, BackendEntity>(Backends, nonExistentId);
       expect(result).toBeNull();
     });
 
     it('should handle malformed IDs gracefully', async () => {
       const malformedId = 'not-a-valid-iri';
-      const result = await getEntity<any, LdkitBackend>(Backends, malformedId);
+      const result = await getEntity<any, BackendEntity>(Backends, malformedId);
       expect(result).toBeNull();
     });
   });

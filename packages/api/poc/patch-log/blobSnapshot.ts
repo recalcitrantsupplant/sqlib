@@ -1,7 +1,7 @@
 /**
  * POC-3's harness: the checkpoint, timed.
  *
- * The logic this file used to hold was promoted to `src/blobSnapshot.ts` when
+ * The logic this file used to hold was promoted to `src/lib/patch/blobSnapshot.ts` when
  * the topology survived — the same move `poc/patchLogSql.ts` made for POC-2's
  * SQL, and for the same reason: a second copy is a copy that drifts from the
  * sink's. What is left here is what a POC is actually for and a sink must not
@@ -27,12 +27,11 @@ import type * as oxigraph from 'oxigraph';
 import {
   contentDigest,
   dumpGraph,
-  httpConditionalBlobStore,
   loadGraph,
   rebaseAndRetry as rebaseCheckpoint,
-  type BlobFetch,
   type RebaseStoreLike,
-} from '../src/index.js';
+} from '../../src/lib/patch/blobSnapshot.js';
+import { httpConditionalBlobStore, type BlobFetch } from '../../src/lib/patch/blobStoreHttp.js';
 
 export { contentDigest };
 
@@ -238,8 +237,8 @@ export interface RebaseInputs {
 /**
  * Land an update against a blob another writer moved underneath it, timed.
  *
- * The rebase itself is `src/blobSnapshot.ts`; the argument for why it
- * re-derives rather than replaying is there, and `test/blobSnapshot.test.ts`
+ * The rebase itself is `src/lib/patch/blobSnapshot.ts`; the argument for why it
+ * re-derives rather than replaying is there, and `test/lib/patch/blobSnapshot.test.ts`
  * pins the two apart. What this adds is the wall clock — the cost is the
  * finding, 4.4× the uncontended dump — and the harness's own numbering, which
  * counts the PUT that lost as attempt 1 because that is what the caller here

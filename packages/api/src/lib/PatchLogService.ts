@@ -35,7 +35,7 @@ import {
   latestArgMaxSql,
   nquadsSql,
   type PatchLogRow,
-} from '@sparql-query-lib/rdf-delta';
+} from './patch/patchLogSql.js';
 
 /** The slice of `@duckdb/node-api` this service uses. Structural, for the same reason `DuckDbService` states it structurally: the import is dynamic so DuckDB stays optional. */
 type ConnectionLike = {

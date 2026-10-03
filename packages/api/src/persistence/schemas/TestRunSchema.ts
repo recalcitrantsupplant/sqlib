@@ -132,7 +132,7 @@ export const TestRunSchema = {
 /** The outcomes a stored run or case row can carry — `earl:outcome`, narrowed. */
 export type TestRunOutcome = 'passed' | 'failed' | 'cantTell';
 
-export interface LdkitTestRun {
+export interface TestRunEntity {
   $id: string;
   '@type'?: 'TestRun';
   test: string;

@@ -2,8 +2,8 @@ import type { FastifyInstance } from 'fastify';
 import { classifyVersionPatch } from '../lib/versionPatch.js';
 import { mintId } from '../lib/id.js';
 import { toRestApi } from '../persistence/utils/id-adapter.js';
-import type { LdkitRule } from '../persistence/schemas/RuleSchema.js';
-import type { LdkitRuleVersion } from '../persistence/schemas/RuleVersionSchema.js';
+import type { RuleEntity } from '../persistence/schemas/RuleSchema.js';
+import type { RuleVersionEntity } from '../persistence/schemas/RuleVersionSchema.js';
 import { createRuleVersion, annotateRuleVersion } from '../lib/RuleVersionWriter.js';
 import { reposRoute, typedRoute, withReposHandler, validateIfMatch, setEntityConcurrencyHeaders, findVersionByNumber } from './route-helpers.js';
 import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
@@ -152,7 +152,7 @@ export default async function (fastify: FastifyInstance) {
     // exists. The same decision `/queries`, `/tuple-sets` and `/rule-sets`
     // make; this listing made none and answered with every rule in the
     // deployment.
-    const items = repos.Rule.list() as LdkitRule[];
+    const items = repos.Rule.list() as RuleEntity[];
     return reply.send(filterReadable(request, items).map(rule => toRestApi(rule)));
   }));
 
@@ -208,7 +208,7 @@ export default async function (fastify: FastifyInstance) {
     }
 
     const id = mintId('rule');
-    const toCreate: Partial<LdkitRule> & { $id: string; rulesetMembership?: unknown } = {
+    const toCreate: Partial<RuleEntity> & { $id: string; rulesetMembership?: unknown } = {
       $id: id,
       name,
       description: body.description ?? null,
@@ -240,7 +240,7 @@ export default async function (fastify: FastifyInstance) {
       },
     }, async ({ repos, reply, request }) => {
     const { id } = request.params;
-    const entity = repos.Rule.get(id) as LdkitRule | null;
+    const entity = repos.Rule.get(id) as RuleEntity | null;
     if (!entity) {
       return reply.status(404).send({ error: 'Not Found' });
     }
@@ -265,7 +265,7 @@ export default async function (fastify: FastifyInstance) {
     const updates = request.body;
     const cacheCoordinator = getCacheCoordinator();
 
-    const current = repos.Rule.get(id) as LdkitRule | null;
+    const current = repos.Rule.get(id) as RuleEntity | null;
     if (!current) {
       return reply.status(404).send({ error: 'Not Found' });
     }
@@ -286,7 +286,7 @@ export default async function (fastify: FastifyInstance) {
     // `coerceTypes: 'array'` has already wrapped the string form by the time we
     // get here, but normalising explicitly keeps the handler correct if that
     // option ever changes, and it is what gets persisted (queries.ts does the
-    // same). `LdkitRule.isPartOf` is `string[]`.
+    // same). `RuleEntity.isPartOf` is `string[]`.
     let ids: string[] | undefined;
     if (updates.isPartOf) {
       ids = Array.isArray(updates.isPartOf)
@@ -309,7 +309,7 @@ export default async function (fastify: FastifyInstance) {
     // a hand-written `nullable: true`. `name` is required there, and ajv coerces
     // an explicit `null` to `''`, so it is the entity's `minLength: 1` that
     // rejects the null-out this handler used to have to tolerate. The cast stays
-    // because `LdkitRule` types `isPartOf` as `string[]` while the body's is the
+    // because `RuleEntity` types `isPartOf` as `string[]` while the body's is the
     // pre-coercion union.
     const tagCheck = analyseTags('Rule', updates.tags, ids ?? current.isPartOf, iri =>
       cacheCoordinator.get(iri)
@@ -322,7 +322,7 @@ export default async function (fastify: FastifyInstance) {
       ...updates,
       ...(ids ? { isPartOf: ids } : {}),
       ...(tagCheck.tags !== undefined ? { tags: tagCheck.tags } : {}),
-    } as Partial<LdkitRule>);
+    } as Partial<RuleEntity>);
     if (!updated) {
       return reply.status(404).send({ error: 'Not Found' });
     }
@@ -349,7 +349,7 @@ export default async function (fastify: FastifyInstance) {
     }
 
     // Cascading delete: delete all versions first
-    const versions = (repos.RuleVersion.list() as LdkitRuleVersion[]).filter(v => v.isPartOf === id);
+    const versions = (repos.RuleVersion.list() as RuleVersionEntity[]).filter(v => v.isPartOf === id);
     for (const version of versions) {
       await repos.RuleVersion.delete(version.$id);
     }
@@ -379,7 +379,7 @@ export default async function (fastify: FastifyInstance) {
     if (!parent) {
       return reply.status(404).send({ error: 'Rule not found' });
     }
-    const versions = (repos.RuleVersion.list() as LdkitRuleVersion[])
+    const versions = (repos.RuleVersion.list() as RuleVersionEntity[])
       .filter(v => v.isPartOf === id)
       .sort((a, b) => (a.version ?? 0) - (b.version ?? 0));
     return reply.send(versions.map(v => toRestApi(v)));
@@ -452,7 +452,7 @@ export default async function (fastify: FastifyInstance) {
       },
     }, async ({ repos, reply, request }) => {
     const { id } = request.params;
-    const parent = repos.Rule.get(id) as LdkitRule | null;
+    const parent = repos.Rule.get(id) as RuleEntity | null;
     if (!parent) {
       return reply.status(404).send({ error: 'Rule not found' });
     }
@@ -462,13 +462,13 @@ export default async function (fastify: FastifyInstance) {
     const maxIterations = typeof body.maxIterations === 'number' && body.maxIterations > 0 ? body.maxIterations : 25;
     const destroyStore = body.destroyStore !== false;
 
-    const versions = (repos.RuleVersion.list() as LdkitRuleVersion[])
+    const versions = (repos.RuleVersion.list() as RuleVersionEntity[])
       .filter(v => v.isPartOf === id);
     if (versions.length === 0) {
       return reply.status(404).send({ error: 'Rule has no versions to execute' });
     }
 
-    let selected: LdkitRuleVersion | undefined;
+    let selected: RuleVersionEntity | undefined;
     if (requestedVersion !== undefined) {
       selected = versions.find(v => Number(v.version) === requestedVersion);
       if (!selected) {
@@ -554,7 +554,7 @@ export default async function (fastify: FastifyInstance) {
     }
 
     const lookup = findVersionByNumber(
-      repos.RuleVersion.list() as LdkitRuleVersion[],
+      repos.RuleVersion.list() as RuleVersionEntity[],
       id,
       version,
       'rule',
@@ -597,7 +597,7 @@ export default async function (fastify: FastifyInstance) {
     }
 
     const lookup = findVersionByNumber(
-      repos.RuleVersion.list() as LdkitRuleVersion[],
+      repos.RuleVersion.list() as RuleVersionEntity[],
       id,
       version,
       'rule',
@@ -636,7 +636,7 @@ export default async function (fastify: FastifyInstance) {
     }
 
     const lookup = findVersionByNumber(
-      repos.RuleVersion.list() as LdkitRuleVersion[],
+      repos.RuleVersion.list() as RuleVersionEntity[],
       id,
       version,
       'rule',

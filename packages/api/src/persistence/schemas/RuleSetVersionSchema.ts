@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for RuleSetVersion entity.
+ * Schema for RuleSetVersion entity.
  *
  * Represents an immutable snapshot of a ruleset.
  *
@@ -82,7 +82,7 @@ export const RuleSetVersionSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitRuleSetVersion {
+export interface RuleSetVersionEntity {
   $id: string;
   '@type'?: 'RuleSetVersion';
   isPartOf: string;

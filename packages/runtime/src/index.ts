@@ -11,35 +11,26 @@
  * endpoint. Development and testing still use the full sqlib API, which is what
  * compiles and verifies the templates in the first place.
  *
- * The safety boundary is {@link serializeTerm} and friends: every caller-supplied
+ * The safety boundary is `serializeTerm` and friends: every caller-supplied
  * value is proven to sit inside its SPARQL terminal production or rejected. That
  * is the same module the server runs, not a reimplementation of it.
+ *
+ * This entry is what an exported page needs, and what the semver range promises.
+ * The machinery underneath — term serialisation, slot assignment, page-parameter
+ * substitution, bundle hashing — is shared with the sqlib server through
+ * `@sparql-query-lib/runtime/internal`, which promises nothing.
  */
 
-export {
-  InvalidTermError,
-  escapeLiteralLexical,
-  isSafeVariableName,
-  renderValuesBlock,
-  serializeIri,
-  serializeTerm,
-  serializeVariable,
-  type PrefixTable,
-  type TermValue,
-} from './sparql-terms.js';
+export { InvalidTermError, type PrefixTable, type TermValue } from './sparql-terms.js';
 
 export {
-  applyTemplateArguments,
-  assignArgumentSets,
-  completeArgumentSets,
   type ArgumentRow,
   type EmptyArgumentMode,
   type QueryTemplate,
-  type TemplateArgumentSet,
   type TemplateSlot,
 } from './query-template.js';
 
-export { InvalidArgumentError, normalizeArguments, type WireArgumentSet } from './arguments.js';
+export { InvalidArgumentError, type WireArgumentSet } from './arguments.js';
 
 export {
   describeTerm,
@@ -49,18 +40,11 @@ export {
   type TermDescription,
 } from './describe-term.js';
 
-export {
-  InvalidParameterError,
-  assertPageParameterValue,
-  substituteLimitOffset,
-  toExecutionParameters,
-  type ExecutionParameter,
-} from './limit-offset.js';
+export { InvalidParameterError, type ExecutionParameter } from './limit-offset.js';
 
 export {
   InvalidBundleError,
   assertValidBundle,
-  hashTemplateText,
   verifyBundleIntegrity,
   type ExportBundle,
   type ExportedGroup,

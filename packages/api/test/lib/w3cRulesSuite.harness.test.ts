@@ -13,6 +13,10 @@
  * that CI checks what the Tests screen shows would be gone.
  *
  * The assertion is a **ratchet**: nothing that conformed may stop conforming.
+ * The baseline and scoreboard are committed and rewritten only by a run with
+ * `SRL_W3C_UPDATE=1` — the same switch the srl harness reads — so a plain run
+ * never dirties the tree, and a missing baseline fails instead of being seeded
+ * from whatever this run happened to get.
  */
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -39,20 +43,21 @@ import { FANOUT_GROUP_ID } from '../../src/lib/w3cRulesSuite/validationExamplesF
 import { GraphBuilder } from '../../src/lib/orchestration/GraphBuilder.js';
 import { ExecutionEngine } from '../../src/lib/orchestration/ExecutionEngine.js';
 import { ExecutorFactory } from '../../src/lib/orchestration/ExecutorFactory.js';
-import type { LdkitQueryGroup } from '../../src/persistence/schemas/QueryGroupSchema.js';
-import type { LdkitQueryGroupVersion } from '../../src/persistence/schemas/QueryGroupVersionSchema.js';
-import type { LdkitQueryNode } from '../../src/persistence/schemas/QueryNodeSchema.js';
-import type { LdkitTag } from '../../src/persistence/schemas/TagSchema.js';
-import type { LdkitRule } from '../../src/persistence/schemas/RuleSchema.js';
-import type { LdkitRuleSet } from '../../src/persistence/schemas/RuleSetSchema.js';
-import type { LdkitRuleSetVersion } from '../../src/persistence/schemas/RuleSetVersionSchema.js';
-import type { LdkitTest } from '../../src/persistence/schemas/TestSchema.js';
-import type { LdkitTestVersion } from '../../src/persistence/schemas/TestVersionSchema.js';
+import type { QueryGroupEntity } from '../../src/persistence/schemas/QueryGroupSchema.js';
+import type { QueryGroupVersionEntity } from '../../src/persistence/schemas/QueryGroupVersionSchema.js';
+import type { QueryNodeEntity } from '../../src/persistence/schemas/QueryNodeSchema.js';
+import type { TagEntity } from '../../src/persistence/schemas/TagSchema.js';
+import type { RuleEntity } from '../../src/persistence/schemas/RuleSchema.js';
+import type { RuleSetEntity } from '../../src/persistence/schemas/RuleSetSchema.js';
+import type { RuleSetVersionEntity } from '../../src/persistence/schemas/RuleSetVersionSchema.js';
+import type { TestEntity } from '../../src/persistence/schemas/TestSchema.js';
+import type { TestVersionEntity } from '../../src/persistence/schemas/TestVersionSchema.js';
 
 /** Ratchet artefacts live beside the snapshot they score. */
 const w3cUrl = (rel: string) => fileURLToPath(new URL(`../../../srl/test/w3c/${rel}`, import.meta.url));
 const BASELINE_FILE = w3cUrl('library-expected-pass.json');
 const SCOREBOARD_FILE = w3cUrl('library-scoreboard.json');
+const UPDATE = process.env.SRL_W3C_UPDATE === '1';
 
 interface Verdict {
   name: string;
@@ -74,7 +79,7 @@ let seededCounts = { tests: 0, ruleSets: 0, dataGraphs: 0 };
  * expectation kind, and scoring them together would hide which of them we are
  * failing.
  */
-function categoryOf(version: LdkitTestVersion | null): string {
+function categoryOf(version: TestVersionEntity | null): string {
   const comment = version?.comment ?? '';
   const category = comment.split('/')[0]?.trim();
   return category || 'unknown';
@@ -100,14 +105,14 @@ beforeAll(async () => {
   };
 
   const repos = getEntityRepositories();
-  const tests = (repos.Test.list() as LdkitTest[])
+  const tests = (repos.Test.list() as TestEntity[])
     .filter(test => test.isPartOf?.includes(W3C_RULES_SUITE_LIBRARY_ID));
 
   const runner = new TestRunner({ internal: true });
   const results: Verdict[] = [];
   for (const test of tests) {
     if (!test.currentVersion) continue;
-    const category = categoryOf(repos.TestVersion.get(test.currentVersion) as LdkitTestVersion | null);
+    const category = categoryOf(repos.TestVersion.get(test.currentVersion) as TestVersionEntity | null);
     try {
       const result = await runner.runTestVersion(test.currentVersion);
       results.push({ name: test.name, category, passed: result.passed, message: result.message });
@@ -150,7 +155,7 @@ describe('W3C SPARQL-RL conformance, as library Tests', () => {
     expect(skipped, `entries the library could not express: ${JSON.stringify(skipped)}`).toEqual([]);
   });
 
-  it('writes the scoreboard', () => {
+  it('scores every category', () => {
     const scoreboard: Record<string, { pass: number; total: number }> = {};
     for (const verdict of verdicts) {
       const entry = (scoreboard[verdict.category] ??= { pass: 0, total: 0 });
@@ -158,7 +163,7 @@ describe('W3C SPARQL-RL conformance, as library Tests', () => {
       if (verdict.passed) entry.pass += 1;
     }
     if (skipped.length > 0) scoreboard.unseedable = { pass: 0, total: skipped.length };
-    writeFileSync(SCOREBOARD_FILE, `${JSON.stringify(scoreboard, null, 2)}\n`);
+    if (UPDATE) writeFileSync(SCOREBOARD_FILE, `${JSON.stringify(scoreboard, null, 2)}\n`);
     // eslint-disable-next-line no-console
     console.log(
       `[W3C conformance, as Tests] ${Object.entries(scoreboard)
@@ -170,9 +175,9 @@ describe('W3C SPARQL-RL conformance, as library Tests', () => {
 
   it('does not regress the ratchet baseline', () => {
     const passingNow = verdicts.filter(v => v.passed).map(v => v.name).sort();
-    if (!existsSync(BASELINE_FILE)) {
-      writeFileSync(BASELINE_FILE, `${JSON.stringify(passingNow, null, 2)}\n`);
-    }
+    if (UPDATE) writeFileSync(BASELINE_FILE, `${JSON.stringify(passingNow, null, 2)}\n`);
+    expect(existsSync(BASELINE_FILE), 'library-expected-pass.json is missing — run with SRL_W3C_UPDATE=1 to record one')
+      .toBe(true);
     const baseline: string[] = JSON.parse(readFileSync(BASELINE_FILE, 'utf8'));
     const nowSet = new Set(passingNow);
     const regressed = baseline.filter(name => !nowSet.has(name));
@@ -183,7 +188,7 @@ describe('W3C SPARQL-RL conformance, as library Tests', () => {
     expect(regressed, `these previously conformed and now fail: ${why}`).toEqual([]);
   });
 
-  it('reports newly-conforming entries (add them to library-expected-pass.json to lock them in)', () => {
+  it('reports newly-conforming entries (run with SRL_W3C_UPDATE=1 to lock them in)', () => {
     const baseline: string[] = existsSync(BASELINE_FILE) ? JSON.parse(readFileSync(BASELINE_FILE, 'utf8')) : [];
     const baseSet = new Set(baseline);
     const gained = verdicts.filter(v => v.passed && !baseSet.has(v.name)).map(v => v.name);
@@ -205,10 +210,10 @@ describe('W3C SPARQL-RL conformance, as library Tests', () => {
 
   it('tags every test, in the suite\'s own library', () => {
     const repos = getEntityRepositories();
-    const tags = (repos.Tag.list() as LdkitTag[]).filter(tag => tag.isPartOf === W3C_RULES_SUITE_LIBRARY_ID);
+    const tags = (repos.Tag.list() as TagEntity[]).filter(tag => tag.isPartOf === W3C_RULES_SUITE_LIBRARY_ID);
     expect(tags).toHaveLength(W3C_SUITE_TAGS.length);
 
-    const tests = (repos.Test.list() as LdkitTest[])
+    const tests = (repos.Test.list() as TestEntity[])
       .filter(test => test.isPartOf?.includes(W3C_RULES_SUITE_LIBRARY_ID));
     const untagged = tests.filter(test => (test.tags ?? []).length === 0).map(test => test.name);
     expect(untagged, 'every seeded test carries at least its kind tag').toEqual([]);
@@ -226,8 +231,8 @@ describe('W3C SPARQL-RL conformance, as library Tests', () => {
     const repos = getEntityRepositories();
     const mine = <T extends { isPartOf?: string[] | null }>(rows: T[]) =>
       rows.filter(row => row.isPartOf?.includes(W3C_RULES_SUITE_LIBRARY_ID));
-    const ruleSets = mine(repos.RuleSet.list() as LdkitRuleSet[]);
-    const rules = mine(repos.Rule.list() as LdkitRule[]);
+    const ruleSets = mine(repos.RuleSet.list() as RuleSetEntity[]);
+    const rules = mine(repos.Rule.list() as RuleEntity[]);
 
     const bare = (rows: Array<{ name?: string | null; tags?: string[] | null }>) =>
       rows.filter(row => (row.tags ?? []).length === 0).map(row => row.name);
@@ -237,7 +242,7 @@ describe('W3C SPARQL-RL conformance, as library Tests', () => {
     // A document test is one rule set holding one document, so its rule set
     // carries exactly what the test does. This is the claim the whole change
     // rests on: three rails, one set of headings.
-    const test = (repos.Test.list() as LdkitTest[])
+    const test = (repos.Test.list() as TestEntity[])
       .find(row => row.name === 'syntax-template-bad-01.srl');
     expect(test).toBeDefined();
     const ruleSet = ruleSets.find(row => row.$id === test!.subject);
@@ -270,7 +275,7 @@ describe('W3C SPARQL-RL conformance, as library Tests', () => {
     // Three example tests: the backend-based group, the two-input group that
     // could not be covered by a Test until a case could carry more than one
     // data graph (#298), and the per-constraint-kind fan-out group (#295).
-    const examples = (repos.Test.list() as LdkitTest[])
+    const examples = (repos.Test.list() as TestEntity[])
       .filter(test => test.isPartOf?.includes(SHACL_VALIDATION_EXAMPLES_LIBRARY_ID));
     expect(examples).toHaveLength(3);
 
@@ -291,7 +296,7 @@ describe('W3C SPARQL-RL conformance, as library Tests', () => {
    */
   it('seeds and runs the fan-out SHACL query-group example', async () => {
     const repos = getEntityRepositories();
-    const examples = (repos.Test.list() as LdkitTest[])
+    const examples = (repos.Test.list() as TestEntity[])
       .filter(test => test.isPartOf?.includes(SHACL_VALIDATION_EXAMPLES_LIBRARY_ID));
 
     const example = examples.find(test => test.subject === FANOUT_GROUP_ID);
@@ -310,7 +315,7 @@ describe('W3C SPARQL-RL conformance, as library Tests', () => {
    */
   it('covers the two-input SHACL group with a real Test', async () => {
     const repos = getEntityRepositories();
-    const example = (repos.Test.list() as LdkitTest[])
+    const example = (repos.Test.list() as TestEntity[])
       .find(test => test.subject === EPHEMERAL_GROUP_ID);
     expect(example?.currentVersion, 'the two-input group has no Test').toBeTruthy();
 
@@ -325,14 +330,14 @@ describe('W3C SPARQL-RL conformance, as library Tests', () => {
 
   it('runs the two-input SHACL group with both graphs supplied at the start node', async () => {
     const repos = getEntityRepositories();
-    const group = repos.QueryGroup.get(EPHEMERAL_GROUP_ID) as LdkitQueryGroup | null;
+    const group = repos.QueryGroup.get(EPHEMERAL_GROUP_ID) as QueryGroupEntity | null;
     expect(group?.currentVersion).toBeTruthy();
 
-    const version = repos.QueryGroupVersion.get(group!.currentVersion!) as LdkitQueryGroupVersion;
+    const version = repos.QueryGroupVersion.get(group!.currentVersion!) as QueryGroupVersionEntity;
     // Neither node may fall back to a real backend: both read only what this
     // run hands them, into stores of their own.
     const stores = (version.executionNodes ?? [])
-      .map(nodeId => (repos.QueryNode.get(nodeId) as LdkitQueryNode).backendConfig)
+      .map(nodeId => (repos.QueryNode.get(nodeId) as QueryNodeEntity).backendConfig)
       .map(config => {
         expect(config?.type).toBe('ephemeral-oxigraph');
         return config!.storeId;
@@ -361,9 +366,9 @@ describe('W3C SPARQL-RL conformance, as library Tests', () => {
 
   it('reseeds a validation group version that lost the node config it needs', async () => {
     const repos = getEntityRepositories();
-    const group = repos.QueryGroup.get(EPHEMERAL_GROUP_ID) as LdkitQueryGroup;
+    const group = repos.QueryGroup.get(EPHEMERAL_GROUP_ID) as QueryGroupEntity;
     const staleVersionId = group.currentVersion!;
-    const nodeIds = (repos.QueryGroupVersion.get(staleVersionId) as LdkitQueryGroupVersion).executionNodes ?? [];
+    const nodeIds = (repos.QueryGroupVersion.get(staleVersionId) as QueryGroupVersionEntity).executionNodes ?? [];
 
     // The state a store seeded before #280 is in, and equally the state #305
     // leaves every store in after a restart: the group and its version are
@@ -381,14 +386,14 @@ describe('W3C SPARQL-RL conformance, as library Tests', () => {
 
     await seedW3cRulesSuite();
 
-    const repaired = repos.QueryGroup.get(EPHEMERAL_GROUP_ID) as LdkitQueryGroup;
+    const repaired = repos.QueryGroup.get(EPHEMERAL_GROUP_ID) as QueryGroupEntity;
     expect(repaired.currentVersion).not.toBe(staleVersionId);
     expect(() => new GraphBuilder().buildFromGroupVersionId(repaired.currentVersion!)).not.toThrow();
   });
 
   it('repairs a rule set whose current-version target was lost', async () => {
     const repos = getEntityRepositories();
-    const ruleSet = (repos.RuleSet.list() as LdkitRuleSet[])
+    const ruleSet = (repos.RuleSet.list() as RuleSetEntity[])
       .find(candidate => candidate.name === 'eval-basic-02.srl');
     expect(ruleSet?.currentVersion).toBeTruthy();
 
@@ -398,8 +403,8 @@ describe('W3C SPARQL-RL conformance, as library Tests', () => {
 
     await seedW3cRulesSuite();
 
-    const repaired = repos.RuleSet.get(ruleSet!.$id) as LdkitRuleSet;
-    const current = repos.RuleSetVersion.get(repaired.currentVersion!) as LdkitRuleSetVersion | null;
+    const repaired = repos.RuleSet.get(ruleSet!.$id) as RuleSetEntity;
+    const current = repos.RuleSetVersion.get(repaired.currentVersion!) as RuleSetVersionEntity | null;
     expect(current).toMatchObject({ isPartOf: repaired.$id, version: 1 });
   });
 });

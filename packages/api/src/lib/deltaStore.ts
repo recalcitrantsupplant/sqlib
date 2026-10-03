@@ -46,6 +46,10 @@ type ResultTerm =
  * program is a cost nobody asked for. Such a program is refused by name here,
  * which is what the issue asks for — simulation where it is cheap, an honest
  * refusal where it is not.
+ *
+ * And no `unionDefaultGraph`: whether the endpoint queries its default graph as
+ * the union of all graphs is a property of its configuration, which sqlib does
+ * not record, so `packages/rdf-delta` probes for it once per store instead.
  */
 export function executorDeltaStore(executor: ISparqlExecutor): DeltaStore {
   return {

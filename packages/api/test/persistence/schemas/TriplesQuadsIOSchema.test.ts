@@ -39,7 +39,7 @@ describe('TriplesQuadsIOSchema', () => {
   });
 
   it('defines correct TypeScript interface shape', () => {
-    // Verify that the LdkitTriplesQuadsIO interface structure is correct
+    // Verify that the TriplesQuadsIOEntity interface structure is correct
     // This is a compile-time test that ensures type safety
     const mockEntity = {
       $id: 'urn:test:triplesquads:1',

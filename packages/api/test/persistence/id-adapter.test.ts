@@ -1,7 +1,7 @@
 
 import {
   normalizeId,
-  toLdkit,
+  toEntity,
   toApi,
   normalizeRef,
   normalizeRefArray
@@ -36,10 +36,10 @@ describe('id-adapter', () => {
     });
   });
 
-  describe('toLdkit', () => {
+  describe('toEntity', () => {
     it('should convert API entity to LDKit entity with both @id and $id', () => {
       const apiEntity = { '@id': 'api-id', name: 'test' };
-      const ldkitEntity = toLdkit(apiEntity);
+      const ldkitEntity = toEntity(apiEntity);
       expect(ldkitEntity).toEqual({
         '@id': 'api-id',
         '$id': 'api-id',
@@ -49,7 +49,7 @@ describe('id-adapter', () => {
 
     it('should use $id if present in API entity and set both', () => {
       const apiEntity = { '$id': 'api-id-dollar', name: 'test' };
-      const ldkitEntity = toLdkit(apiEntity);
+      const ldkitEntity = toEntity(apiEntity);
       expect(ldkitEntity).toEqual({
         '@id': 'api-id-dollar',
         '$id': 'api-id-dollar',
@@ -59,7 +59,7 @@ describe('id-adapter', () => {
 
     it('should prioritize @id over $id if both are present and different', () => {
       const apiEntity = { '@id': 'api-id-at', '$id': 'api-id-dollar', name: 'test' };
-      const ldkitEntity = toLdkit(apiEntity);
+      const ldkitEntity = toEntity(apiEntity);
       expect(ldkitEntity).toEqual({
         '@id': 'api-id-at',
         '$id': 'api-id-at',
@@ -69,7 +69,7 @@ describe('id-adapter', () => {
 
     it('should throw error if no valid id is present', () => {
       const apiEntity = { name: 'test' };
-      expect(() => toLdkit(apiEntity)).toThrow("normalizeApiId: object must contain an '@id' or '$id' string");
+      expect(() => toEntity(apiEntity)).toThrow("normalizeApiId: object must contain an '@id' or '$id' string");
     });
   });
 

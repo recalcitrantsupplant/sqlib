@@ -53,11 +53,11 @@ import { EtlService } from './EtlService.js';
 import { createTupleSetVersion, MAX_TUPLE_SET_VERSION_BYTES } from './TupleSetVersionWriter.js';
 import { currentVersionOfParent, isUnchangedReSnapshot } from './reSnapshot.js';
 import { beginEtlExecution, completeEtlExecution, failEtlExecution } from './etlRunLog.js';
-import type { LdkitTupleSetVersion } from '../persistence/schemas/TupleSetVersionSchema.js';
-import type { LdkitEtlJobVersion } from '../persistence/schemas/EtlJobVersionSchema.js';
+import type { TupleSetVersionEntity } from '../persistence/schemas/TupleSetVersionSchema.js';
+import type { EtlJobVersionEntity } from '../persistence/schemas/EtlJobVersionSchema.js';
 import type {
   ColumnDefinition,
-  LdkitEtlColumnMappingVersion,
+  EtlColumnMappingVersionEntity,
 } from '../persistence/schemas/EtlColumnMappingVersionSchema.js';
 import type { TupleRow } from './tupleContent.js';
 
@@ -85,7 +85,7 @@ export interface MaterializeTupleSetVersionFromEtlInput {
  * can read the difference.
  */
 export interface MaterializedTupleSetVersion {
-  version: LdkitTupleSetVersion;
+  version: TupleSetVersionEntity;
   reused: boolean;
 }
 
@@ -103,7 +103,7 @@ function variablesOf(columns: ColumnDefinition[]): string[] {
   return vars;
 }
 
-function parseColumnDefinitions(mapping: LdkitEtlColumnMappingVersion): ColumnDefinition[] {
+function parseColumnDefinitions(mapping: EtlColumnMappingVersionEntity): ColumnDefinition[] {
   try {
     const parsed = JSON.parse(mapping.columns) as unknown;
     return Array.isArray(parsed) ? (parsed as ColumnDefinition[]) : [];
@@ -130,7 +130,7 @@ export async function materializeTupleSetVersionFromEtl(
 ): Promise<MaterializedTupleSetVersion> {
   const cacheCoordinator = getCacheCoordinator();
 
-  const jobVersion = cacheCoordinator.get(input.etlJobVersionId) as LdkitEtlJobVersion | null;
+  const jobVersion = cacheCoordinator.get(input.etlJobVersionId) as EtlJobVersionEntity | null;
   if (!jobVersion || jobVersion['@type'] !== 'EtlJobVersion') {
     throw new TupleSetEtlSourceError(`EtlJobVersion ${input.etlJobVersionId} not found`, 404);
   }
@@ -156,7 +156,7 @@ export async function materializeTupleSetVersionFromEtl(
     );
   }
 
-  const mappingVersion = cacheCoordinator.get(mappingVersionId) as LdkitEtlColumnMappingVersion | null;
+  const mappingVersion = cacheCoordinator.get(mappingVersionId) as EtlColumnMappingVersionEntity | null;
   if (!mappingVersion || mappingVersion['@type'] !== 'EtlColumnMappingVersion') {
     throw new TupleSetEtlSourceError(`EtlColumnMappingVersion ${mappingVersionId} not found`, 404);
   }
@@ -233,7 +233,7 @@ export async function materializeTupleSetVersionFromEtl(
     // a difference. That is the same rule `TupleSetVersionWriter` already
     // states: a version means what it meant when it was imported, and
     // normalisation is never retroactive.
-    const current = currentVersionOfParent<LdkitTupleSetVersion & Record<string, unknown>>(
+    const current = currentVersionOfParent<TupleSetVersionEntity & Record<string, unknown>>(
       tupleSetId,
       'TupleSetVersion',
     );

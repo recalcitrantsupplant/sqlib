@@ -15,6 +15,7 @@ import { logger, SeverityNumber } from './logger.js'; // Import OTEL logger
 // and an exported bundle runs them in the browser. Importing rather than copying
 // is what makes "the client substitutes exactly as the server does" true by
 // construction (`docs/guides/static-export.md`).
+import type { QueryTemplate, TemplateSlot, TermValue } from '@sparql-query-lib/runtime';
 import {
   applyTemplateArguments,
   completeArgumentSets,
@@ -22,11 +23,8 @@ import {
   serializeIri,
   serializeTerm,
   substituteLimitOffset,
-  type QueryTemplate,
   type TemplateArgumentSet,
-  type TemplateSlot,
-  type TermValue,
-} from '@sparql-query-lib/runtime';
+} from '@sparql-query-lib/runtime/internal';
 
 // The Traqula parse result (a SPARQL 1.2 query or update AST).
 export type ParsedSparql = SparqlQuery;

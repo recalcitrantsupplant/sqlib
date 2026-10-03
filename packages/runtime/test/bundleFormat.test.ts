@@ -89,11 +89,18 @@ describe('a committed version-1 bundle', () => {
     expect(() => assertValidBundle(MINIMAL)).not.toThrow();
   });
 
-  it('still matches the template hashes recorded when it was exported', async () => {
+  it('still matches the hashes recorded when it was exported', async () => {
     // Not a re-test of the hashing: the fixture is committed text, so this is
     // the one place that says the bytes on disk are the bytes that were hashed.
     await expect(verifyBundleIntegrity(GOLDEN)).resolves.toBeUndefined();
-    await expect(verifyBundleIntegrity(MINIMAL)).resolves.toBeUndefined();
+  });
+
+  it('loads a bundle older than the whole-entry hash, but will not vouch for it', async () => {
+    // The minimal bundle carries `textHash` and no `integrity`, as everything
+    // exported before the hash covered the whole entry does. Loading it is
+    // rule 1; verifying it would claim a check that never happened.
+    expect(() => fromBundle(MINIMAL)).not.toThrow();
+    await expect(verifyBundleIntegrity(MINIMAL)).rejects.toThrow(/carries no integrity hash/);
   });
 
   it('splices arguments into the frozen template', () => {

@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for RuleVersion entity.
+ * Schema for RuleVersion entity.
  *
  * Represents an immutable snapshot of a SHACL rule definition.
  */
@@ -68,7 +68,7 @@ export const RuleVersionSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitRuleVersion {
+export interface RuleVersionEntity {
   $id: string;
   '@type'?: 'RuleVersion';
   isPartOf: string;

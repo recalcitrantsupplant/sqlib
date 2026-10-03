@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for Test Entity (stable pointer)
+ * Schema for Test Entity (stable pointer)
  *
  * A test is an invocation spec plus an expectation, run once, judged pass or
  * fail. The invocation half is the same shape benchmarks already discovered
@@ -90,7 +90,7 @@ export const TestSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitTest {
+export interface TestEntity {
   $id: string;
   '@type'?: 'Test';
   name: string;

@@ -7,7 +7,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { assertEquivalent, type EquivalenceCase } from './support/harness.js';
+import { assertEquivalent, patchFor, storeFrom, type EquivalenceCase } from './support/harness.js';
 
 const DATA = `
 <http://ex/a> <http://ex/p> <http://ex/b> .
@@ -176,6 +176,35 @@ describe('through a store that can only be asked SPARQL', () => {
   // HTTP-backend path depends on.
   it.each(CASES.map((testCase) => [testCase.name, testCase] as const))('%s', async (_name, testCase) => {
     await expect(assertEquivalent({ ...testCase, membership: 'sparql-only' })).resolves.toBeDefined();
+  });
+});
+
+describe('through a store that relabels blank nodes, as an HTTP backend does', () => {
+  // The SPARQL-only run above still gets Oxigraph's own term objects back, so a
+  // blank node it reads keeps its identity in the store. Over HTTP it never
+  // does: every response mints its own labels. A patch that names a blank node
+  // the store already held cannot be applied through SPARQL at all, so what
+  // matters is that every such patch says so — and that every other one still
+  // reaches the same store.
+  it.each(CASES.map((testCase) => [testCase.name, testCase] as const))('%s', async (_name, testCase) => {
+    const options = { ...testCase, membership: 'http' as const };
+    const store = storeFrom(testCase.data);
+    const patch = await patchFor(store, testCase.update, options);
+    if (patch.containsBlankNodes) {
+      expect(patch.applyMode).not.toBe('ground-sparql');
+      expect(patch.revertible).toBe(false);
+      return;
+    }
+    await expect(assertEquivalent(options)).resolves.toBeDefined();
+  });
+
+  it('cannot carry a store blank node through, and says so', async () => {
+    const patch = await patchFor(storeFrom(DATA), 'DELETE WHERE { ?s <http://ex/q> "nested" }', {
+      membership: 'http',
+    });
+    expect(patch.deletionCount).toBe(1);
+    expect(patch.netEffectExact).toBe(false);
+    expect(patch.applyMode).toBe('store');
   });
 });
 

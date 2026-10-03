@@ -116,7 +116,8 @@ export function describeTerm(
     return { kind: 'bnode', typeLabel: 'BNode', display: term.value, fullIri: null, datatype: null, language: null };
   }
 
-  if (term.type === 'literal') {
+  // `typed-literal` is the 2008 draft spelling of the same thing.
+  if (term.type === 'literal' || term.type === 'typed-literal') {
     const language = term['xml:lang'] ?? null;
     let datatype: string | null = null;
     // Datatype and language are mutually exclusive in RDF 1.1, and a
@@ -137,7 +138,7 @@ export function describeTerm(
 
   return {
     kind: 'unknown',
-    typeLabel: String(term.type ?? ''),
+    typeLabel: String((term as { type?: unknown }).type ?? ''),
     display: term.value,
     fullIri: null,
     datatype: null,

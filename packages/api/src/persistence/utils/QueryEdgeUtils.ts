@@ -2,55 +2,55 @@
  * LDKit utilities for QueryEdge entities
  */
 
-import { QueryEdgeSchema, type LdkitQueryEdge } from '../schemas/QueryEdgeSchema.js';
+import { QueryEdgeSchema, type QueryEdgeEntity } from '../schemas/QueryEdgeSchema.js';
 import { createRepositoryLens } from './entityRepository.js';
-import { toLdkit } from './id-adapter.js';
+import { toEntity } from './id-adapter.js';
 
 export const QueryEdges = createRepositoryLens(QueryEdgeSchema);
 
 /**
  * Find QueryEdges by sourceNodeId
  */
-export async function findQueryEdgesBySourceNode(sourceNodeId: string): Promise<LdkitQueryEdge[]> {
+export async function findQueryEdgesBySourceNode(sourceNodeId: string): Promise<QueryEdgeEntity[]> {
   const allEdges = await QueryEdges.find();
   return allEdges
     .filter(edge => edge.sourceNodeId === sourceNodeId)
-    .map(edge => edge as LdkitQueryEdge);
+    .map(edge => edge as QueryEdgeEntity);
 }
 
 /**
  * Find QueryEdges by targetNodeId
  */
-export async function findQueryEdgesByTargetNode(targetNodeId: string): Promise<LdkitQueryEdge[]> {
+export async function findQueryEdgesByTargetNode(targetNodeId: string): Promise<QueryEdgeEntity[]> {
   const allEdges = await QueryEdges.find();
   return allEdges
     .filter(edge => edge.targetNodeId === targetNodeId)
-    .map(edge => edge as LdkitQueryEdge);
+    .map(edge => edge as QueryEdgeEntity);
 }
 
 /**
  * Find QueryEdges connected to a specific node (either source or target)
  */
-export async function findQueryEdgesByNode(nodeId: string): Promise<LdkitQueryEdge[]> {
+export async function findQueryEdgesByNode(nodeId: string): Promise<QueryEdgeEntity[]> {
   const allEdges = await QueryEdges.find();
   return allEdges
     .filter(edge => edge.sourceNodeId === nodeId || edge.targetNodeId === nodeId)
-    .map(edge => edge as LdkitQueryEdge);
+    .map(edge => edge as QueryEdgeEntity);
 }
 
 /**
  * Create a QueryEdge with validation
  */
-type FlexibleEdgeInput = Omit<LdkitQueryEdge, '$id' | '@id'> & { '@id'?: string; $id?: string };
+type FlexibleEdgeInput = Omit<QueryEdgeEntity, '$id' | '@id'> & { '@id'?: string; $id?: string };
 
-export async function createQueryEdge(data: FlexibleEdgeInput): Promise<LdkitQueryEdge> {
+export async function createQueryEdge(data: FlexibleEdgeInput): Promise<QueryEdgeEntity> {
   // Validate required fields
   if (!data.sourceNodeId || !data.targetNodeId) {
     throw new Error('QueryEdge requires both sourceNodeId and targetNodeId');
   }
 
   // Convert null to undefined for LDKit insert
-  const normalized = toLdkit<LdkitQueryEdge>({ ...(data) });
+  const normalized = toEntity<QueryEdgeEntity>({ ...(data) });
   const insertData = {
     ...normalized,
     sourceNodeId: normalized.sourceNodeId,
@@ -65,8 +65,8 @@ export async function createQueryEdge(data: FlexibleEdgeInput): Promise<LdkitQue
  */
 export const updateQueryEdge = async (
   id: string,
-  edge: Partial<LdkitQueryEdge>,
-): Promise<LdkitQueryEdge | null> => {
+  edge: Partial<QueryEdgeEntity>,
+): Promise<QueryEdgeEntity | null> => {
   const existing = await QueryEdges.findByIri(id);
   if (!existing) {
     return null;
@@ -103,7 +103,7 @@ export async function deleteQueryEdge(edgeId: string): Promise<boolean> {
  * Find all edges belonging to a specific QueryGroupVersion
  * Note: Edges no longer have isPartOf - the QueryGroupVersion references its edges instead
  */
-export async function findQueryEdgesByGroupVersion(groupVersionId: string): Promise<LdkitQueryEdge[]> {
+export async function findQueryEdgesByGroupVersion(groupVersionId: string): Promise<QueryEdgeEntity[]> {
   // This function is deprecated since edges don't track their parent version
   // The QueryGroupVersion should be queried directly for its edges array
   return [];

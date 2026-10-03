@@ -24,15 +24,15 @@
  * instead of a Test entity.
  */
 
-import { BackendTypeIri, type LdkitBackend } from '../../persistence/schemas/BackendSchema.js';
-import type { LdkitDataGraph } from '../../persistence/schemas/DataGraphSchema.js';
-import type { LdkitLibrary } from '../../persistence/schemas/LibrarySchema.js';
-import type { LdkitQuery } from '../../persistence/schemas/QuerySchema.js';
-import type { LdkitQueryGroup } from '../../persistence/schemas/QueryGroupSchema.js';
-import type { LdkitQueryGroupVersion } from '../../persistence/schemas/QueryGroupVersionSchema.js';
-import type { LdkitQueryNode } from '../../persistence/schemas/QueryNodeSchema.js';
-import type { LdkitQueryVersion } from '../../persistence/schemas/QueryVersionSchema.js';
-import type { LdkitTest } from '../../persistence/schemas/TestSchema.js';
+import { BackendTypeIri, type BackendEntity } from '../../persistence/schemas/BackendSchema.js';
+import type { DataGraphEntity } from '../../persistence/schemas/DataGraphSchema.js';
+import type { LibraryEntity } from '../../persistence/schemas/LibrarySchema.js';
+import type { QueryEntity } from '../../persistence/schemas/QuerySchema.js';
+import type { QueryGroupEntity } from '../../persistence/schemas/QueryGroupSchema.js';
+import type { QueryGroupVersionEntity } from '../../persistence/schemas/QueryGroupVersionSchema.js';
+import type { QueryNodeEntity } from '../../persistence/schemas/QueryNodeSchema.js';
+import type { QueryVersionEntity } from '../../persistence/schemas/QueryVersionSchema.js';
+import type { TestEntity } from '../../persistence/schemas/TestSchema.js';
 import { QueryTypeIri } from '../../constants/queryTypes.js';
 import { getEntityRepositories } from '../CacheCoordinatorProvider.js';
 import { createDataGraphVersion } from '../DataGraphVersionWriter.js';
@@ -237,15 +237,15 @@ export async function seedShaclValidationExamples(log: (message: string) => void
  * `backendConfig` is the node's backend, and naming one alongside it is now
  * rejected rather than merely pointless.
  */
-async function ensureEphemeralGroup(extract: LdkitQueryVersion, check: LdkitQueryVersion): Promise<void> {
-  let group = repos().QueryGroup.get(EPHEMERAL_GROUP_ID) as LdkitQueryGroup | null;
+async function ensureEphemeralGroup(extract: QueryVersionEntity, check: QueryVersionEntity): Promise<void> {
+  let group = repos().QueryGroup.get(EPHEMERAL_GROUP_ID) as QueryGroupEntity | null;
   if (!group) {
     group = await repos().QueryGroup.create({
       $id: EPHEMERAL_GROUP_ID,
       name: 'Validate a data graph against a shapes graph',
       description: 'Both graphs arrive through the StartNode, each into its own ephemeral store. No backend to configure.',
       isPartOf: SHACL_VALIDATION_EXAMPLES_LIBRARY_ID,
-    } as Partial<LdkitQueryGroup> & { $id: string });
+    } as Partial<QueryGroupEntity> & { $id: string });
   }
   if (groupVersionIsUsable(EPHEMERAL_GROUP_ID, group.currentVersion)) return;
 
@@ -325,29 +325,29 @@ async function ensureLibrary(): Promise<void> {
     $id: SHACL_VALIDATION_EXAMPLES_LIBRARY_ID,
     name: 'SHACL validation query groups',
     description: 'Extract constraint bindings from a SHACL backend, then validate a DataGraph supplied through the Query Group StartNode.',
-  } as Partial<LdkitLibrary> & { $id: string });
+  } as Partial<LibraryEntity> & { $id: string });
 }
 
 export async function ensureDataGraph(id: string, name: string, content: string): Promise<string> {
-  let graph = repos().DataGraph.get(id) as LdkitDataGraph | null;
+  let graph = repos().DataGraph.get(id) as DataGraphEntity | null;
   if (!graph) {
     graph = await repos().DataGraph.create({
       $id: id,
       name,
       isPartOf: [SHACL_VALIDATION_EXAMPLES_LIBRARY_ID],
-    } as Partial<LdkitDataGraph> & { $id: string });
+    } as Partial<DataGraphEntity> & { $id: string });
   }
   if (!graph.currentVersion) {
     await createDataGraphVersion(id, { contentString: content, contentFormat: 'text/turtle', immutable: true });
   }
-  const current = repos().DataGraph.get(id) as LdkitDataGraph | null;
+  const current = repos().DataGraph.get(id) as DataGraphEntity | null;
   if (!current?.currentVersion) throw new Error(`DataGraph ${id} has no current version after seeding`);
   return current.currentVersion;
 }
 
 export async function ensureBackend(id: string, name: string, dataGraphId: string): Promise<void> {
   // Stored as the JSON string the triple store round-trips — see
-  // `LdkitBackend.oxigraphConfig`. A seed written as an object survived in the
+  // `BackendEntity.oxigraphConfig`. A seed written as an object survived in the
   // cache and came back from a restarted store as an empty config, so the
   // examples ran against a store with no data in it.
   const oxigraphConfig = JSON.stringify({
@@ -355,7 +355,7 @@ export async function ensureBackend(id: string, name: string, dataGraphId: strin
     mode: 'readOnly',
     sources: [{ dataGraphId }],
   });
-  const existing = repos().Backend.get(id) as LdkitBackend | null;
+  const existing = repos().Backend.get(id) as BackendEntity | null;
   if (existing) {
     // Repairs a seed written by an earlier build, which is why this is not a
     // plain "already there, nothing to do".
@@ -370,7 +370,7 @@ export async function ensureBackend(id: string, name: string, dataGraphId: strin
     description: `Read-only in-memory backend hydrated from ${dataGraphId}`,
     backendType: BackendTypeIri.oxigraphMemory,
     oxigraphConfig,
-  } as Partial<LdkitBackend> & { $id: string });
+  } as Partial<BackendEntity> & { $id: string });
 }
 
 async function ensureQuery(
@@ -379,8 +379,8 @@ async function ensureQuery(
   queryString: string,
   outputNames: string[],
   inputNames: string[] = [],
-): Promise<LdkitQueryVersion> {
-  let query = repos().Query.get(id) as LdkitQuery | null;
+): Promise<QueryVersionEntity> {
+  let query = repos().Query.get(id) as QueryEntity | null;
   if (!query) {
     query = await repos().Query.create({
       $id: id,
@@ -389,9 +389,9 @@ async function ensureQuery(
         ? 'Tier 0: reads the shapes backend and emits supported constraint parameters.'
         : 'Tier 1: receives extracted parameters as VALUES and checks the data backend.',
       isPartOf: [SHACL_VALIDATION_EXAMPLES_LIBRARY_ID],
-    } as Partial<LdkitQuery> & { $id: string });
+    } as Partial<QueryEntity> & { $id: string });
   }
-  if (query.currentVersion) return repos().QueryVersion.get(query.currentVersion) as LdkitQueryVersion;
+  if (query.currentVersion) return repos().QueryVersion.get(query.currentVersion) as QueryVersionEntity;
 
   const stem = id.split(':').pop();
   const temp = (kind: string, index: number) => `urn:ui-temp:${stem}-${kind}-${index}`;
@@ -439,26 +439,26 @@ async function ensureQuery(
  */
 export function groupVersionIsUsable(groupId: string, versionId: string | null | undefined): boolean {
   if (!versionId) return false;
-  const version = repos().QueryGroupVersion.get(versionId) as LdkitQueryGroupVersion | null;
+  const version = repos().QueryGroupVersion.get(versionId) as QueryGroupVersionEntity | null;
   if (!version || version.isPartOf !== groupId) return false;
 
   const nodeIds = version.executionNodes ?? [];
   if (nodeIds.length === 0) return false;
-  const nodes = nodeIds.map(nodeId => repos().QueryNode.get(nodeId) as LdkitQueryNode | null);
+  const nodes = nodeIds.map(nodeId => repos().QueryNode.get(nodeId) as QueryNodeEntity | null);
   if (nodes.some(node => !node)) return false;
 
   return nodes.some(node => node!.backendConfig?.type === 'ephemeral-oxigraph');
 }
 
-async function ensureGroup(extract: LdkitQueryVersion, check: LdkitQueryVersion): Promise<void> {
-  let group = repos().QueryGroup.get(GROUP_ID) as LdkitQueryGroup | null;
+async function ensureGroup(extract: QueryVersionEntity, check: QueryVersionEntity): Promise<void> {
+  let group = repos().QueryGroup.get(GROUP_ID) as QueryGroupEntity | null;
   if (!group) {
     group = await repos().QueryGroup.create({
       $id: GROUP_ID,
       name: 'Validate data from SHACL constraint bindings',
       description: 'Shapes backend -> constraint bindings; StartNode DataGraph -> ephemeral checker -> violation bindings.',
       isPartOf: SHACL_VALIDATION_EXAMPLES_LIBRARY_ID,
-    } as Partial<LdkitQueryGroup> & { $id: string });
+    } as Partial<QueryGroupEntity> & { $id: string });
   }
   // A stale version is replaced rather than mutated: versions are immutable, so
   // the repair is a new one and the broken version stays in the history.
@@ -525,7 +525,7 @@ async function ensureGroup(extract: LdkitQueryVersion, check: LdkitQueryVersion)
 }
 
 async function ensureTest(dataGraphVersion: string): Promise<void> {
-  let test = repos().Test.get(TEST_ID) as LdkitTest | null;
+  let test = repos().Test.get(TEST_ID) as TestEntity | null;
   if (!test) {
     test = await repos().Test.create({
       $id: TEST_ID,
@@ -534,7 +534,7 @@ async function ensureTest(dataGraphVersion: string): Promise<void> {
       subject: GROUP_ID,
       subjectKind: 'queryGroup',
       isPartOf: [SHACL_VALIDATION_EXAMPLES_LIBRARY_ID],
-    } as Partial<LdkitTest> & { $id: string });
+    } as Partial<TestEntity> & { $id: string });
   }
   if (!test.currentVersion) {
     await createTestVersion(TEST_ID, {
@@ -562,7 +562,7 @@ async function ensureTest(dataGraphVersion: string): Promise<void> {
  * them unnamed here keeps the example showing the simpler of the two.
  */
 async function ensureEphemeralTest(shapesGraphVersion: string, dataGraphVersion: string): Promise<void> {
-  let test = repos().Test.get(EPHEMERAL_TEST_ID) as LdkitTest | null;
+  let test = repos().Test.get(EPHEMERAL_TEST_ID) as TestEntity | null;
   if (!test) {
     test = await repos().Test.create({
       $id: EPHEMERAL_TEST_ID,
@@ -573,7 +573,7 @@ async function ensureEphemeralTest(shapesGraphVersion: string, dataGraphVersion:
       subject: EPHEMERAL_GROUP_ID,
       subjectKind: 'queryGroup',
       isPartOf: [SHACL_VALIDATION_EXAMPLES_LIBRARY_ID],
-    } as Partial<LdkitTest> & { $id: string });
+    } as Partial<TestEntity> & { $id: string });
   }
   if (!test.currentVersion) {
     await createTestVersion(EPHEMERAL_TEST_ID, {

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { QueryTypeIri } from '../../src/constants/queryTypes.js';
 import { expandQueryVersion } from '../../src/lib/QueryVersionResolver.js';
-import type { LdkitQueryVersion } from '../../src/persistence/schemas/QueryVersionSchema.js';
+import type { QueryVersionEntity } from '../../src/persistence/schemas/QueryVersionSchema.js';
 
 const hoisted = vi.hoisted(() => ({
   mockGet: vi.fn().mockReturnValue(null),
@@ -54,7 +54,7 @@ vi.mock('../../src/persistence/utils/TupleMemberUtils.js', () => ({
 describe('QueryVersionResolver - Basic Tests', () => {
   it('should return outputTuples field in expanded response', async () => {
     // Create a mock QueryVersion with inferredOutputs
-    const mockQueryVersion: LdkitQueryVersion = {
+    const mockQueryVersion: QueryVersionEntity = {
       $id: 'urn:test:query-version:123',
       isPartOf: 'urn:test:query:456',
       version: 1,
@@ -81,7 +81,7 @@ describe('QueryVersionResolver - Basic Tests', () => {
 
   it('should handle empty inferredOutputs correctly', async () => {
     // Test what happens when inferredOutputs is empty in queryVersion
-    const mockQueryVersion: LdkitQueryVersion = {
+    const mockQueryVersion: QueryVersionEntity = {
       $id: 'urn:test:query-version:456',
       isPartOf: 'urn:test:query:789',
       version: 1,
@@ -104,7 +104,7 @@ describe('QueryVersionResolver - Basic Tests', () => {
   });
 
   it('should handle JSON serialization of inferredOutputs', async () => {
-    const mockQueryVersion: LdkitQueryVersion = {
+    const mockQueryVersion: QueryVersionEntity = {
       $id: 'urn:test:query-version:999',
       isPartOf: 'urn:test:query:111',
       version: 1,

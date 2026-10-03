@@ -59,6 +59,10 @@ const MUTATION_SITES: Record<string, { calls: number; marks: number; why: string
   'src/lib/dataGraphContent.ts': { calls: 2, marks: 0, why: 'parse validation' },
   'src/lib/deltaStore.ts': { calls: 1, marks: 0, why: 'a document read into a store' },
   'src/lib/patchLog.ts': { calls: 1, marks: 0, why: 'parsing a patch side that uses RDF 1.2 syntax' },
+  // `loadGraph` restores a blob snapshot into a store its caller hands over.
+  // Nothing in the server calls it yet; the first caller that passes a managed
+  // store has to declare the write and move this entry above the line.
+  'src/lib/patch/blobSnapshot.ts': { calls: 1, marks: 0, why: 'restore a graph from a blob snapshot' },
   'src/lib/rdfCanonicalizer.ts': { calls: 1, marks: 0, why: 'canonicalisation' },
   'src/lib/w3cRulesSuite/manifest.ts': { calls: 1, marks: 0, why: 'the suite manifest' },
   'src/system-store/SystemStoreLoader.ts': { calls: 1, marks: 0, why: 'the system store' },

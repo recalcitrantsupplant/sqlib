@@ -19,20 +19,24 @@ import { afterEach, describe, expect, it } from 'vitest';
 import * as oxigraph from 'oxigraph';
 
 import {
-  BlobStoreError,
   RebaseExhaustedError,
   SnapshotCapacityError,
   checkpointGraph,
   contentDigest,
   dumpGraph,
-  httpConditionalBlobStore,
   loadGraph,
-  memoryConditionalBlobStore,
   rebaseAndRetry,
-} from '../src/index.js';
-import type { BlobFetch, BlobResponseLike, RebaseStoreLike } from '../src/index.js';
-import { expectedConflictStatus, startBlobEmulator, type BlobEmulator } from '../poc/blobEmulator.js';
-import { putSnapshot } from '../poc/blobSnapshot.js';
+  type RebaseStoreLike,
+} from '../../../src/lib/patch/blobSnapshot.js';
+import { memoryConditionalBlobStore } from '../../../src/lib/patch/blobStore.js';
+import {
+  BlobStoreError,
+  httpConditionalBlobStore,
+  type BlobFetch,
+  type BlobResponseLike,
+} from '../../../src/lib/patch/blobStoreHttp.js';
+import { expectedConflictStatus, startBlobEmulator, type BlobEmulator } from '../../../poc/patch-log/blobEmulator.js';
+import { putSnapshot } from '../../../poc/patch-log/blobSnapshot.js';
 
 const GRAPH = oxigraph.namedNode('http://ex/g');
 const OTHER = oxigraph.namedNode('http://ex/other');
@@ -267,7 +271,7 @@ describe('the two dialects, through the port', () => {
   /**
    * Azure reports its code in a header as well as the body, and an error
    * response can arrive with the header and no body at all — which is what
-   * `poc/blobSnapshot.ts` could not read, so it reported `undefined` for
+   * `poc/patch-log/blobSnapshot.ts` could not read, so it reported `undefined` for
    * exactly the refusal it existed to explain.
    */
   it('reads the error code from the header when the body is empty', async () => {

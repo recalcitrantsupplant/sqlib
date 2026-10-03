@@ -2,13 +2,13 @@ import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
 import { allocateVersion, setCurrentVersion } from './versionNumbering.js';
 import { mintId } from './id.js';
 import { toRestApi } from '../persistence/utils/id-adapter.js';
-import type { LdkitBenchmarkExperiment } from '../persistence/schemas/BenchmarkExperimentSchema.js';
-import type { LdkitBenchmarkExperimentVersion } from '../persistence/schemas/BenchmarkExperimentVersionSchema.js';
-import type { LdkitArgumentSet } from '../persistence/schemas/ArgumentSetSchema.js';
-import type { LdkitArgumentSetVersion } from '../persistence/schemas/ArgumentSetVersionSchema.js';
-import type { LdkitQueryVersion } from '../persistence/schemas/QueryVersionSchema.js';
-import type { LdkitQueryGroupVersion } from '../persistence/schemas/QueryGroupVersionSchema.js';
-import type { LdkitRuleSetVersion } from '../persistence/schemas/RuleSetVersionSchema.js';
+import type { BenchmarkExperimentEntity } from '../persistence/schemas/BenchmarkExperimentSchema.js';
+import type { BenchmarkExperimentVersionEntity } from '../persistence/schemas/BenchmarkExperimentVersionSchema.js';
+import type { ArgumentSetEntity } from '../persistence/schemas/ArgumentSetSchema.js';
+import type { ArgumentSetVersionEntity } from '../persistence/schemas/ArgumentSetVersionSchema.js';
+import type { QueryVersionEntity } from '../persistence/schemas/QueryVersionSchema.js';
+import type { QueryGroupVersionEntity } from '../persistence/schemas/QueryGroupVersionSchema.js';
+import type { RuleSetVersionEntity } from '../persistence/schemas/RuleSetVersionSchema.js';
 import { BENCHMARK_NO_ARGUMENTS_IRI, BENCHMARK_NOT_APPLICABLE_BACKEND_IRI } from '../constants/benchmarks.js';
 import { EPHEMERAL_BACKEND_ID, LIBRARY_STORAGE_BACKEND_ID } from '@sparql-query-lib/types';
 
@@ -110,11 +110,11 @@ function parseSubjectSpecs(raw: string | BenchmarkSubjectSpec[] | null | undefin
   }
 }
 
-function toExperimentDetail(entity: LdkitBenchmarkExperiment): BenchmarkExperimentDetail {
+function toExperimentDetail(entity: BenchmarkExperimentEntity): BenchmarkExperimentDetail {
   return toRestApi(entity) as BenchmarkExperimentDetail;
 }
 
-function toExperimentVersionDetail(entity: LdkitBenchmarkExperimentVersion): BenchmarkExperimentVersionDetail {
+function toExperimentVersionDetail(entity: BenchmarkExperimentVersionEntity): BenchmarkExperimentVersionDetail {
   const rest = toRestApi(entity) as BenchmarkExperimentVersionDetail;
   return {
     ...rest,
@@ -125,19 +125,19 @@ function toExperimentVersionDetail(entity: LdkitBenchmarkExperimentVersion): Ben
 export class BenchmarkExperimentService {
   listExperiments(): BenchmarkExperimentDetail[] {
     const cacheCoordinator = getCacheCoordinator();
-    const items = cacheCoordinator.list('BenchmarkExperiment') as LdkitBenchmarkExperiment[];
+    const items = cacheCoordinator.list('BenchmarkExperiment') as BenchmarkExperimentEntity[];
     return items.map(toExperimentDetail);
   }
 
   getExperiment(id: string): BenchmarkExperimentDetail | null {
-    const entity = getCacheCoordinator().get(id) as LdkitBenchmarkExperiment | null;
+    const entity = getCacheCoordinator().get(id) as BenchmarkExperimentEntity | null;
     if (!entity || entity['@type'] !== 'BenchmarkExperiment') return null;
     return toExperimentDetail(entity);
   }
 
   async createExperiment(payload: BenchmarkExperimentPayload): Promise<BenchmarkExperimentDetail> {
     const id = payload.id ?? mintId('benchmarkExperiment');
-    const toCreate: Partial<LdkitBenchmarkExperiment> & { $id: string } = {
+    const toCreate: Partial<BenchmarkExperimentEntity> & { $id: string } = {
       $id: id,
       name: payload.name,
       description: payload.description ?? null,
@@ -149,7 +149,7 @@ export class BenchmarkExperimentService {
   }
 
   async updateExperiment(id: string, payload: Partial<BenchmarkExperimentPayload> & { currentVersion?: string | null }): Promise<BenchmarkExperimentDetail | null> {
-    const updates: Partial<LdkitBenchmarkExperiment> = {};
+    const updates: Partial<BenchmarkExperimentEntity> = {};
     if (payload.name !== undefined) updates.name = payload.name;
     if (payload.description !== undefined) updates.description = payload.description;
     if (payload.status !== undefined) updates.status = payload.status;
@@ -160,12 +160,12 @@ export class BenchmarkExperimentService {
 
   async deleteExperiment(id: string): Promise<boolean> {
     const cacheCoordinator = getCacheCoordinator();
-    const existing = cacheCoordinator.get(id) as LdkitBenchmarkExperiment | null;
+    const existing = cacheCoordinator.get(id) as BenchmarkExperimentEntity | null;
     if (!existing || existing['@type'] !== 'BenchmarkExperiment') {
       return false;
     }
 
-    const versions = cacheCoordinator.list('BenchmarkExperimentVersion') as LdkitBenchmarkExperimentVersion[];
+    const versions = cacheCoordinator.list('BenchmarkExperimentVersion') as BenchmarkExperimentVersionEntity[];
     for (const version of versions.filter(v => v.isPartOf === id)) {
       await cacheCoordinator.delete('BenchmarkExperimentVersion', version.$id);
     }
@@ -175,7 +175,7 @@ export class BenchmarkExperimentService {
   }
 
   listVersions(experimentId: string): BenchmarkExperimentVersionDetail[] {
-    const versions = getCacheCoordinator().list('BenchmarkExperimentVersion') as LdkitBenchmarkExperimentVersion[];
+    const versions = getCacheCoordinator().list('BenchmarkExperimentVersion') as BenchmarkExperimentVersionEntity[];
     return versions
       .filter(version => version.isPartOf === experimentId)
       .map(toExperimentVersionDetail)
@@ -183,13 +183,13 @@ export class BenchmarkExperimentService {
   }
 
   getVersion(experimentId: string, version: number): BenchmarkExperimentVersionDetail | null {
-    const versions = getCacheCoordinator().list('BenchmarkExperimentVersion') as LdkitBenchmarkExperimentVersion[];
+    const versions = getCacheCoordinator().list('BenchmarkExperimentVersion') as BenchmarkExperimentVersionEntity[];
     const entity = versions.find(item => item.isPartOf === experimentId && item.version === version);
     return entity ? toExperimentVersionDetail(entity) : null;
   }
 
   getVersionById(versionId: string): BenchmarkExperimentVersionDetail | null {
-    const entity = getCacheCoordinator().get(versionId) as LdkitBenchmarkExperimentVersion | null;
+    const entity = getCacheCoordinator().get(versionId) as BenchmarkExperimentVersionEntity | null;
     if (!entity || entity['@type'] !== 'BenchmarkExperimentVersion') return null;
     return toExperimentVersionDetail(entity);
   }
@@ -208,7 +208,7 @@ export class BenchmarkExperimentService {
     const cacheCoordinator = getCacheCoordinator();
 
     const id = mintId('benchmarkExperimentVersion');
-    const toCreate: Partial<LdkitBenchmarkExperimentVersion> & { $id: string } = {
+    const toCreate: Partial<BenchmarkExperimentVersionEntity> & { $id: string } = {
       $id: id,
       isPartOf: experimentId,
       version: nextVersion,
@@ -234,7 +234,7 @@ export class BenchmarkExperimentService {
 
   async updateVersion(experimentId: string, version: number, payload: Partial<BenchmarkExperimentVersionPayload>): Promise<BenchmarkExperimentVersionDetail | null> {
     const cacheCoordinator = getCacheCoordinator();
-    const versions = cacheCoordinator.list('BenchmarkExperimentVersion') as LdkitBenchmarkExperimentVersion[];
+    const versions = cacheCoordinator.list('BenchmarkExperimentVersion') as BenchmarkExperimentVersionEntity[];
     const entity = versions.find(item => item.isPartOf === experimentId && item.version === version);
     if (!entity) return null;
 
@@ -255,7 +255,7 @@ export class BenchmarkExperimentService {
       assertBenchmarkVersionDependencies(entity.$id, subjectSpecs);
     }
 
-    const updates: Partial<LdkitBenchmarkExperimentVersion> = {};
+    const updates: Partial<BenchmarkExperimentVersionEntity> = {};
     if (payload.subjectSpecs !== undefined) updates.subjectSpecs = serializeSubjectSpecs(payload.subjectSpecs);
     if (payload.repeats !== undefined) updates.repeats = payload.repeats;
     if (payload.executionStrategy !== undefined) updates.executionStrategy = payload.executionStrategy;
@@ -295,7 +295,7 @@ export function assertBenchmarkVersionDependencies(
       issues.push('Benchmark subject is missing');
       continue;
     }
-    const subjectEntity = cacheCoordinator.get(spec.subject) as LdkitQueryVersion | LdkitQueryGroupVersion | LdkitRuleSetVersion | null;
+    const subjectEntity = cacheCoordinator.get(spec.subject) as QueryVersionEntity | QueryGroupVersionEntity | RuleSetVersionEntity | null;
     if (!subjectEntity) {
       issues.push(`Benchmark subject ${spec.subject} not found`);
       continue;
@@ -357,7 +357,7 @@ export function assertBenchmarkVersionDependencies(
         checkAxisReference(cacheCoordinator, issues, inputId, 'TupleSet', 'TupleSetVersion');
         continue;
       }
-      const inputEntity = cacheCoordinator.get(inputId) as LdkitArgumentSet | LdkitArgumentSetVersion | null;
+      const inputEntity = cacheCoordinator.get(inputId) as ArgumentSetEntity | ArgumentSetVersionEntity | null;
       if (!inputEntity) {
         issues.push(`Argument set ${inputId} not found`);
         continue;
@@ -370,12 +370,12 @@ export function assertBenchmarkVersionDependencies(
         continue;
       }
       if (inputEntity['@type'] === 'ArgumentSet') {
-        const currentVersionId = (inputEntity as LdkitArgumentSet).currentVersion;
+        const currentVersionId = (inputEntity as ArgumentSetEntity).currentVersion;
         if (!currentVersionId) {
           issues.push(`ArgumentSet ${inputId} has no current version`);
           continue;
         }
-        const versionEntity = cacheCoordinator.get(currentVersionId) as LdkitArgumentSetVersion | null;
+        const versionEntity = cacheCoordinator.get(currentVersionId) as ArgumentSetVersionEntity | null;
         if (!versionEntity || versionEntity['@type'] !== 'ArgumentSetVersion') {
           issues.push(`ArgumentSetVersion ${currentVersionId} not found`);
           continue;

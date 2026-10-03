@@ -92,7 +92,7 @@ vi.mock('../../src/persistence/utils/entityRepository.js', () => ({
 
 vi.mock('../../src/persistence/utils/id-adapter.js', () => ({
   toRestApi: vi.fn((entity) => ({ id: entity.$id, ...entity })),
-  toLdkit: vi.fn((entity) => entity),
+  toEntity: vi.fn((entity) => entity),
 }));
 
 const LIBRARY_ID = 'urn:sqlib:library:lifecycle';

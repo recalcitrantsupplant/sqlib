@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { checkWellFormed, parseRuleSet, stratify } from '../src/index.js';
+import { checkWellFormed, expandIris, parseRuleSet, stratify } from '../src/index.js';
 
 const PREFIX = 'PREFIX : <http://example/>';
 
 /** Parse a document and hand each rule a stable id by index. */
 function strat(doc: string) {
-  const rs = parseRuleSet(doc);
+  const rs = expandIris(parseRuleSet(doc));
   return stratify(rs.rules.map((ast, i) => ({ id: `r${i}`, ast })));
 }
 
@@ -192,7 +192,7 @@ RULE { :s :p "ABC" } WHERE { NOT { ?x :p "abc" } ?s :data "" }`;
     // The triple pair that made each edge is carried through for display.
     const r0 = cycle.edges.find((e) => e.from === 'r0');
     expect(r0?.reasons[0].body.object).toBe('"ABC"');
-    expect(r0?.reasons[0].head.subject).toBe(':s');
+    expect(r0?.reasons[0].head.subject).toBe('<http://example/s>');
   });
 
   it('reports a negative self-loop as a one-rule cycle', () => {
@@ -265,7 +265,7 @@ RULE { ?s :r2 ?o } WHERE { ?s :src ?o }`);
     for (const reason of reasons) {
       expect([reason.head.subject, reason.head.predicate, reason.head.object]).not.toContain('');
     }
-    expect(reasons.map((reason) => reason.head.subject)).toContain('<< :s :p :o >>');
+    expect(reasons.map((reason) => reason.head.subject)).toContain('<< <http://example/s> <http://example/p> <http://example/o> >>');
   });
 
   it('writes blank nodes and triple terms the way they were written', () => {
@@ -277,7 +277,7 @@ RULE { ?s :r ?o } WHERE { ?s :q3 ?o }`);
     const head = (from: string, to: string) => r.edges.find((e) => e.from === from && e.to === to)?.reasons[0].head;
     expect(head('r1', 'r0')?.subject).toBe('[]');
     expect(head('r2', 'r1')?.subject).toBe('_:b');
-    expect(head('r3', 'r2')?.object).toBe('<<( :a :b :c )>>');
+    expect(head('r3', 'r2')?.object).toBe('<<( <http://example/a> <http://example/b> <http://example/c> )>>');
   });
 });
 
@@ -317,5 +317,45 @@ describe('SRL stratification reasons', () => {
     const r = strat(`${PREFIX}\nRULE { :s :p :o ~:r1 {| :q1 :z1 |} } WHERE { ?a ?b ?c }`);
     const heads = r.edges.flatMap((e) => e.reasons).map((reason) => `${reason.head.subject} ${reason.head.predicate} ${reason.head.object}`);
     expect(new Set(heads).size).toBe(heads.length);
+  });
+});
+
+describe('SRL stratification compares expanded IRIs', () => {
+  // The head writes `ex:q`, the negated body reads `<http://example.org/q>`:
+  // the same predicate, so the rule negates its own output.
+  const SPELLED_TWO_WAYS = `PREFIX ex: <http://example.org/>
+RULE { ?x ex:q ?y } WHERE { ?x ex:p ?y . NOT { ?x <http://example.org/q> ?y } }`;
+
+  it('finds a negative cycle whose two ends spell one IRI differently', () => {
+    const r = strat(SPELLED_TWO_WAYS);
+    expect(r.cycles).toHaveLength(1);
+    expect(r.cycles[0].witness.map((e) => `${e.from}->${e.to}:${e.label}`)).toEqual(['r0->r0:negative']);
+  });
+
+  it('refuses rules that were not expanded, rather than missing the edge', () => {
+    // Compared as written, the two spellings never match and the document would
+    // be reported stratifiable — the wrong answer, given silently.
+    const rs = parseRuleSet(SPELLED_TWO_WAYS);
+    expect(() => stratify(rs.rules.map((ast, i) => ({ id: `r${i}`, ast })))).toThrow(
+      /rule r0 spells `ex:q` as a prefixed name.*expandIris/,
+    );
+  });
+
+  it('finds a prefixed name wherever expandIris would have rewritten one', () => {
+    const unexpanded = (doc: string) => {
+      const rs = parseRuleSet(`${PREFIX}\n${doc}`, { tuples: true });
+      return () => stratify(rs.rules.map((ast, i) => ({ id: `r${i}`, ast })));
+    };
+    // Under a NOT, in a filter, in a literal's datatype, and in a head tuple.
+    expect(unexpanded('RULE { ?x <http://a/q> 1 } WHERE { ?x <http://a/p> ?y NOT { ?y :r ?x } }')).toThrow(/`:r`/);
+    expect(unexpanded('RULE { ?x <http://a/q> 1 } WHERE { ?x <http://a/p> ?y FILTER(?y = :v) }')).toThrow(/`:v`/);
+    expect(unexpanded('PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>\nRULE { ?x <http://a/q> "1"^^xsd:int } WHERE { ?x <http://a/p> ?y }'))
+      .toThrow(/`xsd:int`/);
+    expect(unexpanded('RULE { TUPLE(:rel, ?x) } WHERE { ?x <http://a/p> ?y }')).toThrow(/`:rel`/);
+  });
+
+  it('accepts a document written in full IRIs without expansion', () => {
+    const rs = parseRuleSet('RULE { ?x <http://a/q> ?y } WHERE { ?x <http://a/p> ?y }');
+    expect(stratify(rs.rules.map((ast, i) => ({ id: `r${i}`, ast }))).issues).toEqual([]);
   });
 });

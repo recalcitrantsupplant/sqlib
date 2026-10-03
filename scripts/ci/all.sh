@@ -10,6 +10,7 @@ bash "$REPO_ROOT/scripts/ci/any-ratchet.sh"
 bash "$REPO_ROOT/scripts/ci/orphan-ratchet.sh"
 bash "$REPO_ROOT/scripts/ci/typecheck.sh"
 bash "$REPO_ROOT/scripts/ci/build.sh"
+bash "$REPO_ROOT/scripts/ci/generated-check.sh"
 bash "$REPO_ROOT/scripts/ci/publish-check.sh"
 bash "$REPO_ROOT/scripts/ci/test.sh"
 

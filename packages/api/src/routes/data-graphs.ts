@@ -15,8 +15,8 @@
 import type { FastifyInstance } from 'fastify';
 import { mintId } from '../lib/id.js';
 import { toRestApi } from '../persistence/utils/id-adapter.js';
-import type { LdkitDataGraph } from '../persistence/schemas/DataGraphSchema.js';
-import type { LdkitDataGraphVersion } from '../persistence/schemas/DataGraphVersionSchema.js';
+import type { DataGraphEntity } from '../persistence/schemas/DataGraphSchema.js';
+import type { DataGraphVersionEntity } from '../persistence/schemas/DataGraphVersionSchema.js';
 import { reposRoute, validateIfMatch, setEntityConcurrencyHeaders, findVersionByNumber } from './route-helpers.js';
 import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
 import { analyseReferences, describeWrongType } from '../lib/entityReferences.js';
@@ -168,7 +168,7 @@ export default async function (fastify: FastifyInstance) {
     // Filtered rather than refused, for the reason `/rules` gives. This one
     // listed every data graph in the deployment, each with its current version
     // pointer — which `POST /:id/versions/from-query` then takes as a target.
-    const items = repos.DataGraph.list() as LdkitDataGraph[];
+    const items = repos.DataGraph.list() as DataGraphEntity[];
     return reply.send(filterReadable(request, items).map(dataGraph => toRestApi(dataGraph)));
   }));
 
@@ -224,7 +224,7 @@ export default async function (fastify: FastifyInstance) {
       description: body.description ?? null,
       isPartOf: isPartOfArray,
       ...(tagCheck.tags !== undefined ? { tags: tagCheck.tags } : {}),
-    } as Partial<LdkitDataGraph> & { $id: string });
+    } as Partial<DataGraphEntity> & { $id: string });
     setEntityConcurrencyHeaders(reply, created);
     return reply.status(201).send(toRestApi(created));
   }));
@@ -239,7 +239,7 @@ export default async function (fastify: FastifyInstance) {
       },
     }, async ({ repos, reply, request }) => {
     const { id } = request.params;
-    const entity = repos.DataGraph.get(id) as LdkitDataGraph | null;
+    const entity = repos.DataGraph.get(id) as DataGraphEntity | null;
     if (!entity) {
       return reply.status(404).send({ error: 'Not Found' });
     }
@@ -260,7 +260,7 @@ export default async function (fastify: FastifyInstance) {
     const updates = request.body;
     const cacheCoordinator = getCacheCoordinator();
 
-    const current = repos.DataGraph.get(id) as LdkitDataGraph | null;
+    const current = repos.DataGraph.get(id) as DataGraphEntity | null;
     if (!current) {
       return reply.status(404).send({ error: 'Not Found' });
     }
@@ -302,7 +302,7 @@ export default async function (fastify: FastifyInstance) {
       ...updates,
       ...(ids ? { isPartOf: ids } : {}),
       ...(tagCheck.tags !== undefined ? { tags: tagCheck.tags } : {}),
-    } as Partial<LdkitDataGraph>);
+    } as Partial<DataGraphEntity>);
     if (!updated) {
       return reply.status(404).send({ error: 'Not Found' });
     }
@@ -359,7 +359,7 @@ export default async function (fastify: FastifyInstance) {
       return reply.status(409).send({ error: describePins(pins), usedBy: pins });
     }
 
-    const versions = (repos.DataGraphVersion.list() as LdkitDataGraphVersion[]).filter(v => v.isPartOf === id);
+    const versions = (repos.DataGraphVersion.list() as DataGraphVersionEntity[]).filter(v => v.isPartOf === id);
     for (const version of versions) {
       await repos.DataGraphVersion.delete(version.$id);
     }
@@ -381,7 +381,7 @@ export default async function (fastify: FastifyInstance) {
     if (!parent) {
       return reply.status(404).send({ error: 'Data graph not found' });
     }
-    const versions = (repos.DataGraphVersion.list() as LdkitDataGraphVersion[])
+    const versions = (repos.DataGraphVersion.list() as DataGraphVersionEntity[])
       .filter(v => v.isPartOf === id)
       .sort((a, b) => (a.version ?? 0) - (b.version ?? 0));
     return reply.send(versions.map(v => toRestApi(v)));
@@ -491,7 +491,7 @@ export default async function (fastify: FastifyInstance) {
     }
 
     const lookup = findVersionByNumber(
-      repos.DataGraphVersion.list() as LdkitDataGraphVersion[],
+      repos.DataGraphVersion.list() as DataGraphVersionEntity[],
       id,
       version,
       'data graph',
@@ -526,7 +526,7 @@ export default async function (fastify: FastifyInstance) {
     }
 
     const lookup = findVersionByNumber(
-      repos.DataGraphVersion.list() as LdkitDataGraphVersion[],
+      repos.DataGraphVersion.list() as DataGraphVersionEntity[],
       id,
       version,
       'data graph',
@@ -571,7 +571,7 @@ export default async function (fastify: FastifyInstance) {
     }
 
     const lookup = findVersionByNumber(
-      repos.DataGraphVersion.list() as LdkitDataGraphVersion[],
+      repos.DataGraphVersion.list() as DataGraphVersionEntity[],
       id,
       version,
       'data graph',

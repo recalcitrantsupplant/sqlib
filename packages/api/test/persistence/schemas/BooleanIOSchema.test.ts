@@ -34,7 +34,7 @@ describe('BooleanIOSchema', () => {
   });
 
   it('defines correct TypeScript interface shape', () => {
-    // Verify that the LdkitBooleanIO interface structure is correct
+    // Verify that the BooleanIOEntity interface structure is correct
     // This is a compile-time test that ensures type safety
     const mockEntity = {
       $id: 'urn:test:boolean-io:1',

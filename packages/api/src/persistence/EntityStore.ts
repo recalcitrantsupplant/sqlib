@@ -6,13 +6,14 @@
  * (the per-entity repositories the writers and routes use). Both end up here, so
  * there is one implementation of how an entity becomes SPARQL and back.
  *
- * Keying on the schema rather than an entity-type name matters: six benchmark
- * types (`BenchmarkRun`, `BenchmarkObservation`, `BenchmarkNodeRun`,
- * `BenchmarkNodeObservation`, `BenchmarkIterationRun`,
- * `BenchmarkIterationObservation`) have schemas and repositories but were never
- * registered in `SCHEMA_BY_TYPE`, because that registry mirrors the *cache's* 42
- * types. They are persisted all the same, and a registry lookup would have failed
- * for them.
+ * Keying on the schema rather than an entity-type name matters: the run records —
+ * `TestRun`, `TestRunCase` and six benchmark types (`BenchmarkRun`,
+ * `BenchmarkObservation`, `BenchmarkNodeRun`, `BenchmarkNodeObservation`,
+ * `BenchmarkIterationRun`, `BenchmarkIterationObservation`) — have schemas and
+ * repositories but are not in `SCHEMA_BY_TYPE`, because that registry mirrors the
+ * *cache's* types and these are deliberately kept out of the cache (see
+ * "Run records" in docs/explanation/storage-and-caching.md). They are persisted
+ * all the same, and a registry lookup would have failed for them.
  *
  * Everything runs through the executor resolved by `LIBRARY_STORAGE_BACKEND_ID`,
  * which is what makes both internal backend modes work — oxigraph in-process and
@@ -20,7 +21,7 @@
  */
 import { LIBRARY_STORAGE_BACKEND_ID } from '@sparql-query-lib/types';
 import type { SparqlSelectJsonOutput } from '../server/ISparqlExecutor.js';
-import type { ExecutorFactory } from '../lib/orchestration/ExecutorFactory.js';
+import { ExecutorFactory } from '../lib/orchestration/ExecutorFactory.js';
 import { assembleEntities, type BindingRow } from './EntityAssembler.js';
 import { generateFindAllQuery, generateFindByIriQuery } from './readQueryGenerator.js';
 import { generateDeleteQuery, generateInsertQuery, generateUpdateQuery } from './writeQueryGenerator.js';
@@ -30,21 +31,20 @@ import { iri, RDF_TYPE } from './sparqlTerms.js';
 export type EntitySchema = Record<string, unknown>;
 
 /**
- * Built on first use, not at module load, and imported dynamically.
+ * Built on first use, not at module load: instantiating an `ExecutorFactory` at
+ * import time would run before a test had a chance to mock it.
  *
- * Both matter. Instantiating an `ExecutorFactory` at import time would run before
- * a test had a chance to mock it. And a *static* import would close a module
- * cycle — `ExecutorFactory` reaches `CacheCoordinator`, which reaches the adapter,
- * which is this module — that deadlocks at import under vitest's mock resolution
- * and hangs the process before a single test runs.
+ * The import is static, and it closes a cycle: `ExecutorFactory` resolves user
+ * backends through the cache, and the cache persists through this module. That
+ * is safe because nothing on the cycle reads an imported binding while its module
+ * evaluates — `adapterRegistry` resolves the real adapter per call for exactly
+ * this reason. Keep it that way: a top-level use of an import anywhere on the
+ * cycle fails for whichever entry order reaches it first.
  */
 let executorFactoryInstance: ExecutorFactory | null = null;
 
-async function executor() {
-  if (!executorFactoryInstance) {
-    const { ExecutorFactory } = await import('../lib/orchestration/ExecutorFactory.js');
-    executorFactoryInstance ??= new ExecutorFactory({ internal: true });
-  }
+function executor() {
+  executorFactoryInstance ??= new ExecutorFactory({ internal: true });
   return executorFactoryInstance.getExecutorForBackendId(LIBRARY_STORAGE_BACKEND_ID);
 }
 

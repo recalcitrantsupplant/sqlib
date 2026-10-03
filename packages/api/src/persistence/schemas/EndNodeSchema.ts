@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for EndNode Entity
+ * Schema for EndNode Entity
  * 
  * EndNode represents the final output destination in a query canvas.
  * It can specify the desired media type for the final output format.
@@ -33,7 +33,7 @@ export const EndNodeSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitEndNode {
+export interface EndNodeEntity {
   '$id': string;
   '@type'?: 'EndNode';
   inputs?: string[] | null; // Generic I/O references (QueryOutputTuple, TriplesQuadsIO, BooleanIO, etc.)

@@ -16,7 +16,7 @@ import {
 } from '../src/persistence/utils/NodeParameterMappingUtils';
 import { createQueryNode, QueryNodes } from '../src/persistence/utils/QueryNodeUtils';
 import { config } from '../src/server/config';
-import type { LdkitNodeParameterMapping } from '../src/persistence/schemas/NodeParameterMappingSchema';
+import type { NodeParameterMappingEntity } from '../src/persistence/schemas/NodeParameterMappingSchema';
 
 interface ValidationResult {
   testName: string;
@@ -77,7 +77,7 @@ class Phase2Validator {
       await deleteNodeParameterMappings([testId]).catch(() => {});
 
       // Test create
-      const entity: LdkitNodeParameterMapping = {
+      const entity: NodeParameterMappingEntity = {
         $id: testId,
         parameterName: 'validation_param',
         parameterValue: 'validation_value'
@@ -120,7 +120,7 @@ class Phase2Validator {
     
     try {
       // Test reconstructParamsFromMappings with LDKit-style inputs
-      const ldkitMappings: LdkitNodeParameterMapping[] = [
+      const ldkitMappings: NodeParameterMappingEntity[] = [
         { $id: 'test1', parameterName: 'param1', parameterValue: 'value1' } as any,
         { $id: 'test2', parameterName: 'param2', parameterValue: 'value2' } as any,
       ];

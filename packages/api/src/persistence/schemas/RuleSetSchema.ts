@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for RuleSet Entity (stable pointer)
+ * Schema for RuleSet Entity (stable pointer)
  *
  * A RuleSet is a collection of rules and data blocks.
  */
@@ -50,7 +50,7 @@ export const RuleSetSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitRuleSet {
+export interface RuleSetEntity {
   $id: string;
   '@type'?: 'RuleSet';
   name: string;

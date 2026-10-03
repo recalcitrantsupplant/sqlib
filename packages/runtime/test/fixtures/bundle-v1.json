@@ -97,7 +97,8 @@
           "sourceTest": "urn:sqlib:test:people",
           "sourceCase": "urn:sqlib:test-case:seeded"
         }
-      ]
+      ],
+      "integrity": "sha256-08dec574439ac60b7ec461d5bcffabdabb5031c91c0916643b2164ce28e1c977"
     },
     "paged-things": {
       "template": {
@@ -184,7 +185,8 @@
           "sourceTest": "urn:sqlib:test:paged",
           "sourceCase": "urn:sqlib:test-case:first-page"
         }
-      ]
+      ],
+      "integrity": "sha256-5e74a51bf0c1f2c735ff3b9eeba2978e7ff63ea1dd63ff2cfb33a643f25dd61c"
     },
     "labels": {
       "template": {
@@ -211,7 +213,8 @@
           "sourceTest": "urn:sqlib:test:labels",
           "sourceCase": "urn:sqlib:test-case:no-args"
         }
-      ]
+      ],
+      "integrity": "sha256-478b1960b2613ce4d0c9c773f6fc5a386024d1332882385fd8b0fd58ce4cb3d6"
     },
     "cities-in-region": {
       "template": {
@@ -246,7 +249,8 @@
       ],
       "sourceQuery": "urn:sqlib:query:cities-in-region",
       "sourceVersion": "urn:sqlib:query-version:cities-in-region-1",
-      "description": "Every city in the given regions."
+      "description": "Every city in the given regions.",
+      "integrity": "sha256-db7e67a90a7226904c3e867a4f30da01574b945745605ef5a0ffaa4d014221fd"
     }
   },
   "generatedAt": "2026-09-07T00:00:00.000Z",
@@ -289,7 +293,8 @@
         "urn:sqlib:tag:reference"
       ],
       "sourceGroup": "urn:sqlib:query-group:people-by-region",
-      "sourceVersion": "urn:sqlib:query-group-version:people-by-region-1"
+      "sourceVersion": "urn:sqlib:query-group-version:people-by-region-1",
+      "integrity": "sha256-aa48616f1cd63cc0df35cf71d6274e2c221fc00392d97b6dbf86056902c7f882"
     }
   }
 }

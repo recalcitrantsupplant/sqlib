@@ -3,7 +3,7 @@
  *
  * The delta-storage design puts "patch → DuckDB log" in its third milestone
  * and sizes it as "DuckDB log sink + AS-OF view". The sink's SQL is
- * `@sparql-query-lib/rdf-delta`'s `patchLog.ts`, promoted there from POC-2.
+ * `patch/patchLogSql.ts`, promoted from POC-2.
  * This module is the other half: turning what the triplestore holds into the
  * rows that SQL reads.
  *
@@ -20,9 +20,9 @@
 
 import rdfCanonize from 'rdf-canonize';
 import * as oxigraph from 'oxigraph';
-import { DEFAULT_GRAPH_COLUMN, type PatchLogRow } from '@sparql-query-lib/rdf-delta';
+import { DEFAULT_GRAPH_COLUMN, type PatchLogRow } from './patch/patchLogSql.js';
 import { termToNQuad, type RenderableQuad, type RenderableTerm } from './nquads.js';
-import type { LdkitPatch } from '../persistence/schemas/PatchSchema.js';
+import type { PatchEntity } from '../persistence/schemas/PatchSchema.js';
 
 /**
  * The statuses whose quads actually reached the store.
@@ -58,7 +58,7 @@ export interface PatchLogCaveat {
 
 export interface PatchLogOrdering {
   /** The patches in log order, oldest first. */
-  ordered: LdkitPatch[];
+  ordered: PatchEntity[];
   caveats: PatchLogCaveat[];
 }
 
@@ -117,7 +117,7 @@ export interface PatchLogOrdering {
  * at apply time, which is a stored-vocabulary change and therefore a decision
  * rather than something to slip in underneath this one. §6 of the design note.
  */
-export function orderPatchLog(patches: readonly LdkitPatch[]): PatchLogOrdering {
+export function orderPatchLog(patches: readonly PatchEntity[]): PatchLogOrdering {
   const caveats: PatchLogCaveat[] = [];
 
   const byKey = [...patches].sort((left, right) => {
@@ -201,7 +201,7 @@ function hasStamp(raw: string | null | undefined): boolean {
  * claims an apply time this cannot read is not one to place by a different
  * clock entirely.
  */
-function stampOf(patch: LdkitPatch): number {
+function stampOf(patch: PatchEntity): number {
   const raw = patch.dateApplied ?? patch.dateCreated ?? null;
   const parsed = raw ? Date.parse(raw) : NaN;
   return Number.isFinite(parsed) ? parsed : NO_STAMP;
@@ -226,7 +226,7 @@ function compareStamps(left: number, right: number): number {
 }
 
 interface RevertPrecedence {
-  ordered: LdkitPatch[];
+  ordered: PatchEntity[];
   /**
    * `[target, inverse]` pairs where the clocks put the revert *before* the patch
    * it undoes. A pair the clocks merely tied on is not here: the link decided an
@@ -250,14 +250,14 @@ interface RevertPrecedence {
  * applied — leaves its members unemitted rather than looping. They are appended
  * in key order, so the result is a permutation of the input whatever the data.
  */
-function orderRevertsAfterTargets(byKey: readonly LdkitPatch[]): RevertPrecedence {
+function orderRevertsAfterTargets(byKey: readonly PatchEntity[]): RevertPrecedence {
   const known = new Map(byKey.map((patch) => [patch.$id, patch]));
-  const deferred = new Map<string, LdkitPatch[]>();
+  const deferred = new Map<string, PatchEntity[]>();
   const emitted = new Set<string>();
-  const ordered: LdkitPatch[] = [];
+  const ordered: PatchEntity[] = [];
   const contradicted: Array<[string, string]> = [];
 
-  const emit = (first: LdkitPatch): void => {
+  const emit = (first: PatchEntity): void => {
     const pending = [first];
     while (pending.length > 0) {
       const patch = pending.shift()!;
@@ -356,7 +356,7 @@ export interface PatchLogBuild {
  * what changed, `blank-nodes` says the *fold across patches* cannot see
  * through a label. A patch can have either without the other.
  */
-export function buildPatchLog(patches: readonly LdkitPatch[]): PatchLogBuild {
+export function buildPatchLog(patches: readonly PatchEntity[]): PatchLogBuild {
   const { ordered, caveats } = orderPatchLog(patches);
   const rows: PatchLogRow[] = [];
   const patchIds: string[] = [];

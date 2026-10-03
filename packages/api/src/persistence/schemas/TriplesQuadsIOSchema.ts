@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for TriplesQuadsIO Entity
+ * Schema for TriplesQuadsIO Entity
  *
  * Represents RDF graph input/output for CONSTRUCT and DESCRIBE queries.
  * Can specify whether data is triples or quads, input or output direction,
@@ -63,7 +63,7 @@ export const TriplesQuadsIOSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitTriplesQuadsIO {
+export interface TriplesQuadsIOEntity {
   $id: string;
   '@type'?: 'TriplesQuadsIO';
   name?: string | null; // Optional descriptive name

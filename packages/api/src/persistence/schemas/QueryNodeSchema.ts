@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for QueryNode Entity
+ * Schema for QueryNode Entity
  * 
  * This entity represents nodes in a query execution graph.
  */
@@ -67,7 +67,7 @@ export interface EphemeralBackendConfig {
   storeId: string;
 }
 
-export interface LdkitQueryNode {
+export interface QueryNodeEntity {
   '$id': string;
   '@type'?: 'QueryNode';
   queryId: string; // Required - reference to QueryVersion

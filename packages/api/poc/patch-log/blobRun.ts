@@ -21,7 +21,7 @@
  *    where they disagree.
  * 5. **contention** — two writers, one loses, rebases, lands.
  *
- * Run: `pnpm --filter @sparql-query-lib/rdf-delta poc:blob-snapshot`
+ * Run: `pnpm --filter @sparql-query-lib/api poc:blob-snapshot`
  * Flags: `--sizes=1e4,1e5` `--repeats=5` `--ceiling-sizes=…` `--skip-ceiling`
  * `--out=<path>`. `--ceiling-probe=<n>` is the child half of phase 3 and is not
  * meant to be run by hand.
@@ -33,8 +33,8 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as oxigraph from 'oxigraph';
 
-import { derivePatch, oxigraphDeltaStore } from '../src/index.js';
-import type { OxigraphStoreLike } from '../src/index.js';
+import { derivePatch, oxigraphDeltaStore } from '@sparql-query-lib/rdf-delta';
+import type { OxigraphStoreLike } from '@sparql-query-lib/rdf-delta';
 import { startBlobEmulator, type BlobDialect } from './blobEmulator.js';
 import {
   contentDigest,

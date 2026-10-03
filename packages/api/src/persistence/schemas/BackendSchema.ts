@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for Backend Entity
+ * Schema for Backend Entity
  * 
  * This entity represents SPARQL endpoint configurations.
  */
@@ -245,7 +245,7 @@ export interface OxigraphConfig {
   persistPath?: string;
 }
 
-export interface LdkitBackend {
+export interface BackendEntity {
   $id: string;
   '@type'?: 'Backend';
   name: string;

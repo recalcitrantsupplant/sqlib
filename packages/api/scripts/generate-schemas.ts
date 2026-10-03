@@ -11,8 +11,8 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import type { Property, Schema } from '../src/persistence/schema.js';
-import { inferOpenAPIType } from './lib/type-mappings.js';
-import { loadEntitySchemas, writeGeneratedFiles, loadExample as loadExampleFromFileOps, buildCreateExampleLookup, type GeneratedFiles } from './lib/file-ops.js';
+import { inferOpenAPIType, type OpenApiProperty } from './lib/type-mappings.js';
+import { loadEntitySchemas, writeGeneratedFiles, loadExample as loadExampleFromFileOps, buildCreateExampleLookup } from './lib/file-ops.js';
 import { buildCRUDRoutes, formatRouteSchemas, type RouteConfig } from './lib/route-builders/crud.js';
 import { buildVersionRoutes } from './lib/route-builders/versions.js';
 import { incrementalQueryGroupSchemas } from './lib/route-builders/incremental-query-group.js';
@@ -26,17 +26,29 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const SCHEMAS_DIR = path.join(__dirname, '../src/persistence/schemas');
-const OUTPUT_DIR = path.join(__dirname, '../../contracts/src/schema');
 const EXAMPLES_DIR = path.join(__dirname, '../examples');
-const ENTITIES_FILE = path.join(OUTPUT_DIR, 'entities.generated.ts');
-const ROUTES_FILE = path.join(OUTPUT_DIR, 'routes.generated.ts');
-const INDEX_FILE = path.join(OUTPUT_DIR, 'index.generated.ts');
-const CONTRACTS_OUTPUT_DIR = path.join(__dirname, '../../contracts/src/generated');
-const BENCHMARK_CONTRACT_FILE = path.join(CONTRACTS_OUTPUT_DIR, 'benchmark.ts');
-const VERSION_SHAPES_FILE = path.join(CONTRACTS_OUTPUT_DIR, 'version-shapes.ts');
-const DETECTION_CONTRACT_FILE = path.join(CONTRACTS_OUTPUT_DIR, 'detection.ts');
-const EXECUTION_CONTRACT_FILE = path.join(CONTRACTS_OUTPUT_DIR, 'execution.ts');
-const PLAYGROUND_CONTRACT_FILE = path.join(CONTRACTS_OUTPUT_DIR, 'playground.ts');
+
+/**
+ * Where the two halves of the output land. Every file under both directories
+ * is generator output; hand-written contract modules live in
+ * `contracts/src/hand-written/`, which the generator never touches.
+ */
+export const DEFAULT_OUTPUT_DIRS = {
+  /** JSON Schema: `entities.generated.ts`, `routes.generated.ts`, `index.generated.ts`. */
+  schemaDir: path.join(__dirname, '../../contracts/src/schema'),
+  /** zod contract modules: one per entity, plus benchmark, detection, execution, … */
+  contractsDir: path.join(__dirname, '../../contracts/src/generated'),
+};
+
+export type GenerateSchemasOptions = Partial<typeof DEFAULT_OUTPUT_DIRS>;
+
+/** An emitted entity document: what `entities.generated.ts` exports per entity. */
+export interface EntityJsonSchema {
+  $id: string;
+  type: 'object';
+  properties: Record<string, OpenApiProperty>;
+  required: string[];
+}
 
 // Load example lookup once at module initialization
 const CREATE_EXAMPLE_LOOKUP = buildCreateExampleLookup(EXAMPLES_DIR);
@@ -48,11 +60,11 @@ function toKebabCase(value: string): string {
     .toLowerCase();
 }
 
-function loadExample(examplePath: string): any | undefined {
+function loadExample(examplePath: string): unknown {
   return loadExampleFromFileOps(EXAMPLES_DIR, examplePath);
 }
 
-function loadCreateExampleFor(schemaName: string): any | undefined {
+function loadCreateExampleFor(schemaName: string): unknown {
   const slug = toKebabCase(schemaName);
   const examplePath = CREATE_EXAMPLE_LOOKUP[slug];
   if (!examplePath) {
@@ -71,7 +83,7 @@ function isLibraryMembership(prop: Property | string | readonly string[]): boole
   return property['@array'] === true && property['@references']?.exactlyOne === 'Library';
 }
 
-function convertPropertyToOpenAPI(key: string, prop: Property | string | readonly string[]): any {
+function convertPropertyToOpenAPI(key: string, prop: Property | string | readonly string[]): OpenApiProperty {
   if (typeof prop === 'string' || Array.isArray(prop)) {
     return { type: 'string' };
   }
@@ -104,7 +116,7 @@ function projectedPropertyType(
   property: Property,
   projects: NonNullable<Property['@projects']>,
   schemasByName: Map<string, Schema>,
-): any {
+): OpenApiProperty {
   const targetType = property['@references']?.types?.[0];
   const where = `${schemaName}.${propertyName}`;
   if (!targetType) {
@@ -135,8 +147,8 @@ function convertToOpenAPISchema(
   schemaName: string,
   entitySchema: Schema,
   schemasByName: Map<string, Schema>,
-): any {
-  const properties: Record<string, any> = {
+): EntityJsonSchema {
+  const properties: Record<string, OpenApiProperty> = {
     id: { type: 'string', format: 'iri' }
   };
   const required: string[] = ['id'];
@@ -201,7 +213,8 @@ function convertToOpenAPISchema(
     }
 
     // Add to required if not optional
-    if (typeof value !== 'string' && !value['@optional']) {
+    const optional = typeof value === 'object' && !Array.isArray(value) && (value as Property)['@optional'];
+    if (typeof value !== 'string' && !optional) {
       required.push(cleanKey);
     }
 
@@ -239,16 +252,15 @@ function convertToOpenAPISchema(
 /**
  * Generate TypeScript interface from OpenAPI schema
  */
-function generateTypeScriptInterface(schemaName: string, openApiSchema: any): string {
+function generateTypeScriptInterface(schemaName: string, openApiSchema: EntityJsonSchema): string {
   const interfaceName = `${schemaName}RestApi`;
   const properties: string[] = [];
 
-  for (const [key, prop] of Object.entries(openApiSchema.properties)) {
-    const propDef = prop as any;
+  for (const [key, propDef] of Object.entries(openApiSchema.properties)) {
     let typeStr = 'string';
     
     if (propDef.type === 'array') {
-      const itemType = (propDef.items && (propDef.items as any).type) || 'string';
+      const itemType = propDef.items?.type || 'string';
       typeStr = itemType === 'integer' ? 'number[]' : itemType === 'boolean' ? 'boolean[]' : 'string[]';
     } else if (propDef.type === 'boolean') {
       typeStr = 'boolean';
@@ -267,7 +279,7 @@ ${properties.join('\n')}
 }`;
 }
 
-function generateBenchmarkContractModule(experimentSchema: any, versionSchema: any): string {
+function generateBenchmarkContractModule(experimentSchema: EntityJsonSchema, versionSchema: EntityJsonSchema): string {
   const definition = buildBenchmarkContractDefinition(experimentSchema, versionSchema);
   return emitContractModule(definition);
 }
@@ -585,7 +597,7 @@ const ROUTE_CONFIGS: Record<string, RouteConfig> = {
 /**
  * Generate Fastify route schemas for an entity
  */
-function generateRouteSchemas(schemaName: string, entitySchema: any): string {
+function generateRouteSchemas(schemaName: string, entitySchema: EntityJsonSchema): string {
   const config = ROUTE_CONFIGS[schemaName];
   if (!config) {
     return '';
@@ -1000,7 +1012,17 @@ export const patchQueryGroupVersionForGroupSchema = {
 /**
  * Main generator function
  */
-async function generateSchemas() {
+async function generateSchemas(options: GenerateSchemasOptions = {}): Promise<string[]> {
+  const { schemaDir, contractsDir } = { ...DEFAULT_OUTPUT_DIRS, ...options };
+  const ENTITIES_FILE = path.join(schemaDir, 'entities.generated.ts');
+  const ROUTES_FILE = path.join(schemaDir, 'routes.generated.ts');
+  const INDEX_FILE = path.join(schemaDir, 'index.generated.ts');
+  const BENCHMARK_CONTRACT_FILE = path.join(contractsDir, 'benchmark.ts');
+  const VERSION_SHAPES_FILE = path.join(contractsDir, 'version-shapes.ts');
+  const DETECTION_CONTRACT_FILE = path.join(contractsDir, 'detection.ts');
+  const EXECUTION_CONTRACT_FILE = path.join(contractsDir, 'execution.ts');
+  const PLAYGROUND_CONTRACT_FILE = path.join(contractsDir, 'playground.ts');
+
   const schemaFiles = await loadEntitySchemas(SCHEMAS_DIR);
   
   const headerComment = `/**
@@ -1014,24 +1036,24 @@ async function generateSchemas() {
   // The same schema objects the entities file is written from, keyed by their
   // export name, so the version-route builder reads this run's shapes instead of
   // the previous run's file.
-  const entitySchemasByExport: Record<string, any> = {};
+  const entitySchemasByExport: Record<string, EntityJsonSchema> = {};
   const interfaces: string[] = [];
   const routeSchemas: string[] = [];
   const schemaNames: string[] = [];
   const entityContractContent = new Map<string, string>();
   let benchmarkContractContent: string | null = null;
-  let benchmarkExperimentSchema: any | null = null;
-  let benchmarkExperimentVersionSchema: any | null = null;
-const detectionContractContent = generateDetectionContractModule();
+  let benchmarkExperimentSchema: EntityJsonSchema | null = null;
+  let benchmarkExperimentVersionSchema: EntityJsonSchema | null = null;
+  const detectionContractContent = generateDetectionContractModule();
   const executionContractContent = generateExecutionContractModule();
   const playgroundContractContent = generatePlaygroundContractModule();
 
   // Every CRUD entity's contract is projected from its entity schema by the
   // one generic builder; only its declared deviations differ.
-  const contractEmitters: Record<string, (openApiSchema: any, entitySchema: Schema) => void> = Object.fromEntries(
+  const contractEmitters: Record<string, (openApiSchema: EntityJsonSchema, entitySchema: Schema) => void> = Object.fromEntries(
     ENTITY_CONTRACT_MODELS.map(model => [
       model.entityName,
-      (openApiSchema: any, entitySchema: Schema) => {
+      (openApiSchema: EntityJsonSchema, entitySchema: Schema) => {
         entityContractContent.set(
           model.entityName,
           emitContractModule(buildEntityContractDefinition(model, openApiSchema, entitySchema))
@@ -1100,7 +1122,7 @@ const detectionContractContent = generateDetectionContractModule();
     .join('\n');
   const incrementalSection = incrementalSchemas ? incrementalSchemas + '\n' : '';
 
-const routesContent = headerComment +
+  const routesContent = headerComment +
     "import { " + schemas.map(s => s.match(/export const (\w+Schema)/)?.[1]).filter(Boolean).join(', ') + " } from './entities.generated.js';\n\n" +
     '// Route Validation Schemas\n' +
     routeSchemas.join('\n') +
@@ -1114,14 +1136,14 @@ const routesContent = headerComment +
     "export * from './routes.generated.js';\n";
 
   // Write all files using file-ops module
-  writeGeneratedFiles(OUTPUT_DIR, {
+  writeGeneratedFiles(schemaDir, {
     entities: entitiesContent,
     routes: routesContent,
     index: indexContent
   });
 
   // Write contract modules
-  fs.mkdirSync(CONTRACTS_OUTPUT_DIR, { recursive: true });
+  fs.mkdirSync(contractsDir, { recursive: true });
 
   const entityContractFiles: string[] = [];
   for (const model of ENTITY_CONTRACT_MODELS) {
@@ -1130,7 +1152,7 @@ const routesContent = headerComment +
       throw new Error(`No entity schema found for declared contract model ${model.entityName}`);
     }
     // The contract file is named for the schema $id: backend.ts, ruleset.ts, …
-    const file = path.join(CONTRACTS_OUTPUT_DIR, `${model.schemaId}.ts`);
+    const file = path.join(contractsDir, `${model.schemaId}.ts`);
     fs.writeFileSync(file, content + '\n', 'utf8');
     entityContractFiles.push(file);
   }
@@ -1142,7 +1164,7 @@ const routesContent = headerComment +
   // Emitted from this run's schemas, not the ones on disk.
   fs.writeFileSync(
     VERSION_SHAPES_FILE,
-    emitContractModule(buildVersionShapesDefinition(entitySchemasByExport as never)) + '\n',
+    emitContractModule(buildVersionShapesDefinition(entitySchemasByExport)) + '\n',
     'utf8'
   );
   if (detectionContractContent) {
@@ -1161,7 +1183,7 @@ const routesContent = headerComment +
   console.log(`   📋 ${INDEX_FILE}`);
 
   // Log contract files
-  const contractFiles: string[] = [...entityContractFiles];
+  const contractFiles: string[] = [...entityContractFiles, VERSION_SHAPES_FILE];
   if (benchmarkContractContent) contractFiles.push(BENCHMARK_CONTRACT_FILE);
   if (detectionContractContent) contractFiles.push(DETECTION_CONTRACT_FILE);
   if (executionContractContent) contractFiles.push(EXECUTION_CONTRACT_FILE);
@@ -1173,6 +1195,8 @@ const routesContent = headerComment +
   }
 
   console.log(`📊 Generated ${schemas.length} entity schemas, ${interfaces.length} interfaces, and route schemas for ${routeSchemas.length} entities`);
+
+  return [ENTITIES_FILE, ROUTES_FILE, INDEX_FILE, ...contractFiles];
 }
 
 /**
@@ -1540,8 +1564,14 @@ export type PlaygroundRulesExecuteResponse = RuleSetExecutionResponse;
 }
 
 // Run if called directly
+// A failure has to fail the process: `pnpm build` and the CI drift check both
+// run this, and a swallowed error left the previous run's files in place while
+// reporting success.
 if (import.meta.url === `file://${process.argv[1]}`) {
-  generateSchemas().catch(console.error);
+  generateSchemas().catch(error => {
+    console.error(error);
+    process.exit(1);
+  });
 }
 
 export { generateSchemas };
@@ -1549,7 +1579,7 @@ export { generateSchemas };
 // Canonical version route generator - now uses buildVersionRoutes from versions.ts
 async function buildCanonicalVersionRoutes(
   schemaNames: string[],
-  entitySchemas: Record<string, any>
+  entitySchemas: Record<string, EntityJsonSchema>
 ): Promise<string> {
   const queryVersionExample = loadExample('workflows/basic-workflow/04-create-query-version.json');
   const queryGroupVersionExample = loadExample('workflows/basic-workflow/06-create-query-group-version.json');

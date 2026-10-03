@@ -31,6 +31,7 @@ import {
   termToNTriples,
   withGraph,
   type QuadLike,
+  type TermLike,
 } from './terms.js';
 import { planUpdate, type OperationPlan, type QuadOperationPlan, type TemplatePart } from './plan.js';
 import { graphOperationEffect, type GraphOperationRecord } from './graphOps.js';
@@ -196,13 +197,14 @@ async function run(
     }
 
     const absent = await missing(store, rawInserts);
+    netEffectExact &&= absent.exact;
     for (const quad of rawInserts) {
       if (deletions.has(quad)) {
         // Deleted by an earlier operation and put back: also a no-op overall.
         deletions.delete(quad);
         continue;
       }
-      if (absent.has(quad)) additions.add(quad);
+      if (absent.set.has(quad)) additions.add(quad);
     }
 
     // Advance the copy before deriving the next operation. The operation as
@@ -332,14 +334,23 @@ async function existing(
     }
   }
 
-  for (const quad of await lookup(store, groundable)) set.add(quad);
+  const { found, ambiguous } = await lookup(store, groundable);
+  for (const quad of found) set.add(quad);
+  // Kept for the same reason as a blank node above: deleting a triple the
+  // default graph turns out not to hold is a no-op, so the end state is right
+  // and only the count may overstate.
+  for (const quad of ambiguous) set.add(quad);
+  if (ambiguous.length > 0) exact = false;
   return { set, exact };
 }
 
 /** Which of `candidates` the store does not hold. */
-async function missing(store: DeltaStore, candidates: readonly QuadLike[]): Promise<QuadSet> {
+async function missing(
+  store: DeltaStore,
+  candidates: readonly QuadLike[],
+): Promise<{ set: QuadSet; exact: boolean }> {
   const absent = new QuadSet();
-  if (candidates.length === 0) return absent;
+  if (candidates.length === 0) return { set: absent, exact: true };
 
   const groundable: QuadLike[] = [];
   for (const quad of candidates) {
@@ -349,11 +360,61 @@ async function missing(store: DeltaStore, candidates: readonly QuadLike[]): Prom
     else groundable.push(quad);
   }
 
-  const present = new QuadSet(await lookup(store, groundable));
+  // An ambiguous quad counts as absent: inserting a triple the default graph
+  // already holds is a no-op, whereas dropping an insertion it does not hold
+  // would lose a write.
+  const { found, ambiguous } = await lookup(store, groundable);
+  const present = new QuadSet(found);
   for (const quad of groundable) {
     if (!present.has(quad)) absent.add(quad);
   }
-  return absent;
+  return { set: absent, exact: ambiguous.length === 0 };
+}
+
+/** How many named-graph triples the probe samples. */
+const UNION_PROBE_SAMPLE = 8;
+
+const unionProbes = new WeakMap<DeltaStore, Promise<boolean>>();
+
+/**
+ * Whether a store queries its default graph as the union of all its graphs.
+ *
+ * Read-only and cheap: it samples a few triples out of named graphs and asks,
+ * in the same query, whether each one is also visible without `GRAPH`. A store
+ * whose default graph is its own never shows a named graph's triple there
+ * unless the default graph holds a copy, so one invisible sample settles it;
+ * a store with no named-graph data at all is answered `false`, because there
+ * is nothing for the default graph to be confused with.
+ *
+ * Every sample being visible could in principle be coincidence — a store that
+ * keeps the same triples in both — and the cost of that misreading is bounded:
+ * the default-graph membership test below turns cautious, which costs a patch
+ * its `netEffectExact`, never its end state.
+ */
+export async function probeUnionDefaultGraph(store: DeltaStore): Promise<boolean> {
+  const rows = await store.select(
+    `SELECT ?visible WHERE {\nGRAPH ?g { ?s ?p ?o }\nBIND(EXISTS { ?s ?p ?o } AS ?visible)\n} LIMIT ${UNION_PROBE_SAMPLE}`,
+  );
+  if (rows.length === 0) return false;
+  return rows.every((row) => isTrue(row.visible));
+}
+
+function isTrue(term: TermLike | undefined): boolean {
+  return term?.termType === 'Literal' && (term.value === 'true' || term.value === '1');
+}
+
+/** The store's own answer when it gives one; otherwise one probe per store. */
+function unionDefaultGraph(store: DeltaStore): Promise<boolean> {
+  if (store.unionDefaultGraph !== undefined) return Promise.resolve(store.unionDefaultGraph);
+  let probe = unionProbes.get(store);
+  if (!probe) {
+    probe = probeUnionDefaultGraph(store);
+    unionProbes.set(store, probe);
+    // A failed probe is a transport problem, not an answer: let the next
+    // derivation ask again rather than inherit the rejection.
+    probe.catch(() => unionProbes.delete(store));
+  }
+  return probe;
 }
 
 /**
@@ -362,9 +423,20 @@ async function missing(store: DeltaStore, candidates: readonly QuadLike[]): Prom
  * One query per graph per chunk, rather than one per quad: a `VALUES` block
  * joined against the pattern is the portable way to ask a membership question
  * of an endpoint that only speaks SPARQL.
+ *
+ * The default graph is the one place the pattern can lie. On a store whose
+ * default graph is the union of all graphs, `?s ?p ?o` also matches a triple
+ * only a named graph holds, so the question is scoped with `GRAPH ?g`: a triple
+ * visible there and in no named graph is in the default graph; one a named
+ * graph holds is `ambiguous`, because whether the stored default graph holds a
+ * copy as well is something such a store has no portable way to be asked.
  */
-async function lookup(store: DeltaStore, quads: readonly QuadLike[]): Promise<QuadLike[]> {
+async function lookup(
+  store: DeltaStore,
+  quads: readonly QuadLike[],
+): Promise<{ found: QuadLike[]; ambiguous: QuadLike[] }> {
   const found: QuadLike[] = [];
+  const ambiguous: QuadLike[] = [];
   const byGraph = new Map<string | undefined, QuadLike[]>();
   for (const quad of quads) {
     const graph = graphIri(quad);
@@ -374,6 +446,7 @@ async function lookup(store: DeltaStore, quads: readonly QuadLike[]): Promise<Qu
   }
 
   for (const [graph, bucket] of byGraph) {
+    const scoped = graph === undefined && (await unionDefaultGraph(store));
     for (let offset = 0; offset < bucket.length; offset += EXISTENCE_CHUNK) {
       const chunk = bucket.slice(offset, offset + EXISTENCE_CHUNK);
       const values = chunk
@@ -382,21 +455,35 @@ async function lookup(store: DeltaStore, quads: readonly QuadLike[]): Promise<Qu
             `(${termToNTriples(quad.subject)} ${termToNTriples(quad.predicate)} ${termToNTriples(quad.object)})`,
         )
         .join('\n');
-      const pattern = graph === undefined ? '?s ?p ?o .' : `GRAPH <${graph}> { ?s ?p ?o . }`;
+      const pattern =
+        graph !== undefined
+          ? `GRAPH <${graph}> { ?s ?p ?o . }`
+          : scoped
+            ? '?s ?p ?o .\nOPTIONAL { GRAPH ?g { ?s ?p ?o . } }'
+            : '?s ?p ?o .';
       const rows = await store.select(
-        `SELECT ?s ?p ?o WHERE {\nVALUES (?s ?p ?o) {\n${values}\n}\n${pattern}\n}`,
+        `SELECT ?s ?p ?o${scoped ? ' ?g' : ''} WHERE {\nVALUES (?s ?p ?o) {\n${values}\n}\n${pattern}\n}`,
       );
+      // A triple held by several named graphs comes back once per graph.
+      const seen = new QuadSet();
+      const named = new QuadSet();
       for (const row of rows) {
         if (!row.s || !row.p || !row.o) continue;
-        found.push({
+        const quad: QuadLike = {
           subject: row.s,
           predicate: row.p,
           object: row.o,
           graph: graph === undefined ? null : { termType: 'NamedNode', value: graph },
-        });
+        };
+        seen.add(quad);
+        if (scoped && row.g) named.add(quad);
+      }
+      for (const quad of seen.values()) {
+        if (named.has(quad)) ambiguous.push(quad);
+        else found.push(quad);
       }
     }
   }
 
-  return found;
+  return { found, ambiguous };
 }

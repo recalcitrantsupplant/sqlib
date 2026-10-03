@@ -18,6 +18,14 @@
  *   Without `fork`, such a program is refused by name instead of mis-previewed.
  *
  * In-process Oxigraph offers all four, which is why it is the reference target.
+ *
+ * **`unionDefaultGraph`** is a fact about the store rather than a capability:
+ * whether its default graph answers queries as the union of every graph, as
+ * Fuseki's `unionDefaultGraph`, Stardog's `query.all.graphs` and GraphDB's
+ * defaults do. On such a store `?s ?p ?o` finds a triple that only a named graph
+ * holds, so asking it whether the default graph holds a quad needs a different
+ * question. Left undefined, derivation probes for it once — see
+ * `probeUnionDefaultGraph`.
  */
 
 import type { QuadLike, TermLike } from './terms.js';
@@ -29,6 +37,8 @@ export interface DeltaStore {
   has?(quad: QuadLike): Promise<boolean> | boolean;
   /** A private, mutable copy of this store, for simulating a program. */
   fork?(): Promise<SimulationStore>;
+  /** Whether the default graph is queried as the union of all graphs. Probed when absent. */
+  unionDefaultGraph?: boolean;
 }
 
 /**

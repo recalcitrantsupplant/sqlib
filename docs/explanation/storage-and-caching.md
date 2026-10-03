@@ -135,9 +135,11 @@ filtering a list costs no SPARQL.
 
 ### The pieces
 
-**`EntityRegistry.ts`** is the registry of entity types.
-`LENS_BY_TYPE` maps each of 52 entity types to its repository, and `TTL_MS`
-gives each type a cache lifetime.
+**`entityTypeNames.ts`** lists the 52 entity types the cache holds.
+**`EntityRegistry.ts`** gives each its stored shape (`EntityByType`) and a cache
+lifetime (`TTL_MS`). Reads and writes reach the store through the
+`PersistenceAdapter`, which looks each type's schema up in `SCHEMA_BY_TYPE`;
+nothing in the cache path goes through a per-type repository module.
 
 **`CacheCoordinator.ts`** holds the state. Storage is decomposed — a
 `Map<EntityType, EntityCache>` plus one `_idToType` index across all of them —
@@ -261,6 +263,55 @@ as quads in Oxigraph, once as JavaScript objects in the cache. `GET /metrics`
 reports both: per-type entity counts and an estimated byte size for the cache,
 and triple counts and memory use per Oxigraph store. That route requires
 administrator access, because it exposes store contents and process internals.
+
+### Run records: the second discipline
+
+Not everything the server stores goes through the coordinator. Test runs
+(`TestRun`, `TestRunCase`) and benchmark runs (`BenchmarkRun`,
+`BenchmarkNodeRun`, `BenchmarkIterationRun`, `BenchmarkObservation`,
+`BenchmarkNodeObservation`, `BenchmarkIterationObservation`) are written
+directly through their repositories (`TestRunStore.ts`, `BenchmarkRunner.ts`)
+to the same library store, using the same schema-keyed `EntityStore` engine. So
+they share the SPARQL generation and the backend configuration with everything
+else, and nothing more:
+
+- they are not in `ENTITY_TYPE_NAMES`, so they are not preloaded, not cached
+  and not resolvable through `repos`;
+- the coordinator's immutability guard and write sequencing do not see them;
+- they emit nothing on the change feed and are never in an export bundle.
+
+That is deliberate, and it is the right line for records of this kind rather
+than migration left unfinished:
+
+- **They are not library content.** A run says what happened when something
+  was executed; it is not an edit to a query, a rule or a test. Nothing
+  references a run by IRI from library content, so the referential checks the
+  cache exists to make cheap never ask about one.
+- **Volume.** A suite run files a few hundred verdicts at once and a benchmark
+  writes an observation per iteration. Preloading them would make boot time and
+  resident memory grow with how often things have been *run*, not with the size
+  of the library — and the cache holds every entity of a type for the life of
+  the process.
+- **Their own lifecycle.** Test runs are pruned per test by a retention policy
+  (`RUN_HISTORY_LIMIT`, `TRANSITION_HISTORY_LIMIT`); benchmark runs are
+  appended and then finalised once (status and end time) by the runner that
+  created them. No second writer edits them, so the sequencing the coordinator
+  gives to shared, user-edited entities has nothing to protect. Test-run
+  recording is also best-effort: a refused write is logged and swallowed rather
+  than turning a passing test into an error.
+- **Reads are scans, not lookups.** "The last twenty runs of this test" or
+  "the observations of this run" is a filter on a foreign key, never a fetch
+  by id from a route resolving library content. They are read from the store
+  on demand (today a full read of the type, filtered in process), so their
+  cost lands on the request that asks for history, not on every request.
+
+The cost is that the guarantees above — your own write visible immediately
+through `repos`, immutability enforced in one place, a change notification per
+write — do not apply to run records. A new kind of record belongs on this side
+only if it shares those properties: append-mostly, high-volume, owned by one
+writer, and not part of the library. Anything a user edits, or that library
+content links to, belongs in `ENTITY_TYPE_NAMES` and goes through the
+coordinator.
 
 ## Patches and history
 

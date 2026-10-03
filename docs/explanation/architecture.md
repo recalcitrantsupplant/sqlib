@@ -20,7 +20,7 @@ it, or things that run without it.
 | `tools` | The MCP tool catalogue: 89 tool definitions and a registry | `contracts` |
 | `types` | Shared constants and types, including the feature-flag table | — |
 | `srl` | The SHACL 1.2 Shape Rules Language parser, compiler and stratifier | — |
-| `rdf-delta` | Derives what a SPARQL update would add and remove, without running it | — |
+| `rdf-delta` | Derives what a SPARQL update would add and remove, without running it; storing patches is the API's (`src/lib/patch/`) | — |
 | `runtime` | The parser-free runtime a static export bundle runs on | — |
 | `runtime-oxigraph` | An Oxigraph-backed executor for that runtime | — |
 
@@ -33,14 +33,20 @@ The split follows three lines, and each one is a dependency direction somebody
 needed rather than a tidiness exercise.
 
 **A package exists where a second host needs the same code.** `runtime` holds
-the argument-application code — `serializeTerm`, `alignArgumentSets`,
-`substituteLimitOffset` — and `packages/api/src/lib/parser.ts` imports it rather
+the argument-application code — `serializeTerm`, `assignArgumentSets`,
+`substituteLimitOffset`, exported to sqlib's own packages from
+`@sparql-query-lib/runtime/internal` rather than the semver-promised root
+entry — and `packages/api/src/lib/parser.ts` imports it rather
 than reimplementing it. The comment at that import states the reason: importing
 rather than copying is what makes "the client substitutes exactly as the server
 does" true by construction. The same argument produced `rdf-delta` as a package
 with no Fastify, no `fs` and no network dependency: server-side apply,
 browser-side apply and worker-side apply are then the same code, and where the
-patch log eventually lives becomes a choice of sink rather than a rewrite.
+patch log eventually lives becomes a choice of sink rather than a rewrite. The
+sinks themselves — DuckDB patch-log SQL, a conditional blob store over `fetch`,
+snapshot, checkpoint and rebase — are storage, so they live in
+`packages/api/src/lib/patch/` with their tests, and the proofs of concept behind
+them in `packages/api/poc/patch-log/`, which no build compiles.
 
 **A package exists where two consumers must agree about a document.**
 `contracts` holds the generated schemas, and `tools` holds the MCP catalogue
@@ -133,6 +139,13 @@ reads them and writes:
 - `packages/contracts/src/generated/*.ts` — zod schemas and TypeScript types per
   entity.
 
+Everything in those locations is generator output, and CI regenerates it and
+fails on any diff (`scripts/ci/generated-check.sh`). The contract modules that
+describe a wire protocol rather than an entity — the version write/read
+envelopes, `POST /sparql`, and the route schemas behind
+`@sparql-query-lib/contracts/schema/routes` — are hand-written and live in
+`packages/contracts/src/hand-written/`.
+
 Three consumers read the result, and none of them regenerates it:
 
 1. **The API.** `packages/api/src/index.ts` imports `* as schemas from
@@ -215,11 +228,13 @@ it is:
 - `packages/api/src/persistence/SelfHostedAdapter.ts` — the type-keyed facade
   the cache talks to. It maps an entity type to its schema through
   `SCHEMA_BY_TYPE` and hands off to `EntityStore`.
-- `packages/api/src/lib/EntityRegistry.ts` — `LENS_BY_TYPE`, the per-entity
-  repositories (52 entity types), and `TTL_MS`, the per-type cache lifetime.
+- `packages/api/src/lib/EntityRegistry.ts` — `EntityByType`, the stored shape
+  of each of the 52 entity types named in `entityTypeNames.ts`, and `TTL_MS`,
+  the per-type cache lifetime.
 
-Names carrying `Ldkit`/`LENS` survive in the types and the registry; the
-implementation behind them does not. Any older material describing LDKit lenses,
+Only the `ldkit:IRI` vocabulary term still carries the name, because changing
+it would be a data migration (see
+[entity-model.md](../reference/entity-model.md)). Any older material describing LDKit lenses,
 a `persistPath` RocksDB store, or seven route modules is describing a system
 that no longer exists.
 

@@ -65,6 +65,10 @@ export function oxigraphDeltaStore(
       return rows.map((row) => Object.fromEntries(row));
     },
 
+    // Queries run without `use_default_graph_as_union`, so the default graph
+    // is the default graph, and a probe would only spend a query to learn it.
+    unionDefaultGraph: false,
+
     has(quad: QuadLike): boolean {
       const graph = quad.graph && quad.graph.termType !== 'DefaultGraph' ? quad.graph : undefined;
       const matches = store.match(quad.subject, quad.predicate, quad.object, graph);

@@ -16,7 +16,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createRepositoryLens } from '../../src/persistence/utils/entityRepository.js';
-import { LibrarySchema, type LdkitLibrary } from '../../src/persistence/schemas/LibrarySchema.js';
+import { LibrarySchema, type LibraryEntity } from '../../src/persistence/schemas/LibrarySchema.js';
 
 const isHttp = process.env.INTERNAL_BACKEND_TYPE === 'http';
 
@@ -62,12 +62,12 @@ describe.skipIf(!isHttp)('persistence against an http backend', () => {
       name: 'http round-trip',
       description: 'written over http',
       dateCreated: created,
-    } as LdkitLibrary);
+    } as LibraryEntity);
 
     // The triples are really at the endpoint, not in a local store we fell back to.
     expect(await countTriples()).toBeGreaterThan(baseline);
 
-    const read = (await Libraries.findByIri(id)) as LdkitLibrary | null;
+    const read = (await Libraries.findByIri(id)) as LibraryEntity | null;
     expect(read?.name).toBe('http round-trip');
     expect(read?.description).toBe('written over http');
     // Datatyped literals have to survive the network round-trip, not just the
@@ -75,9 +75,9 @@ describe.skipIf(!isHttp)('persistence against an http backend', () => {
     expect(read?.dateCreated).toBe(created);
 
     await Libraries.update({ $id: id, name: 'renamed over http' });
-    expect(((await Libraries.findByIri(id)) as LdkitLibrary | null)?.name).toBe('renamed over http');
+    expect(((await Libraries.findByIri(id)) as LibraryEntity | null)?.name).toBe('renamed over http');
 
-    expect((await Libraries.find()).some((entity) => (entity as LdkitLibrary).$id === id)).toBe(true);
+    expect((await Libraries.find()).some((entity) => (entity as LibraryEntity).$id === id)).toBe(true);
 
     await Libraries.delete(id);
     expect(await Libraries.findByIri(id)).toBeNull();

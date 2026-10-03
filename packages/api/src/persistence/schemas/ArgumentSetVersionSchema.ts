@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for ArgumentSetVersion Entity
+ * Schema for ArgumentSetVersion Entity
  *
  * Immutable versions of argument set bindings for reproducible execution.
  */
@@ -55,7 +55,7 @@ export const ArgumentSetVersionSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitArgumentSetVersion {
+export interface ArgumentSetVersionEntity {
   '$id': string;
   '@type'?: 'ArgumentSetVersion';
   isPartOf: string;

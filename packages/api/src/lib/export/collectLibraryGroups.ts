@@ -22,10 +22,10 @@
  * See `docs/guides/static-export.md`.
  */
 
-import type { LdkitQueryGroup } from '../../persistence/schemas/QueryGroupSchema.js';
-import type { LdkitQueryGroupVersion } from '../../persistence/schemas/QueryGroupVersionSchema.js';
-import type { LdkitQueryVersion } from '../../persistence/schemas/QueryVersionSchema.js';
-import type { LdkitQuery } from '../../persistence/schemas/QuerySchema.js';
+import type { QueryGroupEntity } from '../../persistence/schemas/QueryGroupSchema.js';
+import type { QueryGroupVersionEntity } from '../../persistence/schemas/QueryGroupVersionSchema.js';
+import type { QueryVersionEntity } from '../../persistence/schemas/QueryVersionSchema.js';
+import type { QueryEntity } from '../../persistence/schemas/QuerySchema.js';
 import { WHEN_EMPTY_MODES, type WhenEmptyMode } from '../../persistence/schemas/QueryEdgeSchema.js';
 import { slugify } from './queryBundle.js';
 
@@ -34,8 +34,8 @@ export type GroupGraphEntity = Record<string, unknown> & { '@type'?: string };
 
 /** The entity reads this module needs, so a route and a script can both supply them. */
 export interface LibraryGroupSource {
-  listGroups(): LdkitQueryGroup[];
-  getGroupVersion(id: string): LdkitQueryGroupVersion | null;
+  listGroups(): QueryGroupEntity[];
+  getGroupVersion(id: string): QueryGroupVersionEntity | null;
   /**
    * Any other entity by IRI: nodes, edges, tuples, tuple members, input and
    * output variables, query versions and queries. One accessor rather than one
@@ -108,7 +108,7 @@ function refuse(reason: string): never {
   throw new GroupNotExportable(reason);
 }
 
-function matchesTags(group: LdkitQueryGroup, tags: readonly string[], match: 'any' | 'all'): boolean {
+function matchesTags(group: QueryGroupEntity, tags: readonly string[], match: 'any' | 'all'): boolean {
   if (tags.length === 0) return true;
   const carried = group.tags ?? [];
   return match === 'all'
@@ -203,8 +203,8 @@ export function resolveVariableMappings(
 /** Resolve one group version into the walk, or refuse it with a reason. */
 function reduceGroup(
   source: LibraryGroupSource,
-  group: LdkitQueryGroup,
-  version: LdkitQueryGroupVersion,
+  group: QueryGroupEntity,
+  version: QueryGroupVersionEntity,
 ): ExportGroupInput {
   const nodeIds = (version.executionNodes ?? []).filter(Boolean) as string[];
   if (nodeIds.length === 0) refuse('Its current version has no execution nodes.');
@@ -229,11 +229,11 @@ function reduceGroup(
     if (!raw || typeOf(raw) !== 'QueryVersion') {
       refuse(`Its node ${nodeId} references missing QueryVersion ${queryVersionId}.`);
     }
-    const queryVersion = raw as unknown as LdkitQueryVersion;
+    const queryVersion = raw as unknown as QueryVersionEntity;
     if (!queryVersion.queryString) refuse(`The query version behind node ${nodeId} has no text.`);
 
     const stable = queryVersion.isPartOf
-      ? (source.getEntity(queryVersion.isPartOf) as unknown as LdkitQuery | null)
+      ? (source.getEntity(queryVersion.isPartOf) as unknown as QueryEntity | null)
       : null;
     const name = stable?.name ?? queryVersion.$id;
 

@@ -2,8 +2,8 @@ import type { FastifyInstance } from 'fastify';
 import { classifyVersionPatch } from '../lib/versionPatch.js';
 import { mintId } from '../lib/id.js';
 import { toRestApi } from '../persistence/utils/id-adapter.js';
-import type { LdkitDataBlock } from '../persistence/schemas/DataBlockSchema.js';
-import type { LdkitDataBlockVersion } from '../persistence/schemas/DataBlockVersionSchema.js';
+import type { DataBlockEntity } from '../persistence/schemas/DataBlockSchema.js';
+import type { DataBlockVersionEntity } from '../persistence/schemas/DataBlockVersionSchema.js';
 import { reposRoute, validateIfMatch, setEntityConcurrencyHeaders, findVersionByNumber } from './route-helpers.js';
 import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
 import { analyseReferences, describeWrongType } from '../lib/entityReferences.js';
@@ -122,7 +122,7 @@ export default async function (fastify: FastifyInstance) {
     // array is the answer to "which of these may I see" when the answer is
     // none. This listing made no decision at all and answered with every data
     // block in the deployment.
-    const items = repos.DataBlock.list() as LdkitDataBlock[];
+    const items = repos.DataBlock.list() as DataBlockEntity[];
     return reply.send(filterReadable(request, items).map(dataBlock => toRestApi(dataBlock)));
   }));
 
@@ -175,7 +175,7 @@ export default async function (fastify: FastifyInstance) {
     }
 
     const id = mintId('dataBlock');
-    const toCreate: Partial<LdkitDataBlock> & { $id: string } = {
+    const toCreate: Partial<DataBlockEntity> & { $id: string } = {
       $id: id,
       name,
       description: body.description ?? null,
@@ -206,7 +206,7 @@ export default async function (fastify: FastifyInstance) {
       },
     }, async ({ repos, reply, request }) => {
     const { id } = request.params;
-    const entity = repos.DataBlock.get(id) as LdkitDataBlock | null;
+    const entity = repos.DataBlock.get(id) as DataBlockEntity | null;
     if (!entity) {
       return reply.status(404).send({ error: 'Not Found' });
     }
@@ -231,7 +231,7 @@ export default async function (fastify: FastifyInstance) {
     const updates = request.body;
     const cacheCoordinator = getCacheCoordinator();
 
-    const current = repos.DataBlock.get(id) as LdkitDataBlock | null;
+    const current = repos.DataBlock.get(id) as DataBlockEntity | null;
     if (!current) {
       return reply.status(404).send({ error: 'Not Found' });
     }
@@ -252,7 +252,7 @@ export default async function (fastify: FastifyInstance) {
     // `coerceTypes: 'array'` has already wrapped the string form by the time we
     // get here, but normalising explicitly keeps the handler correct if that
     // option ever changes, and it is what gets persisted (queries.ts does the
-    // same). `LdkitDataBlock.isPartOf` is `string[]`.
+    // same). `DataBlockEntity.isPartOf` is `string[]`.
     let ids: string[] | undefined;
     if (updates.isPartOf) {
       ids = Array.isArray(updates.isPartOf)
@@ -269,7 +269,7 @@ export default async function (fastify: FastifyInstance) {
 
     // The update schema marks `name`, `description`, `comment` and
     // `currentVersion` `nullable: true`, so the inferred body is wider than
-    // `LdkitDataBlock` — whose `name` is required and non-null. The schema
+    // `DataBlockEntity` — whose `name` is required and non-null. The schema
     // therefore lets a client null out a required field. Reconciling the two is
     // the entity-model consolidation (issue #65 Phase B); until then this is the
     // single point where the wire shape crosses into the domain, and it passes
@@ -285,7 +285,7 @@ export default async function (fastify: FastifyInstance) {
       ...updates,
       ...(ids ? { isPartOf: ids } : {}),
       ...(tagCheck.tags !== undefined ? { tags: tagCheck.tags } : {}),
-    } as Partial<LdkitDataBlock>);
+    } as Partial<DataBlockEntity>);
     if (!updated) {
       return reply.status(404).send({ error: 'Not Found' });
     }
@@ -312,7 +312,7 @@ export default async function (fastify: FastifyInstance) {
     }
 
     // Cascading delete: delete all versions first
-    const versions = (repos.DataBlockVersion.list() as LdkitDataBlockVersion[]).filter(v => v.isPartOf === id);
+    const versions = (repos.DataBlockVersion.list() as DataBlockVersionEntity[]).filter(v => v.isPartOf === id);
     for (const version of versions) {
       await repos.DataBlockVersion.delete(version.$id);
     }
@@ -342,7 +342,7 @@ export default async function (fastify: FastifyInstance) {
     if (!parent) {
       return reply.status(404).send({ error: 'Data block not found' });
     }
-    const versions = (repos.DataBlockVersion.list() as LdkitDataBlockVersion[])
+    const versions = (repos.DataBlockVersion.list() as DataBlockVersionEntity[])
       .filter(v => v.isPartOf === id)
       .sort((a, b) => (a.version ?? 0) - (b.version ?? 0));
     return reply.send(versions.map(v => toRestApi(v)));
@@ -416,7 +416,7 @@ export default async function (fastify: FastifyInstance) {
     }
 
     const lookup = findVersionByNumber(
-      repos.DataBlockVersion.list() as LdkitDataBlockVersion[],
+      repos.DataBlockVersion.list() as DataBlockVersionEntity[],
       id,
       version,
       'data block',
@@ -467,7 +467,7 @@ export default async function (fastify: FastifyInstance) {
     }
 
     const lookup = findVersionByNumber(
-      repos.DataBlockVersion.list() as LdkitDataBlockVersion[],
+      repos.DataBlockVersion.list() as DataBlockVersionEntity[],
       id,
       version,
       'data block',
@@ -515,7 +515,7 @@ export default async function (fastify: FastifyInstance) {
     }
 
     const lookup = findVersionByNumber(
-      repos.DataBlockVersion.list() as LdkitDataBlockVersion[],
+      repos.DataBlockVersion.list() as DataBlockVersionEntity[],
       id,
       version,
       'data block',

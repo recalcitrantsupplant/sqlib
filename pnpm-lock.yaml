@@ -316,9 +316,6 @@ importers:
         specifier: 1.4.0
         version: 1.4.0
     devDependencies:
-      '@duckdb/node-api':
-        specifier: 1.5.5-r.5
-        version: 1.5.5-r.5
       '@types/node':
         specifier: ^26.6.2
         version: 26.6.2
@@ -328,9 +325,6 @@ importers:
       rdf-canonize:
         specifier: ^5.0.0
         version: 5.0.0
-      tsx:
-        specifier: ^4.23.15
-        version: 4.23.15
       typescript:
         specifier: ^7.0.2
         version: 7.0.2

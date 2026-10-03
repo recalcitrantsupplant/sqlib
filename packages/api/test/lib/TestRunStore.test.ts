@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import type { TestRunResult } from '../../src/lib/TestRunner.js';
-import type { LdkitTestRun } from '../../src/persistence/schemas/TestRunSchema.js';
+import type { TestRunEntity } from '../../src/persistence/schemas/TestRunSchema.js';
 
 /**
  * What a stored run keeps, what it forgets, and what it can be turned back into.
@@ -92,13 +92,13 @@ function verdict(overrides: Record<string, unknown> = {}): TestRunResult {
 }
 
 /** A stored run as retention sees it: an id, a test, a time and an outcome. */
-function stored(index: number, outcome: string): LdkitTestRun {
+function stored(index: number, outcome: string): TestRunEntity {
   return {
     $id: `urn:sqlib:test-run:r${index}`,
     test: TEST_ID,
     outcome,
     ranAt: new Date(Date.UTC(2026, 0, 1, 0, index)).toISOString(),
-  } as unknown as LdkitTestRun;
+  } as unknown as TestRunEntity;
 }
 
 beforeEach(() => {

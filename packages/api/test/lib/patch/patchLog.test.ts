@@ -1,7 +1,7 @@
 /**
  * The POC-2 harness, checked.
  *
- * `poc/run.ts` reports timings, and a timing is believable whatever the query
+ * `poc/patch-log/run.ts` reports timings, and a timing is believable whatever the query
  * returned — a reconstruction that drops half the graph is fast and wrong, and
  * nothing about the number says so. So every query the harness measures is
  * compared here against `replay()`, which evaluates the same rule by walking
@@ -14,7 +14,7 @@
 
 import { beforeAll, afterAll, describe, expect, it } from 'vitest';
 import oxigraph from 'oxigraph';
-import { openDuck, scalar, type Duck } from '../poc/duckdb.js';
+import { openDuck, scalar, type Duck } from '../../../poc/patch-log/duckdb.js';
 import {
   DEFAULT_SHAPE,
   asOfSql,
@@ -26,8 +26,8 @@ import {
   nquadsSql,
   type ChurnProfile,
   type LogShape,
-} from '../poc/patchLogSql.js';
-import { firstMalformed, quadKey, replay, type LogRow } from '../poc/replayOracle.js';
+} from '../../../poc/patch-log/patchLogSql.js';
+import { firstMalformed, quadKey, replay, type LogRow } from '../../../poc/patch-log/replayOracle.js';
 
 const PATCHES = 40;
 

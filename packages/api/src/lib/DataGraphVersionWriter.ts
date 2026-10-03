@@ -1,9 +1,9 @@
 import { mintId } from './id.js';
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
 import { allocateVersion, setCurrentVersion } from './versionNumbering.js';
-import type { LdkitDataGraph } from '../persistence/schemas/DataGraphSchema.js';
-import type { LdkitDataGraphVersion } from '../persistence/schemas/DataGraphVersionSchema.js';
-import { toLdkit } from '../persistence/utils/id-adapter.js';
+import type { DataGraphEntity } from '../persistence/schemas/DataGraphSchema.js';
+import type { DataGraphVersionEntity } from '../persistence/schemas/DataGraphVersionSchema.js';
+import { toEntity } from '../persistence/utils/id-adapter.js';
 import { oxigraphStoreManager } from './OxigraphStoreManager.js';
 import {
   DEFAULT_DATA_GRAPH_FORMAT,
@@ -44,7 +44,7 @@ export interface AnnotateDataGraphVersionInput {
  * write; reading the first entry is what every other consumer of that shape
  * does.
  */
-function libraryOf(dataGraph: LdkitDataGraph | null): string | null {
+function libraryOf(dataGraph: DataGraphEntity | null): string | null {
   const parents = Array.isArray(dataGraph?.isPartOf) ? dataGraph.isPartOf : [];
   return parents[0] ?? null;
 }
@@ -59,19 +59,19 @@ function libraryOf(dataGraph: LdkitDataGraph | null): string | null {
 function libraryBytesInUse(libraryId: string, excludeVersionId?: string): number {
   const cacheCoordinator = getCacheCoordinator();
   const graphsInLibrary = new Set(
-    (cacheCoordinator.list('DataGraph') as LdkitDataGraph[])
+    (cacheCoordinator.list('DataGraph') as DataGraphEntity[])
       .filter(graph => libraryOf(graph) === libraryId)
       .map(graph => graph.$id),
   );
 
-  return (cacheCoordinator.list('DataGraphVersion') as LdkitDataGraphVersion[])
+  return (cacheCoordinator.list('DataGraphVersion') as DataGraphVersionEntity[])
     .filter(version => version.$id !== excludeVersionId && graphsInLibrary.has(version.isPartOf))
     .reduce((total, version) => total + (Number(version.byteSize) || 0), 0);
 }
 
 function assertLibraryBudget(dataGraphId: string, incomingBytes: number, excludeVersionId?: string): void {
   const cacheCoordinator = getCacheCoordinator();
-  const parent = cacheCoordinator.get(dataGraphId) as LdkitDataGraph | null;
+  const parent = cacheCoordinator.get(dataGraphId) as DataGraphEntity | null;
   const libraryId = libraryOf(parent);
   // A data graph with no resolvable library cannot be budgeted against one. The
   // per-version cap has already applied, so this is bounded either way.
@@ -89,7 +89,7 @@ function assertLibraryBudget(dataGraphId: string, incomingBytes: number, exclude
  * Numbered and pointed at under the parent's version lock (`allocateVersion`),
  * so concurrent saves get consecutive numbers and the last to finish is current.
  */
-export async function createDataGraphVersion(dataGraphId: string, body: CreateDataGraphVersionInput): Promise<LdkitDataGraphVersion> {
+export async function createDataGraphVersion(dataGraphId: string, body: CreateDataGraphVersionInput): Promise<DataGraphVersionEntity> {
   return allocateVersion('DataGraphVersion', dataGraphId, (nextVersion) => createDataGraphVersionNumbered(dataGraphId, body, nextVersion));
 }
 
@@ -105,7 +105,7 @@ async function createDataGraphVersionNumbered(
   dataGraphId: string,
   body: CreateDataGraphVersionInput,
   nextVersion: number,
-): Promise<LdkitDataGraphVersion> {
+): Promise<DataGraphVersionEntity> {
   const cacheCoordinator = getCacheCoordinator();
 
   const facts = inspectDataGraphContent(
@@ -146,7 +146,7 @@ async function createDataGraphVersionNumbered(
       : {}),
   };
 
-  const created = await cacheCoordinator.create('DataGraphVersion', toLdkit(payload));
+  const created = await cacheCoordinator.create('DataGraphVersion', toEntity(payload));
 
   await setCurrentVersion('DataGraph', dataGraphId, versionId);
 
@@ -181,9 +181,9 @@ async function createDataGraphVersionNumbered(
 export async function annotateDataGraphVersion(
   versionId: string,
   body: AnnotateDataGraphVersionInput,
-): Promise<LdkitDataGraphVersion> {
+): Promise<DataGraphVersionEntity> {
   const cacheCoordinator = getCacheCoordinator();
-  const current = cacheCoordinator.get(versionId) as LdkitDataGraphVersion | null;
+  const current = cacheCoordinator.get(versionId) as DataGraphVersionEntity | null;
   if (!current || current['@type'] !== 'DataGraphVersion') {
     throw new Error(`DataGraphVersion ${versionId} not found`);
   }

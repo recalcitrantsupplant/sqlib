@@ -404,8 +404,8 @@ every query is parsed there anyway.
 `tuple-sets`, `tests`, `rule-sets`, `query-groups` (`argument-sets` and
 `benchmarks` if their shapes fit). Each PR deletes the hand-written handlers,
 keeps the module's entity-specific hooks, and updates its tests to the agreed
-status codes. `packages/contracts/src/schema/contract-routes.ts` is
-regenerated or deleted per WP31.
+status codes. `packages/contracts/src/hand-written/contract-routes.ts` (moved
+there by WP31) shrinks as each module's schemas move to generated ones.
 
 **Acceptance.** A single parametrised route-contract test that runs the same
 status-code matrix over every registered noun; the drift table in
@@ -517,6 +517,24 @@ the orphan ratchet catches an unreferenced component in a self-test.
 ---
 
 ## Phase 6 — Packages
+
+Status: done, WP28–WP32, on `claude/brave-babbage-qzc3r1` (built on #52).
+What changed from the plan: WP28 checks for unexpanded terms rather than
+expanding them (`stratify()` has no prologue), and the srl harness checks the
+`eval`/`eval2` rule sets parse, are well-formed and stratify; evaluating them
+stays in the api harness, since srl cannot depend on api. WP29 adds an
+`integrity` field beside `textHash` instead of redefining it, so older runtimes
+still load new bundles; the empty prefix stays legal. WP30 took the
+`packages/api/src/lib/patch/` side of D6 (api is the only consumer), moved
+`poc/` to `packages/api/poc/patch-log/`, and detects a union default graph by a
+one-SELECT probe unless the store declares it. WP31 decided D7 as neither:
+`contract-routes.ts` and `sparql.ts` are hand-written schemas with no entity
+behind them, so they moved to `src/hand-written/` and a `$id`/`$ref` test
+replaces the warning that they disagree; `scripts/ci/generated-check.sh` is the
+new CI step. WP32 removed the dynamic import but not the cycle, which runs
+through `ExecutorFactory`'s backend lookup, not `LENS_BY_TYPE`; it fixed the
+adapter registry's load-order bug that hid, renamed `Ldkit*` to `*Entity`, and
+documents run records as a second discipline instead of moving them.
 
 ### WP28 — SRL stratifier expansion invariant · S · deps: none · closes C6, packages #11
 
@@ -659,5 +677,6 @@ Phase 1 (WP1–WP7) is the release blocker for any deployment under
 - **D5 — `SERVICE` policy.** Strip, allowlist per backend, or leave to the
   store. Needed by WP19.
 - **D6 — where the blob store and patch-log SQL live** once they leave
-  `rdf-delta`. Needed by WP30.
+  `rdf-delta`. Needed by WP30. Decided: `packages/api/src/lib/patch/`.
 - **D7 — `contract-routes.ts`.** Generate it or delete it. Needed by WP31.
+  Decided: neither; it is hand-written and lives in `src/hand-written/`.

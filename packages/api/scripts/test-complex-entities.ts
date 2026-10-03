@@ -13,9 +13,9 @@ import { createQueryGroup, QueryGroups } from '../src/persistence/utils/QueryGro
 import { QueryGroupVersions } from '../src/persistence/utils/QueryGroupVersionUtils';
 import { createStoredQuery, StoredQueries } from '../src/persistence/utils/StoredQueryUtils';
 import { createNodeParameterMappings, deleteNodeParameterMappings, updateNodeParameterMappings } from '../src/persistence/utils/NodeParameterMappingUtils';
-import type { LdkitQueryNode } from '../src/persistence/schemas/QueryNodeSchema';
-import type { LdkitNodeParameterMapping } from '../src/persistence/schemas/NodeParameterMappingSchema';
-import type { LdkitStoredQuery } from '../src/persistence/schemas/StoredQuerySchema';
+import type { QueryNodeEntity } from '../src/persistence/schemas/QueryNodeSchema';
+import type { NodeParameterMappingEntity } from '../src/persistence/schemas/NodeParameterMappingSchema';
+import type { StoredQueryEntity } from '../src/persistence/schemas/StoredQuerySchema';
 
 async function testComplexEntityRelationships() {
   console.log('🚀 Testing Complex Entity Relationships (Phase 3.12)...\n');
@@ -48,7 +48,7 @@ async function testComplexEntityRelationships() {
     // Test 1: Create a complete workflow using mixed systems
     console.log('\n📊 Test 1: Create Complex Workflow with Mixed Systems');
     console.log('Creating StoredQuery using LDKit...');
-    const testQuery: LdkitStoredQuery = await createStoredQuery({
+    const testQuery: StoredQueryEntity = await createStoredQuery({
       '@id': queryId,
       name: 'Complex Test Query',
       description: 'A test query for complex entity relationships',
@@ -68,14 +68,14 @@ async function testComplexEntityRelationships() {
     const node1 = await createQueryNode({ '@id': node1Id, queryId: queryId, canvasData: JSON.stringify({ x: 100, y: 100 }), parameterMappings: [param1Id, param2Id] });
 
     // For now, just create node2 with one parameter mapping since our schema handles string not array
-    const node2: LdkitQueryNode = {
+    const node2: QueryNodeEntity = {
       $id: node2Id,
       queryId: queryId,
       canvasData: JSON.stringify({ x: 300, y: 100 })
     };
 
     // Create the parameter mapping separately first
-    const param3: LdkitNodeParameterMapping = { $id: param3Id, parameterName: 'timeout', parameterValue: '30' };
+    const param3: NodeParameterMappingEntity = { $id: param3Id, parameterName: 'timeout', parameterValue: '30' };
     await createNodeParameterMappings([{ id: param3.$id, parameterName: param3.parameterName!, parameterValue: param3.parameterValue! }]);
 
     // Then create the node with the parameter mapping reference

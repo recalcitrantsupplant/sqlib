@@ -29,8 +29,8 @@
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
 import { SparqlQueryParser } from './parser.js';
 import { getNodeQueryId } from './type-guards.js';
-import type { LdkitQueryGroupVersion } from '../persistence/schemas/QueryGroupVersionSchema.js';
-import type { LdkitQueryVersion } from '../persistence/schemas/QueryVersionSchema.js';
+import type { QueryGroupVersionEntity } from '../persistence/schemas/QueryGroupVersionSchema.js';
+import type { QueryVersionEntity } from '../persistence/schemas/QueryVersionSchema.js';
 import type { AnyNodeType } from './type-guards.js';
 
 export interface QueryGroupPageParameters {
@@ -54,7 +54,7 @@ export class QueryGroupSignatureService {
    */
   pageParametersFor(groupVersionId: string): QueryGroupPageParameters {
     const cacheCoordinator = getCacheCoordinator();
-    const version = cacheCoordinator.get(groupVersionId) as LdkitQueryGroupVersion | null;
+    const version = cacheCoordinator.get(groupVersionId) as QueryGroupVersionEntity | null;
     if (!version || version['@type'] !== 'QueryGroupVersion') return EMPTY;
 
     const limits = new Set<string>();
@@ -70,7 +70,7 @@ export class QueryGroupSignatureService {
        */
       const queryVersionId = getNodeQueryId(node);
       if (!queryVersionId) continue;
-      const queryVersion = cacheCoordinator.get(queryVersionId) as LdkitQueryVersion | null;
+      const queryVersion = cacheCoordinator.get(queryVersionId) as QueryVersionEntity | null;
       if (!queryVersion || queryVersion['@type'] !== 'QueryVersion') continue;
       const queryString = typeof queryVersion.queryString === 'string' ? queryVersion.queryString : null;
       if (!queryString) continue;

@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for Rule Entity (stable pointer)
+ * Schema for Rule Entity (stable pointer)
  *
  * Mirrors the Query schema but dedicated to SHACL rules.
  */
@@ -50,7 +50,7 @@ export const RuleSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitRule {
+export interface RuleEntity {
   $id: string;
   '@type'?: 'Rule';
   name: string;

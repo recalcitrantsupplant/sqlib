@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for BenchmarkNodeObservation Entity (node-level observation).
+ * Schema for BenchmarkNodeObservation Entity (node-level observation).
  */
 
 import type { Schema } from '../schema.js';
@@ -58,7 +58,7 @@ export const BenchmarkNodeObservationSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitBenchmarkNodeObservation {
+export interface BenchmarkNodeObservationEntity {
   $id: string;
   '@type'?: 'BenchmarkNodeObservation';
   dataSet: string;

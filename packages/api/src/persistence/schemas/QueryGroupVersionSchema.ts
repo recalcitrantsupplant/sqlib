@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for QueryGroupVersion Entity (Immutable Version)
+ * Schema for QueryGroupVersion Entity (Immutable Version)
  * 
  * Represents an immutable version of a query group. Each version has a stable
  * parent QueryGroup and contains snapshots of nodes, edges, and canvas data.
@@ -67,7 +67,7 @@ export const QueryGroupVersionSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitQueryGroupVersion {
+export interface QueryGroupVersionEntity {
   $id: string;
   '@type'?: 'QueryGroupVersion';
   version: number; // 1, 2, 3... (API/UI-friendly numeric version)

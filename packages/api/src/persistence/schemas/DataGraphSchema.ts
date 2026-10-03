@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for DataGraph Entity (stable pointer)
+ * Schema for DataGraph Entity (stable pointer)
  *
  * A DataGraph is reference/example RDF registered in the library — the *input*
  * a ruleset runs against (`G0` in the SHACL 1.2 Rules semantics), not part of
@@ -70,7 +70,7 @@ export const DataGraphSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitDataGraph {
+export interface DataGraphEntity {
   $id: string;
   '@type'?: 'DataGraph';
   name: string;

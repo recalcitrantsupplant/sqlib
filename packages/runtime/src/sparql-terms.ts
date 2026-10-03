@@ -15,12 +15,20 @@
  * This matters because the AST path does not provide that property on its own:
  * Traqula's generator escapes string literals but emits IRIs and language tags
  * verbatim, so `<` + rawIri + `>` was previously enough to inject extra terms into
- * a VALUES block. See sparql-terms.security.test.ts.
+ * a VALUES block. See test/sparql-terms.security.test.ts.
  */
 
-/** A single argument value, in the SPARQL Results JSON shape sqlib accepts. */
+/**
+ * A single RDF term, in the SPARQL Results JSON shape.
+ *
+ * `type` spans every spelling an endpoint answers with, because the same shape
+ * carries a SELECT's rows and the arguments made from them. Two of those are
+ * not argument values: `typed-literal` (the 2008 draft spelling Virtuoso still
+ * emits) is read as `literal`, and `bnode` is refused — a blank node label only
+ * means something inside the document it came from.
+ */
 export interface TermValue {
-  type: 'uri' | 'literal' | string;
+  type: 'uri' | 'literal' | 'typed-literal' | 'bnode';
   value: string;
   datatype?: string;
   'xml:lang'?: string;
@@ -74,6 +82,8 @@ const LITERAL_ESCAPES: Record<string, string> = {
 };
 const NEEDS_LITERAL_ESCAPE = /["\\\n\r]/g;
 
+const XSD_STRING = 'http://www.w3.org/2001/XMLSchema#string';
+
 /** True when `name` is a variable name this module will emit. */
 export function isSafeVariableName(name: string): boolean {
   return VARNAME.test(name);
@@ -94,6 +104,25 @@ const SAFE_PN_LOCAL = /^[A-Za-z0-9_][A-Za-z0-9_.-]*$/;
 
 /** Prefix label, per `PNAME_NS`; validated because it is re-emitted verbatim. */
 const SAFE_PREFIX = /^[A-Za-z][A-Za-z0-9_.-]*$/;
+
+/** True when `prefix` is a label {@link serializeIri} will abbreviate with. */
+export function isSafePrefixLabel(prefix: string): boolean {
+  return SAFE_PREFIX.test(prefix);
+}
+
+/** RFC 3987 `scheme ":"` — what makes an IRI absolute rather than relative. */
+const IRI_SCHEME = /^[A-Za-z][A-Za-z0-9+.-]*:/;
+
+/**
+ * True when `iri` is absolute and spellable inside `<...>`.
+ *
+ * Used on a bundle's prefix namespaces, which are trusted data rather than
+ * caller input but are still the half of an abbreviation that decides which IRI
+ * `prefix:local` means — an edited one silently rewrites every abbreviated term.
+ */
+export function isAbsoluteIri(iri: string): boolean {
+  return typeof iri === 'string' && IRI_SCHEME.test(iri) && !FORBIDDEN_IN_IRI.test(iri);
+}
 
 /**
  * Serialise a full IRI, rejecting anything that could escape its production.
@@ -156,20 +185,35 @@ export function serializeTerm(term: TermValue, context: string, prefixes: Prefix
       throw new InvalidTermError(`Invalid IRI ${context}. ${(error as Error).message}`);
     }
   }
-  if (term.type === 'literal') {
+  if (term.type === 'bnode') {
+    throw new InvalidTermError(
+      `Invalid argument ${context}: a blank node cannot be passed as an argument, because its label only means something inside the document it came from. Use an IRI.`,
+    );
+  }
+  // `typed-literal` is the 2008 draft spelling of a literal with a datatype, and
+  // still what Virtuoso answers with; it reads as `literal`, defaulting to the
+  // datatype every plain literal has.
+  if (term.type === 'literal' || term.type === 'typed-literal') {
     if (typeof term.value !== 'string') {
       throw new InvalidTermError(`Invalid literal ${context}: value must be a string.`);
     }
     const lexical = `"${escapeLiteralLexical(term.value)}"`;
-    // RDF 1.1: a datatype and a language tag are mutually exclusive, datatype wins.
-    if (term.datatype !== undefined) {
+    const lang = term['xml:lang'];
+    // RDF 1.1: a literal has a datatype or a language tag, never both. Picking
+    // one would guess at what the caller meant, so a term carrying both is refused.
+    if (term.datatype !== undefined && lang !== undefined) {
+      throw new InvalidTermError(
+        `Invalid literal ${context}: it carries both a datatype and a language tag, which RDF does not allow.`,
+      );
+    }
+    const datatype = term.datatype ?? (term.type === 'typed-literal' ? XSD_STRING : undefined);
+    if (datatype !== undefined) {
       try {
-        return `${lexical}^^${serializeIri(term.datatype)}`;
+        return `${lexical}^^${serializeIri(datatype)}`;
       } catch (error) {
         throw new InvalidTermError(`Invalid datatype IRI ${context}. ${(error as Error).message}`);
       }
     }
-    const lang = term['xml:lang'];
     if (lang !== undefined) {
       if (typeof lang !== 'string' || !LANGTAG.test(lang)) {
         throw new InvalidTermError(`Invalid language tag '${lang}' ${context}.`);
@@ -179,7 +223,7 @@ export function serializeTerm(term: TermValue, context: string, prefixes: Prefix
     return lexical;
   }
   throw new InvalidTermError(
-    `Invalid argument type '${term.type}' ${context}. Only 'uri' and 'literal' are supported.`,
+    `Invalid argument type '${String((term as { type?: unknown }).type)}' ${context}. Only 'uri' and 'literal' are supported.`,
   );
 }
 

@@ -4,7 +4,7 @@
 
 // In-memory LDKit lens and deleteEntity for this suite
 import { Backends, createBackend } from '../../src/persistence/utils/BackendUtils.js';
-import type { LdkitBackend } from '../../src/persistence/schemas/BackendSchema.js';
+import type { BackendEntity } from '../../src/persistence/schemas/BackendSchema.js';
 import { overrideRepositoryLenses } from '../../src/persistence/utils/entityRepository.js';
 
 const repositoryLens = (() => {
@@ -41,7 +41,7 @@ describe('deleteEntity function (LDKit replacement for EntityManager.delete)', (
 
   it('should delete an existing entity using LDKit', async () => {
     // Create a test backend first
-  const testBackend: Omit<LdkitBackend, 'dateCreated' | 'dateModified'> & { $id: string } = {
+  const testBackend: Omit<BackendEntity, 'dateCreated' | 'dateModified'> & { $id: string } = {
     $id: testBackendId,
     name: 'Delete Test Backend',
     description: 'A backend for testing delete functionality',
@@ -88,7 +88,7 @@ describe('deleteEntity function (LDKit replacement for EntityManager.delete)', (
 
   it('should work with entities that have complex relationships', async () => {
     // Create a backend with all optional fields populated
-  const complexBackend: Omit<LdkitBackend, 'dateCreated' | 'dateModified'> & { $id: string } = {
+  const complexBackend: Omit<BackendEntity, 'dateCreated' | 'dateModified'> & { $id: string } = {
     $id: testBackendId,
     name: 'Complex Delete Test Backend',
     description: 'A backend with all fields for testing complex delete functionality',
@@ -112,7 +112,7 @@ describe('deleteEntity function (LDKit replacement for EntityManager.delete)', (
 
   it('should match EntityManager.delete behavior - delete all triples for the entity', async () => {
     // Create backend with timestamp fields
-  const timestampedBackend: Omit<LdkitBackend, 'dateCreated' | 'dateModified'> & { $id: string } = {
+  const timestampedBackend: Omit<BackendEntity, 'dateCreated' | 'dateModified'> & { $id: string } = {
     $id: testBackendId,
     name: 'Timestamped Delete Test Backend',
     description: 'Testing that timestamps are also deleted',
