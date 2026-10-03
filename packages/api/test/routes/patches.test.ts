@@ -9,7 +9,7 @@
  * back exactly what was taken.
  */
 
-import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterEach, afterAll } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
 import * as oxigraph from 'oxigraph';
 import patchRoutes from '../../src/routes/patches.js';
@@ -18,49 +18,9 @@ import { BackendTypeIri } from '../../src/persistence/schemas/BackendSchema.js';
 import { setupValidator } from '../../src/lib/validator-setup.js';
 import { resetChangeSubscribers, subscribeChanges, type FeedEvent } from '../../src/lib/changeEvents.js';
 import * as schemas from '@sparql-query-lib/contracts/schema';
+import { installFakePersistenceAdapter } from '../support/fakePersistenceAdapter.js';
 
 const BACKEND_ID = 'urn:sqlib:backend:patch-test';
-
-/** A repository backed by a Map, which is all the service asks of one. */
-const { patchStore, patchRepo } = vi.hoisted(() => {
-  const store = new Map<string, Record<string, unknown>>();
-  return {
-    patchStore: store,
-    patchRepo: {
-      get: (id: string) => store.get(id) ?? null,
-      list: () => [...store.values()],
-      create: async (entity: Record<string, unknown>) => {
-        const record = { ...entity, '@type': 'Patch', dateCreated: new Date().toISOString() };
-        store.set(entity.$id as string, record);
-        return record;
-      },
-      update: async (id: string, updates: Record<string, unknown>) => {
-        const current = store.get(id);
-        if (!current) return null;
-        const next = { ...current, ...updates };
-        store.set(id, next);
-        return next;
-      },
-      delete: async (id: string) => {
-        store.delete(id);
-      },
-    },
-  };
-});
-
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
-  getEntityRepositories: () => ({ Patch: patchRepo }),
-  getCacheCoordinator: () => ({ get: () => null }),
-}));
-
-vi.mock('../../src/persistence/utils/BackendUtils.js', () => ({
-  Backends: {
-    findByIri: async (iri: string) =>
-      iri === BACKEND_ID
-        ? { $id: BACKEND_ID, name: 'Patch test', backendType: BackendTypeIri.oxigraphEphemeral }
-        : null,
-  },
-}));
 
 const SEED = `
 <http://ex/a> <http://ex/status> "draft" .
@@ -96,6 +56,7 @@ function graphStatuses(): string[] {
 
 describe('/patches', () => {
   let app: FastifyInstance;
+  let patchStore: Awaited<ReturnType<typeof installFakePersistenceAdapter>>;
 
   beforeAll(async () => {
     app = Fastify({ logger: false });
@@ -109,13 +70,20 @@ describe('/patches', () => {
     await app.ready();
   });
 
-  beforeEach(() => {
-    patchStore.clear();
+  beforeEach(async () => {
+    patchStore = await installFakePersistenceAdapter([
+      {
+        type: 'Backend',
+        entity: { $id: BACKEND_ID, name: 'Patch test', backendType: BackendTypeIri.oxigraphEphemeral },
+      },
+    ]);
     resetChangeSubscribers();
     const fresh = oxigraphStoreManager.createEphemeralStore(BACKEND_ID);
     fresh.update('DELETE { ?s ?p ?o } WHERE { ?s ?p ?o }');
     fresh.load(SEED, { format: 'application/n-quads' });
   });
+
+  afterEach(() => patchStore.restore());
 
   afterAll(async () => {
     await app.close();

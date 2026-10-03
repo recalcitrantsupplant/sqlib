@@ -65,55 +65,14 @@ COPY packages/api ./packages/api
 COPY packages/mcp-app ./packages/mcp-app
 COPY packages/mcp-server ./packages/mcp-server
 
-# Build shared packages first (generates .d.ts files needed by API)
-RUN pnpm --filter @sparql-query-lib/types build && \
-    echo "=== Types dist contents ===" && \
-    ls -la packages/types/dist/
-
-RUN pnpm --filter @sparql-query-lib/contracts build && \
-    echo "=== Contracts dist contents ===" && \
-    ls -la packages/contracts/dist/
-
-# Term serialisation, query templates and page-parameter substitution — the
-# parser-free half of the API's argument handling, which `parser.ts` imports as
-# values, not just types. Same lesson as srl below: a workspace package the API
-# depends on has to be copied and built here, or the image build fails on it.
-RUN pnpm --filter @sparql-query-lib/runtime build && \
-    echo "=== Runtime dist contents ===" && \
-    ls -la packages/runtime/dist/
-
-# Deriving the diff a SPARQL update would produce, which the patch routes
-# import as values. Same lesson as srl and runtime below and above: a workspace
-# package the API depends on has to be copied and built here, or the image build
-# fails on it.
-RUN pnpm --filter @sparql-query-lib/rdf-delta build && \
-    echo "=== RDF delta dist contents ===" && \
-    ls -la packages/rdf-delta/dist/
-
-# The API depends on @sparql-query-lib/srl (the SHACL Rules parser used by the
-# rule-set routes). It was never copied into the image, so its types resolved to
-# nothing and the API build failed with a cascade of implicit-any errors.
-RUN pnpm --filter @sparql-query-lib/srl build && \
-    echo "=== SRL dist contents ===" && \
-    ls -la packages/srl/dist/
-
-# The tool catalogue the MCP server and the in-app assistant share. Both the
-# API and mcp-server import it, so it builds before either.
-RUN pnpm --filter @sparql-query-lib/tools build && \
-    echo "=== Tools dist contents ===" && \
-    ls -la packages/tools/dist/
-
-# Build the API (includes schema generation)
-RUN pnpm --filter @sparql-query-lib/api build
-
-# The MCP Apps Views, which mcp-server imports to serve as `ui://` resources.
-# Its build bundles CodeMirror into the tutorial's editor, so it needs the
-# devDependencies installed above; what it emits is plain files under dist.
-RUN pnpm --filter @sparql-query-lib/mcp-app build && \
-    ls -la packages/mcp-app/dist/views packages/mcp-app/dist/kit
-
-# Build MCP server runtime (CLI + transports)
-RUN pnpm --filter @sparql-query-lib/mcp-server build
+# Build mcp-server and every workspace package it depends on, in topological
+# order — the same `pnpm build` a contributor runs, narrowed to what the image
+# serves. The trailing `...` selects the package *and its dependencies*, so a
+# new workspace dependency is built here without anyone editing this file; it
+# still has to be copied above. web is not part of this image (see
+# Dockerfile.web), and runtime-oxigraph is not a dependency of anything here.
+RUN pnpm --filter "@sparql-query-lib/mcp-server..." build && \
+    ls -la packages/api/dist packages/mcp-app/dist/views packages/mcp-app/dist/kit
 
 # Copy otel-setup.js if it exists (it's a JS file, not compiled by TS)
 RUN if [ -f packages/api/src/otel-setup.js ]; then \

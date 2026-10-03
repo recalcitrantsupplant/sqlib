@@ -3,7 +3,7 @@ import {backendTypeIriToKey, type LdkitBackend} from '../persistence/schemas/Bac
 import { toError } from '../lib/toError.js';
 import type {LdkitQuery} from '../persistence/schemas/QuerySchema.js';
 import type {LdkitQueryVersion} from '../persistence/schemas/QueryVersionSchema.js';
-import {ISparqlExecutor, SparqlExecutionResult, SparqlSelectJsonOutput} from '../server/ISparqlExecutor.js';
+import {ISparqlExecutor, SparqlSelectJsonOutput} from '../server/ISparqlExecutor.js';
 import {SparqlQueryParser} from '../lib/parser.js';
 import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
 import {handleSparqlExecutionError} from '../lib/error-handler.js';
@@ -46,6 +46,7 @@ import type { RuntimeArgumentPayload } from '../lib/ArgumentSetService.js';
 import { resolveDataGraphInput, DataGraphContentError } from '../lib/dataGraphInput.js';
 import type { ExecutionDataGraphInput } from '../lib/orchestration/ExecutionEngine.js';
 import type { ArgumentSet as RuntimeArgumentSet } from '../lib/query-chaining.js';
+import { log } from '../lib/log.js';
 
 // Alternative to import.meta for ES module compatibility
 const __dirname = path.dirname(new URL(import.meta.url).pathname);
@@ -59,7 +60,7 @@ function loadExecutionExample(filename: string): any | undefined {
             return JSON.parse(content);
         }
     } catch (error) {
-        console.warn(`Failed to load execution example from ${filename}:`, error);
+        log.warn({ err: error, filename }, 'Failed to load execution example');
     }
     return undefined;
 }
@@ -947,10 +948,10 @@ export default async function (
                 targetExecutor = await scopedExecutorFactory.getExecutorForNode(resolvedNode);
             }
 
-    let resolvedType: SparqlOperation | undefined = queryType && isQueryTypeIri(queryType) ? queryType : undefined;
+    const resolvedType: SparqlOperation | undefined = queryType && isQueryTypeIri(queryType) ? queryType : undefined;
 
     // 4.5 Determine Accept header
-    let acceptHeader = acceptOverride || request.headers.accept;
+    const acceptHeader = acceptOverride || request.headers.accept;
     let defaultAcceptHeader: string | undefined = undefined;
 
     switch (resolvedType) {

@@ -5,6 +5,7 @@
 import { QueryGroups, createQueryGroup, findQueryGroupsByParent, loadQueryGroupsByIds, deleteQueryGroups, createQueryGroups, updateQueryGroup } from '../../src/persistence/utils/QueryGroupUtils.js';
 import { vi } from 'vitest';
 import { overrideRepositoryLenses } from '../../src/persistence/utils/entityRepository.js';
+import { log } from '../../src/lib/log.js';
 
 // In-memory LDKit lens for this suite
 const repositoryLens = (() => {
@@ -106,14 +107,17 @@ describe('QueryGroupUtils (LDKit Integration)', () => {
 
     it('should handle cases where some groups are not found', async () => {
       await createQueryGroup({ $id: testGroupId, name: 'Group 1', currentVersion: testVersionId, isPartOf: testParentId });
-      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const logWarnSpy = vi.spyOn(log, 'warn');
 
       const result = await loadQueryGroupsByIds([testGroupId, 'non-existent-id']);
 
       expect(result).toHaveLength(1);
       expect(result[0].$id).toBe(testGroupId);
-      expect(consoleWarnSpy).toHaveBeenCalledWith('Failed to load QueryGroup non-existent-id:', null);
-      consoleWarnSpy.mockRestore();
+      expect(logWarnSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'non-existent-id' }),
+        expect.stringContaining('Failed to load QueryGroup'),
+      );
+      logWarnSpy.mockRestore();
     });
 
     it('should handle errors during loading', async () => {
@@ -125,13 +129,16 @@ describe('QueryGroupUtils (LDKit Integration)', () => {
         }
         return originalFindByIri(id);
       });
-      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const logWarnSpy = vi.spyOn(log, 'warn');
 
       const result = await loadQueryGroupsByIds([testGroupId]);
 
       expect(result).toHaveLength(0);
-      expect(consoleWarnSpy).toHaveBeenCalledWith('Failed to load QueryGroup http://example.org/test-group:', mockError);
-      consoleWarnSpy.mockRestore();
+      expect(logWarnSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ err: mockError, id: 'http://example.org/test-group' }),
+        expect.stringContaining('Failed to load QueryGroup'),
+      );
+      logWarnSpy.mockRestore();
       repositoryLens.findByIri = originalFindByIri; // Restore original mock
     });
   });
@@ -167,17 +174,17 @@ describe('QueryGroupUtils (LDKit Integration)', () => {
         }
         return originalInsert(obj);
       });
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const logErrorSpy = vi.spyOn(log, 'error');
 
       const results = await createQueryGroups(groupsData as any);
 
       expect(results).toHaveLength(1);
       expect(results[0].$id).toBe(testGroupId);
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        'Failed to create QueryGroup http://example.org/group-create-error:',
-        expect.any(Error)
+      expect(logErrorSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ err: expect.any(Error), id: 'http://example.org/group-create-error' }),
+        expect.stringContaining('Failed to create QueryGroup'),
       );
-      consoleErrorSpy.mockRestore();
+      logErrorSpy.mockRestore();
       repositoryLens.insert = originalInsert; // Restore original mock
     });
   });
@@ -259,16 +266,16 @@ describe('QueryGroupUtils (LDKit Integration)', () => {
         }
         return originalDelete(id);
       });
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const logErrorSpy = vi.spyOn(log, 'error');
 
       const results = await deleteQueryGroups(['http://example.org/group-delete-error', testGroupId]);
 
       expect(results).toEqual([false, true]);
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        'Failed to delete QueryGroup http://example.org/group-delete-error:',
-        expect.any(Error)
+      expect(logErrorSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ err: expect.any(Error), id: 'http://example.org/group-delete-error' }),
+        expect.stringContaining('Failed to delete QueryGroup'),
       );
-      consoleErrorSpy.mockRestore();
+      logErrorSpy.mockRestore();
       repositoryLens.delete = originalDelete; // Restore original mock
     });
   });
@@ -294,16 +301,16 @@ describe('QueryGroupUtils (LDKit Integration)', () => {
       const mockError = new Error('Find error');
       const originalFind = repositoryLens.find;
       repositoryLens.find = vi.fn().mockRejectedValue(mockError);
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const logErrorSpy = vi.spyOn(log, 'error');
 
       const result = await findQueryGroupsByParent(testParentId);
 
       expect(result).toEqual([]);
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        `Failed to find QueryGroups by parent ${testParentId}:`,
-        mockError
+      expect(logErrorSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ err: mockError, parentId: testParentId }),
+        expect.stringContaining('Failed to find QueryGroups by parent'),
       );
-      consoleErrorSpy.mockRestore();
+      logErrorSpy.mockRestore();
       repositoryLens.find = originalFind; // Restore original mock
     });
   });

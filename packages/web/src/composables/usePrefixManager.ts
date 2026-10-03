@@ -291,7 +291,7 @@ export function usePrefixManager() {
     if (!isIri(normalizedNamespace)) return;
     // The manager will not let a person type a prefix it would refuse; a
     // document should not be able to smuggle one in either.
-    if (!/^[a-zA-Z_][a-zA-Z0-9_\-]*$/.test(prefix)) return;
+    if (!/^[a-zA-Z_][a-zA-Z0-9_-]*$/.test(prefix)) return;
 
     const existing = prefixSettings.value.mappings.find(
       m => m.prefix === prefix && normalizeNamespace(m.namespace) === normalizedNamespace
@@ -323,7 +323,7 @@ export function usePrefixManager() {
    * matched so they are consumed rather than half-matched, and dropped by
    * `rememberDiscovered`, which refuses what the manager would refuse.
    */
-  const PREFIX_DECLARATION = /(?:^|[\s;.])@?prefix\s+([A-Za-z_][A-Za-z0-9_.\-]*)?\s*:\s*<([^<>"{}|^`\\\s]*)>/gi;
+  const PREFIX_DECLARATION = /(?:^|[\s;.])@?prefix\s+([A-Za-z_][A-Za-z0-9_.-]*)?\s*:\s*<([^<>"{}|^`\\\s]*)>/gi;
 
   /**
    * Discover prefixes from any RDF or SPARQL text.
@@ -494,7 +494,7 @@ export function usePrefixManager() {
       console.warn('Cannot add prefix: namespace must be a valid IRI.');
       return null;
     }
-    if (!/^[a-zA-Z_][a-zA-Z0-9_\-]*$/.test(prefix)) {
+    if (!/^[a-zA-Z_][a-zA-Z0-9_-]*$/.test(prefix)) {
       console.warn('Cannot add prefix: invalid prefix format.');
       return null;
     }
@@ -521,7 +521,7 @@ export function usePrefixManager() {
       const updatedNamespace = updates.namespace ? normalizeNamespace(updates.namespace) : current.namespace;
 
       // Basic validation for updates
-      if (updates.prefix && !/^[a-zA-Z_][a-zA-Z0-9_\-]*$/.test(updates.prefix)) {
+      if (updates.prefix && !/^[a-zA-Z_][a-zA-Z0-9_-]*$/.test(updates.prefix)) {
         console.warn('Cannot update prefix: invalid prefix format.');
         return;
       }

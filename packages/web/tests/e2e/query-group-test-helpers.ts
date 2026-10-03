@@ -1,10 +1,7 @@
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
 import { mockSidebarCollections } from './fixtures/collections';
 import type {
-  Backend,
-  Library,
   Query,
-  QueryVersion,
   QueryVersionExpanded,
   QueryVersionExpandedWithIriMap,
   QueryGroup,

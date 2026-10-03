@@ -10,7 +10,6 @@ import type { LdkitRuleSet } from '../persistence/schemas/RuleSetSchema.js';
 import type { LdkitRule } from '../persistence/schemas/RuleSchema.js';
 import type { LdkitRuleSetVersion } from '../persistence/schemas/RuleSetVersionSchema.js';
 import type { LdkitRuleVersion } from '../persistence/schemas/RuleVersionSchema.js';
-import type { MemoryCacheManager } from '../lib/MemoryCacheManager.js';
 import { reposRoute, validateIfMatch, setEntityConcurrencyHeaders, findVersionByNumber } from './route-helpers.js';
 import { ruleSetExecutionResponseJsonSchema } from '@sparql-query-lib/contracts/schema/routes';
 import { createRuleSetVersion } from '../lib/RuleSetVersionWriter.js';
@@ -36,7 +35,6 @@ import {
   stratify,
   splitDataBlocks,
   splitRuleSet,
-  canonicalRuleText,
   canonicalDataBlockText,
   checkWellFormed,
   tupleSeedDeclarations,

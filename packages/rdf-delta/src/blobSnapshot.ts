@@ -285,8 +285,8 @@ export interface RebaseResult {
  */
 export async function rebaseAndRetry(inputs: RebaseInputs): Promise<RebaseResult> {
   const maxAttempts = inputs.maxAttempts ?? 5;
-  let additions = 0;
-  let deletions = 0;
+  let additions: number;
+  let deletions: number;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     const current = await inputs.blobs.get(inputs.key);

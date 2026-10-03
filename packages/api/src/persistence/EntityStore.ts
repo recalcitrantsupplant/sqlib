@@ -24,6 +24,7 @@ import type { ExecutorFactory } from '../lib/orchestration/ExecutorFactory.js';
 import { assembleEntities, type BindingRow } from './EntityAssembler.js';
 import { generateFindAllQuery, generateFindByIriQuery } from './readQueryGenerator.js';
 import { generateDeleteQuery, generateInsertQuery, generateUpdateQuery } from './writeQueryGenerator.js';
+import { log } from '../lib/log.js';
 import { describeSchema } from './schemaIntrospection.js';
 import { iri, RDF_TYPE } from './sparqlTerms.js';
 
@@ -130,7 +131,7 @@ export async function loadAllEntities(
       try {
         return { type, entities: await findAllBySchema(schemasByType[type]) };
       } catch (error) {
-        console.error(`[Persistence] Error loading ${type} entities:`, error);
+        log.error({ err: error, type }, 'Persistence: error loading entities');
         return { type, entities: [] as Record<string, unknown>[] };
       }
     }),
@@ -141,14 +142,14 @@ export async function loadAllEntities(
     for (const entity of entities) {
       const id = (entity as { $id?: string }).$id;
       if (!id) {
-        console.warn('[Persistence] Found entity without $id, skipping:', entity);
+        log.warn({ entity }, 'Persistence: found entity without $id, skipping');
         continue;
       }
       all.set(id, { ...entity, '@id': id, $id: id, '@type': type });
     }
   }
 
-  console.log(`[Persistence] Loaded ${all.size} entities from ${types.length} types in ${Date.now() - started} ms.`);
+  log.info({ entities: all.size, types: types.length, durationMs: Date.now() - started }, 'Persistence: loaded entities');
   return all;
 }
 

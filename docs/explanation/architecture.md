@@ -234,7 +234,7 @@ first and then update the cache. The details — why versions never expire, what
 
 ## The API surface
 
-`packages/api/src/routes/` holds twenty-three files: twenty-two route plugins
+`packages/api/src/routes/` holds twenty-four files: twenty-three route plugins
 and `route-helpers.ts`, which is shared handler scaffolding rather than a route.
 Grouped by what they are for:
 

@@ -7,12 +7,12 @@
  * than open to all), and a run, which is stored outside the cache and reaches
  * its library through the version that defined it.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import Fastify from 'fastify';
 import { setupValidator } from '../../src/lib/validator-setup.js';
 import * as schemas from '@sparql-query-lib/contracts/schema';
 import type { AuthContext, LibraryMode } from '../../src/auth/types.js';
-import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
+import { installFakePersistenceAdapter } from '../support/fakePersistenceAdapter.js';
 
 const MINE = 'urn:sqlib:library:hydrology';
 const THEIRS = 'urn:sqlib:library:payroll';
@@ -21,34 +21,7 @@ const LEGACY = 'urn:sqlib:benchmark-experiment:before-owners';
 const VERSION = 'urn:sqlib:benchmark-experiment-version:flow-1';
 const RUN = 'urn:sqlib:benchmark-run:flow-1';
 
-const store = vi.hoisted(() => ({
-  entities: new Map<string, Record<string, unknown>>(),
-  runs: new Map<string, Record<string, unknown>>(),
-}));
-
-vi.mock('../../src/persistence/utils/BenchmarkRunUtils.js', () => ({
-  findBenchmarkRunById: vi.fn(async (id: string) => store.runs.get(id) ?? null),
-  findAllBenchmarkRuns: vi.fn(async () => [...store.runs.values()]),
-}));
-vi.mock('../../src/persistence/utils/BenchmarkObservationUtils.js', () => ({
-  findAllBenchmarkObservations: vi.fn(async () => []),
-}));
-
-const byType = (type: string) =>
-  [...store.entities.values()].filter(entity => entity['@type'] === type);
-
-overrideCacheCoordinatorProvider({
-  getCacheCoordinator: () => ({
-    get: (id: string) => store.entities.get(id) ?? null,
-    list: (type: string) => byType(type),
-    create: async (_type: string, entity: Record<string, unknown>) => {
-      const stored = { ...entity, '@type': 'BenchmarkExperiment', dateModified: new Date().toISOString() };
-      store.entities.set(entity.$id as string, stored);
-      return stored;
-    },
-  }),
-  getEntityRepositories: () => ({}),
-});
+let store: Awaited<ReturnType<typeof installFakePersistenceAdapter>>;
 
 function contextFor(modes: LibraryMode[], admin = false): AuthContext {
   return {
@@ -91,19 +64,25 @@ async function call(context: AuthContext, method: 'GET' | 'POST' | 'DELETE', url
 
 const at = (id: string) => `/benchmark-experiments/${encodeURIComponent(id)}`;
 
-beforeEach(() => {
-  store.entities.clear();
-  store.runs.clear();
-  store.entities.set(MINE, { '@type': 'Library', $id: MINE });
-  store.entities.set(THEIRS, { '@type': 'Library', $id: THEIRS });
-  store.entities.set(OURS, { '@type': 'BenchmarkExperiment', $id: OURS, name: 'Flow', isPartOf: MINE });
-  store.entities.set(LEGACY, { '@type': 'BenchmarkExperiment', $id: LEGACY, name: 'Old' });
-  store.entities.set(VERSION, { '@type': 'BenchmarkExperimentVersion', $id: VERSION, isPartOf: OURS, version: 1 });
-  store.runs.set(RUN, {
+beforeEach(async () => {
+  store = await installFakePersistenceAdapter([
+    { type: 'Library', entity: { '@type': 'Library', $id: MINE } },
+    { type: 'Library', entity: { '@type': 'Library', $id: THEIRS } },
+    { type: 'BenchmarkExperiment', entity: { '@type': 'BenchmarkExperiment', $id: OURS, name: 'Flow', isPartOf: MINE } },
+    { type: 'BenchmarkExperiment', entity: { '@type': 'BenchmarkExperiment', $id: LEGACY, name: 'Old' } },
+    {
+      type: 'BenchmarkExperimentVersion',
+      entity: { '@type': 'BenchmarkExperimentVersion', $id: VERSION, isPartOf: OURS, version: 1 },
+    },
+  ]);
+  // Runs are stored outside the cache, so they go in behind it.
+  store.put('BenchmarkRun', {
     $id: RUN, '@type': 'BenchmarkRun', definedBy: VERSION, runStatus: 'Completed',
     tasksTotal: 0, tasksCompleted: 0, structure: 'urn:x', startedAt: '2026-01-01T00:00:00.000Z',
   });
 });
+
+afterEach(() => store.restore());
 
 describe('GET /benchmark-experiments', () => {
   it('lists the experiments whose library the caller may read, and not unowned ones', async () => {
@@ -125,11 +104,13 @@ describe('POST /benchmark-experiments', () => {
 
     expect(response.statusCode, response.payload).toBe(201);
     expect(response.json().isPartOf).toBe(MINE);
+    expect(store.get(response.json().id)).toMatchObject({ name: 'New', isPartOf: MINE });
   });
 
   it('refuses a library the caller may only read', async () => {
     const response = await call(reader, 'POST', '/benchmark-experiments', { name: 'New', isPartOf: MINE });
     expect(response.statusCode).toBe(403);
+    expect(store.all('BenchmarkExperiment')).toHaveLength(2);
   });
 
   it('refuses a create that names no library', async () => {
@@ -146,7 +127,7 @@ describe('an experiment', () => {
 
   it('cannot be deleted by a stranger', async () => {
     expect((await call(stranger, 'DELETE', at(OURS))).statusCode).toBe(403);
-    expect(store.entities.has(OURS)).toBe(true);
+    expect(store.get(OURS)).toMatchObject({ name: 'Flow' });
   });
 
   it('stored with no owner is administrator-only, not open', async () => {

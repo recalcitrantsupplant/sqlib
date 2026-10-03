@@ -35,17 +35,14 @@ async function main() {
   if (mode === 'dual-http') {
     const { shutdown, host, port } = await startDualHttpServer();
     cleanupFns.push(shutdown);
-    // eslint-disable-next-line no-console
     console.log(`Dual HTTP server listening on http://${host}:${port} (API + MCP at /mcp)`);
   } else if (mode === 'streamable-http') {
     const { shutdown, host, port } = await startStreamableHttpMcpServer();
     cleanupFns.push(shutdown);
-    // eslint-disable-next-line no-console
     console.log(`MCP server (streamable HTTP) listening on http://${host}:${port}/mcp`);
   } else {
     const { shutdown } = await startStdioMcpServer();
     cleanupFns.push(shutdown);
-    // eslint-disable-next-line no-console
     console.error('MCP server running over stdio (local dev default)');
   }
 
@@ -54,14 +51,12 @@ async function main() {
       try {
         await fn();
       } catch (err) {
-        // eslint-disable-next-line no-console
         console.error('Error during MCP shutdown', err);
       }
     }
   };
 
   const handleSignal = (signal: NodeJS.Signals) => {
-    // eslint-disable-next-line no-console
     console.error(`Received ${signal}, shutting down MCP server...`);
     cleanup()
       .catch(() => {
@@ -75,7 +70,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  // eslint-disable-next-line no-console
   console.error('Failed to start MCP server', err);
   process.exit(1);
 });

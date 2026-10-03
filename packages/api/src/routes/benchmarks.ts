@@ -23,7 +23,7 @@ import { findAllBenchmarkNodeObservations } from '../persistence/utils/Benchmark
 import { findAllBenchmarkNodeRuns } from '../persistence/utils/BenchmarkNodeRunUtils.js';
 import { findAllBenchmarkIterationObservations } from '../persistence/utils/BenchmarkIterationObservationUtils.js';
 import { findAllBenchmarkIterationRuns } from '../persistence/utils/BenchmarkIterationRunUtils.js';
-import { reposRoute, withReposHandler, setEntityConcurrencyHeaders, validateIfMatch } from './route-helpers.js';
+import { reposRoute, setEntityConcurrencyHeaders, validateIfMatch } from './route-helpers.js';
 import { registerEntityAuthGuard } from '../auth/entityGuard.js';
 import {
   AuthorizationError,

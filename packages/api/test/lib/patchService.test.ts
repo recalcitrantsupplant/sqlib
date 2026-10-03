@@ -3,79 +3,45 @@
  * the log's honesty about exactness, and the preview sweep.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as oxigraph from 'oxigraph';
 import { oxigraphStoreManager } from '../../src/lib/OxigraphStoreManager.js';
 import { BackendTypeIri } from '../../src/persistence/schemas/BackendSchema.js';
 import { EPHEMERAL_BACKEND_ID, LIBRARY_STORAGE_BACKEND_ID } from '@sparql-query-lib/types';
+import { applyUpdate, previewUpdate, revertPatch, sweepPreviewedPatches, PatchTargetError } from '../../src/lib/patchService.js';
+import { installFakePersistenceAdapter } from '../support/fakePersistenceAdapter.js';
 
 const BACKEND_ID = 'urn:sqlib:backend:patch-service-test';
 const READ_ONLY_BACKEND_ID = 'urn:sqlib:backend:patch-service-readonly';
 
-const { patchStore, patchRepo } = vi.hoisted(() => {
-  const store = new Map<string, Record<string, unknown>>();
-  return {
-    patchStore: store,
-    patchRepo: {
-      get: (id: string) => store.get(id) ?? null,
-      list: () => [...store.values()],
-      create: async (entity: Record<string, unknown>) => {
-        const record = { dateCreated: new Date().toISOString(), ...entity, '@type': 'Patch' };
-        store.set(entity.$id as string, record);
-        return record;
-      },
-      update: async (id: string, updates: Record<string, unknown>) => {
-        const current = store.get(id);
-        if (!current) return null;
-        const next = { ...current, ...updates };
-        store.set(id, next);
-        return next;
-      },
-      delete: async (id: string) => {
-        store.delete(id);
-      },
-    },
-  };
-});
-
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
-  getEntityRepositories: () => ({ Patch: patchRepo }),
-  getCacheCoordinator: () => ({ get: () => null }),
-}));
-
-vi.mock('../../src/persistence/utils/BackendUtils.js', () => ({
-  Backends: {
-    findByIri: async (iri: string) => {
-      if (iri === BACKEND_ID) {
-        return { $id: BACKEND_ID, name: 'Service test', backendType: BackendTypeIri.oxigraphEphemeral };
-      }
-      if (iri === READ_ONLY_BACKEND_ID) {
-        return {
-          $id: READ_ONLY_BACKEND_ID,
-          name: 'Reference data',
-          backendType: BackendTypeIri.oxigraphMemory,
-          oxigraphConfig: { storeType: 'ephemeral', mode: 'readOnly' },
-        };
-      }
-      return null;
-    },
-  },
-}));
-
-const { applyUpdate, previewUpdate, revertPatch, sweepPreviewedPatches, PatchTargetError } = await import(
-  '../../src/lib/patchService.js'
-);
+let entities: Awaited<ReturnType<typeof installFakePersistenceAdapter>>;
 
 function store(): oxigraph.Store {
   return oxigraphStoreManager.getEphemeralStore(BACKEND_ID)!;
 }
 
-beforeEach(() => {
-  patchStore.clear();
+beforeEach(async () => {
+  entities = await installFakePersistenceAdapter([
+    {
+      type: 'Backend',
+      entity: { $id: BACKEND_ID, name: 'Service test', backendType: BackendTypeIri.oxigraphEphemeral },
+    },
+    {
+      type: 'Backend',
+      entity: {
+        $id: READ_ONLY_BACKEND_ID,
+        name: 'Reference data',
+        backendType: BackendTypeIri.oxigraphMemory,
+        oxigraphConfig: { storeType: 'ephemeral', mode: 'readOnly' },
+      },
+    },
+  ]);
   const fresh = oxigraphStoreManager.createEphemeralStore(BACKEND_ID);
   fresh.update('DELETE { ?s ?p ?o } WHERE { ?s ?p ?o }');
   fresh.load('<http://ex/a> <http://ex/p> <http://ex/b> .\n', { format: 'application/n-quads' });
 });
+
+afterEach(() => entities.restore());
 
 describe('blank nodes', () => {
   it('applies a patch that ground SPARQL could not express', async () => {
@@ -126,8 +92,8 @@ describe('the preview sweep', () => {
     const swept = await sweepPreviewedPatches(60 * 60 * 1000, Date.now() + 2 * 60 * 60 * 1000);
 
     expect(swept).toBe(1);
-    expect(patchStore.has(previewed.$id)).toBe(false);
-    expect(patchStore.has(applied.$id)).toBe(true);
+    expect(entities.get(previewed.$id)).toBeUndefined();
+    expect(entities.get(applied.$id)).toMatchObject({ patchStatus: 'applied' });
   });
 
   it('leaves a preview that is still warm', async () => {

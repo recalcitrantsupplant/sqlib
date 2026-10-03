@@ -418,7 +418,10 @@ describe('expandGroupVersionDetailed I/O closure', () => {
 
   it('warns with the offending refs when a referenced port cannot be resolved', async () => {
     buildStore();
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    // Imported here, after beforeEach's resetModules, so it is the instance
+    // GraphResolver was loaded with.
+    const { log } = await import('../../src/lib/log.js');
+    const warn = vi.spyOn(log, 'warn');
     mountGraph({
       'urn:sqlib:node:broken': {
         $id: 'urn:sqlib:node:broken',
@@ -445,8 +448,8 @@ describe('expandGroupVersionDetailed I/O closure', () => {
       'node urn:sqlib:node:broken references unresolved port urn:sqlib:input-tuple:vanished',
     ]);
     expect(warn).toHaveBeenCalledWith(
+      expect.objectContaining({ unresolved: ['urn:sqlib:input-tuple:vanished'] }),
       expect.stringContaining('could not be resolved'),
-      ['urn:sqlib:input-tuple:vanished'],
     );
     warn.mockRestore();
   });

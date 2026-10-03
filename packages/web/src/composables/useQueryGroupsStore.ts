@@ -7,16 +7,11 @@ import {
   type QueryGroupVersionExpanded,
   type QueryGroupVersionExpandedWithIriMap,
   type QueryGroupVersionForGroupCreateInput,
-  type QueryGroupVersionPatchInput,
 } from '@sparql-query-lib/contracts';
 import type { QueryGroupFormInput } from '../types/queryGroup.js';
 import type { QueryGroupVersionFormInput } from '../types/queryGroupVersion.js';
 import { useApiClient } from './useApiClient.js';
 import { createVersionedEntityStore } from './createVersionedEntityStore';
-
-// Derive the incremental-mutation input shapes from the API client's method
-// signatures so they stay in sync with the (module-local) contract types there.
-type ApiClient = ReturnType<typeof useApiClient>;
 
 type QueryGroupState = {
   versions: Record<string, QueryGroupVersion[]>;

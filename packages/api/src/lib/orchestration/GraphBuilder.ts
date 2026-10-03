@@ -18,11 +18,6 @@ import type {
   QueryNode,
   RuleSetNode,
   QueryEdge,
-  QueryInputVariable,
-  QueryOutputVariable,
-  QueryInputTuple,
-  QueryOutputTuple,
-  TupleMember,
 } from './types.js';
 
 export class GraphBuilder {

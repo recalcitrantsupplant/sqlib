@@ -30,7 +30,6 @@ import {
   patchToRdfPatch,
   patchToSparqlUpdate,
   quadsToNQuads,
-  UnsupportedUpdateError,
   type DeriveOptions,
   type GraphOperationRecord,
   type Patch as DeltaPatch,

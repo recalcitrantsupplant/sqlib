@@ -6,6 +6,7 @@ import { QueryGroupSchema, type LdkitQueryGroup } from '../schemas/QueryGroupSch
 import { createRepositoryLens } from './entityRepository.js';
 import { toLdkit } from './id-adapter.js';
 import { stringToDate, dateToIsoString } from './type-conversions.js';
+import { log } from '../../lib/log.js';
 
 export const QueryGroups = createRepositoryLens(QueryGroupSchema);
 
@@ -29,10 +30,10 @@ export async function loadQueryGroupsByIds(ids: string[]): Promise<LdkitQueryGro
         };
         results.push(compatibleGroup);
       } else {
-        console.warn(`Failed to load QueryGroup ${id}:`, null);
+        log.warn({ id }, 'Failed to load QueryGroup: not found');
       }
     } catch (error) {
-      console.warn(`Failed to load QueryGroup ${id}:`, error);
+      log.warn({ err: error, id }, 'Failed to load QueryGroup');
     }
   }
   
@@ -74,7 +75,7 @@ export async function createQueryGroups(
       };
       results.push(apiGroup);
     } catch (error) {
-      console.error(`Failed to create QueryGroup ${data.id}:`, error);
+      log.error({ err: error, id: data.id }, 'Failed to create QueryGroup');
     }
   }
   
@@ -132,7 +133,7 @@ export async function deleteQueryGroups(ids: string[]): Promise<boolean[]> {
       await QueryGroups.delete(id);
       results.push(true);
     } catch (error) {
-      console.error(`Failed to delete QueryGroup ${id}:`, error);
+      log.error({ err: error, id }, 'Failed to delete QueryGroup');
       results.push(false);
     }
   }
@@ -161,7 +162,7 @@ export async function findQueryGroupsByParent(parentId: string): Promise<LdkitQu
       isPartOf: group.isPartOf || (group as unknown as { 'https://schema.org/isPartOf': string })['https://schema.org/isPartOf'],
     }));
   } catch (error) {
-    console.error(`Failed to find QueryGroups by parent ${parentId}:`, error);
+    log.error({ err: error, parentId }, 'Failed to find QueryGroups by parent');
     return [];
   }
 }

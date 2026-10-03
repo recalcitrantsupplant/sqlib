@@ -13,12 +13,13 @@
  * whatever writes the record, the log has to be in the order the store saw.
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as oxigraph from 'oxigraph';
 import { oxigraphStoreManager } from '../../src/lib/OxigraphStoreManager.js';
 import { BackendTypeIri } from '../../src/persistence/schemas/BackendSchema.js';
 import { orderPatchLog } from '../../src/lib/patchLog.js';
 import type { LdkitPatch } from '../../src/persistence/schemas/PatchSchema.js';
+import { installFakePersistenceAdapter } from '../support/fakePersistenceAdapter.js';
 
 const BACKEND_ID = 'urn:sqlib:backend:patch-order-test';
 
@@ -44,48 +45,6 @@ const gate = vi.hoisted(() => {
   });
   return { entered, released, announceEntered, release: () => release() };
 });
-
-const { patchStore, patchRepo } = vi.hoisted(() => {
-  const store = new Map<string, Record<string, unknown>>();
-  return {
-    patchStore: store,
-    patchRepo: {
-      get: (id: string) => store.get(id) ?? null,
-      list: () => [...store.values()],
-      create: async (entity: Record<string, unknown>) => {
-        // The repository stamps `dateCreated` itself, at the moment the record
-        // is written — which is the whole point of this test.
-        const record = { ...entity, '@type': 'Patch', dateCreated: new Date().toISOString() };
-        store.set(entity.$id as string, record);
-        return record;
-      },
-      update: async (id: string, updates: Record<string, unknown>) => {
-        const current = store.get(id);
-        if (!current) return null;
-        const next = { ...current, ...updates };
-        store.set(id, next);
-        return next;
-      },
-      delete: async (id: string) => {
-        store.delete(id);
-      },
-    },
-  };
-});
-
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
-  getEntityRepositories: () => ({ Patch: patchRepo }),
-  getCacheCoordinator: () => ({ get: () => null }),
-}));
-
-vi.mock('../../src/persistence/utils/BackendUtils.js', () => ({
-  Backends: {
-    findByIri: async (iri: string) =>
-      iri === BACKEND_ID
-        ? { $id: BACKEND_ID, name: 'Patch order test', backendType: BackendTypeIri.oxigraphEphemeral }
-        : null,
-  },
-}));
 
 /**
  * Canonicalisation, made expensive for one patch and free for the other.
@@ -114,11 +73,20 @@ function store(): oxigraph.Store {
 const tick = () => new Promise((resolve) => setTimeout(resolve, 5));
 
 describe('the patch log is ordered by when patches landed', () => {
-  beforeEach(() => {
-    patchStore.clear();
+  let entities: Awaited<ReturnType<typeof installFakePersistenceAdapter>>;
+
+  beforeEach(async () => {
+    entities = await installFakePersistenceAdapter([
+      {
+        type: 'Backend',
+        entity: { $id: BACKEND_ID, name: 'Patch order test', backendType: BackendTypeIri.oxigraphEphemeral },
+      },
+    ]);
     const fresh = oxigraphStoreManager.createEphemeralStore(BACKEND_ID);
     fresh.update('DELETE { ?s ?p ?o } WHERE { ?s ?p ?o }');
   });
+
+  afterEach(() => entities.restore());
 
   it('folds the patch that landed first first, however long it took to write', async () => {
     // Applied first, written last: its canonicalisation is the slow one.
@@ -143,7 +111,7 @@ describe('the patch log is ordered by when patches landed', () => {
     // The record of the patch that landed first was written after the other's.
     expect(Date.parse(first.dateCreated!)).toBeGreaterThan(Date.parse(fast.dateCreated!));
 
-    const { ordered, caveats } = orderPatchLog([...patchStore.values()] as unknown as LdkitPatch[]);
+    const { ordered, caveats } = orderPatchLog(entities.all('Patch') as unknown as LdkitPatch[]);
     expect(ordered.map((patch) => patch.$id)).toEqual([first.$id, fast.$id]);
     expect(caveats).toEqual([]);
   });
@@ -158,7 +126,7 @@ describe('the patch log is ordered by when patches landed', () => {
       updateString: 'INSERT DATA { <http://ex/b> <http://ex/p> "2" }',
     });
 
-    const stored = [...patchStore.values()] as unknown as LdkitPatch[];
+    const stored = entities.all('Patch') as unknown as LdkitPatch[];
     expect(stored).toHaveLength(2);
     for (const patch of stored) {
       expect(patch.patchStatus).toBe('applied');

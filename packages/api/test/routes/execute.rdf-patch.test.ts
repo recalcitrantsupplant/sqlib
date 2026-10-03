@@ -7,7 +7,7 @@
  * and the store is exactly as it was.
  */
 
-import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterEach, afterAll } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
 import * as oxigraph from 'oxigraph';
 import executeRoutes from '../../src/routes/execute.js';
@@ -16,6 +16,7 @@ import { oxigraphStoreManager } from '../../src/lib/OxigraphStoreManager.js';
 import { BackendTypeIri } from '../../src/persistence/schemas/BackendSchema.js';
 import { QueryTypeIri } from '../../src/constants/queryTypes.js';
 import { EPHEMERAL_BACKEND_ID } from '@sparql-query-lib/types';
+import { installFakePersistenceAdapter } from '../support/fakePersistenceAdapter.js';
 
 const BACKEND_ID = 'urn:sqlib:backend:execute-patch';
 const VERSION_ID = 'urn:sqlib:query-version:promote';
@@ -31,57 +32,23 @@ const BACKEND = {
   backendType: BackendTypeIri.oxigraphEphemeral,
 };
 
-/**
- * The cache the route reads its target and backend from, as a plain map.
- *
- * Hoisted with the mock factory, because a `vi.mock` factory runs before the
- * module body and can only close over what `vi.hoisted` gives it.
- */
-const { entities, patchStore, patchRepo } = vi.hoisted(() => {
-  const store = new Map<string, Record<string, unknown>>();
-  return {
-    entities: new Map<string, unknown>(),
-    patchStore: store,
-    patchRepo: {
-      get: (id: string) => store.get(id) ?? null,
-      list: () => [...store.values()],
-      create: async (entity: Record<string, unknown>) => {
-        const record = { ...entity, '@type': 'Patch', dateCreated: new Date().toISOString() };
-        store.set(entity.$id as string, record);
-        return record;
-      },
-      update: async () => null,
-      delete: async (id: string) => {
-        store.delete(id);
-      },
-    },
-  };
-});
-
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
-  getCacheCoordinator: () => ({ get: (id: string) => entities.get(id) ?? null }),
-  getEntityRepositories: () => ({ Patch: patchRepo }),
-}));
-
-vi.mock('../../src/persistence/utils/BackendUtils.js', () => ({
-  Backends: {
-    findByIri: async (iri: string) => entities.get(iri) ?? null,
+/** What the route reads its target and backend from. */
+const SEED_ENTITIES = [
+  { type: 'Backend', entity: BACKEND },
+  {
+    type: 'QueryVersion',
+    entity: { $id: VERSION_ID, '@type': 'QueryVersion', queryString: PROMOTE, queryType: QueryTypeIri.update },
   },
-}));
-
-entities.set(BACKEND_ID, BACKEND);
-entities.set(VERSION_ID, {
-  $id: VERSION_ID,
-  '@type': 'QueryVersion',
-  queryString: PROMOTE,
-  queryType: QueryTypeIri.update,
-});
-entities.set(LOAD_VERSION_ID, {
-  $id: LOAD_VERSION_ID,
-  '@type': 'QueryVersion',
-  queryString: 'LOAD <https://example.org/data.ttl>',
-  queryType: QueryTypeIri.update,
-});
+  {
+    type: 'QueryVersion',
+    entity: {
+      $id: LOAD_VERSION_ID,
+      '@type': 'QueryVersion',
+      queryString: 'LOAD <https://example.org/data.ttl>',
+      queryType: QueryTypeIri.update,
+    },
+  },
+] as const;
 
 const SEED = `
 <http://ex/a> <http://ex/status> "draft" .
@@ -101,6 +68,7 @@ function statuses(): string[] {
 
 describe('POST /execute with Accept: text/rdf-patch', () => {
   let app: FastifyInstance;
+  let entities: Awaited<ReturnType<typeof installFakePersistenceAdapter>>;
 
   beforeAll(async () => {
     app = Fastify({ logger: false });
@@ -109,12 +77,14 @@ describe('POST /execute with Accept: text/rdf-patch', () => {
     await app.ready();
   });
 
-  beforeEach(() => {
-    patchStore.clear();
+  beforeEach(async () => {
+    entities = await installFakePersistenceAdapter(SEED_ENTITIES);
     const fresh = oxigraphStoreManager.createEphemeralStore(BACKEND_ID);
     fresh.update('DELETE { ?s ?p ?o } WHERE { ?s ?p ?o }');
     fresh.load(SEED, { format: 'application/n-quads' });
   });
+
+  afterEach(() => entities.restore());
 
   afterAll(async () => {
     await app.close();
@@ -138,7 +108,7 @@ describe('POST /execute with Accept: text/rdf-patch', () => {
 
     // The document names the record it came from, so a caller can apply it.
     const patchId = response.headers['x-sqlib-patch-id'] as string;
-    expect(patchStore.get(patchId)).toMatchObject({ patchStatus: 'previewed', isPartOf: BACKEND_ID });
+    expect(entities.get(patchId)).toMatchObject({ patchStatus: 'previewed', isPartOf: BACKEND_ID });
   });
 
   it('still runs the update when nobody asked for the patch', async () => {
@@ -150,7 +120,7 @@ describe('POST /execute with Accept: text/rdf-patch', () => {
 
     expect(response.statusCode).toBe(204);
     expect(statuses()).toEqual(['live', 'live', 'live']);
-    expect(patchStore.size).toBe(0);
+    expect(entities.all('Patch')).toHaveLength(0);
   });
 
   it('refuses a backend that has no patch log to derive against', async () => {

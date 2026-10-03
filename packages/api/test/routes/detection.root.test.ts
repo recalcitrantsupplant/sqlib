@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, vi, beforeEach } from 'vitest';
 import Fastify, { FastifyInstance } from 'fastify';
 import { setupValidator } from '../../src/lib/validator-setup.js';
-import * as schemas from '@sparql-query-lib/contracts/schema';
 
 // Hoist mock fns for use in vi.mock factory
 const hoisted = vi.hoisted(() => ({

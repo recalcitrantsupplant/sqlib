@@ -21,7 +21,6 @@ import {
   queryVersionSchema,
 } from './query-version.js';
 import {
-  queryGroupVersionShape,
   queryNodeShape,
   startNodeSchema,
   endNodeSchema,

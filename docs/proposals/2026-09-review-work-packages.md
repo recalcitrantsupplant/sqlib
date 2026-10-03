@@ -616,6 +616,18 @@ discipline and why.
 
 ## Phase 7 — Engineering infrastructure
 
+Status: WP33 and WP34 done, WP35 in part, on `claude/nice-einstein-r2f7g8`.
+Node is aligned on 26 (the images' major) rather than tested on two. The lint
+gate is a per-package, per-rule ratchet (`scripts/lint-ratchet.mjs`) rather
+than an `any` count alone; `no-console` is at zero in every package. WP35's
+fake store is `test/support/fakePersistenceAdapter.ts`, which stands behind the
+repository lenses as well as the adapter, since the `*Utils` modules reach
+storage through the lenses; it replaced 84 of the 104 module mocks, leaving
+`MemoryCacheManager.test.ts`, a test of the cache's calls to storage. Still
+open, because they wait on WP20a/WP21: the shared `buildTestApp` and the
+exact-message assertions. e2e already ran on every push; it now also gates
+Dependabot's auto-merge.
+
 ### WP33 — First run and docs reconciliation · S · deps: none · closes E1, E4, E6
 
 **Changes.** `Justfile:30,302`: 3005. Remove inert env vars

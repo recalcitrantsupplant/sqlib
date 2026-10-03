@@ -1,24 +1,6 @@
-
-import { vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createQueryNode, findQueryNodesByQuery, findQueryNodesByBackend, updateQueryNode, deleteQueryNode, findQueryNodesByGroup } from '../../src/persistence/utils/QueryNodeUtils.js';
-
-// Mock dependencies
-vi.mock('../../src/persistence/utils/entityRepository.js', () => {
-  const store = new Map<string, any>();
-  const lens = {
-    insert: async (obj: any) => { const id = obj.$id ?? obj['@id']; const norm = { ...obj, '@id': id, $id: id }; store.set(id, norm); return norm; },
-    findByIri: async (id: string) => store.get(id) ?? null,
-    find: async () => Array.from(store.values()),
-    update: async (obj: any) => { const id = obj.$id ?? obj['@id']; const ex = store.get(id) ?? { $id: id, '@id': id }; const merged = { ...ex, ...obj, '@id': id, $id: id }; store.set(id, merged); return merged; },
-    delete: async (id: string) => { store.delete(id); },
-    _store: store,
-  };
-  return { createRepositoryLens: () => lens };
-});
-
-vi.mock('../../src/persistence/utils/QueryGroupVersionUtils.js', () => ({
-  listVersionsForGroup: vi.fn(),
-}));
+import { installFakePersistenceAdapter } from '../support/fakePersistenceAdapter.js';
 
 describe('QueryNodeUtils', () => {
   const testNodeId1 = 'http://example.org/test-node-1';
@@ -26,11 +8,13 @@ describe('QueryNodeUtils', () => {
   const testQueryId = 'http://example.org/test-query';
   const testBackendId = 'http://example.org/test-backend';
 
+  let store: Awaited<ReturnType<typeof installFakePersistenceAdapter>>;
+
   beforeEach(async () => {
-    const { QueryNodes } = await import('../../src/persistence/utils/QueryNodeUtils.js');
-    (QueryNodes as any)._store.clear();
-    vi.clearAllMocks();
+    store = await installFakePersistenceAdapter();
   });
+
+  afterEach(() => store.restore());
 
   it('should create a query node', async () => {
     await createQueryNode({
@@ -38,10 +22,7 @@ describe('QueryNodeUtils', () => {
       queryId: testQueryId,
       backendId: testBackendId,
     });
-    const { QueryNodes } = await import('../../src/persistence/utils/QueryNodeUtils.js');
-    const found = await QueryNodes.findByIri(testNodeId1);
-    expect(found).toBeDefined();
-    expect(found!.queryId).toBe(testQueryId);
+    expect(store.get(testNodeId1)).toMatchObject({ queryId: testQueryId, backendId: testBackendId });
   });
 
   it('should find query nodes by query', async () => {
@@ -75,10 +56,7 @@ describe('QueryNodeUtils', () => {
       backendId: testBackendId,
     });
     await updateQueryNode(testNodeId1, { queryId: 'http://example.org/updated-query' });
-    const { QueryNodes } = await import('../../src/persistence/utils/QueryNodeUtils.js');
-    const found = await QueryNodes.findByIri(testNodeId1);
-    expect(found).not.toBeNull();
-    expect(found!.queryId).toBe('http://example.org/updated-query');
+    expect(store.get(testNodeId1)).toMatchObject({ queryId: 'http://example.org/updated-query' });
   });
 
   it('should delete a query node', async () => {
@@ -88,9 +66,7 @@ describe('QueryNodeUtils', () => {
       backendId: testBackendId,
     });
     await deleteQueryNode(testNodeId1);
-    const { QueryNodes } = await import('../../src/persistence/utils/QueryNodeUtils.js');
-    const found = await QueryNodes.findByIri(testNodeId1);
-    expect(found).toBeNull();
+    expect(store.get(testNodeId1)).toBeUndefined();
   });
 
   it('should find query nodes by group', async () => {
@@ -99,10 +75,14 @@ describe('QueryNodeUtils', () => {
       queryId: testQueryId,
       backendId: testBackendId,
     });
-    const { listVersionsForGroup } = await import('../../src/persistence/utils/QueryGroupVersionUtils.js');
-    (listVersionsForGroup as any).mockResolvedValue([
-      { executionNodes: [testNodeId1] },
-    ]);
+    await createQueryNode({
+      $id: testNodeId2,
+      queryId: testQueryId,
+      backendId: testBackendId,
+    });
+    // The latest version of the group names the nodes; an older one does not count.
+    store.put('QueryGroupVersion', { $id: 'http://example.org/test-group/v1', isPartOf: 'http://example.org/test-group', version: 1, executionNodes: [testNodeId2] });
+    store.put('QueryGroupVersion', { $id: 'http://example.org/test-group/v2', isPartOf: 'http://example.org/test-group', version: 2, executionNodes: [testNodeId1] });
 
     const found = await findQueryNodesByGroup('http://example.org/test-group');
     expect(found.length).toBe(1);

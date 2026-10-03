@@ -45,7 +45,7 @@ function parseManifest(kind: Kind): Entry[] {
 function conforms(entry: Entry): boolean {
   const src = readFileSync(w3cUrl(`${entry.kind}/${entry.file}`), 'utf8');
 
-  let parsed = false;
+  let parsed: boolean;
   let ruleSet: ReturnType<typeof parseRuleSet> | undefined;
   try {
     ruleSet = parseRuleSet(src);
@@ -106,7 +106,6 @@ describe('W3C SPARQL-RL conformance', () => {
     const line = Object.entries(scoreboard)
       .map(([k, s]) => `${k}: ${s.pass}/${s.total}`)
       .join('  |  ');
-    // eslint-disable-next-line no-console
     console.log(`[W3C conformance] ${line}`);
     expect(results.length).toBeGreaterThan(0);
   });
@@ -121,7 +120,6 @@ describe('W3C SPARQL-RL conformance', () => {
     const baseSet = new Set(baseline);
     const gained = passingNow.filter((name) => !baseSet.has(name));
     if (gained.length > 0) {
-      // eslint-disable-next-line no-console
       console.log(`[W3C conformance] ${gained.length} newly conforming (not yet in baseline): ${gained.join(', ')}`);
     }
     // Informational — never fails.

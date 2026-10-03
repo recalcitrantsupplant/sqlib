@@ -15,6 +15,7 @@ import {
   type DuckDbLimits,
 } from './duckdbCapabilities.js';
 import { toError } from './toError.js';
+import { log } from './log.js';
 
 export interface DuckDbColumn {
   columnName: string;
@@ -342,7 +343,7 @@ export class DuckDbService {
     capabilities: DuckDbCapabilities = resolveDuckDbCapabilities(),
     limits: DuckDbLimits = resolveDuckDbLimits(),
   ) {
-    console.log('[DuckDbService] Constructor called');
+    log.debug('DuckDbService: constructor called');
     this.available = false;
     this.DuckDBConnection = null;
     this.DuckDBInstance = null;
@@ -358,7 +359,7 @@ export class DuckDbService {
   private async initialize(): Promise<void> {
     try {
       // Try to load @duckdb/node-api - this will fail gracefully if not installed
-      console.log('[DuckDbService] Attempting to import @duckdb/node-api');
+      log.debug('DuckDbService: attempting to import @duckdb/node-api');
       const duckdb = await import('@duckdb/node-api');
       this.DuckDBConnection = duckdb.DuckDBConnection;
       this.DuckDBInstance = duckdb.DuckDBInstance;
@@ -367,8 +368,8 @@ export class DuckDbService {
       if (this.capabilities.unrestricted) {
         // Explicitly opted out of the sandbox: connections are created ad hoc,
         // exactly as they were before #132. Loud, because nothing else will say so.
-        console.warn(
-          '[DuckDbService] ETL DuckDB sandbox DISABLED by ETL_DUCKDB_UNRESTRICTED=true — submitted SQL can read the host filesystem, make outbound requests, and install extensions.',
+        log.warn(
+          'DuckDbService: ETL DuckDB sandbox DISABLED by ETL_DUCKDB_UNRESTRICTED=true; submitted SQL can read the host filesystem, make outbound requests, and install extensions',
         );
         this.instance = null;
       } else {
@@ -381,8 +382,12 @@ export class DuckDbService {
       }
 
       this.available = true;
-      console.log(
-        `[DuckDbService] DuckDB loaded successfully — capabilities: ${describeDuckDbCapabilities(this.capabilities)} limits: ${describeDuckDbLimits(this.limits)}`,
+      log.info(
+        {
+          capabilities: describeDuckDbCapabilities(this.capabilities),
+          limits: describeDuckDbLimits(this.limits),
+        },
+        'DuckDbService: DuckDB loaded successfully',
       );
     } catch (error__u: unknown) {
       const error = toError(error__u);
@@ -392,11 +397,11 @@ export class DuckDbService {
       this.instance = null;
       this.jsonConverter = null;
       this.available = false;
-      console.warn('[DuckDbService] DuckDB not available:', error.message);
-      console.warn('[DuckDbService] ETL features will be disabled. Install @duckdb/node-api to enable.');
-      if (error.code === 'ERR_MODULE_NOT_FOUND' || error.message?.includes('Cannot find package')) {
-        console.warn('[DuckDbService] Run: cd packages/api && npm install @duckdb/node-api');
-      }
+      const notInstalled = error.code === 'ERR_MODULE_NOT_FOUND' || error.message?.includes('Cannot find package');
+      log.warn(
+        { reason: error.message, ...(notInstalled ? { hint: 'Run: cd packages/api && pnpm add @duckdb/node-api' } : {}) },
+        'DuckDbService: DuckDB not available; ETL features will be disabled. Install @duckdb/node-api to enable.',
+      );
     }
   }
 
@@ -418,8 +423,9 @@ export class DuckDbService {
           await boot.run('LOAD httpfs');
         } catch (error__u: unknown) {
           const error = toError(error__u);
-          console.warn(
-            `[DuckDbService] ETL_DUCKDB_ALLOW_HTTP=true but httpfs could not be loaded (${error.message}). Remote reads will fail; install the extension or set ETL_DUCKDB_ALLOW_EXTENSION_INSTALL=true.`,
+          log.warn(
+            { err: error },
+            'DuckDbService: ETL_DUCKDB_ALLOW_HTTP=true but httpfs could not be loaded. Remote reads will fail; install the extension or set ETL_DUCKDB_ALLOW_EXTENSION_INSTALL=true.',
           );
         }
       }

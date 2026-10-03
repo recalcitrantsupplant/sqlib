@@ -1,6 +1,5 @@
-import { test, expect, type Locator, type Page, type Route } from '@playwright/test';
+import { test, expect, type Route } from '@playwright/test';
 import { openSection, openSplash } from './navigate';
-import { filterAndChooseFirst, openSearchSelect, searchSelect } from './search-select';
 import { mockSidebarCollections } from './fixtures/collections';
 import { API_ORIGIN } from './api-origin';
 
@@ -19,7 +18,7 @@ const mockBackends = [
   },
 ];
 
-let mockLibraries = [
+const mockLibraries = [
   {
     id: 'urn:sqlib:library:test-lib-1',
     name: 'Test Query Library',

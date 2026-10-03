@@ -109,6 +109,7 @@ export interface LimitOffsetClause {
  * An IRI is recognised only so that a `#` inside one does not open a comment.
  */
 /** An IRI reference: no whitespace and none of <>"{}|^`\ before the closing >. */
+// eslint-disable-next-line no-control-regex -- IRIREF excludes U+0000–U+0020 by name
 const IRIREF = /<[^<>"{}|^`\\\u0000-\u0020]*>/y;
 
 function maskNonCode(text: string): string {

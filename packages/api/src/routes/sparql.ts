@@ -23,7 +23,6 @@ import { typedRoute } from './route-helpers.js';
 import { AuthorizationError, isAdmin, requireBackendMode } from '../auth/enforce.js';
 import { applyExecutionArguments, resolveExecutionPayload } from '../lib/executionArguments.js';
 import { ArgumentSetService } from '../lib/ArgumentSetService.js';
-import { describeParameterKey, scalarParameterKey, tableParameterKey } from '@sparql-query-lib/types';
 import { recordPassthroughUpdate } from '../lib/patchService.js';
 import { isReadOnlyDeployment } from '../config/readOnly.js';
 import { UnsupportedUpdateError } from '@sparql-query-lib/rdf-delta';
