@@ -18,7 +18,9 @@ import { logger, SeverityNumber } from './logger.js'; // Import OTEL logger
 import {
   applyTemplateArguments,
   completeArgumentSets,
+  findLimitOffsetClauses,
   isSafeVariableName,
+  rewriteLimitOffsetClauses,
   serializeIri,
   serializeTerm,
   substituteLimitOffset,
@@ -90,7 +92,7 @@ interface ArgumentValue {
 /** How a parameter slot is rewritten when it has no bound rows. */
 type EmptyArgumentMode = 'unconstrained' | 'propagateEmpty' | 'require';
 
-interface ApplyArgumentSet {
+export interface ApplyArgumentSet {
   head: { vars: string[] };
   results: { bindings: Array<Record<string, ArgumentValue | null | undefined>> };
   whenEmpty?: EmptyArgumentMode;
@@ -190,31 +192,32 @@ export class SparqlQueryParser {
 
   /**
    * Format SPARQL source text, keeping `LIMIT 000<n>` / `OFFSET 000<n>` parameter
-   * placeholders intact. The parser reads those as plain integers, so a straight
-   * parse/generate round trip would print `LIMIT 0002` as `LIMIT 2` and silently
-   * drop the parameter. Each placeholder is swapped for a sentinel integer that
-   * appears nowhere in the source, and swapped back after generation.
+   * placeholders intact.
+   *
+   * The parser reads a placeholder as a plain integer and does not keep the
+   * lexeme, so a straight parse/generate round trip would print `LIMIT 0002` as
+   * `LIMIT 2` and silently drop the parameter. Each placeholder is swapped for a
+   * sentinel integer that appears nowhere in the source, and swapped back after
+   * generation — by clause, found the same way detection finds them, so a
+   * `LIMIT 0001` in a string literal is neither masked nor restored.
    */
   formatQueryString(queryString: string): string {
-    const placeholder = /\b(LIMIT|OFFSET)(\s+)000(\d+)\b/gi;
     const originals = new Map<string, string>();
     let next = 7_301_000_000_000;
-    const masked = queryString.replace(placeholder, (_match, keyword: string, _space: string, name: string) => {
+    const masked = rewriteLimitOffsetClauses(queryString, (clause) => {
+      if (clause.name === null) return null;
       let sentinel = String(next++);
       while (queryString.includes(sentinel)) sentinel = String(next++);
-      originals.set(sentinel, `000${name}`);
-      return `${keyword} ${sentinel}`;
+      originals.set(sentinel, clause.lexeme);
+      return `${clause.kind === 'limit' ? 'LIMIT' : 'OFFSET'} ${sentinel}`;
     });
 
     const formatted = this.formatQuery(this.parseQuery(masked));
     if (originals.size === 0) return formatted;
-    return formatted.replace(
-      /\b(LIMIT|OFFSET)(\s+)(\d+)\b/g,
-      (match, keyword: string, space: string, value: string) => {
-        const original = originals.get(value);
-        return original === undefined ? match : `${keyword}${space}${original}`;
-      },
-    );
+    return rewriteLimitOffsetClauses(formatted, (clause) => {
+      const original = originals.get(clause.lexeme);
+      return original === undefined ? null : `${clause.kind === 'limit' ? 'LIMIT' : 'OFFSET'} ${original}`;
+    });
   }
 
   /**
@@ -315,21 +318,18 @@ export class SparqlQueryParser {
       correlatedExistsInputs: [],
     };
 
-    // --- Detect parameterized LIMIT/OFFSET using regex on the raw string ---
-    // Match "LIMIT" followed by whitespace, "000", and capture the integer parameter name
-    const limitRegex = /\bLIMIT\s+000(\d+)\b/gi; // Case-insensitive, word boundary, digits only
-    let limitMatch;
-    while ((limitMatch = limitRegex.exec(queryString)) !== null) {
-      result.limitParameters.push(limitMatch[1]);
-      logger.emit({ severityNumber: SeverityNumber.DEBUG, body: 'Detected parameterized LIMIT:', attributes: { paramName: limitMatch[1] } });
-    }
-
-    // Match "OFFSET" followed by whitespace, "000", and capture the integer parameter name
-    const offsetRegex = /\bOFFSET\s+000(\d+)\b/gi; // Case-insensitive, word boundary, digits only
-    let offsetMatch;
-    while ((offsetMatch = offsetRegex.exec(queryString)) !== null) {
-      result.offsetParameters.push(offsetMatch[1]);
-      logger.emit({ severityNumber: SeverityNumber.DEBUG, body: 'Detected parameterized OFFSET:', attributes: { paramName: offsetMatch[1] } });
+    // --- Detect parameterized LIMIT/OFFSET ---
+    // On clauses in the query's code: a `LIMIT 0001` in a comment or a string
+    // literal is text, and declaring it would offer the caller a parameter that
+    // substitution then (rightly) never touches.
+    for (const clause of findLimitOffsetClauses(queryString)) {
+      if (clause.name === null) continue;
+      (clause.kind === 'limit' ? result.limitParameters : result.offsetParameters).push(clause.name);
+      logger.emit({
+        severityNumber: SeverityNumber.DEBUG,
+        body: `Detected parameterized ${clause.kind.toUpperCase()}:`,
+        attributes: { paramName: clause.name },
+      });
     }
     // --- End LIMIT/OFFSET detection ---
 

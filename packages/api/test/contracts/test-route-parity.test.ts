@@ -31,17 +31,26 @@ import {
 
 type JsonSchema = Record<string, any>;
 
+/** What a zod schema exposes about itself: its definition. */
+interface ZodDef {
+  type?: string;
+  innerType?: unknown;
+  element?: unknown;
+  shape?: Record<string, unknown>;
+}
+
+function defOf(schema: unknown): ZodDef | undefined {
+  const node = schema as { _zod?: { def?: ZodDef }; def?: ZodDef } | undefined;
+  return node?._zod?.def ?? node?.def;
+}
+
 /** Strip optional/nullable/default wrappers down to the schema underneath. */
-function unwrap(schema: any): any {
+function unwrap(schema: unknown): unknown {
   let current = schema;
   for (let depth = 0; depth < 10; depth += 1) {
-    const def = current?._zod?.def ?? current?.def;
-    if (!def) return current;
-    if (def.innerType) {
-      current = def.innerType;
-      continue;
-    }
-    return current;
+    const def = defOf(current);
+    if (!def?.innerType) return current;
+    current = def.innerType;
   }
   return current;
 }
@@ -51,16 +60,15 @@ function unwrap(schema: any): any {
  * objects are walked, so a field missing inside a case or a run's inputs is
  * reported with its path.
  */
-function divergences(zod: any, json: JsonSchema, path = ''): string[] {
-  const object = unwrap(zod);
-  const def = object?._zod?.def ?? object?.def;
+function divergences(zod: unknown, json: JsonSchema, path = ''): string[] {
+  const def = defOf(unwrap(zod));
 
   if (def?.type === 'array') {
     return json.type === 'array' && json.items ? divergences(def.element, json.items, `${path}[]`) : [];
   }
   if (def?.type !== 'object' || !json.properties) return [];
 
-  const shape: Record<string, unknown> = def.shape;
+  const shape: Record<string, unknown> = def.shape ?? {};
   const zodKeys = new Set(Object.keys(shape));
   const jsonKeys = new Set(Object.keys(json.properties));
   const found: string[] = [];

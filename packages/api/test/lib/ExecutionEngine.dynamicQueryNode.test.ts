@@ -200,7 +200,7 @@ describe('ExecutionEngine — DynamicQueryNode resolution guard', () => {
     const result = await engineFor().execute(dynamicGroup(chosen));
 
     expect(result).toEqual({ result: chosenRows, resultNodeId: 'dynamic' });
-    expect(executor.selectQueryParsed).toHaveBeenLastCalledWith('SELECT ?value WHERE { ?s ?p ?o }');
+    expect(executor.selectQueryParsed).toHaveBeenLastCalledWith('SELECT ?value WHERE { ?s ?p ?o }', { signal: expect.any(AbortSignal) });
   });
 
   /*
@@ -214,7 +214,7 @@ describe('ExecutionEngine — DynamicQueryNode resolution guard', () => {
 
     await expect(run).rejects.toBeInstanceOf(ExecutionNodeError);
     await expect(run).rejects.toThrow(/not to this group's library/);
-    expect(executor.selectQueryParsed).not.toHaveBeenCalledWith('SELECT ?secret WHERE { ?s ?p ?o }');
+    expect(vi.mocked(executor.selectQueryParsed).mock.calls.map(call => call[0])).not.toContain('SELECT ?secret WHERE { ?s ?p ?o }');
   });
 
   it('refuses a version in a library the caller may not execute', async () => {
@@ -225,7 +225,7 @@ describe('ExecutionEngine — DynamicQueryNode resolution guard', () => {
 
     await expect(run).rejects.toBeInstanceOf(ExecutionNodeError);
     await expect(run).rejects.toThrow(/Missing "execute" permission on library urn:sqlib:library:theirs/);
-    expect(executor.selectQueryParsed).not.toHaveBeenCalledWith('SELECT ?secret WHERE { ?s ?p ?o }');
+    expect(vi.mocked(executor.selectQueryParsed).mock.calls.map(call => call[0])).not.toContain('SELECT ?secret WHERE { ?s ?p ?o }');
   });
 
   /* The caller could run that query directly, so reaching it through a group grants nothing new. */
@@ -267,7 +267,7 @@ describe('ExecutionEngine — DynamicQueryNode resolution guard', () => {
     const result = await engineFor().execute(dynamicGroup(chosen, 'RDF_GRAPH'));
 
     expect(result).toEqual({ result: '<urn:s> <urn:p> <urn:o> .\n', resultNodeId: 'dynamic' });
-    expect(executor.constructQueryParsed).toHaveBeenCalledWith('CONSTRUCT WHERE { ?s ?p ?o }', { acceptHeader: undefined });
+    expect(executor.constructQueryParsed).toHaveBeenCalledWith('CONSTRUCT WHERE { ?s ?p ?o }', { acceptHeader: undefined, signal: expect.any(AbortSignal) });
   });
 
   describe('unrouted tables beside a dynamic node', () => {

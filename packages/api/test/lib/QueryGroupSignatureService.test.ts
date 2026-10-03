@@ -64,6 +64,14 @@ describe('pageParametersFor', () => {
     expect(service.pageParametersFor(VERSION).limitParameters).toEqual(['10']);
   });
 
+  /* What a group offers is what its members' runs will substitute. */
+  it('does not offer a placeholder that only appears in a comment or a literal', () => {
+    queryNode('n1', 'qv1', '# LIMIT 00010\nSELECT * WHERE { ?s ?p "OFFSET 00030" } LIMIT 00020');
+    group('n1');
+
+    expect(service.pageParametersFor(VERSION)).toEqual({ limitParameters: ['20'], offsetParameters: [] });
+  });
+
   it('is empty for a group whose members declare none', () => {
     queryNode('n1', 'qv1', 'SELECT * WHERE { ?s ?p ?o }');
     group('n1');

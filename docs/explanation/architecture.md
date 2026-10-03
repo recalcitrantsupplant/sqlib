@@ -107,8 +107,11 @@ in. In order:
    may not reach, and the property holds by construction rather than by
    remembering to check in each orchestrator.
 6. **Argument application.** `applyExecutionArguments` substitutes named
-   `LIMIT`/`OFFSET` parameters first, then binds the `VALUES` arguments. Both
-   operate on the parsed query, never on the query text. The same function
+   `LIMIT`/`OFFSET` parameters first, then binds the `VALUES` arguments.
+   `VALUES` binding operates on the parsed query. Page parameters are found and
+   substituted on the query's tokens — comments, string literals and IRIs are
+   skipped, so text that only reads like `LIMIT 0001` is never a parameter —
+   because the parser does not keep the `000` lexeme that names one. The same function
    serves `POST /sparql`, which is what makes an unsaved query in the editor run
    the way a saved one does rather than approximately so.
 7. **Execution** through an `ISparqlExecutor` — HTTP with credentials resolved

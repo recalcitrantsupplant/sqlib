@@ -131,7 +131,7 @@ describe('BenchmarkRunner', () => {
 
     const mockSelect = vi.fn().mockResolvedValue({ result: { results: { bindings: [] } } });
     const executorFactory = {
-      getExecutorForNode: vi.fn().mockResolvedValue({
+      getExecutorForBackendId: vi.fn().mockResolvedValue({
         selectQueryParsed: mockSelect,
         askQuery: vi.fn(),
         update: vi.fn(),
@@ -139,7 +139,7 @@ describe('BenchmarkRunner', () => {
       }),
     };
 
-    const runner = new BenchmarkRunner({ internal: true }, {} as any, {} as any, {} as any, undefined, () => executorFactory as any);
+    const runner = new BenchmarkRunner({ internal: true }, {} as any, undefined, {} as any, undefined, () => executorFactory as any);
     await runner.runExperimentVersion(versionId);
 
     expect(mockSelect).toHaveBeenCalledTimes(3);
@@ -156,7 +156,7 @@ describe('BenchmarkRunner', () => {
       subjectSpecs: JSON.stringify([]),
     });
 
-    const runner = new BenchmarkRunner({ internal: true }, {} as any, {} as any, {} as any);
+    const runner = new BenchmarkRunner({ internal: true }, {} as any, undefined, {} as any);
 
     await expect(runner.runExperimentVersion(versionId)).rejects.toThrow('must be frozen');
   });
@@ -201,7 +201,7 @@ describe('BenchmarkRunner', () => {
 
     const mockSelect = vi.fn().mockResolvedValue({ result: { results: { bindings: [] } } });
     const executorFactory = {
-      getExecutorForNode: vi.fn().mockResolvedValue({
+      getExecutorForBackendId: vi.fn().mockResolvedValue({
         selectQueryParsed: mockSelect,
         askQuery: vi.fn(),
         update: vi.fn(),
@@ -209,7 +209,7 @@ describe('BenchmarkRunner', () => {
       }),
     };
 
-    const runner = new BenchmarkRunner({ internal: true }, {} as any, {} as any, {} as any, undefined, () => executorFactory as any);
+    const runner = new BenchmarkRunner({ internal: true }, {} as any, undefined, {} as any, undefined, () => executorFactory as any);
     const result = await runner.runExperimentVersion(versionId);
 
     expect(mockRunInsert).toHaveBeenCalledWith(expect.objectContaining({ tasksTotal: 2, runStatus: 'Running' }));
@@ -278,7 +278,7 @@ describe('BenchmarkRunner', () => {
       dataGraphs: [], filledParameters: new Set(),
     });
     const executorFactory = {
-      getExecutorForNode: vi.fn().mockResolvedValue({
+      getExecutorForBackendId: vi.fn().mockResolvedValue({
         selectQueryParsed: vi.fn().mockResolvedValue({ result: { results: { bindings: [] } } }),
         askQuery: vi.fn(),
         update: vi.fn(),
@@ -347,7 +347,7 @@ describe('BenchmarkRunner', () => {
 
     const resolveVersionIdForId = vi.fn();
     const executorFactory = {
-      getExecutorForNode: vi.fn().mockResolvedValue({
+      getExecutorForBackendId: vi.fn().mockResolvedValue({
         selectQueryParsed: vi.fn().mockResolvedValue({ result: { results: { bindings: [] } } }),
         askQuery: vi.fn(),
         update: vi.fn(),
@@ -409,7 +409,7 @@ describe('BenchmarkRunner', () => {
     });
 
     const executorFactory = {
-      getExecutorForNode: vi.fn().mockResolvedValue({
+      getExecutorForBackendId: vi.fn().mockResolvedValue({
         selectQueryParsed: vi.fn().mockRejectedValue(new Error('boom')),
         askQuery: vi.fn(),
         update: vi.fn(),
@@ -417,7 +417,7 @@ describe('BenchmarkRunner', () => {
       }),
     };
 
-    const runner = new BenchmarkRunner({ internal: true }, {} as any, {} as any, {} as any, undefined, () => executorFactory as any);
+    const runner = new BenchmarkRunner({ internal: true }, {} as any, undefined, {} as any, undefined, () => executorFactory as any);
     const result = await runner.runExperimentVersion(versionId);
 
     expect(mockObservationInsert).toHaveBeenCalledTimes(1);

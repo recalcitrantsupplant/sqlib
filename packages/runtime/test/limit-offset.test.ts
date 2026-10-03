@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   InvalidParameterError,
+  findLimitOffsetClauses,
   substituteLimitOffset,
   toExecutionParameters,
 } from '../src/limit-offset.js';
@@ -37,10 +38,23 @@ describe('substituteLimitOffset', () => {
     );
   });
 
+  it('leaves a placeholder in a comment, a string or an IRI alone', () => {
+    const query = [
+      '# LIMIT 0001 in a comment',
+      'SELECT ?s WHERE { ?s <urn:p#LIMIT> "LIMIT 0001" ; <urn:q> \'\'\'OFFSET 0002\'\'\' }',
+      'LIMIT 0001 OFFSET 0002',
+    ].join('\n');
+    expect(substituteLimitOffset(query, [{ name: '1', value: 5 }], [{ name: '2', value: 6 }])).toBe([
+      '# LIMIT 0001 in a comment',
+      'SELECT ?s WHERE { ?s <urn:p#LIMIT> "LIMIT 0001" ; <urn:q> \'\'\'OFFSET 0002\'\'\' }',
+      'LIMIT 5 OFFSET 6',
+    ].join('\n'));
+  });
+
   describe('validation, which is the client-side substitute for re-parsing', () => {
     it('rejects a name carrying regular-expression metacharacters', () => {
-      // The name is interpolated into a RegExp; `.*` would otherwise match — and
-      // rewrite — arbitrary text between LIMIT and the end of the line.
+      // Names were once interpolated into a RegExp, where `.*` would have
+      // rewritten arbitrary text; a malformed name is still a caller error.
       expect(() => substituteLimitOffset(QUERY, [{ name: '.*', value: 1 }])).toThrow(
         InvalidParameterError,
       );
@@ -81,5 +95,36 @@ describe('toExecutionParameters', () => {
 
   it('treats an absent payload as no parameters', () => {
     expect(toExecutionParameters(undefined)).toEqual([]);
+  });
+});
+
+describe('findLimitOffsetClauses', () => {
+  it('finds clauses in code, with their spans and placeholder names', () => {
+    const query = 'SELECT * { ?s ?p ?o } LIMIT 0001 OFFSET 20';
+    expect(findLimitOffsetClauses(query)).toEqual([
+      { kind: 'limit', lexeme: '0001', name: '1', start: 22, end: 32 },
+      { kind: 'offset', lexeme: '20', name: null, start: 33, end: 42 },
+    ]);
+  });
+
+  it('skips comments, string literals of every quoting and IRIs', () => {
+    const query = [
+      '# LIMIT 0001',
+      'SELECT * {',
+      '  ?s <http://example.org/a#b> "LIMIT 0001", \'OFFSET 0002\', """LIMIT 0003\n""" .',
+      '  ?s <urn:x> "escaped \\" LIMIT 0004" .',
+      '}',
+    ].join('\n');
+    expect(findLimitOffsetClauses(query)).toEqual([]);
+  });
+
+  it('treats a comment between keyword and value as the whitespace it is', () => {
+    const query = 'SELECT * { ?s ?p ?o } LIMIT # page size\n 0001';
+    expect(findLimitOffsetClauses(query).map(clause => clause.name)).toEqual(['1']);
+  });
+
+  it('does not mistake a comparison for an IRI', () => {
+    const query = 'SELECT * { ?s ?p ?o FILTER(?o < 3 && ?o > 1) } LIMIT 0001';
+    expect(findLimitOffsetClauses(query).map(clause => clause.name)).toEqual(['1']);
   });
 });

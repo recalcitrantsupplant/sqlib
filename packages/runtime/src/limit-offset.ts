@@ -3,8 +3,12 @@
  *
  * A parameterised page size is written in the query as a reserved placeholder —
  * `LIMIT 0001`, `OFFSET 0002` — where `000` is the marker and what follows is the
- * parameter name. Unlike VALUES slots this never needed a parser: the placeholder
- * is unambiguous in the raw text, so substitution is a regular expression.
+ * parameter name. Unlike VALUES slots this needs no parser, but it does need to
+ * know what is code: `# LIMIT 0001` in a comment and `"LIMIT 0001"` in a string
+ * are text, not clauses. {@link findLimitOffsetClauses} is the one place that
+ * decides, by skipping comments, string literals and IRIs before it matches,
+ * and everything that finds a placeholder — detection, substitution, formatting,
+ * export — asks it.
  *
  * The server has always done it this way (`SparqlQueryParser.applyLimitOffsetParameters`),
  * and this module is that function's core, extracted so the exported runtime and
@@ -24,9 +28,10 @@ export interface ExecutionParameter {
 }
 
 /**
- * Parameter names are interpolated into a regular expression, so they are held to
- * an alphabet with no metacharacters. Real names are the digits `detectInputs`
- * captures from `LIMIT 000(\d+)`; identifiers are admitted for readability.
+ * Parameter names are held to an alphabet with no metacharacters, which is what
+ * made interpolating them into a regular expression safe and still keeps a
+ * malformed name a caller error. Real names are the digits after `000`;
+ * identifiers are admitted for readability.
  */
 const SAFE_PARAMETER_NAME = /^[A-Za-z0-9_]+$/;
 
@@ -83,6 +88,117 @@ function assertParameter(kind: 'limit' | 'offset', parameter: ExecutionParameter
   assertPageParameterValue(kind, name, value);
 }
 
+/** A `LIMIT n` / `OFFSET n` clause found in query code. */
+export interface LimitOffsetClause {
+  kind: 'limit' | 'offset';
+  /** The integer exactly as written, leading zeros included. */
+  lexeme: string;
+  /** The parameter name when the lexeme is a `000<name>` placeholder, else null. */
+  name: string | null;
+  /** Span of the whole clause, keyword through integer. */
+  start: number;
+  end: number;
+}
+
+/**
+ * The query text with every comment, string literal and IRI blanked to spaces.
+ *
+ * Offsets are preserved, so a match in the masked text is a match at the same
+ * place in the original. A comment becomes whitespace, which is what SPARQL
+ * makes of it, so `LIMIT # page size` + newline + `0001` is still a clause.
+ * An IRI is recognised only so that a `#` inside one does not open a comment.
+ */
+/** An IRI reference: no whitespace and none of <>"{}|^`\ before the closing >. */
+const IRIREF = /<[^<>"{}|^`\\\u0000-\u0020]*>/y;
+
+function maskNonCode(text: string): string {
+  const out = text.split('');
+  const blank = (from: number, to: number) => {
+    for (let k = from; k < to; k++) if (out[k] !== '\n') out[k] = ' ';
+  };
+  let i = 0;
+  while (i < text.length) {
+    const c = text[i];
+    if (c === '#') {
+      let j = i;
+      while (j < text.length && text[j] !== '\n' && text[j] !== '\r') j++;
+      blank(i, j);
+      i = j;
+    } else if (c === '"' || c === "'") {
+      const long = text.startsWith(c.repeat(3), i);
+      const close = long ? c.repeat(3) : c;
+      let j = i + close.length;
+      while (j < text.length && !text.startsWith(close, j)) {
+        if (text[j] === '\\') j++;
+        else if (!long && (text[j] === '\n' || text[j] === '\r')) break;
+        j++;
+      }
+      j = Math.min(text.length, j + close.length);
+      blank(i, j);
+      i = j;
+    } else if (c === '<') {
+      IRIREF.lastIndex = i;
+      const iri = IRIREF.exec(text);
+      if (iri) {
+        blank(i, i + iri[0].length);
+        i += iri[0].length;
+      } else {
+        i++;
+      }
+    } else if (c === '\\') {
+      // A prefixed name's escaped character (`ex:a\#b`) is not a comment.
+      i += 2;
+    } else {
+      i++;
+    }
+  }
+  return out.join('');
+}
+
+/**
+ * Every `LIMIT` / `OFFSET` clause in the code of a query, in order.
+ *
+ * Exported for the API, which detects, substitutes and formats placeholders and
+ * must agree with this module about where they are.
+ */
+export function findLimitOffsetClauses(queryString: string): LimitOffsetClause[] {
+  const masked = maskNonCode(queryString);
+  const clause = /\b(LIMIT|OFFSET)(\s+)(\d+)\b/gi;
+  const found: LimitOffsetClause[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = clause.exec(masked)) !== null) {
+    const lexeme = match[3];
+    const placeholder = /^000(\d+)$/.exec(lexeme);
+    found.push({
+      kind: match[1].toLowerCase() === 'limit' ? 'limit' : 'offset',
+      lexeme,
+      name: placeholder ? placeholder[1] : null,
+      start: match.index,
+      end: match.index + match[0].length,
+    });
+  }
+  return found;
+}
+
+/**
+ * Rewrite chosen clauses, right to left so earlier offsets stay valid.
+ * `replace` returns the new clause text, or null to leave one as written.
+ */
+export function rewriteLimitOffsetClauses(
+  queryString: string,
+  replace: (clause: LimitOffsetClause) => string | null,
+): string {
+  let result = queryString;
+  const clauses = findLimitOffsetClauses(queryString);
+  for (let k = clauses.length - 1; k >= 0; k--) {
+    const clause = clauses[k];
+    const replacement = replace(clause);
+    if (replacement === null) continue;
+    result = result.slice(0, clause.start) + replacement + result.slice(clause.end);
+  }
+  return result;
+}
+
 /**
  * Replace `LIMIT 000<name>` / `OFFSET 000<name>` placeholders with their values.
  *
@@ -106,22 +222,20 @@ export function substituteLimitOffset(
     );
   }
 
-  let result = queryString;
-  for (const parameter of limitParams) {
-    assertParameter('limit', parameter);
-    result = result.replace(
-      new RegExp(`\\bLIMIT\\s+000${parameter.name}\\b`, 'gi'),
-      `LIMIT ${parameter.value}`,
-    );
-  }
-  for (const parameter of offsetParams) {
-    assertParameter('offset', parameter);
-    result = result.replace(
-      new RegExp(`\\bOFFSET\\s+000${parameter.name}\\b`, 'gi'),
-      `OFFSET ${parameter.value}`,
-    );
-  }
-  return result;
+  // Validated up front and in order, so the first bad parameter is the one
+  // reported, as it was when each was substituted in turn.
+  for (const parameter of limitParams) assertParameter('limit', parameter);
+  for (const parameter of offsetParams) assertParameter('offset', parameter);
+  // First of a name wins, as it did when the first replacement consumed every
+  // occurrence and later ones found nothing left to match.
+  const values = { limit: new Map<string, number>(), offset: new Map<string, number>() };
+  for (const { name, value } of limitParams) if (!values.limit.has(name)) values.limit.set(name, value);
+  for (const { name, value } of offsetParams) if (!values.offset.has(name)) values.offset.set(name, value);
+
+  return rewriteLimitOffsetClauses(queryString, (clause) => {
+    const value = clause.name === null ? undefined : values[clause.kind].get(clause.name);
+    return value === undefined ? null : `${clause.kind === 'limit' ? 'LIMIT' : 'OFFSET'} ${value}`;
+  });
 }
 
 /**
