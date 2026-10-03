@@ -27,15 +27,38 @@ saved rule set with no open draft forgets its graph.
 
 ## Proposal
 
-Add three optional properties on stable pointers:
+Add optional properties on stable pointers:
 
 | Entity | Property | Points at |
 | --- | --- | --- |
-| `RuleSet` | `browserDefaultDataGraph` | A `DataGraph` (float) or a `DataGraphVersion` (pin) |
-| `Query` | `browserDefaultArgumentSet` | An `ArgumentSet` (float) or an `ArgumentSetVersion` (pin) |
-| `QueryGroup` | `browserDefaultArgumentSet` | As for `Query` |
+| `RuleSet` | `browserDefaultDataGraph` | One `DataGraph` (float) or `DataGraphVersion` (pin) |
+| `Query` | `browserDefaultArgumentSets` | An ordered list of `ArgumentSet` (float) or `ArgumentSetVersion` (pin) |
+| `QueryGroup` | `browserDefaultArgumentSets` | As for `Query` |
 
 The UI label is **Browser default**.
+
+### Why a list of argument sets, and no group data graph property
+
+A query group can take arguments and one or more data graphs. The model
+already covers both with argument sets:
+
+- `POST /execute` takes `argumentSetIds` as a list.
+  `ArgumentSetService.exportRuntimePayload` composes the sets: rows union per
+  signature, and graphs concatenate.
+- An `ArgumentSetVersion` can hold `ArgumentGraphBinding`s, one per
+  start-node graph port.
+
+So a group's graphs travel inside argument sets. A user can keep one set per
+concern (for example, one set for the tuples and one set per graph) and list
+them all as the default. The browser default is then exactly the
+`argumentSetIds` the web app sends. It adds no new composition rule, and an
+API caller can copy the list into its own request.
+
+A separate `QueryGroup.browserDefaultDataGraphs` is not proposed. It would be
+a second way to bind the same ports, and the two would need a precedence rule.
+
+Most entities will have zero or one item in the list. The list form costs
+nothing for that case.
 
 ### Rules
 
@@ -76,6 +99,8 @@ flowchart LR
 | --- | --- |
 | Target deleted | Delete clears the reference, as backend delete clears `defaultBackend` |
 | Argument set no longer fits the current query signature | The picker shows the default with a "does not fit" warning, and selects nothing |
+| One set in a list is unusable | Select none of the list. A partial default gives a run that looks complete but is not |
+| Two sets in a list fill the same graph port | Refuse on write, with the same check `exportRuntimePayload` needs (see open question 4) |
 | Caller cannot read the target | Select nothing. Do not show an error on open |
 
 The delete cleanup and "Clear browser default" both write `null`. Both depend
@@ -123,12 +148,16 @@ If an API default is ever needed, add an explicit request flag such as
 3. **Query data graph.** A hermetic query test can take a data graph. A
    `Query.browserDefaultDataGraph` is possible, but nothing on the query
    screen runs against a data graph today. Leave it out.
+4. **Graph port collisions.** Each `ArgumentGraphBinding` carries a
+   `position` for the group to route against. When two composed sets both
+   bind position 0, check what `exportRuntimePayload` does today. If it only
+   concatenates, execute has the same gap, and the fix belongs there first.
 
 ## Work
 
 1. Contracts and schemas: add the properties to `RuleSet`, `Query` and
    `QueryGroup` (LDKit schema, generated contracts, routes).
-2. API: same-library validation on write. Clear on target delete. A test that
+2. API: same-library validation on write, for each item in a list. Clear on target delete. A test that
    each execute path ignores the property.
 3. Web: picker badge, set and clear actions, the precedence above, the
    "does not fit" state.
