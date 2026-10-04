@@ -111,8 +111,8 @@ export function validateIfMatch(
   const parsed = parseIfMatch(request);
   const ifMatch = parsed === null ? null : parsed === '*' ? '*' : parsed[0]!.tag;
 
-  // No header: the write is unconditional. `*`: any current representation
-  // matches, and the entity exists or the route would have answered 404.
+  // No header: the write is unconditional. `*` matches every current
+  // representation, and the entity exists or the route would have answered 404.
   if (parsed === null || parsed === '*') {
     return { valid: true, currentTag: null, ifMatch };
   }
