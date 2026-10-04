@@ -471,12 +471,35 @@ export function canReadEntity(request: FastifyRequest, entity: unknown): boolean
   return hasLibraryMode(context.grants, resolveOwningLibrary(entity), 'read');
 }
 
-/** Filters a list to the entities whose owning library the caller may read. */
+/**
+ * Filters a list to the entities whose owning library the caller may read.
+ *
+ * In `dry-run` nothing is hidden, but each item `required` would hide is
+ * audited as a `would-deny` — one row per item, so the audit shows a listing
+ * shrinking the way a refused GET would, rather than a listing that looked
+ * fine in dry-run and lost rows the day enforcement was switched on.
+ */
 export function filterReadable<T>(request: FastifyRequest, items: T[]): T[] {
   const context = authOf(request);
   if (context.fullAccess || context.grants.admin) return items;
-  if (context.mode !== 'required') return items;
-  return items.filter(item => canReadEntity(request, item));
+  if (context.mode === 'required') {
+    return items.filter(item => canReadEntity(request, item));
+  }
+  if (context.mode === 'dry-run') {
+    for (const item of items) {
+      if (canReadEntity(request, item)) continue;
+      const library = resolveOwningLibrary(item);
+      auditDecision(request, context, {
+        decision: 'would-deny',
+        resource: library,
+        resourceKind: 'library',
+        mode: 'read',
+        matchedGrant: null,
+        detail: `A listing would hide ${(item as { $id?: string; id?: string }).$id ?? (item as { id?: string }).id ?? 'an entity'}: missing "read" permission on ${library ?? 'an unresolved library'}.`,
+      });
+    }
+  }
+  return items;
 }
 
 /** Library creation policy (`SQLIB_AUTH_ALLOW_LIBRARY_CREATE`). */

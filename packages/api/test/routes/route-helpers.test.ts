@@ -14,7 +14,7 @@ overrideCacheCoordinatorProvider({
   getEntityRepositories: vi.fn(() => mockRepos),
 });
 
-import { withCacheHandler, withReposHandler } from '../../src/routes/route-helpers.js';
+import { parseIfMatch, validateIfMatch, withCacheHandler, withReposHandler } from '../../src/routes/route-helpers.js';
 import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
 type MockReply = Pick<FastifyReply, 'sent' | 'status' | 'send'> & {
@@ -216,5 +216,40 @@ describe('findVersionByNumber', () => {
     // have accepted "2abc" as 2 for as long as they have existed, and changing
     // that here would be a silent API change hidden inside a refactor.
     expect(findVersionByNumber(versions, 'parent-a', '2abc', 'test')).toMatchObject({ ok: true });
+  });
+});
+
+describe('If-Match (RFC 9110)', () => {
+  const TAG = '2026-01-01T00:00:00.000Z';
+  const withHeader = (value: string | undefined) =>
+    ({ headers: value === undefined ? {} : { 'if-match': value } }) as unknown as FastifyRequest;
+
+  it('parses a list of strong and weak tags, and `*`', () => {
+    expect(parseIfMatch(withHeader(undefined))).toBeNull();
+    expect(parseIfMatch(withHeader('  '))).toBeNull();
+    expect(parseIfMatch(withHeader('*'))).toBe('*');
+    expect(parseIfMatch(withHeader(`"a", W/"b" ,"${TAG}"`))).toEqual([
+      { tag: 'a', weak: false },
+      { tag: 'b', weak: true },
+      { tag: TAG, weak: false },
+    ]);
+  });
+
+  it('accepts the bare dateModified clients have always sent', () => {
+    expect(validateIfMatch(withHeader(TAG), { dateModified: TAG }).valid).toBe(true);
+  });
+
+  it('matches when any tag in the list is the current one', () => {
+    expect(validateIfMatch(withHeader(`"stale", "${TAG}"`), { dateModified: TAG }).valid).toBe(true);
+    expect(validateIfMatch(withHeader('"stale", "older"'), { dateModified: TAG }).valid).toBe(false);
+  });
+
+  it('never matches a weak tag, because If-Match compares strongly', () => {
+    expect(validateIfMatch(withHeader(`W/"${TAG}"`), { dateModified: TAG }).valid).toBe(false);
+  });
+
+  it('lets `*` and an absent header through', () => {
+    expect(validateIfMatch(withHeader('*'), { dateModified: TAG }).valid).toBe(true);
+    expect(validateIfMatch(withHeader(undefined), { dateModified: TAG }).valid).toBe(true);
   });
 });

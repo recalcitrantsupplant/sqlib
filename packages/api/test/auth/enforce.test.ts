@@ -345,4 +345,22 @@ describe('filterReadable', () => {
     const visible = filterReadable(requestFor(contextFor([ALICE], 'dry-run')), [entities.get('urn:q:b')]);
     expect(visible).toHaveLength(1);
   });
+
+  it('audits each item dry-run would hide, and nothing it would show', async () => {
+    entities.set('urn:q:a', { '@type': 'Query', $id: 'urn:q:a', isPartOf: [LIBRARY] });
+    entities.set('urn:q:b', { '@type': 'Query', $id: 'urn:q:b', isPartOf: [OTHER_LIBRARY] });
+    await store.createGrant({
+      principal: ALICE, resourceKind: 'library', resource: LIBRARY, modes: ['read'],
+    });
+    const request = requestFor(contextFor([ALICE], 'dry-run'));
+
+    filterReadable(request, [entities.get('urn:q:a'), entities.get('urn:q:b')]);
+
+    const wouldDeny = (request.log.warn as ReturnType<typeof vi.fn>).mock.calls
+      .map(([event]) => event as { decision?: string; resource?: string; detail?: string })
+      .filter(event => event.decision === 'would-deny');
+    expect(wouldDeny).toHaveLength(1);
+    expect(wouldDeny[0]).toMatchObject({ resource: OTHER_LIBRARY });
+    expect(wouldDeny[0]!.detail).toContain('urn:q:b');
+  });
 });
