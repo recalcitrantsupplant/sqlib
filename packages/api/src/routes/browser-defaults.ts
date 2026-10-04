@@ -38,7 +38,7 @@ export const browserDefaultsSchema = {
     /** An `ArgumentSet`. It floats: the web app picks the version per run. */
     argumentSet: { type: 'string', nullable: true },
     /** By data graph input. A `DataGraph` floats; a `DataGraphVersion` is pinned. */
-    dataGraphs: { type: 'array', items: { type: 'string', nullable: true } },
+    dataGraphs: { type: 'array', maxItems: 64, items: { type: 'string', nullable: true } },
   },
   additionalProperties: false,
 } as const;

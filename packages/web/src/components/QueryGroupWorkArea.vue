@@ -858,8 +858,10 @@ const groupDataGraphs = ref<Array<string | null>>([]);
  * has cleared the previous group's selection first.
  */
 const browserDefaults = useBrowserDefaults();
-watch(queryGroupId, async (id) => {
-  groupDataGraphs.value = [];
+watch(queryGroupId, async (id, previous) => {
+  // Another group's picks go; a scratch group's picks stay when its first
+  // save gives it an id, because they are this group's.
+  if (previous) groupDataGraphs.value = [];
   if (!id) return;
   void browserDefaults.applyArgumentSet('queryGroup', id, argumentSetsState);
   const { dataGraphs } = await browserDefaults.load('queryGroup', id);
