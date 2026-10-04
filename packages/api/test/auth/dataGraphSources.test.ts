@@ -441,13 +441,10 @@ describe('every route that resolves a stored graph asks', () => {
    * that a question is owed. A fifth door added without a scope fails here by
    * file and line rather than in somebody's deployment.
    *
-   * `ArgumentSetService.ts` is the named exception, and there are exactly two
-   * of them: `createGraphBinding` validates at write (after
-   * `requirePinnedSourcesReadable` has run on the same input) and
-   * `exportRuntimePayload` re-resolves a stored binding at run time. Both are
-   * deliberate and both are covered by `argumentSetPinnedSources.test.ts`.
+   * No file is exempt. `SCOPE_EXEMPT` stays so an exemption has one place to
+   * be written down, with its reason, if one is ever needed.
    */
-  const SCOPE_EXEMPT = new Map<string, number>([['ArgumentSetService.ts', 2]]);
+  const SCOPE_EXEMPT = new Map<string, number>();
 
   async function sourceFiles(dir: string, out: Array<[string, string]> = []) {
     for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -458,7 +455,7 @@ describe('every route that resolves a stored graph asks', () => {
     return out;
   }
 
-  it('passes an auth scope at every call site outside the argument set path', async () => {
+  it('passes an auth scope at every call site', async () => {
     const root = fileURLToPath(new URL('../../src/', import.meta.url));
     const files = await sourceFiles(root);
 

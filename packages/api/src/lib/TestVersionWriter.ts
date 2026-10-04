@@ -239,16 +239,11 @@ function validateSubjectKindInputs(testId: string, body: TestVersionInput, cases
     throw new TestVersionError(problems.join(' '));
   }
   /*
-   * A group case used to be refused for supplying a graph the port its pinned
-   * argument set already filled. There is no such collision to check for now
-   * that routing lives on the group: `TestRunner` appends a case's graphs after
-   * the set's, so the set fills slots 0..n-1 and the case fills what follows.
-   * Whether that adds up to the ports the start node declares is a question
-   * only the run can answer, since only it has the group in hand — and
-   * `ExecutionEngine.seedStartNodeDataGraphs` answers it, in both directions,
-   * with a hard error.
+   * Whether a case's graphs add up to the ports the group's start node
+   * declares is a question only the run can answer, since only it has the
+   * group in hand — and `ExecutionEngine.seedStartNodeDataGraphs` answers it,
+   * in both directions, with a hard error.
    */
-
 }
 
 /**

@@ -6,19 +6,17 @@
  * **does this route name a second entity in its body, and what is the caller
  * doing with it?**
  *
- * A tuple binding may pin `tupleSetVersions: [...]` and a graph binding may pin
- * `dataGraphVersionId` — IRIs of stored entities that are not the argument set
- * being written and need not live in its library. The route guard reads
- * `libraryId` off the body and checks Write *there*; nothing looked at the pins.
- * `exportRuntimePayload` then resolves both to content: `rowsFromTupleSetVersions`
- * reads the version's rows, `resolveDataGraphInput` reads the version's triples.
+ * A tuple binding may pin `tupleSetVersions: [...]` — IRIs of stored entities
+ * that are not the argument set being written and need not live in its
+ * library. The route guard reads `libraryId` off the body and checks Write
+ * *there*; nothing looked at the pins. `exportRuntimePayload` then resolves them
+ * to content: `rowsFromTupleSetVersions` reads the version's rows.
  *
  * So Write on a library you hold plus a Read on the export route was a way to
- * read rows and triples out of a library you hold nothing on. This is the pair
- * `POST /tuple-sets/:id/versions/from-etl` and
- * `POST /data-graphs/:id/versions/from-query` already carry — the guard checks
+ * read rows out of a library you hold nothing on. This is the check
+ * `POST /tuple-sets/:id/versions/from-etl` already carries — the guard checks
  * the entity being written, the handler checks the second entity the body names
- * — arriving through a third door.
+ * — arriving through another door.
  *
  * The mode is `read`, not `execute`: pinning stores no SQL and runs no query, it
  * copies stored data into a payload, which is what Read on that library governs
@@ -42,11 +40,9 @@ const THEIRS = 'urn:sqlib:library:theirs';
 
 const MY_TUPLE_VERSION = 'urn:sqlib:tuplesetversion:mine-v1';
 const THEIR_TUPLE_VERSION = 'urn:sqlib:tuplesetversion:theirs-v1';
-const THEIR_GRAPH_VERSION = 'urn:sqlib:datagraphversion:theirs-v1';
 
 /** Rows and triples that only a principal holding Read on `THEIRS` may see. */
 const SECRET_ROW = 'classified-gauge';
-const SECRET_TRIPLE = 'urn:secret:subject';
 
 const store = vi.hoisted(() => ({ entities: new Map<string, Record<string, unknown>>() }));
 
@@ -175,17 +171,6 @@ beforeEach(() => {
       tupleColumns: ['gauge'],
       contentString: rowsWith(SECRET_ROW),
     }],
-
-    ['urn:sqlib:datagraph:theirs', { '@type': 'DataGraph', $id: 'urn:sqlib:datagraph:theirs', isPartOf: THEIRS }],
-    [THEIR_GRAPH_VERSION, {
-      '@type': 'DataGraphVersion',
-      $id: THEIR_GRAPH_VERSION,
-      isPartOf: 'urn:sqlib:datagraph:theirs',
-      version: 1,
-      contentFormat: 'text/turtle',
-      tripleCount: 1,
-      contentString: `<${SECRET_TRIPLE}> <urn:secret:p> "v" .`,
-    }],
   ]);
 });
 
@@ -235,35 +220,6 @@ describe('a tuple set version pinned from a library the caller cannot read', () 
   });
 });
 
-describe('a data graph version pinned from a library the caller cannot read', () => {
-  const graphPin = (versionId: string) => ({
-    name: 'pinned-graph',
-    libraryId: MINE,
-    graphBindings: [{ dataGraphVersionId: versionId }],
-  });
-
-  it('is refused at creation, and its triples do not reach an export', async () => {
-    const response = await inject(mine, 'POST', '/argument-sets', graphPin(THEIR_GRAPH_VERSION));
-
-    expect(response.statusCode).toBe(403);
-    expect([...store.entities.values()].some(e => e['@type'] === 'ArgumentSet')).toBe(false);
-  });
-
-  it('is accepted when the caller holds read on that library', async () => {
-    const response = await inject(both, 'POST', '/argument-sets', graphPin(THEIR_GRAPH_VERSION));
-    expect(response.statusCode).toBe(201);
-  });
-
-  it('leaves inline content alone, which names no entity to check', async () => {
-    const response = await inject(mine, 'POST', '/argument-sets', {
-      name: 'inline-graph',
-      libraryId: MINE,
-      graphBindings: [{ contentString: '<urn:s> <urn:p> "o" .', contentFormat: 'text/turtle' }],
-    });
-    expect(response.statusCode).toBe(201);
-  });
-});
-
 describe('a new version of an existing set', () => {
   /*
    * `POST /:id/v` is the second door onto the same write: the set already
@@ -306,12 +262,5 @@ describe('disabled mode', () => {
   it('is unaffected: every pin is accepted', async () => {
     const tuple = await inject(authDisabled, 'POST', '/argument-sets', tuplePin(THEIR_TUPLE_VERSION));
     expect(tuple.statusCode).toBe(201);
-
-    const graph = await inject(authDisabled, 'POST', '/argument-sets', {
-      name: 'pinned-graph',
-      libraryId: MINE,
-      graphBindings: [{ dataGraphVersionId: THEIR_GRAPH_VERSION }],
-    });
-    expect(graph.statusCode).toBe(201);
   });
 });

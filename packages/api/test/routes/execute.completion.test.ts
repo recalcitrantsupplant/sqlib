@@ -60,12 +60,11 @@ const backend = {
   backendType: BackendTypeIri.http, endpoint: 'http://example.org/sparql',
 };
 
-/** One saved set: a `?city` table, a LIMIT named `10`, and a `source` graph. */
-function seedArgumentSet(id: string, opts: { table?: boolean; limit?: boolean; graph?: boolean }) {
+/** One saved set: a `?city` table and a LIMIT named `10`. */
+function seedArgumentSet(id: string, opts: { table?: boolean; limit?: boolean }) {
   const versionId = `${id}-v1`;
   const tupleBindings: string[] = [];
   const scalarBindings: string[] = [];
-  const graphBindings: string[] = [];
 
   if (opts.table) {
     const bindingId = `${id}-tb`;
@@ -87,18 +86,10 @@ function seedArgumentSet(id: string, opts: { table?: boolean; limit?: boolean; g
     });
     scalarBindings.push(scalarId);
   }
-  if (opts.graph) {
-    const graphId = `${id}-gb`;
-    store.set(graphId, {
-      $id: graphId, '@type': 'ArgumentGraphBinding',
-      position: 0, dataGraphVersion: GRAPH_VERSION,
-    });
-    graphBindings.push(graphId);
-  }
 
   store.set(versionId, {
     $id: versionId, '@type': 'ArgumentSetVersion', isPartOf: id, version: 1,
-    tupleBindings, scalarBindings, graphBindings,
+    tupleBindings, scalarBindings,
   });
   store.set(id, {
     $id: id, '@type': 'ArgumentSet', name: 'Set', isPartOf: LIBRARY, currentVersion: versionId,
@@ -188,23 +179,10 @@ describe('POST /execute — completing an argument set', () => {
   });
 
   /*
-   * Slots, not port names: a set fills 0..n-1 and a run's own graphs fill what
-   * follows, so "the set already fills this" is a question about position.
+   * A set carries no graphs, so a group's graphs arrive in `dataGraphs[]` and
+   * nowhere else, and a set beside them never conflicts.
    */
-  it('refuses an inline graph for a slot the set already fills', async () => {
-    const setId = seedArgumentSet('urn:sqlib:argument-set:with-graph', { graph: true });
-
-    const res = await run({
-      targetId: GROUP,
-      argumentSetIds: [setId],
-      dataGraphs: [{ dataGraphVersionId: GRAPH_VERSION }],
-    });
-
-    expect(res.statusCode).toBe(400);
-    expect(res.json().error).toMatch(/already fills data graph input 1/);
-  });
-
-  it('merges an inline graph when the set fills no graph slot', async () => {
+  it('passes a run\'s graphs to the engine beside a named set', async () => {
     const setId = seedArgumentSet('urn:sqlib:argument-set:table-for-graph', { table: true });
 
     const res = await run({
@@ -217,31 +195,7 @@ describe('POST /execute — completing an argument set', () => {
     expect(engineOptions()?.dataGraphs).toHaveLength(1);
   });
 
-  it("hands the engine the set's own graph when the run supplies none", async () => {
-    const setId = seedArgumentSet('urn:sqlib:argument-set:graph-only', { graph: true });
-
-    const res = await run({ targetId: GROUP, argumentSetIds: [setId] });
-
-    expect(res.statusCode).toBe(200);
-    expect(engineOptions()?.dataGraphs).toHaveLength(1);
-  });
-
-  /*
-   * A query declares no graph parameter — its store is its backend — so a set's
-   * graph bindings are dropped rather than refused. The screen warns before the
-   * run; the same set may legitimately serve a group.
-   */
-  it('ignores a set\'s graph bindings on a query target rather than failing', async () => {
-    // Graph-only, so nothing else can account for the outcome: a table the
-    // query does not declare would be refused for its own, older reason.
-    const setId = seedArgumentSet('urn:sqlib:argument-set:graph-on-query', { graph: true });
-
-    const res = await run({ targetId: QUERY, backendId: backend.$id, argumentSetIds: [setId] });
-
-    expect(res.statusCode).toBe(200);
-  });
-
-  it('still refuses an inline dataGraphs entry on a query target', async () => {
+  it('refuses a dataGraphs entry on a query target', async () => {
     const res = await run({
       targetId: QUERY,
       backendId: backend.$id,

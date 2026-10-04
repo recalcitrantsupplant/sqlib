@@ -758,13 +758,8 @@ export class TestRunner {
      * case may name either or both, so neither is read as a choice against the
      * other. The engine refuses a graph the group has nowhere to put, and a
      * declared input left empty, rather than running short of data.
-     *
-     * A set may now carry graph bindings itself, so its graphs come first and
-     * the case's complete whatever it left open — the same order `/execute`
-     * merges them in. The writer has already refused an overlap, so there is
-     * none to resolve here.
      */
-    const dataGraphs = [...(payload?.dataGraphs ?? []), ...this.resolveDataGraphs(testCase)];
+    const dataGraphs = this.resolveDataGraphs(testCase);
 
     const hooks: ExecutionHooks = { onNodeFinish: () => {}, onNodeError: () => {} };
     const graph = this.graphBuilder.buildFromGroupVersion(version);

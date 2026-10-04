@@ -456,40 +456,26 @@ describe('a case with several data graphs', () => {
 });
 
 /**
- * A group case's graphs sit after its argument set's, not against them.
- *
- * The writer used to refuse a case that supplied a graph for a port its pinned
- * set already filled. There is no such collision now that the pairing lives on
- * the group: a set fills slots 0..n-1 and `TestRunner` appends the case's
- * graphs after them, so a case graph never lands on a slot the set occupies.
- * Whether the total matches the ports the start node declares is the run's
- * question — only it has the group — and the engine answers it in both
- * directions.
+ * A group case names its argument set and its graphs separately: an argument
+ * set carries no graphs. Whether the case's graphs match the ports the start
+ * node declares is the run's question — only it has the group — and the engine
+ * answers it in both directions.
  */
 describe('createTestVersion — a group case that supplies graphs beside its argument set', () => {
   const GROUP_TEST = 'urn:sqlib:test:group';
   const SET_VERSION = 'urn:sqlib:argument-set-version:v1';
   const GRAPH_VERSION = 'urn:sqlib:data-graph-version:v1';
 
-  function seedSetWithGraphs(count: number) {
-    const bindings = Array.from({ length: count }, (_, index) => {
-      const bindingId = `urn:sqlib:argument-graph-binding:b${index}`;
-      hoisted.entities.set(bindingId, { $id: bindingId, '@type': 'ArgumentGraphBinding', position: index });
-      return bindingId;
-    });
-    hoisted.entities.set(SET_VERSION, {
-      $id: SET_VERSION, '@type': 'ArgumentSetVersion', version: 1, graphBindings: bindings,
-    });
-  }
-
   beforeEach(() => {
     hoisted.entities.set(GROUP_TEST, {
       $id: GROUP_TEST, '@type': 'Test', name: 'Group test', subjectKind: 'queryGroup',
     });
+    hoisted.entities.set(SET_VERSION, {
+      $id: SET_VERSION, '@type': 'ArgumentSetVersion', version: 1,
+    });
   });
 
-  it('accepts a case graph beside a set that already carries one', async () => {
-    seedSetWithGraphs(1);
+  it('accepts a list of graphs beside an argument set', async () => {
     await expect(createTestVersion(GROUP_TEST, {
       expectationKind: 'bindings',
       cases: [{
@@ -501,25 +487,12 @@ describe('createTestVersion — a group case that supplies graphs beside its arg
   });
 
   it('reads the one-graph spelling the same way', async () => {
-    seedSetWithGraphs(1);
     await expect(createTestVersion(GROUP_TEST, {
       expectationKind: 'bindings',
       cases: [{
         expected: '{}',
         argumentSetVersion: SET_VERSION,
         dataGraphVersion: GRAPH_VERSION,
-      }],
-    })).resolves.toBeDefined();
-  });
-
-  it('leaves a case alone when its set carries no graphs', async () => {
-    seedSetWithGraphs(0);
-    await expect(createTestVersion(GROUP_TEST, {
-      expectationKind: 'bindings',
-      cases: [{
-        expected: '{}',
-        argumentSetVersion: SET_VERSION,
-        dataGraphs: [{ dataGraphVersion: GRAPH_VERSION }],
       }],
     })).resolves.toBeDefined();
   });

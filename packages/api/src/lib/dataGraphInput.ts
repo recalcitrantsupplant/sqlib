@@ -124,9 +124,8 @@ export function resolveDataGraphInput(
 
   /*
    * Floating resolves here rather than at the call sites, so every consumer —
-   * the execute route, the rule-set routes, the playground, an argument set's
-   * graph binding — gets it from one place and cannot disagree about what
-   * "current" means.
+   * the execute route, the rule-set routes, the playground — gets it from one
+   * place and cannot disagree about what "current" means.
    */
   let versionId = pinnedId;
   if (graphId) {

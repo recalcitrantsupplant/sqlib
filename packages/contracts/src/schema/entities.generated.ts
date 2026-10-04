@@ -356,37 +356,6 @@ export const queryversionSchema = {
   ]
 } as const;
 
-export const argumentgraphbindingSchema = {
-  "$id": "argumentgraphbinding",
-  "type": "object",
-  "properties": {
-    "id": {
-      "type": "string",
-      "format": "iri"
-    },
-    "position": {
-      "type": "integer",
-      "nullable": true
-    },
-    "dataGraphVersion": {
-      "type": "string",
-      "format": "iri",
-      "nullable": true
-    },
-    "contentString": {
-      "type": "string",
-      "nullable": true
-    },
-    "contentFormat": {
-      "type": "string",
-      "nullable": true
-    }
-  },
-  "required": [
-    "id"
-  ]
-} as const;
-
 export const argumentscalarbindingSchema = {
   "$id": "argumentscalarbinding",
   "type": "object",
@@ -531,14 +500,6 @@ export const argumentsetversionSchema = {
       "nullable": true
     },
     "scalarBindings": {
-      "type": "array",
-      "items": {
-        "type": "string",
-        "format": "iri"
-      },
-      "nullable": true
-    },
-    "graphBindings": {
       "type": "array",
       "items": {
         "type": "string",
@@ -1412,11 +1373,6 @@ export const datagraphSchema = {
         "format": "iri"
       },
       "minItems": 1
-    },
-    "mintedFrom": {
-      "type": "string",
-      "format": "iri",
-      "nullable": true
     },
     "tags": {
       "type": "array",
@@ -3728,14 +3684,6 @@ export interface QueryVersionRestApi {
   dateModified?: string | null;
 }
 
-export interface ArgumentGraphBindingRestApi {
-  id: string;
-  position?: number | null;
-  dataGraphVersion?: string | null;
-  contentString?: string | null;
-  contentFormat?: string | null;
-}
-
 export interface ArgumentScalarBindingRestApi {
   id: string;
   parameterKind: string;
@@ -3767,7 +3715,6 @@ export interface ArgumentSetVersionRestApi {
   version: number;
   tupleBindings?: string[] | null;
   scalarBindings?: string[] | null;
-  graphBindings?: string[] | null;
   dateCreated?: string | null;
   dateModified?: string | null;
 }
@@ -3953,7 +3900,6 @@ export interface DataGraphRestApi {
   currentVersion?: string | null;
   currentVersionNumber?: number | null;
   isPartOf: string[];
-  mintedFrom?: string | null;
   tags?: string[] | null;
   dateCreated?: string | null;
   dateModified?: string | null;

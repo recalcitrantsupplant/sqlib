@@ -3,7 +3,7 @@
  * Do not edit manually - run 'npm run generate-schemas' instead.
  */
 
-import { backendSchema, librarySchema, querySchema, querygroupSchema, queryversionSchema, argumentgraphbindingSchema, argumentscalarbindingSchema, argumentsetSchema, argumentsetversionSchema, argumenttuplebindingSchema, benchmarkexperimentSchema, benchmarkexperimentversionSchema, benchmarkiterationobservationSchema, benchmarkiterationrunSchema, benchmarknodeobservationSchema, benchmarknoderunSchema, benchmarkobservationSchema, benchmarkrunSchema, booleanioSchema, datablockSchema, datablockversionSchema, datagraphSchema, datagraphversionSchema, duckdbetlnodeSchema, dynamicquerynodeSchema, endnodeSchema, etlcolumnmappingSchema, etlcolumnmappingversionSchema, etlexecutionSchema, etljobSchema, etljobversionSchema, limitparameterSchema, offsetparameterSchema, patchnodeSchema, patchSchema, queryedgeSchema, querygroupversionSchema, queryidinputSchema, queryinputtupleSchema, queryinputvariableSchema, querynodeSchema, queryoutputtupleSchema, queryoutputvariableSchema, ruleSchema, rulesetnodeSchema, rulesetSchema, rulesetversionSchema, ruleversionSchema, startnodeSchema, tagSchema, testcasedatagraphSchema, testcaseSchema, testruncaseSchema, testrunSchema, testSchema, testversionSchema, triplesquadsioSchema, tuplememberSchema, tuplesetSchema, tuplesetversionSchema } from './entities.generated.js';
+import { backendSchema, librarySchema, querySchema, querygroupSchema, queryversionSchema, argumentscalarbindingSchema, argumentsetSchema, argumentsetversionSchema, argumenttuplebindingSchema, benchmarkexperimentSchema, benchmarkexperimentversionSchema, benchmarkiterationobservationSchema, benchmarkiterationrunSchema, benchmarknodeobservationSchema, benchmarknoderunSchema, benchmarkobservationSchema, benchmarkrunSchema, booleanioSchema, datablockSchema, datablockversionSchema, datagraphSchema, datagraphversionSchema, duckdbetlnodeSchema, dynamicquerynodeSchema, endnodeSchema, etlcolumnmappingSchema, etlcolumnmappingversionSchema, etlexecutionSchema, etljobSchema, etljobversionSchema, limitparameterSchema, offsetparameterSchema, patchnodeSchema, patchSchema, queryedgeSchema, querygroupversionSchema, queryidinputSchema, queryinputtupleSchema, queryinputvariableSchema, querynodeSchema, queryoutputtupleSchema, queryoutputvariableSchema, ruleSchema, rulesetnodeSchema, rulesetSchema, rulesetversionSchema, ruleversionSchema, startnodeSchema, tagSchema, testcasedatagraphSchema, testcaseSchema, testruncaseSchema, testrunSchema, testSchema, testversionSchema, triplesquadsioSchema, tuplememberSchema, tuplesetSchema, tuplesetversionSchema } from './entities.generated.js';
 
 // Route Validation Schemas
 
@@ -2436,11 +2436,6 @@ export const createDataGraphSchema = {
         },
         "minItems": 1
       },
-      "mintedFrom": {
-        "type": "string",
-        "format": "iri",
-        "nullable": true
-      },
       "tags": {
         "type": "array",
         "items": {
@@ -2526,11 +2521,6 @@ export const updateDataGraphSchema = {
           "format": "iri"
         },
         "minItems": 1
-      },
-      "mintedFrom": {
-        "type": "string",
-        "format": "iri",
-        "nullable": true
       },
       "tags": {
         "type": "array",

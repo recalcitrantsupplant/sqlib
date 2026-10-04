@@ -150,23 +150,13 @@ describe('POST /argument-sets', () => {
     expect(response.json().error).toMatch(/not found/i);
   });
 
-  it('refuses a graph binding naming both a version and inline content', async () => {
-    store.set('urn:sqlib:data-graph-version:v1', {
-      $id: 'urn:sqlib:data-graph-version:v1',
-      '@type': 'DataGraphVersion',
-      contentString: '<http://ex/a> <http://ex/p> <http://ex/b> .',
-      contentFormat: 'text/turtle',
-    });
+  it('refuses a graphBindings field: an argument set carries no graphs', async () => {
     const response = await create({
-      name: 'Both',
+      name: 'Graph',
       libraryId: LIBRARY,
-      graphBindings: [{
-        dataGraphVersionId: 'urn:sqlib:data-graph-version:v1',
-        contentString: '<http://ex/a> <http://ex/p> <http://ex/b> .',
-      }],
+      graphBindings: [{ dataGraphVersionId: 'urn:sqlib:data-graph-version:v1' }],
     });
     expect(response.statusCode).toBe(400);
-    expect(response.json().error).toMatch(/not both/i);
   });
 
   it('rejects an unknown property rather than dropping it silently', async () => {

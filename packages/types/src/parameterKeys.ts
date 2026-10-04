@@ -3,8 +3,7 @@
  * way everywhere.
  *
  * A callable declares parameters — a `VALUES` clause, a `TUPLE(…)` read, a
- * start-node graph port, a `LIMIT`/`OFFSET` placeholder — and an argument set
- * fills some of them. Three questions hang off that, and before this module
+ * `LIMIT`/`OFFSET` placeholder — and an argument set fills some of them. Three questions hang off that, and before this module
  * each was answered by its own ad-hoc spelling:
  *
  * - **Fit** (client): which callables does this set serve?
@@ -21,12 +20,12 @@
  * the right answer all along (it sorts before comparing, for exactly the
  * reason its docblock gives), so sorted is canonical here.
  *
- * Keys are prefixed by kind, so a table over `?x` and the graph in slot `x`
- * could never collide.
+ * Keys are prefixed by kind, so a table over `?x` and a `LIMIT 000x` could
+ * never collide.
  */
 
 /** The kinds of parameter a callable can declare. */
-export type ParameterKind = 'table' | 'graph' | 'limit' | 'offset';
+export type ParameterKind = 'table' | 'limit' | 'offset';
 
 /** A parameter key: `<kind>:<identity>`. Opaque; compare, do not parse. */
 export type ParameterKey = string;
@@ -61,19 +60,6 @@ export function orderByPosition<T extends { position?: number | null }>(items: r
     .map(entry => entry.item);
 }
 
-/**
- * The key for a graph parameter, from the slot it fills.
- *
- * By slot and nothing else: an argument set carries payload in order and the
- * group routes it, so a graph has no name to be keyed by. The previous spelling
- * keyed by port name and gave every unnamed graph the key `graph:`, so two
- * positional graphs collapsed into one and the completion check on `/execute`
- * could not tell them apart.
- */
-export function graphParameterKey(position: number): ParameterKey {
-  return `graph:#${Number.isFinite(position) ? position : 0}`;
-}
-
 /** The key for a `LIMIT` or `OFFSET` parameter, from its placeholder name. */
 export function scalarParameterKey(kind: 'limit' | 'offset', name: string): ParameterKey {
   return `${kind}:${name.trim()}`;
@@ -88,8 +74,6 @@ export function describeParameterKey(key: ParameterKey): string {
   switch (kind) {
     case 'table':
       return identity ? `the VALUES clause (${identity.split('|').map(v => `?${v}`).join(' ')})` : 'a VALUES clause';
-    case 'graph':
-      return `data graph input ${Number(identity.replace('#', '')) + 1}`;
     case 'limit':
       return `LIMIT parameter '${identity}'`;
     case 'offset':
@@ -103,7 +87,6 @@ export function describeParameterKey(key: ParameterKey): string {
 export interface ParameterBearing {
   tupleBindings?: Array<{ variables?: string[]; head?: { vars?: string[] } }> | null;
   scalarBindings?: Array<{ parameterKind?: string; parameterName?: string }> | null;
-  graphBindings?: Array<{ position?: number | null }> | null;
 }
 
 /**
@@ -126,10 +109,5 @@ export function parameterKeysOf(bearer: ParameterBearing): Set<ParameterKey> {
       keys.add(scalarParameterKey(kind, scalar.parameterName));
     }
   }
-  // Indexed, so a set that leaves `position` unset still gets one key per
-  // graph rather than every graph collapsing onto one.
-  (bearer.graphBindings ?? []).forEach((graph, index) => {
-    keys.add(graphParameterKey(graph?.position ?? index));
-  });
   return keys;
 }

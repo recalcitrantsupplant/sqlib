@@ -136,21 +136,19 @@ export default async function argumentSetRoutes(fastify: FastifyInstance) {
         targetId: body.targetId ?? null,
         tupleBindings: body.tupleBindings,
         scalarBindings: body.scalarBindings,
-        graphBindings: body.graphBindings,
       }, { request });
       return reply.code(201).send(detail);
     } catch (error) {
       /*
        * A refused pin is not the caller's to fix by editing the body, and it
        * carries its own status: without this, the 403 the service now raises
-       * for a `tupleSetVersions` or `dataGraphVersionId` in a library the
-       * caller cannot read would be flattened into a 400 here, which reads as
-       * "malformed" and tells a client to retry differently.
+       * for a `tupleSetVersions` pin in a library the caller cannot read would
+       * be flattened into a 400 here, which reads as "malformed" and tells a
+       * client to retry differently.
        */
       if (error instanceof AuthorizationError) throw error;
       // Everything else the service throws here is the caller's to fix: an
-      // unknown library, a target in another library, a graph binding naming
-      // both sources or neither.
+      // unknown library, or a target in another library.
       return reply.code(400).send({ error: error instanceof Error ? error.message : 'Failed to create argument set' });
     }
   }));

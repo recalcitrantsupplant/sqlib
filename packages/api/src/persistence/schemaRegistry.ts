@@ -40,7 +40,6 @@ import { ArgumentSetSchema } from '../persistence/schemas/ArgumentSetSchema.js';
 import { ArgumentSetVersionSchema } from '../persistence/schemas/ArgumentSetVersionSchema.js';
 import { ArgumentTupleBindingSchema } from '../persistence/schemas/ArgumentTupleBindingSchema.js';
 import { ArgumentScalarBindingSchema } from '../persistence/schemas/ArgumentScalarBindingSchema.js';
-import { ArgumentGraphBindingSchema } from '../persistence/schemas/ArgumentGraphBindingSchema.js';
 import { EtlJobSchema } from '../persistence/schemas/EtlJobSchema.js';
 import { EtlJobVersionSchema } from '../persistence/schemas/EtlJobVersionSchema.js';
 import { EtlColumnMappingSchema } from '../persistence/schemas/EtlColumnMappingSchema.js';
@@ -96,7 +95,6 @@ export const SCHEMA_BY_TYPE = {
   ArgumentSetVersion: ArgumentSetVersionSchema,
   ArgumentTupleBinding: ArgumentTupleBindingSchema,
   ArgumentScalarBinding: ArgumentScalarBindingSchema,
-  ArgumentGraphBinding: ArgumentGraphBindingSchema,
   EtlJob: EtlJobSchema,
   EtlJobVersion: EtlJobVersionSchema,
   EtlColumnMapping: EtlColumnMappingSchema,

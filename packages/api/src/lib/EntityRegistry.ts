@@ -1,5 +1,4 @@
 import type { LdkitArgumentScalarBinding } from '../persistence/schemas/ArgumentScalarBindingSchema.js';
-import type { LdkitArgumentGraphBinding } from '../persistence/schemas/ArgumentGraphBindingSchema.js';
 import type { LdkitArgumentSet } from '../persistence/schemas/ArgumentSetSchema.js';
 import type { LdkitArgumentSetVersion } from '../persistence/schemas/ArgumentSetVersionSchema.js';
 import type { LdkitArgumentTupleBinding } from '../persistence/schemas/ArgumentTupleBindingSchema.js';
@@ -84,7 +83,6 @@ import {
   ArgumentSetVersions,
   ArgumentTupleBindings,
   ArgumentScalarBindings,
-  ArgumentGraphBindings,
 } from '../persistence/utils/ArgumentSetUtils.js';
 import {
   EtlJobs,
@@ -140,7 +138,6 @@ export const LENS_BY_TYPE = {
   ArgumentSetVersion: ArgumentSetVersions,
   ArgumentTupleBinding: ArgumentTupleBindings,
   ArgumentScalarBinding: ArgumentScalarBindings,
-  ArgumentGraphBinding: ArgumentGraphBindings,
   EtlJob: EtlJobs,
   EtlJobVersion: EtlJobVersions,
   EtlColumnMapping: EtlColumnMappings,
@@ -197,7 +194,6 @@ export type EntityByType = {
   ArgumentSetVersion: LdkitArgumentSetVersion;
   ArgumentTupleBinding: LdkitArgumentTupleBinding;
   ArgumentScalarBinding: LdkitArgumentScalarBinding;
-  ArgumentGraphBinding: LdkitArgumentGraphBinding;
   EtlJob: LdkitEtlJob;
   EtlJobVersion: LdkitEtlJobVersion;
   EtlColumnMapping: LdkitEtlColumnMapping;

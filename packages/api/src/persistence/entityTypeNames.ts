@@ -48,7 +48,6 @@ export const ENTITY_TYPE_NAMES = [
   'ArgumentSetVersion',
   'ArgumentTupleBinding',
   'ArgumentScalarBinding',
-  'ArgumentGraphBinding',
   'EtlJob',
   'EtlJobVersion',
   'EtlColumnMapping',
