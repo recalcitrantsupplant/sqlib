@@ -35,7 +35,7 @@ const paramsSchema = {
 export const browserDefaultsSchema = {
   type: 'object',
   properties: {
-    /** An `ArgumentSet` (floats) or an `ArgumentSetVersion` (pinned). */
+    /** An `ArgumentSet`. It floats: the web app picks the version per run. */
     argumentSet: { type: 'string', nullable: true },
     /** By data graph input. A `DataGraph` floats; a `DataGraphVersion` is pinned. */
     dataGraphs: { type: 'array', items: { type: 'string', nullable: true } },

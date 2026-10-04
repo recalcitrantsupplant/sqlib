@@ -103,7 +103,7 @@ export function validateBrowserDefaults(
   const check = (id: string, types: readonly string[], what: string) => {
     const target = cache.get(id) as { '@type'?: string } | null;
     if (!target || !types.includes(target['@type'] ?? '')) {
-      throw new BrowserDefaultsError(`${what} ${id} is not a ${types.join(' or ')}`);
+      throw new BrowserDefaultsError(`${what} ${id} must be: ${types.join(' or ')}`);
     }
     if (resolveOwningLibrary(target) !== library) {
       throw new BrowserDefaultsError(`${what} ${id} is not in this ${ownerType}'s library`);
@@ -114,7 +114,9 @@ export function validateBrowserDefaults(
     if (!accepts.argumentSet) {
       throw new BrowserDefaultsError(`A ${ownerType} takes no argument set`);
     }
-    check(body.argumentSet, ['ArgumentSet', 'ArgumentSetVersion'], 'Argument set');
+    // A set, never a version: the web app's switcher selects a set and picks
+    // its version per run, so a pinned version would have nothing to select.
+    check(body.argumentSet, ['ArgumentSet'], 'Argument set');
   }
 
   if (body.dataGraphs.length > accepts.maxDataGraphs) {

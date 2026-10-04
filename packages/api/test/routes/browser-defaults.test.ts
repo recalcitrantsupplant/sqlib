@@ -130,15 +130,19 @@ describe('/:id/browser-defaults', () => {
   });
 
   describe('a query', () => {
-    it('takes an argument set, floating or pinned, and needs write', async () => {
+    it('takes an argument set, and needs write', async () => {
       const floating = await put(`/queries/${QUERY}`, { argumentSet: SET });
       expect(floating.statusCode).toBe(200);
       expect(floating.json()).toEqual({ argumentSet: SET, dataGraphs: [] });
       expect(store.get(QUERY)?.browserDefaultArgumentSet).toBe(SET);
       expect(libraryModeCalls).toContainEqual({ libraryId: LIBRARY, mode: 'write' });
 
-      const pinned = await put(`/queries/${QUERY}`, { argumentSet: SET_V1 });
-      expect(pinned.json().argumentSet).toBe(SET_V1);
+    });
+
+    it('refuses an argument set version: the switcher selects a set', async () => {
+      const response = await put(`/queries/${QUERY}`, { argumentSet: SET_V1 });
+      expect(response.statusCode).toBe(400);
+      expect(response.json().error).toMatch(/must be: ArgumentSet$/);
     });
 
     it('takes no data graph: its store is its backend', async () => {
@@ -156,7 +160,7 @@ describe('/:id/browser-defaults', () => {
     it('refuses an id that names something else', async () => {
       const response = await put(`/queries/${QUERY}`, { argumentSet: GRAPH });
       expect(response.statusCode).toBe(400);
-      expect(response.json().error).toMatch(/is not a ArgumentSet or ArgumentSetVersion/);
+      expect(response.json().error).toMatch(/must be: ArgumentSet$/);
     });
 
     it('clears on {}', async () => {
@@ -224,7 +228,7 @@ describe('cleanup', () => {
     const { validateBrowserDefaults, writeBrowserDefaults } = await import('../../src/lib/browserDefaults.js');
     const owner = (id: string) => store.get(id) as { $id: string };
     await writeBrowserDefaults('QueryGroup', owner(GROUP),
-      validateBrowserDefaults('QueryGroup', owner(GROUP), { argumentSet: SET_V1, dataGraphs: [GRAPH_V1, GRAPH_2] }));
+      validateBrowserDefaults('QueryGroup', owner(GROUP), { argumentSet: SET, dataGraphs: [GRAPH_V1, GRAPH_2] }));
     await writeBrowserDefaults('Query', owner(QUERY),
       validateBrowserDefaults('Query', owner(QUERY), { argumentSet: SET }));
   }

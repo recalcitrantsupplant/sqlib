@@ -46,15 +46,17 @@ export const QuerySchema = {
     '@references': { types: ['Tag'] },
   },
   /**
-   * The argument set the web app selects when this opens. A browser default:
-   * execution never reads it. Written through `PUT /:id/browser-defaults`.
+   * The argument set the web app selects when this opens: a set, never a
+   * version, because the switcher selects a set and picks its version per run.
+   * A browser default: execution never reads it. Written through
+   * `PUT /:id/browser-defaults`.
    */
   browserDefaultArgumentSet: {
     '@id': sqlib.browserDefaultArgumentSet,
     '@type': ldkit.IRI,
     '@optional': true,
     '@readOnly': true,
-    '@references': { types: ['ArgumentSet', 'ArgumentSetVersion'] },
+    '@references': { types: ['ArgumentSet'] },
   },
   dateCreated: {
     '@id': sdo.dateCreated,
