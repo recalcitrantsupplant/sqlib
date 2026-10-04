@@ -4,6 +4,10 @@ Status: proposed. Companion to [2026-09-review.md](2026-09-review.md), which
 holds the findings this plan addresses; finding ids (S1, C1, D1, E1 …) refer to
 that document.
 
+Verified on 4 October 2026 against `main` 401f23e, every phase but Phase 4:
+see [2026-10-verification.md](2026-10-verification.md) for the scorecard and
+the residual items per package.
+
 Each work package (WP) is meant to be one branch and one pull request, small
 enough to review in a sitting, with its own tests as the acceptance criterion.
 Sizes: **S** under a day, **M** one to three days, **L** a week or more.
