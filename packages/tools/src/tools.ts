@@ -392,6 +392,14 @@ export const tools: ToolDefinition[] = [
     buildRequest: ({ id, body }) => ({ method: 'POST', url: `/queries/${enc(id)}/argument-sets`, payload: body, headers: jsonHeaders }),
   }),
 
+  defineTool({
+    name: 'queries.getBrowserDefaults',
+    description: 'Read the query\'s browser defaults: { argumentSet, dataGraphs }, what the web app selects when it opens. Execution never applies them; to run with one, pass it yourself as `argumentSetIds`.',
+    readOnly: true,
+    inputSchema: idArg,
+    buildRequest: ({ id }) => ({ method: 'GET', url: `/queries/${enc(id)}/browser-defaults` }),
+  }),
+
   // Query group argument sets — the group half of the pair above, which the
   // registry carried for queries only.
   defineTool({
@@ -406,6 +414,14 @@ export const tools: ToolDefinition[] = [
     description: 'Attach an argument set to a query group',
     inputSchema: idBodyArg,
     buildRequest: ({ id, body }) => ({ method: 'POST', url: `/query-groups/${enc(id)}/argument-sets`, payload: body, headers: jsonHeaders }),
+  }),
+
+  defineTool({
+    name: 'queryGroups.getBrowserDefaults',
+    description: 'Read the query group\'s browser defaults: { argumentSet, dataGraphs }, what the web app selects when it opens. Execution never applies them; to run with one, pass it yourself as `argumentSetIds` and `dataGraphs`.',
+    readOnly: true,
+    inputSchema: idArg,
+    buildRequest: ({ id }) => ({ method: 'GET', url: `/query-groups/${enc(id)}/browser-defaults` }),
   }),
 
   // Execution
@@ -711,6 +727,13 @@ export const tools: ToolDefinition[] = [
     readOnly: true,
     inputSchema: idArg,
     buildRequest: ({ id }) => ({ method: 'GET', url: `/rule-sets/${enc(id)}` }),
+  }),
+  defineTool({
+    name: 'ruleSets.getBrowserDefaults',
+    description: 'Read the rule set\'s browser defaults: { argumentSet, dataGraphs }, what the web app selects when it opens. Execution never applies them; to run with one, pass it yourself as the data graph.',
+    readOnly: true,
+    inputSchema: idArg,
+    buildRequest: ({ id }) => ({ method: 'GET', url: `/rule-sets/${enc(id)}/browser-defaults` }),
   }),
   defineTool({
     name: 'ruleSets.update',

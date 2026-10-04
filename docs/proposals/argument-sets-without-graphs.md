@@ -1,6 +1,6 @@
 # Argument sets without graphs
 
-Status: accepted. Implemented with [browser defaults](browser-defaults.md).
+Status: implemented, with [browser defaults](browser-defaults.md).
 
 ## Decision
 

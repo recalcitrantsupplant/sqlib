@@ -1,6 +1,6 @@
 # Browser defaults for data graphs and argument sets
 
-Status: accepted. Builds on [argument sets without graphs](argument-sets-without-graphs.md).
+Status: implemented. Builds on [argument sets without graphs](argument-sets-without-graphs.md).
 
 ## Problem
 
@@ -32,8 +32,9 @@ argument set on `Query` or `QueryGroup`.
 | `QueryGroup` | `browserDefaultArgumentSet` | `browserDefaultDataGraphs`, one per start-node data graph input |
 | `RuleSet` | — | `browserDefaultDataGraphs`, at most one |
 
-- `browserDefaultArgumentSet` names an `ArgumentSet` (float) or an
-  `ArgumentSetVersion` (pin).
+- `browserDefaultArgumentSet` names an `ArgumentSet`. It floats: the web app's
+  switcher selects a set and picks its version per run, so a pinned version
+  would have nothing to select.
 - `browserDefaultDataGraphs` names `BrowserDefaultDataGraph` children. Each
   child has a `position` and a `dataGraph`, which is a `DataGraph` (float) or
   a `DataGraphVersion` (pin). RDF arrays carry no order, and a group routes
@@ -67,6 +68,8 @@ The body and the response have one shape:
   input without a default.
 - A field the entity kind does not take is refused with `400`: `dataGraphs`
   on a query, `argumentSet` on a rule set, more than one graph on a rule set.
+- The properties are `@readOnly` to the generic `PUT /:id`, so this route and
+  its checks are the only way to write them.
 - Every target must exist, be of the right type and belong to the entity's
   library. A library is the unit of export, so a cross-library default would
   dangle after an export.
@@ -81,6 +84,7 @@ The body and the response have one shape:
 | A data graph is deleted | Each `BrowserDefaultDataGraph` naming it or one of its versions is deleted |
 | An argument set is deleted | Each `browserDefaultArgumentSet` naming it or one of its versions is cleared |
 | A query, group or rule set is deleted | Its `BrowserDefaultDataGraph` children are deleted |
+| A query, group or rule set moves to another library | Its defaults are cleared: they name entities in the library it left |
 
 ### Execution ignores it
 
@@ -89,23 +93,35 @@ a browser default. Tests assert this for queries, groups and rule sets.
 
 ## Web app
 
-The order is the same on all three screens:
+Each screen opens with the first of these that gives a value:
+
+| Screen | 1 | 2 | 3 |
+| --- | --- | --- | --- |
+| Query: argument set | `?argumentSet=` | Browser default | Nothing |
+| Query group: argument set | — | Browser default | Nothing |
+| Query group: data graphs | — | Browser default | Nothing |
+| Rule set: data graph | This browser's draft | Browser default | What is already picked |
 
 ```mermaid
 flowchart LR
-  A["URL parameter<br/>?argumentSet="] -->|absent| B["Draft<br/>(this browser)"]
-  B -->|absent| C["Browser default<br/>(on the entity)"]
+  A["URL parameter<br/>or this browser's draft"] -->|absent| C["Browser default<br/>(on the entity)"]
   C -->|absent or unusable| D["Nothing selected"]
 ```
 
-- A float resolves to the target's current version when it is applied.
-- The picker marks the default with a "Browser default" badge.
+- A data graph float resolves to the graph's current version when it is
+  applied.
+- The picker shows a **Browser default** label when the current pick is the
+  default, and **Not the browser default** when another pick is open.
 - A pick for one run does not change the default.
-- "Set as browser default" saves the current pick. It saves exactly what is
-  selected, so a selected version is a pin. "Clear browser default" removes it.
-- Both actions need write access. A read-only deployment hides them.
-- A default that cannot be resolved (deleted, unreadable, or no longer
-  fitting the current query) selects nothing. It never shows an error on open.
+- **Set as browser default** saves the current pick. A data graph pick is saved
+  as its graph, not its version: the pickers offer each graph's current
+  version, so the default follows new versions as the picker does. A scratch
+  argument set cannot be saved as a default, because it has no server id.
+- **Clear browser default** removes it.
+- Both actions need write access. A read-only deployment keeps the label only.
+- A default the screen cannot list (deleted or unreadable) selects nothing and
+  shows no error. A set that no longer fits the query is still opened, and the
+  Arguments tab says why, as it does for any set.
 
 ## Why the API does not apply it
 
