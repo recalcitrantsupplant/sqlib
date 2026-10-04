@@ -469,6 +469,12 @@ export const sqlib = createNamespace({
     // single `dataGraphVersion` above stays as the one-graph spelling.
     "TestCaseDataGraph",
     "dataGraphs",
+    // Browser defaults: what the web app selects when a callable opens, and
+    // nothing executes against. See `docs/proposals/browser-defaults.md`.
+    "browserDefaultArgumentSet",
+    "browserDefaultDataGraphs",
+    "BrowserDefaultDataGraph",
+    "dataGraph",
     "expectationKind",
     "expected",
     "expectedFormat",

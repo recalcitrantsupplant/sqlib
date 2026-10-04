@@ -62,6 +62,7 @@ export const ENTITY_TYPE_NAMES = [
   'TestVersion',
   'TestCase',
   'TestCaseDataGraph',
+  'BrowserDefaultDataGraph',
   'Tag',
   'Patch',
   'TupleSet',

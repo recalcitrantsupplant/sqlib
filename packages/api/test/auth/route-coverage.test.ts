@@ -224,6 +224,8 @@ const MANIFEST: Record<string, Protection> = {
   // library decides both of these — Read to list, Write to add one.
   'GET /queries/:id/argument-sets': 'read',
   'POST /queries/:id/argument-sets': 'write',
+  'GET /queries/:id/browser-defaults': 'read',
+  'PUT /queries/:id/browser-defaults': 'write',
 
   /*
    * `/execute` registers no guard at all: the target is named in the body (or
@@ -291,6 +293,8 @@ const MANIFEST: Record<string, Protection> = {
   'GET /rule-sets': 'readable-listing',
   'POST /rule-sets': 'write-from-body',
   'GET /rule-sets/:id': 'read',
+  'GET /rule-sets/:id/browser-defaults': 'read',
+  'PUT /rule-sets/:id/browser-defaults': 'write',
   'PUT /rule-sets/:id': 'write',
   'DELETE /rule-sets/:id': 'delete',
   'GET /rule-sets/:id/versions': 'read',
@@ -786,6 +790,8 @@ const MANIFEST: Record<string, Protection> = {
   // `createForTarget`, so the pins in the body are checked by one call.
   'GET /query-groups/:id/argument-sets': 'read',
   'POST /query-groups/:id/argument-sets': 'write',
+  'GET /query-groups/:id/browser-defaults': 'read',
+  'PUT /query-groups/:id/browser-defaults': 'write',
 };
 
 const PLUGINS: ReadonlyArray<[specifier: string, prefix: string]> = [

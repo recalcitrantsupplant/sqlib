@@ -61,6 +61,8 @@ import {
   datablockSchema,
 } from '@sparql-query-lib/contracts/schema';
 import { registerEntityAuthGuard } from '../auth/entityGuard.js';
+import { registerBrowserDefaultsRoutes } from './browser-defaults.js';
+import { clearBrowserDefaultsIfMoved, deleteBrowserDefaultsOf } from '../lib/browserDefaults.js';
 import { AuthorizationError, filterReadable, requireEntityMode } from '../auth/enforce.js';
 import { DATA_GRAPH_FORMATS } from '../lib/dataGraphContent.js';
 import { DataGraphContentError, resolveDataGraphInput, type ResolvedDataGraph } from '../lib/dataGraphInput.js';
@@ -444,13 +446,14 @@ export default async function (fastify: FastifyInstance) {
       return reply.status(400).send({ error: tagCheck.error });
     }
 
-    const updated = await repos.RuleSet.update(id, {
+    const written = await repos.RuleSet.update(id, {
       ...updates,
       ...(tagCheck.tags !== undefined ? { tags: tagCheck.tags } : {}),
     } as Partial<LdkitRuleSet>);
-    if (!updated) {
+    if (!written) {
       return reply.status(404).send({ error: 'Not Found' });
     }
+    const updated = (await clearBrowserDefaultsIfMoved('RuleSet', current, written)) ?? written;
     setEntityConcurrencyHeaders(reply, updated);
     return reply.send(toRestApi(updated));
   }));
@@ -469,6 +472,7 @@ export default async function (fastify: FastifyInstance) {
     }
 
     // Then delete the ruleset itself
+    await deleteBrowserDefaultsOf(current);
     await repos.RuleSet.delete(id);
     return reply.status(204).send();
   }));
@@ -1454,6 +1458,7 @@ export default async function (fastify: FastifyInstance) {
     }));
   }));
 
+  registerBrowserDefaultsRoutes(fastify, 'RuleSet');
 }
 
 // ---------------------------------------------------------------------------

@@ -45,6 +45,17 @@ export const QuerySchema = {
     '@optional': true,
     '@references': { types: ['Tag'] },
   },
+  /**
+   * The argument set the web app selects when this opens. A browser default:
+   * execution never reads it. Written through `PUT /:id/browser-defaults`.
+   */
+  browserDefaultArgumentSet: {
+    '@id': sqlib.browserDefaultArgumentSet,
+    '@type': ldkit.IRI,
+    '@optional': true,
+    '@readOnly': true,
+    '@references': { types: ['ArgumentSet', 'ArgumentSetVersion'] },
+  },
   dateCreated: {
     '@id': sdo.dateCreated,
     '@type': xsd.dateTime,
@@ -72,6 +83,7 @@ export interface LdkitQuery {
   defaultBackend?: string | null; // IRI pointing to default Backend for this query
   isPartOf: string[]; // IRIs - can include query groups and one library
   tags?: string[] | null;
+  browserDefaultArgumentSet?: string | null;
   dateCreated?: string | null; // ISO string format for RDF/JSON-LD compatibility
   dateModified?: string | null; // ISO string format for RDF/JSON-LD compatibility
   argumentSets?: string[] | null;

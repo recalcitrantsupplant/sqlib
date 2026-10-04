@@ -46,6 +46,8 @@ import {
 import { GraphBuilder } from '../lib/orchestration/GraphBuilder.js';
 import { isGraphValidationError } from '../lib/orchestration/GraphValidationError.js';
 import { registerEntityAuthGuard } from '../auth/entityGuard.js';
+import { registerBrowserDefaultsRoutes } from './browser-defaults.js';
+import { clearBrowserDefaultsIfMoved, deleteBrowserDefaultsOf } from '../lib/browserDefaults.js';
 import { analyseTags } from '../lib/tagMembership.js';
 
 // Loose shape for execution nodes read back from the cache (union of concrete node types).
@@ -247,14 +249,15 @@ export default async function (fastify: FastifyInstance) {
         return reply.status(400).send({ error: tagCheck.error });
       }
 
-      const updated = await cache.update<LdkitQueryGroup>(
+      const written = await cache.update<LdkitQueryGroup>(
         id,
         { ...updates, ...(tagCheck.tags !== undefined ? { tags: tagCheck.tags } : {}) },
         'QueryGroup'
       );
-      if (!updated) {
+      if (!written) {
         return reply.status(404).send({ error: 'Not Found' });
       }
+      const updated = (await clearBrowserDefaultsIfMoved('QueryGroup', current, written)) ?? written;
       setEntityConcurrencyHeaders(reply, updated);
       return reply.send(toRestApi(updated));
     } catch (e__u: unknown) {
@@ -298,6 +301,7 @@ export default async function (fastify: FastifyInstance) {
         for (const ownedId of ownedIds) await deleteOwned(ownedId);
         await cache.delete(version.$id, 'QueryGroupVersion');
       }
+      await deleteBrowserDefaultsOf(getCacheCoordinator().get(id) as LdkitQueryGroup | null);
       await cache.delete(id, 'QueryGroup');
       return reply.status(204).send();
     } catch (e__u: unknown) {
@@ -809,4 +813,6 @@ export default async function (fastify: FastifyInstance) {
     }
     return reply.send(created);
   }));
+
+  registerBrowserDefaultsRoutes(fastify, 'QueryGroup');
 }

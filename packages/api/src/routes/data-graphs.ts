@@ -26,6 +26,7 @@ import { createDataGraphVersion, annotateDataGraphVersion } from '../lib/DataGra
 import { DATA_GRAPH_FORMATS, DEFAULT_DATA_GRAPH_FORMAT, DataGraphContentError } from '../lib/dataGraphContent.js';
 import { materializeDataGraphVersionFromQuery, DataGraphQuerySourceError } from '../lib/dataGraphFromQuery.js';
 import { classifyVersionPatch } from '../lib/versionPatch.js';
+import { clearBrowserDefaultsNaming } from '../lib/browserDefaults.js';
 import { ImmutableEntityError } from '../lib/immutability.js';
 import { registerEntityAuthGuard } from '../auth/entityGuard.js';
 import { AuthorizationError, filterReadable, requireContainmentWritable, resolveOwningLibrary } from '../auth/enforce.js';
@@ -319,6 +320,9 @@ export default async function (fastify: FastifyInstance) {
     }
 
     const versions = (repos.DataGraphVersion.list() as LdkitDataGraphVersion[]).filter(v => v.isPartOf === id);
+    // A browser default naming the graph or a version of it is a starting
+    // selection, not a pin, so it is cleared rather than refusing the delete.
+    await clearBrowserDefaultsNaming(new Set([id, ...versions.map(version => version.$id)]));
     for (const version of versions) {
       await repos.DataGraphVersion.delete(version.$id);
     }
@@ -540,6 +544,7 @@ export default async function (fastify: FastifyInstance) {
     }
     const match = lookup.version;
 
+    await clearBrowserDefaultsNaming(new Set([match.$id]));
     await repos.DataGraphVersion.delete(match.$id);
     return reply.status(204).send();
   }));

@@ -169,6 +169,11 @@ function convertToOpenAPISchema(
       };
     }
 
+    // A property with its own write path stays off the generic bodies.
+    if (typeof value === 'object' && !Array.isArray(value) && (value as Property)['@readOnly']) {
+      properties[cleanKey].readOnly = true;
+    }
+
     // A declared `@pattern` reaches both emissions from one place; this used to
     // be a hand-patch naming Backend and authEnvKey explicitly (issue #65).
     if (typeof value === 'object' && !Array.isArray(value) && (value as Property)['@pattern']) {

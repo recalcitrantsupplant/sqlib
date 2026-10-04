@@ -26,6 +26,30 @@ export const QueryGroupSchema = {
     // beside the entity. See `Property['@projects']`.
     '@projects': { as: 'currentVersionNumber', property: 'version' },
   },
+  /**
+   * The argument set the web app selects when this opens. A browser default:
+   * execution never reads it. Written through `PUT /:id/browser-defaults`.
+   */
+  browserDefaultArgumentSet: {
+    '@id': sqlib.browserDefaultArgumentSet,
+    '@type': ldkit.IRI,
+    '@optional': true,
+    '@readOnly': true,
+    '@references': { types: ['ArgumentSet', 'ArgumentSetVersion'] },
+  },
+  /**
+   * The data graph the web app selects for each input when this opens, by
+   * position. A browser default: execution never reads it. Written through
+   * `PUT /:id/browser-defaults`.
+   */
+  browserDefaultDataGraphs: {
+    '@id': sqlib.browserDefaultDataGraphs,
+    '@array': true,
+    '@type': ldkit.IRI,
+    '@optional': true,
+    '@readOnly': true,
+    '@references': { types: ['BrowserDefaultDataGraph'] },
+  },
   dateCreated: {
     '@id': sdo.dateCreated,
     '@type': xsd.dateTime,
@@ -62,6 +86,8 @@ export interface LdkitQueryGroup {
   name: string;
   description?: string | null;
   currentVersion?: string | null; // IRI pointing to latest QueryGroupVersion
+  browserDefaultArgumentSet?: string | null;
+  browserDefaultDataGraphs?: string[] | null;
   dateCreated?: string | null; // ISO string format for RDF/JSON-LD compatibility
   dateModified?: string | null; // ISO string format for RDF/JSON-LD compatibility
   isPartOf: string; // Reference to Library (required)

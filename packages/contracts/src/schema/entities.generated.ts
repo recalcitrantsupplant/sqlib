@@ -169,6 +169,12 @@ export const querySchema = {
       },
       "nullable": true
     },
+    "browserDefaultArgumentSet": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
     "dateCreated": {
       "type": "string",
       "format": "date-time",
@@ -222,6 +228,21 @@ export const querygroupSchema = {
       "type": "integer",
       "readOnly": true,
       "nullable": true
+    },
+    "browserDefaultArgumentSet": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "browserDefaultDataGraphs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "iri"
+      },
+      "nullable": true,
+      "readOnly": true
     },
     "dateCreated": {
       "type": "string",
@@ -1207,6 +1228,46 @@ export const booleanioSchema = {
   },
   "required": [
     "id"
+  ]
+} as const;
+
+export const browserdefaultdatagraphSchema = {
+  "$id": "browserdefaultdatagraph",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "iri"
+    },
+    "isPartOf": {
+      "type": "string",
+      "format": "iri"
+    },
+    "position": {
+      "type": "integer"
+    },
+    "dataGraph": {
+      "type": "string",
+      "format": "iri"
+    },
+    "dateCreated": {
+      "type": "string",
+      "format": "date-time",
+      "readOnly": true,
+      "nullable": true
+    },
+    "dateModified": {
+      "type": "string",
+      "format": "date-time",
+      "readOnly": true,
+      "nullable": true
+    }
+  },
+  "required": [
+    "id",
+    "isPartOf",
+    "position",
+    "dataGraph"
   ]
 } as const;
 
@@ -2707,6 +2768,15 @@ export const rulesetSchema = {
       },
       "nullable": true
     },
+    "browserDefaultDataGraphs": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "iri"
+      },
+      "nullable": true,
+      "readOnly": true
+    },
     "dateCreated": {
       "type": "string",
       "format": "date-time",
@@ -3648,6 +3718,7 @@ export interface QueryRestApi {
   defaultBackend?: string | null;
   isPartOf: string[];
   tags?: string[] | null;
+  browserDefaultArgumentSet?: string | null;
   dateCreated?: string | null;
   dateModified?: string | null;
   argumentSets?: string[] | null;
@@ -3659,6 +3730,8 @@ export interface QueryGroupRestApi {
   description?: string | null;
   currentVersion?: string | null;
   currentVersionNumber?: number | null;
+  browserDefaultArgumentSet?: string | null;
+  browserDefaultDataGraphs?: string[] | null;
   dateCreated?: string | null;
   dateModified?: string | null;
   isPartOf: string;
@@ -3861,6 +3934,15 @@ export interface BooleanIORestApi {
   description?: string | null;
   ioType?: string | null;
   outputType?: string | null;
+  dateCreated?: string | null;
+  dateModified?: string | null;
+}
+
+export interface BrowserDefaultDataGraphRestApi {
+  id: string;
+  isPartOf: string;
+  position: number;
+  dataGraph: string;
   dateCreated?: string | null;
   dateModified?: string | null;
 }
@@ -4178,6 +4260,7 @@ export interface RuleSetRestApi {
   currentVersionNumber?: number | null;
   isPartOf: string[];
   tags?: string[] | null;
+  browserDefaultDataGraphs?: string[] | null;
   dateCreated?: string | null;
   dateModified?: string | null;
 }

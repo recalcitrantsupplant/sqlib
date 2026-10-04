@@ -1,5 +1,6 @@
 import type { FastifyRequest } from 'fastify';
 import { mintId } from './id.js';
+import { clearBrowserDefaultsNaming } from './browserDefaults.js';
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
 import { allocateVersion, setCurrentVersion } from './versionNumbering.js';
 import { requireLibraryMode, resolveOwningLibrary } from '../auth/enforce.js';
@@ -475,6 +476,9 @@ export class ArgumentSetService {
     if (!entity) return;
 
     const versions = this.findVersionsForSet(id);
+    // A browser default naming the set or a version of it is cleared, not kept
+    // dangling: it is a starting selection, so losing it costs only a pick.
+    await clearBrowserDefaultsNaming(new Set([id, ...versions.map(version => version.$id)]));
     for (const version of versions) {
       await this.deleteVersionBindings(version);
       await cacheCoordinator.delete('ArgumentSetVersion', version.$id);

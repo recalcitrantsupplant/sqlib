@@ -33,6 +33,8 @@ import {
   patchQueryVersionForQuerySchema,
 } from '@sparql-query-lib/contracts/schema';
 import { registerEntityAuthGuard } from '../auth/entityGuard.js';
+import { registerBrowserDefaultsRoutes } from './browser-defaults.js';
+import { clearBrowserDefaultsIfMoved } from '../lib/browserDefaults.js';
 
 // Utilities for sorting and selecting versions
 function byVersionAsc(a: { version?: number | string }, b: { version?: number | string }) {
@@ -196,10 +198,11 @@ export default async function (fastify: FastifyInstance) {
       updates.tags = tagCheck.tags;
     }
 
-    const updated = await repos.Query.update(id, updates);
-    if (!updated) {
+    const written = await repos.Query.update(id, updates);
+    if (!written) {
       return reply.status(404).send({ error: 'Not Found' });
     }
+    const updated = (await clearBrowserDefaultsIfMoved('Query', current, written)) ?? written;
     setEntityConcurrencyHeaders(reply, updated);
     return reply.send(toRestApi(updated));
   }));
@@ -435,7 +438,7 @@ export default async function (fastify: FastifyInstance) {
     const body = request.body;
     // `{ request }` is what carries the caller into the pinned-source check:
     // the guard above covers this query's library, the check covers any tuple
-    // set or data graph version the body pins from another one.
+    // set version the body pins from another one.
     const created = await argumentSetService.createForTarget('query', id, body, { request });
     reply.code(201);
     if (created.dateModified) {
@@ -443,4 +446,6 @@ export default async function (fastify: FastifyInstance) {
     }
     return reply.send(created);
   }));
+
+  registerBrowserDefaultsRoutes(fastify, 'Query');
 }

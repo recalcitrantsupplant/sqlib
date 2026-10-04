@@ -54,6 +54,7 @@ import { TestSchema } from '../persistence/schemas/TestSchema.js';
 import { TestVersionSchema } from '../persistence/schemas/TestVersionSchema.js';
 import { TestCaseSchema } from '../persistence/schemas/TestCaseSchema.js';
 import { TestCaseDataGraphSchema } from '../persistence/schemas/TestCaseDataGraphSchema.js';
+import { BrowserDefaultDataGraphSchema } from '../persistence/schemas/BrowserDefaultDataGraphSchema.js';
 import { TagSchema } from '../persistence/schemas/TagSchema.js';
 import { PatchSchema } from '../persistence/schemas/PatchSchema.js';
 import { TupleSetSchema } from '../persistence/schemas/TupleSetSchema.js';
@@ -109,6 +110,7 @@ export const SCHEMA_BY_TYPE = {
   TestVersion: TestVersionSchema,
   TestCase: TestCaseSchema,
   TestCaseDataGraph: TestCaseDataGraphSchema,
+  BrowserDefaultDataGraph: BrowserDefaultDataGraphSchema,
   Tag: TagSchema,
   Patch: PatchSchema,
   TupleSet: TupleSetSchema,
