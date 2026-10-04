@@ -1,22 +1,17 @@
 import type { FastifyInstance } from 'fastify';
-import { classifyVersionPatch } from '../lib/versionPatch.js';
 import { maxRuleIterations } from '../config/executionLimits.js';
 import { mintId } from '../lib/id.js';
-import { toRestApi } from '../persistence/utils/id-adapter.js';
 import type { LdkitRule } from '../persistence/schemas/RuleSchema.js';
 import type { LdkitRuleVersion } from '../persistence/schemas/RuleVersionSchema.js';
 import { createRuleVersion, annotateRuleVersion } from '../lib/RuleVersionWriter.js';
-import { reposRoute, typedRoute, validateIfMatch, setEntityConcurrencyHeaders, findVersionByNumber } from './route-helpers.js';
-import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
-import { analyseReferences, describeWrongType } from '../lib/entityReferences.js';
-import { analyseTags } from '../lib/tagMembership.js';
+import { reposRoute, typedRoute, RouteError } from './route-helpers.js';
+import { registerVersionedEntityRoutes, type StoredEntity } from './versionedEntity.js';
 import { createRuleSchema, updateRuleSchema } from '@sparql-query-lib/contracts/schema';
 import { oxigraphStoreManager } from '../lib/OxigraphStoreManager.js';
 import { OxigraphSparqlExecutor } from '../server/OxigraphSparqlExecutor.js';
 import { RuleGrammarValidator } from '../lib/RuleGrammarValidator.js';
 import { getFeatureFlags } from '../config/featureFlags.js';
 import { registerEntityAuthGuard } from '../auth/entityGuard.js';
-import { filterReadable, requireContainmentWritable } from '../auth/enforce.js';
 
 export const ruleResponseSchema = {
   type: 'object',
@@ -136,301 +131,58 @@ export default async function (fastify: FastifyInstance) {
 
   const ruleValidator = new RuleGrammarValidator();
 
-  fastify.get('/', ...reposRoute({
-      tags: ['Rule'],
-      summary: 'List rules',
-      response: {
-        200: {
-          type: 'array',
-          items: ruleResponseSchema,
-        },
+  registerVersionedEntityRoutes(fastify, {
+    noun: 'rule',
+    type: 'Rule',
+    versionType: 'RuleVersion',
+    idKind: 'rule',
+    schemas: {
+      list: { tags: ['Rule'], summary: 'List rules', response: { 200: { type: 'array', items: ruleResponseSchema } } },
+      create: { tags: ['Rule'], summary: 'Create rule', body: createRuleSchema.body, response: { 201: ruleResponseSchema } },
+      get: { tags: ['Rule'], summary: 'Get rule', response: { 200: ruleResponseSchema } },
+      update: { tags: ['Rule'], summary: 'Update rule', body: updateRuleSchema.body, response: { 200: ruleResponseSchema } },
+      delete: { tags: ['Rule'], summary: 'Delete rule and all its versions (cascading delete)', response: { 204: { type: 'null' } } },
+      listVersions: { tags: ['Rule'], summary: 'List rule versions', response: { 200: { type: 'array', items: ruleVersionResponseSchema } } },
+      createVersion: { tags: ['Rule'], summary: 'Create rule version', body: createRuleVersionBodySchema, response: { 201: ruleVersionResponseSchema } },
+      getVersion: { tags: ['Rule'], summary: 'Get rule version', response: { 200: ruleVersionResponseSchema } },
+      patchVersion: {
+        tags: ['Rule'],
+        summary: 'Annotate a rule version (comment only; content is immutable)',
+        body: annotateRuleVersionBodySchema,
+        response: { 200: ruleVersionResponseSchema },
       },
-    }, async ({ repos, reply, request }) => {
-    // Filtered rather than refused: an empty array is the answer to "which of
-    // these may I see" when the answer is none, and says nothing about what
-    // exists. The same decision `/queries`, `/tuple-sets` and `/rule-sets`
-    // make; this listing made none and answered with every rule in the
-    // deployment.
-    const items = repos.Rule.list() as LdkitRule[];
-    return reply.send(filterReadable(request, items).map(rule => toRestApi(rule)));
-  }));
-
-  fastify.post('/', ...reposRoute({
-      tags: ['Rule'],
-      summary: 'Create rule',
-      body: createRuleSchema.body,
-      response: {
-        201: ruleResponseSchema,
-      },
-    }, async ({ repos, reply, request }) => {
-    const cacheCoordinator = getCacheCoordinator();
-    const body = request.body;
-    const name = String(body.name).trim();
-    if (!name) {
-      return reply.status(400).send({ error: 'Rule name is required' });
-    }
-
-    const rawIsPartOf = body.isPartOf;
-    const isPartOfArray: string[] = Array.isArray(rawIsPartOf)
-      ? rawIsPartOf.map((val: unknown) => String(val))
-      : rawIsPartOf
-        ? [String(rawIsPartOf)]
-        : [];
-    if (isPartOfArray.length === 0) {
-      return reply.status(400).send({ error: 'Rule must be associated with at least one parent' });
-    }
-
-    const parents = analyseReferences('Rule', 'isPartOf', isPartOfArray, iri =>
-      cacheCoordinator.get(iri)
-    );
-
-    if (parents.exactlyOneCount === 0) {
-      return reply.status(400).send({ error: 'Rule must belong to exactly one library' });
-    }
-    if ((parents.exactlyOneCount ?? 0) > 1) {
-      return reply.status(400).send({ error: 'Rule can only belong to a single library' });
-    }
-
-    if (parents.missing.length > 0) {
-      return reply.status(400).send({ error: `Referenced entity ${parents.missing[0]} does not exist` });
-    }
-
-    if (parents.wrongType.length > 0) {
-      return reply.status(400).send({ error: describeWrongType(parents.wrongType[0]) });
-    }
-
-    const tagCheck = analyseTags('Rule', body.tags, isPartOfArray, iri =>
-      cacheCoordinator.get(iri)
-    );
-    if (!tagCheck.ok) {
-      return reply.status(400).send({ error: tagCheck.error });
-    }
-
-    const id = mintId('rule');
-    const toCreate: Partial<LdkitRule> & { $id: string; rulesetMembership?: unknown } = {
-      $id: id,
-      name,
-      description: body.description ?? null,
-      isPartOf: isPartOfArray,
-      ...(tagCheck.tags !== undefined ? { tags: tagCheck.tags } : {}),
-      rulesetMembership: body.rulesetMembership ?? [],
-    };
-
-    const created = await repos.Rule.create(toCreate);
-    setEntityConcurrencyHeaders(reply, created);
-    return reply.status(201).send(toRestApi(created));
-  }));
-
-  fastify.get('/:id', ...reposRoute({
-      tags: ['Rule'],
-      summary: 'Get rule',
-      params: {
-        type: 'object',
-        properties: { id: { type: 'string' } },
-        required: ['id'],
-      },
-      response: {
-        200: ruleResponseSchema,
-        404: {
-          type: 'object',
-          properties: { error: { type: 'string' } },
-          required: ['error'],
-        },
-      },
-    }, async ({ repos, reply, request }) => {
-    const { id } = request.params;
-    const entity = repos.Rule.get(id) as LdkitRule | null;
-    if (!entity) {
-      return reply.status(404).send({ error: 'Not Found' });
-    }
-    setEntityConcurrencyHeaders(reply, entity);
-    return reply.send(toRestApi(entity));
-  }));
-
-  fastify.put('/:id', ...reposRoute({
-      tags: ['Rule'],
-      summary: 'Update rule',
-      params: {
-        type: 'object',
-        properties: { id: { type: 'string' } },
-        required: ['id'],
-      },
-      body: updateRuleSchema.body,
-      response: {
-        200: ruleResponseSchema,
-      },
-    }, async ({ repos, reply, request }) => {
-    const { id } = request.params;
-    const updates = request.body;
-    const cacheCoordinator = getCacheCoordinator();
-
-    const current = repos.Rule.get(id) as LdkitRule | null;
-    if (!current) {
-      return reply.status(404).send({ error: 'Not Found' });
-    }
-
-    // Write on the destination library too, when the body moves it.
-    requireContainmentWritable(request, current, updates);
-
-    const { valid, currentTag } = validateIfMatch(request, current);
-    if (!valid) {
-      return reply.status(412).send({
-        error: 'Precondition Failed',
-        expected: currentTag,
-        current: toRestApi(current),
-      });
-    }
-
-    // The body schema admits `isPartOf` as a string or an array; ajv's
-    // `coerceTypes: 'array'` has already wrapped the string form by the time we
-    // get here, but normalising explicitly keeps the handler correct if that
-    // option ever changes, and it is what gets persisted (queries.ts does the
-    // same). `LdkitRule.isPartOf` is `string[]`.
-    let ids: string[] | undefined;
-    if (updates.isPartOf) {
-      ids = Array.isArray(updates.isPartOf)
-        ? updates.isPartOf.map(val => String(val))
-        : [String(updates.isPartOf)];
-      const parents = analyseReferences('Rule', 'isPartOf', ids, iri => cacheCoordinator.get(iri));
-      if (parents.exactlyOneCount === 0) {
-        return reply.status(400).send({ error: 'Rule must belong to exactly one library' });
+      deleteVersion: { tags: ['Rule'], summary: 'Delete rule version', response: { 204: { type: 'null' } } },
+    },
+    beforeCreate: ({ body }) => ({ rulesetMembership: body.rulesetMembership ?? [] }),
+    createVersion: async ({ parent, body }) => {
+      const ruleString = String(body.ruleString || '');
+      if (!ruleString.trim()) {
+        throw new RouteError(400, { error: 'ruleString must be provided' });
       }
-      if ((parents.exactlyOneCount ?? 0) > 1) {
-        return reply.status(400).send({ error: 'Rule can only belong to a single library' });
+
+      const validation = ruleValidator.validateWithAllGrammars(ruleString);
+      const allowInvalidSave = getFeatureFlags().rulesAllowInvalidSave && body.allowInvalidSave === true;
+      if (!validation.valid && !allowInvalidSave) {
+        throw new RouteError(400, { error: validation.error ?? 'Provided ruleString is not valid SHACL Rules syntax' });
       }
-      if (parents.wrongType.length > 0) {
-        return reply.status(400).send({ error: describeWrongType(parents.wrongType[0]) });
-      }
-    }
 
-    // The body now projects from RuleSchema (Phase C3, issue #65), so each
-    // field's nullability on the wire is the one the entity declares rather than
-    // a hand-written `nullable: true`. `name` is required there, and ajv coerces
-    // an explicit `null` to `''`, so it is the entity's `minLength: 1` that
-    // rejects the null-out this handler used to have to tolerate. The cast stays
-    // because `LdkitRule` types `isPartOf` as `string[]` while the body's is the
-    // pre-coercion union.
-    const tagCheck = analyseTags('Rule', updates.tags, ids ?? current.isPartOf, iri =>
-      cacheCoordinator.get(iri)
-    );
-    if (!tagCheck.ok) {
-      return reply.status(400).send({ error: tagCheck.error });
-    }
-
-    const updated = await repos.Rule.update(id, {
-      ...updates,
-      ...(ids ? { isPartOf: ids } : {}),
-      ...(tagCheck.tags !== undefined ? { tags: tagCheck.tags } : {}),
-    } as Partial<LdkitRule>);
-    if (!updated) {
-      return reply.status(404).send({ error: 'Not Found' });
-    }
-    setEntityConcurrencyHeaders(reply, updated);
-    return reply.send(toRestApi(updated));
-  }));
-
-  fastify.delete('/:id', ...reposRoute({
-      tags: ['Rule'],
-      summary: 'Delete rule and all its versions (cascading delete)',
-      params: {
-        type: 'object',
-        properties: { id: { type: 'string' } },
-        required: ['id'],
-      },
-      response: {
-        204: { type: 'null' },
-      },
-    }, async ({ repos, reply, request }) => {
-    const { id } = request.params;
-    const current = repos.Rule.get(id);
-    if (!current) {
-      return reply.status(404).send({ error: 'Not Found' });
-    }
-
-    // Cascading delete: delete all versions first
-    const versions = (repos.RuleVersion.list() as LdkitRuleVersion[]).filter(v => v.isPartOf === id);
-    for (const version of versions) {
-      await repos.RuleVersion.delete(version.$id);
-    }
-
-    // Then delete the parent rule
-    await repos.Rule.delete(id);
-    return reply.status(204).send();
-  }));
-
-  fastify.get('/:id/versions', ...reposRoute({
-      tags: ['Rule'],
-      summary: 'List rule versions',
-      params: {
-        type: 'object',
-        properties: { id: { type: 'string' } },
-        required: ['id'],
-      },
-      response: {
-        200: {
-          type: 'array',
-          items: ruleVersionResponseSchema,
-        },
-      },
-    }, async ({ repos, reply, request }) => {
-    const { id } = request.params;
-    const parent = repos.Rule.get(id);
-    if (!parent) {
-      return reply.status(404).send({ error: 'Rule not found' });
-    }
-    const versions = (repos.RuleVersion.list() as LdkitRuleVersion[])
-      .filter(v => v.isPartOf === id)
-      .sort((a, b) => (a.version ?? 0) - (b.version ?? 0));
-    return reply.send(versions.map(v => toRestApi(v)));
-  }));
-
-  fastify.post('/:id/versions', ...reposRoute({
-      tags: ['Rule'],
-      summary: 'Create rule version',
-      params: {
-        type: 'object',
-        properties: { id: { type: 'string' } },
-        required: ['id'],
-      },
-      body: createRuleVersionBodySchema,
-      response: {
-        201: ruleVersionResponseSchema,
-      },
-    }, async ({ repos, reply, request }) => {
-    const { id } = request.params;
-    const parent = repos.Rule.get(id);
-    if (!parent) {
-      return reply.status(404).send({ error: 'Rule not found' });
-    }
-
-    const body = request.body;
-    const ruleString = String(body.ruleString || '');
-    if (!ruleString.trim()) {
-      return reply.status(400).send({ error: 'ruleString must be provided' });
-    }
-
-    const validation = ruleValidator.validateWithAllGrammars(ruleString);
-    const flags = getFeatureFlags();
-    const allowInvalidSave = flags.rulesAllowInvalidSave && body.allowInvalidSave === true;
-    if (!validation.valid && !allowInvalidSave) {
-      return reply.status(400).send({ error: validation.error ?? 'Provided ruleString is not valid SHACL Rules syntax' });
-    }
-
-    try {
-      const created = await createRuleVersion(id, {
+      const created = await createRuleVersion(parent.$id, {
         ruleString,
-        comment: body.comment ?? null,
-        defaultBackend: body.defaultBackend ?? null,
-        immutable: body.immutable ?? undefined,
+        comment: (body.comment as string | null | undefined) ?? null,
+        defaultBackend: (body.defaultBackend as string | null | undefined) ?? null,
+        immutable: (body.immutable as boolean | null | undefined) ?? undefined,
         allowInvalidSave,
       });
-      setEntityConcurrencyHeaders(reply, created);
-      return reply.status(201).send(toRestApi(created));
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      return reply.status(400).send({ error: message });
-    }
-  }));
+      return { created: created as unknown as StoredEntity };
+    },
+    // A version is a snapshot (issue #192): `ruleString` is what a rule set
+    // version that names this version was stratified against. Only the
+    // comment is writable.
+    annotateVersion: async (version, annotations) => await annotateRuleVersion(version.$id, {
+      comment: annotations.comment as string | null | undefined,
+      immutable: annotations.immutable as boolean | undefined,
+    }) as unknown as StoredEntity,
+  });
 
   fastify.post('/:id/execute', ...reposRoute({
       tags: ['Rule'],
@@ -525,141 +277,6 @@ export default async function (fastify: FastifyInstance) {
       // Always: a caller-controlled way to keep the store left one behind per
       // call, reachable by nothing and freed by nothing.
       oxigraphStoreManager.destroyEphemeralStore(storeId);
-    }
-  }));
-
-  fastify.get('/:id/versions/:version', ...reposRoute({
-      tags: ['Rule'],
-      summary: 'Get rule version',
-      params: {
-        type: 'object',
-        properties: {
-          id: { type: 'string' },
-          version: { type: 'string' },
-        },
-        required: ['id', 'version'],
-      },
-      response: {
-        200: ruleVersionResponseSchema,
-        404: {
-          type: 'object',
-          properties: { error: { type: 'string' } },
-          required: ['error'],
-        },
-      },
-    }, async ({ repos, reply, request }) => {
-    const { id, version } = request.params;
-    const parent = repos.Rule.get(id);
-    if (!parent) {
-      return reply.status(404).send({ error: 'Rule not found' });
-    }
-
-    const lookup = findVersionByNumber(
-      repos.RuleVersion.list() as LdkitRuleVersion[],
-      id,
-      version,
-      'rule',
-    );
-    if (!lookup.ok) {
-      return reply.status(lookup.status).send({ error: lookup.error });
-    }
-    const match = lookup.version;
-    setEntityConcurrencyHeaders(reply, match);
-    return reply.send(toRestApi(match));
-  }));
-
-  fastify.delete('/:id/versions/:version', ...reposRoute({
-      tags: ['Rule'],
-      summary: 'Delete rule version',
-      params: {
-        type: 'object',
-        properties: {
-          id: { type: 'string' },
-          version: { type: 'string' },
-        },
-        required: ['id', 'version'],
-      },
-      response: {
-        204: {
-          type: 'null',
-          description: 'Rule version deleted successfully',
-        },
-        404: {
-          type: 'object',
-          properties: { error: { type: 'string' } },
-          required: ['error'],
-        },
-      },
-    }, async ({ repos, reply, request }) => {
-    const { id, version } = request.params;
-    const parent = repos.Rule.get(id);
-    if (!parent) {
-      return reply.status(404).send({ error: 'Rule not found' });
-    }
-
-    const lookup = findVersionByNumber(
-      repos.RuleVersion.list() as LdkitRuleVersion[],
-      id,
-      version,
-      'rule',
-    );
-    if (!lookup.ok) {
-      return reply.status(lookup.status).send({ error: lookup.error });
-    }
-    const match = lookup.version;
-
-    await repos.RuleVersion.delete(match.$id);
-    return reply.status(204).send();
-  }));
-
-  // PATCH /rules/:id/versions/:version — annotate a version
-  //
-  // A version is a snapshot (issue #192): `ruleString` is what a rule set
-  // version that names this version was stratified against. Only the comment is
-  // writable.
-  fastify.patch('/:id/versions/:version', ...reposRoute({
-      tags: ['Rule'],
-      summary: 'Annotate a rule version (comment only; content is immutable)',
-      params: {
-        type: 'object',
-        properties: {
-          id: { type: 'string' },
-          version: { type: 'string' },
-        },
-        required: ['id', 'version'],
-      },
-      body: annotateRuleVersionBodySchema,
-    }, async ({ repos, reply, request }) => {
-    const { id, version } = request.params;
-    const parent = repos.Rule.get(id);
-    if (!parent) {
-      return reply.status(404).send({ error: 'Rule not found' });
-    }
-
-    const lookup = findVersionByNumber(
-      repos.RuleVersion.list() as LdkitRuleVersion[],
-      id,
-      version,
-      'rule',
-    );
-    if (!lookup.ok) {
-      return reply.status(lookup.status).send({ error: lookup.error });
-    }
-    const match = lookup.version;
-
-    const { annotations, rejection } = classifyVersionPatch(request.body as Record<string, unknown>);
-    if (rejection) return reply.status(rejection.status).send(rejection);
-
-    try {
-      const updated = await annotateRuleVersion(match.$id, {
-        comment: annotations.comment as string | null | undefined,
-        immutable: annotations.immutable as boolean | undefined,
-      });
-      setEntityConcurrencyHeaders(reply, updated);
-      return reply.send(toRestApi(updated));
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      return reply.status(400).send({ error: message });
     }
   }));
 

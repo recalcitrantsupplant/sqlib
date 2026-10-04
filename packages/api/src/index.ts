@@ -60,6 +60,7 @@ import argumentSetRoutes from './routes/argument-sets.js';
 import playgroundRoutes from './routes/playground.js';
 import benchmarkRoutes from './routes/benchmarks.js';
 import * as schemas from '@sparql-query-lib/contracts/schema';
+import { errorResponseFor } from './routes/route-helpers.js';
 
 // Create the Fastify instance outside the start function
 const app = Fastify({
@@ -803,35 +804,10 @@ async function configureApp(fastifyApp: typeof app, options: ConfigureOptions = 
       });
     }
 
-    // Determine error message based on environment and status code
-    let message = error.message || 'An unexpected error occurred';
-    let details: unknown = undefined;
-
-    // In development, provide full error details
-    if (process.env.NODE_ENV === 'development') {
-      details = {
-        stack: error.stack,
-        type: error.constructor.name,
-        code: error.code,
-        context: errorContext
-      };
-    } else if (statusCode >= 500) {
-      // In production, mask server errors but preserve client errors
-      message = 'Internal Server Error';
-    }
-
-    const errorResponse: { error: string; route: string; requestId: string; timestamp: string; details?: unknown } = {
-      error: message,
-      route: errorContext.route,
-      requestId: request.id,
-      timestamp: new Date().toISOString()
-    };
-
-    if (details) {
-      errorResponse.details = details;
-    }
-
-    reply.status(statusCode).send(errorResponse);
+    // The same answer a route wrapper gives, so a refusal reads the same
+    // whether a handler caught it or it reached this hook.
+    const { body } = errorResponseFor(request, error);
+    reply.status(statusCode).send(body);
   });
 
   // Initialize local storage for LDKit persistence before hitting lenses

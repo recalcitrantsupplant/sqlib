@@ -69,7 +69,7 @@ const versionOne = {
   queryString: 'SELECT * WHERE { ?s ?p ?o }',
 };
 
-/** An expanded version, the shape `GET /queries/:id/v/:n` and `POST …/v` return. */
+/** An expanded version, the shape `GET /queries/:id/versions/:n` and `POST …/versions` return. */
 function expanded(version: typeof versionTwo) {
   return {
     queryVersion: version,

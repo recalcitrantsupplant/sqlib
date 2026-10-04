@@ -11,6 +11,16 @@ const hoisted = vi.hoisted(() => ({
 }));
 
 vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
+  // The repositories are the coordinator under a type, as in production.
+  getEntityRepositories: () => new Proxy({}, {
+    get: (_target, type) => ({
+      get: (id: string) => {
+        const entity = (hoisted.coordinatorGet as (id: string) => Record<string, unknown> | null | undefined)(id);
+        return entity && (!entity['@type'] || entity['@type'] === type) ? entity : null;
+      },
+      list: () => [],
+    }),
+  }),
   getCacheCoordinator: () => ({
     get: hoisted.coordinatorGet,
   }),
@@ -120,7 +130,7 @@ describe('Query Group Version POST route', () => {
 
     const response = await app.inject({
       method: 'POST',
-      url: `/query-groups/${encodeURIComponent(groupId)}/v`,
+      url: `/query-groups/${encodeURIComponent(groupId)}/versions`,
       payload: {
         queryGroupVersion: {},
         startNode: { id: 'urn:ui-temp:start-node-1' },

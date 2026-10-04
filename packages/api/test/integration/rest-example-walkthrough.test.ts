@@ -140,7 +140,7 @@ describe('the worked REST example, against a real API instance', () => {
     expect(query.status).toBe(201);
     ids.queryId = query.body.id;
 
-    const version = await post(`/queries/${encodeURIComponent(ids.queryId)}/v`, 'createQueryVersion');
+    const version = await post(`/queries/${encodeURIComponent(ids.queryId)}/versions`, 'createQueryVersion');
     expect(version.status).toBe(201);
     // The claim the document makes twice: the id is under `queryVersion`, and
     // the response is not the entity itself.
@@ -166,7 +166,7 @@ describe('the worked REST example, against a real API instance', () => {
     expect(names((limitOne.body.results as unknown as { bindings: unknown }).bindings)).toEqual(['Alice']);
 
     // §6: a newer version moves the query, and pins nothing.
-    const second = await post(`/queries/${encodeURIComponent(ids.queryId)}/v`, 'createSecondQueryVersion');
+    const second = await post(`/queries/${encodeURIComponent(ids.queryId)}/versions`, 'createSecondQueryVersion');
     expect(second.status).toBe(201);
     const reread = await app.inject({ method: 'GET', url: `/queries/${encodeURIComponent(ids.queryId)}` });
     expect(reread.json()).toMatchObject({

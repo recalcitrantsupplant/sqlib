@@ -143,9 +143,9 @@ These tests demonstrate the "new user intuition" when learning the query group s
 Based on inspection of documentation and generated schemas, these tests use:
 
 - `POST /queries/` - Create query entity
-- `POST /queries/{id}/v` - Create query version with auto-inference
+- `POST /queries/{id}/versions` - Create query version with auto-inference
 - `POST /query-groups/` - Create query group
-- `POST /query-groups/{id}/v` - Create query group version
+- `POST /query-groups/{id}/versions` - Create query group version
 - `PUT /query-groups/{id}` - Set currentVersion
 - `POST /execute/` - Execute query group with parameters
 

@@ -152,7 +152,7 @@ describe('Query group routes', () => {
     });
 
     expect(res.statusCode).toBe(400);
-    expect(res.json().error).toBe('Referenced library does not exist');
+    expect(res.json().error).toBe('Referenced entity urn:lib:missing does not exist');
   });
 
   it('POST /query-groups enforces library type', async () => {
@@ -168,7 +168,7 @@ describe('Query group routes', () => {
     });
 
     expect(res.statusCode).toBe(400);
-    expect(res.json().error).toBe('Query groups can only belong to libraries');
+    expect(res.json().error).toBe('Referenced entity urn:not:lib is a QueryGroup, expected Library');
   });
 
   it('GET /query-groups/:id returns a group when present', async () => {
@@ -194,13 +194,16 @@ describe('Query group routes', () => {
     const res = await app.inject({ method: 'GET', url: `/query-groups/${encodeURIComponent('urn:missing')}` });
 
     expect(res.statusCode).toBe(404);
-    expect(res.json().error).toBe('Not Found');
+    expect(res.json().error).toBe('Query group not found');
   });
 
   it('PUT /query-groups/:id validates updated library', async () => {
-    hoisted.get
-      .mockReturnValueOnce({ $id: 'urn:group:1', '@type': 'QueryGroup', isPartOf: 'urn:lib:1', dateModified: '2024-01-01T00:00:00.000Z' })
-      .mockReturnValueOnce({ $id: 'urn:lib:missing', '@type': 'SomethingElse' });
+    const entities = new Map<string, Record<string, unknown>>([
+      ['urn:group:1', { $id: 'urn:group:1', '@type': 'QueryGroup', isPartOf: 'urn:lib:1', dateModified: '2024-01-01T00:00:00.000Z' }],
+      ['urn:lib:1', { $id: 'urn:lib:1', '@type': 'Library' }],
+      ['urn:lib:missing', { $id: 'urn:lib:missing', '@type': 'SomethingElse' }],
+    ]);
+    hoisted.get.mockImplementation((id: string) => entities.get(id) ?? null);
 
     const res = await app.inject({
       method: 'PUT',
@@ -211,13 +214,15 @@ describe('Query group routes', () => {
     });
 
     expect(res.statusCode).toBe(400);
-    expect(res.json().error).toBe('Query groups can only belong to libraries');
+    expect(res.json().error).toBe('Referenced entity urn:lib:missing is a SomethingElse, expected Library');
   });
 
   it('PUT /query-groups/:id updates group', async () => {
-    hoisted.get
-      .mockReturnValueOnce({ $id: 'urn:group:1', '@type': 'QueryGroup', isPartOf: 'urn:lib:1', dateModified: '2024-01-01T00:00:00.000Z' })
-      .mockReturnValueOnce({ $id: 'urn:lib:1', '@type': 'Library' });
+    const entities = new Map<string, Record<string, unknown>>([
+      ['urn:group:1', { $id: 'urn:group:1', '@type': 'QueryGroup', isPartOf: 'urn:lib:1', dateModified: '2024-01-01T00:00:00.000Z' }],
+      ['urn:lib:1', { $id: 'urn:lib:1', '@type': 'Library' }],
+    ]);
+    hoisted.get.mockImplementation((id: string) => entities.get(id) ?? null);
     hoisted.update.mockResolvedValue({ $id: 'urn:group:1', '@type': 'QueryGroup', name: 'Updated', isPartOf: 'urn:lib:1', dateModified: '2024-01-02T00:00:00.000Z' });
 
     const res = await app.inject({
@@ -252,6 +257,7 @@ describe('Query group routes', () => {
   });
 
   it('DELETE /query-groups/:id removes group', async () => {
+    hoisted.get.mockReturnValue({ $id: 'urn:group:1', '@type': 'QueryGroup', isPartOf: 'urn:lib:1' });
     hoisted.remove.mockResolvedValue(undefined);
 
     const res = await app.inject({
@@ -292,7 +298,7 @@ describe('Query group routes', () => {
 
     const res = await app.inject({
       method: 'GET',
-      url: `/query-groups/${encodeURIComponent('urn:group:1')}/v/1/validate`,
+      url: `/query-groups/${encodeURIComponent('urn:group:1')}/versions/1/validate`,
     });
 
     expect(res.statusCode).toBe(200);
@@ -319,7 +325,8 @@ describe('Query group routes', () => {
       ['urn:variable:1', { $id: 'urn:variable:1', '@type': 'QueryOutputVariable' }],
       ['urn:edge:1', { $id: 'urn:edge:1', '@type': 'QueryEdge' }],
     ]);
-    hoisted.get.mockImplementation((id: string) => entities.get(id));
+    const group = { $id: 'urn:group:1', '@type': 'QueryGroup', isPartOf: 'urn:lib:1' };
+    hoisted.get.mockImplementation((id: string) => (id === 'urn:group:1' ? group : entities.get(id)));
 
     const res = await app.inject({
       method: 'DELETE',
@@ -334,7 +341,8 @@ describe('Query group routes', () => {
     expect(hoisted.remove).toHaveBeenLastCalledWith('QueryGroup', 'urn:group:1');
   });
 
-  it('GET /query-groups/:id/v returns sorted versions', async () => {
+  it('GET /query-groups/:id/versions returns sorted versions', async () => {
+    hoisted.get.mockReturnValue({ $id: 'urn:group:1', '@type': 'QueryGroup', isPartOf: 'urn:lib:1' });
     hoisted.list.mockImplementation((type: string) => {
       if (type === 'QueryGroupVersion') {
         return [
@@ -348,7 +356,7 @@ describe('Query group routes', () => {
 
     const res = await app.inject({
       method: 'GET',
-      url: `/query-groups/${encodeURIComponent('urn:group:1')}/v`,
+      url: `/query-groups/${encodeURIComponent('urn:group:1')}/versions`,
     });
 
     expect(res.statusCode).toBe(200);
@@ -358,12 +366,12 @@ describe('Query group routes', () => {
     ]);
   });
 
-  it('POST /query-groups/:id/v validates wrapper payload', async () => {
+  it('POST /query-groups/:id/versions validates wrapper payload', async () => {
     hoisted.get.mockReturnValue({ $id: 'urn:group:1', '@type': 'QueryGroup' });
 
     const res = await app.inject({
       method: 'POST',
-      url: `/query-groups/${encodeURIComponent('urn:group:1')}/v`,
+      url: `/query-groups/${encodeURIComponent('urn:group:1')}/versions`,
       payload: {
         canvasData: {},
       },
@@ -373,23 +381,23 @@ describe('Query group routes', () => {
     expect(res.json().error).toBe('Body must contain queryGroupVersion object');
   });
 
-  it('POST /query-groups/:id/v returns 404 when parent group is missing', async () => {
+  it('POST /query-groups/:id/versions returns 404 when parent group is missing', async () => {
     hoisted.get.mockReturnValue(null);
 
     const res = await app.inject({
       method: 'POST',
-      url: `/query-groups/${encodeURIComponent('urn:group:missing')}/v`,
+      url: `/query-groups/${encodeURIComponent('urn:group:missing')}/versions`,
       payload: {
         queryGroupVersion: {},
       },
     });
 
     expect(res.statusCode).toBe(404);
-    expect(res.json().error).toBe('QueryGroup not found');
+    expect(res.json().error).toBe('Query group not found');
     expect(hoisted.createGroupVersionFlat).not.toHaveBeenCalled();
   });
 
-  it('POST /query-groups/:id/v creates version and returns expanded payload', async () => {
+  it('POST /query-groups/:id/versions creates version and returns expanded payload', async () => {
     hoisted.get.mockReturnValue({ $id: 'urn:group:1', '@type': 'QueryGroup' });
     hoisted.createGroupVersionFlat.mockResolvedValue({
       created: {
@@ -412,7 +420,7 @@ describe('Query group routes', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: `/query-groups/${encodeURIComponent('urn:group:1')}/v`,
+      url: `/query-groups/${encodeURIComponent('urn:group:1')}/versions`,
       payload: {
         queryGroupVersion: {},
         executionNodes: ['urn:node:1'],
@@ -423,7 +431,7 @@ describe('Query group routes', () => {
     expect(hoisted.createGroupVersionFlat).toHaveBeenCalledWith('urn:group:1', { executionNodes: ['urn:node:1'] }, { request: expect.anything() });
     const creationBody = res.json();
     if (!('iriMap' in creationBody)) {
-      console.error('POST /query-groups/:id/v response body', creationBody);
+      console.error('POST /query-groups/:id/versions response body', creationBody);
     }
     expect(creationBody).toMatchObject({
       queryGroupVersion: { id: 'urn:qgv:1', version: 1, isPartOf: 'urn:group:1' },
@@ -436,7 +444,7 @@ describe('Query group routes', () => {
     expect(res.headers['last-modified']).toBe(new Date('2024-06-01T08:00:00.000Z').toUTCString());
   });
 
-  it('POST /query-groups/:id/v accepts rule-set-only execution graphs', async () => {
+  it('POST /query-groups/:id/versions accepts rule-set-only execution graphs', async () => {
     hoisted.get.mockReturnValue({ $id: 'urn:group:ruleset', '@type': 'QueryGroup' });
     hoisted.createGroupVersionFlat.mockResolvedValue({
       created: {
@@ -459,7 +467,7 @@ describe('Query group routes', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: `/query-groups/${encodeURIComponent('urn:group:ruleset')}/v`,
+      url: `/query-groups/${encodeURIComponent('urn:group:ruleset')}/versions`,
       payload: {
         queryGroupVersion: {},
         executionNodes: [
@@ -486,13 +494,13 @@ describe('Query group routes', () => {
     });
   });
 
-  it('POST /query-groups/:id/v reports writer failures without echoing them', async () => {
+  it('POST /query-groups/:id/versions reports writer failures without echoing them', async () => {
     hoisted.get.mockReturnValue({ $id: 'urn:group:1', '@type': 'QueryGroup' });
     hoisted.createGroupVersionFlat.mockRejectedValue(new Error('writer boom'));
 
     const res = await app.inject({
       method: 'POST',
-      url: `/query-groups/${encodeURIComponent('urn:group:1')}/v`,
+      url: `/query-groups/${encodeURIComponent('urn:group:1')}/versions`,
       payload: {
         queryGroupVersion: {},
       },
@@ -504,7 +512,7 @@ describe('Query group routes', () => {
     expect(res.json()).toEqual({ error: 'Failed to create query group version' });
   });
 
-  it('POST /query-groups/:id/v preserves error envelope when expansion fails', async () => {
+  it('POST /query-groups/:id/versions preserves error envelope when expansion fails', async () => {
     hoisted.get.mockReturnValue({ $id: 'urn:group:1', '@type': 'QueryGroup' });
     hoisted.createGroupVersionFlat.mockResolvedValue({
       created: { $id: 'urn:qgv:1', groupId: 'urn:group:1', version: 1, '@type': 'QueryGroupVersion' },
@@ -514,7 +522,7 @@ describe('Query group routes', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: `/query-groups/${encodeURIComponent('urn:group:1')}/v`,
+      url: `/query-groups/${encodeURIComponent('urn:group:1')}/versions`,
       payload: {
         queryGroupVersion: {},
       },
@@ -531,7 +539,8 @@ describe('Query group routes', () => {
     expect(res.json()).toEqual({ error: 'Failed to create query group version' });
   });
 
-  it('GET /query-groups/:id/v/:version returns expanded version', async () => {
+  it('GET /query-groups/:id/versions/:version returns expanded version', async () => {
+    hoisted.get.mockReturnValue({ $id: 'urn:group:1', '@type': 'QueryGroup', isPartOf: 'urn:lib:1' });
     hoisted.list.mockImplementation((type: string) => {
       if (type === 'QueryGroupVersion') {
         return [
@@ -556,11 +565,11 @@ describe('Query group routes', () => {
 
     const res = await app.inject({
       method: 'GET',
-      url: `/query-groups/${encodeURIComponent('urn:group:1')}/v/1`,
+      url: `/query-groups/${encodeURIComponent('urn:group:1')}/versions/1`,
     });
 
     expect(res.statusCode).toBe(200);
-    expect(hoisted.expandGroupVersion).toHaveBeenCalled();
+    expect(hoisted.expandGroupVersionDetailed).toHaveBeenCalled();
     expect(res.json()).toEqual({
       queryGroupVersion: { id: 'urn:qgv:1', version: 1, isPartOf: 'urn:group:1' },
       executionNodes: [],
@@ -576,19 +585,21 @@ describe('Query group routes', () => {
     expect(res.headers['last-modified']).toBe(new Date('2024-06-15T11:00:00.000Z').toUTCString());
   });
 
-  it('GET /query-groups/:id/v/:version returns 404 for missing version', async () => {
+  it('GET /query-groups/:id/versions/:version returns 404 for missing version', async () => {
+    hoisted.get.mockReturnValue({ $id: 'urn:group:1', '@type': 'QueryGroup', isPartOf: 'urn:lib:1' });
     hoisted.list.mockReturnValue([]);
 
     const res = await app.inject({
       method: 'GET',
-      url: `/query-groups/${encodeURIComponent('urn:group:1')}/v/2`,
+      url: `/query-groups/${encodeURIComponent('urn:group:1')}/versions/2`,
     });
 
     expect(res.statusCode).toBe(404);
-    expect(res.json().error).toBe('Not Found');
+    expect(res.json().error).toBe('Query group version not found');
   });
 
-  it('PATCH /query-groups/:id/v/:version enforces If-Match', async () => {
+  it('PATCH /query-groups/:id/versions/:version enforces If-Match', async () => {
+    hoisted.get.mockReturnValue({ $id: 'urn:group:1', '@type': 'QueryGroup', isPartOf: 'urn:lib:1' });
     hoisted.list.mockImplementation((type: string) => {
       if (type === 'QueryGroupVersion') {
         return [{
@@ -624,13 +635,13 @@ describe('Query group routes', () => {
 
     const res = await app.inject({
       method: 'PATCH',
-      url: `/query-groups/${encodeURIComponent('urn:group:1')}/v/1`,
+      url: `/query-groups/${encodeURIComponent('urn:group:1')}/versions/1`,
       payload: { comment: 'updated' },
       headers: { 'if-match': '2024-01-01T00:00:00.000Z' },
     });
     const body = res.json();
     if (res.statusCode !== 200) {
-      console.error('PATCH /query-groups/:id/v/:version response', body);
+      console.error('PATCH /query-groups/:id/versions/:version response', body);
       console.error('fastify error logs', (app.log.error as any)?.mock?.calls ?? []);
     }
 
@@ -648,7 +659,7 @@ describe('Query group routes', () => {
 
     const staleRes = await app.inject({
       method: 'PATCH',
-      url: `/query-groups/${encodeURIComponent('urn:group:1')}/v/1`,
+      url: `/query-groups/${encodeURIComponent('urn:group:1')}/versions/1`,
       payload: { comment: 'updated' },
       headers: { 'if-match': 'mismatch' },
     });

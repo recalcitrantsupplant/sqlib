@@ -5,6 +5,7 @@ import type { LdkitDataBlockVersion } from '../persistence/schemas/DataBlockVers
 import { toLdkit } from '../persistence/utils/id-adapter.js';
 import { RuleGrammarValidator } from './RuleGrammarValidator.js';
 import { getFeatureFlags } from '../config/featureFlags.js';
+import { ValidationError } from './validationError.js';
 
 type AnyRecord = Record<string, any>;
 
@@ -39,7 +40,7 @@ async function createDataBlockVersionNumbered(dataBlockId: string, body: CreateD
   const versionId = mintId('dataBlockVersion');
   const dataString = body.dataString ?? '';
   if (!dataString.trim()) {
-    throw new Error('DataBlockVersion requires a non-empty dataString');
+    throw new ValidationError('DataBlockVersion requires a non-empty dataString');
   }
 
   // Validate with all grammars
@@ -49,7 +50,7 @@ async function createDataBlockVersionNumbered(dataBlockId: string, body: CreateD
   const allowInvalid = flags.rulesAllowInvalidSave && body.allowInvalidSave === true;
 
   if (!validationResult.valid && !allowInvalid) {
-    throw new Error(`Invalid data block syntax: ${validationResult.error}`);
+    throw new ValidationError(`Invalid data block syntax: ${validationResult.error}`);
   }
 
   const grammarValid = validationResult.valid;

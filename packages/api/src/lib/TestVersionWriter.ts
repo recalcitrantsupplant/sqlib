@@ -7,6 +7,7 @@ import { EXPECTATION_KINDS, isExpectationKind, type ExpectationKind } from './te
 import { isSrlCheck, SRL_CHECKS } from './srlChecks.js';
 import { checkSubjectKindInputs, isSubjectKind } from './subjectKinds.js';
 import type { LdkitTest } from '../persistence/schemas/TestSchema.js';
+import { ValidationError } from './validationError.js';
 
 type AnyRecord = Record<string, unknown>;
 
@@ -65,7 +66,7 @@ export interface TestVersionInput {
   immutable?: boolean;
 }
 
-export class TestVersionError extends Error {
+export class TestVersionError extends ValidationError {
   constructor(message: string) {
     super(message);
     this.name = 'TestVersionError';

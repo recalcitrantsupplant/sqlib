@@ -59,7 +59,7 @@ describe('whenEmpty policy on a chained edge', () => {
     expect(query.statusCode).toBe(201);
     const version = await context.app.inject({
       method: 'POST',
-      url: `/queries/${encodeURIComponent(query.json().id)}/v`,
+      url: `/queries/${encodeURIComponent(query.json().id)}/versions`,
       payload: { queryVersion: { queryString, queryType: QueryTypeIri.select } },
     });
     expect(version.statusCode).toBe(201);
@@ -77,7 +77,7 @@ describe('whenEmpty policy on a chained edge', () => {
 
     const versionResponse = await context.app.inject({
       method: 'POST',
-      url: `/query-groups/${encodeURIComponent(group.id)}/v`,
+      url: `/query-groups/${encodeURIComponent(group.id)}/versions`,
       payload: {
         queryGroupVersion: {},
         endNode: { mediaType: 'application/sparql-results+json' },
@@ -169,7 +169,7 @@ describe('whenEmpty policy on a chained edge', () => {
 
     const response = await context.app.inject({
       method: 'POST',
-      url: `/query-groups/${encodeURIComponent(group.id)}/v`,
+      url: `/query-groups/${encodeURIComponent(group.id)}/versions`,
       payload: {
         queryGroupVersion: {},
         executionNodes: [{

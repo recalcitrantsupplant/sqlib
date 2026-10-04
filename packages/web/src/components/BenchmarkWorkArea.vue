@@ -381,7 +381,7 @@ async function loadReferenceData() {
 /**
  * Learn what a version IRI points at.
  *
- * There is no lookup from a version to its parent — `/queries/:id/v` is the
+ * There is no lookup from a version to its parent — `/queries/:id/versions` is the
  * only listing — so this walks the library until every IRI asked about is
  * accounted for, and stops as soon as they are. Everything it learns is cached,
  * so switching benchmarks over the same queries costs nothing.
@@ -1439,7 +1439,7 @@ async function copyExperimentId() {
 /* ------------------------------------------------------------------ code */
 
 /*
- * `POST /benchmark-experiments/{id}/v/{n}/run` — what Run sends. The version is
+ * `POST /benchmark-experiments/{id}/versions/{n}/run` — what Run sends. The version is
  * in the path because a benchmark is a recipe you re-run: what a script wants
  * is the run of the version it was written against.
  */
@@ -1451,7 +1451,7 @@ const codeRequest = computed<SnippetRequest>(() => {
   const version = selectedVersionNumber.value ?? 1;
   return {
     method: 'POST',
-    url: `${apiBaseUrl}/benchmark-experiments/${encodeURIComponent(id)}/v/${version}/run`,
+    url: `${apiBaseUrl}/benchmark-experiments/${encodeURIComponent(id)}/versions/${version}/run`,
   };
 });
 

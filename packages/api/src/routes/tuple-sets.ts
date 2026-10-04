@@ -11,21 +11,10 @@
  */
 
 import type { FastifyInstance } from 'fastify';
-import { classifyVersionPatch } from '../lib/versionPatch.js';
-import { mintId } from '../lib/id.js';
 import { toRestApi } from '../persistence/utils/id-adapter.js';
-import type { LdkitTupleSet } from '../persistence/schemas/TupleSetSchema.js';
-import type { LdkitTupleSetVersion } from '../persistence/schemas/TupleSetVersionSchema.js';
 import { TUPLE_SOURCE_FORMATS } from '../persistence/schemas/TupleSetVersionSchema.js';
-import {
-  reposRoute,
-  validateIfMatch,
-  setEntityConcurrencyHeaders,
-  findVersionByNumber,
-} from './route-helpers.js';
-import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
-import { analyseReferences, describeWrongType } from '../lib/entityReferences.js';
-import { analyseTags } from '../lib/tagMembership.js';
+import { reposRoute, setEntityConcurrencyHeaders } from './route-helpers.js';
+import { registerVersionedEntityRoutes, type StoredEntity } from './versionedEntity.js';
 import {
   TupleContentError,
   looksLikeResultsTsv,
@@ -40,10 +29,9 @@ import {
   MAX_TUPLE_SET_VERSION_BYTES,
 } from '../lib/TupleSetVersionWriter.js';
 import { materializeTupleSetVersionFromEtl, TupleSetEtlSourceError } from '../lib/tupleSetFromEtl.js';
-import { ImmutableEntityError } from '../lib/immutability.js';
 import { createTupleSetSchema, updateTupleSetSchema } from '@sparql-query-lib/contracts/schema';
 import { registerEntityAuthGuard } from '../auth/entityGuard.js';
-import { AuthorizationError, filterReadable, requireContainmentWritable, requireEntityMode } from '../auth/enforce.js';
+import { AuthorizationError } from '../auth/enforce.js';
 
 export const tupleSetResponseSchema = {
   type: 'object',
@@ -136,19 +124,6 @@ const createTupleSetVersionBodySchema = {
 } as const;
 
 
-/**
- * A version PATCH answers a content field with a 409 that says why, so the
- * shape carries the offending fields alongside the message.
- */
-const contentPatchRejectedSchema = {
-  type: 'object',
-  properties: {
-    error: { type: 'string' },
-    fields: { type: 'array', items: { type: 'string' } },
-  },
-  required: ['error'],
-} as const;
-
 const annotateTupleSetVersionBodySchema = {
   type: 'object',
   properties: {
@@ -189,12 +164,6 @@ const idParamSchema = {
   type: 'object',
   properties: { id: { type: 'string' } },
   required: ['id'],
-} as const;
-
-const versionParamSchema = {
-  type: 'object',
-  properties: { id: { type: 'string' }, version: { type: 'string' } },
-  required: ['id', 'version'],
 } as const;
 
 const listQuerystringSchema = {
@@ -336,235 +305,56 @@ export default async function (fastify: FastifyInstance) {
     }
   }));
 
-  fastify.get('/', ...reposRoute({
-      tags: ['TupleSet'],
-      summary: 'List tuple sets',
-      querystring: listQuerystringSchema,
-      response: {
-        200: { type: 'array', items: tupleSetResponseSchema },
+  registerVersionedEntityRoutes(fastify, {
+    noun: 'tuple set',
+    type: 'TupleSet',
+    versionType: 'TupleSetVersion',
+    idKind: 'tupleSet',
+    acceptCallerId: true,
+    schemas: {
+      list: {
+        tags: ['TupleSet'],
+        summary: 'List tuple sets',
+        querystring: listQuerystringSchema,
+        response: { 200: { type: 'array', items: tupleSetResponseSchema } },
       },
-    }, async ({ repos, reply, request }) => {
-    const { library } = request.query;
-    const items = repos.TupleSet.list() as LdkitTupleSet[];
-    const scoped = library ? items.filter(set => set.isPartOf?.includes(library)) : items;
-    return reply.send(filterReadable(request, scoped).map(set => toRestApi(set)));
-  }));
-
-  fastify.post('/', ...reposRoute({
-      tags: ['TupleSet'],
-      summary: 'Create tuple set',
-      body: createTupleSetBodySchema,
-      response: {
-        201: tupleSetResponseSchema,
-        400: errorResponseSchema,
+      create: { tags: ['TupleSet'], summary: 'Create tuple set', body: createTupleSetBodySchema, response: { 201: tupleSetResponseSchema } },
+      get: { tags: ['TupleSet'], summary: 'Get tuple set', response: { 200: tupleSetResponseSchema } },
+      update: { tags: ['TupleSet'], summary: 'Update tuple set', body: updateTupleSetBodySchema, response: { 200: tupleSetResponseSchema } },
+      delete: { tags: ['TupleSet'], summary: 'Delete tuple set and all its versions (cascading delete)', response: { 204: { type: 'null' } } },
+      listVersions: { tags: ['TupleSet'], summary: 'List tuple set versions', response: { 200: { type: 'array', items: tupleSetVersionResponseSchema } } },
+      createVersion: { tags: ['TupleSet'], summary: 'Create tuple set version', body: createTupleSetVersionBodySchema, response: { 201: tupleSetVersionResponseSchema } },
+      getVersion: { tags: ['TupleSet'], summary: 'Get tuple set version', response: { 200: tupleSetVersionResponseSchema } },
+      patchVersion: {
+        tags: ['TupleSet'],
+        summary: 'Annotate a tuple set version (comment only; content is immutable)',
+        body: annotateTupleSetVersionBodySchema,
+        response: { 200: tupleSetVersionResponseSchema },
       },
-    }, async ({ repos, reply, request }) => {
-    const cacheCoordinator = getCacheCoordinator();
-    const body = request.body;
-
-    const name = String(body.name ?? '').trim();
-    if (!name) {
-      return reply.status(400).send({ error: 'Tuple set name is required' });
-    }
-
-    const isPartOfArray = toIsPartOfArray(body.isPartOf);
-    if (isPartOfArray.length === 0) {
-      return reply.status(400).send({ error: 'Tuple set must be associated with a library' });
-    }
-
-    const parents = analyseReferences('TupleSet', 'isPartOf', isPartOfArray, iri =>
-      cacheCoordinator.get(iri)
-    );
-    if (parents.exactlyOneCount !== 1) {
-      return reply.status(400).send({ error: 'Tuple set must belong to exactly one library' });
-    }
-    if (parents.missing.length > 0) {
-      return reply.status(400).send({ error: `Referenced entity ${parents.missing[0]} does not exist` });
-    }
-    if (parents.wrongType.length > 0) {
-      return reply.status(400).send({ error: describeWrongType(parents.wrongType[0]) });
-    }
-
-    const tagCheck = analyseTags('TupleSet', body.tags, isPartOfArray, iri =>
-      cacheCoordinator.get(iri)
-    );
-    if (!tagCheck.ok) {
-      return reply.status(400).send({ error: tagCheck.error });
-    }
-
-    const created = await repos.TupleSet.create({
-      $id: body.id || mintId('tupleSet'),
-      name,
-      description: body.description ?? null,
-      isPartOf: isPartOfArray,
-      ...(tagCheck.tags !== undefined ? { tags: tagCheck.tags } : {}),
-    } as Partial<LdkitTupleSet> & { $id: string });
-
-    setEntityConcurrencyHeaders(reply, created);
-    return reply.status(201).send(toRestApi(created));
-  }));
-
-  fastify.get('/:id', ...reposRoute({
-      tags: ['TupleSet'],
-      summary: 'Get tuple set',
-      params: idParamSchema,
-      response: {
-        200: tupleSetResponseSchema,
-        404: errorResponseSchema,
-      },
-    }, async ({ repos, reply, request }) => {
-    const { id } = request.params;
-    const entity = repos.TupleSet.get(id) as LdkitTupleSet | null;
-    if (!entity) {
-      return reply.status(404).send({ error: 'Not Found' });
-    }
-    setEntityConcurrencyHeaders(reply, entity);
-    return reply.send(toRestApi(entity));
-  }));
-
-  fastify.put('/:id', ...reposRoute({
-      tags: ['TupleSet'],
-      summary: 'Update tuple set',
-      params: idParamSchema,
-      body: updateTupleSetBodySchema,
-      response: {
-        200: tupleSetResponseSchema,
-        400: errorResponseSchema,
-        404: errorResponseSchema,
-        412: errorResponseSchema,
-      },
-    }, async ({ repos, reply, request }) => {
-    const { id } = request.params;
-    const updates = request.body;
-    const cacheCoordinator = getCacheCoordinator();
-
-    const current = repos.TupleSet.get(id) as LdkitTupleSet | null;
-    if (!current) {
-      return reply.status(404).send({ error: 'Not Found' });
-    }
-
-    // Write on the destination library too, when the body moves it.
-    requireContainmentWritable(request, current, updates);
-
-    const { valid, currentTag } = validateIfMatch(request, current);
-    if (!valid) {
-      return reply.status(412).send({
-        error: 'Precondition Failed',
-        expected: currentTag,
-        current: toRestApi(current),
-      });
-    }
-
-    let ids: string[] | undefined;
-    if (updates.isPartOf !== undefined) {
-      ids = toIsPartOfArray(updates.isPartOf);
-      const parents = analyseReferences('TupleSet', 'isPartOf', ids, iri => cacheCoordinator.get(iri));
-      if (parents.exactlyOneCount !== 1) {
-        return reply.status(400).send({ error: 'Tuple set must belong to exactly one library' });
-      }
-      if (parents.wrongType.length > 0) {
-        return reply.status(400).send({ error: describeWrongType(parents.wrongType[0]) });
-      }
-    }
-
-    const tagCheck = analyseTags('TupleSet', updates.tags, ids ?? current.isPartOf, iri =>
-      cacheCoordinator.get(iri)
-    );
-    if (!tagCheck.ok) {
-      return reply.status(400).send({ error: tagCheck.error });
-    }
-
-    const updated = await repos.TupleSet.update(id, {
-      ...updates,
-      ...(ids ? { isPartOf: ids } : {}),
-      ...(tagCheck.tags !== undefined ? { tags: tagCheck.tags } : {}),
-    } as Partial<LdkitTupleSet>);
-    if (!updated) {
-      return reply.status(404).send({ error: 'Not Found' });
-    }
-    setEntityConcurrencyHeaders(reply, updated);
-    return reply.send(toRestApi(updated));
-  }));
-
-  fastify.delete('/:id', ...reposRoute({
-      tags: ['TupleSet'],
-      summary: 'Delete tuple set and all its versions (cascading delete)',
-      params: idParamSchema,
-      response: {
-        204: { type: 'null' },
-        404: errorResponseSchema,
-      },
-    }, async ({ repos, reply, request }) => {
-    const { id } = request.params;
-    const current = repos.TupleSet.get(id);
-    if (!current) {
-      return reply.status(404).send({ error: 'Not Found' });
-    }
-
-    const versions = (repos.TupleSetVersion.list() as LdkitTupleSetVersion[]).filter(
-      version => version.isPartOf === id
-    );
-    for (const version of versions) {
-      await repos.TupleSetVersion.delete(version.$id);
-    }
-
-    await repos.TupleSet.delete(id);
-    return reply.status(204).send();
-  }));
-
-  fastify.get('/:id/versions', ...reposRoute({
-      tags: ['TupleSet'],
-      summary: 'List tuple set versions',
-      params: idParamSchema,
-      response: {
-        200: { type: 'array', items: tupleSetVersionResponseSchema },
-        404: errorResponseSchema,
-      },
-    }, async ({ repos, reply, request }) => {
-    const { id } = request.params;
-    if (!repos.TupleSet.get(id)) {
-      return reply.status(404).send({ error: 'Tuple set not found' });
-    }
-    const versions = (repos.TupleSetVersion.list() as LdkitTupleSetVersion[])
-      .filter(version => version.isPartOf === id)
-      .sort((a, b) => (a.version ?? 0) - (b.version ?? 0));
-    return reply.send(versions.map(version => toRestApi(version)));
-  }));
-
-  fastify.post('/:id/versions', ...reposRoute({
-      tags: ['TupleSet'],
-      summary: 'Create tuple set version',
-      params: idParamSchema,
-      body: createTupleSetVersionBodySchema,
-      response: {
-        201: tupleSetVersionResponseSchema,
-        400: errorResponseSchema,
-        404: errorResponseSchema,
-      },
-    }, async ({ repos, reply, request }) => {
-    const { id } = request.params;
-    if (!repos.TupleSet.get(id)) {
-      return reply.status(404).send({ error: 'Tuple set not found' });
-    }
-
-    const body = request.body;
-    try {
-      const created = await createTupleSetVersion(id, {
+      deleteVersion: { tags: ['TupleSet'], summary: 'Delete tuple set version', response: { 204: { type: 'null' } } },
+    },
+    filterList: (items, request) => {
+      const { library } = (request.query ?? {}) as { library?: string };
+      return library ? items.filter(set => toIsPartOfArray(set.isPartOf).includes(library)) : items;
+    },
+    createVersion: async ({ parent, body }) => {
+      const created = await createTupleSetVersion(parent.$id, {
         contentString: String(body.contentString ?? ''),
-        sourceFormat: body.sourceFormat,
-        comment: body.comment ?? null,
-        immutable: body.immutable ?? undefined,
-        columnTypes: body.columnTypes ?? undefined,
+        sourceFormat: body.sourceFormat as Parameters<typeof createTupleSetVersion>[1]['sourceFormat'],
+        comment: (body.comment as string | null | undefined) ?? null,
+        immutable: (body.immutable as boolean | null | undefined) ?? undefined,
+        columnTypes: (body.columnTypes as Parameters<typeof createTupleSetVersion>[1]['columnTypes'] | null | undefined) ?? undefined,
       });
-      setEntityConcurrencyHeaders(reply, created);
-      return reply.status(201).send(toRestApi(created));
-    } catch (error) {
-      if (error instanceof TupleContentError) {
-        return reply.status(400).send({ error: error.message });
-      }
-      throw error;
-    }
-  }));
+      return { created: created as unknown as StoredEntity };
+    },
+    // A version is a snapshot (issue #192): the rows are what was imported,
+    // and an argument set or test that names this version was checked against
+    // those rows. Only the comment is writable.
+    annotateVersion: async (version, annotations) => await annotateTupleSetVersion(version.$id, {
+      comment: annotations.comment as string | null | undefined,
+      immutable: annotations.immutable as boolean | undefined,
+    }) as unknown as StoredEntity,
+  });
 
   // POST /:id/versions/from-etl — a version materialized by running an ETL
   // job's SQL, rather than uploaded by hand. The tabular twin of
@@ -619,124 +409,4 @@ export default async function (fastify: FastifyInstance) {
     }
   }));
 
-  /*
-   * The three routes below match versions by `isPartOf` and never look the
-   * tuple set in the path up, so the plugin guard's premise does not hold for
-   * them: it resolves `:id` through the cache and abstains on a miss, because
-   * "a miss is a 404 the handler will produce" — true where the handler reads
-   * the same id, and false here. So each one checks the version it is about to
-   * serve, the way `queries.ts` does.
-   *
-   * A healthy version resolves through its tuple set to the library exactly as
-   * the guard did, so this adds nothing for one; a version whose set no longer
-   * resolves has no library, and `requireLibraryMode(null, …)` refuses where
-   * the guard abstained.
-   */
-  fastify.get('/:id/versions/:version', ...reposRoute({
-      tags: ['TupleSet'],
-      summary: 'Get tuple set version',
-      params: versionParamSchema,
-      response: {
-        200: tupleSetVersionResponseSchema,
-        400: errorResponseSchema,
-        404: errorResponseSchema,
-      },
-    }, async ({ repos, reply, request }) => {
-    const { id, version } = request.params;
-    const versions = repos.TupleSetVersion.list() as LdkitTupleSetVersion[];
-    const lookup = findVersionByNumber(versions, id, version, 'tuple set');
-    if (!lookup.ok) {
-      return reply.status(lookup.status).send({ error: lookup.error });
-    }
-    requireEntityMode(request, lookup.version, 'read');
-    setEntityConcurrencyHeaders(reply, lookup.version);
-    return reply.send(toRestApi(lookup.version));
-  }));
-
-  // PATCH /tuple-sets/:id/versions/:version — annotate a version
-  //
-  // A version is a snapshot (issue #192): the rows are what was imported, and
-  // an argument set or test that names this version was checked against those
-  // rows. Only the comment is writable.
-  fastify.patch('/:id/versions/:version', ...reposRoute({
-      tags: ['TupleSet'],
-      summary: 'Annotate a tuple set version (comment only; content is immutable)',
-      params: versionParamSchema,
-      body: annotateTupleSetVersionBodySchema,
-      response: {
-        200: tupleSetVersionResponseSchema,
-        400: errorResponseSchema,
-        404: errorResponseSchema,
-        409: contentPatchRejectedSchema,
-      },
-    }, async ({ repos, reply, request }) => {
-    const { id, version } = request.params;
-    const versions = repos.TupleSetVersion.list() as LdkitTupleSetVersion[];
-    const lookup = findVersionByNumber(versions, id, version, 'tuple set');
-    if (!lookup.ok) {
-      return reply.status(lookup.status).send({ error: lookup.error });
-    }
-    requireEntityMode(request, lookup.version, 'write');
-
-    const { annotations, rejection } = classifyVersionPatch(request.body as Record<string, unknown>);
-    if (rejection) return reply.status(rejection.status).send(rejection);
-
-    try {
-      const updated = await annotateTupleSetVersion(lookup.version.$id, {
-        comment: annotations.comment as string | null | undefined,
-        immutable: annotations.immutable as boolean | undefined,
-      });
-      setEntityConcurrencyHeaders(reply, updated);
-      return reply.send(toRestApi(updated));
-    } catch (error) {
-      if (error instanceof ImmutableEntityError) {
-        return reply.status(409).send({ error: error.message });
-      }
-      if (error instanceof TupleContentError) {
-        return reply.status(400).send({ error: error.message });
-      }
-      throw error;
-    }
-  }));
-
-  fastify.delete('/:id/versions/:version', ...reposRoute({
-      tags: ['TupleSet'],
-      summary: 'Delete tuple set version',
-      params: versionParamSchema,
-      response: {
-        204: { type: 'null' },
-        400: errorResponseSchema,
-        404: errorResponseSchema,
-        409: errorResponseSchema,
-      },
-    }, async ({ repos, reply, request }) => {
-    const { id, version } = request.params;
-    const versions = repos.TupleSetVersion.list() as LdkitTupleSetVersion[];
-    const lookup = findVersionByNumber(versions, id, version, 'tuple set');
-    if (!lookup.ok) {
-      return reply.status(lookup.status).send({ error: lookup.error });
-    }
-    requireEntityMode(request, lookup.version, 'delete');
-    // No immutability check here, and deliberately: every version is frozen on
-    // create now (issue #192), so this guard would mean no tuple set version
-    // could ever be deleted. Immutability is about a version's *content* not
-    // changing under a reference — removing one is the pruning the same
-    // decision names as the answer to version growth, not an edit.
-
-    await repos.TupleSetVersion.delete(lookup.version.$id);
-
-    // Deleting what the parent points at would leave a dangling pointer, so it
-    // falls back to the highest remaining version — or to nothing.
-    const parent = repos.TupleSet.get(id) as LdkitTupleSet | null;
-    if (parent?.currentVersion === lookup.version.$id) {
-      const remaining = (repos.TupleSetVersion.list() as LdkitTupleSetVersion[])
-        .filter(candidate => candidate.isPartOf === id)
-        .sort((a, b) => (b.version ?? 0) - (a.version ?? 0));
-      await repos.TupleSet.update(id, {
-        currentVersion: remaining[0]?.$id ?? null,
-      } as Partial<LdkitTupleSet>);
-    }
-
-    return reply.status(204).send();
-  }));
 }

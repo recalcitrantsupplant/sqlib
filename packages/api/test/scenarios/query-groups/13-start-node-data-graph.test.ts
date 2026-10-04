@@ -64,7 +64,7 @@ describe('Data graph inputs on the StartNode', () => {
     const queryEntity = queryResponse.json();
     const versionResponse = await context.app.inject({
       method: 'POST',
-      url: `/queries/${encodeURIComponent(queryEntity.id)}/v`,
+      url: `/queries/${encodeURIComponent(queryEntity.id)}/versions`,
       payload: { queryVersion: { queryString: constructString, queryType: QueryTypeIri.construct } },
     });
     const queryVersion = versionResponse.json().queryVersion;
@@ -76,7 +76,7 @@ describe('Data graph inputs on the StartNode', () => {
 
     const groupVersionResponse = await context.app.inject({
       method: 'POST',
-      url: `/query-groups/${encodeURIComponent(queryGroup.id)}/v`,
+      url: `/query-groups/${encodeURIComponent(queryGroup.id)}/versions`,
       payload: {
         queryGroupVersion: {},
         // The group's own declared RDF input, owned by the start node the way

@@ -4,9 +4,9 @@
  * This file also carried eight incremental write schemas — add/update for I/O
  * entities, execution nodes and edges, plus start/end node updates. They were
  * removed: they formed a second write path into a version that skipped the
- * immutability guard and the If-Match concurrency check `PATCH /:id/v/:version`
+ * immutability guard and the If-Match concurrency check `PATCH /:id/versions/:version`
  * enforces, and no client called them. Whole-graph writes go through
- * `POST /:id/v`. See git history if they need to come back.
+ * `POST /:id/versions`. See git history if they need to come back.
  */
 
 export const incrementalQueryGroupSchemas = {

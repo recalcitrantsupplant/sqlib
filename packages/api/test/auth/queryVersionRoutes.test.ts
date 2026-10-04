@@ -161,19 +161,19 @@ beforeEach(() => {
 
 describe('a version of a query the caller may read', () => {
   it('is served to a reader and refused to a stranger', async () => {
-    const allowed = await inject(reader, 'GET', `/queries/${LIVE_QUERY}/v/1`);
+    const allowed = await inject(reader, 'GET', `/queries/${LIVE_QUERY}/versions/1`);
     expect(allowed.statusCode).toBe(200);
     expect(allowed.json().queryVersion.queryString).toContain('?gauge');
 
-    const refused = await inject(stranger, 'GET', `/queries/${LIVE_QUERY}/v/1`);
+    const refused = await inject(stranger, 'GET', `/queries/${LIVE_QUERY}/versions/1`);
     expect(refused.statusCode).toBe(403);
   });
 
   it('is listed for a reader, and the listing is refused to a stranger', async () => {
     // Here the guard does its job: `:id` resolves, so the refusal happens in
     // the preHandler and the handler's own filter never runs.
-    expect((await inject(reader, 'GET', `/queries/${LIVE_QUERY}/v`)).json()).toHaveLength(1);
-    expect((await inject(stranger, 'GET', `/queries/${LIVE_QUERY}/v`)).statusCode).toBe(403);
+    expect((await inject(reader, 'GET', `/queries/${LIVE_QUERY}/versions`)).json()).toHaveLength(1);
+    expect((await inject(stranger, 'GET', `/queries/${LIVE_QUERY}/versions`)).statusCode).toBe(403);
   });
 });
 
@@ -187,43 +187,47 @@ describe('a version whose query no longer resolves', () => {
     expect((await inject(stranger, 'GET', `/queries/${LIVE_QUERY}`)).statusCode).toBe(403);
   });
 
+  /*
+   * Every version route looks the query up first and 404s a missing one
+   * (`routes/versionedEntity.ts`), and DELETE now cascades a query's versions,
+   * so a stranded version is reachable through no route at all — the 404
+   * comes before anything reads it, for every caller.
+   */
   it('is not readable by a principal holding nothing', async () => {
-    const response = await inject(stranger, 'GET', `/queries/${GHOST_QUERY}/v/1`);
+    const response = await inject(stranger, 'GET', `/queries/${GHOST_QUERY}/versions/1`);
 
-    expect(response.statusCode).toBe(403);
+    expect(response.statusCode).toBe(404);
     expect(response.body).not.toContain('salary');
   });
 
   it('is not readable by a principal holding every mode on another library', async () => {
-    // The version's library cannot be resolved, so there is no grant that
-    // reaches it — `requireLibraryMode(null)` refuses rather than abstains.
-    const response = await inject(writer, 'GET', `/queries/${GHOST_QUERY}/v/1`);
+    const response = await inject(writer, 'GET', `/queries/${GHOST_QUERY}/versions/1`);
 
-    expect(response.statusCode).toBe(403);
+    expect(response.statusCode).toBe(404);
     expect(response.body).not.toContain('salary');
   });
 
-  it('is not listed, and the listing does not 404 on the way to saying so', async () => {
-    const response = await inject(stranger, 'GET', `/queries/${GHOST_QUERY}/v`);
+  it('is not listed', async () => {
+    const response = await inject(stranger, 'GET', `/queries/${GHOST_QUERY}/versions`);
 
-    expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual([]);
+    expect(response.statusCode).toBe(404);
+    expect(response.body).not.toContain('salary');
   });
 
   it('cannot be annotated', async () => {
-    const response = await inject(writer, 'PATCH', `/queries/${GHOST_QUERY}/v/1`, {
+    const response = await inject(writer, 'PATCH', `/queries/${GHOST_QUERY}/versions/1`, {
       comment: 'written by someone with no grant on it',
     });
 
-    expect(response.statusCode).toBe(403);
+    expect(response.statusCode).toBe(404);
     expect(store.updates).toEqual([]);
   });
 });
 
 describe('disabled mode', () => {
-  it('is unaffected: every version route answers', async () => {
-    expect((await inject(authDisabled, 'GET', `/queries/${LIVE_QUERY}/v/1`)).statusCode).toBe(200);
-    expect((await inject(authDisabled, 'GET', `/queries/${GHOST_QUERY}/v/1`)).statusCode).toBe(200);
-    expect((await inject(authDisabled, 'GET', `/queries/${GHOST_QUERY}/v`)).json()).toHaveLength(1);
+  it('serves a live version, and answers a stranded one as missing', async () => {
+    expect((await inject(authDisabled, 'GET', `/queries/${LIVE_QUERY}/versions/1`)).statusCode).toBe(200);
+    expect((await inject(authDisabled, 'GET', `/queries/${GHOST_QUERY}/versions/1`)).statusCode).toBe(404);
+    expect((await inject(authDisabled, 'GET', `/queries/${GHOST_QUERY}/versions`)).statusCode).toBe(404);
   });
 });

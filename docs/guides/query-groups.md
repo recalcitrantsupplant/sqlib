@@ -152,7 +152,7 @@ make.
 There is exactly one way to write a group's content:
 
 ```
-POST /query-groups/:id/v
+POST /query-groups/:id/versions
 ```
 
 One request carries the whole graph. There are no incremental write endpoints
@@ -165,11 +165,11 @@ The other endpoints:
 | --- | --- | --- |
 | `GET` `POST` | `/query-groups` | list, create the group entity |
 | `GET` `PUT` `DELETE` | `/query-groups/:id` | read, update (this is how `currentVersion` is set), delete |
-| `GET` | `/query-groups/:id/v` | list versions |
-| `POST` | `/query-groups/:id/v` | **create the next version** (flat write) |
-| `GET` | `/query-groups/:id/v/:version` | read one version, expanded |
-| `PATCH` | `/query-groups/:id/v/:version` | annotate (`comment`) or freeze (`immutable: true`, one direction only) |
-| `GET` | `/query-groups/:id/v/:version/validate` | structural check, without running anything |
+| `GET` | `/query-groups/:id/versions` | list versions |
+| `POST` | `/query-groups/:id/versions` | **create the next version** (flat write) |
+| `GET` | `/query-groups/:id/versions/:version` | read one version, expanded |
+| `PATCH` | `/query-groups/:id/versions/:version` | annotate (`comment`) or freeze (`immutable: true`, one direction only) |
+| `GET` | `/query-groups/:id/versions/:version/validate` | structural check, without running anything |
 | `GET` `POST` | `/query-groups/:id/argument-sets` | the sets that fill this group's parameters |
 
 ### Temporary ids
@@ -195,7 +195,7 @@ opens with `VALUES (?p ?s) { (UNDEF UNDEF) }` — the reserved all-`UNDEF` row t
 marks a parameter slot.
 
 ```jsonc
-POST /query-groups/urn:sqlib:group:people-skills/v
+POST /query-groups/urn:sqlib:group:people-skills/versions
 {
   "queryGroupVersion": {},
   "endNode": { "mediaType": "application/sparql-results+json" },
@@ -373,7 +373,7 @@ node — `error`, `failedNodeId`, `failedNodeName`, plus `nodes` if node detail 
 asked for. The canvas marks that node from `failedNodeId` even when the node
 never reported a status of its own.
 
-**Validation before running.** `GET /query-groups/:id/v/:version/validate`
+**Validation before running.** `GET /query-groups/:id/versions/:version/validate`
 returns `{ errors, warnings, issues }`, each issue carrying a stable `code`, an
 `entityType` and an `entityId` so a client can highlight the offending node or
 edge rather than parse prose. The codes are the enum in
@@ -388,8 +388,8 @@ and node/query agreement (`NODE_VALUES_GROUP_MISSING`,
 
 ## 7. Versions
 
-A query group version is an immutable snapshot. `POST …/v` mints the next one
-and is the only way to write content; `PATCH …/v/:version` accepts a `comment`
+A query group version is an immutable snapshot. `POST …/versions` mints the next one
+and is the only way to write content; `PATCH …/versions/:version` accepts a `comment`
 and `immutable: true` (never `false`), and enforces `If-Match`. Running a group
 by its group IRI runs whatever `currentVersion` points at, so promoting a
 version is a `PUT` on the group.

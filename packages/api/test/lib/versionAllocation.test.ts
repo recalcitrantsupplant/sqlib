@@ -33,7 +33,7 @@ describe('version allocation', () => {
   const saveVersion = (queryId: string, n: number) =>
     context.app.inject({
       method: 'POST',
-      url: `/queries/${encodeURIComponent(queryId)}/v`,
+      url: `/queries/${encodeURIComponent(queryId)}/versions`,
       payload: { queryVersion: { queryString: `SELECT * WHERE { ?s ?p ${n} }` } },
     });
 

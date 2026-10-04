@@ -139,7 +139,7 @@ describe('Queries Routes (/queries) - Basic', () => {
     expect(hoisted.query.create).toHaveBeenCalledWith(expect.objectContaining({ $id: expect.any(String), name: 'My Query', isPartOf: [libraryId] }));
   });
 
-  it('POST /queries/{id}/v creates version 1 and sets currentVersion', async () => {
+  it('POST /queries/{id}/versions creates version 1 and sets currentVersion', async () => {
     const queryId = 'urn:sqlib:query:abc';
     // Parent exists
     hoisted.query.get.mockReturnValue({ $id: queryId, name: 'My Query' });
@@ -173,7 +173,7 @@ describe('Queries Routes (/queries) - Basic', () => {
     };
     (expandQueryVersion as any).mockResolvedValue(expandedVersion);
 
-    const res = await app.inject({ method: 'POST', url: `/queries/${encodeURIComponent(queryId)}/v`, payload: { queryVersion: { queryString: 'SELECT * WHERE { ?s ?p ?o }' } } });
+    const res = await app.inject({ method: 'POST', url: `/queries/${encodeURIComponent(queryId)}/versions`, payload: { queryVersion: { queryString: 'SELECT * WHERE { ?s ?p ?o }' } } });
     expect(res.statusCode).toBe(201);
     const json = res.json();
     expect(json.queryVersion).toMatchObject({ isPartOf: queryId, version: 1, queryString: 'SELECT * WHERE { ?s ?p ?o }' });
@@ -184,7 +184,7 @@ describe('Queries Routes (/queries) - Basic', () => {
     expect(createQueryVersionFlat).toHaveBeenCalledWith(queryId, expect.objectContaining({ queryString: 'SELECT * WHERE { ?s ?p ?o }' }));
   });
 
-  it('POST /queries/{id}/v forwards immutable flag to writer', async () => {
+  it('POST /queries/{id}/versions forwards immutable flag to writer', async () => {
     const queryId = 'urn:sqlib:query:abc';
     hoisted.queryVersion.list.mockReturnValue([]);
     hoisted.query.get.mockReturnValue({ $id: queryId, name: 'My Query' });
@@ -211,7 +211,7 @@ describe('Queries Routes (/queries) - Basic', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: `/queries/${encodeURIComponent(queryId)}/v`,
+      url: `/queries/${encodeURIComponent(queryId)}/versions`,
       payload: { queryVersion: { queryString: createdVersion.queryString, immutable: true } },
     });
 
@@ -220,7 +220,7 @@ describe('Queries Routes (/queries) - Basic', () => {
     expect(res.json().queryVersion.immutable).toBe(true);
   });
 
-  it('GET /queries/{id}/v lists versions sorted', async () => {
+  it('GET /queries/{id}/versions lists versions sorted', async () => {
     const queryId = 'urn:sqlib:query:abc';
 
     hoisted.queryVersion.list.mockReturnValue([
@@ -229,8 +229,9 @@ describe('Queries Routes (/queries) - Basic', () => {
       { $id: 'urn:x:other', '@type': 'QueryVersion', isPartOf: 'urn:other', version: 99, queryString: 'SELECT * WHERE { ?s ?p ?o }' },
     ]);
     hoisted.coordinatorGet.mockReturnValue({ $id: queryId, '@type': 'Query', name: 'Sample' });
+    hoisted.query.get.mockReturnValue({ $id: queryId, '@type': 'Query', name: 'Sample' });
 
-    const res = await app.inject({ method: 'GET', url: `/queries/${encodeURIComponent(queryId)}/v` });
+    const res = await app.inject({ method: 'GET', url: `/queries/${encodeURIComponent(queryId)}/versions` });
 
     expect(res.statusCode).toBe(200);
     const arr = res.json();
@@ -297,7 +298,7 @@ describe('Queries Routes (/queries) - Basic', () => {
     expect(hoisted.query.update).not.toHaveBeenCalled();
   });
 
-  it('PATCH /queries/:id/v/:version enforces If-Match', async () => {
+  it('PATCH /queries/:id/versions/:version enforces If-Match', async () => {
     const queryId = 'urn:sqlib:query:abc';
     const existingVersion = {
       $id: 'urn:sqlib:query-version:1',
@@ -309,6 +310,7 @@ describe('Queries Routes (/queries) - Basic', () => {
 
     hoisted.queryVersion.list.mockImplementation(() => [{ ...existingVersion }]);
     hoisted.coordinatorGet.mockReturnValue({ $id: queryId, '@type': 'Query' });
+    hoisted.query.get.mockReturnValue({ $id: queryId, '@type': 'Query' });
     hoisted.queryVersion.update.mockResolvedValue({ ...existingVersion, comment: 'updated', dateModified: '2024-01-02T00:00:00.000Z', '@type': 'QueryVersion' });
     (expandQueryVersion as any).mockResolvedValue({
       queryVersion: {
@@ -329,7 +331,7 @@ describe('Queries Routes (/queries) - Basic', () => {
 
     const res = await app.inject({
       method: 'PATCH',
-      url: `/queries/${encodeURIComponent(queryId)}/v/1`,
+      url: `/queries/${encodeURIComponent(queryId)}/versions/1`,
       payload: { comment: 'updated' },
       headers: { 'if-match': existingVersion.dateModified },
     });
@@ -341,7 +343,7 @@ describe('Queries Routes (/queries) - Basic', () => {
 
     const staleRes = await app.inject({
       method: 'PATCH',
-      url: `/queries/${encodeURIComponent(queryId)}/v/1`,
+      url: `/queries/${encodeURIComponent(queryId)}/versions/1`,
       payload: { comment: 'updated' },
       headers: { 'if-match': 'wrong' },
     });

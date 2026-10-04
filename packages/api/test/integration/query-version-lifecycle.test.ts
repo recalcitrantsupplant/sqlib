@@ -144,7 +144,7 @@ describe('query + version lifecycle invariants', () => {
   async function createVersion(queryId: string, queryString: string) {
     return app.inject({
       method: 'POST',
-      url: `/queries/${encodeURIComponent(queryId)}/v`,
+      url: `/queries/${encodeURIComponent(queryId)}/versions`,
       payload: { queryVersion: { queryString, comment: null } },
     });
   }
@@ -287,7 +287,7 @@ describe('query + version lifecycle invariants', () => {
     for (const payload of attempts) {
       const response = await app.inject({
         method: 'PATCH',
-        url: `/queries/${encodeURIComponent(queryId)}/v/${created.version}`,
+        url: `/queries/${encodeURIComponent(queryId)}/versions/${created.version}`,
         payload,
       });
       expect(response.statusCode, `${JSON.stringify(payload)} -> ${response.payload}`).toBe(409);
@@ -317,7 +317,7 @@ describe('query + version lifecycle invariants', () => {
 
     const response = await app.inject({
       method: 'PATCH',
-      url: `/queries/${encodeURIComponent(queryId)}/v/${created.version}`,
+      url: `/queries/${encodeURIComponent(queryId)}/versions/${created.version}`,
       payload: { comment: 'the one that fixed the timeout bug' },
     });
 
@@ -332,7 +332,7 @@ describe('query + version lifecycle invariants', () => {
 
   it('a version can be fetched by the number the create call reported', async () => {
     // The editor addresses versions by number, not IRI — `?version=2` and the
-    // `GET /:id/v/:version` behind it — so the number a save reports has to
+    // `GET /:id/versions/:version` behind it — so the number a save reports has to
     // be the number that fetches it back.
     const queryId = await createQuery('Addressable');
     const created = versionOf((await createVersion(queryId, 'SELECT ?a WHERE { ?a ?p ?o }')).payload);
@@ -341,7 +341,7 @@ describe('query + version lifecycle invariants', () => {
     for (const version of [created, second]) {
       const fetched = await app.inject({
         method: 'GET',
-        url: `/queries/${encodeURIComponent(queryId)}/v/${version.version}`,
+        url: `/queries/${encodeURIComponent(queryId)}/versions/${version.version}`,
       });
       expect(fetched.statusCode, fetched.payload).toBe(200);
       expect(versionOf(fetched.payload).version).toBe(version.version);
@@ -349,7 +349,7 @@ describe('query + version lifecycle invariants', () => {
 
     const missing = await app.inject({
       method: 'GET',
-      url: `/queries/${encodeURIComponent(queryId)}/v/99`,
+      url: `/queries/${encodeURIComponent(queryId)}/versions/99`,
     });
     expect(missing.statusCode).toBe(404);
   });

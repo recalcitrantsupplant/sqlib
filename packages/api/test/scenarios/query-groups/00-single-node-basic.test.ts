@@ -55,7 +55,7 @@ describe('Single Node Query Group', () => {
     // Create the SELECT query version
     const versionResponse = await context.app.inject({
       method: 'POST',
-      url: `/queries/${encodeURIComponent(queryEntity.id)}/v`,
+      url: `/queries/${encodeURIComponent(queryEntity.id)}/versions`,
       payload: {
         queryVersion: {
           queryString: selectQueryString,
@@ -71,7 +71,7 @@ describe('Single Node Query Group', () => {
     // Create a query group version with a single execution node
     const queryGroupVersionResponse = await context.app.inject({
       method: 'POST',
-      url: `/query-groups/${encodeURIComponent(queryGroup.id)}/v`,
+      url: `/query-groups/${encodeURIComponent(queryGroup.id)}/versions`,
       payload: {
         queryGroupVersion: { comment: 'Single node baseline' },
         endNode: {

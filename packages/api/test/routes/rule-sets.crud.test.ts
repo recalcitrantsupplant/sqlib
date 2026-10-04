@@ -35,6 +35,9 @@ vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
   }),
   getCacheCoordinator: () => ({
     get: hoisted.coordinatorGet,
+    // Deleting asks who pins the versions (`lib/versionPins.ts`), which is a
+    // scan over stored holders. Nothing here is pinned.
+    list: () => [],
   }),
 }));
 

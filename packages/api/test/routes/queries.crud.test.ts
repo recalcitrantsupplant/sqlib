@@ -38,6 +38,8 @@ overrideCacheCoordinatorProvider({
   }),
   getCacheCoordinator: () => ({
     get: hoisted.coordinatorGet,
+    // Deleting asks who pins the versions (`lib/versionPins.ts`). Nothing here is pinned.
+    list: () => [],
   }),
 });
 
@@ -178,7 +180,7 @@ describe('Queries Routes (/queries) - CRUD', () => {
     });
     
     expect(res.statusCode).toBe(400);
-    expect(res.json().error).toBe('Query must be part of exactly one library');
+    expect(res.json().error).toBe('Query must belong to exactly one library');
   });
 
   it('POST /queries prevents multiple libraries', async () => {
@@ -210,7 +212,7 @@ describe('Queries Routes (/queries) - CRUD', () => {
     });
     
     expect(res.statusCode).toBe(400);
-    expect(res.json().error).toBe('Query can only be part of one library (multiple query groups allowed)');
+    expect(res.json().error).toBe('Query must belong to exactly one library');
   });
 
   it('POST /queries validates all referenced entities exist', async () => {
@@ -352,7 +354,7 @@ describe('Queries Routes (/queries) - CRUD', () => {
     });
     
     expect(res.statusCode).toBe(400);
-    expect(res.json().error).toBe('Query can only be part of one library (multiple query groups allowed)');
+    expect(res.json().error).toBe('Query must belong to exactly one library');
   });
 
   it('PUT /queries/:id validates referenced entities exist', async () => {
@@ -480,6 +482,7 @@ describe('Queries Routes (/queries) - CRUD', () => {
     hoisted.query.get.mockReturnValue({ $id: 'urn:sqlib:query:abc', '@type': 'Query' });
     hoisted.coordinatorGet.mockReturnValue({ $id: 'urn:sqlib:query:abc', '@type': 'Query' });
     hoisted.query.delete.mockResolvedValue(undefined);
+    hoisted.queryVersion.list.mockReturnValue([]);
     const id = 'urn:sqlib:query:abc';
     const res = await app.inject({ method: 'DELETE', url: `/queries/${encodeURIComponent(id)}` });
     expect(res.statusCode).toBe(204);

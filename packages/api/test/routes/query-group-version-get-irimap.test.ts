@@ -5,7 +5,7 @@ import { setupValidator } from '../../src/lib/validator-setup.js';
 import * as schemas from '@sparql-query-lib/contracts/schema';
 
 /**
- * `GET /query-groups/:id/v/:version` computes an `iriMap` of query version IRI
+ * `GET /query-groups/:id/versions/:version` computes an `iriMap` of query version IRI
  * to query name, and until #49 the 200 schema's `additionalProperties: false`
  * stripped it back off. The route did the work and fastify discarded it, so the
  * canvas had no source for query names and labelled every query node
@@ -24,6 +24,16 @@ const hoisted = vi.hoisted(() => ({
 }));
 
 vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
+  // The repositories are the coordinator under a type, as in production.
+  getEntityRepositories: () => new Proxy({}, {
+    get: (_target, type) => ({
+      get: (id: string) => {
+        const entity = (hoisted.coordinatorGet as (id: string) => Record<string, unknown> | null | undefined)(id);
+        return entity && (!entity['@type'] || entity['@type'] === type) ? entity : null;
+      },
+      list: () => hoisted.coordinatorList(String(type)),
+    }),
+  }),
   getCacheCoordinator: () => ({
     get: hoisted.coordinatorGet,
     list: hoisted.coordinatorList,
@@ -54,7 +64,7 @@ const groupVersion = {
   version: 1,
 };
 
-describe('GET /query-groups/:id/v/:version — iriMap (#49)', () => {
+describe('GET /query-groups/:id/versions/:version — iriMap (#49)', () => {
   let app: FastifyInstance;
 
   beforeAll(async () => {
@@ -75,6 +85,9 @@ describe('GET /query-groups/:id/v/:version — iriMap (#49)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Every version route looks the group up first.
+    hoisted.coordinatorGet.mockImplementation((id: string) =>
+      id === GROUP_ID ? { $id: GROUP_ID, '@type': 'QueryGroup', name: 'Group' } : null);
     hoisted.coordinatorList.mockImplementation((type: string) => {
       if (type === 'QueryGroupVersion') return [groupVersion];
       if (type === 'Query') return [{ $id: QUERY_ID, '@type': 'Query', name: 'Cities' }];
@@ -99,7 +112,7 @@ describe('GET /query-groups/:id/v/:version — iriMap (#49)', () => {
 
     const res = await app.inject({
       method: 'GET',
-      url: `/query-groups/${encodeURIComponent(GROUP_ID)}/v/1`,
+      url: `/query-groups/${encodeURIComponent(GROUP_ID)}/versions/1`,
     });
 
     expect(res.statusCode).toBe(200);
@@ -120,7 +133,7 @@ describe('GET /query-groups/:id/v/:version — iriMap (#49)', () => {
 
     const res = await app.inject({
       method: 'GET',
-      url: `/query-groups/${encodeURIComponent(GROUP_ID)}/v/1`,
+      url: `/query-groups/${encodeURIComponent(GROUP_ID)}/versions/1`,
     });
 
     expect(res.statusCode).toBe(200);

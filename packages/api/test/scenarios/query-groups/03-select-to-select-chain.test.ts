@@ -82,7 +82,7 @@ describe('SELECT → SELECT Chain (Variable Bindings)', () => {
     // Create Query 1 Version
     const query1VersionResponse = await context.app.inject({
       method: 'POST',
-      url: `/queries/${encodeURIComponent(query1Entity.id)}/v`,
+      url: `/queries/${encodeURIComponent(query1Entity.id)}/versions`,
       payload: {
         queryVersion: {
           queryString: query1String,
@@ -109,7 +109,7 @@ describe('SELECT → SELECT Chain (Variable Bindings)', () => {
     // Create Query 2 Version
     const query2VersionResponse = await context.app.inject({
       method: 'POST',
-      url: `/queries/${encodeURIComponent(query2Entity.id)}/v`,
+      url: `/queries/${encodeURIComponent(query2Entity.id)}/versions`,
       payload: {
         queryVersion: {
           queryString: query2String,
@@ -135,7 +135,7 @@ describe('SELECT → SELECT Chain (Variable Bindings)', () => {
 
     const queryGroupVersionResponse = await context.app.inject({
       method: 'POST',
-      url: `/query-groups/${encodeURIComponent(queryGroup.id)}/v`,
+      url: `/query-groups/${encodeURIComponent(queryGroup.id)}/versions`,
       payload: {
         queryGroupVersion: {},
         endNode: {

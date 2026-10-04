@@ -103,7 +103,7 @@ describe('argument set version writes', () => {
   it('refuses a content PATCH, naming the fields it refused', async () => {
     const res = await app.inject({
       method: 'PATCH',
-      url: `/argument-sets/${encodeURIComponent(SET_ID)}/v/1`,
+      url: `/argument-sets/${encodeURIComponent(SET_ID)}/versions/1`,
       payload: { tupleBindings: [{ variables: ['city'], rows: [] }] },
     });
 
@@ -115,7 +115,7 @@ describe('argument set version writes', () => {
   it('accepts an empty PATCH and returns the version unchanged', async () => {
     const res = await app.inject({
       method: 'PATCH',
-      url: `/argument-sets/${encodeURIComponent(SET_ID)}/v/1`,
+      url: `/argument-sets/${encodeURIComponent(SET_ID)}/versions/1`,
       payload: {},
     });
 
@@ -127,7 +127,7 @@ describe('argument set version writes', () => {
   it('rejects `immutable` in a PATCH body: the flag no longer exists (#210)', async () => {
     const res = await app.inject({
       method: 'PATCH',
-      url: `/argument-sets/${encodeURIComponent(SET_ID)}/v/1`,
+      url: `/argument-sets/${encodeURIComponent(SET_ID)}/versions/1`,
       payload: { immutable: true },
     });
 
@@ -138,7 +138,7 @@ describe('argument set version writes', () => {
   it('there is no freeze route any more', async () => {
     const res = await app.inject({
       method: 'POST',
-      url: `/argument-sets/${encodeURIComponent(SET_ID)}/v/1/freeze`,
+      url: `/argument-sets/${encodeURIComponent(SET_ID)}/versions/1/freeze`,
     });
 
     expect(res.statusCode).toBe(404);

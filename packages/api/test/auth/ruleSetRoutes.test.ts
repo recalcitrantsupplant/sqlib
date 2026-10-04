@@ -224,17 +224,18 @@ describe('PATCH /rule-sets/:id/versions/:version', () => {
   });
 
   it('refuses a version whose rule set no longer resolves', async () => {
+    // Every version route now looks its parent up first and 404s a missing
+    // one (`routes/versionedEntity.ts`), so the annotation is refused before
+    // anything reads the stranded version — as the sibling routes always were.
     const response = await inject(writer, 'PATCH', `/rule-sets/${GHOST_SET}/versions/1`, {
       comment: 'written by someone with no grant on it',
     });
 
-    expect(response.statusCode).toBe(403);
+    expect(response.statusCode).toBe(404);
     expect(store.updates).toEqual([]);
   });
 
-  it('leaves the sibling routes answering 404 on the same version', async () => {
-    // They fetch the rule set and 404, which is why the guard's abstain was
-    // safe for them and not for the annotation.
+  it('answers the sibling routes with the same 404', async () => {
     expect((await inject(writer, 'GET', `/rule-sets/${GHOST_SET}/versions/1`)).statusCode).toBe(404);
   });
 });

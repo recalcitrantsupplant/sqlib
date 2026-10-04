@@ -1,7 +1,6 @@
-import type { FastifyInstance, FastifyReply } from 'fastify';
-import { mintId } from '../lib/id.js';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { toError } from '../lib/toError.js';
-import { EntityExistsError, type CacheCoordinator } from '../lib/CacheCoordinator.js';
+import { type CacheCoordinator } from '../lib/CacheCoordinator.js';
 import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
 import { getNodeEphemeralBackendConfig } from '../lib/type-guards.js';
 import type { EntityType } from '../lib/EntityRegistry.js';
@@ -13,18 +12,19 @@ import type { LdkitQueryVersion } from '../persistence/schemas/QueryVersionSchem
 import type { LdkitRuleSet } from '../persistence/schemas/RuleSetSchema.js';
 import type { LdkitRuleSetVersion } from '../persistence/schemas/RuleSetVersionSchema.js';
 import type { LdkitQueryEdge } from '../persistence/schemas/QueryEdgeSchema.js';
-import { expandGroupVersion } from '../lib/GraphResolver.js';
+import { expandGroupVersion, expandGroupVersionDetailed } from '../lib/GraphResolver.js';
+import { deleteWithOwned, GROUP_VERSION_OWNED } from '../lib/ownedEntities.js';
 import { createGroupVersionFlat } from '../lib/GroupVersionWriter.js';
-import { classifyVersionPatch } from '../lib/versionPatch.js';
 import {
   BACKEND_TYPES,
   QUERY_VERSION_TYPES,
   RULESET_VERSION_TYPES,
   isUnresolvableReferencesError,
 } from '../lib/groupVersionReferences.js';
-import { validateIfMatch, setEntityConcurrencyHeaders, typedRoute, reposRoute } from './route-helpers.js';
+import { setEntityConcurrencyHeaders, typedRoute, reposRoute, RouteError } from './route-helpers.js';
+import { registerVersionedEntityRoutes, type StoredEntity } from './versionedEntity.js';
 import { ArgumentSetService } from '../lib/ArgumentSetService.js';
-import { AuthorizationError, filterReadable, requireContainmentWritable, requireEntityMode } from '../auth/enforce.js';
+import { AuthorizationError, filterReadable, requireEntityMode } from '../auth/enforce.js';
 import {
   argumentSetBodySchema,
   argumentSetListResponseSchema,
@@ -45,7 +45,6 @@ import {
 import { GraphBuilder } from '../lib/orchestration/GraphBuilder.js';
 import { isGraphValidationError } from '../lib/orchestration/GraphValidationError.js';
 import { registerEntityAuthGuard } from '../auth/entityGuard.js';
-import { analyseTags } from '../lib/tagMembership.js';
 
 // Loose shape for execution nodes read back from the cache (union of concrete node types).
 type CachedNodeShape = {
@@ -79,10 +78,6 @@ const groupIdParamSchema = {
   required: ['id'],
   additionalProperties: false,
 } as const;
-
-function byVersionAsc(a: { version?: number | string }, b: { version?: number | string }) {
-  return Number(a.version) - Number(b.version);
-}
 
 /**
  * Flatten a version PATCH body for `classifyVersionPatch`.
@@ -121,425 +116,113 @@ function sendInternalError(reply: FastifyReply, error: unknown, failure: string)
   return reply.status(500).send({ error: failure });
 }
 
+/**
+ * A group version as GET shows it: expanded, with `iriMap` naming the query and
+ * rule set versions its nodes run.
+ *
+ * The map covers the versions the caller may read, not every version in the
+ * deployment: it is keyed by IRI rather than by this group's nodes, so
+ * unfiltered it named every query in every library to anyone who could open
+ * one group version. A node whose version is withheld falls back to the
+ * canvas's generic label, which is what it shows for any version it cannot
+ * name. Rule set versions are in it too: a RuleSetNode names a
+ * `ruleSetVersion`, and with only query versions here an assigned rule set
+ * came back as "Unknown" on every reload.
+ */
+async function presentGroupVersion(version: LdkitQueryGroupVersion, request: FastifyRequest): Promise<unknown> {
+  let rich: Record<string, unknown>;
+  try {
+    rich = await expandGroupVersionDetailed(version, { request }) as unknown as Record<string, unknown>;
+  } catch {
+    return expandGroupVersion(version);
+  }
+
+  const iriMap: Record<string, string> = {};
+  const names = new Map<string, string>();
+  for (const query of cache.getByType('Query') as LdkitQuery[]) {
+    if (query.name) names.set(query.$id, query.name);
+  }
+  for (const ruleSet of cache.getByType('RuleSet') as LdkitRuleSet[]) {
+    if (ruleSet.name) names.set(ruleSet.$id, ruleSet.name);
+  }
+  const readableVersions = [
+    ...filterReadable(request, cache.getByType('QueryVersion') as LdkitQueryVersion[]),
+    ...filterReadable(request, cache.getByType('RuleSetVersion') as LdkitRuleSetVersion[]),
+  ];
+  for (const readable of readableVersions) {
+    const name = names.get(readable.isPartOf);
+    if (name) iriMap[readable.$id] = name;
+  }
+  return { ...rich, iriMap };
+}
+
 export default async function (fastify: FastifyInstance) {
   registerEntityAuthGuard(fastify, { executeSuffixes: ['/execute', '/execute/stream', '/run'], exemptSuffixes: ['/preview', '/preview/normalize'] });
 
-  // GET /query-groups
-  fastify.get('/', ...typedRoute(getQueryGroupsSchema, async (request, reply) => {
-    try {
-      /*
-       * No `:id` for the guard to resolve, so what the caller sees is this
-       * handler's decision — and it made none: every group in the deployment,
-       * with its name, its library and the `currentVersion` pointer a run would
-       * take, for any authenticated principal. The listings beside it
-       * (`/queries`, `/rule-sets`, `/tuple-sets`, `/rules`, `/data-blocks`,
-       * `/data-graphs`, `/tags`) all filter. An empty array rather than a 403:
-       * it answers "which of these may I see" without saying what exists.
-       */
-      const items = cache.getByType('QueryGroup') as LdkitQueryGroup[];
-      return reply.send(filterReadable(request, items).map(i => toRestApi(i)));
-    } catch (e__u: unknown) {
-      return sendInternalError(reply, e__u, 'Failed to fetch query groups');
-    }
-  }));
-
-  // POST /query-groups
-  fastify.post('/', ...typedRoute(createQueryGroupSchema, async (request, reply) => {
-    try {
-      const body = request.body;
-
-      // Validate that isPartOf (library) is provided
-      if (!body.isPartOf) {
-        return reply.status(400).send({ error: 'isPartOf (library) is required' });
+  registerVersionedEntityRoutes(fastify, {
+    noun: 'query group',
+    type: 'QueryGroup',
+    versionType: 'QueryGroupVersion',
+    idKind: 'group',
+    acceptCallerId: true,
+    containment: 'single',
+    schemas: {
+      list: getQueryGroupsSchema,
+      create: createQueryGroupSchema,
+      get: getQueryGroupSchema,
+      update: updateQueryGroupSchema,
+      delete: deleteQueryGroupSchema,
+      listVersions: listQueryGroupVersionsForGroupSchema,
+      createVersion: createQueryGroupVersionForGroupFlatSchema,
+      getVersion: getQueryGroupVersionForGroupSchema,
+      // The group's in-place overwrite went in #191 and the API half in #192:
+      // a version is what the graph looked like when it was saved. `canvasData`
+      // is content rather than annotation deliberately — it rides in the
+      // version payload, so allowing it would mean dragging a node while
+      // viewing an old version silently rewrites that version.
+      patchVersion: patchQueryGroupVersionForGroupSchema,
+      deleteVersion: {
+        tags: ['QueryGroup'],
+        summary: 'Delete a query group version that nothing pins',
+        response: { 204: { type: 'null' } },
+      },
+    },
+    presentVersion: (version, request) => presentGroupVersion(version as unknown as LdkitQueryGroupVersion, request),
+    presentVersionInList: version => toRestApi(version),
+    unwrapVersionPatch: unwrapGroupVersionPatch,
+    createVersion: async ({ request, parent, body }) => {
+      // Enforce wrapper: { queryGroupVersion: { ... }, ...children }
+      const { queryGroupVersion, ...children } = body as { queryGroupVersion?: unknown } & Record<string, unknown>;
+      if (!queryGroupVersion || typeof queryGroupVersion !== 'object') {
+        throw new RouteError(400, { error: 'Body must contain queryGroupVersion object' });
       }
+      // Flatten for the writer, which expects canvasData at top level.
+      const flat = { ...children, ...(queryGroupVersion as Record<string, unknown>) };
 
-      // Verify that the referenced library exists and is actually a library
-      const library = cache.get(body.isPartOf);
-      if (!library) {
-        return reply.status(400).send({ error: 'Referenced library does not exist' });
-      }
-      
-      if (library['@type'] !== 'Library') {
-        return reply.status(400).send({ error: 'Query groups can only belong to libraries' });
-      }
+      // `{ request }` is what lets the writer check the query versions and
+      // rule set versions this body's nodes will run; the route covers only
+      // the group being written.
+      const { created, iriMap } = await createGroupVersionFlat(parent.$id, flat as Parameters<typeof createGroupVersionFlat>[1], { request });
 
-      const tagCheck = analyseTags('QueryGroup', body.tags, body.isPartOf, iri => cache.get(iri));
-      if (!tagCheck.ok) {
-        return reply.status(400).send({ error: tagCheck.error });
-      }
+      // Composing needed Execute on each leg's library, which is not Read on
+      // it, so the author is not owed the text of every query they wired in.
+      const expanded = await expandGroupVersionDetailed(created, { request });
+      const payload = ('inputTuples' in expanded)
+        ? expanded
+        : ({ inputTuples: [], ...(expanded as Record<string, unknown>) });
+      return { created: created as unknown as StoredEntity, body: { ...payload, iriMap } };
+    },
+    // A payload that is well-formed but names entities that do not exist is
+    // the client's to fix, not a server fault. Staging rejects before anything
+    // is written, so there is nothing to clean up.
+    mapCreateVersionError: error => isUnresolvableReferencesError(error)
+      ? new RouteError(422, { error: (error as Error).message, references: error.failures })
+      : null,
+    deleteVersion: version => deleteWithOwned(version, 'QueryGroupVersion', GROUP_VERSION_OWNED),
+  });
 
-      const id = body.id || mintId('group');
-      const toCreate: Partial<LdkitQueryGroup> = {
-        $id: id,
-        name: body.name,
-        description: body.description,
-        isPartOf: body.isPartOf,
-        ...(tagCheck.tags !== undefined ? { tags: tagCheck.tags } : {}),
-      };
-
-      const created = await cache.create<LdkitQueryGroup>(toCreate, 'QueryGroup');
-      setEntityConcurrencyHeaders(reply, created);
-      return reply.status(201).send(toRestApi(created));
-    } catch (e__u: unknown) {
-      if (e__u instanceof EntityExistsError) {
-        return reply.status(409).send({ error: e__u.message });
-      }
-      return sendInternalError(reply, e__u, 'Failed to create query group');
-    }
-  }));
-
-  // GET /query-groups/:id — return stable entity only (no expand flag)
-  fastify.get('/:id', ...typedRoute(getQueryGroupSchema, async (request, reply) => {
-    try {
-      const { id } = request.params;
-      const item = cache.get(id) as LdkitQueryGroup | null;
-      if (!item) return reply.status(404).send({ error: 'Not Found' });
-      const base = toRestApi(item);
-      setEntityConcurrencyHeaders(reply, item);
-      return reply.send(base);
-    } catch (e__u: unknown) {
-      return sendInternalError(reply, e__u, 'Failed to fetch query group');
-    }
-  }));
-
-  // PUT /query-groups/:id
-  fastify.put('/:id', ...typedRoute(updateQueryGroupSchema, async (request, reply) => {
-    try {
-      const { id } = request.params;
-      const updates = request.body;
-      const current = cache.get(id) as LdkitQueryGroup | null;
-      if (!current) {
-        return reply.status(404).send({ error: 'Not Found' });
-      }
-
-      // If updating isPartOf, validate the library constraint
-      if (updates.isPartOf !== undefined) {
-        const library = cache.get(updates.isPartOf);
-        if (!library) {
-          return reply.status(400).send({ error: 'Referenced library does not exist' });
-        }
-        
-        if (library['@type'] !== 'Library') {
-          return reply.status(400).send({ error: 'Query groups can only belong to libraries' });
-        }
-      }
-
-      // Write on the destination library too, when the body moves it.
-      requireContainmentWritable(request, current, updates);
-
-      const { valid, currentTag } = validateIfMatch(request, current);
-      if (!valid) {
-        return reply.status(412).send({
-          error: 'Precondition Failed',
-          expected: currentTag,
-          current: toRestApi(current),
-        });
-      }
-      
-      const tagCheck = analyseTags(
-        'QueryGroup',
-        updates.tags,
-        updates.isPartOf ?? current.isPartOf,
-        iri => cache.get(iri)
-      );
-      if (!tagCheck.ok) {
-        return reply.status(400).send({ error: tagCheck.error });
-      }
-
-      const updated = await cache.update<LdkitQueryGroup>(
-        id,
-        { ...updates, ...(tagCheck.tags !== undefined ? { tags: tagCheck.tags } : {}) },
-        'QueryGroup'
-      );
-      if (!updated) {
-        return reply.status(404).send({ error: 'Not Found' });
-      }
-      setEntityConcurrencyHeaders(reply, updated);
-      return reply.send(toRestApi(updated));
-    } catch (e__u: unknown) {
-      return sendInternalError(reply, e__u, 'Failed to update query group');
-    }
-  }));
-
-  // DELETE /query-groups/:id
-  fastify.delete('/:id', ...typedRoute(deleteQueryGroupSchema, async (request, reply) => {
-    try {
-      const { id } = request.params;
-      const versions = (cache.getByType('QueryGroupVersion') as LdkitQueryGroupVersion[])
-        .filter(version => version.isPartOf === id);
-
-      const ownedTypes = new Set<EntityType>([
-        'QueryEdge', 'QueryNode', 'DynamicQueryNode', 'RuleSetNode', 'PatchNode', 'StartNode', 'EndNode',
-        'QueryInputTuple', 'QueryOutputTuple', 'TupleMember', 'QueryInputVariable',
-        'QueryOutputVariable', 'TriplesQuadsIO', 'BooleanIO', 'QueryIdInput',
-      ]);
-      const ownedReferences = ['inputs', 'outputs', 'memberEntries', 'variable'] as const;
-      const deleteOwned = async (entityId: string, seen = new Set<string>()): Promise<void> => {
-        if (seen.has(entityId)) return;
-        seen.add(entityId);
-        const entity = cache.get(entityId) as (Record<string, unknown> & { '@type'?: EntityType }) | null;
-        if (!entity?.['@type'] || !ownedTypes.has(entity['@type'])) return;
-        for (const key of ownedReferences) {
-          const value = entity[key];
-          const refs = Array.isArray(value) ? value : typeof value === 'string' ? [value] : [];
-          for (const ref of refs) await deleteOwned(ref, seen);
-        }
-        await cache.delete(entityId, entity['@type']);
-      };
-
-      for (const version of versions) {
-        const ownedIds = new Set<string>([
-          ...(version.edges || []),
-          ...(version.executionNodes || []),
-          ...(version.startNode ? [version.startNode] : []),
-          ...(version.endNode ? [version.endNode] : []),
-        ]);
-        for (const ownedId of ownedIds) await deleteOwned(ownedId);
-        await cache.delete(version.$id, 'QueryGroupVersion');
-      }
-      await cache.delete(id, 'QueryGroup');
-      return reply.status(204).send();
-    } catch (e__u: unknown) {
-      return sendInternalError(reply, e__u, 'Failed to delete query group');
-    }
-  }));
-
-  /*
-   * GET /query-groups/:id/v — list versions
-   *
-   * This route, the version GET and PATCH, and `/validate` match
-   * `QueryGroupVersion` on `isPartOf` and never look the group in the path up,
-   * so the plugin guard's premise does not hold for them — the gap
-   * `queries.ts` documents on its own version routes. The guard resolves `:id`
-   * and abstains on a miss, because "a miss is a 404 the handler will
-   * produce"; here a miss is a 200 over rows nobody checked.
-   *
-   * Not known to be reachable through this API today: `DELETE /:id` cascades
-   * the versions before the group, and a group whose library is gone is
-   * refused by the guard's dangling-container branch. The checks are here so
-   * that stays true when either of those changes, rather than resting on the
-   * DELETE handler's cascade. Each is on the version, not the path's
-   * `:id`: a version whose group no longer resolves has no library, and
-   * `requireLibraryMode(null)` refuses it to everyone below admin.
-   *
-   * `filterReadable` rather than a 404 for the listing, as on the query side:
-   * an unknown id keeps answering with an empty list rather than gaining a
-   * status code that says whether it ever existed.
-   */
-  fastify.get('/:id/v', ...typedRoute(listQueryGroupVersionsForGroupSchema, async (request, reply) => {
-    try {
-      const { id } = request.params;
-      const versions = (cache.getByType('QueryGroupVersion') as LdkitQueryGroupVersion[])
-        .filter(v => v.isPartOf === id)
-        .sort(byVersionAsc);
-      return reply.send(filterReadable(request, versions).map(v => toRestApi(v)));
-    } catch (e__u: unknown) {
-      return sendInternalError(reply, e__u, 'Failed to list query group versions');
-    }
-  }));
-
-  // POST /query-groups/:id/v — create new immutable version (flat write)
-  fastify.post(
-    '/:id/v',
-    ...typedRoute(createQueryGroupVersionForGroupFlatSchema, async (request, reply) => {
-      try {
-        const { id: groupId } = request.params;
-        const parent = cache.get(groupId) as LdkitQueryGroup | null;
-        if (!parent) return reply.status(404).send({ error: 'QueryGroup not found' });
-        // The guard resolved this same id, so this restates its decision; kept
-        // so the handler does not depend on which ids the guard happens to see,
-        // as on the query route beside it.
-        requireEntityMode(request, parent, 'write');
-
-        const body = request.body;
-
-        // Enforce wrapper: { queryGroupVersion: { ... }, ...children }
-        if (!body || typeof body.queryGroupVersion !== 'object' || !body.queryGroupVersion) {
-          return (reply as FastifyReply).status(400).send({ error: 'Body must contain queryGroupVersion object' });
-        }
-        // Flatten for writer (writer expects canvasData at top-level).
-        // Destructured rather than spread-then-delete: the schema makes
-        // `queryGroupVersion` required, so it is not a deletable property.
-        const { queryGroupVersion, ...children } = body;
-        const flat = { ...children, ...queryGroupVersion };
-
-        // `{ request }` is what lets the writer check the query versions and
-        // rule set versions this body's nodes will run; the guard above covers
-        // only the group being written.
-        const { created, iriMap } = await createGroupVersionFlat(groupId, flat, { request });
-
-        try {
-          const { expandGroupVersionDetailed } = await import('../lib/GraphResolver.js');
-          // Composing needed Execute on each leg's library, which is not Read on
-          // it, so the author is not owed the text of every query they wired in.
-          const expanded = await expandGroupVersionDetailed(created, { request });
-
-          const payload = ('inputTuples' in expanded)
-            ? expanded
-            : ({ inputTuples: [], ...(expanded as Record<string, unknown>) });
-
-          const responseBody = { ...payload, iriMap };
-          setEntityConcurrencyHeaders(reply, created);
-
-          const result = reply.status(201).send(responseBody);
-          return result;
-        } catch (expansionError__u: unknown) {
-          // The version exists by now; only the echo of it failed.
-          return sendInternalError(reply, expansionError__u, 'Failed to create query group version');
-        }
-      } catch (e__u: unknown) {
-      const e = toError(e__u);
-        // A payload that is well-formed but names entities that do not exist
-        // is the client's to fix, not a server fault. Staging rejects before
-        // anything is written, so there is nothing to clean up.
-        if (isUnresolvableReferencesError(e__u)) {
-          return reply.status(422).send({ error: e.message, references: e__u.failures });
-        }
-        /*
-         * A refusal is not a server fault either, and flattening it into a 500
-         * would report "the server broke" for a node naming a query version in
-         * a library the caller may not execute. Re-thrown to the error handler,
-         * which answers 403 — the same reason `POST /argument-sets` stopped
-         * flattening this into its catch-all 400.
-         */
-        if (e__u instanceof AuthorizationError) throw e__u;
-        return sendInternalError(reply, e__u, 'Failed to create query group version');
-      }
-    }));
-
-  // GET /query-groups/:id/v/:version — get specific group version (always expanded)
-  fastify.get('/:id/v/:version', ...typedRoute(getQueryGroupVersionForGroupSchema, async (request, reply) => {
-    try {
-      const { id: groupId, version } = request.params;
-      const targetVer = parseInt(version, 10);
-      const match = (cache.getByType('QueryGroupVersion') as LdkitQueryGroupVersion[])
-        .find(v => v.isPartOf === groupId && Number(v.version) === targetVer);
-      if (!match) return reply.status(404).send({ error: 'Not Found' });
-      requireEntityMode(request, match, 'read');
-      const detailed = await expandGroupVersion(match);
-      // For "flat everything", also include typed arrays and related entities
-      try {
-        const { expandGroupVersionDetailed } = await import('../lib/GraphResolver.js');
-        const rich = await expandGroupVersionDetailed(match, { request });
-
-        /*
-         * Build iriMap with query version IDs mapped to query names.
-         *
-         * Over the versions the caller may read, not every version in the
-         * deployment: the map is keyed by IRI rather than by this group's
-         * nodes, so unfiltered it named every query in every library to anyone
-         * who could open one group version. A node whose version is withheld
-         * falls back to the canvas's generic label, which is what it shows for
-         * any version it cannot name.
-         */
-        const iriMap: Record<string, string> = {};
-        const allQueries = cache.getByType('Query') as LdkitQuery[];
-        const allQueryVersions = filterReadable(request, cache.getByType('QueryVersion') as LdkitQueryVersion[]);
-
-        // Map each query version ID to its query's name
-        for (const queryVersion of allQueryVersions) {
-          const queryId = queryVersion.isPartOf;
-          const query = allQueries.find(q => q.$id === queryId);
-          if (query && query.name) {
-            iriMap[queryVersion.$id] = query.name;
-          }
-        }
-
-        /*
-         * And the same for rule set versions. A RuleSetNode names a
-         * `ruleSetVersion`, and the canvas looks that IRI up in this map to
-         * label the node and its inspector — with only query versions here, an
-         * assigned rule set came back as "Unknown" on every reload, while the
-         * query node beside it kept its name.
-         */
-        const allRuleSets = cache.getByType('RuleSet') as LdkitRuleSet[];
-        const allRuleSetVersions = filterReadable(request, cache.getByType('RuleSetVersion') as LdkitRuleSetVersion[]);
-        for (const ruleSetVersion of allRuleSetVersions) {
-          const ruleSet = allRuleSets.find(r => r.$id === ruleSetVersion.isPartOf);
-          if (ruleSet && ruleSet.name) {
-            iriMap[ruleSetVersion.$id] = ruleSet.name;
-          }
-        }
-
-        setEntityConcurrencyHeaders(reply, match);
-        return reply.send({ ...rich, iriMap });
-      } catch {
-        setEntityConcurrencyHeaders(reply, match);
-        return reply.send(detailed);
-      }
-    } catch (e__u: unknown) {
-      return sendInternalError(reply, e__u, 'Failed to fetch query group version');
-    }
-  }));
-
-  // PATCH /query-groups/:id/v/:version — annotate a version; content is a snapshot
-  //
-  // The group's in-place overwrite went in #191 and the API half in #192: a
-  // version is what the graph looked like when it was saved, and every
-  // compatibility check that named it stays true. `canvasData` is treated as
-  // content rather than annotation deliberately — it rides in the version
-  // payload, so allowing it would mean dragging a node while viewing an old
-  // version silently rewrites that version.
-  fastify.patch('/:id/v/:version', ...typedRoute(patchQueryGroupVersionForGroupSchema, async (request, reply) => {
-    try {
-      const { id: groupId, version } = request.params;
-      const targetVer = parseInt(version, 10);
-
-      // Find the existing version
-      const existing = (cache.getByType('QueryGroupVersion') as LdkitQueryGroupVersion[])
-        .find(v => v.isPartOf === groupId && Number(v.version) === targetVer);
-      if (!existing) return reply.status(404).send({ error: 'Query group version not found' });
-      requireEntityMode(request, existing, 'write');
-
-      const { annotations, rejection } = classifyVersionPatch(unwrapGroupVersionPatch(request.body), {
-        ignore: ['dateModified'],
-      });
-      if (rejection) return reply.status(rejection.status).send(rejection);
-
-      const { valid, currentTag } = validateIfMatch(request, existing);
-      if (!valid) {
-        try {
-          const { expandGroupVersionDetailed } = await import('../lib/GraphResolver.js');
-          const rich = await expandGroupVersionDetailed(existing, { request });
-          return reply.status(412).send({
-            error: 'Precondition Failed',
-            expected: currentTag,
-            current: rich,
-          });
-        } catch {
-          return reply.status(412).send({
-            error: 'Precondition Failed',
-            expected: currentTag,
-          });
-        }
-      }
-
-      const updated = Object.keys(annotations).length > 0
-        ? await cache.update<LdkitQueryGroupVersion>(existing.$id, annotations, 'QueryGroupVersion')
-        : existing;
-
-      if (!updated) {
-        return reply.status(404).send({ error: 'Query group version not found' });
-      }
-
-      // Return expanded envelope like GET
-      try {
-        const { expandGroupVersionDetailed } = await import('../lib/GraphResolver.js');
-        const rich = await expandGroupVersionDetailed(updated, { request });
-        setEntityConcurrencyHeaders(reply, updated);
-        return reply.send(rich);
-      } catch {
-        const detailed = await expandGroupVersion(updated);
-        setEntityConcurrencyHeaders(reply, updated);
-        return reply.send(detailed);
-      }
-    } catch (e__u: unknown) {
-      return sendInternalError(reply, e__u, 'Failed to update query group version');
-    }
-  }));
-
-  // GET /query-groups/:id/v/:version/validate — validate query group version
-  fastify.get('/:id/v/:version/validate', ...typedRoute(validateQueryGroupVersionSchema, async (request, reply) => {
+  // GET /query-groups/:id/versions/:version/validate — validate query group version
+  fastify.get('/:id/versions/:version/validate', ...typedRoute(validateQueryGroupVersionSchema, async (request, reply) => {
     try {
       const { id: groupId, version } = request.params;
       const targetVer = parseInt(version, 10);

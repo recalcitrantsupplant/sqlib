@@ -14,6 +14,7 @@ import {
 } from './argument-set-schemas.js';
 import { reposRoute, setEntityConcurrencyHeaders, validateIfMatch } from './route-helpers.js';
 import { classifyVersionPatch } from '../lib/versionPatch.js';
+import { describePins, pinsOn } from '../lib/versionPins.js';
 import { registerEntityAuthGuard } from '../auth/entityGuard.js';
 import { AuthorizationError, requireEntityMode, requireLibraryMode } from '../auth/enforce.js';
 
@@ -31,6 +32,14 @@ const contentPatchRejectedSchema = {
     fields: { type: 'array', items: { type: 'string' } },
   },
   required: ['error'],
+} as const;
+
+/** A refusal that may carry more than `error`: `expected` and `current` on a 412, `usedBy` on a pinned delete. */
+const refusalSchema = {
+  type: 'object',
+  properties: { error: { type: 'string' } },
+  required: ['error'],
+  additionalProperties: true,
 } as const;
 
 const service = new ArgumentSetService();
@@ -72,8 +81,8 @@ const executionPayloadResponseSchema = {
 
 export default async function argumentSetRoutes(fastify: FastifyInstance) {
   /*
-   * No suffix lists: this plugin mounts `/`, `/:id`, `/:id/export`, `/:id/v`,
-   * `/:id/v/:version` and `/:id/v/:version/export`, and nothing else. It
+   * No suffix lists: this plugin mounts `/`, `/:id`, `/:id/export`, `/:id/versions`,
+   * `/:id/versions/:version` and `/:id/versions/:version/export`, and nothing else. It
    * carried `executeSuffixes: ['/execute', '/execute/stream', '/run']` and
    * `exemptSuffixes: ['/preview']`, four paths it has never had a route for —
    * dead entries that match by *suffix*, so each was a standing offer to
@@ -187,7 +196,7 @@ export default async function argumentSetRoutes(fastify: FastifyInstance) {
       response: {
         200: argumentSetResponseSchema,
         404: { type: 'object', properties: { error: { type: 'string' } }, required: ['error'] },
-        412: { type: 'object', properties: { error: { type: 'string' } }, required: ['error'] },
+        412: refusalSchema,
       },
     }, async ({ request, reply }) => {
     const { id } = request.params;
@@ -195,9 +204,9 @@ export default async function argumentSetRoutes(fastify: FastifyInstance) {
     if (!detail) {
       return reply.code(404).send({ error: `Argument set ${id} not found` });
     }
-    const { valid } = validateIfMatch(request, { dateModified: detail.dateModified });
+    const { valid, currentTag } = validateIfMatch(request, { dateModified: detail.dateModified });
     if (!valid) {
-      return reply.code(412).send({ error: 'If-Match header does not match current entity tag' });
+      return reply.code(412).send({ error: 'Precondition Failed', expected: currentTag, current: detail });
     }
     const updated = await service.update(id, request.body as {
       name?: string;
@@ -216,6 +225,8 @@ export default async function argumentSetRoutes(fastify: FastifyInstance) {
       response: {
         204: { type: 'null' },
         404: { type: 'object', properties: { error: { type: 'string' } }, required: ['error'] },
+        409: refusalSchema,
+        412: refusalSchema,
       },
     }, async ({ request, reply }) => {
     const { id } = request.params;
@@ -225,7 +236,14 @@ export default async function argumentSetRoutes(fastify: FastifyInstance) {
     }
     const { valid, currentTag } = validateIfMatch(request, { dateModified: detail.dateModified });
     if (!valid) {
-      return reply.code(412).send({ error: 'If-Match header does not match current entity tag' });
+      return reply.code(412).send({ error: 'Precondition Failed', expected: currentTag, current: detail });
+    }
+    // The same rule every versioned entity follows: a version a saved test
+    // case names is pinned, and deleting it would leave the case naming
+    // arguments that are gone.
+    const pins = pinsOn((await service.listVersions(id)).map(version => version.id));
+    if (pins.length > 0) {
+      return reply.code(409).send({ error: describePins('argument set', pins), usedBy: pins });
     }
     await service.delete(id);
     if (currentTag) {
@@ -262,7 +280,7 @@ export default async function argumentSetRoutes(fastify: FastifyInstance) {
     }
   }));
 
-  fastify.get('/:id/v', ...reposRoute({
+  fastify.get('/:id/versions', ...reposRoute({
       params: argumentSetIdParamSchema,
       response: {
         200: argumentSetVersionListResponseSchema,
@@ -278,7 +296,7 @@ export default async function argumentSetRoutes(fastify: FastifyInstance) {
     return reply.send(versions);
   }));
 
-  fastify.post('/:id/v', ...reposRoute({
+  fastify.post('/:id/versions', ...reposRoute({
       params: argumentSetIdParamSchema,
       body: argumentSetVersionBodySchema,
       response: {
@@ -302,7 +320,7 @@ export default async function argumentSetRoutes(fastify: FastifyInstance) {
     return reply.send(created);
   }));
 
-  fastify.get('/:id/v/:version', ...reposRoute({
+  fastify.get('/:id/versions/:version', ...reposRoute({
       params: argumentSetVersionParamSchema,
       response: {
         200: argumentSetVersionResponseSchema,
@@ -316,7 +334,7 @@ export default async function argumentSetRoutes(fastify: FastifyInstance) {
       return reply.code(404).send({ error: `Argument set version ${id} v${version} not found` });
     }
     /*
-     * The three `/:id/v/:version` routes match versions on `isPartOf` and never
+     * The three `/:id/versions/:version` routes match versions on `isPartOf` and never
      * read the set the path names, so the plugin guard's premise — "a miss is a
      * 404 the handler will produce" — does not hold for them, and each checks
      * the version it is about to serve.
@@ -334,7 +352,7 @@ export default async function argumentSetRoutes(fastify: FastifyInstance) {
     return reply.send(detail);
   }));
 
-  fastify.patch('/:id/v/:version', ...reposRoute({
+  fastify.patch('/:id/versions/:version', ...reposRoute({
       params: argumentSetVersionParamSchema,
       body: argumentSetVersionPatchSchema,
       response: {
@@ -342,6 +360,7 @@ export default async function argumentSetRoutes(fastify: FastifyInstance) {
         400: contentPatchRejectedSchema,
         404: { type: 'object', properties: { error: { type: 'string' } }, required: ['error'] },
         409: contentPatchRejectedSchema,
+        412: refusalSchema,
       },
     }, async ({ request, reply }) => {
     const { id, version } = request.params;
@@ -354,7 +373,7 @@ export default async function argumentSetRoutes(fastify: FastifyInstance) {
     requireEntityMode(request, { isPartOf: existing.isPartOf }, 'write');
     const { valid, currentTag } = validateIfMatch(request, { dateModified: existing.dateModified });
     if (!valid) {
-      return reply.code(412).send({ error: 'If-Match header does not match current entity tag' });
+      return reply.code(412).send({ error: 'Precondition Failed', expected: currentTag, current: existing });
     }
     /*
      * A version is a snapshot, so a PATCH annotates rather than edits (issue
@@ -373,7 +392,7 @@ export default async function argumentSetRoutes(fastify: FastifyInstance) {
     return reply.send(existing);
   }));
 
-  fastify.get('/:id/v/:version/export', ...reposRoute({
+  fastify.get('/:id/versions/:version/export', ...reposRoute({
       params: argumentSetVersionParamSchema,
       response: {
         200: executionPayloadResponseSchema,

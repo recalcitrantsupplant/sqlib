@@ -26,7 +26,7 @@ import type { ArgumentTupleBinding, TupleSetReference } from '../types/argument-
 
 /**
  * The wire shape of a table binding: what `POST /argument-sets` and
- * `POST /argument-sets/:id/v` accept, whose body schema is
+ * `POST /argument-sets/:id/versions` accept, whose body schema is
  * `additionalProperties: false`. `tupleSetRefs` is an editor field and must not
  * reach it.
  */

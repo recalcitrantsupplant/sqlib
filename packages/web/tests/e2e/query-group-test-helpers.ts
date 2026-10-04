@@ -307,9 +307,9 @@ export async function setupMockApi(page: Page, state: MockState, options: SetupM
     await route.fallback();
   });
 
-  await page.route(`${API_ORIGIN}/queries/*/v/*/validate`, (route) => route.fallback());
+  await page.route(`${API_ORIGIN}/queries/*/versions/*/validate`, (route) => route.fallback());
 
-  await page.route(`${API_ORIGIN}/queries/*/v/*`, async (route) => {
+  await page.route(`${API_ORIGIN}/queries/*/versions/*`, async (route) => {
     const segments = getUrlSegments(route);
     const id = decodeId(segments[1] ?? '');
     const versionNumber = Number(segments[3]);
@@ -325,7 +325,7 @@ export async function setupMockApi(page: Page, state: MockState, options: SetupM
     });
   });
 
-  await page.route(`${API_ORIGIN}/queries/*/v`, async (route) => {
+  await page.route(`${API_ORIGIN}/queries/*/versions`, async (route) => {
     const segments = getUrlSegments(route);
     const id = decodeId(segments[1] ?? '');
     const versions = state.queryVersions[id] ?? [];
@@ -595,7 +595,7 @@ export async function setupMockApi(page: Page, state: MockState, options: SetupM
     await json(route, 200, ruleSet, { ETag: makeEtag('rule-set', ruleSetId) });
   });
 
-  await page.route(`${API_ORIGIN}/query-groups/*/v/*/validate`, async (route) => {
+  await page.route(`${API_ORIGIN}/query-groups/*/versions/*/validate`, async (route) => {
     const { validationResponse } = options;
     const fixture = typeof validationResponse === 'function' ? validationResponse() : validationResponse;
     await json(route, 200, {
@@ -607,7 +607,7 @@ export async function setupMockApi(page: Page, state: MockState, options: SetupM
     });
   });
 
-  await page.route(`${API_ORIGIN}/query-groups/*/v/*`, async (route) => {
+  await page.route(`${API_ORIGIN}/query-groups/*/versions/*`, async (route) => {
     const segments = getUrlSegments(route);
     const groupId = decodeId(segments[1] ?? '');
     const versionNumber = Number(segments[3]);
@@ -627,7 +627,7 @@ export async function setupMockApi(page: Page, state: MockState, options: SetupM
     });
   });
 
-  await page.route(`${API_ORIGIN}/query-groups/*/v`, async (route) => {
+  await page.route(`${API_ORIGIN}/query-groups/*/versions`, async (route) => {
     const segments = getUrlSegments(route);
     const groupId = decodeId(segments[1] ?? '');
     if (route.request().method() === 'GET') {

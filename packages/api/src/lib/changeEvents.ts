@@ -157,7 +157,7 @@ interface RouteTarget {
 /**
  * What a URL says about the entity it wrote.
  *
- * Path shapes are `/queries`, `/queries/:id`, `/queries/:id/v/:version` and the
+ * Path shapes are `/queries`, `/queries/:id`, `/queries/:id/versions/:version` and the
  * like, optionally behind a public base path — so the segments are scanned for
  * the first known collection rather than assuming it is the first one.
  */

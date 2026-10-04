@@ -203,7 +203,7 @@ describe('End-to-End Query Creation and Execution Flow', () => {
       // Step 4: Create QueryVersion using the flat payload pattern
       const queryVersionResponse = await app.inject({
         method: 'POST',
-        url: `/queries/${encodeURIComponent(actualQueryId)}/v`,
+        url: `/queries/${encodeURIComponent(actualQueryId)}/versions`,
         payload: queryVersionPayload,
       });
 

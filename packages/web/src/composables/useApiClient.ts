@@ -1046,7 +1046,7 @@ export function useApiClient() {
   const listQueryVersions = async (queryId: string) => {
     ensureQueriesEnabled();
     const versions = await requestData(
-      buildUrl(`/queries/${encodeURIComponent(queryId)}/v`),
+      buildUrl(`/queries/${encodeURIComponent(queryId)}/versions`),
       { method: 'GET' },
       (payload) => queryVersionSchema.array().parse(payload),
     );
@@ -1057,7 +1057,7 @@ export function useApiClient() {
   const getQueryVersion = async (queryId: string, version: number | string) => {
     ensureQueriesEnabled();
     const result = await request(
-      buildUrl(`/queries/${encodeURIComponent(queryId)}/v/${encodeURIComponent(String(version))}`),
+      buildUrl(`/queries/${encodeURIComponent(queryId)}/versions/${encodeURIComponent(String(version))}`),
       { method: 'GET' },
       queryVersionExpandedSchema.parse,
     );
@@ -1068,7 +1068,7 @@ export function useApiClient() {
   const createQueryVersion = async (queryId: string, input: QueryVersionForQueryCreateInput) => {
     ensureQueriesEnabled();
     const result = await request(
-      buildUrl(`/queries/${encodeURIComponent(queryId)}/v`),
+      buildUrl(`/queries/${encodeURIComponent(queryId)}/versions`),
       {
         method: 'POST',
         headers: JSON_HEADERS,
@@ -1085,7 +1085,7 @@ export function useApiClient() {
     const headers: Record<string, string> = { ...JSON_HEADERS };
     applyIfMatchHeader(headers, options?.ifMatch ?? null);
     const result = await request(
-      buildUrl(`/queries/${encodeURIComponent(queryId)}/v/${encodeURIComponent(String(version))}`),
+      buildUrl(`/queries/${encodeURIComponent(queryId)}/versions/${encodeURIComponent(String(version))}`),
       {
         method: 'PATCH',
         headers,
@@ -1136,7 +1136,7 @@ export function useApiClient() {
   const listQueryGroupVersions = (groupId: string) => {
     ensureQueryGroupsEnabled();
     return requestData(
-      buildUrl(`/query-groups/${encodeURIComponent(groupId)}/v`),
+      buildUrl(`/query-groups/${encodeURIComponent(groupId)}/versions`),
       { method: 'GET' },
       (payload) => queryGroupVersionSchema.array().parse(payload),
     );
@@ -1145,7 +1145,7 @@ export function useApiClient() {
   const getQueryGroupVersion = (groupId: string, version: number | string) => {
     ensureQueryGroupsEnabled();
     return request(
-      buildUrl(`/query-groups/${encodeURIComponent(groupId)}/v/${encodeURIComponent(String(version))}`),
+      buildUrl(`/query-groups/${encodeURIComponent(groupId)}/versions/${encodeURIComponent(String(version))}`),
       { method: 'GET' },
       queryGroupVersionExpandedSchema.parse,
     );
@@ -1154,7 +1154,7 @@ export function useApiClient() {
   const createQueryGroupVersion = (groupId: string, input: QueryGroupVersionForGroupCreateInput) => {
     ensureQueryGroupsEnabled();
     return request(
-      buildUrl(`/query-groups/${encodeURIComponent(groupId)}/v`),
+      buildUrl(`/query-groups/${encodeURIComponent(groupId)}/versions`),
       {
         method: 'POST',
         headers: JSON_HEADERS,
@@ -1174,7 +1174,7 @@ export function useApiClient() {
     const headers: Record<string, string> = { ...JSON_HEADERS };
     applyIfMatchHeader(headers, options?.ifMatch ?? null);
     return request(
-      buildUrl(`/query-groups/${encodeURIComponent(groupId)}/v/${encodeURIComponent(String(version))}`),
+      buildUrl(`/query-groups/${encodeURIComponent(groupId)}/versions/${encodeURIComponent(String(version))}`),
       {
         method: 'PATCH',
         headers,
@@ -1190,7 +1190,7 @@ export function useApiClient() {
   const validateQueryGroupVersion = (groupId: string, version: number | string) => {
     ensureQueryGroupsEnabled();
     return requestData(
-      buildUrl(`/query-groups/${encodeURIComponent(groupId)}/v/${encodeURIComponent(String(version))}/validate`),
+      buildUrl(`/query-groups/${encodeURIComponent(groupId)}/versions/${encodeURIComponent(String(version))}/validate`),
       { method: 'GET' },
       queryGroupValidationResponseSchema.parse,
     );
@@ -2662,7 +2662,7 @@ export function useApiClient() {
   const listArgumentSetVersions = (setId: string) => {
     ensureQueriesEnabled();
     return requestData(
-      buildUrl(`/argument-sets/${encodeURIComponent(setId)}/v`),
+      buildUrl(`/argument-sets/${encodeURIComponent(setId)}/versions`),
       { method: 'GET' },
       (payload) => z.array(argumentSetVersionDetailSchema).parse(payload),
     );
@@ -2671,7 +2671,7 @@ export function useApiClient() {
   const getArgumentSetVersion = (setId: string, version: number) => {
     ensureQueriesEnabled();
     return request(
-      buildUrl(`/argument-sets/${encodeURIComponent(setId)}/v/${version}`),
+      buildUrl(`/argument-sets/${encodeURIComponent(setId)}/versions/${version}`),
       { method: 'GET' },
       (payload) => argumentSetVersionDetailSchema.parse(payload),
     );
@@ -2684,7 +2684,7 @@ export function useApiClient() {
   }) => {
     ensureQueriesEnabled();
     return request(
-      buildUrl(`/argument-sets/${encodeURIComponent(setId)}/v`),
+      buildUrl(`/argument-sets/${encodeURIComponent(setId)}/versions`),
       {
         method: 'POST',
         headers: JSON_HEADERS,
@@ -2700,7 +2700,7 @@ export function useApiClient() {
   }) => {
     ensureQueriesEnabled();
     return request(
-      buildUrl(`/argument-sets/${encodeURIComponent(setId)}/v/${version}`),
+      buildUrl(`/argument-sets/${encodeURIComponent(setId)}/versions/${version}`),
       {
         method: 'PATCH',
         headers: JSON_HEADERS,
@@ -2713,7 +2713,7 @@ export function useApiClient() {
   const exportArgumentSetVersion = (setId: string, version: number) => {
     ensureQueriesEnabled();
     return requestData(
-      buildUrl(`/argument-sets/${encodeURIComponent(setId)}/v/${version}/export`),
+      buildUrl(`/argument-sets/${encodeURIComponent(setId)}/versions/${version}/export`),
       { method: 'GET' },
       argumentSetExportSchema.parse
     );
@@ -2779,7 +2779,7 @@ export function useApiClient() {
 
   const listBenchmarkVersions = (experimentId: string) => {
     return requestData(
-      buildUrl(`/benchmark-experiments/${encodeURIComponent(experimentId)}/v`),
+      buildUrl(`/benchmark-experiments/${encodeURIComponent(experimentId)}/versions`),
       { method: 'GET' },
       (payload) => z.array(benchmarkExperimentVersionSchema).parse(payload)
     );
@@ -2787,7 +2787,7 @@ export function useApiClient() {
 
   const listBenchmarkRuns = (experimentId: string, version: number) => {
     return requestData(
-      buildUrl(`/benchmark-experiments/${encodeURIComponent(experimentId)}/v/${version}/runs`),
+      buildUrl(`/benchmark-experiments/${encodeURIComponent(experimentId)}/versions/${version}/runs`),
       { method: 'GET' },
       (payload) => z.array(benchmarkRunSchema).parse(payload)
     );
@@ -2833,7 +2833,7 @@ export function useApiClient() {
 
   const getBenchmarkVersion = (experimentId: string, version: number) => {
     return request(
-      buildUrl(`/benchmark-experiments/${encodeURIComponent(experimentId)}/v/${version}`),
+      buildUrl(`/benchmark-experiments/${encodeURIComponent(experimentId)}/versions/${version}`),
       { method: 'GET' },
       benchmarkExperimentVersionSchema.parse
     );
@@ -2841,7 +2841,7 @@ export function useApiClient() {
 
   const createBenchmarkVersion = (experimentId: string, input: BenchmarkExperimentVersionCreate) => {
     return request(
-      buildUrl(`/benchmark-experiments/${encodeURIComponent(experimentId)}/v`),
+      buildUrl(`/benchmark-experiments/${encodeURIComponent(experimentId)}/versions`),
       {
         method: 'POST',
         headers: JSON_HEADERS,
@@ -2860,7 +2860,7 @@ export function useApiClient() {
     const headers: Record<string, string> = { ...JSON_HEADERS };
     applyIfMatchHeader(headers, options?.ifMatch ?? null);
     return request(
-      buildUrl(`/benchmark-experiments/${encodeURIComponent(experimentId)}/v/${version}`),
+      buildUrl(`/benchmark-experiments/${encodeURIComponent(experimentId)}/versions/${version}`),
       {
         method: 'PATCH',
         headers,
@@ -2872,7 +2872,7 @@ export function useApiClient() {
 
   const freezeBenchmarkVersion = (experimentId: string, version: number) => {
     return request(
-      buildUrl(`/benchmark-experiments/${encodeURIComponent(experimentId)}/v/${version}/freeze`),
+      buildUrl(`/benchmark-experiments/${encodeURIComponent(experimentId)}/versions/${version}/freeze`),
       { method: 'POST' },
       benchmarkExperimentVersionSchema.parse
     );
@@ -2880,7 +2880,7 @@ export function useApiClient() {
 
   const executeBenchmarkRun = (experimentId: string, version: number) => {
     return requestData(
-      buildUrl(`/benchmark-experiments/${encodeURIComponent(experimentId)}/v/${version}/run`),
+      buildUrl(`/benchmark-experiments/${encodeURIComponent(experimentId)}/versions/${version}/run`),
       {
         method: 'POST',
         headers: JSON_HEADERS,

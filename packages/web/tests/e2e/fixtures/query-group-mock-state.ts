@@ -8,7 +8,7 @@
  * (see `test/lib/mockApiContract.test.ts`, and issue #47).
  *
  * Data, plus the one piece of behaviour a unit test has to be able to reach:
- * what `POST /query-groups/:id/v` answers. The routing itself lives in the
+ * what `POST /query-groups/:id/versions` answers. The routing itself lives in the
  * helper.
  */
 import type {
@@ -26,7 +26,7 @@ import type {
 export type StoredQueryVersion = QueryVersion & { queryString: string };
 
 /**
- * An argument set version as `GET /argument-sets/:id/v/:n` answers.
+ * An argument set version as `GET /argument-sets/:id/versions/:n` answers.
  *
  * Not a contracts type: argument sets have no generated schema yet, so this
  * mirrors `argumentSetVersionResponseSchema`
@@ -133,7 +133,7 @@ export type ExecutionResponseFixture = {
 };
 
 /**
- * What `GET /query-groups/:id/v/:n/validate` answers.
+ * What `GET /query-groups/:id/versions/:n/validate` answers.
  *
  * An `issue` whose `entityId` names a node, edge or port is decorated onto that
  * element of the canvas (`useCanvasValidation`); one that names nothing is a
@@ -648,7 +648,7 @@ export const createMockState = (): MockState => {
 
 /**
  * The names the canvas labels an entity with, keyed by the version IRI it
- * stores — what `GET /query-groups/:id/v/:n` returns as its `iriMap`.
+ * stores — what `GET /query-groups/:id/versions/:n` returns as its `iriMap`.
  *
  * Both kinds belong in it: a QueryNode names a query version and a RuleSetNode
  * names a rule set version, and the inspector reads both out of this one map.
@@ -747,7 +747,7 @@ export function wrapExecutionResponse(
 }
 
 /**
- * What `POST /query-groups/:id/v` answers, built from the draft it was sent.
+ * What `POST /query-groups/:id/versions` answers, built from the draft it was sent.
  *
  * Lives here rather than in the route handler so `test/lib/mockApiContract.test.ts`
  * can replay it: the create response is the half of the mock a spec cannot

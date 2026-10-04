@@ -30,7 +30,7 @@
  * `currentVersion`, and a group version is the only entity in the system whose
  * *content* is a set of references to other libraries' queries and rule sets —
  * so the collection was a way to find the group ids worth aiming
- * `GET /:id/v/:version` at, before the guard on that route had anything to say.
+ * `GET /:id/versions/:version` at, before the guard on that route had anything to say.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
@@ -58,22 +58,11 @@ overrideCacheCoordinatorProvider((() => {
   return {
     getCacheCoordinator: () => ({
       get: (id: string) => store.entities.get(id) ?? null,
-      // `query-groups.ts` lists through the coordinator rather than a repo.
       list: (type: string) => byType(type),
     }),
-    getEntityRepositories: () => ({
-      RuleSet: repo('RuleSet'),
-      RuleSetVersion: repo('RuleSetVersion'),
-      Rule: repo('Rule'),
-      RuleVersion: repo('RuleVersion'),
-      DataBlock: repo('DataBlock'),
-      DataBlockVersion: repo('DataBlockVersion'),
-      DataGraph: repo('DataGraph'),
-      DataGraphVersion: repo('DataGraphVersion'),
-      Test: repo('Test'),
-      TestVersion: repo('TestVersion'),
-      TestRun: repo('TestRun'),
-    }),
+    // Every route plugin reaches storage through the repositories now
+    // (`routes/versionedEntity.ts`), so any type answers.
+    getEntityRepositories: () => new Proxy({}, { get: (_target, type) => repo(String(type)) }),
   };
 })());
 
@@ -286,7 +275,7 @@ describe('GET /query-groups', () => {
   it('does not hand a stranger the version pointer its legs are named in', async () => {
     // A group row carries `currentVersion`, and that version is the entity
     // whose content names other libraries' query versions — so the listing was
-    // the way to find which group to aim `GET /:id/v/:version` at.
+    // the way to find which group to aim `GET /:id/versions/:version` at.
     const response = await list(stranger, 'query-groups', '/query-groups');
 
     expect(response.statusCode).toBe(200);
