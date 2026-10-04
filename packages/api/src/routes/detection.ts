@@ -1,4 +1,6 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
+import type { FeatureFlags } from '@sparql-query-lib/types';
+import { getFeatureFlags } from '../config/featureFlags.js';
 import { SparqlQueryParser } from '../lib/parser.js';
 import { detectionRouteSchemas, substituteRouteSchemas } from '@sparql-query-lib/contracts/schema/routes';
 import { applyExecutionArguments, resolveExecutionPayload } from '../lib/executionArguments.js';
@@ -18,69 +20,78 @@ function isSrlDocument(code: string): boolean {
   return /^(?:RULE|DATA|IF)\b/i.test(body);
 }
 
-export default async function (fastify: FastifyInstance) {
+export default async function (
+  fastify: FastifyInstance,
+  options: FastifyPluginOptions & { featureFlags?: FeatureFlags },
+) {
   const parser = new SparqlQueryParser();
   const ruleValidator = new RuleGrammarValidator();
+  const flags = options.featureFlags ?? getFeatureFlags();
 
-  // POST /detect-inputs — body: { query: string }
-  fastify.post(
-    '/detect-inputs',
-    ...typedRoute(detectionRouteSchemas.detectInputsPost, async (request, reply) => {
-      const { query } = request.body;
-      try {
+  // Parameter detection is the queries section's: with queries off there is
+  // no query to detect parameters in. The validators and the formatter below
+  // stay, because the rules editor uses them too.
+  if (flags.queries) {
+    // POST /detect-inputs — body: { query: string }
+    fastify.post(
+      '/detect-inputs',
+      ...typedRoute(detectionRouteSchemas.detectInputsPost, async (request, reply) => {
+        const { query } = request.body;
+        try {
+          const derived = deriveQueryVersionMetadata(parser, query);
+          return reply.send({
+            valuesInputs: derived.raw.valuesInputs,
+            limitParameters: derived.raw.limitParameters,
+            offsetParameters: derived.raw.offsetParameters,
+            correlatedExistsInputs: derived.raw.correlatedExistsInputs,
+          });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Invalid SPARQL query';
+          return reply.status(400).send({ error: message });
+        }
+      })
+    );
+
+    // GET /detect-inputs?query=...
+    fastify.get(
+      '/detect-inputs',
+      ...typedRoute(detectionRouteSchemas.detectInputsGet, async (request, reply) => {
+        const { query } = request.query;
+        try {
+          const derived = deriveQueryVersionMetadata(parser, query);
+          return reply.send({
+            valuesInputs: derived.raw.valuesInputs,
+            limitParameters: derived.raw.limitParameters,
+            offsetParameters: derived.raw.offsetParameters,
+            correlatedExistsInputs: derived.raw.correlatedExistsInputs,
+          });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Invalid SPARQL query';
+          return reply.status(400).send({ error: message });
+        }
+      })
+    );
+
+    // POST /detect-outputs — body: { query: string }
+    fastify.post(
+      '/detect-outputs',
+      ...typedRoute(detectionRouteSchemas.detectOutputsPost, async (request, reply) => {
+        const { query } = request.body;
         const derived = deriveQueryVersionMetadata(parser, query);
-        return reply.send({
-          valuesInputs: derived.raw.valuesInputs,
-          limitParameters: derived.raw.limitParameters,
-          offsetParameters: derived.raw.offsetParameters,
-          correlatedExistsInputs: derived.raw.correlatedExistsInputs,
-        });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Invalid SPARQL query';
-        return reply.status(400).send({ error: message });
-      }
-    })
-  );
+        return reply.send(derived.raw.outputs);
+      })
+    );
 
-  // GET /detect-inputs?query=...
-  fastify.get(
-    '/detect-inputs',
-    ...typedRoute(detectionRouteSchemas.detectInputsGet, async (request, reply) => {
-      const { query } = request.query;
-      try {
+    // GET /detect-outputs?query=...
+    fastify.get(
+      '/detect-outputs',
+      ...typedRoute(detectionRouteSchemas.detectOutputsGet, async (request, reply) => {
+        const { query } = request.query;
         const derived = deriveQueryVersionMetadata(parser, query);
-        return reply.send({
-          valuesInputs: derived.raw.valuesInputs,
-          limitParameters: derived.raw.limitParameters,
-          offsetParameters: derived.raw.offsetParameters,
-          correlatedExistsInputs: derived.raw.correlatedExistsInputs,
-        });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Invalid SPARQL query';
-        return reply.status(400).send({ error: message });
-      }
-    })
-  );
-
-  // POST /detect-outputs — body: { query: string }
-  fastify.post(
-    '/detect-outputs',
-    ...typedRoute(detectionRouteSchemas.detectOutputsPost, async (request, reply) => {
-      const { query } = request.body;
-      const derived = deriveQueryVersionMetadata(parser, query);
-      return reply.send(derived.raw.outputs);
-    })
-  );
-
-  // GET /detect-outputs?query=...
-  fastify.get(
-    '/detect-outputs',
-    ...typedRoute(detectionRouteSchemas.detectOutputsGet, async (request, reply) => {
-      const { query } = request.query;
-      const derived = deriveQueryVersionMetadata(parser, query);
-      return reply.send(derived.raw.outputs);
-    })
-  );
+        return reply.send(derived.raw.outputs);
+      })
+    );
+  }
 
   // POST /validate — body: { query: string }
   fastify.post(

@@ -22,23 +22,23 @@ A flag's value is parsed leniently, case-insensitively, after trimming:
 | Key | Environment variable | Default | What is absent when it is off |
 | --- | --- | --- | --- |
 | `notebook` | `FEATURE_NOTEBOOK` | on | The Notebook rail section and the links into it. `/notebook` stays reachable by URL |
-| `queries` | `FEATURE_QUERIES` | on | The Query rail section; the `/queries` and `/execute` routes. The Notebook has its own flag above |
+| `queries` | `FEATURE_QUERIES` | on | The Query rail section; the `/queries`, `/execute` and `/sparql` routes, and `/detect-inputs` / `/detect-outputs`. The Notebook has its own flag above |
 | `queryGroups` | `FEATURE_QUERY_GROUPS` | on | The Groups rail section; the `/query-groups` routes |
 | `rulesSuite` | `FEATURE_RULES_SUITE` | on | The Rules rail section; the `/rules`, `/data-blocks` and `/rule-sets` routes |
 | `benchmarks` | `FEATURE_BENCHMARKS` | on | The Bench rail section; the `/benchmark-experiments` routes |
 | `tests` | `FEATURE_TESTS` | on | The Tests rail section, the Tests tab on record pages, the run bar's "create test" target and the rules screen's "Save as test"; the `/tests` routes |
 | `dataGraphs` | `FEATURE_DATA_GRAPHS` | on | The Graphs rail section and the doors into it. The `/data-graphs` routes stay registered |
 | `tupleSets` | `FEATURE_TUPLE_SETS` | on | The Tuples rail section and the doors into it. The `/tuple-sets` routes stay registered |
-| `argumentSets` | `FEATURE_ARGUMENT_SETS` | on | The Argument sets rail section and the doors into it. The `/argument-sets` routes stay registered while `queries` or `queryGroups` is on |
+| `argumentSets` | `FEATURE_ARGUMENT_SETS` | on | The Argument sets rail section and the doors into it. The `/argument-sets` routes stay registered while `queries`, `queryGroups` or the `/tests` routes are on |
 | `build` | `FEATURE_BUILD` | on | The Build rail section and the links into it. `/build` stays reachable by URL, and what it shows still follows the section flags |
 | `etl` | `FEATURE_ETL` | **off** | The `/etl-jobs` routes, and the startup writability check on the ETL output directory |
 | `backends` | `FEATURE_BACKENDS` | on | The Backends rail section. The `/backends` routes stay registered unconditionally |
 | `settings` | `FEATURE_SETTINGS` | on | The settings entry in the rail |
 | `rulesAllowInvalidSave` | `FEATURE_RULES_ALLOW_INVALID_SAVE` | **off** | The ability to save a rule, data block or rule set version that does not parse. With it off, `allowInvalidSave: true` in a request body has no effect |
 | `ruleTuples` | `FEATURE_RULE_TUPLES` | **off** | The SRL rule-tuples extension — see below |
-| `playgroundQueries` | `FEATURE_PLAYGROUND_QUERIES` | on | The unsaved query playground. `/playground` is registered when this or `playgroundRules` is on |
-| `playgroundRules` | `FEATURE_PLAYGROUND_RULES` | on | The unsaved rules playground |
-| `playgroundEtl` | `FEATURE_PLAYGROUND_ETL` | **off** | The ETL rail section |
+| `playgroundQueries` | `FEATURE_PLAYGROUND_QUERIES` | on | The unsaved query playground, which runs through `/execute`; it has no route of its own |
+| `playgroundRules` | `FEATURE_PLAYGROUND_RULES` | on | The unsaved rules playground; `POST /playground/rules/execute` |
+| `playgroundEtl` | `FEATURE_PLAYGROUND_ETL` | **off** | The ETL rail section; `POST /playground/etl/execute` |
 | `assistant` | `FEATURE_ASSISTANT` | **off** | The in-app build assistant; the `/assistant` routes |
 
 Route-level refusal is a `404 Not Found`: a request to a route behind a flag

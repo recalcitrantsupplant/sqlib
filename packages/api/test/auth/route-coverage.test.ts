@@ -954,7 +954,9 @@ async function mountedRoutes(): Promise<string[]> {
 
   for (const [specifier, prefix] of PLUGINS) {
     const plugin = (await import(specifier)).default;
-    await app.register(plugin as never, { prefix });
+    // The playground and detection register some routes under a flag; every route is
+    // classified here, so every one is mounted. Other plugins ignore it.
+    await app.register(plugin as never, { prefix, featureFlags: { queries: true, playgroundRules: true, playgroundEtl: true } });
   }
   await app.ready();
   await app.close();

@@ -893,20 +893,27 @@ describe('Playground Rules Routes (/playground/rules)', () => {
       });
     });
 
-    it('returns 404 when rules feature disabled', async () => {
-      hoisted.mockFeatureFlags.mockReturnValue({ playgroundRules: false });
+    it('is not mounted when the rules playground is off', async () => {
+      // A route under a switched-off flag is not registered at all, so the
+      // 404 comes from the router rather than from inside a handler.
+      const off = Fastify({ logger: false });
+      setupValidator(off);
+      for (const schema of Object.values(schemas)) {
+        if (schema && typeof schema === 'object' && '$id' in schema) off.addSchema(schema as never);
+      }
+      await off.register(playgroundRoutes, { prefix: '/playground', featureFlags: { playgroundRules: false } as never });
+      await off.ready();
 
-      const res = await app.inject({
+      const res = await off.inject({
         method: 'POST',
         url: '/playground/rules/execute',
         payload: {
           rules: ['INSERT { ?s <new> <val> } WHERE { ?s <p> <o> }'],
         },
       });
+      await off.close();
 
       expect(res.statusCode).toBe(404);
-      const body = JSON.parse(res.body);
-      expect(body.error).toBe('Rules feature is disabled');
     });
   });
 });
