@@ -1,6 +1,7 @@
 import { metrics } from '@opentelemetry/api'; // Import metrics API
 import { SeverityNumber } from '@opentelemetry/api-logs';
 import { LoggerProvider, SimpleLogRecordProcessor, ConsoleLogRecordExporter } from '@opentelemetry/sdk-logs';
+import { log } from './log.js';
 
 export const meter = metrics.getMeter('sparql-query-lib', '1.0.0'); // Application name, version
 
@@ -35,8 +36,8 @@ export { SeverityNumber };
 // NodeSDK in otel-setup.ts handles shutdown for metrics and traces.
 process.on('SIGTERM', () => {
   loggerProvider.shutdown()
-    .then(() => console.log('OTEL Logging terminated'))
-    .catch((error) => console.error('Error terminating OTEL logging', error))
+    .then(() => log.info('OTEL logging terminated'))
+    .catch((error) => log.error({ err: error }, 'Error terminating OTEL logging'))
     // Let the SDK shutdown handle process exit
     // .finally(() => process.exit(0));
 });

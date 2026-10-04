@@ -1,18 +1,18 @@
 import type { FastifyInstance } from 'fastify';
 import { classifyVersionPatch } from '../lib/versionPatch.js';
+import { maxRuleIterations } from '../config/executionLimits.js';
 import { mintId } from '../lib/id.js';
 import { toRestApi } from '../persistence/utils/id-adapter.js';
 import type { LdkitRule } from '../persistence/schemas/RuleSchema.js';
 import type { LdkitRuleVersion } from '../persistence/schemas/RuleVersionSchema.js';
 import { createRuleVersion, annotateRuleVersion } from '../lib/RuleVersionWriter.js';
-import { reposRoute, typedRoute, withReposHandler, validateIfMatch, setEntityConcurrencyHeaders, findVersionByNumber } from './route-helpers.js';
+import { reposRoute, typedRoute, validateIfMatch, setEntityConcurrencyHeaders, findVersionByNumber } from './route-helpers.js';
 import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
 import { analyseReferences, describeWrongType } from '../lib/entityReferences.js';
 import { analyseTags } from '../lib/tagMembership.js';
 import { createRuleSchema, updateRuleSchema } from '@sparql-query-lib/contracts/schema';
 import { oxigraphStoreManager } from '../lib/OxigraphStoreManager.js';
 import { OxigraphSparqlExecutor } from '../server/OxigraphSparqlExecutor.js';
-import { ImmutableEntityError } from '../lib/immutability.js';
 import { RuleGrammarValidator } from '../lib/RuleGrammarValidator.js';
 import { getFeatureFlags } from '../config/featureFlags.js';
 import { registerEntityAuthGuard } from '../auth/entityGuard.js';
@@ -106,8 +106,7 @@ const executeRuleBodySchema = {
   type: 'object',
   properties: {
     version: { type: 'integer', nullable: true },
-    maxIterations: { type: 'integer', minimum: 1, nullable: true },
-    destroyStore: { type: 'boolean', nullable: true },
+    maxIterations: { type: 'integer', minimum: 1, maximum: maxRuleIterations(), nullable: true },
   },
   additionalProperties: false,
 } as const;
@@ -459,8 +458,10 @@ export default async function (fastify: FastifyInstance) {
 
     const body = request.body ?? {};
     const requestedVersion = body.version as number | undefined;
-    const maxIterations = typeof body.maxIterations === 'number' && body.maxIterations > 0 ? body.maxIterations : 25;
-    const destroyStore = body.destroyStore !== false;
+    const maxIterations = Math.min(
+      typeof body.maxIterations === 'number' && body.maxIterations > 0 ? body.maxIterations : 25,
+      maxRuleIterations(),
+    );
 
     const versions = (repos.RuleVersion.list() as LdkitRuleVersion[])
       .filter(v => v.isPartOf === id);
@@ -521,9 +522,9 @@ export default async function (fastify: FastifyInstance) {
         nquads,
       });
     } finally {
-      if (destroyStore) {
-        oxigraphStoreManager.destroyEphemeralStore(storeId);
-      }
+      // Always: a caller-controlled way to keep the store left one behind per
+      // call, reachable by nothing and freed by nothing.
+      oxigraphStoreManager.destroyEphemeralStore(storeId);
     }
   }));
 

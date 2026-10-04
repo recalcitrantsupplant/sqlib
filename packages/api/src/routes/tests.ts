@@ -12,12 +12,15 @@
  */
 
 import type { FastifyInstance, FastifyReply } from 'fastify';
+import { maxRuleIterations } from '../config/executionLimits.js';
 import { classifyVersionPatch } from '../lib/versionPatch.js';
 import { mintId } from '../lib/id.js';
 import { toRestApi } from '../persistence/utils/id-adapter.js';
 import type { LdkitTest } from '../persistence/schemas/TestSchema.js';
 import type { LdkitTestVersion } from '../persistence/schemas/TestVersionSchema.js';
 import type { LdkitTestCase } from '../persistence/schemas/TestCaseSchema.js';
+import { listCaseDataGraphs } from '../lib/testCases.js';
+import { TAG_MATCH_MODES, type TagMatchMode } from '@sparql-query-lib/contracts';
 import { reposRoute, validateIfMatch, setEntityConcurrencyHeaders, findVersionByNumber } from './route-helpers.js';
 import type { EntityRepositories } from '../lib/EntityRepositories.js';
 import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
@@ -87,7 +90,7 @@ export const testResponseSchema = {
  * and there is no `/test-cases` endpoint — so returning ids would only oblige
  * every caller to fetch N more times to draw one table.
  */
-const testCaseResponseSchema = {
+export const testCaseResponseSchema = {
   type: 'object',
   properties: {
     id: { type: 'string' },
@@ -96,7 +99,22 @@ const testCaseResponseSchema = {
     name: { type: 'string', nullable: true },
     argumentSetVersion: { type: 'string', nullable: true },
     dataGraphVersion: { type: 'string', nullable: true },
-    dataGraphs: { type: 'array', items: { type: 'string' }, nullable: true },
+    /**
+     * Expanded to the shape a case is written with, not the stored child
+     * IRIs: a client that reads a version, edits it and saves it back must be
+     * able to send what it read. Returning ids made a multi-graph case
+     * impossible to re-save without losing its graphs.
+     */
+    dataGraphs: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: { dataGraphVersion: { type: 'string' } },
+        required: ['dataGraphVersion'],
+        additionalProperties: false,
+      },
+      nullable: true,
+    },
     tupleSeeds: { type: 'string', nullable: true },
     sqlFixture: { type: 'string', nullable: true },
     expected: { type: 'string', nullable: true },
@@ -109,7 +127,7 @@ const testCaseResponseSchema = {
   additionalProperties: false,
 } as const;
 
-const testVersionResponseSchema = {
+export const testVersionResponseSchema = {
   type: 'object',
   properties: {
     id: { type: 'string' },
@@ -175,7 +193,7 @@ const testVersionBodyProperties = {
   cases: { type: 'array', items: testCaseBodySchema, nullable: true },
   subjectVersion: { type: 'string', nullable: true },
   backend: { type: 'string', nullable: true },
-  maxIterations: { type: 'integer', minimum: 1, nullable: true },
+  maxIterations: { type: 'integer', minimum: 1, maximum: maxRuleIterations(), nullable: true },
   timeoutMs: { type: 'integer', minimum: 1, nullable: true },
   comment: { type: 'string', nullable: true },
   immutable: { type: 'boolean', nullable: true },
@@ -219,7 +237,7 @@ const comparisonDetailSchema = {
   additionalProperties: false,
 } as const;
 
-const testCaseRunResponseSchema = {
+export const testCaseRunResponseSchema = {
   type: 'object',
   properties: {
     caseId: { type: 'string' },
@@ -258,7 +276,7 @@ const testCaseRunResponseSchema = {
  * that produced it, and one flattened diff across N cases would be a diff of
  * nothing in particular.
  */
-const testRunResponseSchema = {
+export const testRunResponseSchema = {
   type: 'object',
   properties: {
     testId: { type: 'string' },
@@ -366,9 +384,7 @@ const runHistoryQuerySchema = {
  * always means — "the negation ones and the RDFS ones" — while `all` is the
  * narrowing they reach for deliberately ("negation *and* must-reject").
  */
-export const TAG_MATCH_MODES = ['any', 'all'] as const;
-
-export type TagMatchMode = (typeof TAG_MATCH_MODES)[number];
+export { TAG_MATCH_MODES, type TagMatchMode };
 
 /** Comma-separated, whitespace-tolerant, order-preserving, duplicate-free. */
 function parseTagList(raw: string | string[] | undefined | null): string[] {
@@ -470,7 +486,7 @@ const runByTagsBodySchema = {
  * failed verdicts. The two are always the same length; the field exists so a
  * caller can say "0 tests matched" without inspecting an empty array.
  */
-const runByTagsResponseSchema = {
+export const runByTagsResponseSchema = {
   type: 'object',
   properties: {
     /** Empty when the run named its tests directly rather than by tag. */
@@ -587,7 +603,15 @@ function serializeVersion(version: LdkitTestVersion, allCases: LdkitTestCase[]):
   const cases = allCases
     .filter(testCase => testCase.isPartOf === version.$id)
     .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
-    .map(testCase => toRestApi(testCase));
+    .map(testCase => {
+      const graphs = listCaseDataGraphs(testCase.$id);
+      return {
+        ...toRestApi(testCase),
+        dataGraphs: graphs.length > 0
+          ? graphs.map(graph => ({ dataGraphVersion: graph.dataGraphVersion }))
+          : undefined,
+      };
+    });
   return { ...toRestApi(version), cases };
 }
 

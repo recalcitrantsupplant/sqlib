@@ -7,7 +7,6 @@ import {
   writeGeneratedFiles,
   loadExample,
   buildCreateExampleLookup,
-  type SchemaFile,
   type GeneratedFiles
 } from '../../scripts/lib/file-ops.js';
 

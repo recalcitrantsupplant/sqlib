@@ -12,6 +12,7 @@ import {
   dataGraphByteSize,
   inspectDataGraphContent,
 } from './dataGraphContent.js';
+import { log } from './log.js';
 
 type AnyRecord = Record<string, unknown>;
 
@@ -164,7 +165,7 @@ async function createDataGraphVersionNumbered(
   try {
     await oxigraphStoreManager.invalidateStoresTrackingDataGraph(dataGraphId);
   } catch (error) {
-    console.error(`Failed to invalidate stores tracking DataGraph ${dataGraphId}:`, error);
+    log.error({ err: error, dataGraphId }, 'Failed to invalidate stores tracking DataGraph');
   }
 
   return created;

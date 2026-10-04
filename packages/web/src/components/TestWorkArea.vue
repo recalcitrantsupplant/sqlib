@@ -26,6 +26,7 @@
       :is-scratch="isScratch"
       :current-version-number="currentVersionNumber"
       :edit-count="editCount"
+      :draft-not-kept="draftNotKept"
       :saving="isSaving"
       :can-save="canSave"
       :needs-name="!testName.trim()"
@@ -635,7 +636,7 @@
  * subject, because every reference to a test means the thing it tests, and
  * silently changing that keeps the history while changing the meaning.
  */
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import { Plus } from '@lucide/vue';
 import SaveBar from './shared/SaveBar.vue';
@@ -669,6 +670,7 @@ import { usePanelResize } from '../composables/usePanelResize';
 import { useFeatureFlags } from '../composables/useFeatureFlags';
 import { TEST_REPORT_FORMATS } from '../lib/testReportFormats';
 import type { TestReportFormat } from '../lib/testReportFormats';
+import type { TestCaseGraphInput } from '@sparql-query-lib/contracts';
 // @ts-ignore - Nuxt auto-import
 import { useRuntimeConfig } from '#imports';
 import type { RunBarChoice, RunBarPick } from '../lib/runBar';
@@ -684,7 +686,7 @@ import { useTagsStore } from '@/composables/useTagsStore';
 import { useInheritedTags } from '@/composables/useInheritedTags';
 import { taggableKindFor } from '@/composables/useEntityTags';
 import { useScratchRecord } from '@/composables/useScratchRecord';
-import { useCallableDrafts, UNASSIGNED_LIBRARY_ID } from '@/composables/useCallableDrafts';
+import { useEntityDraft } from '@/composables/useEntityDraft';
 import {
   FEATURE_FOR_SUBJECT_KIND,
   INPUTS_FOR_SUBJECT_KIND,
@@ -738,7 +740,6 @@ const ruleSetsStore = useRuleSetsStore();
 const etlJobsStore = useEtlJobsStore();
 const backendsStore = useBackendsStore();
 const apiClient = useApiClient();
-const draftsStore = useCallableDrafts();
 const { activeLibraryId } = useActiveLibrary();
 
 const testId = ref<string | null>(props.testId ?? null);
@@ -838,6 +839,15 @@ const subjectTuplesEnabled = ref<boolean | null>(null);
 interface CaseDraft {
   name: string;
   dataGraphVersion: string | null;
+  /**
+   * The ordered RDF inputs of a case over a subject that takes several.
+   *
+   * Carried through the editor untouched, like `expectedFormat`: this screen
+   * edits the single-graph spelling, and a multi-graph case is written over the
+   * API or by the assistant. Dropping it on read is what made re-saving such a
+   * test from here mint a version with its graphs gone (review C8).
+   */
+  dataGraphs: TestCaseGraphInput[] | null;
   argumentSetVersion: string | null;
   tupleSeeds: string;
   /** DuckDB statements run before an ETL subject's own SQL — the rows it reads. */
@@ -859,6 +869,7 @@ function emptyCase(): CaseDraft {
   return {
     name: '',
     dataGraphVersion: null,
+    dataGraphs: null,
     argumentSetVersion: null,
     tupleSeeds: '',
     sqlFixture: '',
@@ -887,7 +898,18 @@ function caseField<K extends keyof CaseDraft>(key: K) {
   });
 }
 
-const dataGraphVersion = caseField('dataGraphVersion');
+/*
+ * Picking one graph here is choosing the single-graph spelling, so it replaces
+ * a list the case was read with rather than sitting beside it — the server
+ * refuses a case carrying both.
+ */
+const dataGraphVersion = computed({
+  get: () => activeCase.value.dataGraphVersion,
+  set: (value: string | null) => {
+    activeCase.value.dataGraphVersion = value;
+    if (value) activeCase.value.dataGraphs = null;
+  },
+});
 const argumentSetVersion = caseField('argumentSetVersion');
 const tupleSeeds = caseField('tupleSeeds');
 const sqlFixture = caseField('sqlFixture');
@@ -1438,22 +1460,17 @@ const detailsProps = computed(() => ({
 function selectVersion(versionId: string) {
   const version = testVersions.value.find((candidate) => candidate.id === versionId);
   if (!version) return;
-  hydratingRecord.value = true;
-  applyEditorBody(bodyOfVersion(version));
-  selectedCaseIndex.value = 0;
-  loadedVersionId.value = version.id;
-  void Promise.resolve().then(() => { hydratingRecord.value = false; });
+  hydrate(() => {
+    applyEditorBody(bodyOfVersion(version));
+    selectedCaseIndex.value = 0;
+    loadedVersionId.value = version.id;
+  });
   toast.success(`Loaded v${version.version} into the editor`);
 }
 
 /** Go back to the unsaved edits after reading an older version. */
 function selectDraft() {
-  const draft = openDraft.value?.body;
-  if (!draft || typeof draft !== 'object') return;
-  hydratingRecord.value = true;
-  applyEditorBody(draft as TestDraftBody);
-  loadedVersionId.value = currentVersionId.value;
-  void Promise.resolve().then(() => { hydratingRecord.value = false; });
+  if (restoreDraft()) loadedVersionId.value = currentVersionId.value;
 }
 
 /**
@@ -1465,7 +1482,7 @@ function selectDraft() {
 async function setCurrentVersion(versionId: string) {
   if (!testId.value) return;
   try {
-    await apiClient.updateTest(testId.value, { currentVersion: versionId } as never);
+    await testsStore.updateTest(testId.value, { currentVersion: versionId });
     currentVersionId.value = versionId;
     const version = testVersions.value.find((candidate) => candidate.id === versionId);
     if (version) currentVersionNumber.value = version.version;
@@ -1603,13 +1620,6 @@ interface TestDraftBody {
 }
 
 const testLibraryId = ref<string | null>(null);
-/** When the browser-local draft was last written, for the Details draft row. */
-const locallySavedAt = ref<string | null>(null);
-/** Set while a test is being read, so hydration never lands as an edit. */
-const hydratingRecord = ref(false);
-/** The editor payload of the version on screen, to compare edits against. */
-const savedBody = ref('');
-let draftSaveHandle: ReturnType<typeof setTimeout> | null = null;
 
 /** What the editor holds now, in the shape a draft records it. */
 function editorBody(): TestDraftBody {
@@ -1638,6 +1648,9 @@ function bodyOfVersion(version: TestVersion): TestDraftBody {
     cases: version.cases.map((testCase) => ({
       name: testCase.name ?? '',
       dataGraphVersion: testCase.dataGraphVersion ?? null,
+      dataGraphs: testCase.dataGraphs?.length
+        ? testCase.dataGraphs.map((graph) => ({ dataGraphVersion: graph.dataGraphVersion }))
+        : null,
       argumentSetVersion: testCase.argumentSetVersion ?? null,
       tupleSeeds: testCase.tupleSeeds ?? '',
       sqlFixture: testCase.sqlFixture ?? '',
@@ -1658,79 +1671,44 @@ function applyEditorBody(body: TestDraftBody) {
   selectedCaseIndex.value = Math.min(selectedCaseIndex.value, cases.value.length - 1);
 }
 
-const openDraft = computed(() => {
-  void draftsStore.allDrafts.value;
-  return testId.value ? draftsStore.draftFor(testId.value) : null;
+/*
+ * The draft lifecycle every versioned work area shares: autosave, undo-to-saved,
+ * Discard, and hydration that does not count as typing.
+ */
+const {
+  hydrating: hydratingRecord,
+  locallySavedAt,
+  savedBody,
+  openDraft,
+  editCount: draftEditCount,
+  notPersisted: draftNotKept,
+  matchesSaved,
+  cancelDraftSave,
+  removeDraft,
+  hydrate,
+  restoreDraft,
+  discardDraft: discardEntityDraft,
+} = useEntityDraft<TestDraftBody>({
+  section: 'test',
+  id: () => testId.value,
+  enabled: () => !isScratch.value,
+  libraryId: () => testLibraryId.value || activeLibraryId.value,
+  name: () => testName.value,
+  editorBody,
+  applyBody: applyEditorBody,
+  sources: [expectationKind, subjectVersion, backend, cases],
+  resultKind: 'BOOLEAN',
 });
 
-const editCount = computed(() => (isScratch.value ? 0 : openDraft.value?.edits ?? 0));
-
-/** Typing back to what is saved is an undo, not an edit. */
-const matchesSaved = () => JSON.stringify(editorBody()) === savedBody.value;
-
-function persistDraft() {
-  const id = testId.value;
-  if (!id || isScratch.value) return;
-  const existing = draftsStore.draftFor(id);
-  draftsStore.save({
-    id: existing?.id ?? `urn:ui-temp:draft-of-${id}`,
-    libraryId: testLibraryId.value || activeLibraryId.value || UNASSIGNED_LIBRARY_ID,
-    type: 'query',
-    kind: 'draft',
-    section: 'test',
-    name: testName.value,
-    description: null,
-    queryString: null,
-    body: editorBody(),
-    resultKind: 'BOOLEAN',
-    inputTuples: [],
-    limitParameters: [],
-    offsetParameters: [],
-    outputs: [],
-    basedOn: id,
-    edits: (existing?.edits ?? 0) + 1,
-  });
-  locallySavedAt.value = new Date().toISOString();
-}
-
-function removeDraft() {
-  const id = testId.value;
-  if (!id) return;
-  const existing = draftsStore.draftFor(id);
-  if (existing) draftsStore.remove(existing.id);
-  locallySavedAt.value = null;
-}
-
-function cancelDraftSave() {
-  if (!draftSaveHandle) return;
-  clearTimeout(draftSaveHandle);
-  draftSaveHandle = null;
-}
-
-watch(
-  [expectationKind, subjectVersion, backend, cases],
-  () => {
-    if (isScratch.value || hydratingRecord.value || !testId.value) return;
-    cancelDraftSave();
-    draftSaveHandle = setTimeout(() => {
-      draftSaveHandle = null;
-      if (matchesSaved()) {
-        removeDraft();
-        return;
-      }
-      persistDraft();
-    }, 500);
-  },
-  { deep: true },
-);
+const editCount = draftEditCount;
 
 /** Throw the unsaved edits away and go back to the saved version. */
 function discardDraft() {
-  cancelDraftSave();
-  removeDraft();
-  hydratingRecord.value = true;
-  applyEditorBody(JSON.parse(savedBody.value || '{}') as TestDraftBody);
-  void Promise.resolve().then(() => { hydratingRecord.value = false; });
+  // With no version read yet there is no saved body to go back to, so the
+  // editor goes back to empty, as it did before the lifecycle was shared.
+  const hadSavedBody = Boolean(savedBody.value);
+  discardEntityDraft();
+  if (!hadSavedBody) hydrate(() => applyEditorBody({}));
   toast.success('Draft discarded');
 }
 
@@ -1808,8 +1786,13 @@ function onSubjectKindChange(kind: SubjectKind) {
  */
 function savedCaseInputs(testCase: CaseDraft) {
   const applicable = INPUTS_FOR_SUBJECT_KIND[subjectKind.value];
+  // The two spellings of a case's RDF input are exclusive on the server; a
+  // case read with a list keeps the list, and picking a single graph in the
+  // editor replaces it (see `dataGraphVersion`'s setter).
+  const graphs = applicable.dataGraph && testCase.dataGraphs?.length ? testCase.dataGraphs : null;
   return {
-    dataGraphVersion: applicable.dataGraph ? testCase.dataGraphVersion : null,
+    dataGraphVersion: applicable.dataGraph && !graphs ? testCase.dataGraphVersion : null,
+    dataGraphs: graphs,
     tupleSeeds: applicable.tupleSeeds ? testCase.tupleSeeds || null : null,
     sqlFixture: applicable.sqlFixture ? testCase.sqlFixture || null : null,
     argumentSetVersion: applicable.argumentSet ? testCase.argumentSetVersion : null,
@@ -1864,17 +1847,17 @@ async function save() {
         // unticked box says none. Sending the list we drew would be a second
         // implementation of the same rule, and the one that goes stale.
         ...(copySubjectTags.value ? {} : { tags: [] }),
-      } as never);
+      });
       testId.value = created.id;
       emit('scratch-saved', { id: created.id, name: created.name, libraryId });
     } else {
       // Name and description live on the test rather than on a version, and
       // nothing else on this screen writes them: before Details owned them
       // they were editable here and silently dropped on save.
-      await apiClient.updateTest(testId.value, {
+      await testsStore.updateTest(testId.value, {
         name: testName.value.trim(),
         description: testDescription.value.trim() || null,
-      } as never);
+      });
       await testsStore.loadTests();
     }
 
@@ -2304,12 +2287,6 @@ watch([argumentSetVersion, argumentSetOptions], () => {
   void loadArgumentSetPreview(argumentSetVersion.value);
 }, { immediate: true });
 
-onBeforeUnmount(() => {
-  if (!draftSaveHandle) return;
-  cancelDraftSave();
-  // Closing the tab mid-debounce should not lose the edit that was queued.
-  if (!isScratch.value && testId.value && !matchesSaved()) persistDraft();
-});
 </script>
 
 <style scoped>

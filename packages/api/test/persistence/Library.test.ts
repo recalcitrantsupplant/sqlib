@@ -1,5 +1,5 @@
 import { createRepositoryLens, overrideRepositoryLenses } from '../../src/persistence/utils/entityRepository.js';
-import { LibrarySchema, LdkitLibrary } from '../../src/persistence/schemas/LibrarySchema.js';
+import { LibrarySchema } from '../../src/persistence/schemas/LibrarySchema.js';
 import { randomUUID } from 'crypto';
 
 // In-memory LDKit lens for this suite

@@ -6,7 +6,7 @@ import { Dispatcher } from 'undici';
  * with the actual data bindings (query outputs).
  * Uses the canonical SparqlValue and SparqlResultsJson types.
  */
-import type { SparqlResultsJson as SparqlSelectJsonOutput, SparqlValue } from '../lib/query-chaining.js';
+import type { SparqlResultsJson as SparqlSelectJsonOutput } from '../lib/query-chaining.js';
 
 // Re-export SparqlSelectJsonOutput for clarity in this module if needed elsewhere,
 // but ISparqlExecutor methods will use the imported type directly.
@@ -22,6 +22,12 @@ export type SparqlQueryOptions = {
    * If not provided, the executor may use a default based on the query type or backend configuration.
    */
   acceptHeader?: string;
+  /**
+   * Stops the request when it fires. An HTTP backend aborts the request in
+   * flight; an in-process store checks it before starting, since a running
+   * Oxigraph query cannot be interrupted.
+   */
+  signal?: AbortSignal;
 };
 
 /**

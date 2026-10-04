@@ -23,6 +23,7 @@ import type { OxigraphConfig, OxigraphSourceConfig, OxigraphStoreMode } from '..
 import { hydrateStoreFromDataGraphs, trackedDataGraphIds, type HydrationResult } from './dataGraphHydration.js';
 import { restoreStoreFromSnapshot, writeStoreSnapshot } from './storeSnapshot.js';
 import { markStoreWritten, storeWriteCount } from './storeWrites.js';
+import { log } from './log.js';
 
 /**
  * How long a checkpoint may take before its log line becomes a warning.
@@ -101,19 +102,19 @@ export class OxigraphStoreManager {
       this.stopCheckpointing();
     }
 
-    console.log(`⏱️ Starting OxigraphStoreManager periodic checkpointing (every ${intervalMs}ms)`);
+    log.info({ intervalMs }, 'Starting OxigraphStoreManager periodic checkpointing');
     this.checkpointInterval = setInterval(() => {
       // A checkpoint of a large store can outlast the interval — the dump is
       // synchronous, so two of them are two full stops of the event loop back
       // to back. A tick that arrives during one is dropped rather than queued.
       if (this.checkpointRunning) {
-        console.warn('⏱️ Skipping checkpoint tick: the previous checkpoint is still running');
+        log.warn('Skipping checkpoint tick: the previous checkpoint is still running');
         return;
       }
       this.checkpointRunning = true;
       this.checkpointAllStores()
         .catch(err => {
-          console.error('Failed to checkpoint Oxigraph stores:', err);
+          log.error({ err }, 'Failed to checkpoint Oxigraph stores');
         })
         .finally(() => {
           this.checkpointRunning = false;
@@ -133,7 +134,7 @@ export class OxigraphStoreManager {
     if (this.checkpointInterval) {
       clearInterval(this.checkpointInterval);
       this.checkpointInterval = null;
-      console.log('⏱️ Stopped OxigraphStoreManager periodic checkpointing');
+      log.info('Stopped OxigraphStoreManager periodic checkpointing');
     }
   }
 
@@ -179,15 +180,14 @@ export class OxigraphStoreManager {
         // The pause is the whole argument for the skip above, so the log has to
         // carry it — a quad count alone cannot make that argument on someone
         // else's machine.
-        const message =
-          `⏱️ Checkpointed ${backendId}: ${store.size} quads in ${durationMs.toFixed(0)}ms`;
+        const checkpoint = { backendId, quads: store.size, durationMs: Math.round(durationMs) };
         if (durationMs >= CHECKPOINT_PAUSE_WARNING_MS) {
-          console.warn(`${message} — the event loop was blocked for that time`);
+          log.warn(checkpoint, 'Checkpointed store; the event loop was blocked for that time');
         } else {
-          console.log(message);
+          log.debug(checkpoint, 'Checkpointed store');
         }
       } catch (error) {
-        console.error(`Failed to checkpoint store ${backendId}:`, error);
+        log.error({ err: error, backendId }, 'Failed to checkpoint store');
       }
     });
 
@@ -205,7 +205,10 @@ export class OxigraphStoreManager {
       if (targetDir === this.storageDir) {
         return;
       }
-      console.warn(`⚠️ OxigraphStoreManager already initialized with ${this.storageDir}. Reconfiguring to ${targetDir} and clearing existing stores.`);
+      log.warn(
+        { from: this.storageDir, to: targetDir },
+        'OxigraphStoreManager already initialized; reconfiguring storage dir and clearing existing stores',
+      );
       this.durableStores.clear();
       this.ephemeralStores.clear();
       this.memoryStores.clear();
@@ -219,10 +222,10 @@ export class OxigraphStoreManager {
 
     try {
       await fs.mkdir(this.storageDir, { recursive: true });
-      console.log(`OxigraphStoreManager initialized with storage dir: ${this.storageDir}`);
+      log.info({ storageDir: this.storageDir }, 'OxigraphStoreManager initialized');
       this.initialized = true;
     } catch (error) {
-      console.error('Failed to initialize OxigraphStoreManager:', error);
+      log.error({ err: error }, 'Failed to initialize OxigraphStoreManager');
       throw error;
     }
   }
@@ -253,12 +256,12 @@ export class OxigraphStoreManager {
 
     if (this.durableStores.has(backendId)) {
       const store = this.durableStores.get(backendId)!;
-      console.log(`📊 Retrieved existing durable store ${backendId}: ${store.size} quads`);
+      log.debug({ backendId, quads: store.size }, 'Retrieved existing durable store');
       return store;
     }
 
     if (this.pendingDurableStores.has(backendId)) {
-      console.log(`📊 [OxigraphStoreManager] Deduplicating concurrent createDurableStore for ${backendId} — awaiting in-flight creation`);
+      log.debug({ backendId }, 'Deduplicating concurrent createDurableStore; awaiting in-flight creation');
       return this.pendingDurableStores.get(backendId)!;
     }
 
@@ -286,7 +289,7 @@ export class OxigraphStoreManager {
     const restore = await restoreStoreFromSnapshot(store, serializationPath);
     const restoredFromDisk = restore.restored;
     if (restoredFromDisk) {
-      console.log(`📊 Restored durable store ${backendId} from ${serializationPath}: ${store.size} quads`);
+      log.info({ backendId, path: serializationPath, quads: store.size }, 'Restored durable store from snapshot');
     }
 
     // Load initial data only when starting fresh (not restored from disk)
@@ -298,7 +301,7 @@ export class OxigraphStoreManager {
     this.updateStoreStats(backendId, store, false, serializationPath);
 
     if (!restoredFromDisk) {
-      console.log(`📊 Created new durable store ${backendId}: ${store.size} quads`);
+      log.info({ backendId, quads: store.size }, 'Created new durable store');
     }
 
     return store;
@@ -333,7 +336,7 @@ export class OxigraphStoreManager {
 
     const pending = this.pendingMemoryStores.get(backendId);
     if (pending) {
-      console.log(`📊 [OxigraphStoreManager] Deduplicating concurrent createMemoryStore for ${backendId}`);
+      log.debug({ backendId }, 'Deduplicating concurrent createMemoryStore');
       return pending;
     }
 
@@ -364,8 +367,9 @@ export class OxigraphStoreManager {
 
       if (epochAfter === epochBefore || attempt >= maxAttempts) {
         if (epochAfter !== epochBefore) {
-          console.warn(
-            `📊 Memory store ${backendId} was invalidated during hydration ${attempt} time(s); serving the latest build`,
+          log.warn(
+            { backendId, attempts: attempt },
+            'Memory store was invalidated during hydration; serving the latest build',
           );
         }
         this.memoryStores.set(backendId, store);
@@ -373,7 +377,7 @@ export class OxigraphStoreManager {
         return store;
       }
 
-      console.log(`📊 Memory store ${backendId} invalidated mid-hydration — rebuilding`);
+      log.debug({ backendId }, 'Memory store invalidated mid-hydration; rebuilding');
     }
   }
 
@@ -397,7 +401,7 @@ export class OxigraphStoreManager {
       const restore = await restoreStoreFromSnapshot(store, serializationPath);
       restoredFromDisk = restore.restored;
       if (restoredFromDisk) {
-        console.log(`📊 Restored durable memory store ${backendId} from ${serializationPath}: ${store.size} quads`);
+        log.info({ backendId, path: serializationPath, quads: store.size }, 'Restored durable memory store from snapshot');
       }
     }
 
@@ -406,8 +410,9 @@ export class OxigraphStoreManager {
       try {
         hydration = hydrateStoreFromDataGraphs(store, config.sources);
         if (hydration.sources.length > 0) {
-          console.log(
-            `📊 Hydrated ${mode} store ${backendId} from ${hydration.sources.length} data graph(s): ${hydration.quadsLoaded} quads`,
+          log.info(
+            { backendId, mode, dataGraphs: hydration.sources.length, quads: hydration.quadsLoaded },
+            'Hydrated store from data graphs',
           );
         }
       } catch (error) {
@@ -472,7 +477,7 @@ export class OxigraphStoreManager {
       try {
         await this.serializeDurableStore(backendId);
       } catch (error) {
-        console.error(`Failed to serialize durable store ${backendId} before invalidation:`, error);
+        log.error({ err: error, backendId }, 'Failed to serialize durable store before invalidation');
       }
       this.durableStores.delete(backendId);
     }
@@ -485,7 +490,7 @@ export class OxigraphStoreManager {
     // leaving it behind would compare the next store's writes against another
     // store's history.
     this.lastCheckpoint.delete(backendId);
-    console.log(`📊 Invalidated memory store: ${backendId}`);
+    log.debug({ backendId }, 'Invalidated memory store');
     return true;
   }
 
@@ -514,7 +519,7 @@ export class OxigraphStoreManager {
     }
 
     if (affected.length > 0) {
-      console.log(`📊 Data graph ${dataGraphId} saved — invalidated ${affected.length} tracking store(s)`);
+      log.info({ dataGraphId, invalidated: affected.length }, 'Data graph saved; invalidated tracking stores');
     }
     return affected;
   }
@@ -567,7 +572,7 @@ export class OxigraphStoreManager {
     this.ephemeralStores.set(storeId, store);
     this.updateStoreStats(storeId, store, true);
 
-    console.log(`Created ephemeral store: ${storeId}`);
+    log.debug({ storeId }, 'Created ephemeral store');
     return store;
   }
 
@@ -588,7 +593,7 @@ export class OxigraphStoreManager {
   destroyEphemeralStore(storeId: string): void {
     if (this.ephemeralStores.delete(storeId)) {
       this.storeStats.delete(storeId);
-      console.log(`Destroyed ephemeral store: ${storeId}`);
+      log.debug({ storeId }, 'Destroyed ephemeral store');
     }
   }
 
@@ -603,9 +608,9 @@ export class OxigraphStoreManager {
     try {
       const data = await fs.readFile(filePath);
       await this.loadDataFromBytes(store, data, format);
-      console.log(`Loaded data from file: ${filePath} (format: ${format})`);
+      log.info({ filePath, format }, 'Loaded data from file');
     } catch (error) {
-      console.error(`Failed to load data from file ${filePath}:`, error);
+      log.error({ err: error, filePath }, 'Failed to load data from file');
       throw new Error(`Failed to load data from file: ${error}`);
     }
   }
@@ -628,7 +633,7 @@ export class OxigraphStoreManager {
       markStoreWritten(store);
       const sizeAfter = store.size;
       const measure = typeof data === 'string' ? `${data.length} chars` : `${data.length} bytes`;
-      console.log(`📊 Loaded data into store: ${sizeBefore} → ${sizeAfter} quads (format: ${format}, ${measure})`);
+      log.debug({ sizeBefore, sizeAfter, format, size: measure }, 'Loaded data into store');
 
       // Update stats for any store that we can find
       for (const [storeId, durableStore] of Array.from(this.durableStores)) {
@@ -644,7 +649,7 @@ export class OxigraphStoreManager {
         }
       }
     } catch (error) {
-      console.error(`Failed to load data into store:`, error);
+      log.error({ err: error }, 'Failed to load data into store');
       throw new Error(`Failed to load data: ${error}`);
     }
   }
@@ -663,9 +668,9 @@ export class OxigraphStoreManager {
       store.load(nquads, { format: 'nq' });
       markStoreWritten(store);
 
-      console.log(`Imported data from SPARQL endpoint: ${endpoint}`);
+      log.info({ endpoint }, 'Imported data from SPARQL endpoint');
     } catch (error) {
-      console.error(`Failed to import from SPARQL endpoint ${endpoint}:`, error);
+      log.error({ err: error, endpoint }, 'Failed to import from SPARQL endpoint');
       throw new Error(`Failed to import from SPARQL endpoint: ${error}`);
     }
   }
@@ -684,9 +689,9 @@ export class OxigraphStoreManager {
       const detectedFormat = format || this.detectFormatFromUrl(url) || 'turtle';
       
       await this.loadDataFromString(store, data, detectedFormat);
-      console.log(`Loaded data from remote file: ${url} (format: ${detectedFormat})`);
+      log.info({ url, format: detectedFormat }, 'Loaded data from remote file');
     } catch (error) {
-      console.error(`Failed to load data from remote file ${url}:`, error);
+      log.error({ err: error, url }, 'Failed to load data from remote file');
       throw new Error(`Failed to load data from remote file: ${error}`);
     }
   }
@@ -720,9 +725,9 @@ export class OxigraphStoreManager {
       // hand. Written through a temp file, and empty stores are written too —
       // an emptied store is a state worth persisting.
       await writeStoreSnapshot(store, filePath);
-      console.log(`Serialized store ${backendId} to: ${filePath} (${store.size} triples)`);
+      log.debug({ backendId, filePath, quads: store.size }, 'Serialized store');
     } catch (error) {
-      console.error(`Failed to serialize store ${backendId}:`, error);
+      log.error({ err: error, backendId }, 'Failed to serialize store');
       throw new Error(`Failed to serialize store: ${error}`);
     }
   }
@@ -745,14 +750,14 @@ export class OxigraphStoreManager {
    * Clean up resources and serialize durable stores
    */
   async shutdown(): Promise<void> {
-    console.log('Shutting down OxigraphStoreManager...');
+    log.info('Shutting down OxigraphStoreManager');
     this.stopCheckpointing();
 
     // Serialize all durable stores (only if initialized)
     if (this.initialized) {
       const serializePromises = Array.from(this.durableStores.keys()).map(backendId =>
         this.serializeDurableStore(backendId).catch(error =>
-          console.error(`Failed to serialize store ${backendId} during shutdown:`, error)
+          log.error({ err: error, backendId }, 'Failed to serialize store during shutdown')
         )
       );
 
@@ -761,7 +766,7 @@ export class OxigraphStoreManager {
 
     this.clearStores();
 
-    console.log('OxigraphStoreManager shutdown complete');
+    log.info('OxigraphStoreManager shutdown complete');
   }
 
   /**
@@ -820,7 +825,7 @@ export class OxigraphStoreManager {
         break;
       
       default:
-        console.warn(`Unknown load method: ${loadMethod}`);
+        log.warn({ loadMethod }, 'Unknown load method');
     }
   }
 
@@ -874,7 +879,7 @@ export class OxigraphStoreManager {
       case 'nq':
         return 'application/n-quads';
       default:
-        console.warn(`Unknown format ${format}, defaulting to turtle`);
+        log.warn({ format }, 'Unknown format, defaulting to turtle');
         return 'text/turtle';
     }
   }
@@ -897,7 +902,7 @@ export class OxigraphStoreManager {
       case 'nq':
         return 'nq';
       default:
-        console.warn(`Unknown format ${format}, defaulting to turtle`);
+        log.warn({ format }, 'Unknown format, defaulting to turtle');
         return 'ttl';
     }
   }
@@ -930,7 +935,7 @@ export class OxigraphStoreManager {
       }
     } catch (error) {
       // Silently ignore errors (file might not exist yet, etc.)
-      console.debug(`Could not refresh disk usage for ${storeId} at ${persistPath}:`, error);
+      log.debug({ err: error, storeId, path: persistPath }, 'Could not refresh disk usage');
     }
   }
 

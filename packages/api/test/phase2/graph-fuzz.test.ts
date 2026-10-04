@@ -31,10 +31,10 @@ const { runs: RUNS, seed: SEED } = fuzzBudget(50);
  * reason - not merely that something went wrong - is what stops a refusal for an
  * unrelated cause from counting as agreement.
  */
-const EXPECTED_MESSAGE: Record<'require' | 'wrongOrder' | 'mixedWildcard', string> = {
+const EXPECTED_MESSAGE: Record<'require' | 'mixedWildcard' | 'unmappedEdge', string> = {
   require: 'received no bindings',
-  wrongOrder: 'order mismatch',
   mixedWildcard: 'all-UNDEF row cannot be mixed with bound rows',
+  unmappedEdge: 'maps none of its source',
 };
 
 /** Turns a successful engine response into the same shape the oracle reports. */
@@ -105,8 +105,8 @@ describe('Phase 2 graph fuzzing', () => {
     // end rather than trusted - and printed, so a nightly run says what it
     // covered instead of implying it covered everything.
     const tally: Record<string, number> = {
-      ok: 0, emptyResult: 0, nonEmptyResult: 0, require: 0, mixedWildcard: 0, wrongOrder: 0,
-      arity1: 0, arity2: 0, explicitMapping: 0, defaultMapping: 0,
+      ok: 0, emptyResult: 0, nonEmptyResult: 0, require: 0, mixedWildcard: 0, unmappedEdge: 0,
+      reorderedArguments: 0, arity1: 0, arity2: 0, explicitMapping: 0, defaultMapping: 0,
     };
 
     await fc.assert(fc.asyncProperty(caseArbitrary, async (generated: GeneratedCase) => {
@@ -118,6 +118,9 @@ describe('Phase 2 graph fuzzing', () => {
       }
       tally[generated.describe.startsWith('arity=2') ? 'arity2' : 'arity1'] += 1;
       tally[generated.oracle.edges.some(e => e.variableMappings) ? 'explicitMapping' : 'defaultMapping'] += 1;
+      if (generated.describe.includes('reorderedRows') && generated.describe.startsWith('arity=2')) {
+        tally.reorderedArguments += 1;
+      }
 
       if (expected.kind === 'error') {
         // A named failure must stay a client error, and must be the *same*
@@ -164,13 +167,10 @@ describe('Phase 2 graph fuzzing', () => {
     expect(tally.nonEmptyResult, 'no case produced rows').toBeGreaterThan(0);
     expect(tally.emptyResult, 'no case produced an empty result').toBeGreaterThan(0);
     expect(tally.require, 'no case exercised whenEmpty=require').toBeGreaterThan(0);
-    // Unasserted until #49, because it was ungeneratable: the §1.3 order
-    // mismatch needs a slot with at least two variables, and the corpus was
-    // arity-1 only. `graph-mutations.test.ts` covered it deterministically the
-    // whole time; what was missing was the fuzzer ever reaching it, so the
-    // tally reported `wrongOrder: 0` and nobody could tell that from a
-    // generator that had quietly stopped producing it.
-    expect(tally.wrongOrder, 'no case declared an argument set in the wrong order').toBeGreaterThan(0);
+    // A table naming a slot's variables in another order fills it like any
+    // other (it used to be the §1.3 order-mismatch error). Only an arity-2
+    // slot can express it at all, so its reach is checked rather than assumed.
+    expect(tally.reorderedArguments, 'no case declared an argument set in another order').toBeGreaterThan(0);
     // Below arity 2 every variable-pairing rule agrees, so an arity-1-only run
     // would report the mapping assertions as covered while testing nothing.
     expect(tally.arity2, 'no case used a two-variable tuple').toBeGreaterThan(0);

@@ -33,7 +33,7 @@ on:
   pull_request:
   push:
     branches: [main]
-  workflow_dispatch: # enables the manual e2e job
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -122,7 +122,7 @@ jobs:
   # this repo is private on the free plan, so branch protection / required
   # checks are unavailable and nothing else stops a red PR from being merged.
   dependabot-automerge:
-    needs: [verify, test, image, web-image]
+    needs: [verify, test, image, web-image, e2e]
     if: github.event_name == 'pull_request' && github.actor == 'dependabot[bot]'
     runs-on: ${{ github.event.pull_request.head.repo.fork
       && fromJSON('["ubuntu-latest"]')
@@ -144,6 +144,9 @@ jobs:
           DEPENDENCY_NAMES: ${{ steps.metadata.outputs.dependency-names }}
 
   # Playwright e2e — functional specs, mocked API, production preview build.
+  # Runs on every pull request and push like the jobs above, and is one of the
+  # jobs dependabot-automerge waits on, which is the only gate this repository
+  # has (see the note there).
   # Visual regression is excluded (font rendering differs per machine); see
   # scripts/ci/e2e.sh for the reasoning. Also runs packages/api's demo-page
   # suite (issue #261), which needs no preview build of its own but does need

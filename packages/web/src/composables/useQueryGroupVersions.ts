@@ -46,7 +46,7 @@ const normalizeVersionNumber = (value: unknown): number | null => {
 };
 
 export function useQueryGroupVersions(deps: UseQueryGroupVersionsDeps): UseQueryGroupVersionsResult {
-  const { graph, io, queryGroupsStore, queriesStore, apiClient, toast } = deps;
+  const { graph, io, queryGroupsStore, queriesStore, apiClient } = deps;
 
   const versionOptions = ref<Array<{ value: string; label: string; dateModified?: string | null }>>([]);
   const versionMetadata = ref<Record<string, VersionMeta>>({});

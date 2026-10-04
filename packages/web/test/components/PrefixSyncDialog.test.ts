@@ -6,7 +6,7 @@
  * is about the gates around it.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { nextTick, computed, ref } from 'vue';
+import { nextTick, computed } from 'vue';
 
 const mockLocalStorage: Record<string, string> = {};
 vi.stubGlobal('localStorage', {

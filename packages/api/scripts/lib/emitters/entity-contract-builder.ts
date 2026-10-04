@@ -248,6 +248,11 @@ export function deriveFieldZod(entityName: string, key: string, prop: any): stri
   }
 
   if (prop.type === 'array') {
+    // A plain string list (a tuple set version's column names) — the one
+    // non-IRI array the version leaves carry.
+    if (prop.items?.type === 'string' && prop.items?.format === undefined) {
+      return prop.nullable ? 'z.array(z.string()).optional().nullable()' : 'z.array(z.string())';
+    }
     if (prop.items?.format !== 'iri') {
       throw new Error(
         `${entityName}.${key}: arrays of ${prop.items?.type ?? 'unknown'} have no derivation`

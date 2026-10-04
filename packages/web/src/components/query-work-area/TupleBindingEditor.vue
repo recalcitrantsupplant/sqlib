@@ -496,11 +496,11 @@ async function saveAsTupleSet() {
       name: exportName.value.trim(),
       isPartOf: [libraryId],
       ...(props.copiedFrom ? { copiedFrom: props.copiedFrom } : {}),
-    } as never);
+    });
     await tupleSets.createVersion(created.id, {
       contentString: toTupleDocument(table),
       sourceFormat: 'sparql-results-json',
-    } as never);
+    });
     exporting.value = false;
     exportName.value = '';
     exportLeadIri.value = '';

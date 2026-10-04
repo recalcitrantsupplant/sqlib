@@ -3,7 +3,7 @@ import {backendTypeIriToKey, type LdkitBackend} from '../persistence/schemas/Bac
 import { toError } from '../lib/toError.js';
 import type {LdkitQuery} from '../persistence/schemas/QuerySchema.js';
 import type {LdkitQueryVersion} from '../persistence/schemas/QueryVersionSchema.js';
-import {ISparqlExecutor, SparqlExecutionResult, SparqlSelectJsonOutput} from '../server/ISparqlExecutor.js';
+import {ISparqlExecutor, SparqlSelectJsonOutput} from '../server/ISparqlExecutor.js';
 import {SparqlQueryParser} from '../lib/parser.js';
 import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
 import {handleSparqlExecutionError} from '../lib/error-handler.js';
@@ -39,12 +39,14 @@ import { resolveQueryDefaultBackend } from '../lib/defaultBackend.js';
 import type { NodeResult, ResolvedNode } from '../lib/orchestration/types.js';
 import * as crypto from 'crypto';
 import { ArgumentSetService } from '../lib/ArgumentSetService.js';
+import { abortOnDisconnect, ExecutionAbortedError } from '../lib/cancellation.js';
 import { QueryGroupSignatureService } from '../lib/QueryGroupSignatureService.js';
 import { applyExecutionArguments, normalizeArguments } from '../lib/executionArguments.js';
 import type { RuntimeArgumentPayload } from '../lib/ArgumentSetService.js';
 import { resolveDataGraphInput, DataGraphContentError } from '../lib/dataGraphInput.js';
 import type { ExecutionDataGraphInput } from '../lib/orchestration/ExecutionEngine.js';
 import type { ArgumentSet as RuntimeArgumentSet } from '../lib/query-chaining.js';
+import { log } from '../lib/log.js';
 
 // Alternative to import.meta for ES module compatibility
 const __dirname = path.dirname(new URL(import.meta.url).pathname);
@@ -58,7 +60,7 @@ function loadExecutionExample(filename: string): any | undefined {
             return JSON.parse(content);
         }
     } catch (error) {
-        console.warn(`Failed to load execution example from ${filename}:`, error);
+        log.warn({ err: error, filename }, 'Failed to load execution example');
     }
     return undefined;
 }
@@ -247,6 +249,44 @@ function isBackend(thing: unknown): thing is LdkitBackend {
     return !!thing && Boolean((thing as { $id?: unknown }).$id);
 }
 
+/**
+ * What a request asks for, without what it carries: the target, which
+ * parameters it fills and how many rows each, never the values. Request
+ * bodies used to be logged whole at info level, and argument rows are the
+ * caller's data.
+ */
+function describeExecutionRequest(body: ExecutionRequest | undefined) {
+    const args = Array.isArray(body?.arguments) ? body.arguments : [];
+    return {
+        targetId: body?.targetId,
+        backendId: body?.backendId,
+        arguments: args.map((arg: { head?: { vars?: unknown }; arguments?: { bindings?: unknown }; results?: { bindings?: unknown } }) => ({
+            vars: Array.isArray(arg?.head?.vars) ? arg.head.vars : [],
+            rows: Array.isArray(arg?.arguments?.bindings) ? arg.arguments.bindings.length
+                : Array.isArray(arg?.results?.bindings) ? arg.results.bindings.length : 0,
+        })),
+        limits: Array.isArray(body?.limits) ? body.limits.map((limit: { name?: unknown }) => limit?.name) : [],
+        offsets: Array.isArray(body?.offsets) ? body.offsets.map((offset: { name?: unknown }) => offset?.name) : [],
+        argumentSetIds: body?.argumentSetIds,
+        dataGraphs: Array.isArray(body?.dataGraphs) ? body.dataGraphs.length : 0,
+        nodeDetail: body?.nodeDetail,
+    };
+}
+
+/** The GET form's query string, described the same way. */
+function describeExecutionQuery(query: ExecutionQuerystring | undefined) {
+    const record = (query ?? {}) as Record<string, unknown>;
+    const sizeOf = (key: string) => typeof record[key] === 'string' ? (record[key] as string).length : 0;
+    return {
+        targetId: record.targetId,
+        backendId: record.backendId,
+        argumentsLength: sizeOf('arguments'),
+        limitsLength: sizeOf('limits'),
+        offsetsLength: sizeOf('offsets'),
+        argumentSetIds: record.argumentSetIds,
+    };
+}
+
 // --- Using inline schemas (no external imports) ---
 
 
@@ -312,6 +352,10 @@ export default async function (
         let targetTypeForError: string | undefined;
         let backendId = params.backendId;
         let ephemeralStoreId: string | null = null; // Track ephemeral store for cleanup
+        // A caller who disconnects stops paying for the run they left: the
+        // signal reaches every backend request and every group node.
+        const disconnect = abortOnDisconnect(reply.raw);
+        const signal = disconnect.signal;
 
         try {
             // 1. Fetch the target query/group using MEMORY CACHE (no SPARQL queries!)
@@ -746,6 +790,7 @@ export default async function (
                         dataGraphs: initialDataGraphs,
                         limits: normalizedLimits,
                         offsets: normalizedOffsets,
+                        signal,
                     }
                 );
                 if (resultNodeId) reply.header('X-Result-Node', resultNodeId);
@@ -801,6 +846,7 @@ export default async function (
                         dataGraphs: initialDataGraphs,
                         limits: normalizedLimits,
                         offsets: normalizedOffsets,
+                        signal,
                     }
                 );
                 if (resultNodeId) reply.header('X-Result-Node', resultNodeId);
@@ -902,10 +948,10 @@ export default async function (
                 targetExecutor = await scopedExecutorFactory.getExecutorForNode(resolvedNode);
             }
 
-    let resolvedType: SparqlOperation | undefined = queryType && isQueryTypeIri(queryType) ? queryType : undefined;
+    const resolvedType: SparqlOperation | undefined = queryType && isQueryTypeIri(queryType) ? queryType : undefined;
 
     // 4.5 Determine Accept header
-    let acceptHeader = acceptOverride || request.headers.accept;
+    const acceptHeader = acceptOverride || request.headers.accept;
     let defaultAcceptHeader: string | undefined = undefined;
 
     switch (resolvedType) {
@@ -941,7 +987,7 @@ export default async function (
             // Pass finalAcceptHeader to executor methods
             switch (resolvedType) {
                 case QueryTypeIri.select: {
-                    const {result, duration, contentType} = await targetExecutor.selectQueryParsed(sparqlQueryString, {acceptHeader: finalAcceptHeader});
+                    const {result, duration, contentType} = await targetExecutor.selectQueryParsed(sparqlQueryString, {acceptHeader: finalAcceptHeader, signal});
                     dbDuration = duration;
                     executionStatus = 'success';
                     // Set Content-Type header from backend response, or use default for SELECT JSON
@@ -956,7 +1002,7 @@ export default async function (
                 }
                 case QueryTypeIri.construct:
                 case QueryTypeIri.describe: {
-                    const {result, duration, contentType} = await targetExecutor.constructQueryParsed(sparqlQueryString, {acceptHeader: finalAcceptHeader});
+                    const {result, duration, contentType} = await targetExecutor.constructQueryParsed(sparqlQueryString, {acceptHeader: finalAcceptHeader, signal});
                     dbDuration = duration;
                     executionStatus = 'success';
                     if (typeof result === 'string') {
@@ -983,7 +1029,7 @@ export default async function (
                     return reply.send(result);
                 }
                 case QueryTypeIri.ask: {
-                    const {result, duration, contentType} = await targetExecutor.askQuery(sparqlQueryString, {acceptHeader: finalAcceptHeader});
+                    const {result, duration, contentType} = await targetExecutor.askQuery(sparqlQueryString, {acceptHeader: finalAcceptHeader, signal});
                     dbDuration = duration;
                     executionStatus = 'success';
                     // Set Content-Type header from backend response, or use default for ASK JSON
@@ -1074,7 +1120,9 @@ export default async function (
             if ((targetTypeForError === 'QueryGroup' || targetTypeForError === 'QueryGroupVersion') && error?.message) {
                 setTimingHeader();
                 const nodeError = error as Error & { nodeId?: string; nodeName?: string };
-                return reply.code(400).send({
+                // A run stopped by its deadline is a timeout, not a bad request.
+                const aborted = error.cause instanceof ExecutionAbortedError ? error.cause : null;
+                return reply.code(aborted?.statusCode ?? 400).send({
                     error: `Query group execution failed: ${error.message}`,
                     ...(nodeError.nodeId ? { failedNodeId: nodeError.nodeId } : {}),
                     ...(nodeError.nodeName ? { failedNodeName: nodeError.nodeName } : {}),
@@ -1087,6 +1135,7 @@ export default async function (
             setTimingHeader();
             return reply.code(errorResponse.statusCode).send({ error: errorResponse.error });
         } finally {
+            disconnect.dispose();
             // Cleanup ephemeral store if created
             if (ephemeralStoreId) {
                 oxigraphStoreManager.destroyEphemeralStore(ephemeralStoreId);
@@ -1132,7 +1181,8 @@ export default async function (
             },
         },
         async (request: FastifyRequest<{ Body: ExecutionRequest }>, reply: FastifyReply) => {
-            request.log.info(`Received /execute POST request with body:\n${JSON.stringify(request.body, null, 2)}`);
+            // Shapes, not values: argument rows are the caller's data.
+            request.log.info({ execution: describeExecutionRequest(request.body) }, 'Received /execute POST request');
 
             const {targetId, backendId, arguments: args, limits, offsets, argumentSetIds, dataGraphs, nodeDetail} = request.body;
 
@@ -1169,7 +1219,7 @@ export default async function (
             },
         },
         async (request: FastifyRequest<{ Querystring: ExecutionQuerystring }>, reply: FastifyReply) => {
-            request.log.info(`Received /execute GET request with query params:\n${JSON.stringify(request.query, null, 2)}`);
+            request.log.info({ execution: describeExecutionQuery(request.query) }, 'Received /execute GET request');
 
             const {
                 targetId,
@@ -1192,7 +1242,7 @@ export default async function (
                     }
                 } catch (parseError__u: unknown) {
       const parseError = toError(parseError__u);
-                    request.log.error(parseError, `Error parsing arguments parameter: ${argsString}`);
+                    request.log.error(parseError, `Error parsing arguments parameter (${argsString.length} characters)`);
                     return reply.code(400).send({error: `Invalid JSON in arguments parameter: ${parseError.message}`});
                 }
             }

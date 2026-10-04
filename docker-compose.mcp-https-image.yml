@@ -1,6 +1,7 @@
 services:
   fuseki:
-    image: fuseki:5.5.0-3
+    build: ./fuseki-test
+    image: sqlib-fuseki:5.5.0
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3030/$/ping"]

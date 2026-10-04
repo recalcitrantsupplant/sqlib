@@ -2,6 +2,7 @@ import { test, expect, type Page, type Route } from '@playwright/test';
 import { openCreateLibraryDialog, openSplash } from './navigate';
 import { chooseSearchOption } from './search-select';
 import { mockSidebarCollections } from './fixtures/collections';
+import { API_ORIGIN } from './api-origin';
 
 /**
  * Test for backend deletion with automatic reference cleanup:
@@ -104,7 +105,7 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
     // Promise.all resolves instead of taking the whole tree down with it.
     await mockSidebarCollections(page);
 
-    await page.route('**/backends', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/backends`, async (route: Route) => {
       if (route.request().method() === 'GET') {
         await route.fulfill({
           status: 200,
@@ -115,7 +116,7 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
     });
 
     // DELETE /backends/:id
-    await page.route('**/backends/*', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/backends/*`, async (route: Route) => {
       if (route.request().method() === 'DELETE') {
         const url = route.request().url();
         const backendId = decodeURIComponent(url.split('/backends/')[1]);
@@ -173,7 +174,7 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
     });
 
     // GET /libraries
-    await page.route('**/libraries', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/libraries`, async (route: Route) => {
       if (route.request().method() === 'GET') {
         await route.fulfill({
           status: 200,
@@ -201,7 +202,7 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
     });
 
     // PUT /libraries/:id
-    await page.route('**/libraries/*', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/libraries/*`, async (route: Route) => {
       if (route.request().method() === 'PUT') {
         const url = route.request().url();
         const libraryId = decodeURIComponent(url.split('/libraries/')[1]);
@@ -250,7 +251,7 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
     });
 
     // GET /queries
-    await page.route('**/queries', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/queries`, async (route: Route) => {
       if (route.request().method() === 'GET') {
         await route.fulfill({
           status: 200,
@@ -280,7 +281,7 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
     });
 
     // PUT /queries/:id
-    await page.route('**/queries/*', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/queries/*`, async (route: Route) => {
       if (route.request().method() === 'PUT') {
         const url = route.request().url();
         const queryId = decodeURIComponent(url.split('/queries/')[1].split('?')[0]);
@@ -329,7 +330,7 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
     });
 
     // GET /query-groups
-    await page.route('**/query-groups', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/query-groups`, async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -340,7 +341,7 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
 
   test('should show confirmation dialog with references when deleting backend', async ({ page }) => {
     // Setup GET /backends/:id/references endpoint
-    await page.route('**/backends/*/references', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/backends/*/references`, async (route: Route) => {
       const url = route.request().url();
       const backendId = decodeURIComponent(url.split('/backends/')[1].split('/references')[0]);
 
@@ -419,7 +420,7 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
     mockBackends.push(unusedBackend);
 
     // Setup GET /backends/:id/references endpoint
-    await page.route('**/backends/*/references', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/backends/*/references`, async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -451,7 +452,7 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
 
   test('should allow canceling backend deletion', async ({ page }) => {
     // Setup GET /backends/:id/references endpoint
-    await page.route('**/backends/*/references', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/backends/*/references`, async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -489,7 +490,7 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
 
   test('complete workflow: create library with backend, set query backend, delete backend', async ({ page }) => {
     // Setup GET /backends/:id/references endpoint
-    await page.route('**/backends/*/references', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/backends/*/references`, async (route: Route) => {
       const url = route.request().url();
       const backendId = decodeURIComponent(url.split('/backends/')[1].split('/references')[0]);
 
@@ -561,7 +562,7 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
 
   test('should handle deleting backend that is referenced by a query', async ({ page }) => {
     // Setup GET /backends/:id/references endpoint
-    await page.route('**/backends/*/references', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/backends/*/references`, async (route: Route) => {
       const url = route.request().url();
       const backendId = decodeURIComponent(url.split('/backends/')[1].split('/references')[0]);
 
@@ -621,7 +622,7 @@ test.describe('Backend Deletion with Reference Cleanup', () => {
 
   test('should handle multiple entities referencing the same backend', async ({ page }) => {
     // Setup GET /backends/:id/references endpoint
-    await page.route('**/backends/*/references', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/backends/*/references`, async (route: Route) => {
       const url = route.request().url();
       const backendId = decodeURIComponent(url.split('/backends/')[1].split('/references')[0]);
 

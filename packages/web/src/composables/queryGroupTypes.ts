@@ -3,7 +3,6 @@ import type { Node, Edge } from '@vue-flow/core';
 import type {
   QueryGroupVersion,
   QueryGroupVersionExpanded,
-  QueryGroupVersionExpandedWithIriMap,
   QueryGroupVersionForGroupCreateInput,
 } from '@sparql-query-lib/contracts';
 import type { SparqlResults } from '@sparql-query-lib/types';
@@ -16,7 +15,6 @@ import type {
   GraphEdgeState,
   GraphNodeState,
   QueryGroupGraphState,
-  graphStateToFlatPayload,
   FlatGraphPayload,
 } from './useQueryGroupGraph';
 import type { IoEntityRecord, QueryVersionResolution } from './queryGroupIoModel';

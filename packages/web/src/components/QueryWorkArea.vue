@@ -14,6 +14,7 @@
         :is-scratch="isScratch"
         :current-version-number="currentVersionNumberForDisplay"
         :edit-count="editCount"
+        :draft-not-kept="draftNotKept"
         :saving="isSavingVersion"
         :can-save="canSave"
         :needs-name="needsName"
@@ -524,7 +525,8 @@ import { useQueryVersions } from '../composables/useQueryVersions';
 import { useQueryMetadata } from '../composables/useQueryMetadata';
 import { useArgumentSets } from '@/composables/useArgumentSets';
 import { useQueryDirtyState } from '../composables/useQueryDirtyState';
-import { useCallableDrafts, UNASSIGNED_LIBRARY_ID } from '../composables/useCallableDrafts';
+import { useCallableDrafts } from '../composables/useCallableDrafts';
+import { useEntityDraft } from '../composables/useEntityDraft';
 import { useArgumentSetDrafts } from '../composables/useArgumentSetDrafts';
 import { useActiveLibrary } from '../composables/useActiveLibrary';
 import { useLibrariesStore } from '../composables/useLibrariesStore';
@@ -1183,9 +1185,8 @@ async function createTestFromRecipe() {
     name: `${queryName.value.trim() || 'Query'} — recipe`,
     subject: queryId.value,
     subjectKind: 'query',
-    group: null,
     isPartOf: [libraryId],
-  } as never);
+  });
   await apiClient.createTestVersion(created.id, {
     expectationKind: 'smoke',
     subjectVersion: selectedVersion.value,
@@ -1622,20 +1623,51 @@ async function annotateVersion({ value, comment }: { value: string; comment: str
  * ------------------------------------------------------------------ */
 
 const isSavingVersion = ref(false);
-const locallySavedAt = ref<string | null>(null);
-let draftSaveHandle: ReturnType<typeof setTimeout> | null = null;
-// Set while a version is being loaded into the editor, so hydration is not
-// mistaken for typing and does not manufacture a draft of an unchanged body.
-const hydratingVersion = ref(false);
 
-const openDraft = computed(() => {
-  void draftsStore.allDrafts.value;
-  return queryId.value ? draftsStore.draftFor(queryId.value) : null;
-});
-
-const editCount = computed(() => {
-  if (isScratch.value) return 0;
-  return openDraft.value?.edits ?? 0;
+/*
+ * The draft lifecycle every versioned work area shares: autosave, undo-to-saved,
+ * Discard, and hydration that does not count as typing. The body is the SPARQL;
+ * "saved" is the loaded version's text, compared without surrounding
+ * whitespace, so typing back to it is an undo that leaves no draft behind (or
+ * the dot never clears).
+ *
+ * A query with no version yet is still a saved entity with a draft against it:
+ * the first Save is v1, and the edits leading to it deserve the same
+ * browser-local safety net as every later one.
+ */
+const {
+  // Set while a version is being loaded into the editor, so hydration is not
+  // mistaken for typing and does not manufacture a draft of an unchanged body.
+  hydrating: hydratingVersion,
+  locallySavedAt,
+  openDraft,
+  editCount,
+  notPersisted: draftNotKept,
+  removeDraft,
+  flushDraft,
+  hydrate,
+  restoreDraft,
+  discardDraft: discardEntityDraft,
+} = useEntityDraft<string>({
+  section: 'query',
+  id: () => queryId.value,
+  enabled: () => !isScratch.value,
+  libraryId: () => queryLibraryId.value,
+  name: () => queryName.value,
+  description: () => toNullable(queryDescription.value),
+  editorBody: () => queryCode.value,
+  applyBody: (body) => { queryCode.value = body; },
+  sources: queryCode,
+  savedBody: () => loadedVersionQueryString.value ?? '',
+  sameBody: (a, b) => a.trim() === b.trim(),
+  envelope: () => ({
+    queryString: queryCode.value,
+    resultKind: 'BINDINGS',
+    inputTuples: detectedInputs.value?.valuesInputs ?? [],
+    limitParameters: detectedInputs.value?.limitParameters ?? [],
+    offsetParameters: detectedInputs.value?.offsetParameters ?? [],
+    outputs: detectedOutputs.value ?? [],
+  }),
 });
 
 const canSave = computed(() => {
@@ -1646,77 +1678,9 @@ const canSave = computed(() => {
   return editCount.value > 0;
 });
 
-function persistDraft() {
-  const id = queryId.value;
-  if (!id || isScratch.value) return;
-  const existing = draftsStore.draftFor(id);
-  draftsStore.save({
-    id: existing?.id ?? `urn:ui-temp:draft-of-${id}`,
-    libraryId: queryLibraryId.value ?? UNASSIGNED_LIBRARY_ID,
-    type: 'query',
-    kind: 'draft',
-    section: 'query',
-    name: queryName.value,
-    description: toNullable(queryDescription.value),
-    queryString: queryCode.value,
-    body: queryCode.value,
-    resultKind: 'BINDINGS',
-    inputTuples: detectedInputs.value?.valuesInputs ?? [],
-    limitParameters: detectedInputs.value?.limitParameters ?? [],
-    offsetParameters: detectedInputs.value?.offsetParameters ?? [],
-    outputs: detectedOutputs.value ?? [],
-    basedOn: id,
-    edits: (existing?.edits ?? 0) + 1,
-  });
-  locallySavedAt.value = new Date().toISOString();
-}
-
-function removeDraft() {
-  const id = queryId.value;
-  if (!id) return;
-  const existing = draftsStore.draftFor(id);
-  if (existing) draftsStore.remove(existing.id);
-  locallySavedAt.value = null;
-}
-
-watch(queryCode, () => {
-  if (isScratch.value || hydratingVersion.value) return;
-  // A query with no version yet is still a saved entity with a draft
-  // against it: the first Save is v1, and the edits leading to it deserve
-  // the same browser-local safety net as every later one.
-  if (!queryId.value) return;
-  if (draftSaveHandle) clearTimeout(draftSaveHandle);
-  draftSaveHandle = setTimeout(() => {
-    draftSaveHandle = null;
-    // Typing back to what is saved is not an edit — it is an undo, and it
-    // must leave no draft behind or the dot never clears.
-    if (queryCode.value.trim() === (loadedVersionQueryString.value ?? '').trim()) {
-      removeDraft();
-      return;
-    }
-    persistDraft();
-  }, 500);
-});
-
-function flushDraft() {
-  if (!draftSaveHandle) return;
-  clearTimeout(draftSaveHandle);
-  draftSaveHandle = null;
-  if (queryCode.value.trim() !== (loadedVersionQueryString.value ?? '').trim()) {
-    persistDraft();
-  }
-}
-
 /** Throw the unsaved edits away and go back to the saved version. */
 function discardDraft() {
-  if (draftSaveHandle) {
-    clearTimeout(draftSaveHandle);
-    draftSaveHandle = null;
-  }
-  removeDraft();
-  hydratingVersion.value = true;
-  queryCode.value = loadedVersionQueryString.value ?? '';
-  void Promise.resolve().then(() => { hydratingVersion.value = false; });
+  discardEntityDraft();
   toast.success('Draft discarded');
 }
 
@@ -1734,18 +1698,13 @@ function showVersionBody(versionId: string) {
     selectedVersion.value = versionId;
     return;
   }
-  hydratingVersion.value = true;
-  queryCode.value = loadedVersionQueryString.value ?? '';
-  void Promise.resolve().then(() => { hydratingVersion.value = false; });
+  hydrate(() => { queryCode.value = loadedVersionQueryString.value ?? ''; });
 }
 
 /** Go back to the draft after looking at a saved version. */
 function restoreDraftBody() {
-  const draft = openDraft.value;
-  if (!draft || typeof draft.body !== 'string') return;
-  hydratingVersion.value = true;
-  queryCode.value = draft.body;
-  void Promise.resolve().then(() => { hydratingVersion.value = false; });
+  if (typeof openDraft.value?.body !== 'string') return;
+  restoreDraft();
 }
 
 /*
@@ -2360,7 +2319,6 @@ onMounted(() => {
 
 onUnmounted(() => {
   flushScratch();
-  flushDraft();
 });
 </script>
 

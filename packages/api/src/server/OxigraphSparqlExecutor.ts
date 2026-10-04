@@ -1,9 +1,12 @@
+import { Readable } from 'node:stream';
 import { Dispatcher } from 'undici'; // Still needed for interface compatibility
 import {ISparqlExecutor, SparqlExecutionResult, SparqlSelectJsonOutput, SparqlQueryOptions} from './ISparqlExecutor.js';
 import { toError } from '../lib/toError.js';
 import * as oxigraph from 'oxigraph';
 import { quadToNQuad, termToNQuad } from '../lib/nquads.js';
 import { markStoreWritten } from '../lib/storeWrites.js';
+import { log } from '../lib/log.js';
+import { throwIfAborted } from '../lib/cancellation.js';
 
 /**
  * One term in SPARQL JSON results.
@@ -20,8 +23,10 @@ type SparqlJsonTerm =
 // Per-query tracing floods server logs, so it is opt-in via DEBUG_OXIGRAPH=true.
 // Read the env var per call so tests can toggle it at runtime.
 function debugLog(message: string): void {
+    // Opt-in narration, kept behind its own switch so DEBUG_OXIGRAPH=true still
+    // shows it without dropping LOG_LEVEL for everything else.
     if (process.env.DEBUG_OXIGRAPH === 'true') {
-        console.log(message);
+        log.info(message);
     }
 }
 
@@ -43,8 +48,10 @@ export class OxigraphSparqlExecutor implements ISparqlExecutor {
      * Converts Oxigraph's native result format to standard SPARQL JSON.
      * Note: Oxigraph always returns JSON format, does not support alternative formats.
      */
-    async selectQueryParsed(sparqlQuery: string): Promise<SparqlExecutionResult<SparqlSelectJsonOutput | string>> {
+    async selectQueryParsed(sparqlQuery: string, options?: SparqlQueryOptions): Promise<SparqlExecutionResult<SparqlSelectJsonOutput | string>> {
         debugLog(`Executing Oxigraph SELECT: ${sparqlQuery.substring(0, 100)}...`);
+        // Checked before, never during: an Oxigraph query is synchronous.
+        throwIfAborted(options?.signal);
         const startTime = performance.now();
         try {
             const results = this.store.query(sparqlQuery);
@@ -58,7 +65,7 @@ export class OxigraphSparqlExecutor implements ISparqlExecutor {
             }
         } catch (error__u: unknown) {
       const error = toError(error__u);
-            console.error('Oxigraph SELECT query failed:', error);
+            log.error({ err: error }, 'Oxigraph SELECT query failed');
             throw new Error(`SPARQL SELECT query execution failed: ${error?.message || error}`);
         }
     }
@@ -69,6 +76,7 @@ export class OxigraphSparqlExecutor implements ISparqlExecutor {
      */
     async constructQueryParsed(sparqlQuery: string, options?: SparqlQueryOptions): Promise<SparqlExecutionResult<string>> {
         debugLog(`Executing Oxigraph CONSTRUCT: ${sparqlQuery.substring(0, 100)}...`);
+        throwIfAborted(options?.signal);
         const startTime = performance.now();
         try {
             const results = this.store.query(sparqlQuery);
@@ -95,7 +103,7 @@ export class OxigraphSparqlExecutor implements ISparqlExecutor {
             }
         } catch (error__u: unknown) {
       const error = toError(error__u);
-            console.error('Oxigraph CONSTRUCT query failed:', error);
+            log.error({ err: error }, 'Oxigraph CONSTRUCT query failed');
             throw new Error(`SPARQL CONSTRUCT query execution failed: ${error?.message || error}`);
         }
     }
@@ -112,13 +120,9 @@ export class OxigraphSparqlExecutor implements ISparqlExecutor {
         const jsonString = JSON.stringify(result);
         const buffer = Buffer.from(jsonString, 'utf8');
         
-        // Create a simple readable stream from the buffer
-        const stream = new (require('stream').Readable)({
-            read() {
-                this.push(buffer);
-                this.push(null); // End the stream
-            }
-        });
+        // A plain Readable: callers iterate the body, and none use undici's
+        // body mixins (`text()`, `json()`) on an in-process response.
+        const stream = Readable.from([buffer]);
         
         return {
             statusCode: 200,
@@ -128,37 +132,33 @@ export class OxigraphSparqlExecutor implements ISparqlExecutor {
             trailers: {},
             opaque: null,
             context: {}
-        } as Dispatcher.ResponseData;
+        } as unknown as Dispatcher.ResponseData;
     }
 
     /**
      * Executes a SPARQL CONSTRUCT query and returns a stream.
      * For Oxigraph, this converts parsed results to a stream format.
      */
-    async constructQueryStream(sparqlQuery: string): Promise<Dispatcher.ResponseData> {
+    async constructQueryStream(sparqlQuery: string, options?: SparqlQueryOptions): Promise<Dispatcher.ResponseData> {
         debugLog(`Executing Oxigraph CONSTRUCT (Stream): ${sparqlQuery.substring(0, 100)}...`);
         
         // Fallback to parsed results and convert to stream
-        const { result } = await this.constructQueryParsed(sparqlQuery);
+        const { result, contentType } = await this.constructQueryParsed(sparqlQuery, options);
         const buffer = Buffer.from(result, 'utf8');
         
-        // Create a simple readable stream from the buffer
-        const stream = new (require('stream').Readable)({
-            read() {
-                this.push(buffer);
-                this.push(null); // End the stream
-            }
-        });
+        // A plain Readable: callers iterate the body, and none use undici's
+        // body mixins (`text()`, `json()`) on an in-process response.
+        const stream = Readable.from([buffer]);
         
         return {
             statusCode: 200,
             statusText: 'OK',
-            headers: { 'content-type': 'application/n-quads' },
+            headers: { 'content-type': contentType ?? 'application/n-quads' },
             body: stream,
             trailers: {},
             opaque: null,
             context: {}
-        } as Dispatcher.ResponseData;
+        } as unknown as Dispatcher.ResponseData;
     }
 
     // --- Private Helper Methods ---
@@ -314,7 +314,7 @@ export class OxigraphSparqlExecutor implements ISparqlExecutor {
             return { result: undefined, duration };
         } catch (error__u: unknown) {
       const error = toError(error__u);
-            console.error('Oxigraph UPDATE failed:', error);
+            log.error({ err: error }, 'Oxigraph UPDATE failed');
             throw new Error(`SPARQL UPDATE query execution failed: ${error?.message || error}`);
         }
     }
@@ -323,8 +323,9 @@ export class OxigraphSparqlExecutor implements ISparqlExecutor {
      * Executes a SPARQL ASK query against the Oxigraph store.
      * Returns a promise resolving to a boolean.
      */
-    async askQuery(sparqlAskQuery: string): Promise<SparqlExecutionResult<boolean | string>> {
+    async askQuery(sparqlAskQuery: string, options?: SparqlQueryOptions): Promise<SparqlExecutionResult<boolean | string>> {
         debugLog(`Executing Oxigraph ASK: ${sparqlAskQuery.substring(0, 100)}...`);
+        throwIfAborted(options?.signal);
         const startTime = performance.now();
         try {
             const result = this.store.query(sparqlAskQuery);
@@ -337,7 +338,7 @@ export class OxigraphSparqlExecutor implements ISparqlExecutor {
             }
         } catch (error__u: unknown) {
       const error = toError(error__u);
-            console.error('Oxigraph ASK query failed:', error);
+            log.error({ err: error }, 'Oxigraph ASK query failed');
             throw new Error(`SPARQL ASK query execution failed: ${error?.message || error}`);
         }
     }

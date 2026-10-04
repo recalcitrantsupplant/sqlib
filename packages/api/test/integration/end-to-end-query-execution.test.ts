@@ -1,8 +1,6 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
 import { QueryTypeIri } from '../../src/constants/queryTypes.js';
 import Fastify, { FastifyInstance } from 'fastify';
-import { MemoryCacheManager } from '../../src/lib/MemoryCacheManager.js';
-import { createEntityRepositories } from '../../src/lib/EntityRepositories.js';
 import queryRoutes from '../../src/routes/queries.js';
 import backendRoutes from '../../src/routes/backends.js';
 import executeRoutes from '../../src/routes/execute.js';
@@ -16,110 +14,6 @@ import type { LdkitQueryVersion } from '../../src/persistence/schemas/QueryVersi
 
 const HTTP_TYPE = BackendTypeIri.http;
 
-const hoisted = vi.hoisted(() => ({
-  cacheManager: null as MemoryCacheManager | null,
-  list: vi.fn((type: string) => hoisted.cacheManager?.getByType(type as any) ?? []),
-  get: vi.fn((id: string) => hoisted.cacheManager?.get(id) ?? null),
-  create: vi.fn((type: string, entity: any) => hoisted.cacheManager!.create(entity, type as any)),
-  update: vi.fn((type: string, id: string, updates: any) => hoisted.cacheManager!.update(id, updates, type as any)),
-  delete: vi.fn((type: string, id: string) => hoisted.cacheManager!.delete(id, type as any)),
-  getAll: vi.fn(() => (hoisted.cacheManager as any)?.cache ? Array.from((hoisted.cacheManager as any).cache.values()) : []),
-}));
-
-// Mock all the LDKit utilities that the MemoryCacheManager uses
-// The stubbed `loadAllSystemEntities` below only takes effect if the coordinator
-// actually goes through it, so the adapter has to be pointed at a double built
-// from these stubs. Without this the real boot load runs and reads every type
-// from whatever backend is configured.
-vi.mock('../../src/persistence/adapterRegistry', async () => {
-  const { lensBackedAdapter } = await import('../persistence/lensBackedAdapter.js');
-  return { getPersistenceAdapter: () => lensBackedAdapter, setPersistenceAdapter: () => {} };
-});
-
-vi.mock('../../src/persistence/utils/entityRepository.js', () => {
-  const buildStubLens = () => ({
-    insert: vi.fn().mockResolvedValue(undefined),
-    update: vi.fn().mockResolvedValue(undefined),
-    delete: vi.fn().mockResolvedValue(undefined),
-    find: vi.fn().mockResolvedValue([]),
-    findByIri: vi.fn().mockResolvedValue(null),
-  });
-
-  const createRepositoryLens = vi.fn().mockImplementation(buildStubLens);
-
-  return {
-    loadAllSystemEntities: vi.fn(),
-    createRepositoryLens,
-    deleteEntity: vi.fn(),
-    getEntity: vi.fn(),
-    loadAllEntities: vi.fn(),
-    extractSimpleValue: vi.fn(),
-    extractSimpleArray: vi.fn(),
-    convertSchemaToLdkit: vi.fn(),
-    toJsonLd: vi.fn(),
-    toJsonLdArray: vi.fn(),
-    fromJsonLd: vi.fn(),
-    normalizeIriArray: vi.fn(),
-    expandIriArrayToIdRefs: vi.fn(),
-  };
-});
-
-vi.mock('../../src/persistence/utils/BackendUtils.js', () => ({
-  Backends: {
-    insert: vi.fn(),
-    update: vi.fn(),
-    delete: vi.fn(),
-    find: vi.fn(),
-  },
-}));
-
-vi.mock('../../src/persistence/utils/QueryUtils.js', () => ({
-  Queries: {
-    insert: vi.fn(),
-    update: vi.fn(),
-    delete: vi.fn(),
-    find: vi.fn(),
-  },
-}));
-
-vi.mock('../../src/persistence/utils/QueryVersionUtils.js', () => ({
-  QueryVersions: {
-    insert: vi.fn(),
-    update: vi.fn(),
-    delete: vi.fn(),
-    find: vi.fn(),
-  },
-}));
-
-vi.mock('../../src/persistence/utils/LimitParameterUtils.js', () => ({
-  LimitParameters: {
-    insert: vi.fn(),
-    update: vi.fn(),
-    delete: vi.fn(),
-    find: vi.fn(),
-  },
-  loadLimitParametersByIds: vi.fn().mockResolvedValue([]),
-}));
-
-vi.mock('../../src/persistence/utils/QueryOutputVariableUtils.js', () => ({
-  QueryOutputVariables: {
-    insert: vi.fn(),
-    update: vi.fn(),
-    delete: vi.fn(),
-    find: vi.fn(),
-  },
-  loadQueryOutputVariablesByIds: vi.fn().mockResolvedValue([]),
-}));
-
-vi.mock('../../src/persistence/utils/LibraryUtils.js', () => ({
-  Libraries: {
-    insert: vi.fn(),
-    update: vi.fn(),
-    delete: vi.fn(),
-    find: vi.fn(),
-  },
-}));
-
 // Mock crypto for consistent ID generation in tests. Counted, because two
 // entities minted at one id is a collision the coordinator refuses.
 vi.mock('crypto', () => {
@@ -127,66 +21,16 @@ vi.mock('crypto', () => {
   return { randomUUID: vi.fn(() => `testuuid${++n}`) };
 });
 
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => {
-  const coordinator = {
-    list: hoisted.list,
-    get: hoisted.get,
-    create: hoisted.create,
-    update: hoisted.update,
-    delete: hoisted.delete,
-    getAll: hoisted.getAll,
-    addEphemeral: vi.fn(),
-    removeEphemeral: vi.fn(),
-    isReady: vi.fn(() => true),
-    getStats: vi.fn(() => ({})),
-  };
-
-  return {
-    getCacheCoordinator: () => coordinator,
-    getEntityRepositories: () => createEntityRepositories(coordinator as any),
-  };
-});
-
-// Mock the id-adapter
-vi.mock('../../src/persistence/utils/id-adapter.js', () => ({
-  toRestApi: vi.fn((entity: any) => {
-    const { $id, '@id': _atId, '@type': _atType, ...rest } = entity;
-    delete rest['@type']; // Ensure @type is removed
-    return { id: $id, ...rest };
-  }),
-  toLdkit: vi.fn((entity: any) => {
-    if (entity.id && !entity.$id) {
-      const { id, ...rest } = entity;
-      return { $id: id, ...rest };
-    }
-    return entity;
-  }),
-}));
-
 // Mock HttpSparqlExecutor for actual backend testing
 vi.mock('../../src/server/HttpSparqlExecutor.js', () => ({
   HttpSparqlExecutor: vi.fn(),
 }));
 
-// Import the mocked dependencies
-import { loadAllSystemEntities, createRepositoryLens } from '../../src/persistence/utils/entityRepository.js';
-import { Backends } from '../../src/persistence/utils/BackendUtils.js';
-import { Libraries } from '../../src/persistence/utils/LibraryUtils.js';
-import { Queries } from '../../src/persistence/utils/QueryUtils.js';
-import { QueryVersions } from '../../src/persistence/utils/QueryVersionUtils.js';
-import { LimitParameters } from '../../src/persistence/utils/LimitParameterUtils.js';
-import { QueryOutputVariables } from '../../src/persistence/utils/QueryOutputVariableUtils.js';
 import { HttpSparqlExecutor } from '../../src/server/HttpSparqlExecutor.js';
 import { setupValidator } from '../../src/lib/validator-setup.js';
+import { clearCacheCoordinator, getCacheCoordinator } from '../../src/lib/CacheCoordinatorProvider.js';
+import { installFakePersistenceAdapter } from '../support/fakePersistenceAdapter.js';
 
-const mockLoadAllSystemEntities = loadAllSystemEntities as any;
-const mockCreateRepositoryLens = createRepositoryLens as any;
-const mockBackends = Backends as any;
-const mockLibraries = Libraries as any;
-const mockQueries = Queries as any;
-const mockQueryVersions = QueryVersions as any;
-const mockLimitParameters = LimitParameters as any;
-const mockQueryOutputVariables = QueryOutputVariables as any;
 const MockHttpSparqlExecutor = HttpSparqlExecutor as any;
 
 // Helper to build Fastify app
@@ -214,9 +58,8 @@ async function buildTestApp(): Promise<FastifyInstance> {
 
 describe('End-to-End Query Creation and Execution Flow', () => {
   let app: FastifyInstance;
-  let cacheManager: MemoryCacheManager;
+  let store: Awaited<ReturnType<typeof installFakePersistenceAdapter>>;
   let parser: SparqlQueryParser;
-  let createdEntityIds: Set<string>; // Track dynamically created entities
 
   // Test data
   const testBackendId = 'urn:sqlib:backend:fuseki-testing123';
@@ -242,105 +85,30 @@ describe('End-to-End Query Creation and Execution Flow', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
-    hoisted.list.mockClear();
-    hoisted.get.mockClear();
-    hoisted.create.mockClear();
-    hoisted.update.mockClear();
-    hoisted.delete.mockClear();
-    hoisted.getAll.mockClear();
-
-    // Create a real MemoryCacheManager instance for each test
-    cacheManager = new MemoryCacheManager();
-    hoisted.cacheManager = cacheManager;
-    createdEntityIds = new Set(); // Reset tracking set
+    // Routes, repositories and coordinator are real, over an empty in-memory store
+    store = await installFakePersistenceAdapter();
     process.env.SQLIB_BACKEND_FUSEKI_TESTING123_USERNAME = 'admin';
     process.env.SQLIB_BACKEND_FUSEKI_TESTING123_PASSWORD = 'password123';
 
-    // Setup default mock responses for LDKit operations
-    mockLoadAllSystemEntities.mockResolvedValue(new Map());
-    mockCreateRepositoryLens.mockImplementation(() => ({
-      insert: vi.fn().mockResolvedValue(undefined),
-      update: vi.fn().mockResolvedValue(undefined),
-      delete: vi.fn().mockResolvedValue(undefined),
-      find: vi.fn().mockResolvedValue([]),
-      findByIri: vi.fn().mockResolvedValue(null),
-    }));
-    mockBackends.insert.mockResolvedValue(undefined);
-    mockLibraries.insert.mockResolvedValue(undefined);
-    mockLibraries.insert.mockResolvedValue(undefined);
-    mockQueries.insert.mockResolvedValue(undefined);
-    mockQueryVersions.insert.mockResolvedValue(undefined);
-    mockLimitParameters.insert.mockResolvedValue(undefined);
-    mockQueryOutputVariables.insert.mockResolvedValue(undefined);
-    
-  // Load the cache so it's ready for use
-    await cacheManager.loadAll();
-    
     // Build the Fastify app
     app = await buildTestApp();
   });
 
   afterEach(async () => {
-    // Clean up all entities from cache
-    try {
-      // Collect all entity IDs from cache
-      const cache = (cacheManager as any).cache;
-      const allEntityIds = Array.from(cache.keys());
-
-      // Group entities by type for proper deletion order
-      const entitiesByType: { [key: string]: string[] } = {
-        QueryVersion: [],
-        LimitParameter: [],
-        QueryOutputVariable: [],
-        Query: [],
-        Library: [],
-        Backend: [],
-        Other: []
-      };
-
-      for (const entityId of allEntityIds) {
-        const entity = cache.get(entityId);
-        if (entity && entity['@type']) {
-          const type = entity['@type'] as string;
-          if (entitiesByType[type]) {
-            entitiesByType[type].push(entityId as string);
-          } else {
-            entitiesByType.Other.push(entityId as string);
-          }
-        }
-      }
-
-      // Delete in dependency order: QueryVersion → Query → Library → Backend
-      const deletionOrder = [
-        'QueryVersion',
-        'LimitParameter',
-        'QueryOutputVariable',
-        'Query',
-        'Library',
-        'Backend',
-        'Other'
-      ];
-
-      for (const type of deletionOrder) {
-        for (const entityId of entitiesByType[type]) {
-          try {
-            await cacheManager.delete(entityId, type);
-          } catch (err) {
-            // Ignore deletion errors for individual entities
-          }
-        }
-      }
-    } catch (err) {
-      console.error('Error during test cleanup:', err);
-    }
-
     if (app) {
       await app.close();
     }
-    hoisted.cacheManager = null;
+    store.restore();
     delete process.env.SQLIB_BACKEND_FUSEKI_TESTING123_USERNAME;
     delete process.env.SQLIB_BACKEND_FUSEKI_TESTING123_PASSWORD;
   });
+
+  /** Puts existing data in the store, and reloads the coordinator so it sees it. */
+  async function seed(...entities: Array<{ $id: string; '@type'?: string }>): Promise<void> {
+    for (const entity of entities) store.put(String(entity['@type']), entity);
+    clearCacheCoordinator();
+    await getCacheCoordinator().loadAll();
+  }
 
   describe('Complete E2E Flow: Query Creation → Execution', () => {
     it('should create query with VALUES UNDEF, limit parameter, execute against mock Fuseki', async () => {
@@ -351,7 +119,7 @@ describe('End-to-End Query Creation and Execution Flow', () => {
         name: 'E2E Test Library',
       };
 
-      await cacheManager.create(libraryPayload, 'Library');
+      await seed(libraryPayload);
 
       // Step 1: Create a backend (Fuseki testing123)
       const backendPayload = {
@@ -373,10 +141,11 @@ describe('End-to-End Query Creation and Execution Flow', () => {
       const createdBackend = backendResponse.json();
       expect(createdBackend.id).toBe(testBackendId);
 
-      // Verify backend is in cache
-      const cachedBackend = cacheManager.get(testBackendId) as LdkitBackend;
+      // Verify backend is cached and stored
+      const cachedBackend = getCacheCoordinator().get(testBackendId) as LdkitBackend;
       expect(cachedBackend).toBeTruthy();
       expect(cachedBackend.backendType).toBe(HTTP_TYPE);
+      expect(store.get(testBackendId)).toMatchObject({ backendType: HTTP_TYPE, authEnvKey: 'FUSEKI_TESTING123' });
 
       // Step 2: Create a stable Query
       const queryPayload = {
@@ -391,10 +160,7 @@ describe('End-to-End Query Creation and Execution Flow', () => {
         payload: queryPayload,
       });
 
-      if (queryResponse.statusCode !== 201) {
-        console.error('Query creation failed', queryResponse.statusCode, queryResponse.body);
-      }
-      expect(queryResponse.statusCode).toBe(201);
+      expect(queryResponse.statusCode, queryResponse.body).toBe(201);
       const createdQuery = queryResponse.json();
       const actualQueryId = createdQuery.id; // Use the generated ID
       expect(actualQueryId).toMatch(/^urn:sqlib:query:/); // Validate it's a proper query ID
@@ -441,10 +207,7 @@ describe('End-to-End Query Creation and Execution Flow', () => {
         payload: queryVersionPayload,
       });
 
-      if (queryVersionResponse.statusCode !== 201) {
-        console.error('QueryVersion creation failed', queryVersionResponse.statusCode, queryVersionResponse.body);
-      }
-      expect(queryVersionResponse.statusCode).toBe(201);
+      expect(queryVersionResponse.statusCode, queryVersionResponse.body).toBe(201);
       const createdVersion = queryVersionResponse.json();
       expect(createdVersion.queryVersion.isPartOf).toBe(actualQueryId);
       expect(createdVersion.queryVersion.version).toBe(1);
@@ -470,8 +233,10 @@ describe('End-to-End Query Creation and Execution Flow', () => {
       expect(detectedParams.limitParameters).toContain('1');
 
       // Step 6: Verify currentVersion was set on parent Query
-      const updatedQuery = cacheManager.get(actualQueryId) as LdkitQuery;
+      const updatedQuery = getCacheCoordinator().get(actualQueryId) as LdkitQuery;
       expect(updatedQuery.currentVersion).toBeTruthy();
+      expect(store.get(actualQueryId)).toMatchObject({ currentVersion: updatedQuery.currentVersion });
+      expect(store.get(String(updatedQuery.currentVersion))).toMatchObject({ isPartOf: actualQueryId, version: 1 });
 
       // Step 7: Setup mock executor for query execution test
       const mockSelectResults = {
@@ -520,11 +285,7 @@ describe('End-to-End Query Creation and Execution Flow', () => {
         payload: executePayload,
       });
 
-      console.log('Execute Response Status:', executeResponse.statusCode);
-      console.log('Execute Response Body:', executeResponse.body);
-      console.log('Execute Response Payload:', executeResponse.payload);
-      
-      expect(executeResponse.statusCode).toBe(200);
+      expect(executeResponse.statusCode, executeResponse.body).toBe(200);
       const executionResults = executeResponse.json();
       expect(executionResults.head.vars).toEqual(['s', 'p', 'o']);
       expect(executionResults.results.bindings).toHaveLength(2);
@@ -532,7 +293,7 @@ describe('End-to-End Query Creation and Execution Flow', () => {
       // Verify the executor was called with the modified query (LIMIT 0001 → LIMIT 5)
       expect(mockExecutor.selectQueryParsed).toHaveBeenCalledWith(
         expect.stringContaining('LIMIT 5'),
-        { acceptHeader: 'application/sparql-results+json' }
+        { acceptHeader: 'application/sparql-results+json', signal: expect.any(AbortSignal) }
       );
 
       // Verify HttpSparqlExecutor was instantiated with correct config
@@ -574,7 +335,6 @@ describe('End-to-End Query Creation and Execution Flow', () => {
       const argumentCalls = mockExecutor.selectQueryParsed.mock.calls;
       const lastCall = argumentCalls[argumentCalls.length - 1];
       const modifiedQuery = lastCall[0];
-      console.log('Modified query', modifiedQuery);
       
       expect(modifiedQuery).toMatch(/rdfs:label|<http:\/\/www\.w3\.org\/2000\/01\/rdf-schema#label>/);
       expect(modifiedQuery).toContain('LIMIT 3');
@@ -591,7 +351,7 @@ describe('End-to-End Query Creation and Execution Flow', () => {
         backendType: BackendTypeIri.http,
         endpoint: 'http://localhost:3030/testing123/query'
       };
-      (cacheManager as any).cache.set(testBackendId, backend);
+      await seed(backend);
 
       // Create a QueryVersion directly in cache (simulating existing data)
       const queryVersion: LdkitQueryVersion = {
@@ -602,7 +362,7 @@ describe('End-to-End Query Creation and Execution Flow', () => {
         queryString: 'SELECT ?s ?p ?o WHERE { VALUES ?p { UNDEF } ?s ?p ?o } LIMIT 0001',
         queryType: QueryTypeIri.select,
       };
-      (cacheManager as any).cache.set(testQueryVersionId, queryVersion);
+      await seed(queryVersion);
 
       // Mock executor
       const mockExecutor = {
@@ -638,7 +398,7 @@ describe('End-to-End Query Creation and Execution Flow', () => {
       // Verify executor was called with limit substitution
       expect(mockExecutor.selectQueryParsed).toHaveBeenCalledWith(
         expect.stringContaining('LIMIT 20'),
-        { acceptHeader: 'application/sparql-results+json' }
+        { acceptHeader: 'application/sparql-results+json', signal: expect.any(AbortSignal) }
       );
     });
 
@@ -653,7 +413,7 @@ describe('End-to-End Query Creation and Execution Flow', () => {
         backendType: BackendTypeIri.http,
         endpoint: 'http://specific.example.com/sparql'
       };
-      (cacheManager as any).cache.set(specificBackend.$id, specificBackend);
+      await seed(specificBackend);
 
       // Create QueryVersion without default backend
       const queryVersion: LdkitQueryVersion = {
@@ -664,7 +424,7 @@ describe('End-to-End Query Creation and Execution Flow', () => {
         queryString: 'SELECT ?s WHERE { ?s ?p ?o }',
         queryType: QueryTypeIri.select,
       };
-      (cacheManager as any).cache.set(testQueryVersionId, queryVersion);
+      await seed(queryVersion);
 
       // Mock both executors
       const specificExecutor = {
@@ -721,7 +481,7 @@ describe('End-to-End Query Creation and Execution Flow', () => {
         backendType: BackendTypeIri.http,
         endpoint: 'http://default.example.com/sparql'
       };
-      (cacheManager as any).cache.set(testBackendId, defaultBackend);
+      await seed(defaultBackend);
 
       const defaultResponse = await app.inject({
         method: 'POST',

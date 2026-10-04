@@ -14,6 +14,7 @@
           :is-scratch="isScratch"
           :current-version-number="currentVersionNumber"
           :edit-count="editCount"
+          :draft-not-kept="draftNotKept"
           :saving="isSaving"
           :can-save="canSave"
           :needs-name="needsName"
@@ -448,7 +449,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted, onBeforeUnmount, onUnmounted, watch } from 'vue';
+import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue';
 import { useRuntimeConfig } from '#imports';
 import { Codemirror } from 'vue-codemirror';
 import ExpandableEditor from './shared/ExpandableEditor.vue';
@@ -488,7 +489,8 @@ import { usePanelResize } from '../composables/usePanelResize';
 import { useBackendsStore } from '../composables/useBackendsStore';
 import { useExecuteKeymap } from '../composables/useExecuteKeymap';
 import { useScratchRecord } from '../composables/useScratchRecord';
-import { useCallableDrafts, UNASSIGNED_LIBRARY_ID } from '../composables/useCallableDrafts';
+import { useCallableDrafts } from '../composables/useCallableDrafts';
+import { useEntityDraft } from '../composables/useEntityDraft';
 import { useActiveLibrary } from '../composables/useActiveLibrary';
 import { useEtlJobsStore, type EtlJobVersion } from '../composables/useEtlJobsStore';
 import { rdfSyntaxHighlighting } from '../lib/codemirrorHighlight';
@@ -740,7 +742,6 @@ const draftsStore = useCallableDrafts();
 const { activeLibraryId } = useActiveLibrary();
 
 const isSaving = ref(false);
-const isLoadingJob = ref(false);
 const jobVersions = ref<EtlJobVersion[]>([]);
 const selectedVersionId = ref<string | null>(null);
 const currentVersionId = ref<string | null>(null);
@@ -783,10 +784,6 @@ interface EtlDraftBody {
   columnMappings?: ColumnMapping[];
 }
 
-/** The editor payload of the version on screen, to compare edits against. */
-const savedBody = ref('');
-let draftSaveHandle: ReturnType<typeof setTimeout> | null = null;
-
 /** What the three editors hold now, in the shape a draft records it. */
 function editorBody(): EtlDraftBody {
   return {
@@ -805,13 +802,33 @@ function applyEditorBody(body: EtlDraftBody) {
   hasUserEditedSparql.value = true;
 }
 
-const openDraft = computed(() => {
-  void draftsStore.allDrafts.value;
-  const id = props.etlJobId;
-  return id ? draftsStore.draftFor(id) : null;
+/*
+ * The draft lifecycle every versioned work area shares: autosave, undo-to-saved,
+ * Discard, and hydration that does not count as typing. Its hydration flag is
+ * `isLoadingJob`, which also holds the identity autosave off while a job loads.
+ */
+const {
+  hydrating: isLoadingJob,
+  savedBody,
+  openDraft,
+  editCount,
+  notPersisted: draftNotKept,
+  cancelDraftSave,
+  removeDraft,
+  hydrate,
+  discardDraft: discardEntityDraft,
+} = useEntityDraft<EtlDraftBody>({
+  section: 'etl',
+  id: () => props.etlJobId ?? null,
+  enabled: () => !isScratch.value,
+  libraryId: () => activeLibraryId.value,
+  name: () => pipelineName.value,
+  description: () => pipelineDescription.value,
+  editorBody,
+  applyBody: applyEditorBody,
+  sources: [sqlQuery, sparqlTemplate, columnMappings],
+  resultKind: 'GRAPH',
 });
-
-const editCount = computed(() => (isScratch.value ? 0 : openDraft.value?.edits ?? 0));
 
 /* ------------------------------------------------------------------ *
  * The tuple set sink (#211).
@@ -840,70 +857,12 @@ const tupleSinkBlockedReason = computed(() => {
   return null;
 });
 
-/** Typing back to what is saved is an undo, not an edit. */
-const matchesSaved = () => JSON.stringify(editorBody()) === savedBody.value;
-
-function persistDraft() {
-  const id = props.etlJobId;
-  if (!id || isScratch.value) return;
-  const existing = draftsStore.draftFor(id);
-  draftsStore.save({
-    id: existing?.id ?? `urn:ui-temp:draft-of-${id}`,
-    libraryId: activeLibraryId.value || UNASSIGNED_LIBRARY_ID,
-    type: 'query',
-    kind: 'draft',
-    section: 'etl',
-    name: pipelineName.value,
-    description: pipelineDescription.value || null,
-    queryString: null,
-    body: editorBody(),
-    resultKind: 'GRAPH',
-    inputTuples: [],
-    limitParameters: [],
-    offsetParameters: [],
-    outputs: [],
-    basedOn: id,
-    edits: (existing?.edits ?? 0) + 1,
-  });
-}
-
-function removeDraft() {
-  const id = props.etlJobId;
-  if (!id) return;
-  const existing = draftsStore.draftFor(id);
-  if (existing) draftsStore.remove(existing.id);
-}
-
-function cancelDraftSave() {
-  if (!draftSaveHandle) return;
-  clearTimeout(draftSaveHandle);
-  draftSaveHandle = null;
-}
-
-watch(
-  [sqlQuery, sparqlTemplate, columnMappings],
-  () => {
-    if (isScratch.value || isLoadingJob.value || !props.etlJobId) return;
-    cancelDraftSave();
-    draftSaveHandle = setTimeout(() => {
-      draftSaveHandle = null;
-      if (matchesSaved()) {
-        removeDraft();
-        return;
-      }
-      persistDraft();
-    }, 500);
-  },
-  { deep: true },
-);
-
 /** Throw the unsaved edits away and go back to the saved version. */
 function discardDraft() {
-  cancelDraftSave();
-  removeDraft();
-  isLoadingJob.value = true;
-  applyEditorBody(JSON.parse(savedBody.value || '{}') as EtlDraftBody);
-  void Promise.resolve().then(() => { isLoadingJob.value = false; });
+  const hadSavedBody = Boolean(savedBody.value);
+  discardEntityDraft();
+  // No saved version to go back to: the editors' defaults, as before.
+  if (!hadSavedBody) hydrate(() => applyEditorBody({}));
   toast.success('Draft discarded');
 }
 
@@ -1789,13 +1748,6 @@ onMounted(async () => {
   if (sqlQuery.value.trim()) {
     executePreview();
   }
-});
-
-onBeforeUnmount(() => {
-  if (!draftSaveHandle) return;
-  cancelDraftSave();
-  // Closing the tab mid-debounce should not lose the edit that was queued.
-  if (!isScratch.value && props.etlJobId && !matchesSaved()) persistDraft();
 });
 
 onUnmounted(() => {

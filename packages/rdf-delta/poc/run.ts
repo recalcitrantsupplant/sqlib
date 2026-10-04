@@ -33,7 +33,7 @@ import { tmpdir, cpus, totalmem } from 'node:os';
 import { join } from 'node:path';
 import { writeFileSync } from 'node:fs';
 import oxigraph from 'oxigraph';
-import { medianMs, openDuck, scalar, type Duck } from './duckdb.js';
+import { medianMs, openDuck, scalar } from './duckdb.js';
 import {
   DEFAULT_SHAPE,
   asOfSql,

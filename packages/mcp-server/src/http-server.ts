@@ -332,7 +332,7 @@ export async function startStreamableHttpMcpServer(options: StreamableHttpServer
   const address = app.server.address() as AddressInfo | null;
   const boundPort = address?.port ?? port;
 
-  console.log(`MCP HTTP server running at http://${host}:${boundPort}/mcp`);
+  app.log.info(`MCP HTTP server running at http://${host}:${boundPort}/mcp`);
 
   return { app, shutdown, sessions, host, port: boundPort };
 }

@@ -5,8 +5,8 @@
  * using ts-morph for type-safe code generation instead of template strings.
  */
 
-import { Project, SourceFile, VariableDeclarationKind, StructureKind } from 'ts-morph';
-import type { ContractDefinition, ZodSchemaDefinition, ZodFieldDefinition } from './contract-types.js';
+import { Project, SourceFile, VariableDeclarationKind } from 'ts-morph';
+import type { ContractDefinition, ZodFieldDefinition } from './contract-types.js';
 
 /**
  * Generates a complete contract module from a ContractDefinition

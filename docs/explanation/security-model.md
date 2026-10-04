@@ -143,9 +143,14 @@ Tiers 2 and 3 are not implemented:
 Two consequences follow from the absence, and neither is obvious from the
 presence of an auth layer:
 
-- **`SERVICE` is not stripped or allowlisted.** A federated query reaches
-  whatever endpoint it names, from the server. sqlib parses every query, so the
-  check is available; it is not implemented.
+- **`SERVICE` is not stripped or allowlisted.** On an HTTP backend a
+  federated query reaches whatever endpoint the store behind it will call;
+  sqlib parses every query, so the check is available, and the decision so far
+  is to leave federation to that store's own configuration. On an in-process
+  backend (`oxigraphMemory`, `oxigraphEphemeral`, the library store, a group's
+  ephemeral stores) there is nothing to reach: Oxigraph's Node build has no
+  service handler, so any `SERVICE` clause fails the query
+  (`test/server/OxigraphSparqlExecutor.test.ts` holds this).
 - **Write authorization by graph does not exist.** An update names its target
   graphs in its own body, and the SPARQL protocol's dataset parameters scope
   only the `WHERE` clause, so the design records that this tier would be
@@ -222,15 +227,19 @@ access is all-or-nothing. `ETL_DUCKDB_ALLOW_HTTP` implies filesystem access,
 because DuckDB gates both on one setting. Deadlines and a memory limit are on by
 default.
 
-Under `required`, both SQL-taking routes need administrator access rather than a
-library grant: `POST /etl-jobs/preview` through `adminSuffixes` on its route
-plugin, `POST /playground/etl/execute` through an explicit check. A library
-grant answers the wrong question — "may do anything to my own queries" is not
-"may read the host filesystem", and the blast radius of submitted SQL is the
-process and its host, not an entity. That pair is checked by a test that mounts
-the real route plugins and requires a principal holding every library mode, and
-not administrator, to be refused — both a route added without a guard and a
-guard deleted from a route fail it.
+Under `required`, every route that stores or runs ETL SQL needs administrator
+access rather than a library grant: `POST /etl-jobs/preview` through
+`adminSuffixes` on its route plugin, and `POST /etl-jobs/:id/versions`,
+`POST /etl-jobs/:id/execute` and `POST /playground/etl/execute` through an
+explicit `requireAdmin` in the handler (a suffix would match every method on
+the path, reads included). Storing a version counts, because a stored version
+is SQL that a later run executes. A library grant answers the wrong question —
+"may do anything to my own queries" is not "may read the host filesystem", and
+the blast radius of submitted SQL is the process and its host, not an entity.
+Those routes are checked by a test that mounts the real route plugins and
+requires a principal holding every library mode, and not administrator, to be
+refused — both a route added without a guard and a guard deleted from a route
+fail it.
 
 Under the default `disabled` mode there is no principal and every request
 carries full access, so those checks are no-ops. **The flag, not the

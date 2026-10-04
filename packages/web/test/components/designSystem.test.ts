@@ -1187,13 +1187,6 @@ describe('PanelHeader adoption, closed over src', () => {
    * deleted, or explained.
    */
   const UNADOPTED: Record<string, string> = {
-    InspectorRail:
-      'the canvas archetype takes its rail as a slot: query groups fill it with a tabbed InspectorPanel, and the stratification graph has no rail at all',
-    CompactMetadataHeader: 'added by #286, never mounted; no docblock names the screen it is for',
-    EditorStrip: 'added by #286, never mounted; no docblock names the screen it is for',
-    ExecutedTimeBadge: 'added by #286, never mounted; no docblock names the screen it is for',
-    TimingDonut: 'added by #286, never mounted; no docblock names the screen it is for',
-    VersionSelectStrip: 'added by #286, never mounted; no docblock names the screen it is for',
   };
 
   it('every component in shared/ is mounted somewhere, or recorded as unadopted', () => {
@@ -1537,8 +1530,6 @@ describe('InlineNote', () => {
       'renders "142 lines" — a datum the name calls a note',
     'components/rules/RuleSetEditorFooter.vue: .footer-note':
       'the same count, in the other footer',
-    'components/shared/EditorStrip.vue: .strip-summary, .strip-hint':
-      'a datum and a pill — the hint carries a border, a radius and a ground',
     'components/shared/SearchSelect.vue: .search-select__empty':
       "drawn by reka-ui's ComboboxEmpty, which owns the tag",
     // The dense step brought its own false positives, and they are the same

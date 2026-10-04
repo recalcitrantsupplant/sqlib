@@ -18,7 +18,6 @@ import type { LdkitQueryOutputVariable } from '../persistence/schemas/QueryOutpu
 import type { LdkitQueryOutputTuple } from '../persistence/schemas/QueryOutputTupleSchema.js';
 import type { LdkitTupleMember } from '../persistence/schemas/TupleMemberSchema.js';
 import type { LdkitQueryVersion } from '../persistence/schemas/QueryVersionSchema.js';
-import type { LdkitQueryGroup } from '../persistence/schemas/QueryGroupSchema.js';
 import { toRestApi } from '../persistence/utils/id-adapter.js';
 import { QueryGroupSignatureService } from './QueryGroupSignatureService.js';
 import {
@@ -32,6 +31,7 @@ import {
   isRuleSetNode,
   isPatchNode,
 } from './type-guards.js';
+import { log } from './log.js';
 
 function uniqueIds(ids: string[]): string[] {
   const seen = new Set<string>();
@@ -612,9 +612,9 @@ export async function expandGroupVersionDetailed(
 
   const portClosure = await resolvePortClosure(portRefs);
   if (portClosure.unresolved.length > 0) {
-    console.warn(
-      `[expandGroupVersionDetailed] ${portClosure.unresolved.length} referenced port(s) in ${version.$id} could not be resolved to an I/O entity:`,
-      portClosure.unresolved,
+    log.warn(
+      { groupVersionId: version.$id, unresolved: portClosure.unresolved },
+      'expandGroupVersionDetailed: referenced port(s) could not be resolved to an I/O entity',
     );
   }
 

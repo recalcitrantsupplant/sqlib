@@ -1,50 +1,20 @@
-import { describe, it, expect, beforeEach, beforeAll, vi } from 'vitest';
+import { describe, it, expect, beforeEach, beforeAll, afterEach, vi } from 'vitest';
 import type { BenchmarkRunner as BenchmarkRunnerType } from '../../src/lib/BenchmarkRunner.js';
 import { BENCHMARK_NO_ARGUMENTS_IRI, BENCHMARK_NOT_APPLICABLE_BACKEND_IRI } from '../../src/constants/benchmarks.js';
+import { overrideRepositoryLenses } from '../../src/persistence/utils/entityRepository.js';
+import { BenchmarkRuns } from '../../src/persistence/utils/BenchmarkRunUtils.js';
+import { FakePersistenceAdapter } from '../support/fakePersistenceAdapter.js';
 
 const mockGet = vi.fn();
-const mockRunInsert = vi.fn();
-const mockRunUpdate = vi.fn();
-const mockObservationInsert = vi.fn();
-const mockNodeObservationInsert = vi.fn();
-const mockNodeRunInsert = vi.fn();
-const mockNodeRunUpdate = vi.fn();
-const mockIterationObservationInsert = vi.fn();
-const mockIterationRunInsert = vi.fn();
-const mockIterationRunUpdate = vi.fn();
 const mockExecutionExecute = vi.fn();
 
+// What the runner reads (the version, its subjects, backends) comes from the
+// cache, stubbed per test. What it writes (runs and observations) goes through
+// the repositories to an in-memory store, which the assertions read.
 vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
   getCacheCoordinator: () => ({
     get: mockGet,
   }),
-}));
-
-vi.mock('../../src/persistence/utils/BenchmarkRunUtils.js', () => ({
-  BenchmarkRuns: { insert: mockRunInsert },
-  updateBenchmarkRun: mockRunUpdate,
-}));
-
-vi.mock('../../src/persistence/utils/BenchmarkObservationUtils.js', () => ({
-  BenchmarkObservations: { insert: mockObservationInsert },
-}));
-
-vi.mock('../../src/persistence/utils/BenchmarkNodeObservationUtils.js', () => ({
-  BenchmarkNodeObservations: { insert: mockNodeObservationInsert },
-}));
-
-vi.mock('../../src/persistence/utils/BenchmarkNodeRunUtils.js', () => ({
-  BenchmarkNodeRuns: { insert: mockNodeRunInsert },
-  updateBenchmarkNodeRun: mockNodeRunUpdate,
-}));
-
-vi.mock('../../src/persistence/utils/BenchmarkIterationObservationUtils.js', () => ({
-  BenchmarkIterationObservations: { insert: mockIterationObservationInsert },
-}));
-
-vi.mock('../../src/persistence/utils/BenchmarkIterationRunUtils.js', () => ({
-  BenchmarkIterationRuns: { insert: mockIterationRunInsert },
-  updateBenchmarkIterationRun: mockIterationRunUpdate,
 }));
 
 vi.mock('../../src/lib/orchestration/ExecutionEngine.js', () => ({
@@ -78,18 +48,18 @@ describe('BenchmarkRunner', () => {
     }
     BenchmarkRunner = (await import('../../src/lib/BenchmarkRunner.js')).BenchmarkRunner;
   });
+  let store: FakePersistenceAdapter;
+
   beforeEach(() => {
     vi.clearAllMocks();
-    mockRunInsert.mockResolvedValue(undefined);
-    mockRunUpdate.mockResolvedValue(undefined);
-    mockObservationInsert.mockResolvedValue(undefined);
-    mockNodeObservationInsert.mockResolvedValue(undefined);
-    mockNodeRunInsert.mockResolvedValue(undefined);
-    mockNodeRunUpdate.mockResolvedValue(undefined);
-    mockIterationObservationInsert.mockResolvedValue(undefined);
-    mockIterationRunInsert.mockResolvedValue(undefined);
-    mockIterationRunUpdate.mockResolvedValue(undefined);
+    store = new FakePersistenceAdapter();
+    overrideRepositoryLenses((schema) => store.lens(schema));
     mockExecutionExecute.mockResolvedValue({ result: { results: { bindings: [] } } });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    overrideRepositoryLenses(null);
   });
 
   it('executes warmup runs without recording observations', async () => {
@@ -131,7 +101,7 @@ describe('BenchmarkRunner', () => {
 
     const mockSelect = vi.fn().mockResolvedValue({ result: { results: { bindings: [] } } });
     const executorFactory = {
-      getExecutorForNode: vi.fn().mockResolvedValue({
+      getExecutorForBackendId: vi.fn().mockResolvedValue({
         selectQueryParsed: mockSelect,
         askQuery: vi.fn(),
         update: vi.fn(),
@@ -139,11 +109,11 @@ describe('BenchmarkRunner', () => {
       }),
     };
 
-    const runner = new BenchmarkRunner({ internal: true }, {} as any, {} as any, {} as any, undefined, () => executorFactory as any);
+    const runner = new BenchmarkRunner({ internal: true }, {} as any, undefined, {} as any, undefined, () => executorFactory as any);
     await runner.runExperimentVersion(versionId);
 
     expect(mockSelect).toHaveBeenCalledTimes(3);
-    expect(mockObservationInsert).toHaveBeenCalledTimes(1);
+    expect(store.all('BenchmarkObservation')).toHaveLength(1);
   });
 
   it('requires the benchmark version to be immutable', async () => {
@@ -156,7 +126,7 @@ describe('BenchmarkRunner', () => {
       subjectSpecs: JSON.stringify([]),
     });
 
-    const runner = new BenchmarkRunner({ internal: true }, {} as any, {} as any, {} as any);
+    const runner = new BenchmarkRunner({ internal: true }, {} as any, undefined, {} as any);
 
     await expect(runner.runExperimentVersion(versionId)).rejects.toThrow('must be frozen');
   });
@@ -201,7 +171,7 @@ describe('BenchmarkRunner', () => {
 
     const mockSelect = vi.fn().mockResolvedValue({ result: { results: { bindings: [] } } });
     const executorFactory = {
-      getExecutorForNode: vi.fn().mockResolvedValue({
+      getExecutorForBackendId: vi.fn().mockResolvedValue({
         selectQueryParsed: mockSelect,
         askQuery: vi.fn(),
         update: vi.fn(),
@@ -209,17 +179,16 @@ describe('BenchmarkRunner', () => {
       }),
     };
 
-    const runner = new BenchmarkRunner({ internal: true }, {} as any, {} as any, {} as any, undefined, () => executorFactory as any);
+    const runInsert = vi.spyOn(BenchmarkRuns, 'insert');
+    const runner = new BenchmarkRunner({ internal: true }, {} as any, undefined, {} as any, undefined, () => executorFactory as any);
     const result = await runner.runExperimentVersion(versionId);
 
-    expect(mockRunInsert).toHaveBeenCalledWith(expect.objectContaining({ tasksTotal: 2, runStatus: 'Running' }));
-    expect(mockObservationInsert).toHaveBeenCalledTimes(2);
+    // Written as running before any task, and completed once they all are
+    expect(runInsert).toHaveBeenCalledWith(expect.objectContaining({ tasksTotal: 2, runStatus: 'Running' }));
+    expect(store.all('BenchmarkObservation')).toHaveLength(2);
     expect(result.run.runStatus).toBe('Completed');
     expect(result.run.tasksCompleted).toBe(2);
-
-    const lastUpdateCall = mockRunUpdate.mock.calls[mockRunUpdate.mock.calls.length - 1];
-    const lastUpdate = lastUpdateCall ? lastUpdateCall[1] : undefined;
-    expect(lastUpdate).toMatchObject({ runStatus: 'Completed', tasksCompleted: 2 });
+    expect(store.get(result.run.$id)).toMatchObject({ tasksTotal: 2, runStatus: 'Completed', tasksCompleted: 2 });
   });
 
   /*
@@ -278,7 +247,7 @@ describe('BenchmarkRunner', () => {
       dataGraphs: [], filledParameters: new Set(),
     });
     const executorFactory = {
-      getExecutorForNode: vi.fn().mockResolvedValue({
+      getExecutorForBackendId: vi.fn().mockResolvedValue({
         selectQueryParsed: vi.fn().mockResolvedValue({ result: { results: { bindings: [] } } }),
         askQuery: vi.fn(),
         update: vi.fn(),
@@ -347,7 +316,7 @@ describe('BenchmarkRunner', () => {
 
     const resolveVersionIdForId = vi.fn();
     const executorFactory = {
-      getExecutorForNode: vi.fn().mockResolvedValue({
+      getExecutorForBackendId: vi.fn().mockResolvedValue({
         selectQueryParsed: vi.fn().mockResolvedValue({ result: { results: { bindings: [] } } }),
         askQuery: vi.fn(),
         update: vi.fn(),
@@ -409,7 +378,7 @@ describe('BenchmarkRunner', () => {
     });
 
     const executorFactory = {
-      getExecutorForNode: vi.fn().mockResolvedValue({
+      getExecutorForBackendId: vi.fn().mockResolvedValue({
         selectQueryParsed: vi.fn().mockRejectedValue(new Error('boom')),
         askQuery: vi.fn(),
         update: vi.fn(),
@@ -417,11 +386,12 @@ describe('BenchmarkRunner', () => {
       }),
     };
 
-    const runner = new BenchmarkRunner({ internal: true }, {} as any, {} as any, {} as any, undefined, () => executorFactory as any);
+    const runner = new BenchmarkRunner({ internal: true }, {} as any, undefined, {} as any, undefined, () => executorFactory as any);
     const result = await runner.runExperimentVersion(versionId);
 
-    expect(mockObservationInsert).toHaveBeenCalledTimes(1);
+    expect(store.all('BenchmarkObservation')).toHaveLength(1);
     expect(result.run.runStatus).toBe('Failed');
+    expect(store.get(result.run.$id)).toMatchObject({ runStatus: 'Failed' });
     expect(result.run.tasksCompleted).toBe(1);
   });
 
@@ -654,11 +624,11 @@ describe('BenchmarkRunner', () => {
     const runner = new BenchmarkRunner({ internal: true }, {} as any, {} as any, graphBuilder as any);
     const result = await runner.runExperimentVersion(versionId);
 
-    expect(mockNodeRunInsert).toHaveBeenCalledTimes(1);
-    expect(mockNodeObservationInsert).toHaveBeenCalledTimes(2);
+    expect(store.all('BenchmarkNodeRun')).toHaveLength(1);
+    expect(store.all('BenchmarkNodeObservation')).toHaveLength(2);
     expect(result.nodeObservations).toHaveLength(2);
     // A group run has no fixpoint loop, so nothing writes the iteration dataset.
-    expect(mockIterationRunInsert).not.toHaveBeenCalled();
+    expect(store.all('BenchmarkIterationRun')).toEqual([]);
     expect(result.iterationObservations).toEqual([]);
   });
 
@@ -701,12 +671,14 @@ describe('BenchmarkRunner', () => {
     const runner = new BenchmarkRunner({ internal: true }, stub({}), stub({}), stub({}), () => stub({ execute }), () => stub({}));
     const result = await runner.runExperimentVersion(versionId);
 
-    expect(mockIterationRunInsert).toHaveBeenCalledTimes(1);
-    expect(mockIterationRunUpdate).toHaveBeenCalledTimes(1);
+    // One iteration dataset, closed when the run finished
+    const [iterationRun] = store.all('BenchmarkIterationRun');
+    expect(store.all('BenchmarkIterationRun')).toHaveLength(1);
+    expect(iterationRun).toMatchObject({ $id: result.iterationRun?.$id, endedAt: expect.any(String) });
     expect(result.iterationRun?.structure).toBe('https://sparql-query-lib/BenchmarkIterationObservationDSD');
     expect(result.iterationRun?.isPartOf).toBe(result.run.$id);
 
-    expect(mockIterationObservationInsert).toHaveBeenCalledTimes(2);
+    expect(store.all('BenchmarkIterationObservation')).toHaveLength(2);
     expect(result.iterationObservations).toHaveLength(2);
 
     const [first, second] = result.iterationObservations;
@@ -764,8 +736,8 @@ describe('BenchmarkRunner', () => {
     const runner = new BenchmarkRunner({ internal: true }, stub({}), stub({}), stub({}), () => stub({ execute }), () => stub({}));
     const result = await runner.runExperimentVersion(versionId);
 
-    expect(mockIterationRunInsert).not.toHaveBeenCalled();
-    expect(mockIterationObservationInsert).not.toHaveBeenCalled();
+    expect(store.all('BenchmarkIterationRun')).toEqual([]);
+    expect(store.all('BenchmarkIterationObservation')).toEqual([]);
     expect(result.iterationRun).toBeNull();
     expect(result.iterationObservations).toEqual([]);
   });

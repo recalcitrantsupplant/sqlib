@@ -435,6 +435,30 @@ logs `would-deny` per hidden item in `dry-run`.
 
 ## Phase 5 — Web
 
+Status: done, WP23–WP27, on `claude/determined-fermat-2462b3`. What changed
+from the plan:
+
+- WP24 did not wait for WP31. The test, data graph and tuple set version
+  leaves are now projected by the generator; the rest of the web's wire
+  schemas moved to `contracts/src/hand-written/` (outside `generated/`). The
+  web client is not yet generated from `routes.generated.ts` or split into
+  `api/<entity>.ts` modules — that still needs WP31's route snapshot decision.
+  The API now returns a case's `dataGraphs` in the shape it is written with;
+  `port` is accepted on write but not stored, as before.
+- WP25: the 412 path re-reads the record and replays the partial update once,
+  and a second 412 is an `EntityConflictError`, rather than a reload/overwrite
+  toast — updates are field-level, so the replay is the overwrite. The drafts
+  envelope is built in one place (`useEntityDraft`) but the stored record is
+  still query-shaped. The ETL job PATCH route now validates `If-Match`.
+- WP26: one page, `pages/[[section]]/[[id]].vue`, serves `/`, `/<section>` and
+  `/<section>/<id>`, so the workspace is not remounted when leaving the
+  splash. The workspace itself is `components/workspace/LibraryWorkspace.vue`
+  (about 2,000 lines); its work areas come from `workspace/workAreas.ts`
+  rather than `lib/sections.ts`, because `lib/` imports no components.
+  Record deep links need a static host's SPA fallback (deploying.md).
+- WP27: `pages/tests/query-results-bench.vue` stays, because the perf budget
+  suite drives it against the production build.
+
 ### WP23 — Change feed dispatches by entity · S · deps: none · closes C7
 
 **Changes.** `composables/useLibraryRefresh.ts`: a registry
@@ -591,6 +615,18 @@ discipline and why.
 ---
 
 ## Phase 7 — Engineering infrastructure
+
+Status: WP33 and WP34 done, WP35 in part, on `claude/nice-einstein-r2f7g8`.
+Node is aligned on 26 (the images' major) rather than tested on two. The lint
+gate is a per-package, per-rule ratchet (`scripts/lint-ratchet.mjs`) rather
+than an `any` count alone; `no-console` is at zero in every package. WP35's
+fake store is `test/support/fakePersistenceAdapter.ts`, which stands behind the
+repository lenses as well as the adapter, since the `*Utils` modules reach
+storage through the lenses; it replaced 84 of the 104 module mocks, leaving
+`MemoryCacheManager.test.ts`, a test of the cache's calls to storage. Still
+open, because they wait on WP20a/WP21: the shared `buildTestApp` and the
+exact-message assertions. e2e already ran on every push; it now also gates
+Dependabot's auto-merge.
 
 ### WP33 — First run and docs reconciliation · S · deps: none · closes E1, E4, E6
 

@@ -34,6 +34,7 @@ import type { LdkitTestRunCase } from '../persistence/schemas/TestRunCaseSchema.
 import type { TestCaseResult, TestRunResult } from './TestRunner.js';
 import type { TestReportEntry } from './reportFormats/index.js';
 import { isReadOnlyDeployment } from '../config/readOnly.js';
+import { log } from './log.js';
 
 /**
  * How many runs of one test are kept regardless of what they say.
@@ -217,7 +218,7 @@ export async function recordTestRuns(records: TestRunRecord[]): Promise<LdkitTes
     await forget(stale);
   } catch (error) {
     // A run that executed is the caller's answer whether or not it was filed.
-    console.warn('[TestRunStore] Failed to record test run history:', error);
+    log.warn({ err: error }, 'TestRunStore: failed to record test run history');
   }
   return written;
 }

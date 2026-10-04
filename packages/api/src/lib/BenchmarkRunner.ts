@@ -4,13 +4,14 @@ import { assertBenchmarkVersionDependencies, parseSubjectSpecs } from './Benchma
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
 import { mintId } from './id.js';
 import { SparqlQueryParser } from './parser.js';
+import { invokeCallable } from './invokeCallable.js';
 import { ExecutorFactory } from './orchestration/ExecutorFactory.js';
 import { assertBackendAccess, isInternalExecution, type ExecutionAuthScope, type InternalExecution } from '../auth/executionScope.js';
 import { requireLibraryMode, resolveOwningLibrary } from '../auth/enforce.js';
 import type { RunnerScope } from './TestRunner.js';
 import { ExecutionEngine, type ExecutionHooks } from './orchestration/ExecutionEngine.js';
 import { GraphBuilder } from './orchestration/GraphBuilder.js';
-import type { NodeResult, ResolvedNode } from './orchestration/types.js';
+import type { NodeResult } from './orchestration/types.js';
 import type { LdkitBenchmarkExperimentVersion } from '../persistence/schemas/BenchmarkExperimentVersionSchema.js';
 import type { LdkitBenchmarkObservation } from '../persistence/schemas/BenchmarkObservationSchema.js';
 import type { LdkitBenchmarkNodeObservation } from '../persistence/schemas/BenchmarkNodeObservationSchema.js';
@@ -31,8 +32,6 @@ import { BenchmarkIterationObservations } from '../persistence/utils/BenchmarkIt
 import { BenchmarkIterationRuns, updateBenchmarkIterationRun } from '../persistence/utils/BenchmarkIterationRunUtils.js';
 import { BenchmarkRuns, updateBenchmarkRun } from '../persistence/utils/BenchmarkRunUtils.js';
 import { BenchmarkNodeRuns, updateBenchmarkNodeRun } from '../persistence/utils/BenchmarkNodeRunUtils.js';
-import { QueryTypeIri } from '../constants/queryTypes.js';
-import { toQueryTypeIri } from './queryTypes.js';
 import {
   BENCHMARK_ITERATION_OBSERVATION_DSD_IRI,
   BENCHMARK_NODE_OBSERVATION_DSD_IRI,
@@ -42,10 +41,9 @@ import {
   DEFAULT_BENCHMARK_EXECUTION_STRATEGY,
   DEFAULT_BENCHMARK_REPEATS,
 } from '../constants/benchmarks.js';
-import { EPHEMERAL_BACKEND_ID, LIBRARY_STORAGE_BACKEND_ID } from '@sparql-query-lib/types';
+import { EPHEMERAL_BACKEND_ID } from '@sparql-query-lib/types';
 import { OxigraphSparqlExecutor } from '../server/OxigraphSparqlExecutor.js';
-import { oxigraphStoreManager } from './OxigraphStoreManager.js';
-import crypto from 'node:crypto';
+import * as oxigraph from 'oxigraph';
 
 type BenchmarkTask = {
   subjectId: string;
@@ -341,7 +339,7 @@ export class BenchmarkRunner {
     const timeWindowMs = parseDurationToMs(version.timeWindow ?? null);
     const scheduleStart = Date.now();
 
-    const executeOnce = async (task: BenchmarkTask, index: number): Promise<BenchmarkTaskOutcome> => {
+    const executeOnce = async (task: BenchmarkTask, index: number, signal?: AbortSignal): Promise<BenchmarkTaskOutcome> => {
       if (abortSignal.aborted) {
         return {
           success: false,
@@ -368,10 +366,10 @@ export class BenchmarkRunner {
 
       try {
         if (task.subjectType === 'QueryVersion') {
-          const result = await this.executeQueryVersion(task.subjectId, task.backendId, executionArgumentId(task));
+          const result = await this.executeQueryVersion(task.subjectId, task.backendId, executionArgumentId(task), signal);
           resultCount = countResults(result);
         } else if (task.subjectType === 'RuleSetVersion') {
-          const { result, iterations } = await this.executeRuleSetVersion(task, version.timeoutMs);
+          const { result, iterations } = await this.executeRuleSetVersion(task, version.timeoutMs, signal);
           resultCount = countResults(result);
           if (iterations.length) {
             /*
@@ -415,7 +413,7 @@ export class BenchmarkRunner {
           }
 
           const hooks = this.buildNodeHooks(nodeRun.$id, task.runIndex, nodeObservationDrafts);
-          const result = await this.executeQueryGroupVersion(task.subjectId, executionArgumentId(task), hooks);
+          const result = await this.executeQueryGroupVersion(task.subjectId, executionArgumentId(task), hooks, signal);
           resultCount = countResults(result);
         }
         return { success: true, resultCount, durationMs: performance.now() - subjectStart, nodeObservationDrafts, iterationObservationDrafts };
@@ -478,9 +476,9 @@ export class BenchmarkRunner {
 
     await runWithConcurrency(orderedTasks, version.maxConcurrency ?? 1, async (task, index) => {
       if (abortSignal.aborted) return;
-      const outcome = await this.runWithRetries(task, index, version.retryCount, version.retryDelayMs, version.timeoutMs, async (runTask, runIndex) => {
+      const outcome = await this.runWithRetries(task, index, version.retryCount, version.retryDelayMs, version.timeoutMs, async (runTask, runIndex, signal) => {
         await ensureWarmup(runTask);
-        return executeOnce(runTask, runIndex);
+        return executeOnce(runTask, runIndex, signal);
       });
       const subjectObservationId = mintId('benchmarkObservation');
       const observation: LdkitBenchmarkObservation = {
@@ -720,27 +718,42 @@ export class BenchmarkRunner {
     retryCount: number | null | undefined,
     retryDelayMs: number | null | undefined,
     timeoutMs: number | null | undefined,
-    handler: (task: BenchmarkTask, index: number) => Promise<BenchmarkTaskOutcome>
+    handler: (task: BenchmarkTask, index: number, signal?: AbortSignal) => Promise<BenchmarkTaskOutcome>
   ): Promise<BenchmarkTaskOutcome> {
     const attempts = Math.max(0, retryCount ?? 0) + 1;
     let lastError: Error | null = null;
     let lastOutcome: BenchmarkTaskOutcome | null = null;
 
     for (let attempt = 1; attempt <= attempts; attempt += 1) {
+      /*
+       * A timeout aborts the attempt rather than only abandoning it: the race
+       * used to leave the task running (a fixpoint loop, an HTTP request) and
+       * its timer pending, burning the box the rest of the benchmark is
+       * measured on. The signal reaches the executor, the rule set's loop and
+       * every group node; the timer is cleared however the attempt ends.
+       */
+      const controller = new AbortController();
+      let timer: NodeJS.Timeout | undefined;
       try {
         if (timeoutMs && timeoutMs > 0) {
           lastOutcome = await Promise.race([
-            handler(task, index),
-            new Promise<Awaited<ReturnType<typeof handler>>>((_, reject) =>
-              setTimeout(() => reject(new Error('Benchmark task timed out')), timeoutMs),
-            ),
+            handler(task, index, controller.signal),
+            new Promise<Awaited<ReturnType<typeof handler>>>((_, reject) => {
+              timer = setTimeout(() => {
+                const timedOut = new Error('Benchmark task timed out');
+                controller.abort(timedOut);
+                reject(timedOut);
+              }, timeoutMs);
+            }),
           ]);
         } else {
-          lastOutcome = await handler(task, index);
+          lastOutcome = await handler(task, index, controller.signal);
         }
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
         lastOutcome = null;
+      } finally {
+        if (timer) clearTimeout(timer);
       }
 
       if (lastOutcome && lastOutcome.success) {
@@ -769,39 +782,23 @@ export class BenchmarkRunner {
     return lastOutcome;
   }
 
-  private async executeQueryVersion(subjectId: string, backendId: string, argumentSetId: string): Promise<NodeResult> {
+  private async executeQueryVersion(subjectId: string, backendId: string, argumentSetId: string, signal?: AbortSignal): Promise<NodeResult> {
     const versionEntity = getCacheCoordinator().get(subjectId) as LdkitQueryVersion | null;
     if (!versionEntity || versionEntity['@type'] !== 'QueryVersion') {
       throw new Error(`QueryVersion ${subjectId} not found`);
     }
 
-    let queryString = versionEntity.queryString;
-    if (argumentSetId !== BENCHMARK_NO_ARGUMENTS_IRI) {
-      const runtimePayload = await this.argumentSetService.exportRuntimePayload([argumentSetId], this.scope);
-      if (runtimePayload.limits.length > 0 || runtimePayload.offsets.length > 0) {
-        queryString = this.parser.applyLimitOffsetParameters(queryString, runtimePayload.limits, runtimePayload.offsets);
-      }
-      if (runtimePayload.tupleList.length > 0) {
-        queryString = this.parser.applyArguments(queryString, runtimePayload.tupleList);
-      }
-    }
-
-    const queryType = toQueryTypeIri(versionEntity.queryType) || QueryTypeIri.select;
+    const runtimePayload = argumentSetId !== BENCHMARK_NO_ARGUMENTS_IRI
+      ? await this.argumentSetService.exportRuntimePayload([argumentSetId], this.scope)
+      : null;
     const executor = await this.resolveExecutorForBackend(subjectId, backendId);
-
-    if (queryType === QueryTypeIri.ask) {
-      const { result } = await executor.askQuery(queryString);
-      return result;
-    }
-    if (queryType === QueryTypeIri.update) {
-      await executor.update(queryString);
-      return { success: true };
-    }
-    if (queryType === QueryTypeIri.construct || queryType === QueryTypeIri.describe) {
-      const { result } = await executor.constructQueryParsed(queryString);
-      return result;
-    }
-    const { result } = await executor.selectQueryParsed(queryString);
+    const { result } = await invokeCallable(executor, versionEntity.queryString, versionEntity.queryType, {
+      argumentSets: runtimePayload?.tupleList ?? [],
+      limits: runtimePayload?.limits ?? [],
+      offsets: runtimePayload?.offsets ?? [],
+      signal,
+      parser: this.parser,
+    });
     return result;
   }
 
@@ -825,6 +822,7 @@ export class BenchmarkRunner {
   private async executeRuleSetVersion(
     task: BenchmarkTask,
     timeoutMs?: number | null,
+    signal?: AbortSignal,
   ): Promise<{ result: NodeResult; iterations: IterationRecord[] }> {
     const versionEntity = getCacheCoordinator().get(task.subjectId) as LdkitRuleSetVersion | null;
     if (!versionEntity || versionEntity['@type'] !== 'RuleSetVersion') {
@@ -845,11 +843,11 @@ export class BenchmarkRunner {
         initialGraphFormat: dataGraph?.format ?? null,
         /*
          * The version's task timeout, handed to the executor as well as raced
-         * against by `runWithRetries`. The race abandons a slow task but cannot
-         * stop it: a fixpoint loop left running would go on burning the box the
-         * rest of the benchmark is being measured on.
+         * against by `runWithRetries`, whose signal stops the fixpoint loop at
+         * its next rule when the race is lost.
          */
         timeoutMs: timeoutMs ?? undefined,
+        signal,
       },
     );
 
@@ -862,7 +860,7 @@ export class BenchmarkRunner {
     return { result: executed.finalGraphNQuads ?? '', iterations: executed.iterations ?? [] };
   }
 
-  private async executeQueryGroupVersion(subjectId: string, argumentSetId: string, hooks: ExecutionHooks): Promise<NodeResult> {
+  private async executeQueryGroupVersion(subjectId: string, argumentSetId: string, hooks: ExecutionHooks, signal?: AbortSignal): Promise<NodeResult> {
     const versionEntity = getCacheCoordinator().get(subjectId) as LdkitQueryGroupVersion | null;
     if (!versionEntity || versionEntity['@type'] !== 'QueryGroupVersion') {
       throw new Error(`QueryGroupVersion ${subjectId} not found`);
@@ -874,37 +872,17 @@ export class BenchmarkRunner {
 
     const graph = this.graphBuilder.buildFromGroupVersion(versionEntity);
     const engine = new ExecutionEngine(this.executorFactoryFor(subjectId));
-    const { result } = await engine.execute(graph, initialArgs, hooks);
+    const { result } = await engine.execute(graph, initialArgs, hooks, { signal });
     return result;
   }
 
   private async resolveExecutorForBackend(subjectId: string, backendId: string) {
-    if (backendId === LIBRARY_STORAGE_BACKEND_ID) {
-      const fakeNode = this.buildBackendNode(backendId);
-      return this.executorFactoryFor(subjectId).getExecutorForNode(fakeNode);
-    }
-
     if (backendId === EPHEMERAL_BACKEND_ID) {
-      const storeId = `benchmark-ephemeral-${crypto.randomUUID()}`;
-      const store = oxigraphStoreManager.createEphemeralStore(storeId);
-      return new OxigraphSparqlExecutor(store);
+      // A store of its own that nothing else can reach, and that is garbage
+      // once the task is: registering it with the store manager would keep
+      // one per task alive for the life of the process.
+      return new OxigraphSparqlExecutor(new oxigraph.Store());
     }
-
-    const fakeNode = this.buildBackendNode(backendId);
-    return this.executorFactoryFor(subjectId).getExecutorForNode(fakeNode);
-  }
-
-  private buildBackendNode(backendId: string): ResolvedNode {
-    return {
-      id: `benchmark-backend:${backendId}`,
-      raw: {},
-      backendId,
-      queryVersionId: undefined,
-      queryVersion: undefined,
-      queryString: undefined,
-      queryType: undefined,
-      inputTupleIds: [],
-      outputTupleIds: [],
-    };
+    return this.executorFactoryFor(subjectId).getExecutorForBackendId(backendId);
   }
 }

@@ -4,6 +4,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { OxigraphStoreManager } from '../../src/lib/OxigraphStoreManager.js';
 import { OxigraphSparqlExecutor } from '../../src/server/OxigraphSparqlExecutor.js';
+import { log } from '../../src/lib/log.js';
 
 /**
  * The periodic checkpoint's skip (#443).
@@ -183,13 +184,20 @@ describe('checkpointAllStores', () => {
     await new OxigraphSparqlExecutor(store).update(
       'INSERT DATA { <http://a> <http://b> <http://c> }',
     );
-    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    // debug normally, warn when the pause crosses the threshold: either way the
+    // line carries the duration.
+    const debug = vi.spyOn(log, 'debug');
+    const warn = vi.spyOn(log, 'warn');
 
     await manager.checkpointAllStores();
 
-    const lines = log.mock.calls.map(call => String(call[0]));
-    expect(lines.some(line => /Checkpointed backend-a: 1 quads in \d+ms/.test(line))).toBe(true);
-    log.mockRestore();
+    const calls = [...debug.mock.calls, ...warn.mock.calls] as unknown[][];
+    expect(calls).toContainEqual([
+      { backendId: 'backend-a', quads: 1, durationMs: expect.any(Number) },
+      expect.stringContaining('Checkpointed store'),
+    ]);
+    debug.mockRestore();
+    warn.mockRestore();
   });
 
   it('drops a store id from the checkpoint record when the store is dropped', async () => {

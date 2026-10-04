@@ -96,5 +96,4 @@ Make sure you're running the `-mocked` test files, not the originals.
 
 ### Need Help?
 Check the detailed documentation:
-- [TESTING_SUMMARY.md](./tests/TESTING_SUMMARY.md)
 - [tests/e2e/README.md](./tests/e2e/README.md)

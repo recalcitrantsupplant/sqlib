@@ -8,9 +8,11 @@ store.
 
 ## Prerequisites
 
-- Node 24 (the version in [`.nvmrc`](.nvmrc)).
+- Node 26 (the version in [`.nvmrc`](.nvmrc), which CI and both Docker images
+  use).
 - pnpm 11.1.2 (pinned by `packageManager` in [`package.json`](package.json);
-  `corepack enable` will select it).
+  `npm install --global pnpm@11.1.2` — Node 25 and later ship without
+  corepack).
 - [`just`](https://github.com/casey/just) — the Justfile is the only task
   runner in this repo.
 - Docker, only if you want to build or run the container image. The route below
@@ -73,8 +75,10 @@ default. Pass another base URL as an argument to point it elsewhere:
   N-Quads on a checkpoint interval and on shutdown, not a disk-resident
   database. Its working set must fit in memory.
 - The static-export runtime covers SELECT-chained query groups only.
-- The repository is pre-1.0. Nothing has been released, and no compatibility
-  guarantee applies to the REST API, the entity model or the SRL syntax.
+- The repository is pre-1.0. Releases are tagged (`v0.1.0` is the first, with
+  its server image on GHCR; see [CHANGELOG.md](CHANGELOG.md)), but no
+  compatibility guarantee applies to the REST API, the entity model or the SRL
+  syntax, and no package has been published to npm.
 
 ## Documentation
 

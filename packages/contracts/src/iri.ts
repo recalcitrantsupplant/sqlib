@@ -37,6 +37,7 @@ const SCHEME = /^[A-Za-z][A-Za-z0-9+.-]*:/;
  * and the excluded set, which is also exactly what Turtle and N-Triples forbid
  * between the angle brackets of an IRIREF.
  */
+// eslint-disable-next-line no-control-regex -- IRIREF excludes U+0000–U+0020 by name
 const EXCLUDED = /[\u0000-\u0020<>"{}|\\^`]/;
 
 /**

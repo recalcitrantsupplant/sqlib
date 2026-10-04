@@ -15,7 +15,6 @@
     "build": "node scripts/bundle-editor.mjs && tsc --project tsconfig.json && node scripts/copy-assets.mjs",
     "dev:harness": "node dev/serve.mjs",
     "clean": "rm -rf dist",
-    "lint": "echo \"TODO: add lint\"",
     "test": "echo 'TODO: add tests'"
   },
   "dependencies": {

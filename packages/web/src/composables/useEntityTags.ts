@@ -72,7 +72,7 @@ export function useEntityTags() {
       rows: () => ruleSetsStore.ruleSets.value as TaggedEntity[],
     },
     test: {
-      write: (id, tags) => apiClient.updateTest(id, { tags }),
+      write: (id, tags) => testsStore.updateTest(id, { tags }),
       reload: () => testsStore.loadTests(),
       rows: () => testsStore.tests.value as TaggedEntity[],
     },

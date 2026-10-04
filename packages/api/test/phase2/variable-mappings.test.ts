@@ -100,13 +100,13 @@ describe('Phase 2 edge variable mappings', () => {
   }, 30000);
 
   it('fails by name when a mapping survives as empty and unbinds every row', async () => {
-    // Nothing in the mapping is usable, so no variable is bound and all three
-    // rows become all-UNDEF. That is the shape §1.1 rejects outright, because a
-    // wildcard mixed with real rows would dissolve them.
+    // Nothing in the mapping is usable, so no variable would be bound and all
+    // three rows would arrive empty. That is a broken edge rather than data,
+    // and it is refused as one, naming the edge.
     const allBogus = JSON.stringify([{ source: 'nope', target: 'alsonope' }]);
     const execution = await runChain(allBogus);
     expect(execution.statusCode).toBe(400);
-    expect(execution.payload).toContain('all-UNDEF row cannot be mixed with bound rows');
+    expect(execution.payload).toContain('maps none of its source');
   }, 30000);
 
   it('dedupes fan-in rows that two edges spell with different variable order', async () => {

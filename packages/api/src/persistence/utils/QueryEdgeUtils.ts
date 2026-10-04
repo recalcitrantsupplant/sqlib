@@ -5,6 +5,7 @@
 import { QueryEdgeSchema, type LdkitQueryEdge } from '../schemas/QueryEdgeSchema.js';
 import { createRepositoryLens } from './entityRepository.js';
 import { toLdkit } from './id-adapter.js';
+import { log } from '../../lib/log.js';
 
 export const QueryEdges = createRepositoryLens(QueryEdgeSchema);
 
@@ -76,7 +77,7 @@ export const updateQueryEdge = async (
     await QueryEdges.update({ $id: id, ...edge });
     return await QueryEdges.findByIri(id);
   } catch (error) {
-    console.error(`Failed to update QueryEdge ${id}:`, error);
+    log.error({ err: error, id }, 'Failed to update QueryEdge');
     return null;
   }
 };
@@ -89,7 +90,7 @@ export async function deleteQueryEdge(edgeId: string): Promise<boolean> {
     await QueryEdges.delete(edgeId);
     return true;
   } catch (error) {
-    console.error(`Failed to delete QueryEdge ${edgeId}:`, error);
+    log.error({ err: error, id: edgeId }, 'Failed to delete QueryEdge');
     return false;
   }
 }

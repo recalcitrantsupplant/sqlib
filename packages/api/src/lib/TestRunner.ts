@@ -39,8 +39,8 @@ import { AuthorizationError, requireAdmin, requireLibraryMode, resolveOwningLibr
 import { ExecutionEngine, type ExecutionHooks, type ExecutionDataGraphInput } from './orchestration/ExecutionEngine.js';
 import { GraphBuilder } from './orchestration/GraphBuilder.js';
 import { SparqlQueryParser } from './parser.js';
+import { invokeCallable } from './invokeCallable.js';
 import { RuleSetExecutor } from './RuleSetExecutor.js';
-import { QueryTypeIri, toQueryTypeIri } from '../constants/queryTypes.js';
 import type { LdkitTest } from '../persistence/schemas/TestSchema.js';
 import type { LdkitTestVersion } from '../persistence/schemas/TestVersionSchema.js';
 import type { LdkitTestCase } from '../persistence/schemas/TestCaseSchema.js';
@@ -53,7 +53,6 @@ import type { LdkitRuleSetVersion } from '../persistence/schemas/RuleSetVersionS
 import type { LdkitEtlJob } from '../persistence/schemas/EtlJobSchema.js';
 import type { LdkitEtlJobVersion } from '../persistence/schemas/EtlJobVersionSchema.js';
 import type { LdkitDataGraphVersion } from '../persistence/schemas/DataGraphVersionSchema.js';
-import type { ResolvedNode } from './orchestration/types.js';
 import type { EntityTypeName } from '../persistence/entityTypeNames.js';
 import { rdfToNQuads, storeManagerFormat, DEFAULT_DATA_GRAPH_FORMAT, type DataGraphFormat } from './dataGraphContent.js';
 import { effectiveCases, listCaseDataGraphs } from './testCases.js';
@@ -661,40 +660,22 @@ export class TestRunner {
       throw new TestNotRunnableError(`No query version to run for subject ${subjectId}`);
     }
 
-    let queryString = version.queryString;
-    if (testCase.argumentSetVersion) {
-      const payload = await this.argumentSetService.exportRuntimePayload([testCase.argumentSetVersion], this.scope);
-      if (payload.limits.length > 0 || payload.offsets.length > 0) {
-        queryString = this.parser.applyLimitOffsetParameters(queryString, payload.limits, payload.offsets);
-      }
-      if (payload.tupleList.length > 0) {
-        queryString = this.parser.applyArguments(queryString, payload.tupleList);
-      }
-    }
+    const payload = testCase.argumentSetVersion
+      ? await this.argumentSetService.exportRuntimePayload([testCase.argumentSetVersion], this.scope)
+      : null;
 
-    const queryType = toQueryTypeIri(version.queryType) || QueryTypeIri.select;
-    const result = await this.withQueryExecutor(
+    const { result } = await this.withQueryExecutor(
       testVersion,
       testCase,
       executorFactory,
-      executor => this.runQuery(executor, queryString, queryType),
+      executor => invokeCallable(executor, version.queryString, version.queryType, {
+        argumentSets: payload?.tupleList ?? [],
+        limits: payload?.limits ?? [],
+        offsets: payload?.offsets ?? [],
+        parser: this.parser,
+      }),
     );
     return { result, subjectVersionId: version.$id };
-  }
-
-  /** Ask the executor the question the query's type calls for. */
-  private async runQuery(
-    executor: ISparqlExecutor,
-    queryString: string,
-    queryType: string,
-  ): Promise<unknown> {
-    if (queryType === QueryTypeIri.ask) {
-      return (await executor.askQuery(queryString)).result;
-    }
-    if (queryType === QueryTypeIri.construct || queryType === QueryTypeIri.describe) {
-      return (await executor.constructQueryParsed(queryString)).result;
-    }
-    return (await executor.selectQueryParsed(queryString)).result;
   }
 
   /**
@@ -889,17 +870,6 @@ export class TestRunner {
       // have drifted apart rather than that the test is missing an input.
       throw new TestNotRunnableError('No backend to run against');
     }
-    const node: ResolvedNode = {
-      id: `test-backend:${testVersion.backend}`,
-      raw: {},
-      backendId: testVersion.backend,
-      queryVersionId: undefined,
-      queryVersion: undefined,
-      queryString: undefined,
-      queryType: undefined,
-      inputTupleIds: [],
-      outputTupleIds: [],
-    };
-    return executorFactory.getExecutorForNode(node);
+    return executorFactory.getExecutorForBackendId(testVersion.backend);
   }
 }

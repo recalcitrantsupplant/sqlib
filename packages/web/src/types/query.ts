@@ -1,4 +1,3 @@
-import type { Query } from '@sparql-query-lib/contracts';
 
 export type QueryFormInput = {
   name: string;

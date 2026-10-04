@@ -52,9 +52,12 @@ export {
 export {
   InvalidParameterError,
   assertPageParameterValue,
+  findLimitOffsetClauses,
+  rewriteLimitOffsetClauses,
   substituteLimitOffset,
   toExecutionParameters,
   type ExecutionParameter,
+  type LimitOffsetClause,
 } from './limit-offset.js';
 
 export {

@@ -72,6 +72,8 @@ const run = (hasDataBlock: string[], hasRule: string[] = [], initialGraph?: stri
   new RuleSetExecutor().execute(ruleSetVersion(hasDataBlock, hasRule), {
     initialGraph,
     maxIterations: 10,
+    // These cases reconcile each rule's inserted and deleted quads.
+    trace: true,
   });
 
 /** The inference graph as a set of N-Triples lines, order-insensitive. */

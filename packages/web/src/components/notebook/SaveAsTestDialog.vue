@@ -219,7 +219,7 @@ async function save() {
       // Omitting `tags` is what asks the server for the query's; `[]` is the
       // unticked box saying none.
       ...(copySubjectTags.value ? {} : { tags: [] }),
-    } as never);
+    });
 
     await apiClient.createTestVersion(test.id, {
       // Recording the result makes this an assertion; without one it is a

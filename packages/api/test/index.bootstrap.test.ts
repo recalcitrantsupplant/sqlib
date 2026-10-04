@@ -61,7 +61,6 @@ const hoisted = vi.hoisted(() => ({
 
 describe('index bootstrap', () => {
   const originalProcessOn = process.on;
-  let consoleLog: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     vi.resetModules();
@@ -130,7 +129,6 @@ describe('index bootstrap', () => {
     hoisted.executeRoutes.mockClear();
     hoisted.sparqlRoutes.mockClear();
     process.on = vi.fn();
-    consoleLog = vi.spyOn(console, 'log').mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -138,7 +136,6 @@ describe('index bootstrap', () => {
     delete process.env.APP_BASE_PATH;
     delete process.env.APP_PUBLIC_BASE_PATH;
     process.on = originalProcessOn;
-    consoleLog.mockRestore();
     vi.doUnmock('fastify');
     vi.doUnmock('@fastify/cors');
     vi.doUnmock('@fastify/multipart');

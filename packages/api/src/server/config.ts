@@ -11,6 +11,7 @@
  */
 import path from 'node:path';
 import type { OxigraphSourceConfig } from '../persistence/schemas/BackendSchema.js';
+import { log } from '../lib/log.js';
 
 interface HttpEndpointConfig {
   type: 'http';
@@ -77,7 +78,7 @@ function getInternalBackendConfig(): InternalBackendConfig {
           sourceConfig = parsed as OxigraphSourceConfig;
         }
       } catch (error) {
-        console.warn('[config] Failed to parse INTERNAL_OXIGRAPH_BOOTSTRAP_SOURCE JSON:', error);
+        log.warn({ err: error }, 'config: failed to parse INTERNAL_OXIGRAPH_BOOTSTRAP_SOURCE JSON');
       }
     }
 

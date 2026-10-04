@@ -47,23 +47,27 @@ vi.mock('@opentelemetry/api', () => ({
 describe('otel-setup', () => {
   const originalProcessOn = process.on;
   const originalEnv = { ...process.env };
-  let consoleLog: ReturnType<typeof vi.spyOn>;
-  let consoleError: ReturnType<typeof vi.spyOn>;
+  let logInfo: ReturnType<typeof vi.spyOn>;
+  let logError: ReturnType<typeof vi.spyOn>;
 
   beforeEach(async () => {
     await vi.resetModules();
     hoisted.NodeSDK.mockClear();
     hoisted.FastifyOtelInstrumentation.mockClear();
     hoisted.diag.setLogger.mockClear();
+    // After resetModules, so this is the same `log` instance otel-setup imports;
+    // before stubbing process.on, because pino registers its own exit hook and
+    // the assertions below are about otel-setup's handlers only.
+    const { log } = await import('../src/lib/log.js');
+    logInfo = vi.spyOn(log, 'info');
+    logError = vi.spyOn(log, 'error');
     process.on = vi.fn();
-    consoleLog = vi.spyOn(console, 'log').mockImplementation(() => {});
-    consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
   });
 
   afterEach(() => {
     process.on = originalProcessOn;
-    consoleLog.mockRestore();
-    consoleError.mockRestore();
+    logInfo.mockRestore();
+    logError.mockRestore();
     process.env = { ...originalEnv };
   });
 
@@ -72,8 +76,8 @@ describe('otel-setup', () => {
     await import('../src/otel-setup.js');
     expect(hoisted.NodeSDK).not.toHaveBeenCalled();
     expect(process.on).not.toHaveBeenCalled();
-    expect(consoleLog).not.toHaveBeenCalledWith(expect.stringContaining('OpenTelemetry SDK started'));
-    expect(consoleError).not.toHaveBeenCalled();
+    expect(logInfo).not.toHaveBeenCalled();
+    expect(logError).not.toHaveBeenCalled();
   });
 
   it('boots NodeSDK and registers shutdown handler when enabled', async () => {
@@ -83,7 +87,7 @@ describe('otel-setup', () => {
     // cancelled again, this fails instead of silently booting a real SDK.
     expect(hoisted.NodeSDK).toHaveBeenCalledTimes(1);
     expect(process.on).toHaveBeenCalledWith('SIGTERM', expect.any(Function));
-    expect(consoleLog).toHaveBeenCalledWith(expect.stringContaining('OpenTelemetry SDK started'));
+    expect(logInfo).toHaveBeenCalledWith(expect.anything(), expect.stringContaining('OpenTelemetry SDK started'));
   });
 });
 

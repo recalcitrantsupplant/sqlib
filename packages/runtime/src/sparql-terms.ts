@@ -41,6 +41,7 @@ export class InvalidTermError extends Error {
  * Every character that could close the IRI or start a new token is in this set,
  * which is what makes `<${iri}>` safe once the check passes.
  */
+// eslint-disable-next-line no-control-regex -- IRIREF excludes U+0000–U+0020 by name
 const FORBIDDEN_IN_IRI = /[<>"{}|^`\\\u0000-\u0020]/;
 
 /**

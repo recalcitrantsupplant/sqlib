@@ -1,4 +1,4 @@
-import { computed, reactive } from 'vue';
+import { reactive } from 'vue';
 import {
   type QueryGroup,
   type QueryGroupCreateInput,
@@ -7,21 +7,13 @@ import {
   type QueryGroupVersionExpanded,
   type QueryGroupVersionExpandedWithIriMap,
   type QueryGroupVersionForGroupCreateInput,
-  type QueryGroupVersionPatchInput,
 } from '@sparql-query-lib/contracts';
 import type { QueryGroupFormInput } from '../types/queryGroup.js';
 import type { QueryGroupVersionFormInput } from '../types/queryGroupVersion.js';
 import { useApiClient } from './useApiClient.js';
-
-// Derive the incremental-mutation input shapes from the API client's method
-// signatures so they stay in sync with the (module-local) contract types there.
-type ApiClient = ReturnType<typeof useApiClient>;
+import { createVersionedEntityStore } from './createVersionedEntityStore';
 
 type QueryGroupState = {
-  items: QueryGroup[];
-  loading: boolean;
-  error: string | null;
-  concurrency: Record<string, string | null>;
   versions: Record<string, QueryGroupVersion[]>;
   versionLoading: Record<string, boolean>;
   versionError: Record<string, string | null>;
@@ -44,29 +36,27 @@ type ValidationResponse = {
   issues?: ValidationIssue[];
 };
 
+const useQueryGroupEntities = createVersionedEntityStore<QueryGroup, QueryGroupCreateInput, QueryGroupUpdateInput>({
+  noun: 'query group',
+  nounPlural: 'query groups',
+  api: () => {
+    const client = useApiClient();
+    return {
+      list: client.listQueryGroups,
+      get: client.getQueryGroup,
+      create: client.createQueryGroup,
+      update: client.updateQueryGroup,
+      remove: client.deleteQueryGroup,
+    };
+  },
+});
+
 const state = reactive<QueryGroupState>({
-  items: [],
-  loading: false,
-  error: null,
-  concurrency: {},
   versions: {},
   versionLoading: {},
   versionError: {},
   iriMaps: {},
 });
-
-function deriveIfMatchToken(
-  etag: string | null,
-  entity: { dateModified?: string | null; dateCreated?: string | null } | null,
-): string | null {
-  if (etag && typeof etag === 'string' && etag.trim().length > 0) {
-    return etag;
-  }
-  if (!entity) {
-    return null;
-  }
-  return entity.dateModified ?? entity.dateCreated ?? null;
-}
 
 function toNullable(value: string | null | undefined) {
   if (value === null || value === undefined) {
@@ -103,12 +93,8 @@ function buildUpdatePayload(input: QueryGroupFormInput): QueryGroupUpdateInput {
 }
 
 export function useQueryGroupsStore() {
+  const entities = useQueryGroupEntities();
   const {
-    listQueryGroups,
-    getQueryGroup,
-    createQueryGroup,
-    updateQueryGroup,
-    deleteQueryGroup,
     listQueryGroupVersions,
     getQueryGroupVersion,
     createQueryGroupVersion,
@@ -117,39 +103,17 @@ export function useQueryGroupsStore() {
     validateQueryGroupVersion,
   } = useApiClient();
 
-  const queryGroups = computed(() => state.items);
-  const loading = computed(() => state.loading);
-  const error = computed(() => state.error);
-
-  const loadQueryGroups = async () => {
-    state.loading = true;
-    state.error = null;
-    try {
-      state.items = await listQueryGroups();
-    } catch (err: unknown) {
-      state.error = err instanceof Error ? err.message : 'Failed to load query groups';
-      state.items = [];
-    } finally {
-      state.loading = false;
-    }
-  };
+  const queryGroups = entities.items;
+  const loading = entities.loading;
+  const error = entities.error;
+  const loadQueryGroups = entities.load;
 
   const fetchQueryGroup = async (id: string) => {
-    const result = await getQueryGroup(id);
-    state.concurrency[id] = deriveIfMatchToken(result.etag, result.data);
-    return {
-      queryGroup: result.data,
-      ifMatch: state.concurrency[id],
-      form: toFormInput(result.data),
-    };
+    const { data, ifMatch } = await entities.fetch(id);
+    return { queryGroup: data, ifMatch, form: toFormInput(data) };
   };
 
-  const create = async (input: QueryGroupCreateInput) => {
-    const result = await createQueryGroup(input);
-    state.concurrency[result.data.id] = deriveIfMatchToken(result.etag, result.data);
-    await loadQueryGroups();
-    return result.data;
-  };
+  const create = entities.create;
 
   const createFromForm = async (form: QueryGroupFormInput) => {
     const payload = buildCreatePayload(form);
@@ -159,13 +123,7 @@ export function useQueryGroupsStore() {
     return create(payload);
   };
 
-  const update = async (id: string, input: QueryGroupUpdateInput, explicitIfMatch?: string | null) => {
-    const ifMatch = explicitIfMatch ?? state.concurrency[id] ?? null;
-    const result = await updateQueryGroup(id, input, { ifMatch });
-    state.concurrency[id] = deriveIfMatchToken(result.etag, result.data);
-    await loadQueryGroups();
-    return result.data;
-  };
+  const update = entities.update;
 
   const updateFromForm = async (id: string, form: QueryGroupFormInput, explicitIfMatch?: string | null) => {
     const payload = buildUpdatePayload(form);
@@ -175,11 +133,7 @@ export function useQueryGroupsStore() {
     return update(id, payload, explicitIfMatch);
   };
 
-  const remove = async (id: string) => {
-    await deleteQueryGroup(id);
-    delete state.concurrency[id];
-    await loadQueryGroups();
-  };
+  const remove = entities.remove;
 
   const loadVersions = async (groupId: string) => {
     state.versionLoading[groupId] = true;
@@ -261,7 +215,7 @@ export function useQueryGroupsStore() {
     queryGroups,
     loading,
     error,
-    concurrency: state.concurrency,
+    concurrency: entities.concurrency,
     versions: state.versions,
     versionLoading: state.versionLoading,
     versionError: state.versionError,

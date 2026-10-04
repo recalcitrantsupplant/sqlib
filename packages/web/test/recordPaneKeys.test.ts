@@ -17,38 +17,42 @@
  * carrying across.
  */
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { WORK_AREAS, paneKey, workAreaPane } from '@/components/workspace/workAreas';
+import { SECTION_ITEM_TYPES } from '@/lib/sections';
 
-const INDEX = resolve(import.meta.dirname, '../src/pages/index.vue');
-
-/** Every `:key` bound on a work area in the main pane, with its expression. */
-function paneKeys(): Array<{ component: string; expression: string }> {
-  const source = readFileSync(INDEX, 'utf8');
-  const keys: Array<{ component: string; expression: string }> = [];
-  for (const [, component, expression] of source.matchAll(
-    /<([A-Z]\w+(?:WorkArea|Playground))\b[^>]*?:key="([^"]*)"/g,
-  )) {
-    keys.push({ component, expression });
-  }
-  return keys;
-}
+const KINDS = Object.keys(WORK_AREAS) as Array<keyof typeof WORK_AREAS>;
 
 describe('the work-area pane', () => {
-  it('is keyed for every work area the page draws', () => {
-    // Nine panes when this was written; the assertion is that they are all
-    // keyed deliberately, not that there are exactly nine.
-    expect(paneKeys().length).toBeGreaterThanOrEqual(9);
+  it('has a work area for every kind a section lists', () => {
+    expect([...KINDS].sort()).toEqual([...SECTION_ITEM_TYPES].sort());
   });
 
-  it('keys a saved record by its kind, so picking another swaps in place', () => {
-    const offenders = paneKeys().filter(({ expression }) => {
-      // The shape is `scratchSection === 'x' ? \`scratch-${id}\` : 'kind'`:
-      // the branch after the colon is the saved one, and it may not interpolate.
-      const saved = expression.split(':').at(-1) ?? '';
-      return saved.includes('${');
-    });
+  it.each(KINDS)('keys a saved %s by its kind, so picking another swaps in place', (kind) => {
+    expect(paneKey(kind, null)).toBe(WORK_AREAS[kind].savedKey);
+    const first = workAreaPane({ kind, savedId: 'urn:a', scratchId: null }, { onSaved() {}, onDeleted() {}, onLoadFailed() {}, extra: {} });
+    const second = workAreaPane({ kind, savedId: 'urn:b', scratchId: null }, { onSaved() {}, onDeleted() {}, onLoadFailed() {}, extra: {} });
+    expect(first!.key).toBe(second!.key);
+    expect(first!.props[WORK_AREAS[kind].idProp]).toBe('urn:a');
+  });
 
-    expect(offenders, 'a saved pane keyed by id is rebuilt on every row click').toEqual([]);
+  it.each(KINDS)('keys a scratch %s by its id, and passes no saved id', (kind) => {
+    const pane = workAreaPane({ kind, savedId: null, scratchId: 'urn:ui-temp:1' }, { onSaved() {}, onDeleted() {}, onLoadFailed() {}, extra: {} });
+    expect(pane!.key).toBe('scratch-urn:ui-temp:1');
+    expect(pane!.props.scratchId).toBe('urn:ui-temp:1');
+    expect(pane!.props[WORK_AREAS[kind].idProp]).toBeNull();
+  });
+
+  it('routes the shared events to the page, whatever a work area calls them', () => {
+    const calls: string[] = [];
+    const pane = workAreaPane({ kind: 'ruleSet', savedId: 'urn:r', scratchId: null }, {
+      onSaved: (kind, id) => calls.push(`saved ${kind} ${id}`),
+      onDeleted: (kind, id) => calls.push(`deleted ${kind} ${id}`),
+      onLoadFailed: (kind) => calls.push(`failed ${kind}`),
+      extra: {},
+    })!;
+    (pane.on['scratch-saved'] as (payload: { id: string }) => void)({ id: 'urn:r2' });
+    (pane.on['ruleset-deleted'] as (id?: string) => void)();
+    (pane.on['ruleset-load-failed'] as () => void)();
+    expect(calls).toEqual(['saved ruleSet urn:r2', 'deleted ruleSet null', 'failed ruleSet']);
   });
 });

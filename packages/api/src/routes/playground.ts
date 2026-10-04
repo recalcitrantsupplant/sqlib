@@ -42,7 +42,6 @@ import {
 } from '@sparql-query-lib/contracts/schema/routes';
 import type {
   PlaygroundRulesExecuteRequest,
-  PlaygroundRulesExecuteResponse,
 } from '@sparql-query-lib/contracts';
 
 const responseErrorSchema = {
@@ -316,6 +315,8 @@ export default async function playgroundRoutes(
           inferenceFormat,
           initialGraph: dataGraph?.content ?? null,
           initialGraphFormat: dataGraph?.format ?? null,
+          // The playground shows each rule's inserted and deleted quads.
+          trace: true,
         });
         // Named from the document where there is one, so results say
         // `rule-2-ancestorOf` rather than a position in a list the author

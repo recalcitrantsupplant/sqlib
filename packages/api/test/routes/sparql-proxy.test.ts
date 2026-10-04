@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi, MockInstance } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { setupValidator } from '../../src/lib/validator-setup.js';
-import * as schemas from '@sparql-query-lib/contracts/schema';
 import { BackendTypeIri } from '../../src/persistence/schemas/BackendSchema.js';
 
 const hoisted = vi.hoisted(() => {

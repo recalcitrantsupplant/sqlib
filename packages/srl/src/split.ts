@@ -253,7 +253,7 @@ function prefixAbbreviator(prologue: string): (text: string) => string {
       for (const [prefix, namespace] of prefixes) {
         if (!namespace || !iri.startsWith(namespace)) continue;
         const local = iri.slice(namespace.length);
-        if (/^[A-Za-z_][\w.\-]*$/.test(local)) return `${prefix}:${local}`;
+        if (/^[A-Za-z_][\w.-]*$/.test(local)) return `${prefix}:${local}`;
       }
       return full;
     });

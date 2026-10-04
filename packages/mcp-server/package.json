@@ -27,7 +27,6 @@
     "start:http": "MCP_TRANSPORT=streamable-http NODE_ENV=production node dist/cli.js",
     "start:dual-http": "MCP_TRANSPORT=dual-http NODE_ENV=production node dist/cli.js",
     "clean": "rm -rf dist",
-    "lint": "echo \"TODO: add lint\"",
     "test": "vitest run",
     "test:watch": "vitest"
   },
