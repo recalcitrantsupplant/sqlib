@@ -32,6 +32,8 @@
         @delete="handleDeleteArgumentSet"
       />
 
+      <ArgumentSetBrowserDefault kind="queryGroup" :owner-id="groupId" :args="args" />
+
       <template v-if="hasSelection">
         <TupleBindingEditor
           v-for="(clause, index) in signature.clauses"
@@ -99,6 +101,12 @@
         <InlineNote v-if="dataGraphOptions.length === 0" size="xs">
           No saved data graph in this library yet.
         </InlineNote>
+        <DataGraphBrowserDefault
+          kind="queryGroup"
+          :owner-id="groupId"
+          :selection="dataGraphs"
+          :options="dataGraphOptions"
+        />
       </div>
 
       <!-- Whatever else the group screen puts on Arguments — today, the
@@ -157,6 +165,8 @@ import {
 } from '../ui/alert-dialog';
 import ArgumentSetSwitcher, { type SwitcherEntry } from '../query-work-area/ArgumentSetSwitcher.vue';
 import ArgumentSetFooter from '../query-work-area/ArgumentSetFooter.vue';
+import ArgumentSetBrowserDefault from '../query-work-area/ArgumentSetBrowserDefault.vue';
+import DataGraphBrowserDefault from '../shared/DataGraphBrowserDefault.vue';
 import TupleBindingEditor from '../query-work-area/TupleBindingEditor.vue';
 import ArgumentScalarsPanel from '../query-work-area/ArgumentScalarsPanel.vue';
 import EmptyState from '../shared/EmptyState.vue';

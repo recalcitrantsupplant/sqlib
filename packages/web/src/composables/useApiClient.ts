@@ -519,6 +519,9 @@ const taggedTestRunSchema = z.object({
 /** `any` unions the tags, `all` intersects them. The API defaults to `any`. */
 export type TagMatchMode = 'any' | 'all';
 
+/** The callables that carry browser defaults. */
+export type BrowserDefaultsKind = 'query' | 'queryGroup' | 'ruleSet';
+
 export type TaggedTestRun = z.infer<typeof taggedTestRunSchema>;
 
 export type TestCase = z.infer<typeof testCaseSchema>;
@@ -3019,6 +3022,43 @@ export function useApiClient() {
   /** Alias, named for what the two run-bar callers use it for. */
   const exportArgumentSetPayload = (id: string) => exportArgumentSet(id);
 
+  // ========================================================================
+  // Browser defaults
+  // ========================================================================
+
+  /**
+   * What the web app selects when a callable opens. Execution never applies
+   * these; see `docs/proposals/browser-defaults.md`.
+   */
+  const browserDefaultsSchema = z.object({
+    argumentSet: z.string().nullable(),
+    dataGraphs: z.array(z.string().nullable()),
+  });
+
+  const BROWSER_DEFAULTS_PATH: Record<BrowserDefaultsKind, string> = {
+    query: '/queries',
+    queryGroup: '/query-groups',
+    ruleSet: '/rule-sets',
+  };
+
+  const getBrowserDefaults = (kind: BrowserDefaultsKind, id: string) =>
+    requestData(
+      buildUrl(`${BROWSER_DEFAULTS_PATH[kind]}/${encodeURIComponent(id)}/browser-defaults`),
+      { method: 'GET' },
+      browserDefaultsSchema.parse,
+    );
+
+  const putBrowserDefaults = (
+    kind: BrowserDefaultsKind,
+    id: string,
+    input: { argumentSet?: string | null; dataGraphs?: Array<string | null> },
+  ) =>
+    requestData(
+      buildUrl(`${BROWSER_DEFAULTS_PATH[kind]}/${encodeURIComponent(id)}/browser-defaults`),
+      { method: 'PUT', headers: JSON_HEADERS, body: JSON.stringify(input) },
+      browserDefaultsSchema.parse,
+    );
+
   const listArgumentSetVersions = (setId: string) => {
     ensureQueriesEnabled();
     return requestData(
@@ -3391,6 +3431,8 @@ export function useApiClient() {
     deleteArgumentSet,
     exportArgumentSet,
     exportArgumentSetPayload,
+    getBrowserDefaults,
+    putBrowserDefaults,
     listArgumentSetVersions,
     getArgumentSetVersion,
     createArgumentSetVersion,

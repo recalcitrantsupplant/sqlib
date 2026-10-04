@@ -63,6 +63,12 @@
           @delete="handleDeleteArgumentSet"
         />
 
+        <ArgumentSetBrowserDefault
+          kind="query"
+          :owner-id="details?.isScratch ? null : (queryId ?? null)"
+          :args="args"
+        />
+
         <template v-if="hasSelection">
           <ArgumentScalarsPanel
             :limit-parameters="signature.limitParameters"
@@ -236,6 +242,7 @@ import EmptyState from '../shared/EmptyState.vue';
 import SubjectTestsPanel from '../tests/SubjectTestsPanel.vue';
 import { useTestsSurface } from '@/composables/useTestsSurface';
 import ArgumentSetSwitcher, { type SwitcherEntry } from './ArgumentSetSwitcher.vue';
+import ArgumentSetBrowserDefault from './ArgumentSetBrowserDefault.vue';
 import ArgumentSetFooter from './ArgumentSetFooter.vue';
 import ArgumentScalarsPanel from './ArgumentScalarsPanel.vue';
 import TupleBindingEditor from './TupleBindingEditor.vue';

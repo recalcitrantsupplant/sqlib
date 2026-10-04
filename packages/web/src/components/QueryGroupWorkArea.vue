@@ -500,6 +500,7 @@ import VersionToolbar from './shared/VersionToolbar.vue';
 import RuleSetSelectorDialog from './RuleSetSelectorDialog.vue';
 import QueryGroupTransferDialog from './query-group/QueryGroupTransferDialog.vue';
 import QueryGroupArgumentsPanel from './query-group/QueryGroupArgumentsPanel.vue';
+import { useBrowserDefaults } from '@/composables/useBrowserDefaults';
 import SubjectTestsPanel from './tests/SubjectTestsPanel.vue';
 import { useTestsSurface } from '../composables/useTestsSurface';
 import type { DataGraphOption } from '@/types/data-graphs';
@@ -848,6 +849,26 @@ const dataGraphOptions = ref<DataGraphOption[]>([]);
  * fills the Nth declared input.
  */
 const groupDataGraphs = ref<Array<string | null>>([]);
+
+/*
+ * Each group opens with its browser defaults: its argument set, and its data
+ * graphs resolved to the version each would select now. Nothing here is kept
+ * per browser, so the order is the URL's set (none on this screen), then the
+ * default, then nothing. Registered after the argument sets, so their watcher
+ * has cleared the previous group's selection first.
+ */
+const browserDefaults = useBrowserDefaults();
+watch(queryGroupId, async (id) => {
+  groupDataGraphs.value = [];
+  if (!id) return;
+  void browserDefaults.applyArgumentSet('queryGroup', id, argumentSetsState);
+  const { dataGraphs } = await browserDefaults.load('queryGroup', id);
+  const resolved = await browserDefaults.resolveDataGraphs(dataGraphs);
+  // Only if this is still the group open and nothing was picked meanwhile.
+  if (queryGroupId.value === id && groupDataGraphs.value.length === 0) {
+    groupDataGraphs.value = resolved;
+  }
+}, { immediate: true });
 
 /** The run's `dataGraphs`, in slot order, with the inputs left open dropped. */
 const runDataGraphInputs = computed(() => groupDataGraphs.value
