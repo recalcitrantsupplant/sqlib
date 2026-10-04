@@ -25,8 +25,7 @@
 
       <!--
         The parameters this set fills, in the order a run reads them: the tables
-        that go into VALUES clauses, the graphs that go into a group's declared
-        ports, then the numbers. Composed here rather than detected, because a
+        that go into VALUES clauses, then the numbers. Composed here rather than detected, because a
         set on this screen has no callable to detect a signature from — which is
         the whole point of it having a screen.
       -->
@@ -68,72 +67,6 @@
             </FormField>
             <button type="submit" class="ghost-button" :disabled="!newTableVariables.trim()">Add table</button>
           </form>
-        </section>
-
-        <!--
-          Graphs, in order — no port names. A set carries payload and the group
-          it is run against says which of its start-node inputs each graph
-          fills, so this screen has no port to offer and would be guessing if it
-          asked for one. Order is the routing key, hence Move up / Move down.
-
-          A query declares no graph parameter at all: its store is its backend,
-          and running one over a graph is a backend hydrated from that graph. A
-          set carrying graphs still runs against a query; they are simply not
-          used, which the query screen says.
-        -->
-        <section class="group">
-          <SectionLabel as="h3" size="md">Graphs</SectionLabel>
-          <p class="group-hint">
-            The RDF this set hands to a query group, in order: the first graph
-            fills the first data input its start node declares, and so on. The
-            group decides which input that is — nothing here names a port.
-            Queries do not take these: a query's store is its backend.
-          </p>
-
-          <div
-            v-for="(binding, index) in graphBindings"
-            :key="binding.id || index"
-            class="graph-binding"
-            data-testid="argument-set-graph-binding"
-          >
-            <span class="slot-number" data-testid="argument-set-graph-slot">{{ index + 1 }}</span>
-            <FormField label="Data graph">
-              <SearchSelect
-                test-id="argument-set-graph-select"
-                aria-label="Data graph"
-                placeholder="Choose a graph…"
-                empty-label="Choose a graph…"
-                :model-value="binding.dataGraphVersionId ?? null"
-                :options="dataGraphSelectOptions"
-                @update:model-value="(value) => updateGraph(index, { dataGraphVersionId: value || null })"
-              />
-            </FormField>
-            <div class="graph-actions">
-              <button
-                type="button"
-                class="ghost-button"
-                data-testid="argument-set-graph-up"
-                :disabled="index === 0"
-                @click="moveGraph(index, -1)"
-              >Move up</button>
-              <button
-                type="button"
-                class="ghost-button"
-                data-testid="argument-set-graph-down"
-                :disabled="index === graphBindings.length - 1"
-                @click="moveGraph(index, 1)"
-              >Move down</button>
-              <button type="button" class="ghost-button" @click="removeGraph(index)">Remove</button>
-            </div>
-          </div>
-
-          <p v-if="!graphBindings.length" class="empty-hint" data-testid="argument-set-no-graphs">
-            No graphs yet.
-          </p>
-
-          <button type="button" class="ghost-button" data-testid="argument-set-add-graph" @click="addGraph">
-            Add graph
-          </button>
         </section>
 
         <section class="group">
@@ -291,8 +224,7 @@
  * tuple set is one table you type or import; an argument set is a bundle of
  * parameters that normally comes from a callable's signature. On this screen
  * there is no callable to detect one from, so the parameters are added by hand
- * — a variable list makes a table, a port name makes a graph slot, a
- * placeholder name makes a number. That is what a set composed here *is*: an
+ * — a variable list makes a table, a placeholder name makes a number. That is what a set composed here *is*: an
  * assembly you then offer to whatever fits it.
  *
  * See `docs/concepts.md`.
@@ -301,7 +233,6 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import SaveBar from './shared/SaveBar.vue';
 import FormField from './shared/FormField.vue';
-import SearchSelect from './shared/SearchSelect.vue';
 import SectionLabel from './shared/SectionLabel.vue';
 import CodeSnippetPanel from './shared/CodeSnippetPanel.vue';
 import InspectorPanel, { type InspectorTab } from './shared/InspectorPanel.vue';
@@ -309,7 +240,6 @@ import EntityDetailsPanel from './shared/EntityDetailsPanel.vue';
 import TupleBindingEditor from './query-work-area/TupleBindingEditor.vue';
 import type { SnippetRequest } from '@/lib/codeSnippets';
 import { useArgumentSetsStore } from '@/composables/useArgumentSetsStore';
-import { useDataGraphsStore } from '@/composables/useDataGraphsStore';
 import { usePanelResize } from '@/composables/usePanelResize';
 import { useApiClient } from '@/composables/useApiClient';
 import { useActiveLibrary } from '@/composables/useActiveLibrary';
@@ -319,12 +249,10 @@ import { useTupleSetsStore } from '@/composables/useTupleSetsStore';
 import { buildQuerySignature, compatibility } from '@/lib/argumentSignature';
 import { pinBindings, referencesOf } from '@/lib/tupleSetReferences';
 import type {
-  ArgumentGraphBinding,
   ArgumentScalarBinding,
   ArgumentSetDraftBody,
   ArgumentTupleBinding,
 } from '@/types/argument-sets';
-import type { DataGraphOption } from '@/types/data-graphs';
 
 const props = defineProps<{
   argumentSetId?: string | null;
@@ -338,7 +266,6 @@ const emit = defineEmits<{
 }>();
 
 const store = useArgumentSetsStore();
-const dataGraphsStore = useDataGraphsStore();
 const tupleSetsStore = useTupleSetsStore();
 const apiClient = useApiClient();
 const { activeLibraryId } = useActiveLibrary();
@@ -354,7 +281,6 @@ const setCreatedAt = ref<string | null>(null);
 
 const tupleBindings = ref<ArgumentTupleBinding[]>([]);
 const scalarBindings = ref<ArgumentScalarBinding[]>([]);
-const graphBindings = ref<ArgumentGraphBinding[]>([]);
 
 const versions = ref<Array<{ id: string; version: number; dateModified?: string; dateCreated?: string }>>([]);
 const currentVersionId = ref<string | null>(null);
@@ -365,14 +291,6 @@ const isDeleting = ref(false);
 const saveError = ref<string | null>(null);
 const locallySavedAt = ref<string | null>(null);
 const newTableVariables = ref('');
-const dataGraphOptions = ref<DataGraphOption[]>([]);
-/* Typed at rather than scrolled — the library's graphs are many and hand-named. */
-const dataGraphSelectOptions = computed(() =>
-  dataGraphOptions.value.map((option) => ({
-    value: option.versionId,
-    label: `${option.name} · v${option.version}`,
-  })),
-);
 const fits = ref<Array<{ id: string; name: string; kind: 'query' | 'queryGroup'; verdict: string }>>([]);
 
 /* --------------------------------------------------------------- editing */
@@ -441,17 +359,12 @@ function updateBinding(index: number, binding: ArgumentTupleBinding) {
 
 /**
  * The bindings as the API takes them, with `position` stamped from the order
- * on screen.
- *
- * A group routes by slot, so the order these sit in *is* the meaning. Stamped
- * on the way out rather than tracked per binding, so moving one row cannot
- * leave the rest disagreeing about where they are.
+ * on screen, so a table keeps the place it was given.
  */
 function positionedBindings(tuples: typeof tupleBindings.value = tupleBindings.value) {
   return {
     tupleBindings: tuples.map((binding, position) => ({ ...binding, position })),
     scalarBindings: scalarBindings.value,
-    graphBindings: graphBindings.value.map((binding, position) => ({ ...binding, position })),
   };
 }
 
@@ -470,38 +383,6 @@ async function warmReferences(): Promise<void> {
     references,
     setLibraryId.value || activeLibraryId.value,
   );
-}
-
-function addGraph() {
-  graphBindings.value = [...graphBindings.value, { dataGraphVersionId: null }];
-  markEdited();
-}
-
-/**
- * Reorder the graphs.
- *
- * Order is what a group routes against, so it is the one thing on this screen
- * a person has to be able to state. `position` is rewritten from the array on
- * save rather than tracked here, so there is one source of truth for it.
- */
-function moveGraph(index: number, delta: number) {
-  const to = index + delta;
-  if (to < 0 || to >= graphBindings.value.length) return;
-  const next = [...graphBindings.value];
-  [next[index], next[to]] = [next[to], next[index]];
-  graphBindings.value = next;
-  markEdited();
-}
-
-function updateGraph(index: number, patch: Partial<ArgumentGraphBinding>) {
-  graphBindings.value = graphBindings.value.map((existing, at) =>
-    (at === index ? { ...existing, ...patch } : existing));
-  markEdited();
-}
-
-function removeGraph(index: number) {
-  graphBindings.value = graphBindings.value.filter((_, at) => at !== index);
-  markEdited();
 }
 
 function addScalar() {
@@ -527,7 +408,7 @@ function removeScalar(index: number) {
 const { isScratch } = useScratchRecord({
   scratchId: () => props.scratchId ?? null,
   missingMessage: 'That scratch argument set is not in this browser',
-  track: [setName, description, tupleBindings, scalarBindings, graphBindings],
+  track: [setName, description, tupleBindings, scalarBindings],
   hydrate: (record) => {
     const body = (record.body ?? {}) as Partial<ArgumentSetDraftBody> & { description?: string };
     setName.value = record.name;
@@ -536,7 +417,6 @@ const { isScratch } = useScratchRecord({
     targetId.value = body.targetId ?? null;
     tupleBindings.value = body.tupleBindings ?? [];
     scalarBindings.value = body.scalarBindings ?? [];
-    graphBindings.value = body.graphBindings ?? [];
   },
   collect: (record) => ({
     name: setName.value || record.name,
@@ -582,7 +462,6 @@ function persistDraft() {
       basedOnVersion: null,
       tupleBindings: tupleBindings.value,
       scalarBindings: scalarBindings.value,
-      graphBindings: graphBindings.value,
     },
     resultKind: 'BINDINGS',
     inputTuples: [],
@@ -771,7 +650,7 @@ async function loadFits() {
 
 const canSave = computed(() =>
   setName.value.trim().length > 0
-  && (tupleBindings.value.length > 0 || scalarBindings.value.length > 0 || graphBindings.value.length > 0));
+  && (tupleBindings.value.length > 0 || scalarBindings.value.length > 0));
 
 function selectVersion(versionId: string) {
   loadedVersionId.value = versionId;
@@ -784,28 +663,6 @@ async function copyArgumentSetId() {
     toast.success('Argument set ID copied');
   } catch {
     toast.error('Could not copy the ID');
-  }
-}
-
-async function loadDataGraphOptions() {
-  const libraryId = setLibraryId.value || activeLibraryId.value;
-  if (!libraryId) return;
-  try {
-    const graphs = await apiClient.listDataGraphs();
-    const options: DataGraphOption[] = [];
-    for (const graph of graphs) {
-      if (!graph.currentVersion) continue;
-      options.push({
-        versionId: graph.currentVersion,
-        name: graph.name,
-        version: 0,
-        detail: '',
-        graphId: graph.id,
-      } as DataGraphOption);
-    }
-    dataGraphOptions.value = options;
-  } catch {
-    dataGraphOptions.value = [];
   }
 }
 
@@ -823,9 +680,8 @@ async function load() {
     loadedVersionId.value = detail.currentVersionId ?? null;
     tupleBindings.value = detail.currentVersion?.tupleBindings ?? detail.tupleBindings ?? [];
     scalarBindings.value = detail.currentVersion?.scalarBindings ?? detail.scalarBindings ?? [];
-    graphBindings.value = detail.currentVersion?.graphBindings ?? detail.graphBindings ?? [];
     versions.value = await store.loadVersions(setId.value);
-    await Promise.all([loadDataGraphOptions(), loadFits(), warmReferences()]);
+    await Promise.all([loadFits(), warmReferences()]);
   } catch (error) {
     toast.error(error instanceof Error ? error.message : 'Failed to load the argument set');
   }
@@ -914,7 +770,6 @@ async function removeSet() {
 
 onMounted(() => {
   if (setId.value) void load();
-  else void loadDataGraphOptions();
 });
 
 watch(() => props.argumentSetId, (next) => {
@@ -940,7 +795,6 @@ watch(() => props.argumentSetId, (next) => {
   loadedVersionId.value = null;
   tupleBindings.value = [];
   scalarBindings.value = [];
-  graphBindings.value = [];
   saveError.value = null;
   fits.value = [];
   if (next) void load();
@@ -992,32 +846,11 @@ watch(() => props.argumentSetId, (next) => {
 }
 
 .add-row,
-.graph-binding,
 .scalar-binding {
   display: flex;
   align-items: flex-end;
   gap: 8px;
   flex-wrap: wrap;
-}
-
-/* The slot, which is the whole of a graph's identity to the group routing it. */
-.slot-number {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 22px;
-  height: 22px;
-  margin-bottom: var(--space-2);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius);
-  color: var(--ink-muted);
-  font-size: var(--text-body);
-  font-variant-numeric: tabular-nums;
-}
-
-.graph-actions {
-  display: flex;
-  gap: 4px;
 }
 
 

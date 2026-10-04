@@ -31,7 +31,6 @@ import type {
   ArgumentSetVersionDetail,
   ArgumentTupleBinding,
   ArgumentScalarBinding,
-  ArgumentGraphBinding,
   SparqlBinding,
   ExecutionArgument,
 } from '../types/argument-sets'
@@ -184,15 +183,6 @@ export function useArgumentSets(
   const description = ref('')
   const tupleBindings = ref<ArgumentTupleBinding[]>([])
   const scalarBindings = ref<ArgumentScalarBinding[]>([])
-  /**
-   * The graphs this set hands to a query group, in order.
-   *
-   * No port names: an argument set carries payload and the group routes it, so
-   * slot N here fills the Nth data input the start node declares. The group
-   * screen's per-port picker writes straight into this, which is what makes a
-   * group run one pinned object rather than a set plus a loose graph.
-   */
-  const graphBindings = ref<ArgumentGraphBinding[]>([])
 
   /** Set while the composable is writing the body itself, so edits do not echo. */
   const hydrating = ref(false)
@@ -202,14 +192,12 @@ export function useArgumentSets(
     description?: string | null
     tupleBindings: ArgumentTupleBinding[]
     scalarBindings: ArgumentScalarBinding[]
-    graphBindings?: ArgumentGraphBinding[]
   }) {
     hydrating.value = true
     if (typeof from.name === 'string') name.value = from.name
     description.value = from.description ?? ''
     tupleBindings.value = clone(from.tupleBindings)
     scalarBindings.value = clone(from.scalarBindings)
-    graphBindings.value = clone(from.graphBindings ?? [])
     // Cleared on a microtask: hydration sets refs whose watchers have not run
     // yet, and they run before this resolves.
     void Promise.resolve().then(() => {
@@ -223,7 +211,6 @@ export function useArgumentSets(
     description.value = ''
     tupleBindings.value = []
     scalarBindings.value = []
-    graphBindings.value = []
     void Promise.resolve().then(() => {
       hydrating.value = false
     })
@@ -325,7 +312,6 @@ export function useArgumentSets(
           description: result.data.description ?? '',
           tupleBindings: result.data.currentVersion?.tupleBindings ?? result.data.tupleBindings,
           scalarBindings: result.data.currentVersion?.scalarBindings ?? result.data.scalarBindings,
-          graphBindings: result.data.currentVersion?.graphBindings ?? result.data.graphBindings,
         })
       }
     } catch (err) {
@@ -372,7 +358,6 @@ export function useArgumentSets(
     hydrate({
       tupleBindings: version.tupleBindings,
       scalarBindings: version.scalarBindings,
-      graphBindings: version.graphBindings,
     })
   }
 
@@ -404,7 +389,6 @@ export function useArgumentSets(
       basedOnVersion: null,
       tupleBindings: [],
       scalarBindings: [],
-      graphBindings: [],
       edits: 0,
     })
     selectScratch(id)
@@ -438,7 +422,6 @@ export function useArgumentSets(
         description: description.value || null,
         tupleBindings: clone(tupleBindings.value),
         scalarBindings: clone(scalarBindings.value),
-        graphBindings: clone(graphBindings.value),
       })
       return
     }
@@ -457,7 +440,6 @@ export function useArgumentSets(
       basedOnVersion: selectedVersion.value?.version ?? null,
       tupleBindings: clone(tupleBindings.value),
       scalarBindings: clone(scalarBindings.value),
-      graphBindings: clone(graphBindings.value),
       edits: existing?.edits,
     })
     // Editing is running what you edited; nothing else would be honest.
@@ -577,9 +559,6 @@ export function useArgumentSets(
       const body = {
         tupleBindings: clone(pinned.bindings).map((binding, position) => ({ ...binding, position })),
         scalarBindings: scalarBindings.value.length > 0 ? clone(scalarBindings.value) : undefined,
-        graphBindings: graphBindings.value.length > 0
-          ? clone(graphBindings.value).map((binding, position) => ({ ...binding, position }))
-          : undefined,
       }
 
       if (selection.value.kind === 'scratch') {
@@ -860,7 +839,6 @@ export function useArgumentSets(
     description,
     tupleBindings,
     scalarBindings,
-    graphBindings,
 
     // Local scratch sets for this target, newest first
     scratchSets: computed(() => local.scratchFor(localTargetId.value)),

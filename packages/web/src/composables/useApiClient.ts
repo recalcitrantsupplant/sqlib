@@ -2841,7 +2841,6 @@ export function useApiClient() {
     version: z.number(),
     tupleBindings: z.array(z.any()),
     scalarBindings: z.array(z.any()),
-    graphBindings: z.array(z.any()).optional(),
     dateCreated: z.string(),
     dateModified: z.string(),
   });
@@ -2860,7 +2859,6 @@ export function useApiClient() {
     currentVersion: argumentSetVersionSchema.nullable().optional(),
     tupleBindings: z.array(z.any()),
     scalarBindings: z.array(z.any()),
-    graphBindings: z.array(z.any()).optional(),
     dateCreated: z.string(),
     dateModified: z.string(),
   });
@@ -2890,7 +2888,6 @@ export function useApiClient() {
     targetId?: string | null;
     tupleBindings?: unknown[];
     scalarBindings?: unknown[];
-    graphBindings?: unknown[];
   }) => {
     ensureQueriesEnabled();
     return request(
@@ -2942,7 +2939,6 @@ export function useApiClient() {
     description?: string;
     tupleBindings?: unknown[];
     scalarBindings?: unknown[];
-    graphBindings?: unknown[];
   }, scope: 'query' | 'queryGroup' = 'query') => {
     ensureQueriesEnabled();
     return request(
@@ -3044,7 +3040,6 @@ export function useApiClient() {
   const createArgumentSetVersion = (setId: string, input: {
     tupleBindings?: unknown[];
     scalarBindings?: unknown[];
-    graphBindings?: unknown[];
   }) => {
     ensureQueriesEnabled();
     return request(

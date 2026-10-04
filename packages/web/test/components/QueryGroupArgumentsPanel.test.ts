@@ -43,7 +43,6 @@ function stubArgumentSets(overrides: Record<string, unknown> = {}) {
     name: ref(''),
     tupleBindings: ref([]),
     scalarBindings: ref([]),
-    graphBindings: ref([]),
     scratchSets: ref([]),
     selectSet: async () => {},
     selectScratch: () => {},
@@ -72,6 +71,7 @@ function mountPanel(
     offsetParameters?: string[];
     dataGraphPorts?: Array<{ id: string; label: string }>;
     dataGraphOptions?: Array<{ versionId: string; name: string; version: number; detail: string; graphId: string }>;
+    dataGraphs?: Array<string | null>;
   } = {},
 ) {
   return mount(QueryGroupArgumentsPanel, {
@@ -83,6 +83,7 @@ function mountPanel(
       offsetParameters: pageParameters.offsetParameters ?? [],
       dataGraphPorts: pageParameters.dataGraphPorts ?? [],
       dataGraphOptions: pageParameters.dataGraphOptions ?? [],
+      dataGraphs: pageParameters.dataGraphs ?? [],
     } as never,
     global: { stubs: { Teleport: true } },
   });
@@ -156,10 +157,8 @@ describe('QueryGroupArgumentsPanel — numbers', () => {
 /**
  * Data graphs on a group.
  *
- * The group knows its ports; the argument set carries the graphs in the order
- * those ports are declared. So the picker here writes a graph binding on the
- * open set rather than run-local state beside it — which is what lets a group
- * run or test be one pinned object.
+ * The group knows its ports, and an argument set carries no graphs. So the
+ * picker here emits the work area's own list, by slot, beside the open set.
  */
 describe('QueryGroupArgumentsPanel — data graphs', () => {
   const PORTS = [{ id: 'urn:io:a', label: 'source data' }, { id: 'urn:io:b', label: 'shapes' }];
@@ -169,33 +168,30 @@ describe('QueryGroupArgumentsPanel — data graphs', () => {
   ];
 
   it('shows no data graph section when the start node declares no graph input', () => {
-    const args = stubArgumentSets({ selection: ref({ kind: 'scratch', id: 's1' }) });
-    const w = mountPanel([tuple('city')], args, { dataGraphOptions: OPTIONS });
+    const w = mountPanel([tuple('city')], stubArgumentSets(), { dataGraphOptions: OPTIONS });
     expect(w.text()).not.toContain('Data graphs');
   });
 
-  it('writes the chosen graph onto the open set, at the port\'s slot', async () => {
-    const args = stubArgumentSets({ selection: ref({ kind: 'scratch', id: 's1' }) });
-    const w = mountPanel([tuple('city')], args, { dataGraphPorts: PORTS, dataGraphOptions: OPTIONS });
+  it('shows the graph pickers with no argument set open', () => {
+    const w = mountPanel([tuple('city')], stubArgumentSets(), { dataGraphPorts: PORTS, dataGraphOptions: OPTIONS });
+    expect(w.findAllComponents(SearchSelect)).toHaveLength(2);
+  });
+
+  it('emits the chosen graph at the port\'s slot', async () => {
+    const w = mountPanel([tuple('city')], stubArgumentSets(), { dataGraphPorts: PORTS, dataGraphOptions: OPTIONS });
 
     // The second port, so the first slot has to be held rather than skipped:
     // the group routes by position, and a shifted list would mean a graph
     // reaching the wrong node.
-    const selects = w.findAllComponents(SearchSelect);
-    await selects[1].vm.$emit('update:modelValue', 'urn:dgv:2');
+    await w.findAllComponents(SearchSelect)[1].vm.$emit('update:modelValue', 'urn:dgv:2');
 
-    expect((args.graphBindings as { value: Array<{ dataGraphVersionId: string | null }> }).value).toEqual([
-      { dataGraphVersionId: null },
-      { dataGraphVersionId: 'urn:dgv:2' },
-    ]);
+    expect(w.emitted('update:dataGraphs')?.at(-1)).toEqual([[null, 'urn:dgv:2']]);
   });
 
-  it('reads the set back into the ports, so a reopened set shows its graphs', () => {
-    const args = stubArgumentSets({
-      selection: ref({ kind: 'scratch', id: 's1' }),
-      graphBindings: ref([{ dataGraphVersionId: 'urn:dgv:1' }]),
+  it('reads the list back into the ports', () => {
+    const w = mountPanel([tuple('city')], stubArgumentSets(), {
+      dataGraphPorts: PORTS, dataGraphOptions: OPTIONS, dataGraphs: ['urn:dgv:1'],
     });
-    const w = mountPanel([tuple('city')], args, { dataGraphPorts: PORTS, dataGraphOptions: OPTIONS });
 
     const selects = w.findAllComponents(SearchSelect);
     expect(selects[0].props('modelValue')).toBe('urn:dgv:1');
@@ -203,25 +199,12 @@ describe('QueryGroupArgumentsPanel — data graphs', () => {
   });
 
   it('drops trailing empties, so a port left open stays open', async () => {
-    const args = stubArgumentSets({
-      selection: ref({ kind: 'scratch', id: 's1' }),
-      graphBindings: ref([{ dataGraphVersionId: 'urn:dgv:1' }, { dataGraphVersionId: 'urn:dgv:2' }]),
+    const w = mountPanel([tuple('city')], stubArgumentSets(), {
+      dataGraphPorts: PORTS, dataGraphOptions: OPTIONS, dataGraphs: ['urn:dgv:1', 'urn:dgv:2'],
     });
-    const w = mountPanel([tuple('city')], args, { dataGraphPorts: PORTS, dataGraphOptions: OPTIONS });
 
     await w.findAllComponents(SearchSelect)[1].vm.$emit('update:modelValue', '');
 
-    expect((args.graphBindings as { value: unknown[] }).value).toEqual([{ dataGraphVersionId: 'urn:dgv:1' }]);
-  });
-
-  it('offers the run only the graphs a port was chosen for', async () => {
-    const args = stubArgumentSets({
-      selection: ref({ kind: 'scratch', id: 's1' }),
-      graphBindings: ref([{ dataGraphVersionId: null }, { dataGraphVersionId: 'urn:dgv:2' }]),
-    });
-    const w = mountPanel([tuple('city')], args, { dataGraphPorts: PORTS, dataGraphOptions: OPTIONS });
-
-    expect((w.vm as unknown as { getInlineDataGraphs: () => unknown[] }).getInlineDataGraphs())
-      .toEqual([{ dataGraphVersionId: 'urn:dgv:2' }]);
+    expect(w.emitted('update:dataGraphs')?.at(-1)).toEqual([['urn:dgv:1']]);
   });
 });

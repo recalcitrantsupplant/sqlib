@@ -540,47 +540,15 @@ describe('TestWorkArea — cases', () => {
 });
 
 /**
- * A group's argument set may carry the graphs itself.
- *
- * A count rather than a port name: a set carries graphs in order and the group
- * routes them, so there is nothing named here to compare against. When the
- * chosen set carries any, the case's select is absent rather than present and
- * inert — a case graph is appended after the set's, so offering it would
- * invite a run with one graph more than the group declares inputs for.
+ * A group case names its graph beside its argument set: an argument set
+ * carries no graphs, so choosing one never hides the case's graph select.
  */
-describe('TestWorkArea — a graph the argument set already supplies', () => {
-  const SET_VERSION = 'urn:sqlib:argument-set-version:v1';
-
-  function setCarryingGraphs(count: number) {
-    return [{
-      id: 'urn:sqlib:argument-set:s1',
-      name: 'With source',
-      currentVersionId: SET_VERSION,
-      currentVersion: { graphBindings: Array.from({ length: count }, (_, position) => ({ position })) },
-    }];
-  }
-
-  it('hides the case graph select when the set carries a graph', async () => {
-    api.listArgumentSets.mockResolvedValue(setCarryingGraphs(1));
-    const area = mountArea();
-    await flushPromises();
-    await area.get('[data-testid="test-kind-queryGroup"]').trigger('click');
-    await chooseSubject(area, 'Fan out');
-    await flushPromises();
-
-    await choose(area, 'test-argument-set', 'With source');
-    await flushPromises();
-
-    expect(area.find('[data-testid="test-data-graph"]').exists()).toBe(false);
-    expect(area.find('[data-testid="test-graph-from-argument-set"]').exists()).toBe(true);
-  });
-
-  it('keeps the select when the chosen set carries no graph', async () => {
+describe('TestWorkArea — a group case with an argument set', () => {
+  it('keeps the case graph select when a set is chosen', async () => {
     api.listArgumentSets.mockResolvedValue([{
-      id: 'urn:sqlib:argument-set:s2',
+      id: 'urn:sqlib:argument-set:s1',
       name: 'Tables only',
-      currentVersionId: SET_VERSION,
-      currentVersion: { graphBindings: [] },
+      currentVersionId: 'urn:sqlib:argument-set-version:v1',
     }]);
     const area = mountArea();
     await flushPromises();
@@ -589,21 +557,6 @@ describe('TestWorkArea — a graph the argument set already supplies', () => {
     await flushPromises();
 
     await choose(area, 'test-argument-set', 'Tables only');
-    await flushPromises();
-
-    expect(area.find('[data-testid="test-data-graph"]').exists()).toBe(true);
-  });
-
-  /* A query declares no graph parameter, so its fixture graph never collides. */
-  it('leaves a query case\'s graph select alone', async () => {
-    api.listArgumentSets.mockResolvedValue(setCarryingGraphs(1));
-    const area = mountArea();
-    await flushPromises();
-    await area.get('[data-testid="test-kind-query"]').trigger('click');
-    await chooseSubject(area, 'Reaches');
-    await flushPromises();
-
-    await choose(area, 'test-argument-set', 'With source');
     await flushPromises();
 
     expect(area.find('[data-testid="test-data-graph"]').exists()).toBe(true);

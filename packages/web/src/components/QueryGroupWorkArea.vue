@@ -320,6 +320,7 @@
               :offset-parameters="versions.pageParameters.value.offsetParameters"
               :data-graph-ports="startDataGraphInputPorts"
               :data-graph-options="dataGraphOptions"
+              v-model:data-graphs="groupDataGraphs"
             >
               <div v-if="allValidationIssues.length" class="validation-issues-panel">
                 <p class="validation-issues-title">
@@ -839,25 +840,19 @@ const startDataGraphInputPorts = computed(() => {
 const dataGraphOptions = ref<DataGraphOption[]>([]);
 
 /**
- * The run's `dataGraphs`, in slot order.
+ * The `DataGraphVersion` picked for each start-node data graph input, by slot.
  *
- * They live on the argument set now rather than in run-local state beside it,
- * so a group run or test is one pinned object — see `docs/concepts.md`. Which
- * port each fills is the group's, and it routes by position: entry N fills the
- * Nth declared input.
- *
- * Empty while a *saved* version is the run target, on the same either/or the
- * arguments follow: the server exports that version's graphs, and sending them
- * inline as well would be the run supplying a parameter the named set already
- * fills, which `/execute` refuses by design.
+ * Its own state, beside the argument set rather than inside it: an argument
+ * set carries no graphs (`docs/proposals/argument-sets-without-graphs.md`).
+ * Which port each fills is the group's, and it routes by position: entry N
+ * fills the Nth declared input.
  */
-const runDataGraphInputs = computed(() => {
-  if (argumentSetsState.executionArgumentSetId.value) return [];
-  return argumentSetsState.graphBindings.value
-    .map((binding) => binding.dataGraphVersionId)
-    .filter((versionId): versionId is string => !!versionId)
-    .map((dataGraphVersionId) => ({ dataGraphVersionId }));
-});
+const groupDataGraphs = ref<Array<string | null>>([]);
+
+/** The run's `dataGraphs`, in slot order, with the inputs left open dropped. */
+const runDataGraphInputs = computed(() => groupDataGraphs.value
+  .filter((versionId): versionId is string => !!versionId)
+  .map((dataGraphVersionId) => ({ dataGraphVersionId })));
 
 /**
  * Load the saved graphs this group could run against.
@@ -1111,6 +1106,7 @@ async function createTestFromRecipe() {
       ordered: null,
       argumentSetVersion: argumentSetsState.executionArgumentSetId.value,
       dataGraphVersion: null,
+      dataGraphs: runDataGraphInputs.value.map(({ dataGraphVersionId }) => ({ dataGraphVersion: dataGraphVersionId })),
       tupleSeeds: null,
     }],
   });

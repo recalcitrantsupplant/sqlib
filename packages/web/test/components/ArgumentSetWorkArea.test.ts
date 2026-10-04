@@ -87,7 +87,6 @@ describe('ArgumentSetWorkArea — composing parameters', () => {
     await flushPromises();
 
     expect(area.find('[data-testid="argument-set-no-tables"]').exists()).toBe(true);
-    expect(area.find('[data-testid="argument-set-no-graphs"]').exists()).toBe(true);
     expect(area.find('[data-testid="argument-set-no-scalars"]').exists()).toBe(true);
   });
 
@@ -186,48 +185,11 @@ describe('ArgumentSetWorkArea — composing parameters', () => {
     expect(area.find('[data-testid="argument-set-no-scalars"]').exists()).toBe(true);
   });
 
-  it('adds a graph, which is a query group\'s and not a query\'s', async () => {
+  it('offers no graph section: an argument set carries no graphs', async () => {
     const area = mountArea();
-    await area.get('[data-testid="argument-set-add-graph"]').trigger('click');
     await flushPromises();
 
-    expect(area.findAll('[data-testid="argument-set-graph-binding"]')).toHaveLength(1);
-  });
-
-  /*
-   * No port field: a set carries payload and the group it runs against says
-   * which of its inputs each graph fills. This screen has no group in scope —
-   * that is the point of a set having a screen of its own — so a port box here
-   * could only be filled from memory.
-   */
-  it('asks for no port, and numbers the graphs by the slot they fill', async () => {
-    const area = mountArea();
-    await area.get('[data-testid="argument-set-add-graph"]').trigger('click');
-    await area.get('[data-testid="argument-set-add-graph"]').trigger('click');
-    await flushPromises();
-
-    expect(area.findAll('input[placeholder="source data"]')).toHaveLength(0);
-    expect(area.findAll('[data-testid="argument-set-graph-slot"]').map(node => node.text()))
-      .toEqual(['1', '2']);
-  });
-
-  it('reorders the graphs, because order is what the group routes by', async () => {
-    const area = mountArea();
-    await area.get('[data-testid="argument-set-add-graph"]').trigger('click');
-    await area.get('[data-testid="argument-set-add-graph"]').trigger('click');
-    await flushPromises();
-
-    const selects = area.findAll('[data-testid="argument-set-graph-select"]');
-    await selects[1].setValue('');
-    // The first row cannot move up and the last cannot move down: the ends of
-    // the list are the ends of the group's declared inputs.
-    expect((area.findAll('[data-testid="argument-set-graph-up"]')[0].element as HTMLButtonElement).disabled).toBe(true);
-    expect((area.findAll('[data-testid="argument-set-graph-down"]')[1].element as HTMLButtonElement).disabled).toBe(true);
-
-    await area.findAll('[data-testid="argument-set-graph-down"]')[0].trigger('click');
-    await flushPromises();
-
-    expect(area.findAll('[data-testid="argument-set-graph-slot"]')).toHaveLength(2);
+    expect(area.find('[data-testid="argument-set-add-graph"]').exists()).toBe(false);
   });
 });
 
@@ -316,7 +278,7 @@ describe('ArgumentSetWorkArea — the Fits list', () => {
     store.getArgumentSet.mockResolvedValue({
       id: 'urn:sqlib:argument-set:1', name: 'Cities', libraryId: 'urn:sqlib:library:lib1',
       scope: null, targetId: null, tupleBindings: [{ tupleSignature: 'city', variables: ['city'], rows: [] }],
-      scalarBindings: [], graphBindings: [], dateCreated: '', dateModified: '',
+      scalarBindings: [], dateCreated: '', dateModified: '',
     });
 
     const area = mount(ArgumentSetWorkArea, { props: { argumentSetId: 'urn:sqlib:argument-set:1' } });
@@ -334,7 +296,7 @@ describe('ArgumentSetWorkArea — the Fits list', () => {
     ]);
     store.getArgumentSet.mockResolvedValue({
       id: 'urn:sqlib:argument-set:1', name: 'Cities', libraryId: 'urn:sqlib:library:lib1',
-      scope: null, targetId: null, tupleBindings: [], scalarBindings: [], graphBindings: [],
+      scope: null, targetId: null, tupleBindings: [], scalarBindings: [],
       dateCreated: '', dateModified: '',
     });
 
@@ -349,7 +311,7 @@ describe('ArgumentSetWorkArea — the Fits list', () => {
     api.listQueries.mockRejectedValue(new Error('nope'));
     store.getArgumentSet.mockResolvedValue({
       id: 'urn:sqlib:argument-set:1', name: 'Cities', libraryId: 'urn:sqlib:library:lib1',
-      scope: null, targetId: null, tupleBindings: [], scalarBindings: [], graphBindings: [],
+      scope: null, targetId: null, tupleBindings: [], scalarBindings: [],
       dateCreated: '', dateModified: '',
     });
 

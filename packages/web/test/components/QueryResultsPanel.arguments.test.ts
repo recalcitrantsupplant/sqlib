@@ -64,7 +64,6 @@ function argumentSetsStub() {
     currentVersionId: ref(null),
     scratchId: ref(null),
     localRecord: ref(null),
-    graphBindings: ref([]),
     description: ref(''),
     hydrating: ref(false),
     error: ref(null),

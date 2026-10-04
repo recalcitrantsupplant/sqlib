@@ -196,7 +196,6 @@ type PostedArgumentSetBody = {
     tupleSetVersions?: string[];
   }>;
   scalarBindings?: unknown[];
-  graphBindings?: unknown[];
 };
 
 const buildArgumentSetVersion = (

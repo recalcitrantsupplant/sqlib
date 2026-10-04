@@ -54,7 +54,6 @@ export type StoredArgumentSetVersion = {
   version: number;
   tupleBindings: StoredArgumentTupleBinding[];
   scalarBindings: unknown[];
-  graphBindings?: unknown[];
   dateCreated: string;
   dateModified: string;
 };

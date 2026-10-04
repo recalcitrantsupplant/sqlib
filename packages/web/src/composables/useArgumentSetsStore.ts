@@ -76,7 +76,7 @@ export function useArgumentSetsStore() {
 
   const createVersion = async (
     setId: string,
-    input: { tupleBindings?: unknown[]; scalarBindings?: unknown[]; graphBindings?: unknown[] },
+    input: { tupleBindings?: unknown[]; scalarBindings?: unknown[] },
   ) => {
     const { data } = await apiClient.createArgumentSetVersion(setId, input);
     const version = data as ArgumentSetVersionDetail;

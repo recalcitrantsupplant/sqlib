@@ -203,7 +203,7 @@ export const SECTION_DEFINITIONS: Record<ListSection, SectionDefinition> = {
     savedKinds: [{ type: 'dataGraph', label: 'Data graphs' }],
     libraryScoped: true,
     blurb:
-      'A data graph is reference RDF registered in the library, stored verbatim in whatever serialisation it arrived in. It seeds the store a rule set or a hermetic test runs against, fills a group\'s graph port, or hydrates a backend.',
+      'A data graph is reference RDF registered in the library, stored verbatim in whatever serialisation it arrived in. It seeds the store a rule set or a hermetic test runs against, fills a query group\'s data graph input, or hydrates a backend.',
     docsAnchor: 'datagraph',
   },
   /*
@@ -265,7 +265,7 @@ export const SECTION_DEFINITIONS: Record<ListSection, SectionDefinition> = {
     savedKinds: [{ type: 'argumentSet', label: 'Argument sets' }],
     libraryScoped: true,
     blurb:
-      'An argument set is one call\'s worth of input: a table for every VALUES clause the callable declares, a number for every named limit or offset, and a graph for each of a group\'s start-node graph ports. A version is immutable, so a test or an MCP call that pins one is reproducible.',
+      'An argument set is one call\'s worth of input: a table for every VALUES clause the callable declares, and a number for every named limit or offset. Data graphs are a separate input. A version is immutable, so a test or an MCP call that pins one is reproducible.',
     docsAnchor: 'argumentset',
   },
   tests: {

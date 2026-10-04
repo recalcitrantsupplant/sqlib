@@ -53,13 +53,6 @@ describe('useArgumentSetDrafts', () => {
     );
   });
 
-  it('keeps graph bindings, which a group set is mostly made of', () => {
-    const store = useArgumentSetDrafts();
-    store.save(record({ scope: 'queryGroup', graphBindings: [{ position: 0, dataGraphVersionId: 'urn:dgv:1' }] }));
-    store.reload();
-    expect(store.get(record().id)?.graphBindings).toEqual([{ position: 0, dataGraphVersionId: 'urn:dgv:1' }]);
-  });
-
   it('counts edits so the header can say how much is unsaved', () => {
     const store = useArgumentSetDrafts();
     store.save(record());
