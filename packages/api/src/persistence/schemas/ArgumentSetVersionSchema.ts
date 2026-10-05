@@ -32,17 +32,6 @@ export const ArgumentSetVersionSchema = {
     '@optional': true,
     '@references': { types: ['ArgumentScalarBinding'] },
   },
-  /**
-   * Graphs bound to a query group's start-node ports. Absent on a query's set:
-   * a query has no graph parameter (design §5).
-   */
-  graphBindings: {
-    '@id': sqlib.graphBindings,
-    '@array': true,
-    '@type': ldkit.IRI,
-    '@optional': true,
-    '@references': { types: ['ArgumentGraphBinding'] },
-  },
   dateCreated: {
     '@id': sdo.dateCreated,
     '@type': xsd.dateTime,
@@ -62,7 +51,6 @@ export interface LdkitArgumentSetVersion {
   version: number;
   tupleBindings?: string[] | null;
   scalarBindings?: string[] | null;
-  graphBindings?: string[] | null;
   dateCreated?: string | null;
   dateModified?: string | null;
 }

@@ -310,6 +310,7 @@ const onTuplesChange = async (event: Event) => {
         :test-disabled-reason="testDisabledReason"
         :editor-extensions="inputEditorExtensions"
         :tuple-editor-extensions="tupleEditorExtensions"
+        :rule-set-id="ruleSetId"
         @save-to-tuples="emit('save-to-tuples')"
         @save-to-data="emit('save-to-data')"
         @save-as-test="emit('save-as-test')"

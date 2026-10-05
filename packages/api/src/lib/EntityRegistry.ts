@@ -1,5 +1,4 @@
 import type { LdkitArgumentScalarBinding } from '../persistence/schemas/ArgumentScalarBindingSchema.js';
-import type { LdkitArgumentGraphBinding } from '../persistence/schemas/ArgumentGraphBindingSchema.js';
 import type { LdkitArgumentSet } from '../persistence/schemas/ArgumentSetSchema.js';
 import type { LdkitArgumentSetVersion } from '../persistence/schemas/ArgumentSetVersionSchema.js';
 import type { LdkitArgumentTupleBinding } from '../persistence/schemas/ArgumentTupleBindingSchema.js';
@@ -15,6 +14,7 @@ import type { LdkitTest } from '../persistence/schemas/TestSchema.js';
 import type { LdkitTestVersion } from '../persistence/schemas/TestVersionSchema.js';
 import type { LdkitTestCase } from '../persistence/schemas/TestCaseSchema.js';
 import type { LdkitTestCaseDataGraph } from '../persistence/schemas/TestCaseDataGraphSchema.js';
+import type { LdkitBrowserDefaultDataGraph } from '../persistence/schemas/BrowserDefaultDataGraphSchema.js';
 import type { LdkitTag } from '../persistence/schemas/TagSchema.js';
 import type { LdkitPatch } from '../persistence/schemas/PatchSchema.js';
 import type { LdkitTupleSet } from '../persistence/schemas/TupleSetSchema.js';
@@ -84,7 +84,6 @@ import {
   ArgumentSetVersions,
   ArgumentTupleBindings,
   ArgumentScalarBindings,
-  ArgumentGraphBindings,
 } from '../persistence/utils/ArgumentSetUtils.js';
 import {
   EtlJobs,
@@ -101,6 +100,7 @@ import { DataGraphVersions } from '../persistence/utils/DataGraphVersionUtils.js
 import { Tests, TestVersions } from '../persistence/utils/TestUtils.js';
 import { TestCases } from '../persistence/utils/TestCaseUtils.js';
 import { TestCaseDataGraphs } from '../persistence/utils/TestCaseDataGraphUtils.js';
+import { BrowserDefaultDataGraphs } from '../persistence/utils/BrowserDefaultDataGraphUtils.js';
 import { Tags } from '../persistence/utils/TagUtils.js';
 import { Patches } from '../persistence/utils/PatchUtils.js';
 import { TupleSets, TupleSetVersions } from '../persistence/utils/TupleSetUtils.js';
@@ -140,7 +140,6 @@ export const LENS_BY_TYPE = {
   ArgumentSetVersion: ArgumentSetVersions,
   ArgumentTupleBinding: ArgumentTupleBindings,
   ArgumentScalarBinding: ArgumentScalarBindings,
-  ArgumentGraphBinding: ArgumentGraphBindings,
   EtlJob: EtlJobs,
   EtlJobVersion: EtlJobVersions,
   EtlColumnMapping: EtlColumnMappings,
@@ -155,6 +154,7 @@ export const LENS_BY_TYPE = {
   TestVersion: TestVersions,
   TestCase: TestCases,
   TestCaseDataGraph: TestCaseDataGraphs,
+  BrowserDefaultDataGraph: BrowserDefaultDataGraphs,
   Tag: Tags,
   Patch: Patches,
   TupleSet: TupleSets,
@@ -197,7 +197,6 @@ export type EntityByType = {
   ArgumentSetVersion: LdkitArgumentSetVersion;
   ArgumentTupleBinding: LdkitArgumentTupleBinding;
   ArgumentScalarBinding: LdkitArgumentScalarBinding;
-  ArgumentGraphBinding: LdkitArgumentGraphBinding;
   EtlJob: LdkitEtlJob;
   EtlJobVersion: LdkitEtlJobVersion;
   EtlColumnMapping: LdkitEtlColumnMapping;
@@ -212,6 +211,7 @@ export type EntityByType = {
   TestVersion: LdkitTestVersion;
   TestCase: LdkitTestCase;
   TestCaseDataGraph: LdkitTestCaseDataGraph;
+  BrowserDefaultDataGraph: LdkitBrowserDefaultDataGraph;
   Tag: LdkitTag;
   Patch: LdkitPatch;
   TupleSet: LdkitTupleSet;
@@ -242,6 +242,8 @@ export const TTL_MS: Partial<Record<EntityType, number>> = {
   TestVersion: Number.POSITIVE_INFINITY,
   TestCase: Number.POSITIVE_INFINITY,
   TestCaseDataGraph: Number.POSITIVE_INFINITY,
+  // Replaced, never edited, and only by this process.
+  BrowserDefaultDataGraph: 15_000,
   // Long, like Library: tags are named once and then read on every list
   // request that draws a filter row.
   Tag: 120_000,

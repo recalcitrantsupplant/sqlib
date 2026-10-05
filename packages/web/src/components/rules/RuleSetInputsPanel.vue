@@ -36,6 +36,7 @@ import SearchSelect from '@/components/shared/SearchSelect.vue';
 import SegmentedToggle, { type SegmentedOption } from '@/components/shared/SegmentedToggle.vue';
 import SectionLabel from '@/components/shared/SectionLabel.vue';
 import InlineNote from '@/components/shared/InlineNote.vue';
+import DataGraphBrowserDefault from '@/components/shared/DataGraphBrowserDefault.vue';
 import { tupleBindNotice } from '@/lib/tupleSetLabels';
 
 const deployment = useDeploymentMode();
@@ -112,8 +113,11 @@ const props = withDefaults(defineProps<{
    * guessing at one.
    */
   tupleDeclarations?: string[][];
+  /** The saved rule set, for its browser default; `null` on a scratch one. */
+  ruleSetId?: string | null;
 }>(), {
   tuplesEnabled: true,
+  ruleSetId: null,
   savingTuples: false,
   savingData: false,
   savingTest: false,
@@ -425,6 +429,12 @@ const onDataInput = (value: string) => {
             >
               <ExternalLink :size="12" />
             </button>
+            <DataGraphBrowserDefault
+              kind="ruleSet"
+              :owner-id="ruleSetId"
+              :selection="[dataGraphVersionId]"
+              :options="dataGraphOptions"
+            />
           </template>
 
           <template v-else>

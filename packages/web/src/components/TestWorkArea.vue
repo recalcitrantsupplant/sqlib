@@ -286,8 +286,8 @@
 
           <Toolbar variant="plain" wrap>
             <FormField
-              v-if="slots.dataGraph && storeMode === 'dataGraph' && !argumentSetFillsGraph"
-              :label="subjectKind === 'queryGroup' ? 'Graph (for a port the argument set leaves open)' : 'Data graph'"
+              v-if="slots.dataGraph && storeMode === 'dataGraph'"
+              label="Data graph"
               grow
             >
               <SearchSelect
@@ -300,21 +300,6 @@
                 @update:model-value="(value) => (dataGraphVersion = value || null)"
               />
             </FormField>
-
-            <!--
-              An argument set may carry the graphs itself. When the chosen one
-              does, the select above is absent rather than present and inert:
-              a case graph is appended after the set's, so offering the field
-              here would invite a run that supplies one graph more than the
-              group declares inputs for.
-            -->
-            <p
-              v-if="slots.dataGraph && storeMode === 'dataGraph' && argumentSetFillsGraph"
-              class="hint"
-              data-testid="test-graph-from-argument-set"
-            >
-              The argument set supplies the data graph.
-            </p>
 
             <!-- Version-level, not per case: one test runs against one store. -->
             <FormField v-if="slots.backend && storeMode === 'backend'" label="Backend (all cases)" grow>
@@ -802,8 +787,6 @@ const dataGraphOptions = ref<Array<{ versionId: string; label: string }>>([]);
 // `id` is the version a run names; `setId` is its parent, which is what the
 // export route is keyed by.
 const argumentSetOptions = ref<Array<{ id: string; setId: string; label: string }>>([]);
-/** Version id -> how many graphs that set carries, so the case can stand down. */
-const argumentSetGraphCount = ref<Record<string, number>>({});
 const subjectVersionOptions = ref<Array<{ id: string; version: number }>>([]);
 const subjectVersion = ref<string | null>(null);
 
@@ -2169,21 +2152,6 @@ async function loadArgumentSetPreview(versionId: string | null) {
 }
 
 /** Argument sets that target this subject — the query/group input slot. */
-/**
- * Whether the chosen argument set already supplies the group's graphs.
- *
- * A count, not a list of ports: a set carries graphs in order and the group
- * routes them, so there is no port name on the set to compare against. Only a
- * group's set can supply any — a query declares no graph parameter, so its
- * per-case fixture graph has nothing to stand down for and its select stays.
- */
-const argumentSetFillsGraph = computed(() => {
-  if (subjectKind.value !== 'queryGroup') return false;
-  const chosen = argumentSetVersion.value;
-  if (!chosen) return false;
-  return (argumentSetGraphCount.value[chosen] ?? 0) > 0;
-});
-
 async function loadArgumentSetOptions() {
   const id = subject.value;
   if (!id || subjectKind.value === 'ruleSet') {
@@ -2200,15 +2168,6 @@ async function loadArgumentSetOptions() {
     argumentSetOptions.value = sets.flatMap(set =>
       set.currentVersionId ? [{ id: set.currentVersionId, setId: set.id, label: set.name }] : [],
     );
-    // How many graphs each set carries, so a case's graph select can stand
-    // down where the set already answers them.
-    const counts: Record<string, number> = {};
-    for (const set of sets) {
-      const versionId = set.currentVersionId;
-      if (!versionId) continue;
-      counts[versionId] = (set.currentVersion?.graphBindings ?? []).length;
-    }
-    argumentSetGraphCount.value = counts;
   } catch {
     argumentSetOptions.value = [];
   }

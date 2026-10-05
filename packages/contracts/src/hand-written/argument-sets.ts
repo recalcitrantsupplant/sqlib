@@ -14,7 +14,6 @@ export const argumentSetVersionDetailSchema = z.object({
   version: z.number(),
   tupleBindings: z.array(z.any()),
   scalarBindings: z.array(z.any()),
-  graphBindings: z.array(z.any()).optional(),
   dateCreated: z.string(),
   dateModified: z.string(),
 });
@@ -33,7 +32,6 @@ export const argumentSetDetailSchema = z.object({
   currentVersion: argumentSetVersionDetailSchema.nullable().optional(),
   tupleBindings: z.array(z.any()),
   scalarBindings: z.array(z.any()),
-  graphBindings: z.array(z.any()).optional(),
   dateCreated: z.string(),
   dateModified: z.string(),
 });

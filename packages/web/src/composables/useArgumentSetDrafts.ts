@@ -29,7 +29,7 @@
  * callable record to read a binding.
  */
 import { computed } from 'vue';
-import type { ArgumentGraphBinding, ArgumentScalarBinding, ArgumentTupleBinding } from '../types/argument-sets';
+import type { ArgumentScalarBinding, ArgumentTupleBinding } from '../types/argument-sets';
 import {
   useCallableDrafts,
   UNASSIGNED_LIBRARY_ID,
@@ -61,11 +61,6 @@ export interface ArgumentSetDraft {
   basedOnVersion: number | null;
   tupleBindings: ArgumentTupleBinding[];
   scalarBindings: ArgumentScalarBinding[];
-  /**
-   * The graphs this set hands over, in order. Optional so a record written
-   * before graphs reached the group screen still reads.
-   */
-  graphBindings?: ArgumentGraphBinding[];
   /** Autosaves since the record began — what the `Draft · 2 edits` pill counts. */
   edits: number;
   createdAt: string;
@@ -83,7 +78,6 @@ interface ArgumentSetBody {
   basedOnVersion: number | null;
   tupleBindings: ArgumentTupleBinding[];
   scalarBindings: ArgumentScalarBinding[];
-  graphBindings: ArgumentGraphBinding[];
 }
 
 function asArray<T>(value: unknown): T[] {
@@ -110,7 +104,6 @@ function toArgumentSetDraft(record: CallableDraft): ArgumentSetDraft {
     basedOnVersion: typeof body.basedOnVersion === 'number' ? body.basedOnVersion : null,
     tupleBindings: asArray<ArgumentTupleBinding>(body.tupleBindings),
     scalarBindings: asArray<ArgumentScalarBinding>(body.scalarBindings),
-    graphBindings: asArray<ArgumentGraphBinding>(body.graphBindings),
     edits: typeof record.edits === 'number' ? record.edits : 0,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
@@ -170,7 +163,6 @@ export function useArgumentSetDrafts() {
       basedOnVersion: input.basedOnVersion ?? previous?.basedOnVersion ?? null,
       tupleBindings: asArray<ArgumentTupleBinding>(input.tupleBindings),
       scalarBindings: asArray<ArgumentScalarBinding>(input.scalarBindings),
-      graphBindings: asArray<ArgumentGraphBinding>(input.graphBindings),
     };
     store.save({
       id: input.id,

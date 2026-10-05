@@ -99,12 +99,15 @@ and never in a request.
 
 ## ArgumentSet
 
-An **ArgumentSet** is one call's worth of input: one argument for every parameter
-the callable declares. For a query that is a table per `VALUES` clause and a
-number per named limit or offset; for a query group, also one graph per
-start-node graph port. Each table's rows are stored as one SPARQL Results JSON
-string, which is exactly the document a run takes inline, and a graph binding
-holds either pasted RDF or a pinned `DataGraphVersion`.
+An **ArgumentSet** is the values for a callable's SPARQL parameters: a table per
+`VALUES` clause and a number per named limit or offset. Each table's rows are
+stored as one SPARQL Results JSON string, which is exactly the document a run
+takes inline.
+
+An argument set holds no graphs. A query group's data graphs are a separate
+input, sent in the run's `dataGraphs[]` beside its argument sets, as a rule
+set's data graph is. See
+[argument sets without graphs](proposals/argument-sets-without-graphs.md).
 
 Argument sets belong to a library and are listed library-wide. They record where
 they were made as provenance, not as a fence: a set made on one query can be
@@ -114,6 +117,20 @@ call that pins one is reproducible. A run may supply inline values for parameter
 a named set leaves open; supplying both for the same parameter is refused by
 name. Argument set versions live under `/argument-sets/:id/versions`, the same
 path segment every versioned entity uses.
+
+## Browser defaults
+
+A query and a query group may name a default argument set, and a query group
+and a rule set may name a default data graph for each data graph input. The web
+app selects them when the callable opens and nothing else is picked. They are
+stored on the server, so everyone using the library gets them.
+
+**Execution never applies a browser default.** `/execute`, rule set execute,
+tests, benchmarks and MCP run with exactly the inputs the caller sends: an empty
+call means "no arguments", and a default changed in the web app must not change
+what a script computes. A caller that wants the default reads
+`GET /…/:id/browser-defaults` and sends it. See
+[browser defaults](proposals/browser-defaults.md).
 
 ## QueryGroup
 

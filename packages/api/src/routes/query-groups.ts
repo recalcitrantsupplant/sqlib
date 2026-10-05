@@ -45,6 +45,8 @@ import {
 import { GraphBuilder } from '../lib/orchestration/GraphBuilder.js';
 import { isGraphValidationError } from '../lib/orchestration/GraphValidationError.js';
 import { registerEntityAuthGuard } from '../auth/entityGuard.js';
+import { registerBrowserDefaultsRoutes } from './browser-defaults.js';
+import { clearBrowserDefaultsIfMoved, deleteBrowserDefaultsOf } from '../lib/browserDefaults.js';
 
 // Loose shape for execution nodes read back from the cache (union of concrete node types).
 type CachedNodeShape = {
@@ -219,6 +221,8 @@ export default async function (fastify: FastifyInstance) {
       ? new RouteError(422, { error: (error as Error).message, references: error.failures })
       : null,
     deleteVersion: version => deleteWithOwned(version, 'QueryGroupVersion', GROUP_VERSION_OWNED),
+    afterUpdate: ({ before, updated }) => clearBrowserDefaultsIfMoved('QueryGroup', before, updated),
+    beforeDelete: entity => deleteBrowserDefaultsOf(entity),
   });
 
   // GET /query-groups/:id/versions/:version/validate — validate query group version
@@ -491,4 +495,6 @@ export default async function (fastify: FastifyInstance) {
     }
     return reply.send(created);
   }));
+
+  registerBrowserDefaultsRoutes(fastify, 'QueryGroup');
 }

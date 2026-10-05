@@ -27,7 +27,6 @@ import {
     EPHEMERAL_BACKEND_ID,
     LIBRARY_STORAGE_BACKEND_ID,
     describeParameterKey,
-    graphParameterKey,
     scalarParameterKey,
     tableParameterKey,
 } from '@sparql-query-lib/types';
@@ -585,14 +584,6 @@ export default async function (
                         conflicts.push(describeParameterKey(scalarParameterKey('offset', offset.name)));
                     }
                 }
-                for (const [index, entry] of (dataGraphs ?? []).entries()) {
-                    // Slot-keyed: a run's graphs are an ordered list the group
-                    // routes, so entry N conflicts with the set's slot N.
-                    const key = graphParameterKey(index);
-                    if (filled.has(key)) {
-                        conflicts.push(describeParameterKey(key));
-                    }
-                }
                 if (conflicts.length) {
                     return reply.code(400).send({
                         error: `The named argument set already fills ${conflicts.join(', ')}; `
@@ -600,17 +591,6 @@ export default async function (
                     });
                 }
             }
-
-            /*
-             * Graph bindings on a set are a query group's; a query declares no
-             * graph parameter, so they are dropped for a query target exactly
-             * as a table binding no clause matches is dropped. The screen warns
-             * before the run; the route does not refuse, because the set may
-             * legitimately serve a group as well.
-             */
-            const storedDataGraphs = (targetTypeForError === 'QueryGroup' || targetTypeForError === 'QueryGroupVersion')
-                ? (runtimePayload?.dataGraphs ?? [])
-                : [];
 
             // A data graph is a query group's input, supplied through its start
             // node. A query names its store with `backendId` and a rule set has
@@ -630,11 +610,9 @@ export default async function (
             let initialDataGraphs: ExecutionDataGraphInput[] = [];
             try {
                 initialDataGraphs = suppliedDataGraphs.map(entry => {
-                    // `{ request }` because a run's own `dataGraphs[]` name
-                    // stored graphs that need not live in the target's library,
-                    // and Execute on the target says nothing about them. The
-                    // stored half above came off an argument set, whose pins
-                    // `ArgumentSetService` checked when the set was composed.
+                    // `{ request }` because a run's `dataGraphs[]` name stored
+                    // graphs that need not live in the target's library, and
+                    // Execute on the target says nothing about them.
                     const resolved = resolveDataGraphInput(entry, { request });
                     if (!resolved) {
                         throw new DataGraphContentError(
@@ -650,10 +628,6 @@ export default async function (
                 }
                 throw dataGraphError;
             }
-            // Stored first, then whatever the run supplied for the slots the
-            // set left open; the conflict check above has already ruled out
-            // overlap, so the two lists concatenate into one ordered run.
-            initialDataGraphs = [...storedDataGraphs, ...initialDataGraphs];
 
             const resolveArgumentsForQuery = (queryString?: string): RuntimeArgumentSet[] | undefined => {
                 if (!queryString) return runtimeArgumentSets;

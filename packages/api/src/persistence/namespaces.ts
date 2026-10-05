@@ -361,18 +361,9 @@ export const sqlib = createNamespace({
     "ArgumentSetVersion",
     "ArgumentTupleBinding",
     "ArgumentScalarBinding",
-    // A data graph bound to a query group's start-node graph port. Queries
-    // declare no graph parameter — their store is their backend. See
-    // `docs/concepts.md`.
-    "ArgumentGraphBinding",
-    // The argument-set binding a data graph was minted from, when it was
-    // created by pasting RDF into a call rather than composed on the rail.
-    // Origin, for the rail's Origin grouping — not a link and not a fence.
-    "mintedFrom",
     // The entity a converted table was copied from. A conversion is a copy,
     // taken once — this answers "used by" loosely and pins nothing.
     "copiedFrom",
-    "graphBindings",
     "argumentSets",
     "targetEntity",
     "argumentScope",
@@ -478,6 +469,12 @@ export const sqlib = createNamespace({
     // single `dataGraphVersion` above stays as the one-graph spelling.
     "TestCaseDataGraph",
     "dataGraphs",
+    // Browser defaults: what the web app selects when a callable opens, and
+    // nothing executes against. See `docs/proposals/browser-defaults.md`.
+    "browserDefaultArgumentSet",
+    "browserDefaultDataGraphs",
+    "BrowserDefaultDataGraph",
+    "dataGraph",
     "expectationKind",
     "expected",
     "expectedFormat",

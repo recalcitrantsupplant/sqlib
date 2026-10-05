@@ -38,6 +38,19 @@ export const RuleSetSchema = {
     '@optional': true,
     '@references': { types: ['Tag'] },
   },
+  /**
+   * The data graph the web app selects for each input when this opens, by
+   * position. A browser default: execution never reads it. Written through
+   * `PUT /:id/browser-defaults`.
+   */
+  browserDefaultDataGraphs: {
+    '@id': sqlib.browserDefaultDataGraphs,
+    '@array': true,
+    '@type': ldkit.IRI,
+    '@optional': true,
+    '@readOnly': true,
+    '@references': { types: ['BrowserDefaultDataGraph'] },
+  },
   dateCreated: {
     '@id': sdo.dateCreated,
     '@type': xsd.dateTime,
@@ -58,6 +71,7 @@ export interface LdkitRuleSet {
   currentVersion?: string | null;
   isPartOf: string[];
   tags?: string[] | null;
+  browserDefaultDataGraphs?: string[] | null;
   dateCreated?: string | null;
   dateModified?: string | null;
 }

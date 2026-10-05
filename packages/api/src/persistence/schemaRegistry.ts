@@ -40,7 +40,6 @@ import { ArgumentSetSchema } from '../persistence/schemas/ArgumentSetSchema.js';
 import { ArgumentSetVersionSchema } from '../persistence/schemas/ArgumentSetVersionSchema.js';
 import { ArgumentTupleBindingSchema } from '../persistence/schemas/ArgumentTupleBindingSchema.js';
 import { ArgumentScalarBindingSchema } from '../persistence/schemas/ArgumentScalarBindingSchema.js';
-import { ArgumentGraphBindingSchema } from '../persistence/schemas/ArgumentGraphBindingSchema.js';
 import { EtlJobSchema } from '../persistence/schemas/EtlJobSchema.js';
 import { EtlJobVersionSchema } from '../persistence/schemas/EtlJobVersionSchema.js';
 import { EtlColumnMappingSchema } from '../persistence/schemas/EtlColumnMappingSchema.js';
@@ -55,6 +54,7 @@ import { TestSchema } from '../persistence/schemas/TestSchema.js';
 import { TestVersionSchema } from '../persistence/schemas/TestVersionSchema.js';
 import { TestCaseSchema } from '../persistence/schemas/TestCaseSchema.js';
 import { TestCaseDataGraphSchema } from '../persistence/schemas/TestCaseDataGraphSchema.js';
+import { BrowserDefaultDataGraphSchema } from '../persistence/schemas/BrowserDefaultDataGraphSchema.js';
 import { TagSchema } from '../persistence/schemas/TagSchema.js';
 import { PatchSchema } from '../persistence/schemas/PatchSchema.js';
 import { TupleSetSchema } from '../persistence/schemas/TupleSetSchema.js';
@@ -96,7 +96,6 @@ export const SCHEMA_BY_TYPE = {
   ArgumentSetVersion: ArgumentSetVersionSchema,
   ArgumentTupleBinding: ArgumentTupleBindingSchema,
   ArgumentScalarBinding: ArgumentScalarBindingSchema,
-  ArgumentGraphBinding: ArgumentGraphBindingSchema,
   EtlJob: EtlJobSchema,
   EtlJobVersion: EtlJobVersionSchema,
   EtlColumnMapping: EtlColumnMappingSchema,
@@ -111,6 +110,7 @@ export const SCHEMA_BY_TYPE = {
   TestVersion: TestVersionSchema,
   TestCase: TestCaseSchema,
   TestCaseDataGraph: TestCaseDataGraphSchema,
+  BrowserDefaultDataGraph: BrowserDefaultDataGraphSchema,
   Tag: TagSchema,
   Patch: PatchSchema,
   TupleSet: TupleSetSchema,

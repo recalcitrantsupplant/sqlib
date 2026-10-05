@@ -30,6 +30,8 @@ import {
   patchQueryVersionForQuerySchema,
 } from '@sparql-query-lib/contracts/schema';
 import { registerEntityAuthGuard } from '../auth/entityGuard.js';
+import { registerBrowserDefaultsRoutes } from './browser-defaults.js';
+import { clearBrowserDefaultsIfMoved } from '../lib/browserDefaults.js';
 
 /**
  * `/queries` — the reference module for `registerVersionedEntityRoutes`.
@@ -88,6 +90,7 @@ export default async function (fastify: FastifyInstance) {
       return { created: created as unknown as StoredEntity, body: { ...expanded, iriMap } };
     },
     deleteVersion: version => deleteWithOwned(version, 'QueryVersion', QUERY_VERSION_OWNED),
+    afterUpdate: ({ before, updated }) => clearBrowserDefaultsIfMoved('Query', before, updated),
   });
 
   /**
@@ -191,7 +194,7 @@ export default async function (fastify: FastifyInstance) {
     const body = request.body;
     // `{ request }` is what carries the caller into the pinned-source check:
     // the guard above covers this query's library, the check covers any tuple
-    // set or data graph version the body pins from another one.
+    // set version the body pins from another one.
     const created = await argumentSetService.createForTarget('query', id, body, { request });
     reply.code(201);
     if (created.dateModified) {
@@ -199,4 +202,6 @@ export default async function (fastify: FastifyInstance) {
     }
     return reply.send(created);
   }));
+
+  registerBrowserDefaultsRoutes(fastify, 'Query');
 }

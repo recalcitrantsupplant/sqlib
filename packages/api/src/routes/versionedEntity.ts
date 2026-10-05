@@ -146,6 +146,20 @@ export interface VersionedEntityOptions {
     current: StoredEntity;
     updates: Body;
   }) => void | Promise<void>;
+  /**
+   * Follow up an update that has been written. Return the entity as it now
+   * stands if the hook changed it, so the response shows that; else nothing.
+   */
+  afterUpdate?: (ctx: {
+    request: FastifyRequest;
+    before: StoredEntity;
+    updated: StoredEntity;
+  }) => Promise<StoredEntity | null | void>;
+  /**
+   * Remove what the entity owns outside its versions, once the delete is
+   * allowed and before the entity goes.
+   */
+  beforeDelete?: (entity: StoredEntity) => Promise<void>;
 
   /** Write a version. The parent exists and the caller may write it. */
   createVersion: (ctx: CreateVersionContext) => Promise<CreatedVersion>;
@@ -388,8 +402,11 @@ export function registerVersionedEntityRoutes(fastify: FastifyInstance, options:
 
     if (options.beforeUpdate) await options.beforeUpdate({ request, current, updates });
 
-    const updated = await entities().update(id, updates);
-    if (!updated) throw new RouteError(404, { error: `${Noun} not found` });
+    const written = await entities().update(id, updates);
+    if (!written) throw new RouteError(404, { error: `${Noun} not found` });
+    const updated = (options.afterUpdate
+      ? await options.afterUpdate({ request, before: current, updated: written })
+      : null) ?? written;
     setEntityConcurrencyHeaders(reply, updated);
     return reply.send(present(updated, request));
   }));
@@ -404,6 +421,7 @@ export function registerVersionedEntityRoutes(fastify: FastifyInstance, options:
     refusePins(noun, owned.map(version => version.$id));
 
     for (const version of owned) await deleteVersion(version);
+    if (options.beforeDelete) await options.beforeDelete(current);
     await entities().delete(id);
     return reply.status(204).send();
   }));

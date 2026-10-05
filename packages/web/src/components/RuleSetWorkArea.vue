@@ -301,6 +301,7 @@ import { useEditorDocumentKey } from '../composables/useEditorDocumentKey';
 import { useSrlAnalysis } from '../composables/useSrlAnalysis';
 import { useCallableDrafts } from '../composables/useCallableDrafts';
 import { useEntityDraft } from '../composables/useEntityDraft';
+import { useBrowserDefaults } from '../composables/useBrowserDefaults';
 import { useCommentKeymap } from '../composables/useCommentKeymap';
 import { useEditorKeymaps } from '../composables/useEditorKeymaps';
 import { useExecuteKeymap } from '../composables/useExecuteKeymap';
@@ -350,6 +351,7 @@ const librariesStore = useLibrariesStore();
 const apiClient = useApiClient();
 const config = useRuntimeConfig();
 const draftsStore = useCallableDrafts();
+const browserDefaults = useBrowserDefaults();
 const { activeLibraryId, activeLibraryName } = useActiveLibrary();
 const { autoDiscoverFromRule } = usePrefixManager();
 
@@ -1372,6 +1374,36 @@ async function loadDocumentForSelectedVersion(prefetched?: ReturnType<typeof api
   }
 }
 
+/**
+ * The data graph a saved rule set opens with.
+ *
+ * The draft's pick first, because it is this browser's and the newer of the
+ * two; then the rule set's browser default, resolved to the version it would
+ * select now; then whatever is already picked. See
+ * `composables/useBrowserDefaults.ts`.
+ */
+async function applyDataGraphOnOpen(id: string) {
+  const draft = draftBody.value;
+  if (draft?.dataSource === 'saved' && draft.dataGraphVersionId) {
+    dataSource.value = 'saved';
+    dataGraphVersionId.value = draft.dataGraphVersionId;
+    return;
+  }
+  if (draft?.dataSource === 'inline' && draft.dataGraphInline?.trim()) {
+    dataSource.value = 'inline';
+    dataGraphInline.value = draft.dataGraphInline;
+    dataGraphInlineFormat.value = draft.dataGraphInlineFormat ?? 'text/turtle';
+    return;
+  }
+  const { dataGraphs } = await browserDefaults.load('ruleSet', id);
+  const [versionId] = await browserDefaults.resolveDataGraphs(dataGraphs.slice(0, 1));
+  // Only if this is still the rule set open.
+  if (versionId && ruleSetIdValue.value === id) {
+    dataSource.value = 'saved';
+    dataGraphVersionId.value = versionId;
+  }
+}
+
 const loadRuleSet = async (id: string) => {
   if (!id) {
     resetState();
@@ -1409,6 +1441,7 @@ const loadRuleSet = async (id: string) => {
     void ensureLibraryPresent(ruleSetLibraryId.value ?? null);
     await loadRuleSetVersions(ruleSet.id, versionsRequest);
     await loadDocumentForSelectedVersion(documentRequest);
+    void applyDataGraphOnOpen(ruleSet.id);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to load rule set';
     console.error('[RuleSetWorkArea] Failed to load rule set:', error);

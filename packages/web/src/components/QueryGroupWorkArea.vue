@@ -320,6 +320,7 @@
               :offset-parameters="versions.pageParameters.value.offsetParameters"
               :data-graph-ports="startDataGraphInputPorts"
               :data-graph-options="dataGraphOptions"
+              v-model:data-graphs="groupDataGraphs"
             >
               <div v-if="allValidationIssues.length" class="validation-issues-panel">
                 <p class="validation-issues-title">
@@ -499,6 +500,7 @@ import VersionToolbar from './shared/VersionToolbar.vue';
 import RuleSetSelectorDialog from './RuleSetSelectorDialog.vue';
 import QueryGroupTransferDialog from './query-group/QueryGroupTransferDialog.vue';
 import QueryGroupArgumentsPanel from './query-group/QueryGroupArgumentsPanel.vue';
+import { useBrowserDefaults } from '@/composables/useBrowserDefaults';
 import SubjectTestsPanel from './tests/SubjectTestsPanel.vue';
 import { useTestsSurface } from '../composables/useTestsSurface';
 import type { DataGraphOption } from '@/types/data-graphs';
@@ -839,25 +841,41 @@ const startDataGraphInputPorts = computed(() => {
 const dataGraphOptions = ref<DataGraphOption[]>([]);
 
 /**
- * The run's `dataGraphs`, in slot order.
+ * The `DataGraphVersion` picked for each start-node data graph input, by slot.
  *
- * They live on the argument set now rather than in run-local state beside it,
- * so a group run or test is one pinned object — see `docs/concepts.md`. Which
- * port each fills is the group's, and it routes by position: entry N fills the
- * Nth declared input.
- *
- * Empty while a *saved* version is the run target, on the same either/or the
- * arguments follow: the server exports that version's graphs, and sending them
- * inline as well would be the run supplying a parameter the named set already
- * fills, which `/execute` refuses by design.
+ * Its own state, beside the argument set rather than inside it: an argument
+ * set carries no graphs (`docs/proposals/argument-sets-without-graphs.md`).
+ * Which port each fills is the group's, and it routes by position: entry N
+ * fills the Nth declared input.
  */
-const runDataGraphInputs = computed(() => {
-  if (argumentSetsState.executionArgumentSetId.value) return [];
-  return argumentSetsState.graphBindings.value
-    .map((binding) => binding.dataGraphVersionId)
-    .filter((versionId): versionId is string => !!versionId)
-    .map((dataGraphVersionId) => ({ dataGraphVersionId }));
-});
+const groupDataGraphs = ref<Array<string | null>>([]);
+
+/*
+ * Each group opens with its browser defaults: its argument set, and its data
+ * graphs resolved to the version each would select now. Nothing here is kept
+ * per browser, so the order is the URL's set (none on this screen), then the
+ * default, then nothing. Registered after the argument sets, so their watcher
+ * has cleared the previous group's selection first.
+ */
+const browserDefaults = useBrowserDefaults();
+watch(queryGroupId, async (id, previous) => {
+  // Another group's picks go; a scratch group's picks stay when its first
+  // save gives it an id, because they are this group's.
+  if (previous) groupDataGraphs.value = [];
+  if (!id) return;
+  void browserDefaults.applyArgumentSet('queryGroup', id, argumentSetsState);
+  const { dataGraphs } = await browserDefaults.load('queryGroup', id);
+  const resolved = await browserDefaults.resolveDataGraphs(dataGraphs);
+  // Only if this is still the group open and nothing was picked meanwhile.
+  if (queryGroupId.value === id && groupDataGraphs.value.length === 0) {
+    groupDataGraphs.value = resolved;
+  }
+}, { immediate: true });
+
+/** The run's `dataGraphs`, in slot order, with the inputs left open dropped. */
+const runDataGraphInputs = computed(() => groupDataGraphs.value
+  .filter((versionId): versionId is string => !!versionId)
+  .map((dataGraphVersionId) => ({ dataGraphVersionId })));
 
 /**
  * Load the saved graphs this group could run against.
@@ -1110,6 +1128,7 @@ async function createTestFromRecipe() {
       ordered: null,
       argumentSetVersion: argumentSetsState.executionArgumentSetId.value,
       dataGraphVersion: null,
+      dataGraphs: runDataGraphInputs.value.map(({ dataGraphVersionId }) => ({ dataGraphVersion: dataGraphVersionId })),
       tupleSeeds: null,
     }],
   });

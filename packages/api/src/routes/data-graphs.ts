@@ -21,6 +21,8 @@ import { createDataGraphVersion, annotateDataGraphVersion } from '../lib/DataGra
 import { DATA_GRAPH_FORMATS, DEFAULT_DATA_GRAPH_FORMAT, DataGraphContentError, type DataGraphFormat } from '../lib/dataGraphContent.js';
 import { materializeDataGraphVersionFromQuery, DataGraphQuerySourceError } from '../lib/dataGraphFromQuery.js';
 import { registerEntityAuthGuard } from '../auth/entityGuard.js';
+import { clearBrowserDefaultsNaming } from '../lib/browserDefaults.js';
+import { getEntityRepositories } from '../lib/CacheCoordinatorProvider.js';
 import { AuthorizationError, resolveOwningLibrary } from '../auth/enforce.js';
 
 export const dataGraphResponseSchema = {
@@ -34,11 +36,6 @@ export const dataGraphResponseSchema = {
       type: 'array',
       items: { type: 'string' },
     },
-    /**
-     * The argument set this graph was minted from, if it was born by pasting
-     * RDF into a call. Origin, for the rail's Origin grouping — not ownership.
-     */
-    mintedFrom: { type: 'string', nullable: true },
     dateCreated: { type: 'string', format: 'date-time', nullable: true },
     dateModified: { type: 'string', format: 'date-time', nullable: true },
     tags: {
@@ -142,7 +139,7 @@ export default async function (fastify: FastifyInstance) {
       create: { tags: ['DataGraph'], summary: 'Create data graph', body: createDataGraphSchema.body, response: { 201: dataGraphResponseSchema } },
       get: { tags: ['DataGraph'], summary: 'Get data graph', response: { 200: dataGraphResponseSchema } },
       update: { tags: ['DataGraph'], summary: 'Update data graph', body: updateDataGraphSchema.body, response: { 200: dataGraphResponseSchema } },
-      // Refused, not cascaded, while a saved argument set or test version pins
+      // Refused, not cascaded, while a saved test version pins
       // one of its versions: those would name content that is gone.
       delete: { tags: ['DataGraph'], summary: 'Delete data graph and all its versions (cascading delete)', response: { 204: { type: 'null' } } },
       listVersions: { tags: ['DataGraph'], summary: 'List data graph versions', response: { 200: { type: 'array', items: dataGraphVersionResponseSchema } } },
@@ -171,6 +168,15 @@ export default async function (fastify: FastifyInstance) {
       comment: annotations.comment as string | null | undefined,
       immutable: annotations.immutable as boolean | undefined,
     }) as unknown as StoredEntity,
+    /*
+     * A browser default naming the graph or one of its versions is a starting
+     * selection, not a pin, so it is cleared rather than refusing the delete.
+     */
+    deleteVersion: async (version) => {
+      await clearBrowserDefaultsNaming(new Set([version.$id]));
+      await getEntityRepositories().DataGraphVersion.delete(version.$id);
+    },
+    beforeDelete: entity => clearBrowserDefaultsNaming(new Set([entity.$id])),
   });
 
   // POST /:id/versions/from-query — materialize a version by running a

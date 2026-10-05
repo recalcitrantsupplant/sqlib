@@ -3,8 +3,8 @@
  *
  * A frozen version that names another version — a rule set version naming its
  * rule versions, a group version's node naming a query version, an argument
- * set version's graph binding naming a data graph version, a test version
- * naming its subject version or a case's argument set version — holds a pin
+ * set version's table naming a tuple set version, a test version naming its
+ * subject version or a case's argument set version — holds a pin
  * on it. The holder is immutable, so the pin cannot be repointed: deleting
  * what it names would leave a saved snapshot naming content that is gone,
  * discovered at its next run. So a delete that would remove a pinned version
@@ -79,11 +79,6 @@ function* holdings(): Generator<{ heldBy: Entity; heldByType: HolderType; pinned
   }
 
   for (const version of list('ArgumentSetVersion')) {
-    for (const bindingId of idsOf(version.graphBindings)) {
-      for (const pinned of idsOf(get(bindingId)?.dataGraphVersion)) {
-        yield { heldBy: version, heldByType: 'ArgumentSetVersion', pinned };
-      }
-    }
     for (const bindingId of idsOf(version.tupleBindings)) {
       for (const pinned of idsOf(get(bindingId)?.tupleSetVersions)) {
         yield { heldBy: version, heldByType: 'ArgumentSetVersion', pinned };

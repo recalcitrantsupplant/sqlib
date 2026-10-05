@@ -1,0 +1,150 @@
+# Browser defaults for data graphs and argument sets
+
+Status: implemented. Builds on [argument sets without graphs](argument-sets-without-graphs.md).
+
+## Problem
+
+A rule set always runs against a data graph. A query or a query group often
+runs with the same argument set, and a group with the same data graphs. The web
+app opened these screens with nothing selected, so each session started with a
+pick.
+
+A **browser default** is an opt-in default per entity. The web app applies it.
+The API and MCP do not.
+
+## What existed before
+
+| Mechanism | Stored where | Who applies it |
+| --- | --- | --- |
+| `Query.defaultBackend`, `Library.defaultBackend` | Server, on the stable pointer | The API (`api/src/lib/defaultBackend.ts`) and the web app |
+| Last backend pick (`web/src/lib/backendDefaults.ts`) | `localStorage`, one per query | The web app only, this browser only |
+| Rule set draft body (`dataGraphVersionId`, inline graph) | `localStorage`, in the draft or scratch record | The web app only, and only while a draft exists |
+| `?argumentSet=` URL parameter | The URL | The query screen, once on open |
+
+There was no default data graph on `RuleSet` or `QueryGroup`, and no default
+argument set on `Query` or `QueryGroup`.
+
+## Model
+
+| Entity | Default argument set | Default data graphs |
+| --- | --- | --- |
+| `Query` | `browserDefaultArgumentSet` | — |
+| `QueryGroup` | `browserDefaultArgumentSet` | `browserDefaultDataGraphs`, one per start-node data graph input |
+| `RuleSet` | — | `browserDefaultDataGraphs`, at most one |
+
+- `browserDefaultArgumentSet` names an `ArgumentSet`. It floats: the web app's
+  switcher selects a set and picks its version per run, so a pinned version
+  would have nothing to select.
+- `browserDefaultDataGraphs` names `BrowserDefaultDataGraph` children. Each
+  child has a `position` and a `dataGraph`, which is a `DataGraph` (float) or
+  a `DataGraphVersion` (pin). RDF arrays carry no order, and a group routes
+  graphs by position, so the position is stored. This is the same reason
+  `TestCaseDataGraph` exists.
+- A default argument set is **one** set. `/execute` can still compose several,
+  but a default is a starting selection, and the screens select one set.
+
+The UI label is **Browser default**. Its tooltip says: "Selected when this
+opens in the web app. API and MCP calls ignore it."
+
+## API
+
+```http
+GET /queries/:id/browser-defaults
+PUT /queries/:id/browser-defaults
+GET /query-groups/:id/browser-defaults
+PUT /query-groups/:id/browser-defaults
+GET /rule-sets/:id/browser-defaults
+PUT /rule-sets/:id/browser-defaults
+```
+
+The body and the response have one shape:
+
+```json
+{ "argumentSet": "urn:…", "dataGraphs": ["urn:…", null, "urn:…"] }
+```
+
+- `PUT` replaces the whole value. `{}` clears it.
+- `dataGraphs[n]` is the default for data graph input `n`. `null` leaves that
+  input without a default.
+- A field the entity kind does not take is refused with `400`: `dataGraphs`
+  on a query, `argumentSet` on a rule set, more than one graph on a rule set.
+- The properties are `@readOnly` to the generic `PUT /:id`, so this route and
+  its checks are the only way to write them.
+- Every target must exist, be of the right type and belong to the entity's
+  library. A library is the unit of export, so a cross-library default would
+  dangle after an export.
+- `PUT` needs write access to the entity's library. `GET` needs read access.
+- `PUT` changes `dateModified` on the pointer. It does not create a version: a
+  default is metadata, like `defaultBackend`.
+
+### Cleanup
+
+| Event | Effect |
+| --- | --- |
+| A data graph is deleted | Each `BrowserDefaultDataGraph` naming it or one of its versions is deleted |
+| An argument set is deleted | Each `browserDefaultArgumentSet` naming it or one of its versions is cleared |
+| A query, group or rule set is deleted | Its `BrowserDefaultDataGraph` children are deleted |
+| A query, group or rule set moves to another library | Its defaults are cleared: they name entities in the library it left |
+
+### Execution ignores it
+
+`/execute`, rule set execute, tests, benchmarks and MCP run tools never read
+a browser default. Tests assert this for queries, groups and rule sets.
+
+## Web app
+
+Each screen opens with the first of these that gives a value:
+
+| Screen | 1 | 2 | 3 |
+| --- | --- | --- | --- |
+| Query: argument set | `?argumentSet=` | Browser default | Nothing |
+| Query group: argument set | — | Browser default | Nothing |
+| Query group: data graphs | — | Browser default | Nothing |
+| Rule set: data graph | This browser's draft | Browser default | What is already picked |
+
+```mermaid
+flowchart LR
+  A["URL parameter<br/>or this browser's draft"] -->|absent| C["Browser default<br/>(on the entity)"]
+  C -->|absent or unusable| D["Nothing selected"]
+```
+
+- A data graph float resolves to the graph's current version when it is
+  applied.
+- The picker shows a **Browser default** label when the current pick is the
+  default, and **Not the browser default** when another pick is open.
+- A pick for one run does not change the default.
+- **Set as browser default** saves the current pick. A data graph pick is saved
+  as its graph, not its version: the pickers offer each graph's current
+  version, so the default follows new versions as the picker does. A scratch
+  argument set cannot be saved as a default, because it has no server id.
+- **Clear browser default** removes it.
+- Both actions need write access. A read-only deployment keeps the label only.
+- A default the screen cannot list (deleted or unreadable) selects nothing and
+  shows no error. A set that no longer fits the query is still opened, and the
+  Arguments tab says why, as it does for any set.
+
+## Why the API does not apply it
+
+Make the caller responsible. Four reasons:
+
+1. **No arguments is a valid call.** A query with no arguments runs with
+   `UNDEF` rows and its literal `LIMIT`. If the server filled in a default, an
+   empty call would become ambiguous: "no arguments", or "the default"?
+2. **The answer changes silently.** A backend says *where* a query runs. Data
+   and arguments say *what* it computes. Someone can change a browser default
+   in the UI, and every script that relies on it would get different results.
+3. **The name tells the truth.** `defaultBackend` is honoured by the API. A
+   plain `defaultDataGraph` would suggest the same. The `browser` prefix marks
+   the difference.
+4. **Opt-in stays possible.** `GET …/browser-defaults` is readable by anyone
+   who can read the entity. A caller that wants the default reads it and sends
+   it, and that choice is in its own code.
+
+If an API default is ever needed, add an explicit request flag such as
+`"useBrowserDefaults": true`. Do not make it implicit.
+
+## Out of scope
+
+- **Personal defaults.** A browser default is shared by everyone who uses the
+  library, so it travels with the library and helps a new user.
+- **A query data graph.** A query's store is its backend.

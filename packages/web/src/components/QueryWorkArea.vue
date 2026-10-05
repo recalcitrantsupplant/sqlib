@@ -524,6 +524,7 @@ import { useQueryExecution } from '../composables/useQueryExecution';
 import { useQueryVersions } from '../composables/useQueryVersions';
 import { useQueryMetadata } from '../composables/useQueryMetadata';
 import { useArgumentSets } from '@/composables/useArgumentSets';
+import { useBrowserDefaults } from '@/composables/useBrowserDefaults';
 import { useQueryDirtyState } from '../composables/useQueryDirtyState';
 import { useCallableDrafts } from '../composables/useCallableDrafts';
 import { useEntityDraft } from '../composables/useEntityDraft';
@@ -2316,6 +2317,18 @@ onMounted(() => {
     showArgumentsTab();
   })();
 });
+
+/*
+ * Then the browser default, for a saved query opened with no `?argumentSet=`.
+ * On the id the argument sets key on, and registered after them, so it runs
+ * after their watcher has cleared the previous query's selection. `queryId` is
+ * `''` for a scratch query, which has no default.
+ */
+const browserDefaults = useBrowserDefaults();
+watch(queryId, (id) => {
+  if (!id || props.preselectArgumentSetId) return;
+  void browserDefaults.applyArgumentSet('query', id, argumentSetsComposable);
+}, { immediate: true });
 
 onUnmounted(() => {
   flushScratch();

@@ -32,6 +32,8 @@
         @delete="handleDeleteArgumentSet"
       />
 
+      <ArgumentSetBrowserDefault kind="queryGroup" :owner-id="groupId" :args="args" />
+
       <template v-if="hasSelection">
         <TupleBindingEditor
           v-for="(clause, index) in signature.clauses"
@@ -75,10 +77,11 @@
 
       <!--
         The group's other external input. A start node declares tuple inputs and
-        data graph inputs as separate slots, so this stands beside the argument
-        set above rather than competing with it: a run can carry both. The
-        section is absent, not empty, when the group declares no data graph —
-        the same rule the test screen follows for a slot that cannot apply.
+        data graph inputs as separate slots, and an argument set carries no
+        graphs, so this stands beside the set above rather than inside it: a run
+        sends both. The section is absent, not empty, when the group declares no
+        data graph — the same rule the test screen follows for a slot that
+        cannot apply.
       -->
       <div v-if="dataGraphPorts.length" class="data-graph-inputs">
         <p class="data-graph-title">Data graphs</p>
@@ -90,7 +93,7 @@
             placeholder="No data graph"
             empty-label="No data graph"
             :aria-label="`Data graph for ${port.label}`"
-            :model-value="graphForSlot(slot) || null"
+            :model-value="dataGraphs[slot] || null"
             :options="dataGraphSelectOptions"
             @update:model-value="(versionId) => setGraphForSlot(slot, versionId || null)"
           />
@@ -98,6 +101,12 @@
         <InlineNote v-if="dataGraphOptions.length === 0" size="xs">
           No saved data graph in this library yet.
         </InlineNote>
+        <DataGraphBrowserDefault
+          kind="queryGroup"
+          :owner-id="groupId"
+          :selection="dataGraphs"
+          :options="dataGraphOptions"
+        />
       </div>
 
       <!-- Whatever else the group screen puts on Arguments — today, the
@@ -156,6 +165,8 @@ import {
 } from '../ui/alert-dialog';
 import ArgumentSetSwitcher, { type SwitcherEntry } from '../query-work-area/ArgumentSetSwitcher.vue';
 import ArgumentSetFooter from '../query-work-area/ArgumentSetFooter.vue';
+import ArgumentSetBrowserDefault from '../query-work-area/ArgumentSetBrowserDefault.vue';
+import DataGraphBrowserDefault from '../shared/DataGraphBrowserDefault.vue';
 import TupleBindingEditor from '../query-work-area/TupleBindingEditor.vue';
 import ArgumentScalarsPanel from '../query-work-area/ArgumentScalarsPanel.vue';
 import EmptyState from '../shared/EmptyState.vue';
@@ -195,12 +206,23 @@ const props = withDefaults(defineProps<{
   dataGraphPorts?: Array<{ id: string; label: string }>;
   /** Saved graphs offered for those slots. */
   dataGraphOptions?: DataGraphOption[];
+  /**
+   * The `DataGraphVersion` picked for each declared input, by slot. Owned by
+   * the work area, because a run sends it beside the argument set rather than
+   * inside it.
+   */
+  dataGraphs?: Array<string | null>;
 }>(), {
   limitParameters: () => [],
   offsetParameters: () => [],
   dataGraphPorts: () => [],
   dataGraphOptions: () => [],
+  dataGraphs: () => [],
 });
+
+const emit = defineEmits<{
+  (e: 'update:dataGraphs', value: Array<string | null>): void;
+}>();
 
 const groupIdRef = toRef(props, 'groupId');
 const args = props.argumentSetsComposable ?? useArgumentSets(groupIdRef, 'queryGroup');
@@ -209,28 +231,16 @@ const apiClient = useApiClient();
 const hasSelection = computed(() => args.selection.value.kind !== 'none');
 
 /*
- * The picker writes into the open argument set rather than into run-local
- * state beside it. This is the point of the split: the group knows its ports
- * and their order, the set carries the graphs in that order, and a run or a
- * test is then one pinned object instead of a set plus a loose graph. See
- * `docs/concepts.md`.
- *
  * Slots are dense — the Nth port takes the Nth graph — so a port left empty
- * holds its place with a binding that names no graph. Those are dropped on
- * the way to a run, which is what "this port is left open" means.
+ * holds its place with `null`. Trailing empties carry no meaning, so the list
+ * ends at the last port a graph was chosen for.
  */
-const graphForSlot = (slot: number): string =>
-  args.graphBindings.value[slot]?.dataGraphVersionId ?? '';
-
 function setGraphForSlot(slot: number, versionId: string | null) {
-  const next = [...args.graphBindings.value];
-  while (next.length <= slot) next.push({ dataGraphVersionId: null });
-  next[slot] = { ...next[slot], dataGraphVersionId: versionId };
-  // Trailing empties carry no meaning and would save as graphs that fill
-  // nothing, so the list ends at the last port a graph was chosen for.
-  while (next.length && !next[next.length - 1]?.dataGraphVersionId) next.pop();
-  args.graphBindings.value = next;
-  args.persistLocal();
+  const next = [...props.dataGraphs];
+  while (next.length <= slot) next.push(null);
+  next[slot] = versionId;
+  while (next.length && !next[next.length - 1]) next.pop();
+  emit('update:dataGraphs', next);
 }
 
 /*
@@ -392,16 +402,6 @@ async function handleCopyExecutionPayload() {
 defineExpose({
   getExecutionArgumentSetId: () => args.executionArgumentSetId.value,
   getInlineArguments: () => args.inlineExecutionPayload(),
-  /**
-   * The run's graphs, in slot order, with the ports left open dropped.
-   *
-   * Sent inline beside a named set only where the run target is the draft; a
-   * saved version is exported server-side and already carries them.
-   */
-  getInlineDataGraphs: () => args.graphBindings.value
-    .map((binding) => binding.dataGraphVersionId)
-    .filter((versionId): versionId is string => !!versionId)
-    .map((dataGraphVersionId) => ({ dataGraphVersionId })),
 });
 </script>
 

@@ -320,6 +320,13 @@ const ADDED_SINCE_SNAPSHOT = new Set<string>([
   'dataGraphs.createVersion',
   'dataGraphs.listVersions',
   'dataGraphs.getVersion',
+  /*
+   * Browser defaults, read-only: a run never applies them, so an agent that
+   * wants one reads it and passes it itself (`docs/proposals/browser-defaults.md`).
+   */
+  'queries.getBrowserDefaults',
+  'queryGroups.getBrowserDefaults',
+  'ruleSets.getBrowserDefaults',
   /* The MCP Apps door (see `docs/design/mcp-app.md`). */
   'app.bench.open',
   /*

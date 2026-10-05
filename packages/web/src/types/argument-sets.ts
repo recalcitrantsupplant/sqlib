@@ -9,7 +9,6 @@
 // SPARQL Value Types (W3C SPARQL 1.1 Query Results JSON Format)
 // ============================================================================
 
-import type { DataGraphFormat } from './data-graphs'
 
 export interface SparqlValue {
   type: 'uri' | 'literal'
@@ -70,47 +69,6 @@ export interface ArgumentTupleBinding {
   tupleSetVersions?: string[] | null
 }
 
-/**
- * One graph among a set's ordered inputs.
- *
- * Groups only. A query declares no graph parameter — its store is its backend,
- * and "run this query over that graph" is a backend hydrated from the graph
- * (`OxigraphDataGraphSource`).
- *
- * Which start-node port it fills is not here: an argument set carries payload
- * and the group owns the routing, so a graph carries only its slot.
- *
- * **A graph binding always pins a `DataGraphVersion`.** Inline is a door, not
- * a storage class: `contentString` + `contentFormat` are how pasted RDF is
- * *supplied*, and saving them is a create-then-pin — the server writes a
- * `DataGraph` with one version in the set's library and the stored binding
- * names that version. So a binding read back off the server carries a pin, and
- * a binding read back off a set saved before this rule may still carry content:
- * a saved version is immutable, so the old ones are left alone rather than
- * rewritten.
- *
- * Running is not saving. `/execute` and `/sparql` keep taking inline graphs as
- * transport (`dataGraphInline`), and an ad-hoc run mints nothing.
- */
-export interface ArgumentGraphBinding {
-  id?: string
-  /** Its slot among the set's ordered inputs — the key a group routes against. */
-  position?: number
-  dataGraphVersionId?: string | null
-  /** Pasted RDF on the way in; never what a saved binding comes back holding. */
-  contentString?: string | null
-  contentFormat?: DataGraphFormat | null
-  /**
-   * The name to give the graph pasted content is saved as.
-   *
-   * Sent pre-filled and editable rather than asked for in a blocking dialog —
-   * a name arrived at without friction is still a name, and what the earlier
-   * design feared was *unnamed* fragments, not unceremoniously named ones. The
-   * server derives one when this is absent.
-   */
-  name?: string | null
-}
-
 export interface ArgumentScalarBinding {
   id?: string
   parameterKind: 'limit' | 'offset'
@@ -125,7 +83,6 @@ export interface ArgumentSetVersionDetail {
   version: number
   tupleBindings: ArgumentTupleBinding[]
   scalarBindings: ArgumentScalarBinding[]
-  graphBindings?: ArgumentGraphBinding[]
   dateCreated: string
   dateModified: string
 }
@@ -146,7 +103,6 @@ export interface ArgumentSetDetail {
   currentVersion?: ArgumentSetVersionDetail | null
   tupleBindings: ArgumentTupleBinding[]
   scalarBindings: ArgumentScalarBinding[]
-  graphBindings?: ArgumentGraphBinding[]
   dateCreated: string
   dateModified: string
 }
@@ -156,16 +112,14 @@ export interface ArgumentSetInput {
   description?: string
   /** The library, for a set composed on the rail rather than under a callable. */
   libraryId?: string
-  /* Optional: a set may fill only numbers, or only graph ports. */
+  /* Optional: a set may fill only tables, or only numbers. */
   tupleBindings?: ArgumentTupleBinding[]
   scalarBindings?: ArgumentScalarBinding[]
-  graphBindings?: ArgumentGraphBinding[]
 }
 
 export interface ArgumentSetVersionInput {
   tupleBindings?: ArgumentTupleBinding[]
   scalarBindings?: ArgumentScalarBinding[]
-  graphBindings?: ArgumentGraphBinding[]
 }
 
 // ============================================================================
@@ -190,7 +144,6 @@ export interface ArgumentSetDraftBody {
   basedOnVersion: number | null
   tupleBindings: ArgumentTupleBinding[]
   scalarBindings: ArgumentScalarBinding[]
-  graphBindings: ArgumentGraphBinding[]
 }
 
 // ============================================================================

@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
   tableParameterKey,
-  graphParameterKey,
   scalarParameterKey,
   describeParameterKey,
   parameterKeysOf,
@@ -34,24 +33,8 @@ describe('tableParameterKey', () => {
 });
 
 describe('key kinds do not collide', () => {
-  it('a table and a graph in the same-numbered slot are different parameters', () => {
-    expect(tableParameterKey(['0'])).not.toBe(graphParameterKey(0));
-  });
-
   it('a limit and an offset of the same name are different parameters', () => {
     expect(scalarParameterKey('limit', 'pageSize')).not.toBe(scalarParameterKey('offset', 'pageSize'));
-  });
-
-  /*
-   * Graphs are keyed by slot: an argument set carries them in order and the
-   * group routes them, so there is no name to key on. The previous spelling
-   * keyed by port name and gave every unnamed graph the same key, which meant
-   * two positional graphs looked like one parameter to the completion check on
-   * `/execute`.
-   */
-  it('gives each graph slot its own key', () => {
-    expect(graphParameterKey(0)).not.toBe(graphParameterKey(1));
-    expect(graphParameterKey(1)).toBe(graphParameterKey(1));
   });
 });
 
@@ -60,20 +43,13 @@ describe('parameterKeysOf', () => {
     const keys = parameterKeysOf({
       tupleBindings: [{ variables: ['city'] }, { head: { vars: ['?postcode', '?state'] } }],
       scalarBindings: [{ parameterKind: 'limit', parameterName: 'pageSize' }],
-      graphBindings: [{ position: 0 }],
     });
 
     expect(keys).toEqual(new Set([
       tableParameterKey(['city']),
       tableParameterKey(['postcode', 'state']),
       scalarParameterKey('limit', 'pageSize'),
-      graphParameterKey(0),
     ]));
-  });
-
-  it('keys graphs by where they sit when position is left unset', () => {
-    const keys = parameterKeysOf({ graphBindings: [{}, {}] });
-    expect(keys).toEqual(new Set([graphParameterKey(0), graphParameterKey(1)]));
   });
 
   it('is empty for a version that fills nothing', () => {
@@ -90,8 +66,7 @@ describe('describeParameterKey', () => {
     expect(describeParameterKey(tableParameterKey(['b', 'a']))).toBe('the VALUES clause (?a ?b)');
   });
 
-  it('names a graph slot and a number', () => {
-    expect(describeParameterKey(graphParameterKey(0))).toBe('data graph input 1');
+  it('names a number', () => {
     expect(describeParameterKey(scalarParameterKey('offset', 'start'))).toBe("OFFSET parameter 'start'");
   });
 });

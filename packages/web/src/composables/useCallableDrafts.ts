@@ -204,10 +204,6 @@ function migrateLegacyArgumentSetDrafts(): CallableDraft[] {
             basedOnVersion: typeof legacy.basedOnVersion === 'number' ? legacy.basedOnVersion : null,
             tupleBindings: Array.isArray(legacy.tupleBindings) ? legacy.tupleBindings : [],
             scalarBindings: Array.isArray(legacy.scalarBindings) ? legacy.scalarBindings : [],
-            // Carried, not dropped. A group's set is mostly graphs, and hard-coding
-            // this to `[]` meant the migration read as a set that had lost its
-            // inputs rather than as a set that had moved key.
-            graphBindings: Array.isArray(legacy.graphBindings) ? legacy.graphBindings : [],
           },
           resultKind: 'BINDINGS',
           inputTuples: [],

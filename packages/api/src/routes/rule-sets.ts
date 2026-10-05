@@ -55,6 +55,8 @@ import {
   datablockSchema,
 } from '@sparql-query-lib/contracts/schema';
 import { registerEntityAuthGuard } from '../auth/entityGuard.js';
+import { registerBrowserDefaultsRoutes } from './browser-defaults.js';
+import { clearBrowserDefaultsIfMoved, deleteBrowserDefaultsOf } from '../lib/browserDefaults.js';
 import { DATA_GRAPH_FORMATS } from '../lib/dataGraphContent.js';
 import { DataGraphContentError, resolveDataGraphInput, type ResolvedDataGraph } from '../lib/dataGraphInput.js';
 import { TupleSeedInputError, resolveTupleSeedInput } from '../lib/tupleSeedInput.js';
@@ -357,6 +359,8 @@ export default async function (fastify: FastifyInstance) {
       }, { request });
       return { created: created as unknown as StoredEntity };
     },
+    afterUpdate: ({ before, updated }) => clearBrowserDefaultsIfMoved('RuleSet', before, updated),
+    beforeDelete: entity => deleteBrowserDefaultsOf(entity),
   });
 
   fastify.post('/:id/execute', ...reposRoute({
@@ -1100,6 +1104,7 @@ export default async function (fastify: FastifyInstance) {
     }));
   }));
 
+  registerBrowserDefaultsRoutes(fastify, 'RuleSet');
 }
 
 // ---------------------------------------------------------------------------

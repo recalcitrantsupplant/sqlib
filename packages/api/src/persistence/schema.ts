@@ -136,6 +136,16 @@ export type Property = {
     as: string;
     property: string;
   };
+  /**
+   * Stored, returned on read, and absent from generated create and update
+   * bodies.
+   *
+   * For a property that has its own write path, where the generic `PUT` would
+   * skip that path's checks. The browser defaults are the case: they are
+   * validated and written by `PUT /:id/browser-defaults`, so a generic update
+   * that set one would bypass the same-library rule.
+   */
+  '@readOnly'?: true;
 };
 
 /** An entity: its `rdf:type` class IRI plus one entry per property. */

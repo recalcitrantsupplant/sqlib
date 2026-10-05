@@ -932,14 +932,11 @@ function savedFor(section: ListSection): SidebarEntity[] {
  * Where a row came from, for the Origin grouping.
  *
  * An argument set says so itself: `scope` records the kind of callable it was
- * made on, and a set composed on the rail has none. A data graph says so
- * through `mintedFrom`, the argument set it was born on — and a graph binding
- * exists only on a group's set (a query declares no graph parameter), so a
- * minted graph is *From groups* whether or not that set is loaded here.
+ * made on, and a set composed on the rail has none. Everything else is composed
+ * where it is listed.
  *
  * Provenance, not a fence: a set made on one query is legitimately what another
- * wants, which is why the switcher computes a fits verdict at all, and a graph
- * minted from a group is an ordinary graph the moment it exists.
+ * wants, which is why the switcher computes a fits verdict at all.
  */
 function originFor(kind: string, entity: Record<string, unknown>): SidebarEntity['origin'] {
   if (kind === 'argumentSet') {
@@ -947,9 +944,6 @@ function originFor(kind: string, entity: Record<string, unknown>): SidebarEntity
     if (scope === 'query') return 'query';
     if (scope === 'queryGroup') return 'group';
     return 'composed';
-  }
-  if (kind === 'dataGraph') {
-    return typeof entity.mintedFrom === 'string' && entity.mintedFrom ? 'group' : 'composed';
   }
   return 'composed';
 }

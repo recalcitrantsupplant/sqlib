@@ -59,7 +59,8 @@ because they appear as IRIs in API responses.
 | `QueryInputVariable`, `QueryOutputVariable` | A query group node's ports |
 | `TriplesQuadsIO`, `BooleanIO`, `QueryIdInput` | Non-tabular ports: RDF output, an ASK's boolean, a dynamic node's query identifier |
 | `QueryNode`, `RuleSetNode`, `PatchNode`, `DuckDbEtlNode`, `DynamicQueryNode`, `StartNode`, `EndNode`, `QueryEdge` | A `QueryGroupVersion` |
-| `ArgumentTupleBinding`, `ArgumentScalarBinding`, `ArgumentGraphBinding` | An `ArgumentSetVersion` — a table per `VALUES` clause, a number per named limit, a graph per start-node RDF port. A graph binding always pins a `DataGraphVersion`: pasted RDF is saved as a `DataGraph` in the set's library and the binding names that version. See [inline inputs and the rail](../explanation/inline-inputs-and-the-rail.md). |
+| `ArgumentTupleBinding`, `ArgumentScalarBinding` | An `ArgumentSetVersion` — a table per `VALUES` clause, a number per named limit. An argument set holds no graphs; see [argument sets without graphs](../proposals/argument-sets-without-graphs.md). |
+| `BrowserDefaultDataGraph` | A `QueryGroup` or a `RuleSet` — the data graph the web app selects for one input, by `position`. See [browser defaults](../proposals/browser-defaults.md). |
 | `TestCase`, `TestCaseDataGraph` | A `TestVersion` |
 | `BenchmarkRun`, `BenchmarkNodeRun`, `BenchmarkIterationRun` and their `*Observation` counterparts | A benchmark execution |
 
@@ -184,6 +185,7 @@ Containment is `sdo:isPartOf`. What the predicate points at differs by kind:
 | `DataGraph`, `TupleSet`, `Test` | Exactly one `Library` |
 | Any `*Version` | Its stable pointer |
 | `TestCase`, `TestCaseDataGraph` | Their `TestVersion` |
+| `BrowserDefaultDataGraph` | Its `QueryGroup` or `RuleSet` |
 | `Patch` | The `Backend` whose data it describes — containment and target in one predicate, so read access follows the backend's path |
 | `Backend` | Nothing. Backends are account-level and shared by every library |
 | `BenchmarkExperiment` | A `Library`. Required on create; an experiment stored before it existed has none and is administrator-only until `scripts/backfill-benchmark-ownership.ts` assigns one |

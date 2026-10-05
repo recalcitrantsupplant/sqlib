@@ -23,9 +23,9 @@ overrideCacheCoordinatorProvider({
 
 const { pinsOn, describePins } = await import('../../src/lib/versionPins.js');
 
-const GRAPH = 'urn:sqlib:data-graph:seed';
-const V1 = 'urn:sqlib:data-graph-version:seed-1';
-const V2 = 'urn:sqlib:data-graph-version:seed-2';
+const TUPLE_SET = 'urn:sqlib:tuple-set:seed';
+const V1 = 'urn:sqlib:tuple-set-version:seed-1';
+const V2 = 'urn:sqlib:tuple-set-version:seed-2';
 
 function put(entity: Record<string, unknown>) {
   hoisted.entities.set(entity.$id as string, entity);
@@ -33,21 +33,21 @@ function put(entity: Record<string, unknown>) {
 
 beforeEach(() => {
   hoisted.entities.clear();
-  put({ $id: GRAPH, '@type': 'DataGraph', name: 'Seed' });
-  put({ $id: V1, '@type': 'DataGraphVersion', isPartOf: GRAPH, version: 1 });
-  put({ $id: V2, '@type': 'DataGraphVersion', isPartOf: GRAPH, version: 2 });
+  put({ $id: TUPLE_SET, '@type': 'TupleSet', name: 'Seed' });
+  put({ $id: V1, '@type': 'TupleSetVersion', isPartOf: TUPLE_SET, version: 1 });
+  put({ $id: V2, '@type': 'TupleSetVersion', isPartOf: TUPLE_SET, version: 2 });
 });
 
-/** An argument set whose one version pins `versionId`. */
+/** An argument set whose one version's table pins tuple set version `versionId`. */
 function argumentSetPinning(id: string, name: string, versionId: string) {
-  put({ $id: `${id}:binding`, '@type': 'ArgumentGraphBinding', position: 0, dataGraphVersion: versionId });
+  put({ $id: `${id}:binding`, '@type': 'ArgumentTupleBinding', position: 0, tupleSetVersions: [versionId] });
   put({ $id: id, '@type': 'ArgumentSet', name });
   put({
     $id: `${id}:v1`,
     '@type': 'ArgumentSetVersion',
     isPartOf: id,
     version: 1,
-    graphBindings: [`${id}:binding`],
+    tupleBindings: [`${id}:binding`],
   });
 }
 
@@ -80,7 +80,7 @@ describe('pinsOn', () => {
   });
 
   it('ignores a pin on a version outside the set asked about', () => {
-    argumentSetPinning('urn:sqlib:argument-set:elsewhere', 'Elsewhere', 'urn:sqlib:data-graph-version:other');
+    argumentSetPinning('urn:sqlib:argument-set:elsewhere', 'Elsewhere', 'urn:sqlib:tuple-set-version:other');
     expect(pinsOn([V1, V2])).toEqual([]);
   });
 
@@ -99,10 +99,11 @@ describe('pinsOn', () => {
   });
 
   it('finds a data graph version named by a test case', () => {
+    const graphVersion = 'urn:sqlib:data-graph-version:fixture-1';
     put({ $id: 'urn:test', '@type': 'Test', name: 'Smoke' });
     put({ $id: 'urn:test:v1', '@type': 'TestVersion', isPartOf: 'urn:test' });
-    put({ $id: 'urn:case', '@type': 'TestCase', isPartOf: 'urn:test:v1', dataGraphVersion: V1 });
-    expect(pinsOn([V1])).toMatchObject([{ heldBy: 'urn:test:v1', heldByType: 'TestVersion', holderName: 'Smoke' }]);
+    put({ $id: 'urn:case', '@type': 'TestCase', isPartOf: 'urn:test:v1', dataGraphVersion: graphVersion });
+    expect(pinsOn([graphVersion])).toMatchObject([{ heldBy: 'urn:test:v1', heldByType: 'TestVersion', holderName: 'Smoke' }]);
   });
 });
 
@@ -111,7 +112,7 @@ describe('describePins', () => {
     argumentSetPinning('urn:sqlib:argument-set:a', 'Orders seed', V1);
     argumentSetPinning('urn:sqlib:argument-set:b', 'Returns seed', V2);
 
-    const sentence = describePins('data graph', pinsOn([V1, V2]));
+    const sentence = describePins('tuple set', pinsOn([V1, V2]));
     expect(sentence).toContain('Orders seed');
     expect(sentence).toContain('Returns seed');
     expect(sentence).toContain('argument sets');
@@ -119,6 +120,6 @@ describe('describePins', () => {
 
   it('says "argument set" when exactly one holds it', () => {
     argumentSetPinning('urn:sqlib:argument-set:a', 'Orders seed', V1);
-    expect(describePins('data graph', pinsOn([V1]))).toContain('This data graph is pinned by argument set Orders seed');
+    expect(describePins('tuple set', pinsOn([V1]))).toContain('This tuple set is pinned by argument set Orders seed');
   });
 });
