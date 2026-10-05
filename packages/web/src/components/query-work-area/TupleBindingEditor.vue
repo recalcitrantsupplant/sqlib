@@ -749,8 +749,8 @@ function setCell(rowIndex: number, name: string, value: SparqlValue) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
   border: none;
   border-radius: var(--radius-sm);
   background: transparent;

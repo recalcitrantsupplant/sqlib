@@ -288,13 +288,13 @@ const updateVariable = (
 
 .select-compact {
   min-width: unset;
-  height: 32px;
+  height: var(--control-h);
   border-radius: var(--radius-lg);
 }
 
 .btn-remove-var {
-  height: 32px;
-  width: 32px;
+  height: var(--control-h);
+  width: var(--control-h);
   display: flex;
   align-items: center;
   justify-content: center;

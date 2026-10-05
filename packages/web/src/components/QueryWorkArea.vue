@@ -2586,8 +2586,8 @@ onUnmounted(() => {
 
 .btn-tuple-action {
   flex-shrink: 0;
-  width: 28px;
-  height: 28px;
+  width: var(--control-h);
+  height: var(--control-h);
   padding: 0;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
@@ -2749,8 +2749,8 @@ onUnmounted(() => {
 }
 
 .arguments-content-focus .btn-tuple-action {
-  width: 32px;
-  height: 32px;
+  width: var(--control-h-lg);
+  height: var(--control-h-lg);
 }
 
 .arguments-content-focus .btn-add-tuple-row {

@@ -894,8 +894,8 @@ function ageOf(item: CallableDraft) {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 20px;
-  height: 20px;
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
   padding: 0;
   border: none;
   border-radius: var(--radius-sm);
@@ -912,7 +912,7 @@ function ageOf(item: CallableDraft) {
 /* Full-bleed so its lower border joins the one the section bar draws. */
 .rail-hinge {
   width: 100%;
-  height: 40px;
+  height: var(--panel-bar-h);
   border-radius: 0;
   border-bottom: 1px solid var(--border-default);
   background: var(--surface);
@@ -924,7 +924,7 @@ function ageOf(item: CallableDraft) {
   justify-content: center;
   flex-shrink: 0;
   width: 28px;
-  height: 28px;
+  height: var(--control-h);
   margin-top: var(--space-4);
   padding: 0;
   border: 1px solid var(--border-default);
@@ -1005,7 +1005,7 @@ function ageOf(item: CallableDraft) {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  height: 26px;
+  height: var(--control-h);
   margin-left: auto;
   padding: 0 var(--space-4);
   border: 1px solid var(--border-default);
@@ -1067,7 +1067,7 @@ function ageOf(item: CallableDraft) {
 .group-by-button {
   display: inline-flex;
   flex-shrink: 0;
-  height: 26px;
+  height: var(--control-h);
   align-items: center;
   gap: 5px;
   padding: 0 var(--space-4);
@@ -1314,6 +1314,8 @@ function ageOf(item: CallableDraft) {
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
   padding: 0;
   border: none;
   background: transparent;

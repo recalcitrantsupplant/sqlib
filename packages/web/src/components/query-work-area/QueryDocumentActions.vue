@@ -1,14 +1,14 @@
 <template>
   <div class="document-actions">
     <button
-      class="editor-action"
+      class="icon-control"
       type="button"
       data-testid="format-query"
       title="Format the query"
       :disabled="!code.trim()"
       @click="emit('format')"
     >
-      <WandSparkles :size="13" />
+      <WandSparkles :size="16" />
     </button>
 
     <PrefixConversionButtons
@@ -25,15 +25,15 @@
     -->
     <button
       v-if="canDiff"
-      class="editor-action"
-      :class="{ 'editor-action--active': diffActive }"
+      class="icon-control"
+      :class="{ 'icon-control--active': diffActive }"
       type="button"
       data-testid="diff-query"
       :disabled="!diffTitle"
       :title="diffTitle || NOTHING_TO_DIFF"
       @click="emit('diff')"
     >
-      <GitCompare :size="13" />
+      <GitCompare :size="16" />
     </button>
   </div>
 </template>

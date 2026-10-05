@@ -58,13 +58,13 @@
     -->
     <button
       v-if="showFormat"
-      class="bar-button bar-icon"
+      class="icon-control"
       data-testid="format-query"
       title="Format"
       :disabled="!canFormat"
       @click="emit('format')"
     >
-      <WandSparkles :size="13" />
+      <WandSparkles :size="16" />
     </button>
     <!--
       The prefix conversions, beside Format because they are the same kind of
@@ -85,22 +85,22 @@
     -->
     <button
       v-if="showImport"
-      class="bar-button bar-icon"
+      class="icon-control"
       data-testid="import-body"
       :title="importTitle"
       @click="emit('import')"
     >
-      <FileInput :size="13" />
+      <FileInput :size="16" />
     </button>
     <button
       v-if="showDiff && !isScratch"
-      class="bar-button bar-icon"
-      :class="{ 'bar-icon-active': diffActive }"
+      class="icon-control"
+      :class="{ 'icon-control--active': diffActive }"
       data-testid="diff-query"
       :title="currentVersionNumber ? `Diff draft vs v${currentVersionNumber}` : 'Diff draft'"
       @click="emit('toggle-diff')"
     >
-      <GitCompare :size="13" />
+      <GitCompare :size="16" />
     </button>
     <button
       v-if="editCount > 0 && !isScratch"
@@ -145,8 +145,8 @@
     -->
     <DropdownMenu v-if="showMore && !isScratch && (canWrite || hasMenuItems)">
       <DropdownMenuTrigger as-child>
-        <button class="bar-button bar-icon" data-testid="query-more" title="More actions">
-          <EllipsisVertical :size="13" />
+        <button class="icon-control" data-testid="query-more" title="More actions">
+          <EllipsisVertical :size="16" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
@@ -398,11 +398,11 @@ const saveTitle = computed(() => {
   display: inline-flex;
   flex-shrink: 0;
   align-items: center;
-  gap: 5px;
-  height: 28px;
+  gap: var(--space-2);
+  height: var(--control-h);
   padding: 0 var(--space-5);
   border: 1px solid var(--border-default);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius);
   background: var(--surface);
   color: var(--ink-secondary);
   font-family: inherit;
@@ -434,15 +434,6 @@ const saveTitle = computed(() => {
   cursor: not-allowed;
 }
 
-/* Square, so the ⋮ sits centred rather than in a text-width pill. */
-.bar-icon {
-  justify-content: center;
-  width: 28px;
-  padding: 0;
-}
-
-.bar-icon-active {
-  border-color: var(--action);
-  color: var(--action);
-}
+/* The icon buttons are `.icon-control` (compact-buttons.css), the same box
+   the prefix pair beside them is drawn in. */
 </style>

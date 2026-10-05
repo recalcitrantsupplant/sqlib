@@ -344,8 +344,8 @@ async function submit() {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: var(--control-h);
+  height: var(--control-h);
   border: 1px solid var(--border-default);
   border-radius: var(--radius);
   background: var(--surface);
@@ -561,7 +561,7 @@ async function submit() {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  height: 24px;
+  height: var(--control-h);
   padding: 0 var(--space-4);
   border: 1px solid var(--border-default);
   border-radius: var(--radius);
@@ -586,7 +586,7 @@ async function submit() {
   align-items: center;
   justify-content: center;
   width: 26px;
-  height: 26px;
+  height: var(--control-h);
   margin-left: auto;
   border: 1px solid var(--action);
   border-radius: var(--radius);

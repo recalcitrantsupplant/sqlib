@@ -812,7 +812,7 @@ const executeButtonTitle = computed(() => {
 
 .mediatype-trigger-compact {
   width: var(--grid-6);
-  height: var(--grid-unit);
+  height: var(--control-h);
   font-size: var(--text-body);
 }
 

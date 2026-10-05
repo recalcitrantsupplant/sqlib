@@ -342,6 +342,15 @@
   --control-h-lg: 34px; /* primary page actions only */
 
   /*
+   * The glyph inside an icon-only button, one per control step, so a button
+   * and its icon change size together. A 13px glyph in a 28px box beside a
+   * 16px glyph in another 28px box is the same button drawn twice.
+   */
+  --icon-sm: 12px; /* in a --control-h-sm box */
+  --icon: 16px; /* in a --control-h box */
+  --icon-lg: 20px; /* in a --control-h-lg box */
+
+  /*
    * Every horizontal band in a work area: the save bar and the tab strip that
    * top the two panels, the run bar and the results action bar under them, a
    * `PanelHeader`, and the footers that close both panels.

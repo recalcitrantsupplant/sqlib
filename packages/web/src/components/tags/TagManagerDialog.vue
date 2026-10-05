@@ -196,8 +196,8 @@ function remove(id: string) {
 
 .colour-button {
   display: inline-flex;
-  height: 22px;
-  width: 22px;
+  height: var(--control-h-sm);
+  width: var(--control-h-sm);
   align-items: center;
   justify-content: center;
   padding: 0;
@@ -259,7 +259,7 @@ function remove(id: string) {
 
 .confirm-cancel,
 .confirm-delete {
-  height: 22px;
+  height: var(--control-h-sm);
   padding: 0 var(--space-4);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-sm);

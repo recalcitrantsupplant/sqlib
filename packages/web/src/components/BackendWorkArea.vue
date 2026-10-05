@@ -1921,7 +1921,7 @@ function relativeTime(iso: string): string {
 }
 
 .segment {
-  height: 24px;
+  height: var(--control-h-sm);
   padding: 0 var(--space-5);
   border: 1px solid var(--border-default);
   background: var(--surface);
@@ -2179,7 +2179,7 @@ function relativeTime(iso: string): string {
   display: inline-flex;
   align-items: center;
   gap: var(--space-3);
-  height: 26px;
+  height: var(--control-h);
   padding: 0 var(--space-5);
   border: 1px dashed var(--border-strong);
   border-radius: var(--radius-full);

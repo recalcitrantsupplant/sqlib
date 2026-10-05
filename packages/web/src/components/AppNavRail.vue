@@ -145,7 +145,7 @@ const visibleSections = computed(() =>
 
 .rail-icon-button {
   width: 44px;
-  height: 34px;
+  height: var(--control-h-lg);
   display: flex;
   align-items: center;
   justify-content: center;
