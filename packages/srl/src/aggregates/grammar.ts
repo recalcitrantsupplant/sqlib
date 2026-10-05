@@ -1,6 +1,7 @@
-import { createToken } from '@traqula/core';
+import { createToken, type ImplArgs, type ParserRule } from '@traqula/core';
 import { gram as g, lex as l } from '@traqula/rules-sparql-1-1';
 import { srlGroupBody } from '../grammar.js';
+import type { SrlAggregate, SrlBodyItem } from '../ast.js';
 import { assignOp } from '../tokens.js';
 
 /**
@@ -31,19 +32,27 @@ import { assignOp } from '../tokens.js';
 export const aggregateKeyword = createToken({ name: 'SrlAggregate', pattern: /aggregate/i, label: 'AGGREGATE' });
 export const perKeyword = createToken({ name: 'SrlPer', pattern: /per/i, label: 'PER' });
 
+/** The parse context's mode set, which decides where an aggregate may appear. */
+interface AggregateParseContext {
+  parseMode: Set<string>;
+}
+
 /** A `?var` token carries its name on `.value`. */
 function varName(term: unknown): string {
   return String((term as { value?: unknown } | null | undefined)?.value ?? '');
 }
 
-export const srlAggregate = {
+export const srlAggregate: ParserRule<unknown, 'srlAggregate', SrlAggregate> = {
   name: 'srlAggregate',
   impl:
     ({
       ACTION, CONSUME, CONSUME2, SUBRULE, SUBRULE2, SUBRULE3, SUBRULE4, SUBRULE5, SUBRULE6,
       OR, OR2, OPTION, AT_LEAST_ONE, AT_LEAST_ONE2, MANY,
-    }: any) =>
-    (C: any) => {
+    }: ImplArgs) =>
+    (context) => {
+      // The builder's context is untyped here (see ../grammar.ts); what this
+      // rule reads from it is the parse-mode set every Traqula context has.
+      const C = context as AggregateParseContext;
       CONSUME(aggregateKeyword);
       let mode: 'per' | 'per-all' | 'group' = 'per';
       const keys: string[] = [];
@@ -89,7 +98,11 @@ export const srlAggregate = {
       // Chevrotain identifies a grammar call by its method and occurrence
       // index, so the first assignment and the repeated ones need different
       // indices even though they parse the same thing.
-      const assignment = (subVar: any, consumeAssign: any, subAggregate: any): void => {
+      const assignment = (
+        subVar: ImplArgs['SUBRULE'],
+        consumeAssign: ImplArgs['CONSUME'],
+        subAggregate: ImplArgs['SUBRULE'],
+      ): void => {
         const variable = subVar(g.var_);
         consumeAssign(assignOp);
         // Traqula refuses an aggregate outside SELECT, HAVING and ORDER BY
@@ -106,6 +119,12 @@ export const srlAggregate = {
         assignment(SUBRULE5, CONSUME2, SUBRULE6);
       });
       CONSUME(l.symbols.RParen);
-      return ACTION(() => ({ kind: 'aggregate', mode, keys, body, assignments }));
+      return ACTION((): SrlAggregate => ({
+        kind: 'aggregate',
+        mode,
+        keys,
+        body: body as SrlBodyItem[],
+        assignments,
+      }));
     },
 };

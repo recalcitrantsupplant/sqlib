@@ -18,6 +18,6 @@ import { aggregateKeyword, perKeyword } from './aggregates/grammar.js';
 export const srlLexerBuilder = LexerBuilder.create(l12.sparql12LexerBuilder)
   .add(ruleKeyword, setKeyword, dataKeyword, notKeyword, tupleKeyword, perKeyword)
   .addBefore(l11.terminals.pNameNs as any, assignOp)
-  .addBefore(l11.a as any, aggregateKeyword);
+  .addBefore(l11.a, aggregateKeyword);
 
 export const srlTokenVocabulary: readonly unknown[] = srlLexerBuilder.tokenVocabulary as readonly unknown[];
