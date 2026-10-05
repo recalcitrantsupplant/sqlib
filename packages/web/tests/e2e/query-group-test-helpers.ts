@@ -459,7 +459,7 @@ export async function setupMockApi(page: Page, state: MockState, options: SetupM
     await json(route, 200, state.argumentSets.filter((set) => set.libraryId === libraryId));
   });
 
-  await page.route(/\/argument-sets\/[^/]+\/v\/\d+$/, async (route) => {
+  await page.route(/\/argument-sets\/[^/]+\/versions\/\d+$/, async (route) => {
     const segments = getUrlSegments(route);
     const setId = decodeId(segments[segments.length - 3] ?? '');
     const versionNumber = Number(segments[segments.length - 1]);
@@ -471,7 +471,7 @@ export async function setupMockApi(page: Page, state: MockState, options: SetupM
     await json(route, 200, version);
   });
 
-  await page.route(/\/argument-sets\/[^/]+\/v$/, async (route) => {
+  await page.route(/\/argument-sets\/[^/]+\/versions$/, async (route) => {
     const segments = getUrlSegments(route);
     const setId = decodeId(segments[segments.length - 2] ?? '');
     const set = findArgumentSet(setId);
