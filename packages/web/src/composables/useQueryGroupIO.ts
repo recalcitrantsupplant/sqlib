@@ -685,7 +685,7 @@ export function useQueryGroupIO(deps: UseQueryGroupIODeps): UseQueryGroupIOResul
 
   /*
    * Takes the plain expansion, not the with-iri-map one. It reads no `iriMap`,
-   * and `GET /query-groups/:id/v/:version` returns a payload where that field
+   * and `GET /query-groups/:id/versions/:version` returns a payload where that field
    * is optional — so demanding it described a caller that does not exist.
    */
   const populateFromExpanded = (expanded: QueryGroupVersionExpanded) => {

@@ -160,8 +160,15 @@ plan records `refDataGraph` alongside `refDataGraphVersion`.
 Concurrency on the stable pointer uses HTTP validators rather than version
 numbers. A `GET` returns `ETag` and `Last-Modified` derived from `dateModified`;
 a `PUT` or `PATCH` carrying `If-Match` that no longer matches answers `412
-Precondition Failed` with the current entity in the body, so the caller can
-refresh and retry.
+Precondition Failed` with `{ error, expected, current }`, the current entity
+in `current`, so the caller can refresh and retry.
+
+`dateModified` is the revision: every write moves it forward, by one
+millisecond past the previous value when two writes land in the same
+millisecond, so no two states of an entity share a tag. `If-Match` follows RFC
+9110: `*`, or a comma-separated list of tags of which any may match, compared
+strongly — a weak `W/"…"` tag never matches. A bare, unquoted `dateModified` is
+accepted as a strong tag, as clients have always sent it.
 
 See [versioning and immutability](../explanation/versioning-and-immutability.md)
 for why the model is shaped this way.

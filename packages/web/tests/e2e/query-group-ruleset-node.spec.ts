@@ -43,7 +43,7 @@ const draftNode = (page: Page) => page.locator('.vue-flow__node[data-id^="urn:ui
 /** The POST that creates the next group version, with the draft as its body. */
 const versionCreateRequest = (page: Page) =>
   page.waitForRequest(
-    (request) => request.method() === 'POST' && /\/query-groups\/[^/]+\/v$/.test(new URL(request.url()).pathname),
+    (request) => request.method() === 'POST' && /\/query-groups\/[^/]+\/versions$/.test(new URL(request.url()).pathname),
   );
 
 /**
@@ -272,7 +272,7 @@ test.describe('Query group ruleset node (mocked)', () => {
      */
     let posted = false;
     page.on('request', (request) => {
-      if (request.method() === 'POST' && /\/query-groups\/[^/]+\/v$/.test(new URL(request.url()).pathname)) {
+      if (request.method() === 'POST' && /\/query-groups\/[^/]+\/versions$/.test(new URL(request.url()).pathname)) {
         posted = true;
       }
     });

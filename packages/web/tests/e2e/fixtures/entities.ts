@@ -547,15 +547,15 @@ const json = (route: Route, body: unknown, status = 200) =>
  */
 const ROUTES: Array<[RegExp, Handler]> = [
   // Queries
-  [/\/queries\/[^/]+\/v\/\d+$/, (r) => json(r, QUERY_VERSION_EXPANDED)],
-  [/\/queries\/[^/]+\/v$/, (r) => json(r, [QUERY_VERSION])],
+  [/\/queries\/[^/]+\/versions\/\d+$/, (r) => json(r, QUERY_VERSION_EXPANDED)],
+  [/\/queries\/[^/]+\/versions$/, (r) => json(r, [QUERY_VERSION])],
   [/\/queries\/[^/]+$/, (r) => json(r, QUERY)],
   [/\/queries$/, (r) => json(r, [QUERY])],
 
   // Query groups
-  [/\/query-groups\/[^/]+\/v\/\d+\/validate$/, (r) => json(r, { valid: true, errors: [], warnings: [] })],
-  [/\/query-groups\/[^/]+\/v\/\d+$/, (r) => json(r, QUERY_GROUP_VERSION_EXPANDED)],
-  [/\/query-groups\/[^/]+\/v$/, (r) => json(r, [QUERY_GROUP_VERSION])],
+  [/\/query-groups\/[^/]+\/versions\/\d+\/validate$/, (r) => json(r, { valid: true, errors: [], warnings: [] })],
+  [/\/query-groups\/[^/]+\/versions\/\d+$/, (r) => json(r, QUERY_GROUP_VERSION_EXPANDED)],
+  [/\/query-groups\/[^/]+\/versions$/, (r) => json(r, [QUERY_GROUP_VERSION])],
   [/\/query-groups\/[^/]+$/, (r) => json(r, QUERY_GROUP)],
   [/\/query-groups$/, (r) => json(r, [QUERY_GROUP])],
 
@@ -596,9 +596,9 @@ const ROUTES: Array<[RegExp, Handler]> = [
   [/\/benchmark-experiments\/runs\/[^/]+\/iteration-observations$/, (r) => json(r, [])],
   [/\/benchmark-experiments\/runs\/[^/]+\/observations$/, (r) => json(r, BENCHMARK_OBSERVATIONS)],
   [/\/benchmark-experiments\/runs\/[^/]+$/, (r) => json(r, BENCHMARK_RUN)],
-  [/\/benchmark-experiments\/[^/]+\/v\/\d+\/runs$/, (r) => json(r, [BENCHMARK_RUN])],
-  [/\/benchmark-experiments\/[^/]+\/v\/\d+$/, (r) => json(r, BENCHMARK_VERSION)],
-  [/\/benchmark-experiments\/[^/]+\/v$/, (r) => json(r, [BENCHMARK_VERSION])],
+  [/\/benchmark-experiments\/[^/]+\/versions\/\d+\/runs$/, (r) => json(r, [BENCHMARK_RUN])],
+  [/\/benchmark-experiments\/[^/]+\/versions\/\d+$/, (r) => json(r, BENCHMARK_VERSION)],
+  [/\/benchmark-experiments\/[^/]+\/versions$/, (r) => json(r, [BENCHMARK_VERSION])],
   [/\/benchmark-experiments\/[^/]+$/, (r) => json(r, BENCHMARK_EXPERIMENT)],
   [/\/benchmark-experiments$/, (r) => json(r, [BENCHMARK_EXPERIMENT])],
 

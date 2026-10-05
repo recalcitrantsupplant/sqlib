@@ -128,7 +128,7 @@ describe('Query Group Version Validation', () => {
 
     const response = await app.inject({
       method: 'GET',
-      url: `/query-groups/${testGroupId}/v/1/validate`,
+      url: `/query-groups/${testGroupId}/versions/1/validate`,
     });
     expect(response.statusCode).toBe(200);
     const body = response.json();
@@ -191,7 +191,7 @@ describe('Query Group Version Validation', () => {
 
     const response = await app.inject({
       method: 'GET',
-      url: `/query-groups/${testGroupId}/v/1/validate`,
+      url: `/query-groups/${testGroupId}/versions/1/validate`,
     });
     expect(response.statusCode).toBe(200);
     const body = response.json();
@@ -230,7 +230,7 @@ describe('Query Group Version Validation', () => {
 
     const response = await app.inject({
       method: 'GET',
-      url: `/query-groups/${testGroupId}/v/1/validate`,
+      url: `/query-groups/${testGroupId}/versions/1/validate`,
     });
     expect(response.statusCode).toBe(200);
     const body = response.json();
@@ -260,7 +260,7 @@ describe('Query Group Version Validation', () => {
 
     const response = await app.inject({
       method: 'GET',
-      url: `/query-groups/${testGroupId}/v/1/validate`,
+      url: `/query-groups/${testGroupId}/versions/1/validate`,
     });
     expect(response.statusCode).toBe(200);
     const body = response.json();

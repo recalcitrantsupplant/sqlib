@@ -93,7 +93,7 @@ test.describe('Scratch queries', () => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(createdQueries) });
     });
 
-    await page.route(`**//${API_HOST}/queries/*/v`, async (route: Route) => {
+    await page.route(`**//${API_HOST}/queries/*/versions`, async (route: Route) => {
       if (route.request().method() === 'POST') {
         if (failNextVersion) {
           failNextVersion = false;
@@ -105,7 +105,7 @@ test.describe('Scratch queries', () => {
           return;
         }
         const body = route.request().postDataJSON();
-        const queryId = decodeURIComponent(route.request().url().split('/queries/')[1]!.replace('/v', ''));
+        const queryId = decodeURIComponent(route.request().url().split('/queries/')[1]!.replace('/versions', ''));
         // Numbered from what this query already has: a hardcoded v1 made a
         // second save indistinguishable from the first, so the version pill
         // could never be seen to move.
@@ -140,7 +140,7 @@ test.describe('Scratch queries', () => {
         });
         return;
       }
-      const queryId = decodeURIComponent(route.request().url().split('/queries/')[1]!.replace('/v', ''));
+      const queryId = decodeURIComponent(route.request().url().split('/queries/')[1]!.replace('/versions', ''));
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -148,7 +148,7 @@ test.describe('Scratch queries', () => {
       });
     });
 
-    await page.route(`**//${API_HOST}/queries/*/v/*`, async (route: Route) => {
+    await page.route(`**//${API_HOST}/queries/*/versions/*`, async (route: Route) => {
       const version = createdVersions.at(-1);
       await route.fulfill({
         status: 200,

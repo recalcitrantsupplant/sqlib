@@ -101,14 +101,14 @@ async function mockQuery(page: Page, fixture: Fixture) {
     }
     await json(route, entity(fixture), { ETag: `"etag-${fixture.id}"` });
   });
-  await page.route(`**//${API_HOST}/queries/${encoded}/v`, async (route: Route) => {
+  await page.route(`**//${API_HOST}/queries/${encoded}/versions`, async (route: Route) => {
     if (route.request().method() !== 'GET') {
       await route.fallback();
       return;
     }
     await json(route, [version(fixture)]);
   });
-  await page.route(`**//${API_HOST}/queries/${encoded}/v/*`, async (route: Route) => {
+  await page.route(`**//${API_HOST}/queries/${encoded}/versions/*`, async (route: Route) => {
     if (route.request().method() !== 'GET') {
       await route.fallback();
       return;

@@ -39,7 +39,7 @@ describe('Schema Validation for Query Version Creation', () => {
 
     // Create a simple test route that uses the createQueryVersionForQuerySchema validation
     app.post(
-      '/test-validation/:id/v',
+      '/test-validation/:id/versions',
       { schema: schemas.createQueryVersionForQuerySchema as any },
       async (request, reply) => {
         // Just return success if validation passes
@@ -57,7 +57,7 @@ describe('Schema Validation for Query Version Creation', () => {
   it('allows queryVersion object with id field (should pass validation)', async () => {
     const res = await app.inject({
       method: 'POST',
-      url: '/test-validation/test-query-id/v',
+      url: '/test-validation/test-query-id/versions',
       payload: {
         queryVersion: {
           id: 'urn:sqlib:query-version:custom-id',

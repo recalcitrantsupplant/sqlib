@@ -159,7 +159,7 @@ describe('query group canvas round trip', () => {
   const expand = async (built: BuiltGroup): Promise<QueryGroupVersionExpandedWithIriMap> => {
     const response = await harness.app.inject({
       method: 'GET',
-      url: `/query-groups/${encodeURIComponent(built.groupId)}/v/${built.version}`,
+      url: `/query-groups/${encodeURIComponent(built.groupId)}/versions/${built.version}`,
     });
     expect(response.statusCode, response.payload.slice(0, 400)).toBe(200);
     return response.json() as QueryGroupVersionExpandedWithIriMap;
@@ -168,7 +168,7 @@ describe('query group canvas round trip', () => {
   const save = async (built: BuiltGroup, payload: Record<string, unknown>): Promise<BuiltGroup> => {
     const response = await harness.app.inject({
       method: 'POST',
-      url: `/query-groups/${encodeURIComponent(built.groupId)}/v`,
+      url: `/query-groups/${encodeURIComponent(built.groupId)}/versions`,
       payload,
     });
     expect(

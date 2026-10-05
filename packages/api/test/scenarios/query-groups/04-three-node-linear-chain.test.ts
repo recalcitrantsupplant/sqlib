@@ -87,7 +87,7 @@ describe('Three-Node Linear Chain', () => {
 
       const versionResponse = await context.app.inject({
         method: 'POST',
-        url: `/queries/${encodeURIComponent(queryEntity.id)}/v`,
+        url: `/queries/${encodeURIComponent(queryEntity.id)}/versions`,
         payload: {
           queryVersion: {
             queryString,
@@ -109,7 +109,7 @@ describe('Three-Node Linear Chain', () => {
 
     const queryGroupVersionResponse = await context.app.inject({
       method: 'POST',
-      url: `/query-groups/${encodeURIComponent(queryGroup.id)}/v`,
+      url: `/query-groups/${encodeURIComponent(queryGroup.id)}/versions`,
       payload: {
         queryGroupVersion: {},
         endNode: {

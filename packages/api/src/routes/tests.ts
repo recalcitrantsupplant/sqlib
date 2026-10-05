@@ -13,19 +13,18 @@
 
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { maxRuleIterations } from '../config/executionLimits.js';
-import { classifyVersionPatch } from '../lib/versionPatch.js';
-import { mintId } from '../lib/id.js';
 import { toRestApi } from '../persistence/utils/id-adapter.js';
 import type { LdkitTest } from '../persistence/schemas/TestSchema.js';
 import type { LdkitTestVersion } from '../persistence/schemas/TestVersionSchema.js';
 import type { LdkitTestCase } from '../persistence/schemas/TestCaseSchema.js';
 import { listCaseDataGraphs } from '../lib/testCases.js';
 import { TAG_MATCH_MODES, type TagMatchMode } from '@sparql-query-lib/contracts';
-import { reposRoute, validateIfMatch, setEntityConcurrencyHeaders, findVersionByNumber } from './route-helpers.js';
+import { reposRoute, RouteError } from './route-helpers.js';
+import { registerVersionedEntityRoutes, type StoredEntity } from './versionedEntity.js';
 import type { EntityRepositories } from '../lib/EntityRepositories.js';
-import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
+import { getCacheCoordinator, getEntityRepositories } from '../lib/CacheCoordinatorProvider.js';
 import { analyseReferences, describeWrongType } from '../lib/entityReferences.js';
-import { analyseTags, inheritableTags } from '../lib/tagMembership.js';
+import { inheritableTags } from '../lib/tagMembership.js';
 import { createTestSchema, updateTestSchema } from '@sparql-query-lib/contracts/schema';
 import { createTestVersion, annotateTestVersion, TestVersionError } from '../lib/TestVersionWriter.js';
 import {
@@ -37,9 +36,8 @@ import {
   type TestRunResult,
 } from '../lib/TestRunner.js';
 import { EXPECTATION_KINDS } from '../lib/testComparators.js';
-import { ImmutableEntityError } from '../lib/immutability.js';
 import { registerEntityAuthGuard } from '../auth/entityGuard.js';
-import { filterReadable, requireContainmentWritable, requireLibraryMode, resolveOwningLibrary } from '../auth/enforce.js';
+import { requireLibraryMode, resolveOwningLibrary } from '../auth/enforce.js';
 import { assertBackendAccess } from '../auth/executionScope.js';
 import {
   negotiateReportFormat,
@@ -206,19 +204,6 @@ const createTestVersionBodySchema = {
   additionalProperties: false,
 } as const;
 
-
-/**
- * A version PATCH answers a content field with a 409 that says why, so the
- * shape carries the offending fields alongside the message.
- */
-const contentPatchRejectedSchema = {
-  type: 'object',
-  properties: {
-    error: { type: 'string' },
-    fields: { type: 'array', items: { type: 'string' } },
-  },
-  required: ['error'],
-} as const;
 
 const annotateTestVersionBodySchema = {
   type: 'object',
@@ -559,12 +544,6 @@ const idParamSchema = {
   required: ['id'],
 } as const;
 
-const versionParamSchema = {
-  type: 'object',
-  properties: { id: { type: 'string' }, version: { type: 'string' } },
-  required: ['id', 'version'],
-} as const;
-
 /**
  * The subject filter behind the Tests tab on a record page.
  *
@@ -633,385 +612,143 @@ async function deleteVersionCascade(repos: EntityRepositories, versionId: string
 export default async function (fastify: FastifyInstance) {
   registerEntityAuthGuard(fastify, { executeSuffixes: ['/run'], exemptSuffixes: [] });
 
-  fastify.get('/', ...reposRoute({
-      tags: ['Test'],
-      summary: 'List tests, optionally filtered by subject or tags',
-      querystring: listQuerySchema,
-      response: {
-        200: { type: 'array', items: testResponseSchema },
+  registerVersionedEntityRoutes(fastify, {
+    noun: 'test',
+    type: 'Test',
+    versionType: 'TestVersion',
+    idKind: 'test',
+    schemas: {
+      list: {
+        tags: ['Test'],
+        summary: 'List tests, optionally filtered by subject or tags',
+        querystring: listQuerySchema,
+        response: { 200: { type: 'array', items: testResponseSchema } },
       },
-    }, async ({ repos, reply, request }) => {
-    const { subject, subjectKind, match } = request.query;
-    const tags = parseTagList(request.query.tags);
-    const items = (repos.Test.list() as LdkitTest[])
-      .filter(test => (subject ? test.subject === subject : true))
-      .filter(test => (subjectKind ? test.subjectKind === subjectKind : true))
-      .filter(test => matchesTags(test, tags, match === 'all' ? 'all' : 'any'));
-    // The querystring narrows; it does not authorize. `route-coverage.test.ts`
-    // classified this listing as returning "what the caller may see, filtered
-    // downstream" — nothing downstream filtered it, so a principal holding
-    // nothing was answered every test in the deployment.
-    return reply.send(filterReadable(request, items).map(test => toRestApi(test)));
-  }));
-
-  fastify.post('/', ...reposRoute({
-      tags: ['Test'],
-      summary: 'Create test',
-      body: createTestSchema.body,
-      response: {
-        201: testResponseSchema,
-        400: errorResponseSchema,
+      create: { tags: ['Test'], summary: 'Create test', body: createTestSchema.body, response: { 201: testResponseSchema } },
+      get: { tags: ['Test'], summary: 'Get test', response: { 200: testResponseSchema } },
+      update: { tags: ['Test'], summary: 'Update test', body: updateTestSchema.body, response: { 200: testResponseSchema } },
+      delete: { tags: ['Test'], summary: 'Delete test and all its versions (cascading delete)', response: { 204: { type: 'null' } } },
+      listVersions: { tags: ['Test'], summary: 'List test versions', response: { 200: { type: 'array', items: testVersionResponseSchema } } },
+      createVersion: { tags: ['Test'], summary: 'Create test version', body: createTestVersionBodySchema, response: { 201: testVersionResponseSchema } },
+      getVersion: { tags: ['Test'], summary: 'Get test version', response: { 200: testVersionResponseSchema } },
+      // A version is a snapshot (issue #192). Cases already refused in-place
+      // edits, for the reason that now covers the whole version: rewriting
+      // them would silently change what a stored verdict was a verdict
+      // *about*. Only the comment is writable.
+      patchVersion: {
+        tags: ['Test'],
+        summary: 'Annotate a test version (comment only; content is immutable)',
+        body: annotateTestVersionBodySchema,
+        response: { 200: testVersionResponseSchema },
       },
-    }, async ({ repos, reply, request }) => {
-    const cacheCoordinator = getCacheCoordinator();
-    const body = request.body;
-    const name = String(body.name ?? '').trim();
-    if (!name) {
-      return reply.status(400).send({ error: 'Test name is required' });
-    }
+      deleteVersion: { tags: ['Test'], summary: 'Delete test version', response: { 204: { type: 'null' } } },
+    },
+    // The querystring narrows; it does not authorize — the listing is filtered
+    // to what the caller may read after this.
+    filterList: (items, request) => {
+      const query = (request.query ?? {}) as { subject?: string; subjectKind?: string; tags?: string; match?: string };
+      const tags = parseTagList(query.tags);
+      return (items as unknown as LdkitTest[])
+        .filter(test => (query.subject ? test.subject === query.subject : true))
+        .filter(test => (query.subjectKind ? test.subjectKind === query.subjectKind : true))
+        .filter(test => matchesTags(test, tags, query.match === 'all' ? 'all' : 'any')) as unknown as StoredEntity[];
+    },
+    beforeCreate: ({ request, body, isPartOf, tags: requestedTags }) => {
+      const cacheCoordinator = getCacheCoordinator();
+      const subjectKind = String(body.subjectKind ?? '');
+      if (!isSubjectKind(subjectKind)) {
+        throw new RouteError(400, {
+          error: `Unknown subject kind "${subjectKind}". Expected one of: ${SUBJECT_KINDS.join(', ')}`,
+        });
+      }
 
-    const rawIsPartOf = body.isPartOf;
-    const isPartOfArray: string[] = Array.isArray(rawIsPartOf)
-      ? rawIsPartOf.map((value: unknown) => String(value))
-      : rawIsPartOf
-        ? [String(rawIsPartOf)]
-        : [];
-    const parents = analyseReferences('Test', 'isPartOf', isPartOfArray, iri => cacheCoordinator.get(iri));
-    if (parents.exactlyOneCount !== 1) {
-      return reply.status(400).send({ error: 'Test must belong to exactly one library' });
-    }
-    if (parents.missing.length > 0) {
-      return reply.status(400).send({ error: `Referenced entity ${parents.missing[0]} does not exist` });
-    }
-    if (parents.wrongType.length > 0) {
-      return reply.status(400).send({ error: describeWrongType(parents.wrongType[0]) });
-    }
+      // The kind and the subject have to agree, and only a lookup can tell —
+      // which is why this is here rather than in the entity model.
+      const subject = String(body.subject ?? '');
+      const subjectEntity = cacheCoordinator.get(subject) as { '@type'?: string } | null;
+      if (!subjectEntity) {
+        throw new RouteError(400, { error: `Subject ${subject} does not exist` });
+      }
+      const expectedType = ENTITY_TYPE_FOR_SUBJECT_KIND[subjectKind];
+      if (subjectEntity['@type'] !== expectedType) {
+        throw new RouteError(400, {
+          error: `Subject ${subject} is a ${subjectEntity['@type']}, but subjectKind says ${subjectKind}`,
+        });
+      }
 
-    const subjectKind = String(body.subjectKind ?? '');
-    if (!isSubjectKind(subjectKind)) {
-      return reply.status(400).send({
-        error: `Unknown subject kind "${subjectKind}". Expected one of: ${SUBJECT_KINDS.join(', ')}`,
-      });
-    }
+      // A test is a standing request to execute its subject. The create
+      // checked write on the test's own library; the subject may live in
+      // another, and composing a test over something you could not run
+      // yourself would be a way to have the next runner run it for you.
+      requireLibraryMode(request, resolveOwningLibrary(subjectEntity), 'execute');
 
-    // The kind and the subject have to agree, and only a lookup can tell —
-    // which is why this is here rather than in the entity model.
-    const subject = String(body.subject ?? '');
-    const subjectEntity = cacheCoordinator.get(subject) as { '@type'?: string } | null;
-    if (!subjectEntity) {
-      return reply.status(400).send({ error: `Subject ${subject} does not exist` });
-    }
-    const expectedType = ENTITY_TYPE_FOR_SUBJECT_KIND[subjectKind];
-    if (subjectEntity['@type'] !== expectedType) {
-      return reply.status(400).send({
-        error: `Subject ${subject} is a ${subjectEntity['@type']}, but subjectKind says ${subjectKind}`,
-      });
-    }
+      /**
+       * A body that says nothing about tags gets the subject's, copied.
+       *
+       * The distinction is between *silent* and *empty*: `tags: []` is a
+       * caller saying "none", and is honoured, while an absent `tags` is a
+       * caller with no opinion — and the useful default for a test is the tags
+       * of the thing it tests, so that tagging a rule set `w3c` makes its
+       * tests part of the `w3c` suite without a second pass over each one. See
+       * `inheritableTags` for why this is a copy rather than a link.
+       *
+       * Here rather than in the client because tests are created from four
+       * places in the UI, from the REST API and through MCP; a default that
+       * only some callers apply is not a default. The UI's "Copy tags"
+       * checkbox is this rule's switch — ticked omits `tags`, unticked sends
+       * `[]`.
+       */
+      const tags = requestedTags ?? inheritableTags(subjectEntity, isPartOf, iri => cacheCoordinator.get(iri));
 
-    const tagCheck = analyseTags('Test', body.tags, isPartOfArray, iri =>
-      cacheCoordinator.get(iri)
-    );
-    if (!tagCheck.ok) {
-      return reply.status(400).send({ error: tagCheck.error });
-    }
-
-    // A test is a standing request to execute its subject. The guard checked
-    // write on the test's own library; the subject may live in another, and
-    // composing a test over something you could not run yourself would be a
-    // way to have the next runner run it for you.
-    requireLibraryMode(request, resolveOwningLibrary(subjectEntity), 'execute');
-
-    /**
-     * A body that says nothing about tags gets the subject's, copied.
-     *
-     * The distinction is between *silent* and *empty*: `tags: []` is a caller
-     * saying "none", and is honoured, while an absent `tags` is a caller with
-     * no opinion — and the useful default for a test is the tags of the thing
-     * it tests, so that tagging a rule set `w3c` makes its tests part of the
-     * `w3c` suite without a second pass over each one. See `inheritableTags`
-     * for why this is a copy rather than a link.
-     *
-     * Here rather than in the client because tests are created from four
-     * places in the UI, from the REST API and through MCP; a default that only
-     * some callers apply is not a default. The UI's "Copy tags" checkbox is
-     * this rule's switch — ticked omits `tags`, unticked sends `[]`.
-     */
-    const tags = tagCheck.tags ?? inheritableTags(subjectEntity, isPartOfArray, iri =>
-      cacheCoordinator.get(iri)
-    );
-
-    const created = await repos.Test.create({
-      $id: mintId('test'),
-      name,
-      description: body.description ?? null,
-      subject,
-      // Carried through rather than derived: a caller seeding their own
-      // conformance suite is the one who knows which upstream test each of
-      // theirs implements, and the W3C seeder is only the first such caller.
-      ...(body.criterion ? { criterion: String(body.criterion) } : {}),
-      subjectKind,
-      isPartOf: isPartOfArray,
-      ...(tags.length > 0 || tagCheck.tags !== undefined ? { tags } : {}),
-    } as Partial<LdkitTest> & { $id: string });
-    setEntityConcurrencyHeaders(reply, created);
-    return reply.status(201).send(toRestApi(created));
-  }));
-
-  fastify.get('/:id', ...reposRoute({
-      tags: ['Test'],
-      summary: 'Get test',
-      params: idParamSchema,
-      response: { 200: testResponseSchema, 404: errorResponseSchema },
-    }, async ({ repos, reply, request }) => {
-    const { id } = request.params;
-    const entity = repos.Test.get(id) as LdkitTest | null;
-    if (!entity) {
-      return reply.status(404).send({ error: 'Not Found' });
-    }
-    setEntityConcurrencyHeaders(reply, entity);
-    return reply.send(toRestApi(entity));
-  }));
-
-  fastify.put('/:id', ...reposRoute({
-      tags: ['Test'],
-      summary: 'Update test',
-      params: idParamSchema,
-      body: updateTestSchema.body,
-      response: { 200: testResponseSchema, 404: errorResponseSchema },
-    }, async ({ repos, reply, request }) => {
-    const { id } = request.params;
-    const updates = request.body;
-
-    const current = repos.Test.get(id) as LdkitTest | null;
-    if (!current) {
-      return reply.status(404).send({ error: 'Not Found' });
-    }
-
-    // Write on the destination library too, when the body moves it.
-    requireContainmentWritable(request, current, updates);
-
-    const { valid, currentTag } = validateIfMatch(request, current);
-    if (!valid) {
-      return reply.status(412).send({
-        error: 'Precondition Failed',
-        expected: currentTag,
-        current: toRestApi(current),
-      });
-    }
-
+      return {
+        subject,
+        // Carried through rather than derived: a caller seeding their own
+        // conformance suite is the one who knows which upstream test each of
+        // theirs implements, and the W3C seeder is only the first such caller.
+        ...(body.criterion ? { criterion: String(body.criterion) } : {}),
+        subjectKind,
+        ...(tags.length > 0 || requestedTags !== undefined ? { tags } : {}),
+      };
+    },
     // The subject is what every Test reference means; repointing it turns one
     // test into a different test, silently, while keeping its history. Rename
     // it, re-expect it, move it between libraries — but to test another
     // subject, write another test.
-    if (updates.subject && updates.subject !== current.subject) {
-      return reply.status(400).send({ error: "A test's subject cannot be changed; create a new test instead" });
-    }
-
-    let ids: string[] | undefined;
-    if (updates.isPartOf) {
-      ids = Array.isArray(updates.isPartOf)
-        ? updates.isPartOf.map(value => String(value))
-        : [String(updates.isPartOf)];
-      const parents = analyseReferences('Test', 'isPartOf', ids, iri => getCacheCoordinator().get(iri));
-      if (parents.exactlyOneCount !== 1) {
-        return reply.status(400).send({ error: 'Test must belong to exactly one library' });
+    beforeUpdate: ({ current, updates }) => {
+      if (updates.subject && updates.subject !== current.subject) {
+        throw new RouteError(400, { error: "A test's subject cannot be changed; create a new test instead" });
       }
-      if (parents.wrongType.length > 0) {
-        return reply.status(400).send({ error: describeWrongType(parents.wrongType[0]) });
+    },
+    presentVersion: version => serializeVersion(
+      version as unknown as LdkitTestVersion,
+      getEntityRepositories().TestCase.list() as LdkitTestCase[],
+    ),
+    createVersion: async ({ request, parent, body }) => {
+      const test = parent as unknown as LdkitTest;
+      // The backend a version names is where every run of it goes, so naming
+      // one needs the same reach running against it would: `use`, directly or
+      // through the subject library's curated backends.
+      if (body.backend) {
+        assertBackendAccess(
+          { request, viaLibrary: resolveOwningLibrary(getCacheCoordinator().get(test.subject)) },
+          String(body.backend),
+        );
       }
-    }
-
-    const tagCheck = analyseTags('Test', updates.tags, ids ?? current.isPartOf, iri =>
-      getCacheCoordinator().get(iri)
-    );
-    if (!tagCheck.ok) {
-      return reply.status(400).send({ error: tagCheck.error });
-    }
-
-    const updated = await repos.Test.update(id, {
-      ...updates,
-      ...(ids ? { isPartOf: ids } : {}),
-      ...(tagCheck.tags !== undefined ? { tags: tagCheck.tags } : {}),
-    } as Partial<LdkitTest>);
-    if (!updated) {
-      return reply.status(404).send({ error: 'Not Found' });
-    }
-    setEntityConcurrencyHeaders(reply, updated);
-    return reply.send(toRestApi(updated));
-  }));
-
-  fastify.delete('/:id', ...reposRoute({
-      tags: ['Test'],
-      summary: 'Delete test and all its versions (cascading delete)',
-      params: idParamSchema,
-      response: { 204: { type: 'null' }, 404: errorResponseSchema },
-    }, async ({ repos, reply, request }) => {
-    const { id } = request.params;
-    if (!repos.Test.get(id)) {
-      return reply.status(404).send({ error: 'Not Found' });
-    }
-
-    const versions = (repos.TestVersion.list() as LdkitTestVersion[]).filter(v => v.isPartOf === id);
-    for (const version of versions) {
-      await deleteVersionCascade(repos, version.$id);
-    }
-    await repos.Test.delete(id);
-    return reply.status(204).send();
-  }));
-
-  fastify.get('/:id/versions', ...reposRoute({
-      tags: ['Test'],
-      summary: 'List test versions',
-      params: idParamSchema,
-      response: { 200: { type: 'array', items: testVersionResponseSchema }, 404: errorResponseSchema },
-    }, async ({ repos, reply, request }) => {
-    const { id } = request.params;
-    if (!repos.Test.get(id)) {
-      return reply.status(404).send({ error: 'Test not found' });
-    }
-    const allCases = repos.TestCase.list() as LdkitTestCase[];
-    const versions = (repos.TestVersion.list() as LdkitTestVersion[])
-      .filter(v => v.isPartOf === id)
-      .sort((a, b) => (a.version ?? 0) - (b.version ?? 0));
-    return reply.send(versions.map(v => serializeVersion(v, allCases)));
-  }));
-
-  fastify.post('/:id/versions', ...reposRoute({
-      tags: ['Test'],
-      summary: 'Create test version',
-      params: idParamSchema,
-      body: createTestVersionBodySchema,
-      response: { 201: testVersionResponseSchema, 400: errorResponseSchema, 404: errorResponseSchema },
-    }, async ({ repos, reply, request }) => {
-    const { id } = request.params;
-    const test = repos.Test.get(id) as LdkitTest | null;
-    if (!test) {
-      return reply.status(404).send({ error: 'Test not found' });
-    }
-
-    // The backend a version names is where every run of it goes, so naming
-    // one needs the same reach running against it would: `use`, directly or
-    // through the subject library's curated backends.
-    if (request.body.backend) {
-      assertBackendAccess(
-        { request, viaLibrary: resolveOwningLibrary(getCacheCoordinator().get(test.subject)) },
-        request.body.backend,
-      );
-    }
-
-    try {
       // `?? undefined` on the fields the body marks `nullable: true` but the
       // writer declares non-nullable — a null there means "not supplied".
-      const created = await createTestVersion(id, {
-        ...request.body,
-        immutable: request.body.immutable ?? undefined,
+      const input = body as unknown as Parameters<typeof createTestVersion>[1];
+      const created = await createTestVersion(test.$id, {
+        ...input,
+        immutable: input.immutable ?? undefined,
       });
-      setEntityConcurrencyHeaders(reply, created);
-      return reply.status(201).send(serializeVersion(created, repos.TestCase.list() as LdkitTestCase[]));
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      return reply.status(400).send({ error: message });
-    }
-  }));
-
-  fastify.get('/:id/versions/:version', ...reposRoute({
-      tags: ['Test'],
-      summary: 'Get test version',
-      params: versionParamSchema,
-      response: { 200: testVersionResponseSchema, 404: errorResponseSchema },
-    }, async ({ repos, reply, request }) => {
-    const { id, version } = request.params;
-    if (!repos.Test.get(id)) {
-      return reply.status(404).send({ error: 'Test not found' });
-    }
-    const lookup = findVersionByNumber(
-      repos.TestVersion.list() as LdkitTestVersion[],
-      id,
-      version,
-      'test',
-    );
-    if (!lookup.ok) {
-      return reply.status(lookup.status).send({ error: lookup.error });
-    }
-    const match = lookup.version;
-    setEntityConcurrencyHeaders(reply, match);
-    return reply.send(serializeVersion(match, repos.TestCase.list() as LdkitTestCase[]));
-  }));
-
-  // PATCH /tests/:id/versions/:version — annotate a version
-  //
-  // A version is a snapshot (issue #192). Cases already refused in-place edits,
-  // for the reason that now covers the whole version: rewriting them would
-  // silently change what a stored verdict was a verdict *about*. Only the
-  // comment is writable.
-  fastify.patch('/:id/versions/:version', ...reposRoute({
-      tags: ['Test'],
-      summary: 'Annotate a test version (comment only; content is immutable)',
-      params: versionParamSchema,
-      body: annotateTestVersionBodySchema,
-      response: {
-        200: testVersionResponseSchema,
-        404: errorResponseSchema,
-        409: contentPatchRejectedSchema,
-      },
-    }, async ({ repos, reply, request }) => {
-    const { id, version } = request.params;
-    if (!repos.Test.get(id)) {
-      return reply.status(404).send({ error: 'Test not found' });
-    }
-    const lookup = findVersionByNumber(
-      repos.TestVersion.list() as LdkitTestVersion[],
-      id,
-      version,
-      'test',
-    );
-    if (!lookup.ok) {
-      return reply.status(lookup.status).send({ error: lookup.error });
-    }
-    const match = lookup.version;
-
-    const { annotations, rejection } = classifyVersionPatch(request.body as Record<string, unknown>);
-    if (rejection) return reply.status(rejection.status).send(rejection);
-
-    try {
-      const updated = await annotateTestVersion(match.$id, {
-        comment: annotations.comment as string | null | undefined,
-        immutable: annotations.immutable as boolean | undefined,
-      });
-      setEntityConcurrencyHeaders(reply, updated);
-      return reply.send(serializeVersion(updated, repos.TestCase.list() as LdkitTestCase[]));
-    } catch (error) {
-      if (error instanceof ImmutableEntityError) {
-        return reply.status(409).send({ error: error.message });
-      }
-      const message = error instanceof Error ? error.message : String(error);
-      return reply.status(400).send({ error: message });
-    }
-  }));
-
-  fastify.delete('/:id/versions/:version', ...reposRoute({
-      tags: ['Test'],
-      summary: 'Delete test version',
-      params: versionParamSchema,
-      response: { 204: { type: 'null' }, 404: errorResponseSchema },
-    }, async ({ repos, reply, request }) => {
-    const { id, version } = request.params;
-    if (!repos.Test.get(id)) {
-      return reply.status(404).send({ error: 'Test not found' });
-    }
-    const lookup = findVersionByNumber(
-      repos.TestVersion.list() as LdkitTestVersion[],
-      id,
-      version,
-      'test',
-    );
-    if (!lookup.ok) {
-      return reply.status(lookup.status).send({ error: lookup.error });
-    }
-    const match = lookup.version;
-    await deleteVersionCascade(repos, match.$id);
-    return reply.status(204).send();
-  }));
+      return { created: created as unknown as StoredEntity };
+    },
+    annotateVersion: async (version, annotations) => await annotateTestVersion(version.$id, {
+      comment: annotations.comment as string | null | undefined,
+      immutable: annotations.immutable as boolean | undefined,
+    }) as unknown as StoredEntity,
+    deleteVersion: version => deleteVersionCascade(getEntityRepositories(), version.$id),
+  });
 
   /**
    * Run a suite of tests — every test carrying one or more tags, or the tests

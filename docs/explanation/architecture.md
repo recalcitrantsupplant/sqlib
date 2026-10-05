@@ -234,8 +234,15 @@ first and then update the cache. The details — why versions never expire, what
 
 ## The API surface
 
-`packages/api/src/routes/` holds twenty-four files: twenty-three route plugins
-and `route-helpers.ts`, which is shared handler scaffolding rather than a route.
+`packages/api/src/routes/` holds twenty-five files: twenty-three route plugins,
+`route-helpers.ts` (shared handler scaffolding and the one error answer) and
+`versionedEntity.ts`, the router that produces the ten CRUD routes every
+versioned entity shares — list, create, get, update, delete, and the same five
+under `/:id/versions`. Queries, query groups, rules, rule sets, data blocks,
+data graphs, tuple sets and tests register through it; their modules hold only
+what is theirs (schemas, how a version is written and shown, entity-specific
+routes). The rules it applies — status codes, If-Match, pinned deletes — are in
+[versioning-and-immutability.md](versioning-and-immutability.md).
 Grouped by what they are for:
 
 - **Containers and classification.** `libraries`, `tags`.
@@ -252,12 +259,16 @@ Grouped by what they are for:
 - **Operations.** `auth` (identity introspection and grant administration),
   `events` (the change feed as Server-Sent Events), `etl-jobs`, `assistant`.
 
-Outside the route modules, `index.ts` registers `/` (a redirect to the docs UI),
-`/health` and `/metrics`.
+Outside the route modules, `src/server/` holds the startup pieces `index.ts`
+composes: `bootstrap.ts` (crash handlers, `.env`, OpenTelemetry — imported
+first), `swagger.ts`, `health.ts`, `metrics.ts`, `errorHandler.ts`, `seed.ts`
+and `registerRoutes.ts`, which registers `/` (a redirect to the docs UI),
+`/health`, `/metrics` and every route plugin.
 
-Registration is gated by feature flags. `queries` off means `/queries` and
-`/execute` are never registered at all, not that they answer 403. Four route
-groups are deliberately *not* gated, and `index.ts` records why in each case:
+Registration is gated by feature flags. `queries` off means `/queries`,
+`/execute`, `/sparql` and `/detect-*` are never registered at all, not that they
+answer 403; each playground route has its own flag. Four route groups are
+deliberately *not* gated, and `registerRoutes.ts` records why in each case:
 tags, tuple sets and data graphs because they are inputs to more than one
 section and gating them would leave entities referencing versions nothing could
 resolve; patches because a patch is a property of a backend rather than of a

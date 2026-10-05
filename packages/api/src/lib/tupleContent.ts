@@ -17,8 +17,9 @@
  */
 
 import type { TupleSourceFormat } from '../persistence/schemas/TupleSetVersionSchema.js';
+import { ValidationError } from './validationError.js';
 
-export class TupleContentError extends Error {
+export class TupleContentError extends ValidationError {
   constructor(message: string) {
     super(message);
     this.name = 'TupleContentError';

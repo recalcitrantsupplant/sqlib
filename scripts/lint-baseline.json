@@ -6,7 +6,7 @@
     "no-case-declarations": 1,
     "no-control-regex": 2,
     "no-empty": 4,
-    "no-useless-assignment": 12,
+    "no-useless-assignment": 11,
     "no-useless-escape": 5,
     "prefer-const": 6,
     "preserve-caught-error": 32,

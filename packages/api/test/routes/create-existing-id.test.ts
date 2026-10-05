@@ -96,14 +96,14 @@ describe('create with an existing id', () => {
   });
 
   it('re-saving a query version with the ids it was loaded with mints new parts', async () => {
-    const first = await post(`/queries/${encodeURIComponent(queryId)}/v`, {
+    const first = await post(`/queries/${encodeURIComponent(queryId)}/versions`, {
       queryVersion: { queryString: 'SELECT ?s WHERE { ?s ?p ?o } LIMIT 0001' },
     });
     expect(first.statusCode, first.payload).toBe(201);
 
     const loaded = await context.app.inject({
       method: 'GET',
-      url: `/queries/${encodeURIComponent(queryId)}/v/1`,
+      url: `/queries/${encodeURIComponent(queryId)}/versions/1`,
     });
     expect(loaded.statusCode, loaded.payload).toBe(200);
     const body = loaded.json();
@@ -114,7 +114,7 @@ describe('create with an existing id', () => {
     expect(firstIds.length).toBeGreaterThan(0);
 
     // What an editor sends back: the loaded version's parts, ids and all.
-    const second = await post(`/queries/${encodeURIComponent(queryId)}/v`, {
+    const second = await post(`/queries/${encodeURIComponent(queryId)}/versions`, {
       queryVersion: { queryString: body.queryVersion.queryString },
       limitParameters: body.limitParameters,
       outputs: body.outputs,
@@ -125,7 +125,7 @@ describe('create with an existing id', () => {
 
     const reloaded = await context.app.inject({
       method: 'GET',
-      url: `/queries/${encodeURIComponent(queryId)}/v/2`,
+      url: `/queries/${encodeURIComponent(queryId)}/versions/2`,
     });
     const secondIds = partIds(reloaded.json());
     expect(secondIds.length).toBe(firstIds.length);
@@ -133,13 +133,13 @@ describe('create with an existing id', () => {
     // And the first version's parts are as they were.
     const again = await context.app.inject({
       method: 'GET',
-      url: `/queries/${encodeURIComponent(queryId)}/v/1`,
+      url: `/queries/${encodeURIComponent(queryId)}/versions/1`,
     });
     expect(again.json()).toEqual(body);
   });
 
   it('re-saving a group version with the node IRIs it was loaded with mints new nodes and keeps the layout', async () => {
-    const version = await post(`/queries/${encodeURIComponent(queryId)}/v`, {
+    const version = await post(`/queries/${encodeURIComponent(queryId)}/versions`, {
       queryVersion: { queryString: 'SELECT ?s WHERE { ?s ?p ?o }' },
     });
     expect(version.statusCode, version.payload).toBe(201);
@@ -163,12 +163,12 @@ describe('create with an existing id', () => {
       ],
     });
 
-    const first = await post(`/query-groups/${encodeURIComponent(groupId)}/v`, payloadFor('urn:ui-temp:node-1'));
+    const first = await post(`/query-groups/${encodeURIComponent(groupId)}/versions`, payloadFor('urn:ui-temp:node-1'));
     expect(first.statusCode, first.payload).toBe(201);
     const firstNode = first.json().queryGroupVersion.executionNodes[0];
     const firstBefore = getCacheCoordinator().get(firstNode);
 
-    const second = await post(`/query-groups/${encodeURIComponent(groupId)}/v`, payloadFor(firstNode));
+    const second = await post(`/query-groups/${encodeURIComponent(groupId)}/versions`, payloadFor(firstNode));
     expect(second.statusCode, second.payload).toBe(201);
     const secondVersion = second.json().queryGroupVersion;
     const secondNode = secondVersion.executionNodes[0];

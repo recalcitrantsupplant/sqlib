@@ -170,7 +170,7 @@ describe('Benchmark Routes (/benchmark-experiments)', () => {
     expect(res.headers.etag).toBe('"2024-01-03T00:00:00.000Z"');
   });
 
-  it('POST /benchmark-experiments/:id/v creates a version', async () => {
+  it('POST /benchmark-experiments/:id/versions creates a version', async () => {
     const experimentId = 'urn:sqlib:benchmark-experiment:1';
     hoisted.mockGet.mockReturnValue({
       $id: experimentId,
@@ -190,7 +190,7 @@ describe('Benchmark Routes (/benchmark-experiments)', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: `/benchmark-experiments/${encodeURIComponent(experimentId)}/v`,
+      url: `/benchmark-experiments/${encodeURIComponent(experimentId)}/versions`,
       payload: {
         subjectSpecs: [{ subject: 'urn:sqlib:query-version:1', backends: ['urn:sqlib:backend:1'] }],
         repeats: 2,
@@ -204,7 +204,7 @@ describe('Benchmark Routes (/benchmark-experiments)', () => {
     expect(body.subjectSpecs).toHaveLength(1);
   });
 
-  it('PATCH /benchmark-experiments/:id/v/:version updates a version with If-Match', async () => {
+  it('PATCH /benchmark-experiments/:id/versions/:version updates a version with If-Match', async () => {
     const experimentId = 'urn:sqlib:benchmark-experiment:1';
     const versionEntity = {
       $id: 'urn:sqlib:benchmark-experiment-version:1',
@@ -223,7 +223,7 @@ describe('Benchmark Routes (/benchmark-experiments)', () => {
 
     const res = await app.inject({
       method: 'PATCH',
-      url: `/benchmark-experiments/${encodeURIComponent(experimentId)}/v/1`,
+      url: `/benchmark-experiments/${encodeURIComponent(experimentId)}/versions/1`,
       payload: { repeats: 5 },
       headers: { 'if-match': versionEntity.dateModified },
     });
@@ -233,7 +233,7 @@ describe('Benchmark Routes (/benchmark-experiments)', () => {
     expect(res.headers.etag).toBe('"2024-01-06T00:00:00.000Z"');
   });
 
-  it('PATCH /benchmark-experiments/:id/v/:version rejects updates when immutable', async () => {
+  it('PATCH /benchmark-experiments/:id/versions/:version rejects updates when immutable', async () => {
     const experimentId = 'urn:sqlib:benchmark-experiment:1';
     const versionEntity = {
       $id: 'urn:sqlib:benchmark-experiment-version:1',
@@ -248,7 +248,7 @@ describe('Benchmark Routes (/benchmark-experiments)', () => {
 
     const res = await app.inject({
       method: 'PATCH',
-      url: `/benchmark-experiments/${encodeURIComponent(experimentId)}/v/1`,
+      url: `/benchmark-experiments/${encodeURIComponent(experimentId)}/versions/1`,
       payload: { repeats: 3 },
       headers: { 'if-match': versionEntity.dateModified },
     });
@@ -257,7 +257,7 @@ describe('Benchmark Routes (/benchmark-experiments)', () => {
     expect(hoisted.mockUpdate).not.toHaveBeenCalled();
   });
 
-  it('POST /benchmark-experiments/:id/v/:version/run executes a benchmark', async () => {
+  it('POST /benchmark-experiments/:id/versions/:version/run executes a benchmark', async () => {
     const experimentId = 'urn:sqlib:benchmark-experiment:1';
     const versionEntity = {
       $id: 'urn:sqlib:benchmark-experiment-version:1',
@@ -283,7 +283,7 @@ describe('Benchmark Routes (/benchmark-experiments)', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: `/benchmark-experiments/${encodeURIComponent(experimentId)}/v/1/run`,
+      url: `/benchmark-experiments/${encodeURIComponent(experimentId)}/versions/1/run`,
     });
 
     expect(res.statusCode).toBe(200);
@@ -301,7 +301,7 @@ describe('Benchmark Routes (/benchmark-experiments)', () => {
     expect(hoisted.mockRun).toHaveBeenCalledWith(versionEntity.$id);
   });
 
-  it('POST /benchmark-experiments/:id/v/:version/freeze validates dependencies', async () => {
+  it('POST /benchmark-experiments/:id/versions/:version/freeze validates dependencies', async () => {
     const experimentId = 'urn:sqlib:benchmark-experiment:1';
     const versionEntity = {
       $id: 'urn:sqlib:benchmark-experiment-version:1',
@@ -329,13 +329,13 @@ describe('Benchmark Routes (/benchmark-experiments)', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: `/benchmark-experiments/${encodeURIComponent(experimentId)}/v/1/freeze`,
+      url: `/benchmark-experiments/${encodeURIComponent(experimentId)}/versions/1/freeze`,
     });
 
     expect(res.statusCode).toBe(409);
   });
 
-  it('GET /benchmark-experiments/:id/v/:version/runs lists runs', async () => {
+  it('GET /benchmark-experiments/:id/versions/:version/runs lists runs', async () => {
     const experimentId = 'urn:sqlib:benchmark-experiment:1';
     const versionEntity = {
       $id: 'urn:sqlib:benchmark-experiment-version:1',
@@ -359,7 +359,7 @@ describe('Benchmark Routes (/benchmark-experiments)', () => {
 
     const res = await app.inject({
       method: 'GET',
-      url: `/benchmark-experiments/${encodeURIComponent(experimentId)}/v/1/runs`,
+      url: `/benchmark-experiments/${encodeURIComponent(experimentId)}/versions/1/runs`,
     });
 
     expect(res.statusCode).toBe(200);

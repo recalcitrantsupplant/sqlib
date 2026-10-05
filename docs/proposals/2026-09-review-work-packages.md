@@ -379,6 +379,31 @@ every query is parsed there anyway.
 
 ## Phase 4 — Route layer consolidation
 
+Status: done, WP20–WP22, in one pull request rather than one per module. D1
+was decided as `/versions` with no alias. What changed from the plan:
+
+- WP20: queries, query groups, rules, rule sets, data blocks, data graphs,
+  tuple sets and tests register through `routes/versionedEntity.ts`. Argument
+  sets and benchmarks did not fit (service-backed detail shapes; a benchmark
+  version is an editable draft) and follow the same rules by hand: `/versions`,
+  the 412 body, a 404 for a missing parent, and a pinned argument set refused
+  on delete. Version DELETE now exists for queries and query groups too.
+  "Pinned" is generalised in `lib/versionPins.ts`: a rule set version naming a
+  rule or data block version, a group node naming a query or rule set version,
+  an argument set version naming a data graph or tuple set version, a test
+  version naming its subject version, a case naming a data graph or argument
+  set version. A version route on a parent that no longer resolves is now a
+  404 before anything reads the version, where some modules answered 403 and
+  some 200. `ValidationError` (`lib/validationError.ts`) is the one 400 a
+  version create gives; the content errors extend it. `contract-routes.ts` was
+  edited (benchmark 412 shapes) rather than regenerated, since D7 is open.
+- WP21: `/validate`, `/validate-rule-data`, `/format` and `/substitute` stay
+  unflagged, because the rules editor uses them; only `/detect-*` and `/sparql`
+  moved under `queries`. `server/errorHandler.ts` joined the six files.
+- WP22: the revision is `dateModified` itself, made strictly increasing per
+  entity, rather than a separate counter in the ETag — the tag clients already
+  send stays valid. A weak `If-Match` tag never matches (strong comparison).
+
 ### WP20 — Generic versioned-entity router · L (split into a + one PR per module) · deps: WP1, WP4, WP10, WP12 · closes D1, routes #9/#10
 
 **WP20a — framework + queries as the reference.**
@@ -684,6 +709,7 @@ Phase 1 (WP1–WP7) is the release blocker for any deployment under
 - **D1 — path segment.** `/v` (queries, query-groups, argument-sets,
   benchmarks) or `/versions` (the other seven). Pre-1.0, so pick one and drop
   the other; the plan assumes `/versions` with no alias. Needed by WP20a.
+  *Decided: `/versions`, no alias (Phase 4).*
 - **D2 — benchmark ownership.** Give `BenchmarkExperiment` an `isPartOf`
   library (schema change, backfill) or make the plugin admin-only. The plan
   assumes the library. Needed by WP2.

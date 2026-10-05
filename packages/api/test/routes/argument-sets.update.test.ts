@@ -105,7 +105,7 @@ describe('PUT /argument-sets/:id', () => {
 
   it('renames without creating a version', async () => {
     const created = await createSet();
-    const versionsBefore = await app.inject({ method: 'GET', url: `/argument-sets/${created.id}/v` });
+    const versionsBefore = await app.inject({ method: 'GET', url: `/argument-sets/${created.id}/versions` });
     expect(versionsBefore.json()).toHaveLength(1);
 
     const response = await app.inject({
@@ -117,7 +117,7 @@ describe('PUT /argument-sets/:id', () => {
     expect(response.statusCode).toBe(200);
     expect(response.json().name).toBe('City seeds');
 
-    const versionsAfter = await app.inject({ method: 'GET', url: `/argument-sets/${created.id}/v` });
+    const versionsAfter = await app.inject({ method: 'GET', url: `/argument-sets/${created.id}/versions` });
     expect(versionsAfter.json()).toHaveLength(1);
   });
 

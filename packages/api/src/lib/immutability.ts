@@ -39,6 +39,9 @@ const MOVABLE_POINTERS: Record<string, ReadonlySet<string>> = {
 };
 
 export class ImmutableEntityError extends Error {
+  /** A conflict with the stored state, not a malformed request: routes answer 409. */
+  readonly statusCode = 409;
+
   constructor(entityType: string, id?: string) {
     const target = id ? `${entityType} ${id}` : entityType;
     super(`${target} is immutable and cannot be updated. Create a new version instead.`);

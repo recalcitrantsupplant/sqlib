@@ -240,19 +240,22 @@ describe('a version whose tuple set no longer resolves', () => {
     expect((await inject(stranger, 'GET', `/tuple-sets/${GHOST_SET}/versions`)).statusCode).toBe(404);
   });
 
+  /*
+   * Every version route now looks the set up first and 404s a missing one
+   * (`routes/versionedEntity.ts`), so a stranded version is refused before
+   * anything reads it, for every caller and every method.
+   */
   it('is not readable by a principal holding nothing', async () => {
     const response = await inject(stranger, 'GET', `/tuple-sets/${GHOST_SET}/versions/1`);
 
-    expect(response.statusCode).toBe(403);
+    expect(response.statusCode).toBe(404);
     expect(response.body).not.toContain('orphan-rows');
   });
 
   it('is not readable by a principal holding every mode on another library', async () => {
-    // The version resolves to no library at all, and `requireLibraryMode(null)`
-    // refuses rather than abstains — so a grant elsewhere reaches nothing here.
     const response = await inject(owner, 'GET', `/tuple-sets/${GHOST_SET}/versions/1`);
 
-    expect(response.statusCode).toBe(403);
+    expect(response.statusCode).toBe(404);
     expect(response.body).not.toContain('orphan-rows');
   });
 
@@ -261,16 +264,16 @@ describe('a version whose tuple set no longer resolves', () => {
       comment: 'written by someone with no grant on it',
     });
 
-    expect(response.statusCode).toBe(403);
+    expect(response.statusCode).toBe(404);
     expect(store.annotated).toEqual([]);
   });
 
   it('cannot be deleted', async () => {
-    // The one that was destructive: before this, a principal holding nothing
-    // removed a stored version and was answered 204.
+    // The one that was destructive: a principal holding nothing once removed
+    // a stored version this way and was answered 204.
     const response = await inject(stranger, 'DELETE', `/tuple-sets/${GHOST_SET}/versions/1`);
 
-    expect(response.statusCode).toBe(403);
+    expect(response.statusCode).toBe(404);
     expect(store.deleted).toEqual([]);
   });
 });
@@ -291,10 +294,10 @@ describe('a tuple set whose library was deleted', () => {
 });
 
 describe('disabled mode', () => {
-  it('is unaffected: every version route answers', async () => {
+  it('serves every version that has a set, and answers a stranded one as missing', async () => {
     expect((await inject(authDisabled, 'GET', `/tuple-sets/${LIVE_SET}/versions/1`)).statusCode).toBe(200);
     expect((await inject(authDisabled, 'GET', `/tuple-sets/${STRANDED_SET}/versions/1`)).statusCode).toBe(200);
-    expect((await inject(authDisabled, 'GET', `/tuple-sets/${GHOST_SET}/versions/1`)).statusCode).toBe(200);
-    expect((await inject(authDisabled, 'DELETE', `/tuple-sets/${GHOST_SET}/versions/1`)).statusCode).toBe(204);
+    expect((await inject(authDisabled, 'GET', `/tuple-sets/${GHOST_SET}/versions/1`)).statusCode).toBe(404);
+    expect((await inject(authDisabled, 'DELETE', `/tuple-sets/${GHOST_SET}/versions/1`)).statusCode).toBe(404);
   });
 });

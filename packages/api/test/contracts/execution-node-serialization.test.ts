@@ -106,7 +106,7 @@ describe('execution nodes serialize as the kind they are', () => {
      * anywhere else answers 400 before it ever reaches the serializer.
      */
     app.get(
-      '/query-groups/:id/v/:version',
+      '/query-groups/:id/versions/:version',
       { schema: getQueryGroupVersionForGroupSchema },
       async (request) => JSON.parse(String((request.query as { node: string }).node)),
     );
@@ -120,7 +120,7 @@ describe('execution nodes serialize as the kind they are', () => {
   const serialize = async (node: Record<string, unknown>) => {
     const response = await app.inject({
       method: 'GET',
-      url: '/query-groups/urn:sqlib:group:1/v/1',
+      url: '/query-groups/urn:sqlib:group:1/versions/1',
       query: {
         node: JSON.stringify({
           // The envelope is not the subject; it just has to serialize.

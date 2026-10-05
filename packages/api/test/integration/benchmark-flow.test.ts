@@ -101,7 +101,7 @@ describe('Benchmark flow integration', () => {
 
     const versionRes = await app.inject({
       method: 'POST',
-      url: `/benchmark-experiments/${encodeURIComponent(experimentId)}/v`,
+      url: `/benchmark-experiments/${encodeURIComponent(experimentId)}/versions`,
       payload: {
         subjectSpecs: [
           {
@@ -120,7 +120,7 @@ describe('Benchmark flow integration', () => {
 
     const freezeRes = await app.inject({
       method: 'POST',
-      url: `/benchmark-experiments/${encodeURIComponent(experimentId)}/v/1/freeze`,
+      url: `/benchmark-experiments/${encodeURIComponent(experimentId)}/versions/1/freeze`,
     });
     expect(freezeRes.statusCode).toBe(200);
     const frozen = freezeRes.json();
@@ -128,7 +128,7 @@ describe('Benchmark flow integration', () => {
 
     const runRes = await app.inject({
       method: 'POST',
-      url: `/benchmark-experiments/${encodeURIComponent(experimentId)}/v/1/run`,
+      url: `/benchmark-experiments/${encodeURIComponent(experimentId)}/versions/1/run`,
     });
     expect(runRes.statusCode).toBe(200);
     const runPayload = runRes.json();
@@ -143,7 +143,7 @@ describe('Benchmark flow integration', () => {
     expect(store.all('BenchmarkObservation')).toEqual([expect.objectContaining({ dataSet: runId })]);
     const runsRes = await app.inject({
       method: 'GET',
-      url: `/benchmark-experiments/${encodeURIComponent(experimentId)}/v/1/runs`,
+      url: `/benchmark-experiments/${encodeURIComponent(experimentId)}/versions/1/runs`,
     });
     const runs = runsRes.json();
     expect(runs.some((run: any) => run.id === runId)).toBe(true);

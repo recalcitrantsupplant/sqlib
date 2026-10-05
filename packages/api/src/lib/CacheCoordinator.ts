@@ -7,6 +7,25 @@ import { log } from './log.js';
 
 type CacheErrorMode = 'log' | 'throw';
 
+/**
+ * The `dateModified` a write stamps: now, or one millisecond past the previous
+ * value when now is not later.
+ *
+ * `dateModified` is the entity's revision — it is what the ETag carries and
+ * what `If-Match` is compared with — so it must change on every write. Two
+ * writes inside one millisecond used to stamp the same value, and the second
+ * writer's stale `If-Match` then matched. Strictly increasing per entity makes
+ * the timestamp a revision counter without a second field to keep in step,
+ * and without changing the tag clients already send.
+ */
+export function nextDateModified(previous: unknown, now: Date = new Date()): string {
+  const previousMs = typeof previous === 'string' ? Date.parse(previous)
+    : previous instanceof Date ? previous.getTime()
+    : Number.NaN;
+  const nowMs = now.getTime();
+  return new Date(Number.isNaN(previousMs) || nowMs > previousMs ? nowMs : previousMs + 1).toISOString();
+}
+
 /** A create named an id that already belongs to an entity. Routes answer 409. */
 export class EntityExistsError extends Error {
   readonly statusCode = 409;
@@ -410,8 +429,8 @@ export class CacheCoordinator {
     if (!canonical) return null;
     assertMutableEntity(type, canonical as unknown as Record<string, unknown>, updates as Record<string, unknown>);
 
-    const nowIso = new Date().toISOString();
-    const effectiveDateModified = (updates as unknown as BaseEntity).dateModified ?? nowIso;
+    const effectiveDateModified = (updates as unknown as BaseEntity).dateModified
+      ?? nextDateModified((canonical as unknown as BaseEntity).dateModified);
 
     const patch = { dateModified: effectiveDateModified } as unknown as Partial<EntityByType[T]>;
     const patchRecord = patch as Record<string, unknown>;

@@ -1,5 +1,5 @@
 /**
- * Query group version validation: what `GET /query-groups/:id/v/:version/validate`
+ * Query group version validation: what `GET /query-groups/:id/versions/:version/validate`
  * answers with.
  */
 import { z } from 'zod';

@@ -307,9 +307,9 @@ export async function setupMockApi(page: Page, state: MockState, options: SetupM
     await route.fallback();
   });
 
-  await page.route(`${API_ORIGIN}/queries/*/v/*/validate`, (route) => route.fallback());
+  await page.route(`${API_ORIGIN}/queries/*/versions/*/validate`, (route) => route.fallback());
 
-  await page.route(`${API_ORIGIN}/queries/*/v/*`, async (route) => {
+  await page.route(`${API_ORIGIN}/queries/*/versions/*`, async (route) => {
     const segments = getUrlSegments(route);
     const id = decodeId(segments[1] ?? '');
     const versionNumber = Number(segments[3]);
@@ -325,7 +325,7 @@ export async function setupMockApi(page: Page, state: MockState, options: SetupM
     });
   });
 
-  await page.route(`${API_ORIGIN}/queries/*/v`, async (route) => {
+  await page.route(`${API_ORIGIN}/queries/*/versions`, async (route) => {
     const segments = getUrlSegments(route);
     const id = decodeId(segments[1] ?? '');
     const versions = state.queryVersions[id] ?? [];
@@ -459,7 +459,7 @@ export async function setupMockApi(page: Page, state: MockState, options: SetupM
     await json(route, 200, state.argumentSets.filter((set) => set.libraryId === libraryId));
   });
 
-  await page.route(/\/argument-sets\/[^/]+\/v\/\d+$/, async (route) => {
+  await page.route(/\/argument-sets\/[^/]+\/versions\/\d+$/, async (route) => {
     const segments = getUrlSegments(route);
     const setId = decodeId(segments[segments.length - 3] ?? '');
     const versionNumber = Number(segments[segments.length - 1]);
@@ -471,7 +471,7 @@ export async function setupMockApi(page: Page, state: MockState, options: SetupM
     await json(route, 200, version);
   });
 
-  await page.route(/\/argument-sets\/[^/]+\/v$/, async (route) => {
+  await page.route(/\/argument-sets\/[^/]+\/versions$/, async (route) => {
     const segments = getUrlSegments(route);
     const setId = decodeId(segments[segments.length - 2] ?? '');
     const set = findArgumentSet(setId);
@@ -595,7 +595,7 @@ export async function setupMockApi(page: Page, state: MockState, options: SetupM
     await json(route, 200, ruleSet, { ETag: makeEtag('rule-set', ruleSetId) });
   });
 
-  await page.route(`${API_ORIGIN}/query-groups/*/v/*/validate`, async (route) => {
+  await page.route(`${API_ORIGIN}/query-groups/*/versions/*/validate`, async (route) => {
     const { validationResponse } = options;
     const fixture = typeof validationResponse === 'function' ? validationResponse() : validationResponse;
     await json(route, 200, {
@@ -607,7 +607,7 @@ export async function setupMockApi(page: Page, state: MockState, options: SetupM
     });
   });
 
-  await page.route(`${API_ORIGIN}/query-groups/*/v/*`, async (route) => {
+  await page.route(`${API_ORIGIN}/query-groups/*/versions/*`, async (route) => {
     const segments = getUrlSegments(route);
     const groupId = decodeId(segments[1] ?? '');
     const versionNumber = Number(segments[3]);
@@ -627,7 +627,7 @@ export async function setupMockApi(page: Page, state: MockState, options: SetupM
     });
   });
 
-  await page.route(`${API_ORIGIN}/query-groups/*/v`, async (route) => {
+  await page.route(`${API_ORIGIN}/query-groups/*/versions`, async (route) => {
     const segments = getUrlSegments(route);
     const groupId = decodeId(segments[1] ?? '');
     if (route.request().method() === 'GET') {

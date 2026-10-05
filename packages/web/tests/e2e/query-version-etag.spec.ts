@@ -112,8 +112,8 @@ test.describe('Saving a sequence of versions', () => {
       }
     });
 
-    // Mock query versions list endpoint (GET /queries/:queryId/v)
-    await page.route(`**//${API_HOST}/queries/urn%3Asqlib%3Aquery%3Atest-1/v`, async (route: Route) => {
+    // Mock query versions list endpoint (GET /queries/:queryId/versions)
+    await page.route(`**//${API_HOST}/queries/urn%3Asqlib%3Aquery%3Atest-1/versions`, async (route: Route) => {
       if (route.request().method() === 'GET') {
         await route.fulfill({
           status: 200,
@@ -178,7 +178,7 @@ test.describe('Saving a sequence of versions', () => {
     });
 
     // Mock individual version GET/PATCH endpoint
-    await page.route(`**//${API_HOST}/queries/urn%3Asqlib%3Aquery%3Atest-1/v/*`, async (route: Route) => {
+    await page.route(`**//${API_HOST}/queries/urn%3Asqlib%3Aquery%3Atest-1/versions/*`, async (route: Route) => {
       const versionNumber = parseInt(route.request().url().split('/').pop() || '0');
       const version = mockQueryVersions.find(v => v.version === versionNumber);
 

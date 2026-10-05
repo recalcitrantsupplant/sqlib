@@ -20,7 +20,7 @@ import { prefixSourceToken } from '@/lib/prefixSources';
 
 /**
  * The query text of one payload, in every shape a version endpoint answers
- * with: `GET .../v` returns bare versions, while the single-version routes nest
+ * with: `GET .../versions` returns bare versions, while the single-version routes nest
  * the same record under `queryVersion` alongside its parameters. Both are read
  * here rather than at each call site, so a caller passes the payload it has.
  */

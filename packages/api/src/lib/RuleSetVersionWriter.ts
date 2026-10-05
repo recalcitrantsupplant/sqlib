@@ -10,6 +10,7 @@ import type { LdkitRuleVersion } from '../persistence/schemas/RuleVersionSchema.
 import type { LdkitDataBlockVersion } from '../persistence/schemas/DataBlockVersionSchema.js';
 import { getFeatureFlags } from '../config/featureFlags.js';
 import { ruleTuplesRefusal, hasSeedText } from './ruleTuples.js';
+import { ValidationError } from './validationError.js';
 
 type AnyRecord = Record<string, any>;
 
@@ -72,10 +73,10 @@ async function createRuleSetVersionNumbered(
   for (const id of ruleIds) {
     const entity = cacheCoordinator.get(id) as AnyRecord | null;
     if (!entity) {
-      throw new Error(`RuleVersion ${id} not found in cache`);
+      throw new ValidationError(`RuleVersion ${id} not found in cache`);
     }
     if ((entity['@type'] as string) !== 'RuleVersion') {
-      throw new Error(`Invalid entity type for ${id}: expected RuleVersion, got ${entity['@type']}. RuleSets must reference RuleVersions, not Rules.`);
+      throw new ValidationError(`Invalid entity type for ${id}: expected RuleVersion, got ${entity['@type']}. RuleSets must reference RuleVersions, not Rules.`);
     }
     ruleVersions.push(entity as LdkitRuleVersion);
   }
@@ -85,16 +86,16 @@ async function createRuleSetVersionNumbered(
   const invalidRuleVersions = ruleVersions.filter(rv => rv.grammarValid === false);
   if (invalidRuleVersions.length > 0 && !allowInvalid) {
     const ids = invalidRuleVersions.map(rv => rv.$id).join(', ');
-    throw new Error(`Cannot add invalid RuleVersions to RuleSet: ${ids}`);
+    throw new ValidationError(`Cannot add invalid RuleVersions to RuleSet: ${ids}`);
   }
 
   for (const id of dataBlockIds) {
     const entity = cacheCoordinator.get(id) as AnyRecord | null;
     if (!entity) {
-      throw new Error(`DataBlockVersion ${id} not found in cache`);
+      throw new ValidationError(`DataBlockVersion ${id} not found in cache`);
     }
     if ((entity['@type'] as string) !== 'DataBlockVersion') {
-      throw new Error(`Invalid entity type for ${id}: expected DataBlockVersion, got ${entity['@type']}. RuleSets must reference DataBlockVersions, not DataBlocks.`);
+      throw new ValidationError(`Invalid entity type for ${id}: expected DataBlockVersion, got ${entity['@type']}. RuleSets must reference DataBlockVersions, not DataBlocks.`);
     }
     dataBlockVersions.push(entity as LdkitDataBlockVersion);
   }
@@ -121,7 +122,7 @@ async function createRuleSetVersionNumbered(
   const invalidDataBlockVersions = dataBlockVersions.filter(db => db.grammarValid === false);
   if (invalidDataBlockVersions.length > 0 && !allowInvalid) {
     const ids = invalidDataBlockVersions.map(db => db.$id).join(', ');
-    throw new Error(`Cannot add invalid DataBlockVersions to RuleSet: ${ids}`);
+    throw new ValidationError(`Cannot add invalid DataBlockVersions to RuleSet: ${ids}`);
   }
 
   const versionId = mintId('ruleSetVersion');
@@ -148,7 +149,7 @@ async function createRuleSetVersionNumbered(
    */
   const tupleRefusal = ruleTuplesRefusal(body.tuplesEnabled === true || hasSeedText(body.tupleSeeds));
   if (tupleRefusal) {
-    throw new Error(tupleRefusal);
+    throw new ValidationError(tupleRefusal);
   }
 
   // Only written when set, so a ruleset that never touches the extension keeps

@@ -25,15 +25,49 @@ type RouteReposHandler<TResult> = (
   ctx: RouteReposHandlerContext
 ) => TResult | Promise<TResult>;
 
-export function getIfMatchValue(request: FastifyRequest): string | null {
+/** One entity-tag from an `If-Match` list. */
+export interface EntityTag {
+  tag: string;
+  weak: boolean;
+}
+
+/**
+ * The `If-Match` header as RFC 9110 §13.1.1 has it: `*`, or a comma-separated
+ * list of entity-tags, each `"opaque"` or weak `W/"opaque"`. Null when absent
+ * or blank.
+ *
+ * A bare, unquoted token is accepted as a strong tag too. It is not RFC
+ * syntax, but it is what clients of this API have always sent — the
+ * `dateModified` value itself — and refusing it would turn every one of their
+ * writes into a 412.
+ */
+export function parseIfMatch(request: FastifyRequest): '*' | EntityTag[] | null {
   const rawHeader = request.headers['if-match'];
-  if (!rawHeader) return null;
-  const value = Array.isArray(rawHeader) ? rawHeader[0] : rawHeader;
-  if (!value) return null;
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  if (trimmed === '*') return '*';
-  return trimmed.replace(/^"|"$/g, '');
+  const raw = Array.isArray(rawHeader) ? rawHeader.join(',') : rawHeader;
+  if (!raw || !raw.trim()) return null;
+  if (raw.trim() === '*') return '*';
+
+  const tags: EntityTag[] = [];
+  // An opaque tag may not contain a double quote, so a comma inside quotes
+  // cannot occur in a valid header; splitting on quoted spans is enough.
+  const pattern = /\s*(W\/)?(?:"([^"]*)"|([^,\s]+))\s*(?:,|$)/gy;
+  let match: RegExpExecArray | null;
+  while (pattern.lastIndex < raw.length && (match = pattern.exec(raw)) !== null) {
+    const tag = match[2] ?? match[3] ?? '';
+    if (tag) tags.push({ tag, weak: Boolean(match[1]) });
+  }
+  return tags.length > 0 ? tags : null;
+}
+
+/**
+ * The first tag a client sent, for logging and the 412 body. Kept for callers
+ * that want one value; `validateIfMatch` reads the whole list.
+ */
+export function getIfMatchValue(request: FastifyRequest): string | null {
+  const parsed = parseIfMatch(request);
+  if (parsed === null) return null;
+  if (parsed === '*') return '*';
+  return parsed[0]?.tag ?? null;
 }
 
 /**
@@ -74,19 +108,23 @@ export function validateIfMatch(
   request: FastifyRequest,
   entity: { dateModified?: string | Date | null | undefined }
 ): { valid: boolean; currentTag: string | null; ifMatch: string | null } {
-  const ifMatch = getIfMatchValue(request);
+  const parsed = parseIfMatch(request);
+  const ifMatch = parsed === null ? null : parsed === '*' ? '*' : parsed[0]!.tag;
 
-  // If no If-Match header, validation passes
-  if (!ifMatch || ifMatch === '*') {
+  // No header: the write is unconditional. `*` matches every current
+  // representation, and the entity exists or the route would have answered 404.
+  if (parsed === null || parsed === '*') {
     return { valid: true, currentTag: null, ifMatch };
   }
 
   // Normalize the entity's dateModified (handle Date objects from LDKit)
-  const dateModified = (entity.dateModified as string | Date | null | undefined);
-  const currentTag = normalizeDateModified(dateModified);
+  const currentTag = normalizeDateModified(entity.dateModified);
 
-  // Validation fails if no current tag or mismatch
-  const valid = !!currentTag && currentTag === ifMatch;
+  // Strong comparison (RFC 9110 §8.8.3.2): a weak tag never matches, because
+  // `If-Match` guards a write and a weak tag only promises equivalence. Every
+  // tag this server sends is strong, so a client holding a weak one got it
+  // from something in between that weakened it.
+  const valid = !!currentTag && parsed.some(entry => !entry.weak && entry.tag === currentTag);
 
   return { valid, currentTag, ifMatch };
 }
@@ -124,61 +162,94 @@ export function setEntityConcurrencyHeaders(
   }
 }
 
+/**
+ * A refusal a handler (or a hook it calls) has already worded.
+ *
+ * Thrown rather than sent so that code below the handler — a versioned-entity
+ * hook, a shared check — can end the request without being handed the reply.
+ * The body is sent as given, with its status; nothing is masked, because the
+ * thrower chose what the caller should read.
+ */
+export class RouteError extends Error {
+  constructor(
+    readonly statusCode: number,
+    readonly body: { error: string; [key: string]: unknown },
+  ) {
+    super(body.error);
+    this.name = 'RouteError';
+  }
+}
+
+/**
+ * The one answer to an error a route did not handle itself.
+ *
+ * This was written out three times — once in each wrapper below and once in
+ * the global error handler in `index.ts` — and the copies were verbatim. The
+ * status comes from the error (`AuthorizationError` 403, `EntityExistsError`
+ * and `ImmutableEntityError` 409, `ValidationError` 400) or is 500. A client
+ * error keeps its message; a server error is masked outside development,
+ * because the message of an error nobody anticipated is whatever the layer
+ * that threw it chose to say.
+ */
+export function errorResponseFor(
+  request: FastifyRequest,
+  err: unknown,
+): { statusCode: number; body: Record<string, unknown> } {
+  if (err instanceof RouteError) {
+    return { statusCode: err.statusCode, body: err.body };
+  }
+  const error = err instanceof Error ? err : new Error(String(err));
+  const statusCode = (error as { statusCode?: number }).statusCode ?? 500;
+  const development = process.env.NODE_ENV === 'development';
+
+  let message = error.message || 'Request failed';
+  if (statusCode >= 500 && !development) {
+    message = 'Internal Server Error';
+  }
+
+  const body: Record<string, unknown> = {
+    error: message,
+    route: `${request.method} ${request.url}`,
+    requestId: request.id,
+    timestamp: new Date().toISOString(),
+  };
+  if (development) {
+    body.details = {
+      stack: error.stack,
+      type: error.constructor.name,
+      originalError: String(err),
+    };
+  }
+  return { statusCode, body };
+}
+
+/** Log and answer an error a route did not handle; a no-op once the reply is sent. */
+export function sendRouteError(request: FastifyRequest, reply: FastifyReply, err: unknown): void {
+  const error = err instanceof Error ? err : new Error(String(err));
+  if (!(err instanceof RouteError)) {
+    request.log.error({
+      err: error,
+      route: `${request.method} ${request.url}`,
+      requestId: request.id,
+      statusCode: (error as { statusCode?: number }).statusCode,
+      errorType: error.constructor.name,
+    }, 'Route handler failure');
+  }
+  if (reply.sent) return;
+  const { statusCode, body } = errorResponseFor(request, err);
+  reply.status(statusCode).send(body);
+}
+
 export function withCacheHandler<TResult>(
   handler: RouteHandler<TResult>
 ): (request: FastifyRequest, reply: FastifyReply) => Promise<Awaited<TResult> | void> {
   return async (request, reply): Promise<Awaited<TResult> | void> => {
     try {
       const cache = getCacheCoordinator();
-      const result = await handler({ request, reply, cache });
-      return result as Awaited<TResult>;
+      return await handler({ request, reply, cache }) as Awaited<TResult>;
     } catch (err) {
-      const error = err instanceof Error ? err : new Error(String(err));
-
-      // Enhanced error logging with request context
-      request.log.error({
-        err: error,
-        route: `${request.method} ${request.url}`,
-        requestId: request.id,
-        statusCode: (error as { statusCode?: number }).statusCode,
-        errorType: error.constructor.name
-      }, 'Route handler failure');
-
-      if (!reply.sent) {
-        const statusCode = (error as { statusCode?: number }).statusCode ?? 500;
-
-        // Preserve original error messages instead of generic ones
-        let message = error.message || 'Request failed';
-        let details: unknown = undefined;
-
-        // In development, include more error details
-        if (process.env.NODE_ENV === 'development') {
-          details = {
-            stack: error.stack,
-            type: error.constructor.name,
-            originalError: String(err)
-          };
-        }
-
-        // For client errors (4xx), always show the original message
-        // For server errors (5xx), show original message in development, generic in production
-        if (statusCode >= 500 && process.env.NODE_ENV !== 'development') {
-          message = 'Internal Server Error';
-        }
-
-        const errorResponse: { error: string; route: string; timestamp: string; details?: unknown } = {
-          error: message,
-          route: `${request.method} ${request.url}`,
-          timestamp: new Date().toISOString()
-        };
-
-        if (details) {
-          errorResponse.details = details;
-        }
-
-        reply.status(statusCode).send(errorResponse);
-      }
-      return; // explicitly return void in error case
+      sendRouteError(request, reply, err);
+      return;
     }
   };
 }
@@ -272,49 +343,9 @@ export function withReposHandler<TResult>(
   return async (request, reply): Promise<Awaited<TResult> | void> => {
     try {
       const repos = getEntityRepositories();
-      const result = await handler({ request, reply, repos });
-      return result as Awaited<TResult>;
+      return await handler({ request, reply, repos }) as Awaited<TResult>;
     } catch (err) {
-      const error = err instanceof Error ? err : new Error(String(err));
-
-      request.log.error({
-        err: error,
-        route: `${request.method} ${request.url}`,
-        requestId: request.id,
-        statusCode: (error as { statusCode?: number }).statusCode,
-        errorType: error.constructor.name
-      }, 'Route handler failure');
-
-      if (!reply.sent) {
-        const statusCode = (error as { statusCode?: number }).statusCode ?? 500;
-
-        let message = error.message || 'Request failed';
-        let details: unknown = undefined;
-
-        if (process.env.NODE_ENV === 'development') {
-          details = {
-            stack: error.stack,
-            type: error.constructor.name,
-            originalError: String(err)
-          };
-        }
-
-        if (statusCode >= 500 && process.env.NODE_ENV !== 'development') {
-          message = 'Internal Server Error';
-        }
-
-        const errorResponse: { error: string; route: string; timestamp: string; details?: unknown } = {
-          error: message,
-          route: `${request.method} ${request.url}`,
-          timestamp: new Date().toISOString()
-        };
-
-        if (details) {
-          errorResponse.details = details;
-        }
-
-        reply.status(statusCode).send(errorResponse);
-      }
+      sendRouteError(request, reply, err);
       return;
     }
   };

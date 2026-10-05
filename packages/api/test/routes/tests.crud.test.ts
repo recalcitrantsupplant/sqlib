@@ -3,6 +3,7 @@ import Fastify, { FastifyInstance } from 'fastify';
 import testRoutes from '../../src/routes/tests.js';
 import { setupValidator } from '../../src/lib/validator-setup.js';
 import * as schemas from '@sparql-query-lib/contracts/schema';
+import { ValidationError } from '../../src/lib/validationError.js';
 
 const hoisted = vi.hoisted(() => ({
   test: { list: vi.fn(), get: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
@@ -20,11 +21,14 @@ vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
   getCacheCoordinator: () => ({ get: hoisted.coordinatorGet, list: hoisted.coordinatorList }),
 }));
 
-vi.mock('../../src/lib/TestVersionWriter.js', () => ({
-  createTestVersion: hoisted.createVersion,
-  updateTestVersion: hoisted.updateVersion,
-  TestVersionError: class TestVersionError extends Error {},
-}));
+vi.mock('../../src/lib/TestVersionWriter.js', async () => {
+  const { ValidationError } = await vi.importActual<typeof import('../../src/lib/validationError.js')>('../../src/lib/validationError.js');
+  return {
+    createTestVersion: hoisted.createVersion,
+    updateTestVersion: hoisted.updateVersion,
+    TestVersionError: class TestVersionError extends ValidationError {},
+  };
+});
 
 vi.mock('../../src/lib/TestRunner.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../src/lib/TestRunner.js')>();
@@ -287,7 +291,7 @@ describe('Tests Routes (/tests)', () => {
 
   it('turns a writer rejection into a 400', async () => {
     hoisted.test.get.mockReturnValue({ $id: TEST_ID, '@type': 'Test', name: 'A' });
-    hoisted.createVersion.mockRejectedValue(new Error('A graph expectation needs an expected result.'));
+    hoisted.createVersion.mockRejectedValue(new ValidationError('A graph expectation needs an expected result.'));
 
     const res = await app.inject({
       method: 'POST',

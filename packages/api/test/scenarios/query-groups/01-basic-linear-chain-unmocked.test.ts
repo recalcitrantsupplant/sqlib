@@ -66,7 +66,7 @@ describe('Basic Linear Chain Scenario (Unmocked)', () => {
     console.log('Creating Query 1 version...');
     const query1VersionResponse = await context.app.inject({
       method: 'POST',
-      url: `/queries/${encodeURIComponent(query1Entity.id)}/v`,
+      url: `/queries/${encodeURIComponent(query1Entity.id)}/versions`,
       payload: {
         queryVersion: {
           queryString: query1,

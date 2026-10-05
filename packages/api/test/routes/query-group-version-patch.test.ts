@@ -1,5 +1,5 @@
 /**
- * `PATCH /query-groups/:id/v/:version` — what a group version PATCH is *for*.
+ * `PATCH /query-groups/:id/versions/:version` — what a group version PATCH is *for*.
  *
  * The group's in-place overwrite went in #191 and the API half in #192: a
  * version is what the graph looked like when it was saved. `canvasData` is
@@ -25,6 +25,17 @@ const hoisted = vi.hoisted(() => ({
 }));
 
 vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
+  // The repositories are the coordinator under a type, as in production.
+  getEntityRepositories: () => new Proxy({}, {
+    get: (_target, type) => ({
+      get: (id: string) => {
+        const entity = (hoisted.mockGet as (id: string) => Record<string, unknown> | null | undefined)(id);
+        return entity && (!entity['@type'] || entity['@type'] === type) ? entity : null;
+      },
+      list: () => hoisted.mockList(String(type)),
+      update: (id: string, updates: Record<string, unknown>) => hoisted.mockUpdate(String(type), id, updates),
+    }),
+  }),
   getCacheCoordinator: () => ({
     list: hoisted.mockList,
     get: hoisted.mockGet,
@@ -80,7 +91,12 @@ describe('Query Group Version PATCH Routes', () => {
     await app.ready();
   });
 
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Every version route looks the group up first.
+    hoisted.mockGet.mockImplementation((id: string) =>
+      id === groupId ? { $id: groupId, '@type': 'QueryGroup', name: 'Group' } : null);
+  });
   afterAll(async () => { if (app) await app.close(); });
 
   function existingVersion(overrides: Record<string, unknown> = {}) {
@@ -98,7 +114,7 @@ describe('Query Group Version PATCH Routes', () => {
   function patch(payload: unknown, version = '1') {
     return app.inject({
       method: 'PATCH',
-      url: `/query-groups/${encodeURIComponent(groupId)}/v/${version}`,
+      url: `/query-groups/${encodeURIComponent(groupId)}/versions/${version}`,
       payload: payload as Record<string, unknown>,
     });
   }

@@ -15,6 +15,7 @@
  */
 
 import * as oxigraph from 'oxigraph';
+import { ValidationError } from './validationError.js';
 
 /** The serialisations a data graph may be written in. */
 export const DATA_GRAPH_FORMATS = ['text/turtle', 'application/n-triples', 'application/n-quads'] as const;
@@ -76,7 +77,7 @@ function oxigraphLoadFormat(format: DataGraphFormat): string {
   }
 }
 
-export class DataGraphContentError extends Error {
+export class DataGraphContentError extends ValidationError {
   constructor(message: string) {
     super(message);
     this.name = 'DataGraphContentError';

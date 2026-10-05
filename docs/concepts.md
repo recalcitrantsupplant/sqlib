@@ -112,8 +112,8 @@ offered to another, and the server judges it `fits`, `partial` or `mismatch`
 against that callable's signature. A version is immutable, so a test or an MCP
 call that pins one is reproducible. A run may supply inline values for parameters
 a named set leaves open; supplying both for the same parameter is refused by
-name. Argument set routes use `/v` rather than `/versions` — the one entity that
-differs.
+name. Argument set versions live under `/argument-sets/:id/versions`, the same
+path segment every versioned entity uses.
 
 ## QueryGroup
 

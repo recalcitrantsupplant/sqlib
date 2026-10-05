@@ -98,7 +98,7 @@ describe('Flat Query Group Building Flow', () => {
 
     const response = await app.inject({
       method: 'POST',
-      url: `/query-groups/${testGroupId}/v`,
+      url: `/query-groups/${testGroupId}/versions`,
       payload,
     });
 

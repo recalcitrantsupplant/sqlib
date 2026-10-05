@@ -127,7 +127,7 @@ async function buildApp(principal: string | null): Promise<FastifyInstance> {
     instance.get('/:id', async () => ({ ok: true }));
     instance.put('/:id', async () => ({ ok: true }));
     instance.delete('/:id', async (_request, reply) => reply.status(204).send());
-    instance.post('/:id/v/:version/run', async () => ({ ok: true }));
+    instance.post('/:id/versions/:version/run', async () => ({ ok: true }));
   }, { prefix: '/benchmark-experiments' });
 
   await app.ready();
@@ -230,9 +230,9 @@ const MATRIX: Case[] = [
   ['stranger cannot read a benchmark', STRANGER, 'GET', `/benchmark-experiments/${BENCHMARK}`, 403],
   ['stranger cannot rewrite a benchmark', STRANGER, 'PUT', `/benchmark-experiments/${BENCHMARK}`, 403],
   ['stranger cannot delete a benchmark', STRANGER, 'DELETE', `/benchmark-experiments/${BENCHMARK}`, 403],
-  ['stranger cannot run a benchmark', STRANGER, 'POST', `/benchmark-experiments/${BENCHMARK}/v/1/run`, 403],
-  ['reader cannot run a benchmark', READER, 'POST', `/benchmark-experiments/${BENCHMARK}/v/1/run`, 403],
-  ['runner runs a benchmark', RUNNER, 'POST', `/benchmark-experiments/${BENCHMARK}/v/1/run`, 200],
+  ['stranger cannot run a benchmark', STRANGER, 'POST', `/benchmark-experiments/${BENCHMARK}/versions/1/run`, 403],
+  ['reader cannot run a benchmark', READER, 'POST', `/benchmark-experiments/${BENCHMARK}/versions/1/run`, 403],
+  ['runner runs a benchmark', RUNNER, 'POST', `/benchmark-experiments/${BENCHMARK}/versions/1/run`, 200],
   ['owner rewrites a benchmark', OWNER, 'PUT', `/benchmark-experiments/${BENCHMARK}`, 200],
 
   /*
