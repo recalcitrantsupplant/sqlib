@@ -219,7 +219,7 @@ async function save() {
       // Omitting `tags` is what asks the server for the query's; `[]` is the
       // unticked box saying none.
       ...(copySubjectTags.value ? {} : { tags: [] }),
-    } as never);
+    });
 
     await apiClient.createTestVersion(test.id, {
       // Recording the result makes this an assertion; without one it is a
@@ -258,8 +258,8 @@ async function save() {
 .field { display: flex; flex-direction: column; gap: var(--space-2); }
 .field--row { flex-direction: row; align-items: center; gap: var(--space-3); font-size: var(--text-label); }
 .field__label { font-size: var(--text-micro); font-weight: var(--weight-semibold); text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-muted); }
-.field__input { height: 30px; padding: 0 var(--space-3); border: 1px solid var(--border-default); border-radius: var(--radius); background: var(--surface); color: inherit; font: inherit; font-size: var(--text-label); }
-.button { height: 28px; padding: 0 var(--space-4); border: 1px solid var(--border-default); border-radius: var(--radius); background: transparent; font-size: var(--text-label); cursor: pointer; }
+.field__input { height: var(--control-h); padding: 0 var(--space-3); border: 1px solid var(--border-default); border-radius: var(--radius); background: var(--surface); color: inherit; font: inherit; font-size: var(--text-label); }
+.button { height: var(--control-h); padding: 0 var(--space-4); border: 1px solid var(--border-default); border-radius: var(--radius); background: transparent; font-size: var(--text-label); cursor: pointer; }
 .button--primary { border-color: transparent; background: var(--action); color: var(--action-ink); font-weight: var(--weight-semibold); }
 .button:disabled { opacity: 0.55; cursor: default; }
 </style>

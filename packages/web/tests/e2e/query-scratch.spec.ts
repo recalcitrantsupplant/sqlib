@@ -1,6 +1,7 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
 import { mockSidebarCollections } from './fixtures/collections';
 import { API_HOST } from './api-origin';
+import { recordUrl, scratchUrl } from './navigate';
 
 /**
  * A query born scratch: written, run, named at the save moment, and turned
@@ -92,7 +93,7 @@ test.describe('Scratch queries', () => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(createdQueries) });
     });
 
-    await page.route(`**//${API_HOST}/queries/*/v`, async (route: Route) => {
+    await page.route(`**//${API_HOST}/queries/*/versions`, async (route: Route) => {
       if (route.request().method() === 'POST') {
         if (failNextVersion) {
           failNextVersion = false;
@@ -104,7 +105,7 @@ test.describe('Scratch queries', () => {
           return;
         }
         const body = route.request().postDataJSON();
-        const queryId = decodeURIComponent(route.request().url().split('/queries/')[1]!.replace('/v', ''));
+        const queryId = decodeURIComponent(route.request().url().split('/queries/')[1]!.replace('/versions', ''));
         // Numbered from what this query already has: a hardcoded v1 made a
         // second save indistinguishable from the first, so the version pill
         // could never be seen to move.
@@ -139,7 +140,7 @@ test.describe('Scratch queries', () => {
         });
         return;
       }
-      const queryId = decodeURIComponent(route.request().url().split('/queries/')[1]!.replace('/v', ''));
+      const queryId = decodeURIComponent(route.request().url().split('/queries/')[1]!.replace('/versions', ''));
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -147,7 +148,7 @@ test.describe('Scratch queries', () => {
       });
     });
 
-    await page.route(`**//${API_HOST}/queries/*/v/*`, async (route: Route) => {
+    await page.route(`**//${API_HOST}/queries/*/versions/*`, async (route: Route) => {
       const version = createdVersions.at(-1);
       await route.fulfill({
         status: 200,
@@ -184,7 +185,7 @@ test.describe('Scratch queries', () => {
     // screen than an empty list, and it is a real item, not a separate screen.
     await expect(scratchRows(page)).toHaveCount(1);
     await expect(scratchChip(page)).toBeVisible();
-    await expect(page).toHaveURL(/scratch=/);
+    await expect(page).toHaveURL(scratchUrl('queries'));
   });
 
   test('runs an unsaved body without saving it first', async ({ page }) => {
@@ -226,7 +227,7 @@ test.describe('Scratch queries', () => {
     // The handoff: gone from Scratch, present in Saved, and still open.
     await expect(scratchRows(page)).toHaveCount(0);
     await expect(savedRows(page).filter({ hasText: 'Country types' })).toBeVisible();
-    await expect(page).toHaveURL(/query=urn:sqlib:query:created-1/);
+    await expect(page).toHaveURL(recordUrl('queries', 'urn:sqlib:query:created-1'));
   });
 
   test('saves into the library the sidebar is pointing at', async ({ page }) => {

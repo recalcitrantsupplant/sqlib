@@ -10,8 +10,8 @@ choices; that page is the lookup table.
 
 ## Prerequisites
 
-- Node. `.nvmrc` pins 24, which is the version CI installs. The published
-  Docker image is built on `node:26-bookworm-slim`.
+- Node 26. `.nvmrc` pins it, CI installs it, and both Docker images are built
+  on `node:26-bookworm-slim`.
 - pnpm 11.1.2 (the `packageManager` field in the root `package.json`).
 - [just](https://github.com/casey/just). The `Justfile` is the only task
   runner in the repository.

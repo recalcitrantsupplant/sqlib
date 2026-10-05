@@ -90,7 +90,10 @@ export function useArgumentSetsStore() {
   };
 
   const deleteArgumentSet = async (setId: string) => {
-    await apiClient.deleteArgumentSet(setId);
+    // Guarded by the tag the listing holds, so a set changed elsewhere since it
+    // was listed is not deleted from under its editor.
+    const held = state.argumentSets.find(set => set.id === setId);
+    await apiClient.deleteArgumentSet(setId, { ifMatch: held?.dateModified ?? null });
     state.argumentSets = state.argumentSets.filter(set => set.id !== setId);
     delete state.versionsBySet[setId];
   };

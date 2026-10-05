@@ -218,7 +218,7 @@ export class GroupHarness {
 
     const version = await this.app.inject({
       method: 'POST',
-      url: `/queries/${encodeURIComponent(queryId)}/v`,
+      url: `/queries/${encodeURIComponent(queryId)}/versions`,
       payload: { queryVersion: { queryString } },
     });
     if (version.statusCode !== 201) {
@@ -487,7 +487,7 @@ export class GroupHarness {
 
     const response = await this.app.inject({
       method: 'POST',
-      url: `/query-groups/${encodeURIComponent(groupId)}/v`,
+      url: `/query-groups/${encodeURIComponent(groupId)}/versions`,
       payload: this.buildPayload(spec),
     }) as unknown as InjectedResponse;
 
@@ -533,7 +533,7 @@ export class GroupHarness {
   async validate(built: BuiltGroup): Promise<ValidationResult> {
     const response = await this.app.inject({
       method: 'GET',
-      url: `/query-groups/${encodeURIComponent(built.groupId)}/v/${built.version}/validate`,
+      url: `/query-groups/${encodeURIComponent(built.groupId)}/versions/${built.version}/validate`,
     });
     if (response.statusCode !== 200) {
       throw new Error(`Validate failed: ${response.statusCode} ${response.payload}`);

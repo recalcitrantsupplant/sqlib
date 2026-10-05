@@ -1,15 +1,15 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import fc from 'fast-check';
 import { GroupHarness, START, END, type BuiltGroup } from './harness/group-harness.js';
-import { ALL_TEMPLATES, getTemplate, queryIdSelect } from './harness/query-templates.js';
+import { ALL_TEMPLATES, queryIdSelect } from './harness/query-templates.js';
 import { caseArbitrary, type GeneratedCase } from './harness/graph-generator.js';
 import { fuzzBudget } from './harness/fuzz-budget.js';
 
 /**
  * Phase 2 round-trip property (docs §2.3, "Round-trip property").
  *
- * A generated graph goes out through the flat `POST /v`, comes back through the
- * expanded `GET /v/:version`, is rebuilt from what came back, and the rebuild
+ * A generated graph goes out through the flat `POST /versions`, comes back through the
+ * expanded `GET /versions/:version`, is rebuilt from what came back, and the rebuild
  * must describe the same graph and execute to the same answer.
  *
  * This is the property that catches writer/expander drift - the temp-URN and
@@ -115,7 +115,7 @@ describe('Phase 2 flat round trip', () => {
   const expand = async (built: BuiltGroup): Promise<Expanded> => {
     const response = await harness.app.inject({
       method: 'GET',
-      url: `/query-groups/${encodeURIComponent(built.groupId)}/v/${built.version}`,
+      url: `/query-groups/${encodeURIComponent(built.groupId)}/versions/${built.version}`,
     });
     expect(response.statusCode, response.payload.slice(0, 400)).toBe(200);
     return response.json() as Expanded;
@@ -168,7 +168,7 @@ describe('Phase 2 flat round trip', () => {
   const rebuild = async (built: BuiltGroup, expanded: Expanded): Promise<BuiltGroup> => {
     const response = await harness.app.inject({
       method: 'POST',
-      url: `/query-groups/${encodeURIComponent(built.groupId)}/v`,
+      url: `/query-groups/${encodeURIComponent(built.groupId)}/versions`,
       payload: rebuildPayload(expanded),
     });
     expect(response.statusCode, `rebuild rejected: ${response.payload.slice(0, 500)}`).toBe(201);

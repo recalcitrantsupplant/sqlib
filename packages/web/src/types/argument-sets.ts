@@ -9,7 +9,6 @@
 // SPARQL Value Types (W3C SPARQL 1.1 Query Results JSON Format)
 // ============================================================================
 
-import type { DataGraphFormat } from './data-graphs'
 
 export interface SparqlValue {
   type: 'uri' | 'literal'
@@ -127,30 +126,8 @@ export interface ArgumentSetVersionInput {
 // Runtime Execution Types
 // ============================================================================
 
-export interface ExecutionArgument {
-  head: { vars: string[] }
-  results: { bindings: SparqlBinding[] }
-}
-
-/**
- * One graph a run hands to a query group.
- *
- * Routed by where it sits in the run's list — entry N fills the Nth data input
- * the start node declares. Nothing names a port: a run says what it supplies
- * and in what order, and the group says where each one goes.
- */
-export interface ExecutionDataGraphInput {
-  dataGraphVersionId?: string | null
-  dataGraphId?: string | null
-  dataGraphInline?: string | null
-  dataGraphInlineFormat?: DataGraphFormat | null
-}
-
-export interface ExecutionArgumentsExport {
-  arguments: ExecutionArgument[]
-  limits: { name: string; value: number }[]
-  offsets: { name: string; value: number }[]
-}
+/** The contract's argument shape: one SPARQL Results JSON document per slot. */
+export type { ExecutionArgument } from '@sparql-query-lib/contracts';
 
 /**
  * The editor payload a browser-local argument-set record carries.

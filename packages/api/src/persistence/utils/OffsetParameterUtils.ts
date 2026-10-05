@@ -5,6 +5,7 @@
 import { OffsetParameterSchema, type LdkitOffsetParameter } from '../schemas/OffsetParameterSchema.js';
 import { createRepositoryLens } from './entityRepository.js';
 import { toLdkit } from './id-adapter.js';
+import { log } from '../../lib/log.js';
 
 export const OffsetParameters = createRepositoryLens(OffsetParameterSchema);
 
@@ -16,7 +17,7 @@ export async function findOffsetParameterById(id: string): Promise<LdkitOffsetPa
     const parameter = await OffsetParameters.findByIri(id);
     return parameter ? (parameter as LdkitOffsetParameter) : null;
   } catch (error) {
-    console.warn(`Failed to find OffsetParameter ${id}:`, error);
+    log.warn({ err: error, id }, 'Failed to find OffsetParameter');
     return null;
   }
 }
@@ -88,7 +89,7 @@ export async function deleteOffsetParameter(id: string): Promise<void> {
   try {
     await OffsetParameters.delete(id);
   } catch (error) {
-    console.error(`Failed to delete OffsetParameter ${id}:`, error);
+    log.error({ err: error, id }, 'Failed to delete OffsetParameter');
     throw error;
   }
 }

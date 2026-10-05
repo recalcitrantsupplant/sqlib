@@ -290,6 +290,79 @@ export const ruleSetVersionShape = {
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
 };
+// DataGraphVersion, projected from the entity model
+export const dataGraphVersionShape = {
+  id: iriString,
+  isPartOf: iriString,
+  version: z.number().int(),
+  immutable: nullableBoolean,
+  contentString: z.string().min(1, 'ContentString is required'),
+  contentFormat: z.string().min(1, 'ContentFormat is required'),
+  tripleCount: nullableInteger,
+  byteSize: nullableInteger,
+  grammarValid: nullableBoolean,
+  validationError: nullableString,
+  sourceQueryVersion: optionalIriString,
+  sourceArgumentSetVersion: optionalIriString,
+  sourceBackend: optionalIriString,
+  sourceExecutedAt: isoDateTime,
+  sourceResultHash: nullableString,
+  comment: nullableString,
+  dateCreated: isoDateTime,
+  dateModified: isoDateTime,
+};
+// TupleSetVersion, projected from the entity model
+export const tupleSetVersionShape = {
+  id: iriString,
+  isPartOf: iriString,
+  version: z.number().int(),
+  immutable: nullableBoolean,
+  contentString: z.string().min(1, 'ContentString is required'),
+  sourceFormat: nullableString,
+  tupleColumns: z.array(z.string()).optional().nullable(),
+  rowCount: nullableInteger,
+  byteSize: nullableInteger,
+  sourceEtlJobVersion: optionalIriString,
+  sourceColumnMappingVersion: optionalIriString,
+  sourceExecutedAt: isoDateTime,
+  sourceResultHash: nullableString,
+  comment: nullableString,
+  dateCreated: isoDateTime,
+  dateModified: isoDateTime,
+};
+// TestCase, projected from the entity model
+export const testCaseShape = {
+  id: iriString,
+  isPartOf: iriString,
+  position: z.number().int(),
+  name: nullableString,
+  argumentSetVersion: optionalIriString,
+  dataGraphVersion: optionalIriString,
+  dataGraphs: optionalIriArray,
+  tupleSeeds: nullableString,
+  sqlFixture: nullableString,
+  expected: nullableString,
+  expectedFormat: nullableString,
+  ordered: nullableBoolean,
+  dateCreated: isoDateTime,
+  dateModified: isoDateTime,
+};
+// TestVersion, projected from the entity model
+export const testVersionShape = {
+  id: iriString,
+  isPartOf: iriString,
+  version: z.number().int(),
+  immutable: nullableBoolean,
+  subjectVersion: optionalIriString,
+  cases: optionalIriArray,
+  backend: optionalIriString,
+  expectationKind: z.string().min(1, 'ExpectationKind is required'),
+  maxIterations: nullableInteger,
+  timeoutMs: nullableInteger,
+  comment: nullableString,
+  dateCreated: isoDateTime,
+  dateModified: isoDateTime,
+};
 export const limitParameterSchema = z.object(limitParameterShape).strict();
 export const offsetParameterSchema = z.object(offsetParameterShape).strict();
 export const queryInputVariableSchema = z.object(queryInputVariableShape).strict();
@@ -312,6 +385,10 @@ export const queryGroupVersionSchema = z.object(queryGroupVersionShape).strict()
 export const ruleVersionSchema = z.object(ruleVersionShape).strict();
 export const dataBlockVersionSchema = z.object(dataBlockVersionShape).strict();
 export const ruleSetVersionSchema = z.object(ruleSetVersionShape).strict();
+export const dataGraphVersionSchema = z.object(dataGraphVersionShape).strict();
+export const tupleSetVersionSchema = z.object(tupleSetVersionShape).strict();
+export const testCaseSchema = z.object(testCaseShape).strict();
+export const testVersionSchema = z.object(testVersionShape).strict();
 // LimitParameter entity type
 export type LimitParameter = z.infer<typeof limitParameterSchema>;
 // OffsetParameter entity type
@@ -356,4 +433,12 @@ export type RuleVersion = z.infer<typeof ruleVersionSchema>;
 export type DataBlockVersion = z.infer<typeof dataBlockVersionSchema>;
 // RuleSetVersion entity type
 export type RuleSetVersion = z.infer<typeof ruleSetVersionSchema>;
+// DataGraphVersion entity type
+export type DataGraphVersion = z.infer<typeof dataGraphVersionSchema>;
+// TupleSetVersion entity type
+export type TupleSetVersion = z.infer<typeof tupleSetVersionSchema>;
+// TestCase entity type
+export type TestCase = z.infer<typeof testCaseSchema>;
+// TestVersion entity type
+export type TestVersion = z.infer<typeof testVersionSchema>;
 

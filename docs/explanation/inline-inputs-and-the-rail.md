@@ -47,8 +47,9 @@ matching discipline, holding the same rows for no reuse that a person asked for.
 
 ## Deleting a graph
 
-Deleting a `DataGraph` is not refused. Its only pin holders were graph bindings
-on argument sets, and those are gone. A browser default that names the graph or
+Deleting a `DataGraph` is refused while a saved test version pins one of its
+versions, as for any pinned entity (`lib/versionPins.ts`). Argument sets no
+longer pin graphs, because they hold none. A browser default that names the graph or
 one of its versions is cleared, because a default is a starting selection, not
 a pin: losing one costs a pick and breaks no run.
 

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
 import { QueryEdgeSchema } from '../../../src/persistence/schemas/QueryEdgeSchema.js';
-import { ldkit, sqlib, sdo } from '../../../src/persistence/namespaces.js';
+import { ldkit, sqlib } from '../../../src/persistence/namespaces.js';
 
 describe('QueryEdgeSchema', () => {
   it('defines correct @type and properties', () => {

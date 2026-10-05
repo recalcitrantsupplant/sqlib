@@ -3,6 +3,7 @@ import Fastify, { FastifyInstance } from 'fastify';
 import dataGraphRoutes from '../../src/routes/data-graphs.js';
 import { setupValidator } from '../../src/lib/validator-setup.js';
 import * as schemas from '@sparql-query-lib/contracts/schema';
+import { DataGraphContentError } from '../../src/lib/dataGraphContent.js';
 
 const hoisted = vi.hoisted(() => ({
   dataGraph: {
@@ -31,8 +32,8 @@ vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
   }),
   getCacheCoordinator: () => ({
     get: hoisted.coordinatorGet,
-    // Deleting a data graph asks who pins it (`pinsOnDataGraph`), which is a
-    // scan over stored versions and argument sets. Nothing here is pinned.
+    // Deleting a data graph asks who pins its versions (`lib/versionPins.ts`),
+    // which is a scan over stored holders. Nothing here is pinned.
     list: () => [],
   }),
 }));
@@ -147,7 +148,7 @@ describe('DataGraphs Routes (/data-graphs)', () => {
 
   it('turns a writer rejection into a 400 rather than a 500', async () => {
     hoisted.dataGraph.get.mockReturnValue({ $id: GRAPH_ID, '@type': 'DataGraph', name: 'Example data' });
-    hoisted.mockCreateVersion.mockRejectedValue(new Error('Invalid text/turtle content: bad syntax'));
+    hoisted.mockCreateVersion.mockRejectedValue(new DataGraphContentError('Invalid text/turtle content: bad syntax'));
 
     const res = await app.inject({
       method: 'POST',
@@ -157,6 +158,20 @@ describe('DataGraphs Routes (/data-graphs)', () => {
 
     expect(res.statusCode).toBe(400);
     expect(res.json().error).toMatch(/Invalid text\/turtle content/);
+  });
+
+  it('answers an unanticipated writer failure with a 500 that names no internals', async () => {
+    hoisted.dataGraph.get.mockReturnValue({ $id: GRAPH_ID, '@type': 'DataGraph', name: 'Example data' });
+    hoisted.mockCreateVersion.mockRejectedValue(new Error('store unreachable at /var/lib/sqlib'));
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/data-graphs/${encodeURIComponent(GRAPH_ID)}/versions`,
+      payload: { contentString: '<a> <b> <c> .', contentFormat: 'text/turtle' },
+    });
+
+    expect(res.statusCode).toBe(500);
+    expect(res.json()).toEqual({ error: 'Failed to create data graph version' });
   });
 
   it('rejects a format the executor could not load', async () => {

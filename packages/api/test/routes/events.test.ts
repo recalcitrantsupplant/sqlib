@@ -138,7 +138,7 @@ describe('describeRoute', () => {
   });
 
   it('ignores the trailing segments of a nested write', () => {
-    expect(describeRoute('/queries/urn:query:1/v/2?expand=true')).toEqual({
+    expect(describeRoute('/queries/urn:query:1/versions/2?expand=true')).toEqual({
       entity: 'query',
       id: 'urn:query:1',
     });

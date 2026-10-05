@@ -469,7 +469,7 @@ export async function mockCallableLibrary(page: Page): Promise<RecordedWrite[]> 
         return;
       }
       // A saved version comes back as the expanded shape.
-      const match = /\/queries\/([^/]+)\/v$/.exec(pathname);
+      const match = /\/queries\/([^/]+)\/versions$/.exec(pathname);
       if (match) {
         const spec = QUERY_SPECS.find((candidate) => candidate.id === decodeURIComponent(match[1]!));
         await json(route, {
@@ -483,13 +483,13 @@ export async function mockCallableLibrary(page: Page): Promise<RecordedWrite[]> 
     }
 
     // Query version detail, then the version list, then the entity.
-    const versionDetail = /\/queries\/([^/]+)\/v\/\d+$/.exec(pathname);
+    const versionDetail = /\/queries\/([^/]+)\/versions\/\d+$/.exec(pathname);
     if (versionDetail) {
       const spec = QUERY_SPECS.find((candidate) => candidate.id === decodeURIComponent(versionDetail[1]!));
       await json(route, spec ? expandedFor(spec) : {});
       return;
     }
-    const versionList = /\/queries\/([^/]+)\/v$/.exec(pathname);
+    const versionList = /\/queries\/([^/]+)\/versions$/.exec(pathname);
     if (versionList) {
       const spec = QUERY_SPECS.find((candidate) => candidate.id === decodeURIComponent(versionList[1]!));
       await json(route, spec ? [versionFor(spec)] : []);
@@ -515,11 +515,11 @@ export async function mockCallableLibrary(page: Page): Promise<RecordedWrite[]> 
       }
     }
 
-    if (/\/query-groups\/[^/]+\/v\/\d+$/.test(pathname)) {
+    if (/\/query-groups\/[^/]+\/versions\/\d+$/.test(pathname)) {
       await json(route, GROUP_VERSION_EXPANDED);
       return;
     }
-    if (/\/query-groups\/[^/]+\/v$/.test(pathname)) {
+    if (/\/query-groups\/[^/]+\/versions$/.test(pathname)) {
       await json(route, [GROUP_VERSION]);
       return;
     }

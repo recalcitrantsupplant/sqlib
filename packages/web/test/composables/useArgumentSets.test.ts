@@ -162,7 +162,12 @@ describe('rename', () => {
 
     await args.rename('City seeds');
 
-    expect(api.updateArgumentSet).toHaveBeenCalledWith(SET, { name: 'City seeds' });
+    // Guarded by the open set's tag, so a rename racing another tab's is refused.
+    expect(api.updateArgumentSet).toHaveBeenCalledWith(
+      SET,
+      { name: 'City seeds' },
+      { ifMatch: expect.anything() },
+    );
     expect(api.createArgumentSetVersion).not.toHaveBeenCalled();
     expect(args.name.value).toBe('City seeds');
   });

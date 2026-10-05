@@ -127,15 +127,28 @@ yields v4 rather than reissuing v3, because a reused version number would make
 an identifier that used to mean one thing quietly mean another.
 
 Version numbers are for people. The API's version routes take the number —
-`GET /queries/:id/v/2`, `GET /rule-sets/:id/versions/2` — while execution,
+`GET /queries/:id/versions/2`, `GET /rule-sets/:id/versions/2` — while execution,
 composition and argument sets all use the version IRI. A client that holds a
 `currentVersion` IRI and wants the numbered route has to look the number up from
 the version list.
 
-The path segment is not uniform: `queries`, `query-groups` and `argument-sets`
-use `/v`, while `rules`, `rule-sets`, `data-blocks`, `data-graphs`,
-`tuple-sets` and `tests` use `/versions`. This is an inconsistency in the route
-surface rather than a distinction that means anything.
+Every versioned entity uses the same routes: `/<noun>/:id/versions` and
+`/<noun>/:id/versions/:version`. Until the route-layer consolidation (review
+decision D1) `queries`, `query-groups`, `argument-sets` and benchmarks used
+`/v`; that spelling is gone, with no alias. The CRUD itself is produced by one
+router (`routes/versionedEntity.ts`), so the rules below are the same for every
+noun:
+
+- A missing entity is 404 on every route, DELETE included; a version route
+  404s a missing parent before it looks for the version.
+- PUT and version PATCH honour `If-Match`; a mismatch is 412 with
+  `{ error, expected, current }`.
+- DELETE removes the entity and all its versions, unless a saved version
+  elsewhere pins one of them — a rule set version naming a rule version, a
+  group node naming a query version, an argument set or test case naming a
+  data graph or tuple set version. Then it is refused with 409 and `usedBy`
+  listing the holders. Deleting one version follows the same rule and moves
+  the entity's `currentVersion` to the highest remaining version.
 
 ## Saving, not publishing
 

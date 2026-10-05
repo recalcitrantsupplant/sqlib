@@ -379,6 +379,31 @@ every query is parsed there anyway.
 
 ## Phase 4 — Route layer consolidation
 
+Status: done, WP20–WP22, in one pull request rather than one per module. D1
+was decided as `/versions` with no alias. What changed from the plan:
+
+- WP20: queries, query groups, rules, rule sets, data blocks, data graphs,
+  tuple sets and tests register through `routes/versionedEntity.ts`. Argument
+  sets and benchmarks did not fit (service-backed detail shapes; a benchmark
+  version is an editable draft) and follow the same rules by hand: `/versions`,
+  the 412 body, a 404 for a missing parent, and a pinned argument set refused
+  on delete. Version DELETE now exists for queries and query groups too.
+  "Pinned" is generalised in `lib/versionPins.ts`: a rule set version naming a
+  rule or data block version, a group node naming a query or rule set version,
+  an argument set version naming a data graph or tuple set version, a test
+  version naming its subject version, a case naming a data graph or argument
+  set version. A version route on a parent that no longer resolves is now a
+  404 before anything reads the version, where some modules answered 403 and
+  some 200. `ValidationError` (`lib/validationError.ts`) is the one 400 a
+  version create gives; the content errors extend it. `contract-routes.ts` was
+  edited (benchmark 412 shapes) rather than regenerated, since D7 is open.
+- WP21: `/validate`, `/validate-rule-data`, `/format` and `/substitute` stay
+  unflagged, because the rules editor uses them; only `/detect-*` and `/sparql`
+  moved under `queries`. `server/errorHandler.ts` joined the six files.
+- WP22: the revision is `dateModified` itself, made strictly increasing per
+  entity, rather than a separate counter in the ETag — the tag clients already
+  send stays valid. A weak `If-Match` tag never matches (strong comparison).
+
 ### WP20 — Generic versioned-entity router · L (split into a + one PR per module) · deps: WP1, WP4, WP10, WP12 · closes D1, routes #9/#10
 
 **WP20a — framework + queries as the reference.**
@@ -434,6 +459,30 @@ logs `would-deny` per hidden item in `dry-run`.
 ---
 
 ## Phase 5 — Web
+
+Status: done, WP23–WP27, on `claude/determined-fermat-2462b3`. What changed
+from the plan:
+
+- WP24 did not wait for WP31. The test, data graph and tuple set version
+  leaves are now projected by the generator; the rest of the web's wire
+  schemas moved to `contracts/src/hand-written/` (outside `generated/`). The
+  web client is not yet generated from `routes.generated.ts` or split into
+  `api/<entity>.ts` modules — that still needs WP31's route snapshot decision.
+  The API now returns a case's `dataGraphs` in the shape it is written with;
+  `port` is accepted on write but not stored, as before.
+- WP25: the 412 path re-reads the record and replays the partial update once,
+  and a second 412 is an `EntityConflictError`, rather than a reload/overwrite
+  toast — updates are field-level, so the replay is the overwrite. The drafts
+  envelope is built in one place (`useEntityDraft`) but the stored record is
+  still query-shaped. The ETL job PATCH route now validates `If-Match`.
+- WP26: one page, `pages/[[section]]/[[id]].vue`, serves `/`, `/<section>` and
+  `/<section>/<id>`, so the workspace is not remounted when leaving the
+  splash. The workspace itself is `components/workspace/LibraryWorkspace.vue`
+  (about 2,000 lines); its work areas come from `workspace/workAreas.ts`
+  rather than `lib/sections.ts`, because `lib/` imports no components.
+  Record deep links need a static host's SPA fallback (deploying.md).
+- WP27: `pages/tests/query-results-bench.vue` stays, because the perf budget
+  suite drives it against the production build.
 
 ### WP23 — Change feed dispatches by entity · S · deps: none · closes C7
 
@@ -592,6 +641,18 @@ discipline and why.
 
 ## Phase 7 — Engineering infrastructure
 
+Status: WP33 and WP34 done, WP35 in part, on `claude/nice-einstein-r2f7g8`.
+Node is aligned on 26 (the images' major) rather than tested on two. The lint
+gate is a per-package, per-rule ratchet (`scripts/lint-ratchet.mjs`) rather
+than an `any` count alone; `no-console` is at zero in every package. WP35's
+fake store is `test/support/fakePersistenceAdapter.ts`, which stands behind the
+repository lenses as well as the adapter, since the `*Utils` modules reach
+storage through the lenses; it replaced 84 of the 104 module mocks, leaving
+`MemoryCacheManager.test.ts`, a test of the cache's calls to storage. Still
+open, because they wait on WP20a/WP21: the shared `buildTestApp` and the
+exact-message assertions. e2e already ran on every push; it now also gates
+Dependabot's auto-merge.
+
 ### WP33 — First run and docs reconciliation · S · deps: none · closes E1, E4, E6
 
 **Changes.** `Justfile:30,302`: 3005. Remove inert env vars
@@ -648,6 +709,7 @@ Phase 1 (WP1–WP7) is the release blocker for any deployment under
 - **D1 — path segment.** `/v` (queries, query-groups, argument-sets,
   benchmarks) or `/versions` (the other seven). Pre-1.0, so pick one and drop
   the other; the plan assumes `/versions` with no alias. Needed by WP20a.
+  *Decided: `/versions`, no alias (Phase 4).*
 - **D2 — benchmark ownership.** Give `BenchmarkExperiment` an `isPartOf`
   library (schema change, backfill) or make the plugin admin-only. The plan
   assumes the library. Needed by WP2.

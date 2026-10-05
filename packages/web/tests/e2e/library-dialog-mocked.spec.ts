@@ -2,6 +2,7 @@ import { test, expect, type Page, type Route } from '@playwright/test';
 import { openCreateLibraryDialog } from './navigate';
 import { mockSidebarCollections } from './fixtures/collections';
 import { chooseSearchOption, openSearchSelect, searchSelect } from './search-select';
+import { API_ORIGIN } from './api-origin';
 
 // Mock data
 const mockBackends = [
@@ -51,7 +52,7 @@ test.describe('Add Library Dialog (Mocked)', () => {
     // Promise.all resolves instead of taking the whole tree down with it.
     await mockSidebarCollections(page);
 
-    await page.route('**/backends', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/backends`, async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -59,7 +60,7 @@ test.describe('Add Library Dialog (Mocked)', () => {
       });
     });
 
-    await page.route('**/libraries', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/libraries`, async (route: Route) => {
       if (route.request().method() === 'GET') {
         await route.fulfill({
           status: 200,
@@ -84,7 +85,7 @@ test.describe('Add Library Dialog (Mocked)', () => {
       }
     });
 
-    await page.route('**/queries', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/queries`, async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -92,7 +93,7 @@ test.describe('Add Library Dialog (Mocked)', () => {
       });
     });
 
-    await page.route('**/query-groups', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/query-groups`, async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -230,7 +231,7 @@ test.describe('Add Library Dialog (Mocked)', () => {
 
   test('should show loading state during submission', async ({ page }) => {
     // Add a delay to the POST request to see loading state
-    await page.route('**/libraries', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/libraries`, async (route: Route) => {
       if (route.request().method() === 'POST') {
         await new Promise(resolve => setTimeout(resolve, 500));
         const body = route.request().postDataJSON();

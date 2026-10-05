@@ -85,7 +85,7 @@ test.describe('Query arguments', () => {
             body: JSON.stringify(DETECTED),
           });
         }],
-        [/\/argument-sets\/[^/]+\/v\/\d+$/, async (route: Route) => {
+        [/\/argument-sets\/[^/]+\/versions\/\d+$/, async (route: Route) => {
           if (route.request().method() === 'PATCH') {
             versionPatches.push(route.request().postDataJSON());
           }
@@ -95,7 +95,7 @@ test.describe('Query arguments', () => {
             body: JSON.stringify(created.at(-1)?.currentVersion ?? null),
           });
         }],
-        [/\/argument-sets\/[^/]+\/v$/, async (route: Route) => {
+        [/\/argument-sets\/[^/]+\/versions$/, async (route: Route) => {
           await route.fulfill({
             status: 200,
             contentType: 'application/json',

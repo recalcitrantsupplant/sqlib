@@ -142,7 +142,7 @@ export function pruneStaleRuns(
  */
 export function runCacheUsage(): { key: string; bytes: number; maxBytes: number } {
   const store = storage();
-  let bytes = 0;
+  let bytes: number;
   try {
     bytes = store?.getItem(STORAGE_KEY)?.length ?? 0;
   } catch {

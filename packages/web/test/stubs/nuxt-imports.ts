@@ -20,7 +20,6 @@ export interface TestRuntimeConfig {
 }
 
 declare global {
-  // eslint-disable-next-line no-var
   var __NUXT_TEST_CONFIG__: TestRuntimeConfig | undefined;
 }
 

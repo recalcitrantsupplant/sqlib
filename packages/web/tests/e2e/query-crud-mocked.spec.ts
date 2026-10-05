@@ -1,7 +1,7 @@
-import { test, expect, type Locator, type Page, type Route } from '@playwright/test';
+import { test, expect, type Route } from '@playwright/test';
 import { openSection, openSplash } from './navigate';
-import { filterAndChooseFirst, openSearchSelect, searchSelect } from './search-select';
 import { mockSidebarCollections } from './fixtures/collections';
+import { API_ORIGIN } from './api-origin';
 
 // Mock data matching exact contract schemas
 const mockBackends = [
@@ -18,7 +18,7 @@ const mockBackends = [
   },
 ];
 
-let mockLibraries = [
+const mockLibraries = [
   {
     id: 'urn:sqlib:library:test-lib-1',
     name: 'Test Query Library',
@@ -48,7 +48,7 @@ test.describe('Query CRUD Operations (Mocked)', () => {
     // Promise.all resolves instead of taking the whole tree down with it.
     await mockSidebarCollections(page);
 
-    await page.route('**/backends', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/backends`, async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -57,7 +57,7 @@ test.describe('Query CRUD Operations (Mocked)', () => {
     });
 
     // Mock libraries endpoint
-    await page.route('**/libraries', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/libraries`, async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -66,7 +66,7 @@ test.describe('Query CRUD Operations (Mocked)', () => {
     });
 
     // Mock queries endpoint - handles GET and POST
-    await page.route('**/queries', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/queries`, async (route: Route) => {
       if (route.request().method() === 'GET') {
         await route.fulfill({
           status: 200,
@@ -96,7 +96,7 @@ test.describe('Query CRUD Operations (Mocked)', () => {
     });
 
     // Mock individual query endpoints - GET, PUT, DELETE
-    await page.route('**/queries/*', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/queries/*`, async (route: Route) => {
       const url = route.request().url();
       const queryId = decodeURIComponent(url.split('/queries/')[1]);
 
@@ -154,7 +154,7 @@ test.describe('Query CRUD Operations (Mocked)', () => {
     });
 
     // Mock query groups endpoint
-    await page.route('**/query-groups', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/query-groups`, async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -163,7 +163,7 @@ test.describe('Query CRUD Operations (Mocked)', () => {
     });
 
     // Mock rules endpoint
-    await page.route('**/rules', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/rules`, async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -172,7 +172,7 @@ test.describe('Query CRUD Operations (Mocked)', () => {
     });
 
     // Mock data blocks endpoint
-    await page.route('**/data-blocks', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/data-blocks`, async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -181,7 +181,7 @@ test.describe('Query CRUD Operations (Mocked)', () => {
     });
 
     // Mock rule sets endpoint
-    await page.route('**/rule-sets', async (route: Route) => {
+    await page.route(`${API_ORIGIN}/rule-sets`, async (route: Route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',

@@ -8,6 +8,7 @@
  */
 import { test, expect, type Page, type Route } from '@playwright/test';
 import { mockSidebarCollections } from './fixtures/collections';
+import { API_ORIGIN } from './api-origin';
 
 const library = {
   id: 'urn:sqlib:library:peek',
@@ -47,10 +48,10 @@ const json = (route: Route, body: unknown) =>
 
 async function openSubjectPeek(page: Page, srl: string) {
   await mockSidebarCollections(page, { libraries: [library], ruleSets });
-  await page.route('**/tests*', async (route: Route) =>
+  await page.route(`${API_ORIGIN}/tests*`, async (route: Route) =>
     route.request().method() === 'GET' ? json(route, []) : route.fallback());
-  await page.route('**/rule-sets/*/versions*', (route: Route) => json(route, []));
-  await page.route('**/rule-sets/*/srl*', (route: Route) => json(route, {
+  await page.route(`${API_ORIGIN}/rule-sets/*/versions*`, (route: Route) => json(route, []));
+  await page.route(`${API_ORIGIN}/rule-sets/*/srl*`, (route: Route) => json(route, {
     srl,
     ruleCount: srl.split('\n\n').length,
     dataBlockCount: 0,
@@ -58,8 +59,8 @@ async function openSubjectPeek(page: Page, srl: string) {
     tuplesEnabled: false,
     warnings: [],
   }));
-  await page.route('**/data-graphs*', (route: Route) => json(route, []));
-  await page.route('**/argument-sets*', (route: Route) => json(route, []));
+  await page.route(`${API_ORIGIN}/data-graphs*`, (route: Route) => json(route, []));
+  await page.route(`${API_ORIGIN}/argument-sets*`, (route: Route) => json(route, []));
 
   await page.goto('/?section=tests&new=test');
   await page.getByTestId('test-subject').click();

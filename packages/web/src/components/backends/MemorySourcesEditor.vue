@@ -375,7 +375,7 @@ function removeRow(row: SourceRow) {
   display: inline-flex;
   align-items: center;
   gap: var(--space-3);
-  height: 26px;
+  height: var(--control-h);
   padding: 0 var(--space-5);
   border: 1px dashed var(--border-strong);
   border-radius: var(--radius-full);

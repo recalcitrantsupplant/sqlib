@@ -3,7 +3,6 @@ import { ZodError } from 'zod';
 import {
   queryGroupVersionForGroupCreateSchema,
   type QueryGroupVersionExpanded,
-  type QueryGroupVersionExpandedWithIriMap,
   type QueryGroupVersionForGroupCreateInput,
   type QueryVersionExpanded,
 } from '@sparql-query-lib/contracts';
@@ -426,9 +425,9 @@ export function useQueryGroupIO(deps: UseQueryGroupIODeps): UseQueryGroupIOResul
   };
 
   const resolveAllowedTypesForVariable = (
-    tupleIndex: number,
-    variableIndex: number,
-    variable: TupleDefinition['variables'][number],
+    _tupleIndex: number,
+    _variableIndex: number,
+    _variable: TupleDefinition['variables'][number],
   ): { allowedTypes?: string[]; error?: string } => {
     // For MVP: Don't populate allowedTypes - keep inputs unconstrained
     // Later: Add UI for users to specify type constraints
@@ -506,7 +505,7 @@ export function useQueryGroupIO(deps: UseQueryGroupIODeps): UseQueryGroupIOResul
         memberIds.push(memberId);
 
         const canonicalForUi = allowedTypes && allowedTypes.length > 0 ? allowedTypes[0] : null;
-        let normalizedDatatype = variable.datatype;
+        const normalizedDatatype = variable.datatype;
         let normalizedCustomDatatype = variable.customDatatype;
 
         if (variable.nodeKind === 'literal' && variable.datatype === 'custom' && canonicalForUi) {
@@ -686,7 +685,7 @@ export function useQueryGroupIO(deps: UseQueryGroupIODeps): UseQueryGroupIOResul
 
   /*
    * Takes the plain expansion, not the with-iri-map one. It reads no `iriMap`,
-   * and `GET /query-groups/:id/v/:version` returns a payload where that field
+   * and `GET /query-groups/:id/versions/:version` returns a payload where that field
    * is optional — so demanding it described a caller that does not exist.
    */
   const populateFromExpanded = (expanded: QueryGroupVersionExpanded) => {
@@ -1092,7 +1091,7 @@ export function useQueryGroupIO(deps: UseQueryGroupIODeps): UseQueryGroupIOResul
       if (error instanceof Error) {
         throw error;
       }
-      throw new Error('Failed to normalize start node tuples.');
+      throw new Error('Failed to normalize start node tuples.', { cause: error });
     }
 
     const refreshedState = graph.currentGraphState.value;
@@ -1384,7 +1383,7 @@ export function useQueryGroupIO(deps: UseQueryGroupIODeps): UseQueryGroupIOResul
     } catch (error) {
       if (error instanceof ZodError) {
         const message = error.issues.map(issue => issue.message).join('; ');
-        throw new Error(`Query group payload is invalid: ${message}`);
+        throw new Error(`Query group payload is invalid: ${message}`, { cause: error });
       }
       throw error;
     }

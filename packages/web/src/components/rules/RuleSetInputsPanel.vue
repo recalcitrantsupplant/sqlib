@@ -512,8 +512,8 @@ const onDataInput = (value: string) => {
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
   border: none;
   border-radius: var(--radius);
   background: transparent;

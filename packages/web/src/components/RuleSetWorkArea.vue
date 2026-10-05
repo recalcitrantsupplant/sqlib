@@ -24,6 +24,7 @@
         :is-scratch="isScratch"
         :current-version-number="currentVersionNumberForDisplay"
         :edit-count="editCount"
+        :draft-not-kept="draftNotKept"
         :saving="isSaving"
         :can-save="canSave"
         :needs-name="needsName"
@@ -254,7 +255,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, shallowRef, watch } from 'vue';
+import { ref, computed, onMounted, shallowRef, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import { languageExtensionsFor } from '../lib/codeLanguage';
 import { EditorState, type Extension } from '@codemirror/state';
@@ -298,7 +299,8 @@ import { useScratchRecord } from '../composables/useScratchRecord';
 import { loadLastRun, runCacheKey, saveLastRun } from '@/lib/lastRunCache';
 import { useEditorDocumentKey } from '../composables/useEditorDocumentKey';
 import { useSrlAnalysis } from '../composables/useSrlAnalysis';
-import { useCallableDrafts, UNASSIGNED_LIBRARY_ID } from '../composables/useCallableDrafts';
+import { useCallableDrafts } from '../composables/useCallableDrafts';
+import { useEntityDraft } from '../composables/useEntityDraft';
 import { useBrowserDefaults } from '../composables/useBrowserDefaults';
 import { useCommentKeymap } from '../composables/useCommentKeymap';
 import { useEditorKeymaps } from '../composables/useEditorKeymaps';
@@ -744,101 +746,81 @@ const {
  * a reload. Copied in behaviour, not in code, from the query work area — the
  * bodies differ, the lifecycle does not.
  */
-const locallySavedAt = ref<string | null>(null);
-let draftSaveHandle: ReturnType<typeof setTimeout> | null = null;
-/** Set while a version is being read into the editor, so a load is not an edit. */
-const hydratingVersion = ref(false);
+/** What the editor holds now, in the shape a draft records it. */
+function editorBody(): RulesScratchBody {
+  return {
+    srl: srlDocument.value,
+    tupleSeeds: tupleSeeds.value,
+    tuplesEnabled: tuplesEnabled.value,
+    inferenceFormat: inferenceFormat.value,
+    tupleSource: tupleSource.value,
+    tupleSetVersionId: tupleSetVersionId.value,
+    dataSource: dataSource.value,
+    dataGraphVersionId: dataGraphVersionId.value,
+    dataGraphInline: dataGraphInline.value,
+    dataGraphInlineFormat: dataGraphInlineFormat.value,
+  };
+}
 
-const openDraft = computed(() => {
-  void draftsStore.allDrafts.value;
-  return ruleSetIdValue.value ? draftsStore.draftFor(ruleSetIdValue.value) : null;
+/**
+ * Put a body back into the editor: the document, and the tuple seeds and
+ * toggle when the body carries them.
+ */
+function applyEditorBody(body: RulesScratchBody) {
+  if (typeof body.srl === 'string') srlDocument.value = body.srl;
+  tupleSeeds.value = body.tupleSeeds ?? tupleSeeds.value;
+  if (body.tuplesEnabled !== undefined) applyTuplesEnabled(body.tuplesEnabled);
+}
+
+const documentMatchesVersion = () =>
+  srlDocument.value.trim() === (loadedVersionDocument.value ?? '').trim();
+
+/*
+ * The draft lifecycle every versioned work area shares: autosave, undo-to-saved,
+ * Discard, and hydration that does not count as typing. "Saved" is the
+ * document of the version on screen, and Discard puts that document back.
+ */
+const {
+  hydrating: hydratingVersion,
+  locallySavedAt,
+  openDraft,
+  editCount,
+  notPersisted: draftNotKept,
+  removeDraft,
+  hydrate,
+  restoreDraft,
+  discardDraft: discardEntityDraft,
+} = useEntityDraft<RulesScratchBody>({
+  section: 'rule',
+  id: () => ruleSetIdValue.value,
+  // A scratch record being read in is not typing on a saved rule set either.
+  enabled: () => !isScratch.value && !hydratingScratch.value,
+  libraryId: () => ruleSetLibraryId.value || null,
+  name: () => ruleSetName.value,
+  description: () => ruleSetDescription.value,
+  editorBody,
+  applyBody: applyEditorBody,
+  // Typing back to what is saved is an undo, not an edit; leaving a draft
+  // behind would keep the dot lit over a body identical to the version.
+  matchesSaved: documentMatchesVersion,
+  savedBody: () => ({ srl: loadedVersionDocument.value }),
+  sources: [srlDocument, tupleSeeds, tuplesEnabled],
+  resultKind: 'GRAPH',
 });
-
-const editCount = computed(() => (isScratch.value ? 0 : openDraft.value?.edits ?? 0));
 
 const draftBody = computed(() => {
   const body = openDraft.value?.body;
   return body && typeof body === 'object' ? (body as RulesScratchBody) : null;
 });
 
-function persistDraft() {
-  const id = ruleSetIdValue.value;
-  if (!id || isScratch.value) return;
-  const existing = draftsStore.draftFor(id);
-  draftsStore.save({
-    id: existing?.id ?? `urn:ui-temp:draft-of-${id}`,
-    libraryId: ruleSetLibraryId.value || UNASSIGNED_LIBRARY_ID,
-    type: 'query',
-    kind: 'draft',
-    section: 'rule',
-    name: ruleSetName.value,
-    description: ruleSetDescription.value || null,
-    queryString: null,
-    body: {
-      srl: srlDocument.value,
-      tupleSeeds: tupleSeeds.value,
-      tuplesEnabled: tuplesEnabled.value,
-      inferenceFormat: inferenceFormat.value,
-      tupleSource: tupleSource.value,
-      tupleSetVersionId: tupleSetVersionId.value,
-      dataSource: dataSource.value,
-      dataGraphVersionId: dataGraphVersionId.value,
-      dataGraphInline: dataGraphInline.value,
-      dataGraphInlineFormat: dataGraphInlineFormat.value,
-    },
-    resultKind: 'GRAPH',
-    inputTuples: [],
-    limitParameters: [],
-    offsetParameters: [],
-    outputs: [],
-    basedOn: id,
-    edits: (existing?.edits ?? 0) + 1,
-  });
-  locallySavedAt.value = new Date().toISOString();
-}
-
-function removeDraft() {
-  const id = ruleSetIdValue.value;
-  if (!id) return;
-  const existing = draftsStore.draftFor(id);
-  if (existing) draftsStore.remove(existing.id);
-  locallySavedAt.value = null;
-}
-
-const documentMatchesVersion = () =>
-  srlDocument.value.trim() === (loadedVersionDocument.value ?? '').trim();
-
-watch([srlDocument, tupleSeeds, tuplesEnabled], () => {
-  if (isScratch.value || hydratingVersion.value || hydratingScratch.value) return;
-  if (!ruleSetIdValue.value) return;
-  if (draftSaveHandle) clearTimeout(draftSaveHandle);
-  draftSaveHandle = setTimeout(() => {
-    draftSaveHandle = null;
-    // Typing back to what is saved is an undo, not an edit; leaving a draft
-    // behind would keep the dot lit over a body identical to the version.
-    if (documentMatchesVersion()) {
-      removeDraft();
-      return;
-    }
-    persistDraft();
-  }, 500);
-});
-
 /** Throw the unsaved edits away and go back to the saved version. */
 function discardDraft() {
-  if (draftSaveHandle) {
-    clearTimeout(draftSaveHandle);
-    draftSaveHandle = null;
-  }
-  removeDraft();
-  hydrateDocument(loadedVersionDocument.value);
+  discardEntityDraft();
   toast.success('Draft discarded');
 }
 
 function hydrateDocument(text: string) {
-  hydratingVersion.value = true;
-  srlDocument.value = text;
-  void Promise.resolve().then(() => { hydratingVersion.value = false; });
+  hydrate(() => { srlDocument.value = text; });
 }
 
 /** Show a saved version's body — the Details tab's version rows. */
@@ -885,11 +867,8 @@ async function annotateVersion({ value, comment }: { value: string; comment: str
 
 /** Go back to the draft after looking at a saved version. */
 function restoreDraftBody() {
-  const body = draftBody.value;
-  if (!body || typeof body.srl !== 'string') return;
-  hydrateDocument(body.srl);
-  tupleSeeds.value = body.tupleSeeds ?? tupleSeeds.value;
-  applyTuplesEnabled(body.tuplesEnabled ?? tuplesEnabled.value);
+  if (typeof draftBody.value?.srl !== 'string') return;
+  restoreDraft();
 }
 
 // --- Panels -----------------------------------------------------------------
@@ -1378,14 +1357,14 @@ async function loadDocumentForSelectedVersion(prefetched?: ReturnType<typeof api
      * `loadedVersionDocument` so Discard and the version rows can get back to
      * it.
      */
-    hydratingVersion.value = true;
-    srlDocument.value = typeof draft?.srl === 'string' ? draft.srl : srl;
-    documentRuleSetId = id;
-    loadedVersionTupleSeeds.value = response.tupleSeeds ?? '';
-    tupleSeeds.value = draft?.tupleSeeds ?? response.tupleSeeds ?? '';
-    applyTuplesEnabled(draft?.tuplesEnabled ?? response.tuplesEnabled === true);
-    locallySavedAt.value = openDraft.value?.updatedAt ?? null;
-    void Promise.resolve().then(() => { hydratingVersion.value = false; });
+    hydrate(() => {
+      srlDocument.value = typeof draft?.srl === 'string' ? draft.srl : srl;
+      documentRuleSetId = id;
+      loadedVersionTupleSeeds.value = response.tupleSeeds ?? '';
+      tupleSeeds.value = draft?.tupleSeeds ?? response.tupleSeeds ?? '';
+      applyTuplesEnabled(draft?.tuplesEnabled ?? response.tuplesEnabled === true);
+      locallySavedAt.value = openDraft.value?.updatedAt ?? null;
+    });
 
     for (const warning of response.warnings ?? []) toast.warning(warning);
   } catch (error) {
@@ -2208,7 +2187,7 @@ async function saveAsTest() {
       subject: ruleSetIdValue.value!,
       subjectKind: 'ruleSet',
       isPartOf: [libraryId],
-    } as never);
+    });
     await apiClient.createTestVersion(created.id, {
       expectationKind: 'smoke',
       subjectVersion: selectedVersionId.value,
@@ -2372,15 +2351,6 @@ onMounted(() => {
 watch([activeLibraryId, ruleSetLibraryId], () => {
   void loadDataGraphOptions();
   void loadTupleSetOptions();
-});
-
-onUnmounted(() => {
-  if (draftSaveHandle) {
-    clearTimeout(draftSaveHandle);
-    draftSaveHandle = null;
-    // A pending save that never lands is the last half-second of typing, gone.
-    if (!isScratch.value && ruleSetIdValue.value && !documentMatchesVersion()) persistDraft();
-  }
 });
 
 // A scratch document's "saved locally" line reads from the scratch record; a

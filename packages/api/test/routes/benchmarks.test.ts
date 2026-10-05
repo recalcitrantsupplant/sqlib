@@ -1,8 +1,11 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
 import Fastify, { FastifyInstance } from 'fastify';
 import benchmarkRoutes from '../../src/routes/benchmarks.js';
 import { setupValidator } from '../../src/lib/validator-setup.js';
 import * as schemas from '@sparql-query-lib/contracts/schema';
+import type { LDKitEntity } from '../../src/persistence/EntityTypes.js';
+import { overrideRepositoryLenses } from '../../src/persistence/utils/entityRepository.js';
+import { FakePersistenceAdapter } from '../support/fakePersistenceAdapter.js';
 
 const hoisted = vi.hoisted(() => ({
   mockList: vi.fn(),
@@ -11,13 +14,6 @@ const hoisted = vi.hoisted(() => ({
   mockUpdate: vi.fn(),
   mockDelete: vi.fn(),
   mockRun: vi.fn(),
-  mockFindAllRuns: vi.fn(),
-  mockFindRunById: vi.fn(),
-  mockFindAllObservations: vi.fn(),
-  mockFindAllNodeObservations: vi.fn(),
-  mockFindAllNodeRuns: vi.fn(),
-  mockFindAllIterationObservations: vi.fn(),
-  mockFindAllIterationRuns: vi.fn(),
 }));
 
 vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
@@ -39,30 +35,17 @@ vi.mock('../../src/lib/BenchmarkRunner.js', () => ({
   }),
 }));
 
-vi.mock('../../src/persistence/utils/BenchmarkRunUtils.js', () => ({
-  findAllBenchmarkRuns: hoisted.mockFindAllRuns,
-  findBenchmarkRunById: hoisted.mockFindRunById,
-}));
+/*
+ * Experiments and versions live in the cache, stubbed per test. Runs and their
+ * observations are stored outside it and read through the repositories, which
+ * are served from an in-memory store the tests seed.
+ */
+let store: FakePersistenceAdapter;
 
-vi.mock('../../src/persistence/utils/BenchmarkObservationUtils.js', () => ({
-  findAllBenchmarkObservations: hoisted.mockFindAllObservations,
-}));
-
-vi.mock('../../src/persistence/utils/BenchmarkNodeObservationUtils.js', () => ({
-  findAllBenchmarkNodeObservations: hoisted.mockFindAllNodeObservations,
-}));
-
-vi.mock('../../src/persistence/utils/BenchmarkNodeRunUtils.js', () => ({
-  findAllBenchmarkNodeRuns: hoisted.mockFindAllNodeRuns,
-}));
-
-vi.mock('../../src/persistence/utils/BenchmarkIterationObservationUtils.js', () => ({
-  findAllBenchmarkIterationObservations: hoisted.mockFindAllIterationObservations,
-}));
-
-vi.mock('../../src/persistence/utils/BenchmarkIterationRunUtils.js', () => ({
-  findAllBenchmarkIterationRuns: hoisted.mockFindAllIterationRuns,
-}));
+/** Puts each entity in the store under its own `@type`. */
+function seed(...entities: LDKitEntity[]): void {
+  for (const entity of entities) store.put(String(entity['@type']), entity);
+}
 
 describe('Benchmark Routes (/benchmark-experiments)', () => {
   let app: FastifyInstance;
@@ -96,7 +79,12 @@ describe('Benchmark Routes (/benchmark-experiments)', () => {
     await app.ready();
   });
 
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    store = new FakePersistenceAdapter();
+    overrideRepositoryLenses((schema) => store.lens(schema));
+  });
+  afterEach(() => overrideRepositoryLenses(null));
   afterAll(async () => { await app.close(); });
 
   it('POST /benchmark-experiments creates a benchmark experiment', async () => {
@@ -182,7 +170,7 @@ describe('Benchmark Routes (/benchmark-experiments)', () => {
     expect(res.headers.etag).toBe('"2024-01-03T00:00:00.000Z"');
   });
 
-  it('POST /benchmark-experiments/:id/v creates a version', async () => {
+  it('POST /benchmark-experiments/:id/versions creates a version', async () => {
     const experimentId = 'urn:sqlib:benchmark-experiment:1';
     hoisted.mockGet.mockReturnValue({
       $id: experimentId,
@@ -202,7 +190,7 @@ describe('Benchmark Routes (/benchmark-experiments)', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: `/benchmark-experiments/${encodeURIComponent(experimentId)}/v`,
+      url: `/benchmark-experiments/${encodeURIComponent(experimentId)}/versions`,
       payload: {
         subjectSpecs: [{ subject: 'urn:sqlib:query-version:1', backends: ['urn:sqlib:backend:1'] }],
         repeats: 2,
@@ -216,7 +204,7 @@ describe('Benchmark Routes (/benchmark-experiments)', () => {
     expect(body.subjectSpecs).toHaveLength(1);
   });
 
-  it('PATCH /benchmark-experiments/:id/v/:version updates a version with If-Match', async () => {
+  it('PATCH /benchmark-experiments/:id/versions/:version updates a version with If-Match', async () => {
     const experimentId = 'urn:sqlib:benchmark-experiment:1';
     const versionEntity = {
       $id: 'urn:sqlib:benchmark-experiment-version:1',
@@ -235,7 +223,7 @@ describe('Benchmark Routes (/benchmark-experiments)', () => {
 
     const res = await app.inject({
       method: 'PATCH',
-      url: `/benchmark-experiments/${encodeURIComponent(experimentId)}/v/1`,
+      url: `/benchmark-experiments/${encodeURIComponent(experimentId)}/versions/1`,
       payload: { repeats: 5 },
       headers: { 'if-match': versionEntity.dateModified },
     });
@@ -245,7 +233,7 @@ describe('Benchmark Routes (/benchmark-experiments)', () => {
     expect(res.headers.etag).toBe('"2024-01-06T00:00:00.000Z"');
   });
 
-  it('PATCH /benchmark-experiments/:id/v/:version rejects updates when immutable', async () => {
+  it('PATCH /benchmark-experiments/:id/versions/:version rejects updates when immutable', async () => {
     const experimentId = 'urn:sqlib:benchmark-experiment:1';
     const versionEntity = {
       $id: 'urn:sqlib:benchmark-experiment-version:1',
@@ -260,7 +248,7 @@ describe('Benchmark Routes (/benchmark-experiments)', () => {
 
     const res = await app.inject({
       method: 'PATCH',
-      url: `/benchmark-experiments/${encodeURIComponent(experimentId)}/v/1`,
+      url: `/benchmark-experiments/${encodeURIComponent(experimentId)}/versions/1`,
       payload: { repeats: 3 },
       headers: { 'if-match': versionEntity.dateModified },
     });
@@ -269,7 +257,7 @@ describe('Benchmark Routes (/benchmark-experiments)', () => {
     expect(hoisted.mockUpdate).not.toHaveBeenCalled();
   });
 
-  it('POST /benchmark-experiments/:id/v/:version/run executes a benchmark', async () => {
+  it('POST /benchmark-experiments/:id/versions/:version/run executes a benchmark', async () => {
     const experimentId = 'urn:sqlib:benchmark-experiment:1';
     const versionEntity = {
       $id: 'urn:sqlib:benchmark-experiment-version:1',
@@ -295,7 +283,7 @@ describe('Benchmark Routes (/benchmark-experiments)', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: `/benchmark-experiments/${encodeURIComponent(experimentId)}/v/1/run`,
+      url: `/benchmark-experiments/${encodeURIComponent(experimentId)}/versions/1/run`,
     });
 
     expect(res.statusCode).toBe(200);
@@ -313,7 +301,7 @@ describe('Benchmark Routes (/benchmark-experiments)', () => {
     expect(hoisted.mockRun).toHaveBeenCalledWith(versionEntity.$id);
   });
 
-  it('POST /benchmark-experiments/:id/v/:version/freeze validates dependencies', async () => {
+  it('POST /benchmark-experiments/:id/versions/:version/freeze validates dependencies', async () => {
     const experimentId = 'urn:sqlib:benchmark-experiment:1';
     const versionEntity = {
       $id: 'urn:sqlib:benchmark-experiment-version:1',
@@ -341,13 +329,13 @@ describe('Benchmark Routes (/benchmark-experiments)', () => {
 
     const res = await app.inject({
       method: 'POST',
-      url: `/benchmark-experiments/${encodeURIComponent(experimentId)}/v/1/freeze`,
+      url: `/benchmark-experiments/${encodeURIComponent(experimentId)}/versions/1/freeze`,
     });
 
     expect(res.statusCode).toBe(409);
   });
 
-  it('GET /benchmark-experiments/:id/v/:version/runs lists runs', async () => {
+  it('GET /benchmark-experiments/:id/versions/:version/runs lists runs', async () => {
     const experimentId = 'urn:sqlib:benchmark-experiment:1';
     const versionEntity = {
       $id: 'urn:sqlib:benchmark-experiment-version:1',
@@ -357,7 +345,7 @@ describe('Benchmark Routes (/benchmark-experiments)', () => {
       subjectSpecs: JSON.stringify([]),
     };
     hoisted.mockList.mockReturnValue([versionEntity]);
-    hoisted.mockFindAllRuns.mockResolvedValue([
+    seed(
       {
         $id: 'urn:sqlib:benchmark-run:1',
         '@type': 'BenchmarkRun',
@@ -366,12 +354,12 @@ describe('Benchmark Routes (/benchmark-experiments)', () => {
         runStatus: 'Completed',
         tasksTotal: 1,
         tasksCompleted: 1,
-      },
-    ]);
+      }
+    );
 
     const res = await app.inject({
       method: 'GET',
-      url: `/benchmark-experiments/${encodeURIComponent(experimentId)}/v/1/runs`,
+      url: `/benchmark-experiments/${encodeURIComponent(experimentId)}/versions/1/runs`,
     });
 
     expect(res.statusCode).toBe(200);
@@ -394,7 +382,7 @@ describe('Benchmark Routes (/benchmark-experiments)', () => {
 
   it('GET /benchmark-runs/:id returns run detail', async () => {
     const runId = 'urn:sqlib:benchmark-run:1';
-    hoisted.mockFindRunById.mockResolvedValue({
+    seed({
       $id: runId,
       '@type': 'BenchmarkRun',
       structure: 'https://sparql-query-lib/BenchmarkObservationDSD',
@@ -421,7 +409,7 @@ describe('Benchmark Routes (/benchmark-experiments)', () => {
 
   it('GET /benchmark-runs/:id/observations returns observations', async () => {
     const runId = 'urn:sqlib:benchmark-run:1';
-    hoisted.mockFindRunById.mockResolvedValue({
+    seed({
       $id: runId,
       '@type': 'BenchmarkRun',
       structure: 'https://sparql-query-lib/BenchmarkObservationDSD',
@@ -430,7 +418,7 @@ describe('Benchmark Routes (/benchmark-experiments)', () => {
       tasksTotal: 1,
       tasksCompleted: 1,
     });
-    hoisted.mockFindAllObservations.mockResolvedValue([
+    seed(
       {
         $id: 'urn:sqlib:benchmark-observation:1',
         '@type': 'BenchmarkObservation',
@@ -443,8 +431,8 @@ describe('Benchmark Routes (/benchmark-experiments)', () => {
         resultCount: 10,
         success: true,
         timestamp: '2024-01-01T00:00:00.000Z',
-      },
-    ]);
+      }
+    );
 
     const res = await app.inject({
       method: 'GET',
@@ -459,7 +447,7 @@ describe('Benchmark Routes (/benchmark-experiments)', () => {
 
   it('GET /benchmark-runs/:id/node-observations returns node observations', async () => {
     const runId = 'urn:sqlib:benchmark-run:1';
-    hoisted.mockFindRunById.mockResolvedValue({
+    seed({
       $id: runId,
       '@type': 'BenchmarkRun',
       structure: 'https://sparql-query-lib/BenchmarkObservationDSD',
@@ -468,16 +456,16 @@ describe('Benchmark Routes (/benchmark-experiments)', () => {
       tasksTotal: 1,
       tasksCompleted: 1,
     });
-    hoisted.mockFindAllNodeRuns.mockResolvedValue([
+    seed(
       {
         $id: 'urn:sqlib:benchmark-node-run:1',
         '@type': 'BenchmarkNodeRun',
         definedBy: 'urn:sqlib:benchmark-experiment-version:1',
         isPartOf: runId,
         structure: 'https://sparql-query-lib/BenchmarkNodeObservationDSD',
-      },
-    ]);
-    hoisted.mockFindAllNodeObservations.mockResolvedValue([
+      }
+    );
+    seed(
       {
         $id: 'urn:sqlib:benchmark-node-observation:1',
         '@type': 'BenchmarkNodeObservation',
@@ -490,8 +478,8 @@ describe('Benchmark Routes (/benchmark-experiments)', () => {
         resultCount: 1,
         success: true,
         timestamp: '2024-01-01T00:00:00.000Z',
-      },
-    ]);
+      }
+    );
 
     const res = await app.inject({
       method: 'GET',
@@ -513,7 +501,7 @@ describe('Benchmark Routes (/benchmark-experiments)', () => {
    */
   it('GET /benchmark-runs/:id/iteration-observations returns one row per pass, in loop order', async () => {
     const runId = 'urn:sqlib:benchmark-run:2';
-    hoisted.mockFindRunById.mockResolvedValue({
+    seed({
       $id: runId,
       '@type': 'BenchmarkRun',
       definedBy: 'urn:sqlib:benchmark-experiment-version:1',
@@ -521,7 +509,7 @@ describe('Benchmark Routes (/benchmark-experiments)', () => {
       tasksTotal: 1,
       tasksCompleted: 1,
     });
-    hoisted.mockFindAllIterationRuns.mockResolvedValue([
+    seed(
       {
         $id: 'urn:sqlib:benchmark-iteration-run:1',
         '@type': 'BenchmarkIterationRun',
@@ -535,8 +523,8 @@ describe('Benchmark Routes (/benchmark-experiments)', () => {
         definedBy: 'urn:sqlib:benchmark-experiment-version:1',
         isPartOf: 'urn:sqlib:benchmark-run:99',
         structure: 'https://sparql-query-lib/BenchmarkIterationObservationDSD',
-      },
-    ]);
+      }
+    );
     const pass = (id: string, iterationIndex: number, dataSet = 'urn:sqlib:benchmark-iteration-run:1') => ({
       $id: id,
       '@type': 'BenchmarkIterationObservation',
@@ -552,11 +540,11 @@ describe('Benchmark Routes (/benchmark-experiments)', () => {
       rulesEvaluated: 2,
       timestamp: '2024-01-01T00:00:00.000Z',
     });
-    hoisted.mockFindAllIterationObservations.mockResolvedValue([
+    seed(
       pass('urn:sqlib:benchmark-iteration-observation:2', 2),
       pass('urn:sqlib:benchmark-iteration-observation:1', 1),
-      pass('urn:sqlib:benchmark-iteration-observation:9', 1, 'urn:sqlib:benchmark-iteration-run:9'),
-    ]);
+      pass('urn:sqlib:benchmark-iteration-observation:9', 1, 'urn:sqlib:benchmark-iteration-run:9')
+    );
 
     const res = await app.inject({
       method: 'GET',
@@ -576,7 +564,7 @@ describe('Benchmark Routes (/benchmark-experiments)', () => {
    */
   it('GET /benchmark-runs/:id/iteration-observations returns [] for a run with no iteration dataset', async () => {
     const runId = 'urn:sqlib:benchmark-run:3';
-    hoisted.mockFindRunById.mockResolvedValue({
+    seed({
       $id: runId,
       '@type': 'BenchmarkRun',
       definedBy: 'urn:sqlib:benchmark-experiment-version:1',
@@ -584,7 +572,13 @@ describe('Benchmark Routes (/benchmark-experiments)', () => {
       tasksTotal: 1,
       tasksCompleted: 1,
     });
-    hoisted.mockFindAllIterationRuns.mockResolvedValue([]);
+    // An iteration pass from some other run's dataset, which must not leak in.
+    seed({
+      $id: 'urn:sqlib:benchmark-iteration-observation:elsewhere',
+      '@type': 'BenchmarkIterationObservation',
+      dataSet: 'urn:sqlib:benchmark-iteration-run:elsewhere',
+      iterationIndex: 1,
+    });
 
     const res = await app.inject({
       method: 'GET',
@@ -593,11 +587,9 @@ describe('Benchmark Routes (/benchmark-experiments)', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual([]);
-    expect(hoisted.mockFindAllIterationObservations).not.toHaveBeenCalled();
   });
 
   it('GET /benchmark-runs/:id/iteration-observations 404s for an unknown run', async () => {
-    hoisted.mockFindRunById.mockResolvedValue(null);
 
     const res = await app.inject({
       method: 'GET',

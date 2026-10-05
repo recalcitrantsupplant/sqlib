@@ -1,25 +1,12 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { CacheCoordinator, EntityExistsError } from '../../src/lib/CacheCoordinator.js';
 import { ImmutableEntityError } from '../../src/lib/immutability.js';
 import { config } from '../../src/server/config.js';
-import { loadAllSystemEntities } from '../../src/persistence/utils/entityRepository.js';
-import { getKnownSystemEntityIds, loadSystemStore } from '../../src/system-store/SystemStoreLoader.js';
-import { Backends } from '../../src/persistence/utils/BackendUtils.js';
+import { loadSystemStore } from '../../src/system-store/SystemStoreLoader.js';
+import { installFakePersistenceAdapter } from '../support/fakePersistenceAdapter.js';
 
-// Mock all external dependencies
-vi.mock('../../src/persistence/utils/entityRepository', () => ({
-  loadAllSystemEntities: vi.fn(),
-  createRepositoryLens: vi.fn(),
-}));
-
-// This suite's subject is cache logic; storage is a stub. It runs against a
-// double built from those stubs (see lensBackedAdapter), so what is asserted is
-// what the cache did, not what the persistence layer did.
-vi.mock('../../src/persistence/adapterRegistry', async () => {
-  const { lensBackedAdapter } = await import('../persistence/lensBackedAdapter.js');
-  return { getPersistenceAdapter: () => lensBackedAdapter, setPersistenceAdapter: () => {} };
-});
-
+// This suite's subject is cache logic; storage is the in-memory fake, so what
+// is asserted is what the cache did and what reached the store.
 vi.mock('../../src/system-store/SystemStoreLoader', () => ({
   loadSystemStore: vi.fn(async () => ({
     cacheEntries: new Map(),
@@ -27,16 +14,6 @@ vi.mock('../../src/system-store/SystemStoreLoader', () => ({
     store: {} as any,
   })),
   getKnownSystemEntityIds: vi.fn(() => new Set()),
-}));
-
-vi.mock('../../src/persistence/utils/BackendUtils', () => ({
-  Backends: {
-    insert: vi.fn(),
-    update: vi.fn(),
-    delete: vi.fn(),
-    find: vi.fn(),
-    findByIri: vi.fn(),
-  },
 }));
 
 vi.mock('../../src/server/config', () => ({
@@ -48,22 +25,25 @@ vi.mock('../../src/server/config', () => ({
 
 describe('CacheCoordinator', () => {
   let coordinator: CacheCoordinator;
+  let store: Awaited<ReturnType<typeof installFakePersistenceAdapter>>;
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    store = await installFakePersistenceAdapter();
     coordinator = new CacheCoordinator();
-    (loadAllSystemEntities as any).mockResolvedValue(new Map());
     (loadSystemStore as any).mockResolvedValue({
       cacheEntries: new Map(),
       assetDir: 'mock-assets',
     });
   });
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+    store.restore();
+  });
+
   it('handles read operations correctly after loading', async () => {
-    const mockEntities = new Map([
-      ['id1', { $id: 'id1', '@type': 'Backend', name: 'Backend 1' }],
-    ]);
-    (loadAllSystemEntities as any).mockResolvedValue(mockEntities);
+    store.put('Backend', { $id: 'id1', '@type': 'Backend', name: 'Backend 1' });
     await coordinator.loadAll();
 
     expect(coordinator.get('id1')).toEqual({ $id: 'id1', '@type': 'Backend', name: 'Backend 1' });
@@ -72,19 +52,17 @@ describe('CacheCoordinator', () => {
   });
 
   it('handles write operations', async () => {
-    (loadAllSystemEntities as any).mockResolvedValue(new Map());
     await coordinator.loadAll();
 
     const entity = { $id: 'id1', name: 'New' };
-    (Backends.insert as any).mockResolvedValue(undefined);
 
     const created = await coordinator.create('Backend', entity);
-    expect(Backends.insert).toHaveBeenCalledWith(expect.objectContaining(entity));
+    expect(store.get('id1')).toMatchObject(entity);
     expect(created).toMatchObject(entity);
     expect(coordinator.get('id1')).toMatchObject(entity);
 
     await coordinator.delete('Backend', 'id1');
-    expect(Backends.delete).toHaveBeenCalledWith('id1');
+    expect(store.get('id1')).toBeUndefined();
     expect(coordinator.get('id1')).toBeNull();
   });
 
@@ -136,23 +114,23 @@ describe('CacheCoordinator', () => {
     it('refuses an id already cached under the same type, and writes nothing', async () => {
       await coordinator.loadAll();
       await coordinator.create('Backend', { $id: 'urn:b:taken', name: 'First' });
-      (Backends.insert as any).mockClear();
+      const insert = vi.spyOn(store, 'insert');
 
       await expect(coordinator.create('Backend', { $id: 'urn:b:taken', name: 'Second' }))
         .rejects.toBeInstanceOf(EntityExistsError);
-      expect(Backends.insert).not.toHaveBeenCalled();
+      expect(insert).not.toHaveBeenCalled();
+      expect(store.get('urn:b:taken')).toMatchObject({ name: 'First' });
       expect(coordinator.get('urn:b:taken')).toMatchObject({ name: 'First' });
     });
 
     it('refuses an id cached under another type, which it would otherwise re-type', async () => {
-      (loadAllSystemEntities as any).mockResolvedValue(new Map([
-        ['urn:lib:1', { $id: 'urn:lib:1', '@type': 'Library', name: 'Payroll' }],
-      ]));
+      store.put('Library', { $id: 'urn:lib:1', '@type': 'Library', name: 'Payroll' });
       await coordinator.loadAll();
 
       await expect(coordinator.create('Backend', { $id: 'urn:lib:1', name: 'Takeover' }))
         .rejects.toMatchObject({ statusCode: 409 });
       expect(coordinator.get('urn:lib:1')).toMatchObject({ '@type': 'Library' });
+      expect(store.get('urn:lib:1')).toMatchObject({ '@type': 'Library', name: 'Payroll' });
     });
 
     it('promotes an ephemeral entity rather than refusing it', async () => {
@@ -168,11 +146,11 @@ describe('CacheCoordinator', () => {
       mutable.cachePreloadEnabled = false;
       try {
         await coordinator.loadAll();
-        (Backends.findByIri as any).mockResolvedValue({ $id: 'urn:b:cold', '@type': 'Backend' });
+        store.put('Backend', { $id: 'urn:b:cold', '@type': 'Backend' });
 
         await expect(coordinator.create('Backend', { $id: 'urn:b:cold', name: 'Again' }))
           .rejects.toBeInstanceOf(EntityExistsError);
-        expect(Backends.insert).not.toHaveBeenCalled();
+        expect(store.get('urn:b:cold')).not.toHaveProperty('name');
       } finally {
         mutable.cachePreloadEnabled = true;
       }
@@ -181,42 +159,40 @@ describe('CacheCoordinator', () => {
 
   describe('resolveExisting', () => {
     it('resolves from the cache when the entity is loaded', async () => {
-      (loadAllSystemEntities as any).mockResolvedValue(new Map([
-        ['urn:b:1', { $id: 'urn:b:1', '@type': 'Backend', name: 'Cached' }],
-      ]));
+      store.put('Backend', { $id: 'urn:b:1', '@type': 'Backend', name: 'Cached' });
       await coordinator.loadAll();
+      const findByIri = vi.spyOn(store, 'findByIri');
 
       const resolved = await coordinator.resolveExisting('urn:b:1', ['Backend']);
       expect(resolved).toMatchObject({ type: 'Backend' });
       // Answered from cache, so the store was never asked.
-      expect(Backends.findByIri).not.toHaveBeenCalled();
+      expect(findByIri).not.toHaveBeenCalled();
     });
 
     it('falls back to the store for an entity the cache never loaded', async () => {
       // What CACHE_PRELOAD=false looks like: the IRI is perfectly valid, it is
       // just not in memory. A cache-only check would reject a correct payload.
       await coordinator.loadAll();
-      (Backends.findByIri as any).mockResolvedValue({
-        $id: 'urn:b:2', '@type': 'Backend', name: 'Only in the store',
-      });
+      store.put('Backend', { $id: 'urn:b:2', '@type': 'Backend', name: 'Only in the store' });
+      const findByIri = vi.spyOn(store, 'findByIri');
 
       const resolved = await coordinator.resolveExisting('urn:b:2', ['Backend']);
       expect(resolved).toMatchObject({ type: 'Backend' });
-      expect(Backends.findByIri).toHaveBeenCalledWith('urn:b:2');
+      expect(findByIri).toHaveBeenCalledWith('Backend', 'urn:b:2');
     });
 
     it('returns null when neither the cache nor the store has it', async () => {
       await coordinator.loadAll();
-      (Backends.findByIri as any).mockResolvedValue(null);
 
       expect(await coordinator.resolveExisting('urn:b:missing', ['Backend'])).toBeNull();
     });
 
     it('does not touch the store when no candidate types are given', async () => {
       await coordinator.loadAll();
+      const findByIri = vi.spyOn(store, 'findByIri');
 
       expect(await coordinator.resolveExisting('urn:b:3')).toBeNull();
-      expect(Backends.findByIri).not.toHaveBeenCalled();
+      expect(findByIri).not.toHaveBeenCalled();
     });
   });
 });

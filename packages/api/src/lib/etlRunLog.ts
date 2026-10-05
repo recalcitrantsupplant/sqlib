@@ -35,6 +35,7 @@ import { mintId } from './id.js';
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
 import { toError } from './toError.js';
 import type { LdkitEtlExecution } from '../persistence/schemas/EtlExecutionSchema.js';
+import { log } from './log.js';
 
 export interface BeginEtlExecutionInput {
   /** The version whose SQL is being run, as an IRI. */
@@ -124,8 +125,6 @@ export async function failEtlExecution(executionId: string, error: unknown): Pro
       errorMessage: message,
     });
   } catch (writeFailure__u: unknown) {
-    console.warn(
-      `Could not record the failure of ETL execution ${executionId}: ${toError(writeFailure__u).message}`,
-    );
+    log.warn({ err: toError(writeFailure__u), executionId }, 'Could not record the failure of ETL execution');
   }
 }

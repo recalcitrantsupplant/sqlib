@@ -47,7 +47,7 @@ defineEmits<{ (e: 'update:modelValue', value: EntityListDensity): void }>();
 .density-toggle {
   display: inline-flex;
   flex-shrink: 0;
-  height: 26px;
+  height: var(--control-h);
   overflow: hidden;
   border: 1px solid var(--border-default);
   border-radius: var(--radius-sm);
@@ -57,7 +57,7 @@ defineEmits<{ (e: 'update:modelValue', value: EntityListDensity): void }>();
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
+  width: var(--control-h);
   border: none;
   background: var(--surface);
   color: var(--ink-muted);

@@ -3,12 +3,14 @@ import Fastify, { FastifyInstance } from 'fastify';
 import testRoutes from '../../src/routes/tests.js';
 import { setupValidator } from '../../src/lib/validator-setup.js';
 import * as schemas from '@sparql-query-lib/contracts/schema';
+import { ValidationError } from '../../src/lib/validationError.js';
 
 const hoisted = vi.hoisted(() => ({
   test: { list: vi.fn(), get: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
   testVersion: { list: vi.fn(), get: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
   testCase: { list: vi.fn(), get: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
   coordinatorGet: vi.fn(),
+  coordinatorList: vi.fn(),
   createVersion: vi.fn(),
   updateVersion: vi.fn(),
   runTestVersion: vi.fn(),
@@ -16,14 +18,17 @@ const hoisted = vi.hoisted(() => ({
 
 vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
   getEntityRepositories: () => ({ Test: hoisted.test, TestVersion: hoisted.testVersion, TestCase: hoisted.testCase }),
-  getCacheCoordinator: () => ({ get: hoisted.coordinatorGet }),
+  getCacheCoordinator: () => ({ get: hoisted.coordinatorGet, list: hoisted.coordinatorList }),
 }));
 
-vi.mock('../../src/lib/TestVersionWriter.js', () => ({
-  createTestVersion: hoisted.createVersion,
-  updateTestVersion: hoisted.updateVersion,
-  TestVersionError: class TestVersionError extends Error {},
-}));
+vi.mock('../../src/lib/TestVersionWriter.js', async () => {
+  const { ValidationError } = await vi.importActual<typeof import('../../src/lib/validationError.js')>('../../src/lib/validationError.js');
+  return {
+    createTestVersion: hoisted.createVersion,
+    updateTestVersion: hoisted.updateVersion,
+    TestVersionError: class TestVersionError extends ValidationError {},
+  };
+});
 
 vi.mock('../../src/lib/TestRunner.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../src/lib/TestRunner.js')>();
@@ -71,6 +76,7 @@ describe('Tests Routes (/tests)', () => {
     });
     hoisted.test.create.mockImplementation(async (entity: Record<string, unknown>) => entity);
     hoisted.testCase.list.mockReturnValue([]);
+    hoisted.coordinatorList.mockReturnValue([]);
   });
 
   afterAll(async () => {
@@ -223,6 +229,53 @@ describe('Tests Routes (/tests)', () => {
     expect(res.json().cases.map((c: { name: string }) => c.name)).toEqual(['first', 'second']);
   });
 
+  /*
+   * A multi-graph case comes back in the shape it is written with. The stored
+   * children are ids nothing outside the API can resolve, so returning those
+   * made a read-edit-save of a multi-graph test drop its graphs (review C8).
+   */
+  it('returns a case\'s data graphs in the shape a version is written with', async () => {
+    const CASE = 'urn:sqlib:test-case:c1';
+    hoisted.test.get.mockReturnValue({ $id: TEST_ID, '@type': 'Test', name: 'A' });
+    hoisted.testVersion.list.mockReturnValue([
+      { $id: 'urn:sqlib:test-version:tv1', isPartOf: TEST_ID, version: 1, expectationKind: 'graph' },
+    ]);
+    hoisted.testCase.list.mockReturnValue([
+      {
+        $id: CASE, '@type': 'TestCase', isPartOf: 'urn:sqlib:test-version:tv1', position: 0,
+        dataGraphs: ['urn:sqlib:test-case-data-graph:b', 'urn:sqlib:test-case-data-graph:a'],
+      },
+    ]);
+    hoisted.coordinatorList.mockImplementation((type: string) => type === 'TestCaseDataGraph'
+      ? [
+          { $id: 'urn:sqlib:test-case-data-graph:b', isPartOf: CASE, position: 1, dataGraphVersion: 'urn:sqlib:data-graph-version:data' },
+          { $id: 'urn:sqlib:test-case-data-graph:a', isPartOf: CASE, position: 0, dataGraphVersion: 'urn:sqlib:data-graph-version:shapes' },
+          { $id: 'urn:sqlib:test-case-data-graph:x', isPartOf: 'urn:sqlib:test-case:other', position: 0, dataGraphVersion: 'urn:x' },
+        ]
+      : []);
+
+    const res = await app.inject({ method: 'GET', url: `/tests/${encodeURIComponent(TEST_ID)}/versions/1` });
+
+    expect(res.statusCode).toBe(200);
+    const [readCase] = res.json().cases;
+    expect(readCase.dataGraphs).toEqual([
+      { dataGraphVersion: 'urn:sqlib:data-graph-version:shapes' },
+      { dataGraphVersion: 'urn:sqlib:data-graph-version:data' },
+    ]);
+
+    // And what was read is accepted back as a new version's case.
+    hoisted.createVersion.mockResolvedValue({
+      $id: 'urn:sqlib:test-version:tv2', '@type': 'TestVersion', isPartOf: TEST_ID, version: 2, expectationKind: 'graph',
+    });
+    const save = await app.inject({
+      method: 'POST',
+      url: `/tests/${encodeURIComponent(TEST_ID)}/versions`,
+      payload: { expectationKind: 'graph', cases: [{ dataGraphs: readCase.dataGraphs }] },
+    });
+    expect(save.statusCode).toBe(201);
+    expect(hoisted.createVersion.mock.calls[0][1].cases[0].dataGraphs).toEqual(readCase.dataGraphs);
+  });
+
   it('rejects an expectation kind the comparators do not implement', async () => {
     hoisted.test.get.mockReturnValue({ $id: TEST_ID, '@type': 'Test', name: 'A' });
 
@@ -238,7 +291,7 @@ describe('Tests Routes (/tests)', () => {
 
   it('turns a writer rejection into a 400', async () => {
     hoisted.test.get.mockReturnValue({ $id: TEST_ID, '@type': 'Test', name: 'A' });
-    hoisted.createVersion.mockRejectedValue(new Error('A graph expectation needs an expected result.'));
+    hoisted.createVersion.mockRejectedValue(new ValidationError('A graph expectation needs an expected result.'));
 
     const res = await app.inject({
       method: 'POST',

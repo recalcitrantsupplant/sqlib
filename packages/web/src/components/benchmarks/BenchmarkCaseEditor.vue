@@ -192,7 +192,7 @@ const failedRows = computed(() => props.support.filter((row) => row.failed > 0))
 
       <!--
         The comparison a rule set does have. One row per graph on the axis, so a
-        graph added since the last run reads as never run rather than being
+        graph added since the last run reads run rather than being
         left out of the table it belongs in.
       -->
       <div v-if="graphSupport.length > 0" class="support-table" data-testid="benchmark-graph-costs">

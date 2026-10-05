@@ -17,9 +17,7 @@ import {
   failEtlExecution,
   recordEtlExecutionProgress,
 } from './etlRunLog.js';
-import { ImmutableEntityError } from './immutability.js';
-import { toLdkit } from '../persistence/utils/id-adapter.js';
-import { duckDbService, mapDuckDbTypeToXsd, type DuckDbColumn, type PreviewResult } from './DuckDbService.js';
+import { duckDbService, mapDuckDbTypeToXsd, type PreviewResult } from './DuckDbService.js';
 import type { LdkitEtlJob } from '../persistence/schemas/EtlJobSchema.js';
 import type { LdkitEtlJobVersion } from '../persistence/schemas/EtlJobVersionSchema.js';
 import type { LdkitEtlColumnMapping } from '../persistence/schemas/EtlColumnMappingSchema.js';
@@ -39,6 +37,7 @@ import {
   type ExecutionAuthScope,
   type InternalExecution,
 } from '../auth/executionScope.js';
+import { log } from './log.js';
 
 /**
  * The lexical form of a DuckDB value for the literal it is mapped to.
@@ -386,7 +385,7 @@ class EtlOutputFile {
         await fs.rm(written.location, { force: true });
       }
     } catch (error__u: unknown) {
-      console.warn(`Could not remove partial ETL output ${this.location}: ${toError(error__u).message}`);
+      log.warn({ err: toError(error__u), location: this.location }, 'Could not remove partial ETL output');
     }
   }
 }
@@ -828,7 +827,7 @@ export class EtlService {
 
             // Basic IRI validation
             if (!iriValue.match(/^[a-z][a-z0-9+.-]*:/i)) {
-              console.warn(`Invalid IRI generated: ${iriValue}, skipping binding`);
+              log.warn({ iri: iriValue }, 'Invalid IRI generated, skipping binding');
               continue;
             }
 
@@ -855,7 +854,7 @@ export class EtlService {
           }
         } catch (error__u: unknown) {
       const error = toError(error__u);
-          console.warn(`Error converting column ${colDef.columnName}: ${error.message}, skipping binding`);
+          log.warn({ err: error, column: colDef.columnName }, 'Error converting column, skipping binding');
           continue;
         }
       }

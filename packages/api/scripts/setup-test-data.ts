@@ -7,11 +7,11 @@
 */
 
 import { config } from '../src/server/config';
-import { createLibrary, Libraries } from '../src/persistence/utils/LibraryUtils';
+import { createLibrary } from '../src/persistence/utils/LibraryUtils';
 import { createStoredQuery, StoredQueries } from '../src/persistence/utils/StoredQueryUtils';
 import { createNodeParameterMappings } from '../src/persistence/utils/NodeParameterMappingUtils';
 import { createQueryNode, QueryNodes } from '../src/persistence/utils/QueryNodeUtils';
-import { createQueryGroup, QueryGroups } from '../src/persistence/utils/QueryGroupUtils';
+import { createQueryGroup } from '../src/persistence/utils/QueryGroupUtils';
 
 async function setupTestData() {
   console.log('🚀 Setting up test data for LDKit migration comparison...\n');

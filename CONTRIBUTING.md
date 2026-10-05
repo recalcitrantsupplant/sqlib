@@ -15,13 +15,13 @@ reference the maintainers work from.
 ## Local setup
 
 ```bash
-corepack enable        # selects the pnpm version pinned in package.json
+npm install --global pnpm@11.1.2   # the version pinned in package.json
 pnpm install
 pnpm build
 ```
 
-Node 24 (`.nvmrc`) and pnpm 11.1.2 (`packageManager` in the root
-`package.json`). `pnpm build` runs `pnpm -r build` in topological order, so
+Node 26 (`.nvmrc`, the same major as the Docker images) and pnpm 11.1.2
+(`packageManager` in the root `package.json`). `pnpm build` runs `pnpm -r build` in topological order, so
 `types` and `contracts` are built before the packages that import them. Nothing
 in the workspace resolves internal packages from source at runtime, so an
 unbuilt tree will not start.
@@ -73,12 +73,11 @@ required pipeline is reproducible locally with no GitHub Actions involved.
 What each one actually does:
 
 - **`install.sh`** — `pnpm install --frozen-lockfile`.
-- **`lint.sh`** — `pnpm -r --if-present lint`. Nine of the ten packages define
-  `lint` as an `echo`, so the only real linting in the repo is stylelint over
-  `packages/web/**/*.{vue,css}`, which enforces the design tokens (colour, font
-  size, radius, and `padding`/`margin` on the `--space-*` scale). The script
-  prints a warning naming every package whose lint script is a placeholder, so
-  the size of the gap is visible in each run. No TypeScript linter gates today.
+- **`lint.sh`** — three things. `pnpm -r --if-present lint`, which is
+  stylelint over `packages/web/**/*.{vue,css}` (the design tokens: colour, font
+  size, radius, and `padding`/`margin` on the `--space-*` scale); the ESLint
+  ratchet (`scripts/lint-ratchet.mjs`, below) over every package's TypeScript;
+  and the documentation link check.
 - **`typecheck.sh`** — `nuxi typecheck` over `packages/web`, compared against
   `packages/web/.typecheck-baseline`. The other packages typecheck as part of
   their build. It fails if the checker exits non-zero without printing a single
@@ -99,9 +98,11 @@ What each one actually does:
   `pnpm --filter X exec` rather than each package's `test` script, because pnpm
   11 does not forward trailing arguments to run-scripts. `SHARD=n/N` shards a
   run.
-- **`commitlint.sh`** — runs on PRs only, warn-only.
-- **`e2e.sh`** — Playwright. Not part of `all.sh` and not a required gate: the
-  e2e job runs on `workflow_dispatch` only. It runs the web functional specs
+- **`commitlint.sh`** — runs on PRs only, and fails the job on a commit that is
+  not a Conventional Commit.
+- **`e2e.sh`** — Playwright. Not part of `all.sh`, because it needs a browser
+  and a production build; the e2e job runs on every pull request and push, and
+  Dependabot's auto-merge waits on it as it does on the other jobs. It runs the web functional specs
   against a production preview build with the API mocked at the network layer,
   plus the `packages/api` demo-page suite. The `@visual` specs are excluded,
   because their baselines are rasterised with the authoring machine's fonts;
@@ -110,13 +111,33 @@ What each one actually does:
 
 ## The ratchets
 
-Two gates measure the tree rather than a run, and both are baselines rather than
-hard zeros so cleanup can land incrementally.
+Three gates measure the tree rather than a run, and all three are baselines
+rather than hard zeros so cleanup can land incrementally.
+
+**`lint.sh`** runs `scripts/lint-ratchet.mjs`: ESLint with the root
+`eslint.config.mjs` (`typescript-eslint`'s recommended rules, unused imports and
+variables, `no-explicit-any`, and `no-console` outside scripts, tests and CLI
+entry points — `packages/web/src` may still `console.warn` and `console.error`;
+its commentary goes through `debug()` from `src/lib/debug.ts`, and the API's
+through the logger in `packages/api/src/lib/log.ts`). Problems are counted per
+package and rule against `scripts/lint-baseline.json`, and a count that rises
+fails. A package/rule pair the baseline does not name is held at zero. To see
+the problems behind a count, and to fix unused imports automatically:
+
+```bash
+pnpm exec eslint packages/api            # list them
+pnpm exec eslint --fix packages/api      # fix what is fixable
+pnpm lint:update                         # record a lower count
+```
+
+The root pins TypeScript 6 for ESLint alone: `typescript-eslint` cannot parse
+with TypeScript 7, which every package but `web` builds with.
 
 **`any-ratchet.sh`** runs `scripts/count-any.mjs`. It makes two different
-promises: `packages/api/src` is a strict zone where any occurrence of `any`
-fails, and the whole-repo count may fall but never rise. When a legitimate
-cleanup lowers the count, record it:
+promises: `packages/api/src` is a strict zone where any occurrence of `as any`
+or `catch (x: any)` fails, and the whole-repo count — `: any` annotations
+included, in `packages/api/src` as everywhere else — may fall but never rise.
+When a legitimate cleanup lowers the count, record it:
 
 ```bash
 node scripts/count-any.mjs --update
@@ -130,10 +151,10 @@ claim that someone looked at that specific file and decided it stays.
 
 **When a ratchet trips**, the fix is the code, not the baseline. Remove the
 `any` or delete the unreachable module. Adding an entry to
-`scripts/orphan-baseline.json`, or raising the `any` baseline, is a decision to
-be explained in the pull request, not a way past a red build.
+`scripts/orphan-baseline.json`, or raising the `any` or lint baseline, is a
+decision to be explained in the pull request, not a way past a red build.
 
-**`ratchet-selftest.sh`** guards both of them: it checks that each still fails
+**`ratchet-selftest.sh`** guards the `any` and orphan ratchets: it checks that each still fails
 when it measures nothing, since a crashed checker and a moved scan directory
 both score as clean. It runs in about a second and needs no install.
 
@@ -143,9 +164,10 @@ Conventional Commits: `feat:`, `fix:`, `chore:`, `test:`, `ci:`, `docs:`, and
 `feat!:` or a `BREAKING CHANGE:` footer for a breaking change. The configuration
 is `commitlint.config.cjs`, extending `@commitlint/config-conventional`.
 
-`scripts/ci/commitlint.sh` is **warn-only**: a non-conforming commit prints a
-warning and the job stays green. It becomes blocking when versioned releases are
-adopted. Write commits as though it already blocked.
+`scripts/ci/commitlint.sh` is **blocking** on pull requests: a non-conforming
+commit fails the `verify` job. Releases are cut by release-please from these
+messages (`v0.1.0` is the first, see `CHANGELOG.md`), so a commit it cannot
+parse gets no version bump and no changelog entry.
 
 All changes land on `main` through a pull request.
 
@@ -207,7 +229,7 @@ locally. If types look stale, run
 
 **Cross-package dependencies use `workspace:*`**, never `file:../`.
 
-**Adding a package**: create it under `packages/*` with `build`, `lint` and
-`test` scripts, depend on internal packages with `workspace:*`, and add a vitest
+**Adding a package**: create it under `packages/*` with `build` and `test`
+scripts (the root ESLint configuration covers its TypeScript without one), depend on internal packages with `workspace:*`, and add a vitest
 config aliasing internal dependencies to `src` if it has tests. The dependency
 graph and affected-aware testing pick it up without further wiring.

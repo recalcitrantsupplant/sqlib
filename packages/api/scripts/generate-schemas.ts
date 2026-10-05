@@ -12,7 +12,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import type { Property, Schema } from '../src/persistence/schema.js';
 import { inferOpenAPIType } from './lib/type-mappings.js';
-import { loadEntitySchemas, writeGeneratedFiles, loadExample as loadExampleFromFileOps, buildCreateExampleLookup, type GeneratedFiles } from './lib/file-ops.js';
+import { loadEntitySchemas, writeGeneratedFiles, loadExample as loadExampleFromFileOps, buildCreateExampleLookup } from './lib/file-ops.js';
 import { buildCRUDRoutes, formatRouteSchemas, type RouteConfig } from './lib/route-builders/crud.js';
 import { buildVersionRoutes } from './lib/route-builders/versions.js';
 import { incrementalQueryGroupSchemas } from './lib/route-builders/incremental-query-group.js';

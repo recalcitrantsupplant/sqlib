@@ -186,7 +186,7 @@ function commitEnter() {
 
 .picker-search {
   display: flex;
-  height: 28px;
+  height: var(--control-h);
   align-items: center;
   gap: 6px;
   margin: var(--space-4) var(--space-4) var(--space-2);
@@ -219,7 +219,7 @@ function commitEnter() {
 .picker-row,
 .picker-create {
   display: flex;
-  height: 26px;
+  height: var(--control-h);
   align-items: center;
   gap: 8px;
   padding: 0 var(--space-3);
@@ -263,7 +263,7 @@ function commitEnter() {
 }
 
 .picker-create {
-  height: 28px;
+  height: var(--control-h);
   margin: 0 var(--space-3) var(--space-3);
   border-top: 1px solid var(--border-subtle);
   border-radius: 0;

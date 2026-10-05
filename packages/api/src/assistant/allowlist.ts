@@ -9,7 +9,7 @@
  * Every catalogue tool that mutates server state is absent — not disabled, not
  * gated behind a flag, absent — and the assistant's writes go through the
  * draft tools instead, which stage into the session and are saved by a
- * human. Creating a version *is* saving in this API (`POST /queries/:id/v`
+ * human. Creating a version *is* saving in this API (`POST /queries/:id/versions`
  * sets `currentVersion`), which is exactly why the catalogue's own write tools
  * cannot be the assistant's.
  *

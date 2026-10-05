@@ -1,66 +1,10 @@
-
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import Fastify, { FastifyInstance } from 'fastify';
-import { MemoryCacheManager } from '../../src/lib/MemoryCacheManager.js';
 import queryGroupRoutes from '../../src/routes/query-groups.js';
 import * as schemas from '@sparql-query-lib/contracts/schema';
 import { setupValidator } from '../../src/lib/validator-setup.js';
 import { BackendTypeIri } from '../../src/persistence/schemas/BackendSchema.js';
-
-let cacheManager: MemoryCacheManager | null = null;
-
-const hoisted = vi.hoisted(() => ({
-  list: vi.fn((type: string) => cacheManager?.getByType(type as any) ?? []),
-  get: vi.fn((id: string) => cacheManager?.get(id) ?? null),
-  create: vi.fn((type: string, entity: any) => cacheManager!.create(entity, type as any)),
-  update: vi.fn((type: string, id: string, updates: any) => cacheManager!.update(id, updates, type as any)),
-  delete: vi.fn((type: string, id: string) => cacheManager!.delete(id, type as any)),
-  // Reference checks read through the same in-memory cache the rest of this
-  // harness uses, so a payload naming something the test seeded resolves.
-  resolveExisting: vi.fn(async (id: string) => {
-    const entity = cacheManager?.get(id) as { '@type'?: string } | null;
-    return entity ? { type: entity['@type'], entity } : null;
-  }),
-}));
-
-// The stubbed `loadAllSystemEntities` below only takes effect if the coordinator
-// actually goes through it, so the adapter has to be pointed at a double built
-// from these stubs. Without this the real boot load runs and reads every type
-// from whatever backend is configured.
-vi.mock('../../src/persistence/adapterRegistry', async () => {
-  const { lensBackedAdapter } = await import('../persistence/lensBackedAdapter.js');
-  return { getPersistenceAdapter: () => lensBackedAdapter, setPersistenceAdapter: () => {} };
-});
-
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
-  getCacheCoordinator: () => ({
-    list: hoisted.list,
-    get: hoisted.get,
-    create: hoisted.create,
-    update: hoisted.update,
-    delete: hoisted.delete,
-    resolveExisting: hoisted.resolveExisting,
-  }),
-}));
-
-// Mock dependencies
-vi.mock('../../src/persistence/utils/entityRepository.js', () => ({
-  loadAllSystemEntities: vi.fn().mockResolvedValue(new Map()),
-  createRepositoryLens: vi.fn(() => ({
-    insert: vi.fn().mockResolvedValue(undefined),
-    update: vi.fn().mockResolvedValue(undefined),
-    delete: vi.fn().mockResolvedValue(undefined),
-    find: vi.fn().mockResolvedValue([]),
-    findByIri: vi.fn().mockResolvedValue(null),
-    insertData: vi.fn().mockResolvedValue(undefined),
-    deleteData: vi.fn().mockResolvedValue(undefined),
-  })),
-}));
-
-vi.mock('../../src/persistence/utils/id-adapter.js', () => ({
-  toRestApi: vi.fn((entity) => ({ id: entity.$id, ...entity })),
-  toLdkit: vi.fn((entity) => entity),
-}));
+import { installFakePersistenceAdapter } from '../support/fakePersistenceAdapter.js';
 
 async function buildTestApp(): Promise<FastifyInstance> {
   const app = Fastify({ logger: false });
@@ -98,26 +42,28 @@ describe('Flat Query Group Building Flow', () => {
   const existingQueryVersionId = 'urn:sqlib:query-version:existing-query-v1';
   const testBackendId = 'urn:sqlib:backend:test-backend';
 
-  beforeEach(async () => {
-    vi.clearAllMocks();
-    hoisted.list.mockClear();
-    hoisted.get.mockClear();
-    hoisted.create.mockClear();
-    hoisted.update.mockClear();
-    hoisted.delete.mockClear();
-    cacheManager = new MemoryCacheManager();
-    await cacheManager.loadAll();
+  let store: Awaited<ReturnType<typeof installFakePersistenceAdapter>>;
 
-    // Pre-populate cache with a query group, a query, and a backend
-    await cacheManager.create({ $id: testGroupId, '@type': 'QueryGroup', name: 'Test Group Flat' }, 'QueryGroup');
-    await cacheManager.create({ $id: existingQueryId, '@type': 'Query', name: 'Existing Query' }, 'Query');
-    await cacheManager.create({
-      $id: existingQueryVersionId,
-      '@type': 'QueryVersion',
-      isPartOf: existingQueryId,
-      version: 1,
-    }, 'QueryVersion');
-    await cacheManager.create({ $id: testBackendId, '@type': 'Backend', name: 'Test Backend', backendType: BackendTypeIri.http, endpoint: 'http://example.com/sparql' }, 'Backend');
+  beforeEach(async () => {
+    // A query group, a query with one version, and a backend.
+    store = await installFakePersistenceAdapter([
+      { type: 'QueryGroup', entity: { $id: testGroupId, '@type': 'QueryGroup', name: 'Test Group Flat' } },
+      { type: 'Query', entity: { $id: existingQueryId, '@type': 'Query', name: 'Existing Query' } },
+      {
+        type: 'QueryVersion',
+        entity: { $id: existingQueryVersionId, '@type': 'QueryVersion', isPartOf: existingQueryId, version: 1 },
+      },
+      {
+        type: 'Backend',
+        entity: {
+          $id: testBackendId,
+          '@type': 'Backend',
+          name: 'Test Backend',
+          backendType: BackendTypeIri.http,
+          endpoint: 'http://example.com/sparql',
+        },
+      },
+    ]);
 
     app = await buildTestApp();
   });
@@ -126,6 +72,7 @@ describe('Flat Query Group Building Flow', () => {
     if (app) {
       await app.close();
     }
+    store.restore();
   });
 
   it('should create a complex query group version from a single flat payload', async () => {
@@ -151,15 +98,11 @@ describe('Flat Query Group Building Flow', () => {
 
     const response = await app.inject({
       method: 'POST',
-      url: `/query-groups/${testGroupId}/v`,
+      url: `/query-groups/${testGroupId}/versions`,
       payload,
     });
 
-    if (response.statusCode !== 201) {
-      console.error(response.json());
-    }
-
-    expect(response.statusCode).toBe(201);
+    expect(response.statusCode, response.payload).toBe(201);
     const body = response.json();
 
     // Check iriMap
@@ -187,5 +130,17 @@ describe('Flat Query Group Building Flow', () => {
     expect(body.iriMap['urn:ui-temp:edge-2']).toMatch(/^urn:sqlib:edge:/);
     expect(body.iriMap['urn:__START__']).toMatch(/^urn:sqlib:start-node:/);
     expect(body.iriMap['urn:__END__']).toMatch(/^urn:sqlib:end-node:/);
+
+    // And the version, with the nodes and edges it names, is what was stored.
+    const [stored] = store.all('QueryGroupVersion');
+    expect(stored).toMatchObject({ isPartOf: testGroupId });
+    expect(store.get(body.iriMap['urn:ui-temp:node-1'])).toMatchObject({
+      queryId: existingQueryVersionId,
+      backendId: testBackendId,
+    });
+    expect(store.get(body.iriMap['urn:ui-temp:edge-1'])).toMatchObject({
+      sourceNodeId: body.iriMap['urn:__START__'],
+      targetNodeId: body.iriMap['urn:ui-temp:node-1'],
+    });
   });
 });

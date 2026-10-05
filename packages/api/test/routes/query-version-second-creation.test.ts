@@ -51,7 +51,7 @@ describe('Query Version Second Creation Bug Reproduction', () => {
     // First, create version 1 - this should work
     const firstVersionRes = await app.inject({
       method: 'POST',
-      url: `/queries/${encodeURIComponent(queryId)}/v`,
+      url: `/queries/${encodeURIComponent(queryId)}/versions`,
       payload: {
         queryVersion: {
           queryString: 'SELECT * {?s ?p ?o }LIMIT 10',
@@ -72,7 +72,7 @@ describe('Query Version Second Creation Bug Reproduction', () => {
     // Now create version 2 - this is where the bug should occur
     const secondVersionRes = await app.inject({
       method: 'POST',
-      url: `/queries/${encodeURIComponent(queryId)}/v`,
+      url: `/queries/${encodeURIComponent(queryId)}/versions`,
       payload: {
         queryVersion: {
           queryString: 'SELECT * {?s ?p ?o }LIMIT 20',

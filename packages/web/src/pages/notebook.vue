@@ -698,7 +698,7 @@ function handleRailSelect(section: RailSection) {
     });
     return;
   }
-  router.push({ path: '/', query: { section } });
+  router.push({ path: `/${section}` });
 }
 
 // Shared with the library page and the exported page: one argument builder.

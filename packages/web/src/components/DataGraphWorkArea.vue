@@ -11,6 +11,7 @@
         :is-scratch="isScratch"
         :current-version-number="currentVersionNumber"
         :edit-count="editCount"
+        :draft-not-kept="draftNotKept"
         :saving="isSaving"
         :can-save="canSave"
         :needs-name="!graphName.trim()"
@@ -193,7 +194,7 @@
  * a record page, so a DataGraph needs one too. Promoting inline content from
  * the rules editor still works; it is now one way in rather than the only one.
  */
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
 import { Upload } from '@lucide/vue';
 import InlineNote from './shared/InlineNote.vue';
@@ -217,7 +218,7 @@ import { useEditorExpand } from '@/composables/useEditorExpand';
 import { usePanelResize } from '@/composables/usePanelResize';
 import { useActiveLibrary } from '@/composables/useActiveLibrary';
 import { useScratchRecord } from '@/composables/useScratchRecord';
-import { useCallableDrafts, UNASSIGNED_LIBRARY_ID } from '@/composables/useCallableDrafts';
+import { useEntityDraft } from '@/composables/useEntityDraft';
 import type { DataGraphVersion } from '@/composables/useApiClient';
 import { useServerLimits } from '@/composables/useServerLimits';
 import type { DataGraphFormat } from '@/types/data-graphs';
@@ -251,7 +252,6 @@ const { activeLibraryId } = useActiveLibrary();
 const editorExpand = useEditorExpand();
 const contentExpanded = computed(() => editorExpand.isExpanded(CONTENT_REGION_ID));
 const toggleContentExpand = () => editorExpand.toggle(CONTENT_REGION_ID);
-const draftsStore = useCallableDrafts();
 
 const graphId = ref<string | null>(props.dataGraphId ?? null);
 const graphName = ref('');
@@ -440,7 +440,7 @@ function selectDraft() {
 async function setCurrentVersion(versionId: string) {
   if (!graphId.value) return;
   try {
-    await store.updateDataGraph(graphId.value, { currentVersion: versionId } as never);
+    await store.updateDataGraph(graphId.value, { currentVersion: versionId });
     currentVersionId.value = versionId;
     const version = versions.value.find((candidate) => candidate.id === versionId);
     toast.success(version ? `v${version.version} is now current` : 'Current version updated');
@@ -495,10 +495,6 @@ async function copyGraphId() {
  * rather than SPARQL, the lifecycle is identical.
  */
 const graphLibraryId = ref<string | null>(null);
-const locallySavedAt = ref<string | null>(null);
-let draftSaveHandle: ReturnType<typeof setTimeout> | null = null;
-/** Set while a graph is being read from the server, so a load is not an edit. */
-const hydratingRecord = ref(false);
 
 /** The body of the version the editor was last loaded from, to compare against. */
 const savedContent = ref('');
@@ -510,85 +506,62 @@ interface DataGraphDraftBody {
   contentFormat?: DataGraphFormat;
 }
 
-const openDraft = computed(() => {
-  void draftsStore.allDrafts.value;
-  return graphId.value ? draftsStore.draftFor(graphId.value) : null;
-});
+/** What the editor holds now, in the shape a draft records it. */
+function editorBody(): DataGraphDraftBody {
+  return {
+    description: description.value,
+    contentString: contentString.value,
+    contentFormat: contentFormat.value,
+  };
+}
 
-const editCount = computed(() => (isScratch.value ? 0 : openDraft.value?.edits ?? 0));
+/** Put a body back into the editor; a field the body does not carry is left alone. */
+function applyEditorBody(body: DataGraphDraftBody) {
+  if (typeof body.contentString === 'string') contentString.value = body.contentString;
+  if (body.contentFormat) contentFormat.value = body.contentFormat;
+  if (typeof body.description === 'string') description.value = body.description;
+}
+
+/*
+ * The draft lifecycle every versioned work area shares: autosave, undo-to-saved,
+ * Discard, and hydration that does not count as typing. "Saved" is judged on
+ * the content alone, and Discard puts back the saved content and format.
+ */
+const {
+  hydrating: hydratingRecord,
+  locallySavedAt,
+  openDraft,
+  editCount,
+  notPersisted: draftNotKept,
+  removeDraft,
+  cancelDraftSave,
+  discardDraft: discardEntityDraft,
+} = useEntityDraft<DataGraphDraftBody>({
+  section: 'dataGraph',
+  id: () => graphId.value,
+  enabled: () => !isScratch.value,
+  libraryId: () => graphLibraryId.value || activeLibraryId.value,
+  name: () => graphName.value,
+  description: () => description.value,
+  editorBody,
+  applyBody: applyEditorBody,
+  // Typing back to what is saved is an undo, not an edit.
+  matchesSaved: () =>
+    contentString.value.trim() === savedContent.value.trim()
+    && contentFormat.value === savedFormat.value,
+  savedBody: () => ({ contentString: savedContent.value, contentFormat: savedFormat.value }),
+  sources: [contentString, contentFormat, description],
+  resultKind: 'GRAPH',
+});
 
 const draftBody = computed(() => {
   const body = openDraft.value?.body;
   return body && typeof body === 'object' ? (body as DataGraphDraftBody) : null;
 });
 
-/** Typing back to what is saved is an undo, not an edit. */
-const matchesSaved = () =>
-  contentString.value.trim() === savedContent.value.trim()
-  && contentFormat.value === savedFormat.value;
-
-function persistDraft() {
-  const id = graphId.value;
-  if (!id || isScratch.value) return;
-  const existing = draftsStore.draftFor(id);
-  draftsStore.save({
-    id: existing?.id ?? `urn:ui-temp:draft-of-${id}`,
-    libraryId: graphLibraryId.value || activeLibraryId.value || UNASSIGNED_LIBRARY_ID,
-    type: 'query',
-    kind: 'draft',
-    section: 'dataGraph',
-    name: graphName.value,
-    description: description.value || null,
-    queryString: null,
-    body: {
-      description: description.value,
-      contentString: contentString.value,
-      contentFormat: contentFormat.value,
-    } satisfies DataGraphDraftBody,
-    resultKind: 'GRAPH',
-    inputTuples: [],
-    limitParameters: [],
-    offsetParameters: [],
-    outputs: [],
-    basedOn: id,
-    edits: (existing?.edits ?? 0) + 1,
-  });
-  locallySavedAt.value = new Date().toISOString();
-}
-
-function removeDraft() {
-  const id = graphId.value;
-  if (!id) return;
-  const existing = draftsStore.draftFor(id);
-  if (existing) draftsStore.remove(existing.id);
-  locallySavedAt.value = null;
-}
-
-watch([contentString, contentFormat, description], () => {
-  if (isScratch.value || hydratingRecord.value) return;
-  if (!graphId.value) return;
-  if (draftSaveHandle) clearTimeout(draftSaveHandle);
-  draftSaveHandle = setTimeout(() => {
-    draftSaveHandle = null;
-    if (matchesSaved()) {
-      removeDraft();
-      return;
-    }
-    persistDraft();
-  }, 500);
-});
-
 /** Throw the unsaved edits away and go back to the saved version. */
 function discardDraft() {
-  if (draftSaveHandle) {
-    clearTimeout(draftSaveHandle);
-    draftSaveHandle = null;
-  }
-  removeDraft();
-  hydratingRecord.value = true;
-  contentString.value = savedContent.value;
-  contentFormat.value = savedFormat.value;
-  void Promise.resolve().then(() => { hydratingRecord.value = false; });
+  discardEntityDraft();
   toast.success('Draft discarded');
 }
 
@@ -759,14 +732,14 @@ async function save() {
         name: graphName.value.trim(),
         description: description.value.trim() || null,
         isPartOf: [libraryId],
-      } as never);
+      });
       graphId.value = created.id;
       emit('scratch-saved', { id: created.id, name: created.name, libraryId });
     } else {
       await store.updateDataGraph(graphId.value, {
         name: graphName.value.trim(),
         description: description.value.trim() || null,
-      } as never);
+      });
     }
 
     const version = await store.createVersion(graphId.value!, {
@@ -783,10 +756,7 @@ async function save() {
     // unsaved edits left to keep: the draft and its pill go together.
     savedContent.value = contentString.value;
     savedFormat.value = contentFormat.value;
-    if (draftSaveHandle) {
-      clearTimeout(draftSaveHandle);
-      draftSaveHandle = null;
-    }
+    cancelDraftSave();
     removeDraft();
     toast.success(`Saved v${version.version} — ${version.tripleCount ?? 0} triples`);
   } catch (error) {
@@ -866,10 +836,7 @@ watch(
   (next) => {
     // A pending autosave belongs to the graph that was open, not the one being
     // opened; letting it fire would write the old body under the new id.
-    if (draftSaveHandle) {
-      clearTimeout(draftSaveHandle);
-      draftSaveHandle = null;
-    }
+    cancelDraftSave();
     graphId.value = next ?? null;
     graphLibraryId.value = null;
     graphCreatedAt.value = null;
@@ -881,14 +848,6 @@ watch(
     if (next) void load(next);
   },
 );
-
-onBeforeUnmount(() => {
-  if (!draftSaveHandle) return;
-  clearTimeout(draftSaveHandle);
-  draftSaveHandle = null;
-  // Closing the tab mid-debounce should not lose the edit that was queued.
-  if (!isScratch.value && graphId.value && !matchesSaved()) persistDraft();
-});
 </script>
 
 <style scoped>

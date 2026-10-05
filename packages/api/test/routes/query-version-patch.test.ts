@@ -1,5 +1,5 @@
 /**
- * `PATCH /queries/:id/v/:version` — what a version PATCH is *for*.
+ * `PATCH /queries/:id/versions/:version` — what a version PATCH is *for*.
  *
  * A version is a snapshot (issue #192): the content is what a reference to the
  * version means, so nothing edits it in place. What survives is the annotation
@@ -35,6 +35,8 @@ const hoisted = vi.hoisted(() => ({
 
 vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
   getEntityRepositories: () => ({
+    // Every version route looks its query up first.
+    Query: { get: (id: string) => (id === 'urn:sqlib:query:test' ? { $id: id, '@type': 'Query' } : null) },
     QueryVersion: hoisted.queryVersion,
   }),
   getCacheCoordinator: () => hoisted.coordinator,
@@ -103,7 +105,7 @@ describe('Query Version PATCH Routes', () => {
   function patch(payload: unknown, version = '1') {
     return app.inject({
       method: 'PATCH',
-      url: `/queries/${encodeURIComponent(QUERY_ID)}/v/${version}`,
+      url: `/queries/${encodeURIComponent(QUERY_ID)}/versions/${version}`,
       payload: payload as Record<string, unknown>,
     });
   }

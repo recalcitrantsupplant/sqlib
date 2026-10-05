@@ -49,45 +49,50 @@ const store = vi.hoisted(() => ({
 
 overrideCacheCoordinatorProvider((() => {
   const get = (id: string) => store.entities.get(id) ?? null;
+  const coordinator = {
+    get,
+    list: (type: string) => {
+      if (store.failListing) throw new Error(store.failListing);
+      return [...store.entities.values()].filter(entity => entity['@type'] === type);
+    },
+    resolveExisting: async (id: string, candidateTypes: readonly string[] = []) => {
+      const entity = get(id);
+      if (!entity) return null;
+      const type = entity['@type'] as string;
+      if (candidateTypes.length && !candidateTypes.includes(type)) return null;
+      return { type, entity };
+    },
+    create: async (type: string, entity: Record<string, unknown>) => {
+      const id = String(entity.$id ?? entity.id);
+      store.entities.set(id, { ...entity, $id: id, '@type': type });
+      return store.entities.get(id);
+    },
+    update: async (_type: string, id: string, updates: Record<string, unknown>) => {
+      const current = store.entities.get(id);
+      if (!current) return null;
+      store.updates.push(id);
+      const next = { ...current, ...updates };
+      store.entities.set(id, next);
+      return next;
+    },
+    delete: async (_type: string, id: string) => {
+      store.entities.delete(id);
+    },
+  };
+  // The repositories are the coordinator under a type, as in production.
+  const repo = (type: string) => ({
+    get: (id: string) => {
+      const entity = get(id);
+      return entity && entity['@type'] === type ? entity : null;
+    },
+    list: () => coordinator.list(type),
+    create: (entity: Record<string, unknown>) => coordinator.create(type, entity),
+    update: (id: string, updates: Record<string, unknown>) => coordinator.update(type, id, updates),
+    delete: (id: string) => coordinator.delete(type, id),
+  });
   return {
-    getEntityRepositories: () => ({
-      QueryGroup: {
-        get: (id: string) => {
-          const entity = store.entities.get(id);
-          return entity && entity['@type'] === 'QueryGroup' ? entity : null;
-        },
-      },
-    }),
-    getCacheCoordinator: () => ({
-      get,
-      list: (type: string) => {
-        if (store.failListing) throw new Error(store.failListing);
-        return [...store.entities.values()].filter(entity => entity['@type'] === type);
-      },
-      resolveExisting: async (id: string, candidateTypes: readonly string[] = []) => {
-        const entity = get(id);
-        if (!entity) return null;
-        const type = entity['@type'] as string;
-        if (candidateTypes.length && !candidateTypes.includes(type)) return null;
-        return { type, entity };
-      },
-      create: async (type: string, entity: Record<string, unknown>) => {
-        const id = String(entity.$id ?? entity.id);
-        store.entities.set(id, { ...entity, $id: id, '@type': type });
-        return store.entities.get(id);
-      },
-      update: async (_type: string, id: string, updates: Record<string, unknown>) => {
-        const current = store.entities.get(id);
-        if (!current) return null;
-        store.updates.push(id);
-        const next = { ...current, ...updates };
-        store.entities.set(id, next);
-        return next;
-      },
-      delete: async (_type: string, id: string) => {
-        store.entities.delete(id);
-      },
-    }),
+    getEntityRepositories: () => new Proxy({}, { get: (_target, type) => repo(String(type)) }),
+    getCacheCoordinator: () => coordinator,
   };
 })());
 
@@ -135,9 +140,14 @@ async function inject(
   context: AuthContext,
   method: 'GET' | 'POST' | 'PATCH',
   url: string,
-  options: { payload?: object; headers?: Record<string, string> } = {},
+  options: { payload?: object; headers?: Record<string, string>; logLines?: string[] } = {},
 ) {
-  const app = Fastify({ logger: false });
+  // The routes log through `reply.log`; a test that asserts on that passes
+  // `logLines` to collect what the request logger writes.
+  const { logLines } = options;
+  const app = Fastify({
+    logger: logLines ? { level: 'error', stream: { write: (line: string) => void logLines.push(line) } } : false,
+  });
   setupValidator(app);
   for (const schema of Object.values(schemas)) {
     if (schema && typeof schema === 'object' && '$id' in schema) app.addSchema(schema);
@@ -173,7 +183,7 @@ const twoLibraryVersion = {
 };
 
 async function composeTwoLibraryVersion() {
-  const created = await inject(readsTheirs, 'POST', `${GROUP_PATH}/v`, { payload: twoLibraryVersion });
+  const created = await inject(readsTheirs, 'POST', `${GROUP_PATH}/versions`, { payload: twoLibraryVersion });
   expect(created.statusCode, created.payload.slice(0, 300)).toBe(201);
 }
 
@@ -209,44 +219,48 @@ beforeEach(() => {
 });
 
 describe('a version whose group no longer resolves', () => {
-  it('is not listed, and the listing does not 404 on the way to saying so', async () => {
+  /*
+   * Every version route looks the group up first and 404s a missing one
+   * (`routes/versionedEntity.ts`), and DELETE cascades a group's versions, so
+   * a stranded version is reachable through no route — refused before
+   * anything reads it, for every caller.
+   */
+  it('is not listed', async () => {
     for (const caller of [stranger, mine]) {
-      const response = await inject(caller, 'GET', `${GHOST_PATH}/v`);
+      const response = await inject(caller, 'GET', `${GHOST_PATH}/versions`);
 
-      expect(response.statusCode).toBe(200);
-      expect(response.json()).toEqual([]);
+      expect(response.statusCode).toBe(404);
+      expect(response.body).not.toContain('salary');
     }
   });
 
   it('is not readable by a stranger, nor by a principal holding every mode on another library', async () => {
-    // No library resolves for it, so no grant reaches it:
-    // `requireLibraryMode(null)` refuses rather than abstains.
     for (const caller of [stranger, mine]) {
-      const response = await inject(caller, 'GET', `${GHOST_PATH}/v/1`);
+      const response = await inject(caller, 'GET', `${GHOST_PATH}/versions/1`);
 
-      expect(response.statusCode).toBe(403);
+      expect(response.statusCode).toBe(404);
       expect(response.body).not.toContain('salary');
     }
   });
 
   it('has no validation report for them either', async () => {
-    const response = await inject(mine, 'GET', `${GHOST_PATH}/v/1/validate`);
+    const response = await inject(mine, 'GET', `${GHOST_PATH}/versions/1/validate`);
 
     expect(response.statusCode).toBe(403);
   });
 
   it('cannot be annotated', async () => {
-    const response = await inject(mine, 'PATCH', `${GHOST_PATH}/v/1`, {
+    const response = await inject(mine, 'PATCH', `${GHOST_PATH}/versions/1`, {
       payload: { comment: 'written by someone with no grant on it' },
     });
 
-    expect(response.statusCode).toBe(403);
+    expect(response.statusCode).toBe(404);
     expect(store.updates).toEqual([]);
   });
 
-  it('is unaffected in disabled mode', async () => {
-    expect((await inject(authDisabled, 'GET', `${GHOST_PATH}/v`)).json()).toHaveLength(1);
-    expect((await inject(authDisabled, 'GET', `${GHOST_PATH}/v/1`)).statusCode).toBe(200);
+  it('is missing in disabled mode too', async () => {
+    expect((await inject(authDisabled, 'GET', `${GHOST_PATH}/versions`)).statusCode).toBe(404);
+    expect((await inject(authDisabled, 'GET', `${GHOST_PATH}/versions/1`)).statusCode).toBe(404);
   });
 });
 
@@ -254,7 +268,7 @@ describe('the query text a node pins from another library', () => {
   it('is withheld from a reader of the group who is a stranger to that library', async () => {
     await composeTwoLibraryVersion();
 
-    const response = await inject(mine, 'GET', `${GROUP_PATH}/v/1`);
+    const response = await inject(mine, 'GET', `${GROUP_PATH}/versions/1`);
 
     expect(response.statusCode).toBe(200);
     expect(response.body).not.toContain(SECRET_QUERY);
@@ -270,7 +284,7 @@ describe('the query text a node pins from another library', () => {
   it('is served once the caller may read that library', async () => {
     await composeTwoLibraryVersion();
 
-    const response = await inject(readsTheirs, 'GET', `${GROUP_PATH}/v/1`);
+    const response = await inject(readsTheirs, 'GET', `${GROUP_PATH}/versions/1`);
 
     expect(response.statusCode).toBe(200);
     expect(response.body).toContain(SECRET_QUERY);
@@ -282,7 +296,7 @@ describe('the query text a node pins from another library', () => {
     // version they just saved is expanded for them like any other read. The
     // 201 schema does not list `queryVersions` today, so this guards the
     // expansion against that schema growing the field.
-    const response = await inject(runsTheirs, 'POST', `${GROUP_PATH}/v`, { payload: twoLibraryVersion });
+    const response = await inject(runsTheirs, 'POST', `${GROUP_PATH}/versions`, { payload: twoLibraryVersion });
 
     expect(response.statusCode, response.payload.slice(0, 300)).toBe(201);
     expect(response.body).not.toContain(SECRET_QUERY);
@@ -291,11 +305,11 @@ describe('the query text a node pins from another library', () => {
   it('is withheld from the annotation echo and from the 412 body', async () => {
     await composeTwoLibraryVersion();
 
-    const annotated = await inject(mine, 'PATCH', `${GROUP_PATH}/v/1`, { payload: { comment: 'reviewed' } });
+    const annotated = await inject(mine, 'PATCH', `${GROUP_PATH}/versions/1`, { payload: { comment: 'reviewed' } });
     expect(annotated.statusCode).toBe(200);
     expect(annotated.body).not.toContain(SECRET_QUERY);
 
-    const stale = await inject(mine, 'PATCH', `${GROUP_PATH}/v/1`, {
+    const stale = await inject(mine, 'PATCH', `${GROUP_PATH}/versions/1`, {
       payload: { comment: 'reviewed again' },
       headers: { 'if-match': '"not-the-current-tag"' },
     });
@@ -306,7 +320,7 @@ describe('the query text a node pins from another library', () => {
   it('is behind the guard altogether for a principal holding nothing', async () => {
     await composeTwoLibraryVersion();
 
-    expect((await inject(stranger, 'GET', `${GROUP_PATH}/v/1`)).statusCode).toBe(403);
+    expect((await inject(stranger, 'GET', `${GROUP_PATH}/versions/1`)).statusCode).toBe(403);
   });
 });
 
@@ -314,20 +328,19 @@ describe('500 bodies', () => {
   const INTERNAL = 'store unreachable at /var/lib/sqlib/oxigraph';
 
   it.each([
-    ['the group listing', '/query-groups', 'Failed to fetch query groups'],
-    ['a version listing', `${GROUP_PATH}/v`, 'Failed to list query group versions'],
-    ['a version', `${GROUP_PATH}/v/1`, 'Failed to fetch query group version'],
-  ])('do not echo the internal message on %s', async (_what, url, failure) => {
+    ['the group listing', '/query-groups'],
+    ['a version listing', `${GROUP_PATH}/versions`],
+    ['a version', `${GROUP_PATH}/versions/1`],
+  ])('do not echo the internal message on %s', async (_what, url) => {
     store.failListing = INTERNAL;
-    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const logLines: string[] = [];
 
-    const response = await inject(mine, 'GET', url);
+    const response = await inject(mine, 'GET', url, { logLines });
 
     expect(response.statusCode).toBe(500);
-    expect(response.json()).toEqual({ error: failure });
+    expect(response.json().error).toBe('Internal Server Error');
     expect(response.body).not.toContain('oxigraph');
     // Still logged: the operator needs it even if the caller does not.
-    expect(errors.mock.calls.flat().map(String).join('\n')).toContain(INTERNAL);
-    errors.mockRestore();
+    expect(logLines.join('\n')).toContain(INTERNAL);
   });
 });

@@ -38,6 +38,7 @@ const store = vi.hoisted(() => ({
   lastRunByTest: { value: {} as Record<string, unknown> },
   runTest: vi.fn(),
   createTest: vi.fn(),
+  updateTest: vi.fn((id: string, input: unknown) => api.updateTest(id, input)),
   createVersion: vi.fn(),
   deleteTest: vi.fn(),
   loadVersions: vi.fn(),

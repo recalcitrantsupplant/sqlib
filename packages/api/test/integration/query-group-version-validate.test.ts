@@ -1,57 +1,32 @@
-
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { QueryTypeIri } from '../../src/constants/queryTypes.js';
 import Fastify, { FastifyInstance } from 'fastify';
-import { MemoryCacheManager } from '../../src/lib/MemoryCacheManager.js';
 import queryGroupRoutes from '../../src/routes/query-groups.js';
 import * as schemas from '@sparql-query-lib/contracts/schema';
 import { setupValidator } from '../../src/lib/validator-setup.js';
+import { getCacheCoordinator } from '../../src/lib/CacheCoordinatorProvider.js';
+import type { EntityType } from '../../src/lib/EntityRegistry.js';
+import type { LDKitEntity } from '../../src/persistence/EntityTypes.js';
+import { installFakePersistenceAdapter } from '../support/fakePersistenceAdapter.js';
 
-let cacheManager: MemoryCacheManager | null = null;
+/** Writes through the real coordinator, so the store and the cache agree. */
+const cacheManager = {
+  create: (entity: LDKitEntity, type: EntityType) => getCacheCoordinator().create(type, entity as never),
+  update: (id: string, updates: Record<string, unknown>, type: EntityType) =>
+    getCacheCoordinator().update(type, id, updates as never),
+};
 
-const hoisted = vi.hoisted(() => ({
-  list: vi.fn((type: string) => cacheManager?.getByType(type as any) ?? []),
-  get: vi.fn((id: string) => cacheManager?.get(id) ?? null),
-  create: vi.fn((type: string, entity: any) => cacheManager!.create(entity, type as any)),
-  update: vi.fn((type: string, id: string, updates: any) => cacheManager!.update(id, updates, type as any)),
-  delete: vi.fn((type: string, id: string) => cacheManager!.delete(id, type as any)),
-}));
-
-vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
-  getCacheCoordinator: () => ({
-    list: hoisted.list,
-    get: hoisted.get,
-    create: hoisted.create,
-    update: hoisted.update,
-    delete: hoisted.delete,
-  }),
-}));
-
-// This suite's subject is cache logic; storage is a stub. It runs against a
-// double built from those stubs (see lensBackedAdapter), so what is asserted is
-// what the cache did, not what the persistence layer did.
-vi.mock('../../src/persistence/adapterRegistry', async () => {
-  const { lensBackedAdapter } = await import('../persistence/lensBackedAdapter.js');
-  return { getPersistenceAdapter: () => lensBackedAdapter, setPersistenceAdapter: () => {} };
-});
-
-// Mock dependencies
-vi.mock('../../src/persistence/utils/entityRepository.js', () => ({
-  loadAllSystemEntities: vi.fn().mockResolvedValue(new Map()),
-  createRepositoryLens: vi.fn(() => ({
-    insert: vi.fn().mockResolvedValue(undefined),
-    update: vi.fn().mockResolvedValue(undefined),
-    delete: vi.fn().mockResolvedValue(undefined),
-    find: vi.fn().mockResolvedValue([]),
-    findByIri: vi.fn().mockResolvedValue(null),
-    insertData: vi.fn().mockResolvedValue(undefined),
-    deleteData: vi.fn().mockResolvedValue(undefined),
-  })),
-}));
-
-vi.mock('../../src/persistence/utils/id-adapter.js', () => ({
-  toRestApi: vi.fn((entity) => ({ id: entity.$id, ...entity })),
-}));
+/**
+ * Give a version its graph. A version is frozen from creation, so this
+ * recreates it with the graph rather than editing it in place — the shape a
+ * real save has, where nodes are written first and the version last.
+ */
+async function setVersionGraph(versionId: string, graph: Record<string, unknown>): Promise<void> {
+  const coordinator = getCacheCoordinator();
+  const existing = coordinator.get(versionId) as Record<string, unknown>;
+  await coordinator.delete('QueryGroupVersion', versionId);
+  await coordinator.create('QueryGroupVersion', { ...existing, ...graph, $id: versionId } as never);
+}
 
 async function buildTestApp(): Promise<FastifyInstance> {
   const app = Fastify({ logger: false });
@@ -67,49 +42,30 @@ async function buildTestApp(): Promise<FastifyInstance> {
 }
 
 describe('Query Group Version Validation', () => {
-  // The repositories are stubs that keep nothing, so a write-through update
-  // would read back an entity the store never held, which the coordinator
-  // refuses. These suites are about the cache and the routes, not storage.
-  let writeThroughBefore: string | undefined;
-  beforeAll(() => {
-    writeThroughBefore = process.env.CACHE_WRITE_THROUGH;
-    process.env.CACHE_WRITE_THROUGH = 'false';
-  });
-  afterAll(() => {
-    if (writeThroughBefore === undefined) delete process.env.CACHE_WRITE_THROUGH;
-    else process.env.CACHE_WRITE_THROUGH = writeThroughBefore;
-  });
-
   let app: FastifyInstance;
   const testGroupId = 'urn:sqlib:group:test-group';
   const testGroupVersionId = 'urn:sqlib:group-version:test-group-v1';
 
-  /**
-   * Give the version its graph. A version is frozen from creation, so this
-   * recreates it with the graph rather than editing it in place — the shape a
-   * real save has, where nodes are written first and the version last.
-   */
-  const setVersionGraph = async (graph: Record<string, unknown>) => {
-    const existing = cacheManager!.get(testGroupVersionId) as Record<string, unknown>;
-    await cacheManager!.delete(testGroupVersionId, 'QueryGroupVersion');
-    await cacheManager!.create({ ...existing, ...graph, $id: testGroupVersionId }, 'QueryGroupVersion');
-  };
+  let store: Awaited<ReturnType<typeof installFakePersistenceAdapter>>;
 
   beforeEach(async () => {
-    vi.clearAllMocks();
-    hoisted.list.mockClear();
-    hoisted.get.mockClear();
-    hoisted.create.mockClear();
-    hoisted.update.mockClear();
-    hoisted.delete.mockClear();
-    cacheManager = new MemoryCacheManager();
-    await cacheManager.loadAll();
-
-    // Pre-populate cache with a query group and version
-    await cacheManager.create({ $id: testGroupId, '@type': 'QueryGroup', name: 'Test Group' }, 'QueryGroup');
-    await cacheManager.create({ $id: testGroupVersionId, '@type': 'QueryGroupVersion', isPartOf: testGroupId, version: 1, startNode: 'start-node-id', endNode: 'end-node-id' }, 'QueryGroupVersion');
-    await cacheManager.create({ $id: 'start-node-id', '@type': 'StartNode' }, 'StartNode');
-    await cacheManager.create({ $id: 'end-node-id', '@type': 'EndNode' }, 'EndNode');
+    // A query group with one version, and that version's start and end nodes
+    store = await installFakePersistenceAdapter([
+      { type: 'QueryGroup', entity: { $id: testGroupId, '@type': 'QueryGroup', name: 'Test Group' } },
+      {
+        type: 'QueryGroupVersion',
+        entity: {
+          $id: testGroupVersionId,
+          '@type': 'QueryGroupVersion',
+          isPartOf: testGroupId,
+          version: 1,
+          startNode: 'start-node-id',
+          endNode: 'end-node-id',
+        },
+      },
+      { type: 'StartNode', entity: { $id: 'start-node-id', '@type': 'StartNode' } },
+      { type: 'EndNode', entity: { $id: 'end-node-id', '@type': 'EndNode' } },
+    ]);
 
     app = await buildTestApp();
   });
@@ -118,6 +74,7 @@ describe('Query Group Version Validation', () => {
     if (app) {
       await app.close();
     }
+    store.restore();
   });
 
   it('should validate a query group version', async () => {
@@ -164,14 +121,14 @@ describe('Query Group Version Validation', () => {
       sourceOutputId: outputTupleId,
       targetInputId: outputTupleId
     }, 'QueryEdge');
-    await setVersionGraph({
+    await setVersionGraph(testGroupVersionId, {
       executionNodes: [nodeId],
       edges: [edgeStartId, edgeEndId]
     });
 
     const response = await app.inject({
       method: 'GET',
-      url: `/query-groups/${testGroupId}/v/1/validate`,
+      url: `/query-groups/${testGroupId}/versions/1/validate`,
     });
     expect(response.statusCode).toBe(200);
     const body = response.json();
@@ -227,14 +184,14 @@ describe('Query Group Version Validation', () => {
       sourceOutputId: outputTupleId,
       targetInputId: outputTupleId,
     }, 'QueryEdge');
-    await setVersionGraph({
+    await setVersionGraph(testGroupVersionId, {
       executionNodes: [nodeId],
       edges: ['urn:sqlib:edge:ephemeral-start', 'urn:sqlib:edge:ephemeral-end'],
     });
 
     const response = await app.inject({
       method: 'GET',
-      url: `/query-groups/${testGroupId}/v/1/validate`,
+      url: `/query-groups/${testGroupId}/versions/1/validate`,
     });
     expect(response.statusCode).toBe(200);
     const body = response.json();
@@ -266,14 +223,14 @@ describe('Query Group Version Validation', () => {
       backendId,
       backendConfig: { type: 'ephemeral-oxigraph', storeId: 'urn:sqlib:store:conflict' },
     }, 'QueryNode');
-    await setVersionGraph({
+    await setVersionGraph(testGroupVersionId, {
       executionNodes: [nodeId],
       edges: [],
     });
 
     const response = await app.inject({
       method: 'GET',
-      url: `/query-groups/${testGroupId}/v/1/validate`,
+      url: `/query-groups/${testGroupId}/versions/1/validate`,
     });
     expect(response.statusCode).toBe(200);
     const body = response.json();
@@ -297,13 +254,13 @@ describe('Query Group Version Validation', () => {
       targetNodeId: 'urn:sqlib:node:missing-target',
       dataFlowType: 'CONTROL_FLOW',
     }, 'QueryEdge');
-    await setVersionGraph({
+    await setVersionGraph(testGroupVersionId, {
       edges: ['urn:sqlib:edge:broken'],
     });
 
     const response = await app.inject({
       method: 'GET',
-      url: `/query-groups/${testGroupId}/v/1/validate`,
+      url: `/query-groups/${testGroupId}/versions/1/validate`,
     });
     expect(response.statusCode).toBe(200);
     const body = response.json();

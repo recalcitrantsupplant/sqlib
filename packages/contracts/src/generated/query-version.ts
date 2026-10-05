@@ -155,7 +155,7 @@ export type QueryVersionForQueryCreateInput = z.infer<typeof queryVersionForQuer
 /**
  * What a version PATCH may carry: the annotation, and the freeze transition.
  *
- * A version is a snapshot (issue #192) — `POST .../v` mints the next one, and
+ * A version is a snapshot (issue #192) — `POST .../versions` mints the next one, and
  * that is the only way to write content. `immutable` is accepted in one
  * direction only, to freeze a version stored before freeze-on-create; the API
  * refuses `false`.

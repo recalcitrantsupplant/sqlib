@@ -3,7 +3,7 @@
  *
  * See `docs/guides/query-groups.md`. This is the one declaration of the rules,
  * shared by the writer's staging phase and
- * `GET /query-groups/:id/v/:version/validate`, so the two cannot drift.
+ * `GET /query-groups/:id/versions/:version/validate`, so the two cannot drift.
  *
  * The `allowedTypes` column is no longer written out here: an entity property
  * now declares what its IRI may point at (`@references`, issue #65 Phase B3),

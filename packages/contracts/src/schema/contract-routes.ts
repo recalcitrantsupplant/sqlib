@@ -275,7 +275,7 @@ export const benchmarkRouteSchemas = {
         "required": [
           "error"
         ],
-        "additionalProperties": false
+        "additionalProperties": true
       },
       "500": {
         "type": "object",
@@ -873,7 +873,7 @@ export const benchmarkRouteSchemas = {
         "required": [
           "error"
         ],
-        "additionalProperties": false
+        "additionalProperties": true
       },
       "500": {
         "type": "object",

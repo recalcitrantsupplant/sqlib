@@ -496,11 +496,11 @@ async function saveAsTupleSet() {
       name: exportName.value.trim(),
       isPartOf: [libraryId],
       ...(props.copiedFrom ? { copiedFrom: props.copiedFrom } : {}),
-    } as never);
+    });
     await tupleSets.createVersion(created.id, {
       contentString: toTupleDocument(table),
       sourceFormat: 'sparql-results-json',
-    } as never);
+    });
     exporting.value = false;
     exportName.value = '';
     exportLeadIri.value = '';
@@ -749,8 +749,8 @@ function setCell(rowIndex: number, name: string, value: SparqlValue) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
   border: none;
   border-radius: var(--radius-sm);
   background: transparent;

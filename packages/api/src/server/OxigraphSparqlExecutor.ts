@@ -5,6 +5,7 @@ import { toError } from '../lib/toError.js';
 import * as oxigraph from 'oxigraph';
 import { quadToNQuad, termToNQuad } from '../lib/nquads.js';
 import { markStoreWritten } from '../lib/storeWrites.js';
+import { log } from '../lib/log.js';
 import { throwIfAborted } from '../lib/cancellation.js';
 
 /**
@@ -22,8 +23,10 @@ type SparqlJsonTerm =
 // Per-query tracing floods server logs, so it is opt-in via DEBUG_OXIGRAPH=true.
 // Read the env var per call so tests can toggle it at runtime.
 function debugLog(message: string): void {
+    // Opt-in narration, kept behind its own switch so DEBUG_OXIGRAPH=true still
+    // shows it without dropping LOG_LEVEL for everything else.
     if (process.env.DEBUG_OXIGRAPH === 'true') {
-        console.log(message);
+        log.info(message);
     }
 }
 
@@ -62,7 +65,7 @@ export class OxigraphSparqlExecutor implements ISparqlExecutor {
             }
         } catch (error__u: unknown) {
       const error = toError(error__u);
-            console.error('Oxigraph SELECT query failed:', error);
+            log.error({ err: error }, 'Oxigraph SELECT query failed');
             throw new Error(`SPARQL SELECT query execution failed: ${error?.message || error}`);
         }
     }
@@ -100,7 +103,7 @@ export class OxigraphSparqlExecutor implements ISparqlExecutor {
             }
         } catch (error__u: unknown) {
       const error = toError(error__u);
-            console.error('Oxigraph CONSTRUCT query failed:', error);
+            log.error({ err: error }, 'Oxigraph CONSTRUCT query failed');
             throw new Error(`SPARQL CONSTRUCT query execution failed: ${error?.message || error}`);
         }
     }
@@ -311,7 +314,7 @@ export class OxigraphSparqlExecutor implements ISparqlExecutor {
             return { result: undefined, duration };
         } catch (error__u: unknown) {
       const error = toError(error__u);
-            console.error('Oxigraph UPDATE failed:', error);
+            log.error({ err: error }, 'Oxigraph UPDATE failed');
             throw new Error(`SPARQL UPDATE query execution failed: ${error?.message || error}`);
         }
     }
@@ -335,7 +338,7 @@ export class OxigraphSparqlExecutor implements ISparqlExecutor {
             }
         } catch (error__u: unknown) {
       const error = toError(error__u);
-            console.error('Oxigraph ASK query failed:', error);
+            log.error({ err: error }, 'Oxigraph ASK query failed');
             throw new Error(`SPARQL ASK query execution failed: ${error?.message || error}`);
         }
     }

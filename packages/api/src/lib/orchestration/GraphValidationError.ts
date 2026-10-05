@@ -2,7 +2,7 @@
  * Structural validation failures for a query group graph.
  *
  * Every check in `GraphBuilder.validateGraph` raises one of these, so consumers
- * (`GET /query-groups/:id/v/:version/validate`, the canvas, the legality matrix
+ * (`GET /query-groups/:id/versions/:version/validate`, the canvas, the legality matrix
  * tests) can branch on a stable `code` and highlight `entityId` directly rather
  * than parsing the human-readable message.
  */

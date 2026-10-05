@@ -29,7 +29,12 @@ vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
     TupleSet: hoisted.tupleSet,
     TupleSetVersion: hoisted.tupleSetVersion,
   }),
-  getCacheCoordinator: () => ({ get: hoisted.coordinatorGet }),
+  getCacheCoordinator: () => ({
+    get: hoisted.coordinatorGet,
+    // Deleting asks who pins the versions (`lib/versionPins.ts`), which is a
+    // scan over stored holders. Nothing here is pinned.
+    list: () => [],
+  }),
 }));
 
 vi.mock('../../src/lib/TupleSetVersionWriter.js', () => ({

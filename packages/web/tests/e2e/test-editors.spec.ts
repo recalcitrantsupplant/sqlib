@@ -15,6 +15,7 @@
  */
 import { test, expect, type Page, type Route } from '@playwright/test';
 import { mockSidebarCollections } from './fixtures/collections';
+import { API_ORIGIN } from './api-origin';
 
 const library = {
   id: 'urn:sqlib:library:editors',
@@ -55,10 +56,10 @@ const json = (route: Route, body: unknown) =>
 
 async function mockTestsScreen(page: Page, { tuplesEnabled }: { tuplesEnabled: boolean }) {
   await mockSidebarCollections(page, { libraries: [library], ruleSets });
-  await page.route('**/tests*', async (route: Route) =>
+  await page.route(`${API_ORIGIN}/tests*`, async (route: Route) =>
     route.request().method() === 'GET' ? json(route, []) : route.fallback());
-  await page.route('**/rule-sets/*/versions*', (route: Route) => json(route, []));
-  await page.route('**/rule-sets/*/srl*', (route: Route) => json(route, {
+  await page.route(`${API_ORIGIN}/rule-sets/*/versions*`, (route: Route) => json(route, []));
+  await page.route(`${API_ORIGIN}/rule-sets/*/srl*`, (route: Route) => json(route, {
     srl: SRL,
     ruleCount: 1,
     dataBlockCount: 0,
@@ -66,8 +67,8 @@ async function mockTestsScreen(page: Page, { tuplesEnabled }: { tuplesEnabled: b
     tuplesEnabled,
     warnings: [],
   }));
-  await page.route('**/data-graphs*', (route: Route) => json(route, []));
-  await page.route('**/argument-sets*', (route: Route) => json(route, []));
+  await page.route(`${API_ORIGIN}/data-graphs*`, (route: Route) => json(route, []));
+  await page.route(`${API_ORIGIN}/argument-sets*`, (route: Route) => json(route, []));
 }
 
 /** Open the subject chooser and take the first rule set it offers. */

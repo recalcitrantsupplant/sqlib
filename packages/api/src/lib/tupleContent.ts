@@ -17,8 +17,9 @@
  */
 
 import type { TupleSourceFormat } from '../persistence/schemas/TupleSetVersionSchema.js';
+import { ValidationError } from './validationError.js';
 
-export class TupleContentError extends Error {
+export class TupleContentError extends ValidationError {
   constructor(message: string) {
     super(message);
     this.name = 'TupleContentError';
@@ -50,8 +51,8 @@ export interface ParsedTupleContent {
 }
 
 /** A column-level type an untyped column can be promoted to at import. */
-export const SUGGESTED_COLUMN_TYPES = ['xsd:integer', 'xsd:date', 'uri'] as const;
-export type SuggestedColumnType = (typeof SUGGESTED_COLUMN_TYPES)[number];
+export { SUGGESTED_COLUMN_TYPES, type SuggestedColumnType } from '@sparql-query-lib/contracts';
+import { type SuggestedColumnType } from '@sparql-query-lib/contracts';
 
 export interface ColumnTypeSuggestion {
   column: string;

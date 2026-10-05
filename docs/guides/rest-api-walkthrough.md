@@ -134,7 +134,7 @@ SPARQL string under it. **The query string lives on the version, never on the qu
 
 Three things about this call, each of which cost a downstream client a debugging session:
 
-1. **The route is `POST /queries/{{queryId}}/v`**, and the body is a **wrapper**: the version's own
+1. **The route is `POST /queries/{{queryId}}/versions`**, and the body is a **wrapper**: the version's own
    fields go inside `queryVersion`. Sibling keys (`limitParameters`, `inputs`, `outputs`, …) sit
    beside it, not inside it.
 2. **The response is expanded, and the version's id is at `response.queryVersion.id`** — not

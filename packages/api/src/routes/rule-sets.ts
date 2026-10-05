@@ -2,24 +2,19 @@ import type { FastifyInstance } from 'fastify';
 import { mintId } from '../lib/id.js';
 import { maxRuleIterations } from '../config/executionLimits.js';
 import { abortOnDisconnect } from '../lib/cancellation.js';
-import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
-import { analyseReferences, describeWrongType } from '../lib/entityReferences.js';
-import { analyseTags } from '../lib/tagMembership.js';
 import { toRestApi } from '../persistence/utils/id-adapter.js';
 import type { LdkitRuleSet } from '../persistence/schemas/RuleSetSchema.js';
 import type { LdkitRule } from '../persistence/schemas/RuleSchema.js';
 import type { LdkitRuleSetVersion } from '../persistence/schemas/RuleSetVersionSchema.js';
 import type { LdkitRuleVersion } from '../persistence/schemas/RuleVersionSchema.js';
-import type { MemoryCacheManager } from '../lib/MemoryCacheManager.js';
-import { reposRoute, validateIfMatch, setEntityConcurrencyHeaders, findVersionByNumber } from './route-helpers.js';
+import { reposRoute } from './route-helpers.js';
+import { registerVersionedEntityRoutes, type StoredEntity } from './versionedEntity.js';
 import { ruleSetExecutionResponseJsonSchema } from '@sparql-query-lib/contracts/schema/routes';
 import { createRuleSetVersion } from '../lib/RuleSetVersionWriter.js';
 import { ruleTuplesAllowed, ruleTuplesRefusal, hasSeedText } from '../lib/ruleTuples.js';
 import { RuleSetExecutor } from '../lib/RuleSetExecutor.js';
 import type { RuleSetExecutionCallbacks } from '../lib/RuleSetExecutor.js';
 import { expandRuleSetVersion } from '../lib/RuleSetVersionResolver.js';
-import { classifyVersionPatch } from '../lib/versionPatch.js';
-import { ImmutableEntityError } from '../lib/immutability.js';
 import {
   abbreviateIris,
   compileRule,
@@ -36,7 +31,6 @@ import {
   stratify,
   splitDataBlocks,
   splitRuleSet,
-  canonicalRuleText,
   canonicalDataBlockText,
   checkWellFormed,
   tupleSeedDeclarations,
@@ -63,7 +57,6 @@ import {
 import { registerEntityAuthGuard } from '../auth/entityGuard.js';
 import { registerBrowserDefaultsRoutes } from './browser-defaults.js';
 import { clearBrowserDefaultsIfMoved, deleteBrowserDefaultsOf } from '../lib/browserDefaults.js';
-import { AuthorizationError, filterReadable, requireEntityMode } from '../auth/enforce.js';
 import { DATA_GRAPH_FORMATS } from '../lib/dataGraphContent.js';
 import { DataGraphContentError, resolveDataGraphInput, type ResolvedDataGraph } from '../lib/dataGraphInput.js';
 import { TupleSeedInputError, resolveTupleSeedInput } from '../lib/tupleSeedInput.js';
@@ -327,395 +320,48 @@ export default async function (fastify: FastifyInstance) {
    */
   registerEntityAuthGuard(fastify, { executeSuffixes: ['/execute', '/execute/stream', '/run'], exemptSuffixes: [] });
 
-  /*
-   * The collection GET has no `:id` for the guard to resolve, so what a caller
-   * may see is the handler's to decide — as it is in `/queries`, `/tuple-sets`
-   * and `/tags`, all of which filter. This one did not: it answered every
-   * authenticated principal with every rule set in the deployment, names,
-   * descriptions and current-version pointers included, whatever they held.
-   */
-  fastify.get('/', ...reposRoute(getRuleSetsSchema, async ({ repos, reply, request }) => {
-    const items = repos.RuleSet.list() as LdkitRuleSet[];
-    return reply.send(filterReadable(request, items).map(ruleSet => toRestApi(ruleSet)));
-  }));
-
-  // Until Phase B2 this route registered no schema at all: the body was
-  // unvalidated and the handler coerced whatever arrived. `name` and `isPartOf`
-  // are now required by the document, so the two guards below are reachable only
-  // for values the schema admits — a whitespace-only name, and an `isPartOf`
-  // that arrives empty. They are kept for exactly that, not as the gate.
-  fastify.post('/', ...reposRoute(createRuleSetSchema, async ({ repos, reply, request }) => {
-    const body = request.body;
-    const cacheCoordinator = getCacheCoordinator();
-    const name = String(body.name).trim();
-    if (!name) {
-      return reply.status(400).send({ error: 'Rule set name is required' });
-    }
-
-    // `coerceTypes: 'array'` has already wrapped a bare `isPartOf` string into
-    // an array by the time the handler runs.
-    const isPartOfArray: string[] = (body.isPartOf ?? []).map((val: unknown) => String(val));
-    if (isPartOfArray.length === 0) {
-      return reply.status(400).send({ error: 'Rule set must be associated with at least one parent' });
-    }
-
-    const parents = analyseReferences('RuleSet', 'isPartOf', isPartOfArray, iri =>
-      cacheCoordinator.get(iri)
-    );
-
-    if (parents.exactlyOneCount !== 1) {
-      return reply.status(400).send({ error: 'Rule set must belong to exactly one library' });
-    }
-
-    if (parents.wrongType.length > 0) {
-      return reply.status(400).send({ error: describeWrongType(parents.wrongType[0]) });
-    }
-
-    if (parents.missing.length > 0) {
-      return reply.status(400).send({ error: `Referenced entity ${parents.missing[0]} does not exist` });
-    }
-
-    const tagCheck = analyseTags('RuleSet', body.tags, isPartOfArray, iri =>
-      cacheCoordinator.get(iri)
-    );
-    if (!tagCheck.ok) {
-      return reply.status(400).send({ error: tagCheck.error });
-    }
-
-    const id = mintId('ruleSet');
-    const toCreate: Partial<LdkitRuleSet> & { $id: string } = {
-      $id: id,
-      name,
-      description: body.description ?? null,
-      isPartOf: isPartOfArray,
-      ...(tagCheck.tags !== undefined ? { tags: tagCheck.tags } : {}),
-    };
-
-    const created = await repos.RuleSet.create(toCreate);
-    setEntityConcurrencyHeaders(reply, created);
-    return reply.status(201).send(toRestApi(created));
-  }));
-
-  fastify.get('/:id', ...reposRoute(getRuleSetSchema, async ({ repos, reply, request }) => {
-    const { id } = request.params;
-    const entity = repos.RuleSet.get(id) as LdkitRuleSet | null;
-    if (!entity) {
-      return reply.status(404).send({ error: 'Not Found' });
-    }
-    setEntityConcurrencyHeaders(reply, entity);
-    return reply.send(toRestApi(entity));
-  }));
-
-  fastify.put('/:id', ...reposRoute(updateRuleSetSchema, async ({ repos, reply, request }) => {
-    const { id } = request.params;
-    const updates = request.body;
-    const cacheCoordinator = getCacheCoordinator();
-
-    const current = repos.RuleSet.get(id) as LdkitRuleSet | null;
-    if (!current) {
-      return reply.status(404).send({ error: 'Not Found' });
-    }
-
-    const { valid, currentTag } = validateIfMatch(request, current);
-    if (!valid) {
-      return reply.status(412).send({
-        error: 'Precondition Failed',
-        expected: currentTag,
-        current: toRestApi(current),
-      });
-    }
-
-    let ids: string[] | undefined;
-    if (updates.isPartOf) {
-      ids = Array.isArray(updates.isPartOf)
-        ? updates.isPartOf.map(val => String(val))
-        : [String(updates.isPartOf)];
-      const parents = analyseReferences('RuleSet', 'isPartOf', ids, iri => cacheCoordinator.get(iri));
-      if (parents.exactlyOneCount !== 1) {
-        return reply.status(400).send({ error: 'Rule set must belong to exactly one library' });
-      }
-      if (parents.wrongType.length > 0) {
-        return reply.status(400).send({ error: describeWrongType(parents.wrongType[0]) });
-      }
-    }
-
-    const tagCheck = analyseTags('RuleSet', updates.tags, ids ?? current.isPartOf, iri =>
-      cacheCoordinator.get(iri)
-    );
-    if (!tagCheck.ok) {
-      return reply.status(400).send({ error: tagCheck.error });
-    }
-
-    const written = await repos.RuleSet.update(id, {
-      ...updates,
-      ...(tagCheck.tags !== undefined ? { tags: tagCheck.tags } : {}),
-    } as Partial<LdkitRuleSet>);
-    if (!written) {
-      return reply.status(404).send({ error: 'Not Found' });
-    }
-    const updated = (await clearBrowserDefaultsIfMoved('RuleSet', current, written)) ?? written;
-    setEntityConcurrencyHeaders(reply, updated);
-    return reply.send(toRestApi(updated));
-  }));
-
-  fastify.delete('/:id', ...reposRoute(deleteRuleSetSchema, async ({ repos, reply, request }) => {
-    const { id } = request.params;
-    const current = repos.RuleSet.get(id);
-    if (!current) {
-      return reply.status(404).send({ error: 'Not Found' });
-    }
-
-    // Delete all ruleset versions first
-    const versions = (repos.RuleSetVersion.list() as LdkitRuleSetVersion[]).filter(v => v.isPartOf === id);
-    for (const version of versions) {
-      await repos.RuleSetVersion.delete(version.$id);
-    }
-
-    // Then delete the ruleset itself
-    await deleteBrowserDefaultsOf(current);
-    await repos.RuleSet.delete(id);
-    return reply.status(204).send();
-  }));
-
-  fastify.get('/:id/versions', ...reposRoute({
-      tags: ['RuleSet'],
-      summary: 'List rule set versions',
-      params: {
-        type: 'object',
-        properties: { id: { type: 'string' } },
-        required: ['id'],
+  registerVersionedEntityRoutes(fastify, {
+    noun: 'rule set',
+    type: 'RuleSet',
+    versionType: 'RuleSetVersion',
+    idKind: 'ruleSet',
+    schemas: {
+      list: getRuleSetsSchema,
+      create: createRuleSetSchema,
+      get: getRuleSetSchema,
+      update: updateRuleSetSchema,
+      delete: deleteRuleSetSchema,
+      listVersions: { tags: ['RuleSet'], summary: 'List rule set versions', response: { 200: { type: 'array', items: ruleSetVersionResponseSchema } } },
+      createVersion: { tags: ['RuleSet'], summary: 'Create rule set version', body: createRuleSetVersionBodySchema, response: { 201: expandedRuleSetVersionSchema } },
+      getVersion: { tags: ['RuleSet'], summary: 'Get rule set version', response: { 200: expandedRuleSetVersionSchema } },
+      // A version is a snapshot (issue #192): `hasRule` and `hasDataBlock` are
+      // what the set was composed of when it was saved, so the stratification
+      // report computed from them stays true. Only the comment is writable.
+      patchVersion: {
+        tags: ['RuleSet'],
+        summary: 'Annotate a rule set version (comment only; content is immutable)',
+        body: patchRuleSetVersionBodySchema,
+        response: { 200: expandedRuleSetVersionSchema },
       },
-      response: {
-        200: {
-          type: 'array',
-          items: ruleSetVersionResponseSchema,
-        },
-      },
-    }, async ({ repos, reply, request }) => {
-    const { id } = request.params;
-    const parent = repos.RuleSet.get(id);
-    if (!parent) {
-      return reply.status(404).send({ error: 'Rule set not found' });
-    }
-    const versions = (repos.RuleSetVersion.list() as LdkitRuleSetVersion[])
-      .filter(v => v.isPartOf === id)
-      .sort((a, b) => (a.version ?? 0) - (b.version ?? 0));
-    return reply.send(versions.map(v => toRestApi(v)));
-  }));
-
-  fastify.post('/:id/versions', ...reposRoute({
-      tags: ['RuleSet'],
-      summary: 'Create rule set version',
-      params: {
-        type: 'object',
-        properties: { id: { type: 'string' } },
-        required: ['id'],
-      },
-      body: createRuleSetVersionBodySchema,
-      response: {
-        201: expandedRuleSetVersionSchema,
-      },
-    }, async ({ repos, reply, request }) => {
-    const { id } = request.params;
-    const parent = repos.RuleSet.get(id);
-    if (!parent) {
-      return reply.status(404).send({ error: 'Rule set not found' });
-    }
-
-    const body = request.body;
-    
-    try {
-      const created = await createRuleSetVersion(id, {
-        comment: body.comment ?? null,
-        hasRule: body.hasRule ?? [],
-        hasDataBlock: body.hasDataBlock ?? [],
-        immutable: body.immutable ?? undefined,
-        allowInvalidSave: body.allowInvalidSave ?? undefined,
+      deleteVersion: { tags: ['RuleSet'], summary: 'Delete rule set version', response: { 204: { type: 'null', description: 'Rule set version deleted successfully' } } },
+    },
+    presentVersion: version => expandRuleSetVersion(version as unknown as LdkitRuleSetVersion),
+    presentVersionInList: version => toRestApi(version),
+    createVersion: async ({ request, parent, body }) => {
+      // `{ request }` is what lets the writer check the rule and data block
+      // versions this body pins, which may live in another library.
+      const created = await createRuleSetVersion(parent.$id, {
+        comment: (body.comment as string | null | undefined) ?? null,
+        hasRule: (body.hasRule as string[] | null | undefined) ?? [],
+        hasDataBlock: (body.hasDataBlock as string[] | null | undefined) ?? [],
+        immutable: (body.immutable as boolean | null | undefined) ?? undefined,
+        allowInvalidSave: (body.allowInvalidSave as boolean | null | undefined) ?? undefined,
       }, { request });
-      const expanded = await expandRuleSetVersion(created);
-      setEntityConcurrencyHeaders(reply, created);
-      return reply.status(201).send(expanded);
-    } catch (error) {
-      if (error instanceof AuthorizationError) throw error;
-      const message = error instanceof Error ? error.message : String(error);
-      return reply.status(400).send({ error: message });
-    }
-  }));
-
-  fastify.get('/:id/versions/:version', ...reposRoute({
-      tags: ['RuleSet'],
-      summary: 'Get rule set version',
-      params: {
-        type: 'object',
-        properties: {
-          id: { type: 'string' },
-          version: { type: 'string' },
-        },
-        required: ['id', 'version'],
-      },
-      response: {
-        200: expandedRuleSetVersionSchema,
-        404: {
-          type: 'object',
-          properties: { error: { type: 'string' } },
-          required: ['error'],
-        },
-      },
-    }, async ({ repos, reply, request }) => {
-    const { id, version } = request.params;
-    const parent = repos.RuleSet.get(id);
-    if (!parent) {
-      return reply.status(404).send({ error: 'Rule set not found' });
-    }
-
-    const lookup = findVersionByNumber(
-      repos.RuleSetVersion.list() as LdkitRuleSetVersion[],
-      id,
-      version,
-      'rule set',
-    );
-    if (!lookup.ok) {
-      return reply.status(lookup.status).send({ error: lookup.error });
-    }
-    const match = lookup.version;
-    const expanded = await expandRuleSetVersion(match);
-    setEntityConcurrencyHeaders(reply, match);
-    return reply.send(expanded);
-  }));
-
-  fastify.patch('/:id/versions/:version', ...reposRoute({
-      tags: ['RuleSet'],
-      summary: 'Annotate a rule set version (comment only; content is immutable)',
-      params: {
-        type: 'object',
-        properties: {
-          id: { type: 'string' },
-          version: { type: 'string' },
-        },
-        required: ['id', 'version'],
-      },
-      body: patchRuleSetVersionBodySchema,
-      response: {
-        200: expandedRuleSetVersionSchema,
-        400: {
-          type: 'object',
-          properties: { error: { type: 'string' } },
-          required: ['error'],
-        },
-        404: {
-          type: 'object',
-          properties: { error: { type: 'string' } },
-          required: ['error'],
-        },
-      },
-    }, async ({ repos, reply, request }) => {
-    const { id: ruleSetId, version } = request.params;
-
-    const lookup = findVersionByNumber(
-      repos.RuleSetVersion.list() as LdkitRuleSetVersion[],
-      ruleSetId,
-      version,
-      'rule set',
-    );
-    if (!lookup.ok) {
-      return reply.status(lookup.status).send({ error: lookup.error });
-    }
-    const existing = lookup.version;
-    /*
-     * The sibling GET and DELETE fetch the rule set first and 404 on a miss,
-     * which is what makes the plugin guard's abstain safe for them; this one
-     * matches on `isPartOf` alone, so it checks the version it is about to
-     * write instead. A live version resolves through its rule set to the same
-     * library the guard resolved; one whose rule set is gone resolves to
-     * nothing, which `requireLibraryMode(null, …)` refuses.
-     */
-    requireEntityMode(request, existing, 'write');
-
-    // A version is a snapshot (issue #192): `hasRule` and `hasDataBlock` are
-    // what the set was composed of when it was saved, so the stratification
-    // report computed from them stays true. Only the comment is writable.
-    const { annotations, rejection } = classifyVersionPatch(request.body as AnyRecord, {
-      ignore: ['dateModified'],
-    });
-    if (rejection) return reply.status(rejection.status).send(rejection);
-
-    const { valid, currentTag } = validateIfMatch(request, existing);
-    if (!valid) {
-      const expanded = await expandRuleSetVersion(existing);
-      return reply.status(412).send({
-        error: 'Precondition Failed',
-        expected: currentTag,
-        current: expanded,
-      });
-    }
-
-    if (Object.keys(annotations).length === 0) {
-      const unchanged = await expandRuleSetVersion(existing);
-      setEntityConcurrencyHeaders(reply, existing);
-      return reply.send(unchanged);
-    }
-
-    let updated: LdkitRuleSetVersion | null = null;
-    try {
-      updated = await repos.RuleSetVersion.update(existing.$id, annotations as Partial<LdkitRuleSetVersion>);
-    } catch (error) {
-      if (error instanceof ImmutableEntityError) {
-        return reply.status(409).send({ error: error.message });
-      }
-      throw error;
-    }
-    if (!updated) {
-      return reply.status(404).send({ error: 'Rule set version not found' });
-    }
-
-    const expanded = await expandRuleSetVersion(updated as LdkitRuleSetVersion);
-    setEntityConcurrencyHeaders(reply, updated);
-    return reply.send(expanded);
-  }));
-
-  fastify.delete('/:id/versions/:version', ...reposRoute({
-      tags: ['RuleSet'],
-      summary: 'Delete rule set version',
-      params: {
-        type: 'object',
-        properties: {
-          id: { type: 'string' },
-          version: { type: 'string' },
-        },
-        required: ['id', 'version'],
-      },
-      response: {
-        204: {
-          type: 'null',
-          description: 'Rule set version deleted successfully',
-        },
-        404: {
-          type: 'object',
-          properties: { error: { type: 'string' } },
-          required: ['error'],
-        },
-      },
-    }, async ({ repos, reply, request }) => {
-    const { id, version } = request.params;
-    const parent = repos.RuleSet.get(id);
-    if (!parent) {
-      return reply.status(404).send({ error: 'Rule set not found' });
-    }
-
-    const lookup = findVersionByNumber(
-      repos.RuleSetVersion.list() as LdkitRuleSetVersion[],
-      id,
-      version,
-      'rule set',
-    );
-    if (!lookup.ok) {
-      return reply.status(lookup.status).send({ error: lookup.error });
-    }
-    const match = lookup.version;
-
-    await repos.RuleSetVersion.delete(match.$id);
-    return reply.status(204).send();
-  }));
+      return { created: created as unknown as StoredEntity };
+    },
+    afterUpdate: ({ before, updated }) => clearBrowserDefaultsIfMoved('RuleSet', before, updated),
+    beforeDelete: entity => deleteBrowserDefaultsOf(entity),
+  });
 
   fastify.post('/:id/execute', ...reposRoute({
       tags: ['RuleSet'],

@@ -62,7 +62,7 @@ describe('Simple A-B Integration Test (Unmocked)', () => {
     // Create SELECT query version
     const selectVersionResponse = await context.app.inject({
       method: 'POST',
-      url: `/queries/${encodeURIComponent(selectQueryEntity.id)}/v`,
+      url: `/queries/${encodeURIComponent(selectQueryEntity.id)}/versions`,
       payload: {
         queryVersion: {
           queryString: selectQuery,
@@ -103,7 +103,7 @@ describe('Simple A-B Integration Test (Unmocked)', () => {
     // Create CONSTRUCT query version
     const constructVersionResponse = await context.app.inject({
       method: 'POST',
-      url: `/queries/${encodeURIComponent(constructQueryEntity.id)}/v`,
+      url: `/queries/${encodeURIComponent(constructQueryEntity.id)}/versions`,
       payload: {
         queryVersion: {
           queryString: constructQuery,
@@ -143,7 +143,7 @@ describe('Simple A-B Integration Test (Unmocked)', () => {
 
     const selectVersionResponse = await context.app.inject({
       method: 'POST',
-      url: `/queries/${encodeURIComponent(selectQueryEntity.id)}/v`,
+      url: `/queries/${encodeURIComponent(selectQueryEntity.id)}/versions`,
       payload: {
         queryVersion: {
           queryString: selectQuery,
@@ -169,7 +169,7 @@ describe('Simple A-B Integration Test (Unmocked)', () => {
 
     const constructVersionResponse = await context.app.inject({
       method: 'POST',
-      url: `/queries/${encodeURIComponent(constructQueryEntity.id)}/v`,
+      url: `/queries/${encodeURIComponent(constructQueryEntity.id)}/versions`,
       payload: {
         queryVersion: {
           queryString: constructQuery,
@@ -187,7 +187,7 @@ describe('Simple A-B Integration Test (Unmocked)', () => {
 
     const queryGroupVersionResponse = await context.app.inject({
       method: 'POST',
-      url: `/query-groups/${encodeURIComponent(queryGroup.id)}/v`,
+      url: `/query-groups/${encodeURIComponent(queryGroup.id)}/versions`,
       payload: {
         queryGroupVersion: {},
         endNode: {
@@ -305,7 +305,7 @@ describe('Simple A-B Integration Test (Unmocked)', () => {
 
     const selectVersionResponse = await context.app.inject({
       method: 'POST',
-      url: `/queries/${encodeURIComponent(selectQueryEntity.id)}/v`,
+      url: `/queries/${encodeURIComponent(selectQueryEntity.id)}/versions`,
       payload: {
         queryVersion: {
           queryString: selectQuery,
@@ -330,7 +330,7 @@ describe('Simple A-B Integration Test (Unmocked)', () => {
 
     const constructVersionResponse = await context.app.inject({
       method: 'POST',
-      url: `/queries/${encodeURIComponent(constructQueryEntity.id)}/v`,
+      url: `/queries/${encodeURIComponent(constructQueryEntity.id)}/versions`,
       payload: {
         queryVersion: {
           queryString: constructQuery,
@@ -355,7 +355,7 @@ describe('Simple A-B Integration Test (Unmocked)', () => {
 
     const queryGroupVersionResponse = await context.app.inject({
       method: 'POST',
-      url: `/query-groups/${encodeURIComponent(queryGroup.id)}/v`,
+      url: `/query-groups/${encodeURIComponent(queryGroup.id)}/versions`,
       payload: {
         queryGroupVersion: {},
         endNode: {

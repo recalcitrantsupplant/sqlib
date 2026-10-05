@@ -477,8 +477,8 @@ function onPaste(event: ClipboardEvent, row: number, col: number) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
   border: none;
   border-radius: var(--radius-sm);
   background: transparent;

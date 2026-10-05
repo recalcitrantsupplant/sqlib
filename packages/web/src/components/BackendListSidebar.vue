@@ -268,8 +268,8 @@ function healthTitle(id: string): string {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 20px;
-  height: 20px;
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
   padding: 0;
   border: none;
   border-radius: var(--radius-sm);
@@ -286,7 +286,7 @@ function healthTitle(id: string): string {
 /* Full-bleed so its lower border joins the one the header draws. */
 .rail-hinge {
   width: 100%;
-  height: 40px;
+  height: var(--panel-bar-h);
   border-radius: 0;
   border-bottom: 1px solid var(--border-default);
   background: var(--surface);
@@ -298,7 +298,7 @@ function healthTitle(id: string): string {
   justify-content: center;
   flex-shrink: 0;
   width: 28px;
-  height: 28px;
+  height: var(--control-h);
   margin-top: var(--space-4);
   padding: 0;
   border: 1px solid var(--border-default);
@@ -563,7 +563,7 @@ function healthTitle(id: string): string {
   display: inline-flex;
   align-items: center;
   gap: var(--space-3);
-  height: 26px;
+  height: var(--control-h);
   padding: 0 var(--space-4);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-panel);

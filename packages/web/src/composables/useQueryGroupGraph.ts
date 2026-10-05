@@ -17,12 +17,10 @@ import type {
 type EphemeralBackendConfig = NonNullable<QueryNode['backendConfig']>;
 import {
   DATA_FLOW_TYPES,
-  IO_COMPATIBILITY,
   type DataFlowType,
 } from '@sparql-query-lib/types';
 import type { Covers } from './exhaustiveDomain';
 import {
-  emptyIoModel,
   normalizeIoModel,
   portFor,
   portsForNode,
@@ -92,37 +90,6 @@ type EndNodeEntity = {
   mediaType?: string | null;
   dateCreated?: string | null;
   dateModified?: string | null;
-};
-
-type QueryInputTupleEntity = {
-  id: string;
-  name?: string | null;
-  memberEntries?: string[] | null;
-};
-
-type QueryOutputTupleEntity = {
-  id: string;
-  name?: string | null;
-  memberEntries?: string[] | null;
-};
-
-type TriplesQuadsEntity = {
-  id: string;
-  name?: string | null;
-  description?: string | null;
-  outputType?: string | null;
-};
-
-type BooleanEntity = {
-  id: string;
-  name?: string | null;
-  description?: string | null;
-};
-
-type QueryIdInputEntity = {
-  id: string;
-  name?: string | null;
-  description?: string | null;
 };
 
 export type GraphNodeKind = 'start' | 'query' | 'dynamic' | 'ruleset' | 'patch' | 'end';

@@ -62,8 +62,8 @@ After this change, the inputs are uniform:
 - `ArgumentSetService.exportRuntimePayload` returns no `dataGraphs`.
 - `/execute` reads a group's graphs from `dataGraphs[]` only. The merge and the
   slot-conflict check go.
-- `lib/dataGraphPins.ts` is deleted. Its only pin holders were graph bindings,
-  so a data graph delete no longer has argument sets to refuse on.
+- `lib/dataGraphPins.ts` is deleted, and `lib/versionPins.ts` no longer counts
+  argument sets as holding data graph pins. A test version still does.
 - `graphParameterKey` and the `graph` parameter kind leave
   `@sparql-query-lib/types`.
 

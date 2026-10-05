@@ -359,7 +359,7 @@ function emitSelection() {
 
 .version-trigger {
   width: 80px;
-  height: 32px;
+  height: var(--control-h);
   font-size: var(--text-body);
 }
 

@@ -164,13 +164,13 @@ const MANIFEST: Record<string, Protection> = {
   'GET /benchmark-experiments/:id': 'read',
   'PUT /benchmark-experiments/:id': 'write',
   'DELETE /benchmark-experiments/:id': 'delete',
-  'GET /benchmark-experiments/:id/v': 'read',
-  'POST /benchmark-experiments/:id/v': 'write',
-  'GET /benchmark-experiments/:id/v/:version': 'read',
-  'PATCH /benchmark-experiments/:id/v/:version': 'write',
-  'GET /benchmark-experiments/:id/v/:version/runs': 'read',
-  'POST /benchmark-experiments/:id/v/:version/freeze': 'write',
-  'POST /benchmark-experiments/:id/v/:version/run': 'execute',
+  'GET /benchmark-experiments/:id/versions': 'read',
+  'POST /benchmark-experiments/:id/versions': 'write',
+  'GET /benchmark-experiments/:id/versions/:version': 'read',
+  'PATCH /benchmark-experiments/:id/versions/:version': 'write',
+  'GET /benchmark-experiments/:id/versions/:version/runs': 'read',
+  'POST /benchmark-experiments/:id/versions/:version/freeze': 'write',
+  'POST /benchmark-experiments/:id/versions/:version/run': 'execute',
   'GET /benchmark-experiments/runs/:id': 'handler',
   'GET /benchmark-experiments/runs/:id/observations': 'handler',
   'GET /benchmark-experiments/runs/:id/node-observations': 'handler',
@@ -216,10 +216,11 @@ const MANIFEST: Record<string, Protection> = {
   'GET /queries/:id': 'read',
   'PUT /queries/:id': 'write',
   'DELETE /queries/:id': 'delete',
-  'GET /queries/:id/v': 'read',
-  'POST /queries/:id/v': 'write',
-  'GET /queries/:id/v/:version': 'read',
-  'PATCH /queries/:id/v/:version': 'write',
+  'GET /queries/:id/versions': 'read',
+  'POST /queries/:id/versions': 'write',
+  'GET /queries/:id/versions/:version': 'read',
+  'PATCH /queries/:id/versions/:version': 'write',
+  'DELETE /queries/:id/versions/:version': 'delete',
   // An argument set is created under the query it targets, so the query's
   // library decides both of these — Read to list, Write to add one.
   'GET /queries/:id/argument-sets': 'read',
@@ -444,7 +445,7 @@ const MANIFEST: Record<string, Protection> = {
    * (`containerRefsFrom` reads the body), and the handler requires Read on it.
    * It refuses rather than filtering, which is why it is neither listing value.
    *
-   * The three `/v/:version` routes match versions on `isPartOf` and never read
+   * The three `/versions/:version` routes match versions on `isPartOf` and never read
    * the set in the path, so each checks the version it serves — the shape that
    * was a live hole in `queries.ts` and `tuple-sets.ts`. It is not known to be
    * reachable here (`ArgumentSetService.delete` cascades, unlike
@@ -461,11 +462,11 @@ const MANIFEST: Record<string, Protection> = {
   'PUT /argument-sets/:id': 'write',
   'DELETE /argument-sets/:id': 'delete',
   'GET /argument-sets/:id/export': 'read',
-  'GET /argument-sets/:id/v': 'read',
-  'POST /argument-sets/:id/v': 'write',
-  'GET /argument-sets/:id/v/:version': 'read',
-  'PATCH /argument-sets/:id/v/:version': 'write',
-  'GET /argument-sets/:id/v/:version/export': 'read',
+  'GET /argument-sets/:id/versions': 'read',
+  'POST /argument-sets/:id/versions': 'write',
+  'GET /argument-sets/:id/versions/:version': 'read',
+  'PATCH /argument-sets/:id/versions/:version': 'write',
+  'GET /argument-sets/:id/versions/:version/export': 'read',
 
   /*
    * Patches are the first plugin swept that is not library-scoped at all, and
@@ -743,7 +744,7 @@ const MANIFEST: Record<string, Protection> = {
    * this route name a second entity in its body, and what is the caller doing
    * with it?* — which this plugin answers more widely than any before it.
    *
-   * `POST /:id/v` is the whole of that. A group version's nodes name stored
+   * `POST /:id/versions` is the whole of that. A group version's nodes name stored
    * entities that need not live in the group's library: a `QueryNode`'s
    * `queryId` is a `QueryVersion`, a `RuleSetNode`'s `ruleSetVersion` a
    * `RuleSetVersion`. The guard checks Write on the group; nothing looked at
@@ -761,7 +762,7 @@ const MANIFEST: Record<string, Protection> = {
    * pointer at the entity whose content names other libraries' queries. It
    * filters now (`listingVisibility.test.ts`).
    *
-   * The three version routes and `/:id/v/:version/validate` match
+   * The three version routes and `/:id/versions/:version/validate` match
    * `QueryGroupVersion` on `isPartOf` and never read the group in the path —
    * the shape that was live in `queries.ts`, `tuple-sets.ts` and
    * `rule-sets.ts`. It is *not known to be reachable* here: `DELETE /:id`
@@ -781,11 +782,12 @@ const MANIFEST: Record<string, Protection> = {
   'GET /query-groups/:id': 'read',
   'PUT /query-groups/:id': 'write',
   'DELETE /query-groups/:id': 'delete',
-  'GET /query-groups/:id/v': 'read',
-  'POST /query-groups/:id/v': 'write',
-  'GET /query-groups/:id/v/:version': 'read',
-  'PATCH /query-groups/:id/v/:version': 'write',
-  'GET /query-groups/:id/v/:version/validate': 'read',
+  'GET /query-groups/:id/versions': 'read',
+  'POST /query-groups/:id/versions': 'write',
+  'GET /query-groups/:id/versions/:version': 'read',
+  'PATCH /query-groups/:id/versions/:version': 'write',
+  'DELETE /query-groups/:id/versions/:version': 'delete',
+  'GET /query-groups/:id/versions/:version/validate': 'read',
   // The pair beside `/queries/:id/argument-sets`, reaching the same
   // `createForTarget`, so the pins in the body are checked by one call.
   'GET /query-groups/:id/argument-sets': 'read',
@@ -865,8 +867,8 @@ const PLUGINS: ReadonlyArray<[specifier: string, prefix: string]> = [
  * and patches not at all, which is the more useful pair than it sounds.
  *
  * `query-groups.ts` is swept above now — the one the last sweep named and
- * declined to guess at. Its `/:id/v/:version/validate` turned out to be the
- * quiet one and `POST /:id/v` the loud one: a group version's nodes name other
+ * declined to guess at. Its `/:id/versions/:version/validate` turned out to be the
+ * quiet one and `POST /:id/versions` the loud one: a group version's nodes name other
  * libraries' query and rule set versions, and running them needed nothing on
  * those libraries.
  *
@@ -958,7 +960,9 @@ async function mountedRoutes(): Promise<string[]> {
 
   for (const [specifier, prefix] of PLUGINS) {
     const plugin = (await import(specifier)).default;
-    await app.register(plugin as never, { prefix });
+    // The playground and detection register some routes under a flag; every route is
+    // classified here, so every one is mounted. Other plugins ignore it.
+    await app.register(plugin as never, { prefix, featureFlags: { queries: true, playgroundRules: true, playgroundEtl: true } });
   }
   await app.ready();
   await app.close();

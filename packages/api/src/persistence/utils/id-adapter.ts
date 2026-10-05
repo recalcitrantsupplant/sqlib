@@ -1,3 +1,4 @@
+import { log } from '../../lib/log.js';
 /**
  * Centralized ID adapter utilities to bridge API JSON-LD shapes ('@id')
  * and LDKit entity shapes ('$id').
@@ -71,7 +72,7 @@ export function toSimpleApi<T extends AnyRecord>(ldkitEntity: AnyRecord): T {
  */
 export function toRestApi<T extends AnyRecord>(ldkitEntity: AnyRecord): T {
   if (!ldkitEntity) {
-    console.error('toRestApi called with null/undefined entity');
+    log.error('toRestApi called with null/undefined entity');
     return { id: undefined } as unknown as T;
   }
 

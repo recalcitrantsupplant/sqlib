@@ -120,11 +120,15 @@ Nothing environment-specific is baked in. The bundle is built with no
 deployment supplies `/config.json` beside `index.html`, as below.
 
 A host that serves a directory of files serves this unchanged: `nuxt generate`
-prerenders an `index.html` per route, so deep links resolve without a rewrite
-rule. `200.html` is there for hosts that want an explicit SPA fallback (Azure
-Static Web Apps takes one through `navigationFallback` in
-`staticwebapp.config.json`, which the deployment adds beside `/config.json` —
-it is deployment configuration, not part of the bundle).
+prerenders an `index.html` per page and per workspace section (`/queries`,
+`/rules`, `/backends`, …), so those links resolve without a rewrite rule. A
+link to one record — `/queries/<id>` — carries the record's id and cannot be
+prerendered, so it needs the host's SPA fallback: serve `200.html` for a path
+with no file (nginx: `try_files $uri $uri/ /200.html;`; Azure Static Web Apps:
+`navigationFallback` in `staticwebapp.config.json`, which the deployment adds
+beside `/config.json` — it is deployment configuration, not part of the
+bundle). A host with no fallback rule at all serves `404.html` for such a path,
+which loads the app all the same, with a 404 status.
 
 ### Runtime configuration through `/config.json`
 

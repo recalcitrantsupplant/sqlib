@@ -1,27 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { MemoryCacheManager } from '../../src/lib/MemoryCacheManager.js';
-import { loadAllSystemEntities } from '../../src/persistence/utils/entityRepository.js';
+import type { LDKitEntity } from '../../src/persistence/EntityTypes.js';
+import { installFakePersistenceAdapter } from '../support/fakePersistenceAdapter.js';
 
-// Mock the entity repository module
-vi.mock('../../src/persistence/utils/entityRepository.js', () => ({
-  loadAllSystemEntities: vi.fn(),
-  createRepositoryLens: vi.fn(() => ({
-    insert: vi.fn(),
-    update: vi.fn(),
-    delete: vi.fn(),
-    findByIri: vi.fn(),
-    find: vi.fn(),
-  })),
-}));
-
-// This suite's subject is cache logic; storage is a stub. It runs against a
-// double built from those stubs (see lensBackedAdapter), so what is asserted is
-// what the cache did, not what the persistence layer did.
-vi.mock('../../src/persistence/adapterRegistry', async () => {
-  const { lensBackedAdapter } = await import('../persistence/lensBackedAdapter.js');
-  return { getPersistenceAdapter: () => lensBackedAdapter, setPersistenceAdapter: () => {} };
-});
-
+// This suite's subject is cache logic; storage is the in-memory fake, and what
+// is asserted is what the cache made of what the store held.
 vi.mock('../../src/system-store/SystemStoreLoader.js', () => ({
   loadSystemStore: vi.fn(async () => ({
     cacheEntries: new Map(),
@@ -30,33 +13,24 @@ vi.mock('../../src/system-store/SystemStoreLoader.js', () => ({
   getKnownSystemEntityIds: vi.fn(() => new Set()),
 }));
 
-// Mock all the lens utilities
-vi.mock('../../src/persistence/utils/BackendUtils.js', () => ({
-  Backends: {
-    insert: vi.fn(),
-    update: vi.fn(),
-    delete: vi.fn(),
-    findByIri: vi.fn(),
-    find: vi.fn(),
-  },
-}));
-
-vi.mock('../../src/persistence/utils/LibraryUtils.js', () => ({
-  Libraries: {
-    insert: vi.fn(),
-    update: vi.fn(),
-    delete: vi.fn(),
-    findByIri: vi.fn(),
-    find: vi.fn(),
-  },
-}));
-
 describe('MemoryCacheManager - Enhanced Memory Statistics', () => {
   let cacheManager: MemoryCacheManager;
+  let store: Awaited<ReturnType<typeof installFakePersistenceAdapter>>;
 
-  beforeEach(() => {
+  /** Puts each entity in the store under its own `@type`. */
+  function seed(entities: Map<string, LDKitEntity>): void {
+    for (const entity of entities.values()) store.put(String(entity['@type']), entity);
+  }
+
+  beforeEach(async () => {
+    store = await installFakePersistenceAdapter();
     cacheManager = new MemoryCacheManager();
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    store.restore();
   });
 
   describe('enhanced getStats with memory estimation', () => {
@@ -66,7 +40,7 @@ describe('MemoryCacheManager - Enhanced Memory Statistics', () => {
         ['id2', { $id: 'id2', '@type': 'Library', name: 'Test Library', description: 'A test library' }],
       ]);
 
-      (loadAllSystemEntities as any).mockResolvedValue(mockEntities);
+      seed(mockEntities);
       await cacheManager.loadAll();
 
       const stats = cacheManager.getStats();
@@ -119,7 +93,7 @@ describe('MemoryCacheManager - Enhanced Memory Statistics', () => {
         ['large', largeEntity],
       ]);
 
-      (loadAllSystemEntities as any).mockResolvedValue(mockEntities);
+      seed(mockEntities);
       await cacheManager.loadAll();
 
       const stats = cacheManager.getStats();
@@ -145,7 +119,7 @@ describe('MemoryCacheManager - Enhanced Memory Statistics', () => {
         ['id3', { $id: 'id3', '@type': 'Backend' }],
       ]);
 
-      (loadAllSystemEntities as any).mockResolvedValue(mockEntities);
+      seed(mockEntities);
       await cacheManager.loadAll();
 
       const stats = cacheManager.getStats();
@@ -174,7 +148,7 @@ describe('MemoryCacheManager - Enhanced Memory Statistics', () => {
 
       const mockEntities = new Map([['unicode-test', unicodeEntity]]);
 
-      (loadAllSystemEntities as any).mockResolvedValue(mockEntities);
+      seed(mockEntities);
       await cacheManager.loadAll();
 
       const stats = cacheManager.getStats();
@@ -190,10 +164,14 @@ describe('MemoryCacheManager - Enhanced Memory Statistics', () => {
         ['backend2', { $id: 'backend2', '@type': 'Backend', name: 'Backend 2' }],
         ['library1', { $id: 'library1', '@type': 'Library', name: 'Library 1' }],
         ['query1', { $id: 'query1', '@type': 'Query', name: 'Query 1' }],
-        ['unknown1', { $id: 'unknown1', name: 'No Type' }], // Entity without @type
       ]);
-
-      (loadAllSystemEntities as any).mockResolvedValue(mockEntities);
+      seed(mockEntities);
+      // The store always types what it returns, so an untyped entity can only
+      // be handed to the cache by intercepting the boot load.
+      const typed = await store.loadAll();
+      vi.spyOn(store, 'loadAll').mockResolvedValue(
+        new Map([...typed, ['unknown1', { $id: 'unknown1', name: 'No Type' }]]),
+      );
       await cacheManager.loadAll();
 
       const stats = cacheManager.getStats();

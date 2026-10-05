@@ -33,6 +33,7 @@
       -->
       <ResultsActionBar>
         <SegmentedToggle
+          size="default"
           v-model="viewMode"
           :options="viewOptions"
           group-label="Rule set results view"
@@ -79,12 +80,12 @@
           <TermDisplayToggle v-if="viewMode === 'graph'" />
           <button
             type="button"
-            class="btn-action btn-action--icon"
+            class="icon-control"
             data-testid="results-expand"
             title="Pop out"
             @click="showFocus = true"
           >
-            <Expand :size="14" />
+            <Expand :size="16" />
           </button>
         </template>
       </ResultsActionBar>
@@ -333,6 +334,7 @@
 
           <ResultsActionBar>
             <SegmentedToggle
+              size="default"
               v-model="viewMode"
               :options="viewOptions"
               group-label="Rule set results view"
@@ -1236,7 +1238,7 @@ const downloadInferenceGraph = () => {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  height: 28px;
+  height: var(--control-h);
   padding: 0 var(--space-4);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-panel);

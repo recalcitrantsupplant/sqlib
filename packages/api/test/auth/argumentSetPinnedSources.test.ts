@@ -25,7 +25,7 @@
  * The check sits in `ArgumentSetService.createVersion`, which is the one choke
  * point every creation path funnels through — `create` and `createForTarget`
  * both reach it via `writeSet` — so `POST /argument-sets`,
- * `POST /argument-sets/:id/v`, `POST /queries/:id/argument-sets` and
+ * `POST /argument-sets/:id/versions`, `POST /queries/:id/argument-sets` and
  * `POST /query-groups/:id/argument-sets` are all covered by one call.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -222,7 +222,7 @@ describe('a tuple set version pinned from a library the caller cannot read', () 
 
 describe('a new version of an existing set', () => {
   /*
-   * `POST /:id/v` is the second door onto the same write: the set already
+   * `POST /:id/versions` is the second door onto the same write: the set already
    * exists in MINE, so the guard is satisfied by the path id alone and the
    * pins arrive in the body of a route that never looks at `libraryId`.
    */
@@ -230,12 +230,12 @@ describe('a new version of an existing set', () => {
     const created = await inject(mine, 'POST', '/argument-sets', tuplePin(MY_TUPLE_VERSION));
     const setId = created.json().id;
 
-    const refused = await inject(mine, 'POST', `/argument-sets/${setId}/v`, {
+    const refused = await inject(mine, 'POST', `/argument-sets/${setId}/versions`, {
       tupleBindings: [{ variables: ['gauge'], rows: [], tupleSetVersions: [THEIR_TUPLE_VERSION] }],
     });
     expect(refused.statusCode).toBe(403);
 
-    const allowed = await inject(both, 'POST', `/argument-sets/${setId}/v`, {
+    const allowed = await inject(both, 'POST', `/argument-sets/${setId}/versions`, {
       tupleBindings: [{ variables: ['gauge'], rows: [], tupleSetVersions: [THEIR_TUPLE_VERSION] }],
     });
     expect(allowed.statusCode).toBe(201);

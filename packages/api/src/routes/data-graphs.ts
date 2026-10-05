@@ -13,23 +13,17 @@
  */
 
 import type { FastifyInstance } from 'fastify';
-import { mintId } from '../lib/id.js';
 import { toRestApi } from '../persistence/utils/id-adapter.js';
-import type { LdkitDataGraph } from '../persistence/schemas/DataGraphSchema.js';
-import type { LdkitDataGraphVersion } from '../persistence/schemas/DataGraphVersionSchema.js';
-import { reposRoute, validateIfMatch, setEntityConcurrencyHeaders, findVersionByNumber } from './route-helpers.js';
-import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
-import { analyseReferences, describeWrongType } from '../lib/entityReferences.js';
-import { analyseTags } from '../lib/tagMembership.js';
+import { reposRoute, setEntityConcurrencyHeaders } from './route-helpers.js';
+import { registerVersionedEntityRoutes, type StoredEntity } from './versionedEntity.js';
 import { createDataGraphSchema, updateDataGraphSchema } from '@sparql-query-lib/contracts/schema';
 import { createDataGraphVersion, annotateDataGraphVersion } from '../lib/DataGraphVersionWriter.js';
-import { DATA_GRAPH_FORMATS, DEFAULT_DATA_GRAPH_FORMAT, DataGraphContentError } from '../lib/dataGraphContent.js';
+import { DATA_GRAPH_FORMATS, DEFAULT_DATA_GRAPH_FORMAT, DataGraphContentError, type DataGraphFormat } from '../lib/dataGraphContent.js';
 import { materializeDataGraphVersionFromQuery, DataGraphQuerySourceError } from '../lib/dataGraphFromQuery.js';
-import { classifyVersionPatch } from '../lib/versionPatch.js';
-import { clearBrowserDefaultsNaming } from '../lib/browserDefaults.js';
-import { ImmutableEntityError } from '../lib/immutability.js';
 import { registerEntityAuthGuard } from '../auth/entityGuard.js';
-import { AuthorizationError, filterReadable, requireContainmentWritable, resolveOwningLibrary } from '../auth/enforce.js';
+import { clearBrowserDefaultsNaming } from '../lib/browserDefaults.js';
+import { getEntityRepositories } from '../lib/CacheCoordinatorProvider.js';
+import { AuthorizationError, resolveOwningLibrary } from '../auth/enforce.js';
 
 export const dataGraphResponseSchema = {
   type: 'object',
@@ -120,15 +114,6 @@ const annotateVersionBodySchema = {
   additionalProperties: false,
 } as const;
 
-const contentPatchRejectedSchema = {
-  type: 'object',
-  properties: {
-    error: { type: 'string' },
-    fields: { type: 'array', items: { type: 'string' } },
-  },
-  required: ['error'],
-} as const;
-
 const errorResponseSchema = {
   type: 'object',
   properties: { error: { type: 'string' } },
@@ -141,247 +126,58 @@ const idParamSchema = {
   required: ['id'],
 } as const;
 
-const versionParamSchema = {
-  type: 'object',
-  properties: {
-    id: { type: 'string' },
-    version: { type: 'string' },
-  },
-  required: ['id', 'version'],
-} as const;
-
 export default async function (fastify: FastifyInstance) {
   registerEntityAuthGuard(fastify, { executeSuffixes: [], exemptSuffixes: [] });
 
-  fastify.get('/', ...reposRoute({
-      tags: ['DataGraph'],
-      summary: 'List data graphs',
-      response: {
-        200: { type: 'array', items: dataGraphResponseSchema },
+  registerVersionedEntityRoutes(fastify, {
+    noun: 'data graph',
+    type: 'DataGraph',
+    versionType: 'DataGraphVersion',
+    idKind: 'dataGraph',
+    schemas: {
+      list: { tags: ['DataGraph'], summary: 'List data graphs', response: { 200: { type: 'array', items: dataGraphResponseSchema } } },
+      create: { tags: ['DataGraph'], summary: 'Create data graph', body: createDataGraphSchema.body, response: { 201: dataGraphResponseSchema } },
+      get: { tags: ['DataGraph'], summary: 'Get data graph', response: { 200: dataGraphResponseSchema } },
+      update: { tags: ['DataGraph'], summary: 'Update data graph', body: updateDataGraphSchema.body, response: { 200: dataGraphResponseSchema } },
+      // Refused, not cascaded, while a saved test version pins
+      // one of its versions: those would name content that is gone.
+      delete: { tags: ['DataGraph'], summary: 'Delete data graph and all its versions (cascading delete)', response: { 204: { type: 'null' } } },
+      listVersions: { tags: ['DataGraph'], summary: 'List data graph versions', response: { 200: { type: 'array', items: dataGraphVersionResponseSchema } } },
+      createVersion: { tags: ['DataGraph'], summary: 'Create data graph version', body: createDataGraphVersionBodySchema, response: { 201: dataGraphVersionResponseSchema } },
+      getVersion: { tags: ['DataGraph'], summary: 'Get data graph version', response: { 200: dataGraphVersionResponseSchema } },
+      patchVersion: {
+        tags: ['DataGraph'],
+        summary: 'Annotate a data graph version (comment only; content is immutable)',
+        body: annotateVersionBodySchema,
+        response: { 200: dataGraphVersionResponseSchema },
       },
-    }, async ({ repos, reply, request }) => {
-    // Filtered rather than refused, for the reason `/rules` gives. This one
-    // listed every data graph in the deployment, each with its current version
-    // pointer — which `POST /:id/versions/from-query` then takes as a target.
-    const items = repos.DataGraph.list() as LdkitDataGraph[];
-    return reply.send(filterReadable(request, items).map(dataGraph => toRestApi(dataGraph)));
-  }));
-
-  fastify.post('/', ...reposRoute({
-      tags: ['DataGraph'],
-      summary: 'Create data graph',
-      body: createDataGraphSchema.body,
-      response: {
-        201: dataGraphResponseSchema,
-      },
-    }, async ({ repos, reply, request }) => {
-    const cacheCoordinator = getCacheCoordinator();
-    const body = request.body;
-    const name = String(body.name ?? '').trim();
-    if (!name) {
-      return reply.status(400).send({ error: 'Data graph name is required' });
-    }
-
-    const rawIsPartOf = body.isPartOf;
-    const isPartOfArray: string[] = Array.isArray(rawIsPartOf)
-      ? rawIsPartOf.map((val: unknown) => String(val))
-      : rawIsPartOf
-        ? [String(rawIsPartOf)]
-        : [];
-    if (isPartOfArray.length === 0) {
-      return reply.status(400).send({ error: 'Data graph must be associated with a library' });
-    }
-
-    const parents = analyseReferences('DataGraph', 'isPartOf', isPartOfArray, iri =>
-      cacheCoordinator.get(iri)
-    );
-
-    if (parents.exactlyOneCount !== 1) {
-      return reply.status(400).send({ error: 'Data graph must belong to exactly one library' });
-    }
-    if (parents.missing.length > 0) {
-      return reply.status(400).send({ error: `Referenced entity ${parents.missing[0]} does not exist` });
-    }
-    if (parents.wrongType.length > 0) {
-      return reply.status(400).send({ error: describeWrongType(parents.wrongType[0]) });
-    }
-
-    const tagCheck = analyseTags('DataGraph', body.tags, isPartOfArray, iri =>
-      cacheCoordinator.get(iri)
-    );
-    if (!tagCheck.ok) {
-      return reply.status(400).send({ error: tagCheck.error });
-    }
-
-    const created = await repos.DataGraph.create({
-      $id: mintId('dataGraph'),
-      name,
-      description: body.description ?? null,
-      isPartOf: isPartOfArray,
-      ...(tagCheck.tags !== undefined ? { tags: tagCheck.tags } : {}),
-    } as Partial<LdkitDataGraph> & { $id: string });
-    setEntityConcurrencyHeaders(reply, created);
-    return reply.status(201).send(toRestApi(created));
-  }));
-
-  fastify.get('/:id', ...reposRoute({
-      tags: ['DataGraph'],
-      summary: 'Get data graph',
-      params: idParamSchema,
-      response: {
-        200: dataGraphResponseSchema,
-        404: errorResponseSchema,
-      },
-    }, async ({ repos, reply, request }) => {
-    const { id } = request.params;
-    const entity = repos.DataGraph.get(id) as LdkitDataGraph | null;
-    if (!entity) {
-      return reply.status(404).send({ error: 'Not Found' });
-    }
-    setEntityConcurrencyHeaders(reply, entity);
-    return reply.send(toRestApi(entity));
-  }));
-
-  fastify.put('/:id', ...reposRoute({
-      tags: ['DataGraph'],
-      summary: 'Update data graph',
-      params: idParamSchema,
-      body: updateDataGraphSchema.body,
-      response: {
-        200: dataGraphResponseSchema,
-      },
-    }, async ({ repos, reply, request }) => {
-    const { id } = request.params;
-    const updates = request.body;
-    const cacheCoordinator = getCacheCoordinator();
-
-    const current = repos.DataGraph.get(id) as LdkitDataGraph | null;
-    if (!current) {
-      return reply.status(404).send({ error: 'Not Found' });
-    }
-
-    // Write on the destination library too, when the body moves it.
-    requireContainmentWritable(request, current, updates);
-
-    const { valid, currentTag } = validateIfMatch(request, current);
-    if (!valid) {
-      return reply.status(412).send({
-        error: 'Precondition Failed',
-        expected: currentTag,
-        current: toRestApi(current),
-      });
-    }
-
-    let ids: string[] | undefined;
-    if (updates.isPartOf) {
-      ids = Array.isArray(updates.isPartOf)
-        ? updates.isPartOf.map(val => String(val))
-        : [String(updates.isPartOf)];
-      const parents = analyseReferences('DataGraph', 'isPartOf', ids, iri => cacheCoordinator.get(iri));
-      if (parents.exactlyOneCount !== 1) {
-        return reply.status(400).send({ error: 'Data graph must belong to exactly one library' });
-      }
-      if (parents.wrongType.length > 0) {
-        return reply.status(400).send({ error: describeWrongType(parents.wrongType[0]) });
-      }
-    }
-
-    const tagCheck = analyseTags('DataGraph', updates.tags, ids ?? current.isPartOf, iri =>
-      cacheCoordinator.get(iri)
-    );
-    if (!tagCheck.ok) {
-      return reply.status(400).send({ error: tagCheck.error });
-    }
-
-    const updated = await repos.DataGraph.update(id, {
-      ...updates,
-      ...(ids ? { isPartOf: ids } : {}),
-      ...(tagCheck.tags !== undefined ? { tags: tagCheck.tags } : {}),
-    } as Partial<LdkitDataGraph>);
-    if (!updated) {
-      return reply.status(404).send({ error: 'Not Found' });
-    }
-    setEntityConcurrencyHeaders(reply, updated);
-    return reply.send(toRestApi(updated));
-  }));
-
-  fastify.delete('/:id', ...reposRoute({
-      tags: ['DataGraph'],
-      summary: 'Delete data graph and all its versions (cascading delete)',
-      params: idParamSchema,
-      response: {
-        204: { type: 'null' },
-      },
-    }, async ({ repos, reply, request }) => {
-    const { id } = request.params;
-    const current = repos.DataGraph.get(id);
-    if (!current) {
-      return reply.status(404).send({ error: 'Not Found' });
-    }
-
-    const versions = (repos.DataGraphVersion.list() as LdkitDataGraphVersion[]).filter(v => v.isPartOf === id);
-    // A browser default naming the graph or a version of it is a starting
-    // selection, not a pin, so it is cleared rather than refusing the delete.
-    await clearBrowserDefaultsNaming(new Set([id, ...versions.map(version => version.$id)]));
-    for (const version of versions) {
-      await repos.DataGraphVersion.delete(version.$id);
-    }
-
-    await repos.DataGraph.delete(id);
-    return reply.status(204).send();
-  }));
-
-  fastify.get('/:id/versions', ...reposRoute({
-      tags: ['DataGraph'],
-      summary: 'List data graph versions',
-      params: idParamSchema,
-      response: {
-        200: { type: 'array', items: dataGraphVersionResponseSchema },
-      },
-    }, async ({ repos, reply, request }) => {
-    const { id } = request.params;
-    const parent = repos.DataGraph.get(id);
-    if (!parent) {
-      return reply.status(404).send({ error: 'Data graph not found' });
-    }
-    const versions = (repos.DataGraphVersion.list() as LdkitDataGraphVersion[])
-      .filter(v => v.isPartOf === id)
-      .sort((a, b) => (a.version ?? 0) - (b.version ?? 0));
-    return reply.send(versions.map(v => toRestApi(v)));
-  }));
-
-  fastify.post('/:id/versions', ...reposRoute({
-      tags: ['DataGraph'],
-      summary: 'Create data graph version',
-      params: idParamSchema,
-      body: createDataGraphVersionBodySchema,
-      response: {
-        201: dataGraphVersionResponseSchema,
-        400: errorResponseSchema,
-        404: errorResponseSchema,
-      },
-    }, async ({ repos, reply, request }) => {
-    const { id } = request.params;
-    const parent = repos.DataGraph.get(id);
-    if (!parent) {
-      return reply.status(404).send({ error: 'Data graph not found' });
-    }
-
-    const body = request.body;
-    try {
-      const created = await createDataGraphVersion(id, {
+      deleteVersion: { tags: ['DataGraph'], summary: 'Delete data graph version', response: { 204: { type: 'null', description: 'Data graph version deleted successfully' } } },
+    },
+    createVersion: async ({ parent, body }) => {
+      const created = await createDataGraphVersion(parent.$id, {
         contentString: String(body.contentString ?? ''),
-        contentFormat: body.contentFormat ?? DEFAULT_DATA_GRAPH_FORMAT,
-        comment: body.comment ?? null,
-        immutable: body.immutable ?? undefined,
+        contentFormat: (body.contentFormat as DataGraphFormat | null | undefined) ?? DEFAULT_DATA_GRAPH_FORMAT,
+        comment: (body.comment as string | null | undefined) ?? null,
+        immutable: (body.immutable as boolean | null | undefined) ?? undefined,
       });
-      setEntityConcurrencyHeaders(reply, created);
-      return reply.status(201).send(toRestApi(created));
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      return reply.status(400).send({ error: message });
-    }
-  }));
+      return { created: created as unknown as StoredEntity };
+    },
+    // A version is a snapshot (issue #192): the content it holds is what the
+    // graph was when it was saved. Only the comment about it is writable.
+    annotateVersion: async (version, annotations) => await annotateDataGraphVersion(version.$id, {
+      comment: annotations.comment as string | null | undefined,
+      immutable: annotations.immutable as boolean | undefined,
+    }) as unknown as StoredEntity,
+    /*
+     * A browser default naming the graph or one of its versions is a starting
+     * selection, not a pin, so it is cleared rather than refusing the delete.
+     */
+    deleteVersion: async (version) => {
+      await clearBrowserDefaultsNaming(new Set([version.$id]));
+      await getEntityRepositories().DataGraphVersion.delete(version.$id);
+    },
+    beforeDelete: entity => clearBrowserDefaultsNaming(new Set([entity.$id])),
+  });
 
   // POST /:id/versions/from-query — materialize a version by running a
   // CONSTRUCT/DESCRIBE query against a backend, rather than uploading content
@@ -438,114 +234,4 @@ export default async function (fastify: FastifyInstance) {
     }
   }));
 
-  fastify.get('/:id/versions/:version', ...reposRoute({
-      tags: ['DataGraph'],
-      summary: 'Get data graph version',
-      params: versionParamSchema,
-      response: {
-        200: dataGraphVersionResponseSchema,
-        404: errorResponseSchema,
-      },
-    }, async ({ repos, reply, request }) => {
-    const { id, version } = request.params;
-    const parent = repos.DataGraph.get(id);
-    if (!parent) {
-      return reply.status(404).send({ error: 'Data graph not found' });
-    }
-
-    const lookup = findVersionByNumber(
-      repos.DataGraphVersion.list() as LdkitDataGraphVersion[],
-      id,
-      version,
-      'data graph',
-    );
-    if (!lookup.ok) {
-      return reply.status(lookup.status).send({ error: lookup.error });
-    }
-    const match = lookup.version;
-    setEntityConcurrencyHeaders(reply, match);
-    return reply.send(toRestApi(match));
-  }));
-
-  // PATCH /data-graphs/:id/versions/:version — annotate a version
-  //
-  // A version is a snapshot (issue #192): the content it holds is what the
-  // graph was when it was saved. Only the comment about it is writable.
-  fastify.patch('/:id/versions/:version', ...reposRoute({
-      tags: ['DataGraph'],
-      summary: 'Annotate a data graph version (comment only; content is immutable)',
-      params: versionParamSchema,
-      body: annotateVersionBodySchema,
-      response: {
-        200: dataGraphVersionResponseSchema,
-        404: errorResponseSchema,
-        409: contentPatchRejectedSchema,
-      },
-    }, async ({ repos, reply, request }) => {
-    const { id, version } = request.params;
-    const parent = repos.DataGraph.get(id);
-    if (!parent) {
-      return reply.status(404).send({ error: 'Data graph not found' });
-    }
-
-    const lookup = findVersionByNumber(
-      repos.DataGraphVersion.list() as LdkitDataGraphVersion[],
-      id,
-      version,
-      'data graph',
-    );
-    if (!lookup.ok) {
-      return reply.status(lookup.status).send({ error: lookup.error });
-    }
-    const match = lookup.version;
-
-    const { annotations, rejection } = classifyVersionPatch(request.body as Record<string, unknown>);
-    if (rejection) return reply.status(rejection.status).send(rejection);
-
-    try {
-      const updated = await annotateDataGraphVersion(match.$id, {
-        comment: annotations.comment as string | null | undefined,
-        immutable: annotations.immutable as boolean | undefined,
-      });
-      setEntityConcurrencyHeaders(reply, updated);
-      return reply.send(toRestApi(updated));
-    } catch (error) {
-      if (error instanceof ImmutableEntityError) {
-        return reply.status(409).send({ error: error.message });
-      }
-      const message = error instanceof Error ? error.message : String(error);
-      return reply.status(400).send({ error: message });
-    }
-  }));
-
-  fastify.delete('/:id/versions/:version', ...reposRoute({
-      tags: ['DataGraph'],
-      summary: 'Delete data graph version',
-      params: versionParamSchema,
-      response: {
-        204: { type: 'null', description: 'Data graph version deleted successfully' },
-        404: errorResponseSchema,
-      },
-    }, async ({ repos, reply, request }) => {
-    const { id, version } = request.params;
-    const parent = repos.DataGraph.get(id);
-    if (!parent) {
-      return reply.status(404).send({ error: 'Data graph not found' });
-    }
-
-    const lookup = findVersionByNumber(
-      repos.DataGraphVersion.list() as LdkitDataGraphVersion[],
-      id,
-      version,
-      'data graph',
-    );
-    if (!lookup.ok) {
-      return reply.status(lookup.status).send({ error: lookup.error });
-    }
-    const match = lookup.version;
-
-    await clearBrowserDefaultsNaming(new Set([match.$id]));
-    await repos.DataGraphVersion.delete(match.$id);
-    return reply.status(204).send();
-  }));
 }

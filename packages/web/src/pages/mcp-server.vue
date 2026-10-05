@@ -288,7 +288,7 @@ function handleRailSelect(section: RailSection) {
     });
     return;
   }
-  router.push({ path: '/', query: { section, ...(libraryId.value ? { library: libraryId.value } : {}) } });
+  router.push({ path: `/${section}`, query: libraryId.value ? { library: libraryId.value } : {} });
 }
 </script>
 
@@ -439,7 +439,7 @@ function handleRailSelect(section: RailSection) {
 }
 
 .client-tab {
-  height: 26px;
+  height: var(--control-h);
   padding: 0 var(--space-4);
   border: 1px solid var(--border-default);
   border-radius: var(--radius);
@@ -511,7 +511,7 @@ function handleRailSelect(section: RailSection) {
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  height: 26px;
+  height: var(--control-h);
   border: 1px solid var(--border-default);
   border-radius: var(--radius);
   background: var(--surface);
@@ -522,7 +522,7 @@ function handleRailSelect(section: RailSection) {
 }
 
 .icon-button {
-  width: 26px;
+  width: var(--control-h);
 }
 
 .ghost-button {

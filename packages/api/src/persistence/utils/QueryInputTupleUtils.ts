@@ -5,6 +5,7 @@
 import { QueryInputTupleSchema, type LdkitQueryInputTuple } from '../schemas/QueryInputTupleSchema.js';
 import { createRepositoryLens } from './entityRepository.js';
 import { toLdkit } from './id-adapter.js';
+import { log } from '../../lib/log.js';
 
 export const QueryInputTuples = createRepositoryLens(QueryInputTupleSchema);
 
@@ -16,7 +17,7 @@ export async function findQueryInputTupleById(id: string): Promise<LdkitQueryInp
     const tuple = await QueryInputTuples.findByIri(id);
     return tuple ? (tuple as LdkitQueryInputTuple) : null;
   } catch (error) {
-    console.warn(`Failed to find QueryInputTuple ${id}:`, error);
+    log.warn({ err: error, id }, 'Failed to find QueryInputTuple');
     return null;
   }
 }
@@ -73,7 +74,7 @@ export async function deleteQueryInputTuple(id: string): Promise<void> {
   try {
     await QueryInputTuples.delete(id);
   } catch (error) {
-    console.error(`Failed to delete QueryInputTuple ${id}:`, error);
+    log.error({ err: error, id }, 'Failed to delete QueryInputTuple');
     throw error;
   }
 }

@@ -1,4 +1,5 @@
 import type { CorrelatedExistsInput, SparqlQueryParser } from './parser.js';
+import { log } from './log.js';
 
 const TEMP_ID_PREFIX = 'urn:ui-temp:';
 
@@ -170,7 +171,7 @@ export function deriveQueryVersionMetadata(parser: SparqlQueryParser, queryStrin
     }
   });
 
-  console.log('derived inputs:', JSON.stringify({ inputs, tupleMembers, inputTuples }, null, 2));
+  log.debug({ inputs, tupleMembers, inputTuples }, 'Derived query inputs');
 
   return {
     outputs,

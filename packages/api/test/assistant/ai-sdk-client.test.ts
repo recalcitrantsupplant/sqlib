@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MockLanguageModelV4, simulateReadableStream } from 'ai/test';
-import { streamText, jsonSchema, tool } from 'ai';
+import { streamText } from 'ai';
 import { createAiSdkClient, splitInstructions, toSdkMessages, toSdkTools } from '../../src/assistant/ai-sdk-client.js';
 import type { ModelMessage, ModelStreamEvent } from '../../src/assistant/model.js';
 

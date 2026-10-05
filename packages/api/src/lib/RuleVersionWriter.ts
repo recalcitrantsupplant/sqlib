@@ -5,6 +5,7 @@ import type { LdkitRuleVersion } from '../persistence/schemas/RuleVersionSchema.
 import { toLdkit } from '../persistence/utils/id-adapter.js';
 import { RuleGrammarValidator } from './RuleGrammarValidator.js';
 import { getFeatureFlags } from '../config/featureFlags.js';
+import { ValidationError } from './validationError.js';
 
 type AnyRecord = Record<string, any>;
 
@@ -39,7 +40,7 @@ async function createRuleVersionNumbered(ruleId: string, body: CreateRuleVersion
   const versionId = mintId('ruleVersion');
   const ruleString = body.ruleString ?? '';
   if (!ruleString.trim()) {
-    throw new Error('RuleVersion requires a non-empty ruleString');
+    throw new ValidationError('RuleVersion requires a non-empty ruleString');
   }
 
   // Validate with all grammars
@@ -49,7 +50,7 @@ async function createRuleVersionNumbered(ruleId: string, body: CreateRuleVersion
   const allowInvalid = flags.rulesAllowInvalidSave && body.allowInvalidSave === true;
 
   if (!validationResult.valid && !allowInvalid) {
-    throw new Error(`Invalid rule syntax: ${validationResult.error}`);
+    throw new ValidationError(`Invalid rule syntax: ${validationResult.error}`);
   }
 
   const grammarValid = validationResult.valid;

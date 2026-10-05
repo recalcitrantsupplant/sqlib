@@ -209,15 +209,15 @@ beforeEach(() => {
   ]);
 });
 
-describe('POST /query-groups/:id/v — the query versions a node will run', () => {
+describe('POST /query-groups/:id/versions — the query versions a node will run', () => {
   it('composes a version naming a query version in the caller\'s own library', async () => {
-    const response = await inject(mine, 'POST', `${GROUP_PATH}/v`, queryNodeVersion(MY_QUERY_VERSION));
+    const response = await inject(mine, 'POST', `${GROUP_PATH}/versions`, queryNodeVersion(MY_QUERY_VERSION));
 
     expect(response.statusCode, response.payload.slice(0, 300)).toBe(201);
   });
 
   it('refuses a node naming a query version in a library the caller may not execute', async () => {
-    const response = await inject(mine, 'POST', `${GROUP_PATH}/v`, queryNodeVersion(THEIR_QUERY_VERSION));
+    const response = await inject(mine, 'POST', `${GROUP_PATH}/versions`, queryNodeVersion(THEIR_QUERY_VERSION));
 
     expect(response.statusCode).toBe(403);
     // Not a 500: the refusal reaches the error handler rather than being
@@ -226,7 +226,7 @@ describe('POST /query-groups/:id/v — the query versions a node will run', () =
   });
 
   it('writes nothing when it refuses', async () => {
-    await inject(mine, 'POST', `${GROUP_PATH}/v`, queryNodeVersion(THEIR_QUERY_VERSION));
+    await inject(mine, 'POST', `${GROUP_PATH}/versions`, queryNodeVersion(THEIR_QUERY_VERSION));
 
     // The check sits at the staging/flush boundary, so a refusal leaves no
     // half-built version, no orphan nodes, and no burned version number.
@@ -236,19 +236,19 @@ describe('POST /query-groups/:id/v — the query versions a node will run', () =
   });
 
   it('allows it once the caller holds Execute on that library', async () => {
-    const response = await inject(both, 'POST', `${GROUP_PATH}/v`, queryNodeVersion(THEIR_QUERY_VERSION));
+    const response = await inject(both, 'POST', `${GROUP_PATH}/versions`, queryNodeVersion(THEIR_QUERY_VERSION));
 
     expect(response.statusCode, response.payload.slice(0, 300)).toBe(201);
   });
 
   it('is Execute rather than Read: reading their library is not running its queries', async () => {
-    const response = await inject(readsTheirs, 'POST', `${GROUP_PATH}/v`, queryNodeVersion(THEIR_QUERY_VERSION));
+    const response = await inject(readsTheirs, 'POST', `${GROUP_PATH}/versions`, queryNodeVersion(THEIR_QUERY_VERSION));
 
     expect(response.statusCode).toBe(403);
   });
 
   it('checks every leg, not the first, and names the one it refused', async () => {
-    const response = await inject(mine, 'POST', `${GROUP_PATH}/v`, {
+    const response = await inject(mine, 'POST', `${GROUP_PATH}/versions`, {
       queryGroupVersion: {},
       executionNodes: [
         { id: 'urn:ui-temp:node-0', nodeType: 'QueryNode', queryId: MY_QUERY_VERSION, backendId: BACKEND },
@@ -265,15 +265,15 @@ describe('POST /query-groups/:id/v — the query versions a node will run', () =
   });
 });
 
-describe('POST /query-groups/:id/v — the rule set versions a node will run', () => {
+describe('POST /query-groups/:id/versions — the rule set versions a node will run', () => {
   it('refuses a RuleSetNode naming a rule set version in a library the caller may not execute', async () => {
-    const response = await inject(mine, 'POST', `${GROUP_PATH}/v`, ruleSetNodeVersion(THEIR_RULESET_VERSION));
+    const response = await inject(mine, 'POST', `${GROUP_PATH}/versions`, ruleSetNodeVersion(THEIR_RULESET_VERSION));
 
     expect(response.statusCode).toBe(403);
   });
 
   it('allows it once the caller holds Execute on that library', async () => {
-    const response = await inject(both, 'POST', `${GROUP_PATH}/v`, ruleSetNodeVersion(THEIR_RULESET_VERSION));
+    const response = await inject(both, 'POST', `${GROUP_PATH}/versions`, ruleSetNodeVersion(THEIR_RULESET_VERSION));
 
     expect(response.statusCode, response.payload.slice(0, 300)).toBe(201);
   });
@@ -283,7 +283,7 @@ describe('what the refusal discloses', () => {
   it('reports a reference that resolves to nothing as the 422 it was', async () => {
     // The check runs after staging's own rejection, so an IRI naming nothing is
     // still the client's error to fix rather than a permission answer.
-    const response = await inject(mine, 'POST', `${GROUP_PATH}/v`, queryNodeVersion('urn:sqlib:queryversion:nowhere'));
+    const response = await inject(mine, 'POST', `${GROUP_PATH}/versions`, queryNodeVersion('urn:sqlib:queryversion:nowhere'));
 
     expect(response.statusCode).toBe(422);
   });
@@ -292,7 +292,7 @@ describe('what the refusal discloses', () => {
     // `ReferenceResolver` collapses "missing" and "wrong type" into one reason,
     // so this is not a type oracle over arbitrary IRIs — which is what bounds
     // the 403-against-422 signal to "is a version somewhere".
-    const response = await inject(mine, 'POST', `${GROUP_PATH}/v`, queryNodeVersion(THEIRS));
+    const response = await inject(mine, 'POST', `${GROUP_PATH}/versions`, queryNodeVersion(THEIRS));
 
     expect(response.statusCode).toBe(422);
     expect(response.json().error).toContain('does not exist');
@@ -316,11 +316,11 @@ describe('the routes the guard already covers', () => {
 
   it.each([
     ['the group', GROUP_PATH],
-    ['its version list', `${GROUP_PATH}/v`],
-    ['one version', `${GROUP_PATH}/v/1`],
-    ['that version\'s validation report', `${GROUP_PATH}/v/1/validate`],
+    ['its version list', `${GROUP_PATH}/versions`],
+    ['one version', `${GROUP_PATH}/versions/1`],
+    ['that version\'s validation report', `${GROUP_PATH}/versions/1/validate`],
   ])('refuses a principal holding nothing %s', async (_what, url) => {
-    await inject(mine, 'POST', `${GROUP_PATH}/v`, queryNodeVersion(MY_QUERY_VERSION));
+    await inject(mine, 'POST', `${GROUP_PATH}/versions`, queryNodeVersion(MY_QUERY_VERSION));
 
     expect((await inject(stranger, 'GET', url)).statusCode).toBe(403);
   });
@@ -328,7 +328,7 @@ describe('the routes the guard already covers', () => {
 
 describe('disabled mode', () => {
   it('composes across libraries, as it did before', async () => {
-    const response = await inject(authDisabled, 'POST', `${GROUP_PATH}/v`, queryNodeVersion(THEIR_QUERY_VERSION));
+    const response = await inject(authDisabled, 'POST', `${GROUP_PATH}/versions`, queryNodeVersion(THEIR_QUERY_VERSION));
 
     expect(response.statusCode, response.payload.slice(0, 300)).toBe(201);
   });

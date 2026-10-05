@@ -64,7 +64,7 @@ const expandMapping = async (page: Page) => {
 /** The POST that creates the next group version, with the draft as its body. */
 const versionCreateRequest = (page: Page) =>
   page.waitForRequest(
-    (request) => request.method() === 'POST' && /\/query-groups\/[^/]+\/v$/.test(new URL(request.url()).pathname),
+    (request) => request.method() === 'POST' && /\/query-groups\/[^/]+\/versions$/.test(new URL(request.url()).pathname),
   );
 
 test.describe('Query group edge I/O (mocked)', () => {

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { TriplesQuadsIOs, findTriplesQuadsIOById, loadTriplesQuadsIOsByIds } from '../../../src/persistence/utils/TriplesQuadsIOUtils.js';
 import type { LdkitTriplesQuadsIO } from '../../../src/persistence/schemas/TriplesQuadsIOSchema.js';
 import { overrideRepositoryLenses } from '../../../src/persistence/utils/entityRepository.js';

@@ -59,7 +59,7 @@ describe('useLibraryEvents', () => {
     scope.run(() =>
       useLibraryEvents({
         libraryId: ref('urn:library:1'),
-        openEntityId: ref('urn:query:open'),
+        openEntity: ref({ entity: 'query', id: 'urn:query:open' }),
       })
     );
 
@@ -75,8 +75,40 @@ describe('useLibraryEvents', () => {
 
     expect(refreshEntities).toHaveBeenCalledTimes(1);
     expect(refreshEntities).toHaveBeenCalledWith({
-      changedIds: ['urn:query:1', 'urn:query:2'],
-      openEntityId: 'urn:query:open',
+      changed: [
+        { entity: 'query', id: 'urn:query:1' },
+        { entity: 'query', id: 'urn:query:2' },
+      ],
+      open: { entity: 'query', id: 'urn:query:open' },
+      libraryId: 'urn:library:1',
+    });
+
+    scope.stop();
+  });
+
+  it('passes each frame on under its own entity, and drops frames that name none', async () => {
+    const stream = scriptedStream();
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(stream.body, { status: 200 })));
+
+    const scope = effectScope();
+    scope.run(() =>
+      useLibraryEvents({
+        libraryId: ref('urn:library:1'),
+        openEntity: ref({ entity: 'ruleSet', id: 'urn:ruleset:open' }),
+      })
+    );
+    await settle(0);
+
+    stream.push(frame({ type: 'changed', entity: 'ruleSet', id: 'urn:ruleset:1', at: 'now' }));
+    stream.push(frame({ type: 'changed', id: 'urn:mystery:1', at: 'now' }));
+    stream.push(frame({ type: 'hello', entity: 'query', at: 'now' }));
+    await settle();
+
+    expect(refreshEntities).toHaveBeenCalledTimes(1);
+    expect(refreshEntities).toHaveBeenCalledWith({
+      changed: [{ entity: 'ruleSet', id: 'urn:ruleset:1' }],
+      open: { entity: 'ruleSet', id: 'urn:ruleset:open' },
+      libraryId: 'urn:library:1',
     });
 
     scope.stop();
@@ -118,7 +150,11 @@ describe('useLibraryEvents', () => {
     await settle(2_000);
 
     expect(refreshEntities).toHaveBeenCalledTimes(1);
-    expect(refreshEntities).toHaveBeenCalledWith({ changedIds: [], openEntityId: null });
+    expect(refreshEntities).toHaveBeenCalledWith({
+      changed: [{ entity: 'query', id: null }],
+      open: null,
+      libraryId: 'urn:library:1',
+    });
 
     scope.stop();
   });

@@ -7,8 +7,8 @@
  * cache miss it abstains — "a miss is a 404 the handler will produce", true only
  * where the handler looks that id up.
  *
- * `GET /:id/v` and `POST /:id/v` do look it up and 404. The three
- * `/:id/v/:version` routes do not: `ArgumentSetService.getVersion` matches
+ * `GET /:id/versions` and `POST /:id/versions` do look it up and 404. The three
+ * `/:id/versions/:version` routes do not: `ArgumentSetService.getVersion` matches
  * `ArgumentSetVersion` on `isPartOf` and never reads the set in the path.
  *
  * **Where this differs from `queries.ts` and `tuple-sets.ts`**, which had the
@@ -165,26 +165,26 @@ beforeEach(() => {
 
 describe('a version of an argument set the caller may reach', () => {
   it('is served to a reader and refused to a stranger', async () => {
-    const allowed = await inject(reader, 'GET', `/argument-sets/${LIVE_SET}/v/1`);
+    const allowed = await inject(reader, 'GET', `/argument-sets/${LIVE_SET}/versions/1`);
     expect(allowed.statusCode).toBe(200);
     expect(allowed.json().version).toBe(1);
 
-    expect((await inject(stranger, 'GET', `/argument-sets/${LIVE_SET}/v/1`)).statusCode).toBe(403);
+    expect((await inject(stranger, 'GET', `/argument-sets/${LIVE_SET}/versions/1`)).statusCode).toBe(403);
   });
 
   it('takes write to annotate, not read', async () => {
     // The body is empty because every content field is refused with a 409; what
     // is being asserted is which check answers first.
-    expect((await inject(reader, 'PATCH', `/argument-sets/${LIVE_SET}/v/1`, {})).statusCode).toBe(403);
-    expect((await inject(owner, 'PATCH', `/argument-sets/${LIVE_SET}/v/1`, {})).statusCode).toBe(200);
+    expect((await inject(reader, 'PATCH', `/argument-sets/${LIVE_SET}/versions/1`, {})).statusCode).toBe(403);
+    expect((await inject(owner, 'PATCH', `/argument-sets/${LIVE_SET}/versions/1`, {})).statusCode).toBe(200);
   });
 
   it('exports its payload to a reader and not to a stranger', async () => {
-    const allowed = await inject(reader, 'GET', `/argument-sets/${LIVE_SET}/v/1/export`);
+    const allowed = await inject(reader, 'GET', `/argument-sets/${LIVE_SET}/versions/1/export`);
     expect(allowed.statusCode).toBe(200);
     expect(allowed.body).toContain('ordinary-gauge');
 
-    expect((await inject(stranger, 'GET', `/argument-sets/${LIVE_SET}/v/1/export`)).statusCode).toBe(403);
+    expect((await inject(stranger, 'GET', `/argument-sets/${LIVE_SET}/versions/1/export`)).statusCode).toBe(403);
   });
 });
 
@@ -195,26 +195,26 @@ describe('a version whose argument set no longer resolves', () => {
    * prove nothing about the version routes in particular.
    */
   it('is a 404 on the routes that read the set, not a 403', async () => {
-    expect((await inject(stranger, 'GET', `/argument-sets/${GHOST_SET}/v`)).statusCode).toBe(404);
+    expect((await inject(stranger, 'GET', `/argument-sets/${GHOST_SET}/versions`)).statusCode).toBe(404);
   });
 
   it('is not readable by a principal holding nothing', async () => {
-    const response = await inject(stranger, 'GET', `/argument-sets/${GHOST_SET}/v/1`);
+    const response = await inject(stranger, 'GET', `/argument-sets/${GHOST_SET}/versions/1`);
     expect(response.statusCode).toBe(403);
   });
 
   it('is not readable by a principal holding every mode on another library', async () => {
     // The version resolves to no library at all, and `requireLibraryMode(null)`
     // refuses rather than abstains — so a grant elsewhere reaches nothing here.
-    expect((await inject(owner, 'GET', `/argument-sets/${GHOST_SET}/v/1`)).statusCode).toBe(403);
+    expect((await inject(owner, 'GET', `/argument-sets/${GHOST_SET}/versions/1`)).statusCode).toBe(403);
   });
 
   it('cannot be annotated', async () => {
-    expect((await inject(owner, 'PATCH', `/argument-sets/${GHOST_SET}/v/1`, {})).statusCode).toBe(403);
+    expect((await inject(owner, 'PATCH', `/argument-sets/${GHOST_SET}/versions/1`, {})).statusCode).toBe(403);
   });
 
   it('does not export its bindings, which is the route that answers with content', async () => {
-    const response = await inject(owner, 'GET', `/argument-sets/${GHOST_SET}/v/1/export`);
+    const response = await inject(owner, 'GET', `/argument-sets/${GHOST_SET}/versions/1/export`);
 
     expect(response.statusCode).toBe(403);
     expect(response.body).not.toContain(SECRET_ROW);
@@ -227,17 +227,17 @@ describe('an argument set whose library was deleted', () => {
   });
 
   it('is refused on the version routes too, for every principal below admin', async () => {
-    expect((await inject(stranger, 'GET', `/argument-sets/${STRANDED_SET}/v/1`)).statusCode).toBe(403);
-    expect((await inject(owner, 'GET', `/argument-sets/${STRANDED_SET}/v`)).statusCode).toBe(403);
-    expect((await inject(owner, 'GET', `/argument-sets/${STRANDED_SET}/v/1/export`)).statusCode).toBe(403);
+    expect((await inject(stranger, 'GET', `/argument-sets/${STRANDED_SET}/versions/1`)).statusCode).toBe(403);
+    expect((await inject(owner, 'GET', `/argument-sets/${STRANDED_SET}/versions`)).statusCode).toBe(403);
+    expect((await inject(owner, 'GET', `/argument-sets/${STRANDED_SET}/versions/1/export`)).statusCode).toBe(403);
   });
 });
 
 describe('disabled mode', () => {
   it('is unaffected: every version route answers', async () => {
-    expect((await inject(authDisabled, 'GET', `/argument-sets/${LIVE_SET}/v/1`)).statusCode).toBe(200);
-    expect((await inject(authDisabled, 'GET', `/argument-sets/${STRANDED_SET}/v/1`)).statusCode).toBe(200);
-    expect((await inject(authDisabled, 'GET', `/argument-sets/${GHOST_SET}/v/1`)).statusCode).toBe(200);
-    expect((await inject(authDisabled, 'GET', `/argument-sets/${GHOST_SET}/v/1/export`)).statusCode).toBe(200);
+    expect((await inject(authDisabled, 'GET', `/argument-sets/${LIVE_SET}/versions/1`)).statusCode).toBe(200);
+    expect((await inject(authDisabled, 'GET', `/argument-sets/${STRANDED_SET}/versions/1`)).statusCode).toBe(200);
+    expect((await inject(authDisabled, 'GET', `/argument-sets/${GHOST_SET}/versions/1`)).statusCode).toBe(200);
+    expect((await inject(authDisabled, 'GET', `/argument-sets/${GHOST_SET}/versions/1/export`)).statusCode).toBe(200);
   });
 });

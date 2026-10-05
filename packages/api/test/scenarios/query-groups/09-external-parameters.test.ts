@@ -92,7 +92,7 @@ describe('External Parameters via StartNode', () => {
 
       const versionResponse = await context.app.inject({
         method: 'POST',
-        url: `/queries/${encodeURIComponent(queryEntity.id)}/v`,
+        url: `/queries/${encodeURIComponent(queryEntity.id)}/versions`,
         payload: {
           queryVersion: {
             queryString,
@@ -117,7 +117,7 @@ describe('External Parameters via StartNode', () => {
 
     const queryGroupVersionResponse = await context.app.inject({
       method: 'POST',
-      url: `/query-groups/${encodeURIComponent(queryGroup.id)}/v`,
+      url: `/query-groups/${encodeURIComponent(queryGroup.id)}/versions`,
       payload: {
         queryGroupVersion: {},
         // SIMPLE MODE: StartNode.outputs directly references query1's inferredInputs

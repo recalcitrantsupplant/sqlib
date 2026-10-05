@@ -55,9 +55,11 @@ export const debugEnabled = (): boolean => process.env.NODE_ENV === 'development
  */
 export function debug(scope: string, message: string, detail?: unknown): void {
   if (!debugEnabled()) return;
+  /* eslint-disable no-console -- this is the one sanctioned console channel */
   if (detail === undefined) {
     console.debug(`[${scope}] ${message}`);
   } else {
     console.debug(`[${scope}] ${message}`, detail);
   }
+  /* eslint-enable no-console */
 }

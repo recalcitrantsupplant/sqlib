@@ -14,7 +14,7 @@
  * rebuilt the cache from the store. That is what these tests simulate — write
  * to triples, read back from triples, with no cache in between.
  */
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { QueryNodeSchema } from '../../src/persistence/schemas/QueryNodeSchema.js';
 import { DynamicQueryNodeSchema } from '../../src/persistence/schemas/DynamicQueryNodeSchema.js';
 import { serialiseEntity } from '../../src/persistence/EntitySerialiser.js';
@@ -104,19 +104,14 @@ describe('QueryNode.backendConfig survives a store round trip', () => {
   });
 
   it('reads a store still holding the old mangled literal as absent', () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    try {
-      const node = assembleEntity(QueryNodeSchema as never, [
-        {
-          id: { type: 'uri', value: NODE_ID },
-          p: { type: 'uri', value: 'https://sparql-query-lib/backendConfig' },
-          o: { type: 'literal', value: '[object Object]' },
-        },
-      ] as unknown as BindingRow[])!;
+    const node = assembleEntity(QueryNodeSchema as never, [
+      {
+        id: { type: 'uri', value: NODE_ID },
+        p: { type: 'uri', value: 'https://sparql-query-lib/backendConfig' },
+        o: { type: 'literal', value: '[object Object]' },
+      },
+    ] as unknown as BindingRow[])!;
 
-      expect(node.backendConfig).toBeNull();
-    } finally {
-      warn.mockRestore();
-    }
+    expect(node.backendConfig).toBeNull();
   });
 });

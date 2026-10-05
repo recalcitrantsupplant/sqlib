@@ -23,7 +23,7 @@ import { findAllBenchmarkNodeObservations } from '../persistence/utils/Benchmark
 import { findAllBenchmarkNodeRuns } from '../persistence/utils/BenchmarkNodeRunUtils.js';
 import { findAllBenchmarkIterationObservations } from '../persistence/utils/BenchmarkIterationObservationUtils.js';
 import { findAllBenchmarkIterationRuns } from '../persistence/utils/BenchmarkIterationRunUtils.js';
-import { reposRoute, withReposHandler, setEntityConcurrencyHeaders, validateIfMatch } from './route-helpers.js';
+import { reposRoute, setEntityConcurrencyHeaders, validateIfMatch } from './route-helpers.js';
 import { registerEntityAuthGuard } from '../auth/entityGuard.js';
 import {
   AuthorizationError,
@@ -172,7 +172,7 @@ export default async function benchmarkRoutes(fastify: FastifyInstance) {
     }
     const { valid, currentTag } = validateIfMatch(request, { dateModified: existing.dateModified });
     if (!valid) {
-      return reply.code(412).send({ error: 'If-Match header does not match current entity tag' });
+      return reply.code(412).send({ error: 'Precondition Failed', expected: currentTag, current: existing });
     }
     const payload = request.body;
     const updated = await experimentService.updateExperiment(id, payload);
@@ -194,12 +194,17 @@ export default async function benchmarkRoutes(fastify: FastifyInstance) {
     return reply.code(204).send();
   }));
 
-  fastify.get('/:id/v', ...reposRoute(stripSchemaMeta(benchmarkRouteSchemas.listVersions), async ({ request, reply }) => {
+  fastify.get('/:id/versions', ...reposRoute(stripSchemaMeta(benchmarkRouteSchemas.listVersions), async ({ request, reply }) => {
     const { id } = request.params;
+    // A missing experiment is a 404, as on every other versioned entity, not
+    // an empty list that cannot be told apart from one with no versions yet.
+    if (!experimentService.getExperiment(id)) {
+      return reply.code(404).send({ error: `Benchmark experiment ${id} not found` });
+    }
     return reply.send(experimentService.listVersions(id));
   }));
 
-  fastify.post('/:id/v', ...reposRoute(stripSchemaMeta(benchmarkRouteSchemas.createVersion), async ({ request, reply }) => {
+  fastify.post('/:id/versions', ...reposRoute(stripSchemaMeta(benchmarkRouteSchemas.createVersion), async ({ request, reply }) => {
     const { id } = request.params;
     const existing = experimentService.getExperiment(id);
     if (!existing) {
@@ -211,7 +216,7 @@ export default async function benchmarkRoutes(fastify: FastifyInstance) {
     return reply.send(created);
   }));
 
-  fastify.get('/:id/v/:version', ...reposRoute(stripSchemaMeta(benchmarkRouteSchemas.getVersion), async ({ request, reply }) => {
+  fastify.get('/:id/versions/:version', ...reposRoute(stripSchemaMeta(benchmarkRouteSchemas.getVersion), async ({ request, reply }) => {
     const { id, version } = request.params;
     const parsed = Number.parseInt(version, 10);
     const detail = experimentService.getVersion(id, parsed);
@@ -222,7 +227,7 @@ export default async function benchmarkRoutes(fastify: FastifyInstance) {
     return reply.send(detail);
   }));
 
-  fastify.patch('/:id/v/:version', ...reposRoute(stripSchemaMeta(benchmarkRouteSchemas.updateVersion), async ({ request, reply }) => {
+  fastify.patch('/:id/versions/:version', ...reposRoute(stripSchemaMeta(benchmarkRouteSchemas.updateVersion), async ({ request, reply }) => {
     const { id, version } = request.params;
     const parsed = Number.parseInt(version, 10);
     const existing = experimentService.getVersion(id, parsed);
@@ -231,7 +236,7 @@ export default async function benchmarkRoutes(fastify: FastifyInstance) {
     }
     const { valid, currentTag } = validateIfMatch(request, { dateModified: existing.dateModified });
     if (!valid) {
-      return reply.code(412).send({ error: 'If-Match header does not match current entity tag' });
+      return reply.code(412).send({ error: 'Precondition Failed', expected: currentTag, current: existing });
     }
     try {
       const payload = request.body;
@@ -248,7 +253,7 @@ export default async function benchmarkRoutes(fastify: FastifyInstance) {
     }
   }));
 
-  fastify.get('/:id/v/:version/runs', ...reposRoute(stripSchemaMeta(benchmarkRouteSchemas.listRuns), async ({ request, reply }) => {
+  fastify.get('/:id/versions/:version/runs', ...reposRoute(stripSchemaMeta(benchmarkRouteSchemas.listRuns), async ({ request, reply }) => {
     const { id, version } = request.params;
     const parsed = Number.parseInt(version, 10);
     const detail = experimentService.getVersion(id, parsed);
@@ -263,7 +268,7 @@ export default async function benchmarkRoutes(fastify: FastifyInstance) {
     return reply.send(filtered);
   }));
 
-  fastify.post('/:id/v/:version/freeze', ...reposRoute(stripSchemaMeta(benchmarkRouteSchemas.freezeVersion), async ({ request, reply }) => {
+  fastify.post('/:id/versions/:version/freeze', ...reposRoute(stripSchemaMeta(benchmarkRouteSchemas.freezeVersion), async ({ request, reply }) => {
     const { id, version } = request.params;
     const parsed = Number.parseInt(version, 10);
     try {
@@ -284,7 +289,7 @@ export default async function benchmarkRoutes(fastify: FastifyInstance) {
     }
   }));
 
-  fastify.post('/:id/v/:version/run', ...reposRoute(stripSchemaMeta(benchmarkRouteSchemas.runVersion), async ({ request, reply }) => {
+  fastify.post('/:id/versions/:version/run', ...reposRoute(stripSchemaMeta(benchmarkRouteSchemas.runVersion), async ({ request, reply }) => {
     const { id, version } = request.params;
     const parsed = Number.parseInt(version, 10);
     const detail = experimentService.getVersion(id, parsed);

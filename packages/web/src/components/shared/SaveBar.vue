@@ -28,6 +28,19 @@
       <span v-if="editCount > 0" class="chip chip-draft" data-testid="draft-pill">
         <PencilLine :size="11" />{{ editCount }} unsaved {{ editCount === 1 ? 'edit' : 'edits' }}
       </span>
+      <!--
+        The edits are held for this session only: the browser refused to keep
+        them (too large, or storage full). Said, because a reload loses them,
+        and saving a version is the way to keep them.
+      -->
+      <span
+        v-if="editCount > 0 && draftNotKept"
+        class="chip chip-draft-lost"
+        data-testid="draft-not-kept"
+        title="This browser could not keep these edits — they are too large, or its storage is full. They will be lost on reload; save a version to keep them."
+      >
+        not kept on reload
+      </span>
     </template>
 
     <span class="bar-spacer" />
@@ -45,13 +58,13 @@
     -->
     <button
       v-if="showFormat"
-      class="bar-button bar-icon"
+      class="icon-control"
       data-testid="format-query"
       title="Format"
       :disabled="!canFormat"
       @click="emit('format')"
     >
-      <WandSparkles :size="13" />
+      <WandSparkles :size="16" />
     </button>
     <!--
       The prefix conversions, beside Format because they are the same kind of
@@ -72,22 +85,22 @@
     -->
     <button
       v-if="showImport"
-      class="bar-button bar-icon"
+      class="icon-control"
       data-testid="import-body"
       :title="importTitle"
       @click="emit('import')"
     >
-      <FileInput :size="13" />
+      <FileInput :size="16" />
     </button>
     <button
       v-if="showDiff && !isScratch"
-      class="bar-button bar-icon"
-      :class="{ 'bar-icon-active': diffActive }"
+      class="icon-control"
+      :class="{ 'icon-control--active': diffActive }"
       data-testid="diff-query"
       :title="currentVersionNumber ? `Diff draft vs v${currentVersionNumber}` : 'Diff draft'"
       @click="emit('toggle-diff')"
     >
-      <GitCompare :size="13" />
+      <GitCompare :size="16" />
     </button>
     <button
       v-if="editCount > 0 && !isScratch"
@@ -132,8 +145,8 @@
     -->
     <DropdownMenu v-if="showMore && !isScratch && (canWrite || hasMenuItems)">
       <DropdownMenuTrigger as-child>
-        <button class="bar-button bar-icon" data-testid="query-more" title="More actions">
-          <EllipsisVertical :size="13" />
+        <button class="icon-control" data-testid="query-more" title="More actions">
+          <EllipsisVertical :size="16" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
@@ -199,6 +212,8 @@ const props = withDefaults(defineProps<{
   currentVersionNumber: number | null;
   /** Autosaves held in the browser and not yet saved. */
   editCount: number;
+  /** True when the browser could not store the draft, so a reload would lose it. */
+  draftNotKept?: boolean;
   saving: boolean;
   /** False when there is nothing to save — an empty body, or no changes. */
   canSave: boolean;
@@ -361,6 +376,12 @@ const saveTitle = computed(() => {
   color: var(--warning-ink);
 }
 
+.chip-draft-lost {
+  background: var(--danger-surface);
+  border: 1px solid var(--danger-border);
+  color: var(--danger-ink);
+}
+
 .chip-scratch {
   background: var(--surface);
   border: 1px dashed var(--border-strong);
@@ -377,11 +398,11 @@ const saveTitle = computed(() => {
   display: inline-flex;
   flex-shrink: 0;
   align-items: center;
-  gap: 5px;
-  height: 28px;
+  gap: var(--space-2);
+  height: var(--control-h);
   padding: 0 var(--space-5);
   border: 1px solid var(--border-default);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius);
   background: var(--surface);
   color: var(--ink-secondary);
   font-family: inherit;
@@ -413,15 +434,6 @@ const saveTitle = computed(() => {
   cursor: not-allowed;
 }
 
-/* Square, so the ⋮ sits centred rather than in a text-width pill. */
-.bar-icon {
-  justify-content: center;
-  width: 28px;
-  padding: 0;
-}
-
-.bar-icon-active {
-  border-color: var(--action);
-  color: var(--action);
-}
+/* The icon buttons are `.icon-control` (compact-buttons.css), the same box
+   the prefix pair beside them is drawn in. */
 </style>

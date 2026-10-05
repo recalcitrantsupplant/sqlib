@@ -49,7 +49,10 @@ const ESCAPABLE = "_~.\\-!$&'()*+,;=/?#@%";
 /** PERCENT | PN_LOCAL_ESC */
 const PLX = `(?:%[0-9A-Fa-f]{2}|\\\\[${ESCAPABLE}])`;
 
+// PN_CHARS includes the combining marks U+0300–U+036F by name in the grammar,
+// which is exactly what this rule objects to in a character class.
 const PN_LOCAL = new RegExp(
+  // eslint-disable-next-line no-misleading-character-class
   `^(?:[${PN_CHARS_U}:0-9]|${PLX})(?:(?:[${PN_CHARS}.:]|${PLX})*(?:[${PN_CHARS}:]|${PLX}))?$`,
   'u',
 );

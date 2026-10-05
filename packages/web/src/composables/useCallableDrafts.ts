@@ -243,15 +243,117 @@ function read(): CallableDraft[] {
   }
 }
 
-function write(drafts: CallableDraft[]) {
+/**
+ * How much one record may take in storage, and how much the whole store may.
+ *
+ * `localStorage` is a few megabytes per origin, shared with every other key
+ * this app writes (the last-run cache, settings, prefix caches). A data graph
+ * or tuple set work area autosaves its whole document, so one large paste used
+ * to fill the quota — and the `QuotaExceededError` thrown inside a debounce
+ * timer stopped *every* section's drafts from persisting, silently. A record
+ * over the per-entry cap stays in memory for the session and is reported as
+ * not saved; the store as a whole is kept under its cap by persisting without
+ * the records that do not fit, newest kept first.
+ */
+export const MAX_ENTRY_BYTES = 512 * 1024;
+export const MAX_STORE_BYTES = 2 * 1024 * 1024;
+
+/**
+ * Ids of records held in memory but not in storage: over the entry cap, or
+ * left out when the quota or the store cap was reached. A work area shows
+ * "draft not saved" for its record when its id is here; the rest of the store
+ * persisted normally.
+ */
+const unpersisted: Ref<Set<string>> = ref(new Set());
+
+function sizeOf(value: unknown): number {
+  // UTF-16 code units are what localStorage counts against its quota.
+  return JSON.stringify(value).length * 2;
+}
+
+function tryStore(records: CallableDraft[]): boolean {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+    return true;
+  } catch {
+    // QuotaExceededError, or storage disabled. The caller decides what to drop.
+    return false;
+  }
+}
+
+/**
+ * Persist what fits, never throw.
+ *
+ * Records are tried newest first, so a failure costs the oldest work rather
+ * than the edit just made — unless the edit itself is what does not fit, in
+ * which case it is the one reported. Memory always keeps every record.
+ */
+function write(records: CallableDraft[], changedId: string | null = null) {
   if (typeof localStorage === 'undefined') return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(drafts));
+  const skipped = new Set<string>();
+  const candidates = records.filter((record) => {
+    if (sizeOf(record) > MAX_ENTRY_BYTES) {
+      skipped.add(record.id);
+      return false;
+    }
+    return true;
+  });
+
+  // Newest first, then trim to the store cap.
+  const byRecency = [...candidates].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  const kept: CallableDraft[] = [];
+  let total = 2;
+  for (const record of byRecency) {
+    const size = sizeOf(record);
+    if (total + size > MAX_STORE_BYTES) {
+      skipped.add(record.id);
+      continue;
+    }
+    kept.push(record);
+    total += size;
+  }
+
+  // Storage order is the caller's order (scratch lists tie-break on it).
+  let persisted = records.filter((record) => kept.includes(record));
+  if (!tryStore(persisted) && changedId) {
+    // The write that just grew the store is the likeliest not to fit; leaving
+    // it out keeps every other section's drafts exactly as they were.
+    skipped.add(changedId);
+    persisted = persisted.filter((record) => record.id !== changedId);
+  }
+  while (!tryStore(persisted)) {
+    if (persisted.length === 0) break;
+    // The quota is shared with other keys, so the cap alone cannot guarantee a
+    // fit: drop the oldest remaining record and try again.
+    const oldest = persisted.reduce((a, b) => (a.updatedAt <= b.updatedAt ? a : b));
+    skipped.add(oldest.id);
+    persisted = persisted.filter((record) => record !== oldest);
+  }
+
+  if (skipped.size > 0 || unpersisted.value.size > 0) unpersisted.value = skipped;
 }
 
 /*
  * Module-level so every consumer sees the same list.
  */
 const drafts: Ref<CallableDraft[]> = ref(read());
+
+/*
+ * Another tab wrote the store. Without this, two tabs each held their own copy
+ * and the last one to autosave overwrote the other's drafts wholesale. A
+ * `storage` event fires only in the *other* tabs, so this never echoes a write
+ * back into the tab that made it.
+ */
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (event) => {
+    if (event.key !== STORAGE_KEY && event.key !== null) return;
+    const incoming = read();
+    // Records this tab could not persist are not in storage, so they are not
+    // in what the other tab wrote either; keep them rather than losing them.
+    const held = drafts.value.filter((record) => unpersisted.value.has(record.id));
+    drafts.value = [...incoming.filter((record) => !unpersisted.value.has(record.id)), ...held];
+  });
+}
 
 export function useCallableDrafts(libraryId?: Ref<string | null> | null) {
   const forLibrary = computed(() => {
@@ -304,7 +406,7 @@ export function useCallableDrafts(libraryId?: Ref<string | null> | null) {
       updatedAt: draft.updatedAt ?? now,
     });
     drafts.value = next;
-    write(next);
+    write(next, draft.id);
   }
 
   function remove(id: string) {
@@ -327,9 +429,16 @@ export function useCallableDrafts(libraryId?: Ref<string | null> | null) {
     write([]);
   }
 
+  /** True when this record is held in memory only (see `MAX_ENTRY_BYTES`). */
+  function isUnpersisted(id: string): boolean {
+    return unpersisted.value.has(id);
+  }
+
   return {
     drafts: forLibrary,
     allDrafts: drafts,
+    unpersisted,
+    isUnpersisted,
     scratch,
     scratchFor,
     draftFor,

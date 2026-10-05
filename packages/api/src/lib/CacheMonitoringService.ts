@@ -1,6 +1,7 @@
 import { metrics } from '@opentelemetry/api';
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
 import { oxigraphStoreManager } from './OxigraphStoreManager.js';
+import { log } from './log.js';
 
 export class CacheMonitoringService {
   private meter = metrics.getMeter('sparql-query-lib-cache', '1.0.0');
@@ -42,11 +43,11 @@ export class CacheMonitoringService {
    */
   start(intervalMs: number = 30_000): void {
     if (this.monitoringInterval) {
-      console.log('Cache monitoring already running');
+      log.debug('Cache monitoring already running');
       return;
     }
 
-    console.log(`Starting cache monitoring with ${intervalMs}ms interval`);
+    log.info({ intervalMs }, 'Starting cache monitoring');
 
     // Initial collection
     this.collectMetrics();
@@ -64,7 +65,7 @@ export class CacheMonitoringService {
     if (this.monitoringInterval) {
       clearInterval(this.monitoringInterval);
       this.monitoringInterval = undefined;
-      console.log('Cache monitoring stopped');
+      log.info('Cache monitoring stopped');
     }
   }
 
@@ -98,7 +99,7 @@ export class CacheMonitoringService {
 
     // Log summary for debugging
     const memoryMB = (stats.estimatedMemoryBytes / (1024 * 1024)).toFixed(2);
-    console.log(`[Cache Metrics] ${stats.totalEntities} entities, ~${memoryMB}MB memory`);
+    log.debug({ entities: stats.totalEntities, memoryMB }, 'Cache metrics');
   }
 
   /**
@@ -128,7 +129,7 @@ export class CacheMonitoringService {
     // Log Oxigraph summary
     if (totalStores > 0) {
       const oxMemoryMB = (totalMemory / (1024 * 1024)).toFixed(2);
-      console.log(`[Oxigraph Metrics] ${totalStores} stores, ${totalTriples} triples, ~${oxMemoryMB}MB memory`);
+      log.debug({ stores: totalStores, triples: totalTriples, memoryMB: oxMemoryMB }, 'Oxigraph metrics');
     }
   }
 

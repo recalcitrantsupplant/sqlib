@@ -1,10 +1,7 @@
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
 import { mockSidebarCollections } from './fixtures/collections';
 import type {
-  Backend,
-  Library,
   Query,
-  QueryVersion,
   QueryVersionExpanded,
   QueryVersionExpandedWithIriMap,
   QueryGroup,
@@ -67,6 +64,7 @@ import type {
   ExecutionResponseFixture,
   SetupMockApiOptions,
 } from './fixtures/query-group-mock-state';
+import { API_ORIGIN } from './api-origin';
 
 export type {
   StoredQueryVersion,
@@ -292,7 +290,7 @@ export async function setupMockApi(page: Page, state: MockState, options: SetupM
    */
   await page.route(/\/events(\?|$)/, (route) => route.fulfill({ status: 503, body: '' }));
 
-  await page.route('**/backends', async (route) => {
+  await page.route(`${API_ORIGIN}/backends`, async (route) => {
     if (route.request().method() === 'GET') {
       await json(route, 200, state.backends);
       return;
@@ -300,7 +298,7 @@ export async function setupMockApi(page: Page, state: MockState, options: SetupM
     await route.fallback();
   });
 
-  await page.route('**/libraries', async (route) => {
+  await page.route(`${API_ORIGIN}/libraries`, async (route) => {
     if (route.request().method() === 'GET') {
       await json(route, 200, state.libraries);
       return;
@@ -308,9 +306,9 @@ export async function setupMockApi(page: Page, state: MockState, options: SetupM
     await route.fallback();
   });
 
-  await page.route('**/queries/*/v/*/validate', (route) => route.fallback());
+  await page.route(`${API_ORIGIN}/queries/*/versions/*/validate`, (route) => route.fallback());
 
-  await page.route('**/queries/*/v/*', async (route) => {
+  await page.route(`${API_ORIGIN}/queries/*/versions/*`, async (route) => {
     const segments = getUrlSegments(route);
     const id = decodeId(segments[1] ?? '');
     const versionNumber = Number(segments[3]);
@@ -326,7 +324,7 @@ export async function setupMockApi(page: Page, state: MockState, options: SetupM
     });
   });
 
-  await page.route('**/queries/*/v', async (route) => {
+  await page.route(`${API_ORIGIN}/queries/*/versions`, async (route) => {
     const segments = getUrlSegments(route);
     const id = decodeId(segments[1] ?? '');
     const versions = state.queryVersions[id] ?? [];
@@ -375,7 +373,7 @@ export async function setupMockApi(page: Page, state: MockState, options: SetupM
     await route.fallback();
   });
 
-  await page.route('**/queries/*', async (route) => {
+  await page.route(`${API_ORIGIN}/queries/*`, async (route) => {
     if (route.request().method() !== 'GET') {
       await route.fallback();
       return;
@@ -392,7 +390,7 @@ export async function setupMockApi(page: Page, state: MockState, options: SetupM
     });
   });
 
-  await page.route('**/queries', async (route) => {
+  await page.route(`${API_ORIGIN}/queries`, async (route) => {
     const method = route.request().method();
     if (method === 'GET') {
       await json(route, 200, state.queries);
@@ -460,7 +458,7 @@ export async function setupMockApi(page: Page, state: MockState, options: SetupM
     await json(route, 200, state.argumentSets.filter((set) => set.libraryId === libraryId));
   });
 
-  await page.route(/\/argument-sets\/[^/]+\/v\/\d+$/, async (route) => {
+  await page.route(/\/argument-sets\/[^/]+\/versions\/\d+$/, async (route) => {
     const segments = getUrlSegments(route);
     const setId = decodeId(segments[segments.length - 3] ?? '');
     const versionNumber = Number(segments[segments.length - 1]);
@@ -472,7 +470,7 @@ export async function setupMockApi(page: Page, state: MockState, options: SetupM
     await json(route, 200, version);
   });
 
-  await page.route(/\/argument-sets\/[^/]+\/v$/, async (route) => {
+  await page.route(/\/argument-sets\/[^/]+\/versions$/, async (route) => {
     const segments = getUrlSegments(route);
     const setId = decodeId(segments[segments.length - 2] ?? '');
     const set = findArgumentSet(setId);
@@ -563,7 +561,7 @@ export async function setupMockApi(page: Page, state: MockState, options: SetupM
    * assigned from the rule sets of the group's library, and the selector reads
    * the list and then each rule set's versions.
    */
-  await page.route('**/rule-sets', async (route) => {
+  await page.route(`${API_ORIGIN}/rule-sets`, async (route) => {
     if (route.request().method() === 'GET') {
       await json(route, 200, state.ruleSets);
       return;
@@ -571,7 +569,7 @@ export async function setupMockApi(page: Page, state: MockState, options: SetupM
     await route.fallback();
   });
 
-  await page.route('**/rule-sets/*/versions', async (route) => {
+  await page.route(`${API_ORIGIN}/rule-sets/*/versions`, async (route) => {
     const segments = getUrlSegments(route);
     const ruleSetId = decodeId(segments[1] ?? '');
     if (route.request().method() === 'GET') {
@@ -581,7 +579,7 @@ export async function setupMockApi(page: Page, state: MockState, options: SetupM
     await route.fallback();
   });
 
-  await page.route('**/rule-sets/*', async (route) => {
+  await page.route(`${API_ORIGIN}/rule-sets/*`, async (route) => {
     if (route.request().method() !== 'GET') {
       await route.fallback();
       return;
@@ -596,7 +594,7 @@ export async function setupMockApi(page: Page, state: MockState, options: SetupM
     await json(route, 200, ruleSet, { ETag: makeEtag('rule-set', ruleSetId) });
   });
 
-  await page.route('**/query-groups/*/v/*/validate', async (route) => {
+  await page.route(`${API_ORIGIN}/query-groups/*/versions/*/validate`, async (route) => {
     const { validationResponse } = options;
     const fixture = typeof validationResponse === 'function' ? validationResponse() : validationResponse;
     await json(route, 200, {
@@ -608,7 +606,7 @@ export async function setupMockApi(page: Page, state: MockState, options: SetupM
     });
   });
 
-  await page.route('**/query-groups/*/v/*', async (route) => {
+  await page.route(`${API_ORIGIN}/query-groups/*/versions/*`, async (route) => {
     const segments = getUrlSegments(route);
     const groupId = decodeId(segments[1] ?? '');
     const versionNumber = Number(segments[3]);
@@ -628,7 +626,7 @@ export async function setupMockApi(page: Page, state: MockState, options: SetupM
     });
   });
 
-  await page.route('**/query-groups/*/v', async (route) => {
+  await page.route(`${API_ORIGIN}/query-groups/*/versions`, async (route) => {
     const segments = getUrlSegments(route);
     const groupId = decodeId(segments[1] ?? '');
     if (route.request().method() === 'GET') {
@@ -670,7 +668,7 @@ export async function setupMockApi(page: Page, state: MockState, options: SetupM
     await route.fallback();
   });
 
-  await page.route('**/query-groups/*', async (route) => {
+  await page.route(`${API_ORIGIN}/query-groups/*`, async (route) => {
     const method = route.request().method();
     const segments = getUrlSegments(route);
     const groupId = decodeId(segments[1] ?? '');
@@ -707,7 +705,7 @@ export async function setupMockApi(page: Page, state: MockState, options: SetupM
     await route.fallback();
   });
 
-  await page.route('**/query-groups', async (route) => {
+  await page.route(`${API_ORIGIN}/query-groups`, async (route) => {
     const method = route.request().method();
     if (method === 'GET') {
       await json(route, 200, state.queryGroups);
@@ -738,7 +736,7 @@ export async function setupMockApi(page: Page, state: MockState, options: SetupM
     await route.fallback();
   });
 
-  await page.route('**/detect-outputs', async (route) => {
+  await page.route(`${API_ORIGIN}/detect-outputs`, async (route) => {
     if (route.request().method() === 'POST') {
       await json(route, 200, []);
       return;
@@ -746,7 +744,7 @@ export async function setupMockApi(page: Page, state: MockState, options: SetupM
     await route.fallback();
   });
 
-  await page.route('**/execute', async (route) => {
+  await page.route(`${API_ORIGIN}/execute`, async (route) => {
     const fixture = resolveExecutionResponse();
     // The shape of the reply is the request's to decide, not the fixture's: a run
     // that asks for node detail can only be answered with the envelope.
