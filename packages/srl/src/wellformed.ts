@@ -60,7 +60,7 @@ function checkRule(rule: SrlRule, ruleIndex: number, issues: WellFormednessIssue
   }
 
   // Every head variable must be bound by the body.
-  for (const v of headVars(rule.head)) {
+  for (const v of headVars(rule)) {
     if (!bodyVars.has(v)) {
       issues.push({
         category: 'unbound-head',
@@ -143,44 +143,26 @@ export function collectVars(node: unknown, into: Set<string>): void {
   }
 }
 
-function headVars(head: unknown): Set<string> {
+/**
+ * Every variable in the head templates, at any depth: inside `[ … ]`,
+ * `( … )`, `<<( … )>>` and annotations as well as at the top level.
+ */
+function headVars(rule: SrlRule): Set<string> {
   const out = new Set<string>();
-  const triples = (head as any)?.triples;
-  if (Array.isArray(triples)) for (const t of triples) collectTermVars(t, out);
+  collectVars(rule.head, out);
+  collectVars(rule.headTuples, out);
   return out;
 }
 
 function collectBodyVars(items: SrlBodyItem[], into: Set<string>, setTargets: string[]): void {
   for (const item of items) {
-    if (item.kind === 'bgp') {
-      const triples = (item.triples as any)?.triples;
-      if (Array.isArray(triples)) for (const t of triples) collectTermVars(t, into);
-    } else if (item.kind === 'not') {
-      // Variables under NOT do not *bind* head variables (negation as failure),
-      // so they are not added to the binding set.
-    } else if (item.kind === 'set') {
-      into.add(item.variable);
-      setTargets.push(item.variable);
-    }
-    // 'filter' binds nothing.
+    // Variables under NOT do not *bind* head variables (negation as failure),
+    // and a FILTER binds nothing, so `boundBy` returns nothing for either.
+    for (const name of boundBy(item)) into.add(name);
+    if (item.kind === 'set') setTargets.push(item.variable);
   }
 }
 
 function varAppearsOutsideSet(items: SrlBodyItem[], name: string): boolean {
-  for (const item of items) {
-    if (item.kind === 'bgp') {
-      const vars = new Set<string>();
-      const triples = (item.triples as any)?.triples;
-      if (Array.isArray(triples)) for (const t of triples) collectTermVars(t, vars);
-      if (vars.has(name)) return true;
-    }
-  }
-  return false;
-}
-
-function collectTermVars(triple: any, into: Set<string>): void {
-  for (const key of ['subject', 'predicate', 'object'] as const) {
-    const term = triple?.[key];
-    if (term?.type === 'term' && term?.subType === 'variable') into.add(String(term.value ?? ''));
-  }
+  return items.some((item) => item.kind !== 'set' && boundBy(item).includes(name));
 }

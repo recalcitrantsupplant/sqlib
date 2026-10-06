@@ -68,6 +68,35 @@ describe('SRL well-formedness', () => {
     const issues = checkWellFormed(rs);
     expect(issues.map((i) => i.category)).toContain('set-rebinds');
   });
+
+  // Variables nested in `[ … ]`, `( … )` and `<<( … )>>` count on both sides.
+  it.each([
+    ['a blank-node property list', '[ :q ?zz ]'],
+    ['a triple term', '<<( ?x :q ?zz )>>'],
+    ['a collection', '( ?zz )'],
+  ])('rejects an unbound head variable inside %s', (_, term) => {
+    const rs = parseRuleSet(`${PREFIX}\nRULE { ?x :p ${term} } WHERE { ?x :r ?y }`);
+    expect(checkWellFormed(rs).map((i) => i.message)).toEqual(['Head variable ?zz is not bound by the rule body']);
+  });
+
+  it.each([
+    ['a blank-node property list', '[ :q ?z ]'],
+    ['a triple term', '<<( ?x :q ?z )>>'],
+    ['a collection', '( ?z )'],
+  ])('accepts a head variable bound inside %s in the body', (_, term) => {
+    const rs = parseRuleSet(`${PREFIX}\nRULE { ?x :p ?z } WHERE { ?x :r ${term} }`);
+    expect(checkWellFormed(rs)).toEqual([]);
+  });
+
+  it('counts a body TUPLE as binding head variables', () => {
+    const rs = parseRuleSet(`${PREFIX}\nRULE { ?x :ok ?y } WHERE { TUPLE(:rel, ?x, ?y) }`, { tuples: true });
+    expect(checkWellFormed(rs)).toEqual([]);
+  });
+
+  it('rejects an unbound variable in a head TUPLE', () => {
+    const rs = parseRuleSet(`${PREFIX}\nRULE { TUPLE(:rel, ?x, ?zz) } WHERE { ?x :r ?y }`, { tuples: true });
+    expect(checkWellFormed(rs).map((i) => i.category)).toEqual(['unbound-head']);
+  });
 });
 
 describe('SRL conformance edge cases', () => {
