@@ -360,6 +360,7 @@ import {
   type SectionRoute,
 } from '../../lib/sectionRoutes';
 import { useActiveLibrary } from '../../composables/useActiveLibrary';
+import { owningLibrary } from '../../lib/owningLibrary';
 import { useTagsStore } from '../../composables/useTagsStore';
 import { isTaggableKind } from '../../composables/useEntityTags';
 import { useTestsStore } from '../../composables/useTestsStore';
@@ -559,7 +560,23 @@ function handleRailSelect(section: RailSection) {
  * written out five times and they drifted apart the moment one changed.
  * ------------------------------------------------------------------ */
 
-const { activeLibraryId, activeLibraryName, ensureLoaded: ensureLibrariesLoaded } = useActiveLibrary();
+const {
+  activeLibraryId,
+  activeLibraryName,
+  libraries: switchableLibraries,
+  setActiveLibrary,
+  ensureLoaded: ensureLibrariesLoaded,
+} = useActiveLibrary();
+
+/*
+ * `?library=` is read only where the path names no record: `/rules?library=…`
+ * is a link to that library's list. On `/rules/<id>` the record says which
+ * library it is in (the watcher beside `savedSelectionId`), so a `?library=`
+ * there could only repeat that or contradict it, and is ignored.
+ */
+if (!initialRoute.id && typeof route.query.library === 'string' && route.query.library) {
+  setActiveLibrary(route.query.library);
+}
 
 /*
  * The change feed. An external MCP client writing to this library refreshes the
@@ -1022,6 +1039,35 @@ const savedSelectionId = computed(() => {
     default: return null;
   }
 });
+
+/**
+ * The library the open saved record is in, from its own `isPartOf`.
+ *
+ * A link to a record names no library, and this browser's active library is
+ * whatever it last had open — so without this a shared link opened the record
+ * beside another library's list, and Save on it targeted that library.
+ */
+const selectedRecordLibrary = computed<string | null>(() => {
+  const type = selectedItemType.value;
+  const id = savedSelectionId.value;
+  if (!type || type === 'scratch' || !id) return null;
+  const entity = entitiesOfKind(type).find((candidate) => candidate.id === id);
+  const known = new Set(switchableLibraries.value.map((library) => library.id));
+  return owningLibrary(entity, {
+    isLibrary: (ref) => known.has(ref),
+    // A query can be in a library only through a group.
+    entityById: (ref) => entitiesOfKind('queryGroup').find((group) => group.id === ref),
+  });
+});
+
+/*
+ * Opening a record points the active library at it. Watched on the record's
+ * library alone, not on the active one, so switching library with a record
+ * open is left alone rather than switched straight back.
+ */
+watch(selectedRecordLibrary, (libraryId) => {
+  if (libraryId && libraryId !== activeLibraryId.value) setActiveLibrary(libraryId);
+}, { immediate: true });
 
 const sidebarSelection = computed<SidebarSelection>(() => {
   if (selectedItemType.value === 'scratch' && selectedScratchId.value) {
@@ -1506,10 +1552,10 @@ function sameRoute(a: SectionRoute | undefined, b: SectionRoute): boolean {
   return Boolean(a) && a!.section === b.section && a!.id === b.id;
 }
 
-watch([stateRoute, stateVersion, preselectArgumentSetId], ([target, version, argumentSet]) => {
+watch([stateRoute, stateVersion, preselectArgumentSetId, activeLibraryId], ([target, version, argumentSet, libraryId]) => {
   const query: Record<string, string> = {};
-  // The library rides along where a link put it; nothing here writes it.
-  if (typeof route.query.library === 'string' && route.query.library) query.library = route.query.library;
+  // A record says its own library; a list names the one it shows.
+  if (!target.id && target.section && target.section !== 'backends' && libraryId) query.library = libraryId;
   if (version != null) query.version = String(version);
   if (argumentSet) query.argumentSet = argumentSet;
 
