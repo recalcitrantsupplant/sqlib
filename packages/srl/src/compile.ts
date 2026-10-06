@@ -197,6 +197,55 @@ function negationSeesLaterBinding(
   return [...mentioned].some((name) => !boundBefore.has(name) && boundLater.has(name));
 }
 
+/**
+ * The rule body with every blank node replaced by a variable the rule does not
+ * use — the spec's "treating blank nodes as variables" (`evalRule`), done here
+ * rather than left to the engine.
+ *
+ * The spec applies it to the whole body as one scope: the same blank node is
+ * the same variable wherever it occurs, inside a triple term or a `NOT`
+ * included. SPARQL scopes a blank node label to one basic graph pattern
+ * instead, so the literal translation of
+ *
+ *     ?x :r _:b  NOT { _:b :q :c }
+ *
+ * fails to parse ("reuse of blank node across two different basic graph
+ * patterns"), and so does a blank node used on both sides of a `SET`. As
+ * variables, both compile, and the NOT-scoping above sees them like any other
+ * variable. The head is left alone: its blank nodes are fresh per solution.
+ *
+ * `[ … ]` and `( … )` carry blank nodes too (`g_0`, …). They are replaced
+ * with the rest; the generator writes those forms from their triples, so the
+ * text keeps its brackets.
+ */
+function bnodesAsVariables(rule: SrlRule): SrlBodyItem[] {
+  const taken = new Set<string>();
+  collectVars(rule.head, taken);
+  collectVars(rule.headTuples, taken);
+  collectVars(rule.body, taken);
+  const names = new Map<string, string>();
+  const nameFor = (label: string): string => {
+    let name = names.get(label);
+    if (name === undefined) {
+      name = `_bnode_${label}`;
+      while (taken.has(name)) name = `_${name}`;
+      taken.add(name);
+      names.set(label, name);
+    }
+    return name;
+  };
+  const rewrite = (node: unknown): unknown => {
+    if (Array.isArray(node)) return node.map(rewrite);
+    if (!node || typeof node !== 'object') return node;
+    const n = node as Record<string, unknown>;
+    if (n.type === 'term' && n.subType === 'blankNode') {
+      return { type: 'term', subType: 'variable', value: nameFor(String(n.label ?? '')), loc: n.loc };
+    }
+    return Object.fromEntries(Object.entries(n).map(([key, value]) => [key, key === 'loc' ? value : rewrite(value)]));
+  };
+  return rewrite(rule.body) as SrlBodyItem[];
+}
+
 /** Variables appearing in a rule's head tuple templates, in first-seen order. */
 function headTupleVars(rule: SrlRule): string[] {
   const seen: string[] = [];
@@ -221,7 +270,7 @@ function headTupleVars(rule: SrlRule): string[] {
 export function compileRule(rule: SrlRule, prologueText = '', options: CompileOptions = {}): CompiledRule {
   const prologue = prologueText.trim();
   const tupleIndex = { n: 0 };
-  const inner = compileBody(rule.body, tupleIndex);
+  const inner = compileBody(bnodesAsVariables(rule), tupleIndex);
   // `WHERE DATA`: the spec evaluates the whole body with GD in place of G, so
   // one GRAPH block around everything is the exact translation — nested NOTs
   // included, which is why they need no marker of their own.
