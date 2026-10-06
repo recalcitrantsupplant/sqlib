@@ -1560,6 +1560,18 @@ function selectAxisFromRunBar(key: string) {
 async function runBenchmark() {
   if (!props.experimentId || selectedVersionNumber.value == null) return;
   try {
+    // The runner refuses a version that is not frozen, and nothing else here
+    // freezes one. A saved version is never edited in place — saving makes the
+    // next one — so freezing it on its first run loses nothing.
+    const version = store.selectedVersion.value;
+    if (!version || version.version !== selectedVersionNumber.value || !version.immutable) {
+      try {
+        await store.freezeVersion(props.experimentId, selectedVersionNumber.value);
+      } catch (error: unknown) {
+        toast.error(error instanceof Error ? error.message : 'Failed to freeze the version before running it');
+        throw error;
+      }
+    }
     await executionStore.executeRun(props.experimentId, selectedVersionNumber.value);
     await store.loadRunsForVersion(props.experimentId, selectedVersionNumber.value);
     tab.value = 'runs';
