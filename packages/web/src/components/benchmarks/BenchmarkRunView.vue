@@ -14,6 +14,7 @@
  */
 import { computed, ref, watch } from 'vue';
 import { Filter, Repeat } from '@lucide/vue';
+import InfoHint from '../shared/InfoHint.vue';
 import InlineNote from '../shared/InlineNote.vue';
 import SearchSelect from '../shared/SearchSelect.vue';
 import {
@@ -96,9 +97,9 @@ const hasPasses = computed(() => props.passes.size > 0);
 
 const passCount = (request: RequestRow) => props.passes.get(request.key)?.length ?? null;
 
-const timelineNote = computed(() => (hasGraphs.value
-  ? 'one tick per request, one lane per backend or data graph'
-  : 'one tick per request, one lane per backend'));
+const timelineHint = computed(() => (hasGraphs.value
+  ? 'Each tick is one request. Each lane is one backend or data graph.'
+  : 'Each tick is one request. Each lane is one backend.'));
 
 /*
  * A filter set on one run and still set on the next would hide every row of a
@@ -139,19 +140,18 @@ const summary = computed(() => [
   {
     label: 'Requests',
     value: formatCount(props.stats.requests),
-    note: 'all captured',
     tone: 'plain' as const,
   },
   {
     label: 'Failed',
     value: formatCount(props.stats.failed),
-    note: props.stats.failed > 0 ? 'excluded from the percentiles' : 'none',
+    hint: 'Failed requests are not included in the percentiles.',
     tone: props.stats.failed > 0 ? ('bad' as const) : ('plain' as const),
   },
   {
     label: 'p50 · p95 · p99',
     value: [props.stats.p50, props.stats.p95, props.stats.p99].map(formatMs).join(' · '),
-    note: 'per request, client side',
+    hint: 'Time per successful request, measured by the runner.',
     // Three numbers where the others have one: at the headline size the cell
     // wraps to three lines and stops reading as one statistic.
     tone: 'compact' as const,
@@ -159,7 +159,7 @@ const summary = computed(() => [
   {
     label: 'Wall clock',
     value: formatDuration(props.stats.wallClockMs),
-    note: 'first request to last',
+    hint: 'Time from the start of the first request to the end of the last.',
     tone: 'plain' as const,
   },
 ]);
@@ -180,26 +180,30 @@ const summary = computed(() => [
 
     <div class="summary-strip" data-testid="benchmark-run-summary">
       <div v-for="cell in summary" :key="cell.label" class="summary-cell">
-        <span class="summary-label">{{ cell.label }}</span>
+        <span class="summary-label">
+          {{ cell.label }}
+          <InfoHint v-if="cell.hint" :label="cell.label">{{ cell.hint }}</InfoHint>
+        </span>
         <span
           class="summary-value"
           :class="{ 'summary-bad': cell.tone === 'bad', 'summary-compact': cell.tone === 'compact' }"
         >{{ cell.value }}</span>
-        <span class="summary-note">{{ cell.note }}</span>
       </div>
     </div>
 
     <div class="run-body">
       <InlineNote v-if="loading">Loading the requests…</InlineNote>
       <InlineNote v-else-if="requests.length === 0">
-        This run captured no requests.
+        No requests were recorded for this run.
       </InlineNote>
 
       <template v-else>
         <section class="block">
           <div class="block-head">
-            <span class="block-label">Execution</span>
-            <span class="block-sub">{{ timelineNote }}</span>
+            <span class="block-label">
+              Execution
+              <InfoHint label="execution timeline">{{ timelineHint }}</InfoHint>
+            </span>
           </div>
           <div class="timeline">
             <div v-for="lane in lanes" :key="lane.key" class="lane">
@@ -220,17 +224,12 @@ const summary = computed(() => [
                 />
               </span>
             </div>
-            <p class="timeline-note">
-              Lanes that fill one after another are a blocked run, whatever the
-              order setting says.
-            </p>
           </div>
         </section>
 
         <section class="block">
           <div class="block-head">
             <span class="block-label">Requests</span>
-            <span class="block-sub">{{ formatCount(requests.length) }} captured</span>
             <span class="filters">
               <!--
                 Both axes are named by hand — a case's label, a data graph's
@@ -311,7 +310,7 @@ const summary = computed(() => [
               <span class="col-status">{{ request.ok ? 'ok' : request.status }}</span>
             </button>
             <div v-if="hidden > 0" class="request-more">
-              + {{ formatCount(hidden) }} more — filter or sort to bring them into view
+              {{ formatCount(hidden) }} more not shown
             </div>
           </div>
         </section>
@@ -443,10 +442,6 @@ const summary = computed(() => [
   letter-spacing: 0;
 }
 
-.summary-note {
-  color: var(--ink-muted);
-  font-size: var(--text-micro);
-}
 
 .run-body {
   display: flex;
@@ -478,11 +473,6 @@ const summary = computed(() => [
   text-transform: uppercase;
 }
 
-.block-sub {
-  color: var(--ink-muted);
-  font-size: var(--text-label);
-  line-height: var(--leading-normal);
-}
 
 .filters {
   display: flex;
@@ -586,22 +576,6 @@ const summary = computed(() => [
   opacity: 0.7;
 }
 
-.timeline-note {
-  /*
-   * Not yet an <InlineNote size="xs">. The two questions that kept it off the
-   * primitive — a dense step, and whether prose may sit at `--ink-disabled` —
-   * were answered by the twelfth and thirteenth passes on separate branches,
-   * so the conversion is recorded in the note guard's residue rather than made
-   * as part of the merge. Both declarations it used to take from the shared
-   * rule above were dead — its own rule overrode them — so it states the one
-   * that was not, and nothing else.
-   */
-  /* Clears the label column so the note starts where the tracks do. */
-  padding-left: calc(var(--lane-name-w) + var(--lane-gap));
-  color: var(--ink-muted);
-  font-size: var(--text-micro);
-  line-height: var(--leading-normal);
-}
 
 /*
  * Eight columns of fixed data, up to ten on a rules run — a graph and a pass

@@ -684,5 +684,6 @@ describe('formatting', () => {
     expect(formatDuration(221_000)).toBe('3m 41s');
     expect(formatDuration(120_000)).toBe('2m');
     expect(formatDuration(null)).toBe('—');
+    expect(formatDuration(450)).toBe('450ms');
   });
 });

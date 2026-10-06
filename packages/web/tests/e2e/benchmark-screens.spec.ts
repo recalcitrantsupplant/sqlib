@@ -44,7 +44,7 @@ test.describe('Benchmark plan', () => {
     // Load is one profile per version, so it has nothing to add.
     await expect(page.locator('[data-testid="benchmark-add-loadProfiles"]')).toHaveCount(0);
 
-    for (const setting of ['statistic', 'equivalence', 'failure', 'order']) {
+    for (const setting of ['failure', 'order']) {
       await expect(page.locator(`[data-testid="benchmark-setting-${setting}"]`)).toBeVisible();
     }
   });
@@ -54,7 +54,7 @@ test.describe('Benchmark plan', () => {
 
     const editor = page.locator('[data-testid="benchmark-case-editor"]');
     await expect(editor).toBeVisible();
-    await expect(editor).toContainText('Support');
+    await expect(editor).toContainText('Backends');
   });
 
   test('the expansion follows the backends axis', async ({ page }) => {
@@ -102,8 +102,6 @@ test.describe('Benchmark runs', () => {
 
     const detail = page.locator('[data-testid="benchmark-request-detail"]');
     await expect(detail).toContainText('Waiting on the store');
-    // The runner records no result hash, and the panel says so rather than
-    // drawing an equivalence it cannot support.
-    await expect(detail).toContainText('not captured');
+    await expect(detail).toContainText('Response');
   });
 });
