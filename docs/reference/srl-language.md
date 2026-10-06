@@ -504,6 +504,50 @@ pattern variable included. Two children aged 10 are two solutions, so
 An error in any assignment, such as `SUM` over a string, drops the row, as an
 error in `SET` does.
 
+### Aggregating one value per item
+
+Because every pattern variable takes part, a pattern variable that has several
+values per item multiplies that item's rows. With two orders of 100, one of
+them carrying two tags:
+
+```sparql
+:o1 :amount 100 ; :tag :urgent, :export .
+:o2 :amount 100 ; :tag :urgent .
+```
+
+| Assignment over `{ ?o :amount ?a ; :tag ?t }` | Result | Why |
+| --- | --- | --- |
+| `SUM(?a)` | 300 | `:o1` matches once per tag |
+| `SUM(DISTINCT ?a)` | 100 | both amounts are 100 and collapse |
+
+To sum one amount per tagged order, derive the items in a rule of their own
+and aggregate those:
+
+```sparql
+PREFIX : <http://example.org/>
+RULE { ?o :taggedAmount ?a } WHERE { ?o :amount ?a ; :tag ?t }
+RULE { :all :total ?total }
+WHERE { AGGREGATE { ?o :taggedAmount ?a } ( ?total := SUM(?a) ) }
+```
+
+The total is 200. The helper's head holds one triple per order however many
+tags it has, because a graph is a set, and stratification runs the helper to
+completion before the aggregate. Keep the item's identity in the helper's head:
+a head such as `:all :amountSeen ?a` would collapse the two amounts of 100 into
+one.
+
+The helper's triples stay in the output graph. With the rule-tuples extension
+also on, a tuple keeps the intermediate relation out of it:
+
+```sparql
+PREFIX : <http://example.org/>
+RULE { TUPLE(:taggedAmount, ?o, ?a) } WHERE { ?o :amount ?a ; :tag ?t }
+RULE { :all :total ?total }
+WHERE { AGGREGATE { TUPLE(:taggedAmount, ?o, ?a) } ( ?total := SUM(?a) ) }
+```
+
+Counting items needs no helper: `COUNT(DISTINCT ?o)` counts each order once.
+
 ### Well-formedness
 
 Violations are reported under the category `aggregate-scope`:

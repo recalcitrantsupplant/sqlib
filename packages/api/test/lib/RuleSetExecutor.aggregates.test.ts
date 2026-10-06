@@ -149,6 +149,49 @@ describe('RuleSetExecutor — rule aggregates', () => {
   });
 });
 
+describe('RuleSetExecutor — feeding an aggregate one value per item', () => {
+  // `:o1` has two tags, so a pattern matching `?o :amount ?a ; :tag ?t` gives
+  // its amount twice: SUM(?a) is 300 and SUM(DISTINCT ?a) is 100, because both
+  // amounts are 100. A helper rule that derives one fact per order gives 200.
+  const ORDERS = `
+    :o1 :amount 100 ; :tag :urgent, :export .
+    :o2 :amount 100 ; :tag :urgent .
+    :o3 :amount 50 .
+  `;
+
+  it('sums one amount per order when a helper rule derives the items', async () => {
+    const graph = await run(
+      [
+        rule('tagged', 'RULE { ?o :taggedAmount ?a } WHERE { ?o :amount ?a ; :tag ?t }'),
+        rule('total', 'RULE { :all :total ?total } WHERE { AGGREGATE { ?o :taggedAmount ?a } ( ?total := SUM(?a) ) }'),
+      ],
+      ORDERS,
+    );
+    expect(graph).toContain(`${ex('all')} ${ex('total')} ${int(200)} .`);
+  });
+
+  it('does the same through a tuple, which keeps the helper relation out of the graph', async () => {
+    overrideFeatureFlags({ ruleAggregates: true, ruleTuples: true });
+    const graph = await run(
+      [
+        rule('tagged', 'RULE { TUPLE(:taggedAmount, ?o, ?a) } WHERE { ?o :amount ?a ; :tag ?t }'),
+        rule('total', 'RULE { :all :total ?total } WHERE { AGGREGATE { TUPLE(:taggedAmount, ?o, ?a) } ( ?total := SUM(?a) ) }'),
+      ],
+      ORDERS,
+    );
+    expect(graph).toContain(`${ex('all')} ${ex('total')} ${int(200)} .`);
+    expect(graph).not.toContain('taggedAmount');
+  });
+
+  it('gives 300 when the pattern itself multiplies the rows', async () => {
+    const graph = await run(
+      [rule('total', 'RULE { :all :total ?total } WHERE { AGGREGATE { ?o :amount ?a ; :tag ?t } ( ?total := SUM(?a) ) }')],
+      ORDERS,
+    );
+    expect(graph).toContain(`${ex('all')} ${ex('total')} ${int(300)} .`);
+  });
+});
+
 describe('the rule-aggregates deployment gate', () => {
   const RULE = `${PREFIX}\nRULE { ?x :n ?n } WHERE { ?x a :Person . AGGREGATE PER ?x { ?x :parentOf ?y } ( ?n := COUNT(*) ) }`;
 
