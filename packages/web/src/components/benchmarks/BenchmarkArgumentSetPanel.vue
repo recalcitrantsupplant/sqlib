@@ -2,18 +2,13 @@
 /**
  * The argument set, in the inspector's Arguments tab on Plan (§4, mockup 2a).
  *
- * The piece with no precedent anywhere else in the app: where the values come
- * from, the seed that makes two runs comparable, and a preview of the actual
- * values so they can be seen before eleven minutes are spent on them.
- *
- * Stored sets are literal rows — a fixed list — and that is what this draws
- * from. The other four generators and the two reproducibility settings (seed,
- * resolve-once-per-run) are shown as the design specifies but disabled: there
- * is no server-side generator yet, and an enabled seed field that silently
- * changed nothing would be worse than an obviously absent one.
+ * A preview of the set's stored rows, so the values can be checked before a
+ * long run is spent on them, and the cases that take them. The design's value
+ * generators and seed settings have no server-side support, so they are not
+ * drawn.
  */
 import { computed } from 'vue';
-import { Braces, Dices, FileCode2, List, MoveHorizontal, Table } from '@lucide/vue';
+import { Braces } from '@lucide/vue';
 import InlineNote from '../shared/InlineNote.vue';
 import type { ArgumentSetDetail } from '../../types/argument-sets';
 
@@ -46,14 +41,6 @@ const remaining = computed(() => Math.max(0, rows.value.length - preview.value.l
 const scalars = computed(() => props.argumentSet?.currentVersion?.scalarBindings
   ?? props.argumentSet?.scalarBindings
   ?? []);
-
-const GENERATORS = [
-  { name: 'Fixed list', icon: List, available: true },
-  { name: 'Range sweep', icon: MoveHorizontal, available: false },
-  { name: 'Seeded random', icon: Dices, available: false },
-  { name: 'From a query', icon: FileCode2, available: false },
-  { name: 'CSV', icon: Table, available: false },
-];
 </script>
 
 <template>
@@ -69,11 +56,7 @@ const GENERATORS = [
     </div>
 
     <div class="panel-body">
-      <InlineNote v-if="isNoArguments">
-        This axis entry runs each case once, unparameterised. It is a real axis
-        member — a benchmark comparing "with arguments" against "without" is two
-        entries, and the expansion count says so.
-      </InlineNote>
+      <InlineNote v-if="isNoArguments">Each case runs once without arguments.</InlineNote>
 
       <template v-else-if="loading">
         <InlineNote>Loading the values…</InlineNote>
@@ -84,45 +67,7 @@ const GENERATORS = [
       </template>
 
       <template v-else>
-        <section class="block">
-          <span class="block-label">Where the values come from</span>
-          <div class="generator-row">
-            <span
-              v-for="generator in GENERATORS"
-              :key="generator.name"
-              class="generator"
-              :class="{ 'generator-on': generator.available, 'generator-off': !generator.available }"
-              :title="generator.available ? 'Stored values' : 'Not implemented server-side yet'"
-            >
-              <component :is="generator.icon" :size="12" />{{ generator.name }}
-            </span>
-          </div>
-          <InlineNote>
-            Drawing from a live query is the design's recommendation, because
-            hand-written lists rot the moment the dataset moves and a benchmark
-            quietly measuring 50 cache misses is worse than no benchmark. Only
-            stored lists exist today.
-          </InlineNote>
-        </section>
 
-        <section class="block">
-          <div class="setting-row">
-            <span class="setting" title="Not implemented server-side yet">
-              <span class="setting-key">seed</span>
-              <span class="setting-value">—</span>
-            </span>
-            <span class="setting" title="Stored values are the same for every store by construction">
-              <span class="setting-key">resolve</span>
-              <span class="setting-value">once per run</span>
-            </span>
-          </div>
-          <InlineNote>
-            Pinning a seed is what makes two runs comparable, and resolving once
-            per run — not once per request — is what gives every store the
-            identical values. A stored list satisfies both by construction; a
-            generator would need them explicitly.
-          </InlineNote>
-        </section>
 
         <section class="block">
           <div class="block-head">
@@ -159,10 +104,6 @@ const GENERATORS = [
             <span v-for="item in usedBy" :key="item.id" class="used-row">{{ item.name }}</span>
           </div>
           <InlineNote v-else>No case in this benchmark takes these values.</InlineNote>
-          <InlineNote>
-            Argument sets are library objects, not properties of a case — that is
-            what makes "same inputs, different case" possible.
-          </InlineNote>
         </section>
       </template>
     </div>
@@ -253,63 +194,13 @@ const GENERATORS = [
   line-height: var(--leading-normal);
 }
 
-.generator-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-}
 
-.generator {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  height: 27px;
-  padding: 0 var(--space-4);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius);
-  font-size: var(--text-label);
-  white-space: nowrap;
-}
 
-.generator-on {
-  background: var(--action-surface);
-  border-color: var(--action-border);
-  color: var(--action-ink);
-  font-weight: var(--weight-semibold);
-}
 
-.generator-off {
-  background: var(--surface);
-  color: var(--ink-muted);
-}
 
-.setting-row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-}
 
-.setting {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-3);
-  height: 27px;
-  padding: 0 var(--space-4);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius);
-  background: var(--surface);
-  font-size: var(--text-label);
-}
 
-.setting-key {
-  color: var(--ink-muted);
-}
 
-.setting-value {
-  color: var(--ink-secondary);
-  font-family: var(--font-mono);
-  font-weight: var(--weight-medium);
-}
 
 .preview {
   overflow: hidden;
