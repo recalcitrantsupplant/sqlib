@@ -220,10 +220,6 @@ const summary = computed(() => [
                 />
               </span>
             </div>
-            <p class="timeline-note">
-              Lanes that fill one after another are a blocked run, whatever the
-              order setting says.
-            </p>
           </div>
         </section>
 
@@ -586,22 +582,6 @@ const summary = computed(() => [
   opacity: 0.7;
 }
 
-.timeline-note {
-  /*
-   * Not yet an <InlineNote size="xs">. The two questions that kept it off the
-   * primitive — a dense step, and whether prose may sit at `--ink-disabled` —
-   * were answered by the twelfth and thirteenth passes on separate branches,
-   * so the conversion is recorded in the note guard's residue rather than made
-   * as part of the merge. Both declarations it used to take from the shared
-   * rule above were dead — its own rule overrode them — so it states the one
-   * that was not, and nothing else.
-   */
-  /* Clears the label column so the note starts where the tracks do. */
-  padding-left: calc(var(--lane-name-w) + var(--lane-gap));
-  color: var(--ink-muted);
-  font-size: var(--text-micro);
-  line-height: var(--leading-normal);
-}
 
 /*
  * Eight columns of fixed data, up to ten on a rules run — a graph and a pass

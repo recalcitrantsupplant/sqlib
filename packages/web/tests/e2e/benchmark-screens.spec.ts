@@ -79,7 +79,7 @@ test.describe('Benchmark plan', () => {
     await page.locator('[data-testid="benchmark-setting-failure"]').click();
     const detail = page.locator('[data-testid="benchmark-plan-detail"]');
     await expect(detail).toContainText('Failure policy');
-    await expect(detail).toContainText('never averaged into the statistic');
+    await expect(detail).toContainText('not in the timings');
   });
 });
 

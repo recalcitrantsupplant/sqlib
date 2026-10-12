@@ -75,6 +75,9 @@ const store = vi.hoisted(() => ({
 
 vi.mock('@/composables/useApiClient', () => ({ useApiClient: () => api }));
 vi.mock('@/composables/useBenchmarksStore', () => ({ useBenchmarksStore: () => store }));
+vi.mock('@/composables/useDeploymentMode', () => ({
+  useDeploymentMode: () => ({ isReadOnly: computed(() => false), ensureLoaded: async () => {} }),
+}));
 vi.mock('@/composables/useBenchmarkExecution', () => ({
   useBenchmarkExecution: () => ({ isExecuting: ref(false), executeRun: vi.fn() }),
 }));
@@ -489,7 +492,7 @@ describe('BenchmarkWorkArea — rule-set subjects', () => {
 
       const passes = area.get('[data-testid="benchmark-request-passes-detail"]');
       expect(passes.text()).toContain('5, 4');
-      expect(passes.text()).toContain('not measuring the same thing twice');
+      expect(passes.text()).toContain('did not do the same work');
     });
 
     /*

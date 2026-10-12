@@ -70,9 +70,7 @@ const GENERATORS = [
 
     <div class="panel-body">
       <InlineNote v-if="isNoArguments">
-        This axis entry runs each case once, unparameterised. It is a real axis
-        member — a benchmark comparing "with arguments" against "without" is two
-        entries, and the expansion count says so.
+        Each case runs once with no arguments.
       </InlineNote>
 
       <template v-else-if="loading">
@@ -97,12 +95,6 @@ const GENERATORS = [
               <component :is="generator.icon" :size="12" />{{ generator.name }}
             </span>
           </div>
-          <InlineNote>
-            Drawing from a live query is the design's recommendation, because
-            hand-written lists rot the moment the dataset moves and a benchmark
-            quietly measuring 50 cache misses is worse than no benchmark. Only
-            stored lists exist today.
-          </InlineNote>
         </section>
 
         <section class="block">
@@ -116,12 +108,6 @@ const GENERATORS = [
               <span class="setting-value">once per run</span>
             </span>
           </div>
-          <InlineNote>
-            Pinning a seed is what makes two runs comparable, and resolving once
-            per run — not once per request — is what gives every store the
-            identical values. A stored list satisfies both by construction; a
-            generator would need them explicitly.
-          </InlineNote>
         </section>
 
         <section class="block">
@@ -159,10 +145,6 @@ const GENERATORS = [
             <span v-for="item in usedBy" :key="item.id" class="used-row">{{ item.name }}</span>
           </div>
           <InlineNote v-else>No case in this benchmark takes these values.</InlineNote>
-          <InlineNote>
-            Argument sets are library objects, not properties of a case — that is
-            what makes "same inputs, different case" possible.
-          </InlineNote>
         </section>
       </template>
     </div>

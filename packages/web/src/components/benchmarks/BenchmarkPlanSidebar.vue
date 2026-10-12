@@ -210,7 +210,7 @@ function isSelected(kind: AxisKey, id: string) {
     </div>
     <div v-else class="expansion expansion-quiet">
       <span class="expansion-formula">
-        Timings and status are kept for every run. Result bodies are not kept yet.
+        Each run keeps timings and status, not result rows.
       </span>
     </div>
   </aside>

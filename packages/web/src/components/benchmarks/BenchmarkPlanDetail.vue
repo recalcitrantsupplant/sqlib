@@ -94,12 +94,7 @@ function number(event: Event): number | null {
 
     <!-- Backends -------------------------------------------------- -->
     <section v-if="kind === 'backends'" class="block">
-      <InlineNote>
-        A backend is defined once at account level — endpoint, flavour,
-        credentials — and attached to libraries. This axis offers what is
-        attached; creating one and managing attachments is an admin action on the
-        Backends screen.
-      </InlineNote>
+      <InlineNote>Backends attached to this library. Manage them on the Backends screen.</InlineNote>
       <FilterBox
         v-if="backendOptions.length > FILTER_FROM"
         v-model="backendFilter"
@@ -121,19 +116,12 @@ function number(event: Event): number | null {
         </label>
         <InlineNote v-if="backendOptions.length === 0">No backends yet.</InlineNote>
       </div>
-      <InlineNote>
-        Naming none runs each case against its query's own default backend, which
-        counts as one — not zero — in the expansion.
-      </InlineNote>
+      <InlineNote>With none selected, each case runs on its query's default backend.</InlineNote>
     </section>
 
     <!-- Argument sets --------------------------------------------- -->
     <section v-else-if="kind === 'argumentSets'" class="block">
-      <InlineNote>
-        One argument set binds to one or more query variables. Sets belong to
-        their target query, so a set is written onto the cases that can take it
-        and skipped on the rest.
-      </InlineNote>
+      <InlineNote>Each set applies only to the cases whose query declares its variables.</InlineNote>
       <FilterBox
         v-if="argumentOptions.length > FILTER_FROM"
         v-model="argumentFilter"
@@ -151,7 +139,7 @@ function number(event: Event): number | null {
           />
           <span class="option-dot option-dot-empty" />
           <span class="option-name">No arguments</span>
-          <span class="option-meta">run each case once, unparameterised</span>
+          <span class="option-meta">run each case once</span>
         </label>
         <label v-for="option in visibleArguments" :key="option.id" class="option">
           <input
@@ -172,11 +160,7 @@ function number(event: Event): number | null {
 
     <!-- Tuple sets ------------------------------------------------- -->
     <section v-else-if="kind === 'tupleSets'" class="block">
-      <InlineNote>
-        A rule set's tabular input is its tuple seeds, and a tuple set supplies
-        them — the same relationship an argument set has to a query. Naming one
-        here overrides the seeds the rule-set version stored, for that run only.
-      </InlineNote>
+      <InlineNote>A tuple set replaces the seeds stored in the rule-set version, for this run only.</InlineNote>
       <FilterBox
         v-if="tupleSetOptions.length > FILTER_FROM"
         v-model="tupleSetFilter"
@@ -194,7 +178,7 @@ function number(event: Event): number | null {
           />
           <span class="option-dot option-dot-empty" />
           <span class="option-name">Stored seeds</span>
-          <span class="option-meta">run each rule set with the seeds its version holds</span>
+          <span class="option-meta">use the version's own seeds</span>
         </label>
         <label v-for="option in visibleTupleSets" :key="option.id" class="option">
           <input
@@ -211,20 +195,12 @@ function number(event: Event): number | null {
           No tuple sets in the library yet.
         </InlineNote>
       </div>
-      <InlineNote>
-        A tuple set is named, not pinned: the run records which version it
-        resolved to, so a set published between two repeats cannot make one run
-        measure two different tables.
-      </InlineNote>
+      <InlineNote>The run records which tuple-set version it used.</InlineNote>
     </section>
 
     <!-- Data graphs ------------------------------------------------ -->
     <section v-else-if="kind === 'dataGraphs'" class="block">
-      <InlineNote>
-        The base graph a rule set runs over, and the axis worth having: a rule
-        set's cost is dominated by the graph, so sweeping one rule set across
-        graphs of growing size is the rules benchmark people actually want.
-      </InlineNote>
+      <InlineNote>The base graph each rule set runs over.</InlineNote>
       <FilterBox
         v-if="dataGraphOptions.length > FILTER_FROM"
         v-model="dataGraphFilter"
@@ -249,21 +225,13 @@ function number(event: Event): number | null {
         </InlineNote>
       </div>
       <InlineNote>
-        Naming none runs each rule set against an empty base graph, which is what
-        a rule set whose DATA blocks are its whole input wants — and it counts as
-        one, not zero, in the expansion. Graphs multiply with tuple sets rather
-        than pairing with them: three graphs and two seed sets is six runs.
+        With none selected, each rule set runs on an empty graph. Graphs multiply
+        with tuple sets: three graphs and two tuple sets give six runs.
       </InlineNote>
     </section>
 
     <!-- Load profile ---------------------------------------------- -->
     <section v-else-if="kind === 'loadProfiles'" class="block">
-      <InlineNote>
-        One profile reads as a constant. A second would promote load to an axis —
-        one case, one backend, four profiles at 1 / 4 / 12 / 32 clients is how
-        "latency under load" is expressed. The API stores one profile per
-        version, so there is one here.
-      </InlineNote>
       <div class="field-grid">
         <label class="field">
           <span class="field-label">Warmup runs</span>
@@ -287,7 +255,7 @@ function number(event: Event): number | null {
             :disabled="!editable"
             @change="emit('update-setting', { repeats: number($event) })"
           />
-          <span class="field-hint">this is the load multiplier</span>
+          <span class="field-hint">per request</span>
         </label>
         <label class="field">
           <span class="field-label">Clients</span>
@@ -314,39 +282,21 @@ function number(event: Event): number | null {
           <span class="field-hint">ms between runs</span>
         </label>
       </div>
-      <InlineNote>
-        Cache state is the single biggest source of benchmarks that cannot be
-        reproduced. It is neither controlled nor recorded yet.
-      </InlineNote>
+      <InlineNote>Cache state is not controlled or recorded.</InlineNote>
     </section>
 
     <!-- Statistic -------------------------------------------------- -->
     <section v-else-if="settingKey === 'statistic'" class="block">
       <div class="readout">p50 · p95 · p99</div>
-      <InlineNote>
-        A statistic is a way of reading captured data, not a thing that runs —
-        change it after the run and the numbers redraw with nothing re-executed.
-        These three are computed from the requests each run captured, which is
-        why there is nothing to save here.
-      </InlineNote>
-      <InlineNote>
-        Mean, fastest and slowest are deliberately not the headline: one GC pause
-        moves a mean, and nobody sizes hardware on a minimum.
-      </InlineNote>
+      <InlineNote>Computed from each run's recorded requests. Nothing to save.</InlineNote>
     </section>
 
     <!-- Equivalence ------------------------------------------------ -->
     <section v-else-if="settingKey === 'equivalence'" class="block">
       <div class="readout readout-absent">not checked</div>
       <InlineNote>
-        Comparing stores means comparing intents: a store can win a comparison by
-        answering wrongly. The check is a hash of the result rows against a
-        reference store's hash for the same case and argument.
-      </InlineNote>
-      <InlineNote>
-        The runner records neither, so no reference can be nominated yet. Until
-        it does, treat cross-store numbers on this benchmark as timings of
-        whatever each store happened to return.
+        The runner does not compare result rows between stores. A faster store
+        may have returned different rows.
       </InlineNote>
     </section>
 
@@ -399,11 +349,7 @@ function number(event: Event): number | null {
           <span class="field-label">Abort the run on the first error</span>
         </label>
       </div>
-      <InlineNote>
-        Failures are counted, never averaged into the statistic. A timed-out
-        request contributes a sample that describes the timeout setting rather
-        than the store.
-      </InlineNote>
+      <InlineNote>Failed requests are counted but are not in the timings.</InlineNote>
     </section>
 
     <!-- Execution order -------------------------------------------- -->
@@ -440,11 +386,7 @@ function number(event: Event): number | null {
           <span class="field-label">Randomise the order</span>
         </label>
       </div>
-      <InlineNote>
-        Interleaved and randomised is the design's default. Running all of store
-        A and then all of store B measures the time of day as much as the stores
-        — and the run timeline is where you check it actually happened.
-      </InlineNote>
+      <InlineNote>Randomised order spreads time-of-day effects across stores.</InlineNote>
     </section>
   </div>
 </template>

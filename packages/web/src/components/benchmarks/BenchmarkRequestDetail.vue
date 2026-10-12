@@ -128,9 +128,7 @@ const passTitle = (pass: PassProfile['passes'][number]) => {
     </div>
 
     <div class="panel-body">
-      <InlineNote v-if="!request">
-        Pick a row in the requests table to see where its time went.
-      </InlineNote>
+      <InlineNote v-if="!request">Select a row in the requests table.</InlineNote>
 
       <template v-else>
         <section class="block">
@@ -157,26 +155,15 @@ const passTitle = (pass: PassProfile['passes'][number]) => {
                 <span class="phase-ms">{{ formatMs(phase.ms) }}</span>
               </span>
             </div>
-            <InlineNote>
-              The store's own time against everything else — connection setup,
-              transferring rows, parsing them. DNS, connect and TLS are not timed
-              separately yet, so they sit inside the second bar.
-            </InlineNote>
+            <InlineNote>DNS, connect and TLS time is in the second bar.</InlineNote>
           </template>
 
           <template v-else>
             <div class="phase-bar">
               <span class="phase-slice phase-server phase-full" />
             </div>
-            <InlineNote v-if="passes">
-              A rule set runs in-process against an ephemeral store, so there is
-              no store time to hold against a transfer. Its breakdown is the
-              fixpoint loop below.
-            </InlineNote>
-            <InlineNote v-else>
-              Only the total is timed for this request — the store did not report
-              its own duration, so there is nothing to split.
-            </InlineNote>
+            <InlineNote v-if="passes">See the passes below.</InlineNote>
+            <InlineNote v-else>The store did not report its own time, so only the total is shown.</InlineNote>
           </template>
         </section>
 
@@ -215,15 +202,9 @@ const passTitle = (pass: PassProfile['passes'][number]) => {
             </span>
           </div>
 
-          <InlineNote>
-            One row per pass of the loop, longest bar the slowest. The number on
-            the right is what that pass <em>derived</em> — deltas falling away is
-            convergence; deltas flat while the times climb is a rule set
-            re-deriving what it already has.
-          </InlineNote>
+          <InlineNote>The right column is the triples each pass derived.</InlineNote>
           <InlineNote v-if="outsideLoopMs != null">
-            {{ formatMs(outsideLoopMs) }} of the request sits outside the loop —
-            seeding the store and reading the result back.
+            {{ formatMs(outsideLoopMs) }} is outside the loop: seeding the store and reading the result.
           </InlineNote>
 
           <!--
@@ -234,9 +215,8 @@ const passTitle = (pass: PassProfile['passes'][number]) => {
           <div v-if="passes.countsVary" class="warning-strip">
             <TriangleAlert :size="13" class="warning-icon" />
             <span class="warning-text">
-              Repeats of this request took {{ repeatCountsLabel }} passes. A rule
-              set that needs a different number of passes each time was not
-              measuring the same thing twice.
+              Repeats of this request took {{ repeatCountsLabel }} passes, so they
+              did not do the same work.
             </span>
           </div>
           <InlineNote v-else-if="passes.repeatCounts.length > 1">
@@ -292,21 +272,13 @@ const passTitle = (pass: PassProfile['passes'][number]) => {
             and is expensive to retrofit. A rules request adds its graph above,
             which has no production counterpart and so is not one of them.
           -->
-          <InlineNote>
-            library · case · query version · backend · argument set — the same
-            attributes a production span would carry.
-          </InlineNote>
         </section>
 
         <section class="block">
           <span class="block-label">Sent</span>
           <pre v-if="sent" class="code-block">{{ sent }}</pre>
           <InlineNote v-else>The query text for this case is not loaded.</InlineNote>
-          <InlineNote>
-            The case's query as stored. Argument binding is done by the runner
-            and the bound text is not kept, so this is the query before its
-            values were substituted.
-          </InlineNote>
+          <InlineNote>The stored query, before argument values were substituted.</InlineNote>
         </section>
 
         <section class="block">
@@ -332,15 +304,9 @@ const passTitle = (pass: PassProfile['passes'][number]) => {
         <div v-if="!request.ok" class="warning-strip">
           <TriangleAlert :size="13" class="warning-icon" />
           <span class="warning-text">
-            {{ request.errorMessage || 'The request failed. It is counted, not averaged into the statistic.' }}
+            {{ request.errorMessage || 'The request failed. It is not in the timings.' }}
           </span>
         </div>
-
-        <InlineNote>
-          The equivalence diff — which rows this store returned that the
-          reference did not — needs a result hash and the kept body of a
-          mismatching response. Neither is recorded yet.
-        </InlineNote>
       </template>
     </div>
   </div>

@@ -67,7 +67,9 @@ export const MUTATING_METHODS: readonly string[] = ['POST', 'PUT', 'PATCH', 'DEL
  * - `POST /etl-jobs/preview` and `POST /playground/etl/execute` take arbitrary
  *   DuckDB SQL, a host filesystem read primitive. Their own flags default off;
  *   this makes turning a flag on insufficient to expose them here too.
- * - The benchmark runs record what they did.
+ * - The benchmark runs record what they did. Skipping the record, as the test
+ *   runs do, would still let any visitor start a run of up to thousands of
+ *   requests against the deployment's backends, so the route stays refused.
  *
  * `POST /tests/run` and `POST /tests/:id/run` are here, and the recording they
  * used to do is skipped instead: `recordTestRuns` returns without writing on a

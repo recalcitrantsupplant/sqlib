@@ -1558,8 +1558,6 @@ describe('InlineNote', () => {
       'recoloured by the thirteenth pass; "these multiply" beside a zone rule',
     'components/benchmarks/BenchmarkRunView.vue: .summary-note':
       'recoloured by the thirteenth pass; the note beside a summary cell value',
-    'components/benchmarks/BenchmarkRunView.vue: .timeline-note':
-      'recoloured by the thirteenth pass; carries the lane indent — see the comment at the rule',
     'components/query-work-area/TermTypeMenuItems.vue: <style scoped> .type-note':
       'written at the dense step on a parallel branch; a sentence, waiting on the conversion',
   };

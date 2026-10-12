@@ -10,11 +10,12 @@
  * with no warning. These are the same seven invariants the other
  * `*.drafts.test.ts` files pin, so the claim is checked rather than asserted.
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import { ref, computed } from 'vue';
 import type { CallableDraft } from '@/composables/useCallableDrafts';
 import { NO_ARGUMENTS_IRI } from '@/lib/benchmarkPlan';
+import { resetDeploymentMode, useDeploymentMode } from '@/composables/useDeploymentMode';
 
 const EXPERIMENT_ID = 'urn:sqlib:benchmark:e1';
 const QUERY_ID = 'urn:sqlib:query:q1';
@@ -152,6 +153,25 @@ async function edit(area: Area, nextRepeats: number) {
   vi.advanceTimersByTime(600);
   await flushPromises();
 }
+
+/** `/health` as the deployment answers it, so no test reaches the network. */
+async function deploymentIs(readOnly: boolean) {
+  resetDeploymentMode();
+  vi.stubGlobal('fetch', vi.fn(async () =>
+    new Response(JSON.stringify({ status: 'ok', readOnly }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    })));
+  await useDeploymentMode().ensureLoaded();
+}
+
+beforeEach(async () => {
+  await deploymentIs(false);
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -323,5 +343,23 @@ describe('BenchmarkWorkArea — drafts', () => {
     expect(drafts.records.get(EXPERIMENT_ID)).toMatchObject({ section: 'bench' });
     expect((drafts.records.get(EXPERIMENT_ID)?.body as { description?: string }).description)
       .toBe('Now also under a cold cache');
+  });
+});
+
+describe('BenchmarkWorkArea — read-only deployment', () => {
+  it('turns off Run, because the API refuses benchmark runs there', async () => {
+    await deploymentIs(true);
+    const area = await mountSaved();
+
+    const run = area.get('[data-testid="run-bar-run"]');
+    expect(run.attributes('disabled')).toBeDefined();
+    expect(run.attributes('title')).toContain('read-only');
+  });
+
+  it('offers Run on a deployment that keeps runs', async () => {
+    await deploymentIs(false);
+    const area = await mountSaved();
+
+    expect(area.get('[data-testid="run-bar-run"]').attributes('disabled')).toBeUndefined();
   });
 });

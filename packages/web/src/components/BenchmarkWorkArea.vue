@@ -44,6 +44,7 @@ import { toast } from 'vue-sonner';
 import type { BenchmarkExperimentVersion } from '@sparql-query-lib/contracts';
 import { useBenchmarksStore } from '@/composables/useBenchmarksStore';
 import { useBenchmarkExecution } from '@/composables/useBenchmarkExecution';
+import { useDeploymentMode } from '@/composables/useDeploymentMode';
 import { useBackendsStore } from '@/composables/useBackendsStore';
 import { useQueriesStore } from '@/composables/useQueriesStore';
 import { useQueryGroupsStore } from '@/composables/useQueryGroupsStore';
@@ -680,10 +681,10 @@ const groups = computed<AxisGroupView[]>(() => {
        * never appear in a run.
        */
       hint: onlyRuleSetCases.value
-        ? 'rule sets evaluate in-process — this axis multiplies query cases only'
+        ? 'applies to query cases only'
         : plan.value.backendIds.length === 0
-          ? 'none named — each case runs against its query’s default backend'
-          : 'only backends attached to this library can be named',
+          ? 'none: each case uses its default backend'
+          : undefined,
       items: plan.value.backendIds.map((id) => ({
         id,
         name: backendName(id),
@@ -697,7 +698,7 @@ const groups = computed<AxisGroupView[]>(() => {
       addLabel: 'set',
       canAdd: true,
       hint: plan.value.argumentSetIds.length === 0
-        ? 'none named — each case runs once, unparameterised'
+        ? 'none: each case runs once'
         : undefined,
       items: plan.value.argumentSetIds.map((id) => ({
         id,
@@ -721,7 +722,7 @@ const groups = computed<AxisGroupView[]>(() => {
       addLabel: 'tuple set',
       canAdd: true,
       hint: plan.value.tupleSetIds.length === 0
-        ? 'none named — each rule set runs the seeds its version stored'
+        ? 'none: each rule set uses its own seeds'
         : undefined,
       items: plan.value.tupleSetIds.map((id) => ({
         id,
@@ -736,7 +737,7 @@ const groups = computed<AxisGroupView[]>(() => {
       addLabel: 'graph',
       canAdd: true,
       hint: plan.value.dataGraphIds.length === 0
-        ? 'none named — each rule set runs against an empty base graph'
+        ? 'none: each rule set runs on an empty graph'
         : undefined,
       items: plan.value.dataGraphIds.map((id) => ({
         id,
@@ -752,7 +753,6 @@ const groups = computed<AxisGroupView[]>(() => {
     multiplier: `× ${count('repeats')}`,
     addLabel: 'profile',
     canAdd: false,
-    hint: 'one profile is a constant — a second would make load an axis, which the API cannot store yet',
     items: [{
       id: 'profile',
       name: `${plan.value.settings.warmupRuns ?? 0} warmup, ${plan.value.settings.repeats ?? 1}× ${plan.value.settings.executionStrategy || 'sequential'}`,
@@ -1312,7 +1312,20 @@ async function saveVersion() {
   }
 }
 
-const canRun = computed(() => Boolean(props.experimentId && selectedVersionNumber.value != null));
+/*
+ * A read-only deployment refuses the run route: a public site that runs
+ * benchmarks on request lets any visitor generate load against its backends.
+ */
+const deployment = useDeploymentMode();
+void deployment.ensureLoaded();
+
+const canRun = computed(() => !deployment.isReadOnly.value
+  && Boolean(props.experimentId && selectedVersionNumber.value != null));
+
+const runTitle = computed(() => {
+  if (deployment.isReadOnly.value) return 'Benchmarks do not run on a read-only deployment';
+  return canRun.value ? 'Run this version now' : 'Save a version before running it';
+});
 
 /* ------------------------------------------------------------- inspector */
 
@@ -1634,7 +1647,7 @@ const runSubtitle = computed(() => {
       <RunBar
         :running="executionStore.isExecuting.value"
         :run-disabled="!canRun"
-        :run-title="canRun ? 'Run this version now' : 'Save a version before running it'"
+        :run-title="runTitle"
         :inputs="runInputs"
         :backend-picks="runBackendPicks"
         @run="runBenchmark"
