@@ -46,6 +46,9 @@ every other page assumes.
   conversation can run (MCP connector, in-app with a user's key, hosted on
   sqlib's key, local on a user's subscription), why hosted-plus-subscription is
   not one of them, and which code serves each.
+- [proposals/benchmark-argument-sources.md](proposals/benchmark-argument-sources.md)
+  — where a benchmark's argument values come from, how a run selects among
+  them, and why a read-only deployment does not run benchmarks.
 
 ## Examples
 
