@@ -4,6 +4,15 @@ import { Position } from '@vue-flow/core';
 import type { Node, Edge } from '@vue-flow/core';
 import type { QueryVersionExpanded } from '@sparql-query-lib/contracts';
 import {
+  canvasDirectionOf,
+  completeCanvasLayout,
+  hasCanvasPosition,
+  parseCanvasSnapshot,
+  type CanvasDirection,
+  type CanvasNodeKind,
+  type CanvasSnapshot,
+} from '@sparql-query-lib/contracts/canvas';
+import {
   graphStateToFlatPayload,
   type GraphEdgeState,
   type GraphNodeState,
@@ -42,6 +51,17 @@ export const LEFT_TO_RIGHT_HANDLES = {
   targetPosition: Position.Left,
 } as const;
 
+/**
+ * The handle sides for a canvas laid out in `direction`. Every node on one
+ * canvas uses the same pair: a top-to-bottom layout whose nodes still join
+ * left to right sends each edge out of one card's flank and round to the next
+ * card's underside.
+ */
+export const handlesFor = (direction: CanvasDirection) =>
+  direction === 'LR' || direction === 'RL'
+    ? LEFT_TO_RIGHT_HANDLES
+    : { sourcePosition: Position.Bottom, targetPosition: Position.Top };
+
 const DEFAULT_LANE_ORDER: Record<GraphNodeState['kind'], number> = {
   start: 0,
   query: 1,
@@ -58,33 +78,6 @@ const BASE_POSITION = {
 
 const COLUMN_WIDTH = 260;
 const ROW_HEIGHT = 180;
-
-type SerializableNode = {
-  id: string;
-  position: { x: number; y: number };
-  width?: number;
-  height?: number;
-  /*
-   * The name the author typed for this node, when they typed one.
-   *
-   * It rides the canvas snapshot rather than the graph payload because the
-   * execution-node contract has no field for it (`executionNodeDraftSchema` is
-   * `.strict()`), and because it is the same kind of fact as a node's position:
-   * how this canvas is drawn, owned by the editor rather than by the group that
-   * runs. Absent for a node nobody has named, so an old snapshot and an unnamed
-   * node are the same thing to read back.
-   */
-  label?: string;
-};
-
-type CanvasSnapshot = {
-  nodes: SerializableNode[];
-  viewport: {
-    zoom: number;
-    panX: number;
-    panY: number;
-  };
-};
 
 /**
  * VueFlow measures rendered nodes and writes `dimensions` back onto them, but
@@ -164,42 +157,47 @@ const normalizeBackendId = (backendId: string | null) => {
 type SavedCanvasState = {
   positions: Map<string, { x: number; y: number }>;
   labels: Map<string, string>;
+  direction: CanvasDirection;
 };
 
+const canvasNodeKind = (node: GraphNodeState): CanvasNodeKind =>
+  node.kind === 'start' || node.kind === 'end' ? node.kind : 'step';
+
 /**
- * Parse the canvas snapshot into what it says about each node: where it sits,
- * and what the author named it.
+ * Read the canvas snapshot for what it says about each node: where it sits, and
+ * what the author named it.
  *
- * Each is read on its own terms, so a snapshot written before labels were in it
- * still restores its positions, and a malformed label does not cost a node its
- * position.
+ * A version stored without positions for every node — one generated over the
+ * API before the API laid such versions out — is laid out here, the same way
+ * the API would have done it. That is a way of drawing the version, not an
+ * edit to it: nothing is saved unless the author saves.
+ *
+ * Each field is read on its own terms, so a snapshot written before labels
+ * were in it still restores its positions, and a malformed label does not cost
+ * a node its position.
  */
-const parseCanvasData = (canvasDataString: string | null | undefined): SavedCanvasState => {
-  const saved: SavedCanvasState = { positions: new Map(), labels: new Map() };
-
-  if (!canvasDataString || typeof canvasDataString !== 'string') {
-    return saved;
-  }
-
-  try {
-    const canvasData = JSON.parse(canvasDataString) as CanvasSnapshot;
-    if (canvasData?.nodes && Array.isArray(canvasData.nodes)) {
-      for (const node of canvasData.nodes) {
-        if (!node.id) {
-          continue;
-        }
-        if (node.position && typeof node.position.x === 'number' && typeof node.position.y === 'number') {
-          saved.positions.set(node.id, { x: node.position.x, y: node.position.y });
-        }
-        if (typeof node.label === 'string' && node.label.trim().length > 0) {
-          saved.labels.set(node.id, node.label.trim());
-        }
-      }
+const parseCanvasData = (
+  canvasDataString: string | null | undefined,
+  graphState: QueryGroupGraphState,
+): SavedCanvasState => {
+  const completed = completeCanvasLayout(canvasDataString ?? null, {
+    nodes: graphState.nodes.map((node) => ({ id: node.id, kind: canvasNodeKind(node) })),
+    edges: graphState.edges,
+  });
+  const snapshot = parseCanvasSnapshot(completed);
+  const saved: SavedCanvasState = {
+    positions: new Map(),
+    labels: new Map(),
+    direction: canvasDirectionOf(snapshot),
+  };
+  for (const node of snapshot?.nodes ?? []) {
+    if (hasCanvasPosition(node)) {
+      saved.positions.set(node.id, { x: node.position.x, y: node.position.y });
     }
-  } catch (error) {
-    console.warn('[parseCanvasData] Failed to parse canvas data:', error);
+    if (typeof node.label === 'string' && node.label.trim().length > 0) {
+      saved.labels.set(node.id, node.label.trim());
+    }
   }
-
   return saved;
 };
 
@@ -232,9 +230,13 @@ export function useQueryGroupGraphState(
   const laneOrder = { ...DEFAULT_LANE_ORDER };
 
   // Saved positions and saved names for the initial state, if it carries any.
-  const initialSaved = parseCanvasData(initialGraphState.version?.canvasData);
+  const initialSaved = parseCanvasData(initialGraphState.version?.canvasData, initialGraphState);
   const currentGraphState = ref<QueryGroupGraphState>(withSavedLabels(initialGraphState, initialSaved.labels));
-  const nodes = deepRef<Node[]>(convertNodesToVueFlow(currentGraphState.value, laneOrder, initialSaved.positions));
+  /** The way the canvas is laid out, which decides every node's handle sides. */
+  const canvasDirection = ref<CanvasDirection>(initialSaved.direction);
+  const nodes = deepRef<Node[]>(
+    convertNodesToVueFlow(currentGraphState.value, laneOrder, initialSaved.positions, initialSaved.direction),
+  );
   const edges = deepRef<Edge[]>(toVueFlowEdges(currentGraphState.value.edges));
 
   const selectedNodeId = ref<string | null>(null);
@@ -320,10 +322,11 @@ watch(selectedCanvasObject, (selection) => {
 
   const applyGraphState = (graphState: QueryGroupGraphState) => {
     // Saved canvas positions and node names from canvasData, if it has any.
-    const saved = parseCanvasData(graphState.version?.canvasData);
+    const saved = parseCanvasData(graphState.version?.canvasData, graphState);
     const named = withSavedLabels(graphState, saved.labels);
     currentGraphState.value = named;
-    nodes.value = convertNodesToVueFlow(named, laneOrder, saved.positions);
+    canvasDirection.value = saved.direction;
+    nodes.value = convertNodesToVueFlow(named, laneOrder, saved.positions, saved.direction);
     edges.value = toVueFlowEdges(graphState.edges);
     clearSelection();
   };
@@ -725,6 +728,7 @@ watch(selectedCanvasObject, (selection) => {
         panX: 0,
         panY: 0,
       },
+      direction: canvasDirection.value,
     };
     return JSON.stringify(snapshot);
   };
@@ -745,6 +749,7 @@ watch(selectedCanvasObject, (selection) => {
     updateGraphEdges,
     toFlatPayload,
     serializeCanvasSnapshot,
+    canvasDirection,
     updateNodeLabel,
     updateNodeBackend,
     updateNodeMediaType,
@@ -835,6 +840,7 @@ function convertNodesToVueFlow(
   graphState: QueryGroupGraphState,
   laneOrder: Record<GraphNodeState['kind'], number>,
   savedPositions?: Map<string, { x: number; y: number }>,
+  direction: CanvasDirection = 'LR',
 ): Node[] {
   const laneCounters: Record<number, number> = {};
 
@@ -863,7 +869,7 @@ function convertNodesToVueFlow(
       id: graphNode.id,
       type: nodeType,
       position,
-      ...LEFT_TO_RIGHT_HANDLES,
+      ...handlesFor(direction),
       label: data.label,
       deletable: graphNode.kind !== 'start' && graphNode.kind !== 'end',
       data,

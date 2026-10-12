@@ -517,7 +517,7 @@ import {
 import QueryResultsViewer from './QueryResultsViewer.vue';
 import { toast } from 'vue-sonner';
 import { usePanelResize } from '../composables/usePanelResize';
-import { buildCanvasNodeData, LEFT_TO_RIGHT_HANDLES, useQueryGroupGraphState } from '../composables/useQueryGroupGraphState';
+import { buildCanvasNodeData, handlesFor, useQueryGroupGraphState } from '../composables/useQueryGroupGraphState';
 import { authoredNodeLabel } from '../composables/queryGroupNodeLabel';
 import { useQueryGroupIO } from '../composables/useQueryGroupIO';
 import { useQueryGroupExecution } from '../composables/useQueryGroupExecution';
@@ -529,6 +529,7 @@ import { useQueryGroupLiveValidation } from '../composables/useQueryGroupLiveVal
 import { useCanvasExecutionStatus } from '../composables/useCanvasExecutionStatus';
 import { useAutoLayout } from '../composables/useAutoLayout';
 import type { LayoutPoint } from '../composables/useAutoLayout';
+import { DEFAULT_CANVAS_LAYOUT } from '@sparql-query-lib/contracts/canvas';
 import { useScratchRecord } from '../composables/useScratchRecord';
 import { useCallableDrafts } from '../composables/useCallableDrafts';
 import { useArgumentSetDrafts } from '../composables/useArgumentSetDrafts';
@@ -1915,10 +1916,10 @@ const drawAddedNode = (graphNode: GraphNodeState, position?: { x: number; y: num
   nodes.value.push({
     id: graphNode.id,
     // The same type and handle sides the graph loader gives a node: a node added
-    // here used to come back as a plain default box with top and bottom handles,
+    // here used to come back as a plain default box with handles of its own,
     // which is one canvas drawn to two conventions.
     type: 'query-group-node',
-    ...LEFT_TO_RIGHT_HANDLES,
+    ...handlesFor(graph.canvasDirection.value),
     position: position ?? { x: 300, y: 80 + (executionNodeCount - 1) * 180 },
     label: data.label,
     deletable: true,
@@ -2132,9 +2133,23 @@ const onConnect = (params: Connection) => {
   }
 };
 
-/** How far to the right of its source a new step lands, and how far apart siblings stack. */
+/**
+ * How far past its source a new step lands, and how far apart siblings stack.
+ * Left to right, the next step is a column over and siblings stack downwards;
+ * top to bottom, it is a row down and siblings stack across.
+ */
 const STEP_OFFSET_X = 320;
 const STEP_STACK_Y = 180;
+const STEP_OFFSET_Y = 180;
+const STEP_STACK_X = 340;
+
+const canvasRunsAcross = () => graph.canvasDirection.value === 'LR' || graph.canvasDirection.value === 'RL';
+
+/** The point `rank` steps along the flow and `lane` steps across it from `origin`. */
+const flowPosition = (origin: { x: number; y: number }, rank: number, lane: number) =>
+  canvasRunsAcross()
+    ? { x: origin.x + rank * STEP_OFFSET_X, y: origin.y + lane * STEP_STACK_Y }
+    : { x: origin.x + lane * STEP_STACK_X, y: origin.y + rank * STEP_OFFSET_Y };
 
 /** Where a template's first column and first row land on a fresh canvas. */
 const TEMPLATE_ORIGIN_X = 320;
@@ -2169,10 +2184,9 @@ const startFromTemplate = (template: CanvasTemplate) => {
 
   steps.forEach((step, index) => {
     const placement = template.steps[index];
-    drawAddedNode(step, {
-      x: TEMPLATE_ORIGIN_X + placement.column * STEP_OFFSET_X,
-      y: TEMPLATE_ORIGIN_Y + placement.row * STEP_STACK_Y,
-    });
+    // A template's columns are its steps in order and its rows are siblings,
+    // so they follow the flow on whichever way the canvas runs.
+    drawAddedNode(step, flowPosition({ x: TEMPLATE_ORIGIN_X, y: TEMPLATE_ORIGIN_Y }, placement.column, placement.row));
   });
 
   // The first step is what the author acts on next, so it keeps the selection
@@ -2196,8 +2210,8 @@ const startFromTemplate = (template: CanvasTemplate) => {
 };
 
 /**
- * Where a step drawn from `sourceId` goes: one column to its right, dropped
- * down a row at a time until the spot is free.
+ * Where a step drawn from `sourceId` goes: one step further along the flow,
+ * moved across it a lane at a time until the spot is free.
  *
  * A fan-out is the ordinary case — two steps from one source — and landing the
  * second exactly on the first would hide it under a node the author would then
@@ -2207,12 +2221,15 @@ const positionForStep = (sourceId: string) => {
   const source = nodes.value.find((node) => node.id === sourceId);
   if (!source) return undefined;
 
-  const x = source.position.x + STEP_OFFSET_X;
-  let y = source.position.y;
-  while (nodes.value.some((node) => Math.abs(node.position.x - x) < 40 && Math.abs(node.position.y - y) < 120)) {
-    y += STEP_STACK_Y;
+  const taken = (spot: { x: number; y: number }) =>
+    nodes.value.some((node) => Math.abs(node.position.x - spot.x) < 40 && Math.abs(node.position.y - spot.y) < 120);
+  let lane = 0;
+  let spot = flowPosition(source.position, 1, lane);
+  while (taken(spot)) {
+    lane += 1;
+    spot = flowPosition(source.position, 1, lane);
   }
-  return { x, y };
+  return spot;
 };
 
 /**
@@ -2314,17 +2331,23 @@ const { layout: applyAutoLayout } = useAutoLayout();
  * its dependencies allow.
  */
 const layoutPresets = [
-  {
-    id: 'flow-lr',
-    label: 'Flow, left to right',
-    hint: 'Balanced ranks. Best general choice.',
-    options: { direction: 'LR' as const, ranker: 'network-simplex' as const, rankSep: 140, nodeSep: 70 },
-  },
+  /*
+   * Top to bottom first, and the default: it is how a version stored without
+   * positions is laid out (DEFAULT_CANVAS_LAYOUT), so "Tidy up" on such a
+   * group changes nothing, and a query card is wider than it is tall, so a
+   * chain of them reads down the page in less width than across it.
+   */
   {
     id: 'flow-tb',
     label: 'Flow, top to bottom',
-    hint: 'Same ranks, stacked. Good for tall, narrow graphs.',
-    options: { direction: 'TB' as const, ranker: 'network-simplex' as const, rankSep: 110, nodeSep: 80 },
+    hint: 'Balanced ranks. Best general choice.',
+    options: { ...DEFAULT_CANVAS_LAYOUT, direction: 'TB' as const, ranker: 'network-simplex' as const },
+  },
+  {
+    id: 'flow-lr',
+    label: 'Flow, left to right',
+    hint: 'Same ranks, side by side. Good for short, wide graphs.',
+    options: { direction: 'LR' as const, ranker: 'network-simplex' as const, rankSep: 140, nodeSep: 70 },
   },
   {
     id: 'compact',
@@ -2345,14 +2368,14 @@ type LayoutPresetId = (typeof layoutPresets)[number]['id'];
 const LAYOUT_PRESET_STORAGE_KEY = 'sqlib:queryGroupLayoutPreset';
 
 const readStoredLayoutPreset = (): LayoutPresetId => {
-  if (typeof window === 'undefined') return 'flow-lr';
+  if (typeof window === 'undefined') return 'flow-tb';
   try {
     const stored = window.localStorage.getItem(LAYOUT_PRESET_STORAGE_KEY);
     const match = layoutPresets.find((preset) => preset.id === stored);
-    return match?.id ?? 'flow-lr';
+    return match?.id ?? 'flow-tb';
   } catch {
     // A blocked localStorage costs a remembered preference, nothing more.
-    return 'flow-lr';
+    return 'flow-tb';
   }
 };
 
@@ -2392,6 +2415,9 @@ const autoLayoutCanvas = (presetId: LayoutPresetId = layoutPresetId.value) => {
     ...preset.options,
     withEdgePoints: true,
   });
+
+  // Saved with the positions, so the handles come back on the same sides.
+  graph.canvasDirection.value = preset.options.direction;
 
   const laidOutById = new Map(laidOut.map((node) => [node.id, node]));
   for (const node of nodes.value) {

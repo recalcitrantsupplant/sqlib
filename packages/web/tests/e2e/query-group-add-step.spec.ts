@@ -58,7 +58,12 @@ test('adds the next query and the edge feeding it in one click', async ({ page }
   await expect(page.getByTestId('node-query-select')).toBeVisible();
 });
 
-test('lands the step to the right of the node it follows, not on top of it', async ({ page }) => {
+/*
+ * The mocked group is stored without positions, so it is drawn top to bottom
+ * (DEFAULT_CANVAS_LAYOUT): the next step lands below its source, and siblings
+ * stack across.
+ */
+test('lands the step below the node it follows, not on top of it', async ({ page }) => {
   await openGroupCanvas(page);
   await selectQueryNode(page, QUERY_NODE_ID);
   const sourceBox = await page.locator(`[data-id="${QUERY_NODE_ID}"]`).boundingBox();
@@ -67,7 +72,7 @@ test('lands the step to the right of the node it follows, not on top of it', asy
   const stepBox = await draftNodes(page).boundingBox();
 
   if (!sourceBox || !stepBox) throw new Error('A node is not on screen');
-  expect(stepBox.x).toBeGreaterThan(sourceBox.x);
+  expect(stepBox.y).toBeGreaterThan(sourceBox.y);
 });
 
 test('stacks a second step from the same node rather than hiding it under the first', async ({ page }) => {
@@ -86,11 +91,11 @@ test('stacks a second step from the same node rather than hiding it under the fi
   await expect(draftNodes(page)).toHaveCount(2);
   const secondBox = await draftNodes(page).nth(1).boundingBox();
   if (!sourceBox || !firstBox || !secondBox) throw new Error('A node is not on screen');
-  // Both in the source's next column, one below the other — asserted together,
+  // Both in the source's next row, one beside the other — asserted together,
   // because "somewhere else on the canvas" would also satisfy the second half.
-  expect(secondBox.x).toBeGreaterThan(sourceBox.x);
-  expect(Math.round(secondBox.x)).toBe(Math.round(firstBox.x));
-  expect(Math.abs(secondBox.y - firstBox.y)).toBeGreaterThan(20);
+  expect(secondBox.y).toBeGreaterThan(sourceBox.y);
+  expect(Math.round(secondBox.y)).toBe(Math.round(firstBox.y));
+  expect(Math.abs(secondBox.x - firstBox.x)).toBeGreaterThan(20);
 });
 
 test('says what the edge carries, which from a query node is execution order', async ({ page }) => {

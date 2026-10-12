@@ -6,6 +6,7 @@ import type {
   QueryGroupVersionForGroupCreateInput,
 } from '@sparql-query-lib/contracts';
 import type { SparqlResults } from '@sparql-query-lib/types';
+import type { CanvasDirection } from '@sparql-query-lib/contracts/canvas';
 import type { useApiClient } from './useApiClient';
 import type { useQueryGroupsStore } from './useQueryGroupsStore';
 import type { useBackendsStore } from './useBackendsStore';
@@ -125,6 +126,8 @@ export interface UseQueryGroupGraphStateResult {
   updateGraphEdges: (updater: (edges: GraphEdgeState[]) => GraphEdgeState[]) => void;
   toFlatPayload: () => FlatGraphPayload;
   serializeCanvasSnapshot: () => string | null;
+  /** The way the canvas is laid out; saved with it, and what its handles follow. */
+  canvasDirection: Ref<CanvasDirection>;
   updateNodeLabel: (nodeId: string, label: string) => void;
   updateNodeBackend: (nodeId: string, backendId: string | null) => void;
   updateNodeMediaType: (nodeId: string, mediaType: string | null) => void;

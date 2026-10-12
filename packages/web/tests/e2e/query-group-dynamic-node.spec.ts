@@ -69,16 +69,16 @@ async function addDynamicQueryNode(page: Page): Promise<string> {
  * other node's handle; nothing short of a real drag gets there, because the
  * connection is built from pointer events on the pane rather than from a click
  * on either end. The handles carry no ids here (`QueryGroupCanvasNode` renders
- * one of each), so they are addressed by the side the left-to-right layout puts
- * them on: source right, target left.
+ * one of each), so they are addressed by role rather than by the side the
+ * layout puts them on, which follows the canvas's direction.
  *
  * The intermediate move matters. A single jump from press to release leaves
  * VueFlow with no pointermove over the target handle, so `onConnect` never
  * fires and the drag is discarded silently.
  */
 async function connectNodes(page: Page, sourceNodeId: string, targetNodeId: string) {
-  const source = page.locator(`[data-id="${sourceNodeId}"] .vue-flow__handle-right`).first();
-  const target = page.locator(`[data-id="${targetNodeId}"] .vue-flow__handle-left`).first();
+  const source = page.locator(`[data-id="${sourceNodeId}"] .vue-flow__handle.source`).first();
+  const target = page.locator(`[data-id="${targetNodeId}"] .vue-flow__handle.target`).first();
   const from = await source.boundingBox();
   const to = await target.boundingBox();
   if (!from || !to) throw new Error(`No handle to drag between ${sourceNodeId} and ${targetNodeId}`);

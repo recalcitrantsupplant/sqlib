@@ -8,6 +8,7 @@ export default defineConfig({
   plugins: [vue()],
   resolve: {
     alias: {
+      '@sparql-query-lib/contracts/canvas': path.resolve(__dirname, '../contracts/src/canvas.ts'),
       '@sparql-query-lib/contracts': path.resolve(__dirname, '../contracts/src/index.ts'),
       '@sparql-query-lib/types': path.resolve(__dirname, '../types/src/index.ts'),
       '@sparql-query-lib/runtime/args-element': path.resolve(__dirname, '../runtime/src/args-element.ts'),

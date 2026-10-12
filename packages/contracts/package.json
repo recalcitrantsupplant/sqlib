@@ -22,16 +22,22 @@
     "./iri": {
       "import": "./dist/iri.js",
       "require": "./dist/iri.cjs"
+    },
+    "./canvas": {
+      "import": "./dist/canvas.js",
+      "require": "./dist/canvas.cjs"
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts src/schema/index.ts src/schema/routes.ts src/iri.ts --format esm,cjs --clean false && tsc --project tsconfig.json --emitDeclarationOnly",
+    "build": "tsup src/index.ts src/schema/index.ts src/schema/routes.ts src/iri.ts src/canvas.ts --format esm,cjs --clean false && tsc --project tsconfig.json --emitDeclarationOnly",
     "test": "echo 'TODO: add tests'"
   },
   "dependencies": {
+    "dagre": "^0.8.5",
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@types/dagre": "^0.7.54",
     "tsup": "^8.5.1",
     "typescript": "^7.0.2"
   }

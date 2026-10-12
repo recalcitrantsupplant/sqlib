@@ -23,6 +23,7 @@
  */
 
 import type { FastifyRequest } from 'fastify';
+import { completeCanvasLayout } from '@sparql-query-lib/contracts/canvas';
 import { mintId } from './id.js';
 import { allocateVersion, setCurrentVersion } from './versionNumbering.js';
 import { AuthorizationError, requireLibraryMode, resolveOwningLibrary } from '../auth/enforce.js';
@@ -468,6 +469,7 @@ async function createGroupVersionFlatNumbered(
 
   const edgeIds: string[] = [];
   const endNodeInputIds = new Set<string>();
+  const layoutEdges: Array<{ source: string; target: string }> = [];
 
   for (const [i, e] of ((body.edges as AnyRecord[] | undefined) || []).entries()) {
     const at = (field: string) => `edges[${i}].${field}`;
@@ -497,6 +499,9 @@ async function createGroupVersionFlatNumbered(
       '@type': 'QueryEdge',
     }) as AnyRecord & { $id: string });
     edgeIds.push(id);
+    if (typeof sourceNodeId === 'string' && typeof targetNodeId === 'string') {
+      layoutEdges.push({ source: sourceNodeId, target: targetNodeId });
+    }
 
     if (targetNodeId === endNodeId && targetInputId) {
       endNodeInputIds.add(targetInputId);
@@ -584,7 +589,17 @@ async function createGroupVersionFlatNumbered(
     // it could still change. `immutable` on the request body is ignored rather
     // than honoured — there is no such thing as a mutable version.
     immutable: true,
-    canvasData: remapCanvasData(body.canvasData, iriMap),
+    // A version created without positions — over the API or MCP, where there is
+    // no canvas to take them from — is laid out here, so it is stored complete
+    // and every client draws it the same way. Positions sent are kept.
+    canvasData: completeCanvasLayout(remapCanvasData(body.canvasData, iriMap), {
+      nodes: [
+        { id: startNodeId, kind: 'start' },
+        ...nodeIds.map((id) => ({ id, kind: 'step' as const })),
+        { id: endNodeId, kind: 'end' },
+      ],
+      edges: layoutEdges,
+    }),
     startNode: startNodeId,
     endNode: endNodeId,
     executionNodes: nodeIds,

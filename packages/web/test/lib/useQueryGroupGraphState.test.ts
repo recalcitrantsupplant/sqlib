@@ -37,15 +37,16 @@ const edgeIn = (graph: ReturnType<typeof makeGraph>, id: string) =>
   graph.edges.value.find(edge => edge.id === id)!;
 
 describe('useQueryGroupGraphState: VueFlow conversion', () => {
-  it('converts every graph node to a VueFlow node with left-to-right handles', () => {
+  it('converts every graph node to a VueFlow node, laid out top to bottom when nothing was saved', () => {
     const graph = makeGraph();
 
     expect(graph.nodes.value).toHaveLength(3);
+    expect(graph.canvasDirection.value).toBe('TB');
     const start = nodeIn(graph, IDS.startNode);
     expect(start.type).toBe('input');
-    expect(start.sourcePosition).toBe(Position.Right);
-    expect(start.targetPosition).toBe(Position.Left);
-    expect(start).toMatchObject(LEFT_TO_RIGHT_HANDLES);
+    expect(start.sourcePosition).toBe(Position.Bottom);
+    expect(start.targetPosition).toBe(Position.Top);
+    expect(nodeIn(graph, IDS.queryNode).position.y).toBeGreaterThan(start.position.y);
 
     const end = nodeIn(graph, IDS.endNode);
     expect(end.type).toBe('output');
@@ -86,6 +87,33 @@ describe('useQueryGroupGraphState: VueFlow conversion', () => {
     expect(nodeIn(graph, IDS.queryNode).position).toEqual({ x: 999, y: 111 });
     // A node absent from the saved snapshot still falls back to the lane layout.
     expect(nodeIn(graph, IDS.startNode).position).not.toEqual({ x: 999, y: 111 });
+  });
+
+  it('draws a snapshot saved before directions were, left to right', () => {
+    const expanded = selectGroupVersionExpanded();
+    expanded.queryGroupVersion.canvasData = JSON.stringify({
+      nodes: [IDS.startNode, IDS.queryNode, IDS.endNode].map((id, i) => ({ id, position: { x: i * 300, y: 0 } })),
+      viewport: { zoom: 1, panX: 0, panY: 0 },
+    });
+
+    const graph = useQueryGroupGraphState({ initialGraphState: createGraphStateFromExpanded(expanded) });
+
+    expect(graph.canvasDirection.value).toBe('LR');
+    expect(nodeIn(graph, IDS.startNode)).toMatchObject(LEFT_TO_RIGHT_HANDLES);
+    expect(nodeIn(graph, IDS.queryNode).position).toEqual({ x: 300, y: 0 });
+  });
+
+  it('saves the direction with the positions, and reads it back', () => {
+    const expanded = selectGroupVersionExpanded();
+    const graph = useQueryGroupGraphState({ initialGraphState: createGraphStateFromExpanded(expanded) });
+    graph.canvasDirection.value = 'LR';
+
+    expanded.queryGroupVersion.canvasData = graph.serializeCanvasSnapshot();
+    const reloaded = useQueryGroupGraphState({ initialGraphState: createGraphStateFromExpanded(expanded) });
+
+    expect(reloaded.canvasDirection.value).toBe('LR');
+    expect(nodeIn(reloaded, IDS.endNode)).toMatchObject(LEFT_TO_RIGHT_HANDLES);
+    expect(nodeIn(reloaded, IDS.queryNode).position).toEqual(nodeIn(graph, IDS.queryNode).position);
   });
 
   it('tolerates malformed canvas data instead of throwing', () => {

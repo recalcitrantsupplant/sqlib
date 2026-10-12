@@ -85,8 +85,8 @@ const assignQuery = async (page: Page, queryName: string) => {
  * it is refused. Same drag, no assertion about the outcome.
  */
 const dragConnect = async (page: Page, sourceNodeId: string, targetNodeId: string) => {
-  const end = await settledHandleCentre(page.locator(`[data-id="${targetNodeId}"] .vue-flow__handle-left`));
-  const start = await settledHandleCentre(page.locator(`[data-id="${sourceNodeId}"] .vue-flow__handle-right`));
+  const end = await settledHandleCentre(page.locator(`[data-id="${targetNodeId}"] .vue-flow__handle.target`));
+  const start = await settledHandleCentre(page.locator(`[data-id="${sourceNodeId}"] .vue-flow__handle.source`));
   await page.mouse.move(start.x, start.y);
   await page.mouse.down();
   // VueFlow needs a pointermove over the target in between, or `onConnect`

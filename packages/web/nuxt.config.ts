@@ -342,6 +342,9 @@ export default defineNuxtConfig({
     },
   },
   alias: {
+    // Before the bare `contracts` entry, which would otherwise match by prefix
+    // and resolve this to `<contracts/src/index.ts>/canvas`.
+    '@sparql-query-lib/contracts/canvas': resolve(currentDir, '../contracts/src/canvas.ts'),
     '@sparql-query-lib/contracts': resolve(currentDir, '../contracts/src/index.ts'),
     '@sparql-query-lib/types': resolve(currentDir, '../types/src/index.ts'),
     /*

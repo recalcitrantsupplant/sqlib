@@ -1,23 +1,22 @@
-import dagre from 'dagre';
 import { Position, type Edge, type Node } from '@vue-flow/core';
+import {
+  layoutEdgeKey,
+  layoutGraph,
+  type CanvasDirection,
+  type LayoutAlign,
+  type LayoutPoint,
+  type LayoutRanker,
+} from '@sparql-query-lib/contracts/canvas';
 
-type LayoutDirection = 'TB' | 'BT' | 'LR' | 'RL';
-
-/**
- * Which rank-assignment algorithm dagre uses to decide what sits in which
- * column. They read differently enough to be worth offering:
- *
- * - `network-simplex` balances edge lengths over the whole graph. The default,
- *   and the best general answer for a pipeline with branches.
- * - `tight-tree` is cheaper and keeps chains tight, so a mostly-linear graph
- *   comes out compact rather than spread over the full width.
- * - `longest-path` pushes every node as late as its dependencies allow, which
- *   lines up all the terminal steps in one final column.
+/*
+ * The dagre layout itself lives in contracts, because the API lays out query
+ * group versions created without positions and must agree with the canvas on
+ * how. This is the VueFlow side of it: sizes read off rendered nodes, and
+ * positions and handle sides written back onto them.
  */
-export type LayoutRanker = 'network-simplex' | 'tight-tree' | 'longest-path';
+export type { LayoutAlign, LayoutPoint, LayoutRanker };
 
-/** How nodes sit within their rank: U/D = up/down, L/R = left/right. */
-export type LayoutAlign = 'UL' | 'UR' | 'DL' | 'DR';
+type LayoutDirection = CanvasDirection;
 
 export interface AutoLayoutOptions {
   direction?: LayoutDirection;
@@ -38,12 +37,6 @@ export interface AutoLayoutOptions {
    * asks for them, and one that does not pays nothing.
    */
   withEdgePoints?: boolean;
-}
-
-/** A dagre waypoint, in the same space as the returned node positions. */
-export interface LayoutPoint {
-  x: number;
-  y: number;
 }
 
 export interface AutoLayoutResult<T extends Node = Node> {
@@ -98,77 +91,42 @@ export function useAutoLayout() {
   ): AutoLayoutResult<T> => {
     const direction: LayoutDirection = options.direction ?? 'TB';
     const nodeSize = options.nodeSize ?? { width: 240, height: 90 };
-    const ranksep = options.rankSep ?? 120;
-    const nodesep = options.nodeSep ?? 60;
-    const marginx = options.margin?.x ?? 32;
-    const marginy = options.margin?.y ?? 32;
     const isHorizontal = direction === 'LR' || direction === 'RL';
-    const ranker: LayoutRanker = options.ranker ?? 'network-simplex';
 
-    const graph = new dagre.graphlib.Graph();
-    graph.setDefaultEdgeLabel(() => ({}));
-    graph.setGraph({
-      rankdir: direction,
-      ranksep,
-      nodesep,
-      marginx,
-      marginy,
-      ranker,
-      ...(options.align ? { align: options.align } : {}),
-    });
-
-    nodes.forEach((node) => {
-      const { width, height } = resolveSize(node, nodeSize);
-      const rank = options.rankAccessor?.(node);
-      graph.setNode(node.id, {
-        width,
-        height,
-        ...(Number.isFinite(rank as number) ? { rank: Number(rank) } : {}),
-      });
-    });
-
-    /*
-     * One dagre edge per source/target pair. Two rules can depend on each other
-     * for several reasons at once, and dagre would otherwise reserve a lane per
-     * reason and draw them as identical overlapping lines — the drawing would
-     * say "several dependencies" where the inspector already says which.
-     */
-    const seen = new Set<string>();
-    edges.forEach((edge) => {
-      const key = `${edge.source}\u0000${edge.target}`;
-      if (seen.has(key)) return;
-      seen.add(key);
-      graph.setEdge(edge.source, edge.target);
-    });
-
-    dagre.layout(graph);
+    const sizes = new Map(nodes.map((node) => [node.id, resolveSize(node, nodeSize)]));
+    const { positions, edgePoints, bounds } = layoutGraph(
+      nodes.map((node) => ({ id: node.id, ...sizes.get(node.id)!, rank: options.rankAccessor?.(node) })),
+      edges,
+      {
+        direction,
+        ranker: options.ranker,
+        align: options.align,
+        rankSep: options.rankSep ?? 120,
+        nodeSep: options.nodeSep ?? 60,
+        margin: options.margin,
+      },
+    );
 
     const layoutedNodes = nodes.map((node) => {
-      const { width, height } = resolveSize(node, nodeSize);
-      const position = graph.node(node.id) as { x: number; y: number } | undefined;
+      const position = positions.get(node.id);
       if (!position) return node;
       return {
         ...node,
         targetPosition: isHorizontal ? Position.Left : Position.Top,
         sourcePosition: isHorizontal ? Position.Right : Position.Bottom,
-        position: {
-          x: position.x - width / 2,
-          y: position.y - height / 2,
-        },
+        position,
       };
     });
 
     const layoutedEdges = options.withEdgePoints
       ? edges.map((edge) => {
-        const points = (graph.edge(edge.source, edge.target) as { points?: LayoutPoint[] } | undefined)?.points;
+        const points = edgePoints.get(layoutEdgeKey(edge.source, edge.target));
         if (!points?.length) return edge;
         return { ...edge, data: { ...(edge.data ?? {}), layoutPoints: points } };
       })
       : edges;
 
-    const { width = 0, height = 0 } = graph.graph() as { width?: number; height?: number };
-
-    return { nodes: layoutedNodes, edges: layoutedEdges, bounds: { width, height } };
+    return { nodes: layoutedNodes, edges: layoutedEdges, bounds };
   };
 
   return { layout };

@@ -101,8 +101,58 @@ describe('GroupVersionWriter persisted fields', () => {
       iriMap['urn:ui-temp:edge-select-construct'],
       iriMap['urn:ui-temp:edge-construct-end'],
     ]);
-    expect(created.canvasData).toBe(JSON.stringify({ zoom: 1 }));
+    // The snapshot placed no node, so the writer laid the graph out — and
+    // kept what the snapshot did say.
+    const canvas = JSON.parse(created.canvasData as string);
+    expect(canvas.zoom).toBe(1);
+    expect(canvas.direction).toBe('TB');
+    expect(canvas.nodes.map((node: { id: string }) => node.id).sort()).toEqual([
+      created.startNode,
+      ...(created.executionNodes ?? []),
+      created.endNode,
+    ].sort());
     expect(created.isPartOf).toBe('urn:group:test');
+  });
+
+  describe('canvas layout', () => {
+    const chain = (canvasData?: string) => ({
+      ...(canvasData === undefined ? {} : { canvasData }),
+      executionNodes: [
+        { id: 'urn:ui-temp:a', nodeType: 'QueryNode', backendId: 'urn:backend:select', queryId: 'urn:query:select' },
+        { id: 'urn:ui-temp:b', nodeType: 'QueryNode', backendId: 'urn:backend:select', queryId: 'urn:query:select' },
+      ],
+      edges: [
+        { id: 'urn:ui-temp:e1', sourceNodeId: 'urn:__START__', targetNodeId: 'urn:ui-temp:a', dataFlowType: 'CONTROL_FLOW' },
+        { id: 'urn:ui-temp:e2', sourceNodeId: 'urn:ui-temp:a', targetNodeId: 'urn:ui-temp:b', dataFlowType: 'CONTROL_FLOW' },
+        { id: 'urn:ui-temp:e3', sourceNodeId: 'urn:ui-temp:b', targetNodeId: 'urn:__END__', dataFlowType: 'CONTROL_FLOW' },
+      ],
+    });
+
+    it('lays out a version sent without positions, top to bottom along its edges', async () => {
+      const { created, iriMap } = await createGroupVersionFlat('urn:group:test', chain());
+      const canvas = JSON.parse(created.canvasData as string);
+      const y = (id: string) => canvas.nodes.find((node: { id: string }) => node.id === id).position.y;
+
+      expect(canvas.direction).toBe('TB');
+      expect(y(created.startNode as string)).toBeLessThan(y(iriMap['urn:ui-temp:a']));
+      expect(y(iriMap['urn:ui-temp:a'])).toBeLessThan(y(iriMap['urn:ui-temp:b']));
+      expect(y(iriMap['urn:ui-temp:b'])).toBeLessThan(y(created.endNode as string));
+    });
+
+    it('keeps a snapshot that already places every node', async () => {
+      const positioned = (ids: string[]) => JSON.stringify({
+        nodes: ids.map((id, i) => ({ id, position: { x: 7, y: i * 11 } })),
+        viewport: { zoom: 1, panX: 0, panY: 0 },
+      });
+      const { created } = await createGroupVersionFlat('urn:group:test', chain(
+        positioned(['urn:__START__', 'urn:ui-temp:a', 'urn:ui-temp:b', 'urn:__END__']),
+      ));
+      const canvas = JSON.parse(created.canvasData as string);
+
+      // No direction is added: the snapshot was not touched beyond its ids.
+      expect(canvas.direction).toBeUndefined();
+      expect(canvas.nodes.map((node: { position: { y: number } }) => node.position.y)).toEqual([0, 11, 22, 33]);
+    });
   });
 
   it('auto seeds inferred IO when execution node omits inputs and outputs', async () => {

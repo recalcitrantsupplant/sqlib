@@ -78,6 +78,10 @@ export default defineConfig({
       // prefix, so the shorter one would rewrite `contracts/schema` into
       // `<contracts/src/index.ts>/schema`.
       {
+        find: '@sparql-query-lib/contracts/canvas',
+        replacement: path.resolve(__dirname, '../contracts/src/canvas.ts'),
+      },
+      {
         find: '@sparql-query-lib/contracts/iri',
         replacement: path.resolve(__dirname, '../contracts/src/iri.ts'),
       },

@@ -198,10 +198,16 @@ importers:
 
   packages/contracts:
     dependencies:
+      dagre:
+        specifier: ^0.8.5
+        version: 0.8.5
       zod:
         specifier: ^4.6.5
         version: 4.6.5
     devDependencies:
+      '@types/dagre':
+        specifier: ^0.7.54
+        version: 0.7.54
       tsup:
         specifier: ^8.5.1
         version: 8.5.1(jiti@2.7.0)(postcss@8.5.28)(tsx@4.23.15)(typescript@7.0.2)(yaml@2.9.1)
