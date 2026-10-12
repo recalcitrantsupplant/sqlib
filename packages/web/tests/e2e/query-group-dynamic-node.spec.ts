@@ -11,6 +11,7 @@ import {
   selectCanvasEdge,
   selectQueryNode,
   selectSidebarQueryGroup,
+  settledHandleCentre,
   START_NODE_ID,
   START_TUPLE_PORT,
 } from './query-group-test-helpers';
@@ -77,14 +78,16 @@ async function addDynamicQueryNode(page: Page): Promise<string> {
  * fires and the drag is discarded silently.
  */
 async function connectNodes(page: Page, sourceNodeId: string, targetNodeId: string) {
-  const source = page.locator(`[data-id="${sourceNodeId}"] .vue-flow__handle.source`).first();
-  const target = page.locator(`[data-id="${targetNodeId}"] .vue-flow__handle.target`).first();
-  const from = await source.boundingBox();
-  const to = await target.boundingBox();
-  if (!from || !to) throw new Error(`No handle to drag between ${sourceNodeId} and ${targetNodeId}`);
-
-  const start = { x: from.x + from.width / 2, y: from.y + from.height / 2 };
-  const end = { x: to.x + to.width / 2, y: to.y + to.height / 2 };
+  // A node added from the toolbar can land partly outside the pane, with its
+  // handle clipped. Fit the view first, the way an author brings it in, and
+  // read the handles only once the viewport has stopped moving.
+  await page.locator('.vue-flow__controls-fitview').click();
+  const start = await settledHandleCentre(
+    page.locator(`[data-id="${sourceNodeId}"] .vue-flow__handle.source`).first(),
+  );
+  const end = await settledHandleCentre(
+    page.locator(`[data-id="${targetNodeId}"] .vue-flow__handle.target`).first(),
+  );
 
   await page.mouse.move(start.x, start.y);
   await page.mouse.down();
