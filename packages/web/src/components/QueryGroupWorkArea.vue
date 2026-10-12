@@ -92,8 +92,8 @@
       :default-viewport="{ zoom: 1 }"
       :min-zoom="0.2"
       :max-zoom="4"
-      fit-view-on-init
       class="vue-flow-container"
+      @nodes-initialized="fitViewOnFirstDraw"
       @connect="onConnect"
       @node-click="onNodeClick"
       @edge-click="onEdgeClick"
@@ -610,6 +610,21 @@ const vueFlowRef = ref<{
   fitView: (options?: Record<string, unknown>) => void;
   updateNodeInternals: (ids?: string[]) => void;
 } | null>(null);
+
+/**
+ * Fit the first drawing to the pane, but never zoom in past 100%.
+ *
+ * VueFlow's own `fit-view-on-init` fits to the canvas's `max-zoom`, and what it
+ * fits is the placeholder graph the canvas opens on — Start and End, laid out
+ * one above the other. Two small pills fitted to the pane come out at 4x, and
+ * the group loaded next inherits that viewport with its steps off screen.
+ */
+let firstDrawFitted = false;
+const fitViewOnFirstDraw = () => {
+  if (firstDrawFitted) return;
+  firstDrawFitted = true;
+  vueFlowRef.value?.fitView({ maxZoom: 1 });
+};
 const {
   panelWidthPercent: leftPanelWidth,
   startResize: startVerticalResize,
