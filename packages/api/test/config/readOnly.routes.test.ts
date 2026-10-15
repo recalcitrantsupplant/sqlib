@@ -156,6 +156,9 @@ describe('the read-only route table', () => {
       // `recordTestRuns` is what declines it. See `TestRunStore`.
       'POST /tests/run',
       'POST /tests/:id/run',
+      // A stored job's run, likewise: `executeEtlJob` keeps no record and
+      // writes no file on a read-only deployment.
+      'POST /etl-jobs/:id/execute',
       // All of MCP is POST /mcp, so refusing it removes every tool.
       'POST /mcp',
       'GET /mcp',
