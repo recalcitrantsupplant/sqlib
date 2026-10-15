@@ -38,6 +38,7 @@ import {
   type InternalExecution,
 } from '../auth/executionScope.js';
 import { log } from './log.js';
+import { isReadOnlyDeployment } from '../config/readOnly.js';
 
 /**
  * The lexical form of a DuckDB value for the literal it is mapped to.
@@ -246,7 +247,11 @@ export interface PreviewOutput extends PreviewResult {
 }
 
 export interface ExecutionResult {
-  executionId: string;
+  /**
+   * The run's record in the job's log. Absent on a read-only deployment, which
+   * keeps no record: see `executeEtlJob`.
+   */
+  executionId?: string;
   status: EtlExecutionStatus;
   /** The Content-Type of the written output, when any chunk produced one. */
   outputFormat?: string;
@@ -263,7 +268,26 @@ export interface ExecutionResult {
   totalChunks?: number;
   completedChunks?: number;
   totalRows?: number;
+  /**
+   * The run's RDF, on a read-only deployment only, where there is no file to
+   * name in `outputLocation`. Bounded by `MAX_ETL_RESPONSE_OUTPUT_BYTES`.
+   */
+  output?: string;
 }
+
+/**
+ * The most RDF a read-only deployment's run returns in its response, in bytes.
+ *
+ * A run on a writable deployment appends to a file a chunk at a time, so its
+ * output can be as large as its source. A read-only deployment writes no file
+ * and has to hold the whole output to return it, so it is capped. 1 MB is the
+ * per-version cap on a data graph, and the same reasoning holds: example data,
+ * not bulk. Tunable by environment so a deployment can make its own call.
+ */
+export const MAX_ETL_RESPONSE_OUTPUT_BYTES = Number.parseInt(
+  process.env.ETL_RESPONSE_OUTPUT_MAX_BYTES ?? '1048576',
+  10,
+) || 1048576;
 
 /**
  * Where job executions write their RDF. Read per run rather than at load, so
@@ -1067,9 +1091,28 @@ export class EtlService {
       : { request: authScope.request, viaLibrary: resolveOwningLibrary(etlJobVersion) };
     assertBackendAccess(executionScope, etlJobVersion.backendId);
 
+    const chunkSize = config.chunkSize || etlJobVersion.chunkSize || 1000;
+
+    /*
+     * A read-only deployment runs the job and keeps nothing of it: no record in
+     * the job's log and no output file, the RDF returned in the response
+     * instead. Running is compute and keeping the run is the write — the line
+     * `recordTestRuns` draws for a test run and `?record=patch` for SPARQL —
+     * so `/etl-jobs/:id/execute` is on the read-only allowlist and the
+     * bookkeeping is declined here rather than the run refused at the gate.
+     *
+     * What a visitor runs is the job's stored SQL, never their own: the routes
+     * that take SQL in a request are refused on a read-only deployment, and so
+     * is every route that would store a version with different SQL in it.
+     */
+    if (isReadOnlyDeployment()) {
+      return this.runWithoutRecord({
+        etlJobVersion, columnDefs, executionScope, chunkSize, config,
+      });
+    }
+
     // 3. Open the run's record in the job's log (status: 'running'). Shared
     // with the tabular sink — see `etlRunLog.ts` for what belongs in it.
-    const chunkSize = config.chunkSize || etlJobVersion.chunkSize || 1000;
     const executionId = await beginEtlExecution({
       etlJobVersionId: versionUrn,
       columnMappingVersionId: mapping.versionUrn,
@@ -1141,6 +1184,61 @@ export class EtlService {
 
       throw error;
     }
+  }
+
+  /**
+   * One run of a job version that writes nothing of sqlib's own: the RDF is
+   * collected in memory and returned, and no `EtlExecution` is opened.
+   *
+   * The output is held whole, so it is capped. A run that passes the cap fails
+   * rather than returning what it had so far, for the reason the row cap does:
+   * a partial result is not the result.
+   */
+  private async runWithoutRecord(run: {
+    etlJobVersion: LdkitEtlJobVersion;
+    columnDefs: ColumnDefinition[];
+    executionScope: ExecutionAuthScope | undefined;
+    chunkSize: number;
+    config: ExecutionInput;
+  }): Promise<ExecutionResult> {
+    const executorFactory = new ExecutorFactory(run.executionScope ?? { internal: true });
+    const executor = await executorFactory.getExecutorForBackendId(run.etlJobVersion.backendId);
+
+    const chunks: string[] = [];
+    let bytes = 0;
+    let outputFormat: string | undefined;
+
+    const { totalRows, completedChunks } = await this.runPipeline({
+      sql: run.etlJobVersion.sql,
+      sparqlTemplate: run.etlJobVersion.sparqlTemplate,
+      columnDefs: run.columnDefs,
+      executor,
+      chunkSize: run.chunkSize,
+      maxRows: run.config.maxRows,
+      dryRun: run.config.dryRun,
+      onOutput: async (rdf, chunk) => {
+        const text = rdf.endsWith('\n') ? rdf : `${rdf}\n`;
+        bytes += Buffer.byteLength(text, 'utf8');
+        if (bytes > MAX_ETL_RESPONSE_OUTPUT_BYTES) {
+          throw new Error(
+            `This run's RDF passed ${MAX_ETL_RESPONSE_OUTPUT_BYTES} bytes. This deployment is read-only, `
+            + 'so a run returns its RDF in the response instead of writing a file, and the response is capped. '
+            + 'Pass maxRows to run part of the source, or run the job where writes are allowed.',
+          );
+        }
+        outputFormat ??= chunk.contentType;
+        chunks.push(text);
+      },
+    });
+
+    return {
+      status: 'completed',
+      outputFormat,
+      output: chunks.join(''),
+      totalChunks: completedChunks,
+      completedChunks,
+      totalRows,
+    };
   }
 
   /**
