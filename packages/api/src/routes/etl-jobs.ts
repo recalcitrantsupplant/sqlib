@@ -554,16 +554,24 @@ export default async function etlJobRoutes(fastify: FastifyInstance) {
           maxRows: { type: 'integer' },
           dryRun: { type: 'boolean' },
         },
+        // What runs is the stored version's SQL, and a read-only deployment
+        // admits this route on that basis (`config/readOnly.ts`). A request
+        // that sends SQL or a template of its own is told they are not taken
+        // here, rather than having them ignored while the stored job runs.
+        additionalProperties: false,
       },
       response: {
         200: {
           type: 'object',
-          required: ['executionId', 'status'],
+          // `executionId` names the run's record, and a read-only deployment
+          // keeps none: it answers with `output` instead. See `executeEtlJob`.
+          required: ['status'],
           properties: {
             executionId: { type: 'string' },
             status: { type: 'string' },
             outputFormat: { type: 'string' },
             outputLocation: { type: 'string' },
+            output: { type: 'string' },
             errorMessage: { type: 'string' },
             totalChunks: { type: 'integer' },
             completedChunks: { type: 'integer' },

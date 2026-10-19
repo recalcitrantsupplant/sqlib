@@ -75,6 +75,13 @@ export const MUTATING_METHODS: readonly string[] = ['POST', 'PUT', 'PATCH', 'DEL
  * (`routes/tests.ts`), so this is the same separation `?record=patch` draws for
  * SPARQL — executing is compute, keeping the history is a write. A visitor gets
  * the verdict and no run is kept, which is what the refusal already promises.
+ *
+ * `POST /etl-jobs/:id/execute` is here on the same terms. On a writable
+ * deployment a run opens an `EtlExecution` and appends its RDF to a file; on a
+ * read-only one `EtlService.executeEtlJob` does neither and returns the RDF in
+ * the response, capped. What runs is the job version's stored SQL — the request
+ * carries none — so this admits no SQL a visitor wrote, which is the reason the
+ * preview and playground routes above stay out.
  */
 export const STATELESS_ROUTES: readonly string[] = [
   '/detect-inputs',
@@ -98,6 +105,7 @@ export const STATELESS_ROUTES: readonly string[] = [
   '/tuple-sets/preview',
   '/tests/run',
   '/tests/:id/run',
+  '/etl-jobs/:id/execute',
 ];
 
 /**

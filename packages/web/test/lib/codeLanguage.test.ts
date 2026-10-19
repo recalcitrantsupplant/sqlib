@@ -216,8 +216,11 @@ describe('an SRL editor offered SPARQL', () => {
     try {
       const found = await lint();
 
-      expect(found).toHaveLength(1);
-      expect(found[0].actions).toEqual([]);
+      // The grammar may add its own parse error beside the conformance one
+      // (codemirror-lang-srl 0.4 reports the stray `AS ?x` too), so the
+      // contract is "underlined, and no diagnostic offers an edit".
+      expect(found.length).toBeGreaterThan(0);
+      expect(found.flatMap((diagnostic) => diagnostic.actions)).toEqual([]);
     } finally {
       view.destroy();
     }
