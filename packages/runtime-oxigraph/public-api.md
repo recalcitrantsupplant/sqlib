@@ -45,6 +45,9 @@ interface OxigraphStore {
         format: string;
         base_iri?: string;
     }): void;
+    update?(update: string, options?: {
+        base_iri?: string;
+    }): void;
     readonly size: number;
 }
 ```

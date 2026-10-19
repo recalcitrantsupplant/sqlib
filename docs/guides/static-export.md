@@ -311,6 +311,22 @@ returns, so this executor and `httpExecutor` are interchangeable behind the
 It is the same engine the sqlib API runs — the API's Oxigraph has always been the
 WebAssembly build — so results agree with the server's.
 
+### Writing through an executor
+
+`Executor` has an optional `update(request)` for a SPARQL UPDATE. A bundle
+carries read queries only, so a page never needs it. It is there for code that
+writes, such as a rule set adding inferred triples. The Oxigraph executor has it
+whenever its store does, which the real `Store` always does. `httpExecutor` has
+it only when given an `updateEndpoint`, because most servers take updates at a
+different URL from queries, such as Fuseki's `/update` beside `/query`:
+
+```ts
+const executor = httpExecutor('https://example.org/ds/query', {
+  updateEndpoint: 'https://example.org/ds/update',
+});
+await executor.update?.({ updateText: 'INSERT DATA { <urn:a> <urn:b> <urn:c> }' });
+```
+
 **Two costs decide whether to ship it.**
 
 - **Size.** The package pulls in roughly 960 KiB of WebAssembly, two orders of

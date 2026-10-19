@@ -58,6 +58,7 @@ describe('the Store the type check is made against', () => {
     // this says which three lines that check is standing on.
     expect(node).toMatch(/^\s+query\(/m);
     expect(node).toMatch(/^\s+load\(/m);
+    expect(node).toMatch(/^\s+update\(/m);
     expect(node).toMatch(/^\s+readonly size: number;$/m);
   });
 });

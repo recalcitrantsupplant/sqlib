@@ -42,9 +42,23 @@ export interface ExecutionRequest {
   signal?: AbortSignal;
 }
 
-/** Anything that can run a substituted query. */
+/** What a caller hands an executor to run a SPARQL UPDATE. */
+export interface UpdateRequest {
+  updateText: string;
+  signal?: AbortSignal;
+}
+
+/**
+ * Anything that can run a substituted query.
+ *
+ * `update` is optional. A bundle carries read queries only, so a page that runs
+ * one needs no more than `execute`, and an executor that cannot write simply
+ * leaves `update` out. A caller that writes — a rule set adding inferred
+ * triples, say — checks for it and refuses an executor without it.
+ */
 export interface Executor {
   execute(request: ExecutionRequest): Promise<ExecutionResult>;
+  update?(request: UpdateRequest): Promise<void>;
 }
 
 /** An endpoint answered with a non-2xx status, or with something unreadable. */
@@ -77,6 +91,13 @@ export interface HttpExecutorOptions {
   credentials?: RequestCredentials;
   /** Serialisation to ask for from CONSTRUCT/DESCRIBE. Default `text/turtle`. */
   rdfAccept?: string;
+  /**
+   * Where to POST a SPARQL UPDATE. Most servers take updates at a different URL
+   * from queries (Fuseki's `/update` beside `/query`), so there is no guessing
+   * it from the query endpoint. The executor has an `update` method only when
+   * this is set.
+   */
+  updateEndpoint?: string;
 }
 
 const RESULTS_ACCEPT = 'application/sparql-results+json';
@@ -108,7 +129,28 @@ export function httpExecutor(endpoint: string, options: HttpExecutorOptions = {}
     );
   }
 
+  const { updateEndpoint } = options;
+
+  const update = async ({ updateText, signal }: UpdateRequest): Promise<void> => {
+    const response = await doFetch(updateEndpoint!, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/sparql-update', ...headers },
+      body: updateText,
+      credentials,
+      signal,
+    });
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      throw new SparqlEndpointError(
+        `SPARQL update endpoint returned ${response.status} ${response.statusText}.`,
+        response.status,
+        body.slice(0, 2000),
+      );
+    }
+  };
+
   return {
+    ...(updateEndpoint ? { update } : {}),
     async execute({ queryText, queryType, signal }: ExecutionRequest): Promise<ExecutionResult> {
       const accept = acceptFor(queryType, rdfAccept);
       const getUrl = `${endpoint}${endpoint.includes('?') ? '&' : '?'}query=${encodeURIComponent(queryText)}`;

@@ -28,9 +28,13 @@ Results come back in the same serialisations an HTTP endpoint returns — Oxigra
 is asked to produce them — so this executor and `httpExecutor` are
 interchangeable behind the `Executor` interface.
 
+The executor also has `update({ updateText })`, which runs a SPARQL UPDATE on
+the store. It is there whenever the store has an `update` method, which the
+real `Store` always does.
+
 ## The store you pass, and the one you get back
 
-`store` is typed `OxigraphStore`: `query`, `load` and `size`, which is all of
+`store` is typed `OxigraphStore`: `query`, `load`, `size` and an optional `update`, which is all of
 Oxigraph's `Store` this package touches. It is a structural subset rather than a
 re-export, so nothing you write has to name Oxigraph's own types — and an
 Oxigraph `Store` satisfies it, checked by this package's build rather than left
