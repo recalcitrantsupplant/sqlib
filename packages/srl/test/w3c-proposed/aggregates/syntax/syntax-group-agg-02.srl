@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# No BY: one group over every input row.
+RULE { :all :count ?n } WHERE { GROUP { ?s :p ?o } [ ?n := COUNT(*) ] }

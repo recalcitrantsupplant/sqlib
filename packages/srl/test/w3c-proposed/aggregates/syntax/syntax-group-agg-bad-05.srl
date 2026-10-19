@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# A GROUP inside a NOT.
+RULE { ?x :r true } WHERE { ?x a :Person NOT { GROUP { ?y :childOf ?x } [ ?n := COUNT(*) ] } }

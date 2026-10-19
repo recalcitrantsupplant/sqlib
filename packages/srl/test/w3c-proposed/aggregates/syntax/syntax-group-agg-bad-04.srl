@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# A GROUP inside another GROUP.
+RULE { :all :n ?n } WHERE { GROUP { ?y :c ?x GROUP { ?z :c ?y } [ ?k := COUNT(*) ] } [ ?n := COUNT(*) ] }

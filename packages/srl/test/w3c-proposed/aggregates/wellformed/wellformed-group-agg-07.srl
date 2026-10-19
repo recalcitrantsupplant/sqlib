@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# A second GROUP keeps the first one's result by listing it.
+RULE { ?x :kids ?n ; :pets ?m } WHERE { ?x a :Person . GROUP BY ?x { ?y :childOf ?x } [ ?n := COUNT(*) ] GROUP BY ?x ?n { ?y :petOf ?x } [ ?m := COUNT(*) ] }

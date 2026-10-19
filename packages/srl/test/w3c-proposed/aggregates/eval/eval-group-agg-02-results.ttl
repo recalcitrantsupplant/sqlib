@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+:bob :ageSum 27 .
+:amy :ageSum 0 .

@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# A BY variable the pattern does not use is carried through the GROUP.
+RULE { ?x :label ?name ; :numChildren ?n } WHERE { ?x a :Person ; :name ?name . GROUP BY ?x ?name { ?y :childOf ?x } [ ?n := COUNT(*) ] }

@@ -1,0 +1,5 @@
+PREFIX : <http://example/>
+
+# The rank idiom: the keys come from before the GROUP, and the person is
+# matched again after it, since the GROUP keeps only its keys and results.
+RULE { ?p :rank ?r } WHERE { ?q :dept ?d ; :score ?s . GROUP BY ?d ?s { ?o :dept ?d ; :score ?s2 FILTER(?s2 > ?s) } [ ?b := COUNT(*) ] ?p :dept ?d ; :score ?s . SET (?r := ?b + 1) }

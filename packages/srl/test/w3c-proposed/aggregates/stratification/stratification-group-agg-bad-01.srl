@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# The result feeds the pattern of the same rule.
+RULE { ?x :childOf ?n } WHERE { ?x a :Person . GROUP BY ?x { ?y :childOf ?x } [ ?n := COUNT(*) ] }

@@ -1,0 +1,5 @@
+PREFIX : <http://example/>
+
+# A GROUP with no BY makes one group of every earlier row, and drops the
+# earlier variables.
+RULE { :census :children ?n } WHERE { ?x a :Person . GROUP { ?y :childOf ?z } [ ?n := COUNT(*) ] }

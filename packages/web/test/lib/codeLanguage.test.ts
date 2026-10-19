@@ -216,11 +216,41 @@ describe('an SRL editor offered SPARQL', () => {
     try {
       const found = await lint();
 
-      // The grammar may add its own parse error beside the conformance one
-      // (codemirror-lang-srl 0.4 reports the stray `AS ?x` too), so the
-      // contract is "underlined, and no diagnostic offers an edit".
+      // Since @kurrawongai/codemirror-lang-srl 0.4.0 parse errors are reported
+      // beside the conformance error, so the `BIND` and the `AS ?x` after it
+      // are two marks; how many is the grammar's business, not this test's.
       expect(found.length).toBeGreaterThan(0);
       expect(found.flatMap((diagnostic) => diagnostic.actions)).toEqual([]);
+    } finally {
+      view.destroy();
+    }
+  });
+});
+
+describe('an SRL editor given a GROUP aggregate', () => {
+  it('marks nothing in a well-formed GROUP (w3c/data-shapes#1347)', async () => {
+    const doc = [
+      'PREFIX : <http://example/>',
+      '',
+      'RULE { ?c :employees ?n ; :salaryBill ?t } WHERE {',
+      '  ?c a :Company .',
+      '  GROUP BY ?c { ?x :employee ?c ; :salary ?s FILTER(?s > 0) }',
+      '  [ ?n := COUNT(DISTINCT ?x)',
+      '    ?t := SUM(?s) ]',
+      '}',
+    ].join('\n');
+    const { view, lint } = await lintedSrlEditor(doc);
+    try {
+      expect(await lint()).toEqual([]);
+    } finally {
+      view.destroy();
+    }
+  });
+
+  it('marks a GROUP the grammar refuses', async () => {
+    const { view, lint } = await lintedSrlEditor('RULE { } WHERE { GROUP { ?s ?p ?o } [ ?n := AVG(?o) ] }');
+    try {
+      expect((await lint()).length).toBeGreaterThan(0);
     } finally {
       view.destroy();
     }

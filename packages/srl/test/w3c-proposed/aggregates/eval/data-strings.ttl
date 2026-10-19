@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+:x a :Thing ; :v "one", "two" .
+:y a :Thing ; :v 1, 2 .

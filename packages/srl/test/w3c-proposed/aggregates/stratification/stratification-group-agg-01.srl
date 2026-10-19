@@ -1,0 +1,6 @@
+PREFIX : <http://example/>
+
+# The GROUP counts a relation another rule derives, which puts it in a later
+# stratum.
+RULE { ?y :childOf ?x } WHERE { ?x :parentOf ?y }
+RULE { ?x :numChildren ?n } WHERE { ?x a :Person . GROUP BY ?x { ?y :childOf ?x } [ ?n := COUNT(*) ] }
