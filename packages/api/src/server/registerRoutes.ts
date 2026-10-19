@@ -180,10 +180,22 @@ export async function registerApplicationRoutes(
     // Door A. Off by default: unauthenticated, calls a paid provider, and can
     // reach a backend — see the flag's own note.
     const { default: assistantRoutes, configureAssistant } = await import('../routes/assistant.js');
-    const { aiSdkModelClientFactory } = await import('../assistant/ai-sdk-client.js');
     // The provider integration is one module behind the ModelClient seam; this
-    // is the whole of wiring it up.
-    configureAssistant({ modelClientFactory: aiSdkModelClientFactory });
+    // is the whole of wiring it up. `ai` and `@ai-sdk/*` are optional
+    // dependencies, so an MCP-only install can leave them out; without them
+    // the routes still register and each turn says which packages are missing.
+    try {
+      const { aiSdkModelClientFactory } = await import('../assistant/ai-sdk-client.js');
+      configureAssistant({ modelClientFactory: aiSdkModelClientFactory });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ERR_MODULE_NOT_FOUND') throw error;
+      fastifyApp.log.warn(
+        `FEATURE_ASSISTANT is on, but the optional AI SDK packages are not installed (${(error as Error).message}). `
+        + 'Install the optional dependencies of @sparql-query-lib/api to enable the assistant.',
+      );
+      const { missingAiSdkModelClientFactory } = await import('../assistant/model.js');
+      configureAssistant({ modelClientFactory: missingAiSdkModelClientFactory });
+    }
     await fastifyApp.register(assistantRoutes, { prefix: '/assistant' });
   }
 }

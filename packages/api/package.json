@@ -54,9 +54,6 @@
     "suiteBaseIri": "https://w3c.github.io/rdf-tests/shacl/shacl12/"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^4.0.78",
-    "@ai-sdk/groq": "^4.0.59",
-    "@ai-sdk/openai": "^4.0.91",
     "@duckdb/node-api": "1.5.5-r.5",
     "@fastify/cors": "^11.3.1",
     "@fastify/fast-json-stringify-compiler": "^5.1.1",
@@ -83,7 +80,6 @@
     "@traqula/parser-sparql-1-2": "1.4.0",
     "@traqula/rules-sparql-1-2": "1.4.0",
     "@types/rdfjs__data-model": "^2.0.9",
-    "ai": "^7.0.137",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
     "ajv-formats-draft2019": "^1.6.1",
@@ -109,5 +105,11 @@
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vitest": "^5.0.2"
+  },
+  "optionalDependencies": {
+    "@ai-sdk/anthropic": "^4.0.78",
+    "@ai-sdk/groq": "^4.0.59",
+    "@ai-sdk/openai": "^4.0.91",
+    "ai": "^7.0.137"
   }
 }
