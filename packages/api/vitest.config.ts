@@ -110,6 +110,10 @@ export default defineConfig({
         replacement: path.resolve(__dirname, '../runtime/src/index.ts'),
       },
       {
+        find: '@sparql-query-lib/compiler',
+        replacement: path.resolve(__dirname, '../compiler/src/index.ts'),
+      },
+      {
         find: '@sparql-query-lib/rdf-delta',
         replacement: path.resolve(__dirname, '../rdf-delta/src/index.ts'),
       },

@@ -92,6 +92,9 @@ importers:
       '@opentelemetry/sdk-trace-node':
         specifier: ^2.12.0
         version: 2.12.0(@opentelemetry/api@1.9.1)
+      '@sparql-query-lib/compiler':
+        specifier: workspace:*
+        version: link:../compiler
       '@sparql-query-lib/contracts':
         specifier: workspace:*
         version: link:../contracts
@@ -195,6 +198,34 @@ importers:
       vitest:
         specifier: ^5.0.3
         version: 5.0.5(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.6)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
+  packages/compiler:
+    dependencies:
+      '@sparql-query-lib/runtime':
+        specifier: workspace:*
+        version: link:../runtime
+      '@traqula/generator-sparql-1-2':
+        specifier: 1.4.0
+        version: 1.4.0
+      '@traqula/parser-sparql-1-2':
+        specifier: 1.4.0
+        version: 1.4.0
+      '@traqula/rules-sparql-1-2':
+        specifier: 1.4.0
+        version: 1.4.0
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.2
+        version: 26.6.2
+      fast-check:
+        specifier: ^4.10.2
+        version: 4.10.2
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: ^5.0.2
+        version: 5.0.2(@opentelemetry/api@1.9.1)(@types/node@26.6.2)(@vitest/coverage-v8@5.0.2)(happy-dom@20.14.5)(vite@8.3.4(@types/node@26.6.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/contracts:
     dependencies:

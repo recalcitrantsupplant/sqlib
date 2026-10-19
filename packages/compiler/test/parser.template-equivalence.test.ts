@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
 import { Parser } from '@traqula/parser-sparql-1-2';
 import { Generator } from '@traqula/generator-sparql-1-2';
-import { SparqlQueryParser } from '../../src/lib/parser.js';
+import { SparqlQueryParser } from '../src/parser.js';
 
 /**
  * Differential suite: the template/splice path must agree with the AST path.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-import { SparqlQueryParser } from '../../src/lib/parser.js';
+import { SparqlQueryParser } from '../src/parser.js';
 
 const query = 'SELECT ?x WHERE { ?x ?p ?o . VALUES (?x) { (UNDEF) } }';
 
