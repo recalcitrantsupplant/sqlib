@@ -424,3 +424,202 @@ extension off it refuses with:
 ```
 SRL syntax error: tuple seed rows require the rule-tuples extension (parse with { tuples: true })
 ```
+
+## Aggregation: `GROUP`
+
+`GROUP` is the aggregation element proposed for SPARQL-RL in
+[w3c/data-shapes#1344](https://github.com/w3c/data-shapes/issues/1344), with
+the grammar of
+[w3c/data-shapes#1347](https://github.com/w3c/data-shapes/pull/1347). **Until
+that pull request is merged it is not in the specification**, so it is gated by
+the `ruleAggregates` feature flag (`FEATURE_RULE_AGGREGATES`), which is **off
+by default**.
+
+With the flag off, `GROUP` is a syntax error:
+
+```
+SRL syntax error: GROUP requires the rule-aggregates extension (parse with { aggregates: true })
+```
+
+### Syntax
+
+`GROUP` is a rule body element: optional `BY` variables, a pattern, and a block
+of assignments.
+
+```sparql
+PREFIX : <http://example.org/>
+RULE { ?c :employees ?n ; :salaryBill ?t }
+WHERE {
+  ?c a :Company .
+  GROUP BY ?c { ?x :employee ?c ; :salary ?s }
+  [ ?n := COUNT(DISTINCT ?x)
+    ?t := SUM(?s) ]
+}
+```
+
+| Part | Form |
+| --- | --- |
+| `BY` | one or more variables, no separator; may be left out |
+| pattern | triple patterns, `FILTER` and `SET`; with the rule-tuples extension on, `TUPLE( … )` |
+| block | `[ ?v := FUNCTION(…) … ]`, one or more assignments with no separator, or `[]` for none |
+| functions | `COUNT(*)`, `COUNT(?v)`, `COUNT(DISTINCT ?v)`, `COUNT(DISTINCT *)`, `SUM(?v)`, `MIN(?v)`, `MAX(?v)` |
+
+The block is required, even when empty, because its closing `]` marks the end
+of the element: a triple pattern after a `GROUP` can start with `(`.
+
+These are refused, each with a message naming the fault: `AVG`, `SAMPLE`,
+`GROUP_CONCAT`, an expression as an argument (`SUM(?a + 1)`), `DISTINCT` in
+`SUM`, `MIN` or `MAX`, a `NOT` in the pattern, a `GROUP` inside another `GROUP`
+or a `NOT`, and commas or parentheses in the block.
+
+### Evaluation
+
+1. The `GROUP` receives the rows produced by the elements before it.
+2. The pattern is evaluated once for each distinct combination of the `BY`
+   variables' values among those rows, with those values filled in. With no
+   `BY`, every row falls in one group.
+3. Each function runs over the solutions of the pattern, every pattern variable
+   included. Two children aged 10 are two solutions, so `SUM(?age)` counts
+   both.
+4. Afterwards only the `BY` variables and the results are bound: one row per
+   key. Any other earlier variable is unbound, and a later pattern that names it
+   matches it afresh.
+
+| The pattern matches | `COUNT`, `SUM` | `MIN`, `MAX` |
+| --- | --- | --- |
+| at least once | the value | the value |
+| never | `0` | no value: the key's row is dropped |
+
+An error in any assignment, such as `SUM` over a string, drops the row, as an
+error in `SET` does. An empty block, `[]`, keeps one row per key.
+
+`COUNT(?v)` counts the solutions in which `?v` is bound, and every pattern
+variable is bound in every solution, so it equals `COUNT(*)`. To count distinct
+values, write `COUNT(DISTINCT ?v)`. For the same reason `COUNT(DISTINCT *)`
+equals `COUNT(*)`.
+
+### Well-formedness
+
+Violations are reported under the category `aggregate-scope`:
+
+- Each `BY` variable must be bound before the `GROUP`. This is what lets a key
+  with nothing to count still have a row, with a count of 0. A `BY` variable the
+  pattern does not use is carried through unchanged.
+- A pattern variable that is not a `BY` variable belongs to the `GROUP`, `SET`
+  targets included. It must not appear anywhere else in the rule. To correlate
+  it, list it after `BY`; otherwise rename it. Two `GROUP`s may each use the
+  same name for their own variable.
+- Each result must be a new variable: not bound before, not used in the
+  pattern, and not assigned again later in the body.
+- A `SET` in the pattern must not re-bind a variable, and each argument must be
+  bound by the pattern or be a `BY` variable.
+
+A `FILTER` or `SET` in the pattern follows the usual order rule, with only the
+`BY` variables bound from outside.
+
+### Patterns that follow from the evaluation
+
+**Using an earlier variable after the `GROUP`.** List it after `BY`, or match it
+again after the `GROUP`:
+
+```sparql
+?x a :Person ; :name ?name .
+GROUP BY ?x ?name { ?y :childOf ?x } [ ?n := COUNT(*) ]
+```
+
+A person with two names gets two rows, each with the same count.
+
+**Two `GROUP`s in one rule.** The second keeps only its own keys and results, so
+it has to list the first one's result to keep it:
+
+```sparql
+?x a :Person .
+GROUP BY ?x { ?y :childOf ?x } [ ?n := COUNT(*) ]
+GROUP BY ?x ?n { ?y :childOf ?x ; :age ?a FILTER(?a >= 18) } [ ?m := COUNT(*) ]
+```
+
+**Rank within a partition.** The keys come from before the `GROUP`, the
+comparison is a `FILTER` in the pattern, and the item being ranked is matched
+again after it:
+
+```sparql
+PREFIX : <http://example.org/>
+RULE { ?p :rankInDept ?rank }
+WHERE {
+  ?q :dept ?dept ; :score ?score .
+  GROUP BY ?dept ?score { ?o :dept ?dept ; :score ?s2 FILTER(?s2 > ?score) }
+  [ ?better := COUNT(*) ]
+  ?p :dept ?dept ; :score ?score .
+  SET (?rank := ?better + 1)
+}
+```
+
+**One value per item.** When a pattern variable has several values per item, it
+multiplies that item's rows. With two orders of 100, one carrying two tags, `SUM`
+over `{ ?o :amount ?a ; :tag ?t }` gives 300. Derive the items in a rule of
+their own and aggregate those:
+
+```sparql
+PREFIX : <http://example.org/>
+RULE { ?o :taggedAmount ?a } WHERE { ?o :amount ?a ; :tag ?t }
+RULE { :all :total ?total }
+WHERE { GROUP { ?o :taggedAmount ?a } [ ?total := SUM(?a) ] }
+```
+
+The total is 200, because the helper's head holds one triple per order. Keep
+the item's identity in the helper's head: `:all :amountSeen ?a` would collapse
+the two amounts into one. With the rule-tuples extension on,
+`TUPLE(:taggedAmount, ?o, ?a)` keeps the helper relation out of the output
+graph.
+
+### Stratification
+
+A rule with a `GROUP` is run-once, with the reason `aggregate (GROUP)`, and its
+monotonicity is reported as `aggregation`. As for any run-once rule, every
+dependency becomes `closed`, so whatever the pattern reads is complete before
+the rule fires. A rule whose result feeds back into its own pattern forms a
+cycle and is refused.
+
+### Compilation
+
+A `GROUP` compiles to an `OPTIONAL` subquery that groups the pattern by the `BY`
+variables, wrapped in a `SELECT DISTINCT` of the keys and the results. The
+pattern's own variables are renamed (`?_agg0_y`), so the subquery shares only
+the keys with the rest of the body. For
+`RULE { ?x :numChildren ?n } WHERE { ?x a :Person . GROUP BY ?x { ?y :childOf ?x } [ ?n := COUNT(*) ] }`,
+`compileRule` returns:
+
+```sparql
+PREFIX : <http://example.org/>
+INSERT {
+  ?x :numChildren ?n
+} WHERE {
+  {
+  SELECT DISTINCT ?x ?n WHERE {
+  ?x <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> :Person .
+  OPTIONAL {
+  SELECT ?x (COUNT(*) AS ?_agg0_count) (COUNT( * ) AS ?_agg0_v0) WHERE {
+  ?_agg0_y :childOf ?x .
+}
+GROUP BY ?x
+}
+  BIND(IF(COALESCE(?_agg0_count, 0) > 0, ?_agg0_v0, 0) AS ?n)
+  FILTER(BOUND(?n))
+}
+}
+}
+```
+
+`?_agg0_count` tells an empty group (no subquery row) from a failed aggregate (a
+row whose value is unbound). When a `BY` variable is used in the pattern only in
+a `FILTER`, as `?score` is in the rank example, the subquery cannot compute it,
+since SPARQL evaluates a subquery without the outer bindings. The subquery is
+then seeded with the distinct key values from the elements before the `GROUP`,
+which repeats those elements inside it.
+
+### Test cases
+
+`packages/srl/test/w3c-proposed/pr-1347/` holds the pull request's own syntax
+tests, and `packages/srl/test/w3c-proposed/aggregates/` holds further cases for
+syntax, well-formedness, stratification and evaluation, in the W3C suite's
+format. Both run in `packages/api/test/lib/RuleSetExecutor.aggregatesProposed.test.ts`.

@@ -1,6 +1,6 @@
 import { sparql12GeneratorBuilder } from '@traqula/generator-sparql-1-2';
 import { completeGeneratorContext } from '@traqula/rules-sparql-1-2';
-import type { SrlBodyItem, SrlDataBlock, SrlRule, SrlRuleSet } from './ast.js';
+import type { SrlAggregate, SrlBodyItem, SrlDataBlock, SrlRule, SrlRuleSet } from './ast.js';
 import { renderTerm } from './tuples/compile.js';
 
 /**
@@ -51,7 +51,25 @@ function generateBodyItem(item: SrlBodyItem): string {
       return `SET ( ?${item.variable} := ${serializeSparqlNode('expression', item.expr)} )`;
     case 'tuple':
       return `TUPLE(${(item.tuple.terms as any[]).map(renderTerm).join(', ')})`;
+    case 'aggregate':
+      return `${aggregateHeader(item)} { ${item.body.map(generateBodyItem).filter(Boolean).join(' ')} } ${aggregateAssignments(item)}`;
   }
+}
+
+/** `GROUP` or `GROUP BY ?k …`. */
+export function aggregateHeader(item: SrlAggregate): string {
+  return item.keys.length > 0 ? `GROUP BY ${item.keys.map((k) => `?${k}`).join(' ')}` : 'GROUP';
+}
+
+/** One `?n := COUNT(*)` per assignment, for the `[ … ]` block. */
+export function aggregateAssignmentList(item: SrlAggregate): string[] {
+  return item.assignments.map((a) => `?${a.variable} := ${serializeSparqlNode('expression', a.aggregate)}`);
+}
+
+/** `[ ?n := COUNT(*) ?m := MAX(?a) ]`, or `[]` with no assignments. */
+export function aggregateAssignments(item: SrlAggregate): string {
+  const parts = aggregateAssignmentList(item);
+  return parts.length > 0 ? `[ ${parts.join(' ')} ]` : '[]';
 }
 
 /** Serialize a rule head (triple templates plus any tuple templates). */

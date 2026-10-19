@@ -15,6 +15,7 @@ import { Parser as SparqlParser } from '@traqula/parser-sparql-1-2';
 import { compileRule, formatRuleSet, parseRuleSet } from '@sparql-query-lib/srl';
 
 import { ruleTuplesAllowed } from './ruleTuples.js';
+import { ruleAggregatesAllowed } from './ruleAggregates.js';
 export type GrammarType = 'srl' | 'sparql';
 
 export interface GrammarValidationResult {
@@ -113,8 +114,8 @@ export class RuleGrammarValidator {
 
     const tuples = ruleTuplesAllowed();
     try {
-      const formatted = formatRuleSet(parseRuleSet(trimmed, { tuples })).trimEnd();
-      parseRuleSet(formatted, { tuples });
+      const formatted = formatRuleSet(parseRuleSet(trimmed, { tuples, aggregates: ruleAggregatesAllowed() })).trimEnd();
+      parseRuleSet(formatted, { tuples, aggregates: ruleAggregatesAllowed() });
       return { formatted, grammar };
     } catch {
       return { formatted: trimmed, grammar };
@@ -146,7 +147,7 @@ export class RuleGrammarValidator {
    */
   private trySrl(input: string): GrammarValidationResult {
     try {
-      const rs = parseRuleSet(input, { tuples: ruleTuplesAllowed() });
+      const rs = parseRuleSet(input, { tuples: ruleTuplesAllowed(), aggregates: ruleAggregatesAllowed() });
       const parts: string[] = [];
       let usesTuples = false;
       for (const rule of rs.rules) {

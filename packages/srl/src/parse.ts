@@ -7,6 +7,11 @@ const defaultContext = completeParseContext({});
 export interface ParseOptions {
   /** Enable the rule-tuples extension (w3c/data-shapes#752). Off by default. */
   tuples?: boolean;
+  /**
+   * Enable `GROUP` aggregation (w3c/data-shapes#1347, not yet in the
+   * specification). Off by default.
+   */
+  aggregates?: boolean;
 }
 
 interface RawRule {
@@ -99,6 +104,15 @@ export function parseRuleSet(text: string, opts: ParseOptions = {}): SrlRuleSet 
     }
   }
 
+  // Same arrangement as TUPLE: the GROUP rule is always registered, and
+  // acceptance is decided here.
+  if (rules.some((r) => bodyUsesAggregates(r.body))) {
+    if (!opts.aggregates) {
+      throw new Error('SRL syntax error: GROUP requires the rule-aggregates extension (parse with { aggregates: true })');
+    }
+    for (const rule of rules) checkAggregatePlacement(rule.body, false);
+  }
+
   const prologueText = extractPrologueText(text);
 
   return { prologue: ast.prologue, prologueText, rules, dataBlocks };
@@ -115,7 +129,61 @@ export function ruleName(term: any): string {
 }
 
 function bodyUsesTuples(items: SrlRule['body']): boolean {
-  return items.some((it) => it.kind === 'tuple' || (it.kind === 'not' && bodyUsesTuples(it.body)));
+  return items.some((it) =>
+    it.kind === 'tuple' || ((it.kind === 'not' || it.kind === 'aggregate') && bodyUsesTuples(it.body)));
+}
+
+function bodyUsesAggregates(items: SrlRule['body']): boolean {
+  return items.some((it) => it.kind === 'aggregate' || (it.kind === 'not' && bodyUsesAggregates(it.body)));
+}
+
+/** The aggregation functions of w3c/data-shapes#1347, rule [27]. */
+const AGGREGATE_FUNCTIONS = new Set(['count', 'sum', 'min', 'max']);
+
+/**
+ * Narrow what the grammar accepts to what rules [23] and [27] allow.
+ *
+ * The `GROUP` rule parses its pattern as a rule body and its functions with
+ * SPARQL's aggregate rule, both of which accept more. Refusing the excess here
+ * means a document gets a message saying what is not allowed, rather than a
+ * token error from deep inside the expression grammar.
+ *
+ * - A `GROUP` belongs at the top of a rule body: not inside a `NOT` or another
+ *   `GROUP`.
+ * - Its pattern holds triple patterns, `FILTER` and `SET` ([24]), not `NOT`.
+ * - `COUNT` takes a variable or `*`, with optional `DISTINCT`; `SUM`, `MIN` and
+ *   `MAX` take a variable, without `DISTINCT`. There is no `AVG`, and the
+ *   SPARQL aggregates `SAMPLE` and `GROUP_CONCAT` are not in the language.
+ */
+function checkAggregatePlacement(items: SrlRule['body'], nested: boolean): void {
+  for (const item of items) {
+    if (item.kind === 'not') checkAggregatePlacement(item.body, true);
+    if (item.kind !== 'aggregate') continue;
+    if (nested) throw new Error('SRL syntax error: GROUP cannot appear inside NOT or another GROUP');
+    if (item.body.some((inner) => inner.kind === 'not')) {
+      throw new Error('SRL syntax error: NOT cannot appear inside a GROUP pattern');
+    }
+    checkAggregatePlacement(item.body, true);
+    for (const { aggregate } of item.assignments) checkAggregationFunction(aggregate);
+  }
+}
+
+function checkAggregationFunction(aggregate: unknown): void {
+  const node = aggregate as { aggregation?: unknown; distinct?: unknown; expression?: unknown[] };
+  const name = String(node.aggregation ?? '').toLowerCase();
+  const label = name.toUpperCase();
+  if (!AGGREGATE_FUNCTIONS.has(name)) {
+    throw new Error(`SRL syntax error: ${label} is not a GROUP aggregation function; use COUNT, SUM, MIN or MAX`);
+  }
+  const argument = (node.expression ?? [])[0] as { type?: unknown; subType?: unknown } | undefined;
+  const isVariable = argument?.type === 'term' && argument?.subType === 'variable';
+  const isStar = argument?.type === 'wildcard';
+  if (name === 'count') {
+    if (!isVariable && !isStar) throw new Error('SRL syntax error: COUNT takes a variable or *, not an expression');
+    return;
+  }
+  if (node.distinct) throw new Error(`SRL syntax error: ${label} does not take DISTINCT; only COUNT does`);
+  if (!isVariable) throw new Error(`SRL syntax error: ${label} takes a variable, not an expression`);
 }
 
 /** Deep search for a SPARQL variable term anywhere within an AST node. */

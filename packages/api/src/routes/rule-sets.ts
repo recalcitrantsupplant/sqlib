@@ -60,6 +60,7 @@ import { clearBrowserDefaultsIfMoved, deleteBrowserDefaultsOf } from '../lib/bro
 import { DATA_GRAPH_FORMATS } from '../lib/dataGraphContent.js';
 import { DataGraphContentError, resolveDataGraphInput, type ResolvedDataGraph } from '../lib/dataGraphInput.js';
 import { TupleSeedInputError, resolveTupleSeedInput } from '../lib/tupleSeedInput.js';
+import { ruleAggregatesAllowed } from '../lib/ruleAggregates.js';
 
 type AnyRecord = Record<string, unknown>;
 
@@ -944,7 +945,7 @@ export default async function (fastify: FastifyInstance) {
       // Deliberately NOT expanded: the compiled SPARQL carries the document's
       // own prologue, so a reader sees the prefixes they wrote rather than a
       // wall of full IRIs. Identity is not at stake here — nothing is stored.
-      const ruleSet = parseRuleSet(text, { tuples: body.tuples === true && ruleTuplesAllowed() });
+      const ruleSet = parseRuleSet(text, { tuples: body.tuples === true && ruleTuplesAllowed(), aggregates: ruleAggregatesAllowed() });
       const rules = ruleSet.rules.map((rule, index) => {
         const compiled = compileRule(rule, ruleSet.prologueText, { flavour });
         const caveats: string[] = [];
@@ -1127,7 +1128,7 @@ export interface SrlDocumentBlock {
   startLine: number;
   endLine: number;
   stratum: number | null;
-  monotonicity: 'monotone' | 'negation' | null;
+  monotonicity: 'monotone' | 'negation' | 'aggregation' | null;
   /**
    * The spec's `SL.once`: a rule the evaluator runs exactly once rather than to
    * fixpoint, because re-firing it yields a fresh answer every pass. Null for a
@@ -1164,7 +1165,7 @@ export function analyzeSrlDocument(srl: string, tuples: boolean) {
 
   let ruleSet: ReturnType<typeof parseRuleSet>;
   try {
-    ruleSet = parseRuleSet(srl, { tuples });
+    ruleSet = parseRuleSet(srl, { tuples, aggregates: ruleAggregatesAllowed() });
   } catch (error) {
     return {
       ...empty,
@@ -1374,7 +1375,7 @@ function parseSrlDocument(
   if (!text) {
     throw new Error('An SRL document is required');
   }
-  const ruleSet = expandIris(parseRuleSet(text, { tuples }));
+  const ruleSet = expandIris(parseRuleSet(text, { tuples, aggregates: ruleAggregatesAllowed() }));
   // A document may legitimately be data-only — DATA blocks are as much a part
   // of a ruleset as rules are — but empty is still an error.
   if (ruleSet.rules.length === 0 && ruleSet.dataBlocks.length === 0) {
@@ -1445,7 +1446,7 @@ function toDataBlockText(dataString?: string | null): string | null {
   // spelled with the full IRI are the same block and match on re-import.
   const canonicalize = (document: string): string | null => {
     try {
-      const parsed = expandIris(parseRuleSet(document, { tuples: true }));
+      const parsed = expandIris(parseRuleSet(document, { tuples: true, aggregates: ruleAggregatesAllowed() }));
       if (parsed.rules.length > 0 || parsed.dataBlocks.length === 0) return null;
       return parsed.dataBlocks.map((b) => canonicalDataBlockText(b)).join('\n\n');
     } catch {
@@ -1497,7 +1498,7 @@ function canonicalizeStoredDataBlock(version: LdkitDataBlockVersion): { identity
     // Identity comes from the srl package rather than a local hash, so the two
     // sides cannot drift: a stored block and an imported one must agree, or
     // every re-import would report the same data as new.
-    const doc = splitDataBlocks(expandIris(parseRuleSet(text, { tuples: true })))[0];
+    const doc = splitDataBlocks(expandIris(parseRuleSet(text, { tuples: true, aggregates: ruleAggregatesAllowed() })))[0];
     return doc ? { identity: doc.identity, text: doc.text } : fallback;
   } catch {
     return fallback;
@@ -1562,7 +1563,7 @@ function canonicalizeStoredRule(ruleVersion: LdkitRuleVersion): { identity: stri
   const fallback = { identity: `unparseable:${ruleVersion.$id}`, text: raw };
   if (!raw) return fallback;
   try {
-    const docs = splitRuleSet(expandIris(parseRuleSet(raw, { tuples: true })));
+    const docs = splitRuleSet(expandIris(parseRuleSet(raw, { tuples: true, aggregates: ruleAggregatesAllowed() })));
     const doc = docs[0];
     // Keep unparseable/empty rules addressable so they are never silently dropped.
     return doc ? { identity: doc.identity, text: doc.text } : fallback;

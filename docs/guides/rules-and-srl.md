@@ -266,3 +266,28 @@ This is unrelated to the `TupleSet` entity and the `tupleSets` flag, which share
 the word. A tuple set is a saved table of RDF terms spliced into a query's
 `VALUES` clause; it is reachable from queries and argument sets, and this flag
 does not affect it.
+
+## Aggregation with `GROUP`
+
+`GROUP` computes `COUNT`, `SUM`, `MIN` and `MAX` over a pattern inside a rule
+body:
+
+```sparql
+PREFIX : <http://example.org/>
+RULE { ?x :numChildren ?n }
+WHERE { ?x a :Person . GROUP BY ?x { ?y :childOf ?x } [ ?n := COUNT(*) ] }
+```
+
+It follows the grammar proposed in
+[w3c/data-shapes#1347](https://github.com/w3c/data-shapes/pull/1347), which is
+not merged yet. Until it is, `GROUP` is gated by the `ruleAggregates` feature
+flag (`FEATURE_RULE_AGGREGATES`), which defaults **off**, and with the flag off a
+document containing `GROUP` is a syntax error:
+
+```
+SRL syntax error: GROUP requires the rule-aggregates extension (parse with { aggregates: true })
+```
+
+What a `GROUP` evaluates to, what it keeps bound afterwards, and how it
+stratifies and compiles are in
+[the SRL reference](../reference/srl-language.md#aggregation-group).

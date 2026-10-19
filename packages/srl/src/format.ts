@@ -1,5 +1,5 @@
 import type { SrlBodyItem, SrlDataBlock, SrlRule, SrlRuleSet } from './ast.js';
-import { renderRuleName, serializeSparqlNode } from './generate.js';
+import { aggregateAssignmentList, aggregateAssignments, aggregateHeader, renderRuleName, serializeSparqlNode } from './generate.js';
 import { renderTerm } from './tuples/compile.js';
 
 /**
@@ -58,6 +58,21 @@ function formatBodyItem(item: SrlBodyItem, unit: string, depth: number): string[
       return [`${pad}SET ( ?${item.variable} := ${serializeSparqlNode('expression', item.expr)} )`];
     case 'tuple':
       return [`${pad}TUPLE(${(item.tuple.terms as unknown[]).map(renderTerm).join(', ')})`];
+    case 'aggregate': {
+      const inner = item.body.flatMap((nested) => formatBodyItem(nested, unit, depth + 1));
+      const lines = braced(aggregateHeader(item), inner, unit, depth).split('\n');
+      // One assignment stays on the closing line; several get a line each, as
+      // the triples in the pattern do.
+      const assignments = aggregateAssignmentList(item);
+      if (assignments.length <= 1) {
+        lines[lines.length - 1] += ` ${aggregateAssignments(item)}`;
+        return lines;
+      }
+      lines[lines.length - 1] += ' [';
+      for (const assignment of assignments) lines.push(`${pad}${unit}${assignment}`);
+      lines.push(`${pad}]`);
+      return lines;
+    }
   }
 }
 
