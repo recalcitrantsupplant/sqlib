@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# An aggregation function inside an aggregation function.
+RULE { :all :n ?n } WHERE { GROUP { ?s :p ?o } [ ?n := SUM(COUNT(?o)) ] }

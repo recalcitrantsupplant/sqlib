@@ -1,0 +1,8 @@
+PREFIX : <http://example/>
+
+:a :denseRank 1 .
+:b :denseRank 2 .
+:c :denseRank 2 .
+:d :denseRank 3 .
+:e :denseRank 1 .
+:f :denseRank 2 .

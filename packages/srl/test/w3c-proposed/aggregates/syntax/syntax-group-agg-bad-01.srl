@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# SAMPLE is not an aggregation function.
+RULE { :all :some ?n } WHERE { GROUP { ?s :p ?o } [ ?n := SAMPLE(?o) ] }

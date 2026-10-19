@@ -1,0 +1,5 @@
+PREFIX : <http://example/>
+
+# On an empty graph a GROUP with no BY counts 0, and its MAX has no value.
+RULE { :all :count ?n } WHERE { GROUP { ?s :p ?o } [ ?n := COUNT(*) ] }
+RULE { :all :max ?m } WHERE { GROUP { ?s :p ?o } [ ?m := MAX(?o) ] }

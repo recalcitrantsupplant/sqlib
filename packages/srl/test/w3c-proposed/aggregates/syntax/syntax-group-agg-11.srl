@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# An empty block may be written with space inside.
+RULE { } WHERE { GROUP { ?s ?p ?o } [ ] }

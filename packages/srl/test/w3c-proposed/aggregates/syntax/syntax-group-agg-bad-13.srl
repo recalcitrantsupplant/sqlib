@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# An expression argument to SUM.
+RULE { :all :n ?n } WHERE { GROUP { ?s :p ?o } [ ?n := SUM(?o + 1) ] }

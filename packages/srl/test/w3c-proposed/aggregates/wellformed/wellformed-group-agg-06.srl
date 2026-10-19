@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# A variable the GROUP drops may be matched again after it.
+RULE { ?x :label ?name ; :numChildren ?n } WHERE { ?x a :Person . GROUP BY ?x { ?y :childOf ?x } [ ?n := COUNT(*) ] ?x :name ?name }

@@ -1,0 +1,10 @@
+PREFIX : <http://example/>
+
+# Assignments laid out one per line.
+RULE { ?c :employees ?n ; :salaryBill ?t }
+WHERE {
+  ?c a :Company .
+  GROUP BY ?c { ?x :employee ?c ; :salary ?s }
+  [ ?n := COUNT(DISTINCT ?x)
+    ?t := SUM(?s) ]
+}

@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+:bob a :Listed .
+:amy a :Listed .

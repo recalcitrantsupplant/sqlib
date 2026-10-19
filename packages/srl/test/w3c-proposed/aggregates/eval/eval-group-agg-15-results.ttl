@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+:bob :kids 3 ; :adults 0 .
+:amy :kids 0 ; :adults 0 .
