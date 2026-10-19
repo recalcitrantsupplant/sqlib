@@ -114,7 +114,7 @@
             editor-title="Rule Set Editor"
             expandable
             :expanded="editorExpanded"
-            placeholder="PREFIX : <http://example/>&#10;&#10;DATA { :a :parent :b }&#10;&#10;RULE { ?s :q ?o } WHERE { ?s :p ?o }"
+            :placeholder="EDITOR_PLACEHOLDER"
             chrome="minimal"
             content-type="application/srl"
             validation-label="rule set"
@@ -315,6 +315,11 @@ import {
 import { parseTupleDeclarations } from '../lib/tupleSetLabels';
 import { rdfSyntaxHighlighting } from '../lib/codemirrorHighlight';
 import type { Library, RuleSetUpdateInput } from '@sparql-query-lib/contracts';
+
+// Bound rather than written inline: vue-tsc 3.3.12 misreads a literal `<…>` in
+// a static attribute and loses the slot props that follow it.
+const EDITOR_PLACEHOLDER =
+  'PREFIX : <http://example/>\n\nDATA { :a :parent :b }\n\nRULE { ?s :q ?o } WHERE { ?s :p ?o }';
 
 /*
  * One rules screen. A draft is not a different place, it is this screen with
