@@ -5,17 +5,17 @@ source "$(dirname "$0")/lib.sh"
 #
 # IMPORTANT: this repo is private on the free plan, so branch protection and
 # required status checks are unavailable (the API returns 403). That means the
-# calling job's `needs: [verify, test, image]` is the ONLY gate keeping a red PR
-# from merging. If you ever call this from a job that does not depend on all
-# three, you have removed the safety net.
+# calling job's `needs: [verify, test, image, web-image, e2e]` is the ONLY gate
+# keeping a red PR from merging. If you ever call this from a job that does not
+# depend on all five, you have removed the safety net.
 #
 # `image` is in that list because of a specific failure: a Docker base-image
 # bump merged itself green and broke every publish afterwards, since nothing in
-# the PR pipeline built the image.
+# the PR pipeline built the image. `web-image` covers the same gap for the web
+# bundle image, which has its own Dockerfile and build.
 #
-# Note also that `e2e` does not run on pull requests (it is workflow_dispatch
-# only), so "green" here means lint + typecheck + build + unit tests + a
-# successful image build.
+# So "green" here means lint + typecheck + build + unit tests + both image
+# builds + the Playwright e2e specs.
 #
 # Inputs (all via env, supplied by ci.yml from dependabot/fetch-metadata):
 #   PR_URL            the pull request to merge
