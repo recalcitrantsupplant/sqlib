@@ -25,14 +25,10 @@ import { toPrefixedNames, toFullIris } from '@/lib/prefixRewrite';
  *   can leave the buttons out rather than offer an approximate rewrite.
  */
 export function usePrefixConversion(contentType: MaybeRefOrGetter<string | null | undefined>) {
-  const { effectivePairs, prefixSettings } = usePrefixManager();
+  const { effectivePairs, namespaceFor } = usePrefixManager();
 
   const parser = computed(() => prefixGrammarFor(toValue(contentType)));
   const supported = computed(() => parser.value !== null);
-
-  function namespaceFor(prefix: string): string | undefined {
-    return prefixSettings.value.mappings.find((m) => m.enabled && m.prefix === prefix)?.namespace;
-  }
 
   /**
    * Full IRIs down to prefixed names.

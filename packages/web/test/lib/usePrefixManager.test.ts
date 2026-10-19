@@ -362,11 +362,12 @@ ex:a a up:Thing .`;
       prefixSettings.value.mappings = [];
       await nextTick();
 
-      // An empty prefix label, and a namespace that is not an IRI.
+      // A namespace that is not an IRI goes; the empty label is a real
+      // prefix and stays (see test/lib/emptyPrefix.test.ts).
       autoDiscoverFromText('@prefix : <http://example.org/> .\nPREFIX bad: <nonsense>', null);
       await nextTick();
 
-      expect(prefixSettings.value.mappings).toHaveLength(0);
+      expect(prefixSettings.value.mappings.map(m => m.prefix)).toEqual(['']);
     });
 
     it('does not mistake a word ending in "prefix" for a declaration', async () => {
