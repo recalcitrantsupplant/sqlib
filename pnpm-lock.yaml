@@ -234,11 +234,11 @@ importers:
         specifier: ^6.43.14
         version: 6.43.14
       '@kurrawongai/codemirror-lang-sparql12':
-        specifier: 0.4.0
-        version: 0.4.0
+        specifier: 0.5.0
+        version: 0.5.0
       '@kurrawongai/codemirror-lang-srl':
-        specifier: 0.4.0
-        version: 0.4.0
+        specifier: 0.5.0
+        version: 0.5.0
       '@kurrawongai/codemirror-lang-turtle12':
         specifier: 0.3.0
         version: 0.3.0
@@ -479,11 +479,11 @@ importers:
         specifier: ^6.43.14
         version: 6.43.14
       '@kurrawongai/codemirror-lang-sparql12':
-        specifier: 0.4.0
-        version: 0.4.0
+        specifier: 0.5.0
+        version: 0.5.0
       '@kurrawongai/codemirror-lang-srl':
-        specifier: 0.4.0
-        version: 0.4.0
+        specifier: 0.5.0
+        version: 0.5.0
       '@kurrawongai/codemirror-lang-turtle12':
         specifier: 0.3.0
         version: 0.3.0
@@ -2004,11 +2004,11 @@ packages:
   '@keyv/serialize@1.1.1':
     resolution: {integrity: sha512-dXn3FZhPv0US+7dtJsIi2R+c7qWYiReoEh5zUntWCf4oSpMNib8FDhSoed6m3QyZdx5hK7iLFkYk3rNxwt8vTA==}
 
-  '@kurrawongai/codemirror-lang-sparql12@0.4.0':
-    resolution: {integrity: sha512-Ktk0UH44PfsSTx4ibHDXr5hypBQckA7IXi+qTEJY4xmZl3bn9Ruh51tekgRPsFQCD8OGcd6toozO4bcicpHZtw==}
+  '@kurrawongai/codemirror-lang-sparql12@0.5.0':
+    resolution: {integrity: sha512-1WC1lt9RMmSEYvFljl8FSchd+g8v8VNoeraWV9k6ik9VhMnQ/piS6IzkA6xkdvqZUhVs1WCJNhFxqWT75pG1zA==}
 
-  '@kurrawongai/codemirror-lang-srl@0.4.0':
-    resolution: {integrity: sha512-8crYW38qBmrCNe8RGHu3u6nvnqLk1qDUSBB+8/m+80KBUrgQXN9oHMYW96wnBCDb2N8Ul3fhpgAuX+4jif6+uw==}
+  '@kurrawongai/codemirror-lang-srl@0.5.0':
+    resolution: {integrity: sha512-DivohImTkv7cjZGbIyv+WKnyyw4QlUoLT8VCG2IscKVuwLtPRPEppW2PM7Nk3crP0etEktE28ycEIdWV2mlscw==}
 
   '@kurrawongai/codemirror-lang-turtle12@0.3.0':
     resolution: {integrity: sha512-MxYpvKndgMpoOM7/gNqFETeB8gxdjImuZe7kLWqRnoGYRERieD/SlfqKIeYxLkNcqXuGU82dF3tbV7411CvySg==}
@@ -9373,7 +9373,7 @@ snapshots:
 
   '@keyv/serialize@1.1.1': {}
 
-  '@kurrawongai/codemirror-lang-sparql12@0.4.0':
+  '@kurrawongai/codemirror-lang-sparql12@0.5.0':
     dependencies:
       '@codemirror/autocomplete': 6.20.3
       '@codemirror/language': 6.13.1
@@ -9383,13 +9383,13 @@ snapshots:
       '@lezer/highlight': 1.2.5
       '@lezer/lr': 1.4.11
 
-  '@kurrawongai/codemirror-lang-srl@0.4.0':
+  '@kurrawongai/codemirror-lang-srl@0.5.0':
     dependencies:
       '@codemirror/autocomplete': 6.20.3
       '@codemirror/language': 6.13.1
       '@codemirror/lint': 6.9.7
       '@codemirror/state': 6.7.6
-      '@kurrawongai/codemirror-lang-sparql12': 0.4.0
+      '@kurrawongai/codemirror-lang-sparql12': 0.5.0
       '@lezer/common': 1.5.3
       '@lezer/highlight': 1.2.5
       '@lezer/lr': 1.4.11

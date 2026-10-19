@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# Parentheses around an assignment.
+RULE { :all :n ?n } WHERE { GROUP { ?s :p ?o } [ ( ?n := COUNT(*) ) ] }

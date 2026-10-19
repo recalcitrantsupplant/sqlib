@@ -1,0 +1,195 @@
+## Proposed SPARQL-RL tests for GROUP (w3c/data-shapes#1344, #1347).
+## Same layout and vocabulary as eval/manifest.ttl upstream.
+
+PREFIX rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs:   <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX mf:     <http://www.w3.org/2001/sw/DataAccess/tests/test-manifest#>
+PREFIX :       <https://w3c.github.io/rdf-tests/shacl/shacl12/>
+PREFIX srlt:   <http://www.w3.org/ns/sparql-rl-tests#>
+
+<#>  rdf:type mf:Manifest ;
+   rdfs:label "SPARQL-RL Evaluation Tests: GROUP (proposed)"@en ;
+   mf:assumedTestBase <https://w3c.github.io/rdf-tests/shacl/shacl12/> ;
+    mf:entries
+    (
+        :eval-group-agg-01
+        :eval-group-agg-02
+        :eval-group-agg-03
+        :eval-group-agg-04
+        :eval-group-agg-05
+        :eval-group-agg-06
+        :eval-group-agg-07
+        :eval-group-agg-08
+        :eval-group-agg-09
+        :eval-group-agg-10
+        :eval-group-agg-11
+        :eval-group-agg-12
+        :eval-group-agg-13
+        :eval-group-agg-14
+        :eval-group-agg-15
+        :eval-group-agg-16
+        :eval-group-agg-17
+        :eval-group-agg-18
+    ) .
+
+# COUNT per person: a person with no children gets 0.
+:eval-group-agg-01 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-agg-01";
+    mf:action
+         [ srlt:ruleset  <eval-group-agg-01.srl> ;
+           srlt:data     <data-family.ttl> ] ;
+    mf:result  <eval-group-agg-01-results.ttl>
+    .
+
+# SUM counts every solution, so two children aged 10 both count; an empty group sums to 0.
+:eval-group-agg-02 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-agg-02";
+    mf:action
+         [ srlt:ruleset  <eval-group-agg-02.srl> ;
+           srlt:data     <data-family.ttl> ] ;
+    mf:result  <eval-group-agg-02-results.ttl>
+    .
+
+# COUNT(DISTINCT ?a) counts each age once.
+:eval-group-agg-03 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-agg-03";
+    mf:action
+         [ srlt:ruleset  <eval-group-agg-03.srl> ;
+           srlt:data     <data-family.ttl> ] ;
+    mf:result  <eval-group-agg-03-results.ttl>
+    .
+
+# Bob has two names. Listing ?name in BY carries it through: each name row gets the count of 3, not 6.
+:eval-group-agg-04 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-agg-04";
+    mf:action
+         [ srlt:ruleset  <eval-group-agg-04.srl> ;
+           srlt:data     <data-family.ttl> ] ;
+    mf:result  <eval-group-agg-04-results.ttl>
+    .
+
+# MIN and MAX have no value on an empty group, so Amy's row is dropped.
+:eval-group-agg-05 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-agg-05";
+    mf:action
+         [ srlt:ruleset  <eval-group-agg-05.srl> ;
+           srlt:data     <data-family.ttl> ] ;
+    mf:result  <eval-group-agg-05-results.ttl>
+    .
+
+# COUNT(*) counts solutions; COUNT(DISTINCT ?p) counts people. Ann has two roles.
+:eval-group-agg-06 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-agg-06";
+    mf:action
+         [ srlt:ruleset  <eval-group-agg-06.srl> ;
+           srlt:data     <data-staff.ttl> ] ;
+    mf:result  <eval-group-agg-06-results.ttl>
+    .
+
+# Rank within a department: 1 plus the number of people in it with a higher score. Ties share a rank.
+:eval-group-agg-07 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-agg-07";
+    mf:action
+         [ srlt:ruleset  <eval-group-agg-07.srl> ;
+           srlt:data     <data-scores.ttl> ] ;
+    mf:result  <eval-group-agg-07-results.ttl>
+    .
+
+# Dense rank, counting distinct higher scores.
+:eval-group-agg-08 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-agg-08";
+    mf:action
+         [ srlt:ruleset  <eval-group-agg-08.srl> ;
+           srlt:data     <data-scores.ttl> ] ;
+    mf:result  <eval-group-agg-08-results.ttl>
+    .
+
+# COUNT(DISTINCT *) equals COUNT(*): the solutions of a pattern are already distinct.
+:eval-group-agg-09 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-agg-09";
+    mf:action
+         [ srlt:ruleset  <eval-group-agg-09.srl> ;
+           srlt:data     <data-staff.ttl> ] ;
+    mf:result  <eval-group-agg-09-results.ttl>
+    .
+
+# The GROUP counts :childOf only after the rule deriving it is complete, so Bob gets 3 and no partial count.
+:eval-group-agg-10 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-agg-10";
+    mf:action
+         [ srlt:ruleset  <eval-group-agg-10.srl> ;
+           srlt:data     <data-parents.ttl> ] ;
+    mf:result  <eval-group-agg-10-results.ttl>
+    .
+
+# WHERE DATA counts only the given graph: the derived :childOf triples are not counted.
+:eval-group-agg-11 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-agg-11";
+    mf:action
+         [ srlt:ruleset  <eval-group-agg-11.srl> ;
+           srlt:data     <data-parents.ttl> ] ;
+    mf:result  <eval-group-agg-11-results.ttl>
+    .
+
+# An aggregation error drops the row: SUM over strings has no value, SUM over numbers does.
+:eval-group-agg-12 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-agg-12";
+    mf:action
+         [ srlt:ruleset  <eval-group-agg-12.srl> ;
+           srlt:data     <data-strings.ttl> ] ;
+    mf:result  <eval-group-agg-12-results.ttl>
+    .
+
+# On an empty graph a GROUP with no BY counts 0, and its MAX has no value.
+:eval-group-agg-13 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-agg-13";
+    mf:action
+         [ srlt:ruleset  <eval-group-agg-13.srl> ;
+           srlt:data     <data-empty.ttl> ] ;
+    mf:result  <eval-group-agg-13-results.ttl>
+    .
+
+# A FILTER on the result after the GROUP keeps only people with more than one child.
+:eval-group-agg-14 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-agg-14";
+    mf:action
+         [ srlt:ruleset  <eval-group-agg-14.srl> ;
+           srlt:data     <data-family.ttl> ] ;
+    mf:result  <eval-group-agg-14-results.ttl>
+    .
+
+# Two GROUPs in one rule; the second lists the first one's result to keep it.
+:eval-group-agg-15 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-agg-15";
+    mf:action
+         [ srlt:ruleset  <eval-group-agg-15.srl> ;
+           srlt:data     <data-family.ttl> ] ;
+    mf:result  <eval-group-agg-15-results.ttl>
+    .
+
+# SET in the pattern: each child's age next year, summed.
+:eval-group-agg-16 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-agg-16";
+    mf:action
+         [ srlt:ruleset  <eval-group-agg-16.srl> ;
+           srlt:data     <data-family.ttl> ] ;
+    mf:result  <eval-group-agg-16-results.ttl>
+    .
+
+# An empty block keeps one row per key, matched or not, as COUNT does.
+:eval-group-agg-17 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-agg-17";
+    mf:action
+         [ srlt:ruleset  <eval-group-agg-17.srl> ;
+           srlt:data     <data-family.ttl> ] ;
+    mf:result  <eval-group-agg-17-results.ttl>
+    .
+
+# A GROUP with no BY makes one group of every earlier row, and drops the earlier variables.
+:eval-group-agg-18 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-agg-18";
+    mf:action
+         [ srlt:ruleset  <eval-group-agg-18.srl> ;
+           srlt:data     <data-family.ttl> ] ;
+    mf:result  <eval-group-agg-18-results.ttl>
+    .

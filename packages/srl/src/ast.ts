@@ -36,7 +36,33 @@ export type SrlBodyItem =
    */
   | { kind: 'not'; body: SrlBodyItem[]; data?: boolean }
   | { kind: 'set'; variable: string; expr: unknown }
-  | { kind: 'tuple'; tuple: SrlTuple };
+  | { kind: 'tuple'; tuple: SrlTuple }
+  | SrlAggregate;
+
+/** One `?var := FUNCTION(…)` of a `GROUP`. */
+export interface SrlAggregateAssignment {
+  variable: string;
+  /** Traqula aggregate expression node (`subType: 'aggregate'`). */
+  aggregate: unknown;
+}
+
+/**
+ * `GROUP [BY ?k …] { pattern } [ assignments ]` (w3c/data-shapes#1347).
+ *
+ * The listed variables must be bound before the element; the pattern is
+ * evaluated once for each distinct combination of their values, and afterwards
+ * only they and the results are bound. With no `BY`, every input row falls in
+ * one group.
+ */
+export interface SrlAggregate {
+  kind: 'aggregate';
+  /** The `BY` variables, in order. Empty when there is no `BY`. */
+  keys: string[];
+  /** The pattern: triple patterns, `FILTER`, `SET` and, with tuples on, `TUPLE`. */
+  body: SrlBodyItem[];
+  /** Empty for `[]`. */
+  assignments: SrlAggregateAssignment[];
+}
 
 export interface SrlRule {
   /** Optional author-supplied name from `RULE <iri>` (expanded IRI), else undefined. */

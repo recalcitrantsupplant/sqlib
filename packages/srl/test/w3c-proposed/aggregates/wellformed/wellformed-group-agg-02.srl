@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# Two GROUPs may each have their own pattern variable called ?y.
+RULE { ?x :pets ?m } WHERE { ?x a :Person . GROUP BY ?x { ?y :childOf ?x } [ ?n := COUNT(*) ] GROUP BY ?x { ?y :petOf ?x } [ ?m := COUNT(*) ] }

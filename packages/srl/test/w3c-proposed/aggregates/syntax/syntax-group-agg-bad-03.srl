@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# AVG is not an aggregation function.
+RULE { :all :mean ?n } WHERE { GROUP { ?s :p ?o } [ ?n := AVG(?o) ] }

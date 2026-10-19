@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# COUNT per person: a person with no children gets 0.
+RULE { ?x :numChildren ?n } WHERE { ?x a :Person . GROUP BY ?x { ?y :childOf ?x } [ ?n := COUNT(*) ] }

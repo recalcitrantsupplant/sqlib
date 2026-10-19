@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# Several BY variables, with no separator.
+RULE { ?d :count ?n } WHERE { ?p :dept ?d ; :score ?s . GROUP BY ?d ?s { ?o :dept ?d ; :score ?s2 FILTER(?s2 > ?s) } [ ?n := COUNT(*) ] }

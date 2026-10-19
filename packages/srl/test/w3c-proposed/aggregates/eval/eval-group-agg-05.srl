@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# MIN and MAX have no value on an empty group, so Amy's row is dropped.
+RULE { ?x :youngest ?lo ; :oldest ?hi } WHERE { ?x a :Person . GROUP BY ?x { ?y :childOf ?x ; :age ?a } [ ?lo := MIN(?a) ?hi := MAX(?a) ] }

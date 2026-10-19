@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# NOT inside the pattern.
+RULE { :all :n ?n } WHERE { GROUP { ?s :p ?o NOT { ?s :q ?o } } [ ?n := COUNT(*) ] }

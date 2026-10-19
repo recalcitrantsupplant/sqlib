@@ -275,6 +275,28 @@ These tuples are unrelated to the `TupleSet` entity and the "Tuples" section of
 the web UI, which are a saved table of RDF terms that fills a query's `VALUES`
 clause.
 
+## Aggregation: `GROUP`
+
+`parseRuleSet(text, { aggregates: true })` enables the `GROUP` body element,
+with the grammar proposed in w3c/data-shapes#1347. The pull request is not
+merged yet, so this is off by default, and without the option a document using
+`GROUP` is a syntax error:
+
+```
+SRL syntax error: GROUP requires the rule-aggregates extension (parse with { aggregates: true })
+```
+
+```sparql
+RULE { ?x :numChildren ?n }
+WHERE { ?x a :Person . GROUP BY ?x { ?y :childOf ?x } [ ?n := COUNT(*) ] }
+```
+
+The server gates this behind the `ruleAggregates` feature flag
+(`FEATURE_RULE_AGGREGATES`, default `false`); see
+`packages/api/src/lib/ruleAggregates.ts`. The syntax, evaluation,
+well-formedness rules and compilation are in
+[the SRL reference](../../docs/reference/srl-language.md#aggregation-group).
+
 ## Conformance testing
 
 `test/w3c/` holds a pinned snapshot of the W3C SPARQL-RL test suite, and

@@ -459,7 +459,7 @@ export interface SrlDocumentBlock {
   endLine: number;
   /** 0-based, as the stratifier reports it; see `stratumLabel`. */
   stratum: number | null;
-  monotonicity: 'monotone' | 'negation' | null;
+  monotonicity: 'monotone' | 'negation' | 'aggregation' | null;
   /** The spec's `SL.once` — run exactly once, not to fixpoint. Null for DATA. */
   runOnce: boolean | null;
   triples: number | null;
@@ -499,7 +499,7 @@ export interface SrlStratificationCycle {
 
 export interface SrlStratificationSummary {
   strata: Record<string, number>;
-  monotonicity: Record<string, 'monotone' | 'negation'>;
+  monotonicity: Record<string, 'monotone' | 'negation' | 'aggregation'>;
   runOnce: Record<string, boolean>;
   edges: Array<{
     from: string;

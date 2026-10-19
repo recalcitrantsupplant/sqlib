@@ -1,0 +1,6 @@
+PREFIX : <http://example/>
+
+# The GROUP counts :childOf only after the rule deriving it is complete, so
+# Bob gets 3 and no partial count.
+RULE { ?y :childOf ?x } WHERE { ?x :parentOf ?y }
+RULE { ?x :numChildren ?n } WHERE { ?x a :Person . GROUP BY ?x { ?y :childOf ?x } [ ?n := COUNT(*) ] }

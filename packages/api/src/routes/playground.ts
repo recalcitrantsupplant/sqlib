@@ -37,6 +37,7 @@ import {
   splitRuleSet,
 } from '@sparql-query-lib/srl';
 import { OxigraphSparqlExecutor } from '../server/OxigraphSparqlExecutor.js';
+import { ruleAggregatesAllowed } from '../lib/ruleAggregates.js';
 import {
   playgroundRulesExecuteRequestJsonSchema,
   playgroundRulesExecuteResponseJsonSchema,
@@ -160,7 +161,7 @@ export default async function playgroundRoutes(
         let tupleSeeds = '';
         if (typeof body.srl === 'string' && body.srl.trim()) {
           try {
-            const document = expandIris(parseRuleSet(body.srl, { tuples: useTuples }));
+            const document = expandIris(parseRuleSet(body.srl, { tuples: useTuples, aggregates: ruleAggregatesAllowed() }));
             const ruleDocs = splitRuleSet(document);
             rules = ruleDocs.map((d) => d.text);
             ruleLabels = ruleDocs.map((d) => d.suggestedLabel);

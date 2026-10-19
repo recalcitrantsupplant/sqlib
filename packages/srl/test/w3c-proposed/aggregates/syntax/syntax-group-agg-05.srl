@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# Keywords are case-insensitive.
+RULE { ?x :numChildren ?n } WHERE { ?x a :Person . group by ?x { ?y :childOf ?x } [ ?n := count(*) ] }

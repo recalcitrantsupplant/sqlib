@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# GROUP_CONCAT is not an aggregation function.
+RULE { :all :list ?n } WHERE { GROUP { ?s :p ?o } [ ?n := GROUP_CONCAT(?o) ] }

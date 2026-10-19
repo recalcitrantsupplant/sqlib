@@ -11,6 +11,7 @@ import {
 import type { LdkitRuleVersion } from '../persistence/schemas/RuleVersionSchema.js';
 
 import { ruleTuplesAllowed } from './ruleTuples.js';
+import { ruleAggregatesAllowed } from './ruleAggregates.js';
 /**
  * Rule stratification, backed by the SRL (SHACL 1.2 Rules) package.
  *
@@ -84,11 +85,11 @@ export class RuleStratifier {
 
     for (const [nodeId, kind] of Object.entries(report.monotonicity)) {
       const versionId = versionOf.get(nodeId) ?? nodeId;
-      // Any negating rule makes the whole version non-monotone.
-      if (kind === 'negation' || monotonicity[versionId] === 'negation') {
-        monotonicity[versionId] = 'negation';
-      } else {
-        monotonicity[versionId] = monotonicity[versionId] ?? kind;
+      // Any non-monotone rule makes the whole version non-monotone; the first
+      // such kind seen names it.
+      const current = monotonicity[versionId];
+      if (current === undefined || (current === 'monotone' && kind !== 'monotone')) {
+        monotonicity[versionId] = kind;
       }
     }
 
@@ -117,7 +118,7 @@ function parseRules(ruleVersion: LdkitRuleVersion): SrlRule[] {
   // Parsed under the deployment's setting, so a stored rule written with the
   // withheld extension fails to stratify rather than quietly running. See
   // ./ruleTuples.ts.
-  const parsed = expandIris(parseRuleSet(source, { tuples: ruleTuplesAllowed() }));
+  const parsed = expandIris(parseRuleSet(source, { tuples: ruleTuplesAllowed(), aggregates: ruleAggregatesAllowed() }));
   if (parsed.rules.length === 0) {
     throw new Error(`RuleVersion ${ruleVersion.$id} did not produce a parsed rule`);
   }

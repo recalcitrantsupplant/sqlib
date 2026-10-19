@@ -1,0 +1,9 @@
+PREFIX : <http://example/>
+
+# Every function, and DISTINCT in COUNT, with no separator between
+# assignments.
+RULE { ?x :stats ?n } WHERE {
+  ?x a :Order .
+  GROUP BY ?x { ?x :line ?l . ?l :price ?p }
+    [ ?n := COUNT(*) ?d := COUNT(DISTINCT ?p) ?all := COUNT(DISTINCT *) ?t := SUM(?p) ?lo := MIN(?p) ?hi := MAX(?p) ]
+}

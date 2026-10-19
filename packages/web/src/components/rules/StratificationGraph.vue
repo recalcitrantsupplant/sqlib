@@ -16,7 +16,7 @@ export interface StratificationNode {
   label: string;
   /** 0-based, as the stratifier reports it. */
   stratum: number | null;
-  monotonicity: 'monotone' | 'negation' | null;
+  monotonicity: 'monotone' | 'negation' | 'aggregation' | null;
   /** The spec's `SL.once`: fired once per execution, not to fixpoint. */
   runOnce?: boolean;
   /** Where it is in the document, when it came from one. */
@@ -637,6 +637,9 @@ const handleNodeClick = (event: NodeMouseEvent) => {
           <div class="node-meta">
             <span v-if="slotProps.data.monotonicity === 'negation'" class="mono negation">
               <CircleSlash :size="11" />negation
+            </span>
+            <span v-else-if="slotProps.data.monotonicity === 'aggregation'" class="mono negation">
+              <CircleSlash :size="11" />aggregation
             </span>
             <span v-else class="mono"><Check :size="11" />monotone</span>
             <!--

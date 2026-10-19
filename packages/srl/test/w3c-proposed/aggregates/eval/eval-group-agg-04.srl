@@ -1,0 +1,5 @@
+PREFIX : <http://example/>
+
+# Bob has two names. Listing ?name in BY carries it through: each name row
+# gets the count of 3, not 6.
+RULE { ?x :label ?name ; :numChildren ?n } WHERE { ?x a :Person ; :name ?name . GROUP BY ?x ?name { ?y :childOf ?x } [ ?n := COUNT(*) ] }

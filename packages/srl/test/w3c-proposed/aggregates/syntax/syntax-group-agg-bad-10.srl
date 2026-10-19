@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# A comma between assignments.
+RULE { :all :n ?n } WHERE { GROUP { ?s :p ?o } [ ?n := COUNT(*), ?t := SUM(?o) ] }

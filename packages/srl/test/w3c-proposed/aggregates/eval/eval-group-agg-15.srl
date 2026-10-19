@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# Two GROUPs in one rule; the second lists the first one's result to keep it.
+RULE { ?x :kids ?n ; :adults ?m } WHERE { ?x a :Person . GROUP BY ?x { ?y :childOf ?x } [ ?n := COUNT(*) ] GROUP BY ?x ?n { ?y :childOf ?x ; :age ?a FILTER(?a >= 18) } [ ?m := COUNT(*) ] }

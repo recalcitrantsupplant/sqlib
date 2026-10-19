@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# A triple pattern starting with ( may follow the block, which ends the GROUP.
+RULE { } WHERE { GROUP { ?s ?p ?o } [ ?n := COUNT(*) ] ( 1 2 ) :p ?o }
