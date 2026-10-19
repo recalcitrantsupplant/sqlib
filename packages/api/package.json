@@ -77,6 +77,7 @@
     "@sparql-query-lib/contracts": "workspace:*",
     "@sparql-query-lib/rdf-delta": "workspace:*",
     "@sparql-query-lib/runtime": "workspace:*",
+    "@sparql-query-lib/runtime-duckdb": "workspace:*",
     "@sparql-query-lib/srl": "workspace:*",
     "@sparql-query-lib/tools": "workspace:*",
     "@sparql-query-lib/types": "workspace:*",

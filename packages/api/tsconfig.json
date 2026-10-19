@@ -12,7 +12,8 @@
       "@sparql-query-lib/types/*": ["../types/src/*"],
       "@sparql-query-lib/srl": ["../srl/src/index.ts"],
       "@sparql-query-lib/runtime": ["../runtime/src/index.ts"],
-      "@sparql-query-lib/compiler": ["../compiler/src/index.ts"]
+      "@sparql-query-lib/compiler": ["../compiler/src/index.ts"],
+      "@sparql-query-lib/runtime-duckdb": ["../runtime-duckdb/src/index.ts"]
     }
   },
   "include": [
@@ -31,6 +32,7 @@
     { "path": "../contracts" },
     { "path": "../srl" },
     { "path": "../runtime" },
-    { "path": "../compiler" }
+    { "path": "../compiler" },
+    { "path": "../runtime-duckdb" }
   ]
 }
