@@ -159,4 +159,38 @@ describe('CodePeek', () => {
     const peek = mountPeek({ content: SPARQL, defaultExpanded: true });
     expect(shown(peek)).toBe(SPARQL);
   });
+
+  describe('with an editor in the full slot', () => {
+    const mountEditable = (props: Record<string, unknown>) =>
+      mount(CodePeek, {
+        props: { label: 'Expected result', ...props },
+        slots: { full: '<div data-testid="the-editor">editor</div>' },
+        // `isVisible` reads computed style, which needs a document.
+        attachTo: document.body,
+      });
+
+    it('collapses to the peek and expands to the editor, not a read-only copy', async () => {
+      const peek = mountEditable({ content: SPARQL, contentType: 'application/sparql-query' });
+      const editor = peek.get('[data-testid="the-editor"]');
+      expect(editor.isVisible()).toBe(false);
+      expect(peek.findAll('textarea')).toHaveLength(1);
+
+      await peek.get('.peek-head').trigger('click');
+
+      expect(editor.isVisible()).toBe(true);
+      // The read-only full view is not drawn beside the editor.
+      expect(peek.findAll('textarea')).toHaveLength(0);
+    });
+
+    it('stays open while empty, so there is somewhere to type', () => {
+      const peek = mountEditable({ content: '' });
+      expect(peek.get('[data-testid="the-editor"]').isVisible()).toBe(true);
+      expect(peek.get('.peek-head').attributes('disabled')).toBeDefined();
+    });
+
+    it('is held open while open is set', () => {
+      const peek = mountEditable({ content: SPARQL, open: true });
+      expect(peek.get('[data-testid="the-editor"]').isVisible()).toBe(true);
+    });
+  });
 });

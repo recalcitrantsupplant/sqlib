@@ -517,23 +517,40 @@
             along with it, so what a run produced can be compared against it
             without leaving.
           -->
-          <ExpandableEditor
+          <!--
+            Collapsed to the same peek as the inputs and the subject above it,
+            so the page reads as a column of documents of one height. Expanded,
+            the peek is the editor itself; it is held open while popped out.
+          -->
+          <CodePeek
             v-if="expectationKind !== 'smoke'"
-            :id="EXPECTED_REGION_ID"
-            title="Expectation"
-            testid="test-expected-expand"
+            label="Expected result"
+            :content="expected"
+            :content-type="expectedContentType"
+            :meta="expectedContentType ?? undefined"
+            :open="expectedExpanded"
+            test-id="test-expected-peek"
+            class="expected-peek"
           >
-            <CodeEditor
-              v-model="expected"
-              class="expected-editor"
-              :content-type="expectedContentType"
-              :placeholder="expectedPlaceholder"
-              test-id="test-expected"
-              min-height="220px"
-              :expanded="expectedExpanded"
-              :prefix-source="prefixSource"
-            />
-          </ExpandableEditor>
+            <template #full>
+              <ExpandableEditor
+                :id="EXPECTED_REGION_ID"
+                title="Expectation"
+                testid="test-expected-expand"
+              >
+                <CodeEditor
+                  v-model="expected"
+                  class="expected-editor"
+                  :content-type="expectedContentType"
+                  :placeholder="expectedPlaceholder"
+                  test-id="test-expected"
+                  min-height="220px"
+                  :expanded="expectedExpanded"
+                  :prefix-source="prefixSource"
+                />
+              </ExpandableEditor>
+            </template>
+          </CodePeek>
           <EmptyState
             v-else
             size="sm"
@@ -2556,6 +2573,12 @@ watch([argumentSetVersion, argumentSetOptions], () => {
 .expected-editor {
   flex: 1;
   width: 100%;
+}
+
+/* The peek draws the frame; a second border inside it would box the text twice. */
+.expected-peek :deep(.expand-region:not(.expanded) .code-editor) {
+  border: 0;
+  border-radius: 0;
 }
 
 .muted {
