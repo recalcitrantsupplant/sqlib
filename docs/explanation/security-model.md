@@ -291,7 +291,7 @@ escapes string literals but emits IRIs and language tags verbatim, so
 ```
 
 The caller chose which rows a parameterised filter matched.
-`packages/api/test/lib/parser.injection.test.ts` pins the fix in two ways: a
+`packages/compiler/test/parser.injection.test.ts` pins the fix in two ways: a
 table of hostile values that must be rejected, and a property-based test
 asserting that every string surviving validation yields exactly one row in the
 resulting query, counted by re-parsing the output with an independent parser.
