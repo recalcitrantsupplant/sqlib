@@ -106,6 +106,10 @@ export default defineConfig({
         replacement: path.resolve(__dirname, '../tools/src/index.ts'),
       },
       {
+        find: '@sparql-query-lib/runtime-duckdb',
+        replacement: path.resolve(__dirname, '../runtime-duckdb/src/index.ts'),
+      },
+      {
         find: '@sparql-query-lib/runtime',
         replacement: path.resolve(__dirname, '../runtime/src/index.ts'),
       },

@@ -49,7 +49,7 @@ Run from the repository root.
 
 | Script | What it runs |
 | --- | --- |
-| `pnpm build` | Builds `types`, `contracts`, `runtime`, `tools`, `srl`, `rdf-delta` and `api`, in that order |
+| `pnpm build` | Builds `types`, `contracts`, `runtime`, `runtime-duckdb`, `tools`, `srl`, `rdf-delta` and `api`, in that order |
 | `pnpm test` | The API package's vitest suite |
 | `pnpm dev` | The API package's dev server |
 | `pnpm dev:observability` | Brings up `docker-compose.dev.yml` (the local collector) |
@@ -106,8 +106,8 @@ pipeline.
 
 `contracts`, `types`, `runtime` and `runtime-oxigraph` build with tsup plus a
 declaration-only `tsc`; the two runtime packages then run
-`scripts/emit-cjs-declarations.mjs` over `dist`. `mcp-server`, `srl`, `tools`
-and `rdf-delta` build with `tsc`. All of them except `contracts` and `types`
+`scripts/emit-cjs-declarations.mjs` over `dist`. `mcp-server`, `srl`, `tools`,
+`runtime-duckdb` and `rdf-delta` build with `tsc`. All of them except `contracts` and `types`
 have a vitest `test`.
 
 `mcp-server` also has `dev` (stdio), `dev:http`, `dev:dual-http`,

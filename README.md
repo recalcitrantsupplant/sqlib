@@ -29,7 +29,7 @@ just run-local-memory
 ```
 
 `pnpm build` is required before the first run: the API imports the workspace's
-`types`, `contracts`, `srl`, `tools`, `rdf-delta` and `runtime` packages through
+`types`, `contracts`, `srl`, `tools`, `rdf-delta`, `runtime` and `runtime-duckdb` packages through
 their built entry points, so an unbuilt tree fails to start.
 
 `just run-local-memory` starts the API and the MCP server on one Fastify
