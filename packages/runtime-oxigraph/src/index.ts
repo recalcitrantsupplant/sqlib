@@ -27,6 +27,7 @@ import type {
   ExecutionRequest,
   ExecutionResult,
   Executor,
+  UpdateRequest,
   RdfPayload,
   SparqlAskResults,
   SparqlSelectResults,
@@ -48,6 +49,12 @@ export interface OxigraphStore {
     options?: { results_format?: string },
   ): boolean | string | unknown[] | Map<string, unknown>[];
   load(input: string, options: { format: string; base_iri?: string }): void;
+  /**
+   * Run a SPARQL UPDATE. Optional in this subset so that a stand-in store
+   * written before it existed still fits; the real `Store` has it, and the
+   * executor offers `update` only when the store does.
+   */
+  update?(update: string, options?: { base_iri?: string }): void;
   readonly size: number;
 }
 
@@ -146,8 +153,16 @@ export async function oxigraphExecutor(
 
   const resolved = store;
 
+  // Synchronous underneath, like a query: the signal can stop an update that
+  // has not started, never one that has.
+  const update = async ({ updateText, signal }: UpdateRequest): Promise<void> => {
+    signal?.throwIfAborted();
+    resolved.update!(updateText);
+  };
+
   return {
     store: resolved,
+    ...(typeof resolved.update === 'function' ? { update } : {}),
 
     async execute({ queryText, queryType }: ExecutionRequest): Promise<ExecutionResult> {
       if (queryType === 'CONSTRUCT' || queryType === 'DESCRIBE') {
