@@ -206,11 +206,8 @@ describe('the empty prefix', () => {
       const expanded = toIris(RULES)!;
       const back = toPrefixed(expanded)!;
 
-      // rdf:type comes back as rdf:type too, since rdf is a default prefix.
-      expect(back).toBe(
-        RULES.replace('PREFIX : <http://example/>', 'PREFIX : <http://example/>\nPREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>')
-          .replaceAll('<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>', 'rdf:type'),
-      );
+      // rdf:type comes back as the keyword a, which needs no declaration.
+      expect(back).toBe(RULES.replaceAll('<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>', 'a'));
     });
 
     it('contracts a document that never declared it', async () => {
