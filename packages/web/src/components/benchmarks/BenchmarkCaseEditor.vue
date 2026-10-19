@@ -2,24 +2,14 @@
 /**
  * The case editor — the middle column of the Plan tab (§7.2, mockup 2a).
  *
- * A case is **an intent plus a support matrix**: one sentence saying what every
- * store must answer, and one row per backend saying how that store answers it.
- * Recording "Oxigraph cannot do this" as a fact is the point — otherwise it is
- * rediscovered on every run, and the excluded combinations are never subtracted
- * from the expansion count.
- *
- * ## What is real here and what is not
- *
  * The API stores a case as a pointer to a library query version and nothing
- * else. So the subject, its version, its query text and the measured p95 per
- * backend are read from the server, and the three fields the object model adds
- * — intent, per-backend support status, per-backend implementation — have
- * nowhere to be saved yet. They are drawn as the design specifies and marked
- * unsaved, rather than left out (which would hide the shape of the object) or
- * drawn as if they persisted (which would lose the user's typing).
+ * else, so the editor shows the subject, its version, its query text and the
+ * measured p95 per backend. The design's intent, per-backend support status and
+ * per-backend implementation have nowhere to be saved, so they are not drawn.
  */
 import { computed } from 'vue';
-import { Diamond, Link, ShieldCheck, TriangleAlert } from '@lucide/vue';
+import { Link, TriangleAlert } from '@lucide/vue';
+import InfoHint from '../shared/InfoHint.vue';
 import InlineNote from '../shared/InlineNote.vue';
 import SearchSelect from '../shared/SearchSelect.vue';
 import Select from '../ui/select/Select.vue';
@@ -79,8 +69,6 @@ const subjectPlaceholder = computed(() => {
   return 'Pick a rule set';
 });
 
-const anyMeasured = computed(() => props.support.some((row) => row.p95Ms != null));
-const anyGraphMeasured = computed(() => props.graphSupport.some((row) => row.p95Ms != null));
 
 /*
  * The pass column is off until some graph has passes to put in it: a run
@@ -90,13 +78,6 @@ const anyGraphMeasured = computed(() => props.graphSupport.some((row) => row.p95
 const anyGraphPaced = computed(() =>
   props.graphSupport.some((row) => row.passes != null || row.passesVary));
 
-/*
- * Every row reads "Portable" because the API has no per-backend implementation
- * to read anything else from. Rather than four identical pills claiming a fact
- * that was never recorded, the status column says what is true: the same query
- * goes to every store, and nothing has been recorded about whether that is the
- * right query for each of them.
- */
 const failedRows = computed(() => props.support.filter((row) => row.failed > 0));
 </script>
 
@@ -154,41 +135,18 @@ const failedRows = computed(() => props.support.filter((row) => row.failed > 0))
           Remove
         </button>
       </div>
-      <InlineNote>
-        A case pins one version, so the benchmark keeps measuring the same
-        {{ isRuleSet ? 'rule set' : 'query' }} after the library moves on.
-      </InlineNote>
     </section>
 
-    <section class="block">
-      <div class="block-head">
-        <span class="block-label">Intent</span>
-        <span class="chip chip-unsaved">not stored yet</span>
-      </div>
-      <input
-        class="intent-input"
-        placeholder="One sentence: what every store must answer"
-        disabled
-      />
-      <InlineNote>
-        One sentence describing what every store must answer — the
-        implementations are judged against it, not against each other's syntax.
-        The API has no field for it yet, so it is disabled rather than typed into
-        and lost.
-      </InlineNote>
-    </section>
 
     <section v-if="isRuleSet" class="block">
       <div class="block-head">
-        <span class="block-label">Support</span>
-        <span class="block-sub">no store axis</span>
+        <span class="block-label">
+          Data graphs
+          <InfoHint label="data graphs">
+            p95 from the latest run. The inferred triple count should be the same for every repeat.
+          </InfoHint>
+        </span>
       </div>
-      <InlineNote>
-        A rule set evaluates in-process against an ephemeral store seeded from
-        its data graph, so there is no store to compare it across and its spec
-        carries no backends. What multiplies instead is the pair of axes on the
-        left: tuple sets and data graphs.
-      </InlineNote>
 
       <!--
         The comparison a rule set does have. One row per graph on the axis, so a
@@ -223,21 +181,14 @@ const failedRows = computed(() => props.support.filter((row) => row.failed > 0))
         </div>
       </div>
 
-      <InlineNote v-if="graphSupport.length > 0">
-        <template v-if="anyGraphMeasured">p95 from the most recent run, one run to fixpoint per request. </template>
-        <template v-if="anyGraphPaced">The pass count is a measurement rather than
-          a plan value — the data decides it — so it is reported per graph rather
-          than averaged across them. </template>
-        The inferred triple count is the correctness canary beside the timing: a
-        rule set whose output size moves between repeats of one graph was not
-        measuring the same thing twice.
-      </InlineNote>
     </section>
 
     <section v-else class="block">
       <div class="block-head">
-        <span class="block-label">Support</span>
-        <span class="block-sub">how each store answers it</span>
+        <span class="block-label">
+          Backends
+          <InfoHint label="backends">p95 from the latest run.</InfoHint>
+        </span>
       </div>
 
       <div v-if="support.length > 0" class="support-table">
@@ -246,12 +197,6 @@ const failedRows = computed(() => props.support.filter((row) => row.failed > 0))
             <span class="support-dot" :style="{ background: row.dot }" />
             {{ row.name }}
           </span>
-          <span class="pill pill-portable">
-            <Diamond :size="11" />Portable
-          </span>
-          <InlineNote as="span" class="support-note">
-            runs the same query as every other store
-          </InlineNote>
           <span class="support-samples">
             {{ row.samples > 0 ? `${row.samples} req` : 'never run' }}
           </span>
@@ -260,26 +205,15 @@ const failedRows = computed(() => props.support.filter((row) => row.failed > 0))
           </span>
         </div>
       </div>
-      <InlineNote v-else>
-        Add a backend to the Backends axis and this case gets a row per store.
-      </InlineNote>
+      <InlineNote v-else>No backends named.</InlineNote>
 
-      <InlineNote>
-        <template v-if="anyMeasured">p95 from the most recent run. </template>
-        Variant, mismatch and unsupported are the other three states this matrix
-        carries in the design; the runner records neither per-store
-        implementations nor a result hash yet, so every store shows as portable
-        and no equivalence is claimed.
-      </InlineNote>
     </section>
 
     <section class="block block-grow">
       <div class="block-head">
-        <span class="block-label">Implementation</span>
-        <span class="chip chip-flat">{{ isRuleSet ? 'SRL' : '= Portable' }}</span>
+        <span class="block-label">{{ isRuleSet ? 'Rule set' : 'Query' }}</span>
         <InlineNote v-if="planCase.versionId" as="span" class="link-note">
           <Link :size="12" />
-          linked to
           <span class="link-target">
             {{ planCase.subjectName ?? (isRuleSet ? 'library rule set' : 'library query') }}
             <template v-if="planCase.versionNumber"> v{{ planCase.versionNumber }}</template>
@@ -291,28 +225,14 @@ const failedRows = computed(() => props.support.filter((row) => row.failed > 0))
         Loading the {{ isRuleSet ? 'rule set' : 'query' }}…
       </InlineNote>
       <InlineNote v-else>
-        Pick a {{ isRuleSet ? 'rule set' : 'query' }} and a version to see what will be
-        {{ isRuleSet ? 'evaluated' : 'sent' }}.
+        Pick a {{ isRuleSet ? 'rule set' : 'query' }} and a version.
       </InlineNote>
     </section>
 
-    <!--
-      The design's amber strip is an equivalence warning: "9 of 12 rows against
-      the reference". Nothing hashes result sets yet, so the only honest version
-      of this strip is the failure count the runner does record.
-    -->
     <div v-if="!isRuleSet && failedRows.length > 0" class="warning-strip">
       <TriangleAlert :size="14" class="warning-icon" />
       <span class="warning-text">
-        Last run: {{ failedRows.map((r) => `${r.failed} failed on ${r.name}`).join(', ') }}.
-        Failures are counted, never averaged into the statistic.
-      </span>
-    </div>
-    <div v-else-if="!isRuleSet && support.length > 1" class="info-strip">
-      <ShieldCheck :size="14" class="info-icon" />
-      <span class="info-text">
-        Results are not compared across stores yet. Until the runner hashes row
-        sets, a faster store here is not evidence it answered the same question.
+        Latest run: {{ failedRows.map((r) => `${r.failed} failed on ${r.name}`).join(', ') }}.
       </span>
     </div>
   </div>
@@ -355,11 +275,6 @@ const failedRows = computed(() => props.support.filter((row) => row.failed > 0))
   text-transform: uppercase;
 }
 
-.block-sub {
-  color: var(--ink-muted);
-  font-size: var(--text-label);
-  line-height: var(--leading-normal);
-}
 
 .subject-row {
   display: flex;
@@ -402,47 +317,10 @@ const failedRows = computed(() => props.support.filter((row) => row.failed > 0))
   color: var(--ink);
 }
 
-.intent-input {
-  box-sizing: border-box;
-  height: 34px;
-  padding: 0 var(--space-5);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-panel);
-  background: var(--surface);
-  color: var(--ink);
-  font-family: inherit;
-  font-size: var(--text-body);
-}
 
-.intent-input:disabled {
-  background: var(--surface-subtle);
-  color: var(--ink-disabled);
-}
 
-.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  height: 20px;
-  padding: 0 var(--space-4);
-  border-radius: var(--radius-full);
-  font-size: var(--text-label);
-  font-weight: var(--weight-semibold);
-  white-space: nowrap;
-}
 
-.chip-unsaved {
-  background: var(--surface);
-  border: 1px dashed var(--border-strong);
-  color: var(--ink-muted);
-  font-weight: var(--weight-normal);
-}
 
-.chip-flat {
-  background: var(--surface-raised);
-  color: var(--ink-secondary);
-  font-weight: var(--weight-normal);
-}
 
 /* The row it sits in, not the type: the note is pushed to the far end. */
 .link-note {
@@ -494,24 +372,7 @@ const failedRows = computed(() => props.support.filter((row) => row.failed > 0))
   border-radius: var(--radius-sm);
 }
 
-.pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  flex-shrink: 0;
-  height: 20px;
-  padding: 0 var(--space-4);
-  border-radius: var(--radius-full);
-  font-size: var(--text-label);
-  font-weight: var(--weight-semibold);
-  white-space: nowrap;
-}
 
-.pill-portable {
-  background: var(--surface-raised);
-  border: 1px solid var(--border-subtle);
-  color: var(--ink-secondary);
-}
 
 /* The cell's share of the row and its truncation, not the note's type. */
 .support-note {
@@ -566,24 +427,15 @@ const failedRows = computed(() => props.support.filter((row) => row.failed > 0))
   white-space: pre;
 }
 
-.warning-strip,
-.info-strip {
+.warning-strip {
   display: flex;
   align-items: flex-start;
   gap: 9px;
   flex-shrink: 0;
   padding: var(--space-4);
   border-radius: var(--radius-panel);
-}
-
-.warning-strip {
   background: var(--warning-surface);
   border: 1px solid var(--warning-border);
-}
-
-.info-strip {
-  background: var(--surface-subtle);
-  border: 1px solid var(--border-subtle);
 }
 
 .warning-icon {
@@ -591,10 +443,6 @@ const failedRows = computed(() => props.support.filter((row) => row.failed > 0))
   color: var(--warning-ink);
 }
 
-.info-icon {
-  flex-shrink: 0;
-  color: var(--ink-muted);
-}
 
 .warning-text {
   color: var(--warning-ink);
@@ -602,9 +450,4 @@ const failedRows = computed(() => props.support.filter((row) => row.failed > 0))
   line-height: var(--leading-normal);
 }
 
-.info-text {
-  color: var(--ink-muted);
-  font-size: var(--text-label);
-  line-height: var(--leading-normal);
-}
 </style>

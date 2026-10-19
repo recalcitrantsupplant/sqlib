@@ -892,9 +892,11 @@ export function formatMs(ms: number | null | undefined): string {
   return `${Number(ms.toFixed(1))}ms`;
 }
 
-/** `3m 41s` for a wall clock, `~11m` for an estimate. */
+/** `3m 41s` for a wall clock, `~11m` for an estimate, `450ms` under a second. */
 export function formatDuration(ms: number | null | undefined): string {
   if (ms == null || !Number.isFinite(ms)) return '—';
+  // Rounded to seconds, a sub-second run read as `0s`.
+  if (ms < 1000) return formatMs(ms);
   const totalSeconds = Math.round(ms / 1000);
   if (totalSeconds < 60) return `${totalSeconds}s`;
   const minutes = Math.floor(totalSeconds / 60);

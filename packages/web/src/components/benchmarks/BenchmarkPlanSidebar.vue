@@ -23,9 +23,7 @@ import {
   Plus,
   Repeat,
   Server,
-  ShieldCheck,
   Shuffle,
-  Sigma,
   SlidersHorizontal,
   Table,
 } from '@lucide/vue';
@@ -37,6 +35,7 @@ import type {
   SettingItemView,
   SettingKey,
 } from '../../lib/benchmarkViews';
+import InfoHint from '../shared/InfoHint.vue';
 import InlineNote from '../shared/InlineNote.vue';
 
 const props = defineProps<{
@@ -72,8 +71,6 @@ const AXIS_ICON = {
 } as const;
 
 const SETTING_ICON = {
-  statistic: Sigma,
-  equivalence: ShieldCheck,
   failure: CircleAlert,
   order: Shuffle,
 } as const;
@@ -110,7 +107,7 @@ function isSelected(kind: AxisKey, id: string) {
     <div v-if="tab === 'plan'" class="scroller">
       <div class="zone-label">
         <span class="zone-name">Axes</span>
-        <span class="zone-note">these multiply</span>
+        <InfoHint label="axes">The request count is the product of the axes.</InfoHint>
         <span class="zone-rule" />
       </div>
 
@@ -118,6 +115,7 @@ function isSelected(kind: AxisKey, id: string) {
         <div class="axis-head">
           <component :is="AXIS_ICON[group.key]" :size="12" class="axis-icon" />
           <span class="axis-name">{{ group.name }}</span>
+          <InfoHint v-if="group.hint" :label="group.name">{{ group.hint }}</InfoHint>
           <span class="axis-multiplier">{{ group.multiplier }}</span>
           <button
             v-if="group.canAdd"
@@ -142,19 +140,11 @@ function isSelected(kind: AxisKey, id: string) {
           <span v-if="item.meta" class="axis-item-meta">{{ item.meta }}</span>
         </button>
 
-        <!--
-          An empty axis with a hint says why it is empty and what that costs;
-          printing "nothing here" above that hint says the same thing twice.
-        -->
-        <p v-if="group.items.length === 0 && !group.hint" class="axis-empty">
-          Nothing on this axis yet.
-        </p>
-        <p v-if="group.hint" class="axis-hint">{{ group.hint }}</p>
+        <InlineNote v-if="group.items.length === 0" as="p" size="xs" class="axis-empty">None</InlineNote>
       </div>
 
       <div class="zone-label">
         <span class="zone-name">Settings</span>
-        <span class="zone-note">these do not</span>
         <span class="zone-rule" />
       </div>
 
@@ -188,9 +178,9 @@ function isSelected(kind: AxisKey, id: string) {
         </span>
         <InlineNote as="span" size="xs" class="run-note">{{ run.note }}</InlineNote>
       </button>
-      <p v-if="runs.length === 0" class="axis-empty">
+      <InlineNote v-if="runs.length === 0" as="p" size="xs" class="axis-empty">
         No runs yet. Save a version and run it.
-      </p>
+      </InlineNote>
     </div>
 
     <!--
@@ -203,15 +193,10 @@ function isSelected(kind: AxisKey, id: string) {
         <span class="expansion-count">{{ formatCount(expansion.requests) }}</span>
         <span class="expansion-unit">requests</span>
         <span class="expansion-estimate" :title="estimate ? 'Estimated from the last run of this benchmark' : 'No run yet to estimate from'">
-          {{ estimate ?? 'no estimate yet' }}
+          {{ estimate ?? '—' }}
         </span>
       </div>
       <span class="expansion-formula">{{ expansion.formula }}</span>
-    </div>
-    <div v-else class="expansion expansion-quiet">
-      <span class="expansion-formula">
-        Timings and status are kept for every run. Result bodies are not kept yet.
-      </span>
     </div>
   </aside>
 </template>
@@ -306,11 +291,6 @@ function isSelected(kind: AxisKey, id: string) {
   text-transform: uppercase;
 }
 
-.zone-note {
-  color: var(--ink-muted);
-  font-size: var(--text-micro);
-}
-
 .zone-rule {
   flex: 1;
   height: 1px;
@@ -330,6 +310,30 @@ function isSelected(kind: AxisKey, id: string) {
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-1) var(--space-3) var(--space-1) var(--space-4);
+}
+
+/*
+ * The column is narrower than a tooltip, and the bubble is placed from its
+ * ⓘ. Anchored there it ran past the column's edge, was clipped, and gave the
+ * column a horizontal scrollbar while it was open. Anchored to the whole row
+ * instead, it spans the column and never leaves it.
+ */
+.zone-label,
+.axis-head {
+  position: relative;
+}
+
+.zone-label :deep(.info-hint),
+.axis-head :deep(.info-hint) {
+  position: static;
+}
+
+.zone-label :deep(.info-hint__bubble),
+.axis-head :deep(.info-hint__bubble) {
+  right: var(--space-4);
+  left: var(--space-4);
+  width: auto;
+  max-width: none;
 }
 
 .axis-icon {
@@ -420,13 +424,9 @@ function isSelected(kind: AxisKey, id: string) {
   white-space: nowrap;
 }
 
-.axis-hint,
 .axis-empty {
   margin: var(--space-1) 0 0;
   padding: 0 var(--space-4) 0 var(--axis-hint-indent);
-  color: var(--ink-muted);
-  font-size: var(--text-micro);
-  line-height: var(--leading-normal);
 }
 
 .setting-row {
@@ -569,9 +569,5 @@ function isSelected(kind: AxisKey, id: string) {
   color: var(--ink-muted);
   font-size: var(--text-micro);
   line-height: var(--leading-normal);
-}
-
-.expansion-quiet {
-  background: var(--surface-subtle);
 }
 </style>

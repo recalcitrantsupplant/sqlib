@@ -25,8 +25,8 @@ export type AxisKey =
   | 'dataGraphs'
   | 'loadProfiles';
 
-/** The four policy items. None of them multiplies. */
-export type SettingKey = 'statistic' | 'equivalence' | 'failure' | 'order';
+/** The policy items. Neither of them multiplies. */
+export type SettingKey = 'failure' | 'order';
 
 /*
  * Runtime domains, so a sweep over the axes can iterate them, with the
@@ -44,7 +44,7 @@ export const AXIS_KEYS = [
 ] as const satisfies readonly AxisKey[];
 export const _axisKeysCover: Covers<AxisKey, (typeof AXIS_KEYS)[number]> = true;
 
-export const SETTING_KEYS = ['statistic', 'equivalence', 'failure', 'order'] as const satisfies readonly SettingKey[];
+export const SETTING_KEYS = ['failure', 'order'] as const satisfies readonly SettingKey[];
 export const _settingKeysCover: Covers<SettingKey, (typeof SETTING_KEYS)[number]> = true;
 
 export interface AxisItemView {
