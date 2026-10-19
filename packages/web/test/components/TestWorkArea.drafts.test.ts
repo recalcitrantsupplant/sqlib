@@ -28,6 +28,8 @@ const api = vi.hoisted(() => ({
   updateTest: vi.fn(),
   // The Tags field loads the library's vocabulary for its picker.
   listTags: vi.fn().mockResolvedValue([]),
+  // Run with unsaved edits sends the editor's body, not the saved version.
+  runTestDraft: vi.fn(),
 }));
 const store = vi.hoisted(() => {
   /*
@@ -185,6 +187,40 @@ beforeEach(() => {
 });
 
 describe('TestWorkArea — drafts', () => {
+  it('runs the unsaved edits, not the saved version, and keeps the verdict out of the store', async () => {
+    const verdict = {
+      testId: TEST_ID, testVersionId: `${TEST_ID}#draft`, passed: true, message: '', expectationKind: 'graph',
+      hermetic: true, durationMs: 3, subjectVersionId: null, ranAt: '2026-10-19T00:00:00.000Z',
+      cases: [{ caseId: 'c0', name: 'Case 1', position: 0, passed: true, message: '', durationMs: 3 }],
+      passedCount: 1, failedCount: 0,
+    };
+    api.runTestDraft.mockResolvedValue(verdict);
+    const area = await mountSaved();
+    await edit(area, 'the edited expectation .');
+
+    await (area.vm as unknown as { run: () => Promise<void> }).run();
+    await flushPromises();
+
+    expect(store.runTest).not.toHaveBeenCalled();
+    expect(api.runTestDraft).toHaveBeenCalledWith(TEST_ID, expect.objectContaining({
+      expectationKind: 'graph',
+      cases: [expect.objectContaining({ expected: 'the edited expectation .' })],
+    }));
+    // The verdict answers for the editor, not for the saved test the rail shows.
+    expect(store.lastRunByTest.value[TEST_ID]).toBeUndefined();
+    expect(area.get('[data-testid="test-case-tab-0"]').exists()).toBe(true);
+  });
+
+  it('runs the saved version when there are no unsaved edits', async () => {
+    const area = await mountSaved();
+
+    await (area.vm as unknown as { run: () => Promise<void> }).run();
+    await flushPromises();
+
+    expect(api.runTestDraft).not.toHaveBeenCalled();
+    expect(store.runTest).toHaveBeenCalledWith(TEST_ID);
+  });
+
   it('keeps unsaved edits as a draft, and counts them in the pill', async () => {
     const area = await mountSaved();
     expect(area.find('[data-testid="draft-pill"]').exists()).toBe(false);

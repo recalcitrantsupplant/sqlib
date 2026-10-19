@@ -55,7 +55,7 @@
       <RunBar
         :running="running"
         :run-disabled="!testId"
-        :run-title="testId ? 'Run this test' : 'Save the test before running it'"
+        :run-title="!testId ? 'Save the test before running it' : hasUnsavedBody ? 'Run the unsaved edits' : 'Run this test'"
         :inputs="runInputs"
         :backend="runStore"
         @run="run"
@@ -1570,13 +1570,28 @@ const codeUnavailable = computed(() =>
  */
 const lastRun = computed<TestRunResult | null>(() => {
   if (runErrored.value) return null;
+  if (draftRun.value) return draftRun.value;
   const id = testId.value;
   return id ? testsStore.lastRunByTest.value[id] ?? null : null;
 });
 
+/**
+ * The verdict of the last run of unsaved edits.
+ *
+ * Kept here rather than in the store: it answers for this editor's body, not
+ * for the saved test, so it must not mark the test green or red elsewhere.
+ */
+const draftRun = ref<TestRunResult | null>(null);
+
+/** Whether Run sends the editor's body rather than running the saved version. */
+const hasUnsavedBody = computed(() => editCount.value > 0 && !matchesSaved());
+
 // A different test is a different question; the last one's failure to run says
 // nothing about it.
-watch(testId, () => { runErrored.value = false; });
+watch(testId, () => {
+  runErrored.value = false;
+  draftRun.value = null;
+});
 
 /* ------------------------------------------------------------------ *
  * Unsaved edits to a saved test.
@@ -1691,6 +1706,7 @@ function discardDraft() {
   // editor goes back to empty, as it did before the lifecycle was shared.
   const hadSavedBody = Boolean(savedBody.value);
   discardEntityDraft();
+  draftRun.value = null;
   if (!hadSavedBody) hydrate(() => applyEditorBody({}));
   toast.success('Draft discarded');
 }
@@ -1854,6 +1870,9 @@ async function save() {
     savedBody.value = JSON.stringify(editorBody());
     cancelDraftSave();
     removeDraft();
+    // The draft's verdict was about a body that is now this version; the next
+    // run of the version is what answers for it.
+    draftRun.value = null;
     toast.success(`Saved v${version.version}`);
   } catch (error) {
     // The draft is left exactly as it was. A save that failed and took the
@@ -1864,8 +1883,40 @@ async function save() {
   }
 }
 
+/**
+ * Run what the editor shows. With unsaved edits that is the draft, sent as a
+ * body: Run must not quietly answer for the saved version while the pill says
+ * the editor holds something else. On a read-only deployment this is the only
+ * way to try a changed input, since the save is refused.
+ */
+async function runDraft() {
+  if (!testId.value) return;
+  running.value = true;
+  runErrored.value = false;
+  try {
+    const result = await apiClient.runTestDraft(testId.value, versionBody());
+    draftRun.value = result;
+    const firstFailure = result.cases.findIndex(testCase => !testCase.passed);
+    if (firstFailure >= 0) selectedCaseIndex.value = firstFailure;
+    toast[result.passed ? 'success' : 'error'](
+      result.passed ? 'Unsaved edits passed' : `Unsaved edits failed: ${result.message}`,
+    );
+  } catch (error) {
+    draftRun.value = null;
+    runErrored.value = true;
+    toast.error(error instanceof Error ? error.message : 'Test could not be run');
+  } finally {
+    running.value = false;
+  }
+}
+
 async function run() {
   if (!testId.value) return;
+  if (hasUnsavedBody.value) {
+    await runDraft();
+    return;
+  }
+  draftRun.value = null;
   running.value = true;
   runErrored.value = false;
   /*

@@ -20,6 +20,7 @@ const hoisted = vi.hoisted(() => ({
   testCase: { list: vi.fn(), get: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
   coordinatorGet: vi.fn(),
   runTestVersion: vi.fn(),
+  runDraft: vi.fn(),
   listTestRuns: vi.fn(),
   getTestRun: vi.fn(),
   recordTestRun: vi.fn(),
@@ -37,6 +38,7 @@ vi.mock('../../src/lib/TestRunner.js', async (importOriginal) => {
     ...actual,
     TestRunner: class {
       runTestVersion = hoisted.runTestVersion;
+      runDraft = hoisted.runDraft;
     },
   };
 });
@@ -280,5 +282,50 @@ describe('running a test files it', () => {
     expect(hoisted.recordTestRuns).toHaveBeenCalledWith([
       expect.objectContaining({ result: verdict, suite: tag }),
     ]);
+  });
+
+  it('runs a draft without recording it, and without reading a stored version', async () => {
+    hoisted.test.get.mockReturnValue({ $id: TEST_ID, '@type': 'Test', name: 'A', subject: 'urn:sqlib:query:q1' });
+    hoisted.runDraft.mockResolvedValue(verdict);
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/tests/${encoded(TEST_ID)}/run`,
+      payload: { draft: { expectationKind: 'smoke', cases: [{ name: 'edited' }] } },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(hoisted.runDraft).toHaveBeenCalledWith(
+      expect.objectContaining({ $id: TEST_ID }),
+      expect.objectContaining({ cases: [expect.objectContaining({ name: 'edited' })] }),
+    );
+    expect(hoisted.runTestVersion).not.toHaveBeenCalled();
+    expect(hoisted.recordTestRun).not.toHaveBeenCalled();
+  });
+
+  it('refuses a draft a save would refuse, with the reason', async () => {
+    hoisted.test.get.mockReturnValue({ $id: TEST_ID, '@type': 'Test', name: 'A', subject: 'urn:sqlib:query:q1' });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/tests/${encoded(TEST_ID)}/run`,
+      payload: { draft: { expectationKind: 'graph', cases: [{}] } },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toContain('needs an expected result');
+    expect(hoisted.runDraft).not.toHaveBeenCalled();
+  });
+
+  it('refuses a version and a draft together', async () => {
+    hoisted.test.get.mockReturnValue({ $id: TEST_ID, '@type': 'Test', name: 'A', subject: 'urn:sqlib:query:q1' });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: `/tests/${encoded(TEST_ID)}/run`,
+      payload: { version: 1, draft: { expectationKind: 'smoke' } },
+    });
+
+    expect(res.statusCode).toBe(400);
   });
 });
