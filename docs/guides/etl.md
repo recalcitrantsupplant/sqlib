@@ -208,6 +208,28 @@ the API's working directory. Mount it on the data volume alongside the Oxigraph
 storage, and size it for the output rather than the input: it is the one path ETL
 writes to the host.
 
+### On a read-only deployment
+
+`SQLIB_READ_ONLY=true` changes where the RDF goes. A run opens no `EtlExecution`
+and writes no file; the RDF comes back in the response as `output`, beside
+`outputFormat` and the counts, and there is no `executionId` because there is no
+record for one to name. Running a stored job is compute, and keeping the run is
+the write — the same line a test run draws, whose verdict is returned and whose
+history is not filed.
+
+The output is held in memory to be returned, so it is capped by
+`ETL_RESPONSE_OUTPUT_MAX_BYTES`, 1 MB by default. A run that passes the cap fails
+and names it rather than returning part of its output; pass `maxRows` to run part
+of the source instead.
+
+What a visitor can run this way is a job version somebody stored before the
+deployment went read-only. The request names a job and takes no SQL, and the
+routes that do take SQL — `POST /etl-jobs/preview` and
+`POST /playground/etl/execute` — stay refused, so this admits no SQL a visitor
+wrote. It does run the stored SQL with whatever DuckDB capabilities the
+deployment grants, which is a reason to grant a read-only deployment no more of
+them than its stored jobs need.
+
 ### It has to be writable by the user the container runs as
 
 The image runs as `USER node` — uid 1000 — and the default output directory sits
