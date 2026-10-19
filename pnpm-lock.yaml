@@ -234,14 +234,14 @@ importers:
         specifier: ^6.43.13
         version: 6.43.13
       '@kurrawongai/codemirror-lang-sparql12':
-        specifier: 0.3.1
-        version: 0.3.1
+        specifier: 0.5.0
+        version: 0.5.0
       '@kurrawongai/codemirror-lang-srl':
-        specifier: 0.3.1
-        version: 0.3.1
+        specifier: 0.5.0
+        version: 0.5.0
       '@kurrawongai/codemirror-lang-turtle12':
-        specifier: 0.2.1
-        version: 0.2.1
+        specifier: 0.3.0
+        version: 0.3.0
       '@lezer/highlight':
         specifier: ^1.2.5
         version: 1.2.5
@@ -479,14 +479,14 @@ importers:
         specifier: ^6.43.13
         version: 6.43.13
       '@kurrawongai/codemirror-lang-sparql12':
-        specifier: 0.3.1
-        version: 0.3.1
+        specifier: 0.5.0
+        version: 0.5.0
       '@kurrawongai/codemirror-lang-srl':
-        specifier: 0.3.1
-        version: 0.3.1
+        specifier: 0.5.0
+        version: 0.5.0
       '@kurrawongai/codemirror-lang-turtle12':
-        specifier: 0.2.1
-        version: 0.2.1
+        specifier: 0.3.0
+        version: 0.3.0
       '@lezer/common':
         specifier: ^1.5.3
         version: 1.5.3
@@ -2008,14 +2008,14 @@ packages:
   '@keyv/serialize@1.1.1':
     resolution: {integrity: sha512-dXn3FZhPv0US+7dtJsIi2R+c7qWYiReoEh5zUntWCf4oSpMNib8FDhSoed6m3QyZdx5hK7iLFkYk3rNxwt8vTA==}
 
-  '@kurrawongai/codemirror-lang-sparql12@0.3.1':
-    resolution: {integrity: sha512-e1NM1JznlBKw26NKB4tiEmfxInlAZy8slxM1/WKDvkG5DaraVb1UchpqtDybywdc3OFnmFueHgAx1yAXVOR9Hg==}
+  '@kurrawongai/codemirror-lang-sparql12@0.5.0':
+    resolution: {integrity: sha512-1WC1lt9RMmSEYvFljl8FSchd+g8v8VNoeraWV9k6ik9VhMnQ/piS6IzkA6xkdvqZUhVs1WCJNhFxqWT75pG1zA==}
 
-  '@kurrawongai/codemirror-lang-srl@0.3.1':
-    resolution: {integrity: sha512-L0AllJruYADHpziZ2v7iBco1tucD8LuZGStB70LJmj+zrWnoBRBQMCRqbwcVy4Y3wlyZOopRfN3F6wR1dCwVtA==}
+  '@kurrawongai/codemirror-lang-srl@0.5.0':
+    resolution: {integrity: sha512-DivohImTkv7cjZGbIyv+WKnyyw4QlUoLT8VCG2IscKVuwLtPRPEppW2PM7Nk3crP0etEktE28ycEIdWV2mlscw==}
 
-  '@kurrawongai/codemirror-lang-turtle12@0.2.1':
-    resolution: {integrity: sha512-8LEx/umDu505G8QycDr023+AvJ9M7YwziLYOVI5ozWy8E5xBuUkpSALyXFMzHKbB9veWh7IQ7YsbazJd+RSOLw==}
+  '@kurrawongai/codemirror-lang-turtle12@0.3.0':
+    resolution: {integrity: sha512-MxYpvKndgMpoOM7/gNqFETeB8gxdjImuZe7kLWqRnoGYRERieD/SlfqKIeYxLkNcqXuGU82dF3tbV7411CvySg==}
 
   '@kwsites/file-exists@1.1.1':
     resolution: {integrity: sha512-m9/5YGR18lIwxSFDwfE3oA7bWuq9kdau6ugN4H2rJeyhFQZcG9AgSHkQtSD15a8WvTgfz9aikZMrKPHvbpqFiw==}
@@ -9219,30 +9219,32 @@ snapshots:
 
   '@keyv/serialize@1.1.1': {}
 
-  '@kurrawongai/codemirror-lang-sparql12@0.3.1':
-    dependencies:
-      '@codemirror/autocomplete': 6.20.3
-      '@codemirror/language': 6.12.4
-      '@codemirror/state': 6.7.6
-      '@lezer/common': 1.5.3
-      '@lezer/highlight': 1.2.5
-      '@lezer/lr': 1.4.10
-
-  '@kurrawongai/codemirror-lang-srl@0.3.1':
+  '@kurrawongai/codemirror-lang-sparql12@0.5.0':
     dependencies:
       '@codemirror/autocomplete': 6.20.3
       '@codemirror/language': 6.12.4
       '@codemirror/lint': 6.9.7
       '@codemirror/state': 6.7.6
-      '@kurrawongai/codemirror-lang-sparql12': 0.3.1
       '@lezer/common': 1.5.3
       '@lezer/highlight': 1.2.5
       '@lezer/lr': 1.4.10
 
-  '@kurrawongai/codemirror-lang-turtle12@0.2.1':
+  '@kurrawongai/codemirror-lang-srl@0.5.0':
     dependencies:
       '@codemirror/autocomplete': 6.20.3
       '@codemirror/language': 6.12.4
+      '@codemirror/lint': 6.9.7
+      '@codemirror/state': 6.7.6
+      '@kurrawongai/codemirror-lang-sparql12': 0.5.0
+      '@lezer/common': 1.5.3
+      '@lezer/highlight': 1.2.5
+      '@lezer/lr': 1.4.10
+
+  '@kurrawongai/codemirror-lang-turtle12@0.3.0':
+    dependencies:
+      '@codemirror/autocomplete': 6.20.3
+      '@codemirror/language': 6.12.4
+      '@codemirror/lint': 6.9.7
       '@codemirror/state': 6.7.6
       '@lezer/common': 1.5.3
       '@lezer/highlight': 1.2.5
