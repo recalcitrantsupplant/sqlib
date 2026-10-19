@@ -26,18 +26,14 @@
  *
  * Consequences visible on screen, all of them labelled where they appear:
  *
- * - a **case** is a pointer to a library query version; its intent and its
- *   per-store implementations have nowhere to be saved, so they are shown
- *   disabled rather than typed into and lost;
- * - **load profiles** are one per version, so that axis holds exactly one item
- *   and says that a second would promote it to an axis;
- * - **equivalence** has no result hash behind it, so nothing claims two stores
- *   answered the same question;
+ * - a **case** is a pointer to a library query version; the design's intent and
+ *   per-store implementations have nowhere to be saved, so they are not drawn;
+ * - **load profiles** are one per version, so that axis holds exactly one item;
+ * - nothing compares result sets across stores, so no equivalence is claimed;
  * - a request's **phase breakdown** is the two phases the runner times, not the
  *   five the design draws.
  *
- * The statistic is the one policy item that needed no storage: p50/p95/p99 is a
- * way of reading captured data, so it is computed from the run's requests.
+ * p50/p95/p99 are computed from the run's requests, so they need no setting.
  */
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
@@ -680,10 +676,8 @@ const groups = computed<AxisGroupView[]>(() => {
        * never appear in a run.
        */
       hint: onlyRuleSetCases.value
-        ? 'rule sets evaluate in-process — this axis multiplies query cases only'
-        : plan.value.backendIds.length === 0
-          ? 'none named — each case runs against its query’s default backend'
-          : 'only backends attached to this library can be named',
+        ? 'Rule sets run in-process, so this axis applies to query cases only.'
+        : 'Each query case runs once on each backend. A query case needs at least one.',
       items: plan.value.backendIds.map((id) => ({
         id,
         name: backendName(id),
@@ -696,9 +690,7 @@ const groups = computed<AxisGroupView[]>(() => {
       multiplier: `× ${count('argument sets')}`,
       addLabel: 'set',
       canAdd: true,
-      hint: plan.value.argumentSetIds.length === 0
-        ? 'none named — each case runs once, unparameterised'
-        : undefined,
+      hint: 'Each case runs once with each argument set. With none, each case runs once without arguments.',
       items: plan.value.argumentSetIds.map((id) => ({
         id,
         name: argumentSetName(id),
@@ -720,9 +712,7 @@ const groups = computed<AxisGroupView[]>(() => {
       multiplier: `× ${count('tuple sets')}`,
       addLabel: 'tuple set',
       canAdd: true,
-      hint: plan.value.tupleSetIds.length === 0
-        ? 'none named — each rule set runs the seeds its version stored'
-        : undefined,
+      hint: 'With none, each rule set uses the seeds stored in its version.',
       items: plan.value.tupleSetIds.map((id) => ({
         id,
         name: tupleSetName(id),
@@ -735,9 +725,7 @@ const groups = computed<AxisGroupView[]>(() => {
       multiplier: `× ${count('data graphs')}`,
       addLabel: 'graph',
       canAdd: true,
-      hint: plan.value.dataGraphIds.length === 0
-        ? 'none named — each rule set runs against an empty base graph'
-        : undefined,
+      hint: 'With none, each rule set runs against an empty graph.',
       items: plan.value.dataGraphIds.map((id) => ({
         id,
         name: dataGraphName(id),
@@ -752,22 +740,25 @@ const groups = computed<AxisGroupView[]>(() => {
     multiplier: `× ${count('repeats')}`,
     addLabel: 'profile',
     canAdd: false,
-    hint: 'one profile is a constant — a second would make load an axis, which the API cannot store yet',
     items: [{
       id: 'profile',
       name: `${plan.value.settings.warmupRuns ?? 0} warmup, ${plan.value.settings.repeats ?? 1}× ${plan.value.settings.executionStrategy || 'sequential'}`,
-      meta: `${plan.value.settings.maxConcurrency ?? 1} client`,
+      meta: clientsLabel(plan.value.settings.maxConcurrency),
     }],
   });
 
   return groupViews;
 });
 
+/** The API stores an unset client count as 0, and the runner treats 0 as 1. */
+function clientsLabel(maxConcurrency: number | null | undefined): string {
+  const clients = Math.max(1, maxConcurrency ?? 1);
+  return `${clients} ${clients === 1 ? 'client' : 'clients'}`;
+}
+
 const settingItems = computed<SettingItemView[]>(() => {
   const settings = plan.value.settings;
   return [
-    { key: 'statistic', name: 'Statistic', value: 'p50 · p95 · p99' },
-    { key: 'equivalence', name: 'Equivalence', value: 'not checked' },
     {
       key: 'failure',
       name: 'Failure policy',
@@ -1484,14 +1475,14 @@ const runInputs = computed<RunBarPick[]>(() => {
     empty: caseCount === 0,
     emptyLabel: 'no cases',
     icon: 'cases',
-    title: 'The questions this benchmark asks — press to edit them',
+    title: 'Edit the cases',
   }];
   if (setCount > 0) {
     picks.push({
       key: 'argumentSets',
       value: `${setCount} argument ${setCount === 1 ? 'set' : 'sets'}`,
       icon: 'arguments',
-      title: 'Every case runs once per argument set — press to edit them',
+      title: 'Edit the argument sets',
     });
   }
   // The rule-set axes, on the same terms: named only when they exist, because a
@@ -1503,7 +1494,7 @@ const runInputs = computed<RunBarPick[]>(() => {
       key: 'tupleSets',
       value: `${tupleCount} tuple ${tupleCount === 1 ? 'set' : 'sets'}`,
       icon: 'tuples',
-      title: 'Every rule-set case runs once per tuple set — press to edit them',
+      title: 'Edit the tuple sets',
     });
   }
   const graphCount = plan.value.dataGraphIds.length;
@@ -1512,7 +1503,7 @@ const runInputs = computed<RunBarPick[]>(() => {
       key: 'dataGraphs',
       value: `${graphCount} data ${graphCount === 1 ? 'graph' : 'graphs'}`,
       icon: 'data',
-      title: 'Every rule-set case runs once per data graph — press to edit them',
+      title: 'Edit the data graphs',
     });
   }
   return picks;
@@ -1528,7 +1519,7 @@ const runBackendPicks = computed<RunBarPick[]>(() => {
       value: 'an in-process store',
       icon: 'backends',
       inert: true,
-      title: 'A rule set evaluates in-process against an ephemeral store seeded from its data graph',
+      title: 'Rule sets run in an in-process store seeded from their data graphs',
     }];
   }
   return [{
@@ -1537,11 +1528,9 @@ const runBackendPicks = computed<RunBarPick[]>(() => {
       ? backendName(ids[0]!)
       : `${ids.length} backends`,
     empty: ids.length === 0,
-    emptyLabel: 'each case’s default',
+    emptyLabel: 'no backends',
     icon: 'backends',
-    title: ids.length === 0
-      ? 'No backends named — each case runs against its query’s default backend. Press to name some.'
-      : 'Every case runs once per backend — press to edit them',
+    title: 'Edit the backends',
   }];
 });
 
@@ -1550,6 +1539,13 @@ const repeatsSummary = computed(() => {
   const warmups = plan.value.settings.warmupRuns ?? 0;
   return warmups > 0 ? `×${repeats} · ${warmups} warmup` : `×${repeats}`;
 });
+
+/** A row click is a request to see that row, so the inspector opens on it. */
+function selectRequest(request: { key: string }) {
+  selectedRequestKey.value = request.key;
+  activeTab.value = 'selection';
+  rightPanelCollapsed.value = false;
+}
 
 function selectAxisFromRunBar(key: string) {
   selectedKind.value = key as AxisKey;
@@ -1560,6 +1556,18 @@ function selectAxisFromRunBar(key: string) {
 async function runBenchmark() {
   if (!props.experimentId || selectedVersionNumber.value == null) return;
   try {
+    // The runner refuses a version that is not frozen, and nothing else here
+    // freezes one. A saved version is never edited in place — saving makes the
+    // next one — so freezing it on its first run loses nothing.
+    const version = store.selectedVersion.value;
+    if (!version || version.version !== selectedVersionNumber.value || !version.immutable) {
+      try {
+        await store.freezeVersion(props.experimentId, selectedVersionNumber.value);
+      } catch (error: unknown) {
+        toast.error(error instanceof Error ? error.message : 'Failed to freeze the version before running it');
+        throw error;
+      }
+    }
     await executionStore.executeRun(props.experimentId, selectedVersionNumber.value);
     await store.loadRunsForVersion(props.experimentId, selectedVersionNumber.value);
     tab.value = 'runs';
@@ -1717,7 +1725,7 @@ const runSubtitle = computed(() => {
       :selected-key="selectedRequestKey"
       :loading="observationsLoading"
       :can-rerun="canRun"
-      @select-request="(request) => (selectedRequestKey = request.key)"
+      @select-request="selectRequest"
       @rerun="runBenchmark"
     />
 

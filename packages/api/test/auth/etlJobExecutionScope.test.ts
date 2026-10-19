@@ -282,4 +282,16 @@ describe('executing a job', () => {
     expect(response.json().error).toContain('Backend not found');
     expect(store.runsBegun).toEqual([VERSION]);
   });
+
+  it('takes no SQL or template in the request, only which stored version to run', async () => {
+    // A read-only deployment admits this route because what runs is stored.
+    for (const field of ['sql', 'sparqlTemplate']) {
+      const response = await inject(administrator, 'POST', `/etl-jobs/${short(JOB)}/execute`, {
+        [field]: 'SELECT 1',
+      });
+
+      expect(response.statusCode, field).toBe(400);
+      expect(store.runsBegun, field).toEqual([]);
+    }
+  });
 });

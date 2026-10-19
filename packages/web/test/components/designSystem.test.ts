@@ -1550,16 +1550,6 @@ describe('InlineNote', () => {
     // conversion (and the sentence-or-datum call each needs) is its own step.
     'components/BackendListSidebar.vue: .footer-note':
       'recoloured by the thirteenth pass; also states --leading-tight, the .row-note objection',
-    'components/benchmarks/BenchmarkPlanDetail.vue: .field-hint':
-      'recoloured by the thirteenth pass; renders units beside a control — "ms", "concurrent"',
-    'components/benchmarks/BenchmarkPlanSidebar.vue: .axis-hint, .axis-empty':
-      'recoloured by the thirteenth pass; a note and an empty line, waiting on the conversion',
-    'components/benchmarks/BenchmarkPlanSidebar.vue: .zone-note':
-      'recoloured by the thirteenth pass; "these multiply" beside a zone rule',
-    'components/benchmarks/BenchmarkRunView.vue: .summary-note':
-      'recoloured by the thirteenth pass; the note beside a summary cell value',
-    'components/benchmarks/BenchmarkRunView.vue: .timeline-note':
-      'recoloured by the thirteenth pass; carries the lane indent — see the comment at the rule',
     'components/query-work-area/TermTypeMenuItems.vue: <style scoped> .type-note':
       'written at the dense step on a parallel branch; a sentence, waiting on the conversion',
   };

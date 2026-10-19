@@ -124,7 +124,8 @@ ETL is off by default; see [feature flags](feature-flags.md) and the
 
 | Name | Default | Effect |
 | --- | --- | --- |
-| `ETL_OUTPUT_DIR` | `./storage/etl-output`, resolved against the process working directory | Where an ETL execution writes its RDF output files. The container creates this path with the right ownership, so it is writable on a fresh volume. |
+| `ETL_OUTPUT_DIR` | `./storage/etl-output`, resolved against the process working directory | Where an ETL execution writes its RDF output files. The container creates this path with the right ownership, so it is writable on a fresh volume. Not written on a read-only deployment. |
+| `ETL_RESPONSE_OUTPUT_MAX_BYTES` | `1048576` | The most RDF a run returns in its response on a read-only deployment, where it writes no file. A run whose output passes it fails, naming the cap, rather than returning part of its output. |
 | `SQLIB_ETL_NODE_MAX_ROWS` | `1000000` | The most rows an ETL node inside a query group may read from its source. A source with more fails the node, naming the cap, rather than handing the rest of the group a truncated result. Running a job directly is not affected. |
 
 ## Entity size limits
@@ -215,17 +216,22 @@ options, and is refused like an unlisted `POST`. The exceptions are the
 routes that compute an answer and store nothing: `/detect-inputs`,
 `/detect-outputs`, `/validate`, `/validate-rule-data`, `/format`, `/substitute`,
 `/execute`, `/sparql`, the SRL compile, analyse and preview routes, the rule and
-rule-set execution routes, the tuple-set preview, the two test-run routes, and
-`/mcp`. The list lives in `packages/api/src/config/readOnly.ts`, and a test
+rule-set execution routes, the tuple-set preview, the two test-run routes,
+`POST /etl-jobs/:id/execute`, and `/mcp`. The list lives in `packages/api/src/config/readOnly.ts`, and a test
 fails on an entry that names no registered route, on a mutating route that is
 neither listed nor refused, and on one of these exceptions losing its way back.
 
-Two of those exceptions are worth their own sentence:
+Three of those exceptions are worth their own sentence:
 
 - **Running a test is compute; its history is the write.** `POST /tests/run`
   and `POST /tests/:id/run` answer with a verdict, and `recordTestRuns` files
   nothing on a read-only deployment, so no run history accumulates — the same
   line `?record=patch` draws for SPARQL.
+- **Running a stored ETL job is compute; its record and its file are the
+  write.** On a read-only deployment `POST /etl-jobs/:id/execute` opens no
+  `EtlExecution` and writes no output file, and returns the RDF in the response
+  as `output`, up to `ETL_RESPONSE_OUTPUT_MAX_BYTES`. What runs is the job
+  version's stored SQL; the request carries none.
 - **`/mcp` is all POST**, so refusing it would take every tool, reads included,
   off a read-only deployment. Admitting it opens no write path: a tool call
   reaches its route through `app.inject` and meets the same hook there, so a
@@ -241,8 +247,10 @@ Three things it deliberately does **not** do:
   recording a patch writes sqlib's state. (`GET /sparql` refuses an UPDATE with
   405 on every deployment, read-only or not: a GET must not change anything.)
 - **It does not enable anything.** `FEATURE_ETL`, `FEATURE_PLAYGROUND_ETL` and
-  `FEATURE_ASSISTANT` are still off by default, and the ETL routes are absent
-  from the exceptions above — turning a flag on is not enough to expose them on
+  `FEATURE_ASSISTANT` are still off by default, and the ETL routes that take SQL
+  in the request — `POST /etl-jobs/preview` and `POST /playground/etl/execute`
+  — are absent from the exceptions above, as is every route that would store a
+  job version. Turning a flag on is not enough to let a visitor's own SQL run on
   a read-only deployment.
 - **It does not authenticate.** Every visitor is the same anonymous caller.
 

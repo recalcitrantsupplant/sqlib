@@ -2918,10 +2918,9 @@ export function useApiClient() {
   const executeBenchmarkRun = (experimentId: string, version: number) => {
     return requestData(
       buildUrl(`/benchmark-experiments/${encodeURIComponent(experimentId)}/versions/${version}/run`),
-      {
-        method: 'POST',
-        headers: JSON_HEADERS,
-      },
+      // No body, so no JSON content type: Fastify refuses an empty body that
+      // claims to be JSON with a 400, and the run never starts.
+      { method: 'POST' },
       benchmarkRunResponseSchema.parse
     );
   };

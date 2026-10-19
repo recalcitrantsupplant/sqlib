@@ -44,7 +44,8 @@ vi.mock('../../src/lib/orchestration/ExecutorFactory.js', () => ({
   }),
 }));
 
-import { EtlService } from '../../src/lib/EtlService.js';
+import { EtlService, MAX_ETL_RESPONSE_OUTPUT_BYTES } from '../../src/lib/EtlService.js';
+import { resetReadOnly } from '../../src/config/readOnly.js';
 
 const JOB = 'urn:sqlib:etl-job:job-1';
 const VERSION = 'urn:sqlib:etl-job-version:version-1';
@@ -249,5 +250,93 @@ describe('EtlService.executeEtlJob chunk loop', () => {
       expect.any(String),
       expect.objectContaining({ status: 'failed' }),
     );
+  });
+});
+
+/**
+ * A read-only deployment runs a stored job and keeps nothing of it: no run in
+ * the job's log, no output file, the RDF in the response instead. The route is
+ * on the read-only allowlist on that promise, so these hold it to it.
+ */
+describe('EtlService.executeEtlJob on a read-only deployment', () => {
+  let service: EtlService;
+  let outputDir: string;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    resetReadOnly({ SQLIB_READ_ONLY: 'true' } as NodeJS.ProcessEnv);
+    service = new EtlService();
+    outputDir = await fs.mkdtemp(path.join(os.tmpdir(), 'etl-output-'));
+    process.env.ETL_OUTPUT_DIR = outputDir;
+
+    hoisted.get.mockImplementation((id: string) => {
+      if (id === JOB) return { $id: JOB, currentVersion: VERSION };
+      if (id === VERSION) {
+        return {
+          $id: VERSION,
+          sql: 'SELECT name FROM t',
+          sparqlTemplate: 'CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }',
+          backendId: 'urn:sqlib:backend:b',
+          currentColumnMappingVersion: MAPPING,
+          chunkSize: 2,
+        };
+      }
+      if (id === MAPPING) {
+        return {
+          $id: MAPPING,
+          columns: JSON.stringify([
+            { sourceColumn: 'name', targetVariable: 'name', mappingType: 'literal', datatype: 'http://www.w3.org/2001/XMLSchema#string' },
+          ]),
+        };
+      }
+      return null;
+    });
+    hoisted.applyArguments.mockReturnValue('CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }');
+    hoisted.constructQueryParsed.mockResolvedValue({ result: '<a> <b> <c> .', contentType: 'application/n-triples' });
+  });
+
+  afterEach(async () => {
+    resetReadOnly({} as NodeJS.ProcessEnv);
+    delete process.env.ETL_OUTPUT_DIR;
+    await fs.rm(outputDir, { recursive: true, force: true });
+  });
+
+  it('returns the RDF in the response, and names no record and no file', async () => {
+    chunksOf(3, 2);
+
+    const result = await service.executeEtlJob('job-1', {}, { internal: true });
+
+    expect(result.status).toBe('completed');
+    expect(result.output).toBe('<a> <b> <c> .\n<a> <b> <c> .\n<a> <b> <c> .\n');
+    expect(result.outputFormat).toBe('application/n-triples');
+    expect(result.totalRows).toBe(6);
+    expect(result.completedChunks).toBe(3);
+    expect(result.executionId).toBeUndefined();
+    expect(result.outputLocation).toBeUndefined();
+  });
+
+  it('writes nothing of its own: no run in the log, no file', async () => {
+    chunksOf(3, 2);
+
+    await service.executeEtlJob('job-1', {}, { internal: true });
+
+    expect(hoisted.create).not.toHaveBeenCalled();
+    expect(hoisted.update).not.toHaveBeenCalled();
+    expect(await fs.readdir(outputDir)).toEqual([]);
+  });
+
+  it('fails, rather than truncating, once the output passes the cap', async () => {
+    // Two chunks, each a little over half the cap: the first fits, the second
+    // takes the run past it.
+    const half = '<a> <b> "' + 'x'.repeat(Math.ceil(MAX_ETL_RESPONSE_OUTPUT_BYTES / 2)) + '" .';
+    hoisted.constructQueryParsed.mockResolvedValue({ result: half, contentType: 'application/n-triples' });
+    const taken = chunksOf(5, 2);
+
+    await expect(service.executeEtlJob('job-1', {}, { internal: true }))
+      .rejects.toThrow(`passed ${MAX_ETL_RESPONSE_OUTPUT_BYTES} bytes`);
+    // It stopped on the chunk that broke the cap, and kept nothing on the way.
+    expect(taken.chunks).toBe(2);
+    expect(hoisted.create).not.toHaveBeenCalled();
+    expect(await fs.readdir(outputDir)).toEqual([]);
   });
 });

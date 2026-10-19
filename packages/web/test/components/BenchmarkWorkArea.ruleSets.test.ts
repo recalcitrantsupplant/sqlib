@@ -330,16 +330,15 @@ describe('BenchmarkWorkArea — rule-set subjects', () => {
   });
 
   /*
-   * A rule set evaluates in-process, so the case editor's support matrix — one
-   * row per store — has nothing to say about it and says so instead of drawing
-   * four rows of a comparison that will never be made.
+   * A rule set evaluates in-process, so the case editor compares it across data
+   * graphs rather than drawing a per-backend table that will never fill.
    */
-  it('replaces the support matrix with the reason there is none', async () => {
+  it('compares a rule set across data graphs, not backends', async () => {
     useVersion(RULE_SET_VERSION);
     const area = await mountSaved();
     const editor = area.get('[data-testid="benchmark-case-editor"]');
-    expect(editor.text()).toContain('no store axis');
-    expect(editor.text()).toContain('evaluates in-process');
+    expect(editor.text()).toContain('Data graphs');
+    expect(editor.text()).not.toContain('No backends named');
   });
 
   /*
@@ -387,7 +386,7 @@ describe('BenchmarkWorkArea — rule-set subjects', () => {
     await flushPromises();
 
     expect(area.find('[data-testid="benchmark-graph-filter"]').exists()).toBe(false);
-    expect(area.get('[data-testid="benchmark-run-view"]').text()).toContain('one lane per backend');
+    expect(area.get('[data-testid="benchmark-run-view"]').text()).toContain('Each lane is one backend.');
   });
 
   /*
@@ -489,7 +488,6 @@ describe('BenchmarkWorkArea — rule-set subjects', () => {
 
       const passes = area.get('[data-testid="benchmark-request-passes-detail"]');
       expect(passes.text()).toContain('5, 4');
-      expect(passes.text()).toContain('not measuring the same thing twice');
     });
 
     /*
