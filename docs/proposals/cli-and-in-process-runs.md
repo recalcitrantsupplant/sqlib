@@ -1,6 +1,6 @@
 # A `sqlib` CLI and in-process runs
 
-Status: proposed. Companion to [static-export.md](../guides/static-export.md),
+Status: decided (D1 to D7 agreed 2026-10-19), not yet started. Companion to [static-export.md](../guides/static-export.md),
 which draws the line this proposal extends: the server authors and compiles,
 and something smaller runs the result with no server present.
 
@@ -30,8 +30,8 @@ command-line tool over the result.
 ## What the result looks like
 
 ```sh
-# compile once, on the server (exists today as a pnpm script)
-sqlib export --from http://sqlib.internal/libraries/urn:sqlib:library:main --out lib.json
+# compile once, on the server; pull the result (the store-direct export exists today as a pnpm script)
+sqlib pull --from http://sqlib.internal --library urn:sqlib:library:main --out lib.json
 
 # run many times, in a container with no sqlib server
 sqlib etl run   --bundle lib.json --job customers --allow-filesystem --out out.nt --report run.json
@@ -56,10 +56,9 @@ The run container ships the CLI, Oxigraph and DuckDB. Nothing from
 
 ## Decisions
 
-The plan needs these decided first. Each work package that depends on one names
-it.
+All seven are decided. Each work package that depends on one names it.
 
-**D1. The parser ships in the CLI.** The Traqula parser, generator and rules
+**D1. The parser ships in the CLI. Decided: yes.** The Traqula parser, generator and rules
 packages are pure JavaScript built on Chevrotain. Unpacked they are a few
 megabytes, against roughly 50 to 70 MB for the DuckDB native binding and 10 to
 20 MB for Oxigraph. Size is not the cost. The risk is two substitution paths
@@ -71,17 +70,20 @@ buys `sqlib check`, SRL from a file, and input detection for ad-hoc queries.
 Decision: yes, as a separate `compiler` package (WP1), so the browser runtime
 stays parser-free.
 
-**D2. Query groups are out of scope.** See [Groups](#groups-why-not) below. A
+**D2. Query groups are out of scope. Decided: skip; revisit on a real need.** See [Groups](#groups-why-not) below. A
 group whose nodes are all exportable already runs through the runtime's
 `GroupHandle`, and the CLI gets that for free. The orchestration engine is not
 extracted.
 
-**D3. Compiled ETL jobs and rule sets go into bundle v1 as optional members.**
-`etlJobs` and `ruleSets`, keyed by slug like `queries`. Additive fields do not
-bump the version, because the reader ignores fields it does not know. Rule sets
-also run from SRL text directly, so a bundle is one of two sources for them.
+**D3. Compiled ETL jobs and rule sets go into bundle v1 as optional members.
+Decided: yes, included by default.** `etlJobs` and `ruleSets`, keyed by slug
+like `queries`. Additive fields do not bump the version, because the reader
+ignores fields it does not know. The exporter includes both whenever the
+library has them; a later UI control can exclude them. Rule sets also run from
+SRL text directly, so a bundle is one of two sources for them.
 
-**D4. DuckDB capability defaults differ between server and CLI.** The server
+**D4. DuckDB capability defaults differ between server and CLI. Decided: yes.**
+The server
 defaults every capability to off, because submitted SQL reaches the API host.
 The CLI runs in the operator's own process, and reading local files is the
 point. Proposed CLI defaults: filesystem on, HTTP off, extension install off,
@@ -89,18 +91,21 @@ memory limit and query timeout as the server's. Every flag has a `--no-` form,
 and the resolved profile is printed to stderr once per run, as the server logs
 it at boot.
 
-**D5. `sqlib export` in the CLI fetches from a server; it does not open the
-store.** The store-direct export stays where it is, a script in `packages/api`
-that also runs in the server image. The CLI's `export` calls
-`GET /libraries/:id/export-bundle` on a running server. This keeps `api` out
-of the CLI's dependency graph, which is the whole point of the image size.
+**D5. The CLI pulls a bundle from a server; it does not open the store.
+Decided: yes, as `sqlib pull`.** The store-direct export stays where it is, a
+script in `packages/api` that also runs in the server image. The CLI's `pull`
+calls `GET /libraries/:id/export-bundle` on a running server and writes the
+file. This keeps `api` out of the CLI's dependency graph, which is the whole
+point of the image size. The verb is `pull` rather than `export` or `import`:
+the server exports, and `import` already means loading into a store
+(`import:library-store`, `POST /rule-sets/:id/srl`).
 
-**D6. Streamed ETL output is N-Triples by default.** Chunks are appended to one
+**D6. Streamed ETL output is N-Triples by default. Decided: yes.** Chunks are appended to one
 file. Concatenated Turtle documents repeat prefix declarations, and a reader
 that is strict about them fails. N-Triples appends and splits safely. Turtle
 is allowed when the run is a single chunk, or through a final conversion pass.
 
-**D7. Package names.** `@sparql-query-lib/compiler`, `@sparql-query-lib/runtime-etl`,
+**D7. Package names. Decided: yes.** `@sparql-query-lib/compiler`, `@sparql-query-lib/runtime-etl`,
 `@sparql-query-lib/runtime-duckdb`, `@sparql-query-lib/runtime-srl`,
 `@sparql-query-lib/cli` with the bin `sqlib`. The `runtime-*` prefix follows
 `runtime-oxigraph`: packages that run exported artifacts and have no server
@@ -263,9 +268,9 @@ export interface ExportedEtlJob {
 `lib/export/collectLibraryEtlJobs.ts` reads the library's jobs, resolves the
 current column mapping version, compiles the template with the compiler, and
 `attachEtlJobsToBundle` adds them. `scripts/export-bundle.ts` and
-`GET /libraries/:id/export-bundle` gain `--etl` / `etl=true` (default on when
-`FEATURE_ETL` is on). The job's `backendId` is not exported: a run names its
-executor.
+`GET /libraries/:id/export-bundle` include jobs by default (D3) and take
+`--no-etl` / `etl=false` to leave them out. The job's `backendId` is not
+exported: a run names its executor.
 
 Acceptance: `packages/runtime/test/fixtures/bundle-v1.json` gains one job and
 the committed-bundle test still loads it in a reader that predates the field
@@ -311,7 +316,7 @@ Commands:
 
 | Command | Does |
 | --- | --- |
-| `sqlib export --from <server> --library <iri> [--tag…] --out lib.json` | Fetches the bundle from a running server (D5) |
+| `sqlib pull --from <server> --library <iri> [--tag…] --out lib.json` | Fetches the bundle from a running server (D5) |
 | `sqlib query --query <slug> \| --file q.rq [--arg v=term…] [--limit n=…]` | Runs a read query; prints SPARQL Results JSON or RDF |
 | `sqlib etl run --job <slug> [--chunk-size] [--max-rows] [--dry-run] --out` | Runs an ETL job; streams N-Triples |
 | `sqlib rules run --rule-set <slug> \| --srl file --data <files> --out [--trace]` | Runs a rule set; writes the inference graph |
