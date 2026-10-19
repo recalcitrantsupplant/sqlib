@@ -115,10 +115,10 @@ function javaSnippet(request: SnippetRequest): string {
     lines.push(`    .header("${name}", "${value}")`);
   }
   if (request.body === undefined) {
-    lines.push(`    .method("${request.method}", HttpRequest.BodySaveers.noBody())`);
+    lines.push(`    .method("${request.method}", HttpRequest.BodyPublishers.noBody())`);
   } else {
     lines.push(
-      `    .method("${request.method}", HttpRequest.BodySaveers.ofString(`,
+      `    .method("${request.method}", HttpRequest.BodyPublishers.ofString(`,
       `        "${compactJson(request.body).replace(/"/g, '\\"')}"))`,
     );
   }
