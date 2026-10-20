@@ -187,6 +187,30 @@ beforeEach(() => {
 });
 
 describe('TestWorkArea — drafts', () => {
+  it('offers prefix conversions on the expectation, and focus view on a picked data graph', async () => {
+    store.loadVersions.mockResolvedValue([{
+      id: 'urn:sqlib:test-version:v1',
+      version: 1,
+      expectationKind: 'graph',
+      subjectVersion: null,
+      backend: null,
+      cases: [{
+        name: null,
+        expected: SAVED_EXPECTED,
+        expectedFormat: 'text/turtle',
+        ordered: null,
+        dataGraphVersion: 'urn:sqlib:data-graph-version:companies',
+      }],
+    }]);
+    const area = await mountSaved();
+
+    // A graph expectation is Turtle, so it can be folded to prefixes and back.
+    expect(area.find('[data-testid="prefix-fold-button"]').exists()).toBe(true);
+    expect(area.find('[data-testid="iri-unfold-button"]').exists()).toBe(true);
+    // The picked graph can be opened over the page from the picker's row.
+    expect(area.find('[data-testid="test-data-graph-expand-button"]').exists()).toBe(true);
+  });
+
   it('shows no save problems while the saved test is still loading its cases', async () => {
     // The subject arrives a request before the cases; in between, every case
     // reads as missing its expectation, and the warning flashed then vanished.

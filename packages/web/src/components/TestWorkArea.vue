@@ -292,17 +292,27 @@
             <FormField
               v-if="slots.dataGraph && storeMode === 'dataGraph'"
               label="Data graph"
+              as="div"
               grow
             >
-              <SearchSelect
-                test-id="test-data-graph"
-                aria-label="Data graph"
-                placeholder="None"
-                empty-label="None"
-                :model-value="dataGraphVersion"
-                :options="dataGraphSelectOptions"
-                @update:model-value="(value) => (dataGraphVersion = value || null)"
-              />
+              <!-- Focus view sits on the picker's row: it opens what was picked. -->
+              <div class="select-row">
+                <SearchSelect
+                  test-id="test-data-graph"
+                  aria-label="Data graph"
+                  placeholder="None"
+                  empty-label="None"
+                  :model-value="dataGraphVersion"
+                  :options="dataGraphSelectOptions"
+                  @update:model-value="(value) => (dataGraphVersion = value || null)"
+                />
+                <ExpandButton
+                  v-if="dataGraphVersion && !dataGraphExpanded"
+                  subject="the data graph"
+                  testid="test-data-graph-expand-button"
+                  @click="toggleDataGraphExpand"
+                />
+              </div>
             </FormField>
 
             <!-- Version-level, not per case: one test runs against one store. -->
@@ -338,15 +348,24 @@
             is a fixed height whatever is in it, and opens on the lines that
             say something.
           -->
-          <InputPreview
+          <ExpandableEditor
             v-if="slots.dataGraph && storeMode === 'dataGraph' && dataGraphVersion"
-            label="Data graph"
-            :content="dataGraphContent.get(dataGraphVersion)?.text"
-            :content-type="dataGraphContent.get(dataGraphVersion)?.format ?? 'text/turtle'"
-            :meta="dataGraphContent.get(dataGraphVersion)?.meta"
-            test-id="test-data-graph-preview"
-            class="preview"
-          />
+            :id="DATA_GRAPH_REGION_ID"
+            title="Data graph"
+            testid="test-data-graph-expand"
+          >
+            <!-- Popped out, the peek is held open at full height. -->
+            <CodePeek
+              label="Data graph"
+              :content="dataGraphContent.get(dataGraphVersion)?.text"
+              :content-type="dataGraphContent.get(dataGraphVersion)?.format ?? 'text/turtle'"
+              :meta="dataGraphContent.get(dataGraphVersion)?.meta"
+              :open="dataGraphExpanded"
+              :expanded-height="dataGraphExpanded ? 'none' : undefined"
+              test-id="test-data-graph-preview"
+              :class="{ preview: !dataGraphExpanded }"
+            />
+          </ExpandableEditor>
 
           <InputPreview
             v-if="slots.argumentSet && argumentSetVersion"
@@ -457,13 +476,32 @@
           the screen.
         -->
         <section v-if="subjectPreview" class="block">
-          <CodePeek
-            :label="SUBJECT_DOCUMENT_LABEL[subjectKind]"
-            :content="subjectPreview.text"
-            :content-type="SUBJECT_DOCUMENT_CONTENT_TYPE[subjectKind]"
-            :meta="subjectPreview.meta"
-            test-id="test-subject-preview"
-          />
+          <header class="block-head">
+            <SectionLabel as="h3">{{ SUBJECT_SECTION_LABEL[subjectKind] }}</SectionLabel>
+            <div class="block-actions">
+              <ExpandButton
+                v-if="!subjectExpanded"
+                :subject="`the ${SUBJECT_SECTION_LABEL[subjectKind].toLowerCase()}`"
+                testid="test-subject-expand-button"
+                @click="toggleSubjectExpand"
+              />
+            </div>
+          </header>
+          <ExpandableEditor
+            :id="SUBJECT_REGION_ID"
+            :title="SUBJECT_SECTION_LABEL[subjectKind]"
+            testid="test-subject-expand"
+          >
+            <CodePeek
+              :label="SUBJECT_DOCUMENT_LABEL[subjectKind]"
+              :content="subjectPreview.text"
+              :content-type="SUBJECT_DOCUMENT_CONTENT_TYPE[subjectKind]"
+              :meta="subjectPreview.meta"
+              :open="subjectExpanded"
+              :expanded-height="subjectExpanded ? 'none' : undefined"
+              test-id="test-subject-preview"
+            />
+          </ExpandableEditor>
         </section>
 
         <section class="block block-grow">
@@ -505,6 +543,13 @@
                 the expectation: this row already says what kind of expectation
                 this is, and enlarging it is the same sort of thing.
               -->
+              <!-- Shows itself only where the expectation is RDF with prefixes. -->
+              <PrefixConversionButtons
+                v-if="expectationKind !== 'smoke'"
+                :code="expected"
+                :content-type="expectedContentType"
+                @update:code="(value: string) => (expected = value)"
+              />
               <ExpandButton
                 v-if="expectationKind !== 'smoke' && !expectedExpanded"
                 subject="the expectation"
@@ -659,6 +704,7 @@ import ExpandRunStrip from './shared/ExpandRunStrip.vue';
 import { useEditorExpand } from '../composables/useEditorExpand';
 import { useEditorAsPrefixTarget } from '../composables/usePrefixTarget';
 import CodePeek from './shared/CodePeek.vue';
+import PrefixConversionButtons from './shared/PrefixConversionButtons.vue';
 import CodeSnippetPanel, { type CodeSnippetVariant } from './shared/CodeSnippetPanel.vue';
 import InspectorPanel, { type InspectorTab } from './shared/InspectorPanel.vue';
 import EntityDetailsPanel from './shared/EntityDetailsPanel.vue';
@@ -1054,6 +1100,14 @@ const SUBJECT_NOUN: Record<SubjectKind, string> = {
 };
 
 /** What the subject's own document is called, per kind. */
+/** The heading over the subject's document, named for what the subject is. */
+const SUBJECT_SECTION_LABEL: Record<SubjectKind, string> = {
+  query: 'Query',
+  ruleSet: 'Rule set',
+  queryGroup: 'Query group',
+  etlJob: 'ETL job',
+};
+
 const SUBJECT_DOCUMENT_LABEL: Record<SubjectKind, string> = {
   query: 'Query text',
   ruleSet: 'Rules',
@@ -1162,6 +1216,8 @@ const editorExpansion = useEditorExpand();
 const TUPLE_SEEDS_REGION_ID = 'test-tuple-seeds-region';
 const SQL_FIXTURE_REGION_ID = 'test-sql-fixture-region';
 const EXPECTED_REGION_ID = 'test-expected-region';
+const DATA_GRAPH_REGION_ID = 'test-data-graph-region';
+const SUBJECT_REGION_ID = 'test-subject-region';
 
 const tupleSeedsExpanded = computed(() => editorExpansion.isExpanded(TUPLE_SEEDS_REGION_ID));
 const toggleTupleSeedsExpand = () => editorExpansion.toggle(TUPLE_SEEDS_REGION_ID);
@@ -1171,6 +1227,12 @@ const toggleSqlFixtureExpand = () => editorExpansion.toggle(SQL_FIXTURE_REGION_I
 
 const expectedExpanded = computed(() => editorExpansion.isExpanded(EXPECTED_REGION_ID));
 const toggleExpectedExpand = () => editorExpansion.toggle(EXPECTED_REGION_ID);
+
+const dataGraphExpanded = computed(() => editorExpansion.isExpanded(DATA_GRAPH_REGION_ID));
+const toggleDataGraphExpand = () => editorExpansion.toggle(DATA_GRAPH_REGION_ID);
+
+const subjectExpanded = computed(() => editorExpansion.isExpanded(SUBJECT_REGION_ID));
+const toggleSubjectExpand = () => editorExpansion.toggle(SUBJECT_REGION_ID);
 
 function showInputs() {
   // Scrolling the page behind a popped-out editor moves nothing anyone can
@@ -2451,6 +2513,19 @@ watch([argumentSetVersion, argumentSetOptions], () => {
   align-items: center;
   gap: var(--space-3);
   margin-left: auto;
+}
+
+/* A picker and the button that opens what it picked, on one row. */
+.select-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.select-row > :first-child {
+  flex: 1;
+  min-width: 0;
 }
 
 /* The segmented control itself is `shared/SegmentedToggle`. */
