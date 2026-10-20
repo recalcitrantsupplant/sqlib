@@ -1,4 +1,5 @@
 PREFIX : <http://example/>
 
-# A result assigned again by a later SET.
-RULE { ?x :n ?n } WHERE { ?x a :Person . GROUP BY ?x { ?y :childOf ?x } [ ?n := COUNT(*) ] SET (?n := 0) }
+# A FILTER in the pattern sees only the BY variables from outside, so ?lo is
+# not bound there.
+RULE { ?x :n ?n } WHERE { ?x a :Person ; :min ?lo . GROUP BY ?x { ?y :childOf ?x ; :age ?a FILTER(?a > ?lo) } [ ?n := COUNT(*) ] }

@@ -1,5 +1,4 @@
 PREFIX : <http://example/>
 
-# ?y is used in the pattern and before the GROUP without being listed:
-# correlation must be written down.
-RULE { ?x :n ?n } WHERE { ?x a :Person ; :knows ?y . GROUP BY ?x { ?y :childOf ?x } [ ?n := COUNT(*) ] }
+# A result must be a new variable.
+RULE { ?x :n ?x } WHERE { ?x a :Person . GROUP BY ?x { ?y :childOf ?x } [ ?x := COUNT(*) ] }

@@ -1,0 +1,5 @@
+PREFIX : <http://example/>
+
+:alice :named "Alice", "Ali" ; :kids 2 .
+:bob :named "Bob" ; :kids 1 .
+:carol :named "Carol" ; :kids 0 .

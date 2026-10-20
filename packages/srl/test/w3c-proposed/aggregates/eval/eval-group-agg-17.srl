@@ -1,4 +1,4 @@
 PREFIX : <http://example/>
 
-# An empty block keeps one row per key, matched or not, as COUNT does.
+# An empty block keeps every earlier row, matched or not, as COUNT does.
 RULE { ?x a :Listed } WHERE { ?x a :Person . GROUP BY ?x { ?y :childOf ?x } [] }

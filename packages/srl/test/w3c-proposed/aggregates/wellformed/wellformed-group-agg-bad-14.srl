@@ -1,5 +1,0 @@
-PREFIX : <http://example/>
-
-# A SET target in the pattern is a pattern variable, so it cannot reach the
-# head.
-RULE { ?x :n ?b } WHERE { ?x a :Person . GROUP BY ?x { ?y :childOf ?x SET (?b := 1) } [ ?n := COUNT(*) ] }

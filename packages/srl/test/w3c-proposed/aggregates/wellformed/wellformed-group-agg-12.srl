@@ -1,4 +1,4 @@
 PREFIX : <http://example/>
 
-# A second GROUP that does not list the first one's result drops it.
+# A second GROUP keeps the first one's result without listing it.
 RULE { ?x :kids ?n ; :pets ?m } WHERE { ?x a :Person . GROUP BY ?x { ?y :childOf ?x } [ ?n := COUNT(*) ] GROUP BY ?x { ?y :petOf ?x } [ ?m := COUNT(*) ] }

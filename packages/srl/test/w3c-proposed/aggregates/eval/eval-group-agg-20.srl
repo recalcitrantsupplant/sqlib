@@ -1,0 +1,5 @@
+PREFIX : <http://example/>
+
+# The pattern supplies the key. A department nobody works in has no value
+# for it, so it has no row.
+RULE { ?d :headcount ?n } WHERE { GROUP BY ?d { ?p :dept ?d } [ ?n := COUNT(*) ] }

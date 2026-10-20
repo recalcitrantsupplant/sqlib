@@ -1,0 +1,15 @@
+PREFIX : <http://example/>
+
+# Alice has two names (two rows before a GROUP); Carol has no children (an
+# empty group). Nobody works in :hr.
+:alice a :Person ; :name "Alice", "Ali" ; :dept :sales .
+:bob   a :Person ; :name "Bob"          ; :dept :sales .
+:carol a :Person ; :name "Carol"        ; :dept :eng .
+
+:k1 :childOf :alice ; :age 10 .
+:k2 :childOf :alice ; :age 10 .
+:k3 :childOf :bob   ; :age 7 .
+
+:sales a :Dept .
+:eng   a :Dept .
+:hr    a :Dept .

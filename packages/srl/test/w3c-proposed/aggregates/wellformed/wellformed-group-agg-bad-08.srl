@@ -1,4 +1,4 @@
 PREFIX : <http://example/>
 
-# A result that is also a pattern variable.
-RULE { ?x :n ?a } WHERE { ?x a :Person . GROUP BY ?x { ?y :childOf ?x ; :age ?a } [ ?a := MAX(?a) ] }
+# A SET in the pattern must not re-bind a variable.
+RULE { ?x :n ?n } WHERE { ?x a :Person . GROUP BY ?x { ?y :childOf ?x ; :age ?a SET (?a := 1) } [ ?n := COUNT(*) ] }

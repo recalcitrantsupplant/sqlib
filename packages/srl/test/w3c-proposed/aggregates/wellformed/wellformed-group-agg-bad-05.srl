@@ -1,4 +1,4 @@
 PREFIX : <http://example/>
 
-# A result must be a new variable.
-RULE { ?x :n ?x } WHERE { ?x a :Person . GROUP BY ?x { ?y :childOf ?x } [ ?x := COUNT(*) ] }
+# A result that is also a pattern variable.
+RULE { ?x :n ?a } WHERE { ?x a :Person . GROUP BY ?x { ?y :childOf ?x ; :age ?a } [ ?a := MAX(?a) ] }

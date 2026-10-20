@@ -1,0 +1,5 @@
+PREFIX : <http://example/>
+
+# A BY variable the body before the GROUP does not bind is supplied by the
+# pattern (w3c/data-shapes#840).
+RULE { ?x :n ?n } WHERE { GROUP BY ?x { ?y :childOf ?x } [ ?n := COUNT(*) ] }

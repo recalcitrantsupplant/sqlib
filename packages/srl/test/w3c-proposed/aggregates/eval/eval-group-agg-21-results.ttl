@@ -1,0 +1,5 @@
+PREFIX : <http://example/>
+
+:sales :headcount 2 .
+:eng :headcount 1 .
+:hr :headcount 0 .

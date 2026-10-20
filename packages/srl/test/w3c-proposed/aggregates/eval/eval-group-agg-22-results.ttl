@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+:alice :ageGroupSize 2 .
+:bob :ageGroupSize 1 .

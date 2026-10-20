@@ -1,0 +1,6 @@
+PREFIX : <http://example/>
+
+# ?y before the GROUP is a name; ?y in its pattern is a child. They are
+# different variables, so the names do not limit the count, and each name
+# row keeps its count.
+RULE { ?x :alias ?y ; :kids ?n } WHERE { ?x a :Person ; :name ?y . GROUP BY ?x { ?y :childOf ?x } [ ?n := COUNT(*) ] }

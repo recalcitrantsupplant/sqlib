@@ -15,9 +15,8 @@ import { aggregateInnerVars } from './aggregates/scope.js';
  *                      to the whole group), so order matters.
  *
  *  - `aggregate-scope`: a `GROUP` (w3c/data-shapes#1347) lists a `BY` variable
- *                      that is not bound before it,
- *                      uses a pattern variable that also appears outside it
- *                      without listing it, assigns a variable that is already
+ *                      that neither the body before it nor its pattern binds,
+ *                      assigns a variable that is already
  *                      bound, aggregates over a variable its pattern does not
  *                      bind, or has a `SET` in its pattern that re-binds a
  *                      variable.
@@ -120,82 +119,51 @@ function walkBindOrder(
       // Binds nothing outside; inside, it sees what is bound so far.
       walkBindOrder(item.body, bound, report);
     } else if (item.kind === 'aggregate') {
-      // Inside, it sees only its keys; whether those are bound is
-      // `checkAggregates`' business, not an order fault inside the pattern.
-      walkBindOrder(item.body, new Set(item.keys), report);
-      narrowToGroup(bound, item.keys);
+      // Inside, it sees only the keys bound before it; a key the pattern binds
+      // itself is held to the order rule like any other pattern variable.
+      walkBindOrder(item.body, new Set(item.keys.filter((k) => bound.has(k))), report);
     }
     for (const name of boundBy(item)) bound.add(name);
   }
 }
 
-/** After a `GROUP` only its keys (and its results) stay bound. */
-function narrowToGroup(bound: Set<string>, keys: readonly string[]): void {
-  for (const name of [...bound]) if (!keys.includes(name)) bound.delete(name);
-}
-
 /**
  * The scope rules of `GROUP`.
  *
- * The one that matters most is the third. A pattern variable that is not a key
- * is local to the `GROUP`, so a name that also appears outside it would be two
- * variables spelled alike: correlated if the author meant it, independent if
- * they did not, and nothing on the page says which. Making the clash an error
- * means correlation is always written down, in the `BY` list.
+ * A pattern variable that is not a key is local to the `GROUP`, as a variable
+ * a subquery does not project is local to it: one of the same name before or
+ * after the `GROUP` is a different variable (w3c/data-shapes#840). Listing it
+ * after `GROUP BY` correlates it.
  *
- * The first, that a `BY` variable is bound before the `GROUP`, is what lets a
- * key with nothing to count still have a row: the keys come from the rule body
- * rather than from what the pattern happens to match.
+ * A key is bound before the `GROUP`, by its pattern, or both. Only a key bound
+ * before can have a row when its group is empty, since nothing else gives it a
+ * value.
  */
 function checkAggregates(rule: SrlRule, report: (message: string) => void): void {
   const bound = new Set<string>();
-  rule.body.forEach((item, index) => {
-    if (item.kind === 'aggregate') {
-      checkAggregate(item, index, rule, bound, report);
-      narrowToGroup(bound, item.keys);
-    }
+  rule.body.forEach((item) => {
+    if (item.kind === 'aggregate') checkAggregate(item, rule, bound, report);
     for (const name of boundBy(item)) bound.add(name);
   });
 }
 
 function checkAggregate(
   item: SrlAggregate,
-  index: number,
   rule: SrlRule,
   boundBefore: ReadonlySet<string>,
   report: (message: string) => void,
 ): void {
   const keys = item.keys;
   const inner = aggregateInnerVars(item);
+  const index = rule.body.indexOf(item);
 
-  // A key the pattern does not use is allowed: it is carried through the
-  // GROUP unchanged, which is how a second GROUP keeps the first one's results
-  // (`GROUP BY ?x ?n { … } [ ?m := … ]`).
+  // A key bound before but not used by the pattern is allowed: it is carried
+  // through the GROUP unchanged.
+  const patternBinds = new Set(item.body.flatMap((innerItem) => boundBy(innerItem)));
   for (const key of keys) {
-    if (!boundBefore.has(key)) report(`GROUP BY ?${key} is not bound before the GROUP`);
-  }
-
-  // Every name used anywhere in the rule except inside this GROUP.
-  const outside = new Set<string>();
-  collectVars(rule.head, outside);
-  rule.body.forEach((other, otherIndex) => {
-    if (otherIndex === index) return;
-    if (other.kind === 'aggregate') {
-      // Another GROUP's pattern variables are its own business; its keys and
-      // results are names of the outer body.
-      for (const name of other.keys) outside.add(name);
-      for (const name of boundBy(other)) outside.add(name);
-      return;
+    if (!boundBefore.has(key) && !patternBinds.has(key)) {
+      report(`GROUP BY ?${key} is bound neither before the GROUP nor by its pattern`);
     }
-    collectVars(other, outside);
-    for (const name of boundBy(other)) outside.add(name);
-  });
-  for (const name of inner) {
-    if (keys.includes(name) || !outside.has(name)) continue;
-    report(
-      `?${name} is used in the GROUP pattern and outside it; list it after GROUP BY to correlate it, `
-      + 'or rename the one in the pattern',
-    );
   }
 
   const results = item.assignments.map((a) => a.variable);
@@ -234,18 +202,18 @@ function checkAggregate(
 /**
  * The variables one body element binds for the elements after it: a triple
  * pattern's and a tuple pattern's variables, a SET's target, and a GROUP's
- * results. A FILTER binds nothing, and neither does a NOT — its variables are
- * existential — nor a GROUP's pattern.
- *
- * A GROUP also *unbinds* every earlier variable that is not one of its keys;
- * callers walking a body in order handle that themselves.
+ * keys and results. A FILTER binds nothing, and neither does a NOT — its
+ * variables are existential — nor a GROUP's pattern beyond its keys.
  */
 export function boundBy(item: SrlBodyItem): string[] {
   const out = new Set<string>();
   if (item.kind === 'bgp') collectVars(item.triples, out);
   else if (item.kind === 'tuple') collectVars(item.tuple.terms, out);
   else if (item.kind === 'set') out.add(item.variable);
-  else if (item.kind === 'aggregate') for (const a of item.assignments) out.add(a.variable);
+  else if (item.kind === 'aggregate') {
+    for (const key of item.keys) out.add(key);
+    for (const a of item.assignments) out.add(a.variable);
+  }
   return [...out];
 }
 
@@ -282,9 +250,7 @@ function collectBodyVars(items: SrlBodyItem[], into: Set<string>, setTargets: st
   for (const item of items) {
     // Variables under NOT do not *bind* head variables (negation as failure),
     // and a FILTER binds nothing, so `boundBy` returns nothing for either. A
-    // GROUP binds its results, after unbinding every earlier variable that is
-    // not one of its keys.
-    if (item.kind === 'aggregate') narrowToGroup(into, item.keys);
+    // GROUP binds its keys and results and keeps every earlier variable.
     for (const name of boundBy(item)) into.add(name);
     if (item.kind === 'set') setTargets.push(item.variable);
   }

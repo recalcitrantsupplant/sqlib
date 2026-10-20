@@ -161,8 +161,8 @@ describe('GROUP — round trip', () => {
 describe('GROUP — well-formedness', () => {
   it('accepts the worked examples', () => {
     expect(issues(CHILDREN)).toEqual([]);
-    // Rank: the keys come from before the GROUP, and the person is matched
-    // again after it, since the GROUP keeps only its keys and results.
+    // Rank: the keys come from before the GROUP; the person matched after it
+    // joins on them.
     expect(issues(
       'RULE { ?p :rank ?r } WHERE { ?q :dept ?d ; :score ?s . '
       + 'GROUP BY ?d ?s { ?o :dept ?d ; :score ?s2 FILTER(?s2 > ?s) } [ ?b := COUNT(*) ] '
@@ -172,27 +172,30 @@ describe('GROUP — well-formedness', () => {
       .toEqual([]);
   });
 
-  it('keeps only the keys and the results after the GROUP', () => {
-    const found = checkWellFormed(parse(
+  it('keeps every earlier variable after the GROUP (augment mode, #840)', () => {
+    expect(issues(
       'RULE { ?x :name ?name ; :n ?n } WHERE { ?x a :P ; :name ?name . GROUP BY ?x { ?y :c ?x } [ ?n := COUNT(*) ] }',
-    ));
-    expect(found.map((i) => [i.category, i.message])).toEqual([
-      ['unbound-head', 'Head variable ?name is not bound by the rule body'],
-    ]);
+    )).toEqual([]);
     expect(issues(
       'RULE { ?x :n ?n } WHERE { ?x a :P ; :name ?name . GROUP BY ?x { ?y :c ?x } [ ?n := COUNT(*) ] FILTER(?name != "") }',
-    )).toEqual(['?name is used by a FILTER before it is bound']);
+    )).toEqual([]);
   });
 
-  it('lets a later pattern bind a dropped variable again', () => {
+  it('lets a later pattern bind a new variable after the GROUP', () => {
     expect(issues(
       'RULE { ?x :name ?name ; :n ?n } WHERE { ?x a :P . GROUP BY ?x { ?y :c ?x } [ ?n := COUNT(*) ] ?x :name ?name }',
     )).toEqual([]);
   });
 
-  it('needs every BY variable bound before the GROUP', () => {
-    expect(issues('RULE { ?x :n ?n } WHERE { GROUP BY ?x { ?y :c ?x } [ ?n := COUNT(*) ] }'))
-      .toContain('GROUP BY ?x is not bound before the GROUP');
+  it('lets the pattern supply a BY variable the body before it does not bind', () => {
+    expect(issues('RULE { ?x :n ?n } WHERE { GROUP BY ?x { ?y :c ?x } [ ?n := COUNT(*) ] }')).toEqual([]);
+    expect(issues('RULE { ?x :n ?n ; :age ?a } WHERE { ?x a :P . GROUP BY ?x ?a { ?y :c ?x ; :age ?a } [ ?n := COUNT(*) ] }'))
+      .toEqual([]);
+  });
+
+  it('refuses a BY variable that nothing binds', () => {
+    expect(issues('RULE { :a :n ?n } WHERE { GROUP BY ?z { ?y :c ?x } [ ?n := COUNT(*) ] }'))
+      .toContain('GROUP BY ?z is bound neither before the GROUP nor by its pattern');
   });
 
   it('carries a BY variable the pattern does not use through unchanged', () => {
@@ -200,17 +203,24 @@ describe('GROUP — well-formedness', () => {
       .toEqual([]);
   });
 
-  it('refuses a pattern variable that is also used outside without being listed', () => {
-    const clash = '?y is used in the GROUP pattern and outside it; list it after GROUP BY to correlate it, or rename the one in the pattern';
-    expect(issues('RULE { ?x :n ?n } WHERE { ?x a :P ; :knows ?y . GROUP BY ?x { ?y :c ?x } [ ?n := COUNT(*) ] }'))
-      .toEqual([clash]);
-    expect(issues('RULE { ?x :n ?n } WHERE { ?x a :P . GROUP BY ?x { ?y :c ?x } [ ?n := COUNT(*) ] ?x :knows ?y }'))
-      .toEqual([clash]);
+  it('treats an unlisted pattern variable bound before the GROUP as a new variable', () => {
+    expect(issues('RULE { ?x :n ?n ; :knows ?y } WHERE { ?x a :P ; :knows ?y . GROUP BY ?x { ?y :c ?x } [ ?n := COUNT(*) ] }'))
+      .toEqual([]);
+    expect(compile('RULE { ?x :n ?n } WHERE { ?x a :P ; :knows ?y . GROUP BY ?x { ?y :c ?x } [ ?n := COUNT(*) ] }').program)
+      .toContain('?_agg0_y <http://example/c> ?x');
   });
 
-  it('counts a SET target in the pattern as a pattern variable', () => {
-    expect(issues('RULE { ?x :n ?z } WHERE { ?x a :P . GROUP BY ?x { ?y :c ?x SET (?z := 1) } [ ?n := COUNT(*) ] }'))
-      .toContain('?z is used in the GROUP pattern and outside it; list it after GROUP BY to correlate it, or rename the one in the pattern');
+  it('treats a pattern variable used again after the GROUP as a new variable', () => {
+    expect(issues('RULE { ?x :n ?n ; :knows ?y } WHERE { ?x a :P . GROUP BY ?x { ?y :c ?x } [ ?n := COUNT(*) ] ?x :knows ?y }'))
+      .toEqual([]);
+    // Not bound by the GROUP, so the head cannot use it unless a later element binds it.
+    expect(issues('RULE { ?x :n ?y } WHERE { ?x a :P . GROUP BY ?x { ?y :c ?x } [ ?n := COUNT(*) ] }'))
+      .toEqual(['Head variable ?y is not bound by the rule body']);
+  });
+
+  it('counts a SET target in the pattern as a pattern variable, apart from one bound before', () => {
+    expect(issues('RULE { ?x :n ?n ; :q ?z } WHERE { ?x a :P ; :q ?z . GROUP BY ?x { ?y :c ?x SET (?z := 1) } [ ?n := COUNT(*) ] }'))
+      .toEqual([]);
   });
 
   it('refuses a SET in the pattern that re-binds a variable', () => {
@@ -225,10 +235,10 @@ describe('GROUP — well-formedness', () => {
     )).toEqual([]);
   });
 
-  it('drops a first GROUP\'s results at a second GROUP unless the second lists them', () => {
+  it('keeps a first GROUP\'s results through a second, listed or not', () => {
     const second = (by: string) =>
       `RULE { ?x :kids ?n ; :pets ?m } WHERE { ?x a :P . GROUP BY ?x { ?y :c ?x } [ ?n := COUNT(*) ] GROUP BY ${by} { ?y :pet ?x } [ ?m := COUNT(*) ] }`;
-    expect(issues(second('?x'))).toEqual(['Head variable ?n is not bound by the rule body']);
+    expect(issues(second('?x'))).toEqual([]);
     expect(issues(second('?x ?n'))).toEqual([]);
   });
 
@@ -275,9 +285,9 @@ describe('GROUP — stratification', () => {
 });
 
 describe('GROUP — compile', () => {
-  it('compiles to an OPTIONAL grouped subquery over renamed pattern variables, collapsed to the keys', () => {
+  it('compiles to an OPTIONAL grouped subquery over renamed pattern variables, keeping every outer row', () => {
     const { program } = compile(CHILDREN);
-    expect(program).toContain('SELECT DISTINCT ?x ?n WHERE {');
+    expect(program).not.toContain('SELECT DISTINCT');
     expect(program).toContain('OPTIONAL {');
     expect(program).toContain('SELECT ?x (COUNT(*) AS ?_agg0_count) (COUNT( * ) AS ?_agg0_v0) WHERE {');
     expect(program).toContain('?_agg0_y <http://example/childOf> ?x');
@@ -310,14 +320,23 @@ describe('GROUP — compile', () => {
     expect(program).toContain('SELECT DISTINCT ?d ?s WHERE {');
   });
 
-  it('projects only the keys for an empty block', () => {
-    expect(compile('RULE { ?x :hasChild true } WHERE { ?x a :P . GROUP BY ?x { ?y :c ?x } [] }').program)
-      .toContain('SELECT DISTINCT ?x WHERE {');
+  it('joins the subquery, not OPTIONAL, when the pattern supplies a key', () => {
+    const { program } = compile('RULE { ?d :headcount ?n } WHERE { GROUP BY ?d { ?p :dept ?d } [ ?n := COUNT(*) ] }');
+    expect(program).not.toContain('OPTIONAL');
+    expect(program).toContain('GROUP BY ?d');
+    const mixed = compile('RULE { ?x :n ?n } WHERE { ?x a :P . GROUP BY ?x ?a { ?y :c ?x ; :age ?a } [ ?n := COUNT(*) ] }');
+    expect(mixed.program).not.toContain('OPTIONAL');
   });
 
-  it('projects a fresh, unbound variable when there are neither keys nor results', () => {
+  it('keeps every outer row for an empty block', () => {
+    const { program } = compile('RULE { ?x :hasChild true } WHERE { ?x a :P . GROUP BY ?x { ?y :c ?x } [] }');
+    expect(program).toContain('OPTIONAL {');
+    expect(program).not.toContain('SELECT DISTINCT');
+  });
+
+  it('gives one row when there are neither keys nor results', () => {
     expect(compile('RULE { :all :seen true } WHERE { GROUP { ?s ?p ?o } [] }').program)
-      .toContain('SELECT DISTINCT ?_agg0_unit WHERE {');
+      .toContain('OPTIONAL {\n  SELECT (COUNT(*) AS ?_agg0_count) WHERE {');
   });
 
   it('keeps generated names clear of the author\'s', () => {

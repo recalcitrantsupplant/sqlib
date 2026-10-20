@@ -1,4 +1,4 @@
 PREFIX : <http://example/>
 
-# ?y is used in the pattern and in the head.
-RULE { ?x :n ?y } WHERE { ?x a :Person . GROUP BY ?x { ?y :childOf ?x } [ ?n := COUNT(*) ] }
+# A result assigned again by a later SET.
+RULE { ?x :n ?n } WHERE { ?x a :Person . GROUP BY ?x { ?y :childOf ?x } [ ?n := COUNT(*) ] SET (?n := 0) }

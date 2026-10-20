@@ -1,0 +1,5 @@
+PREFIX : <http://example/>
+
+# One key from before the GROUP (?x), one only from the pattern (?a). Carol's
+# group is empty, so ?a has no value and she has no row.
+RULE { ?x :ageGroupSize ?n } WHERE { ?x a :Person . GROUP BY ?x ?a { ?k :childOf ?x ; :age ?a } [ ?n := COUNT(*) ] }
