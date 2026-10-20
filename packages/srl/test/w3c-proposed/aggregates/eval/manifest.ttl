@@ -30,6 +30,12 @@ PREFIX srlt:   <http://www.w3.org/ns/sparql-rl-tests#>
         :eval-group-agg-16
         :eval-group-agg-17
         :eval-group-agg-18
+        :eval-group-agg-19
+        :eval-group-agg-20
+        :eval-group-agg-21
+        :eval-group-agg-22
+        :eval-group-agg-23
+        :eval-group-agg-24
     ) .
 
 # COUNT per person: a person with no children gets 0.
@@ -158,7 +164,8 @@ PREFIX srlt:   <http://www.w3.org/ns/sparql-rl-tests#>
     mf:result  <eval-group-agg-14-results.ttl>
     .
 
-# Two GROUPs in one rule; the second lists the first one's result to keep it.
+# Two GROUPs in one rule; the second lists the first one's result as a key,
+# which carries it through.
 :eval-group-agg-15 rdf:type srlt:RulesEvalTest ;
     mf:name "eval-group-agg-15";
     mf:action
@@ -176,7 +183,7 @@ PREFIX srlt:   <http://www.w3.org/ns/sparql-rl-tests#>
     mf:result  <eval-group-agg-16-results.ttl>
     .
 
-# An empty block keeps one row per key, matched or not, as COUNT does.
+# An empty block keeps every earlier row, matched or not, as COUNT does.
 :eval-group-agg-17 rdf:type srlt:RulesEvalTest ;
     mf:name "eval-group-agg-17";
     mf:action
@@ -185,11 +192,70 @@ PREFIX srlt:   <http://www.w3.org/ns/sparql-rl-tests#>
     mf:result  <eval-group-agg-17-results.ttl>
     .
 
-# A GROUP with no BY makes one group of every earlier row, and drops the earlier variables.
+# A GROUP with no BY makes one group of every match of its pattern, and adds the result to every earlier row.
 :eval-group-agg-18 rdf:type srlt:RulesEvalTest ;
     mf:name "eval-group-agg-18";
     mf:action
          [ srlt:ruleset  <eval-group-agg-18.srl> ;
            srlt:data     <data-family.ttl> ] ;
     mf:result  <eval-group-agg-18-results.ttl>
+    .
+
+# Augment mode (w3c/data-shapes#840): every earlier row is kept with its
+# variables, so ?name reaches the head. Alice's two names do not double her
+# count, and Carol, with no children, gets 0.
+:eval-group-agg-19 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-agg-19";
+    mf:action
+         [ srlt:ruleset  <eval-group-agg-19.srl> ;
+           srlt:data     <data-people.ttl> ] ;
+    mf:result  <eval-group-agg-19-results.ttl>
+    .
+
+# The pattern supplies the key. A department nobody works in has no value
+# for it, so it has no row.
+:eval-group-agg-20 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-agg-20";
+    mf:action
+         [ srlt:ruleset  <eval-group-agg-20.srl> ;
+           srlt:data     <data-people.ttl> ] ;
+    mf:result  <eval-group-agg-20-results.ttl>
+    .
+
+# The same count with the key bound before the GROUP: :hr gets 0.
+:eval-group-agg-21 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-agg-21";
+    mf:action
+         [ srlt:ruleset  <eval-group-agg-21.srl> ;
+           srlt:data     <data-people.ttl> ] ;
+    mf:result  <eval-group-agg-21-results.ttl>
+    .
+
+# One key from before the GROUP (?x), one only from the pattern (?a). Carol's
+# group is empty, so ?a has no value and she has no row.
+:eval-group-agg-22 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-agg-22";
+    mf:action
+         [ srlt:ruleset  <eval-group-agg-22.srl> ;
+           srlt:data     <data-people.ttl> ] ;
+    mf:result  <eval-group-agg-22-results.ttl>
+    .
+
+# A second GROUP keeps the first one's result without listing it.
+:eval-group-agg-23 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-agg-23";
+    mf:action
+         [ srlt:ruleset  <eval-group-agg-23.srl> ;
+           srlt:data     <data-people.ttl> ] ;
+    mf:result  <eval-group-agg-23-results.ttl>
+    .
+
+# A pattern variable used again after the GROUP is a new variable, as after
+# a NOT (w3c/data-shapes#690): ?y is a child inside, a name after.
+:eval-group-agg-24 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-agg-24";
+    mf:action
+         [ srlt:ruleset  <eval-group-agg-24.srl> ;
+           srlt:data     <data-people.ttl> ] ;
+    mf:result  <eval-group-agg-24-results.ttl>
     .

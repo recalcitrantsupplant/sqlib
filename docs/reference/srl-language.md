@@ -474,24 +474,35 @@ or a `NOT`, and commas or parentheses in the block.
 
 ### Evaluation
 
+`GROUP` runs in *augment mode*, as agreed in
+[w3c/data-shapes#840](https://github.com/w3c/data-shapes/issues/840): it adds
+the results to the rows it receives and keeps every variable they bind.
+
 1. The `GROUP` receives the rows produced by the elements before it.
-2. The pattern is evaluated once for each distinct combination of the `BY`
-   variables' values among those rows, with those values filled in. With no
-   `BY`, every row falls in one group.
-3. Each function runs over the solutions of the pattern, every pattern variable
+2. The pattern's solutions are grouped by the `BY` variables, the only
+   variables the pattern shares with those rows. A `BY` variable bound before the `GROUP`
+   selects that key's group; one the earlier rows do not bind takes its values
+   from the pattern. With no `BY`, every solution falls in one group.
+3. Each function runs over the solutions in a group, every pattern variable
    included. Two children aged 10 are two solutions, so `SUM(?age)` counts
-   both.
-4. Afterwards only the `BY` variables and the results are bound: one row per
-   key. Any other earlier variable is unbound, and a later pattern that names it
-   matches it afresh.
+   both. How many rows the earlier elements gave for a key does not change
+   the result: a person with two names and two children counts 2.
+4. Every row keeps what it had, and gains the `BY` variables and the results.
+   The pattern's other variables stay inside the `GROUP`.
 
 | The pattern matches | `COUNT`, `SUM` | `MIN`, `MAX` |
 | --- | --- | --- |
 | at least once | the value | the value |
-| never | `0` | no value: the key's row is dropped |
+| never, for a key bound before the `GROUP` | `0` | no value: the row is dropped |
+
+These are the rules of
+[w3c/data-shapes#1344](https://github.com/w3c/data-shapes/issues/1344): "`SUM`
+of nothing is zero" and "`MIN` of nothing is an error and the row is not
+produced". A key that only the pattern supplies has no value when nothing
+matches, so it gives no row.
 
 An error in any assignment, such as `SUM` over a string, drops the row, as an
-error in `SET` does. An empty block, `[]`, keeps one row per key.
+error in `SET` does. An empty block, `[]`, keeps every row.
 
 `COUNT(?v)` counts the solutions in which `?v` is bound, and every pattern
 variable is bound in every solution, so it equals `COUNT(*)`. To count distinct
@@ -502,11 +513,14 @@ equals `COUNT(*)`.
 
 Violations are reported under the category `aggregate-scope`:
 
-- Each `BY` variable must be bound before the `GROUP`. This is what lets a key
-  with nothing to count still have a row, with a count of 0. A `BY` variable the
+- Each `BY` variable must be bound before the `GROUP`, by its pattern, or both.
+  Only one bound before can have a row with a count of 0. A `BY` variable the
   pattern does not use is carried through unchanged.
 - A pattern variable that is not a `BY` variable belongs to the `GROUP`, `SET`
-  targets included. It must not appear anywhere else in the rule. To correlate
+  targets included. One of the same name *after* the `GROUP` is a different
+  variable, as after a `NOT`. One of the same name bound *before* the `GROUP`
+  is refused: a `NOT` would correlate the two, #840 describes them as
+  unrelated, and the rule does not say which the author meant. To correlate
   it, list it after `BY`; otherwise rename it. Two `GROUP`s may each use the
   same name for their own variable.
 - Each result must be a new variable: not bound before, not used in the
@@ -519,37 +533,42 @@ A `FILTER` or `SET` in the pattern follows the usual order rule, with only the
 
 ### Patterns that follow from the evaluation
 
-**Using an earlier variable after the `GROUP`.** List it after `BY`, or match it
-again after the `GROUP`:
+**Using an earlier variable after the `GROUP`.** It is still bound:
 
 ```sparql
 ?x a :Person ; :name ?name .
-GROUP BY ?x ?name { ?y :childOf ?x } [ ?n := COUNT(*) ]
+GROUP BY ?x { ?y :childOf ?x } [ ?n := COUNT(*) ]
 ```
 
-A person with two names gets two rows, each with the same count.
+A person with two names keeps two rows, each with the same count.
 
-**Two `GROUP`s in one rule.** The second keeps only its own keys and results, so
-it has to list the first one's result to keep it:
+**Counting per value the pattern supplies.** Leave the key out of the body
+before the `GROUP`. Bind it first instead when a value with nothing to count
+should still get 0:
+
+```sparql
+GROUP BY ?d { ?p :dept ?d } [ ?n := COUNT(*) ]                # no row for an empty department
+?d a :Dept . GROUP BY ?d { ?p :dept ?d } [ ?n := COUNT(*) ]   # 0 for an empty department
+```
+
+**Two `GROUP`s in one rule.** The second keeps the first one's result:
 
 ```sparql
 ?x a :Person .
 GROUP BY ?x { ?y :childOf ?x } [ ?n := COUNT(*) ]
-GROUP BY ?x ?n { ?y :childOf ?x ; :age ?a FILTER(?a >= 18) } [ ?m := COUNT(*) ]
+GROUP BY ?x { ?y :childOf ?x ; :age ?a FILTER(?a >= 18) } [ ?m := COUNT(*) ]
 ```
 
-**Rank within a partition.** The keys come from before the `GROUP`, the
-comparison is a `FILTER` in the pattern, and the item being ranked is matched
-again after it:
+**Rank within a partition.** The keys come from before the `GROUP`, and the
+comparison is a `FILTER` in the pattern:
 
 ```sparql
 PREFIX : <http://example.org/>
 RULE { ?p :rankInDept ?rank }
 WHERE {
-  ?q :dept ?dept ; :score ?score .
+  ?p :dept ?dept ; :score ?score .
   GROUP BY ?dept ?score { ?o :dept ?dept ; :score ?s2 FILTER(?s2 > ?score) }
   [ ?better := COUNT(*) ]
-  ?p :dept ?dept ; :score ?score .
   SET (?rank := ?better + 1)
 }
 ```
@@ -583,9 +602,11 @@ cycle and is refused.
 ### Compilation
 
 A `GROUP` compiles to an `OPTIONAL` subquery that groups the pattern by the `BY`
-variables, wrapped in a `SELECT DISTINCT` of the keys and the results. The
-pattern's own variables are renamed (`?_agg0_y`), so the subquery shares only
-the keys with the rest of the body. For
+variables, joined to the elements before it. The pattern's own variables are
+renamed (`?_agg0_y`), so the subquery shares only the keys with the rest of the
+body. When the pattern supplies a key the elements before do not bind, the
+subquery is joined without `OPTIONAL`, because an empty group has no value for
+that key. For
 `RULE { ?x :numChildren ?n } WHERE { ?x a :Person . GROUP BY ?x { ?y :childOf ?x } [ ?n := COUNT(*) ] }`,
 `compileRule` returns:
 
@@ -595,7 +616,6 @@ INSERT {
   ?x :numChildren ?n
 } WHERE {
   {
-  SELECT DISTINCT ?x ?n WHERE {
   ?x <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> :Person .
   OPTIONAL {
   SELECT ?x (COUNT(*) AS ?_agg0_count) (COUNT( * ) AS ?_agg0_v0) WHERE {
@@ -605,7 +625,6 @@ GROUP BY ?x
 }
   BIND(IF(COALESCE(?_agg0_count, 0) > 0, ?_agg0_v0, 0) AS ?n)
   FILTER(BOUND(?n))
-}
 }
 }
 ```

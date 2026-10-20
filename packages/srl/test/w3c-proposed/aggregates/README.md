@@ -10,10 +10,14 @@ and its `manifest.ttl` entries merged into the matching upstream manifest.
 The pull request covers syntax only; its own tests are in
 [`../pr-1347/`](../pr-1347/README.md). These add well-formedness,
 stratification and evaluation cases, and syntax cases the pull request does not
-have. Where the pull request leaves the meaning open, these cases assert what
-this implementation does: `BY` variables must be bound before the `GROUP`, only
-the keys and results are bound after it, and an empty block keeps one row per
-key.
+have. Where the pull request leaves the meaning open, these cases assert the
+reading agreed in [w3c/data-shapes#840](https://github.com/w3c/data-shapes/issues/840)
+and [#1344](https://github.com/w3c/data-shapes/issues/1344): augment mode, so
+every earlier variable stays bound after the `GROUP`; a `BY` variable may come
+from before the `GROUP` or from its pattern; `COUNT` and `SUM` of an empty group
+are 0, and `MIN` and `MAX` of one drop the row. One case asserts a choice #840
+has not settled: a pattern variable that is bound before the `GROUP` without
+being listed is rejected (`wellformed-group-agg-bad-01`).
 
 The syntax and semantics are described in
 [the SRL reference](../../../../../docs/reference/srl-language.md#aggregation-group).
@@ -57,28 +61,28 @@ is rejected with the flag off.
 
 | Test | Expected | What it checks |
 | --- | --- | --- |
-| `wellformed-group-agg-01` | accepted | The rank idiom: the keys come from before the GROUP, and the person is matched again after it, since the GROUP keeps only its keys and results. |
+| `wellformed-group-agg-01` | accepted | The rank idiom: the keys come from before the GROUP, and the person matched after it joins on them. |
 | `wellformed-group-agg-02` | accepted | Two GROUPs may each have their own pattern variable called ?y. |
 | `wellformed-group-agg-03` | accepted | A later pattern may join on a result. |
 | `wellformed-group-agg-04` | accepted | A FILTER on a result after the GROUP does the work of HAVING. |
 | `wellformed-group-agg-05` | accepted | A BY variable the pattern does not use is carried through the GROUP. |
-| `wellformed-group-agg-06` | accepted | A variable the GROUP drops may be matched again after it. |
-| `wellformed-group-agg-07` | accepted | A second GROUP keeps the first one's result by listing it. |
-| `wellformed-group-agg-bad-01` | rejected | A BY variable must be bound before the GROUP. |
-| `wellformed-group-agg-bad-02` | rejected | ?y is used in the pattern and before the GROUP without being listed: correlation must be written down. |
-| `wellformed-group-agg-bad-03` | rejected | ?y is used in the pattern and after the GROUP without being listed. |
-| `wellformed-group-agg-bad-04` | rejected | ?y is used in the pattern and in the head. |
-| `wellformed-group-agg-bad-05` | rejected | A result must be a new variable. |
-| `wellformed-group-agg-bad-06` | rejected | The same result twice in one GROUP. |
-| `wellformed-group-agg-bad-07` | rejected | A result assigned again by a later SET. |
-| `wellformed-group-agg-bad-08` | rejected | A result that is also a pattern variable. |
-| `wellformed-group-agg-bad-09` | rejected | An argument variable the pattern does not bind. |
-| `wellformed-group-agg-bad-10` | rejected | After a GROUP only its keys and results are bound, so ?name cannot reach the head. |
-| `wellformed-group-agg-bad-11` | rejected | After a GROUP, a FILTER cannot use an unlisted earlier variable. |
-| `wellformed-group-agg-bad-12` | rejected | A FILTER in the pattern sees only the BY variables from outside, so ?lo is not bound there. |
-| `wellformed-group-agg-bad-13` | rejected | A SET in the pattern must not re-bind a variable. |
-| `wellformed-group-agg-bad-14` | rejected | A SET target in the pattern is a pattern variable, so it cannot reach the head. |
-| `wellformed-group-agg-bad-15` | rejected | A second GROUP that does not list the first one's result drops it. |
+| `wellformed-group-agg-06` | accepted | A variable first used after the GROUP is bound there as usual. |
+| `wellformed-group-agg-07` | accepted | A second GROUP may list the first one's result as a key. |
+| `wellformed-group-agg-08` | accepted | A BY variable the body before the GROUP does not bind is supplied by the pattern. |
+| `wellformed-group-agg-09` | accepted | A pattern variable used again after the GROUP is a new variable, as after a NOT (#690). |
+| `wellformed-group-agg-10` | accepted | Augment mode: an earlier variable reaches the head through the GROUP. |
+| `wellformed-group-agg-11` | accepted | Augment mode: a FILTER after the GROUP may use an earlier variable that is not a key. |
+| `wellformed-group-agg-12` | accepted | A second GROUP keeps the first one's result without listing it. |
+| `wellformed-group-agg-bad-01` | rejected | ?y is bound before the GROUP and used in its pattern without being listed. #840 has not settled whether the two are related. |
+| `wellformed-group-agg-bad-02` | rejected | ?y belongs to the pattern, so nothing binds it for the head. |
+| `wellformed-group-agg-bad-03` | rejected | A result must be a new variable. |
+| `wellformed-group-agg-bad-04` | rejected | The same result twice in one GROUP. |
+| `wellformed-group-agg-bad-05` | rejected | A result assigned again by a later SET. |
+| `wellformed-group-agg-bad-06` | rejected | A result that is also a pattern variable. |
+| `wellformed-group-agg-bad-07` | rejected | An argument variable the pattern does not bind. |
+| `wellformed-group-agg-bad-08` | rejected | A FILTER in the pattern sees only the BY variables from outside, so ?lo is not bound there. |
+| `wellformed-group-agg-bad-09` | rejected | A SET in the pattern must not re-bind a variable. |
+| `wellformed-group-agg-bad-10` | rejected | A SET target in the pattern is a pattern variable, so it cannot reach the head. |
 
 ## Stratification
 
@@ -104,6 +108,7 @@ triples with `<name>-results.ttl`.
 | `data-parents.ttl` | `:bob :parentOf :c1, :c2` and `:c3 :childOf :bob`; `:amy` with none |
 | `data-strings.ttl` | `:x` with string values, `:y` with the integers 1 and 2 |
 | `data-empty.ttl` | nothing |
+| `data-people.ttl` | `:alice` (names "Alice" and "Ali") with two children aged 10; `:bob` with one aged 7; `:carol` with none; departments `:sales` (Alice, Bob), `:eng` (Carol) and `:hr` (nobody) |
 
 | Test | What it checks |
 | --- | --- |
@@ -121,7 +126,13 @@ triples with `<name>-results.ttl`.
 | `eval-group-agg-12` | An aggregation error drops the row: SUM over strings has no value, SUM over numbers does. |
 | `eval-group-agg-13` | On an empty graph a GROUP with no BY counts 0, and its MAX has no value. |
 | `eval-group-agg-14` | A FILTER on the result after the GROUP keeps only people with more than one child. |
-| `eval-group-agg-15` | Two GROUPs in one rule; the second lists the first one's result to keep it. |
+| `eval-group-agg-15` | Two GROUPs in one rule; the second lists the first one's result as a key, which carries it through. |
 | `eval-group-agg-16` | SET in the pattern: each child's age next year, summed. |
-| `eval-group-agg-17` | An empty block keeps one row per key, matched or not, as COUNT does. |
-| `eval-group-agg-18` | A GROUP with no BY makes one group of every earlier row, and drops the earlier variables. |
+| `eval-group-agg-17` | An empty block keeps every earlier row, matched or not, as COUNT does. |
+| `eval-group-agg-18` | A GROUP with no BY makes one group of every match of its pattern, and adds the result to every earlier row. |
+| `eval-group-agg-19` | Augment mode: earlier variables reach the head; two names do not double a count; no children gives 0. |
+| `eval-group-agg-20` | The pattern supplies the key: a department nobody works in has no row. |
+| `eval-group-agg-21` | The key is bound before the GROUP: a department nobody works in gets 0. |
+| `eval-group-agg-22` | One key from before the GROUP, one only from the pattern: an empty group gives no row. |
+| `eval-group-agg-23` | A second GROUP keeps the first one's result without listing it. |
+| `eval-group-agg-24` | A pattern variable used again after the GROUP is a new variable (#690). |

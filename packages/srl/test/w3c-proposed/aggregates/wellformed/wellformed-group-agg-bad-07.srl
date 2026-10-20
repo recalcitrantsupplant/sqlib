@@ -1,4 +1,4 @@
 PREFIX : <http://example/>
 
-# A result assigned again by a later SET.
-RULE { ?x :n ?n } WHERE { ?x a :Person . GROUP BY ?x { ?y :childOf ?x } [ ?n := COUNT(*) ] SET (?n := 0) }
+# An argument variable the pattern does not bind.
+RULE { ?x :n ?n } WHERE { ?x a :Person . GROUP BY ?x { ?y :childOf ?x } [ ?n := SUM(?z) ] }

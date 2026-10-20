@@ -1,4 +1,5 @@
 PREFIX : <http://example/>
 
-# After a GROUP, a FILTER cannot use an unlisted earlier variable.
+# Augment mode: a FILTER after a GROUP may use an earlier variable that is
+# not a key.
 RULE { ?x :n ?n } WHERE { ?x a :Person ; :name ?name . GROUP BY ?x { ?y :childOf ?x } [ ?n := COUNT(*) ] FILTER(?name != "") }

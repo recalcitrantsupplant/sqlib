@@ -1,0 +1,5 @@
+PREFIX : <http://example/>
+
+# Augment mode (w3c/data-shapes#840): every earlier variable is still bound
+# after a GROUP, so ?name reaches the head.
+RULE { ?x :label ?name ; :n ?n } WHERE { ?x a :Person ; :name ?name . GROUP BY ?x { ?y :childOf ?x } [ ?n := COUNT(*) ] }

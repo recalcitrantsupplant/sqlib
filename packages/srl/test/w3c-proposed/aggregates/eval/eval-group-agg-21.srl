@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+# The same count with the key bound before the GROUP: :hr gets 0.
+RULE { ?d :headcount ?n } WHERE { ?d a :Dept . GROUP BY ?d { ?p :dept ?d } [ ?n := COUNT(*) ] }

@@ -187,14 +187,11 @@ function compileBody(items: SrlBodyItem[], context: CompileContext, outerBound: 
         parts.push(tuplePlaceholder(context.tupleIndex.n, toTupleRef(item.tuple)));
         context.tupleIndex.n += 1;
         break;
-      case 'aggregate': {
-        parts = [compileAggregate(item, parts, context)];
-        // Only the keys and the results survive a GROUP; `boundBy` below adds
-        // the results.
-        bound.clear();
-        for (const key of item.keys) bound.add(key);
+      case 'aggregate':
+        // Every earlier variable survives a GROUP (augment mode); `boundBy`
+        // below adds the keys and the results.
+        parts = [compileAggregate(item, parts, bound, context)];
         break;
-      }
     }
     for (const name of boundBy(item)) bound.add(name);
   });
@@ -204,50 +201,53 @@ function compileBody(items: SrlBodyItem[], context: CompileContext, outerBound: 
 /**
  * Compile one `GROUP` against the body compiled before it.
  *
- * `prefix` is the compiled elements before the `GROUP` (`P`), and the keys
- * (`K`) are its `BY` variables. For
+ * `prefix` is the compiled elements before the `GROUP` (`P`), `boundBefore`
+ * the variables they bind, and the keys (`K`) are its `BY` variables. For
  *
  *     ?x a :Person . GROUP BY ?x { ?y :childOf ?x } [ ?n := COUNT(*) ]
  *
  * the result is
  *
  *     {
- *       SELECT DISTINCT ?x ?n WHERE {
- *         P
- *         OPTIONAL {
- *           SELECT ?x (COUNT(*) AS ?_agg0_count) (COUNT(*) AS ?_agg0_v0)
- *           WHERE { ?_agg0_y :childOf ?x }
- *           GROUP BY ?x
- *         }
- *         BIND(IF(COALESCE(?_agg0_count, 0) > 0, ?_agg0_v0, 0) AS ?n)
- *         FILTER(BOUND(?n))
+ *       P
+ *       OPTIONAL {
+ *         SELECT ?x (COUNT(*) AS ?_agg0_count) (COUNT(*) AS ?_agg0_v0)
+ *         WHERE { ?_agg0_y :childOf ?x }
+ *         GROUP BY ?x
  *       }
+ *       BIND(IF(COALESCE(?_agg0_count, 0) > 0, ?_agg0_v0, 0) AS ?n)
+ *       FILTER(BOUND(?n))
  *     }
  *
+ * - **Augment mode** (w3c/data-shapes#840): every row of `P` is kept, with
+ *   every variable it binds, and the results are added to it.
  * - **The pattern's variables are renamed** apart from `K`, `SET` targets
  *   included, so the only variables the subquery shares with `P` are the keys.
- *   Well-formedness already makes it an error to use a pattern variable outside
- *   the `GROUP`; the renaming keeps the translation right for a caller that
- *   compiles without checking.
+ *   A pattern variable is local to the `GROUP`: one of the same name after it
+ *   is a different variable, as it is after a `NOT`. Well-formedness rejects
+ *   one bound before the `GROUP`, whose reading #840 has not settled.
  * - **`OPTIONAL` keeps a key whose group is empty**, and the hidden count tells
  *   an empty group (no subquery row: `COUNT` and `SUM` become 0, `MIN` and
- *   `MAX` drop the row) apart from an aggregate that failed (a row whose value
- *   is unbound: the row is dropped, as an error in `SET` drops it).
+ *   `MAX` drop the row, w3c/data-shapes#1344) apart from an aggregate that
+ *   failed (a row whose value is unbound: the row is dropped, as an error in
+ *   `SET` drops it).
+ * - **A key `P` does not bind** is supplied by the pattern. An empty group then
+ *   has no value for it, so there is nothing to keep: the subquery is joined
+ *   rather than made `OPTIONAL`, and only the groups that exist give rows.
  * - **Grouping the pattern alone** means the multiplicity of `P` never reaches
  *   a count: a person with two names and three children counts three.
- * - **The outer `SELECT DISTINCT` is the GROUP's collapse**: one row per key,
- *   carrying only the keys and the results.
  *
  * When a key is used by the pattern only in a `FILTER` — the rank idiom,
  * `{ ?o :score ?s FILTER(?s > ?score) }` — the subquery cannot compute it from
  * its own pattern, since SPARQL evaluates a subquery bottom-up. It is then
  * seeded with the distinct key rows of `P`, which repeats `P` inside it.
- *
- * An empty block, `[]`, leaves only the keys. With no keys either, a fresh
- * variable nothing binds is projected instead, because SPARQL requires a
- * `SELECT` to name something; the one row it keeps joins with anything.
  */
-function compileAggregate(item: SrlAggregate, prefix: string[], context: CompileContext): string {
+function compileAggregate(
+  item: SrlAggregate,
+  prefix: string[],
+  boundBefore: ReadonlySet<string>,
+  context: CompileContext,
+): string {
   const keys = item.keys;
   const index = context.aggregateIndex.n;
   context.aggregateIndex.n += 1;
@@ -271,21 +271,23 @@ function compileAggregate(item: SrlAggregate, prefix: string[], context: Compile
   const values = assignments.map((_, j) => fresh(`v${j}`));
   const keyList = keys.map((k) => `?${k}`).join(' ');
 
-  // Keys the pattern binds itself; any other key needs seeding.
+  // Keys the pattern binds itself; any other key comes from `P` and needs
+  // seeding.
   const patternBound = new Set(body.flatMap((inner) => boundBy(inner)));
-  const seeded = keys.some((k) => !patternBound.has(k));
-  const seed = seeded
-    ? `{\n  SELECT DISTINCT ${keyList} WHERE {\n  ${prefix.join('\n  ')}\n}\n}\n  `
+  const outerKeys = keys.filter((k) => boundBefore.has(k));
+  const seed = outerKeys.length > 0 && keys.some((k) => !patternBound.has(k))
+    ? `{\n  SELECT DISTINCT ${outerKeys.map((k) => `?${k}`).join(' ')} WHERE {\n  ${prefix.join('\n  ')}\n}\n}\n  `
     : '';
 
-  const inner = compileBody(body, context, new Set(keys));
+  const inner = compileBody(body, context, new Set(outerKeys));
   const projection = [
     keyList,
     `(COUNT(*) AS ?${count})`,
     ...assignments.map((a, j) => `(${serialize('expression', a.aggregate)} AS ?${values[j]})`),
   ].filter(Boolean).join(' ');
   const groupBy = keys.length > 0 ? `\nGROUP BY ${keyList}` : '';
-  const subquery = `OPTIONAL {\n  SELECT ${projection} WHERE {\n  ${seed}${inner}\n}${groupBy}\n}`;
+  const select = `{\n  SELECT ${projection} WHERE {\n  ${seed}${inner}\n}${groupBy}\n}`;
+  const subquery = outerKeys.length === keys.length ? `OPTIONAL ${select}` : select;
 
   const present = `COALESCE(?${count}, 0) > 0`;
   const after: string[] = [];
@@ -300,10 +302,9 @@ function compileAggregate(item: SrlAggregate, prefix: string[], context: Compile
     after.push(`FILTER(${assignments.map((a) => `BOUND(?${a.variable})`).join(' && ')})`);
   }
 
-  const closed = `{\n  ${[...prefix, subquery, ...after].join('\n  ')}\n}`;
-  const kept = [...keys, ...assignments.map((a) => a.variable)];
-  const selected = kept.length > 0 ? kept.map((v) => `?${v}`).join(' ') : `?${fresh('unit')}`;
-  return `{\n  SELECT DISTINCT ${selected} WHERE ${closed}\n}`;
+  // Close the group, as after a SET, so the BOUND test cannot be satisfied by
+  // a pattern that comes after the GROUP.
+  return `{\n  ${[...prefix, subquery, ...after].join('\n  ')}\n}`;
 }
 
 /** `COUNT` and `SUM` of an empty group are 0; `MIN` and `MAX` have no value. */

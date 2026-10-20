@@ -69,77 +69,77 @@ PREFIX srlt:   <http://www.w3.org/ns/sparql-rl-tests#>
    mf:action  <wellformed-group-agg-07.srl> ;
    .
 
-:test_8 rdf:type   srlt:RulesNegativeWellFormednessTest ;
+:test_8 rdf:type   srlt:RulesPositiveWellFormednessTest ;
+   mf:name    "wellformed-group-agg-08.srl" ;
+   mf:action  <wellformed-group-agg-08.srl> ;
+   .
+
+:test_9 rdf:type   srlt:RulesPositiveWellFormednessTest ;
+   mf:name    "wellformed-group-agg-09.srl" ;
+   mf:action  <wellformed-group-agg-09.srl> ;
+   .
+
+:test_10 rdf:type   srlt:RulesPositiveWellFormednessTest ;
+   mf:name    "wellformed-group-agg-10.srl" ;
+   mf:action  <wellformed-group-agg-10.srl> ;
+   .
+
+:test_11 rdf:type   srlt:RulesPositiveWellFormednessTest ;
+   mf:name    "wellformed-group-agg-11.srl" ;
+   mf:action  <wellformed-group-agg-11.srl> ;
+   .
+
+:test_12 rdf:type   srlt:RulesPositiveWellFormednessTest ;
+   mf:name    "wellformed-group-agg-12.srl" ;
+   mf:action  <wellformed-group-agg-12.srl> ;
+   .
+
+:test_13 rdf:type   srlt:RulesNegativeWellFormednessTest ;
    mf:name    "wellformed-group-agg-bad-01.srl" ;
    mf:action  <wellformed-group-agg-bad-01.srl> ;
    .
 
-:test_9 rdf:type   srlt:RulesNegativeWellFormednessTest ;
+:test_14 rdf:type   srlt:RulesNegativeWellFormednessTest ;
    mf:name    "wellformed-group-agg-bad-02.srl" ;
    mf:action  <wellformed-group-agg-bad-02.srl> ;
    .
 
-:test_10 rdf:type   srlt:RulesNegativeWellFormednessTest ;
+:test_15 rdf:type   srlt:RulesNegativeWellFormednessTest ;
    mf:name    "wellformed-group-agg-bad-03.srl" ;
    mf:action  <wellformed-group-agg-bad-03.srl> ;
    .
 
-:test_11 rdf:type   srlt:RulesNegativeWellFormednessTest ;
+:test_16 rdf:type   srlt:RulesNegativeWellFormednessTest ;
    mf:name    "wellformed-group-agg-bad-04.srl" ;
    mf:action  <wellformed-group-agg-bad-04.srl> ;
    .
 
-:test_12 rdf:type   srlt:RulesNegativeWellFormednessTest ;
+:test_17 rdf:type   srlt:RulesNegativeWellFormednessTest ;
    mf:name    "wellformed-group-agg-bad-05.srl" ;
    mf:action  <wellformed-group-agg-bad-05.srl> ;
    .
 
-:test_13 rdf:type   srlt:RulesNegativeWellFormednessTest ;
+:test_18 rdf:type   srlt:RulesNegativeWellFormednessTest ;
    mf:name    "wellformed-group-agg-bad-06.srl" ;
    mf:action  <wellformed-group-agg-bad-06.srl> ;
    .
 
-:test_14 rdf:type   srlt:RulesNegativeWellFormednessTest ;
+:test_19 rdf:type   srlt:RulesNegativeWellFormednessTest ;
    mf:name    "wellformed-group-agg-bad-07.srl" ;
    mf:action  <wellformed-group-agg-bad-07.srl> ;
    .
 
-:test_15 rdf:type   srlt:RulesNegativeWellFormednessTest ;
+:test_20 rdf:type   srlt:RulesNegativeWellFormednessTest ;
    mf:name    "wellformed-group-agg-bad-08.srl" ;
    mf:action  <wellformed-group-agg-bad-08.srl> ;
    .
 
-:test_16 rdf:type   srlt:RulesNegativeWellFormednessTest ;
+:test_21 rdf:type   srlt:RulesNegativeWellFormednessTest ;
    mf:name    "wellformed-group-agg-bad-09.srl" ;
    mf:action  <wellformed-group-agg-bad-09.srl> ;
    .
 
-:test_17 rdf:type   srlt:RulesNegativeWellFormednessTest ;
+:test_22 rdf:type   srlt:RulesNegativeWellFormednessTest ;
    mf:name    "wellformed-group-agg-bad-10.srl" ;
    mf:action  <wellformed-group-agg-bad-10.srl> ;
-   .
-
-:test_18 rdf:type   srlt:RulesNegativeWellFormednessTest ;
-   mf:name    "wellformed-group-agg-bad-11.srl" ;
-   mf:action  <wellformed-group-agg-bad-11.srl> ;
-   .
-
-:test_19 rdf:type   srlt:RulesNegativeWellFormednessTest ;
-   mf:name    "wellformed-group-agg-bad-12.srl" ;
-   mf:action  <wellformed-group-agg-bad-12.srl> ;
-   .
-
-:test_20 rdf:type   srlt:RulesNegativeWellFormednessTest ;
-   mf:name    "wellformed-group-agg-bad-13.srl" ;
-   mf:action  <wellformed-group-agg-bad-13.srl> ;
-   .
-
-:test_21 rdf:type   srlt:RulesNegativeWellFormednessTest ;
-   mf:name    "wellformed-group-agg-bad-14.srl" ;
-   mf:action  <wellformed-group-agg-bad-14.srl> ;
-   .
-
-:test_22 rdf:type   srlt:RulesNegativeWellFormednessTest ;
-   mf:name    "wellformed-group-agg-bad-15.srl" ;
-   mf:action  <wellformed-group-agg-bad-15.srl> ;
    .

@@ -1,4 +1,6 @@
 PREFIX : <http://example/>
 
-# A BY variable must be bound before the GROUP.
-RULE { ?x :n ?n } WHERE { GROUP BY ?x { ?y :childOf ?x } [ ?n := COUNT(*) ] }
+# ?y is bound before the GROUP and used in its pattern without being listed.
+# A NOT would correlate the two; w3c/data-shapes#840 calls them unrelated.
+# Until that is settled, the rule is rejected.
+RULE { ?x :n ?n } WHERE { ?x a :Person ; :knows ?y . GROUP BY ?x { ?y :childOf ?x } [ ?n := COUNT(*) ] }

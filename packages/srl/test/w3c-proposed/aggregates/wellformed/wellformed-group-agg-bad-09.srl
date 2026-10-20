@@ -1,4 +1,4 @@
 PREFIX : <http://example/>
 
-# An argument variable the pattern does not bind.
-RULE { ?x :n ?n } WHERE { ?x a :Person . GROUP BY ?x { ?y :childOf ?x } [ ?n := SUM(?z) ] }
+# A SET in the pattern must not re-bind a variable.
+RULE { ?x :n ?n } WHERE { ?x a :Person . GROUP BY ?x { ?y :childOf ?x ; :age ?a SET (?a := 1) } [ ?n := COUNT(*) ] }

@@ -1,0 +1,6 @@
+PREFIX : <http://example/>
+
+# Augment mode (w3c/data-shapes#840): every earlier row is kept with its
+# variables, so ?name reaches the head. Alice's two names do not double her
+# count, and Carol, with no children, gets 0.
+RULE { ?x :label ?name ; :kids ?n } WHERE { ?x a :Person ; :name ?name . GROUP BY ?x { ?y :childOf ?x } [ ?n := COUNT(*) ] }
