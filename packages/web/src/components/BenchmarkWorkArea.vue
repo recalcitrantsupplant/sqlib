@@ -509,11 +509,36 @@ const argumentSetName = (id: string) => {
  * Loading an experiment
  * ------------------------------------------------------------------ */
 
+/** Which load is the latest, so a slow reply for an experiment already left is dropped. */
+let loadSequence = 0;
+
+/**
+ * Load an experiment and one of its versions, in one step.
+ *
+ * Everything is read first, and nothing on screen changes until the plan is
+ * built. Applied as each reply came in, the new experiment's name sat over the
+ * last one's plan for four round trips.
+ */
 async function loadExperimentContext(experimentId: string, preferredVersion?: number | null) {
+  const sequence = ++loadSequence;
   hydratingRecord.value = true;
   try {
-    await store.fetchExperiment(experimentId);
+    const [, list] = await Promise.all([
+      store.fetchExperiment(experimentId),
+      store.listVersions(experimentId),
+    ]);
     const experiment = store.selectedExperiment.value;
+    const sorted = [...list].sort((a, b) => b.version - a.version);
+    const versionNumber = preferredVersion ?? sorted[0]?.version ?? null;
+
+    let nextPlan = emptyPlan();
+    if (versionNumber != null) {
+      await store.fetchVersion(experimentId, versionNumber);
+      nextPlan = await planForVersion(store.selectedVersion.value);
+      await store.loadRunsForVersion(experimentId, versionNumber);
+    }
+    if (sequence !== loadSequence) return;
+
     if (experiment) {
       experimentName.value = experiment.name;
       experimentDescription.value = experiment.description ?? '';
@@ -521,21 +546,13 @@ async function loadExperimentContext(experimentId: string, preferredVersion?: nu
       currentVersionId.value = experiment.currentVersion ?? null;
       experimentCreatedAt.value = experiment.dateCreated ?? null;
     }
-
-    const list = await store.listVersions(experimentId);
-    versions.value = [...list].sort((a, b) => b.version - a.version);
-
-    const versionNumber = preferredVersion ?? versions.value[0]?.version ?? null;
+    versions.value = sorted;
     selectedVersionNumber.value = versionNumber;
+    plan.value = nextPlan;
     if (versionNumber == null) {
-      plan.value = emptyPlan();
       savedBody.value = JSON.stringify(editorBody());
       return;
     }
-
-    await store.fetchVersion(experimentId, versionNumber);
-    await hydratePlanFromVersion(store.selectedVersion.value);
-    await store.loadRunsForVersion(experimentId, versionNumber);
     ensureSelection();
     savedBody.value = JSON.stringify(editorBody());
 
@@ -556,19 +573,22 @@ async function loadExperimentContext(experimentId: string, preferredVersion?: nu
       ensureSelection();
     }
   } finally {
-    // Cleared after the refs settle, so hydration never lands as an edit.
+    // Cleared after the refs settle, so hydration never lands as an edit; and
+    // only by the latest load, which an older one finishing late must not end.
     await Promise.resolve();
-    hydratingRecord.value = false;
+    if (sequence === loadSequence) hydratingRecord.value = false;
   }
 }
 
 async function hydratePlanFromVersion(version: BenchmarkExperimentVersion | null) {
-  if (!version) {
-    plan.value = emptyPlan();
-    return;
-  }
+  plan.value = await planForVersion(version);
+}
+
+/** The plan a version describes, with what it needs to show already loaded. */
+async function planForVersion(version: BenchmarkExperimentVersion | null) {
+  if (!version) return emptyPlan();
   await indexSubjects((version.subjectSpecs ?? []).map((spec) => spec.subject));
-  plan.value = planFromVersion(version, (iri) => {
+  const built = planFromVersion(version, (iri) => {
     const entry = subjectIndex.value[iri];
     if (!entry) return null;
     return {
@@ -578,9 +598,10 @@ async function hydratePlanFromVersion(version: BenchmarkExperimentVersion | null
       versionNumber: entry.versionNumber,
     };
   });
-  await Promise.all(plan.value.cases
+  await Promise.all(built.cases
     .filter((planCase) => planCase.subjectId)
     .map((planCase) => loadArgumentSetsFor(planCase.subjectId!, planCase.subjectType)));
+  return built;
 }
 
 onMounted(async () => {

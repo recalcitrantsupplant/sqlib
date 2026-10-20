@@ -653,10 +653,28 @@ async function copyArgumentSetId() {
   }
 }
 
+/** Which `load` call is the latest, so a slow reply for a set already left is dropped. */
+let loadSequence = 0;
+
+/**
+ * Load the open set, in one step: the record and its versions are fetched
+ * together and applied together, and a switch keeps the last set on screen
+ * until this one is whole rather than emptying it first.
+ */
 async function load() {
-  if (!setId.value) return;
+  const id = setId.value;
+  if (!id) return;
+  const sequence = ++loadSequence;
   try {
-    const detail = await store.getArgumentSet(setId.value);
+    const [detail, setVersions] = await Promise.all([
+      store.getArgumentSet(id),
+      store.loadVersions(id).catch((error: unknown) => {
+        console.error('[ArgumentSetWorkArea] Could not read the versions of', id, error);
+        return [] as Awaited<ReturnType<typeof store.loadVersions>>;
+      }),
+    ]);
+    if (sequence !== loadSequence) return;
+
     setName.value = detail.name;
     description.value = detail.description ?? '';
     scope.value = detail.scope ?? null;
@@ -667,9 +685,11 @@ async function load() {
     loadedVersionId.value = detail.currentVersionId ?? null;
     tupleBindings.value = detail.currentVersion?.tupleBindings ?? detail.tupleBindings ?? [];
     scalarBindings.value = detail.currentVersion?.scalarBindings ?? detail.scalarBindings ?? [];
-    versions.value = await store.loadVersions(setId.value);
+    versions.value = setVersions;
     await Promise.all([loadFits(), warmReferences()]);
   } catch (error) {
+    // Never the last set's bindings under this one's id, where a save would land them.
+    if (sequence === loadSequence) clearRecord();
     toast.error(error instanceof Error ? error.message : 'Failed to load the argument set');
   }
 }
@@ -758,13 +778,24 @@ onMounted(() => {
 
 watch(() => props.argumentSetId, (next) => {
   /*
-   * The screen swaps sets in place rather than being rebuilt per id, so
-   * everything the last set left behind is cleared here — including a pending
-   * autosave, which belongs to the set that was open and would otherwise write
-   * its body under the new id.
+   * The screen swaps sets in place rather than being rebuilt per id. A pending
+   * autosave belongs to the set that was open, and would otherwise write its
+   * body under the new id. The set on screen stays until `load` replaces all
+   * of it at once; only leaving every set empties it.
    */
   cancelDraftSave();
   setId.value = next ?? null;
+  saveError.value = null;
+  if (next) {
+    void load();
+    return;
+  }
+  loadSequence += 1;
+  clearRecord();
+});
+
+/** Empty the screen: no set open, or the one asked for could not be read. */
+function clearRecord() {
   setName.value = '';
   description.value = '';
   scope.value = null;
@@ -776,10 +807,8 @@ watch(() => props.argumentSetId, (next) => {
   loadedVersionId.value = null;
   tupleBindings.value = [];
   scalarBindings.value = [];
-  saveError.value = null;
   fits.value = [];
-  if (next) void load();
-});
+}
 </script>
 
 <style scoped>

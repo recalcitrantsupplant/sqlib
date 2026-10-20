@@ -788,17 +788,47 @@ async function removeGraph() {
   }
 }
 
+/** Which `load` call is the latest, so a slow reply for a graph already left is dropped. */
+let loadSequence = 0;
+
+/** Empty the record: no graph open, or the one asked for could not be read. */
+function clearRecord() {
+  graphLibraryId.value = null;
+  graphCreatedAt.value = null;
+  loadedVersionId.value = null;
+  loadedVersionContent.value = '';
+  savedContent.value = '';
+  savedFormat.value = 'text/turtle';
+}
+
+/**
+ * Load a saved graph into the editor, in one step.
+ *
+ * The record and its versions are fetched together and applied together.
+ * Applied piecemeal, the new graph's name sat over the last graph's text
+ * until the versions came back. A graph whose versions cannot be read still
+ * opens, named and empty.
+ */
 async function load(id: string) {
+  const sequence = ++loadSequence;
   hydratingRecord.value = true;
   try {
-    const graph = await store.getDataGraph(id);
+    const [graph, graphVersions] = await Promise.all([
+      store.getDataGraph(id),
+      store.loadVersions(id).catch((error: unknown) => {
+        console.error('[DataGraphWorkArea] Could not read the versions of', id, error);
+        return [] as Awaited<ReturnType<typeof store.loadVersions>>;
+      }),
+    ]);
+    if (sequence !== loadSequence) return;
+
     graphName.value = graph.name;
     description.value = graph.description ?? '';
     currentVersionId.value = graph.currentVersion ?? null;
     graphCreatedAt.value = (graph as { dateCreated?: string | null }).dateCreated ?? null;
     graphLibraryId.value = (graph as { isPartOf?: string[] }).isPartOf?.[0] ?? null;
 
-    versions.value = await store.loadVersions(id);
+    versions.value = graphVersions;
     const current = versions.value.find((version) => version.id === graph.currentVersion)
       ?? versions.value.at(-1);
     savedContent.value = current?.contentString ?? '';
@@ -820,10 +850,20 @@ async function load(id: string) {
       : savedContent.value;
     contentFormat.value = draft?.contentFormat ?? savedFormat.value;
     if (typeof draft?.description === 'string') description.value = draft.description;
+  } catch (error) {
+    // Never the last graph's text under this one's id, where a save would land it.
+    if (sequence === loadSequence) {
+      clearRecord();
+      graphName.value = '';
+      description.value = '';
+      contentString.value = '';
+    }
+    toast.error(error instanceof Error ? error.message : 'Failed to load the data graph');
   } finally {
-    // Cleared after the refs settle, so hydration never lands as an edit.
+    // Cleared after the refs settle, so hydration never lands as an edit; and
+    // only by the latest load, which an older one finishing late must not end.
     await Promise.resolve();
-    hydratingRecord.value = false;
+    if (sequence === loadSequence) hydratingRecord.value = false;
   }
 }
 
@@ -839,14 +879,15 @@ watch(
     // opened; letting it fire would write the old body under the new id.
     cancelDraftSave();
     graphId.value = next ?? null;
-    graphLibraryId.value = null;
-    graphCreatedAt.value = null;
-    loadedVersionId.value = null;
-    loadedVersionContent.value = '';
-    savedContent.value = '';
-    savedFormat.value = 'text/turtle';
     saveError.value = null;
-    if (next) void load(next);
+    // A saved graph swaps in place: the one on screen stays until `load`
+    // replaces all of it at once. Only leaving every graph empties it.
+    if (next) {
+      void load(next);
+      return;
+    }
+    loadSequence += 1;
+    clearRecord();
   },
 );
 </script>

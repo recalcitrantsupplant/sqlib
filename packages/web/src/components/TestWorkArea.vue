@@ -2119,6 +2119,20 @@ let loadSequence = 0;
 /** The body a test with no saved version opens on. */
 const EMPTY_TEST_BODY: TestDraftBody = { expectationKind: 'graph', subjectVersion: null, backend: null, cases: [] };
 
+/** Empty the editor: no test open, or the one asked for could not be read. */
+function clearRecord() {
+  testLibraryId.value = null;
+  testDescription.value = '';
+  testCreatedAt.value = null;
+  testVersions.value = [];
+  currentVersionId.value = null;
+  currentVersionNumber.value = null;
+  loadedVersionId.value = null;
+  savedBody.value = '';
+  applyEditorBody(EMPTY_TEST_BODY);
+  selectedCaseIndex.value = 0;
+}
+
 /**
  * Load a saved test into the editor, in one step.
  *
@@ -2178,6 +2192,14 @@ async function loadTest(id: string) {
      */
     const draft = openDraft.value?.body;
     if (draft && typeof draft === 'object') applyEditorBody(draft as TestDraftBody);
+  } catch (error) {
+    // Never the last test's cases under this one's id, where a save would land them.
+    if (sequence === loadSequence) {
+      clearRecord();
+      testName.value = '';
+      subject.value = null;
+    }
+    toast.error(error instanceof Error ? error.message : 'Failed to load the test');
   } finally {
     // Cleared after the refs settle, so hydration never lands as an edit; and
     // only by the latest load, which an older one finishing late must not end.
@@ -2380,16 +2402,7 @@ watch(
       return;
     }
     loadSequence += 1;
-    testLibraryId.value = null;
-    testDescription.value = '';
-    testCreatedAt.value = null;
-    testVersions.value = [];
-    currentVersionId.value = null;
-    currentVersionNumber.value = null;
-    loadedVersionId.value = null;
-    savedBody.value = '';
-    applyEditorBody(EMPTY_TEST_BODY);
-    selectedCaseIndex.value = 0;
+    clearRecord();
   },
 );
 
