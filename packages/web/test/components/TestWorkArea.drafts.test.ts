@@ -187,6 +187,29 @@ beforeEach(() => {
 });
 
 describe('TestWorkArea — drafts', () => {
+  it('shows no save problems while the saved test is still loading its cases', async () => {
+    // The subject arrives a request before the cases; in between, every case
+    // reads as missing its expectation, and the warning flashed then vanished.
+    let release: (versions: unknown[]) => void = () => {};
+    store.loadVersions.mockReturnValueOnce(new Promise((resolve) => { release = resolve; }));
+    const TestWorkArea = (await import('@/components/TestWorkArea.vue')).default;
+    const area = mount(TestWorkArea, { props: { testId: TEST_ID, scratchId: null } });
+    await flushPromises();
+
+    expect(area.find('[data-testid="test-save-problems"]').exists()).toBe(false);
+
+    release([{
+      id: 'urn:sqlib:test-version:v1',
+      version: 1,
+      expectationKind: 'graph',
+      subjectVersion: null,
+      backend: null,
+      cases: [{ name: null, expected: SAVED_EXPECTED, expectedFormat: 'text/turtle', ordered: null }],
+    }]);
+    await flushPromises();
+    expect(area.find('[data-testid="test-save-problems"]').exists()).toBe(false);
+  });
+
   it('runs the unsaved edits, not the saved version, and keeps the verdict out of the store', async () => {
     const verdict = {
       testId: TEST_ID, testVersionId: `${TEST_ID}#draft`, passed: true, message: '', expectationKind: 'graph',

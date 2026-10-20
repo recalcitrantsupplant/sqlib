@@ -91,8 +91,12 @@
           these are the server's own rules, so the sentence here is the sentence
           the save would have returned. It sits over the fields it is about now
           that the run is no longer beside them.
+
+          Not while a saved test is loading: its subject arrives a request
+          before its cases do, and in between every case reads as missing its
+          inputs — a warning that flashed and then pushed the page up.
         -->
-        <ul v-if="subject && saveProblems.length" class="save-problems" data-testid="test-save-problems">
+        <ul v-if="subject && !hydratingRecord && saveProblems.length" class="save-problems" data-testid="test-save-problems">
           <li v-for="problem in saveProblems" :key="problem">{{ problem }}</li>
         </ul>
 
