@@ -114,6 +114,31 @@ describe('the node names lib/prefixRewrite.ts walks', () => {
     expect(names(SPARQL, SPARQL_DOC)).toEqual(expect.arrayContaining(['PrefixDecl', 'BaseDecl']));
   });
 
+  /*
+   * `a` is found by name and its predicate positions by parent name, so both
+   * are part of the contract: lose either and contraction stops writing `a`,
+   * or expansion stops writing it out, with nothing thrown.
+   */
+  it.each([
+    ['Turtle', TURTLE, '<http://e/x> a <http://e/C> .', 'KeywordA', ['Verb']],
+    ['TriG', TRIG, '<http://e/x> a <http://e/C> .', 'KeywordA', ['Verb']],
+    ['SPARQL', SPARQL, 'SELECT * WHERE { ?s a ?c ; !a ?d }', 'KwA', ['PathPrimary', 'PathOneInPropertyPath']],
+    ['SPARQL templates', SPARQL, 'CONSTRUCT { ?s a ?c } WHERE {}', 'KwA', ['Verb']],
+    ['SRL', SRL, 'RULE { ?x a ?c } WHERE { ?x a ?c }', 'KwA', ['Verb', 'PathPrimary']],
+  ])('%s still names the keyword a, and the predicate positions it sits in', (_label, parser, doc, name, parents) => {
+    const found = new Set<string>();
+    parser.parse(doc).iterate({
+      enter(node) {
+        if (node.name === name) found.add(node.node.parent?.name ?? '');
+      },
+    });
+
+    expect(
+      [...found].sort(),
+      'the keyword a or its parent was renamed upstream — update A_NODES / A_PARENTS in lib/prefixRewrite.ts.',
+    ).toEqual([...parents].sort());
+  });
+
   it('still names a blank node something other than a prefixed name', () => {
     // `_:b0` is not a prefixed name and must not expand. The grammar excludes
     // it by giving it a node of its own rather than by a rule in the walk.
