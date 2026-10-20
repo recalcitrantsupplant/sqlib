@@ -54,7 +54,8 @@
                 text below is to be read, and it changes when an upload changes
                 the text.
               -->
-              <FormField label="Format">
+              <label class="format-field">
+                <SectionLabel as="span">Format</SectionLabel>
                 <select
                   class="control control-inline"
                   data-testid="data-graph-content-format"
@@ -65,7 +66,7 @@
                     {{ format.label }}
                   </option>
                 </select>
-              </FormField>
+              </label>
               <button class="upload-button" type="button" data-testid="data-graph-upload" @click="pickFile">
                 <Upload :size="13" />
                 Upload a file…
@@ -203,7 +204,6 @@ import EditableRdfViewer from './EditableRdfViewer.vue';
 import { prefixSourceToken } from '@/lib/prefixSources';
 import ExpandableEditor from './shared/ExpandableEditor.vue';
 import ExpandButton from './shared/ExpandButton.vue';
-import FormField from './shared/FormField.vue';
 import SectionLabel from './shared/SectionLabel.vue';
 import Toolbar from './shared/Toolbar.vue';
 import PrefixConversionButtons from './shared/PrefixConversionButtons.vue';
@@ -964,6 +964,16 @@ watch(
   color: var(--ink);
   font-family: inherit;
   font-size: var(--text-label);
+}
+
+/*
+ * Label and select on one row, so the select lines up with Upload and the
+ * conversion buttons beside it. A stacked label pushed it a row lower.
+ */
+.format-field {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
 }
 
 /* In a toolbar the format select sizes to its options rather than the row. */
