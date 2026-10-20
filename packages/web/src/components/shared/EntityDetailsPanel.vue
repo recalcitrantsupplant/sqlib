@@ -832,6 +832,9 @@ const outputKind = computed<'variables' | 'boolean' | 'graph' | 'none'>(() => {
 /* An id is one long unbroken token, so it wraps mid-string or not at all — and
    not at all means the panel scrolls sideways. */
 .id-field {
+  /* One line of the id, which the copy button centres on. */
+  --id-line-height: 16px;
+
   align-self: baseline;
   align-items: flex-start;
   overflow: visible;
@@ -839,13 +842,13 @@ const outputKind = computed<'variables' | 'boolean' | 'graph' | 'none'>(() => {
 
 /* Centred on the id's first line, which is shorter than the button. */
 .id-field .copy-button {
-  margin-top: calc((16px - var(--control-h-sm)) / 2);
+  margin-top: calc((var(--id-line-height) - var(--control-h-sm)) / 2);
 }
 
 .id-text {
   min-width: 0;
   font-size: var(--text-label);
-  line-height: 16px;
+  line-height: var(--id-line-height);
   word-break: break-all;
 }
 
