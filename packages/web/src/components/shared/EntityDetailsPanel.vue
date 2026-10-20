@@ -805,9 +805,13 @@ const outputKind = computed<'variables' | 'boolean' | 'graph' | 'none'>(() => {
   padding-top: var(--space-3);
 }
 
+/*
+ * The id row lines up on the text, not on the box: label and id share a
+ * baseline, so a long id that wraps still starts level with its label. A
+ * top-aligned label with a guessed padding left the id sitting above it.
+ */
 .id-label {
-  align-self: start;
-  padding-top: var(--space-2);
+  align-self: baseline;
 }
 
 .field-value {
@@ -828,8 +832,14 @@ const outputKind = computed<'variables' | 'boolean' | 'graph' | 'none'>(() => {
 /* An id is one long unbroken token, so it wraps mid-string or not at all — and
    not at all means the panel scrolls sideways. */
 .id-field {
+  align-self: baseline;
   align-items: flex-start;
   overflow: visible;
+}
+
+/* Centred on the id's first line, which is shorter than the button. */
+.id-field .copy-button {
+  margin-top: calc((16px - var(--control-h-sm)) / 2);
 }
 
 .id-text {
