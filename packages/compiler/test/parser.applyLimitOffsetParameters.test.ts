@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { SparqlQueryParser } from '../../src/lib/parser.js';
+import { SparqlQueryParser } from '../src/parser.js';
 
 describe('SparqlQueryParser - applyLimitOffsetParameters', () => {
   let parser: SparqlQueryParser;
@@ -166,7 +166,7 @@ describe('SparqlQueryParser - applyLimitOffsetParameters', () => {
         { limitParams: [{ name: '1', value: 10 }], offsetParams: [{ name: '2', value: 20 }], expected: { limit: 10, offset: 20 } }, // Page 3
       ];
 
-      testCases.forEach(({ limitParams, offsetParams, expected }, index) => {
+      testCases.forEach(({ limitParams, offsetParams, expected }) => {
         const result = parser.applyLimitOffsetParameters(queryString, limitParams, offsetParams);
         expect(result).toContain(`LIMIT ${expected.limit}`);
         expect(result).toContain(`OFFSET ${expected.offset}`);

@@ -48,8 +48,18 @@ export default defineConfig({
         replacement: path.resolve(__dirname, '../tools/src/index.ts'),
       },
       // The api's routes, which a session's initialize loads through
-      // `createMcpServer`, import these three: without source aliases a
+      // `createMcpServer`, import these five: without source aliases a
       // buildless run cannot resolve them and the initialize answers 500.
+      // `runtime-duckdb` precedes `runtime` so the longer name is matched by
+      // its own entry, as in packages/api/vitest.config.ts.
+      {
+        find: '@sparql-query-lib/compiler',
+        replacement: path.resolve(__dirname, '../compiler/src/index.ts'),
+      },
+      {
+        find: '@sparql-query-lib/runtime-duckdb',
+        replacement: path.resolve(__dirname, '../runtime-duckdb/src/index.ts'),
+      },
       {
         find: '@sparql-query-lib/srl',
         replacement: path.resolve(__dirname, '../srl/src/index.ts'),

@@ -143,3 +143,30 @@ describe('oxigraphExecutor', () => {
     expect(local.text(payload)).toBe(remote.text(payload));
   });
 });
+
+describe('oxigraphExecutor updates', () => {
+  it('runs a SPARQL UPDATE against its store', async () => {
+    const executor = await oxigraphExecutor();
+    await executor.update!({
+      updateText: 'INSERT DATA { <http://example.org/a> <http://example.org/b> "c" }',
+    });
+
+    expect(executor.store.size).toBe(1);
+    const result = await executor.execute({ queryText: 'ASK { ?s ?p "c" }', queryType: 'ASK' });
+    expect((result as { boolean: boolean }).boolean).toBe(true);
+  });
+
+  it('refuses to start an update whose signal has already aborted', async () => {
+    const executor = await oxigraphExecutor();
+    const controller = new AbortController();
+    controller.abort(new Error('stop'));
+
+    await expect(executor.update!({ updateText: 'CLEAR ALL', signal: controller.signal })).rejects.toThrow('stop');
+  });
+
+  it('has no update method over a store that cannot write', async () => {
+    const readOnly = { query: () => '{"head":{},"boolean":true}', load: () => {}, size: 0 };
+    const executor = await oxigraphExecutor({ store: readOnly });
+    expect(executor.update).toBeUndefined();
+  });
+});

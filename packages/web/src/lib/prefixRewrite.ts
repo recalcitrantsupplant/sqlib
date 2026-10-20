@@ -63,6 +63,14 @@
  * prefix the manager has never seen keeps its declaration, because deleting it
  * would throw away something only the author knew.
  *
+ * THE KEYWORD `a`. Every one of these languages spells rdf:type `a` in a
+ * predicate position, and nowhere else: `?s a ?c` parses, `?p ?q a` does not.
+ * So contraction writes `a` for rdf:type wherever the grammar would accept
+ * one, which needs no declaration, and `rdf:type` everywhere else; expansion
+ * writes `a` out in full like any other abbreviation. "Wherever the grammar
+ * would accept one" is read off the tree, not guessed: the IRI's parent is
+ * the node an `a` would sit under — see `A_PARENTS`.
+ *
  * WHAT CONTRACTION WILL NOT DO. It abbreviates against the prefix manager's
  * mappings and nothing else. An IRI whose namespace has no registered prefix
  * stays a full IRI; no `ns1:`, `ns2:` names are invented for it the way RDF
@@ -131,13 +139,27 @@ const IRI_NODES = new Set(['IRIRef']);
  */
 const PREFIXED_NAME_NODES = new Set(['PNameLN', 'PNameNS']);
 
+/** The keyword `a`. SPARQL and SRL spell it KwA, Turtle and TriG KeywordA. */
+const A_NODES = new Set(['KwA', 'KeywordA']);
+
+/**
+ * The parents an `a` can have, which are exactly the predicate positions: a
+ * plain verb, a step in a property path, and a member of a negated property
+ * set. An IRI under any of them may be written `a` instead.
+ */
+const A_PARENTS = new Set(['Verb', 'PathPrimary', 'PathOneInPropertyPath']);
+
+const RDF_TYPE = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type';
+
 /** The declaration nodes that bind the base IRI rather than a prefix. */
 const BASE_NODES = new Set(['BaseDecl', 'Base', 'SparqlBase']);
 
 interface Term {
-  kind: 'iri' | 'prefixedName';
+  kind: 'iri' | 'prefixedName' | 'a';
   /** For an IRI, the text without its angle brackets. */
   value: string;
+  /** An rdf:type IRI where the keyword `a` would also parse. */
+  couldBeA?: boolean;
   from: number;
   /** Exclusive. */
   to: number;
@@ -219,7 +241,11 @@ function scan(text: string, parser: PrefixGrammar): Scanned {
       }
 
       if (IRI_NODES.has(node.name)) {
-        terms.push({ kind: 'iri', value: slice().slice(1, -1), from: node.from, to: node.to });
+        const value = slice().slice(1, -1);
+        const couldBeA = value === RDF_TYPE && A_PARENTS.has(node.node.parent?.name ?? '');
+        terms.push({ kind: 'iri', value, couldBeA, from: node.from, to: node.to });
+      } else if (A_NODES.has(node.name)) {
+        terms.push({ kind: 'a', value: 'a', from: node.from, to: node.to });
       } else if (PREFIXED_NAME_NODES.has(node.name)) {
         terms.push({ kind: 'prefixedName', value: slice(), from: node.from, to: node.to });
       }
@@ -258,6 +284,13 @@ export function toPrefixedNames(
 
   for (const term of terms) {
     if (term.kind !== 'iri') continue;
+
+    if (term.couldBeA) {
+      out += `${text.slice(cursor, term.from)}a`;
+      cursor = term.to;
+      converted += 1;
+      continue;
+    }
 
     const result = shrink(term.value, pairs);
     if (!result) continue;
@@ -360,6 +393,10 @@ export function toFullIris(
   const stillUsed = new Set<string>();
 
   for (const term of terms) {
+    if (term.kind === 'a') {
+      edits.push({ from: term.from, to: term.to, insert: `<${RDF_TYPE}>` });
+      continue;
+    }
     if (term.kind !== 'prefixedName') continue;
 
     const iri = expand(term.value, (prefix) => declared.get(prefix) ?? namespaceFor(prefix));

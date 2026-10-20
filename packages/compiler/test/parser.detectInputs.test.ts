@@ -1,12 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { SparqlQueryParser } from '../../src/lib/parser.js';
-
-// Define the expected return type structure for clarity in tests
-interface ExpectedDetectedParameters {
-  valuesInputs: string[][];
-  limitParameters?: string[];
-  offsetParameters?: string[];
-}
+import { SparqlQueryParser } from '../src/parser.js';
 
 describe('SparqlQueryParser - detectInputs', () => {
   let parser: SparqlQueryParser;

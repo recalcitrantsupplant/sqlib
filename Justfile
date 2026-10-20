@@ -2,7 +2,7 @@
 #
 # The build line covers exactly the packages this recipe cannot get from
 # source. `tsx` resolves workspace imports through packages/api/tsconfig.json's
-# `paths`, which map contracts, types, srl and runtime to `src` — but not tools
+# `paths`, which map contracts, types, srl, runtime, compiler and runtime-duckdb to `src` — but not tools
 # (loaded by mcp-server), rdf-delta (imported across api/src/lib and
 # api/src/routes), or mcp-app (whose `ui://` Views mcp-server serves). Those
 # three resolve through their exports maps, which point only at `dist`.
