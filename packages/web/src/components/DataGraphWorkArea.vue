@@ -47,7 +47,7 @@
             here — to run queries against a graph, attach it to a backend under Backends.
           </InlineNote>
 
-          <Toolbar variant="plain" wrap>
+          <Toolbar variant="plain" wrap class="content-toolbar">
             <template #start>
               <!--
                 Format is with the content, not with the name: it says how the
@@ -79,16 +79,6 @@
                 :accept="ACCEPTED_EXTENSIONS"
                 @change="onFileChosen"
               />
-              <!--
-                Shows itself only for a format with a grammar to convert
-                against: N-Triples and N-Quads have no prefix mechanism, so
-                there is nothing here to offer for them.
-              -->
-              <PrefixConversionButtons
-                :code="contentString"
-                :content-type="contentFormat"
-                @update:code="(value: string) => (contentString = value)"
-              />
             </template>
             <span class="content-meta" data-testid="data-graph-size">{{ sizeSummary }}</span>
             <!--
@@ -98,6 +88,17 @@
               covering the prefixes.
             -->
             <template #end>
+              <!--
+                Shows itself only for a format with a grammar to convert
+                against: N-Triples and N-Quads have no prefix mechanism, so
+                there is nothing here to offer for them. On the right, beside
+                Expand: like it, they act on the whole document.
+              -->
+              <PrefixConversionButtons
+                :code="contentString"
+                :content-type="contentFormat"
+                @update:code="(value: string) => (contentString = value)"
+              />
               <ExpandButton
                 v-if="!contentExpanded"
                 subject="this data graph"
@@ -942,6 +943,11 @@ watch(
   flex-direction: column;
   flex: 1;
   min-height: var(--grid-6);
+}
+
+/* A little air between the controls and the document they act on. */
+.content-toolbar {
+  margin-bottom: var(--space-3);
 }
 
 /* Where the hint sits under its section label is the section's fact. */
