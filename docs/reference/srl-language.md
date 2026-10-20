@@ -517,12 +517,10 @@ Violations are reported under the category `aggregate-scope`:
   Only one bound before can have a row with a count of 0. A `BY` variable the
   pattern does not use is carried through unchanged.
 - A pattern variable that is not a `BY` variable belongs to the `GROUP`, `SET`
-  targets included. One of the same name *after* the `GROUP` is a different
-  variable, as after a `NOT`. One of the same name bound *before* the `GROUP`
-  is refused: a `NOT` would correlate the two, #840 describes them as
-  unrelated, and the rule does not say which the author meant. To correlate
-  it, list it after `BY`; otherwise rename it. Two `GROUP`s may each use the
-  same name for their own variable.
+  targets included, as a variable a subquery does not project belongs to the
+  subquery. One of the same name before or after the `GROUP` is a different
+  variable. To correlate it, list it after `BY`. Unlike a `NOT`, which sees
+  every variable bound before it, a `GROUP` sees only its `BY` variables.
 - Each result must be a new variable: not bound before, not used in the
   pattern, and not assigned again later in the body.
 - A `SET` in the pattern must not re-bind a variable, and each argument must be

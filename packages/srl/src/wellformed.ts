@@ -16,8 +16,7 @@ import { aggregateInnerVars } from './aggregates/scope.js';
  *
  *  - `aggregate-scope`: a `GROUP` (w3c/data-shapes#1347) lists a `BY` variable
  *                      that neither the body before it nor its pattern binds,
- *                      uses a pattern variable that is bound before it without
- *                      listing it, assigns a variable that is already
+ *                      assigns a variable that is already
  *                      bound, aggregates over a variable its pattern does not
  *                      bind, or has a `SET` in its pattern that re-binds a
  *                      variable.
@@ -131,12 +130,10 @@ function walkBindOrder(
 /**
  * The scope rules of `GROUP`.
  *
- * A pattern variable that is not a key is local to the `GROUP`. One of the
- * same name *after* the `GROUP` is a different variable, as it is after a
- * `NOT` (w3c/data-shapes#690). One of the same name bound *before* it is
- * rejected: a `NOT` would correlate the two, while #840 describes them as
- * unrelated, and nothing on the page says which the author meant. Listing the
- * variable after `GROUP BY` correlates it; renaming it separates them.
+ * A pattern variable that is not a key is local to the `GROUP`, as a variable
+ * a subquery does not project is local to it: one of the same name before or
+ * after the `GROUP` is a different variable (w3c/data-shapes#840). Listing it
+ * after `GROUP BY` correlates it.
  *
  * A key is bound before the `GROUP`, by its pattern, or both. Only a key bound
  * before can have a row when its group is empty, since nothing else gives it a
@@ -167,14 +164,6 @@ function checkAggregate(
     if (!boundBefore.has(key) && !patternBinds.has(key)) {
       report(`GROUP BY ?${key} is bound neither before the GROUP nor by its pattern`);
     }
-  }
-
-  for (const name of inner) {
-    if (keys.includes(name) || !boundBefore.has(name)) continue;
-    report(
-      `?${name} is bound before the GROUP and used in its pattern; list it after GROUP BY to correlate it, `
-      + 'or rename the one in the pattern',
-    );
   }
 
   const results = item.assignments.map((a) => a.variable);

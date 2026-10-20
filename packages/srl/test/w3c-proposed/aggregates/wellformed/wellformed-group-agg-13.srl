@@ -1,0 +1,6 @@
+PREFIX : <http://example/>
+
+# ?y bound before the GROUP and ?y in its pattern are different variables:
+# only the BY variables are shared, as only projected variables are shared
+# with a subquery.
+RULE { ?x :n ?n } WHERE { ?x a :Person ; :knows ?y . GROUP BY ?x { ?y :childOf ?x } [ ?n := COUNT(*) ] }

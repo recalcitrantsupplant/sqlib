@@ -1,4 +1,4 @@
 PREFIX : <http://example/>
 
-# ?y belongs to the pattern, so nothing binds it for the head.
-RULE { ?x :n ?y } WHERE { ?x a :Person . GROUP BY ?x { ?y :childOf ?x } [ ?n := COUNT(*) ] }
+# A result must be a new variable.
+RULE { ?x :n ?x } WHERE { ?x a :Person . GROUP BY ?x { ?y :childOf ?x } [ ?x := COUNT(*) ] }

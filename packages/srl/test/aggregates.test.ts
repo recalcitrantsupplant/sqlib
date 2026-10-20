@@ -203,12 +203,14 @@ describe('GROUP — well-formedness', () => {
       .toEqual([]);
   });
 
-  it('refuses an unlisted pattern variable bound before the GROUP, whose reading #840 has not settled', () => {
-    expect(issues('RULE { ?x :n ?n } WHERE { ?x a :P ; :knows ?y . GROUP BY ?x { ?y :c ?x } [ ?n := COUNT(*) ] }'))
-      .toEqual(['?y is bound before the GROUP and used in its pattern; list it after GROUP BY to correlate it, or rename the one in the pattern']);
+  it('treats an unlisted pattern variable bound before the GROUP as a new variable', () => {
+    expect(issues('RULE { ?x :n ?n ; :knows ?y } WHERE { ?x a :P ; :knows ?y . GROUP BY ?x { ?y :c ?x } [ ?n := COUNT(*) ] }'))
+      .toEqual([]);
+    expect(compile('RULE { ?x :n ?n } WHERE { ?x a :P ; :knows ?y . GROUP BY ?x { ?y :c ?x } [ ?n := COUNT(*) ] }').program)
+      .toContain('?_agg0_y <http://example/c> ?x');
   });
 
-  it('treats a pattern variable used again after the GROUP as a new variable, as after a NOT', () => {
+  it('treats a pattern variable used again after the GROUP as a new variable', () => {
     expect(issues('RULE { ?x :n ?n ; :knows ?y } WHERE { ?x a :P . GROUP BY ?x { ?y :c ?x } [ ?n := COUNT(*) ] ?x :knows ?y }'))
       .toEqual([]);
     // Not bound by the GROUP, so the head cannot use it unless a later element binds it.
@@ -216,9 +218,9 @@ describe('GROUP — well-formedness', () => {
       .toEqual(['Head variable ?y is not bound by the rule body']);
   });
 
-  it('counts a SET target in the pattern as a pattern variable', () => {
-    expect(issues('RULE { ?x :n ?n } WHERE { ?x a :P ; :q ?z . GROUP BY ?x { ?y :c ?x SET (?z := 1) } [ ?n := COUNT(*) ] }'))
-      .toContain('?z is bound before the GROUP and used in its pattern; list it after GROUP BY to correlate it, or rename the one in the pattern');
+  it('counts a SET target in the pattern as a pattern variable, apart from one bound before', () => {
+    expect(issues('RULE { ?x :n ?n ; :q ?z } WHERE { ?x a :P ; :q ?z . GROUP BY ?x { ?y :c ?x SET (?z := 1) } [ ?n := COUNT(*) ] }'))
+      .toEqual([]);
   });
 
   it('refuses a SET in the pattern that re-binds a variable', () => {

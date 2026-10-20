@@ -1,4 +1,4 @@
 PREFIX : <http://example/>
 
-# A result assigned again by a later SET.
-RULE { ?x :n ?n } WHERE { ?x a :Person . GROUP BY ?x { ?y :childOf ?x } [ ?n := COUNT(*) ] SET (?n := 0) }
+# A result that is also a pattern variable.
+RULE { ?x :n ?a } WHERE { ?x a :Person . GROUP BY ?x { ?y :childOf ?x ; :age ?a } [ ?a := MAX(?a) ] }

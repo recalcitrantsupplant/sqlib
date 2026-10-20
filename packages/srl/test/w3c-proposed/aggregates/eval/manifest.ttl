@@ -36,6 +36,7 @@ PREFIX srlt:   <http://www.w3.org/ns/sparql-rl-tests#>
         :eval-group-agg-22
         :eval-group-agg-23
         :eval-group-agg-24
+        :eval-group-agg-25
     ) .
 
 # COUNT per person: a person with no children gets 0.
@@ -258,4 +259,15 @@ PREFIX srlt:   <http://www.w3.org/ns/sparql-rl-tests#>
          [ srlt:ruleset  <eval-group-agg-24.srl> ;
            srlt:data     <data-people.ttl> ] ;
     mf:result  <eval-group-agg-24-results.ttl>
+    .
+
+# ?y before the GROUP is a name; ?y in its pattern is a child. They are
+# different variables, so the names do not limit the count, and each name
+# row keeps its count.
+:eval-group-agg-25 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-agg-25";
+    mf:action
+         [ srlt:ruleset  <eval-group-agg-25.srl> ;
+           srlt:data     <data-people.ttl> ] ;
+    mf:result  <eval-group-agg-25-results.ttl>
     .

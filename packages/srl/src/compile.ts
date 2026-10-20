@@ -223,9 +223,8 @@ function compileBody(items: SrlBodyItem[], context: CompileContext, outerBound: 
  *   every variable it binds, and the results are added to it.
  * - **The pattern's variables are renamed** apart from `K`, `SET` targets
  *   included, so the only variables the subquery shares with `P` are the keys.
- *   A pattern variable is local to the `GROUP`: one of the same name after it
- *   is a different variable, as it is after a `NOT`. Well-formedness rejects
- *   one bound before the `GROUP`, whose reading #840 has not settled.
+ *   A pattern variable is local to the `GROUP`: one of the same name before
+ *   or after it is a different variable.
  * - **`OPTIONAL` keeps a key whose group is empty**, and the hidden count tells
  *   an empty group (no subquery row: `COUNT` and `SUM` become 0, `MIN` and
  *   `MAX` drop the row, w3c/data-shapes#1344) apart from an aggregate that
