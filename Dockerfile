@@ -132,6 +132,19 @@ COPY --from=builder /app/packages/mcp-server/dist ./packages/mcp-server/dist
 # This ensures transitive dependencies of contracts and types are available
 RUN pnpm install --prod --frozen-lockfile
 
+# The in-app assistant's AI SDK (`ai`, `@ai-sdk/*`) is an optional dependency of
+# the api package. An MCP-only image does not need it: MCP clients bring their
+# own model. Build with `--build-arg WITH_ASSISTANT=false` to leave it out; the
+# server then logs a warning if FEATURE_ASSISTANT is turned on anyway.
+#
+# Removed by hand rather than with `pnpm install --no-optional`, because that
+# would also drop DuckDB's platform bindings, which are optional too.
+ARG WITH_ASSISTANT=true
+RUN if [ "$WITH_ASSISTANT" = "false" ]; then \
+      rm -rf packages/api/node_modules/ai packages/api/node_modules/@ai-sdk \
+        node_modules/.pnpm/ai@* node_modules/.pnpm/@ai-sdk+*; \
+    fi
+
 # The base image's libc, as DuckDB itself reports it — the property this image's
 # base was chosen for, asserted where a regression is cheap to catch.
 #
