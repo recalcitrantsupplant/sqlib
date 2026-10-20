@@ -49,9 +49,10 @@ const isReadOnly = deployment.isReadOnly;
  */
 const canWrite = computed(() => !isReadOnly.value);
 
-const HEADER_HELP = 'A rule set defines rules. Named tuples and a data graph are what you run it '
-  + 'against — the same relationship an argument set has to a query. They save as their own '
-  + 'entities in Tuples and Data; the pair plus this rule set is what a test is.';
+// Named tuples are an opt-in extension, so this general help does not name them.
+const HEADER_HELP = 'A rule set defines rules. A data graph is what you run it against, in the '
+  + 'same way an argument set is what you run a query with. The graph saves as its own entity '
+  + 'in Graphs, and the graph plus this rule set is what a test is.';
 
 const props = withDefaults(defineProps<{
   /**
