@@ -92,10 +92,9 @@
           the save would have returned. It sits over the fields it is about now
           that the run is no longer beside them.
 
-          Held while a saved test loads (see `shownSaveProblems`).
         -->
-        <ul v-if="shownSaveProblems.length" class="save-problems" data-testid="test-save-problems">
-          <li v-for="problem in shownSaveProblems" :key="problem">{{ problem }}</li>
+        <ul v-if="subject && saveProblems.length" class="save-problems" data-testid="test-save-problems">
+          <li v-for="problem in saveProblems" :key="problem">{{ problem }}</li>
         </ul>
 
         <section class="block">
@@ -1817,25 +1816,6 @@ const saveProblems = computed(() => {
   return problems;
 });
 
-/*
- * The list on screen, frozen while a saved test loads.
- *
- * A test's subject arrives a request before its cases, and in between every
- * case reads as missing its inputs. Recomputed live, the list flashed in on a
- * first load and then vanished, pushing the page about. Frozen, a first load
- * shows nothing until the test is whole, and switching between two tests that
- * both have problems keeps the list in place instead of dropping and redrawing it.
- */
-const shownSaveProblems = ref<string[]>([]);
-watch(
-  [saveProblems, hydratingRecord, subject],
-  () => {
-    if (hydratingRecord.value) return;
-    shownSaveProblems.value = subject.value ? saveProblems.value : [];
-  },
-  { immediate: true },
-);
-
 const canSave = computed(() => {
   if (!testName.value.trim() || !subject.value) return false;
   if (saveProblems.value.length > 0) return false;
@@ -2133,10 +2113,37 @@ async function loadDataGraphOptions() {
   }
 }
 
+/** Which `loadTest` call is the latest, so a slow reply for a test already left is dropped. */
+let loadSequence = 0;
+
+/** The body a test with no saved version opens on. */
+const EMPTY_TEST_BODY: TestDraftBody = { expectationKind: 'graph', subjectVersion: null, backend: null, cases: [] };
+
+/**
+ * Load a saved test into the editor, in one step.
+ *
+ * The record and its versions are fetched together, and nothing on screen
+ * changes until both are in. Applied piecemeal, the subject landed a request
+ * before the cases, and in between the editor was a test that does not exist:
+ * every case read as missing its inputs, so the save problems flashed and the
+ * page shifted. Everything derived from the editor saw the same half-test.
+ */
 async function loadTest(id: string) {
+  const sequence = ++loadSequence;
   hydratingRecord.value = true;
   try {
-    const { data } = await apiClient.getTest(id);
+    const [{ data }, versions] = await Promise.all([
+      apiClient.getTest(id),
+      // A test whose versions cannot be read still opens, named and empty, as
+      // it did when the two loaded one after the other; failing the pair would
+      // leave the previous test on screen under this one's id.
+      testsStore.loadVersions(id).catch((error: unknown) => {
+        console.error('[TestWorkArea] Could not read the versions of', id, error);
+        return [] as Awaited<ReturnType<typeof testsStore.loadVersions>>;
+      }),
+    ]);
+    if (sequence !== loadSequence) return;
+
     testName.value = data.name;
     testDescription.value = data.description ?? '';
     testCreatedAt.value = (data as { dateCreated?: string | null }).dateCreated ?? null;
@@ -2144,17 +2151,23 @@ async function loadTest(id: string) {
     subjectKind.value = data.subjectKind as SubjectKind;
     testLibraryId.value = (data as { isPartOf?: string[] }).isPartOf?.[0] ?? null;
 
-    const versions = await testsStore.loadVersions(id);
     testVersions.value = versions;
     const current = versions.find((version) => version.id === data.currentVersion) ?? versions.at(-1);
     currentVersionId.value = data.currentVersion ?? current?.id ?? null;
-    if (!current) return;
+    selectedCaseIndex.value = 0;
+    if (!current) {
+      // Nothing saved yet: the body is empty rather than the last test's.
+      currentVersionNumber.value = null;
+      loadedVersionId.value = null;
+      savedBody.value = '';
+      applyEditorBody(EMPTY_TEST_BODY);
+      return;
+    }
     currentVersionNumber.value = current.version;
     // The editor is loaded from the current version, draft or not: a draft is
     // measured against it, and the Details version list highlights it.
     loadedVersionId.value = current.id;
     applyEditorBody(bodyOfVersion(current));
-    selectedCaseIndex.value = 0;
     savedBody.value = JSON.stringify(editorBody());
 
     /*
@@ -2166,9 +2179,10 @@ async function loadTest(id: string) {
     const draft = openDraft.value?.body;
     if (draft && typeof draft === 'object') applyEditorBody(draft as TestDraftBody);
   } finally {
-    // Cleared after the refs settle, so hydration never lands as an edit.
+    // Cleared after the refs settle, so hydration never lands as an edit; and
+    // only by the latest load, which an older one finishing late must not end.
     await Promise.resolve();
-    hydratingRecord.value = false;
+    if (sequence === loadSequence) hydratingRecord.value = false;
   }
 }
 
@@ -2353,24 +2367,29 @@ watch(
     // opened; letting it fire would write the old body under the new id.
     cancelDraftSave();
     testId.value = next ?? null;
+    /*
+     * A saved test swaps in place: the one on screen stays until `loadTest`
+     * replaces all of it at once. Emptying the editor first was a half-state
+     * of its own, which dropped the save problems and drew them again.
+     * Only leaving every test empties it now.
+     */
+    if (next) {
+      // The verdict follows the id — the watcher on `testId` clears the
+      // could-not-run flag, and the store answers for whichever test this now is.
+      await loadTest(next);
+      return;
+    }
+    loadSequence += 1;
     testLibraryId.value = null;
     testDescription.value = '';
     testCreatedAt.value = null;
     testVersions.value = [];
     currentVersionId.value = null;
+    currentVersionNumber.value = null;
     loadedVersionId.value = null;
     savedBody.value = '';
-    /*
-     * The body too, and before the load rather than after it: this screen swaps
-     * records in place, and `loadTest` returns early for a test with no version
-     * to read — which used to leave the previous test's cases and expectation
-     * on screen under the new test's name.
-     */
-    applyEditorBody({ expectationKind: 'graph', subjectVersion: null, backend: null, cases: [] });
+    applyEditorBody(EMPTY_TEST_BODY);
     selectedCaseIndex.value = 0;
-    // The verdict follows the id — the watcher on `testId` clears the
-    // could-not-run flag, and the store answers for whichever test this now is.
-    if (next) await loadTest(next);
   },
 );
 
