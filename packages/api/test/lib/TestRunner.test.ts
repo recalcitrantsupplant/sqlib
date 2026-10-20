@@ -525,3 +525,55 @@ describe('TestRunner — query subjects, hermetic', () => {
     expect(result.cases[0].message).toMatch(/Subject failed/);
   });
 });
+
+describe('TestRunner — unsaved drafts', () => {
+  it('runs the draft\'s inputs, not the saved version\'s', async () => {
+    const { buildDraftTestVersion } = await import('../../src/lib/TestVersionWriter.js');
+    reachabilityRuleSet();
+    // The saved version fails: its graph has no edge to `:z`.
+    test({ expectationKind: 'graph' }, [{
+      expected: '<http://ex/a> <http://ex/reaches> <http://ex/z> .',
+      dataGraphVersion: dataGraph('@prefix : <http://ex/> . :a :edge :b .'),
+    }]);
+    const changed = dataGraph('@prefix : <http://ex/> . :a :edge :z .', 'text/turtle', 'dg2');
+    const savedTest = hoisted.entities.get('urn:sqlib:test:t1') as Parameters<typeof buildDraftTestVersion>[0];
+
+    const draft = buildDraftTestVersion(savedTest, {
+      expectationKind: 'graph',
+      cases: [{ expected: '<http://ex/a> <http://ex/reaches> <http://ex/z> .', dataGraphVersion: changed }],
+    });
+    const result = await new TestRunner({ internal: true }).runDraft(savedTest, draft);
+
+    expect(result.passed).toBe(true);
+    expect(result.cases[0].inputs.dataGraphVersion).toBe(changed);
+    // Nothing was written: the store holds the saved version's one case only.
+    expect([...hoisted.entities.values()].filter(e => (e as { '@type'?: string })['@type'] === 'TestCase')).toHaveLength(1);
+  });
+
+  it('reads a draft case\'s graph list inline', async () => {
+    const { buildDraftTestVersion } = await import('../../src/lib/TestVersionWriter.js');
+    reachabilityRuleSet();
+    test({ expectationKind: 'smoke' });
+    const graph = dataGraph('@prefix : <http://ex/> . :a :edge :b .');
+    const savedTest = hoisted.entities.get('urn:sqlib:test:t1') as Parameters<typeof buildDraftTestVersion>[0];
+
+    const draft = buildDraftTestVersion(savedTest, {
+      expectationKind: 'graph',
+      cases: [{ expected: '<http://ex/a> <http://ex/reaches> <http://ex/b> .', dataGraphs: [{ dataGraphVersion: graph }] }],
+    });
+    const result = await new TestRunner({ internal: true }).runDraft(savedTest, draft);
+
+    expect(result.passed).toBe(true);
+    expect(result.cases[0].inputs.dataGraphVersions).toEqual([graph]);
+  });
+
+  it('refuses a draft a save would refuse', async () => {
+    const { buildDraftTestVersion, TestVersionError } = await import('../../src/lib/TestVersionWriter.js');
+    reachabilityRuleSet();
+    test({ expectationKind: 'smoke' });
+    const savedTest = hoisted.entities.get('urn:sqlib:test:t1') as Parameters<typeof buildDraftTestVersion>[0];
+
+    expect(() => buildDraftTestVersion(savedTest, { expectationKind: 'graph', cases: [{}] }))
+      .toThrow(TestVersionError);
+  });
+});

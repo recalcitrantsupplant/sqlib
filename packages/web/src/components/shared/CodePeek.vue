@@ -1,14 +1,15 @@
 <template>
-  <section v-if="hasContent" class="code-peek" :data-testid="testId">
+  <section v-if="hasContent || hasFull" class="code-peek" :data-testid="testId">
     <button
       type="button"
       class="peek-head"
-      :aria-expanded="expanded"
+      :aria-expanded="isExpanded"
       :data-testid="testId ? `${testId}-toggle` : undefined"
-      :title="expanded ? 'Collapse' : 'Expand to the whole document'"
-      @click="expanded = !expanded"
+      :title="isExpanded ? 'Collapse' : 'Expand to the whole document'"
+      :disabled="forcedOpen"
+      @click="expanded = !isExpanded"
     >
-      <ChevronDown v-if="expanded" :size="13" class="peek-chevron" />
+      <ChevronDown v-if="isExpanded" :size="13" class="peek-chevron" />
       <ChevronRight v-else :size="13" class="peek-chevron" />
       <span class="peek-label">{{ label }}</span>
       <span v-if="meta" class="peek-meta">· {{ meta }}</span>
@@ -23,7 +24,7 @@
       one editor would make "expand" look like an edit.
     -->
     <div
-      v-if="!expanded"
+      v-if="!isExpanded"
       ref="bodyEl"
       class="peek-body"
       role="button"
@@ -49,12 +50,20 @@
       <div v-if="isClipped" class="peek-shade" aria-hidden="true"></div>
     </div>
 
-    <div v-else class="peek-full" :style="{ maxHeight: expandedHeight }">
+    <div v-else-if="!hasFull" class="peek-full" :style="{ maxHeight: expandedHeight }">
       <Codemirror
         :model-value="content ?? ''"
         :extensions="fullExtensions"
         :style="{ width: '100%' }"
       />
+    </div>
+
+    <!--
+      An editable document's full view is its own editor. Hidden rather than
+      unmounted while collapsed, so its selection and undo history survive.
+    -->
+    <div v-if="hasFull" v-show="isExpanded" class="peek-slot">
+      <slot name="full" />
     </div>
   </section>
   <p v-else-if="empty" class="peek-meta peek-empty" :data-testid="testId">{{ empty }}</p>
@@ -92,11 +101,13 @@
  *   saves nothing and leaves the header hedging about a document it could have
  *   shown.
  *
- * Read-only throughout. These are previews of things that live elsewhere —
+ * Read-only by default. These are previews of things that live elsewhere —
  * a data graph version, a pinned rule set — and offering an edit that cannot
- * land is worse than offering none.
+ * land is worse than offering none. A document that *is* edited here, such as
+ * a test's expectation, passes its editor in the `full` slot: it collapses to
+ * the same peek, and expands to that editor instead of a read-only view.
  */
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, useSlots, watch } from 'vue';
 import { Codemirror } from 'vue-codemirror';
 import { ChevronDown, ChevronRight } from '@lucide/vue';
 import type { Extension } from '@codemirror/state';
@@ -123,6 +134,8 @@ const props = withDefaults(
     expandedHeight?: string;
     /** Opens expanded — for the one document on a page that is the subject. */
     defaultExpanded?: boolean;
+    /** Holds the full view open, e.g. while its editor is popped out. */
+    open?: boolean;
   }>(),
   {
     content: '',
@@ -133,12 +146,24 @@ const props = withDefaults(
     collapsedLines: 6,
     expandedHeight: '420px',
     defaultExpanded: false,
+    open: false,
   },
 );
+
+const slots = useSlots();
+const hasFull = computed(() => Boolean(slots.full));
 
 const expanded = ref(props.defaultExpanded);
 
 const hasContent = computed(() => (props.content ?? '').trim().length > 0);
+
+/*
+ * An empty editable document has nothing to peek at, and a collapsed box over
+ * nothing hides the field it needs typing into — so it stays open.
+ */
+const forcedOpen = computed(() => props.open || (hasFull.value && !hasContent.value));
+
+const isExpanded = computed(() => expanded.value || forcedOpen.value);
 
 const lines = computed(() => (props.content ?? '').replace(/\s+$/, '').split('\n'));
 
@@ -216,7 +241,7 @@ function observe() {
 }
 
 watch(
-  [() => peekText.value, () => props.collapsedLines, expanded],
+  [() => peekText.value, () => props.collapsedLines, isExpanded],
   () => nextTick(observe),
   { immediate: true, flush: 'post' },
 );
@@ -224,7 +249,7 @@ watch(
 onBeforeUnmount(() => observer?.disconnect());
 
 /** Whether the text carries on past the bottom edge. The shade, and only the shade. */
-const isClipped = computed(() => !expanded.value && (hiddenLines.value > 0 || overflows.value));
+const isClipped = computed(() => !isExpanded.value && (hiddenLines.value > 0 || overflows.value));
 
 /*
  * The header says what the shade cannot: how much, and that some of it came off
@@ -233,7 +258,7 @@ const isClipped = computed(() => !expanded.value && (hiddenLines.value > 0 || ov
  * blank line silently said "ends here" to a document with four rules left.
  */
 const stateNote = computed(() => {
-  if (expanded.value) return `${lines.value.length} lines`;
+  if (isExpanded.value) return hasContent.value ? `${lines.value.length} lines` : '';
   const parts: string[] = [];
   if (hiddenPrologue.value > 0) {
     parts.push(`${hiddenPrologue.value} prefix${hiddenPrologue.value === 1 ? '' : 'es'} hidden`);
@@ -385,6 +410,19 @@ const fullExtensions = computed<Extension[]>(() => [
 
 .peek-full {
   overflow: auto;
+}
+
+/* The editor the caller passes sizes itself; this only lets it shrink. */
+.peek-slot {
+  min-width: 0;
+}
+
+.peek-head:disabled {
+  cursor: default;
+}
+
+.peek-head:disabled:hover {
+  background: var(--surface-subtle);
 }
 
 .peek-empty {

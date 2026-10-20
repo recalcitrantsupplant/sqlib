@@ -1993,6 +1993,21 @@ export function useApiClient() {
   };
 
   /**
+   * Run an unsaved body of a saved test: what the editor holds.
+   *
+   * The server validates it as a save, runs it, and keeps no run — so this
+   * works on a read-only deployment, where the save itself is refused.
+   */
+  const runTestDraft = (testId: string, draft: Record<string, unknown>) => {
+    ensureFeatureEnabled('tests');
+    return requestData(
+      buildUrl(`/tests/${encodeURIComponent(testId)}/run`),
+      { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify({ draft }) },
+      (payload) => testRunResultSchema.parse(payload),
+    );
+  };
+
+  /**
    * Run every test carrying one or more tags, server-side.
    *
    * One request rather than the rail's loop of N: the server holds the
@@ -3003,6 +3018,7 @@ export function useApiClient() {
     createTestVersion,
     annotateTestVersion,
     runTest,
+    runTestDraft,
     runTestsByTags,
     exportTestRun,
     exportTaggedTestRun,

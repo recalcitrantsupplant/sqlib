@@ -29,6 +29,13 @@ describe('renderSnippet', () => {
     }
   });
 
+  // `java.net.http` names: a rename once turned `BodyPublishers` into a
+  // class that does not exist, and the snippet stopped compiling.
+  it('uses the real Java body publishers', () => {
+    expect(renderSnippet('java', executeRequest)).toContain('HttpRequest.BodyPublishers.ofString(');
+    expect(renderSnippet('java', { method: 'POST', url: 'https://x/run' })).toContain('HttpRequest.BodyPublishers.noBody()');
+  });
+
   it('never inlines a token', () => {
     for (const language of SNIPPET_LANGUAGES) {
       const snippet = renderSnippet(language.id, executeRequest);

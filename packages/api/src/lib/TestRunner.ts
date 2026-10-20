@@ -55,7 +55,8 @@ import type { LdkitEtlJobVersion } from '../persistence/schemas/EtlJobVersionSch
 import type { LdkitDataGraphVersion } from '../persistence/schemas/DataGraphVersionSchema.js';
 import type { EntityTypeName } from '../persistence/entityTypeNames.js';
 import { rdfToNQuads, storeManagerFormat, DEFAULT_DATA_GRAPH_FORMAT, type DataGraphFormat } from './dataGraphContent.js';
-import { effectiveCases, listCaseDataGraphs } from './testCases.js';
+import { effectiveCases, listCaseDataGraphs, type RunnableTestCase } from './testCases.js';
+import type { DraftTestVersion } from './TestVersionWriter.js';
 import { mergeRuleSet } from '@sparql-query-lib/srl';
 import { isSrlCheck, runSrlCheck, type SrlCheck, type SrlCheckVerdict } from './srlChecks.js';
 import { etlService } from './EtlService.js';
@@ -269,7 +270,26 @@ export class TestRunner {
     if (!test) {
       throw new TestNotRunnableError(`Test ${testVersion.isPartOf} not found`);
     }
+    return this.runVersion(test, testVersion, effectiveCases(testVersion.$id));
+  }
 
+  /**
+   * Run an unsaved version of a test: the body the editor holds, built in
+   * memory by `buildDraftTestVersion` and never written.
+   *
+   * What lets a read-only deployment try a changed input without a save it
+   * would refuse. Same runner, same comparators, so a draft that passes here
+   * is a version that passes once saved.
+   */
+  async runDraft(test: LdkitTest, draft: DraftTestVersion): Promise<TestRunResult> {
+    return this.runVersion(test, draft.version, draft.cases);
+  }
+
+  private async runVersion(
+    test: LdkitTest,
+    testVersion: LdkitTestVersion,
+    cases: RunnableTestCase[],
+  ): Promise<TestRunResult> {
     const expectationKind = isExpectationKind(testVersion.expectationKind)
       ? testVersion.expectationKind
       : 'smoke';
@@ -323,7 +343,6 @@ export class TestRunner {
         : !testVersion.backend;
 
     const executorFactory = this.executorFactoryFor(test.subject);
-    const cases = effectiveCases(testVersion.$id);
     const results: TestCaseResult[] = [];
     let subjectVersionId: string | null = null;
 
@@ -831,21 +850,18 @@ export class TestRunner {
    * case naming a version that no longer exists should fail at invocation with
    * `TestNotRunnableError`, not while a verdict object is being built.
    */
-  private caseDataGraphVersionIds(testCase: LdkitTestCase): string[] {
+  private caseDataGraphVersionIds(testCase: RunnableTestCase): string[] {
+    // A draft case carries its list; it has no stored children to read.
+    if (testCase.draftDataGraphVersions?.length) return testCase.draftDataGraphVersions;
+    // Already sorted by `position`: a case's graphs are an ordered list the
+    // group routes, so the order they were stored in is the meaning.
     const stored = listCaseDataGraphs(testCase.$id);
     if (stored.length > 0) return stored.map(entry => entry.dataGraphVersion);
     return testCase.dataGraphVersion ? [testCase.dataGraphVersion] : [];
   }
 
-  private resolveDataGraphs(testCase: LdkitTestCase): ExecutionDataGraphInput[] {
-    const stored = listCaseDataGraphs(testCase.$id);
-    // Already sorted by `position`: a case's graphs are an ordered list the
-    // group routes, so the order they were stored in is the meaning.
-    if (stored.length > 0) {
-      return stored.map(entry => this.dataGraphContent(entry.dataGraphVersion));
-    }
-    if (!testCase.dataGraphVersion) return [];
-    return [this.dataGraphContent(testCase.dataGraphVersion)];
+  private resolveDataGraphs(testCase: RunnableTestCase): ExecutionDataGraphInput[] {
+    return this.caseDataGraphVersionIds(testCase).map(id => this.dataGraphContent(id));
   }
 
   private dataGraphContent(dataGraphVersionId: string): { content: string; format: string } {

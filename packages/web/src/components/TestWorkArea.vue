@@ -55,7 +55,7 @@
       <RunBar
         :running="running"
         :run-disabled="!testId"
-        :run-title="testId ? 'Run this test' : 'Save the test before running it'"
+        :run-title="!testId ? 'Save the test before running it' : hasUnsavedBody ? 'Run the unsaved edits' : 'Run this test'"
         :inputs="runInputs"
         :backend="runStore"
         @run="run"
@@ -91,6 +91,7 @@
           these are the server's own rules, so the sentence here is the sentence
           the save would have returned. It sits over the fields it is about now
           that the run is no longer beside them.
+
         -->
         <ul v-if="subject && saveProblems.length" class="save-problems" data-testid="test-save-problems">
           <li v-for="problem in saveProblems" :key="problem">{{ problem }}</li>
@@ -288,17 +289,27 @@
             <FormField
               v-if="slots.dataGraph && storeMode === 'dataGraph'"
               label="Data graph"
+              as="div"
               grow
             >
-              <SearchSelect
-                test-id="test-data-graph"
-                aria-label="Data graph"
-                placeholder="None"
-                empty-label="None"
-                :model-value="dataGraphVersion"
-                :options="dataGraphSelectOptions"
-                @update:model-value="(value) => (dataGraphVersion = value || null)"
-              />
+              <!-- Focus view sits on the picker's row: it opens what was picked. -->
+              <div class="select-row">
+                <SearchSelect
+                  test-id="test-data-graph"
+                  aria-label="Data graph"
+                  placeholder="None"
+                  empty-label="None"
+                  :model-value="dataGraphVersion"
+                  :options="dataGraphSelectOptions"
+                  @update:model-value="(value) => (dataGraphVersion = value || null)"
+                />
+                <ExpandButton
+                  v-if="dataGraphVersion && !dataGraphExpanded"
+                  subject="the data graph"
+                  testid="test-data-graph-expand-button"
+                  @click="toggleDataGraphExpand"
+                />
+              </div>
             </FormField>
 
             <!-- Version-level, not per case: one test runs against one store. -->
@@ -334,15 +345,24 @@
             is a fixed height whatever is in it, and opens on the lines that
             say something.
           -->
-          <InputPreview
+          <ExpandableEditor
             v-if="slots.dataGraph && storeMode === 'dataGraph' && dataGraphVersion"
-            label="Data graph"
-            :content="dataGraphContent.get(dataGraphVersion)?.text"
-            :content-type="dataGraphContent.get(dataGraphVersion)?.format ?? 'text/turtle'"
-            :meta="dataGraphContent.get(dataGraphVersion)?.meta"
-            test-id="test-data-graph-preview"
-            class="preview"
-          />
+            :id="DATA_GRAPH_REGION_ID"
+            title="Data graph"
+            testid="test-data-graph-expand"
+          >
+            <!-- Popped out, the peek is held open at full height. -->
+            <CodePeek
+              label="Data graph"
+              :content="dataGraphContent.get(dataGraphVersion)?.text"
+              :content-type="dataGraphContent.get(dataGraphVersion)?.format ?? 'text/turtle'"
+              :meta="dataGraphContent.get(dataGraphVersion)?.meta"
+              :open="dataGraphExpanded"
+              :expanded-height="dataGraphExpanded ? 'none' : undefined"
+              test-id="test-data-graph-preview"
+              :class="{ preview: !dataGraphExpanded }"
+            />
+          </ExpandableEditor>
 
           <InputPreview
             v-if="slots.argumentSet && argumentSetVersion"
@@ -453,13 +473,32 @@
           the screen.
         -->
         <section v-if="subjectPreview" class="block">
-          <CodePeek
-            :label="SUBJECT_DOCUMENT_LABEL[subjectKind]"
-            :content="subjectPreview.text"
-            :content-type="SUBJECT_DOCUMENT_CONTENT_TYPE[subjectKind]"
-            :meta="subjectPreview.meta"
-            test-id="test-subject-preview"
-          />
+          <header class="block-head">
+            <SectionLabel as="h3">{{ SUBJECT_SECTION_LABEL[subjectKind] }}</SectionLabel>
+            <div class="block-actions">
+              <ExpandButton
+                v-if="!subjectExpanded"
+                :subject="`the ${SUBJECT_SECTION_LABEL[subjectKind].toLowerCase()}`"
+                testid="test-subject-expand-button"
+                @click="toggleSubjectExpand"
+              />
+            </div>
+          </header>
+          <ExpandableEditor
+            :id="SUBJECT_REGION_ID"
+            :title="SUBJECT_SECTION_LABEL[subjectKind]"
+            testid="test-subject-expand"
+          >
+            <CodePeek
+              :label="SUBJECT_DOCUMENT_LABEL[subjectKind]"
+              :content="subjectPreview.text"
+              :content-type="SUBJECT_DOCUMENT_CONTENT_TYPE[subjectKind]"
+              :meta="subjectPreview.meta"
+              :open="subjectExpanded"
+              :expanded-height="subjectExpanded ? 'none' : undefined"
+              test-id="test-subject-preview"
+            />
+          </ExpandableEditor>
         </section>
 
         <section class="block block-grow">
@@ -501,6 +540,13 @@
                 the expectation: this row already says what kind of expectation
                 this is, and enlarging it is the same sort of thing.
               -->
+              <!-- Shows itself only where the expectation is RDF with prefixes. -->
+              <PrefixConversionButtons
+                v-if="expectationKind !== 'smoke'"
+                :code="expected"
+                :content-type="expectedContentType"
+                @update:code="(value: string) => (expected = value)"
+              />
               <ExpandButton
                 v-if="expectationKind !== 'smoke' && !expectedExpanded"
                 subject="the expectation"
@@ -517,23 +563,40 @@
             along with it, so what a run produced can be compared against it
             without leaving.
           -->
-          <ExpandableEditor
+          <!--
+            Collapsed to the same peek as the inputs and the subject above it,
+            so the page reads as a column of documents of one height. Expanded,
+            the peek is the editor itself; it is held open while popped out.
+          -->
+          <CodePeek
             v-if="expectationKind !== 'smoke'"
-            :id="EXPECTED_REGION_ID"
-            title="Expectation"
-            testid="test-expected-expand"
+            label="Expected result"
+            :content="expected"
+            :content-type="expectedContentType"
+            :meta="expectedContentType ?? undefined"
+            :open="expectedExpanded"
+            test-id="test-expected-peek"
+            class="expected-peek"
           >
-            <CodeEditor
-              v-model="expected"
-              class="expected-editor"
-              :content-type="expectedContentType"
-              :placeholder="expectedPlaceholder"
-              test-id="test-expected"
-              min-height="220px"
-              :expanded="expectedExpanded"
-              :prefix-source="prefixSource"
-            />
-          </ExpandableEditor>
+            <template #full>
+              <ExpandableEditor
+                :id="EXPECTED_REGION_ID"
+                title="Expectation"
+                testid="test-expected-expand"
+              >
+                <CodeEditor
+                  v-model="expected"
+                  class="expected-editor"
+                  :content-type="expectedContentType"
+                  :placeholder="expectedPlaceholder"
+                  test-id="test-expected"
+                  min-height="220px"
+                  :expanded="expectedExpanded"
+                  :prefix-source="prefixSource"
+                />
+              </ExpandableEditor>
+            </template>
+          </CodePeek>
           <EmptyState
             v-else
             size="sm"
@@ -638,6 +701,7 @@ import ExpandRunStrip from './shared/ExpandRunStrip.vue';
 import { useEditorExpand } from '../composables/useEditorExpand';
 import { useEditorAsPrefixTarget } from '../composables/usePrefixTarget';
 import CodePeek from './shared/CodePeek.vue';
+import PrefixConversionButtons from './shared/PrefixConversionButtons.vue';
 import CodeSnippetPanel, { type CodeSnippetVariant } from './shared/CodeSnippetPanel.vue';
 import InspectorPanel, { type InspectorTab } from './shared/InspectorPanel.vue';
 import EntityDetailsPanel from './shared/EntityDetailsPanel.vue';
@@ -1033,6 +1097,14 @@ const SUBJECT_NOUN: Record<SubjectKind, string> = {
 };
 
 /** What the subject's own document is called, per kind. */
+/** The heading over the subject's document, named for what the subject is. */
+const SUBJECT_SECTION_LABEL: Record<SubjectKind, string> = {
+  query: 'Query',
+  ruleSet: 'Rule set',
+  queryGroup: 'Query group',
+  etlJob: 'ETL job',
+};
+
 const SUBJECT_DOCUMENT_LABEL: Record<SubjectKind, string> = {
   query: 'Query text',
   ruleSet: 'Rules',
@@ -1141,6 +1213,8 @@ const editorExpansion = useEditorExpand();
 const TUPLE_SEEDS_REGION_ID = 'test-tuple-seeds-region';
 const SQL_FIXTURE_REGION_ID = 'test-sql-fixture-region';
 const EXPECTED_REGION_ID = 'test-expected-region';
+const DATA_GRAPH_REGION_ID = 'test-data-graph-region';
+const SUBJECT_REGION_ID = 'test-subject-region';
 
 const tupleSeedsExpanded = computed(() => editorExpansion.isExpanded(TUPLE_SEEDS_REGION_ID));
 const toggleTupleSeedsExpand = () => editorExpansion.toggle(TUPLE_SEEDS_REGION_ID);
@@ -1150,6 +1224,12 @@ const toggleSqlFixtureExpand = () => editorExpansion.toggle(SQL_FIXTURE_REGION_I
 
 const expectedExpanded = computed(() => editorExpansion.isExpanded(EXPECTED_REGION_ID));
 const toggleExpectedExpand = () => editorExpansion.toggle(EXPECTED_REGION_ID);
+
+const dataGraphExpanded = computed(() => editorExpansion.isExpanded(DATA_GRAPH_REGION_ID));
+const toggleDataGraphExpand = () => editorExpansion.toggle(DATA_GRAPH_REGION_ID);
+
+const subjectExpanded = computed(() => editorExpansion.isExpanded(SUBJECT_REGION_ID));
+const toggleSubjectExpand = () => editorExpansion.toggle(SUBJECT_REGION_ID);
 
 function showInputs() {
   // Scrolling the page behind a popped-out editor moves nothing anyone can
@@ -1570,13 +1650,28 @@ const codeUnavailable = computed(() =>
  */
 const lastRun = computed<TestRunResult | null>(() => {
   if (runErrored.value) return null;
+  if (draftRun.value) return draftRun.value;
   const id = testId.value;
   return id ? testsStore.lastRunByTest.value[id] ?? null : null;
 });
 
+/**
+ * The verdict of the last run of unsaved edits.
+ *
+ * Kept here rather than in the store: it answers for this editor's body, not
+ * for the saved test, so it must not mark the test green or red elsewhere.
+ */
+const draftRun = ref<TestRunResult | null>(null);
+
+/** Whether Run sends the editor's body rather than running the saved version. */
+const hasUnsavedBody = computed(() => editCount.value > 0 && !matchesSaved());
+
 // A different test is a different question; the last one's failure to run says
 // nothing about it.
-watch(testId, () => { runErrored.value = false; });
+watch(testId, () => {
+  runErrored.value = false;
+  draftRun.value = null;
+});
 
 /* ------------------------------------------------------------------ *
  * Unsaved edits to a saved test.
@@ -1691,6 +1786,7 @@ function discardDraft() {
   // editor goes back to empty, as it did before the lifecycle was shared.
   const hadSavedBody = Boolean(savedBody.value);
   discardEntityDraft();
+  draftRun.value = null;
   if (!hadSavedBody) hydrate(() => applyEditorBody({}));
   toast.success('Draft discarded');
 }
@@ -1854,6 +1950,9 @@ async function save() {
     savedBody.value = JSON.stringify(editorBody());
     cancelDraftSave();
     removeDraft();
+    // The draft's verdict was about a body that is now this version; the next
+    // run of the version is what answers for it.
+    draftRun.value = null;
     toast.success(`Saved v${version.version}`);
   } catch (error) {
     // The draft is left exactly as it was. A save that failed and took the
@@ -1864,8 +1963,40 @@ async function save() {
   }
 }
 
+/**
+ * Run what the editor shows. With unsaved edits that is the draft, sent as a
+ * body: Run must not quietly answer for the saved version while the pill says
+ * the editor holds something else. On a read-only deployment this is the only
+ * way to try a changed input, since the save is refused.
+ */
+async function runDraft() {
+  if (!testId.value) return;
+  running.value = true;
+  runErrored.value = false;
+  try {
+    const result = await apiClient.runTestDraft(testId.value, versionBody());
+    draftRun.value = result;
+    const firstFailure = result.cases.findIndex(testCase => !testCase.passed);
+    if (firstFailure >= 0) selectedCaseIndex.value = firstFailure;
+    toast[result.passed ? 'success' : 'error'](
+      result.passed ? 'Unsaved edits passed' : `Unsaved edits failed: ${result.message}`,
+    );
+  } catch (error) {
+    draftRun.value = null;
+    runErrored.value = true;
+    toast.error(error instanceof Error ? error.message : 'Test could not be run');
+  } finally {
+    running.value = false;
+  }
+}
+
 async function run() {
   if (!testId.value) return;
+  if (hasUnsavedBody.value) {
+    await runDraft();
+    return;
+  }
+  draftRun.value = null;
   running.value = true;
   runErrored.value = false;
   /*
@@ -1982,10 +2113,51 @@ async function loadDataGraphOptions() {
   }
 }
 
+/** Which `loadTest` call is the latest, so a slow reply for a test already left is dropped. */
+let loadSequence = 0;
+
+/** The body a test with no saved version opens on. */
+const EMPTY_TEST_BODY: TestDraftBody = { expectationKind: 'graph', subjectVersion: null, backend: null, cases: [] };
+
+/** Empty the editor: no test open, or the one asked for could not be read. */
+function clearRecord() {
+  testLibraryId.value = null;
+  testDescription.value = '';
+  testCreatedAt.value = null;
+  testVersions.value = [];
+  currentVersionId.value = null;
+  currentVersionNumber.value = null;
+  loadedVersionId.value = null;
+  savedBody.value = '';
+  applyEditorBody(EMPTY_TEST_BODY);
+  selectedCaseIndex.value = 0;
+}
+
+/**
+ * Load a saved test into the editor, in one step.
+ *
+ * The record and its versions are fetched together, and nothing on screen
+ * changes until both are in. Applied piecemeal, the subject landed a request
+ * before the cases, and in between the editor was a test that does not exist:
+ * every case read as missing its inputs, so the save problems flashed and the
+ * page shifted. Everything derived from the editor saw the same half-test.
+ */
 async function loadTest(id: string) {
+  const sequence = ++loadSequence;
   hydratingRecord.value = true;
   try {
-    const { data } = await apiClient.getTest(id);
+    const [{ data }, versions] = await Promise.all([
+      apiClient.getTest(id),
+      // A test whose versions cannot be read still opens, named and empty, as
+      // it did when the two loaded one after the other; failing the pair would
+      // leave the previous test on screen under this one's id.
+      testsStore.loadVersions(id).catch((error: unknown) => {
+        console.error('[TestWorkArea] Could not read the versions of', id, error);
+        return [] as Awaited<ReturnType<typeof testsStore.loadVersions>>;
+      }),
+    ]);
+    if (sequence !== loadSequence) return;
+
     testName.value = data.name;
     testDescription.value = data.description ?? '';
     testCreatedAt.value = (data as { dateCreated?: string | null }).dateCreated ?? null;
@@ -1993,17 +2165,23 @@ async function loadTest(id: string) {
     subjectKind.value = data.subjectKind as SubjectKind;
     testLibraryId.value = (data as { isPartOf?: string[] }).isPartOf?.[0] ?? null;
 
-    const versions = await testsStore.loadVersions(id);
     testVersions.value = versions;
     const current = versions.find((version) => version.id === data.currentVersion) ?? versions.at(-1);
     currentVersionId.value = data.currentVersion ?? current?.id ?? null;
-    if (!current) return;
+    selectedCaseIndex.value = 0;
+    if (!current) {
+      // Nothing saved yet: the body is empty rather than the last test's.
+      currentVersionNumber.value = null;
+      loadedVersionId.value = null;
+      savedBody.value = '';
+      applyEditorBody(EMPTY_TEST_BODY);
+      return;
+    }
     currentVersionNumber.value = current.version;
     // The editor is loaded from the current version, draft or not: a draft is
     // measured against it, and the Details version list highlights it.
     loadedVersionId.value = current.id;
     applyEditorBody(bodyOfVersion(current));
-    selectedCaseIndex.value = 0;
     savedBody.value = JSON.stringify(editorBody());
 
     /*
@@ -2014,10 +2192,19 @@ async function loadTest(id: string) {
      */
     const draft = openDraft.value?.body;
     if (draft && typeof draft === 'object') applyEditorBody(draft as TestDraftBody);
+  } catch (error) {
+    // Never the last test's cases under this one's id, where a save would land them.
+    if (sequence === loadSequence) {
+      clearRecord();
+      testName.value = '';
+      subject.value = null;
+    }
+    toast.error(error instanceof Error ? error.message : 'Failed to load the test');
   } finally {
-    // Cleared after the refs settle, so hydration never lands as an edit.
+    // Cleared after the refs settle, so hydration never lands as an edit; and
+    // only by the latest load, which an older one finishing late must not end.
     await Promise.resolve();
-    hydratingRecord.value = false;
+    if (sequence === loadSequence) hydratingRecord.value = false;
   }
 }
 
@@ -2202,24 +2389,20 @@ watch(
     // opened; letting it fire would write the old body under the new id.
     cancelDraftSave();
     testId.value = next ?? null;
-    testLibraryId.value = null;
-    testDescription.value = '';
-    testCreatedAt.value = null;
-    testVersions.value = [];
-    currentVersionId.value = null;
-    loadedVersionId.value = null;
-    savedBody.value = '';
     /*
-     * The body too, and before the load rather than after it: this screen swaps
-     * records in place, and `loadTest` returns early for a test with no version
-     * to read — which used to leave the previous test's cases and expectation
-     * on screen under the new test's name.
+     * A saved test swaps in place: the one on screen stays until `loadTest`
+     * replaces all of it at once. Emptying the editor first was a half-state
+     * of its own, which dropped the save problems and drew them again.
+     * Only leaving every test empties it now.
      */
-    applyEditorBody({ expectationKind: 'graph', subjectVersion: null, backend: null, cases: [] });
-    selectedCaseIndex.value = 0;
-    // The verdict follows the id — the watcher on `testId` clears the
-    // could-not-run flag, and the store answers for whichever test this now is.
-    if (next) await loadTest(next);
+    if (next) {
+      // The verdict follows the id — the watcher on `testId` clears the
+      // could-not-run flag, and the store answers for whichever test this now is.
+      await loadTest(next);
+      return;
+    }
+    loadSequence += 1;
+    clearRecord();
   },
 );
 
@@ -2381,6 +2564,19 @@ watch([argumentSetVersion, argumentSetOptions], () => {
   margin-left: auto;
 }
 
+/* A picker and the button that opens what it picked, on one row. */
+.select-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.select-row > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
 /* The segmented control itself is `shared/SegmentedToggle`. */
 
 /*
@@ -2505,6 +2701,12 @@ watch([argumentSetVersion, argumentSetOptions], () => {
 .expected-editor {
   flex: 1;
   width: 100%;
+}
+
+/* The peek draws the frame; a second border inside it would box the text twice. */
+.expected-peek :deep(.expand-region:not(.expanded) .code-editor) {
+  border: 0;
+  border-radius: 0;
 }
 
 .muted {
