@@ -93,6 +93,7 @@ export {
   type RdfPayload,
   type SparqlAskResults,
   type SparqlSelectResults,
+  type UpdateRequest,
 } from './executor.js';
 
 export {

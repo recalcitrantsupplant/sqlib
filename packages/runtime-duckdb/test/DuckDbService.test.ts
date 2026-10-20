@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { DuckDbService, mapDuckDbTypeToXsd } from '../../src/lib/DuckDbService.js';
+import { DUCKDB_CLOSED_PROFILE, DUCKDB_LIMIT_DEFAULTS, DuckDbService, mapDuckDbTypeToXsd } from '../src/index.js';
 
 /**
  * The DuckDB gate, resolved before collection.
@@ -23,7 +23,7 @@ describe('DuckDbService', () => {
   let service: DuckDbService;
 
   beforeEach(() => {
-    service = new DuckDbService();
+    service = new DuckDbService(DUCKDB_CLOSED_PROFILE, DUCKDB_LIMIT_DEFAULTS);
   });
 
   describe('mapDuckDbTypeToXsd', () => {

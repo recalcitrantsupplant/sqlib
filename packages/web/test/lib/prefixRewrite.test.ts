@@ -553,3 +553,80 @@ describe('SRL documents', () => {
     expect(expanded).toContain('"<http://example.org/lit>"');
   });
 });
+
+/*
+ * `a` is the keyword for rdf:type, legal wherever a predicate is — a verb, a
+ * property path, a negated property set — and nowhere else. It needs no
+ * declaration, so contraction writes it in preference to `rdf:type`, and
+ * expansion writes it out like every other abbreviated IRI.
+ */
+describe('rdf:type and the keyword a', () => {
+  const TYPE = '<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>';
+  const RDF_PAIRS: PrefixPair[] = [
+    { prefix: 'rdf', namespace: 'http://www.w3.org/1999/02/22-rdf-syntax-ns#' },
+    ...PAIRS,
+  ];
+
+  it('contracts a predicate to a, declaring nothing', () => {
+    const result = toPrefixedNames(`SELECT * WHERE { ?s ${TYPE} ?c }`, RDF_PAIRS, SPARQL);
+
+    expect(result.text).toBe('SELECT * WHERE { ?s a ?c }');
+    expect(result.converted).toBe(1);
+    expect(result.added).toEqual([]);
+  });
+
+  it('contracts every predicate position the grammar allows a in', () => {
+    const text = `SELECT * WHERE { ?s ^${TYPE}/${TYPE}* ?c . ?s !(${TYPE}|^${TYPE}) ?d }`;
+    expect(toPrefixedNames(text, RDF_PAIRS, SPARQL).text).toBe(
+      'SELECT * WHERE { ?s ^a/a* ?c . ?s !(a|^a) ?d }',
+    );
+  });
+
+  it('keeps rdf:type where a would not parse', () => {
+    const text = `SELECT * WHERE { ?p ?q ${TYPE} . ${TYPE} ?r ?o }`;
+    const result = toPrefixedNames(text, RDF_PAIRS, SPARQL);
+
+    expect(result.text).toBe(
+      'PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\nSELECT * WHERE { ?p ?q rdf:type . rdf:type ?r ?o }',
+    );
+  });
+
+  it('contracts to a with no rdf prefix registered at all', () => {
+    expect(toPrefixedNames(`SELECT * WHERE { ?s ${TYPE} ?c }`, PAIRS, SPARQL).text).toBe(
+      'SELECT * WHERE { ?s a ?c }',
+    );
+  });
+
+  it('expands a to the full IRI', () => {
+    const result = toFullIris('SELECT * WHERE { ?s a ?c ; ^a/a* ?d . ?s !(a|^a) ?e }', namespaceFor, SPARQL);
+
+    expect(result.text).toBe(
+      `SELECT * WHERE { ?s ${TYPE} ?c ; ^${TYPE}/${TYPE}* ?d . ?s !(${TYPE}|^${TYPE}) ?e }`,
+    );
+    expect(result.converted).toBe(5);
+  });
+
+  it('round-trips through both buttons', () => {
+    const original = 'SELECT * WHERE { ?s a ?c }';
+    const expanded = toFullIris(original, namespaceFor, SPARQL).text;
+    expect(toPrefixedNames(expanded, RDF_PAIRS, SPARQL).text).toBe(original);
+  });
+
+  it.each([
+    ['Turtle', TURTLE, `<http://e/x> ${TYPE} <http://e/C> ; a <http://e/D> .`, '<http://e/x> a <http://e/C> ; a <http://e/D> .'],
+    ['TriG', prefixGrammarFor('application/trig')!, `GRAPH <http://e/g> { <http://e/x> ${TYPE} <http://e/C> }`, 'GRAPH <http://e/g> { <http://e/x> a <http://e/C> }'],
+    ['SRL', SRL, `DATA { <http://e/x> ${TYPE} <http://e/C> }\nRULE { ?x ${TYPE} ?c } WHERE { ?x ${TYPE} ?c }`, 'DATA { <http://e/x> a <http://e/C> }\nRULE { ?x a ?c } WHERE { ?x a ?c }'],
+    ['SPARQL CONSTRUCT', SPARQL, `CONSTRUCT { ?x ${TYPE} ?c } WHERE { ?x ${TYPE} ?c }`, 'CONSTRUCT { ?x a ?c } WHERE { ?x a ?c }'],
+    ['SPARQL INSERT DATA', SPARQL, `INSERT DATA { <http://e/x> ${TYPE} <http://e/C> }`, 'INSERT DATA { <http://e/x> a <http://e/C> }'],
+  ])('works in %s, both ways', (_label, parser, full, short) => {
+    expect(toPrefixedNames(full, RDF_PAIRS, parser).text).toBe(short);
+    expect(toFullIris(short, namespaceFor, parser).text).toBe(full.replace(`; a <http://e/D>`, `; ${TYPE} <http://e/D>`));
+  });
+
+  it('expands a in a document that also uses rdf:type, and sweeps the rdf declaration', () => {
+    const text = 'PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>\nSELECT * WHERE { ?s a ?c ; rdf:type ?d }';
+    const result = toFullIris(text, (p) => (p === 'rdf' ? 'http://www.w3.org/1999/02/22-rdf-syntax-ns#' : undefined), SPARQL);
+
+    expect(result.text).toBe(`SELECT * WHERE { ?s ${TYPE} ?c ; ${TYPE} ?d }`);
+  });
+});

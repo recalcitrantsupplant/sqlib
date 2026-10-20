@@ -63,7 +63,9 @@ step needs them as well as the run step.
 
 `packages/api/src/lib/duckdbCapabilities.ts` resolves a capability profile from the
 environment, defaulting every capability to off, and `DuckDbService` builds one
-`DuckDBInstance` from it at startup. Every connection comes off that instance;
+`DuckDBInstance` from it at startup. The service itself lives in
+`packages/runtime-duckdb`, which takes the profile as an argument and reads no
+environment of its own. Every connection comes off that instance;
 nothing creates an unconfigured one.
 
 ### What actually enforces something

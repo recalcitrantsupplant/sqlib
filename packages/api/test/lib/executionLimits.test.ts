@@ -184,7 +184,11 @@ describe('rule set runs', () => {
     const traced = await new RuleSetExecutor().execute(ruleSetVersion(ids), { initialGraph: chain, maxIterations: 25, trace: true });
 
     // The same inferred graph and the same passes either way.
-    expect(plain.status).toBe('converged');
+    // Flaky on CI under load, cause not yet found: the run reaches its
+    // iteration cap instead of converging. Say what the cap was and what each
+    // pass did, so the next failure explains itself.
+    const passes = { cap: plain.maxIterations, env: process.env.SQLIB_MAX_RULE_ITERATIONS ?? null, tripleCounts: plain.iterations.map(i => i.tripleCount) };
+    expect(plain.status, JSON.stringify(passes)).toBe('converged');
     expect(plain.finalGraphNQuads).toBe(traced.finalGraphNQuads);
     expect(plain.iterations.map(i => i.tripleCount)).toEqual(traced.iterations.map(i => i.tripleCount));
 

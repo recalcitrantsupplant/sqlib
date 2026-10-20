@@ -19,6 +19,13 @@ function defaultMappings(): PrefixMapping[] {
   return DEFAULT_PREFIXES.map(m => ({ ...m }));
 }
 
+/*
+ * The prefix labels the manager stores. Empty is one of them: `PREFIX : <…>` is
+ * as much a declaration as `PREFIX ex: <…>`, and refusing it left ':' unknown
+ * to discovery, abbreviation and both toolbar conversions alike.
+ */
+const PREFIX_LABEL = /^(?:[a-zA-Z_][a-zA-Z0-9_-]*)?$/;
+
 // Basic IRI validation - checks if it looks like an absolute IRI
 function isIri(str: string): boolean {
   return str.startsWith('http://') || str.startsWith('https://') || str.startsWith('urn:') || str.startsWith('tag:');
@@ -287,11 +294,11 @@ export function usePrefixManager() {
    */
   function rememberDiscovered(prefix: string, namespace: string, sourceUrn?: string | null): void {
     const normalizedNamespace = normalizeNamespace(namespace);
-    if (!prefix || !normalizedNamespace) return;
+    if (!normalizedNamespace) return;
     if (!isIri(normalizedNamespace)) return;
     // The manager will not let a person type a prefix it would refuse; a
     // document should not be able to smuggle one in either.
-    if (!/^[a-zA-Z_][a-zA-Z0-9_-]*$/.test(prefix)) return;
+    if (!PREFIX_LABEL.test(prefix)) return;
 
     const existing = prefixSettings.value.mappings.find(
       m => m.prefix === prefix && normalizeNamespace(m.namespace) === normalizedNamespace
@@ -319,9 +326,8 @@ export function usePrefixManager() {
    * lets every editor in the app discover prefixes the same way rather than
    * each one discovering the subset its own screen happened to implement.
    *
-   * The prefix label is optional in the grammar (`PREFIX : <…>`); those are
-   * matched so they are consumed rather than half-matched, and dropped by
-   * `rememberDiscovered`, which refuses what the manager would refuse.
+   * The prefix label is optional in the grammar (`PREFIX : <…>`), and an
+   * absent label is the empty prefix, which is registered like any other.
    */
   const PREFIX_DECLARATION = /(?:^|[\s;.])@?prefix\s+([A-Za-z_][A-Za-z0-9_.-]*)?\s*:\s*<([^<>"{}|^`\\\s]*)>/gi;
 
@@ -337,8 +343,8 @@ export function usePrefixManager() {
     PREFIX_DECLARATION.lastIndex = 0;
     let match: RegExpExecArray | null;
     while ((match = PREFIX_DECLARATION.exec(text)) !== null) {
-      const [, prefix, namespace] = match;
-      if (!prefix || !namespace) continue;
+      const [, prefix = '', namespace] = match;
+      if (!namespace) continue;
       rememberDiscovered(prefix, namespace, sourceUrn);
     }
   }
@@ -465,10 +471,20 @@ export function usePrefixManager() {
    * `abbreviateIri` had just produced.
    */
   function expandPrefix(prefixedName: string): string | null {
-    return expand(prefixedName, (prefix) => {
-      const mapping = prefixSettings.value.mappings.find(m => m.enabled && m.prefix === prefix);
-      return mapping?.namespace;
-    });
+    return expand(prefixedName, namespaceFor);
+  }
+
+  /*
+   * What a prefix expands to: the mapping that wins it, so that expansion
+   * agrees with abbreviation when two documents bound one prefix differently —
+   * the normal case for ':', which nearly every example declares. Falls back
+   * to any enabled mapping for a prefix that won no namespace of its own,
+   * because a name written with it still means something.
+   */
+  function namespaceFor(prefix: string): string | undefined {
+    const winner = prefixCache.value.sortedNamespaces.find(p => p.prefix === prefix);
+    if (winner) return winner.namespace;
+    return prefixSettings.value.mappings.find(m => m.enabled && m.prefix === prefix)?.namespace;
   }
 
   // CRUD operations
@@ -486,15 +502,15 @@ export function usePrefixManager() {
   ): string | null {
     const normalizedNamespace = normalizeNamespace(namespace);
     // Basic validation
-    if (!prefix || !normalizedNamespace) {
-      console.warn('Cannot add prefix: prefix and namespace cannot be empty.');
+    if (!normalizedNamespace) {
+      console.warn('Cannot add prefix: namespace cannot be empty.');
       return null;
     }
     if (!isIri(normalizedNamespace)) {
       console.warn('Cannot add prefix: namespace must be a valid IRI.');
       return null;
     }
-    if (!/^[a-zA-Z_][a-zA-Z0-9_-]*$/.test(prefix)) {
+    if (!PREFIX_LABEL.test(prefix)) {
       console.warn('Cannot add prefix: invalid prefix format.');
       return null;
     }
@@ -521,7 +537,7 @@ export function usePrefixManager() {
       const updatedNamespace = updates.namespace ? normalizeNamespace(updates.namespace) : current.namespace;
 
       // Basic validation for updates
-      if (updates.prefix && !/^[a-zA-Z_][a-zA-Z0-9_-]*$/.test(updates.prefix)) {
+      if (updates.prefix !== undefined && !PREFIX_LABEL.test(updates.prefix)) {
         console.warn('Cannot update prefix: invalid prefix format.');
         return;
       }
@@ -660,6 +676,7 @@ export function usePrefixManager() {
     // Abbreviation
     abbreviateIri,
     expandPrefix,
+    namespaceFor,
 
     // Management
     addPrefix,

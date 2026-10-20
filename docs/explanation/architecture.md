@@ -13,7 +13,7 @@ it, or things that run without it.
 
 | Package | What it is | Depends on |
 | --- | --- | --- |
-| `api` | The Fastify server: routes, persistence, execution, auth, cache | `contracts`, `types`, `tools`, `srl`, `rdf-delta`, `runtime` |
+| `api` | The Fastify server: routes, persistence, execution, auth, cache | `contracts`, `types`, `tools`, `srl`, `rdf-delta`, `runtime`, `compiler`, `runtime-duckdb` |
 | `web` | The Nuxt 4 single-page application | `types`, `runtime` (and `contracts` by path alias) |
 | `mcp-server` | An MCP server that mounts the Fastify app in process | `api`, `contracts`, `tools`, `types` |
 | `contracts` | Generated JSON Schema and zod schemas for every entity and route | — |
@@ -21,8 +21,10 @@ it, or things that run without it.
 | `types` | Shared constants and types, including the feature-flag table | — |
 | `srl` | The SHACL 1.2 Shape Rules Language parser, compiler and stratifier | — |
 | `rdf-delta` | Derives what a SPARQL update would add and remove, without running it | — |
+| `compiler` | The SPARQL parser: parse, detect parameters, apply arguments, compile verified templates | `runtime` |
 | `runtime` | The parser-free runtime a static export bundle runs on | — |
 | `runtime-oxigraph` | An Oxigraph-backed executor for that runtime | — |
+| `runtime-duckdb` | The sandboxed DuckDB that reads ETL sources, under a profile the host supplies | — |
 
 `runtime` and `runtime-oxigraph` are the only two packages that are not
 `private: true`. Everything else is internal to the repository.
@@ -34,13 +36,19 @@ needed rather than a tidiness exercise.
 
 **A package exists where a second host needs the same code.** `runtime` holds
 the argument-application code — `serializeTerm`, `alignArgumentSets`,
-`substituteLimitOffset` — and `packages/api/src/lib/parser.ts` imports it rather
+`substituteLimitOffset` — and `compiler`, which holds the parser, imports it rather
 than reimplementing it. The comment at that import states the reason: importing
 rather than copying is what makes "the client substitutes exactly as the server
 does" true by construction. The same argument produced `rdf-delta` as a package
 with no Fastify, no `fs` and no network dependency: server-side apply,
 browser-side apply and worker-side apply are then the same code, and where the
 patch log eventually lives becomes a choice of sink rather than a rewrite.
+`compiler` follows the same line: the parser, input detection and template
+compilation run in the API and in the command-line tool, so neither carries a
+copy. The API wraps it only to send its diagnostics to OpenTelemetry.
+`runtime-duckdb` follows the same line: the API and the command-line tool
+read ETL sources through one sandbox. The API supplies a profile read from the
+environment; the tool supplies one from its flags.
 
 **A package exists where two consumers must agree about a document.**
 `contracts` holds the generated schemas, and `tools` holds the MCP catalogue

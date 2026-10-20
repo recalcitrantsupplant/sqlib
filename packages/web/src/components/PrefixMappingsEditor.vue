@@ -97,7 +97,7 @@
                   :model-value="row.mapping.enabled"
                   :disabled="editingId === row.mapping.id"
                   :title="row.mapping.enabled ? 'Enabled' : 'Disabled'"
-                  :aria-label="`Enable ${row.mapping.prefix}`"
+                  :aria-label="`Enable ${row.mapping.prefix}:`"
                   @update:model-value="togglePrefixEnabled(row.mapping.id)"
                 />
               </div>
@@ -105,7 +105,7 @@
               <div class="cell select-cell">
                 <Checkbox
                   :model-value="selectedIds.has(row.mapping.id)"
-                  :aria-label="`Add ${row.mapping.prefix} to the editor`"
+                  :aria-label="`Add ${row.mapping.prefix}: to the editor`"
                   data-testid="select-prefix"
                   @update:model-value="(value) => setSelected(row.mapping.id, value === true)"
                 />
@@ -608,10 +608,8 @@ function startEdit(mapping: PrefixMapping) {
 
 function saveEdit() {
   if (!editingId.value) return;
-  if (!editForm.value.prefix.trim()) {
-    toast.error('Prefix cannot be empty.');
-    return;
-  }
+  // An empty prefix is allowed: it is `PREFIX : <…>`.
+  editForm.value.prefix = editForm.value.prefix.trim();
   if (!editForm.value.namespace.trim()) {
     toast.error('Namespace cannot be empty.');
     return;

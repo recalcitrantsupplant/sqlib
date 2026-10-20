@@ -112,3 +112,43 @@ describe('httpExecutor', () => {
     expect(error).toBeInstanceOf(SparqlEndpointError);
   });
 });
+
+describe('httpExecutor updates', () => {
+  it('has no update method unless an update endpoint is given', () => {
+    const executor = httpExecutor('https://example.org/sparql', { fetch: vi.fn() });
+    expect(executor.update).toBeUndefined();
+  });
+
+  it('POSTs a SPARQL UPDATE to the update endpoint, with the caller headers', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    const executor = httpExecutor('https://example.org/query', {
+      fetch: fetchMock,
+      updateEndpoint: 'https://example.org/update',
+      headers: { Authorization: 'Bearer t' },
+    });
+    const updateText = 'INSERT DATA { <urn:a> <urn:b> <urn:c> }';
+
+    await executor.update!({ updateText });
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('https://example.org/update');
+    expect(init.method).toBe('POST');
+    expect(init.headers['Content-Type']).toBe('application/sparql-update');
+    expect(init.headers.Authorization).toBe('Bearer t');
+    expect(init.body).toBe(updateText);
+  });
+
+  it('raises SparqlEndpointError when the update is refused', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('no', { status: 403, statusText: 'Forbidden' }));
+    const executor = httpExecutor('https://example.org/query', {
+      fetch: fetchMock,
+      updateEndpoint: 'https://example.org/update',
+    });
+
+    await expect(executor.update!({ updateText: 'CLEAR ALL' })).rejects.toMatchObject({
+      name: 'SparqlEndpointError',
+      status: 403,
+      body: 'no',
+    });
+  });
+});
