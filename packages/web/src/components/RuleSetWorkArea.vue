@@ -444,6 +444,8 @@ const dataGraphInlineFormat = ref<DataGraphFormat>('text/turtle');
 const dataGraphOptions = ref<DataGraphOption[]>([]);
 /** The selected data graph's content, so the Inputs tab can show it. */
 const savedDataPreview = ref('');
+/** The format the saved graph is stored in, which need not be the inline picker's. */
+const savedDataFormat = ref<string>('text/turtle');
 const savingDataGraph = ref(false);
 const savingTest = ref(false);
 const savingBenchmark = ref(false);
@@ -562,8 +564,14 @@ const tupleExtensions = computed<Extension[]>(() => [
   }),
   rdfSyntaxHighlighting,
 ]);
-const inputExtensions = shallowRef<Extension[]>([
-  ...languageExtensionsFor('application/sparql-query'),
+/*
+ * The Inputs tab's data box holds an RDF graph, so it is parsed in the format
+ * the graph is in — the inline picker's, or the saved version's. A computed so
+ * that switching either re-parses: since the grammars carry a parse-error
+ * linter, a graph read with the wrong grammar is underlined from end to end.
+ */
+const inputExtensions = computed<Extension[]>(() => [
+  ...languageExtensionsFor(dataSource.value === 'saved' ? savedDataFormat.value : dataGraphInlineFormat.value),
   rdfSyntaxHighlighting,
 ]);
 const readOnlyExtensions = shallowRef<Extension[]>([
@@ -2048,6 +2056,7 @@ async function loadSavedDataPreview() {
   try {
     const { data: version } = await apiClient.getDataGraphVersion(option.graphId, option.version);
     savedDataPreview.value = version.contentString ?? '';
+    savedDataFormat.value = version.contentFormat || 'text/turtle';
   } catch (error) {
     console.warn('[RuleSetWorkArea] Failed to read the selected data graph:', error);
     savedDataPreview.value = '';

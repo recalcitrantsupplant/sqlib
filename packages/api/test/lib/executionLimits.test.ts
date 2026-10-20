@@ -179,6 +179,9 @@ describe('rule set runs', () => {
   });
 
   it('report each rule\'s quads only under trace', async () => {
+    // Pinned, not inherited: on CI the cap the test above stubs has been seen
+    // to outlive its unstub, and a run stopped at 2 passes never converges.
+    vi.stubEnv('SQLIB_MAX_RULE_ITERATIONS', '1000');
     const ids = closure();
     const plain = await new RuleSetExecutor().execute(ruleSetVersion(ids), { initialGraph: chain, maxIterations: 25 });
     const traced = await new RuleSetExecutor().execute(ruleSetVersion(ids), { initialGraph: chain, maxIterations: 25, trace: true });

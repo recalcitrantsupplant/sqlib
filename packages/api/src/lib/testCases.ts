@@ -11,6 +11,12 @@ import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
 import type { LdkitTestCase } from '../persistence/schemas/TestCaseSchema.js';
 import type { LdkitTestCaseDataGraph } from '../persistence/schemas/TestCaseDataGraphSchema.js';
 
+/**
+ * A case as the runner reads it. A draft case has no stored
+ * `TestCaseDataGraph` children, so it carries its graph list inline.
+ */
+export type RunnableTestCase = LdkitTestCase & { draftDataGraphVersions?: string[] };
+
 /** A version's stored cases, in `position` order. Empty for a version written before cases existed. */
 export function listStoredCases(testVersionId: string): LdkitTestCase[] {
   return (getCacheCoordinator().list('TestCase') as unknown as LdkitTestCase[])

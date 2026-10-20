@@ -52,16 +52,38 @@ function storedTest(id: string, name: string) {
   };
 }
 
+/*
+ * In the shape the API returns now, so the switch loads a whole test. The old
+ * shape failed the client's schema, so every switch landed on an empty editor
+ * and this guard never saw a real case. No backend is named, so both tests
+ * carry a save problem: the warning has to stay put across the switch too.
+ */
 function storedVersion(id: string) {
   return {
     id: `${id}:v1`,
     isPartOf: id,
     version: 1,
     immutable: true,
-    backend: null,
     expectationKind: 'bindings',
-    expected: '{"head":{"vars":["s"]},"results":{"bindings":[]}}',
-    cases: [{ name: 'Case 1', dataGraph: null, argumentSet: null }],
+    cases: [{
+      id: `${id}:case-1`,
+      isPartOf: `${id}:v1`,
+      position: 0,
+      name: 'Case 1',
+      argumentSetVersion: null,
+      dataGraphVersion: null,
+      tupleSeeds: null,
+      expected: '{"head":{"vars":["s"]},"results":{"bindings":[]}}',
+      expectedFormat: null,
+      ordered: false,
+      dateCreated: '2026-01-01T00:00:00.000Z',
+      dateModified: '2026-01-01T00:00:00.000Z',
+    }],
+    subjectVersion: null,
+    backend: null,
+    maxIterations: null,
+    timeoutMs: null,
+    comment: null,
     dateCreated: '2026-01-01T00:00:00.000Z',
     dateModified: '2026-01-01T00:00:00.000Z',
   };
@@ -134,6 +156,9 @@ test('switching between saved tests swaps in place', async ({ page }) => {
   counting = true;
   await row('Test 2').click();
   await expect(page.getByTestId('details-name')).toHaveValue('Test 2');
+  // The whole test arrived, not only its record.
+  await expect(page.getByTestId('test-case-tab-0')).toHaveText(/Case 1/);
+  await expect(page.getByTestId('test-save-problems')).toBeVisible();
   await page.waitForTimeout(1_500);
   counting = false;
 

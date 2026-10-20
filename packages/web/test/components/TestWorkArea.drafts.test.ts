@@ -28,6 +28,8 @@ const api = vi.hoisted(() => ({
   updateTest: vi.fn(),
   // The Tags field loads the library's vocabulary for its picker.
   listTags: vi.fn().mockResolvedValue([]),
+  // Run with unsaved edits sends the editor's body, not the saved version.
+  runTestDraft: vi.fn(),
 }));
 const store = vi.hoisted(() => {
   /*
@@ -185,6 +187,87 @@ beforeEach(() => {
 });
 
 describe('TestWorkArea — drafts', () => {
+  it('offers prefix conversions on the expectation, and focus view on a picked data graph', async () => {
+    store.loadVersions.mockResolvedValue([{
+      id: 'urn:sqlib:test-version:v1',
+      version: 1,
+      expectationKind: 'graph',
+      subjectVersion: null,
+      backend: null,
+      cases: [{
+        name: null,
+        expected: SAVED_EXPECTED,
+        expectedFormat: 'text/turtle',
+        ordered: null,
+        dataGraphVersion: 'urn:sqlib:data-graph-version:companies',
+      }],
+    }]);
+    const area = await mountSaved();
+
+    // A graph expectation is Turtle, so it can be folded to prefixes and back.
+    expect(area.find('[data-testid="prefix-fold-button"]').exists()).toBe(true);
+    expect(area.find('[data-testid="iri-unfold-button"]').exists()).toBe(true);
+    // The picked graph can be opened over the page from the picker's row.
+    expect(area.find('[data-testid="test-data-graph-expand-button"]').exists()).toBe(true);
+  });
+
+  it('shows no save problems while the saved test is still loading its cases', async () => {
+    // The subject arrives a request before the cases; in between, every case
+    // reads as missing its expectation, and the warning flashed then vanished.
+    let release: (versions: unknown[]) => void = () => {};
+    store.loadVersions.mockReturnValueOnce(new Promise((resolve) => { release = resolve; }));
+    const TestWorkArea = (await import('@/components/TestWorkArea.vue')).default;
+    const area = mount(TestWorkArea, { props: { testId: TEST_ID, scratchId: null } });
+    await flushPromises();
+
+    expect(area.find('[data-testid="test-save-problems"]').exists()).toBe(false);
+
+    release([{
+      id: 'urn:sqlib:test-version:v1',
+      version: 1,
+      expectationKind: 'graph',
+      subjectVersion: null,
+      backend: null,
+      cases: [{ name: null, expected: SAVED_EXPECTED, expectedFormat: 'text/turtle', ordered: null }],
+    }]);
+    await flushPromises();
+    expect(area.find('[data-testid="test-save-problems"]').exists()).toBe(false);
+  });
+
+  it('runs the unsaved edits, not the saved version, and keeps the verdict out of the store', async () => {
+    const verdict = {
+      testId: TEST_ID, testVersionId: `${TEST_ID}#draft`, passed: true, message: '', expectationKind: 'graph',
+      hermetic: true, durationMs: 3, subjectVersionId: null, ranAt: '2026-10-19T00:00:00.000Z',
+      cases: [{ caseId: 'c0', name: 'Case 1', position: 0, passed: true, message: '', durationMs: 3 }],
+      passedCount: 1, failedCount: 0,
+    };
+    api.runTestDraft.mockResolvedValue(verdict);
+    const area = await mountSaved();
+    await edit(area, 'the edited expectation .');
+
+    await (area.vm as unknown as { run: () => Promise<void> }).run();
+    await flushPromises();
+
+    expect(store.runTest).not.toHaveBeenCalled();
+    expect(api.runTestDraft).toHaveBeenCalledWith(TEST_ID, expect.objectContaining({
+      expectationKind: 'graph',
+      cases: [expect.objectContaining({ expected: 'the edited expectation .' })],
+    }));
+    // The verdict answers for the editor, not for the saved test the rail shows.
+    expect(store.lastRunByTest.value[TEST_ID]).toBeUndefined();
+    expect(area.get('[data-testid="test-case-tab-0"]').exists()).toBe(true);
+  });
+
+  it('runs the saved version when there are no unsaved edits', async () => {
+    const area = await mountSaved();
+
+    await (area.vm as unknown as { run: () => Promise<void> }).run();
+    await flushPromises();
+
+    expect(api.runTestDraft).not.toHaveBeenCalled();
+    expect(store.runTest).toHaveBeenCalledWith(TEST_ID);
+  });
+
   it('keeps unsaved edits as a draft, and counts them in the pill', async () => {
     const area = await mountSaved();
     expect(area.find('[data-testid="draft-pill"]').exists()).toBe(false);

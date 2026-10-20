@@ -60,6 +60,13 @@ because that deployment was upgraded. See the [ETL guide](../guides/etl.md).
 provider, and it can reach a configured backend. See
 [the security model](../explanation/security-model.md).
 
+The assistant's provider SDK (`ai`, `@ai-sdk/*`) is an optional dependency of
+the api package. Nothing else uses it: MCP clients bring their own model. To
+build a server image without it, pass `--build-arg WITH_ASSISTANT=false` to
+`docker build`. If `FEATURE_ASSISTANT` is on and the packages are missing, the
+server still starts, logs a warning, and each assistant turn fails with a
+message that names the missing packages.
+
 **`ruleTuples`.** The extension it gates is not conformant SHACL 1.2 Rules, so a
 document written with it on cannot be read by other tooling. A build that has
 not asked for the extension should not offer an author a way to write such a

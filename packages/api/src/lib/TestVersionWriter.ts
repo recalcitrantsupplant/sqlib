@@ -8,6 +8,7 @@ import { isSrlCheck, SRL_CHECKS } from './srlChecks.js';
 import { checkSubjectKindInputs, isSubjectKind } from './subjectKinds.js';
 import type { LdkitTest } from '../persistence/schemas/TestSchema.js';
 import { ValidationError } from './validationError.js';
+import type { RunnableTestCase } from './testCases.js';
 
 type AnyRecord = Record<string, unknown>;
 
@@ -245,6 +246,56 @@ function validateSubjectKindInputs(testId: string, body: TestVersionInput, cases
    * group in hand — and `ExecutionEngine.seedStartNodeDataGraphs` answers it,
    * in both directions, with a hard error.
    */
+}
+
+/** An unsaved version and its cases, held in memory only. */
+export interface DraftTestVersion {
+  version: LdkitTestVersion;
+  cases: RunnableTestCase[];
+}
+
+/**
+ * Build a version from a body without writing anything.
+ *
+ * Validated exactly as a save is, so a draft that runs is one that would
+ * save. Run by `POST /tests/:id/run` with a `draft`, which is how a
+ * read-only deployment tries changed inputs: it refuses the save, not the run.
+ */
+export function buildDraftTestVersion(test: LdkitTest, body: TestVersionInput): DraftTestVersion {
+  const expectationKind = validateExpectationKind(body.expectationKind);
+  const inputs = body.cases?.length ? body.cases : [{}];
+  validateSubjectKindInputs(test.$id, body, inputs);
+
+  const versionId = `${test.$id}#draft`;
+  const cases = inputs.map((testCase, index): RunnableTestCase => {
+    validateCase(expectationKind, testCase, index);
+    return {
+      $id: `${versionId}-case-${index}`,
+      isPartOf: versionId,
+      position: index,
+      name: testCase.name?.trim() || undefined,
+      argumentSetVersion: testCase.argumentSetVersion ?? undefined,
+      dataGraphVersion: testCase.dataGraphVersion ?? undefined,
+      draftDataGraphVersions: testCase.dataGraphs?.map(graph => graph.dataGraphVersion),
+      tupleSeeds: testCase.tupleSeeds ?? undefined,
+      sqlFixture: testCase.sqlFixture ?? undefined,
+      expected: expectationKind === 'smoke' ? undefined : testCase.expected ?? undefined,
+      expectedFormat: testCase.expectedFormat ?? undefined,
+      ordered: testCase.ordered ?? undefined,
+    } as RunnableTestCase;
+  });
+
+  const version = {
+    $id: versionId,
+    isPartOf: test.$id,
+    expectationKind,
+    subjectVersion: body.subjectVersion ?? undefined,
+    backend: body.backend ?? undefined,
+    maxIterations: body.maxIterations ?? undefined,
+    timeoutMs: body.timeoutMs ?? undefined,
+  } as unknown as LdkitTestVersion;
+
+  return { version, cases };
 }
 
 /**

@@ -30,11 +30,6 @@ import {
 
 const SPEC_LINK = 'https://w3c.github.io/data-shapes/shacl12-rules/#relationship-to-sparql';
 
-const TUPLE_HELP = 'Tuple blocks: a read compiles to an all-UNDEF VALUES row — a parameter slot '
-  + 'the executor fills from the tuple store, one column per position — so the program is only '
-  + 'equivalent once the rows are substituted. A write compiles to a SELECT captured into the '
-  + 'ephemeral store, which is why it has no CONSTRUCT variant. SRL spec § Relationship to SPARQL';
-
 const props = withDefaults(defineProps<{
   /** The document itself — this tab compiles it. */
   document: string;
@@ -250,7 +245,6 @@ const exportPrograms = () => {
         v-if="tupleHead"
         class="segmented inert"
         data-testid="sparql-flavour-inert"
-        :title="TUPLE_HELP"
       >
         <span class="segment active">SELECT</span>
       </div>
@@ -269,9 +263,6 @@ const exportPrograms = () => {
           {{ option.label }}
         </button>
       </div>
-      <button class="help-dot" type="button" tabindex="-1" :title="TUPLE_HELP">
-        <Info :size="12" />
-      </button>
       <button
         class="ghost-button export"
         type="button"
@@ -434,33 +425,6 @@ const exportPrograms = () => {
   background: var(--segment-selected);
   color: var(--segment-selected-ink);
   font-weight: var(--weight-semibold);
-}
-
-.segmented.inert {
-  cursor: help;
-}
-
-.segmented.inert .segment {
-  cursor: help;
-}
-
-.help-dot {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  width: var(--control-h-sm);
-  height: var(--control-h-sm);
-  border: none;
-  border-radius: var(--radius);
-  background: transparent;
-  color: var(--ink-muted);
-  cursor: help;
-}
-
-.help-dot:hover {
-  background: var(--surface-sunken);
-  color: var(--ink-secondary);
 }
 
 .ghost-button {

@@ -1214,17 +1214,52 @@ async function removeSet() {
   }
 }
 
+/** Which `load` call is the latest, so a slow reply for a set already left is dropped. */
+let loadSequence = 0;
+
+/** Empty the record: no set open, or the one asked for could not be read. */
+function clearRecord() {
+  setLibraryId.value = null;
+  setCreatedAt.value = null;
+  loadedVersionId.value = null;
+  loadedVersionContent.value = '';
+  savedContent.value = '';
+  savedFormat.value = 'csv';
+  sniffedFormat.value = null;
+  previewDoc.value = null;
+  previewedFor = '';
+  builderColumns.value = [];
+  builderRows.value = [];
+}
+
+/**
+ * Load a saved tuple set into the editor, in one step.
+ *
+ * The record and its versions are fetched together and applied together.
+ * Applied piecemeal, the new set's name sat over the last set's rows until
+ * the versions came back, and a switch emptied the grid first. A set whose
+ * versions cannot be read still opens, named and empty.
+ */
 async function load(id: string) {
+  const sequence = ++loadSequence;
   hydratingRecord.value = true;
   try {
-    const tupleSet = await store.getTupleSet(id);
+    const [tupleSet, setVersions] = await Promise.all([
+      store.getTupleSet(id),
+      store.loadVersions(id).catch((error: unknown) => {
+        console.error('[TupleSetWorkArea] Could not read the versions of', id, error);
+        return [] as Awaited<ReturnType<typeof store.loadVersions>>;
+      }),
+    ]);
+    if (sequence !== loadSequence) return;
+
     setName.value = tupleSet.name;
     description.value = tupleSet.description ?? '';
     currentVersionId.value = tupleSet.currentVersion ?? null;
     setCreatedAt.value = (tupleSet as { dateCreated?: string | null }).dateCreated ?? null;
     setLibraryId.value = (tupleSet as { isPartOf?: string[] }).isPartOf?.[0] ?? null;
 
-    versions.value = await store.loadVersions(id);
+    versions.value = setVersions;
     const current = versions.value.find((version) => version.id === tupleSet.currentVersion)
       ?? versions.value.at(-1);
     savedContent.value = current?.contentString ?? '';
@@ -1255,11 +1290,26 @@ async function load(id: string) {
      * editor is for getting data *in*, not for living in.
      */
     mode.value = draft?.mode ?? 'build';
+    // The last set's grid goes in the same step the new content arrives in.
+    builderColumns.value = [];
+    builderRows.value = [];
     if (mode.value === 'build') adoptBuilderFrom(contentString.value);
+    // The preview is redrawn for the new content; the old one stands until then.
+    previewedFor = '';
+  } catch (error) {
+    // Never the last set's rows under this one's id, where a save would land them.
+    if (sequence === loadSequence) {
+      clearRecord();
+      setName.value = '';
+      description.value = '';
+      contentString.value = '';
+    }
+    toast.error(error instanceof Error ? error.message : 'Failed to load the tuple set');
   } finally {
-    // Cleared after the refs settle, so hydration never lands as an edit.
+    // Cleared after the refs settle, so hydration never lands as an edit; and
+    // only by the latest load, which an older one finishing late must not end.
     await Promise.resolve();
-    hydratingRecord.value = false;
+    if (sequence === loadSequence) hydratingRecord.value = false;
   }
 }
 
@@ -1275,20 +1325,16 @@ watch(
     // opened; letting it fire would write the old body under the new id.
     cancelDraftSave();
     setId.value = next ?? null;
-    setLibraryId.value = null;
-    setCreatedAt.value = null;
-    loadedVersionId.value = null;
-    loadedVersionContent.value = '';
-    savedContent.value = '';
-    savedFormat.value = 'csv';
     saveError.value = null;
-    sniffedFormat.value = null;
     importError.value = null;
-    previewDoc.value = null;
-    previewedFor = '';
-    builderColumns.value = [];
-    builderRows.value = [];
-    if (next) void load(next);
+    // A saved set swaps in place: the one on screen stays until `load`
+    // replaces all of it at once. Only leaving every set empties it.
+    if (next) {
+      void load(next);
+      return;
+    }
+    loadSequence += 1;
+    clearRecord();
   },
 );
 

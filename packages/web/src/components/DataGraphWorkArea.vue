@@ -47,14 +47,15 @@
             here — to run queries against a graph, attach it to a backend under Backends.
           </InlineNote>
 
-          <Toolbar variant="plain" wrap>
+          <Toolbar variant="plain" wrap class="content-toolbar">
             <template #start>
               <!--
                 Format is with the content, not with the name: it says how the
                 text below is to be read, and it changes when an upload changes
                 the text.
               -->
-              <FormField label="Format">
+              <label class="format-field">
+                <SectionLabel as="span">Format</SectionLabel>
                 <select
                   class="control control-inline"
                   data-testid="data-graph-content-format"
@@ -65,7 +66,7 @@
                     {{ format.label }}
                   </option>
                 </select>
-              </FormField>
+              </label>
               <button class="upload-button" type="button" data-testid="data-graph-upload" @click="pickFile">
                 <Upload :size="13" />
                 Upload a file…
@@ -78,16 +79,6 @@
                 :accept="ACCEPTED_EXTENSIONS"
                 @change="onFileChosen"
               />
-              <!--
-                Shows itself only for a format with a grammar to convert
-                against: N-Triples and N-Quads have no prefix mechanism, so
-                there is nothing here to offer for them.
-              -->
-              <PrefixConversionButtons
-                :code="contentString"
-                :content-type="contentFormat"
-                @update:code="(value: string) => (contentString = value)"
-              />
             </template>
             <span class="content-meta" data-testid="data-graph-size">{{ sizeSummary }}</span>
             <!--
@@ -97,6 +88,17 @@
               covering the prefixes.
             -->
             <template #end>
+              <!--
+                Shows itself only for a format with a grammar to convert
+                against: N-Triples and N-Quads have no prefix mechanism, so
+                there is nothing here to offer for them. On the right, beside
+                Expand: like it, they act on the whole document.
+              -->
+              <PrefixConversionButtons
+                :code="contentString"
+                :content-type="contentFormat"
+                @update:code="(value: string) => (contentString = value)"
+              />
               <ExpandButton
                 v-if="!contentExpanded"
                 subject="this data graph"
@@ -203,7 +205,6 @@ import EditableRdfViewer from './EditableRdfViewer.vue';
 import { prefixSourceToken } from '@/lib/prefixSources';
 import ExpandableEditor from './shared/ExpandableEditor.vue';
 import ExpandButton from './shared/ExpandButton.vue';
-import FormField from './shared/FormField.vue';
 import SectionLabel from './shared/SectionLabel.vue';
 import Toolbar from './shared/Toolbar.vue';
 import PrefixConversionButtons from './shared/PrefixConversionButtons.vue';
@@ -787,17 +788,47 @@ async function removeGraph() {
   }
 }
 
+/** Which `load` call is the latest, so a slow reply for a graph already left is dropped. */
+let loadSequence = 0;
+
+/** Empty the record: no graph open, or the one asked for could not be read. */
+function clearRecord() {
+  graphLibraryId.value = null;
+  graphCreatedAt.value = null;
+  loadedVersionId.value = null;
+  loadedVersionContent.value = '';
+  savedContent.value = '';
+  savedFormat.value = 'text/turtle';
+}
+
+/**
+ * Load a saved graph into the editor, in one step.
+ *
+ * The record and its versions are fetched together and applied together.
+ * Applied piecemeal, the new graph's name sat over the last graph's text
+ * until the versions came back. A graph whose versions cannot be read still
+ * opens, named and empty.
+ */
 async function load(id: string) {
+  const sequence = ++loadSequence;
   hydratingRecord.value = true;
   try {
-    const graph = await store.getDataGraph(id);
+    const [graph, graphVersions] = await Promise.all([
+      store.getDataGraph(id),
+      store.loadVersions(id).catch((error: unknown) => {
+        console.error('[DataGraphWorkArea] Could not read the versions of', id, error);
+        return [] as Awaited<ReturnType<typeof store.loadVersions>>;
+      }),
+    ]);
+    if (sequence !== loadSequence) return;
+
     graphName.value = graph.name;
     description.value = graph.description ?? '';
     currentVersionId.value = graph.currentVersion ?? null;
     graphCreatedAt.value = (graph as { dateCreated?: string | null }).dateCreated ?? null;
     graphLibraryId.value = (graph as { isPartOf?: string[] }).isPartOf?.[0] ?? null;
 
-    versions.value = await store.loadVersions(id);
+    versions.value = graphVersions;
     const current = versions.value.find((version) => version.id === graph.currentVersion)
       ?? versions.value.at(-1);
     savedContent.value = current?.contentString ?? '';
@@ -819,10 +850,20 @@ async function load(id: string) {
       : savedContent.value;
     contentFormat.value = draft?.contentFormat ?? savedFormat.value;
     if (typeof draft?.description === 'string') description.value = draft.description;
+  } catch (error) {
+    // Never the last graph's text under this one's id, where a save would land it.
+    if (sequence === loadSequence) {
+      clearRecord();
+      graphName.value = '';
+      description.value = '';
+      contentString.value = '';
+    }
+    toast.error(error instanceof Error ? error.message : 'Failed to load the data graph');
   } finally {
-    // Cleared after the refs settle, so hydration never lands as an edit.
+    // Cleared after the refs settle, so hydration never lands as an edit; and
+    // only by the latest load, which an older one finishing late must not end.
     await Promise.resolve();
-    hydratingRecord.value = false;
+    if (sequence === loadSequence) hydratingRecord.value = false;
   }
 }
 
@@ -838,14 +879,15 @@ watch(
     // opened; letting it fire would write the old body under the new id.
     cancelDraftSave();
     graphId.value = next ?? null;
-    graphLibraryId.value = null;
-    graphCreatedAt.value = null;
-    loadedVersionId.value = null;
-    loadedVersionContent.value = '';
-    savedContent.value = '';
-    savedFormat.value = 'text/turtle';
     saveError.value = null;
-    if (next) void load(next);
+    // A saved graph swaps in place: the one on screen stays until `load`
+    // replaces all of it at once. Only leaving every graph empties it.
+    if (next) {
+      void load(next);
+      return;
+    }
+    loadSequence += 1;
+    clearRecord();
   },
 );
 </script>
@@ -944,6 +986,11 @@ watch(
   min-height: var(--grid-6);
 }
 
+/* A little air between the controls and the document they act on. */
+.content-toolbar {
+  margin-bottom: var(--space-3);
+}
+
 /* Where the hint sits under its section label is the section's fact. */
 .group-hint {
   margin: var(--space-2) 0 var(--space-4);
@@ -964,6 +1011,16 @@ watch(
   color: var(--ink);
   font-family: inherit;
   font-size: var(--text-label);
+}
+
+/*
+ * Label and select on one row, so the select lines up with Upload and the
+ * conversion buttons beside it. A stacked label pushed it a row lower.
+ */
+.format-field {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
 }
 
 /* In a toolbar the format select sizes to its options rather than the row. */

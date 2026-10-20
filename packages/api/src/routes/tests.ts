@@ -26,7 +26,7 @@ import { getCacheCoordinator, getEntityRepositories } from '../lib/CacheCoordina
 import { analyseReferences, describeWrongType } from '../lib/entityReferences.js';
 import { inheritableTags } from '../lib/tagMembership.js';
 import { createTestSchema, updateTestSchema } from '@sparql-query-lib/contracts/schema';
-import { createTestVersion, annotateTestVersion, TestVersionError } from '../lib/TestVersionWriter.js';
+import { createTestVersion, annotateTestVersion, buildDraftTestVersion, TestVersionError } from '../lib/TestVersionWriter.js';
 import {
   ENTITY_TYPE_FOR_SUBJECT_KIND,
   SUBJECT_KINDS,
@@ -917,6 +917,11 @@ export default async function (fastify: FastifyInstance) {
         type: 'object',
         properties: {
           version: { type: 'integer', nullable: true },
+          /**
+           * An unsaved version body to run instead of a stored version: what
+           * the editor holds. Validated as a save is, run, and not recorded.
+           */
+          draft: { ...createTestVersionBodySchema, nullable: true },
         },
         additionalProperties: false,
       },
@@ -936,6 +941,36 @@ export default async function (fastify: FastifyInstance) {
     const test = repos.Test.get(id) as LdkitTest | null;
     if (!test) {
       return reply.status(404).send({ error: 'Test not found' });
+    }
+
+    const draftBody = request.body?.draft;
+    if (draftBody) {
+      if (typeof request.body?.version === 'number') {
+        return reply.status(400).send({ error: 'Run a version or a draft, not both' });
+      }
+      // The same reach a save of this body would need: a draft names its
+      // backend as a version does, and running there is what it asks for.
+      if (draftBody.backend) {
+        assertBackendAccess(
+          { request, viaLibrary: resolveOwningLibrary(getCacheCoordinator().get(test.subject)) },
+          String(draftBody.backend),
+        );
+      }
+      try {
+        const draft = buildDraftTestVersion(
+          test,
+          draftBody as unknown as Parameters<typeof buildDraftTestVersion>[1],
+        );
+        const result = await new TestRunner({ request }).runDraft(test, draft);
+        // Not recorded: a draft is not a version, so its verdict is not part
+        // of the test's history. Nor is it exportable; this route answers JSON.
+        return reply.send(result);
+      } catch (error) {
+        if (error instanceof TestNotRunnableError || error instanceof TestVersionError) {
+          return reply.status(400).send({ error: error.message });
+        }
+        throw error;
+      }
     }
 
     const requestedVersion = request.body?.version;

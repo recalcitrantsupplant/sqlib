@@ -77,3 +77,21 @@ export const unconfiguredModelClientFactory: ModelClientFactory = (credentials) 
     );
   },
 });
+
+/**
+ * The factory used when the assistant is on but the AI SDK is not installed.
+ *
+ * `ai` and `@ai-sdk/*` are optional dependencies, so an MCP-only deployment can
+ * leave them out. A turn then fails with the fix in the message, not with a
+ * module-resolution error from somewhere inside the turn loop.
+ */
+export const missingAiSdkModelClientFactory: ModelClientFactory = (credentials) => ({
+  modelId: `${credentials.provider}/${credentials.model}`,
+  // eslint-disable-next-line require-yield
+  async *stream() {
+    throw new Error(
+      'The assistant is enabled, but this server was installed without its optional AI SDK packages ' +
+        '(`ai`, `@ai-sdk/*`). Install the optional dependencies of @sparql-query-lib/api to use it.'
+    );
+  },
+});
