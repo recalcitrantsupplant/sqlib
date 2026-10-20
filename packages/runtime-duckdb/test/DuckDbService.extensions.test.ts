@@ -10,7 +10,7 @@
  * default capability profile refuses before any request is made.
  */
 import { describe, it, expect } from 'vitest';
-import { DuckDbService } from '../../src/lib/DuckDbService.js';
+import { DUCKDB_CLOSED_PROFILE, DUCKDB_LIMIT_DEFAULTS, DuckDbService } from '../src/index.js';
 
 let duckdbAvailable = true;
 try {
@@ -21,7 +21,7 @@ try {
 
 describe.skipIf(!duckdbAvailable)('DuckDbService extension availability', () => {
   it('reports the platform extensions are published against', async () => {
-    const service = new DuckDbService();
+    const service = new DuckDbService(DUCKDB_CLOSED_PROFILE, DUCKDB_LIMIT_DEFAULTS);
     await service.waitForInit();
 
     const platform = await service.getPlatform();
@@ -34,7 +34,7 @@ describe.skipIf(!duckdbAvailable)('DuckDbService extension availability', () => 
   it('reports a failed install rather than throwing, naming the platform it failed on', async () => {
     // The default profile has `enable_external_access=false`, so the install
     // fails inside DuckDB without a request leaving the process.
-    const service = new DuckDbService();
+    const service = new DuckDbService(DUCKDB_CLOSED_PROFILE, DUCKDB_LIMIT_DEFAULTS);
     await service.waitForInit();
 
     const result = await service.checkExtension('webbed', { repository: 'community' });
@@ -47,7 +47,7 @@ describe.skipIf(!duckdbAvailable)('DuckDbService extension availability', () => 
   });
 
   it('refuses anything that is not an extension identifier', async () => {
-    const service = new DuckDbService();
+    const service = new DuckDbService(DUCKDB_CLOSED_PROFILE, DUCKDB_LIMIT_DEFAULTS);
     await service.waitForInit();
 
     await expect(service.checkExtension('webbed; DROP TABLE t')).rejects.toThrow(/Not an extension name/);

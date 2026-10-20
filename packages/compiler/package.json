@@ -1,0 +1,36 @@
+{
+  "name": "@sparql-query-lib/compiler",
+  "version": "0.0.0",
+  "license": "SEE LICENSE IN LICENSE",
+  "private": true,
+  "type": "module",
+  "description": "The half of sqlib that needs a SPARQL parser: parse, detect parameters, apply arguments, and compile queries to the templates @sparql-query-lib/runtime splices.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@sparql-query-lib/runtime": "workspace:*",
+    "@traqula/generator-sparql-1-2": "1.4.0",
+    "@traqula/parser-sparql-1-2": "1.4.0",
+    "@traqula/rules-sparql-1-2": "1.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.2",
+    "fast-check": "^4.10.2",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.2"
+  }
+}

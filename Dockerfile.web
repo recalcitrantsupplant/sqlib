@@ -54,7 +54,7 @@ RUN npm install --global pnpm@11.1.2
 #
 # The tsconfigs are the less obvious half. The root `tsconfig.json` is a
 # solution file: `references` to types, contracts and api, and api's own
-# config references srl and runtime in turn. Vite resolves a `.vue` file's
+# config references srl, runtime, compiler and runtime-duckdb in turn. Vite resolves a `.vue` file's
 # tsconfig by walking that graph, so a *referenced* config that is not in the
 # image fails the transform of every page with
 # `[TSCONFIG_ERROR] Failed to load tsconfig '../api'` — nine build errors
@@ -63,10 +63,12 @@ RUN npm install --global pnpm@11.1.2
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY tsconfig.json tsconfig.base.json ./
 COPY packages/api/package.json packages/api/tsconfig.json packages/api/
+COPY packages/compiler/package.json packages/compiler/tsconfig.json packages/compiler/
 COPY packages/contracts/package.json packages/contracts/tsconfig.json packages/contracts/
 COPY packages/mcp-server/package.json packages/mcp-server/tsconfig.json packages/mcp-server/
 COPY packages/rdf-delta/package.json packages/rdf-delta/tsconfig.json packages/rdf-delta/
 COPY packages/runtime/package.json packages/runtime/tsconfig.json packages/runtime/
+COPY packages/runtime-duckdb/package.json packages/runtime-duckdb/tsconfig.json packages/runtime-duckdb/
 COPY packages/runtime-oxigraph/package.json packages/runtime-oxigraph/tsconfig.json packages/runtime-oxigraph/
 COPY packages/srl/package.json packages/srl/tsconfig.json packages/srl/
 COPY packages/tools/package.json packages/tools/tsconfig.json packages/tools/

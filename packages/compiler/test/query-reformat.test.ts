@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { SparqlQueryParser } from '../../src/lib/parser.js';
+import { SparqlQueryParser } from '../src/parser.js';
 
 // Reformatting now goes through the app's Traqula-based parser/generator
 // (the vendored sparqljs fork was retired). Traqula preserves declared prefixes

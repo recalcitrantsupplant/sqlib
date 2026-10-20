@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { SparqlQueryParser } from '../../src/lib/parser.js';
+import { SparqlQueryParser } from '../src/parser.js';
 
 // Define a type for the argument set structure for clarity in tests
 type ArgumentSet = {
