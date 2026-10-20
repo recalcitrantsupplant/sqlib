@@ -92,12 +92,10 @@
           the save would have returned. It sits over the fields it is about now
           that the run is no longer beside them.
 
-          Not while a saved test is loading: its subject arrives a request
-          before its cases do, and in between every case reads as missing its
-          inputs — a warning that flashed and then pushed the page up.
+          Held while a saved test loads (see `shownSaveProblems`).
         -->
-        <ul v-if="subject && !hydratingRecord && saveProblems.length" class="save-problems" data-testid="test-save-problems">
-          <li v-for="problem in saveProblems" :key="problem">{{ problem }}</li>
+        <ul v-if="shownSaveProblems.length" class="save-problems" data-testid="test-save-problems">
+          <li v-for="problem in shownSaveProblems" :key="problem">{{ problem }}</li>
         </ul>
 
         <section class="block">
@@ -1818,6 +1816,25 @@ const saveProblems = computed(() => {
   }
   return problems;
 });
+
+/*
+ * The list on screen, frozen while a saved test loads.
+ *
+ * A test's subject arrives a request before its cases, and in between every
+ * case reads as missing its inputs. Recomputed live, the list flashed in on a
+ * first load and then vanished, pushing the page about. Frozen, a first load
+ * shows nothing until the test is whole, and switching between two tests that
+ * both have problems keeps the list in place instead of dropping and redrawing it.
+ */
+const shownSaveProblems = ref<string[]>([]);
+watch(
+  [saveProblems, hydratingRecord, subject],
+  () => {
+    if (hydratingRecord.value) return;
+    shownSaveProblems.value = subject.value ? saveProblems.value : [];
+  },
+  { immediate: true },
+);
 
 const canSave = computed(() => {
   if (!testName.value.trim() || !subject.value) return false;
