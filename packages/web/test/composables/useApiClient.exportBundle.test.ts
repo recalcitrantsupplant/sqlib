@@ -29,19 +29,23 @@ describe('getLibraryExportBundle', () => {
     globalThis.__NUXT_TEST_CONFIG__ = { public: { apiBaseUrl: 'http://api.test' } };
     const fetch = recordingFetch();
     vi.stubGlobal('fetch', fetch);
-    await useApiClient().getLibraryExportBundle(LIBRARY, { examples: 'all', etl: true, ruleSets: true });
+    await useApiClient().getLibraryExportBundle(LIBRARY, {
+      examples: 'all',
+      queries: true,
+      groups: true,
+      etl: true,
+      ruleSets: true,
+    });
     const params = requestedParams(fetch);
-    expect(params.has('etl')).toBe(false);
-    expect(params.has('ruleSets')).toBe(false);
+    for (const member of ['queries', 'groups', 'etl', 'ruleSets']) expect(params.has(member)).toBe(false);
   });
 
-  it('asks for a bundle without ETL jobs or rule sets', async () => {
+  it('names each member turned off', async () => {
     globalThis.__NUXT_TEST_CONFIG__ = { public: { apiBaseUrl: 'http://api.test' } };
     const fetch = recordingFetch();
     vi.stubGlobal('fetch', fetch);
-    await useApiClient().getLibraryExportBundle(LIBRARY, { etl: false, ruleSets: false });
+    await useApiClient().getLibraryExportBundle(LIBRARY, { queries: false, groups: false, etl: false, ruleSets: false });
     const params = requestedParams(fetch);
-    expect(params.get('etl')).toBe('false');
-    expect(params.get('ruleSets')).toBe('false');
+    for (const member of ['queries', 'groups', 'etl', 'ruleSets']) expect(params.get(member)).toBe('false');
   });
 });

@@ -161,7 +161,9 @@ keys. A bundle someone edited by hand fails its hash check and is refused.
 
 - `--tag iri[,iri]` and `--match any|all` export a subset, as the export route
   does. ETL jobs carry no tags, so a tag filter leaves them all out.
-- `--no-etl` and `--no-rule-sets` leave those members out.
+- `--no-queries`, `--no-groups`, `--no-etl` and `--no-rule-sets` leave those
+  members out. A query group still carries the queries it runs. Turning all
+  four off is refused before the server is asked.
 - A bearer token comes from the environment variable `SQLIB_TOKEN`, or the one
   `--token-env` names. It is never an argument, because arguments land in shell
   history and process lists.

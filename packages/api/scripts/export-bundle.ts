@@ -5,7 +5,7 @@
  *   pnpm --filter @sparql-query-lib/api export:bundle \
  *     --library urn:sqlib:library:main --out queries.json [--tag <iri>[,<iri>]] \
  *     [--match any|all] [--typings] [--examples all|first|none] [--expected] \
- *     [--html [file]] [--no-etl] [--no-rule-sets]
+ *     [--html [file]] [--no-queries] [--no-groups] [--no-etl] [--no-rule-sets]
  *
  * The output is JSON that `@sparql-query-lib/runtime` runs with no SPARQL parser
  * and no sqlib server. Compilation still happens here, with the real parser, and
@@ -61,7 +61,9 @@ interface Args {
   typings: boolean;
   examples: ExampleMode;
   expected: boolean;
-  /** Carry ETL jobs and rule sets; `--no-etl` and `--no-rule-sets` turn them off. */
+  /** What the bundle carries; each `--no-…` flag turns one member off. */
+  queries: boolean;
+  groups: boolean;
   etl: boolean;
   ruleSets: boolean;
   /** Path for the demo page, or undefined when one was not asked for. */
@@ -76,6 +78,8 @@ function parseArgs(argv: string[]): Args {
     typings: false,
     examples: 'all',
     expected: false,
+    queries: true,
+    groups: true,
     etl: true,
     ruleSets: true,
   };
@@ -121,6 +125,12 @@ function parseArgs(argv: string[]): Args {
       case '--expected':
         args.expected = true;
         break;
+      case '--no-queries':
+        args.queries = false;
+        break;
+      case '--no-groups':
+        args.groups = false;
+        break;
       case '--no-etl':
         args.etl = false;
         break;
@@ -137,6 +147,9 @@ function parseArgs(argv: string[]): Args {
   }
 
   if (!args.library) throw new Error('--library <iri> is required.');
+  if (!args.queries && !args.groups && !args.etl && !args.ruleSets) {
+    throw new Error('Nothing to export: queries, query groups, ETL jobs and rule sets are all turned off.');
+  }
   return args;
 }
 
@@ -165,7 +178,7 @@ export async function exportBundle(args: Args): Promise<void> {
   const library = repos.Library.get(args.library!) as LdkitLibrary | null;
   if (!library) throw new Error(`Library ${args.library} was not found.`);
 
-  const { queries, skipped } = collectLibraryQueries(
+  const collected = collectLibraryQueries(
     {
       listQueries: () => repos.Query.list() as LdkitQuery[],
       getQueryVersion: (id) => repos.QueryVersion.get(id) as LdkitQueryVersion | null,
@@ -173,6 +186,8 @@ export async function exportBundle(args: Args): Promise<void> {
     args.library!,
     { tags: args.tags, match: args.match },
   );
+  // Left out on request, a query is not skipped: nothing is reported for it.
+  const { queries, skipped } = args.queries ? collected : { queries: [], skipped: [] };
 
   const bundle = await buildExportBundle({
     library: { id: args.library!, name: library.name },
@@ -202,15 +217,17 @@ export async function exportBundle(args: Args): Promise<void> {
 
   // The library's query groups, as walks over the queries above. A group that
   // needs a store the static runtime does not have is reported, not fatal.
-  const { groups, skipped: skippedGroupReads } = collectLibraryGroups(
-    {
-      listGroups: () => repos.QueryGroup.list() as LdkitQueryGroup[],
-      getGroupVersion: (id) => repos.QueryGroupVersion.get(id) as LdkitQueryGroupVersion | null,
-      getEntity: (id) => getCacheCoordinator().get(id) as GroupGraphEntity | null,
-    },
-    args.library!,
-    { tags: args.tags, match: args.match },
-  );
+  const { groups, skipped: skippedGroupReads } = args.groups
+    ? collectLibraryGroups(
+        {
+          listGroups: () => repos.QueryGroup.list() as LdkitQueryGroup[],
+          getGroupVersion: (id) => repos.QueryGroupVersion.get(id) as LdkitQueryGroupVersion | null,
+          getEntity: (id) => getCacheCoordinator().get(id) as GroupGraphEntity | null,
+        },
+        args.library!,
+        { tags: args.tags, match: args.match },
+      )
+    : { groups: [], skipped: [] };
   const { skipped: skippedGroups } = await attachGroupsToBundle(bundle, groups);
 
   // ETL jobs and rule sets, for the CLI to run with no server.

@@ -177,6 +177,30 @@ export interface LibraryNotebookPayload {
   skipped: Array<{ id: string; name: string; reason: string }>;
 }
 
+/**
+ * What an export carries. Every member is carried unless set to false, as the
+ * server carries it, so only a member turned off reaches the query string.
+ */
+export interface ExportBundleOptions {
+  examples?: 'all' | 'first' | 'none';
+  expected?: boolean;
+  queries?: boolean;
+  /** Query groups. A group carries the queries it runs, whatever `queries` says. */
+  groups?: boolean;
+  etl?: boolean;
+  ruleSets?: boolean;
+}
+
+function exportSearch(options: ExportBundleOptions): URLSearchParams {
+  const search = new URLSearchParams();
+  if (options.examples) search.set('examples', options.examples);
+  if (options.expected) search.set('expected', 'true');
+  for (const member of ['queries', 'groups', 'etl', 'ruleSets'] as const) {
+    if (options[member] === false) search.set(member, 'false');
+  }
+  return search;
+}
+
 const JSON_HEADERS = { 'Content-Type': 'application/json' } as const;
 
 export type ApiResult<T> = {
@@ -896,20 +920,9 @@ export function useApiClient() {
    */
   const getLibraryExportBundle = (
     id: string,
-    options: {
-      examples?: 'all' | 'first' | 'none';
-      expected?: boolean;
-      /** False leaves the library's ETL jobs out; the server carries them by default. */
-      etl?: boolean;
-      /** False leaves the library's rule sets out; likewise carried by default. */
-      ruleSets?: boolean;
-    } = {},
+    options: ExportBundleOptions = {},
   ) => {
-    const search = new URLSearchParams();
-    if (options.examples) search.set('examples', options.examples);
-    if (options.expected) search.set('expected', 'true');
-    if (options.etl === false) search.set('etl', 'false');
-    if (options.ruleSets === false) search.set('ruleSets', 'false');
+    const search = exportSearch(options);
     const suffix = search.toString();
     return requestData(
       buildUrl(`/libraries/${encodeURIComponent(id)}/export-bundle${suffix ? `?${suffix}` : ''}`),
@@ -929,11 +942,10 @@ export function useApiClient() {
    */
   const getLibraryExportHtml = async (
     id: string,
-    options: { examples?: 'all' | 'first' | 'none'; expected?: boolean } = {},
+    options: ExportBundleOptions = {},
   ): Promise<string> => {
-    const search = new URLSearchParams({ format: 'html' });
-    if (options.examples) search.set('examples', options.examples);
-    if (options.expected) search.set('expected', 'true');
+    const search = exportSearch(options);
+    search.set('format', 'html');
     const url = buildUrl(
       `/libraries/${encodeURIComponent(id)}/export-bundle?${search.toString()}`,
     );
