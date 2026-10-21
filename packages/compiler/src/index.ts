@@ -10,6 +10,7 @@
 export {
   SparqlQueryParser,
   type ApplyArgumentSet,
+  type ArgumentValue,
   type CorrelatedExistsInput,
   type DetectedParameters,
   type ParsedSparql,

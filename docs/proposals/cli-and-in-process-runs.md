@@ -517,6 +517,25 @@ describes the two new members.
 
 #### WP14 — Build and release plumbing (S) · alongside every new package
 
+Status: done, ESM only. What changed from this plan:
+
+- **ESM only.** The six packages run in Node only, so they ship one build.
+  `check-installable` takes an `esmOnly` reason per consumer: the CommonJS
+  consumer and `require()` are not run for it, and its canary holds instead
+  that the exports map has no `require` condition.
+- **The install check installs transitively.** A workspace dependency is copied
+  into the consumer's `node_modules` with its own dependencies beside it, so
+  `cli` → `compiler` → `@traqula/*` resolves as it would after `npm install`.
+- **`runtime-srl` declares its store.** `RuleStore` lists the six
+  `oxigraph.Store` methods a run calls, so its declarations do not import
+  oxigraph's, which do not compile with a consumer's library check on
+  (oxigraph 0.5.11 writes `UInt8Array`).
+- **The public API check skips property names.** `ruleName?: string` no longer
+  reads as a reference to a function named `ruleName`. Real leaks it found are
+  fixed: `ArgumentValue`, `SrlAggregate`, `SerializedError` are now exported.
+- **Versions start at 0.1.0,** as `runtime` did. Release-please versions the
+  repository root only, so publishing is a manual step for all eight.
+
 - Dockerfile builder and production stages: `COPY` lines for each new
   package. `api` fails to start in the image otherwise.
 - `tsconfig.json` references, `pnpm-workspace.yaml` needs nothing.

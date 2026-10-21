@@ -29,8 +29,12 @@ it, or things that run without it.
 | `runtime-srl` | The rule set runner: DATA blocks, then each stratum to its fixpoint, on an Oxigraph store | `srl` |
 | `cli` | The `sqlib` command line: queries, ETL jobs and rule sets in one process, no server | `compiler`, `runtime`, `runtime-oxigraph`, `runtime-duckdb`, `runtime-etl`, `runtime-srl`, `srl` |
 
-`runtime` and `runtime-oxigraph` are the only two packages that are not
-`private: true`. Everything else is internal to the repository.
+Eight packages are publishable, that is, not `private: true`: `runtime` and
+`runtime-oxigraph`, which a static export loads in a browser or in Node, and
+`compiler`, `srl`, `runtime-duckdb`, `runtime-etl`, `runtime-srl` and `cli`,
+which the `sqlib` command line is built from. The first two ship CommonJS and
+ESM; the other six run in Node only and ship ESM. Everything else is internal
+to the repository.
 
 ### Why the split is where it is
 

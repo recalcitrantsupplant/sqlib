@@ -251,7 +251,9 @@ in about a second and needs no install.
 ## The publish lane
 
 `scripts/ci/publish-check.sh` runs four checks over the packages that are not
-`private: true` — `runtime` and `runtime-oxigraph`. It publishes nothing and
+`private: true`: `runtime`, `runtime-oxigraph`, and the six the CLI is built
+from (`compiler`, `srl`, `runtime-duckdb`, `runtime-etl`, `runtime-srl`, `cli`).
+It publishes nothing and
 needs no token. It runs after `build.sh`, because what it checks is built
 output. Each asks a different question:
 
@@ -259,7 +261,7 @@ output. Each asks a different question:
 | --- | --- |
 | `check-publishable.mjs` | Is the manifest right? Required metadata and `publishConfig.access`; every `exports` target exists and is covered by `files`; a `types` condition beside every JS condition, `.d.cts` for `require` and `.d.ts` for `import`; no dependency on a package that stays private; `workspace:^` rather than `workspace:*` for peer ranges |
 | `check-public-api.mjs` | What is in it? Derives the surface from the built declarations and compares it against `packages/<pkg>/public-api.md`, so every addition, removal, rename or signature change arrives as a readable diff in the same change. It also reports unnameable types: a public signature whose parameter or return type is exported by no entry point |
-| `check-installable.mjs` | Does the tarball install? Packs each package, unpacks it into a sandbox `node_modules`, writes a consumer project against it, and compiles under nodenext-ESM, nodenext-CJS and bundler resolution, then loads every entry point in plain Node |
+| `check-installable.mjs` | Does the tarball install? Packs each package, unpacks it into a sandbox `node_modules`, writes a consumer project against it, and compiles under nodenext-ESM, nodenext-CJS and bundler resolution, then loads every entry point in plain Node. A package its consumer entry marks `esmOnly` skips the CommonJS consumer and `require()`, and must have no `require` condition at all |
 | `check-generated-typings.mjs` | Does the declaration `sqlib export --typings` writes compile? Builds a consumer-shaped project around the frozen bundle and the generated declaration and runs `tsc` over it, in both directions: the usage files must compile clean with every `@ts-expect-error` line actually erroring, and a canary run over a deliberately mutated declaration must fail |
 
 The first three read the working tree or the tarball; the fourth reads an

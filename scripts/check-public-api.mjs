@@ -430,10 +430,23 @@ function renderReport(pkg, surfaces) {
  * subpath can import a type from another, and asking each subpath to be closed
  * over its own types would make every shared type a duplicate export.
  */
+/**
+ * A declaration's text without its property and parameter names.
+ *
+ * `ruleName?: string` names no type, but a scan of every identifier reads
+ * `ruleName` as one, and reports a leak when the package also declares a
+ * function by that name. A key is an identifier and a colon right after an
+ * opening brace or parenthesis, a separator or a line start, so the `X` of
+ * `A extends B ? X : Y` stays.
+ */
+function withoutKeys(text) {
+  return text.replace(/(^|[{;,(]\s*)(?:readonly\s+)?[A-Za-z_$][\w$]*\??\s*:/gm, '$1');
+}
+
 function unnameableTypes(surface, declared, exportedAnywhere) {
   const leaks = [];
   for (const entry of surface.exports) {
-    for (const identifier of referencedIdentifiers(forReport(entry.text))) {
+    for (const identifier of referencedIdentifiers(withoutKeys(forReport(entry.text)))) {
       if (identifier === entry.name || exportedAnywhere.has(identifier)) continue;
       const declaration = declared.get(identifier);
       if (!declaration) continue;

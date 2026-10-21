@@ -1,8 +1,16 @@
 {
   "name": "@sparql-query-lib/cli",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "license": "SEE LICENSE IN LICENSE",
-  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/recalcitrantsupplant/sqlib.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://github.com/recalcitrantsupplant/sqlib/tree/main/packages/cli#readme",
+  "bugs": {
+    "url": "https://github.com/recalcitrantsupplant/sqlib/issues"
+  },
   "type": "module",
   "description": "sqlib on the command line: run SPARQL queries, ETL jobs and SHACL 1.2 rule sets in process, with no sqlib server.",
   "bin": {
@@ -12,15 +20,23 @@
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    },
+    "./package.json": "./package.json"
   },
   "files": [
-    "dist"
+    "dist",
+    "!dist/tsconfig.tsbuildinfo",
+    "LICENSE"
   ],
   "engines": {
     "node": ">=22.4"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "build": "tsc --project tsconfig.json && chmod +x dist/cli.js",

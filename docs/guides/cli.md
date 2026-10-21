@@ -14,7 +14,9 @@ hold that true: `packages/api/test/lib/etlParity.test.ts` and
 
 ## Running it
 
-The packages are not on npm yet. Two ways to run it today:
+The packages are not on npm yet. They are ready to publish, and pass the same
+install checks as the static-export runtime; once they are, `npm install -g
+@sparql-query-lib/cli` installs the command. Two ways to run it today:
 
 - **From this repository.** `pnpm install && pnpm build`, then
   `node packages/cli/dist/cli.js <command>`.

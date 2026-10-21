@@ -378,5 +378,6 @@ Neither `@sparql-query-lib/runtime` nor `@sparql-query-lib/runtime-oxigraph` has
 published to npm. Both are packaging-complete — CommonJS and ESM entry points with
 types for both, and CI gates on `scripts/check-publishable.mjs`,
 `check-installable.mjs` and `check-public-api.mjs` — but no release has been made.
-Inside this repository they resolve through the pnpm workspace. They are the only
-two packages in the monorepo that are not `private: true`.
+Inside this repository they resolve through the pnpm workspace. The packages the
+`sqlib` CLI is built from are publishable too, as ESM only; see
+[cli.md](cli.md).

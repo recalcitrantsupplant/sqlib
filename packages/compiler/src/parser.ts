@@ -28,6 +28,7 @@ import {
   serializeIri,
   serializeTerm,
   substituteLimitOffset,
+  type EmptyArgumentMode,
   type QueryTemplate,
   type TemplateArgumentSet,
   type TemplateSlot,
@@ -105,15 +106,12 @@ interface ValuesScope {
  * Shape of a single argument value as supplied in the SPARQL Results JSON style
  * argument sets consumed by {@link SparqlQueryParser.applyArguments}.
  */
-interface ArgumentValue {
+export interface ArgumentValue {
   type: 'uri' | 'literal' | string;
   value: string;
   datatype?: string;
   'xml:lang'?: string;
 }
-
-/** How a parameter slot is rewritten when it has no bound rows. */
-type EmptyArgumentMode = 'unconstrained' | 'propagateEmpty' | 'require';
 
 export interface ApplyArgumentSet {
   head: { vars: string[] };
