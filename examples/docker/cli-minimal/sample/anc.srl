@@ -1,0 +1,5 @@
+PREFIX : <http://ex/>
+DATA { :cy :parent :di }
+RULE { ?x :anc ?z } WHERE { ?x :parent ?z }
+RULE { ?x :anc ?z } WHERE { ?x :anc ?y . ?y :parent ?z }
+RULE { ?x :root true } WHERE { ?x :anc ?y NOT { ?w :anc ?x } }

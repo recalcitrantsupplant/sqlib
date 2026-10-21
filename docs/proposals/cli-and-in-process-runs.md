@@ -168,35 +168,54 @@ for both, `oxigraph`-style external for the native binding).
 
 #### WP3 — `runtime-etl` package (M) · needs WP1
 
+Status: done. What changed from this plan is recorded below.
+
 The pipeline loop and the row mapping, with the DuckDB dependency injected:
 
 ```ts
 export interface EtlRun {
   source: AsyncIterable<{ rows: Record<string, unknown>[] }>;
-  template: QueryTemplate;                 // compiled, from a bundle or the compiler
+  query: QueryTemplate | ((argumentSet: TemplateArgumentSet) => string);
   columns: ColumnDefinition[];
   executor: Executor;                      // the runtime's interface
   onOutput: (rdf: string, chunk: EtlOutputChunk) => Promise<void>;
   onChunk?: (p: { completedChunks: number; totalRows: number }) => Promise<void>;
   maxRows?: number; maxRowsPolicy?: 'stop' | 'fail'; dryRun?: boolean; signal?: AbortSignal;
+  abortError?: (signal: AbortSignal) => Error;
+  warn?: (message: string, context: Record<string, unknown>) => void;
 }
 export function runEtl(run: EtlRun): Promise<{ totalRows: number; completedChunks: number }>;
 ```
 
-Moves from `EtlService`: `toLexicalForm`, `convertRowsToBindings`,
-`bindingsToArgumentSet`, the loop body of `runPipeline`, and the
-`ColumnDefinition` type (today a persistence schema type; it becomes a plain
-type here and the schema imports it).
+Moved from `EtlService`: `toLexicalForm`, the row mapping (now
+`rowsToBindings`), `bindingsToArgumentSet` (now `toArgumentSet`), the loop body
+of `runPipeline`, and the `ColumnDefinition` type. The persistence schema
+re-exports the type.
 
-The splice uses `applyTemplateArguments` from `runtime` on the compiled
-template. `api`'s `runPipeline` compiles the stored `sparqlTemplate` once per
-run with the compiler and calls `runEtl`. The DuckDB stream from WP2 is the
-`source`.
+What changed from the plan:
 
-Acceptance: a parity test runs the same job through `EtlService.runPipeline`
-and through `runEtl` with a fixture source, and compares the RDF after
-canonicalisation (`rdf-canonize` is already an `api` dependency). The
-`EtlService.test.ts` and `executeJob` tests pass.
+- **`query` takes a template or a function.** The plan had `api` compile the
+  stored template once per run. A stored query that does not compile to a
+  verified template would then have stopped running, where today it falls
+  back to the AST path. So `api` passes its parser's `applyArguments`, which
+  uses the compiled template whenever the query compiles. The CLI passes a
+  template it compiled itself.
+- **`abortError` and `warn` are hooks.** `api` keeps its own abort error (a 499
+  for a non-`Error` reason) and its pino warnings; a host that passes neither
+  gets the abort reason and silence.
+- **`api` asks for N-Quads.** Both `api` executors return N-Quads for a
+  CONSTRUCT when nothing is asked for, so asking for it explicitly changes no
+  run's output. One label changes: when an HTTP endpoint reported no content
+  type, the output file used to be labelled Turtle; it is now labelled N-Quads,
+  which is what it holds.
+- **The parity test compares sorted N-Quads lines.** The mapped values contain
+  no blank nodes, so sorting the lines is a complete comparison and
+  canonicalisation adds nothing.
+
+Acceptance: `packages/api/test/lib/etlParity.test.ts` runs one job, read from
+DuckDB in chunks, through `EtlService.runPipeline` and through `runEtl` with a
+template compiled from text on the runtime's Oxigraph executor, and requires
+the same RDF. The `EtlService` and execute-job tests pass unchanged.
 
 #### WP4 — One executor interface (S) · needed by WP3 and WP5
 
@@ -214,35 +233,66 @@ Acceptance: `runtime` and `runtime-oxigraph` tests cover `update`;
 
 #### WP5 — `runtime-srl` package (L) · needs WP4
 
+Status: done. What changed from this plan is recorded below.
+
 The fixpoint loop from `RuleSetExecutor`, taking prepared rules rather than
 version ids:
 
 ```ts
-export interface PreparedRuleSet {
-  rules: Array<{ name: string; program: string; producesTuples: boolean;
-                 tupleReads: TupleRef[]; tupleWrites: TupleRef[]; stratum: number }>;
-  dataBlocks: Array<{ name: string; quads: string }>;   // N-Quads
-  stratification?: StratificationReport;
+export interface RuleSetSource {
+  id: string; ruleCount: number; dataBlockCount: number;
+  prepareRules(): PreparedRule[];             // validated, stratified, in run order
+  prepareDataBlocks(): PreparedDataBlock[];   // called after the base graph is loaded
+  tupleSeeds?: string | null;
 }
-export function runRuleSet(set: PreparedRuleSet, store: OxigraphStore, options: RunOptions): Promise<RuleSetRunResult>;
+export class RuleSetRunner {
+  run(source: RuleSetSource, options?: RuleSetRunOptions): Promise<RuleSetExecutionResult>;
+}
 ```
 
-Moves: `RuleStratifier`, `TupleStore` with `injectTupleReads` and
-`renderBindingValue`, `nquads.ts`, the iteration and cycle detection, the
-record types, and `serializeStore`. Stays in `api`: `loadRuleVersions`,
-`loadDataBlockVersions`, `prepareRule`, `normalizeRuleContent` (they read the
-cache), the deadline from `executionLimits`, and the W3C suite seeding.
-`api`'s `RuleSetExecutor.execute` becomes load → prepare → `runRuleSet`.
+Moved: the run itself (DATA blocks, stratum scheduling, iteration and cycle
+detection, run-once rules, tuple capture), the record and result types,
+`TupleStore` with `injectTupleReads` and `renderBindingValue`, `nquads.ts`,
+dataset hashing and diffing, and `serializeStore`. `api` re-exports the tuple
+store and the N-Quads helpers from their old paths.
 
-`RuleStratifier` has two `api` imports: the `LdkitRuleVersion` type and
-`ruleTuplesAllowed`, a feature-flag read. The move replaces the first with a
-plain rule-input type and takes the second as an option. The `srl` package
-already exports `stratify`; where the two overlap, the executor should use
-`srl`'s and the duplicate goes.
+Stays in `api`: loading rule and DATA block versions from the cache, refusing
+invalid ones, preparing and normalising rule programs, `RuleStratifier`,
+feature flags, the iteration cap, the deadline, the managed ephemeral store,
+and the W3C suite seeding. `RuleSetExecutor.execute` is now the host: it
+implements the source from its cache and passes its own Oxigraph executor and
+store loader.
 
-Acceptance: the W3C SHACL 1.2 Rules suite (`just run-local-rules-tests`)
-passes with the same verdicts. `RuleSetExecutor` tests pass. A parity test
-runs one rule set both ways and compares inferred graphs.
+What changed from the plan:
+
+- **A source the runner calls, not a prepared set it is given.** The run
+  interleaves loading with store work in an order that shapes its result: an
+  invalid DATA block is refused after the base graph is loaded, so its failure
+  result already holds that graph. A source called at the same points keeps
+  every failure result identical. Refusing is throwing, because the run already
+  turns any error into a `failed` result with its message.
+- **`RuleStratifier` stays in `api`.** It reads stored rule versions and feature
+  flags, which are the host's. The CLI layers rules with `srl`'s `stratify`, as
+  the parity test does.
+- **The executor is a port.** `api`'s Oxigraph executor rewrites error messages
+  ("SPARQL UPDATE query execution failed: …"), and rule records carry them, so
+  `api` passes its own and every message is unchanged. The runner's default
+  executor, for the CLI, uses the same wording.
+- **One test moved off a list.** `storeWriteSites.test.ts` enumerates every
+  direct store write in `api`. The runner's writes left with it: they are to the
+  inference store it builds itself, or to the tuple store, which is not
+  Oxigraph. When `api` runs a rule set, every write to its store still goes
+  through its executor and store manager, which declare it to the checkpoint.
+
+Acceptance:
+
+- The W3C SHACL 1.2 Rules suite harness scores 203 of 203, every category in
+  full, with no regression against its ratchet and no newly conforming entry:
+  the same verdicts as before.
+- `packages/api/test/lib/srlParity.test.ts` runs one rule set, recursive and
+  negating across strata, through `RuleSetExecutor` from stored versions and
+  through `RuleSetRunner` from SRL text, and requires the same inference graph.
+- The `RuleSetExecutor` and execution-limit tests pass unchanged.
 
 ### Phase 2 — Artifacts
 
@@ -298,7 +348,30 @@ Acceptance: as WP6. The fixture bundle gains one rule set with one data block.
 
 ### Phase 3 — The CLI
 
+Order changed: WP8, WP9, WP11 and WP12 were built before WP6 and WP7, with
+file sources only, so the CLI is usable in a container without a server or an
+export step. Bundle sources, `sqlib pull` and the run report (WP10) follow with
+WP6 and WP7.
+
 #### WP8 — `cli` package and bin (M) · needs D5, WP1, WP3, WP5, WP6, WP7
+
+Status: done for file sources. What changed from this plan:
+
+- **File sources first.** `query --file`, `etl run --job` and `rules run --srl`
+  work now; `--bundle`, `--query <slug>`, `--rule-set <slug>`, `--job <slug>`
+  and `sqlib pull` come with WP6 and WP7. `sqlib duckdb check` is not built.
+- **`query` runs through the runtime's own call path.** The file is compiled
+  into a one-query bundle in memory and run with `fromBundle(…).query().run()`,
+  so arguments, limits and offsets are applied exactly as for an exported query.
+- **An ETL job file** holds `sql` or `sqlFile`, `template` or `templateFile`,
+  `columns` and `chunkSize`, in the shape of a stored job. The template must be
+  a CONSTRUCT with one slot that declares every mapped variable.
+- **`rules run` layers with `srl`'s `stratify`** and turns DATA blocks into
+  `INSERT DATA` with the document's prologue, as the API's validator does. It
+  exits 2 when a stratum hits `--max-iterations` or the rules cycle, after
+  writing the graph so far.
+- **Tests drive `main` in process** with injected streams, so every command is
+  exercised end to end without a child process.
 
 `packages/cli`, bin `sqlib`, `private: false`. Argument parsing with Node's
 `util.parseArgs`, as the existing scripts do, so no dependency is added.
@@ -334,6 +407,9 @@ output for the same job after canonicalisation. `check-publishable`,
 
 #### WP9 — DuckDB flags and profile (S) · needs D4, WP2, WP8
 
+Status: done as planned. `--allow-http --no-allow-filesystem` turns filesystem
+back on and says so on standard error.
+
 `--allow-filesystem` (default on), `--allow-http`, `--allow-extension-install`,
 `--unrestricted`, `--memory-limit`, `--query-timeout`, each with a `--no-`
 form. The resolved profile prints to stderr once. HTTP implies filesystem,
@@ -350,6 +426,11 @@ server never saw. A later `--post-report <url>` is out of scope.
 
 #### WP11 — Output formats (S) · needs D6, WP8
 
+Status: done, without `--merge`. Oxigraph serialises a chunk with no prefix
+declarations and with random 128-bit blank node labels, so chunks concatenate
+safely in N-Triples, N-Quads and Turtle alike; a CLI test holds that. `rules
+run` writes N-Triples, N-Quads or JSON-LD, the formats the runner serialises.
+
 `etl run`: N-Triples by default; `--format turtle` is refused for a run of more
 than one chunk unless `--merge` is passed, which does a final pass through
 Oxigraph. `rules run`: `n-triples`, `turtle`, `n-quads`, `--inference-only`
@@ -358,6 +439,12 @@ versus the whole graph, matching the API's options.
 ### Phase 4 — Packaging and documentation
 
 #### WP12 — Example Dockerfiles (S) · needs WP8
+
+Status: done. The packages are not on npm yet, so `cli-minimal` builds the CLI
+from this repository and packages it with `pnpm deploy --legacy`. The `azure`
+example loads the extension from the job's SQL (`LOAD azure; SELECT …`), which
+works because a job's SQL may hold several statements. The CI job is
+`cli-image`, run by `scripts/ci/docker-build-cli.sh`.
 
 Under `examples/docker/`, none of them the published image:
 

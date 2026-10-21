@@ -1,0 +1,35 @@
+{
+  "name": "@sparql-query-lib/runtime-etl",
+  "version": "0.0.0",
+  "license": "SEE LICENSE IN LICENSE",
+  "private": true,
+  "type": "module",
+  "description": "The sqlib ETL loop: rows in chunks, mapped to SPARQL bindings, spliced into a CONSTRUCT, and each chunk's RDF handed to a sink.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@sparql-query-lib/runtime": "workspace:*"
+  },
+  "devDependencies": {
+    "@sparql-query-lib/compiler": "workspace:*",
+    "@sparql-query-lib/runtime-oxigraph": "workspace:*",
+    "@types/node": "^26.6.2",
+    "oxigraph": "0.5.11",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  }
+}

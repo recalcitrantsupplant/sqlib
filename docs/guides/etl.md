@@ -362,6 +362,16 @@ bounds what is read rather than what is kept. And the web app has no execution
 history view for either sink — the ETL panel's toast is the whole of what a user
 sees, so the run log is an API route today.
 
+## Running a job outside the server
+
+`sqlib etl run` runs a job from a job file, in one process, through the same
+loop and the same sandboxed DuckDB as the server. Its defaults differ on one
+point: the CLI runs in the operator's own process, and reading local files is
+its job, so filesystem access is on unless `--no-allow-filesystem` turns it
+off. HTTP and extension install stay off unless asked for, and the limits are
+the server's. Everything this page says about what each capability enforces
+holds for both. See [the CLI guide](cli.md#sqlib-etl-run).
+
 ## DuckDB extensions and the image's libc
 
 DuckDB extensions are published per platform, and a build for one platform says

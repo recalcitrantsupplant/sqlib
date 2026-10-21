@@ -13,7 +13,9 @@
       "@sparql-query-lib/srl": ["../srl/src/index.ts"],
       "@sparql-query-lib/runtime": ["../runtime/src/index.ts"],
       "@sparql-query-lib/compiler": ["../compiler/src/index.ts"],
-      "@sparql-query-lib/runtime-duckdb": ["../runtime-duckdb/src/index.ts"]
+      "@sparql-query-lib/runtime-duckdb": ["../runtime-duckdb/src/index.ts"],
+      "@sparql-query-lib/runtime-etl": ["../runtime-etl/src/index.ts"],
+      "@sparql-query-lib/runtime-srl": ["../runtime-srl/src/index.ts"]
     }
   },
   "include": [
@@ -33,6 +35,8 @@
     { "path": "../srl" },
     { "path": "../runtime" },
     { "path": "../compiler" },
-    { "path": "../runtime-duckdb" }
+    { "path": "../runtime-duckdb" },
+    { "path": "../runtime-etl" },
+    { "path": "../runtime-srl" }
   ]
 }

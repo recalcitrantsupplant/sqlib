@@ -1,0 +1,46 @@
+{
+  "name": "@sparql-query-lib/cli",
+  "version": "0.0.0",
+  "license": "SEE LICENSE IN LICENSE",
+  "private": true,
+  "type": "module",
+  "description": "sqlib on the command line: run SPARQL queries, ETL jobs and SHACL 1.2 rule sets in process, with no sqlib server.",
+  "bin": {
+    "sqlib": "./dist/cli.js"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=22.4"
+  },
+  "scripts": {
+    "build": "tsc --project tsconfig.json && chmod +x dist/cli.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@duckdb/node-api": "1.5.5-r.5",
+    "@sparql-query-lib/compiler": "workspace:*",
+    "@sparql-query-lib/runtime": "workspace:*",
+    "@sparql-query-lib/runtime-duckdb": "workspace:*",
+    "@sparql-query-lib/runtime-etl": "workspace:*",
+    "@sparql-query-lib/runtime-oxigraph": "workspace:*",
+    "@sparql-query-lib/runtime-srl": "workspace:*",
+    "@sparql-query-lib/srl": "workspace:*",
+    "oxigraph": "^0.5.11"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.2",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  }
+}

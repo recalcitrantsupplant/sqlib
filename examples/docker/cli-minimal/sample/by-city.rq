@@ -1,0 +1,2 @@
+PREFIX ex: <http://ex/>
+SELECT ?person WHERE { VALUES ?city { UNDEF } ?person ex:livesIn ?city } ORDER BY ?person LIMIT 0001

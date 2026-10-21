@@ -26,7 +26,7 @@ pnpm install
 pnpm build
 ```
 
-`pnpm build` builds `types`, `contracts`, `runtime`, `compiler`, `runtime-duckdb`, `tools`, `srl`,
+`pnpm build` builds `types`, `contracts`, `runtime`, `compiler`, `runtime-duckdb`, `runtime-etl`, `tools`, `srl`, `runtime-srl`,
 `rdf-delta` and `api`, in that order. The recipes below rebuild individual
 packages where they depend on a fresh build of one, but they do not substitute
 for this first pass.

@@ -75,6 +75,8 @@
     "@sparql-query-lib/rdf-delta": "workspace:*",
     "@sparql-query-lib/runtime": "workspace:*",
     "@sparql-query-lib/runtime-duckdb": "workspace:*",
+    "@sparql-query-lib/runtime-etl": "workspace:*",
+    "@sparql-query-lib/runtime-srl": "workspace:*",
     "@sparql-query-lib/srl": "workspace:*",
     "@sparql-query-lib/tools": "workspace:*",
     "@sparql-query-lib/types": "workspace:*",
@@ -97,6 +99,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.64.0",
+    "@sparql-query-lib/runtime-oxigraph": "workspace:*",
     "@types/jsonld": "^1.5.15",
     "@types/node": "^26.6.5",
     "@vitest/coverage-v8": "^5.0.3",

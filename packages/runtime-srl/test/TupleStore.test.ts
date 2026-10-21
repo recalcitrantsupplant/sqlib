@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TupleStore, injectTupleReads, renderBindingValue } from '../../src/lib/TupleStore.js';
+import { TupleStore, injectTupleReads, renderBindingValue } from '../src/TupleStore.js';
 import {
   compileRule,
   expandIris,

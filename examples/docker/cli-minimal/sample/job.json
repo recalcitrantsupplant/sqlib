@@ -1,0 +1,10 @@
+{
+  "sql": "SELECT * FROM read_csv('customers.csv')",
+  "templateFile": "construct.rq",
+  "chunkSize": 1000,
+  "columns": [
+    { "columnName": "id", "targetVariable": "c", "termType": "uri", "iriTemplate": "http://ex/c/{value}", "nullPolicy": "skipRow" },
+    { "columnName": "name", "targetVariable": "name", "termType": "literal", "nullPolicy": "undef" },
+    { "columnName": "joined", "targetVariable": "joined", "termType": "literal", "datatypeIri": "http://www.w3.org/2001/XMLSchema#dateTime", "nullPolicy": "undef" }
+  ]
+}

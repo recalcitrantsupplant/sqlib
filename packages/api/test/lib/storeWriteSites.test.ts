@@ -55,7 +55,13 @@ const MUTATION_SITES: Record<string, { calls: number; marks: number; why: string
   'src/persistence/OxigraphQueryEngine.ts': { calls: 1, marks: 1, why: 'queryVoid' },
 
   // Below here: stores built in the file, used, and dropped.
-  'src/lib/RuleSetExecutor.ts': { calls: 3, marks: 0, why: 'the inference store, and a TupleStore that is not oxigraph' },
+  //
+  // The rule set runner is not listed: it moved to @sparql-query-lib/runtime-srl,
+  // outside this scan. Its own writes are to stores it builds itself (the
+  // inference store) or are not oxigraph at all (TupleStore). When the API runs
+  // a rule set, every write to the API's store goes through the executor and
+  // loader `RuleSetExecutor` passes in, which are OxigraphSparqlExecutor and
+  // OxigraphStoreManager above, and both declare.
   'src/lib/dataGraphContent.ts': { calls: 2, marks: 0, why: 'parse validation' },
   'src/lib/deltaStore.ts': { calls: 1, marks: 0, why: 'a document read into a store' },
   'src/lib/orchestration/rdfHandoff.ts': { calls: 1, marks: 0, why: 'RDF between group nodes, parsed to re-serialise' },

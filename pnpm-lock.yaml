@@ -98,6 +98,12 @@ importers:
       '@sparql-query-lib/runtime-duckdb':
         specifier: workspace:*
         version: link:../runtime-duckdb
+      '@sparql-query-lib/runtime-etl':
+        specifier: workspace:*
+        version: link:../runtime-etl
+      '@sparql-query-lib/runtime-srl':
+        specifier: workspace:*
+        version: link:../runtime-srl
       '@sparql-query-lib/srl':
         specifier: workspace:*
         version: link:../srl
@@ -159,6 +165,9 @@ importers:
       '@playwright/test':
         specifier: ^1.64.0
         version: 1.64.1
+      '@sparql-query-lib/runtime-oxigraph':
+        specifier: workspace:*
+        version: link:../runtime-oxigraph
       '@types/jsonld':
         specifier: ^1.5.15
         version: 1.5.15
@@ -202,6 +211,46 @@ importers:
       ai:
         specifier: ^7.0.142
         version: 7.0.142(zod@4.6.7)
+
+  packages/cli:
+    dependencies:
+      '@duckdb/node-api':
+        specifier: 1.5.5-r.5
+        version: 1.5.5-r.5
+      '@sparql-query-lib/compiler':
+        specifier: workspace:*
+        version: link:../compiler
+      '@sparql-query-lib/runtime':
+        specifier: workspace:*
+        version: link:../runtime
+      '@sparql-query-lib/runtime-duckdb':
+        specifier: workspace:*
+        version: link:../runtime-duckdb
+      '@sparql-query-lib/runtime-etl':
+        specifier: workspace:*
+        version: link:../runtime-etl
+      '@sparql-query-lib/runtime-oxigraph':
+        specifier: workspace:*
+        version: link:../runtime-oxigraph
+      '@sparql-query-lib/runtime-srl':
+        specifier: workspace:*
+        version: link:../runtime-srl
+      '@sparql-query-lib/srl':
+        specifier: workspace:*
+        version: link:../srl
+      oxigraph:
+        specifier: ^0.5.11
+        version: 0.5.11
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.2
+        version: 26.6.5
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: ^5.0.5
+        version: 5.0.5(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(happy-dom@21.0.3)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/compiler:
     dependencies:
@@ -404,6 +453,31 @@ importers:
         specifier: ^5.0.2
         version: 5.0.5(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(happy-dom@21.0.3)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
+  packages/runtime-etl:
+    dependencies:
+      '@sparql-query-lib/runtime':
+        specifier: workspace:*
+        version: link:../runtime
+    devDependencies:
+      '@sparql-query-lib/compiler':
+        specifier: workspace:*
+        version: link:../compiler
+      '@sparql-query-lib/runtime-oxigraph':
+        specifier: workspace:*
+        version: link:../runtime-oxigraph
+      '@types/node':
+        specifier: ^26.6.2
+        version: 26.6.5
+      oxigraph:
+        specifier: 0.5.11
+        version: 0.5.11
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: ^5.0.5
+        version: 5.0.5(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(happy-dom@21.0.3)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
   packages/runtime-oxigraph:
     dependencies:
       oxigraph:
@@ -421,6 +495,25 @@ importers:
         version: 7.0.2
       vitest:
         specifier: ^5.0.3
+        version: 5.0.5(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(happy-dom@21.0.3)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
+  packages/runtime-srl:
+    dependencies:
+      '@sparql-query-lib/srl':
+        specifier: workspace:*
+        version: link:../srl
+      oxigraph:
+        specifier: ^0.5.11
+        version: 0.5.11
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.2
+        version: 26.6.5
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: ^5.0.5
         version: 5.0.5(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(happy-dom@21.0.3)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/srl:
@@ -2316,6 +2409,7 @@ packages:
   '@opentelemetry/sdk-trace-node@2.12.0':
     resolution: {integrity: sha512-9DufH1IlmQMoKAfot5y/FhTP1RnmhLb5K6eKmJO/bvzPjYwPAazoiAUbTZFdPbqxOXN0FEbhZx/e6SB1Og4jmg==}
     engines: {node: ^18.19.0 || >=20.6.0}
+    deprecated: Use @opentelemetry/sdk-trace package
     peerDependencies:
       '@opentelemetry/api': '>=1.0.0 <1.10.0'
 
