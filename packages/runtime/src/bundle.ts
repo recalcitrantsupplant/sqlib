@@ -217,7 +217,6 @@ export interface ExportedEtlJob {
   chunkSize?: number;
   name?: string;
   description?: string;
-  tags?: string[];
   /** Provenance: the EtlJob, EtlJobVersion and column mapping version. */
   sourceJob?: string;
   sourceVersion?: string;

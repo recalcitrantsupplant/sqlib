@@ -295,14 +295,15 @@
   "etlJobs": {
     "customers": {
       "template": {
-        "text": "PREFIX ex: <http://example.org/>\nCONSTRUCT {\n  ?person ex:name ?name .\n}\nWHERE {\n  VALUES( ?person ?name ){\n    ( <urn:sqlib:template-slot:0:person> <urn:sqlib:template-slot:0:name> )\n  }\n}",
+        "text": "PREFIX ex: <http://example.org/>\nCONSTRUCT {\n  ?person ex:name ?name .\n  ?person ex:joined ?joined .\n}\nWHERE {\n  VALUES( ?person ?name ?joined ){\n    ( <urn:sqlib:template-slot:0:person> <urn:sqlib:template-slot:0:name> <urn:sqlib:template-slot:0:joined> )\n  }\n}",
         "slots": [
           {
-            "start": 83,
-            "end": 187,
+            "start": 113,
+            "end": 260,
             "vars": [
               "person",
-              "name"
+              "name",
+              "joined"
             ]
           }
         ],
@@ -313,8 +314,8 @@
           ]
         ]
       },
-      "textHash": "sha256-5a856c80a49d3899604b57aa57ad7d5bdbfe1d062286d4ba99f0663e64f8fc6a",
-      "sql": "SELECT id, name FROM read_csv('customers.csv')",
+      "textHash": "sha256-3245cf1afa6889267a3e8e85ed297040fa919691e31daf202f8c74dcab4112bd",
+      "sql": "SELECT id, name, joined FROM read_csv('customers.csv')",
       "columns": [
         {
           "columnName": "id",
@@ -328,6 +329,13 @@
           "targetVariable": "name",
           "termType": "literal",
           "lang": "en",
+          "nullPolicy": "undef"
+        },
+        {
+          "columnName": "joined",
+          "targetVariable": "joined",
+          "termType": "literal",
+          "datatypeIri": "http://www.w3.org/2001/XMLSchema#dateTime",
           "nullPolicy": "undef"
         }
       ],

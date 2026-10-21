@@ -191,7 +191,6 @@ interface ExportedEtlJob {
     chunkSize?: number;
     name?: string;
     description?: string;
-    tags?: string[];
     sourceJob?: string;
     sourceVersion?: string;
     sourceColumnMappingVersion?: string;

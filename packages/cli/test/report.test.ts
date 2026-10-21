@@ -56,7 +56,7 @@ describe('--report', () => {
 
   it.skipIf(!duckdbAvailable)('records an ETL job run from a bundle, with its provenance and DuckDB profile', async () => {
     // The golden job reads customers.csv from the directory sqlib runs in.
-    const dir = await workspace({ 'golden.json': await readFile(GOLDEN, 'utf8'), 'customers.csv': 'id,name\n1,Ann\n2,Bo\n' });
+    const dir = await workspace({ 'golden.json': await readFile(GOLDEN, 'utf8'), 'customers.csv': 'id,name,joined\n1,Ann,2020-01-02 03:04:05\n2,Bo,\n' });
     const previous = process.cwd();
     process.chdir(dir);
     try {
@@ -71,7 +71,7 @@ describe('--report', () => {
           job: {
             bundle: 'golden.json',
             key: 'customers',
-            sqlHash: sha256("SELECT id, name FROM read_csv('customers.csv')"),
+            sqlHash: sha256("SELECT id, name, joined FROM read_csv('customers.csv')"),
             sourceJob: 'urn:sqlib:etl-job:customers',
             sourceColumnMappingVersion: 'urn:sqlib:etl-column-mapping-version:customers-1',
           },
