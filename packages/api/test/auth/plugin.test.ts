@@ -93,6 +93,7 @@ function registerRoutes(app: FastifyInstance): void {
     };
   });
   app.get('/health', async () => ({ status: 'ok' }));
+  app.post('/mcp', async () => ({ reached: true }));
   app.get('/', async () => ({ redirect: 'docs' }));
   app.get('/docs', async () => ({ docs: true }));
   app.get('/docs/json', async () => ({ openapi: '3.0.0' }));
@@ -272,6 +273,83 @@ describe('required mode', () => {
   });
 });
 
+describe('protected-resource metadata (RFC 9728)', () => {
+  it('serves the document without a token under required, naming the issuer and the resource', async () => {
+    const app = await buildApp('required', {
+      env: { SQLIB_AUTH_RESOURCE: 'https://sqlib.test/mcp', SQLIB_AUTH_SCOPES: 'openid sqlib' },
+    });
+    for (const url of ['/.well-known/oauth-protected-resource', '/.well-known/oauth-protected-resource/mcp']) {
+      const response = await app.inject({ method: 'GET', url });
+      expect(response.statusCode, url).toBe(200);
+      expect(response.json(), url).toEqual({
+        resource: 'https://sqlib.test/mcp',
+        authorization_servers: [ISSUER],
+        bearer_methods_supported: ['header'],
+        scopes_supported: ['openid', 'sqlib'],
+      });
+    }
+    await app.close();
+  });
+
+  it('defaults the resource to the audience and leaves scopes out when none are configured', async () => {
+    const app = await buildApp('required');
+    const body = (await app.inject({ method: 'GET', url: '/.well-known/oauth-protected-resource' })).json();
+    expect(body.resource).toBe(AUDIENCE);
+    expect(body).not.toHaveProperty('scopes_supported');
+    await app.close();
+  });
+
+  it('points a tokenless /mcp request at the document, with no error code', async () => {
+    const app = await buildApp('required', {
+      env: { SQLIB_AUTH_RESOURCE: 'https://sqlib.test/mcp', SQLIB_AUTH_SCOPES: 'sqlib' },
+    });
+    const response = await app.inject({ method: 'POST', url: '/mcp', payload: {} });
+
+    expect(response.statusCode).toBe(401);
+    expect(response.headers['www-authenticate']).toBe(
+      'Bearer resource_metadata="https://sqlib.test/.well-known/oauth-protected-resource/mcp", scope="sqlib"'
+    );
+    await app.close();
+  });
+
+  it('keeps the error code on a rejected token and still names the document', async () => {
+    const app = await buildApp('required');
+    const response = await app.inject({
+      method: 'GET',
+      url: '/whoami',
+      headers: { authorization: 'Bearer not-a-token', host: 'api.test' },
+    });
+
+    expect(response.statusCode).toBe(401);
+    const challenge = String(response.headers['www-authenticate']);
+    expect(challenge).toMatch(/^Bearer error="invalid_token", error_description="[^"]+"/);
+    // An audience that is not a URL gives no origin, so the request's is used.
+    expect(challenge).toContain('resource_metadata="http://api.test/.well-known/oauth-protected-resource"');
+    await app.close();
+  });
+
+  it('serves the document at the root and under APP_BASE_PATH', async () => {
+    const app = await buildApp('required', { basePath: '/sqlib' });
+    for (const url of [
+      '/.well-known/oauth-protected-resource',
+      '/.well-known/oauth-protected-resource/sqlib',
+      '/sqlib/.well-known/oauth-protected-resource',
+    ]) {
+      expect((await app.inject({ method: 'GET', url })).statusCode, url).toBe(200);
+    }
+    await app.close();
+  });
+
+  it('answers 404 when no issuer is configured', async () => {
+    resetAuthConfig({ SQLIB_AUTH_MODE: 'disabled' } as NodeJS.ProcessEnv);
+    const app = Fastify({ logger: false });
+    await registerAuthPlugin(app);
+    await app.ready();
+    expect((await app.inject({ method: 'GET', url: '/.well-known/oauth-protected-resource' })).statusCode).toBe(404);
+    await app.close();
+  });
+});
+
 describe('dry-run mode', () => {
   it('lets an untokened request through', async () => {
     const app = await buildApp('dry-run');
@@ -360,6 +438,19 @@ describe('configuration', () => {
   it('rejects an unrecognised mode rather than defaulting to open', () => {
     expect(() => resetAuthConfig({ SQLIB_AUTH_MODE: 'enforced' } as NodeJS.ProcessEnv))
       .toThrow(/Invalid SQLIB_AUTH_MODE/);
+  });
+
+  it('takes the resource from SQLIB_AUTH_RESOURCE, else the first audience', () => {
+    const base = { SQLIB_AUTH_MODE: 'required', SQLIB_AUTH_ISSUER: ISSUER, SQLIB_AUTH_AUDIENCE: AUDIENCE };
+    expect(resetAuthConfig(base as NodeJS.ProcessEnv).resource).toBe(AUDIENCE);
+    expect(
+      resetAuthConfig({ ...base, SQLIB_AUTH_RESOURCE: ' https://sqlib.test/mcp ' } as NodeJS.ProcessEnv).resource
+    ).toBe('https://sqlib.test/mcp');
+  });
+
+  it('reads SQLIB_AUTH_SCOPES as a space- or comma-separated list', () => {
+    expect(resetAuthConfig({ SQLIB_AUTH_SCOPES: 'openid, profile  sqlib,openid' } as NodeJS.ProcessEnv).scopes)
+      .toEqual(['openid', 'profile', 'sqlib']);
   });
 
   it('defaults to disabled when unset', () => {

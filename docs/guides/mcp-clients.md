@@ -11,7 +11,9 @@ tool to open the bench with. See [mcp-app.md](mcp-app.md); a client that does
 not advertise the extension sees exactly the catalogue described here.
 
 **`/mcp` carries no authentication of its own.** The MCP layer enforces nothing;
-it forwards whatever the caller sent to the API, which applies `SQLIB_AUTH_MODE`.
+it forwards whatever the caller sent to the API, which applies `SQLIB_AUTH_MODE`
+(and, under an enforcing mode, answers a tokenless `/mcp` request with the
+401 challenge that tells the client where to sign in).
 That mode defaults to `disabled`, which gives every request full access. A
 `/mcp` reachable from a network you do not control is therefore an
 unauthenticated door to every library on the server, and to every backend those
@@ -103,8 +105,41 @@ source. In stdio mode the server redirects its own `console.log` to stderr, so
 stdout carries nothing but JSON-RPC.
 
 For a client that connects to a running server, point it at
-`http://localhost:3005/mcp` (or the HTTPS URL above). No credentials are
-configured because none are checked — see the warning at the top of this page.
+`http://localhost:3005/mcp` (or the HTTPS URL above). With auth disabled, no
+credentials are configured because none are checked — see the warning at the
+top of this page.
+
+### Connecting to an authenticated server
+
+With `SQLIB_AUTH_MODE=required`, a client needs no credentials in its own
+configuration either. Give it the URL and nothing else. Claude, for example:
+
+1. Open **Settings → Connectors → Add custom connector**.
+2. Enter `https://sqlib.example.org/mcp` as the URL. Leave the OAuth client
+   fields empty.
+3. Select **Connect**. A browser window opens at the broker's sign-in page.
+4. Sign in. The connector is then connected as you.
+
+Behind that, the client follows the
+[MCP authorization specification](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization):
+
+1. Its first request to `/mcp` has no token. sqlib answers 401 with
+   `WWW-Authenticate: Bearer resource_metadata="https://sqlib.example.org/.well-known/oauth-protected-resource/mcp"`.
+2. The client reads that document. Its `authorization_servers` names the
+   broker, and its `resource` names the value to ask a token for.
+3. The client identifies itself to the broker with a Client ID Metadata
+   Document, or registers itself dynamically, and runs the authorization code
+   flow with PKCE in your browser. It sends `resource` on each request, so the
+   token names sqlib in `aud`.
+4. Every later call to `/mcp` carries that token, and the API applies your
+   grants.
+
+Three settings make this work. Set `SQLIB_AUTH_RESOURCE` to the canonical URL
+of `/mcp`, and configure the broker to put the same value in `aud`. The broker
+must also accept self-registering clients (CIMD or dynamic client
+registration). A broker without either needs each client registered by hand,
+and the client then needs that client id. See
+[deploying](deploying.md#choosing-a-broker) for which brokers do which.
 
 No packaged desktop extension is distributed. An MCPB bundle built naively from
 the workspace pulls in test fixtures and duplicated dependencies, and the

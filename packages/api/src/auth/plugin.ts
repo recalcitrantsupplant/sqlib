@@ -11,12 +11,19 @@ import { getAuthStore } from './AuthStore.js';
 import { getAuthConfig, type AuthConfig } from './config.js';
 import { resolveEffectiveGrants } from './grants.js';
 import { derivePrincipals } from './principals.js';
+import {
+  bearerChallenge,
+  isProtectedResourceMetadataRoute,
+  registerProtectedResourceMetadataRoutes,
+} from './resourceMetadata.js';
 import { TokenError, TokenVerifier, getTokenVerifier } from './tokenVerifier.js';
 import { createFullAccessContext, type AuthContext } from './types.js';
 
 /**
  * Routes that never require a token, regardless of mode: `/` (a redirect to the
- * docs), `/health` for load balancers and the SPA's boot probe, and — unless
+ * docs), `/health` for load balancers and the SPA's boot probe, the
+ * protected-resource metadata, which is what a tokenless client reads to find
+ * out where to get a token, and — unless
  * `SQLIB_AUTH_PROTECT_DOCS=true` — `/docs` and everything the swagger plugins
  * mount under it (`/docs/json`, `/docs/static/*`, …).
  *
@@ -30,6 +37,9 @@ import { createFullAccessContext, type AuthContext } from './types.js';
 function isPublicRoute(routeUrl: string | undefined, config: AuthConfig, basePath: string): boolean {
   if (!routeUrl) return false;
   const url = normalizeRouteUrl(routeUrl);
+  // The metadata routes are mounted at the root of the instance whatever the
+  // base path, because RFC 9728 puts them at the root of the origin.
+  if (isProtectedResourceMetadataRoute(url)) return true;
   // Everything the API serves sits under `APP_BASE_PATH` when one is set.
   let path: string;
   if (!basePath) {
@@ -42,7 +52,7 @@ function isPublicRoute(routeUrl: string | undefined, config: AuthConfig, basePat
     return false;
   }
 
-  if (path === '/' || path === '/health') return true;
+  if (path === '/' || path === '/health' || isProtectedResourceMetadataRoute(path)) return true;
   if (!config.protectDocs && (path === '/docs' || path.startsWith('/docs/'))) return true;
   return false;
 }
@@ -100,6 +110,8 @@ export async function registerAuthPlugin(
 
   app.decorateRequest('authContext', undefined);
 
+  registerProtectedResourceMetadataRoutes(app, config, basePath);
+
   app.addHook('onRequest', async (request: FastifyRequest, reply: FastifyReply) => {
     if (config.mode === 'disabled') {
       request.authContext = createFullAccessContext('disabled');
@@ -111,7 +123,7 @@ export async function registerAuthPlugin(
     if (!token) {
       if (config.mode === 'required' && !isPublicRoute(request.routeOptions?.url, config, basePath)) {
         reply
-          .header('WWW-Authenticate', 'Bearer error="invalid_token"')
+          .header('WWW-Authenticate', bearerChallenge(config, request))
           .code(401)
           .send({ error: 'Authentication required.' });
         return reply;
@@ -138,7 +150,7 @@ export async function registerAuthPlugin(
         if (status === 401) {
           reply.header(
             'WWW-Authenticate',
-            `Bearer error="invalid_token", error_description="${tokenError.kind}"`
+            bearerChallenge(config, request, { code: 'invalid_token', description: tokenError.kind })
           );
         }
         reply.code(status).send({
@@ -157,6 +169,16 @@ export async function registerAuthPlugin(
       app.log.warn(
         { issuers: unscoped },
         'SQLIB_AUTH_AUDIENCE_UNCHECKED=true: accepting tokens for any audience from these issuers'
+      );
+    }
+  }
+
+  if (config.mode !== 'disabled' && config.resource && !config.audienceUnchecked) {
+    const audiences = config.issuers.map(entry => entry.audience);
+    if (!audiences.includes(config.resource)) {
+      app.log.warn(
+        { resource: config.resource, audiences },
+        'SQLIB_AUTH_RESOURCE matches no issuer audience: a token a client asks for this resource will be refused'
       );
     }
   }
