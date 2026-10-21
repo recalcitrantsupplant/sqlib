@@ -16,6 +16,13 @@ const {
   test: testRepo,
   testVersion,
   testCase,
+  etlJob,
+  etlJobVersion,
+  etlColumnMappingVersion,
+  ruleSet,
+  ruleSetVersion,
+  ruleVersion,
+  dataBlockVersion,
   entities,
   exportRuntimePayload,
 } = vi.hoisted(() => {
@@ -29,6 +36,13 @@ const {
     test: make(),
     testVersion: make(),
     testCase: make(),
+    etlJob: make(),
+    etlJobVersion: make(),
+    etlColumnMappingVersion: make(),
+    ruleSet: make(),
+    ruleSetVersion: make(),
+    ruleVersion: make(),
+    dataBlockVersion: make(),
     /** A group's graph, read through the coordinator the way the engine reads it. */
     entities: new Map<string, Record<string, unknown>>(),
     exportRuntimePayload: vi.fn(),
@@ -45,6 +59,13 @@ vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
     Test: testRepo,
     TestVersion: testVersion,
     TestCase: testCase,
+    EtlJob: etlJob,
+    EtlJobVersion: etlJobVersion,
+    EtlColumnMappingVersion: etlColumnMappingVersion,
+    RuleSet: ruleSet,
+    RuleSetVersion: ruleSetVersion,
+    RuleVersion: ruleVersion,
+    DataBlockVersion: dataBlockVersion,
   }),
   getCacheCoordinator: () => ({ get: (id: string) => entities.get(id) ?? null }),
 }));
@@ -92,7 +113,58 @@ function seedLibrary(
   // Likewise groups: seedGroup() fills these in for the cases that need them.
   queryGroup.list.mockReturnValue([]);
   queryGroupVersion.get.mockReturnValue(null);
+  // And ETL jobs and rule sets: seedJobsAndRuleSets().
+  etlJob.list.mockReturnValue([]);
+  ruleSet.list.mockReturnValue([]);
   entities.clear();
+}
+
+const JOB_TEMPLATE = `PREFIX ex: <http://ex/>
+CONSTRUCT { ?c ex:name ?name } WHERE { VALUES (?c ?name) { (UNDEF UNDEF) } }`;
+
+const COLUMNS = [
+  { columnName: 'id', targetVariable: 'c', termType: 'uri', iriTemplate: 'http://ex/c/{value}', nullPolicy: 'skipRow' },
+  { columnName: 'name', targetVariable: 'name', termType: 'literal', nullPolicy: 'undef' },
+];
+
+/** One ETL job and one rule set with a rule and a data block. */
+function seedJobsAndRuleSets(options: { template?: string } = {}) {
+  etlJob.list.mockReturnValue([
+    { $id: 'j1', name: 'Customers', isPartOf: [LIBRARY], currentVersion: 'jv1' },
+  ]);
+  etlJobVersion.get.mockImplementation((id: string) =>
+    id === 'jv1'
+      ? {
+          $id: 'jv1',
+          isPartOf: 'j1',
+          version: 1,
+          sql: "SELECT * FROM read_csv('customers.csv')",
+          sparqlTemplate: options.template ?? JOB_TEMPLATE,
+          backendId: 'urn:backend:x',
+          currentColumnMappingVersion: 'cmv1',
+          chunkSize: 500,
+        }
+      : null,
+  );
+  etlColumnMappingVersion.get.mockImplementation((id: string) =>
+    id === 'cmv1' ? { $id: 'cmv1', isPartOf: 'cm1', version: 1, columns: JSON.stringify(COLUMNS) } : null,
+  );
+  ruleSet.list.mockReturnValue([
+    { $id: 'rs1', name: 'Ancestors', isPartOf: [LIBRARY], currentVersion: 'rsv1', tags: ['urn:tag:public'] },
+  ]);
+  ruleSetVersion.get.mockImplementation((id: string) =>
+    id === 'rsv1' ? { $id: 'rsv1', isPartOf: 'rs1', version: 1, hasRule: ['rv1'], hasDataBlock: ['dbv1'] } : null,
+  );
+  ruleVersion.get.mockImplementation((id: string) =>
+    id === 'rv1'
+      ? { $id: 'rv1', isPartOf: 'r1', ruleString: 'RULE { ?x <http://ex/anc> ?y } WHERE { ?x <http://ex/parent> ?y }' }
+      : null,
+  );
+  dataBlockVersion.get.mockImplementation((id: string) =>
+    id === 'dbv1'
+      ? { $id: 'dbv1', isPartOf: 'db1', dataString: 'INSERT DATA { <http://ex/a> <http://ex/parent> <http://ex/b> }' }
+      : null,
+  );
 }
 
 const CITIES_QUERY = `
@@ -402,6 +474,74 @@ describe('GET /libraries/:id/export-bundle', () => {
             'Node n2 is a RuleSetNode. The static runtime runs SPARQL queries only, so a group containing one cannot be exported.',
         },
       ]);
+    });
+  });
+
+  describe('ETL jobs and rule sets', () => {
+    it('carries both, in a bundle that validates and verifies', async () => {
+      seedLibrary([{ id: 'q1', name: 'People by city', currentVersion: 'v1' }], { v1: PEOPLE_QUERY });
+      seedJobsAndRuleSets();
+
+      const response = await app.inject({ url: `/libraries/${LIBRARY}/export-bundle` });
+      expect(response.statusCode).toBe(200);
+      const { bundle, skipped } = response.json();
+      expect(skipped).toEqual([]);
+      await verifyBundleIntegrity(bundle);
+      fromBundle(bundle);
+
+      const job = bundle.etlJobs.customers;
+      expect(job.template.slots).toHaveLength(1);
+      expect(job.template.slots[0].vars).toEqual(['c', 'name']);
+      expect(job.columns).toEqual(COLUMNS);
+      expect(job).toMatchObject({ chunkSize: 500, sourceJob: 'j1', sourceVersion: 'jv1', sourceColumnMappingVersion: 'cmv1' });
+      // The job's backend names a server's backend; it stays behind.
+      expect(JSON.stringify(job)).not.toContain('urn:backend:x');
+
+      const rules = bundle.ruleSets.ancestors;
+      expect(rules).toMatchObject({ ruleCount: 1, dataBlockCount: 1, sourceRuleSet: 'rs1', sourceVersion: 'rsv1' });
+      expect(rules.srl).toContain('RULE');
+      expect(rules.srl).toContain('DATA');
+    });
+
+    it('skips a job whose template is not a CONSTRUCT, and says why', async () => {
+      seedLibrary([], {});
+      seedJobsAndRuleSets({ template: 'SELECT ?c WHERE { VALUES ?c { UNDEF } }' });
+
+      const { bundle, skipped } = (await app.inject({ url: `/libraries/${LIBRARY}/export-bundle` })).json();
+      expect(bundle.etlJobs).toBeUndefined();
+      expect(skipped).toEqual([{ id: 'j1', name: 'Customers', reason: expect.stringContaining('not a CONSTRUCT') }]);
+    });
+
+    it('skips a rule set whose data block has no DATA form', async () => {
+      seedLibrary([], {});
+      seedJobsAndRuleSets();
+      dataBlockVersion.get.mockReturnValue({ $id: 'dbv1', dataString: 'DELETE WHERE { ?s ?p ?o }' });
+
+      const { bundle, skipped } = (await app.inject({ url: `/libraries/${LIBRARY}/export-bundle` })).json();
+      expect(bundle.ruleSets).toBeUndefined();
+      expect(skipped).toEqual([{ id: 'rs1', name: 'Ancestors', reason: expect.stringContaining('not expressible') }]);
+    });
+
+    it('leaves them out on etl=false and ruleSets=false', async () => {
+      seedLibrary([], {});
+      seedJobsAndRuleSets();
+
+      const { bundle } = (
+        await app.inject({ url: `/libraries/${LIBRARY}/export-bundle?etl=false&ruleSets=false` })
+      ).json();
+      expect(bundle.etlJobs).toBeUndefined();
+      expect(bundle.ruleSets).toBeUndefined();
+    });
+
+    it('applies a tag filter: jobs carry no tags, so none match', async () => {
+      seedLibrary([], {});
+      seedJobsAndRuleSets();
+
+      const { bundle } = (
+        await app.inject({ url: `/libraries/${LIBRARY}/export-bundle?tag=urn:tag:public` })
+      ).json();
+      expect(bundle.etlJobs).toBeUndefined();
+      expect(Object.keys(bundle.ruleSets)).toEqual(['ancestors']);
     });
   });
 

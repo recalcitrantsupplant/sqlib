@@ -279,6 +279,11 @@ describe('the fixture covers the format it is meant to freeze', () => {
       for (const node of Object.values(group.nodes)) record('ExportedGroupNode', node);
       for (const edge of group.edges) record('ExportedGroupEdge', edge);
     }
+    for (const job of Object.values(GOLDEN.etlJobs ?? {})) {
+      record('ExportedEtlJob', job);
+      for (const column of job.columns) record('ExportedEtlColumn', column);
+    }
+    for (const ruleSet of Object.values(GOLDEN.ruleSets ?? {})) record('ExportedRuleSet', ruleSet);
     return covered;
   };
 

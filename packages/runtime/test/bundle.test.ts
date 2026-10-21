@@ -133,3 +133,62 @@ describe('examples', () => {
     expect(() => assertValidBundle(bundle)).not.toThrow();
   });
 });
+
+describe('ETL jobs and rule sets', () => {
+  const JOB_TEMPLATE = () => template('CONSTRUCT { ?c <http://ex/name> ?name } WHERE { «VALUES (?c ?name) { (UNDEF UNDEF) }» }');
+
+  async function withJobAndRules() {
+    const bundle = await bundleOf({ people: SIMPLE() });
+    const jobTemplate = JOB_TEMPLATE();
+    const srl = 'RULE { ?x <http://ex/anc> ?y } WHERE { ?x <http://ex/parent> ?y }';
+    bundle.etlJobs = {
+      customers: {
+        template: jobTemplate,
+        textHash: await hashTemplateText(jobTemplate.text),
+        sql: 'SELECT 1 AS id',
+        columns: [
+          { columnName: 'id', targetVariable: 'c', termType: 'uri', nullPolicy: 'skipRow' },
+          { columnName: 'name', targetVariable: 'name', termType: 'literal', nullPolicy: 'undef' },
+        ],
+      },
+    };
+    bundle.ruleSets = {
+      ancestors: { srl, textHash: await hashTemplateText(srl), ruleCount: 1, dataBlockCount: 0 },
+    };
+    return bundle;
+  }
+
+  it('accepts a job and a rule set as exported', async () => {
+    const bundle = await withJobAndRules();
+    expect(() => assertValidBundle(bundle)).not.toThrow();
+    await expect(verifyBundleIntegrity(bundle)).resolves.toBeUndefined();
+  });
+
+  it('rejects a job column bound to a variable the slot does not declare', async () => {
+    const bundle = await withJobAndRules();
+    bundle.etlJobs!.customers.columns[1].targetVariable = 'email';
+    expect(() => assertValidBundle(bundle)).toThrow(/\?email/);
+  });
+
+  it('rejects a job template with no slot for the rows', async () => {
+    const bundle = await withJobAndRules();
+    bundle.etlJobs!.customers.template = template('CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }');
+    expect(() => assertValidBundle(bundle)).toThrow(/exactly one parameter slot/);
+  });
+
+  it('catches an edited job template or SRL document by its hash', async () => {
+    const job = await withJobAndRules();
+    job.etlJobs!.customers.template.text = job.etlJobs!.customers.template.text.replace('name>', 'label>');
+    await expect(verifyBundleIntegrity(job)).rejects.toThrow(/ETL job 'customers'/);
+
+    const rules = await withJobAndRules();
+    rules.ruleSets!.ancestors.srl += '\nRULE { ?x <http://ex/a> ?x } WHERE { ?x ?p ?o }';
+    await expect(verifyBundleIntegrity(rules)).rejects.toThrow(/Rule set 'ancestors'/);
+  });
+
+  it('rejects a rule set with no document', async () => {
+    const bundle = await withJobAndRules();
+    bundle.ruleSets!.ancestors.srl = ' ';
+    expect(() => assertValidBundle(bundle)).toThrow(/srl must be a non-empty string/);
+  });
+});

@@ -24,7 +24,6 @@ import {
   generateRule,
   generateTupleSeeds,
   groundTupleSeedRows,
-  mergeRuleSet,
   parseRuleSet,
   parseTupleSeeds,
   reconcileRuleSet,
@@ -61,6 +60,12 @@ import { DATA_GRAPH_FORMATS } from '../lib/dataGraphContent.js';
 import { DataGraphContentError, resolveDataGraphInput, type ResolvedDataGraph } from '../lib/dataGraphInput.js';
 import { TupleSeedInputError, resolveTupleSeedInput } from '../lib/tupleSeedInput.js';
 import { ruleAggregatesAllowed } from '../lib/ruleAggregates.js';
+import {
+  buildRuleSetDocument,
+  loadDataBlockVersions,
+  loadRuleVersions,
+  toDataBlockText,
+} from '../lib/ruleSetDocument.js';
 
 type AnyRecord = Record<string, unknown>;
 
@@ -620,27 +625,15 @@ export default async function (fastify: FastifyInstance) {
       return reply.status(resolution.status).send({ error: resolution.message });
     }
 
-    const ruleVersions = loadRuleVersions(repos, resolution.version);
-    const dataBlockVersions = loadDataBlockVersions(repos, resolution.version);
-    const warnings: string[] = [];
-    const dataDocs: Array<{ text: string }> = [];
-    for (const dbv of dataBlockVersions) {
-      const text = toDataBlockText(dbv.dataString);
-      if (text) dataDocs.push({ text });
-      // Never fabricate SRL for content that is not ground triples — say what
-      // was left out instead, or the round-trip silently rewrites the ruleset.
-      else warnings.push(`Data block ${dbv.$id} is not expressible as an SRL DATA block and was omitted from the document.`);
-    }
-
-    const srl = mergeRuleSet(
-      ruleVersions.map((rv) => ({ text: rv.ruleString ?? '' })),
+    const { srl, ruleCount, dataBlockCount, warnings } = buildRuleSetDocument(
+      repos,
+      resolution.version,
       query.prologue ?? '',
-      dataDocs,
     );
     return reply.send({
       srl,
-      ruleCount: ruleVersions.length,
-      dataBlockCount: dataDocs.length,
+      ruleCount,
+      dataBlockCount,
       // Seeds are stored expanded; abbreviate them back against the same
       // prologue the document uses, so box 2 reads like box 1.
       /*
@@ -1428,64 +1421,6 @@ function parseSeedDocument(
 }
 
 /**
- * Render a stored data block as an SRL `DATA { … }` block, or null when it is
- * not expressible as one.
- *
- * Two shapes reach this: blocks written through the SRL document path (already
- * `DATA { … }`) and blocks authored in the standalone data-block editor, which
- * are ordinarily `INSERT DATA { … }` SPARQL. Anything else — an arbitrary
- * update, say — has no `DATA` form and is reported as omitted rather than
- * mangled into one.
- */
-function toDataBlockText(dataString?: string | null): string | null {
-  const raw = (dataString ?? '').trim();
-  if (!raw) return null;
-
-  // IRIs are expanded before canonicalizing, exactly as on the rule path: the
-  // canonical form is prefix-independent, so a block spelled `:a` and one
-  // spelled with the full IRI are the same block and match on re-import.
-  const canonicalize = (document: string): string | null => {
-    try {
-      const parsed = expandIris(parseRuleSet(document, { tuples: true, aggregates: ruleAggregatesAllowed() }));
-      if (parsed.rules.length > 0 || parsed.dataBlocks.length === 0) return null;
-      return parsed.dataBlocks.map((b) => canonicalDataBlockText(b)).join('\n\n');
-    } catch {
-      return null;
-    }
-  };
-
-  const asSrl = canonicalize(raw);
-  if (asSrl) return asSrl;
-
-  // The standalone data-block editor stores SPARQL, ordinarily
-  // `[prologue] INSERT DATA { … }`. Rewrite that into the SRL form; anything
-  // else (an arbitrary update, say) has no DATA form and is left alone.
-  const prologue = extractPrologueText(raw);
-  const withoutPrologue = raw
-    .split('\n')
-    .filter((line) => !/^[ \t]*(PREFIX|BASE)\b/i.test(line))
-    .join('\n')
-    .trim();
-  const insertData = /^INSERT\s+DATA\s*\{([\s\S]*)\}\s*;?\s*$/i.exec(withoutPrologue);
-  if (!insertData) return null;
-  const inner = insertData[1].trim();
-  return canonicalize(`${prologue ? `${prologue}\n` : ''}DATA { ${inner} }`);
-}
-
-/** DataBlockVersion IDs referenced by a rule set version, resolved to entities. */
-function loadDataBlockVersions(
-  repos: { DataBlockVersion: { get: (id: string) => unknown } },
-  version: LdkitRuleSetVersion,
-): LdkitDataBlockVersion[] {
-  const out: LdkitDataBlockVersion[] = [];
-  for (const dataBlockVersionId of normalizeIdList(version.hasDataBlock)) {
-    const found = repos.DataBlockVersion.get(dataBlockVersionId) as LdkitDataBlockVersion | undefined;
-    if (found) out.push(found);
-  }
-  return out;
-}
-
-/**
  * Canonicalize a stored data block for identity matching, mirroring
  * {@link canonicalizeStoredRule}. A block with no `DATA` form stays addressable
  * under an `unparseable:` identity so re-import never silently drops it.
@@ -1534,19 +1469,6 @@ async function createDataBlockForImport(
     isPartOf: normalizeIdList(ruleSet.isPartOf),
   });
   return created.$id;
-}
-
-/** RuleVersion IDs referenced by a rule set version, resolved to entities. */
-function loadRuleVersions(
-  repos: { RuleVersion: { get: (id: string) => unknown } },
-  version: LdkitRuleSetVersion,
-): LdkitRuleVersion[] {
-  const out: LdkitRuleVersion[] = [];
-  for (const ruleVersionId of normalizeIdList(version.hasRule)) {
-    const found = repos.RuleVersion.get(ruleVersionId) as LdkitRuleVersion | undefined;
-    if (found) out.push(found);
-  }
-  return out;
 }
 
 /**

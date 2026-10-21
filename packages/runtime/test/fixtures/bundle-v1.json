@@ -291,5 +291,77 @@
       "sourceGroup": "urn:sqlib:query-group:people-by-region",
       "sourceVersion": "urn:sqlib:query-group-version:people-by-region-1"
     }
+  },
+  "etlJobs": {
+    "customers": {
+      "template": {
+        "text": "PREFIX ex: <http://example.org/>\nCONSTRUCT {\n  ?person ex:name ?name .\n  ?person ex:joined ?joined .\n}\nWHERE {\n  VALUES( ?person ?name ?joined ){\n    ( <urn:sqlib:template-slot:0:person> <urn:sqlib:template-slot:0:name> <urn:sqlib:template-slot:0:joined> )\n  }\n}",
+        "slots": [
+          {
+            "start": 113,
+            "end": 260,
+            "vars": [
+              "person",
+              "name",
+              "joined"
+            ]
+          }
+        ],
+        "prefixes": [
+          [
+            "ex",
+            "http://example.org/"
+          ]
+        ]
+      },
+      "textHash": "sha256-3245cf1afa6889267a3e8e85ed297040fa919691e31daf202f8c74dcab4112bd",
+      "sql": "SELECT id, name, joined FROM read_csv('customers.csv')",
+      "columns": [
+        {
+          "columnName": "id",
+          "targetVariable": "person",
+          "termType": "uri",
+          "iriTemplate": "http://example.org/person/{value}",
+          "nullPolicy": "skipRow"
+        },
+        {
+          "columnName": "name",
+          "targetVariable": "name",
+          "termType": "literal",
+          "lang": "en",
+          "nullPolicy": "undef"
+        },
+        {
+          "columnName": "joined",
+          "targetVariable": "joined",
+          "termType": "literal",
+          "datatypeIri": "http://www.w3.org/2001/XMLSchema#dateTime",
+          "nullPolicy": "undef"
+        }
+      ],
+      "chunkSize": 500,
+      "name": "Customers",
+      "description": "Customer rows to people.",
+      "sourceJob": "urn:sqlib:etl-job:customers",
+      "sourceVersion": "urn:sqlib:etl-job-version:customers-1",
+      "sourceColumnMappingVersion": "urn:sqlib:etl-column-mapping-version:customers-1"
+    }
+  },
+  "ruleSets": {
+    "ancestors": {
+      "srl": "DATA { <http://example.org/ann> <http://example.org/parent> <http://example.org/bo> . }\n\nRULE { ?x <http://example.org/anc> ?z } WHERE { ?x <http://example.org/parent> ?z }\n\nRULE { ?x <http://example.org/anc> ?z } WHERE { ?x <http://example.org/anc> ?y . ?y <http://example.org/parent> ?z }\n",
+      "textHash": "sha256-92690e6f14d2f64c37faaad5c1d4f943f0737dbda4bc4046b14afb242e56619e",
+      "ruleCount": 2,
+      "dataBlockCount": 1,
+      "tuplesEnabled": true,
+      "tupleSeeds": "TUPLE(<http://example.org/reach>, <http://example.org/a>, <http://example.org/b>)",
+      "name": "Ancestors",
+      "description": "The transitive closure of ex:parent.",
+      "tags": [
+        "urn:sqlib:tag:reference"
+      ],
+      "sourceRuleSet": "urn:sqlib:rule-set:ancestors",
+      "sourceVersion": "urn:sqlib:rule-set-version:ancestors-1"
+    }
   }
 }

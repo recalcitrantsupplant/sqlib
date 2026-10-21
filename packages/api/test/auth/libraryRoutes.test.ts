@@ -78,6 +78,13 @@ vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => {
       Test: repo('Test'),
       TestVersion: repo('TestVersion'),
       TestCase: repo('TestCase'),
+      EtlJob: repo('EtlJob'),
+      EtlJobVersion: repo('EtlJobVersion'),
+      EtlColumnMappingVersion: repo('EtlColumnMappingVersion'),
+      RuleSet: repo('RuleSet'),
+      RuleSetVersion: repo('RuleSetVersion'),
+      RuleVersion: repo('RuleVersion'),
+      DataBlockVersion: repo('DataBlockVersion'),
     }),
   };
 });

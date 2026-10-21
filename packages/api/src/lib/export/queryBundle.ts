@@ -78,21 +78,26 @@ export function slugify(name: string): string {
 }
 
 /**
- * Assign each query a unique bundle key.
+ * Reserve a unique key for a name among those already taken.
  *
- * Two queries may legitimately share a name — the library only requires IRIs to
- * be unique — so a collision gets a numeric suffix rather than silently
+ * Two entities may legitimately share a name — the library only requires IRIs
+ * to be unique — so a collision gets a numeric suffix rather than silently
  * overwriting the earlier entry, which is what a plain object build would do.
+ * A query a group brings in collides with the library's own queries on
+ * purpose: two entries for the same name are two queries.
  */
+export function reserveKey(name: string, taken: Set<string>): string {
+  const base = slugify(name);
+  let key = base;
+  for (let suffix = 2; taken.has(key); suffix++) key = `${base}-${suffix}`;
+  taken.add(key);
+  return key;
+}
+
+/** Assign each query a unique bundle key. */
 function assignKeys(queries: readonly ExportQueryInput[]): Array<[string, ExportQueryInput]> {
   const used = new Set<string>();
-  return queries.map((query) => {
-    const base = slugify(query.name);
-    let key = base;
-    for (let suffix = 2; used.has(key); suffix++) key = `${base}-${suffix}`;
-    used.add(key);
-    return [key, query];
-  });
+  return queries.map((query) => [reserveKey(query.name, used), query]);
 }
 
 /** Compile one query, or explain why it cannot be exported. */

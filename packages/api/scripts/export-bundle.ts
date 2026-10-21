@@ -5,7 +5,7 @@
  *   pnpm --filter @sparql-query-lib/api export:bundle \
  *     --library urn:sqlib:library:main --out queries.json [--tag <iri>[,<iri>]] \
  *     [--match any|all] [--typings] [--examples all|first|none] [--expected] \
- *     [--html [file]]
+ *     [--html [file]] [--no-etl] [--no-rule-sets]
  *
  * The output is JSON that `@sparql-query-lib/runtime` runs with no SPARQL parser
  * and no sqlib server. Compilation still happens here, with the real parser, and
@@ -34,6 +34,8 @@ import {
   type GroupGraphEntity,
 } from '../src/lib/export/collectLibraryGroups.js';
 import { attachGroupsToBundle } from '../src/lib/export/groupBundle.js';
+import { attachEtlJobsToBundle, etlJobSource } from '../src/lib/export/etlJobBundle.js';
+import { attachRuleSetsToBundle, ruleSetSource } from '../src/lib/export/ruleSetBundle.js';
 import { buildExportBundle } from '../src/lib/export/queryBundle.js';
 import { bundleTypingsFileName, generateBundleTypings } from '../src/lib/export/typings.js';
 import {
@@ -59,6 +61,9 @@ interface Args {
   typings: boolean;
   examples: ExampleMode;
   expected: boolean;
+  /** Carry ETL jobs and rule sets; `--no-etl` and `--no-rule-sets` turn them off. */
+  etl: boolean;
+  ruleSets: boolean;
   /** Path for the demo page, or undefined when one was not asked for. */
   html?: string;
 }
@@ -71,6 +76,8 @@ function parseArgs(argv: string[]): Args {
     typings: false,
     examples: 'all',
     expected: false,
+    etl: true,
+    ruleSets: true,
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -113,6 +120,12 @@ function parseArgs(argv: string[]): Args {
       }
       case '--expected':
         args.expected = true;
+        break;
+      case '--no-etl':
+        args.etl = false;
+        break;
+      case '--no-rule-sets':
+        args.ruleSets = false;
         break;
       case '--html':
         // The path is optional: `--html` alone writes alongside --out.
@@ -200,18 +213,41 @@ export async function exportBundle(args: Args): Promise<void> {
   );
   const { skipped: skippedGroups } = await attachGroupsToBundle(bundle, groups);
 
+  // ETL jobs and rule sets, for the CLI to run with no server.
+  const { skipped: skippedEtlJobs } = args.etl
+    ? await attachEtlJobsToBundle(bundle, etlJobSource(repos), args.library!, { tags: args.tags })
+    : { skipped: [] };
+  const { skipped: skippedRuleSets } = args.ruleSets
+    ? await attachRuleSetsToBundle(bundle, ruleSetSource(repos), args.library!, {
+      tags: args.tags,
+      match: args.match,
+    })
+    : { skipped: [] };
+
   // Re-hash what we are about to write. The check costs nothing here and it is
   // the same one a consumer runs, so a bundle that fails it never leaves.
   await verifyBundleIntegrity(bundle);
 
-  const allSkipped = [...skipped, ...skippedExamples, ...skippedGroupReads, ...skippedGroups];
+  const allSkipped = [
+    ...skipped,
+    ...skippedExamples,
+    ...skippedGroupReads,
+    ...skippedGroups,
+    ...skippedEtlJobs,
+    ...skippedRuleSets,
+  ];
 
   const outPath = path.resolve(args.out);
   await fs.writeFile(outPath, `${JSON.stringify(bundle, null, 2)}\n`, 'utf8');
-  const groupCount = Object.keys(bundle.groups ?? {}).length;
-  console.log(
-    `✅ Exported ${Object.keys(bundle.queries).length} queries${groupCount > 0 ? ` and ${groupCount} group(s)` : ''} to ${outPath}`,
-  );
+  const extras = [
+    [Object.keys(bundle.groups ?? {}).length, 'group(s)'],
+    [Object.keys(bundle.etlJobs ?? {}).length, 'ETL job(s)'],
+    [Object.keys(bundle.ruleSets ?? {}).length, 'rule set(s)'],
+  ]
+    .filter(([count]) => (count as number) > 0)
+    .map(([count, label]) => `, ${count} ${label}`)
+    .join('');
+  console.log(`✅ Exported ${Object.keys(bundle.queries).length} queries${extras} to ${outPath}`);
 
   if (args.typings) {
     const specifier = `./${path.basename(outPath)}`;
