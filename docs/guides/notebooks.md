@@ -125,13 +125,17 @@ on the cell), which is what you want for a notebook attached to a release.
 
 ## 6. The library's own exports
 
-Two actions under **Export** are about the library rather than about the
-notebook, and live here because this screen is the library's front page:
+The rest of **Export** is about the library rather than about the notebook,
+and lives here because this screen is the library's front page:
 
 - **The library, as a runnable page** — the self-contained HTML the
   [static export](static-export.md) writes, which calls a triplestore with no
-  sqlib in the request path.
-- **Copy the library's bundle JSON** — the compiled bundle that page runs on.
+  sqlib in the request path. It shows the library's queries.
+- **The library's bundle** — the compiled bundle, as a download
+  (`<library>.bundle.json`) or copied as JSON. Besides queries, it carries the
+  library's ETL jobs and rule sets, which the [`sqlib` CLI](cli.md) runs with
+  `--bundle`. Untick **Include ETL jobs** or **Include rule sets** to leave
+  them out. Each toggle shows only when its screen is switched on.
 
 A cell that has run also offers **Save as test…**: hold a query, its arguments
 and a result and you are holding a test case. It records the call that *ran* —

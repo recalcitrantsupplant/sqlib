@@ -141,7 +141,8 @@ sqlib rules run --bundle lib.json --rule-set ancestors --data customers.nt
 ```
 
 `sqlib pull` fetches a library's [export bundle](static-export.md) from a
-running server and writes it to a file. A run from that file then needs no
+running server and writes it to a file. The notebook screen's **Export** menu
+downloads the same file. A run from that file then needs no
 server. The bundle carries the library's queries, its ETL jobs and its rule
 sets:
 

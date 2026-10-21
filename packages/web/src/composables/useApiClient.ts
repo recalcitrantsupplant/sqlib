@@ -173,7 +173,7 @@ import {
 /** What `GET /libraries/:id/export-bundle` answers with. */
 export interface LibraryNotebookPayload {
   bundle: ExportBundle;
-  /** Queries and tests the export could not carry, each with its reason. */
+  /** Queries, tests, ETL jobs and rule sets the export could not carry, each with its reason. */
   skipped: Array<{ id: string; name: string; reason: string }>;
 }
 
@@ -896,11 +896,20 @@ export function useApiClient() {
    */
   const getLibraryExportBundle = (
     id: string,
-    options: { examples?: 'all' | 'first' | 'none'; expected?: boolean } = {},
+    options: {
+      examples?: 'all' | 'first' | 'none';
+      expected?: boolean;
+      /** False leaves the library's ETL jobs out; the server carries them by default. */
+      etl?: boolean;
+      /** False leaves the library's rule sets out; likewise carried by default. */
+      ruleSets?: boolean;
+    } = {},
   ) => {
     const search = new URLSearchParams();
     if (options.examples) search.set('examples', options.examples);
     if (options.expected) search.set('expected', 'true');
+    if (options.etl === false) search.set('etl', 'false');
+    if (options.ruleSets === false) search.set('ruleSets', 'false');
     const suffix = search.toString();
     return requestData(
       buildUrl(`/libraries/${encodeURIComponent(id)}/export-bundle${suffix ? `?${suffix}` : ''}`),
