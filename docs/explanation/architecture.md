@@ -13,7 +13,7 @@ it, or things that run without it.
 
 | Package | What it is | Depends on |
 | --- | --- | --- |
-| `api` | The Fastify server: routes, persistence, execution, auth, cache | `contracts`, `types`, `tools`, `srl`, `rdf-delta`, `runtime`, `compiler`, `runtime-duckdb`, `runtime-etl` |
+| `api` | The Fastify server: routes, persistence, execution, auth, cache | `contracts`, `types`, `tools`, `srl`, `rdf-delta`, `runtime`, `compiler`, `runtime-duckdb`, `runtime-etl`, `runtime-srl` |
 | `web` | The Nuxt 4 single-page application | `types`, `runtime` (and `contracts` by path alias) |
 | `mcp-server` | An MCP server that mounts the Fastify app in process | `api`, `contracts`, `tools`, `types` |
 | `contracts` | Generated JSON Schema and zod schemas for every entity and route | — |
@@ -26,6 +26,7 @@ it, or things that run without it.
 | `runtime-oxigraph` | An Oxigraph-backed executor for that runtime | — |
 | `runtime-duckdb` | The sandboxed DuckDB that reads ETL sources, under a profile the host supplies | — |
 | `runtime-etl` | The ETL loop: rows in chunks, mapped to bindings, spliced into a CONSTRUCT, RDF to a sink | `runtime` |
+| `runtime-srl` | The rule set runner: DATA blocks, then each stratum to its fixpoint, on an Oxigraph store | `srl` |
 
 `runtime` and `runtime-oxigraph` are the only two packages that are not
 `private: true`. Everything else is internal to the repository.
@@ -51,7 +52,9 @@ copy. The API wraps it only to send its diagnostics to OpenTelemetry.
 read ETL sources through one sandbox. The API supplies a profile read from the
 environment; the tool supplies one from its flags. `runtime-etl` holds the loop
 those rows go through, so a job gives the same RDF in either host;
-`packages/api/test/lib/etlParity.test.ts` holds the two to that.
+`packages/api/test/lib/etlParity.test.ts` holds the two to that. `runtime-srl`
+does the same for rule sets: the API's `RuleSetExecutor` is now the host that
+loads, validates and stratifies stored versions, and the runner evaluates them.
 
 **A package exists where two consumers must agree about a document.**
 `contracts` holds the generated schemas, and `tools` holds the MCP catalogue

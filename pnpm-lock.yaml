@@ -101,6 +101,9 @@ importers:
       '@sparql-query-lib/runtime-etl':
         specifier: workspace:*
         version: link:../runtime-etl
+      '@sparql-query-lib/runtime-srl':
+        specifier: workspace:*
+        version: link:../runtime-srl
       '@sparql-query-lib/srl':
         specifier: workspace:*
         version: link:../srl
@@ -452,6 +455,25 @@ importers:
         version: 7.0.2
       vitest:
         specifier: ^5.0.3
+        version: 5.0.5(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(happy-dom@21.0.3)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
+  packages/runtime-srl:
+    dependencies:
+      '@sparql-query-lib/srl':
+        specifier: workspace:*
+        version: link:../srl
+      oxigraph:
+        specifier: ^0.5.11
+        version: 0.5.11
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.2
+        version: 26.6.5
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: ^5.0.5
         version: 5.0.5(@opentelemetry/api@1.9.1)(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(happy-dom@21.0.3)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/srl:

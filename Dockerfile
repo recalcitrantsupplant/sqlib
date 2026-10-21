@@ -43,6 +43,8 @@ COPY packages/runtime-duckdb/package.json packages/runtime-duckdb/package.json
 COPY packages/runtime-duckdb/tsconfig.json packages/runtime-duckdb/tsconfig.json
 COPY packages/runtime-etl/package.json packages/runtime-etl/package.json
 COPY packages/runtime-etl/tsconfig.json packages/runtime-etl/tsconfig.json
+COPY packages/runtime-srl/package.json packages/runtime-srl/package.json
+COPY packages/runtime-srl/tsconfig.json packages/runtime-srl/tsconfig.json
 COPY packages/srl/package.json packages/srl/package.json
 COPY packages/srl/tsconfig.json packages/srl/tsconfig.json
 COPY packages/tools/package.json packages/tools/package.json
@@ -68,6 +70,7 @@ COPY packages/runtime ./packages/runtime
 COPY packages/compiler ./packages/compiler
 COPY packages/runtime-duckdb ./packages/runtime-duckdb
 COPY packages/runtime-etl ./packages/runtime-etl
+COPY packages/runtime-srl ./packages/runtime-srl
 COPY packages/srl ./packages/srl
 COPY packages/tools ./packages/tools
 COPY packages/api ./packages/api
@@ -121,6 +124,8 @@ COPY --from=builder /app/packages/runtime-duckdb/package.json ./packages/runtime
 COPY --from=builder /app/packages/runtime-duckdb/dist ./packages/runtime-duckdb/dist
 COPY --from=builder /app/packages/runtime-etl/package.json ./packages/runtime-etl/package.json
 COPY --from=builder /app/packages/runtime-etl/dist ./packages/runtime-etl/dist
+COPY --from=builder /app/packages/runtime-srl/package.json ./packages/runtime-srl/package.json
+COPY --from=builder /app/packages/runtime-srl/dist ./packages/runtime-srl/dist
 COPY --from=builder /app/packages/srl/package.json ./packages/srl/package.json
 COPY --from=builder /app/packages/srl/dist ./packages/srl/dist
 COPY --from=builder /app/packages/tools/package.json ./packages/tools/package.json

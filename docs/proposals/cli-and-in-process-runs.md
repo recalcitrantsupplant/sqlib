@@ -233,35 +233,66 @@ Acceptance: `runtime` and `runtime-oxigraph` tests cover `update`;
 
 #### WP5 — `runtime-srl` package (L) · needs WP4
 
+Status: done. What changed from this plan is recorded below.
+
 The fixpoint loop from `RuleSetExecutor`, taking prepared rules rather than
 version ids:
 
 ```ts
-export interface PreparedRuleSet {
-  rules: Array<{ name: string; program: string; producesTuples: boolean;
-                 tupleReads: TupleRef[]; tupleWrites: TupleRef[]; stratum: number }>;
-  dataBlocks: Array<{ name: string; quads: string }>;   // N-Quads
-  stratification?: StratificationReport;
+export interface RuleSetSource {
+  id: string; ruleCount: number; dataBlockCount: number;
+  prepareRules(): PreparedRule[];             // validated, stratified, in run order
+  prepareDataBlocks(): PreparedDataBlock[];   // called after the base graph is loaded
+  tupleSeeds?: string | null;
 }
-export function runRuleSet(set: PreparedRuleSet, store: OxigraphStore, options: RunOptions): Promise<RuleSetRunResult>;
+export class RuleSetRunner {
+  run(source: RuleSetSource, options?: RuleSetRunOptions): Promise<RuleSetExecutionResult>;
+}
 ```
 
-Moves: `RuleStratifier`, `TupleStore` with `injectTupleReads` and
-`renderBindingValue`, `nquads.ts`, the iteration and cycle detection, the
-record types, and `serializeStore`. Stays in `api`: `loadRuleVersions`,
-`loadDataBlockVersions`, `prepareRule`, `normalizeRuleContent` (they read the
-cache), the deadline from `executionLimits`, and the W3C suite seeding.
-`api`'s `RuleSetExecutor.execute` becomes load → prepare → `runRuleSet`.
+Moved: the run itself (DATA blocks, stratum scheduling, iteration and cycle
+detection, run-once rules, tuple capture), the record and result types,
+`TupleStore` with `injectTupleReads` and `renderBindingValue`, `nquads.ts`,
+dataset hashing and diffing, and `serializeStore`. `api` re-exports the tuple
+store and the N-Quads helpers from their old paths.
 
-`RuleStratifier` has two `api` imports: the `LdkitRuleVersion` type and
-`ruleTuplesAllowed`, a feature-flag read. The move replaces the first with a
-plain rule-input type and takes the second as an option. The `srl` package
-already exports `stratify`; where the two overlap, the executor should use
-`srl`'s and the duplicate goes.
+Stays in `api`: loading rule and DATA block versions from the cache, refusing
+invalid ones, preparing and normalising rule programs, `RuleStratifier`,
+feature flags, the iteration cap, the deadline, the managed ephemeral store,
+and the W3C suite seeding. `RuleSetExecutor.execute` is now the host: it
+implements the source from its cache and passes its own Oxigraph executor and
+store loader.
 
-Acceptance: the W3C SHACL 1.2 Rules suite (`just run-local-rules-tests`)
-passes with the same verdicts. `RuleSetExecutor` tests pass. A parity test
-runs one rule set both ways and compares inferred graphs.
+What changed from the plan:
+
+- **A source the runner calls, not a prepared set it is given.** The run
+  interleaves loading with store work in an order that shapes its result: an
+  invalid DATA block is refused after the base graph is loaded, so its failure
+  result already holds that graph. A source called at the same points keeps
+  every failure result identical. Refusing is throwing, because the run already
+  turns any error into a `failed` result with its message.
+- **`RuleStratifier` stays in `api`.** It reads stored rule versions and feature
+  flags, which are the host's. The CLI layers rules with `srl`'s `stratify`, as
+  the parity test does.
+- **The executor is a port.** `api`'s Oxigraph executor rewrites error messages
+  ("SPARQL UPDATE query execution failed: …"), and rule records carry them, so
+  `api` passes its own and every message is unchanged. The runner's default
+  executor, for the CLI, uses the same wording.
+- **One test moved off a list.** `storeWriteSites.test.ts` enumerates every
+  direct store write in `api`. The runner's writes left with it: they are to the
+  inference store it builds itself, or to the tuple store, which is not
+  Oxigraph. When `api` runs a rule set, every write to its store still goes
+  through its executor and store manager, which declare it to the checkpoint.
+
+Acceptance:
+
+- The W3C SHACL 1.2 Rules suite harness scores 203 of 203, every category in
+  full, with no regression against its ratchet and no newly conforming entry:
+  the same verdicts as before.
+- `packages/api/test/lib/srlParity.test.ts` runs one rule set, recursive and
+  negating across strata, through `RuleSetExecutor` from stored versions and
+  through `RuleSetRunner` from SRL text, and requires the same inference graph.
+- The `RuleSetExecutor` and execution-limit tests pass unchanged.
 
 ### Phase 2 — Artifacts
 
