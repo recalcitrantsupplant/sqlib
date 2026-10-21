@@ -297,7 +297,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, watch } from 'vue';
+import { ref, onMounted, computed, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from '#imports';
 import { CircleCheck, ListChecks, Play } from '@lucide/vue';
 import AppNavRail from '../AppNavRail.vue';
@@ -365,16 +365,24 @@ import { useTagsStore } from '../../composables/useTagsStore';
 import { isTaggableKind } from '../../composables/useEntityTags';
 import { useTestsStore } from '../../composables/useTestsStore';
 import { useApiClient, type TagMatchMode } from '../../composables/useApiClient';
-import { useCallableDrafts, type DraftSection } from '../../composables/useCallableDrafts';
+import { useCallableDrafts, UNASSIGNED_LIBRARY_ID, type DraftSection } from '../../composables/useCallableDrafts';
 import { useScratchItems, migratePlaygroundTabs } from '../../composables/useScratchItems';
 import {
+  argumentSetBodyFromShare,
   decodeSharePayload,
   encodeSharePayload,
+  isEmptySharePayload,
   MAX_SHARE_DATA_LENGTH,
+  SHARE_BACKEND_PARAM,
   shareDataFromHash,
   shareHash,
   ShareLinkError,
+  shareRoute,
+  type SharePayload,
+  type ShareRequest,
 } from '../../lib/shareLink';
+import { setLastBackend } from '../../lib/backendDefaults';
+import type { ArgumentScalarBinding, ArgumentTupleBinding } from '../../types/argument-sets';
 
 interface QueryCreationRequest {
   id: number;
@@ -503,7 +511,42 @@ function selectRecordFromRoute(target: SectionRoute) {
   else if (kind === 'queryGroup') queryGroupVersionNumber.value = version;
 }
 
-selectRecordFromRoute(initialRoute);
+/*
+ * A share link opened here (`lib/shareLink.ts`): references in the query
+ * string, values in the `#share=` fragment. Read once, at setup, because the
+ * URL sync below rewrites the address without the fragment or `?backend=` as
+ * soon as anything is selected. While one is open the route's record is not
+ * selected yet: the values have to be in place — a draft, a scratch query, a
+ * browser backend — before the work area mounts and reads them.
+ */
+interface IncomingShare {
+  data: string | null;
+  recordId: string | null;
+  version: number | null;
+  argumentSetId: string | null;
+  backendId: string | null;
+}
+
+function readIncomingShare(): IncomingShare | null {
+  if (initialRoute.section !== 'queries') return null;
+  const data = shareDataFromHash(route.hash);
+  const backendParam = route.query[SHARE_BACKEND_PARAM];
+  const backendId = typeof backendParam === 'string' && backendParam ? backendParam : null;
+  if (!data && !backendId) return null;
+  const argumentSet = route.query.argumentSet;
+  return {
+    data,
+    // A scratch id names nothing outside the browser that minted it.
+    recordId: initialRoute.id && !isScratchId(initialRoute.id) ? initialRoute.id : null,
+    version: versionFromQuery(),
+    argumentSetId: typeof argumentSet === 'string' && argumentSet ? argumentSet : null,
+    backendId,
+  };
+}
+
+const incomingShare = readIncomingShare();
+
+if (!incomingShare) selectRecordFromRoute(initialRoute);
 
 /*
  * The nav rail's scope. Null means unscoped — the tree renders every section,
@@ -809,10 +852,21 @@ const preselectedArgumentSet = ref<{ setId: string; forId: string } | null>(
     ? { setId: route.query.argumentSet, forId: initialRoute.id }
     : null,
 );
+/** The record open in the pane: a saved one's IRI, or a scratch item's id. */
+const openRecordId = computed(() =>
+  selectedItemType.value === 'scratch' ? selectedScratchId.value : savedSelectionId.value,
+);
+
 const preselectArgumentSetId = computed(() => {
   const chosen = preselectedArgumentSet.value;
-  return chosen && chosen.forId === savedSelectionId.value ? chosen.setId : null;
+  return chosen && chosen.forId === openRecordId.value ? chosen.setId : null;
 });
+
+/** Argument values a share link carried, for the record it opened. */
+const sharedArguments = ref<{
+  forId: string;
+  body: { tupleBindings: ArgumentTupleBinding[]; scalarBindings: ArgumentScalarBinding[] };
+} | null>(null);
 
 /*
  * One scratch handle per section, built once. `useScratchItems` is a plain
@@ -1225,6 +1279,9 @@ const workAreaPaneView = computed(() => {
             creationRequest: creationRequest.value,
             versionNumber: queryVersionNumber.value,
             preselectArgumentSetId: preselectArgumentSetId.value,
+            sharedArguments: sharedArguments.value && sharedArguments.value.forId === openRecordId.value
+              ? sharedArguments.value.body
+              : null,
           },
           on: {
             'creation-consumed': () => { creationRequest.value = null; },
@@ -1233,6 +1290,7 @@ const workAreaPaneView = computed(() => {
             'update:version-number': (version: number | null) => { queryVersionNumber.value = version; },
             'open-entity': openCreatedEntity,
             share: copyShareLink,
+            'shared-arguments-consumed': () => { sharedArguments.value = null; },
           },
         },
         queryGroup: {
@@ -1279,24 +1337,27 @@ function openInputEntity(payload: { type: 'tupleSet' | 'dataGraph'; id: string }
 /**
  * "Copy share link" from the query work area.
  *
- * The link carries the body, not the record's id (`lib/shareLink.ts`), and it
- * names the section rather than a record: the recipient's browser mints its own
- * scratch id when the body lands. Built here because the page holds the router,
- * and so the path the app is served under.
+ * The work area says what is on screen and which parts go by value; this turns
+ * it into a URL, because the page holds the router and so the path the app is
+ * served under. A link with no values is a plain link to the saved records —
+ * the one the address bar would show, plus the backend.
  */
-async function copyShareLink(payload: { body: string; name: string }) {
+async function copyShareLink(request: ShareRequest) {
   try {
-    const data = await encodeSharePayload({
-      body: payload.body,
-      // A fallback name says nothing, and would only collide with the
-      // recipient's own untitled items.
-      name: UNTITLED_QUERY_PATTERN.test(payload.name.trim()) ? undefined : payload.name,
-    });
-    if (data.length > MAX_SHARE_DATA_LENGTH) {
-      toast.error('This query is too long for a share link. Save it, or copy its text instead.');
-      return;
+    const payload: SharePayload = { ...request.payload };
+    // A fallback name says nothing, and would only collide with the
+    // recipient's own untitled items.
+    if (payload.name && UNTITLED_QUERY_PATTERN.test(payload.name.trim())) delete payload.name;
+    let hash = '';
+    if (!isEmptySharePayload(payload)) {
+      const data = await encodeSharePayload(payload);
+      if (data.length > MAX_SHARE_DATA_LENGTH) {
+        toast.error('This is too long for a share link. Save the query, or leave the arguments out.');
+        return;
+      }
+      hash = shareHash(data);
     }
-    const href = router.resolve({ path: sectionPath({ section: 'queries', id: null }), hash: shareHash(data) }).href;
+    const href = router.resolve({ ...shareRoute(request), hash }).href;
     await navigator.clipboard.writeText(new URL(href, window.location.origin).toString());
     toast.success('Share link copied');
   } catch (error) {
@@ -1306,38 +1367,153 @@ async function copyShareLink(payload: { body: string; name: string }) {
 
 const UNTITLED_QUERY_PATTERN = /^Untitled query \d+$/;
 
-/*
- * A share link opened here: `/queries#share=v1.<data>`. Read once, at setup,
- * because the URL sync below rewrites the address without the fragment as soon
- * as anything is selected.
- *
- * The body becomes a new scratch query in this browser and is opened. Nothing
- * is asked first: a scratch item is local and discardable, and nothing runs
- * until Run is pressed. The address then names the new record, without the
- * fragment, so a reload or Back does not add a second copy.
- */
-const incomingShareData = initialRoute.section === 'queries' && !initialRoute.id
-  ? shareDataFromHash(route.hash)
-  : null;
-
-async function importSharedQuery(data: string) {
-  try {
-    const payload = await decodeSharePayload(data);
-    const created = scratchBySection.query.create(payload.body);
-    if (payload.name && !UNTITLED_QUERY_PATTERN.test(payload.name)) {
-      draftsStore.save({ ...created, name: payload.name });
+/** One browser backend per endpoint: opening a second link reuses the first. */
+function browserBackendFor(endpoint: string): string {
+  const browserBackends = useBrowserBackends();
+  const same = (value: string) => {
+    try {
+      return new URL(value).toString() === endpoint;
+    } catch {
+      return false;
     }
-    activeSection.value = 'queries';
-    handleSelectScratch(created.id);
-    toast.success(`Opened shared query${payload.name ? ` “${payload.name}”` : ''} as scratch`);
-  } catch (error) {
-    toast.error(error instanceof ShareLinkError ? error.message : 'Could not open the share link');
-    void router.replace({ path: route.path, query: route.query });
-  }
+  };
+  const existing = browserBackends.records.value.find((record) => same(record.endpoint));
+  if (existing) return existing.id;
+  return browserBackends.save({
+    name: new URL(endpoint).host,
+    description: 'Added from a share link',
+    endpoint,
+    queryMethod: null,
+    headers: {},
+  }).id;
 }
 
-/** Settles when the incoming share link, if any, has been handled. */
-const sharedQueryImport: Promise<void> | null = incomingShareData ? importSharedQuery(incomingShareData) : null;
+/** A shared backend this browser cannot see is said, not silently swapped. */
+async function warnIfBackendMissing(backendId: string) {
+  if (!backendsEnabled.value) return;
+  await backendsStore.loadBackends();
+  if (backendsStore.backends.value.some((backend) => backend.id === backendId)) return;
+  toast.warning('The shared backend is not available to you, so the query will run on your own default.');
+}
+
+/** A new scratch query holding what the link carried. */
+function scratchFromShare(payload: SharePayload): string {
+  const created = scratchBySection.query.create(payload.body ?? '');
+  if (payload.name && !UNTITLED_QUERY_PATTERN.test(payload.name)) {
+    draftsStore.save({ ...created, name: payload.name });
+  }
+  return created.id;
+}
+
+/**
+ * Shared text on a saved query: a draft on it, as if the recipient had typed
+ * the edits. Null when that is not safe — the recipient cannot read the query,
+ * or already has unsaved edits on it that this would overwrite — and the text
+ * then opens as a scratch query instead.
+ */
+async function draftFromShare(recordId: string, body: string): Promise<boolean> {
+  let query: { name: string; isPartOf?: string[] | null };
+  try {
+    query = (await queriesStore.fetchQuery(recordId)).query;
+  } catch {
+    toast.info('You cannot open the shared query, so its text opened as a scratch query.');
+    return false;
+  }
+  const existing = draftsStore.draftFor(recordId);
+  if (existing && existing.edits > 0 && existing.body !== body) {
+    toast.info('You have unsaved edits on this query, so the shared text opened as a scratch query.');
+    return false;
+  }
+  draftsStore.save({
+    id: existing?.id ?? `urn:ui-temp:draft-of-${recordId}`,
+    libraryId: query.isPartOf?.[0] ?? UNASSIGNED_LIBRARY_ID,
+    type: 'query',
+    kind: 'draft',
+    section: 'query',
+    name: query.name,
+    description: null,
+    body,
+    queryString: body,
+    resultKind: 'BINDINGS',
+    inputTuples: [],
+    limitParameters: [],
+    offsetParameters: [],
+    outputs: [],
+    basedOn: recordId,
+    edits: (existing?.edits ?? 0) + 1,
+  });
+  return true;
+}
+
+/*
+ * Open what a share link names. Nothing is asked first and nothing runs: each
+ * value becomes a browser-local item the recipient can discard, and Run is
+ * still theirs to press. The address then names the record that opened,
+ * without the fragment, so a reload or Back does not add a second copy.
+ */
+async function openIncomingShare(share: IncomingShare) {
+  let payload: SharePayload = {};
+  if (share.data) {
+    try {
+      payload = await decodeSharePayload(share.data);
+    } catch (error) {
+      // The references in the query string still stand on their own.
+      toast.error(error instanceof ShareLinkError ? error.message : 'Could not open the share link');
+    }
+  }
+
+  let target: { kind: 'saved' | 'scratch'; id: string } | null = share.recordId
+    ? { kind: 'saved', id: share.recordId }
+    : null;
+  if (payload.body !== undefined && !(share.recordId && await draftFromShare(share.recordId, payload.body))) {
+    target = { kind: 'scratch', id: scratchFromShare(payload) };
+  }
+  if (!target && !isEmptySharePayload(payload)) {
+    target = { kind: 'scratch', id: scratchFromShare(payload) };
+  }
+  if (!target) {
+    selectRecordFromRoute(initialRoute);
+    return;
+  }
+
+  const backendId = payload.endpoint ? browserBackendFor(payload.endpoint) : share.backendId;
+  if (backendId) {
+    if (target.kind === 'saved') {
+      // The run bar's own remembered pick, which it reads before any default.
+      setLastBackend('query', target.id, backendId);
+    } else {
+      // A scratch query has no id for a remembered pick; its default stands in.
+      const record = draftsStore.get(target.id);
+      if (record) draftsStore.save({ ...record, defaultBackend: backendId });
+    }
+    void warnIfBackendMissing(backendId);
+  }
+
+  const argumentBody = argumentSetBodyFromShare(payload);
+  if (argumentBody) {
+    sharedArguments.value = { forId: target.id, body: argumentBody };
+    preselectedArgumentSet.value = null;
+  } else if (share.argumentSetId) {
+    preselectedArgumentSet.value = { setId: share.argumentSetId, forId: target.id };
+  }
+
+  activeSection.value = 'queries';
+  if (target.kind === 'saved') {
+    selectSavedItem('query', target.id);
+    queryVersionNumber.value = share.version;
+  } else {
+    handleSelectScratch(target.id);
+  }
+
+  // The URL sync rewrites the address only when the record or its query
+  // string changed; a share on the record already in the path changes
+  // neither, and would leave the fragment to be applied again on reload.
+  await nextTick();
+  if (route.hash) void router.replace({ path: route.path, query: route.query });
+}
+
+/** Settles when the incoming share link, if any, has been opened. */
+const sharedQueryImport: Promise<void> | null = incomingShare ? openIncomingShare(incomingShare) : null;
 
 /**
  * "Open in Query" from a rule set's SPARQL tab.

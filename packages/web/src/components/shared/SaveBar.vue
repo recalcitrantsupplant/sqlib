@@ -103,20 +103,11 @@
       <GitCompare :size="16" />
     </button>
     <!--
-      Share carries the body itself in the link, not this item's id: a scratch
-      item's id means nothing outside this browser. So it works for an unsaved
-      item, and on a deployment this browser cannot save to.
+      Share, for a section that can put what is on screen into a link
+      (`ShareLinkMenu`). A slot rather than a button: what a link can carry
+      differs by section, and only the work area knows it.
     -->
-    <button
-      v-if="showShare"
-      class="icon-control"
-      data-testid="copy-share-link"
-      :title="`Copy a link that opens this ${noun} as scratch in another browser`"
-      :disabled="!canShare"
-      @click="emit('share')"
-    >
-      <Link :size="16" />
-    </button>
+    <slot name="share" />
     <button
       v-if="editCount > 0 && !isScratch"
       class="bar-button"
@@ -196,7 +187,6 @@ import {
   FileInput,
   WandSparkles,
   GitCompare,
-  Link,
 } from '@lucide/vue';
 import {
   DropdownMenu,
@@ -250,10 +240,6 @@ const props = withDefaults(defineProps<{
   /** What `code` is, which decides whether a conversion is offered. */
   contentType?: string | null;
   diffActive?: boolean;
-  /** True for a section whose body can travel in a share link. */
-  showShare?: boolean;
-  /** Nothing to share in an empty editor. */
-  canShare?: boolean;
 }>(), {
   noun: 'query',
   showFormat: true,
@@ -262,8 +248,6 @@ const props = withDefaults(defineProps<{
   showEdit: true,
   showImport: false,
   importTitle: 'Import',
-  showShare: false,
-  canShare: true,
 });
 
 /**
@@ -291,7 +275,6 @@ const emit = defineEmits<{
   (e: 'update:code', value: string): void;
   (e: 'import'): void;
   (e: 'toggle-diff'): void;
-  (e: 'share'): void;
 }>();
 
 /*
