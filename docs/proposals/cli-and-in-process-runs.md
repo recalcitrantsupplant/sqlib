@@ -348,7 +348,30 @@ Acceptance: as WP6. The fixture bundle gains one rule set with one data block.
 
 ### Phase 3 — The CLI
 
+Order changed: WP8, WP9, WP11 and WP12 were built before WP6 and WP7, with
+file sources only, so the CLI is usable in a container without a server or an
+export step. Bundle sources, `sqlib pull` and the run report (WP10) follow with
+WP6 and WP7.
+
 #### WP8 — `cli` package and bin (M) · needs D5, WP1, WP3, WP5, WP6, WP7
+
+Status: done for file sources. What changed from this plan:
+
+- **File sources first.** `query --file`, `etl run --job` and `rules run --srl`
+  work now; `--bundle`, `--query <slug>`, `--rule-set <slug>`, `--job <slug>`
+  and `sqlib pull` come with WP6 and WP7. `sqlib duckdb check` is not built.
+- **`query` runs through the runtime's own call path.** The file is compiled
+  into a one-query bundle in memory and run with `fromBundle(…).query().run()`,
+  so arguments, limits and offsets are applied exactly as for an exported query.
+- **An ETL job file** holds `sql` or `sqlFile`, `template` or `templateFile`,
+  `columns` and `chunkSize`, in the shape of a stored job. The template must be
+  a CONSTRUCT with one slot that declares every mapped variable.
+- **`rules run` layers with `srl`'s `stratify`** and turns DATA blocks into
+  `INSERT DATA` with the document's prologue, as the API's validator does. It
+  exits 2 when a stratum hits `--max-iterations` or the rules cycle, after
+  writing the graph so far.
+- **Tests drive `main` in process** with injected streams, so every command is
+  exercised end to end without a child process.
 
 `packages/cli`, bin `sqlib`, `private: false`. Argument parsing with Node's
 `util.parseArgs`, as the existing scripts do, so no dependency is added.
@@ -384,6 +407,9 @@ output for the same job after canonicalisation. `check-publishable`,
 
 #### WP9 — DuckDB flags and profile (S) · needs D4, WP2, WP8
 
+Status: done as planned. `--allow-http --no-allow-filesystem` turns filesystem
+back on and says so on standard error.
+
 `--allow-filesystem` (default on), `--allow-http`, `--allow-extension-install`,
 `--unrestricted`, `--memory-limit`, `--query-timeout`, each with a `--no-`
 form. The resolved profile prints to stderr once. HTTP implies filesystem,
@@ -400,6 +426,11 @@ server never saw. A later `--post-report <url>` is out of scope.
 
 #### WP11 — Output formats (S) · needs D6, WP8
 
+Status: done, without `--merge`. Oxigraph serialises a chunk with no prefix
+declarations and with random 128-bit blank node labels, so chunks concatenate
+safely in N-Triples, N-Quads and Turtle alike; a CLI test holds that. `rules
+run` writes N-Triples, N-Quads or JSON-LD, the formats the runner serialises.
+
 `etl run`: N-Triples by default; `--format turtle` is refused for a run of more
 than one chunk unless `--merge` is passed, which does a final pass through
 Oxigraph. `rules run`: `n-triples`, `turtle`, `n-quads`, `--inference-only`
@@ -408,6 +439,12 @@ versus the whole graph, matching the API's options.
 ### Phase 4 — Packaging and documentation
 
 #### WP12 — Example Dockerfiles (S) · needs WP8
+
+Status: done. The packages are not on npm yet, so `cli-minimal` builds the CLI
+from this repository and packages it with `pnpm deploy --legacy`. The `azure`
+example loads the extension from the job's SQL (`LOAD azure; SELECT …`), which
+works because a job's SQL may hold several statements. The CI job is
+`cli-image`, run by `scripts/ci/docker-build-cli.sh`.
 
 Under `examples/docker/`, none of them the published image:
 

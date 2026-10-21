@@ -27,6 +27,7 @@ it, or things that run without it.
 | `runtime-duckdb` | The sandboxed DuckDB that reads ETL sources, under a profile the host supplies | — |
 | `runtime-etl` | The ETL loop: rows in chunks, mapped to bindings, spliced into a CONSTRUCT, RDF to a sink | `runtime` |
 | `runtime-srl` | The rule set runner: DATA blocks, then each stratum to its fixpoint, on an Oxigraph store | `srl` |
+| `cli` | The `sqlib` command line: queries, ETL jobs and rule sets in one process, no server | `compiler`, `runtime`, `runtime-oxigraph`, `runtime-duckdb`, `runtime-etl`, `runtime-srl`, `srl` |
 
 `runtime` and `runtime-oxigraph` are the only two packages that are not
 `private: true`. Everything else is internal to the repository.

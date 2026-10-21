@@ -1,0 +1,4 @@
+@prefix ex: <http://ex/> .
+ex:ann ex:livesIn ex:Perth ; ex:parent ex:bo .
+ex:bo ex:livesIn ex:Hobart ; ex:parent ex:cy .
+ex:cy ex:livesIn ex:Perth .
