@@ -7,8 +7,12 @@
 import { createRemoteJWKSet, jwtVerify, type JWTPayload, type JWTVerifyGetKey } from 'jose';
 import type { AuthConfig, IssuerConfig } from './config.js';
 
-/** Asymmetric algorithms only. HS* would let a leaked public key mint tokens. */
-const ALLOWED_ALGORITHMS = ['RS256', 'RS384', 'RS512', 'PS256', 'PS384', 'PS512', 'ES256', 'ES384'];
+/**
+ * Asymmetric algorithms only. HS* would let a leaked public key mint tokens.
+ * EdDSA because it is Rauthy's default, and the default of every client an MCP
+ * client registers there for itself (design/auth-architecture.md).
+ */
+const ALLOWED_ALGORITHMS = ['RS256', 'RS384', 'RS512', 'PS256', 'PS384', 'PS512', 'ES256', 'ES384', 'EdDSA'];
 
 export type TokenErrorKind =
   | 'missing'

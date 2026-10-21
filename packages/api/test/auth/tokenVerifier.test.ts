@@ -99,6 +99,28 @@ describe('TokenVerifier.verify', () => {
     expect(result.claims.groups).toEqual(['team-geo']);
   });
 
+  it('accepts an EdDSA token, the default signature of Rauthy clients', async () => {
+    const pair = await generateKeyPair('EdDSA', { crv: 'Ed25519', extractable: true });
+    const edJwk = await exportJWK(pair.publicKey);
+    edJwk.kid = 'ed-key';
+    edJwk.alg = 'EdDSA';
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ keys: [edJwk] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })) as typeof fetch;
+    const token = await new SignJWT({ sub: 'user-ed' })
+      .setProtectedHeader({ alg: 'EdDSA', kid: 'ed-key' })
+      .setIssuedAt()
+      .setIssuer(ISSUER)
+      .setAudience(AUDIENCE)
+      .setExpirationTime('5m')
+      .sign(pair.privateKey);
+
+    const result = await new TokenVerifier(configFor()).verify(token);
+    expect(result.subject).toBe('user-ed');
+  });
+
   it('rejects an expired token', async () => {
     const verifier = new TokenVerifier(configFor({ SQLIB_AUTH_CLOCK_SKEW_S: '0' }));
     const token = await sign({ sub: 'user-1' }, { expiresIn: '-1s' });
