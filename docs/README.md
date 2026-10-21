@@ -46,6 +46,10 @@ every other page assumes.
   conversation can run (MCP connector, in-app with a user's key, hosted on
   sqlib's key, local on a user's subscription), why hosted-plus-subscription is
   not one of them, and which code serves each.
+- [design/auth-architecture.md](design/auth-architecture.md) — one
+  authorization server in front of sqlib as a pure resource server: how people,
+  MCP clients and unattended applications each get a token, why Google and
+  GitHub need a broker, and why auth stays free and in core.
 
 ## Examples
 
