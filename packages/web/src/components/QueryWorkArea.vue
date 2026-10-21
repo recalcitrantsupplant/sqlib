@@ -23,8 +23,11 @@
         :show-edit="false"
         :show-more="false"
         @save="save"
+        :show-share="true"
+        :can-share="queryCode.trim().length > 0"
         @needs-name="promptForNameInDetails"
         @discard="discardDraft"
+        @share="emit('share', { body: queryCode, name: queryName })"
       />
 
       <!--
@@ -592,6 +595,11 @@ const emit = defineEmits<{
    * step after "create test" and the whole point of the row.
    */
   (e: 'open-entity', payload: { type: 'test' | 'benchmark'; id: string }): void;
+  /**
+   * Copy a share link for what is in the editor. The page builds the link: it
+   * holds the router, and with it the path the app is served under.
+   */
+  (e: 'share', payload: { body: string; name: string }): void;
 }>();
 
 const creationContext = ref<{ libraryId: string; libraryName: string } | null>(null);

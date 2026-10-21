@@ -367,6 +367,14 @@ import { useTestsStore } from '../../composables/useTestsStore';
 import { useApiClient, type TagMatchMode } from '../../composables/useApiClient';
 import { useCallableDrafts, type DraftSection } from '../../composables/useCallableDrafts';
 import { useScratchItems, migratePlaygroundTabs } from '../../composables/useScratchItems';
+import {
+  decodeSharePayload,
+  encodeSharePayload,
+  MAX_SHARE_DATA_LENGTH,
+  shareDataFromHash,
+  shareHash,
+  ShareLinkError,
+} from '../../lib/shareLink';
 
 interface QueryCreationRequest {
   id: number;
@@ -1224,6 +1232,7 @@ const workAreaPaneView = computed(() => {
             'argument-set-saved': handleArgumentSetSavedElsewhere,
             'update:version-number': (version: number | null) => { queryVersionNumber.value = version; },
             'open-entity': openCreatedEntity,
+            share: copyShareLink,
           },
         },
         queryGroup: {
@@ -1266,6 +1275,69 @@ function openInputEntity(payload: { type: 'tupleSet' | 'dataGraph'; id: string }
   activeSection.value = payload.type === 'tupleSet' ? 'tupleSets' : 'dataGraphs';
   selectSavedItem(payload.type, payload.id);
 }
+
+/**
+ * "Copy share link" from the query work area.
+ *
+ * The link carries the body, not the record's id (`lib/shareLink.ts`), and it
+ * names the section rather than a record: the recipient's browser mints its own
+ * scratch id when the body lands. Built here because the page holds the router,
+ * and so the path the app is served under.
+ */
+async function copyShareLink(payload: { body: string; name: string }) {
+  try {
+    const data = await encodeSharePayload({
+      body: payload.body,
+      // A fallback name says nothing, and would only collide with the
+      // recipient's own untitled items.
+      name: UNTITLED_QUERY_PATTERN.test(payload.name.trim()) ? undefined : payload.name,
+    });
+    if (data.length > MAX_SHARE_DATA_LENGTH) {
+      toast.error('This query is too long for a share link. Save it, or copy its text instead.');
+      return;
+    }
+    const href = router.resolve({ path: sectionPath({ section: 'queries', id: null }), hash: shareHash(data) }).href;
+    await navigator.clipboard.writeText(new URL(href, window.location.origin).toString());
+    toast.success('Share link copied');
+  } catch (error) {
+    toast.error(`Could not copy a share link: ${error instanceof Error ? error.message : 'unknown error'}`);
+  }
+}
+
+const UNTITLED_QUERY_PATTERN = /^Untitled query \d+$/;
+
+/*
+ * A share link opened here: `/queries#share=v1.<data>`. Read once, at setup,
+ * because the URL sync below rewrites the address without the fragment as soon
+ * as anything is selected.
+ *
+ * The body becomes a new scratch query in this browser and is opened. Nothing
+ * is asked first: a scratch item is local and discardable, and nothing runs
+ * until Run is pressed. The address then names the new record, without the
+ * fragment, so a reload or Back does not add a second copy.
+ */
+const incomingShareData = initialRoute.section === 'queries' && !initialRoute.id
+  ? shareDataFromHash(route.hash)
+  : null;
+
+async function importSharedQuery(data: string) {
+  try {
+    const payload = await decodeSharePayload(data);
+    const created = scratchBySection.query.create(payload.body);
+    if (payload.name && !UNTITLED_QUERY_PATTERN.test(payload.name)) {
+      draftsStore.save({ ...created, name: payload.name });
+    }
+    activeSection.value = 'queries';
+    handleSelectScratch(created.id);
+    toast.success(`Opened shared query${payload.name ? ` “${payload.name}”` : ''} as scratch`);
+  } catch (error) {
+    toast.error(error instanceof ShareLinkError ? error.message : 'Could not open the share link');
+    void router.replace({ path: route.path, query: route.query });
+  }
+}
+
+/** Settles when the incoming share link, if any, has been handled. */
+const sharedQueryImport: Promise<void> | null = incomingShareData ? importSharedQuery(incomingShareData) : null;
 
 /**
  * "Open in Query" from a rule set's SPARQL tab.
@@ -1430,6 +1502,9 @@ watch(
   async (section) => {
     if (!section) return;
     migratePlaygroundTabs();
+    // A share link lands on its own new record; without the wait, an empty
+    // section would start an untitled query first.
+    if (sharedQueryImport) await sharedQueryImport;
     const definition = SECTION_DEFINITIONS[section];
     await Promise.all([
       ensureLibrariesLoaded(),
