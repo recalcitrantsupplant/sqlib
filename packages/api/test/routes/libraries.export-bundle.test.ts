@@ -477,6 +477,54 @@ describe('GET /libraries/:id/export-bundle', () => {
     });
   });
 
+  describe('choosing what the bundle carries', () => {
+    it('leaves the library queries out on queries=false, while a group keeps the queries it runs', async () => {
+      seedLibrary([{ id: 'q1', name: 'People by city', currentVersion: 'v1' }], { v1: PEOPLE_QUERY });
+      seedGroup();
+
+      const { bundle, skipped } = (
+        await app.inject({ url: `/libraries/${LIBRARY}/export-bundle?queries=false` })
+      ).json();
+      expect(skipped).toEqual([]);
+      await verifyBundleIntegrity(bundle);
+      expect(Object.keys(bundle.queries).sort()).toEqual(['cities-in-region', 'people-in-place']);
+      expect(Object.keys(bundle.groups)).toEqual(['people-by-region']);
+    });
+
+    it('leaves the groups out on groups=false', async () => {
+      seedLibrary([{ id: 'q1', name: 'People by city', currentVersion: 'v1' }], { v1: PEOPLE_QUERY });
+      seedGroup();
+
+      const { bundle } = (
+        await app.inject({ url: `/libraries/${LIBRARY}/export-bundle?groups=false` })
+      ).json();
+      expect(bundle.groups).toBeUndefined();
+      expect(Object.keys(bundle.queries)).toEqual(['people-by-city']);
+    });
+
+    it('carries only rule sets when everything else is off', async () => {
+      seedLibrary([{ id: 'q1', name: 'People by city', currentVersion: 'v1' }], { v1: PEOPLE_QUERY });
+      seedJobsAndRuleSets();
+
+      const { bundle } = (
+        await app.inject({ url: `/libraries/${LIBRARY}/export-bundle?queries=false&groups=false&etl=false` })
+      ).json();
+      expect(bundle.queries).toEqual({});
+      expect(bundle.etlJobs).toBeUndefined();
+      expect(Object.keys(bundle.ruleSets)).toEqual(['ancestors']);
+    });
+
+    it('answers 400 when asked for nothing', async () => {
+      seedLibrary([{ id: 'q1', name: 'People by city', currentVersion: 'v1' }], { v1: PEOPLE_QUERY });
+
+      const response = await app.inject({
+        url: `/libraries/${LIBRARY}/export-bundle?queries=false&groups=false&etl=false&ruleSets=false`,
+      });
+      expect(response.statusCode).toBe(400);
+      expect(response.json().error).toContain('Nothing to export');
+    });
+  });
+
   describe('ETL jobs and rule sets', () => {
     it('carries both, in a bundle that validates and verifies', async () => {
       seedLibrary([{ id: 'q1', name: 'People by city', currentVersion: 'v1' }], { v1: PEOPLE_QUERY });

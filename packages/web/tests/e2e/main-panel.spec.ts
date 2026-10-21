@@ -28,6 +28,50 @@ test.describe('Main Panel', () => {
     await expect(page.locator('[data-testid="app-splash"]')).toBeVisible();
   });
 
+  test('exports the active library, carrying only what is ticked', async ({ page }) => {
+    await page.route(/\/libraries\/[^/]+\/export-bundle/, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ bundle: { version: 1, library: { id: 'urn:x' }, queries: {} }, skipped: [] }),
+      }),
+    );
+
+    await page.getByTestId('splash-export').click();
+    await expect(page.getByTestId('library-export-dialog')).toBeVisible();
+
+    // Every member is a choice, and every choice starts ticked, as the server carries it.
+    const members = ['library-export-queries', 'library-export-groups', 'library-export-etl', 'library-export-rule-sets'];
+    for (const id of members) await expect(page.getByTestId(id)).toHaveAttribute('aria-checked', 'true');
+
+    // Unticking queries takes its examples with it.
+    await page.getByTestId('library-export-queries').click();
+    await expect(page.getByTestId('library-export-examples')).toBeDisabled();
+    await expect(page.getByTestId('library-export-examples')).toHaveAttribute('aria-checked', 'false');
+
+    // Nothing ticked is nothing to export: the buttons say so rather than the server.
+    for (const id of members.slice(1)) await page.getByTestId(id).click();
+    await expect(page.getByTestId('library-export-nothing')).toBeVisible();
+    await expect(page.getByTestId('library-export-download')).toBeDisabled();
+    await expect(page.getByTestId('library-export-html')).toBeDisabled();
+
+    // Rule sets alone: a bundle, but no page, which shows queries and groups.
+    await page.getByTestId('library-export-rule-sets').click();
+    await expect(page.getByTestId('library-export-html')).toBeDisabled();
+
+    const exported = page.waitForRequest((request) => /\/export-bundle\?/.test(request.url()));
+    const download = page.waitForEvent('download');
+    await page.getByTestId('library-export-download').click();
+
+    const params = new URL((await exported).url()).searchParams;
+    expect(params.get('queries')).toBe('false');
+    expect(params.get('groups')).toBe('false');
+    expect(params.get('etl')).toBe('false');
+    expect(params.has('ruleSets')).toBe(false);
+    expect(params.get('examples')).toBe('none');
+    expect((await download).suggestedFilename()).toMatch(/\.bundle\.json$/);
+  });
+
   test('should show the query editor when a query is selected', async ({ page }) => {
     await openSavedEntity(page, 'queries', QUERY.id);
     await expect(page.locator('.query-work-area')).toBeVisible();

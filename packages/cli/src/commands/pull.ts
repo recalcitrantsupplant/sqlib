@@ -30,6 +30,8 @@ and rule sets, compiled. Run them later with --bundle, with no server.
   --out <path>              write the bundle here (default queries.json; - for stdout)
   --tag <iri>[,<iri>]       only what carries these tags; repeatable
   --match any|all           a tag filter keeps any (default) or all matches
+  --no-queries              leave the library's queries out; a group keeps the queries it runs
+  --no-groups               leave the query groups out
   --no-etl                  leave the ETL jobs out
   --no-rule-sets            leave the rule sets out
   --token-env <name>        the variable holding a bearer token (default SQLIB_TOKEN)
@@ -49,6 +51,8 @@ export async function pullCommand(io: Io, argv: string[]): Promise<number> {
       out: { type: 'string', default: 'queries.json' },
       tag: { type: 'string', multiple: true },
       match: { type: 'string', default: 'any' },
+      queries: { type: 'boolean', default: true },
+      groups: { type: 'boolean', default: true },
       etl: { type: 'boolean', default: true },
       'rule-sets': { type: 'boolean', default: true },
       'token-env': { type: 'string', default: 'SQLIB_TOKEN' },
@@ -59,11 +63,16 @@ export async function pullCommand(io: Io, argv: string[]): Promise<number> {
   if (!values.from) throw new CliError('pull needs --from <api-url>.');
   if (!values.library) throw new CliError('pull needs --library <iri>.');
   if (values.match !== 'any' && values.match !== 'all') throw new CliError("--match takes 'any' or 'all'.");
+  if (!values.queries && !values.groups && !values.etl && !values['rule-sets']) {
+    throw new CliError('Nothing to pull: --no-queries, --no-groups, --no-etl and --no-rule-sets leave the bundle empty.');
+  }
 
   const search = new URLSearchParams({ examples: 'none' });
   const tags = (values.tag ?? []).flatMap(tag => tag.split(',')).map(tag => tag.trim()).filter(Boolean);
   if (tags.length > 0) search.set('tag', tags.join(','));
   if (values.match !== 'any') search.set('match', values.match);
+  if (!values.queries) search.set('queries', 'false');
+  if (!values.groups) search.set('groups', 'false');
   if (!values.etl) search.set('etl', 'false');
   if (!values['rule-sets']) search.set('ruleSets', 'false');
   const base = values.from.endsWith('/') ? values.from : `${values.from}/`;

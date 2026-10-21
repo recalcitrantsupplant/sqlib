@@ -311,6 +311,16 @@ export default async function (fastify: FastifyInstance) {
               default: false,
               description: 'Carry each example\'s recorded result. Reference only, never an assertion.',
             },
+            queries: {
+              type: 'boolean',
+              default: true,
+              description: "Carry the library's queries. A group still carries the queries it runs.",
+            },
+            groups: {
+              type: 'boolean',
+              default: true,
+              description: "Carry the library's query groups.",
+            },
             etl: {
               type: 'boolean',
               default: true,
@@ -340,8 +350,15 @@ export default async function (fastify: FastifyInstance) {
         }
         requireLibraryMode(request, id, 'read');
 
+        const { queries: withQueries, groups: withGroups, etl: withEtl, ruleSets: withRuleSets } = request.query;
+        if (withQueries === false && withGroups === false && withEtl === false && withRuleSets === false) {
+          return reply.status(400).send({
+            error: 'Nothing to export: queries, query groups, ETL jobs and rule sets are all turned off.',
+          });
+        }
+
         const tags = parseTagList(request.query.tag);
-        const { queries, skipped } = collectLibraryQueries(
+        const collected = collectLibraryQueries(
           {
             listQueries: () => repos.Query.list() as LdkitQuery[],
             getQueryVersion: (versionId) =>
@@ -350,6 +367,8 @@ export default async function (fastify: FastifyInstance) {
           id,
           { tags, match: request.query.match ?? 'any' }
         );
+        // Left out on request, a query is not skipped: nothing is reported for it.
+        const { queries, skipped } = withQueries === false ? { queries: [], skipped: [] } : collected;
 
         try {
           const bundle = await buildExportBundle({
@@ -385,25 +404,27 @@ export default async function (fastify: FastifyInstance) {
           // Groups after examples, because a group may bring a query of its own
           // into the bundle and those carry no examples of their own: a test
           // names a query, and the group's node pins whichever version it pins.
-          const { groups, skipped: skippedGroupReads } = collectLibraryGroups(
-            {
-              listGroups: () => repos.QueryGroup.list() as LdkitQueryGroup[],
-              getGroupVersion: (versionId) =>
-                repos.QueryGroupVersion.get(versionId) as LdkitQueryGroupVersion | null,
-              getEntity: (entityId) =>
-                getCacheCoordinator().get(entityId) as GroupGraphEntity | null,
-            },
-            id,
-            { tags, match: request.query.match ?? 'any' }
-          );
+          const { groups, skipped: skippedGroupReads } = withGroups === false
+            ? { groups: [], skipped: [] }
+            : collectLibraryGroups(
+                {
+                  listGroups: () => repos.QueryGroup.list() as LdkitQueryGroup[],
+                  getGroupVersion: (versionId) =>
+                    repos.QueryGroupVersion.get(versionId) as LdkitQueryGroupVersion | null,
+                  getEntity: (entityId) =>
+                    getCacheCoordinator().get(entityId) as GroupGraphEntity | null,
+                },
+                id,
+                { tags, match: request.query.match ?? 'any' }
+              );
           const { exportable, withheld } = partitionByReadableNodes(request, groups);
           const { skipped: skippedGroups } = await attachGroupsToBundle(bundle, exportable);
 
           // ETL jobs and rule sets, for the CLI to run with no server.
-          const { skipped: skippedEtlJobs } = request.query.etl === false
+          const { skipped: skippedEtlJobs } = withEtl === false
             ? { skipped: [] }
             : await attachEtlJobsToBundle(bundle, etlJobSource(repos), id, { tags });
-          const { skipped: skippedRuleSets } = request.query.ruleSets === false
+          const { skipped: skippedRuleSets } = withRuleSets === false
             ? { skipped: [] }
             : await attachRuleSetsToBundle(bundle, ruleSetSource(repos), id, {
               tags,

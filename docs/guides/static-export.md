@@ -84,18 +84,34 @@ against a stopped one. It requires the internal backend to be configured as
 | `--examples` | `all`, `first`, `none` | `all` | How many worked examples to draw from each query's tests. |
 | `--expected` | flag | off | Carry each example's recorded result along as reference material. |
 | `--html` | path, or bare flag | off | Also write a self-contained runnable page. A bare `--html` writes beside `--out`. |
+| `--no-queries` | flag | off | Leave the library's queries out. A query group still carries the queries it runs. |
+| `--no-groups` | flag | off | Leave the library's query groups out. |
 | `--no-etl` | flag | off | Leave the library's ETL jobs out. A tag filter leaves them out too, because jobs carry no tags. |
 | `--no-rule-sets` | flag | off | Leave the library's rule sets out. |
 
 The same export is available from a running API as
 `GET /libraries/:id/export-bundle`, with the querystring parameters `tag`, `match`,
-`examples`, `expected`, `etl`, `ruleSets` and `format`. `sqlib pull` calls it. `format` takes `json` (default), `html` for
+`examples`, `expected`, `queries`, `groups`, `etl`, `ruleSets` and `format`. Turning all
+four members off is refused with a 400, as is the same request from the script. `sqlib pull` calls it. `format` takes `json` (default), `html` for
 the page described below, or `ipynb` for a Jupyter notebook of worked calls.
 
 The exporter re-verifies the bundle it is about to write — the same integrity check
 a consumer runs — so a bundle that fails it is never written. Queries and groups
 (and ETL jobs and rule sets) that cannot be exported are not fatal: each is reported on stderr with the reason,
 and the reasons also appear on the generated page.
+
+### From the web app
+
+**Export…** on the main page, beside the active library's name, opens the same
+export. **Contents** lists what to carry: queries (with or without their worked
+examples), query groups, ETL jobs and rule sets. Each is ticked by default, and
+each of the last three shows only when its screen is switched on. With nothing
+ticked, the dialog says so and exports nothing.
+
+- **Bundle (.json)** downloads or copies the bundle with those contents.
+- **Runnable page (.html)** downloads the page described below. It runs queries
+  and groups only, so it needs one of those ticked, and it never shows ETL jobs
+  or rule sets.
 
 ## Running a bundle
 

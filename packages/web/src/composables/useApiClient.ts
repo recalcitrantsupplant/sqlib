@@ -173,8 +173,32 @@ import {
 /** What `GET /libraries/:id/export-bundle` answers with. */
 export interface LibraryNotebookPayload {
   bundle: ExportBundle;
-  /** Queries and tests the export could not carry, each with its reason. */
+  /** Queries, tests, ETL jobs and rule sets the export could not carry, each with its reason. */
   skipped: Array<{ id: string; name: string; reason: string }>;
+}
+
+/**
+ * What an export carries. Every member is carried unless set to false, as the
+ * server carries it, so only a member turned off reaches the query string.
+ */
+export interface ExportBundleOptions {
+  examples?: 'all' | 'first' | 'none';
+  expected?: boolean;
+  queries?: boolean;
+  /** Query groups. A group carries the queries it runs, whatever `queries` says. */
+  groups?: boolean;
+  etl?: boolean;
+  ruleSets?: boolean;
+}
+
+function exportSearch(options: ExportBundleOptions): URLSearchParams {
+  const search = new URLSearchParams();
+  if (options.examples) search.set('examples', options.examples);
+  if (options.expected) search.set('expected', 'true');
+  for (const member of ['queries', 'groups', 'etl', 'ruleSets'] as const) {
+    if (options[member] === false) search.set(member, 'false');
+  }
+  return search;
 }
 
 const JSON_HEADERS = { 'Content-Type': 'application/json' } as const;
@@ -896,11 +920,9 @@ export function useApiClient() {
    */
   const getLibraryExportBundle = (
     id: string,
-    options: { examples?: 'all' | 'first' | 'none'; expected?: boolean } = {},
+    options: ExportBundleOptions = {},
   ) => {
-    const search = new URLSearchParams();
-    if (options.examples) search.set('examples', options.examples);
-    if (options.expected) search.set('expected', 'true');
+    const search = exportSearch(options);
     const suffix = search.toString();
     return requestData(
       buildUrl(`/libraries/${encodeURIComponent(id)}/export-bundle${suffix ? `?${suffix}` : ''}`),
@@ -920,11 +942,10 @@ export function useApiClient() {
    */
   const getLibraryExportHtml = async (
     id: string,
-    options: { examples?: 'all' | 'first' | 'none'; expected?: boolean } = {},
+    options: ExportBundleOptions = {},
   ): Promise<string> => {
-    const search = new URLSearchParams({ format: 'html' });
-    if (options.examples) search.set('examples', options.examples);
-    if (options.expected) search.set('expected', 'true');
+    const search = exportSearch(options);
+    search.set('format', 'html');
     const url = buildUrl(
       `/libraries/${encodeURIComponent(id)}/export-bundle?${search.toString()}`,
     );

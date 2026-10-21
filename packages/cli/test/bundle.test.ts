@@ -145,11 +145,11 @@ describe('sqlib pull', () => {
       const dir = await workspace({});
       const { status, stderr } = await sqlib(dir, [
         'pull', '--from', url, '--library', 'urn:sqlib:library:main', '--out', 'b.json',
-        '--tag', 'urn:t:a', '--no-rule-sets', '--token-env', 'SQLIB_TEST_TOKEN',
+        '--tag', 'urn:t:a', '--no-groups', '--no-rule-sets', '--token-env', 'SQLIB_TEST_TOKEN',
       ]);
       expect(status).toBe(0);
       expect(seen!.url).toBe(
-        '/api/libraries/urn%3Asqlib%3Alibrary%3Amain/export-bundle?examples=none&tag=urn%3At%3Aa&ruleSets=false',
+        '/api/libraries/urn%3Asqlib%3Alibrary%3Amain/export-bundle?examples=none&tag=urn%3At%3Aa&groups=false&ruleSets=false',
       );
       expect(seen!.authorization).toBe('Bearer secret');
       expect(JSON.parse(await readFile(path.join(dir, 'b.json'), 'utf8'))).toEqual(bundle);
@@ -164,6 +164,15 @@ describe('sqlib pull', () => {
       delete process.env.SQLIB_TEST_TOKEN;
       server.close();
     }
+  });
+
+  it('refuses to pull an empty bundle, before asking the server', async () => {
+    const { status, stderr } = await sqlib(await workspace({}), [
+      'pull', '--from', 'http://127.0.0.1:9/api', '--library', 'urn:x',
+      '--no-queries', '--no-groups', '--no-etl', '--no-rule-sets',
+    ]);
+    expect(status).toBe(1);
+    expect(stderr).toContain('Nothing to pull');
   });
 
   it('says which variable to set when the server wants a token', async () => {
