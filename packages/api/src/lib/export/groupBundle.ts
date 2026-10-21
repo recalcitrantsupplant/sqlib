@@ -23,7 +23,7 @@ import type {
   ExportedQuery,
 } from '@sparql-query-lib/runtime';
 import { SparqlQueryParser } from '../parser.js';
-import { QueryExportError, compileExportQuery, slugify } from './queryBundle.js';
+import { QueryExportError, compileExportQuery, reserveKey } from './queryBundle.js';
 import type { ExportGroupInput, SkippedGroup } from './collectLibraryGroups.js';
 
 export interface AttachGroupsOptions {
@@ -38,21 +38,6 @@ interface StagedNode {
 
 function sameOrder(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((name, index) => name === b[index]);
-}
-
-/**
- * Reserve a bundle key for a query the group brought in.
- *
- * Collides with the library's own queries deliberately rather than
- * namespacing: two entries for the same name are two queries, and the numeric
- * suffix is the same answer `buildExportBundle` gives.
- */
-function reserveKey(name: string, taken: Set<string>): string {
-  const base = slugify(name);
-  let key = base;
-  for (let suffix = 2; taken.has(key); suffix++) key = `${base}-${suffix}`;
-  taken.add(key);
-  return key;
 }
 
 /**

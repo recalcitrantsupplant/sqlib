@@ -298,6 +298,17 @@ Acceptance:
 
 #### WP6 — Bundle v1: `etlJobs` (M) · needs D3, WP1, WP3
 
+Status: done. What changed from this plan:
+
+- **No `sqlHash` in the bundle.** The SQL is carried as text and the run
+  report hashes it, so a stored hash would only repeat it.
+- **A tag filter leaves every job out.** Jobs carry no tags, so a filtered
+  export, which asks for a subset, has none in it. The golden fixture exports
+  its job unfiltered for that reason.
+- **One module, `lib/export/etlJobBundle.ts`,** collects and attaches. The
+  runtime's own validator checks each job before it is added, so the export
+  cannot write a job a reader would refuse.
+
 In `runtime/src/bundle.ts`:
 
 ```ts
@@ -329,6 +340,26 @@ verified template is skipped with a reason, as a query is.
 
 #### WP7 — Bundle v1: `ruleSets` (M) · needs D3, WP5
 
+Status: done, with the rule set carried as its SRL document instead of
+compiled programs:
+
+```ts
+export interface ExportedRuleSet {
+  srl: string;                     // GET /rule-sets/:id/srl's document, DATA blocks included
+  textHash: string;                // of srl
+  ruleCount: number; dataBlockCount: number;
+  tupleSeeds?: string; tuplesEnabled?: boolean;
+  name?: string; description?: string; tags?: string[];
+  sourceRuleSet?: string; sourceVersion?: string;
+}
+```
+
+A reader that runs rules has the SRL compiler anyway, and the document is what
+a person can read and diff. `lib/ruleSetDocument.ts` now builds the document
+for both the route and the export. A rule set with a data block that has no
+`DATA` form is skipped with a reason, because carrying it without that block
+would run different rules. The plan below is kept as written.
+
 ```ts
 export interface ExportedRuleSet {
   rules: ExportedRule[];           // name, program, producesTuples, tupleReads, tupleWrites, stratum
@@ -350,16 +381,19 @@ Acceptance: as WP6. The fixture bundle gains one rule set with one data block.
 
 Order changed: WP8, WP9, WP11 and WP12 were built before WP6 and WP7, with
 file sources only, so the CLI is usable in a container without a server or an
-export step. Bundle sources, `sqlib pull` and the run report (WP10) follow with
-WP6 and WP7.
+export step. Bundle sources, `sqlib pull` and the run report (WP10) came after,
+with WP6 and WP7.
 
 #### WP8 — `cli` package and bin (M) · needs D5, WP1, WP3, WP5, WP6, WP7
 
 Status: done for file sources. What changed from this plan:
 
-- **File sources first.** `query --file`, `etl run --job` and `rules run --srl`
-  work now; `--bundle`, `--query <slug>`, `--rule-set <slug>`, `--job <slug>`
-  and `sqlib pull` come with WP6 and WP7. `sqlib duckdb check` is not built.
+- **File sources first, bundles second.** `query --file`, `etl run --job` and
+  `rules run --srl` came first; `--bundle` with `--query`, `--job` or
+  `--rule-set <key>`, and `sqlib pull`, came with WP6 and WP7. `sqlib check`
+  also checks a bundle and lists its keys. `sqlib duckdb check` is not built.
+- **`pull` reads a token from the environment** (`SQLIB_TOKEN`, or the
+  variable `--token-env` names), never from an argument.
 - **`query` runs through the runtime's own call path.** The file is compiled
   into a one-query bundle in memory and run with `fromBundle(…).query().run()`,
   so arguments, limits and offsets are applied exactly as for an exported query.
@@ -418,6 +452,10 @@ asked for.
 
 #### WP10 — Run report (S) · needs WP8
 
+Status: done for `etl run` and `rules run`. Stage times are `duckdbInit`,
+`extract`, `construct` and `write` for a job, `run` and `write` for a rule set.
+A failed run writes its report with the error. See [cli.md](../guides/cli.md).
+
 `--report <path|->` writes JSON after the run: bundle `textHash` and `sqlHash`
 of the job, source job and version IRIs, rows, chunks, bytes written, SHA-256
 of the output, wall time per stage, the DuckDB profile and limits, and the
@@ -465,6 +503,9 @@ and CSV inside it. The other two are built but not run; they need credentials.
 
 #### WP13 — Documentation (S) · needs WP8
 
+Status: done. `cli.md` covers bundles, `pull` and reports; `static-export.md`
+describes the two new members.
+
 - `docs/guides/cli.md`: install, the commands, composition with pipes, the
   profile flags, the report, the example images.
 - `docs/guides/static-export.md`: the two new bundle members; "what the
@@ -475,6 +516,25 @@ and CSV inside it. The other two are built but not run; they need credentials.
 - `docs/guides/etl.md`: a section on the CLI's defaults and why they differ.
 
 #### WP14 — Build and release plumbing (S) · alongside every new package
+
+Status: done, ESM only. What changed from this plan:
+
+- **ESM only.** The six packages run in Node only, so they ship one build.
+  `check-installable` takes an `esmOnly` reason per consumer: the CommonJS
+  consumer and `require()` are not run for it, and its canary holds instead
+  that the exports map has no `require` condition.
+- **The install check installs transitively.** A workspace dependency is copied
+  into the consumer's `node_modules` with its own dependencies beside it, so
+  `cli` → `compiler` → `@traqula/*` resolves as it would after `npm install`.
+- **`runtime-srl` declares its store.** `RuleStore` lists the six
+  `oxigraph.Store` methods a run calls, so its declarations do not import
+  oxigraph's, which do not compile with a consumer's library check on
+  (oxigraph 0.5.11 writes `UInt8Array`).
+- **The public API check skips property names.** `ruleName?: string` no longer
+  reads as a reference to a function named `ruleName`. Real leaks it found are
+  fixed: `ArgumentValue`, `SrlAggregate`, `SerializedError` are now exported.
+- **Versions start at 0.1.0,** as `runtime` did. Release-please versions the
+  repository root only, so publishing is a manual step for all eight.
 
 - Dockerfile builder and production stages: `COPY` lines for each new
   package. `api` fails to start in the image otherwise.

@@ -23,7 +23,16 @@ export {
   tupleSeedDeclarations,
 } from './tuples/seeds.js';
 export type { SrlTupleSeeds, SrlTupleSeedRow } from './tuples/seeds.js';
-export type { SrlRule, SrlRuleSet, SrlBodyItem, SrlDataBlock, SrlTuple, Span } from './ast.js';
+export type {
+  SrlRule,
+  SrlRuleSet,
+  SrlBodyItem,
+  SrlAggregate,
+  SrlAggregateAssignment,
+  SrlDataBlock,
+  SrlTuple,
+  Span,
+} from './ast.js';
 export type { CompiledRule, CompileFlavour, CompileOptions, TupleRef } from './compile.js';
 export type { ParseOptions } from './parse.js';
 export {

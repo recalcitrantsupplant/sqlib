@@ -173,11 +173,12 @@ All changes land on `main` through a pull request.
 
 ## Packages and tests
 
-Ten packages under `packages/*`. Eight are `private: true`; `runtime` and
-`runtime-oxigraph` are not, because they are the parser-free static-export
-runtime that a generated export loads as a dependency. They are
-packaging-complete and gated by `publish-check.sh`, and no version of either has
-been published yet.
+Sixteen packages under `packages/*`. Eight are `private: true`. Eight are not:
+`runtime` and `runtime-oxigraph`, the parser-free static-export runtime that a
+generated export loads as a dependency, and `compiler`, `srl`,
+`runtime-duckdb`, `runtime-etl`, `runtime-srl` and `cli`, which make up the
+`sqlib` command line. All eight are packaging-complete and gated by
+`publish-check.sh`, and none has been published yet. The CLI's six are ESM only.
 
 Test layout, per package:
 

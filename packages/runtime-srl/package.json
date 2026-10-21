@@ -1,21 +1,40 @@
 {
   "name": "@sparql-query-lib/runtime-srl",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "license": "SEE LICENSE IN LICENSE",
-  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/recalcitrantsupplant/sqlib.git",
+    "directory": "packages/runtime-srl"
+  },
+  "homepage": "https://github.com/recalcitrantsupplant/sqlib/tree/main/packages/runtime-srl#readme",
+  "bugs": {
+    "url": "https://github.com/recalcitrantsupplant/sqlib/issues"
+  },
   "type": "module",
   "description": "The sqlib rule set runner: DATA blocks, then each stratum of SRL rules to its fixpoint, on an in-process Oxigraph store.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    },
+    "./package.json": "./package.json"
   },
   "files": [
-    "dist"
+    "dist",
+    "!dist/tsconfig.tsbuildinfo",
+    "LICENSE"
   ],
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc --project tsconfig.json",
     "test": "vitest run",

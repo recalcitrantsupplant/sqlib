@@ -1,17 +1,39 @@
 {
   "name": "@sparql-query-lib/srl",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "license": "SEE LICENSE IN LICENSE",
-  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/recalcitrantsupplant/sqlib.git",
+    "directory": "packages/srl"
+  },
+  "homepage": "https://github.com/recalcitrantsupplant/sqlib/tree/main/packages/srl#readme",
+  "bugs": {
+    "url": "https://github.com/recalcitrantsupplant/sqlib/issues"
+  },
   "type": "module",
-  "description": "SHACL 1.2 Shape Rules Language (SRL) \u2014 parser, generator, SPARQL-UPDATE compiler and stratifier, built as a Traqula grammar extension.",
+  "description": "SHACL 1.2 Shape Rules Language (SRL) — parser, generator, SPARQL-UPDATE compiler and stratifier, built as a Traqula grammar extension.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "!dist/tsconfig.tsbuildinfo",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "build": "tsc --project tsconfig.json",

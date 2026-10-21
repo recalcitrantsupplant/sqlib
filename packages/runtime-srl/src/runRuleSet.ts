@@ -14,7 +14,7 @@ import { createHash } from 'node:crypto';
 import * as oxigraph from 'oxigraph';
 import { GROUND_GRAPH_IRI, groundTupleSeedRows, parseTupleSeeds, type MonotonicityKind, type TupleRef } from '@sparql-query-lib/srl';
 import { TupleStore, injectTupleReads, renderBindingValue, type SparqlJsonValue } from './TupleStore.js';
-import { quadToNQuad } from './nquads.js';
+import { quadToNQuad, type RenderableQuad } from './nquads.js';
 
 const DEFAULT_MAX_ITERATIONS = 5;
 const DEFAULT_RULE_TIMEOUT_MS = 30000;
@@ -23,7 +23,7 @@ const DEFAULT_RULE_SAMPLE_LIMIT = 10;
 export type ProgramSource = 'normalized' | 'raw';
 export type ExecutionStatus = 'converged' | 'cycle' | 'maxIterations' | 'failed';
 
-type SerializedError = { message: string; stack?: string };
+export type SerializedError = { message: string; stack?: string };
 
 /** A rule ready to run: its program, and where the stratifier put it. */
 export interface PreparedRule {
@@ -235,6 +235,24 @@ export interface SelectResults {
 
 export type RuleRunLog = (level: 'debug' | 'info' | 'warn' | 'error', message: string, context?: Record<string, unknown>) => void;
 
+
+/**
+ * The store a run reads and writes: the methods of `oxigraph.Store` it calls.
+ *
+ * Declared here rather than taken from `oxigraph`, so this package's
+ * declarations do not pull in oxigraph's, which do not compile under a
+ * consumer's library check (`UInt8Array` for `Uint8Array`, in 0.5.11). An
+ * `oxigraph.Store` is one, and is what a run makes when it is given none.
+ */
+export interface RuleStore {
+  readonly size: number;
+  load(data: string, options: { format: string }): void;
+  update(update: string): void;
+  query(query: string, options: { results_format: string }): unknown;
+  match(): RenderableQuad[];
+  dump(options: { format: string }): string;
+}
+
 export interface RuleSetRunOptions {
   /** Passes per stratum before the run stops as `maxIterations`. Default 5. */
   maxIterations?: number;
@@ -256,11 +274,11 @@ export interface RuleSetRunOptions {
   initialGraph?: string | null;
   initialGraphFormat?: string | null;
   /** The store to run on. Default: a new, empty one. The caller disposes of it. */
-  store?: oxigraph.Store;
+  store?: RuleStore;
   /** The executor over that store. Default: `storeExecutor(store)`. */
   executor?: RuleExecutor;
   /** How the base graph is loaded. Default: `loadIntoStore`. */
-  loadGraph?: (store: oxigraph.Store, data: string, format: string) => Promise<void>;
+  loadGraph?: (store: RuleStore, data: string, format: string) => Promise<void>;
   log?: RuleRunLog;
 }
 
@@ -282,12 +300,12 @@ const FORMATS: Record<string, string> = {
 };
 
 /** Load RDF text into a store. Takes a media type or a short name such as `turtle`. */
-export async function loadIntoStore(store: oxigraph.Store, data: string, format: string): Promise<void> {
+export async function loadIntoStore(store: RuleStore, data: string, format: string): Promise<void> {
   store.load(data, { format: FORMATS[format.toLowerCase()] ?? format });
 }
 
 /** An executor straight over an Oxigraph store, for a host with no executor of its own. */
-export function storeExecutor(store: oxigraph.Store): RuleExecutor {
+export function storeExecutor(store: RuleStore): RuleExecutor {
   return {
     async update(program) {
       const start = performance.now();
@@ -701,7 +719,7 @@ seeds: string | null | undefined,
 
 async function runDataBlock(
   executor: RuleExecutor,
-  store: oxigraph.Store,
+  store: RuleStore,
   block: PreparedDataBlock,
 ): Promise<DataBlockExecutionRecord> {
   const record: DataBlockExecutionRecord = {
@@ -729,7 +747,7 @@ async function runDataBlock(
 
 async function runRule(
   executor: RuleExecutor,
-  store: oxigraph.Store,
+  store: RuleStore,
   beforeState: DatasetState,
   preparedRule: PreparedRule,
   timeoutMs: number,
@@ -849,7 +867,7 @@ function buildResult(
   baselineState: DatasetState | null,
   cycle: { startIteration: number; endIteration: number } | undefined,
   maxIterations: number,
-  store: oxigraph.Store | null = null,
+  store: RuleStore | null = null,
   inferenceFormat: string = 'application/n-triples',
   seededQuads?: string[],
   log: RuleRunLog = () => {},
@@ -901,7 +919,7 @@ function buildResult(
   return result;
 }
 
-function serializeStore(store: oxigraph.Store, format: string): { content: string; contentType: string } {
+function serializeStore(store: RuleStore, format: string): { content: string; contentType: string } {
   const normalised = normaliseContentType(format);
 
   // If N-Triples was requested but the dataset contains named graphs, fall back to N-Quads.
@@ -943,7 +961,7 @@ function renderTupleRow(row: string[]): string {
   return `TUPLE(${row.join(', ')})`;
 }
 
-function captureDatasetState(store: oxigraph.Store): DatasetState {
+function captureDatasetState(store: RuleStore): DatasetState {
   // Everything except the ground graph. That named graph is a frozen copy of
   // `G0 ∪ D` kept so `WHERE DATA` / `NOT DATA` have something to match against
   // (see `GROUND_GRAPH_IRI`); it is executor bookkeeping, not data. Counting it

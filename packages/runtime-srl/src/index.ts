@@ -24,8 +24,12 @@ export {
   type RuleSetExecutionResult,
   type RuleSetRunOptions,
   type RuleSetSource,
+  type RuleStore,
   type SelectResults,
+  type SerializedError,
 } from './runRuleSet.js';
 
-export { TupleStore, injectTupleReads, renderBindingValue, renderTerm, type SparqlJsonValue } from './TupleStore.js';
+export { TupleStore, injectTupleReads, renderBindingValue, type SparqlJsonValue } from './TupleStore.js';
+// Re-exported for hosts that read tuple stores; it is srl's.
+export { renderTerm } from '@sparql-query-lib/srl';
 export { quadToNQuad, termToNQuad, type RenderableQuad, type RenderableTerm } from './nquads.js';

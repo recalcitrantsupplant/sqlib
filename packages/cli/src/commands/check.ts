@@ -3,19 +3,23 @@
  *
  * Parse each file and report what sqlib would refuse, without running it: a
  * `.rq`/`.sparql` file is parsed, its parameters detected and its template
- * compiled; an `.srl` file is parsed, checked for well-formedness and layered.
+ * compiled; an `.srl` file is parsed, checked for well-formedness and layered;
+ * a `.json` bundle is validated and verified, and its rule sets compiled.
  * The exit status is the verdict, so it fits a CI step.
  */
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { SparqlQueryParser, TemplateCompileError, compileQueryTemplate, detectSparqlOperation } from '@sparql-query-lib/compiler';
 import { CliError, readInput, type Io } from '../io.js';
+import { readBundle } from '../bundle.js';
 import { compileDocument } from './rules.js';
 
 export const CHECK_HELP = `sqlib check <file>…
 
-Check SPARQL (.rq, .sparql) and SRL (.srl) files without running them.
-Prints one line per file; exits 1 if any file has a problem.
+Check SPARQL (.rq, .sparql), SRL (.srl) and bundle (.json) files without
+running them. Prints one line per file; exits 1 if any file has a problem.
+A bundle is validated, its hashes verified, and its rule sets compiled; the
+line lists the keys --query, --job and --rule-set take.
 `;
 
 export async function checkCommand(io: Io, argv: string[]): Promise<number> {
@@ -38,6 +42,23 @@ export async function checkCommand(io: Io, argv: string[]): Promise<number> {
 async function checkFile(io: Io, file: string, parser: SparqlQueryParser): Promise<string> {
   const text = await readInput(io, file);
   const extension = path.extname(file).toLowerCase();
+
+  if (extension === '.json') {
+    const bundle = await readBundle(io, file);
+    // The server parsed each document before it wrote it, but under its own
+    // flags; compiling here says whether this sqlib can run it.
+    for (const [key, ruleSet] of Object.entries(bundle.ruleSets ?? {})) compileDocument(ruleSet.srl, key);
+    const list = (kind: string, map: Record<string, unknown> | undefined) => {
+      const keys = Object.keys(map ?? {});
+      return keys.length === 0 ? [] : [`\n  ${kind}: ${keys.join(', ')}`];
+    };
+    return [
+      `ok, bundle of ${bundle.library.name ?? bundle.library.id}`,
+      ...list('queries', bundle.queries),
+      ...list('ETL jobs', bundle.etlJobs),
+      ...list('rule sets', bundle.ruleSets),
+    ].join('');
+  }
 
   if (extension === '.srl') {
     const { rules, dataBlocks } = compileDocument(text, file);
@@ -70,5 +91,5 @@ async function checkFile(io: Io, file: string, parser: SparqlQueryParser): Promi
     return [summary, ...warnings].join('\n  ');
   }
 
-  throw new CliError(`not a file check knows; use .rq, .sparql, .ru or .srl`);
+  throw new CliError(`not a file check knows; use .rq, .sparql, .ru, .srl or .json`);
 }

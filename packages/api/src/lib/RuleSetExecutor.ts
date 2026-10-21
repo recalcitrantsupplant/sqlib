@@ -152,7 +152,9 @@ export class RuleSetExecutor {
           initialGraphFormat: options.initialGraphFormat,
           store,
           executor: new OxigraphSparqlExecutor(store),
-          loadGraph: (target, data, format) => oxigraphStoreManager.loadDataFromString(target, data, format),
+          // The runner loads into the store it was given, which is \`store\`;
+          // using it here keeps the oxigraph type the manager takes.
+          loadGraph: (_target, data, format) => oxigraphStoreManager.loadDataFromString(store, data, format),
           log: (level, message, context) => log[level](context ?? {}, message),
         },
       );

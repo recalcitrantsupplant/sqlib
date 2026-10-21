@@ -32,6 +32,8 @@ import {
   type SkippedGroup,
 } from '../lib/export/collectLibraryGroups.js';
 import { attachGroupsToBundle } from '../lib/export/groupBundle.js';
+import { attachEtlJobsToBundle, etlJobSource } from '../lib/export/etlJobBundle.js';
+import { attachRuleSetsToBundle, ruleSetSource } from '../lib/export/ruleSetBundle.js';
 import { buildExportBundle, QueryExportError } from '../lib/export/queryBundle.js';
 import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
 import {
@@ -309,6 +311,16 @@ export default async function (fastify: FastifyInstance) {
               default: false,
               description: 'Carry each example\'s recorded result. Reference only, never an assertion.',
             },
+            etl: {
+              type: 'boolean',
+              default: true,
+              description: "Carry the library's ETL jobs. ETL jobs carry no tags, so a tag filter leaves them out.",
+            },
+            ruleSets: {
+              type: 'boolean',
+              default: true,
+              description: "Carry the library's rule sets, as SRL documents.",
+            },
             format: {
               type: 'string',
               enum: ['json', 'html', 'ipynb'],
@@ -387,12 +399,25 @@ export default async function (fastify: FastifyInstance) {
           const { exportable, withheld } = partitionByReadableNodes(request, groups);
           const { skipped: skippedGroups } = await attachGroupsToBundle(bundle, exportable);
 
+          // ETL jobs and rule sets, for the CLI to run with no server.
+          const { skipped: skippedEtlJobs } = request.query.etl === false
+            ? { skipped: [] }
+            : await attachEtlJobsToBundle(bundle, etlJobSource(repos), id, { tags });
+          const { skipped: skippedRuleSets } = request.query.ruleSets === false
+            ? { skipped: [] }
+            : await attachRuleSetsToBundle(bundle, ruleSetSource(repos), id, {
+              tags,
+              match: request.query.match ?? 'any',
+            });
+
           const allSkipped = [
             ...skipped,
             ...skippedExamples,
             ...skippedGroupReads,
             ...withheld,
             ...skippedGroups,
+            ...skippedEtlJobs,
+            ...skippedRuleSets,
           ];
 
           if (request.query.format === 'html') {

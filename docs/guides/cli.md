@@ -14,7 +14,9 @@ hold that true: `packages/api/test/lib/etlParity.test.ts` and
 
 ## Running it
 
-The packages are not on npm yet. Two ways to run it today:
+The packages are not on npm yet. They are ready to publish, and pass the same
+install checks as the static-export runtime; once they are, `npm install -g
+@sparql-query-lib/cli` installs the command. Two ways to run it today:
 
 - **From this repository.** `pnpm install && pnpm build`, then
   `node packages/cli/dist/cli.js <command>`.
@@ -128,6 +130,65 @@ inference graph, the triples the rules and DATA blocks added.
 Exit status 0 means converged. Status 2 means a stratum hit `--max-iterations`
 or the rules cycle; the output is then the graph so far.
 
+### `sqlib pull` and `--bundle`
+
+```sh
+SQLIB_TOKEN=… sqlib pull --from https://sqlib.example.org/api \
+  --library urn:sqlib:library:main --out lib.json
+sqlib check lib.json
+sqlib etl run --bundle lib.json --job customers --out customers.nt
+sqlib rules run --bundle lib.json --rule-set ancestors --data customers.nt
+```
+
+`sqlib pull` fetches a library's [export bundle](static-export.md) from a
+running server and writes it to a file. A run from that file then needs no
+server. The bundle carries the library's queries, its ETL jobs and its rule
+sets:
+
+- **A query** is compiled, exactly as for the static runtime.
+- **An ETL job** carries its SQL, its column mapping, its chunk size and its
+  CONSTRUCT template, compiled. Its backend stays behind: where the SQL reads
+  from and where the RDF goes are decided where the job runs.
+- **A rule set** carries the SRL document the server exports for it, DATA
+  blocks included, and its initial tuple rows.
+
+`--bundle <file>` with `--query`, `--job` or `--rule-set <key>` runs one entry.
+`sqlib check lib.json` validates a bundle, verifies its hashes and lists the
+keys. A bundle someone edited by hand fails its hash check and is refused.
+
+`pull` options:
+
+- `--tag iri[,iri]` and `--match any|all` export a subset, as the export route
+  does. ETL jobs carry no tags, so a tag filter leaves them all out.
+- `--no-etl` and `--no-rule-sets` leave those members out.
+- A bearer token comes from the environment variable `SQLIB_TOKEN`, or the one
+  `--token-env` names. It is never an argument, because arguments land in shell
+  history and process lists.
+
+What the server could not export is reported on standard error, one line for
+each entry, with the reason: a job whose template is not a CONSTRUCT, say, or a
+rule set with a data block that has no `DATA` form.
+
+### Run reports
+
+`etl run` and `rules run` take `--report <file>`. After the run, the file holds
+a JSON record of it, because a run the server never saw leaves no execution
+record behind:
+
+- what ran: the bundle and key or the file, the template's and the SQL's
+  hashes, and the server's job, version and mapping IRIs;
+- for a job: the DuckDB profile and limits, the chunk size, rows and chunks;
+- for a rule set: passes and triples inferred;
+- the output's path, format, size and SHA-256;
+- start and end times, and milliseconds for each stage (`duckdbInit`,
+  `extract`, `construct` and `write` for a job; `run` and `write` for a rule
+  set);
+- how it ended: `ok`, `dry-run`, `converged`, `maxIterations`, `cycle` or
+  `failed` with the error.
+
+A failed run still writes its report. `--report -` writes it to standard
+output, and then `--out` has to name a file.
+
 ### `sqlib check`
 
 ```sh
@@ -136,8 +197,9 @@ sqlib check queries/*.rq rules/*.srl
 
 Parses each file and reports what sqlib would refuse, without running it. For a
 query: its form, its parameters, and whether it compiles to a template. For SRL:
-whether it parses, is well formed and stratifies. Exit status 1 if any file has
-a problem, so it fits a CI step.
+whether it parses, is well formed and stratifies. For a bundle (`.json`): its
+shape, its hashes, whether its rule sets compile, and its keys. Exit status 1 if
+any file has a problem, so it fits a CI step.
 
 ## Pipelines
 
@@ -165,7 +227,8 @@ The two Azure examples need a storage account, so CI builds neither.
 
 ## What it does not do yet
 
-- Run a query, job or rule set from an export bundle by name, or fetch a bundle
-  from a server (`sqlib pull`). Bundles carry queries today; ETL jobs and rule
-  sets join them next.
-- Write a run report. That comes with the bundle work.
+- Run a query group. Pipe one command into the next instead; see
+  [Pipelines](#pipelines).
+- Send a run report anywhere. Collect the files `--report` writes.
+- Merge chunks into one Turtle document with prefixes. Each chunk is valid on
+  its own and the chunks concatenate, but the result has no prefix declarations.

@@ -14,7 +14,7 @@
  *   here, and it cannot be added to the writer without showing up in the
  *   fixture's diff — which is the moment to notice it needs covering.
  * - **The route's own call order.** `buildExportBundle`, then examples, then
- *   groups, exactly as `routes/libraries.ts` does it, because the order decides
+ *   groups, then ETL jobs and rule sets, exactly as `routes/libraries.ts` does it, because the order decides
  *   which queries carry examples: a group may bring a query of its own into the
  *   bundle after the examples have been attached.
  *
@@ -26,6 +26,9 @@
 import type { ExportBundle } from '@sparql-query-lib/runtime';
 import { buildExportBundle } from '../../../../src/lib/export/queryBundle.js';
 import { attachGroupsToBundle } from '../../../../src/lib/export/groupBundle.js';
+import { attachEtlJobsToBundle, type LibraryEtlJobSource } from '../../../../src/lib/export/etlJobBundle.js';
+import { attachRuleSetsToBundle, type LibraryRuleSetSource } from '../../../../src/lib/export/ruleSetBundle.js';
+import { getFeatureFlags, overrideFeatureFlags } from '../../../../src/config/featureFlags.js';
 import {
   attachExamplesToBundle,
   type ExampleSource,
@@ -267,6 +270,119 @@ const EXAMPLE_SOURCE: ExampleSource = {
   },
 };
 
+/**
+ * One ETL job, with a chunk size and a description, so every optional field of
+ * an exported job is present.
+ */
+const ETL_SOURCE: LibraryEtlJobSource = {
+  listEtlJobs: () => [
+    {
+      $id: 'urn:sqlib:etl-job:customers',
+      name: 'Customers',
+      description: 'Customer rows to people.',
+      isPartOf: [LIBRARY.id],
+      currentVersion: 'urn:sqlib:etl-job-version:customers-1',
+    },
+  ],
+  getEtlJobVersion: (id) =>
+    id === 'urn:sqlib:etl-job-version:customers-1'
+      ? {
+          $id: id,
+          isPartOf: 'urn:sqlib:etl-job:customers',
+          version: 1,
+          sql: "SELECT id, name, joined FROM read_csv('customers.csv')",
+          sparqlTemplate: `PREFIX ex: <http://example.org/>
+CONSTRUCT { ?person ex:name ?name ; ex:joined ?joined } WHERE { VALUES (?person ?name ?joined) { (UNDEF UNDEF UNDEF) } }`,
+          backendId: 'urn:sqlib:backend:not-exported',
+          currentColumnMappingVersion: 'urn:sqlib:etl-column-mapping-version:customers-1',
+          chunkSize: 500,
+        }
+      : null,
+  getColumnMappingVersion: (id) =>
+    id === 'urn:sqlib:etl-column-mapping-version:customers-1'
+      ? {
+          $id: id,
+          isPartOf: 'urn:sqlib:etl-column-mapping:customers',
+          version: 1,
+          columns: JSON.stringify([
+            {
+              columnName: 'id',
+              targetVariable: 'person',
+              termType: 'uri',
+              iriTemplate: 'http://example.org/person/{value}',
+              nullPolicy: 'skipRow',
+            },
+            {
+              columnName: 'name',
+              targetVariable: 'name',
+              termType: 'literal',
+              lang: 'en',
+              nullPolicy: 'undef',
+            },
+            {
+              columnName: 'joined',
+              targetVariable: 'joined',
+              termType: 'literal',
+              datatypeIri: 'http://www.w3.org/2001/XMLSchema#dateTime',
+              nullPolicy: 'undef',
+            },
+          ]),
+        }
+      : null,
+};
+
+/**
+ * One rule set with a rule, a data block and seed rows, written with the
+ * rule-tuples extension on, so `tuplesEnabled` and `tupleSeeds` are present.
+ */
+const RULE_SET_SOURCE: LibraryRuleSetSource = {
+  listRuleSets: () => [
+    {
+      $id: 'urn:sqlib:rule-set:ancestors',
+      name: 'Ancestors',
+      description: 'The transitive closure of ex:parent.',
+      isPartOf: [LIBRARY.id],
+      currentVersion: 'urn:sqlib:rule-set-version:ancestors-1',
+      tags: FILTER_TAGS,
+    },
+  ],
+  getRuleSetVersion: (id) =>
+    id === 'urn:sqlib:rule-set-version:ancestors-1'
+      ? {
+          $id: id,
+          isPartOf: 'urn:sqlib:rule-set:ancestors',
+          version: 1,
+          hasRule: ['urn:sqlib:rule-version:anc-1', 'urn:sqlib:rule-version:anc-2'],
+          hasDataBlock: ['urn:sqlib:data-block-version:family-1'],
+          tuplesEnabled: true,
+          tupleSeeds: 'TUPLE(<http://example.org/reach>, <http://example.org/a>, <http://example.org/b>)',
+        } as never
+      : null,
+  RuleVersion: {
+    get: (id) =>
+      ({
+        'urn:sqlib:rule-version:anc-1': {
+          $id: 'urn:sqlib:rule-version:anc-1',
+          ruleString: 'RULE { ?x <http://example.org/anc> ?z } WHERE { ?x <http://example.org/parent> ?z }',
+        },
+        'urn:sqlib:rule-version:anc-2': {
+          $id: 'urn:sqlib:rule-version:anc-2',
+          ruleString:
+            'RULE { ?x <http://example.org/anc> ?z } WHERE { ?x <http://example.org/anc> ?y . ?y <http://example.org/parent> ?z }',
+        },
+      })[id],
+  },
+  DataBlockVersion: {
+    get: (id) =>
+      id === 'urn:sqlib:data-block-version:family-1'
+        ? {
+            $id: id,
+            dataString: 'INSERT DATA { <http://example.org/ann> <http://example.org/parent> <http://example.org/bo> }',
+          }
+        : undefined,
+  },
+};
+
 /** The export timestamp, fixed so the fixture is reproducible. */
 export const GOLDEN_GENERATED_AT = '2026-09-07T00:00:00.000Z';
 
@@ -294,7 +410,22 @@ export async function buildGoldenBundleV1(): Promise<ExportBundle> {
   );
   const { skipped: skippedGroups } = await attachGroupsToBundle(bundle, [GROUP]);
 
-  const skipped = [...skippedExamples, ...skippedGroups];
+  // Unfiltered, unlike the route here: ETL jobs carry no tags, so a filtered
+  // export carries none, and the fixture has to carry one.
+  const { skipped: skippedEtlJobs } = await attachEtlJobsToBundle(bundle, ETL_SOURCE, LIBRARY.id);
+  // The extension on for the rule set only, so its tuple fields are written.
+  const flags = getFeatureFlags();
+  overrideFeatureFlags({ ruleTuples: true });
+  let skippedRuleSets;
+  try {
+    ({ skipped: skippedRuleSets } = await attachRuleSetsToBundle(bundle, RULE_SET_SOURCE, LIBRARY.id, {
+      tags: FILTER_TAGS,
+    }));
+  } finally {
+    overrideFeatureFlags(flags);
+  }
+
+  const skipped = [...skippedExamples, ...skippedGroups, ...skippedEtlJobs, ...skippedRuleSets];
   if (skipped.length > 0) {
     throw new Error(
       `The golden fixture skipped something, so it no longer covers the format: ${skipped

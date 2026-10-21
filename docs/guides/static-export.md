@@ -26,8 +26,18 @@ id and name, and a `queries` map keyed by a stable slug. Each entry carries
 - provenance: the QueryVersion the entry was compiled from.
 
 Optional members: `groups` (see [Query groups](#query-groups) below), per-query
-`examples` drawn from the library's tests, `generatedAt`, and the `tags` the
-export was filtered by.
+`examples` drawn from the library's tests, `generatedAt`, the `tags` the
+export was filtered by, and two members the [`sqlib` CLI](cli.md) runs:
+
+- `etlJobs`: each job's SQL, column mapping, chunk size and CONSTRUCT
+  `template` (compiled as a query's is, with exactly one slot for the rows),
+  its `textHash`, and provenance. The job's backend is not carried.
+- `ruleSets`: each rule set's SRL document (`srl`, DATA blocks included), a
+  `textHash` of the document, its rule and data block counts, its tuple seed
+  rows when the rule-tuples extension is on for it, and provenance.
+
+The browser runtime validates both and verifies their hashes, but does not run
+them: ETL needs DuckDB and rules need the SRL compiler.
 
 The bundle is generated, never edited. Slots are offsets into `template.text`, so
 editing that text by hand moves every slot after the edit without changing
@@ -74,15 +84,17 @@ against a stopped one. It requires the internal backend to be configured as
 | `--examples` | `all`, `first`, `none` | `all` | How many worked examples to draw from each query's tests. |
 | `--expected` | flag | off | Carry each example's recorded result along as reference material. |
 | `--html` | path, or bare flag | off | Also write a self-contained runnable page. A bare `--html` writes beside `--out`. |
+| `--no-etl` | flag | off | Leave the library's ETL jobs out. A tag filter leaves them out too, because jobs carry no tags. |
+| `--no-rule-sets` | flag | off | Leave the library's rule sets out. |
 
 The same export is available from a running API as
 `GET /libraries/:id/export-bundle`, with the querystring parameters `tag`, `match`,
-`examples`, `expected` and `format`. `format` takes `json` (default), `html` for
+`examples`, `expected`, `etl`, `ruleSets` and `format`. `sqlib pull` calls it. `format` takes `json` (default), `html` for
 the page described below, or `ipynb` for a Jupyter notebook of worked calls.
 
 The exporter re-verifies the bundle it is about to write — the same integrity check
 a consumer runs — so a bundle that fails it is never written. Queries and groups
-that cannot be exported are not fatal: each is reported on stderr with the reason,
+(and ETL jobs and rule sets) that cannot be exported are not fatal: each is reported on stderr with the reason,
 and the reasons also appear on the generated page.
 
 ## Running a bundle
@@ -352,6 +364,8 @@ when that data is too large to ship.
   DESCRIBE. An update query is refused rather than exported.
 - **Query groups are SELECT-chained only.** A group that moves RDF between nodes, or
   that runs a rule set or an ETL job, is skipped with a reason.
+- **It does not run ETL jobs or rule sets.** A bundle carries them for the
+  [`sqlib` CLI](cli.md), which has DuckDB and the SRL compiler.
 - **Bundles are generated, never edited.** See the integrity check above.
 
 ## Installation
@@ -364,5 +378,6 @@ Neither `@sparql-query-lib/runtime` nor `@sparql-query-lib/runtime-oxigraph` has
 published to npm. Both are packaging-complete — CommonJS and ESM entry points with
 types for both, and CI gates on `scripts/check-publishable.mjs`,
 `check-installable.mjs` and `check-public-api.mjs` — but no release has been made.
-Inside this repository they resolve through the pnpm workspace. They are the only
-two packages in the monorepo that are not `private: true`.
+Inside this repository they resolve through the pnpm workspace. The packages the
+`sqlib` CLI is built from are publishable too, as ESM only; see
+[cli.md](cli.md).

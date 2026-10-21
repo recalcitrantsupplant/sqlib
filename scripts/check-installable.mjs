@@ -98,6 +98,11 @@ const readJson = (file) => JSON.parse(readFileSync(file, 'utf8'));
  * custom element used to throw on import, and the fix was to stop evaluating
  * `HTMLElement` at load rather than to list them here.
  *
+ * `esmOnly` marks a package published without a \`require\` condition, with
+ * the reason. For it the CommonJS consumer and \`require()\` are not run, and
+ * the CommonJS canary instead holds that the exports map names no \`require\`
+ * at all, so a dual package that loses its CommonJS build still fails here.
+ *
  * A publishable package with no entry here fails the run rather than being
  * skipped. Skipping is how a newly published package would arrive unchecked,
  * which is the failure this file exists to stop, one level up.
@@ -140,6 +145,93 @@ declare const bundle: Parameters<typeof fromBundle>[0];
 export async function load(options: OxigraphExecutorOptions) {
   return fromBundle(bundle, { executor: await oxigraphExecutor(options) });
 }
+`,
+  },
+  '@sparql-query-lib/compiler': {
+    unloadable: {},
+    esmOnly: 'Node-only, and published as ESM: Node 20.19 and 22.12 load ESM through require() anyway.',
+    source: `import { SparqlQueryParser, compileQueryTemplate, TemplateCompileError } from '@sparql-query-lib/compiler';
+import type { CompiledQuery } from '@sparql-query-lib/compiler';
+import type { QueryTemplate } from '@sparql-query-lib/runtime';
+
+/*
+ * The compiled template is the runtime's type: the two tarballs have to agree
+ * on it, or a template the compiler writes is one the runtime cannot read.
+ */
+export function compile(text: string): QueryTemplate {
+  const compiled: CompiledQuery = compileQueryTemplate(text, { name: 'usage', parser: new SparqlQueryParser() });
+  return compiled.template;
+}
+export { TemplateCompileError };
+`,
+  },
+  '@sparql-query-lib/srl': {
+    unloadable: {},
+    esmOnly: 'Node-only, and published as ESM: Node 20.19 and 22.12 load ESM through require() anyway.',
+    source: `import { parseRuleSet, expandIris, stratify, compileRule } from '@sparql-query-lib/srl';
+import type { SrlRuleSet, CompiledRule } from '@sparql-query-lib/srl';
+
+export function compileAll(text: string): CompiledRule[] {
+  const set: SrlRuleSet = expandIris(parseRuleSet(text));
+  stratify(set.rules.map((ast, i) => ({ id: String(i), ast })));
+  return set.rules.map((rule) => compileRule(rule, set.prologueText));
+}
+`,
+  },
+  '@sparql-query-lib/runtime-etl': {
+    unloadable: {},
+    esmOnly: 'Node-only, and published as ESM: Node 20.19 and 22.12 load ESM through require() anyway.',
+    source: `import { runEtl, rowsToBindings } from '@sparql-query-lib/runtime-etl';
+import type { ColumnDefinition, EtlResult } from '@sparql-query-lib/runtime-etl';
+import type { Executor, QueryTemplate } from '@sparql-query-lib/runtime';
+
+export function run(
+  source: AsyncIterable<{ rows: Record<string, unknown>[] }>,
+  query: QueryTemplate,
+  columns: ColumnDefinition[],
+  executor: Executor,
+): Promise<EtlResult> {
+  return runEtl({ source, query, columns, executor, onOutput: async () => {} });
+}
+export { rowsToBindings };
+`,
+  },
+  '@sparql-query-lib/runtime-duckdb': {
+    unloadable: {},
+    esmOnly: 'Node-only, and published as ESM: Node 20.19 and 22.12 load ESM through require() anyway.',
+    source: `import { DuckDbService, DUCKDB_CLOSED_PROFILE, DUCKDB_LIMIT_DEFAULTS } from '@sparql-query-lib/runtime-duckdb';
+import type { DuckDbCapabilities } from '@sparql-query-lib/runtime-duckdb';
+
+const profile: DuckDbCapabilities = { ...DUCKDB_CLOSED_PROFILE, filesystem: true };
+export const service = () => new DuckDbService(profile, DUCKDB_LIMIT_DEFAULTS);
+`,
+  },
+  '@sparql-query-lib/runtime-srl': {
+    unloadable: {},
+    esmOnly: 'Node-only, and published as ESM: Node 20.19 and 22.12 load ESM through require() anyway.',
+    source: `import { RuleSetRunner, storeExecutor } from '@sparql-query-lib/runtime-srl';
+import type { PreparedRule, RuleExecutor, RuleStore } from '@sparql-query-lib/runtime-srl';
+
+/*
+ * The store is typed by this package, not by \`oxigraph\`: oxigraph 0.5.11's
+ * own declarations do not compile with the library check on, and this
+ * consumer has it on. An \`oxigraph.Store\` is a RuleStore.
+ */
+declare const store: RuleStore;
+export const executor: RuleExecutor = storeExecutor(store);
+export const runner = new RuleSetRunner();
+export type Rules = PreparedRule[];
+`,
+  },
+  '@sparql-query-lib/cli': {
+    unloadable: {},
+    esmOnly: 'Node-only, and published as ESM: Node 20.19 and 22.12 load ESM through require() anyway.',
+    source: `import { main, CliError } from '@sparql-query-lib/cli';
+import type { Io } from '@sparql-query-lib/cli';
+
+const io: Io = { stdout: () => {}, stderr: () => {}, readStdin: async () => '', cwd: '.' };
+export const help = (): Promise<number> => main(['--help'], io);
+export { CliError };
 `,
   },
 };
@@ -247,28 +339,40 @@ function dependencySource(name, unpacked, owner) {
   return realpathSync(installed);
 }
 
-/** Lay out `node_modules` for one consumer project. */
+/**
+ * Lay out `node_modules` for one consumer project.
+ *
+ * Flat, as npm lays it out: the package under test, its dependencies, and
+ * theirs. A workspace package is copied rather than linked, so a module it
+ * imports resolves from the consumer's `node_modules` as it would after an
+ * install, and not from the sandbox directory it was unpacked into, which
+ * has none. That is what lets `cli` be checked at all: its `compiler`
+ * imports `@traqula/*`, which `cli` does not name.
+ */
 function installInto(root, pkg, unpacked) {
   const modules = path.join(root, 'node_modules');
-  const manifest = readJson(path.join(unpacked.get(pkg.manifest.name), 'package.json'));
+  const byName = new Map(workspacePackages().map((entry) => [entry.manifest.name, entry]));
 
-  const link = (name, from) => {
+  const install = (name, owner) => {
     const target = path.join(modules, name);
-    mkdirSync(path.dirname(target), { recursive: true });
     if (existsSync(target)) return;
-    // The package under test is copied rather than linked: the canary mutates
-    // it, and a mutation that reached the shared unpacked copy would leak into
-    // the runs after it.
-    if (name === pkg.manifest.name) cpSync(from, target, { recursive: true });
-    else symlinkSync(from, target, 'dir');
+    mkdirSync(path.dirname(target), { recursive: true });
+    const from = dependencySource(name, unpacked, owner);
+    // The package under test is copied for a second reason too: the canary
+    // mutates it, and a mutation that reached the shared unpacked copy would
+    // leak into the runs after it.
+    if (!unpacked.has(name)) {
+      symlinkSync(from, target, 'dir');
+      return;
+    }
+    cpSync(from, target, { recursive: true });
+    const manifest = readJson(path.join(from, 'package.json'));
+    for (const field of ['dependencies', 'peerDependencies']) {
+      for (const dependency of Object.keys(manifest[field] ?? {})) install(dependency, byName.get(name));
+    }
   };
 
-  link(pkg.manifest.name, unpacked.get(pkg.manifest.name));
-  for (const field of ['dependencies', 'peerDependencies']) {
-    for (const name of Object.keys(manifest[field] ?? {})) {
-      link(name, dependencySource(name, unpacked, pkg));
-    }
-  }
+  install(pkg.manifest.name, pkg);
   return modules;
 }
 
@@ -350,10 +454,12 @@ function entryPoints(name, manifest) {
 }
 
 /** `require()` and `import()` of one specifier, from inside the project. */
-function load(root, specifier) {
+function load(root, specifier, esmOnly = false) {
   const problems = [];
-  const required = run(process.execPath, ['-e', `require(${JSON.stringify(specifier)})`], { cwd: root });
-  if (required.status !== 0) problems.push(`require('${specifier}') failed:\n${required.output}`);
+  if (!esmOnly) {
+    const required = run(process.execPath, ['-e', `require(${JSON.stringify(specifier)})`], { cwd: root });
+    if (required.status !== 0) problems.push(`require('${specifier}') failed:\n${required.output}`);
+  }
 
   const imported = run(
     process.execPath,
@@ -439,6 +545,10 @@ try {
   // --- compile a consumer, per module system --------------------------------
   for (const pkg of publishable) {
     for (const [index, config] of CONFIGS.entries()) {
+      if (config.cjs && CONSUMERS[pkg.manifest.name].esmOnly) {
+        console.log(`check-installable: ${pkg.manifest.name} — ${config.name} not run (ESM only)`);
+        continue;
+      }
       const root = path.join(sandbox, 'projects', `${pkg.manifest.name.replace('/', '+')}-${index}`);
       writeProject(root, pkg, unpacked, config);
       const output = compile(tsc, root);
@@ -459,7 +569,7 @@ try {
   for (const pkg of publishable) {
     const root = path.join(sandbox, 'projects', `${pkg.manifest.name.replace('/', '+')}-0`);
     const packedManifest = readJson(path.join(unpacked.get(pkg.manifest.name), 'package.json'));
-    const { unloadable } = CONSUMERS[pkg.manifest.name];
+    const { unloadable, esmOnly } = CONSUMERS[pkg.manifest.name];
 
     const entries = entryPoints(pkg.manifest.name, packedManifest);
     if (entries.length === 0) {
@@ -472,9 +582,9 @@ try {
         console.log(`check-installable: ${specifier} — not loaded (${unloadable[subpath]})`);
         continue;
       }
-      const problems = load(root, specifier);
+      const problems = load(root, specifier, Boolean(esmOnly));
       if (problems.length === 0) {
-        console.log(`check-installable: ${specifier} — loads under require() and import()`);
+        console.log(`check-installable: ${specifier} — loads under ${esmOnly ? 'import()' : 'require() and import()'}`);
         continue;
       }
       for (const problem of problems) report(`${pkg.manifest.name} — ${subpath}`, problem);
@@ -505,7 +615,19 @@ try {
     //    consumer then has JavaScript with no types, which is the TS7016 the
     //    readiness note's §2 is written about.
     const declarations = requireDeclarations(packedManifest);
-    if (declarations.length === 0) {
+    if (CONSUMERS[name].esmOnly) {
+      // An ESM-only package must say so in its exports map too: a \`require\`
+      // condition there is a CommonJS promise nothing above has checked.
+      if (JSON.stringify(packedManifest.exports ?? {}).includes('"require"')) {
+        report(
+          `${name} — canary: ESM only`,
+          'The consumer entry says ESM only, but the packed exports map has a `require` condition.\n' +
+            'Drop `esmOnly` so the CommonJS consumer runs, or drop the condition.',
+        );
+      } else {
+        console.log(`check-installable: ${name} — canary: no require condition, as an ESM-only package should have`);
+      }
+    } else if (declarations.length === 0) {
       report(
         `${name} — canary`,
         'the packed exports map names no `require` → `types` file, so a CommonJS consumer has no declarations at all',
@@ -591,7 +713,7 @@ try {
         );
       }
 
-      const problems = targets.size === 0 ? [] : load(root, loadable.specifier);
+      const problems = targets.size === 0 ? [] : load(root, loadable.specifier, Boolean(CONSUMERS[name].esmOnly));
       if (problems.length === 0) {
         report(
           `${name} — canary: entry point that throws`,
