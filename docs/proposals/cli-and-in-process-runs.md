@@ -168,35 +168,54 @@ for both, `oxigraph`-style external for the native binding).
 
 #### WP3 — `runtime-etl` package (M) · needs WP1
 
+Status: done. What changed from this plan is recorded below.
+
 The pipeline loop and the row mapping, with the DuckDB dependency injected:
 
 ```ts
 export interface EtlRun {
   source: AsyncIterable<{ rows: Record<string, unknown>[] }>;
-  template: QueryTemplate;                 // compiled, from a bundle or the compiler
+  query: QueryTemplate | ((argumentSet: TemplateArgumentSet) => string);
   columns: ColumnDefinition[];
   executor: Executor;                      // the runtime's interface
   onOutput: (rdf: string, chunk: EtlOutputChunk) => Promise<void>;
   onChunk?: (p: { completedChunks: number; totalRows: number }) => Promise<void>;
   maxRows?: number; maxRowsPolicy?: 'stop' | 'fail'; dryRun?: boolean; signal?: AbortSignal;
+  abortError?: (signal: AbortSignal) => Error;
+  warn?: (message: string, context: Record<string, unknown>) => void;
 }
 export function runEtl(run: EtlRun): Promise<{ totalRows: number; completedChunks: number }>;
 ```
 
-Moves from `EtlService`: `toLexicalForm`, `convertRowsToBindings`,
-`bindingsToArgumentSet`, the loop body of `runPipeline`, and the
-`ColumnDefinition` type (today a persistence schema type; it becomes a plain
-type here and the schema imports it).
+Moved from `EtlService`: `toLexicalForm`, the row mapping (now
+`rowsToBindings`), `bindingsToArgumentSet` (now `toArgumentSet`), the loop body
+of `runPipeline`, and the `ColumnDefinition` type. The persistence schema
+re-exports the type.
 
-The splice uses `applyTemplateArguments` from `runtime` on the compiled
-template. `api`'s `runPipeline` compiles the stored `sparqlTemplate` once per
-run with the compiler and calls `runEtl`. The DuckDB stream from WP2 is the
-`source`.
+What changed from the plan:
 
-Acceptance: a parity test runs the same job through `EtlService.runPipeline`
-and through `runEtl` with a fixture source, and compares the RDF after
-canonicalisation (`rdf-canonize` is already an `api` dependency). The
-`EtlService.test.ts` and `executeJob` tests pass.
+- **`query` takes a template or a function.** The plan had `api` compile the
+  stored template once per run. A stored query that does not compile to a
+  verified template would then have stopped running, where today it falls
+  back to the AST path. So `api` passes its parser's `applyArguments`, which
+  uses the compiled template whenever the query compiles. The CLI passes a
+  template it compiled itself.
+- **`abortError` and `warn` are hooks.** `api` keeps its own abort error (a 499
+  for a non-`Error` reason) and its pino warnings; a host that passes neither
+  gets the abort reason and silence.
+- **`api` asks for N-Quads.** Both `api` executors return N-Quads for a
+  CONSTRUCT when nothing is asked for, so asking for it explicitly changes no
+  run's output. One label changes: when an HTTP endpoint reported no content
+  type, the output file used to be labelled Turtle; it is now labelled N-Quads,
+  which is what it holds.
+- **The parity test compares sorted N-Quads lines.** The mapped values contain
+  no blank nodes, so sorting the lines is a complete comparison and
+  canonicalisation adds nothing.
+
+Acceptance: `packages/api/test/lib/etlParity.test.ts` runs one job, read from
+DuckDB in chunks, through `EtlService.runPipeline` and through `runEtl` with a
+template compiled from text on the runtime's Oxigraph executor, and requires
+the same RDF. The `EtlService` and execute-job tests pass unchanged.
 
 #### WP4 — One executor interface (S) · needed by WP3 and WP5
 

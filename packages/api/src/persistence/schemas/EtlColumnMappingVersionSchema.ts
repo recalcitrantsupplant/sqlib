@@ -44,17 +44,10 @@ export const EtlColumnMappingVersionSchema = {
 } as const satisfies Schema;
 
 /**
- * Column definition structure (parsed from JSON string in columns field)
+ * Column definition structure (parsed from JSON string in columns field). The
+ * type lives with the code that applies it, in @sparql-query-lib/runtime-etl.
  */
-export interface ColumnDefinition {
-  columnName: string; // must match SQL output alias
-  targetVariable: string; // without '?', e.g. 'customer', 'price'
-  termType: 'uri' | 'literal';
-  datatypeIri?: string; // for literals, e.g. 'http://www.w3.org/2001/XMLSchema#decimal'
-  lang?: string; // for literals, e.g. 'en'
-  iriTemplate?: string; // e.g. 'http://ex/customer/{value}'
-  nullPolicy: 'undef' | 'skipRow'; // default 'undef'
-}
+export type { ColumnDefinition } from '@sparql-query-lib/runtime-etl';
 
 export interface LdkitEtlColumnMappingVersion {
   $id: string;

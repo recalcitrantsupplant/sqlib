@@ -106,6 +106,14 @@ export default defineConfig({
         replacement: path.resolve(__dirname, '../tools/src/index.ts'),
       },
       {
+        find: '@sparql-query-lib/runtime-oxigraph',
+        replacement: path.resolve(__dirname, '../runtime-oxigraph/src/index.ts'),
+      },
+      {
+        find: '@sparql-query-lib/runtime-etl',
+        replacement: path.resolve(__dirname, '../runtime-etl/src/index.ts'),
+      },
+      {
         find: '@sparql-query-lib/runtime-duckdb',
         replacement: path.resolve(__dirname, '../runtime-duckdb/src/index.ts'),
       },

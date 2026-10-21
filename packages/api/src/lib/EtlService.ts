@@ -25,7 +25,9 @@ import type { LdkitEtlColumnMappingVersion, ColumnDefinition } from '../persiste
 import type { LdkitEtlExecution, EtlExecutionStatus } from '../persistence/schemas/EtlExecutionSchema.js';
 import type { SparqlBinding } from './query-chaining.js';
 import { SparqlQueryParser } from './parser.js';
-import { throwIfAborted } from './cancellation.js';
+import { abortReason } from './cancellation.js';
+import { toRuntimeExecutor } from '../server/runtimeExecutor.js';
+import { rowsToBindings, runEtl, toLexicalForm } from '@sparql-query-lib/runtime-etl';
 import { ExecutorFactory } from './orchestration/ExecutorFactory.js';
 import type { ISparqlExecutor } from '../server/ISparqlExecutor.js';
 import type { ArgumentSet } from './orchestration/types.js';
@@ -40,27 +42,13 @@ import {
 import { log } from './log.js';
 import { isReadOnlyDeployment } from '../config/readOnly.js';
 
-/**
- * The lexical form of a DuckDB value for the literal it is mapped to.
- *
- * `DuckDbService` hands rows over as JSON values, so almost everything is
- * already the string the literal wants. The one shape that is not is DuckDB's
- * TIMESTAMP, whose JSON form separates date and time with a space —
- * `2020-01-02 03:04:05` — while `xsd:dateTime` requires `T`. Without this the
- * ETL emitted a literal that is ill-typed against the datatype it declares
- * (issue #200). The rewrite is scoped to columns actually mapped to
- * `xsd:dateTime`, so a VARCHAR column that happens to look like a timestamp is
- * left as it was sent.
- */
-const XSD_DATE_TIME = 'http://www.w3.org/2001/XMLSchema#dateTime';
-const DUCKDB_TIMESTAMP = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/;
+// The row mapping and the chunk loop live in @sparql-query-lib/runtime-etl, so
+// the API and the CLI run one implementation. `toLexicalForm` is re-exported
+// for the callers that imported it from here.
+export { toLexicalForm };
 
-export function toLexicalForm(value: unknown, datatypeIri?: string): string {
-  const lexical = String(value);
-  if (datatypeIri === XSD_DATE_TIME && DUCKDB_TIMESTAMP.test(lexical)) {
-    return lexical.replace(' ', 'T');
-  }
-  return lexical;
+function warnAboutRow(message: string, context: Record<string, unknown>): void {
+  log.warn(context, message);
 }
 
 // Input/Output types
@@ -817,89 +805,7 @@ export class EtlService {
    * Convert DuckDB rows to SPARQL bindings using column mappings
    */
   convertRowsToBindings(rows: Record<string, unknown>[], columnDefs: ColumnDefinition[]): SparqlBinding[] {
-    const bindings: SparqlBinding[] = [];
-
-    for (const row of rows) {
-      const binding: SparqlBinding = {};
-      let skipRow = false;
-
-      for (const colDef of columnDefs) {
-        const value = row[colDef.columnName];
-
-        // Handle null values
-        if (value === null || value === undefined) {
-          if (colDef.nullPolicy === 'skipRow') {
-            skipRow = true;
-            break;
-          }
-          // nullPolicy === 'undef': omit from binding (SPARQL UNDEF)
-          continue;
-        }
-
-        // Convert to SPARQL value
-        try {
-          if (colDef.termType === 'uri') {
-            let iriValue: string;
-
-            if (colDef.iriTemplate) {
-              // Apply IRI template
-              iriValue = colDef.iriTemplate.replace('{value}', encodeURIComponent(String(value)));
-            } else {
-              // Use value as-is
-              iriValue = String(value);
-            }
-
-            // Basic IRI validation
-            if (!iriValue.match(/^[a-z][a-z0-9+.-]*:/i)) {
-              log.warn({ iri: iriValue }, 'Invalid IRI generated, skipping binding');
-              continue;
-            }
-
-            binding[colDef.targetVariable] = {
-              type: 'uri',
-              value: iriValue,
-            };
-          } else {
-            // Literal
-            const literalValue: { type: 'literal'; value: string; datatype?: string; 'xml:lang'?: string } = {
-              type: 'literal',
-              value: toLexicalForm(value, colDef.datatypeIri),
-            };
-
-            if (colDef.datatypeIri) {
-              literalValue.datatype = colDef.datatypeIri;
-            }
-
-            if (colDef.lang) {
-              literalValue['xml:lang'] = colDef.lang;
-            }
-
-            binding[colDef.targetVariable] = literalValue;
-          }
-        } catch (error__u: unknown) {
-      const error = toError(error__u);
-          log.warn({ err: error, column: colDef.columnName }, 'Error converting column, skipping binding');
-          continue;
-        }
-      }
-
-      if (!skipRow) {
-        bindings.push(binding);
-      }
-    }
-
-    return bindings;
-  }
-
-  /**
-   * Convert SPARQL bindings array to ArgumentSet format expected by parser
-   */
-  private bindingsToArgumentSet(bindings: SparqlBinding[], columnDefs: ColumnDefinition[]): ArgumentSet {
-    const vars = columnDefs.map(c => c.targetVariable);
-    return {
-      head: { vars },
-      results: { bindings }
-    };
+    return rowsToBindings(rows, columnDefs, warnAboutRow) as SparqlBinding[];
   }
 
   /**
@@ -958,60 +864,26 @@ export class EtlService {
    */
   async runPipeline(run: EtlPipelineRun): Promise<EtlPipelineResult> {
     const parser = new SparqlQueryParser();
-    // The cap under the `fail` policy, or null when there is none to fail on.
-    const rowCap = run.maxRowsPolicy === 'fail' ? run.maxRows ?? null : null;
-    let completedChunks = 0;
-    let totalRows = 0;
-
-    for await (const { rows } of duckDbService.streamChunks(run.sql, run.chunkSize, {
-      fixtureSql: run.fixtureSql,
-    })) {
-      throwIfAborted(run.signal);
-      totalRows += rows.length;
-
-      // Checked before the rows are used rather than at the chunk boundary
-      // below: a cap that must fail has to fail on the chunk that broke it, or
-      // the run has already paid for what it then refuses to report.
-      if (rowCap !== null && totalRows > rowCap) {
-        throw new Error(
-          `The source query produced more than ${rowCap} rows. `
-          + 'This run stops rather than truncating, because a partial result is not the result.',
-        );
-      }
-
-      const bindings = this.convertRowsToBindings(rows, run.columnDefs);
-
-      if (bindings.length > 0) {
-        const argSet = this.bindingsToArgumentSet(bindings, run.columnDefs);
-        const query = parser.applyArguments(run.sparqlTemplate, [argSet]);
-        const { result, contentType } = await run.executor.constructQueryParsed(query, { signal: run.signal });
-
-        if (typeof result === 'string') {
-          await run.onOutput(result, { index: completedChunks, contentType });
-        }
-      }
-
-      completedChunks++;
-      await run.onChunk?.({ completedChunks, totalRows });
-
-      // Dry run: stop after first chunk. Leaving the loop ends the stream and
-      // closes its connection; the source query is not read any further.
-      if (run.dryRun) {
-        break;
-      }
-
-      // Max rows: the limit is honoured at a chunk boundary, as before.
-      //
-      // Not under the `fail` policy, where stopping here is the bug the policy
-      // exists to prevent: a source of exactly `maxRows + 1` rows would break
-      // out on the boundary and truncate silently, which is the outcome the
-      // caller asked to be refused.
-      if (rowCap === null && run.maxRows && totalRows >= run.maxRows) {
-        break;
-      }
-    }
-
-    return { totalRows, completedChunks };
+    return runEtl({
+      source: duckDbService.streamChunks(run.sql, run.chunkSize, { fixtureSql: run.fixtureSql }),
+      // The API's parser applies arguments: through the compiled template when
+      // the query compiles, through the AST when it does not. The CLI hands the
+      // loop a template it compiled itself; both splice the same way.
+      query: argumentSet => parser.applyArguments(run.sparqlTemplate, [argumentSet as ArgumentSet]),
+      columns: run.columnDefs,
+      // N-Quads is what both API executors return for a CONSTRUCT when nothing
+      // is asked for, so asking for it changes no run's output. It is also
+      // line-based, which is what lets chunks be appended to one file.
+      executor: toRuntimeExecutor(run.executor, { rdfAccept: 'application/n-quads' }),
+      onOutput: run.onOutput,
+      onChunk: run.onChunk,
+      maxRows: run.maxRows,
+      maxRowsPolicy: run.maxRowsPolicy,
+      dryRun: run.dryRun,
+      signal: run.signal,
+      abortError: abortReason,
+      warn: warnAboutRow,
+    });
   }
 
   /**

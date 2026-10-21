@@ -186,7 +186,7 @@ Test layout, per package:
 | `api` | `packages/api/test/` | The large suite. Subdirectories by area: `routes/`, `scenarios/`, `persistence/`, `lib/`, `server/`, `integration/`, `auth/`, `system-store/`, and others. `packages/api/tests/` holds the Playwright demo-page specs. |
 | `web` | `packages/web/test/` | vitest with happy-dom. Playwright specs live in `packages/web/tests/e2e/` and are excluded from the unit run. |
 | `srl` | `packages/srl/test/` | Includes the W3C SHACL 1.2 Rules harness (`w3c.harness.test.ts` and `w3c/`). |
-| `runtime`, `runtime-oxigraph`, `compiler`, `runtime-duckdb`, `rdf-delta`, `tools`, `mcp-server` | `packages/<name>/test/` | |
+| `runtime`, `runtime-oxigraph`, `compiler`, `runtime-duckdb`, `runtime-etl`, `rdf-delta`, `tools`, `mcp-server` | `packages/<name>/test/` | |
 | `types`, `contracts` | none | Their `test` script is a placeholder, and `test.sh` selects only packages whose `test` script mentions vitest. |
 
 `packages/api/test/README-TESTING-PATTERNS.md` describes the three shapes an API
