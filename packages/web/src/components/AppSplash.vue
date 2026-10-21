@@ -19,7 +19,14 @@
         <h1 class="wordmark">SQLIB</h1>
         <p class="standfirst">
           <template v-if="activeLibraryName">
-            {{ activeLibraryName }} · {{ totalItems }} {{ totalItems === 1 ? 'item' : 'items' }}
+            {{ activeLibraryName }} · {{ totalItems }} {{ totalItems === 1 ? 'item' : 'items' }} ·
+            <button
+              type="button"
+              class="standfirst-action"
+              title="The library compiled, to run with no sqlib server: a bundle for the CLI, or a runnable page"
+              data-testid="splash-export"
+              @click="exportOpen = true"
+            >Export…</button>
           </template>
           <template v-else>
             A library of SPARQL queries, groups, rule sets and the inputs they run on.
@@ -168,6 +175,13 @@
       <SplashStatusStrip :backend="canEditLibraryBackend ? null : backendFact" :tests="testsFact" />
     </div>
 
+    <LibraryExportDialog
+      v-if="activeLibraryId"
+      v-model:open="exportOpen"
+      :library-id="activeLibraryId"
+      :library-name="activeLibraryName ?? 'library'"
+    />
+
     <AlertDialog v-model:open="backendConfirmOpen">
       <AlertDialogContent>
         <AlertDialogHeader>
@@ -213,6 +227,7 @@ import {
   AlertDialogTitle,
 } from './ui/alert-dialog';
 import EmptyState from './shared/EmptyState.vue';
+import LibraryExportDialog from './LibraryExportDialog.vue';
 import SplashCountCard from './splash/SplashCountCard.vue';
 import SplashActivityLog from './splash/SplashActivityLog.vue';
 import SplashStatusStrip, { type StripFact } from './splash/SplashStatusStrip.vue';
@@ -251,6 +266,7 @@ const { healthFor, loadProbes } = useBackendProbes();
 const testsStore = useTestsStore();
 
 const librariesOpen = ref(false);
+const exportOpen = ref(false);
 
 const paletteBinding = computed(() => formatBinding('Mod+k'));
 
@@ -510,6 +526,17 @@ onMounted(() => {
   color: var(--ink-muted);
   font-size: var(--text-body-lg);
   text-align: center;
+}
+
+.standfirst-action {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
 }
 
 .command-field {

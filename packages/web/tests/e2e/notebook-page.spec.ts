@@ -33,29 +33,6 @@ test.describe('Notebook', () => {
     await mockCallableLibrary(page);
   });
 
-  test('exports the library bundle with or without its ETL jobs and rule sets', async ({ page }) => {
-    await openNotebook(page);
-
-    // Both members are carried unless untoggled, as the server carries them.
-    await page.getByTestId('notebook-export').click();
-    await expect(page.getByTestId('notebook-bundle-etl')).toHaveAttribute('aria-checked', 'true');
-    await expect(page.getByTestId('notebook-bundle-rule-sets')).toHaveAttribute('aria-checked', 'true');
-
-    // A toggle keeps the menu open, so both can be set before the download.
-    await page.getByTestId('notebook-bundle-etl').click();
-    await page.getByTestId('notebook-bundle-rule-sets').click();
-    await expect(page.getByTestId('notebook-bundle-etl')).toHaveAttribute('aria-checked', 'false');
-
-    const exported = page.waitForRequest((request) => /\/export-bundle\?/.test(request.url()));
-    const download = page.waitForEvent('download');
-    await page.getByTestId('notebook-download-bundle').click();
-
-    const params = new URL((await exported).url()).searchParams;
-    expect(params.get('etl')).toBe('false');
-    expect(params.get('ruleSets')).toBe('false');
-    expect((await download).suggestedFilename()).toMatch(/\.bundle\.json$/);
-  });
-
   test('opens empty, with nothing run and nothing bound', async ({ page }) => {
     await openNotebook(page);
     await expect(page.getByText('An empty notebook')).toBeVisible();

@@ -123,19 +123,11 @@ A cell floats to its entity's current version by default, so a notebook tracks
 the library it documents. A document may pin a version instead (`"version": 3`
 on the cell), which is what you want for a notebook attached to a release.
 
-## 6. The library's own exports
+## 6. Exports
 
-The rest of **Export** is about the library rather than about the notebook,
-and lives here because this screen is the library's front page:
-
-- **The library, as a runnable page** — the self-contained HTML the
-  [static export](static-export.md) writes, which calls a triplestore with no
-  sqlib in the request path. It shows the library's queries.
-- **The library's bundle** — the compiled bundle, as a download
-  (`<library>.bundle.json`) or copied as JSON. Besides queries, it carries the
-  library's ETL jobs and rule sets, which the [`sqlib` CLI](cli.md) runs with
-  `--bundle`. Untick **Include ETL jobs** or **Include rule sets** to leave
-  them out. Each toggle shows only when its screen is switched on.
+**Export** saves the notebook's own file (`.sqlibnb`). The library's exports,
+the bundle the [`sqlib` CLI](cli.md) runs and the runnable page, are on the
+main page: see [Exporting a library](static-export.md#from-the-web-app).
 
 A cell that has run also offers **Save as test…**: hold a query, its arguments
 and a result and you are holding a test case. It records the call that *ran* —

@@ -50,56 +50,12 @@
           {{ running ? 'Running…' : 'Run all' }}
         </Button>
         <!--
-          The exports behind one control. The notebook's own file is the
-          first; the rest are the library's, and they live here because
-          this screen is the library's front page now that the screen which
-          held them is gone.
+          The notebook's own file. The library's exports, the bundle and the
+          runnable page, are on the main page, beside the library they are of.
         -->
-        <DropdownMenu>
-          <DropdownMenuTrigger as-child>
-            <Button size="sm" variant="outline" data-testid="notebook-export">
-              <Download :size="12" /> Export
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem data-testid="notebook-export-file" @select="exportDocument">
-              This notebook (.sqlibnb)
-            </DropdownMenuItem>
-            <DropdownMenuItem data-testid="notebook-export-html" :disabled="exporting" @select="exportLibraryHtml">
-              {{ exporting ? 'Exporting…' : 'The library, as a runnable page' }}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel>The library’s bundle</DropdownMenuLabel>
-            <!--
-              What the bundle carries besides queries. Both are on by default,
-              as on the server; a toggle keeps the menu open so both can be set
-              before the bundle is taken. The runnable page above shows queries
-              only, so these do not change it.
-            -->
-            <DropdownMenuCheckboxItem
-              v-if="isEnabled('etl')"
-              v-model="includeEtl"
-              data-testid="notebook-bundle-etl"
-              @select.prevent
-            >
-              Include ETL jobs
-            </DropdownMenuCheckboxItem>
-            <DropdownMenuCheckboxItem
-              v-if="isEnabled('rulesSuite')"
-              v-model="includeRuleSets"
-              data-testid="notebook-bundle-rule-sets"
-              @select.prevent
-            >
-              Include rule sets
-            </DropdownMenuCheckboxItem>
-            <DropdownMenuItem data-testid="notebook-download-bundle" :disabled="exporting" @select="downloadBundle">
-              Download bundle (.json)
-            </DropdownMenuItem>
-            <DropdownMenuItem data-testid="notebook-copy-bundle" @select="copyBundle">
-              {{ bundleCopied ? 'Copied' : 'Copy bundle JSON' }}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <Button size="sm" variant="outline" data-testid="notebook-export" @click="exportDocument">
+          <Download :size="12" /> Export
+        </Button>
         <Button size="sm" variant="outline" data-testid="notebook-import" @click="fileInput?.click()">
           <Upload :size="12" /> Import
         </Button>
@@ -312,16 +268,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../components/ui/dialog';
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '../components/ui/dropdown-menu';
-import { useApiClient } from '../composables/useApiClient';
 import { useFeatureFlags } from '../composables/useFeatureFlags';
 import { useActiveLibrary } from '../composables/useActiveLibrary';
 import { EPHEMERAL_BACKEND_ID } from '@sparql-query-lib/types';
@@ -367,7 +313,6 @@ const backendsStore = useBackendsStore();
 const requestedLibraryId = (route.query.library as string) || null;
 const { activeLibraryId: libraryId, activeLibrary, setActiveLibrary } = useActiveLibrary();
 
-const apiClient = useApiClient();
 const { isEnabled } = useFeatureFlags();
 const defaultBackendId = computed(() => activeLibrary.value?.defaultBackend ?? null);
 const nb = useNotebook(libraryId, defaultBackendId);
@@ -396,10 +341,6 @@ const saving = ref(false);
 const running = ref(false);
 const notice = ref<string | null>(null);
 const fileInput = ref<HTMLInputElement | null>(null);
-const exporting = ref(false);
-const bundleCopied = ref(false);
-const includeEtl = ref(true);
-const includeRuleSets = ref(true);
 const testDialogOpen = ref(false);
 const testTarget = ref<{
   queryId: string;
@@ -599,73 +540,6 @@ async function runAll() {
     await nb.runAll();
   } finally {
     running.value = false;
-  }
-}
-
-/**
- * The library as a self-contained page, and its compiled bundle.
- *
- * Both were the old library screen's, and both are facts about the library
- * rather than about this document — which is why they sit under Export beside
- * the notebook's own file rather than being lost with the screen.
- */
-async function exportLibraryHtml() {
-  const id = libraryId.value;
-  if (!id) return;
-  exporting.value = true;
-  notice.value = null;
-  try {
-    const html = await apiClient.getLibraryExportHtml(id, { examples: 'all' });
-    const name = (activeLibrary.value?.name ?? 'library').replace(/[^a-zA-Z0-9-_]+/g, '-').toLowerCase();
-    downloadTextFile(html, `${name}.html`, 'text/html');
-  } catch (cause) {
-    notice.value = cause instanceof Error ? cause.message : String(cause);
-  } finally {
-    exporting.value = false;
-  }
-}
-
-/**
- * The bundle as the menu's toggles describe it. A member whose screen this
- * build does not draw is left out: the library has none of it to give.
- */
-function fetchBundle(id: string) {
-  return apiClient.getLibraryExportBundle(id, {
-    examples: 'all',
-    etl: isEnabled('etl') && includeEtl.value,
-    ruleSets: isEnabled('rulesSuite') && includeRuleSets.value,
-  });
-}
-
-/** A file is what `sqlib --bundle` reads; see docs/guides/cli.md. */
-async function downloadBundle() {
-  const id = libraryId.value;
-  if (!id) return;
-  exporting.value = true;
-  notice.value = null;
-  try {
-    const payload = await fetchBundle(id);
-    const name = (activeLibrary.value?.name ?? 'library').replace(/[^a-zA-Z0-9-_]+/g, '-').toLowerCase();
-    downloadTextFile(`${JSON.stringify(payload.bundle, null, 2)}\n`, `${name}.bundle.json`, 'application/json');
-  } catch (cause) {
-    notice.value = cause instanceof Error ? `Could not export the bundle: ${cause.message}` : 'Could not export the bundle.';
-  } finally {
-    exporting.value = false;
-  }
-}
-
-async function copyBundle() {
-  const id = libraryId.value;
-  if (!id) return;
-  notice.value = null;
-  try {
-    const payload = await fetchBundle(id);
-    await navigator.clipboard.writeText(JSON.stringify(payload.bundle, null, 2));
-    bundleCopied.value = true;
-    setTimeout(() => (bundleCopied.value = false), 1500);
-  } catch (cause) {
-    // Silence here reads as "copied" — the one thing that did not happen.
-    notice.value = cause instanceof Error ? `Could not copy the bundle: ${cause.message}` : 'Could not copy the bundle.';
   }
 }
 

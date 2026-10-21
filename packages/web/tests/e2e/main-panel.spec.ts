@@ -28,6 +28,36 @@ test.describe('Main Panel', () => {
     await expect(page.locator('[data-testid="app-splash"]')).toBeVisible();
   });
 
+  test('exports the active library as a bundle, with or without its ETL jobs and rule sets', async ({ page }) => {
+    await page.route(/\/libraries\/[^/]+\/export-bundle/, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ bundle: { version: 1, library: { id: 'urn:x' }, queries: {} }, skipped: [] }),
+      }),
+    );
+
+    await page.getByTestId('splash-export').click();
+    const dialog = page.getByTestId('library-export-dialog');
+    await expect(dialog).toBeVisible();
+
+    // Everything is carried unless untoggled, as the server carries it.
+    await expect(page.getByTestId('library-export-etl')).toHaveAttribute('aria-checked', 'true');
+    await expect(page.getByTestId('library-export-rule-sets')).toHaveAttribute('aria-checked', 'true');
+    await page.getByTestId('library-export-etl').click();
+    await page.getByTestId('library-export-rule-sets').click();
+
+    const exported = page.waitForRequest((request) => /\/export-bundle\?/.test(request.url()));
+    const download = page.waitForEvent('download');
+    await page.getByTestId('library-export-download').click();
+
+    const params = new URL((await exported).url()).searchParams;
+    expect(params.get('etl')).toBe('false');
+    expect(params.get('ruleSets')).toBe('false');
+    expect(params.get('examples')).toBe('all');
+    expect((await download).suggestedFilename()).toMatch(/\.bundle\.json$/);
+  });
+
   test('should show the query editor when a query is selected', async ({ page }) => {
     await openSavedEntity(page, 'queries', QUERY.id);
     await expect(page.locator('.query-work-area')).toBeVisible();

@@ -97,6 +97,14 @@ a consumer runs — so a bundle that fails it is never written. Queries and grou
 (and ETL jobs and rule sets) that cannot be exported are not fatal: each is reported on stderr with the reason,
 and the reasons also appear on the generated page.
 
+### From the web app
+
+**Export…** on the main page, beside the active library's name, opens the same
+export. **Bundle (.json)** downloads or copies the bundle, with checkboxes for
+the worked examples, the ETL jobs and the rule sets; each of the last two shows
+only when its screen is switched on. **Runnable page (.html)** downloads the
+page described below.
+
 ## Running a bundle
 
 ```ts
