@@ -1,5 +1,6 @@
 /**
  * `sqlib rules run --srl rules.srl --data base.ttl [--out inferred.nt]`
+ * `sqlib rules run --bundle b.json --rule-set <key> --data base.ttl …`
  *
  * The document is parsed and compiled with `srl`, layered with `srl`'s
  * `stratify`, and run by `RuleSetRunner`, the same runner the API uses for a
@@ -10,20 +11,28 @@ import { parseArgs } from 'node:util';
 import * as oxigraph from 'oxigraph';
 import { checkWellFormed, compileRule, expandIris, parseRuleSet, stratify } from '@sparql-query-lib/srl';
 import { RuleSetRunner, type PreparedDataBlock, type PreparedRule } from '@sparql-query-lib/runtime-srl';
+import { pick, readBundle } from '../bundle.js';
+import { RunReport, checkReportTarget, measuredOutput, sha256, withReport } from '../report.js';
 import { CliError, openOutput, rdfFormat, rdfFormatOf, readInput, type Io } from '../io.js';
 
 export const RULES_HELP = `sqlib rules run --srl <rules.srl> [options]
+sqlib rules run --bundle <bundle.json> --rule-set <key> [options]
 
 Run a SHACL 1.2 rule set from an SRL document, in process.
 
   --srl <path|->            the SRL document: rules and DATA blocks
+  --bundle <path>           an export bundle, from 'sqlib pull'
+  --rule-set <key>          the bundle's rule set to run
   --data <file>             the base graph; repeatable, formats may differ
   --data-format <format>    the format of --data files, when the name does not say
-  --tuples <path>           initial named-tuple rows (rule-tuples extension)
+  --tuples <path>           initial named-tuple rows (rule-tuples extension);
+                            replaces a bundle rule set's own
   --max-iterations <n>      passes per stratum before stopping (default 100)
   --format <format>         n-triples (default), n-quads or json-ld
   --out <path>              write the inference graph here instead of standard output
   --trace                   report each rule's effect per pass on standard error
+  --report <path|->         write a JSON record of the run: what ran, passes,
+                            triples inferred, output hash, how it ended
 `;
 
 const INFERENCE_FORMATS = new Set(['application/n-triples', 'application/n-quads', 'application/ld+json']);
@@ -35,6 +44,8 @@ export async function rulesCommand(io: Io, argv: string[]): Promise<number> {
     args: rest,
     options: {
       srl: { type: 'string' },
+      bundle: { type: 'string' },
+      'rule-set': { type: 'string' },
       data: { type: 'string', multiple: true },
       'data-format': { type: 'string' },
       tuples: { type: 'string' },
@@ -42,10 +53,30 @@ export async function rulesCommand(io: Io, argv: string[]): Promise<number> {
       format: { type: 'string', default: 'n-triples' },
       out: { type: 'string' },
       trace: { type: 'boolean' },
+      report: { type: 'string' },
     },
     strict: true,
   });
-  if (!values.srl) throw new CliError('rules run needs --srl.');
+  checkReportTarget(values.report, values.out);
+  const report = new RunReport('rules run');
+  return withReport(io, values.report, report, () => runRules(io, values, report));
+}
+
+interface RulesValues {
+  srl?: string;
+  bundle?: string;
+  'rule-set'?: string;
+  data?: string[];
+  'data-format'?: string;
+  tuples?: string;
+  'max-iterations'?: string;
+  format?: string;
+  out?: string;
+  trace?: boolean;
+}
+
+async function runRules(io: Io, values: RulesValues, report: RunReport): Promise<{ exitCode: number; status: string }> {
+  const document = await loadDocument(io, values);
   const maxIterations = Number(values['max-iterations']);
   if (!Number.isInteger(maxIterations) || maxIterations < 1) {
     throw new CliError(`--max-iterations takes a positive integer; got '${values['max-iterations']}'.`);
@@ -53,7 +84,8 @@ export async function rulesCommand(io: Io, argv: string[]): Promise<number> {
   const inferenceFormat = rdfFormat(values.format!);
   if (!INFERENCE_FORMATS.has(inferenceFormat)) throw new CliError('--format takes n-triples, n-quads or json-ld.');
 
-  const { rules, dataBlocks } = compileDocument(await readInput(io, values.srl), values.srl);
+  report.set({ ruleSet: document.provenance, data: values.data ?? [] });
+  const { rules, dataBlocks } = compileDocument(document.text, document.name);
 
   // The base graph goes into the store before the run, so the runner captures
   // it as G0 exactly as it would an initial graph given as text.
@@ -67,14 +99,15 @@ export async function rulesCommand(io: Io, argv: string[]): Promise<number> {
     }
   }
 
-  const result = await new RuleSetRunner().run(
+  const tupleSeeds = values.tuples ? await readInput(io, values.tuples) : document.tupleSeeds;
+  const result = await report.time('run', () => new RuleSetRunner().run(
     {
-      id: values.srl,
+      id: document.name,
       ruleCount: rules.length,
       dataBlockCount: dataBlocks.length,
       prepareRules: () => rules,
       prepareDataBlocks: () => dataBlocks,
-      tupleSeeds: values.tuples ? await readInput(io, values.tuples) : null,
+      tupleSeeds,
     },
     {
       maxIterations,
@@ -89,29 +122,62 @@ export async function rulesCommand(io: Io, argv: string[]): Promise<number> {
           }
         : undefined,
     },
-  );
+  ));
 
   const passes = result.iterations.length;
   if (result.status === 'failed') throw new CliError(`The rule set failed: ${result.error ?? 'no reason given'}`);
 
-  const out = openOutput(io, values.out);
+  const out = measuredOutput(openOutput(io, values.out));
   try {
     const content = result.finalGraphContent ?? '';
-    await out.write(content.endsWith('\n') || content.length === 0 ? content : `${content}\n`);
+    await report.time('write', () => out.write(content.endsWith('\n') || content.length === 0 ? content : `${content}\n`));
   } finally {
     await out.close();
   }
 
   const inferred = (result.finalGraphNQuads ?? '').split('\n').filter(Boolean).length;
+  report.set({
+    passes,
+    triplesInferred: inferred,
+    output: { path: values.out ?? '-', format: inferenceFormat, ...out.summary() },
+  });
   if (result.status === 'converged') {
     io.stderr(`converged after ${passes} passes: ${inferred} triples inferred\n`);
-    return 0;
+    return { exitCode: 0, status: 'converged' };
   }
   const why = result.status === 'cycle'
     ? `the rules cycle between passes ${result.cycle?.startIteration} and ${result.cycle?.endIteration}`
     : `a stratum reached --max-iterations (${result.maxIterations}) without converging`;
   io.stderr(`stopped after ${passes} passes: ${why}. The output is the graph so far.\n`);
-  return 2;
+  return { exitCode: 2, status: result.status };
+}
+
+/** The document to run: an SRL file, or one rule set of a bundle with its seed rows. */
+async function loadDocument(
+  io: Io,
+  values: { srl?: string; bundle?: string; 'rule-set'?: string },
+): Promise<{ text: string; name: string; tupleSeeds: string | null; provenance: Record<string, unknown> }> {
+  if (values.bundle) {
+    if (values.srl) throw new CliError('Pass --srl or --bundle, not both.');
+    const key = values['rule-set'];
+    if (!key) throw new CliError('rules run --bundle needs --rule-set <key>.');
+    const ruleSet = pick((await readBundle(io, values.bundle)).ruleSets, key, 'rule set', values.bundle);
+    return {
+      text: ruleSet.srl,
+      name: key,
+      tupleSeeds: ruleSet.tupleSeeds ?? null,
+      provenance: {
+        bundle: values.bundle,
+        key,
+        textHash: ruleSet.textHash,
+        ...(ruleSet.sourceRuleSet ? { sourceRuleSet: ruleSet.sourceRuleSet } : {}),
+        ...(ruleSet.sourceVersion ? { sourceVersion: ruleSet.sourceVersion } : {}),
+      },
+    };
+  }
+  if (!values.srl) throw new CliError('rules run needs --srl, or --bundle and --rule-set.');
+  const text = await readInput(io, values.srl);
+  return { text, name: values.srl, tupleSeeds: null, provenance: { file: values.srl, textHash: sha256(text) } };
 }
 
 /** Parse, check, layer and compile an SRL document, as a host prepares a rule set. */

@@ -182,6 +182,73 @@ export interface ExportedGroup {
   sourceVersion?: string;
 }
 
+/** One column of an exported ETL job's mapping: a SQL column to a variable. */
+export interface ExportedEtlColumn {
+  /** The SQL output column, by its alias. */
+  columnName: string;
+  /** The variable it binds, without `?`. */
+  targetVariable: string;
+  termType: 'uri' | 'literal';
+  datatypeIri?: string;
+  lang?: string;
+  /** For IRIs, e.g. `http://ex/customer/{value}`; the value is URI-encoded. */
+  iriTemplate?: string;
+  /** `undef` leaves the variable unbound; `skipRow` drops the row. */
+  nullPolicy: 'undef' | 'skipRow';
+}
+
+/**
+ * An ETL job, ready to run with no server: SQL rows in, one CONSTRUCT per chunk.
+ *
+ * The template is compiled exactly as a query's is, and has exactly one slot —
+ * the one each chunk's rows fill. The SQL is carried as text and is run by
+ * whatever runs the bundle (the `sqlib` CLI runs it in DuckDB). The job's
+ * backend is not carried: where the SQL reads from and where the RDF goes are
+ * decided where the job runs.
+ */
+export interface ExportedEtlJob {
+  /** The CONSTRUCT template, with the one slot each chunk's rows fill. */
+  template: QueryTemplate;
+  /** `sha256-<hex>` of `template.text`; see {@link verifyBundleIntegrity}. */
+  textHash: string;
+  sql: string;
+  columns: ExportedEtlColumn[];
+  /** Rows per CONSTRUCT, as the job stores it. */
+  chunkSize?: number;
+  name?: string;
+  description?: string;
+  tags?: string[];
+  /** Provenance: the EtlJob, EtlJobVersion and column mapping version. */
+  sourceJob?: string;
+  sourceVersion?: string;
+  sourceColumnMappingVersion?: string;
+}
+
+/**
+ * A SHACL 1.2 rule set, as the SRL document the server would export for it.
+ *
+ * Carried as text, not compiled: compiling and layering a rule set needs the
+ * `srl` package, which a runner of rule sets has anyway, and the document is
+ * what an author can read and diff. DATA blocks are inside the document.
+ */
+export interface ExportedRuleSet {
+  /** The SRL document: rules and DATA blocks, IRIs written out in full. */
+  srl: string;
+  /** `sha256-<hex>` of `srl`; see {@link verifyBundleIntegrity}. */
+  textHash: string;
+  ruleCount: number;
+  dataBlockCount: number;
+  /** Initial named-tuple rows, when the rule-tuples extension is on for it. */
+  tupleSeeds?: string;
+  tuplesEnabled?: boolean;
+  name?: string;
+  description?: string;
+  tags?: string[];
+  /** Provenance: the RuleSet and RuleSetVersion. */
+  sourceRuleSet?: string;
+  sourceVersion?: string;
+}
+
 /** A library subset, compiled for client-side execution. */
 export interface ExportBundle {
   /**
@@ -203,6 +270,13 @@ export interface ExportBundle {
    * whose library has none — a reader must treat it as optional.
    */
   groups?: Record<string, ExportedGroup>;
+  /**
+   * ETL jobs, keyed by a slug unique among them. Optional, like groups: a
+   * bundle from an older exporter, or one exported without them, has none.
+   */
+  etlJobs?: Record<string, ExportedEtlJob>;
+  /** Rule sets, keyed by a slug unique among them. Optional. */
+  ruleSets?: Record<string, ExportedRuleSet>;
   /** ISO timestamp of the export, for provenance. Never used at runtime. */
   generatedAt?: string;
   /** Tags the export was filtered by, if any. Provenance only. */
@@ -447,6 +521,58 @@ function assertValidGroup(
   if (visited !== nodeKeys.length) fail(`${where} contains a cycle, so it cannot be walked.`);
 }
 
+function assertValidEtlJob(job: ExportedEtlJob, where: string): void {
+  if (!job || typeof job !== 'object') fail(`${where} is not an object.`);
+  assertValidTemplate(job.template, where);
+  if (job.template.slots.length !== 1) {
+    fail(`${where}: the template needs exactly one parameter slot for the rows; it has ${job.template.slots.length}.`);
+  }
+  if (typeof job.textHash !== 'string' || !job.textHash.startsWith('sha256-')) {
+    fail(`${where}: textHash must be a 'sha256-<hex>' string.`);
+  }
+  if (typeof job.sql !== 'string' || job.sql.trim().length === 0) fail(`${where}: sql must be a non-empty string.`);
+  if (!Array.isArray(job.columns) || job.columns.length === 0) fail(`${where}: columns must be a non-empty array.`);
+  const slotVars = new Set(job.template.slots[0].vars);
+  job.columns.forEach((column, index) => {
+    const at = `${where}: column ${index}`;
+    if (!column || typeof column !== 'object') fail(`${at} is not an object.`);
+    if (typeof column.columnName !== 'string' || column.columnName.length === 0) fail(`${at} has no columnName.`);
+    if (column.termType !== 'uri' && column.termType !== 'literal') fail(`${at} has an unknown termType.`);
+    if (column.nullPolicy !== 'undef' && column.nullPolicy !== 'skipRow') fail(`${at} has an unknown nullPolicy.`);
+    // A column bound to a variable the slot does not declare would be dropped
+    // from every row without a word.
+    if (!slotVars.has(column.targetVariable)) {
+      fail(`${at} binds ?${String(column.targetVariable)}, which the template's slot does not declare.`);
+    }
+  });
+  if (job.chunkSize !== undefined && (!Number.isInteger(job.chunkSize) || job.chunkSize < 1)) {
+    fail(`${where}: chunkSize must be a positive integer.`);
+  }
+}
+
+function assertValidRuleSet(ruleSet: ExportedRuleSet, where: string): void {
+  if (!ruleSet || typeof ruleSet !== 'object') fail(`${where} is not an object.`);
+  if (typeof ruleSet.srl !== 'string' || ruleSet.srl.trim().length === 0) fail(`${where}: srl must be a non-empty string.`);
+  if (typeof ruleSet.textHash !== 'string' || !ruleSet.textHash.startsWith('sha256-')) {
+    fail(`${where}: textHash must be a 'sha256-<hex>' string.`);
+  }
+  if (ruleSet.tupleSeeds !== undefined && typeof ruleSet.tupleSeeds !== 'string') {
+    fail(`${where}: tupleSeeds must be a string.`);
+  }
+}
+
+/** Check an optional map member is an object, then each of its entries. */
+function assertValidMap<T>(
+  map: Record<string, T> | undefined,
+  member: string,
+  label: string,
+  check: (entry: T, where: string) => void,
+): void {
+  if (map === undefined) return;
+  if (!map || typeof map !== 'object') fail(`Bundle ${member} must be an object.`);
+  for (const [name, entry] of Object.entries(map)) check(entry, `${label} '${name}'`);
+}
+
 export function assertValidBundle(bundle: unknown): asserts bundle is ExportBundle {
   if (!bundle || typeof bundle !== 'object') fail('Bundle must be an object.');
   const candidate = bundle as ExportBundle;
@@ -487,6 +613,8 @@ export function assertValidBundle(bundle: unknown): asserts bundle is ExportBund
       assertValidGroup(group, candidate.queries, `Group '${name}'`);
     }
   }
+  assertValidMap(candidate.etlJobs, 'etlJobs', 'ETL job', assertValidEtlJob);
+  assertValidMap(candidate.ruleSets, 'ruleSets', 'Rule set', assertValidRuleSet);
 }
 
 /** Hash a template text the way {@link ExportedQuery.textHash} spells it. */
@@ -517,6 +645,20 @@ export async function verifyBundleIntegrity(bundle: ExportBundle): Promise<void>
     if (actual !== query.textHash) {
       throw new InvalidBundleError(
         `Query '${name}' does not match its recorded hash: the template text has been edited, which invalidates its parameter slot offsets. Re-export the bundle.`,
+      );
+    }
+  }
+  for (const [name, job] of Object.entries(bundle.etlJobs ?? {})) {
+    if ((await hashTemplateText(job.template.text)) !== job.textHash) {
+      throw new InvalidBundleError(
+        `ETL job '${name}' does not match its recorded hash: the template text has been edited, which invalidates its parameter slot offsets. Re-export the bundle.`,
+      );
+    }
+  }
+  for (const [name, ruleSet] of Object.entries(bundle.ruleSets ?? {})) {
+    if ((await hashTemplateText(ruleSet.srl)) !== ruleSet.textHash) {
+      throw new InvalidBundleError(
+        `Rule set '${name}' does not match its recorded hash: the SRL document has been edited. Re-export the bundle.`,
       );
     }
   }
