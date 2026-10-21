@@ -17,6 +17,8 @@ interface RuntimeConfigOverride {
   authClientId?: string;
   authAudience?: string;
   authScope?: string;
+  /** Sign in even when the API reports auth `disabled`; see `requireLogin` in useAuth. */
+  authRequireLogin?: boolean;
 }
 
 // Named so the auth plugin can declare `dependsOn: ['runtime-config']` — it
@@ -69,6 +71,10 @@ export default defineNuxtPlugin({
       if (config[key]) {
         runtimeConfig.public[key] = config[key];
       }
+    }
+
+    if (typeof config.authRequireLogin === 'boolean') {
+      runtimeConfig.public.authRequireLogin = config.authRequireLogin;
     }
 
     // Override feature flags if provided

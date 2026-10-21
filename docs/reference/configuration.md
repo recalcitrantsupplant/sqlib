@@ -337,6 +337,8 @@ read at **build** time and baked into the bundle.
 | `NUXT_PUBLIC_AUTH_CLIENT_ID` | empty | OIDC client id. |
 | `NUXT_PUBLIC_AUTH_AUDIENCE` | empty | Requested audience. |
 | `NUXT_PUBLIC_AUTH_SCOPE` | `openid profile email` | Requested scopes. |
+| `NUXT_PUBLIC_AUTH_REQUIRE_LOGIN` | `false` | Exactly `true` makes the app sign in even when the API reports auth `disabled`, for an API behind a gateway that does the authentication. `authRequireLogin` in `/config.json` sets the same thing at load time. |
+| `NUXT_APP_BASE_URL` | `/` | The path the site is served from. Written into every page's asset links, so the bundle works only at that path. `Dockerfile.web` takes it as a build argument. See [deploying](../guides/deploying.md#the-bundle-image). |
 | `NUXT_PUBLIC_FEATURE_*` | the API-side default for that flag | Per-flag override for the browser build; see [feature flags](feature-flags.md). |
 | `NUXT_PUBLIC_APP_VERSION` | the version in `.release-please-manifest.json` | What the About block on the splash and the line in Settings report. |
 | `NUXT_PUBLIC_APP_COMMIT` | `git rev-parse --short HEAD`, or empty | The commit reported beside the version. Shortened to seven characters. |

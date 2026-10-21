@@ -45,3 +45,17 @@ export function withBase(path: string, base: string): string {
   if (normalised === '/') return path.startsWith('/') ? path : `/${path}`;
   return `${normalised}${path.replace(/^\/+/, '')}`;
 }
+
+/**
+ * A browser path, as the router names it.
+ *
+ * `window.location.pathname` includes the base; the router's paths do not.
+ * `withoutBase('/sqlib/queries', '/sqlib/')` is `/queries`. A path outside the
+ * base is returned unchanged, and the base itself is `/`.
+ */
+export function withoutBase(path: string, base: string): string {
+  const normalised = normaliseBase(base);
+  if (normalised === '/') return path;
+  if (path === normalised.slice(0, -1)) return '/';
+  return path.startsWith(normalised) ? `/${path.slice(normalised.length)}` : path;
+}

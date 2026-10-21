@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normaliseBase, withBase } from '../../src/lib/basePath';
+import { normaliseBase, withBase, withoutBase } from '../../src/lib/basePath';
 
 describe('normaliseBase', () => {
   it('treats an unset, empty or root base as the root', () => {
@@ -42,5 +42,25 @@ describe('withBase', () => {
     expect(withBase('https://cdn.example.org/f.woff2', '/sqlib/'))
       .toBe('https://cdn.example.org/f.woff2');
     expect(withBase('//cdn.example.org/f.woff2', '/sqlib/')).toBe('//cdn.example.org/f.woff2');
+  });
+});
+
+describe('withoutBase', () => {
+  it('leaves every path alone at the root', () => {
+    expect(withoutBase('/queries', '/')).toBe('/queries');
+  });
+
+  it('strips the base from a browser path', () => {
+    expect(withoutBase('/dev-console/sqlib/queries', '/dev-console/sqlib/')).toBe('/queries');
+    expect(withoutBase('/sqlib/auth/callback', '/sqlib')).toBe('/auth/callback');
+  });
+
+  it('names the base itself as the root, with or without its trailing slash', () => {
+    expect(withoutBase('/sqlib/', '/sqlib/')).toBe('/');
+    expect(withoutBase('/sqlib', '/sqlib/')).toBe('/');
+  });
+
+  it('leaves a path outside the base alone', () => {
+    expect(withoutBase('/sqlibrary/x', '/sqlib/')).toBe('/sqlibrary/x');
   });
 });
