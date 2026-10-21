@@ -50,6 +50,26 @@ export interface Config {
   internalBackend: InternalBackendConfig;
   cacheWriteThroughEnabled: boolean;
   cachePreloadEnabled: boolean;
+  /**
+   * How often every durable Oxigraph store is checkpointed to disk; 0 turns the
+   * loop off. Not specific to the library store: an `oxigraphMemory` backend in
+   * `durable` mode is a durable store too, whatever `INTERNAL_BACKEND_TYPE` says.
+   */
+  oxigraphCheckpointIntervalMs: number;
+}
+
+/** `INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS`, defaulting to one minute. */
+function getCheckpointIntervalMs(): number {
+  const raw = process.env.INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS;
+  if (raw === undefined || raw === '') {
+    return 60000;
+  }
+  const parsed = parseInt(raw, 10);
+  if (Number.isNaN(parsed)) {
+    log.warn({ value: raw }, 'config: INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS is not a number; using 60000');
+    return 60000;
+  }
+  return parsed;
 }
 
 // Function to determine backend config from environment variables or defaults
@@ -88,8 +108,7 @@ function getInternalBackendConfig(): InternalBackendConfig {
       loadMethod,
       sourceConfig,
       storageDir,
-      checkpointIntervalMs: process.env.INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS ?
-        parseInt(process.env.INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS, 10) : 60000, // 1 min default
+      checkpointIntervalMs: getCheckpointIntervalMs(),
     };
   }
 
@@ -120,6 +139,9 @@ function getInternalBackendConfig(): InternalBackendConfig {
 export const config: Config = {
   enableTimingLogs: process.env.ENABLE_TIMING_LOGS === 'true' || true, // Default to true
   internalBackend: getInternalBackendConfig(),
+  get oxigraphCheckpointIntervalMs(): number {
+    return getCheckpointIntervalMs();
+  },
   get cacheWriteThroughEnabled(): boolean {
     return process.env.CACHE_WRITE_THROUGH !== 'false'; // Default true, set to 'false' to disable
   },

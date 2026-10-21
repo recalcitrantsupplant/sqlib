@@ -45,6 +45,16 @@ async function prepareOxigraphStores(fastifyApp: typeof app): Promise<void> {
   const enableFlag = process.env.ENABLE_OXIGRAPH === 'true';
   const shouldInitManager = enableFlag || backendConfig.type === 'oxigraph-persistent';
 
+  // Started whatever the library store is: an `oxigraphMemory` backend in
+  // `durable` mode is a durable store as well, created on its first use and
+  // initialising the manager itself if need be. Starting this only for an
+  // Oxigraph library left those stores saved on clean shutdown alone. A tick
+  // with no store written since the last one does nothing.
+  const checkpointIntervalMs = config.oxigraphCheckpointIntervalMs;
+  if (checkpointIntervalMs > 0) {
+    oxigraphStoreManager.startCheckpointing(checkpointIntervalMs);
+  }
+
   if (!shouldInitManager) {
     fastifyApp.log.info('Oxigraph store manager disabled (set ENABLE_OXIGRAPH=true to enable)');
     return;
@@ -64,10 +74,6 @@ async function prepareOxigraphStores(fastifyApp: typeof app): Promise<void> {
       loadMethod: backendConfig.loadMethod,
       sourceConfig: backendConfig.sourceConfig,
     });
-    
-    if (backendConfig.checkpointIntervalMs && backendConfig.checkpointIntervalMs > 0) {
-      oxigraphStoreManager.startCheckpointing(backendConfig.checkpointIntervalMs);
-    }
 
     fastifyApp.log.info({
       storeId: backendConfig.storeId,

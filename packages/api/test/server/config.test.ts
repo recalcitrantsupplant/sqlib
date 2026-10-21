@@ -19,6 +19,7 @@ describe('server/config', () => {
     delete process.env.INTERNAL_OXIGRAPH_LOAD_METHOD;
     delete process.env.INTERNAL_OXIGRAPH_BOOTSTRAP_SOURCE;
     delete process.env.INTERNAL_OXIGRAPH_STORE_ID;
+    delete process.env.INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS;
 
     // Clear module cache to force re-evaluation of config
     vi.resetModules();
@@ -226,6 +227,43 @@ describe('server/config', () => {
     });
   });
 
+  describe('checkpoint interval', () => {
+    it('defaults to one minute with an http library store', async () => {
+      // A durable `oxigraphMemory` backend is a durable store whatever the
+      // library is kept in, so the interval is not tied to oxigraph-persistent.
+      const { config } = await import('../../src/server/config.js');
+
+      expect(config.internalBackend.type).toBe('http');
+      expect(config.oxigraphCheckpointIntervalMs).toBe(60000);
+    });
+
+    it('reads INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS for every library store type', async () => {
+      process.env.INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS = '5000';
+      process.env.INTERNAL_BACKEND_TYPE = 'oxigraph-persistent';
+
+      const { config } = await import('../../src/server/config.js');
+
+      expect(config.oxigraphCheckpointIntervalMs).toBe(5000);
+      expect(config.internalBackend).toMatchObject({ checkpointIntervalMs: 5000 });
+    });
+
+    it('accepts 0 to turn the loop off', async () => {
+      process.env.INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS = '0';
+
+      const { config } = await import('../../src/server/config.js');
+
+      expect(config.oxigraphCheckpointIntervalMs).toBe(0);
+    });
+
+    it('falls back to one minute for a value that is not a number', async () => {
+      process.env.INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS = 'soon';
+
+      const { config } = await import('../../src/server/config.js');
+
+      expect(config.oxigraphCheckpointIntervalMs).toBe(60000);
+    });
+  });
+
   describe('backend type handling', () => {
     it('should default to http for unknown backend types', async () => {
       process.env.INTERNAL_BACKEND_TYPE = 'unknown-type';
@@ -291,6 +329,7 @@ describe('server/config', () => {
         cachePreloadEnabled: true,
         enableTimingLogs: true,
         cacheWriteThroughEnabled: true,
+        oxigraphCheckpointIntervalMs: 60000,
         internalBackend: {
           type: 'http',
           baseUrl: 'http://test.example.com/fuseki/test',

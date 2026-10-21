@@ -50,7 +50,7 @@ against, which are entities you create through the API.
 | `LIBRARY_STORAGE_SPARQL_PASSWORD` | unset | Basic-auth password for the library endpoint. |
 | `LIBRARY_STORAGE_DIR` | `./storage/library-store`, resolved against the process working directory | With `INTERNAL_BACKEND_TYPE=oxigraph-persistent`, the directory holding the `.nq` serialisation of the library. |
 | `INTERNAL_OXIGRAPH_STORE_ID` | `library-store` | Name of the persistent store within that directory. |
-| `INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS` | `60000` | How often the in-memory store is written back to `.nq`. |
+| `INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS` | `60000` | How often every durable in-memory Oxigraph store is written back to `.nq`: the library store under `oxigraph-persistent`, and the stores behind `oxigraphMemory` backends in `durable` mode, whatever `INTERNAL_BACKEND_TYPE` is. `0` turns the timer off, leaving the save on clean shutdown only. |
 | `INTERNAL_OXIGRAPH_LOAD_METHOD` | `none` | How the store is populated at boot: `file`, `remote-sparql`, `remote-file` or `none`. An unrecognised value falls back to `none`. |
 | `INTERNAL_OXIGRAPH_BOOTSTRAP_SOURCE` | unset | A JSON object describing the source for that load method. Invalid JSON is logged as a warning and ignored. |
 | `OXIGRAPH_STORAGE_DIR` | `./storage/oxigraph` | Directory for in-process Oxigraph backends you create as entities — the stores behind `oxigraphEphemeral` and `oxigraphMemory` backends. It is not where the library lives unless `INTERNAL_BACKEND_TYPE=oxigraph-persistent`, in which case `LIBRARY_STORAGE_DIR` takes over for the library store. |

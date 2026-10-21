@@ -48,6 +48,7 @@ const hoisted = vi.hoisted(() => ({
     createPersistentStore: vi.fn(async () => ({ store: true })),
     initialize: vi.fn().mockResolvedValue(undefined),
     shutdown: vi.fn().mockResolvedValue(undefined),
+    startCheckpointing: vi.fn(),
     getAllStoreStats: vi.fn(() => new Map()),
   },
   backendRoutes: vi.fn(),
@@ -117,6 +118,7 @@ describe('index bootstrap', () => {
     hoisted.memoryCacheManager.isReady.mockReturnValue(true);
     hoisted.cacheMonitoringService.start.mockClear();
     hoisted.oxigraphStoreManager.initialize.mockClear();
+    hoisted.oxigraphStoreManager.startCheckpointing.mockClear();
     hoisted.oxigraphStoreManager.getAllStoreStats.mockReset();
     hoisted.oxigraphStoreManager.getAllStoreStats.mockReturnValue(
       new Map([
@@ -192,6 +194,9 @@ describe('index bootstrap', () => {
     } else {
       expect(hoisted.oxigraphStoreManager.initialize).not.toHaveBeenCalled();
     }
+    // Durable `oxigraphMemory` backends need the checkpoint loop whatever the
+    // library store is, so it starts even when the manager is not initialised.
+    expect(hoisted.oxigraphStoreManager.startCheckpointing).toHaveBeenCalledWith(60000);
     expect(hoisted.app!.register).toHaveBeenCalledWith(hoisted.corsPlugin, expect.any(Object));
     /*
      * `Accept` among them, because a report export negotiates its format with
