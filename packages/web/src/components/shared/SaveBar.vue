@@ -102,6 +102,12 @@
     >
       <GitCompare :size="16" />
     </button>
+    <!--
+      Share, for a section that can put what is on screen into a link
+      (`ShareLinkMenu`). A slot rather than a button: what a link can carry
+      differs by section, and only the work area knows it.
+    -->
+    <slot name="share" />
     <button
       v-if="editCount > 0 && !isScratch"
       class="bar-button"

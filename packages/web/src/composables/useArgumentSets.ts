@@ -372,8 +372,14 @@ export function useArgumentSets(
     selectVersion(target.versionId)
   }
 
-  /** A new, empty scratch set — the switcher's "New scratch set". */
-  function createScratch(suggestedName?: string): string | null {
+  /**
+   * A new scratch set — the switcher's "New scratch set", empty, or one a share
+   * link opened, holding the values it carried.
+   */
+  function createScratch(
+    suggestedName?: string,
+    body?: { tupleBindings: ArgumentTupleBinding[]; scalarBindings: ArgumentScalarBinding[] },
+  ): string | null {
     const target = localTargetId.value
     if (!target) return null
     const id = newScratchId()
@@ -387,8 +393,8 @@ export function useArgumentSets(
       description: null,
       basedOn: null,
       basedOnVersion: null,
-      tupleBindings: [],
-      scalarBindings: [],
+      tupleBindings: clone(body?.tupleBindings ?? []),
+      scalarBindings: clone(body?.scalarBindings ?? []),
       edits: 0,
     })
     selectScratch(id)

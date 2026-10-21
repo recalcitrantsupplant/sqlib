@@ -25,7 +25,11 @@
         @save="save"
         @needs-name="promptForNameInDetails"
         @discard="discardDraft"
-      />
+      >
+        <template #share>
+          <ShareLinkMenu :parts="shareParts" :disabled="!queryCode.trim()" @copy="copyShareLink" />
+        </template>
+      </SaveBar>
 
       <!--
         The run, as one sentence (design 3b). "Run with these arguments against
@@ -498,6 +502,7 @@ import type { QueryExecutionResultPayload, QueryInspectorTab } from '@/types/exe
 import { forgetLastRun, loadLastRun, runCacheKey, saveLastRun } from '@/lib/lastRunCache';
 import QueryDiffPane from './query-work-area/QueryDiffPane.vue';
 import SaveBar from './shared/SaveBar.vue';
+import ShareLinkMenu, { type ShareLinkChoice, type ShareLinkParts } from './shared/ShareLinkMenu.vue';
 import PanelHeader from './shared/PanelHeader.vue';
 import SectionLabel from './shared/SectionLabel.vue';
 import { useCommand } from '../composables/useCommandRegistry';
@@ -536,6 +541,9 @@ import { useScratchRecord } from '../composables/useScratchRecord';
 import { useEditorDocumentKey } from '../composables/useEditorDocumentKey';
 import { rdfSyntaxHighlighting } from '../lib/codemirrorHighlight';
 import { prefixSourceToken } from '@/lib/prefixSources';
+import type { SharePayload, ShareRequest } from '@/lib/shareLink';
+import { isBrowserBackendId, useBrowserBackends } from '@/composables/useBrowserBackends';
+import type { ArgumentScalarBinding, ArgumentTupleBinding } from '@/types/argument-sets';
 import type { QueryTypeValue } from '@sparql-query-lib/types';
 
 interface QueryCreationRequest {
@@ -569,6 +577,13 @@ const props = defineProps<{
    * reaching for router state it otherwise has no use for.
    */
   preselectArgumentSetId?: string | null;
+  /**
+   * Argument values a share link carried (`lib/shareLink.ts`). They open as a
+   * new scratch argument set, once; the page clears the prop on
+   * `shared-arguments-consumed` so coming back to the query does not add
+   * another.
+   */
+  sharedArguments?: { tupleBindings: ArgumentTupleBinding[]; scalarBindings: ArgumentScalarBinding[] } | null;
 }>();
 
 const emit = defineEmits<{
@@ -592,6 +607,12 @@ const emit = defineEmits<{
    * step after "create test" and the whole point of the row.
    */
   (e: 'open-entity', payload: { type: 'test' | 'benchmark'; id: string }): void;
+  /**
+   * Copy a share link for what is in the editor. The page builds the link: it
+   * holds the router, and with it the path the app is served under.
+   */
+  (e: 'share', request: ShareRequest): void;
+  (e: 'shared-arguments-consumed'): void;
 }>();
 
 const creationContext = ref<{ libraryId: string; libraryName: string } | null>(null);
@@ -1754,6 +1775,98 @@ const detailsProps = computed(() => ({
   deleting: isDeleting.value,
 }));
 
+/*
+ * The share link (`lib/shareLink.ts`). Each part goes as a reference when it
+ * is a saved record exactly as saved — the recipient then opens it only if
+ * their access allows — and as its content otherwise, which opens for anyone.
+ * The menu says which, so the sender knows what they are handing over.
+ */
+const shareQueryByReference = computed(() => !isScratch.value && !!queryId.value && !isDirty.value);
+
+/** A saved argument set with no unsaved edits travels by reference. */
+const shareArgumentSetId = computed(() => {
+  const setId = argumentSetsComposable.selectedSetId.value;
+  return setId && !argumentSetsComposable.hasDraft.value ? setId : null;
+});
+
+/*
+ * The in-memory store is empty at the start of every run, so it is nothing to
+ * send. A browser backend's id means nothing in another browser, so it can only
+ * go as its endpoint URL — and never with its headers, which can hold keys.
+ */
+const shareBackend = computed<{ id: string; endpoint: string | null; browserOnly: boolean } | null>(() => {
+  const id = selectedBackend.value;
+  if (!id || id === NONE_BACKEND || id === EPHEMERAL_BACKEND_ID) return null;
+  if (isBrowserBackendId(id)) {
+    const endpoint = useBrowserBackends().get(id)?.endpoint ?? null;
+    return endpoint ? { id, endpoint, browserOnly: true } : null;
+  }
+  return { id, endpoint: availableBackends.value.find((backend) => backend.id === id)?.endpoint ?? null, browserOnly: false };
+});
+
+const shareParts = computed<ShareLinkParts>(() => {
+  const version = props.versionNumber;
+  const backend = shareBackend.value;
+  let argumentsLabel: string | null = null;
+  if (shareArgumentSetId.value) {
+    argumentsLabel = `Arguments: link to “${argumentSetsComposable.currentSet.value?.name || 'the saved set'}”`;
+  } else if (argumentSetsComposable.visibleValuesPayload()) {
+    argumentsLabel = 'Arguments: their values';
+  }
+  return {
+    query: shareQueryByReference.value
+      ? `Query: link to the saved query${version ? ` (v${version})` : ''}`
+      : `Query: its text (${isScratch.value ? 'scratch' : 'with unsaved edits'})`,
+    arguments: argumentsLabel,
+    backend: backend
+      ? {
+        label: backend.browserOnly
+          ? `Backend: ${backendLabel(backend.id)} (its endpoint URL)`
+          : `Backend: ${backendLabel(backend.id)}`,
+        canSendEndpoint: !backend.browserOnly && !!backend.endpoint,
+      }
+      : null,
+  };
+});
+
+/** What the menu chose, as a request the page turns into a URL. */
+function copyShareLink(choice: ShareLinkChoice) {
+  const payload: SharePayload = {};
+  if (!shareQueryByReference.value) {
+    payload.body = queryCode.value;
+    payload.name = queryName.value;
+  }
+
+  let argumentSetId: string | null = null;
+  if (choice.includeArguments) {
+    if (shareArgumentSetId.value) {
+      argumentSetId = shareArgumentSetId.value;
+    } else {
+      Object.assign(payload, argumentSetsComposable.visibleValuesPayload() ?? {});
+    }
+  }
+
+  let backendId: string | null = null;
+  const backend = shareBackend.value;
+  if (choice.includeBackend && backend) {
+    if (backend.endpoint && (backend.browserOnly || choice.backendAsEndpoint)) {
+      payload.endpoint = backend.endpoint;
+    } else {
+      backendId = backend.id;
+    }
+  }
+
+  emit('share', {
+    // A saved query is named even when its text travels: the text opens as
+    // edits on it, for whoever can read it.
+    recordId: !isScratch.value && queryId.value ? queryId.value : null,
+    version: props.versionNumber ?? null,
+    argumentSetId,
+    backendId,
+    payload,
+  });
+}
+
 /** A scratch item still wearing its fallback name has to be named at save. */
 const UNTITLED_PATTERN = /^Untitled query \d+$/;
 const needsName = computed(() => isScratch.value && UNTITLED_PATTERN.test(queryName.value.trim()));
@@ -2324,9 +2437,28 @@ onMounted(() => {
  * after their watcher has cleared the previous query's selection. `queryId` is
  * `''` for a scratch query, which has no default.
  */
+/*
+ * Values from a share link, as a scratch set — once the query has an id to file
+ * it under. A saved query has none until it has loaded, so this waits for it
+ * rather than running on mount. Registered after the argument sets' own
+ * watcher, so their clearing of the previous selection runs first.
+ */
+watch(
+  () => [props.sharedArguments, queryId.value, props.scratchId] as const,
+  () => {
+    const shared = props.sharedArguments;
+    if (!shared) return;
+    if (!argumentSetsComposable.createScratch('Shared arguments', shared)) return;
+    emit('shared-arguments-consumed');
+    showArgumentsTab();
+  },
+  { immediate: true },
+);
+
 const browserDefaults = useBrowserDefaults();
 watch(queryId, (id) => {
-  if (!id || props.preselectArgumentSetId) return;
+  // A share link's values outrank the browser default, as `?argumentSet=` does.
+  if (!id || props.preselectArgumentSetId || props.sharedArguments) return;
   void browserDefaults.applyArgumentSet('query', id, argumentSetsComposable);
 }, { immediate: true });
 

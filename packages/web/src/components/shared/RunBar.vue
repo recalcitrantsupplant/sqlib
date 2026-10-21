@@ -116,7 +116,15 @@
         >
           <SelectTrigger class="chip-select" data-testid="run-bar-backend" :title="backend.title">
             <Database :size="12" class="chip-icon" />
-            <SelectValue placeholder="Backend" />
+            <!--
+              The label is read from the options now, not the one the select
+              recorded when the value first arrived: a backend chosen before the
+              list loaded (a browser backend a share link added, say) otherwise
+              keeps showing its raw id.
+            -->
+            <SelectValue placeholder="Backend">
+              <template v-if="backend.value">{{ labelOf(backend) }}</template>
+            </SelectValue>
           </SelectTrigger>
           <!--
             A fixed width with the long labels faded out rather than ellipsised.
