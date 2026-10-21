@@ -1,12 +1,14 @@
 # Design: authentication, identity providers and who gets a token
 
-**Status: decided, partly built.** The API half is shipped: bearer-token
-verification, principals, grants, audit and the three auth modes. See
-[explanation/security-model.md](../explanation/security-model.md) for what it
-enforces today. This page records the architecture those pieces belong to, the
+**Status: decided and built**, except a real Google and AAF login through the
+reference broker (open decision 2). The API half shipped first: bearer-token
+verification, principals, grants, audit and the three auth modes. Items 1 to 6
+below shipped after it; ["As built"](#as-built) records what each became and
+how it was verified. See
+[explanation/security-model.md](../explanation/security-model.md) for what is
+enforced today. This page records the architecture those pieces belong to, the
 identity-provider question that prompted it, the broker survey behind the
-choice of reference broker, and the work that is still open, in the order to do
-it. The code cites an earlier design note by section number (`design §3.1` and
+choice of reference broker, and the work, in the order it was done. The code cites an earlier design note by section number (`design §3.1` and
 so on). That note was never checked in; this page replaces it, and the appendix
 maps the citations onto it.
 
@@ -369,6 +371,59 @@ administer; the metadata document then lists both. The SPA, however, signs in
 against one issuer; the broker is the one that gives people a choice of
 provider.
 
+### As built
+
+Verified on 2026-10-21 against Rauthy 0.37.2 running from the compose
+profile, with sqlib in `dual-http` and the SPA dev server, in a browser driven
+by Playwright.
+
+1. **Built as specified.** `packages/api/src/auth/resourceMetadata.ts`, mounted
+   by the auth plugin at the root of the instance, so the standalone and
+   `dual-http` MCP transports both serve it. `SQLIB_AUTH_SCOPES` supplies
+   `scopes_supported` and the challenge's `scope`. A tokenless request gets
+   `Bearer resource_metadata="…"` with no `error` code (RFC 6750 §3.1); a
+   rejected token keeps `error="invalid_token"`. `/mcp` now applies its CORS
+   headers to the auth plugin's 401 and exposes `WWW-Authenticate`, which a
+   browser MCP client needs to read the challenge.
+2. **Built, with one change of shape.** Rauthy's bootstrap `clients.json`
+   cannot set `allowed_resources` or `default_aud`, so the clients and the
+   upstream providers are created by `rauthy/setup.sh` through the admin API,
+   run by a one-shot `rauthy-setup` service. `client_credentials_map_sub` is a
+   global setting in Rauthy, not a per-client one. Verified: browser sign-in;
+   a client-credentials token that `/auth/me` reports as a `client`
+   principal; and an MCP client registering dynamically, signing in with
+   `resource`, and calling `/mcp` initialize. Real Google and AAF logins are
+   not verified (open decision 2).
+3. **Built as specified.** The SPA sends `resource` on the authorization
+   request and the code exchange. A refresh goes without it, because
+   `oidc-client-ts`'s automatic renewal passes no arguments; RFC 8707 makes it
+   optional there, and Rauthy keeps the resource of the original grant.
+   Verified with a configuration that set only the client id.
+4. **Built.** `docs/guides/deploying.md`, "Authentication: one broker in
+   front".
+5. **Built; the default is now `memory`.** Rauthy refuses framing
+   (`X-Frame-Options: DENY`), so iframe silent renew cannot work against it;
+   renewal through the rotated refresh token does. A reload with nothing in
+   web storage goes through the broker and back in about a second and a half
+   without a form, because the broker's session is still alive. That is a
+   redirect, not the "without a redirect" the acceptance hoped for; `session`
+   storage gives that, at the cost of a token in `sessionStorage`.
+   `authTokenStorage` selects.
+6. **Verified.** The machine client above.
+
+Two changes outside the list were needed for the contract to stay three
+settings, and both are in the verifier:
+
+- **EdDSA is accepted.** It is Rauthy's default signature, and the one every
+  dynamically registered or CIMD client gets; without it the MCP path failed
+  at verification.
+- **Keys are found by discovery.** With `SQLIB_AUTH_JWKS_URI` unset, the
+  verifier reads `jwks_uri` from the issuer's discovery document. The old
+  default, `<issuer>/.well-known/jwks.json`, is served by neither Rauthy, nor
+  Keycloak, nor Entra, so each needed a fourth setting.
+
+Neither touches the enforcement layer.
+
 ## Operating it
 
 - **Token lifetimes.** Access tokens of five to sixty minutes; refresh tokens
@@ -420,18 +475,21 @@ is the free-tier line and should appear in the deployment guide.
    "Free" above is only true in writing once the core carries a licence that
    says so.
 2. **Rauthy's upstream providers are beta.** GitHub has a template and was
-   the only one documented when surveyed. Item 2 above must include a real
-   Google login and, when a registration is available, a real AAF login
-   against the test federation, and record the date each was verified. If
-   either fails, Keycloak is the fallback reference broker and the compose
-   profile grows a Postgres.
-3. **Browser token storage.** In-memory with refresh rotation is proposed;
-   confirm `oidc-client-ts` silent renew behaves against Rauthy before
-   switching.
+   the only one documented when surveyed. `rauthy/setup.sh` creates the
+   Google, GitHub, Entra and AAF providers from `.env`, and creating one was
+   verified, but no real login through Google or AAF has been done: it needs
+   a registration at each. Do one of each and record the date here. If either
+   fails, Keycloak is the fallback reference broker and the compose profile
+   grows a Postgres. Rauthy carries `resource` through upstream-provider
+   logins since 0.36, so an MCP client signing in through Google still gets a
+   token for sqlib's audience.
+3. **Browser token storage.** Resolved: confirmed against Rauthy 0.37.2 and
+   switched to `memory`. See "As built", item 5.
 4. **The resource identifier.** The value of `aud` and of the metadata
-   document's `resource` field. The canonical URL of the deployment's `/mcp`
-   endpoint is the usual choice (the MCP specification's canonical-URI rules
-   apply), and it has to be decided before any client is registered.
+   document's `resource` field. `SQLIB_AUTH_RESOURCE` holds it, defaulting to
+   the audience. The canonical URL of the deployment's `/mcp` endpoint is the
+   value the guides use (the MCP specification's canonical-URI rules apply),
+   and each deployment has to fix it before any client is registered.
 5. **The embedded option.** Whether a one-container deployment matters enough
    commercially to build the embedded Better Auth package described under
    "Why not the alternatives". Not before items 1 to 4 ship.

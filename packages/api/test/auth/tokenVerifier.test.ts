@@ -74,6 +74,57 @@ async function rejectionOf(promise: Promise<unknown>): Promise<TokenError> {
   return error as TokenError;
 }
 
+describe('key discovery', () => {
+  const noJwksUri = () => configFor({ SQLIB_AUTH_JWKS_URI: '' });
+  const discovery = (document: Record<string, unknown> | null, status = 200) =>
+    (async (input: unknown) => {
+      fetchCalls += 1;
+      const url = String(input);
+      if (url === 'https://issuer.test/.well-known/openid-configuration') {
+        return document
+          ? new Response(JSON.stringify(document), { status, headers: { 'content-type': 'application/json' } })
+          : new Response('not found', { status });
+      }
+      if (url === 'https://issuer.test/oidc/certs' || url === 'https://issuer.test/.well-known/jwks.json') {
+        return new Response(JSON.stringify({ keys: [publicJwk] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      return new Response('not found', { status: 404 });
+    }) as typeof fetch;
+
+  it('finds the key set through the issuer\'s discovery document when no JWKS URI is set', async () => {
+    globalThis.fetch = discovery({ issuer: ISSUER, jwks_uri: 'https://issuer.test/oidc/certs' });
+    const result = await new TokenVerifier(noJwksUri()).verify(await sign({ sub: 'user-1' }));
+    expect(result.subject).toBe('user-1');
+  });
+
+  it('falls back to /.well-known/jwks.json for an issuer without a discovery document', async () => {
+    globalThis.fetch = discovery(null, 404);
+    const result = await new TokenVerifier(noJwksUri()).verify(await sign({ sub: 'user-1' }));
+    expect(result.subject).toBe('user-1');
+  });
+
+  it('refuses a discovery document that names another issuer, as the server\'s fault', async () => {
+    globalThis.fetch = discovery({ issuer: 'https://evil.test/', jwks_uri: 'https://issuer.test/oidc/certs' });
+    const error = await rejectionOf(new TokenVerifier(noJwksUri()).verify(await sign({ sub: 'user-1' })));
+    expect(error.statusCode).toBe(503);
+  });
+
+  it('asks again after a failed discovery, and keeps a successful one', async () => {
+    const verifier = new TokenVerifier(noJwksUri());
+    globalThis.fetch = discovery({ error: 'down' }, 502);
+    expect((await rejectionOf(verifier.verify(await sign({ sub: 'user-1' })))).statusCode).toBe(503);
+
+    globalThis.fetch = discovery({ issuer: ISSUER, jwks_uri: 'https://issuer.test/oidc/certs' });
+    await verifier.verify(await sign({ sub: 'user-1' }));
+    const callsAfterRecovery = fetchCalls;
+    await verifier.verify(await sign({ sub: 'user-2' }));
+    expect(fetchCalls).toBe(callsAfterRecovery);
+  });
+});
+
 describe('TokenVerifier.extractBearer', () => {
   it('reads a bearer token case-insensitively', () => {
     expect(TokenVerifier.extractBearer('Bearer abc')).toBe('abc');

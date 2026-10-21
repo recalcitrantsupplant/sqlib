@@ -158,17 +158,23 @@ several environments.
 {
   "apiBaseUrl": "https://api.example.org",
   "featureFlags": { "etl": false, "assistant": false },
-  "authIssuer": "",
-  "authClientId": "",
-  "authAudience": "",
+  "authClientId": "sqlib-web",
   "authScope": "openid profile email",
+  "authTokenStorage": "memory",
   "authRequireLogin": false
 }
 ```
 
 The recognised keys are `apiBaseUrl`, `featureFlags` (merged over the built-in
-flags, so a partial object is fine), the four OIDC settings, and
-`authRequireLogin`. The file is not in the repository: the deployment places it
+flags, so a partial object is fine), the OIDC settings (`authIssuer`,
+`authClientId`, `authAudience`, `authScope`, `authTokenStorage`), and
+`authRequireLogin`. Against an API with auth on, `authClientId` is the only
+OIDC setting the file needs: the app reads the issuer and the resource from
+the API's protected-resource metadata, and sends `resource` on its
+authorization request and code exchange. `authIssuer` overrides the issuer the API
+names. `authAudience` is sent as an `audience` parameter, for a broker that
+wants one. `authTokenStorage` is `memory` by default; see
+[configuration](../reference/configuration.md#the-web-application). The file is not in the repository: the deployment places it
 beside `index.html`.
 
 The UI signs in only when the API's `/health` reports an enforcing auth mode.
@@ -209,6 +215,139 @@ anywhere a container runs, and the UI anywhere static files are served.
   shapes to copy. A real parameters file contains registry passwords and
   backend credentials; keep it out of version control.
 
+## Authentication: one broker in front
+
+sqlib is a resource server. It verifies a JWT access token and never signs
+anyone in. The sign-in, the identity providers and the tokens come from one
+authorization server (the "broker") that the deployment chooses.
+[The auth design](../design/auth-architecture.md) says why.
+
+Self-hosters get the full auth stack and bring their own broker.
+
+### What sqlib needs from the broker
+
+Three settings, whichever broker it is:
+
+1. `SQLIB_AUTH_ISSUER`: the broker's issuer URL, exactly as tokens carry it in
+   `iss`. sqlib finds the keys through the issuer's OIDC discovery document.
+2. `SQLIB_AUTH_AUDIENCE`: the value the broker puts in `aud` for sqlib. Set
+   `SQLIB_AUTH_RESOURCE` to the same value: the canonical URL of `/mcp`, for
+   example `https://sqlib.example.org/mcp`. MCP clients ask for a token for
+   that value.
+3. `SQLIB_AUTH_CLAIM_GROUPS`: the dot-path to the claim with group or role
+   membership.
+
+The SPA needs one more value, the client id the broker gave it
+(`authClientId` in `/config.json`). Register `<SPA origin>/auth/callback` as
+its redirect URL.
+
+### Choosing a broker
+
+Two facts decide most choices:
+
+- **GitHub sign-in needs Rauthy, Keycloak or Auth0.** Entra External ID and
+  Cognito cannot federate to GitHub.
+- **Self-registering MCP clients need CIMD or dynamic client registration.**
+  Rauthy, Keycloak (behind feature flags) and Auth0 have them. Entra External
+  ID and Cognito have neither, so each MCP client must be registered by hand,
+  and the person connecting it must enter that client id.
+
+| Broker | `SQLIB_AUTH_ISSUER` | `SQLIB_AUTH_AUDIENCE` | `SQLIB_AUTH_CLAIM_GROUPS` | Caveats |
+| --- | --- | --- | --- | --- |
+| Rauthy (reference; [the compose profile](#the-local-auth-profile)) | `https://<host>/auth/v1/` | The resource, listed in each client's `allowed_resources` and `default_aud` | `groups` (the client must allow the `groups` scope) | Signs with EdDSA by default; sqlib accepts it. Turn on `client_credentials_map_sub`, or machine tokens have no `sub`. |
+| Entra External ID | `https://<tenant id>.ciamlogin.com/<tenant id>/v2.0` | The API's application ID URI | `roles` (app roles) or `groups` | No GitHub. No CIMD or dynamic registration. |
+| Cognito user pool | `https://cognito-idp.<region>.amazonaws.com/<pool id>` | Unset, with `SQLIB_AUTH_AUDIENCE_UNCHECKED=true` | `cognito:groups` | Access tokens carry `client_id`, not `aud`; restrict access with a custom scope. No GitHub, no dynamic registration, no token exchange. Only 50 free federated users. |
+| A customer's Keycloak | `https://<host>/realms/<realm>` | The client scope's audience mapper value | `realm_access.roles`, or `groups` with a group mapper | Turn on the CIMD and resource-indicator feature flags for MCP clients. |
+| A customer's Entra workforce tenant | `https://login.microsoftonline.com/<tenant id>/v2.0` | The API's application ID URI | `roles` or `groups` | Request v2 access tokens (`accessTokenAcceptedVersion: 2`) so `iss` matches. |
+
+AAF is an identity source, not a broker: federate the broker to it as a
+generic OIDC provider. Use `eduperson_entitlement` or
+`eduperson_scoped_affiliation` as the group claim if the broker passes it
+through.
+
+A partner whose Entra tenant already mints tokens with sqlib's audience can be
+trusted directly beside the broker, with `SQLIB_AUTH_ISSUERS_JSON`. The
+protected-resource metadata then lists both issuers. The SPA signs in against
+the first one.
+
+### Machines and applications
+
+- **An application acting as itself** uses the client-credentials grant with
+  its own confidential client. sqlib sees a `client` principal, which you grant
+  modes like any other. Cache the token for its lifetime; do not fetch one per
+  call.
+- **An application acting for a signed-in person** uses token exchange
+  (RFC 8693) at the broker, and calls sqlib with the exchanged token. sqlib sees
+  the person. Do not share one person's long-lived token with an application.
+
+### The local auth profile
+
+`docker-compose.mcp-https-image.yml` has an `auth` profile: Rauthy 0.37.2 on
+`http://localhost:8080`, and a one-shot `rauthy-setup` service that configures
+it through Rauthy's admin API (`rauthy/setup.sh`). It is for trying the full
+stack on one machine. It uses plain HTTP and an insecure cookie mode, so do
+not expose it.
+
+1. Copy `.env.auth.example` to `.env`. Fill in the Rauthy secrets as its
+   comments say.
+2. Build the image (`docker build -t sparql-query-lib:aca-local .`) and make
+   the certificates (`just setup-local-https`).
+3. Start it:
+
+   ```bash
+   docker compose -f docker-compose.mcp-https-image.yml --profile auth up
+   ```
+
+4. Read the machine client's secret from the setup log. It is printed once,
+   when the client is created:
+
+   ```bash
+   docker compose -f docker-compose.mcp-https-image.yml logs rauthy-setup
+   ```
+
+5. Run the SPA against it, with only the client id configured:
+
+   ```bash
+   NUXT_PUBLIC_API_BASE_URL=https://localhost:3443 \
+   NUXT_PUBLIC_AUTH_CLIENT_ID=sqlib-web \
+   NUXT_PUBLIC_AUTH_SCOPE="openid profile email groups" \
+   pnpm --filter @sparql-query-lib/web dev
+   ```
+
+6. Open `http://localhost:3001` and sign in as `admin@localhost` with
+   `RAUTHY_ADMIN_PASSWORD`. Rauthy puts that user in the `admin` group, which
+   `.env.auth.example` makes a sqlib administrator.
+
+`rauthy-setup` defines:
+
+- `sqlib-web`: a public client with PKCE, refresh tokens and RS256, and the
+  resource in `allowed_resources` and `default_aud`.
+- `sqlib-machine`: a confidential client for client credentials and token
+  exchange, with the same audience. Get a token with the secret in the request
+  body:
+
+  ```bash
+  curl -d grant_type=client_credentials -d client_id=sqlib-machine \
+    --data-urlencode client_secret=<secret> \
+    -d resource=https://localhost:3443/mcp \
+    http://localhost:8080/auth/v1/oidc/token
+  ```
+
+- One upstream provider for each of Google, GitHub, Entra ID and AAF whose
+  client id is set in `.env`. Register
+  `http://localhost:8080/auth/v1/providers/callback` as the redirect URL at the
+  provider.
+
+Rauthy also has CIMD and dynamic client registration on, with the resource
+allowed, so an MCP client can connect to `https://localhost:3443/mcp` with no
+configuration.
+
+The setup is safe to run again (`docker compose -f
+docker-compose.mcp-https-image.yml run --rm rauthy-setup`): it updates the
+clients and leaves existing providers alone. Rauthy reads the API key
+definition only when it first creates its database. To start again, remove
+the `rauthy-data` volume.
+
 ## Before you expose it
 
 This repository is pre-1.0 and source-available for review (see `LICENSE`). No
@@ -224,7 +363,8 @@ also refuses an issuer with no audience, because without one any token that
 issuer minted for any application would be accepted; set
 `SQLIB_AUTH_AUDIENCE_UNCHECKED=true` only if that is really what you want.
 `SQLIB_AUTH_ADMIN_PRINCIPALS` names the principals that are administrators at
-boot.
+boot. [Authentication: one broker in front](#authentication-one-broker-in-front)
+says what to put in front.
 
 **`/mcp` is unauthenticated in the default mode**, like the rest of the API, and
 it is a complete tool surface over every library and backend on the server. If

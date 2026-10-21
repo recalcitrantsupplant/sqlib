@@ -121,10 +121,13 @@ function buildManager(): UserManager | null {
     post_logout_redirect_uri: `${window.location.origin}${withBase('/', base)}`,
     response_type: 'code',
     scope,
-    // RFC 8707: sent on the authorization and token requests, so the token
-    // names the API in `aud`. The MCP specification requires it of clients,
-    // and a broker that follows it binds the token to this value.
-    ...(resource ? { resource } : {}),
+    // RFC 8707, so the token names the API in `aud`. The MCP specification
+    // requires it of clients, and a broker that follows it binds the token to
+    // this value. `resource` puts it on the authorization request and
+    // `extraTokenParams` on the code exchange. A refresh goes without it:
+    // automatic renewal passes no arguments, RFC 8707 makes it optional
+    // there, and a broker keeps the resource the grant was made for.
+    ...(resource ? { resource, extraTokenParams: { resource } } : {}),
     // Silent renew keeps long editing sessions from dying mid-edit. With a
     // refresh token it is a token request; without one, a hidden iframe,
     // which a broker that refuses framing (Rauthy) does not allow.

@@ -296,7 +296,7 @@ and does not cover.
 | `SQLIB_AUTH_ISSUER` | unset | OIDC issuer URL for a single-issuer deployment. |
 | `SQLIB_AUTH_AUDIENCE` | unset | Expected `aud` for that issuer. |
 | `SQLIB_AUTH_AUDIENCE_UNCHECKED` | `false` | Set to exactly `true` (case-insensitive) to start `dry-run` or `required` with an issuer that has no audience. Without an audience the `aud` claim is not checked, so any token that issuer minted for any application is accepted; without this flag that configuration throws at startup. Applies to `SQLIB_AUTH_ISSUERS_JSON` entries too. |
-| `SQLIB_AUTH_JWKS_URI` | unset | JWKS URL, when it is not the issuer's discovery default. |
+| `SQLIB_AUTH_JWKS_URI` | from discovery | JWKS URL. Unset, the `jwks_uri` of the issuer's OIDC discovery document (`<issuer>/.well-known/openid-configuration`), fetched once on the first token; an issuer with no discovery document falls back to `<issuer>/.well-known/jwks.json`. Set it when sqlib reaches the broker at another address than the issuer URL, as the compose `auth` profile does. |
 | `SQLIB_AUTH_CLAIM_GROUPS` | `groups` | Dot-path to the claim carrying group or role membership. |
 | `SQLIB_AUTH_CLAIM_CLIENT_ID` | `azp` | Dot-path to the claim used to recognise a machine-to-machine caller. |
 | `SQLIB_AUTH_ISSUERS_JSON` | unset | A JSON array of issuer objects (`issuer`, `audience` — required in an enforcing mode unless `SQLIB_AUTH_AUDIENCE_UNCHECKED=true` — and optionally `jwksUri`, `claimGroups`, `claimClientId`), for more than one issuer. When set it replaces the single-issuer variables above. Invalid JSON, a non-array, an empty array or an entry without a string `issuer` throws. Per-entry defaults are `groups` and `azp`. |
@@ -344,10 +344,11 @@ read at **build** time and baked into the bundle.
 | Name | Default | Effect |
 | --- | --- | --- |
 | `NUXT_PUBLIC_API_BASE_URL` | `http://localhost:3000` | The API the app calls. |
-| `NUXT_PUBLIC_AUTH_ISSUER` | empty | OIDC issuer for the browser's login flow. |
+| `NUXT_PUBLIC_AUTH_ISSUER` | empty | OIDC issuer for the browser's login flow. Empty, the app takes the first `authorization_servers` entry of the API's protected-resource metadata; set, it overrides that. |
 | `NUXT_PUBLIC_AUTH_CLIENT_ID` | empty | OIDC client id. |
 | `NUXT_PUBLIC_AUTH_AUDIENCE` | empty | Requested audience. |
-| `NUXT_PUBLIC_AUTH_SCOPE` | `openid profile email` | Requested scopes. |
+| `NUXT_PUBLIC_AUTH_SCOPE` | `openid profile email` | Requested scopes. Add `offline_access` for a broker that issues refresh tokens only on request, and `groups` for Rauthy's group claim. |
+| `NUXT_PUBLIC_AUTH_TOKEN_STORAGE` | `memory` | Where the signed-in user and its tokens are kept: `memory` (no web storage; a reload signs in again through the broker, without a form while the broker's session lives), `session` (`sessionStorage`: survives a reload in that tab) or `local` (`localStorage`: every tab, the behaviour before this setting). Anything else is `memory`. `authTokenStorage` in `/config.json` sets the same thing. |
 | `NUXT_PUBLIC_AUTH_REQUIRE_LOGIN` | `false` | Exactly `true` makes the app sign in even when the API reports auth `disabled`, for an API behind a gateway that does the authentication. `authRequireLogin` in `/config.json` sets the same thing at load time. |
 | `NUXT_APP_BASE_URL` | `/` | The path the site is served from. Written into every page's asset links, so the bundle works only at that path. `Dockerfile.web` takes it as a build argument. See [deploying](../guides/deploying.md#the-bundle-image). |
 | `NUXT_PUBLIC_FEATURE_*` | the API-side default for that flag | Per-flag override for the browser build; see [feature flags](feature-flags.md). |
