@@ -98,9 +98,17 @@ ARG SOURCE_COMMIT=unknown
 ARG BUILD_VERSION=unreleased
 ARG BUILD_DATE=unknown
 
+# The path the site will be served from, when it is not the root of its host:
+# `/dev-console/sqlib/` for a bundle uploaded under another application's site.
+# Nuxt writes it into every page's asset links, so a bundle only works at the
+# base it was built for; the published image is built for `/`. Leading and
+# trailing slashes are added if left off (src/lib/basePath.ts).
+ARG NUXT_APP_BASE_URL=/
+
 # `generate`, not `build`: `build` emits a Nitro server that has to be run with
 # Node, which is exactly what this image is not for.
-RUN NUXT_PUBLIC_APP_VERSION="$BUILD_VERSION" \
+RUN NUXT_APP_BASE_URL="$NUXT_APP_BASE_URL" \
+    NUXT_PUBLIC_APP_VERSION="$BUILD_VERSION" \
     NUXT_PUBLIC_APP_COMMIT="$SOURCE_COMMIT" \
     NUXT_PUBLIC_BUILD_TIME="$BUILD_DATE" \
     pnpm --filter @sparql-query-lib/web generate

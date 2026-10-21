@@ -383,6 +383,9 @@ export default defineNuxtConfig({
       authClientId: process.env.NUXT_PUBLIC_AUTH_CLIENT_ID || '',
       authAudience: process.env.NUXT_PUBLIC_AUTH_AUDIENCE || '',
       authScope: process.env.NUXT_PUBLIC_AUTH_SCOPE || 'openid profile email',
+      // Sign in whatever mode the API reports: for an API whose authentication
+      // is done by a gateway in front of it. Normally set in /config.json.
+      authRequireLogin: process.env.NUXT_PUBLIC_AUTH_REQUIRE_LOGIN === 'true',
     },
   },
   app: {

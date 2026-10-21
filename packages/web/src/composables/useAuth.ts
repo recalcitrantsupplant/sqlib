@@ -11,6 +11,7 @@
 // @ts-ignore - Nuxt auto-imports
 import { computed, ref, useRuntimeConfig } from '#imports';
 import { User, UserManager, WebStorageStateStore } from 'oidc-client-ts';
+import { withBase } from '../lib/basePath';
 
 export type AuthMode = 'disabled' | 'dry-run' | 'required';
 
@@ -39,6 +40,23 @@ function apiBase(): string {
   return String(config.public.apiBaseUrl ?? '').replace(/\/$/, '');
 }
 
+/**
+ * Sign in whatever the API's mode, when the deployment says so.
+ *
+ * For an API that leaves authentication to a gateway in front of it: the API
+ * reports `disabled`, the gateway refuses requests without a token, and the
+ * app has to get one anyway. Set by `authRequireLogin` in `/config.json`.
+ */
+function requireLogin(): boolean {
+  const config = useRuntimeConfig();
+  return config.public.authRequireLogin === true;
+}
+
+/** Whether this app signs in: the API demands it, or the deployment does. */
+function signsIn(): boolean {
+  return mode.value !== 'disabled' || requireLogin();
+}
+
 function buildManager(): UserManager | null {
   const config = useRuntimeConfig();
   const authority = String(config.public.authIssuer ?? '').trim();
@@ -47,12 +65,15 @@ function buildManager(): UserManager | null {
 
   const audience = String(config.public.authAudience ?? '').trim();
   const scope = String(config.public.authScope ?? 'openid profile email').trim();
+  // Under the base the app is served from, which is where the callback page
+  // and the app's root are; the site root may be another application.
+  const base = String(config.app?.baseURL ?? '/');
 
   return new UserManager({
     authority,
     client_id: clientId,
-    redirect_uri: `${window.location.origin}/auth/callback`,
-    post_logout_redirect_uri: window.location.origin,
+    redirect_uri: `${window.location.origin}${withBase('/auth/callback', base)}`,
+    post_logout_redirect_uri: `${window.location.origin}${withBase('/', base)}`,
     response_type: 'code',
     scope,
     // Silent renew keeps long editing sessions from dying mid-edit.
@@ -98,7 +119,7 @@ export function useAuth() {
     initializing.value = (async () => {
       mode.value = await fetchMode();
 
-      if (mode.value === 'disabled') {
+      if (!signsIn()) {
         initialized.value = true;
         return;
       }
@@ -140,7 +161,7 @@ export function useAuth() {
 
   /** The token for outgoing API calls, refreshed if it has expired. */
   const accessToken = async (): Promise<string | null> => {
-    if (mode.value === 'disabled') return null;
+    if (!signsIn()) return null;
     if (!user.value || user.value.expired) {
       manager ??= buildManager();
       const renewed = await manager?.getUser();
@@ -151,8 +172,8 @@ export function useAuth() {
 
   return {
     mode: computed(() => mode.value),
-    /** True only when the API demands a token and we do not have one. */
-    needsLogin: computed(() => mode.value === 'required' && !user.value),
+    /** True only when the API or the deployment demands a token and we do not have one. */
+    needsLogin: computed(() => (mode.value === 'required' || requireLogin()) && !user.value),
     isAuthenticated: computed(() => Boolean(user.value)),
     isAdmin: computed(() => me.value?.admin ?? mode.value === 'disabled'),
     me: computed(() => me.value),

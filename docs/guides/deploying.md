@@ -119,6 +119,22 @@ Nothing environment-specific is baked in. The bundle is built with no
 `NUXT_PUBLIC_*` values set, so one image serves every environment and the
 deployment supplies `/config.json` beside `index.html`, as below.
 
+The one exception is the path the site is served from. Nuxt writes it into
+every page's asset links when the bundle is generated, so the published image
+works only at the root of a host. To serve the UI under a path on a site that
+belongs to something else, build the bundle for that path:
+
+```sh
+docker build -f Dockerfile.web --build-arg NUXT_APP_BASE_URL=/dev-console/sqlib/ -t sqlib-web:dev-console .
+```
+
+That bundle works at `/dev-console/sqlib/` and nowhere else. It reads its
+`config.json` from beside its own `index.html`, at
+`/dev-console/sqlib/config.json`, and its sign-in callback is
+`/dev-console/sqlib/auth/callback`, which is the redirect URI to register with
+the identity provider. The host's SPA fallback for a record link is then that
+path's `200.html`.
+
 A host that serves a directory of files serves this unchanged: `nuxt generate`
 prerenders an `index.html` per page and per workspace section (`/queries`,
 `/rules`, `/backends`, …), so those links resolve without a rewrite rule. A
@@ -145,14 +161,23 @@ several environments.
   "authIssuer": "",
   "authClientId": "",
   "authAudience": "",
-  "authScope": "openid profile email"
+  "authScope": "openid profile email",
+  "authRequireLogin": false
 }
 ```
 
 The recognised keys are `apiBaseUrl`, `featureFlags` (merged over the built-in
-flags, so a partial object is fine), and the four OIDC settings. The file is not
-in the repository: the deployment places it at the site root beside
-`index.html`. A missing file, a non-2xx response, or a response that is not
+flags, so a partial object is fine), the four OIDC settings, and
+`authRequireLogin`. The file is not in the repository: the deployment places it
+beside `index.html`.
+
+The UI signs in only when the API's `/health` reports an enforcing auth mode.
+`authRequireLogin: true` makes it sign in whatever the API reports. That is for
+an API whose authentication is done by a gateway in front of it: the API runs
+`SQLIB_AUTH_MODE=disabled`, the gateway refuses a request without a valid bearer
+token, and the UI gets a token from the OIDC settings above and sends it on
+every request. The gateway has to let `/health` through without a token, or the
+UI cannot read the API's mode. A missing file, a non-2xx response, or a response that is not
 `application/json` leaves the build-time defaults in place and logs a warning to
 the browser console — so a typo in the path degrades to "the UI talks to
 `localhost`" rather than to a blank page.
