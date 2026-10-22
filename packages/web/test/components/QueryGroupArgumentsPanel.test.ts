@@ -100,6 +100,13 @@ describe('QueryGroupArgumentsPanel', () => {
     expect(w.findAll('[data-testid="argument-clause"]')).toHaveLength(0);
   });
 
+  it('starts a scratch set from the empty state', async () => {
+    const createScratch = vi.fn();
+    const w = mountPanel([tuple('city')], stubArgumentSets({ createScratch }));
+    await w.get('[data-testid="arguments-empty-new-scratch"]').trigger('click');
+    expect(createScratch).toHaveBeenCalledOnce();
+  });
+
   it('gives one clause editor per start tuple once a set is open', () => {
     const args = stubArgumentSets({ selection: ref({ kind: 'scratch', id: 's1' }) });
     const w = mountPanel([tuple('city'), tuple('postcode', 'state')], args);
