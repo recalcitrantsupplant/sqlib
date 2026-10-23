@@ -30,6 +30,15 @@ export interface AuthConfig {
    * audience is intended. Without it an enforcing mode refuses to start.
    */
   audienceUnchecked: boolean;
+  /**
+   * The resource identifier (`SQLIB_AUTH_RESOURCE`): the `resource` field of
+   * the protected-resource metadata, and what a client asks a token for. The
+   * first issuer's audience when unset, since for an MCP client they are the
+   * same value. Undefined only when no issuer has an audience.
+   */
+  resource?: string;
+  /** `SQLIB_AUTH_SCOPES`: advertised as `scopes_supported` and in the 401 challenge. */
+  scopes: string[];
 }
 
 function parseMode(raw: string | undefined): AuthMode {
@@ -59,6 +68,12 @@ function parseList(raw: string | undefined): string[] {
     .split(',')
     .map(part => part.trim())
     .filter(Boolean);
+}
+
+/** Space- or comma-separated, as a `scope` parameter or as a list. */
+function parseScopes(raw: string | undefined): string[] {
+  if (!raw) return [];
+  return [...new Set(raw.split(/[\s,]+/).filter(Boolean))];
 }
 
 function parseIssuers(env: NodeJS.ProcessEnv): IssuerConfig[] {
@@ -149,6 +164,9 @@ export function buildAuthConfig(env: NodeJS.ProcessEnv = process.env): AuthConfi
     allowLibraryCreate: allowLibraryCreateRaw,
     protectDocs: parseFlag(env.SQLIB_AUTH_PROTECT_DOCS),
     audienceUnchecked,
+    resource:
+      env.SQLIB_AUTH_RESOURCE?.trim() || issuers.find(entry => entry.audience)?.audience || undefined,
+    scopes: parseScopes(env.SQLIB_AUTH_SCOPES),
   };
 }
 

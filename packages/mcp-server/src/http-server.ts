@@ -66,7 +66,9 @@ export function resolveCorsPolicy(env: NodeJS.ProcessEnv = process.env): CorsPol
   return { any, origins: new Set(entries.filter((entry) => entry !== '*')) };
 }
 
-const MCP_EXPOSED_HEADERS = 'ETag, Last-Modified, Server-Timing, mcp-session-id';
+// `WWW-Authenticate` so a browser client can read the 401's `resource_metadata`,
+// which is how it finds the authorization server.
+const MCP_EXPOSED_HEADERS = 'ETag, Last-Modified, Server-Timing, WWW-Authenticate, mcp-session-id';
 const MCP_ALLOWED_HEADERS =
   'Accept, Authorization, Content-Type, Last-Event-ID, mcp-protocol-version, mcp-session-id';
 const MCP_ALLOWED_METHODS = 'GET, POST, DELETE, OPTIONS';
@@ -249,6 +251,15 @@ export async function buildStreamableHttpMcpServer(options: StreamableHttpServer
   // for an unsupported media type into a Buffer body in `dual-http` mode.
   await app.register(async (mcp) => {
     mcp.addContentTypeParser('*', { parseAs: 'buffer' }, (_req, body, done) => done(null, body));
+
+    // A reply the handlers never saw: the auth plugin's 401 is sent from its
+    // root `onRequest` hook, before any handler here sets CORS headers, and a
+    // browser client that cannot read that 401 cannot start sign-in. Hijacked
+    // replies skip `onSend` and set their own.
+    mcp.addHook('onSend', async (request, reply, payload) => {
+      if (!reply.raw.hasHeader('access-control-allow-origin')) applyMcpCorsHeaders(request, reply);
+      return payload;
+    });
 
     mcp.options('/mcp', async (request, reply) => {
       if (applyMcpCorsHeaders(request, reply)) {

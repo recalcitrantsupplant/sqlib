@@ -1,0 +1,9 @@
+{
+  "name": "sqlib-setup",
+  "exp": null,
+  "access": [
+    { "group": "Clients", "access_rights": ["read", "create", "update"] },
+    { "group": "Secrets", "access_rights": ["read"] },
+    { "group": "AuthProviders", "access_rights": ["read", "create", "update"] }
+  ]
+}

@@ -71,7 +71,7 @@ const API_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'];
  * from the browser while every other call succeeded.
  */
 const API_ALLOWED_HEADERS = ['Accept', 'Content-Type', 'Authorization', 'If-Match', 'mcp-session-id', 'X-Sqlib-Client-Id'];
-const API_EXPOSED_HEADERS = ['ETag', 'Last-Modified', 'Server-Timing', 'mcp-session-id'];
+const API_EXPOSED_HEADERS = ['ETag', 'Last-Modified', 'Server-Timing', 'WWW-Authenticate', 'mcp-session-id'];
 
 /**
  * The `@fastify/cors` registration for a policy.
