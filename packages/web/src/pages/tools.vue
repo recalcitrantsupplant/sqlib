@@ -135,12 +135,14 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { useApiClient } from '../composables/useApiClient';
+import { useAuth } from '../composables/useAuth';
 import type { ExecutionRequest, SparqlRequest } from '@sparql-query-lib/contracts';
 // @ts-ignore - Nuxt auto-imports
 import { useRuntimeConfig } from '#imports';
 
 const { detectInputs, detectOutputs, executeTarget, runSparql } = useApiClient();
 const runtimeConfig = useRuntimeConfig();
+const auth = useAuth();
 
 const detectionQuery = ref('');
 const detectionError = ref<string | null>(null);
@@ -286,9 +288,13 @@ const executeTargetStreamHandler = async () => {
   streaming.value = true;
   try {
     const payload = composeExecutionPayload();
-    const response = await fetch(new URL('/execute', runtimeConfig.public.apiBaseUrl).toString(), {
+    // Joined rather than `new URL('/execute', base)`: a leading slash resolves
+    // against the origin and drops any path the API is served under.
+    const url = `${String(runtimeConfig.public.apiBaseUrl).replace(/\/$/, '')}/execute`;
+    const token = await auth.accessToken();
+    const response = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) },
       body: JSON.stringify(payload),
     });
 

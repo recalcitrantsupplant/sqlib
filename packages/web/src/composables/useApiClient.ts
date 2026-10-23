@@ -2285,11 +2285,13 @@ export function useApiClient() {
 
     try {
       const startTime = performance.now();
-      const response = await fetch(url, {
+      // Through `authorized` like every other call: a run is the request a
+      // gateway or an enforcing auth mode is most likely to refuse.
+      const response = await fetch(url, await authorized({
         method: 'POST',
         headers,
         body: requestBody,
-      });
+      }));
       const endTime = performance.now();
       const clientTotalMs = endTime - startTime;
 
@@ -2372,11 +2374,13 @@ export function useApiClient() {
 
     try {
       const startTime = performance.now();
-      const response = await fetch(url, {
+      // Through `authorized` like every other call: a run is the request a
+      // gateway or an enforcing auth mode is most likely to refuse.
+      const response = await fetch(url, await authorized({
         method: 'POST',
         headers,
         body: requestBody,
-      });
+      }));
       const endTime = performance.now();
       const clientTotalMs = endTime - startTime;
 
