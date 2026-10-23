@@ -61,7 +61,23 @@
         size="sm"
         title="No argument set open"
         description="Pick one, or start a scratch set."
-      />
+      >
+        <!--
+          The way out of the empty state, in the empty state: the same New
+          scratch set the switcher's menu opens with, one click instead of two.
+        -->
+        <template #actions>
+          <button
+            type="button"
+            class="btn-compact"
+            data-testid="arguments-empty-new-scratch"
+            :disabled="args.isLoading.value"
+            @click="args.createScratch()"
+          >
+            <Plus :size="13" />New scratch set
+          </button>
+        </template>
+      </EmptyState>
 
       <!--
         The numbers, where the group's members declare any. Absent rather than
@@ -153,6 +169,7 @@
 <script setup lang="ts">
 import { computed, ref, toRef } from 'vue';
 import { toast } from 'vue-sonner';
+import { Plus } from '@lucide/vue';
 import {
   AlertDialog,
   AlertDialogAction,

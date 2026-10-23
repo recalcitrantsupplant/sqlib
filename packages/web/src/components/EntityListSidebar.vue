@@ -1,11 +1,17 @@
 <template>
-  <aside class="entity-sidebar" :class="{ collapsed }" data-testid="entity-list-sidebar">
+  <aside
+    ref="sidebarEl"
+    class="entity-sidebar"
+    :class="{ collapsed, resizing: isResizing }"
+    :style="!collapsed && widthPx !== null ? { width: `${widthPx}px` } : undefined"
+    data-testid="entity-list-sidebar"
+  >
     <!--
       Folded, the sidebar is a rail: the hinge back out, the one action that
       still makes sense without the list (+ New), and the section's own name
-      turned on its side so the rail still says where you are. Collapse-only
-      rather than drag, because the list has a fixed vocabulary and a
-      comfortable width — see `useSidebarCollapse`.
+      turned on its side so the rail still says where you are. Expanded, the
+      right edge also drags (`useSidebarWidth`), so long saved names can be
+      read in full.
     -->
     <template v-if="collapsed">
       <button
@@ -365,6 +371,12 @@
         </template>
       </InlineNote>
     </div>
+    <SidebarResizer
+      v-if="!collapsed"
+      :active="isResizing"
+      @start="startResize"
+      @reset="resetWidth"
+    />
   </aside>
 </template>
 
@@ -478,6 +490,8 @@ import { normalizeTagColor, UNTAGGED_COLOR } from '../lib/tagPalette';
 import { useCallableDrafts, type CallableDraft } from '../composables/useCallableDrafts';
 import { useSettings, type EntityListGrouping } from '../composables/useSettings';
 import { useSidebarCollapse } from '../composables/useSidebarCollapse';
+import { useSidebarWidth } from '../composables/useSidebarWidth';
+import SidebarResizer from './shared/SidebarResizer.vue';
 import { formatCompactAge } from '../lib/time';
 
 const props = defineProps<{
@@ -545,6 +559,11 @@ const emit = defineEmits<{
 }>();
 
 const { collapsed, toggle: toggleCollapsed } = useSidebarCollapse(computed(() => props.section ?? 'queries'));
+const sidebarEl = ref<HTMLElement | null>(null);
+const { widthPx, isResizing, startResize, resetWidth } = useSidebarWidth(
+  computed(() => props.section ?? 'queries'),
+  sidebarEl,
+);
 
 const sectionLabel = computed(() => props.sectionLabel ?? 'Queries');
 const noun = computed(() => props.itemNoun ?? 'query');
@@ -874,12 +893,17 @@ function ageOf(item: CallableDraft) {
   flex-direction: column;
   min-width: 0;
   background: var(--surface-subtle);
+  position: relative;
   border-right: 1px solid var(--border-default);
   /*
    * Two widths, not a range: the hinge snaps between them, so the transition is
    * the whole animation there is.
    */
   transition: width 0.18s ease;
+}
+
+.entity-sidebar.resizing {
+  transition: none;
 }
 
 .entity-sidebar.collapsed {

@@ -1,9 +1,15 @@
 <template>
-  <aside class="backend-sidebar" :class="{ collapsed }" data-testid="backend-list-sidebar">
+  <aside
+    ref="sidebarEl"
+    class="backend-sidebar"
+    :class="{ collapsed, resizing: isResizing }"
+    :style="!collapsed && widthPx !== null ? { width: `${widthPx}px` } : undefined"
+    data-testid="backend-list-sidebar"
+  >
     <!--
       Folded, the same rail the artifact sidebars fold to: the hinge back out,
-      + New, and the section's name on its side. Collapse-only, for the same
-      reason — a fixed vocabulary has a comfortable width.
+      + New, and the section's name on its side. Expanded, the right edge
+      drags like the artifact sidebars' does (`useSidebarWidth`).
     -->
     <template v-if="collapsed">
       <button
@@ -163,6 +169,12 @@
       </button>
       <span class="footer-note">Account level · attach to use</span>
     </div>
+    <SidebarResizer
+      v-if="!collapsed"
+      :active="isResizing"
+      @start="startResize"
+      @reset="resetWidth"
+    />
   </aside>
 </template>
 
@@ -175,6 +187,8 @@ import { fuzzyMatches } from '../lib/fuzzy';
 import { useBackendProbes } from '../composables/useBackendProbes';
 import { isBrowserBackendId } from '../composables/useBrowserBackends';
 import { useSidebarCollapse } from '../composables/useSidebarCollapse';
+import { useSidebarWidth } from '../composables/useSidebarWidth';
+import SidebarResizer from './shared/SidebarResizer.vue';
 
 /**
  * The backends list — the same sidebar shape as queries, groups and rule sets,
@@ -201,6 +215,8 @@ const emit = defineEmits<{
 const { probeFor, healthFor, probingAll } = useBackendProbes();
 
 const { collapsed, toggle: toggleCollapsed } = useSidebarCollapse('backends');
+const sidebarEl = ref<HTMLElement | null>(null);
+const { widthPx, isResizing, startResize, resetWidth } = useSidebarWidth('backends', sidebarEl);
 
 const filter = ref('');
 
@@ -253,8 +269,13 @@ function healthTitle(id: string): string {
   flex-direction: column;
   min-height: 0;
   background: var(--surface-subtle);
+  position: relative;
   border-right: 1px solid var(--border-default);
   transition: width 0.18s ease;
+}
+
+.backend-sidebar.resizing {
+  transition: none;
 }
 
 .backend-sidebar.collapsed {

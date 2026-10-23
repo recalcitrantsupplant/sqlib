@@ -349,3 +349,61 @@ describe('ArgumentSetSwitcher renaming', () => {
     w.unmount();
   });
 });
+
+/**
+ * The set list: New at the top, then a filter over the sets, the same box and
+ * the same fuzzy rule as the other lists of names.
+ */
+describe('ArgumentSetSwitcher list', () => {
+  const props = {
+    displayName: 'Perth',
+    stateLabel: '',
+    isScratch: false,
+    hasDraft: false,
+    hasSelection: true,
+    editCount: 0,
+    draftSavedAt: null,
+    scratchSets: [{ id: 's1', name: 'Scratch cities', meta: '2 rows' }],
+    savedSets: [
+      { id: 'a', name: 'Perth', meta: 'v1' },
+      { id: 'b', name: 'Hobart', meta: 'v2' },
+    ],
+    versions: [],
+    runTarget: { kind: 'draft' as const },
+  };
+
+  async function openList(w: ReturnType<typeof mount>) {
+    await w.get('[data-testid="argument-set-switcher"]').trigger('keydown', { key: 'Enter' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
+  const rowNames = () =>
+    [...document.querySelectorAll<HTMLElement>('.set-row-name')].map((row) => row.textContent?.trim());
+
+  it('puts New scratch set first and focuses the filter', async () => {
+    const w = mount(ArgumentSetSwitcher, { props, attachTo: document.body });
+    await openList(w);
+
+    expect(rowNames()).toEqual(['New scratch set', 'Scratch cities', 'Perth', 'Hobart']);
+    expect(document.activeElement?.getAttribute('data-testid')).toBe('argument-set-filter');
+    w.unmount();
+  });
+
+  it('filters the sets by name and keeps New', async () => {
+    const w = mount(ArgumentSetSwitcher, { props, attachTo: document.body });
+    await openList(w);
+
+    const box = document.querySelector<HTMLInputElement>('[data-testid="argument-set-filter"]')!;
+    box.value = 'hbrt';
+    box.dispatchEvent(new Event('input'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(rowNames()).toEqual(['New scratch set', 'Hobart']);
+
+    box.value = 'zzz';
+    box.dispatchEvent(new Event('input'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(rowNames()).toEqual(['New scratch set']);
+    expect(document.body.textContent).toContain('Nothing matches “zzz”.');
+    w.unmount();
+  });
+});

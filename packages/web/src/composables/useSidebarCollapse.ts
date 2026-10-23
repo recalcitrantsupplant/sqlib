@@ -3,13 +3,10 @@ import { computed, ref, unref, type Ref } from 'vue';
 /**
  * Whether a section's list sidebar is folded to its icon rail.
  *
- * The left sidebar collapses; it does not drag. It lists a fixed vocabulary —
- * a section's saved and scratch items, at one of two row densities — so its
- * comfortable width is a design decision rather than a per-user one, and a
- * hinge that snaps between the full list and a narrow rail gives the whole
- * benefit (the screen back, when you are heads-down in the editor) without a
- * second dimension of state to remember. The right-hand panels, where content
- * length genuinely varies, are the ones that drag — see `usePanelResize`.
+ * A hinge that snaps between the full list and a narrow rail gives the screen
+ * back when you are heads-down in the editor. The expanded width is a separate
+ * fact — the edge drags, because saved names run long — and lives in
+ * `useSidebarWidth`, so folding and unfolding returns to the width you chose.
  *
  * The flag is per work area, not global: Queries and Backends are different
  * jobs, and folding the list away in one says nothing about the other.
