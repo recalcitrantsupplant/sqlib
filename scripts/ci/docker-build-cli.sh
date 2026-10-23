@@ -10,9 +10,14 @@ IMAGE="${IMAGE:-sqlib-cli:ci}"
 SAMPLE="$REPO_ROOT/examples/docker/cli-minimal/sample"
 
 log "build $IMAGE"
-docker build -f "$REPO_ROOT/examples/docker/cli-minimal/Dockerfile" -t "$IMAGE" "$REPO_ROOT"
+# --network=host for the self-hosted runner's broken bridge networking, as in
+# docker-build-push.sh: on a bridge endpoint `pnpm install` cannot reach the
+# registry and times out.
+docker build --network=host -f "$REPO_ROOT/examples/docker/cli-minimal/Dockerfile" -t "$IMAGE" "$REPO_ROOT"
 
-run() { docker run --rm -v "$SAMPLE:/work:ro" "$IMAGE" "$@"; }
+# The commands read only the mounted sample files, so they get no network at
+# all rather than a bridge endpoint that may fail to be created.
+run() { docker run --rm --network=none -v "$SAMPLE:/work:ro" "$IMAGE" "$@"; }
 expect() {
   local name="$1" needle="$2" output="$3"
   if ! grep -qF -- "$needle" <<<"$output"; then

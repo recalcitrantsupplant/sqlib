@@ -247,8 +247,8 @@ startup and merges what it finds over the build-time values:
 
 Keys are the flag keys, not the environment variable names, and a partial object
 is merged over the build-time flags rather than replacing them. The same file
-also overrides `authIssuer`, `authClientId`, `authAudience`, `authScope` and
-`authRequireLogin`. A
+also overrides `authIssuer`, `authClientId`, `authAudience`, `authScope`,
+`authTokenStorage` and `authRequireLogin`. A
 missing file, a response that is not JSON, or a parse failure logs a warning and
 leaves the build-time values in place, so a deployment that serves no
 `/config.json` behaves exactly as it was built.

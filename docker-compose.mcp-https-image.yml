@@ -28,6 +28,18 @@ services:
       LIBRARY_STORAGE_SPARQL_ENDPOINT: http://fuseki:3030/testing123
       LIBRARY_STORAGE_SPARQL_QUERY_ENDPOINT: http://fuseki:3030/testing123
       LIBRARY_STORAGE_SPARQL_UPDATE_ENDPOINT: http://fuseki:3030/testing123
+      # Auth stays off unless `.env` turns it on. With `--profile auth`, see
+      # .env.auth.example: the issuer is the Rauthy service below, and the
+      # keys are fetched over the compose network, since `localhost` inside
+      # this container is not the browser's.
+      SQLIB_AUTH_MODE: ${SQLIB_AUTH_MODE:-disabled}
+      SQLIB_AUTH_ISSUER: ${SQLIB_AUTH_ISSUER:-}
+      SQLIB_AUTH_AUDIENCE: ${SQLIB_AUTH_AUDIENCE:-}
+      SQLIB_AUTH_RESOURCE: ${SQLIB_AUTH_RESOURCE:-}
+      SQLIB_AUTH_JWKS_URI: ${SQLIB_AUTH_JWKS_URI:-}
+      SQLIB_AUTH_CLAIM_GROUPS: ${SQLIB_AUTH_CLAIM_GROUPS:-groups}
+      SQLIB_AUTH_ADMIN_PRINCIPALS: ${SQLIB_AUTH_ADMIN_PRINCIPALS:-}
+      SQLIB_CORS_ORIGINS: ${SQLIB_CORS_ORIGINS:-}
     volumes:
       - ./storage:/app/packages/api/storage
     extra_hosts:
@@ -66,6 +78,66 @@ services:
     networks:
       - mcpnet
 
+  # The reference broker (docs/design/auth-architecture.md), under
+  # `--profile auth`. One instance on http://localhost:8080 with its embedded
+  # database on a volume; every secret from `.env` (copy .env.auth.example).
+  rauthy:
+    image: ghcr.io/sebadob/rauthy:0.37.2
+    profiles: [auth]
+    restart: unless-stopped
+    environment:
+      HQL_SECRET_RAFT: ${RAUTHY_SECRET_RAFT:-}
+      HQL_SECRET_API: ${RAUTHY_SECRET_API:-}
+      ENC_KEYS: ${RAUTHY_ENC_KEY:-}
+      ENC_KEY_ACTIVE: ${RAUTHY_ENC_KEY_ID:-}
+      BOOTSTRAP_ADMIN_PASSWORD_PLAIN: ${RAUTHY_ADMIN_PASSWORD:-}
+      # The definition of the API key rauthy-setup uses: rauthy/api-key.json,
+      # as `jq -cj . rauthy/api-key.json | base64 -w0`. Read only while the
+      # database is first created. The secret is the part that matters.
+      BOOTSTRAP_API_KEY: eyJuYW1lIjoic3FsaWItc2V0dXAiLCJleHAiOm51bGwsImFjY2VzcyI6W3siZ3JvdXAiOiJDbGllbnRzIiwiYWNjZXNzX3JpZ2h0cyI6WyJyZWFkIiwiY3JlYXRlIiwidXBkYXRlIl19LHsiZ3JvdXAiOiJTZWNyZXRzIiwiYWNjZXNzX3JpZ2h0cyI6WyJyZWFkIl19LHsiZ3JvdXAiOiJBdXRoUHJvdmlkZXJzIiwiYWNjZXNzX3JpZ2h0cyI6WyJyZWFkIiwiY3JlYXRlIiwidXBkYXRlIl19XX0=
+      BOOTSTRAP_API_KEY_SECRET: ${RAUTHY_API_KEY_SECRET:-}
+      DYN_CLIENT_ALLOWED_RESOURCES: ${SQLIB_AUTH_RESOURCE:-}
+      EPHEMERAL_CLIENTS_ALLOWED_RESOURCES: ${SQLIB_AUTH_RESOURCE:-}
+    volumes:
+      - ./rauthy/config.toml:/app/config.toml:ro
+      - rauthy-data:/app/data
+    ports:
+      - "8080:8080"
+    networks:
+      - mcpnet
+
+  # Creates the clients and upstream providers through Rauthy's admin API,
+  # then exits. Safe to run again: `docker compose run --rm rauthy-setup`.
+  rauthy-setup:
+    image: alpine:3.22
+    profiles: [auth]
+    entrypoint: ["/bin/sh", "-c", "apk add --no-cache -q curl jq && exec /bin/sh /setup.sh"]
+    environment:
+      RAUTHY_URL: http://rauthy:8080
+      RAUTHY_API_KEY_SECRET: ${RAUTHY_API_KEY_SECRET:-}
+      SQLIB_AUTH_RESOURCE: ${SQLIB_AUTH_RESOURCE:-}
+      SQLIB_WEB_ORIGINS: ${SQLIB_WEB_ORIGINS:-http://localhost:3001}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      ENTRA_ISSUER: ${ENTRA_ISSUER:-}
+      ENTRA_CLIENT_ID: ${ENTRA_CLIENT_ID:-}
+      ENTRA_CLIENT_SECRET: ${ENTRA_CLIENT_SECRET:-}
+      AAF_ISSUER: ${AAF_ISSUER:-}
+      AAF_CLIENT_ID: ${AAF_CLIENT_ID:-}
+      AAF_CLIENT_SECRET: ${AAF_CLIENT_SECRET:-}
+    volumes:
+      - ./rauthy/setup.sh:/setup.sh:ro
+    depends_on:
+      - rauthy
+    restart: "no"
+    networks:
+      - mcpnet
+
 networks:
   mcpnet:
     driver: bridge
+
+volumes:
+  rauthy-data:

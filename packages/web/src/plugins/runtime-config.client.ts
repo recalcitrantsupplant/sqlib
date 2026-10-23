@@ -17,6 +17,8 @@ interface RuntimeConfigOverride {
   authClientId?: string;
   authAudience?: string;
   authScope?: string;
+  /** Where the signed-in user is kept: `memory` (default), `session` or `local`; see `userStoreFor`. */
+  authTokenStorage?: 'local' | 'session' | 'memory';
   /** Sign in even when the API reports auth `disabled`; see `requireLogin` in useAuth. */
   authRequireLogin?: boolean;
 }
@@ -66,8 +68,9 @@ export default defineNuxtPlugin({
       runtimeConfig.public.mcpUrl = config.mcpUrl;
     }
 
-    // OIDC settings, so one build serves every environment.
-    for (const key of ['authIssuer', 'authClientId', 'authAudience', 'authScope'] as const) {
+    // OIDC settings, so one build serves every environment. The issuer is
+    // normally left out: the API's protected-resource metadata names it.
+    for (const key of ['authIssuer', 'authClientId', 'authAudience', 'authScope', 'authTokenStorage'] as const) {
       if (config[key]) {
         runtimeConfig.public[key] = config[key];
       }

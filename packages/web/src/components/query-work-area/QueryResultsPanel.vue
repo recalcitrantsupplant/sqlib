@@ -121,7 +121,23 @@
           size="sm"
           title="No argument set open"
           description="Pick one, or start a scratch set."
-        />
+        >
+          <!--
+            The way out of the empty state, in the empty state: the same New
+            scratch set the switcher's menu opens with, one click instead of two.
+          -->
+          <template #actions>
+            <button
+              type="button"
+              class="btn-compact"
+              data-testid="arguments-empty-new-scratch"
+              :disabled="args.isLoading.value"
+              @click="args.createScratch()"
+            >
+              <Plus :size="13" />New scratch set
+            </button>
+          </template>
+        </EmptyState>
       </div>
 
       <ArgumentSetFooter
@@ -218,7 +234,7 @@
 
 <script setup lang="ts">
 import { ref, watch, computed, nextTick } from 'vue';
-import { Info } from '@lucide/vue';
+import { Info, Plus } from '@lucide/vue';
 import { toast } from 'vue-sonner';
 import QueryResultsViewer from '../QueryResultsViewer.vue';
 import InspectorPanel, { type InspectorTab } from '../shared/InspectorPanel.vue';
@@ -749,8 +765,10 @@ const hasDetectedOutputs = computed(() => {
  */
 .arguments-hint {
   display: flex;
+  justify-content: center;
   gap: var(--space-2);
   margin: 0;
+  text-align: center;
   padding: var(--space-4);
   background: var(--info-surface);
   border: 1px solid var(--info-border);

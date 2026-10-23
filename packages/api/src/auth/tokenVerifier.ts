@@ -7,8 +7,12 @@
 import { createRemoteJWKSet, jwtVerify, type JWTPayload, type JWTVerifyGetKey } from 'jose';
 import type { AuthConfig, IssuerConfig } from './config.js';
 
-/** Asymmetric algorithms only. HS* would let a leaked public key mint tokens. */
-const ALLOWED_ALGORITHMS = ['RS256', 'RS384', 'RS512', 'PS256', 'PS384', 'PS512', 'ES256', 'ES384'];
+/**
+ * Asymmetric algorithms only. HS* would let a leaked public key mint tokens.
+ * EdDSA because it is Rauthy's default, and the default of every client an MCP
+ * client registers there for itself (design/auth-architecture.md).
+ */
+const ALLOWED_ALGORITHMS = ['RS256', 'RS384', 'RS512', 'PS256', 'PS384', 'PS512', 'ES256', 'ES384', 'EdDSA'];
 
 export type TokenErrorKind =
   | 'missing'
@@ -74,9 +78,50 @@ function isTokenKeyMismatch(error: unknown): boolean {
   return typeof code === 'string' && TOKEN_KEY_MISMATCH_CODES.has(code);
 }
 
+function issuerBase(issuer: string): string {
+  return issuer.endsWith('/') ? issuer.slice(0, -1) : issuer;
+}
+
 function defaultJwksUri(issuer: string): string {
-  const base = issuer.endsWith('/') ? issuer.slice(0, -1) : issuer;
-  return `${base}/.well-known/jwks.json`;
+  return `${issuerBase(issuer)}/.well-known/jwks.json`;
+}
+
+/**
+ * Where an issuer publishes its keys, from its OIDC discovery document
+ * (OpenID Connect Discovery §4). Few brokers serve `/.well-known/jwks.json`
+ * (Rauthy: `/oidc/certs`; Keycloak: `/protocol/openid-connect/certs`; Entra:
+ * `/discovery/v2.0/keys`), so without this nearly every broker needed
+ * `SQLIB_AUTH_JWKS_URI` as a fourth setting. An issuer with no discovery
+ * document (a 404) keeps the old default. A document naming another issuer
+ * is refused, as §4.3 requires; anything unreachable throws, so the caller
+ * answers 503 and the next request asks again.
+ */
+async function discoverJwksUri(issuer: string): Promise<string> {
+  const response = await fetch(`${issuerBase(issuer)}/.well-known/openid-configuration`, {
+    headers: { accept: 'application/json' },
+    signal: AbortSignal.timeout(5000),
+  });
+  if (response.status === 404) return defaultJwksUri(issuer);
+  if (!response.ok) throw new Error(`Discovery for ${issuer} answered ${response.status}.`);
+  const document = (await response.json()) as { issuer?: unknown; jwks_uri?: unknown };
+  if (document.issuer !== issuer) {
+    throw new Error(`Discovery for ${issuer} names another issuer: ${String(document.issuer)}.`);
+  }
+  if (typeof document.jwks_uri !== 'string') throw new Error(`Discovery for ${issuer} has no jwks_uri.`);
+  return document.jwks_uri;
+}
+
+function remoteKeySet(uri: string, issuer: string): JWTVerifyGetKey {
+  let parsed: URL;
+  try {
+    parsed = new URL(uri);
+  } catch {
+    throw new TokenError('jwks-unavailable', `Invalid JWKS URI for issuer ${issuer}: ${uri}`);
+  }
+  return createRemoteJWKSet(parsed, {
+    cacheMaxAge: 10 * 60 * 1000,
+    cooldownDuration: 30 * 1000,
+  });
 }
 
 export class TokenVerifier {
@@ -97,20 +142,27 @@ export class TokenVerifier {
     const existing = this.jwks.get(issuerConfig.issuer);
     if (existing) return existing;
 
-    const uri = issuerConfig.jwksUri ?? defaultJwksUri(issuerConfig.issuer);
-    let parsed: URL;
-    try {
-      parsed = new URL(uri);
-    } catch {
-      throw new TokenError('jwks-unavailable', `Invalid JWKS URI for issuer ${issuerConfig.issuer}: ${uri}`);
+    const { issuer, jwksUri } = issuerConfig;
+    if (jwksUri) {
+      const created = remoteKeySet(jwksUri, issuer);
+      this.jwks.set(issuer, created);
+      return created;
     }
 
-    const created = createRemoteJWKSet(parsed, {
-      cacheMaxAge: 10 * 60 * 1000,
-      cooldownDuration: 30 * 1000,
-    });
-    this.jwks.set(issuerConfig.issuer, created);
-    return created;
+    // Discovered on first use and kept once found. A failed discovery is not
+    // kept, so a broker that was down at the first request is found later.
+    let discovered: Promise<JWTVerifyGetKey> | null = null;
+    const lazy: JWTVerifyGetKey = async (protectedHeader, flattened) => {
+      discovered ??= discoverJwksUri(issuer)
+        .then(uri => remoteKeySet(uri, issuer))
+        .catch((error: unknown) => {
+          discovered = null;
+          throw error;
+        });
+      return (await discovered)(protectedHeader, flattened);
+    };
+    this.jwks.set(issuer, lazy);
+    return lazy;
   }
 
   /** Extracts a bearer token from an Authorization header value. */

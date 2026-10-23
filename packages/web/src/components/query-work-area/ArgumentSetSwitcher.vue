@@ -39,14 +39,46 @@
             <ChevronsUpDown :size="13" class="name-chevron" />
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" class="set-menu">
-          <template v-if="scratchSets.length">
+        <DropdownMenuContent align="start" class="set-menu" @open-auto-focus="focusFilter">
+          <!--
+            New first, then the filter, then the sets. At the foot of the list
+            it moved down every time a set was added, and fell off the bottom
+            of a long menu.
+          -->
+          <DropdownMenuItem class="set-row set-row--new" data-testid="argument-new-scratch" @select="emit('create-scratch')">
+            <Plus :size="13" />
+            <span class="set-row-name">New scratch set</span>
+          </DropdownMenuItem>
+
+          <template v-if="scratchSets.length || savedSets.length">
+            <DropdownMenuSeparator />
+            <!--
+              The same box as the other lists (`FilterBox`, fuzzy on the name).
+              A menu reads typed characters as typeahead, so they stop here;
+              ArrowDown hands focus on to the first row.
+            -->
+            <div class="set-filter" @keydown="onFilterKeydown">
+              <FilterBox
+                ref="filterBox"
+                v-model="filter"
+                placeholder="Filter sets…"
+                aria-label="Filter argument sets"
+                test-id="argument-set-filter"
+              />
+            </div>
+            <InlineNote v-if="!visibleScratch.length && !visibleSaved.length" size="xs" class="set-filter-empty">
+              Nothing matches “{{ filter }}”.
+            </InlineNote>
+          </template>
+
+          <template v-if="visibleScratch.length">
+            <DropdownMenuSeparator />
             <DropdownMenuLabel class="menu-heading">
               Scratch
-              <span class="menu-heading-count">{{ scratchSets.length }}</span>
+              <span class="menu-heading-count">{{ visibleScratch.length }}</span>
             </DropdownMenuLabel>
             <DropdownMenuItem
-              v-for="entry in scratchSets"
+              v-for="entry in visibleScratch"
               :key="entry.id"
               class="set-row"
               @select="emit('select-scratch', entry.id)"
@@ -56,14 +88,14 @@
             </DropdownMenuItem>
           </template>
 
-          <template v-if="savedSets.length">
-            <DropdownMenuSeparator v-if="scratchSets.length" />
+          <template v-if="visibleSaved.length">
+            <DropdownMenuSeparator />
             <DropdownMenuLabel class="menu-heading">
               Saved
-              <span class="menu-heading-count">{{ savedSets.length }}</span>
+              <span class="menu-heading-count">{{ visibleSaved.length }}</span>
             </DropdownMenuLabel>
             <DropdownMenuItem
-              v-for="entry in savedSets"
+              v-for="entry in visibleSaved"
               :key="entry.id"
               class="set-row"
               @select="emit('select-set', entry.id)"
@@ -72,12 +104,6 @@
               <span class="set-row-meta">{{ entry.meta }}</span>
             </DropdownMenuItem>
           </template>
-
-          <DropdownMenuSeparator v-if="scratchSets.length || savedSets.length" />
-          <DropdownMenuItem class="set-row set-row--new" data-testid="argument-new-scratch" @select="emit('create-scratch')">
-            <Plus :size="13" />
-            <span class="set-row-name">New scratch set</span>
-          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 
@@ -167,6 +193,8 @@ import {
 } from '../ui/dropdown-menu';
 import type { RunTarget } from '@/composables/useArgumentSets';
 import InlineNote from '../shared/InlineNote.vue';
+import FilterBox from '../shared/FilterBox.vue';
+import { fuzzyMatches } from '@/lib/fuzzy';
 
 /** One row in the switcher list. `meta` is the right-hand grey text. */
 export interface SwitcherEntry {
@@ -234,6 +262,43 @@ function commitRename() {
   renaming.value = false;
   if (!next || next === props.displayName) return;
   emit('rename', next);
+}
+
+/**
+ * Fuzzy on the name, the rule every list of names filters by (`lib/fuzzy`).
+ * The rows keep their own order — scratch, then saved — so the filter removes
+ * rows rather than shuffling them.
+ */
+const filter = ref('');
+const filterBox = useTemplateRef<InstanceType<typeof FilterBox>>('filterBox');
+const visibleScratch = computed(() =>
+  props.scratchSets.filter((entry) => fuzzyMatches(filter.value, entry.name || 'Untitled set', entry.meta)),
+);
+const visibleSaved = computed(() =>
+  props.savedSets.filter((entry) => fuzzyMatches(filter.value, entry.name, entry.meta)),
+);
+
+/** Each opening starts from the whole list, with the caret in the filter. */
+function focusFilter(event: Event) {
+  filter.value = '';
+  const input = (filterBox.value?.$el as HTMLElement | undefined) ?? null;
+  if (!input) return;
+  event.preventDefault();
+  input.focus();
+}
+
+function onFilterKeydown(event: KeyboardEvent) {
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    const menu = (event.currentTarget as HTMLElement).closest('[role="menu"]');
+    const rows = menu?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([data-disabled])') ?? [];
+    // The first row is New, above the box; the first set is the one after it.
+    const below = [...rows].find((row) => row.compareDocumentPosition(event.currentTarget as Node) & Node.DOCUMENT_POSITION_PRECEDING);
+    below?.focus();
+    return;
+  }
+  if (event.key === 'Escape' || event.key === 'Tab') return;
+  event.stopPropagation();
 }
 
 const hasVersions = computed(() => props.versions.length > 0);
@@ -512,6 +577,14 @@ const activeRunKey = computed(() =>
   font-size: var(--text-micro);
   color: var(--ink-muted);
   white-space: nowrap;
+}
+
+.set-filter {
+  padding: var(--space-1) var(--space-2);
+}
+
+.set-filter-empty {
+  padding: var(--space-1) var(--space-3);
 }
 
 .set-row--new {

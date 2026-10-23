@@ -43,7 +43,11 @@ skipping the decoration. Nothing downstream branches on "is auth on", so an
 enforcement point cannot be accidentally absent in one mode and present in
 another.
 
-`/health` and `/` are public in every mode. `/docs` and the routes under it are
+`/health`, `/` and the protected-resource metadata
+(`/.well-known/oauth-protected-resource` and its path-suffixed forms) are
+public in every mode. Every 401 names that metadata in
+`WWW-Authenticate: Bearer resource_metadata="…"`, which is how a client finds
+the authorization server (RFC 9728). `/docs` and the routes under it are
 public unless `SQLIB_AUTH_PROTECT_DOCS=true`. Public routes are matched by the
 route pattern Fastify registered (after `APP_BASE_PATH`), not by the raw URL, so
 a route such as `/backends/:id/health` is not public because of its last
@@ -53,8 +57,10 @@ segment.
 
 `tokenVerifier.ts` validates JWTs against issuers you configure. sqlib is a
 resource server only: it never issues, stores or resets a credential. Only
-asymmetric algorithms are accepted (`RS*`, `PS*`, `ES256`, `ES384`); `HS*` is
-excluded so that a leaked public key cannot mint tokens.
+asymmetric algorithms are accepted (`RS*`, `PS*`, `ES256`, `ES384`, `EdDSA`);
+`HS*` is excluded so that a leaked public key cannot mint tokens. The key set
+comes from `SQLIB_AUTH_JWKS_URI`, or else from the issuer's OIDC discovery
+document, which must name the same issuer.
 
 Claims become principals: the subject, each value of the configured group claim,
 and a sentinel matching every authenticated caller.

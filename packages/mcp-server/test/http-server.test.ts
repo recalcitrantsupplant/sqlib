@@ -301,4 +301,31 @@ describe('MCP under SQLIB_AUTH_MODE=required', { timeout: 30_000 }, () => {
     expect(response.headers.get('www-authenticate')).toMatch(/^Bearer/);
     expect(sessions.size).toBe(0);
   });
+
+  it('lets a browser client read the 401 challenge and fetch the metadata it names', async () => {
+    const allowed = 'https://inspector.example';
+    const { url } = await startHarness({
+      corsPolicy: { any: false, origins: new Set([allowed]) },
+      prepare: async (app) => {
+        resetAuthConfig({
+          SQLIB_AUTH_MODE: 'required',
+          SQLIB_AUTH_ISSUER: 'https://issuer.test/',
+          SQLIB_AUTH_AUDIENCE: 'sqlib-api',
+          SQLIB_AUTH_JWKS_URI: 'https://issuer.test/jwks',
+        } as NodeJS.ProcessEnv);
+        await registerAuthPlugin(app);
+      },
+    });
+    const response = await post(url, initializeMessage(), { origin: allowed });
+    expect(response.status).toBe(401);
+    expect(response.headers.get('access-control-allow-origin')).toBe(allowed);
+    expect(response.headers.get('access-control-expose-headers')).toContain('WWW-Authenticate');
+    await response.text();
+
+    const metadataUrl = /resource_metadata="([^"]+)"/.exec(response.headers.get('www-authenticate') ?? '')?.[1];
+    expect(metadataUrl).toBeDefined();
+    const metadata = await fetch(metadataUrl!);
+    expect(metadata.status).toBe(200);
+    expect(await metadata.json()).toMatchObject({ authorization_servers: ['https://issuer.test/'] });
+  });
 });

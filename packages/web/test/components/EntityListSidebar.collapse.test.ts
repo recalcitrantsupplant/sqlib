@@ -7,10 +7,8 @@ import {
 } from '@/composables/useSidebarCollapse';
 
 /**
- * The left sidebar's hinge: collapse-only, remembered per section.
- *
- * It is deliberately not drag-resizable — the list has a fixed vocabulary, so
- * the only width question worth asking is "list or rail?".
+ * The left sidebar's hinge, remembered per section. The drag edge is a
+ * separate fact, covered in EntityListSidebar.width.test.ts.
  */
 
 function mountSidebar(props: Record<string, unknown> = {}) {

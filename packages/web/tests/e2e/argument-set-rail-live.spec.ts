@@ -37,10 +37,13 @@ async function openQueryArguments(page: Page) {
   await page.locator('[data-testid="arguments-tab"]').click();
 }
 
-/** Pick the one scratch set out of the switcher's Scratch cluster. */
+/**
+ * Pick the one scratch set out of the switcher's Scratch cluster. New scratch
+ * set heads the menu, so the first set is the first row that is not it.
+ */
 async function reopenScratchSet(page: Page) {
   await switcher(page).click();
-  await page.locator('.set-menu .set-row').first().click();
+  await page.locator('.set-menu .set-row:not(.set-row--new)').first().click();
   await expect(state(page)).toHaveText('Scratch');
 }
 

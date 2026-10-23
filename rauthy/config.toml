@@ -1,0 +1,73 @@
+# Rauthy, the reference broker for sqlib (docs/design/auth-architecture.md).
+#
+# For the `auth` profile in docker-compose.mcp-https-image.yml: one instance,
+# plain HTTP on http://localhost:8080, embedded database in /app/data. Every
+# secret comes from `.env` through the environment (see .env.auth.example);
+# nothing in this file is secret. Clients, the API key's grants and upstream
+# providers are created by rauthy/setup.sh, because Rauthy's own bootstrap
+# files cannot set a client's `allowed_resources` or `default_aud`.
+#
+# Reference: https://sebadob.github.io/rauthy/config/config.html (v0.37.2).
+
+[access]
+# A client-credentials token has a null `sub` otherwise, and sqlib requires a
+# subject. With this on, `sub` is the client id, and `principals.ts` sees
+# `azp == sub` and classifies the caller as a `client` principal.
+client_credentials_map_sub = true
+# Local HTTP only: the secure cookie modes need HTTPS. Never in production.
+cookie_mode = "danger-insecure"
+
+[bootstrap]
+admin_email = "admin@localhost"
+# BOOTSTRAP_ADMIN_PASSWORD_PLAIN, BOOTSTRAP_API_KEY and
+# BOOTSTRAP_API_KEY_SECRET come from the environment.
+
+[cluster]
+node_id = 1
+nodes = ["1 localhost:8100 localhost:8200"]
+data_dir = "data"
+# HQL_SECRET_RAFT and HQL_SECRET_API come from the environment.
+
+[dynamic_clients]
+# MCP clients that do not speak Client ID Metadata Documents register here.
+# Open registration, rate-limited per IP, with unused registrations cleaned up
+# after an hour. Set DYN_CLIENT_REG_TOKEN to close it.
+enable = true
+allowed_scopes = ["openid", "profile", "email", "groups"]
+default_scopes = ["openid", "profile", "email", "groups"]
+# DYN_CLIENT_ALLOWED_RESOURCES (sqlib's resource identifier) comes from the
+# environment, so this file does not name a deployment.
+
+# No [email] section: without `smtp_url` Rauthy logs each mail instead of
+# sending it, which is what a local profile wants. Set SMTP_URL and the
+# SMTP_* variables to send real mail.
+
+[encryption]
+# ENC_KEYS and ENC_KEY_ACTIVE come from the environment.
+
+[ephemeral_clients]
+# Client ID Metadata Documents: the MCP specification's preferred way for a
+# client to identify itself. The client's id is an HTTPS URL serving its
+# metadata, and Rauthy fetches it.
+enable = true
+allowed_flows = ["authorization_code", "refresh_token"]
+allowed_scopes = ["openid", "profile", "email", "groups"]
+default_scopes = ["openid", "profile", "email", "groups"]
+# claude.ai's metadata document lists grant types Rauthy does not know.
+ignore_unknown_auth_flows = true
+# EPHEMERAL_CLIENTS_ALLOWED_RESOURCES comes from the environment.
+
+[events]
+email = "admin@localhost"
+
+[lifetimes]
+# Refresh tokens are always single-use and rotated in Rauthy.
+refresh_token_lifetime = "2d"
+
+[server]
+scheme = "http"
+pub_url = "localhost:8080"
+
+[webauthn]
+rp_id = "localhost"
+rp_origin = "http://localhost:8080"
