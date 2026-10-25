@@ -8,13 +8,14 @@
  * configuration. The host decides the profile: the API reads it from the
  * environment and defaults every capability to off; the CLI takes it from flags.
  *
- * WHAT ACTUALLY ENFORCES ANYTHING, measured against @duckdb/node-api 1.5.5-r.4
- * (DuckDB v1.5.5) rather than taken from the documentation. Every claim below
- * was re-measured on 1.5.5 when we moved off 1.4.3; none of them changed:
+ * WHAT ACTUALLY ENFORCES ANYTHING, measured against @duckdb/node-api 2.0.0-r.1
+ * (DuckDB v2.0.0) rather than taken from the documentation. Every claim below
+ * was re-measured on 1.5.5 when we moved off 1.4.3, and again on 2.0.0 when we
+ * moved off 1.5.5; none of them changed:
  *
  *   - `enable_external_access=false` at instance creation blocks file reads,
  *     network reads and INSTALL. It is startup-only: `SET enable_external_access=true`
- *     on a live database fails with "Cannot change ... while database is running".
+ *     on a live database fails ("Cannot enable external access while database is running" on 2.0.0).
  *     This is the one hard boundary available to us.
  *   - `autoinstall_known_extensions` / `autoload_known_extensions` = false stop
  *     httpfs (and friends) appearing on demand.
@@ -28,8 +29,8 @@
  * outright by this binding's instance config ("Failed to set config"), and when
  * set over SQL they are accepted and then enforce nothing — with
  * `allowed_directories=['/tmp']` set and the configuration locked,
- * `read_csv('/etc/passwd')` still returns rows. Still true on 1.5.5, so the
- * upgrade did not buy us the allowlist. A knob that appears to confine ETL to a
+ * `read_csv('/etc/passwd')` still returns rows. Still true on 1.5.5 and on
+ * 2.0.0, so neither upgrade bought us the allowlist. A knob that appears to confine ETL to a
  * directory but does not is worse than no knob, so filesystem access here is
  * all-or-nothing until the binding supports it.
  */
@@ -62,7 +63,7 @@ export type DuckDbCapabilities = {
  * was no deadline and no memory ceiling, so `SELECT count(*) FROM
  * range(100000000000)` held a worker and the request that started it for as
  * long as it took. Both halves of the fix are measured against
- * @duckdb/node-api 1.5.5-r.4:
+ * @duckdb/node-api 1.5.5-r.4, and re-measured on 2.0.0-r.1:
  *
  *   - `connection.interrupt()` cancels the in-flight query: the pending
  *     `runAndReadAll` rejects with "INTERRUPT Error: Interrupted!", and the
