@@ -1,3 +1,0 @@
-PREFIX :    <http://example/>
-RULE { :staff :rows ?r ; :employees ?e }
-WHERE { GROUP { ?x :salary ?s } [ ?r := COUNT(?x) , ?e := COUNT(DISTINCT ?x) ] }

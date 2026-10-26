@@ -1,2 +1,0 @@
-PREFIX :    <http://example/>
-RULE { ?s :n ?n } WHERE { GROUP BY ?s { ?s :p [] } [ ?n := COUNT(*) ] }

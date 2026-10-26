@@ -1,39 +1,68 @@
 W3C SPARQL-RL test suite — vendored snapshot
-Source: https://github.com/w3c/data-shapes/tree/gh-pages/shacl12-test-suite/tests/sparql-rl
-Branch: gh-pages
-Commit: 9c863967bceaef1a87c24e4dd761eda763823120
+Source: https://github.com/w3c/data-shapes/tree/srl-group-tests/shacl12-test-suite/tests/sparql-rl
+Branch: srl-group-tests
+Commit: 87514ecb410bedb6cd0640b980b4b7bc10f2f411
+Plus:   the test files of branch srl-aggregation-comma at
+        a3eac70d93f94007f23d99c328f667c0e6a0b271
+PRs:    srl-group-tests is w3c/data-shapes#1380; srl-aggregation-comma is #1375
+Base:   gh-pages at a6ed26f7385d6e03eeb8441d72d3c172d27657c7; #1380 is not behind it
 Dirs:   syntax/ wellformed/ stratification/ eval/ eval2/ examples/
-To refresh: re-run the download in packages/srl/test/w3c (see git history of this dir).
 
-This pin is on gh-pages, not on an open pull request: #1175 (the SPARQL-RL
-rename, which the previous pin tracked) has merged, and gh-pages has since moved
-past it. The spec is still in development, so a refresh can still change the
-language under us — as this one did.
+This pin assumes two open pull requests merge. #1380 adds the GROUP tests for
+every category. #1375 puts a comma between aggregation assignments. #1380 is
+written as if #1375 has merged, and both are written against #1376 and #1377,
+which change only the specification text: #1377 defines the well-formedness
+conditions and evaluation of GROUP.
 
-What this refresh changed, relative to the #1175 head we pinned before:
+How the snapshot was made:
 
-  Removed syntax. The changelog entry of 2026-08-12 records "FOR ?var IN
-  <shape>" removed, three weeks after 2026-07-18 added it under GH-1074. The
-  grammar file did not follow until w3c/data-shapes#1191 pointed out that
-  ForClause and the IF rule production were still in the BNF and still used by
-  test files; commits 58fdfc6 ("Remove 'FOR' from SRL grammar and tests") and
-  cfbcd3c ("Remove rule IF syntax") took both out on 2026-08-24. There is now
-  one rule production — RULE iri? HeadTemplate 'WHERE' 'DATA'? BodyPattern —
-  and no FOR, IF or THEN anywhere in the grammar.
+  1. Every directory above, README.md and manifest-sparql-rl.ttl were taken
+     unchanged from #1380 at 87514ecb. That commit contains gh-pages at
+     a6ed26f7, so the snapshot is current gh-pages plus #1380.
+  2. From #1375 at a3eac70d: syntax-rule-elements-group-14.srl (now with a
+     comma) and the new syntax-rule-elements-group-bad-09.srl and -bad-10.srl.
+  3. Their two entries were added to syntax/manifest.ttl as :test_172 and
+     :test_173. #1380 leaves those two numbers unused. #1375 numbers them
+     :test_151 and :test_152 and renumbers the entries after them, which would
+     conflict with #1380; the names and files are what matter, and both are
+     unchanged.
 
-  So syntax/ lost the five tests that covered them (syntax-ruleset-structure-07
-  .. -11) and rewrote -06 from the IF form to the RULE form: 144 entries down to
-  139. Both baselines drop those five names; nothing else in either moves. Our
-  parser dropped the same two constructs in step, which is why -06 still passes.
+If either pull request changes before it merges, refresh from its new head.
+After both merge, refresh from gh-pages and drop the composition above.
 
-  Renamed prefix. Every manifest now labels the test vocabulary `srlt:` rather
-  than `srt:`. The namespace IRI is unchanged, so the api harness — which
-  resolves the Turtle and matches on the IRI — never saw it. The srl harness
-  matches the prefixed names textually and did: its regex moved with the label.
-  A future refresh that changes the label again has to move it again.
+What this refresh changed, relative to the previous pin, gh-pages at 9c863967:
 
-Previous pins, for reference: 628cef6f5d0da8cc3fa8d8e97d015e854fbae37b (head of
-PR #1175, the rename), daf91b75edeca5d4a85a641a97e6f3b223485d9b (branch
+  GROUP. #1347 (merged) added syntax-rule-elements-group-01 .. -16 and -bad-01
+  .. -08; #1380 adds 39 more syntax entries and all the GROUP entries in the
+  other categories. The parser harness parses with { aggregates: true }, and
+  the library harness turns the ruleAggregates flag on.
+
+  Other changes on gh-pages since 9c863967: new syntax entries for NOT, SET,
+  rule set structure and RDF 1.2 terms; rewrites of several of the existing
+  ones; four eval entries changed for WHERE DATA and NOT DATA; and
+  stratification-06, -07, -bad-06 and -bad-07. The last two put a triple term
+  with a variable in a rule head inside a cycle. The specification now makes
+  such a rule run-once, and the stratifier follows it.
+
+  Entries: syntax 139 -> 212, wellformed 8 -> 33, stratification 10 -> 21,
+  eval 35 -> 59; eval2 6 and examples 5 are unchanged. 336 in all.
+
+One entry fails, and is out of both baselines. eval-group-13's rule
+
+    RULE { ?t ?st ?n } WHERE {
+        ?t rdf:type :Team
+        GROUP BY ?t ?st { ?t :owns ?c . ?c :status ?st } [ ?n := COUNT(*) ]
+    }
+
+has a variable predicate in its head, so it can generate a triple that matches
+?t :owns ?c in its own group pattern. Under the specification's Rule Dependency
+section that is a closed dependency on itself, and the rule set is not
+stratifiable, so it has no inference graph to compare. sqlib refuses it. The
+test needs WHERE DATA, or a constant predicate in the head, in #1380.
+
+Previous pins, for reference: 9c863967bceaef1a87c24e4dd761eda763823120
+(gh-pages, before #1347 merged), 628cef6f5d0da8cc3fa8d8e97d015e854fbae37b (head
+of PR #1175, the rename), daf91b75edeca5d4a85a641a97e6f3b223485d9b (branch
 srl-tests, PR #1154 — where the evaluation tests were written), and before that
 a46192d6cd85f3125678995dceaf8b8eee8efeba (gh-pages), which had no eval2/ and 27
 fewer eval/ files.
