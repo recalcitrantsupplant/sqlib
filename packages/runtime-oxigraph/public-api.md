@@ -6,7 +6,7 @@
      CI fails when this file and the built declarations disagree, so every
      addition, removal or signature change arrives as a reviewable diff. -->
 
-Version `0.1.0`. 1 entry point, 4 exported names.
+Version `0.1.0`. 1 entry point, 6 exported names.
 
 Private and protected class members are omitted: a consumer cannot reach them.
 Doc comments are omitted too — they are in the source, and repeating them here
@@ -14,7 +14,16 @@ would make every wording change a surface diff.
 
 ## `@sparql-query-lib/runtime-oxigraph`
 
-4 exports, from `index.d.ts`.
+6 exports, from `index.d.ts`.
+
+### `OxigraphDatasetOptions` — interface, from `index`
+
+```ts
+interface OxigraphDatasetOptions {
+    default_graph?: OxigraphNamedNode[];
+    named_graphs?: OxigraphNamedNode[];
+}
+```
 
 ### `oxigraphExecutor` — function, from `index`
 
@@ -34,13 +43,23 @@ interface OxigraphExecutorOptions {
 }
 ```
 
+### `OxigraphNamedNode` — interface, from `index`
+
+```ts
+interface OxigraphNamedNode {
+    readonly termType: 'NamedNode';
+    readonly value: string;
+    equals(other: unknown): boolean;
+}
+```
+
 ### `OxigraphStore` — interface, from `index`
 
 ```ts
 interface OxigraphStore {
     query(query: string, options?: {
         results_format?: string;
-    }): boolean | string | unknown[] | Map<string, unknown>[];
+    } & OxigraphDatasetOptions): boolean | string | unknown[] | Map<string, unknown>[];
     load(input: string, options: {
         format: string;
         base_iri?: string;
