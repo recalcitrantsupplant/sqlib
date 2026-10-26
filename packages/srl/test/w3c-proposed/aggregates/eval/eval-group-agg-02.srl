@@ -1,5 +1,5 @@
 PREFIX : <http://example/>
 
-# SUM counts every solution, so two children aged 10 both count; an empty
-# group sums to 0.
+# SUM counts every solution, so two children aged 10 both count. Amy has no
+# children, so she forms no group and gets no sum.
 RULE { ?x :ageSum ?s } WHERE { ?x a :Person . GROUP BY ?x { ?y :childOf ?x ; :age ?a } [ ?s := SUM(?a) ] }

@@ -1,8 +1,13 @@
 # Proposed SPARQL-RL tests: the order of `NOT`
 
 This file covers `eval/` and `wellformed/`. The cases for `GROUP` aggregation
-are in [`aggregates/`](aggregates/README.md), and the syntax tests of
-w3c/data-shapes#1347, copied from that pull request, are in `pr-1347/syntax/`.
+are in three folders:
+
+- [`pr-1375/`](pr-1375/README.md) holds the suite's own `GROUP` syntax tests,
+  as they stand on w3c/data-shapes#1375.
+- [`group/`](group/README.md) holds the cases proposed for the suite in the
+  data-shapes working notes for #1347.
+- [`aggregates/`](aggregates/README.md) holds sqlib's earlier cases.
 
 Tests we'd like to contribute to the W3C suite
 (`w3c/data-shapes`, `shacl12-test-suite/tests/sparql-rl/`). They use the suite's

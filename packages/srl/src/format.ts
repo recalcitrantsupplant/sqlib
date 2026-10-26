@@ -69,7 +69,9 @@ function formatBodyItem(item: SrlBodyItem, unit: string, depth: number): string[
         return lines;
       }
       lines[lines.length - 1] += ' [';
-      for (const assignment of assignments) lines.push(`${pad}${unit}${assignment}`);
+      assignments.forEach((assignment, i) => {
+        lines.push(`${pad}${unit}${assignment}${i < assignments.length - 1 ? ' ,' : ''}`);
+      });
       lines.push(`${pad}]`);
       return lines;
     }

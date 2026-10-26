@@ -135,9 +135,9 @@ function walkBindOrder(
  * after the `GROUP` is a different variable (w3c/data-shapes#840). Listing it
  * after `GROUP BY` correlates it.
  *
- * A key is bound before the `GROUP`, by its pattern, or both. Only a key bound
- * before can have a row when its group is empty, since nothing else gives it a
- * value.
+ * A key is bound before the `GROUP`, by its pattern, or both. The pattern sees
+ * only the keys bound before it (`GKin` in w3c/data-shapes#1377), so a `SET` in
+ * the pattern may compute a key that the body has not bound.
  */
 function checkAggregates(rule: SrlRule, report: (message: string) => void): void {
   const bound = new Set<string>();
@@ -182,8 +182,10 @@ function checkAggregate(
     }
   });
 
-  // A SET in the pattern follows the body's rule: its target must be new.
-  const patternBound = new Set<string>(keys);
+  // A SET in the pattern follows the body's rule: its target must be new. The
+  // pattern starts from the keys bound before the GROUP (GKin in
+  // w3c/data-shapes#1377), so a SET may compute a key the body has not bound.
+  const patternBound = new Set<string>(keys.filter((k) => boundBefore.has(k)));
   for (const innerItem of item.body) {
     if (innerItem.kind === 'set' && patternBound.has(innerItem.variable)) {
       report(`SET (?${innerItem.variable} := …) in the GROUP pattern re-binds a variable already bound there`);

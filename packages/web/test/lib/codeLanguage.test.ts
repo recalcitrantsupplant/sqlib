@@ -228,14 +228,17 @@ describe('an SRL editor offered SPARQL', () => {
 });
 
 describe('an SRL editor given a GROUP aggregate', () => {
-  it('marks nothing in a well-formed GROUP (w3c/data-shapes#1347)', async () => {
+  // @kurrawongai/codemirror-lang-srl 0.5.0, the latest release, predates the
+  // comma between assignments of w3c/data-shapes#1375 and marks it. Remove
+  // `.fails` once a release of that grammar accepts the comma.
+  it.fails('marks nothing in a well-formed GROUP (w3c/data-shapes#1375)', async () => {
     const doc = [
       'PREFIX : <http://example/>',
       '',
       'RULE { ?c :employees ?n ; :salaryBill ?t } WHERE {',
       '  ?c a :Company .',
       '  GROUP BY ?c { ?x :employee ?c ; :salary ?s FILTER(?s > 0) }',
-      '  [ ?n := COUNT(DISTINCT ?x)',
+      '  [ ?n := COUNT(DISTINCT ?x) ,',
       '    ?t := SUM(?s) ]',
       '}',
     ].join('\n');

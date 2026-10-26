@@ -66,10 +66,10 @@ export function aggregateAssignmentList(item: SrlAggregate): string[] {
   return item.assignments.map((a) => `?${a.variable} := ${serializeSparqlNode('expression', a.aggregate)}`);
 }
 
-/** `[ ?n := COUNT(*) ?m := MAX(?a) ]`, or `[]` with no assignments. */
+/** `[ ?n := COUNT(*) , ?m := MAX(?a) ]`, or `[]` with no assignments. */
 export function aggregateAssignments(item: SrlAggregate): string {
   const parts = aggregateAssignmentList(item);
-  return parts.length > 0 ? `[ ${parts.join(' ')} ]` : '[]';
+  return parts.length > 0 ? `[ ${parts.join(' , ')} ]` : '[]';
 }
 
 /** Serialize a rule head (triple templates plus any tuple templates). */

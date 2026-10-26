@@ -1,0 +1,244 @@
+## Proposed SPARQL-RL tests for GROUP, from data-shapes notes-1347/proposed-tests.html.
+## Same layout and vocabulary as eval/manifest.ttl upstream.
+
+PREFIX :       <https://w3c.github.io/rdf-tests/shacl/shacl12/>
+PREFIX rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs:   <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX mf:     <http://www.w3.org/2001/sw/DataAccess/tests/test-manifest#>
+PREFIX srlt:   <http://www.w3.org/ns/sparql-rl-tests#>
+
+<>  rdf:type mf:Manifest ;
+    rdfs:comment "SPARQL-RL - Evaluation: GROUP (proposed)" ;
+    mf:entries (
+        :eval-group-01
+        :eval-group-02
+        :eval-group-03
+        :eval-group-04
+        :eval-group-05
+        :eval-group-06
+        :eval-group-07
+        :eval-group-08
+        :eval-group-09
+        :eval-group-10
+        :eval-group-11
+        :eval-group-12
+        :eval-group-13
+        :eval-group-14
+        :eval-group-15
+        :eval-group-16
+        :eval-group-17
+        :eval-group-18
+        :eval-group-19
+        :eval-group-20
+        :eval-group-21
+        :eval-group-22
+        :eval-group-23
+    ) .
+
+
+# The example in the overview section, Grouping and Aggregation.
+:eval-group-01 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-01" ;
+    mf:action
+         [ srlt:ruleset  <eval-group-01.srl> ;
+           srlt:data     <eval-group-01-data.ttl> ] ;
+    mf:result  <eval-group-01-results.ttl> ;
+    .
+
+# A GROUP with no keys whose pattern has no solutions.
+:eval-group-02 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-02" ;
+    mf:action
+         [ srlt:ruleset  <eval-group-02.srl> ;
+           srlt:data     <eval-group-02-data.ttl> ] ;
+    mf:result  <eval-group-02-results.ttl> ;
+    .
+
+# SUM keeps equal values, and DISTINCT removes them.
+:eval-group-03 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-03" ;
+    mf:action
+         [ srlt:ruleset  <eval-group-03.srl> ;
+           srlt:data     <eval-group-03-data.ttl> ] ;
+    mf:result  <eval-group-03-results.ttl> ;
+    .
+
+# COUNT(?x) counts solutions, and COUNT(DISTINCT ?x) counts values.
+:eval-group-04 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-04" ;
+    mf:action
+         [ srlt:ruleset  <eval-group-04.srl> ;
+           srlt:data     <eval-group-04-data.ttl> ] ;
+    mf:result  <eval-group-04-results.ttl> ;
+    .
+
+# COUNT(DISTINCT *) equals COUNT(*).
+:eval-group-05 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-05" ;
+    mf:action
+         [ srlt:ruleset  <eval-group-05.srl> ;
+           srlt:data     <eval-group-05-data.ttl> ] ;
+    mf:result  <eval-group-05-results.ttl> ;
+    .
+
+# MIN and MAX compare numbers by value.
+:eval-group-06 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-06" ;
+    mf:action
+         [ srlt:ruleset  <eval-group-06.srl> ;
+           srlt:data     <eval-group-06-data.ttl> ] ;
+    mf:result  <eval-group-06-results.ttl> ;
+    .
+
+# SUM over an integer and a decimal gives a decimal.
+:eval-group-07 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-07" ;
+    mf:action
+         [ srlt:ruleset  <eval-group-07.srl> ;
+           srlt:data     <eval-group-07-data.ttl> ] ;
+    mf:result  <eval-group-07-results.ttl> ;
+    .
+
+# An error in one aggregation drops the whole group, including assignments that did not fail.
+:eval-group-08 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-08" ;
+    mf:action
+         [ srlt:ruleset  <eval-group-08.srl> ;
+           srlt:data     <eval-group-08-data.ttl> ] ;
+    mf:result  <eval-group-08-results.ttl> ;
+    .
+
+# A pattern variable with the same name as an earlier variable that is not a key is a separate variable, and the earlier binding reaches the head.
+:eval-group-09 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-09" ;
+    mf:action
+         [ srlt:ruleset  <eval-group-09.srl> ;
+           srlt:data     <eval-group-09-data.ttl> ] ;
+    mf:result  <eval-group-09-results.ttl> ;
+    .
+
+# A key bound before the GROUP and not used in the pattern.
+:eval-group-10 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-10" ;
+    mf:action
+         [ srlt:ruleset  <eval-group-10.srl> ;
+           srlt:data     <eval-group-10-data.ttl> ] ;
+    mf:result  <eval-group-10-results.ttl> ;
+    .
+
+# A key bound before the GROUP is used only in a FILTER inside the pattern.
+:eval-group-11 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-11" ;
+    mf:action
+         [ srlt:ruleset  <eval-group-11.srl> ;
+           srlt:data     <eval-group-11-data.ttl> ] ;
+    mf:result  <eval-group-11-results.ttl> ;
+    .
+
+# An aggregation argument that is a key bound before the GROUP.
+:eval-group-12 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-12" ;
+    mf:action
+         [ srlt:ruleset  <eval-group-12.srl> ;
+           srlt:data     <eval-group-12-data.ttl> ] ;
+    mf:result  <eval-group-12-results.ttl> ;
+    .
+
+# One earlier solution yields several groups when the pattern binds a further key.
+:eval-group-13 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-13" ;
+    mf:action
+         [ srlt:ruleset  <eval-group-13.srl> ;
+           srlt:data     <eval-group-13-data.ttl> ] ;
+    mf:result  <eval-group-13-results.ttl> ;
+    .
+
+# A SET in the pattern computes the value that is summed.
+:eval-group-14 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-14" ;
+    mf:action
+         [ srlt:ruleset  <eval-group-14.srl> ;
+           srlt:data     <eval-group-14-data.ttl> ] ;
+    mf:result  <eval-group-14-results.ttl> ;
+    .
+
+# A FILTER after the GROUP does the work of SPARQL's HAVING.
+:eval-group-15 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-15" ;
+    mf:action
+         [ srlt:ruleset  <eval-group-15.srl> ;
+           srlt:data     <eval-group-15-data.ttl> ] ;
+    mf:result  <eval-group-15-results.ttl> ;
+    .
+
+# A triple pattern after the GROUP joins on the result.
+:eval-group-16 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-16" ;
+    mf:action
+         [ srlt:ruleset  <eval-group-16.srl> ;
+           srlt:data     <eval-group-16-data.ttl> ] ;
+    mf:result  <eval-group-16-results.ttl> ;
+    .
+
+# Grouping on a computed key.
+:eval-group-17 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-17" ;
+    mf:action
+         [ srlt:ruleset  <eval-group-17.srl> ;
+           srlt:data     <eval-group-17-data.ttl> ] ;
+    mf:result  <eval-group-17-results.ttl> ;
+    .
+
+# Two GROUPs in sequence: the first one's result survives the second, and a key with no group in the second is dropped.
+:eval-group-18 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-18" ;
+    mf:action
+         [ srlt:ruleset  <eval-group-18.srl> ;
+           srlt:data     <eval-group-18-data.ttl> ] ;
+    mf:result  <eval-group-18-results.ttl> ;
+    .
+
+# An empty pattern forms one group of one solution.
+:eval-group-19 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-19" ;
+    mf:action
+         [ srlt:ruleset  <eval-group-19.srl> ;
+           srlt:data     <eval-group-19-data.ttl> ] ;
+    mf:result  <eval-group-19-results.ttl> ;
+    .
+
+# Counting runs after the recursion it depends on has finished.
+:eval-group-20 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-20" ;
+    mf:action
+         [ srlt:ruleset  <eval-group-20.srl> ;
+           srlt:data     <eval-group-20-data.ttl> ] ;
+    mf:result  <eval-group-20-results.ttl> ;
+    .
+
+# A GROUP in a WHERE DATA rule counts base data only.
+:eval-group-21 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-21" ;
+    mf:action
+         [ srlt:ruleset  <eval-group-21.srl> ;
+           srlt:data     <eval-group-21-data.ttl> ] ;
+    mf:result  <eval-group-21-results.ttl> ;
+    .
+
+# A blank node in the pattern acts as a variable.
+:eval-group-22 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-22" ;
+    mf:action
+         [ srlt:ruleset  <eval-group-22.srl> ;
+           srlt:data     <eval-group-22-data.ttl> ] ;
+    mf:result  <eval-group-22-results.ttl> ;
+    .
+
+# A general rule uses the output of a GROUP rule.
+:eval-group-23 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-23" ;
+    mf:action
+         [ srlt:ruleset  <eval-group-23.srl> ;
+           srlt:data     <eval-group-23-data.ttl> ] ;
+    mf:result  <eval-group-23-results.ttl> ;
+    .

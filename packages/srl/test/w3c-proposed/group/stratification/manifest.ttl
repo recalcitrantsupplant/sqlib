@@ -1,0 +1,63 @@
+## Proposed SPARQL-RL tests for GROUP, from data-shapes notes-1347/proposed-tests.html.
+## Same layout and vocabulary as stratification/manifest.ttl upstream.
+
+PREFIX :       <manifest#>
+PREFIX rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs:   <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX mf:     <http://www.w3.org/2001/sw/DataAccess/tests/test-manifest#>
+PREFIX srlt:   <http://www.w3.org/ns/sparql-rl-tests#>
+
+<>  rdf:type mf:Manifest ;
+    rdfs:comment "SPARQL-RL - Stratification: GROUP (proposed)" ;
+    mf:entries (
+        :stratification-group-01
+        :stratification-group-02
+        :stratification-group-03
+        :stratification-group-04
+        :stratification-group-bad-01
+        :stratification-group-bad-02
+        :stratification-group-bad-03
+    ) .
+
+
+# A GROUP counts a relation another rule derives.
+:stratification-group-01 rdf:type   srlt:RulesPositiveStratificationTest ;
+   mf:name    "stratification-group-01.srl" ;
+   mf:action  <stratification-group-01.srl> ;
+   .
+
+# A recursive rule below a GROUP over its result.
+:stratification-group-02 rdf:type   srlt:RulesPositiveStratificationTest ;
+   mf:name    "stratification-group-02.srl" ;
+   mf:action  <stratification-group-02.srl> ;
+   .
+
+# A WHERE DATA rule groups over the predicate it derives.
+:stratification-group-03 rdf:type   srlt:RulesPositiveStratificationTest ;
+   mf:name    "stratification-group-03.srl" ;
+   mf:action  <stratification-group-03.srl> ;
+   .
+
+# A general rule reads the output of a GROUP rule.
+:stratification-group-04 rdf:type   srlt:RulesPositiveStratificationTest ;
+   mf:name    "stratification-group-04.srl" ;
+   mf:action  <stratification-group-04.srl> ;
+   .
+
+# The pattern reads the predicate the same rule derives.
+:stratification-group-bad-01 rdf:type   srlt:RulesNegativeStratificationTest ;
+   mf:name    "stratification-group-bad-01.srl" ;
+   mf:action  <stratification-group-bad-01.srl> ;
+   .
+
+# Two rules in a cycle through a GROUP pattern.
+:stratification-group-bad-02 rdf:type   srlt:RulesNegativeStratificationTest ;
+   mf:name    "stratification-group-bad-02.srl" ;
+   mf:action  <stratification-group-bad-02.srl> ;
+   .
+
+# A cycle that passes only through the triple pattern before the GROUP.
+:stratification-group-bad-03 rdf:type   srlt:RulesNegativeStratificationTest ;
+   mf:name    "stratification-group-bad-03.srl" ;
+   mf:action  <stratification-group-bad-03.srl> ;
+   .

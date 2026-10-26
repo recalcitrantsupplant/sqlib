@@ -1,4 +1,4 @@
 PREFIX : <http://example/>
 
-# A comma between assignments.
-RULE { :all :n ?n } WHERE { GROUP { ?s :p ?o } [ ?n := COUNT(*), ?t := SUM(?o) ] }
+# No comma between assignments (w3c/data-shapes#1375).
+RULE { :all :n ?n } WHERE { GROUP { ?s :p ?o } [ ?n := COUNT(*) ?t := SUM(?o) ] }
