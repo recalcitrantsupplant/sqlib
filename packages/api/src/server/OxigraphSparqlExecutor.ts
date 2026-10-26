@@ -18,6 +18,26 @@ type SparqlJsonTerm =
     | { type: 'uri' | 'bnode' | 'literal'; value: string; datatype?: string; 'xml:lang'?: string }
     | { type: 'triple'; value: { subject: SparqlJsonTerm; predicate: SparqlJsonTerm; object: SparqlJsonTerm } };
 
+/**
+ * Oxigraph's query options for a run-time dataset.
+ *
+ * `default_graph` and `named_graphs` take the place of `FROM` and `FROM NAMED`,
+ * and win over them, as the protocol requires of an endpoint. A part left out
+ * is left to the store: its own default graph, or all of its named graphs. An
+ * empty list is passed as it is, and matches nothing.
+ */
+function datasetQueryOptions(options?: SparqlQueryOptions): {
+    default_graph?: oxigraph.NamedNode[];
+    named_graphs?: oxigraph.NamedNode[];
+} {
+    const dataset = options?.dataset;
+    if (!dataset) return {};
+    return {
+        ...(dataset.defaultGraphs ? { default_graph: dataset.defaultGraphs.map((iri) => oxigraph.namedNode(iri)) } : {}),
+        ...(dataset.namedGraphs ? { named_graphs: dataset.namedGraphs.map((iri) => oxigraph.namedNode(iri)) } : {}),
+    };
+}
+
 // --- Oxigraph SPARQL Executor (Placeholder) ---
 
 // Per-query tracing floods server logs, so it is opt-in via DEBUG_OXIGRAPH=true.
@@ -54,7 +74,7 @@ export class OxigraphSparqlExecutor implements ISparqlExecutor {
         throwIfAborted(options?.signal);
         const startTime = performance.now();
         try {
-            const results = this.store.query(sparqlQuery);
+            const results = this.store.query(sparqlQuery, datasetQueryOptions(options));
             // SELECT queries return an array of Map objects (bindings)
             if (Array.isArray(results) && this.isSelectResult(results)) {
                 const result = this.convertOxigraphSelectToJson(results);
@@ -79,7 +99,7 @@ export class OxigraphSparqlExecutor implements ISparqlExecutor {
         throwIfAborted(options?.signal);
         const startTime = performance.now();
         try {
-            const results = this.store.query(sparqlQuery);
+            const results = this.store.query(sparqlQuery, datasetQueryOptions(options));
             // CONSTRUCT queries return an array of Quad objects
             if (Array.isArray(results)) {
                 const acceptHeader = options?.acceptHeader?.toLowerCase();
@@ -112,11 +132,11 @@ export class OxigraphSparqlExecutor implements ISparqlExecutor {
      * Executes a SPARQL SELECT query and returns a stream.
      * For Oxigraph, this converts parsed results to a stream format.
      */
-    async selectQueryStream(sparqlQuery: string): Promise<Dispatcher.ResponseData> {
+    async selectQueryStream(sparqlQuery: string, options?: SparqlQueryOptions): Promise<Dispatcher.ResponseData> {
         debugLog(`Executing Oxigraph SELECT (Stream): ${sparqlQuery.substring(0, 100)}...`);
         
         // For now, fallback to parsed results and convert to stream
-        const { result } = await this.selectQueryParsed(sparqlQuery);
+        const { result } = await this.selectQueryParsed(sparqlQuery, options);
         const jsonString = JSON.stringify(result);
         const buffer = Buffer.from(jsonString, 'utf8');
         
@@ -328,7 +348,7 @@ export class OxigraphSparqlExecutor implements ISparqlExecutor {
         throwIfAborted(options?.signal);
         const startTime = performance.now();
         try {
-            const result = this.store.query(sparqlAskQuery);
+            const result = this.store.query(sparqlAskQuery, datasetQueryOptions(options));
             // ASK queries return boolean directly
             if (typeof result === 'boolean') {
                 const duration = performance.now() - startTime;

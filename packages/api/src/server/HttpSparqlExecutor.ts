@@ -1,5 +1,6 @@
 import { Dispatcher, Agent } from 'undici'; // Import Agent
-import { ISparqlExecutor, SparqlSelectJsonOutput, SparqlQueryOptions, SparqlExecutionResult } from './ISparqlExecutor.js'; // Import SparqlQueryOptions
+import { ISparqlExecutor, SparqlSelectJsonOutput, SparqlQueryOptions, SparqlExecutionResult, type SparqlDataset } from './ISparqlExecutor.js'; // Import SparqlQueryOptions
+import { datasetProtocolParameters, hasDataset } from '../lib/dataset.js';
 import { config } from './config.js';
 import { log } from '../lib/log.js';
 // Define a simpler config type specifically for the HTTP executor's needs
@@ -42,6 +43,7 @@ async function executeHttpRequestRaw(
   acceptHeader: string,
   isUpdate: boolean = false, // Flag to determine which endpoint to use
   signal?: AbortSignal,
+  dataset?: SparqlDataset,
 ): Promise<{response: Dispatcher.ResponseData, duration: number}> { // Return duration
   // Destructure the simpler config type
   const { username, password, authHeader, queryUrl, updateUrl: configUpdateUrl, queryMethod = 'post' } = executorConfig;
@@ -81,7 +83,7 @@ async function executeHttpRequestRaw(
       body,
       path: targetUrl.pathname + targetUrl.search
     };
-  } else if (queryMethod === 'get') {
+  } else if (queryMethod === 'get' && !hasDataset(dataset)) {
     // --- SPARQL Query (GET) ---
     targetUrl.searchParams.set('query', query);
     requestOptions = {
@@ -93,7 +95,13 @@ async function executeHttpRequestRaw(
     };
   } else {
     // --- SPARQL Query (POST) ---
-    const body = `query=${encodeURIComponent(query)}`;
+    // A dataset always goes in a form body, whatever `queryMethod` says: one
+    // `default-graph-uri` or `named-graph-uri` pair per graph soon outgrows a
+    // URL (Fuseki answered 414 at 10,000 graphs, and an 8 KB proxy limit holds
+    // about 145), so a GET backend is sent a POST when a dataset is present.
+    const body = [['query', query], ...datasetProtocolParameters(dataset)]
+      .map(([name, value]) => `${name}=${encodeURIComponent(value)}`)
+      .join('&');
     requestOptions = {
       method: 'POST',
       headers: {
@@ -180,7 +188,7 @@ export class HttpSparqlExecutor implements ISparqlExecutor {
     // Determine the Accept header: use provided option or default
     const acceptHeader = options?.acceptHeader || 'application/sparql-results+json';
     // Use the stored executorConfig
-    const { response, duration } = await executeHttpRequestRaw(this.executorConfig, sparqlQuery, acceptHeader, false, options?.signal);
+    const { response, duration } = await executeHttpRequestRaw(this.executorConfig, sparqlQuery, acceptHeader, false, options?.signal, options?.dataset);
     await checkHttpResponseStatus(response); // Throw on non-2xx status
 
     // Check the actual Content-Type returned by the server
@@ -221,7 +229,7 @@ export class HttpSparqlExecutor implements ISparqlExecutor {
     // Determine the Accept header: use provided option or default (N-Quads is a reasonable default for parsed string)
     const acceptHeader = options?.acceptHeader || 'application/n-quads';
     // Use the stored executorConfig
-    const { response, duration } = await executeHttpRequestRaw(this.executorConfig, sparqlQuery, acceptHeader, false, options?.signal);
+    const { response, duration } = await executeHttpRequestRaw(this.executorConfig, sparqlQuery, acceptHeader, false, options?.signal, options?.dataset);
     await checkHttpResponseStatus(response); // Throw on non-2xx status
 
     try {
@@ -244,7 +252,7 @@ export class HttpSparqlExecutor implements ISparqlExecutor {
       // Determine the Accept header: use provided option or default
       const acceptHeader = options?.acceptHeader || 'application/sparql-results+json';
       // Use the stored executorConfig
-      const { response } = await executeHttpRequestRaw(this.executorConfig, sparqlQuery, acceptHeader, false, options?.signal);
+      const { response } = await executeHttpRequestRaw(this.executorConfig, sparqlQuery, acceptHeader, false, options?.signal, options?.dataset);
       await checkHttpResponseStatus(response); // Ensure it's a successful response before returning stream
       return response;
   }
@@ -259,7 +267,7 @@ export class HttpSparqlExecutor implements ISparqlExecutor {
       // Determine the Accept header: use provided option or default
       const acceptHeader = options?.acceptHeader || 'application/n-triples';
       // Use the stored executorConfig
-      const { response } = await executeHttpRequestRaw(this.executorConfig, sparqlQuery, acceptHeader, false, options?.signal);
+      const { response } = await executeHttpRequestRaw(this.executorConfig, sparqlQuery, acceptHeader, false, options?.signal, options?.dataset);
       await checkHttpResponseStatus(response); // Ensure it's a successful response before returning stream
       return response;
   }
@@ -284,7 +292,7 @@ export class HttpSparqlExecutor implements ISparqlExecutor {
   ): Promise<SparqlExecutionResult<boolean | string>> {
     // ASK queries typically return JSON with a "boolean" field
     const acceptHeader = options?.acceptHeader || 'application/sparql-results+json';
-    const { response, duration } = await executeHttpRequestRaw(this.executorConfig, sparqlAskQuery, acceptHeader, false, options?.signal);
+    const { response, duration } = await executeHttpRequestRaw(this.executorConfig, sparqlAskQuery, acceptHeader, false, options?.signal, options?.dataset);
     await checkHttpResponseStatus(response); // Throw on non-2xx status
 
     // Check the actual Content-Type returned by the server

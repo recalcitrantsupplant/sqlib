@@ -30,6 +30,7 @@ import type {
   UpdateRequest,
   RdfPayload,
   SparqlAskResults,
+  SparqlDataset,
   SparqlSelectResults,
 } from '@sparql-query-lib/runtime';
 
@@ -43,10 +44,23 @@ import type {
  * subset says so by itself. {@link loadOxigraph} is where the compiler is made
  * to check it.
  */
+/** A named node as Oxigraph builds it: the graph names a dataset is made of. */
+export interface OxigraphNamedNode {
+  readonly termType: 'NamedNode';
+  readonly value: string;
+  equals(other: unknown): boolean;
+}
+
+/** The dataset options of `Store.query`, as far as this package uses them. */
+export interface OxigraphDatasetOptions {
+  default_graph?: OxigraphNamedNode[];
+  named_graphs?: OxigraphNamedNode[];
+}
+
 export interface OxigraphStore {
   query(
     query: string,
-    options?: { results_format?: string },
+    options?: { results_format?: string } & OxigraphDatasetOptions,
   ): boolean | string | unknown[] | Map<string, unknown>[];
   load(input: string, options: { format: string; base_iri?: string }): void;
   /**
@@ -112,6 +126,19 @@ async function loadOxigraph(): Promise<{ Store: new () => OxigraphStore }> {
   return oxigraph;
 }
 
+/**
+ * A dataset as Oxigraph query options. The terms come from the module, which
+ * by now is loaded and initialised: by {@link loadOxigraph}, or by whoever
+ * built the store that was passed in.
+ */
+async function datasetOptions(dataset: SparqlDataset): Promise<OxigraphDatasetOptions> {
+  const { namedNode } = await import('oxigraph');
+  return {
+    ...(dataset.defaultGraphs ? { default_graph: dataset.defaultGraphs.map((iri) => namedNode(iri)) } : {}),
+    ...(dataset.namedGraphs ? { named_graphs: dataset.namedGraphs.map((iri) => namedNode(iri)) } : {}),
+  };
+}
+
 function toDocuments(data: OxigraphExecutorOptions['data']): SeedDocument[] {
   if (data === undefined) return [];
   if (typeof data === 'string') return [{ content: data }];
@@ -164,9 +191,12 @@ export async function oxigraphExecutor(
     store: resolved,
     ...(typeof resolved.update === 'function' ? { update } : {}),
 
-    async execute({ queryText, queryType }: ExecutionRequest): Promise<ExecutionResult> {
+    async execute({ queryText, queryType, dataset }: ExecutionRequest): Promise<ExecutionResult> {
+      // Oxigraph's own options, which take precedence over FROM / FROM NAMED.
+      // A part left out is left to the store; an empty list matches nothing.
+      const graphs = dataset ? await datasetOptions(dataset) : {};
       if (queryType === 'CONSTRUCT' || queryType === 'DESCRIBE') {
-        const data = resolved.query(queryText, { results_format: rdfFormat });
+        const data = resolved.query(queryText, { results_format: rdfFormat, ...graphs });
         if (typeof data !== 'string') {
           throw new TypeError(
             `Expected serialised RDF from a ${queryType} query, received ${typeof data}.`,
@@ -175,7 +205,7 @@ export async function oxigraphExecutor(
         return { contentType: rdfFormat, data } satisfies RdfPayload;
       }
 
-      const json = resolved.query(queryText, { results_format: RESULTS_JSON });
+      const json = resolved.query(queryText, { results_format: RESULTS_JSON, ...graphs });
       if (typeof json !== 'string') {
         throw new TypeError(
           `Expected SPARQL Results JSON from a ${queryType} query, received ${typeof json}.`,

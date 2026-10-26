@@ -1306,6 +1306,9 @@ export const executionRequestSchema = z
     offsets: z.array(executionOffsetSchema).optional(),
     argumentSetIds: z.array(iriString).optional(),
     dataGraphs: z.array(executionDataGraphSchema).optional(),
+    // The dataset to run over, in place of the query's FROM / FROM NAMED.
+    defaultGraphs: z.array(iriString).optional(),
+    namedGraphs: z.array(iriString).optional(),
     nodeDetail: z.enum(['timings', 'results']).optional(),
   })
   .strict();
@@ -1333,6 +1336,9 @@ export const executionQuerystringSchema = z
      * caller reaching for GET had no way to say so at all.
      */
     dataGraphs: z.string().optional(),
+    // JSON arrays of IRIs, as on the POST body.
+    defaultGraphs: z.string().optional(),
+    namedGraphs: z.string().optional(),
     nodeDetail: z.enum(['timings', 'results']).optional(),
   })
   .strict();

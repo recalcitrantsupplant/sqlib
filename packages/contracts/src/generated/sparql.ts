@@ -31,6 +31,9 @@ export const sparqlRequestSchema = z
     // set leaves open, and an overlap is refused naming the parameter — the
     // same rule `/execute` applies.
     argumentSetIds: z.array(iriString).optional(),
+    // The dataset to run over, in place of the query's FROM / FROM NAMED.
+    defaultGraphs: z.array(iriString).optional(),
+    namedGraphs: z.array(iriString).optional(),
   })
   .refine((data) => Boolean(data.backendId) || Boolean(data.endpoint), {
     message: 'backendId or endpoint is required',

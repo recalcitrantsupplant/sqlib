@@ -58,14 +58,16 @@ export type EdgeFlowType =
   | 'VARIABLE_BINDINGS'   // SELECT tuple → VALUES tuple (standard query chaining)
   | 'RDF_GRAPH'           // CONSTRUCT/DESCRIBE RDF → RDF input
   | 'BOOLEAN'             // ASK boolean → boolean input
-  | 'QUERY_ID';           // QueryOutputTuple (length 1) → DynamicQueryNode's queryId
+  | 'QUERY_ID'            // QueryOutputTuple (length 1) → DynamicQueryNode's queryId
+  | 'DATASET';            // QueryOutputTuple (length 1) of graph IRIs → the target query's FROM / FROM NAMED
 
 export const EDGE_FLOW_TYPES = [
   'CONTROL_FLOW',
   'VARIABLE_BINDINGS',
   'RDF_GRAPH',
   'BOOLEAN',
-  'QUERY_ID'
+  'QUERY_ID',
+  'DATASET'
 ] as const;
 
 /**
@@ -77,8 +79,18 @@ export const DATA_FLOW_TYPES: DataFlowType[] = [
   'VARIABLE_BINDINGS',
   'RDF_GRAPH',
   'BOOLEAN',
-  'QUERY_ID'
+  'QUERY_ID',
+  'DATASET'
 ] as const;
+
+/**
+ * Which part of its target's dataset a `DATASET` edge fills: the default
+ * graph (`FROM`), the named graphs (`FROM NAMED`), or both, which restricts
+ * the whole query to the selected graphs.
+ */
+export type DatasetPart = 'default' | 'named' | 'both';
+
+export const DATASET_PARTS: readonly DatasetPart[] = ['default', 'named', 'both'];
 
 /**
  * Checks if an edge flow type requires I/O entity references
@@ -168,6 +180,8 @@ export interface ResolvedEdge {
   targetInputId?: string | null; // Generic reference to input I/O entity
   variableMappings?: string | null;
   whenEmpty?: WhenEmptyMode | null; // Policy when this connection supplies no rows
+  /** `DATASET` edges only: the part of the target's dataset it fills. Defaults to `both`. */
+  datasetPart?: DatasetPart;
 }
 
 export interface ExecutionGraph {

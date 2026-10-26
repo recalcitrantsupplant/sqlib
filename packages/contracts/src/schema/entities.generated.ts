@@ -2325,6 +2325,10 @@ export const queryedgeSchema = {
     "whenEmpty": {
       "type": "string",
       "nullable": true
+    },
+    "datasetPart": {
+      "type": "string",
+      "nullable": true
     }
   },
   "required": [
@@ -4169,6 +4173,7 @@ export interface QueryEdgeRestApi {
   targetInputId?: string | null;
   variableMappings?: string | null;
   whenEmpty?: string | null;
+  datasetPart?: string | null;
 }
 
 export interface QueryGroupVersionRestApi {

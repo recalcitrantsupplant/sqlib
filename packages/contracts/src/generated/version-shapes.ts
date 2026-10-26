@@ -195,6 +195,7 @@ export const queryEdgeShape = {
   targetInputId: optionalIriString,
   variableMappings: nullableString,
   whenEmpty: nullableString,
+  datasetPart: nullableString,
 };
 // TriplesQuadsIO, projected from the entity model
 export const triplesQuadsIOShape = {

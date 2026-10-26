@@ -18,7 +18,9 @@ import type {
   QueryNode,
   RuleSetNode,
   QueryEdge,
+  DatasetPart,
 } from './types.js';
+import { DATASET_PARTS, EDGE_FLOW_TYPES } from './types.js';
 
 export class GraphBuilder {
   private parser = new SparqlQueryParser();
@@ -203,6 +205,9 @@ export class GraphBuilder {
         whenEmpty: WHEN_EMPTY_MODES.includes(raw.whenEmpty as WhenEmptyMode)
           ? (raw.whenEmpty as WhenEmptyMode)
           : undefined,
+        ...(raw.dataFlowType === 'DATASET'
+          ? { datasetPart: (raw.datasetPart ?? 'both') as DatasetPart }
+          : {}),
       });
     }
 
@@ -270,6 +275,77 @@ export class GraphBuilder {
     return true;
   }
 
+  /**
+   * A `DATASET` edge: a one-variable SELECT output whose values become the
+   * target query's dataset.
+   *
+   * The target is the query's dataset rather than a declared input, so the
+   * edge names no `targetInputId`, and a target takes at most one edge per
+   * part. `unconstrained` is refused: an upstream that selected no graphs must
+   * not let the target run over the backend's whole dataset.
+   */
+  private validateDatasetEdge(
+    e: ResolvedEdge,
+    sourceNode: ResolvedNode,
+    targetNode: ResolvedNode,
+    filled: Map<string, Set<'default' | 'named'>>,
+  ): void {
+    const edgeError = (code: GraphValidationCode, message: string) =>
+      new GraphValidationError(code, message, 'edge', e.id);
+    const targetRawType = (targetNode.raw)['@type'];
+    if (targetRawType !== 'QueryNode' && targetRawType !== 'DynamicQueryNode') {
+      throw edgeError('EDGE_DATASET_TARGET_NODE_TYPE',
+        `Edge ${e.id} with dataFlowType=DATASET must target a QueryNode or DynamicQueryNode (found ${targetRawType ?? 'unknown'})`);
+    }
+    if (toQueryTypeIri(targetNode.queryType) === QueryTypeIri.update) {
+      throw edgeError('EDGE_DATASET_TARGET_NODE_TYPE',
+        `Edge ${e.id} gives a dataset to UPDATE node ${targetNode.id}; an update names its graphs in its own text`);
+    }
+    if (!e.sourceOutputId) {
+      throw edgeError('EDGE_DATA_FLOW_MISSING_IO', `Edge ${e.id} with dataFlowType=DATASET must specify sourceOutputId`);
+    }
+    if (e.targetInputId) {
+      throw edgeError('EDGE_TARGET_PORT_TYPE',
+        `Edge ${e.id} with dataFlowType=DATASET fills its target's dataset, which is not an input port; remove targetInputId`);
+    }
+    const sourceEntity = getCacheCoordinator().get(e.sourceOutputId);
+    if (!sourceEntity) {
+      throw edgeError('EDGE_SOURCE_IO_MISSING', `Edge ${e.id} references missing source I/O entity ${e.sourceOutputId}`);
+    }
+    if (sourceEntity['@type'] !== 'QueryOutputTuple') {
+      throw edgeError('EDGE_SOURCE_PORT_TYPE', `Edge ${e.id} expects QueryOutputTuple source but found ${sourceEntity['@type']}`);
+    }
+    const members = Array.isArray(sourceEntity.memberEntries) ? sourceEntity.memberEntries : [];
+    if (members.length !== 1) {
+      throw edgeError('EDGE_DATASET_ARITY',
+        `Edge ${e.id} expects a single-variable QueryOutputTuple of graph IRIs for DATASET flow (found ${members.length})`);
+    }
+    const sourceType = toQueryTypeIri(sourceNode.queryType);
+    if (sourceNode.queryString && sourceType && sourceType !== QueryTypeIri.select) {
+      throw edgeError('EDGE_DATASET_SOURCE_NOT_SELECT',
+        `Edge ${e.id} carries a dataset, which only a SELECT result can supply (node ${sourceNode.id} is ${getQueryTypeKeyFromIri(sourceType) ?? sourceType})`);
+    }
+    const rawPart = e.raw.datasetPart ?? 'both';
+    if (!DATASET_PARTS.includes(rawPart as DatasetPart)) {
+      throw edgeError('EDGE_DATASET_PART', `Edge ${e.id} has datasetPart ${rawPart}; expected one of ${DATASET_PARTS.join(', ')}`);
+    }
+    if (e.whenEmpty === 'unconstrained') {
+      throw edgeError('EDGE_DATASET_WHEN_EMPTY',
+        `Edge ${e.id} is a DATASET edge with whenEmpty=unconstrained. An empty selection would run the query over the `
+        + `backend's whole dataset; use propagateEmpty (the default) or require.`);
+    }
+    const parts: Array<'default' | 'named'> = rawPart === 'both' ? ['default', 'named'] : [rawPart as 'default' | 'named'];
+    const taken = filled.get(targetNode.id) ?? new Set<'default' | 'named'>();
+    for (const part of parts) {
+      if (taken.has(part)) {
+        throw edgeError('EDGE_DATASET_DUPLICATE_PART',
+          `Node ${targetNode.id} already takes its ${part === 'default' ? 'default graph' : 'named graphs'} from another DATASET edge`);
+      }
+      taken.add(part);
+    }
+    filled.set(targetNode.id, taken);
+  }
+
   private validateGraph(graph: ExecutionGraph): void {
     const cacheCoordinator = getCacheCoordinator();
     // Enforce DAG
@@ -293,7 +369,9 @@ export class GraphBuilder {
     }
 
     // Validate edges and tuple constraints
-    const validDataFlowTypes = ['CONTROL_FLOW', 'VARIABLE_BINDINGS', 'RDF_GRAPH', 'BOOLEAN', 'QUERY_ID'];
+    const validDataFlowTypes: readonly string[] = EDGE_FLOW_TYPES;
+    // Which parts of each target's dataset an edge already fills.
+    const datasetPartsFilled = new Map<string, Set<'default' | 'named'>>();
     for (const e of graph.edges) {
       const edgeError = (code: GraphValidationCode, message: string) =>
         new GraphValidationError(code, message, 'edge', e.id);
@@ -339,6 +417,11 @@ export class GraphBuilder {
           );
         }
         continue;  // Valid control flow edge - just defines execution order
+      }
+
+      if (flowType === 'DATASET') {
+        this.validateDatasetEdge(e, sourceNode, targetNode, datasetPartsFilled);
+        continue;
       }
 
       if (!e.sourceOutputId || !e.targetInputId) {

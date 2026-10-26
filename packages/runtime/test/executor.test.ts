@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { SparqlEndpointError, httpExecutor } from '../src/executor.js';
+import { EMPTY_DATASET_GRAPH, SparqlEndpointError, httpExecutor } from '../src/executor.js';
 
 function jsonResponse(body: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(body), {
@@ -22,6 +22,44 @@ describe('httpExecutor', () => {
       `https://example.org/sparql?query=${encodeURIComponent(SELECT.queryText)}`,
     );
     expect(init.headers.Accept).toBe('application/sparql-results+json');
+  });
+
+  it('puts a dataset in the GET URL as protocol parameters', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ head: {}, results: { bindings: [] } }));
+    await httpExecutor('https://example.org/sparql', { fetch: fetchMock }).execute({
+      ...SELECT,
+      dataset: { defaultGraphs: ['http://example.org/a'], namedGraphs: [] },
+    });
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(init.method).toBe('GET');
+    const params = new URL(url).searchParams;
+    expect(params.get('query')).toBe(SELECT.queryText);
+    expect(params.getAll('default-graph-uri')).toEqual(['http://example.org/a']);
+    expect(params.getAll('named-graph-uri')).toEqual([EMPTY_DATASET_GRAPH]);
+  });
+
+  it('sends a dataset as a form body on POST', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ head: {}, results: { bindings: [] } }));
+    await httpExecutor('https://example.org/sparql', { fetch: fetchMock, method: 'POST' }).execute({
+      ...SELECT,
+      dataset: { namedGraphs: ['http://example.org/a', 'http://example.org/b'] },
+    });
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('https://example.org/sparql');
+    expect(init.headers['Content-Type']).toBe('application/x-www-form-urlencoded');
+    const form = new URLSearchParams(init.body);
+    expect(form.get('query')).toBe(SELECT.queryText);
+    expect(form.getAll('named-graph-uri')).toEqual(['http://example.org/a', 'http://example.org/b']);
+  });
+
+  it('counts the dataset in the URL length under auto', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ head: {}, results: { bindings: [] } }));
+    const namedGraphs = Array.from({ length: 200 }, (_, n) => `http://example.org/graph/${n}`);
+    await httpExecutor('https://example.org/sparql', { fetch: fetchMock }).execute({ ...SELECT, dataset: { namedGraphs } });
+
+    expect(fetchMock.mock.calls[0][1].method).toBe('POST');
   });
 
   it('switches to POST once the URL would grow too long', async () => {

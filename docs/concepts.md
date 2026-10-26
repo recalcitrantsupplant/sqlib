@@ -149,6 +149,7 @@ another's input, and its `dataFlowType` says what travels along it:
 | `RDF_GRAPH` | triples or quads | `TriplesQuadsIO` → `TriplesQuadsIO` |
 | `BOOLEAN` | an ASK result | `BooleanIO` → `BooleanIO` |
 | `QUERY_ID` | a single column naming a query to run | `QueryOutputTuple` → `QueryIdInput` |
+| `DATASET` | a single column of graph IRIs, used as the target's dataset | `QueryOutputTuple` → the target query's `FROM` / `FROM NAMED` (no input port) |
 
 Variables are lined up across an edge by `variableMappings`, a
 `{ source, target }[]` list of variable *names*. Unset, the default pairs exact

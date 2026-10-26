@@ -4812,6 +4812,10 @@ export const createQueryGroupVersionForGroupFlatSchema = {
             "whenEmpty": {
                   "type": "string",
                   "nullable": true
+            },
+            "datasetPart": {
+                  "type": "string",
+                  "nullable": true
             }
       },
       "required": []
