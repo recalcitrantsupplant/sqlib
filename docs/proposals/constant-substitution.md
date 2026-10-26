@@ -255,7 +255,12 @@ No API, contract or bundle schema change, apart from the regenerated
 1. **Is `000` the marker?** It follows `LIMIT 0001`. The alternative is a
    different prefix, so a reader cannot confuse a constant slot with a page
    parameter. Recommended: keep `000`.
-2. **Is the kept `VALUES` row acceptable on QLever?** The example above has
-   both `VALUES ?000word { "copper*" }` and `ts:word "copper*"`. The earlier
-   test shows QLever accepts a `VALUES` block and a constant `ts:word`
-   separately. The combined form needs one check before implementation.
+2. **Is the kept `VALUES` row acceptable on QLever?** Partly checked
+   2026-10-26 on the public `qlever.dev/api/dblp` and
+   `qlever.dev/api/wikidata` endpoints. The combined form,
+   `VALUES ?000w { "copper*" }` with `ts:word "copper*"` in a `SERVICE ts:`
+   body, returns 200 with `head.vars` `["t", "000w"]`. The same query with
+   `ts:word ?w` still fails with `The predicate <word> needs a literal as
+   object`. Both endpoints return zero rows for any `ts:word` search, so
+   the rows themselves are not yet checked. That needs a QLever instance
+   with a text index.
