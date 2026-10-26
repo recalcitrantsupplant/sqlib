@@ -64,7 +64,7 @@ agent that sees `sparql_proxyQuery` can run any SPARQL it likes.
 | Who calls | the person designing queries, or an agent helping them | the application's agents, pages and scripts |
 | Tools | the catalogue: `libraries_*`, `queries_*`, `detection_*`, `execute_run`… | the library's published queries and groups |
 | Arguments | ids and SPARQL Results JSON | plain values, one per parameter |
-| Where | `/mcp`, the API's routes | `/mcp/{library-slug}`, `/tools/{name}` |
+| Where | `/mcp`, the API's routes | `/mcp/{library-slug}`, `/tools/{library-slug}/{name}` |
 | Changes | at every call | at a restart |
 
 Both surfaces run through `POST /execute`, so they differ in what they show
@@ -110,7 +110,7 @@ A query or query group entity takes an optional `tool` object:
 }
 ```
 
-- **`name`** is unique among the published tools of the server, uses the
+- **`name`** is unique among the published tools of its library, uses the
   characters MCP allows in a tool name, and is not the name of a built-in
   tool.
 - **`description`** is the tool's description as MCP and the HTTP route's
@@ -198,13 +198,39 @@ one. Both doors use that one request, as the built-in tools do:
   `required`. `additionalProperties` is `false`. A tool backed by a SELECT,
   ASK, CONSTRUCT or DESCRIBE query carries `readOnlyHint: true`; one backed by
   an update carries `readOnlyHint: false`.
-- **HTTP:** `POST /tools/{name}` takes the same arguments as a JSON object
-  and returns what `POST /execute` returns. `GET /tools` lists the published
-  tools with their schemas. A page or a script can call the application's
-  queries with plain JSON, as an agent does.
+- **HTTP:** each tool is its own route, `/tools/{library-slug}/{name}`,
+  generated when the server starts:
+  - A tool backed by a SELECT, ASK, CONSTRUCT or DESCRIBE query, or by a
+    group of them, answers `GET`, with its arguments in the query string. A
+    list is the key repeated, `?affects=a&affects=b`. A `term` or
+    `langString` value is its JSON spelling, URL-encoded. A `GET` can be
+    cached and bookmarked, and may answer `304 Not Modified` once results
+    carry a validator.
+  - A tool backed by an update answers `POST`, with its arguments as a JSON
+    object.
+  - Both return what `POST /execute` returns.
+  - `GET /tools/{library-slug}/openapi.json` is an OpenAPI 3.1 document with
+    one operation per tool, its parameters typed from `params`. A page's
+    client can be generated from it, and a generic client can read it at run
+    time, as an agent reads `tools/list`.
+
+  A route per tool, not one route with the tool as a parameter, is what lets
+  each operation carry its own schema in the OpenAPI document. This is the
+  shape a server takes when it generates endpoints from configuration at
+  startup; here the configuration is the library.
 
 A call carries the caller's token to the API, as the built-in tools do, so a
 published tool grants nothing that `execute_run` on the same query would not.
+
+### How the two doors differ
+
+MCP and HTTP publish the same tools for different callers. An agent learns
+what it can call at run time, from `tools/list`, every session, and chooses
+what to call. A page or a script is written against known routes; its
+contract is the OpenAPI document, read once by a developer or a code
+generator. MCP adds a few milliseconds per call and a connect step per
+session; HTTP adds caching on `GET` and needs no client library. A production
+page uses HTTP; agents, analysis and exploration use MCP.
 
 ### Where the tools are served
 
@@ -216,7 +242,7 @@ published tool grants nothing that `execute_run` on the same query would not.
 - **A published-only server.** With `MCP_CATALOGUE=published`, `/mcp` lists
   the published tools and no catalogue tools, and the API's authoring routes
   answer 404. A production deployment of an application sets it, as
-  `MCP_READ_ONLY` sets read-only mode today. `/tools/{name}` and
+  `MCP_READ_ONLY` sets read-only mode today. `/tools/{library-slug}/…` and
   `POST /execute` stay.
 
 An agent given only an application's endpoint cannot run arbitrary SPARQL
@@ -266,9 +292,6 @@ after part A.
    version, so that publishing a tool is part of cutting a version.
 2. Whether `MCP_CATALOGUE=published` should also hide `POST /execute`, so
    that a production server runs only its published tools.
-3. Whether `/tools/{name}` should also take a library slug,
-   `/libraries/{slug}/tools/{name}`, so that two libraries can use one tool
-   name.
-4. Whether the server should refuse to start when a published tool is
+3. Whether the server should refuse to start when a published tool is
    invalid, or start and log it. Refusing is safer for an application in
    production. Logging is kinder while designing queries.
