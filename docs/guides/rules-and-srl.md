@@ -38,8 +38,12 @@ document is imported into a rule set with `POST /rule-sets/:id/srl`, which
 splits it into one rule version per rule and mints a new rule set version.
 Rules are stored canonically, with IRIs expanded and no prologue, so a
 prefix-only edit is provably not a content change and re-importing does not
-churn versions. `GET /rule-sets/:id/srl` renders the set back as one document,
-taking a `prologue` query parameter for the prefixes to print.
+churn rule versions. The rule set version also keeps the document as written,
+so `GET /rule-sets/:id/srl` returns it with its author's prefixes, layout and
+comments, and reports `documentSource: "stored"`. A version saved without a
+document (an older one, or one built from a list of rule versions) has its
+document generated from the canonical rules, against a `prologue` query
+parameter for the prefixes to print, and reports `documentSource: "generated"`.
 
 ## Writing a document
 

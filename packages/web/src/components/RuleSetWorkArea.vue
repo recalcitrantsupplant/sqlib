@@ -1284,13 +1284,16 @@ const loadRuleSetVersions = async (
 };
 
 /**
- * Prefixes to render the exported document with.
+ * Prefixes to render a generated document with.
  *
- * Rules are stored with expanded IRIs, so the server needs a prologue to
- * abbreviate against. On a reload of the rule set already on screen it is taken
- * from what the editor declares, so the author's own prefixes survive; on the
- * first load of a rule set there is nothing of its own to take, and the default
- * seeds it with something usable.
+ * A version saved from a document comes back as written
+ * (`documentSource: 'stored'`), and the server ignores the prologue for it:
+ * the prefixes are the author's. Only an older version, or one built from a
+ * list of rules, has its document generated from rules stored with expanded
+ * IRIs, and needs a prologue to abbreviate against. On a reload of the rule
+ * set already on screen it is taken from what the editor declares; on the
+ * first load there is nothing of its own to take, and the default seeds it
+ * with something usable.
  */
 const DEFAULT_PROLOGUE = 'PREFIX : <http://example/>';
 

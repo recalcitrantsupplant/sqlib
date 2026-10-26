@@ -61,6 +61,28 @@ export const RuleSetVersionSchema = {
     '@optional': true,
   },
   /**
+   * The SRL document this version was saved from, verbatim: the author's
+   * prefixes, layout and comments. `hasRule` and `hasDataBlock` are derived
+   * from it and are what runs; this is what was written, and what
+   * `GET /rule-sets/:id/srl` returns. Absent for a version built from a list
+   * of rule versions, or saved before documents were kept.
+   */
+  srlDocument: {
+    '@id': sqlib.srlDocument,
+    '@type': xsd.string,
+    '@optional': true,
+  },
+  /**
+   * The tuple-seed document as written, beside the canonical `tupleSeeds`
+   * the executor reads. Only stored with `srlDocument`, whose prologue it
+   * may use.
+   */
+  tupleSeedsDocument: {
+    '@id': sqlib.tupleSeedsDocument,
+    '@type': xsd.string,
+    '@optional': true,
+  },
+  /**
    * Whether this version opts into the rule-tuples extension
    * (w3c/data-shapes#752). Off means the document is conformant SRL and a
    * `TUPLE( … )` anywhere in it is a syntax error.
@@ -93,6 +115,8 @@ export interface LdkitRuleSetVersion {
   hasDataBlock?: string[] | null;
   stratificationReport?: string | null;
   tupleSeeds?: string | null;
+  srlDocument?: string | null;
+  tupleSeedsDocument?: string | null;
   tuplesEnabled?: boolean | null;
   dateCreated?: string | null;
   dateModified?: string | null;

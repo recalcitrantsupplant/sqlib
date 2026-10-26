@@ -340,6 +340,8 @@ export const sqlib = createNamespace({
     "hasDataBlock",
     "stratificationReport",
     "tupleSeeds",
+    "srlDocument",
+    "tupleSeedsDocument",
     // DuckDB statements a test case runs before its ETL subject's own SQL —
     // the rows the job reads.
     "sqlFixture",
