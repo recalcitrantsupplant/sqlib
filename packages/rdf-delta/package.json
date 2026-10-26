@@ -31,7 +31,7 @@
   "devDependencies": {
     "@duckdb/node-api": "2.0.0-r.1",
     "@types/node": "^26.6.5",
-    "oxigraph": "0.5.11",
+    "oxigraph": "0.5.13",
     "rdf-canonize": "^5.0.0",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
