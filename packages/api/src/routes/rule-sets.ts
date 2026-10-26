@@ -1020,7 +1020,10 @@ export default async function (fastify: FastifyInstance) {
         'Parses a document that need not be stored anywhere and reports what an editor has to '
         + 'show while it is being written: the line range and label of every rule and DATA block, '
         + 'the stratum and monotonicity of every rule, the dependency edges between them, and any '
-        + 'well-formedness issues. A syntax error is reported as `valid: false`, not as a 400.',
+        + 'well-formedness issues. A syntax error is reported as `valid: false`, not as a 400. '
+        + 'Each well-formedness issue has a `severity` (`error` makes the document ill-formed; '
+        + '`warning` and `info` mark a legal rule that is probably not what was meant), a stable '
+        + '`category`, and `from`/`to`: the range it is about in the posted text, in UTF-16 code units.',
       body: ruleTupleFields({
         type: 'object',
         properties: { srl: { type: 'string' }, tuples: { type: 'boolean' } },
@@ -1158,7 +1161,10 @@ export function analyzeSrlDocument(srl: string, tuples: boolean) {
 
   let ruleSet: ReturnType<typeof parseRuleSet>;
   try {
-    ruleSet = parseRuleSet(srl, { tuples, aggregates: ruleAggregatesAllowed() });
+    // Located, so each well-formedness issue can mark the variable it is
+    // about. Only this analysis reads the locations; the parses that store
+    // rules keep the untracked AST their canonical text is built from.
+    ruleSet = parseRuleSet(srl, { tuples, aggregates: ruleAggregatesAllowed(), sourceLocations: true });
   } catch (error) {
     return {
       ...empty,

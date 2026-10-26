@@ -57,6 +57,16 @@ function varName(term: unknown): string {
 }
 
 /**
+ * Where a term starts in the document, when the parse tracks source locations.
+ * Without tracking, Traqula marks every node `autoGenerate` and this is
+ * undefined.
+ */
+function sourceStart(term: unknown): number | undefined {
+  const loc = (term as { loc?: { sourceLocationType?: unknown; start?: unknown } } | null | undefined)?.loc;
+  return loc?.sourceLocationType === 'source' && typeof loc.start === 'number' ? loc.start : undefined;
+}
+
+/**
  * Body content (no surrounding braces): a sequence of SRL body items.
  * Reuses base SPARQL rules for the plain-SPARQL leaves (triples, filter,
  * expression) and adds SRL's `NOT { … }` and `SET ( ?v := expr )`, plus the
@@ -102,7 +112,8 @@ export const srlGroupBody = {
               const expr = SUBRULE(g.expression);
               ACTION(() => rejectExistence(expr));
               CONSUME(l.symbols.RParen);
-              items.push({ kind: 'set', variable: varName(variable), expr });
+              const at = sourceStart(variable);
+              items.push({ kind: 'set', variable: varName(variable), expr, ...(at === undefined ? {} : { variableAt: at }) });
             },
           },
           {

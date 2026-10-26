@@ -763,6 +763,13 @@ describe('RuleSets Routes — SRL document authoring', () => {
       expect(body.valid).toBe(true);
       expect(body.wellFormedness[0]).toMatchObject({ category: 'unbound-head', ruleIndex: 0 });
     });
+
+    it('says where each issue is and how severe it is', async () => {
+      const srl = 'PREFIX ex: <http://example/>\nRULE { ?s ex:q ?unbound } WHERE { ?s ex:p ?o }';
+      const [issue] = (await analyze(srl)).json().wellFormedness;
+      expect(issue.severity).toBe('error');
+      expect(srl.slice(issue.from, issue.to)).toBe('?unbound');
+    });
   });
 
   // -------------------------------------------------------------------------

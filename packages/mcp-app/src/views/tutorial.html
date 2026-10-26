@@ -878,7 +878,12 @@
     var blocks = asList(report.blocks);
     var rules = blocks.filter(function (b) { return b.kind === 'rule'; });
     var strat = report.stratification || {};
-    var issues = asList(report.wellFormedness);
+    // Only an error makes a document ill-formed; a warning or info marks a
+    // legal rule that is probably not what was meant. An issue from a server
+    // that predates severities counts as an error.
+    var allIssues = asList(report.wellFormedness);
+    var issues = allIssues.filter(isWellFormednessError);
+    var notes = allIssues.filter(function (issue) { return !isWellFormednessError(issue); });
     var stratIssues = asList(strat.issues);
     var flagged = [];
 
@@ -899,6 +904,15 @@
           'Not well-formed (' + issue.category + ')' + (rule ? ', line ' + rule.startLine : '') + ': ' + issue.message));
       });
       nodes.analysis.appendChild(list);
+    }
+    if (notes.length) {
+      var nlist = el('ul');
+      notes.forEach(function (issue) {
+        var rule = rules[issue.ruleIndex];
+        nlist.appendChild(el('li', 'status',
+          (issue.severity === 'info' ? 'Note' : 'Warning') + ' (' + issue.category + ')' + (rule ? ', line ' + rule.startLine : '') + ': ' + issue.message));
+      });
+      nodes.analysis.appendChild(nlist);
     }
     if (stratIssues.length) {
       var slist = el('ul');
@@ -1185,9 +1199,14 @@
     };
   }
 
+  function isWellFormednessError(issue) {
+    return !issue.severity || issue.severity === 'error';
+  }
+
   function analysisProblems(report) {
     if (!report.valid) return ['Does not parse: ' + (report.error || 'syntax error')];
     return asList(report.wellFormedness)
+      .filter(isWellFormednessError)
       .map(function (issue) { return 'Not well-formed (' + issue.category + '): ' + issue.message; })
       .concat(asList(report.stratification && report.stratification.issues).map(function (issue) { return 'Does not stratify: ' + issue; }));
   }
