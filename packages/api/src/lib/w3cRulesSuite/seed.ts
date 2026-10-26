@@ -52,6 +52,7 @@ import type { LdkitTag } from '../../persistence/schemas/TagSchema.js';
 import type { LdkitTest } from '../../persistence/schemas/TestSchema.js';
 import { getFeatureFlags } from '../../config/featureFlags.js';
 import { RuleGrammarValidator } from '../RuleGrammarValidator.js';
+import { ruleAggregatesAllowed } from '../ruleAggregates.js';
 import type { SrlCheck } from '../srlChecks.js';
 import {
   DOCUMENT_CATEGORIES,
@@ -234,7 +235,7 @@ async function seedOne(
  * A union rather than an assignment: these are ordinary entities, and someone
  * tagging one `to-investigate` should not have it swept away by the next boot.
  * The write is skipped entirely when there is nothing to add, so a re-seed of
- * 203 tagged tests performs no writes at all.
+ * an already tagged suite performs no writes at all.
  */
 async function applyTags(test: LdkitTest, tagSlugs: string[], result: SeedResult): Promise<void> {
   if (await unionTags('Test', test, tagSlugs)) result.testsTagged += 1;
@@ -539,8 +540,10 @@ async function ensureRuleSetFromDocument(
   try {
     // `tuples: false` — TUPLE(…) is our extension, and no W3C test uses it.
     // With the extension on, a document that ought to be a syntax error would
-    // parse, and we would report conformance we do not have.
-    const parsed = expandIris(parseRuleSet(spec.document, { tuples: false }));
+    // parse, and we would report conformance we do not have. GROUP is in the
+    // suite's grammar since w3c/data-shapes#1347, so it follows the server's
+    // flag, as the writers do.
+    const parsed = expandIris(parseRuleSet(spec.document, { tuples: false, aggregates: ruleAggregatesAllowed() }));
     ruleDocs = splitRuleSet(parsed) as SrlRuleDocument[];
     dataDocs = splitDataBlocks(parsed) as SrlDataBlockDocument[];
     parses = true;

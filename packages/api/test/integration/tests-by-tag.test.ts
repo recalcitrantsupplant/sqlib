@@ -75,7 +75,7 @@ describe('running a seeded tag', () => {
     const both = [tagIdFor('worked-example'), tagIdFor('stratification')];
 
     const any = await app.inject({ method: 'GET', url: `/tests?tags=${both.map(encodeURIComponent).join(',')}` });
-    expect(any.json()).toHaveLength(15);
+    expect(any.json()).toHaveLength(26);
 
     // Nothing is both a worked example and a stratification check.
     const all = await app.inject({

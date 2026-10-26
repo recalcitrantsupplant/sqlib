@@ -55,7 +55,7 @@ describe('W3C rules suite tags', () => {
 
   it('gives every entry a kind and at least one feature', async () => {
     const rows = await tagged();
-    expect(rows.length).toBe(203);
+    expect(rows.length).toBe(336);
 
     const featureless = rows.filter(row => row.tags.every(tag => NON_FEATURE.has(tag)));
     expect(
@@ -87,7 +87,7 @@ describe('W3C rules suite tags', () => {
     const bySlug = new Map((await tagged()).map(row => [row.slug, row.tags]));
     const all = [...bySlug].filter(([slug]) => slug.startsWith('stratification-'));
     for (const [slug, tags] of all) expect(tags, slug).toContain('stratification');
-    expect(all.length).toBe(10);
+    expect(all.length).toBe(21);
     for (const [slug, tags] of [...bySlug].filter(([slug]) => slug.startsWith('wellformed-'))) {
       expect(tags, slug).toContain('well-formedness');
     }
@@ -99,7 +99,9 @@ describe('W3C rules suite tags', () => {
   it('stays small enough to read as a list of headings', () => {
     // Not an arbitrary cap: the sidebar draws one heading per tag, and a
     // catalogue that grows past this is worth a merge rather than an entry.
-    expect(W3C_SUITE_TAGS.length).toBeLessThanOrEqual(21);
+    // Raised from 21 for `aggregation`: GROUP is a body element of its own,
+    // with 121 entries, and no existing tag describes it.
+    expect(W3C_SUITE_TAGS.length).toBeLessThanOrEqual(22);
   });
 
   it('marks every document test with the polarity it asserts, and no eval test', async () => {

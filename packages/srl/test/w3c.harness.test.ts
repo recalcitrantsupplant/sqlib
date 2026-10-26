@@ -32,11 +32,18 @@ const CATEGORIES: Array<{ dir: Kind }> = [{ dir: 'syntax' }, { dir: 'wellformed'
 /** Extract (type, name, action-file) tuples from a test-manifest .ttl. */
 function parseManifest(kind: Kind): Entry[] {
   const ttl = readFileSync(w3cUrl(`${kind}/manifest.ttl`), 'utf8');
-  const re = /rdf:type\s+srlt:(\w+)\s*;\s*mf:name\s+"([^"]+)"\s*;\s*mf:action\s+<([^>]+)>/g;
+  // One entry is a subject typed srlt:…, up to the line holding only its
+  // closing full stop. Its properties are read from inside that block, in any
+  // order, because some entries carry an rdfs:comment between mf:name and
+  // mf:action.
+  const re = /rdf:type\s+srlt:(\w+)\s*;([\s\S]*?)^\s*\.\s*$/gm;
   const entries: Entry[] = [];
   for (const m of ttl.matchAll(re)) {
     const type = m[1];
-    entries.push({ kind, name: m[2], positive: type.startsWith('RulesPositive'), file: m[3] });
+    const name = /mf:name\s+"([^"]+)"/.exec(m[2]);
+    const action = /mf:action\s+<([^>]+)>/.exec(m[2]);
+    if (!name || !action) throw new Error(`${kind}/manifest.ttl: an srlt:${type} entry lacks mf:name or mf:action`);
+    entries.push({ kind, name: name[1], positive: type.startsWith('RulesPositive'), file: action[1] });
   }
   return entries;
 }
@@ -48,7 +55,9 @@ function conforms(entry: Entry): boolean {
   let parsed: boolean;
   let ruleSet: ReturnType<typeof parseRuleSet> | undefined;
   try {
-    ruleSet = parseRuleSet(src);
+    // GROUP is in the suite's grammar since w3c/data-shapes#1347, so the
+    // conformance check parses it. Deployments still gate it with a flag.
+    ruleSet = parseRuleSet(src, { aggregates: true });
     parsed = true;
   } catch {
     parsed = false;

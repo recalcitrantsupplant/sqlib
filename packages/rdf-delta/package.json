@@ -29,7 +29,7 @@
     "@traqula/rules-sparql-1-2": "1.4.0"
   },
   "devDependencies": {
-    "@duckdb/node-api": "1.5.5-r.5",
+    "@duckdb/node-api": "2.0.0-r.1",
     "@types/node": "^26.6.5",
     "oxigraph": "0.5.11",
     "rdf-canonize": "^5.0.0",

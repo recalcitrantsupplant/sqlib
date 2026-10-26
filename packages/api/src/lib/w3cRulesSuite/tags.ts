@@ -133,6 +133,7 @@ export const W3C_SUITE_TAGS: readonly W3cSuiteTag[] = [
   { slug: 'templates', name: 'templates', description: 'The rule head — the template whose instances become the inference graph.' },
   { slug: 'terms', name: 'terms', description: 'Term syntax: IRIs, literals, datatypes and language tags.' },
   { slug: 'reification', name: 'reification', description: 'RDF 1.2 reifiers and triple terms.' },
+  { slug: 'aggregation', name: 'aggregation', description: 'GROUP: group keys, a group pattern, and aggregation functions over each group.' },
   {
     slug: 'rule-structure',
     name: 'rule structure',
@@ -179,6 +180,7 @@ const FEATURE_RULES: ReadonlyArray<{ pattern: RegExp; tag: string }> = [
   { pattern: /(^|-)template(-|$)/, tag: 'templates' },
   { pattern: /(^|-)terms(-|$)/, tag: 'terms' },
   { pattern: /(^|-)reification(-|$)/, tag: 'reification' },
+  { pattern: /(^|-)group(-|$)/, tag: 'aggregation' },
   // Both the document's overall shape (`ruleset-structure-*`) and the RULE …
   // WHERE … form itself, under one tag: the distinction between "the shape of
   // the document" and "the shape of a rule in it" is not one the reader was

@@ -210,10 +210,10 @@ snapshot:
 
 | Directory | Entries | Asserts |
 | --- | --- | --- |
-| `syntax/` | 139 | the document parses, or must not |
-| `wellformed/` | 8 | the well-formedness conditions |
-| `stratification/` | 10 | a document that cannot be stratified is rejected |
-| `eval/` | 35 | the inference graph a run produces |
+| `syntax/` | 212 | the document parses, or must not |
+| `wellformed/` | 33 | the well-formedness conditions |
+| `stratification/` | 21 | a document that cannot be stratified is rejected |
+| `eval/` | 59 | the inference graph a run produces |
 | `eval2/` | 6 | the same, on larger inputs |
 | `examples/` | 5 | the examples from the specification |
 

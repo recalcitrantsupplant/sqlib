@@ -155,6 +155,17 @@ describe('SRL run-once rules and closed dependencies', () => {
     expect(r.runOnce.r0).toBe(true);
   });
 
+  it('flags a head triple term with a variable as run-once, and not a ground one', () => {
+    expect(strat(`${PREFIX}\nRULE { ?x :r <<( ?x :p ?y )>> } WHERE { ?x :p ?y }`).runOnce.r0).toBe(true);
+    expect(strat(`${PREFIX}\nRULE { ?x :r <<( :a :b <<( :c :d ?y )>> )>> } WHERE { ?x :p ?y }`).runOnce.r0).toBe(true);
+    expect(strat(`${PREFIX}\nRULE { ?x :r <<( :a :b :c )>> } WHERE { ?x :p ?y }`).runOnce.r0).toBe(false);
+  });
+
+  it('refuses a cycle through a head triple term with a variable', () => {
+    const r = strat(`${PREFIX}\nRULE { ?x :p <<( ?x :p ?y )>> } WHERE { ?x :p ?y }`);
+    expect(r.issues.join(' ')).toMatch(/triple term/);
+  });
+
   it('flags a SET body as run-once', () => {
     const r = strat(`${PREFIX}\nRULE { ?s :q ?v } WHERE { ?s :p ?o SET ( ?v := ?o + 1 ) }`);
     expect(r.runOnce.r0).toBe(true);

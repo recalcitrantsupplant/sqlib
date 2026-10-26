@@ -168,15 +168,16 @@ clean-local-memory:
 # /backends is registered unconditionally.
 #
 # Its own store, so a conformance suite never lands in the library you were
-# working in. All 205 entries appear under TESTS: the eval, eval2 and examples
+# working in. All 336 entries appear under TESTS: the eval, eval2 and examples
 # tests run a rule set against a data graph and compare the inference graph; the
 # syntax, well-formedness and stratification tests check the document itself.
 # FEATURE_RULES_ALLOW_INVALID_SAVE is on because a third of those documents are
 # *supposed* to be unparseable — they are stored anyway, and open in the rules
-# editor with the parser's complaint in red. Seeding is idempotent — restart as
+# editor with the parser's complaint in red. FEATURE_RULE_AGGREGATES is on
+# because the suite's GROUP tests need it. Seeding is idempotent — restart as
 # often as you like.
 #
-# The 205 are tagged as they are seeded, on two axes the directory cannot give
+# The 336 are tagged as they are seeded, on two axes the directory cannot give
 # you: what a test *exercises* (templates, negation, RDFS, blank nodes, …) and
 # what it *asserts* (must accept, must reject, expects error). Group the Tests
 # list by tag in the sidebar to see them, and run a tag — or several — from the
@@ -193,6 +194,7 @@ run-local-rules-tests:
     FEATURE_TESTS="true" \
     FEATURE_DATA_GRAPHS="true" \
     FEATURE_RULES_ALLOW_INVALID_SAVE="true" \
+    FEATURE_RULE_AGGREGATES="true" \
     FEATURE_QUERIES="true" \
     FEATURE_QUERY_GROUPS="true" \
     FEATURE_BENCHMARKS="false" \
@@ -216,6 +218,7 @@ run-frontend-rules API_URL="http://localhost:3005":
     NUXT_PUBLIC_FEATURE_TESTS="true" \
     NUXT_PUBLIC_FEATURE_DATA_GRAPHS="true" \
     NUXT_PUBLIC_FEATURE_RULES_ALLOW_INVALID_SAVE="true" \
+    NUXT_PUBLIC_FEATURE_RULE_AGGREGATES="true" \
     NUXT_PUBLIC_FEATURE_QUERIES="true" \
     NUXT_PUBLIC_FEATURE_QUERY_GROUPS="true" \
     NUXT_PUBLIC_FEATURE_BENCHMARKS="false" \

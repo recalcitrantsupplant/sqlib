@@ -73,7 +73,8 @@ export interface StratificationReport {
   /**
    * Rules the evaluator must run **exactly once** per execution (the spec's
    * `SL.once`), rather than iterating them to a fixpoint. True for a rule whose
-   * head mints a blank node or whose body has an assignment (`SET`): re-firing
+   * head mints a blank node or a triple term from variables, or whose body has an
+   * assignment (`SET`) or a `GROUP`: re-firing
    * either yields a fresh answer every pass, so there is no fixpoint to reach.
    * Every rule appears here; the flag is false for ordinary rules.
    */
@@ -130,6 +131,7 @@ export function stratify(rules: Array<{ id: string; ast: SrlRule }>): Stratifica
   for (const { id, ast } of rules) {
     const reasons: string[] = [];
     if (headHasBlankNode(ast.head)) reasons.push('blank-node head');
+    if (headHasTripleTermWithVariable(ast.head)) reasons.push('triple term with a variable in the head');
     if (hasAssignment(ast.body)) reasons.push('assignment (SET)');
     // An aggregate's value is only final once everything it counts is, and
     // re-firing the rule as its stratum grows would add a second value beside
@@ -158,6 +160,25 @@ function headHasBlankNode(head: unknown): boolean {
     (['subject', 'predicate', 'object'] as const).some((k) => {
       const term = t[k] as Term;
       return term?.type === 'term' && term?.subType === 'blankNode';
+    }),
+  );
+}
+
+/**
+ * A head template for a triple term in which a variable occurs. The spec makes
+ * such a rule run-once: each firing can build a new triple term from new
+ * bindings, and a triple term can be nested in another, so iterating the rule
+ * through a cycle could create terms without bound.
+ */
+function headHasTripleTermWithVariable(head: unknown): boolean {
+  const hasVariable = (term: any): boolean =>
+    term?.type === 'term'
+    && (term.subType === 'variable'
+      || (term.subType === 'triple' && [term.subject, term.predicate, term.object].some(hasVariable)));
+  return headTriples(head).some((t) =>
+    (['subject', 'predicate', 'object'] as const).some((k) => {
+      const term = t[k] as any;
+      return term?.subType === 'triple' && hasVariable(term);
     }),
   );
 }
