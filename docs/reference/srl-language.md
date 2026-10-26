@@ -642,14 +642,10 @@ elements before the `GROUP`, which repeats those elements inside it.
 
 ### Test cases
 
-Three folders under `packages/srl/test/w3c-proposed/` hold `GROUP` cases in the
-W3C suite's format:
+The W3C suite's `GROUP` tests are in the vendored snapshot,
+`packages/srl/test/w3c/`, which takes them from w3c/data-shapes#1380 and
+#1375 as if both were merged; its `SOURCE` file says how. Both conformance
+harnesses run them with `GROUP` on.
 
-- `pr-1375/` holds the suite's `GROUP` syntax tests as they stand on
-  w3c/data-shapes#1375.
-- `group/` holds the cases proposed for the suite in the data-shapes working
-  notes for #1347, covering syntax, well-formedness, stratification and
-  evaluation.
-- `aggregates/` holds sqlib's earlier cases for the same four categories.
-
-All three run in `packages/api/test/lib/RuleSetExecutor.aggregatesProposed.test.ts`.
+sqlib's own cases, in the suite's format, are in `packages/srl/test/group-cases/`
+and run in `packages/api/test/lib/RuleSetExecutor.groupCases.test.ts`.

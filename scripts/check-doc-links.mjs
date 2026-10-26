@@ -7,8 +7,9 @@
  * silently: a reader finds out, CI does not. This is the cheapest check that
  * would have caught it, and it runs in the lint step.
  *
- * Scope: markdown files tracked in the repository, minus node_modules and build
- * output. Absolute URLs, mailto:, and in-page anchors are not this script's
+ * Scope: markdown files tracked in the repository, minus node_modules, build
+ * output and the vendored W3C suite. The suite's README is upstream's text,
+ * kept unedited, and links to its test directories, which have no README. Absolute URLs, mailto:, and in-page anchors are not this script's
  * business. A link to a heading inside another file (`page.md#section`) is
  * checked as far as the file.
  */
@@ -23,7 +24,8 @@ const LINK = /(?<!!)\[[^\]]*\]\(\s*([^)\s]+)(?:\s+"[^"]*")?\s*\)/g;
 
 const files = execFileSync('git', ['ls-files', '*.md'], { cwd: REPO_ROOT, encoding: 'utf8' })
   .split('\n')
-  .filter((line) => line && !line.includes('node_modules/'));
+  .filter((line) => line && !line.includes('node_modules/'))
+  .filter((line) => !line.startsWith('packages/srl/test/w3c/'));
 
 let broken = 0;
 let checked = 0;

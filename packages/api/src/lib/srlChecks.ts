@@ -16,6 +16,7 @@
  */
 
 import { checkWellFormed, parseRuleSet, stratify } from '@sparql-query-lib/srl';
+import { ruleAggregatesAllowed } from './ruleAggregates.js';
 
 export const SRL_CHECKS = ['syntax', 'wellformed', 'stratification'] as const;
 
@@ -55,7 +56,8 @@ export function runSrlCheck(document: string, check: SrlCheck): SrlCheckVerdict 
   // conformance check must not do.
   let ruleSet: ReturnType<typeof parseRuleSet>;
   try {
-    ruleSet = parseRuleSet(text, { tuples: false });
+    // GROUP follows the server's flag, as every other parse in the API does.
+    ruleSet = parseRuleSet(text, { tuples: false, aggregates: ruleAggregatesAllowed() });
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     return { check, accepted: false, reason };

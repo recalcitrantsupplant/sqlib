@@ -1,2 +1,0 @@
-PREFIX :    <http://example/>
-RULE { ?who a :Youngest } WHERE { GROUP { ?p :age ?a } [ ?m := MIN(?a) ] ?who :age ?m }

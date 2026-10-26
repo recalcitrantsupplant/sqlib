@@ -1,5 +1,0 @@
-PREFIX :    <http://example/>
-RULE { ?k :labelCount ?n } WHERE {
-    GROUP BY ?k { ?x :label ?l SET(?k := IRI(CONCAT("http://example/lang/", LANG(?l)))) }
-        [ ?n := COUNT(*) ]
-}
