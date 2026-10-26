@@ -1,3 +1,3 @@
 PREFIX : <http://example/>
 
-:all :count 0 .
+# No triples inferred

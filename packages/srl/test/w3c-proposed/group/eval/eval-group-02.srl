@@ -1,0 +1,2 @@
+PREFIX :    <http://example/>
+RULE { :all :count ?n } WHERE { GROUP { ?s :p ?o } [ ?n := COUNT(*) ] }

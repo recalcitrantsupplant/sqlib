@@ -1,4 +1,3 @@
 PREFIX : <http://example/>
 
 :bob :agesNextYear 30 .
-:amy :agesNextYear 0 .

@@ -1,0 +1,173 @@
+## The GROUP syntax tests of the W3C SPARQL-RL suite as they stand on
+## w3c/data-shapes#1375 (branch srl-aggregation-comma), commit
+## a3eac70d93f94007f23d99c328f667c0e6a0b271, which puts a comma between
+## aggregation assignments. Files copied unedited; entries keep the upstream
+## ids and types.
+
+PREFIX :       <manifest#>
+PREFIX rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs:   <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX mf:     <http://www.w3.org/2001/sw/DataAccess/tests/test-manifest#>
+PREFIX srlt:   <http://www.w3.org/ns/sparql-rl-tests#>
+
+<>  rdf:type mf:Manifest ;
+    rdfs:comment "SPARQL-RL - Syntax: GROUP (w3c/data-shapes#1375)" ;
+    mf:entries (
+        :test_35
+        :test_36
+        :test_37
+        :test_38
+        :test_39
+        :test_40
+        :test_41
+        :test_42
+        :test_43
+        :test_44
+        :test_45
+        :test_46
+        :test_47
+        :test_48
+        :test_49
+        :test_50
+        :test_143
+        :test_144
+        :test_145
+        :test_146
+        :test_147
+        :test_148
+        :test_149
+        :test_150
+        :test_151
+        :test_152
+    ) .
+
+:test_35 rdf:type   srlt:RulesPositiveSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-01.srl" ;
+   mf:action  <syntax-rule-elements-group-01.srl> ;
+   .
+
+:test_36 rdf:type   srlt:RulesPositiveSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-02.srl" ;
+   mf:action  <syntax-rule-elements-group-02.srl> ;
+   .
+
+:test_37 rdf:type   srlt:RulesPositiveSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-03.srl" ;
+   mf:action  <syntax-rule-elements-group-03.srl> ;
+   .
+
+:test_38 rdf:type   srlt:RulesPositiveSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-04.srl" ;
+   mf:action  <syntax-rule-elements-group-04.srl> ;
+   .
+
+:test_39 rdf:type   srlt:RulesPositiveSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-05.srl" ;
+   mf:action  <syntax-rule-elements-group-05.srl> ;
+   .
+
+:test_40 rdf:type   srlt:RulesPositiveSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-06.srl" ;
+   mf:action  <syntax-rule-elements-group-06.srl> ;
+   .
+
+:test_41 rdf:type   srlt:RulesPositiveSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-07.srl" ;
+   mf:action  <syntax-rule-elements-group-07.srl> ;
+   .
+
+:test_42 rdf:type   srlt:RulesPositiveSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-08.srl" ;
+   mf:action  <syntax-rule-elements-group-08.srl> ;
+   .
+
+:test_43 rdf:type   srlt:RulesPositiveSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-09.srl" ;
+   mf:action  <syntax-rule-elements-group-09.srl> ;
+   .
+
+:test_44 rdf:type   srlt:RulesPositiveSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-10.srl" ;
+   mf:action  <syntax-rule-elements-group-10.srl> ;
+   .
+
+:test_45 rdf:type   srlt:RulesPositiveSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-11.srl" ;
+   mf:action  <syntax-rule-elements-group-11.srl> ;
+   .
+
+:test_46 rdf:type   srlt:RulesPositiveSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-12.srl" ;
+   mf:action  <syntax-rule-elements-group-12.srl> ;
+   .
+
+:test_47 rdf:type   srlt:RulesPositiveSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-13.srl" ;
+   mf:action  <syntax-rule-elements-group-13.srl> ;
+   .
+
+:test_48 rdf:type   srlt:RulesPositiveSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-14.srl" ;
+   mf:action  <syntax-rule-elements-group-14.srl> ;
+   .
+
+:test_49 rdf:type   srlt:RulesPositiveSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-15.srl" ;
+   mf:action  <syntax-rule-elements-group-15.srl> ;
+   .
+
+:test_50 rdf:type   srlt:RulesPositiveSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-16.srl" ;
+   mf:action  <syntax-rule-elements-group-16.srl> ;
+   .
+
+:test_143 rdf:type   srlt:RulesNegativeSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-bad-01.srl" ;
+   mf:action  <syntax-rule-elements-group-bad-01.srl> ;
+   .
+
+:test_144 rdf:type   srlt:RulesNegativeSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-bad-02.srl" ;
+   mf:action  <syntax-rule-elements-group-bad-02.srl> ;
+   .
+
+:test_145 rdf:type   srlt:RulesNegativeSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-bad-03.srl" ;
+   mf:action  <syntax-rule-elements-group-bad-03.srl> ;
+   .
+
+:test_146 rdf:type   srlt:RulesNegativeSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-bad-04.srl" ;
+   mf:action  <syntax-rule-elements-group-bad-04.srl> ;
+   .
+
+:test_147 rdf:type   srlt:RulesNegativeSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-bad-05.srl" ;
+   mf:action  <syntax-rule-elements-group-bad-05.srl> ;
+   .
+
+:test_148 rdf:type   srlt:RulesNegativeSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-bad-06.srl" ;
+   mf:action  <syntax-rule-elements-group-bad-06.srl> ;
+   .
+
+:test_149 rdf:type   srlt:RulesNegativeSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-bad-07.srl" ;
+   mf:action  <syntax-rule-elements-group-bad-07.srl> ;
+   .
+
+:test_150 rdf:type   srlt:RulesNegativeSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-bad-08.srl" ;
+   mf:action  <syntax-rule-elements-group-bad-08.srl> ;
+   .
+
+:test_151 rdf:type   srlt:RulesNegativeSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-bad-09.srl" ;
+   mf:action  <syntax-rule-elements-group-bad-09.srl> ;
+   .
+
+:test_152 rdf:type   srlt:RulesNegativeSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-bad-10.srl" ;
+   mf:action  <syntax-rule-elements-group-bad-10.srl> ;
+   .
+

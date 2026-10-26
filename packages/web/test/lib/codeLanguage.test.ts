@@ -235,9 +235,7 @@ describe('an SRL editor given a GROUP aggregate', () => {
       'RULE { ?c :employees ?n ; :salaryBill ?t } WHERE {',
       '  ?c a :Company .',
       '  GROUP BY ?c { ?x :employee ?c ; :salary ?s FILTER(?s > 0) }',
-      // Since @kurrawongai/codemirror-lang-srl 0.6.0 the assignments are
-      // comma-separated, as w3c/data-shapes#1375 has them.
-      '  [ ?n := COUNT(DISTINCT ?x),',
+      '  [ ?n := COUNT(DISTINCT ?x) ,',
       '    ?t := SUM(?s) ]',
       '}',
     ].join('\n');

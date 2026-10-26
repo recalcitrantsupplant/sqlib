@@ -1,4 +1,5 @@
 PREFIX : <http://example/>
 
-# COUNT per person: a person with no children gets 0.
+# COUNT per person. Amy has no children, so she forms no group and gets no
+# count (w3c/data-shapes#1377).
 RULE { ?x :numChildren ?n } WHERE { ?x a :Person . GROUP BY ?x { ?y :childOf ?x } [ ?n := COUNT(*) ] }

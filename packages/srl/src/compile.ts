@@ -85,7 +85,7 @@ function serialize(rule: string, ast: unknown): string {
  *  - `SET (?v := E)`     → `BIND(E AS ?v) FILTER(BOUND(?v))`
  *  - `TUPLE( … )`        → a placeholder comment; the executor substitutes a
  *                          `VALUES` block built from the tuple store.
- *  - `GROUP …`           → an `OPTIONAL` grouped subquery; see
+ *  - `GROUP …`           → a grouped subquery joined to the body; see
  *                          {@link compileAggregate}.
  *
  * `BIND` + `FILTER(BOUND(?v))` encodes SRL's "an error in SET drops the
@@ -210,34 +210,34 @@ function compileBody(items: SrlBodyItem[], context: CompileContext, outerBound: 
  *
  *     {
  *       P
- *       OPTIONAL {
- *         SELECT ?x (COUNT(*) AS ?_agg0_count) (COUNT(*) AS ?_agg0_v0)
+ *       {
+ *         SELECT ?x (COUNT(*) AS ?_agg0_v0)
  *         WHERE { ?_agg0_y :childOf ?x }
  *         GROUP BY ?x
  *       }
- *       BIND(IF(COALESCE(?_agg0_count, 0) > 0, ?_agg0_v0, 0) AS ?n)
+ *       BIND(?_agg0_v0 AS ?n)
  *       FILTER(BOUND(?n))
  *     }
  *
- * - **Augment mode** (w3c/data-shapes#840): every row of `P` is kept, with
- *   every variable it binds, and the results are added to it.
+ * This follows `evalRuleElements` in w3c/data-shapes#1377:
+ *
+ * - **Every variable of `P` survives**, and the keys and results are added to
+ *   each row of `P`.
  * - **The pattern's variables are renamed** apart from `K`, `SET` targets
  *   included, so the only variables the subquery shares with `P` are the keys.
  *   A pattern variable is local to the `GROUP`: one of the same name before
  *   or after it is a different variable.
- * - **`OPTIONAL` keeps a key whose group is empty**, and the hidden count tells
- *   an empty group (no subquery row: `COUNT` and `SUM` become 0, `MIN` and
- *   `MAX` drop the row, w3c/data-shapes#1344) apart from an aggregate that
- *   failed (a row whose value is unbound: the row is dropped, as an error in
- *   `SET` drops it).
- * - **A key `P` does not bind** is supplied by the pattern. An empty group then
- *   has no value for it, so there is nothing to keep: the subquery is joined
- *   rather than made `OPTIONAL`, and only the groups that exist give rows.
+ * - **A key with no solutions forms no group**, so its row of `P` is dropped:
+ *   the subquery is joined, not made `OPTIONAL`. With no keys, SPARQL still
+ *   returns one row for an empty pattern result (a `COUNT` of 0), so a hidden
+ *   `COUNT(*)` is projected and the row is kept only when it is above 0.
+ * - **An aggregate that fails drops its group.** SPARQL leaves the result
+ *   unbound, and the `BOUND` test removes the row, as an error in `SET` does.
  * - **Grouping the pattern alone** means the multiplicity of `P` never reaches
  *   a count: a person with two names and three children counts three.
  *
- * When a key is used by the pattern only in a `FILTER` — the rank idiom,
- * `{ ?o :score ?s FILTER(?s > ?score) }` — the subquery cannot compute it from
+ * When a key bound by `P` is not bound by the pattern, as in the rank idiom
+ * `{ ?o :score ?s FILTER(?s > ?score) }`, the subquery cannot compute it from
  * its own pattern, since SPARQL evaluates a subquery bottom-up. It is then
  * seeded with the distinct key rows of `P`, which repeats `P` inside it.
  */
@@ -266,7 +266,8 @@ function compileAggregate(
     aggregate: renameVars(structuredClone(a.aggregate), renames),
   }));
 
-  const count = fresh('count');
+  // Only a GROUP without keys can see an empty pattern result as a row.
+  const count = keys.length === 0 ? fresh('count') : undefined;
   const values = assignments.map((_, j) => fresh(`v${j}`));
   const keyList = keys.map((k) => `?${k}`).join(' ');
 
@@ -281,22 +282,15 @@ function compileAggregate(
   const inner = compileBody(body, context, new Set(outerKeys));
   const projection = [
     keyList,
-    `(COUNT(*) AS ?${count})`,
+    count ? `(COUNT(*) AS ?${count})` : '',
     ...assignments.map((a, j) => `(${serialize('expression', a.aggregate)} AS ?${values[j]})`),
   ].filter(Boolean).join(' ');
   const groupBy = keys.length > 0 ? `\nGROUP BY ${keyList}` : '';
-  const select = `{\n  SELECT ${projection} WHERE {\n  ${seed}${inner}\n}${groupBy}\n}`;
-  const subquery = outerKeys.length === keys.length ? `OPTIONAL ${select}` : select;
+  const subquery = `{\n  SELECT ${projection} WHERE {\n  ${seed}${inner}\n}${groupBy}\n}`;
 
-  const present = `COALESCE(?${count}, 0) > 0`;
   const after: string[] = [];
-  // MIN and MAX have no value on an empty group, so the row goes.
-  if (assignments.some((a) => !zeroOnEmpty(a.aggregate))) after.push(`FILTER(${present})`);
-  assignments.forEach((a, j) => {
-    after.push(zeroOnEmpty(a.aggregate)
-      ? `BIND(IF(${present}, ?${values[j]}, 0) AS ?${a.variable})`
-      : `BIND(?${values[j]} AS ?${a.variable})`);
-  });
+  if (count) after.push(`FILTER(?${count} > 0)`);
+  assignments.forEach((a, j) => after.push(`BIND(?${values[j]} AS ?${a.variable})`));
   if (assignments.length > 0) {
     after.push(`FILTER(${assignments.map((a) => `BOUND(?${a.variable})`).join(' && ')})`);
   }
@@ -304,12 +298,6 @@ function compileAggregate(
   // Close the group, as after a SET, so the BOUND test cannot be satisfied by
   // a pattern that comes after the GROUP.
   return `{\n  ${[...prefix, subquery, ...after].join('\n  ')}\n}`;
-}
-
-/** `COUNT` and `SUM` of an empty group are 0; `MIN` and `MAX` have no value. */
-function zeroOnEmpty(aggregate: unknown): boolean {
-  const name = String((aggregate as { aggregation?: unknown }).aggregation ?? '').toLowerCase();
-  return name === 'count' || name === 'sum';
 }
 
 /** Rename variables throughout an AST node, in place. Returns the node. */

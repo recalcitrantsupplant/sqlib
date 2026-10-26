@@ -7,13 +7,16 @@ import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinator
 import { overrideFeatureFlags, resetFeatureFlags } from '../../src/config/featureFlags.js';
 
 /**
- * `GROUP` aggregation against two sets of W3C-style cases:
+ * `GROUP` aggregation against three sets of W3C-style cases:
  *
- * - `packages/srl/test/w3c-proposed/pr-1347/syntax/`: the syntax tests of
- *   w3c/data-shapes#1347, copied unedited from the pull request;
- * - `packages/srl/test/w3c-proposed/aggregates/`: our own cases for syntax,
- *   well-formedness, stratification and evaluation, written in the suite's
- *   layout so they can be offered upstream alongside the pull request.
+ * - `packages/srl/test/w3c-proposed/pr-1375/syntax/`: the suite's `GROUP`
+ *   syntax tests as they stand on w3c/data-shapes#1375, which puts a comma
+ *   between aggregation assignments;
+ * - `packages/srl/test/w3c-proposed/group/`: the cases proposed for the suite
+ *   in data-shapes `notes-1347/proposed-tests.html`, written against #1375,
+ *   #1376 and #1377 as if merged;
+ * - `packages/srl/test/w3c-proposed/aggregates/`: sqlib's earlier cases for
+ *   syntax, well-formedness, stratification and evaluation.
  *
  * Both are read with the same manifest reader as the vendored suite, which also
  * checks they are in its format. Syntax, well-formedness and stratification
@@ -29,7 +32,8 @@ overrideCacheCoordinatorProvider({
 const { RuleSetExecutor } = await import('../../src/lib/RuleSetExecutor.js');
 
 const PROPOSED_DIR = fileURLToPath(new URL('../../../srl/test/w3c-proposed/aggregates', import.meta.url));
-const PR_DIR = fileURLToPath(new URL('../../../srl/test/w3c-proposed/pr-1347', import.meta.url));
+const PR_DIR = fileURLToPath(new URL('../../../srl/test/w3c-proposed/pr-1375', import.meta.url));
+const GROUP_DIR = fileURLToPath(new URL('../../../srl/test/w3c-proposed/group', import.meta.url));
 const OPTIONS = { aggregates: true } as const;
 
 /** Register one RuleVersion per rule in the document, and return their ids. */
@@ -83,23 +87,26 @@ const syntaxSuite = await readW3cRulesDocumentSuite('syntax', PROPOSED_DIR);
 const wellformedSuite = await readW3cRulesDocumentSuite('wellformed', PROPOSED_DIR);
 const stratificationSuite = await readW3cRulesDocumentSuite('stratification', PROPOSED_DIR);
 const evalSuite = await readW3cRulesEvalSuite('eval', PROPOSED_DIR);
+const groupSyntaxSuite = await readW3cRulesDocumentSuite('syntax', GROUP_DIR);
+const groupWellformedSuite = await readW3cRulesDocumentSuite('wellformed', GROUP_DIR);
+const groupStratificationSuite = await readW3cRulesDocumentSuite('stratification', GROUP_DIR);
+const groupEvalSuite = await readW3cRulesEvalSuite('eval', GROUP_DIR);
 
 describe('GROUP cases — the manifests', () => {
   it('reads every entry of every category', () => {
-    expect(prSyntaxSuite.entries).toHaveLength(25);
+    expect(prSyntaxSuite.entries).toHaveLength(26);
     expect(syntaxSuite.entries).toHaveLength(25);
     expect(wellformedSuite.entries).toHaveLength(22);
     expect(stratificationSuite.entries).toHaveLength(6);
     expect(evalSuite.entries).toHaveLength(25);
+    expect(groupSyntaxSuite.entries).toHaveLength(40);
+    expect(groupWellformedSuite.entries).toHaveLength(26);
+    expect(groupStratificationSuite.entries).toHaveLength(7);
+    expect(groupEvalSuite.entries).toHaveLength(23);
   });
 });
 
-describe('GROUP cases — the syntax tests of w3c/data-shapes#1347', () => {
-  // Five of the negative tests (group-bad-04 to -08) also lack the WHERE's
-  // closing brace, so they are rejected whether or not the fault each one names
-  // is caught. The cases in ../aggregates/ cover those faults with the brace in
-  // place (syntax-group-agg-bad-03, -13; the SRL package's unit tests cover
-  // DISTINCT in MIN, MAX and SUM).
+describe('GROUP cases — the syntax tests of w3c/data-shapes#1375', () => {
   for (const entry of prSyntaxSuite.entries) {
     it(`${entry.name} is ${entry.accepted ? 'accepted' : 'rejected'}`, () => {
       expect(parses(entry.document)).toBe(entry.accepted);
@@ -107,64 +114,84 @@ describe('GROUP cases — the syntax tests of w3c/data-shapes#1347', () => {
   }
 });
 
-describe('GROUP cases — syntax', () => {
-  for (const entry of syntaxSuite.entries) {
-    it(`${entry.name} is ${entry.accepted ? 'accepted' : 'rejected'}`, () => {
-      expect(parses(entry.document)).toBe(entry.accepted);
-    });
-  }
+type DocumentSuite = Awaited<ReturnType<typeof readW3cRulesDocumentSuite>>;
+type EvalSuite = Awaited<ReturnType<typeof readW3cRulesEvalSuite>>;
 
-  it('rejects every positive case when the extension is off', () => {
-    const accepted = syntaxSuite.entries
-      .filter((entry) => entry.accepted && parses(entry.document, { aggregates: false } as never))
-      .map((entry) => entry.name);
-    expect(accepted).toEqual([]);
+/** The four categories of one set of cases, each read from its manifest. */
+function describeCases(
+  label: string,
+  suites: { syntax: DocumentSuite; wellformed: DocumentSuite; stratification: DocumentSuite; eval: EvalSuite },
+): void {
+  describe(`${label} — syntax`, () => {
+    for (const entry of suites.syntax.entries) {
+      it(`${entry.name} is ${entry.accepted ? 'accepted' : 'rejected'}`, () => {
+        expect(parses(entry.document)).toBe(entry.accepted);
+      });
+    }
+
+    it('rejects every positive case when the extension is off', () => {
+      const accepted = suites.syntax.entries
+        .filter((entry) => entry.accepted && parses(entry.document, { aggregates: false } as never))
+        .map((entry) => entry.name);
+      expect(accepted).toEqual([]);
+    });
   });
+
+  describe(`${label} — well-formedness`, () => {
+    for (const entry of suites.wellformed.entries) {
+      it(`${entry.name} is ${entry.accepted ? 'accepted' : 'rejected'}`, () => {
+        const ruleSet = parseRuleSet(entry.document, OPTIONS);
+        expect(checkWellFormed(ruleSet)).toEqual(entry.accepted ? [] : expect.arrayContaining([expect.anything()]));
+      });
+    }
+  });
+
+  describe(`${label} — stratification`, () => {
+    for (const entry of suites.stratification.entries) {
+      it(`${entry.name} is ${entry.accepted ? 'accepted' : 'rejected'}`, () => {
+        const ruleSet = parseRuleSet(entry.document, OPTIONS);
+        // Each case is syntactically legal and well-formed, so a rejection is
+        // the stratifier's and nothing else's.
+        expect(checkWellFormed(ruleSet)).toEqual([]);
+        const report = stratify(ruleSet.rules.map((ast, i) => ({ id: `r${i}`, ast })));
+        expect(report.issues.length === 0).toBe(entry.accepted);
+      });
+    }
+  });
+
+  describe(`${label} — evaluation`, () => {
+    for (const entry of suites.eval.entries) {
+      it(entry.name, async () => {
+        // Every case is well-formed, so the executor's answer is the one tested.
+        expect(checkWellFormed(parseRuleSet(entry.ruleset, OPTIONS))).toEqual([]);
+        const result = await new RuleSetExecutor().execute(
+          {
+            $id: `urn:test:rule-set-version:${entry.slug}`,
+            '@type': 'RuleSetVersion',
+            isPartOf: `urn:test:rule-set:${entry.slug}`,
+            version: 1,
+            hasRule: rulesOf(entry.slug, entry.ruleset),
+            hasDataBlock: [],
+          } as never,
+          { initialGraph: entry.data, initialGraphFormat: 'turtle', maxIterations: 10 },
+        );
+
+        expect(result.error).toBeUndefined();
+        expect(result.status).toBe('converged');
+        expect(canonical(result.finalGraphNQuads ?? '', 'application/n-quads'))
+          .toEqual(canonical(entry.result, 'text/turtle'));
+      });
+    }
+  });
+}
+
+describeCases('GROUP cases', {
+  syntax: syntaxSuite, wellformed: wellformedSuite, stratification: stratificationSuite, eval: evalSuite,
 });
 
-describe('GROUP cases — well-formedness', () => {
-  for (const entry of wellformedSuite.entries) {
-    it(`${entry.name} is ${entry.accepted ? 'accepted' : 'rejected'}`, () => {
-      const ruleSet = parseRuleSet(entry.document, OPTIONS);
-      expect(checkWellFormed(ruleSet)).toEqual(entry.accepted ? [] : expect.arrayContaining([expect.anything()]));
-    });
-  }
-});
-
-describe('GROUP cases — stratification', () => {
-  for (const entry of stratificationSuite.entries) {
-    it(`${entry.name} is ${entry.accepted ? 'accepted' : 'rejected'}`, () => {
-      const ruleSet = parseRuleSet(entry.document, OPTIONS);
-      // Each case is syntactically legal and well-formed, so a rejection is
-      // the stratifier's and nothing else's.
-      expect(checkWellFormed(ruleSet)).toEqual([]);
-      const report = stratify(ruleSet.rules.map((ast, i) => ({ id: `r${i}`, ast })));
-      expect(report.issues.length === 0).toBe(entry.accepted);
-    });
-  }
-});
-
-describe('GROUP cases — evaluation', () => {
-  for (const entry of evalSuite.entries) {
-    it(entry.name, async () => {
-      // Every case is well-formed, so the executor's answer is the one tested.
-      expect(checkWellFormed(parseRuleSet(entry.ruleset, OPTIONS))).toEqual([]);
-      const result = await new RuleSetExecutor().execute(
-        {
-          $id: `urn:test:rule-set-version:${entry.slug}`,
-          '@type': 'RuleSetVersion',
-          isPartOf: `urn:test:rule-set:${entry.slug}`,
-          version: 1,
-          hasRule: rulesOf(entry.slug, entry.ruleset),
-          hasDataBlock: [],
-        } as never,
-        { initialGraph: entry.data, initialGraphFormat: 'turtle', maxIterations: 10 },
-      );
-
-      expect(result.error).toBeUndefined();
-      expect(result.status).toBe('converged');
-      expect(canonical(result.finalGraphNQuads ?? '', 'application/n-quads'))
-        .toEqual(canonical(entry.result, 'text/turtle'));
-    });
-  }
+describeCases('GROUP cases proposed in notes-1347', {
+  syntax: groupSyntaxSuite,
+  wellformed: groupWellformedSuite,
+  stratification: groupStratificationSuite,
+  eval: groupEvalSuite,
 });

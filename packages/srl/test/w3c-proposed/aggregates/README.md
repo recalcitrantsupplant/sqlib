@@ -7,17 +7,19 @@ They use the W3C suite's layout and vocabulary
 (`shacl12-test-suite/tests/sparql-rl/`), so each folder can be copied upstream
 and its `manifest.ttl` entries merged into the matching upstream manifest.
 
-The pull request covers syntax only; its own tests are in
-[`../pr-1347/`](../pr-1347/README.md). These add well-formedness,
-stratification and evaluation cases, and syntax cases the pull request does not
-have. Where the pull request leaves the meaning open, these cases assert the
-reading agreed in [w3c/data-shapes#840](https://github.com/w3c/data-shapes/issues/840)
-and [#1344](https://github.com/w3c/data-shapes/issues/1344): augment mode, so
-every earlier variable stays bound after the `GROUP`; a `BY` variable may come
-from before the `GROUP` or from its pattern; `COUNT` and `SUM` of an empty group
-are 0, and `MIN` and `MAX` of one drop the row; a pattern variable that is
-not a `BY` variable is local to the `GROUP`, whatever is bound before or after
-it.
+These cases predate the suite's own `GROUP` tests, which are in
+[`../pr-1375/`](../pr-1375/README.md), and the cases proposed for the suite in
+[`../group/`](../group/README.md). They assert the semantics of
+[w3c/data-shapes#1377](https://github.com/w3c/data-shapes/pull/1377): every
+earlier variable stays bound after the `GROUP`; a `BY` variable may come from
+before the `GROUP` or from its pattern; a key whose pattern has no solutions
+forms no group, so its row is dropped whatever the functions are; a pattern
+variable that is not a `BY` variable is local to the `GROUP`, whatever is bound
+before or after it. Assignments are separated by commas, as in
+[w3c/data-shapes#1375](https://github.com/w3c/data-shapes/pull/1375).
+
+Until #1377, these cases gave `COUNT` and `SUM` of an empty group the value 0.
+The evaluation cases that depended on that now expect no row instead.
 
 The syntax and semantics are described in
 [the SRL reference](../../../../../docs/reference/srl-language.md#aggregation-group).
@@ -34,7 +36,7 @@ is rejected with the flag off.
 | `syntax-group-agg-01` | accepted | GROUP BY with one variable. |
 | `syntax-group-agg-02` | accepted | No BY: one group over every input row. |
 | `syntax-group-agg-03` | accepted | Several BY variables, with no separator. |
-| `syntax-group-agg-04` | accepted | Every function, and DISTINCT in COUNT, with no separator between assignments. |
+| `syntax-group-agg-04` | accepted | Every function, and DISTINCT in COUNT, with a comma between assignments. |
 | `syntax-group-agg-05` | accepted | Keywords are case-insensitive. |
 | `syntax-group-agg-06` | accepted | The pattern may hold FILTER and SET. |
 | `syntax-group-agg-07` | accepted | An empty pattern. |
@@ -51,7 +53,7 @@ is rejected with the flag off.
 | `syntax-group-agg-bad-07` | rejected | An assignment that is not an aggregation function. |
 | `syntax-group-agg-bad-08` | rejected | An aggregation function inside an aggregation function. |
 | `syntax-group-agg-bad-09` | rejected | An aggregation function in a FILTER, outside GROUP. |
-| `syntax-group-agg-bad-10` | rejected | A comma between assignments. |
+| `syntax-group-agg-bad-10` | rejected | No comma between assignments. |
 | `syntax-group-agg-bad-11` | rejected | Parentheses around an assignment. |
 | `syntax-group-agg-bad-12` | rejected | Assignments in parentheses rather than a [ ] block. |
 | `syntax-group-agg-bad-13` | rejected | An expression argument to SUM. |
@@ -112,27 +114,27 @@ triples with `<name>-results.ttl`.
 
 | Test | What it checks |
 | --- | --- |
-| `eval-group-agg-01` | COUNT per person: a person with no children gets 0. |
-| `eval-group-agg-02` | SUM counts every solution, so two children aged 10 both count; an empty group sums to 0. |
+| `eval-group-agg-01` | COUNT per person: a person with no children forms no group and gets no count. |
+| `eval-group-agg-02` | SUM counts every solution, so two children aged 10 both count; an empty group gives no sum. |
 | `eval-group-agg-03` | COUNT(DISTINCT ?a) counts each age once. |
 | `eval-group-agg-04` | Bob has two names. Listing ?name in BY carries it through: each name row gets the count of 3, not 6. |
 | `eval-group-agg-05` | MIN and MAX have no value on an empty group, so Amy's row is dropped. |
 | `eval-group-agg-06` | COUNT(*) counts solutions; COUNT(DISTINCT ?p) counts people. Ann has two roles. |
-| `eval-group-agg-07` | Rank within a department: 1 plus the number of people in it with a higher score. Ties share a rank. |
-| `eval-group-agg-08` | Dense rank, counting distinct higher scores. |
+| `eval-group-agg-07` | Rank within a department: 1 plus the number of people in it with a higher score. Ties share a rank. The top score forms no group, so it gets no rank. |
+| `eval-group-agg-08` | Dense rank, counting distinct higher scores. The top score gets no rank. |
 | `eval-group-agg-09` | COUNT(DISTINCT *) equals COUNT(*): the solutions of a pattern are already distinct. |
 | `eval-group-agg-10` | The GROUP counts :childOf only after the rule deriving it is complete, so Bob gets 3 and no partial count. |
 | `eval-group-agg-11` | WHERE DATA counts only the given graph: the derived :childOf triples are not counted. |
 | `eval-group-agg-12` | An aggregation error drops the row: SUM over strings has no value, SUM over numbers does. |
-| `eval-group-agg-13` | On an empty graph a GROUP with no BY counts 0, and its MAX has no value. |
+| `eval-group-agg-13` | On an empty graph a GROUP with no BY forms no group, so neither COUNT nor MAX gives a value. |
 | `eval-group-agg-14` | A FILTER on the result after the GROUP keeps only people with more than one child. |
-| `eval-group-agg-15` | Two GROUPs in one rule; the second lists the first one's result as a key, which carries it through. |
+| `eval-group-agg-15` | Two GROUPs in one rule; the second lists the first one's result as a key. Each person has an empty group in one of them, so nothing is inferred. |
 | `eval-group-agg-16` | SET in the pattern: each child's age next year, summed. |
-| `eval-group-agg-17` | An empty block keeps every earlier row, matched or not, as COUNT does. |
+| `eval-group-agg-17` | An empty block keeps the earlier rows whose pattern matches, as COUNT does. |
 | `eval-group-agg-18` | A GROUP with no BY makes one group of every match of its pattern, and adds the result to every earlier row. |
-| `eval-group-agg-19` | Augment mode: earlier variables reach the head; two names do not double a count; no children gives 0. |
+| `eval-group-agg-19` | Augment mode: earlier variables reach the head; two names do not double a count; no children gives no row. |
 | `eval-group-agg-20` | The pattern supplies the key: a department nobody works in has no row. |
-| `eval-group-agg-21` | The key is bound before the GROUP: a department nobody works in gets 0. |
+| `eval-group-agg-21` | The key is bound before the GROUP: a department nobody works in has no row. |
 | `eval-group-agg-22` | One key from before the GROUP, one only from the pattern: an empty group gives no row. |
 | `eval-group-agg-23` | A second GROUP keeps the first one's result without listing it. |
 | `eval-group-agg-24` | A pattern variable used again after the GROUP is a new variable (#690). |

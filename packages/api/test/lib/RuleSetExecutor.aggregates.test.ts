@@ -88,15 +88,16 @@ describe('RuleSetExecutor — GROUP', () => {
       [
         rule('child-of', 'RULE { ?y :childOf ?x } WHERE { ?x :parentOf ?y }'),
         rule('count', 'RULE { ?x :numChildren ?n ; :ageSum ?s } WHERE { ?x a :Person . '
-          + 'GROUP BY ?x { ?y :childOf ?x ; :age ?a } [ ?n := COUNT(*) ?s := SUM(?a) ] }'),
+          + 'GROUP BY ?x { ?y :childOf ?x ; :age ?a } [ ?n := COUNT(*) , ?s := SUM(?a) ] }'),
       ],
       FAMILY,
     );
     expect(graph).toContain(`${ex('bob')} ${ex('numChildren')} ${int(3)} .`);
     // Two children aged 10 are two solutions, so both count towards the sum.
     expect(graph).toContain(`${ex('bob')} ${ex('ageSum')} ${int(27)} .`);
-    // A person with no children still gets a row, with 0.
-    expect(graph).toContain(`${ex('amy')} ${ex('numChildren')} ${int(0)} .`);
+    // A person with no children forms no group, so gets no row
+    // (w3c/data-shapes#1377).
+    expect(graph).not.toContain(`${ex('amy')} ${ex('numChildren')}`);
     expect(graph).not.toContain(`${ex('bob')} ${ex('numChildren')} ${int(1)} .`);
   });
 
@@ -133,7 +134,9 @@ describe('RuleSetExecutor — GROUP', () => {
       const match = new RegExp(`<http://ex/${p}> <http://ex/rank> "(\\d+)"`).exec(graph);
       return [p, Number(match?.[1])];
     }));
-    expect(ranks).toEqual({ a: 1, b: 2, c: 2, d: 4, e: 1, f: 2 });
+    // The top score in a department has nobody above it, so it forms no group
+    // and gets no rank.
+    expect(ranks).toEqual({ a: NaN, b: 2, c: 2, d: 4, e: NaN, f: 2 });
   });
 
   it('makes one group of every earlier row when there is no BY', async () => {
@@ -146,14 +149,15 @@ describe('RuleSetExecutor — GROUP', () => {
 
   it('keeps a first GROUP\'s result through a second that lists it', async () => {
     const graph = await run(
-      [rule('two', 'RULE { ?x :kids ?n ; :teens ?m } WHERE { ?x a :Person . '
+      [rule('two', 'RULE { ?x :kids ?n ; :young ?m } WHERE { ?x a :Person . '
         + 'GROUP BY ?x { ?x :parentOf ?y } [ ?n := COUNT(*) ] '
-        + 'GROUP BY ?x ?n { ?x :parentOf ?y . ?y :age ?a FILTER(?a > 12 && ?a < 20) } [ ?m := COUNT(*) ] }')],
+        + 'GROUP BY ?x ?n { ?x :parentOf ?y . ?y :age ?a FILTER(?a < 10) } [ ?m := COUNT(*) ] }')],
       FAMILY,
     );
     expect(graph).toContain(`${ex('bob')} ${ex('kids')} ${int(3)} .`);
-    expect(graph).toContain(`${ex('bob')} ${ex('teens')} ${int(0)} .`);
-    expect(graph).toContain(`${ex('amy')} ${ex('kids')} ${int(0)} .`);
+    expect(graph).toContain(`${ex('bob')} ${ex('young')} ${int(1)} .`);
+    // Amy has no children, so the first GROUP forms no group for her.
+    expect(graph).not.toContain(`${ex('amy')}`);
   });
 });
 

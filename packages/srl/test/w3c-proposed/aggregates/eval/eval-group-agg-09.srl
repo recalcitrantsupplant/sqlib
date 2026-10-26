@@ -2,4 +2,4 @@ PREFIX : <http://example/>
 
 # COUNT(DISTINCT *) equals COUNT(*): the solutions of a pattern are already
 # distinct.
-RULE { :sales :rows ?r ; :distinctRows ?d } WHERE { GROUP { ?p :worksIn :sales ; :role ?role } [ ?r := COUNT(*) ?d := COUNT(DISTINCT *) ] }
+RULE { :sales :rows ?r ; :distinctRows ?d } WHERE { GROUP { ?p :worksIn :sales ; :role ?role } [ ?r := COUNT(*) , ?d := COUNT(DISTINCT *) ] }
