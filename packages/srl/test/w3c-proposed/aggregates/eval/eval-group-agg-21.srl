@@ -1,4 +1,5 @@
 PREFIX : <http://example/>
 
-# The same count with the key bound before the GROUP: :hr gets 0.
+# The same count with the key bound before the GROUP: :hr has nobody, so it
+# forms no group and gets no count.
 RULE { ?d :headcount ?n } WHERE { ?d a :Dept . GROUP BY ?d { ?p :dept ?d } [ ?n := COUNT(*) ] }

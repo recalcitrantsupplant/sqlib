@@ -430,10 +430,14 @@ SRL syntax error: tuple seed rows require the rule-tuples extension (parse with 
 `GROUP` is the aggregation element proposed for SPARQL-RL in
 [w3c/data-shapes#1344](https://github.com/w3c/data-shapes/issues/1344), with
 the grammar of
-[w3c/data-shapes#1347](https://github.com/w3c/data-shapes/pull/1347). **Until
-that pull request is merged it is not in the specification**, so it is gated by
-the `ruleAggregates` feature flag (`FEATURE_RULE_AGGREGATES`), which is **off
-by default**.
+[w3c/data-shapes#1347](https://github.com/w3c/data-shapes/pull/1347). sqlib
+also follows three open pull requests as if they were merged:
+[#1375](https://github.com/w3c/data-shapes/pull/1375) puts a comma between
+assignments, [#1377](https://github.com/w3c/data-shapes/pull/1377) defines the
+well-formedness conditions and `evalAggregate`, and
+[#1376](https://github.com/w3c/data-shapes/pull/1376) adds the specification's
+example. `GROUP` is gated by the `ruleAggregates` feature flag
+(`FEATURE_RULE_AGGREGATES`), which is **off by default**.
 
 With the flag off, `GROUP` is a syntax error:
 
@@ -452,7 +456,7 @@ RULE { ?c :employees ?n ; :salaryBill ?t }
 WHERE {
   ?c a :Company .
   GROUP BY ?c { ?x :employee ?c ; :salary ?s }
-  [ ?n := COUNT(DISTINCT ?x)
+  [ ?n := COUNT(DISTINCT ?x) ,
     ?t := SUM(?s) ]
 }
 ```
@@ -461,7 +465,7 @@ WHERE {
 | --- | --- |
 | `BY` | one or more variables, no separator; may be left out |
 | pattern | triple patterns, `FILTER` and `SET`; with the rule-tuples extension on, `TUPLE( … )` |
-| block | `[ ?v := FUNCTION(…) … ]`, one or more assignments with no separator, or `[]` for none |
+| block | `[ ?v := FUNCTION(…) , … ]`, assignments separated by commas, or `[]` for none |
 | functions | `COUNT(*)`, `COUNT(?v)`, `COUNT(DISTINCT ?v)`, `COUNT(DISTINCT *)`, `SUM(?v)`, `MIN(?v)`, `MAX(?v)` |
 
 The block is required, even when empty, because its closing `]` marks the end
@@ -470,19 +474,22 @@ of the element: a triple pattern after a `GROUP` can start with `(`.
 These are refused, each with a message naming the fault: `AVG`, `SAMPLE`,
 `GROUP_CONCAT`, an expression as an argument (`SUM(?a + 1)`), `DISTINCT` in
 `SUM`, `MIN` or `MAX`, a `NOT` in the pattern, a `GROUP` inside another `GROUP`
-or a `NOT`, and commas or parentheses in the block.
+or a `NOT`, and parentheses in the block. Two assignments without a comma
+between them, a leading or trailing comma, and a comma between `BY` variables
+are parse errors.
 
 ### Evaluation
 
-`GROUP` runs in *augment mode*, as agreed in
-[w3c/data-shapes#840](https://github.com/w3c/data-shapes/issues/840): it adds
+`GROUP` follows `evalRuleElements` in
+[w3c/data-shapes#1377](https://github.com/w3c/data-shapes/pull/1377). It adds
 the results to the rows it receives and keeps every variable they bind.
 
 1. The `GROUP` receives the rows produced by the elements before it.
 2. The pattern's solutions are grouped by the `BY` variables, the only
    variables the pattern shares with those rows. A `BY` variable bound before the `GROUP`
    selects that key's group; one the earlier rows do not bind takes its values
-   from the pattern. With no `BY`, every solution falls in one group.
+   from the pattern, or from a `SET` in it. With no `BY`, every solution falls
+   in one group.
 3. Each function runs over the solutions in a group, every pattern variable
    included. Two children aged 10 are two solutions, so `SUM(?age)` counts
    both. How many rows the earlier elements gave for a key does not change
@@ -490,19 +497,14 @@ the results to the rows it receives and keeps every variable they bind.
 4. Every row keeps what it had, and gains the `BY` variables and the results.
    The pattern's other variables stay inside the `GROUP`.
 
-| The pattern matches | `COUNT`, `SUM` | `MIN`, `MAX` |
-| --- | --- | --- |
-| at least once | the value | the value |
-| never, for a key bound before the `GROUP` | `0` | no value: the row is dropped |
+A row whose pattern has no solutions forms no group, so it is dropped, whatever
+the functions are. A person with no children gets no `COUNT` row rather than a
+count of 0. A `GROUP` with no `BY` whose pattern has no solutions gives no row
+either. An empty pattern, `GROUP { }`, has one solution, so it gives one group.
 
-These are the rules of
-[w3c/data-shapes#1344](https://github.com/w3c/data-shapes/issues/1344): "`SUM`
-of nothing is zero" and "`MIN` of nothing is an error and the row is not
-produced". A key that only the pattern supplies has no value when nothing
-matches, so it gives no row.
-
-An error in any assignment, such as `SUM` over a string, drops the row, as an
-error in `SET` does. An empty block, `[]`, keeps every row.
+An error in any assignment, such as `SUM` over a string, drops the group, as an
+error in `SET` drops a row. An empty block, `[]`, keeps the rows whose pattern
+has at least one solution.
 
 `COUNT(?v)` counts the solutions in which `?v` is bound, and every pattern
 variable is bound in every solution, so it equals `COUNT(*)`. To count distinct
@@ -514,8 +516,7 @@ equals `COUNT(*)`.
 Violations are reported under the category `aggregate-scope`:
 
 - Each `BY` variable must be bound before the `GROUP`, by its pattern, or both.
-  Only one bound before can have a row with a count of 0. A `BY` variable the
-  pattern does not use is carried through unchanged.
+  A `BY` variable the pattern does not use is carried through unchanged.
 - A pattern variable that is not a `BY` variable belongs to the `GROUP`, `SET`
   targets included, as a variable a subquery does not project belongs to the
   subquery. One of the same name before or after the `GROUP` is a different
@@ -523,8 +524,11 @@ Violations are reported under the category `aggregate-scope`:
   every variable bound before it, a `GROUP` sees only its `BY` variables.
 - Each result must be a new variable: not bound before, not used in the
   pattern, and not assigned again later in the body.
-- A `SET` in the pattern must not re-bind a variable, and each argument must be
-  bound by the pattern or be a `BY` variable.
+- A `SET` in the pattern must not re-bind a variable. The pattern starts from
+  the `BY` variables bound before the `GROUP`, so a `SET` there may compute a
+  `BY` variable that is not bound before it, but not one that is.
+- Each argument must be bound by the pattern or be a `BY` variable bound before
+  the `GROUP`.
 
 A `FILTER` or `SET` in the pattern follows the usual order rule, with only the
 `BY` variables bound from outside.
@@ -541,15 +545,16 @@ GROUP BY ?x { ?y :childOf ?x } [ ?n := COUNT(*) ]
 A person with two names keeps two rows, each with the same count.
 
 **Counting per value the pattern supplies.** Leave the key out of the body
-before the `GROUP`. Bind it first instead when a value with nothing to count
-should still get 0:
+before the `GROUP`. Binding it first gives the same rows: a department with
+nobody in it forms no group either way.
 
 ```sparql
-GROUP BY ?d { ?p :dept ?d } [ ?n := COUNT(*) ]                # no row for an empty department
-?d a :Dept . GROUP BY ?d { ?p :dept ?d } [ ?n := COUNT(*) ]   # 0 for an empty department
+GROUP BY ?d { ?p :dept ?d } [ ?n := COUNT(*) ]
+?d a :Dept . GROUP BY ?d { ?p :dept ?d } [ ?n := COUNT(*) ]
 ```
 
-**Two `GROUP`s in one rule.** The second keeps the first one's result:
+**Two `GROUP`s in one rule.** The second keeps the first one's result. A row
+survives only if both patterns have a solution for it:
 
 ```sparql
 ?x a :Person .
@@ -558,7 +563,8 @@ GROUP BY ?x { ?y :childOf ?x ; :age ?a FILTER(?a >= 18) } [ ?m := COUNT(*) ]
 ```
 
 **Rank within a partition.** The keys come from before the `GROUP`, and the
-comparison is a `FILTER` in the pattern:
+comparison is a `FILTER` in the pattern. The top score in each partition has
+nobody above it, so it forms no group and gets no rank:
 
 ```sparql
 PREFIX : <http://example.org/>
@@ -599,12 +605,10 @@ cycle and is refused.
 
 ### Compilation
 
-A `GROUP` compiles to an `OPTIONAL` subquery that groups the pattern by the `BY`
+A `GROUP` compiles to a subquery that groups the pattern by the `BY`
 variables, joined to the elements before it. The pattern's own variables are
 renamed (`?_agg0_y`), so the subquery shares only the keys with the rest of the
-body. When the pattern supplies a key the elements before do not bind, the
-subquery is joined without `OPTIONAL`, because an empty group has no value for
-that key. For
+body. The join drops a row whose key has no group. For
 `RULE { ?x :numChildren ?n } WHERE { ?x a :Person . GROUP BY ?x { ?y :childOf ?x } [ ?n := COUNT(*) ] }`,
 `compileRule` returns:
 
@@ -614,29 +618,38 @@ INSERT {
   ?x :numChildren ?n
 } WHERE {
   {
-  ?x <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> :Person .
-  OPTIONAL {
-  SELECT ?x (COUNT(*) AS ?_agg0_count) (COUNT( * ) AS ?_agg0_v0) WHERE {
-  ?_agg0_y :childOf ?x .
+  ?x <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://example.org/Person> .
+  {
+  SELECT ?x (COUNT( * ) AS ?_agg0_v0) WHERE {
+  ?_agg0_y <http://example.org/childOf> ?x .
 }
 GROUP BY ?x
 }
-  BIND(IF(COALESCE(?_agg0_count, 0) > 0, ?_agg0_v0, 0) AS ?n)
+  BIND(?_agg0_v0 AS ?n)
   FILTER(BOUND(?n))
 }
 }
 ```
 
-`?_agg0_count` tells an empty group (no subquery row) from a failed aggregate (a
-row whose value is unbound). When a `BY` variable is used in the pattern only in
-a `FILTER`, as `?score` is in the rank example, the subquery cannot compute it,
-since SPARQL evaluates a subquery without the outer bindings. The subquery is
-then seeded with the distinct key values from the elements before the `GROUP`,
-which repeats those elements inside it.
+A failed aggregate leaves its subquery variable unbound, and `FILTER(BOUND(?n))`
+drops the row. A `GROUP` with no `BY` also projects a hidden `COUNT(*)` and
+keeps its row only when that is above 0, because SPARQL returns one row for an
+aggregate over no solutions. When a `BY` variable bound before the `GROUP` is
+not bound by the pattern, as `?score` is in the rank example, the subquery
+cannot compute it, since SPARQL evaluates a subquery without the outer
+bindings. The subquery is then seeded with the distinct key values from the
+elements before the `GROUP`, which repeats those elements inside it.
 
 ### Test cases
 
-`packages/srl/test/w3c-proposed/pr-1347/` holds the pull request's own syntax
-tests, and `packages/srl/test/w3c-proposed/aggregates/` holds further cases for
-syntax, well-formedness, stratification and evaluation, in the W3C suite's
-format. Both run in `packages/api/test/lib/RuleSetExecutor.aggregatesProposed.test.ts`.
+Three folders under `packages/srl/test/w3c-proposed/` hold `GROUP` cases in the
+W3C suite's format:
+
+- `pr-1375/` holds the suite's `GROUP` syntax tests as they stand on
+  w3c/data-shapes#1375.
+- `group/` holds the cases proposed for the suite in the data-shapes working
+  notes for #1347, covering syntax, well-formedness, stratification and
+  evaluation.
+- `aggregates/` holds sqlib's earlier cases for the same four categories.
+
+All three run in `packages/api/test/lib/RuleSetExecutor.aggregatesProposed.test.ts`.

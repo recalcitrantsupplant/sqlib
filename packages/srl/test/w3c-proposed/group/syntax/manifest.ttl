@@ -1,0 +1,294 @@
+## Proposed SPARQL-RL tests for GROUP, from data-shapes notes-1347/proposed-tests.html.
+## Same layout and vocabulary as syntax/manifest.ttl upstream.
+
+PREFIX :       <manifest#>
+PREFIX rdf:    <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs:   <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX mf:     <http://www.w3.org/2001/sw/DataAccess/tests/test-manifest#>
+PREFIX srlt:   <http://www.w3.org/ns/sparql-rl-tests#>
+
+<>  rdf:type mf:Manifest ;
+    rdfs:comment "SPARQL-RL - Syntax: GROUP (proposed)" ;
+    mf:entries (
+        :syntax-rule-elements-group-17
+        :syntax-rule-elements-group-18
+        :syntax-rule-elements-group-19
+        :syntax-rule-elements-group-20
+        :syntax-rule-elements-group-21
+        :syntax-rule-elements-group-22
+        :syntax-rule-elements-group-23
+        :syntax-rule-elements-group-24
+        :syntax-rule-elements-group-25
+        :syntax-rule-elements-group-26
+        :syntax-rule-elements-group-27
+        :syntax-rule-elements-group-28
+        :syntax-rule-elements-group-29
+        :syntax-rule-elements-group-30
+        :syntax-rule-elements-group-bad-11
+        :syntax-rule-elements-group-bad-12
+        :syntax-rule-elements-group-bad-13
+        :syntax-rule-elements-group-bad-14
+        :syntax-rule-elements-group-bad-15
+        :syntax-rule-elements-group-bad-16
+        :syntax-rule-elements-group-bad-17
+        :syntax-rule-elements-group-bad-18
+        :syntax-rule-elements-group-bad-19
+        :syntax-rule-elements-group-bad-20
+        :syntax-rule-elements-group-bad-21
+        :syntax-rule-elements-group-bad-22
+        :syntax-rule-elements-group-bad-23
+        :syntax-rule-elements-group-bad-24
+        :syntax-rule-elements-group-bad-25
+        :syntax-rule-elements-group-bad-26
+        :syntax-rule-elements-group-bad-27
+        :syntax-rule-elements-group-bad-28
+        :syntax-rule-elements-group-bad-29
+        :syntax-rule-elements-group-bad-30
+        :syntax-rule-elements-group-bad-31
+        :syntax-rule-elements-group-bad-32
+        :syntax-rule-elements-group-bad-33
+        :syntax-rule-elements-group-bad-34
+        :syntax-rule-elements-group-bad-35
+        :syntax-rule-elements-group-bad-36
+    ) .
+
+
+# A triple pattern that starts with ( directly after the block.
+:syntax-rule-elements-group-17 rdf:type   srlt:RulesPositiveSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-17.srl" ;
+   mf:action  <syntax-rule-elements-group-17.srl> ;
+   .
+
+# An empty block written with a space inside.
+:syntax-rule-elements-group-18 rdf:type   srlt:RulesPositiveSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-18.srl" ;
+   mf:action  <syntax-rule-elements-group-18.srl> ;
+   .
+
+# COUNT with a variable argument.
+:syntax-rule-elements-group-19 rdf:type   srlt:RulesPositiveSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-19.srl" ;
+   mf:action  <syntax-rule-elements-group-19.srl> ;
+   .
+
+# COUNT(DISTINCT ?var).
+:syntax-rule-elements-group-20 rdf:type   srlt:RulesPositiveSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-20.srl" ;
+   mf:action  <syntax-rule-elements-group-20.srl> ;
+   .
+
+# Three assignments, two commas.
+:syntax-rule-elements-group-21 rdf:type   srlt:RulesPositiveSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-21.srl" ;
+   mf:action  <syntax-rule-elements-group-21.srl> ;
+   .
+
+# No white space around :=, , or inside the brackets.
+:syntax-rule-elements-group-22 rdf:type   srlt:RulesPositiveSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-22.srl" ;
+   mf:action  <syntax-rule-elements-group-22.srl> ;
+   .
+
+# Assignments over several lines, a comment inside the block, and a comma at the start of a line.
+:syntax-rule-elements-group-23 rdf:type   srlt:RulesPositiveSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-23.srl" ;
+   mf:action  <syntax-rule-elements-group-23.srl> ;
+   .
+
+# Keys with no assignments.
+:syntax-rule-elements-group-24 rdf:type   srlt:RulesPositiveSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-24.srl" ;
+   mf:action  <syntax-rule-elements-group-24.srl> ;
+   .
+
+# A . after the block.
+:syntax-rule-elements-group-25 rdf:type   srlt:RulesPositiveSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-25.srl" ;
+   mf:action  <syntax-rule-elements-group-25.srl> ;
+   .
+
+# . after each element inside the pattern, including a trailing one.
+:syntax-rule-elements-group-26 rdf:type   srlt:RulesPositiveSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-26.srl" ;
+   mf:action  <syntax-rule-elements-group-26.srl> ;
+   .
+
+# A GROUP in a WHERE DATA body.
+:syntax-rule-elements-group-27 rdf:type   srlt:RulesPositiveSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-27.srl" ;
+   mf:action  <syntax-rule-elements-group-27.srl> ;
+   .
+
+# Keywords in lower case.
+:syntax-rule-elements-group-28 rdf:type   srlt:RulesPositiveSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-28.srl" ;
+   mf:action  <syntax-rule-elements-group-28.srl> ;
+   .
+
+# [] as a blank node inside the pattern, followed by the block.
+:syntax-rule-elements-group-29 rdf:type   srlt:RulesPositiveSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-29.srl" ;
+   mf:action  <syntax-rule-elements-group-29.srl> ;
+   .
+
+# An empty block holding only a comment.
+:syntax-rule-elements-group-30 rdf:type   srlt:RulesPositiveSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-30.srl" ;
+   mf:action  <syntax-rule-elements-group-30.srl> ;
+   .
+
+# SAMPLE is not an AggregationFunction.
+:syntax-rule-elements-group-bad-11 rdf:type   srlt:RulesNegativeSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-bad-11.srl" ;
+   mf:action  <syntax-rule-elements-group-bad-11.srl> ;
+   .
+
+# GROUP_CONCAT is not an AggregationFunction.
+:syntax-rule-elements-group-bad-12 rdf:type   srlt:RulesNegativeSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-bad-12.srl" ;
+   mf:action  <syntax-rule-elements-group-bad-12.srl> ;
+   .
+
+# AVG is not an AggregationFunction.
+:syntax-rule-elements-group-bad-13 rdf:type   srlt:RulesNegativeSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-bad-13.srl" ;
+   mf:action  <syntax-rule-elements-group-bad-13.srl> ;
+   .
+
+# * in SUM.
+:syntax-rule-elements-group-bad-14 rdf:type   srlt:RulesNegativeSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-bad-14.srl" ;
+   mf:action  <syntax-rule-elements-group-bad-14.srl> ;
+   .
+
+# * in MIN.
+:syntax-rule-elements-group-bad-15 rdf:type   srlt:RulesNegativeSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-bad-15.srl" ;
+   mf:action  <syntax-rule-elements-group-bad-15.srl> ;
+   .
+
+# COUNT with no argument.
+:syntax-rule-elements-group-bad-16 rdf:type   srlt:RulesNegativeSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-bad-16.srl" ;
+   mf:action  <syntax-rule-elements-group-bad-16.srl> ;
+   .
+
+# DISTINCT with no argument.
+:syntax-rule-elements-group-bad-17 rdf:type   srlt:RulesNegativeSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-bad-17.srl" ;
+   mf:action  <syntax-rule-elements-group-bad-17.srl> ;
+   .
+
+# An assignment whose value is not an aggregation function.
+:syntax-rule-elements-group-bad-18 rdf:type   srlt:RulesNegativeSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-bad-18.srl" ;
+   mf:action  <syntax-rule-elements-group-bad-18.srl> ;
+   .
+
+# An aggregation function as the argument of another.
+:syntax-rule-elements-group-bad-19 rdf:type   srlt:RulesNegativeSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-bad-19.srl" ;
+   mf:action  <syntax-rule-elements-group-bad-19.srl> ;
+   .
+
+# An IRI as the aggregation variable.
+:syntax-rule-elements-group-bad-20 rdf:type   srlt:RulesNegativeSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-bad-20.srl" ;
+   mf:action  <syntax-rule-elements-group-bad-20.srl> ;
+   .
+
+# A leading comma.
+:syntax-rule-elements-group-bad-21 rdf:type   srlt:RulesNegativeSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-bad-21.srl" ;
+   mf:action  <syntax-rule-elements-group-bad-21.srl> ;
+   .
+
+# Two commas between assignments.
+:syntax-rule-elements-group-bad-22 rdf:type   srlt:RulesNegativeSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-bad-22.srl" ;
+   mf:action  <syntax-rule-elements-group-bad-22.srl> ;
+   .
+
+# A comma with no assignments.
+:syntax-rule-elements-group-bad-23 rdf:type   srlt:RulesNegativeSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-bad-23.srl" ;
+   mf:action  <syntax-rule-elements-group-bad-23.srl> ;
+   .
+
+# A semicolon as the separator.
+:syntax-rule-elements-group-bad-24 rdf:type   srlt:RulesNegativeSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-bad-24.srl" ;
+   mf:action  <syntax-rule-elements-group-bad-24.srl> ;
+   .
+
+# Parentheses around an assignment.
+:syntax-rule-elements-group-bad-25 rdf:type   srlt:RulesNegativeSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-bad-25.srl" ;
+   mf:action  <syntax-rule-elements-group-bad-25.srl> ;
+   .
+
+# Assignments in ( ) rather than [ ].
+:syntax-rule-elements-group-bad-26 rdf:type   srlt:RulesNegativeSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-bad-26.srl" ;
+   mf:action  <syntax-rule-elements-group-bad-26.srl> ;
+   .
+
+# The SPARQL (expr AS ?var) form.
+:syntax-rule-elements-group-bad-27 rdf:type   srlt:RulesNegativeSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-bad-27.srl" ;
+   mf:action  <syntax-rule-elements-group-bad-27.srl> ;
+   .
+
+# A comma between keys.
+:syntax-rule-elements-group-bad-28 rdf:type   srlt:RulesNegativeSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-bad-28.srl" ;
+   mf:action  <syntax-rule-elements-group-bad-28.srl> ;
+   .
+
+# An expression as a key.
+:syntax-rule-elements-group-bad-29 rdf:type   srlt:RulesNegativeSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-bad-29.srl" ;
+   mf:action  <syntax-rule-elements-group-bad-29.srl> ;
+   .
+
+# HAVING after the block.
+:syntax-rule-elements-group-bad-30 rdf:type   srlt:RulesNegativeSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-bad-30.srl" ;
+   mf:action  <syntax-rule-elements-group-bad-30.srl> ;
+   .
+
+# A GROUP inside a group pattern.
+:syntax-rule-elements-group-bad-31 rdf:type   srlt:RulesNegativeSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-bad-31.srl" ;
+   mf:action  <syntax-rule-elements-group-bad-31.srl> ;
+   .
+
+# A GROUP inside a NOT.
+:syntax-rule-elements-group-bad-32 rdf:type   srlt:RulesNegativeSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-bad-32.srl" ;
+   mf:action  <syntax-rule-elements-group-bad-32.srl> ;
+   .
+
+# A NOT inside a group pattern.
+:syntax-rule-elements-group-bad-33 rdf:type   srlt:RulesNegativeSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-bad-33.srl" ;
+   mf:action  <syntax-rule-elements-group-bad-33.srl> ;
+   .
+
+# An aggregation function in a FILTER.
+:syntax-rule-elements-group-bad-34 rdf:type   srlt:RulesNegativeSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-bad-34.srl" ;
+   mf:action  <syntax-rule-elements-group-bad-34.srl> ;
+   .
+
+# An aggregation function in a SET.
+:syntax-rule-elements-group-bad-35 rdf:type   srlt:RulesNegativeSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-bad-35.srl" ;
+   mf:action  <syntax-rule-elements-group-bad-35.srl> ;
+   .
+
+# An aggregation function in a rule head.
+:syntax-rule-elements-group-bad-36 rdf:type   srlt:RulesNegativeSyntaxTest ;
+   mf:name    "syntax-rule-elements-group-bad-36.srl" ;
+   mf:action  <syntax-rule-elements-group-bad-36.srl> ;
+   .

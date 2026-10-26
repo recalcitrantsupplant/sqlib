@@ -1,5 +1,6 @@
 PREFIX : <http://example/>
 
 # Two GROUPs in one rule; the second lists the first one's result as a key,
-# which carries it through.
+# which carries it through. Amy has no children and Bob no adult children, so
+# each has an empty group in one of the two GROUPs and nothing is inferred.
 RULE { ?x :kids ?n ; :adults ?m } WHERE { ?x a :Person . GROUP BY ?x { ?y :childOf ?x } [ ?n := COUNT(*) ] GROUP BY ?x ?n { ?y :childOf ?x ; :age ?a FILTER(?a >= 18) } [ ?m := COUNT(*) ] }

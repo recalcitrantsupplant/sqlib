@@ -69,16 +69,22 @@ describe('GROUP — syntax', () => {
     expect(aggregateOf('RULE { :all :n ?n } WHERE { GROUP { ?s ?p ?o } [ ?n := COUNT(*) ] }').keys).toEqual([]);
   });
 
-  it('reads several assignments, with no separator', () => {
+  it('reads several assignments, separated by commas', () => {
     const item = aggregateOf(
-      'RULE { } WHERE { ?s a :T GROUP BY ?s { ?s :p ?o } [ ?n := COUNT(*) ?d := COUNT(DISTINCT ?o) ?t := SUM(?o) ?lo := MIN(?o) ?hi := MAX(?o) ] }',
+      'RULE { } WHERE { ?s a :T GROUP BY ?s { ?s :p ?o } [ ?n := COUNT(*) , ?d := COUNT(DISTINCT ?o) , ?t := SUM(?o) , ?lo := MIN(?o) , ?hi := MAX(?o) ] }',
     );
     expect(item.assignments.map((a) => a.variable)).toEqual(['n', 'd', 't', 'lo', 'hi']);
   });
 
-  it('reads an empty block, written [] or [ ]', () => {
+  it('reads assignments with no space around := or the comma', () => {
+    expect(aggregateOf('RULE { } WHERE { GROUP { ?s ?p ?o } [?n:=COUNT(*),?t:=SUM(?o)] }').assignments.map((a) => a.variable))
+      .toEqual(['n', 't']);
+  });
+
+  it('reads an empty block, written [], [ ] or with only a comment inside', () => {
     expect(aggregateOf('RULE { } WHERE { GROUP { ?s ?p ?o } [] }').assignments).toEqual([]);
     expect(aggregateOf('RULE { } WHERE { GROUP { ?s ?p ?o } [ ] }').assignments).toEqual([]);
+    expect(aggregateOf('RULE { } WHERE { GROUP { ?s ?p ?o } [ # none\n ] }').assignments).toEqual([]);
   });
 
   it('accepts COUNT(DISTINCT *), as the PR\'s group-11 does', () => {
@@ -103,7 +109,11 @@ describe('GROUP — syntax', () => {
     ['no pattern', 'GROUP BY ?s [ ?n := COUNT(*) ]', /Parse error/],
     ['no block', 'GROUP BY ?x { }', /Parse error/],
     ['BY with no variables', 'GROUP BY { ?s ?p ?o } [ ?n := COUNT(*) ]', /Parse error/],
-    ['a comma between assignments', 'GROUP { ?s ?p ?o } [ ?n := COUNT(*), ?t := SUM(?o) ]', /Parse error/],
+    ['no comma between assignments', 'GROUP { ?s ?p ?o } [ ?n := COUNT(*) ?t := SUM(?o) ]', /Parse error/],
+    ['a leading comma', 'GROUP { ?s ?p ?o } [ , ?n := COUNT(*) ]', /Parse error/],
+    ['a trailing comma', 'GROUP { ?s ?p ?o } [ ?n := COUNT(*) , ]', /Parse error/],
+    ['two commas', 'GROUP { ?s ?p ?o } [ ?n := COUNT(*) ,, ?t := SUM(?o) ]', /Parse error/],
+    ['a comma alone', 'GROUP { ?s ?p ?o } [ , ]', /Parse error/],
     ['parentheses around an assignment', 'GROUP { ?s ?p ?o } [ ( ?n := COUNT(*) ) ]', /Parse error/],
     ['an expression in COUNT', 'GROUP { ?s :p ?o } [ ?n := COUNT(?s + ?o) ]', /COUNT takes a variable or \*/],
     ['an expression in SUM', 'GROUP { ?s :p ?o } [ ?n := SUM(?o + 1) ]', /SUM takes a variable, not an expression/],
@@ -133,7 +143,7 @@ describe('GROUP — syntax', () => {
 
 describe('GROUP — round trip', () => {
   const doc = [
-    'RULE { ?x :n ?n ; :m ?m } WHERE { ?x a :P . GROUP BY ?x { ?y :c ?x ; :age ?a FILTER(?a > 1) SET (?b := ?a + 1) } [ ?n := COUNT(*) ?m := MAX(?b) ] }',
+    'RULE { ?x :n ?n ; :m ?m } WHERE { ?x a :P . GROUP BY ?x { ?y :c ?x ; :age ?a FILTER(?a > 1) SET (?b := ?a + 1) } [ ?n := COUNT(*) , ?m := MAX(?b) ] }',
     'RULE { ?x :n ?n } WHERE { ?x a :P . GROUP BY ?x { ?y :c ?x } [ ?n := COUNT(DISTINCT ?y) ] }',
     'RULE { :all :n ?n } WHERE { GROUP { ?y :c ?x } [ ?n := SUM(?x) ] }',
     'RULE { } WHERE { ?x a :P . GROUP BY ?x { ?y :c ?x } [] }',
@@ -144,7 +154,7 @@ describe('GROUP — round trip', () => {
     expect(generateRuleSet(parseRuleSet(once, opts))).toBe(once);
     expect(once).toContain('GROUP BY ?x {');
     expect(once).toContain('GROUP {');
-    expect(once).toContain('[ ?n := COUNT( * ) ?m := MAX( ?b ) ]');
+    expect(once).toContain('[ ?n := COUNT( * ) , ?m := MAX( ?b ) ]');
     expect(once).toContain('} []');
   });
 
@@ -152,7 +162,7 @@ describe('GROUP — round trip', () => {
     const formatted = formatRuleSet(parse(doc));
     expect(formatRuleSet(parseRuleSet(formatted, opts))).toBe(formatted);
     expect(formatted).toMatch(/\n {2}GROUP BY \?x \{\n {4}\?y :c \?x/);
-    expect(formatted).toContain('\n  } [\n    ?n := COUNT( * )\n    ?m := MAX( ?b )\n  ]');
+    expect(formatted).toContain('\n  } [\n    ?n := COUNT( * ) ,\n    ?m := MAX( ?b )\n  ]');
     expect(formatted).toContain('\n  } [ ?n := COUNT( DISTINCT ?y ) ]');
     expect(formatted).toContain('\n  } []');
   });
@@ -245,7 +255,7 @@ describe('GROUP — well-formedness', () => {
   it('refuses a result that is already bound, or assigned again', () => {
     expect(issues('RULE { ?x :n ?x } WHERE { ?x a :P . GROUP BY ?x { ?y :c ?x } [ ?x := COUNT(*) ] }'))
       .toContain('GROUP assigns ?x, which is already bound');
-    expect(issues('RULE { ?x :n ?n } WHERE { ?x a :P . GROUP BY ?x { ?y :c ?x ; :age ?a } [ ?n := COUNT(*) ?n := MAX(?a) ] }'))
+    expect(issues('RULE { ?x :n ?n } WHERE { ?x a :P . GROUP BY ?x { ?y :c ?x ; :age ?a } [ ?n := COUNT(*) , ?n := MAX(?a) ] }'))
       .toContain('GROUP assigns ?n, which is already bound');
     expect(issues('RULE { ?x :n ?n } WHERE { ?x a :P . GROUP BY ?x { ?y :c ?x } [ ?n := COUNT(*) ] SET (?n := 1) }'))
       .toContain('?n is assigned by a GROUP and again later in the body');
@@ -285,22 +295,23 @@ describe('GROUP — stratification', () => {
 });
 
 describe('GROUP — compile', () => {
-  it('compiles to an OPTIONAL grouped subquery over renamed pattern variables, keeping every outer row', () => {
+  it('compiles to a grouped subquery over renamed pattern variables, joined to the body', () => {
     const { program } = compile(CHILDREN);
     expect(program).not.toContain('SELECT DISTINCT');
-    expect(program).toContain('OPTIONAL {');
-    expect(program).toContain('SELECT ?x (COUNT(*) AS ?_agg0_count) (COUNT( * ) AS ?_agg0_v0) WHERE {');
+    // A key with no solutions forms no group (w3c/data-shapes#1377), so the
+    // subquery is joined rather than OPTIONAL and needs no hidden count.
+    expect(program).not.toContain('OPTIONAL');
+    expect(program).toContain('SELECT ?x (COUNT( * ) AS ?_agg0_v0) WHERE {');
     expect(program).toContain('?_agg0_y <http://example/childOf> ?x');
     expect(program).toContain('GROUP BY ?x');
-    // An empty group gives 0 for COUNT rather than dropping the key.
-    expect(program).toContain('BIND(IF(COALESCE(?_agg0_count, 0) > 0, ?_agg0_v0, 0) AS ?n)');
+    expect(program).toContain('BIND(?_agg0_v0 AS ?n)');
     expect(program).toContain('FILTER(BOUND(?n))');
   });
 
-  it('drops the row on an empty group for MIN and MAX', () => {
-    const { program } = compile('RULE { ?x :oldest ?m } WHERE { ?x a :P . GROUP BY ?x { ?y :c ?x ; :age ?a } [ ?m := MAX(?a) ] }');
-    expect(program).toContain('FILTER(COALESCE(?_agg0_count, 0) > 0)');
-    expect(program).toContain('BIND(?_agg0_v0 AS ?m)');
+  it('keeps a GROUP without keys only when its pattern has a solution', () => {
+    const { program } = compile('RULE { :all :n ?n } WHERE { GROUP { ?s ?p ?o } [ ?n := COUNT(*) ] }');
+    expect(program).toContain('SELECT (COUNT(*) AS ?_agg0_count) (COUNT( * ) AS ?_agg0_v0) WHERE {');
+    expect(program).toContain('FILTER(?_agg0_count > 0)');
   });
 
   it('renames a SET target in the pattern with the other pattern variables', () => {
@@ -320,23 +331,17 @@ describe('GROUP — compile', () => {
     expect(program).toContain('SELECT DISTINCT ?d ?s WHERE {');
   });
 
-  it('joins the subquery, not OPTIONAL, when the pattern supplies a key', () => {
-    const { program } = compile('RULE { ?d :headcount ?n } WHERE { GROUP BY ?d { ?p :dept ?d } [ ?n := COUNT(*) ] }');
-    expect(program).not.toContain('OPTIONAL');
-    expect(program).toContain('GROUP BY ?d');
-    const mixed = compile('RULE { ?x :n ?n } WHERE { ?x a :P . GROUP BY ?x ?a { ?y :c ?x ; :age ?a } [ ?n := COUNT(*) ] }');
-    expect(mixed.program).not.toContain('OPTIONAL');
-  });
-
-  it('keeps every outer row for an empty block', () => {
+  it('keeps only the outer rows with a group for an empty block', () => {
     const { program } = compile('RULE { ?x :hasChild true } WHERE { ?x a :P . GROUP BY ?x { ?y :c ?x } [] }');
-    expect(program).toContain('OPTIONAL {');
+    expect(program).not.toContain('OPTIONAL');
+    expect(program).toContain('SELECT ?x WHERE {');
     expect(program).not.toContain('SELECT DISTINCT');
   });
 
-  it('gives one row when there are neither keys nor results', () => {
-    expect(compile('RULE { :all :seen true } WHERE { GROUP { ?s ?p ?o } [] }').program)
-      .toContain('OPTIONAL {\n  SELECT (COUNT(*) AS ?_agg0_count) WHERE {');
+  it('gives one row when there are neither keys nor results, if the pattern matches', () => {
+    const { program } = compile('RULE { :all :seen true } WHERE { GROUP { ?s ?p ?o } [] }');
+    expect(program).toContain('{\n  SELECT (COUNT(*) AS ?_agg0_count) WHERE {');
+    expect(program).toContain('FILTER(?_agg0_count > 0)');
   });
 
   it('keeps generated names clear of the author\'s', () => {

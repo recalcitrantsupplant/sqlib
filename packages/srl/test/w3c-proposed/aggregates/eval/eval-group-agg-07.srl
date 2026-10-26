@@ -1,5 +1,6 @@
 PREFIX : <http://example/>
 
 # Rank within a department: 1 plus the number of people in it with a higher
-# score. Ties share a rank.
+# score. Ties share a rank. The top score in a department has nobody above it,
+# so it forms no group and gets no rank (w3c/data-shapes#1377).
 RULE { ?p :rank ?r } WHERE { ?q :dept ?d ; :score ?s . GROUP BY ?d ?s { ?o :dept ?d ; :score ?s2 FILTER(?s2 > ?s) } [ ?b := COUNT(*) ] ?p :dept ?d ; :score ?s . SET (?r := ?b + 1) }

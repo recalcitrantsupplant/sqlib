@@ -1,4 +1,5 @@
 PREFIX : <http://example/>
 
-# Dense rank, counting distinct higher scores.
+# Dense rank, counting distinct higher scores. As in eval-group-agg-07, the
+# top score in a department gets no rank.
 RULE { ?p :denseRank ?r } WHERE { ?q :dept ?d ; :score ?s . GROUP BY ?d ?s { ?o :dept ?d ; :score ?s2 FILTER(?s2 > ?s) } [ ?b := COUNT(DISTINCT ?s2) ] ?p :dept ?d ; :score ?s . SET (?r := ?b + 1) }

@@ -1,4 +1,4 @@
 PREFIX : <http://example/>
 
 # The same result twice in one GROUP.
-RULE { ?x :n ?n } WHERE { ?x a :Person . GROUP BY ?x { ?y :childOf ?x ; :age ?a } [ ?n := COUNT(*) ?n := MAX(?a) ] }
+RULE { ?x :n ?n } WHERE { ?x a :Person . GROUP BY ?x { ?y :childOf ?x ; :age ?a } [ ?n := COUNT(*) , ?n := MAX(?a) ] }

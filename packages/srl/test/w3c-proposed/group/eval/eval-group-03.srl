@@ -1,0 +1,3 @@
+PREFIX :    <http://example/>
+RULE { :all :count ?n ; :sum ?t ; :distinct ?d }
+WHERE { GROUP { ?s :p ?o } [ ?n := COUNT(*) , ?t := SUM(?o) , ?d := COUNT(DISTINCT ?o) ] }

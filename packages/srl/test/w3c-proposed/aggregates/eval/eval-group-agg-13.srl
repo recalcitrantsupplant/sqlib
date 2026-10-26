@@ -1,5 +1,6 @@
 PREFIX : <http://example/>
 
-# On an empty graph a GROUP with no BY counts 0, and its MAX has no value.
+# On an empty graph a GROUP with no BY forms no group, so neither COUNT nor
+# MAX gives a value (w3c/data-shapes#1377).
 RULE { :all :count ?n } WHERE { GROUP { ?s :p ?o } [ ?n := COUNT(*) ] }
 RULE { :all :max ?m } WHERE { GROUP { ?s :p ?o } [ ?m := MAX(?o) ] }

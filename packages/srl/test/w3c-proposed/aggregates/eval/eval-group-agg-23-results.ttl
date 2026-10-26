@@ -2,4 +2,3 @@ PREFIX : <http://example/>
 
 :alice :kids 2 ; :names 2 .
 :bob :kids 1 ; :names 1 .
-:carol :kids 0 ; :names 1 .
