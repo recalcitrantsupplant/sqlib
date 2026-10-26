@@ -4,7 +4,8 @@
 # plugin host: DuckDB extensions are published per platform, and the community
 # extension registry stopped publishing `linux_amd64_musl` at DuckDB v1.5.0
 # (measured 2026-09-12: every community extension checked is 404 on musl and
-# 200 on linux_amd64 at v1.5.5, while v1.4.3 had both). On Alpine the whole
+# 200 on linux_amd64 at v1.5.5, while v1.4.3 had both; still so at v2.0.0,
+# measured 2026-10-25). On Alpine the whole
 # community ecosystem — `webbed`, the XML reader in issue #468, among others —
 # is unreachable at the version we run.
 #

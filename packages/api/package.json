@@ -54,7 +54,7 @@
     "suiteBaseIri": "https://w3c.github.io/rdf-tests/shacl/shacl12/"
   },
   "dependencies": {
-    "@duckdb/node-api": "1.5.5-r.5",
+    "@duckdb/node-api": "2.0.0-r.1",
     "@fastify/cors": "^11.3.1",
     "@fastify/fast-json-stringify-compiler": "^5.1.1",
     "@fastify/multipart": "^10.1.4",

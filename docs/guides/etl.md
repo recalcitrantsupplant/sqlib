@@ -71,7 +71,7 @@ nothing creates an unconfigured one.
 ### What actually enforces something
 
 Measured against `@duckdb/node-api` 1.4.3-r.3 (DuckDB v1.4.3), rather than taken
-from documentation:
+from documentation, and re-measured unchanged on 1.5.5-r.4 and 2.0.0-r.1:
 
 - **`enable_external_access=false` at instance creation** blocks file reads, network
   reads and `INSTALL`. It is startup-only: `SET enable_external_access=true` on a
@@ -117,7 +117,8 @@ who has read this page and decided; it is not a shortcut past a setup problem.
 ## What submitted SQL may consume
 
 The capability profile bounds what a query can reach. It says nothing about time or
-memory. Two mechanisms do, both measured against `@duckdb/node-api` 1.5.5-r.4:
+memory. Two mechanisms do, both measured against `@duckdb/node-api` 1.5.5-r.4 and
+re-measured on 2.0.0-r.1:
 
 - **A deadline per statement, cancelled with `connection.interrupt()`.** The pending
   read rejects with `DuckDbTimeoutError` naming the limit, and the connection is
@@ -383,7 +384,7 @@ treats them as different targets.
 platform is `linux_amd64`** and the community extension registry serves it.
 
 That is a deliberate choice. `linux_amd64_musl` community builds existed at DuckDB
-v1.4.3 and stop at v1.5.0 — across every community extension checked, so the registry
+v1.4.3 and stop at v1.5.0, and are still absent at v2.0.0 — across every community extension checked, so the registry
 dropped the platform rather than one maintainer dropping one extension — and
 `linux_arm64_musl` was absent at every version probed. On Alpine the whole community
 ecosystem is therefore unreachable at the DuckDB version this project runs. Moving

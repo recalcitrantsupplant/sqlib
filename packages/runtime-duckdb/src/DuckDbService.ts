@@ -441,7 +441,7 @@ export class DuckDbService {
    * Runs once, on a connection no caller SQL has touched: load whatever the
    * profile grants, then lock the configuration so submitted SQL cannot widen
    * it. The lock is database-wide, not per connection — verified against
-   * v1.5.5, where a second connection's `SET allowed_directories=['/']` fails
+   * v1.5.5 and v2.0.0, where a second connection's `SET allowed_directories=['/']` fails
    * with "Cannot change configuration option ... the configuration has been
    * locked".
    */
