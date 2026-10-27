@@ -617,6 +617,8 @@ async function ensureRuleSetFromDocument(
     hasDataBlock,
     immutable: true,
     allowInvalidSave: refused,
+    // The suite file as written, so the rule set reads back as its source.
+    srlDocument: spec.document,
   });
   await tagRuleSet(ruleSetId, spec.tagSlugs, result);
   return ruleSetId;

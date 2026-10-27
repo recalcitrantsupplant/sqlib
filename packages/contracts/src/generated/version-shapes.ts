@@ -286,6 +286,7 @@ export const ruleSetVersionShape = {
   hasDataBlock: optionalIriArray,
   stratificationReport: nullableString,
   tupleSeeds: nullableString,
+  srlDocument: nullableString,
   tuplesEnabled: nullableBoolean,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,

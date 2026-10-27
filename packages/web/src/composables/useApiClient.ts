@@ -390,6 +390,11 @@ export interface RuleSetSrlExport {
   tuplesEnabled: boolean;
   /** Parts of the ruleset that have no SRL form and were left out. */
   warnings: string[];
+  /**
+   * `stored`: the document as its author saved it, prologue ignored.
+   * `generated`: built from the canonical rules against the prologue sent.
+   */
+  documentSource?: 'stored' | 'generated';
 }
 
 export interface RuleSetSrlImportResult {
