@@ -488,7 +488,7 @@ export default async function playgroundRoutes(
         const parser = new SparqlQueryParser();
         // Playground runs caller-supplied definitions, so there is no curated
         // library to imply backend access: a real backend needs an explicit grant.
-        const executorFactory = new ExecutorFactory({ request });
+        const executorFactory = new ExecutorFactory({ request, source: 'adhoc' });
 
         const executor = backendUrn === EPHEMERAL_BACKEND_ID
           ? (() => {

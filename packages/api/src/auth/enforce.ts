@@ -279,9 +279,9 @@ export function canBackend(
   if (context.fullAccess) return true;
   if (hasBackendMode(context.grants, backendIri, mode)) return true;
 
-  // Route 2: execute-on-library implies use-of-its-allowed-backends, for that
-  // library's own saved entities only, and never for writes.
-  if (mode !== 'use' || !options.viaLibrary || !backendIri) return false;
+  // Route 2: execute-on-library implies `query:saved` on its allowed backends,
+  // for that library's own saved entities only, and never for updates.
+  if (mode !== 'query:saved' || !options.viaLibrary || !backendIri) return false;
   if (!hasLibraryMode(context.grants, options.viaLibrary, 'execute')) return false;
   return allowedBackendsOf(options.viaLibrary).includes(backendIri);
 }
@@ -296,7 +296,7 @@ export function requireBackendMode(
   let allowed = context.fullAccess || hasBackendMode(context.grants, backendIri, mode);
   let via: string | null = null;
 
-  if (!allowed && mode === 'use' && options.viaLibrary && backendIri) {
+  if (!allowed && mode === 'query:saved' && options.viaLibrary && backendIri) {
     if (
       hasLibraryMode(context.grants, options.viaLibrary, 'execute') &&
       allowedBackendsOf(options.viaLibrary).includes(backendIri)
@@ -516,7 +516,7 @@ export function requireLibraryCreate(request: FastifyRequest): AuthContext {
  * Escalation guard for a library's curated backends (design §4.3).
  *
  * Extending the set hands curated-execution reach to everyone holding Execute
- * on the library, so it requires Control on the library *and* an explicit Use
+ * on the library, so it requires Control on the library *and* an explicit query
  * grant on each backend being added — you may only share reach you hold
  * yourself. Removal needs Control alone.
  *
@@ -527,7 +527,7 @@ export function requireLibraryCreate(request: FastifyRequest): AuthContext {
  *
  * `previous` is null when the library is being created. There is no library to
  * hold Control on yet and the creator is granted every mode on what it makes,
- * so that half is satisfied by construction; the Use half is not, and is the
+ * so that half is satisfied by construction; the query half is not, and is the
  * half this call is for.
  */
 export function requireCuratedBackendsChange(
@@ -551,11 +551,11 @@ export function requireCuratedBackendsChange(
   }
 
   for (const backend of added) {
-    const allowed = hasBackendMode(context.grants, backend, 'use');
+    const allowed = hasBackendMode(context.grants, backend, 'query:saved');
     decide(request, context, allowed, {
       resource: backend,
       resourceKind: 'backend',
-      mode: 'use',
+      mode: 'query:saved',
       message:
         `Cannot add backend ${backend} to library ${libraryIri}: ` +
         'you may only share backend access you hold yourself.',

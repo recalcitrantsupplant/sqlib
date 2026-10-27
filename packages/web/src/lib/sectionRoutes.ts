@@ -19,7 +19,7 @@ import { sectionForItemType, isScreenSection, RAIL_SECTIONS, type RailSection } 
 import type { SectionItemType } from './sections';
 
 /** A rail section that is part of the workspace rather than a screen of its own. */
-export type RoutedSection = Exclude<RailSection, 'notebooks' | 'mcp'>;
+export type RoutedSection = Exclude<RailSection, 'notebooks' | 'mcp' | 'access'>;
 
 export const ROUTED_SECTIONS = RAIL_SECTIONS.filter(
   (section): section is RoutedSection => !isScreenSection(section),

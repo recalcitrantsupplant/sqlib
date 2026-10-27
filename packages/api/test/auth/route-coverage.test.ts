@@ -526,6 +526,7 @@ const MANIFEST: Record<string, Protection> = {
   'PUT /backends/:id': 'admin',
   'DELETE /backends/:id': 'admin',
   'GET /backends/:id/env': 'admin',
+  'POST /backends/:id/graph-policy/test': 'admin',
   'POST /backends/:id/probe': 'backend-use',
   'GET /backends/:id/probe-history': 'backend-use',
   'GET /backends/:id/prefixes': 'backend-use',

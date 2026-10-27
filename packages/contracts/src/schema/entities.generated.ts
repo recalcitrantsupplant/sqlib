@@ -65,6 +65,20 @@ export const backendSchema = {
     "oxigraphConfig": {
       "type": "string",
       "nullable": true
+    },
+    "authBackend": {
+      "type": "boolean",
+      "nullable": true
+    },
+    "graphPolicyQueryVersion": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true
+    },
+    "graphPolicyBackend": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true
     }
   },
   "required": [
@@ -3701,6 +3715,9 @@ export interface BackendRestApi {
   dateCreated?: string | null;
   dateModified?: string | null;
   oxigraphConfig?: string | null;
+  authBackend?: boolean | null;
+  graphPolicyQueryVersion?: string | null;
+  graphPolicyBackend?: string | null;
 }
 
 export interface LibraryRestApi {

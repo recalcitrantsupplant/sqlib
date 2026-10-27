@@ -17,6 +17,11 @@ function hashPrincipal(issuer: string, rawValue: string): string {
   return createHash('sha256').update(`${issuer}|${rawValue}`).digest('hex').slice(0, 32);
 }
 
+/** True for a group principal IRI, as `principalIri('group', …)` makes them. */
+export function isGroupPrincipal(iri: string): boolean {
+  return iri.startsWith(`${PRINCIPAL_PREFIX}group:`);
+}
+
 export function principalIri(kind: PrincipalKind, issuer: string, rawValue: string): string {
   return `${PRINCIPAL_PREFIX}${kind}:${hashPrincipal(issuer, rawValue)}`;
 }

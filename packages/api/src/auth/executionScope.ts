@@ -8,7 +8,9 @@
 import type { FastifyRequest } from 'fastify';
 import { LIBRARY_STORAGE_BACKEND_ID } from '@sparql-query-lib/types';
 import { AuthorizationError, authOf, requireBackendMode } from './enforce.js';
-import type { BackendMode } from './types.js';
+import { hasAnyBackendMode } from './grants.js';
+import { isAuthBackend } from './graphPolicy.js';
+import type { QueryTextSource } from './types.js';
 
 export interface ExecutionAuthScope {
   /** The request whose caller this execution runs for. Drives audit output. */
@@ -19,8 +21,12 @@ export interface ExecutionAuthScope {
    * Left unset for ad-hoc query text, which must rely on an explicit grant.
    */
   viaLibrary?: string | null;
-  /** Updates need `write` on the backend; reads need `use`. */
-  mode?: BackendMode;
+  /**
+   * Whether the text this scope runs was saved (`saved`, the default) or
+   * written by the caller (`adhoc`). It picks the level of the `query` or
+   * `update` mode that each call needs (`GuardedSparqlExecutor`).
+   */
+  source?: QueryTextSource;
 }
 
 /**
@@ -45,7 +51,12 @@ export function isInternalExecution(scope: ExecutionAuthScope | InternalExecutio
 }
 
 /**
- * Throws unless the scope's caller may reach this backend.
+ * Throws unless the scope's caller may reach this backend at all.
+ *
+ * This is the check made when an executor is handed out, before the operation
+ * is known: any backend mode will do, or curated `query:saved` reach through
+ * the library. Each call then checks the exact mode it needs
+ * (`GuardedSparqlExecutor`).
  *
  * An absent scope means sqlib is acting as itself (see `InternalExecution`) and
  * no caller grant applies.
@@ -64,8 +75,14 @@ export function assertBackendAccess(
   if (backendId === LIBRARY_STORAGE_BACKEND_ID) {
     throw new AuthorizationError('The library storage backend is reserved for administrators.');
   }
+  // An auth backend holds who may read what. Its graph policies run as sqlib,
+  // never as the caller, so no caller route reaches it.
+  if (isAuthBackend(backendId)) {
+    throw new AuthorizationError(`Backend ${backendId} is an auth backend, reserved for administrators.`);
+  }
 
-  requireBackendMode(scope.request, backendId, scope.mode ?? 'use', {
-    viaLibrary: scope.viaLibrary,
+  if (hasAnyBackendMode(context.grants, backendId)) return;
+  requireBackendMode(scope.request, backendId, 'query:saved', {
+    viaLibrary: (scope.source ?? 'saved') === 'saved' ? scope.viaLibrary : undefined,
   });
 }

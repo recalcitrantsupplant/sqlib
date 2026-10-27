@@ -10,7 +10,7 @@ import { normalizeRouteUrl } from '../config/readOnly.js';
 import { getAuthStore } from './AuthStore.js';
 import { getAuthConfig, type AuthConfig } from './config.js';
 import { resolveEffectiveGrants } from './grants.js';
-import { derivePrincipals } from './principals.js';
+import { derivePrincipals, isGroupPrincipal } from './principals.js';
 import {
   bearerChallenge,
   isProtectedResourceMetadataRoute,
@@ -83,6 +83,13 @@ async function buildContext(
       request.log.debug({ err: error, principal: iri }, 'Failed to record principal');
     });
   }
+
+  // The groups this token carried, kept for `Test as`. Best effort, as above.
+  store
+    .recordGroups(derived.subject, derived.principals.filter(isGroupPrincipal))
+    .catch((error: unknown) => {
+      request.log.debug({ err: error, principal: derived.subject }, 'Failed to record groups');
+    });
 
   return {
     subject: derived.subject,

@@ -66,7 +66,7 @@ describe('AuthStore grant lifecycle', () => {
       principal: ALICE,
       resourceKind: 'backend',
       resource: BACKEND,
-      modes: ['use'],
+      modes: ['query:adhoc'],
     });
 
     expect(await store.deleteGrant(grant.id)).toBe(true);
@@ -103,10 +103,10 @@ describe('AuthStore grant lifecycle', () => {
   });
 
   it('rejects modes that do not apply to the resource kind', () => {
-    expect(() => validateModes('backend', ['use'])).not.toThrow();
+    expect(() => validateModes('backend', ['query:adhoc'])).not.toThrow();
     expect(() => validateModes('library', ['read', 'control'])).not.toThrow();
     expect(() => validateModes('backend', ['delete'])).toThrow(/Invalid mode/);
-    expect(() => validateModes('library', ['use'])).toThrow(/Invalid mode/);
+    expect(() => validateModes('library', ['query:adhoc'])).toThrow(/Invalid mode/);
     expect(() => validateModes('library', [])).toThrow(/at least one mode/);
   });
 });
@@ -153,13 +153,13 @@ describe('effective grant resolution', () => {
       principal: PRINCIPAL_AUTHENTICATED,
       resourceKind: 'backend',
       resource: BACKEND,
-      modes: ['use'],
+      modes: ['query:adhoc'],
     });
 
     const grants = resolveEffectiveGrants([BOB, PRINCIPAL_AUTHENTICATED], store);
 
-    expect(hasBackendMode(grants, BACKEND, 'use')).toBe(true);
-    expect(hasBackendMode(grants, BACKEND, 'write')).toBe(false);
+    expect(hasBackendMode(grants, BACKEND, 'query:adhoc')).toBe(true);
+    expect(hasBackendMode(grants, BACKEND, 'update:saved')).toBe(false);
   });
 
   it('gives an unrelated principal nothing', async () => {
@@ -177,7 +177,7 @@ describe('effective grant resolution', () => {
     const grants = resolveEffectiveGrants([ALICE], store);
 
     expect(hasLibraryMode(grants, 'urn:sqlib:library:never-granted', 'delete')).toBe(true);
-    expect(hasBackendMode(grants, 'urn:sqlib:backend:never-granted', 'write')).toBe(true);
+    expect(hasBackendMode(grants, 'urn:sqlib:backend:never-granted', 'update:saved')).toBe(true);
   });
 });
 
@@ -238,5 +238,27 @@ describe('principal records', () => {
     expect(store.listPrincipals()).toHaveLength(1);
     expect(store.listPrincipals('ALICE@')).toHaveLength(1);
     expect(store.listPrincipals('nobody')).toHaveLength(0);
+  });
+});
+
+describe('last-seen groups', () => {
+  it('keeps the groups a user\'s last token carried, across a reload', async () => {
+    const persistence = inMemoryPersistence();
+    const first = new AuthStore(persistence);
+    await first.load();
+    await first.recordPrincipal(ALICE, 'alice@example.com', 'user');
+    await first.recordGroups(ALICE, [TEAM, 'urn:sqlib:principal:group:other']);
+    await first.recordGroups(ALICE, [TEAM]);
+
+    const second = new AuthStore(persistence);
+    await second.load();
+    expect(second.lastSeenGroups(ALICE)).toEqual([TEAM]);
+    expect(second.listPrincipals()[0].groups).toEqual([TEAM]);
+  });
+
+  it('tells "seen with no groups" from "never seen"', async () => {
+    await store.recordGroups(ALICE, []);
+    expect(store.lastSeenGroups(ALICE)).toEqual([]);
+    expect(store.lastSeenGroups(BOB)).toBeUndefined();
   });
 });

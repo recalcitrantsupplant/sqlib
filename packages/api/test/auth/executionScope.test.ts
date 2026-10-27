@@ -75,7 +75,7 @@ describe('assertBackendAccess', () => {
 
   it('allows a backend the caller holds Use on', async () => {
     await store.createGrant({
-      principal: ALICE, resourceKind: 'backend', resource: BACKEND_A, modes: ['use'],
+      principal: ALICE, resourceKind: 'backend', resource: BACKEND_A, modes: ['query:adhoc'],
     });
     const scope = { request: requestFor(contextFor([ALICE])) };
 
@@ -91,7 +91,7 @@ describe('assertBackendAccess', () => {
     // It holds the auth graph itself; reaching it as a raw target would make
     // the grant system readable and writable from the outside.
     await store.createGrant({
-      principal: ALICE, resourceKind: 'backend', resource: LIBRARY_STORAGE_BACKEND_ID, modes: ['use'],
+      principal: ALICE, resourceKind: 'backend', resource: LIBRARY_STORAGE_BACKEND_ID, modes: ['query:adhoc'],
     });
     const scope = { request: requestFor(contextFor([ALICE])) };
 
@@ -128,15 +128,20 @@ describe('assertBackendAccess', () => {
     expect(() => assertBackendAccess(scope, BACKEND_B)).toThrow(AuthorizationError);
   });
 
-  it('applies the write mode for updates', async () => {
+  it('applies the update mode to updates, when the update runs', async () => {
     await store.createGrant({
-      principal: ALICE, resourceKind: 'backend', resource: BACKEND_A, modes: ['use'],
+      principal: ALICE, resourceKind: 'backend', resource: BACKEND_A, modes: ['query:adhoc'],
     });
     const request = requestFor(contextFor([ALICE]));
+    const { GuardedSparqlExecutor } = await import('../../src/auth/GuardedSparqlExecutor.js');
+    const inner = {
+      update: vi.fn(async () => ({ result: undefined, duration: 0 })),
+    } as unknown as ConstructorParameters<typeof GuardedSparqlExecutor>[0];
+    const guarded = new GuardedSparqlExecutor(inner, { request, backendId: BACKEND_A });
 
     expect(() => assertBackendAccess({ request }, BACKEND_A)).not.toThrow();
-    expect(() => assertBackendAccess({ request, mode: 'write' }, BACKEND_A))
-      .toThrow(AuthorizationError);
+    await expect(guarded.update('INSERT DATA { <urn:a> <urn:b> <urn:c> }')).rejects.toThrow(AuthorizationError);
+    expect((inner as unknown as { update: ReturnType<typeof vi.fn> }).update).not.toHaveBeenCalled();
   });
 });
 

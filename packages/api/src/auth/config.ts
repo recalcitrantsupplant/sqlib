@@ -39,6 +39,11 @@ export interface AuthConfig {
   resource?: string;
   /** `SQLIB_AUTH_SCOPES`: advertised as `scopes_supported` and in the 401 challenge. */
   scopes: string[];
+  /**
+   * `SQLIB_AUTH_POLICY_CACHE_SECONDS`: how long a graph policy result is kept
+   * per caller and backend. 0 runs the policy on every request.
+   */
+  graphPolicyCacheSeconds: number;
 }
 
 function parseMode(raw: string | undefined): AuthMode {
@@ -155,6 +160,14 @@ export function buildAuthConfig(env: NodeJS.ProcessEnv = process.env): AuthConfi
     );
   }
 
+  const policyCacheRaw = env.SQLIB_AUTH_POLICY_CACHE_SECONDS?.trim();
+  const graphPolicyCacheSeconds = policyCacheRaw ? Number.parseInt(policyCacheRaw, 10) : 60;
+  if (!Number.isFinite(graphPolicyCacheSeconds) || graphPolicyCacheSeconds < 0) {
+    throw new Error(
+      `Invalid SQLIB_AUTH_POLICY_CACHE_SECONDS "${policyCacheRaw}". Expected a non-negative integer.`
+    );
+  }
+
   return {
     mode,
     issuers,
@@ -167,6 +180,7 @@ export function buildAuthConfig(env: NodeJS.ProcessEnv = process.env): AuthConfi
     resource:
       env.SQLIB_AUTH_RESOURCE?.trim() || issuers.find(entry => entry.audience)?.audience || undefined,
     scopes: parseScopes(env.SQLIB_AUTH_SCOPES),
+    graphPolicyCacheSeconds,
   };
 }
 

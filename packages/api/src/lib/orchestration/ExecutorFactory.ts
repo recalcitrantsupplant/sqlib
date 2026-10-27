@@ -11,6 +11,7 @@ import { backendTypeIriToKey, queryMethodIriToKey, resolveOxigraphConfig, type L
 import { config } from '../../server/config.js';
 import type { ExecutionAuthScope, InternalExecution } from '../../auth/executionScope.js';
 import { assertBackendAccess, isInternalExecution } from '../../auth/executionScope.js';
+import { GuardedSparqlExecutor } from '../../auth/GuardedSparqlExecutor.js';
 
 export class ExecutorFactory {
   private cache = new Map<string, ISparqlExecutor>();
@@ -49,7 +50,25 @@ export class ExecutorFactory {
    */
   async getExecutorForBackendId(backendId: string): Promise<ISparqlExecutor> {
     assertBackendAccess(this.authScope, backendId);
+    return this.guarded(backendId, await this.resolveForBackendId(backendId));
+  }
 
+  /**
+   * The caller's view of an executor: each call checks the backend mode it
+   * needs, and reads are narrowed by the backend's graph policy. Internal
+   * work gets the executor as it is.
+   */
+  private guarded(backendId: string, exec: ISparqlExecutor): ISparqlExecutor {
+    if (!this.authScope) return exec;
+    return new GuardedSparqlExecutor(exec, {
+      request: this.authScope.request,
+      backendId,
+      source: this.authScope.source,
+      viaLibrary: this.authScope.viaLibrary,
+    });
+  }
+
+  private async resolveForBackendId(backendId: string): Promise<ISparqlExecutor> {
     if (backendId === LIBRARY_STORAGE_BACKEND_ID) {
       return this.getLibraryStorageExecutor();
     }
@@ -102,42 +121,11 @@ export class ExecutorFactory {
 
     assertBackendAccess(this.authScope, id);
 
-    if (id === LIBRARY_STORAGE_BACKEND_ID) {
-      return this.getLibraryStorageExecutor();
-    }
-
-    const cached = this.cache.get(id);
-    if (cached) return cached;
-
-    // Handle regular backends (persistent)
     const backend = getCacheCoordinator().get(id) as LdkitBackend | null;
-    if (!backend || backend['@type'] !== 'Backend') {
+    if (id !== LIBRARY_STORAGE_BACKEND_ID && (!backend || backend['@type'] !== 'Backend')) {
       throw new Error(`Backend not found for node ${node.id}: ${id}`);
     }
-
-    const backendTypeKey = backendTypeIriToKey(backend.backendType);
-    if (!backendTypeKey) {
-      throw new Error(`Unsupported backend type for ${id}: ${backend.backendType}`);
-    }
-    let exec: ISparqlExecutor;
-
-    switch (backendTypeKey) {
-      case 'http':
-        exec = this.createHttpExecutor(backend);
-        break;
-      case 'oxigraphEphemeral':
-        exec = this.createBackendEphemeralExecutor(backend);
-        break;
-      case 'oxigraphMemory':
-        // Deliberately not cached — see `createMemoryExecutor`.
-        return this.createMemoryExecutor(backend);
-
-      default:
-        throw new Error(`Unsupported backend type for ${id}: ${backend.backendType}`);
-    }
-
-    this.cache.set(id, exec);
-    return exec;
+    return this.guarded(id, await this.resolveForBackendId(id));
   }
 
   private createHttpExecutor(backend: LdkitBackend): ISparqlExecutor {

@@ -95,7 +95,7 @@ function libraryModes(
     tokenType: 'user',
     grants: {
       admin: false,
-      backends: new Map([[BACKEND, new Set(['use' as const])]]),
+      backends: new Map([[BACKEND, new Set(['query:adhoc' as const])]]),
       libraries: modes.length ? new Map([[LIBRARY, new Set(modes)]]) : new Map(),
     },
     claims: {},

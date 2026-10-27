@@ -53,6 +53,7 @@ import SettingsDialog from './SettingsDialog.vue';
 import PrefixMappingsEditor from './PrefixMappingsEditor.vue';
 import PrefixManagerIcon from './icons/PrefixManagerIcon.vue';
 import { useFeatureFlags } from '../composables/useFeatureFlags';
+import { useAuth } from '../composables/useAuth';
 import type { RailSection } from '../lib/railSections';
 import { RAIL_ENTRIES } from '../lib/railEntries';
 
@@ -67,14 +68,21 @@ const emit = defineEmits<{
 }>();
 
 const { isEnabled } = useFeatureFlags();
+const auth = useAuth();
 
 const settingsOpen = ref(false);
 const prefixEditorOpen = ref(false);
 
 const settingsEnabled = computed(() => isEnabled('settings'));
 
+// Access describes other people's access, and grants mean nothing with auth
+// off, so it shows only to administrators of a deployment that checks them.
+const showsAdminSections = computed(() => auth.mode.value !== 'disabled' && auth.isAdmin.value);
+
 const visibleSections = computed(() =>
-  RAIL_ENTRIES.filter((entry) => entry.feature === null || isEnabled(entry.feature)),
+  RAIL_ENTRIES.filter((entry) =>
+    (entry.feature === null || isEnabled(entry.feature)) && (!entry.adminOnly || showsAdminSections.value),
+  ),
 );
 </script>
 

@@ -58,6 +58,18 @@ import { MultipartFile } from '@fastify/multipart';
 import { reposRoute, validateIfMatch, setEntityConcurrencyHeaders } from './route-helpers.js';
 import path from 'node:path';
 import { authOf, requireAdmin, requireBackendMode } from '../auth/enforce.js';
+import {
+  GraphPolicyError,
+  clearGraphPolicyCache,
+  evaluateGraphPolicy,
+  graphPolicyOf,
+  graphPolicyQueryProblem,
+} from '../auth/graphPolicy.js';
+import { getAuthStore } from '../auth/AuthStore.js';
+import { hasBackendMode, resolveEffectiveGrants } from '../auth/grants.js';
+import { BACKEND_MODES, PRINCIPAL_AUTHENTICATED } from '../auth/types.js';
+import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
+import { LIBRARY_STORAGE_BACKEND_ID } from '@sparql-query-lib/types';
 
 type ErrorResponse = { error: string; [key: string]: unknown };
 
@@ -271,8 +283,69 @@ function buildCreateBackendPayload(input: BackendCreate, generatedId: string): (
     validateOxigraphMemoryConfig(backendTypeKey, mappedConfig.config);
     payload.oxigraphConfig = mappedConfig.stored;
   }
+  copyGraphPolicyFields(input, payload);
 
   return payload;
+}
+
+/** What `Test as` answers. */
+interface GraphPolicyTestResult {
+  user: string | null;
+  groups: string[];
+  /** Where the groups came from: the request, the user's last sign-in, or nowhere. */
+  groupsSource: 'given' | 'lastSeen' | 'none';
+  admin: boolean;
+  /** The backend modes these principals hold here. */
+  modes: string[];
+  policy: { queryVersion: string; backend: string } | null;
+  defaultGraphs: string[] | null;
+  namedGraphs: string[] | null;
+  error: string | null;
+}
+
+/** The graph policy fields a create or update body may carry. */
+type GraphPolicyFields = Pick<LdkitBackend, 'authBackend' | 'graphPolicyQueryVersion' | 'graphPolicyBackend'>;
+
+function copyGraphPolicyFields(
+  input: { authBackend?: boolean | null; graphPolicyQueryVersion?: string | null; graphPolicyBackend?: string | null },
+  payload: Partial<LdkitBackend>,
+): void {
+  if (input.authBackend !== undefined) payload.authBackend = input.authBackend;
+  if (input.graphPolicyQueryVersion !== undefined) payload.graphPolicyQueryVersion = input.graphPolicyQueryVersion;
+  if (input.graphPolicyBackend !== undefined) payload.graphPolicyBackend = input.graphPolicyBackend;
+}
+
+/**
+ * Why a backend's auth settings are refused, or null when they are sound.
+ *
+ * Checked once, when an administrator saves them, so a policy that could never
+ * run is refused here rather than failing closed on every request.
+ */
+function graphPolicySettingsProblem(repos: EntityRepositories, backendId: string, merged: GraphPolicyFields): string | null {
+  const version = merged.graphPolicyQueryVersion ?? null;
+  const policyBackend = merged.graphPolicyBackend ?? null;
+  if (!version && !policyBackend) return null;
+  if (!version || !policyBackend) {
+    return 'graphPolicyQueryVersion and graphPolicyBackend are set together: the policy query, and the auth backend it runs on.';
+  }
+  if (merged.authBackend) {
+    return 'An auth backend cannot have a graph policy of its own: only administrators reach it.';
+  }
+  if (policyBackend === backendId) {
+    return 'A backend cannot run its own graph policy: the policy runs on a separate auth backend.';
+  }
+  if (policyBackend !== LIBRARY_STORAGE_BACKEND_ID) {
+    const target = repos.Backend.get(policyBackend) as LdkitBackend | null;
+    if (!target) return `Policy backend ${policyBackend} not found.`;
+    if (target.authBackend !== true) {
+      return `Backend ${policyBackend} is not marked as an auth backend. Mark it first, so callers cannot query it.`;
+    }
+  }
+  const versionEntity = getCacheCoordinator().get(version) as { '@type'?: string; queryString?: string } | null;
+  if (!versionEntity || versionEntity['@type'] !== 'QueryVersion' || !versionEntity.queryString) {
+    return `Query version ${version} not found. A graph policy names a saved query version.`;
+  }
+  return graphPolicyQueryProblem(versionEntity.queryString);
 }
 
 /** The backends this caller may see — the same rule `GET /` applies. */
@@ -480,6 +553,7 @@ function buildUpdateBackendPayload(input: BackendUpdate): Partial<LdkitBackend> 
     );
     payload.oxigraphConfig = mappedConfig.stored;
   }
+  copyGraphPolicyFields(input, payload);
 
   return payload;
 }
@@ -517,7 +591,7 @@ export default async function (
     ...reposRoute(getBackendSchema,
     async ({ repos, reply, request }) => {
       const { id: rawId } = request.params;
-      requireBackendMode(request, decodeURIComponent(rawId), 'use');
+      requireBackendMode(request, decodeURIComponent(rawId), 'query:saved');
       const id = decodeURIComponent(rawId);
 
       // Use memory cache for fast lookup
@@ -553,6 +627,11 @@ export default async function (
           return reply.status(400).send({ error: error.message });
         }
         throw error;
+      }
+
+      const policyProblem = graphPolicySettingsProblem(repos, generatedId, backendData);
+      if (policyProblem) {
+        return reply.status(400).send({ error: policyProblem });
       }
 
       // Use write-through cache for consistency and performance
@@ -597,12 +676,28 @@ export default async function (
         });
       }
 
+      const policyProblem = graphPolicySettingsProblem(repos, id, {
+        authBackend: updateData.authBackend !== undefined ? updateData.authBackend : current.authBackend,
+        graphPolicyQueryVersion: updateData.graphPolicyQueryVersion !== undefined
+          ? updateData.graphPolicyQueryVersion
+          : current.graphPolicyQueryVersion,
+        graphPolicyBackend: updateData.graphPolicyBackend !== undefined
+          ? updateData.graphPolicyBackend
+          : current.graphPolicyBackend,
+      });
+      if (policyProblem) {
+        return reply.status(400).send({ error: policyProblem });
+      }
+
       // Use write-through cache for consistency and performance
       const updatedLdkitBackend = await repos.Backend.update(id, updateData);
 
       if (!updatedLdkitBackend) {
         return reply.status(404).send({ error: 'Backend not found' });
       }
+      // A changed policy, or a backend that stopped being an auth backend,
+      // must not be answered from results computed before the change.
+      clearGraphPolicyCache();
 
       // A built in-process store was hydrated from the *previous* config, so a
       // change to its sources or mode leaves it serving data the backend no
@@ -669,7 +764,7 @@ export default async function (
         response: { 200: probeResponseSchema },
     }, async ({ repos, reply, request }) => {
       const id = decodeURIComponent(request.params.id);
-      requireBackendMode(request, id, 'use');
+      requireBackendMode(request, id, 'query:saved');
 
       const backend = repos.Backend.get(id) as LdkitBackend | null;
       if (!backend) {
@@ -700,7 +795,7 @@ export default async function (
         },
     }, async ({ repos, reply, request }) => {
       const id = decodeURIComponent(request.params.id);
-      requireBackendMode(request, id, 'use');
+      requireBackendMode(request, id, 'query:saved');
 
       if (!repos.Backend.get(id)) {
         return reply.status(404).send({ error: 'Backend not found' });
@@ -736,7 +831,7 @@ export default async function (
         },
     }, async ({ repos, reply, request }) => {
       const id = decodeURIComponent(request.params.id);
-      requireBackendMode(request, id, 'use');
+      requireBackendMode(request, id, 'query:saved');
 
       const backend = repos.Backend.get(id) as LdkitBackend | null;
       if (!backend) {
@@ -802,7 +897,7 @@ export default async function (
         },
     }, async ({ repos, reply, request }) => {
       const id = decodeURIComponent(request.params.id);
-      requireBackendMode(request, id, 'write');
+      requireBackendMode(request, id, 'update:saved');
 
       const backend = repos.Backend.get(id) as LdkitBackend | null;
       if (!backend) {
@@ -891,6 +986,96 @@ export default async function (
     })
   );
 
+  // --- POST /:id/graph-policy/test ---
+  // `Test as`: what a user or a set of groups may reach on this backend, from
+  // both layers. Grants first, then the graph policy. Administrators only:
+  // the answer describes other people's access.
+  fastify.post<{
+    Body: { user?: string; groups?: string[]; queryVersion?: string; policyBackend?: string };
+    Reply: GraphPolicyTestResult | ErrorResponse;
+  }>(
+    '/:id/graph-policy/test',
+    ...reposRoute({
+      params: {
+        type: 'object',
+        properties: { id: { type: 'string' } },
+        required: ['id'],
+      },
+      body: {
+        type: 'object',
+        properties: {
+          user: { type: 'string' },
+          groups: { type: 'array', items: { type: 'string' } },
+          queryVersion: { type: 'string' },
+          policyBackend: { type: 'string' },
+        },
+        additionalProperties: false,
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            user: { type: ['string', 'null'] },
+            groups: { type: 'array', items: { type: 'string' } },
+            groupsSource: { type: 'string', enum: ['given', 'lastSeen', 'none'] },
+            admin: { type: 'boolean' },
+            modes: { type: 'array', items: { type: 'string' } },
+            policy: {
+              type: ['object', 'null'],
+              properties: { queryVersion: { type: 'string' }, backend: { type: 'string' } },
+            },
+            defaultGraphs: { type: ['array', 'null'], items: { type: 'string' } },
+            namedGraphs: { type: ['array', 'null'], items: { type: 'string' } },
+            error: { type: ['string', 'null'] },
+          },
+        },
+      },
+    }, async ({ repos, reply, request }) => {
+      requireAdmin(request, 'testing graph policies');
+      const id = decodeURIComponent(request.params.id);
+      const backend = repos.Backend.get(id) as LdkitBackend | null;
+      if (!backend) {
+        return reply.status(404).send({ error: 'Backend not found' });
+      }
+
+      const store = getAuthStore();
+      const user = request.body.user?.trim() || null;
+      let groups = request.body.groups;
+      let groupsSource: GraphPolicyTestResult['groupsSource'] = 'given';
+      if (!groups) {
+        const lastSeen = user ? store.lastSeenGroups(user) : undefined;
+        groups = lastSeen ?? [];
+        groupsSource = lastSeen ? 'lastSeen' : 'none';
+      }
+
+      const principals = [...(user ? [user] : []), ...groups, PRINCIPAL_AUTHENTICATED];
+      const grants = resolveEffectiveGrants(principals, store);
+      const modes = BACKEND_MODES.filter(mode => hasBackendMode(grants, id, mode));
+
+      // An unsaved choice can be tested before it is saved.
+      const policy = request.body.queryVersion && request.body.policyBackend
+        ? { queryVersion: request.body.queryVersion, backend: request.body.policyBackend }
+        : graphPolicyOf(backend);
+
+      const result: GraphPolicyTestResult = {
+        user, groups, groupsSource, admin: grants.admin, modes, policy,
+        defaultGraphs: null, namedGraphs: null, error: null,
+      };
+      if (!policy) return reply.send(result);
+
+      try {
+        const dataset = await evaluateGraphPolicy(id, policy, { user: user ?? '', groups }, { useCache: false });
+        result.defaultGraphs = dataset.defaultGraphs;
+        result.namedGraphs = dataset.namedGraphs;
+      } catch (error) {
+        // An administrator sees why, unlike a caller, who sees only the refusal.
+        const cause = error instanceof GraphPolicyError ? error.cause : error;
+        result.error = cause instanceof Error ? cause.message : String(cause);
+      }
+      return reply.send(result);
+    })
+  );
+
   // --- GET /:id/usage ---
   // What points at this backend, for the record page's Used by tiles.
   //
@@ -919,7 +1104,7 @@ export default async function (
         },
     }, async ({ repos, reply, request }) => {
       const id = decodeURIComponent(request.params.id);
-      requireBackendMode(request, id, 'use');
+      requireBackendMode(request, id, 'query:saved');
 
       if (!repos.Backend.get(id)) {
         return reply.status(404).send({ error: 'Backend not found' });
@@ -993,7 +1178,7 @@ export default async function (
     }, async ({ repos, reply, request }) => {
       const { id: rawId } = request.params;
       const id = decodeURIComponent(rawId);
-      requireBackendMode(request, id, 'use');
+      requireBackendMode(request, id, 'query:saved');
 
       // Check if backend exists
       const backend = repos.Backend.get(id);
@@ -1116,7 +1301,7 @@ export default async function (
       const { id: rawId } = request.params;
       const id = decodeURIComponent(rawId);
       // Above the lookup, not below it: see the note on `GET /:id/stats`.
-      requireBackendMode(request, id, 'write');
+      requireBackendMode(request, id, 'update:adhoc');
 
       // Get backend from cache
       const ldkitBackend = repos.Backend.get(id) as LdkitBackend | null;
@@ -1233,7 +1418,7 @@ export default async function (
        * them hold their data in this process — which is the set worth
        * uploading to, clearing, or asking for statistics about.
        */
-      requireBackendMode(request, id, 'use');
+      requireBackendMode(request, id, 'query:saved');
 
       // Get backend from cache
       const ldkitBackend = repos.Backend.get(id) as LdkitBackend | null;
@@ -1284,7 +1469,7 @@ export default async function (
       const { id: rawId } = request.params;
       const id = decodeURIComponent(rawId);
       // Above the lookup, not below it: see the note on `GET /:id/stats`.
-      requireBackendMode(request, id, 'write');
+      requireBackendMode(request, id, 'update:adhoc');
 
       // Get backend from cache
       const ldkitBackend = repos.Backend.get(id) as LdkitBackend | null;
@@ -1361,7 +1546,7 @@ export default async function (
       },
     }, async ({ repos, reply, request }) => {
       const backendId = decodeURIComponent(request.params.id);
-      requireBackendMode(request, backendId, 'use');
+      requireBackendMode(request, backendId, 'query:saved');
 
       const { since, graph, source, status, limit } = request.query;
       const sinceMs = since ? Date.parse(since) : NaN;
@@ -1422,7 +1607,7 @@ export default async function (
       },
     }, async ({ repos, reply, request }) => {
       const backendId = decodeURIComponent(request.params.id);
-      requireBackendMode(request, backendId, 'use');
+      requireBackendMode(request, backendId, 'query:saved');
 
       const { asOf, state = true, nquads = false, churn = false, hotQuads } = request.query;
 

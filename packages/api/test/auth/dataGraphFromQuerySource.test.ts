@@ -102,7 +102,7 @@ function contextWith(grants: Array<[library: string, modes: LibraryMode[]]>): Au
     tokenType: 'user',
     grants: {
       admin: false,
-      backends: new Map([[BACKEND, new Set(['use'] as const)]]),
+      backends: new Map([[BACKEND, new Set(['query:adhoc'] as const)]]),
       libraries: new Map(grants.map(([library, modes]) => [library, new Set(modes)])),
     },
     claims: {},

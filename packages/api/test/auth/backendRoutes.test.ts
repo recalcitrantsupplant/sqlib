@@ -85,7 +85,7 @@ overrideCacheCoordinatorProvider((() => {
   };
 })());
 
-type BackendMode = 'use' | 'write' | 'control';
+type BackendMode = 'query:adhoc' | 'update:adhoc' | 'control';
 
 function principal(
   backends: Array<[string, BackendMode[]]>,
@@ -113,11 +113,11 @@ function principal(
 /** Authenticated, holding no grant on any backend. */
 const stranger = principal([]);
 /** `use` on both stored backends and nothing more. */
-const user = principal([[HTTP_BACKEND, ['use']], [OXIGRAPH_BACKEND, ['use']]]);
+const user = principal([[HTTP_BACKEND, ['query:adhoc']], [OXIGRAPH_BACKEND, ['query:adhoc']]]);
 /** Every backend mode there is, and still not an administrator. */
 const owner = principal([
-  [HTTP_BACKEND, ['use', 'write', 'control']],
-  [OXIGRAPH_BACKEND, ['use', 'write', 'control']],
+  [HTTP_BACKEND, ['query:adhoc', 'update:adhoc', 'control']],
+  [OXIGRAPH_BACKEND, ['query:adhoc', 'update:adhoc', 'control']],
 ]);
 const admin = principal([], { admin: true });
 
@@ -198,15 +198,15 @@ beforeEach(() => {
 const SCOPED_ROUTES: ReadonlyArray<
   [label: string, method: Method, path: string, mode: BackendMode | 'admin', body?: object]
 > = [
-  ['the backend', 'GET', '', 'use'],
-  ['a probe of it', 'POST', '/probe', 'use'],
-  ['its probe history', 'GET', '/probe-history', 'use'],
-  ['its prefix map', 'GET', '/prefixes', 'use'],
-  ['what uses it', 'GET', '/usage', 'use'],
-  ['what references it', 'GET', '/references', 'use'],
-  ['its patch list', 'GET', '/patches', 'use'],
-  ['its patch log', 'GET', '/patch-log', 'use'],
-  ['a prefix push', 'POST', '/prefixes', 'write', { upserts: [{ prefix: 'ex', namespace: 'http://e/' }] }],
+  ['the backend', 'GET', '', 'query:adhoc'],
+  ['a probe of it', 'POST', '/probe', 'query:adhoc'],
+  ['its probe history', 'GET', '/probe-history', 'query:adhoc'],
+  ['its prefix map', 'GET', '/prefixes', 'query:adhoc'],
+  ['what uses it', 'GET', '/usage', 'query:adhoc'],
+  ['what references it', 'GET', '/references', 'query:adhoc'],
+  ['its patch list', 'GET', '/patches', 'query:adhoc'],
+  ['its patch log', 'GET', '/patch-log', 'query:adhoc'],
+  ['a prefix push', 'POST', '/prefixes', 'update:saved', { upserts: [{ prefix: 'ex', namespace: 'http://e/' }] }],
   ['its env vars', 'GET', '/env', 'admin'],
   ['deleting it', 'DELETE', '', 'admin'],
 ];
@@ -226,7 +226,7 @@ describe('every backend-scoped route requires a grant on the backend', () => {
     });
 
     it('lets a holder of the mode it asks for reach the handler', async () => {
-      const holder = mode === 'admin' ? admin : mode === 'use' ? user : owner;
+      const holder = mode === 'admin' ? admin : mode === 'query:adhoc' ? user : owner;
       const response = await inject(holder, method, url, body);
       // Not 200: several of these reach a network call or a store that is not
       // loaded and fail after the check. Reaching the handler is the claim.
@@ -258,7 +258,7 @@ describe('every backend-scoped route requires a grant on the backend', () => {
   });
 
   it('does not let a grant on one backend reach another', async () => {
-    const onlyOther = principal([[OXIGRAPH_BACKEND, ['use', 'write', 'control']]]);
+    const onlyOther = principal([[OXIGRAPH_BACKEND, ['query:adhoc', 'update:adhoc', 'control']]]);
     const response = await inject(onlyOther, 'GET', `/backends/${at(HTTP_BACKEND)}/references`);
     expect(response.statusCode, response.body).toBe(403);
   });
@@ -352,7 +352,7 @@ describe('the in-process-store routes check before they look', () => {
   });
 
   it('still 404s an authorized caller on a backend that is not stored', async () => {
-    const authorized = principal([[ABSENT_BACKEND, ['use', 'write']]]);
+    const authorized = principal([[ABSENT_BACKEND, ['query:adhoc', 'update:adhoc']]]);
     const response = await inject(authorized, 'GET', `/backends/${at(ABSENT_BACKEND)}/stats`);
     expect(response.statusCode, response.body).toBe(404);
   });
@@ -372,7 +372,7 @@ describe('the collection listings', () => {
   });
 
   it('shows a holder only the backends it holds', async () => {
-    const onlyOne = principal([[HTTP_BACKEND, ['use']]]);
+    const onlyOne = principal([[HTTP_BACKEND, ['query:adhoc']]]);
     const response = await inject(onlyOne, 'GET', '/backends');
     expect(response.json().map((backend: { id: string }) => backend.id)).toEqual([HTTP_BACKEND]);
   });

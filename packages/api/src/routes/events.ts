@@ -74,7 +74,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         // does not apply: the same backend serves several libraries, and
         // dropping the frame for all of them would be worse than sending it.
         if (event.type === 'data-changed') {
-          if (canBackend(request, event.backendId, 'use')) {
+          if (canBackend(request, event.backendId, 'query:saved')) {
             try {
               writeFrame(reply, event);
             } catch {

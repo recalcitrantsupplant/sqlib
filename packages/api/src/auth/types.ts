@@ -10,9 +10,31 @@
 export const LIBRARY_MODES = ['read', 'write', 'execute', 'delete', 'control'] as const;
 export type LibraryMode = (typeof LIBRARY_MODES)[number];
 
-/** Modes grantable on a backend. */
-export const BACKEND_MODES = ['use', 'write'] as const;
+/**
+ * Modes grantable on a backend.
+ *
+ * Query and update each have two levels. `saved` runs saved queries (or
+ * updates) only. `adhoc` also runs text the caller wrote, and includes
+ * `saved`. So an analyst holding `query:adhoc` and `update:saved` can explore
+ * freely and still change data only through updates someone saved.
+ */
+export const BACKEND_MODES = ['query:saved', 'query:adhoc', 'update:saved', 'update:adhoc'] as const;
 export type BackendMode = (typeof BACKEND_MODES)[number];
+
+/** The SPARQL operation a backend mode allows. */
+export type BackendOperation = 'query' | 'update';
+
+/** Whether the text being run was saved in a library or written by the caller. */
+export type QueryTextSource = 'saved' | 'adhoc';
+
+export function backendModeFor(operation: BackendOperation, source: QueryTextSource): BackendMode {
+  return `${operation}:${source}`;
+}
+
+/** The modes that satisfy a required mode: itself, and `adhoc` for `saved`. */
+export function modesSatisfying(mode: BackendMode): BackendMode[] {
+  return mode.endsWith(':saved') ? [mode, mode.replace(':saved', ':adhoc') as BackendMode] : [mode];
+}
 
 export type AuthMode = 'disabled' | 'dry-run' | 'required';
 

@@ -124,6 +124,20 @@ export const createBackendSchema = {
       "oxigraphConfig": {
         "type": "string",
         "nullable": true
+      },
+      "authBackend": {
+        "type": "boolean",
+        "nullable": true
+      },
+      "graphPolicyQueryVersion": {
+        "type": "string",
+        "format": "iri",
+        "nullable": true
+      },
+      "graphPolicyBackend": {
+        "type": "string",
+        "format": "iri",
+        "nullable": true
       }
     },
     "required": [
@@ -231,6 +245,20 @@ export const updateBackendSchema = {
       },
       "oxigraphConfig": {
         "type": "string",
+        "nullable": true
+      },
+      "authBackend": {
+        "type": "boolean",
+        "nullable": true
+      },
+      "graphPolicyQueryVersion": {
+        "type": "string",
+        "format": "iri",
+        "nullable": true
+      },
+      "graphPolicyBackend": {
+        "type": "string",
+        "format": "iri",
         "nullable": true
       }
     },

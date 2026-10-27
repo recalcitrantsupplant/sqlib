@@ -148,12 +148,12 @@ describe('resolveOwningLibrary', () => {
 describe('backend access routes (design §4.3)', () => {
   it('route 1: an explicit Use grant allows any path, including ad-hoc', async () => {
     await store.createGrant({
-      principal: ALICE, resourceKind: 'backend', resource: BACKEND, modes: ['use'],
+      principal: ALICE, resourceKind: 'backend', resource: BACKEND, modes: ['query:adhoc'],
     });
     const request = requestFor(contextFor([ALICE]));
 
-    expect(canBackend(request, BACKEND, 'use')).toBe(true);
-    expect(canBackend(request, BACKEND, 'write')).toBe(false);
+    expect(canBackend(request, BACKEND, 'query:adhoc')).toBe(true);
+    expect(canBackend(request, BACKEND, 'update:saved')).toBe(false);
   });
 
   it('route 2: Execute on a library reaches its allowedBackends for saved queries', async () => {
@@ -165,8 +165,8 @@ describe('backend access routes (design §4.3)', () => {
     });
     const request = requestFor(contextFor([ALICE]));
 
-    expect(canBackend(request, BACKEND, 'use', { viaLibrary: LIBRARY })).toBe(true);
-    expect(canBackend(request, OTHER_BACKEND, 'use', { viaLibrary: LIBRARY })).toBe(true);
+    expect(canBackend(request, BACKEND, 'query:saved', { viaLibrary: LIBRARY })).toBe(true);
+    expect(canBackend(request, OTHER_BACKEND, 'query:saved', { viaLibrary: LIBRARY })).toBe(true);
   });
 
   it('route 2 does not leak into ad-hoc paths that pass no library', async () => {
@@ -176,8 +176,8 @@ describe('backend access routes (design §4.3)', () => {
     const request = requestFor(contextFor([ALICE]));
 
     // This is what stops /sparql from inheriting curated access.
-    expect(canBackend(request, BACKEND, 'use')).toBe(false);
-    expect(() => requireBackendMode(request, BACKEND, 'use')).toThrow(AuthorizationError);
+    expect(canBackend(request, BACKEND, 'query:adhoc')).toBe(false);
+    expect(() => requireBackendMode(request, BACKEND, 'query:adhoc')).toThrow(AuthorizationError);
   });
 
   it('route 2 refuses a backend the library does not list', async () => {
@@ -186,7 +186,7 @@ describe('backend access routes (design §4.3)', () => {
     });
     const request = requestFor(contextFor([ALICE]));
 
-    expect(canBackend(request, OTHER_BACKEND, 'use', { viaLibrary: LIBRARY })).toBe(false);
+    expect(canBackend(request, OTHER_BACKEND, 'query:saved', { viaLibrary: LIBRARY })).toBe(false);
   });
 
   it('route 2 requires Execute, not merely Read, on the library', async () => {
@@ -195,7 +195,7 @@ describe('backend access routes (design §4.3)', () => {
     });
     const request = requestFor(contextFor([ALICE]));
 
-    expect(canBackend(request, BACKEND, 'use', { viaLibrary: LIBRARY })).toBe(false);
+    expect(canBackend(request, BACKEND, 'query:saved', { viaLibrary: LIBRARY })).toBe(false);
   });
 
   it('route 2 never covers writes', async () => {
@@ -204,16 +204,16 @@ describe('backend access routes (design §4.3)', () => {
     });
     const request = requestFor(contextFor([ALICE]));
 
-    expect(canBackend(request, BACKEND, 'write', { viaLibrary: LIBRARY })).toBe(false);
+    expect(canBackend(request, BACKEND, 'update:saved', { viaLibrary: LIBRARY })).toBe(false);
   });
 
   it('route 3: a grant to the authenticated sentinel makes a backend global', async () => {
     await store.createGrant({
-      principal: PRINCIPAL_AUTHENTICATED, resourceKind: 'backend', resource: BACKEND, modes: ['use'],
+      principal: PRINCIPAL_AUTHENTICATED, resourceKind: 'backend', resource: BACKEND, modes: ['query:adhoc'],
     });
     const request = requestFor(contextFor(['urn:sqlib:principal:user:nobody', PRINCIPAL_AUTHENTICATED]));
 
-    expect(canBackend(request, BACKEND, 'use')).toBe(true);
+    expect(canBackend(request, BACKEND, 'query:adhoc')).toBe(true);
   });
 
   it('always includes defaultBackend in a library allowed set', () => {
@@ -228,7 +228,7 @@ describe('curated backends escalation guard', () => {
       principal: ALICE, resourceKind: 'library', resource: LIBRARY, modes: ['write'],
     });
     await store.createGrant({
-      principal: ALICE, resourceKind: 'backend', resource: OTHER_BACKEND, modes: ['use'],
+      principal: ALICE, resourceKind: 'backend', resource: OTHER_BACKEND, modes: ['query:adhoc'],
     });
     const request = requestFor(contextFor([ALICE]));
 
@@ -251,7 +251,7 @@ describe('curated backends escalation guard', () => {
       principal: ALICE, resourceKind: 'library', resource: LIBRARY, modes: ['write', 'control'],
     });
     await store.createGrant({
-      principal: ALICE, resourceKind: 'backend', resource: OTHER_BACKEND, modes: ['use'],
+      principal: ALICE, resourceKind: 'backend', resource: OTHER_BACKEND, modes: ['query:adhoc'],
     });
     const request = requestFor(contextFor([ALICE]));
 
@@ -292,7 +292,7 @@ describe('curated backends escalation guard', () => {
       principal: ALICE, resourceKind: 'library', resource: LIBRARY, modes: ['write', 'control'],
     });
     await store.createGrant({
-      principal: ALICE, resourceKind: 'backend', resource: OTHER_BACKEND, modes: ['use'],
+      principal: ALICE, resourceKind: 'backend', resource: OTHER_BACKEND, modes: ['query:adhoc'],
     });
     const request = requestFor(contextFor([ALICE]));
 
@@ -314,7 +314,7 @@ describe('curated backends escalation guard', () => {
 
   it('allows creating with a backend the caller holds, without Control', async () => {
     await store.createGrant({
-      principal: ALICE, resourceKind: 'backend', resource: OTHER_BACKEND, modes: ['use'],
+      principal: ALICE, resourceKind: 'backend', resource: OTHER_BACKEND, modes: ['query:adhoc'],
     });
     const request = requestFor(contextFor([ALICE]));
 

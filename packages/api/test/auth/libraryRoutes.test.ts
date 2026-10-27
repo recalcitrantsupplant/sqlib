@@ -323,7 +323,7 @@ describe('POST /libraries', () => {
   });
 
   it('allows a backend the creator holds Use on', async () => {
-    const withBackend = contextFor({}, { [BACKEND]: ['use'] });
+    const withBackend = contextFor({}, { [BACKEND]: ['query:adhoc'] });
     const response = await request(withBackend, '/libraries', {}, {
       method: 'POST',
       payload: { name: 'Field notes', allowedBackends: [BACKEND] },
@@ -347,7 +347,7 @@ describe('PUT /libraries/:id', () => {
   it('allows one the caller holds Use on', async () => {
     const withBackend = contextFor(
       { [MINE]: ['read', 'write', 'control'] },
-      { [BACKEND]: ['use'] },
+      { [BACKEND]: ['query:adhoc'] },
     );
     const response = await request(withBackend, `/libraries/${encodeURIComponent(MINE)}`, {}, {
       method: 'PUT',
