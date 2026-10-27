@@ -18,7 +18,10 @@ describe('DATASET edge', () => {
   const EX = 'http://example.org/';
   const data = `
     @prefix ex: <${EX}> .
-    ex:catalog { ex:g1 a ex:Approved . ex:g3 a ex:Approved . }
+    ex:catalog {
+      ex:g1 a ex:Approved ; ex:usedAs ex:Default .
+      ex:g3 a ex:Approved ; ex:usedAs ex:Named .
+    }
     ex:g1 { ex:s1 ex:p "one" . }
     ex:g2 { ex:s2 ex:p "two" . }
     ex:g3 { ex:s3 ex:p "three" . }
@@ -171,6 +174,73 @@ describe('DATASET edge', () => {
     const { response } = await createGroup('bad part', { datasetPart: 'everything' });
     expect(response.statusCode).toBeGreaterThanOrEqual(400);
     expect(response.statusCode).toBeLessThan(500);
+  }, 20000);
+
+  it('gives a two-part dataset query one output tuple per reserved name, each feeding its own part', async () => {
+    const splitQuery = `
+      PREFIX ex: <${EX}>
+      SELECT ?defaultGraph ?namedGraph WHERE {
+        GRAPH ex:catalog {
+          { ?defaultGraph ex:usedAs ex:Default } UNION { ?namedGraph ex:usedAs ex:Named }
+        }
+      }
+    `;
+    const readsBothParts = `
+      PREFIX ex: <${EX}>
+      SELECT ?o WHERE { { ?s ex:p ?o } UNION { GRAPH ?g { ?s ex:p ?o } } }
+    `;
+    const upstream = await createQuery('Split upstream', splitQuery);
+    const downstream = await createQuery('Split downstream', readsBothParts);
+
+    // "All query outputs", then ?defaultGraph, then ?namedGraph.
+    const outputs = upstream.version.inferredOutputs as string[];
+    expect(outputs).toHaveLength(3);
+    const [, defaultTuple, namedTuple] = outputs;
+
+    const group = await ScenarioTestBaseUnmocked.createQueryGroup(context, 'Dataset split');
+    const upstreamNode = 'urn:ui-temp:upstream';
+    const downstreamNode = 'urn:ui-temp:downstream';
+    const response = await context.app.inject({
+      method: 'POST',
+      url: `/query-groups/${encodeURIComponent(group.id)}/versions`,
+      payload: {
+        queryGroupVersion: {},
+        endNode: { mediaType: 'application/sparql-results+json' },
+        executionNodes: [
+          { id: upstreamNode, nodeType: 'QueryNode', queryId: upstream.version.id, backendId: context.backendId, outputs },
+          {
+            id: downstreamNode, nodeType: 'QueryNode', queryId: downstream.version.id, backendId: context.backendId,
+            outputs: [downstream.version.inferredOutputs[0]],
+          },
+        ],
+        edges: [
+          { id: 'urn:ui-temp:edge-1', sourceNodeId: 'urn:__START__', targetNodeId: upstreamNode, dataFlowType: 'CONTROL_FLOW' },
+          {
+            id: 'urn:ui-temp:edge-2', sourceNodeId: upstreamNode, targetNodeId: downstreamNode,
+            dataFlowType: 'DATASET', sourceOutputId: defaultTuple, datasetPart: 'default',
+          },
+          {
+            id: 'urn:ui-temp:edge-3', sourceNodeId: upstreamNode, targetNodeId: downstreamNode,
+            dataFlowType: 'DATASET', sourceOutputId: namedTuple, datasetPart: 'named',
+          },
+          {
+            id: 'urn:ui-temp:edge-4', sourceNodeId: downstreamNode, targetNodeId: 'urn:__END__',
+            dataFlowType: 'VARIABLE_BINDINGS',
+            sourceOutputId: downstream.version.inferredOutputs[0],
+            targetInputId: downstream.version.inferredOutputs[0],
+          },
+        ],
+      },
+    });
+    expect(response.statusCode, response.body).toBe(201);
+    await context.app.inject({
+      method: 'PUT',
+      url: `/query-groups/${encodeURIComponent(group.id)}`,
+      payload: { name: group.name, isPartOf: group.isPartOf, currentVersion: response.json().queryGroupVersion.id },
+    });
+
+    // g1 is the default graph and g3 the only named graph; g2 is in neither.
+    expect(valuesOf(await execute({ targetId: group.id }))).toEqual(['one', 'three']);
   }, 20000);
 
   it('takes a caller dataset on a single query', async () => {
