@@ -29,11 +29,11 @@
   "devDependencies": {
     "@playwright/test": "^1.64.0",
     "@types/dagre": "^0.7.54",
-    "@types/n3": "^1.26.4",
+    "@types/n3": "^1.26.5",
     "@vitejs/plugin-vue": "^6.0.10",
     "@vue/test-utils": "^2.5.1",
     "fast-check": "^4.10.2",
-    "happy-dom": "^21.0.3",
+    "happy-dom": "^21.0.4",
     "postcss-html": "^2.0.0",
     "stylelint": "^17.16.0",
     "stylelint-config-standard": "^40.0.0",
