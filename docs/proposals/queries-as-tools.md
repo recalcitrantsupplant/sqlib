@@ -1,6 +1,7 @@
 # Queries as tools: publish stored queries as an application's MCP tools and HTTP routes
 
-Status: proposal, not implemented. Written 2026-10-26 against `main` at
+Status: proposal, not implemented; design decisions settled 2026-10-27 (see
+[Decisions](#decisions)). Written 2026-10-26 against `main` at
 `6f65c10`.
 
 ## Summary
@@ -64,7 +65,7 @@ agent that sees `sparql_proxyQuery` can run any SPARQL it likes.
 | Who calls | the person designing queries, or an agent helping them | the application's agents, pages and scripts |
 | Tools | the catalogue: `libraries_*`, `queries_*`, `detection_*`, `execute_run`… | the library's published queries and groups |
 | Arguments | ids and SPARQL Results JSON | plain values, one per parameter |
-| Where | `/mcp`, the API's routes | `/mcp/{library-slug}`, `/tools/{library-slug}/{name}` |
+| Where | `/mcp`, the API's routes | `/mcp/{slug}`, `/tools/{slug}/{name}` |
 | Changes | at every call | at a restart |
 
 Both surfaces run through `POST /execute`, so they differ in what they show
@@ -82,19 +83,42 @@ the tool.
 
 Publishing is opt-in, in one of two ways:
 
-- **Per entry:** the query or group carries a `tool` object, described below.
+- **Per entry:** the current version of the query or group carries a `tool`
+  object, described below.
 - **Per library:** the library sets `publishAll: true`. Every query and group
-  in it is then published. An entry with a `tool` object uses it; any other
-  entry gets a default one, and an entry with `"tool": false` is left out,
-  such as the queries that compose a group.
+  in it is then published. An entry whose current version has a `tool` object
+  uses it; any other entry gets a default one, and an entry whose current
+  version has `"tool": false` is left out, such as the queries that compose a
+  group.
 
 A default `tool` object takes the entry's name, made safe for MCP, as the
-tool's name, its description as the tool's description, and every detected
-input as a parameter of kind `term` (below), optional, not a list.
+tool's name, its description as the tool's description, and every input
+detected in the current version as a parameter of kind `term` (below),
+optional, not a list.
+
+A library that publishes tools, by either way, needs a `slug` (below).
+
+### The library slug
+
+A library gains an optional `slug`: a short name for URLs, such as `pm` or
+`glam-catalogue`. Its `name` stays the display name and can change freely; the
+slug is the key in `/mcp/{slug}` and `/tools/{slug}/{name}`, so it stays
+fixed once clients use it.
+
+- The author sets it. The server does not derive it from `name`, because a
+  rename would then break every client URL.
+- It matches `[a-z0-9-]+` and is unique among libraries.
+- It is required only for a library that publishes a tool. Publishing from a
+  library without one is an error at startup (see
+  [An invalid tool](#an-invalid-tool)).
 
 ### The `tool` object
 
-A query or query group entity takes an optional `tool` object:
+A query version or query group version takes an optional `tool` object. It is
+stored on the version, not on the entity, because its `params` name inputs that
+are detected in that version's text. On the version the two cannot drift
+apart: a version is immutable, and its `tool` object is checked against its
+inputs once, when the version is saved.
 
 ```json
 {
@@ -111,15 +135,30 @@ A query or query group entity takes an optional `tool` object:
 ```
 
 - **`name`** is unique among the published tools of its library, uses the
-  characters MCP allows in a tool name, and is not the name of a built-in
-  tool.
+  characters MCP allows in a tool name, and contains no `.` (the separator
+  `/mcp` uses, below).
 - **`description`** is the tool's description as MCP and the HTTP route's
   documentation give it.
 - **`params`** names the inputs the tool takes. Each key is a variable of one
   of the query's table parameters (`VALUES ... { UNDEF }`) or the name of a
-  `LIMIT` or `OFFSET` parameter, as input detection finds them. A key that is
-  not one is an error when the tool is published. A detected input with no
-  key is not offered, and is `UNDEF` in every call.
+  `LIMIT` or `OFFSET` parameter, as input detection finds them in the
+  version's text. A key that is not one makes the version save a 400 that
+  names the key. A detected input with no key is not offered, and is `UNDEF`
+  in every call.
+
+#### A new version carries the `tool` object forward
+
+A save that sends no `tool` field copies the previous version's `tool`
+object, or its `false`, onto the new version. Editing the query text therefore
+keeps the tool published without restating it. The copy is checked against
+the new version's inputs like any other: if the new text dropped or renamed an
+input that `params` names, the save is a 400 that names the key, and the
+author sends a corrected `tool` object or `"tool": false` with the text. A
+published tool never breaks silently at the next start.
+
+Changing only the name, description or a parameter's kind is a new version
+too. Tools change when an application is released, not between calls, so this
+is a small cost.
 
 Each parameter takes:
 
@@ -184,6 +223,19 @@ mid-session, so a restart is an acceptable cost. It also means a tool never
 changes under an agent during a session. MCP clients read the tool list when
 they connect, so a client that connects after the restart sees the new list.
 
+### An invalid tool
+
+The `tool` object is checked when its version is saved, so few problems are
+left for startup: a publishing library with no slug, two tools with one name,
+or a pinned version whose backend is gone. What the server does then depends
+on its mode:
+
+- In `both` and `catalogue` mode it logs the error, skips that tool and
+  starts. A person designing queries keeps a working server.
+- In `published` mode it refuses to start and names each invalid tool. A
+  production application fails when it is deployed, not at a client's first
+  call.
+
 ### The two doors: MCP and HTTP
 
 A published tool joins the catalogue in `packages/tools`, beside the built-in
@@ -198,7 +250,7 @@ one. Both doors use that one request, as the built-in tools do:
   `required`. `additionalProperties` is `false`. A tool backed by a SELECT,
   ASK, CONSTRUCT or DESCRIBE query carries `readOnlyHint: true`; one backed by
   an update carries `readOnlyHint: false`.
-- **HTTP:** each tool is its own route, `/tools/{library-slug}/{name}`,
+- **HTTP:** each tool is its own route, `/tools/{slug}/{name}`,
   generated when the server starts:
   - A tool backed by a SELECT, ASK, CONSTRUCT or DESCRIBE query, or by a
     group of them, answers `GET`, with its arguments in the query string. A
@@ -209,7 +261,7 @@ one. Both doors use that one request, as the built-in tools do:
   - A tool backed by an update answers `POST`, with its arguments as a JSON
     object.
   - Both return what `POST /execute` returns.
-  - `GET /tools/{library-slug}/openapi.json` is an OpenAPI 3.1 document with
+  - `GET /tools/{slug}/openapi.json` is an OpenAPI 3.1 document with
     one operation per tool, its parameters typed from `params`. A page's
     client can be generated from it, and a generic client can read it at run
     time, as an agent reads `tools/list`.
@@ -234,20 +286,33 @@ page uses HTTP; agents, analysis and exploration use MCP.
 
 ### Where the tools are served
 
-- **`/mcp/{library-slug}`** lists only that library's published tools,
-  without the catalogue. An application's agents connect there and see its
-  tools and nothing else.
-- **`/mcp`** keeps the catalogue, as now, and lists the published tools beside
-  it, for a person building and trying a library.
-- **A published-only server.** With `MCP_CATALOGUE=published`, `/mcp` lists
-  the published tools and no catalogue tools, and the API's authoring routes
-  answer 404. A production deployment of an application sets it, as
-  `MCP_READ_ONLY` sets read-only mode today. `/tools/{library-slug}/…` and
-  `POST /execute` stay.
+`MCP_CATALOGUE` chooses which of the two surfaces a server offers, as
+`MCP_READ_ONLY` chooses read-only mode today:
+
+| `MCP_CATALOGUE` | `/mcp` lists | `/mcp/{slug}` and `/tools/{slug}/…` | Authoring routes | `POST /execute` |
+|---|---|---|---|---|
+| `both` (default) | the catalogue, and every library's published tools | served | served | any target the caller's grants allow |
+| `catalogue` | the catalogue only | 404 | served | any target the caller's grants allow |
+| `published` | every library's published tools only | served | 404 | only the pinned versions of published tools |
+
+- **`/mcp/{slug}`** lists only that library's published tools, under their
+  own names, without the catalogue. An application's agents connect there and
+  see its tools and nothing else.
+- **`/mcp`** lists published tools from every library, so a tool name alone
+  can collide across libraries. There each published tool is named
+  `{slug}.{name}`, such as `pm.record-decision`. MCP allows `.` in a tool name,
+  no built-in tool name contains one, and a tool's own name may not, so a
+  prefixed name collides with nothing.
+- **`published`** is for a production deployment of an application. The
+  published tools still run through `POST /execute`, so the route stays, but it
+  refuses a `targetId` that is not the pinned version of a published tool. A
+  caller of such a server cannot run an unpublished query, or any version but
+  the published one, even where their grants would allow it.
 
 An agent given only an application's endpoint cannot run arbitrary SPARQL
-through `sparql_proxyQuery`, or create queries. That is a matter of what it
-can see, not of permission. Grants still decide what each token may do.
+through `sparql_proxyQuery`, or create queries. In `both` and `catalogue`
+mode that is a matter of what it can see, not of permission; grants still
+decide what each token may do. In `published` mode the server enforces it.
 
 ## Part B, optional: why an update wrote nothing
 
@@ -286,12 +351,17 @@ after part A.
 - **Shaping results.** A published SELECT returns SPARQL Results JSON, as
   `POST /execute` does. Agents read it well, and a page shapes it itself.
 
-## Open questions
+## Decisions
 
-1. Where the `tool` object is stored: on the entity, as here, or on the
-   version, so that publishing a tool is part of cutting a version.
-2. Whether `MCP_CATALOGUE=published` should also hide `POST /execute`, so
-   that a production server runs only its published tools.
-3. Whether the server should refuse to start when a published tool is
-   invalid, or start and log it. Refusing is safer for an application in
-   production. Logging is kinder while designing queries.
+Settled 2026-10-27:
+
+1. A library gains an optional `slug`, set by its author, required only to
+   publish.
+2. On `/mcp`, published tools are named `{slug}.{name}`; on `/mcp/{slug}` they
+   keep their own names.
+3. The `tool` object is stored on the version, and a new version copies the
+   previous one's unless the save says otherwise.
+4. `MCP_CATALOGUE` takes `both`, `catalogue` or `published`. In `published`
+   mode, `POST /execute` runs only the pinned versions of published tools.
+5. An invalid tool is logged and skipped, except in `published` mode, where
+   the server refuses to start.
