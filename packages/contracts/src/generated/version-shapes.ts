@@ -287,7 +287,6 @@ export const ruleSetVersionShape = {
   stratificationReport: nullableString,
   tupleSeeds: nullableString,
   srlDocument: nullableString,
-  tupleSeedsDocument: nullableString,
   tuplesEnabled: nullableBoolean,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,

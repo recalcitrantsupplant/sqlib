@@ -808,8 +808,6 @@ export default async function (fastify: FastifyInstance) {
       // reason rules are: nothing stores the prologue beside it, so a prefixed
       // seed would reach execution unexpanded and match no rule's tuple read.
       seedDocument = tuples ? canonicalTupleSeeds(body.tupleSeeds, body.srl ?? '') : '';
-      // The canonical seeds are what runs; the text as written is kept beside
-      // them with the document, whose prologue it reads.
     } catch (error) {
       return reply.status(400).send({ error: error instanceof Error ? error.message : 'Invalid SRL document' });
     }
@@ -888,7 +886,6 @@ export default async function (fastify: FastifyInstance) {
       tupleSeeds: seedDocument,
       tuplesEnabled: tuples,
       srlDocument: body.srl,
-      tupleSeedsDocument: tuples ? body.tupleSeeds : null,
     }, { request });
 
     return reply.send({
@@ -1415,8 +1412,8 @@ function describeTupleSeeds(
 /**
  * The seed rows to show beside a version's document.
  *
- * With a stored document, the seeds as written, or failing that the canonical
- * seeds abbreviated against the stored document's own prologue. With a
+ * With a stored document, the canonical seeds abbreviated against the stored
+ * document's own prologue. With a
  * generated one, the canonical seeds abbreviated against the prologue the
  * document was generated with, so box 2 reads like box 1.
  */
@@ -1426,7 +1423,6 @@ function tupleSeedsForDocument(
   prologue: string,
 ): string {
   if (documentSource === 'stored') {
-    if (version.tupleSeedsDocument) return version.tupleSeedsDocument;
     return abbreviateIris(version.tupleSeeds ?? '', extractPrologueText(version.srlDocument ?? ''));
   }
   return abbreviateIris(version.tupleSeeds ?? '', prologue);

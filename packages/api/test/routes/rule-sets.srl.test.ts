@@ -498,28 +498,7 @@ describe('RuleSets Routes — SRL document authoring', () => {
       expect(body.tupleSeeds).toBe('TUPLE(:rel, :a)');
     });
 
-    it('keeps the seed text as written beside the canonical seeds', async () => {
-      hoisted.rule.create.mockResolvedValue({ $id: 'urn:rule:new' });
-      hoisted.createRuleVersion.mockResolvedValue({ $id: 'urn:rv:new' });
-      hoisted.createRuleSetVersion.mockResolvedValue({ $id: `${RULESET_ID}:v2`, version: 2 });
-
-      await app.inject({
-        method: 'POST',
-        url: `/rule-sets/${encodeURIComponent(RULESET_ID)}/srl`,
-        payload: { srl: TUPLE_DOC, tuples: true, tupleSeeds: 'TUPLE(:rel,   :a)  # one row' },
-      });
-
-      expect(hoisted.createRuleSetVersion).toHaveBeenCalledWith(
-        RULESET_ID,
-        expect.objectContaining({
-          tupleSeeds: 'TUPLE(<http://example/rel>, <http://example/a>)',
-          srlDocument: TUPLE_DOC,
-          tupleSeedsDocument: 'TUPLE(:rel,   :a)  # one row',
-        }), expect.objectContaining({ request: expect.anything() })
-      );
-    });
-
-    it('exports the seeds as written with a stored document', async () => {
+    it("exports the seeds abbreviated against a stored document's prologue", async () => {
       hoisted.ruleSetVersion.list.mockReturnValue([
         {
           $id: `${RULESET_ID}:v1`,
@@ -530,11 +509,10 @@ describe('RuleSets Routes — SRL document authoring', () => {
           tupleSeeds: 'TUPLE(<http://example/rel>, <http://example/a>)',
           tuplesEnabled: true,
           srlDocument: TUPLE_DOC,
-          tupleSeedsDocument: 'TUPLE(:rel,   :a)',
         },
       ]);
       const res = await app.inject({ method: 'GET', url: `/rule-sets/${encodeURIComponent(RULESET_ID)}/srl` });
-      expect(res.json().tupleSeeds).toBe('TUPLE(:rel,   :a)');
+      expect(res.json().tupleSeeds).toBe('TUPLE(:rel, :a)');
     });
 
     it('drops the seed document when the extension is turned off', async () => {

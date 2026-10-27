@@ -73,16 +73,6 @@ export const RuleSetVersionSchema = {
     '@optional': true,
   },
   /**
-   * The tuple-seed document as written, beside the canonical `tupleSeeds`
-   * the executor reads. Only stored with `srlDocument`, whose prologue it
-   * may use.
-   */
-  tupleSeedsDocument: {
-    '@id': sqlib.tupleSeedsDocument,
-    '@type': xsd.string,
-    '@optional': true,
-  },
-  /**
    * Whether this version opts into the rule-tuples extension
    * (w3c/data-shapes#752). Off means the document is conformant SRL and a
    * `TUPLE( … )` anywhere in it is a syntax error.
@@ -116,7 +106,6 @@ export interface LdkitRuleSetVersion {
   stratificationReport?: string | null;
   tupleSeeds?: string | null;
   srlDocument?: string | null;
-  tupleSeedsDocument?: string | null;
   tuplesEnabled?: boolean | null;
   dateCreated?: string | null;
   dateModified?: string | null;
