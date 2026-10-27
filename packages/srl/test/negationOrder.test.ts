@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkWellFormed, compileRule, parseRuleSet } from '../src/index.js';
+import { checkWellFormed, compileRule, parseRuleSet, wellFormednessErrors } from '../src/index.js';
 import { sparqlToRule } from '../src/from-sparql.js';
 
 /**
@@ -60,7 +60,7 @@ describe('compileRule — NOT before the patterns that bind its variables', () =
 
 describe('checkWellFormed — order inside a NOT', () => {
   const issues = (body: string) =>
-    checkWellFormed(parseRuleSet(`${PREFIX}\nRULE { ?x :r ?y } WHERE { ${body} }`)).map((i) => i.category);
+    wellFormednessErrors(checkWellFormed(parseRuleSet(`${PREFIX}\nRULE { ?x :r ?y } WHERE { ${body} }`))).map((i) => i.category);
 
   it('lets a FILTER in a NOT use a variable bound before the NOT', () => {
     expect(issues('?x :p ?y NOT { ?x :q ?z FILTER ( ?z != ?y ) }')).toEqual([]);

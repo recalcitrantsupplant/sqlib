@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { fileURLToPath } from 'node:url';
 import * as oxigraph from 'oxigraph';
-import { checkWellFormed, parseRuleSet, splitRuleSet } from '@sparql-query-lib/srl';
+import { checkWellFormed, parseRuleSet, splitRuleSet, wellFormednessErrors } from '@sparql-query-lib/srl';
 import { readW3cRulesDocumentSuite, readW3cRulesEvalSuite } from '../../src/lib/w3cRulesSuite/manifest.js';
 import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
@@ -96,7 +96,7 @@ describe('proposed W3C cases — evaluation of NOT by position', () => {
 describe('proposed W3C cases — well-formedness inside a NOT', () => {
   for (const entry of wellformedSuite.entries) {
     it(`${entry.name} is ${entry.accepted ? 'accepted' : 'rejected'}`, () => {
-      expect(checkWellFormed(parseRuleSet(entry.document)).length === 0).toBe(entry.accepted);
+      expect(wellFormednessErrors(checkWellFormed(parseRuleSet(entry.document))).length === 0).toBe(entry.accepted);
     });
   }
 });

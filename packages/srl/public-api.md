@@ -6,7 +6,7 @@
      CI fails when this file and the built declarations disagree, so every
      addition, removal or signature change arrives as a reviewable diff. -->
 
-Version `0.1.0`. 1 entry point, 73 exported names.
+Version `0.1.0`. 1 entry point, 75 exported names.
 
 Private and protected class members are omitted: a consumer cannot reach them.
 Doc comments are omitted too — they are in the source, and repeating them here
@@ -14,7 +14,7 @@ would make every wording change a surface diff.
 
 ## `@sparql-query-lib/srl`
 
-73 exports, from `index.d.ts`.
+75 exports, from `index.d.ts`.
 
 ### `abbreviateIris` — function, from `split`
 
@@ -205,6 +205,7 @@ type MonotonicityKind = 'monotone' | 'negation' | 'aggregation';
 interface ParseOptions {
     tuples?: boolean;
     aggregates?: boolean;
+    sourceLocations?: boolean;
 }
 ```
 
@@ -391,10 +392,12 @@ type SrlBodyItem = {
     kind: 'not';
     body: SrlBodyItem[];
     data?: boolean;
-} | {
+}
+ | {
     kind: 'set';
     variable: string;
     expr: unknown;
+    variableAt?: number;
 } | {
     kind: 'tuple';
     tuple: SrlTuple;
@@ -590,7 +593,13 @@ declare function tupleVars(ref: TupleRef): Array<string | undefined>;
 ### `WellFormednessCategory` — type, from `wellformed`
 
 ```ts
-type WellFormednessCategory = 'unbound-head' | 'set-rebinds' | 'use-before-bind' | 'aggregate-scope';
+type WellFormednessCategory = 'unbound-head' | 'set-rebinds' | 'use-before-bind' | 'aggregate-scope' | 'group-shadowing' | 'not-before-binding';
+```
+
+### `wellFormednessErrors` — function, from `wellformed`
+
+```ts
+declare function wellFormednessErrors(issues: readonly WellFormednessIssue[]): WellFormednessIssue[];
 ```
 
 ### `WellFormednessIssue` — interface, from `wellformed`
@@ -598,8 +607,17 @@ type WellFormednessCategory = 'unbound-head' | 'set-rebinds' | 'use-before-bind'
 ```ts
 interface WellFormednessIssue {
     category: WellFormednessCategory;
+    severity: WellFormednessSeverity;
     ruleIndex: number;
     ruleName?: string;
     message: string;
+    from: number;
+    to: number;
 }
+```
+
+### `WellFormednessSeverity` — type, from `wellformed`
+
+```ts
+type WellFormednessSeverity = 'error' | 'warning' | 'info';
 ```

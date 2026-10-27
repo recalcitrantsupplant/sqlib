@@ -35,7 +35,11 @@ export type SrlBodyItem =
    * matches inferred triples. Setting a default value is the spec's own example.
    */
   | { kind: 'not'; body: SrlBodyItem[]; data?: boolean }
-  | { kind: 'set'; variable: string; expr: unknown }
+  /**
+   * `variableAt` is the document offset of the target, kept only when the
+   * document was parsed with `sourceLocations`, so a diagnostic can mark it.
+   */
+  | { kind: 'set'; variable: string; expr: unknown; variableAt?: number }
   | { kind: 'tuple'; tuple: SrlTuple }
   | SrlAggregate;
 
