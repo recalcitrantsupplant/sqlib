@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import Fastify from 'fastify';
-import { NodeTracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace-node';
+import { TracerProvider, InMemorySpanExporter, SimpleSpanProcessor } from '@opentelemetry/sdk-trace';
 import { FastifyOtelInstrumentation } from '@fastify/otel';
 
 /**
@@ -16,8 +16,9 @@ import { FastifyOtelInstrumentation } from '@fastify/otel';
 describe('@fastify/otel instrumentation', () => {
   it('emits a request span with the method, route, and status a dashboard reads', async () => {
     const exporter = new InMemorySpanExporter();
-    const provider = new NodeTracerProvider({
-      spanProcessors: [new SimpleSpanProcessor(exporter)],
+    const provider = new TracerProvider({
+      // sdk-trace 3.0: span processors take an options object, not a bare exporter.
+      spanProcessors: [new SimpleSpanProcessor({ exporter })],
     });
 
     const instrumentation = new FastifyOtelInstrumentation();

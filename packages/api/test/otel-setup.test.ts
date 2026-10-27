@@ -20,7 +20,7 @@ vi.mock('@opentelemetry/sdk-node', () => ({
   NodeSDK: hoisted.NodeSDK,
 }));
 
-vi.mock('@opentelemetry/sdk-trace-node', () => ({
+vi.mock('@opentelemetry/sdk-trace', () => ({
   ConsoleSpanExporter: hoisted.ConsoleSpanExporter,
 }));
 
