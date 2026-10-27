@@ -21,6 +21,7 @@
  */
 import { SparqlEndpointError } from '@sparql-query-lib/runtime';
 import type { BrowserBackend } from '../composables/useBrowserBackends';
+import { datasetProtocolParams, type GraphDataset } from './graphDataset';
 
 /** URL length above which a GET becomes a POST. `httpExecutor`'s figure. */
 const MAX_URL_LENGTH = 1800;
@@ -61,6 +62,8 @@ export interface BrowserExecutionRequest {
    * having asked the server to detect inputs. Omitted, the keyword scan decides.
    */
   operation?: 'query' | 'update';
+  /** The graphs a query reads, sent as protocol parameters. An update ignores it. */
+  dataset?: GraphDataset | null;
   signal?: AbortSignal;
 }
 
@@ -118,7 +121,10 @@ export async function executeOnBrowserBackend(
   const isUpdate = (request.operation ?? (looksLikeUpdate(query) ? 'update' : 'query')) === 'update';
   const started = Date.now();
 
-  const getUrl = `${endpoint}${endpoint.includes('?') ? '&' : '?'}query=${encodeURIComponent(query)}`;
+  const datasetParams = isUpdate ? '' : datasetProtocolParams(request.dataset).toString();
+  const join = (url: string, params: string) => (params ? `${url}${url.includes('?') ? '&' : '?'}${params}` : url);
+  const postUrl = join(endpoint, datasetParams);
+  const getUrl = join(endpoint, [`query=${encodeURIComponent(query)}`, datasetParams].filter(Boolean).join('&'));
   /*
    * An update is always a POST: there is no GET form of one, and the
    * `queryMethod` a visitor chose describes how their endpoint likes to be
@@ -137,7 +143,7 @@ export async function executeOnBrowserBackend(
         signal,
       });
     } else {
-      response = await fetchImpl(endpoint, {
+      response = await fetchImpl(postUrl, {
         method: 'POST',
         headers: {
           Accept: accept,

@@ -2573,7 +2573,10 @@ export function useApiClient() {
       operation = substituted.operation;
     }
 
-    return executeOnBrowserBackend({ backend, query, acceptMediaType, operation });
+    const dataset = payload.defaultGraphs || payload.namedGraphs
+      ? { defaultGraphs: payload.defaultGraphs, namedGraphs: payload.namedGraphs }
+      : null;
+    return executeOnBrowserBackend({ backend, query, acceptMediaType, operation, dataset });
   };
 
   const executeSparqlDirect = async (

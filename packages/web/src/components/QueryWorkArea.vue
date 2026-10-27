@@ -229,6 +229,9 @@
         :query-id="queryId"
         :query-text="queryCode"
         :argument-sets-composable="argumentSetsComposable"
+        :graph-dataset="graphDataset"
+        :run-backend-id="selectedBackend"
+        :is-update="isUpdateQueryType(queryType)"
         :details="detailsProps"
         @request-focus="handleFocusRequest"
         @update:details-name="(value) => queryName = value"
@@ -498,6 +501,7 @@ import ExpandRunStrip from './shared/ExpandRunStrip.vue';
 import { useEditorExpand } from '../composables/useEditorExpand';
 import { useEditorAsPrefixTarget } from '../composables/usePrefixTarget';
 import QueryResultsPanel from './query-work-area/QueryResultsPanel.vue';
+import { datasetSummary, useGraphDataset } from '@/lib/graphDataset';
 import type { QueryExecutionResultPayload, QueryInspectorTab } from '@/types/execution';
 import { forgetLastRun, loadLastRun, runCacheKey, saveLastRun } from '@/lib/lastRunCache';
 import QueryDiffPane from './query-work-area/QueryDiffPane.vue';
@@ -845,6 +849,8 @@ const { isDirty, resetDirtyState } = useQueryDirtyState({
   loadedQueryString: loadedVersionQueryString,
 });
 
+const graphDataset = useGraphDataset();
+
 const { executionResult, isExecuting, executeQuery: executeQueryOriginal } = useQueryExecution({
   apiClient,
   toast,
@@ -868,6 +874,8 @@ const { executionResult, isExecuting, executeQuery: executeQueryOriginal } = use
    * argument set's either. What is on screen is what runs, arguments included.
    */
   getAdHocArguments: () => argumentSetsComposable.visibleValuesPayload(),
+  // An update names its graphs in its text; the dataset is for queries.
+  getDataset: () => (isUpdateQueryType(queryType.value) ? null : graphDataset.payload()),
   isDirty,
   queryCode,
 });
@@ -1074,13 +1082,20 @@ const argumentSetLoading = computed(() => argumentSetsComposable.isLoading.value
 /**
  * The "with" clause.
  *
- * A query's inputs are its arguments, and there is exactly one term: either a
- * named set (saved or scratch) or whatever is typed into the Arguments
- * panel. Pressing it shows that panel — the values are a table, and a dropdown
- * is not somewhere you read one.
+ * A query's inputs are its arguments and, for a query that reads, its graphs.
+ * The arguments term is either a named set (saved or scratch) or whatever is
+ * typed into the Arguments panel. Pressing either term shows that panel — the
+ * values are a table, and a dropdown is not somewhere you read one.
  */
 const runInputs = computed<RunBarPick[]>(() => {
   const summary = argumentsSummary.value;
+  const graphs: RunBarPick[] = isUpdateQueryType(queryType.value) ? [] : [{
+    key: 'graphs',
+    kind: 'graphs',
+    value: datasetSummary(graphDataset.payload()),
+    icon: 'data',
+    title: 'The graphs this query reads — open the Arguments tab to choose them',
+  }];
   return [{
     key: 'arguments',
     kind: 'arguments',
@@ -1090,7 +1105,7 @@ const runInputs = computed<RunBarPick[]>(() => {
     title: summary
       ? `Arguments: ${summary} — open the Arguments tab to change them`
       : 'No arguments — open the Arguments tab to choose a set or type values',
-  }];
+  }, ...graphs];
 });
 
 const argumentsSummary = computed(() => {
