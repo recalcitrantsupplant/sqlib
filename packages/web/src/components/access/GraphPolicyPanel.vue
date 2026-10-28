@@ -18,18 +18,18 @@
           <input type="checkbox" :checked="backend.authBackend === true" :disabled="saving" @change="setAuthBackend(($event.target as HTMLInputElement).checked)" />
           This is an auth backend
         </label>
-        <p class="hint">
+        <InlineNote>
           An auth backend holds who may read what. Only administrators can query it, and graph policies run on it.
-        </p>
+        </InlineNote>
       </section>
 
       <section v-if="!backend.authBackend" class="block">
         <h2 class="block-title">Graph policy</h2>
-        <p class="hint">
+        <InlineNote>
           A saved SELECT on an auth backend that projects <code>?graph</code>, <code>?defaultGraph</code> or
           <code>?namedGraph</code>. It reads the caller through <code>VALUES ?authUser {'{'} UNDEF {'}'}</code> and
           <code>VALUES ?authGroup {'{'} UNDEF {'}'}</code>. Without a policy, every graph is readable.
-        </p>
+        </InlineNote>
         <div class="row">
           <label class="field">
             <span class="label">Policy query</span>
@@ -46,7 +46,7 @@
             </select>
           </label>
         </div>
-        <p class="hint">
+        <InlineNote>
           Saving pins the query's current version, so later edits change nothing until you save here again.
           <template v-if="pinnedQuery">
             Pinned: <strong>{{ pinnedQuery.name }}</strong>.
@@ -55,7 +55,7 @@
           <template v-else-if="backend.graphPolicyQueryVersion">
             Pinned: <code>{{ backend.graphPolicyQueryVersion }}</code>.
           </template>
-        </p>
+        </InlineNote>
         <div class="actions">
           <button type="button" class="primary" :disabled="saving || !policyDirty" @click="savePolicy">Save policy</button>
         </div>
@@ -79,9 +79,9 @@
             <input v-model="testGroups" type="checkbox" :value="group.iri" />
             {{ group.rawClaim }}
           </label>
-          <p v-if="groupPrincipals.length === 0" class="hint">No groups have signed in yet.</p>
+          <InlineNote v-if="groupPrincipals.length === 0">No groups have signed in yet.</InlineNote>
         </fieldset>
-        <p v-if="groupsNote" class="hint">{{ groupsNote }}</p>
+        <InlineNote v-if="groupsNote">{{ groupsNote }}</InlineNote>
         <div class="actions">
           <button type="button" class="primary" :disabled="testing" data-testid="test-as-run" @click="runTest">Run</button>
         </div>
@@ -118,6 +118,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import type { Backend, Query } from '@sparql-query-lib/contracts';
 import { useApiClient, type GraphPolicyTest, type PrincipalRecord } from '@/composables/useApiClient';
+import InlineNote from '@/components/shared/InlineNote.vue';
 
 const api = useApiClient();
 
@@ -290,13 +291,6 @@ select {
   color: var(--ink);
   font-size: var(--text-body-lg);
   font-weight: var(--weight-semibold);
-}
-
-.hint {
-  margin: 0;
-  color: var(--ink-muted);
-  font-size: var(--text-label);
-  line-height: var(--leading-normal);
 }
 
 .check {

@@ -91,13 +91,14 @@ export const RAIL_ENTRIES: RailEntry[] = [
   },
   // Who may use what, and which graphs each backend lets them read. Account
   // level like Backends, and only for administrators: it describes other
-  // people's access.
+  // people's access. Held by `settings`, as it is the deployment's own
+  // configuration rather than library content.
   {
     section: 'access',
     label: 'Access',
     title: 'Access — grants, and the graphs each backend lets people read',
     icon: ShieldCheck,
-    feature: null,
+    feature: 'settings',
     adminOnly: true,
   },
 ];

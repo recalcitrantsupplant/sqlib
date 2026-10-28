@@ -2,10 +2,10 @@
   <section class="graph-picker" data-testid="graph-dataset-picker">
     <header class="picker-header">
       <h3 class="picker-title">Graphs</h3>
-      <span class="muted">{{ summary }}</span>
+      <InlineNote as="span">{{ summary }}</InlineNote>
     </header>
 
-    <p v-if="isUpdate" class="hint">An update names its graphs in its text. This choice applies to queries only.</p>
+    <InlineNote v-if="isUpdate">An update names its graphs in its text. This choice applies to queries only.</InlineNote>
 
     <template v-else>
       <div class="row" role="radiogroup" aria-label="Graphs to read">
@@ -45,7 +45,7 @@
           <button type="button" class="btn-compact" @click="clearSelection">Clear</button>
         </div>
         <p v-if="loadError" class="error">{{ loadError }}</p>
-        <p v-if="truncated" class="hint">The backend has more than {{ GRAPH_LIST_LIMIT }} graphs. Paste the others below.</p>
+        <InlineNote v-if="truncated">The backend has more than {{ GRAPH_LIST_LIMIT }} graphs. Paste the others below.</InlineNote>
 
         <table v-if="visibleGraphs.length" class="graphs">
           <thead>
@@ -96,6 +96,7 @@
  */
 import { computed, ref, type Ref } from 'vue';
 import { useApiClient } from '@/composables/useApiClient';
+import InlineNote from '@/components/shared/InlineNote.vue';
 import {
   GRAPH_LIST_LIMIT,
   LIST_GRAPHS_QUERY,
@@ -266,13 +267,6 @@ textarea {
 .cell {
   width: 4rem;
   text-align: center;
-}
-
-.muted,
-.hint {
-  margin: 0;
-  color: var(--ink-muted);
-  font-size: var(--text-label);
 }
 
 .warning {

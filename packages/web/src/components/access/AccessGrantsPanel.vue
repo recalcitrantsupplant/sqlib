@@ -14,19 +14,19 @@
           @click="selected = principal.iri"
         >
           <span class="principal-name">{{ principal.rawClaim }}</span>
-          <span class="principal-kind">{{ kindLabel(principal.kind) }}</span>
+          <InlineNote as="span">{{ kindLabel(principal.kind) }}</InlineNote>
         </li>
       </ul>
-      <p class="hint">
+      <InlineNote>
         People and groups appear here after they first sign in. Grant to groups where you can, and manage
         membership in your identity provider.
-      </p>
+      </InlineNote>
     </aside>
 
     <section v-if="selectedPrincipal" class="modes">
       <header class="modes-header">
         <h2 class="modes-title">{{ selectedPrincipal.rawClaim }}</h2>
-        <span class="muted">{{ kindLabel(selectedPrincipal.kind) }}</span>
+        <InlineNote as="span">{{ kindLabel(selectedPrincipal.kind) }}</InlineNote>
         <span v-if="isEverythingAdmin" class="badge">Administrator</span>
       </header>
       <p v-if="saveError" class="error">{{ saveError }}</p>
@@ -56,10 +56,10 @@
       </table>
 
       <h3 class="group-title">Backends</h3>
-      <p class="hint">
+      <InlineNote>
         <strong>Saved</strong> runs saved queries or updates only. <strong>Ad hoc</strong> also runs text the
         person writes, and includes saved.
-      </p>
+      </InlineNote>
       <table class="grid">
         <thead>
           <tr>
@@ -92,7 +92,7 @@
       </table>
     </section>
     <section v-else class="modes empty">
-      <p class="muted">Pick a person or a group to see and change what they may do.</p>
+      <InlineNote>Pick a person or a group to see and change what they may do.</InlineNote>
     </section>
   </div>
 </template>
@@ -110,6 +110,7 @@
 import { computed, onMounted, ref } from 'vue';
 import type { Backend, Library } from '@sparql-query-lib/contracts';
 import { useApiClient, type Grant, type PrincipalRecord } from '@/composables/useApiClient';
+import InlineNote from '@/components/shared/InlineNote.vue';
 
 const LIBRARY_MODES = ['read', 'write', 'execute', 'delete', 'control'] as const;
 const OPERATIONS = ['query', 'update'] as const;
@@ -271,13 +272,6 @@ onMounted(async () => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.principal-kind,
-.muted,
-.hint {
-  color: var(--ink-muted);
-  font-size: var(--text-label);
 }
 
 .modes {
