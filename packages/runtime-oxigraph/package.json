@@ -50,7 +50,7 @@
   ],
   "license": "SEE LICENSE IN LICENSE",
   "dependencies": {
-    "oxigraph": "0.5.11"
+    "oxigraph": "0.5.13"
   },
   "peerDependencies": {
     "@sparql-query-lib/runtime": "workspace:^"
