@@ -245,12 +245,12 @@ describe('DATASET edge', () => {
 
   it('takes a caller dataset on a single query', async () => {
     const { queryId } = await createQuery('Single', downstreamQuery);
-    expect(valuesOf(await execute({ targetId: queryId, defaultGraphs: [`${EX}g2`] }))).toEqual(['two']);
+    expect(valuesOf(await execute({ targetId: queryId, backendId: context.backendId, defaultGraphs: [`${EX}g2`] }))).toEqual(['two']);
   }, 20000);
 
   it('refuses a graph that is not an IRI', async () => {
     const { queryId } = await createQuery('Single bad', downstreamQuery);
-    const execution = await execute({ targetId: queryId, namedGraphs: ['not an iri'] });
+    const execution = await execute({ targetId: queryId, backendId: context.backendId, namedGraphs: ['not an iri'] });
     expect(execution.statusCode).toBe(400);
   }, 20000);
 });

@@ -88,8 +88,9 @@ backend: none, saved or ad hoc.
 
 Library grants and backend grants are separate. `execute` on a library runs its
 saved entities, and every backend they run on needs a backend grant of its own.
-A library's `defaultBackend` only picks the backend a query runs on when the
-caller names none; it grants nothing. Every check happens in one place, `GuardedSparqlExecutor`, which
+A `defaultBackend`, on a query or a library, is a UI convenience: it picks the
+backend a client offers first, and it grants nothing. `/execute` never falls back
+to it. A query run must name its `backendId`. Every check happens in one place, `GuardedSparqlExecutor`, which
 wraps every executor a caller's request obtains, so a saved update reached
 through `/execute` needs `update:saved` like any other.
 
