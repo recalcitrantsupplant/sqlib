@@ -516,6 +516,7 @@ describe('Phase C2: the JSON Schema tool contract matches the zod one it replace
     // gained so an ad-hoc query can run parameterised; `argumentSetIds` lets it
     // name a stored set instead of the client flattening one first. The tool
     // publishes them because it publishes the route's document, not a copy of it.
+    // `defaultGraphs`/`namedGraphs` are the run-time dataset (FROM / FROM NAMED).
     expect(Object.keys(sparqlRequestArg.properties)).toEqual([
       'query',
       'backendId',
@@ -525,6 +526,8 @@ describe('Phase C2: the JSON Schema tool contract matches the zod one it replace
       'limits',
       'offsets',
       'argumentSetIds',
+      'defaultGraphs',
+      'namedGraphs',
     ]);
   });
 

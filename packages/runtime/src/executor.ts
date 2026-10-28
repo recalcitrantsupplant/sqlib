@@ -35,11 +35,44 @@ export interface RdfPayload {
 
 export type ExecutionResult = SparqlSelectResults | SparqlAskResults | RdfPayload;
 
+/**
+ * The RDF dataset a query runs over, in place of `FROM` / `FROM NAMED` in its
+ * text (SPARQL 1.1 Protocol §2.1.4). An absent part is left to the store; an
+ * empty one means no graphs.
+ */
+export interface SparqlDataset {
+  /** IRIs merged into the default graph. */
+  defaultGraphs?: string[];
+  /** IRIs available to `GRAPH` patterns. */
+  namedGraphs?: string[];
+}
+
 /** What the runtime hands an executor. */
 export interface ExecutionRequest {
   queryText: string;
   queryType: ExportedQueryType;
   signal?: AbortSignal;
+  /** The dataset to run over. Executors that cannot apply one must refuse it. */
+  dataset?: SparqlDataset;
+}
+
+/**
+ * Sent for a part of the dataset that is present and empty. An endpoint given
+ * no dataset parameters uses its whole default dataset, so an empty part is
+ * sent as one graph that names nothing.
+ */
+export const EMPTY_DATASET_GRAPH = 'urn:sqlib:empty-dataset';
+
+/** The protocol's `default-graph-uri` / `named-graph-uri` pairs for a dataset. */
+export function datasetParameters(dataset: SparqlDataset | undefined): Array<[string, string]> {
+  const pairs: Array<[string, string]> = [];
+  if (!dataset) return pairs;
+  const parts = [['default-graph-uri', dataset.defaultGraphs], ['named-graph-uri', dataset.namedGraphs]] as const;
+  for (const [parameter, graphs] of parts) {
+    if (graphs === undefined) continue;
+    for (const graph of graphs.length > 0 ? graphs : [EMPTY_DATASET_GRAPH]) pairs.push([parameter, graph]);
+  }
+  return pairs;
 }
 
 /** What a caller hands an executor to run a SPARQL UPDATE. */
@@ -151,9 +184,14 @@ export function httpExecutor(endpoint: string, options: HttpExecutorOptions = {}
 
   return {
     ...(updateEndpoint ? { update } : {}),
-    async execute({ queryText, queryType, signal }: ExecutionRequest): Promise<ExecutionResult> {
+    async execute({ queryText, queryType, signal, dataset }: ExecutionRequest): Promise<ExecutionResult> {
       const accept = acceptFor(queryType, rdfAccept);
-      const getUrl = `${endpoint}${endpoint.includes('?') ? '&' : '?'}query=${encodeURIComponent(queryText)}`;
+      // The dataset rides with the query: in the URL for GET, so `auto` counts
+      // it in the length, and in a form body for POST, since a
+      // `application/sparql-query` body would push it into the URL anyway.
+      const graphs = datasetParameters(dataset);
+      const form = new URLSearchParams([['query', queryText], ...graphs]).toString();
+      const getUrl = `${endpoint}${endpoint.includes('?') ? '&' : '?'}${graphs.length > 0 ? form : `query=${encodeURIComponent(queryText)}`}`;
       const useGet = method === 'GET' || (method === 'auto' && getUrl.length <= maxUrlLength);
 
       const response = useGet
@@ -163,17 +201,29 @@ export function httpExecutor(endpoint: string, options: HttpExecutorOptions = {}
             credentials,
             signal,
           })
-        : await doFetch(endpoint, {
-            method: 'POST',
-            headers: {
-              Accept: accept,
-              'Content-Type': 'application/sparql-query',
-              ...headers,
-            },
-            body: queryText,
-            credentials,
-            signal,
-          });
+        : graphs.length > 0
+          ? await doFetch(endpoint, {
+              method: 'POST',
+              headers: {
+                Accept: accept,
+                'Content-Type': 'application/x-www-form-urlencoded',
+                ...headers,
+              },
+              body: form,
+              credentials,
+              signal,
+            })
+          : await doFetch(endpoint, {
+              method: 'POST',
+              headers: {
+                Accept: accept,
+                'Content-Type': 'application/sparql-query',
+                ...headers,
+              },
+              body: queryText,
+              credentials,
+              signal,
+            });
 
       if (!response.ok) {
         const body = await response.text().catch(() => '');

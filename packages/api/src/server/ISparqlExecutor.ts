@@ -14,6 +14,23 @@ export type { SparqlSelectJsonOutput };
 
 
 /**
+ * The RDF dataset a query runs over, chosen at run time rather than by
+ * `FROM` / `FROM NAMED` in the query text (SPARQL 1.1 Protocol §2.1.4).
+ *
+ * An absent list and an empty one differ. Absent leaves that part to the
+ * backend: over HTTP the endpoint decides (Fuseki, following SPARQL 1.1 Query
+ * §13.2, takes a request naming only named graphs to have an empty default
+ * graph), and Oxigraph keeps its own default graph or named graphs. Empty
+ * means no graphs: the query runs against nothing for that part.
+ */
+export type SparqlDataset = {
+  /** IRIs merged into the default graph, as `FROM` does. */
+  defaultGraphs?: string[];
+  /** IRIs available to `GRAPH` patterns, as `FROM NAMED` does. */
+  namedGraphs?: string[];
+};
+
+/**
  * Options for executing SPARQL queries.
  */
 export type SparqlQueryOptions = {
@@ -28,6 +45,11 @@ export type SparqlQueryOptions = {
    * Oxigraph query cannot be interrupted.
    */
   signal?: AbortSignal;
+  /**
+   * The dataset to run over, overriding any `FROM` / `FROM NAMED` in the
+   * query text. Values must be IRIs (see `lib/dataset.ts`).
+   */
+  dataset?: SparqlDataset;
 };
 
 /**

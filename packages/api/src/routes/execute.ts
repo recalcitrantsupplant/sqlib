@@ -38,6 +38,7 @@ import { resolveQueryDefaultBackend } from '../lib/defaultBackend.js';
 import type { NodeResult, ResolvedNode } from '../lib/orchestration/types.js';
 import * as crypto from 'crypto';
 import { ArgumentSetService } from '../lib/ArgumentSetService.js';
+import { datasetFromRequest, type SparqlDataset } from '../lib/dataset.js';
 import { abortOnDisconnect, ExecutionAbortedError } from '../lib/cancellation.js';
 import { QueryGroupSignatureService } from '../lib/QueryGroupSignatureService.js';
 import { applyExecutionArguments, normalizeArguments } from '../lib/executionArguments.js';
@@ -319,14 +320,19 @@ export default async function (
             offsets?: any;
             argumentSetIds?: string[];
             dataGraphs?: ExecutionDataGraph[];
+            /** The run's dataset, in place of FROM / FROM NAMED; validated below. */
+            defaultGraphs?: unknown;
+            namedGraphs?: unknown;
             nodeDetail?: 'timings' | 'results';
             acceptOverride?: string;
         }
     ) {
         const {targetId, arguments: rawInlineArgs, limits, offsets, argumentSetIds, dataGraphs, nodeDetail, acceptOverride} = params;
         let inlineArgs: ReturnType<typeof normalizeArguments>;
+        let dataset: SparqlDataset | undefined;
         try {
             inlineArgs = normalizeArguments(rawInlineArgs);
+            dataset = datasetFromRequest({ defaultGraphs: params.defaultGraphs, namedGraphs: params.namedGraphs });
         } catch (argumentError__u: unknown) {
             return reply.code(400).send({ error: toError(argumentError__u).message });
         }
@@ -764,6 +770,7 @@ export default async function (
                         dataGraphs: initialDataGraphs,
                         limits: normalizedLimits,
                         offsets: normalizedOffsets,
+                        dataset,
                         signal,
                     }
                 );
@@ -820,6 +827,7 @@ export default async function (
                         dataGraphs: initialDataGraphs,
                         limits: normalizedLimits,
                         offsets: normalizedOffsets,
+                        dataset,
                         signal,
                     }
                 );
@@ -961,7 +969,7 @@ export default async function (
             // Pass finalAcceptHeader to executor methods
             switch (resolvedType) {
                 case QueryTypeIri.select: {
-                    const {result, duration, contentType} = await targetExecutor.selectQueryParsed(sparqlQueryString, {acceptHeader: finalAcceptHeader, signal});
+                    const {result, duration, contentType} = await targetExecutor.selectQueryParsed(sparqlQueryString, {acceptHeader: finalAcceptHeader, signal, dataset});
                     dbDuration = duration;
                     executionStatus = 'success';
                     // Set Content-Type header from backend response, or use default for SELECT JSON
@@ -976,7 +984,7 @@ export default async function (
                 }
                 case QueryTypeIri.construct:
                 case QueryTypeIri.describe: {
-                    const {result, duration, contentType} = await targetExecutor.constructQueryParsed(sparqlQueryString, {acceptHeader: finalAcceptHeader, signal});
+                    const {result, duration, contentType} = await targetExecutor.constructQueryParsed(sparqlQueryString, {acceptHeader: finalAcceptHeader, signal, dataset});
                     dbDuration = duration;
                     executionStatus = 'success';
                     if (typeof result === 'string') {
@@ -1003,7 +1011,7 @@ export default async function (
                     return reply.send(result);
                 }
                 case QueryTypeIri.ask: {
-                    const {result, duration, contentType} = await targetExecutor.askQuery(sparqlQueryString, {acceptHeader: finalAcceptHeader, signal});
+                    const {result, duration, contentType} = await targetExecutor.askQuery(sparqlQueryString, {acceptHeader: finalAcceptHeader, signal, dataset});
                     dbDuration = duration;
                     executionStatus = 'success';
                     // Set Content-Type header from backend response, or use default for ASK JSON
@@ -1018,6 +1026,12 @@ export default async function (
                     return reply.send({head: {}, boolean: result});
                 }
                 case QueryTypeIri.update: {
+                    if (dataset) {
+                        return reply.code(400).send({
+                            error: 'defaultGraphs and namedGraphs choose the dataset a query reads. An update names its graphs '
+                                + 'in its own text (USING, USING NAMED, WITH); the protocol\'s using-graph-uri parameters are not supported.',
+                        });
+                    }
                     if (wantsRdfPatch(finalAcceptHeader)) {
                         /*
                          * The output an update has (#290): the ground diff it
@@ -1158,7 +1172,7 @@ export default async function (
             // Shapes, not values: argument rows are the caller's data.
             request.log.info({ execution: describeExecutionRequest(request.body) }, 'Received /execute POST request');
 
-            const {targetId, backendId, arguments: args, limits, offsets, argumentSetIds, dataGraphs, nodeDetail} = request.body;
+            const {targetId, backendId, arguments: args, limits, offsets, argumentSetIds, dataGraphs, defaultGraphs, namedGraphs, nodeDetail} = request.body;
 
             return executeQuery(request, reply, {
                 targetId,
@@ -1168,6 +1182,8 @@ export default async function (
                 offsets,
                 argumentSetIds,
                 dataGraphs,
+                defaultGraphs,
+                namedGraphs,
                 nodeDetail,
                 acceptOverride: request.headers.accept
             });
@@ -1203,6 +1219,8 @@ export default async function (
                 offsets: offsetsString,
                 argumentSetIds: argumentSetIdsString,
                 dataGraphs: dataGraphsString,
+                defaultGraphs: defaultGraphsString,
+                namedGraphs: namedGraphsString,
                 nodeDetail,
             } = request.query;
 
@@ -1281,6 +1299,17 @@ export default async function (
                 }
             }
 
+            // JSON arrays, like the fields above; `executeQuery` checks the IRIs.
+            const graphs: { defaultGraphs?: unknown; namedGraphs?: unknown } = {};
+            for (const [key, raw] of [['defaultGraphs', defaultGraphsString], ['namedGraphs', namedGraphsString]] as const) {
+                if (!raw) continue;
+                try {
+                    graphs[key] = JSON.parse(raw);
+                } catch (parseError__u: unknown) {
+                    return reply.code(400).send({ error: `Invalid JSON in ${key} parameter: ${toError(parseError__u).message}` });
+                }
+            }
+
             return executeQuery(request, reply, {
                 targetId,
                 backendId,
@@ -1289,6 +1318,7 @@ export default async function (
                 offsets,
                 argumentSetIds,
                 dataGraphs: getDataGraphs,
+                ...graphs,
                 nodeDetail,
                 acceptOverride: request.headers.accept
             });

@@ -325,6 +325,7 @@ export const sqlib = createNamespace({
 
     "memberEntries",
     "whenEmpty",
+    "datasetPart",
     "Library",
     "Query",
     "QueryVersion",

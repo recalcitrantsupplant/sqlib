@@ -169,4 +169,25 @@ describe('oxigraphExecutor updates', () => {
     const executor = await oxigraphExecutor({ store: readOnly });
     expect(executor.update).toBeUndefined();
   });
+
+  it('runs over the dataset it is given, not the whole store', async () => {
+    const executor = await oxigraphExecutor({
+      data: {
+        content: '<http://example.org/g1> { <http://example.org/s> <http://example.org/p> "one" . }\n'
+          + '<http://example.org/g2> { <http://example.org/s> <http://example.org/p> "two" . }',
+        format: 'application/trig',
+      },
+    });
+    const run = async (dataset: { defaultGraphs?: string[]; namedGraphs?: string[] }) => {
+      const result = await executor.execute({
+        queryText: 'SELECT ?o WHERE { ?s <http://example.org/p> ?o }',
+        queryType: 'SELECT',
+        dataset,
+      });
+      return (result as { results: { bindings: Array<{ o: { value: string } }> } }).results.bindings.map((b) => b.o.value);
+    };
+
+    expect(await run({ defaultGraphs: ['http://example.org/g2'] })).toEqual(['two']);
+    expect(await run({ defaultGraphs: [] })).toEqual([]);
+  });
 });

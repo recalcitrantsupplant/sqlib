@@ -537,6 +537,79 @@ describe('SPARQL proxy routes', () => {
     expect(res.json()).toEqual({ error: 'repository unavailable' });
     expect(hoisted.executorConfigs).toHaveLength(0);
   });
+
+  describe('dataset', () => {
+    const rows = { head: { vars: ['x'] }, results: { bindings: [] } };
+
+    beforeEach(() => {
+      hoisted.findByIri.mockResolvedValue({ backendType: BackendTypeIri.http, endpoint: 'https://example.org/sparql' });
+      hoisted.executorInstance.selectQueryParsed.mockResolvedValue({
+        result: rows,
+        duration: 1,
+        contentType: 'application/sparql-results+json',
+      });
+    });
+
+    it('POST /sparql passes defaultGraphs and namedGraphs to the executor', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/sparql',
+        payload: {
+          query: 'SELECT * WHERE { ?s ?p ?o }',
+          backendId: 'urn:backend:1',
+          defaultGraphs: ['http://example.org/a'],
+          namedGraphs: [],
+        },
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(hoisted.executorInstance.selectQueryParsed).toHaveBeenCalledWith('SELECT * WHERE { ?s ?p ?o }', {
+        acceptHeader: undefined,
+        dataset: { defaultGraphs: ['http://example.org/a'], namedGraphs: [] },
+      });
+    });
+
+    it('GET /sparql reads the protocol parameters, repeated or single', async () => {
+      const res = await app.inject({
+        method: 'GET',
+        url: '/sparql?query=SELECT%20*%20WHERE%20%7B%3Fs%20%3Fp%20%3Fo%7D&backendId=urn:backend:1'
+          + '&default-graph-uri=http://example.org/a&default-graph-uri=http://example.org/b'
+          + '&named-graph-uri=http://example.org/c',
+      });
+
+      expect(res.statusCode).toBe(200);
+      expect(hoisted.executorInstance.selectQueryParsed).toHaveBeenCalledWith('SELECT * WHERE {?s ?p ?o}', {
+        acceptHeader: undefined,
+        dataset: { defaultGraphs: ['http://example.org/a', 'http://example.org/b'], namedGraphs: ['http://example.org/c'] },
+      });
+    });
+
+    it('refuses a graph that is not an IRI with 400', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/sparql',
+        payload: { query: 'SELECT * WHERE { ?s ?p ?o }', backendId: 'urn:backend:1', namedGraphs: ['not an iri'] },
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(hoisted.executorInstance.selectQueryParsed).not.toHaveBeenCalled();
+    });
+
+    it('refuses a dataset on an update with 400', async () => {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/sparql',
+        payload: {
+          query: 'INSERT DATA { <http://example.org/s> <http://example.org/p> <http://example.org/o> }',
+          backendId: 'urn:backend:1',
+          defaultGraphs: ['http://example.org/a'],
+        },
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(hoisted.executorInstance.update).not.toHaveBeenCalled();
+    });
+  });
 });
 
 afterAll(() => {

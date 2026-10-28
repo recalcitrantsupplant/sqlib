@@ -703,4 +703,44 @@ describe('HttpSparqlExecutor', () => {
             );
         });
     });
+    describe('dataset', () => {
+        const results = { head: { vars: ['s'] }, results: { bindings: [] } };
+        const sentForm = () => new URLSearchParams(mockUndiciAgentRequest.mock.calls[0][0].body);
+
+        it('sends the dataset as protocol parameters in a form body', async () => {
+            mockUndiciAgentRequest.mockResolvedValue(createMockResponse(200, results));
+            const executor = new HttpSparqlExecutor({ queryUrl: defaultQueryUrl });
+            await executor.selectQueryParsed('SELECT * WHERE { ?s ?p ?o }', {
+                dataset: { defaultGraphs: ['http://example.org/a', 'http://example.org/b'], namedGraphs: ['http://example.org/c'] },
+            });
+
+            const form = sentForm();
+            expect(form.get('query')).toBe('SELECT * WHERE { ?s ?p ?o }');
+            expect(form.getAll('default-graph-uri')).toEqual(['http://example.org/a', 'http://example.org/b']);
+            expect(form.getAll('named-graph-uri')).toEqual(['http://example.org/c']);
+        });
+
+        it('sends a POST for a GET backend when a dataset is present', async () => {
+            mockUndiciAgentRequest.mockResolvedValue(createMockResponse(200, results));
+            const executor = new HttpSparqlExecutor({ queryUrl: defaultQueryUrl, queryMethod: 'get' });
+            await executor.askQuery('ASK { ?s ?p ?o }', { dataset: { defaultGraphs: ['http://example.org/a'] } })
+                .catch(() => undefined);
+
+            expect(mockUndiciAgentRequest.mock.calls[0][0]).toMatchObject({
+                method: 'POST',
+                path: '/sparql',
+                headers: expect.objectContaining({ 'Content-Type': 'application/x-www-form-urlencoded' }),
+            });
+        });
+
+        it('sends the empty-dataset graph for an empty part', async () => {
+            mockUndiciAgentRequest.mockResolvedValue(createMockResponse(200, results));
+            const executor = new HttpSparqlExecutor({ queryUrl: defaultQueryUrl });
+            await executor.selectQueryParsed('SELECT * WHERE { ?s ?p ?o }', { dataset: { namedGraphs: [] } });
+
+            const form = sentForm();
+            expect(form.getAll('named-graph-uri')).toEqual(['urn:sqlib:empty-dataset']);
+            expect(form.has('default-graph-uri')).toBe(false);
+        });
+    });
 });

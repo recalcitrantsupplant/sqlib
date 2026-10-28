@@ -35,6 +35,7 @@ import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
 import { toLdkit } from '../persistence/utils/id-adapter.js';
 import { WHEN_EMPTY_MODES } from '../persistence/schemas/QueryEdgeSchema.js';
 import type { WhenEmptyMode } from '../persistence/schemas/QueryEdgeSchema.js';
+import { DATASET_PARTS, type DatasetPart } from './orchestration/types.js';
 import type { EntityType } from './EntityRegistry.js';
 import {
   IO_REFERENCE_TYPES,
@@ -483,6 +484,17 @@ async function createGroupVersionFlatNumbered(
         String(e.whenEmpty),
         `is not one of ${WHEN_EMPTY_MODES.join(', ')}`,
       );
+    } else if (e.whenEmpty === 'unconstrained' && e.dataFlowType === 'DATASET') {
+      // An empty selection must not become "the backend's whole dataset".
+      refs.fail(at('whenEmpty'), String(e.whenEmpty), 'is not allowed on a DATASET edge');
+    }
+
+    if (e.datasetPart != null) {
+      if (e.dataFlowType !== 'DATASET') {
+        refs.fail(at('datasetPart'), String(e.datasetPart), 'applies to DATASET edges only');
+      } else if (!DATASET_PARTS.includes(e.datasetPart as DatasetPart)) {
+        refs.fail(at('datasetPart'), String(e.datasetPart), `is not one of ${DATASET_PARTS.join(', ')}`);
+      }
     }
 
     stage('QueryEdge', toLdkit({
@@ -494,6 +506,7 @@ async function createGroupVersionFlatNumbered(
       targetInputId,
       variableMappings: e.variableMappings,
       whenEmpty: e.whenEmpty,
+      datasetPart: e.datasetPart,
       '@type': 'QueryEdge',
     }) as AnyRecord & { $id: string });
     edgeIds.push(id);
