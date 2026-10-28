@@ -11,7 +11,7 @@ import type { FastifyRequest } from 'fastify';
 import * as oxigraph from 'oxigraph';
 import { AuthStore, inMemoryPersistence } from '../../src/auth/AuthStore.js';
 import { resolveEffectiveGrants } from '../../src/auth/grants.js';
-import { AuthorizationError } from '../../src/auth/enforce.js';
+import { AuthorizationError, requireBackendMode } from '../../src/auth/enforce.js';
 import { resetAuthConfig } from '../../src/auth/config.js';
 import type { AuthContext, AuthMode } from '../../src/auth/types.js';
 import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
@@ -24,6 +24,7 @@ import {
   datasetFromPolicyResult,
   graphPolicyQueryProblem,
   mentionsService,
+  patchLogReadMode,
   setGraphPolicyRunner,
 } from '../../src/auth/graphPolicy.js';
 import { assertBackendAccess } from '../../src/auth/executionScope.js';
@@ -161,6 +162,18 @@ describe('graph policy reads', () => {
     expect(await read(guarded([ALICE, TEAM_A]), { defaultGraphs: [`${EX}g2`], namedGraphs: [] })).toEqual([]);
   });
 
+  it('is not widened by FROM, FROM NAMED or a GRAPH IRI in the query text', async () => {
+    const executor = guarded([ALICE, TEAM_A]);
+    const values = async (text: string) => {
+      const { result } = await executor.selectQueryParsed(text);
+      return (result as { results: { bindings: Array<{ o?: { value: string } }> } }).results.bindings
+        .map(row => row.o?.value).sort();
+    };
+    expect(await values(`PREFIX ex: <${EX}> SELECT ?o FROM ex:g2 WHERE { ?s ex:p ?o }`)).toEqual(['one']);
+    expect(await values(`PREFIX ex: <${EX}> SELECT ?o FROM NAMED ex:g2 WHERE { GRAPH ?g { ?s ex:p ?o } }`)).toEqual(['one']);
+    expect(await values(`PREFIX ex: <${EX}> SELECT ?o WHERE { GRAPH ex:g2 { ?s ex:p ?o } }`)).toEqual([]);
+  });
+
   it('does not police an administrator', async () => {
     expect(await read(guarded([ADMIN]))).toEqual(['one', 'three', 'two']);
   });
@@ -235,8 +248,21 @@ describe('the auth backend', () => {
     expect(() => assertBackendAccess({ request: requestFor(contextFor([ALICE])) }, AUTH)).toThrow(AuthorizationError);
   });
 
+  it('refuses every route check, so a stray grant cannot rewrite the rules', async () => {
+    await grants.createGrant({ principal: ALICE, resourceKind: 'backend', resource: AUTH, modes: ['update:adhoc'] });
+    expect(() => requireBackendMode(requestFor(contextFor([ALICE])), AUTH, 'update:adhoc')).toThrow(/auth backend/);
+    expect(() => requireBackendMode(requestFor(contextFor([ADMIN])), AUTH, 'update:adhoc')).not.toThrow();
+  });
+
   it('is reachable by an administrator', () => {
     expect(() => assertBackendAccess({ request: requestFor(contextFor([ADMIN])) }, AUTH)).not.toThrow();
+  });
+});
+
+describe('the patch log of a policed backend', () => {
+  it('needs an update mode, as a patch shows every graph it wrote', () => {
+    expect(patchLogReadMode(DATA)).toBe('update:saved');
+    expect(patchLogReadMode(AUTH)).toBe('query:saved');
   });
 });
 

@@ -64,6 +64,7 @@ import {
   evaluateGraphPolicy,
   graphPolicyOf,
   graphPolicyQueryProblem,
+  patchLogReadMode,
 } from '../auth/graphPolicy.js';
 import { getAuthStore } from '../auth/AuthStore.js';
 import { hasBackendMode, resolveEffectiveGrants } from '../auth/grants.js';
@@ -1546,7 +1547,7 @@ export default async function (
       },
     }, async ({ repos, reply, request }) => {
       const backendId = decodeURIComponent(request.params.id);
-      requireBackendMode(request, backendId, 'query:saved');
+      requireBackendMode(request, backendId, patchLogReadMode(backendId));
 
       const { since, graph, source, status, limit } = request.query;
       const sinceMs = since ? Date.parse(since) : NaN;
@@ -1607,7 +1608,7 @@ export default async function (
       },
     }, async ({ repos, reply, request }) => {
       const backendId = decodeURIComponent(request.params.id);
-      requireBackendMode(request, backendId, 'query:saved');
+      requireBackendMode(request, backendId, patchLogReadMode(backendId));
 
       const { asOf, state = true, nquads = false, churn = false, hotQuads } = request.query;
 

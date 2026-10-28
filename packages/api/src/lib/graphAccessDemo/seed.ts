@@ -28,6 +28,13 @@ import { mintId } from '../id.js';
 import { createQueryVersionFlat } from '../QueryVersionWriter.js';
 
 export const GRAPH_ACCESS_DEMO_LIBRARY_ID = mintId('library', 'graph-access-demo');
+/**
+ * The data graphs the two backends are hydrated from. A data graph is readable
+ * by anyone who may read its library, so they live in a library with no grants:
+ * administrators only. Otherwise the finance graph would be one click away in
+ * the Data graphs screen, whatever the policy says.
+ */
+export const GRAPH_ACCESS_DEMO_DATA_LIBRARY_ID = mintId('library', 'graph-access-demo-data');
 export const GRAPH_ACCESS_DEMO_DATA_BACKEND_ID = mintId('backend', 'graph-access-demo-data');
 export const GRAPH_ACCESS_DEMO_AUTH_BACKEND_ID = mintId('backend', 'graph-access-demo-rules');
 
@@ -58,8 +65,10 @@ const QUERIES = [
   {
     slug: 'policy',
     name: 'Readable graphs (graph policy)',
-    description: 'The graph policy of "Company data". It runs on the access rules backend, once per caller.',
+    description: 'The graph policy of "Company data". It runs on the access rules backend, once per caller. '
+      + 'Kept with the data, for administrators only.',
     backend: GRAPH_ACCESS_DEMO_AUTH_BACKEND_ID,
+    library: GRAPH_ACCESS_DEMO_DATA_LIBRARY_ID,
     queryString: POLICY_QUERY,
   },
   {
@@ -67,6 +76,7 @@ const QUERIES = [
     name: 'Everything I can see',
     description: 'Every triple in every named graph. Sign in as different people and compare.',
     backend: GRAPH_ACCESS_DEMO_DATA_BACKEND_ID,
+    library: GRAPH_ACCESS_DEMO_LIBRARY_ID,
     queryString: `SELECT ?graph ?s ?p ?o WHERE { GRAPH ?graph { ?s ?p ?o } } ORDER BY ?graph ?s ?p`,
   },
   {
@@ -74,6 +84,7 @@ const QUERIES = [
     name: 'Salaries',
     description: 'Reads the finance graph by name. Without the analysts group it returns no rows.',
     backend: GRAPH_ACCESS_DEMO_DATA_BACKEND_ID,
+    library: GRAPH_ACCESS_DEMO_LIBRARY_ID,
     queryString: `PREFIX ex: <${EX}>
 SELECT ?person ?salary WHERE { GRAPH <${DEMO_GRAPHS.finance}> { ?person ex:salary ?salary } } ORDER BY ?person`,
   },
@@ -141,7 +152,7 @@ export async function seedGraphAccessDemo(log: (message: string) => void = () =>
     grantsCreated: 0,
   };
 
-  await ensureLibrary();
+  await ensureLibraries();
 
   const rulesGraphId = mintId('dataGraph', 'graph-access-demo-rules');
   await ensureDataGraph(rulesGraphId, 'Graph access demo — access rules', accessRulesTurtle(issuer));
@@ -165,7 +176,7 @@ export async function seedGraphAccessDemo(log: (message: string) => void = () =>
   });
 
   for (const query of QUERIES) {
-    if (await ensureQuery(query.slug, query.name, query.description, query.backend, query.queryString)) {
+    if (await ensureQuery(query.slug, query.name, query.description, query.backend, query.library, query.queryString)) {
       result.queriesCreated += 1;
     }
   }
@@ -189,14 +200,23 @@ export async function seedGraphAccessDemo(log: (message: string) => void = () =>
   return result;
 }
 
-async function ensureLibrary(): Promise<void> {
-  if (repos().Library.get(GRAPH_ACCESS_DEMO_LIBRARY_ID)) return;
-  await repos().Library.create({
-    $id: GRAPH_ACCESS_DEMO_LIBRARY_ID,
-    name: 'Graph access demo',
-    description: 'One backend, three graphs, and a graph policy that decides who reads which. '
-      + 'Sign in as alice (analysts), bob (hr) or carol (no group) and run "Everything I can see".',
-  } as Partial<LdkitLibrary> & { $id: string });
+async function ensureLibraries(): Promise<void> {
+  if (!repos().Library.get(GRAPH_ACCESS_DEMO_LIBRARY_ID)) {
+    await repos().Library.create({
+      $id: GRAPH_ACCESS_DEMO_LIBRARY_ID,
+      name: 'Graph access demo',
+      description: 'One backend, three graphs, and a graph policy that decides who reads which. '
+        + 'Sign in as alice (analysts), bob (hr) or carol (no group) and run "Everything I can see".',
+    } as Partial<LdkitLibrary> & { $id: string });
+  }
+  if (!repos().Library.get(GRAPH_ACCESS_DEMO_DATA_LIBRARY_ID)) {
+    await repos().Library.create({
+      $id: GRAPH_ACCESS_DEMO_DATA_LIBRARY_ID,
+      name: 'Graph access demo — data (administrators)',
+      description: 'The data graphs behind "Company data", the access rules and the graph policy. '
+        + 'No grants, so only administrators can read them: a data graph is as private as its library.',
+    } as Partial<LdkitLibrary> & { $id: string });
+  }
 }
 
 async function ensureDataGraph(id: string, name: string, content: string): Promise<void> {
@@ -205,7 +225,7 @@ async function ensureDataGraph(id: string, name: string, content: string): Promi
     graph = await repos().DataGraph.create({
       $id: id,
       name,
-      isPartOf: [GRAPH_ACCESS_DEMO_LIBRARY_ID],
+      isPartOf: [GRAPH_ACCESS_DEMO_DATA_LIBRARY_ID],
     } as Partial<LdkitDataGraph> & { $id: string });
   }
   if (!graph.currentVersion) {
@@ -237,6 +257,7 @@ async function ensureQuery(
   name: string,
   description: string,
   backend: string,
+  library: string,
   queryString: string,
 ): Promise<boolean> {
   const id = queryIdFor(slug);
@@ -247,7 +268,7 @@ async function ensureQuery(
       name,
       description,
       defaultBackend: backend,
-      isPartOf: [GRAPH_ACCESS_DEMO_LIBRARY_ID],
+      isPartOf: [library],
     } as Partial<LdkitQuery> & { $id: string });
   }
   if (query.currentVersion) return false;

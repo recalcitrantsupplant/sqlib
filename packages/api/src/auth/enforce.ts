@@ -286,6 +286,17 @@ export function canBackend(
   return allowedBackendsOf(options.viaLibrary).includes(backendIri);
 }
 
+/** Whether the backend record is marked as an auth backend. */
+function isAuthBackendRecord(backendIri: string | null | undefined): boolean {
+  if (!backendIri) return false;
+  try {
+    return (getCacheCoordinator().get(backendIri) as { authBackend?: boolean | null } | null)?.authBackend === true;
+  } catch {
+    // No entity cache yet (an early boot path or a unit test): no record says so.
+    return false;
+  }
+}
+
 export function requireBackendMode(
   request: FastifyRequest | null,
   backendIri: string | null | undefined,
@@ -293,10 +304,14 @@ export function requireBackendMode(
   options: BackendCheckOptions = {}
 ): AuthContext {
   const context = authOf(request);
-  let allowed = context.fullAccess || hasBackendMode(context.grants, backendIri, mode);
+  // An auth backend holds who may read what, so only administrators reach it,
+  // through any route and whatever grants name it. Without this, a grant given
+  // by mistake would let its holder rewrite the access rules.
+  const reserved = !context.fullAccess && !context.grants.admin && isAuthBackendRecord(backendIri);
+  let allowed = !reserved && (context.fullAccess || hasBackendMode(context.grants, backendIri, mode));
   let via: string | null = null;
 
-  if (!allowed && mode === 'query:saved' && options.viaLibrary && backendIri) {
+  if (!allowed && !reserved && mode === 'query:saved' && options.viaLibrary && backendIri) {
     if (
       hasLibraryMode(context.grants, options.viaLibrary, 'execute') &&
       allowedBackendsOf(options.viaLibrary).includes(backendIri)
@@ -311,7 +326,9 @@ export function requireBackendMode(
     resourceKind: 'backend',
     mode,
     matchedGrant: via ? `implicit:library:${via}` : undefined,
-    message: backendIri
+    message: reserved
+      ? `Backend ${backendIri} is an auth backend, reserved for administrators.`
+      : backendIri
       ? `Missing "${mode}" permission on backend ${backendIri}.`
       : `Missing "${mode}" permission: no backend resolved for this request.`,
   });

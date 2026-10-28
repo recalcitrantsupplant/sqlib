@@ -197,7 +197,9 @@ parameter would mean "the endpoint's whole dataset".
 
 Results are cached per backend and caller for `SQLIB_AUTH_POLICY_CACHE_SECONDS`
 (default 60). A policy change on the backend clears the cache, and so does any
-update to an auth backend.
+update to an auth backend through sqlib. Any other change to the access data,
+such as an edit to a data graph the auth backend is hydrated from, takes effect
+within the cache time.
 
 ### Who is not policed
 
@@ -212,6 +214,13 @@ update to an auth backend.
   modes only to callers who may read and write the whole backend.
 - **Browser backends and exported bundles.** These send queries from the
   browser straight to the endpoint, so sqlib never sees them.
+- **Data graphs.** An in-process backend hydrated from data graphs is only as
+  private as the libraries holding those graphs: anyone with `read` on such a
+  library reads the graph through the Data graphs routes. Keep them in a
+  library only administrators may read.
+- **The patch log.** A patch holds what an update wrote, in every graph. On a
+  policed backend, reading the patch log needs `update:saved`, not
+  `query:saved`.
 
 ### Fail closed
 

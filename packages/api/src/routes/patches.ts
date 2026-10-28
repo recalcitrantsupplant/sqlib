@@ -19,6 +19,7 @@ import { UnsupportedUpdateError } from '@sparql-query-lib/rdf-delta';
 import { patchApplyJsonSchema, patchPreviewJsonSchema } from '@sparql-query-lib/contracts/schema/routes';
 import { typedRoute } from './route-helpers.js';
 import { requireBackendMode } from '../auth/enforce.js';
+import { patchLogReadMode } from '../auth/graphPolicy.js';
 import { getEntityRepositories } from '../lib/CacheCoordinatorProvider.js';
 import {
   applyExistingPatch,
@@ -310,7 +311,7 @@ export default async function (fastify: FastifyInstance) {
     if (!patch) {
       return reply.status(404).send({ error: 'Not Found' });
     }
-    requireBackendMode(request, patch.isPartOf, 'query:saved');
+    requireBackendMode(request, patch.isPartOf, patchLogReadMode(patch.isPartOf));
 
     return sendPatch(request, reply, patch);
   }));

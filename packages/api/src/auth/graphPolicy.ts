@@ -105,6 +105,17 @@ export function graphPolicyForBackend(backendId: string): GraphPolicySettings | 
 }
 
 /**
+ * The mode needed to read a backend's patch log.
+ *
+ * A patch holds the quads an update wrote, in every graph, so on a policed
+ * backend it would show what the policy hides. Reading it there takes an
+ * update mode, which already means "may write, so may see, the whole backend".
+ */
+export function patchLogReadMode(backendId: string): 'query:saved' | 'update:saved' {
+  return graphPolicyForBackend(backendId) ? 'update:saved' : 'query:saved';
+}
+
+/**
  * Whether a backend holds authorization data. The library storage backend
  * counts: it holds sqlib's own auth graph, so a policy may read grants there.
  */
@@ -232,6 +243,8 @@ export function clearGraphPolicyCache(): void {
   cache.clear();
 }
 
+const MAX_CACHED_POLICY_RESULTS = 10_000;
+
 function cacheKey(backendId: string, policy: GraphPolicySettings, subject: PolicySubject): string {
   return JSON.stringify([backendId, policy.queryVersion, policy.backend, subject.user, [...subject.groups].sort()]);
 }
@@ -268,7 +281,12 @@ export async function evaluateGraphPolicy(
     throw new GraphPolicyError(backendId, error);
   }
 
-  if (useCache && ttl > 0) cache.set(key, { dataset, expires: Date.now() + ttl });
+  if (useCache && ttl > 0) {
+    // A crude bound: callers times backends is small, and a burst of distinct
+    // subjects should cost policy runs, not memory.
+    if (cache.size >= MAX_CACHED_POLICY_RESULTS) cache.clear();
+    cache.set(key, { dataset, expires: Date.now() + ttl });
+  }
   return dataset;
 }
 
