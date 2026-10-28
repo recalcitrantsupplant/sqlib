@@ -63,6 +63,18 @@
             nothing. On the page they stay in the editor's header, beside the
             control that enlarges it.
           -->
+          <template #reading>
+            <GraphReadingClause
+              :dataset="graphDataset"
+              :backend-id="selectedBackend || null"
+              :backend-name="selectedBackendRecord?.name"
+              :policed="Boolean(selectedBackendRecord?.graphPolicyQueryVersion)"
+              :is-update="isUpdateQueryType(queryType)"
+              :asking-empty="askingEmptyRun"
+              @run-anyway="() => executeQuery({ allowEmptyDataset: true })"
+              @dismiss-empty="askingEmptyRun = false"
+            />
+          </template>
           <template #trailing>
             <QueryDocumentActions
               v-if="editorExpanded"
@@ -229,9 +241,6 @@
         :query-id="queryId"
         :query-text="queryCode"
         :argument-sets-composable="argumentSetsComposable"
-        :graph-dataset="graphDataset"
-        :run-backend-id="selectedBackend"
-        :is-update="isUpdateQueryType(queryType)"
         :details="detailsProps"
         @request-focus="handleFocusRequest"
         @update:details-name="(value) => queryName = value"
@@ -501,6 +510,7 @@ import ExpandRunStrip from './shared/ExpandRunStrip.vue';
 import { useEditorExpand } from '../composables/useEditorExpand';
 import { useEditorAsPrefixTarget } from '../composables/usePrefixTarget';
 import QueryResultsPanel from './query-work-area/QueryResultsPanel.vue';
+import GraphReadingClause from './query-work-area/GraphReadingClause.vue';
 import { datasetSummary, useGraphDataset } from '@/lib/graphDataset';
 import type { QueryExecutionResultPayload, QueryInspectorTab } from '@/types/execution';
 import { forgetLastRun, loadLastRun, runCacheKey, saveLastRun } from '@/lib/lastRunCache';
@@ -722,6 +732,7 @@ const currentQueryId = ref<string | null>(null);
 
 // Backends cache
 const availableBackends = computed<ApiBackend[]>(() => backendsStore.backends.value);
+const selectedBackendRecord = computed(() => availableBackends.value.find((backend) => backend.id === selectedBackend.value) ?? null);
 const backendsLoading = computed(() => backendsStore.loading.value);
 const backendsError = computed(() => backendsStore.error.value);
 
@@ -900,7 +911,15 @@ const {
 });
 
 // Wrap executeQuery to expand the results panel when executing
-const executeQuery = async () => {
+/** A run was asked for with no graphs chosen; the reading clause asks before it goes. */
+const askingEmptyRun = ref(false);
+
+const executeQuery = async (options: { allowEmptyDataset?: boolean } = {}) => {
+  askingEmptyRun.value = false;
+  if (!options.allowEmptyDataset && !isUpdateQueryType(queryType.value) && datasetSummary(graphDataset.payload()) === 'none') {
+    askingEmptyRun.value = true;
+    return;
+  }
   // Always expand the panel when executing (whether it was collapsed or not)
   rightPanelCollapsed.value = false;
 
@@ -1089,13 +1108,6 @@ const argumentSetLoading = computed(() => argumentSetsComposable.isLoading.value
  */
 const runInputs = computed<RunBarPick[]>(() => {
   const summary = argumentsSummary.value;
-  const graphs: RunBarPick[] = isUpdateQueryType(queryType.value) ? [] : [{
-    key: 'graphs',
-    kind: 'graphs',
-    value: datasetSummary(graphDataset.payload()),
-    icon: 'data',
-    title: 'The graphs this query reads — open the Arguments tab to choose them',
-  }];
   return [{
     key: 'arguments',
     kind: 'arguments',
@@ -1105,7 +1117,7 @@ const runInputs = computed<RunBarPick[]>(() => {
     title: summary
       ? `Arguments: ${summary} — open the Arguments tab to change them`
       : 'No arguments — open the Arguments tab to choose a set or type values',
-  }, ...graphs];
+  }];
 });
 
 const argumentsSummary = computed(() => {

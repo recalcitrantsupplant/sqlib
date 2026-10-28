@@ -612,8 +612,23 @@ export const graphPolicyTestSchema = z.object({
   defaultGraphs: z.array(z.string()).nullable(),
   namedGraphs: z.array(z.string()).nullable(),
   error: z.string().nullable(),
+  via: z.array(z.string()).default([]),
 });
 export type GraphPolicyTest = z.infer<typeof graphPolicyTestSchema>;
+
+const policyVersionSchema = z.object({
+  id: z.string(),
+  version: z.number().nullable(),
+  dateCreated: z.string().nullable(),
+});
+
+export const graphPolicySummarySchema = z.object({
+  policy: z.object({ queryVersion: z.string(), backend: z.string() }).nullable(),
+  query: z.object({ id: z.string(), name: z.string() }).nullable(),
+  pinned: policyVersionSchema.extend({ queryString: z.string().nullable() }).nullable(),
+  latest: policyVersionSchema.nullable(),
+});
+export type GraphPolicySummary = z.infer<typeof graphPolicySummarySchema>;
 
 export function useApiClient() {
   const auth = useAuth();
@@ -893,6 +908,13 @@ export function useApiClient() {
       buildUrl(`/backends/${encodeURIComponent(backendId)}/graph-policy/test`),
       { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(input) },
       (payload) => graphPolicyTestSchema.parse(payload),
+    );
+
+  const getGraphPolicy = (backendId: string) =>
+    requestData(
+      buildUrl(`/backends/${encodeURIComponent(backendId)}/graph-policy`),
+      { method: 'GET' },
+      (payload) => graphPolicySummarySchema.parse(payload),
     );
 
   const deleteBackend = async (id: string) => {
@@ -3065,6 +3087,7 @@ export function useApiClient() {
     deleteGrant,
     listPrincipals,
     testGraphPolicy,
+    getGraphPolicy,
     listLibraries,
     getLibrary,
     createLibrary,

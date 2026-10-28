@@ -372,9 +372,15 @@ starts.
 | `bob@localhost` | `hr` | public, finance, hr | `query:saved` |
 | `carol@localhost` | none | public | `query:saved` |
 
-Open the library and run "Everything I can see" as each person. Then sign in
-as the administrator, open **Access**, and look at the two tabs: the grants,
-and the graph policy of "Company data" with `Test as`.
+Open the library and run "Everything I can see" as each person. The run bar's
+"reading" clause shows how many graphs each person may read; open it to pick
+some of them. Then sign in as the administrator and open **Access**:
+
+- **People & groups** shows each group's grants, and for a person, what they
+  end up with and which group each part comes from.
+- **Backends** shows "Company data" with its graph policy, who may use it, and
+  `Test as` beside them. Save a new version of the policy query to see the
+  backend offer to test and pin it.
 
 Stop Rauthy with `just demo-graph-access-down`. Throw both stores and the
 secrets away with `just clean-graph-access-demo`.

@@ -67,6 +67,8 @@ import {
   patchLogReadMode,
 } from '../auth/graphPolicy.js';
 import { getAuthStore } from '../auth/AuthStore.js';
+import type { LdkitQuery } from '../persistence/schemas/QuerySchema.js';
+import type { LdkitQueryVersion } from '../persistence/schemas/QueryVersionSchema.js';
 import { hasBackendMode, resolveEffectiveGrants } from '../auth/grants.js';
 import { BACKEND_MODES, PRINCIPAL_AUTHENTICATED } from '../auth/types.js';
 import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
@@ -302,6 +304,24 @@ interface GraphPolicyTestResult {
   defaultGraphs: string[] | null;
   namedGraphs: string[] | null;
   error: string | null;
+  /** The principals among those tested that hold a grant on this backend themselves. */
+  via: string[];
+}
+
+/** One version of a policy query, as the Access screen shows it. */
+interface PolicyVersionView {
+  id: string;
+  version: number | null;
+  dateCreated: string | null;
+}
+
+/** A backend's pinned graph policy, and how far its query has moved since. */
+interface GraphPolicySummary {
+  policy: { queryVersion: string; backend: string } | null;
+  query: { id: string; name: string } | null;
+  pinned: (PolicyVersionView & { queryString: string | null }) | null;
+  /** The query's current version, when it is not the pinned one. */
+  latest: PolicyVersionView | null;
 }
 
 /** The graph policy fields a create or update body may carry. */
@@ -987,6 +1007,80 @@ export default async function (
     })
   );
 
+  // --- GET /:id/graph-policy ---
+  // The pinned policy, its query's text, and the query's current version when
+  // it has moved on: the Access screen offers to test and pin that one.
+  fastify.get<{ Reply: GraphPolicySummary | ErrorResponse }>(
+    '/:id/graph-policy',
+    ...reposRoute({
+      params: {
+        type: 'object',
+        properties: { id: { type: 'string' } },
+        required: ['id'],
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            policy: {
+              type: ['object', 'null'],
+              properties: { queryVersion: { type: 'string' }, backend: { type: 'string' } },
+            },
+            query: {
+              type: ['object', 'null'],
+              properties: { id: { type: 'string' }, name: { type: 'string' } },
+            },
+            pinned: {
+              type: ['object', 'null'],
+              properties: {
+                id: { type: 'string' },
+                version: { type: ['number', 'null'] },
+                dateCreated: { type: ['string', 'null'] },
+                queryString: { type: ['string', 'null'] },
+              },
+            },
+            latest: {
+              type: ['object', 'null'],
+              properties: {
+                id: { type: 'string' },
+                version: { type: ['number', 'null'] },
+                dateCreated: { type: ['string', 'null'] },
+              },
+            },
+          },
+        },
+      },
+    }, async ({ repos, reply, request }) => {
+      requireAdmin(request, 'reading graph policies');
+      const id = decodeURIComponent(request.params.id);
+      const backend = repos.Backend.get(id) as LdkitBackend | null;
+      if (!backend) {
+        return reply.status(404).send({ error: 'Backend not found' });
+      }
+      const policy = graphPolicyOf(backend);
+      const summary: GraphPolicySummary = { policy, query: null, pinned: null, latest: null };
+      if (!policy) return reply.send(summary);
+
+      const view = (version: LdkitQueryVersion): PolicyVersionView => ({
+        id: version.$id,
+        version: typeof version.version === 'number' ? version.version : null,
+        dateCreated: version.dateCreated ?? null,
+      });
+      const pinned = repos.QueryVersion.get(policy.queryVersion) as LdkitQueryVersion | null;
+      if (!pinned) return reply.send(summary);
+      summary.pinned = { ...view(pinned), queryString: pinned.queryString ?? null };
+
+      const query = pinned.isPartOf ? repos.Query.get(pinned.isPartOf) as LdkitQuery | null : null;
+      if (!query) return reply.send(summary);
+      summary.query = { id: query.$id, name: query.name };
+      if (query.currentVersion && query.currentVersion !== pinned.$id) {
+        const latest = repos.QueryVersion.get(query.currentVersion) as LdkitQueryVersion | null;
+        if (latest) summary.latest = view(latest);
+      }
+      return reply.send(summary);
+    })
+  );
+
   // --- POST /:id/graph-policy/test ---
   // `Test as`: what a user or a set of groups may reach on this backend, from
   // both layers. Grants first, then the graph policy. Administrators only:
@@ -1028,6 +1122,7 @@ export default async function (
             defaultGraphs: { type: ['array', 'null'], items: { type: 'string' } },
             namedGraphs: { type: ['array', 'null'], items: { type: 'string' } },
             error: { type: ['string', 'null'] },
+            via: { type: 'array', items: { type: 'string' } },
           },
         },
       },
@@ -1058,9 +1153,12 @@ export default async function (
         ? { queryVersion: request.body.queryVersion, backend: request.body.policyBackend }
         : graphPolicyOf(backend);
 
+      const via = principals.filter(principal =>
+        BACKEND_MODES.some(mode => hasBackendMode(resolveEffectiveGrants([principal], store), id, mode)));
+
       const result: GraphPolicyTestResult = {
         user, groups, groupsSource, admin: grants.admin, modes, policy,
-        defaultGraphs: null, namedGraphs: null, error: null,
+        defaultGraphs: null, namedGraphs: null, error: null, via,
       };
       if (!policy) return reply.send(result);
 

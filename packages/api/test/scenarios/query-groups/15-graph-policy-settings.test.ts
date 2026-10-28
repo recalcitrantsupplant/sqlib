@@ -115,5 +115,33 @@ describe('graph policy settings and Test as', () => {
       payload: { user: 'urn:sqlib:principal:user:nobody' },
     });
     expect(noGroups.json()).toMatchObject({ groupsSource: 'none', defaultGraphs: [], namedGraphs: [] });
+    expect(noGroups.json().via).toEqual([]);
+  });
+
+  it('reports the pinned policy version, and a newer one once the query moves on', async () => {
+    const pinned = await saveQuery('Drifting policy', policyText);
+    expect((await putBackend(context.backendId, { graphPolicyQueryVersion: pinned, graphPolicyBackend: authBackendId })).statusCode).toBe(200);
+    const summaryUrl = `/backends/${encodeURIComponent(context.backendId)}/graph-policy`;
+
+    const before = await context.app.inject({ method: 'GET', url: summaryUrl });
+    expect(before.statusCode, before.body).toBe(200);
+    expect(before.json()).toMatchObject({
+      policy: { queryVersion: pinned, backend: authBackendId },
+      query: { name: 'Drifting policy' },
+      pinned: { id: pinned, version: 1 },
+      latest: null,
+    });
+    expect(before.json().pinned.queryString).toContain('?authGroup');
+
+    const queryId = before.json().query.id as string;
+    const next = await context.app.inject({
+      method: 'POST',
+      url: `/queries/${encodeURIComponent(queryId)}/versions`,
+      payload: { queryVersion: { queryString: `${policyText}\n# v2`, queryType: QueryTypeIri.select } },
+    });
+    expect(next.statusCode, next.body).toBe(201);
+
+    const after = await context.app.inject({ method: 'GET', url: summaryUrl });
+    expect(after.json()).toMatchObject({ pinned: { id: pinned, version: 1 }, latest: { version: 2 } });
   });
 });

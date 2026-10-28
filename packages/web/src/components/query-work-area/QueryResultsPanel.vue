@@ -139,12 +139,6 @@
           </template>
         </EmptyState>
 
-        <GraphDatasetPicker
-          v-if="graphDataset"
-          :dataset="graphDataset"
-          :backend-id="runBackendId ?? null"
-          :is-update="isUpdate"
-        />
       </div>
 
       <ArgumentSetFooter
@@ -267,8 +261,6 @@ import { useTestsSurface } from '@/composables/useTestsSurface';
 import ArgumentSetSwitcher, { type SwitcherEntry } from './ArgumentSetSwitcher.vue';
 import ArgumentSetBrowserDefault from './ArgumentSetBrowserDefault.vue';
 import ArgumentSetFooter from './ArgumentSetFooter.vue';
-import GraphDatasetPicker from './GraphDatasetPicker.vue';
-import type { GraphDatasetComposable } from '@/lib/graphDataset';
 import ArgumentScalarsPanel from './ArgumentScalarsPanel.vue';
 import TupleBindingEditor from './TupleBindingEditor.vue';
 import {
@@ -344,12 +336,6 @@ const props = defineProps<{
    */
   queryText?: string | null;
   argumentSetsComposable?: ArgumentSetsComposable | null;
-  /** The graphs the run reads. When supplied, the arguments tab shows the graph picker. */
-  graphDataset?: GraphDatasetComposable | null;
-  /** The backend the run targets, for loading its graphs. */
-  runBackendId?: string | null;
-  /** An update names its graphs in its text, so the picker stands aside. */
-  isUpdate?: boolean;
   /**
    * When supplied, the panel grows a Details tab in front of the other two.
    * It is a prop bag rather than a dozen props because Details is one view of

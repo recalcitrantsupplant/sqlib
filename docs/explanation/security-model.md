@@ -83,7 +83,7 @@ A backend grants two operations at two levels each:
 | `update:adhoc` | Also run update text the caller writes, upload data, apply a patch and clear the store. |
 
 `adhoc` includes `saved`, so a grant of `query:adhoc` satisfies a check for
-`query:saved`. The Access screen shows the two operations as two dropdowns per
+`query:saved`. The Access screen shows the two operations as two toggles per
 backend: none, saved or ad hoc.
 
 Library grants and backend grants are separate. `execute` on a library runs its
