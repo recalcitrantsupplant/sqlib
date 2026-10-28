@@ -50,6 +50,7 @@ async function mountWithData(child: Component, props: Record<string, unknown>) {
 describe('Access screen', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
     grants = [
       { id: 'g1', principal: ANALYSTS, resourceKind: 'library', resource: LIBRARY, modes: ['read', 'execute'] },
       { id: 'g2', principal: ANALYSTS, resourceKind: 'backend', resource: BACKEND, modes: ['query:adhoc'] },
@@ -79,11 +80,17 @@ describe('Access screen', () => {
     expect(wrapper.find('[data-testid="access-graphs-badge"]').text()).toBe('2 of 3 · policy');
   });
 
-  it('saves a role as its modes, replacing the old grant', async () => {
-    const { wrapper } = await mountWithData(PrincipalGrantsEditor, { principal: principals[0] });
+  it('drafts a role as its modes, and Save replaces the old grant', async () => {
+    const { wrapper, data } = await mountWithData(PrincipalGrantsEditor, { principal: principals[0] });
 
     await wrapper.find('select[aria-label="Role on Reporting"]').setValue('edit');
     await flushPromises();
+    expect(api.createGrant).not.toHaveBeenCalled();
+    expect(data.pendingCount.value).toBe(1);
+    expect(wrapper.find('tr.changed').text()).toContain('Reporting');
+
+    await data.saveDraft();
+    expect(data.pendingCount.value).toBe(0);
 
     expect(api.deleteGrant).toHaveBeenCalledWith('g1');
     expect(api.createGrant).toHaveBeenCalledWith({
@@ -102,15 +109,43 @@ describe('Access screen', () => {
   });
 
   it('changes one operation level and keeps the other', async () => {
-    const { wrapper } = await mountWithData(PrincipalGrantsEditor, { principal: principals[0] });
+    const { wrapper, data } = await mountWithData(PrincipalGrantsEditor, { principal: principals[0] });
 
     const update = wrapper.find('[aria-label="Update on fuseki-prod"]');
     await update.findAll('button').find((b) => b.text() === 'Saved')!.trigger('click');
     await flushPromises();
+    expect(wrapper.find('[data-testid="access-graphs-badge"]').text()).toBe('after save');
+    await data.saveDraft();
 
     expect(api.createGrant).toHaveBeenCalledWith({
       principal: ANALYSTS, resourceKind: 'backend', resource: BACKEND, modes: ['query:adhoc', 'update:saved'],
     });
+  });
+
+  it('drops a change set back to the saved modes, and Discard drops the rest', async () => {
+    const { wrapper, data } = await mountWithData(PrincipalGrantsEditor, { principal: principals[0] });
+    const role = wrapper.find('select[aria-label="Role on Reporting"]');
+
+    await role.setValue('edit');
+    await role.setValue('run');
+    expect(data.pendingCount.value).toBe(0);
+
+    await role.setValue('view');
+    expect(JSON.parse(localStorage.getItem('sqlib:access-draft') ?? '[]')).toHaveLength(1);
+    data.discardDraft();
+    await flushPromises();
+    expect((role.element as HTMLSelectElement).value).toBe('run');
+    expect(api.deleteGrant).not.toHaveBeenCalled();
+  });
+
+  it('keeps an unsaved change across a reload', async () => {
+    localStorage.setItem('sqlib:access-draft', JSON.stringify([
+      { principal: ANALYSTS, resourceKind: 'library', resource: LIBRARY, modes: ['read'] },
+    ]));
+    const { wrapper, data } = await mountWithData(PrincipalGrantsEditor, { principal: principals[0] });
+
+    expect(data.pendingCount.value).toBe(1);
+    expect((wrapper.find('select[aria-label="Role on Reporting"]').element as HTMLSelectElement).value).toBe('view');
   });
 
   it('shows a person what they end up with, and where each part comes from', async () => {

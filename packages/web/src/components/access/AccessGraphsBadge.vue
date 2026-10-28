@@ -41,6 +41,9 @@ type Tone = 'success' | 'warning' | 'danger' | 'action' | 'neutral';
 
 const state = computed((): { kind: 'none' } | { kind: 'badge'; tone: Tone; label: string; title: string } => {
   if (props.backend.authBackend) return { kind: 'none' };
+  if (access.isPending(props.principal.iri, props.backend.id)) {
+    return { kind: 'badge', tone: 'neutral', label: 'after save', title: 'Graph counts read the saved grants. Save to see this change.' };
+  }
   const readable = access.readableFor(props.backend.id, props.principal);
   if (readable.loading) return { kind: 'badge', tone: 'neutral', label: '…', title: 'Working out the graphs' };
   if (readable.error || !readable.result) {

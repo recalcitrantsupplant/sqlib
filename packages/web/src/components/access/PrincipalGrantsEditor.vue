@@ -26,7 +26,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="row in libraryRows" :key="row.library.id">
+            <tr v-for="row in libraryRows" :key="row.library.id" :class="{ changed: access.isPending(principal.iri, row.library.id) }">
               <td class="name">{{ row.library.name }}</td>
               <td>
                 <select
@@ -114,7 +114,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="backend in backendRows" :key="backend.id">
+            <tr v-for="backend in backendRows" :key="backend.id" :class="{ changed: access.isPending(principal.iri, backend.id) }">
               <td class="name">{{ backend.name }}</td>
               <td v-for="operation in OPERATIONS" :key="operation">
                 <AccessLevelToggle
@@ -295,6 +295,14 @@ function addBackend(select: HTMLSelectElement) {
   border-bottom: 1px solid var(--border-subtle);
   color: var(--ink-secondary);
   text-align: left;
+}
+
+.tbl tr.changed td {
+  background: var(--warning-surface);
+}
+
+.tbl tr.changed td:first-child {
+  box-shadow: inset 2px 0 0 var(--warning-ink);
 }
 
 .tbl tr:last-child td {

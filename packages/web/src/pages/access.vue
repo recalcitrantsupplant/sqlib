@@ -28,6 +28,17 @@
             {{ tab === 'principals' ? 'Pick a person or a group to see and change what they may do.' : 'Pick a backend to see who may use it and which graphs they read.' }}
           </InlineNote>
         </div>
+        <footer v-if="access.pendingCount.value > 0" class="save-row" data-testid="access-save-bar">
+          <StatusBadge tone="warning">{{ access.pendingCount.value }} unsaved {{ access.pendingCount.value === 1 ? 'change' : 'changes' }}</StatusBadge>
+          <span v-if="access.saveError.value" class="save-error">{{ access.saveError.value }}</span>
+          <span class="save-spacer" />
+          <button type="button" class="btn-compact" :disabled="access.saving.value" data-testid="access-discard" @click="access.discardDraft()">
+            Discard
+          </button>
+          <button type="button" class="btn-compact btn-primary" :disabled="access.saving.value" data-testid="access-save" @click="access.saveDraft()">
+            {{ access.saving.value ? 'Saving…' : 'Save' }}
+          </button>
+        </footer>
       </main>
     </template>
   </div>
@@ -49,6 +60,7 @@ import AccessSidebar, { type AccessTab } from '@/components/access/AccessSidebar
 import PrincipalAccessView from '@/components/access/PrincipalAccessView.vue';
 import BackendAccessView from '@/components/access/BackendAccessView.vue';
 import InlineNote from '@/components/shared/InlineNote.vue';
+import StatusBadge from '@/components/shared/StatusBadge.vue';
 import { createAccessData, provideAccessData } from '@/composables/useAccessData';
 import { useActiveLibrary } from '@/composables/useActiveLibrary';
 import { useAuth } from '@/composables/useAuth';
@@ -132,6 +144,27 @@ function handleRailSelect(section: RailSection) {
   flex-direction: column;
   min-width: 0;
   overflow-y: auto;
+}
+
+.save-row {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: auto;
+  padding: var(--space-4) var(--space-6);
+  border-top: 1px solid var(--border-default);
+  background: var(--surface-subtle);
+}
+
+.save-error {
+  color: var(--danger-ink);
+  font-size: var(--text-body);
+}
+
+.save-spacer {
+  flex: 1;
 }
 
 .empty {

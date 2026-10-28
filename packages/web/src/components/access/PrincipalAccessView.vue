@@ -18,6 +18,7 @@
       </template>
       <div class="header-actions">
         <StatusBadge v-if="access.saving.value" tone="neutral">Saving…</StatusBadge>
+        <StatusBadge v-else-if="hasPending" tone="warning">Unsaved</StatusBadge>
         <StatusBadge v-else-if="access.savedAt.value" tone="success">Saved</StatusBadge>
         <select
           v-if="!isPerson && copySources.length"
@@ -162,6 +163,9 @@ watch(() => props.principal.iri, () => { showDirect.value = false; });
 const isPerson = computed(() => props.principal.kind === 'user');
 const shortName = computed(() => props.principal.rawClaim.split('@')[0]);
 
+const hasPending = computed(() =>
+  [...access.libraries.value.map((l) => l.id), ...access.backends.value.map((b) => b.id)]
+    .some((resource) => access.isPending(props.principal.iri, resource)));
 const isAdmin = computed(() => access.grantsOf(props.principal.iri).some(isAdminGrant));
 const hasDirectGrants = computed(() =>
   access.grantsOf(props.principal.iri).some((grant) => grant.resourceKind !== 'everything'));

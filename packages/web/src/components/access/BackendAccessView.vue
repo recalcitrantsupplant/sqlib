@@ -180,7 +180,7 @@
                     <tr><th class="col-name">Who</th><th>Query</th><th>Update</th><th>Graphs</th></tr>
                   </thead>
                   <tbody>
-                    <tr v-for="principal in grantRows" :key="principal.iri">
+                    <tr v-for="principal in grantRows" :key="principal.iri" :class="{ changed: access.isPending(principal.iri, backend.id) }">
                       <td class="name">
                         <button type="button" class="name-link" @click="emit('select-principal', principal.iri)">{{ principal.rawClaim }}</button>
                       </td>
@@ -649,6 +649,14 @@ function grantFromTest(principal: string | null) {
   border-bottom: 1px solid var(--border-subtle);
   color: var(--ink-secondary);
   text-align: left;
+}
+
+.tbl tr.changed td {
+  background: var(--warning-surface);
+}
+
+.tbl tr.changed td:first-child {
+  box-shadow: inset 2px 0 0 var(--warning-ink);
 }
 
 .tbl tr:last-child td {

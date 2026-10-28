@@ -6,12 +6,19 @@
  * modes, so a change replaces a principal's grants on one resource with a
  * single grant of the new modes.
  *
+ * Changes are a draft until saved, as everywhere else in the app: each one
+ * replaces the modes a principal holds on one resource, and the views read
+ * the grants with the draft applied. Save writes every change; Discard drops
+ * them. Graph counts and `Test as` read the saved grants. Like the other
+ * screens' drafts, it is kept in this browser, so leaving the screen or
+ * reloading does not lose it.
+ *
  * Graph counts come from two places. The total is the backend's own graph
  * list, read as an administrator, whom no policy narrows. What one principal
  * may read is a `Test as` call, cached per backend and principal until a
  * grant or a policy changes.
  */
-import { inject, provide, reactive, ref, type InjectionKey } from 'vue';
+import { computed, inject, provide, reactive, ref, watch, type InjectionKey } from 'vue';
 import type { Backend, Library } from '@sparql-query-lib/contracts';
 import { useApiClient, type Grant, type GraphPolicyTest, type PrincipalRecord } from '@/composables/useApiClient';
 import { LIST_GRAPHS_QUERY } from '@/lib/graphDataset';
@@ -23,13 +30,54 @@ export interface ReadableGraphs {
   error: string | null;
 }
 
+/** One unsaved change: the modes `principal` will hold on `resource`. */
+export interface DraftChange {
+  principal: string;
+  resourceKind: 'library' | 'backend';
+  resource: string;
+  modes: string[];
+}
+
+const draftKey = (principal: string, resource: string) => `${principal}\n${resource}`;
+
+const DRAFT_STORAGE_KEY = 'sqlib:access-draft';
+
+function readStoredDraft(): DraftChange[] {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(DRAFT_STORAGE_KEY) ?? '[]');
+    return Array.isArray(parsed) ? parsed.filter((c) => c && typeof c.principal === 'string' && Array.isArray(c.modes)) : [];
+  } catch {
+    return [];
+  }
+}
+
+function storeDraft(changes: DraftChange[]) {
+  try {
+    if (changes.length) localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(changes));
+    else localStorage.removeItem(DRAFT_STORAGE_KEY);
+  } catch {
+    // Storage refused: the draft lives for this page only.
+  }
+}
+
 export function createAccessData() {
   const api = useApiClient();
 
   const principals = ref<PrincipalRecord[]>([]);
-  const grants = ref<Grant[]>([]);
+  /** The grants as the server holds them. */
+  const savedGrants = ref<Grant[]>([]);
+  const draft = reactive(new Map<string, DraftChange>());
   const libraries = ref<Library[]>([]);
   const backends = ref<Backend[]>([]);
+  /** The grants with the draft applied: what the screen shows. */
+  const grants = computed<Grant[]>(() => {
+    const kept = savedGrants.value.filter((grant) => !draft.has(draftKey(grant.principal, grant.resource)));
+    const drafted = [...draft.values()]
+      .filter((change) => change.modes.length > 0)
+      .map((change): Grant => ({ id: `draft:${draftKey(change.principal, change.resource)}`, ...change }));
+    return [...kept, ...drafted];
+  });
+  const pendingCount = computed(() => draft.size);
   const loaded = ref(false);
   const loadError = ref<string | null>(null);
   const saving = ref(false);
@@ -49,9 +97,11 @@ export function createAccessData() {
     ]);
     if (principalList.status === 'fulfilled') principals.value = principalList.value;
     else loadError.value = 'Could not load people and groups. Only administrators can manage access.';
-    if (grantList.status === 'fulfilled') grants.value = grantList.value;
+    if (grantList.status === 'fulfilled') savedGrants.value = grantList.value;
     if (libraryList.status === 'fulfilled') libraries.value = libraryList.value;
     if (backendList.status === 'fulfilled') backends.value = backendList.value;
+    // Restored after the saved grants, so a change someone has since saved drops out.
+    for (const change of readStoredDraft()) replaceModes(change.principal, change.resourceKind, change.resource, change.modes);
     loaded.value = true;
   }
 
@@ -70,34 +120,66 @@ export function createAccessData() {
       .flatMap((grant) => grant.modes));
   }
 
-  /** Replace `principal`'s grants on one resource with one grant of `modes`. */
-  async function replaceModes(principal: string, resourceKind: 'library' | 'backend', resource: string, modes: string[]) {
+  function savedModesOn(principal: string, resource: string): Set<string> {
+    return new Set(savedGrants.value
+      .filter((grant) => grant.principal === principal && grant.resource === resource)
+      .flatMap((grant) => grant.modes));
+  }
+
+  function sameModes(a: Iterable<string>, b: Set<string>): boolean {
+    const list = [...new Set(a)];
+    return list.length === b.size && list.every((mode) => b.has(mode));
+  }
+
+  /** Draft `principal`'s modes on one resource. A change back to the saved modes is no change. */
+  function replaceModes(principal: string, resourceKind: 'library' | 'backend', resource: string, modes: string[]) {
+    const key = draftKey(principal, resource);
+    if (sameModes(modes, savedModesOn(principal, resource))) draft.delete(key);
+    else draft.set(key, { principal, resourceKind, resource, modes: [...new Set(modes)] });
+  }
+
+  watch(draft, () => { if (loaded.value) storeDraft([...draft.values()]); }, { deep: true });
+
+  function isPending(principal: string, resource: string): boolean {
+    return draft.has(draftKey(principal, resource));
+  }
+
+  function discardDraft() {
+    draft.clear();
+    saveError.value = null;
+  }
+
+  /** Write every drafted change. A change that fails stays in the draft, so Save can be pressed again. */
+  async function saveDraft() {
     saving.value = true;
     saveError.value = null;
     try {
-      for (const grant of grants.value.filter((g) => g.principal === principal && g.resource === resource)) {
-        await api.deleteGrant(grant.id);
+      for (const [key, change] of [...draft.entries()]) {
+        const existing = savedGrants.value.filter((g) => g.principal === change.principal && g.resource === change.resource);
+        for (const grant of existing) await api.deleteGrant(grant.id);
+        if (change.modes.length > 0) {
+          await api.createGrant({ principal: change.principal, resourceKind: change.resourceKind, resource: change.resource, modes: change.modes });
+        }
+        draft.delete(key);
+        if (change.resourceKind === 'backend') forgetReadable(change.resource);
       }
-      if (modes.length > 0) await api.createGrant({ principal, resourceKind, resource, modes });
-      grants.value = await api.listGrants();
       savedAt.value = Date.now();
-      if (resourceKind === 'backend') forgetReadable(resource);
     } catch (error) {
       saveError.value = error instanceof Error ? error.message : String(error);
-      grants.value = await api.listGrants().catch(() => grants.value);
     } finally {
+      savedGrants.value = await api.listGrants().catch(() => savedGrants.value);
       saving.value = false;
     }
   }
 
-  /** Give `target` the same library and backend grants as `source`, replacing its own. */
-  async function copyGrants(source: string, target: string) {
+  /** Draft `target` to hold the same library and backend grants as `source`, replacing its own. */
+  function copyGrants(source: string, target: string) {
     const resources = new Map<string, { kind: 'library' | 'backend'; modes: string[] }>();
     for (const grant of [...grantsOf(source), ...grantsOf(target)]) {
       if (grant.resourceKind === 'everything') continue;
       resources.set(grant.resource, { kind: grant.resourceKind, modes: [...modesOn(source, grant.resource)] });
     }
-    for (const [resource, { kind, modes }] of resources) await replaceModes(target, kind, resource, modes);
+    for (const [resource, { kind, modes }] of resources) replaceModes(target, kind, resource, modes);
   }
 
   async function graphTotal(backendId: string): Promise<number | null> {
@@ -142,6 +224,7 @@ export function createAccessData() {
 
   return {
     principals, grants, libraries, backends, loaded, loadError, saving, saveError, savedAt,
+    pendingCount, isPending, saveDraft, discardDraft,
     graphTotals, load, reloadBackends, grantsOf, modesOn, replaceModes, copyGrants,
     graphTotal, readableFor, forgetReadable,
   };
