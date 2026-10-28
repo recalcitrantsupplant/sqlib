@@ -54,6 +54,15 @@
           </tr>
         </tbody>
       </table>
+      <div v-for="missing in defaultBackendsWithoutGrant" :key="missing.library.id" class="nudge" data-testid="default-backend-nudge">
+        <InlineNote as="span">
+          {{ missing.library.name }} runs on {{ missing.backendName }} by default, and this {{ kindLabel(selectedPrincipal.kind) }}
+          has no grant there. Execute on a library gives no backend access.
+        </InlineNote>
+        <button type="button" class="btn-compact" :disabled="saving" @click="setLevel(missing.backendId, 'query', 'saved')">
+          Allow saved queries on {{ missing.backendName }}
+        </button>
+      </div>
 
       <h3 class="group-title">Backends</h3>
       <InlineNote>
@@ -161,6 +170,20 @@ function grantsOn(resource: string): Grant[] {
 function modesOn(resource: string): Set<string> {
   return new Set(grantsOn(resource).flatMap((grant) => grant.modes));
 }
+
+/**
+ * Libraries the selected principal may execute whose default backend they
+ * cannot query. Library and backend grants are separate, so each needs its
+ * own grant; this offers the second one in a click rather than granting it
+ * behind the admin's back.
+ */
+const defaultBackendsWithoutGrant = computed(() =>
+  libraries.value.flatMap((library) => {
+    const backendId = library.defaultBackend;
+    if (!backendId || !modesOn(library.id).has('execute') || levelOf(backendId, 'query') !== 'none') return [];
+    const backendName = backends.value.find((backend) => backend.id === backendId)?.name ?? backendId;
+    return [{ library, backendId, backendName }];
+  }));
 
 function levelOf(backendId: string, operation: Operation): Level {
   const modes = modesOn(backendId);
@@ -327,6 +350,13 @@ onMounted(async () => {
 
 .cell {
   text-align: center;
+}
+
+.nudge {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
 }
 
 .grid select {

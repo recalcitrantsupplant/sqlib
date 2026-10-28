@@ -37,8 +37,6 @@ export interface ExecutorGuard {
   backendId: string;
   /** `adhoc` for text the caller wrote; `saved` (the default) for saved text. */
   source?: QueryTextSource;
-  /** Library owning the saved entity, for curated `query:saved` reach. */
-  viaLibrary?: string | null;
   /** The route already checked the mode for this exact operation. */
   modeChecked?: boolean;
   /** Called with a warning the caller should see, such as SERVICE under a policy. */
@@ -58,9 +56,7 @@ export class GuardedSparqlExecutor implements ISparqlExecutor {
 
   private checkMode(operation: 'query' | 'update'): void {
     if (this.guard.modeChecked) return;
-    requireBackendMode(this.guard.request, this.guard.backendId, backendModeFor(operation, this.guard.source ?? 'saved'), {
-      viaLibrary: operation === 'query' ? this.guard.viaLibrary : undefined,
-    });
+    requireBackendMode(this.guard.request, this.guard.backendId, backendModeFor(operation, this.guard.source ?? 'saved'));
   }
 
   /** The options a read runs with: the mode checked, and the dataset narrowed. */

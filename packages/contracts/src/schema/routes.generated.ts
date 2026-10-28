@@ -429,14 +429,6 @@ export const createLibrarySchema = {
         "type": "string",
         "format": "iri",
         "nullable": true
-      },
-      "allowedBackends": {
-        "type": "array",
-        "items": {
-          "type": "string",
-          "format": "iri"
-        },
-        "nullable": true
       }
     },
     "required": [
@@ -512,14 +504,6 @@ export const updateLibrarySchema = {
       "defaultBackend": {
         "type": "string",
         "format": "iri",
-        "nullable": true
-      },
-      "allowedBackends": {
-        "type": "array",
-        "items": {
-          "type": "string",
-          "format": "iri"
-        },
         "nullable": true
       }
     },

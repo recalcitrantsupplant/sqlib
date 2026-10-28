@@ -84,9 +84,12 @@ A backend grants two operations at two levels each:
 
 `adhoc` includes `saved`, so a grant of `query:adhoc` satisfies a check for
 `query:saved`. The Access screen shows the two operations as two dropdowns per
-backend: none, saved or ad hoc. Running a saved query of a library through
-`execute` on that library implies `query:saved` on the query's backend, and
-nothing more. Every check happens in one place, `GuardedSparqlExecutor`, which
+backend: none, saved or ad hoc.
+
+Library grants and backend grants are separate. `execute` on a library runs its
+saved entities, and every backend they run on needs a backend grant of its own.
+A library's `defaultBackend` only picks the backend a query runs on when the
+caller names none; it grants nothing. Every check happens in one place, `GuardedSparqlExecutor`, which
 wraps every executor a caller's request obtains, so a saved update reached
 through `/execute` needs `update:saved` like any other.
 

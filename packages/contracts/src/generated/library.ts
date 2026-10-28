@@ -12,14 +12,12 @@ const iriString = z
 const optionalIriString = iriString.optional().nullable();
 const isoDateTime = z.string().datetime({ offset: true }).optional().nullable();
 const nullableString = z.string().optional().nullable();
-const optionalIriArray = z.array(iriString).optional().nullable();
 // Reusable field definitions for Library entity
 const libraryShape = {
   id: iriString,
   name: z.string().min(1, 'Name is required'),
   description: nullableString,
   defaultBackend: optionalIriString,
-  allowedBackends: optionalIriArray,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
 };

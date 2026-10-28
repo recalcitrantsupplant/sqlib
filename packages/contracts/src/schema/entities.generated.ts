@@ -109,14 +109,6 @@ export const librarySchema = {
       "format": "iri",
       "nullable": true
     },
-    "allowedBackends": {
-      "type": "array",
-      "items": {
-        "type": "string",
-        "format": "iri"
-      },
-      "nullable": true
-    },
     "dateCreated": {
       "type": "string",
       "format": "date-time",
@@ -3725,7 +3717,6 @@ export interface LibraryRestApi {
   name: string;
   description?: string | null;
   defaultBackend?: string | null;
-  allowedBackends?: string[] | null;
   dateCreated?: string | null;
   dateModified?: string | null;
 }

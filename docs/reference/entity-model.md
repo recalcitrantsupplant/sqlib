@@ -40,7 +40,7 @@ content.
 
 | Kind | What it is |
 | --- | --- |
-| `Library` | The container. Carries a name, an optional `defaultBackend` and a list of `allowedBackends` |
+| `Library` | The container. Carries a name and an optional `defaultBackend` |
 | `Backend` | A SPARQL endpoint or an in-process Oxigraph store. Account-level: it is not contained by a library, and libraries point at it |
 | `Tag` | A label within a library. Deliberately outside the version machinery — a tag is a classification, not content |
 | `Patch` | The ground quad diff of one write against a backend. An event, written once; only its status changes afterwards |
@@ -191,9 +191,8 @@ Containment is `sdo:isPartOf`. What the predicate points at differs by kind:
 | `BenchmarkExperiment` | A `Library`. Required on create; an experiment stored before it existed has none and is administrator-only until `scripts/backfill-benchmark-ownership.ts` assigns one |
 
 A library is the unit you export, import and copy, and the unit a grant applies
-to. It may name a `defaultBackend` and a list of `allowedBackends`, which is
-what its own saved queries may execute against; `defaultBackend` is always
-implicitly included.
+to. It may name a `defaultBackend`: the backend its queries run on when no
+other is chosen. It grants no access to that backend.
 
 ## Subject kinds
 

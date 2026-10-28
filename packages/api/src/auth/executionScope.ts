@@ -16,9 +16,9 @@ export interface ExecutionAuthScope {
   /** The request whose caller this execution runs for. Drives audit output. */
   request: FastifyRequest;
   /**
-   * The library owning the *saved* entity being executed, enabling curated
-   * execution against that library's `allowedBackends` (design §4.3 route 2).
-   * Left unset for ad-hoc query text, which must rely on an explicit grant.
+   * The library owning the *saved* entity being executed. It grants no
+   * backend access: library and backend grants are separate. The engine reads
+   * it to tell which library a query group belongs to.
    */
   viaLibrary?: string | null;
   /**
@@ -54,8 +54,8 @@ export function isInternalExecution(scope: ExecutionAuthScope | InternalExecutio
  * Throws unless the scope's caller may reach this backend at all.
  *
  * This is the check made when an executor is handed out, before the operation
- * is known: any backend mode will do, or curated `query:saved` reach through
- * the library. Each call then checks the exact mode it needs
+ * is known: any backend mode will do. Each call then checks the exact mode it
+ * needs
  * (`GuardedSparqlExecutor`).
  *
  * An absent scope means sqlib is acting as itself (see `InternalExecution`) and
@@ -82,7 +82,5 @@ export function assertBackendAccess(
   }
 
   if (hasAnyBackendMode(context.grants, backendId)) return;
-  requireBackendMode(scope.request, backendId, 'query:saved', {
-    viaLibrary: (scope.source ?? 'saved') === 'saved' ? scope.viaLibrary : undefined,
-  });
+  requireBackendMode(scope.request, backendId, 'query:saved');
 }

@@ -61,7 +61,6 @@ beforeEach(async () => {
     '@type': 'Library',
     $id: LIBRARY,
     defaultBackend: BACKEND_A,
-    allowedBackends: [BACKEND_A],
   });
 });
 
@@ -108,24 +107,15 @@ describe('assertBackendAccess', () => {
     expect(() => assertBackendAccess(scope, LIBRARY_STORAGE_BACKEND_ID)).not.toThrow();
   });
 
-  it('allows a curated backend via the executing library', async () => {
+  it('gives no backend access through the executing library', async () => {
+    // Library and backend grants are separate: execute on the library runs
+    // its saved entities, and each backend still needs a grant of its own.
     await store.createGrant({
       principal: ALICE, resourceKind: 'library', resource: LIBRARY, modes: ['execute'],
     });
     const scope = { request: requestFor(contextFor([ALICE])), viaLibrary: LIBRARY };
 
-    expect(() => assertBackendAccess(scope, BACKEND_A)).not.toThrow();
-  });
-
-  it('refuses a second leg whose backend the library does not list', async () => {
-    // The confused deputy: a group leg must not reach further than its caller.
-    await store.createGrant({
-      principal: ALICE, resourceKind: 'library', resource: LIBRARY, modes: ['execute'],
-    });
-    const scope = { request: requestFor(contextFor([ALICE])), viaLibrary: LIBRARY };
-
-    expect(() => assertBackendAccess(scope, BACKEND_A)).not.toThrow();
-    expect(() => assertBackendAccess(scope, BACKEND_B)).toThrow(AuthorizationError);
+    expect(() => assertBackendAccess(scope, BACKEND_A)).toThrow(AuthorizationError);
   });
 
   it('applies the update mode to updates, when the update runs', async () => {

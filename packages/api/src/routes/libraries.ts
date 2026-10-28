@@ -15,10 +15,8 @@ import {
   authOf,
   canReadEntity,
   filterReadable,
-  requireCuratedBackendsChange,
   requireLibraryCreate,
   requireLibraryMode,
-  type CuratedBackendFields,
 } from '../auth/enforce.js';
 import { getAuthStore } from '../auth/AuthStore.js';
 import { reposRoute, withReposHandler, validateIfMatch, setEntityConcurrencyHeaders } from './route-helpers.js';
@@ -530,12 +528,6 @@ export default async function (fastify: FastifyInstance) {
       // the grant below is minted: otherwise posting a library whose id is one
       // you cannot read would hand you every mode on it.
 
-      // The curated-backends escalation guard applies to a library's first
-      // state as much as to a change of it: `allowedBackends` and
-      // `defaultBackend` are both in this body, and both grant reach to anyone
-      // holding Execute here (design §4.3). Checked before the write.
-      requireCuratedBackendsChange(request, id, null, rest);
-
       const libraryData = { ...rest, $id: id };
       const createdLibrary = await repos.Library.create(libraryData);
 
@@ -569,25 +561,6 @@ export default async function (fastify: FastifyInstance) {
       }
 
       requireLibraryMode(request, id, 'write');
-
-      // Extending the curated set hands execution reach to everyone holding
-      // Execute here, so it needs Control plus Use on what is added (design
-      // §4.3). Checked before the write, not after.
-      //
-      // Both fields, and unconditionally: the guard was reached only when the
-      // body carried `allowedBackends`, so a PUT naming an unheld backend as
-      // this library's `defaultBackend` — which `curatedBackendsOf` grants the
-      // same reach — walked past it. A field the body omits keeps its current
-      // value, which the guard then reads as unchanged and lets through.
-      const patch = body as CuratedBackendFields;
-      requireCuratedBackendsChange(request, id, current, {
-        allowedBackends: Object.prototype.hasOwnProperty.call(body, 'allowedBackends')
-          ? patch.allowedBackends
-          : current.allowedBackends,
-        defaultBackend: Object.prototype.hasOwnProperty.call(body, 'defaultBackend')
-          ? patch.defaultBackend
-          : current.defaultBackend,
-      });
 
       const { valid, currentTag } = validateIfMatch(request, current);
       if (!valid) {

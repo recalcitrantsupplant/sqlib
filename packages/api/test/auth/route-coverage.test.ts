@@ -368,8 +368,8 @@ const MANIFEST: Record<string, Protection> = {
    * without the second, Write on one library ran any other library's saved
    * query and kept the graph it produced.
    *
-   * The backend is checked separately, by `assertBackendAccess` through the
-   * graph's library `allowedBackends` — which is why the query check is not
+   * The backend is checked separately, by `assertBackendAccess` against the
+   * caller's backend grants — which is why the query check is not
    * redundant: the backend a caller may reach says nothing about whose query
    * they may send to it.
    */

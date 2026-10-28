@@ -379,9 +379,8 @@ export default async function (
             }
             targetTypeForError = targetEntity['@type'];
 
-            // Execute on the owning library gates the operation; the same
-            // library also enables curated access to its allowedBackends, which
-            // is why it is threaded into the factory rather than only checked here.
+            // Execute on the owning library gates the operation. The backend
+            // needs a grant of its own; library and backend grants are separate.
             const targetLibrary = resolveOwningLibrary(targetEntity);
             requireLibraryMode(request, targetLibrary, 'execute');
 

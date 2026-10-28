@@ -504,7 +504,7 @@ this is the mapping.
 | §3, §3.1 | Auth plugin, token verification | `auth/plugin.ts`, `auth/tokenVerifier.ts`; "The constraint that decides it" above; security-model "What is verified" |
 | §3.2 | Principal canonicalisation | `auth/principals.ts`; security-model "What is verified" |
 | §4.2, §4.4, §4.5 | Modes vocabulary, grant resolution, the authenticated sentinel | `auth/vocabulary.ts`, `auth/grants.ts`; security-model "What is authorized" |
-| §4.3 | Curated backends and escalation | `auth/executionScope.ts`, `auth/enforce.ts`; security-model "The caller-authorization model" |
+| §4.3 | Library-implied backend access | Removed: library and backend grants are separate (security-model "What is authorized") |
 | §5, §5.4 | AuthStore, bootstrap | `auth/AuthStore.ts`, `auth/bootstrap.ts` |
 | §6 | `/auth` routes | `routes/auth.ts` |
 | §7, §7.1, §7.2 | Enforcement, entity guard, execution scope | `auth/enforce.ts`, `auth/entityGuard.ts`, `auth/executionScope.ts`; architecture "The request path" |

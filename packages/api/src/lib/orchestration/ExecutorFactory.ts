@@ -64,7 +64,6 @@ export class ExecutorFactory {
       request: this.authScope.request,
       backendId,
       source: this.authScope.source,
-      viaLibrary: this.authScope.viaLibrary,
     });
   }
 

@@ -21,16 +21,6 @@ export const LibrarySchema = {
     '@type': ldkit.IRI,
     '@optional': true,
   },
-  // Backends this library's own saved queries may execute against. Holding
-  // Execute on the library implies Use of these backends for those queries only
-  // — see `docs/explanation/security-model.md`. `defaultBackend` is always
-  // implicitly included.
-  allowedBackends: {
-    '@id': sqlib.allowedBackend,
-    '@array': true,
-    '@type': ldkit.IRI,
-    '@optional': true,
-  },
   dateCreated: {
     '@id': sdo.dateCreated,
     '@type': xsd.dateTime,
@@ -49,7 +39,6 @@ export interface LdkitLibrary {
   name: string;
   description?: string | null;
   defaultBackend?: string | null;
-  allowedBackends?: string[] | null;
   dateCreated?: string | null; // ISO string format for RDF/JSON-LD compatibility
   dateModified?: string | null; // ISO string format for RDF/JSON-LD compatibility
 }
