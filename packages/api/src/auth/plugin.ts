@@ -79,7 +79,8 @@ async function buildContext(
   // a failure here must never turn into a failed request.
   for (const [iri, rawClaim] of derived.rawByPrincipal) {
     const kind = iri.includes(':group:') ? 'group' : derived.tokenType;
-    store.recordPrincipal(iri, rawClaim, kind).catch((error: unknown) => {
+    const label = iri === derived.subject ? derived.label : undefined;
+    store.recordPrincipal(iri, rawClaim, kind, label).catch((error: unknown) => {
       request.log.debug({ err: error, principal: iri }, 'Failed to record principal');
     });
   }

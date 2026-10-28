@@ -171,7 +171,7 @@
                   @change="grantTo(($event.target as HTMLSelectElement))"
                 >
                   <option value="" disabled>+ Grant access</option>
-                  <option v-for="principal in principalsToAdd" :key="principal.iri" :value="principal.iri">{{ principal.rawClaim }}</option>
+                  <option v-for="principal in principalsToAdd" :key="principal.iri" :value="principal.iri">{{ principalName(principal) }}</option>
                 </select>
               </div>
               <div class="panel">
@@ -182,12 +182,12 @@
                   <tbody>
                     <tr v-for="principal in grantRows" :key="principal.iri" :class="{ changed: access.isPending(principal.iri, backend.id) }">
                       <td class="name">
-                        <button type="button" class="name-link" @click="emit('select-principal', principal.iri)">{{ principal.rawClaim }}</button>
+                        <button type="button" class="name-link" @click="emit('select-principal', principal.iri)">{{ principalName(principal) }}</button>
                       </td>
                       <td v-for="operation in OPERATIONS" :key="operation">
                         <AccessLevelToggle
                           :model-value="levelOf(access.modesOn(principal.iri, backend.id), operation)"
-                          :group-label="`${operation === 'query' ? 'Query' : 'Update'} for ${principal.rawClaim}`"
+                          :group-label="`${operation === 'query' ? 'Query' : 'Update'} for ${principalName(principal)}`"
                           :disabled="access.saving.value"
                           @update:model-value="(level) => setLevel(principal.iri, operation, level)"
                         />
@@ -195,7 +195,7 @@
                       <td><AccessGraphsBadge :backend="backend" :principal="principal" :name-policy="false" @open="testAs(principal.iri)" /></td>
                     </tr>
                     <tr v-for="principal in adminRows" :key="principal.iri">
-                      <td class="name">{{ principal.rawClaim }}</td>
+                      <td class="name">{{ principalName(principal) }}</td>
                       <td colspan="2" class="dash">Administrator: grants and the policy do not apply</td>
                       <td><StatusBadge tone="warning">all</StatusBadge></td>
                     </tr>
@@ -228,7 +228,7 @@ import { AlertTriangle } from '@lucide/vue';
 import type { Backend, Query } from '@sparql-query-lib/contracts';
 import { useApiClient, type GraphPolicySummary, type PrincipalRecord } from '@/composables/useApiClient';
 import { useAccessData } from '@/composables/useAccessData';
-import { EVERYONE, OPERATIONS, comparePrincipals, isAdminGrant, levelOf, withLevel, type Level, type Operation } from '@/lib/accessModel';
+import { EVERYONE, OPERATIONS, comparePrincipals, isAdminGrant, levelOf, principalName, withLevel, type Level, type Operation } from '@/lib/accessModel';
 import { formatRelativeTime } from '@/lib/time';
 import StatusBadge from '@/components/shared/StatusBadge.vue';
 import SectionLabel from '@/components/shared/SectionLabel.vue';

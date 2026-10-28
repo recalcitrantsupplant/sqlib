@@ -616,6 +616,7 @@ export const principalSchema = z.object({
   rawClaim: z.string(),
   kind: z.string(),
   seenAt: z.string().optional(),
+  label: z.string().optional(),
   groups: z.array(z.string()).optional(),
 });
 export type PrincipalRecord = z.infer<typeof principalSchema>;

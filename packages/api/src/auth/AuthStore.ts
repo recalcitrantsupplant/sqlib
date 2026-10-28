@@ -53,6 +53,8 @@ export interface PrincipalRecord {
   rawClaim: string;
   kind: string;
   seenAt?: string;
+  /** A person's email, username or name from their last token, for display. */
+  label?: string;
   /**
    * For a user or client: the group principals its last token carried.
    * Kept so an administrator can test a graph policy as that user; never
@@ -320,6 +322,7 @@ export class AuthStore {
       rawClaim,
       kind: this.objectsOf(iri, auth.principalKind)[0] ?? 'user',
       seenAt: this.objectsOf(iri, auth.seenAt)[0],
+      label: this.objectsOf(iri, auth.label)[0],
     };
   }
 
@@ -374,7 +377,8 @@ export class AuthStore {
     });
     if (!query) return records;
     const needle = query.toLowerCase();
-    return records.filter(record => record.rawClaim.toLowerCase().includes(needle));
+    return records.filter(record =>
+      record.rawClaim.toLowerCase().includes(needle) || record.label?.toLowerCase().includes(needle));
   }
 
   async createGrant(input: CreateGrantInput): Promise<Grant> {
@@ -457,11 +461,16 @@ export class AuthStore {
   }
 
   /**
-   * Records a principal so admins can find it in the share dialog. Written at
-   * most once per principal per process — this is not a hot write path.
+   * Records a principal so admins can find it in the share dialog. Written
+   * once per principal, and again only when its label changes, so this is
+   * not a hot write path.
    */
-  async recordPrincipal(iri: string, rawClaim: string, kind: string): Promise<void> {
-    if (this.principalRecords.has(iri)) return;
+  async recordPrincipal(iri: string, rawClaim: string, kind: string, label?: string): Promise<void> {
+    const known = this.principalRecords.get(iri);
+    if (known) {
+      if (label && label !== known.label) await this.relabelPrincipal(known, label);
+      return;
+    }
 
     const graph = iriTerm(AUTH_GRAPH_IRI);
     const subject = iriTerm(iri);
@@ -477,9 +486,25 @@ export class AuthStore {
       ),
     ];
 
+    if (label) quads.push(oxigraph.quad(subject, iriTerm(auth.label), oxigraph.literal(label), graph));
+
     await this.persistence.apply({ insert: quads.map(quad => this.serializeQuad(quad)).join('\n') });
     for (const quad of quads) this.store.add(quad);
-    this.principalRecords.set(iri, { iri, rawClaim, kind });
+    this.principalRecords.set(iri, { iri, rawClaim, kind, ...(label ? { label } : {}) });
+  }
+
+  private async relabelPrincipal(record: PrincipalRecord, label: string): Promise<void> {
+    const graph = iriTerm(AUTH_GRAPH_IRI);
+    const subject = iriTerm(record.iri);
+    const removed = [...this.store.match(subject, iriTerm(auth.label), null, graph)];
+    const added = oxigraph.quad(subject, iriTerm(auth.label), oxigraph.literal(label), graph);
+    await this.persistence.apply({
+      delete: removed.length ? removed.map(quad => this.serializeQuad(quad)).join('\n') : undefined,
+      insert: this.serializeQuad(added),
+    });
+    for (const quad of removed) this.store.delete(quad);
+    this.store.add(added);
+    this.principalRecords.set(record.iri, { ...record, label });
   }
 
   /** The groups a user's last token carried, or undefined if none was seen. */

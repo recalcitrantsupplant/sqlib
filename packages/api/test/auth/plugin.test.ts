@@ -271,6 +271,27 @@ describe('required mode', () => {
     expect(store.listPrincipals('user-3')).toHaveLength(1);
     await app.close();
   });
+
+  it('labels a person by email, then username, then name', async () => {
+    const app = await buildApp('required');
+    const cases = [
+      { sub: 'user-4', email: 'four@example.org', preferred_username: 'four', name: 'Four' },
+      { sub: 'user-5', preferred_username: 'five', name: 'Five' },
+      { sub: 'user-6', name: 'Six' },
+      { sub: 'user-7' },
+    ];
+    for (const claims of cases) {
+      await app.inject({ method: 'GET', url: '/whoami', headers: { authorization: `Bearer ${await token(claims)}` } });
+    }
+    await new Promise(resolve => setImmediate(resolve));
+
+    const labelOf = (sub: string) => store.listPrincipals(sub)[0]?.label;
+    expect(labelOf('user-4')).toBe('four@example.org');
+    expect(labelOf('user-5')).toBe('five');
+    expect(labelOf('user-6')).toBe('Six');
+    expect(labelOf('user-7')).toBeUndefined();
+    await app.close();
+  });
 });
 
 describe('protected-resource metadata (RFC 9728)', () => {

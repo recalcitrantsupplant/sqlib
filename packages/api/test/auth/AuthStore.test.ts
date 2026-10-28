@@ -239,6 +239,21 @@ describe('principal records', () => {
     expect(store.listPrincipals('ALICE@')).toHaveLength(1);
     expect(store.listPrincipals('nobody')).toHaveLength(0);
   });
+
+  it('keeps a person\'s label, replaces it when it changes, and finds them by it', async () => {
+    const persistence = inMemoryPersistence();
+    const first = new AuthStore(persistence);
+    await first.load();
+    await first.recordPrincipal(ALICE, 'd2amYK7g', 'user', 'alice@example.com');
+    await first.recordPrincipal(ALICE, 'd2amYK7g', 'user', 'alice@new.example.com');
+    await first.recordPrincipal(ALICE, 'd2amYK7g', 'user');
+
+    const second = new AuthStore(persistence);
+    await second.load();
+    expect(second.listPrincipals()[0].label).toBe('alice@new.example.com');
+    expect(second.listPrincipals('NEW.example')).toHaveLength(1);
+    expect(second.listPrincipals('d2am')).toHaveLength(1);
+  });
 });
 
 describe('last-seen groups', () => {

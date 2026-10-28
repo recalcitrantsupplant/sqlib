@@ -69,7 +69,7 @@ const MUTATION_SITES: Record<string, { calls: number; marks: number; why: string
   'src/lib/rdfCanonicalizer.ts': { calls: 1, marks: 0, why: 'canonicalisation' },
   'src/lib/w3cRulesSuite/manifest.ts': { calls: 1, marks: 0, why: 'the suite manifest' },
   'src/system-store/SystemStoreLoader.ts': { calls: 1, marks: 0, why: 'the system store' },
-  'src/auth/AuthStore.ts': { calls: 8, marks: 0, why: 'its own store and its own persistence' },
+  'src/auth/AuthStore.ts': { calls: 10, marks: 0, why: 'its own store and its own persistence' },
   // `AuthStore.load`, which is not an oxigraph store at all — it takes a seed
   // path. Listed because the scan reads receivers, not types.
   'src/auth/bootstrap.ts': { calls: 1, marks: 0, why: 'AuthStore.load' },

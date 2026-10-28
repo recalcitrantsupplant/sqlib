@@ -7,7 +7,7 @@
         <span class="form-label">Person</span>
         <select v-model="user" class="field-sm" aria-label="Person" data-testid="test-as-person" @change="fillGroups">
           <option :value="null">Nobody in particular</option>
-          <option v-for="person in people" :key="person.iri" :value="person.iri">{{ person.rawClaim }}</option>
+          <option v-for="person in people" :key="person.iri" :value="person.iri">{{ principalName(person) }}</option>
         </select>
       </label>
       <div class="field">
@@ -27,7 +27,7 @@
             @change="addGroup($event.target as HTMLSelectElement)"
           >
             <option value="" disabled>+ group</option>
-            <option v-for="group in groupsToAdd" :key="group.iri" :value="group.iri">{{ group.rawClaim }}</option>
+            <option v-for="group in groupsToAdd" :key="group.iri" :value="group.iri">{{ principalName(group) }}</option>
           </select>
         </span>
       </div>
@@ -136,7 +136,7 @@ import { X } from '@lucide/vue';
 import type { Backend } from '@sparql-query-lib/contracts';
 import { useApiClient, type GraphPolicySummary, type GraphPolicyTest } from '@/composables/useApiClient';
 import { graphsOf, useAccessData } from '@/composables/useAccessData';
-import { EVERYONE, EVERYONE_IRI, levelLabel, levelOf, splitIri } from '@/lib/accessModel';
+import { EVERYONE, EVERYONE_IRI, levelLabel, levelOf, principalName, splitIri } from '@/lib/accessModel';
 import PanelHeader from '@/components/shared/PanelHeader.vue';
 import SegmentedToggle from '@/components/shared/SegmentedToggle.vue';
 import StatusBadge from '@/components/shared/StatusBadge.vue';
@@ -183,7 +183,8 @@ watch(() => props.backend.id, () => {
 
 function nameOf(iri: string): string {
   if (iri === EVERYONE_IRI) return EVERYONE.rawClaim;
-  return access.principals.value.find((p) => p.iri === iri)?.rawClaim ?? iri;
+  const known = access.principals.value.find((p) => p.iri === iri);
+  return known ? principalName(known) : iri;
 }
 
 function fillGroups() {

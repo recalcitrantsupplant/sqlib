@@ -1,8 +1,9 @@
 <template>
   <div class="record" data-testid="principal-access-view">
     <header class="record-header">
-      <span class="record-name">{{ principal.rawClaim }}</span>
+      <span class="record-name">{{ principalName(principal) }}</span>
       <StatusBadge tone="neutral">{{ kindLabel(principal.kind) }}</StatusBadge>
+      <span v-if="principal.label" class="record-sub" data-testid="principal-subject">ID {{ principal.rawClaim }}</span>
       <span v-if="principal.kind === 'group'" class="record-sub">{{ memberCount }} {{ memberCount === 1 ? 'member' : 'members' }} seen</span>
       <template v-if="isPerson">
         <span class="record-sub">{{ groupsLine }}</span>
@@ -13,7 +14,7 @@
           class="badge-link"
           @click="emit('select', group.iri)"
         >
-          <StatusBadge tone="neutral">{{ group.rawClaim }}</StatusBadge>
+          <StatusBadge tone="neutral">{{ principalName(group) }}</StatusBadge>
         </button>
       </template>
       <div class="header-actions">
@@ -30,7 +31,7 @@
           @change="copyFrom($event.target as HTMLSelectElement)"
         >
           <option value="" disabled>Copy access from…</option>
-          <option v-for="source in copySources" :key="source.iri" :value="source.iri">{{ source.rawClaim }}</option>
+          <option v-for="source in copySources" :key="source.iri" :value="source.iri">{{ principalName(source) }}</option>
         </select>
         <button
           v-if="isPerson"
@@ -140,6 +141,7 @@ import {
   effectiveAccess,
   isAdminGrant,
   kindLabel,
+  principalName,
 } from '@/lib/accessModel';
 import { formatRelativeTime } from '@/lib/time';
 import StatusBadge from '@/components/shared/StatusBadge.vue';
@@ -161,7 +163,7 @@ const showDirect = ref(false);
 watch(() => props.principal.iri, () => { showDirect.value = false; });
 
 const isPerson = computed(() => props.principal.kind === 'user');
-const shortName = computed(() => props.principal.rawClaim.split('@')[0]);
+const shortName = computed(() => principalName(props.principal).split('@')[0]);
 
 const hasPending = computed(() =>
   [...access.libraries.value.map((l) => l.id), ...access.backends.value.map((b) => b.id)]
@@ -213,7 +215,8 @@ const effectiveBackends = computed(() =>
 function fromLabel(iri: string): string {
   if (iri === props.principal.iri) return 'direct';
   if (iri === EVERYONE_IRI) return 'Everyone';
-  return byIri.value.get(iri)?.rawClaim ?? iri;
+  const known = byIri.value.get(iri);
+  return known ? principalName(known) : iri;
 }
 </script>
 

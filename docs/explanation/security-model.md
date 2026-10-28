@@ -66,6 +66,15 @@ document, which must name the same issuer.
 Claims become principals: the subject, each value of the configured group claim,
 and a sentinel matching every authenticated caller.
 
+A person is always their issuer and `sub`, which never change. For display
+only, sqlib also keeps a label from the token: `email`, else
+`preferred_username`, else `name`, and the Access screen shows it in place of
+the subject. These are standard OIDC claims, but an access token carries them
+only when the identity provider puts them there, usually when the client asks
+for the `email` or `profile` scope. With none of them, the screen shows the
+subject. A label never decides access: emails and usernames can change or be
+reused, so grants stay on the subject.
+
 ### What is authorized
 
 Grants are `(principal, resource, modes)` over two resource kinds. A library

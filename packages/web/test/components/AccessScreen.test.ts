@@ -26,7 +26,7 @@ const BACKEND = 'urn:backend:prod';
 
 const principals = [
   { iri: ANALYSTS, rawClaim: 'analysts', kind: 'group' },
-  { iri: ALICE, rawClaim: 'alice@example.org', kind: 'user', groups: [ANALYSTS] },
+  { iri: ALICE, rawClaim: 'd2amYK7g', label: 'alice@example.org', kind: 'user', groups: [ANALYSTS] },
 ];
 
 let grants: Array<Record<string, unknown>>;
@@ -151,7 +151,9 @@ describe('Access screen', () => {
   it('shows a person what they end up with, and where each part comes from', async () => {
     const { wrapper } = await mountWithData(PrincipalAccessView, { principal: principals[1] });
 
-    expect(wrapper.find('[data-testid="no-direct-grants"]').exists()).toBe(true);
+    expect(wrapper.find('.record-name').text()).toBe('alice@example.org');
+    expect(wrapper.find('[data-testid="principal-subject"]').text()).toBe('ID d2amYK7g');
+    expect(wrapper.find('[data-testid="no-direct-grants"]').text()).toContain('No grants made to alice directly');
     const rows = wrapper.find('[data-testid="effective-access"]').findAll('tbody tr');
     const backendRow = rows.find((row) => row.text().includes('fuseki-prod'))!;
     expect(backendRow.text()).toContain('Query ad hoc · Update none');

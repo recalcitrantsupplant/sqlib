@@ -114,10 +114,15 @@ export function effectiveAccess(principals: readonly string[], grants: readonly 
   return [...entries.values()];
 }
 
+/** How a principal is shown: a person's email, username or name when the token gave one, else the raw claim. */
+export function principalName(principal: PrincipalRecord): string {
+  return principal.label ?? principal.rawClaim;
+}
+
 const KIND_ORDER: Record<string, number> = { everyone: 0, group: 1, user: 2, client: 3 };
 
 export function comparePrincipals(a: PrincipalRecord, b: PrincipalRecord): number {
-  return (KIND_ORDER[a.kind] ?? 9) - (KIND_ORDER[b.kind] ?? 9) || a.rawClaim.localeCompare(b.rawClaim);
+  return (KIND_ORDER[a.kind] ?? 9) - (KIND_ORDER[b.kind] ?? 9) || principalName(a).localeCompare(principalName(b));
 }
 
 /** "…/graph/" and "finance": an IRI split so its distinctive tail can be set apart. */

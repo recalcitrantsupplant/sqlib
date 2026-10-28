@@ -27,6 +27,8 @@ export const auth = {
   rawClaim: `${AUTH_NS}rawClaim`,
   principalKind: `${AUTH_NS}principalKind`,
   seenAt: `${AUTH_NS}seenAt`,
+  /** A person's readable name from their last token: email, username or full name. */
+  label: 'http://www.w3.org/2000/01/rdf-schema#label',
   /** A user's groups as the last token sqlib saw for them carried. */
   memberOf: `${AUTH_NS}memberOf`,
 } as const;

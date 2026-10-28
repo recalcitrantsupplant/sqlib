@@ -144,6 +144,7 @@ const listPrincipalsSchema = {
           rawClaim: { type: 'string' },
           kind: { type: 'string' },
           seenAt: { type: 'string' },
+          label: { type: 'string' },
           groups: { type: 'array', items: { type: 'string' } },
         },
         required: ['iri', 'rawClaim', 'kind'],
@@ -381,6 +382,7 @@ export default async function (fastify: FastifyInstance) {
         rawClaim: record.rawClaim,
         kind: record.kind,
         ...(record.seenAt ? { seenAt: record.seenAt } : {}),
+        ...(record.label ? { label: record.label } : {}),
         // Group membership is for administrators, who test graph policies
         // with it; a library owner sharing a library needs only names.
         ...(record.groups && standing.admin ? { groups: record.groups } : {}),

@@ -31,7 +31,7 @@
             @click="emit('update:selected', principal.iri)"
           >
             <component :is="iconOf(principal.kind)" :size="13" class="entity-icon" />
-            <span class="entity-name">{{ principal.rawClaim }}</span>
+            <span class="entity-name">{{ principalName(principal) }}</span>
             <StatusBadge v-if="admins.has(principal.iri)" tone="warning" size="xs">admin</StatusBadge>
             <span v-else class="entity-meta" :title="`${grantCount(principal.iri)} grants`">{{ grantCount(principal.iri) }}</span>
           </button>
@@ -72,7 +72,7 @@ import { computed, ref } from 'vue';
 import { Bot, Globe, Server, User, Users } from '@lucide/vue';
 import type { PrincipalRecord } from '@/composables/useApiClient';
 import { useAccessData } from '@/composables/useAccessData';
-import { EVERYONE, comparePrincipals, isAdminGrant } from '@/lib/accessModel';
+import { EVERYONE, comparePrincipals, isAdminGrant, principalName } from '@/lib/accessModel';
 import TabStrip from '@/components/shared/TabStrip.vue';
 import FilterBox from '@/components/shared/FilterBox.vue';
 import StatusBadge from '@/components/shared/StatusBadge.vue';
@@ -103,7 +103,7 @@ function matches(text: string): boolean {
 }
 
 const principalSections = computed(() => {
-  const rows = [EVERYONE, ...access.principals.value].filter((p) => matches(p.rawClaim)).sort(comparePrincipals);
+  const rows = [EVERYONE, ...access.principals.value].filter((p) => matches(principalName(p)) || matches(p.rawClaim)).sort(comparePrincipals);
   const of = (kind: string) => rows.filter((p) => p.kind === kind);
   return [
     { label: '', rows: of('everyone') },
