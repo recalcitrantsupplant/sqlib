@@ -1,0 +1,65 @@
+# Rauthy for `just demo-graph-access`: the reference broker, configured for a
+# sqlib API and SPA that run on the host (API :3005, SPA :3001).
+#
+# Its own project and volume, so it never touches the `auth` profile of
+# docker-compose.mcp-https-image.yml. The recipe writes the secrets to
+# tmp/auth-demo/.env and passes that file with --env-file.
+#
+# Local demo only: plain HTTP, an insecure cookie mode and shared passwords.
+name: sqlib-auth-demo
+
+services:
+  rauthy:
+    image: ghcr.io/sebadob/rauthy:0.37.2
+    restart: unless-stopped
+    environment:
+      HQL_SECRET_RAFT: ${RAUTHY_SECRET_RAFT:?}
+      HQL_SECRET_API: ${RAUTHY_SECRET_API:?}
+      ENC_KEYS: ${RAUTHY_ENC_KEY:?}
+      ENC_KEY_ACTIVE: ${RAUTHY_ENC_KEY_ID:?}
+      BOOTSTRAP_ADMIN_PASSWORD_PLAIN: ${RAUTHY_ADMIN_PASSWORD:?}
+      # rauthy/api-key.demo.json as `jq -cj . rauthy/api-key.demo.json | base64 -w0`:
+      # the setup key plus Users and Groups, so the demo can create its people.
+      BOOTSTRAP_API_KEY: eyJuYW1lIjoic3FsaWItc2V0dXAiLCJleHAiOm51bGwsImFjY2VzcyI6W3siZ3JvdXAiOiJDbGllbnRzIiwiYWNjZXNzX3JpZ2h0cyI6WyJyZWFkIiwiY3JlYXRlIiwidXBkYXRlIl19LHsiZ3JvdXAiOiJTZWNyZXRzIiwiYWNjZXNzX3JpZ2h0cyI6WyJyZWFkIl19LHsiZ3JvdXAiOiJBdXRoUHJvdmlkZXJzIiwiYWNjZXNzX3JpZ2h0cyI6WyJyZWFkIiwiY3JlYXRlIiwidXBkYXRlIl19LHsiZ3JvdXAiOiJHcm91cHMiLCJhY2Nlc3NfcmlnaHRzIjpbInJlYWQiLCJjcmVhdGUiXX0seyJncm91cCI6IlVzZXJzIiwiYWNjZXNzX3JpZ2h0cyI6WyJyZWFkIiwiY3JlYXRlIiwidXBkYXRlIl19XX0=
+      BOOTSTRAP_API_KEY_SECRET: ${RAUTHY_API_KEY_SECRET:?}
+      DYN_CLIENT_ALLOWED_RESOURCES: ${SQLIB_AUTH_RESOURCE:?}
+      EPHEMERAL_CLIENTS_ALLOWED_RESOURCES: ${SQLIB_AUTH_RESOURCE:?}
+    volumes:
+      - ./rauthy/config.toml:/app/config.toml:ro
+      - rauthy-demo-data:/app/data
+    ports:
+      - "8080:8080"
+
+  # The clients, as in the `auth` profile.
+  rauthy-setup:
+    image: alpine:3.22
+    profiles: [setup]
+    entrypoint: ["/bin/sh", "-c", "apk add --no-cache -q curl jq && exec /bin/sh /setup.sh"]
+    environment:
+      RAUTHY_URL: http://rauthy:8080
+      RAUTHY_API_KEY_SECRET: ${RAUTHY_API_KEY_SECRET:?}
+      SQLIB_AUTH_RESOURCE: ${SQLIB_AUTH_RESOURCE:?}
+      SQLIB_WEB_ORIGINS: ${SQLIB_WEB_ORIGINS:-http://localhost:3001}
+    volumes:
+      - ./rauthy/setup.sh:/setup.sh:ro
+    depends_on:
+      - rauthy
+    restart: "no"
+
+  # alice, bob and carol, and the groups the demo's access rules name.
+  rauthy-demo-users:
+    image: alpine:3.22
+    profiles: [setup]
+    entrypoint: ["/bin/sh", "-c", "apk add --no-cache -q curl jq && exec /bin/sh /demo-users.sh"]
+    environment:
+      RAUTHY_URL: http://rauthy:8080
+      RAUTHY_API_KEY_SECRET: ${RAUTHY_API_KEY_SECRET:?}
+      DEMO_USER_PASSWORD: ${DEMO_USER_PASSWORD:?}
+    volumes:
+      - ./rauthy/demo-users.sh:/demo-users.sh:ro
+    depends_on:
+      - rauthy
+    restart: "no"
+
+volumes:
+  rauthy-demo-data:

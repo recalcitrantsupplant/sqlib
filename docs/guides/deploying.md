@@ -348,6 +348,37 @@ clients and leaves existing providers alone. Rauthy reads the API key
 definition only when it first creates its database. To start again, remove
 the `rauthy-data` volume.
 
+### A demo of graph access
+
+`just demo-graph-access` runs the whole access model on one machine, with
+Rauthy in front. It needs Docker, `openssl` and `jq`.
+
+- Rauthy runs in Docker on `http://localhost:8080`, from
+  `docker-compose.auth-demo.yml`: its own project and volume, separate from the
+  `auth` profile above. `rauthy/setup.sh` creates the clients, and
+  `rauthy/demo-users.sh` creates the groups `analysts` and `hr` and three
+  people.
+- sqlib runs on the host in `required` mode: the API on `:3005`, seeded with
+  the "Graph access demo" library, and the SPA on `:3001`.
+
+The first run writes fresh secrets and passwords to `tmp/auth-demo/.env`
+(ignored by git) and keeps them. The recipe prints the passwords when it
+starts.
+
+| Sign in as | Groups | Reads | Backend modes |
+| --- | --- | --- | --- |
+| `admin@localhost` | `admin` | everything, not policed | administrator |
+| `alice@localhost` | `analysts` | public, finance | `query:adhoc` |
+| `bob@localhost` | `hr` | public, finance, hr | `query:saved` |
+| `carol@localhost` | none | public | `query:saved` |
+
+Open the library and run "Everything I can see" as each person. Then sign in
+as the administrator, open **Access**, and look at the two tabs: the grants,
+and the graph policy of "Company data" with `Test as`.
+
+Stop Rauthy with `just demo-graph-access-down`. Throw both stores and the
+secrets away with `just clean-graph-access-demo`.
+
 ## Before you expose it
 
 This repository is pre-1.0 and source-available for review (see `LICENSE`). No

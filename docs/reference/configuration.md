@@ -306,6 +306,7 @@ and does not cover.
 | `SQLIB_AUTH_ALLOW_LIBRARY_CREATE` | `all` | `all` or `admin`. Anything else throws. |
 | `SQLIB_AUTH_PROTECT_DOCS` | `false` | Set to exactly `true` (case-insensitive) to require a token for the API documentation routes (`/docs` and everything under it). `/`, `/health` and the protected-resource metadata stay public regardless. |
 | `SQLIB_AUTH_RESOURCE` | the first issuer's audience | The resource identifier: the `resource` field of the protected-resource metadata, and the value an MCP client asks a token for. Use the canonical URL of the deployment's `/mcp` endpoint (for example `https://sqlib.example.org/mcp`), and configure the broker to put that value in `aud`. When it is an absolute URL, the 401 challenge names the metadata at `<its origin>/.well-known/oauth-protected-resource<its path>`; otherwise at the request's origin. A value that matches no issuer's audience logs a warning at startup. |
+| `SQLIB_AUTH_POLICY_CACHE_SECONDS` | `60` | How long a backend graph policy's result is kept per backend and caller. `0` evaluates the policy on every read. A change to the policy, or any update to an auth backend, clears the cache. A negative or non-numeric value throws. |
 | `SQLIB_AUTH_SCOPES` | empty | Space- or comma-separated scopes. Published as `scopes_supported` in the metadata and as `scope` in the 401 challenge. Empty leaves both out. |
 
 The API serves OAuth 2.0 Protected Resource Metadata (RFC 9728) at

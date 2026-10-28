@@ -312,6 +312,107 @@ uat-patch-demo API_URL="http://localhost:3005" WEB_URL="http://localhost:3001":
 clean-local-patch-demo:
     rm -rf packages/api/tmp/patch-demo-store
 
+# Demo of graph access: who may read which graphs, with Rauthy in front
+#
+# Rauthy is the reference broker (docs/design/auth-architecture.md): it signs
+# people in and puts their groups in the token. Here it runs in Docker on
+# http://localhost:8080, and sqlib runs on the host in `required` auth mode:
+#
+#   API:    http://localhost:3005  (seeded with the "Graph access demo" library)
+#   SPA:    http://localhost:3001
+#   Rauthy: http://localhost:8080/auth/v1/admin
+#
+# Sign in as one of these. Everyone's password is in tmp/auth-demo/.env
+# (DEMO_USER_PASSWORD; the administrator's is RAUTHY_ADMIN_PASSWORD):
+#
+#   admin@localhost   sqlib administrator: sees the Access screen, no policy
+#   alice@localhost   group analysts: public + finance, may write queries
+#   bob@localhost     group hr: public + finance + hr, saved queries only
+#   carol@localhost   no group: public only, saved queries only
+#
+# Open the library and run "Everything I can see" as each of them. As admin,
+# open Access > Graph policies, pick "Company data" and use Test as.
+#
+# The first run writes tmp/auth-demo/.env with fresh secrets and keeps it, so
+# the passwords stay the same between runs. Needs Docker, openssl and jq.
+# Ctrl-C stops sqlib; `just demo-graph-access-down` stops Rauthy, and
+# `just clean-graph-access-demo` throws both stores away. What the build line
+# builds, and why the trailing `...`: see run-local-memory.
+#
+# Run the graph access demo: sqlib in required auth mode behind Rauthy
+demo-graph-access:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    env_file=tmp/auth-demo/.env
+    if [ ! -f "$env_file" ]; then
+        mkdir -p tmp/auth-demo
+        key_id=$(openssl rand -hex 4)
+        {
+            echo "RAUTHY_SECRET_RAFT=$(openssl rand -hex 16)"
+            echo "RAUTHY_SECRET_API=$(openssl rand -hex 16)"
+            echo "RAUTHY_ENC_KEY=$key_id/$(openssl rand -base64 32)"
+            echo "RAUTHY_ENC_KEY_ID=$key_id"
+            echo "RAUTHY_ADMIN_PASSWORD=Admin-$(openssl rand -hex 8)-Aa1!"
+            echo "RAUTHY_API_KEY_SECRET=$(openssl rand -hex 32)"
+            echo "DEMO_USER_PASSWORD=Demo-$(openssl rand -hex 6)-Aa1!"
+            echo "SQLIB_AUTH_RESOURCE=http://localhost:3005/mcp"
+            echo "SQLIB_WEB_ORIGINS=http://localhost:3001"
+        } > "$env_file"
+        chmod 600 "$env_file"
+        echo "Wrote fresh secrets to $env_file"
+    fi
+    set -a; . "$env_file"; set +a
+    compose="docker compose -f docker-compose.auth-demo.yml --env-file $env_file"
+    $compose up -d rauthy
+    $compose run --rm rauthy-setup
+    $compose run --rm rauthy-demo-users
+    pnpm --filter "@sparql-query-lib/tools..." --filter "@sparql-query-lib/rdf-delta..." --filter "@sparql-query-lib/mcp-app..." build
+    SEED_GRAPH_ACCESS_DEMO="true" \
+    SQLIB_AUTH_MODE="required" \
+    SQLIB_AUTH_ISSUER="http://localhost:8080/auth/v1/" \
+    SQLIB_AUTH_JWKS_URI="http://localhost:8080/auth/v1/oidc/certs" \
+    SQLIB_AUTH_AUDIENCE="$SQLIB_AUTH_RESOURCE" \
+    SQLIB_AUTH_CLAIM_GROUPS="groups" \
+    SQLIB_AUTH_ADMIN_PRINCIPALS="http://localhost:8080/auth/v1/|group:admin" \
+    SQLIB_CORS_ORIGINS="$SQLIB_WEB_ORIGINS" \
+    FEATURE_QUERIES="true" \
+    FEATURE_BACKENDS="true" \
+    FEATURE_DATA_GRAPHS="true" \
+    INTERNAL_BACKEND_TYPE="oxigraph-persistent" \
+    LIBRARY_STORAGE_DIR="./tmp/graph-access-demo-store" \
+    INTERNAL_OXIGRAPH_STORE_ID="graph-access-demo-store" \
+    INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS="60000" \
+    NODE_ENV="development" \
+    OTEL_ENABLED="false" \
+    MCP_TRANSPORT="dual-http" \
+    HTTP_PORT=3005 \
+        pnpm --filter @sparql-query-lib/api exec tsx ../mcp-server/src/cli.ts &
+    api_pid=$!
+    NUXT_PUBLIC_API_BASE_URL="http://localhost:3005" \
+    NUXT_PUBLIC_AUTH_CLIENT_ID="sqlib-web" \
+    NUXT_PUBLIC_AUTH_SCOPE="openid profile email groups" \
+    NUXT_PUBLIC_FEATURE_QUERIES="true" \
+    NUXT_PUBLIC_FEATURE_BACKENDS="true" \
+    NUXT_PUBLIC_FEATURE_DATA_GRAPHS="true" \
+        pnpm --filter @sparql-query-lib/web dev &
+    web_pid=$!
+    trap 'kill "$api_pid" "$web_pid" 2>/dev/null || true' INT TERM EXIT
+    echo
+    echo "Graph access demo: open http://localhost:3001"
+    echo "  admin@localhost  password: $RAUTHY_ADMIN_PASSWORD"
+    echo "  alice@localhost, bob@localhost, carol@localhost  password: $DEMO_USER_PASSWORD"
+    echo
+    wait "$api_pid" "$web_pid"
+
+# Stop the demo's Rauthy, keeping its users and clients
+demo-graph-access-down:
+    docker compose -f docker-compose.auth-demo.yml --env-file tmp/auth-demo/.env down
+
+# Throw the graph access demo away: sqlib's store, Rauthy's volume and the secrets
+clean-graph-access-demo:
+    -docker compose -f docker-compose.auth-demo.yml --env-file tmp/auth-demo/.env down -v
+    rm -rf packages/api/tmp/graph-access-demo-store tmp/auth-demo
+
 # Run locally without Docker, matching run-docker-local behavior with persistence and 60s checkpoints
 run-local-like-docker:
     mkdir -p packages/api/tmp/library-store

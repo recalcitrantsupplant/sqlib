@@ -28,7 +28,7 @@ import { registerNoStoreHook } from './lib/httpCaching.js';
 import * as schemas from '@sparql-query-lib/contracts/schema';
 import { registerErrorHandler } from './server/errorHandler.js';
 import { registerApplicationRoutes } from './server/registerRoutes.js';
-import { seedPatchDemoLibrary, seedRulesConformanceSuite } from './server/seed.js';
+import { seedGraphAccessDemoLibrary, seedPatchDemoLibrary, seedRulesConformanceSuite } from './server/seed.js';
 
 // Create the Fastify instance outside the start function
 const app = Fastify({
@@ -189,6 +189,7 @@ async function configureApp(fastifyApp: typeof app, options: ConfigureOptions = 
   // routes, so the first request already sees the suite.
   await seedRulesConformanceSuite(fastifyApp, featureFlags);
   await seedPatchDemoLibrary(fastifyApp, featureFlags);
+  await seedGraphAccessDemoLibrary(fastifyApp, featureFlags);
 
   // Start cache monitoring with OpenTelemetry metrics
   if (enableCacheMonitoring) {

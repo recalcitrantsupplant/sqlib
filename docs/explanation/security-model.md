@@ -15,10 +15,11 @@ and they have separate answers.
 **sqlib to a triplestore.** Service credentials, supplied by environment
 variable, resolved per backend. Shipped and in use.
 
-**A caller to sqlib.** Identity and authorization. Partly shipped: OIDC bearer
-token validation with per-library and per-backend grants exists and is enforced
-at the routes. The parts that would scope *what data within a store* a caller
-may see are designed and not shipped.
+**A caller to sqlib.** Identity and authorization. OIDC bearer token validation
+with per-library and per-backend grants is enforced at the routes. A backend's
+graph policy then scopes which of its graphs a caller may read (see
+[Backend graph policies](#backend-graph-policies)). A per-query ASK gate is
+designed and not shipped.
 
 ## What `SQLIB_AUTH_MODE` does
 
@@ -68,9 +69,26 @@ and a sentinel matching every authenticated caller.
 ### What is authorized
 
 Grants are `(principal, resource, modes)` over two resource kinds. A library
-grants `read`, `write`, `execute`, `delete` and `control`; a backend grants
-`use` and `write`. Execute is deliberately independent of read, so "may run the
-library's saved queries" and "may read their text" are separable.
+grants `read`, `write`, `execute`, `delete` and `control`. Execute is
+deliberately independent of read, so "may run the library's saved queries" and
+"may read their text" are separable.
+
+A backend grants two operations at two levels each:
+
+| Mode | Allows |
+| --- | --- |
+| `query:saved` | Run saved queries (a stored version) against the backend, and read its metadata. |
+| `query:adhoc` | Also run query text the caller writes, on `/sparql` or as a draft. |
+| `update:saved` | Run saved updates, and revert a patch. |
+| `update:adhoc` | Also run update text the caller writes, upload data, apply a patch and clear the store. |
+
+`adhoc` includes `saved`, so a grant of `query:adhoc` satisfies a check for
+`query:saved`. The Access screen shows the two operations as two dropdowns per
+backend: none, saved or ad hoc. Running a saved query of a library through
+`execute` on that library implies `query:saved` on the query's backend, and
+nothing more. Every check happens in one place, `GuardedSparqlExecutor`, which
+wraps every executor a caller's request obtains, so a saved update reached
+through `/execute` needs `update:saved` like any other.
 
 Resolution is additive: the effective grant set is the union over all of a
 caller's principals. There is no ordering, no precedence and no deny rule.
@@ -130,42 +148,93 @@ user-writable entity content — query text, descriptions, results — so the
 allowlist is what bounds the damage an instruction hidden in that content can
 do.
 
-## The caller-authorization model that is not shipped
+## Backend graph policies
 
-A three-tier model is designed. Tier 1 — claims mapped to allowed backends, so
-a caller without a grant on a backend cannot execute anything against it — is
-what ships, as the backend grants described above. It holds on every execution
-path a caller can start: `/execute`, `/sparql`, ETL, test runs and benchmark
-runs all acquire their executors from an `ExecutorFactory` carrying the
-caller's scope, and the factory's unscoped form has to be asked for by name
-(`{ internal: true }`), which only sqlib's own storage and system queries do.
-Tiers 2 and 3 are not implemented:
+A backend can carry a graph policy: a saved SELECT that decides, per caller,
+which graphs of that backend the caller may read. It is the second of the three
+tiers the original design named. Tier 1, a grant on the backend, decides whether
+a caller may run anything at all; the policy then narrows what a query reads.
+Tier 3, a policy graph with an ASK gate per query, is not implemented.
 
-- **Named-graph scoping.** Injecting `default-graph-uri` / `named-graph-uri` on
-  every proxied request so the caller's own `FROM` cannot widen the dataset.
-  Nothing in `packages/api/src` sets either parameter.
-- **A policy graph with an ASK gate.** Not present.
+### How a policy is set
 
-Two consequences follow from the absence, and neither is obvious from the
-presence of an auth layer:
+An administrator sets two fields on the backend, together:
 
-- **`SERVICE` is not stripped or allowlisted.** On an HTTP backend a
-  federated query reaches whatever endpoint the store behind it will call;
-  sqlib parses every query, so the check is available, and the decision so far
-  is to leave federation to that store's own configuration. On an in-process
-  backend (`oxigraphMemory`, `oxigraphEphemeral`, the library store, a group's
-  ephemeral stores) there is nothing to reach: Oxigraph's Node build has no
-  service handler, so any `SERVICE` clause fails the query
-  (`test/server/OxigraphSparqlExecutor.test.ts` holds this).
-- **Write authorization by graph does not exist.** An update names its target
-  graphs in its own body, and the SPARQL protocol's dataset parameters scope
-  only the `WHERE` clause, so the design records that this tier would be
-  read-side only even if it shipped.
+- `graphPolicyQueryVersion`: a query version, pinned. Later edits to the query
+  change nothing until the administrator pins the new version.
+- `graphPolicyBackend`: the backend the policy runs on. It must be an *auth
+  backend* (`authBackend: true`), or the library store.
 
-The whole model also rests on a precondition that is a deployment property, not
-a code property: **sqlib is only an enforcement point if it is the only network
-path to the store.** If callers can reach the SPARQL endpoint directly, nothing
-sqlib does about authorization matters.
+Saving checks the policy once, so a policy that could never run is refused with
+a 400 instead of failing every request later. The policy must be a SELECT. It
+may project only `?graph`, `?defaultGraph` and `?namedGraph`. It may declare
+only the two single-variable slots `VALUES ?authUser { UNDEF }` and
+`VALUES ?authGroup { UNDEF }`, and no LIMIT or OFFSET parameters. A backend
+cannot be its own policy backend, and an auth backend cannot have a policy.
+
+An auth backend holds access data. Only administrators may query it, through
+any route, so the rules that decide access are not themselves readable.
+
+### How a policy is applied
+
+For each read, sqlib runs the policy on the auth backend with the caller bound
+in: `?authUser` to the caller's user principal IRI, and `?authGroup` to one row
+per group principal IRI the token carried (zero rows for no groups, so a group
+rule matches nothing). The result becomes a dataset:
+
+- `?graph` fills both the default graphs and the named graphs.
+- `?defaultGraph` and `?namedGraph` fill one part each.
+- A part the policy does not project is empty: the caller reads no graphs
+  there.
+
+That dataset is intersected with any dataset the caller asked for (the graph
+picker, `defaultGraphs`/`namedGraphs` on `/sparql` and `/execute`) and with
+dataset edges in a query group. The intersection is sent as the SPARQL protocol
+parameters `default-graph-uri` and `named-graph-uri`, or as Oxigraph's dataset
+options, which override `FROM` and `FROM NAMED` in the query text. An empty part
+is sent as `urn:sqlib:empty-dataset`, a graph that names nothing, because no
+parameter would mean "the endpoint's whole dataset".
+
+Results are cached per backend and caller for `SQLIB_AUTH_POLICY_CACHE_SECONDS`
+(default 60). A policy change on the backend clears the cache, and so does any
+update to an auth backend.
+
+### Who is not policed
+
+- **Administrators and sqlib itself.** A caller with full access (any caller in
+  `disabled` mode) or the administrator grant is not narrowed. Neither are
+  sqlib's own internal queries (`{ internal: true }`). Use `Test as` on the
+  Access screen to see what a person would read.
+- **Updates.** The policy narrows reads only. An update names its target graphs
+  in its own text, and the dataset parameters scope only an update's `WHERE`
+  clause. The `update:*` modes therefore mean "may write any graph of this
+  backend", and the `WHERE` of an update is not narrowed either. Grant update
+  modes only to callers who may read and write the whole backend.
+- **Browser backends and exported bundles.** These send queries from the
+  browser straight to the endpoint, so sqlib never sees them.
+
+### Fail closed
+
+In `required` mode every failure to evaluate a policy refuses the request with
+a 503 and a generic message: an unknown version, an unreachable auth backend, a
+policy that no longer passes the checks, or a result that is not SPARQL JSON.
+In `dry-run` mode the failure and the narrowing are logged as would-deny audit
+events, and the query runs unnarrowed.
+
+### What stays the deployment's job
+
+- **`SERVICE` is not stripped.** A query that names `SERVICE` on a policed
+  backend runs, with a warning (the `X-Sqlib-Warning` header on `/sparql`),
+  because the dataset does not narrow the remote endpoint. On an in-process backend
+  there is nothing to reach: Oxigraph's Node build has no service handler, so
+  any `SERVICE` clause fails the query. On an HTTP backend, turn federation off
+  in the store if the policy must hold.
+- **sqlib must be the only path to the store.** If callers can reach the SPARQL
+  endpoint directly, the policy does not apply to them. Keep a policed store on
+  a private network.
+
+To try all of this on one machine, with Rauthy issuing the groups, run
+`just demo-graph-access` (see [Deploying](../guides/deploying.md#a-demo-of-graph-access)).
 
 ## Backend credentials
 
