@@ -27,7 +27,7 @@ const emit = defineEmits<{
   added: [payload: { prefix: string; namespace: string }];
 }>();
 
-const { prefixSettings, addPrefix } = usePrefixManager();
+const { prefixSettings, addPrefix, findMapping } = usePrefixManager();
 
 const split = computed(() => splitIri(props.iri));
 const namespace = computed(() => split.value?.namespace ?? '');
@@ -104,7 +104,16 @@ function submit() {
   const prefix = trimmedDraft.value;
   const ns = namespace.value;
 
-  addPrefix(prefix, ns, 'user-added');
+  if (findMapping(prefix, ns)) {
+    toast.warning(`${prefix}: for ${ns} is already in the Prefix Manager`);
+    isOpen.value = false;
+    return;
+  }
+
+  if (!addPrefix(prefix, ns, 'user-added')) {
+    toast.error(`Could not add prefix ${prefix}: for ${ns}`);
+    return;
+  }
   toast.success(`Added prefix ${prefix}: for ${ns}`);
   emit('added', { prefix, namespace: ns });
   isOpen.value = false;

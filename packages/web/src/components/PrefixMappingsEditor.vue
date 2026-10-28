@@ -338,6 +338,7 @@ watch(isOpen, (value) => {
 
 const {
   prefixSettings,
+  findMapping,
   togglePrefixEnabled,
   updatePrefix,
   removePrefix,
@@ -612,6 +613,13 @@ function saveEdit() {
   editForm.value.prefix = editForm.value.prefix.trim();
   if (!editForm.value.namespace.trim()) {
     toast.error('Namespace cannot be empty.');
+    return;
+  }
+  const existing = findMapping(editForm.value.prefix, editForm.value.namespace, editingId.value);
+  if (existing) {
+    toast.warning(
+      `${existing.prefix}: for ${existing.namespace} is already in the Prefix Manager`,
+    );
     return;
   }
   try {
