@@ -1,7 +1,10 @@
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import { fileURLToPath } from 'node:url';
 import * as oxigraph from 'oxigraph';
-import { checkWellFormed, parseRuleSet, splitRuleSet, stratify } from '@sparql-query-lib/srl';
+import { checkWellFormed, parseRuleSet, splitRuleSet, stratify, wellFormednessErrors } from '@sparql-query-lib/srl';
+
+// Warnings mark legal rules; only errors decide whether a case is well-formed.
+const errorsIn = (ruleSet: ReturnType<typeof parseRuleSet>) => wellFormednessErrors(checkWellFormed(ruleSet));
 import { readW3cRulesDocumentSuite, readW3cRulesEvalSuite } from '../../src/lib/w3cRulesSuite/manifest.js';
 import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 import { overrideFeatureFlags, resetFeatureFlags } from '../../src/config/featureFlags.js';
@@ -116,7 +119,7 @@ function describeCases(
     for (const entry of suites.wellformed.entries) {
       it(`${entry.name} is ${entry.accepted ? 'accepted' : 'rejected'}`, () => {
         const ruleSet = parseRuleSet(entry.document, OPTIONS);
-        expect(checkWellFormed(ruleSet)).toEqual(entry.accepted ? [] : expect.arrayContaining([expect.anything()]));
+        expect(errorsIn(ruleSet)).toEqual(entry.accepted ? [] : expect.arrayContaining([expect.anything()]));
       });
     }
   });
@@ -127,7 +130,7 @@ function describeCases(
         const ruleSet = parseRuleSet(entry.document, OPTIONS);
         // Each case is syntactically legal and well-formed, so a rejection is
         // the stratifier's and nothing else's.
-        expect(checkWellFormed(ruleSet)).toEqual([]);
+        expect(errorsIn(ruleSet)).toEqual([]);
         const report = stratify(ruleSet.rules.map((ast, i) => ({ id: `r${i}`, ast })));
         expect(report.issues.length === 0).toBe(entry.accepted);
       });
@@ -138,7 +141,7 @@ function describeCases(
     for (const entry of suites.eval.entries) {
       it(entry.name, async () => {
         // Every case is well-formed, so the executor's answer is the one tested.
-        expect(checkWellFormed(parseRuleSet(entry.ruleset, OPTIONS))).toEqual([]);
+        expect(errorsIn(parseRuleSet(entry.ruleset, OPTIONS))).toEqual([]);
         const result = await new RuleSetExecutor().execute(
           {
             $id: `urn:test:rule-set-version:${entry.slug}`,

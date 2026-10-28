@@ -390,6 +390,11 @@ export interface RuleSetSrlExport {
   tuplesEnabled: boolean;
   /** Parts of the ruleset that have no SRL form and were left out. */
   warnings: string[];
+  /**
+   * `stored`: the document as its author saved it, prologue ignored.
+   * `generated`: built from the canonical rules against the prologue sent.
+   */
+  documentSource?: 'stored' | 'generated';
 }
 
 export interface RuleSetSrlImportResult {
@@ -552,7 +557,20 @@ export interface RuleSetSrlAnalysis {
   dataBlockCount: number;
   blocks: SrlDocumentBlock[];
   stratification: SrlStratificationSummary;
-  wellFormedness: Array<{ category: string; ruleIndex: number; ruleName?: string; message: string }>;
+  /**
+   * `from`/`to` are offsets in the posted text, in UTF-16 code units: the
+   * variable an issue is about, or its whole rule. Only `error` makes the
+   * document ill-formed.
+   */
+  wellFormedness: Array<{
+    category: string;
+    severity: 'error' | 'warning' | 'info';
+    ruleIndex: number;
+    ruleName?: string;
+    message: string;
+    from: number;
+    to: number;
+  }>;
 }
 
 /*

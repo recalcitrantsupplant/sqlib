@@ -9,7 +9,7 @@
  */
 import { parseArgs } from 'node:util';
 import * as oxigraph from 'oxigraph';
-import { checkWellFormed, compileRule, expandIris, parseRuleSet, stratify } from '@sparql-query-lib/srl';
+import { checkWellFormed, compileRule, expandIris, parseRuleSet, stratify, wellFormednessErrors } from '@sparql-query-lib/srl';
 import { RuleSetRunner, type PreparedDataBlock, type PreparedRule } from '@sparql-query-lib/runtime-srl';
 import { pick, readBundle } from '../bundle.js';
 import { RunReport, checkReportTarget, measuredOutput, sha256, withReport } from '../report.js';
@@ -188,7 +188,7 @@ export function compileDocument(text: string, name: string): { rules: PreparedRu
   } catch (error) {
     throw new CliError(`${name} does not parse: ${(error as Error).message}`);
   }
-  const issues = checkWellFormed(set);
+  const issues = wellFormednessErrors(checkWellFormed(set));
   if (issues.length > 0) {
     throw new CliError(`${name} is not well formed:\n${issues.map(issue => `  ${issue.message}`).join('\n')}`);
   }

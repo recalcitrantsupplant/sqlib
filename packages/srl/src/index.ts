@@ -2,7 +2,7 @@ export { parseRuleSet, extractPrologueText } from './parse.js';
 export { compileRule, GROUND_GRAPH_IRI } from './compile.js';
 export { expandIris, expandTerms } from './expand.js';
 export { stratify } from './stratify.js';
-export { checkWellFormed } from './wellformed.js';
+export { checkWellFormed, wellFormednessErrors } from './wellformed.js';
 export {
   splitRuleSet,
   splitDataBlocks,
@@ -53,7 +53,7 @@ export type {
   DependencyLabel,
   TripleSummary,
 } from './stratify.js';
-export type { WellFormednessIssue, WellFormednessCategory } from './wellformed.js';
+export type { WellFormednessIssue, WellFormednessCategory, WellFormednessSeverity } from './wellformed.js';
 export type {
   SparqlImportResult,
   SparqlImportIssue,

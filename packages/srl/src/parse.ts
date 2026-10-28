@@ -1,8 +1,14 @@
-import { completeParseContext, copyParseContext } from '@traqula/rules-sparql-1-2';
+import { AstFactory, completeParseContext, copyParseContext } from '@traqula/rules-sparql-1-2';
 import { srlParser } from './grammar.js';
 import type { SrlDataBlock, SrlRule, SrlRuleSet, SrlTuple } from './ast.js';
 
 const defaultContext = completeParseContext({});
+/*
+ * The same context with source locations kept on every term. Not the default:
+ * the canonical rule text and everything that compares rules are built from
+ * the untracked AST, and nothing there should depend on where a term was.
+ */
+const locatingContext = completeParseContext({ astFactory: new AstFactory({ tracksSourceLocation: true }) });
 
 export interface ParseOptions {
   /** Enable the rule-tuples extension (w3c/data-shapes#752). Off by default. */
@@ -12,6 +18,12 @@ export interface ParseOptions {
    * specification). Off by default.
    */
   aggregates?: boolean;
+  /**
+   * Keep each term's offset in the document, so the well-formedness checks can
+   * say where an issue is rather than only which rule. Off by default; turn it
+   * on to analyse a document for an editor.
+   */
+  sourceLocations?: boolean;
 }
 
 interface RawRule {
@@ -56,7 +68,7 @@ export function parseRuleSet(text: string, opts: ParseOptions = {}): SrlRuleSet 
     }
   }
 
-  const ctx = copyParseContext(defaultContext);
+  const ctx = copyParseContext(opts.sourceLocations ? locatingContext : defaultContext);
   const ast = (srlParser as any).srlRuleSet(text, ctx) as {
     prologue: unknown;
     rules: RawRule[];

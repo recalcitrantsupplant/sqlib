@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { checkWellFormed, parseRuleSet, stratify } from '../src/index.js';
+import { checkWellFormed, parseRuleSet, stratify, wellFormednessErrors } from '../src/index.js';
 
 /**
  * Manifest-driven W3C SPARQL-RL conformance harness.
@@ -73,7 +73,7 @@ function conforms(entry: Entry): boolean {
   if (!parsed || !ruleSet) return false;
   const accepted =
     entry.kind === 'wellformed'
-      ? checkWellFormed(ruleSet).length === 0
+      ? wellFormednessErrors(checkWellFormed(ruleSet)).length === 0
       : stratify(ruleSet.rules.map((ast, i) => ({ id: `r${i}`, ast }))).issues.length === 0;
 
   return entry.positive ? accepted : !accepted;
