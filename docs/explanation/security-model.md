@@ -289,8 +289,10 @@ even when a caller holds grants elsewhere, because reading it directly would
 bypass the entity layer.
 
 Grants and principals are not in the library store. They live in the
-`urn:sqlib:auth` graph of an auth store of their own: one N-Quads file by
-default, or a SPARQL dataset of its own (`SQLIB_AUTH_STORE_TYPE`). A backup,
+`urn:sqlib:auth` graph of an auth store of their own: one SQLite file by
+default, one N-Quads file, or a SPARQL dataset of its own
+(`SQLIB_AUTH_STORE_TYPE`). The SQLite store also keeps an audit trail: each
+change's added and removed quads, with the time, in `auth_events`. A backup,
 restore or reset of the library store leaves access control alone, and no
 export or library-store query reaches it. Deleting a library or a backend
 removes the grants that name it. And the static export
@@ -471,7 +473,8 @@ generic network failure.
 9. **Do not run two sqlib processes against one library store.** Each holds its
    own cache and neither is told when the other writes. Back up the auth store
    (`SQLIB_AUTH_STORE_DIR`, or its SPARQL dataset) as well as the library store:
-   they are separate.
+   they are separate. Copy a live SQLite store with `sqlite3 auth.sqlite
+   ".backup copy.sqlite"`, not `cp`, so the copy includes its WAL.
 10. **Review what you export.** A static bundle carries no authorization, and
    updates are not exportable — read queries only.
 11. **List the browser origins that may call the API in `SQLIB_CORS_ORIGINS`.**

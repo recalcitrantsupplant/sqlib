@@ -53,7 +53,7 @@ export async function initializeAuth(logger?: FastifyBaseLogger): Promise<void> 
     {
       authMode: config.mode,
       grants: store.listGrants().length,
-      store: config.store.type === 'file' ? config.store.dir : config.store.queryUrl,
+      store: config.store.type === 'sparql' ? config.store.queryUrl : config.store.dir,
       bootstrapAdmins: admins.length,
     },
     'Authorization store loaded'
