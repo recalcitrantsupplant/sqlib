@@ -462,6 +462,7 @@ demo-graph-access:
     INTERNAL_BACKEND_TYPE="oxigraph-persistent" \
     LIBRARY_STORAGE_DIR="./tmp/graph-access-demo-store" \
     INTERNAL_OXIGRAPH_STORE_ID="graph-access-demo-store" \
+    SQLIB_AUTH_STORE_DIR="./tmp/graph-access-demo-auth" \
     INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS="60000" \
     NODE_ENV="development" \
     OTEL_ENABLED="false" \
@@ -492,7 +493,7 @@ demo-graph-access-down:
 # Throw the graph access demo away: sqlib's store, Rauthy's volume and the secrets
 clean-graph-access-demo:
     -docker compose -f docker-compose.auth-demo.yml --env-file tmp/auth-demo/.env down -v
-    rm -rf packages/api/tmp/graph-access-demo-store tmp/auth-demo
+    rm -rf packages/api/tmp/graph-access-demo-store packages/api/tmp/graph-access-demo-auth tmp/auth-demo
 
 # Run locally without Docker, matching run-docker-local behavior with persistence and 60s checkpoints
 run-local-like-docker:

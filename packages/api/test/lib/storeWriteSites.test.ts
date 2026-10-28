@@ -73,6 +73,9 @@ const MUTATION_SITES: Record<string, { calls: number; marks: number; why: string
   // `AuthStore.load`, which is not an oxigraph store at all — it takes a seed
   // path. Listed because the scan reads receivers, not types.
   'src/auth/bootstrap.ts': { calls: 1, marks: 0, why: 'AuthStore.load' },
+  // The file auth store's own mirror and a scratch store for parsing; both are
+  // built here and written to their file, never checkpointed by the manager.
+  'src/auth/persistence.ts': { calls: 2, marks: 0, why: 'its own stores, written to the auth file' },
 };
 
 /** A mutating call on an oxigraph store, however the variable is named. */

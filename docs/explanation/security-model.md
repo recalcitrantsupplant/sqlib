@@ -277,7 +277,14 @@ holds the ability to spend it.
 
 Two adjacent notes. The library storage backend is reserved for administrators
 even when a caller holds grants elsewhere, because reading it directly would
-bypass the entity layer and the auth graph stored in it. And the static export
+bypass the entity layer.
+
+Grants and principals are not in the library store. They live in the
+`urn:sqlib:auth` graph of an auth store of their own: one N-Quads file by
+default, or a SPARQL dataset of its own (`SQLIB_AUTH_STORE_TYPE`). A backup,
+restore or reset of the library store leaves access control alone, and no
+export or library-store query reaches it. Deleting a library or a backend
+removes the grants that name it. And the static export
 bundle carries no authorization of its own: an exported bundle grants whatever
 the endpoint grants its caller, so a query whose safety depended on server-side
 scoping should not be exported.
@@ -453,7 +460,9 @@ generic network failure.
 8. **Keep backend credentials in the environment.** Never put a secret in an
    entity field. Confirm `authEnvKey` names the key you think it does.
 9. **Do not run two sqlib processes against one library store.** Each holds its
-   own cache and neither is told when the other writes.
+   own cache and neither is told when the other writes. Back up the auth store
+   (`SQLIB_AUTH_STORE_DIR`, or its SPARQL dataset) as well as the library store:
+   they are separate.
 10. **Review what you export.** A static bundle carries no authorization, and
    updates are not exportable — read queries only.
 11. **List the browser origins that may call the API in `SQLIB_CORS_ORIGINS`.**

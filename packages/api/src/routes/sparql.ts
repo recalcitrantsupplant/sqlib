@@ -125,8 +125,8 @@ export default async function (
     }
 
     if (backendId === LIBRARY_STORAGE_BACKEND_ID) {
-      // Holds the auth graph and every entity; reachable only through the
-      // entity layer, never as a raw SPARQL target.
+      // Holds every entity; reachable only through the entity layer, never
+      // as a raw SPARQL target.
       if (!isAdmin(request)) {
         throw new AuthorizationError('The library storage backend is reserved for administrators.');
       }

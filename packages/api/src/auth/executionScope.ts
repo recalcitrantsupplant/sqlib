@@ -70,8 +70,8 @@ export function assertBackendAccess(
   const context = authOf(scope.request);
   if (context.fullAccess || context.grants.admin) return;
 
-  // The library storage backend holds the auth graph and every entity: reading
-  // it directly would bypass the entity layer entirely.
+  // The library storage backend holds every entity: reading it directly
+  // would bypass the entity layer entirely.
   if (backendId === LIBRARY_STORAGE_BACKEND_ID) {
     throw new AuthorizationError('The library storage backend is reserved for administrators.');
   }

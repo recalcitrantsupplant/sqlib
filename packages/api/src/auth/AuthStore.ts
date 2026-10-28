@@ -1,8 +1,9 @@
 /**
  * The AuthStore: grants as RDF in a dedicated graph, mirrored in memory (design §5).
  *
- * Grants live in the `urn:sqlib:auth` named graph of the library storage backend
- * and are mirrored into in-process indexes at startup. Reads (every request)
+ * Grants live in the `urn:sqlib:auth` graph of an auth store of their own
+ * (`persistence.ts`), never in the library store, and are mirrored into
+ * in-process indexes at startup. Reads (every request)
  * never leave memory; writes go through the single `/auth` API path and are
  * persisted synchronously before the indexes are rebuilt.
  *
@@ -438,6 +439,16 @@ export class AuthStore {
   /** Removes every grant naming a library. Called when the library is deleted. */
   async deleteGrantsForLibrary(libraryIri: string): Promise<number> {
     const grants = this.byLibrary.get(libraryIri) ?? [];
+    let removed = 0;
+    for (const grant of [...grants]) {
+      if (await this.deleteGrant(grant.id)) removed += 1;
+    }
+    return removed;
+  }
+
+  /** Removes every grant naming a backend. Called when the backend is deleted. */
+  async deleteGrantsForBackend(backendIri: string): Promise<number> {
+    const grants = this.byBackend.get(backendIri) ?? [];
     let removed = 0;
     for (const grant of [...grants]) {
       if (await this.deleteGrant(grant.id)) removed += 1;

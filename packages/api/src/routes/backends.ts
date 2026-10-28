@@ -1361,6 +1361,9 @@ export default async function (
       // store must not outlive it and be inherited by the next backend minted
       // with this id.
       await oxigraphStoreManager.invalidateMemoryStore(id);
+      // And for its grants: they live in the auth store, apart from the
+      // backend, so they are removed here rather than with it.
+      await getAuthStore().deleteGrantsForBackend(id);
 
       return reply.status(204).send();
     })

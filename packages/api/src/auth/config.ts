@@ -4,6 +4,7 @@
  * Follows the `featureFlags.ts` shape: resolved once, re-resolvable so tests can
  * point the module at a different environment.
  */
+import path from 'node:path';
 import type { AuthMode } from './types.js';
 
 export interface IssuerConfig {
@@ -16,8 +17,21 @@ export interface IssuerConfig {
   claimClientId: string;
 }
 
+/**
+ * Where grants and principals are kept: never in the library store, so a
+ * library backup, restore or reset leaves access control alone.
+ *
+ * - `file`: one N-Quads file in `dir`. For a single sqlib instance.
+ * - `sparql`: the `urn:sqlib:auth` graph of a SPARQL dataset of its own. For
+ *   several instances that must share their grants.
+ */
+export type AuthStoreConfig =
+  | { type: 'file'; dir: string }
+  | { type: 'sparql'; queryUrl: string; updateUrl: string; username?: string; password?: string };
+
 export interface AuthConfig {
   mode: AuthMode;
+  store: AuthStoreConfig;
   issuers: IssuerConfig[];
   clockSkewSeconds: number;
   /** Raw claim values (`iss|sub`, `iss|group:value`) treated as admins at boot. */
@@ -168,8 +182,30 @@ export function buildAuthConfig(env: NodeJS.ProcessEnv = process.env): AuthConfi
     );
   }
 
+  const storeTypeRaw = env.SQLIB_AUTH_STORE_TYPE?.trim().toLowerCase()
+    || (env.SQLIB_AUTH_SPARQL_ENDPOINT?.trim() ? 'sparql' : 'file');
+  let store: AuthStoreConfig;
+  if (storeTypeRaw === 'file') {
+    store = { type: 'file', dir: path.resolve(env.SQLIB_AUTH_STORE_DIR?.trim() || './storage/auth') };
+  } else if (storeTypeRaw === 'sparql') {
+    const endpoint = env.SQLIB_AUTH_SPARQL_ENDPOINT?.trim();
+    if (!endpoint) {
+      throw new Error('SQLIB_AUTH_STORE_TYPE=sparql needs SQLIB_AUTH_SPARQL_ENDPOINT: a dataset of its own, not the library store.');
+    }
+    store = {
+      type: 'sparql',
+      queryUrl: endpoint,
+      updateUrl: env.SQLIB_AUTH_SPARQL_UPDATE_ENDPOINT?.trim() || endpoint,
+      username: env.SQLIB_AUTH_SPARQL_USERNAME?.trim() || undefined,
+      password: env.SQLIB_AUTH_SPARQL_PASSWORD || undefined,
+    };
+  } else {
+    throw new Error(`Invalid SQLIB_AUTH_STORE_TYPE "${storeTypeRaw}". Expected "file" or "sparql".`);
+  }
+
   return {
     mode,
+    store,
     issuers,
     clockSkewSeconds,
     adminPrincipals: parseList(env.SQLIB_AUTH_ADMIN_PRINCIPALS),
