@@ -94,7 +94,8 @@ describe('sqlite auth store', () => {
     await before.load();
     await before.createGrant({ principal: ALICE, resourceKind: 'library', resource: LIBRARY, modes: ['read'] });
     const removed = await before.createGrant({ principal: ALICE, resourceKind: 'backend', resource: BACKEND, modes: ['query:saved'] });
-    await before.recordPrincipal(ALICE, 'alice', 'user');
+    await before.recordPrincipal(ALICE, 'alice', 'user', 'alice@example.org');
+    await before.recordPrincipal(ALICE, 'alice', 'user', 'Alice Example');
     await before.recordGroups(ALICE, ['urn:sqlib:principal:group:analysts']);
     await before.deleteGrant(removed.id);
     first.close();
@@ -102,7 +103,7 @@ describe('sqlite auth store', () => {
     const after = new AuthStore(persistence());
     await after.load();
     expect(after.listGrants().map((g) => [g.resource, [...g.modes]])).toEqual([[LIBRARY, ['read']]]);
-    expect(after.listPrincipals().map((p) => p.iri)).toContain(ALICE);
+    expect(after.listPrincipals().find((p) => p.iri === ALICE)?.label).toBe('Alice Example');
     expect(after.lastSeenGroups(ALICE)).toEqual(['urn:sqlib:principal:group:analysts']);
   });
 
