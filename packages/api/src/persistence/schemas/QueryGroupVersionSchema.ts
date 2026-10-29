@@ -7,7 +7,8 @@
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, sqlib, sdo } from '../namespaces.js';
+import type { ToolObject as PublishedToolObject } from '@sparql-query-lib/tools';
+import { ldkit, rdf, xsd, sqlib, sdo } from '../namespaces.js';
 
 export const QueryGroupVersionSchema = {
   '@type': sqlib.QueryGroupVersion,
@@ -65,6 +66,19 @@ export const QueryGroupVersionSchema = {
     '@type': ldkit.IRI,
     '@references': { types: ['QueryGroup'] },
   },
+  /**
+   * The tool this version publishes as (`docs/guides/publishing-tools.md`),
+   * or `false` to leave it out of a `publishAll` library. On the version, not
+   * the entity, because its `params` name this version's inputs: it is checked
+   * against them once, when the version is saved, and a save that sends no
+   * `tool` copies the previous version's.
+   */
+  tool: {
+    '@id': sqlib.tool,
+    '@type': rdf.JSON,
+    '@jsonShape': 'PublishedTool',
+    '@optional': true,
+  },
 } as const satisfies Schema;
 
 export interface LdkitQueryGroupVersion {
@@ -82,4 +96,5 @@ export interface LdkitQueryGroupVersion {
   dateModified?: string | null; // ISO string for optimistic concurrency control
   isPartOf: string; // IRI back to stable QueryGroup (required)
   // Multiplicity: A QueryGroupVersion belongs to exactly one QueryGroup
+  tool?: PublishedToolObject | false | null;
 }

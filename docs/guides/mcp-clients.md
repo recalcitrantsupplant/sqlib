@@ -195,3 +195,12 @@ pretty-prints the schemas, paid once per session in a client that caches it.
 
 The same model, written for a REST client rather than an agent, is in
 [the REST walkthrough](rest-api-walkthrough.md).
+
+## An application's own tools
+
+A library can publish its queries and query groups as tools of their own, by
+name, with plain arguments (see [publishing-tools.md](publishing-tools.md)).
+Connect an application's agents to `/mcp/{slug}`: they see that library's
+tools and nothing else. `/mcp` lists every library's published tools as well,
+as `{slug}__{name}`, beside the catalogue. `MCP_CATALOGUE` can take either
+surface away.

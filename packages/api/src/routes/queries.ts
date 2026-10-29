@@ -32,6 +32,8 @@ import {
 import { registerEntityAuthGuard } from '../auth/entityGuard.js';
 import { registerBrowserDefaultsRoutes } from './browser-defaults.js';
 import { clearBrowserDefaultsIfMoved } from '../lib/browserDefaults.js';
+import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
+import { queryBodyInputs, resolveVersionTool } from '../lib/toolObject.js';
 
 /**
  * `/queries` — the reference module for `registerVersionedEntityRoutes`.
@@ -85,6 +87,16 @@ export default async function (fastify: FastifyInstance) {
     createVersion: async ({ parent, body: rawBody }) => {
       const body = rawBody as { queryVersion?: Record<string, unknown> } & Record<string, unknown>;
       const flat = flattenVersionBody(body);
+      // The previous version is the one the parent points at: what the
+      // author was editing. Its `tool` object carries forward unless the body
+      // sends one, and is checked against this version's inputs either way.
+      const currentVersionId = (parent as { currentVersion?: unknown }).currentVersion;
+      const previous = typeof currentVersionId === 'string'
+        ? (getCacheCoordinator().get(currentVersionId) as LdkitQueryVersion | null)
+        : null;
+      const tool = resolveVersionTool({ body: flat, previous, inputs: queryBodyInputs(flat), targetKind: 'query' });
+      delete flat.tool;
+      if (tool !== undefined) flat.tool = tool;
       const { created, iriMap } = await createQueryVersionFlat(parent.$id, flat);
       const expanded = await expandQueryVersion(created);
       return { created: created as unknown as StoredEntity, body: { ...expanded, iriMap } };

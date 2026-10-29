@@ -6,8 +6,12 @@ import {
   compileToolValidators,
   createToolRegistry,
   formatValidationErrors,
+  prefixedToolName,
+  publishedToolDefinition,
   tools,
   type CompiledValidator,
+  type PublishedToolSpec,
+  type ToolDefinition,
   type ToolRegistry,
   type ToolRequest,
   type ToolValidatorCompiler,
@@ -66,7 +70,62 @@ export type CreateMcpServerOptions = {
   enableCacheMonitoring?: boolean;
   fastifyLogger?: boolean;
   skipAppSetup?: boolean;
+  /**
+   * Serve one library's published tools, under their own names and without
+   * the catalogue: what `/mcp/{slug}` connects to. Absent, the server is
+   * `/mcp`: the catalogue and every library's published tools, as
+   * `MCP_CATALOGUE` allows.
+   */
+  library?: string;
 };
+
+/**
+ * What the API collected at startup (`configureApp` decorates its instance
+ * with it): the published tools, the libraries that publish them, and
+ * `MCP_CATALOGUE`. Read from the instance rather than imported, because this
+ * package may load the API from another path than the one that started it.
+ */
+export type PublishedSurface = {
+  catalogue: {
+    specs: PublishedToolSpec[];
+    libraries: Map<string, { name: string; description?: string | null }>;
+  };
+  mode: 'both' | 'catalogue' | 'published';
+};
+
+const NO_PUBLISHED: PublishedSurface = { catalogue: { specs: [], libraries: new Map() }, mode: 'both' };
+
+export function publishedSurfaceOf(app: FastifyInstance): PublishedSurface {
+  return (app as unknown as { sqlibPublished?: PublishedSurface }).sqlibPublished ?? NO_PUBLISHED;
+}
+
+/**
+ * The tools a server lists: one library's published tools by their own names,
+ * or, for `/mcp`, the catalogue (unless `published` mode) and every library's
+ * published tools named `{slug}__{name}` (unless `catalogue` mode). Under
+ * `MCP_READ_ONLY=1` a published update is left out like a catalogue write.
+ */
+export function publishedDefinitions(
+  surface: PublishedSurface,
+  options: { library?: string; readOnly: boolean },
+): ToolDefinition[] {
+  if (surface.mode === 'catalogue') return [];
+  return surface.catalogue.specs
+    .filter((spec) => (options.library ? spec.slug === options.library : true))
+    .filter((spec) => !options.readOnly || spec.readOnly)
+    .map((spec) => publishedToolDefinition(spec, options.library ? spec.name : prefixedToolName(spec.slug, spec.name)));
+}
+
+/** The `initialize` instructions for `/mcp/{slug}`: the library's own description. */
+function libraryInstructions(surface: PublishedSurface, slug: string): string {
+  const library = surface.catalogue.libraries.get(slug);
+  const lines = [
+    `These tools are the published queries of the sqlib library "${library?.name ?? slug}".`,
+    library?.description ?? '',
+    'Each takes plain values, one argument per parameter; a list argument runs the query once per item, row by row.',
+  ];
+  return lines.filter(Boolean).join('\n\n');
+}
 
 // MCP clients (notably ChatGPT) enforce tool name pattern ^[a-zA-Z0-9_-]+$.
 // Sanitize our dot-delimited names to keep registration compatible.
@@ -124,15 +183,40 @@ function injectCaller(app: FastifyInstance) {
   };
 }
 
-async function buildMcpToolRegistry(app: FastifyInstance): Promise<ToolRegistry> {
+/**
+ * Published tools' validators, compiled once per tool for the process. The
+ * catalogue is fixed at startup, so a tool's schema cannot change between
+ * sessions; the key carries the pinned version in case a test starts another.
+ */
+const publishedValidators = new Map<string, CompiledValidator>();
+
+async function buildMcpToolRegistry(app: FastifyInstance, library?: string): Promise<ToolRegistry> {
   const { compiler, validators } = await getToolValidators();
+  const surface = publishedSurfaceOf(app);
+  const readOnly = readOnlyModeEnabled();
+  const published = publishedDefinitions(surface, { library, readOnly });
+
+  const all = new Map(validators);
+  for (const definition of published) {
+    const key = `${definition.name} ${JSON.stringify(definition.inputSchema)}`;
+    let validate = publishedValidators.get(key);
+    if (!validate) {
+      validate = compiler.compile(definition.inputSchema);
+      publishedValidators.set(key, validate);
+    }
+    all.set(definition.name, validate);
+  }
+
+  // `/mcp/{slug}` is the application alone; `/mcp` adds the catalogue unless
+  // this server publishes only. Under `MCP_READ_ONLY=1` the writes are absent
+  // from the registry, not refused by it: nothing to list, nothing to call,
+  // nothing to persuade.
+  const catalogue = library || surface.mode === 'published' ? [] : catalogueForMode(tools, readOnly);
   return createToolRegistry({
     compiler,
-    validators,
+    validators: all,
     callApi: injectCaller(app),
-    // Under `MCP_READ_ONLY=1` the writes are absent from the registry, not
-    // refused by it: nothing to list, nothing to call, nothing to persuade.
-    definitions: catalogueForMode(tools, readOnlyModeEnabled()),
+    definitions: [...catalogue, ...published],
     // MCP clients (notably ChatGPT) enforce ^[a-zA-Z0-9_-]+$ on tool names.
     publicName: sanitizeToolName,
   });
@@ -189,14 +273,22 @@ export async function createMcpServer(options: CreateMcpServerOptions = {}) {
   // Resolved unconditionally, including under `skipAppSetup` — the caller may
   // own the app's lifecycle, but the tool registry still needs validators.
   // Memoised across sessions; see getToolValidators.
-  const toolsRegistry = await buildMcpToolRegistry(apiApp);
+  const toolsRegistry = await buildMcpToolRegistry(apiApp, options.library);
 
   // Tool names in the guide are rendered the way this door publishes them,
   // so the model reads `queries_createVersion`, which it can call, rather than
-  // `queries.createVersion`, which it cannot.
+  // `queries.createVersion`, which it cannot. A library's own endpoint has no
+  // catalogue to explain, so it gets the library's description instead; so
+  // does nothing when `/mcp` publishes only.
   const readOnly = readOnlyModeEnabled();
+  const surface = publishedSurfaceOf(apiApp);
   const instructions =
-    options.instructions ?? catalogueGuide(sanitizeToolName) + (readOnly ? readOnlyGuideNote() : '');
+    options.instructions ??
+    (options.library
+      ? libraryInstructions(surface, options.library)
+      : surface.mode === 'published'
+        ? ''
+        : catalogueGuide(sanitizeToolName) + (readOnly ? readOnlyGuideNote() : ''));
 
   const server = new Server(
     { name, version },

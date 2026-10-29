@@ -23,6 +23,9 @@ import {
   resetReadOnly,
 } from './config/readOnly.js';
 import { buildCorsOptions, resolveCorsPolicy } from './config/cors.js';
+import { catalogueMode, publishedToolsServed, registerPublishedModePlugin } from './config/catalogueMode.js';
+import { loadPublishedCatalogue } from './lib/publishedTools.js';
+import { registerPublishedToolRoutes } from './server/publishedToolRoutes.js';
 import { registerChangeFeedHook } from './lib/changeEvents.js';
 import { registerNoStoreHook } from './lib/httpCaching.js';
 import * as schemas from '@sparql-query-lib/contracts/schema';
@@ -158,6 +161,13 @@ async function configureApp(fastifyApp: typeof app, options: ConfigureOptions = 
   }
   await registerReadOnlyPlugin(fastifyApp);
 
+  // `MCP_CATALOGUE` (see `config/catalogueMode.ts`). Read here so an unknown
+  // value stops the server before it serves anything. In `published` mode
+  // the gate below answers 404 for every authoring route and narrows
+  // `/execute` to the published tools' pinned versions.
+  const mode = catalogueMode();
+  await registerPublishedModePlugin(fastifyApp, { basePath, mode });
+
   // Set up IRI format validation BEFORE registering schemas
   setupValidator(fastifyApp);
   fastifyApp.log.info('Added format validators including IRI support');
@@ -211,6 +221,35 @@ async function configureApp(fastifyApp: typeof app, options: ConfigureOptions = 
       });
   }
 
+  /*
+   * The published tools, collected once: each pins the version current now,
+   * so a change takes effect at the next start. After the cache and the
+   * seeds, which is everything a tool could name; before the routes, which
+   * are generated from it. An invalid tool is skipped with a warning, except
+   * in `published` mode, where a broken release must fail here rather than at
+   * a client's first call.
+   */
+  const publishedCatalogue = loadPublishedCatalogue();
+  if (publishedCatalogue.problems.length > 0) {
+    if (mode === 'published') {
+      throw new Error(
+        `MCP_CATALOGUE=published: ${publishedCatalogue.problems.length} published tool(s) are invalid:\n`
+          + publishedCatalogue.problems.map(problem => `- ${problem}`).join('\n'),
+      );
+    }
+    for (const problem of publishedCatalogue.problems) {
+      fastifyApp.log.warn({ publishedTool: problem }, 'Skipped an invalid published tool');
+    }
+  }
+  fastifyApp.log.info(
+    { publishedTools: publishedCatalogue.specs.length, libraries: [...publishedCatalogue.libraries.keys()], mode },
+    'Published tools collected',
+  );
+  // On the instance, for the MCP server sharing it: it may have loaded this
+  // package from another path (source or `dist`), and a module-level value
+  // would then be a different, empty one.
+  fastifyApp.decorate('sqlibPublished', { catalogue: publishedCatalogue, mode });
+
   // One hook, before any route: MCP writes arrive through `app.inject` and so
   // pass here exactly as the web app's own HTTP writes do.
   registerChangeFeedHook(fastifyApp);
@@ -239,6 +278,17 @@ async function configureApp(fastifyApp: typeof app, options: ConfigureOptions = 
       registerSwagger,
       publicBasePath,
     });
+  }
+
+  // Generated from the catalogue, so beside the application routes rather than
+  // among them; they run through `/execute`, which is a queries route.
+  if (publishedToolsServed(mode) && featureFlags.queries) {
+    await fastifyApp.register(
+      async (scopedApp) => {
+        await registerPublishedToolRoutes(scopedApp, { catalogue: publishedCatalogue, basePath, publicBasePath });
+      },
+      { prefix: basePath },
+    );
   }
 
   fastifyApp.log.info('Server setup complete with feature flag configuration applied.');
