@@ -1,5 +1,6 @@
-import { metrics } from '@opentelemetry/api'; // Import metrics API
-import { SeverityNumber } from '@opentelemetry/api-logs';
+// The logs API is part of @opentelemetry/api from 1.10 (the line sdk-logs 3.0
+// targets), so the separate @opentelemetry/api-logs dependency is gone.
+import { metrics, SeverityNumber } from '@opentelemetry/api'; // Import metrics API
 import { LoggerProvider, SimpleLogRecordProcessor, ConsoleLogRecordExporter } from '@opentelemetry/sdk-logs';
 import { log } from './log.js';
 
