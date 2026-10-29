@@ -125,34 +125,50 @@ triple patterns gives the same solutions as the join.
 
 ### Where the variable may occur
 
-The variable may occur only in these positions. A query with any other
-occurrence is refused when it is saved or validated, with an error that
-names the position.
-
 | Position | Action |
 | --- | --- |
 | The `VALUES` header that declares it | Filled with the row, kept |
 | Triple pattern term in reach | Replaced by the constant |
 | `FILTER` directly in the group that holds the `VALUES` clause | Kept as a variable |
 | Outermost projection, `ORDER BY`, `GROUP BY`, `HAVING` | Kept as a variable |
-| Anything else | Refused |
+| Anything else | Kept as a variable, with a **warning** |
 
 "Anything else" includes `OPTIONAL`, `MINUS` and `EXISTS` bodies,
 sub-`SELECT` bodies, `BIND`, a `FILTER` in a nested group, the `GRAPH ?g`
 and `SERVICE ?s` names, and property path elements.
 
-The reason for the strict list: in a nested group, a `FILTER` or an
-`OPTIONAL` that reads `?000word` relies on the triple pattern next to it to
-bind the variable. After the triple pattern takes the constant, that
-binding is gone, and the answer can change. The kept positions in the table
-are evaluated after the `VALUES` join, so the variable is bound there.
-A later version can open a refused position, with a scope analysis, when a
-query needs it.
+This is a scoping matter, not a safety matter. No caller value reaches a
+new position: the runtime writes the constant only into triple patterns in
+reach, and every other occurrence stays a variable bound by the kept
+`VALUES` row, as today. So validation and save **warn**, and do not refuse.
+The warning names the position.
+
+The warning is there because the answer can differ from a plain `VALUES`
+run. Example:
+
+```sparql
+SELECT ?t WHERE {
+  VALUES ?000w { UNDEF }
+  { ?t ts:word ?000w . FILTER(STRLEN(?000w) > 2) }
+}
+```
+
+The nested `FILTER` reads `?000w`, which the triple pattern beside it binds.
+After the triple pattern takes the constant, nothing binds `?000w` inside
+that group. The `FILTER` sees an unbound variable, and every row is
+dropped. The query runs, and it returns nothing. The author sees the
+warning when they save, so the empty result is not a surprise. To avoid
+it, move the `FILTER` beside the `VALUES` clause, or use a second
+`VALUES` parameter.
 
 ### Operations
 
-- `SELECT`, `CONSTRUCT`, `ASK`, `DESCRIBE`: supported.
-- UPDATE: a constant parameter is refused in version 1.
+- `SELECT`, `CONSTRUCT`, `ASK`, `DESCRIBE` and UPDATE: all supported, with
+  the same rules.
+- In an UPDATE, the constant is written only into triple patterns of the
+  `WHERE` clause. The `INSERT` and `DELETE` templates keep the variable,
+  which the kept `VALUES` row binds. This is no more reach than a `VALUES`
+  parameter has today, which can already bind a graph name in a template.
 
 ### Paths
 
@@ -160,8 +176,12 @@ query needs it.
   template fast path. The runtime fills `VALUES` on the AST, writes the
   constants, generates the text and re-parses it.
 - **Export.** `sqlib export` refuses a query with a constant parameter in
-  version 1. The browser runtime has no parser, and the bundle has no field
-  for constant positions.
+  version 1. The reason is size, not risk. The constant is the same
+  `serializeTerm` output as a `VALUES` cell, so it is no more dangerous in a
+  browser. But the browser runtime has no parser, so it cannot find the
+  triple patterns in reach. A bundle would have to carry the occurrence
+  spans, recorded and verified at export time. That is the template fast
+  path work, deferred below.
 
 ## Processing order
 
@@ -186,12 +206,11 @@ not serialise the value again.
 | Risk | Status in version 1 |
 | --- | --- |
 | Value breaks out of its term | Same as `VALUES`. One escaper, `serializeTerm`. The re-parse is a second check. |
-| Value reaches a `SERVICE` endpoint or a `GRAPH` name as a constant | Not possible. A query with the variable in those positions is refused. |
-| Value reaches an UPDATE target | Not possible. Refused. |
-| Value changes the answer through scope (`OPTIONAL`, sub-`SELECT`, nested `FILTER`) | Not possible. Those occurrences are refused, and the term is written only where it is equal to the join. |
+| Value reaches a `SERVICE` endpoint, a `GRAPH` name or an UPDATE template as a constant | Not possible. Those positions keep the variable, bound by the `VALUES` row, as today. |
+| Answer differs from the `VALUES` meaning through scope (`OPTIONAL`, sub-`SELECT`, nested `FILTER`) | Not a security risk. A warning at save names the position. |
 | Engine reads the literal by its own grammar (QLever `*`, Virtuoso `bif:contains`) | **New exposure, accepted.** This is the reason for the feature. A `VALUES` value fed to `REGEX` has the same class of risk today. A value pattern is deferred. |
 | Serialiser bug has a larger blast radius | Smaller than the earlier designs. The term lands only in a triple pattern, and the re-parse catches a structural change. |
-| Browser runtime has no structural check | Not possible. Export is refused. |
+| Browser runtime has no structural check | Does not apply in version 1. Export is refused, for size (see Paths). |
 
 The sentence in [concepts](../concepts.md), "Argument values are never
 concatenated into query text", stays true: the AST path writes a term node,
@@ -204,13 +223,13 @@ written as a constant into triple patterns.
    leading `000`. SPARQL's `VARNAME` allows a leading digit.
 2. `packages/compiler/src/parser.ts`:
    - `detectInputs`: mark a one-variable `000` slot as `constant`. Refuse a
-     multi-variable clause that holds a `000` variable, and any occurrence
-     outside the positions table.
+     multi-variable clause that holds a `000` variable. Warn on any
+     occurrence in the "Anything else" row of the positions table.
    - `getVerifiedTemplate`: return `null` for a query with a constant slot,
      so it takes the AST path.
    - AST path: after the `VALUES` fill, check the row count, then walk the
-     reach and replace the variable in triple patterns.
-   - Refuse a constant slot in an UPDATE.
+     reach and replace the variable in triple patterns. For an UPDATE, walk
+     only the `WHERE` clause.
 3. `packages/types/src/parameterKeys.ts`: add the `constant` kind, or a flag
    on the existing table kind.
 4. `sqlib export`: refuse a query with a constant slot, with a message.
@@ -228,34 +247,44 @@ No API, contract or bundle schema change, apart from the regenerated
   step F equals the result without it, on Oxigraph.
 - Reach: one test for each nested form. A term is written in plain group,
   `GRAPH`, `SERVICE` and `UNION` bodies.
-- Positions: one test for each row of the positions table, including each
-  refusal (`OPTIONAL`, `MINUS`, `EXISTS`, sub-`SELECT`, `BIND`, nested
-  `FILTER`, `GRAPH` and `SERVICE` names, path elements).
+- Positions: one test for each row of the positions table. Each case in
+  "Anything else" (`OPTIONAL`, `MINUS`, `EXISTS`, sub-`SELECT`, `BIND`,
+  nested `FILTER`, `GRAPH` and `SERVICE` names, path elements) gives a
+  warning that names the position, and the query still saves and runs.
 - Values: each 400 case in the values table.
 - Hostile values: reuse the table in `parser.injection.test.ts`. Each value
   is refused, or yields one term node in each written position.
-- UPDATE with a constant slot is refused. Export with a constant slot is
-  refused.
+- UPDATE: the constant is written in `WHERE` triple patterns only, and
+  the templates keep the variable.
+- Export with a constant slot is refused.
 
 ## Deferred
 
 | Item | Why it can wait |
 | --- | --- |
-| Value pattern on the input (for example `^[\p{L}\p{N}]+\*?$`) | Main mitigation for the engine's inner grammar. Add when a second engine or a public endpoint needs it. |
+| Value pattern: an optional regular expression on the input that the value must match, for example `^[\p{L}\p{N}]+\*?$` (letters and digits, then an optional `*`). A value that does not match is a 400. | It does not affect SPARQL safety, which `serializeTerm` gives. It limits what the engine reads inside the literal, such as QLever's `*`. Add it as one field beside `allowedTypes` when an endpoint is public or a second engine needs it. |
 | Template fast path and export bundle support | Needs occurrence spans and verification probes. Constant queries are rare; one parse per run is acceptable. |
 | Constants in expressions, property paths, `GROUP_CONCAT` separator | No known engine refuses a variable there. |
-| The variable in `OPTIONAL`, `MINUS`, `EXISTS`, sub-`SELECT`, `BIND`, nested `FILTER` | The answer can differ from the join. Needs a scope analysis first. Use a second `VALUES` parameter for now. |
-| `SERVICE ?endpoint`, `GRAPH ?g` names | Network and dataset targets. Refused. |
-| UPDATE operations | Write targets. |
+| Writing the constant in `OPTIONAL`, `MINUS`, `EXISTS`, sub-`SELECT`, `BIND`, nested `FILTER` | Version 1 keeps the variable there and warns. Writing the constant there needs a scope analysis. |
+| Constants in `SERVICE ?endpoint`, `GRAPH ?g` names and UPDATE templates | No known engine needs a constant there. The variable works. |
 | More than one value (a `UNION` per value) | Nothing needs it. |
 | The `#! substitute` pragma | Replaced by the `000` prefix. Not needed. |
 
+## Decisions
+
+Settled with David on 2026-10-28:
+
+1. **Marker:** `000` is the prefix.
+2. **Scope cases** (nested `FILTER`, `OPTIONAL`, sub-`SELECT` and others)
+   warn, and do not refuse.
+3. **UPDATE** is supported. **Export** stays deferred, for size, not risk.
+
 ## Open questions
 
-1. **Is `000` the marker?** It follows `LIMIT 0001`. The alternative is a
-   different prefix, so a reader cannot confuse a constant slot with a page
-   parameter. Recommended: keep `000`.
-2. **Is the kept `VALUES` row acceptable on QLever?** Partly checked
+1. **Value pattern in version 1?** Deferred by default. Add it to version 1
+   if the first QLever endpoint is public.
+2. **Is the kept `VALUES` row acceptable on QLever?** Assumed yes where a
+   text index exists. Partly checked
    2026-10-26 on the public `qlever.dev/api/dblp` and
    `qlever.dev/api/wikidata` endpoints. The combined form,
    `VALUES ?000w { "copper*" }` with `ts:word "copper*"` in a `SERVICE ts:`
