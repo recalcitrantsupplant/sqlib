@@ -6,6 +6,16 @@ import fs from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { config } from '../src/server/config.js';
 import { oxigraphStoreManager } from '../src/lib/OxigraphStoreManager.js';
+import * as oxigraph from 'oxigraph';
+import {
+  clearEntities,
+  closeLibraryDatabase,
+  countEntities,
+  importSubjects,
+  openLibraryDatabase,
+  toBinding,
+  type StoredTriple,
+} from '../src/persistence/sqliteEntityStore.js';
 
 type ImportArgs = {
   filePath?: string;
@@ -80,6 +90,11 @@ async function importLibraryStore(args: ImportArgs) {
   const resolvedPath = path.resolve(args.filePath);
   await fs.access(resolvedPath);
 
+  if (config.internalBackend.type === 'sqlite') {
+    await importIntoSqlite(config.internalBackend.storageDir, resolvedPath, detectFormat(resolvedPath, args.format), args.replace === true);
+    return;
+  }
+
   const { backendConfig, store } = await ensureLibraryStore();
   const format = detectFormat(resolvedPath, args.format);
 
@@ -91,6 +106,55 @@ async function importLibraryStore(args: ImportArgs) {
   console.log(`Loading ${resolvedPath} into library store "${backendConfig.storeId}" using format ${format}`);
   await oxigraphStoreManager.loadDataFromFile(store, resolvedPath, format);
   console.log('✅ Import complete. Remember to restart the API to refresh the cache.');
+}
+
+/**
+ * Loads an RDF file into the SQLite library store: one row per subject in the
+ * default graph that has an `rdf:type`. This is how a library kept in
+ * `oxigraph-persistent` (its `.nq` snapshot) or in Fuseki (a dump) moves over.
+ */
+async function importIntoSqlite(storageDir: string, filePath: string, format: string, replace: boolean) {
+  const database = openLibraryDatabase(storageDir);
+  try {
+    const existing = countEntities(database);
+    if (existing > 0 && !replace) {
+      throw new Error(`The SQLite library store already holds ${existing} entities. Pass --replace to overwrite them.`);
+    }
+
+    const parsed = new oxigraph.Store();
+    await oxigraphStoreManager.loadDataFromFile(parsed, filePath, format);
+
+    const subjects = new Map<string, StoredTriple[]>();
+    let skippedBlank = 0;
+    for (const quad of parsed.match(null, null, null, oxigraph.defaultGraph())) {
+      if (quad.subject.termType !== 'NamedNode') {
+        skippedBlank += 1;
+        continue;
+      }
+      const triples = subjects.get(quad.subject.value) ?? [];
+      triples.push({ p: quad.predicate.value, o: toBinding(quad.object) });
+      subjects.set(quad.subject.value, triples);
+    }
+    const namedGraphQuads = parsed.size - parsed.match(null, null, null, oxigraph.defaultGraph()).length;
+
+    if (replace && existing > 0) {
+      clearEntities(database);
+      console.log(`Removed ${existing} existing entities before import.`);
+    }
+    const { imported, untyped } = importSubjects(database, subjects);
+
+    console.log(`Imported ${imported} entities from ${filePath} into ${storageDir}.`);
+    if (untyped.length > 0) {
+      console.warn(`Skipped ${untyped.length} subjects with no rdf:type, for example ${untyped.slice(0, 5).join(', ')}.`);
+    }
+    if (skippedBlank > 0) console.warn(`Skipped ${skippedBlank} triples with a blank-node subject.`);
+    if (namedGraphQuads > 0) {
+      console.warn(`Skipped ${namedGraphQuads} quads in named graphs: the library is the default graph only.`);
+    }
+    console.log('✅ Import complete. Remember to restart the API to refresh the cache.');
+  } finally {
+    closeLibraryDatabase();
+  }
 }
 
 const modulePath = fileURLToPath(import.meta.url);

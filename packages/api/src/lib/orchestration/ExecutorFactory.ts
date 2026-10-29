@@ -9,6 +9,7 @@ import { resolveBackendEnvAuth } from '../backendAuth.js';
 import { oxigraphStoreManager } from '../OxigraphStoreManager.js';
 import { backendTypeIriToKey, queryMethodIriToKey, resolveOxigraphConfig, type LdkitBackend } from '../../persistence/schemas/BackendSchema.js';
 import { config } from '../../server/config.js';
+import { LibrarySparqlViewExecutor } from '../../persistence/librarySparqlView.js';
 import type { ExecutionAuthScope, InternalExecution } from '../../auth/executionScope.js';
 import { assertBackendAccess, isInternalExecution } from '../../auth/executionScope.js';
 import { GuardedSparqlExecutor } from '../../auth/GuardedSparqlExecutor.js';
@@ -247,6 +248,8 @@ export class ExecutorFactory {
   private async createLibraryStorageExecutor(): Promise<ISparqlExecutor> {
     const backendConfig = config.internalBackend;
     switch (backendConfig.type) {
+      case 'sqlite':
+        return new LibrarySparqlViewExecutor(backendConfig.storageDir);
       case 'http':
         return this.createInternalHttpExecutor();
       case 'oxigraph-persistent': {
