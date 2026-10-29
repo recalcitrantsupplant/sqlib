@@ -2,8 +2,9 @@
  * The auth plugin: token validation and AuthContext construction (design §3).
  *
  * Registered before any route, as an `onRequest` hook. In `disabled` mode it
- * decorates a full-access context and does nothing else, so the request path is
- * identical in shape across all three modes.
+ * decorates a full-access context and does nothing else, and in `anonymous`
+ * mode a context for the one anonymous principal, so the request path is
+ * identical in shape across all four modes.
  */
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { normalizeRouteUrl } from '../config/readOnly.js';
@@ -17,7 +18,7 @@ import {
   registerProtectedResourceMetadataRoutes,
 } from './resourceMetadata.js';
 import { TokenError, TokenVerifier, getTokenVerifier } from './tokenVerifier.js';
-import { createFullAccessContext, type AuthContext } from './types.js';
+import { PRINCIPAL_ANONYMOUS, createAnonymousContext, createFullAccessContext, type AuthContext } from './types.js';
 
 /**
  * Routes that never require a token, regardless of mode: `/` (a redirect to the
@@ -126,6 +127,17 @@ export async function registerAuthPlugin(
       return;
     }
 
+    // A public deployment: nobody signs in, and a bearer header, if one is
+    // sent, is ignored rather than verified — there is no issuer to verify it
+    // against. Every caller holds exactly the grants on the anonymous
+    // principal, resolved per request so a grant change applies at once.
+    if (config.mode === 'anonymous') {
+      request.authContext = createAnonymousContext(
+        resolveEffectiveGrants([PRINCIPAL_ANONYMOUS], getAuthStore())
+      );
+      return;
+    }
+
     const token = TokenVerifier.extractBearer(request.headers.authorization);
 
     if (!token) {
@@ -171,7 +183,9 @@ export async function registerAuthPlugin(
     }
   });
 
-  if (config.mode !== 'disabled' && config.audienceUnchecked) {
+  const readsTokens = config.mode === 'dry-run' || config.mode === 'required';
+
+  if (readsTokens && config.audienceUnchecked) {
     const unscoped = config.issuers.filter(entry => !entry.audience).map(entry => entry.issuer);
     if (unscoped.length > 0) {
       app.log.warn(
@@ -181,7 +195,7 @@ export async function registerAuthPlugin(
     }
   }
 
-  if (config.mode !== 'disabled' && config.resource && !config.audienceUnchecked) {
+  if (readsTokens && config.resource && !config.audienceUnchecked) {
     const audiences = config.issuers.map(entry => entry.audience);
     if (!audiences.includes(config.resource)) {
       app.log.warn(

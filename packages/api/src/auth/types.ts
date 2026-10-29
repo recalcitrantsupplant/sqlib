@@ -36,7 +36,21 @@ export function modesSatisfying(mode: BackendMode): BackendMode[] {
   return mode.endsWith(':saved') ? [mode, mode.replace(':saved', ':adhoc') as BackendMode] : [mode];
 }
 
-export type AuthMode = 'disabled' | 'dry-run' | 'required';
+/**
+ * `anonymous` is for a public deployment: no token is read, every caller is the
+ * one principal `PRINCIPAL_ANONYMOUS`, and the grants on that principal decide
+ * what a visitor may do. It enforces like `required`. Unlike `disabled`, which
+ * mints a full-access context, it gives a visitor nothing a grant did not.
+ */
+export type AuthMode = 'disabled' | 'dry-run' | 'required' | 'anonymous';
+
+/** The modes in which a refused check is refused, rather than audited and allowed. */
+export function isEnforcingMode(mode: AuthMode): boolean {
+  return mode === 'required' || mode === 'anonymous';
+}
+
+/** The one principal every caller is in `anonymous` mode. */
+export const PRINCIPAL_ANONYMOUS = 'urn:sqlib:principal:anonymous';
 
 /** Principal sentinel matching every successfully authenticated caller. */
 export const PRINCIPAL_AUTHENTICATED = 'urn:sqlib:principal:authenticated';
@@ -104,14 +118,32 @@ export const SERVER_CONTEXT: AuthContext = Object.freeze({
  */
 export function createFullAccessContext(mode: AuthMode = 'disabled'): AuthContext {
   return {
-    subject: 'urn:sqlib:principal:anonymous',
-    principals: ['urn:sqlib:principal:anonymous', PRINCIPAL_AUTHENTICATED],
+    subject: PRINCIPAL_ANONYMOUS,
+    principals: [PRINCIPAL_ANONYMOUS, PRINCIPAL_AUTHENTICATED],
     issuer: null,
     tokenType: 'user',
     grants: EMPTY_GRANTS,
     claims: {},
     fullAccess: true,
     mode,
+  };
+}
+
+/**
+ * The context every caller gets in `anonymous` mode: the anonymous principal
+ * alone, with whatever grants name it. Not the authenticated sentinel — a
+ * visitor has not authenticated, so "everyone signed in" does not reach them.
+ */
+export function createAnonymousContext(grants: EffectiveGrants): AuthContext {
+  return {
+    subject: PRINCIPAL_ANONYMOUS,
+    principals: [PRINCIPAL_ANONYMOUS],
+    issuer: null,
+    tokenType: 'user',
+    grants,
+    claims: {},
+    fullAccess: false,
+    mode: 'anonymous',
   };
 }
 

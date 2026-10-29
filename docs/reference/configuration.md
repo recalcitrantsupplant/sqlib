@@ -239,8 +239,12 @@ Three of those exceptions are worth their own sentence:
 
 Three things it deliberately does **not** do:
 
-- **It does not refuse SPARQL.** `POST /sparql` passes through untouched,
-  UPDATEs included. Whether a store accepts a write is the store's answer:
+- **It does not refuse SPARQL against a registered backend.** `POST /sparql`
+  with a `backendId` passes through, UPDATEs included. A bare `endpoint` is
+  refused with `405`, for the reason `/backends/probes` is: a public server
+  that fetches a URL the caller chose is a request forgery primitive. Which
+  SPARQL a visitor may run is a grant, not this flag: `SQLIB_AUTH_MODE=anonymous`
+  with `query:saved` on a backend admits the seeded queries and nothing typed. Whether a store accepts a write is the store's answer:
   sqlib's own read-only backends refuse through `ReadOnlySparqlExecutor`, and
   an endpoint somebody else owns refuses, or does not, on its own terms. What
   it does refuse is `?record=patch`, on `GET` and `POST` alike, because
@@ -292,7 +296,7 @@ and does not cover.
 
 | Name | Default | Effect |
 | --- | --- | --- |
-| `SQLIB_AUTH_MODE` | `disabled` | `disabled`, `dry-run` (or `dryrun`), or `required`. An empty value is `disabled`. Anything else throws. `dry-run` and `required` both require an issuer, and an audience for every issuer unless `SQLIB_AUTH_AUDIENCE_UNCHECKED=true`. |
+| `SQLIB_AUTH_MODE` | `disabled` | `disabled`, `dry-run` (or `dryrun`), `required` or `anonymous`. An empty value is `disabled`. Anything else throws. `dry-run` and `required` both require an issuer, and an audience for every issuer unless `SQLIB_AUTH_AUDIENCE_UNCHECKED=true`. `anonymous` reads no token: every caller is `urn:sqlib:principal:anonymous`, holds the grants on that principal, and is refused everything else. For a public deployment beside `SQLIB_READ_ONLY=true`; seed the grants with `SQLIB_AUTH_SEED_GRANTS`. |
 | `SQLIB_AUTH_ISSUER` | unset | OIDC issuer URL for a single-issuer deployment. |
 | `SQLIB_AUTH_AUDIENCE` | unset | Expected `aud` for that issuer. |
 | `SQLIB_AUTH_AUDIENCE_UNCHECKED` | `false` | Set to exactly `true` (case-insensitive) to start `dry-run` or `required` with an issuer that has no audience. Without an audience the `aud` claim is not checked, so any token that issuer minted for any application is accepted; without this flag that configuration throws at startup. Applies to `SQLIB_AUTH_ISSUERS_JSON` entries too. |
@@ -306,7 +310,7 @@ and does not cover.
 | `SQLIB_AUTH_ALLOW_LIBRARY_CREATE` | `all` | `all` or `admin`. Anything else throws. |
 | `SQLIB_AUTH_PROTECT_DOCS` | `false` | Set to exactly `true` (case-insensitive) to require a token for the API documentation routes (`/docs` and everything under it). `/`, `/health` and the protected-resource metadata stay public regardless. |
 | `SQLIB_AUTH_RESOURCE` | the first issuer's audience | The resource identifier: the `resource` field of the protected-resource metadata, and the value an MCP client asks a token for. Use the canonical URL of the deployment's `/mcp` endpoint (for example `https://sqlib.example.org/mcp`), and configure the broker to put that value in `aud`. When it is an absolute URL, the 401 challenge names the metadata at `<its origin>/.well-known/oauth-protected-resource<its path>`; otherwise at the request's origin. A value that matches no issuer's audience logs a warning at startup. |
-| `SQLIB_AUTH_STORE_TYPE` | `sqlite`, or `sparql` when `SQLIB_AUTH_SPARQL_ENDPOINT` is set | Where grants and principals are kept. Never the library store: `sqlite` is one SQLite file, `file` one N-Quads file, `sparql` the `urn:sqlib:auth` graph of a SPARQL dataset of its own. Anything else throws. Not read when `SQLIB_AUTH_MODE` is `disabled`. |
+| `SQLIB_AUTH_STORE_TYPE` | `sqlite`, or `sparql` when `SQLIB_AUTH_SPARQL_ENDPOINT` is set | Where grants and principals are kept. Never the library store: `sqlite` is one SQLite file, `file` one N-Quads file, `sparql` the `urn:sqlib:auth` graph of a SPARQL dataset of its own. Anything else throws. Not read when `SQLIB_AUTH_MODE` is `disabled`; read in every other mode, `anonymous` included. |
 | `SQLIB_AUTH_STORE_DIR` | `./storage/auth` | The directory of the `sqlite` and `file` stores. `sqlite` keeps `auth.sqlite` (with its `-wal` and `-shm` files): one row per quad, written per change in one transaction, and an `auth_events` table that records every quad each change added or removed. `file` keeps `auth.nq`, written whole and renamed into place on each change. |
 | `SQLIB_AUTH_SPARQL_ENDPOINT` | unset | The SPARQL dataset of the `sparql` store. Required for that type. Use a dataset of its own, not the library store's. |
 | `SQLIB_AUTH_SPARQL_UPDATE_ENDPOINT` | the endpoint | Its update endpoint, when it differs. |

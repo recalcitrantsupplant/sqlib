@@ -82,6 +82,12 @@ describe('auth modes', () => {
       .toThrow(AuthorizationError);
   });
 
+  it('denies in anonymous mode, like required', () => {
+    const request = requestFor(contextFor(['urn:sqlib:principal:anonymous'], 'anonymous'));
+    expect(() => requireLibraryMode(request, LIBRARY, 'read')).toThrow(AuthorizationError);
+    expect(() => requireBackendMode(request, BACKEND, 'query:saved')).toThrow(AuthorizationError);
+  });
+
   it('permits the request in dry-run mode but records the denial', () => {
     const request = requestFor(contextFor([ALICE], 'dry-run'));
 

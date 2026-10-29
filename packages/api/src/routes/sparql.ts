@@ -313,6 +313,24 @@ export default async function (
       });
     }
 
+    /*
+     * The other thing. A bare `endpoint` makes this route fetch a URL the
+     * caller chose, which on a public site is a request forgery primitive
+     * pointed at whatever the host can reach — the reason `POST
+     * /backends/probes` is off the read-only allowlist. The administrator check
+     * below does not cover it there: `disabled` mode makes every visitor an
+     * administrator. So a read-only deployment refuses it for everyone, and a
+     * visitor with their own endpoint registers it as a browser backend, which
+     * the tab calls directly.
+     */
+    if (endpoint && isReadOnlyDeployment()) {
+      return reply.code(405).send({
+        error:
+          'This sqlib deployment is read-only and does not proxy SPARQL to an arbitrary endpoint. ' +
+          'Name a registered backendId, or register the endpoint as a browser backend.',
+      });
+    }
+
     let ephemeralStoreId: string | null = null;
     try {
       // Detect before resolving: reads and updates need different grants, so the
