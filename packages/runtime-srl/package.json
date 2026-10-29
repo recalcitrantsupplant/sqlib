@@ -42,7 +42,7 @@
   },
   "dependencies": {
     "@sparql-query-lib/srl": "workspace:*",
-    "oxigraph": "^0.5.11"
+    "oxigraph": "^0.5.13"
   },
   "devDependencies": {
     "@types/node": "^26.6.2",

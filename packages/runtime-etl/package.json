@@ -47,7 +47,7 @@
     "@sparql-query-lib/compiler": "workspace:*",
     "@sparql-query-lib/runtime-oxigraph": "workspace:*",
     "@types/node": "^26.6.2",
-    "oxigraph": "0.5.11",
+    "oxigraph": "0.5.13",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5"
   }

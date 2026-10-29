@@ -44,7 +44,7 @@ if (OTEL_ENABLED) {
     { diag, DiagConsoleLogger, DiagLogLevel },
   ] = await Promise.all([
     import('@opentelemetry/sdk-node'),
-    import('@opentelemetry/sdk-trace-node'),
+    import('@opentelemetry/sdk-trace'),
     import('@opentelemetry/exporter-trace-otlp-http'),
     import('@opentelemetry/exporter-metrics-otlp-http'),
     import('@opentelemetry/instrumentation-http'),
@@ -77,11 +77,14 @@ if (OTEL_ENABLED) {
     // Configure Trace Exporter
     traceExporter,
 
-    // Configure Metric Exporter
-    metricReader: new PeriodicExportingMetricReader({
-      exporter: metricExporter,
-      exportIntervalMillis: 30000, // More frequent for development
-    }),
+    // Configure Metric Exporter. sdk-node 0.300 dropped the singular
+    // `metricReader` option in favour of this array.
+    metricReaders: [
+      new PeriodicExportingMetricReader({
+        exporter: metricExporter,
+        exportIntervalMillis: 30000, // More frequent for development
+      }),
+    ],
 
     // Enable Automatic Instrumentations (e.g., for http)
     instrumentations: [
