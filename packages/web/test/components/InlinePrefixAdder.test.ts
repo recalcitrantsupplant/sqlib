@@ -18,7 +18,7 @@ vi.stubGlobal('localStorage', {
 });
 
 vi.mock('vue-sonner', () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
+  toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
 }));
 
 async function load() {
@@ -90,6 +90,32 @@ describe('InlinePrefixAdder', () => {
 
     // The point of the feature: the IRI that prompted it now abbreviates.
     expect(abbreviateIri(IRI).abbreviated).toBe('gswa-comm:gold');
+  });
+
+  it('does not add a prefix and namespace pair the manager already holds', async () => {
+    const { mount, InlinePrefixAdder, usePrefixManager } = await load();
+    const { toast } = await import('vue-sonner');
+    const { prefixSettings, addPrefix } = usePrefixManager();
+    addPrefix('gswa-comm', NAMESPACE, 'user-added');
+    const wrapper = mount(InlinePrefixAdder, { props: { iri: IRI }, attachTo: document.body });
+
+    await wrapper.find('button.prefix-trigger').trigger('click');
+    await nextTick();
+
+    // The popover proposes the prefix the namespace already has.
+    const input = document.querySelector<HTMLInputElement>('#inline-prefix-input')!;
+    expect(input.value).toBe('gswa-comm');
+
+    document.querySelector<HTMLButtonElement>('.popover-add')!.click();
+    await nextTick();
+
+    expect(wrapper.emitted('added')).toBeUndefined();
+    expect(prefixSettings.value.mappings.filter((m) => m.namespace === NAMESPACE)).toHaveLength(1);
+    expect(toast.warning).toHaveBeenCalledWith(
+      `gswa-comm: for ${NAMESPACE} is already in the Prefix Manager`,
+    );
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(document.querySelector('.prefix-popover')).toBeNull();
   });
 
   it('refuses a prefix the manager would reject', async () => {

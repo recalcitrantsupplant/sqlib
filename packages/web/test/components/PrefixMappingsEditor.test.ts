@@ -32,7 +32,7 @@ vi.stubGlobal('localStorage', {
 });
 
 vi.mock('vue-sonner', () => ({
-  toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
+  toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
 }));
 
 function mapping(overrides: Partial<PrefixMapping> & { prefix: string; namespace: string }): PrefixMapping {
@@ -353,6 +353,26 @@ describe('PrefixMappingsEditor', () => {
       prefix: 'renamed',
       namespace: 'http://solo.example/other#',
     });
+  });
+
+  it('refuses to save a second copy of a mapping it already holds', async () => {
+    const OTHER = mapping({ prefix: 'other', namespace: 'http://other.example/ns#' });
+    const { manager } = await open([SOLO, OTHER]);
+    const { toast } = await import('vue-sonner');
+    await click(button(rowFor('http://other.example/ns#'), 'Edit'));
+
+    const inputs = Array.from(document.querySelectorAll<HTMLInputElement>('.row-input'));
+    await type(inputs[0], 'solo');
+    await type(inputs[1], 'http://solo.example/ns#');
+    await click(query('.row-button.save'));
+
+    expect(manager.prefixSettings.value.mappings.find((m) => m.id === OTHER.id)).toMatchObject({
+      prefix: 'other',
+      namespace: 'http://other.example/ns#',
+    });
+    expect(toast.warning).toHaveBeenCalledWith(
+      'solo: for http://solo.example/ns# is already in the Prefix Manager',
+    );
   });
 
   /*

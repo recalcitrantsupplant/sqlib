@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { nextTick } from 'vue';
+import { effectScope, nextTick } from 'vue';
 
 const mockLocalStorage: Record<string, string> = {};
 
@@ -644,5 +644,42 @@ ex:a a up:Thing .`;
         expect.objectContaining({ prefix: 'prov', source: 'default' })
       ]));
     });
+  });
+
+  /*
+   * The first caller is usually a component, and the singleton's watcher used
+   * to belong to it: once that component unmounted, prefixes added afterwards
+   * reached the manager's list but never the cache, so nothing abbreviated
+   * with them and nothing saved them.
+   */
+  it('keeps the cache and storage current after its first caller is gone', async () => {
+    const { usePrefixManager } = await setup();
+    const scope = effectScope();
+    scope.run(() => usePrefixManager());
+    scope.stop();
+
+    const { addPrefix, abbreviateIri, expandPrefix, effectivePairs } = usePrefixManager();
+    const namespace = 'https://linked.data.gov.au/def/report_type/';
+    addPrefix('report_type', namespace, 'user-added');
+    await nextTick();
+
+    expect(abbreviateIri(`${namespace}wellCompletionReport`).abbreviated).toBe(
+      'report_type:wellCompletionReport',
+    );
+    expect(expandPrefix('report_type:x')).toBe(`${namespace}x`);
+    expect(effectivePairs().some((p) => p.prefix === 'report_type')).toBe(true);
+    expect(localStorage.getItem('sparqlQueryLib.prefixSettings')).toContain(namespace);
+  });
+
+  it('findMapping matches prefix and normalised namespace, and skips the excepted row', async () => {
+    const { usePrefixManager } = await setup();
+    const { addPrefix, findMapping } = usePrefixManager();
+    const id = addPrefix('rt', 'https://example.org/rt/', 'user-added')!;
+
+    expect(findMapping('rt', 'https://example.org/rt/')?.id).toBe(id);
+    expect(findMapping('rt', 'https://example.org/rt')?.id).toBe(id);
+    expect(findMapping('other', 'https://example.org/rt/')).toBeNull();
+    expect(findMapping('rt', 'https://example.org/other/')).toBeNull();
+    expect(findMapping('rt', 'https://example.org/rt/', id)).toBeNull();
   });
 });
