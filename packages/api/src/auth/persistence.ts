@@ -5,7 +5,9 @@
  * libraries. A backup, restore or reset of the library store leaves them
  * alone, and no export or library-store query can reach them.
  *
- * Two kinds, chosen by `SQLIB_AUTH_STORE_TYPE` (see `config.ts`):
+ * Three kinds, chosen by `SQLIB_AUTH_STORE_TYPE` (see `config.ts`):
+ * - `sqlite` (default): one SQLite file, written per change, with an audit
+ *   trail. See `sqlitePersistence.ts`.
  * - `file`: one N-Quads file, rewritten whole on each change. The graph is
  *   small and changes rarely, so a whole-file write is the simple, safe choice.
  * - `sparql`: the `urn:sqlib:auth` graph of a SPARQL dataset of its own, for
@@ -18,19 +20,25 @@ import { HttpSparqlExecutor } from '../server/HttpSparqlExecutor.js';
 import type { ISparqlExecutor } from '../server/ISparqlExecutor.js';
 import type { AuthGraphPersistence } from './AuthStore.js';
 import type { AuthStoreConfig } from './config.js';
+import { sqliteAuthGraphPersistence } from './sqlitePersistence.js';
 import { AUTH_GRAPH_IRI } from './vocabulary.js';
 
 export const AUTH_STORE_FILE = 'auth.nq';
 
 export function authGraphPersistenceFor(config: AuthStoreConfig): AuthGraphPersistence {
-  return config.type === 'file'
-    ? fileAuthGraphPersistence(config.dir)
-    : sparqlAuthGraphPersistence(new HttpSparqlExecutor({
-      queryUrl: config.queryUrl,
-      updateUrl: config.updateUrl,
-      username: config.username,
-      password: config.password,
-    }));
+  switch (config.type) {
+    case 'sqlite':
+      return sqliteAuthGraphPersistence(config.dir);
+    case 'file':
+      return fileAuthGraphPersistence(config.dir);
+    case 'sparql':
+      return sparqlAuthGraphPersistence(new HttpSparqlExecutor({
+        queryUrl: config.queryUrl,
+        updateUrl: config.updateUrl,
+        username: config.username,
+        password: config.password,
+      }));
+  }
 }
 
 /**

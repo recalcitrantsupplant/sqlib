@@ -21,11 +21,14 @@ export interface IssuerConfig {
  * Where grants and principals are kept: never in the library store, so a
  * library backup, restore or reset leaves access control alone.
  *
- * - `file`: one N-Quads file in `dir`. For a single sqlib instance.
+ * - `sqlite` (default): one SQLite file in `dir`, written per change, with an
+ *   audit trail of every change. For a single sqlib instance.
+ * - `file`: one N-Quads file in `dir`, rewritten whole on each change.
  * - `sparql`: the `urn:sqlib:auth` graph of a SPARQL dataset of its own. For
  *   several instances that must share their grants.
  */
 export type AuthStoreConfig =
+  | { type: 'sqlite'; dir: string }
   | { type: 'file'; dir: string }
   | { type: 'sparql'; queryUrl: string; updateUrl: string; username?: string; password?: string };
 
@@ -183,10 +186,10 @@ export function buildAuthConfig(env: NodeJS.ProcessEnv = process.env): AuthConfi
   }
 
   const storeTypeRaw = env.SQLIB_AUTH_STORE_TYPE?.trim().toLowerCase()
-    || (env.SQLIB_AUTH_SPARQL_ENDPOINT?.trim() ? 'sparql' : 'file');
+    || (env.SQLIB_AUTH_SPARQL_ENDPOINT?.trim() ? 'sparql' : 'sqlite');
   let store: AuthStoreConfig;
-  if (storeTypeRaw === 'file') {
-    store = { type: 'file', dir: path.resolve(env.SQLIB_AUTH_STORE_DIR?.trim() || './storage/auth') };
+  if (storeTypeRaw === 'sqlite' || storeTypeRaw === 'file') {
+    store = { type: storeTypeRaw, dir: path.resolve(env.SQLIB_AUTH_STORE_DIR?.trim() || './storage/auth') };
   } else if (storeTypeRaw === 'sparql') {
     const endpoint = env.SQLIB_AUTH_SPARQL_ENDPOINT?.trim();
     if (!endpoint) {
@@ -200,7 +203,7 @@ export function buildAuthConfig(env: NodeJS.ProcessEnv = process.env): AuthConfi
       password: env.SQLIB_AUTH_SPARQL_PASSWORD || undefined,
     };
   } else {
-    throw new Error(`Invalid SQLIB_AUTH_STORE_TYPE "${storeTypeRaw}". Expected "file" or "sparql".`);
+    throw new Error(`Invalid SQLIB_AUTH_STORE_TYPE "${storeTypeRaw}". Expected "sqlite", "file" or "sparql".`);
   }
 
   return {
