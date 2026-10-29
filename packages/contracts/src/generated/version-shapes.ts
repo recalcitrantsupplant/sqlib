@@ -195,6 +195,7 @@ export const queryEdgeShape = {
   targetInputId: optionalIriString,
   variableMappings: nullableString,
   whenEmpty: nullableString,
+  datasetPart: nullableString,
 };
 // TriplesQuadsIO, projected from the entity model
 export const triplesQuadsIOShape = {
@@ -286,6 +287,7 @@ export const ruleSetVersionShape = {
   hasDataBlock: optionalIriArray,
   stratificationReport: nullableString,
   tupleSeeds: nullableString,
+  srlDocument: nullableString,
   tuplesEnabled: nullableBoolean,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,

@@ -290,4 +290,44 @@ describe('OxigraphSparqlExecutor', () => {
             expect(nquads).toContain('<http://example.com/s> <http://example.com/p> "special chars \\"\\n\\r" .');
         });
     });
+    describe('dataset', () => {
+        const g1 = oxigraph.namedNode('http://example.org/g1');
+        const g2 = oxigraph.namedNode('http://example.org/g2');
+        const p = oxigraph.namedNode('http://example.org/p');
+
+        beforeEach(() => {
+            store.add(oxigraph.quad(oxigraph.namedNode('http://example.org/s1'), p, oxigraph.literal('one'), g1));
+            store.add(oxigraph.quad(oxigraph.namedNode('http://example.org/s2'), p, oxigraph.literal('two'), g2));
+        });
+
+        const values = async (query: string, dataset: { defaultGraphs?: string[]; namedGraphs?: string[] }) => {
+            const { result } = await executor.selectQueryParsed(query, { dataset });
+            assertIsSelectJson(result);
+            return result.results.bindings.map((row) => row.o?.value).sort();
+        };
+
+        it('uses the given default graphs as the default graph', async () => {
+            expect(await values('SELECT ?o WHERE { ?s <http://example.org/p> ?o }', { defaultGraphs: [g1.value] }))
+                .toEqual(['one']);
+        });
+
+        it('takes precedence over FROM NAMED in the query text', async () => {
+            const query = 'SELECT ?o FROM NAMED <http://example.org/g1> WHERE { GRAPH ?g { ?s <http://example.org/p> ?o } }';
+            expect(await values(query, { namedGraphs: [g2.value] })).toEqual(['two']);
+        });
+
+        it('matches nothing over an empty dataset', async () => {
+            const { result } = await executor.selectQueryParsed(
+                'SELECT (COUNT(*) AS ?n) WHERE { { ?s ?p ?o } UNION { GRAPH ?g { ?s ?p ?o } } }',
+                { dataset: { defaultGraphs: [], namedGraphs: [] } },
+            );
+            assertIsSelectJson(result);
+            expect(result.results.bindings[0].n.value).toBe('0');
+        });
+
+        it('applies to ASK', async () => {
+            const { result } = await executor.askQuery('ASK { ?s <http://example.org/p> "two" }', { dataset: { defaultGraphs: [g1.value] } });
+            expect(result).toBe(false);
+        });
+    });
 });

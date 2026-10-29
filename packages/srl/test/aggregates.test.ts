@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   checkWellFormed,
+  wellFormednessErrors,
   compileRule,
   expandIris,
   formatRuleSet,
@@ -25,7 +26,8 @@ const compile = (doc: string) => {
   const rs = expandIris(parse(doc));
   return compileRule(rs.rules[0], rs.prologueText);
 };
-const issues = (doc: string) => checkWellFormed(parse(doc)).map((i) => i.message);
+// Errors only: the warnings about shadowed names are tested in wellformed.diagnostics.test.ts.
+const issues = (doc: string) => wellFormednessErrors(checkWellFormed(parse(doc))).map((i) => i.message);
 const strat = (doc: string) => {
   const rs = parse(doc);
   return stratify(rs.rules.map((ast, i) => ({ id: `r${i}`, ast })));

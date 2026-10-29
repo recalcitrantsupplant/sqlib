@@ -38,8 +38,12 @@ document is imported into a rule set with `POST /rule-sets/:id/srl`, which
 splits it into one rule version per rule and mints a new rule set version.
 Rules are stored canonically, with IRIs expanded and no prologue, so a
 prefix-only edit is provably not a content change and re-importing does not
-churn versions. `GET /rule-sets/:id/srl` renders the set back as one document,
-taking a `prologue` query parameter for the prefixes to print.
+churn rule versions. The rule set version also keeps the document as written,
+so `GET /rule-sets/:id/srl` returns it with its author's prefixes, layout and
+comments, and reports `documentSource: "stored"`. A version saved without a
+document (an older one, or one built from a list of rule versions) has its
+document generated from the canonical rules, against a `prologue` query
+parameter for the prefixes to print, and reports `documentSource: "generated"`.
 
 ## Writing a document
 
@@ -91,8 +95,23 @@ Three things a body does differently from SPARQL:
 
 Those are the three well-formedness conditions the parser checks
 (`packages/srl/src/wellformed.ts`), reported as `unbound-head`, `set-rebinds`
-and `use-before-bind`. A document can be syntactically legal and still fail
-them.
+and `use-before-bind`, with `aggregate-scope` for the scope rules of `GROUP`.
+A document can be syntactically legal and still fail them. Each of these has
+the severity `error`.
+
+Two more checks mark rules that are legal but probably not what their author
+meant, because a name refers to a separate variable:
+
+| Category | Severity | Marks |
+| --- | --- | --- |
+| `group-shadowing` | `warning` | A variable in a `GROUP` pattern with the name of one bound before the `GROUP` but not listed after `BY`. The pattern sees only its keys, so the two are separate. List it after `BY` to use the same value. |
+| `not-before-binding` | `info` | A variable in a `NOT` that is unbound when the `NOT` runs and bound by a later element. Move the `NOT` after that element to test the same value. |
+
+Only errors make a document ill-formed. Each issue also carries `from` and
+`to`, the range it is about in the analysed text, in UTF-16 code units (the
+string indices of JavaScript and the positions of CodeMirror). The range is the
+variable concerned when the document was parsed with `sourceLocations: true`,
+as `POST /rule-sets/srl/analyze` does, and the whole rule otherwise.
 
 While a document is being written, `POST /rule-sets/srl/analyze` returns what an
 editor needs: the line range and label of every rule and data block, each rule's

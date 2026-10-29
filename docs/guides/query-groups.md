@@ -71,7 +71,7 @@ on the edge (§5) rather than on the port.
 
 ### Edges and flow types
 
-`packages/api/src/lib/orchestration/types.ts` defines five:
+`packages/api/src/lib/orchestration/types.ts` defines six:
 
 | `dataFlowType` | Carries | Legal between |
 | --- | --- | --- |
@@ -80,6 +80,7 @@ on the edge (§5) rather than on the port.
 | `RDF_GRAPH` | triples/quads | `TriplesQuadsIO` → `TriplesQuadsIO` |
 | `BOOLEAN` | an ASK answer | `BooleanIO` → `BooleanIO` |
 | `QUERY_ID` | a one-column tuple naming a query version | output tuple (arity 1) → a dynamic node's `QueryIdInput` |
+| `DATASET` | a one-column tuple of graph IRIs | SELECT output tuple (arity 1) → a query node's dataset; the edge names no `targetInputId` |
 
 Two rules about `RDF_GRAPH` are worth knowing before you draw one, because both
 are refused rather than silently ignored (`GraphBuilder.validateGraph`):
@@ -90,6 +91,19 @@ are refused rather than silently ignored (`GraphBuilder.validateGraph`):
   Without an ephemeral `backendConfig` on the right node, the edge is rejected
   with `EDGE_RDF_GRAPH_TARGET_CANNOT_CONSUME` rather than transferring nothing
   and letting the node quietly query its own backend.
+
+A `DATASET` edge gives its target the graphs that `FROM` and `FROM NAMED` would
+name, at run time, without rewriting the query text. `datasetPart` says which
+part it fills: `default` (the default graph is the merge of the selected
+graphs), `named` (only those graphs match a `GRAPH` pattern), or `both`, the
+default. A node takes at most one edge per part (`EDGE_DATASET_DUPLICATE_PART`).
+The target must be a `QueryNode` or `DynamicQueryNode` that is not an UPDATE.
+Only IRIs count; an unbound row or a literal is skipped. An empty selection
+means no graphs, not every graph, so `whenEmpty` may be `propagateEmpty` (the
+default) or `require` but never `unconstrained`. Over HTTP the dataset goes as
+the SPARQL 1.1 Protocol's `default-graph-uri` / `named-graph-uri` parameters,
+and an empty part is sent as the graph `urn:sqlib:empty-dataset`, which names
+nothing. Export bundles and the canvas do not support `DATASET` edges yet.
 
 A `VARIABLE_BINDINGS` edge between two tuples must have **equal arity** — the
 validator refuses anything else with `EDGE_TUPLE_ARITY_MISMATCH`
@@ -355,6 +369,15 @@ directly. The response is the end node's result, typed the ordinary way:
 for triples (negotiated from the `Accept` header and the end node's
 `mediaType`). Two headers say what actually ran: `X-Resolved-Target` names the
 version, `X-Result-Node` the node the result came from.
+
+**Dataset.** Add `defaultGraphs` and/or `namedGraphs` (arrays of IRIs) to run
+every query node over those graphs instead of the backend's default dataset. A
+part you leave out is not restricted; an empty array means no graphs. Where a
+node also has a `DATASET` edge, the two restrictions intersect part by part, so
+a caller can narrow what the group author chose but not widen it. An UPDATE is
+refused with `400` when a dataset is given. `POST /sparql` takes the same two
+fields, and `GET /sparql` takes the protocol's own `default-graph-uri` and
+`named-graph-uri`, repeated once per graph.
 
 **Per-node detail.** Add `nodeDetail: "timings"` or `nodeDetail: "results"` and
 the reply becomes a JSON envelope whatever the result's own type:

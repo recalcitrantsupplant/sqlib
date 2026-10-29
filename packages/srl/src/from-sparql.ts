@@ -13,7 +13,7 @@ import type { SrlBodyItem, SrlRule, SrlRuleSet } from './ast.js';
 import { expandTerms } from './expand.js';
 import { generateRule } from './generate.js';
 import { abbreviateIris } from './split.js';
-import { boundBy, checkWellFormed, collectVars } from './wellformed.js';
+import { boundBy, checkWellFormed, collectVars, wellFormednessErrors } from './wellformed.js';
 
 /**
  * SPARQL → SRL rule.
@@ -444,7 +444,7 @@ function assemble(
   for (const item of rule.body) expandTerms(item, source.context);
 
   const ruleSet: SrlRuleSet = { prologue: source.context, prologueText: '', rules: [rule], dataBlocks: [] };
-  for (const issue of checkWellFormed(ruleSet)) {
+  for (const issue of wellFormednessErrors(checkWellFormed(ruleSet))) {
     issues.push({
       severity: 'error',
       code: 'well-formedness',

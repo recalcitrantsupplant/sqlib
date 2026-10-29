@@ -1,3 +1,84 @@
+# The default recipe: API, MCP and frontend together, every feature flag on,
+# writes allowed
+#
+# The library store is the persistent Oxigraph one run-local-memory uses, in
+# packages/api/tmp/library-store, so the two recipes share their data and
+# `just clean-local-memory` resets both. The flags are exported once and both
+# processes read them: the API reads FEATURE_*, and nuxt.config.ts falls back to
+# FEATURE_* when NUXT_PUBLIC_FEATURE_* is unset.
+#
+# The off-by-default flags are on here: ETL and its playground (arbitrary DuckDB
+# SQL), the assistant, the SRL TUPLE and AGGREGATE extensions, and saving
+# unparseable rules. SQLIB_READ_ONLY and MCP_READ_ONLY are set to false so a
+# value left in your shell cannot make this run read-only. Ctrl-C stops both
+# processes.
+#
+# Before starting, it frees 3005 and 3001 if this checkout holds them: a
+# listener whose working directory is inside this repo has its process group
+# stopped, which takes the tsx or nuxt watcher above it down too. Anything else
+# on those ports — another checkout, or a container (named by its compose
+# working directory) — stops the recipe with the holder named.
+#
+# What the build line builds, and why the trailing `...`: see run-local-memory.
+#
+# API:  http://localhost:3005
+# MCP:  http://localhost:3005/mcp
+# Web:  http://localhost:3001
+dev:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    repo="{{justfile_directory()}}"
+    for port in 3005 3001; do
+        [ -z "$(ss -ltnH "sport = :$port")" ] && continue
+        pids=$(ss -ltnpH "sport = :$port" | grep -oP 'pid=\K[0-9]+' | sort -u || true)
+        if [ -z "$pids" ]; then
+            # No PID visible: a container's docker-proxy, or another user's process.
+            holder=$(docker ps --filter "publish=$port" \
+                --format '{{{{.Names}} (from {{{{.Label "com.docker.compose.project.working_dir"}})' 2>/dev/null || true)
+            echo "Port $port is held by ${holder:-a process this user cannot see}, not by this checkout." >&2
+            exit 1
+        fi
+        for pid in $pids; do
+            cwd=$(readlink "/proc/$pid/cwd" || true)
+            if [[ "$cwd" != "$repo" && "$cwd" != "$repo"/* ]]; then
+                echo "Port $port is held by PID $pid, started in ${cwd:-an unknown directory}, not this checkout:" >&2
+                ps -o args= -p "$pid" >&2
+                exit 1
+            fi
+            echo "Stopping this checkout's previous server on port $port (PID $pid)."
+            kill -TERM -- "-$(ps -o pgid= -p "$pid" | tr -d ' ')" 2>/dev/null || kill -TERM "$pid"
+        done
+        for _ in $(seq 50); do [ -z "$(ss -ltnH "sport = :$port")" ] && break; sleep 0.1; done
+        if [ -n "$(ss -ltnH "sport = :$port")" ]; then
+            echo "Port $port is still in use 5 seconds after stopping the previous server." >&2
+            exit 1
+        fi
+    done
+    pnpm --filter "@sparql-query-lib/tools..." --filter "@sparql-query-lib/rdf-delta..." --filter "@sparql-query-lib/mcp-app..." build
+    export FEATURE_NOTEBOOK=true FEATURE_QUERIES=true FEATURE_QUERY_GROUPS=true \
+        FEATURE_RULES_SUITE=true FEATURE_BENCHMARKS=true FEATURE_TESTS=true \
+        FEATURE_DATA_GRAPHS=true FEATURE_TUPLE_SETS=true FEATURE_ARGUMENT_SETS=true \
+        FEATURE_MCP=true FEATURE_ETL=true FEATURE_BACKENDS=true FEATURE_SETTINGS=true \
+        FEATURE_RULES_ALLOW_INVALID_SAVE=true FEATURE_RULE_TUPLES=true \
+        FEATURE_RULE_AGGREGATES=true FEATURE_PLAYGROUND_QUERIES=true \
+        FEATURE_PLAYGROUND_RULES=true FEATURE_PLAYGROUND_ETL=true FEATURE_ASSISTANT=true
+    export SQLIB_READ_ONLY=false MCP_READ_ONLY=false
+    INTERNAL_BACKEND_TYPE="oxigraph-persistent" \
+    LIBRARY_STORAGE_DIR="./tmp/library-store" \
+    INTERNAL_OXIGRAPH_STORE_ID="library-store" \
+    INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS="60000" \
+    NODE_ENV="development" \
+    OTEL_ENABLED="false" \
+    MCP_TRANSPORT="dual-http" \
+    HTTP_PORT=3005 \
+        pnpm --filter @sparql-query-lib/api exec tsx watch ../mcp-server/src/cli.ts &
+    api_pid=$!
+    NUXT_PUBLIC_API_BASE_URL="http://localhost:3005" \
+        pnpm --filter @sparql-query-lib/web dev &
+    web_pid=$!
+    trap 'kill "$api_pid" "$web_pid" 2>/dev/null || true' INT TERM EXIT
+    wait -n "$api_pid" "$web_pid"
+
 # Run the API with the Oxigraph persistent in-memory backend, with MCP at /mcp
 #
 # The build line covers exactly the packages this recipe cannot get from

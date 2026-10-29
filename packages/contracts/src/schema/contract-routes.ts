@@ -2044,6 +2044,17 @@ export const executionDataGraphsJsonSchema = {
   }
 } as const;
 
+/**
+ * One part of a run-time dataset: the graphs `FROM` (`defaultGraphs`) or
+ * `FROM NAMED` (`namedGraphs`) would name, supplied with the request instead
+ * and sent to the backend as SPARQL 1.1 Protocol dataset parameters. Absent
+ * leaves that part to the backend; an empty array means no graphs.
+ */
+export const datasetGraphsJsonSchema = {
+  type: 'array',
+  items: { type: 'string', minLength: 1, format: 'iri' },
+} as const;
+
 export const executionRouteSchemas = {
   "post": {
     "tags": [
@@ -2075,6 +2086,8 @@ export const executionRouteSchemas = {
           }
         },
         "dataGraphs": executionDataGraphsJsonSchema,
+        "defaultGraphs": datasetGraphsJsonSchema,
+        "namedGraphs": datasetGraphsJsonSchema,
         "nodeDetail": {
           "type": "string",
           "enum": [
@@ -2281,6 +2294,12 @@ export const executionRouteSchemas = {
           "type": "string"
         },
         "argumentSetIds": {
+          "type": "string"
+        },
+        "defaultGraphs": {
+          "type": "string"
+        },
+        "namedGraphs": {
           "type": "string"
         },
         "nodeDetail": {
@@ -2877,6 +2896,13 @@ export const sparqlRequestJsonSchema = {
      * overlap is refused naming the parameter.
      */
     argumentSetIds: { type: 'array', items: { type: 'string', minLength: 1, format: 'iri' } },
+    /*
+     * The dataset to run over, in place of the query's `FROM` / `FROM NAMED`.
+     * Named as `/execute` names them; `GET /sparql` takes the protocol's own
+     * `default-graph-uri` and `named-graph-uri`.
+     */
+    defaultGraphs: datasetGraphsJsonSchema,
+    namedGraphs: datasetGraphsJsonSchema,
   },
   required: ['query'],
   additionalProperties: false,
@@ -2968,6 +2994,12 @@ export const sparqlQuerystringJsonSchema = {
     endpoint: { type: 'string', format: 'uri' },
     queryMethod: { type: 'string', enum: ['get', 'post'] },
     record: sparqlRecordJsonSchema,
+    /*
+     * SPARQL 1.1 Protocol §2.1.4, by the protocol's names, each repeatable.
+     * A single value arrives as a string and is wrapped (`coerceTypes: 'array'`).
+     */
+    'default-graph-uri': datasetGraphsJsonSchema,
+    'named-graph-uri': datasetGraphsJsonSchema,
   },
   required: ['query'],
   additionalProperties: false,

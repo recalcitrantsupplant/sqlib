@@ -978,7 +978,7 @@ export const tools: ToolDefinition[] = [
   }),
   defineTool({
     name: 'ruleSets.exportSrl',
-    description: 'A rule set as one SRL document, at its current version or the version named, abbreviated against `prologue` (PREFIX lines) when given',
+    description: 'A rule set as one SRL document, at its current version or the version named. A version saved from a document returns it as written (`documentSource: "stored"`); any other is generated from its rules, abbreviated against `prologue` (PREFIX lines) when given',
     readOnly: true,
     inputSchema: ruleSetSrlArg,
     ui: { resourceUri: VIEW_URI.tutorial, visibility: ['app'] },

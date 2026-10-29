@@ -87,7 +87,9 @@ export {
 } from './group.js';
 
 export {
+  EMPTY_DATASET_GRAPH,
   SparqlEndpointError,
+  datasetParameters,
   httpExecutor,
   type ExecutionRequest,
   type ExecutionResult,
@@ -95,6 +97,7 @@ export {
   type HttpExecutorOptions,
   type RdfPayload,
   type SparqlAskResults,
+  type SparqlDataset,
   type SparqlSelectResults,
   type UpdateRequest,
 } from './executor.js';

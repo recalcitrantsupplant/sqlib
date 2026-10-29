@@ -1,4 +1,4 @@
-import { ref, shallowRef, computed, watch } from 'vue';
+import { ref, shallowRef, computed, watch, effectScope } from 'vue';
 import { Parser as SparqlQueryParser } from '@traqula/parser-sparql-1-2';
 import { v4 as uuidv4 } from 'uuid';
 import { DEFAULT_PREFIXES } from '@/lib/defaultPrefixes';
@@ -275,12 +275,23 @@ export function usePrefixManager() {
     prefixCache.value = buildCache(prefixSettings.value);
     initialized = true;
 
-    // Watch for settings changes and update localStorage and cache (global watcher)
-    watch(prefixSettings, () => {
-      saveToLocalStorage(prefixSettings.value);
-      prefixCache.value = buildCache(prefixSettings.value);
-      abbreviationMemoCache.clear(); // Clear memoization on config change
-    }, { deep: true });
+    /*
+     * Watch for settings changes and update localStorage and cache.
+     *
+     * In a detached scope, because this runs once for the whole app but inside
+     * whichever component happened to call first. A plain `watch` here belongs
+     * to that component and stops when it unmounts: from then on a prefix added
+     * anywhere showed up in the manager, which reads the mappings directly, but
+     * never reached the cache — so no table abbreviated with it, no editor
+     * conversion used it, and it was not saved.
+     */
+    effectScope(true).run(() => {
+      watch(prefixSettings, () => {
+        saveToLocalStorage(prefixSettings.value);
+        prefixCache.value = buildCache(prefixSettings.value);
+        abbreviationMemoCache.clear(); // Clear memoization on config change
+      }, { deep: true });
+    });
   }
 
   // Auto-discovery
@@ -487,6 +498,21 @@ export function usePrefixManager() {
     return prefixSettings.value.mappings.find(m => m.enabled && m.prefix === prefix)?.namespace;
   }
 
+  /**
+   * The mapping that already says exactly this, if any.
+   *
+   * Prefix and namespace both, with the namespace normalised the way
+   * `addPrefix` would store it: an identical pair is redundancy, and adding it
+   * again only produced a second row reported as an alias of the first.
+   * `exceptId` leaves out the row being edited, which matches itself.
+   */
+  function findMapping(prefix: string, namespace: string, exceptId?: string): PrefixMapping | null {
+    const normalizedNamespace = normalizeNamespace(namespace.trim());
+    return prefixSettings.value.mappings.find(
+      m => m.id !== exceptId && m.prefix === prefix && normalizeNamespace(m.namespace) === normalizedNamespace
+    ) ?? null;
+  }
+
   // CRUD operations
   /**
    * Returns the new mapping's id, or null when the input was refused.
@@ -679,6 +705,7 @@ export function usePrefixManager() {
     namespaceFor,
 
     // Management
+    findMapping,
     addPrefix,
     updatePrefix,
     removePrefix,

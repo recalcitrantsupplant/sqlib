@@ -5,6 +5,10 @@
  * bundle carries: the rules' text, then each data block as a `DATA { … }`
  * block. Kept out of the route so the bundle export builds the same document
  * from the same entities.
+ *
+ * A version saved from a document keeps that document (`srlDocument`), and it
+ * is returned as written. Only a version without one has its document
+ * generated from the canonical rules.
  */
 
 import {
@@ -31,6 +35,11 @@ export interface RuleSetDocument {
   dataBlockCount: number;
   /** Data blocks left out because they have no `DATA` form. */
   warnings: string[];
+  /**
+   * `stored`: the document the version was saved from, as written.
+   * `generated`: built from the canonical rules and the requested prologue.
+   */
+  documentSource: 'stored' | 'generated';
 }
 
 function normalizeIdList(value: unknown): string[] {
@@ -110,10 +119,12 @@ export function loadRuleVersions(
 }
 
 /**
- * Build the SRL document for a rule set version.
+ * The SRL document for a rule set version: the stored one when the version
+ * has it, else one built from its rules and data blocks.
  *
- * `prologue` is presentation only: rules are stored with IRIs written out in
- * full, and the prologue abbreviates them for a reader.
+ * `prologue` applies only to a generated document. Rules are stored with IRIs
+ * written out in full, and the prologue abbreviates them for a reader. A
+ * stored document has its author's own prefixes.
  */
 export function buildRuleSetDocument(
   repos: RuleSetDocumentRepos,
@@ -121,6 +132,17 @@ export function buildRuleSetDocument(
   prologue = '',
 ): RuleSetDocument {
   const ruleVersions = loadRuleVersions(repos, version);
+  if (version.srlDocument) {
+    // The data blocks were split from this document, so each has its DATA
+    // form in it already: there is nothing to leave out and warn about.
+    return {
+      srl: version.srlDocument,
+      ruleCount: ruleVersions.length,
+      dataBlockCount: loadDataBlockVersions(repos, version).length,
+      warnings: [],
+      documentSource: 'stored',
+    };
+  }
   const warnings: string[] = [];
   const dataDocs: Array<{ text: string }> = [];
   for (const dbv of loadDataBlockVersions(repos, version)) {
@@ -136,5 +158,5 @@ export function buildRuleSetDocument(
     prologue,
     dataDocs,
   );
-  return { srl, ruleCount: ruleVersions.length, dataBlockCount: dataDocs.length, warnings };
+  return { srl, ruleCount: ruleVersions.length, dataBlockCount: dataDocs.length, warnings, documentSource: 'generated' };
 }

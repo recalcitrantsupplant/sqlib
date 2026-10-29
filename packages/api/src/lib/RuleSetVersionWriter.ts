@@ -23,6 +23,8 @@ export interface CreateRuleSetVersionInput {
   tupleSeeds?: string | null;
   /** Whether this version opts into the rule-tuples extension. */
   tuplesEnabled?: boolean | null;
+  /** The SRL document the rules and data blocks were split from, as written. */
+  srlDocument?: string | null;
   /**
    * Attach rules and data blocks the grammar rejected, the way
    * `CreateRuleVersionInput.allowInvalidSave` lets one be written in the first
@@ -156,6 +158,9 @@ async function createRuleSetVersionNumbered(
   // the properties absent rather than storing a default nobody chose.
   if (body.tupleSeeds != null && body.tupleSeeds.trim()) payload.tupleSeeds = body.tupleSeeds.trim();
   if (body.tuplesEnabled != null) payload.tuplesEnabled = body.tuplesEnabled;
+  // Verbatim, not trimmed: the point is to read back exactly what was saved.
+  // An empty document says nothing a generated one would not.
+  if (body.srlDocument != null && body.srlDocument.trim()) payload.srlDocument = body.srlDocument;
 
   // No stratification for a version that holds a rule the grammar rejected:
   // stratifying needs an AST, and a partial report over the rules that did

@@ -142,6 +142,8 @@ const queryEdgeDraftSchema = z
     // policy — and since the client validates before sending, the whole save
     // failed rather than the field being dropped.
     whenEmpty: z.enum(['unconstrained', 'propagateEmpty', 'require']).nullable().optional(),
+    // DATASET edges only; kept in step with DATASET_PARTS in the API.
+    datasetPart: z.enum(['default', 'named', 'both']).nullable().optional(),
     variableMappings: nullableString,
   })
   .strict();

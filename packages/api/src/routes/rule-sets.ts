@@ -578,9 +578,12 @@ export default async function (fastify: FastifyInstance) {
   // either way: per-rule (existing CRUD, enables reuse across rulesets) or as one
   // document that is transpiled into N RuleVersions + one RuleSetVersion.
   //
-  // Rules are stored canonically with **expanded IRIs** and no prologue; the
-  // prologue is presentation supplied per request. That makes a prefix-only edit
-  // provably not a content change, so re-import does not churn versions.
+  // Rules are stored canonically with **expanded IRIs** and no prologue. That
+  // makes a prefix-only edit provably not a content change, so re-import does
+  // not churn rule versions. The document itself is kept on the rule set
+  // version as written (`srlDocument`), so a rule set reads back the way its
+  // author saved it; a version without one has its document generated against
+  // a prologue supplied per request.
   // ---------------------------------------------------------------------------
 
   fastify.get('/:id/srl', ...reposRoute({
@@ -595,7 +598,10 @@ export default async function (fastify: FastifyInstance) {
         type: 'object',
         properties: {
           version: { type: 'string' },
-          prologue: { type: 'string', description: 'PREFIX/BASE lines to emit (presentation only)' },
+          prologue: {
+            type: 'string',
+            description: 'PREFIX/BASE lines to emit (presentation only). Ignored when the version has a stored document.',
+          },
         },
       },
       response: {
@@ -608,8 +614,14 @@ export default async function (fastify: FastifyInstance) {
             tupleSeeds: { type: 'string' },
             tuplesEnabled: { type: 'boolean' },
             warnings: { type: 'array', items: { type: 'string' } },
+            documentSource: {
+              type: 'string',
+              enum: ['stored', 'generated'],
+              description: '`stored`: the document as its author saved it. `generated`: built from the '
+                + 'canonical rules, for a version saved without a document.',
+            },
           },
-          required: ['srl', 'ruleCount', 'dataBlockCount', 'tupleSeeds', 'tuplesEnabled', 'warnings'],
+          required: ['srl', 'ruleCount', 'dataBlockCount', 'tupleSeeds', 'tuplesEnabled', 'warnings', 'documentSource'],
         },
         404: { type: 'object', properties: { error: { type: 'string' } }, required: ['error'] },
       },
@@ -625,7 +637,7 @@ export default async function (fastify: FastifyInstance) {
       return reply.status(resolution.status).send({ error: resolution.message });
     }
 
-    const { srl, ruleCount, dataBlockCount, warnings } = buildRuleSetDocument(
+    const { srl, ruleCount, dataBlockCount, warnings, documentSource } = buildRuleSetDocument(
       repos,
       resolution.version,
       query.prologue ?? '',
@@ -634,18 +646,15 @@ export default async function (fastify: FastifyInstance) {
       srl,
       ruleCount,
       dataBlockCount,
-      // Seeds are stored expanded; abbreviate them back against the same
-      // prologue the document uses, so box 2 reads like box 1.
       /*
        * With the extension withheld the response says it is off rather than
        * echoing what an older version stored: a client told `tuplesEnabled` is
        * true would draw a toggle this build does not honour.
        */
-      tupleSeeds: ruleTuplesAllowed()
-        ? abbreviateIris(resolution.version.tupleSeeds ?? '', query.prologue ?? '')
-        : '',
+      tupleSeeds: ruleTuplesAllowed() ? tupleSeedsForDocument(resolution.version, documentSource, query.prologue ?? '') : '',
       tuplesEnabled: ruleTuplesAllowed() && resolution.version.tuplesEnabled === true,
       warnings,
+      documentSource,
     });
   }));
 
@@ -876,6 +885,7 @@ export default async function (fastify: FastifyInstance) {
       hasDataBlock,
       tupleSeeds: seedDocument,
       tuplesEnabled: tuples,
+      srlDocument: body.srl,
     }, { request });
 
     return reply.send({
@@ -1020,7 +1030,10 @@ export default async function (fastify: FastifyInstance) {
         'Parses a document that need not be stored anywhere and reports what an editor has to '
         + 'show while it is being written: the line range and label of every rule and DATA block, '
         + 'the stratum and monotonicity of every rule, the dependency edges between them, and any '
-        + 'well-formedness issues. A syntax error is reported as `valid: false`, not as a 400.',
+        + 'well-formedness issues. A syntax error is reported as `valid: false`, not as a 400. '
+        + 'Each well-formedness issue has a `severity` (`error` makes the document ill-formed; '
+        + '`warning` and `info` mark a legal rule that is probably not what was meant), a stable '
+        + '`category`, and `from`/`to`: the range it is about in the posted text, in UTF-16 code units.',
       body: ruleTupleFields({
         type: 'object',
         properties: { srl: { type: 'string' }, tuples: { type: 'boolean' } },
@@ -1158,7 +1171,10 @@ export function analyzeSrlDocument(srl: string, tuples: boolean) {
 
   let ruleSet: ReturnType<typeof parseRuleSet>;
   try {
-    ruleSet = parseRuleSet(srl, { tuples, aggregates: ruleAggregatesAllowed() });
+    // Located, so each well-formedness issue can mark the variable it is
+    // about. Only this analysis reads the locations; the parses that store
+    // rules keep the untracked AST their canonical text is built from.
+    ruleSet = parseRuleSet(srl, { tuples, aggregates: ruleAggregatesAllowed(), sourceLocations: true });
   } catch (error) {
     return {
       ...empty,
@@ -1397,6 +1413,25 @@ function describeTupleSeeds(
     rows: groundTupleSeedRows(seeds).length,
     declarations: tupleSeedDeclarations(seeds).map((d) => ({ arity: d.arity, terms: d.terms })),
   };
+}
+
+/**
+ * The seed rows to show beside a version's document.
+ *
+ * With a stored document, the canonical seeds abbreviated against the stored
+ * document's own prologue. With a
+ * generated one, the canonical seeds abbreviated against the prologue the
+ * document was generated with, so box 2 reads like box 1.
+ */
+function tupleSeedsForDocument(
+  version: LdkitRuleSetVersion,
+  documentSource: 'stored' | 'generated',
+  prologue: string,
+): string {
+  if (documentSource === 'stored') {
+    return abbreviateIris(version.tupleSeeds ?? '', extractPrologueText(version.srlDocument ?? ''));
+  }
+  return abbreviateIris(version.tupleSeeds ?? '', prologue);
 }
 
 /** The canonical (expanded, prologue-free) storage form of a seed document. */

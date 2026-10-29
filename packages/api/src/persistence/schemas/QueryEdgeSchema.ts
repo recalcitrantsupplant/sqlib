@@ -51,6 +51,11 @@ export const QueryEdgeSchema = {
     '@id': sqlib.whenEmpty,
     '@optional': true,
   },
+  // DATASET edges only: "default" | "named" | "both" (the default).
+  datasetPart: {
+    '@id': sqlib.datasetPart,
+    '@optional': true,
+  },
 } as const satisfies Schema;
 
 /** How a parameter slot is rewritten when its input supplies no bound rows. */
@@ -65,7 +70,7 @@ export interface LdkitQueryEdge {
   targetNodeId?: string | null; // Optional at creation, resolved from targetLocalId
   sourceLocalId?: string | null; // Optional - local reference to source node (design-time)
   targetLocalId?: string | null; // Optional - local reference to target node (design-time)
-  dataFlowType?: string | null; // "CONTROL_FLOW" | "VARIABLE_BINDINGS" | "RDF_GRAPH" | "BOOLEAN" | "QUERY_ID"
+  dataFlowType?: string | null; // "CONTROL_FLOW" | "VARIABLE_BINDINGS" | "RDF_GRAPH" | "BOOLEAN" | "QUERY_ID" | "DATASET"
   sourceOutputId?: string | null; // Generic reference to output I/O entity (QueryOutputTuple, TriplesQuadsIO, BooleanIO)
   targetInputId?: string | null; // Generic reference to input I/O entity (QueryInputTuple, TriplesQuadsIO, BooleanIO)
   variableMappings?: string | null;
@@ -78,4 +83,11 @@ export interface LdkitQueryEdge {
    * set that arrived propagates as empty; an absent external parameter runs open.
    */
   whenEmpty?: string | null; // "unconstrained" | "propagateEmpty" | "require"
+  /**
+   * For a DATASET edge, which part of the target query's dataset it fills.
+   * Unset means `both`. A DATASET edge defaults to `propagateEmpty` and refuses
+   * `unconstrained`: an upstream that selected no graphs must not let the
+   * target run over the backend's whole dataset.
+   */
+  datasetPart?: string | null; // "default" | "named" | "both"
 }

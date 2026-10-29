@@ -15,7 +15,7 @@
  * this module cannot drift from the parser's own conformance harness.
  */
 
-import { checkWellFormed, parseRuleSet, stratify } from '@sparql-query-lib/srl';
+import { checkWellFormed, parseRuleSet, stratify, wellFormednessErrors } from '@sparql-query-lib/srl';
 import { ruleAggregatesAllowed } from './ruleAggregates.js';
 
 export const SRL_CHECKS = ['syntax', 'wellformed', 'stratification'] as const;
@@ -68,7 +68,9 @@ export function runSrlCheck(document: string, check: SrlCheck): SrlCheckVerdict 
   }
 
   if (check === 'wellformed') {
-    const issues = checkWellFormed(ruleSet);
+    // Warnings mark rules that are legal but probably unintended; only errors
+    // make a document ill-formed.
+    const issues = wellFormednessErrors(checkWellFormed(ruleSet));
     return issues.length === 0
       ? { check, accepted: true, reason: '' }
       : {

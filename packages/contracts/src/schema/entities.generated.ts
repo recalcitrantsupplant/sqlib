@@ -2325,6 +2325,10 @@ export const queryedgeSchema = {
     "whenEmpty": {
       "type": "string",
       "nullable": true
+    },
+    "datasetPart": {
+      "type": "string",
+      "nullable": true
     }
   },
   "required": [
@@ -2841,6 +2845,10 @@ export const rulesetversionSchema = {
       "nullable": true
     },
     "tupleSeeds": {
+      "type": "string",
+      "nullable": true
+    },
+    "srlDocument": {
       "type": "string",
       "nullable": true
     },
@@ -4169,6 +4177,7 @@ export interface QueryEdgeRestApi {
   targetInputId?: string | null;
   variableMappings?: string | null;
   whenEmpty?: string | null;
+  datasetPart?: string | null;
 }
 
 export interface QueryGroupVersionRestApi {
@@ -4275,6 +4284,7 @@ export interface RuleSetVersionRestApi {
   hasDataBlock?: string[] | null;
   stratificationReport?: string | null;
   tupleSeeds?: string | null;
+  srlDocument?: string | null;
   tuplesEnabled?: boolean | null;
   dateCreated?: string | null;
   dateModified?: string | null;

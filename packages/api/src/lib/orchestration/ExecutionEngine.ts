@@ -27,6 +27,7 @@ import { oxigraphDeltaStore } from '../deltaStore.js';
 import { resolvePatchTarget } from '../patchTargets.js';
 import type { WhenEmptyMode } from '../../persistence/schemas/QueryEdgeSchema.js';
 import { convertRdf, mergeRdf, rdfFormatFromMediaType, type RdfPayload } from './rdfHandoff.js';
+import { intersectDatasets, type SparqlDataset } from '../dataset.js';
 
 export type ExecutionHooks = {
   onNodeStart?: (node: ResolvedNode, orderIndex: number) => void;
@@ -72,6 +73,12 @@ export type ExecutionOptions = {
    */
   limits?: ExecutionPageParameter[];
   offsets?: ExecutionPageParameter[];
+  /**
+   * The caller's dataset. It applies to every query node, and where a node
+   * also has a `DATASET` edge the node runs over the intersection of the two,
+   * so a caller can narrow what the group author chose but never widen it.
+   */
+  dataset?: SparqlDataset;
   /** Stops the run: a route aborts it when the client disconnects. */
   signal?: AbortSignal;
   /**
@@ -295,11 +302,13 @@ export class ExecutionEngine {
     }
     const supplied = this.buildArgumentSetsForNode(graph, node, results, startNodeOutputs);
     const { argumentSets, limits, offsets } = this.resolveNodeArguments(graph, node, supplied, run.initialArgs, run.options);
+    const dataset = intersectDatasets(run.options?.dataset, this.datasetFromEdges(graph, node, results, startNodeOutputs));
 
     const { result, contentType } = await invokeCallable(exec, node.queryString, node.queryType, {
       argumentSets,
       limits,
       offsets,
+      dataset,
       acceptHeader: run.acceptHeader,
       signal: run.signal,
       parser: this.parser,
@@ -1303,6 +1312,54 @@ export class ExecutionEngine {
     return rdfFormatFromMediaType(acceptHeader);
   }
 
+  /**
+   * The dataset a node's `DATASET` edges select, or undefined when it has none.
+   *
+   * Each edge carries a one-variable SELECT result whose values are graph
+   * IRIs, into the part of the dataset it names. A row without the variable is
+   * skipped; a literal or blank node is refused, since it names no graph. An
+   * edge that selects nothing gives an empty part, so the query runs against
+   * no graphs rather than the backend's whole dataset (`propagateEmpty`, the
+   * default), unless the edge says `require`.
+   */
+  private datasetFromEdges(
+    graph: ExecutionGraph,
+    node: ResolvedNode,
+    results: Map<string, NodeResult>,
+    startNodeOutputs?: Map<string, SparqlResultsJson>,
+  ): SparqlDataset | undefined {
+    const edges = (graph.incomingEdges.get(node.id) || []).filter((edge) => edge.dataFlowType === 'DATASET');
+    if (edges.length === 0) return undefined;
+    const dataset: SparqlDataset = {};
+    for (const edge of edges) {
+      if (!edge.sourceOutputId) throw new Error(`DATASET edge ${edge.id} must specify sourceOutputId`);
+      const seeded = startNodeOutputs?.get(edge.sourceOutputId);
+      const source = this.isStartNode(graph, edge.sourceNodeId) ? seeded : (seeded ?? results.get(edge.sourceNodeId));
+      if (source === undefined) throw new Error(`Missing DATASET source result from node ${edge.sourceNodeId}`);
+      if (typeof source !== 'object' || source === null || !('head' in source)) {
+        throw new Error(`DATASET edge ${edge.id} expects SELECT results`);
+      }
+      const [variable] = this.resolveOutputTupleNames(edge.sourceOutputId);
+      if (!variable) throw new Error(`DATASET edge ${edge.id} expects a single output variable`);
+      const graphs: string[] = [];
+      for (const binding of (source as SparqlResultsJson).results?.bindings ?? []) {
+        const value = binding[variable];
+        if (!value) continue;
+        if (value.type !== 'uri') {
+          throw new Error(`DATASET edge ${edge.id} expects graph IRIs in ?${variable}, but a row holds a ${value.type}`);
+        }
+        if (!graphs.includes(value.value)) graphs.push(value.value);
+      }
+      if (graphs.length === 0 && edge.whenEmpty === 'require') {
+        throw new Error(`DATASET edge ${edge.id} selected no graphs, and its whenEmpty is require`);
+      }
+      const part = edge.datasetPart ?? 'both';
+      if (part !== 'named') dataset.defaultGraphs = graphs;
+      if (part !== 'default') dataset.namedGraphs = graphs;
+    }
+    return dataset;
+  }
+
   private applyDynamicQueryOverride(
     graph: ExecutionGraph,
     node: ResolvedNode,
@@ -1436,6 +1493,7 @@ export class ExecutionEngine {
     const carries: Record<string, QueryTypeValue[]> = {
       VARIABLE_BINDINGS: [QueryTypeIri.select],
       QUERY_ID: [QueryTypeIri.select],
+      DATASET: [QueryTypeIri.select],
       RDF_GRAPH: [QueryTypeIri.construct, QueryTypeIri.describe],
       BOOLEAN: [QueryTypeIri.ask],
     };

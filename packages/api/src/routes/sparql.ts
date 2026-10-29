@@ -27,6 +27,7 @@ import { recordPassthroughUpdate } from '../lib/patchService.js';
 import { isReadOnlyDeployment } from '../config/readOnly.js';
 import { UnsupportedUpdateError } from '@sparql-query-lib/rdf-delta';
 import { clientId, toPatchView } from './patches.js';
+import { datasetFromRequest } from '../lib/dataset.js';
 
 const errorResponseSchema = {
   type: 'object',
@@ -280,6 +281,8 @@ export default async function (
     endpoint?: string | null;
     queryMethod?: 'post' | 'get' | null;
     payload: Parameters<typeof resolveExecutionPayload>[0];
+    /** The request's dataset fields, validated below. */
+    dataset: { defaultGraphs?: unknown; namedGraphs?: unknown };
     recordPatch: boolean;
     allowUpdate: boolean;
   }) => {
@@ -315,6 +318,16 @@ export default async function (
       } catch (error__u: unknown) {
       const error = toError(error__u);
         return reply.code(400).send({ error: error?.message || 'Invalid SPARQL query' });
+      }
+
+      // Refused with a 400 naming the field when a value is not an IRI.
+      const dataset = datasetFromRequest(params.dataset);
+      if (dataset && operation === QueryTypeIri.update) {
+        return reply.code(400).send({
+          error:
+            'defaultGraphs and namedGraphs choose the dataset a query reads. An update names its graphs '
+            + 'in its own text (USING, USING NAMED, WITH); the protocol\'s using-graph-uri parameters are not supported.',
+        });
       }
 
       if (operation === QueryTypeIri.update && !allowUpdate) {
@@ -369,7 +382,7 @@ export default async function (
       switch (operation) {
         case QueryTypeIri.select: {
           const { result: selectResult, duration: selectDuration, contentType: selectContentType } =
-            await executor.selectQueryParsed(executedQuery, { acceptHeader });
+            await executor.selectQueryParsed(executedQuery, { acceptHeader, dataset });
           reply.header('Content-Type', resolveContentType(selectContentType, acceptHeader, 'application/sparql-results+json'));
           setTimingHeader(reply, selectDuration);
           return reply.send(selectResult);
@@ -377,14 +390,14 @@ export default async function (
         case QueryTypeIri.construct:
         case QueryTypeIri.describe: {
           const { result: constructResult, duration: constructDuration, contentType: constructContentType } =
-            await executor.constructQueryParsed(executedQuery, { acceptHeader });
+            await executor.constructQueryParsed(executedQuery, { acceptHeader, dataset });
           reply.header('Content-Type', resolveContentType(constructContentType, acceptHeader, 'application/n-triples'));
           setTimingHeader(reply, constructDuration);
           return reply.send(constructResult);
         }
         case QueryTypeIri.ask: {
           const { result: askResult, duration: askDuration, contentType: askContentType } =
-            await executor.askQuery(executedQuery, { acceptHeader });
+            await executor.askQuery(executedQuery, { acceptHeader, dataset });
           reply.header('Content-Type', resolveContentType(askContentType, acceptHeader, 'application/sparql-results+json'));
           setTimingHeader(reply, askDuration);
           if (typeof askResult === 'boolean') {
@@ -432,7 +445,10 @@ export default async function (
 
   // POST /sparql - Direct SPARQL proxy
   fastify.post('/sparql', ...typedRoute(sparqlPostSchema, async (request, reply) => {
-    const { query, backendId, endpoint, queryMethod, arguments: inlineArguments, limits, offsets, argumentSetIds } = request.body;
+    const {
+      query, backendId, endpoint, queryMethod, arguments: inlineArguments, limits, offsets, argumentSetIds,
+      defaultGraphs, namedGraphs,
+    } = request.body;
     return runSparqlRequest({
       request,
       reply,
@@ -441,6 +457,7 @@ export default async function (
       endpoint,
       queryMethod,
       payload: { arguments: inlineArguments, limits, offsets, argumentSetIds },
+      dataset: { defaultGraphs, namedGraphs },
       recordPatch: request.query.record === 'patch',
       allowUpdate: true,
     });
@@ -448,7 +465,7 @@ export default async function (
 
   // GET /sparql - Direct SPARQL proxy with query parameters. The querystring
   // schema admits no arguments, so the payload is empty and the query runs as
-  // written.
+  // written. The dataset comes by the protocol's own parameter names.
   fastify.get('/sparql', ...typedRoute(sparqlGetSchema, async (request, reply) => {
     const { query, backendId, endpoint, queryMethod, record } = request.query;
     return runSparqlRequest({
@@ -459,6 +476,10 @@ export default async function (
       endpoint,
       queryMethod,
       payload: {},
+      dataset: {
+        defaultGraphs: request.query['default-graph-uri'],
+        namedGraphs: request.query['named-graph-uri'],
+      },
       recordPatch: record === 'patch',
       allowUpdate: false,
     });
