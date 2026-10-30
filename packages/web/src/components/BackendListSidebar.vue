@@ -112,9 +112,9 @@
         group with no rows after the filter says nothing.
       -->
       <template v-for="group in groups" :key="group.key">
-        <div class="group-heading" :data-testid="`backend-group-${group.key}`">
-          {{ group.label }}<span class="group-count">{{ group.rows.length }}</span>
-        </div>
+        <SectionLabel class="group-heading" :count="group.rows.length" :data-testid="`backend-group-${group.key}`">
+          {{ group.label }}
+        </SectionLabel>
         <div
           v-for="backend in group.rows"
           :key="backend.id"
@@ -194,6 +194,7 @@ import { computed, ref } from 'vue';
 import { PanelLeftClose, PanelLeftOpen, Plus, RefreshCw, Search, Server, X } from '@lucide/vue';
 import type { Backend } from '@sparql-query-lib/contracts';
 import InlineNote from './shared/InlineNote.vue';
+import SectionLabel from './shared/SectionLabel.vue';
 import { fuzzyMatches } from '../lib/fuzzy';
 import { useBackendProbes } from '../composables/useBackendProbes';
 import { isBrowserBackendId } from '../composables/useBrowserBackends';
@@ -467,20 +468,7 @@ function healthTitle(id: string): string {
 }
 
 .group-heading {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
   padding: var(--space-4) var(--space-4) var(--space-2);
-  font-size: var(--text-micro);
-  font-weight: var(--weight-semibold);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ink-muted);
-}
-
-.group-count {
-  font-weight: var(--weight-normal);
-  letter-spacing: 0;
 }
 
 /* The inset is the list's fact about where a message sits, not the note's. */
