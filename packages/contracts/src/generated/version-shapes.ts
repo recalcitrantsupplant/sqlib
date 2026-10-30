@@ -113,6 +113,7 @@ export const queryVersionShape = {
               .strict(),
           )
           .optional(),
+        refusals: z.record(z.string().regex(/^[A-Za-z0-9_]{1,64}$/), z.string().min(1)).optional(),
       })
       .strict(),
     z.literal(false),
@@ -285,6 +286,7 @@ export const queryGroupVersionShape = {
               .strict(),
           )
           .optional(),
+        refusals: z.record(z.string().regex(/^[A-Za-z0-9_]{1,64}$/), z.string().min(1)).optional(),
       })
       .strict(),
     z.literal(false),

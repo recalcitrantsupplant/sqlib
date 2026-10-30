@@ -3,7 +3,7 @@
 Status: part A implemented 2026-10-29; see
 [guides/publishing-tools.md](../guides/publishing-tools.md) for how to use it
 and [As built](#as-built) for where the build differs from this text. Part B
-is not built. Design decisions settled 2026-10-27 (see
+implemented 2026-10-30. Design decisions settled 2026-10-27 (see
 [Decisions](#decisions)). Written 2026-10-26 against `main` at `6f65c10`.
 
 ## Summary
@@ -396,3 +396,33 @@ Other details the design left open:
 - A group is read-only, and so answers `GET`, only when every node is a
   `QueryNode` whose query is not an update.
 - The web app does not edit the slug or the `tool` object yet.
+
+Part B was built on 2026-10-30. Where the open points were settled:
+
+1. **The refusal query runs first, not after "nothing changed".** For a
+   version whose `tool` object has `refusals`, `/execute` runs the refusal
+   query with the call's arguments before the update. A failed flag, or no
+   solution at all, skips the update and answers `409`. This needs no change
+   detection from the backend. A write by another client between the two can
+   make them disagree; on a single-writer store that does not arise.
+2. **The refusal query is derived from the parsed update, at each call.** It
+   is the update's `WHERE` group without its final `FILTER(?ok)`, under the
+   update's prologue, as `SELECT *`. `USING` becomes `FROM`, and `WITH` names
+   the default graph. The same derivation runs when the version is saved, so
+   a text that does not follow the convention is refused then. Nothing extra is
+   stored on the version.
+3. **The save-time check.** `refusals` needs an update of one
+   `DELETE`/`INSERT … WHERE` operation whose `WHERE` ends with `FILTER(?ok)`,
+   and each key `K` must be bound somewhere in it as `?ok_K`. Otherwise the
+   save is a `400` that names the key and lists the flags there are. A query
+   group cannot have `refusals`.
+4. **The status is `409`**, with `{ "error", "refused": [{ "flag", "message" }] }`.
+   `{param}` is filled from the call's argument rows, so a list is joined with
+   `, `, and a name with no value stays as written. With no failed flag the
+   body says the update wrote nothing and `refused` is empty.
+5. **It belongs to the version, not to the door.** Any `/execute` of a version
+   whose `tool` object has `refusals` checks them, whether it comes from a
+   published tool or not. A `text/rdf-patch` preview does not.
+6. **MCP marks every failed published call as an error.** A published tool
+   that answers 4xx or 5xx sets `isError`. For a refusal the text is the
+   messages, one per line.

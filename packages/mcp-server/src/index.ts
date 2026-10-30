@@ -384,8 +384,20 @@ export async function createMcpServer(options: CreateMcpServerOptions = {}) {
       (tool) => sanitizeToolName(tool.name) === request.params.name
     );
     const meta = resultUiMeta(definition, clientRendersApps());
+    /*
+     * A published tool that answers 4xx or 5xx is a failed call, and MCP says
+     * so with `isError`. A published update its preconditions refused (`409`)
+     * reads as its messages, one per failed flag, rather than as JSON.
+     */
+    const publishedFailure = definition?.annotations !== undefined && result.statusCode >= 400;
+    const refused = publishedFailure ? (result.body as { refused?: Array<{ message?: unknown }> } | null)?.refused : undefined;
+    const refusedText =
+      Array.isArray(refused) && refused.length
+        ? refused.map((entry) => String(entry.message)).join('\n')
+        : undefined;
     return {
-      content: [{ type: 'text' as const, text: result.text }],
+      ...(publishedFailure ? { isError: true } : {}),
+      content: [{ type: 'text' as const, text: refusedText ?? result.text }],
       structuredContent: {
         statusCode: result.statusCode,
         headers: result.headers,

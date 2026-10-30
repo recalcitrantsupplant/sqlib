@@ -10,6 +10,7 @@
  * at the next start. See `docs/guides/publishing-tools.md`.
  */
 import { checkToolObject, type DetectedInputs, type ToolObject } from '@sparql-query-lib/tools';
+import { checkRefusals } from './refusals.js';
 
 /** A `tool` object the version's inputs do not support. Answers 400. */
 export class ToolObjectError extends Error {
@@ -31,14 +32,18 @@ export function resolveVersionTool(options: {
   previous: { version?: number | null; tool?: StoredTool } | null | undefined;
   inputs: DetectedInputs;
   targetKind: 'query' | 'group';
+  /** A query version's text: `refusals` are checked against the flags it binds. */
+  queryString?: string;
 }): ToolObject | false | undefined {
-  const { body, previous, inputs, targetKind } = options;
+  const { body, previous, inputs, targetKind, queryString } = options;
   const sent = Object.prototype.hasOwnProperty.call(body, 'tool');
   const tool: StoredTool = sent ? (body.tool as StoredTool) : previous?.tool;
   if (tool === undefined || tool === null) return undefined;
   if (tool === false) return false;
 
-  const problem = checkToolObject(tool, inputs, { targetKind });
+  const problem =
+    checkToolObject(tool, inputs, { targetKind }) ??
+    (tool.refusals && targetKind === 'query' ? checkRefusals(queryString ?? '', tool.refusals) : null);
   if (problem) {
     throw new ToolObjectError(
       sent

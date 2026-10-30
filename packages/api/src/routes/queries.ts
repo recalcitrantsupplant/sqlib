@@ -94,7 +94,13 @@ export default async function (fastify: FastifyInstance) {
       const previous = typeof currentVersionId === 'string'
         ? (getCacheCoordinator().get(currentVersionId) as LdkitQueryVersion | null)
         : null;
-      const tool = resolveVersionTool({ body: flat, previous, inputs: queryBodyInputs(flat), targetKind: 'query' });
+      const tool = resolveVersionTool({
+        body: flat,
+        previous,
+        inputs: queryBodyInputs(flat),
+        targetKind: 'query',
+        queryString: typeof flat.queryString === 'string' ? flat.queryString : undefined,
+      });
       delete flat.tool;
       if (tool !== undefined) flat.tool = tool;
       const { created, iriMap } = await createQueryVersionFlat(parent.$id, flat);
