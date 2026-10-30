@@ -4,8 +4,8 @@ Status: partly shipped. Steps 1–4 and 7's `.sqlibnb` half of §10 are in
 (`packages/web/src/pages/notebook.vue`, `components/notebook/*`,
 `composables/useNotebook.ts`, `lib/notebookFormat.ts`, `lib/notebookValues.ts`),
 with the user-facing half written up in [the guide](../guides/notebooks.md).
-Still open: the server-side notebook entity, `dataGraphs` on a query target,
-pass-by-reference, the materialize cell, the ipynb and HTML rewrites, and
+Step 5, `dataGraphs` on a query target, is in too. Still open: the server-side
+notebook entity, pass-by-reference, the materialize cell, the ipynb and HTML rewrites, and
 promote-to-query-group.
 
 §8 said the library page would keep a screen of its own. It did not: the
