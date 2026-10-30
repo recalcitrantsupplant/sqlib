@@ -340,7 +340,7 @@ test.describe('Query group patch node (mocked)', () => {
 
     await saveQueryGroupNewVersion(page);
 
-    await expect(toasts(page).getByText(/missing the update whose effect it derives/i)).toBeVisible();
+    await expect(toasts(page).getByText(/has no update, so there is no effect to derive/i)).toBeVisible();
     await expect(page.locator('.querygroup-work-area [data-testid="version-pill"]')).toContainText('v1');
     expect(posted).toBe(false);
   });

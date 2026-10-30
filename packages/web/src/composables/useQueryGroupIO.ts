@@ -1193,7 +1193,7 @@ export function useQueryGroupIO(deps: UseQueryGroupIODeps): UseQueryGroupIOResul
           return refuse(canvasId, 'must name one output for deletions and another for additions.');
         }
         if (!node.queryId || node.queryId.trim().length === 0) {
-          return refuse(canvasId, 'has no update assigned. Pick one in the Editor tab.');
+          return refuse(canvasId, 'has no update, so there is no effect to derive. Assign one in the Editor tab.');
         }
         const patchBackendConfig = node.backendConfig ?? null;
         const patchHasBackendId = !!node.backendId && node.backendId.trim().length > 0;

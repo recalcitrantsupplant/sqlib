@@ -1503,10 +1503,15 @@ async function untangleOpenedVersion() {
     clearToolbar();
     return;
   }
-  // A narrow canvas column fits a chain stacked, not laid out in a row.
+  /*
+   * A narrow canvas column gets the tight left-to-right chain. Not top to
+   * bottom, which would fit better: it moves every handle to the top and
+   * bottom of its node, and a canvas that changes where you drag edges from
+   * just because it was opened is a surprise.
+   */
   const surface = canvasContainerRef.value?.getBoundingClientRect();
-  const narrow = !!surface && surface.width < 720 && surface.width < surface.height;
-  autoLayoutCanvas(narrow ? 'flow-tb' : layoutPresetId.value, { quiet: true, remember: false });
+  const narrow = !!surface && surface.width < 720;
+  autoLayoutCanvas(narrow ? 'compact' : layoutPresetId.value, { quiet: true, remember: false });
   await nextTick();
   savedFingerprint.value = canvasFingerprint.value;
 }

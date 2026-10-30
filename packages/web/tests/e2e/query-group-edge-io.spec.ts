@@ -84,11 +84,13 @@ test.describe('Query group edge I/O (mocked)', () => {
     await expect(editor(page).locator('.summary-subvalue').first()).toContainText(START_TUPLE_PORT);
     await expect(editor(page).locator('.summary-subvalue').last()).toContainText(NODE_INPUT_PORT);
 
-    // Both tuples carry two variables, so nothing here is a mismatch to warn
-    // about — an edge the author has no work left to do on.
+    // Both tuples carry two variables, so the widths are no mismatch to warn
+    // about. The one warning is the positional guess: `region` has no source
+    // of its own name, so the engine feeds it `country` by position.
     await expect(editor(page).locator('[data-testid="mapping-arity-warning"]')).toBeHidden();
-    await expect(editor(page).locator('[data-testid="edge-diagnostic"]')).toHaveCount(0);
-    await expect(editor(page).locator('.tuple-warning')).toHaveCount(0);
+    await expect(editor(page).locator('[data-testid="edge-diagnostic"]')).toHaveCount(1);
+    await expect(editor(page).locator('[data-testid="edge-diagnostic"]')).toContainText('by position');
+    await expect(editor(page).locator('.tuple-warning')).toHaveCount(1);
 
     // Only a bindings edge has an empty-input policy to set: "what if there
     // are no rows" is not a question the other flow types can be asked.
@@ -107,18 +109,17 @@ test.describe('Query group edge I/O (mocked)', () => {
      * author sees until they ask for more. The line is the same fact the grid
      * below spells out over two rows and four columns: `city` exists on both
      * sides so it pairs itself, and `region` — which the source does not have —
-     * is left UNDEF rather than guessed at from position.
+     * is fed the leftover `country` by position, as the engine does with no
+     * mapping written. That guess is shown, and warned about.
      */
     await expect(visualization.locator('[data-testid="mapping-summary-line"]'))
-      .toHaveText('?city UNDEF → ?city ?region');
-    // Nothing the compatibility rules object to, and the summary says so.
-    await expect(mappingSummary(page)).toHaveAttribute('data-mapping-state', 'ok');
-    await expect(visualization.locator('.mapping-subtitle')).toHaveText('mapped');
+      .toHaveText('?city ?country → ?city ?region');
+    await expect(mappingSummary(page)).toHaveAttribute('data-mapping-state', 'warning');
 
     await expandMapping(page);
     await expect(visualization.locator('.variable-group-target .variable-badge')).toHaveText(['?city', '?region']);
     await expect(mappingSelects(page).first()).toHaveValue('city');
-    await expect(mappingSelects(page).last()).toHaveValue('');
+    await expect(mappingSelects(page).last()).toHaveValue('country');
     await expect(mappingSelects(page).last().locator('option')).toHaveText(['UNDEF', '?city', '?country']);
   });
 
