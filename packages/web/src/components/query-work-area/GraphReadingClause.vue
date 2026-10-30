@@ -26,7 +26,6 @@
             <div class="pop-head">
               <div class="title-row">
                 <h3 class="pop-title">Graphs this query reads</h3>
-                <InlineNote as="span" size="xs">instead of FROM</InlineNote>
               </div>
               <span class="which">
                 <SegmentedToggle
@@ -163,10 +162,14 @@ const whichOptions = computed(() => [
   { value: 'choose', label: 'Choose' },
 ]);
 
-/** Loaded graphs, plus any chosen ones the list does not hold, so a pasted IRI stays visible. */
+/**
+ * Loaded graphs, plus any chosen ones the list does not hold, so a pasted IRI
+ * stays visible. One sorted order whatever is chosen: a row that jumps when it
+ * is ticked puts a different graph under the pointer.
+ */
 const visibleGraphs = computed(() => {
   const chosen = [...props.dataset.graphs.value, ...props.dataset.defaultGraphs.value, ...props.dataset.namedGraphs.value];
-  const all = [...new Set([...chosen, ...available.value])];
+  const all = [...new Set([...available.value, ...chosen])].sort();
   const needle = filter.value.trim().toLowerCase();
   return needle ? all.filter((graph) => graph.toLowerCase().includes(needle)) : all;
 });

@@ -166,7 +166,7 @@
         <!--
           Health is what a *probe* found, and the server cannot probe a backend
           it does not have. On a browser one the pair read "Never probed — run
-          Test again" beside no such button, which is the probe card's own
+          Test" beside no such button, which is the probe card's own
           reason for being absent one line further down.
         -->
         <template v-if="!isBrowser">
@@ -428,10 +428,10 @@
                 <span class="health-name">{{ HEALTH_LABELS[health] }}</span>
                 <span class="health-when">{{ probe ? relativeTime(probe.probedAt) : 'not yet' }}</span>
               </div>
-              <p class="health-message" data-testid="backend-health-message">{{ healthMessage }}</p>
+              <p v-if="healthMessage" class="health-message" data-testid="backend-health-message">{{ healthMessage }}</p>
               <div class="card-actions">
                 <button class="button" :disabled="testing" data-testid="test-connection" @click="testConnection">
-                  <Activity :size="13" />{{ testing ? 'Testing…' : 'Test again' }}
+                  <Activity :size="13" />{{ testing ? 'Testing…' : 'Test' }}
                 </button>
                 <button
                   class="button"
@@ -469,7 +469,7 @@
                   <InlineNote as="span" size="xs">{{ group.label }}</InlineNote>
                   <div class="chip-row">
                     <span
-                      v-for="entry in group.entries"
+                      v-for="entry in shownEntries(group)"
                       :key="entry.id"
                       class="chip"
                       :title="entry.hint ?? undefined"
@@ -487,6 +487,15 @@
                         <X :size="12" />
                       </button>
                     </span>
+                    <button
+                      v-if="group.entries.length > DEFAULT_FOR_SHOWN"
+                      type="button"
+                      class="chip-more"
+                      :data-testid="`default-for-more-${group.kind}`"
+                      @click="toggleDefaultForGroup(group.kind)"
+                    >
+                      {{ expandedDefaultFor.has(group.kind) ? 'Show fewer' : `+${group.entries.length - DEFAULT_FOR_SHOWN} more` }}
+                    </button>
                   </div>
                 </div>
               </template>
@@ -843,7 +852,7 @@ const memoryConfig = computed(() => parseMemoryConfig(backend.value?.oxigraphCon
 /** The header's one line: when, and the shortest true reason. */
 const probeSummary = computed(() => {
   const result = probe.value;
-  if (!result) return 'never probed — run Test again';
+  if (!result) return 'never probed — run Test';
   const when = relativeTime(result.probedAt);
   if (result.health === 'unreachable') return `${when} · ${result.error ?? 'no answer'}`;
   return `${when} · ${result.latencyMs} ms`;
@@ -859,7 +868,8 @@ const probeSummary = computed(() => {
  */
 const healthMessage = computed(() => {
   const result = probe.value;
-  if (!result) return 'Never probed on this server. Run Test again to find out where it stands.';
+  // Nothing to add: the card's head already says "Never probed".
+  if (!result) return '';
   if (result.health === 'unreachable') {
     if (result.httpStatus === 401 || result.httpStatus === 403) {
       return `${result.httpStatus} on the service description. Queries may still succeed.`;
@@ -978,6 +988,23 @@ const defaultForGroups = computed(() =>
     entries: defaultEntries.value.filter((entry) => entry.kind === kind && entry.defaultBackend === backend.value?.id),
   })),
 );
+
+/*
+ * Five of each kind, then a count: a backend that dozens of queries default to
+ * otherwise pushes the rest of the sidecar off the screen.
+ */
+const DEFAULT_FOR_SHOWN = 5;
+const expandedDefaultFor = ref(new Set<string>());
+
+function shownEntries<T>(group: { kind: string; entries: T[] }): T[] {
+  return expandedDefaultFor.value.has(group.kind) ? group.entries : group.entries.slice(0, DEFAULT_FOR_SHOWN);
+}
+
+function toggleDefaultForGroup(kind: string) {
+  const next = new Set(expandedDefaultFor.value);
+  if (!next.delete(kind)) next.add(kind);
+  expandedDefaultFor.value = next;
+}
 
 const defaultForCount = computed(() =>
   defaultForGroups.value.reduce((total, group) => total + group.entries.length, 0),
@@ -2193,6 +2220,20 @@ function relativeTime(iso: string): string {
 .attach-button:hover {
   border-color: var(--action);
   color: var(--action);
+}
+
+.chip-more {
+  padding: 0 var(--space-3);
+  border: none;
+  background: transparent;
+  color: var(--ink-muted);
+  font-family: inherit;
+  font-size: var(--text-label);
+  cursor: pointer;
+}
+
+.chip-more:hover {
+  color: var(--ink);
 }
 
 .default-for-group {
