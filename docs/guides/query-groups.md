@@ -352,10 +352,14 @@ A start node can declare RDF inputs as well as tuples, filled per run:
 }
 ```
 
-`dataGraphId` and `dataGraphInline` are the other two forms. `dataGraphs` is
-accepted for a query group only — on any other target it is a `400`, because
-nothing else declares the ports it fills. Where such a graph may then flow is
-the `RDF_GRAPH` rule in §2.
+`dataGraphId` and `dataGraphInline` are the other two forms. Where such a
+graph may then flow is the `RDF_GRAPH` rule in §2.
+
+A single query takes `dataGraphs` too, with a different meaning: it has no
+ports, so the graphs become the whole store it runs over — loaded into an
+ephemeral store made for that request and dropped after it. Leave `backendId`
+out (or name the ephemeral backend); naming any other backend beside
+`dataGraphs` is a `400`, because the query would not see it.
 
 ## 6. Running one
 

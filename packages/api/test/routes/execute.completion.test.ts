@@ -195,7 +195,13 @@ describe('POST /execute — completing an argument set', () => {
     expect(engineOptions()?.dataGraphs).toHaveLength(1);
   });
 
-  it('refuses a dataGraphs entry on a query target', async () => {
+  /*
+   * A query given graphs runs over them alone, in a store made for the request.
+   * Naming a real backend beside them is refused rather than ignored: the
+   * query would not see that backend, and silently not using it answers a
+   * different question from the one asked.
+   */
+  it('refuses a dataGraphs entry on a query target that also names a backend', async () => {
     const res = await run({
       targetId: QUERY,
       backendId: backend.$id,
@@ -203,6 +209,46 @@ describe('POST /execute — completing an argument set', () => {
     });
 
     expect(res.statusCode).toBe(400);
-    expect(res.json().error).toMatch(/only supported when executing a QueryGroup/);
+    expect(res.json().error).toMatch(/runs over those graphs alone/);
+  });
+
+  it('runs a query over its dataGraphs in an ephemeral store, with no backend named', async () => {
+    const res = await run({
+      targetId: QUERY,
+      dataGraphs: [{ dataGraphVersionId: GRAPH_VERSION }],
+    });
+
+    expect(res.statusCode, res.payload).toBe(200);
+    expect(res.json().results.bindings).toEqual([{
+      s: { type: 'uri', value: 'http://ex/a' },
+      p: { type: 'uri', value: 'http://ex/p' },
+      o: { type: 'uri', value: 'http://ex/b' },
+    }]);
+    // The named backend's executor is never asked for.
+    expect(executorFactoryInstance.getExecutorForNode).not.toHaveBeenCalled();
+  });
+
+  it('loads every graph it is given, inline ones included, and accepts the ephemeral backend by name', async () => {
+    const res = await run({
+      targetId: QUERY_VERSION,
+      backendId: 'urn:sparql-query-lib:backend:ephemeral',
+      dataGraphs: [
+        { dataGraphVersionId: GRAPH_VERSION },
+        { dataGraphInline: '<http://ex/c> <http://ex/p> <http://ex/d> .', dataGraphInlineFormat: 'application/n-triples' },
+      ],
+    });
+
+    expect(res.statusCode, res.payload).toBe(200);
+    expect(res.json().results.bindings).toHaveLength(2);
+  });
+
+  it('says what is wrong with a graph that does not parse', async () => {
+    const res = await run({
+      targetId: QUERY,
+      dataGraphs: [{ dataGraphInline: 'this is not turtle', dataGraphInlineFormat: 'text/turtle' }],
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toBeTruthy();
   });
 });
