@@ -455,11 +455,56 @@ export function portsForNode(
   persisted: { inputs?: readonly string[] | null; outputs?: readonly string[] | null },
   entities: Record<string, IoEntityRecord>,
   queryVersion?: QueryVersionInterface | null,
+  names?: Pick<IoModel, 'members' | 'variables'>,
 ): { inputs: GraphPort[]; outputs: GraphPort[] } {
+  /*
+   * A port's shape: its kind and its variables in member order (or its arity
+   * when the names are not to hand).
+   */
+  const shapeOf = (id: string): string => {
+    const entity = entities[id];
+    if (!entity) return `unknown:${id}`;
+    const members = entity.memberEntries ?? [];
+    const variables = names
+      ? members
+          .map((memberId) => names.members[memberId])
+          .filter((member): member is TupleMemberRecord => !!member)
+          .sort((a, b) => a.position - b.position)
+          .map((member) => names.variables[member.variable]?.variableName ?? '')
+          .join(',')
+      : String(entity.arity ?? members.length);
+    return `${entity.kind}:${variables}`;
+  };
+
+  /*
+   * A saved version holds its own copy of each port the query version
+   * declares, under a fresh IRI (the writer re-mints every IRI it is sent
+   * back). Listing the query version's port beside that copy gave the node a
+   * second port of the same shape, the next save stored both, and every save
+   * after added one more. Each persisted port therefore covers one canonical
+   * port of the same shape; only a canonical port nothing covers is added.
+   */
+  const uncovered = (canonical: readonly string[], persistedRefs: readonly string[]) => {
+    const cover = new Map<string, number>();
+    for (const id of persistedRefs) {
+      if (canonical.includes(id)) continue;
+      const shape = shapeOf(id);
+      cover.set(shape, (cover.get(shape) ?? 0) + 1);
+    }
+    return canonical.filter((id) => {
+      if (persistedRefs.includes(id)) return true;
+      const shape = shapeOf(id);
+      const left = cover.get(shape) ?? 0;
+      if (left === 0) return true;
+      cover.set(shape, left - 1);
+      return false;
+    });
+  };
+
   const build = (canonical: readonly string[], persistedRefs: readonly string[], direction: 'input' | 'output') => {
     const seen = new Set<string>();
     const ports: GraphPort[] = [];
-    for (const id of [...canonical, ...persistedRefs]) {
+    for (const id of [...uncovered(canonical, persistedRefs), ...persistedRefs]) {
       if (typeof id !== 'string' || !id || seen.has(id)) continue;
       seen.add(id);
       ports.push(portFor(id, direction, entities));

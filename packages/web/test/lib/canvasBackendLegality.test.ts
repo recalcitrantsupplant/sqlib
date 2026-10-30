@@ -137,9 +137,9 @@ const DIVERGENCES: Record<string, string> = {
   // verdicts - nothing about the *edge* is wrong, the graph around it is
   // degenerate. The canvas's local connection rules cannot see them; they
   // reach the author through `useCanvasValidation` when `/validate` runs.
-  // (Only these two spellings of start->end stay locally silent: on the other
-  // three flows the canvas already errors for its own port/kind reasons.)
-  'start|CONTROL_FLOW|end': 'graph-level: nothing to execute; surfaced by /validate',
+  // (Only this spelling of start->end stays locally silent: a control flow
+  // edge is refused for saying nothing, and on the other three flows the
+  // canvas already errors for its own port/kind reasons.)
   'start|VARIABLE_BINDINGS|end': 'graph-level: nothing to execute; surfaced by /validate',
   'select|CONTROL_FLOW|end': 'graph-level: EndNode needs a data input; surfaced by /validate',
   'construct|CONTROL_FLOW|end': 'graph-level: EndNode needs a data input; surfaced by /validate',

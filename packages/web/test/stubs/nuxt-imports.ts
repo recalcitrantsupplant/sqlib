@@ -31,3 +31,11 @@ export function createError(input: unknown): Error {
   const detail = input as { statusMessage?: string; message?: string };
   return Object.assign(new Error(detail?.statusMessage ?? detail?.message ?? 'Error'), input);
 }
+
+/**
+ * No router under vitest. Callers that guard navigation treat `null` as "no
+ * navigation to guard", so a mounted work area still loads.
+ */
+export function useRouter(): null {
+  return null;
+}

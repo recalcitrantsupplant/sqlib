@@ -340,7 +340,10 @@ export function useQueryGroupExecution(deps: UseQueryGroupExecutionDeps): UseQue
       validationIssues.value = validation.issues ?? [];
 
       if (!validation.valid) {
-        executionError.value = 'Validation failed. Resolve blocking errors before executing.';
+        const blocking = validationIssues.value.filter((issue) => issue.level === 'error').length || 1;
+        executionError.value = blocking === 1
+          ? 'This version cannot run: it has 1 problem, marked on the canvas.'
+          : `This version cannot run: it has ${blocking} problems, marked on the canvas.`;
         toast.error(executionError.value);
         return;
       }
@@ -393,12 +396,12 @@ export function useQueryGroupExecution(deps: UseQueryGroupExecutionDeps): UseQue
          * that a CONSTRUCT group's N-Triples came back as a bare string and this
          * fell through to `selectedResultFormat` — a ref this screen has no
          * control for, so always SPARQL JSON — and the viewer rendered RDF as
-         * raw text rather than a triples table. Kept as the fallback for a
-         * server that predates the field.
+         * raw text rather than a triples table. A server that predates the
+         * field sends a string of RDF as N-Triples, so assume that.
          */
         executionContentType.value = envelope.resultContentType
           ?? (typeof envelope.result === 'string'
-            ? selectedResultFormat.value
+            ? 'application/n-triples'
             : 'application/sparql-results+json');
       } else {
         nodeExecutions.value = [];

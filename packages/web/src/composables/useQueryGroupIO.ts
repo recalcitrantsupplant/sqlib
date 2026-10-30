@@ -1,4 +1,6 @@
 import { ref } from 'vue';
+import { CanvasNodeError } from './queryGroupSaveError';
+import { canvasNodeLabel } from './queryGroupNodeLabel';
 import { ZodError } from 'zod';
 import {
   queryGroupVersionForGroupCreateSchema,
@@ -1020,7 +1022,7 @@ export function useQueryGroupIO(deps: UseQueryGroupIODeps): UseQueryGroupIOResul
         return;
       }
 
-      toast.success('Start node inputs saved');
+      toast.success('Start node inputs applied. Save the group to keep them.');
     },
   };
 
@@ -1129,9 +1131,20 @@ export function useQueryGroupIO(deps: UseQueryGroupIODeps): UseQueryGroupIOResul
       return minted;
     };
 
+    /*
+     * A refusal names the node the way the canvas does and carries its canvas
+     * id, so the screen can select it - not the URN the payload would mint.
+     */
+    const refuse = (canvasId: string, problem: string): never => {
+      const graphNode = refreshedState.nodes.find((candidate) => candidate.id === canvasId);
+      const name = graphNode ? canvasNodeLabel(graphNode, refreshedState.iriMap ?? {}) : 'A node';
+      throw new CanvasNodeError(`“${name}” ${problem}`, canvasId);
+    };
+
     const executionNodes = flat.executionNodes.map((node, index) => {
       const normalizedId = ensureUrnId(node.id ?? null, 'node', index);
-      nodeIdMap.set(node.id ?? normalizedId, normalizedId);
+      const canvasId = node.id ?? normalizedId;
+      nodeIdMap.set(canvasId, normalizedId);
 
       const normalizedInputs = (node.inputs ?? [])
         .map(inputId => mapPortId(inputId))
@@ -1144,13 +1157,13 @@ export function useQueryGroupIO(deps: UseQueryGroupIODeps): UseQueryGroupIOResul
       if (node.nodeType === 'RuleSetNode') {
         const ruleSetVersion = node.ruleSetVersion?.trim();
         if (!ruleSetVersion) {
-          throw new Error(`RuleSet node ${normalizedId} is missing a ruleSetVersion.`);
+          return refuse(canvasId, 'has no rule set. Assign one in the Editor tab.');
         }
         if (normalizedInputs.length === 0) {
-          throw new Error(`RuleSet node ${normalizedId} must declare at least one RDF input port.`);
+          return refuse(canvasId, 'has no RDF input. Assign its rule set again in the Editor tab.');
         }
         if (normalizedOutputs.length === 0) {
-          throw new Error(`RuleSet node ${normalizedId} must declare at least one RDF output port.`);
+          return refuse(canvasId, 'has no RDF output. Assign its rule set again in the Editor tab.');
         }
         return {
           id: normalizedId,
@@ -1177,15 +1190,15 @@ export function useQueryGroupIO(deps: UseQueryGroupIODeps): UseQueryGroupIOResul
         const deletionsOutput = mapPortId(node.deletionsOutput);
         const additionsOutput = mapPortId(node.additionsOutput);
         if (!deletionsOutput || !additionsOutput) {
-          throw new Error(`Patch node ${normalizedId} must name one output for deletions and another for additions.`);
+          return refuse(canvasId, 'must name one output for deletions and another for additions.');
         }
         if (!node.queryId || node.queryId.trim().length === 0) {
-          throw new Error(`Patch node ${normalizedId} is missing the update whose effect it derives.`);
+          return refuse(canvasId, 'has no update assigned. Pick one in the Editor tab.');
         }
         const patchBackendConfig = node.backendConfig ?? null;
         const patchHasBackendId = !!node.backendId && node.backendId.trim().length > 0;
         if (!patchHasBackendId && !patchBackendConfig) {
-          throw new Error(`Patch node ${normalizedId} is missing a backend.`);
+          return refuse(canvasId, 'has no backend. Pick one in the Editor tab.');
         }
         return {
           id: normalizedId,
@@ -1209,12 +1222,12 @@ export function useQueryGroupIO(deps: UseQueryGroupIODeps): UseQueryGroupIOResul
       const backendConfig = 'backendConfig' in node ? node.backendConfig : null;
       const hasBackendId = 'backendId' in node && !!node.backendId && node.backendId.trim().length > 0;
 
-      if (!hasBackendId && !backendConfig) {
-        throw new Error(`Execution node ${normalizedId} is missing a backend.`);
+      if (!('queryId' in node) || !node.queryId || node.queryId.trim().length === 0) {
+        return refuse(canvasId, 'has no query. Assign one in the Editor tab.');
       }
 
-      if (!('queryId' in node) || !node.queryId || node.queryId.trim().length === 0) {
-        throw new Error(`Execution node ${normalizedId} is missing a query assignment.`);
+      if (!hasBackendId && !backendConfig) {
+        return refuse(canvasId, 'has no backend. Pick one in the Editor tab.');
       }
 
       return {

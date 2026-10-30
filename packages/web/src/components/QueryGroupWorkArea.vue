@@ -24,7 +24,7 @@
         noun="group"
         :is-scratch="isScratch"
         :current-version-number="currentVersionNumberForDisplay"
-        :edit-count="0"
+        :edit-count="unsavedEditCount"
         :saving="isSavingVersion || isSaving"
         :can-save="canSave"
         :needs-name="needsName"
@@ -32,6 +32,7 @@
         :show-diff="false"
         :show-more="false"
         @save="save"
+        @discard="discardEdits"
         @needs-name="promptForNameInDetails"
       />
 
@@ -47,14 +48,14 @@
       <RunBar
         :running="isExecuting"
         :run-disabled="isNewQueryGroup"
-        :run-title="isNewQueryGroup ? 'Save this group before running it' : 'Run this query group'"
+        :run-title="runTitle"
         :inputs="runInputs"
         :backend="PER_NODE_BACKENDS"
         :create-targets="['benchmark', 'test']"
         :create-disabled-reason="createDisabledReason"
         :creating="creatingFromRecipe"
         recipe-noun="arguments"
-        @run="executeQueryGroup"
+        @run="runGroup"
         @pick="showArgumentsTab"
         @create="createFromRecipe"
       />
@@ -100,6 +101,8 @@
       @pane-click="onPaneClick"
       @node-context-menu="onNodeContextMenu"
       @node-drag-start="dropStaleEdgeRoutes"
+      @node-drag-stop="noteCanvasEdit"
+      @nodes-change="onNodesChange"
     >
       <Background :pattern-color="graphPattern" :gap="16" />
       <Controls />
@@ -155,7 +158,7 @@
       </div>
 
       <!-- Add Node Toolbar -->
-      <div class="add-node-toolbar">
+      <div ref="addNodeToolbarRef" class="add-node-toolbar">
         <!--
           "Add step" is the linear-chain shortcut and the four beside it are the
           DAG's own vocabulary, so it sits first and apart: from the selected
@@ -167,7 +170,7 @@
           class="btn-add-node btn-add-step"
           type="button"
           :disabled="addStepDisabledReason !== null"
-          :title="addStepDisabledReason ?? 'Add a query node fed by the selected one'"
+          :title="addStepDisabledReason ?? addStepTitle"
           @click="addStep"
         >
           <span>Add step</span>
@@ -445,6 +448,26 @@
     @submit="handleTransferSubmit"
   />
 
+  <AlertDialog v-model:open="leaveConfirmOpen">
+    <AlertDialogContent>
+      <AlertDialogHeader>
+        <AlertDialogTitle>Discard unsaved edits?</AlertDialogTitle>
+        <AlertDialogDescription>
+          "{{ queryGroupName }}" has {{ unsavedEditCount }} unsaved
+          {{ unsavedEditCount === 1 ? 'edit' : 'edits' }}. Leaving throws
+          {{ unsavedEditCount === 1 ? 'it' : 'them' }} away. Save v{{ (currentVersionNumberForDisplay ?? 0) + 1 }}
+          first to keep {{ unsavedEditCount === 1 ? 'it' : 'them' }}.
+        </AlertDialogDescription>
+      </AlertDialogHeader>
+      <AlertDialogFooter>
+        <AlertDialogCancel data-testid="leave-cancel">Stay</AlertDialogCancel>
+        <AlertDialogAction class="delete-action" data-testid="leave-confirm" @click="confirmLeave">
+          Discard and leave
+        </AlertDialogAction>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  </AlertDialog>
+
   <AlertDialog v-model:open="deleteConfirmOpen">
     <AlertDialogContent>
       <AlertDialogHeader>
@@ -490,7 +513,7 @@ import CodeSnippetPanel, {
   type CodeSnippetVariant,
 } from './shared/CodeSnippetPanel.vue';
 // @ts-ignore - Nuxt auto-import
-import { useRuntimeConfig } from '#imports';
+import { useRuntimeConfig, useRouter } from '#imports';
 import EmptyState from './shared/EmptyState.vue';
 import EntityDetailsPanel from './shared/EntityDetailsPanel.vue';
 import CanvasObjectEditor from './query-group/CanvasObjectEditor.vue';
@@ -535,6 +558,7 @@ import { useArgumentSetDrafts } from '../composables/useArgumentSetDrafts';
 import { useActiveLibrary } from '../composables/useActiveLibrary';
 import { useArgumentSets } from '../composables/useArgumentSets';
 import { useBenchmarksStore } from '../composables/useBenchmarksStore';
+import { useTestsStore } from '../composables/useTestsStore';
 import RunBar from './shared/RunBar.vue';
 import type { CreateTarget, RunBarChoice, RunBarPick } from '../lib/runBar';
 import { NO_ARGUMENTS_IRI, emptySettings } from '../lib/benchmarkPlan';
@@ -557,6 +581,8 @@ import { DATA_FLOW_TYPES } from '@sparql-query-lib/types';
 import { flowTypeLabel, recommendFlowType } from '../composables/edgeFlowTypeDefaults';
 import { CANVAS_TEMPLATES, type CanvasTemplate } from '../composables/canvasTemplates';
 import { loadLastRun, runCacheKey, saveLastRun } from '@/lib/lastRunCache';
+import { CanvasNodeError } from '../composables/queryGroupSaveError';
+import { hasOverlaps, pushApartFrom, type CanvasBox } from '../lib/canvasOverlap';
 import type { TupleEditorUpdatePayload } from '../types/tuple-editor';
 
 const graphPattern = useCssToken('--graph-pattern', '#e9ecef');
@@ -584,7 +610,7 @@ const emit = defineEmits<{
    */
   'argument-set-saved': [payload: { id: string }];
   /** A test or a benchmark was created from the run sentence; open it. */
-  'open-entity': [payload: { type: 'test' | 'benchmark'; id: string }];
+  'open-entity': [payload: { type: 'test' | 'benchmark' | 'queryGroup'; id: string }];
 }>();
 
 const lastCreationToken = ref<number>(0);
@@ -608,6 +634,10 @@ const canvasContainerRef = computed<HTMLElement | null>(() => canvasShellRef.val
 const vueFlowRef = ref<{
   fitView: (options?: Record<string, unknown>) => void;
   updateNodeInternals: (ids?: string[]) => void;
+  getViewport?: () => { x: number; y: number; zoom: number };
+  setCenter?: (x: number, y: number, options?: Record<string, unknown>) => void;
+  setViewport?: (viewport: { x: number; y: number; zoom: number }) => void;
+  dimensions?: { width: number; height: number };
 } | null>(null);
 const {
   panelWidthPercent: leftPanelWidth,
@@ -762,6 +792,16 @@ const {
   moveQueryGroup,
 } = state;
 
+const { activeLibraryId, activeLibraryName } = useActiveLibrary();
+
+/*
+ * The library this group belongs to, or will belong to once saved. A scratch
+ * group has no `isPartOf` yet but is saved into the active library, so its
+ * nodes take that library's default backend - otherwise a new node starts with
+ * no backend at all and the first save is refused for it.
+ */
+const owningLibraryId = computed(() => queryGroupLibraryId.value || activeLibraryId.value || '');
+
 /**
  * Argument sets for this group, over the same composable the query screen uses.
  *
@@ -789,7 +829,7 @@ const execution = useQueryGroupExecution({
   graph,
   io,
   queryGroupId,
-  queryGroupLibraryId,
+  queryGroupLibraryId: owningLibraryId,
   selectedVersionId: versions.selectedVersionId,
   selectedVersionNumber: versions.selectedVersionNumber,
   activeResultsTab,
@@ -1038,7 +1078,7 @@ const PER_NODE_BACKENDS: RunBarChoice = {
   value: 'per-node',
   options: [],
   readonly: true,
-  label: 'each node’s backend',
+  label: 'node backends',
   title: 'A query group has no backend of its own — every execution node names one. '
     + 'Select a node and use the Editor tab to change it.',
 };
@@ -1132,8 +1172,27 @@ async function createTestFromRecipe() {
       tupleSeeds: null,
     }],
   });
-  toast.success('Created a test from this recipe — add an expectation when you know what it should return');
+  // One click made a saved test, so the same toast can take it back.
+  const groupId = queryGroupId.value;
+  toast.success('Created a test from this recipe — add an expectation when you know what it should return', {
+    duration: 10000,
+    action: {
+      label: 'Undo',
+      onClick: () => void undoCreatedTest(created.id, groupId),
+    },
+  });
   emit('open-entity', { type: 'test', id: created.id });
+}
+
+async function undoCreatedTest(testId: string, groupId: string | null) {
+  try {
+    await useTestsStore().deleteTest(testId);
+    toast.success('Test removed');
+    if (groupId) emit('open-entity', { type: 'queryGroup', id: groupId });
+  } catch (error) {
+    console.error('[QueryGroupWorkArea] Failed to remove the new test', error);
+    toast.error('Could not remove the test. Delete it from the Tests section.');
+  }
 }
 
 /**
@@ -1212,7 +1271,7 @@ const queryDefaultBackend = computed(() => {
 });
 
 const libraryDefaultBackend = computed(() => {
-  const libraryId = queryGroupLibraryId.value;
+  const libraryId = owningLibraryId.value;
   if (!libraryId) return null;
   const library = librariesStore.libraries.value.find(lib => lib.id === libraryId);
   return library?.defaultBackend ?? null;
@@ -1245,6 +1304,12 @@ const blockingIssues = computed(() =>
 );
 
 const handleSelectedVersionChange = (value: string | null) => {
+  // Opening another version replaces the canvas, edits included.
+  if (hasUnsavedEdits.value && value !== versions.selectedVersionId.value) {
+    pendingLeave = () => versions.setSelectedVersion(value);
+    leaveConfirmOpen.value = true;
+    return;
+  }
   versions.setSelectedVersion(value);
 };
 
@@ -1298,7 +1363,6 @@ const copyQueryGroupVersionId = async () => {
 
 const draftsStore = useCallableDrafts();
 const argumentSetDrafts = useArgumentSetDrafts();
-const { activeLibraryId, activeLibraryName } = useActiveLibrary();
 const isSavingVersion = ref(false);
 
 interface GroupScratchBody {
@@ -1387,12 +1451,180 @@ watch([executionResultRaw, executionResultJson, executionContentType], ([raw, js
 const UNTITLED_PATTERN = /^Untitled group \d+$/;
 const needsName = computed(() => isScratch.value && UNTITLED_PATTERN.test(queryGroupName.value.trim()));
 
+/* ------------------------------------------------------------------ *
+ * Unsaved edits to a saved group
+ *
+ * A saved group's edits live only on the canvas until Save writes a version.
+ * They are not kept anywhere else, so the screen has to know they exist: to
+ * enable Save only when there is something to save, to say so in the save bar,
+ * to warn before a navigation throws them away, and to say that Run runs the
+ * saved version rather than them.
+ *
+ * "Changed" is a comparison with what was loaded: the payload the canvas would
+ * save, plus where its nodes sit. The baseline is taken after each version is
+ * put on the canvas (`versions.loadCount`), two ticks later so the canvas has
+ * settled its node positions first.
+ * ------------------------------------------------------------------ */
+
+const canvasFingerprint = computed(() => {
+  try {
+    return JSON.stringify({
+      graph: graph.toFlatPayload(),
+      // A display label is saved in the canvas snapshot, not the payload.
+      labels: graph.currentGraphState.value.nodes.map((node) => [node.id, authoredNodeLabel(node) ?? '']),
+      at: nodes.value.map((node) => [node.id, Math.round(node.position?.x ?? 0), Math.round(node.position?.y ?? 0)]),
+    });
+  } catch {
+    return null;
+  }
+});
+
+const savedFingerprint = ref<string | null>(null);
+const editsSinceLoad = ref(0);
+
+watch(versions.loadCount, async () => {
+  savedFingerprint.value = null;
+  editsSinceLoad.value = 0;
+  await nextTick();
+  await nextTick();
+  savedFingerprint.value = canvasFingerprint.value;
+  await untangleOpenedVersion();
+});
+
+/**
+ * A version that opens with nodes on top of each other is laid out at once.
+ * The new positions are how the canvas shows it, not an edit the author made,
+ * so the baseline moves with them; the next save keeps them.
+ */
+async function untangleOpenedVersion() {
+  const measured = await waitForMeasuredNodes();
+  if (!measured) return;
+  if (!hasOverlaps(nodes.value as CanvasBox[])) {
+    clearToolbar();
+    return;
+  }
+  // A narrow canvas column fits a chain stacked, not laid out in a row.
+  const surface = canvasContainerRef.value?.getBoundingClientRect();
+  const narrow = !!surface && surface.width < 720 && surface.width < surface.height;
+  autoLayoutCanvas(narrow ? 'flow-tb' : layoutPresetId.value, { quiet: true, remember: false });
+  await nextTick();
+  savedFingerprint.value = canvasFingerprint.value;
+}
+
+/** VueFlow measures nodes a frame or two after they render. */
+async function waitForMeasuredNodes(): Promise<boolean> {
+  if (typeof window === 'undefined' || typeof window.requestAnimationFrame !== 'function') return false;
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    await new Promise((resolve) => window.requestAnimationFrame(() => resolve(null)));
+    const all = nodes.value as CanvasBox[];
+    if (all.length > 0 && all.every((node) => (node.dimensions?.width ?? 0) > 0)) return true;
+  }
+  return false;
+}
+
+/*
+ * A node grows when a query is assigned or its label gets longer, and then
+ * covers whatever stands to its right. Its first measurement is not growth:
+ * an opened version is handled above.
+ */
+const lastWidths = new Map<string, number>();
+function onNodesChange(changes: Array<{ type: string; id?: string; dimensions?: { width?: number } }>) {
+  for (const change of changes) {
+    if (change.type !== 'dimensions' || !change.id) continue;
+    const width = change.dimensions?.width ?? 0;
+    const before = lastWidths.get(change.id);
+    lastWidths.set(change.id, width);
+    if (!before || width <= before) continue;
+    const moved = pushApartFrom(nodes.value as CanvasBox[], change.id);
+    if (moved.size === 0) continue;
+    for (const node of nodes.value) {
+      const x = moved.get(node.id);
+      if (x !== undefined) node.position = { ...node.position, x };
+    }
+    dropStaleEdgeRoutes();
+  }
+}
+
+const hasUnsavedEdits = computed(() =>
+  !isScratch.value
+  && savedFingerprint.value !== null
+  && canvasFingerprint.value !== savedFingerprint.value,
+);
+
+watch(() => graph.currentGraphState.value, () => {
+  if (savedFingerprint.value !== null) editsSinceLoad.value += 1;
+});
+
+function noteCanvasEdit() {
+  if (savedFingerprint.value !== null) editsSinceLoad.value += 1;
+}
+
+/** An estimate: one per command or drag, never fewer than one while changed. */
+const unsavedEditCount = computed(() => (hasUnsavedEdits.value ? Math.max(1, editsSinceLoad.value) : 0));
+
+/** Put the version on screen back, edits and all thrown away. */
+async function discardEdits() {
+  const groupId = queryGroupId.value;
+  const versionId = versions.selectedVersionId.value;
+  if (!groupId || !versionId) return;
+  try {
+    await versions.loadVersionById(groupId, versionId);
+  } catch (error) {
+    console.error('[QueryGroupWorkArea] Failed to discard edits', error);
+    toast.error('Could not reload the saved version');
+  }
+}
+
+const runTitle = computed(() => {
+  if (isNewQueryGroup.value) return 'Save this group before running it';
+  if (hasUnsavedEdits.value) {
+    return `Runs v${selectedVersionNumber.value ?? ''} as saved — your unsaved edits are not included. Save first to run them.`;
+  }
+  return 'Run this query group';
+});
+
+/*
+ * Leaving with unsaved edits asks first: another group, another section, or
+ * another version of this one. A reload or a closed tab gets the browser's own
+ * prompt, which is all a page is allowed there.
+ */
+const router = useRouter();
+const leaveConfirmOpen = ref(false);
+let pendingLeave: (() => void) | null = null;
+
+function confirmLeave() {
+  leaveConfirmOpen.value = false;
+  savedFingerprint.value = null;
+  const go = pendingLeave;
+  pendingLeave = null;
+  go?.();
+}
+
+const removeLeaveGuard = router?.beforeEach((to: { path: string; fullPath: string }, from: { path: string }) => {
+  if (!hasUnsavedEdits.value || to.path === from.path) return true;
+  pendingLeave = () => void router.push(to.fullPath);
+  leaveConfirmOpen.value = true;
+  return false;
+});
+
+const warnOnUnload = (event: BeforeUnloadEvent) => {
+  if (!hasUnsavedEdits.value) return;
+  event.preventDefault();
+  event.returnValue = '';
+};
+if (typeof window !== 'undefined') window.addEventListener('beforeunload', warnOnUnload);
+onUnmounted(() => {
+  removeLeaveGuard?.();
+  if (typeof window !== 'undefined') window.removeEventListener('beforeunload', warnOnUnload);
+});
+
 const canSave = computed(() => {
   if (isSavingVersion.value || isSaving.value) return false;
   // An empty canvas is nothing to save; the start and end nodes are
   // structural and are there before anything has been drawn.
   if (isScratch.value) return graph.currentGraphState.value.nodes.some((node) => node.kind !== 'start' && node.kind !== 'end');
-  return !!queryGroupId.value;
+  // A version identical to the one on screen is not worth minting.
+  return !!queryGroupId.value && hasUnsavedEdits.value;
 });
 
 const detailsPanelRef = ref<InstanceType<typeof EntityDetailsPanel> | null>(null);
@@ -1418,7 +1650,8 @@ const detailsProps = computed(() => ({
   showSignature: false,
   versionOptions: versionOptions.value.map((option) => ({
     value: option.value,
-    label: option.label,
+    // The panel writes the "v" itself, as it does for a query's numbers.
+    label: option.label.replace(/^v/, ''),
     comment: versionMetadata.value[option.value]?.comment ?? null,
     dateModified: versionMetadata.value[option.value]?.dateModified ?? null,
   })),
@@ -1550,19 +1783,50 @@ async function saveScratch(name: string) {
  */
 async function save() {
   if (isSavingVersion.value || !canSave.value) return;
+  /*
+   * Refused before anything is sent when one node cannot be written - no query,
+   * no backend. The node is selected and its inspector opened, so the author
+   * lands on the field to fill in rather than on a toast that has gone.
+   */
+  try {
+    io.buildVersionCreatePayload({ versionComment: null });
+  } catch (error) {
+    if (error instanceof CanvasNodeError) {
+      toast.error(error.message);
+      activeResultsTab.value = 'editor';
+      graph.selectNode(error.nodeId);
+      return;
+    }
+  }
+  const blocking = liveIssues.value.filter((issue) => issue.level === 'error');
+  const versionBefore = versions.selectedVersionId.value;
   isSavingVersion.value = true;
   try {
     if (isScratch.value) {
       await saveScratch(queryGroupName.value.trim() || 'Untitled group');
-      return;
+    } else {
+      /*
+       * A new version starts with no note. `versionComment` mirrors the loaded
+       * version's, so carrying it over would caption the new version with
+       * something written about a different one.
+       */
+      versionComment.value = '';
+      await saveQueryGroup();
+      // `saveQueryGroup` reports its own failure and returns; nothing was saved.
+      if (versions.selectedVersionId.value === versionBefore) return;
     }
     /*
-     * A new version starts with no note. `versionComment` mirrors the loaded
-     * version's, so carrying it over would caption the new version with
-     * something written about a different one.
+     * Saved, but not runnable. A version is kept even so - it is the author's
+     * work - but saying nothing here is how a group came to be saved, run, and
+     * do nothing visible at all.
      */
-    versionComment.value = '';
-    await saveQueryGroup();
+    if (blocking.length > 0) {
+      toast.warning?.(
+        `Saved, but this group cannot run yet: ${blocking[0].message}`
+          + (blocking.length > 1 ? ` (and ${blocking.length - 1} more)` : ''),
+      );
+      focusValidationIssue(blocking[0]);
+    }
   } catch (error) {
     console.error('[QueryGroupWorkArea] Save failed', error);
   } finally {
@@ -1726,18 +1990,51 @@ const handleSelectIoEntity = (payload: { entityId: string; parentNodeId?: string
   graph.selectIoEntity(payload.entityId, payload.parentNodeId ?? null);
 };
 
+/*
+ * The last delete, kept so it can be taken back. A delete is one key press
+ * away on a selected node and takes its edges with it, and there is no other
+ * undo on this canvas, so the toast offers one and Ctrl+Z / Cmd+Z takes it.
+ */
+type DeleteSnapshot = { state: QueryGroupGraphState; nodes: typeof nodes.value; edges: typeof edges.value };
+let lastDelete: DeleteSnapshot | null = null;
+
+const deleteWithUndo = (what: 'Node' | 'Edge', run: () => boolean): boolean => {
+  const before: DeleteSnapshot = {
+    state: currentGraphState.value,
+    nodes: nodes.value.map((node) => ({ ...node, position: { ...node.position } })),
+    edges: edges.value.map((edge) => ({ ...edge })),
+  };
+  if (!run()) return false;
+  lastDelete = before;
+  toast.success(`${what} deleted`, {
+    action: { label: 'Undo', onClick: () => undoLastDelete() },
+    duration: 8000,
+  });
+  return true;
+};
+
+function undoLastDelete() {
+  const snapshot = lastDelete;
+  if (!snapshot) return false;
+  lastDelete = null;
+  graph.clearSelection();
+  currentGraphState.value = snapshot.state;
+  nodes.value = snapshot.nodes;
+  edges.value = snapshot.edges;
+  toast.success('Delete undone');
+  return true;
+}
+
+watch(versions.loadCount, () => {
+  lastDelete = null;
+});
+
 const handleDeleteNode = (nodeId: string) => {
-  const deleted = graph.deleteNode(nodeId);
-  if (deleted) {
-    toast.success('Node deleted');
-  }
+  deleteWithUndo('Node', () => graph.deleteNode(nodeId));
 };
 
 const handleDeleteEdge = (edgeId: string) => {
-  const deleted = graph.deleteEdge(edgeId);
-  if (deleted) {
-    toast.success('Edge deleted');
-  }
+  deleteWithUndo('Edge', () => graph.deleteEdge(edgeId));
 };
 
 /**
@@ -1810,9 +2107,7 @@ const deleteContextNode = () => {
   const menu = nodeContextMenu.value;
   nodeContextMenu.value = null;
   if (!menu) return;
-  if (graph.deleteNode(menu.nodeId)) {
-    toast.success('Node deleted');
-  }
+  deleteWithUndo('Node', () => graph.deleteNode(menu.nodeId));
 };
 
 const handleKeyDown = (event: KeyboardEvent) => {
@@ -1826,23 +2121,21 @@ const handleKeyDown = (event: KeyboardEvent) => {
     return;
   }
 
+  if ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === 'z') {
+    if (undoLastDelete()) event.preventDefault();
+    return;
+  }
+
   // Check if Delete or Backspace key is pressed
   if (event.key === 'Delete' || event.key === 'Backspace') {
     // Prevent default behavior (like browser back navigation on Backspace)
     event.preventDefault();
 
-    // Try to delete the selected item
-    const deleted = graph.deleteSelected();
-
-    // Show feedback to user
-    if (deleted) {
-      const selection = graph.selectedCanvasDetail.value;
-      if (selection?.type === 'node') {
-        toast.success('Node deleted');
-      } else if (selection?.type === 'edge') {
-        toast.success('Edge deleted');
-      }
-    }
+    // Read the selection first: deleting it clears it, which is how the
+    // feedback below used to find nothing to name and never showed.
+    const selection = graph.selectedCanvasDetail.value;
+    if (selection?.type !== 'node' && selection?.type !== 'edge') return;
+    deleteWithUndo(selection.type === 'node' ? 'Node' : 'Edge', () => graph.deleteSelected());
   }
 };
 
@@ -1926,6 +2219,27 @@ const drawAddedNode = (graphNode: GraphNodeState, position?: { x: number; y: num
   });
 
   graph.selectNode(graphNode.id);
+  void nextTick(() => revealNode(graphNode.id));
+};
+
+/**
+ * Pan to a node the toolbar placed outside the view, at the current zoom.
+ * A new node lands below the others, and with a few of them that is off
+ * screen, where it looks as if the button did nothing.
+ */
+const revealNode = (nodeId: string) => {
+  const flow = vueFlowRef.value;
+  const node = nodes.value.find((entry) => entry.id === nodeId);
+  const viewport = flow?.getViewport?.();
+  const size = flow?.dimensions;
+  if (!flow?.setCenter || !node || !viewport || !size?.width || !size?.height) return;
+  const screenX = node.position.x * viewport.zoom + viewport.x;
+  const screenY = node.position.y * viewport.zoom + viewport.y;
+  const margin = 40;
+  const visible = screenX > margin && screenX < size.width - margin
+    && screenY > margin && screenY < size.height - margin;
+  if (visible) return;
+  flow.setCenter(node.position.x + 120, node.position.y + 40, { zoom: viewport.zoom, duration: 300 });
 };
 
 const addQueryNode = () => {
@@ -2229,6 +2543,19 @@ const addStepDisabledReason = computed(() => {
   return null;
 });
 
+/*
+ * Said before the click, not after: a query node cannot read the RDF a ruleset
+ * or patch node emits, so the step it adds there only runs after it.
+ */
+const addStepTitle = computed(() => {
+  const detail = selectedCanvasDetail.value;
+  if (detail?.type === 'node' && (detail.node.kind === 'ruleset' || detail.node.kind === 'patch')) {
+    return `Add a query node that runs after this ${detail.node.kind} node. A query cannot read its RDF output: `
+      + 'to use it, draw an edge to a Ruleset node or the End node instead.';
+  }
+  return 'Add a query node fed by the selected one';
+});
+
 /**
  * The next step in a chain: a query node and the edge feeding it, in one click.
  *
@@ -2371,15 +2698,21 @@ const canvasIsEmpty = computed(() =>
  * Re-position nodes with dagre. Positions are canvas data, so this is a normal
  * unsaved edit - the user still has to save the version to keep it.
  */
-const autoLayoutCanvas = (presetId: LayoutPresetId = layoutPresetId.value) => {
+const autoLayoutCanvas = (
+  presetId: LayoutPresetId = layoutPresetId.value,
+  options: { quiet?: boolean; remember?: boolean } = {},
+) => {
   layoutMenuOpen.value = false;
   if (nodes.value.length === 0) return;
   const preset = layoutPresets.find((entry) => entry.id === presetId) ?? layoutPresets[0];
-  layoutPresetId.value = preset.id;
-  try {
-    window.localStorage.setItem(LAYOUT_PRESET_STORAGE_KEY, preset.id);
-  } catch {
-    // See readStoredLayoutPreset: not remembering the choice is the whole cost.
+  // A layout the canvas chose for itself is not the author's preference.
+  if (options.remember !== false) {
+    layoutPresetId.value = preset.id;
+    try {
+      window.localStorage.setItem(LAYOUT_PRESET_STORAGE_KEY, preset.id);
+    } catch {
+      // See readStoredLayoutPreset: not remembering the choice is the whole cost.
+    }
   }
 
   /*
@@ -2425,9 +2758,40 @@ const autoLayoutCanvas = (presetId: LayoutPresetId = layoutPresetId.value) => {
     // the node is re-read, and an edge drawn to a stale handle floats free.
     vueFlowRef.value?.updateNodeInternals(nodes.value.map((node) => node.id));
     // Arranging a graph that no longer fits the viewport is only half the job.
-    vueFlowRef.value?.fitView({ padding: 0.2, duration: 300 });
+    // The zoom stays where node text is readable: a long chain scrolls rather
+    // than shrinking to 6px text, and two lone nodes do not fill the screen.
+    vueFlowRef.value?.fitView({ padding: 0.2, minZoom: 0.65, maxZoom: 1 });
+    clearToolbar();
   });
-  toast.success(`Canvas arranged - ${preset.label.toLowerCase()}`);
+  if (!options.quiet) toast.success(`Canvas arranged - ${preset.label.toLowerCase()}`);
+};
+
+/**
+ * The add-node toolbar floats over the canvas's top-left corner, and a fitted
+ * graph in a narrow column starts right under it. Pan right until the leftmost
+ * node clears it, when the graph still fits beside it.
+ */
+const addNodeToolbarRef = ref<HTMLElement | null>(null);
+const clearToolbar = () => {
+  const flow = vueFlowRef.value;
+  const toolbar = addNodeToolbarRef.value;
+  const surface = canvasContainerRef.value;
+  const viewport = flow?.getViewport?.();
+  if (!flow?.setViewport || !toolbar || !surface || !viewport) return;
+  const surfaceBox = surface.getBoundingClientRect();
+  const clearOf = toolbar.getBoundingClientRect().right - surfaceBox.left + 16;
+  if (nodes.value.length === 0) return;
+  // From the viewport rather than the DOM, which has not repainted yet.
+  let left = Infinity;
+  let right = -Infinity;
+  for (const node of nodes.value as CanvasBox[]) {
+    const x = node.position.x * viewport.zoom + viewport.x;
+    left = Math.min(left, x);
+    right = Math.max(right, x + (node.dimensions?.width ?? 0) * viewport.zoom);
+  }
+  const shift = clearOf - left;
+  if (shift <= 0 || right + shift > surfaceBox.width) return;
+  flow.setViewport({ ...viewport, x: viewport.x + shift });
 };
 
 /**
@@ -2597,6 +2961,24 @@ const handleAssignQuery = async (payload: { nodeId: string; queryId: string; que
 const executeQueryGroup = execution.executeQueryGroup;
 
 /*
+ * Run, and when `/validate` stops the run, take the author to the first
+ * problem. The toast alone said "validation failed" and went, and the only
+ * other sign was a tint on an edge.
+ */
+async function runGroup() {
+  const editsLeftOut = hasUnsavedEdits.value;
+  await executeQueryGroup();
+  if (!execution.executionError.value) {
+    if (editsLeftOut) {
+      toast.warning?.(`Ran v${selectedVersionNumber.value ?? ''} as saved. Your unsaved edits were not included; save to run them.`);
+    }
+    return;
+  }
+  const first = allValidationIssues.value.find((issue) => issue.level === 'error');
+  if (first && validationIssues.value.some((issue) => issue.level === 'error')) focusValidationIssue(first);
+}
+
+/*
  * The group's commands, on the same footing as the query's: registered while
  * this work area is mounted, gone when it is not. A new group has nothing to
  * run — the run bar says so too — so `when` mirrors the button's disabled
@@ -2610,7 +2992,7 @@ useCommand([
     keys: 'Mod+Enter',
     keywords: 'execute pipeline',
     when: () => !isExecuting.value && !isNewQueryGroup.value,
-    run: executeQueryGroup,
+    run: runGroup,
   },
   {
     id: 'queryGroup.save',

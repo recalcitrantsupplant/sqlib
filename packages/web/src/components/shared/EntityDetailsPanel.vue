@@ -29,8 +29,8 @@
             and a single-line input showed the first forty characters of it and
             hid the rest behind a caret you had to drive. It is a box that grows
             to what it holds, capped at three lines so the fields below it stay
-            where they are; past that, the last line fades under a "more" that
-            opens the whole thing in place. Still one editable field either way —
+            where they are; past that, the last line fades and a "Show more"
+            below the box opens the whole thing in place. Still one editable field either way —
             expanding is not a mode, and typing works in both.
           -->
           <span class="field-label description-label">Description</span>
@@ -50,7 +50,7 @@
               :title="descriptionExpanded ? 'Show less' : 'Show the whole description'"
               @click="toggleDescription"
             >
-              {{ descriptionExpanded ? 'less' : 'more' }}
+              {{ descriptionExpanded ? 'Show less' : 'Show more' }}
             </button>
           </div>
 
@@ -594,10 +594,7 @@ function syncDescriptionHeight() {
 
   /*
    * The natural padding is symmetric, so the threshold counts the top one
-   * twice rather than reading the bottom one: an opened box pads its bottom
-   * out to keep the text from running under "less", and measuring that would
-   * make opening it look like it no longer overflows — which would close it
-   * again, and so on.
+   * twice rather than reading the bottom one, which styling may change.
    *
    * The extra pixel is slack: sub-pixel line heights otherwise report a
    * description that fits its three lines exactly as overflowing them.
@@ -870,12 +867,6 @@ const outputKind = computed<'variables' | 'boolean' | 'graph' | 'none'>(() => {
   min-width: 0;
 }
 
-/* An opened box keeps a line's worth of room at the bottom so the last
-   sentence does not run under "less". */
-.description-field.opened .description-input {
-  padding-bottom: var(--space-7);
-}
-
 /* No manual resize handle: the box already sizes itself, and a dragged corner
    would fight the measurement. */
 .description-input {
@@ -890,32 +881,29 @@ const outputKind = computed<'variables' | 'boolean' | 'graph' | 'none'>(() => {
 }
 
 /*
- * The fade is the tell. It sits on the last visible line so the text looks cut
- * off before you read the word, and "more" rides on a scrim of the field's own
- * background so it stays legible over whatever the sentence happens to be.
+ * The fade is the tell: the last visible line dims towards the bottom, so the
+ * text reads as continuing. It used to fade sideways under an overlaid "more",
+ * which cut the line off mid-word; the toggle now sits below the box instead.
  */
 .description-field.clamped::after {
   position: absolute;
   right: 1px;
-  bottom: 1px;
+  bottom: 21px;
   left: 1px;
   height: 18px;
   border-radius: 0 0 var(--radius) var(--radius);
-  background: linear-gradient(to right, transparent 55%, var(--surface) 88%);
+  background: linear-gradient(to bottom, transparent, var(--surface));
   content: '';
   pointer-events: none;
 }
 
 .description-toggle {
-  /* Above the fade: the gradient is opaque where the word sits, so without
-     this the pseudo-element paints straight over it. */
-  position: absolute;
-  z-index: 1;
-  right: 6px;
-  bottom: 4px;
+  display: block;
+  margin-left: auto;
   padding: 0 var(--space-1);
   border: none;
-  background: var(--surface);
+  background: none;
+  line-height: 20px;
   color: var(--action);
   font-family: inherit;
   font-size: var(--text-label);

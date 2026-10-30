@@ -23,7 +23,7 @@
           class="node-validation-badge"
           :class="validation.level"
           :title="validationTitle"
-        >{{ validation.level === 'error' ? '!' : '?' }}{{ validationCount > 1 ? ` ${validationCount}` : '' }}</span>
+        >{{ validationBadgeText }}</span>
         <span class="node-toggle-icon" :class="{ open: isOpen }">v</span>
       </button>
 
@@ -33,7 +33,7 @@
           {{ formatDuration(execution.durationMs) }}
         </span>
         <span v-if="execution.count !== undefined" class="node-execution-chip">
-          {{ execution.count }} {{ execution.countLabel }}
+          {{ executionCountText }}
         </span>
       </div>
       <p v-if="execution?.error" class="node-execution-error" :title="execution.error">{{ execution.error }}</p>
@@ -108,6 +108,22 @@ const validationCount = computed(() =>
   validation.value ? validation.value.errors + validation.value.warnings : 0
 );
 const validationTitle = computed(() => validation.value?.messages.join('\n') ?? '');
+/*
+ * The badge says what it counts. It used to be a bare "!" or "?", and "? 2"
+ * read as a question rather than two things to fix; the title still lists them.
+ */
+const validationBadgeText = computed(() => {
+  const count = validationCount.value;
+  if (validation.value?.level === 'error') return count === 1 ? '1 problem' : `${count} problems`;
+  return count === 1 ? '1 warning' : `${count} warnings`;
+});
+const executionCountText = computed(() => {
+  const count = execution.value?.count;
+  const label = execution.value?.countLabel;
+  if (count === undefined) return '';
+  if (!label) return String(count);
+  return `${count} ${count === 1 ? label.replace(/s$/, '') : label}`;
+});
 const execution = computed(() => nodeData.value.execution ?? null);
 const executionStatusLabel = computed(() => {
   switch (execution.value?.status) {
@@ -266,9 +282,11 @@ const toggleOpen = () => {
   padding: 0 var(--space-3);
   border-radius: var(--radius-full, 999px);
   border: 1px solid transparent;
+  flex-shrink: 0;
   font-size: var(--text-micro);
   font-weight: 700;
   line-height: 1;
+  white-space: nowrap;
 }
 
 .node-validation-badge.error {
@@ -417,6 +435,8 @@ const toggleOpen = () => {
   color: var(--ink);
   max-height: 6.5rem;
   overflow: hidden;
+  /* The canvas centres node text; query text needs its indentation. */
+  text-align: left;
   white-space: pre-wrap;
 }
 

@@ -192,8 +192,13 @@
               @update-variable="emit('update-variable', $event)"
             />
             <div class="start-node-actions">
-              <button class="btn-compact btn-primary" type="button" @click="emit('save-start-tuples')">
-                Save Inputs
+              <button
+                class="btn-compact btn-primary"
+                type="button"
+                title="Put these tuples on the canvas. Save the group to keep them."
+                @click="emit('save-start-tuples')"
+              >
+                Apply inputs
               </button>
             </div>
 
@@ -659,6 +664,7 @@ import {
 } from '../../composables/queryGroupIoModel';
 import {
   arityDiagnostics,
+  defaultVariablePairing,
   sourceCandidates,
   targetCandidates,
   validateEdge,
@@ -1014,6 +1020,13 @@ const nodeIoState = computed<NodeIoState>(() => {
   }
 
   if (node.inputs.length === 0 && node.outputs.length === 0) {
+    // Start and End have no query version; their ports are the group's own.
+    if (node.kind === 'start') {
+      return { status: 'empty', message: 'This group takes no inputs yet. Add an input tuple below to give it a parameter.' };
+    }
+    if (node.kind === 'end') {
+      return { status: 'empty', message: 'Nothing feeds the End node yet. Draw an edge into it from the step that makes the result.' };
+    }
     return { status: 'empty', message: 'This query version declares no inputs or outputs.' };
   }
 
@@ -1230,9 +1243,17 @@ const targetPlaceholder = computed(() => {
 const toTupleInfo = (port: GraphPort): TupleInfo => {
   const entity = props.ioEntities[port.id];
   const memberEntries = Array.isArray(entity?.memberEntries) ? entity.memberEntries : null;
+  // An unnamed tuple is known by its variables; its IRI (a temporary one
+  // until the group is saved) tells the author nothing.
+  const readableLabel = port.label && port.label !== port.id && !/^(urn|https?):/i.test(port.label)
+    ? port.label
+    : null;
+  const variableNames = variablesForPort(port.id, ioModel.value)
+    ?.map((variable) => `?${variable.variableName}`)
+    .join(' ');
   return {
     id: port.id,
-    label: entity?.name ?? port.label ?? port.id,
+    label: entity?.name ?? readableLabel ?? (variableNames || 'Unnamed tuple'),
     // Unknown stays null. It used to collapse to 0, which then matched the
     // "no source selected" branch below and silently changed the filtering.
     arity: tupleArity(entity),
@@ -1354,8 +1375,10 @@ const tupleMapping = computed(() => {
   const targetNames = targetVariables.map((entry) => entry.variableName);
   const configured = new Map<string, string>();
   try { for (const item of JSON.parse(selection.value.edge.variableMappings ?? '[]')) if (typeof item?.source === 'string' && typeof item?.target === 'string') configured.set(item.target, item.source); } catch { /* defaults */ }
-  const remaining = sourceNames.filter(name => !targetNames.includes(name));
-  return targetNames.map((target, index) => ({ target, source: configured.get(target) ?? (sourceNames.includes(target) ? target : remaining[index] ?? null), sourceOptions: sourceNames }));
+  // The engine's rule: written mappings, even an empty list, replace the default pairing.
+  const written = (selection.value.edge.variableMappings ?? '').trim().length > 0;
+  const defaults = written ? new Map<string, string>() : defaultVariablePairing(sourceNames, targetNames);
+  return targetNames.map((target) => ({ target, source: configured.get(target) ?? defaults.get(target) ?? null, sourceOptions: sourceNames }));
 });
 
 /**

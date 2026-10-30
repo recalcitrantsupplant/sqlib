@@ -171,13 +171,13 @@ test.describe('Query group canvas integration (mocked)', () => {
     await expect(node).toHaveClass(/has-error/);
     await expect(node.locator('.node-validation-badge')).toHaveAttribute('title', /Node has no backend/);
 
-    // A refused run leaves the inspector where it was — only a run that reaches
-    // the server moves it to Results — so the reason is read there deliberately.
+    // A refused run selects the first problem in the Editor tab; the reason
+    // for the refusal is still what the Results tab shows.
     await page.getByRole('button', { name: 'Results', exact: true }).click();
     const results = page.locator('.results-content');
     await expect(results.locator('.empty-state__title')).toHaveText('Execution failed');
     await expect(results.locator('.empty-state__description')).toHaveText(
-      'Validation failed. Resolve blocking errors before executing.',
+      /^This version cannot run: it has \d+ problems?, marked on the canvas\.$/,
     );
     expect(executeCalls).toBe(0);
   });

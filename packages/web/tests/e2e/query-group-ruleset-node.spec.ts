@@ -280,7 +280,7 @@ test.describe('Query group ruleset node (mocked)', () => {
     await saveQueryGroupNewVersion(page);
 
     await expect(
-      page.locator('[data-sonner-toaster]').getByText(/missing a ruleSetVersion/i),
+      page.locator('[data-sonner-toaster]').getByText(/has no rule set/i),
     ).toBeVisible();
     await expect(page.locator('.querygroup-work-area [data-testid="version-pill"]')).toContainText('v1');
     expect(posted).toBe(false);

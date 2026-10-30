@@ -381,7 +381,7 @@ describe('useQueryGroupExecution', () => {
       await execution.executeQueryGroup();
 
       expect(apiClient.executeTarget).not.toHaveBeenCalled();
-      expect(execution.executionError.value).toContain('Validation failed');
+      expect(execution.executionError.value).toContain('cannot run');
       expect(toast.error).toHaveBeenCalledWith(execution.executionError.value);
     });
 
@@ -482,7 +482,7 @@ describe('useQueryGroupExecution', () => {
       expect(execution.executionError.value).toBeNull();
     });
 
-    it('unwraps an envelope whose result is already a string, using the requested format', async () => {
+    it('unwraps an envelope whose result is already a string, as N-Triples', async () => {
       const { execution } = harness({
         apiClient: {
           executeTarget: vi.fn().mockResolvedValue({
@@ -495,7 +495,8 @@ describe('useQueryGroupExecution', () => {
       await execution.executeQueryGroup();
 
       expect(execution.executionResultRaw.value).toBe('<a> <b> <c> .');
-      expect(execution.executionContentType.value).toBe('application/sparql-results+json');
+      // A string result is RDF, whatever results format the request asked for.
+      expect(execution.executionContentType.value).toBe('application/n-triples');
       // Not SPARQL-results-shaped JSON, so it does not get parsed as one.
       expect(execution.executionResultJson.value).toBeNull();
     });

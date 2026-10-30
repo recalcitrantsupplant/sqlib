@@ -106,10 +106,16 @@ describe('compatibility', () => {
     expect(verdict).toEqual({ verdict: 'mismatch', reason: 'arity 5 ≠ 2' });
   });
 
-  it('does not claim an arity when the widths are mixed', () => {
+  it('names the variables when the widths are mixed', () => {
     const verdict = compatibility(signature, [binding(['lat', 'lon'])]);
     expect(verdict.verdict).toBe('mismatch');
-    expect(verdict.reason).toBe('no clause in common');
+    expect(verdict.reason).toMatch(/^binds \?lat \?lon, needs /);
+  });
+
+  it('names the variables, not the widths, when the widths are equal', () => {
+    const wantsLanguage = buildQuerySignature({ valuesInputs: [['language']] }, null);
+    const verdict = compatibility(wantsLanguage, [binding(['country'])]);
+    expect(verdict).toEqual({ verdict: 'mismatch', reason: 'binds ?country, needs ?language' });
   });
 
   it('treats a query with no clauses and a set with values as a mismatch', () => {

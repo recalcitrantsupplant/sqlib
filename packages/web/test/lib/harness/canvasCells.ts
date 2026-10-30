@@ -417,6 +417,10 @@ export function expectedViolations(cell: Cell): string[] {
   // Node-kind rules.
   if (cell.sourceKind === 'end') codes.push('end-node-source');
   if (cell.targetKind === 'start') codes.push('start-node-target');
+  // Start before End is already true, so ordering them says nothing.
+  if (cell.flowType === 'CONTROL_FLOW' && cell.sourceKind === 'start' && cell.targetKind === 'end') {
+    codes.push('start-end-control-flow');
+  }
   if (cell.flowType === 'QUERY_ID' && cell.targetKind !== 'dynamic') codes.push('target-node-kind');
   if (
     (cell.sourceKind === 'ruleset' || cell.targetKind === 'ruleset') &&
