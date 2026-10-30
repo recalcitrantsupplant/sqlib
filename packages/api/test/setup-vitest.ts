@@ -8,6 +8,8 @@ import { File } from 'node:buffer';
 // persistence adapter gets exercised against the `http` backend as well as
 // in-process oxigraph. See test/persistence/README-http-backend.md.
 process.env.INTERNAL_BACKEND_TYPE ||= 'oxigraph-memory';
+// A `sqlite` run keeps the database in the process, so files never share one.
+if (process.env.INTERNAL_BACKEND_TYPE === 'sqlite') process.env.LIBRARY_STORAGE_DIR ||= ':memory:';
 
 /*
  * The SRL rule-tuples extension, on for the suites that exercise it.

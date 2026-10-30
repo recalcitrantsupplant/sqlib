@@ -42,13 +42,13 @@ against, which are entities you create through the API.
 
 | Name | Default | Effect |
 | --- | --- | --- |
-| `INTERNAL_BACKEND_TYPE` | `http` | `http`, `oxigraph-memory` or `oxigraph-persistent`. Any other value is treated as `http`. |
+| `INTERNAL_BACKEND_TYPE` | `sqlite` | `sqlite`, `http`, `oxigraph-memory` or `oxigraph-persistent`. Unset or empty means `sqlite`. Any other value throws at startup. |
 | `LIBRARY_STORAGE_SPARQL_ENDPOINT` | `http://localhost:3030/sqlib/` | With `INTERNAL_BACKEND_TYPE=http`, the SPARQL endpoint holding the library. The default is a local Fuseki on its conventional port, so an unconfigured server fails against localhost rather than reaching an external host. |
 | `LIBRARY_STORAGE_SPARQL_QUERY_ENDPOINT` | value of `LIBRARY_STORAGE_SPARQL_ENDPOINT` | Query URL, when the store separates query from update. |
 | `LIBRARY_STORAGE_SPARQL_UPDATE_ENDPOINT` | value of `LIBRARY_STORAGE_SPARQL_ENDPOINT` | Update URL, when the store separates query from update. |
 | `LIBRARY_STORAGE_SPARQL_USERNAME` | unset | Basic-auth username for the library endpoint. |
 | `LIBRARY_STORAGE_SPARQL_PASSWORD` | unset | Basic-auth password for the library endpoint. |
-| `LIBRARY_STORAGE_DIR` | `./storage/library-store`, resolved against the process working directory | With `INTERNAL_BACKEND_TYPE=oxigraph-persistent`, the directory holding the `.nq` serialisation of the library. |
+| `LIBRARY_STORAGE_DIR` | `./storage/library-store`, resolved against the process working directory | With `INTERNAL_BACKEND_TYPE=sqlite`, the directory holding `library.sqlite` (and its `-wal` and `-shm` files); `:memory:` keeps the database in the process, for tests. With `oxigraph-persistent`, the directory holding the `.nq` serialisation of the library. |
 | `INTERNAL_OXIGRAPH_STORE_ID` | `library-store` | Name of the persistent store within that directory. |
 | `INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS` | `60000` | How often the in-memory store is written back to `.nq`. |
 | `INTERNAL_OXIGRAPH_LOAD_METHOD` | `none` | How the store is populated at boot: `file`, `remote-sparql`, `remote-file` or `none`. An unrecognised value falls back to `none`. |
@@ -67,8 +67,9 @@ in `LIBRARY_STORAGE_DIR` on shutdown and every
 files at startup. A process killed between checkpoints loses the writes made
 since the last one. `oxigraph-memory` keeps nothing.
 
-For a store that is durable in the usual sense, run a SPARQL server such as
-Oxigraph's own or Fuseki alongside and use `INTERNAL_BACKEND_TYPE=http`.
+For a store that is durable in the usual sense, use the default `sqlite`, or run
+a SPARQL server such as Oxigraph's own or Fuseki alongside and use
+`INTERNAL_BACKEND_TYPE=http`.
 
 `INTERNAL_OXIGRAPH_DB_PATH` is no longer read. It named a RocksDB directory
 that these bindings cannot open; serialisation goes to `LIBRARY_STORAGE_DIR`.
