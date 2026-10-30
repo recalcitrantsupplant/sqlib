@@ -479,6 +479,22 @@ describe('BackendWorkArea', () => {
       expect(wrapper.find('.card-empty').exists()).toBe(false);
     });
 
+    it('shows five of a kind, then a count that opens the rest', async () => {
+      api.listQueries.mockResolvedValue(
+        Array.from({ length: 8 }, (_, i) => ({ id: `q:${i}`, name: `Query ${i}`, isPartOf: ['lib:qa'], defaultBackend: backend.id })),
+      );
+      const wrapper = await mountRecord();
+
+      expect(wrapper.findAll('[data-testid="default-for-chip-query"]')).toHaveLength(5);
+      const more = wrapper.find('[data-testid="default-for-more-query"]');
+      expect(more.text()).toBe('+3 more');
+      expect(wrapper.find('[data-testid="default-for-more-library"]').exists()).toBe(false);
+
+      await more.trigger('click');
+      expect(wrapper.findAll('[data-testid="default-for-chip-query"]')).toHaveLength(8);
+      expect(wrapper.find('[data-testid="default-for-more-query"]').text()).toBe('Show fewer');
+    });
+
     it('offers only what does not already default here, filtered by the text box', async () => {
       const wrapper = await mountRecord();
       await openAddMenu(wrapper);

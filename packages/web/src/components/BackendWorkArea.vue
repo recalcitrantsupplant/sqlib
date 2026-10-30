@@ -469,7 +469,7 @@
                   <InlineNote as="span" size="xs">{{ group.label }}</InlineNote>
                   <div class="chip-row">
                     <span
-                      v-for="entry in group.entries"
+                      v-for="entry in shownEntries(group)"
                       :key="entry.id"
                       class="chip"
                       :title="entry.hint ?? undefined"
@@ -487,6 +487,15 @@
                         <X :size="12" />
                       </button>
                     </span>
+                    <button
+                      v-if="group.entries.length > DEFAULT_FOR_SHOWN"
+                      type="button"
+                      class="chip-more"
+                      :data-testid="`default-for-more-${group.kind}`"
+                      @click="toggleDefaultForGroup(group.kind)"
+                    >
+                      {{ expandedDefaultFor.has(group.kind) ? 'Show fewer' : `+${group.entries.length - DEFAULT_FOR_SHOWN} more` }}
+                    </button>
                   </div>
                 </div>
               </template>
@@ -979,6 +988,23 @@ const defaultForGroups = computed(() =>
     entries: defaultEntries.value.filter((entry) => entry.kind === kind && entry.defaultBackend === backend.value?.id),
   })),
 );
+
+/*
+ * Five of each kind, then a count: a backend that dozens of queries default to
+ * otherwise pushes the rest of the sidecar off the screen.
+ */
+const DEFAULT_FOR_SHOWN = 5;
+const expandedDefaultFor = ref(new Set<string>());
+
+function shownEntries<T>(group: { kind: string; entries: T[] }): T[] {
+  return expandedDefaultFor.value.has(group.kind) ? group.entries : group.entries.slice(0, DEFAULT_FOR_SHOWN);
+}
+
+function toggleDefaultForGroup(kind: string) {
+  const next = new Set(expandedDefaultFor.value);
+  if (!next.delete(kind)) next.add(kind);
+  expandedDefaultFor.value = next;
+}
 
 const defaultForCount = computed(() =>
   defaultForGroups.value.reduce((total, group) => total + group.entries.length, 0),
@@ -2194,6 +2220,20 @@ function relativeTime(iso: string): string {
 .attach-button:hover {
   border-color: var(--action);
   color: var(--action);
+}
+
+.chip-more {
+  padding: 0 var(--space-3);
+  border: none;
+  background: transparent;
+  color: var(--ink-muted);
+  font-family: inherit;
+  font-size: var(--text-label);
+  cursor: pointer;
+}
+
+.chip-more:hover {
+  color: var(--ink);
 }
 
 .default-for-group {
