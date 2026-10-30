@@ -107,6 +107,8 @@ test-results/
 
 # Runtime oxigraph stores (regenerated at run time)
 tmp/library-store-docker/
+# `just demo-graph-access` writes its Rauthy secrets and demo passwords here.
+tmp/auth-demo/
 
 # Playwright MCP session artifacts (console log dumps, screenshots).
 .playwright-mcp/

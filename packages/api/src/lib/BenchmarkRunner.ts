@@ -280,7 +280,7 @@ export class BenchmarkRunner {
    *
    * A version may measure subjects from several libraries, so the scope is per
    * subject rather than per run: the caller needs `execute` on each subject's
-   * library, and each subject reaches its own library's curated backends.
+   * library, and a grant on each backend it runs on.
    * Called once per subject while planning, so a run the caller may not make
    * is refused before any task starts.
    */

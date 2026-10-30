@@ -14,6 +14,7 @@ import { getAuthConfig } from './config.js';
 import { hasBackendMode, hasLibraryMode } from './grants.js';
 import {
   createFullAccessContext,
+  isEnforcingMode,
   type AuthContext,
   type BackendMode,
   type LibraryMode,
@@ -84,7 +85,7 @@ function decide(
     return;
   }
 
-  const enforcing = context.mode === 'required' || event.enforceInEveryMode === true;
+  const enforcing = isEnforcingMode(context.mode) || event.enforceInEveryMode === true;
   auditDecision(request, context, {
     decision: enforcing ? 'deny' : 'would-deny',
     resource: event.resource,
@@ -259,103 +260,50 @@ export function requireLibraryMode(
   return context;
 }
 
-export interface BackendCheckOptions {
-  /**
-   * The library owning the *saved* entity being executed. Supplying it enables
-   * the curated-execution route (design §4.3 route 2). Ad-hoc paths — raw
-   * `/sparql`, caller-supplied query text — must not pass it, which is what
-   * confines the implied grant to curated queries.
-   */
-  viaLibrary?: string | null;
-}
-
 export function canBackend(
   request: FastifyRequest,
   backendIri: string | null | undefined,
   mode: BackendMode,
-  options: BackendCheckOptions = {}
 ): boolean {
   const context = authOf(request);
   if (context.fullAccess) return true;
-  if (hasBackendMode(context.grants, backendIri, mode)) return true;
+  return hasBackendMode(context.grants, backendIri, mode);
+}
 
-  // Route 2: execute-on-library implies use-of-its-allowed-backends, for that
-  // library's own saved entities only, and never for writes.
-  if (mode !== 'use' || !options.viaLibrary || !backendIri) return false;
-  if (!hasLibraryMode(context.grants, options.viaLibrary, 'execute')) return false;
-  return allowedBackendsOf(options.viaLibrary).includes(backendIri);
+/** Whether the backend record is marked as an auth backend. */
+function isAuthBackendRecord(backendIri: string | null | undefined): boolean {
+  if (!backendIri) return false;
+  try {
+    return (getCacheCoordinator().get(backendIri) as { authBackend?: boolean | null } | null)?.authBackend === true;
+  } catch {
+    // No entity cache yet (an early boot path or a unit test): no record says so.
+    return false;
+  }
 }
 
 export function requireBackendMode(
   request: FastifyRequest | null,
   backendIri: string | null | undefined,
   mode: BackendMode,
-  options: BackendCheckOptions = {}
 ): AuthContext {
   const context = authOf(request);
-  let allowed = context.fullAccess || hasBackendMode(context.grants, backendIri, mode);
-  let via: string | null = null;
-
-  if (!allowed && mode === 'use' && options.viaLibrary && backendIri) {
-    if (
-      hasLibraryMode(context.grants, options.viaLibrary, 'execute') &&
-      allowedBackendsOf(options.viaLibrary).includes(backendIri)
-    ) {
-      allowed = true;
-      via = options.viaLibrary;
-    }
-  }
+  // An auth backend holds who may read what, so only administrators reach it,
+  // through any route and whatever grants name it. Without this, a grant given
+  // by mistake would let its holder rewrite the access rules.
+  const reserved = !context.fullAccess && !context.grants.admin && isAuthBackendRecord(backendIri);
+  const allowed = !reserved && (context.fullAccess || hasBackendMode(context.grants, backendIri, mode));
 
   decide(request, context, allowed, {
     resource: backendIri ?? null,
     resourceKind: 'backend',
     mode,
-    matchedGrant: via ? `implicit:library:${via}` : undefined,
-    message: backendIri
+    message: reserved
+      ? `Backend ${backendIri} is an auth backend, reserved for administrators.`
+      : backendIri
       ? `Missing "${mode}" permission on backend ${backendIri}.`
       : `Missing "${mode}" permission: no backend resolved for this request.`,
   });
   return context;
-}
-
-/** The two fields of a library that decide which backends its Execute reaches. */
-export interface CuratedBackendFields {
-  allowedBackends?: string[] | null;
-  defaultBackend?: string | null;
-}
-
-/**
- * The backends a library permits its own saved queries to run against, read off
- * a library record rather than out of the cache.
- *
- * Split from `allowedBackendsOf` so the escalation guard below compares exactly
- * the set that grants the reach. It compared `allowedBackends` alone while this
- * granted `allowedBackends` ∪ `defaultBackend`, and that gap was a door.
- */
-export function curatedBackendsOf(library: CuratedBackendFields | null | undefined): string[] {
-  if (!library) return [];
-
-  const allowed = new Set<string>();
-  if (Array.isArray(library.allowedBackends)) {
-    for (const backend of library.allowedBackends) {
-      if (typeof backend === 'string' && backend) allowed.add(backend);
-    }
-  }
-  if (typeof library.defaultBackend === 'string' && library.defaultBackend) {
-    allowed.add(library.defaultBackend);
-  }
-  return [...allowed];
-}
-
-/**
- * The backends a library permits its own saved queries to run against.
- * `defaultBackend` is always included: a library whose users cannot reach its
- * own default backend would be broken by construction.
- */
-export function allowedBackendsOf(libraryIri: string): string[] {
-  return curatedBackendsOf(
-    getCacheCoordinator().get(libraryIri) as CuratedBackendFields | null
-  );
 }
 
 /**
@@ -442,7 +390,7 @@ export function resolveOwningLibrary(entity: unknown, depth = 0): string | null 
  * The guard checks write on the entity in the path, which is the *source*
  * library. `isPartOf` in the body names the destination, and without this an
  * author could move their entity into a library they hold nothing on — into
- * someone else's listing, under someone else's curated backends. Nothing to
+ * someone else's listing. Nothing to
  * check when the body leaves containment alone or keeps the same library.
  */
 export function requireContainmentWritable(
@@ -482,7 +430,7 @@ export function canReadEntity(request: FastifyRequest, entity: unknown): boolean
 export function filterReadable<T>(request: FastifyRequest, items: T[]): T[] {
   const context = authOf(request);
   if (context.fullAccess || context.grants.admin) return items;
-  if (context.mode === 'required') {
+  if (isEnforcingMode(context.mode)) {
     return items.filter(item => canReadEntity(request, item));
   }
   if (context.mode === 'dry-run') {
@@ -512,53 +460,3 @@ export function requireLibraryCreate(request: FastifyRequest): AuthContext {
   return context;
 }
 
-/**
- * Escalation guard for a library's curated backends (design §4.3).
- *
- * Extending the set hands curated-execution reach to everyone holding Execute
- * on the library, so it requires Control on the library *and* an explicit Use
- * grant on each backend being added — you may only share reach you hold
- * yourself. Removal needs Control alone.
- *
- * The set is `allowedBackends` ∪ `defaultBackend`, because that is what
- * `curatedBackendsOf` hands to `canBackend`. The guard used to read
- * `allowedBackends` alone, so naming a backend as a library's *default* was the
- * same escalation through a field nobody was watching.
- *
- * `previous` is null when the library is being created. There is no library to
- * hold Control on yet and the creator is granted every mode on what it makes,
- * so that half is satisfied by construction; the Use half is not, and is the
- * half this call is for.
- */
-export function requireCuratedBackendsChange(
-  request: FastifyRequest,
-  libraryIri: string,
-  previous: CuratedBackendFields | null,
-  next: CuratedBackendFields
-): void {
-  const context = authOf(request);
-  if (context.fullAccess || context.grants.admin) return;
-
-  const before = new Set(curatedBackendsOf(previous));
-  const after = curatedBackendsOf(next);
-  const added = after.filter(backend => !before.has(backend));
-  const removed = [...before].filter(backend => !after.includes(backend));
-
-  if (added.length === 0 && removed.length === 0) return;
-
-  if (previous !== null) {
-    requireLibraryMode(request, libraryIri, 'control');
-  }
-
-  for (const backend of added) {
-    const allowed = hasBackendMode(context.grants, backend, 'use');
-    decide(request, context, allowed, {
-      resource: backend,
-      resourceKind: 'backend',
-      mode: 'use',
-      message:
-        `Cannot add backend ${backend} to library ${libraryIri}: ` +
-        'you may only share backend access you hold yourself.',
-    });
-  }
-}

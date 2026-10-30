@@ -105,51 +105,62 @@
       </InlineNote>
       <InlineNote v-else-if="visible.length === 0 && !draft" class="list-message">Nothing matches “{{ filter }}”.</InlineNote>
 
-      <div
-        v-for="backend in visible"
-        :key="backend.id"
-        class="backend-row"
-        :class="{ selected: backend.id === selectedId }"
-        data-testid="backend-row"
-        :data-backend-id="backend.id"
-        role="button"
-        tabindex="0"
-        @click="emit('select', backend.id)"
-        @keydown.enter="emit('select', backend.id)"
-      >
-        <!--
-          A browser backend keeps the dot's space and says nothing in it. The
-          dot reports what a probe found, and the server cannot probe a record
-          it does not have — grey-for-never-probed would be a claim about a
-          probe that is never going to happen. Hidden rather than absent, so a
-          list holding both kinds still lines up.
-        -->
-        <span
-          class="health-dot"
-          :class="isBrowserBackendId(backend.id) ? 'health-dot--none' : `health-dot--${healthFor(backend.id)}`"
-          :title="isBrowserBackendId(backend.id) ? undefined : healthTitle(backend.id)"
-          data-testid="backend-health-dot"
-          aria-hidden="true"
-        />
-        <span class="row-text">
-          <span class="row-name">
-            {{ backend.name }}
-            <!--
-              Said in the list, not only on the record: a visitor scanning for
-              where a query will run needs to see which rows are theirs alone
-              without opening each one.
-            -->
-            <span
-              v-if="isBrowserBackendId(backend.id)"
-              class="row-badge"
-              title="Registered in this browser only"
-              data-testid="browser-backend-badge"
-            >Browser</span>
+      <!--
+        Auth backends hold who-may-read-what and answer only administrators
+        and sqlib itself; data backends are where queries run. Two headed
+        groups, so the one kind is never picked by mistake for the other. A
+        group with no rows after the filter says nothing.
+      -->
+      <template v-for="group in groups" :key="group.key">
+        <SectionLabel class="group-heading" :count="group.rows.length" :data-testid="`backend-group-${group.key}`">
+          {{ group.label }}
+        </SectionLabel>
+        <div
+          v-for="backend in group.rows"
+          :key="backend.id"
+          class="backend-row"
+          :class="{ selected: backend.id === selectedId }"
+          data-testid="backend-row"
+          :data-backend-id="backend.id"
+          role="button"
+          tabindex="0"
+          @click="emit('select', backend.id)"
+          @keydown.enter="emit('select', backend.id)"
+        >
+          <!--
+            A browser backend keeps the dot's space and says nothing in it. The
+            dot reports what a probe found, and the server cannot probe a record
+            it does not have — grey-for-never-probed would be a claim about a
+            probe that is never going to happen. Hidden rather than absent, so a
+            list holding both kinds still lines up.
+          -->
+          <span
+            class="health-dot"
+            :class="isBrowserBackendId(backend.id) ? 'health-dot--none' : `health-dot--${healthFor(backend.id)}`"
+            :title="isBrowserBackendId(backend.id) ? undefined : healthTitle(backend.id)"
+            data-testid="backend-health-dot"
+            aria-hidden="true"
+          />
+          <span class="row-text">
+            <span class="row-name">
+              {{ backend.name }}
+              <!--
+                Said in the list, not only on the record: a visitor scanning for
+                where a query will run needs to see which rows are theirs alone
+                without opening each one.
+              -->
+              <span
+                v-if="isBrowserBackendId(backend.id)"
+                class="row-badge"
+                title="Registered in this browser only"
+                data-testid="browser-backend-badge"
+              >Browser</span>
+            </span>
+            <span class="row-host">{{ hostOf(backend) }}</span>
           </span>
-          <span class="row-host">{{ hostOf(backend) }}</span>
-        </span>
-        <span v-if="!isBrowserBackendId(backend.id)" class="row-latency">{{ latencyOf(backend.id) }}</span>
-      </div>
+          <span v-if="!isBrowserBackendId(backend.id)" class="row-latency">{{ latencyOf(backend.id) }}</span>
+        </div>
+      </template>
     </div>
 
     <div v-if="!collapsed" class="sidebar-footer">
@@ -183,6 +194,7 @@ import { computed, ref } from 'vue';
 import { PanelLeftClose, PanelLeftOpen, Plus, RefreshCw, Search, Server, X } from '@lucide/vue';
 import type { Backend } from '@sparql-query-lib/contracts';
 import InlineNote from './shared/InlineNote.vue';
+import SectionLabel from './shared/SectionLabel.vue';
 import { fuzzyMatches } from '../lib/fuzzy';
 import { useBackendProbes } from '../composables/useBackendProbes';
 import { isBrowserBackendId } from '../composables/useBrowserBackends';
@@ -229,6 +241,13 @@ const visible = computed(() => {
   const rows = [...props.backends].sort((a, b) => a.name.localeCompare(b.name));
   return rows.filter((backend) => fuzzyMatches(filter.value, backend.name, backend.endpoint));
 });
+
+const groups = computed(() =>
+  [
+    { key: 'auth', label: 'Auth backends', rows: visible.value.filter((backend) => backend.authBackend === true) },
+    { key: 'data', label: 'Data backends', rows: visible.value.filter((backend) => backend.authBackend !== true) },
+  ].filter((group) => group.rows.length > 0),
+);
 
 /** Host, not the whole URL: the path is the same `/sparql` on every row. */
 function hostOf(backend: Backend): string {
@@ -446,6 +465,10 @@ function healthTitle(id: string): string {
   display: flex;
   flex-direction: column;
   gap: 1px;
+}
+
+.group-heading {
+  padding: var(--space-4) var(--space-4) var(--space-2);
 }
 
 /* The inset is the list's fact about where a message sits, not the note's. */

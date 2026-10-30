@@ -286,6 +286,29 @@ describe('/sparql?record=patch on a read-only deployment', () => {
     expect(statuses()).toEqual(['draft', 'draft', 'live']);
   });
 
+  it('refuses a bare endpoint on either verb, so the proxy reaches nothing the operator did not register', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const query = 'SELECT * WHERE { ?s ?p ?o }';
+
+    const posted = await app.inject({
+      method: 'POST',
+      url: '/sparql',
+      payload: { query, endpoint: 'http://127.0.0.1:1/sparql' },
+    });
+    expect(posted.statusCode).toBe(405);
+    expect(posted.json().error).toContain('read-only');
+
+    const got = await app.inject({
+      method: 'GET',
+      url: `/sparql?endpoint=${encodeURIComponent('http://127.0.0.1:1/sparql')}&query=${encodeURIComponent(query)}`,
+    });
+    expect(got.statusCode).toBe(405);
+    expect(got.json().error).toContain('read-only');
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+  });
+
   it('refuses POST /sparql?record=patch and files nothing', async () => {
     const response = await app.inject({
       method: 'POST',

@@ -9,8 +9,7 @@ words in sqlib, "tuple" above all, name more than one thing.
 A **Library** is the container everything else belongs to. A query, a query
 group, a rule set, a data graph, a tuple set, an argument set, a test, a
 benchmark and an ETL job each belong to exactly one library. A library may name
-a `defaultBackend` and a set of `allowedBackends`, which is what its own saved
-queries may execute against. One server holds many libraries, and a library is
+a `defaultBackend`, the backend its queries run on when no other is chosen. One server holds many libraries, and a library is
 the unit you export, import and copy.
 
 ## Stable pointers and immutable versions

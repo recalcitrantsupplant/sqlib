@@ -303,30 +303,10 @@ describe('POST /libraries', () => {
     );
   });
 
-  it('refuses to curate a backend the creator may not use', async () => {
-    const response = await request(stranger, '/libraries', {}, {
-      method: 'POST',
-      payload: { name: 'Field notes', allowedBackends: [BACKEND] },
-    });
-
-    expect(response.statusCode).toBe(403);
-    expect(grantsMinted).not.toHaveBeenCalled();
-  });
-
-  it('refuses it as a defaultBackend too', async () => {
+  it('lets a creator name any defaultBackend, since it grants nothing', async () => {
     const response = await request(stranger, '/libraries', {}, {
       method: 'POST',
       payload: { name: 'Field notes', defaultBackend: BACKEND },
-    });
-
-    expect(response.statusCode).toBe(403);
-  });
-
-  it('allows a backend the creator holds Use on', async () => {
-    const withBackend = contextFor({}, { [BACKEND]: ['use'] });
-    const response = await request(withBackend, '/libraries', {}, {
-      method: 'POST',
-      payload: { name: 'Field notes', allowedBackends: [BACKEND] },
     });
 
     expect(response.statusCode).toBe(201);
@@ -334,22 +314,8 @@ describe('POST /libraries', () => {
 });
 
 describe('PUT /libraries/:id', () => {
-  it('refuses a defaultBackend the caller may not use', async () => {
+  it('lets a writer change the defaultBackend without a grant on it', async () => {
     const response = await request(owner, `/libraries/${encodeURIComponent(MINE)}`, {}, {
-      method: 'PUT',
-      payload: { name: 'Hydrology', defaultBackend: BACKEND },
-    });
-
-    expect(response.statusCode).toBe(403);
-    expect(entities.get(MINE)).not.toMatchObject({ defaultBackend: BACKEND });
-  });
-
-  it('allows one the caller holds Use on', async () => {
-    const withBackend = contextFor(
-      { [MINE]: ['read', 'write', 'control'] },
-      { [BACKEND]: ['use'] },
-    );
-    const response = await request(withBackend, `/libraries/${encodeURIComponent(MINE)}`, {}, {
       method: 'PUT',
       payload: { name: 'Hydrology', defaultBackend: BACKEND },
     });

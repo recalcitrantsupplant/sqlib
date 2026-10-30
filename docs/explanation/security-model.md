@@ -15,20 +15,34 @@ and they have separate answers.
 **sqlib to a triplestore.** Service credentials, supplied by environment
 variable, resolved per backend. Shipped and in use.
 
-**A caller to sqlib.** Identity and authorization. Partly shipped: OIDC bearer
-token validation with per-library and per-backend grants exists and is enforced
-at the routes. The parts that would scope *what data within a store* a caller
-may see are designed and not shipped.
+**A caller to sqlib.** Identity and authorization. OIDC bearer token validation
+with per-library and per-backend grants is enforced at the routes. A backend's
+graph policy then scopes which of its graphs a caller may read (see
+[Backend graph policies](#backend-graph-policies)). A per-query ASK gate is
+designed and not shipped.
 
 ## What `SQLIB_AUTH_MODE` does
 
-Three values. **The default is `disabled`.**
+Four values. **The default is `disabled`.**
 
 | Mode | Token required | Effect |
 | --- | --- | --- |
 | `disabled` (default) | no | Every request gets a synthetic full-access context. Every check exists and passes. |
 | `dry-run` | no | A token, if presented, is verified and grants resolved; a request that would be denied is logged as `would-deny` and served anyway. |
 | `required` | yes | A request without a valid token gets `401` (or `503` if the JWKS endpoint cannot be fetched, because that failure is the server's, not the caller's). A token whose `kid` is not in the published key set is a `401`; an unknown `kid` refetches the key set at most once per 30-second cooldown. |
+| `anonymous` | no, and none is read | Every request is the one principal `urn:sqlib:principal:anonymous`, with the grants on that principal and nothing else. Enforced like `required`: a check that fails is refused, a graph policy narrows, a listing hides. No issuer is needed, nobody is an administrator, and nothing is recorded at request time. |
+
+`anonymous` is the mode for a public deployment: beside
+`SQLIB_READ_ONLY=true`, a grant of `execute` on a library and `query:saved` on
+its backends lets every visitor run the seeded queries and refuses any SPARQL
+they typed themselves, on `/sparql`, in a draft, or through MCP. A grant of
+`query:adhoc` on one backend opens that backend to ad-hoc text and no other.
+Grants are seeded with `SQLIB_AUTH_SEED_GRANTS` or written by an administrator
+on a writable instance of the same auth store. Because every caller is one
+principal, `SQLIB_AUTH_ALLOW_LIBRARY_CREATE=all` would let anyone create a
+library on a writable deployment; set it to `admin` unless that is intended.
+The anonymous principal is not the authenticated sentinel, so a grant to
+"everyone signed in" does not reach a visitor.
 
 Setting `dry-run` or `required` without configuring an issuer is a startup
 error, not a silent fallback. So is an issuer without an audience, unless
@@ -36,7 +50,7 @@ error, not a silent fallback. So is an issuer without an audience, unless
 `aud` claim goes unchecked and a token the issuer minted for any other
 application is accepted.
 
-The design decision behind all three is that the request path is the same shape
+The design decision behind all four is that the request path is the same shape
 in every mode. The auth plugin is registered as an `onRequest` hook before any
 route, and `disabled` mode decorates a full-access `AuthContext` rather than
 skipping the decoration. Nothing downstream branches on "is auth on", so an
@@ -65,12 +79,42 @@ document, which must name the same issuer.
 Claims become principals: the subject, each value of the configured group claim,
 and a sentinel matching every authenticated caller.
 
+A person is always their issuer and `sub`, which never change. For display
+only, sqlib also keeps a label from the token: `email`, else
+`preferred_username`, else `name`, and the Access screen shows it in place of
+the subject. These are standard OIDC claims, but an access token carries them
+only when the identity provider puts them there, usually when the client asks
+for the `email` or `profile` scope. With none of them, the screen shows the
+subject. A label never decides access: emails and usernames can change or be
+reused, so grants stay on the subject.
+
 ### What is authorized
 
 Grants are `(principal, resource, modes)` over two resource kinds. A library
-grants `read`, `write`, `execute`, `delete` and `control`; a backend grants
-`use` and `write`. Execute is deliberately independent of read, so "may run the
-library's saved queries" and "may read their text" are separable.
+grants `read`, `write`, `execute`, `delete` and `control`. Execute is
+deliberately independent of read, so "may run the library's saved queries" and
+"may read their text" are separable.
+
+A backend grants two operations at two levels each:
+
+| Mode | Allows |
+| --- | --- |
+| `query:saved` | Run saved queries (a stored version) against the backend, and read its metadata. |
+| `query:adhoc` | Also run query text the caller writes, on `/sparql` or as a draft. |
+| `update:saved` | Run saved updates, and revert a patch. |
+| `update:adhoc` | Also run update text the caller writes, upload data, apply a patch and clear the store. |
+
+`adhoc` includes `saved`, so a grant of `query:adhoc` satisfies a check for
+`query:saved`. The Access screen shows the two operations as two toggles per
+backend: none, saved or ad hoc.
+
+Library grants and backend grants are separate. `execute` on a library runs its
+saved entities, and every backend they run on needs a backend grant of its own.
+A `defaultBackend`, on a query or a library, is a UI convenience: it picks the
+backend a client offers first, and it grants nothing. `/execute` never falls back
+to it. A query run must name its `backendId`. Every check happens in one place, `GuardedSparqlExecutor`, which
+wraps every executor a caller's request obtains, so a saved update reached
+through `/execute` needs `update:saved` like any other.
 
 Resolution is additive: the effective grant set is the union over all of a
 caller's principals. There is no ordering, no precedence and no deny rule.
@@ -130,42 +174,102 @@ user-writable entity content — query text, descriptions, results — so the
 allowlist is what bounds the damage an instruction hidden in that content can
 do.
 
-## The caller-authorization model that is not shipped
+## Backend graph policies
 
-A three-tier model is designed. Tier 1 — claims mapped to allowed backends, so
-a caller without a grant on a backend cannot execute anything against it — is
-what ships, as the backend grants described above. It holds on every execution
-path a caller can start: `/execute`, `/sparql`, ETL, test runs and benchmark
-runs all acquire their executors from an `ExecutorFactory` carrying the
-caller's scope, and the factory's unscoped form has to be asked for by name
-(`{ internal: true }`), which only sqlib's own storage and system queries do.
-Tiers 2 and 3 are not implemented:
+A backend can carry a graph policy: a saved SELECT that decides, per caller,
+which graphs of that backend the caller may read. It is the second of the three
+tiers the original design named. Tier 1, a grant on the backend, decides whether
+a caller may run anything at all; the policy then narrows what a query reads.
+Tier 3, a policy graph with an ASK gate per query, is not implemented.
 
-- **Named-graph scoping.** Injecting `default-graph-uri` / `named-graph-uri` on
-  every proxied request so the caller's own `FROM` cannot widen the dataset.
-  Nothing in `packages/api/src` sets either parameter.
-- **A policy graph with an ASK gate.** Not present.
+### How a policy is set
 
-Two consequences follow from the absence, and neither is obvious from the
-presence of an auth layer:
+An administrator sets two fields on the backend, together:
 
-- **`SERVICE` is not stripped or allowlisted.** On an HTTP backend a
-  federated query reaches whatever endpoint the store behind it will call;
-  sqlib parses every query, so the check is available, and the decision so far
-  is to leave federation to that store's own configuration. On an in-process
-  backend (`oxigraphMemory`, `oxigraphEphemeral`, the library store, a group's
-  ephemeral stores) there is nothing to reach: Oxigraph's Node build has no
-  service handler, so any `SERVICE` clause fails the query
-  (`test/server/OxigraphSparqlExecutor.test.ts` holds this).
-- **Write authorization by graph does not exist.** An update names its target
-  graphs in its own body, and the SPARQL protocol's dataset parameters scope
-  only the `WHERE` clause, so the design records that this tier would be
-  read-side only even if it shipped.
+- `graphPolicyQueryVersion`: a query version, pinned. Later edits to the query
+  change nothing until the administrator pins the new version.
+- `graphPolicyBackend`: the backend the policy runs on. It must be an *auth
+  backend* (`authBackend: true`), or the library store.
 
-The whole model also rests on a precondition that is a deployment property, not
-a code property: **sqlib is only an enforcement point if it is the only network
-path to the store.** If callers can reach the SPARQL endpoint directly, nothing
-sqlib does about authorization matters.
+Saving checks the policy once, so a policy that could never run is refused with
+a 400 instead of failing every request later. The policy must be a SELECT. It
+may project only `?graph`, `?defaultGraph` and `?namedGraph`. It may declare
+only the two single-variable slots `VALUES ?authUser { UNDEF }` and
+`VALUES ?authGroup { UNDEF }`, and no LIMIT or OFFSET parameters. A backend
+cannot be its own policy backend, and an auth backend cannot have a policy.
+
+An auth backend holds access data. Only administrators may query it, through
+any route, so the rules that decide access are not themselves readable.
+
+### How a policy is applied
+
+For each read, sqlib runs the policy on the auth backend with the caller bound
+in: `?authUser` to the caller's user principal IRI, and `?authGroup` to one row
+per group principal IRI the token carried (zero rows for no groups, so a group
+rule matches nothing). The result becomes a dataset:
+
+- `?graph` fills both the default graphs and the named graphs.
+- `?defaultGraph` and `?namedGraph` fill one part each.
+- A part the policy does not project is empty: the caller reads no graphs
+  there.
+
+That dataset is intersected with any dataset the caller asked for (the graph
+picker, `defaultGraphs`/`namedGraphs` on `/sparql` and `/execute`) and with
+dataset edges in a query group. The intersection is sent as the SPARQL protocol
+parameters `default-graph-uri` and `named-graph-uri`, or as Oxigraph's dataset
+options, which override `FROM` and `FROM NAMED` in the query text. An empty part
+is sent as `urn:sqlib:empty-dataset`, a graph that names nothing, because no
+parameter would mean "the endpoint's whole dataset".
+
+Results are cached per backend and caller for `SQLIB_AUTH_POLICY_CACHE_SECONDS`
+(default 60). A policy change on the backend clears the cache, and so does any
+update to an auth backend through sqlib. Any other change to the access data,
+such as an edit to a data graph the auth backend is hydrated from, takes effect
+within the cache time.
+
+### Who is not policed
+
+- **Administrators and sqlib itself.** A caller with full access (any caller in
+  `disabled` mode) or the administrator grant is not narrowed. Neither are
+  sqlib's own internal queries (`{ internal: true }`). Use `Test as` on the
+  Access screen to see what a person would read.
+- **Updates.** The policy narrows reads only. An update names its target graphs
+  in its own text, and the dataset parameters scope only an update's `WHERE`
+  clause. The `update:*` modes therefore mean "may write any graph of this
+  backend", and the `WHERE` of an update is not narrowed either. Grant update
+  modes only to callers who may read and write the whole backend.
+- **Browser backends and exported bundles.** These send queries from the
+  browser straight to the endpoint, so sqlib never sees them.
+- **Data graphs.** An in-process backend hydrated from data graphs is only as
+  private as the libraries holding those graphs: anyone with `read` on such a
+  library reads the graph through the Data graphs routes. Keep them in a
+  library only administrators may read.
+- **The patch log.** A patch holds what an update wrote, in every graph. On a
+  policed backend, reading the patch log needs `update:saved`, not
+  `query:saved`.
+
+### Fail closed
+
+In `required` mode every failure to evaluate a policy refuses the request with
+a 503 and a generic message: an unknown version, an unreachable auth backend, a
+policy that no longer passes the checks, or a result that is not SPARQL JSON.
+In `dry-run` mode the failure and the narrowing are logged as would-deny audit
+events, and the query runs unnarrowed.
+
+### What stays the deployment's job
+
+- **`SERVICE` is not stripped.** A query that names `SERVICE` on a policed
+  backend runs, with a warning (the `X-Sqlib-Warning` header on `/sparql`),
+  because the dataset does not narrow the remote endpoint. On an in-process backend
+  there is nothing to reach: Oxigraph's Node build has no service handler, so
+  any `SERVICE` clause fails the query. On an HTTP backend, turn federation off
+  in the store if the policy must hold.
+- **sqlib must be the only path to the store.** If callers can reach the SPARQL
+  endpoint directly, the policy does not apply to them. Keep a policed store on
+  a private network.
+
+To try all of this on one machine, with Rauthy issuing the groups, run
+`just demo-graph-access` (see [Deploying](../guides/deploying.md#a-demo-of-graph-access)).
 
 ## Backend credentials
 
@@ -195,7 +299,16 @@ holds the ability to spend it.
 
 Two adjacent notes. The library storage backend is reserved for administrators
 even when a caller holds grants elsewhere, because reading it directly would
-bypass the entity layer and the auth graph stored in it. And the static export
+bypass the entity layer.
+
+Grants and principals are not in the library store. They live in the
+`urn:sqlib:auth` graph of an auth store of their own: one SQLite file by
+default, one N-Quads file, or a SPARQL dataset of its own
+(`SQLIB_AUTH_STORE_TYPE`). The SQLite store also keeps an audit trail: each
+change's added and removed quads, with the time, in `auth_events`. A backup,
+restore or reset of the library store leaves access control alone, and no
+export or library-store query reaches it. Deleting a library or a backend
+removes the grants that name it. And the static export
 bundle carries no authorization of its own: an exported bundle grants whatever
 the endpoint grants its caller, so a query whose safety depended on server-side
 scoping should not be exported.
@@ -371,7 +484,10 @@ generic network failure.
 8. **Keep backend credentials in the environment.** Never put a secret in an
    entity field. Confirm `authEnvKey` names the key you think it does.
 9. **Do not run two sqlib processes against one library store.** Each holds its
-   own cache and neither is told when the other writes.
+   own cache and neither is told when the other writes. Back up the auth store
+   (`SQLIB_AUTH_STORE_DIR`, or its SPARQL dataset) as well as the library store:
+   they are separate. Copy a live SQLite store with `sqlite3 auth.sqlite
+   ".backup copy.sqlite"`, not `cp`, so the copy includes its WAL.
 10. **Review what you export.** A static bundle carries no authorization, and
    updates are not exportable — read queries only.
 11. **List the browser origins that may call the API in `SQLIB_CORS_ORIGINS`.**

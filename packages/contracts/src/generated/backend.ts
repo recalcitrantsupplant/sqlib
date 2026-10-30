@@ -12,6 +12,7 @@ const iriString = z
 const optionalIriString = iriString.optional().nullable();
 const isoDateTime = z.string().datetime({ offset: true }).optional().nullable();
 const nullableString = z.string().optional().nullable();
+const nullableBoolean = z.boolean().optional().nullable();
 const backendTypeEnum = z.enum(['http', 'oxigraphEphemeral', 'oxigraphMemory']);
 const queryMethodEnum = z.enum(['post', 'get']);
 // Reusable field definitions for Backend entity
@@ -26,6 +27,9 @@ const backendShape = {
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
   oxigraphConfig: nullableString,
+  authBackend: nullableBoolean,
+  graphPolicyQueryVersion: optionalIriString,
+  graphPolicyBackend: optionalIriString,
 };
 // Full Backend schema for validation
 export const backendSchema = z.object(backendShape).strict();

@@ -26,7 +26,7 @@
  * not copying stored data into a payload, it is committing that the query will
  * be run. It is checked at composition rather than at execution because that is
  * where the other three check, and because binding the author is what lets a
- * library curate what its members may run — the same shape as `allowedBackends`.
+ * library keep control of what its members may run.
  *
  * The listing rows are the other half, and live in `listingVisibility.test.ts`
  * with the six collection GETs already there.

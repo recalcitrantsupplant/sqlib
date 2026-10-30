@@ -4,6 +4,7 @@
  * IMPORTANT: The oxigraph JavaScript/WebAssembly bindings only support in-memory stores.
  * There is NO RocksDB disk-backed persistence like in Rust/Python bindings.
  *
+ * - 'sqlite' (default): One SQLite file, a row per entity, written per change
  * - 'oxigraph-persistent': Creates a "durable" store (in-memory, serialized to .nq on shutdown)
  * - 'oxigraph-memory': Creates an ephemeral in-memory store
  *
@@ -20,6 +21,15 @@ interface HttpEndpointConfig {
   updateUrl?: string; // Optional, might be same as queryUrl
   username?: string; // Optional username for basic auth
   password?: string; // Optional password for basic auth
+}
+
+/**
+ * The library in one SQLite file (`library.sqlite` in `storageDir`), written
+ * per change. SPARQL over it is a read-only view; see `librarySparqlView.ts`.
+ */
+interface SqliteConfig {
+  type: 'sqlite';
+  storageDir: string;
 }
 
 interface OxigraphMemoryConfig {
@@ -43,7 +53,7 @@ interface OxigraphPersistentConfig {
 }
 
 // Union type for the internal backend configuration
-type InternalBackendConfig = HttpEndpointConfig | OxigraphMemoryConfig | OxigraphPersistentConfig;
+export type InternalBackendConfig = SqliteConfig | HttpEndpointConfig | OxigraphMemoryConfig | OxigraphPersistentConfig;
 
 export interface Config {
   enableTimingLogs: boolean;
@@ -54,7 +64,13 @@ export interface Config {
 
 // Function to determine backend config from environment variables or defaults
 function getInternalBackendConfig(): InternalBackendConfig {
-  const backendType = process.env.INTERNAL_BACKEND_TYPE || 'http'; // Default to http
+  const backendType = process.env.INTERNAL_BACKEND_TYPE || 'sqlite';
+
+  if (backendType === 'sqlite') {
+    // `:memory:` keeps the database in the process, for tests.
+    const dir = process.env.LIBRARY_STORAGE_DIR || './storage/library-store';
+    return { type: 'sqlite', storageDir: dir === ':memory:' ? dir : path.resolve(dir) };
+  }
 
   if (backendType === 'oxigraph-memory') {
     return { type: 'oxigraph-memory' };
@@ -93,8 +109,14 @@ function getInternalBackendConfig(): InternalBackendConfig {
     };
   }
 
+  if (backendType !== 'http') {
+    throw new Error(
+      `Invalid INTERNAL_BACKEND_TYPE "${backendType}". Expected "sqlite", "oxigraph-persistent", "oxigraph-memory" or "http".`
+    );
+  }
+
   /*
-   * Default to HTTP configuration. The fallback is a local Fuseki on its
+   * The HTTP configuration. The fallback is a local Fuseki on its
    * conventional port, so an unconfigured server fails against localhost
    * rather than reaching out to whatever host a default once named. Set
    * LIBRARY_STORAGE_SPARQL_ENDPOINT to point at the store you mean.

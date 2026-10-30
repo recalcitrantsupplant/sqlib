@@ -1,8 +1,8 @@
 # Storage and caching
 
 sqlib keeps its library — every query, version, rule set, tag, argument set and
-test — as RDF in a SPARQL store, and keeps a copy of all of it in memory so that
-reads are synchronous. This page explains what that store can be, what each
+test — as RDF, by default in one SQLite file, and keeps a copy of all of it in
+memory so that reads are synchronous. This page explains what that store can be, what each
 choice costs, and what the in-memory cache does and does not guarantee.
 
 Backends you create in the UI are a different thing from the store the library
@@ -12,9 +12,46 @@ environment variable, not by an entity.
 
 ## Where the library lives
 
-`INTERNAL_BACKEND_TYPE` chooses among three options.
+`INTERNAL_BACKEND_TYPE` chooses among four options.
 
-### `http` (the default)
+### `sqlite` (the default)
+
+The library is one SQLite file, `library.sqlite` in `LIBRARY_STORAGE_DIR`
+(default `./storage/library-store`). Each entity is one row: its IRI, its class,
+and its triples as JSON. Every write changes only the rows it touches, in one
+transaction, and is on disk before it returns (WAL mode, `synchronous = FULL`).
+There is no checkpoint and nothing to restore at boot, so nothing pauses the
+server and an unclean shutdown loses nothing that was written.
+
+Reads give exactly what the SPARQL modes give. `persistence/sqliteEntityStore.ts`
+builds the same `?id ?p ?o` rows the generated SELECT returns, and the same
+`EntityAssembler` turns them into entities, so required fields, typed values and
+`@projects` joins behave the same in every mode.
+
+SPARQL over the library still works, read-only. Admin queries on the library
+storage backend, library export and a graph policy that runs there use
+`persistence/librarySparqlView.ts`: an in-memory Oxigraph copy built from the
+rows when first needed and rebuilt after the next write. It exists only while
+something uses it. A SPARQL update on the library storage backend is refused
+with a 403; entities change through the API.
+
+Keep the file on a local disk or a block volume. SQLite's locking is not
+reliable on network file shares (NFS, SMB), and WAL mode needs every process
+that opens the file on one host. Copy a live file with
+`sqlite3 library.sqlite ".backup copy.sqlite"`, not `cp`.
+
+To move a library from another mode, export it there and import it here:
+
+```
+INTERNAL_BACKEND_TYPE=oxigraph-persistent pnpm --filter @sparql-query-lib/api export:library-store --out library.nq
+INTERNAL_BACKEND_TYPE=sqlite pnpm --filter @sparql-query-lib/api import:library-store --file library.nq
+```
+
+The import writes one row per subject in the default graph that has an
+`rdf:type`, and reports what it skipped. It refuses a store that already has
+entities unless given `--replace`.
+
+### `http`
 
 The library is stored in an external SPARQL 1.1 endpoint: Fuseki, GraphDB,
 Oxigraph's own server, or anything else that answers query and update over HTTP.
@@ -29,16 +66,14 @@ Separate query and update URLs are available
 (`LIBRARY_STORAGE_SPARQL_QUERY_ENDPOINT`,
 `LIBRARY_STORAGE_SPARQL_UPDATE_ENDPOINT`) for stores that split them.
 
-With nothing configured the default is a local Fuseki on its conventional port.
+With `INTERNAL_BACKEND_TYPE=http` and no endpoint, the default is a local Fuseki
+on its conventional port.
 The comment in `server/config.ts` gives the reason for that particular default:
 an unconfigured server should fail against localhost rather than reach out to
 whatever host a default once named.
 
-This is the option to choose when the library must survive the process, hold
-more data than the process can, be backed up by ordinary database means, or be
-shared between more than one sqlib instance. It is the only option where the
-store is a real database with its own durability, indexes and operational
-tooling.
+This is the option to choose when the library must hold more data than the
+process can, or be shared between more than one writing sqlib instance.
 
 ### `oxigraph-persistent`
 
@@ -95,8 +130,8 @@ mid-write leaves the previous snapshot intact rather than a truncated file the
 next boot would refuse.
 
 This option suits a single-instance deployment whose library fits comfortably in
-memory: a workstation, a demo, a CI run, a small team's server. It is what every
-recipe in the repository's `Justfile` uses. It does not suit two instances
+memory: a workstation, a demo, a CI run, a small team's server. It is what the
+recipes in the repository's `Justfile` use. It does not suit two instances
 sharing a library, a library large enough to approach the dump ceiling, or a
 deployment where losing up to one checkpoint interval of work on an unclean
 shutdown is unacceptable.
@@ -107,24 +142,24 @@ The third value: an in-process store that lives only as long as the process.
 It is created empty on first use, is never restored from or written to disk —
 no checkpoint, no snapshot at shutdown — and the next boot starts empty again.
 It is what the test suite runs on, and suits a throwaway development server.
-For an in-process library that survives a restart use `oxigraph-persistent`,
-and for a durable one `http`.
+For a library that survives a restart use `sqlite`.
 
 ### Choosing
 
-| | `http` | `oxigraph-persistent` |
-| --- | --- | --- |
-| Library survives a crash | yes, to the store's own guarantees | to the last checkpoint |
-| Size limit | the store's | process memory; dumps stop at 512 MiB of N-Quads |
-| More than one sqlib instance | yes | no |
-| Write latency | a network round trip | in-process |
-| Operational tooling | the store's own | copy a `.nq` file |
-| Extra process to run | yes | no |
+| | `sqlite` | `http` | `oxigraph-persistent` |
+| --- | --- | --- | --- |
+| Library survives a crash | yes, every committed write | yes, to the store's own guarantees | to the last checkpoint |
+| Pauses the server | no | no | for each checkpoint |
+| Size limit | the cache: process memory | the store's | process memory; dumps stop at 512 MiB of N-Quads |
+| More than one writing sqlib instance | no | yes | no |
+| SPARQL over the library | read-only, on demand | yes | yes |
+| Write latency | in-process | a network round trip | in-process |
+| Operational tooling | `sqlite3`, Litestream | the store's own | copy a `.nq` file |
+| Extra process to run | no | yes | no |
 
-An external HTTP endpoint is the right answer when any one of durability
-guarantees, backup and restore procedures, size beyond process memory, or more
-than one reader is a requirement. `oxigraph-persistent` is the right answer when
-none of them is and you would rather not run a second process.
+`sqlite` is the right answer for one instance. Read-only replicas can each run on
+their own copy of the file. An external HTTP endpoint is the right answer when
+several instances must write, or the library is larger than memory.
 
 ## The entity cache
 

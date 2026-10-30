@@ -232,8 +232,11 @@ it is:
 - `packages/api/src/persistence/EntityStore.ts` — the engine. It is keyed on the
   *schema* rather than on an entity-type name, generates the SELECT, INSERT,
   DELETE and UPDATE for that schema, and executes them through the executor
-  resolved for `LIBRARY_STORAGE_BACKEND_ID`. That indirection is what makes both
-  internal backend modes work without this file knowing which is configured.
+  resolved for `LIBRARY_STORAGE_BACKEND_ID`. That indirection is what makes the
+  RDF storage modes work without this file knowing which is configured. In the
+  default `sqlite` mode each function hands over to
+  `packages/api/src/persistence/sqliteEntityStore.ts`, which returns the rows
+  the SELECT would.
 - `packages/api/src/persistence/SelfHostedAdapter.ts` — the type-keyed facade
   the cache talks to. It maps an entity type to its schema through
   `SCHEMA_BY_TYPE` and hands off to `EntityStore`.
@@ -247,7 +250,7 @@ that no longer exists.
 
 Reads are served synchronously from an in-memory cache; writes go to the store
 first and then update the cache. The details — why versions never expire, what
-`CACHE_PRELOAD` and `CACHE_WRITE_THROUGH` do, and what the three
+`CACHE_PRELOAD` and `CACHE_WRITE_THROUGH` do, and what the four
 `INTERNAL_BACKEND_TYPE` choices cost — are in
 [storage-and-caching.md](storage-and-caching.md).
 

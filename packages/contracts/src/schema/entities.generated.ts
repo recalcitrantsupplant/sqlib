@@ -65,6 +65,20 @@ export const backendSchema = {
     "oxigraphConfig": {
       "type": "string",
       "nullable": true
+    },
+    "authBackend": {
+      "type": "boolean",
+      "nullable": true
+    },
+    "graphPolicyQueryVersion": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true
+    },
+    "graphPolicyBackend": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true
     }
   },
   "required": [
@@ -93,14 +107,6 @@ export const librarySchema = {
     "defaultBackend": {
       "type": "string",
       "format": "iri",
-      "nullable": true
-    },
-    "allowedBackends": {
-      "type": "array",
-      "items": {
-        "type": "string",
-        "format": "iri"
-      },
       "nullable": true
     },
     "dateCreated": {
@@ -3709,6 +3715,9 @@ export interface BackendRestApi {
   dateCreated?: string | null;
   dateModified?: string | null;
   oxigraphConfig?: string | null;
+  authBackend?: boolean | null;
+  graphPolicyQueryVersion?: string | null;
+  graphPolicyBackend?: string | null;
 }
 
 export interface LibraryRestApi {
@@ -3716,7 +3725,6 @@ export interface LibraryRestApi {
   name: string;
   description?: string | null;
   defaultBackend?: string | null;
-  allowedBackends?: string[] | null;
   dateCreated?: string | null;
   dateModified?: string | null;
 }

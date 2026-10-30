@@ -78,6 +78,26 @@ describe('BackendListSidebar', () => {
     expect(rows[2].find('.row-latency').text()).toBe('84 ms');
   });
 
+  it('groups auth backends above data backends', () => {
+    const wrapper = mountSidebar({
+      backends: [...backends, { id: 'b:auth', name: 'Access rules', backendType: 'oxigraphMemory', endpoint: null, authBackend: true }],
+    });
+
+    const auth = wrapper.find('[data-testid="backend-group-auth"]');
+    const data = wrapper.find('[data-testid="backend-group-data"]');
+    expect(auth.text()).toBe('Auth backends1');
+    expect(data.text()).toBe('Data backends3');
+    expect(wrapper.findAll('[data-testid="backend-row"]').map((row) => row.find('.row-name').text()))
+      .toEqual(['Access rules', 'GraphDB Prod', 'In memory', 'Wikidata Public']);
+  });
+
+  it('leaves out a group with no rows', () => {
+    const wrapper = mountSidebar();
+
+    expect(wrapper.find('[data-testid="backend-group-auth"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="backend-group-data"]').exists()).toBe(true);
+  });
+
   it('emits selection, creation and probe-all', async () => {
     const wrapper = mountSidebar();
 

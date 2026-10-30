@@ -41,13 +41,19 @@ ex:b ex:knows ex:c .
 ex:c ex:knows ex:d .
 `;
 
-function registerVersion(id: string, graphId: string, content: string, tripleCount: number) {
+function registerVersion(
+  id: string,
+  graphId: string,
+  content: string,
+  tripleCount: number,
+  contentFormat = 'text/turtle',
+) {
   hoisted.entities.set(id, {
     $id: id,
     '@type': 'DataGraphVersion',
     isPartOf: graphId,
     contentString: content,
-    contentFormat: 'text/turtle',
+    contentFormat,
     tripleCount,
   });
 }
@@ -163,6 +169,38 @@ describe('hydrating a store', () => {
     const inNamed = store.match(null, null, null, oxigraph.namedNode('http://example.org/graphs/one'));
     expect(inNamed.length).toBe(2);
     expect(store.match(null, null, null, oxigraph.defaultGraph()).length).toBe(0);
+  });
+
+  it('puts N-Quads lines that name a graph into the source named graph too', () => {
+    registerVersion(
+      'v-quads',
+      'g3',
+      '<http://example.org/a> <http://example.org/p> "default" .\n'
+        + '<http://example.org/a> <http://example.org/p> "named" <http://example.org/graphs/own> .\n',
+      2,
+      'application/n-quads',
+    );
+    const store = new oxigraph.Store();
+    hydrateStoreFromDataGraphs(store, [
+      { dataGraphVersionId: 'v-quads', namedGraph: 'http://example.org/graphs/one' },
+    ]);
+
+    expect(store.match(null, null, null, oxigraph.namedNode('http://example.org/graphs/one')).length).toBe(2);
+    expect(store.match(null, null, null, oxigraph.namedNode('http://example.org/graphs/own')).length).toBe(0);
+  });
+
+  it('keeps the graphs N-Quads names when the source has no named graph', () => {
+    registerVersion(
+      'v-quads',
+      'g3',
+      '<http://example.org/a> <http://example.org/p> "named" <http://example.org/graphs/own> .\n',
+      1,
+      'application/n-quads',
+    );
+    const store = new oxigraph.Store();
+    hydrateStoreFromDataGraphs(store, [{ dataGraphVersionId: 'v-quads' }]);
+
+    expect(store.match(null, null, null, oxigraph.namedNode('http://example.org/graphs/own')).length).toBe(1);
   });
 
   it('makes hydrated content queryable', () => {

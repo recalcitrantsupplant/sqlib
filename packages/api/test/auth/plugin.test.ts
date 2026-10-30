@@ -11,6 +11,7 @@ import { registerAuthPlugin } from '../../src/auth/plugin.js';
 import { resetTokenVerifier } from '../../src/auth/tokenVerifier.js';
 import { authOf } from '../../src/auth/enforce.js';
 import { principalIri } from '../../src/auth/principals.js';
+import { PRINCIPAL_AUTHENTICATED } from '../../src/auth/types.js';
 
 const ISSUER = 'https://issuer.test/';
 const AUDIENCE = 'sqlib-api';
@@ -90,6 +91,8 @@ function registerRoutes(app: FastifyInstance): void {
       admin: context.grants.admin,
       fullAccess: context.fullAccess,
       tokenType: context.tokenType,
+      mode: context.mode,
+      backends: Object.fromEntries([...context.grants.backends].map(([iri, modes]) => [iri, [...modes].sort()])),
     };
   });
   app.get('/health', async () => ({ status: 'ok' }));
@@ -122,6 +125,73 @@ describe('disabled mode', () => {
     });
 
     expect(response.json()).toMatchObject({ fullAccess: true });
+    await app.close();
+  });
+});
+
+describe('anonymous mode', () => {
+  const BACKEND = 'urn:sqlib:backend:demo';
+
+  it('needs no issuer', () => {
+    expect(() => resetAuthConfig({ SQLIB_AUTH_MODE: 'anonymous' } as NodeJS.ProcessEnv)).not.toThrow();
+    expect(resetAuthConfig({ SQLIB_AUTH_MODE: 'anonymous' } as NodeJS.ProcessEnv).mode).toBe('anonymous');
+  });
+
+  it('serves every request as the anonymous principal, with no full access and no admin', async () => {
+    const app = await buildApp('anonymous');
+    const response = await app.inject({ method: 'GET', url: '/whoami' });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      subject: 'urn:sqlib:principal:anonymous',
+      principals: ['urn:sqlib:principal:anonymous'],
+      fullAccess: false,
+      admin: false,
+      mode: 'anonymous',
+    });
+    await app.close();
+  });
+
+  it('gives a visitor the grants on the anonymous principal, and applies a change at once', async () => {
+    const app = await buildApp('anonymous');
+    expect((await app.inject({ method: 'GET', url: '/whoami' })).json().backends).toEqual({});
+
+    await store.createGrant({
+      principal: 'urn:sqlib:principal:anonymous',
+      resourceKind: 'backend',
+      resource: BACKEND,
+      modes: ['query:saved'],
+    });
+
+    expect((await app.inject({ method: 'GET', url: '/whoami' })).json().backends).toEqual({
+      [BACKEND]: ['query:saved'],
+    });
+    await app.close();
+  });
+
+  it('does not reach a visitor through the authenticated sentinel', async () => {
+    const app = await buildApp('anonymous');
+    await store.createGrant({
+      principal: PRINCIPAL_AUTHENTICATED,
+      resourceKind: 'backend',
+      resource: BACKEND,
+      modes: ['query:adhoc'],
+    });
+
+    expect((await app.inject({ method: 'GET', url: '/whoami' })).json().backends).toEqual({});
+    await app.close();
+  });
+
+  it('ignores a bearer token rather than verifying it', async () => {
+    const app = await buildApp('anonymous');
+    const response = await app.inject({
+      method: 'GET',
+      url: '/whoami',
+      headers: { authorization: `Bearer ${await token({ sub: 'user-1' })}` },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ subject: 'urn:sqlib:principal:anonymous', fullAccess: false });
     await app.close();
   });
 });
@@ -269,6 +339,27 @@ describe('required mode', () => {
     await new Promise(resolve => setImmediate(resolve));
 
     expect(store.listPrincipals('user-3')).toHaveLength(1);
+    await app.close();
+  });
+
+  it('labels a person by email, then username, then name', async () => {
+    const app = await buildApp('required');
+    const cases = [
+      { sub: 'user-4', email: 'four@example.org', preferred_username: 'four', name: 'Four' },
+      { sub: 'user-5', preferred_username: 'five', name: 'Five' },
+      { sub: 'user-6', name: 'Six' },
+      { sub: 'user-7' },
+    ];
+    for (const claims of cases) {
+      await app.inject({ method: 'GET', url: '/whoami', headers: { authorization: `Bearer ${await token(claims)}` } });
+    }
+    await new Promise(resolve => setImmediate(resolve));
+
+    const labelOf = (sub: string) => store.listPrincipals(sub)[0]?.label;
+    expect(labelOf('user-4')).toBe('four@example.org');
+    expect(labelOf('user-5')).toBe('five');
+    expect(labelOf('user-6')).toBe('Six');
+    expect(labelOf('user-7')).toBeUndefined();
     await app.close();
   });
 });

@@ -13,16 +13,37 @@ import type { WhenEmptyMode } from '../persistence/schemas/QueryEdgeSchema.js';
 
 type AnyRecord = Record<string, any>;
 
+/** The name of the auto-tuple that holds every projected variable of a SELECT. */
+export const ALL_OUTPUTS_TUPLE_NAME = 'All query outputs';
+
+/**
+ * The projected variables that make a SELECT a dataset query: `?graph` fills
+ * both parts of a dataset, `?defaultGraph` and `?namedGraph` one part each.
+ */
+export const DATASET_VARIABLE_NAMES = ['graph', 'defaultGraph', 'namedGraph'] as const;
+
+/** The name of the one-variable auto-tuple made for a reserved dataset variable. */
+export function datasetTupleName(variableName: string): string {
+  return `Dataset graphs (?${variableName})`;
+}
+
+function isAutoTupleName(name: unknown): boolean {
+  return name === ALL_OUTPUTS_TUPLE_NAME
+    || DATASET_VARIABLE_NAMES.some(variableName => name === datasetTupleName(variableName));
+}
+
 /**
  * Check if an auto-tuple with the given variable names (in order) already exists
  */
-export async function findExistingAutoTuple(variableNames: string[]): Promise<string | null> {
+export async function findExistingAutoTuple(
+  variableNames: string[],
+  tupleName: string = ALL_OUTPUTS_TUPLE_NAME,
+): Promise<string | null> {
   if (variableNames.length === 0) return null;
   const cacheCoordinator = getCacheCoordinator();
 
-  // Get all auto-tuples (those named "All query outputs")
   const allOutputTuples = cacheCoordinator.list('QueryOutputTuple') as LdkitQueryOutputTuple[];
-  const autoTuples = allOutputTuples.filter(t => t.name === 'All query outputs');
+  const autoTuples = allOutputTuples.filter(t => t.name === tupleName);
 
   for (const tuple of autoTuples) {
     if (!tuple.memberEntries || tuple.memberEntries.length !== variableNames.length) continue;
@@ -61,7 +82,7 @@ async function isAutoTupleOrphaned(tupleId: string): Promise<boolean> {
 export async function cleanupOrphanedAutoTuple(tupleId: string): Promise<void> {
   const cacheCoordinator = getCacheCoordinator();
   const tuple = cacheCoordinator.get(tupleId) as LdkitQueryOutputTuple;
-  if (!tuple || tuple.name !== 'All query outputs') return;
+  if (!tuple || !isAutoTupleName(tuple.name)) return;
 
   if (await isAutoTupleOrphaned(tupleId)) {
     // Delete tuple members first
@@ -297,36 +318,61 @@ async function createQueryVersionFlatNumbered(queryId: string, body: AnyRecord, 
       .filter(o => typeof o.variableName === 'string' && o.variableName.length > 0)
       .map(o => o.variableName!);
 
-    // Check if we can reuse an existing auto-tuple
-    let autoAllOutputsTupleId = await findExistingAutoTuple(variableNames);
+    /*
+     * Reuse an auto-tuple with the same name and variables, or make one.
+     * `outputs` are the projected variables it holds, in order.
+     */
+    const ensureAutoTuple = async (
+      tupleName: string,
+      outputs: Array<{ id: string; variableName?: string; position: number }>,
+    ): Promise<string | null> => {
+      const existing = await findExistingAutoTuple(outputs.map(o => o.variableName!), tupleName);
+      if (existing) return existing;
 
-    if (!autoAllOutputsTupleId && variableNames.length > 0) {
-      // Create new auto-tuple
-      const autoTupleMemberIds: string[] = [];
-      for (let index = 0; index < orderedOutputs.length; index++) {
-        const out = orderedOutputs[index];
-        if (typeof out.variableName !== 'string' || !out.variableName) continue;
+      const memberIds: string[] = [];
+      for (const out of outputs) {
         const tmId = mintId('tupleMember');
-        await cacheCoordinator.create('TupleMember', toLdkit({ $id: tmId, position: index, variable: out.id, '@type': 'TupleMember' }));
+        await cacheCoordinator.create('TupleMember', toLdkit({ $id: tmId, position: out.position, variable: out.id, '@type': 'TupleMember' }));
         tupleMemberIds.push(tmId);
-        autoTupleMemberIds.push(tmId);
+        memberIds.push(tmId);
       }
+      if (memberIds.length === 0) return null;
 
-      if (autoTupleMemberIds.length > 0) {
-        autoAllOutputsTupleId = mintId('outputTuple');
-        const createdTuple = await cacheCoordinator.create('QueryOutputTuple', toLdkit({
-          $id: autoAllOutputsTupleId,
-          name: 'All query outputs',
-          outputType: 'outputTuple',
-          memberEntries: autoTupleMemberIds,
-          '@type': 'QueryOutputTuple'
-        }));
-        outputTupleIds.push(autoAllOutputsTupleId);
-      }
-    }
+      const tupleId = mintId('outputTuple');
+      await cacheCoordinator.create('QueryOutputTuple', toLdkit({
+        $id: tupleId,
+        name: tupleName,
+        outputType: 'outputTuple',
+        memberEntries: memberIds,
+        '@type': 'QueryOutputTuple'
+      }));
+      outputTupleIds.push(tupleId);
+      return tupleId;
+    };
 
+    const namedOutputs = orderedOutputs
+      .map((out, position) => ({ ...out, position }))
+      .filter(o => typeof o.variableName === 'string' && o.variableName.length > 0);
+
+    const autoAllOutputsTupleId = await ensureAutoTuple(ALL_OUTPUTS_TUPLE_NAME, namedOutputs);
     if (autoAllOutputsTupleId) {
       inferredOutputIds.push(autoAllOutputsTupleId);
+    }
+
+    /*
+     * A dataset query also gets one single-variable tuple per reserved name it
+     * projects, because a DATASET edge reads a one-variable tuple. A query
+     * with `?defaultGraph` and `?namedGraph` can then feed the default part of
+     * one target and the named part of another. A query that projects only
+     * the reserved name already has that tuple: it is "All query outputs".
+     */
+    if (isSelectQuery && namedOutputs.length > 1) {
+      for (const variableName of DATASET_VARIABLE_NAMES) {
+        const output = namedOutputs.find(o => o.variableName === variableName);
+        if (!output) continue;
+        const tupleId = await ensureAutoTuple(datasetTupleName(variableName), [{ ...output, position: 0 }]);
+        if (tupleId) inferredOutputIds.push(tupleId);
+      }
     }
   }
 

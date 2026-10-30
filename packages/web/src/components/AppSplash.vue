@@ -301,6 +301,7 @@ const FAMILY_OF: Record<RailSection, 'definition' | 'input' | 'evidence' | 'axis
   etl: 'definition',
   mcp: 'definition',
   backends: 'axis',
+  access: 'axis',
   dataGraphs: 'input',
   tupleSets: 'input',
   argumentSets: 'input',

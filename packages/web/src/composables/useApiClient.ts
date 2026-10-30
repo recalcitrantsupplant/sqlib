@@ -600,6 +600,55 @@ type IdResponse = {
   id: string;
 };
 
+export const grantSchema = z.object({
+  id: z.string(),
+  principal: z.string(),
+  resourceKind: z.enum(['library', 'backend', 'everything']),
+  resource: z.string(),
+  modes: z.array(z.string()),
+  grantedBy: z.string().optional(),
+  grantedAt: z.string().optional(),
+});
+export type Grant = z.infer<typeof grantSchema>;
+
+export const principalSchema = z.object({
+  iri: z.string(),
+  rawClaim: z.string(),
+  kind: z.string(),
+  seenAt: z.string().optional(),
+  label: z.string().optional(),
+  groups: z.array(z.string()).optional(),
+});
+export type PrincipalRecord = z.infer<typeof principalSchema>;
+
+export const graphPolicyTestSchema = z.object({
+  user: z.string().nullable(),
+  groups: z.array(z.string()),
+  groupsSource: z.enum(['given', 'lastSeen', 'none']),
+  admin: z.boolean(),
+  modes: z.array(z.string()),
+  policy: z.object({ queryVersion: z.string(), backend: z.string() }).nullable(),
+  defaultGraphs: z.array(z.string()).nullable(),
+  namedGraphs: z.array(z.string()).nullable(),
+  error: z.string().nullable(),
+  via: z.array(z.string()).default([]),
+});
+export type GraphPolicyTest = z.infer<typeof graphPolicyTestSchema>;
+
+const policyVersionSchema = z.object({
+  id: z.string(),
+  version: z.number().nullable(),
+  dateCreated: z.string().nullable(),
+});
+
+export const graphPolicySummarySchema = z.object({
+  policy: z.object({ queryVersion: z.string(), backend: z.string() }).nullable(),
+  query: z.object({ id: z.string(), name: z.string() }).nullable(),
+  pinned: policyVersionSchema.extend({ queryString: z.string().nullable() }).nullable(),
+  latest: policyVersionSchema.nullable(),
+});
+export type GraphPolicySummary = z.infer<typeof graphPolicySummarySchema>;
+
 export function useApiClient() {
   const auth = useAuth();
 
@@ -837,6 +886,55 @@ export function useApiClient() {
       backendReferencesSchema.parse,
     );
   };
+
+  /*
+   * Access administration: grants, the principals sqlib has seen, and `Test as`
+   * for a backend's graph policy. Administrators only; the server refuses the
+   * rest. Untyped responses are parsed by these small schemas rather than the
+   * generated contracts, which do not describe the `/auth` routes.
+   */
+  const listGrants = (filter: { library?: string; backend?: string; principal?: string } = {}) => {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(filter)) if (value) params.set(key, value);
+    const query = params.toString();
+    return requestData(buildUrl(`/auth/grants${query ? `?${query}` : ''}`), { method: 'GET' }, (payload) => grantSchema.array().parse(payload));
+  };
+
+  const createGrant = (input: { principal: string; resourceKind: 'library' | 'backend' | 'everything'; resource?: string; modes: string[] }) =>
+    requestData(
+      buildUrl('/auth/grants'),
+      { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(input) },
+      (payload) => grantSchema.parse(payload),
+    );
+
+  const deleteGrant = async (id: string) => {
+    await requestData(buildUrl(`/auth/grants/${encodeURIComponent(id)}`), { method: 'DELETE' });
+    return true;
+  };
+
+  const listPrincipals = (q?: string) =>
+    requestData(
+      buildUrl(`/auth/principals${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+      { method: 'GET' },
+      (payload) => principalSchema.array().parse(payload),
+    );
+
+  const testGraphPolicy = (
+    backendId: string,
+    input: { user?: string; groups?: string[]; queryVersion?: string; policyBackend?: string },
+  ) =>
+    requestData(
+      buildUrl(`/backends/${encodeURIComponent(backendId)}/graph-policy/test`),
+      { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(input) },
+      (payload) => graphPolicyTestSchema.parse(payload),
+    );
+
+  const getGraphPolicy = (backendId: string) =>
+    requestData(
+      buildUrl(`/backends/${encodeURIComponent(backendId)}/graph-policy`),
+      { method: 'GET' },
+      (payload) => graphPolicySummarySchema.parse(payload),
+    );
 
   const deleteBackend = async (id: string) => {
     await requestData(buildUrl(`/backends/${encodeURIComponent(id)}`), { method: 'DELETE' });
@@ -2516,7 +2614,10 @@ export function useApiClient() {
       operation = substituted.operation;
     }
 
-    return executeOnBrowserBackend({ backend, query, acceptMediaType, operation });
+    const dataset = payload.defaultGraphs || payload.namedGraphs
+      ? { defaultGraphs: payload.defaultGraphs, namedGraphs: payload.namedGraphs }
+      : null;
+    return executeOnBrowserBackend({ backend, query, acceptMediaType, operation, dataset });
   };
 
   const executeSparqlDirect = async (
@@ -3000,6 +3101,12 @@ export function useApiClient() {
     getBackendEnv,
     getBackendUsage,
     deleteBackend,
+    listGrants,
+    createGrant,
+    deleteGrant,
+    listPrincipals,
+    testGraphPolicy,
+    getGraphPolicy,
     listLibraries,
     getLibrary,
     createLibrary,

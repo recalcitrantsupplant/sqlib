@@ -92,6 +92,12 @@ export function useBenchmarksStore() {
     }
   };
 
+  /** Forget the runs list, for a screen that no longer shows its version. */
+  const clearRuns = () => {
+    state.runs = [];
+    state.runsError = null;
+  };
+
   const createExperiment = entities.create;
   const updateExperiment = entities.update;
   const deleteExperiment = entities.remove;
@@ -165,6 +171,7 @@ export function useBenchmarksStore() {
     fetchVersion,
     listVersions,
     loadRunsForVersion,
+    clearRuns,
     createExperiment,
     updateExperiment,
     deleteExperiment,

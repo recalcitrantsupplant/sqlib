@@ -27,8 +27,9 @@ import { registerChangeFeedHook } from './lib/changeEvents.js';
 import { registerNoStoreHook } from './lib/httpCaching.js';
 import * as schemas from '@sparql-query-lib/contracts/schema';
 import { registerErrorHandler } from './server/errorHandler.js';
+import { closeLibraryDatabase, LIBRARY_SQLITE_FILE } from './persistence/sqliteEntityStore.js';
 import { registerApplicationRoutes } from './server/registerRoutes.js';
-import { seedPatchDemoLibrary, seedRulesConformanceSuite } from './server/seed.js';
+import { seedGraphAccessDemoLibrary, seedPatchDemoLibrary, seedRulesConformanceSuite } from './server/seed.js';
 
 // Create the Fastify instance outside the start function
 const app = Fastify({
@@ -42,6 +43,13 @@ const app = Fastify({
 
 async function prepareOxigraphStores(fastifyApp: typeof app): Promise<void> {
   const backendConfig = config.internalBackend;
+  if (backendConfig.type === 'sqlite') {
+    // Written per change, so there is nothing to restore or checkpoint.
+    fastifyApp.log.info(
+      { storageDir: backendConfig.storageDir, file: LIBRARY_SQLITE_FILE },
+      'Library store: SQLite'
+    );
+  }
   const enableFlag = process.env.ENABLE_OXIGRAPH === 'true';
   const shouldInitManager = enableFlag || backendConfig.type === 'oxigraph-persistent';
 
@@ -189,6 +197,7 @@ async function configureApp(fastifyApp: typeof app, options: ConfigureOptions = 
   // routes, so the first request already sees the suite.
   await seedRulesConformanceSuite(fastifyApp, featureFlags);
   await seedPatchDemoLibrary(fastifyApp, featureFlags);
+  await seedGraphAccessDemoLibrary(fastifyApp, featureFlags);
 
   // Start cache monitoring with OpenTelemetry metrics
   if (enableCacheMonitoring) {
@@ -249,6 +258,8 @@ async function configureApp(fastifyApp: typeof app, options: ConfigureOptions = 
     }
     await oxigraphStoreManager.shutdown();
     await fastifyApp.close();
+    // After the server, so no request is left writing to it.
+    closeLibraryDatabase();
   };
 
   return { featureFlags, teardown };

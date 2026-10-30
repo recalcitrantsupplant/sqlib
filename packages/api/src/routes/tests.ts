@@ -726,8 +726,7 @@ export default async function (fastify: FastifyInstance) {
     createVersion: async ({ request, parent, body }) => {
       const test = parent as unknown as LdkitTest;
       // The backend a version names is where every run of it goes, so naming
-      // one needs the same reach running against it would: `use`, directly or
-      // through the subject library's curated backends.
+      // one needs the same reach running against it would: a grant on it.
       if (body.backend) {
         assertBackendAccess(
           { request, viaLibrary: resolveOwningLibrary(getCacheCoordinator().get(test.subject)) },
