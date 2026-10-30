@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for QueryOutputVariable Entity
+ * Entity schema for QueryOutputVariable Entity
  * 
  * Represents individual output variables from SPARQL queries.
  * Each output variable has its own IRI for cross-query linking in query composition.
@@ -22,7 +22,7 @@ export const QueryOutputVariableSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitQueryOutputVariable {
+export interface PersistedQueryOutputVariable {
   '$id': string;
   '@type'?: 'QueryOutputVariable';
   variableName: string;

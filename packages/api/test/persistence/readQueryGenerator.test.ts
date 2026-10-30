@@ -6,13 +6,13 @@
  */
 import { describe, expect, it } from 'vitest';
 import { generateFindAllQuery, generateFindByIriQuery } from '../../src/persistence/readQueryGenerator.js';
-import { LDKIT_IRI_TYPE } from '../../src/persistence/schemaIntrospection.js';
+import { IRI_REF_TYPE } from '../../src/persistence/schemaIntrospection.js';
 
 const SCHEMA = {
   '@type': 'http://example.org/Thing',
   required: { '@id': 'http://example.org/p/required' },
   optional: { '@id': 'http://example.org/p/optional', '@optional': true },
-  refs: { '@id': 'http://example.org/p/refs', '@type': LDKIT_IRI_TYPE, '@array': true, '@optional': true },
+  refs: { '@id': 'http://example.org/p/refs', '@type': IRI_REF_TYPE, '@array': true, '@optional': true },
 } as Record<string, unknown>;
 
 describe('readQueryGenerator', () => {

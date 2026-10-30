@@ -2,7 +2,7 @@ import * as QueryIdInputUtils from '../../src/persistence/utils/QueryIdInputUtil
 import { vi } from 'vitest';
 import { overrideRepositoryLenses } from '../../src/persistence/utils/entityRepository.js';
 
-// In-memory LDKit lens for this suite
+// In-memory entity lens for this suite
 const repositoryLens = (() => {
   const store = new Map<string, any>();
   const lens = {
@@ -28,7 +28,7 @@ const repositoryLens = (() => {
 })();
 overrideRepositoryLenses(() => repositoryLens);
 
-describe('QueryIdInputUtils (LDKit Integration)', () => {
+describe('QueryIdInputUtils (persistence integration)', () => {
   const testId = 'http://example.org/test-id-input';
   const anotherId = 'http://example.org/another-id-input';
 
@@ -39,7 +39,7 @@ describe('QueryIdInputUtils (LDKit Integration)', () => {
   });
 
   it('should create and find a query ID input', async () => {
-    // Create using LDKit
+    // Create
     const { QueryIdInputs } = await import('../../src/persistence/utils/QueryIdInputUtils.js');
     await QueryIdInputs.insert({
       $id: testId,

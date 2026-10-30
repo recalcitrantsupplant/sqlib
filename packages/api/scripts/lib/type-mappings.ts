@@ -1,15 +1,15 @@
 /**
- * Type mapping utilities for LDKit → OpenAPI schema conversion
+ * Type mapping utilities for entity schema → OpenAPI schema conversion
  *
  * Centralizes type inference logic to avoid hardcoded heuristics scattered
  * throughout the generator code.
  */
 
-import { xsd, ldkit as ldkitNs, rdf as rdfNs } from '../../src/persistence/namespaces.js';
+import { xsd, sqlib as sqlibNs, rdf as rdfNs } from '../../src/persistence/namespaces.js';
 import { jsonShape } from '../../src/persistence/jsonShapes.js';
 
 /**
- * Direct XSD/LDKit type to OpenAPI type mappings
+ * Direct XSD/sqlib type to OpenAPI type mappings
  */
 export const XSD_TO_OPENAPI = new Map<string, any>([
   [xsd.dateTime, { type: 'string', format: 'date-time', readOnly: true }],
@@ -28,7 +28,7 @@ export const XSD_TO_OPENAPI = new Map<string, any>([
   [xsd.float, { type: 'number' }],
   [xsd.boolean, { type: 'boolean' }],
   [xsd.anyURI, { type: 'string', format: 'iri' }],
-  [(ldkitNs as any).IRI, { type: 'string', format: 'iri' }],
+  [(sqlibNs as any).IRI, { type: 'string', format: 'iri' }],
 ]);
 
 /**
@@ -56,25 +56,25 @@ export interface TypeInferenceOptions {
    *
    * It replaces the datatype's inferred schema rather than adding to it: the
    * tokens are what the API accepts and returns, so a vocabulary on an
-   * `ldkit:IRI` property yields `enum` over the tokens and *not* `format: iri`,
+   * `sqlib:IRI` property yields `enum` over the tokens and *not* `format: iri`,
    * which the tokens would fail.
    */
   values?: Readonly<Record<string, string>>;
 }
 
 /**
- * Infer OpenAPI property schema from LDKit property metadata
+ * Infer OpenAPI property schema from entity schema property metadata
  *
  * @param fieldName - Property name (used for pattern-based inference)
- * @param ldkitType - LDKit @type value (if present)
- * @param ldkitId - LDKit @id value (used for pattern matching)
+ * @param persistedType - Schema @type value (if present)
+ * @param persistedId - Schema @id value (used for pattern matching)
  * @param options - Additional property metadata (array, optional)
  * @returns OpenAPI property schema object
  */
 export function inferOpenAPIType(
   fieldName: string,
-  ldkitType: string | undefined,
-  ldkitId: string | undefined,
+  persistedType: string | undefined,
+  persistedId: string | undefined,
   options: TypeInferenceOptions = {}
 ): any {
   let baseType: any = { type: 'string' }; // Default fallback
@@ -91,7 +91,7 @@ export function inferOpenAPIType(
   // Falls through to the array/nullable wrapping below like every other
   // datatype. The pattern matching in step 2 is guarded on `type === 'string'`,
   // so an object shape passes it untouched.
-  if (ldkitType === rdfNs.JSON) {
+  if (persistedType === rdfNs.JSON) {
     if (!options.jsonShape) {
       throw new Error(
         `${fieldName} is rdf:JSON but declares no "@jsonShape"; ` +
@@ -102,8 +102,8 @@ export function inferOpenAPIType(
   }
 
   // 1. Try exact type mapping first
-  if (!options.values && ldkitType) {
-    const mapped = XSD_TO_OPENAPI.get(ldkitType);
+  if (!options.values && persistedType) {
+    const mapped = XSD_TO_OPENAPI.get(persistedType);
     if (mapped) {
       baseType = { ...mapped };
     }
@@ -112,7 +112,7 @@ export function inferOpenAPIType(
   // 2. Try field name pattern matching if no explicit type found
   if (baseType.type === 'string' && !baseType.format && !baseType.enum) {
     for (const [pattern, typeSchema] of FIELD_PATTERNS.entries()) {
-      if (pattern.test(fieldName) || (ldkitId && pattern.test(ldkitId))) {
+      if (pattern.test(fieldName) || (persistedId && pattern.test(persistedId))) {
         baseType = { ...typeSchema };
         break;
       }

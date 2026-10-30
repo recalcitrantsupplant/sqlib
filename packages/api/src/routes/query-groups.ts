@@ -5,13 +5,13 @@ import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
 import { getNodeEphemeralBackendConfig } from '../lib/type-guards.js';
 import type { EntityType } from '../lib/EntityRegistry.js';
 import { toRestApi } from '../persistence/utils/id-adapter.js';
-import type { LdkitQueryGroup } from '../persistence/schemas/QueryGroupSchema.js';
-import type { LdkitQueryGroupVersion } from '../persistence/schemas/QueryGroupVersionSchema.js';
-import type { LdkitQuery } from '../persistence/schemas/QuerySchema.js';
-import type { LdkitQueryVersion } from '../persistence/schemas/QueryVersionSchema.js';
-import type { LdkitRuleSet } from '../persistence/schemas/RuleSetSchema.js';
-import type { LdkitRuleSetVersion } from '../persistence/schemas/RuleSetVersionSchema.js';
-import type { LdkitQueryEdge } from '../persistence/schemas/QueryEdgeSchema.js';
+import type { PersistedQueryGroup } from '../persistence/schemas/QueryGroupSchema.js';
+import type { PersistedQueryGroupVersion } from '../persistence/schemas/QueryGroupVersionSchema.js';
+import type { PersistedQuery } from '../persistence/schemas/QuerySchema.js';
+import type { PersistedQueryVersion } from '../persistence/schemas/QueryVersionSchema.js';
+import type { PersistedRuleSet } from '../persistence/schemas/RuleSetSchema.js';
+import type { PersistedRuleSetVersion } from '../persistence/schemas/RuleSetVersionSchema.js';
+import type { PersistedQueryEdge } from '../persistence/schemas/QueryEdgeSchema.js';
 import { expandGroupVersion, expandGroupVersionDetailed } from '../lib/GraphResolver.js';
 import { deleteWithOwned, GROUP_VERSION_OWNED } from '../lib/ownedEntities.js';
 import { createGroupVersionFlat } from '../lib/GroupVersionWriter.js';
@@ -131,7 +131,7 @@ function sendInternalError(reply: FastifyReply, error: unknown, failure: string)
  * `ruleSetVersion`, and with only query versions here an assigned rule set
  * came back as "Unknown" on every reload.
  */
-async function presentGroupVersion(version: LdkitQueryGroupVersion, request: FastifyRequest): Promise<unknown> {
+async function presentGroupVersion(version: PersistedQueryGroupVersion, request: FastifyRequest): Promise<unknown> {
   let rich: Record<string, unknown>;
   try {
     rich = await expandGroupVersionDetailed(version, { request }) as unknown as Record<string, unknown>;
@@ -141,15 +141,15 @@ async function presentGroupVersion(version: LdkitQueryGroupVersion, request: Fas
 
   const iriMap: Record<string, string> = {};
   const names = new Map<string, string>();
-  for (const query of cache.getByType('Query') as LdkitQuery[]) {
+  for (const query of cache.getByType('Query') as PersistedQuery[]) {
     if (query.name) names.set(query.$id, query.name);
   }
-  for (const ruleSet of cache.getByType('RuleSet') as LdkitRuleSet[]) {
+  for (const ruleSet of cache.getByType('RuleSet') as PersistedRuleSet[]) {
     if (ruleSet.name) names.set(ruleSet.$id, ruleSet.name);
   }
   const readableVersions = [
-    ...filterReadable(request, cache.getByType('QueryVersion') as LdkitQueryVersion[]),
-    ...filterReadable(request, cache.getByType('RuleSetVersion') as LdkitRuleSetVersion[]),
+    ...filterReadable(request, cache.getByType('QueryVersion') as PersistedQueryVersion[]),
+    ...filterReadable(request, cache.getByType('RuleSetVersion') as PersistedRuleSetVersion[]),
   ];
   for (const readable of readableVersions) {
     const name = names.get(readable.isPartOf);
@@ -189,7 +189,7 @@ export default async function (fastify: FastifyInstance) {
         response: { 204: { type: 'null' } },
       },
     },
-    presentVersion: (version, request) => presentGroupVersion(version as unknown as LdkitQueryGroupVersion, request),
+    presentVersion: (version, request) => presentGroupVersion(version as unknown as PersistedQueryGroupVersion, request),
     presentVersionInList: version => toRestApi(version),
     unwrapVersionPatch: unwrapGroupVersionPatch,
     createVersion: async ({ request, parent, body }) => {
@@ -231,7 +231,7 @@ export default async function (fastify: FastifyInstance) {
       const { id: groupId, version } = request.params;
       const targetVer = parseInt(version, 10);
 
-      const qgv = (cache.getByType('QueryGroupVersion') as LdkitQueryGroupVersion[])
+      const qgv = (cache.getByType('QueryGroupVersion') as PersistedQueryGroupVersion[])
         .find(v => v.isPartOf === groupId && Number(v.version) === targetVer);
       if (!qgv) return reply.status(404).send({ error: 'Query group version not found' });
       requireEntityMode(request, qgv, 'read');
@@ -277,7 +277,7 @@ export default async function (fastify: FastifyInstance) {
       // Validate that edges reference existing nodes
       for (const edgeRef of (qgv.edges || [])) {
         const edgeId = typeof edgeRef === 'string' ? edgeRef : String(edgeRef);
-        const edge = cache.get(edgeId) as LdkitQueryEdge | null;
+        const edge = cache.get(edgeId) as PersistedQueryEdge | null;
         if (!edge) {
           pushIssue('error', `Edge ${edgeId} not found`, 'edge', edgeId, 'EDGE_MISSING');
           continue;
@@ -456,7 +456,7 @@ export default async function (fastify: FastifyInstance) {
       },
     }, async ({ repos, reply, request }) => {
     const { id } = request.params;
-    const group = repos.QueryGroup.get(id) as LdkitQueryGroup | null;
+    const group = repos.QueryGroup.get(id) as PersistedQueryGroup | null;
     if (!group) {
       return reply.status(404).send({ error: `QueryGroup ${id} not found` });
     }
@@ -474,7 +474,7 @@ export default async function (fastify: FastifyInstance) {
       },
     }, async ({ repos, reply, request }) => {
     const { id } = request.params;
-    const group = repos.QueryGroup.get(id) as LdkitQueryGroup | null;
+    const group = repos.QueryGroup.get(id) as PersistedQueryGroup | null;
     if (!group) {
       return reply.status(404).send({ error: `QueryGroup ${id} not found` });
     }

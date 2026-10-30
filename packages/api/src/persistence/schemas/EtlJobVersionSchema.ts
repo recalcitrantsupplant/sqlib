@@ -1,18 +1,18 @@
 /**
- * LDKit Schema for EtlJobVersion Entity (Immutable Version)
+ * Entity schema for EtlJobVersion Entity (Immutable Version)
  *
  * Represents an immutable version of an ETL job. Each version has a stable
  * parent EtlJob and contains the SQL query, SPARQL template, and configuration.
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, sqlib, sdo } from '../namespaces.js';
+import { xsd, sqlib, sdo } from '../namespaces.js';
 
 export const EtlJobVersionSchema = {
   '@type': sqlib.EtlJobVersion,
   isPartOf: {
     '@id': sdo.isPartOf, // points to the parent EtlJob
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@references': { types: ['EtlJob'] },
   },
   version: {
@@ -34,11 +34,11 @@ export const EtlJobVersionSchema = {
   },
   backendId: {
     '@id': sqlib.backendId,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
   },
   currentColumnMappingVersion: {
     '@id': sqlib.currentColumnMappingVersion,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   chunkSize: {
@@ -62,7 +62,7 @@ export const EtlJobVersionSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitEtlJobVersion {
+export interface PersistedEtlJobVersion {
   $id: string;
   '@type'?: 'EtlJobVersion';
   isPartOf: string; // IRI back to stable EtlJob

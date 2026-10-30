@@ -2,7 +2,7 @@
 import { findQueryOutputVariableById, loadQueryOutputVariablesByIds } from '../../src/persistence/utils/QueryOutputVariableUtils.js';
 import { overrideRepositoryLenses } from '../../src/persistence/utils/entityRepository.js';
 
-// In-memory LDKit lens for this suite
+// In-memory entity lens for this suite
 const repositoryLens = (() => {
   const store = new Map<string, any>();
   const lens = {

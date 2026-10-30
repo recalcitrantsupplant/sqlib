@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
 import { QuerySchema } from '../../../src/persistence/schemas/QuerySchema.js';
-import { ldkit, xsd, sqlib, sdo } from '../../../src/persistence/namespaces.js';
+import { xsd, sqlib, sdo } from '../../../src/persistence/namespaces.js';
 
 describe('QuerySchema', () => {
   it('defines correct @type and properties', () => {
@@ -16,12 +16,12 @@ describe('QuerySchema', () => {
 
     expect(QuerySchema).toHaveProperty('currentVersion');
     expect(QuerySchema.currentVersion['@id']).toBe(sqlib.currentVersion);
-    expect(QuerySchema.currentVersion['@type']).toBe(ldkit.IRI);
+    expect(QuerySchema.currentVersion['@type']).toBe(sqlib.IRI);
     expect(QuerySchema.currentVersion['@optional']).toBe(true);
 
     expect(QuerySchema).toHaveProperty('defaultBackend');
     expect(QuerySchema.defaultBackend['@id']).toBe(sqlib.defaultBackend);
-    expect(QuerySchema.defaultBackend['@type']).toBe(ldkit.IRI);
+    expect(QuerySchema.defaultBackend['@type']).toBe(sqlib.IRI);
     expect(QuerySchema.defaultBackend['@optional']).toBe(true);
 
     expect(QuerySchema).toHaveProperty('dateCreated');

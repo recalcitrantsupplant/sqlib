@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { TriplesQuadsIOSchema } from '../../../src/persistence/schemas/TriplesQuadsIOSchema.js';
-import { ldkit, xsd, sqlib, sdo } from '../../../src/persistence/namespaces.js';
+import { xsd, sqlib, sdo } from '../../../src/persistence/namespaces.js';
 
 describe('TriplesQuadsIOSchema', () => {
   it('defines correct @type and properties', () => {
@@ -24,7 +24,7 @@ describe('TriplesQuadsIOSchema', () => {
 
     expect(TriplesQuadsIOSchema).toHaveProperty('specifiedGraph');
     expect(TriplesQuadsIOSchema.specifiedGraph['@id']).toBe(sqlib.specifiedGraph);
-    expect(TriplesQuadsIOSchema.specifiedGraph['@type']).toBe(ldkit.IRI);
+    expect(TriplesQuadsIOSchema.specifiedGraph['@type']).toBe(sqlib.IRI);
     expect(TriplesQuadsIOSchema.specifiedGraph['@optional']).toBe(true);
 
     expect(TriplesQuadsIOSchema).toHaveProperty('dateCreated');
@@ -39,7 +39,7 @@ describe('TriplesQuadsIOSchema', () => {
   });
 
   it('defines correct TypeScript interface shape', () => {
-    // Verify that the LdkitTriplesQuadsIO interface structure is correct
+    // Verify that the PersistedTriplesQuadsIO interface structure is correct
     // This is a compile-time test that ensures type safety
     const mockEntity = {
       $id: 'urn:test:triplesquads:1',

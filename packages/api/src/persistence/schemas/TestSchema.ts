@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for Test Entity (stable pointer)
+ * Entity schema for Test Entity (stable pointer)
  *
  * A test is an invocation spec plus an expectation, run once, judged pass or
  * fail. The invocation half is the same shape benchmarks already discovered
@@ -20,7 +20,7 @@
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, sqlib, sdo } from '../namespaces.js';
+import { xsd, sqlib, sdo } from '../namespaces.js';
 
 export const TestSchema = {
   '@type': sqlib.Test,
@@ -33,7 +33,7 @@ export const TestSchema = {
   },
   subject: {
     '@id': sqlib.subject,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@references': { types: ['Query', 'QueryGroup', 'RuleSet'] },
   },
   /**
@@ -49,7 +49,7 @@ export const TestSchema = {
    */
   criterion: {
     '@id': sqlib.criterion,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   /** `query` | `queryGroup` | `ruleSet`. The EtlJob slot is reserved, not filled. */
@@ -58,7 +58,7 @@ export const TestSchema = {
   },
   currentVersion: {
     '@id': sqlib.currentVersion,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
     '@references': { types: ['TestVersion'] },
     // The number lives on the version; callers listing these want it
@@ -68,13 +68,13 @@ export const TestSchema = {
   isPartOf: {
     '@id': sdo.isPartOf,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@references': { types: ['Library'], exactlyOne: 'Library' },
   },
   tags: {
     '@id': sqlib.hasTag,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
     '@references': { types: ['Tag'] },
   },
@@ -90,7 +90,7 @@ export const TestSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitTest {
+export interface PersistedTest {
   $id: string;
   '@type'?: 'Test';
   name: string;

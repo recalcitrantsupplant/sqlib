@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for DynamicQueryNode Entity
+ * Entity schema for DynamicQueryNode Entity
  * 
  * DynamicQueryNode represents a query execution node where the query to execute
  * can be determined at runtime. This supports two main use cases:
@@ -9,20 +9,20 @@
 
 import type { Schema } from '../schema.js';
 import type { EphemeralBackendConfig } from './QueryNodeSchema.js';
-import { ldkit, rdf, xsd, sqlib, sdo } from '../namespaces.js';
+import { rdf, xsd, sqlib, sdo } from '../namespaces.js';
 
 export const DynamicQueryNodeSchema = {
   '@type': sqlib.DynamicQueryNode,
   queryId: {
     '@id': sqlib.queryId,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
     '@references': { types: ['QueryVersion'] },
   },
   /** Optional for the same reason as `QueryNode.backendId` — see that schema. */
   backendId: {
     '@id': sqlib.backendId,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
     '@references': { types: ['Backend'] },
   },
@@ -41,13 +41,13 @@ export const DynamicQueryNodeSchema = {
   inputs: {
     '@id': sqlib.inputs,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   outputs: {
     '@id': sqlib.outputs,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   dateCreated: {
@@ -66,7 +66,7 @@ export const DynamicQueryNodeSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitDynamicQueryNode {
+export interface PersistedDynamicQueryNode {
   '$id': string;
   '@type'?: 'DynamicQueryNode';
   queryId?: string | null; // Runtime-determined query reference

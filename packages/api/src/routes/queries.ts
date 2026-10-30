@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
-import type { LdkitQuery } from '../persistence/schemas/QuerySchema.js';
-import type { LdkitQueryVersion } from '../persistence/schemas/QueryVersionSchema.js';
+import type { PersistedQuery } from '../persistence/schemas/QuerySchema.js';
+import type { PersistedQueryVersion } from '../persistence/schemas/QueryVersionSchema.js';
 import { expandQueryVersion } from '../lib/QueryVersionResolver.js';
 import { SparqlQueryParser } from '../lib/parser.js';
 import { createQueryVersionFlat } from '../lib/QueryVersionWriter.js';
@@ -79,7 +79,7 @@ export default async function (fastify: FastifyInstance) {
     },
     // A query version is always shown expanded: its parameters, variables and
     // tuples inline rather than as IRIs.
-    presentVersion: version => expandQueryVersion(version as unknown as LdkitQueryVersion),
+    presentVersion: version => expandQueryVersion(version as unknown as PersistedQueryVersion),
     presentVersionInList: version => toRestApi(version),
     beforeCreate: ({ body }) => (body.defaultBackend !== undefined ? { defaultBackend: body.defaultBackend } : {}),
     createVersion: async ({ parent, body: rawBody }) => {
@@ -168,7 +168,7 @@ export default async function (fastify: FastifyInstance) {
     },
   }, async ({ repos, reply, request }) => {
     const { id } = request.params;
-    const query = repos.Query.get(id) as LdkitQuery | null;
+    const query = repos.Query.get(id) as PersistedQuery | null;
     if (!query) {
       return reply.status(404).send({ error: `Query ${id} not found` });
     }
@@ -186,7 +186,7 @@ export default async function (fastify: FastifyInstance) {
     },
   }, async ({ repos, reply, request }) => {
     const { id } = request.params;
-    const query = repos.Query.get(id) as LdkitQuery | null;
+    const query = repos.Query.get(id) as PersistedQuery | null;
     if (!query) {
       return reply.status(404).send({ error: `Query ${id} not found` });
     }

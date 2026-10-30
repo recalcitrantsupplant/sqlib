@@ -7,14 +7,14 @@
  * compilation is about query text.
  */
 
-import type { LdkitQuery } from '../../persistence/schemas/QuerySchema.js';
-import type { LdkitQueryVersion } from '../../persistence/schemas/QueryVersionSchema.js';
+import type { PersistedQuery } from '../../persistence/schemas/QuerySchema.js';
+import type { PersistedQueryVersion } from '../../persistence/schemas/QueryVersionSchema.js';
 import type { ExportQueryInput } from './queryBundle.js';
 
 /** The entity reads this module needs, so a script can supply them too. */
 export interface LibraryQuerySource {
-  listQueries(): LdkitQuery[];
-  getQueryVersion(id: string): LdkitQueryVersion | null;
+  listQueries(): PersistedQuery[];
+  getQueryVersion(id: string): PersistedQueryVersion | null;
 }
 
 export interface CollectOptions {
@@ -36,7 +36,7 @@ export interface CollectedQueries {
   skipped: SkippedQuery[];
 }
 
-function matchesTags(query: LdkitQuery, tags: readonly string[], match: 'any' | 'all'): boolean {
+function matchesTags(query: PersistedQuery, tags: readonly string[], match: 'any' | 'all'): boolean {
   if (tags.length === 0) return true;
   const carried = query.tags ?? [];
   return match === 'all'

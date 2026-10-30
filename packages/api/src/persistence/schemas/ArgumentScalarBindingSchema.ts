@@ -1,11 +1,11 @@
 /**
- * LDKit Schema for ArgumentScalarBinding Entity
+ * Entity schema for ArgumentScalarBinding Entity
  *
  * Represents LIMIT/OFFSET overrides captured inside an argument set.
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, sqlib } from '../namespaces.js';
+import { xsd, sqlib } from '../namespaces.js';
 
 export const ArgumentScalarBindingSchema = {
   '@type': sqlib.ArgumentScalarBinding,
@@ -21,12 +21,12 @@ export const ArgumentScalarBindingSchema = {
   },
   parameterIri: {
     '@id': sqlib.parameterIri,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
 } as const satisfies Schema;
 
-export interface LdkitArgumentScalarBinding {
+export interface PersistedArgumentScalarBinding {
   '$id': string;
   '@type'?: 'ArgumentScalarBinding';
   parameterKind: 'limit' | 'offset';

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { createGroupVersionFlat } from '../../src/lib/GroupVersionWriter.js';
 import type { EntityType } from '../../src/lib/EntityRegistry.js';
-import type { LDKitEntity } from '../../src/persistence/EntityTypes.js';
+import type { PersistedEntity } from '../../src/persistence/EntityTypes.js';
 import { installFakePersistenceAdapter } from '../support/fakePersistenceAdapter.js';
 
 let store: Awaited<ReturnType<typeof installFakePersistenceAdapter>>;
@@ -31,7 +31,7 @@ describe('GroupVersionWriter persisted fields', () => {
   ];
 
   /** Installs the store over the group, what the payloads reference, and `extra`. */
-  async function install(extra: Array<{ type: EntityType; entity: LDKitEntity }> = []): Promise<void> {
+  async function install(extra: Array<{ type: EntityType; entity: PersistedEntity }> = []): Promise<void> {
     store?.restore();
     store = await installFakePersistenceAdapter([
       { type: 'QueryGroup', entity: { $id: 'urn:group:test', '@type': 'QueryGroup' } },

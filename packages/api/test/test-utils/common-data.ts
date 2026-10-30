@@ -1,6 +1,6 @@
 import { QueryTypeIri } from '../../src/constants/queryTypes.js';
 // --- Common Test Data ---
-// Construct a LDKit-shaped StoredQuery entity used by tests
+// Construct a persisted-shaped StoredQuery entity used by tests
 
 export const commonQueryId = 'urn:sqlib:query:common-test';
 export const commonEncodedQueryId = encodeURIComponent(commonQueryId);

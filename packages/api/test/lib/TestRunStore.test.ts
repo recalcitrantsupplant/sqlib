@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import type { TestRunResult } from '../../src/lib/TestRunner.js';
-import type { LdkitTestRun } from '../../src/persistence/schemas/TestRunSchema.js';
+import type { PersistedTestRun } from '../../src/persistence/schemas/TestRunSchema.js';
 import { log } from '../../src/lib/log.js';
 
 /**
@@ -58,13 +58,13 @@ function verdict(overrides: Record<string, unknown> = {}): TestRunResult {
 }
 
 /** A stored run as retention sees it: an id, a test, a time and an outcome. */
-function stored(index: number, outcome: string): LdkitTestRun {
+function stored(index: number, outcome: string): PersistedTestRun {
   return {
     $id: `urn:sqlib:test-run:r${index}`,
     test: TEST_ID,
     outcome,
     ranAt: new Date(Date.UTC(2026, 0, 1, 0, index)).toISOString(),
-  } as unknown as LdkitTestRun;
+  } as unknown as PersistedTestRun;
 }
 
 let store: Awaited<ReturnType<typeof installFakePersistenceAdapter>>;

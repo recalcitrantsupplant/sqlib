@@ -1,8 +1,8 @@
 import {FastifyInstance, FastifyPluginOptions, FastifyReply, FastifyRequest} from 'fastify';
-import {backendTypeIriToKey, type LdkitBackend} from '../persistence/schemas/BackendSchema.js';
+import {backendTypeIriToKey, type PersistedBackend} from '../persistence/schemas/BackendSchema.js';
 import { toError } from '../lib/toError.js';
-import type {LdkitQuery} from '../persistence/schemas/QuerySchema.js';
-import type {LdkitQueryVersion} from '../persistence/schemas/QueryVersionSchema.js';
+import type {PersistedQuery} from '../persistence/schemas/QuerySchema.js';
+import type {PersistedQueryVersion} from '../persistence/schemas/QueryVersionSchema.js';
 import {ISparqlExecutor, SparqlSelectJsonOutput} from '../server/ISparqlExecutor.js';
 import {SparqlQueryParser} from '../lib/parser.js';
 import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
@@ -264,15 +264,15 @@ function validateArgumentPayloadAgainstInputs(
 }
 
 // --- Helper Type Guards ---
-function isQuery(thing: unknown): thing is LdkitQuery {
+function isQuery(thing: unknown): thing is PersistedQuery {
     return !!thing && (thing as { '@type'?: unknown })['@type'] === 'Query';
 }
 
-function isQueryVersion(thing: unknown): thing is LdkitQueryVersion {
+function isQueryVersion(thing: unknown): thing is PersistedQueryVersion {
     return !!thing && (thing as { '@type'?: unknown })['@type'] === 'QueryVersion';
 }
 
-function isBackend(thing: unknown): thing is LdkitBackend {
+function isBackend(thing: unknown): thing is PersistedBackend {
     return !!thing && Boolean((thing as { $id?: unknown }).$id);
 }
 
@@ -393,7 +393,7 @@ export default async function (
             // 1. Fetch the target query/group using MEMORY CACHE (no SPARQL queries!)
             const targetCacheEntity = getCacheCoordinator().get(targetId);
 
-            // Use cache entities directly as LDKit format
+            // Use cache entities directly in persisted format
             let targetEntity: any = null;
             if (targetCacheEntity) {
                 targetEntity = targetCacheEntity;
@@ -442,7 +442,7 @@ export default async function (
             }
 
             // 4. Fetch backend entity if backendId is provided
-            let backendEntity: LdkitBackend | null = null;
+            let backendEntity: PersistedBackend | null = null;
             let isEphemeralBackend = false;
             let isLibraryStorageBackend = false;
             if (backendId) {
@@ -456,7 +456,7 @@ export default async function (
                 } else {
                     const backendCacheEntity = getCacheCoordinator().get(backendId);
                     if (backendCacheEntity) {
-                        backendEntity = backendCacheEntity as LdkitBackend;
+                        backendEntity = backendCacheEntity as PersistedBackend;
                     }
 
                     // Validate backend
@@ -474,7 +474,7 @@ export default async function (
             let sparqlQueryString: string | undefined;
             let queryType: SparqlOperation | undefined; // Stored as IRI (sqlibQueryType:* terms)
             let resolvedTargetId = targetId;
-            let resolvedQueryVersion: LdkitQueryVersion | null = null;
+            let resolvedQueryVersion: PersistedQueryVersion | null = null;
 
             const hasInlineLimits = Array.isArray(limits)
                 ? limits.length > 0
@@ -692,7 +692,7 @@ export default async function (
                 if (!current) {
                     return reply.code(409).send({error: `Query ${targetId} has no currentVersion set.`});
                 }
-                const version = getCacheCoordinator().get(current) as LdkitQueryVersion | null;
+                const version = getCacheCoordinator().get(current) as PersistedQueryVersion | null;
                 if (!version) {
                     return reply.code(404).send({error: `Current version ${current} for Query ${targetId} not found.`});
                 }

@@ -5,13 +5,13 @@
  */
 import { describe, expect, it } from 'vitest';
 import { generateUpdateQuery, generateDeleteQuery } from '../../src/persistence/writeQueryGenerator.js';
-import { LDKIT_IRI_TYPE } from '../../src/persistence/schemaIntrospection.js';
+import { IRI_REF_TYPE } from '../../src/persistence/schemaIntrospection.js';
 
 const P = 'http://example.org/p';
 const SCHEMA = {
   '@type': 'http://example.org/Thing',
   label: { '@id': `${P}/label` },
-  refs: { '@id': `${P}/refs`, '@type': LDKIT_IRI_TYPE, '@array': true, '@optional': true },
+  refs: { '@id': `${P}/refs`, '@type': IRI_REF_TYPE, '@array': true, '@optional': true },
 } as Record<string, unknown>;
 
 const ID = 'http://example.org/thing-1';

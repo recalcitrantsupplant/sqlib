@@ -6,11 +6,11 @@ import backendRoutes from '../../src/routes/backends.js';
 import executeRoutes from '../../src/routes/execute.js';
 import * as schemas from '@sparql-query-lib/contracts/schema';
 import { SparqlQueryParser } from '../../src/lib/parser.js';
-import type { LdkitBackend } from '../../src/persistence/schemas/BackendSchema.js';
+import type { PersistedBackend } from '../../src/persistence/schemas/BackendSchema.js';
 import { BackendTypeIri } from '../../src/persistence/schemas/BackendSchema.js';
-import type { LdkitLibrary } from '../../src/persistence/schemas/LibrarySchema.js';
-import type { LdkitQuery } from '../../src/persistence/schemas/QuerySchema.js';
-import type { LdkitQueryVersion } from '../../src/persistence/schemas/QueryVersionSchema.js';
+import type { PersistedLibrary } from '../../src/persistence/schemas/LibrarySchema.js';
+import type { PersistedQuery } from '../../src/persistence/schemas/QuerySchema.js';
+import type { PersistedQueryVersion } from '../../src/persistence/schemas/QueryVersionSchema.js';
 
 const HTTP_TYPE = BackendTypeIri.http;
 
@@ -113,7 +113,7 @@ describe('End-to-End Query Creation and Execution Flow', () => {
   describe('Complete E2E Flow: Query Creation → Execution', () => {
     it('should create query with VALUES UNDEF, limit parameter, execute against mock Fuseki', async () => {
       // Step 0: Ensure a library exists for the query to belong to
-      const libraryPayload: LdkitLibrary = {
+      const libraryPayload: PersistedLibrary = {
         $id: testLibraryId,
         '@type': 'Library',
         name: 'E2E Test Library',
@@ -142,7 +142,7 @@ describe('End-to-End Query Creation and Execution Flow', () => {
       expect(createdBackend.id).toBe(testBackendId);
 
       // Verify backend is cached and stored
-      const cachedBackend = getCacheCoordinator().get(testBackendId) as LdkitBackend;
+      const cachedBackend = getCacheCoordinator().get(testBackendId) as PersistedBackend;
       expect(cachedBackend).toBeTruthy();
       expect(cachedBackend.backendType).toBe(HTTP_TYPE);
       expect(store.get(testBackendId)).toMatchObject({ backendType: HTTP_TYPE, authEnvKey: 'FUSEKI_TESTING123' });
@@ -233,7 +233,7 @@ describe('End-to-End Query Creation and Execution Flow', () => {
       expect(detectedParams.limitParameters).toContain('1');
 
       // Step 6: Verify currentVersion was set on parent Query
-      const updatedQuery = getCacheCoordinator().get(actualQueryId) as LdkitQuery;
+      const updatedQuery = getCacheCoordinator().get(actualQueryId) as PersistedQuery;
       expect(updatedQuery.currentVersion).toBeTruthy();
       expect(store.get(actualQueryId)).toMatchObject({ currentVersion: updatedQuery.currentVersion });
       expect(store.get(String(updatedQuery.currentVersion))).toMatchObject({ isPartOf: actualQueryId, version: 1 });
@@ -344,7 +344,7 @@ describe('End-to-End Query Creation and Execution Flow', () => {
 
     it('should handle query version execution directly (bypassing stable Query)', async () => {
       // Setup backend first
-      const backend: LdkitBackend = {
+      const backend: PersistedBackend = {
         $id: testBackendId,
         '@type': 'Backend',
         name: 'Direct Execution Backend',
@@ -354,7 +354,7 @@ describe('End-to-End Query Creation and Execution Flow', () => {
       await seed(backend);
 
       // Create a QueryVersion directly in cache (simulating existing data)
-      const queryVersion: LdkitQueryVersion = {
+      const queryVersion: PersistedQueryVersion = {
         $id: testQueryVersionId,
         '@type': 'QueryVersion',
         isPartOf: testQueryId,
@@ -406,7 +406,7 @@ describe('End-to-End Query Creation and Execution Flow', () => {
       // This tests the backend resolution flow: UI → Query.defaultBackend → Library.defaultBackend
       
       // Create backend
-      const specificBackend: LdkitBackend = {
+      const specificBackend: PersistedBackend = {
         $id: 'urn:sqlib:backend:specific',
         '@type': 'Backend',
         name: 'Specific Backend',
@@ -416,7 +416,7 @@ describe('End-to-End Query Creation and Execution Flow', () => {
       await seed(specificBackend);
 
       // Create QueryVersion without default backend
-      const queryVersion: LdkitQueryVersion = {
+      const queryVersion: PersistedQueryVersion = {
         $id: testQueryVersionId,
         '@type': 'QueryVersion',
         isPartOf: testQueryId,
@@ -474,7 +474,7 @@ describe('End-to-End Query Creation and Execution Flow', () => {
       });
 
       // Test 2: QueryVersion.defaultBackend should be used when no UI override
-      const defaultBackend: LdkitBackend = {
+      const defaultBackend: PersistedBackend = {
         $id: testBackendId,
         '@type': 'Backend',
         name: 'Default Backend',

@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for TestCase entity.
+ * Entity schema for TestCase entity.
  *
  * One parametrised case: the inputs, and what is correct *given those inputs*.
  *
@@ -22,13 +22,13 @@
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, sqlib, sdo } from '../namespaces.js';
+import { xsd, sqlib, sdo } from '../namespaces.js';
 
 export const TestCaseSchema = {
   '@type': sqlib.TestCase,
   isPartOf: {
     '@id': sdo.isPartOf,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@references': { types: ['TestVersion'] },
   },
   /** 0-based, because RDF arrays carry no order. Same reason as `TupleMember`. */
@@ -43,7 +43,7 @@ export const TestCaseSchema = {
   },
   argumentSetVersion: {
     '@id': sqlib.refArgumentSet,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
     '@references': { types: ['ArgumentSetVersion'] },
   },
@@ -58,7 +58,7 @@ export const TestCaseSchema = {
    */
   dataGraphVersion: {
     '@id': sqlib.dataGraphVersion,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
     '@references': { types: ['DataGraphVersion'] },
   },
@@ -72,7 +72,7 @@ export const TestCaseSchema = {
   dataGraphs: {
     '@id': sqlib.dataGraphs,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
     '@references': { types: ['TestCaseDataGraph'] },
   },
@@ -129,7 +129,7 @@ export const TestCaseSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitTestCase {
+export interface PersistedTestCase {
   $id: string;
   '@type'?: 'TestCase';
   isPartOf: string;

@@ -1,23 +1,23 @@
 /**
- * LDKit Schema for BenchmarkObservation Entity (subject-level observation).
+ * Entity schema for BenchmarkObservation Entity (subject-level observation).
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, qb, sqlib } from '../namespaces.js';
+import { xsd, qb, sqlib } from '../namespaces.js';
 
 export const BenchmarkObservationSchema = {
   '@type': sqlib.BenchmarkObservation,
   dataSet: {
     '@id': qb.dataSet,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
   },
   subject: {
     '@id': sqlib.refSubject,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
   },
   backend: {
     '@id': sqlib.refBackend,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
   },
   /*
    * The tabular input this request ran with — the axis member, whatever kind
@@ -32,7 +32,7 @@ export const BenchmarkObservationSchema = {
    */
   argumentSet: {
     '@id': sqlib.refArgumentSet,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
   },
   /*
    * The `ArgumentSetVersion` that `argumentSet` resolved to when this
@@ -49,7 +49,7 @@ export const BenchmarkObservationSchema = {
    */
   argumentSetVersion: {
     '@id': sqlib.refArgumentSetVersion,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   /*
@@ -61,12 +61,12 @@ export const BenchmarkObservationSchema = {
    */
   dataGraph: {
     '@id': sqlib.refDataGraph,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   dataGraphVersion: {
     '@id': sqlib.refDataGraphVersion,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   runIndex: {
@@ -109,7 +109,7 @@ export const BenchmarkObservationSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitBenchmarkObservation {
+export interface PersistedBenchmarkObservation {
   $id: string;
   '@type'?: 'BenchmarkObservation';
   dataSet: string;

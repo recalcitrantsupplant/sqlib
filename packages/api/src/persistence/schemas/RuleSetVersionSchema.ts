@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for RuleSetVersion entity.
+ * Entity schema for RuleSetVersion entity.
  *
  * Represents an immutable snapshot of a ruleset.
  *
@@ -9,13 +9,13 @@
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, sqlib, sdo } from '../namespaces.js';
+import { xsd, sqlib, sdo } from '../namespaces.js';
 
 export const RuleSetVersionSchema = {
   '@type': sqlib.RuleSetVersion,
   isPartOf: {
     '@id': sdo.isPartOf,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@references': { types: ['RuleSet'] },
   },
   version: {
@@ -33,13 +33,13 @@ export const RuleSetVersionSchema = {
   },
   hasRule: {
     '@id': sqlib.hasRule,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@array': true,
     '@optional': true,
   },
   hasDataBlock: {
     '@id': sqlib.hasDataBlock,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@array': true,
     '@optional': true,
   },
@@ -94,7 +94,7 @@ export const RuleSetVersionSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitRuleSetVersion {
+export interface PersistedRuleSetVersion {
   $id: string;
   '@type'?: 'RuleSetVersion';
   isPartOf: string;

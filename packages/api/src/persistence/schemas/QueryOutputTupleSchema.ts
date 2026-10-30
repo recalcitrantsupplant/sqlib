@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for QueryOutputTuple Entity
+ * Entity schema for QueryOutputTuple Entity
  * 
  * Represents user-defined ordered groupings of SELECT variables from a query.
  * These tuples are created at design time to enable linking query outputs 
@@ -7,7 +7,7 @@
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, sqlib, sdo } from '../namespaces.js';
+import { sqlib, sdo } from '../namespaces.js';
 
 export const QueryOutputTupleSchema = {
   '@type': sqlib.QueryOutputTuple,
@@ -21,11 +21,11 @@ export const QueryOutputTupleSchema = {
   memberEntries: {
     '@id': sqlib.memberEntries,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
   },
 } as const satisfies Schema;
 
-export interface LdkitQueryOutputTuple {
+export interface PersistedQueryOutputTuple {
   '$id': string;
   '@type'?: 'QueryOutputTuple';
   name: string; // User-defined name for the tuple (e.g., "entity-properties")

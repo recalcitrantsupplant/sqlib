@@ -205,7 +205,7 @@ describe('GraphResolver utilities', () => {
   it('expands current version for group using cache and type scan', async () => {
     hoisted.get.mockImplementation((id: string) => {
       if (id === 'urn:group:1') {
-        // This mock simulates a valid LDKit entity found in the cache.
+        // This mock simulates a valid persisted entity found in the cache.
         return { $id: 'urn:group:1', '@type': 'QueryGroup', currentVersion: 'urn:qgv:1' };
       }
       if (id === 'urn:qgv:1') {

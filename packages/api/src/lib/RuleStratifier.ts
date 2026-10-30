@@ -8,7 +8,7 @@ import {
   type MonotonicityKind as SrlMonotonicityKind,
   type StratificationReport as SrlStratificationReport,
 } from '@sparql-query-lib/srl';
-import type { LdkitRuleVersion } from '../persistence/schemas/RuleVersionSchema.js';
+import type { PersistedRuleVersion } from '../persistence/schemas/RuleVersionSchema.js';
 
 import { ruleTuplesAllowed } from './ruleTuples.js';
 import { ruleAggregatesAllowed } from './ruleAggregates.js';
@@ -45,7 +45,7 @@ export interface StratificationReport extends SrlStratificationReport {
 const RULE_INDEX_SEP = '#rule:';
 
 export class RuleStratifier {
-  analyzeRuleVersions(ruleVersions: LdkitRuleVersion[]): StratificationReport {
+  analyzeRuleVersions(ruleVersions: PersistedRuleVersion[]): StratificationReport {
     // One analysis node per rule, so negation anywhere in a version is seen.
     const nodes: Array<{ id: string; ast: SrlRule; versionId: string }> = [];
     const rulesPerVersion = new Map<string, number>();
@@ -110,7 +110,7 @@ export class RuleStratifier {
   }
 }
 
-function parseRules(ruleVersion: LdkitRuleVersion): SrlRule[] {
+function parseRules(ruleVersion: PersistedRuleVersion): SrlRule[] {
   const source = (ruleVersion.ruleString || '').trim();
   if (!source) {
     throw new Error(`RuleVersion ${ruleVersion.$id} has empty ruleString`);

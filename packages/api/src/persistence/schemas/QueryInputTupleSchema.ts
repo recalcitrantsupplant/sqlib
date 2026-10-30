@@ -1,12 +1,12 @@
 /**
- * LDKit Schema for QueryInputTuple Entity
+ * Entity schema for QueryInputTuple Entity
  * 
  * Represents ordered tuples of input variables that belong together in VALUES clauses.
  * Each tuple has its own IRI and an ordered list of variable names.
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, sqlib, sdo } from '../namespaces.js';
+import { xsd, sqlib, sdo } from '../namespaces.js';
 
 export const QueryInputTupleSchema = {
   '@type': sqlib.QueryInputTuple,
@@ -17,7 +17,7 @@ export const QueryInputTupleSchema = {
   memberEntries: {
     '@id': sqlib.memberEntries,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
   },
   /**
    * Declaration ordinal, set only on a query group's *start node* ports.
@@ -53,7 +53,7 @@ export const QueryInputTupleSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitQueryInputTuple {
+export interface PersistedQueryInputTuple {
   '$id': string;
   '@type'?: 'QueryInputTuple';
   name?: string | null; // Optional descriptive name, can be auto-generated

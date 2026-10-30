@@ -26,13 +26,13 @@ import type { FastifyRequest } from 'fastify';
 import { mintId } from './id.js';
 import { allocateVersion, setCurrentVersion } from './versionNumbering.js';
 import { AuthorizationError, requireLibraryMode, resolveOwningLibrary } from '../auth/enforce.js';
-import type { LdkitQueryGroup } from '../persistence/schemas/QueryGroupSchema.js';
-import type { LdkitLibrary } from '../persistence/schemas/LibrarySchema.js';
-import type { LdkitQueryVersion } from '../persistence/schemas/QueryVersionSchema.js';
-import type { LdkitQueryGroupVersion } from '../persistence/schemas/QueryGroupVersionSchema.js';
+import type { PersistedQueryGroup } from '../persistence/schemas/QueryGroupSchema.js';
+import type { PersistedLibrary } from '../persistence/schemas/LibrarySchema.js';
+import type { PersistedQueryVersion } from '../persistence/schemas/QueryVersionSchema.js';
+import type { PersistedQueryGroupVersion } from '../persistence/schemas/QueryGroupVersionSchema.js';
 import type { EphemeralBackendConfig } from '../persistence/schemas/QueryNodeSchema.js';
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
-import { toLdkit } from '../persistence/utils/id-adapter.js';
+import { toPersisted } from '../persistence/utils/id-adapter.js';
 import { WHEN_EMPTY_MODES } from '../persistence/schemas/QueryEdgeSchema.js';
 import type { WhenEmptyMode } from '../persistence/schemas/QueryEdgeSchema.js';
 import { DATASET_PARTS, type DatasetPart } from './orchestration/types.js';
@@ -69,7 +69,7 @@ export async function createGroupVersionFlat(
   groupId: string,
   body: AnyRecord,
   authScope?: { request: FastifyRequest }
-): Promise<{ created: LdkitQueryGroupVersion; iriMap: Record<string, string> }> {
+): Promise<{ created: PersistedQueryGroupVersion; iriMap: Record<string, string> }> {
   return allocateVersion('QueryGroupVersion', groupId, (nextVersion) =>
     createGroupVersionFlatNumbered(groupId, body, nextVersion, authScope));
 }
@@ -79,7 +79,7 @@ async function createGroupVersionFlatNumbered(
   body: AnyRecord,
   nextVersion: number,
   authScope?: { request: FastifyRequest }
-): Promise<{ created: LdkitQueryGroupVersion; iriMap: Record<string, string> }> {
+): Promise<{ created: PersistedQueryGroupVersion; iriMap: Record<string, string> }> {
   const cacheCoordinator = getCacheCoordinator();
   const iriMap: Record<string, string> = {};
 
@@ -144,7 +144,7 @@ async function createGroupVersionFlatNumbered(
 
   for (const [i, m] of ((body.tupleMembers as AnyRecord[] | undefined) || []).entries()) {
     const variable = await refs.resolve(`tupleMembers[${i}].variable`, m.variable, IO_REF);
-    stage('TupleMember', toLdkit({
+    stage('TupleMember', toPersisted({
       $id: ownId(m.id),
       position: m.position,
       variable,
@@ -153,7 +153,7 @@ async function createGroupVersionFlatNumbered(
   }
 
   for (const inp of (body.inputs as AnyRecord[] | undefined) || []) {
-    stage('QueryInputVariable', toLdkit({
+    stage('QueryInputVariable', toPersisted({
       $id: ownId(inp.id),
       variableName: inp.variableName,
       allowedTypes: inp.allowedTypes,
@@ -162,7 +162,7 @@ async function createGroupVersionFlatNumbered(
   }
 
   for (const out of (body.outputs as AnyRecord[] | undefined) || []) {
-    stage('QueryOutputVariable', toLdkit({
+    stage('QueryOutputVariable', toPersisted({
       $id: ownId(out.id),
       variableName: out.variableName,
       description: out.description,
@@ -173,7 +173,7 @@ async function createGroupVersionFlatNumbered(
   for (const [i, t] of ((body.inputTuples as AnyRecord[] | undefined) || []).entries()) {
     const memberEntries = await refs.resolveAll(
       `inputTuples[${i}].memberEntries`, t.memberEntries, IO_REF);
-    stage('QueryInputTuple', toLdkit({
+    stage('QueryInputTuple', toPersisted({
       $id: ownId(t.id), name: t.name, memberEntries, '@type': 'QueryInputTuple',
     }) as AnyRecord & { $id: string });
   }
@@ -181,19 +181,19 @@ async function createGroupVersionFlatNumbered(
   for (const [i, t] of ((body.outputTuples as AnyRecord[] | undefined) || []).entries()) {
     const memberEntries = await refs.resolveAll(
       `outputTuples[${i}].memberEntries`, t.memberEntries, IO_REF);
-    stage('QueryOutputTuple', toLdkit({
+    stage('QueryOutputTuple', toPersisted({
       $id: ownId(t.id), name: t.name, memberEntries, '@type': 'QueryOutputTuple',
     }) as AnyRecord & { $id: string });
   }
 
   for (const r of (body.rdfOutputs as AnyRecord[] | undefined) || []) {
-    stage('TriplesQuadsIO', toLdkit({
+    stage('TriplesQuadsIO', toPersisted({
       $id: ownId(r.id), ...r, '@type': 'TriplesQuadsIO',
     }) as AnyRecord & { $id: string });
   }
 
   for (const b of (body.booleanOutputs as AnyRecord[] | undefined) || []) {
-    stage('BooleanIO', toLdkit({
+    stage('BooleanIO', toPersisted({
       $id: ownId(b.id), ...b, '@type': 'BooleanIO',
     }) as AnyRecord & { $id: string });
   }
@@ -215,24 +215,24 @@ async function createGroupVersionFlatNumbered(
       );
       continue;
     }
-    stage('QueryIdInput', toLdkit({
+    stage('QueryIdInput', toPersisted({
       $id: id, ...q, isPartOf: ownId(owner.id), '@type': 'QueryIdInput',
     }) as AnyRecord & { $id: string });
   }
 
   const startNodeOutputs = await refs.resolveAll(
     'startNode.outputs', body.startNode?.outputs, IO_REF);
-  stage('StartNode', toLdkit({
+  stage('StartNode', toPersisted({
     $id: startNodeId, outputs: startNodeOutputs, '@type': 'StartNode',
   }) as AnyRecord & { $id: string });
 
   // The library's default backend is a fallback for nodes that name none.
   let libraryDefaultBackend: string | undefined;
   try {
-    const group = cacheCoordinator.get(groupId) as LdkitQueryGroup | null;
+    const group = cacheCoordinator.get(groupId) as PersistedQueryGroup | null;
     const libId = group?.isPartOf as string | undefined;
     if (libId) {
-      const lib = cacheCoordinator.get(libId) as LdkitLibrary | null;
+      const lib = cacheCoordinator.get(libId) as PersistedLibrary | null;
       libraryDefaultBackend = lib?.defaultBackend as string | undefined;
     }
   } catch { /* the fallback is optional; a node may name its own backend */ }
@@ -296,7 +296,7 @@ async function createGroupVersionFlatNumbered(
       }
       const ruleSetVersion = await refs.resolve(at(field), raw, rules.ruleSetVersion);
       if (ruleSetVersion) composed.push({ field: at(field), reference: ruleSetVersion });
-      stage('RuleSetNode', toLdkit({
+      stage('RuleSetNode', toPersisted({
         $id: id,
         ruleSetVersion,
         inputs: await refs.resolveAll(at('inputs'), n.inputs, IO_REF),
@@ -311,7 +311,7 @@ async function createGroupVersionFlatNumbered(
     // A DynamicQueryNode gets its query at execution time through a
     // QueryIdInput, so an absent queryId is correct rather than missing. A
     // supplied one still has to resolve.
-    let queryVersion: LdkitQueryVersion | undefined;
+    let queryVersion: PersistedQueryVersion | undefined;
     if (n.queryId) {
       const resolvedQueryId = await refs.resolve(
         at('queryId'),
@@ -320,7 +320,7 @@ async function createGroupVersionFlatNumbered(
       );
       if (resolvedQueryId) {
         composed.push({ field: at('queryId'), reference: resolvedQueryId });
-        queryVersion = cacheCoordinator.get(resolvedQueryId) as LdkitQueryVersion | undefined;
+        queryVersion = cacheCoordinator.get(resolvedQueryId) as PersistedQueryVersion | undefined;
       }
     } else if (!optional.includes('queryId') && rules.queryId) {
       refs.fail(at('queryId'), '', 'is required for this node type');
@@ -407,7 +407,7 @@ async function createGroupVersionFlatNumbered(
     );
 
     if (entityType !== 'PatchNode') {
-      stage(entityType, toLdkit({
+      stage(entityType, toPersisted({
         $id: id,
         queryId: n.queryId,
         backendId,
@@ -452,7 +452,7 @@ async function createGroupVersionFlatNumbered(
         'is the same port as deletionsOutput; the two halves of a patch need separate ports');
     }
 
-    stage('PatchNode', toLdkit({
+    stage('PatchNode', toPersisted({
       $id: id,
       queryId: n.queryId,
       backendId,
@@ -497,7 +497,7 @@ async function createGroupVersionFlatNumbered(
       }
     }
 
-    stage('QueryEdge', toLdkit({
+    stage('QueryEdge', toPersisted({
       $id: id,
       sourceNodeId,
       targetNodeId,
@@ -516,7 +516,7 @@ async function createGroupVersionFlatNumbered(
     }
   }
 
-  stage('EndNode', toLdkit({
+  stage('EndNode', toPersisted({
     $id: endNodeId,
     inputs: Array.from(endNodeInputIds),
     mediaType: body.endNode?.mediaType ?? null,
@@ -585,7 +585,7 @@ async function createGroupVersionFlatNumbered(
   }
 
   const versionId = mintId('groupVersion');
-  const created = await cacheCoordinator.create('QueryGroupVersion', toLdkit({
+  const created = await cacheCoordinator.create('QueryGroupVersion', toPersisted({
     $id: versionId,
     '@type': 'QueryGroupVersion',
     isPartOf: groupId,
@@ -600,11 +600,11 @@ async function createGroupVersionFlatNumbered(
     endNode: endNodeId,
     executionNodes: nodeIds,
     edges: edgeIds,
-  }) as Partial<LdkitQueryGroupVersion> & { $id: string });
+  }) as Partial<PersistedQueryGroupVersion> & { $id: string });
 
   await setCurrentVersion('QueryGroup', groupId, versionId);
 
-  return { created: (created ?? { $id: versionId }) as LdkitQueryGroupVersion, iriMap };
+  return { created: (created ?? { $id: versionId }) as PersistedQueryGroupVersion, iriMap };
 }
 
 /**

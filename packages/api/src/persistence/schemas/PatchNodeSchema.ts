@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for PatchNode Entity
+ * Entity schema for PatchNode Entity
  *
  * A query group execution node that answers "what would this update change?"
  * without changing it. It names an update `QueryVersion` and a store to read,
@@ -29,13 +29,13 @@
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, rdf, sqlib } from '../namespaces.js';
+import { rdf, sqlib } from '../namespaces.js';
 
 export const PatchNodeSchema = {
   '@type': sqlib.PatchNode,
   queryId: {
     '@id': sqlib.queryId,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@references': { types: ['QueryVersion'] },
   },
   /**
@@ -46,33 +46,33 @@ export const PatchNodeSchema = {
    */
   backendId: {
     '@id': sqlib.backendId,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
     '@references': { types: ['Backend'] },
   },
   inputs: {
     '@id': sqlib.inputs,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   outputs: {
     '@id': sqlib.outputs,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   /** The port carrying the quads the update would remove. */
   deletionsOutput: {
     '@id': sqlib.deletionsOutput,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
     '@references': { types: ['TriplesQuadsIO'] },
   },
   /** The port carrying the quads the update would add. */
   additionsOutput: {
     '@id': sqlib.additionsOutput,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
     '@references': { types: ['TriplesQuadsIO'] },
   },
@@ -89,7 +89,7 @@ export const PatchNodeSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitPatchNode {
+export interface PersistedPatchNode {
   '$id': string;
   '@type'?: 'PatchNode';
   /** The update QueryVersion whose effect is derived. */

@@ -1,8 +1,8 @@
 import { createEntityUtilsWithFields } from './EntityUtils.js';
-import { TupleSetSchema, type LdkitTupleSet } from '../schemas/TupleSetSchema.js';
-import { TupleSetVersionSchema, type LdkitTupleSetVersion } from '../schemas/TupleSetVersionSchema.js';
+import { TupleSetSchema, type PersistedTupleSet } from '../schemas/TupleSetSchema.js';
+import { TupleSetVersionSchema, type PersistedTupleSetVersion } from '../schemas/TupleSetVersionSchema.js';
 
-const TupleSetUtils = createEntityUtilsWithFields<LdkitTupleSet>(
+const TupleSetUtils = createEntityUtilsWithFields<PersistedTupleSet>(
   TupleSetSchema,
   'TupleSet'
 );
@@ -14,12 +14,12 @@ export const deleteTupleSet = TupleSetUtils.delete;
 export const findAllTupleSets = TupleSetUtils.findAll;
 export const findTupleSetById = TupleSetUtils.findById;
 
-export async function findTupleSetByName(name: string): Promise<LdkitTupleSet | null> {
+export async function findTupleSetByName(name: string): Promise<PersistedTupleSet | null> {
   const items = await TupleSetUtils.findBy('name', name);
   return items[0] || null;
 }
 
-const TupleSetVersionUtils = createEntityUtilsWithFields<LdkitTupleSetVersion>(
+const TupleSetVersionUtils = createEntityUtilsWithFields<PersistedTupleSetVersion>(
   TupleSetVersionSchema,
   'TupleSetVersion'
 );

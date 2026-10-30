@@ -1,11 +1,11 @@
 /**
- * LDKit Schema for Library Entity
+ * Entity schema for Library Entity
  * 
  * This entity represents collections or libraries of queries and query groups.
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, sqlib, sdo } from '../namespaces.js';
+import { xsd, sqlib, sdo } from '../namespaces.js';
 
 export const LibrarySchema = {
   '@type': sqlib.Library,
@@ -18,7 +18,7 @@ export const LibrarySchema = {
   },
   defaultBackend: {
     '@id': sqlib.defaultBackend,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   dateCreated: {
@@ -33,7 +33,7 @@ export const LibrarySchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitLibrary {
+export interface PersistedLibrary {
   $id: string;
   '@type'?: 'Library';
   name: string;

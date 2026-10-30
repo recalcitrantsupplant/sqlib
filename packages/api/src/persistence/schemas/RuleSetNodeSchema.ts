@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for RuleSetNode Entity
+ * Entity schema for RuleSetNode Entity
  *
  * Represents a query group execution node that runs a RuleSetVersion
  * against an ephemeral Oxigraph store. The node only accepts/produces
@@ -7,25 +7,25 @@
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, sqlib } from '../namespaces.js';
+import { sqlib } from '../namespaces.js';
 
 export const RuleSetNodeSchema = {
   '@type': sqlib.RuleSetNode,
   ruleSetVersion: {
     '@id': sqlib.ruleSetVersion,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@references': { types: ['RuleSetVersion'] },
   },
   inputs: {
     '@id': sqlib.inputs,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   outputs: {
     '@id': sqlib.outputs,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   nodeType: {
@@ -34,7 +34,7 @@ export const RuleSetNodeSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitRuleSetNode {
+export interface PersistedRuleSetNode {
   '$id': string;
   '@type'?: 'RuleSetNode';
   ruleSetVersion: string;

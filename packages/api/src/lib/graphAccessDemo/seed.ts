@@ -17,10 +17,10 @@ import { getAuthConfig } from '../../auth/config.js';
 import { getAuthStore, type GrantResourceKind } from '../../auth/AuthStore.js';
 import { principalIri } from '../../auth/principals.js';
 import { PRINCIPAL_AUTHENTICATED } from '../../auth/types.js';
-import { BackendTypeIri, type LdkitBackend } from '../../persistence/schemas/BackendSchema.js';
-import type { LdkitDataGraph } from '../../persistence/schemas/DataGraphSchema.js';
-import type { LdkitLibrary } from '../../persistence/schemas/LibrarySchema.js';
-import type { LdkitQuery } from '../../persistence/schemas/QuerySchema.js';
+import { BackendTypeIri, type PersistedBackend } from '../../persistence/schemas/BackendSchema.js';
+import type { PersistedDataGraph } from '../../persistence/schemas/DataGraphSchema.js';
+import type { PersistedLibrary } from '../../persistence/schemas/LibrarySchema.js';
+import type { PersistedQuery } from '../../persistence/schemas/QuerySchema.js';
 import { QueryTypeIri } from '../../constants/queryTypes.js';
 import { getEntityRepositories } from '../CacheCoordinatorProvider.js';
 import { createDataGraphVersion } from '../DataGraphVersionWriter.js';
@@ -182,8 +182,8 @@ export async function seedGraphAccessDemo(log: (message: string) => void = () =>
   }
 
   // The policy pins the policy query's current version, as the Access screen does.
-  const policyVersion = (repos().Query.get(queryIdFor('policy')) as LdkitQuery | null)?.currentVersion;
-  const data = repos().Backend.get(GRAPH_ACCESS_DEMO_DATA_BACKEND_ID) as LdkitBackend | null;
+  const policyVersion = (repos().Query.get(queryIdFor('policy')) as PersistedQuery | null)?.currentVersion;
+  const data = repos().Backend.get(GRAPH_ACCESS_DEMO_DATA_BACKEND_ID) as PersistedBackend | null;
   if (policyVersion && data && !data.graphPolicyQueryVersion) {
     await repos().Backend.update(GRAPH_ACCESS_DEMO_DATA_BACKEND_ID, {
       graphPolicyQueryVersion: policyVersion,
@@ -207,7 +207,7 @@ async function ensureLibraries(): Promise<void> {
       name: 'Graph access demo',
       description: 'One backend, three graphs, and a graph policy that decides who reads which. '
         + 'Sign in as alice (analysts), bob (hr) or carol (no group) and run "Everything I can see".',
-    } as Partial<LdkitLibrary> & { $id: string });
+    } as Partial<PersistedLibrary> & { $id: string });
   }
   if (!repos().Library.get(GRAPH_ACCESS_DEMO_DATA_LIBRARY_ID)) {
     await repos().Library.create({
@@ -215,18 +215,18 @@ async function ensureLibraries(): Promise<void> {
       name: 'Graph access demo — data (administrators)',
       description: 'The data graphs behind "Company data", the access rules and the graph policy. '
         + 'No grants, so only administrators can read them: a data graph is as private as its library.',
-    } as Partial<LdkitLibrary> & { $id: string });
+    } as Partial<PersistedLibrary> & { $id: string });
   }
 }
 
 async function ensureDataGraph(id: string, name: string, content: string): Promise<void> {
-  let graph = repos().DataGraph.get(id) as LdkitDataGraph | null;
+  let graph = repos().DataGraph.get(id) as PersistedDataGraph | null;
   if (!graph) {
     graph = await repos().DataGraph.create({
       $id: id,
       name,
       isPartOf: [GRAPH_ACCESS_DEMO_DATA_LIBRARY_ID],
-    } as Partial<LdkitDataGraph> & { $id: string });
+    } as Partial<PersistedDataGraph> & { $id: string });
   }
   if (!graph.currentVersion) {
     await createDataGraphVersion(id, { contentString: content, contentFormat: 'text/turtle' });
@@ -247,7 +247,7 @@ async function ensureBackend(
     backendType: BackendTypeIri.oxigraphMemory,
     oxigraphConfig,
     ...(spec.authBackend ? { authBackend: true } : {}),
-  } as Partial<LdkitBackend> & { $id: string });
+  } as Partial<PersistedBackend> & { $id: string });
 }
 
 const queryIdFor = (slug: string) => mintId('query', `graph-access-demo-${slug}`);
@@ -261,7 +261,7 @@ async function ensureQuery(
   queryString: string,
 ): Promise<boolean> {
   const id = queryIdFor(slug);
-  let query = repos().Query.get(id) as LdkitQuery | null;
+  let query = repos().Query.get(id) as PersistedQuery | null;
   if (!query) {
     query = await repos().Query.create({
       $id: id,
@@ -269,7 +269,7 @@ async function ensureQuery(
       description,
       defaultBackend: backend,
       isPartOf: [library],
-    } as Partial<LdkitQuery> & { $id: string });
+    } as Partial<PersistedQuery> & { $id: string });
   }
   if (query.currentVersion) return false;
   await createQueryVersionFlat(id, { queryString, queryType: QueryTypeIri.select });

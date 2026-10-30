@@ -8,18 +8,18 @@
  */
 
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
-import type { LdkitTestCase } from '../persistence/schemas/TestCaseSchema.js';
-import type { LdkitTestCaseDataGraph } from '../persistence/schemas/TestCaseDataGraphSchema.js';
+import type { PersistedTestCase } from '../persistence/schemas/TestCaseSchema.js';
+import type { PersistedTestCaseDataGraph } from '../persistence/schemas/TestCaseDataGraphSchema.js';
 
 /**
  * A case as the runner reads it. A draft case has no stored
  * `TestCaseDataGraph` children, so it carries its graph list inline.
  */
-export type RunnableTestCase = LdkitTestCase & { draftDataGraphVersions?: string[] };
+export type RunnableTestCase = PersistedTestCase & { draftDataGraphVersions?: string[] };
 
 /** A version's stored cases, in `position` order. Empty for a version written before cases existed. */
-export function listStoredCases(testVersionId: string): LdkitTestCase[] {
-  return (getCacheCoordinator().list('TestCase') as unknown as LdkitTestCase[])
+export function listStoredCases(testVersionId: string): PersistedTestCase[] {
+  return (getCacheCoordinator().list('TestCase') as unknown as PersistedTestCase[])
     .filter(testCase => testCase.isPartOf === testVersionId)
     .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
 }
@@ -31,7 +31,7 @@ export function listStoredCases(testVersionId: string): LdkitTestCase[] {
  * shape stored before cases existed. Reporting a vacuous pass over zero cases
  * would be worse than either running it or refusing to.
  */
-export function effectiveCases(testVersionId: string): LdkitTestCase[] {
+export function effectiveCases(testVersionId: string): PersistedTestCase[] {
   const stored = listStoredCases(testVersionId);
   if (stored.length > 0) return stored;
   return [{ $id: `${testVersionId}#case-0`, isPartOf: testVersionId, position: 0 }];
@@ -48,8 +48,8 @@ export function effectiveCases(testVersionId: string): LdkitTestCase[] {
  * list, matching how `listStoredCases` reads a version's cases — the child
  * knows its parent, and one direction is enough.
  */
-export function listCaseDataGraphs(testCaseId: string): LdkitTestCaseDataGraph[] {
-  return (getCacheCoordinator().list('TestCaseDataGraph') as unknown as LdkitTestCaseDataGraph[])
+export function listCaseDataGraphs(testCaseId: string): PersistedTestCaseDataGraph[] {
+  return (getCacheCoordinator().list('TestCaseDataGraph') as unknown as PersistedTestCaseDataGraph[])
     .filter(entry => entry.isPartOf === testCaseId)
     .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
 }

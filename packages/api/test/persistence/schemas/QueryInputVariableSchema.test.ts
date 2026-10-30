@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
 import { QueryInputVariableSchema } from '../../../src/persistence/schemas/QueryInputVariableSchema.js';
-import { ldkit, sqlib } from '../../../src/persistence/namespaces.js';
+import { sqlib } from '../../../src/persistence/namespaces.js';
 
 describe('QueryInputVariableSchema', () => {
   it('defines correct @type and properties', () => {
@@ -13,7 +13,7 @@ describe('QueryInputVariableSchema', () => {
     expect(QueryInputVariableSchema).toHaveProperty('allowedTypes');
     expect(QueryInputVariableSchema.allowedTypes['@id']).toBe(sqlib.allowedTypes);
     expect(QueryInputVariableSchema.allowedTypes['@array']).toBe(true);
-    expect(QueryInputVariableSchema.allowedTypes['@type']).toBe(ldkit.IRI);
+    expect(QueryInputVariableSchema.allowedTypes['@type']).toBe(sqlib.IRI);
     expect(QueryInputVariableSchema.allowedTypes['@optional']).toBe(true);
   });
 });

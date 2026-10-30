@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { MemoryCacheManager } from '../../src/lib/MemoryCacheManager.js';
 import { SYSTEM_LIBRARY_ID, SystemQueryCatalog } from '../../src/lib/system-queries/SystemQueryCatalog.js';
-import type { LDKitEntity } from '../../src/persistence/EntityTypes.js';
+import type { PersistedEntity } from '../../src/persistence/EntityTypes.js';
 import { installFakePersistenceAdapter } from '../support/fakePersistenceAdapter.js';
 
 // This suite's subject is cache logic; storage is the in-memory fake, so what
@@ -45,7 +45,7 @@ describe('MemoryCacheManager system store bootstrap', () => {
   it('blocks creates for system ids', async () => {
     const cache = new MemoryCacheManager();
 
-    const systemLibrary: LDKitEntity = { $id: SYSTEM_LIBRARY_ID, name: 'Nope' };
+    const systemLibrary: PersistedEntity = { $id: SYSTEM_LIBRARY_ID, name: 'Nope' };
     await expect(cache.create(systemLibrary, 'Library'))
       .rejects
       .toThrow(/System entity/);

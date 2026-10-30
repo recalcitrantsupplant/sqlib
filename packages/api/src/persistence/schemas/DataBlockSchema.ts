@@ -1,11 +1,11 @@
 /**
- * LDKit Schema for DataBlock Entity (stable pointer)
+ * Entity schema for DataBlock Entity (stable pointer)
  *
  * A DataBlock represents a set of triples to be inserted as-is.
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, sqlib, sdo } from '../namespaces.js';
+import { xsd, sqlib, sdo } from '../namespaces.js';
 
 export const DataBlockSchema = {
   '@type': sqlib.DataBlock,
@@ -18,7 +18,7 @@ export const DataBlockSchema = {
   },
   currentVersion: {
     '@id': sqlib.currentVersion,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
     '@references': { types: ['DataBlockVersion'] },
     // The number lives on the version; callers listing these want it
@@ -28,13 +28,13 @@ export const DataBlockSchema = {
   isPartOf: {
     '@id': sdo.isPartOf,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@references': { types: ['Library', 'QueryGroup'], exactlyOne: 'Library' },
   },
   tags: {
     '@id': sqlib.hasTag,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
     '@references': { types: ['Tag'] },
   },
@@ -50,7 +50,7 @@ export const DataBlockSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitDataBlock {
+export interface PersistedDataBlock {
   $id: string;
   '@type'?: 'DataBlock';
   name: string;

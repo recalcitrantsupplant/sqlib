@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
 import { QueryInputTupleSchema } from '../../../src/persistence/schemas/QueryInputTupleSchema.js';
-import { ldkit, sqlib, sdo } from '../../../src/persistence/namespaces.js';
+import { sqlib, sdo } from '../../../src/persistence/namespaces.js';
 
 describe('QueryInputTupleSchema', () => {
   it('defines correct @type and properties', () => {
@@ -14,6 +14,6 @@ describe('QueryInputTupleSchema', () => {
     expect(QueryInputTupleSchema).toHaveProperty('memberEntries');
     expect(QueryInputTupleSchema.memberEntries['@id']).toBe(sqlib.memberEntries);
     expect(QueryInputTupleSchema.memberEntries['@array']).toBe(true);
-    expect(QueryInputTupleSchema.memberEntries['@type']).toBe(ldkit.IRI);
+    expect(QueryInputTupleSchema.memberEntries['@type']).toBe(sqlib.IRI);
   });
 });

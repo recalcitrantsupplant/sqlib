@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for DataGraphVersion entity.
+ * Entity schema for DataGraphVersion entity.
  *
  * An immutable snapshot of a data graph's content. Text-first storage, as the
  * design calls for: the content is held as a string and loaded into the
@@ -13,13 +13,13 @@
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, sqlib, sdo } from '../namespaces.js';
+import { xsd, sqlib, sdo } from '../namespaces.js';
 
 export const DataGraphVersionSchema = {
   '@type': sqlib.DataGraphVersion,
   isPartOf: {
     '@id': sdo.isPartOf,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@references': { types: ['DataGraph'] },
   },
   version: {
@@ -67,19 +67,19 @@ export const DataGraphVersionSchema = {
    */
   sourceQueryVersion: {
     '@id': sqlib.sourceQueryVersion,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@references': { types: ['QueryVersion'] },
     '@optional': true,
   },
   sourceArgumentSetVersion: {
     '@id': sqlib.sourceArgumentSetVersion,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@references': { types: ['ArgumentSetVersion'] },
     '@optional': true,
   },
   sourceBackend: {
     '@id': sqlib.sourceBackend,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@references': { types: ['Backend'] },
     '@optional': true,
   },
@@ -110,7 +110,7 @@ export const DataGraphVersionSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitDataGraphVersion {
+export interface PersistedDataGraphVersion {
   $id: string;
   '@type'?: 'DataGraphVersion';
   isPartOf: string;

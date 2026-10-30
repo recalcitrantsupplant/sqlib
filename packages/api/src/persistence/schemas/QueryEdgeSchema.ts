@@ -1,22 +1,22 @@
 /**
- * LDKit Schema for QueryEdge Entity
+ * Entity schema for QueryEdge Entity
  * 
  * This entity represents connections between QueryNodes in a query graph.
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, sqlib } from '../namespaces.js';
+import { sqlib } from '../namespaces.js';
 
 export const QueryEdgeSchema = {
   '@type': sqlib.QueryEdge,
   sourceNodeId: {
     '@id': sqlib.sourceNodeId,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   targetNodeId: {
     '@id': sqlib.targetNodeId,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   sourceLocalId: {
@@ -33,12 +33,12 @@ export const QueryEdgeSchema = {
   },
   sourceOutputId: {
     '@id': sqlib.sourceOutputId,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   targetInputId: {
     '@id': sqlib.targetInputId,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   // JSON array of { source: string, target: string }; variables are named rather
@@ -63,7 +63,7 @@ export type WhenEmptyMode = 'unconstrained' | 'propagateEmpty' | 'require';
 
 export const WHEN_EMPTY_MODES: readonly WhenEmptyMode[] = ['unconstrained', 'propagateEmpty', 'require'];
 
-export interface LdkitQueryEdge {
+export interface PersistedQueryEdge {
   '$id': string;
   '@type'?: 'QueryEdge';
   sourceNodeId?: string | null; // Optional at creation, resolved from sourceLocalId

@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { EntityRepositories } from '../lib/EntityRepositories.js';
 import { toRestApi } from '../persistence/utils/id-adapter.js';
-import type { LdkitLibrary } from '../persistence/schemas/LibrarySchema.js';
+import type { PersistedLibrary } from '../persistence/schemas/LibrarySchema.js';
 import type { LibraryRestApi } from '@sparql-query-lib/contracts/schema';
 import {
   getLibrarysSchema,
@@ -41,13 +41,13 @@ import {
 import { generateDemoPage } from '../lib/export/demoPage.js';
 import { generateNotebook } from '../lib/export/notebook.js';
 import { ArgumentSetService } from '../lib/ArgumentSetService.js';
-import type { LdkitTest } from '../persistence/schemas/TestSchema.js';
-import type { LdkitTestVersion } from '../persistence/schemas/TestVersionSchema.js';
-import type { LdkitTestCase } from '../persistence/schemas/TestCaseSchema.js';
-import type { LdkitQuery } from '../persistence/schemas/QuerySchema.js';
-import type { LdkitQueryVersion } from '../persistence/schemas/QueryVersionSchema.js';
-import type { LdkitQueryGroup } from '../persistence/schemas/QueryGroupSchema.js';
-import type { LdkitQueryGroupVersion } from '../persistence/schemas/QueryGroupVersionSchema.js';
+import type { PersistedTest } from '../persistence/schemas/TestSchema.js';
+import type { PersistedTestVersion } from '../persistence/schemas/TestVersionSchema.js';
+import type { PersistedTestCase } from '../persistence/schemas/TestCaseSchema.js';
+import type { PersistedQuery } from '../persistence/schemas/QuerySchema.js';
+import type { PersistedQueryVersion } from '../persistence/schemas/QueryVersionSchema.js';
+import type { PersistedQueryGroup } from '../persistence/schemas/QueryGroupSchema.js';
+import type { PersistedQueryGroupVersion } from '../persistence/schemas/QueryGroupVersionSchema.js';
 
 const systemQueryRunner = new SystemQueryRunner();
 // Resolves a test case's stored argument set into the runtime's own payload
@@ -151,7 +151,7 @@ async function readableLibraryCollection(
   repos: EntityRepositories,
   acceptHeader: string
 ): Promise<SystemQueryRunnerResult> {
-  const all = repos.Library.list() as LdkitLibrary[];
+  const all = repos.Library.list() as PersistedLibrary[];
   const visible = filterReadable(request, all);
 
   if (visible.length === all.length) {
@@ -246,7 +246,7 @@ export default async function (fastify: FastifyInstance) {
     '/:id/export',
     ...reposRoute({ params: libraryIdParamSchema }, async ({ repos, reply, request }) => {
       const { id } = request.params;
-      const library = repos.Library.get(id) as LdkitLibrary | null;
+      const library = repos.Library.get(id) as PersistedLibrary | null;
       if (!library) {
         return reply.status(404).send({ error: 'Not Found' });
       }
@@ -342,7 +342,7 @@ export default async function (fastify: FastifyInstance) {
       } as const,
       async ({ repos, reply, request }) => {
         const { id } = request.params;
-        const library = repos.Library.get(id) as LdkitLibrary | null;
+        const library = repos.Library.get(id) as PersistedLibrary | null;
         if (!library) {
           return reply.status(404).send({ error: 'Not Found' });
         }
@@ -358,9 +358,9 @@ export default async function (fastify: FastifyInstance) {
         const tags = parseTagList(request.query.tag);
         const collected = collectLibraryQueries(
           {
-            listQueries: () => repos.Query.list() as LdkitQuery[],
+            listQueries: () => repos.Query.list() as PersistedQuery[],
             getQueryVersion: (versionId) =>
-              repos.QueryVersion.get(versionId) as LdkitQueryVersion | null,
+              repos.QueryVersion.get(versionId) as PersistedQueryVersion | null,
           },
           id,
           { tags, match: request.query.match ?? 'any' }
@@ -381,10 +381,10 @@ export default async function (fastify: FastifyInstance) {
           const { skipped: skippedExamples } = await attachExamplesToBundle(
             bundle,
             {
-              listTests: () => repos.Test.list() as LdkitTest[],
+              listTests: () => repos.Test.list() as PersistedTest[],
               getTestVersion: (versionId) =>
-                repos.TestVersion.get(versionId) as LdkitTestVersion | null,
-              getTestCase: (caseId) => repos.TestCase.get(caseId) as LdkitTestCase | null,
+                repos.TestVersion.get(versionId) as PersistedTestVersion | null,
+              getTestCase: (caseId) => repos.TestCase.get(caseId) as PersistedTestCase | null,
               resolveArgumentPayload: (argumentSetVersionId) =>
                 argumentSetService.exportRuntimePayload([argumentSetVersionId], { request }).then(payload => ({
                   arguments: payload.tupleList,
@@ -406,9 +406,9 @@ export default async function (fastify: FastifyInstance) {
             ? { groups: [], skipped: [] }
             : collectLibraryGroups(
                 {
-                  listGroups: () => repos.QueryGroup.list() as LdkitQueryGroup[],
+                  listGroups: () => repos.QueryGroup.list() as PersistedQueryGroup[],
                   getGroupVersion: (versionId) =>
-                    repos.QueryGroupVersion.get(versionId) as LdkitQueryGroupVersion | null,
+                    repos.QueryGroupVersion.get(versionId) as PersistedQueryGroupVersion | null,
                   getEntity: (entityId) =>
                     getCacheCoordinator().get(entityId) as GroupGraphEntity | null,
                 },
@@ -474,8 +474,8 @@ export default async function (fastify: FastifyInstance) {
         return streamSystemQueryResult(reply, execution, rdfType);
       }
 
-      const ldkitLibraries = repos.Library.list() as LdkitLibrary[];
-      const visible = filterReadable(request, ldkitLibraries);
+      const persistedLibraries = repos.Library.list() as PersistedLibrary[];
+      const visible = filterReadable(request, persistedLibraries);
       return reply.send(visible.map(lib => toRestApi<any>(lib)));
     })
   );
@@ -485,7 +485,7 @@ export default async function (fastify: FastifyInstance) {
     '/:id',
     ...reposRoute(getLibrarySchema, async ({ repos, reply, request }) => {
       const { id } = request.params;
-      const library = repos.Library.get(id) as LdkitLibrary | null;
+      const library = repos.Library.get(id) as PersistedLibrary | null;
       if (!library) {
         return reply.status(404).send({ error: 'Not Found' });
       }
@@ -555,7 +555,7 @@ export default async function (fastify: FastifyInstance) {
     ...reposRoute(updateLibrarySchema, async ({ repos, reply, request }) => {
       const { id } = request.params;
       const body = request.body;
-      const current = repos.Library.get(id) as LdkitLibrary | null;
+      const current = repos.Library.get(id) as PersistedLibrary | null;
       if (!current) {
         return reply.status(404).send({ error: 'Not Found' });
       }

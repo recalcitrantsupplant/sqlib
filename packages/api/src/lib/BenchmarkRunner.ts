@@ -12,17 +12,17 @@ import type { RunnerScope } from './TestRunner.js';
 import { ExecutionEngine, type ExecutionHooks } from './orchestration/ExecutionEngine.js';
 import { GraphBuilder } from './orchestration/GraphBuilder.js';
 import type { NodeResult } from './orchestration/types.js';
-import type { LdkitBenchmarkExperimentVersion } from '../persistence/schemas/BenchmarkExperimentVersionSchema.js';
-import type { LdkitBenchmarkObservation } from '../persistence/schemas/BenchmarkObservationSchema.js';
-import type { LdkitBenchmarkNodeObservation } from '../persistence/schemas/BenchmarkNodeObservationSchema.js';
-import type { LdkitBenchmarkIterationObservation } from '../persistence/schemas/BenchmarkIterationObservationSchema.js';
-import type { LdkitBenchmarkIterationRun } from '../persistence/schemas/BenchmarkIterationRunSchema.js';
-import type { LdkitBenchmarkRun } from '../persistence/schemas/BenchmarkRunSchema.js';
-import type { LdkitBenchmarkNodeRun } from '../persistence/schemas/BenchmarkNodeRunSchema.js';
-import type { LdkitQueryVersion } from '../persistence/schemas/QueryVersionSchema.js';
-import type { LdkitQueryGroupVersion } from '../persistence/schemas/QueryGroupVersionSchema.js';
-import type { LdkitRuleSetVersion } from '../persistence/schemas/RuleSetVersionSchema.js';
-import type { LdkitDataGraphVersion } from '../persistence/schemas/DataGraphVersionSchema.js';
+import type { PersistedBenchmarkExperimentVersion } from '../persistence/schemas/BenchmarkExperimentVersionSchema.js';
+import type { PersistedBenchmarkObservation } from '../persistence/schemas/BenchmarkObservationSchema.js';
+import type { PersistedBenchmarkNodeObservation } from '../persistence/schemas/BenchmarkNodeObservationSchema.js';
+import type { PersistedBenchmarkIterationObservation } from '../persistence/schemas/BenchmarkIterationObservationSchema.js';
+import type { PersistedBenchmarkIterationRun } from '../persistence/schemas/BenchmarkIterationRunSchema.js';
+import type { PersistedBenchmarkRun } from '../persistence/schemas/BenchmarkRunSchema.js';
+import type { PersistedBenchmarkNodeRun } from '../persistence/schemas/BenchmarkNodeRunSchema.js';
+import type { PersistedQueryVersion } from '../persistence/schemas/QueryVersionSchema.js';
+import type { PersistedQueryGroupVersion } from '../persistence/schemas/QueryGroupVersionSchema.js';
+import type { PersistedRuleSetVersion } from '../persistence/schemas/RuleSetVersionSchema.js';
+import type { PersistedDataGraphVersion } from '../persistence/schemas/DataGraphVersionSchema.js';
 import { RuleSetExecutor, type IterationRecord } from './RuleSetExecutor.js';
 import { resolveTupleSeedInput } from './tupleSeedInput.js';
 import { DEFAULT_DATA_GRAPH_FORMAT, storeManagerFormat, type DataGraphFormat } from './dataGraphContent.js';
@@ -78,12 +78,12 @@ type BenchmarkTask = {
 };
 
 type BenchmarkRunResult = {
-  run: LdkitBenchmarkRun;
-  nodeRun?: LdkitBenchmarkNodeRun | null;
-  iterationRun?: LdkitBenchmarkIterationRun | null;
-  observations: LdkitBenchmarkObservation[];
-  nodeObservations: LdkitBenchmarkNodeObservation[];
-  iterationObservations: LdkitBenchmarkIterationObservation[];
+  run: PersistedBenchmarkRun;
+  nodeRun?: PersistedBenchmarkNodeRun | null;
+  iterationRun?: PersistedBenchmarkIterationRun | null;
+  observations: PersistedBenchmarkObservation[];
+  nodeObservations: PersistedBenchmarkNodeObservation[];
+  iterationObservations: PersistedBenchmarkIterationObservation[];
 };
 
 /**
@@ -99,8 +99,8 @@ type BenchmarkTaskOutcome = {
   durationMs: number;
   errorMessage?: string;
   errorType?: string;
-  nodeObservationDrafts?: LdkitBenchmarkNodeObservation[];
-  iterationObservationDrafts?: LdkitBenchmarkIterationObservation[];
+  nodeObservationDrafts?: PersistedBenchmarkNodeObservation[];
+  iterationObservationDrafts?: PersistedBenchmarkIterationObservation[];
 };
 
 function sleep(ms: number): Promise<void> {
@@ -169,7 +169,7 @@ function resolveCurrentVersionId(id: string, parentType: string, versionType: st
 
 /** A data graph version's content, ready to seed a rules run's base graph. */
 function readDataGraphVersion(dataGraphVersionId: string): { content: string; format: string } {
-  const version = getCacheCoordinator().get(dataGraphVersionId) as LdkitDataGraphVersion | null;
+  const version = getCacheCoordinator().get(dataGraphVersionId) as PersistedDataGraphVersion | null;
   if (!version || version['@type'] !== 'DataGraphVersion') {
     throw new Error(`DataGraphVersion ${dataGraphVersionId} not found`);
   }
@@ -192,7 +192,7 @@ function buildIterationObservationDrafts(
   iterationRunId: string,
   runIndex: number,
   iterations: IterationRecord[],
-): LdkitBenchmarkIterationObservation[] {
+): PersistedBenchmarkIterationObservation[] {
   const timestamp = new Date().toISOString();
   return iterations.map(iteration => ({
     $id: mintId('benchmarkIterationObservation'),
@@ -296,7 +296,7 @@ export class BenchmarkRunner {
   }
 
   async runExperimentVersion(versionId: string): Promise<BenchmarkRunResult> {
-    const versionEntity = getCacheCoordinator().get(versionId) as LdkitBenchmarkExperimentVersion | null;
+    const versionEntity = getCacheCoordinator().get(versionId) as PersistedBenchmarkExperimentVersion | null;
     if (!versionEntity || versionEntity['@type'] !== 'BenchmarkExperimentVersion') {
       throw new Error(`BenchmarkExperimentVersion ${versionId} not found`);
     }
@@ -312,7 +312,7 @@ export class BenchmarkRunner {
 
     const runId = mintId('benchmarkRun');
     const nowIso = new Date().toISOString();
-    const run: LdkitBenchmarkRun = {
+    const run: PersistedBenchmarkRun = {
       $id: runId,
       '@type': 'BenchmarkRun',
       structure: BENCHMARK_OBSERVATION_DSD_IRI,
@@ -328,9 +328,9 @@ export class BenchmarkRunner {
 
     let nodeRun: { $id: string; endedAt?: string | null } | null = null;
     let iterationRun: { $id: string; endedAt?: string | null } | null = null;
-    const observations: LdkitBenchmarkObservation[] = [];
-    const nodeObservations: LdkitBenchmarkNodeObservation[] = [];
-    const iterationObservations: LdkitBenchmarkIterationObservation[] = [];
+    const observations: PersistedBenchmarkObservation[] = [];
+    const nodeObservations: PersistedBenchmarkNodeObservation[] = [];
+    const iterationObservations: PersistedBenchmarkIterationObservation[] = [];
     const warmupRuns = Math.max(0, version.warmupRuns ?? 0);
     const warmupTracker = new Map<string, Promise<void>>();
 
@@ -361,8 +361,8 @@ export class BenchmarkRunner {
 
       const subjectStart = performance.now();
       let resultCount = 0;
-      const nodeObservationDrafts: LdkitBenchmarkNodeObservation[] = [];
-      let iterationObservationDrafts: LdkitBenchmarkIterationObservation[] = [];
+      const nodeObservationDrafts: PersistedBenchmarkNodeObservation[] = [];
+      let iterationObservationDrafts: PersistedBenchmarkIterationObservation[] = [];
 
       try {
         if (task.subjectType === 'QueryVersion') {
@@ -383,7 +383,7 @@ export class BenchmarkRunner {
              * one — the same order `nodeRun` is written in below.
              */
             if (!iterationRun) {
-              const createdIterationRun: LdkitBenchmarkIterationRun = {
+              const createdIterationRun: PersistedBenchmarkIterationRun = {
                 $id: mintId('benchmarkIterationRun'),
                 '@type': 'BenchmarkIterationRun',
                 structure: BENCHMARK_ITERATION_OBSERVATION_DSD_IRI,
@@ -399,7 +399,7 @@ export class BenchmarkRunner {
           }
         } else {
           if (!nodeRun) {
-            const createdNodeRun: LdkitBenchmarkNodeRun = {
+            const createdNodeRun: PersistedBenchmarkNodeRun = {
               $id: mintId('benchmarkNodeRun'),
               '@type': 'BenchmarkNodeRun',
               structure: BENCHMARK_NODE_OBSERVATION_DSD_IRI,
@@ -481,7 +481,7 @@ export class BenchmarkRunner {
         return executeOnce(runTask, runIndex, signal);
       });
       const subjectObservationId = mintId('benchmarkObservation');
-      const observation: LdkitBenchmarkObservation = {
+      const observation: PersistedBenchmarkObservation = {
         $id: subjectObservationId,
         '@type': 'BenchmarkObservation',
         dataSet: runId,
@@ -507,7 +507,7 @@ export class BenchmarkRunner {
       await BenchmarkObservations.insert(observation as unknown as Parameters<typeof BenchmarkObservations.insert>[0]);
 
       for (const nodeObservation of outcome.nodeObservationDrafts ?? []) {
-        const finalized: LdkitBenchmarkNodeObservation = {
+        const finalized: PersistedBenchmarkNodeObservation = {
           ...nodeObservation,
           groupObservation: subjectObservationId,
         };
@@ -516,7 +516,7 @@ export class BenchmarkRunner {
       }
 
       for (const iterationObservation of outcome.iterationObservationDrafts ?? []) {
-        const finalized: LdkitBenchmarkIterationObservation = {
+        const finalized: PersistedBenchmarkIterationObservation = {
           ...iterationObservation,
           subjectObservation: subjectObservationId,
         };
@@ -555,13 +555,13 @@ export class BenchmarkRunner {
     run.tasksCompleted = tasksCompleted;
     run.dateModified = endedAt;
 
-    const finalizedNodeRun = nodeRun as LdkitBenchmarkNodeRun | null;
+    const finalizedNodeRun = nodeRun as PersistedBenchmarkNodeRun | null;
     if (finalizedNodeRun) {
       await updateBenchmarkNodeRun(finalizedNodeRun.$id, { endedAt });
       finalizedNodeRun.endedAt = endedAt;
     }
 
-    const finalizedIterationRun = iterationRun as LdkitBenchmarkIterationRun | null;
+    const finalizedIterationRun = iterationRun as PersistedBenchmarkIterationRun | null;
     if (finalizedIterationRun) {
       await updateBenchmarkIterationRun(finalizedIterationRun.$id, { endedAt });
       finalizedIterationRun.endedAt = endedAt;
@@ -673,7 +673,7 @@ export class BenchmarkRunner {
     return tasks;
   }
 
-  private buildNodeHooks(nodeRunId: string, runIndex: number, sink: LdkitBenchmarkNodeObservation[]): ExecutionHooks {
+  private buildNodeHooks(nodeRunId: string, runIndex: number, sink: PersistedBenchmarkNodeObservation[]): ExecutionHooks {
     return {
       onNodeFinish: (node, result, durationMs, orderIndex) => {
         sink.push({
@@ -783,7 +783,7 @@ export class BenchmarkRunner {
   }
 
   private async executeQueryVersion(subjectId: string, backendId: string, argumentSetId: string, signal?: AbortSignal): Promise<NodeResult> {
-    const versionEntity = getCacheCoordinator().get(subjectId) as LdkitQueryVersion | null;
+    const versionEntity = getCacheCoordinator().get(subjectId) as PersistedQueryVersion | null;
     if (!versionEntity || versionEntity['@type'] !== 'QueryVersion') {
       throw new Error(`QueryVersion ${subjectId} not found`);
     }
@@ -824,7 +824,7 @@ export class BenchmarkRunner {
     timeoutMs?: number | null,
     signal?: AbortSignal,
   ): Promise<{ result: NodeResult; iterations: IterationRecord[] }> {
-    const versionEntity = getCacheCoordinator().get(task.subjectId) as LdkitRuleSetVersion | null;
+    const versionEntity = getCacheCoordinator().get(task.subjectId) as PersistedRuleSetVersion | null;
     if (!versionEntity || versionEntity['@type'] !== 'RuleSetVersion') {
       throw new Error(`RuleSetVersion ${task.subjectId} not found`);
     }
@@ -861,7 +861,7 @@ export class BenchmarkRunner {
   }
 
   private async executeQueryGroupVersion(subjectId: string, argumentSetId: string, hooks: ExecutionHooks, signal?: AbortSignal): Promise<NodeResult> {
-    const versionEntity = getCacheCoordinator().get(subjectId) as LdkitQueryGroupVersion | null;
+    const versionEntity = getCacheCoordinator().get(subjectId) as PersistedQueryGroupVersion | null;
     if (!versionEntity || versionEntity['@type'] !== 'QueryGroupVersion') {
       throw new Error(`QueryGroupVersion ${subjectId} not found`);
     }

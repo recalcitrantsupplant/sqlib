@@ -1,12 +1,12 @@
 /**
- * LDKit Schema for EtlJob Entity (Stable Pointer)
+ * Entity schema for EtlJob Entity (Stable Pointer)
  *
  * Represents a stable ETL job entity that points to versioned ETL job implementations.
  * The stable IRI never changes, but currentVersion points to the latest EtlJobVersion.
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, sqlib, sdo } from '../namespaces.js';
+import { xsd, sqlib, sdo } from '../namespaces.js';
 
 export const EtlJobSchema = {
   '@type': sqlib.EtlJob,
@@ -19,7 +19,7 @@ export const EtlJobSchema = {
   },
   currentVersion: {
     '@id': sqlib.currentVersion,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
     '@references': { types: ['EtlJobVersion'] },
     // The number lives on the version; callers listing these want it
@@ -31,13 +31,13 @@ export const EtlJobSchema = {
   // default, which is chosen for queries rather than for scratch loads.
   defaultBackend: {
     '@id': sqlib.defaultBackend,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   isPartOf: {
     '@id': sdo.isPartOf,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
   },
   dateCreated: {
     '@id': sdo.dateCreated,
@@ -52,12 +52,12 @@ export const EtlJobSchema = {
   argumentSets: {
     '@id': sqlib.argumentSets,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
 } as const satisfies Schema;
 
-export interface LdkitEtlJob {
+export interface PersistedEtlJob {
   $id: string;
   '@type'?: 'EtlJob';
   name: string;

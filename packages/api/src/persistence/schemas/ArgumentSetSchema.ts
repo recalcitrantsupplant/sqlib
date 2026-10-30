@@ -1,11 +1,11 @@
 /**
- * LDKit Schema for ArgumentSet Entity
+ * Entity schema for ArgumentSet Entity
  *
  * Top-level container for saved argument presets associated with a query or query group.
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, sqlib, sdo } from '../namespaces.js';
+import { xsd, sqlib, sdo } from '../namespaces.js';
 
 export const ArgumentSetSchema = {
   '@type': sqlib.ArgumentSet,
@@ -30,7 +30,7 @@ export const ArgumentSetSchema = {
   },
   targetEntity: {
     '@id': sqlib.targetEntity,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   /**
@@ -46,19 +46,19 @@ export const ArgumentSetSchema = {
    */
   isPartOf: {
     '@id': sdo.isPartOf,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@references': { types: ['Library'] },
   },
   tags: {
     '@id': sqlib.hasTag,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
     '@references': { types: ['Tag'] },
   },
   currentVersion: {
     '@id': sqlib.currentVersion,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
     '@references': { types: ['ArgumentSetVersion'] },
     // The number lives on the version; callers listing these want it
@@ -68,13 +68,13 @@ export const ArgumentSetSchema = {
   tupleBindings: {
     '@id': sqlib.tupleBindings,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   scalarBindings: {
     '@id': sqlib.scalarBindings,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   tupleSignature: {
@@ -93,7 +93,7 @@ export const ArgumentSetSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitArgumentSet {
+export interface PersistedArgumentSet {
   '$id': string;
   '@type'?: 'ArgumentSet';
   name: string;

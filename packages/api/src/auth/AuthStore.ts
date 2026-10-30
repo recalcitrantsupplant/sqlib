@@ -7,7 +7,7 @@
  * never leave memory; writes go through the single `/auth` API path and are
  * persisted synchronously before the indexes are rebuilt.
  *
- * The graph is deliberately unreachable through the entity layer: no LDKit schema
+ * The graph is deliberately unreachable through the entity layer: no entity schema
  * maps this vocabulary, so nothing here can surface through an entity route.
  */
 import { randomUUID } from 'node:crypto';

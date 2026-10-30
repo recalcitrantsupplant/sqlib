@@ -1,14 +1,14 @@
 /**
  * `@references` — what a property's IRI is allowed to point at.
  *
- * The declaration exists because `'@type': ldkit.IRI` says a value is an IRI and
+ * The declaration exists because `'@type': sqlib.IRI` says a value is an IRI and
  * nothing more, so every rule about *what* it must resolve to was written out by
  * hand somewhere else (issue #65 Phase B3). A malformed or stale declaration has
  * to fail here: a rule naming a type that no longer exists matches nothing, and
  * a reference check that matches nothing is a check that passes everything.
  */
 import { describe, expect, it } from 'vitest';
-import { describeSchema, LDKIT_IRI_TYPE } from '../../src/persistence/schemaIntrospection.js';
+import { describeSchema, IRI_REF_TYPE } from '../../src/persistence/schemaIntrospection.js';
 import { SCHEMA_BY_TYPE } from '../../src/persistence/schemaRegistry.js';
 import { ENTITY_TYPE_NAMES } from '../../src/persistence/entityTypeNames.js';
 
@@ -16,7 +16,7 @@ const CLASS = 'https://sparql-query-lib/Thing';
 
 function schemaWithReferences(
   references: unknown,
-  extra: Record<string, unknown> = { '@type': LDKIT_IRI_TYPE },
+  extra: Record<string, unknown> = { '@type': IRI_REF_TYPE },
 ): Record<string, unknown> {
   return {
     '@type': CLASS,
@@ -34,7 +34,7 @@ describe('entity schema reference declarations', () => {
   it('leaves fields without one at null', () => {
     const info = describeSchema({
       '@type': CLASS,
-      currentVersion: { '@id': 'https://sparql-query-lib/currentVersion', '@type': LDKIT_IRI_TYPE },
+      currentVersion: { '@id': 'https://sparql-query-lib/currentVersion', '@type': IRI_REF_TYPE },
     });
 
     expect(info.fields[0].references).toBeNull();
@@ -44,7 +44,7 @@ describe('entity schema reference declarations', () => {
     const field = describeSchema(
       schemaWithReferences(
         { types: ['Library', 'QueryGroup'], exactlyOne: 'Library' },
-        { '@type': LDKIT_IRI_TYPE, '@array': true },
+        { '@type': IRI_REF_TYPE, '@array': true },
       ),
     ).fields[0];
 
@@ -77,7 +77,7 @@ describe('entity schema reference declarations', () => {
       describeSchema(
         schemaWithReferences(
           { types: ['Library'], exactlyOne: 'QueryGroup' },
-          { '@type': LDKIT_IRI_TYPE, '@array': true },
+          { '@type': IRI_REF_TYPE, '@array': true },
         ),
       ),
     ).toThrow(/not among its reference types/);

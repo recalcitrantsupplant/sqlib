@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
 import { LibrarySchema } from '../../../src/persistence/schemas/LibrarySchema.js';
-import { ldkit, xsd, sqlib, sdo } from '../../../src/persistence/namespaces.js';
+import { xsd, sqlib, sdo } from '../../../src/persistence/namespaces.js';
 
 describe('LibrarySchema', () => {
   it('defines correct @type and properties', () => {
@@ -16,7 +16,7 @@ describe('LibrarySchema', () => {
 
     expect(LibrarySchema).toHaveProperty('defaultBackend');
     expect(LibrarySchema.defaultBackend['@id']).toBe(sqlib.defaultBackend);
-    expect(LibrarySchema.defaultBackend['@type']).toBe(ldkit.IRI);
+    expect(LibrarySchema.defaultBackend['@type']).toBe(sqlib.IRI);
     expect(LibrarySchema.defaultBackend['@optional']).toBe(true);
 
     expect(LibrarySchema).toHaveProperty('dateCreated');
