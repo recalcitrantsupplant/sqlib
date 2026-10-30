@@ -399,6 +399,6 @@ describe('useQueryGroupIO tupleEditor', () => {
     io.tupleEditor.saveStartInputs();
 
     expect(noopToast.error).not.toHaveBeenCalled();
-    expect(noopToast.success).toHaveBeenCalledWith(expect.stringContaining('saved'));
+    expect(noopToast.success).toHaveBeenCalledWith(expect.stringContaining('applied'));
   });
 });

@@ -157,10 +157,15 @@ export function compatibility(
     // width, so say the widths rather than "incompatible".
     const arities = new Set(offered.map((key) => key.split('|').length));
     const wantedArities = new Set(wanted.map((key) => key.split('|').length));
+    const offeredWidth = [...arities][0];
+    const wantedWidth = [...wantedArities][0];
+    const vars = (keys: string[]) =>
+      keys.map((key) => key.split('|').map((name) => `?${name}`).join(' ')).join(', ');
+    // Equal widths with different names is a naming problem, so name them.
     const reason =
-      arities.size === 1 && wantedArities.size === 1
-        ? `arity ${[...arities][0]} ≠ ${[...wantedArities][0]}`
-        : 'no clause in common';
+      arities.size === 1 && wantedArities.size === 1 && offeredWidth !== wantedWidth
+        ? `arity ${offeredWidth} ≠ ${wantedWidth}`
+        : `binds ${vars(offered)}, needs ${vars(wanted)}`;
     return { verdict: 'mismatch', reason };
   }
 

@@ -23,7 +23,7 @@
           class="node-validation-badge"
           :class="validation.level"
           :title="validationTitle"
-        >{{ validation.level === 'error' ? '!' : '?' }}{{ validationCount > 1 ? ` ${validationCount}` : '' }}</span>
+        >{{ validationBadgeText }}</span>
         <span class="node-toggle-icon" :class="{ open: isOpen }">v</span>
       </button>
 
@@ -32,8 +32,18 @@
         <span v-if="execution.durationMs !== undefined" class="node-execution-chip" :class="{ slowest: execution.isSlowest }">
           {{ formatDuration(execution.durationMs) }}
         </span>
-        <span v-if="execution.count !== undefined" class="node-execution-chip">
-          {{ execution.count }} {{ execution.countLabel }}
+        <button
+          v-if="execution.count !== undefined && showNodeResult"
+          type="button"
+          class="node-execution-chip node-result-link nodrag"
+          title="Show this node's result"
+          data-testid="node-result-link"
+          @click.stop="showNodeResult(props.id)"
+        >
+          {{ executionCountText }}
+        </button>
+        <span v-else-if="execution.count !== undefined" class="node-execution-chip">
+          {{ executionCountText }}
         </span>
       </div>
       <p v-if="execution?.error" class="node-execution-error" :title="execution.error">{{ execution.error }}</p>
@@ -50,10 +60,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, inject, ref } from 'vue';
 import { Handle, Position, type NodeProps } from '@vue-flow/core';
+import { SHOW_NODE_RESULT } from '../../lib/nodeResult';
 
 const props = defineProps<NodeProps>();
+
+/* A row count is a way into that node's rows: it opens them in the Results tab. */
+const showNodeResult = inject(SHOW_NODE_RESULT, null);
 
 /*
  * Handles follow whichever way the canvas is laid out, and every node on the
@@ -108,6 +122,22 @@ const validationCount = computed(() =>
   validation.value ? validation.value.errors + validation.value.warnings : 0
 );
 const validationTitle = computed(() => validation.value?.messages.join('\n') ?? '');
+/*
+ * The badge says what it counts. It used to be a bare "!" or "?", and "? 2"
+ * read as a question rather than two things to fix; the title still lists them.
+ */
+const validationBadgeText = computed(() => {
+  const count = validationCount.value;
+  if (validation.value?.level === 'error') return count === 1 ? '1 problem' : `${count} problems`;
+  return count === 1 ? '1 warning' : `${count} warnings`;
+});
+const executionCountText = computed(() => {
+  const count = execution.value?.count;
+  const label = execution.value?.countLabel;
+  if (count === undefined) return '';
+  if (!label) return String(count);
+  return `${count} ${count === 1 ? label.replace(/s$/, '') : label}`;
+});
 const execution = computed(() => nodeData.value.execution ?? null);
 const executionStatusLabel = computed(() => {
   switch (execution.value?.status) {
@@ -266,9 +296,11 @@ const toggleOpen = () => {
   padding: 0 var(--space-3);
   border-radius: var(--radius-full, 999px);
   border: 1px solid transparent;
+  flex-shrink: 0;
   font-size: var(--text-micro);
   font-weight: 700;
   line-height: 1;
+  white-space: nowrap;
 }
 
 .node-validation-badge.error {
@@ -327,6 +359,18 @@ const toggleOpen = () => {
   background: var(--surface-subtle);
   font-size: var(--text-micro);
   color: var(--ink-secondary);
+}
+
+.node-result-link {
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-micro);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.node-result-link:hover {
+  border-color: var(--border-strong, var(--border-default));
 }
 
 .node-execution-chip.slowest {
@@ -417,6 +461,8 @@ const toggleOpen = () => {
   color: var(--ink);
   max-height: 6.5rem;
   overflow: hidden;
+  /* The canvas centres node text; query text needs its indentation. */
+  text-align: left;
   white-space: pre-wrap;
 }
 

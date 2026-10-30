@@ -500,5 +500,74 @@ describe('Simple A-B Integration Test (Unmocked)', () => {
     }
     // A CONSTRUCT node reports triples, not rows.
     expect(detailed.nodes.some((node: { tripleCount?: number }) => typeof node.tripleCount === 'number')).toBe(true);
+
+    /*
+     * The same chain as an unsaved draft: run against the group without
+     * saving, nodes reported under the ids the draft sent, nothing written.
+     */
+    const draft = {
+      endNode: { mediaType: 'application/n-triples' },
+      executionNodes: [
+        {
+          id: selectNodeId,
+          nodeType: 'QueryNode',
+          queryId: selectVersion.queryVersion.id,
+          backendId: context.backendId,
+          outputs: [selectVersion.queryVersion.inferredOutputs[0]],
+        },
+        {
+          id: constructNodeId,
+          nodeType: 'QueryNode',
+          queryId: constructVersion.queryVersion.id,
+          backendId: context.backendId,
+          inputs: [constructVersion.queryVersion.inferredInputs[0]],
+          outputs: [constructVersion.queryVersion.inferredOutputs[0]],
+        },
+      ],
+      edges: [
+        { id: 'urn:ui-temp:edge-4', sourceNodeId: 'urn:__START__', targetNodeId: selectNodeId, dataFlowType: 'CONTROL_FLOW' },
+        {
+          id: 'urn:ui-temp:edge-5', sourceNodeId: selectNodeId, targetNodeId: constructNodeId, dataFlowType: 'VARIABLE_BINDINGS',
+          sourceOutputId: selectVersion.queryVersion.inferredOutputs[0], targetInputId: constructVersion.queryVersion.inferredInputs[0],
+        },
+        {
+          id: 'urn:ui-temp:edge-6', sourceNodeId: constructNodeId, targetNodeId: 'urn:__END__', dataFlowType: 'RDF_GRAPH',
+          sourceOutputId: constructVersion.queryVersion.inferredOutputs[0], targetInputId: constructVersion.queryVersion.inferredOutputs[0],
+        },
+      ],
+    };
+    const versionsBefore = (await context.app.inject({
+      method: 'GET', url: `/query-groups/${encodeURIComponent(queryGroup.id)}/versions`,
+    })).json();
+
+    const draftResponse = await context.app.inject({
+      method: 'POST',
+      url: '/execute/',
+      headers: { accept: 'application/n-triples' },
+      payload: { targetId: queryGroup.id, nodeDetail: 'results', draftVersion: draft },
+    });
+    expect(draftResponse.statusCode).toBe(200);
+    const draftRun = draftResponse.json();
+    expect(draftRun.result).toBe(rdfResult);
+    expect(draftRun.nodes.map((node: { nodeId: string }) => node.nodeId)).toEqual(
+      expect.arrayContaining([selectNodeId, constructNodeId]),
+    );
+
+    // A draft run spends no version and leaves nothing it staged behind.
+    const versionsAfter = (await context.app.inject({
+      method: 'GET', url: `/query-groups/${encodeURIComponent(queryGroup.id)}/versions`,
+    })).json();
+    expect(versionsAfter).toEqual(versionsBefore);
+    expect(context.cacheManager.get(draftResponse.headers['x-resolved-target'] as string)).toBeNull();
+
+    // A group never saved runs its draft against the library instead.
+    const scratchResponse = await context.app.inject({
+      method: 'POST',
+      url: '/execute/',
+      headers: { accept: 'application/n-triples' },
+      payload: { targetId: context.libraryId, draftVersion: draft },
+    });
+    expect(scratchResponse.statusCode).toBe(200);
+    expect(scratchResponse.body).toBe(rdfResult);
   });
 });

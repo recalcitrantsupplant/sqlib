@@ -43,6 +43,7 @@ const CODES = {
   patchQueryNotUpdate: 'NODE_PATCH_QUERY_NOT_UPDATE',
   patchHalvesMerged: 'EDGE_PATCH_HALVES_MERGED',
   cycle: 'GRAPH_CYCLE',
+  missingIo: 'EDGE_DATA_FLOW_MISSING_IO',
 } as const;
 
 const issue = (
@@ -255,6 +256,34 @@ function patchHalfMergeIssues(
 }
 
 /**
+ * A data edge that names no port at one end.
+ *
+ * The canvas allows it while a group is being built - Start may not declare
+ * the tuple yet - but `/validate` refuses it (`EDGE_DATA_FLOW_MISSING_IO`), so
+ * a version saved like this can never run. Saying so here is what lets the
+ * edge be fixed before the save rather than discovered after a Run that stops.
+ * The rule is the server's: every data edge needs a source and a target port.
+ * An edge into End has its target port set with its source, as an alias.
+ */
+function missingEndpointIssue(
+  edge: QueryGroupGraphState['edges'][number],
+  nodesById: Map<string, GraphNodeState>,
+): ValidationIssue | null {
+  if (edge.flowType === 'CONTROL_FLOW') return null;
+  if (edge.sourceOutputId && edge.targetInputId) return null;
+
+  const source = nodesById.get(edge.source);
+  const target = nodesById.get(edge.target);
+  const from = source ? nodeName(source) : edge.source;
+  const to = target ? nodeName(target) : edge.target;
+  const hint = source?.kind === 'start'
+    ? ' Add an input tuple on the Start node, then pick it as this edge\'s source output.'
+    : ' Select the edge and pick its ports in the Editor tab.';
+  const end = edge.sourceOutputId ? 'target input' : 'source output';
+  return issue('error', `The edge from ${from} to ${to} has no ${end}.${hint}`, 'edge', edge.id, CODES.missingIo);
+}
+
+/**
  * Everything the canvas can decide about this graph on its own.
  *
  * Pure, so it can be tested against a state rather than a mounted component,
@@ -275,6 +304,11 @@ export function liveValidationIssues(state: QueryGroupGraphState | null): Valida
       const entry = fromDiagnostic(diagnostic, edge.id);
       if (entry) issues.push(entry);
     }
+  }
+
+  for (const edge of state.edges) {
+    const missing = missingEndpointIssue(edge, nodesById);
+    if (missing) issues.push(missing);
   }
 
   issues.push(...patchHalfMergeIssues(state, nodesById));

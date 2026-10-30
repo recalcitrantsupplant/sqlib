@@ -14,7 +14,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {meter} from '../lib/logger.js';
 import {ValueType} from '@opentelemetry/api';
-import {OUTPUT_MEDIA_TYPE_VALUES, PATCH_MEDIA_TYPES} from '../types/media-types.js';
+import {OUTPUT_MEDIA_TYPE_VALUES, PATCH_MEDIA_TYPES, RDF_MEDIA_TYPES} from '../types/media-types.js';
 import {previewUpdate, PatchTargetError, toRdfPatchDocument} from '../lib/patchService.js';
 import {UnsupportedUpdateError} from '@sparql-query-lib/rdf-delta';
 import {
@@ -33,7 +33,7 @@ import {
 import { oxigraphStoreManager } from '../lib/OxigraphStoreManager.js';
 import { OxigraphSparqlExecutor } from '../server/OxigraphSparqlExecutor.js';
 import { ExecutorFactory } from '../lib/orchestration/ExecutorFactory.js';
-import { requireLibraryMode, resolveOwningLibrary } from '../auth/enforce.js';
+import { AuthorizationError, requireLibraryMode, resolveOwningLibrary } from '../auth/enforce.js';
 import { resolveQueryDefaultBackend } from '../lib/defaultBackend.js';
 import type { NodeResult, ResolvedNode } from '../lib/orchestration/types.js';
 import * as crypto from 'crypto';
@@ -208,8 +208,22 @@ const resolvePreferredRdfMediaType = (acceptHeader?: string | null, fallback?: s
  */
 const resultContentTypeFor = (result: unknown, preferredRdfMediaType?: string | null): string =>
     typeof result === 'string'
-        ? (preferredRdfMediaType || 'application/n-triples')
+        ? rdfStringMediaType(preferredRdfMediaType)
         : 'application/sparql-results+json';
+
+/**
+ * The type of a result that came back as a string of RDF. The preference is
+ * read from the Accept header, which for a client that asked for SPARQL JSON
+ * names a results format. A graph cannot be one, so an RDF result labelled
+ * with it read as broken JSON. Fall back to N-Triples, which is what the
+ * engine writes when it has no RDF format to honour.
+ */
+const STRING_RESULT_MEDIA_TYPES: readonly string[] = [
+    ...Object.values(RDF_MEDIA_TYPES),
+    PATCH_MEDIA_TYPES.RDF_PATCH,
+];
+const rdfStringMediaType = (preferred?: string | null): string =>
+    preferred && STRING_RESULT_MEDIA_TYPES.includes(preferred) ? preferred : 'application/n-triples';
 
 /**
  * A SELECT result in the non-JSON format the caller's Accept names, or
@@ -352,9 +366,25 @@ export default async function (
             namedGraphs?: unknown;
             nodeDetail?: 'timings' | 'results';
             acceptOverride?: string;
+            /** An unsaved version of the target group (or of a new one, in the target library). */
+            draftVersion?: Record<string, unknown>;
+            /** Set on the inner run of a draft: the staged IRI of each id the caller sent. */
+            draftIriMap?: Record<string, string>;
         }
-    ) {
+    ): Promise<unknown> {
+        if (params.draftVersion) {
+            return executeDraft(request, reply, params as typeof params & { draftVersion: Record<string, unknown> });
+        }
         const {targetId, arguments: rawInlineArgs, limits, offsets, argumentSetIds, dataGraphs, nodeDetail, acceptOverride} = params;
+        /*
+         * A draft's nodes run under IRIs staged for the run. The caller knows
+         * them by the ids it sent, so every node id that goes back is mapped
+         * home; a saved version's ids map to themselves.
+         */
+        const sentIdOf = new Map(Object.entries(params.draftIriMap ?? {}).map(([sent, staged]) => [staged, sent]));
+        const toClientNodeId = (id: string): string => sentIdOf.get(id) ?? id;
+        const clientNodeDetails = (details: NodeDetail[]): NodeDetail[] =>
+            sentIdOf.size === 0 ? details : details.map(detail => ({ ...detail, nodeId: toClientNodeId(detail.nodeId) }));
         let inlineArgs: ReturnType<typeof normalizeArguments>;
         let dataset: SparqlDataset | undefined;
         try {
@@ -808,7 +838,7 @@ export default async function (
                     reply.header('Content-Type', 'application/json');
                     return reply.send({
                         result,
-                        nodes: nodeExecution.details,
+                        nodes: clientNodeDetails(nodeExecution.details),
                         resultContentType: resultContentTypeFor(result, preferredRdfMediaType),
                     });
                 }
@@ -822,7 +852,7 @@ export default async function (
                 // Set Content-Type based on result type
                 if (typeof result === 'string') {
                     // RDF string result (CONSTRUCT/DESCRIBE) - default to n-triples
-                    reply.header('Content-Type', preferredRdfMediaType || 'application/n-triples');
+                    reply.header('Content-Type', rdfStringMediaType(preferredRdfMediaType));
                 } else if (typeof result === 'object' && result !== null) {
                     // JSON result (SELECT) - default to SPARQL JSON
                     reply.header('Content-Type', 'application/sparql-results+json');
@@ -871,7 +901,7 @@ export default async function (
                     reply.header('Content-Type', 'application/json');
                     return reply.send({
                         result,
-                        nodes: nodeExecution.details,
+                        nodes: clientNodeDetails(nodeExecution.details),
                         resultContentType: resultContentTypeFor(result, preferredRdfMediaType),
                     });
                 }
@@ -885,7 +915,7 @@ export default async function (
                 // Set Content-Type based on result type
                 if (typeof result === 'string') {
                     // RDF string result (CONSTRUCT/DESCRIBE) - default to n-triples
-                    reply.header('Content-Type', preferredRdfMediaType || 'application/n-triples');
+                    reply.header('Content-Type', rdfStringMediaType(preferredRdfMediaType));
                 } else if (typeof result === 'object' && result !== null) {
                     // JSON result (SELECT) - default to SPARQL JSON
                     reply.header('Content-Type', 'application/sparql-results+json');
@@ -1155,9 +1185,9 @@ export default async function (
                 const aborted = error.cause instanceof ExecutionAbortedError ? error.cause : null;
                 return reply.code(aborted?.statusCode ?? 400).send({
                     error: `Query group execution failed: ${error.message}`,
-                    ...(nodeError.nodeId ? { failedNodeId: nodeError.nodeId } : {}),
+                    ...(nodeError.nodeId ? { failedNodeId: toClientNodeId(nodeError.nodeId) } : {}),
                     ...(nodeError.nodeName ? { failedNodeName: nodeError.nodeName } : {}),
-                    ...(nodeDetail ? { nodes: nodeExecutionDetails } : {}),
+                    ...(nodeDetail ? { nodes: clientNodeDetails(nodeExecutionDetails) } : {}),
                 });
             }
 
@@ -1189,6 +1219,64 @@ export default async function (
         }
     }
 
+    /**
+     * Run what the canvas holds rather than what was saved.
+     *
+     * The target is the group the draft belongs to, or — for a group never
+     * saved — the library it will be saved in. Either way the caller needs
+     * Execute there, and staging checks Execute on every query and rule set
+     * the draft composes, exactly as a save checks them. The draft is staged
+     * as ephemeral cache entries for the length of the run and then dropped;
+     * nothing is written and no version number is spent.
+     */
+    async function executeDraft(
+        request: FastifyRequest,
+        reply: FastifyReply,
+        params: Parameters<typeof executeQuery>[2] & { draftVersion: Record<string, unknown> },
+    ) {
+        const owner = getCacheCoordinator().get(params.targetId) as { '@type'?: string } | null;
+        if (!owner) {
+            return reply.code(404).send({ error: `Target entity with ID ${params.targetId} not found.` });
+        }
+        if (owner['@type'] !== 'QueryGroup' && owner['@type'] !== 'Library') {
+            return reply.code(400).send({
+                error: 'A draft version runs against the QueryGroup it belongs to, or the Library a new group will be saved in.',
+            });
+        }
+        if (params.backendId) {
+            return reply.code(400).send({
+                error: 'backendId should not be provided when executing a QueryGroup or QueryGroupVersion. Each execution node has its own backend configuration.',
+            });
+        }
+        const libraryId = resolveOwningLibrary(owner);
+        requireLibraryMode(request, libraryId, 'execute');
+
+        const { withDraftGroupVersion } = await import('../lib/GroupVersionWriter.js');
+        const { isUnresolvableReferencesError } = await import('../lib/groupVersionReferences.js');
+        try {
+            return await withDraftGroupVersion(
+                {
+                    groupId: owner['@type'] === 'QueryGroup' ? params.targetId : undefined,
+                    libraryId: libraryId ?? undefined,
+                },
+                params.draftVersion,
+                { request },
+                (version, iriMap) => executeQuery(request, reply, {
+                    ...params,
+                    draftVersion: undefined,
+                    draftIriMap: iriMap,
+                    targetId: (version as unknown as { $id: string }).$id,
+                }),
+            );
+        } catch (error: unknown) {
+            if (error instanceof AuthorizationError) throw error;
+            if (isUnresolvableReferencesError(error)) {
+                return reply.code(422).send({ error: (error as Error).message });
+            }
+            return reply.code(400).send({ error: `This draft cannot run: ${toError(error).message}` });
+        }
+    }
+
     // POST route
     fastify.post(
         '/',
@@ -1215,7 +1303,7 @@ export default async function (
             // Shapes, not values: argument rows are the caller's data.
             request.log.info({ execution: describeExecutionRequest(request.body) }, 'Received /execute POST request');
 
-            const {targetId, backendId, arguments: args, limits, offsets, argumentSetIds, dataGraphs, defaultGraphs, namedGraphs, nodeDetail} = request.body;
+            const {targetId, backendId, arguments: args, limits, offsets, argumentSetIds, dataGraphs, defaultGraphs, namedGraphs, nodeDetail, draftVersion} = request.body;
 
             return executeQuery(request, reply, {
                 targetId,
@@ -1228,6 +1316,7 @@ export default async function (
                 defaultGraphs,
                 namedGraphs,
                 nodeDetail,
+                draftVersion: draftVersion as Record<string, unknown> | undefined,
                 acceptOverride: request.headers.accept
             });
         }

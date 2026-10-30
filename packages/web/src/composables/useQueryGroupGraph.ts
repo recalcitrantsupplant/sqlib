@@ -21,6 +21,7 @@ import {
 } from '@sparql-query-lib/types';
 import type { Covers } from './exhaustiveDomain';
 import {
+  mergeIoModels,
   normalizeIoModel,
   portFor,
   portsForNode,
@@ -236,6 +237,7 @@ function buildExecutionNodes(
   executionNodes: ExecutionNodeEntity[] | undefined,
   ioEntities: Record<string, IoEntityRecord>,
   queryVersionInterfaces: Record<string, QueryVersionInterface>,
+  names?: Pick<IoModel, 'members' | 'variables'>,
 ): GraphNodeState[] {
   if (!executionNodes?.length) {
     return [];
@@ -245,7 +247,7 @@ function buildExecutionNodes(
     const kind = toNodeKind(node);
     const queryVersionId = node.queryId ?? null;
     const queryVersion = queryVersionId ? queryVersionInterfaces[queryVersionId] ?? null : null;
-    const { inputs, outputs } = portsForNode(node, ioEntities, kind === 'ruleset' ? null : queryVersion);
+    const { inputs, outputs } = portsForNode(node, ioEntities, kind === 'ruleset' ? null : queryVersion, names);
 
     const ruleSetVersionId = node.ruleSetVersion ?? node.ruleSetVersionId ?? null;
 
@@ -356,6 +358,7 @@ export function createGraphStateFromExpanded(expanded: ExpandedPayload): QueryGr
     expanded.executionNodes as ExecutionNodeEntity[],
     ioEntities,
     queryVersionInterfaces,
+    mergeIoModels(queryVersionModel, groupModel),
   );
   const endNode = buildEndNode(expanded.endNode, ioEntities);
   const edges = buildEdges(expanded.edges as QueryEdgeEntity[]);

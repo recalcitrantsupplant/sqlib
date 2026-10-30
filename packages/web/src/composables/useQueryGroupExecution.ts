@@ -314,15 +314,22 @@ export function useQueryGroupExecution(deps: UseQueryGroupExecutionDeps): UseQue
     }
   };
 
-  const executeQueryGroup = async () => {
+  /*
+   * With `draft`, the canvas runs as it stands: the version-create body goes
+   * up as `draftVersion` against `draft.targetId` (the group, or the library
+   * of a group never saved), and nothing is saved. There is no stored version
+   * to `/validate`, so the caller checks the canvas's own validation first.
+   */
+  const executeQueryGroup = async (options: { draft?: { body: Record<string, unknown>; targetId: string } } = {}) => {
     if (isExecuting.value) {
       return;
     }
-    if (!queryGroupId.value) {
+    const draft = options.draft ?? null;
+    if (!draft && !queryGroupId.value) {
       toast.error('No query group selected');
       return;
     }
-    if (!selectedVersionNumber.value) {
+    if (!draft && !selectedVersionNumber.value) {
       toast.error('Select a query group version before executing');
       return;
     }
@@ -336,11 +343,16 @@ export function useQueryGroupExecution(deps: UseQueryGroupExecutionDeps): UseQue
     failedNodeId.value = null;
 
     try {
-      const validation = await queryGroupsStore.validateVersion(queryGroupId.value, selectedVersionNumber.value);
+      const validation = draft
+        ? { valid: true, issues: [] as ValidationIssue[], warnings: [] as string[] }
+        : await queryGroupsStore.validateVersion(queryGroupId.value, selectedVersionNumber.value!);
       validationIssues.value = validation.issues ?? [];
 
       if (!validation.valid) {
-        executionError.value = 'Validation failed. Resolve blocking errors before executing.';
+        const blocking = validationIssues.value.filter((issue) => issue.level === 'error').length || 1;
+        executionError.value = blocking === 1
+          ? 'This version cannot run: it has 1 problem, marked on the canvas.'
+          : `This version cannot run: it has ${blocking} problems, marked on the canvas.`;
         toast.error(executionError.value);
         return;
       }
@@ -349,10 +361,11 @@ export function useQueryGroupExecution(deps: UseQueryGroupExecutionDeps): UseQue
         toast.warning?.('Validation completed with warnings. Review results before relying on them.');
       }
 
-      const targetId = selectedVersionId.value || queryGroupId.value;
+      const targetId = draft ? draft.targetId : (selectedVersionId.value || queryGroupId.value);
       // Query groups don't need backendId - each execution node has its own backend
       const payload: Record<string, unknown> = {
         targetId,
+        ...(draft ? { draftVersion: draft.body } : {}),
         // Ask for per-node detail so the canvas can show what each node did. The
         // server caps intermediate results, so this stays bounded.
         nodeDetail: 'results',
@@ -393,12 +406,12 @@ export function useQueryGroupExecution(deps: UseQueryGroupExecutionDeps): UseQue
          * that a CONSTRUCT group's N-Triples came back as a bare string and this
          * fell through to `selectedResultFormat` — a ref this screen has no
          * control for, so always SPARQL JSON — and the viewer rendered RDF as
-         * raw text rather than a triples table. Kept as the fallback for a
-         * server that predates the field.
+         * raw text rather than a triples table. A server that predates the
+         * field sends a string of RDF as N-Triples, so assume that.
          */
         executionContentType.value = envelope.resultContentType
           ?? (typeof envelope.result === 'string'
-            ? selectedResultFormat.value
+            ? 'application/n-triples'
             : 'application/sparql-results+json');
       } else {
         nodeExecutions.value = [];

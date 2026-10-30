@@ -81,6 +81,109 @@ async function createGroupVersionFlatNumbered(
   authScope?: { request: FastifyRequest }
 ): Promise<{ created: LdkitQueryGroupVersion; iriMap: Record<string, string> }> {
   const cacheCoordinator = getCacheCoordinator();
+  const { staged, iriMap, startNodeId, endNodeId, nodeIds, edgeIds } =
+    await stageGroupVersion({ groupId }, body, authScope);
+
+  // ---------------------------------------------------------------- flush --
+
+  for (const { type, payload } of staged) {
+    await cacheCoordinator.create(type, payload as never);
+  }
+
+  const versionId = mintId('groupVersion');
+  const created = await cacheCoordinator.create('QueryGroupVersion', toLdkit({
+    $id: versionId,
+    '@type': 'QueryGroupVersion',
+    isPartOf: groupId,
+    version: nextVersion,
+    // Frozen on create (issue #192). A version is a snapshot: what it holds is
+    // what the reference to it means, so it is never created in a state where
+    // it could still change. `immutable` on the request body is ignored rather
+    // than honoured — there is no such thing as a mutable version.
+    immutable: true,
+    canvasData: remapCanvasData(body.canvasData, iriMap),
+    startNode: startNodeId,
+    endNode: endNodeId,
+    executionNodes: nodeIds,
+    edges: edgeIds,
+  }) as Partial<LdkitQueryGroupVersion> & { $id: string });
+
+  await setCurrentVersion('QueryGroup', groupId, versionId);
+
+  return { created: (created ?? { $id: versionId }) as LdkitQueryGroupVersion, iriMap };
+}
+
+/**
+ * Run a group version that is not saved: the canvas as it stands.
+ *
+ * The body is staged exactly as a save stages it — the same IRIs minted, the
+ * same references resolved, the same Execute check on every leg — and then
+ * put in the cache as ephemeral entities rather than written. The version
+ * itself is filed under the library, not the group, so a run in progress
+ * never shows up as one of the group's versions. Everything staged is removed
+ * again when `run` settles, whatever it did.
+ *
+ * `owner` names the group when there is one, and the library when the group
+ * is a scratch one that has never been saved; the library's default backend
+ * is the fallback either way.
+ */
+export async function withDraftGroupVersion<T>(
+  owner: { groupId?: string; libraryId?: string },
+  body: AnyRecord,
+  authScope: { request: FastifyRequest } | undefined,
+  run: (version: LdkitQueryGroupVersion, iriMap: Record<string, string>) => Promise<T>,
+): Promise<T> {
+  const cacheCoordinator = getCacheCoordinator();
+  const { staged, iriMap, startNodeId, endNodeId, nodeIds, edgeIds } = await stageGroupVersion(owner, body, authScope);
+  const added: string[] = [];
+  try {
+    for (const { type, payload } of staged) {
+      cacheCoordinator.addEphemeral(payload as never, type);
+      added.push(payload.$id);
+    }
+    /*
+     * In the cache too, so the execute path can resolve it like any version.
+     * It belongs to the library rather than the group: a version listing
+     * filters on the group, and a run in progress is not a version of it.
+     */
+    const versionId = mintId('groupVersion');
+    const version = cacheCoordinator.addEphemeral({
+      $id: versionId,
+      isPartOf: owner.libraryId ?? owner.groupId,
+      version: 0,
+      immutable: true,
+      startNode: startNodeId,
+      endNode: endNodeId,
+      executionNodes: nodeIds,
+      edges: edgeIds,
+    } as never, 'QueryGroupVersion') as unknown as LdkitQueryGroupVersion;
+    added.push(versionId);
+    return await run(version, iriMap);
+  } finally {
+    for (const id of added) {
+      try {
+        cacheCoordinator.removeEphemeral(id);
+      } catch { /* already gone; nothing else holds it */ }
+    }
+  }
+}
+
+/** What staging a body produces: the entities to create, not yet created. */
+type StagedGroupVersion = {
+  staged: StagedEntity[];
+  iriMap: Record<string, string>;
+  startNodeId: string;
+  endNodeId: string;
+  nodeIds: string[];
+  edgeIds: string[];
+};
+
+async function stageGroupVersion(
+  owner: { groupId?: string; libraryId?: string },
+  body: AnyRecord,
+  authScope?: { request: FastifyRequest }
+): Promise<StagedGroupVersion> {
+  const cacheCoordinator = getCacheCoordinator();
   const iriMap: Record<string, string> = {};
 
   /**
@@ -229,8 +332,8 @@ async function createGroupVersionFlatNumbered(
   // The library's default backend is a fallback for nodes that name none.
   let libraryDefaultBackend: string | undefined;
   try {
-    const group = cacheCoordinator.get(groupId) as LdkitQueryGroup | null;
-    const libId = group?.isPartOf as string | undefined;
+    const group = owner.groupId ? cacheCoordinator.get(owner.groupId) as LdkitQueryGroup | null : null;
+    const libId = (group?.isPartOf as string | undefined) ?? owner.libraryId;
     if (libId) {
       const lib = cacheCoordinator.get(libId) as LdkitLibrary | null;
       libraryDefaultBackend = lib?.defaultBackend as string | undefined;
@@ -247,6 +350,58 @@ async function createGroupVersionFlatNumbered(
       }
     }
     return merged;
+  };
+
+  /*
+   * A port's shape: its type, and for a tuple its variable names in member
+   * order. Read from what this payload stages first, then from the store,
+   * because a re-saved port is staged under a freshly minted IRI.
+   */
+  const portSignature = (id: string, stagedById: Map<string, AnyRecord>): string => {
+    const lookup = (ref: unknown) =>
+      (typeof ref === 'string' ? stagedById.get(ref) ?? cacheCoordinator.get(ref) : null) as AnyRecord | null;
+    const entity = lookup(id);
+    if (!entity) return `missing:${id}`;
+    const type = String(entity['@type'] ?? '');
+    const members = ((entity.memberEntries as unknown[] | undefined) ?? [])
+      .map((memberId) => lookup(memberId))
+      .filter((member): member is AnyRecord => !!member)
+      .map((member) => ({
+        position: typeof member.position === 'number' ? member.position : 0,
+        name: String(lookup(member.variable)?.variableName ?? ''),
+      }))
+      .sort((a, b) => a.position - b.position)
+      .map((member) => member.name);
+    return `${type}:${members.join(',')}`;
+  };
+
+  /*
+   * The query version's own ports, less those the payload already carries a
+   * copy of.
+   *
+   * A saved version holds copies of its nodes' ports: every IRI the canvas
+   * re-saves is re-minted (above), so the copy has an IRI of its own. Adding
+   * the query version's inferred port beside that copy gave the node one more
+   * port of the same shape on every save. Each declared port covers one
+   * inferred port of the same shape; an inferred port nothing covers is still
+   * added, which is what gives a freshly assigned node its ports.
+   */
+  const inferredNotDeclared = (inferred: string[], declared: string[]): string[] => {
+    const stagedById = new Map(staged.map((entity) => [entity.payload.$id, entity.payload as AnyRecord]));
+    const cover = new Map<string, number>();
+    for (const id of declared) {
+      if (inferred.includes(id)) continue;
+      const signature = portSignature(id, stagedById);
+      cover.set(signature, (cover.get(signature) ?? 0) + 1);
+    }
+    return inferred.filter((id) => {
+      if (declared.includes(id)) return true;
+      const signature = portSignature(id, stagedById);
+      const left = cover.get(signature) ?? 0;
+      if (left === 0) return true;
+      cover.set(signature, left - 1);
+      return false;
+    });
   };
 
   const nodeIds: string[] = [];
@@ -397,13 +552,21 @@ async function createGroupVersionFlatNumbered(
       : nodeType === 'PatchNode' ? 'PatchNode'
       : 'QueryNode';
 
+    const declaredInputs = (await refs.resolveAll(at('inputs'), n.inputs, IO_REF)).filter((x): x is string => !!x);
+    const declaredOutputs = (await refs.resolveAll(at('outputs'), n.outputs, IO_REF)).filter((x): x is string => !!x);
     const inputs = mergeUnique(
-      (queryVersion?.inferredInputs || []).map((x: string) => iriMap[x] || x),
-      await refs.resolveAll(at('inputs'), n.inputs, IO_REF),
+      inferredNotDeclared(
+        (queryVersion?.inferredInputs || []).map((x: string) => iriMap[x] || x),
+        declaredInputs,
+      ),
+      declaredInputs,
     );
     const outputs = mergeUnique(
-      (queryVersion?.inferredOutputs || []).map((x: string) => iriMap[x] || x),
-      await refs.resolveAll(at('outputs'), n.outputs, IO_REF),
+      inferredNotDeclared(
+        (queryVersion?.inferredOutputs || []).map((x: string) => iriMap[x] || x),
+        declaredOutputs,
+      ),
+      declaredOutputs,
     );
 
     if (entityType !== 'PatchNode') {
@@ -578,33 +741,7 @@ async function createGroupVersionFlatNumbered(
     }
   }
 
-  // ---------------------------------------------------------------- flush --
-
-  for (const { type, payload } of staged) {
-    await cacheCoordinator.create(type, payload as never);
-  }
-
-  const versionId = mintId('groupVersion');
-  const created = await cacheCoordinator.create('QueryGroupVersion', toLdkit({
-    $id: versionId,
-    '@type': 'QueryGroupVersion',
-    isPartOf: groupId,
-    version: nextVersion,
-    // Frozen on create (issue #192). A version is a snapshot: what it holds is
-    // what the reference to it means, so it is never created in a state where
-    // it could still change. `immutable` on the request body is ignored rather
-    // than honoured — there is no such thing as a mutable version.
-    immutable: true,
-    canvasData: remapCanvasData(body.canvasData, iriMap),
-    startNode: startNodeId,
-    endNode: endNodeId,
-    executionNodes: nodeIds,
-    edges: edgeIds,
-  }) as Partial<LdkitQueryGroupVersion> & { $id: string });
-
-  await setCurrentVersion('QueryGroup', groupId, versionId);
-
-  return { created: (created ?? { $id: versionId }) as LdkitQueryGroupVersion, iriMap };
+  return { staged, iriMap, startNodeId, endNodeId, nodeIds, edgeIds };
 }
 
 /**

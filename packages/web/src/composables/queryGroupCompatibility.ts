@@ -191,6 +191,18 @@ export function checkNodeKinds(
     diagnostics.push(diagnostic('error', 'start-node-target', 'Start nodes cannot have incoming edges.'));
   }
 
+  // Start is before everything and End after everything, so ordering one
+  // after the other says nothing, and the edge looked like a wired group.
+  if (flowType === 'CONTROL_FLOW' && sourceNode.kind === 'start' && targetNode.kind === 'end') {
+    diagnostics.push(
+      diagnostic(
+        'error',
+        'start-end-control-flow',
+        'Start always runs before End, so a "runs after" edge between them does nothing. Add a step between them.',
+      ),
+    );
+  }
+
   const rule = NODE_KIND_RULES[flowType];
   if (rule?.source && !rule.source.includes(sourceNode.kind)) {
     diagnostics.push(
@@ -474,8 +486,42 @@ export function validateVariableMappings(
     }
   }
 
+  if (!(edge.variableMappings ?? '').trim() && sourceVariables && targetVariables) {
+    const sourceNames = sourceVariables.map(v => v.variableName);
+    const targetNames = targetVariables.map(v => v.variableName);
+    for (const [target, source] of defaultVariablePairing(sourceNames, targetNames)) {
+      if (source === target) continue;
+      diagnostics.push(
+        diagnostic(
+          'warning',
+          'mapping-positional-guess',
+          `?${target} has no source of the same name, so it is fed ?${source} by position. `
+            + 'Pick its source in the variable mapping, or UNDEF to leave it unbound.',
+        ),
+      );
+    }
+  }
+
   diagnostics.push(...arityDiagnostics(edge.sourceOutputId, edge.targetInputId, model));
   return diagnostics;
+}
+
+/**
+ * What an edge with no `variableMappings` feeds each target variable: the
+ * engine's own default (`ExecutionEngine`), so the canvas shows what will run.
+ * Same-named variables pair first; the rest pair in order, the first unmatched
+ * source with the first unmatched target. A target left over gets nothing.
+ */
+export function defaultVariablePairing(sourceNames: string[], targetNames: string[]): Map<string, string> {
+  const pairs = new Map<string, string>();
+  const remainingSource = new Set(sourceNames);
+  for (const target of targetNames) {
+    if (remainingSource.delete(target)) pairs.set(target, target);
+  }
+  const sources = sourceNames.filter(name => remainingSource.has(name));
+  const targets = targetNames.filter(name => !pairs.has(name));
+  for (let i = 0; i < Math.min(sources.length, targets.length); i++) pairs.set(targets[i], sources[i]);
+  return pairs;
 }
 
 /**
