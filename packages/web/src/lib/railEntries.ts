@@ -25,6 +25,7 @@ import {
   Database,
   Table2,
   Server,
+  ShieldCheck,
 } from '@lucide/vue';
 import type { FeatureFlagKey } from '@sparql-query-lib/types';
 import type { RailSection } from './railSections';
@@ -38,6 +39,8 @@ export interface RailEntry {
   feature: FeatureFlagKey | null;
   /** Draws the rule that separates account-level Backends from the rest. */
   dividerBefore?: boolean;
+  /** Shown only to administrators of a deployment with auth on. */
+  adminOnly?: boolean;
 }
 
 /*
@@ -85,5 +88,17 @@ export const RAIL_ENTRIES: RailEntry[] = [
     icon: Server,
     feature: 'backends',
     dividerBefore: true,
+  },
+  // Who may use what, and which graphs each backend lets them read. Account
+  // level like Backends, and only for administrators: it describes other
+  // people's access. Held by `settings`, as it is the deployment's own
+  // configuration rather than library content.
+  {
+    section: 'access',
+    label: 'Access',
+    title: 'Access — grants, and the graphs each backend lets people read',
+    icon: ShieldCheck,
+    feature: 'settings',
+    adminOnly: true,
   },
 ];

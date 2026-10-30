@@ -486,9 +486,9 @@ export default async function playgroundRoutes(
         ephemeralIds.push(mappingVersionId);
 
         const parser = new SparqlQueryParser();
-        // Playground runs caller-supplied definitions, so there is no curated
-        // library to imply backend access: a real backend needs an explicit grant.
-        const executorFactory = new ExecutorFactory({ request });
+        // Playground runs caller-supplied definitions, so a real backend needs
+        // an ad hoc grant.
+        const executorFactory = new ExecutorFactory({ request, source: 'adhoc' });
 
         const executor = backendUrn === EPHEMERAL_BACKEND_ID
           ? (() => {

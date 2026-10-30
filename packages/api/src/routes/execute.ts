@@ -382,7 +382,7 @@ export default async function (
             return duration;
         };
         let targetTypeForError: string | undefined;
-        let backendId = params.backendId;
+        const backendId = params.backendId;
         let ephemeralStoreId: string | null = null; // Track ephemeral store for cleanup
         // A caller who disconnects stops paying for the run they left: the
         // signal reaches every backend request and every group node.
@@ -406,9 +406,8 @@ export default async function (
             }
             targetTypeForError = targetEntity['@type'];
 
-            // Execute on the owning library gates the operation; the same
-            // library also enables curated access to its allowedBackends, which
-            // is why it is threaded into the factory rather than only checked here.
+            // Execute on the owning library gates the operation. The backend
+            // needs a grant of its own; library and backend grants are separate.
             const targetLibrary = resolveOwningLibrary(targetEntity);
             requireLibraryMode(request, targetLibrary, 'execute');
 
@@ -422,17 +421,16 @@ export default async function (
 
             // 3. Validate backendId based on target type
             if (targetTypeForError === 'Query' || targetTypeForError === 'QueryVersion') {
-                // A query runs on the backend the caller names, else the
-                // query's default, else its library's.
+                // A query runs on the backend the caller names, and only that.
+                // A default backend is a UI convenience: it picks the backend a
+                // client offers first, and the client then names it here.
                 if (!backendId) {
-                    const fallback = resolveQueryDefaultBackend(targetEntity, (id) => getCacheCoordinator().get(id));
-                    if (!fallback) {
-                        return reply.code(400).send({
-                            error: 'backendId is required: neither the query nor its library has a default backend'
-                        });
-                    }
-                    backendId = fallback.backendId;
-                    request.log.info(`No backendId given; using the ${fallback.source} default backend ${backendId}.`);
+                    const hint = resolveQueryDefaultBackend(targetEntity, (id) => getCacheCoordinator().get(id));
+                    return reply.code(400).send({
+                        error: hint
+                            ? `backendId is required. The ${hint.source}'s default backend is ${hint.backendId}.`
+                            : 'backendId is required.'
+                    });
                 }
             } else if (targetTypeForError === 'QueryGroup' || targetTypeForError === 'QueryGroupVersion') {
                 // Query group execution should NOT have backendId

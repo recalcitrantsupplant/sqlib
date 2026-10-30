@@ -8,7 +8,7 @@
  */
 import { getAuthStore } from './AuthStore.js';
 import type { AuthStore } from './AuthStore.js';
-import type { BackendMode, EffectiveGrants, LibraryMode } from './types.js';
+import { modesSatisfying, type BackendMode, type EffectiveGrants, type LibraryMode } from './types.js';
 
 export function resolveEffectiveGrants(
   principals: readonly string[],
@@ -53,5 +53,15 @@ export function hasBackendMode(
 ): boolean {
   if (grants.admin) return true;
   if (!backendIri) return false;
-  return grants.backends.get(backendIri)?.has(mode) ?? false;
+  const held = grants.backends.get(backendIri);
+  if (!held) return false;
+  // `adhoc` includes `saved`, so a grant of either level answers a `saved` check.
+  return modesSatisfying(mode).some(candidate => held.has(candidate));
+}
+
+/** True when the caller holds any mode at all on a backend. */
+export function hasAnyBackendMode(grants: EffectiveGrants, backendIri: string | null | undefined): boolean {
+  if (grants.admin) return true;
+  if (!backendIri) return false;
+  return (grants.backends.get(backendIri)?.size ?? 0) > 0;
 }

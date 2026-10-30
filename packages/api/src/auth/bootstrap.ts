@@ -8,7 +8,7 @@
 import type { FastifyBaseLogger } from 'fastify';
 import { getAuthStore, inMemoryPersistence } from './AuthStore.js';
 import { getAuthConfig } from './config.js';
-import { sparqlAuthGraphPersistence } from './persistence.js';
+import { authGraphPersistenceFor } from './persistence.js';
 import { canonicalizeAdminEntry } from './principals.js';
 
 export async function initializeAuth(logger?: FastifyBaseLogger): Promise<void> {
@@ -37,7 +37,7 @@ export async function initializeAuth(logger?: FastifyBaseLogger): Promise<void> 
     return;
   }
 
-  store.setPersistence(sparqlAuthGraphPersistence());
+  store.setPersistence(authGraphPersistenceFor(config.store));
 
   try {
     await store.load({ seedGrantsPath: config.seedGrantsPath });
@@ -53,6 +53,7 @@ export async function initializeAuth(logger?: FastifyBaseLogger): Promise<void> 
     {
       authMode: config.mode,
       grants: store.listGrants().length,
+      store: config.store.type === 'sparql' ? config.store.queryUrl : config.store.dir,
       bootstrapAdmins: admins.length,
     },
     'Authorization store loaded'

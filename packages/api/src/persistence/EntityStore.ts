@@ -15,8 +15,10 @@
  * for them.
  *
  * Everything runs through the executor resolved by `LIBRARY_STORAGE_BACKEND_ID`,
- * which is what makes both internal backend modes work — oxigraph in-process and
- * HTTP with basic auth — without this file knowing which is configured.
+ * which is what makes the RDF modes work — oxigraph in-process and HTTP with
+ * basic auth — without this file knowing which is configured. The `sqlite` mode
+ * is the exception: it has no SPARQL store to send a query to, so each function
+ * hands over to `sqliteEntityStore.ts`, which returns what the query would.
  */
 import { LIBRARY_STORAGE_BACKEND_ID } from '@sparql-query-lib/types';
 import type { SparqlSelectJsonOutput } from '../server/ISparqlExecutor.js';
@@ -27,6 +29,8 @@ import { generateDeleteQuery, generateInsertQuery, generateUpdateQuery } from '.
 import { log } from '../lib/log.js';
 import { describeSchema } from './schemaIntrospection.js';
 import { iri, RDF_TYPE } from './sparqlTerms.js';
+import { config } from '../server/config.js';
+import * as sqliteRows from './sqliteEntityStore.js';
 
 export type EntitySchema = Record<string, unknown>;
 
@@ -49,12 +53,20 @@ async function executor() {
   return executorFactoryInstance.getExecutorForBackendId(LIBRARY_STORAGE_BACKEND_ID);
 }
 
+/** The SQLite database when the library is stored there, else null. */
+function sqliteDatabase() {
+  const backend = config.internalBackend;
+  return backend.type === 'sqlite' ? sqliteRows.openLibraryDatabase(backend.storageDir) : null;
+}
+
 /**
  * Forget the factory, and with it the executor it cached against the library
- * store. For tests that reset the store underneath it.
+ * store. For tests that reset the store underneath it. Closes the SQLite
+ * database too, which empties an in-memory one.
  */
 export function clearEntityStoreExecutor(): void {
   executorFactoryInstance = null;
+  sqliteRows.closeLibraryDatabase();
 }
 
 async function runSelect(query: string): Promise<BindingRow[]> {
@@ -68,10 +80,14 @@ async function runSelect(query: string): Promise<BindingRow[]> {
 }
 
 export async function findAllBySchema(schema: EntitySchema): Promise<Record<string, unknown>[]> {
+  const sqlite = sqliteDatabase();
+  if (sqlite) return sqliteRows.findAll(sqlite, schema);
   return assembleEntities(schema, await runSelect(generateFindAllQuery(schema)));
 }
 
 export async function findByIriBySchema(schema: EntitySchema, id: string): Promise<Record<string, unknown> | null> {
+  const sqlite = sqliteDatabase();
+  if (sqlite) return sqliteRows.findByIri(sqlite, schema, id);
   const entities = assembleEntities(schema, await runSelect(generateFindByIriQuery(schema, id)));
   return entities[0] ?? null;
 }
@@ -82,6 +98,8 @@ export async function findByIriBySchema(schema: EntitySchema, id: string): Promi
  * so cannot see versions an earlier process wrote.
  */
 export async function highestVersionInStore(schema: EntitySchema, parentId: string): Promise<number> {
+  const sqlite = sqliteDatabase();
+  if (sqlite) return sqliteRows.highestVersion(sqlite, schema, parentId);
   const info = describeSchema(schema);
   const field = (name: string) => {
     const found = info.fields.find((candidate) => candidate.name === name);
@@ -101,10 +119,14 @@ export async function highestVersionInStore(schema: EntitySchema, parentId: stri
 }
 
 export async function insertBySchema(schema: EntitySchema, entity: Record<string, unknown>): Promise<void> {
+  const sqlite = sqliteDatabase();
+  if (sqlite) return sqliteRows.insert(sqlite, schema, entity);
   await (await executor()).update(generateInsertQuery(schema, entity));
 }
 
 export async function updateBySchema(schema: EntitySchema, id: string, patch: Record<string, unknown>): Promise<void> {
+  const sqlite = sqliteDatabase();
+  if (sqlite) return sqliteRows.update(sqlite, schema, id, patch);
   const query = generateUpdateQuery(schema, id, patch);
   // A patch touching nothing the schema declares has no query to run.
   if (!query) return;
@@ -155,5 +177,7 @@ export async function loadAllEntities(
 
 /** Deletes the entity's own triples. The schema is not needed — the IRI identifies it. */
 export async function deleteByIri(id: string): Promise<void> {
+  const sqlite = sqliteDatabase();
+  if (sqlite) return sqliteRows.remove(sqlite, id);
   await (await executor()).update(generateDeleteQuery(id));
 }

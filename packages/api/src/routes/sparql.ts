@@ -28,6 +28,7 @@ import { isReadOnlyDeployment } from '../config/readOnly.js';
 import { UnsupportedUpdateError } from '@sparql-query-lib/rdf-delta';
 import { clientId, toPatchView } from './patches.js';
 import { datasetFromRequest } from '../lib/dataset.js';
+import { GuardedSparqlExecutor } from '../auth/GuardedSparqlExecutor.js';
 
 const errorResponseSchema = {
   type: 'object',
@@ -102,7 +103,7 @@ export default async function (
 
     // Raw SPARQL is ad-hoc by definition: no saved entity, so no library can
     // imply access here. Every real backend needs an explicit grant.
-    const mode = isUpdate ? 'write' : 'use';
+    const mode = isUpdate ? 'update:adhoc' : 'query:adhoc';
 
     if (endpoint) {
       // An arbitrary endpoint bypasses the backend registry — and every grant
@@ -124,8 +125,8 @@ export default async function (
     }
 
     if (backendId === LIBRARY_STORAGE_BACKEND_ID) {
-      // Holds the auth graph and every entity; reachable only through the
-      // entity layer, never as a raw SPARQL target.
+      // Holds every entity; reachable only through the entity layer, never
+      // as a raw SPARQL target.
       if (!isAdmin(request)) {
         throw new AuthorizationError('The library storage backend is reserved for administrators.');
       }
@@ -145,6 +146,10 @@ export default async function (
     const backend = await Backends.findByIri(backendId!);
     if (!backend) {
       throw Object.assign(new Error(`Backend not found: ${backendId}`), { statusCode: 404 });
+    }
+    if ((backend as { authBackend?: boolean | null }).authBackend === true && !isAdmin(request)) {
+      // Holds who may read what; its policies run as sqlib, never as a caller.
+      throw new AuthorizationError(`Backend ${backendId} is an auth backend, reserved for administrators.`);
     }
 
     const backendTypeKey = backendTypeIriToKey(backend.backendType);
@@ -308,6 +313,24 @@ export default async function (
       });
     }
 
+    /*
+     * The other thing. A bare `endpoint` makes this route fetch a URL the
+     * caller chose, which on a public site is a request forgery primitive
+     * pointed at whatever the host can reach — the reason `POST
+     * /backends/probes` is off the read-only allowlist. The administrator check
+     * below does not cover it there: `disabled` mode makes every visitor an
+     * administrator. So a read-only deployment refuses it for everyone, and a
+     * visitor with their own endpoint registers it as a browser backend, which
+     * the tab calls directly.
+     */
+    if (endpoint && isReadOnlyDeployment()) {
+      return reply.code(405).send({
+        error:
+          'This sqlib deployment is read-only and does not proxy SPARQL to an arbitrary endpoint. ' +
+          'Name a registered backendId, or register the endpoint as a browser backend.',
+      });
+    }
+
     let ephemeralStoreId: string | null = null;
     try {
       // Detect before resolving: reads and updates need different grants, so the
@@ -376,8 +399,21 @@ export default async function (
         request,
         isUpdate: operation === QueryTypeIri.update,
       });
-      const executor = resolved.executor;
       ephemeralStoreId = resolved.ephemeralStoreId;
+      /*
+       * A registered backend's reads are narrowed by its graph policy, here as
+       * on every other route. The mode was checked above, before the backend
+       * was looked up. A policed read that uses SERVICE runs, with a warning.
+       */
+      const executor = backendId && !endpoint && backendId !== EPHEMERAL_BACKEND_ID
+        ? new GuardedSparqlExecutor(resolved.executor, {
+          request,
+          backendId,
+          source: 'adhoc',
+          modeChecked: true,
+          onWarning: (message) => reply.header('X-Sqlib-Warning', message),
+        })
+        : resolved.executor;
 
       switch (operation) {
         case QueryTypeIri.select: {

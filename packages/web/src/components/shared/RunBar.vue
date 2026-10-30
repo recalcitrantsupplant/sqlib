@@ -148,6 +148,9 @@
         </Select>
       </span>
 
+      <!-- "reading": what the run reads, for a subject that chooses its graphs at run time. -->
+      <slot name="reading" />
+
       <span v-if="format" class="clause">
         <span class="joiner">as</span>
         <span

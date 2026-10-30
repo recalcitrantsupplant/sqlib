@@ -1002,10 +1002,8 @@ export class EtlService {
       /*
        * 5. Get executor via ExecutorFactory, under the caller's scope.
        *
-       * `viaLibrary` is the library the version is stored in, which is what
-       * curated execution is defined against (design §4.3 route 2): Execute on
-       * the library reaches the backends that library allows, and nothing else.
-       * Before this the factory was built with no scope at all, which
+       * The caller needs a grant on the job's backend: library and backend
+       * grants are separate. Before this the factory was built with no scope at all, which
        * `assertBackendAccess` reads as sqlib acting as itself — every backend in
        * the deployment, the entity store's own included.
        */

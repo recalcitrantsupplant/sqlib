@@ -19,6 +19,7 @@ import { UnsupportedUpdateError } from '@sparql-query-lib/rdf-delta';
 import { patchApplyJsonSchema, patchPreviewJsonSchema } from '@sparql-query-lib/contracts/schema/routes';
 import { typedRoute } from './route-helpers.js';
 import { requireBackendMode } from '../auth/enforce.js';
+import { patchLogReadMode } from '../auth/graphPolicy.js';
 import { getEntityRepositories } from '../lib/CacheCoordinatorProvider.js';
 import {
   applyExistingPatch,
@@ -205,7 +206,7 @@ export default async function (fastify: FastifyInstance) {
     // Read-only by construction, so `use` is the right grant — and deliberately
     // not `write`: being shown what a write would do is the thing a reviewer
     // needs and a proposer should not have to be trusted with.
-    requireBackendMode(request, backendId, 'use');
+    requireBackendMode(request, backendId, 'update:adhoc');
 
     return handled(reply, async () => {
       const patch = await previewUpdate({
@@ -242,7 +243,7 @@ export default async function (fastify: FastifyInstance) {
       if (!stored) {
         return reply.status(404).send({ error: `Patch not found: ${patchId}` });
       }
-      requireBackendMode(request, stored.isPartOf, 'write');
+      requireBackendMode(request, stored.isPartOf, 'update:adhoc');
       return handled(reply, async () => {
         const applied = await applyExistingPatch({
           patchId,
@@ -262,7 +263,7 @@ export default async function (fastify: FastifyInstance) {
       });
     }
 
-    requireBackendMode(request, backendId, 'write');
+    requireBackendMode(request, backendId, 'update:adhoc');
     return handled(reply, async () => {
       const applied = await applyUpdate({
         backendId,
@@ -291,7 +292,7 @@ export default async function (fastify: FastifyInstance) {
     if (!stored) {
       return reply.status(404).send({ error: `Patch not found: ${id}` });
     }
-    requireBackendMode(request, stored.isPartOf, 'write');
+    requireBackendMode(request, stored.isPartOf, 'update:saved');
 
     return handled(reply, async () => {
       const inverse = await revertPatch(id, clientId(request));
@@ -310,7 +311,7 @@ export default async function (fastify: FastifyInstance) {
     if (!patch) {
       return reply.status(404).send({ error: 'Not Found' });
     }
-    requireBackendMode(request, patch.isPartOf, 'use');
+    requireBackendMode(request, patch.isPartOf, patchLogReadMode(patch.isPartOf));
 
     return sendPatch(request, reply, patch);
   }));

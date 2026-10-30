@@ -23,7 +23,7 @@
  * route options; the gate then refuses it like any unlisted POST.
  *
  * **What it does not do is refuse SPARQL.** `POST /sparql` passes through
- * untouched, UPDATEs included. Whether a store accepts a write is the store's
+ * against a registered backend, UPDATEs included. Whether a store accepts a write is the store's
  * answer and not this flag's: sqlib's own read-only backends refuse through
  * `ReadOnlySparqlExecutor`, and somebody else's endpoint refuses, or does not,
  * on its own terms. A gate here would be sqlib inventing a policy for a
@@ -32,6 +32,17 @@
  * on either verb, because recording a patch writes sqlib's state — see
  * `routes/sparql.ts`, which also refuses an UPDATE over GET on every
  * deployment, since that is about the method rather than about this flag.
+ * It also refuses a bare `endpoint` there, for the reason `/backends/probes`
+ * is absent below: a public server that fetches a caller-supplied URL is a
+ * request forgery primitive, and `disabled` auth makes every visitor the
+ * administrator the route would otherwise ask for.
+ *
+ * **What it does not decide is which SPARQL a visitor may run.** That is a
+ * grant: `SQLIB_AUTH_MODE=anonymous` beside this flag gives every visitor the
+ * grants on `urn:sqlib:principal:anonymous`, so `query:saved` on a backend
+ * lets a visitor run the seeded queries and nothing they typed themselves
+ * (`auth/GuardedSparqlExecutor.ts`). With `disabled`, every visitor is an
+ * administrator and may run any text against any registered backend.
  */
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';

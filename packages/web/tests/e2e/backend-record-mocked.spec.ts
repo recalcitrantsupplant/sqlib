@@ -172,7 +172,7 @@ test.describe('Backends record page (mocked)', () => {
     expect(lastBackendPut).toBeNull();
   });
 
-  test('Test again fills in the health card, the pill and the product', async ({ page }) => {
+  test('Test fills in the health card, the pill and the product', async ({ page }) => {
     await expect(page.locator('[data-testid="backend-health-pill"]')).toContainText('Never probed');
 
     await page.locator('[data-testid="test-connection"]').click();

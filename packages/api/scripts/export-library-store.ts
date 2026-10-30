@@ -6,6 +6,8 @@ import fs from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { config } from '../src/server/config.js';
 import { oxigraphStoreManager } from '../src/lib/OxigraphStoreManager.js';
+import { LibrarySparqlViewExecutor } from '../src/persistence/librarySparqlView.js';
+import { closeLibraryDatabase } from '../src/persistence/sqliteEntityStore.js';
 
 function parseArgs() {
   const args = process.argv.slice(2);
@@ -38,7 +40,26 @@ async function ensureLibraryStore() {
   return backendConfig;
 }
 
+/** The SQLite library store as N-Triples, through the same view admin SPARQL uses. */
+async function exportSqlite(storageDir: string, outPath?: string) {
+  const finalPath = path.resolve(outPath ?? path.join(storageDir, 'library.nt'));
+  try {
+    const { result } = await new LibrarySparqlViewExecutor(storageDir).constructQueryParsed(
+      'CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }',
+      { acceptHeader: 'application/n-triples' },
+    );
+    await fs.writeFile(finalPath, typeof result === 'string' ? result : '', { mode: 0o600 });
+  } finally {
+    closeLibraryDatabase();
+  }
+  console.log(`✅ Library store exported to ${finalPath}`);
+}
+
 async function exportLibraryStore(outPath?: string) {
+  if (config.internalBackend.type === 'sqlite') {
+    await exportSqlite(config.internalBackend.storageDir, outPath);
+    return;
+  }
   const backendConfig = await ensureLibraryStore();
   console.log(`Exporting library store "${backendConfig.storeId}" from ${backendConfig.storageDir}`);
 

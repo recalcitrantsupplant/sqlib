@@ -91,11 +91,11 @@ describe('grant administration', () => {
     const response = await app.inject({
       method: 'POST',
       url: '/auth/grants',
-      payload: { principal: BOB, resourceKind: 'backend', resource: BACKEND, modes: ['use'] },
+      payload: { principal: BOB, resourceKind: 'backend', resource: BACKEND, modes: ['query:adhoc'] },
     });
 
     expect(response.statusCode).toBe(201);
-    expect(response.json().modes).toEqual(['use']);
+    expect(response.json().modes).toEqual(['query:adhoc']);
     await app.close();
   });
 
@@ -157,7 +157,7 @@ describe('grant administration', () => {
     const response = await app.inject({
       method: 'POST',
       url: '/auth/grants',
-      payload: { principal: ALICE, resourceKind: 'backend', resource: BACKEND, modes: ['use'] },
+      payload: { principal: ALICE, resourceKind: 'backend', resource: BACKEND, modes: ['query:adhoc'] },
     });
 
     expect(response.statusCode).toBe(403);

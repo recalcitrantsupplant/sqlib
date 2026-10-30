@@ -144,6 +144,31 @@ export const BackendSchema = {
     '@id': sqlib.oxigraphConfig,
     '@optional': true,
   },
+  /**
+   * Marks a backend that holds authorization data, such as the graphs each
+   * group may read. Only administrators and sqlib itself may query it; every
+   * caller route refuses it. Graph policies run here.
+   */
+  authBackend: {
+    '@id': sqlib.authBackend,
+    '@type': xsd.boolean,
+    '@optional': true,
+  },
+  /**
+   * The pinned query version that decides which graphs a caller may read on
+   * this backend (`lib/graphPolicy.ts`). Unset means no restriction.
+   */
+  graphPolicyQueryVersion: {
+    '@id': sqlib.graphPolicyQueryVersion,
+    '@type': ldkit.IRI,
+    '@optional': true,
+  },
+  /** The auth backend the graph policy runs on. Set with `graphPolicyQueryVersion`. */
+  graphPolicyBackend: {
+    '@id': sqlib.graphPolicyBackend,
+    '@type': ldkit.IRI,
+    '@optional': true,
+  },
 } as const satisfies Schema;
 
 /**
@@ -272,6 +297,12 @@ export interface LdkitBackend {
   oxigraphConfig?: OxigraphConfig | string | null;
   dateCreated?: string | null; // ISO string format for RDF/JSON-LD compatibility
   dateModified?: string | null; // ISO string format for RDF/JSON-LD compatibility
+  /** Holds authorization data; administrators only (see `BackendSchema.authBackend`). */
+  authBackend?: boolean | null;
+  /** The pinned graph policy query version (`auth/graphPolicy.ts`). */
+  graphPolicyQueryVersion?: string | null;
+  /** The auth backend the graph policy runs on. */
+  graphPolicyBackend?: string | null;
 }
 
 /**

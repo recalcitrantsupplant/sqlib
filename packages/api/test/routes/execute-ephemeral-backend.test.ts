@@ -274,7 +274,7 @@ describe('Execute route - Ephemeral Backend', () => {
     expect(res.statusCode).toBe(400);
     expect(JSON.parse(res.payload).error).toContain('backendId is required');
   });
-  describe('with no backendId', () => {
+  describe("with no backendId", () => {
     const libId = 'urn:sqlib:library:defaults';
     const vId = 'urn:sqlib:query-version:defaults-1';
     const qId = 'urn:sqlib:query:defaults';
@@ -285,32 +285,27 @@ describe('Execute route - Ephemeral Backend', () => {
     });
     const useEntities = (byId: Record<string, unknown>) =>
       hoisted.mockCoordinatorGet.mockImplementation((id: string) => byId[id] ?? null);
-    const askStore = () => (oxigraphStoreManager.createEphemeralStore as any).mockReturnValue(Object.assign(
-      new hoisted.MockStore(),
-      { query: vi.fn().mockReturnValue(true), size: 0 },
-    ));
 
-    it("runs on the library's default when the query names none", async () => {
+    it("refuses the run and names the library's default as a hint", async () => {
       useEntities(entities(EPHEMERAL_BACKEND_ID));
-      askStore();
       const res = await app.inject({ method: 'POST', url: '/execute/', payload: { targetId: vId } });
-      expect(res.statusCode).toBe(200);
-      expect(oxigraphStoreManager.createEphemeralStore).toHaveBeenCalled();
+      expect(res.statusCode).toBe(400);
+      expect(JSON.parse(res.payload).error).toBe(`backendId is required. The library's default backend is ${EPHEMERAL_BACKEND_ID}.`);
+      expect(oxigraphStoreManager.createEphemeralStore).not.toHaveBeenCalled();
     });
 
-    it("prefers the query's default over the library's", async () => {
+    it("names the query's default over the library's", async () => {
       useEntities(entities('urn:sqlib:backend:not-registered', EPHEMERAL_BACKEND_ID));
-      askStore();
       const res = await app.inject({ method: 'POST', url: '/execute/', payload: { targetId: vId } });
-      expect(res.statusCode).toBe(200);
-      expect(oxigraphStoreManager.createEphemeralStore).toHaveBeenCalled();
+      expect(res.statusCode).toBe(400);
+      expect(JSON.parse(res.payload).error).toContain(`query's default backend is ${EPHEMERAL_BACKEND_ID}`);
     });
 
     it('refuses the run when neither the query nor its library has a default', async () => {
       useEntities(entities());
       const res = await app.inject({ method: 'POST', url: '/execute/', payload: { targetId: vId } });
       expect(res.statusCode).toBe(400);
-      expect(JSON.parse(res.payload).error).toMatch(/no(r its library has a)? default backend/);
+      expect(JSON.parse(res.payload).error).toBe('backendId is required.');
       expect(oxigraphStoreManager.createEphemeralStore).not.toHaveBeenCalled();
     });
   });
