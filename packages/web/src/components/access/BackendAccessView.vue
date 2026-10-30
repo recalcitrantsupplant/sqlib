@@ -78,8 +78,9 @@
 
               <div v-if="editing" class="editor" data-testid="policy-editor">
                 <InlineNote>
-                  A saved SELECT on an auth backend that projects <code>?graph</code>, <code>?defaultGraph</code> or
-                  <code>?namedGraph</code>. It reads the caller through <code>?authUser</code> and <code>?authGroup</code>.
+                  A saved SELECT on an auth backend. It projects <code>?defaultGraph</code> for the default graph,
+                  <code>?namedGraph</code> for the named graphs, or <code>?graph</code> for both. It reads the caller
+                  through <code>VALUES ?authUser { UNDEF }</code> and <code>VALUES ?authGroup { UNDEF }</code>.
                   Saving pins the query's current version.
                 </InlineNote>
                 <div class="editor-row">
@@ -119,11 +120,6 @@
                   </span>
                   <span class="form-label">Runs on</span>
                   <span>{{ policyBackendName }} <StatusBadge tone="warning" class="gap-left">auth</StatusBadge></span>
-                  <span class="form-label">Reads the caller</span>
-                  <span class="mono">
-                    <template v-if="callerVars.length"><span class="var">{{ callerVars.join(', ') }}</span> → </template>
-                    <span class="var">{{ outputVars.join(', ') || '?graph' }}</span>
-                  </span>
                 </div>
 
                 <div v-if="summary.latest" class="drift" role="status" data-testid="policy-drift">
@@ -143,6 +139,7 @@
                   :meta="peekMeta"
                   :collapsed-lines="8"
                 />
+                <PolicyVariables :query-text="summary.pinned?.queryString ?? ''" />
               </template>
               <p v-else-if="hasPolicy" class="dash">Loading the policy…</p>
 
@@ -238,6 +235,7 @@ import EmptyState from '@/components/shared/EmptyState.vue';
 import AccessLevelToggle from './AccessLevelToggle.vue';
 import AccessGraphsBadge from './AccessGraphsBadge.vue';
 import TestAsPanel from './TestAsPanel.vue';
+import PolicyVariables from './PolicyVariables.vue';
 
 const props = defineProps<{ backend: Backend }>();
 const emit = defineEmits<{
@@ -263,13 +261,6 @@ const usedBy = computed(() => access.backends.value.filter((b) => b.graphPolicyB
 const policyBackendName = computed(() =>
   access.backends.value.find((b) => b.id === summary.value?.policy?.backend)?.name ?? summary.value?.policy?.backend ?? '');
 
-const callerVars = computed(() =>
-  ['?authUser', '?authGroup'].filter((v) => summary.value?.pinned?.queryString?.includes(v)));
-const outputVars = computed(() => {
-  const text = summary.value?.pinned?.queryString ?? '';
-  const head = text.slice(0, Math.max(0, text.search(/\bWHERE\b|\{/i)));
-  return ['?graph', '?defaultGraph', '?namedGraph'].filter((v) => new RegExp(`\\${v}\\b`).test(head));
-});
 const peekMeta = computed(() => {
   const lines = (summary.value?.pinned?.queryString ?? '').trim().split('\n').length;
   return `v${summary.value?.pinned?.version ?? '?'} · ${lines} lines`;
@@ -553,15 +544,6 @@ function grantFromTest(principal: string | null) {
 
 .gap-left {
   margin-left: var(--space-2);
-}
-
-.mono {
-  font-family: var(--font-mono);
-  font-size: var(--text-label);
-}
-
-.var {
-  color: var(--action-ink);
 }
 
 .drift {
