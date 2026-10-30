@@ -45,7 +45,7 @@ const MUTATION_SITES: Record<string, { calls: number; marks: number; why: string
   // snapshot matches that snapshot, so there is nothing new to checkpoint.
   'src/lib/storeSnapshot.ts': { calls: 1, marks: 0, why: 'restore from snapshot' },
   // Hydration from data graphs, into a memory store the manager owns.
-  'src/lib/dataGraphHydration.ts': { calls: 1, marks: 1, why: 'store.load' },
+  'src/lib/dataGraphHydration.ts': { calls: 3, marks: 1, why: 'store.load, with or without a target graph, and store.add for quads moved into one' },
   // The quad-level apply branch, which reaches a resolved target's store
   // directly instead of going through its executor.
   'src/lib/patchService.ts': { calls: 3, marks: 1, why: 'apply by quad (one operation), and a local store for parsing' },
