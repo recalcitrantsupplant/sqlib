@@ -59,13 +59,20 @@
         </button>
       </div>
 
+      <!--
+        Says what the field does to the store, not what it is: the IRI is the
+        graph name this backend's store loads the data under (Oxigraph's
+        `to_graph_name`), not an id for the data graph in sqlib. N-Quads lines
+        that already name a graph keep it; only default-graph data moves.
+      -->
       <input
         v-model="row.namedGraph"
         type="text"
         class="named-graph-input"
         :disabled="disabled"
-        placeholder="Named graph IRI (optional — default graph if empty)"
-        aria-label="Named graph"
+        placeholder="Load into graph IRI (optional — empty loads into the default graph)"
+        title="This backend's store loads the data into the graph with this IRI. Queries reach it with GRAPH or FROM. N-Quads lines that already name a graph keep their own graph."
+        aria-label="Graph IRI to load into"
         data-testid="source-named-graph"
         @change="emitChange"
       />

@@ -166,7 +166,7 @@
         <!--
           Health is what a *probe* found, and the server cannot probe a backend
           it does not have. On a browser one the pair read "Never probed — run
-          Test again" beside no such button, which is the probe card's own
+          Test" beside no such button, which is the probe card's own
           reason for being absent one line further down.
         -->
         <template v-if="!isBrowser">
@@ -428,10 +428,10 @@
                 <span class="health-name">{{ HEALTH_LABELS[health] }}</span>
                 <span class="health-when">{{ probe ? relativeTime(probe.probedAt) : 'not yet' }}</span>
               </div>
-              <p class="health-message" data-testid="backend-health-message">{{ healthMessage }}</p>
+              <p v-if="healthMessage" class="health-message" data-testid="backend-health-message">{{ healthMessage }}</p>
               <div class="card-actions">
                 <button class="button" :disabled="testing" data-testid="test-connection" @click="testConnection">
-                  <Activity :size="13" />{{ testing ? 'Testing…' : 'Test again' }}
+                  <Activity :size="13" />{{ testing ? 'Testing…' : 'Test' }}
                 </button>
                 <button
                   class="button"
@@ -843,7 +843,7 @@ const memoryConfig = computed(() => parseMemoryConfig(backend.value?.oxigraphCon
 /** The header's one line: when, and the shortest true reason. */
 const probeSummary = computed(() => {
   const result = probe.value;
-  if (!result) return 'never probed — run Test again';
+  if (!result) return 'never probed — run Test';
   const when = relativeTime(result.probedAt);
   if (result.health === 'unreachable') return `${when} · ${result.error ?? 'no answer'}`;
   return `${when} · ${result.latencyMs} ms`;
@@ -859,7 +859,8 @@ const probeSummary = computed(() => {
  */
 const healthMessage = computed(() => {
   const result = probe.value;
-  if (!result) return 'Never probed on this server. Run Test again to find out where it stands.';
+  // Nothing to add: the card's head already says "Never probed".
+  if (!result) return '';
   if (result.health === 'unreachable') {
     if (result.httpStatus === 401 || result.httpStatus === 403) {
       return `${result.httpStatus} on the service description. Queries may still succeed.`;
