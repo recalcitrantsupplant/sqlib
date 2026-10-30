@@ -44,7 +44,7 @@
                   />
                   <span class="mode-text">
                     <span class="mode-name">Auth backend</span>
-                    <InlineNote as="span">Holds who may read what. Only administrators can query it. Graph policies run here.</InlineNote>
+                    <InlineNote as="span">Constrain user or group access to the default and named graphs queries use.</InlineNote>
                   </span>
                 </label>
               </div>
