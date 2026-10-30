@@ -257,7 +257,7 @@ export interface UseQueryGroupExecutionResult {
   nodeExecutions: Ref<NodeExecutionDetail[]>;
   failedNodeId: Ref<string | null>;
   showBenchmarkDialog: Ref<boolean>;
-  executeQueryGroup: () => Promise<void>;
+  executeQueryGroup: (options?: { draft?: { body: Record<string, unknown>; targetId: string } }) => Promise<void>;
   validateQueryGroup: (options?: { silent?: boolean }) => Promise<{ valid: boolean; issues?: ValidationIssue[] } | null>;
   runBenchmark: () => Promise<void>;
   assignQueryToNode: (nodeId: string, payload: QuerySelectionPayload) => Promise<void>;

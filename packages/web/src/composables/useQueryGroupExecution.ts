@@ -314,15 +314,22 @@ export function useQueryGroupExecution(deps: UseQueryGroupExecutionDeps): UseQue
     }
   };
 
-  const executeQueryGroup = async () => {
+  /*
+   * With `draft`, the canvas runs as it stands: the version-create body goes
+   * up as `draftVersion` against `draft.targetId` (the group, or the library
+   * of a group never saved), and nothing is saved. There is no stored version
+   * to `/validate`, so the caller checks the canvas's own validation first.
+   */
+  const executeQueryGroup = async (options: { draft?: { body: Record<string, unknown>; targetId: string } } = {}) => {
     if (isExecuting.value) {
       return;
     }
-    if (!queryGroupId.value) {
+    const draft = options.draft ?? null;
+    if (!draft && !queryGroupId.value) {
       toast.error('No query group selected');
       return;
     }
-    if (!selectedVersionNumber.value) {
+    if (!draft && !selectedVersionNumber.value) {
       toast.error('Select a query group version before executing');
       return;
     }
@@ -336,7 +343,9 @@ export function useQueryGroupExecution(deps: UseQueryGroupExecutionDeps): UseQue
     failedNodeId.value = null;
 
     try {
-      const validation = await queryGroupsStore.validateVersion(queryGroupId.value, selectedVersionNumber.value);
+      const validation = draft
+        ? { valid: true, issues: [] as ValidationIssue[], warnings: [] as string[] }
+        : await queryGroupsStore.validateVersion(queryGroupId.value, selectedVersionNumber.value!);
       validationIssues.value = validation.issues ?? [];
 
       if (!validation.valid) {
@@ -352,10 +361,11 @@ export function useQueryGroupExecution(deps: UseQueryGroupExecutionDeps): UseQue
         toast.warning?.('Validation completed with warnings. Review results before relying on them.');
       }
 
-      const targetId = selectedVersionId.value || queryGroupId.value;
+      const targetId = draft ? draft.targetId : (selectedVersionId.value || queryGroupId.value);
       // Query groups don't need backendId - each execution node has its own backend
       const payload: Record<string, unknown> = {
         targetId,
+        ...(draft ? { draftVersion: draft.body } : {}),
         // Ask for per-node detail so the canvas can show what each node did. The
         // server caps intermediate results, so this stays bounded.
         nodeDetail: 'results',

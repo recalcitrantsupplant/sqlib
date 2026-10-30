@@ -103,6 +103,11 @@
       <GitCompare :size="16" />
     </button>
     <!--
+      A note on the body's state that only the work area can compute, such as
+      a query group's count of problems on the canvas.
+    -->
+    <slot name="status" />
+    <!--
       Share, for a section that can put what is on screen into a link
       (`ShareLinkMenu`). A slot rather than a button: what a link can carry
       differs by section, and only the work area knows it.

@@ -32,7 +32,17 @@
         <span v-if="execution.durationMs !== undefined" class="node-execution-chip" :class="{ slowest: execution.isSlowest }">
           {{ formatDuration(execution.durationMs) }}
         </span>
-        <span v-if="execution.count !== undefined" class="node-execution-chip">
+        <button
+          v-if="execution.count !== undefined && showNodeResult"
+          type="button"
+          class="node-execution-chip node-result-link nodrag"
+          title="Show this node's result"
+          data-testid="node-result-link"
+          @click.stop="showNodeResult(props.id)"
+        >
+          {{ executionCountText }}
+        </button>
+        <span v-else-if="execution.count !== undefined" class="node-execution-chip">
           {{ executionCountText }}
         </span>
       </div>
@@ -50,10 +60,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, inject, ref } from 'vue';
 import { Handle, Position, type NodeProps } from '@vue-flow/core';
+import { SHOW_NODE_RESULT } from '../../lib/nodeResult';
 
 const props = defineProps<NodeProps>();
+
+/* A row count is a way into that node's rows: it opens them in the Results tab. */
+const showNodeResult = inject(SHOW_NODE_RESULT, null);
 
 /*
  * Handles follow whichever way the canvas is laid out, and every node on the
@@ -345,6 +359,18 @@ const toggleOpen = () => {
   background: var(--surface-subtle);
   font-size: var(--text-micro);
   color: var(--ink-secondary);
+}
+
+.node-result-link {
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-micro);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.node-result-link:hover {
+  border-color: var(--border-strong, var(--border-default));
 }
 
 .node-execution-chip.slowest {

@@ -261,6 +261,24 @@
             <!-- Show variable badges if we have QueryInputTuple inputs -->
             <TupleVariableBadges :variables="nodeInputVariables" />
 
+            <!-- An input nothing feeds runs unconstrained. One click turns it
+                 into a group input, so the caller can give it values. -->
+            <ul v-if="unboundInputs?.length" class="unbound-inputs" data-testid="unbound-inputs">
+              <li v-for="input in unboundInputs" :key="input.portId">
+                <span class="unbound-input-vars">{{ input.variables.map(displayVariable).join(' ') }}</span>
+                <span class="unbound-input-note">nothing feeds this</span>
+                <button
+                  class="btn-compact"
+                  type="button"
+                  data-testid="expose-input"
+                  :title="`Add a group input for ${input.variables.map(displayVariable).join(' ')} and connect it to this node`"
+                  @click="emit('expose-input', { nodeId: selection.node.id, portId: input.portId })"
+                >
+                  Expose as group input
+                </button>
+              </li>
+            </ul>
+
             <!-- Show port list for non-tuple inputs (like RDF, Boolean, etc.) -->
             <ul v-if="nodeInputPorts.filter(p => p.entityType !== 'QueryInputTuple').length > 0" class="port-list">
               <li v-for="port in nodeInputPorts.filter(p => p.entityType !== 'QueryInputTuple')" :key="port.id">
@@ -728,6 +746,8 @@ const props = defineProps<{
   queryOptionsError?: string | null;
   tupleMembers: Record<string, TupleMemberRecord>;
   variables: Record<string, VariableRecord>;
+  /** The selected node's input tuples that no edge feeds. */
+  unboundInputs?: Array<{ portId: string; variables: string[] }>;
 }>();
 
 /** The normalized I/O model, as the shared helpers expect it. */
@@ -762,6 +782,7 @@ const emit = defineEmits<{
   (e: 'select-io-entity', payload: { entityId: string; parentNodeId?: string | null }): void;
   (e: 'delete-node', nodeId: string): void;
   (e: 'delete-edge', edgeId: string): void;
+  (e: 'expose-input', payload: { nodeId: string; portId: string }): void;
 }>();
 
 /**
@@ -2046,4 +2067,30 @@ textarea.field-textarea {
   margin-top: auto;
 }
 
+.unbound-inputs {
+  list-style: none;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.unbound-inputs li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.unbound-input-vars {
+  font-family: var(--font-mono, monospace);
+  font-size: var(--text-body);
+}
+
+.unbound-input-note {
+  flex: 1;
+  font-size: var(--text-micro);
+  color: var(--warning-ink);
+}
 </style>
