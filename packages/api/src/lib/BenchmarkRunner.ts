@@ -44,6 +44,7 @@ import {
 import { EPHEMERAL_BACKEND_ID } from '@sparql-query-lib/types';
 import { OxigraphSparqlExecutor } from '../server/OxigraphSparqlExecutor.js';
 import * as oxigraph from 'oxigraph';
+import { versionSlotPolicies } from './slotPolicies.js';
 
 type BenchmarkTask = {
   subjectId: string;
@@ -796,6 +797,7 @@ export class BenchmarkRunner {
       argumentSets: runtimePayload?.tupleList ?? [],
       limits: runtimePayload?.limits ?? [],
       offsets: runtimePayload?.offsets ?? [],
+      slotPolicies: versionSlotPolicies(versionEntity),
       signal,
       parser: this.parser,
     });

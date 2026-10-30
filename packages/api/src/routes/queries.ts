@@ -3,7 +3,7 @@ import type { LdkitQuery } from '../persistence/schemas/QuerySchema.js';
 import type { LdkitQueryVersion } from '../persistence/schemas/QueryVersionSchema.js';
 import { expandQueryVersion } from '../lib/QueryVersionResolver.js';
 import { SparqlQueryParser } from '../lib/parser.js';
-import { createQueryVersionFlat } from '../lib/QueryVersionWriter.js';
+import { createQueryVersionFlat, type InputPolicy } from '../lib/QueryVersionWriter.js';
 import { deriveQueryVersionMetadata } from '../lib/QueryVersionDeriver.js';
 import { toRestApi } from '../persistence/utils/id-adapter.js';
 import { deleteWithOwned, QUERY_VERSION_OWNED } from '../lib/ownedEntities.js';
@@ -156,8 +156,27 @@ export default async function (fastify: FastifyInstance) {
         const message = error instanceof Error ? error.message : String(error);
         throw new RouteError(400, { error: 'Invalid SPARQL query', details: message });
       }
+      refuseUnknownInputPolicies(flat.queryString, flat.inputPolicies as InputPolicy[] | undefined);
     }
     return flat;
+  }
+
+  /**
+   * An input policy names a slot by its variables. One that names no slot the
+   * text declares is a mistake — most likely a renamed variable — and saving it
+   * would silently leave the real slot unguarded.
+   */
+  function refuseUnknownInputPolicies(queryString: string, policies: InputPolicy[] | undefined): void {
+    if (!policies?.length) return;
+    const signature = (vars: readonly string[]) => [...vars].sort().join(' ');
+    const declared = parser.detectInputs(queryString).valuesInputs;
+    const known = new Set(declared.map(signature));
+    const unknown = policies.filter(policy => !known.has(signature(policy.vars)));
+    if (unknown.length === 0) return;
+    const describe = (vars: readonly string[]) => `[${vars.join(', ')}]`;
+    throw new RouteError(400, {
+      error: `inputPolicies name ${unknown.map(policy => describe(policy.vars)).join(', ')}, which the query does not declare. It declares ${declared.length ? declared.map(describe).join(', ') : 'no VALUES parameters'}.`,
+    });
   }
 
   fastify.get('/:id/argument-sets', ...reposRoute({

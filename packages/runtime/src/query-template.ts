@@ -87,6 +87,24 @@ export interface TemplateArgumentSet {
   whenEmpty?: EmptyArgumentMode;
 }
 
+/**
+ * The query author's empty-input policy for one parameter slot.
+ *
+ * It lives on the slot's input tuple, not in the query text, and it is what an
+ * omitted slot, a lone all-UNDEF row or zero rows mean for this query. A slot
+ * with no policy keeps the built-in reading: omitted runs open, zero rows match
+ * nothing. Slots are named by their variables, as argument sets name them.
+ */
+export interface SlotPolicy {
+  vars: readonly string[];
+  whenEmpty: EmptyArgumentMode;
+}
+
+/** `?a, ?b` — how a refusal names a slot. */
+export function describeSlot(vars: readonly string[]): string {
+  return vars.map((v) => `?${v}`).join(', ');
+}
+
 /** True when a row binds nothing — every declared cell is UNDEF. */
 function isAllUndefRow(row: ArgumentRow | null | undefined): boolean {
   if (row == null) return true;
@@ -143,10 +161,17 @@ export function assignArgumentSets<T extends { head?: { vars?: string[] } }>(
  * filtered. An argument that fits no slot is refused, naming what it binds and
  * what the query declares, because silently dropping it would run the query
  * without a filter the caller asked for.
+ *
+ * `slotPolicies` are the query author's, from the slot's input tuple. A policy
+ * fills in for an omitted slot and for a set that carries no `whenEmpty` of its
+ * own. A set that does carry one (a group edge's) wins, except that it cannot
+ * reopen a slot the author closed: `unconstrained` over a `require` or
+ * `propagateEmpty` slot is refused.
  */
 export function completeArgumentSets(
   slotVars: readonly (readonly string[])[],
   argumentSets: readonly TemplateArgumentSet[],
+  slotPolicies: readonly SlotPolicy[] = [],
 ): TemplateArgumentSet[] {
   if (!Array.isArray(argumentSets)) {
     throw new Error('Invalid arguments format: Expected an array of argument sets.');
@@ -166,14 +191,26 @@ export function completeArgumentSets(
       `Argument ${unmatched.map((set) => describe(set.head.vars)).join(', ')} matches no VALUES parameter left to fill. The query declares ${declared}.`,
     );
   }
-  return slots.map(
-    (set, index) =>
-      set ?? {
+  const policyKey = (vars: readonly string[]) => [...vars].sort().join(' ');
+  const policies = new Map(slotPolicies.map((policy) => [policyKey(policy.vars), policy.whenEmpty]));
+  return slots.map((set, index) => {
+    const policy = policies.get(policyKey(slotVars[index]));
+    if (!set) {
+      return {
         head: { vars: [...slotVars[index]] },
         results: { bindings: [] },
-        whenEmpty: 'unconstrained' as const,
-      },
-  );
+        whenEmpty: policy ?? 'unconstrained',
+      };
+    }
+    if (!policy) return set;
+    if (set.whenEmpty === undefined) return { ...set, whenEmpty: policy };
+    if (set.whenEmpty === 'unconstrained' && policy !== 'unconstrained') {
+      throw new Error(
+        `VALUES clause ${index + 1} (${describeSlot(slotVars[index])}) is marked '${policy}' by its query and cannot be run unconstrained.`,
+      );
+    }
+    return set;
+  });
 }
 
 /**
@@ -187,10 +224,12 @@ export function completeArgumentSets(
 export function applyTemplateArguments(
   template: QueryTemplate,
   argumentSets: TemplateArgumentSet[],
+  slotPolicies: readonly SlotPolicy[] = [],
 ): string {
   const ordered = completeArgumentSets(
     template.slots.map((slot) => slot.vars),
     argumentSets,
+    slotPolicies,
   );
 
   let out = '';
@@ -222,7 +261,7 @@ export function applyTemplateArguments(
       // discards rows the caller did supply.
       const mode = argSet.whenEmpty ?? (isWildcard ? 'unconstrained' : 'propagateEmpty');
       if (mode === 'require') {
-        throw new Error(`Required input for VALUES clause ${index + 1} received no bindings.`);
+        throw new Error(`Required input for VALUES clause ${index + 1} (${describeSlot(slot.vars)}) received no bindings.`);
       }
       // 'unconstrained' drops the slot entirely rather than shipping an UNDEF
       // wildcard; 'propagateEmpty' keeps a zero-row block, which joins to nothing.

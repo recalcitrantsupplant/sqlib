@@ -2474,6 +2474,10 @@ export const queryinputtupleSchema = {
     "variableMappings": {
       "type": "string",
       "nullable": true
+    },
+    "whenEmpty": {
+      "type": "string",
+      "nullable": true
     }
   },
   "required": [
@@ -4210,6 +4214,7 @@ export interface QueryInputTupleRestApi {
   memberEntries: string[];
   position?: number | null;
   variableMappings?: string | null;
+  whenEmpty?: string | null;
 }
 
 export interface QueryInputVariableRestApi {

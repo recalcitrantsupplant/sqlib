@@ -42,6 +42,7 @@ import { datasetFromRequest, type SparqlDataset } from '../lib/dataset.js';
 import { abortOnDisconnect, ExecutionAbortedError } from '../lib/cancellation.js';
 import { QueryGroupSignatureService } from '../lib/QueryGroupSignatureService.js';
 import { applyExecutionArguments, normalizeArguments } from '../lib/executionArguments.js';
+import { versionSlotPolicies } from '../lib/slotPolicies.js';
 import type { RuntimeArgumentPayload } from '../lib/ArgumentSetService.js';
 import { resolveDataGraphInput, DataGraphContentError } from '../lib/dataGraphInput.js';
 import type { ExecutionDataGraphInput } from '../lib/orchestration/ExecutionEngine.js';
@@ -722,6 +723,7 @@ export default async function (
                             argumentSets: resolveArgumentsForQuery(sparqlQueryString),
                             limits: normalizedLimits,
                             offsets: normalizedOffsets,
+                            slotPolicies: versionSlotPolicies(resolvedQueryVersion),
                         }, parser);
                     } catch (applyError__u: unknown) {
                         const applyError = toError(applyError__u);
@@ -755,6 +757,7 @@ export default async function (
                             argumentSets: resolveArgumentsForQuery(sparqlQueryString),
                             limits: normalizedLimits,
                             offsets: normalizedOffsets,
+                            slotPolicies: versionSlotPolicies(resolvedQueryVersion),
                         }, parser);
                     } catch (applyError__u: unknown) {
                         const applyError = toError(applyError__u);

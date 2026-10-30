@@ -25,7 +25,12 @@
         @annotate-version="(payload) => emit('annotate-version', payload)"
         @copy-id="emit('copy-id')"
         @delete="emit('delete-query')"
-      />
+      >
+        <SlotPoliciesSection
+          :slots="slotPolicies ?? []"
+          @update="(payload) => emit('update:slotPolicy', payload)"
+        />
+      </EntityDetailsPanel>
     </template>
 
     <!-- Arguments Tab -->
@@ -254,6 +259,8 @@ import CodeSnippetPanel, {
   type CodeSnippetVariant,
 } from '../shared/CodeSnippetPanel.vue';
 import EntityDetailsPanel from '../shared/EntityDetailsPanel.vue';
+import SlotPoliciesSection from './SlotPoliciesSection.vue';
+import type { WhenEmptyMode } from '@/lib/slotPolicies';
 import EmptyState from '../shared/EmptyState.vue';
 import SubjectTestsPanel from '../tests/SubjectTestsPanel.vue';
 import { useTestsSurface } from '@/composables/useTestsSurface';
@@ -342,6 +349,8 @@ const props = defineProps<{
    * reassembling it in the child.
    */
   details?: QueryDetailsProps | null;
+  /** Each VALUES parameter and what it does with no value, for the Details tab. */
+  slotPolicies?: ReadonlyArray<{ vars: string[]; whenEmpty: WhenEmptyMode | null }>;
 }>();
 
 const emit = defineEmits<{
@@ -358,6 +367,7 @@ const emit = defineEmits<{
   (e: 'annotate-version', payload: { value: string; comment: string | null }): void;
   (e: 'copy-id'): void;
   (e: 'delete-query'): void;
+  (e: 'update:slotPolicy', payload: { vars: string[]; whenEmpty: WhenEmptyMode | null }): void;
   /** A row in the Tests tab was clicked; the page decides where that goes. */
   (e: 'open-test', testId: string): void;
 }>();

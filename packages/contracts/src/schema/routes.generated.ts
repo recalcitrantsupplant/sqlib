@@ -4255,6 +4255,10 @@ export const createQueryVersionForQuerySchema = {
             "variableMappings": {
                   "type": "string",
                   "nullable": true
+            },
+            "whenEmpty": {
+                  "type": "string",
+                  "nullable": true
             }
       },
       "required": [
@@ -4290,7 +4294,19 @@ export const createQueryVersionForQuerySchema = {
             "name",
             "memberEntries"
       ]
-} }
+} },
+      inputPolicies: {
+        type: 'array',
+        description: 'What each VALUES parameter means when it receives no bound rows, named by its variables. Unset slots keep the mode of the previous version; null clears it. require refuses a run that leaves the slot open.',
+        items: {
+          type: 'object', additionalProperties: false,
+          properties: {
+            vars: { type: 'array', items: { type: 'string' }, minItems: 1 },
+            whenEmpty: { type: ['string', 'null'], enum: ['unconstrained', 'propagateEmpty', 'require', null] }
+          },
+          required: ['vars', 'whenEmpty']
+        }
+      }
     },
     required: ['queryVersion'],
     examples: [
@@ -4867,6 +4883,10 @@ export const createQueryGroupVersionForGroupFlatSchema = {
                   "nullable": true
             },
             "variableMappings": {
+                  "type": "string",
+                  "nullable": true
+            },
+            "whenEmpty": {
                   "type": "string",
                   "nullable": true
             }
