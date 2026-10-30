@@ -27,6 +27,10 @@ export const auth = {
   rawClaim: `${AUTH_NS}rawClaim`,
   principalKind: `${AUTH_NS}principalKind`,
   seenAt: `${AUTH_NS}seenAt`,
+  /** A person's readable name from their last token: email, username or full name. */
+  label: 'http://www.w3.org/2000/01/rdf-schema#label',
+  /** A user's groups as the last token sqlib saw for them carried. */
+  memberOf: `${AUTH_NS}memberOf`,
 } as const;
 
 export const RDF_TYPE = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type';
@@ -42,8 +46,10 @@ export const LIBRARY_MODE_IRIS: Record<LibraryMode, string> = {
 };
 
 export const BACKEND_MODE_IRIS: Record<BackendMode, string> = {
-  use: `${AUTH_NS}Use`,
-  write: `${AUTH_NS}Write`,
+  'query:saved': `${AUTH_NS}QuerySaved`,
+  'query:adhoc': `${AUTH_NS}QueryAdhoc`,
+  'update:saved': `${AUTH_NS}UpdateSaved`,
+  'update:adhoc': `${AUTH_NS}UpdateAdhoc`,
 };
 
 const LIBRARY_MODE_BY_IRI = new Map<string, LibraryMode>(

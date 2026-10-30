@@ -9,10 +9,8 @@ import { AuthStore, inMemoryPersistence } from '../../src/auth/AuthStore.js';
 import { resolveEffectiveGrants } from '../../src/auth/grants.js';
 import {
   AuthorizationError,
-  allowedBackendsOf,
   canBackend,
   filterReadable,
-  requireCuratedBackendsChange,
   requireBackendMode,
   requireLibraryMode,
   resolveOwningLibrary,
@@ -25,7 +23,6 @@ const ALICE = 'urn:sqlib:principal:user:alice';
 const LIBRARY = 'urn:sqlib:library:hydrology';
 const OTHER_LIBRARY = 'urn:sqlib:library:finance';
 const BACKEND = 'urn:sqlib:backend:main';
-const OTHER_BACKEND = 'urn:sqlib:backend:secret';
 
 const entities = new Map<string, unknown>();
 
@@ -69,7 +66,6 @@ beforeEach(async () => {
     '@type': 'Library',
     $id: LIBRARY,
     defaultBackend: BACKEND,
-    allowedBackends: [],
   });
   entities.set(OTHER_LIBRARY, { '@type': 'Library', $id: OTHER_LIBRARY });
 });
@@ -84,6 +80,12 @@ describe('auth modes', () => {
   it('denies in required mode', () => {
     expect(() => requireLibraryMode(requestFor(contextFor([ALICE])), LIBRARY, 'read'))
       .toThrow(AuthorizationError);
+  });
+
+  it('denies in anonymous mode, like required', () => {
+    const request = requestFor(contextFor(['urn:sqlib:principal:anonymous'], 'anonymous'));
+    expect(() => requireLibraryMode(request, LIBRARY, 'read')).toThrow(AuthorizationError);
+    expect(() => requireBackendMode(request, BACKEND, 'query:saved')).toThrow(AuthorizationError);
   });
 
   it('permits the request in dry-run mode but records the denial', () => {
@@ -148,178 +150,32 @@ describe('resolveOwningLibrary', () => {
 describe('backend access routes (design §4.3)', () => {
   it('route 1: an explicit Use grant allows any path, including ad-hoc', async () => {
     await store.createGrant({
-      principal: ALICE, resourceKind: 'backend', resource: BACKEND, modes: ['use'],
+      principal: ALICE, resourceKind: 'backend', resource: BACKEND, modes: ['query:adhoc'],
     });
     const request = requestFor(contextFor([ALICE]));
 
-    expect(canBackend(request, BACKEND, 'use')).toBe(true);
-    expect(canBackend(request, BACKEND, 'write')).toBe(false);
+    expect(canBackend(request, BACKEND, 'query:adhoc')).toBe(true);
+    expect(canBackend(request, BACKEND, 'update:saved')).toBe(false);
   });
 
-  it('route 2: Execute on a library reaches its allowedBackends for saved queries', async () => {
-    entities.set(LIBRARY, {
-      '@type': 'Library', $id: LIBRARY, allowedBackends: [OTHER_BACKEND], defaultBackend: BACKEND,
-    });
+  it('gives no backend access through a library, not even its defaultBackend', async () => {
+    entities.set(LIBRARY, { '@type': 'Library', $id: LIBRARY, defaultBackend: BACKEND });
     await store.createGrant({
-      principal: ALICE, resourceKind: 'library', resource: LIBRARY, modes: ['execute'],
+      principal: ALICE, resourceKind: 'library', resource: LIBRARY, modes: ['read', 'execute', 'control'],
     });
     const request = requestFor(contextFor([ALICE]));
 
-    expect(canBackend(request, BACKEND, 'use', { viaLibrary: LIBRARY })).toBe(true);
-    expect(canBackend(request, OTHER_BACKEND, 'use', { viaLibrary: LIBRARY })).toBe(true);
-  });
-
-  it('route 2 does not leak into ad-hoc paths that pass no library', async () => {
-    await store.createGrant({
-      principal: ALICE, resourceKind: 'library', resource: LIBRARY, modes: ['execute'],
-    });
-    const request = requestFor(contextFor([ALICE]));
-
-    // This is what stops /sparql from inheriting curated access.
-    expect(canBackend(request, BACKEND, 'use')).toBe(false);
-    expect(() => requireBackendMode(request, BACKEND, 'use')).toThrow(AuthorizationError);
-  });
-
-  it('route 2 refuses a backend the library does not list', async () => {
-    await store.createGrant({
-      principal: ALICE, resourceKind: 'library', resource: LIBRARY, modes: ['execute'],
-    });
-    const request = requestFor(contextFor([ALICE]));
-
-    expect(canBackend(request, OTHER_BACKEND, 'use', { viaLibrary: LIBRARY })).toBe(false);
-  });
-
-  it('route 2 requires Execute, not merely Read, on the library', async () => {
-    await store.createGrant({
-      principal: ALICE, resourceKind: 'library', resource: LIBRARY, modes: ['read'],
-    });
-    const request = requestFor(contextFor([ALICE]));
-
-    expect(canBackend(request, BACKEND, 'use', { viaLibrary: LIBRARY })).toBe(false);
-  });
-
-  it('route 2 never covers writes', async () => {
-    await store.createGrant({
-      principal: ALICE, resourceKind: 'library', resource: LIBRARY, modes: ['execute'],
-    });
-    const request = requestFor(contextFor([ALICE]));
-
-    expect(canBackend(request, BACKEND, 'write', { viaLibrary: LIBRARY })).toBe(false);
+    expect(canBackend(request, BACKEND, 'query:saved')).toBe(false);
+    expect(() => requireBackendMode(request, BACKEND, 'query:saved')).toThrow(AuthorizationError);
   });
 
   it('route 3: a grant to the authenticated sentinel makes a backend global', async () => {
     await store.createGrant({
-      principal: PRINCIPAL_AUTHENTICATED, resourceKind: 'backend', resource: BACKEND, modes: ['use'],
+      principal: PRINCIPAL_AUTHENTICATED, resourceKind: 'backend', resource: BACKEND, modes: ['query:adhoc'],
     });
     const request = requestFor(contextFor(['urn:sqlib:principal:user:nobody', PRINCIPAL_AUTHENTICATED]));
 
-    expect(canBackend(request, BACKEND, 'use')).toBe(true);
-  });
-
-  it('always includes defaultBackend in a library allowed set', () => {
-    entities.set(LIBRARY, { '@type': 'Library', $id: LIBRARY, defaultBackend: BACKEND, allowedBackends: [OTHER_BACKEND] });
-    expect(allowedBackendsOf(LIBRARY).sort()).toEqual([BACKEND, OTHER_BACKEND].sort());
-  });
-});
-
-describe('curated backends escalation guard', () => {
-  it('refuses without Control on the library', async () => {
-    await store.createGrant({
-      principal: ALICE, resourceKind: 'library', resource: LIBRARY, modes: ['write'],
-    });
-    await store.createGrant({
-      principal: ALICE, resourceKind: 'backend', resource: OTHER_BACKEND, modes: ['use'],
-    });
-    const request = requestFor(contextFor([ALICE]));
-
-    expect(() => requireCuratedBackendsChange(request, LIBRARY, {}, { allowedBackends: [OTHER_BACKEND] }))
-      .toThrow(/control/i);
-  });
-
-  it('refuses to share backend reach the caller does not hold', async () => {
-    await store.createGrant({
-      principal: ALICE, resourceKind: 'library', resource: LIBRARY, modes: ['write', 'control'],
-    });
-    const request = requestFor(contextFor([ALICE]));
-
-    expect(() => requireCuratedBackendsChange(request, LIBRARY, {}, { allowedBackends: [OTHER_BACKEND] }))
-      .toThrow(/only share backend access you hold yourself/);
-  });
-
-  it('allows adding a backend the caller may use, with Control', async () => {
-    await store.createGrant({
-      principal: ALICE, resourceKind: 'library', resource: LIBRARY, modes: ['write', 'control'],
-    });
-    await store.createGrant({
-      principal: ALICE, resourceKind: 'backend', resource: OTHER_BACKEND, modes: ['use'],
-    });
-    const request = requestFor(contextFor([ALICE]));
-
-    expect(() => requireCuratedBackendsChange(request, LIBRARY, {}, { allowedBackends: [OTHER_BACKEND] })).not.toThrow();
-  });
-
-  it('needs only Control to remove a backend', async () => {
-    await store.createGrant({
-      principal: ALICE, resourceKind: 'library', resource: LIBRARY, modes: ['write', 'control'],
-    });
-    const request = requestFor(contextFor([ALICE]));
-
-    expect(() => requireCuratedBackendsChange(request, LIBRARY, { allowedBackends: [OTHER_BACKEND] }, {})).not.toThrow();
-  });
-
-  it('is a no-op when the list is unchanged', () => {
-    const request = requestFor(contextFor([ALICE]));
-    expect(() => requireCuratedBackendsChange(request, LIBRARY, { allowedBackends: [BACKEND] }, { allowedBackends: [BACKEND] })).not.toThrow();
-  });
-
-  /*
-   * `defaultBackend` is in the curated set `canBackend` reads, so naming one is
-   * the same escalation as adding to `allowedBackends`. The guard compared the
-   * `allowedBackends` array alone, which made the default the way around it.
-   */
-  it('refuses a defaultBackend the caller may not use', async () => {
-    await store.createGrant({
-      principal: ALICE, resourceKind: 'library', resource: LIBRARY, modes: ['write', 'control'],
-    });
-    const request = requestFor(contextFor([ALICE]));
-
-    expect(() => requireCuratedBackendsChange(request, LIBRARY, {}, { defaultBackend: OTHER_BACKEND }))
-      .toThrow(/only share backend access you hold yourself/);
-  });
-
-  it('allows a defaultBackend the caller may use', async () => {
-    await store.createGrant({
-      principal: ALICE, resourceKind: 'library', resource: LIBRARY, modes: ['write', 'control'],
-    });
-    await store.createGrant({
-      principal: ALICE, resourceKind: 'backend', resource: OTHER_BACKEND, modes: ['use'],
-    });
-    const request = requestFor(contextFor([ALICE]));
-
-    expect(() => requireCuratedBackendsChange(request, LIBRARY, {}, { defaultBackend: OTHER_BACKEND }))
-      .not.toThrow();
-  });
-
-  /*
-   * Creating: `previous` is null, so Control is not required — there is no
-   * library to hold it on, and the creator is granted every mode on what it
-   * makes. The Use half still binds, which is the half that matters here.
-   */
-  it('checks Use but not Control when the library is being created', async () => {
-    const request = requestFor(contextFor([ALICE]));
-
-    expect(() => requireCuratedBackendsChange(request, LIBRARY, null, { allowedBackends: [OTHER_BACKEND] }))
-      .toThrow(/only share backend access you hold yourself/);
-  });
-
-  it('allows creating with a backend the caller holds, without Control', async () => {
-    await store.createGrant({
-      principal: ALICE, resourceKind: 'backend', resource: OTHER_BACKEND, modes: ['use'],
-    });
-    const request = requestFor(contextFor([ALICE]));
-
-    expect(() => requireCuratedBackendsChange(request, LIBRARY, null, { allowedBackends: [OTHER_BACKEND] }))
-      .not.toThrow();
+    expect(canBackend(request, BACKEND, 'query:adhoc')).toBe(true);
   });
 });
 

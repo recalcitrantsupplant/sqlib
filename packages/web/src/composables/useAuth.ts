@@ -18,7 +18,7 @@ import { computed, ref, useRuntimeConfig } from '#imports';
 import { InMemoryWebStorage, User, UserManager, WebStorageStateStore } from 'oidc-client-ts';
 import { withBase } from '../lib/basePath';
 
-export type AuthMode = 'disabled' | 'dry-run' | 'required';
+export type AuthMode = 'disabled' | 'dry-run' | 'required' | 'anonymous';
 
 export interface AuthMe {
   authMode: AuthMode;
@@ -65,9 +65,14 @@ function requireLogin(): boolean {
   return config.public.authRequireLogin === true;
 }
 
-/** Whether this app signs in: the API demands it, or the deployment does. */
+/**
+ * Whether this app signs in: the API demands it, or the deployment does.
+ *
+ * `anonymous` is a public deployment that reads no token, so there is nothing
+ * to sign in to; what the visitor may do comes from `/auth/me` instead.
+ */
 function signsIn(): boolean {
-  return mode.value !== 'disabled' || requireLogin();
+  return mode.value === 'dry-run' || mode.value === 'required' || requireLogin();
 }
 
 /**
@@ -170,13 +175,15 @@ async function fetchMode(): Promise<AuthMode> {
 
 async function refreshMe(): Promise<void> {
   const token = user.value?.access_token;
-  if (!token) {
+  // An anonymous deployment answers `/auth/me` for everyone, and that answer
+  // is the only thing that says which libraries and backends a visitor holds.
+  if (!token && mode.value !== 'anonymous') {
     me.value = null;
     return;
   }
   try {
     const response = await fetch(`${apiBase()}/auth/me`, {
-      headers: { authorization: `Bearer ${token}` },
+      headers: token ? { authorization: `Bearer ${token}` } : {},
     });
     me.value = response.ok ? ((await response.json()) as AuthMe) : null;
   } catch {
@@ -193,6 +200,7 @@ export function useAuth() {
       mode.value = await fetchMode();
 
       if (!signsIn()) {
+        if (mode.value === 'anonymous') await refreshMe();
         initialized.value = true;
         return;
       }

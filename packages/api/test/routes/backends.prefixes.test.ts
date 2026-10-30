@@ -275,7 +275,7 @@ describe('Backend prefix routes', () => {
         principal: READER,
         resourceKind: 'backend',
         resource: BACKEND,
-        modes: ['use'],
+        modes: ['query:adhoc'],
       });
       guarded = await buildTestApp(READER);
     });

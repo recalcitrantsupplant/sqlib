@@ -4,6 +4,7 @@
  * Follows the `featureFlags.ts` shape: resolved once, re-resolvable so tests can
  * point the module at a different environment.
  */
+import path from 'node:path';
 import type { AuthMode } from './types.js';
 
 export interface IssuerConfig {
@@ -16,8 +17,24 @@ export interface IssuerConfig {
   claimClientId: string;
 }
 
+/**
+ * Where grants and principals are kept: never in the library store, so a
+ * library backup, restore or reset leaves access control alone.
+ *
+ * - `sqlite` (default): one SQLite file in `dir`, written per change, with an
+ *   audit trail of every change. For a single sqlib instance.
+ * - `file`: one N-Quads file in `dir`, rewritten whole on each change.
+ * - `sparql`: the `urn:sqlib:auth` graph of a SPARQL dataset of its own. For
+ *   several instances that must share their grants.
+ */
+export type AuthStoreConfig =
+  | { type: 'sqlite'; dir: string }
+  | { type: 'file'; dir: string }
+  | { type: 'sparql'; queryUrl: string; updateUrl: string; username?: string; password?: string };
+
 export interface AuthConfig {
   mode: AuthMode;
+  store: AuthStoreConfig;
   issuers: IssuerConfig[];
   clockSkewSeconds: number;
   /** Raw claim values (`iss|sub`, `iss|group:value`) treated as admins at boot. */
@@ -39,6 +56,11 @@ export interface AuthConfig {
   resource?: string;
   /** `SQLIB_AUTH_SCOPES`: advertised as `scopes_supported` and in the 401 challenge. */
   scopes: string[];
+  /**
+   * `SQLIB_AUTH_POLICY_CACHE_SECONDS`: how long a graph policy result is kept
+   * per caller and backend. 0 runs the policy on every request.
+   */
+  graphPolicyCacheSeconds: number;
 }
 
 function parseMode(raw: string | undefined): AuthMode {
@@ -48,12 +70,14 @@ function parseMode(raw: string | undefined): AuthMode {
     case 'dry-run':
     case 'dryrun':
       return 'dry-run';
+    case 'anonymous':
+      return 'anonymous';
     case 'disabled':
     case '':
       return 'disabled';
     default:
       throw new Error(
-        `Invalid SQLIB_AUTH_MODE "${raw}". Expected one of: disabled, dry-run, required.`
+        `Invalid SQLIB_AUTH_MODE "${raw}". Expected one of: disabled, dry-run, required, anonymous.`
       );
   }
 }
@@ -121,7 +145,11 @@ export function buildAuthConfig(env: NodeJS.ProcessEnv = process.env): AuthConfi
   const mode = parseMode(env.SQLIB_AUTH_MODE);
   const issuers = parseIssuers(env);
 
-  if (mode !== 'disabled' && issuers.length === 0) {
+  // `anonymous` reads no token, so it has no use for an issuer: every caller is
+  // the anonymous principal and the grants on it are the whole decision.
+  const readsTokens = mode === 'dry-run' || mode === 'required';
+
+  if (readsTokens && issuers.length === 0) {
     throw new Error(
       `SQLIB_AUTH_MODE=${mode} requires an issuer: set SQLIB_AUTH_ISSUER (+ SQLIB_AUTH_AUDIENCE) or SQLIB_AUTH_ISSUERS_JSON.`
     );
@@ -131,7 +159,7 @@ export function buildAuthConfig(env: NodeJS.ProcessEnv = process.env): AuthConfi
   // issuer minted for any application is accepted here. A shared IdP issues
   // plenty of those, so an unset audience has to be a decision, not a default.
   const audienceUnchecked = parseFlag(env.SQLIB_AUTH_AUDIENCE_UNCHECKED);
-  if (mode !== 'disabled' && !audienceUnchecked) {
+  if (readsTokens && !audienceUnchecked) {
     const unscoped = issuers.filter(entry => !entry.audience).map(entry => entry.issuer);
     if (unscoped.length > 0) {
       throw new Error(
@@ -155,8 +183,38 @@ export function buildAuthConfig(env: NodeJS.ProcessEnv = process.env): AuthConfi
     );
   }
 
+  const policyCacheRaw = env.SQLIB_AUTH_POLICY_CACHE_SECONDS?.trim();
+  const graphPolicyCacheSeconds = policyCacheRaw ? Number.parseInt(policyCacheRaw, 10) : 60;
+  if (!Number.isFinite(graphPolicyCacheSeconds) || graphPolicyCacheSeconds < 0) {
+    throw new Error(
+      `Invalid SQLIB_AUTH_POLICY_CACHE_SECONDS "${policyCacheRaw}". Expected a non-negative integer.`
+    );
+  }
+
+  const storeTypeRaw = env.SQLIB_AUTH_STORE_TYPE?.trim().toLowerCase()
+    || (env.SQLIB_AUTH_SPARQL_ENDPOINT?.trim() ? 'sparql' : 'sqlite');
+  let store: AuthStoreConfig;
+  if (storeTypeRaw === 'sqlite' || storeTypeRaw === 'file') {
+    store = { type: storeTypeRaw, dir: path.resolve(env.SQLIB_AUTH_STORE_DIR?.trim() || './storage/auth') };
+  } else if (storeTypeRaw === 'sparql') {
+    const endpoint = env.SQLIB_AUTH_SPARQL_ENDPOINT?.trim();
+    if (!endpoint) {
+      throw new Error('SQLIB_AUTH_STORE_TYPE=sparql needs SQLIB_AUTH_SPARQL_ENDPOINT: a dataset of its own, not the library store.');
+    }
+    store = {
+      type: 'sparql',
+      queryUrl: endpoint,
+      updateUrl: env.SQLIB_AUTH_SPARQL_UPDATE_ENDPOINT?.trim() || endpoint,
+      username: env.SQLIB_AUTH_SPARQL_USERNAME?.trim() || undefined,
+      password: env.SQLIB_AUTH_SPARQL_PASSWORD || undefined,
+    };
+  } else {
+    throw new Error(`Invalid SQLIB_AUTH_STORE_TYPE "${storeTypeRaw}". Expected "sqlite", "file" or "sparql".`);
+  }
+
   return {
     mode,
+    store,
     issuers,
     clockSkewSeconds,
     adminPrincipals: parseList(env.SQLIB_AUTH_ADMIN_PRINCIPALS),
@@ -167,6 +225,7 @@ export function buildAuthConfig(env: NodeJS.ProcessEnv = process.env): AuthConfi
     resource:
       env.SQLIB_AUTH_RESOURCE?.trim() || issuers.find(entry => entry.audience)?.audience || undefined,
     scopes: parseScopes(env.SQLIB_AUTH_SCOPES),
+    graphPolicyCacheSeconds,
   };
 }
 

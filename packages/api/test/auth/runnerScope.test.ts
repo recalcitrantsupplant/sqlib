@@ -106,7 +106,7 @@ describe('TestRunner under a caller', () => {
 
     // A refusal for the run, not a red case blaming the subject.
     await expect(new TestRunner({ request: requestFor(ALICE) }).runTestVersion(versionId))
-      .rejects.toThrow(`Missing "use" permission on backend ${BACKEND}`);
+      .rejects.toThrow(`Missing "query:saved" permission on backend ${BACKEND}`);
   });
 
   it('lets a caller who holds both through to the run itself', async () => {
@@ -141,6 +141,6 @@ describe('BenchmarkRunner under a caller', () => {
     const versionId = benchmark(query('urn:sqlib:query:mine', MINE));
 
     await expect(new BenchmarkRunner({ request: requestFor(ALICE) }).runExperimentVersion(versionId))
-      .rejects.toThrow(`Missing "use" permission on backend ${BACKEND}`);
+      .rejects.toThrow(`Missing "query:saved" permission on backend ${BACKEND}`);
   });
 });

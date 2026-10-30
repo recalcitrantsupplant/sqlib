@@ -45,7 +45,7 @@ const MUTATION_SITES: Record<string, { calls: number; marks: number; why: string
   // snapshot matches that snapshot, so there is nothing new to checkpoint.
   'src/lib/storeSnapshot.ts': { calls: 1, marks: 0, why: 'restore from snapshot' },
   // Hydration from data graphs, into a memory store the manager owns.
-  'src/lib/dataGraphHydration.ts': { calls: 1, marks: 1, why: 'store.load' },
+  'src/lib/dataGraphHydration.ts': { calls: 3, marks: 1, why: 'store.load, with or without a target graph, and store.add for quads moved into one' },
   // The quad-level apply branch, which reaches a resolved target's store
   // directly instead of going through its executor.
   'src/lib/patchService.ts': { calls: 3, marks: 1, why: 'apply by quad (one operation), and a local store for parsing' },
@@ -69,10 +69,13 @@ const MUTATION_SITES: Record<string, { calls: number; marks: number; why: string
   'src/lib/rdfCanonicalizer.ts': { calls: 1, marks: 0, why: 'canonicalisation' },
   'src/lib/w3cRulesSuite/manifest.ts': { calls: 1, marks: 0, why: 'the suite manifest' },
   'src/system-store/SystemStoreLoader.ts': { calls: 1, marks: 0, why: 'the system store' },
-  'src/auth/AuthStore.ts': { calls: 6, marks: 0, why: 'its own store and its own persistence' },
+  'src/auth/AuthStore.ts': { calls: 10, marks: 0, why: 'its own store and its own persistence' },
   // `AuthStore.load`, which is not an oxigraph store at all — it takes a seed
   // path. Listed because the scan reads receivers, not types.
   'src/auth/bootstrap.ts': { calls: 1, marks: 0, why: 'AuthStore.load' },
+  // The file auth store's own mirror and a scratch store for parsing; both are
+  // built here and written to their file, never checkpointed by the manager.
+  'src/auth/persistence.ts': { calls: 2, marks: 0, why: 'its own stores, written to the auth file' },
 };
 
 /** A mutating call on an oxigraph store, however the variable is named. */

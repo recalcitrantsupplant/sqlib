@@ -91,3 +91,30 @@ export async function seedPatchDemoLibrary(
     fastifyApp.log.error({ err: error }, 'Failed to seed the RDF Patch demo; continuing without it');
   }
 }
+
+/**
+ * Optionally load the graph access demo: company data in three named graphs,
+ * an auth backend of access rules, a graph policy joining them, and grants.
+ *
+ * Off unless asked for, for the reason the rules suite gives.
+ * `just demo-graph-access` is what asks.
+ */
+export async function seedGraphAccessDemoLibrary(
+  fastifyApp: FastifyInstance,
+  featureFlags: FeatureFlags,
+): Promise<void> {
+  if (process.env.SEED_GRAPH_ACCESS_DEMO !== 'true') return;
+
+  if (!featureFlags.queries) {
+    fastifyApp.log.warn('SEED_GRAPH_ACCESS_DEMO is set but the queries feature is off; nothing seeded.');
+    return;
+  }
+
+  try {
+    const { seedGraphAccessDemo } = await import('../lib/graphAccessDemo/seed.js');
+    const result = await seedGraphAccessDemo(message => fastifyApp.log.info(message));
+    fastifyApp.log.info(result, 'Graph access demo library loaded');
+  } catch (error) {
+    fastifyApp.log.error({ err: error }, 'Failed to seed the graph access demo; continuing without it');
+  }
+}

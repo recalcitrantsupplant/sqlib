@@ -47,6 +47,12 @@ import { resolveDataGraphInput, DataGraphContentError } from '../lib/dataGraphIn
 import type { ExecutionDataGraphInput } from '../lib/orchestration/ExecutionEngine.js';
 import type { ArgumentSet as RuntimeArgumentSet } from '../lib/query-chaining.js';
 import { log } from '../lib/log.js';
+import {
+    contentTypeForSelectResults,
+    isSelectResults,
+    negotiateSelectResultsFormat,
+    renderSelectResults,
+} from '../lib/sparqlResultsFormats.js';
 
 // Alternative to import.meta for ES module compatibility
 const __dirname = path.dirname(new URL(import.meta.url).pathname);
@@ -205,6 +211,27 @@ const resultContentTypeFor = (result: unknown, preferredRdfMediaType?: string | 
         ? (preferredRdfMediaType || 'application/n-triples')
         : 'application/sparql-results+json';
 
+/**
+ * A SELECT result in the non-JSON format the caller's Accept names, or
+ * `undefined` to send it as before.
+ *
+ * Applied to the JSON a run produced, whatever produced it: Oxigraph answers
+ * only in JSON, a query group chains JSON between its nodes, and an HTTP
+ * endpoint may ignore the Accept it was sent. A result that is already a
+ * string is what the endpoint rendered for the Accept, and is left alone.
+ */
+const renderRequestedSelectFormat = (
+    result: unknown,
+    acceptHeader: string | undefined,
+): { body: string; contentType: string } | undefined => {
+    const mediaType = negotiateSelectResultsFormat(acceptHeader);
+    if (!mediaType || mediaType === 'application/sparql-results+json' || !isSelectResults(result)) return undefined;
+    return {
+        body: renderSelectResults(result, mediaType) as string,
+        contentType: contentTypeForSelectResults(mediaType),
+    };
+};
+
 function validateArgumentPayloadAgainstInputs(
     detected: ReturnType<SparqlQueryParser['detectInputs']>,
     runtimePayload: RuntimeArgumentPayload
@@ -355,7 +382,7 @@ export default async function (
             return duration;
         };
         let targetTypeForError: string | undefined;
-        let backendId = params.backendId;
+        const backendId = params.backendId;
         let ephemeralStoreId: string | null = null; // Track ephemeral store for cleanup
         // A caller who disconnects stops paying for the run they left: the
         // signal reaches every backend request and every group node.
@@ -379,9 +406,8 @@ export default async function (
             }
             targetTypeForError = targetEntity['@type'];
 
-            // Execute on the owning library gates the operation; the same
-            // library also enables curated access to its allowedBackends, which
-            // is why it is threaded into the factory rather than only checked here.
+            // Execute on the owning library gates the operation. The backend
+            // needs a grant of its own; library and backend grants are separate.
             const targetLibrary = resolveOwningLibrary(targetEntity);
             requireLibraryMode(request, targetLibrary, 'execute');
 
@@ -395,17 +421,16 @@ export default async function (
 
             // 3. Validate backendId based on target type
             if (targetTypeForError === 'Query' || targetTypeForError === 'QueryVersion') {
-                // A query runs on the backend the caller names, else the
-                // query's default, else its library's.
+                // A query runs on the backend the caller names, and only that.
+                // A default backend is a UI convenience: it picks the backend a
+                // client offers first, and the client then names it here.
                 if (!backendId) {
-                    const fallback = resolveQueryDefaultBackend(targetEntity, (id) => getCacheCoordinator().get(id));
-                    if (!fallback) {
-                        return reply.code(400).send({
-                            error: 'backendId is required: neither the query nor its library has a default backend'
-                        });
-                    }
-                    backendId = fallback.backendId;
-                    request.log.info(`No backendId given; using the ${fallback.source} default backend ${backendId}.`);
+                    const hint = resolveQueryDefaultBackend(targetEntity, (id) => getCacheCoordinator().get(id));
+                    return reply.code(400).send({
+                        error: hint
+                            ? `backendId is required. The ${hint.source}'s default backend is ${hint.backendId}.`
+                            : 'backendId is required.'
+                    });
                 }
             } else if (targetTypeForError === 'QueryGroup' || targetTypeForError === 'QueryGroupVersion') {
                 // Query group execution should NOT have backendId
@@ -788,6 +813,12 @@ export default async function (
                     });
                 }
 
+                const rendered = renderRequestedSelectFormat(result, request.headers.accept);
+                if (rendered) {
+                    reply.header('Content-Type', rendered.contentType);
+                    return reply.send(rendered.body);
+                }
+
                 // Set Content-Type based on result type
                 if (typeof result === 'string') {
                     // RDF string result (CONSTRUCT/DESCRIBE) - default to n-triples
@@ -843,6 +874,12 @@ export default async function (
                         nodes: nodeExecution.details,
                         resultContentType: resultContentTypeFor(result, preferredRdfMediaType),
                     });
+                }
+
+                const rendered = renderRequestedSelectFormat(result, request.headers.accept);
+                if (rendered) {
+                    reply.header('Content-Type', rendered.contentType);
+                    return reply.send(rendered.body);
                 }
 
                 // Set Content-Type based on result type
@@ -972,6 +1009,12 @@ export default async function (
                     const {result, duration, contentType} = await targetExecutor.selectQueryParsed(sparqlQueryString, {acceptHeader: finalAcceptHeader, signal, dataset});
                     dbDuration = duration;
                     executionStatus = 'success';
+                    const rendered = renderRequestedSelectFormat(result, finalAcceptHeader);
+                    if (rendered) {
+                        reply.header('Content-Type', rendered.contentType);
+                        setTimingHeader();
+                        return reply.send(rendered.body);
+                    }
                     // Set Content-Type header from backend response, or use default for SELECT JSON
                     if (contentType) {
                         reply.header('Content-Type', contentType);

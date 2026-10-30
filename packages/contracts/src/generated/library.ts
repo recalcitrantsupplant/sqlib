@@ -12,7 +12,6 @@ const iriString = z
 const optionalIriString = iriString.optional().nullable();
 const isoDateTime = z.string().datetime({ offset: true }).optional().nullable();
 const nullableString = z.string().optional().nullable();
-const optionalIriArray = z.array(iriString).optional().nullable();
 const nullableBoolean = z.boolean().optional().nullable();
 // Reusable field definitions for Library entity
 const libraryShape = {
@@ -20,7 +19,6 @@ const libraryShape = {
   name: z.string().min(1, 'Name is required'),
   description: nullableString,
   defaultBackend: optionalIriString,
-  allowedBackends: optionalIriArray,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
   slug: z.string().regex(/^[a-z0-9-]+$/, 'Must match [a-z0-9-]+').optional().nullable(),

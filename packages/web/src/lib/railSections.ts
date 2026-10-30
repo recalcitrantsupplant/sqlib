@@ -39,6 +39,7 @@ export const RAIL_SECTIONS = [
   'argumentSets',
   'mcp',
   'backends',
+  'access',
 ] as const;
 
 export type RailSection = (typeof RAIL_SECTIONS)[number];
@@ -62,7 +63,7 @@ export type RailSection = (typeof RAIL_SECTIONS)[number];
  * Nothing here serves the app and the API from one origin, but a reverse proxy
  * in front of both is an ordinary thing to build.
  */
-export const SCREEN_SECTIONS = ['notebooks', 'mcp'] as const;
+export const SCREEN_SECTIONS = ['notebooks', 'mcp', 'access'] as const;
 
 export type ScreenSection = (typeof SCREEN_SECTIONS)[number];
 
@@ -74,6 +75,7 @@ export function isScreenSection(section: RailSection): section is ScreenSection 
 export const SCREEN_SECTION_PATHS: Record<ScreenSection, string> = {
   notebooks: '/notebook',
   mcp: '/mcp-server',
+  access: '/access',
 };
 
 export function isRailSection(value: unknown): value is RailSection {

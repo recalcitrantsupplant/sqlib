@@ -63,6 +63,18 @@
             nothing. On the page they stay in the editor's header, beside the
             control that enlarges it.
           -->
+          <template #reading>
+            <GraphReadingClause
+              :dataset="graphDataset"
+              :backend-id="selectedBackend || null"
+              :backend-name="selectedBackendRecord?.name"
+              :policed="Boolean(selectedBackendRecord?.graphPolicyQueryVersion)"
+              :is-update="isUpdateQueryType(queryType)"
+              :asking-empty="askingEmptyRun"
+              @run-anyway="() => executeQuery({ allowEmptyDataset: true })"
+              @dismiss-empty="askingEmptyRun = false"
+            />
+          </template>
           <template #trailing>
             <QueryDocumentActions
               v-if="editorExpanded"
@@ -498,6 +510,8 @@ import ExpandRunStrip from './shared/ExpandRunStrip.vue';
 import { useEditorExpand } from '../composables/useEditorExpand';
 import { useEditorAsPrefixTarget } from '../composables/usePrefixTarget';
 import QueryResultsPanel from './query-work-area/QueryResultsPanel.vue';
+import GraphReadingClause from './query-work-area/GraphReadingClause.vue';
+import { datasetSummary, useGraphDataset } from '@/lib/graphDataset';
 import type { QueryExecutionResultPayload, QueryInspectorTab } from '@/types/execution';
 import { forgetLastRun, loadLastRun, runCacheKey, saveLastRun } from '@/lib/lastRunCache';
 import QueryDiffPane from './query-work-area/QueryDiffPane.vue';
@@ -718,6 +732,7 @@ const currentQueryId = ref<string | null>(null);
 
 // Backends cache
 const availableBackends = computed<ApiBackend[]>(() => backendsStore.backends.value);
+const selectedBackendRecord = computed(() => availableBackends.value.find((backend) => backend.id === selectedBackend.value) ?? null);
 const backendsLoading = computed(() => backendsStore.loading.value);
 const backendsError = computed(() => backendsStore.error.value);
 
@@ -845,6 +860,8 @@ const { isDirty, resetDirtyState } = useQueryDirtyState({
   loadedQueryString: loadedVersionQueryString,
 });
 
+const graphDataset = useGraphDataset();
+
 const { executionResult, isExecuting, executeQuery: executeQueryOriginal } = useQueryExecution({
   apiClient,
   toast,
@@ -868,6 +885,8 @@ const { executionResult, isExecuting, executeQuery: executeQueryOriginal } = use
    * argument set's either. What is on screen is what runs, arguments included.
    */
   getAdHocArguments: () => argumentSetsComposable.visibleValuesPayload(),
+  // An update names its graphs in its text; the dataset is for queries.
+  getDataset: () => (isUpdateQueryType(queryType.value) ? null : graphDataset.payload()),
   isDirty,
   queryCode,
 });
@@ -892,7 +911,15 @@ const {
 });
 
 // Wrap executeQuery to expand the results panel when executing
-const executeQuery = async () => {
+/** A run was asked for with no graphs chosen; the reading clause asks before it goes. */
+const askingEmptyRun = ref(false);
+
+const executeQuery = async (options: { allowEmptyDataset?: boolean } = {}) => {
+  askingEmptyRun.value = false;
+  if (!options.allowEmptyDataset && !isUpdateQueryType(queryType.value) && datasetSummary(graphDataset.payload()) === 'none') {
+    askingEmptyRun.value = true;
+    return;
+  }
   // Always expand the panel when executing (whether it was collapsed or not)
   rightPanelCollapsed.value = false;
 
@@ -1074,10 +1101,10 @@ const argumentSetLoading = computed(() => argumentSetsComposable.isLoading.value
 /**
  * The "with" clause.
  *
- * A query's inputs are its arguments, and there is exactly one term: either a
- * named set (saved or scratch) or whatever is typed into the Arguments
- * panel. Pressing it shows that panel — the values are a table, and a dropdown
- * is not somewhere you read one.
+ * A query's inputs are its arguments and, for a query that reads, its graphs.
+ * The arguments term is either a named set (saved or scratch) or whatever is
+ * typed into the Arguments panel. Pressing either term shows that panel — the
+ * values are a table, and a dropdown is not somewhere you read one.
  */
 const runInputs = computed<RunBarPick[]>(() => {
   const summary = argumentsSummary.value;

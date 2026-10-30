@@ -17,6 +17,11 @@ function hashPrincipal(issuer: string, rawValue: string): string {
   return createHash('sha256').update(`${issuer}|${rawValue}`).digest('hex').slice(0, 32);
 }
 
+/** True for a group principal IRI, as `principalIri('group', …)` makes them. */
+export function isGroupPrincipal(iri: string): boolean {
+  return iri.startsWith(`${PRINCIPAL_PREFIX}group:`);
+}
+
 export function principalIri(kind: PrincipalKind, issuer: string, rawValue: string): string {
   return `${PRINCIPAL_PREFIX}${kind}:${hashPrincipal(issuer, rawValue)}`;
 }
@@ -91,6 +96,25 @@ export interface DerivedPrincipals {
   tokenType: 'user' | 'client';
   /** Canonical IRI → raw claim value, for auth-graph principal descriptions. */
   rawByPrincipal: Map<string, string>;
+  /** A readable name for the subject, from `labelOf`. Undefined when the token has none. */
+  label?: string;
+}
+
+/**
+ * The claims, in order, that name a person: `email`, then `preferred_username`,
+ * then `name`. All three are standard OIDC claims; which ones an access token
+ * carries depends on the identity provider and the scopes asked for. Only for
+ * display: a principal is always its issuer and `sub`, which never change,
+ * where an email or a username can.
+ */
+export const LABEL_CLAIMS = ['email', 'preferred_username', 'name'] as const;
+
+export function labelOf(claims: Record<string, unknown>): string | undefined {
+  for (const claim of LABEL_CLAIMS) {
+    const value = claims[claim];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return undefined;
 }
 
 /**
@@ -130,5 +154,6 @@ export function derivePrincipals(params: {
     principals,
     tokenType: isClient ? 'client' : 'user',
     rawByPrincipal,
+    label: isClient ? undefined : labelOf(claims),
   };
 }

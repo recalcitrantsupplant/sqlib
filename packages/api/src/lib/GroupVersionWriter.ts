@@ -571,8 +571,7 @@ async function createGroupVersionFlatNumbered(
    * copying stored data into a payload, it is committing that the query will be
    * run. Checked at composition rather than at execution because that is where
    * the other three check, and because binding the *author* is what lets a
-   * library keep curating what its members may run — the same shape as
-   * `allowedBackends` (design §4.3 route 2). A caller who may execute the group
+   * library keep control of what its members may run. A caller who may execute the group
    * later still runs these legs; what it may not do is put them there.
    *
    * After `throwIfFailed`, so a reference that resolves to nothing is still the
@@ -582,10 +581,9 @@ async function createGroupVersionFlatNumbered(
    * "missing" and "wrong type" into one reason matters.
    *
    * A node's `backendId` is deliberately *not* checked here: a backend is not
-   * library-scoped, and `assertBackendAccess` checks it per leg at execution
-   * with the group's library as `viaLibrary`, which is where curated access is
-   * decided. Composing a group naming a backend the author cannot reach fails
-   * when it runs, which is the existing answer and not this sweep's to change.
+   * library-scoped, and `assertBackendAccess` checks the caller's backend
+   * grant per leg at execution. Composing a group naming a backend the author
+   * cannot reach fails when it runs, which is the existing answer and not this sweep's to change.
    */
   if (authScope) {
     for (const { field, reference } of composed) {

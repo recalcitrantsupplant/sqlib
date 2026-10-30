@@ -1,10 +1,9 @@
 /**
- * Which backend a query runs on when the caller names none.
+ * The default backend a client offers for a query: a UI convenience.
  *
  * The order is the query's own `defaultBackend`, then its library's. A query
- * version answers for its parent query. Nothing past the library is assumed:
- * a run with no backend and no default is refused rather than sent to the
- * in-memory store, because results from the wrong store look like real ones.
+ * version answers for its parent query. `/execute` never runs on it: a run
+ * must name its backend, and the refusal names this default as a hint.
  *
  * Query groups do not use this — each node names its own backend.
  */

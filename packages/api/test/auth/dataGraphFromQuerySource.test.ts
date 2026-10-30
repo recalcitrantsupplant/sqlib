@@ -10,8 +10,7 @@
  * text goes to a backend.
  *
  * So the guard required Write on the data graph's library, `assertBackendAccess`
- * required the backend to be reachable — through that same library's
- * `allowedBackends`, which is how curated execution is meant to work — and
+ * required the backend to be reachable through a backend grant, and
  * nothing at all asked whether the caller may run the query. Write on one
  * library ran any other library's saved query and kept the graph it produced.
  *
@@ -102,7 +101,7 @@ function contextWith(grants: Array<[library: string, modes: LibraryMode[]]>): Au
     tokenType: 'user',
     grants: {
       admin: false,
-      backends: new Map([[BACKEND, new Set(['use'] as const)]]),
+      backends: new Map([[BACKEND, new Set(['query:adhoc'] as const)]]),
       libraries: new Map(grants.map(([library, modes]) => [library, new Set(modes)])),
     },
     claims: {},
@@ -158,8 +157,8 @@ const CONSTRUCT = 'CONSTRUCT { ?s <http://ex/p> ?o } WHERE { ?s <http://ex/p> ?o
 
 beforeEach(() => {
   store.entities = new Map<string, Record<string, unknown>>([
-    [MINE, { '@type': 'Library', $id: MINE, name: 'Hydrology', allowedBackends: [BACKEND] }],
-    [THEIRS, { '@type': 'Library', $id: THEIRS, name: 'Payroll', allowedBackends: [BACKEND] }],
+    [MINE, { '@type': 'Library', $id: MINE, name: 'Hydrology' }],
+    [THEIRS, { '@type': 'Library', $id: THEIRS, name: 'Payroll' }],
     [GRAPH, { '@type': 'DataGraph', $id: GRAPH, name: 'Catchment graph', isPartOf: [MINE] }],
     [BACKEND, { '@type': 'Backend', $id: BACKEND, name: 'Shared store', backendType: BackendTypeIri.oxigraphEphemeral }],
     ['urn:sqlib:query:salaries', { '@type': 'Query', $id: 'urn:sqlib:query:salaries', isPartOf: [THEIRS] }],
@@ -205,9 +204,8 @@ describe('a query version in a library the caller holds nothing on', () => {
   });
 
   it('is refused although the backend itself is reachable', async () => {
-    // The point of separating the two: `allowedBackends` on the graph's own
-    // library makes the backend legitimate, and says nothing about whose query
-    // may be sent to it.
+    // The point of separating the two: a grant on the backend makes it
+    // reachable, and says nothing about whose query may be sent to it.
     const response = await fromQuery(graphAuthor, THEIR_QUERY_VERSION);
 
     expect(response.statusCode).toBe(403);

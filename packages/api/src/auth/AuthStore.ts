@@ -1,8 +1,9 @@
 /**
  * The AuthStore: grants as RDF in a dedicated graph, mirrored in memory (design §5).
  *
- * Grants live in the `urn:sqlib:auth` named graph of the library storage backend
- * and are mirrored into in-process indexes at startup. Reads (every request)
+ * Grants live in the `urn:sqlib:auth` graph of an auth store of their own
+ * (`persistence.ts`), never in the library store, and are mirrored into
+ * in-process indexes at startup. Reads (every request)
  * never leave memory; writes go through the single `/auth` API path and are
  * persisted synchronously before the indexes are rebuilt.
  *
@@ -31,6 +32,9 @@ import {
  */
 const SEED_MARKER_IRI = 'urn:sqlib:auth:seed-state';
 
+/** Stands for "seen, with no groups" in `auth:memberOf`; never a real group. */
+const NO_GROUPS_IRI = 'urn:sqlib:auth:no-groups';
+
 export type GrantResourceKind = 'library' | 'backend' | 'everything';
 
 export interface Grant {
@@ -49,6 +53,14 @@ export interface PrincipalRecord {
   rawClaim: string;
   kind: string;
   seenAt?: string;
+  /** A person's email, username or name from their last token, for display. */
+  label?: string;
+  /**
+   * For a user or client: the group principals its last token carried.
+   * Kept so an administrator can test a graph policy as that user; never
+   * consulted to decide a request, which reads the token in hand.
+   */
+  groups?: string[];
 }
 
 export interface CreateGrantInput {
@@ -133,6 +145,7 @@ export class AuthStore {
   private byBackend = new Map<string, Grant[]>();
   private adminPrincipals = new Set<string>();
   private principalRecords = new Map<string, PrincipalRecord>();
+  private groupsByUser = new Map<string, string[]>();
   private bootstrapAdmins = new Set<string>();
   private loaded = false;
 
@@ -222,8 +235,15 @@ export class AuthStore {
     this.byBackend = new Map();
     this.adminPrincipals = new Set(this.bootstrapAdmins);
     this.principalRecords = new Map();
+    this.groupsByUser = new Map();
 
     const graph = iriTerm(AUTH_GRAPH_IRI);
+
+    for (const quad of this.store.match(null, iriTerm(auth.memberOf), null, graph)) {
+      const groups = this.groupsByUser.get(quad.subject.value) ?? [];
+      if (quad.object.value !== NO_GROUPS_IRI) groups.push(quad.object.value);
+      this.groupsByUser.set(quad.subject.value, groups);
+    }
 
     for (const quad of this.store.match(null, iriTerm(RDF_TYPE), iriTerm(auth.Grant), graph)) {
       const grant = this.readGrant(quad.subject.value);
@@ -302,6 +322,7 @@ export class AuthStore {
       rawClaim,
       kind: this.objectsOf(iri, auth.principalKind)[0] ?? 'user',
       seenAt: this.objectsOf(iri, auth.seenAt)[0],
+      label: this.objectsOf(iri, auth.label)[0],
     };
   }
 
@@ -350,10 +371,14 @@ export class AuthStore {
   }
 
   listPrincipals(query?: string): PrincipalRecord[] {
-    const records = [...this.principalRecords.values()];
+    const records = [...this.principalRecords.values()].map(record => {
+      const groups = this.lastSeenGroups(record.iri);
+      return groups ? { ...record, groups } : record;
+    });
     if (!query) return records;
     const needle = query.toLowerCase();
-    return records.filter(record => record.rawClaim.toLowerCase().includes(needle));
+    return records.filter(record =>
+      record.rawClaim.toLowerCase().includes(needle) || record.label?.toLowerCase().includes(needle));
   }
 
   async createGrant(input: CreateGrantInput): Promise<Grant> {
@@ -425,12 +450,27 @@ export class AuthStore {
     return removed;
   }
 
+  /** Removes every grant naming a backend. Called when the backend is deleted. */
+  async deleteGrantsForBackend(backendIri: string): Promise<number> {
+    const grants = this.byBackend.get(backendIri) ?? [];
+    let removed = 0;
+    for (const grant of [...grants]) {
+      if (await this.deleteGrant(grant.id)) removed += 1;
+    }
+    return removed;
+  }
+
   /**
-   * Records a principal so admins can find it in the share dialog. Written at
-   * most once per principal per process — this is not a hot write path.
+   * Records a principal so admins can find it in the share dialog. Written
+   * once per principal, and again only when its label changes, so this is
+   * not a hot write path.
    */
-  async recordPrincipal(iri: string, rawClaim: string, kind: string): Promise<void> {
-    if (this.principalRecords.has(iri)) return;
+  async recordPrincipal(iri: string, rawClaim: string, kind: string, label?: string): Promise<void> {
+    const known = this.principalRecords.get(iri);
+    if (known) {
+      if (label && label !== known.label) await this.relabelPrincipal(known, label);
+      return;
+    }
 
     const graph = iriTerm(AUTH_GRAPH_IRI);
     const subject = iriTerm(iri);
@@ -446,9 +486,55 @@ export class AuthStore {
       ),
     ];
 
+    if (label) quads.push(oxigraph.quad(subject, iriTerm(auth.label), oxigraph.literal(label), graph));
+
     await this.persistence.apply({ insert: quads.map(quad => this.serializeQuad(quad)).join('\n') });
     for (const quad of quads) this.store.add(quad);
-    this.principalRecords.set(iri, { iri, rawClaim, kind });
+    this.principalRecords.set(iri, { iri, rawClaim, kind, ...(label ? { label } : {}) });
+  }
+
+  private async relabelPrincipal(record: PrincipalRecord, label: string): Promise<void> {
+    const graph = iriTerm(AUTH_GRAPH_IRI);
+    const subject = iriTerm(record.iri);
+    const removed = [...this.store.match(subject, iriTerm(auth.label), null, graph)];
+    const added = oxigraph.quad(subject, iriTerm(auth.label), oxigraph.literal(label), graph);
+    await this.persistence.apply({
+      delete: removed.length ? removed.map(quad => this.serializeQuad(quad)).join('\n') : undefined,
+      insert: this.serializeQuad(added),
+    });
+    for (const quad of removed) this.store.delete(quad);
+    this.store.add(added);
+    this.principalRecords.set(record.iri, { ...record, label });
+  }
+
+  /** The groups a user's last token carried, or undefined if none was seen. */
+  lastSeenGroups(user: string): string[] | undefined {
+    const groups = this.groupsByUser.get(user);
+    return groups ? [...groups].sort() : undefined;
+  }
+
+  /**
+   * Records the groups a user's token carried, replacing the last set.
+   * Written only when the set changes, so a steady user costs no write.
+   */
+  async recordGroups(user: string, groups: readonly string[]): Promise<void> {
+    const next = [...new Set(groups)].sort();
+    const previous = this.groupsByUser.get(user);
+    if (previous && previous.length === next.length && [...previous].sort().every((g, i) => g === next[i])) return;
+
+    const graph = iriTerm(AUTH_GRAPH_IRI);
+    const removed = [...this.store.match(iriTerm(user), iriTerm(auth.memberOf), null, graph)];
+    const added = next.map(group => oxigraph.quad(iriTerm(user), iriTerm(auth.memberOf), iriTerm(group), graph));
+    // Marks the user as seen with no groups, so `Test as` can tell "none" from "never seen".
+    const marker = oxigraph.quad(iriTerm(user), iriTerm(auth.memberOf), iriTerm(NO_GROUPS_IRI), graph);
+
+    await this.persistence.apply({
+      delete: removed.length ? removed.map(quad => this.serializeQuad(quad)).join('\n') : undefined,
+      insert: (next.length ? added : [marker]).map(quad => this.serializeQuad(quad)).join('\n'),
+    });
+    for (const quad of removed) this.store.delete(quad);
+    for (const quad of next.length ? added : [marker]) this.store.add(quad);
+    this.groupsByUser.set(user, next);
   }
 
   /** Test seam: drops all state without touching persistence. */

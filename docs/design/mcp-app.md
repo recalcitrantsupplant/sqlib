@@ -336,7 +336,7 @@ sqlib already has the pieces:
    graph that defines it. Editing the toy data means a new data-graph version and
    a reload, which is reproducible.
 3. The bench's backend selector lists it alongside the library's
-   `allowedBackends`, marked `toy`.
+   other backends, marked `toy`.
 
 The model is good at inventing ten triples that exercise a query, and terrible at
 knowing whether the real endpoint has them. Running against a graph it just wrote

@@ -31,7 +31,14 @@ describe('server/config', () => {
   });
 
   describe('default configuration', () => {
-    it('should use http backend with default values when no env vars set', async () => {
+    it('should use the sqlite backend when no env vars set', async () => {
+      const { config } = await import('../../src/server/config.js');
+
+      expect(config.internalBackend).toEqual({ type: 'sqlite', storageDir: path.resolve('./storage/library-store') });
+    });
+
+    it('should use http backend with default values when only the type is set', async () => {
+      process.env.INTERNAL_BACKEND_TYPE = 'http';
       const { config } = await import('../../src/server/config.js');
 
       expect(config.enableTimingLogs).toBe(true);
@@ -81,6 +88,7 @@ describe('server/config', () => {
 
   describe('HTTP backend configuration', () => {
     it('should use custom SPARQL endpoint when provided', async () => {
+      process.env.INTERNAL_BACKEND_TYPE = 'http';
       process.env.LIBRARY_STORAGE_SPARQL_ENDPOINT = 'http://example.com:8080/fuseki/dataset';
 
       const { config } = await import('../../src/server/config.js');
@@ -96,6 +104,7 @@ describe('server/config', () => {
     });
 
     it('should not add /sparql suffix if endpoint already ends with /sparql', async () => {
+      process.env.INTERNAL_BACKEND_TYPE = 'http';
       process.env.LIBRARY_STORAGE_SPARQL_ENDPOINT = 'http://example.com/fuseki/dataset/sparql';
 
       const { config } = await import('../../src/server/config.js');
@@ -106,6 +115,7 @@ describe('server/config', () => {
     });
 
     it('should use custom update endpoint when provided', async () => {
+      process.env.INTERNAL_BACKEND_TYPE = 'http';
       process.env.LIBRARY_STORAGE_SPARQL_ENDPOINT = 'http://example.com/fuseki/dataset';
       process.env.LIBRARY_STORAGE_SPARQL_UPDATE_ENDPOINT = 'http://example.com/custom';
 
@@ -117,6 +127,7 @@ describe('server/config', () => {
     });
 
     it('should configure basic auth when username and password provided', async () => {
+      process.env.INTERNAL_BACKEND_TYPE = 'http';
       process.env.LIBRARY_STORAGE_SPARQL_ENDPOINT = 'http://example.com/fuseki/dataset';
       process.env.LIBRARY_STORAGE_SPARQL_USERNAME = 'admin';
       process.env.LIBRARY_STORAGE_SPARQL_PASSWORD = 'secret123';
@@ -130,6 +141,7 @@ describe('server/config', () => {
     });
 
     it('should handle partial auth configuration (username only)', async () => {
+      process.env.INTERNAL_BACKEND_TYPE = 'http';
       process.env.LIBRARY_STORAGE_SPARQL_USERNAME = 'admin';
 
       const { config } = await import('../../src/server/config.js');
@@ -141,6 +153,7 @@ describe('server/config', () => {
     });
 
     it('should handle partial auth configuration (password only)', async () => {
+      process.env.INTERNAL_BACKEND_TYPE = 'http';
       process.env.LIBRARY_STORAGE_SPARQL_PASSWORD = 'secret123';
 
       const { config } = await import('../../src/server/config.js');
@@ -227,34 +240,30 @@ describe('server/config', () => {
   });
 
   describe('backend type handling', () => {
-    it('should default to http for unknown backend types', async () => {
+    it('should refuse an unknown backend type', async () => {
       process.env.INTERNAL_BACKEND_TYPE = 'unknown-type';
 
-      const { config } = await import('../../src/server/config.js');
-
-      expect(config.internalBackend.type).toBe('http');
+      await expect(import('../../src/server/config.js')).rejects.toThrow(/Invalid INTERNAL_BACKEND_TYPE "unknown-type"/);
     });
 
-    it('should default to http for empty backend type', async () => {
+    it('should default to sqlite for an empty backend type', async () => {
       process.env.INTERNAL_BACKEND_TYPE = '';
 
       const { config } = await import('../../src/server/config.js');
 
-      expect(config.internalBackend.type).toBe('http');
+      expect(config.internalBackend).toEqual({ type: 'sqlite', storageDir: path.resolve('./storage/library-store') });
     });
 
     it('should be case sensitive for backend type', async () => {
       process.env.INTERNAL_BACKEND_TYPE = 'OXIGRAPH-MEMORY';
 
-      const { config } = await import('../../src/server/config.js');
-
-      // Should default to http since case doesn't match
-      expect(config.internalBackend.type).toBe('http');
+      await expect(import('../../src/server/config.js')).rejects.toThrow(/Invalid INTERNAL_BACKEND_TYPE/);
     });
   });
 
   describe('edge cases and combinations', () => {
     it('should handle complex HTTP endpoint URLs', async () => {
+      process.env.INTERNAL_BACKEND_TYPE = 'http';
       process.env.LIBRARY_STORAGE_SPARQL_ENDPOINT = 'https://secure.example.com:9999/complex/path/to/fuseki/dataset';
 
       const { config } = await import('../../src/server/config.js');
@@ -267,6 +276,7 @@ describe('server/config', () => {
     });
 
     it('should handle endpoint URLs with trailing slashes', async () => {
+      process.env.INTERNAL_BACKEND_TYPE = 'http';
       process.env.LIBRARY_STORAGE_SPARQL_ENDPOINT = 'http://example.com/fuseki/dataset/';
 
       const { config } = await import('../../src/server/config.js');
@@ -303,6 +313,7 @@ describe('server/config', () => {
     });
 
     it('should handle empty string environment variables', async () => {
+      process.env.INTERNAL_BACKEND_TYPE = 'http';
       process.env.LIBRARY_STORAGE_SPARQL_USERNAME = '';
       process.env.LIBRARY_STORAGE_SPARQL_PASSWORD = '';
       process.env.INTERNAL_OXIGRAPH_DB_PATH = '';

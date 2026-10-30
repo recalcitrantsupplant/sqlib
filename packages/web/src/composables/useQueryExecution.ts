@@ -65,6 +65,12 @@ export interface UseQueryExecutionDeps {
     limits?: { name: string; value: number }[];
     offsets?: { name: string; value: number }[];
   } | null;
+  /**
+   * The graphs the run reads, from the Arguments tab. Null runs against the
+   * backend's whole dataset. Both paths send it, as `/sparql` and `/execute`
+   * take the same fields.
+   */
+  getDataset?: () => { defaultGraphs?: string[]; namedGraphs?: string[] } | null;
   isDirty?: Ref<boolean>;
   queryCode?: Ref<string>;
 }
@@ -181,6 +187,7 @@ export function useQueryExecution(deps: UseQueryExecutionDeps) {
           query: deps.queryCode.value,
           backendId: deps.selectedBackend.value,
           ...(adHocArguments ?? {}),
+          ...(deps.getDataset?.() ?? {}),
         } as SparqlRequest,
         deps.selectedMediaType.value
       );
@@ -220,6 +227,7 @@ export function useQueryExecution(deps: UseQueryExecutionDeps) {
         const inline = deps.getInlineArguments?.();
         if (inline) Object.assign(payload, inline);
       }
+      Object.assign(payload, deps.getDataset?.() ?? {});
 
       const response = await deps.apiClient.executeTarget(payload as ExecutionRequest, deps.selectedMediaType.value);
       parseExecutionResponse(response);

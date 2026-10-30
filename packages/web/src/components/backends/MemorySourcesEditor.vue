@@ -59,16 +59,46 @@
         </button>
       </div>
 
+      <!--
+        Says what the field does to the store, not what it is: the IRI is the
+        graph name this backend's store loads the data under (Oxigraph's
+        `to_graph_name`), not an id for the data graph in sqlib. It wins over
+        any graph N-Quads lines name themselves (`dataGraphHydration.ts`).
+
+        Quads already say which graph each line is in, so for them the field
+        starts folded behind a link: an open empty box reads as a box to fill.
+      -->
+      <button
+        v-if="isQuads(row) && !row.namedGraph && !row.namedGraphOpen"
+        class="named-graph-reveal"
+        type="button"
+        :disabled="disabled"
+        data-testid="source-named-graph-reveal"
+        @click="row.namedGraphOpen = true"
+      >
+        <Plus :size="11" />Load into one graph IRI instead
+      </button>
       <input
+        v-else
         v-model="row.namedGraph"
         type="text"
         class="named-graph-input"
         :disabled="disabled"
-        placeholder="Named graph IRI (optional — default graph if empty)"
-        aria-label="Named graph"
+        placeholder="Load into graph IRI (optional — empty loads into the default graph)"
+        title="This backend's store loads the data into the graph with this IRI. Queries reach it with GRAPH or FROM. It also replaces any graph that N-Quads lines name."
+        aria-label="Graph IRI to load into"
         data-testid="source-named-graph"
         @change="emitChange"
       />
+      <p
+        v-if="isQuads(row) && row.namedGraph.trim()"
+        class="named-graph-warning"
+        role="status"
+        data-testid="source-named-graph-warning"
+      >
+        <TriangleAlert :size="12" />
+        This data is quads. Every quad loads into this graph, and the graphs the data names are replaced.
+      </p>
     </div>
 
     <button
@@ -85,7 +115,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { Plus, X } from '@lucide/vue';
+import { Plus, TriangleAlert, X } from '@lucide/vue';
 import InlineNote from '../shared/InlineNote.vue';
 import SearchSelect from '../shared/SearchSelect.vue';
 import SegmentedToggle from '../shared/SegmentedToggle.vue';
@@ -126,6 +156,8 @@ interface SourceRow {
   pin: 'head' | 'version';
   versionId: string;
   namedGraph: string;
+  /** The graph IRI field is shown even though the data is quads. */
+  namedGraphOpen?: boolean;
 }
 
 const store = useDataGraphsStore();
@@ -147,6 +179,21 @@ function knownGraph(graphId: string): boolean {
 
 function versionsOf(graphId: string) {
   return graphId ? store.versionsFor(graphId).value : [];
+}
+
+/** The format of the version this row loads: the pinned one, or the graph's head. */
+function formatOf(row: SourceRow): string | undefined {
+  const versionId = row.pin === 'version'
+    ? row.versionId
+    : dataGraphs.value.find((graph) => graph.id === row.graphId)?.currentVersion;
+  if (!versionId) return undefined;
+  return versionsOf(row.graphId).find((version) => version.id === versionId)?.contentFormat;
+}
+
+/** Quads name their own graphs, so the graph IRI field is an override rather than a need. */
+function isQuads(row: SourceRow): boolean {
+  const format = formatOf(row);
+  return format === 'application/n-quads' || format === 'application/trig';
 }
 
 function knownVersion(row: SourceRow): boolean {
@@ -200,6 +247,7 @@ watch(
     if (incoming === '[]' && rows.value.length > 0 && toWireSources(rows.value).length === 0) return;
     rows.value = rowsFromSources(sources);
     void resolvePinnedGraphs();
+    for (const row of rows.value) void ensureVersionsLoaded(row.graphId);
   },
   { immediate: true, deep: true },
 );
@@ -251,7 +299,8 @@ function graphOptionsFor(row: SourceRow) {
 
 function onGraphChange(row: SourceRow) {
   row.versionId = '';
-  if (row.pin === 'version') void ensureVersionsLoaded(row.graphId);
+  // Both pins need the versions: the format decides whether the IRI field shows.
+  void ensureVersionsLoaded(row.graphId);
   emitChange();
 }
 
@@ -312,6 +361,33 @@ function removeRow(row: SourceRow) {
   color: var(--ink);
   font-family: inherit;
   font-size: var(--text-body);
+}
+
+.named-graph-reveal {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--ink-muted);
+  font-family: inherit;
+  font-size: var(--text-label);
+  cursor: pointer;
+}
+
+.named-graph-reveal:hover:not(:disabled) {
+  color: var(--ink);
+}
+
+.named-graph-warning {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-label);
+  color: var(--warning-ink);
 }
 
 .source-select:focus {

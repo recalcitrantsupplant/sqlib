@@ -247,8 +247,8 @@ export class TestRunner {
    *
    * The subject is the saved entity being executed, so its library is both
    * what the caller must hold `execute` on — a test in a library you can run
-   * may still name a subject in one you cannot — and the library whose curated
-   * backends the run may reach (`viaLibrary`).
+   * may still name a subject in one you cannot. The backends need grants of
+   * their own.
    */
   private executorFactoryFor(subjectId: string): ExecutorFactory {
     if (isInternalExecution(this.scope)) return new ExecutorFactory(this.scope);
