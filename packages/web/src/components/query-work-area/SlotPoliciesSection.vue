@@ -5,7 +5,7 @@
     with the next version, like an edit to the text.
   -->
   <section v-if="slots.length > 0" class="slot-policies" data-testid="slot-policies">
-    <div class="slot-policies-label">If a parameter gets no value</div>
+    <SectionLabel>If a parameter gets no value</SectionLabel>
     <div
       v-for="slot in slots"
       :key="slot.vars.join(' ')"
@@ -27,14 +27,16 @@
         </option>
       </select>
     </div>
-    <p class="slot-policies-hint">
+    <InlineNote>
       "Fail the run" stops a run that would scan every value of the parameter.
       Saved with the next version.
-    </p>
+    </InlineNote>
   </section>
 </template>
 
 <script setup lang="ts">
+import SectionLabel from '../shared/SectionLabel.vue';
+import InlineNote from '../shared/InlineNote.vue';
 import { WHEN_EMPTY_OPTIONS, isWhenEmptyMode, type WhenEmptyMode } from '@/lib/slotPolicies';
 
 defineProps<{
@@ -55,14 +57,6 @@ function onChange(vars: string[], value: string) {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-}
-
-.slot-policies-label {
-  color: var(--ink-muted);
-  font-size: var(--text-label);
-  font-weight: var(--weight-semibold);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
 }
 
 .slot-policy-row {
@@ -110,11 +104,5 @@ function onChange(vars: string[], value: string) {
   outline: var(--focus-ring-width) solid var(--focus-ring);
   outline-offset: 1px;
   border-color: var(--action-border);
-}
-
-.slot-policies-hint {
-  margin: 0;
-  color: var(--ink-muted);
-  font-size: var(--text-label);
 }
 </style>
