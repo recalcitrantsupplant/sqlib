@@ -47,6 +47,12 @@ import { resolveDataGraphInput, DataGraphContentError } from '../lib/dataGraphIn
 import type { ExecutionDataGraphInput } from '../lib/orchestration/ExecutionEngine.js';
 import type { ArgumentSet as RuntimeArgumentSet } from '../lib/query-chaining.js';
 import { log } from '../lib/log.js';
+import {
+    contentTypeForSelectResults,
+    isSelectResults,
+    negotiateSelectResultsFormat,
+    renderSelectResults,
+} from '../lib/sparqlResultsFormats.js';
 
 // Alternative to import.meta for ES module compatibility
 const __dirname = path.dirname(new URL(import.meta.url).pathname);
@@ -204,6 +210,27 @@ const resultContentTypeFor = (result: unknown, preferredRdfMediaType?: string | 
     typeof result === 'string'
         ? (preferredRdfMediaType || 'application/n-triples')
         : 'application/sparql-results+json';
+
+/**
+ * A SELECT result in the non-JSON format the caller's Accept names, or
+ * `undefined` to send it as before.
+ *
+ * Applied to the JSON a run produced, whatever produced it: Oxigraph answers
+ * only in JSON, a query group chains JSON between its nodes, and an HTTP
+ * endpoint may ignore the Accept it was sent. A result that is already a
+ * string is what the endpoint rendered for the Accept, and is left alone.
+ */
+const renderRequestedSelectFormat = (
+    result: unknown,
+    acceptHeader: string | undefined,
+): { body: string; contentType: string } | undefined => {
+    const mediaType = negotiateSelectResultsFormat(acceptHeader);
+    if (!mediaType || mediaType === 'application/sparql-results+json' || !isSelectResults(result)) return undefined;
+    return {
+        body: renderSelectResults(result, mediaType) as string,
+        contentType: contentTypeForSelectResults(mediaType),
+    };
+};
 
 function validateArgumentPayloadAgainstInputs(
     detected: ReturnType<SparqlQueryParser['detectInputs']>,
@@ -788,6 +815,12 @@ export default async function (
                     });
                 }
 
+                const rendered = renderRequestedSelectFormat(result, request.headers.accept);
+                if (rendered) {
+                    reply.header('Content-Type', rendered.contentType);
+                    return reply.send(rendered.body);
+                }
+
                 // Set Content-Type based on result type
                 if (typeof result === 'string') {
                     // RDF string result (CONSTRUCT/DESCRIBE) - default to n-triples
@@ -843,6 +876,12 @@ export default async function (
                         nodes: nodeExecution.details,
                         resultContentType: resultContentTypeFor(result, preferredRdfMediaType),
                     });
+                }
+
+                const rendered = renderRequestedSelectFormat(result, request.headers.accept);
+                if (rendered) {
+                    reply.header('Content-Type', rendered.contentType);
+                    return reply.send(rendered.body);
                 }
 
                 // Set Content-Type based on result type
@@ -972,6 +1011,12 @@ export default async function (
                     const {result, duration, contentType} = await targetExecutor.selectQueryParsed(sparqlQueryString, {acceptHeader: finalAcceptHeader, signal, dataset});
                     dbDuration = duration;
                     executionStatus = 'success';
+                    const rendered = renderRequestedSelectFormat(result, finalAcceptHeader);
+                    if (rendered) {
+                        reply.header('Content-Type', rendered.contentType);
+                        setTimingHeader();
+                        return reply.send(rendered.body);
+                    }
                     // Set Content-Type header from backend response, or use default for SELECT JSON
                     if (contentType) {
                         reply.header('Content-Type', contentType);
