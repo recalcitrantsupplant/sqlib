@@ -145,6 +145,32 @@ export function resolveDataGraphSource(source: OxigraphDataGraphSource): Resolve
 }
 
 /**
+ * Load one source's content, into its named graph when it has one.
+ *
+ * The named graph wins over any graph the content names itself: a source with
+ * an IRI puts all of its data in that graph, so an access rule written for the
+ * graph covers the whole source. `to_graph_name` alone moves only the default
+ * graph, which leaves N-Quads lines that name a graph where they were — so
+ * N-Quads goes through a scratch store and has every graph rewritten.
+ */
+function loadSource(store: oxigraph.Store, entry: ResolvedDataGraphSource): void {
+  if (!entry.namedGraph) {
+    store.load(entry.content, { format: entry.format });
+    return;
+  }
+  const graph = oxigraph.namedNode(entry.namedGraph);
+  if (entry.format !== 'application/n-quads') {
+    store.load(entry.content, { format: entry.format, to_graph_name: graph });
+    return;
+  }
+  const scratch = new oxigraph.Store();
+  scratch.load(entry.content, { format: entry.format });
+  for (const quad of scratch.match()) {
+    store.add(oxigraph.quad(quad.subject, quad.predicate, quad.object, graph));
+  }
+}
+
+/**
  * Load every configured source into `store`, in order.
  *
  * The store is not cleared first — callers hydrate a store they just created,
@@ -163,11 +189,7 @@ export function hydrateStoreFromDataGraphs(
   for (const source of sources ?? []) {
     const entry = resolveDataGraphSource(source);
     if (entry.content.trim()) {
-      const options: { format: string; to_graph_name?: oxigraph.NamedNode } = { format: entry.format };
-      if (entry.namedGraph) {
-        options.to_graph_name = oxigraph.namedNode(entry.namedGraph);
-      }
-      store.load(entry.content, options);
+      loadSource(store, entry);
       // A hydrated store differs from whatever snapshot it has on disk, so the
       // next periodic checkpoint has to write rather than skip (#443).
       markStoreWritten(store);
