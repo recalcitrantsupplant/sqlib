@@ -26,7 +26,6 @@
             <div class="pop-head">
               <div class="title-row">
                 <h3 class="pop-title">Graphs this query reads</h3>
-                <InlineNote as="span" size="xs">instead of FROM</InlineNote>
               </div>
               <span class="which">
                 <SegmentedToggle
