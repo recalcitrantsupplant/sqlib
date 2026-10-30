@@ -249,6 +249,58 @@ async function createGroupVersionFlatNumbered(
     return merged;
   };
 
+  /*
+   * A port's shape: its type, and for a tuple its variable names in member
+   * order. Read from what this payload stages first, then from the store,
+   * because a re-saved port is staged under a freshly minted IRI.
+   */
+  const portSignature = (id: string, stagedById: Map<string, AnyRecord>): string => {
+    const lookup = (ref: unknown) =>
+      (typeof ref === 'string' ? stagedById.get(ref) ?? cacheCoordinator.get(ref) : null) as AnyRecord | null;
+    const entity = lookup(id);
+    if (!entity) return `missing:${id}`;
+    const type = String(entity['@type'] ?? '');
+    const members = ((entity.memberEntries as unknown[] | undefined) ?? [])
+      .map((memberId) => lookup(memberId))
+      .filter((member): member is AnyRecord => !!member)
+      .map((member) => ({
+        position: typeof member.position === 'number' ? member.position : 0,
+        name: String(lookup(member.variable)?.variableName ?? ''),
+      }))
+      .sort((a, b) => a.position - b.position)
+      .map((member) => member.name);
+    return `${type}:${members.join(',')}`;
+  };
+
+  /*
+   * The query version's own ports, less those the payload already carries a
+   * copy of.
+   *
+   * A saved version holds copies of its nodes' ports: every IRI the canvas
+   * re-saves is re-minted (above), so the copy has an IRI of its own. Adding
+   * the query version's inferred port beside that copy gave the node one more
+   * port of the same shape on every save. Each declared port covers one
+   * inferred port of the same shape; an inferred port nothing covers is still
+   * added, which is what gives a freshly assigned node its ports.
+   */
+  const inferredNotDeclared = (inferred: string[], declared: string[]): string[] => {
+    const stagedById = new Map(staged.map((entity) => [entity.payload.$id, entity.payload as AnyRecord]));
+    const cover = new Map<string, number>();
+    for (const id of declared) {
+      if (inferred.includes(id)) continue;
+      const signature = portSignature(id, stagedById);
+      cover.set(signature, (cover.get(signature) ?? 0) + 1);
+    }
+    return inferred.filter((id) => {
+      if (declared.includes(id)) return true;
+      const signature = portSignature(id, stagedById);
+      const left = cover.get(signature) ?? 0;
+      if (left === 0) return true;
+      cover.set(signature, left - 1);
+      return false;
+    });
+  };
+
   const nodeIds: string[] = [];
 
   for (const [i, n] of executionNodes.entries()) {
@@ -397,13 +449,21 @@ async function createGroupVersionFlatNumbered(
       : nodeType === 'PatchNode' ? 'PatchNode'
       : 'QueryNode';
 
+    const declaredInputs = (await refs.resolveAll(at('inputs'), n.inputs, IO_REF)).filter((x): x is string => !!x);
+    const declaredOutputs = (await refs.resolveAll(at('outputs'), n.outputs, IO_REF)).filter((x): x is string => !!x);
     const inputs = mergeUnique(
-      (queryVersion?.inferredInputs || []).map((x: string) => iriMap[x] || x),
-      await refs.resolveAll(at('inputs'), n.inputs, IO_REF),
+      inferredNotDeclared(
+        (queryVersion?.inferredInputs || []).map((x: string) => iriMap[x] || x),
+        declaredInputs,
+      ),
+      declaredInputs,
     );
     const outputs = mergeUnique(
-      (queryVersion?.inferredOutputs || []).map((x: string) => iriMap[x] || x),
-      await refs.resolveAll(at('outputs'), n.outputs, IO_REF),
+      inferredNotDeclared(
+        (queryVersion?.inferredOutputs || []).map((x: string) => iriMap[x] || x),
+        declaredOutputs,
+      ),
+      declaredOutputs,
     );
 
     if (entityType !== 'PatchNode') {

@@ -14,7 +14,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {meter} from '../lib/logger.js';
 import {ValueType} from '@opentelemetry/api';
-import {OUTPUT_MEDIA_TYPE_VALUES, PATCH_MEDIA_TYPES} from '../types/media-types.js';
+import {OUTPUT_MEDIA_TYPE_VALUES, PATCH_MEDIA_TYPES, RDF_MEDIA_TYPES} from '../types/media-types.js';
 import {previewUpdate, PatchTargetError, toRdfPatchDocument} from '../lib/patchService.js';
 import {UnsupportedUpdateError} from '@sparql-query-lib/rdf-delta';
 import {
@@ -208,8 +208,22 @@ const resolvePreferredRdfMediaType = (acceptHeader?: string | null, fallback?: s
  */
 const resultContentTypeFor = (result: unknown, preferredRdfMediaType?: string | null): string =>
     typeof result === 'string'
-        ? (preferredRdfMediaType || 'application/n-triples')
+        ? rdfStringMediaType(preferredRdfMediaType)
         : 'application/sparql-results+json';
+
+/**
+ * The type of a result that came back as a string of RDF. The preference is
+ * read from the Accept header, which for a client that asked for SPARQL JSON
+ * names a results format. A graph cannot be one, so an RDF result labelled
+ * with it read as broken JSON. Fall back to N-Triples, which is what the
+ * engine writes when it has no RDF format to honour.
+ */
+const STRING_RESULT_MEDIA_TYPES: readonly string[] = [
+    ...Object.values(RDF_MEDIA_TYPES),
+    PATCH_MEDIA_TYPES.RDF_PATCH,
+];
+const rdfStringMediaType = (preferred?: string | null): string =>
+    preferred && STRING_RESULT_MEDIA_TYPES.includes(preferred) ? preferred : 'application/n-triples';
 
 /**
  * A SELECT result in the non-JSON format the caller's Accept names, or
@@ -822,7 +836,7 @@ export default async function (
                 // Set Content-Type based on result type
                 if (typeof result === 'string') {
                     // RDF string result (CONSTRUCT/DESCRIBE) - default to n-triples
-                    reply.header('Content-Type', preferredRdfMediaType || 'application/n-triples');
+                    reply.header('Content-Type', rdfStringMediaType(preferredRdfMediaType));
                 } else if (typeof result === 'object' && result !== null) {
                     // JSON result (SELECT) - default to SPARQL JSON
                     reply.header('Content-Type', 'application/sparql-results+json');
@@ -885,7 +899,7 @@ export default async function (
                 // Set Content-Type based on result type
                 if (typeof result === 'string') {
                     // RDF string result (CONSTRUCT/DESCRIBE) - default to n-triples
-                    reply.header('Content-Type', preferredRdfMediaType || 'application/n-triples');
+                    reply.header('Content-Type', rdfStringMediaType(preferredRdfMediaType));
                 } else if (typeof result === 'object' && result !== null) {
                     // JSON result (SELECT) - default to SPARQL JSON
                     reply.header('Content-Type', 'application/sparql-results+json');
