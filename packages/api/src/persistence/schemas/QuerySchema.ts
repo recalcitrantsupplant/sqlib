@@ -1,12 +1,12 @@
 /**
- * LDKit Schema for Query Entity (Stable Pointer)
+ * Entity schema for Query Entity (Stable Pointer)
  * 
  * Represents a stable query entity that points to versioned query implementations.
  * The stable IRI never changes, but currentVersion points to the latest QueryVersion.
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, sqlib, sdo } from '../namespaces.js';
+import { xsd, sqlib, sdo } from '../namespaces.js';
 
 export const QuerySchema = {
   '@type': sqlib.Query,
@@ -19,7 +19,7 @@ export const QuerySchema = {
   },
   currentVersion: {
     '@id': sqlib.currentVersion,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
     '@references': { types: ['QueryVersion'] },
     // The number lives on the version. Callers listing queries want it beside
@@ -29,19 +29,19 @@ export const QuerySchema = {
   },
   defaultBackend: {
     '@id': sqlib.defaultBackend,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   isPartOf: {
     '@id': sdo.isPartOf,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@references': { types: ['Library', 'QueryGroup'], exactlyOne: 'Library' },
   },
   tags: {
     '@id': sqlib.hasTag,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
     '@references': { types: ['Tag'] },
   },
@@ -53,7 +53,7 @@ export const QuerySchema = {
    */
   browserDefaultArgumentSet: {
     '@id': sqlib.browserDefaultArgumentSet,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
     '@readOnly': true,
     '@references': { types: ['ArgumentSet'] },
@@ -71,12 +71,12 @@ export const QuerySchema = {
   argumentSets: {
     '@id': sqlib.argumentSets,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
 } as const satisfies Schema;
 
-export interface LdkitQuery {
+export interface PersistedQuery {
   $id: string;
   '@type'?: 'Query';
   name: string;

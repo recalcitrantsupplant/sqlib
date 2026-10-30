@@ -18,9 +18,9 @@ import {
   mergeRuleSet,
   parseRuleSet,
 } from '@sparql-query-lib/srl';
-import type { LdkitRuleSetVersion } from '../persistence/schemas/RuleSetVersionSchema.js';
-import type { LdkitRuleVersion } from '../persistence/schemas/RuleVersionSchema.js';
-import type { LdkitDataBlockVersion } from '../persistence/schemas/DataBlockVersionSchema.js';
+import type { PersistedRuleSetVersion } from '../persistence/schemas/RuleSetVersionSchema.js';
+import type { PersistedRuleVersion } from '../persistence/schemas/RuleVersionSchema.js';
+import type { PersistedDataBlockVersion } from '../persistence/schemas/DataBlockVersionSchema.js';
 import { ruleAggregatesAllowed } from './ruleAggregates.js';
 
 /** The entity reads a document needs. */
@@ -95,11 +95,11 @@ export function toDataBlockText(dataString?: string | null): string | null {
 /** DataBlockVersion IDs referenced by a rule set version, resolved to entities. */
 export function loadDataBlockVersions(
   repos: { DataBlockVersion: { get: (id: string) => unknown } },
-  version: LdkitRuleSetVersion,
-): LdkitDataBlockVersion[] {
-  const out: LdkitDataBlockVersion[] = [];
+  version: PersistedRuleSetVersion,
+): PersistedDataBlockVersion[] {
+  const out: PersistedDataBlockVersion[] = [];
   for (const dataBlockVersionId of normalizeIdList(version.hasDataBlock)) {
-    const found = repos.DataBlockVersion.get(dataBlockVersionId) as LdkitDataBlockVersion | undefined;
+    const found = repos.DataBlockVersion.get(dataBlockVersionId) as PersistedDataBlockVersion | undefined;
     if (found) out.push(found);
   }
   return out;
@@ -108,11 +108,11 @@ export function loadDataBlockVersions(
 /** RuleVersion IDs referenced by a rule set version, resolved to entities. */
 export function loadRuleVersions(
   repos: { RuleVersion: { get: (id: string) => unknown } },
-  version: LdkitRuleSetVersion,
-): LdkitRuleVersion[] {
-  const out: LdkitRuleVersion[] = [];
+  version: PersistedRuleSetVersion,
+): PersistedRuleVersion[] {
+  const out: PersistedRuleVersion[] = [];
   for (const ruleVersionId of normalizeIdList(version.hasRule)) {
-    const found = repos.RuleVersion.get(ruleVersionId) as LdkitRuleVersion | undefined;
+    const found = repos.RuleVersion.get(ruleVersionId) as PersistedRuleVersion | undefined;
     if (found) out.push(found);
   }
   return out;
@@ -128,7 +128,7 @@ export function loadRuleVersions(
  */
 export function buildRuleSetDocument(
   repos: RuleSetDocumentRepos,
-  version: LdkitRuleSetVersion,
+  version: PersistedRuleSetVersion,
   prologue = '',
 ): RuleSetDocument {
   const ruleVersions = loadRuleVersions(repos, version);

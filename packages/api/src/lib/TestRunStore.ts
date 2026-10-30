@@ -29,8 +29,8 @@
 import { mintId } from './id.js';
 import { TestRuns, findAllTestRuns, findTestRunById } from '../persistence/utils/TestRunUtils.js';
 import { TestRunCases, findAllTestRunCases } from '../persistence/utils/TestRunCaseUtils.js';
-import type { LdkitTestRun, TestRunOutcome } from '../persistence/schemas/TestRunSchema.js';
-import type { LdkitTestRunCase } from '../persistence/schemas/TestRunCaseSchema.js';
+import type { PersistedTestRun, TestRunOutcome } from '../persistence/schemas/TestRunSchema.js';
+import type { PersistedTestRunCase } from '../persistence/schemas/TestRunCaseSchema.js';
 import type { TestCaseResult, TestRunResult } from './TestRunner.js';
 import type { TestReportEntry } from './reportFormats/index.js';
 import { isReadOnlyDeployment } from '../config/readOnly.js';
@@ -73,8 +73,8 @@ export interface TestRunRecord {
 
 /** A stored run with the case rows that belong to it, in position order. */
 export interface StoredTestRun {
-  run: LdkitTestRun;
-  cases: LdkitTestRunCase[];
+  run: PersistedTestRun;
+  cases: PersistedTestRunCase[];
 }
 
 /**
@@ -89,7 +89,7 @@ export function runOutcome(result: TestRunResult): TestRunOutcome {
   return result.passed ? 'passed' : 'failed';
 }
 
-function caseRow(runId: string, testCase: TestCaseResult): LdkitTestRunCase {
+function caseRow(runId: string, testCase: TestCaseResult): PersistedTestRunCase {
   const graphs = testCase.inputs?.dataGraphVersions ?? [];
   return {
     $id: mintId('testRunCase'),
@@ -108,7 +108,7 @@ function caseRow(runId: string, testCase: TestCaseResult): LdkitTestRunCase {
   };
 }
 
-function runRow(record: TestRunRecord): LdkitTestRun {
+function runRow(record: TestRunRecord): PersistedTestRun {
   const { result } = record;
   const now = new Date().toISOString();
   return {
@@ -134,7 +134,7 @@ function runRow(record: TestRunRecord): LdkitTestRun {
 }
 
 /** Oldest first, by the server's clock. The order every retention rule reads. */
-function byRanAt(a: LdkitTestRun, b: LdkitTestRun): number {
+function byRanAt(a: PersistedTestRun, b: PersistedTestRun): number {
   return (a.ranAt ?? '').localeCompare(b.ranAt ?? '');
 }
 
@@ -144,13 +144,13 @@ function byRanAt(a: LdkitTestRun, b: LdkitTestRun): number {
  * Pure, and exported for the tests: retention is a policy, and a policy that
  * can only be checked by writing to a store is a policy nobody checks.
  */
-export function runsToForget(runs: LdkitTestRun[]): LdkitTestRun[] {
+export function runsToForget(runs: PersistedTestRun[]): PersistedTestRun[] {
   const ordered = [...runs].sort(byRanAt);
   const keep = new Set<string>();
 
   for (const run of ordered.slice(-RUN_HISTORY_LIMIT)) keep.add(run.$id);
 
-  const transitions: LdkitTestRun[] = [];
+  const transitions: PersistedTestRun[] = [];
   let previous: TestRunOutcome | null = null;
   for (const run of ordered) {
     // The first run of a test is a transition in the sense that matters: it is
@@ -164,7 +164,7 @@ export function runsToForget(runs: LdkitTestRun[]): LdkitTestRun[] {
   return ordered.filter(run => !keep.has(run.$id));
 }
 
-async function insertRun(run: LdkitTestRun, cases: LdkitTestRunCase[]): Promise<void> {
+async function insertRun(run: PersistedTestRun, cases: PersistedTestRunCase[]): Promise<void> {
   // Nulls need no stripping here — an absent value produces no triple, which is
   // `EntitySerialiser`'s job and the reason the repositories take entities whole.
   await TestRuns.insert(run);
@@ -190,7 +190,7 @@ async function forget(runIds: string[]): Promise<void> {
  * verdicts arriving together, and pruning after each would re-read the whole
  * run history two hundred times. One read, one pass.
  */
-export async function recordTestRuns(records: TestRunRecord[]): Promise<LdkitTestRun[]> {
+export async function recordTestRuns(records: TestRunRecord[]): Promise<PersistedTestRun[]> {
   if (records.length === 0) return [];
   /*
    * A read-only deployment runs tests and keeps no history of having done so.
@@ -201,7 +201,7 @@ export async function recordTestRuns(records: TestRunRecord[]): Promise<LdkitTes
    * routes already treat the verdict, not the filing, as the caller's answer.
    */
   if (isReadOnlyDeployment()) return [];
-  const written: LdkitTestRun[] = [];
+  const written: PersistedTestRun[] = [];
   try {
     for (const record of records) {
       const run = runRow(record);
@@ -224,13 +224,13 @@ export async function recordTestRuns(records: TestRunRecord[]): Promise<LdkitTes
 }
 
 /** Record one run. The single-test route's spelling of the above. */
-export async function recordTestRun(record: TestRunRecord): Promise<LdkitTestRun | null> {
+export async function recordTestRun(record: TestRunRecord): Promise<PersistedTestRun | null> {
   const [written] = await recordTestRuns([record]);
   return written ?? null;
 }
 
 /** One test's runs, newest first. `limit` caps the answer, not the read. */
-export async function listTestRuns(testId: string, limit?: number): Promise<LdkitTestRun[]> {
+export async function listTestRuns(testId: string, limit?: number): Promise<PersistedTestRun[]> {
   const runs = (await findAllTestRuns())
     .filter(run => run.test === testId)
     .sort((a, b) => byRanAt(b, a));

@@ -1,12 +1,12 @@
 /**
  * Strongly typed vocabulary containers.
  *
- * Local replacement for LDKit's `createNamespace` (plan §3 Phase 5). The runtime
+ * sqlib's own `createNamespace` (plan §3 Phase 5). The runtime
  * behaviour is identical — terms concatenate onto the namespace IRI — so every
  * vocabulary in `namespaces.ts` keeps producing the exact IRIs already stored in
  * the data.
  *
- * One deliberate difference: LDKit typed a term as `` `${prefix}${term}` ``, so
+ * One deliberate difference from the library this replaced: it typed a term as `` `${prefix}${term}` ``, so
  * `xsd.dateTime` had the *type* `"xsd:dateTime"` while its *value* was the full
  * IRI. Nothing depended on that (the schemas are compared by value, and
  * `schemaIntrospection.ts` matches on IRIs), and a type that disagrees with its

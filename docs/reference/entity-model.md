@@ -98,7 +98,7 @@ server mint one.
 | `id` | In REST request and response bodies |
 
 The adapters in `packages/api/src/persistence/utils/id-adapter.ts` convert at
-the boundary — `toLdkit` on the way in, `toRestApi` on the way out — so no route
+the boundary — `toPersisted` on the way in, `toRestApi` on the way out — so no route
 handler does it by hand. In a schema definition, `'@id'` on a *property* means
 something else entirely: it names the RDF predicate that property maps to. Only
 `'@id'` on an entity is identity.
@@ -227,6 +227,6 @@ reports are written in W3C EARL, with DOAP, FOAF and Dublin Core terms for the
 subject and the assertor, so a conformance submission and an ordinary library
 test run produce the same shape of graph.
 
-`ldkit:IRI` marks a property whose object is an IRI reference rather than a
-literal. The vocabulary outlived the library it is named after: changing the IRI
-would be a data-format migration rather than a rename.
+`sqlib:IRI` marks a property whose object is an IRI reference rather than a
+literal. It is a schema marker only: it is never written into the stored data,
+where such a value is simply an IRI node.

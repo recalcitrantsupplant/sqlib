@@ -63,7 +63,7 @@ describe('file-ops', () => {
         name: { '@id': 'https://schema.org/name' },
         defaultBackend: {
           '@id': 'https://sparql-query-lib/defaultBackend',
-          '@type': 'https://ldkit.io/ontology/IRI',
+          '@type': 'https://sparql-query-lib/IRI',
           '@optional': true,
         },
       });

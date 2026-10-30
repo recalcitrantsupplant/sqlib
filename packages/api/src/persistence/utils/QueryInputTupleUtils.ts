@@ -1,10 +1,10 @@
 /**
- * LDKit utilities for QueryInputTuple entities
+ * entity utilities for QueryInputTuple entities
  */
 
-import { QueryInputTupleSchema, type LdkitQueryInputTuple } from '../schemas/QueryInputTupleSchema.js';
+import { QueryInputTupleSchema, type PersistedQueryInputTuple } from '../schemas/QueryInputTupleSchema.js';
 import { createRepositoryLens } from './entityRepository.js';
-import { toLdkit } from './id-adapter.js';
+import { toPersisted } from './id-adapter.js';
 import { log } from '../../lib/log.js';
 
 export const QueryInputTuples = createRepositoryLens(QueryInputTupleSchema);
@@ -12,10 +12,10 @@ export const QueryInputTuples = createRepositoryLens(QueryInputTupleSchema);
 /**
  * Find QueryInputTuple by ID
  */
-export async function findQueryInputTupleById(id: string): Promise<LdkitQueryInputTuple | null> {
+export async function findQueryInputTupleById(id: string): Promise<PersistedQueryInputTuple | null> {
   try {
     const tuple = await QueryInputTuples.findByIri(id);
-    return tuple ? (tuple as LdkitQueryInputTuple) : null;
+    return tuple ? (tuple as PersistedQueryInputTuple) : null;
   } catch (error) {
     log.warn({ err: error, id }, 'Failed to find QueryInputTuple');
     return null;
@@ -25,8 +25,8 @@ export async function findQueryInputTupleById(id: string): Promise<LdkitQueryInp
 /**
  * Load QueryInputTuple entities by IDs
  */
-export async function loadQueryInputTuplesByIds(ids: string[]): Promise<LdkitQueryInputTuple[]> {
-  const tuples: LdkitQueryInputTuple[] = [];
+export async function loadQueryInputTuplesByIds(ids: string[]): Promise<PersistedQueryInputTuple[]> {
+  const tuples: PersistedQueryInputTuple[] = [];
   
   for (const id of ids) {
     const tuple = await findQueryInputTupleById(id);
@@ -41,30 +41,30 @@ export async function loadQueryInputTuplesByIds(ids: string[]): Promise<LdkitQue
 /**
  * Create a QueryInputTuple with validation
  */
-type FlexibleTupleInput = Omit<LdkitQueryInputTuple, '$id'> & { 
+type FlexibleTupleInput = Omit<PersistedQueryInputTuple, '$id'> & { 
   '@id'?: string; 
   $id?: string; 
 };
 
-export async function createQueryInputTuple(data: FlexibleTupleInput): Promise<LdkitQueryInputTuple> {
-  const inputTuple = toLdkit<LdkitQueryInputTuple>({ ...(data), '@type': 'QueryInputTuple' });
+export async function createQueryInputTuple(data: FlexibleTupleInput): Promise<PersistedQueryInputTuple> {
+  const inputTuple = toPersisted<PersistedQueryInputTuple>({ ...(data), '@type': 'QueryInputTuple' });
   await QueryInputTuples.insert(inputTuple);
   const createdTuple = await QueryInputTuples.findByIri(inputTuple.$id);
   if (!createdTuple) {
     throw new Error('Failed to retrieve QueryInputTuple after creation');
   }
-  return createdTuple as LdkitQueryInputTuple;
+  return createdTuple as PersistedQueryInputTuple;
 }
 
 /**
  * Update a QueryInputTuple
  */
-export async function updateQueryInputTuple(id: string, updates: Partial<Omit<LdkitQueryInputTuple, '$id'>>): Promise<LdkitQueryInputTuple | null> {
+export async function updateQueryInputTuple(id: string, updates: Partial<Omit<PersistedQueryInputTuple, '$id'>>): Promise<PersistedQueryInputTuple | null> {
   await QueryInputTuples.update({ $id: id, ...updates });
   const result = await QueryInputTuples.findByIri(id);
   if (!result) return null;
   
-  return result as LdkitQueryInputTuple;
+  return result as PersistedQueryInputTuple;
 }
 
 /**

@@ -1,7 +1,7 @@
 
 import {
   normalizeId,
-  toLdkit,
+  toPersisted,
   toApi,
   normalizeRef,
   normalizeRefArray
@@ -36,11 +36,11 @@ describe('id-adapter', () => {
     });
   });
 
-  describe('toLdkit', () => {
-    it('should convert API entity to LDKit entity with both @id and $id', () => {
+  describe('toPersisted', () => {
+    it('should convert API entity to persisted entity with both @id and $id', () => {
       const apiEntity = { '@id': 'api-id', name: 'test' };
-      const ldkitEntity = toLdkit(apiEntity);
-      expect(ldkitEntity).toEqual({
+      const persistedEntity = toPersisted(apiEntity);
+      expect(persistedEntity).toEqual({
         '@id': 'api-id',
         '$id': 'api-id',
         name: 'test',
@@ -49,8 +49,8 @@ describe('id-adapter', () => {
 
     it('should use $id if present in API entity and set both', () => {
       const apiEntity = { '$id': 'api-id-dollar', name: 'test' };
-      const ldkitEntity = toLdkit(apiEntity);
-      expect(ldkitEntity).toEqual({
+      const persistedEntity = toPersisted(apiEntity);
+      expect(persistedEntity).toEqual({
         '@id': 'api-id-dollar',
         '$id': 'api-id-dollar',
         name: 'test',
@@ -59,8 +59,8 @@ describe('id-adapter', () => {
 
     it('should prioritize @id over $id if both are present and different', () => {
       const apiEntity = { '@id': 'api-id-at', '$id': 'api-id-dollar', name: 'test' };
-      const ldkitEntity = toLdkit(apiEntity);
-      expect(ldkitEntity).toEqual({
+      const persistedEntity = toPersisted(apiEntity);
+      expect(persistedEntity).toEqual({
         '@id': 'api-id-at',
         '$id': 'api-id-at',
         name: 'test',
@@ -69,44 +69,44 @@ describe('id-adapter', () => {
 
     it('should throw error if no valid id is present', () => {
       const apiEntity = { name: 'test' };
-      expect(() => toLdkit(apiEntity)).toThrow("normalizeApiId: object must contain an '@id' or '$id' string");
+      expect(() => toPersisted(apiEntity)).toThrow("normalizeApiId: object must contain an '@id' or '$id' string");
     });
   });
 
   describe('toApi', () => {
-    it('should convert LDKit entity to API entity, removing $id', () => {
-      const ldkitEntity = { '$id': 'ldkit-id', '@id': 'ldkit-id', name: 'test' };
-      const apiEntity = toApi(ldkitEntity);
+    it('should convert persisted entity to API entity, removing $id', () => {
+      const persistedEntity = { '$id': 'persisted-id', '@id': 'persisted-id', name: 'test' };
+      const apiEntity = toApi(persistedEntity);
       expect(apiEntity).toEqual({
-        '@id': 'ldkit-id',
+        '@id': 'persisted-id',
         name: 'test',
       });
       expect(apiEntity).not.toHaveProperty('$id');
     });
 
-    it('should use $id if @id is not present in LDKit entity', () => {
-      const ldkitEntity = { '$id': 'ldkit-id-dollar', name: 'test' };
-      const apiEntity = toApi(ldkitEntity);
+    it('should use $id if @id is not present in persisted entity', () => {
+      const persistedEntity = { '$id': 'persisted-id-dollar', name: 'test' };
+      const apiEntity = toApi(persistedEntity);
       expect(apiEntity).toEqual({
-        '@id': 'ldkit-id-dollar',
+        '@id': 'persisted-id-dollar',
         name: 'test',
       });
       expect(apiEntity).not.toHaveProperty('$id');
     });
 
     it('should prioritize @id over $id if both are present and different', () => {
-      const ldkitEntity = { '$id': 'ldkit-id-dollar', '@id': 'ldkit-id-at', name: 'test' };
-      const apiEntity = toApi(ldkitEntity);
+      const persistedEntity = { '$id': 'persisted-id-dollar', '@id': 'persisted-id-at', name: 'test' };
+      const apiEntity = toApi(persistedEntity);
       expect(apiEntity).toEqual({
-        '@id': 'ldkit-id-at',
+        '@id': 'persisted-id-at',
         name: 'test',
       });
       expect(apiEntity).not.toHaveProperty('$id');
     });
 
     it('should throw error if no valid id is present', () => {
-      const ldkitEntity = { name: 'test' };
-      expect(() => toApi(ldkitEntity)).toThrow("normalizeId: object must contain a '$id' string");
+      const persistedEntity = { name: 'test' };
+      expect(() => toApi(persistedEntity)).toThrow("normalizeId: object must contain a '$id' string");
     });
   });
 

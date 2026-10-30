@@ -1,5 +1,5 @@
 /**
- * Test QueryGroupUtils LDKit integration
+ * Test QueryGroupUtils persistence integration
  */
 
 import { QueryGroups, createQueryGroup, findQueryGroupsByParent, loadQueryGroupsByIds, deleteQueryGroups, createQueryGroups, updateQueryGroup } from '../../src/persistence/utils/QueryGroupUtils.js';
@@ -7,7 +7,7 @@ import { vi } from 'vitest';
 import { overrideRepositoryLenses } from '../../src/persistence/utils/entityRepository.js';
 import { log } from '../../src/lib/log.js';
 
-// In-memory LDKit lens for this suite
+// In-memory entity lens for this suite
 const repositoryLens = (() => {
   const store = new Map<string, any>();
   const lens = {
@@ -22,7 +22,7 @@ const repositoryLens = (() => {
 overrideRepositoryLenses(() => repositoryLens);
 
 
-describe('QueryGroupUtils (LDKit Integration)', () => {
+describe('QueryGroupUtils (persistence integration)', () => {
   const testGroupId = 'http://example.org/test-group';
   const anotherGroupId = 'http://example.org/another-group';
   const testParentId = 'http://example.org/test-library';
@@ -52,7 +52,7 @@ describe('QueryGroupUtils (LDKit Integration)', () => {
   });
 
   it('should create and find a query group', async () => {
-    // Create using LDKit
+    // Create
     const group = await createQueryGroup({
       $id: testGroupId,
       name: 'Test QueryGroup',

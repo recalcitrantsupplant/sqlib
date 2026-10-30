@@ -13,13 +13,13 @@
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, sqlib, sdo } from '../namespaces.js';
+import { xsd, sqlib, sdo } from '../namespaces.js';
 
 export const BrowserDefaultDataGraphSchema = {
   '@type': sqlib.BrowserDefaultDataGraph,
   isPartOf: {
     '@id': sdo.isPartOf,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@references': { types: ['QueryGroup', 'RuleSet'] },
   },
   /** 0-based: the data graph input this default fills. */
@@ -30,7 +30,7 @@ export const BrowserDefaultDataGraphSchema = {
   /** A `DataGraph` floats to its current version; a `DataGraphVersion` is a pin. */
   dataGraph: {
     '@id': sqlib.dataGraph,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@references': { types: ['DataGraph', 'DataGraphVersion'] },
   },
   dateCreated: {
@@ -45,7 +45,7 @@ export const BrowserDefaultDataGraphSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitBrowserDefaultDataGraph {
+export interface PersistedBrowserDefaultDataGraph {
   $id: string;
   '@type'?: 'BrowserDefaultDataGraph';
   isPartOf: string;

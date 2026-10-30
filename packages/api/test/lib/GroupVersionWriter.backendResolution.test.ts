@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { overrideCacheCoordinatorProvider } from '../../src/lib/CacheCoordinatorProvider.js';
 
-// Mocks for CacheCoordinatorProvider and LDKit utils used by GroupVersionWriter
+// Mocks for CacheCoordinatorProvider and entity utils used by GroupVersionWriter
 const inserts: Record<string, any[]> = {};
 const recordInsert = (obj: any, entityType: string) => {
   inserts[entityType] = inserts[entityType] || [];

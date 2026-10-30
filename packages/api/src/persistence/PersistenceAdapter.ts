@@ -3,18 +3,18 @@
  *
  * `CacheCoordinator` and the entity repositories talk only to this interface.
  * `SelfHostedAdapter` — generated system queries plus a schema-driven mapper — is
- * the sole implementation; it replaced the LDKit lenses the seam was originally
- * carved to hide. See `docs/explanation/architecture.md`.
+ * the sole implementation; it replaced the library-backed lenses the seam was
+ * originally carved to hide. See `docs/explanation/architecture.md`.
  *
  * The interface stays because it is what makes the storage layer substitutable
  * and stubbable, which is worth having with one implementation.
  */
 import type { EntityByType, EntityType } from '../lib/EntityRegistry.js';
-import type { LDKitEntity } from './EntityTypes.js';
+import type { PersistedEntity } from './EntityTypes.js';
 
 export interface PersistenceAdapter {
   /** Boot-time load of every known entity type, keyed by IRI. */
-  loadAll(): Promise<Map<string, LDKitEntity>>;
+  loadAll(): Promise<Map<string, PersistedEntity>>;
   findByIri<T extends EntityType>(type: T, id: string): Promise<EntityByType[T] | null>;
   findAll<T extends EntityType>(type: T): Promise<EntityByType[T][]>;
   insert<T extends EntityType>(type: T, entity: EntityByType[T]): Promise<void>;

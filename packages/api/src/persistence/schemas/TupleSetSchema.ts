@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for TupleSet Entity (Stable Pointer)
+ * Entity schema for TupleSet Entity (Stable Pointer)
  *
  * A named, versioned solution sequence — a table of RDF terms — registered in a
  * library. The tabular sibling of `DataGraph`: where a data graph is the RDF a
@@ -15,7 +15,7 @@
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, sqlib, sdo } from '../namespaces.js';
+import { xsd, sqlib, sdo } from '../namespaces.js';
 
 export const TupleSetSchema = {
   '@type': sqlib.TupleSet,
@@ -28,7 +28,7 @@ export const TupleSetSchema = {
   },
   currentVersion: {
     '@id': sqlib.currentVersion,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
     '@references': { types: ['TupleSetVersion'] },
     // The number lives on the version; callers listing these want it beside
@@ -38,7 +38,7 @@ export const TupleSetSchema = {
   isPartOf: {
     '@id': sdo.isPartOf,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@references': { types: ['Library'], exactlyOne: 'Library' },
   },
   /**
@@ -52,14 +52,14 @@ export const TupleSetSchema = {
    */
   copiedFrom: {
     '@id': sqlib.copiedFrom,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
     '@references': { types: ['ArgumentSet'] },
   },
   tags: {
     '@id': sqlib.hasTag,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
     '@references': { types: ['Tag'] },
   },
@@ -75,7 +75,7 @@ export const TupleSetSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitTupleSet {
+export interface PersistedTupleSet {
   $id: string;
   '@type'?: 'TupleSet';
   name: string;

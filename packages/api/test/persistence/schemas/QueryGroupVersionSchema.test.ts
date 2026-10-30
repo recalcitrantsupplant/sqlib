@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
 import { QueryGroupVersionSchema } from '../../../src/persistence/schemas/QueryGroupVersionSchema.js';
-import { ldkit, xsd, sqlib, sdo } from '../../../src/persistence/namespaces.js';
+import { xsd, sqlib, sdo } from '../../../src/persistence/namespaces.js';
 
 describe('QueryGroupVersionSchema', () => {
   it('defines correct @type and properties', () => {
@@ -14,13 +14,13 @@ describe('QueryGroupVersionSchema', () => {
     expect(QueryGroupVersionSchema).toHaveProperty('executionNodes');
     expect(QueryGroupVersionSchema.executionNodes['@id']).toBe(sqlib.executionNodes);
     expect(QueryGroupVersionSchema.executionNodes['@array']).toBe(true);
-    expect(QueryGroupVersionSchema.executionNodes['@type']).toBe(ldkit.IRI);
+    expect(QueryGroupVersionSchema.executionNodes['@type']).toBe(sqlib.IRI);
     expect(QueryGroupVersionSchema.executionNodes['@optional']).toBe(true);
 
     expect(QueryGroupVersionSchema).toHaveProperty('edges');
     expect(QueryGroupVersionSchema.edges['@id']).toBe(sqlib.edges);
     expect(QueryGroupVersionSchema.edges['@array']).toBe(true);
-    expect(QueryGroupVersionSchema.edges['@type']).toBe(ldkit.IRI);
+    expect(QueryGroupVersionSchema.edges['@type']).toBe(sqlib.IRI);
     expect(QueryGroupVersionSchema.edges['@optional']).toBe(true);
 
     expect(QueryGroupVersionSchema).toHaveProperty('canvasData');
@@ -38,6 +38,6 @@ describe('QueryGroupVersionSchema', () => {
 
     expect(QueryGroupVersionSchema).toHaveProperty('isPartOf');
     expect(QueryGroupVersionSchema.isPartOf['@id']).toBe(sdo.isPartOf);
-    expect(QueryGroupVersionSchema.isPartOf['@type']).toBe(ldkit.IRI);
+    expect(QueryGroupVersionSchema.isPartOf['@type']).toBe(sqlib.IRI);
   });
 });

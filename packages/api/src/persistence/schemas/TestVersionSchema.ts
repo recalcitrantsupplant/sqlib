@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for TestVersion entity (immutable version)
+ * Entity schema for TestVersion entity (immutable version)
  *
  * The invocation inputs and the expectation, versioned together because they
  * only mean anything together: an expectation is an expectation *given* those
@@ -27,13 +27,13 @@
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, sqlib, sdo } from '../namespaces.js';
+import { xsd, sqlib, sdo } from '../namespaces.js';
 
 export const TestVersionSchema = {
   '@type': sqlib.TestVersion,
   isPartOf: {
     '@id': sdo.isPartOf,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@references': { types: ['Test'] },
   },
   version: {
@@ -53,7 +53,7 @@ export const TestVersionSchema = {
    */
   subjectVersion: {
     '@id': sqlib.subjectVersion,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   /**
@@ -66,13 +66,13 @@ export const TestVersionSchema = {
   cases: {
     '@id': sqlib.cases,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
     '@references': { types: ['TestCase'] },
   },
   backend: {
     '@id': sqlib.refBackend,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
     '@references': { types: ['Backend'] },
   },
@@ -106,7 +106,7 @@ export const TestVersionSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitTestVersion {
+export interface PersistedTestVersion {
   $id: string;
   '@type'?: 'TestVersion';
   isPartOf: string;

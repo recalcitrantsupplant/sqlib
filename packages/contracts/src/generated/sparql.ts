@@ -1,5 +1,5 @@
 /**
- * 🤖 This file is auto-generated from LDKit schemas.
+ * 🤖 This file is auto-generated from the entity schemas.
  * Do not edit manually - run 'npm run generate-schemas' instead.
  */
 import { isIri, IRI_ERROR_MESSAGE } from '../iri.js';

@@ -3,10 +3,10 @@ import { mintId } from '../lib/id.js';
 import { maxRuleIterations } from '../config/executionLimits.js';
 import { abortOnDisconnect } from '../lib/cancellation.js';
 import { toRestApi } from '../persistence/utils/id-adapter.js';
-import type { LdkitRuleSet } from '../persistence/schemas/RuleSetSchema.js';
-import type { LdkitRule } from '../persistence/schemas/RuleSchema.js';
-import type { LdkitRuleSetVersion } from '../persistence/schemas/RuleSetVersionSchema.js';
-import type { LdkitRuleVersion } from '../persistence/schemas/RuleVersionSchema.js';
+import type { PersistedRuleSet } from '../persistence/schemas/RuleSetSchema.js';
+import type { PersistedRule } from '../persistence/schemas/RuleSchema.js';
+import type { PersistedRuleSetVersion } from '../persistence/schemas/RuleSetVersionSchema.js';
+import type { PersistedRuleVersion } from '../persistence/schemas/RuleVersionSchema.js';
 import { reposRoute } from './route-helpers.js';
 import { registerVersionedEntityRoutes, type StoredEntity } from './versionedEntity.js';
 import { ruleSetExecutionResponseJsonSchema } from '@sparql-query-lib/contracts/schema/routes';
@@ -37,8 +37,8 @@ import {
   type SrlDataBlockDocument,
   type SrlRuleDocument,
 } from '@sparql-query-lib/srl';
-import type { LdkitDataBlock } from '../persistence/schemas/DataBlockSchema.js';
-import type { LdkitDataBlockVersion } from '../persistence/schemas/DataBlockVersionSchema.js';
+import type { PersistedDataBlock } from '../persistence/schemas/DataBlockSchema.js';
+import type { PersistedDataBlockVersion } from '../persistence/schemas/DataBlockVersionSchema.js';
 import { createDataBlockVersion } from '../lib/DataBlockVersionWriter.js';
 import { createRuleVersion } from '../lib/RuleVersionWriter.js';
 import {
@@ -351,7 +351,7 @@ export default async function (fastify: FastifyInstance) {
       },
       deleteVersion: { tags: ['RuleSet'], summary: 'Delete rule set version', response: { 204: { type: 'null', description: 'Rule set version deleted successfully' } } },
     },
-    presentVersion: version => expandRuleSetVersion(version as unknown as LdkitRuleSetVersion),
+    presentVersion: version => expandRuleSetVersion(version as unknown as PersistedRuleSetVersion),
     presentVersionInList: version => toRestApi(version),
     createVersion: async ({ request, parent, body }) => {
       // `{ request }` is what lets the writer check the rule and data block
@@ -388,7 +388,7 @@ export default async function (fastify: FastifyInstance) {
       },
     }, async ({ repos, reply, request }) => {
     const { id } = request.params;
-    const parent = repos.RuleSet.get(id) as LdkitRuleSet | null;
+    const parent = repos.RuleSet.get(id) as PersistedRuleSet | null;
     if (!parent) {
       return reply.status(404).send({ error: 'Rule set not found' });
     }
@@ -463,7 +463,7 @@ export default async function (fastify: FastifyInstance) {
       },
     }, async ({ repos, reply, request }) => {
     const { id } = request.params;
-    const parent = repos.RuleSet.get(id) as LdkitRuleSet | null;
+    const parent = repos.RuleSet.get(id) as PersistedRuleSet | null;
     if (!parent) {
       return reply.status(404).send({ error: 'Rule set not found' });
     }
@@ -628,7 +628,7 @@ export default async function (fastify: FastifyInstance) {
     }, async ({ repos, reply, request }) => {
     const { id } = request.params;
     const query = request.query ?? {};
-    const parent = repos.RuleSet.get(id) as LdkitRuleSet | undefined;
+    const parent = repos.RuleSet.get(id) as PersistedRuleSet | undefined;
     if (!parent) {
       return reply.status(404).send({ error: 'Rule set not found' });
     }
@@ -696,7 +696,7 @@ export default async function (fastify: FastifyInstance) {
       return reply.status(400).send({ error: tupleRefusal });
     }
 
-    const parent = repos.RuleSet.get(id) as LdkitRuleSet | undefined;
+    const parent = repos.RuleSet.get(id) as PersistedRuleSet | undefined;
     if (!parent) {
       return reply.status(404).send({ error: 'Rule set not found' });
     }
@@ -790,7 +790,7 @@ export default async function (fastify: FastifyInstance) {
       return reply.status(400).send({ error: tupleRefusal });
     }
 
-    const parent = repos.RuleSet.get(id) as LdkitRuleSet | undefined;
+    const parent = repos.RuleSet.get(id) as PersistedRuleSet | undefined;
     if (!parent) {
       return reply.status(404).send({ error: 'Rule set not found' });
     }
@@ -1323,11 +1323,11 @@ function countTriples(bgp: unknown): number {
 }
 
 function resolveRuleSetVersionForExecution(
-  repos: { RuleSetVersion: { list: () => LdkitRuleSetVersion[] } },
+  repos: { RuleSetVersion: { list: () => PersistedRuleSetVersion[] } },
   ruleSetId: string,
-  parent: LdkitRuleSet,
+  parent: PersistedRuleSet,
   requestedVersion?: number,
-): { ok: true; version: LdkitRuleSetVersion } | { ok: false; status: number; message: string } {
+): { ok: true; version: PersistedRuleSetVersion } | { ok: false; status: number; message: string } {
   const versions = repos.RuleSetVersion.list()
     .filter((v) => v.isPartOf === ruleSetId);
 
@@ -1424,7 +1424,7 @@ function describeTupleSeeds(
  * document was generated with, so box 2 reads like box 1.
  */
 function tupleSeedsForDocument(
-  version: LdkitRuleSetVersion,
+  version: PersistedRuleSetVersion,
   documentSource: 'stored' | 'generated',
   prologue: string,
 ): string {
@@ -1460,7 +1460,7 @@ function parseSeedDocument(
  * {@link canonicalizeStoredRule}. A block with no `DATA` form stays addressable
  * under an `unparseable:` identity so re-import never silently drops it.
  */
-function canonicalizeStoredDataBlock(version: LdkitDataBlockVersion): { identity: string; text: string } {
+function canonicalizeStoredDataBlock(version: PersistedDataBlockVersion): { identity: string; text: string } {
   const fallback = { identity: `unparseable:${version.$id}`, text: (version.dataString ?? '').trim() };
   const text = toDataBlockText(version.dataString);
   if (!text) return fallback;
@@ -1477,8 +1477,8 @@ function canonicalizeStoredDataBlock(version: LdkitDataBlockVersion): { identity
 
 /** Describe a data block being detached from this rule set. Detach never deletes. */
 function describeDetachedDataBlock(
-  repos: { RuleSetVersion: { list: () => LdkitRuleSetVersion[] } },
-  version: LdkitDataBlockVersion,
+  repos: { RuleSetVersion: { list: () => PersistedRuleSetVersion[] } },
+  version: PersistedDataBlockVersion,
   currentRuleSetId: string,
 ): { dataBlockVersionId: string; otherRuleSets: number; orphaned: boolean } {
   const others = repos.RuleSetVersion.list().filter(
@@ -1493,9 +1493,9 @@ function describeDetachedDataBlock(
 
 /** Create the parent DataBlock entity for a newly-imported data block. */
 async function createDataBlockForImport(
-  repos: { DataBlock: { create: (entity: Partial<LdkitDataBlock> & { $id: string }) => Promise<LdkitDataBlock> } },
+  repos: { DataBlock: { create: (entity: Partial<PersistedDataBlock> & { $id: string }) => Promise<PersistedDataBlock> } },
   doc: SrlDataBlockDocument,
-  ruleSet: LdkitRuleSet,
+  ruleSet: PersistedRuleSet,
 ): Promise<string> {
   const created = await repos.DataBlock.create({
     $id: mintId('dataBlock'),
@@ -1515,7 +1515,7 @@ async function createDataBlockForImport(
  * generated text would report a spurious change (differing whitespace or IRI
  * spelling) and mint a pointless new version on every import.
  */
-function canonicalizeStoredRule(ruleVersion: LdkitRuleVersion): { identity: string; text: string } {
+function canonicalizeStoredRule(ruleVersion: PersistedRuleVersion): { identity: string; text: string } {
   const raw = (ruleVersion.ruleString ?? '').trim();
   const fallback = { identity: `unparseable:${ruleVersion.$id}`, text: raw };
   if (!raw) return fallback;
@@ -1535,8 +1535,8 @@ function canonicalizeStoredRule(ruleVersion: LdkitRuleVersion): { identity: stri
  * distinguish "still used elsewhere" from "now orphaned".
  */
 function describeDetached(
-  repos: { RuleSetVersion: { list: () => LdkitRuleSetVersion[] } },
-  ruleVersion: LdkitRuleVersion,
+  repos: { RuleSetVersion: { list: () => PersistedRuleSetVersion[] } },
+  ruleVersion: PersistedRuleVersion,
   currentRuleSetId: string,
 ): { ruleVersionId: string; ruleId: string; otherRuleSets: number; orphaned: boolean } {
   const others = repos.RuleSetVersion.list().filter(
@@ -1555,11 +1555,11 @@ function describeDetached(
  * as the owning rule set.
  */
 async function createRuleForImport(
-  repos: { Rule: { create: (entity: Partial<LdkitRule> & { $id: string }) => Promise<LdkitRule> } },
+  repos: { Rule: { create: (entity: Partial<PersistedRule> & { $id: string }) => Promise<PersistedRule> } },
   doc: SrlRuleDocument,
-  ruleSet: LdkitRuleSet,
+  ruleSet: PersistedRuleSet,
 ): Promise<string> {
-  const toCreate: Partial<LdkitRule> & { $id: string; rulesetMembership?: unknown } = {
+  const toCreate: Partial<PersistedRule> & { $id: string; rulesetMembership?: unknown } = {
     $id: mintId('rule'),
     name: doc.suggestedLabel,
     description: null,

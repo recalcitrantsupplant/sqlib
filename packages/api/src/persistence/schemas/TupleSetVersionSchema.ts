@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for TupleSetVersion Entity
+ * Entity schema for TupleSetVersion Entity
  *
  * Immutable tabular content, so a run naming a version id is reproducible
  * forever — the same contract `DataGraphVersion` offers for RDF.
@@ -17,7 +17,7 @@
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, sqlib, sdo } from '../namespaces.js';
+import { xsd, sqlib, sdo } from '../namespaces.js';
 
 /**
  * Where a version's rows came from. Provenance only — content is always SRJ.
@@ -36,7 +36,7 @@ export const TupleSetVersionSchema = {
   '@type': sqlib.TupleSetVersion,
   isPartOf: {
     '@id': sdo.isPartOf,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@references': { types: ['TupleSet'] },
   },
   version: {
@@ -87,13 +87,13 @@ export const TupleSetVersionSchema = {
    */
   sourceEtlJobVersion: {
     '@id': sqlib.sourceEtlJobVersion,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@references': { types: ['EtlJobVersion'] },
     '@optional': true,
   },
   sourceColumnMappingVersion: {
     '@id': sqlib.sourceColumnMappingVersion,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@references': { types: ['EtlColumnMappingVersion'] },
     '@optional': true,
   },
@@ -124,7 +124,7 @@ export const TupleSetVersionSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitTupleSetVersion {
+export interface PersistedTupleSetVersion {
   $id: string;
   '@type'?: 'TupleSetVersion';
   isPartOf: string;

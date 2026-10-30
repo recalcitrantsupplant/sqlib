@@ -41,18 +41,18 @@ import { GraphBuilder } from './orchestration/GraphBuilder.js';
 import { SparqlQueryParser } from './parser.js';
 import { invokeCallable } from './invokeCallable.js';
 import { RuleSetExecutor } from './RuleSetExecutor.js';
-import type { LdkitTest } from '../persistence/schemas/TestSchema.js';
-import type { LdkitTestVersion } from '../persistence/schemas/TestVersionSchema.js';
-import type { LdkitTestCase } from '../persistence/schemas/TestCaseSchema.js';
-import type { LdkitQuery } from '../persistence/schemas/QuerySchema.js';
-import type { LdkitQueryVersion } from '../persistence/schemas/QueryVersionSchema.js';
-import type { LdkitQueryGroup } from '../persistence/schemas/QueryGroupSchema.js';
-import type { LdkitQueryGroupVersion } from '../persistence/schemas/QueryGroupVersionSchema.js';
-import type { LdkitRuleSet } from '../persistence/schemas/RuleSetSchema.js';
-import type { LdkitRuleSetVersion } from '../persistence/schemas/RuleSetVersionSchema.js';
-import type { LdkitEtlJob } from '../persistence/schemas/EtlJobSchema.js';
-import type { LdkitEtlJobVersion } from '../persistence/schemas/EtlJobVersionSchema.js';
-import type { LdkitDataGraphVersion } from '../persistence/schemas/DataGraphVersionSchema.js';
+import type { PersistedTest } from '../persistence/schemas/TestSchema.js';
+import type { PersistedTestVersion } from '../persistence/schemas/TestVersionSchema.js';
+import type { PersistedTestCase } from '../persistence/schemas/TestCaseSchema.js';
+import type { PersistedQuery } from '../persistence/schemas/QuerySchema.js';
+import type { PersistedQueryVersion } from '../persistence/schemas/QueryVersionSchema.js';
+import type { PersistedQueryGroup } from '../persistence/schemas/QueryGroupSchema.js';
+import type { PersistedQueryGroupVersion } from '../persistence/schemas/QueryGroupVersionSchema.js';
+import type { PersistedRuleSet } from '../persistence/schemas/RuleSetSchema.js';
+import type { PersistedRuleSetVersion } from '../persistence/schemas/RuleSetVersionSchema.js';
+import type { PersistedEtlJob } from '../persistence/schemas/EtlJobSchema.js';
+import type { PersistedEtlJobVersion } from '../persistence/schemas/EtlJobVersionSchema.js';
+import type { PersistedDataGraphVersion } from '../persistence/schemas/DataGraphVersionSchema.js';
 import type { EntityTypeName } from '../persistence/entityTypeNames.js';
 import { rdfToNQuads, storeManagerFormat, DEFAULT_DATA_GRAPH_FORMAT, type DataGraphFormat } from './dataGraphContent.js';
 import { effectiveCases, listCaseDataGraphs, type RunnableTestCase } from './testCases.js';
@@ -61,8 +61,8 @@ import { mergeRuleSet } from '@sparql-query-lib/srl';
 import { isSrlCheck, runSrlCheck, type SrlCheck, type SrlCheckVerdict } from './srlChecks.js';
 import { etlService } from './EtlService.js';
 import { duckDbService } from './DuckDbService.js';
-import type { LdkitDataBlockVersion } from '../persistence/schemas/DataBlockVersionSchema.js';
-import type { LdkitRuleVersion } from '../persistence/schemas/RuleVersionSchema.js';
+import type { PersistedDataBlockVersion } from '../persistence/schemas/DataBlockVersionSchema.js';
+import type { PersistedRuleVersion } from '../persistence/schemas/RuleVersionSchema.js';
 import {
   compareAnalysis,
   compareBindings,
@@ -262,11 +262,11 @@ export class TestRunner {
   }
 
   async runTestVersion(testVersionId: string): Promise<TestRunResult> {
-    const testVersion = get<LdkitTestVersion>(testVersionId, 'TestVersion');
+    const testVersion = get<PersistedTestVersion>(testVersionId, 'TestVersion');
     if (!testVersion) {
       throw new TestNotRunnableError(`TestVersion ${testVersionId} not found`);
     }
-    const test = get<LdkitTest>(testVersion.isPartOf, 'Test');
+    const test = get<PersistedTest>(testVersion.isPartOf, 'Test');
     if (!test) {
       throw new TestNotRunnableError(`Test ${testVersion.isPartOf} not found`);
     }
@@ -281,13 +281,13 @@ export class TestRunner {
    * would refuse. Same runner, same comparators, so a draft that passes here
    * is a version that passes once saved.
    */
-  async runDraft(test: LdkitTest, draft: DraftTestVersion): Promise<TestRunResult> {
+  async runDraft(test: PersistedTest, draft: DraftTestVersion): Promise<TestRunResult> {
     return this.runVersion(test, draft.version, draft.cases);
   }
 
   private async runVersion(
-    test: LdkitTest,
-    testVersion: LdkitTestVersion,
+    test: PersistedTest,
+    testVersion: PersistedTestVersion,
     cases: RunnableTestCase[],
   ): Promise<TestRunResult> {
     const expectationKind = isExpectationKind(testVersion.expectationKind)
@@ -445,7 +445,7 @@ export class TestRunner {
   async runTests(testIds: string[]): Promise<TestRunResult[]> {
     const results: TestRunResult[] = [];
     for (const testId of testIds) {
-      const test = get<LdkitTest>(testId, 'Test');
+      const test = get<PersistedTest>(testId, 'Test');
       if (!test?.currentVersion) continue;
       results.push(await this.runTestVersion(test.currentVersion));
     }
@@ -469,8 +469,8 @@ export class TestRunner {
   private analyse(
     subjectId: string,
     subjectKind: SubjectKind,
-    testVersion: LdkitTestVersion,
-    testCase: LdkitTestCase,
+    testVersion: PersistedTestVersion,
+    testCase: PersistedTestCase,
   ): { verdict: SrlCheckVerdict; subjectVersionId: string | null } {
     if (subjectKind !== 'ruleSet') {
       throw new TestNotRunnableError(
@@ -479,20 +479,20 @@ export class TestRunner {
     }
 
     const version = testVersion.subjectVersion
-      ? get<LdkitRuleSetVersion>(testVersion.subjectVersion, 'RuleSetVersion')
-      : this.currentVersionOf<LdkitRuleSetVersion>(subjectId, 'RuleSet', 'RuleSetVersion');
+      ? get<PersistedRuleSetVersion>(testVersion.subjectVersion, 'RuleSetVersion')
+      : this.currentVersionOf<PersistedRuleSetVersion>(subjectId, 'RuleSet', 'RuleSetVersion');
     if (!version) {
       throw new TestNotRunnableError(`No rule set version to analyse for subject ${subjectId}`);
     }
 
     const check = readCheck(testCase.expected);
     const rules = normalizeIdList(version.hasRule)
-      .map(id => get<LdkitRuleVersion>(id, 'RuleVersion'))
-      .filter((rule): rule is LdkitRuleVersion => Boolean(rule))
+      .map(id => get<PersistedRuleVersion>(id, 'RuleVersion'))
+      .filter((rule): rule is PersistedRuleVersion => Boolean(rule))
       .map(rule => ({ text: rule.ruleString ?? '' }));
     const dataBlocks = normalizeIdList(version.hasDataBlock)
-      .map(id => get<LdkitDataBlockVersion>(id, 'DataBlockVersion'))
-      .filter((block): block is LdkitDataBlockVersion => Boolean(block))
+      .map(id => get<PersistedDataBlockVersion>(id, 'DataBlockVersion'))
+      .filter((block): block is PersistedDataBlockVersion => Boolean(block))
       .map(block => ({ text: block.dataString ?? '' }));
 
     return {
@@ -504,7 +504,7 @@ export class TestRunner {
   private async compare(
     expectationKind: ExpectationKind,
     result: unknown,
-    testCase: LdkitTestCase,
+    testCase: PersistedTestCase,
   ): Promise<ComparisonResult> {
     const expected = testCase.expected ?? '';
     switch (expectationKind) {
@@ -556,8 +556,8 @@ export class TestRunner {
   private async invoke(
     subjectId: string,
     subjectKind: SubjectKind,
-    testVersion: LdkitTestVersion,
-    testCase: LdkitTestCase,
+    testVersion: PersistedTestVersion,
+    testCase: PersistedTestCase,
     executorFactory: ExecutorFactory,
   ): Promise<{ result: unknown; subjectVersionId: string | null }> {
     switch (subjectKind) {
@@ -589,12 +589,12 @@ export class TestRunner {
    */
   private async invokeEtlJob(
     subjectId: string,
-    testVersion: LdkitTestVersion,
-    testCase: LdkitTestCase,
+    testVersion: PersistedTestVersion,
+    testCase: PersistedTestCase,
   ): Promise<{ result: unknown; subjectVersionId: string | null }> {
     const version = testVersion.subjectVersion
-      ? get<LdkitEtlJobVersion>(testVersion.subjectVersion, 'EtlJobVersion')
-      : this.currentVersionOf<LdkitEtlJobVersion>(subjectId, 'EtlJob', 'EtlJobVersion');
+      ? get<PersistedEtlJobVersion>(testVersion.subjectVersion, 'EtlJobVersion')
+      : this.currentVersionOf<PersistedEtlJobVersion>(subjectId, 'EtlJob', 'EtlJobVersion');
     if (!version) {
       throw new TestNotRunnableError(`No ETL job version to run for subject ${subjectId}`);
     }
@@ -633,12 +633,12 @@ export class TestRunner {
 
   private async invokeRuleSet(
     subjectId: string,
-    testVersion: LdkitTestVersion,
-    testCase: LdkitTestCase,
+    testVersion: PersistedTestVersion,
+    testCase: PersistedTestCase,
   ): Promise<{ result: unknown; subjectVersionId: string | null }> {
     const version = testVersion.subjectVersion
-      ? get<LdkitRuleSetVersion>(testVersion.subjectVersion, 'RuleSetVersion')
-      : this.currentVersionOf<LdkitRuleSetVersion>(subjectId, 'RuleSet', 'RuleSetVersion');
+      ? get<PersistedRuleSetVersion>(testVersion.subjectVersion, 'RuleSetVersion')
+      : this.currentVersionOf<PersistedRuleSetVersion>(subjectId, 'RuleSet', 'RuleSetVersion');
     if (!version) {
       throw new TestNotRunnableError(`No rule set version to run for subject ${subjectId}`);
     }
@@ -668,13 +668,13 @@ export class TestRunner {
 
   private async invokeQuery(
     subjectId: string,
-    testVersion: LdkitTestVersion,
-    testCase: LdkitTestCase,
+    testVersion: PersistedTestVersion,
+    testCase: PersistedTestCase,
     executorFactory: ExecutorFactory,
   ): Promise<{ result: unknown; subjectVersionId: string | null }> {
     const version = testVersion.subjectVersion
-      ? get<LdkitQueryVersion>(testVersion.subjectVersion, 'QueryVersion')
-      : this.currentVersionOf<LdkitQueryVersion>(subjectId, 'Query', 'QueryVersion');
+      ? get<PersistedQueryVersion>(testVersion.subjectVersion, 'QueryVersion')
+      : this.currentVersionOf<PersistedQueryVersion>(subjectId, 'Query', 'QueryVersion');
     if (!version) {
       throw new TestNotRunnableError(`No query version to run for subject ${subjectId}`);
     }
@@ -713,8 +713,8 @@ export class TestRunner {
    * would make case N's verdict depend on case N-1's data.
    */
   private async withQueryExecutor<T>(
-    testVersion: LdkitTestVersion,
-    testCase: LdkitTestCase,
+    testVersion: PersistedTestVersion,
+    testCase: PersistedTestCase,
     executorFactory: ExecutorFactory,
     run: (executor: ISparqlExecutor) => Promise<T>,
   ): Promise<T> {
@@ -755,13 +755,13 @@ export class TestRunner {
 
   private async invokeQueryGroup(
     subjectId: string,
-    testVersion: LdkitTestVersion,
-    testCase: LdkitTestCase,
+    testVersion: PersistedTestVersion,
+    testCase: PersistedTestCase,
     executorFactory: ExecutorFactory,
   ): Promise<{ result: unknown; subjectVersionId: string | null }> {
     const version = testVersion.subjectVersion
-      ? get<LdkitQueryGroupVersion>(testVersion.subjectVersion, 'QueryGroupVersion')
-      : this.currentVersionOf<LdkitQueryGroupVersion>(subjectId, 'QueryGroup', 'QueryGroupVersion');
+      ? get<PersistedQueryGroupVersion>(testVersion.subjectVersion, 'QueryGroupVersion')
+      : this.currentVersionOf<PersistedQueryGroupVersion>(subjectId, 'QueryGroup', 'QueryGroupVersion');
     if (!version) {
       throw new TestNotRunnableError(`No query group version to run for subject ${subjectId}`);
     }
@@ -800,7 +800,7 @@ export class TestRunner {
    * unpinned one is a regression test against whatever the subject is now.
    */
   private currentVersionOf<T>(subjectId: string, parentType: EntityTypeName, versionType: EntityTypeName): T | null {
-    const parent = get<LdkitQuery | LdkitQueryGroup | LdkitRuleSet | LdkitEtlJob>(subjectId, parentType);
+    const parent = get<PersistedQuery | PersistedQueryGroup | PersistedRuleSet | PersistedEtlJob>(subjectId, parentType);
     if (!parent) return null;
     const currentVersion = (parent as { currentVersion?: string | null }).currentVersion;
     if (currentVersion) {
@@ -822,7 +822,7 @@ export class TestRunner {
    * refused here rather than silently reduced to its first: dropping the rest
    * would produce a verdict on data the case did not describe.
    */
-  private resolveDataGraph(testCase: LdkitTestCase): { content: string; format: string } | null {
+  private resolveDataGraph(testCase: PersistedTestCase): { content: string; format: string } | null {
     const graphs = this.resolveDataGraphs(testCase);
     if (graphs.length === 0) return null;
     if (graphs.length > 1) {
@@ -865,7 +865,7 @@ export class TestRunner {
   }
 
   private dataGraphContent(dataGraphVersionId: string): { content: string; format: string } {
-    const version = get<LdkitDataGraphVersion>(dataGraphVersionId, 'DataGraphVersion');
+    const version = get<PersistedDataGraphVersion>(dataGraphVersionId, 'DataGraphVersion');
     if (!version) {
       throw new TestNotRunnableError(`Data graph version ${dataGraphVersionId} not found`);
     }
@@ -874,7 +874,7 @@ export class TestRunner {
   }
 
   /** The executor for the version's named backend. Only reached when one is named. */
-  private async resolveExecutor(testVersion: LdkitTestVersion, executorFactory: ExecutorFactory) {
+  private async resolveExecutor(testVersion: PersistedTestVersion, executorFactory: ExecutorFactory) {
     if (!testVersion.backend) {
       // `withQueryExecutor` decides between backend and data graph and only
       // calls this on the backend branch, so reaching here means those two

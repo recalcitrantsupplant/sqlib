@@ -3,7 +3,7 @@
 /**
  * Schema Generator - Build-time code generation
  * 
- * Generates OpenAPI schemas and TypeScript types from LDKit schemas.
+ * Generates OpenAPI schemas and TypeScript types from the entity schemas.
  * This ensures consistency between RDF persistence layer and REST API.
  */
 
@@ -279,7 +279,7 @@ function generateBenchmarkContractModule(experimentSchema: any, versionSchema: a
 
 function generateDetectionContractModule(): string {
   return `/**
- * 🤖 This file is auto-generated from LDKit schemas.
+ * 🤖 This file is auto-generated from the entity schemas.
  * Do not edit manually - run 'npm run generate-schemas' instead.
  */
 import { z } from 'zod';
@@ -1009,7 +1009,7 @@ async function generateSchemas() {
   const schemaFiles = await loadEntitySchemas(SCHEMAS_DIR);
   
   const headerComment = `/**
- * 🤖 This file is auto-generated from LDKit schemas.
+ * 🤖 This file is auto-generated from the entity schemas.
  * Do not edit manually - run 'npm run generate-schemas' instead.
  */
 
@@ -1181,11 +1181,11 @@ const routesContent = headerComment +
 }
 
 /**
- * Build execution contract module (non-LDKit, API-only)
+ * Build execution contract module (no entity schema, API-only)
  */
 function generateExecutionContractModule(): string {
   return `/**
- * 🤖 This file is auto-generated from LDKit schemas.
+ * 🤖 This file is auto-generated from the entity schemas.
  * Do not edit manually - run 'npm run generate-schemas' instead.
  */
 import { z } from 'zod';
@@ -1364,7 +1364,7 @@ const errorResponseSchema = {
 
 function generatePlaygroundContractModule(): string {
   return `/**
- * 🤖 This file is auto-generated from LDKit schemas.
+ * 🤖 This file is auto-generated from the entity schemas.
  * Do not edit manually - run 'npm run generate-schemas' instead.
  */
 import { z } from 'zod';

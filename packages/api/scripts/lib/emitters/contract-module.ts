@@ -66,7 +66,7 @@ function addFileHeader(sourceFile: SourceFile): void {
   sourceFile.insertText(
     0,
     `/**
- * 🤖 This file is auto-generated from LDKit schemas.
+ * 🤖 This file is auto-generated from the entity schemas.
  * Do not edit manually - run 'npm run generate-schemas' instead.
  */
 `

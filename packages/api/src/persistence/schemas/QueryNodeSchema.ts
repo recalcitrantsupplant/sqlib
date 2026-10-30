@@ -1,17 +1,17 @@
 /**
- * LDKit Schema for QueryNode Entity
+ * Entity schema for QueryNode Entity
  * 
  * This entity represents nodes in a query execution graph.
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, rdf, sqlib } from '../namespaces.js';
+import { rdf, sqlib } from '../namespaces.js';
 
 export const QueryNodeSchema = {
   '@type': sqlib.QueryNode,
   queryId: {
     '@id': sqlib.queryId,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@references': { types: ['QueryVersion'] },
   },
   /**
@@ -27,20 +27,20 @@ export const QueryNodeSchema = {
    */
   backendId: {
     '@id': sqlib.backendId,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
     '@references': { types: ['Backend'] },
   },
   inputs: {
     '@id': sqlib.inputs,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   outputs: {
     '@id': sqlib.outputs,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   /**
@@ -67,7 +67,7 @@ export interface EphemeralBackendConfig {
   storeId: string;
 }
 
-export interface LdkitQueryNode {
+export interface PersistedQueryNode {
   '$id': string;
   '@type'?: 'QueryNode';
   queryId: string; // Required - reference to QueryVersion

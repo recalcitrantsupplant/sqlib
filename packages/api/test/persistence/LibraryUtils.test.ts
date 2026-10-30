@@ -1,11 +1,11 @@
 /**
- * Test LibraryUtils LDKit integration
+ * Test LibraryUtils persistence integration
  */
 
 import { Libraries, findLibraryByName, createLibrary, updateLibrary } from '../../src/persistence/utils/LibraryUtils.js';
 import { overrideRepositoryLenses } from '../../src/persistence/utils/entityRepository.js';
 
-// In-memory LDKit lens for this suite
+// In-memory entity lens for this suite
 const repositoryLens = (() => {
   const store = new Map<string, any>();
   const lens = {
@@ -21,7 +21,7 @@ overrideRepositoryLenses(() => repositoryLens);
 
 const SPARQL_ENDPOINT = 'http://localhost:3031/testing123'; // This constant is not used in the mocked environment
 
-describe('LibraryUtils (LDKit Integration)', () => {
+describe('LibraryUtils (persistence integration)', () => {
   const testLibraryId = 'http://example.org/test-library';
   const anotherLibraryId = 'http://example.org/another-library';
 
@@ -46,7 +46,7 @@ describe('LibraryUtils (LDKit Integration)', () => {
   });
 
   it('should create and find a library', async () => {
-    // Create using LDKit
+    // Create
     await createLibrary({
       $id: testLibraryId,
       name: 'Test Library',

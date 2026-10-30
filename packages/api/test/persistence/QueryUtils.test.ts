@@ -2,7 +2,7 @@
 import { createQuery, updateQuery, deleteQuery, findAllQueries, findQueryById, findQueryByName } from '../../src/persistence/utils/QueryUtils.js';
 import { overrideRepositoryLenses } from '../../src/persistence/utils/entityRepository.js';
 
-// In-memory LDKit lens for this suite
+// In-memory entity lens for this suite
 const repositoryLens = (() => {
   const store = new Map<string, any>();
   const lens = {

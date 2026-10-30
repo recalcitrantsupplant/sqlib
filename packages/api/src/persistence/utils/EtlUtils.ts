@@ -1,5 +1,5 @@
 /**
- * LDKit utility wrappers for ETL entities
+ * Entity utility wrappers for ETL entities
  */
 
 import { createRepositoryLens } from './entityRepository.js';

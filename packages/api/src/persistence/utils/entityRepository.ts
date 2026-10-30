@@ -2,7 +2,7 @@
  * Entity repositories: the per-type read/write handles the rest of the codebase
  * uses (`Backends.insert(...)`, `QueryNodes.findByIri(...)`, and so on).
  *
- * These were LDKit lenses. LDKit is gone (plan §3 Phase 5) and they are now thin
+ * These were lenses of an RDF mapping library (plan §3 Phase 5). They are now thin
  * bindings onto `EntityStore`, which generates SPARQL from the same schema objects
  * and runs it through the standard executor. The shape is unchanged, so every call
  * site is unaffected; what changed is that there is one persistence implementation
@@ -79,9 +79,9 @@ export function overrideRepositoryLenses(factory: ((schema: Schema) => Lens<any>
  * Entity shapes live in the backend-neutral `persistence/` module; re-exported
  * here for the existing import sites.
  */
-import type { BaseEntity, LDKitEntity } from '../EntityTypes.js';
+import type { BaseEntity, PersistedEntity } from '../EntityTypes.js';
 
-export type { BaseEntity, LDKitEntity };
+export type { BaseEntity, PersistedEntity };
 
 /**
  * Boot load: every entity in the store, keyed by IRI.
@@ -96,12 +96,12 @@ export type { BaseEntity, LDKitEntity };
  * cache. Deriving the list from `SCHEMA_BY_TYPE` is what fixes that, and
  * `entityTypeCoverage.test.ts` keeps it honest.
  */
-export async function loadAllSystemEntities(): Promise<Map<string, LDKitEntity>> {
-  return (await loadAllEntities(SCHEMA_BY_TYPE as unknown as Record<string, EntitySchema>)) as Map<string, LDKitEntity>;
+export async function loadAllSystemEntities(): Promise<Map<string, PersistedEntity>> {
+  return (await loadAllEntities(SCHEMA_BY_TYPE as unknown as Record<string, EntitySchema>)) as Map<string, PersistedEntity>;
 }
 
 /**
- * Convert Schema.org SchemaValue types to simple primitive values for LDKit
+ * Convert Schema.org SchemaValue types to simple primitive values for persistence
  * Handles the common pattern of SchemaValue<T> which can be:
  * - A simple value (string, number, boolean)
  * - An object with @value property
@@ -135,7 +135,7 @@ export function extractSimpleValue(value: any): string | undefined {
 }
 
 /**
- * Convert Schema.org SchemaValue array to simple string array for LDKit
+ * Convert Schema.org SchemaValue array to simple string array for persistence
  */
 export function extractSimpleArray(value: any): string[] {
   if (!value) return [];
@@ -149,10 +149,10 @@ export function extractSimpleArray(value: any): string[] {
 }
 
 /**
- * Convert a Schema.org entity (from factories) to LDKit format
- * This handles the common conversion pattern from factory output to LDKit input
+ * Convert a Schema.org entity (from factories) to the persisted format
+ * This handles the common conversion pattern from factory output to persistence input
  */
-export function convertSchemaToLdkit<T extends Record<string, any>>(
+export function convertSchemaToPersisted<T extends Record<string, any>>(
   schemaEntity: Record<string, any>,
   fieldMappings?: Record<string, string>
 ): Partial<T> {
@@ -175,7 +175,7 @@ export function convertSchemaToLdkit<T extends Record<string, any>>(
 }
 
 /**
- * Convert an LDKit entity (with $id) to a JSON-LD style object (with @id).
+ * Convert an persisted entity (with $id) to a JSON-LD style object (with @id).
  * This is used at the API boundary for JSON-LD compliance.
  */
 export function toJsonLd<T>(entity: T): any {
@@ -188,14 +188,14 @@ export function toJsonLd<T>(entity: T): any {
 }
 
 /**
- * Convert an array of LDKit entities to JSON-LD format
+ * Convert an array of persisted entities to JSON-LD format
  */
 export function toJsonLdArray<T extends { $id?: string }>(entities: T[]): Array<Omit<T, '$id'> & { '@id'?: string }> {
   return Array.isArray(entities) ? entities.map(toJsonLd) : [];
 }
 
 /**
- * Convert a JSON-LD object (with @id) to LDKit entity format (with $id).
+ * Convert a JSON-LD object (with @id) to persisted entity format (with $id).
  * This is used when receiving data from API requests.
  */
 export function fromJsonLd<T>(jsonLdObject: T): any {

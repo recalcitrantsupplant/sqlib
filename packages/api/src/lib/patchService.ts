@@ -41,7 +41,7 @@ import { getEntityRepositories } from './CacheCoordinatorProvider.js';
 import { publishDataChange } from './changeEvents.js';
 import { markStoreWritten } from './storeWrites.js';
 import { resolvePatchTarget, PatchTargetError, type PatchTarget } from './patchTargets.js';
-import type { LdkitPatch, PatchSourceKind, PatchStatus } from '../persistence/schemas/PatchSchema.js';
+import type { PersistedPatch, PatchSourceKind, PatchStatus } from '../persistence/schemas/PatchSchema.js';
 
 export { PatchTargetError } from './patchTargets.js';
 export { UnsupportedUpdateError } from '@sparql-query-lib/rdf-delta';
@@ -51,9 +51,9 @@ const N_QUADS = 'application/n-quads';
 /** Raised when the store moved between deriving a patch and applying it. */
 export class PatchConflictError extends Error {
   readonly statusCode = 409;
-  readonly current: LdkitPatch;
+  readonly current: PersistedPatch;
 
-  constructor(message: string, current: LdkitPatch) {
+  constructor(message: string, current: PersistedPatch) {
     super(message);
     this.name = 'PatchConflictError';
     this.current = current;
@@ -76,7 +76,7 @@ export interface ApplyParams extends DeriveOptions {
 }
 
 /** Derive the patch an update would produce, and persist it as `previewed`. */
-export async function previewUpdate(params: PreviewParams): Promise<LdkitPatch> {
+export async function previewUpdate(params: PreviewParams): Promise<PersistedPatch> {
   const target = await resolvePatchTarget(params.backendId);
   const delta = await derivePatch(params.updateString, target.deltaStore, deriveOptions(params));
   return persist(delta, {
@@ -89,7 +89,7 @@ export async function previewUpdate(params: PreviewParams): Promise<LdkitPatch> 
 }
 
 /** Preview and apply in one call, for callers with no approval gate. */
-export async function applyUpdate(params: PreviewParams): Promise<LdkitPatch> {
+export async function applyUpdate(params: PreviewParams): Promise<PersistedPatch> {
   const target = await resolvePatchTarget(params.backendId);
   const delta = await derivePatch(params.updateString, target.deltaStore, deriveOptions(params));
   await applyDelta(target, delta);
@@ -128,7 +128,7 @@ export interface RecordParams extends PreviewParams {
  * record a write is asking not to lose it, so an unsupported update form is
  * answered as a refusal rather than by quietly writing unrecorded.
  */
-export async function recordPassthroughUpdate(params: RecordParams): Promise<LdkitPatch> {
+export async function recordPassthroughUpdate(params: RecordParams): Promise<PersistedPatch> {
   const target = await resolvePatchTarget(params.backendId);
   const delta = await derivePatch(params.updateString, target.deltaStore);
 
@@ -159,7 +159,7 @@ export async function recordPassthroughUpdate(params: RecordParams): Promise<Ldk
 }
 
 /** Apply a patch that was previewed earlier, guarded against drift. */
-export async function applyExistingPatch(params: ApplyParams): Promise<LdkitPatch> {
+export async function applyExistingPatch(params: ApplyParams): Promise<PersistedPatch> {
   const repos = getEntityRepositories();
   const stored = repos.Patch.get(params.patchId);
   if (!stored) {
@@ -186,7 +186,7 @@ export async function applyExistingPatch(params: ApplyParams): Promise<LdkitPatc
 }
 
 /** Undo an applied patch by applying its inverse, recorded as its own patch. */
-export async function revertPatch(patchId: string, origin?: string | null): Promise<LdkitPatch> {
+export async function revertPatch(patchId: string, origin?: string | null): Promise<PersistedPatch> {
   const repos = getEntityRepositories();
   const stored = repos.Patch.get(patchId);
   if (!stored) {
@@ -279,7 +279,7 @@ interface PersistOptions {
   dateApplied?: string;
 }
 
-async function persist(delta: DeltaPatch, options: PersistOptions): Promise<LdkitPatch> {
+async function persist(delta: DeltaPatch, options: PersistOptions): Promise<PersistedPatch> {
   const { additions, deletions } = await serialiseSides(delta);
   return getEntityRepositories().Patch.create({
     $id: mintId('patch'),
@@ -342,7 +342,7 @@ async function serialiseSides(delta: DeltaPatch): Promise<{ additions: string; d
  * It reads the rows the record holds rather than re-deriving: this is a view of
  * what was written down, not a fresh evaluation.
  */
-export function toRdfPatchDocument(patch: LdkitPatch): string {
+export function toRdfPatchDocument(patch: PersistedPatch): string {
   return patchToRdfPatch(
     {
       additions: parseNQuads(patch.additions ?? ''),
@@ -382,7 +382,7 @@ function graphScopeOf(delta: DeltaPatch): string[] {
  * there is no query that would reproduce them.
  */
 async function resolveDelta(
-  stored: LdkitPatch,
+  stored: PersistedPatch,
   target: PatchTarget,
   params: ApplyParams,
 ): Promise<DeltaPatch> {
@@ -459,12 +459,12 @@ async function applyDelta(target: PatchTarget, delta: DeltaPatch): Promise<void>
   markStoreWritten(target.store);
 }
 
-function announce(record: LdkitPatch, origin: string | null): void {
+function announce(record: PersistedPatch, origin: string | null): void {
   publishDataChange({ backendId: record.isPartOf, patchId: record.$id, origin });
 }
 
 /** The graph operations a stored patch recorded, or none. */
-export function storedGraphOps(stored: LdkitPatch): GraphOperationRecord[] {
+export function storedGraphOps(stored: PersistedPatch): GraphOperationRecord[] {
   if (!stored.graphOps) return [];
   try {
     const parsed: unknown = JSON.parse(stored.graphOps);
@@ -483,12 +483,12 @@ export function storedGraphOps(stored: LdkitPatch): GraphOperationRecord[] {
  * `some`, because `CREATE` reports itself enumerated either way — it moves no
  * triples, so there is nothing for the option to change.
  */
-function enumerationWasUsed(stored: LdkitPatch): boolean {
+function enumerationWasUsed(stored: PersistedPatch): boolean {
   const records = storedGraphOps(stored);
   return records.length > 0 && records.every((operation) => operation.enumerated);
 }
 
-function toDeltaPatch(stored: LdkitPatch): DeltaPatch {
+function toDeltaPatch(stored: PersistedPatch): DeltaPatch {
   const additions = parseNQuads(stored.additions ?? '');
   const deletions = parseNQuads(stored.deletions ?? '');
   return {

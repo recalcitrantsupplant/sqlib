@@ -1,27 +1,27 @@
 /**
- * LDKit Schema for BenchmarkNodeObservation Entity (node-level observation).
+ * Entity schema for BenchmarkNodeObservation Entity (node-level observation).
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, qb, sqlib } from '../namespaces.js';
+import { xsd, qb, sqlib } from '../namespaces.js';
 
 export const BenchmarkNodeObservationSchema = {
   '@type': sqlib.BenchmarkNodeObservation,
   dataSet: {
     '@id': qb.dataSet,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
   },
   groupObservation: {
     '@id': sqlib.refGroupObservation,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
   },
   node: {
     '@id': sqlib.refNode,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
   },
   backend: {
     '@id': sqlib.refBackend,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
   },
   runIndex: {
     '@id': sqlib.runIndex,
@@ -58,7 +58,7 @@ export const BenchmarkNodeObservationSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitBenchmarkNodeObservation {
+export interface PersistedBenchmarkNodeObservation {
   $id: string;
   '@type'?: 'BenchmarkNodeObservation';
   dataSet: string;

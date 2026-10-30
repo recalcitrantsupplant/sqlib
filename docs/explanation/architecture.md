@@ -226,8 +226,8 @@ is not heard by a browser subscribed to a different process. This is recorded in
 sqlib stores its own entities as RDF, in a SPARQL store, through its own query
 execution path.
 
-The layer was originally built on LDKit. LDKit has been removed. What replaced
-it is:
+The layer was originally built on an RDF mapping library, since removed. What
+replaced it is:
 
 - `packages/api/src/persistence/EntityStore.ts` — the engine. It is keyed on the
   *schema* rather than on an entity-type name, generates the SELECT, INSERT,
@@ -243,8 +243,9 @@ it is:
 - `packages/api/src/lib/EntityRegistry.ts` — `LENS_BY_TYPE`, the per-entity
   repositories (52 entity types), and `TTL_MS`, the per-type cache lifetime.
 
-Names carrying `Ldkit`/`LENS` survive in the types and the registry; the
-implementation behind them does not. Any older material describing LDKit lenses,
+The name `LENS` survives in the registry; the implementation behind it does
+not. The entity interfaces are named `Persisted*` (`PersistedQuery`,
+`PersistedBackend`, ...). Any older material describing library lenses,
 a `persistPath` RocksDB store, or seven route modules is describing a system
 that no longer exists.
 

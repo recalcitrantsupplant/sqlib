@@ -80,7 +80,7 @@ async function prepareOxigraphStores(fastifyApp: typeof app): Promise<void> {
     fastifyApp.log.info({
       storeId: backendConfig.storeId,
       storageDir: backendConfig.storageDir,
-    }, 'Library Oxigraph store ready for LDKit persistence');
+    }, 'Library Oxigraph store ready for persistence');
   }
 }
 
@@ -180,7 +180,7 @@ async function configureApp(fastifyApp: typeof app, options: ConfigureOptions = 
 
   registerErrorHandler(fastifyApp);
 
-  // Initialize local storage for LDKit persistence before hitting lenses
+  // Initialize local storage for persistence before hitting lenses
   await prepareOxigraphStores(fastifyApp);
 
   // Initialize memory cache manager - load all entities from SPARQL into memory

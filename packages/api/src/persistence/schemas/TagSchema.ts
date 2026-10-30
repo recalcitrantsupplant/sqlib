@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for Tag Entity
+ * Entity schema for Tag Entity
  *
  * A tag classifies entities inside one library. It is not a container: nothing
  * is `sdo:isPartOf` a tag, and deleting one unlabels rather than cascading.
@@ -11,7 +11,7 @@
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, sqlib, sdo } from '../namespaces.js';
+import { xsd, sqlib, sdo } from '../namespaces.js';
 
 export const TagSchema = {
   '@type': sqlib.Tag,
@@ -55,7 +55,7 @@ export const TagSchema = {
    */
   isPartOf: {
     '@id': sdo.isPartOf,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@references': { types: ['Library'] },
   },
   dateCreated: {
@@ -70,7 +70,7 @@ export const TagSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitTag {
+export interface PersistedTag {
   $id: string;
   '@type'?: 'Tag';
   name: string;

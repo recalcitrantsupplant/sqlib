@@ -7,7 +7,7 @@ import { ReadOnlySparqlExecutor } from '../../server/ReadOnlySparqlExecutor.js';
 import type { ISparqlExecutor } from '../../server/ISparqlExecutor.js';
 import { resolveBackendEnvAuth } from '../backendAuth.js';
 import { oxigraphStoreManager } from '../OxigraphStoreManager.js';
-import { backendTypeIriToKey, queryMethodIriToKey, resolveOxigraphConfig, type LdkitBackend } from '../../persistence/schemas/BackendSchema.js';
+import { backendTypeIriToKey, queryMethodIriToKey, resolveOxigraphConfig, type PersistedBackend } from '../../persistence/schemas/BackendSchema.js';
 import { config } from '../../server/config.js';
 import { LibrarySparqlViewExecutor } from '../../persistence/librarySparqlView.js';
 import type { ExecutionAuthScope, InternalExecution } from '../../auth/executionScope.js';
@@ -76,7 +76,7 @@ export class ExecutorFactory {
     const cached = this.cache.get(backendId);
     if (cached) return cached;
 
-    const backend = getCacheCoordinator().get(backendId) as LdkitBackend | null;
+    const backend = getCacheCoordinator().get(backendId) as PersistedBackend | null;
     if (!backend || backend['@type'] !== 'Backend') {
       throw new Error(`Backend not found: ${backendId}`);
     }
@@ -121,14 +121,14 @@ export class ExecutorFactory {
 
     assertBackendAccess(this.authScope, id);
 
-    const backend = getCacheCoordinator().get(id) as LdkitBackend | null;
+    const backend = getCacheCoordinator().get(id) as PersistedBackend | null;
     if (id !== LIBRARY_STORAGE_BACKEND_ID && (!backend || backend['@type'] !== 'Backend')) {
       throw new Error(`Backend not found for node ${node.id}: ${id}`);
     }
     return this.guarded(id, await this.resolveForBackendId(id));
   }
 
-  private createHttpExecutor(backend: LdkitBackend): ISparqlExecutor {
+  private createHttpExecutor(backend: PersistedBackend): ISparqlExecutor {
     const endpoint = backend.endpoint;
     if (!endpoint) {
       throw new Error(`HTTP backend ${backend.$id} missing endpoint`);
@@ -150,7 +150,7 @@ export class ExecutorFactory {
     });
   }
 
-  private async createOxigraphExecutor(backend: LdkitBackend): Promise<ISparqlExecutor> {
+  private async createOxigraphExecutor(backend: PersistedBackend): Promise<ISparqlExecutor> {
     // Get or create the persistent store
     let store = oxigraphStoreManager.getPersistentStore(backend.$id);
     
@@ -179,7 +179,7 @@ export class ExecutorFactory {
    * indefinitely. The store manager does its own dedup and caching, so
    * re-resolving per call costs a map lookup, not a rehydration.
    */
-  private async createMemoryExecutor(backend: LdkitBackend): Promise<ISparqlExecutor> {
+  private async createMemoryExecutor(backend: PersistedBackend): Promise<ISparqlExecutor> {
     const oxigraphConfig = resolveOxigraphConfig(backend.oxigraphConfig, backend.$id)
       ?? { storeType: 'ephemeral' as const, mode: 'readOnly' as const };
 
@@ -198,7 +198,7 @@ export class ExecutorFactory {
    * safe reading of an under-specified config — the opposite default would
    * accept writes that vanish on the next reload.
    */
-  private wrapForMode(exec: ISparqlExecutor, backend: LdkitBackend): ISparqlExecutor {
+  private wrapForMode(exec: ISparqlExecutor, backend: PersistedBackend): ISparqlExecutor {
     const mode = resolveOxigraphConfig(backend.oxigraphConfig, backend.$id)?.mode ?? 'readOnly';
     return mode === 'readOnly' ? new ReadOnlySparqlExecutor(exec, backend.$id) : exec;
   }
@@ -280,7 +280,7 @@ export class ExecutorFactory {
     }
   }
 
-  private createBackendEphemeralExecutor(backend: LdkitBackend): ISparqlExecutor {
+  private createBackendEphemeralExecutor(backend: PersistedBackend): ISparqlExecutor {
     const store = oxigraphStoreManager.getEphemeralStore(backend.$id) ?? oxigraphStoreManager.createEphemeralStore(backend.$id);
     return new OxigraphSparqlExecutor(store);
   }

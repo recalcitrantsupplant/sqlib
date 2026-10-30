@@ -1,17 +1,17 @@
 /**
- * LDKit Schema for RuleVersion entity.
+ * Entity schema for RuleVersion entity.
  *
  * Represents an immutable snapshot of a SHACL rule definition.
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, sqlib, sdo } from '../namespaces.js';
+import { xsd, sqlib, sdo } from '../namespaces.js';
 
 export const RuleVersionSchema = {
   '@type': sqlib.RuleVersion,
   isPartOf: {
     '@id': sdo.isPartOf,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@references': { types: ['Rule'] },
   },
   version: {
@@ -68,7 +68,7 @@ export const RuleVersionSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitRuleVersion {
+export interface PersistedRuleVersion {
   $id: string;
   '@type'?: 'RuleVersion';
   isPartOf: string;

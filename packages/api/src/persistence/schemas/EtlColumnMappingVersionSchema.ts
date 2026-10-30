@@ -1,17 +1,17 @@
 /**
- * LDKit Schema for EtlColumnMappingVersion Entity (Immutable Version)
+ * Entity schema for EtlColumnMappingVersion Entity (Immutable Version)
  *
  * Represents an immutable snapshot of column mapping configuration.
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, sqlib, sdo } from '../namespaces.js';
+import { xsd, sqlib, sdo } from '../namespaces.js';
 
 export const EtlColumnMappingVersionSchema = {
   '@type': sqlib.EtlColumnMappingVersion,
   isPartOf: {
     '@id': sdo.isPartOf, // points to the parent EtlColumnMapping
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@references': { types: ['EtlColumnMapping'] },
   },
   version: {
@@ -49,7 +49,7 @@ export const EtlColumnMappingVersionSchema = {
  */
 export type { ColumnDefinition } from '@sparql-query-lib/runtime-etl';
 
-export interface LdkitEtlColumnMappingVersion {
+export interface PersistedEtlColumnMappingVersion {
   $id: string;
   '@type'?: 'EtlColumnMappingVersion';
   isPartOf: string; // IRI back to stable EtlColumnMapping

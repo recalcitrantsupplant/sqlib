@@ -1,27 +1,27 @@
 /**
- * LDKit utilities for QueryGroup entities
+ * entity utilities for QueryGroup entities
  */
 
-import { QueryGroupSchema, type LdkitQueryGroup } from '../schemas/QueryGroupSchema.js';
+import { QueryGroupSchema, type PersistedQueryGroup } from '../schemas/QueryGroupSchema.js';
 import { createRepositoryLens } from './entityRepository.js';
-import { toLdkit } from './id-adapter.js';
+import { toPersisted } from './id-adapter.js';
 import { stringToDate, dateToIsoString } from './type-conversions.js';
 import { log } from '../../lib/log.js';
 
 export const QueryGroups = createRepositoryLens(QueryGroupSchema);
 
 /**
- * Load QueryGroup entities by IDs using LDKit
+ * Load QueryGroup entities by IDs
  */
-export async function loadQueryGroupsByIds(ids: string[]): Promise<LdkitQueryGroup[]> {
-  const results: LdkitQueryGroup[] = [];
+export async function loadQueryGroupsByIds(ids: string[]): Promise<PersistedQueryGroup[]> {
+  const results: PersistedQueryGroup[] = [];
   
   for (const id of ids) {
     try {
       const group = await QueryGroups.findByIri(id);
       if (group) {
         // Convert null to undefined for type compatibility  
-        const compatibleGroup: LdkitQueryGroup = {
+        const compatibleGroup: PersistedQueryGroup = {
           ...group,
           description: group.description || undefined,
           currentVersion: group.currentVersion || undefined,
@@ -44,9 +44,9 @@ export async function loadQueryGroupsByIds(ids: string[]): Promise<LdkitQueryGro
  * Create multiple QueryGroup entities
  */
 export async function createQueryGroups(
-  groupsData: Array<Omit<LdkitQueryGroup, '$id'> & { id: string }>
-): Promise<LdkitQueryGroup[]> {
-  const results: LdkitQueryGroup[] = [];
+  groupsData: Array<Omit<PersistedQueryGroup, '$id'> & { id: string }>
+): Promise<PersistedQueryGroup[]> {
+  const results: PersistedQueryGroup[] = [];
   
   for (const data of groupsData) {
     try {
@@ -60,13 +60,13 @@ export async function createQueryGroups(
       const insertGroup = {
         $id: id,
         ...groupData,
-        // Convert string dates to Date objects for LDKit
+        // Convert string dates to Date objects
         dateCreated: stringToDate(groupData.dateCreated),
         dateModified: stringToDate(groupData.dateModified),
       };
       await QueryGroups.insert(insertGroup as unknown as Parameters<typeof QueryGroups.insert>[0]);
       // Return API-shaped group (string dates)
-      const apiGroup: LdkitQueryGroup = {
+      const apiGroup: PersistedQueryGroup = {
         $id: id,
         ...groupData,
         currentVersion: groupData.currentVersion || undefined,
@@ -87,8 +87,8 @@ export async function createQueryGroups(
  */
 export async function updateQueryGroup(
   id: string,
-  updates: Partial<Omit<LdkitQueryGroup, '$id' | 'argumentSets'>>
-): Promise<LdkitQueryGroup | null> {
+  updates: Partial<Omit<PersistedQueryGroup, '$id' | 'argumentSets'>>
+): Promise<PersistedQueryGroup | null> {
   // Check if the entity exists first
   const existing = await QueryGroups.findByIri(id);
   if (!existing) {
@@ -97,7 +97,7 @@ export async function updateQueryGroup(
 
   const updatesWithTimestamp = {
     ...updates,
-    dateModified: new Date(), // LDKit expects Date object
+    dateModified: new Date(), // expects a Date object
     // Convert any string dates to Date objects
     dateCreated: updates.dateCreated ? stringToDate(updates.dateCreated) : undefined,
   };
@@ -144,7 +144,7 @@ export async function deleteQueryGroups(ids: string[]): Promise<boolean[]> {
 /**
  * Find QueryGroups by library/parent
  */
-export async function findQueryGroupsByParent(parentId: string): Promise<LdkitQueryGroup[]> {
+export async function findQueryGroupsByParent(parentId: string): Promise<PersistedQueryGroup[]> {
   try {
     const allGroups = await QueryGroups.find();
     const filtered = allGroups.filter(group =>
@@ -174,17 +174,17 @@ export async function findQueryGroupsByParent(parentId: string): Promise<LdkitQu
 /**
  * Create a QueryGroup with validation
  */
-type FlexibleGroupInput = Omit<LdkitQueryGroup, '$id' | '@id'> & { '@id'?: string; $id?: string };
+type FlexibleGroupInput = Omit<PersistedQueryGroup, '$id' | '@id'> & { '@id'?: string; $id?: string };
 
-export async function createQueryGroup(data: FlexibleGroupInput): Promise<LdkitQueryGroup> {
+export async function createQueryGroup(data: FlexibleGroupInput): Promise<PersistedQueryGroup> {
   // Validate required fields
   if (!data.name || !data.currentVersion || !data.isPartOf) {
     throw new Error('QueryGroup requires name, currentVersion, and isPartOf');
   }
   
-  const normalized = toLdkit<LdkitQueryGroup>({ 
+  const normalized = toPersisted<PersistedQueryGroup>({ 
     ...(data),
-    // Convert string dates to Date objects for LDKit
+    // Convert string dates to Date objects
     dateCreated: stringToDate(data.dateCreated),
     dateModified: stringToDate(data.dateModified),
   });

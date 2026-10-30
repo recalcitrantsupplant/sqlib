@@ -1,12 +1,12 @@
 /**
- * LDKit Schema for EndNode Entity
+ * Entity schema for EndNode Entity
  * 
  * EndNode represents the final output destination in a query canvas.
  * It can specify the desired media type for the final output format.
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, sqlib, sdo } from '../namespaces.js';
+import { xsd, sqlib, sdo } from '../namespaces.js';
 import { OutputMediaType, OUTPUT_MEDIA_TYPE_VALUES } from '../../types/media-types.js';
 
 export const EndNodeSchema = {
@@ -14,7 +14,7 @@ export const EndNodeSchema = {
   inputs: {
     '@id': sqlib.inputs,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   mediaType: {
@@ -33,7 +33,7 @@ export const EndNodeSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitEndNode {
+export interface PersistedEndNode {
   '$id': string;
   '@type'?: 'EndNode';
   inputs?: string[] | null; // Generic I/O references (QueryOutputTuple, TriplesQuadsIO, BooleanIO, etc.)

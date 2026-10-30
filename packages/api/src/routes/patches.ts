@@ -32,7 +32,7 @@ import {
   sweepPreviewedPatches,
   toRdfPatchDocument,
 } from '../lib/patchService.js';
-import type { LdkitPatch } from '../persistence/schemas/PatchSchema.js';
+import type { PersistedPatch } from '../persistence/schemas/PatchSchema.js';
 
 const RDF_PATCH_MEDIA_TYPE = 'text/rdf-patch';
 
@@ -123,7 +123,7 @@ const idParamSchema = {
 } as const;
 
 /** The stored entity as the API shows it. */
-export function toPatchView(patch: LdkitPatch): Record<string, unknown> {
+export function toPatchView(patch: PersistedPatch): Record<string, unknown> {
   return {
     id: patch.$id,
     backendId: patch.isPartOf,
@@ -324,7 +324,7 @@ export default async function (fastify: FastifyInstance) {
  * so, along with its id in a header so a document response is still traceable
  * back to the record it came from.
  */
-function sendPatch(request: FastifyRequest, reply: FastifyReply, patch: LdkitPatch): unknown {
+function sendPatch(request: FastifyRequest, reply: FastifyReply, patch: PersistedPatch): unknown {
   const accept = String(request.headers.accept ?? '');
   if (accept.includes(RDF_PATCH_MEDIA_TYPE)) {
     // The RDF-Delta dialect, so a consumer that already speaks it needs no

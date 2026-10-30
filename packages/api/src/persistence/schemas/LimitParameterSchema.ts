@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for LimitParameter Entity
+ * Entity schema for LimitParameter Entity
  * 
  * This entity represents limit parameter definitions for queries.
  * Each limit parameter has an identifier used in SPARQL queries.
@@ -25,7 +25,7 @@ export const LimitParameterSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitLimitParameter {
+export interface PersistedLimitParameter {
   '$id': string;
   '@type'?: 'LimitParameter';
   name: string; // Required - the name used in SPARQL (e.g., "page-size-limit")

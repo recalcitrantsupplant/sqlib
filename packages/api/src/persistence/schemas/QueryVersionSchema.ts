@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for QueryVersion Entity (Immutable Version)
+ * Entity schema for QueryVersion Entity (Immutable Version)
  * 
  * Represents an immutable version of a query. Each version has a stable
  * parent Query and contains the actual SPARQL query string and metadata.
@@ -7,7 +7,7 @@
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, sqlib, sdo } from '../namespaces.js';
+import { xsd, sqlib, sdo } from '../namespaces.js';
 import { QueryTypeIri as QueryTypeIriConst, type QueryTypeKey, type QueryTypeValue } from '../../constants/queryTypes.js';
 
 export const QueryTypeIri = QueryTypeIriConst;
@@ -17,7 +17,7 @@ export const QueryVersionSchema = {
   '@type': sqlib.QueryVersion,
   isPartOf: {
     '@id': sdo.isPartOf,  // points to the parent QuerySchema
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@references': { types: ['Query'] },
   },
   version: {
@@ -39,7 +39,7 @@ export const QueryVersionSchema = {
   },
   queryType: {
     '@id': sqlib.queryType,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   /*
@@ -77,25 +77,25 @@ export const QueryVersionSchema = {
   limitParameters: {
     '@id': sqlib.limitParameters,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   offsetParameters: {
     '@id': sqlib.offsetParameters,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   inferredInputs: {
     '@id': sqlib.inferredInputs,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   inferredOutputs: {
     '@id': sqlib.inferredOutputs,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   dateCreated: {
@@ -110,7 +110,7 @@ export const QueryVersionSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitQueryVersion {
+export interface PersistedQueryVersion {
   $id: string;
   '@type'?: 'QueryVersion';
   isPartOf: string; // IRI back to stable Query

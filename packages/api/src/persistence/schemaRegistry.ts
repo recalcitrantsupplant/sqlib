@@ -1,9 +1,9 @@
 /**
- * Entity type -> LDKit schema object, for runtime use.
+ * Entity type -> entity schema object, for runtime use.
  *
  * `EntityRegistry.LENS_BY_TYPE` maps types to *lenses*; the self-hosted mapper
  * needs the schemas those lenses were built from, so it can generate queries and
- * assemble results without LDKit in the path. Both maps are keyed by
+ * assemble results without a mapping library in the path. Both maps are keyed by
  * `ENTITY_TYPE_NAMES`, so a type present in one and missing from the other is a
  * compile error here rather than a runtime gap.
  */

@@ -18,7 +18,7 @@ import * as oxigraph from 'oxigraph';
 import { oxigraphStoreManager } from '../../src/lib/OxigraphStoreManager.js';
 import { BackendTypeIri } from '../../src/persistence/schemas/BackendSchema.js';
 import { orderPatchLog } from '../../src/lib/patchLog.js';
-import type { LdkitPatch } from '../../src/persistence/schemas/PatchSchema.js';
+import type { PersistedPatch } from '../../src/persistence/schemas/PatchSchema.js';
 import { installFakePersistenceAdapter } from '../support/fakePersistenceAdapter.js';
 
 const BACKEND_ID = 'urn:sqlib:backend:patch-order-test';
@@ -111,7 +111,7 @@ describe('the patch log is ordered by when patches landed', () => {
     // The record of the patch that landed first was written after the other's.
     expect(Date.parse(first.dateCreated!)).toBeGreaterThan(Date.parse(fast.dateCreated!));
 
-    const { ordered, caveats } = orderPatchLog(entities.all('Patch') as unknown as LdkitPatch[]);
+    const { ordered, caveats } = orderPatchLog(entities.all('Patch') as unknown as PersistedPatch[]);
     expect(ordered.map((patch) => patch.$id)).toEqual([first.$id, fast.$id]);
     expect(caveats).toEqual([]);
   });
@@ -126,7 +126,7 @@ describe('the patch log is ordered by when patches landed', () => {
       updateString: 'INSERT DATA { <http://ex/b> <http://ex/p> "2" }',
     });
 
-    const stored = entities.all('Patch') as unknown as LdkitPatch[];
+    const stored = entities.all('Patch') as unknown as PersistedPatch[];
     expect(stored).toHaveLength(2);
     for (const patch of stored) {
       expect(patch.patchStatus).toBe('applied');

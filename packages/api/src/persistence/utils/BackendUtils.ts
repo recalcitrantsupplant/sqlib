@@ -1,9 +1,9 @@
 /**
- * LDKit utilities for Backend entities
+ * entity utilities for Backend entities
  * Generated using EntityUtils for standardized CRUD operations
  */
 
-import { BackendSchema, backendTypeIriToKey, backendTypeKeyToIri, queryMethodKeyToIri, type LdkitBackend } from '../schemas/BackendSchema.js';
+import { BackendSchema, backendTypeIriToKey, backendTypeKeyToIri, queryMethodKeyToIri, type PersistedBackend } from '../schemas/BackendSchema.js';
 import { createEntityUtilsWithFields } from './EntityUtils.js';
 
 // Create standardized Backend utilities
@@ -17,7 +17,7 @@ import { createEntityUtilsWithFields } from './EntityUtils.js';
 // ephemeral backend without an endpoint now succeeds on this path, as it always
 // has through the endpoint. The conditional rule still lives in the contract's
 // `superRefine`, which is where a conditional can be expressed.
-const BackendUtils = createEntityUtilsWithFields<LdkitBackend>(BackendSchema, 'Backend');
+const BackendUtils = createEntityUtilsWithFields<PersistedBackend>(BackendSchema, 'Backend');
 
 // Export the repository for direct access if needed
 export const Backends = BackendUtils.Repository;
@@ -71,12 +71,12 @@ export function updateBackend(id: Parameters<typeof BackendUtils.update>[0], upd
 }
 
 // Export convenience methods for specific Backend operations
-export async function findBackendByName(name: string): Promise<LdkitBackend | null> {
+export async function findBackendByName(name: string): Promise<PersistedBackend | null> {
   const backends = await BackendUtils.findBy('name', name);
   return backends[0] || null;
 }
 
-export async function findBackendsByType(backendType: string): Promise<LdkitBackend[]> {
+export async function findBackendsByType(backendType: string): Promise<PersistedBackend[]> {
   const backendTypeKey = backendTypeIriToKey(backendType);
   if (!backendTypeKey) {
     return BackendUtils.findBy('backendType', backendType);

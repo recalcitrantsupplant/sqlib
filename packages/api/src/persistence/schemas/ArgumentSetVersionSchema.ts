@@ -1,17 +1,17 @@
 /**
- * LDKit Schema for ArgumentSetVersion Entity
+ * Entity schema for ArgumentSetVersion Entity
  *
  * Immutable versions of argument set bindings for reproducible execution.
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, sqlib, sdo } from '../namespaces.js';
+import { xsd, sqlib, sdo } from '../namespaces.js';
 
 export const ArgumentSetVersionSchema = {
   '@type': sqlib.ArgumentSetVersion,
   isPartOf: {
     '@id': sdo.isPartOf,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@references': { types: ['ArgumentSet'] },
   },
   version: {
@@ -21,14 +21,14 @@ export const ArgumentSetVersionSchema = {
   tupleBindings: {
     '@id': sqlib.tupleBindings,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
     '@references': { types: ['ArgumentTupleBinding'] },
   },
   scalarBindings: {
     '@id': sqlib.scalarBindings,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
     '@references': { types: ['ArgumentScalarBinding'] },
   },
@@ -44,7 +44,7 @@ export const ArgumentSetVersionSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitArgumentSetVersion {
+export interface PersistedArgumentSetVersion {
   '$id': string;
   '@type'?: 'ArgumentSetVersion';
   isPartOf: string;

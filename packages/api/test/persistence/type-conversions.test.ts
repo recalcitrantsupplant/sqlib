@@ -1,5 +1,5 @@
 
-import { nullToUndefined, undefinedToNull, cleanNullValues, prepareForLdkit, dateToIsoString, stringToDate, normalizeDatesForApi, normalizeDatesForLdkit } from '../../src/persistence/utils/type-conversions.js';
+import { nullToUndefined, undefinedToNull, cleanNullValues, prepareForPersistence, dateToIsoString, stringToDate, normalizeDatesForApi, normalizeDatesForPersistence } from '../../src/persistence/utils/type-conversions.js';
 
 describe('type-conversions', () => {
   describe('nullToUndefined', () => {
@@ -39,16 +39,16 @@ describe('type-conversions', () => {
     });
   });
 
-  describe('prepareForLdkit', () => {
+  describe('prepareForPersistence', () => {
     it('should remove undefined values from an object', () => {
       const obj = { a: 1, b: undefined, c: 'string' };
-      const prepared = prepareForLdkit(obj);
+      const prepared = prepareForPersistence(obj);
       expect(prepared).toEqual({ a: 1, c: 'string' });
     });
 
     it('should not remove null values', () => {
       const obj = { a: 1, b: null, c: 'string' };
-      const prepared = prepareForLdkit(obj);
+      const prepared = prepareForPersistence(obj);
       expect(prepared).toEqual({ a: 1, b: null, c: 'string' });
     });
   });
@@ -91,11 +91,11 @@ describe('type-conversions', () => {
     });
   });
 
-  describe('normalizeDatesForLdkit', () => {
+  describe('normalizeDatesForPersistence', () => {
     it('should convert all date fields in an object to Date objects', () => {
       const date = new Date();
       const obj = { a: 1, dateCreated: date.toISOString(), lastUpdated: date.toISOString() };
-      const normalized = normalizeDatesForLdkit(obj);
+      const normalized = normalizeDatesForPersistence(obj);
       expect(normalized.a).toBe(1);
       expect(normalized.dateCreated).toEqual(date);
       expect(normalized.lastUpdated).toEqual(date);

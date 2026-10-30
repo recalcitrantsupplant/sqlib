@@ -1,12 +1,12 @@
 /**
- * LDKit Schema for QueryGroup Entity (Stable Pointer)
+ * Entity schema for QueryGroup Entity (Stable Pointer)
  * 
  * Represents a stable query group entity that points to versioned group implementations.
  * The stable IRI never changes, but currentVersion points to the latest QueryGroupVersion.
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, sqlib, sdo } from '../namespaces.js';
+import { xsd, sqlib, sdo } from '../namespaces.js';
 
 export const QueryGroupSchema = {
   '@type': sqlib.QueryGroup,
@@ -19,7 +19,7 @@ export const QueryGroupSchema = {
   },
   currentVersion: {
     '@id': sqlib.currentVersion,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
     '@references': { types: ['QueryGroupVersion'] },
     // The number lives on the version; callers listing these want it
@@ -34,7 +34,7 @@ export const QueryGroupSchema = {
    */
   browserDefaultArgumentSet: {
     '@id': sqlib.browserDefaultArgumentSet,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
     '@readOnly': true,
     '@references': { types: ['ArgumentSet'] },
@@ -47,7 +47,7 @@ export const QueryGroupSchema = {
   browserDefaultDataGraphs: {
     '@id': sqlib.browserDefaultDataGraphs,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
     '@readOnly': true,
     '@references': { types: ['BrowserDefaultDataGraph'] },
@@ -64,25 +64,25 @@ export const QueryGroupSchema = {
   },
   isPartOf: {
     '@id': sdo.isPartOf,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@references': { types: ['Library'] },
   },
   tags: {
     '@id': sqlib.hasTag,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
     '@references': { types: ['Tag'] },
   },
   argumentSets: {
     '@id': sqlib.argumentSets,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
 } as const satisfies Schema;
 
-export interface LdkitQueryGroup {
+export interface PersistedQueryGroup {
   $id: string;
   '@type'?: 'QueryGroup';
   name: string;

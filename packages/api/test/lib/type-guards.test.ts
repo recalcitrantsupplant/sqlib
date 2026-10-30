@@ -23,23 +23,23 @@ import {
   getNodeInputTuples,
   getNodeOutputTuples,
 } from '../../src/lib/type-guards.js';
-import type { LdkitQueryNode } from '../../src/persistence/schemas/QueryNodeSchema.js';
-import type { LdkitStartNode } from '../../src/persistence/schemas/StartNodeSchema.js';
-import type { LdkitEndNode } from '../../src/persistence/schemas/EndNodeSchema.js';
-import type { LdkitDynamicQueryNode } from '../../src/persistence/schemas/DynamicQueryNodeSchema.js';
-import type { LdkitQueryEdge } from '../../src/persistence/schemas/QueryEdgeSchema.js';
-import type { LdkitQueryGroup } from '../../src/persistence/schemas/QueryGroupSchema.js';
-import type { LdkitQueryGroupVersion } from '../../src/persistence/schemas/QueryGroupVersionSchema.js';
-import type { LdkitQueryVersion } from '../../src/persistence/schemas/QueryVersionSchema.js';
-import type { LdkitQueryInputTuple } from '../../src/persistence/schemas/QueryInputTupleSchema.js';
-import type { LdkitQueryOutputTuple } from '../../src/persistence/schemas/QueryOutputTupleSchema.js';
-import type { LdkitTriplesQuadsIO } from '../../src/persistence/schemas/TriplesQuadsIOSchema.js';
-import type { LdkitBooleanIO } from '../../src/persistence/schemas/BooleanIOSchema.js';
+import type { PersistedQueryNode } from '../../src/persistence/schemas/QueryNodeSchema.js';
+import type { PersistedStartNode } from '../../src/persistence/schemas/StartNodeSchema.js';
+import type { PersistedEndNode } from '../../src/persistence/schemas/EndNodeSchema.js';
+import type { PersistedDynamicQueryNode } from '../../src/persistence/schemas/DynamicQueryNodeSchema.js';
+import type { PersistedQueryEdge } from '../../src/persistence/schemas/QueryEdgeSchema.js';
+import type { PersistedQueryGroup } from '../../src/persistence/schemas/QueryGroupSchema.js';
+import type { PersistedQueryGroupVersion } from '../../src/persistence/schemas/QueryGroupVersionSchema.js';
+import type { PersistedQueryVersion } from '../../src/persistence/schemas/QueryVersionSchema.js';
+import type { PersistedQueryInputTuple } from '../../src/persistence/schemas/QueryInputTupleSchema.js';
+import type { PersistedQueryOutputTuple } from '../../src/persistence/schemas/QueryOutputTupleSchema.js';
+import type { PersistedTriplesQuadsIO } from '../../src/persistence/schemas/TriplesQuadsIOSchema.js';
+import type { PersistedBooleanIO } from '../../src/persistence/schemas/BooleanIOSchema.js';
 
 describe('Type Guards', () => {
   describe('isQueryNode', () => {
     it('should return true for valid QueryNode', () => {
-      const queryNode: LdkitQueryNode = {
+      const queryNode: PersistedQueryNode = {
         '@type': 'QueryNode',
         $id: 'urn:test:node:1',
         queryId: 'urn:test:query:1',
@@ -52,7 +52,7 @@ describe('Type Guards', () => {
     });
 
     it('should return false for StartNode', () => {
-      const startNode: LdkitStartNode = {
+      const startNode: PersistedStartNode = {
         '@type': 'StartNode',
         $id: 'urn:test:start:1',
         outputs: [],
@@ -96,7 +96,7 @@ describe('Type Guards', () => {
 
   describe('isStartNode', () => {
     it('should return true for valid StartNode', () => {
-      const startNode: LdkitStartNode = {
+      const startNode: PersistedStartNode = {
         '@type': 'StartNode',
         $id: 'urn:test:start:1',
         outputs: [],
@@ -106,7 +106,7 @@ describe('Type Guards', () => {
     });
 
     it('should return false for QueryNode', () => {
-      const queryNode: LdkitQueryNode = {
+      const queryNode: PersistedQueryNode = {
         '@type': 'QueryNode',
         $id: 'urn:test:node:1',
         queryId: 'urn:test:query:1',
@@ -130,7 +130,7 @@ describe('Type Guards', () => {
 
   describe('isEndNode', () => {
     it('should return true for valid EndNode', () => {
-      const endNode: LdkitEndNode = {
+      const endNode: PersistedEndNode = {
         '@type': 'EndNode',
         $id: 'urn:test:end:1',
       };
@@ -139,7 +139,7 @@ describe('Type Guards', () => {
     });
 
     it('should return false for other node types', () => {
-      const queryNode: LdkitQueryNode = {
+      const queryNode: PersistedQueryNode = {
         '@type': 'QueryNode',
         $id: 'urn:test:node:1',
         queryId: 'urn:test:query:1',
@@ -154,7 +154,7 @@ describe('Type Guards', () => {
 
   describe('isDynamicQueryNode', () => {
     it('should return true for valid DynamicQueryNode', () => {
-      const dynamicNode: LdkitDynamicQueryNode = {
+      const dynamicNode: PersistedDynamicQueryNode = {
         '@type': 'DynamicQueryNode',
         $id: 'urn:test:dynamic:1',
         queryId: 'urn:test:query:1',
@@ -167,7 +167,7 @@ describe('Type Guards', () => {
     });
 
     it('should return false for QueryNode', () => {
-      const queryNode: LdkitQueryNode = {
+      const queryNode: PersistedQueryNode = {
         '@type': 'QueryNode',
         $id: 'urn:test:node:1',
         queryId: 'urn:test:query:1',
@@ -182,7 +182,7 @@ describe('Type Guards', () => {
 
   describe('isQueryEdge', () => {
     it('should return true for valid QueryEdge', () => {
-      const edge: LdkitQueryEdge = {
+      const edge: PersistedQueryEdge = {
         '@type': 'QueryEdge',
         $id: 'urn:test:edge:1',
         sourceNodeId: 'urn:test:node:1',
@@ -193,7 +193,7 @@ describe('Type Guards', () => {
     });
 
     it('should return false for non-edge entity', () => {
-      const node: LdkitQueryNode = {
+      const node: PersistedQueryNode = {
         '@type': 'QueryNode',
         $id: 'urn:test:node:1',
         queryId: 'urn:test:query:1',
@@ -208,7 +208,7 @@ describe('Type Guards', () => {
 
   describe('isQueryGroup', () => {
     it('should return true for valid QueryGroup', () => {
-      const group: LdkitQueryGroup = {
+      const group: PersistedQueryGroup = {
         '@type': 'QueryGroup',
         name: 'Test Group',
         isPartOf: 'urn:test:library:1',
@@ -219,7 +219,7 @@ describe('Type Guards', () => {
     });
 
     it('should return false for QueryGroupVersion', () => {
-      const version: LdkitQueryGroupVersion = {
+      const version: PersistedQueryGroupVersion = {
         '@type': 'QueryGroupVersion',
         version: 1,
         $id: 'urn:test:version:1',
@@ -234,7 +234,7 @@ describe('Type Guards', () => {
 
   describe('isQueryGroupVersion', () => {
     it('should return true for valid QueryGroupVersion', () => {
-      const version: LdkitQueryGroupVersion = {
+      const version: PersistedQueryGroupVersion = {
         '@type': 'QueryGroupVersion',
         version: 1,
         $id: 'urn:test:version:1',
@@ -247,7 +247,7 @@ describe('Type Guards', () => {
     });
 
     it('should return false for QueryGroup', () => {
-      const group: LdkitQueryGroup = {
+      const group: PersistedQueryGroup = {
         '@type': 'QueryGroup',
         name: 'Test Group',
         isPartOf: 'urn:test:library:1',
@@ -260,7 +260,7 @@ describe('Type Guards', () => {
 
   describe('isQueryVersion', () => {
     it('should return true for valid QueryVersion', () => {
-      const version: LdkitQueryVersion = {
+      const version: PersistedQueryVersion = {
         '@type': 'QueryVersion',
         $id: 'urn:test:query-version:1',
         queryString: 'SELECT * WHERE { ?s ?p ?o }',
@@ -273,7 +273,7 @@ describe('Type Guards', () => {
     });
 
     it('should return false for other entity types', () => {
-      const group: LdkitQueryGroup = {
+      const group: PersistedQueryGroup = {
         '@type': 'QueryGroup',
         name: 'Test Group',
         isPartOf: 'urn:test:library:1',
@@ -295,7 +295,7 @@ describe('Type Guards', () => {
     });
 
     it('should return false for other types', () => {
-      const group: LdkitQueryGroup = {
+      const group: PersistedQueryGroup = {
         '@type': 'QueryGroup',
         name: 'Test Group',
         isPartOf: 'urn:test:library:1',
@@ -308,7 +308,7 @@ describe('Type Guards', () => {
 
   describe('isQueryInputTuple', () => {
     it('should return true for valid QueryInputTuple', () => {
-      const inputTuple: LdkitQueryInputTuple = {
+      const inputTuple: PersistedQueryInputTuple = {
         '@type': 'QueryInputTuple',
         $id: 'urn:test:input-tuple:1',
         memberEntries: [],
@@ -318,7 +318,7 @@ describe('Type Guards', () => {
     });
 
     it('should return false for QueryOutputTuple', () => {
-      const outputTuple: LdkitQueryOutputTuple = {
+      const outputTuple: PersistedQueryOutputTuple = {
         '@type': 'QueryOutputTuple',
         name: 'Test Tuple',
         $id: 'urn:test:output-tuple:1',
@@ -331,7 +331,7 @@ describe('Type Guards', () => {
 
   describe('isQueryOutputTuple', () => {
     it('should return true for valid QueryOutputTuple', () => {
-      const outputTuple: LdkitQueryOutputTuple = {
+      const outputTuple: PersistedQueryOutputTuple = {
         '@type': 'QueryOutputTuple',
         name: 'Test Tuple',
         $id: 'urn:test:output-tuple:1',
@@ -342,7 +342,7 @@ describe('Type Guards', () => {
     });
 
     it('should return false for QueryInputTuple', () => {
-      const inputTuple: LdkitQueryInputTuple = {
+      const inputTuple: PersistedQueryInputTuple = {
         '@type': 'QueryInputTuple',
         $id: 'urn:test:input-tuple:1',
         memberEntries: [],
@@ -354,7 +354,7 @@ describe('Type Guards', () => {
 
   describe('isTriplesQuadsIO', () => {
     it('should return true for valid TriplesQuadsIO', () => {
-      const triplesIO: LdkitTriplesQuadsIO = {
+      const triplesIO: PersistedTriplesQuadsIO = {
         '@type': 'TriplesQuadsIO',
         $id: 'urn:test:triples-io:1',
       };
@@ -363,7 +363,7 @@ describe('Type Guards', () => {
     });
 
     it('should return false for other types', () => {
-      const booleanIO: LdkitBooleanIO = {
+      const booleanIO: PersistedBooleanIO = {
         '@type': 'BooleanIO',
         $id: 'urn:test:boolean-io:1',
       };
@@ -374,7 +374,7 @@ describe('Type Guards', () => {
 
   describe('isBooleanIO', () => {
     it('should return true for valid BooleanIO', () => {
-      const booleanIO: LdkitBooleanIO = {
+      const booleanIO: PersistedBooleanIO = {
         '@type': 'BooleanIO',
         $id: 'urn:test:boolean-io:1',
       };
@@ -383,7 +383,7 @@ describe('Type Guards', () => {
     });
 
     it('should return false for TriplesQuadsIO', () => {
-      const triplesIO: LdkitTriplesQuadsIO = {
+      const triplesIO: PersistedTriplesQuadsIO = {
         '@type': 'TriplesQuadsIO',
         $id: 'urn:test:triples-io:1',
       };
@@ -394,7 +394,7 @@ describe('Type Guards', () => {
 
   describe('isAnyNode', () => {
     it('should return true for QueryNode', () => {
-      const queryNode: LdkitQueryNode = {
+      const queryNode: PersistedQueryNode = {
         '@type': 'QueryNode',
         $id: 'urn:test:node:1',
         queryId: 'urn:test:query:1',
@@ -407,7 +407,7 @@ describe('Type Guards', () => {
     });
 
     it('should return true for StartNode', () => {
-      const startNode: LdkitStartNode = {
+      const startNode: PersistedStartNode = {
         '@type': 'StartNode',
         $id: 'urn:test:start:1',
         outputs: [],
@@ -417,7 +417,7 @@ describe('Type Guards', () => {
     });
 
     it('should return true for EndNode', () => {
-      const endNode: LdkitEndNode = {
+      const endNode: PersistedEndNode = {
         '@type': 'EndNode',
         $id: 'urn:test:end:1',
       };
@@ -426,7 +426,7 @@ describe('Type Guards', () => {
     });
 
     it('should return true for DynamicQueryNode', () => {
-      const dynamicNode: LdkitDynamicQueryNode = {
+      const dynamicNode: PersistedDynamicQueryNode = {
         '@type': 'DynamicQueryNode',
         $id: 'urn:test:dynamic:1',
         queryId: 'urn:test:query:1',
@@ -439,7 +439,7 @@ describe('Type Guards', () => {
     });
 
     it('should return false for non-node entities', () => {
-      const edge: LdkitQueryEdge = {
+      const edge: PersistedQueryEdge = {
         '@type': 'QueryEdge',
         $id: 'urn:test:edge:1',
         sourceNodeId: 'urn:test:node:1',
@@ -457,7 +457,7 @@ describe('Type Guards', () => {
 
   describe('getNodeType', () => {
     it('should return QueryNode for QueryNode type', () => {
-      const queryNode: LdkitQueryNode = {
+      const queryNode: PersistedQueryNode = {
         '@type': 'QueryNode',
         $id: 'urn:test:node:1',
         queryId: 'urn:test:query:1',
@@ -470,7 +470,7 @@ describe('Type Guards', () => {
     });
 
     it('should return StartNode for StartNode type', () => {
-      const startNode: LdkitStartNode = {
+      const startNode: PersistedStartNode = {
         '@type': 'StartNode',
         $id: 'urn:test:start:1',
         outputs: [],
@@ -480,7 +480,7 @@ describe('Type Guards', () => {
     });
 
     it('should return EndNode for EndNode type', () => {
-      const endNode: LdkitEndNode = {
+      const endNode: PersistedEndNode = {
         '@type': 'EndNode',
         $id: 'urn:test:end:1',
       };
@@ -489,7 +489,7 @@ describe('Type Guards', () => {
     });
 
     it('should return DynamicQueryNode for DynamicQueryNode type', () => {
-      const dynamicNode: LdkitDynamicQueryNode = {
+      const dynamicNode: PersistedDynamicQueryNode = {
         '@type': 'DynamicQueryNode',
         $id: 'urn:test:dynamic:1',
         queryId: 'urn:test:query:1',
@@ -513,7 +513,7 @@ describe('Type Guards', () => {
 
   describe('hasQueryId', () => {
     it('should return true for QueryNode', () => {
-      const queryNode: LdkitQueryNode = {
+      const queryNode: PersistedQueryNode = {
         '@type': 'QueryNode',
         $id: 'urn:test:node:1',
         queryId: 'urn:test:query:1',
@@ -526,7 +526,7 @@ describe('Type Guards', () => {
     });
 
     it('should return true for DynamicQueryNode', () => {
-      const dynamicNode: LdkitDynamicQueryNode = {
+      const dynamicNode: PersistedDynamicQueryNode = {
         '@type': 'DynamicQueryNode',
         $id: 'urn:test:dynamic:1',
         queryId: 'urn:test:query:1',
@@ -539,7 +539,7 @@ describe('Type Guards', () => {
     });
 
     it('should return false for StartNode', () => {
-      const startNode: LdkitStartNode = {
+      const startNode: PersistedStartNode = {
         '@type': 'StartNode',
         $id: 'urn:test:start:1',
         outputs: [],
@@ -549,7 +549,7 @@ describe('Type Guards', () => {
     });
 
     it('should return false for EndNode', () => {
-      const endNode: LdkitEndNode = {
+      const endNode: PersistedEndNode = {
         '@type': 'EndNode',
         $id: 'urn:test:end:1',
       };
@@ -560,7 +560,7 @@ describe('Type Guards', () => {
 
   describe('hasBackendId', () => {
     it('should return true for QueryNode', () => {
-      const queryNode: LdkitQueryNode = {
+      const queryNode: PersistedQueryNode = {
         '@type': 'QueryNode',
         $id: 'urn:test:node:1',
         queryId: 'urn:test:query:1',
@@ -573,7 +573,7 @@ describe('Type Guards', () => {
     });
 
     it('should return true for DynamicQueryNode', () => {
-      const dynamicNode: LdkitDynamicQueryNode = {
+      const dynamicNode: PersistedDynamicQueryNode = {
         '@type': 'DynamicQueryNode',
         $id: 'urn:test:dynamic:1',
         queryId: 'urn:test:query:1',
@@ -586,7 +586,7 @@ describe('Type Guards', () => {
     });
 
     it('should return false for StartNode', () => {
-      const startNode: LdkitStartNode = {
+      const startNode: PersistedStartNode = {
         '@type': 'StartNode',
         $id: 'urn:test:start:1',
         outputs: [],
@@ -598,7 +598,7 @@ describe('Type Guards', () => {
 
   describe('getNodeQueryId', () => {
     it('should return queryId for QueryNode', () => {
-      const queryNode: LdkitQueryNode = {
+      const queryNode: PersistedQueryNode = {
         '@type': 'QueryNode',
         $id: 'urn:test:node:1',
         queryId: 'urn:test:query:1',
@@ -611,7 +611,7 @@ describe('Type Guards', () => {
     });
 
     it('should return queryId for DynamicQueryNode', () => {
-      const dynamicNode: LdkitDynamicQueryNode = {
+      const dynamicNode: PersistedDynamicQueryNode = {
         '@type': 'DynamicQueryNode',
         $id: 'urn:test:dynamic:1',
         queryId: 'urn:test:query:1',
@@ -624,7 +624,7 @@ describe('Type Guards', () => {
     });
 
     it('should return undefined for StartNode', () => {
-      const startNode: LdkitStartNode = {
+      const startNode: PersistedStartNode = {
         '@type': 'StartNode',
         $id: 'urn:test:start:1',
         outputs: [],
@@ -634,7 +634,7 @@ describe('Type Guards', () => {
     });
 
     it('should return undefined for EndNode', () => {
-      const endNode: LdkitEndNode = {
+      const endNode: PersistedEndNode = {
         '@type': 'EndNode',
         $id: 'urn:test:end:1',
       };
@@ -645,7 +645,7 @@ describe('Type Guards', () => {
 
   describe('getNodeBackendId', () => {
     it('should return backendId for QueryNode', () => {
-      const queryNode: LdkitQueryNode = {
+      const queryNode: PersistedQueryNode = {
         '@type': 'QueryNode',
         $id: 'urn:test:node:1',
         queryId: 'urn:test:query:1',
@@ -658,7 +658,7 @@ describe('Type Guards', () => {
     });
 
     it('should return backendId for DynamicQueryNode', () => {
-      const dynamicNode: LdkitDynamicQueryNode = {
+      const dynamicNode: PersistedDynamicQueryNode = {
         '@type': 'DynamicQueryNode',
         $id: 'urn:test:dynamic:1',
         queryId: 'urn:test:query:1',
@@ -671,7 +671,7 @@ describe('Type Guards', () => {
     });
 
     it('should return undefined for StartNode', () => {
-      const startNode: LdkitStartNode = {
+      const startNode: PersistedStartNode = {
         '@type': 'StartNode',
         $id: 'urn:test:start:1',
         outputs: [],
@@ -683,7 +683,7 @@ describe('Type Guards', () => {
 
   describe('getNodeInputTuples', () => {
     it('should return inputs array for QueryNode', () => {
-      const queryNode: LdkitQueryNode = {
+      const queryNode: PersistedQueryNode = {
         '@type': 'QueryNode',
         $id: 'urn:test:node:1',
         queryId: 'urn:test:query:1',
@@ -702,13 +702,13 @@ describe('Type Guards', () => {
         queryId: 'urn:test:query:1',
         backendId: 'urn:test:backend:1',
         outputs: [],
-      } as LdkitQueryNode;
+      } as PersistedQueryNode;
 
       expect(getNodeInputTuples(queryNode)).toEqual([]);
     });
 
     it('should return empty array for StartNode (no inputs)', () => {
-      const startNode: LdkitStartNode = {
+      const startNode: PersistedStartNode = {
         '@type': 'StartNode',
         $id: 'urn:test:start:1',
         outputs: [],
@@ -720,7 +720,7 @@ describe('Type Guards', () => {
 
   describe('getNodeOutputTuples', () => {
     it('should return outputs array for QueryNode', () => {
-      const queryNode: LdkitQueryNode = {
+      const queryNode: PersistedQueryNode = {
         '@type': 'QueryNode',
         $id: 'urn:test:node:1',
         queryId: 'urn:test:query:1',
@@ -739,13 +739,13 @@ describe('Type Guards', () => {
         queryId: 'urn:test:query:1',
         backendId: 'urn:test:backend:1',
         inputs: [],
-      } as LdkitQueryNode;
+      } as PersistedQueryNode;
 
       expect(getNodeOutputTuples(queryNode)).toEqual([]);
     });
 
     it('should return outputs for StartNode', () => {
-      const startNode: LdkitStartNode = {
+      const startNode: PersistedStartNode = {
         '@type': 'StartNode',
         $id: 'urn:test:start:1',
         outputs: ['urn:test:output:1'],

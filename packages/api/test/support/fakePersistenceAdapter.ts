@@ -29,7 +29,7 @@
  */
 import type { EntityByType, EntityType } from '../../src/lib/EntityRegistry.js';
 import { clearCacheCoordinator, getCacheCoordinator } from '../../src/lib/CacheCoordinatorProvider.js';
-import type { LDKitEntity } from '../../src/persistence/EntityTypes.js';
+import type { PersistedEntity } from '../../src/persistence/EntityTypes.js';
 import type { PersistenceAdapter } from '../../src/persistence/PersistenceAdapter.js';
 import { setPersistenceAdapter } from '../../src/persistence/adapterRegistry.js';
 import type { Schema } from '../../src/persistence/schema.js';
@@ -51,14 +51,14 @@ function typeOfSchema(schema: Schema): string {
 }
 
 /**
- * What can be seeded: an `LDKitEntity`, or a value typed by one of the schema
- * interfaces (`LdkitQuery`, `LdkitBackend`, ...), which have no index signature
- * and so are not assignable to `LDKitEntity` on their own.
+ * What can be seeded: an `PersistedEntity`, or a value typed by one of the schema
+ * interfaces (`PersistedQuery`, `PersistedBackend`, ...), which have no index signature
+ * and so are not assignable to `PersistedEntity` on their own.
  */
-export type Seedable = LDKitEntity | { readonly $id: string };
+export type Seedable = PersistedEntity | { readonly $id: string };
 
 export class FakePersistenceAdapter implements PersistenceAdapter {
-  private readonly rows = new Map<string, { type: string; entity: LDKitEntity }>();
+  private readonly rows = new Map<string, { type: string; entity: PersistedEntity }>();
 
   constructor(seed: ReadonlyArray<{ type: EntityType; entity: Seedable }> = []) {
     for (const { type, entity } of seed) this.put(type, entity);
@@ -66,24 +66,24 @@ export class FakePersistenceAdapter implements PersistenceAdapter {
 
   /** Seeds or replaces an entity without going through `insert`. */
   put(type: string, seedable: Seedable): this {
-    const entity = seedable as LDKitEntity;
+    const entity = seedable as PersistedEntity;
     this.rows.set(entity.$id, { type, entity: structuredClone({ ...entity, '@type': entity['@type'] ?? type }) });
     return this;
   }
 
   /** What is stored under `id` now, or undefined. */
-  get(id: string): LDKitEntity | undefined {
+  get(id: string): PersistedEntity | undefined {
     const row = this.rows.get(id);
     return row ? structuredClone(row.entity) : undefined;
   }
 
   /** Every stored entity of `type`. */
-  all(type: string): LDKitEntity[] {
+  all(type: string): PersistedEntity[] {
     return [...this.rows.values()].filter((row) => row.type === type).map((row) => structuredClone(row.entity));
   }
 
   /** A repository lens over this store, for `schema`'s type. */
-  lens(schema: Schema): Lens<LDKitEntity> {
+  lens(schema: Schema): Lens<PersistedEntity> {
     const type = typeOfSchema(schema);
     return {
       find: async () => this.all(type),
@@ -96,7 +96,7 @@ export class FakePersistenceAdapter implements PersistenceAdapter {
     };
   }
 
-  async loadAll(): Promise<Map<string, LDKitEntity>> {
+  async loadAll(): Promise<Map<string, PersistedEntity>> {
     return new Map([...this.rows].map(([id, row]) => [id, structuredClone(row.entity)]));
   }
 
@@ -109,7 +109,7 @@ export class FakePersistenceAdapter implements PersistenceAdapter {
   }
 
   async insert<T extends EntityType>(type: T, entity: EntityByType[T]): Promise<void> {
-    this.add(type, entity as unknown as LDKitEntity);
+    this.add(type, entity as unknown as PersistedEntity);
   }
 
   async update<T extends EntityType>(type: T, id: string, patch: Partial<EntityByType[T]>): Promise<void> {
@@ -121,12 +121,12 @@ export class FakePersistenceAdapter implements PersistenceAdapter {
   }
 
   /** A lookup under the wrong type misses, as a typed query against the store does. */
-  private find(type: string, id: string): LDKitEntity | null {
+  private find(type: string, id: string): PersistedEntity | null {
     const row = this.rows.get(id);
     return row && row.type === type ? structuredClone(row.entity) : null;
   }
 
-  private add(type: string, entity: LDKitEntity): void {
+  private add(type: string, entity: PersistedEntity): void {
     if (this.rows.has(entity.$id)) throw new Error(`FakePersistenceAdapter: ${entity.$id} already exists`);
     this.put(type, entity);
   }
@@ -135,7 +135,7 @@ export class FakePersistenceAdapter implements PersistenceAdapter {
     const row = this.rows.get(id);
     if (!row || row.type !== type) throw new Error(`FakePersistenceAdapter: no ${type} ${id} to update`);
     // `null` clears a field, as it does in the real store.
-    const next: LDKitEntity = { ...row.entity };
+    const next: PersistedEntity = { ...row.entity };
     for (const [key, value] of Object.entries(patch)) {
       if (value === null) delete next[key];
       else if (value !== undefined) next[key] = value;
