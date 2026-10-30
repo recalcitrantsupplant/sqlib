@@ -14,6 +14,7 @@ import { getAuthConfig } from './config.js';
 import { hasBackendMode, hasLibraryMode } from './grants.js';
 import {
   createFullAccessContext,
+  isEnforcingMode,
   type AuthContext,
   type BackendMode,
   type LibraryMode,
@@ -84,7 +85,7 @@ function decide(
     return;
   }
 
-  const enforcing = context.mode === 'required' || event.enforceInEveryMode === true;
+  const enforcing = isEnforcingMode(context.mode) || event.enforceInEveryMode === true;
   auditDecision(request, context, {
     decision: enforcing ? 'deny' : 'would-deny',
     resource: event.resource,
@@ -429,7 +430,7 @@ export function canReadEntity(request: FastifyRequest, entity: unknown): boolean
 export function filterReadable<T>(request: FastifyRequest, items: T[]): T[] {
   const context = authOf(request);
   if (context.fullAccess || context.grants.admin) return items;
-  if (context.mode === 'required') {
+  if (isEnforcingMode(context.mode)) {
     return items.filter(item => canReadEntity(request, item));
   }
   if (context.mode === 'dry-run') {

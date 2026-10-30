@@ -23,13 +23,26 @@ designed and not shipped.
 
 ## What `SQLIB_AUTH_MODE` does
 
-Three values. **The default is `disabled`.**
+Four values. **The default is `disabled`.**
 
 | Mode | Token required | Effect |
 | --- | --- | --- |
 | `disabled` (default) | no | Every request gets a synthetic full-access context. Every check exists and passes. |
 | `dry-run` | no | A token, if presented, is verified and grants resolved; a request that would be denied is logged as `would-deny` and served anyway. |
 | `required` | yes | A request without a valid token gets `401` (or `503` if the JWKS endpoint cannot be fetched, because that failure is the server's, not the caller's). A token whose `kid` is not in the published key set is a `401`; an unknown `kid` refetches the key set at most once per 30-second cooldown. |
+| `anonymous` | no, and none is read | Every request is the one principal `urn:sqlib:principal:anonymous`, with the grants on that principal and nothing else. Enforced like `required`: a check that fails is refused, a graph policy narrows, a listing hides. No issuer is needed, nobody is an administrator, and nothing is recorded at request time. |
+
+`anonymous` is the mode for a public deployment: beside
+`SQLIB_READ_ONLY=true`, a grant of `execute` on a library and `query:saved` on
+its backends lets every visitor run the seeded queries and refuses any SPARQL
+they typed themselves, on `/sparql`, in a draft, or through MCP. A grant of
+`query:adhoc` on one backend opens that backend to ad-hoc text and no other.
+Grants are seeded with `SQLIB_AUTH_SEED_GRANTS` or written by an administrator
+on a writable instance of the same auth store. Because every caller is one
+principal, `SQLIB_AUTH_ALLOW_LIBRARY_CREATE=all` would let anyone create a
+library on a writable deployment; set it to `admin` unless that is intended.
+The anonymous principal is not the authenticated sentinel, so a grant to
+"everyone signed in" does not reach a visitor.
 
 Setting `dry-run` or `required` without configuring an issuer is a startup
 error, not a silent fallback. So is an issuer without an audience, unless
@@ -37,7 +50,7 @@ error, not a silent fallback. So is an issuer without an audience, unless
 `aud` claim goes unchecked and a token the issuer minted for any other
 application is accepted.
 
-The design decision behind all three is that the request path is the same shape
+The design decision behind all four is that the request path is the same shape
 in every mode. The auth plugin is registered as an `onRequest` hook before any
 route, and `disabled` mode decorates a full-access `AuthContext` rather than
 skipping the decoration. Nothing downstream branches on "is auth on", so an

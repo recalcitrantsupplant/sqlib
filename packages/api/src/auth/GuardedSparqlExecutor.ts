@@ -27,7 +27,7 @@ import { intersectDatasets } from '../lib/dataset.js';
 import { auditDecision } from './audit.js';
 import { authOf, requireBackendMode } from './enforce.js';
 import { GraphPolicyError, clearGraphPolicyCache, graphPolicyDataset, isAuthBackend, mentionsService } from './graphPolicy.js';
-import { backendModeFor, type QueryTextSource } from './types.js';
+import { backendModeFor, isEnforcingMode, type QueryTextSource } from './types.js';
 
 export const SERVICE_UNDER_POLICY_WARNING =
   'This query uses SERVICE. The graph policy on this backend does not apply inside a SERVICE pattern.';
@@ -74,7 +74,7 @@ export class GuardedSparqlExecutor implements ISparqlExecutor {
       policy = await graphPolicyDataset(backendId, context);
     } catch (error) {
       request.log?.warn({ err: error instanceof GraphPolicyError ? error.cause : error, backendId }, 'Graph policy failed');
-      if (context.mode !== 'required') {
+      if (!isEnforcingMode(context.mode)) {
         auditDecision(request, context, {
           decision: 'would-deny',
           resource: backendId,
@@ -91,7 +91,7 @@ export class GuardedSparqlExecutor implements ISparqlExecutor {
 
     if (mentionsService(query)) this.guard.onWarning?.(SERVICE_UNDER_POLICY_WARNING);
 
-    if (context.mode !== 'required') {
+    if (!isEnforcingMode(context.mode)) {
       // dry-run: say what the policy would have allowed, and run unnarrowed.
       auditDecision(request, context, {
         decision: 'would-deny',
