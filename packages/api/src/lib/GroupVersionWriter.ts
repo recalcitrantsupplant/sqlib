@@ -81,6 +81,109 @@ async function createGroupVersionFlatNumbered(
   authScope?: { request: FastifyRequest }
 ): Promise<{ created: LdkitQueryGroupVersion; iriMap: Record<string, string> }> {
   const cacheCoordinator = getCacheCoordinator();
+  const { staged, iriMap, startNodeId, endNodeId, nodeIds, edgeIds } =
+    await stageGroupVersion({ groupId }, body, authScope);
+
+  // ---------------------------------------------------------------- flush --
+
+  for (const { type, payload } of staged) {
+    await cacheCoordinator.create(type, payload as never);
+  }
+
+  const versionId = mintId('groupVersion');
+  const created = await cacheCoordinator.create('QueryGroupVersion', toLdkit({
+    $id: versionId,
+    '@type': 'QueryGroupVersion',
+    isPartOf: groupId,
+    version: nextVersion,
+    // Frozen on create (issue #192). A version is a snapshot: what it holds is
+    // what the reference to it means, so it is never created in a state where
+    // it could still change. `immutable` on the request body is ignored rather
+    // than honoured — there is no such thing as a mutable version.
+    immutable: true,
+    canvasData: remapCanvasData(body.canvasData, iriMap),
+    startNode: startNodeId,
+    endNode: endNodeId,
+    executionNodes: nodeIds,
+    edges: edgeIds,
+  }) as Partial<LdkitQueryGroupVersion> & { $id: string });
+
+  await setCurrentVersion('QueryGroup', groupId, versionId);
+
+  return { created: (created ?? { $id: versionId }) as LdkitQueryGroupVersion, iriMap };
+}
+
+/**
+ * Run a group version that is not saved: the canvas as it stands.
+ *
+ * The body is staged exactly as a save stages it — the same IRIs minted, the
+ * same references resolved, the same Execute check on every leg — and then
+ * put in the cache as ephemeral entities rather than written. The version
+ * itself is filed under the library, not the group, so a run in progress
+ * never shows up as one of the group's versions. Everything staged is removed
+ * again when `run` settles, whatever it did.
+ *
+ * `owner` names the group when there is one, and the library when the group
+ * is a scratch one that has never been saved; the library's default backend
+ * is the fallback either way.
+ */
+export async function withDraftGroupVersion<T>(
+  owner: { groupId?: string; libraryId?: string },
+  body: AnyRecord,
+  authScope: { request: FastifyRequest } | undefined,
+  run: (version: LdkitQueryGroupVersion, iriMap: Record<string, string>) => Promise<T>,
+): Promise<T> {
+  const cacheCoordinator = getCacheCoordinator();
+  const { staged, iriMap, startNodeId, endNodeId, nodeIds, edgeIds } = await stageGroupVersion(owner, body, authScope);
+  const added: string[] = [];
+  try {
+    for (const { type, payload } of staged) {
+      cacheCoordinator.addEphemeral(payload as never, type);
+      added.push(payload.$id);
+    }
+    /*
+     * In the cache too, so the execute path can resolve it like any version.
+     * It belongs to the library rather than the group: a version listing
+     * filters on the group, and a run in progress is not a version of it.
+     */
+    const versionId = mintId('groupVersion');
+    const version = cacheCoordinator.addEphemeral({
+      $id: versionId,
+      isPartOf: owner.libraryId ?? owner.groupId,
+      version: 0,
+      immutable: true,
+      startNode: startNodeId,
+      endNode: endNodeId,
+      executionNodes: nodeIds,
+      edges: edgeIds,
+    } as never, 'QueryGroupVersion') as unknown as LdkitQueryGroupVersion;
+    added.push(versionId);
+    return await run(version, iriMap);
+  } finally {
+    for (const id of added) {
+      try {
+        cacheCoordinator.removeEphemeral(id);
+      } catch { /* already gone; nothing else holds it */ }
+    }
+  }
+}
+
+/** What staging a body produces: the entities to create, not yet created. */
+type StagedGroupVersion = {
+  staged: StagedEntity[];
+  iriMap: Record<string, string>;
+  startNodeId: string;
+  endNodeId: string;
+  nodeIds: string[];
+  edgeIds: string[];
+};
+
+async function stageGroupVersion(
+  owner: { groupId?: string; libraryId?: string },
+  body: AnyRecord,
+  authScope?: { request: FastifyRequest }
+): Promise<StagedGroupVersion> {
+  const cacheCoordinator = getCacheCoordinator();
   const iriMap: Record<string, string> = {};
 
   /**
@@ -229,8 +332,8 @@ async function createGroupVersionFlatNumbered(
   // The library's default backend is a fallback for nodes that name none.
   let libraryDefaultBackend: string | undefined;
   try {
-    const group = cacheCoordinator.get(groupId) as LdkitQueryGroup | null;
-    const libId = group?.isPartOf as string | undefined;
+    const group = owner.groupId ? cacheCoordinator.get(owner.groupId) as LdkitQueryGroup | null : null;
+    const libId = (group?.isPartOf as string | undefined) ?? owner.libraryId;
     if (libId) {
       const lib = cacheCoordinator.get(libId) as LdkitLibrary | null;
       libraryDefaultBackend = lib?.defaultBackend as string | undefined;
@@ -638,33 +741,7 @@ async function createGroupVersionFlatNumbered(
     }
   }
 
-  // ---------------------------------------------------------------- flush --
-
-  for (const { type, payload } of staged) {
-    await cacheCoordinator.create(type, payload as never);
-  }
-
-  const versionId = mintId('groupVersion');
-  const created = await cacheCoordinator.create('QueryGroupVersion', toLdkit({
-    $id: versionId,
-    '@type': 'QueryGroupVersion',
-    isPartOf: groupId,
-    version: nextVersion,
-    // Frozen on create (issue #192). A version is a snapshot: what it holds is
-    // what the reference to it means, so it is never created in a state where
-    // it could still change. `immutable` on the request body is ignored rather
-    // than honoured — there is no such thing as a mutable version.
-    immutable: true,
-    canvasData: remapCanvasData(body.canvasData, iriMap),
-    startNode: startNodeId,
-    endNode: endNodeId,
-    executionNodes: nodeIds,
-    edges: edgeIds,
-  }) as Partial<LdkitQueryGroupVersion> & { $id: string });
-
-  await setCurrentVersion('QueryGroup', groupId, versionId);
-
-  return { created: (created ?? { $id: versionId }) as LdkitQueryGroupVersion, iriMap };
+  return { staged, iriMap, startNodeId, endNodeId, nodeIds, edgeIds };
 }
 
 /**

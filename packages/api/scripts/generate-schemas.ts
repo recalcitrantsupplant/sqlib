@@ -1310,6 +1310,12 @@ export const executionRequestSchema = z
     defaultGraphs: z.array(iriString).optional(),
     namedGraphs: z.array(iriString).optional(),
     nodeDetail: z.enum(['timings', 'results']).optional(),
+    /*
+     * An unsaved group version, in the body a version create takes. Runs the
+     * canvas as it stands; targetId is then its group, or the library a new
+     * group will be saved in. Nothing is written.
+     */
+    draftVersion: z.record(z.string(), z.unknown()).optional(),
   })
   .strict();
 /*
