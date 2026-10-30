@@ -61,12 +61,13 @@ describe('a required argument on a query slot', () => {
       payload: { queryVersion: { queryString, queryType: QueryTypeIri.select }, ...extra },
     });
 
-  const execute = (targetId: string, payload: Record<string, unknown> = {}) =>
+  /** A query run names its backend; a group's nodes name their own. */
+  const execute = (targetId: string, payload: Record<string, unknown> = {}, backend = true) =>
     context.app.inject({
       method: 'POST',
       url: '/execute/',
       headers: { accept: 'application/sparql-results+json' },
-      payload: { targetId, ...payload },
+      payload: { targetId, ...(backend ? { backendId: context.backendId } : {}), ...payload },
     });
 
   const modes = (version: { json: () => unknown }) =>
@@ -184,7 +185,7 @@ describe('a required argument on a query slot', () => {
       url: `/query-groups/${encodeURIComponent(group.id)}`,
       payload: { name: group.name, isPartOf: group.isPartOf, currentVersion: created.json().queryGroupVersion.id },
     });
-    return execute(group.id);
+    return execute(group.id, {}, false);
   };
 
   it('refuses an empty upstream into a required slot when the edge says nothing', async () => {
