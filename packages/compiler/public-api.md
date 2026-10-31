@@ -127,7 +127,7 @@ declare class SparqlQueryParser {
     formatQueryString(queryString: string): string;
     detectInputs(queryString: string): DetectedParameters;
     detectQueryOutputs(queryString: string): string[];
-    applyArguments(queryString: string, argumentSets: ApplyArgumentSet[]): string;
+    applyArguments(queryString: string, argumentSets: ApplyArgumentSet[], slotPolicies?: readonly SlotPolicy[]): string;
     compileVerifiedTemplate(queryString: string): QueryTemplate | null;
     applyLimitOffsetParameters(queryString: string, limitParams?: Array<{
         name: string;
