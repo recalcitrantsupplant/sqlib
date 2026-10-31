@@ -233,7 +233,30 @@ const EXPECTED_CAUSES: { name: string; why: string; matches: (f: Finding, sample
       'reasoning as the coercion entry: the API does this to the payload anyway.',
     matches: f => f.kind === 'VALUE',
   },
+  {
+    name: 'properties added to an entity since the snapshot',
+    why:
+      'The legacy zod schemas are a snapshot, and a strict one: a property the entity ' +
+      'gained afterwards is unknown to it, so zod rejects any sample that sets it. ajv ' +
+      'validates against the current document, where the property exists — and coerces ' +
+      'the empty-string sample of a boolean to `false`. The entries are listed by tool ' +
+      'and property, so a property nobody added still fails the suite.',
+    matches: (f, sample) =>
+      f.kind === 'VERDICT' &&
+      Object.keys(sample).some(key => ADDED_PROPERTIES_SINCE_SNAPSHOT.has(`${f.tool} | ${key}`)),
+  },
 ];
+
+/**
+ * Properties that arrived after the zod snapshot, by tool. A library's `slug`
+ * is not here: its pattern rejects the empty-string sample in ajv too, so the
+ * two agree.
+ */
+const ADDED_PROPERTIES_SINCE_SNAPSHOT = new Set([
+  // Queries as tools (`docs/guides/publishing-tools.md`).
+  'libraries.create | publishAll',
+  'libraries.update | publishAll',
+]);
 
 /** Tools whose legacy zod schema carried a cross-field refinement. */
 const REFINEMENT_TOOLS = new Set([

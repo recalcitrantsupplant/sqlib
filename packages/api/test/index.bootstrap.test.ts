@@ -14,6 +14,9 @@ const createStubApp = () => ({
   setErrorHandler: vi.fn(),
   // The auth plugin decorates the request and installs an onRequest hook.
   decorateRequest: vi.fn(),
+  // Startup puts the published tools it collected on the instance, for the
+  // MCP server that shares it.
+  decorate: vi.fn(),
   addHook: vi.fn(),
   get: vi.fn(),
   listen: vi.fn().mockResolvedValue(undefined),
@@ -80,6 +83,13 @@ describe('index bootstrap', () => {
     vi.doMock('../src/lib/MemoryCacheManager.js', () => ({ __esModule: true, memoryCacheManager: hoisted.memoryCacheManager }));
     vi.doMock('../src/lib/CacheMonitoringService.js', () => ({ __esModule: true, cacheMonitoringService: hoisted.cacheMonitoringService }));
     vi.doMock('../src/lib/OxigraphStoreManager.js', () => ({ __esModule: true, oxigraphStoreManager: hoisted.oxigraphStoreManager }));
+    // The published tools are collected from the entity cache, which `loadAll`
+    // above never fills; an empty catalogue is what an empty store gives.
+    vi.doMock('../src/lib/publishedTools.js', () => ({
+      __esModule: true,
+      loadPublishedCatalogue: () => ({ specs: [], libraries: new Map(), problems: [] }),
+      getPublishedCatalogue: () => ({ specs: [], libraries: new Map(), problems: [] }),
+    }));
     vi.doMock('../src/routes/backends.js', () => ({ __esModule: true, default: hoisted.backendRoutes }));
     vi.doMock('../src/routes/queries.js', () => ({ __esModule: true, default: hoisted.queryRoutes }));
     vi.doMock('../src/routes/detection.js', () => ({ __esModule: true, default: hoisted.detectionRoutes }));
@@ -154,6 +164,7 @@ describe('index bootstrap', () => {
     vi.doUnmock('../src/routes/sparql.js');
     vi.doUnmock('@sparql-query-lib/contracts/schema');
     vi.doUnmock('../src/otel-setup.js');
+    vi.doUnmock('../src/lib/publishedTools.js');
   });
 
   it('initializes plugins, schemas, cache, and routes during startup', async () => {

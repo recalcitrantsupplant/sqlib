@@ -429,6 +429,15 @@ export const createLibrarySchema = {
         "type": "string",
         "format": "iri",
         "nullable": true
+      },
+      "slug": {
+        "type": "string",
+        "nullable": true,
+        "pattern": "^[a-z0-9-]+$"
+      },
+      "publishAll": {
+        "type": "boolean",
+        "nullable": true
       }
     },
     "required": [
@@ -504,6 +513,15 @@ export const updateLibrarySchema = {
       "defaultBackend": {
         "type": "string",
         "format": "iri",
+        "nullable": true
+      },
+      "slug": {
+        "type": "string",
+        "nullable": true,
+        "pattern": "^[a-z0-9-]+$"
+      },
+      "publishAll": {
+        "type": "boolean",
         "nullable": true
       }
     },
@@ -1330,6 +1348,73 @@ export const createQueryVersionSchema = {
           "format": "iri"
         },
         "nullable": true
+      },
+      "tool": {
+        "title": "PublishedTool",
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{1,64}$"
+              },
+              "description": {
+                "type": "string",
+                "minLength": 1
+              },
+              "params": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "iri",
+                        "string",
+                        "langString",
+                        "integer",
+                        "decimal",
+                        "boolean",
+                        "date",
+                        "dateTime",
+                        "term"
+                      ]
+                    },
+                    "required": {
+                      "type": "boolean"
+                    },
+                    "list": {
+                      "type": "boolean"
+                    },
+                    "description": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "name",
+              "description"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ]
       }
     },
     "required": [
@@ -4103,6 +4188,73 @@ const __createQueryVersionBodySchema = {
       "format": "date-time",
       "readOnly": true,
       "nullable": true
+    },
+    "tool": {
+      "title": "PublishedTool",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            },
+            "description": {
+              "type": "string",
+              "minLength": 1
+            },
+            "params": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "iri",
+                      "string",
+                      "langString",
+                      "integer",
+                      "decimal",
+                      "boolean",
+                      "date",
+                      "dateTime",
+                      "term"
+                    ]
+                  },
+                  "required": {
+                    "type": "boolean"
+                  },
+                  "list": {
+                    "type": "boolean"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "name",
+            "description"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "boolean",
+          "enum": [
+            false
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "required": [
@@ -4430,6 +4582,73 @@ const __createQueryGroupVersionBodySchema = {
       "format": "date-time",
       "readOnly": true,
       "nullable": true
+    },
+    "tool": {
+      "title": "PublishedTool",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            },
+            "description": {
+              "type": "string",
+              "minLength": 1
+            },
+            "params": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "iri",
+                      "string",
+                      "langString",
+                      "integer",
+                      "decimal",
+                      "boolean",
+                      "date",
+                      "dateTime",
+                      "term"
+                    ]
+                  },
+                  "required": {
+                    "type": "boolean"
+                  },
+                  "list": {
+                    "type": "boolean"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "name",
+            "description"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "boolean",
+          "enum": [
+            false
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "required": []

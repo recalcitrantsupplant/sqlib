@@ -99,6 +99,7 @@ export type ListedTool = {
   title?: string;
   description: string;
   inputSchema: ListedToolSchema;
+  annotations?: { readOnlyHint?: boolean };
   /** The View that renders this tool's result, when the catalogue binds one. */
   ui?: ToolUiBinding;
 };
@@ -261,6 +262,7 @@ export function createToolRegistry(options: ToolRegistryOptions): ToolRegistry {
         // the one documented on `ListedToolSchema`; a non-object schema would
         // have failed ajv compilation at startup long before reaching here.
         inputSchema: def.inputSchema as ListedToolSchema,
+        ...(def.annotations ? { annotations: def.annotations } : {}),
         ...(def.ui ? { ui: def.ui } : {}),
       })),
 

@@ -630,7 +630,13 @@ export const sqlib = createNamespace({
     "storeId",
 
     // HTTP backend query method
-    "queryMethod"
+    "queryMethod",
+
+    // Queries as tools: a library's URL name, its publish-everything switch,
+    // and the tool a query or group version publishes as
+    "slug",
+    "publishAll",
+    "tool"
   ]
 } as const);
 

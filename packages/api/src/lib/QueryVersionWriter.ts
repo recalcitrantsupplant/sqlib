@@ -362,6 +362,8 @@ async function createQueryVersionFlatNumbered(queryId: string, body: AnyRecord, 
     offsetParameters: offsetParamIds.length ? offsetParamIds : undefined,
     inferredInputs: inputTupleIds,
     inferredOutputs: inferredOutputIds.length ? inferredOutputIds : undefined,
+    // Already resolved and checked by the route (`lib/toolObject.ts`).
+    tool: body.tool,
   };
 
   const created = await cacheCoordinator.create('QueryVersion', toCreate);

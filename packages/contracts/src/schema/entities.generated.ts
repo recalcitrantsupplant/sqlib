@@ -120,6 +120,15 @@ export const librarySchema = {
       "format": "date-time",
       "readOnly": true,
       "nullable": true
+    },
+    "slug": {
+      "type": "string",
+      "nullable": true,
+      "pattern": "^[a-z0-9-]+$"
+    },
+    "publishAll": {
+      "type": "boolean",
+      "nullable": true
     }
   },
   "required": [
@@ -373,6 +382,73 @@ export const queryversionSchema = {
       "format": "date-time",
       "readOnly": true,
       "nullable": true
+    },
+    "tool": {
+      "title": "PublishedTool",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            },
+            "description": {
+              "type": "string",
+              "minLength": 1
+            },
+            "params": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "iri",
+                      "string",
+                      "langString",
+                      "integer",
+                      "decimal",
+                      "boolean",
+                      "date",
+                      "dateTime",
+                      "term"
+                    ]
+                  },
+                  "required": {
+                    "type": "boolean"
+                  },
+                  "list": {
+                    "type": "boolean"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "name",
+            "description"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "boolean",
+          "enum": [
+            false
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "required": [
@@ -2406,6 +2482,73 @@ export const querygroupversionSchema = {
     "isPartOf": {
       "type": "string",
       "format": "iri"
+    },
+    "tool": {
+      "title": "PublishedTool",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            },
+            "description": {
+              "type": "string",
+              "minLength": 1
+            },
+            "params": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "iri",
+                      "string",
+                      "langString",
+                      "integer",
+                      "decimal",
+                      "boolean",
+                      "date",
+                      "dateTime",
+                      "term"
+                    ]
+                  },
+                  "required": {
+                    "type": "boolean"
+                  },
+                  "list": {
+                    "type": "boolean"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "name",
+            "description"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "boolean",
+          "enum": [
+            false
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "required": [
@@ -3723,6 +3866,8 @@ export interface LibraryRestApi {
   defaultBackend?: string | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  slug?: string | null;
+  publishAll?: boolean | null;
 }
 
 export interface QueryRestApi {
@@ -3771,6 +3916,7 @@ export interface QueryVersionRestApi {
   inferredOutputs?: string[] | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  tool?: string;
 }
 
 export interface ArgumentScalarBindingRestApi {
@@ -4201,6 +4347,7 @@ export interface QueryGroupVersionRestApi {
   dateCreated?: string | null;
   dateModified?: string | null;
   isPartOf: string;
+  tool?: string;
 }
 
 export interface QueryIdInputRestApi {

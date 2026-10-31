@@ -137,6 +137,12 @@ export function inferOpenAPIType(
   // is exactly what an `enum` then rejects. The type union keeps the `null` a
   // `null`, so a nullable vocabulary accepts what its zod counterpart accepts.
   if (options.isOptional) {
+    // A shape that is a union of documents has no `type` for `nullable` to
+    // qualify, and ajv refuses `nullable` without one. `null` is one more
+    // branch of the union instead.
+    if (Array.isArray(baseType.anyOf) && baseType.type === undefined) {
+      return { ...baseType, anyOf: [...baseType.anyOf, { type: 'null' }] };
+    }
     if (baseType.enum) {
       baseType.type = ['string', 'null'];
       baseType.enum = [...baseType.enum, null];

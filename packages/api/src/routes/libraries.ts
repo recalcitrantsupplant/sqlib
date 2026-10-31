@@ -21,6 +21,7 @@ import {
 import { getAuthStore } from '../auth/AuthStore.js';
 import { reposRoute, withReposHandler, validateIfMatch, setEntityConcurrencyHeaders } from './route-helpers.js';
 import { RDF_MEDIA_TYPES } from '../types/media-types.js';
+import { RouteError } from './route-helpers.js';
 import { SystemQueryRunner, type SystemQueryRunnerResult } from '../lib/system-queries/SystemQueryRunner.js';
 import { collectLibraryQueries } from '../lib/export/collectLibraryQueries.js';
 import {
@@ -220,6 +221,25 @@ function partitionByReadableNodes(
   }
 
   return { exportable, withheld };
+}
+
+/**
+ * A library's slug names it in `/mcp/{slug}` and `/tools/{slug}/…`, so two
+ * libraries may not share one. The pattern is the schema's; uniqueness needs
+ * the store, so it is checked here. 409, naming the library that holds it.
+ */
+function refuseTakenSlug(
+  repos: { Library: { list(): unknown[] } },
+  slug: string | null | undefined,
+  exceptId: string | null,
+): void {
+  if (!slug) return;
+  const holder = (repos.Library.list() as LdkitLibrary[]).find(
+    library => library.slug === slug && library.$id !== exceptId,
+  );
+  if (holder) {
+    throw new RouteError(409, { error: `The slug "${slug}" is already used by library ${holder.$id}.` });
+  }
 }
 
 export default async function (fastify: FastifyInstance) {
@@ -519,6 +539,7 @@ export default async function (fastify: FastifyInstance) {
     '/',
     ...reposRoute(createLibrarySchema, async ({ repos, reply, request }) => {
       requireLibraryCreate(request);
+      refuseTakenSlug(repos, request.body.slug, null);
 
       const { id: providedId, ...rest } = request.body;
       const id = providedId || mintId('library');
@@ -570,6 +591,8 @@ export default async function (fastify: FastifyInstance) {
           current: toRestApi<any>(current),
         });
       }
+
+      refuseTakenSlug(repos, (body as { slug?: string | null }).slug, id);
 
       const updatedLibrary = await repos.Library.update(id, body);
       if (!updatedLibrary) {
