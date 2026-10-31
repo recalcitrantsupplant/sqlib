@@ -1,4 +1,4 @@
-import { normalizeArguments as normalizeRuntimeArguments } from '@sparql-query-lib/runtime';
+import { normalizeArguments as normalizeRuntimeArguments, type SlotPolicy } from '@sparql-query-lib/runtime';
 import { SparqlQueryParser } from './parser.js';
 import type { ArgumentSet as RuntimeArgumentSet } from './query-chaining.js';
 import type { RuntimeArgumentPayload } from './ArgumentSetService.js';
@@ -84,6 +84,8 @@ export function applyExecutionArguments(
     argumentSets?: readonly WireArgumentSet[];
     limits?: ExecutionParameter[];
     offsets?: ExecutionParameter[];
+    /** The stored version's per-slot `whenEmpty` (`versionSlotPolicies`). */
+    slotPolicies?: readonly SlotPolicy[];
   },
   parser: SparqlQueryParser = new SparqlQueryParser()
 ): string {
@@ -102,9 +104,12 @@ export function applyExecutionArguments(
     }
   }
 
-  if (argumentSets.length > 0) {
+  // A slot policy acts on what is *not* supplied, so a version that has one
+  // is substituted even when the payload is empty.
+  const slotPolicies = payload.slotPolicies ?? [];
+  if (argumentSets.length > 0 || slotPolicies.length > 0) {
     try {
-      result = parser.applyArguments(result, argumentSets);
+      result = parser.applyArguments(result, argumentSets, slotPolicies);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new ArgumentApplicationError(`Failed to apply arguments: ${message}`);

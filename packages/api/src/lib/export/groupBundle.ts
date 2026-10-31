@@ -82,6 +82,7 @@ async function compileGroup(
         sourceVersion: node.sourceVersion,
         ...(node.tags ? { tags: node.tags } : {}),
         ...(node.description ? { description: node.description } : {}),
+        ...(node.inputPolicies ? { inputPolicies: node.inputPolicies } : {}),
       },
       parser,
     );

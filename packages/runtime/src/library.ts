@@ -270,7 +270,7 @@ export function substituteCall(
   // the order that keeps caller data out of the page substitution's way: a
   // literal argument whose text happens to read `LIMIT 0001` must not be
   // rewritten, and after this step nothing else scans the query.
-  return applyTemplateArguments(withPageParameters(query, limits, offsets), argumentSets);
+  return applyTemplateArguments(withPageParameters(query, limits, offsets), argumentSets, query.inputPolicies ?? []);
 }
 
 function withPageParameters(

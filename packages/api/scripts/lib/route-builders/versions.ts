@@ -273,7 +273,19 @@ export const createQueryVersionForQuerySchema = {
       outputs: { type: 'array', items: ${JSON.stringify(queryOutputCreateShape, null, 6)} },
       tupleMembers: { type: 'array', items: ${JSON.stringify(tupleMemberCreateShape, null, 6)} },
       inputTuples: { type: 'array', items: ${JSON.stringify(queryInputTupleCreateShape, null, 6)} },
-      outputTuples: { type: 'array', items: ${JSON.stringify(queryOutputTupleCreateShape, null, 6)} }
+      outputTuples: { type: 'array', items: ${JSON.stringify(queryOutputTupleCreateShape, null, 6)} },
+      inputPolicies: {
+        type: 'array',
+        description: 'What each VALUES parameter means when it receives no bound rows, named by its variables. Unset slots keep the mode of the previous version; null clears it. require refuses a run that leaves the slot open.',
+        items: {
+          type: 'object', additionalProperties: false,
+          properties: {
+            vars: { type: 'array', items: { type: 'string' }, minItems: 1 },
+            whenEmpty: { type: ['string', 'null'], enum: ['unconstrained', 'propagateEmpty', 'require', null] }
+          },
+          required: ['vars', 'whenEmpty']
+        }
+      }
     },
     required: ['queryVersion']${queryVersionExampleSnippet}
   },

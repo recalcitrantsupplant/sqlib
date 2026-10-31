@@ -96,6 +96,13 @@ also carry a `whenEmpty` policy for when its upstream produces no rows:
 `require` refuses the run. That policy is the author's, so it lives on the edge
 and never in a request.
 
+The query's author can set the same policy on the clause itself, on the
+version's input tuple. A clause marked `require` refuses a run that leaves it
+out, sends one all-`UNDEF` row, or sends zero rows, so a query that must start
+from a value never scans the whole graph. A group edge can choose another
+closed mode for that clause, but cannot set `unconstrained`. See
+[required arguments](proposals/required-arguments.md).
+
 ## ArgumentSet
 
 An **ArgumentSet** is the values for a callable's SPARQL parameters: a table per

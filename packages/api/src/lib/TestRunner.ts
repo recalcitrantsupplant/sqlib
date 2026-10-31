@@ -73,6 +73,7 @@ import {
   type ComparisonResult,
   type ExpectationKind,
 } from './testComparators.js';
+import { versionSlotPolicies } from './slotPolicies.js';
 
 /** Id lists are stored as one-or-many, as everywhere else that reads them. */
 function normalizeIdList(value: unknown): string[] {
@@ -691,6 +692,7 @@ export class TestRunner {
         argumentSets: payload?.tupleList ?? [],
         limits: payload?.limits ?? [],
         offsets: payload?.offsets ?? [],
+        slotPolicies: versionSlotPolicies(version),
         parser: this.parser,
       }),
     );

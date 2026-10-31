@@ -144,6 +144,14 @@
           "type"
         ]
       ],
+      "inputPolicies": [
+        {
+          "vars": [
+            "type"
+          ],
+          "whenEmpty": "propagateEmpty"
+        }
+      ],
       "textHash": "sha256-f102d146d0c25a913eb50c9c7ef4a9f48fa978c6fae0f5fbee2e2cf48004172a",
       "sourceQuery": "urn:sqlib:query:paged-things",
       "sourceVersion": "urn:sqlib:query-version:paged-things-1",

@@ -66,6 +66,7 @@ export const queryInputTupleShape = {
   memberEntries: iriArray,
   position: nullableInteger,
   variableMappings: nullableString,
+  whenEmpty: nullableString,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
 };

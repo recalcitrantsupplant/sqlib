@@ -265,7 +265,7 @@ describe('ExecutionEngine — data graph inputs on the start node', () => {
         expect.objectContaining({
           results: { bindings: [{ x: { type: 'uri', value: 'http://example.org/a' } }] },
         }),
-      ]),
+      ]), [],
     );
     // ...and the graph reached the rules, in the same run.
     expect(ruleSetExecutor.execute).toHaveBeenCalledWith(expect.anything(), { initialGraph: GRAPH_TEXT, initialGraphFormat: 'turtle', signal: expect.any(AbortSignal) });

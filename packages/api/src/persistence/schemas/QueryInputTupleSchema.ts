@@ -51,6 +51,20 @@ export const QueryInputTupleSchema = {
     '@id': sqlib.variableMappings,
     '@optional': true,
   },
+  /**
+   * The query author's policy for this slot when it receives no bound rows: an
+   * omitted slot, a lone all-UNDEF row, or zero rows. One of `WHEN_EMPTY_MODES`.
+   *
+   * Set only on a query version's `inferredInputs`. Unset keeps the built-in
+   * reading (omitted runs open, zero rows match nothing). `require` is the guard
+   * for a query that must never run open; see
+   * `docs/proposals/required-arguments.md`. A group edge's own `whenEmpty`
+   * wins over it, but cannot set `unconstrained` on a slot this closes.
+   */
+  whenEmpty: {
+    '@id': sqlib.whenEmpty,
+    '@optional': true,
+  },
 } as const satisfies Schema;
 
 export interface LdkitQueryInputTuple {
@@ -60,4 +74,5 @@ export interface LdkitQueryInputTuple {
   memberEntries: string[]; // Array of TupleMember IRIs (ordered by position field)
   position?: number | null; // Start-node ports only: declaration ordinal
   variableMappings?: string | null; // Start-node ports only: JSON { source, target }[]
+  whenEmpty?: string | null; // Query version inputs only: "unconstrained" | "propagateEmpty" | "require"
 }

@@ -28,6 +28,7 @@ import { resolvePatchTarget } from '../patchTargets.js';
 import type { WhenEmptyMode } from '../../persistence/schemas/QueryEdgeSchema.js';
 import { convertRdf, mergeRdf, rdfFormatFromMediaType, type RdfPayload } from './rdfHandoff.js';
 import { intersectDatasets, type SparqlDataset } from '../dataset.js';
+import { versionSlotPolicies } from '../slotPolicies.js';
 
 export type ExecutionHooks = {
   onNodeStart?: (node: ResolvedNode, orderIndex: number) => void;
@@ -308,6 +309,7 @@ export class ExecutionEngine {
       argumentSets,
       limits,
       offsets,
+      slotPolicies: versionSlotPolicies(node.queryVersion),
       dataset,
       acceptHeader: run.acceptHeader,
       signal: run.signal,
@@ -824,13 +826,16 @@ export class ExecutionEngine {
           // request carries rows, never a policy of its own.
           argSets.push(declaredWhenEmpty ? { ...ext, whenEmpty: declaredWhenEmpty } : ext);
         } else {
-          // Nothing arrived. Absent external parameters run unconstrained unless the
-          // author asked otherwise (notably `require`, for a mandatory parameter).
-          argSets.push({
-            head: { vars: group },
-            results: { bindings: [] },
-            whenEmpty: declaredWhenEmpty ?? 'unconstrained',
-          });
+          // Nothing arrived. The edge author's policy decides; without one the
+          // set is left out, and the query's own slot policy (or the built-in
+          // "run open") fills it in `completeArgumentSets`.
+          if (declaredWhenEmpty) {
+            argSets.push({
+              head: { vars: group },
+              results: { bindings: [] },
+              whenEmpty: declaredWhenEmpty,
+            });
+          }
         }
       }
     }

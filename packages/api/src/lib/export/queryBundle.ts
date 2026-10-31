@@ -20,6 +20,7 @@ import {
   hashTemplateText,
   type ExportBundle,
   type ExportedQuery,
+  type SlotPolicy,
 } from '@sparql-query-lib/runtime';
 import { TemplateCompileError, compileQueryTemplate } from '@sparql-query-lib/compiler';
 import { SparqlQueryParser } from '../parser.js';
@@ -36,6 +37,8 @@ export interface ExportQueryInput {
   /** The QueryVersion IRI this text came from. Provenance only. */
   sourceVersion?: string;
   description?: string;
+  /** The version's per-slot `whenEmpty`, carried so the bundle refuses what the server refuses. */
+  inputPolicies?: SlotPolicy[];
 }
 
 export interface BuildExportBundleOptions {
@@ -125,6 +128,9 @@ export async function compileExportQuery(
     offsetParameters: compiled.offsetParameters,
     ...(pageParameters.length > 0 ? { pageParameters } : {}),
     inferredInputs: compiled.inferredInputs,
+    ...(input.inputPolicies && input.inputPolicies.length > 0
+      ? { inputPolicies: input.inputPolicies.map((policy) => ({ vars: [...policy.vars], whenEmpty: policy.whenEmpty })) }
+      : {}),
     textHash: await hashTemplateText(template.text),
     ...(input.tags && input.tags.length > 0 ? { tags: input.tags } : {}),
     ...(input.sourceQuery ? { sourceQuery: input.sourceQuery } : {}),

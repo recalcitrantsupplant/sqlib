@@ -875,7 +875,7 @@ describe('ExecutionEngine', () => {
               { entity: { type: 'uri', value: 'http://example.org/entity2' } }
             ]
           }
-        }]
+        }], []
       );
     });
 
@@ -991,7 +991,7 @@ describe('ExecutionEngine', () => {
         [{
           head: { vars: ['entity'] },
           results: { bindings: [] }
-        }]
+        }], []
       );
     });
 
@@ -1120,7 +1120,7 @@ describe('ExecutionEngine', () => {
               { entity: { type: 'uri', value: 'http://example.org/entity2' } }
             ]
           }
-        }]
+        }], []
       );
     });
   });
@@ -1314,7 +1314,7 @@ describe('ExecutionEngine', () => {
       expect(mockParser.applyArguments).toHaveBeenCalledWith(node.queryString, [
         { head: { vars: ['city'] }, results: { bindings: [{ city: { type: 'literal', value: 'Sydney' } }] } },
         { head: { vars: ['state'] }, results: { bindings: [{ state: { type: 'literal', value: 'NSW' } }] } },
-      ]);
+      ], []);
     });
 
     it('uses initial arguments when no edge provides values', async () => {
@@ -1376,7 +1376,7 @@ describe('ExecutionEngine', () => {
 
       expect(mockParser.applyArguments).toHaveBeenCalledWith(
         'SELECT ?entity ?label WHERE { VALUES (?entity) { (UNDEF) } ?entity rdfs:label ?label }',
-        [initialArgs[0]]
+        [initialArgs[0]], []
       );
     });
 
@@ -1436,7 +1436,7 @@ describe('ExecutionEngine', () => {
       await engine.execute(graph, initialArgs);
       expect(mockParser.applyArguments).toHaveBeenCalledWith(
         expect.any(String),
-        [expect.objectContaining({ head: { vars: ['state', 'city'] } })],
+        [expect.objectContaining({ head: { vars: ['state', 'city'] } })], [],
       );
     });
 
@@ -1492,15 +1492,12 @@ describe('ExecutionEngine', () => {
         resultNodeId: 'node1'
       });
 
-      // A missing external input is intentionally unconstrained, never an
+      // A missing external input is left out, and the parser completes it as
+      // unconstrained (or by the query's own slot policy), never as an
       // accidentally retained UNDEF wildcard.
       expect(mockParser.applyArguments).toHaveBeenCalledWith(
         'SELECT ?entity ?label WHERE { VALUES (?entity) { (UNDEF) } ?entity rdfs:label ?label }',
-        [{
-          head: { vars: ['entity'] },
-          results: { bindings: [] },
-          whenEmpty: 'unconstrained'
-        }]
+        [], []
       );
     });
   });
