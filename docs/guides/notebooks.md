@@ -133,13 +133,36 @@ A cell that has run also offers **Save as test…**: hold a query, its arguments
 and a result and you are holding a test case. It records the call that *ran* —
 a slot fed from a value was filled with rows the cell no longer shows.
 
-## 7. What is not here yet
+## 7. Promote to a query group
+
+**Promote to group** writes the notebook's run cells as one
+[query group](query-groups.md): the same chain, run by the server in one call
+with no browser in the path. It is the way out when a notebook has become a
+pipeline someone depends on.
+
+- Every cell is pinned to the version it uses now. Markdown cells become the
+  group's description. The notebook itself is not changed.
+- A wire from a value to a slot becomes a `VARIABLE_BINDINGS` edge that carries
+  exactly the columns the notebook paired, so the group pairs them the same way.
+  A graph handed to a rule set becomes an `RDF_GRAPH` edge.
+- The last run cell's result is the group's result.
+
+The dialog says what does not carry over before you confirm: typed values (the
+slot becomes a parameter of the group, filled when it is run), LIMIT and OFFSET
+values, and "skip this cell if empty", which becomes "match nothing" because a
+group node always runs.
+
+A notebook that does not have the shape of a group is refused, naming the cell:
+a run cell whose value nothing below uses (a group returns one result), a group
+cell (groups do not nest), a rule set reading a saved data graph, or a reference
+to a value no cell above binds.
+
+## 8. What is not here yet
 
 - No server-side notebook entity: a notebook lives in the browser and in the
   file you export. There is no URL to share yet.
 - No pass-by-reference: a large value round-trips through the browser rather
   than being captured server-side and passed by id.
 - No materialize cell, so graph → query needs a saved graph and a backend.
-- No promote-to-query-group.
 
 These are scoped in [the proposal](../proposals/notebook-cells.md).
