@@ -47,12 +47,24 @@ import { resolveDataGraphInput, DataGraphContentError } from '../lib/dataGraphIn
 import type { ExecutionDataGraphInput } from '../lib/orchestration/ExecutionEngine.js';
 import type { ArgumentSet as RuntimeArgumentSet } from '../lib/query-chaining.js';
 import { log } from '../lib/log.js';
+import { failedFlags, refusalQuery, refusedBody } from '../lib/refusals.js';
+
 import {
     contentTypeForSelectResults,
     isSelectResults,
     negotiateSelectResultsFormat,
     renderSelectResults,
 } from '../lib/sparqlResultsFormats.js';
+
+/** The refusal messages of a version's `tool` object, when it has any. */
+function toolRefusals(version: { tool?: unknown } | null | undefined): Record<string, string> | null {
+    const tool = version?.tool;
+    if (!tool || typeof tool !== 'object') return null;
+    const refusals = (tool as { refusals?: unknown }).refusals;
+    return refusals && typeof refusals === 'object' && Object.keys(refusals).length > 0
+        ? (refusals as Record<string, string>)
+        : null;
+}
 
 // Alternative to import.meta for ES module compatibility
 const __dirname = path.dirname(new URL(import.meta.url).pathname);
@@ -1126,6 +1138,34 @@ export default async function (
                                 return reply.code(400).send({error: error__u.message});
                             }
                             throw error__u;
+                        }
+                    }
+                    /*
+                     * A version whose tool object has `refusals` runs its
+                     * refusal query first, with the same arguments: a flag that
+                     * is not true means the update would write nothing, so it
+                     * is skipped and the call answers 409 with the reasons
+                     * instead of a 204 that reads as a write. See
+                     * `lib/refusals.ts`.
+                     */
+                    const refusals = toolRefusals(resolvedQueryVersion);
+                    const originalText = resolvedQueryVersion?.queryString as string | undefined;
+                    if (refusals && originalText) {
+                        const argumentTables = resolveArgumentsForQuery(originalText);
+                        const check = applyExecutionArguments(refusalQuery(originalText).text, {
+                            argumentSets: argumentTables,
+                            limits: normalizedLimits,
+                            offsets: normalizedOffsets,
+                        }, parser);
+                        const {result} = await targetExecutor.selectQueryParsed(check, {
+                            acceptHeader: 'application/sparql-results+json',
+                            signal,
+                        });
+                        const {rows, failed} = failedFlags(result as Parameters<typeof failedFlags>[0], refusals);
+                        if (rows === 0 || failed.length > 0) {
+                            executionStatus = 'success';
+                            setTimingHeader();
+                            return reply.code(409).send(refusedBody(failed, refusals, argumentTables));
                         }
                     }
                     const {duration} = await targetExecutor.update(sparqlQueryString);

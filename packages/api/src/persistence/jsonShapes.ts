@@ -15,7 +15,7 @@
  * *contract* that narrows it.
  */
 
-import { TOOL_NAME_PATTERN, TOOL_PARAM_KINDS } from '@sparql-query-lib/tools';
+import { REFUSAL_KEY_PATTERN, TOOL_NAME_PATTERN, TOOL_PARAM_KINDS } from '@sparql-query-lib/tools';
 
 /** A named JSON document shape, in both emitted forms. */
 export interface JsonShape {
@@ -93,6 +93,11 @@ export const PUBLISHED_TOOL: JsonShape = {
               additionalProperties: false,
             },
           },
+          refusals: {
+            type: 'object',
+            propertyNames: { pattern: REFUSAL_KEY_PATTERN },
+            additionalProperties: { type: 'string', minLength: 1 },
+          },
         },
         required: ['name', 'description'],
         additionalProperties: false,
@@ -118,6 +123,7 @@ export const PUBLISHED_TOOL: JsonShape = {
               .strict(),
           )
           .optional(),
+        refusals: z.record(z.string().regex(/${REFUSAL_KEY_PATTERN}/), z.string().min(1)).optional(),
       })
       .strict(),
     z.literal(false),

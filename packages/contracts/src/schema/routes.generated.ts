@@ -1397,6 +1397,16 @@ export const createQueryVersionSchema = {
                   ],
                   "additionalProperties": false
                 }
+              },
+              "refusals": {
+                "type": "object",
+                "propertyNames": {
+                  "pattern": "^[A-Za-z0-9_]{1,64}$"
+                },
+                "additionalProperties": {
+                  "type": "string",
+                  "minLength": 1
+                }
               }
             },
             "required": [
@@ -4237,6 +4247,16 @@ const __createQueryVersionBodySchema = {
                 ],
                 "additionalProperties": false
               }
+            },
+            "refusals": {
+              "type": "object",
+              "propertyNames": {
+                "pattern": "^[A-Za-z0-9_]{1,64}$"
+              },
+              "additionalProperties": {
+                "type": "string",
+                "minLength": 1
+              }
             }
           },
           "required": [
@@ -4630,6 +4650,16 @@ const __createQueryGroupVersionBodySchema = {
                   "kind"
                 ],
                 "additionalProperties": false
+              }
+            },
+            "refusals": {
+              "type": "object",
+              "propertyNames": {
+                "pattern": "^[A-Za-z0-9_]{1,64}$"
+              },
+              "additionalProperties": {
+                "type": "string",
+                "minLength": 1
               }
             }
           },
