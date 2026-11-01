@@ -7,9 +7,20 @@ rail, at `/notebook` — and it replaced a screen that rendered every query in t
 library as a cell whether or not anyone had asked for it. The contents of the
 library are what you import here; what you write around them is the point.
 
-Notebooks are listed in the sidebar like every other asset the rail holds. They
-are kept in this browser (there is no server entity yet), autosave as you type,
-and travel as a file — see §4.
+Notebooks are listed in the sidebar like every other asset the rail holds, and
+they are kept the way a query is:
+
+- **Scratch.** **+ New** makes a notebook that lives only in this browser and
+  autosaves as you type. **Save** writes it to the library as v1.
+- **Saved.** A `Notebook` in the library, with immutable numbered versions
+  (`/notebooks` in the API). Typing autosaves a draft in this browser on top
+  of the saved version and never cuts a version; **Save** does, and
+  **Discard** puts the saved version back. The address carries the notebook
+  (`/notebook?library=…&notebook=…`), so a saved notebook can be linked to.
+  Who can read, save or delete it is decided by its library's grants, as for
+  every other library entity.
+
+A notebook also travels as a file — see §4.
 
 ## 1. What a cell is
 
@@ -91,6 +102,9 @@ decision to you.
 
 ## 4. Sharing a notebook
 
+A saved notebook is shared by its link. Anyone who can read the library opens
+it at its current version.
+
 **Export** writes a `.sqlibnb` file: a small JSON document of the title, the
 library it names, and the cells. No results — it is the story, not the run. It
 is small enough to keep in git beside the library, and a changed argument is a
@@ -159,8 +173,6 @@ to a value no cell above binds.
 
 ## 8. What is not here yet
 
-- No server-side notebook entity: a notebook lives in the browser and in the
-  file you export. There is no URL to share yet.
 - No pass-by-reference: a large value round-trips through the browser rather
   than being captured server-side and passed by id.
 - No materialize cell, so graph → query needs a saved graph and a backend.

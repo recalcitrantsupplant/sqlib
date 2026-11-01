@@ -4,20 +4,20 @@
 
     <!--
       A notebook is an asset like every other one the rail lists, so it is
-      opened from the same list component the other sections use. Scratch-only,
-      as ETL's is: a notebook has no server entity yet, and a `Saved 0` header
-      that can never move off zero reads as something being broken.
+      opened from the same list component the other sections use: saved
+      notebooks from the library, and scratch ones this browser holds.
     -->
     <EntityListSidebar
       section="notebooks"
       section-label="Notebooks"
       item-noun="notebook"
       item-noun-plural="notebooks"
-      :saved="[]"
+      :saved="documents.saved.value"
       :scratch="scratchRecords"
       :selection="sidebarSelection"
-      :supports-saved="false"
+      :supports-saved="true"
       :supports-scratch="true"
+      @select-saved="openSavedDocument"
       @select-scratch="openDocument"
       @create-scratch="createDocument"
       @discard-scratch="documents.remove"
@@ -41,9 +41,37 @@
           @change="setTitle(($event.target as HTMLInputElement).value)"
         />
         <span v-if="activeLibrary" class="chip">{{ activeLibrary.name }}</span>
-        <span class="chip chip--quiet">floating · tracks current versions</span>
+        <span v-if="documents.openKind.value === 'scratch'" class="chip chip--quiet" data-testid="notebook-scratch-chip">scratch · this browser only</span>
+        <span v-else-if="documents.versionNumber.value" class="chip" data-testid="notebook-version">v{{ documents.versionNumber.value }}</span>
+        <span v-if="documents.editCount.value > 0" class="chip chip--quiet" data-testid="notebook-unsaved">
+          {{ documents.editCount.value }} unsaved {{ documents.editCount.value === 1 ? 'edit' : 'edits' }}
+        </span>
 
         <span class="page-header__spacer"></span>
+
+        <!--
+          Save cuts a version; typing never does. Until then the edits are a
+          draft in this browser, as they are on a query.
+        -->
+        <Button
+          v-if="documents.isSaved.value && documents.editCount.value > 0"
+          size="sm"
+          variant="ghost"
+          data-testid="notebook-discard"
+          @click="documents.discard()"
+        >
+          Discard
+        </Button>
+        <Button
+          size="sm"
+          :disabled="!canSaveDocument"
+          :title="saveTitle"
+          data-testid="notebook-save"
+          @click="saveDocument"
+        >
+          <Save :size="12" />
+          {{ documents.saving.value ? 'Saving…' : `Save v${(documents.versionNumber.value ?? 0) + 1}` }}
+        </Button>
 
         <Button size="sm" :disabled="!hasRunCells || running" data-testid="notebook-run-all" @click="runAll">
           <Play :size="12" />
@@ -73,6 +101,15 @@
         <Button size="sm" variant="outline" data-testid="notebook-import" @click="fileInput?.click()">
           <Upload :size="12" /> Import
         </Button>
+        <Button
+          v-if="documents.isSaved.value"
+          size="sm"
+          variant="ghost"
+          data-testid="notebook-delete"
+          @click="deleteOpen = true"
+        >
+          <Trash2 :size="12" /> Delete
+        </Button>
         <input
           ref="fileInput"
           class="visually-hidden"
@@ -86,11 +123,15 @@
       <div class="page-strip">
         <span v-if="backendLabel">Runs go to <strong>{{ backendLabel }}</strong> — library default</span>
         <span>{{ nb.notebook.value.cells.length }} cells</span>
-        <span v-if="documents.savedAt.value" data-testid="notebook-saved-note">saved locally</span>
+        <span>floating · tracks current versions</span>
+        <span v-if="documents.savedAt.value && (documents.openKind.value === 'scratch' || documents.editCount.value > 0)" data-testid="notebook-saved-note">edits kept in this browser</span>
         <span v-if="nb.loading.value">loading the library…</span>
       </div>
 
       <p v-if="notice" class="notice notice--error" data-testid="notebook-notice">{{ notice }}</p>
+      <p v-if="documents.loadError.value" class="notice notice--error" data-testid="notebook-list-error">
+        The library's saved notebooks could not be listed: {{ documents.loadError.value }}
+      </p>
       <p v-if="promotedGroup" class="notice" data-testid="notebook-promoted">
         Promoted to the query group
         <NuxtLink :to="promotedGroup.path">{{ promotedGroup.name }}</NuxtLink>.
@@ -273,6 +314,22 @@
       </DialogContent>
     </Dialog>
 
+    <Dialog v-model:open="deleteOpen">
+      <DialogContent class="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Delete this notebook?</DialogTitle>
+          <DialogDescription>
+            Deletes "{{ nb.notebook.value.title }}" and all its versions from the library, for everyone
+            who can see it. The queries and other entities its cells use are not changed.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button size="sm" variant="outline" @click="deleteOpen = false">Cancel</Button>
+          <Button size="sm" variant="destructive" data-testid="notebook-delete-confirm" @click="confirmDelete">Delete</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
     <Dialog v-model:open="saveOpen">
       <DialogContent class="sm:max-w-md">
         <DialogHeader>
@@ -300,7 +357,7 @@
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 // @ts-ignore - Nuxt auto-import
 import { useRoute, useRouter } from '#imports';
-import { Download, FileText, Play, Scale, Search, Upload, Workflow } from '@lucide/vue';
+import { Download, FileText, Play, Save, Scale, Search, Trash2, Upload, Workflow } from '@lucide/vue';
 import { defineArgsElement } from '@sparql-query-lib/runtime/args-element';
 import AppNavRail from '../components/AppNavRail.vue';
 import EntityListSidebar, { type SidebarSelection } from '../components/EntityListSidebar.vue';
@@ -337,6 +394,7 @@ import { useCallableDrafts } from '../composables/useCallableDrafts';
 import { downloadTextFile } from '../lib/downloadFile';
 import { markdownTitle } from '../lib/markdown';
 import {
+  emptyNotebook,
   markdownCell,
   mintCellId,
   parseNotebookJson,
@@ -368,6 +426,8 @@ const librariesStore = useLibrariesStore();
 const backendsStore = useBackendsStore();
 
 const requestedLibraryId = (route.query.library as string) || null;
+/** Read now: settling the library rewrites the address before the notebook is opened. */
+const requestedNotebookId = (route.query.notebook as string) || null;
 const { activeLibraryId: libraryId, activeLibrary, setActiveLibrary } = useActiveLibrary();
 
 const { isEnabled } = useFeatureFlags();
@@ -386,7 +446,10 @@ const backendOptions = computed(() => {
   for (const backend of backendsStore.backends.value) options.set(backend.id, backend.name);
   return [...options].map(([value, label]) => ({ value, label }));
 });
-const documents = useNotebookDocuments(libraryId);
+const documents = useNotebookDocuments(libraryId, {
+  current: () => nb.notebook.value,
+  show: (notebook) => nb.setNotebook(notebook),
+});
 const draftsStore = useCallableDrafts(libraryId);
 
 const insertOpen = ref(false);
@@ -519,24 +582,87 @@ function valueOptionsAbove(index: number) {
 /** The records themselves, for the sidebar, which lists drafts rather than documents. */
 const scratchRecords = computed(() => draftsStore.scratchFor('notebook'));
 
-const sidebarSelection = computed<SidebarSelection>(() =>
-  documents.openId.value ? { kind: 'scratch', id: documents.openId.value } : { kind: 'none', id: null },
-);
+const sidebarSelection = computed<SidebarSelection>(() => {
+  const id = documents.openId.value;
+  if (!id) return { kind: 'none', id: null };
+  return documents.openKind.value === 'saved' ? { kind: 'saved', id } : { kind: 'scratch', id };
+});
+
+/** The open notebook goes in the address, so a saved one can be linked to. */
+function syncAddress() {
+  const query: Record<string, string> = {};
+  if (libraryId.value) query.library = libraryId.value;
+  if (documents.isSaved.value && documents.openId.value) query.notebook = documents.openId.value;
+  router.replace({ path: '/notebook', query });
+}
 
 function createDocument() {
   const created = documents.create();
   nb.setNotebook(created.notebook);
+  syncAddress();
 }
 
 function openDocument(id: string) {
-  const opened = documents.open(id);
-  if (opened) nb.setNotebook(opened);
+  documents.open(id);
+  syncAddress();
+}
+
+async function openSavedDocument(id: string) {
+  notice.value = null;
+  try {
+    await documents.openSaved(id);
+    syncAddress();
+  } catch (cause) {
+    notice.value = `That notebook could not be opened: ${cause instanceof Error ? cause.message : String(cause)}`;
+  }
+}
+
+const canSaveDocument = computed(() => {
+  if (documents.saving.value || !libraryId.value) return false;
+  if (documents.isSaved.value) return documents.editCount.value > 0;
+  return nb.notebook.value.cells.length > 0;
+});
+
+const saveTitle = computed(() => {
+  if (!libraryId.value) return 'Choose a library first';
+  if (documents.isSaved.value) {
+    return documents.editCount.value > 0 ? 'Save these edits as the next version' : 'No unsaved edits';
+  }
+  return nb.notebook.value.cells.length > 0
+    ? 'Save it into the current library as v1'
+    : 'Add a cell first — there is nothing to save yet';
+});
+
+const deleteOpen = ref(false);
+
+async function confirmDelete() {
+  deleteOpen.value = false;
+  notice.value = null;
+  try {
+    await documents.deleteSaved();
+    nb.setNotebook(emptyNotebook(libraryId.value));
+    syncAddress();
+  } catch (cause) {
+    notice.value = `The notebook was not deleted: ${cause instanceof Error ? cause.message : String(cause)}`;
+  }
+}
+
+async function saveDocument() {
+  notice.value = null;
+  // A notebook that was never written down is minted now, so Save has one.
+  ensureDocument();
+  try {
+    await documents.save();
+    syncAddress();
+  } catch (cause) {
+    notice.value = `The notebook was not saved: ${cause instanceof Error ? cause.message : String(cause)}`;
+  }
 }
 
 /*
- * Autosave, the rule the rest of the app follows: there is no Save button, so
- * the debounce is the safety net. Deep, because a cell's arguments change
- * inside the document rather than replacing it.
+ * Autosave into this browser: the scratch record, or the draft on top of the
+ * saved version. Deep, because a cell's arguments change inside the document
+ * rather than replacing it.
  */
 watch(
   () => nb.notebook.value,
@@ -550,6 +676,7 @@ function openPicker(kind: NotebookTarget['kind']) {
 }
 
 function setTitle(title: string) {
+  ensureDocument();
   nb.notebook.value = { ...nb.notebook.value, title: title.trim() || 'Untitled notebook' };
 }
 
@@ -633,15 +760,18 @@ async function importDocument(event: Event) {
   notice.value = null;
   try {
     const parsed = parseNotebookJson(await file.text());
-    // An imported file becomes a document of its own rather than overwriting
-    // whichever one happened to be open.
-    documents.create(parsed);
-    nb.setNotebook(parsed);
     if (parsed.library && parsed.library !== libraryId.value) {
       // The document travels; the entities it names do not. Switching to the
       // library it came from is the only reading of that file that can run.
+      // Switched first: a switch closes whatever is open.
       setActiveLibrary(parsed.library);
+      await nextTick();
     }
+    // An imported file becomes a scratch document of its own rather than
+    // overwriting whichever one happened to be open.
+    documents.create(parsed);
+    nb.setNotebook(parsed);
+    syncAddress();
   } catch (cause) {
     notice.value = cause instanceof Error ? cause.message : String(cause);
   } finally {
@@ -738,15 +868,23 @@ onMounted(async () => {
    * restoring into a document that watcher is about to replace.
    */
   await nextTick();
-  // Land on the notebook last written rather than on an empty one somebody
-  // then has to find their work from.
-  const first = documents.documents.value[0];
-  if (first) openDocument(first.id);
+  await documents.loadSaved();
+  /*
+   * A linked notebook first. Otherwise land on the scratch notebook last
+   * written, or the first saved one, rather than on an empty one somebody
+   * then has to find their work from.
+   */
+  const requested = requestedNotebookId;
+  const scratch = documents.documents.value[0];
+  const firstSaved = documents.saved.value[0];
+  if (requested) await openSavedDocument(requested);
+  else if (scratch) openDocument(scratch.id);
+  else if (firstSaved) await openSavedDocument(firstSaved.id);
   await nb.load();
 });
 
-watch(libraryId, (id) => {
-  if (id) router.replace({ path: '/notebook', query: { library: id } });
+watch(libraryId, () => {
+  syncAddress();
   void nb.load();
 });
 </script>
@@ -807,6 +945,8 @@ watch(libraryId, (id) => {
   background: var(--surface-sunken);
   font-size: var(--text-micro);
   color: var(--ink-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .chip--quiet {
