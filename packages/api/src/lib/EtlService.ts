@@ -4,6 +4,7 @@
  * Handles ETL job management, column mapping, and execution orchestration.
  */
 
+import { declaredReservedSlots } from '../auth/caller.js';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { toError } from './toError.js';
@@ -516,6 +517,18 @@ export class EtlService {
     nextVersion: number,
   ): Promise<EtlJobVersionDetail> {
     const cacheCoordinator = getCacheCoordinator();
+    // An ETL run has no signed-in caller, and its output is stored and shared,
+    // so its template cannot read the caller.
+    const callerSlots = declaredReservedSlots(input.sparqlTemplate);
+    if (callerSlots.length > 0) {
+      throw Object.assign(
+        new Error(
+          `The SPARQL template reads the signed-in caller (${callerSlots.map(s => `?${s}`).join(', ')}). `
+            + 'An ETL job has no caller, so its template cannot use these slots.',
+        ),
+        { statusCode: 400 },
+      );
+    }
     const versionId = mintId('etlJobVersion');
     const now = new Date().toISOString();
 

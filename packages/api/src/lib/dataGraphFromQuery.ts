@@ -15,6 +15,7 @@
  * today, and a version per run the moment anything drives it on a schedule.
  */
 
+import { declaredReservedSlots } from '../auth/caller.js';
 import { createHash } from 'node:crypto';
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
 import { ArgumentSetService } from './ArgumentSetService.js';
@@ -123,6 +124,17 @@ export async function materializeDataGraphVersionFromQuery(
   if (!isGraphQueryType(queryType)) {
     throw new DataGraphQuerySourceError(
       `QueryVersion ${input.queryVersionId} is not a CONSTRUCT or DESCRIBE query — only a query with a graph result can seed a data graph`,
+      400,
+    );
+  }
+
+  // A snapshot is stored and read by other callers, so it must not depend on
+  // who took it. A query that reads the caller cannot be its source.
+  const callerSlots = declaredReservedSlots(versionEntity.queryString);
+  if (callerSlots.length > 0) {
+    throw new DataGraphQuerySourceError(
+      `QueryVersion ${input.queryVersionId} reads the signed-in caller (${callerSlots.map(s => `?${s}`).join(', ')}). `
+        + 'A data graph is stored and shared, so its source query cannot depend on who runs it.',
       400,
     );
   }

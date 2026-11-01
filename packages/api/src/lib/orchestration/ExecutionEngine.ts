@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { callerOfScope } from '../../auth/caller.js';
 import { orderByPosition } from '@sparql-query-lib/types';
 import * as oxigraph from 'oxigraph';
 import { toError } from '../toError.js';
@@ -314,6 +315,9 @@ export class ExecutionEngine {
       acceptHeader: run.acceptHeader,
       signal: run.signal,
       parser: this.parser,
+      // The group's caller, for every member that reads it. A group run for
+      // sqlib itself has no caller, so the slots get zero rows.
+      caller: callerOfScope(this.executorFactory.callerScope),
     });
     run.results.set(node.id, result);
 

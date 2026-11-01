@@ -1,4 +1,9 @@
-import { normalizeArguments as normalizeRuntimeArguments, type SlotPolicy } from '@sparql-query-lib/runtime';
+import {
+  mayDeclareReservedSlot,
+  normalizeArguments as normalizeRuntimeArguments,
+  type CallerIdentity,
+  type SlotPolicy,
+} from '@sparql-query-lib/runtime';
 import { SparqlQueryParser } from './parser.js';
 import type { ArgumentSet as RuntimeArgumentSet } from './query-chaining.js';
 import type { RuntimeArgumentPayload } from './ArgumentSetService.js';
@@ -86,6 +91,12 @@ export function applyExecutionArguments(
     offsets?: ExecutionParameter[];
     /** The stored version's per-slot `whenEmpty` (`versionSlotPolicies`). */
     slotPolicies?: readonly SlotPolicy[];
+    /**
+     * Who fills `?authUser` and `?authGroup`: the signed-in caller, or `null`
+     * for no one (zero rows). Required, so that no route can leave it out and
+     * run a slot open (`auth/caller.ts`).
+     */
+    caller: CallerIdentity | null;
   },
   parser: SparqlQueryParser = new SparqlQueryParser()
 ): string {
@@ -105,11 +116,13 @@ export function applyExecutionArguments(
   }
 
   // A slot policy acts on what is *not* supplied, so a version that has one
-  // is substituted even when the payload is empty.
+  // is substituted even when the payload is empty. So is a text that may read
+  // the caller: left unsubstituted, its `VALUES ?authUser { UNDEF }` would
+  // match every caller.
   const slotPolicies = payload.slotPolicies ?? [];
-  if (argumentSets.length > 0 || slotPolicies.length > 0) {
+  if (argumentSets.length > 0 || slotPolicies.length > 0 || mayDeclareReservedSlot(result)) {
     try {
-      result = parser.applyArguments(result, argumentSets, slotPolicies);
+      result = parser.applyArguments(result, argumentSets, slotPolicies, { caller: payload.caller });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new ArgumentApplicationError(`Failed to apply arguments: ${message}`);

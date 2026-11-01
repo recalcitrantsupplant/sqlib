@@ -100,6 +100,116 @@ export interface SlotPolicy {
   whenEmpty: EmptyArgumentMode;
 }
 
+/**
+ * The caller's identity slots.
+ *
+ * A query reads who is calling it through `VALUES ?authUser { UNDEF }` and
+ * `VALUES ?authGroup { UNDEF }`. sqlib fills them from the sign-in; no argument
+ * can. See `docs/guides/publishing-tools.md` ("The caller").
+ */
+export const AUTH_USER_VARIABLE = 'authUser';
+export const AUTH_GROUP_VARIABLE = 'authGroup';
+export const RESERVED_SLOT_VARIABLES: readonly string[] = [AUTH_USER_VARIABLE, AUTH_GROUP_VARIABLE];
+
+export function isReservedSlotVariable(name: string): boolean {
+  return RESERVED_SLOT_VARIABLES.includes(name);
+}
+
+/** Who a run is for: a user or client principal IRI, and its group principal IRIs. */
+export interface CallerIdentity {
+  user: string;
+  groups: readonly string[];
+}
+
+/**
+ * How a substitution fills the caller's identity slots.
+ *
+ * `caller` is three-valued, and the difference matters:
+ *
+ * - an identity fills `?authUser` with one row and `?authGroup` with one row
+ *   per group;
+ * - `null` says "no one": both slots get zero rows, so a query that joins on
+ *   them matches nothing;
+ * - omitted is a bug in the caller of this function, not a user error. A text
+ *   that declares a slot is refused rather than run with the slot open,
+ *   because an open slot would match every caller.
+ */
+export interface SubstitutionOptions {
+  caller?: CallerIdentity | null;
+  /**
+   * Template verification only: probes fill reserved slots like any other,
+   * so the template is checked on them too. Never set from a request.
+   */
+  verifyingTemplate?: boolean;
+}
+
+/** A refusal about the identity slots. A route answers it with a 400. */
+export class ReservedSlotError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ReservedSlotError';
+  }
+}
+
+/**
+ * True when a text may declare an identity slot. A cheap text test, so that a
+ * caller can decide to substitute even when it has no arguments: a false
+ * positive costs one substitution, a false negative is impossible, because a
+ * slot needs the variable name in the text.
+ */
+export function mayDeclareReservedSlot(queryString: string): boolean {
+  return /[?$]auth(?:User|Group)\b/.test(queryString);
+}
+
+/**
+ * The argument sets with the identity slots filled from `caller`.
+ *
+ * Refuses an argument set that names a reserved variable, a reserved variable
+ * inside a multi-variable slot, and a declared slot with no `caller` option.
+ * A filled set carries `whenEmpty: 'propagateEmpty'`, so no author policy can
+ * turn "no caller" into "every caller".
+ */
+export function withCallerArguments(
+  slotVars: readonly (readonly string[])[],
+  argumentSets: readonly TemplateArgumentSet[],
+  options: SubstitutionOptions,
+): TemplateArgumentSet[] {
+  if (options.verifyingTemplate) return [...argumentSets];
+  for (const set of argumentSets) {
+    const named = (set?.head?.vars ?? []).filter(isReservedSlotVariable);
+    if (named.length > 0) {
+      throw new ReservedSlotError(
+        `${describeSlot(named)} is filled from the caller's sign-in. An argument cannot set it.`,
+      );
+    }
+  }
+  const filled = [...argumentSets];
+  for (const vars of slotVars) {
+    const reserved = vars.filter(isReservedSlotVariable);
+    if (reserved.length === 0) continue;
+    if (vars.length > 1) {
+      throw new ReservedSlotError(
+        `${describeSlot(reserved)} must be declared on its own, as VALUES ?${reserved[0]} { UNDEF }, not inside VALUES (${describeSlot(vars)}).`,
+      );
+    }
+    if (options.caller === undefined) {
+      throw new ReservedSlotError(
+        `This query reads the caller (${describeSlot(reserved)}) and was run without one.`,
+      );
+    }
+    const name = reserved[0];
+    const values = options.caller === null
+      ? []
+      : name === AUTH_USER_VARIABLE ? [options.caller.user] : [...options.caller.groups];
+    filled.push({
+      head: { vars: [name] },
+      results: { bindings: values.map((value) => ({ [name]: { type: 'uri', value } })) },
+      whenEmpty: 'propagateEmpty',
+    });
+  }
+  return filled;
+}
+
 /** `?a, ?b` — how a refusal names a slot. */
 export function describeSlot(vars: readonly string[]): string {
   return vars.map((v) => `?${v}`).join(', ');
@@ -170,19 +280,23 @@ export function assignArgumentSets<T extends { head?: { vars?: string[] } }>(
  */
 export function completeArgumentSets(
   slotVars: readonly (readonly string[])[],
-  argumentSets: readonly TemplateArgumentSet[],
+  suppliedSets: readonly TemplateArgumentSet[],
   slotPolicies: readonly SlotPolicy[] = [],
+  options: SubstitutionOptions = {},
 ): TemplateArgumentSet[] {
-  if (!Array.isArray(argumentSets)) {
+  if (!Array.isArray(suppliedSets)) {
     throw new Error('Invalid arguments format: Expected an array of argument sets.');
   }
-  argumentSets.forEach((set, index) => {
+  suppliedSets.forEach((set, index) => {
     if (!set || !set.head || !Array.isArray(set.head.vars) || !set.results || !Array.isArray(set.results.bindings)) {
       throw new Error(
         `Invalid structure for argument set at index ${index}. Expected { head: { vars: [...] }, results: { bindings: [...] } }.`,
       );
     }
   });
+  // The identity slots are filled here, the one step every substitution takes,
+  // so that no route can forget them and leave one open.
+  const argumentSets = withCallerArguments(slotVars, suppliedSets, options);
   const { slots, unmatched } = assignArgumentSets(slotVars, argumentSets);
   if (unmatched.length > 0) {
     const describe = (vars: readonly string[]) => `[${vars.join(', ')}]`;
@@ -225,11 +339,13 @@ export function applyTemplateArguments(
   template: QueryTemplate,
   argumentSets: TemplateArgumentSet[],
   slotPolicies: readonly SlotPolicy[] = [],
+  options: SubstitutionOptions = {},
 ): string {
   const ordered = completeArgumentSets(
     template.slots.map((slot) => slot.vars),
     argumentSets,
     slotPolicies,
+    options,
   );
 
   let out = '';

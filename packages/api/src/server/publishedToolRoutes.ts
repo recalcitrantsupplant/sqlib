@@ -39,7 +39,7 @@ import type { PublishedCatalogue } from '../lib/publishedTools.js';
 import { createValidatorAjv } from '../lib/validator-setup.js';
 
 /** Response headers worth passing back from `/execute`. */
-const FORWARDED_HEADERS = ['content-type', 'server-timing', 'x-resolved-target', 'x-result-node', 'etag', 'last-modified'];
+const FORWARDED_HEADERS = ['content-type', 'server-timing', 'x-resolved-target', 'x-result-node', 'etag', 'last-modified', 'cache-control'];
 
 export async function registerPublishedToolRoutes(
   app: FastifyInstance,

@@ -1,4 +1,5 @@
 import { ArgumentSetService } from './ArgumentSetService.js';
+import { callerOfScope } from '../auth/caller.js';
 import type { BenchmarkSubjectSpec } from './BenchmarkExperimentService.js';
 import { assertBenchmarkVersionDependencies, parseSubjectSpecs } from './BenchmarkExperimentService.js';
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
@@ -800,6 +801,7 @@ export class BenchmarkRunner {
       slotPolicies: versionSlotPolicies(versionEntity),
       signal,
       parser: this.parser,
+      caller: callerOfScope(this.scope),
     });
     return result;
   }

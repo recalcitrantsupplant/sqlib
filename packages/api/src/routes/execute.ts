@@ -1,4 +1,5 @@
 import {FastifyInstance, FastifyPluginOptions, FastifyReply, FastifyRequest} from 'fastify';
+import { callerOfRequest, callerRefusal, declaredReservedSlots, groupReservedSlots } from '../auth/caller.js';
 import {backendTypeIriToKey, type PersistedBackend} from '../persistence/schemas/BackendSchema.js';
 import { toError } from '../lib/toError.js';
 import type {PersistedQuery} from '../persistence/schemas/QuerySchema.js';
@@ -753,6 +754,11 @@ export default async function (
                 resolvedTargetId = version.$id || current;
                 reply.header('X-Resolved-Target', resolvedTargetId);
 
+                const callerSlots = declaredReservedSlots(sparqlQueryString, parser);
+                const noCaller = callerRefusal(request, callerSlots);
+                if (noCaller) return reply.code(noCaller.statusCode).send({error: noCaller.message});
+                if (callerSlots.length > 0) reply.header('Cache-Control', 'private, no-store');
+
                 const detectedInputs = sparqlQueryString ? parser.detectInputs(sparqlQueryString) : null;
                 if (hasArgumentSetIdRefs && runtimePayload && detectedInputs) {
                     const validationError = validateArgumentPayloadAgainstInputs(detectedInputs, runtimePayload);
@@ -771,6 +777,7 @@ export default async function (
                             limits: normalizedLimits,
                             offsets: normalizedOffsets,
                             slotPolicies: versionSlotPolicies(resolvedQueryVersion),
+                            caller: callerOfRequest(request),
                         }, parser);
                     } catch (applyError__u: unknown) {
                         const applyError = toError(applyError__u);
@@ -787,6 +794,11 @@ export default async function (
                 resolvedTargetId = targetEntity.$id;
                 reply.header('X-Resolved-Target', resolvedTargetId);
 
+                const callerSlots = declaredReservedSlots(sparqlQueryString, parser);
+                const noCaller = callerRefusal(request, callerSlots);
+                if (noCaller) return reply.code(noCaller.statusCode).send({error: noCaller.message});
+                if (callerSlots.length > 0) reply.header('Cache-Control', 'private, no-store');
+
                 const detectedInputs = sparqlQueryString ? parser.detectInputs(sparqlQueryString) : null;
                 if (hasArgumentSetIdRefs && runtimePayload && detectedInputs) {
                     const validationError = validateArgumentPayloadAgainstInputs(detectedInputs, runtimePayload);
@@ -805,6 +817,7 @@ export default async function (
                             limits: normalizedLimits,
                             offsets: normalizedOffsets,
                             slotPolicies: versionSlotPolicies(resolvedQueryVersion),
+                            caller: callerOfRequest(request),
                         }, parser);
                     } catch (applyError__u: unknown) {
                         const applyError = toError(applyError__u);
@@ -832,6 +845,10 @@ export default async function (
 
                 const gb = new GraphBuilder();
                 const graph = gb.buildFromGroupVersion(version);
+                const groupCallerSlots = groupReservedSlots([...graph.nodes.values()].map(node => node.queryString));
+                const groupNoCaller = callerRefusal(request, groupCallerSlots);
+                if (groupNoCaller) return reply.code(groupNoCaller.statusCode).send({error: groupNoCaller.message});
+                if (groupCallerSlots.length > 0) reply.header('Cache-Control', 'private, no-store');
                 const engine = new ExecutionEngine(scopedExecutorFactory);
                 const endNode = graph.endNodeIds.length > 0 ? graph.nodes.get(graph.endNodeIds[0]) : null;
                 const endNodeMediaType = (endNode?.raw as { mediaType?: string } | undefined)?.mediaType ?? null;
@@ -895,6 +912,10 @@ export default async function (
 
                 const gb = new GraphBuilder();
                 const graph = gb.buildFromGroupVersion(targetEntity);
+                const groupCallerSlots = groupReservedSlots([...graph.nodes.values()].map(node => node.queryString));
+                const groupNoCaller = callerRefusal(request, groupCallerSlots);
+                if (groupNoCaller) return reply.code(groupNoCaller.statusCode).send({error: groupNoCaller.message});
+                if (groupCallerSlots.length > 0) reply.header('Cache-Control', 'private, no-store');
                 const engine = new ExecutionEngine(scopedExecutorFactory);
                 const endNode = graph.endNodeIds.length > 0 ? graph.nodes.get(graph.endNodeIds[0]) : null;
                 const endNodeMediaType = (endNode?.raw as { mediaType?: string } | undefined)?.mediaType ?? null;
@@ -1199,10 +1220,15 @@ export default async function (
                     const originalText = resolvedQueryVersion?.queryString as string | undefined;
                     if (refusals && originalText) {
                         const argumentTables = resolveArgumentsForQuery(originalText);
+                        // The refusal query runs as the update would: the same
+                        // arguments, slot policies and caller, so a refusal is
+                        // computed for the real caller.
                         const check = applyExecutionArguments(refusalQuery(originalText).text, {
                             argumentSets: argumentTables,
                             limits: normalizedLimits,
                             offsets: normalizedOffsets,
+                            slotPolicies: versionSlotPolicies(resolvedQueryVersion),
+                            caller: callerOfRequest(request),
                         }, parser);
                         const {result} = await targetExecutor.selectQueryParsed(check, {
                             acceptHeader: 'application/sparql-results+json',
