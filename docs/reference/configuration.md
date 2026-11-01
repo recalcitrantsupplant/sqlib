@@ -219,11 +219,11 @@ routes that compute an answer and store nothing: `/detect-inputs`,
 `/detect-outputs`, `/validate`, `/validate-rule-data`, `/format`, `/substitute`,
 `/execute`, `/sparql`, the SRL compile, analyse and preview routes, the rule and
 rule-set execution routes, the tuple-set preview, the two test-run routes,
-`POST /etl-jobs/:id/execute`, and `/mcp`. The list lives in `packages/api/src/config/readOnly.ts`, and a test
+`POST /etl-jobs/:id/execute`, `POST /benchmark-experiments/:id/versions/:version/run`, and `/mcp`. The list lives in `packages/api/src/config/readOnly.ts`, and a test
 fails on an entry that names no registered route, on a mutating route that is
 neither listed nor refused, and on one of these exceptions losing its way back.
 
-Three of those exceptions are worth their own sentence:
+Four of those exceptions are worth their own sentence:
 
 - **Running a test is compute; its history is the write.** `POST /tests/run`
   and `POST /tests/:id/run` answer with a verdict, and `recordTestRuns` files
@@ -233,7 +233,26 @@ Three of those exceptions are worth their own sentence:
   write.** On a read-only deployment `POST /etl-jobs/:id/execute` opens no
   `EtlExecution` and writes no output file, and returns the RDF in the response
   as `output`, up to `ETL_RESPONSE_OUTPUT_MAX_BYTES`. What runs is the job
-  version's stored SQL; the request carries none.
+  version's stored SQL; the request carries none. The run reads at most
+  `SQLIB_READ_ONLY_ETL_MAX_ROWS` source rows, and when the request asked for
+  more (or for no limit) the response says so in `rowLimitApplied`.
+- **Running a frozen benchmark version is compute; its runs and observations
+  are the write.** On a read-only deployment the run route accepts only a
+  version that is already frozen (it does not freeze one), returns the run and
+  its observations in the response, and stores none of them. A plan over the
+  request cap is refused with 422, naming the cap; a second run while one is in
+  flight gets 429 with `Retry-After`. The freeze route stays refused.
+
+The caps on those runs, read only on a read-only deployment and reported by
+`/health` as `readOnlyRunLimits`:
+
+| Name | Default | Effect |
+| --- | --- | --- |
+| `SQLIB_READ_ONLY_BENCH_MAX_REQUESTS` | `200` | The most requests one benchmark run may send: measured tasks plus warmups. A version over it is refused, not clamped, because a clamped benchmark reports numbers for a plan nobody saved. |
+| `SQLIB_READ_ONLY_BENCH_MAX_CONCURRENCY` | `2` | The most a version's `maxConcurrency` may ask for. |
+| `SQLIB_READ_ONLY_BENCH_DEADLINE_MS` | `60000` | The wall-clock limit for a whole benchmark run. When it passes, no task starts, the attempts in flight are aborted, and the run ends `Aborted` with what it finished. |
+| `SQLIB_READ_ONLY_BENCH_CONCURRENT_RUNS` | `1` | Benchmark runs allowed at once on the deployment. `disabled` auth gives no client identity, so the count is deployment-wide. |
+| `SQLIB_READ_ONLY_ETL_MAX_ROWS` | `100000` | The most source rows one ETL job run may read. A clamp rather than a refusal: a visitor running part of a source is asking for a sample. |
 - **`/mcp` is all POST**, so refusing it would take every tool, reads included,
   off a read-only deployment. Admitting it opens no write path: a tool call
   reaches its route through `app.inject` and meets the same hook there, so a

@@ -16,13 +16,41 @@ import { computed, ref } from 'vue';
 // @ts-ignore - Nuxt auto-import
 import { useRuntimeConfig } from '#imports';
 
+/**
+ * What one visitor's run may cost on a read-only deployment, as `/health`
+ * reports it (the API's `config/executionLimits.ts`). Null on a writable
+ * deployment, and until `/health` answers.
+ */
+export interface ReadOnlyRunLimits {
+  /** Requests one benchmark run may send: measured tasks plus warmups. */
+  benchMaxRequests: number;
+  benchMaxConcurrency: number;
+  benchDeadlineMs: number;
+  /** Source rows one ETL job run may read. */
+  etlMaxRows: number;
+}
+
 const readOnly = ref(false);
 const resolved = ref(false);
+const runLimits = ref<ReadOnlyRunLimits | null>(null);
 let loading: Promise<void> | null = null;
 
 function apiBase(): string {
   const config = useRuntimeConfig();
   return String(config.public.apiBaseUrl ?? '').replace(/\/$/, '');
+}
+
+function parseRunLimits(raw: unknown): ReadOnlyRunLimits | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const value = raw as Record<string, unknown>;
+  const keys = ['benchMaxRequests', 'benchMaxConcurrency', 'benchDeadlineMs', 'etlMaxRows'] as const;
+  if (!keys.every((key) => typeof value[key] === 'number')) return null;
+  return {
+    benchMaxRequests: value.benchMaxRequests as number,
+    benchMaxConcurrency: value.benchMaxConcurrency as number,
+    benchDeadlineMs: value.benchDeadlineMs as number,
+    etlMaxRows: value.etlMaxRows as number,
+  };
 }
 
 export function useDeploymentMode() {
@@ -32,8 +60,9 @@ export function useDeploymentMode() {
       try {
         const response = await fetch(`${apiBase()}/health`);
         // 503 is "cache not ready", which still carries the mode.
-        const payload = (await response.json()) as { readOnly?: unknown };
+        const payload = (await response.json()) as { readOnly?: unknown; readOnlyRunLimits?: unknown };
         readOnly.value = payload.readOnly === true;
+        runLimits.value = parseRunLimits(payload.readOnlyRunLimits);
         resolved.value = true;
       } catch {
         // The default stands. The server still has the last word on any write.
@@ -44,6 +73,7 @@ export function useDeploymentMode() {
 
   return {
     isReadOnly: computed(() => readOnly.value),
+    runLimits: computed(() => runLimits.value),
     /** True once `/health` has answered, for a caller that wants to wait. */
     isResolved: computed(() => resolved.value),
     ensureLoaded,
@@ -54,5 +84,6 @@ export function useDeploymentMode() {
 export function resetDeploymentMode(): void {
   readOnly.value = false;
   resolved.value = false;
+  runLimits.value = null;
   loading = null;
 }

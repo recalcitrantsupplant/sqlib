@@ -13,17 +13,21 @@ const FLAG_LABELS = featureFlagLabels();
 const DEFAULT_FLAGS: FeatureFlags = buildFeatureFlags({});
 
 /**
- * Sections a read-only deployment switches off, whatever their flag says.
+ * How a read-only deployment reads the ETL flags.
  *
- * Their Run writes: a benchmark run freezes the version and records every
- * observation, and the ETL screen runs through `/playground/etl/execute`,
- * which takes SQL in the request. The API refuses both on a read-only
- * deployment (`config/readOnly.ts`), so the section could only show a 405.
- * Hidden here rather than on each screen so the rail, the routes and the run
- * bar's "keep as benchmark" target all agree. This goes once the server has a
- * limited read-only run for a seeded version of each.
+ * The ETL screen's rail entry sits behind `playgroundEtl`, because on a
+ * writable deployment that screen runs whatever SQL is typed into it. A
+ * read-only deployment runs only a saved job's stored version
+ * (`/etl-jobs/:id/execute`; the playground route is refused there), with the
+ * editors read-only. So there the section is offered exactly when saved ETL
+ * jobs are: `playgroundEtl` follows `etl`.
+ *
+ * Bench needs no rule here: a read-only deployment runs a frozen, seeded
+ * benchmark version within caps (`lib/readOnlyBenchmarkRun.ts` in the API).
  */
-export const READ_ONLY_HIDDEN_FEATURES: readonly FeatureFlagKey[] = ['benchmarks', 'etl', 'playgroundEtl'];
+function applyReadOnly(flags: FeatureFlags): FeatureFlags {
+  return { ...flags, playgroundEtl: flags.etl };
+}
 
 export function useFeatureFlags() {
   const config = useRuntimeConfig();
@@ -35,10 +39,7 @@ export function useFeatureFlags() {
       ...DEFAULT_FLAGS,
       ...incoming,
     };
-    if (deployment.isReadOnly.value) {
-      for (const key of READ_ONLY_HIDDEN_FEATURES) flags[key] = false;
-    }
-    return flags;
+    return deployment.isReadOnly.value ? applyReadOnly(flags) : flags;
   });
 
   const isEnabled = (key: FeatureFlagKey) => resolvedFlags.value[key] ?? true;
