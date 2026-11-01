@@ -150,6 +150,93 @@ describe('running a cell', () => {
     });
   });
 
+  /*
+   * Pass by reference: a large value the server kept goes back as its handle.
+   * The producer asks the server to keep it only because a cell below reads it.
+   */
+  it('sends a large kept value back by its handle, and asks to keep only what is read', async () => {
+    callables.value = [selectCallable('urn:q:people'), selectCallable('urn:q:by-name', [['name']])];
+    const many = Array.from({ length: 3000 }, (_, i) => ({ name: { type: 'literal', value: `person number ${i}` } }));
+    executeTarget
+      .mockResolvedValueOnce({ ...rowsResponse(['name'], many), resultRef: 'urn:sqlib:result:1' })
+      .mockResolvedValueOnce(rowsResponse(['name'], []));
+
+    await runIn(async (nb) => {
+      const producer = queryCell('urn:q:people', 'people');
+      const consumer = queryCell('urn:q:by-name', 'out2', [{ from: 'value', ref: 'people' }]);
+      nb.addCell(producer);
+      nb.addCell(consumer);
+      await nextTick();
+      await nb.runAll();
+
+      const [first, second] = executeTarget.mock.calls.map((call) => call[0]);
+      expect(first.keepResult).toBe(true);
+      expect(second.keepResult).toBeUndefined();
+      expect(second.argumentRefs).toEqual([
+        { resultRef: 'urn:sqlib:result:1', columns: [{ from: 'name', to: 'name' }], vars: ['name'] },
+      ]);
+      expect(second.arguments ?? []).toEqual([]);
+    });
+  });
+
+  it('sends a small value by content even when the server kept it', async () => {
+    callables.value = [selectCallable('urn:q:people'), selectCallable('urn:q:by-name', [['name']])];
+    executeTarget
+      .mockResolvedValueOnce({ ...rowsResponse(['name'], [{ name: { type: 'literal', value: 'Ada' } }]), resultRef: 'urn:sqlib:result:1' })
+      .mockResolvedValueOnce(rowsResponse(['name'], []));
+
+    await runIn(async (nb) => {
+      nb.addCell(queryCell('urn:q:people', 'people'));
+      nb.addCell(queryCell('urn:q:by-name', 'out2', [{ from: 'value', ref: 'people' }]));
+      await nextTick();
+      await nb.runAll();
+
+      const second = executeTarget.mock.calls[1]![0];
+      expect(second.argumentRefs ?? []).toEqual([]);
+      expect(second.arguments).toHaveLength(1);
+    });
+  });
+
+  it('sends the value by content when its handle has expired', async () => {
+    callables.value = [{ ...selectCallable('urn:q:a'), resultKind: 'GRAPH' }, { ...selectCallable('urn:q:merge'), resultKind: 'GRAPH' }];
+    const big = Array.from({ length: 2000 }, (_, i) => `<urn:s:${i}> <urn:p> <urn:o:${i}> .`).join('\n');
+    executeTarget
+      .mockResolvedValueOnce({ body: big, contentType: 'application/n-triples', timing: null, resultRef: 'urn:sqlib:result:g' })
+      .mockRejectedValueOnce({ statusCode: 410, message: 'The kept result has expired' })
+      .mockResolvedValueOnce({ body: big, contentType: 'application/n-triples', timing: null });
+
+    await runIn(async (nb) => {
+      const a = queryCell('urn:q:a', 'left');
+      const merge: QueryCell = { ...queryCell('urn:q:merge', 'both'), graphs: [{ from: 'value', ref: 'left' }] };
+      nb.addCell(a);
+      nb.addCell(merge);
+      await nextTick();
+      await nb.runAll();
+
+      const calls = executeTarget.mock.calls.map((call) => call[0]);
+      expect(calls[1].dataGraphs).toEqual([{ resultRef: 'urn:sqlib:result:g' }]);
+      expect(calls[2].dataGraphs).toEqual([{ dataGraphInline: big, dataGraphInlineFormat: 'application/n-triples' }]);
+      expect(nb.stateFor(merge.id).status).toBe('ok');
+    });
+  });
+
+  it('sends a large kept graph to a rule set by its handle', async () => {
+    callables.value = [{ ...selectCallable('urn:q:construct'), resultKind: 'GRAPH' }];
+    ruleSets.value = [{ id: 'urn:rs:1', name: 'closure', description: null, isPartOf: [LIBRARY], currentVersionNumber: 1 }];
+    const big = Array.from({ length: 2000 }, (_, i) => `<urn:s:${i}> <urn:p> <urn:o:${i}> .`).join('\n');
+    executeTarget.mockResolvedValueOnce({ body: big, contentType: 'application/n-triples', timing: null, resultRef: 'urn:sqlib:result:g' });
+    executeRuleSet.mockResolvedValue({ status: 'converged', iterations: [], dataBlocks: [], finalGraphNQuads: '<urn:a> <urn:p> <urn:b> .', resultRef: null });
+
+    await runIn(async (nb) => {
+      nb.addCell(queryCell('urn:q:construct', 'graph'));
+      nb.addCell({ kind: 'ruleset', id: mintCellId(), ruleSet: 'urn:rs:1', out: 'closure', inputGraph: { from: 'value', ref: 'graph' } });
+      await nextTick();
+      await nb.runAll();
+
+      expect(executeRuleSet).toHaveBeenCalledWith('urn:rs:1', { dataGraphResultRef: 'urn:sqlib:result:g' });
+    });
+  });
+
   it('sends the payload to /execute rather than substituted text', async () => {
     callables.value = [selectCallable('urn:q:people', [['city']])];
     executeTarget.mockResolvedValue(rowsResponse(['name'], []));

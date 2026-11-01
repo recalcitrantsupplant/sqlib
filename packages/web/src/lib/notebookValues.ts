@@ -31,6 +31,12 @@ interface ValueCommon {
   /** Wall time of the run that produced it, in ms. */
   durationMs: number;
   byteSize: number;
+  /**
+   * The handle of the copy the server kept of this result, when it kept one.
+   * A cell below sends the handle instead of the content when the value is
+   * large; the content is still here for when the handle has expired.
+   */
+  resultRef?: string | null;
 }
 
 export interface RowsValue extends ValueCommon {
