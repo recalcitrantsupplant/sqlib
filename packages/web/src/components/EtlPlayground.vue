@@ -43,8 +43,8 @@
           <RunBar
             :running="isExecuting"
             :run-disabled="!canExecute"
-            :run-title="canExecute ? 'Run this pipeline' : 'Needs SQL, a template, a mapping and a backend'"
-            :backend="{ value: selectedBackendId, options: backendOptions, loading: backendsLoading, title: 'The store the generated RDF is written to' }"
+            :run-title="runTitle"
+            :backend="{ value: selectedBackendId, options: backendOptions, loading: backendsLoading, readonly: isReadOnly, title: 'The store the generated RDF is written to' }"
             :format="{ value: outputFormat, options: rdfFormatOptions, title: 'The format the generated RDF comes back in' }"
             :download-disabled="!executionResult"
             @run="executeEtl"
@@ -104,6 +104,7 @@
           <div class="editor-wrapper">
             <Codemirror
               v-model="sqlQuery"
+              :disabled="isReadOnly"
               :extensions="sqlExtensions"
               placeholder="SELECT * FROM read_csv('data/examples/people.csv')"
               class="code-editor"
@@ -171,10 +172,10 @@
                     <span class="sql-type">{{ getSqlType(mapping.columnName) }}</span>
                   </div>
                   <div class="col-sparql-var">
-                    <input v-model="mapping.targetVariable" @input="onMappingEdit" placeholder="?var" />
+                    <input v-model="mapping.targetVariable" :disabled="isReadOnly" @input="onMappingEdit" placeholder="?var" />
                   </div>
                   <div class="col-term-type">
-                    <select v-model="mapping.termType" @change="onMappingEdit">
+                    <select v-model="mapping.termType" :disabled="isReadOnly" @change="onMappingEdit">
                       <option value="literal">Literal</option>
                       <option value="uri">IRI</option>
                     </select>
@@ -183,6 +184,7 @@
                     <template v-if="mapping.termType === 'literal'">
                       <select
                         :value="getDatatypeDisplayValue(mapping.datatypeIri)"
+                        :disabled="isReadOnly"
                         @change="onDatatypeChange(index, ($event.target as HTMLSelectElement).value)"
                         class="datatype-select"
                       >
@@ -200,6 +202,7 @@
                       <input
                         v-if="getDatatypeDisplayValue(mapping.datatypeIri) === 'custom'"
                         v-model="mapping.datatypeIri"
+                        :disabled="isReadOnly"
                         @input="onMappingEdit"
                         placeholder="http://example.org/custom"
                         class="datatype-custom-input"
@@ -240,6 +243,7 @@
           <div class="editor-wrapper">
             <Codemirror
               v-model="sparqlTemplate"
+              :disabled="isReadOnly"
               :extensions="sparqlExtensions"
               @update:model-value="onSparqlEdit"
               placeholder="CONSTRUCT { ?person a :Person ; :name ?name } WHERE { VALUES (?name) { (UNDEF) } }"
@@ -316,6 +320,7 @@
                 <span class="stat">{{ executionResult?.totalRows ?? 0 }} rows</span>
                 <span class="stat">{{ executionResult?.totalChunks ?? 0 }} chunks</span>
               </div>
+              <InlineNote v-if="rowLimitNote" data-testid="etl-row-limit-note">{{ rowLimitNote }}</InlineNote>
               <div v-if="executionResult?.errorMessage" class="error-banner">
                 {{ executionResult.errorMessage }}
               </div>
@@ -470,6 +475,7 @@ import InspectorPanel, { type InspectorTab } from './shared/InspectorPanel.vue';
 import EntityDetailsPanel from './shared/EntityDetailsPanel.vue';
 import SubjectTestsPanel from './tests/SubjectTestsPanel.vue';
 import EmptyState from './shared/EmptyState.vue';
+import InlineNote from './shared/InlineNote.vue';
 import PanelHeader from './shared/PanelHeader.vue';
 import TupleSetSink from './etl/TupleSetSink.vue';
 import {
@@ -484,6 +490,7 @@ import {
 } from './ui/alert-dialog';
 import { getLastBackend, resolveEtlBackend, setLastBackend } from '../lib/backendDefaults';
 import { useFeatureFlags } from '../composables/useFeatureFlags';
+import { useDeploymentMode } from '../composables/useDeploymentMode';
 import { useTestsSurface } from '../composables/useTestsSurface';
 import { usePanelResize } from '../composables/usePanelResize';
 import { useBackendsStore } from '../composables/useBackendsStore';
@@ -835,6 +842,16 @@ const {
  * ------------------------------------------------------------------ */
 
 const { isEnabled: isFeatureEnabled } = useFeatureFlags();
+
+/*
+ * A read-only deployment runs a saved job's stored version and nothing else:
+ * the playground route, which takes SQL in the request, is refused there. So
+ * the editors are read-only, Run goes to `/etl-jobs/:id/execute`, and a
+ * scratch pipeline, which has no stored version, cannot run.
+ */
+const deployment = useDeploymentMode();
+const isReadOnly = deployment.isReadOnly;
+const rowLimitNote = ref<string | null>(null);
 const tupleSetsEnabled = computed(() => isFeatureEnabled('tupleSets'));
 
 /**
@@ -1061,7 +1078,8 @@ watch(
 let identitySaveHandle: ReturnType<typeof setTimeout> | null = null;
 watch([pipelineName, pipelineDescription], () => {
   const id = props.etlJobId;
-  if (isScratch.value || !id || isLoadingJob.value) return;
+  // A read-only deployment refuses the write; the name stays as deployed.
+  if (isScratch.value || !id || isLoadingJob.value || isReadOnly.value) return;
   if (identitySaveHandle) clearTimeout(identitySaveHandle);
   identitySaveHandle = setTimeout(() => {
     identitySaveHandle = null;
@@ -1328,10 +1346,23 @@ const etlTiming = computed(() =>
 
 // Computed
 const canExecute = computed(() => {
+  if (isReadOnly.value) return !isScratch.value && Boolean(props.etlJobId) && Boolean(currentVersionId.value);
   return sqlQuery.value.trim() !== '' &&
          sparqlTemplate.value.trim() !== '' &&
          selectedBackendId.value !== '' &&
          columnMappings.value.length > 0;
+});
+
+const runTitle = computed(() => {
+  if (isReadOnly.value) {
+    if (isScratch.value || !props.etlJobId) return 'This deployment runs only the pipelines it was deployed with';
+    if (!currentVersionId.value) return 'This pipeline has no saved version to run';
+    const cap = deployment.runLimits.value?.etlMaxRows;
+    return cap
+      ? `Run the saved version, up to ${cap.toLocaleString('en-US')} source rows. Nothing is kept`
+      : 'Run the saved version. Nothing is kept';
+  }
+  return canExecute.value ? 'Run this pipeline' : 'Needs SQL, a template, a mapping and a backend';
 });
 
 const timingTooltip = computed(() => {
@@ -1571,8 +1602,45 @@ const showResults = () => {
   activeInspectorTab.value = 'results';
 };
 
+/** The stored version, run as it was saved; see `isReadOnly` above. */
+const executeSavedJob = async () => {
+  const jobId = props.etlJobId;
+  if (!jobId) return;
+  isExecuting.value = true;
+  rowLimitNote.value = null;
+  try {
+    const versionId = selectedVersionId.value ?? currentVersionId.value ?? undefined;
+    const data = await etlJobsStore.executeEtlJob(jobId, versionId ? { etlJobVersionId: versionId } : {});
+    executionResult.value = {
+      status: data.status,
+      errorMessage: data.errorMessage,
+      totalRows: data.totalRows ?? 0,
+      totalChunks: data.totalChunks ?? 0,
+      rdfOutput: data.output ?? '',
+      contentType: data.outputFormat,
+    };
+    if (data.rowLimitApplied !== undefined) {
+      rowLimitNote.value = `This deployment ran the first ${data.rowLimitApplied.toLocaleString('en-US')} rows of the source.`;
+    }
+    showResults();
+    if (data.status === 'completed') toast.success('ETL completed');
+    else toast.error(data.errorMessage || 'ETL failed');
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'ETL execution failed';
+    executionResult.value = { status: 'failed', errorMessage: message };
+    showResults();
+    toast.error(message);
+  } finally {
+    isExecuting.value = false;
+  }
+};
+
 const executeEtl = async () => {
   if (!canExecute.value) return;
+  if (isReadOnly.value) {
+    await executeSavedJob();
+    return;
+  }
 
   isExecuting.value = true;
 

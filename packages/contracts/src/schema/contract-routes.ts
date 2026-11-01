@@ -989,6 +989,29 @@ export const benchmarkRouteSchemas = {
         ],
         "additionalProperties": false
       },
+      "422": {
+        "description": "Read-only deployment: the version is over a run cap.",
+        "type": "object",
+        "properties": {
+          "error": { "type": "string" },
+          "cap": { "type": "string" },
+          "limit": { "type": "integer" },
+          "planned": { "type": "integer" }
+        },
+        "required": ["error"],
+        "additionalProperties": false
+      },
+      "429": {
+        "description": "Read-only deployment: another benchmark run is in flight.",
+        "type": "object",
+        "properties": {
+          "error": { "type": "string" },
+          "cap": { "type": "string" },
+          "limit": { "type": "integer" }
+        },
+        "required": ["error"],
+        "additionalProperties": false
+      },
       "409": {
         "type": "object",
         "properties": {
