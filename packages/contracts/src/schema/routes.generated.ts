@@ -717,6 +717,10 @@ export const createQuerySchema = {
         },
         "nullable": true
       },
+      "groupOnly": {
+        "type": "boolean",
+        "nullable": true
+      },
       "argumentSets": {
         "type": "array",
         "items": {
@@ -828,6 +832,10 @@ export const updateQuerySchema = {
           "type": "string",
           "format": "iri"
         },
+        "nullable": true
+      },
+      "groupOnly": {
+        "type": "boolean",
         "nullable": true
       },
       "argumentSets": {

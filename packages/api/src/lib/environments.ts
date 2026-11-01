@@ -135,3 +135,47 @@ export function requestedEnvironment(explicit: unknown): string | null {
   const fallback = process.env.SQLIB_DEFAULT_ENVIRONMENT?.trim();
   return fallback || null;
 }
+
+/** A part of a group version that an environment holds at another version. */
+export interface PartBehind {
+  /** The group's execution node. */
+  node: string;
+  /** The query or rule set the node runs. */
+  entity: string;
+  /** The version the group pins. */
+  pinned: string;
+  /** The version the environment points to for that entity, or null. */
+  inEnvironment: string | null;
+}
+
+/**
+ * The parts of a group version that `env` does not hold at the pinned version.
+ *
+ * A group version pins the exact version each node runs, so promoting the
+ * group runs those versions in the environment whatever the environment says
+ * about the parts on their own. That is allowed; this lists what a reviewer
+ * should be warned about. A part marked `groupOnly` is never promoted on its
+ * own, so it is never behind.
+ */
+export function partsBehind(groupVersionId: string, env: Pick<PersistedEnvironment, 'versions'>): PartBehind[] {
+  const cache = getCacheCoordinator();
+  const groupVersion = cache.get(groupVersionId) as Entity | null;
+  const nodes = Array.isArray(groupVersion?.executionNodes) ? (groupVersion.executionNodes as string[]) : [];
+  const behind: PartBehind[] = [];
+  for (const nodeId of nodes) {
+    const node = cache.get(nodeId) as Entity | null;
+    if (!node) continue;
+    const pinned = typeof node.queryId === 'string'
+      ? node.queryId
+      : typeof node.ruleSetVersion === 'string' ? node.ruleSetVersion : null;
+    if (!pinned) continue;
+    const version = cache.get(pinned) as Entity | null;
+    const entityId = typeof version?.isPartOf === 'string' ? version.isPartOf : null;
+    if (!entityId) continue;
+    const entity = cache.get(entityId) as Entity | null;
+    if (entity?.groupOnly === true) continue;
+    const inEnvironment = versionIn(env, entityId);
+    if (inEnvironment !== pinned) behind.push({ node: nodeId, entity: entityId, pinned, inEnvironment });
+  }
+  return behind;
+}

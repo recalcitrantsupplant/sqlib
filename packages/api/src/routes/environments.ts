@@ -29,7 +29,7 @@ import { createEnvironmentSchema, updateEnvironmentSchema } from '@sparql-query-
 import { registerEntityAuthGuard } from '../auth/entityGuard.js';
 import { authOf, filterReadable, requireEnvironmentMode, requireLibraryMode, resolveOwningLibrary } from '../auth/enforce.js';
 import { getAuthStore } from '../auth/AuthStore.js';
-import { isPromotableType, LATEST_ENVIRONMENT, PROMOTABLE_TYPES, versionIn } from '../lib/environments.js';
+import { isPromotableType, LATEST_ENVIRONMENT, partsBehind, PROMOTABLE_TYPES, versionIn } from '../lib/environments.js';
 
 export const environmentResponseSchema = {
   type: 'object',
@@ -340,6 +340,11 @@ export default async function (fastify: FastifyInstance) {
     if (!isPromotableType(entity['@type'])) {
       return reply.status(400).send({ error: `${entityId} is not a query, query group or rule set` });
     }
+    if (entity['@type'] === 'Query' && entity.groupOnly === true && versionId !== null) {
+      return reply.status(400).send({
+        error: `${entityId} is used only inside query groups. Promote the group: its version pins this query's version.`,
+      });
+    }
     if (resolveOwningLibrary(entity) !== env.isPartOf) {
       return reply.status(400).send({ error: `${entityId} is not in this environment's library` });
     }
@@ -366,6 +371,11 @@ export default async function (fastify: FastifyInstance) {
     if (!updated) return reply.status(404).send({ error: 'Not Found' });
 
     if (current !== versionId) logPointerMove(request, env, entityId, current, versionId);
+    // A group promoted ahead of its parts is allowed; say how many parts the
+    // environment holds at another version than the group pins.
+    if (versionId !== null && entity['@type'] === 'QueryGroup') {
+      reply.header('X-Parts-Behind', String(partsBehind(versionId, updated as PersistedEnvironment).length));
+    }
     setEntityConcurrencyHeaders(reply, updated);
     return reply.send(toRestApi(updated));
   }));

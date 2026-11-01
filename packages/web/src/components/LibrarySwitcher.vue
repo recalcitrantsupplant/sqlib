@@ -37,12 +37,18 @@
           class="switcher-button"
           type="button"
           data-testid="library-switcher"
-          :title="`Library — ${activeLibraryName}`"
-          :aria-label="`Library — ${activeLibraryName}`"
+          :title="switcherLabel"
+          :aria-label="switcherLabel"
         >
           Library<ChevronsUpDown :size="9" class="mark-chevron" />
         </button>
       </DropdownMenuTrigger>
+    <span
+      v-if="activeEnvironmentName !== LATEST_ENVIRONMENT"
+      class="environment-badge"
+      data-testid="active-environment"
+      :title="`Runs use the versions in ${activeEnvironmentName}`"
+    >{{ activeEnvironmentName }}</span>
     <!--
       Width in utilities rather than in the scoped block below: the menu is
       teleported, so it carries this component's class but not its scope
@@ -72,6 +78,29 @@
         <Check :size="12" :class="['option-check', { hidden: library.id !== activeLibraryId }]" />
       </DropdownMenuItem>
       <DropdownMenuItem v-if="libraries.length === 0" disabled>No libraries</DropdownMenuItem>
+
+      <!--
+        The environment belongs to the library, so it is picked here, under
+        the library it is part of. A library that defines none shows nothing:
+        it has only latest.
+      -->
+      <template v-if="environments.length > 0">
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel class="library-menu-heading">Environment</DropdownMenuLabel>
+        <DropdownMenuItem
+          v-for="name in environmentNames"
+          :key="name"
+          class="library-menu-item"
+          :data-testid="`environment-option-${name}`"
+          @select="setActiveEnvironment(name)"
+        >
+          <span class="option-text">
+            <span class="option-name">{{ name }}</span>
+            <span v-if="name === LATEST_ENVIRONMENT" class="option-meta">The current version of everything</span>
+          </span>
+          <Check :size="12" :class="['option-check', { hidden: name !== activeEnvironmentName }]" />
+        </DropdownMenuItem>
+      </template>
 
       <!--
         The menu that names the libraries is where the next one is made, and
@@ -111,6 +140,7 @@ import {
 } from './ui/dropdown-menu';
 import { useActiveLibrary } from '../composables/useActiveLibrary';
 import { useDeploymentMode } from '../composables/useDeploymentMode';
+import { LATEST_ENVIRONMENT, useActiveEnvironment } from '../composables/useActiveEnvironment';
 
 const emit = defineEmits<{
   (e: 'create-library'): void;
@@ -121,6 +151,14 @@ const emit = defineEmits<{
 const { libraries, activeLibraryId, activeLibraryName, setActiveLibrary, ensureLoaded } =
   useActiveLibrary();
 const { isReadOnly, ensureLoaded: ensureDeploymentMode } = useDeploymentMode();
+const { environments, activeEnvironmentName, setActiveEnvironment } = useActiveEnvironment();
+
+const environmentNames = computed(() => [LATEST_ENVIRONMENT, ...environments.value.map((env) => env.name)]);
+const switcherLabel = computed(() =>
+  activeEnvironmentName.value === LATEST_ENVIRONMENT
+    ? `Library — ${activeLibraryName.value}`
+    : `Library — ${activeLibraryName.value}, environment ${activeEnvironmentName.value}`,
+);
 
 function initialOf(name: string | null | undefined): string {
   return (name ?? '').trim().charAt(0).toUpperCase() || 'S';
@@ -136,6 +174,18 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.environment-badge {
+  max-width: 44px;
+  overflow: hidden;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-panel);
+  background: var(--surface-subtle);
+  color: var(--ink-muted);
+  font-size: var(--text-micro);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .library-head {
   width: 44px;
   flex-shrink: 0;

@@ -45,6 +45,9 @@
           <Checkbox v-model="choice.ruleSets" data-testid="library-export-rule-sets" />
           Rule sets
         </label>
+        <p v-if="environment" class="hint" data-testid="library-export-environment">
+          Exports the versions in <strong>{{ environment }}</strong>. Anything not in {{ environment }} is left out.
+        </p>
         <p v-if="nothingChosen" class="problem" data-testid="library-export-nothing">
           Choose at least one thing to export.
         </p>
@@ -102,6 +105,8 @@ import SectionLabel from './shared/SectionLabel.vue';
 import { useApiClient, type ExportBundleOptions } from '../composables/useApiClient';
 import { useFeatureFlags } from '../composables/useFeatureFlags';
 import { downloadTextFile } from '../lib/downloadFile';
+import { useActiveLibrary } from '../composables/useActiveLibrary';
+import { LATEST_ENVIRONMENT, useActiveEnvironment } from '../composables/useActiveEnvironment';
 
 const props = defineProps<{ open: boolean; libraryId: string; libraryName: string }>();
 const emit = defineEmits<{ (e: 'update:open', value: boolean): void }>();
@@ -113,6 +118,18 @@ const isOpen = computed({
 
 const apiClient = useApiClient();
 const { isEnabled } = useFeatureFlags();
+const { activeLibraryId } = useActiveLibrary();
+const { activeEnvironmentName } = useActiveEnvironment();
+
+/**
+ * The environment picked beside the library switcher, when this dialog is for
+ * that library. Null exports the current versions.
+ */
+const environment = computed(() =>
+  props.libraryId === activeLibraryId.value && activeEnvironmentName.value !== LATEST_ENVIRONMENT
+    ? activeEnvironmentName.value
+    : null,
+);
 
 const offered = computed(() => ({
   groups: isEnabled('queryGroups'),
@@ -137,6 +154,7 @@ const options = computed(() => ({
   groups: offered.value.groups && choice.groups,
   etl: offered.value.etl && choice.etl,
   ruleSets: offered.value.ruleSets && choice.ruleSets,
+  environment: environment.value,
 }));
 
 const nothingChosen = computed(() => {

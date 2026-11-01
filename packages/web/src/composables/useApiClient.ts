@@ -8,6 +8,7 @@ import { filenameFromDisposition } from '../lib/downloadFile';
 import { discoverQueryVersionPrefixes } from '../lib/queryVersionPrefixes';
 import { useBrowserBackends } from './useBrowserBackends';
 import { executeOnBrowserBackend, looksLikeUpdate } from '../lib/browserBackendExecution';
+import { selectedEnvironmentName } from './useActiveEnvironment';
 import {
   backendSchema,
   backendCreateSchema,
@@ -129,6 +130,7 @@ import {
   type TestCreateInput,
   type TestUpdateInput,
   tagSchema,
+  environmentSchema,
   tagCreateSchema,
   tagUpdateSchema,
   type TagCreateInput,
@@ -189,12 +191,15 @@ export interface ExportBundleOptions {
   groups?: boolean;
   etl?: boolean;
   ruleSets?: boolean;
+  /** Export the versions this environment points to, not the current ones. */
+  environment?: string | null;
 }
 
 function exportSearch(options: ExportBundleOptions): URLSearchParams {
   const search = new URLSearchParams();
   if (options.examples) search.set('examples', options.examples);
   if (options.expected) search.set('expected', 'true');
+  if (options.environment) search.set('environment', options.environment);
   for (const member of ['queries', 'groups', 'etl', 'ruleSets'] as const) {
     if (options[member] === false) search.set(member, 'false');
   }
@@ -2065,6 +2070,14 @@ export function useApiClient() {
     return requestData(buildUrl(`/tags${suffix}`), { method: 'GET' }, (payload) => tagSchema.array().parse(payload));
   };
 
+  /** The environments a library defines (dev, prod), in chain order. */
+  const listEnvironments = (library: string) =>
+    requestData(
+      buildUrl(`/environments?library=${encodeURIComponent(library)}`),
+      { method: 'GET' },
+      (payload) => environmentSchema.array().parse(payload),
+    );
+
   const getTag = (id: string) => request(buildUrl(`/tags/${encodeURIComponent(id)}`), { method: 'GET' }, tagSchema.parse);
 
   const createTag = (input: TagCreateInput) =>
@@ -2391,7 +2404,10 @@ export function useApiClient() {
   const executeTarget = async (payload: ExecutionRequest, acceptMediaType?: string): Promise<ExecuteTargetResult> => {
     ensureQueriesEnabled();
     const url = buildUrl('/execute');
-    const requestBody = JSON.stringify(executionRequestSchema.parse(payload));
+    // The environment picked beside the library switcher, unless the caller
+    // named one. The server ignores it for a version id, which is exact.
+    const environment = payload.environment ?? selectedEnvironmentName();
+    const requestBody = JSON.stringify(executionRequestSchema.parse(environment ? { ...payload, environment } : payload));
     debug('useApiClient', 'executeTarget request', { url, payload, acceptMediaType });
 
     const headers: Record<string, string> = { ...JSON_HEADERS };
@@ -3160,6 +3176,7 @@ export function useApiClient() {
     updateTest,
     deleteTest,
     listTags,
+    listEnvironments,
     getTag,
     createTag,
     updateTag,

@@ -84,6 +84,20 @@ Today an administrator, or a holder of `promote`, moves a pointer directly. The
 review flow (promotion requests, reviewers on each step of the chain, evidence
 from test runs) builds on this route and is designed separately.
 
+## Groups and their parts
+
+A group version pins the exact version each node runs. Promoting a group
+therefore runs those versions in the environment, whatever the environment
+holds for each part on its own. This is allowed. When a group pointer moves,
+the `X-Parts-Behind` response header counts the parts that the environment
+holds at another version than the group pins. `partsBehind` in
+`lib/environments.ts` lists them for a reviewer.
+
+A query with `groupOnly: true` exists only to be a part. It cannot be promoted
+on its own (400), it is never counted as behind, and published tools leave it
+out. To change it in an environment, promote a group version that pins the new
+version.
+
 ## Who may do what
 
 Environments add one grant resource kind, `environment`, with two modes.
@@ -117,7 +131,7 @@ nobody. A client cannot set the field.
 
 - Tests, benchmarks and ETL jobs that run versions use the library `execute`
   rule. They do not apply the environment `execute` rule.
-- A query that only a group uses (`groupOnly`), and the check that a group is
-  not promoted ahead of its parts, are not built yet.
+- A dynamic query node picks its query at run time. It runs that query's
+  current version, not the version the environment points to.
 - Releases (a named snapshot of one environment) and `publishEnvironment` (the
   environment a library's published tools serve) are deferred.
