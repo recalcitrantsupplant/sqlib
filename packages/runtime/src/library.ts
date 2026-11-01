@@ -270,7 +270,15 @@ export function substituteCall(
   // the order that keeps caller data out of the page substitution's way: a
   // literal argument whose text happens to read `LIMIT 0001` must not be
   // rewritten, and after this step nothing else scans the query.
-  return applyTemplateArguments(withPageParameters(query, limits, offsets), argumentSets, query.inputPolicies ?? []);
+  //
+  // An exported query runs without a sqlib server, so no one is signed in:
+  // the caller's identity slots get zero rows (`SubstitutionOptions`).
+  return applyTemplateArguments(
+    withPageParameters(query, limits, offsets),
+    argumentSets,
+    query.inputPolicies ?? [],
+    { caller: null },
+  );
 }
 
 function withPageParameters(

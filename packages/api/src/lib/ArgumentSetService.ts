@@ -1,4 +1,5 @@
 import type { FastifyRequest } from 'fastify';
+import { isReservedSlotVariable } from '@sparql-query-lib/runtime';
 import { mintId } from './id.js';
 import { clearBrowserDefaultsNaming } from './browserDefaults.js';
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
@@ -433,6 +434,19 @@ export class ArgumentSetService {
      */
     if (options?.authScope) {
       this.requirePinnedSourcesReadable(input, options.authScope.request);
+    }
+
+    // `?authUser` and `?authGroup` are filled from the caller's sign-in. A
+    // stored set that bound one would be refused on every run, so it is
+    // refused here, once.
+    for (const binding of toArray(input.tupleBindings)) {
+      const reserved = (binding.variables ?? []).filter(isReservedSlotVariable);
+      if (reserved.length > 0) {
+        throw Object.assign(
+          new Error(`?${reserved[0]} is filled from the caller's sign-in. An argument set cannot bind it.`),
+          { statusCode: 400 },
+        );
+      }
     }
 
     const versionId = mintId('argumentSetVersion');

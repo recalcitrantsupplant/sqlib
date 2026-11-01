@@ -32,6 +32,7 @@ import {
   type EmptyArgumentMode,
   type QueryTemplate,
   type SlotPolicy,
+  type SubstitutionOptions,
   type TemplateArgumentSet,
   type TemplateSlot,
   type TermValue,
@@ -136,6 +137,9 @@ interface PrunableOperation {
 
 /** Marker IRI scheme used to locate parameter slots in generated query text. */
 const SLOT_MARKER_PREFIX = 'urn:sqlib:template-slot:';
+
+/** Template probes fill the identity slots like any other slot (`SubstitutionOptions`). */
+const PROBING: SubstitutionOptions = { verifyingTemplate: true };
 
 /**
  * Cap on compiled templates held per parser instance. Templates are keyed by
@@ -617,12 +621,13 @@ export class SparqlQueryParser {
     queryString: string,
     argumentSets: ApplyArgumentSet[],
     slotPolicies: readonly SlotPolicy[] = [],
+    options: SubstitutionOptions = {},
   ): string {
     const template = this.getVerifiedTemplate(queryString);
     if (template) {
-      return applyTemplateArguments(template, argumentSets as TemplateArgumentSet[], slotPolicies);
+      return applyTemplateArguments(template, argumentSets as TemplateArgumentSet[], slotPolicies, options);
     }
-    return this.applyArgumentsViaAst(queryString, argumentSets, slotPolicies);
+    return this.applyArgumentsViaAst(queryString, argumentSets, slotPolicies, options);
   }
 
   /**
@@ -650,6 +655,7 @@ export class SparqlQueryParser {
     queryString: string,
     argumentSets: ApplyArgumentSet[],
     slotPolicies: readonly SlotPolicy[] = [],
+    options: SubstitutionOptions = {},
   ): string {
     if (!Array.isArray(argumentSets)) {
       throw new Error("Invalid arguments format: Expected an array of argument sets.");
@@ -678,6 +684,7 @@ export class SparqlQueryParser {
       undefValuesPatterns.map(({ variables }) => variables),
       argumentSets as TemplateArgumentSet[],
       slotPolicies,
+      options,
     ) as ApplyArgumentSet[];
 
     undefValuesPatterns.forEach(({ pattern, variables }, index) => {
@@ -908,11 +915,11 @@ export class SparqlQueryParser {
     for (const probe of SparqlQueryParser.buildProbeArgumentSets(template)) {
       let expected: string;
       try {
-        expected = this.applyArgumentsViaAst(queryString, probe as ApplyArgumentSet[]);
+        expected = this.applyArgumentsViaAst(queryString, probe as ApplyArgumentSet[], [], PROBING);
       } catch {
         // The oracle rejects this probe, so the template must reject it too.
         try {
-          applyTemplateArguments(template, probe);
+          applyTemplateArguments(template, probe, [], PROBING);
           return false;
         } catch {
           continue;
@@ -920,7 +927,7 @@ export class SparqlQueryParser {
       }
       let actual: string;
       try {
-        actual = applyTemplateArguments(template, probe);
+        actual = applyTemplateArguments(template, probe, [], PROBING);
       } catch {
         return false;
       }
