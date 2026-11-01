@@ -113,6 +113,151 @@ describe('running a cell', () => {
     });
   });
 
+  /*
+   * The merge: two graph values above, one query over both. The query names no
+   * backend, so the server runs it in an ephemeral store holding the graphs.
+   */
+  it('runs a query over graph values, sent inline, with no backend', async () => {
+    callables.value = [
+      { ...selectCallable('urn:q:a'), resultKind: 'GRAPH' },
+      { ...selectCallable('urn:q:b'), resultKind: 'GRAPH' },
+      { ...selectCallable('urn:q:merge'), resultKind: 'GRAPH' },
+    ];
+    const graphResponse = (triple: string) => ({ body: triple, contentType: 'application/n-triples', timing: null });
+    executeTarget
+      .mockResolvedValueOnce(graphResponse('<urn:a> <urn:p> <urn:b> .\n'))
+      .mockResolvedValueOnce(graphResponse('<urn:c> <urn:p> <urn:d> .\n'))
+      .mockResolvedValueOnce(graphResponse('<urn:a> <urn:p> <urn:b> .\n<urn:c> <urn:p> <urn:d> .\n'));
+
+    await runIn(async (nb) => {
+      const a = queryCell('urn:q:a', 'left');
+      const b = queryCell('urn:q:b', 'right');
+      const merge: QueryCell = { ...queryCell('urn:q:merge', 'both'), graphs: [{ from: 'value', ref: 'left' }, { from: 'value', ref: 'right' }] };
+      nb.addCell(a);
+      nb.addCell(b);
+      nb.addCell(merge);
+      await nextTick();
+      await nb.runAll();
+
+      const request = executeTarget.mock.calls[2]![0];
+      expect(request.backendId).toBeUndefined();
+      expect(request.dataGraphs).toEqual([
+        { dataGraphInline: '<urn:a> <urn:p> <urn:b> .\n', dataGraphInlineFormat: 'application/n-triples' },
+        { dataGraphInline: '<urn:c> <urn:p> <urn:d> .\n', dataGraphInlineFormat: 'application/n-triples' },
+      ]);
+      const merged = nb.values.value.both;
+      expect(merged?.type === 'graph' && merged.tripleCount).toBe(2);
+    });
+  });
+
+  /*
+   * Pass by reference: a large value the server kept goes back as its handle.
+   * The producer asks the server to keep it only because a cell below reads it.
+   */
+  it('sends a large kept value back by its handle, and asks to keep only what is read', async () => {
+    callables.value = [selectCallable('urn:q:people'), selectCallable('urn:q:by-name', [['name']])];
+    const many = Array.from({ length: 3000 }, (_, i) => ({ name: { type: 'literal', value: `person number ${i}` } }));
+    executeTarget
+      .mockResolvedValueOnce({ ...rowsResponse(['name'], many), resultRef: 'urn:sqlib:result:1' })
+      .mockResolvedValueOnce(rowsResponse(['name'], []));
+
+    await runIn(async (nb) => {
+      const producer = queryCell('urn:q:people', 'people');
+      const consumer = queryCell('urn:q:by-name', 'out2', [{ from: 'value', ref: 'people' }]);
+      nb.addCell(producer);
+      nb.addCell(consumer);
+      await nextTick();
+      await nb.runAll();
+
+      const [first, second] = executeTarget.mock.calls.map((call) => call[0]);
+      expect(first.keepResult).toBe(true);
+      expect(second.keepResult).toBeUndefined();
+      expect(second.argumentRefs).toEqual([
+        { resultRef: 'urn:sqlib:result:1', columns: [{ from: 'name', to: 'name' }], vars: ['name'] },
+      ]);
+      expect(second.arguments ?? []).toEqual([]);
+    });
+  });
+
+  it('sends a small value by content even when the server kept it', async () => {
+    callables.value = [selectCallable('urn:q:people'), selectCallable('urn:q:by-name', [['name']])];
+    executeTarget
+      .mockResolvedValueOnce({ ...rowsResponse(['name'], [{ name: { type: 'literal', value: 'Ada' } }]), resultRef: 'urn:sqlib:result:1' })
+      .mockResolvedValueOnce(rowsResponse(['name'], []));
+
+    await runIn(async (nb) => {
+      nb.addCell(queryCell('urn:q:people', 'people'));
+      nb.addCell(queryCell('urn:q:by-name', 'out2', [{ from: 'value', ref: 'people' }]));
+      await nextTick();
+      await nb.runAll();
+
+      const second = executeTarget.mock.calls[1]![0];
+      expect(second.argumentRefs ?? []).toEqual([]);
+      expect(second.arguments).toHaveLength(1);
+    });
+  });
+
+  it('sends the value by content when its handle has expired', async () => {
+    callables.value = [{ ...selectCallable('urn:q:a'), resultKind: 'GRAPH' }, { ...selectCallable('urn:q:merge'), resultKind: 'GRAPH' }];
+    const big = Array.from({ length: 2000 }, (_, i) => `<urn:s:${i}> <urn:p> <urn:o:${i}> .`).join('\n');
+    executeTarget
+      .mockResolvedValueOnce({ body: big, contentType: 'application/n-triples', timing: null, resultRef: 'urn:sqlib:result:g' })
+      .mockRejectedValueOnce({ statusCode: 410, message: 'The kept result has expired' })
+      .mockResolvedValueOnce({ body: big, contentType: 'application/n-triples', timing: null });
+
+    await runIn(async (nb) => {
+      const a = queryCell('urn:q:a', 'left');
+      const merge: QueryCell = { ...queryCell('urn:q:merge', 'both'), graphs: [{ from: 'value', ref: 'left' }] };
+      nb.addCell(a);
+      nb.addCell(merge);
+      await nextTick();
+      await nb.runAll();
+
+      const calls = executeTarget.mock.calls.map((call) => call[0]);
+      expect(calls[1].dataGraphs).toEqual([{ resultRef: 'urn:sqlib:result:g' }]);
+      expect(calls[2].dataGraphs).toEqual([{ dataGraphInline: big, dataGraphInlineFormat: 'application/n-triples' }]);
+      expect(nb.stateFor(merge.id).status).toBe('ok');
+    });
+  });
+
+  it('sends a large kept graph to a rule set by its handle', async () => {
+    callables.value = [{ ...selectCallable('urn:q:construct'), resultKind: 'GRAPH' }];
+    ruleSets.value = [{ id: 'urn:rs:1', name: 'closure', description: null, isPartOf: [LIBRARY], currentVersionNumber: 1 }];
+    const big = Array.from({ length: 2000 }, (_, i) => `<urn:s:${i}> <urn:p> <urn:o:${i}> .`).join('\n');
+    executeTarget.mockResolvedValueOnce({ body: big, contentType: 'application/n-triples', timing: null, resultRef: 'urn:sqlib:result:g' });
+    executeRuleSet.mockResolvedValue({ status: 'converged', iterations: [], dataBlocks: [], finalGraphNQuads: '<urn:a> <urn:p> <urn:b> .', resultRef: null });
+
+    await runIn(async (nb) => {
+      nb.addCell(queryCell('urn:q:construct', 'graph'));
+      nb.addCell({ kind: 'ruleset', id: mintCellId(), ruleSet: 'urn:rs:1', out: 'closure', inputGraph: { from: 'value', ref: 'graph' } });
+      await nextTick();
+      await nb.runAll();
+
+      expect(executeRuleSet).toHaveBeenCalledWith('urn:rs:1', { dataGraphResultRef: 'urn:sqlib:result:g' });
+    });
+  });
+
+  it('refuses to run a cell that reads a value bound below it', async () => {
+    callables.value = [selectCallable('urn:q:people'), selectCallable('urn:q:by-name', [['name']])];
+    executeTarget.mockResolvedValue(rowsResponse(['name'], [{ name: { type: 'literal', value: 'Ada' } }]));
+
+    await runIn(async (nb) => {
+      const producer = queryCell('urn:q:people', 'people');
+      const consumer = queryCell('urn:q:by-name', 'out2', [{ from: 'value', ref: 'people' }]);
+      nb.addCell(producer);
+      nb.addCell(consumer);
+      await nextTick();
+      await nb.run(producer.id);
+      nb.moveCell(consumer.id, -1);
+      await nextTick();
+
+      expect(nb.problemsFor(consumer.id)).toEqual(['@people is not bound by a cell above this one.']);
+      await nb.run(consumer.id);
+      expect(nb.stateFor(consumer.id).status).toBe('error');
+      expect(executeTarget).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it('sends the payload to /execute rather than substituted text', async () => {
     callables.value = [selectCallable('urn:q:people', [['city']])];
     executeTarget.mockResolvedValue(rowsResponse(['name'], []));
@@ -306,6 +451,50 @@ describe('running a cell', () => {
       );
     });
     scope.stop();
+  });
+
+  it('never sends a backend for a group, even one left on the cell', async () => {
+    callables.value = [{ ...selectCallable('urn:g:orders'), type: 'group' }];
+    executeTarget.mockResolvedValue(rowsResponse(['name'], []));
+
+    const scope = effectScope();
+    await scope.run(async () => {
+      const nb = useNotebook(ref(LIBRARY), ref('urn:backend:library-default'));
+      const cell = { kind: 'group' as const, id: mintCellId(), group: 'urn:g:orders', out: 'orders', backend: 'urn:backend:x' };
+      nb.addCell(cell);
+      await nextTick();
+      await nb.run(cell.id);
+
+      expect(executeTarget.mock.calls[0]![0].backendId).toBeUndefined();
+    });
+    scope.stop();
+  });
+
+  it('binds a SELECT asked for as CSV or TSV as rows, not a graph', async () => {
+    callables.value = [selectCallable('urn:q:people')];
+    executeTarget
+      .mockResolvedValueOnce({ body: 'name,home\nAda,http://example.org/london\n', contentType: 'text/csv', timing: null, resultRef: 'urn:sqlib:result:1' })
+      .mockResolvedValueOnce({ body: '?name\n"Ada"@en\n', contentType: 'text/tab-separated-values', timing: null });
+
+    await runIn(async (nb) => {
+      const csv: QueryCell = { ...queryCell('urn:q:people', 'csv'), accept: 'text/csv' };
+      const tsv: QueryCell = { ...queryCell('urn:q:people', 'tsv'), accept: 'text/tab-separated-values' };
+      nb.addCell(csv);
+      nb.addCell(tsv);
+      await nextTick();
+      await nb.runAll();
+
+      const fromCsv = nb.values.value.csv;
+      expect(fromCsv?.type).toBe('rows');
+      expect(fromCsv?.type === 'rows' && fromCsv.columns).toEqual(['name', 'home']);
+      expect(fromCsv?.type === 'rows' && fromCsv.bindings[0]).toEqual({
+        name: { type: 'literal', value: 'Ada' },
+        home: { type: 'uri', value: 'http://example.org/london' },
+      });
+      expect(fromCsv?.resultRef).toBeNull();
+      const fromTsv = nb.values.value.tsv;
+      expect(fromTsv?.type === 'rows' && fromTsv.bindings[0]).toEqual({ name: { type: 'literal', value: 'Ada', 'xml:lang': 'en' } });
+    });
   });
 
   it("prefers the query's own default backend over the library's", async () => {

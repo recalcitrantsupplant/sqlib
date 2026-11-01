@@ -19,6 +19,8 @@ import type { PersistedTag } from '../persistence/schemas/TagSchema.js';
 import type { PersistedPatch } from '../persistence/schemas/PatchSchema.js';
 import type { PersistedTupleSet } from '../persistence/schemas/TupleSetSchema.js';
 import type { PersistedTupleSetVersion } from '../persistence/schemas/TupleSetVersionSchema.js';
+import type { PersistedNotebook } from '../persistence/schemas/NotebookSchema.js';
+import type { PersistedNotebookVersion } from '../persistence/schemas/NotebookVersionSchema.js';
 import type { PersistedDuckDbEtlNode } from '../persistence/schemas/DuckDbEtlNodeSchema.js';
 import type { PersistedDynamicQueryNode } from '../persistence/schemas/DynamicQueryNodeSchema.js';
 import type { PersistedEndNode } from '../persistence/schemas/EndNodeSchema.js';
@@ -104,6 +106,7 @@ import { BrowserDefaultDataGraphs } from '../persistence/utils/BrowserDefaultDat
 import { Tags } from '../persistence/utils/TagUtils.js';
 import { Patches } from '../persistence/utils/PatchUtils.js';
 import { TupleSets, TupleSetVersions } from '../persistence/utils/TupleSetUtils.js';
+import { Notebooks, NotebookVersions } from '../persistence/utils/NotebookUtils.js';
 import type { EntityTypeName } from '../persistence/entityTypeNames.js';
 
 export const LENS_BY_TYPE = {
@@ -159,6 +162,8 @@ export const LENS_BY_TYPE = {
   Patch: Patches,
   TupleSet: TupleSets,
   TupleSetVersion: TupleSetVersions,
+  Notebook: Notebooks,
+  NotebookVersion: NotebookVersions,
 } as const satisfies Record<EntityTypeName, unknown>;
 
 export type EntityType = keyof typeof LENS_BY_TYPE;
@@ -216,6 +221,8 @@ export type EntityByType = {
   Patch: PersistedPatch;
   TupleSet: PersistedTupleSet;
   TupleSetVersion: PersistedTupleSetVersion;
+  Notebook: PersistedNotebook;
+  NotebookVersion: PersistedNotebookVersion;
 };
 
 export const TTL_MS: Partial<Record<EntityType, number>> = {
@@ -249,6 +256,8 @@ export const TTL_MS: Partial<Record<EntityType, number>> = {
   Tag: 120_000,
   TupleSet: 15_000,
   TupleSetVersion: Number.POSITIVE_INFINITY,
+  Notebook: 15_000,
+  NotebookVersion: Number.POSITIVE_INFINITY,
   // A patch is an event: once written, only its status ever changes, and that
   // happens through this process. Long, like the other write-once types — but
   // not infinite, because a revert elsewhere would otherwise never be seen.

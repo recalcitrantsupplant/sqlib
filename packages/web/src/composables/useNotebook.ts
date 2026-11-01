@@ -26,12 +26,15 @@
  */
 import { computed, ref, watch, type Ref } from 'vue';
 import { toExecutionParameters } from '@sparql-query-lib/runtime';
-import type { ExecutionArgument } from '@sparql-query-lib/contracts';
+import type { ExecutionArgument, ExecutionArgumentRef, ExecutionDataGraph } from '@sparql-query-lib/contracts';
 import type { Callable } from '../lib/callables';
 import {
   booleanValue,
   graphValue,
+  isTabularContentType,
+  mapColumns,
   rowsValue,
+  tabularRowsValue,
   toSlotArgument,
   type NotebookValue,
   type RowsValue,
@@ -47,6 +50,7 @@ import {
   nextValueName,
   renameValue,
   validateNotebook,
+  type GraphSource,
   type NotebookCell,
   type Notebook,
   type RunCell,
@@ -91,6 +95,12 @@ export interface CellRunState {
   /** An upstream value was rebound after this cell ran. */
   stale: boolean;
 }
+
+/**
+ * Below this a value is sent back by content even when the server kept it:
+ * the round trip a handle saves is not worth a second request on a 410.
+ */
+const PASS_BY_REFERENCE_BYTES = 64 * 1024;
 
 const IDLE: CellRunState = { status: 'idle', error: null, durationMs: null, ranAt: null, stale: false };
 
@@ -141,6 +151,11 @@ export function useNotebook(
   const lastRun = ref<Record<string, { payload: unknown; result: unknown }>>({});
 
   const problems = computed(() => validateNotebook(notebook.value));
+
+  /** What is wrong with one cell, as the document reads now. */
+  function problemsFor(cellId: string): string[] {
+    return problems.value.filter((problem) => problem.cellId === cellId).map((problem) => problem.message);
+  }
 
   /**
    * Load everything a cell can point at.
@@ -315,7 +330,8 @@ export function useNotebook(
   function slotArgument(
     slot: SlotSource | undefined,
     vars: string[],
-  ): ExecutionArgument | 'skip' | string {
+    byReference = true,
+  ): ExecutionArgument | { ref: ExecutionArgumentRef } | 'skip' | string {
     if (!slot || slot.from === 'typed') {
       // No source is a wildcard row: the runtime drops the slot, which is what
       // makes a freshly inserted cell runnable rather than an error.
@@ -332,15 +348,65 @@ export function useNotebook(
       if ((slot.whenEmpty ?? 'skip') === 'skip') return 'skip';
       if (slot.whenEmpty === 'stop') return `@${slot.ref} is empty.`;
     }
+    if (byReference && sendsByReference(value)) {
+      const columns = mapColumns(value.columns, vars).map(({ source, target }) => ({ from: source, to: target }));
+      if (columns.length) return { ref: { resultRef: value.resultRef!, columns, vars: [...vars] } };
+    }
     return toSlotArgument(value as RowsValue, vars);
   }
 
+  /**
+   * Whether a value goes back to the server by its handle rather than its
+   * content: it is large, and the server kept a copy when it produced it.
+   */
+  function sendsByReference(value: NotebookValue): boolean {
+    return Boolean(value.resultRef) && value.byteSize >= PASS_BY_REFERENCE_BYTES;
+  }
+
+  /**
+   * Send by reference, and again by value if a handle could not be read.
+   *
+   * A handle lives for minutes in the server's memory, and a restart empties
+   * it; the content is still in this browser, so a gone handle costs one more
+   * request, not the run.
+   */
+  async function withInlineFallback<T>(send: (byReference: boolean) => Promise<T>): Promise<T> {
+    try {
+      return await send(true);
+    } catch (cause) {
+      const status = (cause as { statusCode?: number }).statusCode;
+      const message = cause instanceof Error ? cause.message : String(cause);
+      if (status === 410 || (status === 400 && message.includes('kept result'))) return send(false);
+      throw cause;
+    }
+  }
+
+  /** Whether a cell's result is read below it, and so worth the server keeping. */
+  function isRead(cell: RunCell): boolean {
+    return dependentCellIds(notebook.value, cell.id).length > 0;
+  }
+
+  /** One graph a query runs over, as `/execute` takes it. */
+  function graphInput(graph: GraphSource, byReference = true): ExecutionDataGraph {
+    if (graph.from === 'dataGraph') return { dataGraphId: graph.dataGraphId };
+    if (graph.from === 'dataGraphVersion') return { dataGraphVersionId: graph.dataGraphVersionId };
+    const value = values.value[graph.ref];
+    if (!value) throw new Error(`@${graph.ref} has not been produced yet — run the cell above first.`);
+    if (value.type !== 'graph') throw new Error(`@${graph.ref} is ${value.type}, and a query reads graphs, not ${value.type}.`);
+    if (byReference && sendsByReference(value)) return { resultRef: value.resultRef! };
+    return { dataGraphInline: value.content, dataGraphInlineFormat: value.format };
+  }
+
   async function runQueryLike(cell: RunCell, target: NotebookTarget, started: number): Promise<void> {
-    const args: ExecutionArgument[] = [];
     const slots = cellSlots(cell);
 
+    /*
+     * The arguments, by value: what the run means, and what Save as test
+     * records. Built first, because a slot that skips stops the cell here.
+     */
+    const args: ExecutionArgument[] = [];
     for (const [index, vars] of target.slots.entries()) {
-      const built = slotArgument(slots[index], vars);
+      const built = slotArgument(slots[index], vars, false);
       if (built === 'skip') {
         runState.value = {
           ...runState.value,
@@ -349,7 +415,7 @@ export function useNotebook(
         return;
       }
       if (typeof built === 'string') throw new Error(built);
-      args.push(built);
+      args.push(built as ExecutionArgument);
     }
 
     const limits = toExecutionParameters(cell.kind === 'query' ? cell.limits : undefined);
@@ -361,25 +427,52 @@ export function useNotebook(
       ...(cell.kind === 'query' && cell.offsets ? { offsets: cell.offsets } : {}),
     };
 
+    const graphs = cell.kind === 'query' ? cell.graphs ?? [] : [];
     /*
      * The store the cell names, else the query's default, else the library's.
      * Sent explicitly either way: "which backend did this run against" is a
      * fact the notebook shows on the cell, and a request that leaves it out
      * would let the answer change under the reader when a default does.
+     *
+     * A query given graphs runs over them alone, in an ephemeral store the
+     * server makes for the request; it names no backend.
      */
-    const backendId = (cell.kind === 'ruleset' ? null : cell.backend) ?? defaultBackendFor(cell);
+    const backendId = graphs.length
+      ? null
+      : cell.kind === 'query'
+        ? cell.backend ?? defaultBackendFor(cell)
+        : null; // a group's nodes name their own; the server refuses one for a group
     const accept = cell.kind === 'ruleset' ? null : cell.accept;
 
-    const result = await apiClient.executeTarget(
-      {
-        targetId: cellTargetId(cell),
-        ...(backendId ? { backendId } : {}),
-        ...(args.length ? { arguments: args } : {}),
-        ...(limits.length ? { limits } : {}),
-        ...(offsets.length ? { offsets } : {}),
-      },
-      accept ?? undefined,
-    );
+    /*
+     * The request. A large value the server kept goes by its handle rather
+     * than its content (`sendsByReference`); the result is kept in turn when a
+     * cell below reads it.
+     */
+    const send = (byReference: boolean) => {
+      const inline: ExecutionArgument[] = [];
+      const argumentRefs: ExecutionArgumentRef[] = [];
+      for (const [index, vars] of target.slots.entries()) {
+        const built = slotArgument(slots[index], vars, byReference) as ExecutionArgument | { ref: ExecutionArgumentRef };
+        if ('ref' in built) argumentRefs.push(built.ref);
+        else inline.push(built);
+      }
+      const dataGraphs = graphs.map((graph) => graphInput(graph, byReference));
+      return apiClient.executeTarget(
+        {
+          targetId: cellTargetId(cell),
+          ...(backendId ? { backendId } : {}),
+          ...(dataGraphs.length ? { dataGraphs } : {}),
+          ...(inline.length ? { arguments: inline } : {}),
+          ...(argumentRefs.length ? { argumentRefs } : {}),
+          ...(limits.length ? { limits } : {}),
+          ...(offsets.length ? { offsets } : {}),
+          ...(isRead(cell) ? { keepResult: true } : {}),
+        },
+        accept ?? undefined,
+      );
+    };
+    const result = await withInlineFallback(send);
 
     const durationMs = Math.round(performance.now() - started);
     const source = { name: cell.out, cellId: cell.id, durationMs };
@@ -397,41 +490,57 @@ export function useNotebook(
           ? booleanValue(source, body.boolean)
           : rowsValue(source, body, result.body);
       lastRun.value = { ...lastRun.value, [cell.id]: { payload, result: body } };
+    } else if (isTabularContentType(result.contentType)) {
+      // A SELECT asked for as CSV or TSV is still rows, not a graph.
+      produced = tabularRowsValue(source, result.body, result.contentType);
+      lastRun.value = { ...lastRun.value, [cell.id]: { payload, result: result.body } };
     } else {
       produced = graphValue(source, result.body, result.contentType);
       lastRun.value = { ...lastRun.value, [cell.id]: { payload, result: result.body } };
     }
+    // A kept CSV body is no use as an argument: the server reads rows from JSON.
+    produced.resultRef = isTabularContentType(result.contentType) ? null : result.resultRef ?? null;
 
     bind(cell, produced, durationMs);
   }
 
   async function runRuleSet(cell: RunCell & { kind: 'ruleset' }, started: number): Promise<void> {
     const input = cell.inputGraph;
-    const request: Parameters<typeof apiClient.executeRuleSet>[1] = {};
 
-    if (input?.from === 'value') {
-      const value = values.value[input.ref];
-      if (!value) throw new Error(`@${input.ref} has not been produced yet — run the cell above first.`);
-      if (value.type !== 'graph') throw new Error(`@${input.ref} is ${value.type}, and a base graph takes RDF.`);
-      // By value: the triples go back out in the request that needs them. The
-      // by-reference path is a saved graph id, which is what Save produces.
-      request.dataGraphInline = value.content;
-      request.dataGraphInlineFormat = value.format;
-    } else if (input?.from === 'dataGraph') {
-      request.dataGraphId = input.dataGraphId;
-    } else if (input?.from === 'dataGraphVersion') {
-      request.dataGraphVersionId = input.dataGraphVersionId;
-    }
-    if (cell.version) request.version = cell.version;
+    const send = (byReference: boolean) => {
+      const request: Parameters<typeof apiClient.executeRuleSet>[1] = {};
+      if (input?.from === 'value') {
+        const value = values.value[input.ref];
+        if (!value) throw new Error(`@${input.ref} has not been produced yet — run the cell above first.`);
+        if (value.type !== 'graph') throw new Error(`@${input.ref} is ${value.type}, and a base graph takes RDF.`);
+        // A large graph the server kept goes back by its handle; anything
+        // else goes back by content, in the request that needs it.
+        if (byReference && sendsByReference(value)) {
+          request.dataGraphResultRef = value.resultRef!;
+        } else {
+          request.dataGraphInline = value.content;
+          request.dataGraphInlineFormat = value.format;
+        }
+      } else if (input?.from === 'dataGraph') {
+        request.dataGraphId = input.dataGraphId;
+      } else if (input?.from === 'dataGraphVersion') {
+        request.dataGraphVersionId = input.dataGraphVersionId;
+      }
+      if (cell.version) request.version = cell.version;
+      if (isRead(cell)) request.keepResult = true;
+      return apiClient.executeRuleSet(cell.ruleSet, request);
+    };
 
-    const response = await apiClient.executeRuleSet(cell.ruleSet, request);
+    const response = await withInlineFallback(send);
     const durationMs = Math.round(performance.now() - started);
 
     if (response.status === 'failed') throw new Error('The rule set run failed.');
 
     const content = response.finalGraphNQuads ?? response.finalGraphContent ?? '';
     const contentType = response.finalGraphNQuads ? 'application/n-quads' : response.finalGraphContentType ?? null;
-    bind(cell, graphValue({ name: cell.out, cellId: cell.id, durationMs }, content, contentType), durationMs);
+    const produced = graphValue({ name: cell.out, cellId: cell.id, durationMs }, content, contentType);
+    produced.resultRef = response.resultRef ?? null;
+    bind(cell, produced, durationMs);
   }
 
   /** Bind a value and mark everything downstream of it stale. */
@@ -477,6 +586,20 @@ export function useNotebook(
           ranAt: null,
           stale: false,
         },
+      };
+      return;
+    }
+
+    /*
+     * A cell reads only what is bound above it. A value bound below, or left
+     * over from a cell since removed, is still in memory, and running with it
+     * would give a result the document does not explain.
+     */
+    const unbound = problemsFor(cellId).find((message) => message.includes('is not bound by a cell above'));
+    if (unbound) {
+      runState.value = {
+        ...runState.value,
+        [cellId]: { status: 'error', error: unbound, durationMs: null, ranAt: null, stale: false },
       };
       return;
     }
@@ -584,6 +707,7 @@ export function useNotebook(
     runState,
     lastRun,
     problems,
+    problemsFor,
     targets,
     targetFor,
     defaultBackendFor,

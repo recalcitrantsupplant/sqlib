@@ -48,6 +48,12 @@ describe('building a form from the signature', () => {
     expect(element.textContent).toContain('takes no arguments');
   });
 
+  it('says an empty slot in the form is left out, which is what it emits', () => {
+    const element = mount(ONE_SLOT);
+    expect(element.textContent).toContain('runs without this filter');
+    expect(element.payload.arguments).toEqual([]);
+  });
+
   it('explains what a zero-row slot actually does, rather than showing a blank table', () => {
     // Zero rows is not "no constraint": it is an empty VALUES block, which joins
     // to nothing. The wildcard — one row, every cell UNDEF — is the other thing.

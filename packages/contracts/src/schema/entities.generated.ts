@@ -2148,6 +2148,120 @@ export const limitparameterSchema = {
   ]
 } as const;
 
+export const notebookSchema = {
+  "$id": "notebook",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "iri"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string",
+      "nullable": true
+    },
+    "currentVersion": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true
+    },
+    "currentVersionNumber": {
+      "type": "integer",
+      "readOnly": true,
+      "nullable": true
+    },
+    "isPartOf": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "iri"
+      },
+      "minItems": 1
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "iri"
+      },
+      "nullable": true
+    },
+    "dateCreated": {
+      "type": "string",
+      "format": "date-time",
+      "readOnly": true,
+      "nullable": true
+    },
+    "dateModified": {
+      "type": "string",
+      "format": "date-time",
+      "readOnly": true,
+      "nullable": true
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "isPartOf"
+  ]
+} as const;
+
+export const notebookversionSchema = {
+  "$id": "notebookversion",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "iri"
+    },
+    "isPartOf": {
+      "type": "string",
+      "format": "iri"
+    },
+    "version": {
+      "type": "integer"
+    },
+    "immutable": {
+      "type": "boolean",
+      "nullable": true
+    },
+    "contentString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "byteSize": {
+      "type": "integer",
+      "nullable": true
+    },
+    "comment": {
+      "type": "string",
+      "nullable": true
+    },
+    "dateCreated": {
+      "type": "string",
+      "format": "date-time",
+      "readOnly": true,
+      "nullable": true
+    },
+    "dateModified": {
+      "type": "string",
+      "format": "date-time",
+      "readOnly": true,
+      "nullable": true
+    }
+  },
+  "required": [
+    "id",
+    "isPartOf",
+    "version",
+    "contentString"
+  ]
+} as const;
+
 export const offsetparameterSchema = {
   "$id": "offsetparameter",
   "type": "object",
@@ -4385,6 +4499,30 @@ export interface LimitParameterRestApi {
   name: string;
   value?: number | null;
   defaultValue?: number | null;
+}
+
+export interface NotebookRestApi {
+  id: string;
+  name: string;
+  description?: string | null;
+  currentVersion?: string | null;
+  currentVersionNumber?: number | null;
+  isPartOf: string[];
+  tags?: string[] | null;
+  dateCreated?: string | null;
+  dateModified?: string | null;
+}
+
+export interface NotebookVersionRestApi {
+  id: string;
+  isPartOf: string;
+  version: number;
+  immutable?: boolean | null;
+  contentString: string;
+  byteSize?: number | null;
+  comment?: string | null;
+  dateCreated?: string | null;
+  dateModified?: string | null;
 }
 
 export interface OffsetParameterRestApi {

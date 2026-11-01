@@ -43,6 +43,7 @@ overrideCacheCoordinatorProvider({
     Test: hoisted.emptyRepo(),
     ArgumentSet: hoisted.emptyRepo(),
     TupleSet: hoisted.emptyRepo(),
+    Notebook: hoisted.emptyRepo(),
   }),
   getCacheCoordinator: () => ({
     get: hoisted.coordinatorGet,

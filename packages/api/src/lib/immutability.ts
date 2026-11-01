@@ -15,6 +15,7 @@ const FROZEN_TYPES = new Set([
   'DataGraphVersion',
   'TestVersion',
   'TupleSetVersion',
+  'NotebookVersion',
   'ArgumentSetVersion',
   'EtlJobVersion',
   'EtlColumnMappingVersion',

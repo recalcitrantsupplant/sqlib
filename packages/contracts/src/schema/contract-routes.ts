@@ -2061,8 +2061,47 @@ export const executionDataGraphsJsonSchema = {
       "dataGraphInlineFormat": {
         "type": "string",
         "minLength": 1
+      },
+      "dataGraphId": {
+        "type": "string",
+        "minLength": 1,
+        "format": "iri"
+      },
+      "resultRef": {
+        "type": "string",
+        "minLength": 1
       }
     },
+    "additionalProperties": false
+  }
+} as const;
+
+/**
+ * Arguments passed by reference: a result this server kept for the caller
+ * (`keepResult`), with its columns renamed to a slot's variables.
+ */
+export const executionArgumentRefsJsonSchema = {
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "resultRef": { "type": "string", "minLength": 1 },
+      "columns": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "object",
+          "properties": {
+            "from": { "type": "string", "minLength": 1 },
+            "to": { "type": "string", "minLength": 1 }
+          },
+          "required": ["from", "to"],
+          "additionalProperties": false
+        }
+      },
+      "vars": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+    },
+    "required": ["resultRef", "columns"],
     "additionalProperties": false
   }
 } as const;
@@ -2109,6 +2148,8 @@ export const executionRouteSchemas = {
           }
         },
         "dataGraphs": executionDataGraphsJsonSchema,
+        "argumentRefs": executionArgumentRefsJsonSchema,
+        "keepResult": { "type": "boolean" },
         "defaultGraphs": datasetGraphsJsonSchema,
         "namedGraphs": datasetGraphsJsonSchema,
         "nodeDetail": {

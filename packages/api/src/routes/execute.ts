@@ -49,6 +49,10 @@ import { resolveDataGraphInput, DataGraphContentError } from '../lib/dataGraphIn
 import type { ExecutionDataGraphInput } from '../lib/orchestration/ExecutionEngine.js';
 import type { ArgumentSet as RuntimeArgumentSet } from '../lib/query-chaining.js';
 import { log } from '../lib/log.js';
+import { getResultCache } from '../lib/resultCache.js';
+import { resolveRequestRefs, resultOwner, ResultRefError } from '../lib/resultRefs.js';
+import { ValidationError } from '../lib/validationError.js';
+
 import { failedFlags, refusalQuery, refusedBody } from '../lib/refusals.js';
 
 import {
@@ -57,6 +61,9 @@ import {
     negotiateSelectResultsFormat,
     renderSelectResults,
 } from '../lib/sparqlResultsFormats.js';
+
+/** Requests whose result is to be kept (`keepResult`). */
+const keepResultOf = new WeakSet<FastifyRequest>();
 
 /** The refusal messages of a version's `tool` object, when it has any. */
 function toolRefusals(version: { tool?: unknown } | null | undefined): Record<string, string> | null {
@@ -1360,6 +1367,21 @@ export default async function (
         }
     }
 
+    /*
+     * `keepResult`: a successful run's body is kept for a while, and its
+     * handle returned in `Sqlib-Result-Ref`. After serialisation, so what is
+     * kept is exactly what the caller received; a streamed body is not kept.
+     */
+    fastify.addHook('onSend', async (request, reply, payload) => {
+        if (!keepResultOf.has(request) || reply.statusCode !== 200) return payload;
+        const body = typeof payload === 'string' ? payload : Buffer.isBuffer(payload) ? payload.toString('utf8') : null;
+        if (body === null) return payload;
+        const contentType = String(reply.getHeader('content-type') ?? 'application/octet-stream');
+        const handle = getResultCache().put(resultOwner(request), body, contentType);
+        if (handle) reply.header('Sqlib-Result-Ref', handle);
+        return payload;
+    });
+
     // POST route
     fastify.post(
         '/',
@@ -1386,7 +1408,21 @@ export default async function (
             // Shapes, not values: argument rows are the caller's data.
             request.log.info({ execution: describeExecutionRequest(request.body) }, 'Received /execute POST request');
 
-            const {targetId, backendId, arguments: args, limits, offsets, argumentSetIds, dataGraphs, defaultGraphs, namedGraphs, nodeDetail, draftVersion} = request.body;
+            const {targetId, backendId, limits, offsets, argumentSetIds, defaultGraphs, namedGraphs, nodeDetail, draftVersion, keepResult} = request.body;
+
+            // Kept results named by handle become the inline shapes they stand for.
+            let args: ExecutionRequest['arguments'];
+            let dataGraphs: ExecutionRequest['dataGraphs'];
+            try {
+                ({ arguments: args, dataGraphs } = resolveRequestRefs(request, request.body));
+            } catch (refError__u: unknown) {
+                const refError = toError(refError__u);
+                if (refError instanceof ResultRefError || refError instanceof ValidationError) {
+                    return reply.code((refError as ResultRefError | ValidationError).statusCode).send({ error: refError.message });
+                }
+                throw refError;
+            }
+            if (keepResult) keepResultOf.add(request);
 
             return executeQuery(request, reply, {
                 targetId,

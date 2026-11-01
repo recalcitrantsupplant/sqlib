@@ -5,8 +5,15 @@ Status: partly shipped. Steps 1–4 and 7's `.sqlibnb` half of §10 are in
 `composables/useNotebook.ts`, `lib/notebookFormat.ts`, `lib/notebookValues.ts`),
 with the user-facing half written up in [the guide](../guides/notebooks.md).
 Step 5, `dataGraphs` on a query target, and step 8, promote-to-query-group
-(`lib/notebookPromote.ts`), are in too. Still open: the server-side notebook
-entity, pass-by-reference, the materialize cell, and the ipynb and HTML rewrites.
+(`lib/notebookPromote.ts`), are in too, and so is step 1's phase 2: a
+`Notebook` / `NotebookVersion` entity at `/notebooks`, with unsaved edits kept as
+a browser draft as on a query. A query cell also takes graph inputs, which it
+runs over in an ephemeral store; that replaces the materialize cell, since the
+store a query gets is already the union of the graphs it is given.
+Pass-by-reference is in as an ephemeral result cache (`packages/api/src/lib/resultCache.ts`):
+a run with `keepResult` returns a `Sqlib-Result-Ref` handle, and a later
+`argumentRefs` entry, `dataGraphs[].resultRef` or `dataGraphResultRef` names it.
+Still open: the ipynb and HTML rewrites.
 
 §8 said the library page would keep a screen of its own. It did not: the
 notebook took that rail entry outright, and `/library` is gone. What was worth
