@@ -184,6 +184,10 @@ export const querySchema = {
       },
       "nullable": true
     },
+    "groupOnly": {
+      "type": "boolean",
+      "nullable": true
+    },
     "browserDefaultArgumentSet": {
       "type": "string",
       "format": "iri",
@@ -3979,6 +3983,7 @@ export interface QueryRestApi {
   defaultBackend?: string | null;
   isPartOf: string[];
   tags?: string[] | null;
+  groupOnly?: boolean | null;
   browserDefaultArgumentSet?: string | null;
   dateCreated?: string | null;
   dateModified?: string | null;

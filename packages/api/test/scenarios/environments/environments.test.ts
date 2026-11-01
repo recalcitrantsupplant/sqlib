@@ -208,6 +208,22 @@ describe('Environments', () => {
     expect(unknown.statusCode).toBe(400);
   });
 
+  it('refuses to promote a query that only a group uses', async () => {
+    const res = await context.app.inject({
+      method: 'POST',
+      url: '/queries/',
+      payload: { name: 'Part', isPartOf: [context.libraryId], groupOnly: true },
+    });
+    expect(res.statusCode, res.payload).toBe(201);
+    const partId: string = res.json().id;
+    expect(res.json().groupOnly).toBe(true);
+    const partVersion = await createVersion(partId, 'part');
+
+    const move = await point(prodId, partId, partVersion);
+    expect(move.statusCode).toBe(400);
+    expect(move.json().error).toContain('Promote the group');
+  });
+
   it('clears a pointer and deletes an environment', async () => {
     expect((await point(devId, queryId, null)).statusCode).toBe(200);
     expect((await run('dev')).statusCode).toBe(409);

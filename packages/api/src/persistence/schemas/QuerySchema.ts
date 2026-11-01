@@ -46,6 +46,17 @@ export const QuerySchema = {
     '@references': { types: ['Tag'] },
   },
   /**
+   * A query that exists only to be a part of a query group. It is never
+   * promoted on its own: a group version pins the exact version it runs, so
+   * the group carries it into an environment. Published tools leave it out.
+   * See `docs/explanation/environments.md`.
+   */
+  groupOnly: {
+    '@id': sqlib.groupOnly,
+    '@type': xsd.boolean,
+    '@optional': true,
+  },
+  /**
    * The argument set the web app selects when this opens: a set, never a
    * version, because the switcher selects a set and picks its version per run.
    * A browser default: execution never reads it. Written through
@@ -85,6 +96,7 @@ export interface PersistedQuery {
   defaultBackend?: string | null; // IRI pointing to default Backend for this query
   isPartOf: string[]; // IRIs - can include query groups and one library
   tags?: string[] | null;
+  groupOnly?: boolean | null;
   browserDefaultArgumentSet?: string | null;
   dateCreated?: string | null; // ISO string format for RDF/JSON-LD compatibility
   dateModified?: string | null; // ISO string format for RDF/JSON-LD compatibility

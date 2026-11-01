@@ -153,6 +153,8 @@ export function collectPublishedTools(): PublishedCatalogue {
     const libraryId = libraryOf(entity);
     const library = get<PersistedLibrary>(libraryId);
     if (!library) continue;
+    // A query that only a group uses is a part, not a tool.
+    if (kind === 'query' && (entity as PersistedQuery).groupOnly === true) continue;
     // The version the deployment's environment points to
     // (`SQLIB_DEFAULT_ENVIRONMENT`), else the current one. An entry with no
     // version in that environment is not published: a prod server publishes
