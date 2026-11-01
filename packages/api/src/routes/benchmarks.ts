@@ -16,6 +16,8 @@ import {
 } from '@sparql-query-lib/contracts/schema';
 import { BenchmarkExperimentService, assertBenchmarkVersionDependencies } from '../lib/BenchmarkExperimentService.js';
 import { BenchmarkRunner } from '../lib/BenchmarkRunner.js';
+import { ReadOnlyBenchmarkRefusal, runBenchmarkReadOnly } from '../lib/readOnlyBenchmarkRun.js';
+import { isReadOnlyDeployment } from '../config/readOnly.js';
 import { toRestApi } from '../persistence/utils/id-adapter.js';
 import { findAllBenchmarkRuns, findBenchmarkRunById } from '../persistence/utils/BenchmarkRunUtils.js';
 import { findAllBenchmarkObservations } from '../persistence/utils/BenchmarkObservationUtils.js';
@@ -297,7 +299,11 @@ export default async function benchmarkRoutes(fastify: FastifyInstance) {
       return reply.code(404).send({ error: `Benchmark experiment version ${id} v${version} not found` });
     }
     try {
-      const result = await new BenchmarkRunner({ request }).runExperimentVersion(detail.id);
+      // A read-only deployment runs a frozen, seeded version within its caps
+      // and keeps nothing; see `lib/readOnlyBenchmarkRun.ts`.
+      const result = isReadOnlyDeployment()
+        ? await runBenchmarkReadOnly(request, detail.id)
+        : await new BenchmarkRunner({ request }).runExperimentVersion(detail.id);
       const normalized = {
         ...result,
         run: toRestApi(result.run),
@@ -310,6 +316,10 @@ export default async function benchmarkRoutes(fastify: FastifyInstance) {
       return reply.send(normalized);
     } catch (error) {
       if (error instanceof AuthorizationError) throw error;
+      if (error instanceof ReadOnlyBenchmarkRefusal) {
+        if (error.statusCode === 429) reply.header('Retry-After', '10');
+        return reply.code(error.statusCode).send({ error: error.message, ...error.details });
+      }
       const message = error instanceof Error ? error.message : String(error);
       return reply.code(409).send({ error: message });
     }

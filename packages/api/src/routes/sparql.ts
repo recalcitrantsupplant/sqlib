@@ -1,4 +1,5 @@
 import { FastifyInstance, FastifyPluginOptions, FastifyRequest, FastifyReply } from 'fastify';
+import { callerOfRequest, declaredReservedSlots, requireCallerForSlots } from '../auth/caller.js';
 import {
   sparqlQuerystringJsonSchema,
   sparqlRecordQuerystringJsonSchema,
@@ -381,10 +382,15 @@ export default async function (
        */
       const resolvedPayload = await resolveExecutionPayload(payload, new ArgumentSetService(), { request });
 
+      // A draft that reads the caller runs as a saved one does: refused when
+      // no one is signed in, else filled from the sign-in. Filling ad-hoc text
+      // gives nothing away, since its author could type any IRI instead.
+      requireCallerForSlots(request, declaredReservedSlots(query));
       const executedQuery = applyExecutionArguments(query, {
         argumentSets: resolvedPayload.argumentSets,
         limits: resolvedPayload.limits,
         offsets: resolvedPayload.offsets,
+        caller: callerOfRequest(request),
       });
 
       if (recordPatch) {

@@ -105,6 +105,10 @@ export function planPromotion(
       return refusal(cell.id, `${label(cell)} is an update; a promoted group only reads.`);
     }
 
+    if (cell.kind === 'query' && (cell.graphs?.length ?? 0) > 0) {
+      return refusal(cell.id, `${label(cell)} runs over graphs; a query node in a group runs against a backend and takes no graph input.`);
+    }
+
     const upstream: RunCell[] = [];
     const refs: string[] = cellSlots(cell).flatMap((slot) => (slot.from === 'value' ? [slot.ref] : []));
     if (cell.kind === 'ruleset') {

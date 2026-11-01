@@ -71,6 +71,22 @@ const state = reactive<EtlJobsState>({
   concurrency: {},
 });
 
+/** What `POST /etl-jobs/:id/execute` answers with. */
+export interface EtlJobRunResult {
+  status: string;
+  executionId?: string;
+  outputFormat?: string;
+  outputLocation?: string;
+  /** The RDF itself, on a read-only deployment, which writes no file. */
+  output?: string;
+  errorMessage?: string;
+  totalChunks?: number;
+  completedChunks?: number;
+  totalRows?: number;
+  /** The row cap a read-only deployment held the run to, when it applied one. */
+  rowLimitApplied?: number;
+}
+
 async function requestWithEtag<T>(url: string, init?: RequestInit): Promise<{ data: T; etag: string | null }> {
   const response = await fetch(url, {
     ...init,
@@ -235,6 +251,21 @@ export function useEtlJobsStore() {
     return updated;
   }
 
+  /**
+   * Run a saved version of a job as it is stored: the request carries no SQL,
+   * only which version. On a read-only deployment the RDF comes back in
+   * `output` and nothing is kept (the API's `EtlService.executeEtlJob`).
+   */
+  async function executeEtlJob(
+    jobId: string,
+    input: { etlJobVersionId?: string; maxRows?: number } = {},
+  ): Promise<EtlJobRunResult> {
+    return await request<EtlJobRunResult>(
+      `${base()}/${encodeURIComponent(jobId)}/execute`,
+      { method: 'POST', body: JSON.stringify(input) },
+    );
+  }
+
   return {
     etlJobs: computed(() => state.items),
     loading: computed(() => state.loading),
@@ -249,5 +280,6 @@ export function useEtlJobsStore() {
     fetchColumnMappingVersion,
     createEtlJobVersion,
     annotateEtlJobVersion,
+    executeEtlJob,
   };
 }

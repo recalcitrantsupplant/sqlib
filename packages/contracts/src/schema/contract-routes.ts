@@ -989,6 +989,29 @@ export const benchmarkRouteSchemas = {
         ],
         "additionalProperties": false
       },
+      "422": {
+        "description": "Read-only deployment: the version is over a run cap.",
+        "type": "object",
+        "properties": {
+          "error": { "type": "string" },
+          "cap": { "type": "string" },
+          "limit": { "type": "integer" },
+          "planned": { "type": "integer" }
+        },
+        "required": ["error"],
+        "additionalProperties": false
+      },
+      "429": {
+        "description": "Read-only deployment: another benchmark run is in flight.",
+        "type": "object",
+        "properties": {
+          "error": { "type": "string" },
+          "cap": { "type": "string" },
+          "limit": { "type": "integer" }
+        },
+        "required": ["error"],
+        "additionalProperties": false
+      },
       "409": {
         "type": "object",
         "properties": {
@@ -2038,8 +2061,47 @@ export const executionDataGraphsJsonSchema = {
       "dataGraphInlineFormat": {
         "type": "string",
         "minLength": 1
+      },
+      "dataGraphId": {
+        "type": "string",
+        "minLength": 1,
+        "format": "iri"
+      },
+      "resultRef": {
+        "type": "string",
+        "minLength": 1
       }
     },
+    "additionalProperties": false
+  }
+} as const;
+
+/**
+ * Arguments passed by reference: a result this server kept for the caller
+ * (`keepResult`), with its columns renamed to a slot's variables.
+ */
+export const executionArgumentRefsJsonSchema = {
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "resultRef": { "type": "string", "minLength": 1 },
+      "columns": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "object",
+          "properties": {
+            "from": { "type": "string", "minLength": 1 },
+            "to": { "type": "string", "minLength": 1 }
+          },
+          "required": ["from", "to"],
+          "additionalProperties": false
+        }
+      },
+      "vars": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+    },
+    "required": ["resultRef", "columns"],
     "additionalProperties": false
   }
 } as const;
@@ -2091,6 +2153,8 @@ export const executionRouteSchemas = {
           }
         },
         "dataGraphs": executionDataGraphsJsonSchema,
+        "argumentRefs": executionArgumentRefsJsonSchema,
+        "keepResult": { "type": "boolean" },
         "defaultGraphs": datasetGraphsJsonSchema,
         "namedGraphs": datasetGraphsJsonSchema,
         "nodeDetail": {

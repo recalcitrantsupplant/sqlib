@@ -7,9 +7,20 @@ rail, at `/notebook` — and it replaced a screen that rendered every query in t
 library as a cell whether or not anyone had asked for it. The contents of the
 library are what you import here; what you write around them is the point.
 
-Notebooks are listed in the sidebar like every other asset the rail holds. They
-are kept in this browser (there is no server entity yet), autosave as you type,
-and travel as a file — see §4.
+Notebooks are listed in the sidebar like every other asset the rail holds, and
+they are kept the way a query is:
+
+- **Scratch.** **+ New** makes a notebook that lives only in this browser and
+  autosaves as you type. **Save** writes it to the library as v1.
+- **Saved.** A `Notebook` in the library, with immutable numbered versions
+  (`/notebooks` in the API). Typing autosaves a draft in this browser on top
+  of the saved version and never cuts a version; **Save** does, and
+  **Discard** puts the saved version back. The address carries the notebook
+  (`/notebook?library=…&notebook=…`), so a saved notebook can be linked to.
+  Who can read, save or delete it is decided by its library's grants, as for
+  every other library entity.
+
+A notebook also travels as a file — see §4.
 
 ## 1. What a cell is
 
@@ -76,20 +87,36 @@ What each wire can carry:
 - **Rows → a parameter slot** — supported.
 - **Graph → a rule set's base graph** — supported; the triples are sent as
   `dataGraphInline`.
-- **Graph → a query** — *not* supported. A query runs against a store, so RDF
-  only reaches one if it is materialized into a store that query also targets.
-  Save the graph and point a backend at it, or build a query group.
+- **Graph → a query** — supported. Press **Run over a graph** on a query cell
+  and pick a graph value above. The query then runs over the graphs it is
+  given and nothing else: the server loads them into one ephemeral store, and
+  no backend is used. The graphs go into the store's default graph, so two of
+  them give their union, and a `CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }`
+  query merges them into one value. A notebook with such a cell cannot be
+  promoted to a query group, because a group's query node runs against a
+  backend.
 
 Chaining is **by value**: a result comes back to the browser and goes out again
-in the next request. That is fine for the demonstrations a notebook is for, and
-it is the wrong shape for production — a pipeline that matters belongs in a
-query group, which the server runs in one call with no browser in the path.
+in the next request. A large value (64 KiB or more) is the exception. When a
+cell's result is read by a cell below, the run asks the server to keep a copy
+for a short time, and the next request names that copy instead of sending the
+content again. The copy is kept only in the server's memory, only for the user
+who ran the cell, and for 15 minutes after its last use. If the copy has gone,
+for example after a restart, the notebook sends the value by content instead,
+with no action from you.
+
+A notebook is still the wrong shape for production. A pipeline that matters
+belongs in a query group, which the server runs in one call with no browser in
+the path.
 
 Re-running a cell marks the cells below it **stale** rather than re-running
 them. The notebook says the result below came from an older input and leaves the
 decision to you.
 
 ## 4. Sharing a notebook
+
+A saved notebook is shared by its link. Anyone who can read the library opens
+it at its current version.
 
 **Export** writes a `.sqlibnb` file: a small JSON document of the title, the
 library it names, and the cells. No results — it is the story, not the run. It
@@ -159,10 +186,6 @@ to a value no cell above binds.
 
 ## 8. What is not here yet
 
-- No server-side notebook entity: a notebook lives in the browser and in the
-  file you export. There is no URL to share yet.
-- No pass-by-reference: a large value round-trips through the browser rather
-  than being captured server-side and passed by id.
-- No materialize cell, so graph → query needs a saved graph and a backend.
+- No `.ipynb` or HTML export rewrite yet.
 
-These are scoped in [the proposal](../proposals/notebook-cells.md).
+This is scoped in [the proposal](../proposals/notebook-cells.md).

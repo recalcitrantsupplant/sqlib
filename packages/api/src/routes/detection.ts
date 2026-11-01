@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
+import { callerOfRequest } from '../auth/caller.js';
 import type { FeatureFlags } from '@sparql-query-lib/types';
 import { getFeatureFlags } from '../config/featureFlags.js';
 import { SparqlQueryParser } from '../lib/parser.js';
@@ -205,6 +206,7 @@ export default async function (
             argumentSets: resolved.argumentSets,
             limits: resolved.limits,
             offsets: resolved.offsets,
+            caller: callerOfRequest(request),
           }),
           operation: operation === QueryTypeIri.update ? 'update' : 'query',
         });

@@ -42,6 +42,20 @@ const settle: PublishedToolSpec = {
   refusals: { proposed: 'Refused: {item} is not proposed.' },
 };
 
+/** A rule set, run on a pinned data graph unless the call sends RDF. */
+const neighbours: PublishedToolSpec = {
+  slug: 'people',
+  libraryId: 'urn:sqlib:library:people',
+  name: 'neighbours',
+  description: 'Who lives in the same city as whom.',
+  targetId: 'urn:sqlib:rule-set-version:neighbours-2',
+  targetKind: 'ruleSet',
+  readOnly: true,
+  params: {},
+  inputs: { tables: [], limits: [], offsets: [] },
+  ruleSet: { id: 'urn:sqlib:rule-set:neighbours', version: 2, dataGraphVersionId: 'urn:sqlib:data-graph-version:people-4' },
+};
+
 const running: Array<{ shutdown: () => Promise<void> }> = [];
 afterEach(async () => {
   while (running.length) await running.pop()!.shutdown();
@@ -50,7 +64,7 @@ afterEach(async () => {
 async function startHarness(mode: PublishedSurface['mode']) {
   const app = Fastify({ logger: false });
   const surface: PublishedSurface = {
-    catalogue: { specs: [byCity, settle], libraries: new Map([['people', { name: 'People', description: 'Who lives where.' }]]) },
+    catalogue: { specs: [byCity, settle, neighbours], libraries: new Map([['people', { name: 'People', description: 'Who lives where.' }]]) },
     mode,
   };
   app.decorate('sqlibPublished', surface);
@@ -61,6 +75,10 @@ async function startHarness(mode: PublishedSurface['mode']) {
           refused: [{ flag: 'proposed', message: 'Refused: urn:x is not proposed.' }],
         })
       : { received: request.body });
+  app.post('/rule-sets/:id/execute', async (request) => ({
+    ruleSet: (request.params as { id: string }).id,
+    received: request.body,
+  }));
 
   const built = await buildStreamableHttpMcpServer({
     fastifyInstance: app,
@@ -143,8 +161,9 @@ describe('published tools over MCP', { timeout: 30_000 }, () => {
   it('lists one library alone on /mcp/{slug}, under the tools\' own names', async () => {
     const base = await startHarness('both');
     const { init, tools, call } = await connect(`${base}/mcp/people`);
-    expect(tools.map((tool) => tool.name)).toEqual(['people-in-city', 'settle']);
+    expect(tools.map((tool) => tool.name)).toEqual(['people-in-city', 'settle', 'neighbours']);
     expect(init.result.instructions).toContain('Who lives where.');
+    expect(init.result.instructions).toContain('A rule set tool runs its rules');
 
     const refused = await call('people-in-city', {});
     expect(refused.error ?? refused.result?.isError).toBeTruthy();
@@ -160,6 +179,29 @@ describe('published tools over MCP', { timeout: 30_000 }, () => {
 
     const reading = await call('people-in-city', { city: ['Perth'] });
     expect(reading.result.isError).toBeUndefined();
+  });
+
+  it('runs a rule set tool on its pinned version, with the caller\'s RDF in place of its graph', async () => {
+    const base = await startHarness('both');
+    const { tools, call } = await connect(`${base}/mcp/people`);
+    expect(tools.find((tool) => tool.name === 'neighbours')?.annotations).toEqual({ readOnlyHint: true });
+
+    const pinned = await call('neighbours', {});
+    expect(pinned.result.structuredContent.body).toEqual({
+      ruleSet: 'urn:sqlib:rule-set:neighbours',
+      received: { version: 2, inferenceFormat: 'text/turtle', dataGraphVersionId: 'urn:sqlib:data-graph-version:people-4' },
+    });
+
+    const own = await call('neighbours', { data: '<urn:a> <urn:p> <urn:b> .' });
+    expect(own.result.structuredContent.body.received).toEqual({
+      version: 2,
+      inferenceFormat: 'text/turtle',
+      dataGraphInline: '<urn:a> <urn:p> <urn:b> .',
+      dataGraphInlineFormat: 'text/turtle',
+    });
+
+    const unknown = await call('neighbours', { dataGraphId: 'urn:other' });
+    expect(unknown.error ?? unknown.result?.isError).toBeTruthy();
   });
 
   it('keeps a session to the endpoint that opened it', async () => {
@@ -186,7 +228,7 @@ describe('published tools over MCP', { timeout: 30_000 }, () => {
   it('serves the published tools alone when MCP_CATALOGUE=published', async () => {
     const base = await startHarness('published');
     const { init, tools } = await connect(`${base}/mcp`);
-    expect(tools.map((tool) => tool.name)).toEqual(['people__people-in-city', 'people__settle']);
+    expect(tools.map((tool) => tool.name)).toEqual(['people__people-in-city', 'people__settle', 'people__neighbours']);
     expect(init.result.instructions ?? '').toBe('');
   });
 });

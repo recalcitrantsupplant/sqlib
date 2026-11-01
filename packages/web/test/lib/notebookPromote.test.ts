@@ -90,6 +90,15 @@ describe('planPromotion', () => {
     if (!forwardPlan.ok) expect(forwardPlan.message).toMatch(/no cell above/);
   });
 
+  it('refuses a query that runs over graphs, which a group node cannot', () => {
+    const graphed: QueryCell = { ...cell('m', 'merged'), graphs: [{ from: 'value', ref: 'g' }] };
+    const plan = planPromotion(notebookOf(cell('c', 'g'), graphed), new Map([
+      ['c', { ...select('c', []), resultKind: 'GRAPH' as const }],
+      ['m', { ...select('m', []), resultKind: 'GRAPH' as const }],
+    ]));
+    expect(plan).toMatchObject({ ok: false, cellId: 'm' });
+  });
+
   it('hands a CONSTRUCT to a rule set over RDF and returns the rule set\'s graph', () => {
     const rules: RuleSetCell = { kind: 'ruleset', id: 'r', ruleSet: 'urn:rs:r', out: 'closure', inputGraph: { from: 'value', ref: 'graph' } };
     const plan = planPromotion(notebookOf(cell('c', 'graph'), rules), new Map<string, PromotionTarget>([

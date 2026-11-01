@@ -265,6 +265,18 @@ const MANIFEST: Record<string, Protection> = {
   'GET /tuple-sets/:id/versions/:version': 'read',
   'PATCH /tuple-sets/:id/versions/:version': 'write',
   'DELETE /tuple-sets/:id/versions/:version': 'delete',
+
+  /* Notebooks: the versioned-entity routes, guarded like data graphs. */
+  'GET /notebooks': 'readable-listing',
+  'POST /notebooks': 'write-from-body',
+  'GET /notebooks/:id': 'read',
+  'PUT /notebooks/:id': 'write',
+  'DELETE /notebooks/:id': 'delete',
+  'GET /notebooks/:id/versions': 'read',
+  'POST /notebooks/:id/versions': 'write',
+  'GET /notebooks/:id/versions/:version': 'read',
+  'PATCH /notebooks/:id/versions/:version': 'write',
+  'DELETE /notebooks/:id/versions/:version': 'delete',
   /*
    * Exempt, and correctly: both parse a string from the body and store
    * nothing. They are the reason `exemptSuffixes` exists, and the contrast
@@ -824,6 +836,7 @@ const PLUGINS: ReadonlyArray<[specifier: string, prefix: string]> = [
   ['../../src/routes/rules.js', '/rules'],
   ['../../src/routes/data-blocks.js', '/data-blocks'],
   ['../../src/routes/data-graphs.js', '/data-graphs'],
+  ['../../src/routes/notebooks.js', '/notebooks'],
   ['../../src/routes/etl-jobs.js', '/etl-jobs'],
   ['../../src/routes/argument-sets.js', '/argument-sets'],
   ['../../src/routes/patches.js', '/patches'],

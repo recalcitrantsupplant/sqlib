@@ -451,6 +451,10 @@ export const queryversionSchema = {
                 "type": "string",
                 "minLength": 1
               }
+            },
+            "dataGraphId": {
+              "type": "string",
+              "minLength": 1
             }
           },
           "required": [
@@ -2212,6 +2216,120 @@ export const limitparameterSchema = {
   ]
 } as const;
 
+export const notebookSchema = {
+  "$id": "notebook",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "iri"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string",
+      "nullable": true
+    },
+    "currentVersion": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true
+    },
+    "currentVersionNumber": {
+      "type": "integer",
+      "readOnly": true,
+      "nullable": true
+    },
+    "isPartOf": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "iri"
+      },
+      "minItems": 1
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "iri"
+      },
+      "nullable": true
+    },
+    "dateCreated": {
+      "type": "string",
+      "format": "date-time",
+      "readOnly": true,
+      "nullable": true
+    },
+    "dateModified": {
+      "type": "string",
+      "format": "date-time",
+      "readOnly": true,
+      "nullable": true
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "isPartOf"
+  ]
+} as const;
+
+export const notebookversionSchema = {
+  "$id": "notebookversion",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "iri"
+    },
+    "isPartOf": {
+      "type": "string",
+      "format": "iri"
+    },
+    "version": {
+      "type": "integer"
+    },
+    "immutable": {
+      "type": "boolean",
+      "nullable": true
+    },
+    "contentString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "byteSize": {
+      "type": "integer",
+      "nullable": true
+    },
+    "comment": {
+      "type": "string",
+      "nullable": true
+    },
+    "dateCreated": {
+      "type": "string",
+      "format": "date-time",
+      "readOnly": true,
+      "nullable": true
+    },
+    "dateModified": {
+      "type": "string",
+      "format": "date-time",
+      "readOnly": true,
+      "nullable": true
+    }
+  },
+  "required": [
+    "id",
+    "isPartOf",
+    "version",
+    "contentString"
+  ]
+} as const;
+
 export const offsetparameterSchema = {
   "$id": "offsetparameter",
   "type": "object",
@@ -2625,6 +2743,10 @@ export const querygroupversionSchema = {
                 "type": "string",
                 "minLength": 1
               }
+            },
+            "dataGraphId": {
+              "type": "string",
+              "minLength": 1
             }
           },
           "required": [
@@ -3120,6 +3242,87 @@ export const rulesetversionSchema = {
       "format": "date-time",
       "readOnly": true,
       "nullable": true
+    },
+    "tool": {
+      "title": "PublishedTool",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            },
+            "description": {
+              "type": "string",
+              "minLength": 1
+            },
+            "params": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "iri",
+                      "string",
+                      "langString",
+                      "integer",
+                      "decimal",
+                      "boolean",
+                      "date",
+                      "dateTime",
+                      "term"
+                    ]
+                  },
+                  "required": {
+                    "type": "boolean"
+                  },
+                  "list": {
+                    "type": "boolean"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "refusals": {
+              "type": "object",
+              "propertyNames": {
+                "pattern": "^[A-Za-z0-9_]{1,64}$"
+              },
+              "additionalProperties": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "dataGraphId": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "name",
+            "description"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "boolean",
+          "enum": [
+            false
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "required": [
@@ -4392,6 +4595,30 @@ export interface LimitParameterRestApi {
   defaultValue?: number | null;
 }
 
+export interface NotebookRestApi {
+  id: string;
+  name: string;
+  description?: string | null;
+  currentVersion?: string | null;
+  currentVersionNumber?: number | null;
+  isPartOf: string[];
+  tags?: string[] | null;
+  dateCreated?: string | null;
+  dateModified?: string | null;
+}
+
+export interface NotebookVersionRestApi {
+  id: string;
+  isPartOf: string;
+  version: number;
+  immutable?: boolean | null;
+  contentString: string;
+  byteSize?: number | null;
+  comment?: string | null;
+  dateCreated?: string | null;
+  dateModified?: string | null;
+}
+
 export interface OffsetParameterRestApi {
   id: string;
   name: string;
@@ -4564,6 +4791,7 @@ export interface RuleSetVersionRestApi {
   createdBy?: string | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  tool?: string;
 }
 
 export interface RuleVersionRestApi {

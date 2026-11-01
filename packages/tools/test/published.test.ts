@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
   PublishedToolArgumentError,
   buildPublishedExecuteBody,
+  buildPublishedRequest,
   checkToolObject,
   defaultToolObject,
   prefixedToolName,
+  publishedHttpMethod,
   publishedInputSchema,
   publishedOpenApiDocument,
   publishedToolDefinition,
@@ -262,5 +264,62 @@ describe('the HTTP door', () => {
     };
     expect(Object.keys(document.paths['/tools/pm/record-decision'])).toEqual(['post']);
     expect(document.paths['/tools/pm/list-decisions'].get.parameters?.map(p => p.name)).toContain('affects');
+  });
+});
+
+describe('rule sets', () => {
+  const neighbours: PublishedToolSpec = {
+    slug: 'people',
+    libraryId: 'urn:sqlib:library:people',
+    name: 'neighbours',
+    description: 'Who lives in the same city as whom.',
+    targetId: 'urn:sqlib:rule-set-version:neighbours-2',
+    targetKind: 'ruleSet',
+    readOnly: true,
+    params: {},
+    inputs: { tables: [], limits: [], offsets: [] },
+    ruleSet: { id: 'urn:sqlib:rule-set:neighbours', version: 2, dataGraphVersionId: 'urn:sqlib:data-graph-version:people-4' },
+  };
+
+  it('posts the pinned version to the rule set, on the pinned graph unless the call sends data', () => {
+    expect(buildPublishedRequest(neighbours, {})).toEqual({
+      method: 'POST',
+      url: '/rule-sets/urn%3Asqlib%3Arule-set%3Aneighbours/execute',
+      headers: { 'content-type': 'application/json' },
+      payload: { version: 2, inferenceFormat: 'text/turtle', dataGraphVersionId: 'urn:sqlib:data-graph-version:people-4' },
+    });
+    expect(buildPublishedRequest(neighbours, { data: '<a:x> <a:p> <a:y> .', format: 'application/n-triples' }).payload).toEqual({
+      version: 2,
+      inferenceFormat: 'text/turtle',
+      dataGraphInline: '<a:x> <a:p> <a:y> .',
+      dataGraphInlineFormat: 'application/n-triples',
+    });
+    const unpinned = { ...neighbours, ruleSet: { id: 'urn:sqlib:rule-set:neighbours', version: 2 } };
+    expect(buildPublishedRequest(unpinned, {}).payload).toEqual({ version: 2, inferenceFormat: 'text/turtle' });
+  });
+
+  it('takes data and format only, and refuses a format with no data', () => {
+    const schema = publishedInputSchema(neighbours);
+    expect(Object.keys(schema.properties as object)).toEqual(['data', 'format']);
+    expect(schema.additionalProperties).toBe(false);
+    expect(() => buildPublishedRequest(neighbours, { dataGraphId: 'urn:x' })).toThrow(PublishedToolArgumentError);
+    expect(() => buildPublishedRequest(neighbours, { format: 'text/turtle' })).toThrow(/needs "data"/);
+    expect(() => buildPublishedRequest(neighbours, { data: 'x', format: 'text/csv' })).toThrow(/not one of/);
+  });
+
+  it('is POST over HTTP, though it only reads', () => {
+    expect(publishedHttpMethod(neighbours)).toBe('POST');
+    expect(publishedToolDefinition(neighbours).annotations).toEqual({ readOnlyHint: true });
+  });
+
+  it('checks the tool object: no params, no refusals, and a data graph only here', () => {
+    const none = { tables: [], limits: [], offsets: [] };
+    expect(checkToolObject({ name: 'n', description: 'd', dataGraphId: 'urn:g' }, none, { targetKind: 'ruleSet' })).toBeNull();
+    expect(checkToolObject({ name: 'n', description: 'd', params: { x: { kind: 'string' } } }, none, { targetKind: 'ruleSet' }))
+      .toMatch(/takes no parameters/);
+    expect(checkToolObject({ name: 'n', description: 'd', refusals: { a: 'no' } }, none, { targetKind: 'ruleSet' }))
+      .toMatch(/^tool\.refusals/);
+    expect(checkToolObject({ name: 'n', description: 'd', dataGraphId: 'urn:g' }, none, { targetKind: 'query' }))
+      .toMatch(/^tool\.dataGraphId/);
   });
 });

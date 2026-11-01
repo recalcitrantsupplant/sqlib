@@ -14,6 +14,12 @@ import {
   MAX_TUPLE_SET_LIBRARY_BYTES,
   MAX_TUPLE_SET_VERSION_BYTES,
 } from '../lib/TupleSetVersionWriter.js';
+import {
+  readOnlyBenchDeadlineMs,
+  readOnlyBenchMaxConcurrency,
+  readOnlyBenchMaxRequests,
+  readOnlyEtlMaxRows,
+} from '../config/executionLimits.js';
 
 export function getHealthPayload() {
   const cacheStats = memoryCacheManager.getStats();
@@ -51,6 +57,20 @@ export function getHealthPayload() {
       tupleSetVersionBytes: MAX_TUPLE_SET_VERSION_BYTES,
       tupleSetLibraryBytes: MAX_TUPLE_SET_LIBRARY_BYTES,
     },
+    /*
+     * What a read-only deployment lets one visitor's run cost
+     * (`config/executionLimits.ts`), so the Bench and ETL screens can say a
+     * version is over a cap instead of offering a Run the server will refuse.
+     * Null on a writable deployment, where none of them applies.
+     */
+    readOnlyRunLimits: isReadOnlyDeployment()
+      ? {
+          benchMaxRequests: readOnlyBenchMaxRequests(),
+          benchMaxConcurrency: readOnlyBenchMaxConcurrency(),
+          benchDeadlineMs: readOnlyBenchDeadlineMs(),
+          etlMaxRows: readOnlyEtlMaxRows(),
+        }
+      : null,
   };
 }
 
@@ -98,6 +118,16 @@ const healthResponseSchema = {
         'tupleSetVersionBytes',
         'tupleSetLibraryBytes',
       ],
+    },
+    readOnlyRunLimits: {
+      type: ['object', 'null'],
+      properties: {
+        benchMaxRequests: { type: 'integer' },
+        benchMaxConcurrency: { type: 'integer' },
+        benchDeadlineMs: { type: 'integer' },
+        etlMaxRows: { type: 'integer' },
+      },
+      required: ['benchMaxRequests', 'benchMaxConcurrency', 'benchDeadlineMs', 'etlMaxRows'],
     },
   },
   required: ['status', 'timestamp', 'uptimeSeconds', 'auth', 'readOnly', 'cache', 'limits'],

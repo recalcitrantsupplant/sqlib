@@ -29,10 +29,19 @@ export {
 } from './sparql-terms.js';
 
 export {
+  AUTH_GROUP_VARIABLE,
+  AUTH_USER_VARIABLE,
+  RESERVED_SLOT_VARIABLES,
+  ReservedSlotError,
   applyTemplateArguments,
   assignArgumentSets,
   completeArgumentSets,
   describeSlot,
+  isReservedSlotVariable,
+  mayDeclareReservedSlot,
+  withCallerArguments,
+  type CallerIdentity,
+  type SubstitutionOptions,
   type ArgumentRow,
   type EmptyArgumentMode,
   type QueryTemplate,

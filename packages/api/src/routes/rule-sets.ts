@@ -66,6 +66,9 @@ import {
   loadRuleVersions,
   toDataBlockText,
 } from '../lib/ruleSetDocument.js';
+import { ValidationError } from '../lib/validationError.js';
+import { getResultCache } from '../lib/resultCache.js';
+import { resolveGraphRef, resultOwner, ResultRefError } from '../lib/resultRefs.js';
 
 type AnyRecord = Record<string, unknown>;
 
@@ -154,6 +157,8 @@ const createRuleSetVersionBodySchema = {
      * then reference. Honoured only under `rulesAllowInvalidSave`.
      */
     allowInvalidSave: { type: 'boolean', nullable: true },
+    /* The tool this version publishes as; left out, the previous version's. */
+    tool: rulesetversionSchema.properties.tool,
   },
   additionalProperties: false,
 } as const;
@@ -206,6 +211,13 @@ const executeRuleSetBodySchema = {
       nullable: true,
     },
     dataGraphInlineFormat: { type: 'string', enum: [...DATA_GRAPH_FORMATS], nullable: true },
+    /*
+     * The base graph by reference: a result this server kept for the caller
+     * (`keepResult` on `/execute` or here). In place of the three above.
+     */
+    dataGraphResultRef: { type: 'string', nullable: true },
+    /* Keep the inferred graph for a while; its handle comes back in `Sqlib-Result-Ref`. */
+    keepResult: { type: 'boolean', nullable: true },
   },
   additionalProperties: false,
 } as const;
@@ -362,6 +374,7 @@ export default async function (fastify: FastifyInstance) {
         hasDataBlock: (body.hasDataBlock as string[] | null | undefined) ?? [],
         immutable: (body.immutable as boolean | null | undefined) ?? undefined,
         allowInvalidSave: (body.allowInvalidSave as boolean | null | undefined) ?? undefined,
+        ...(Object.prototype.hasOwnProperty.call(body, 'tool') ? { tool: body.tool } : {}),
       }, { request });
       return { created: created as unknown as StoredEntity };
     },
@@ -418,11 +431,22 @@ export default async function (fastify: FastifyInstance) {
       // `{ request }` because the guard above checked the *rule set's* library
       // and `dataGraphVersionId` names a graph that need not live in it: the
       // second entity this body names, and the caller is reading its triples.
-      dataGraph = resolveDataGraphInput(body, { request });
+      if (body.dataGraphResultRef) {
+        if (body.dataGraphVersionId || body.dataGraphId || body.dataGraphInline) {
+          return reply.status(400).send({ error: 'Give the base graph one way: dataGraphResultRef, or one of the other three.' });
+        }
+        const kept = resolveGraphRef(resultOwner(request), body.dataGraphResultRef);
+        dataGraph = { content: kept.dataGraphInline, format: kept.dataGraphInlineFormat, source: 'inline', tripleCount: 0 };
+      } else {
+        dataGraph = resolveDataGraphInput(body, { request });
+      }
       tupleSeeds = resolveTupleSeedInput(body.tuples);
     } catch (error) {
-      if (error instanceof DataGraphContentError || error instanceof TupleSeedInputError) {
+      if (error instanceof DataGraphContentError || error instanceof TupleSeedInputError || error instanceof ValidationError) {
         return reply.status(400).send({ error: error.message });
+      }
+      if (error instanceof ResultRefError) {
+        return reply.status(error.statusCode).send({ error: error.message });
       }
       throw error;
     }
@@ -440,6 +464,12 @@ export default async function (fastify: FastifyInstance) {
     };
     const executor = new RuleSetExecutor();
     const result = await executor.execute(resolution.version, executionOptions).finally(disconnect.dispose);
+
+    // The final graph, kept by reference for the next request that reads it.
+    if (body.keepResult && result.finalGraphNQuads) {
+      const handle = getResultCache().put(resultOwner(request), result.finalGraphNQuads, 'application/n-quads');
+      if (handle) reply.header('Sqlib-Result-Ref', handle);
+    }
 
     return reply.send(result);
   }));
@@ -767,6 +797,8 @@ export default async function (fastify: FastifyInstance) {
           comment: { type: 'string', nullable: true },
           tuples: { type: 'boolean' },
           tupleSeeds: { type: 'string', nullable: true },
+          /* The tool the new version publishes as; left out, the previous version's. */
+          tool: rulesetversionSchema.properties.tool,
         },
         required: ['srl'],
       }),
@@ -886,6 +918,7 @@ export default async function (fastify: FastifyInstance) {
       tupleSeeds: seedDocument,
       tuplesEnabled: tuples,
       srlDocument: body.srl,
+      ...(Object.prototype.hasOwnProperty.call(body, 'tool') ? { tool: body.tool } : {}),
     }, { request });
 
     return reply.send({

@@ -315,6 +315,25 @@ describe('EtlService.executeEtlJob on a read-only deployment', () => {
     expect(result.outputLocation).toBeUndefined();
   });
 
+  it('holds a run with no maxRows to the read-only row cap, and says so', async () => {
+    process.env.SQLIB_READ_ONLY_ETL_MAX_ROWS = '4';
+    chunksOf(3, 2);
+    try {
+      const result = await service.executeEtlJob('job-1', {}, { internal: true });
+      expect(result.rowLimitApplied).toBe(4);
+      expect(result.totalRows).toBeLessThanOrEqual(4);
+    } finally {
+      delete process.env.SQLIB_READ_ONLY_ETL_MAX_ROWS;
+    }
+  });
+
+  it('runs a maxRows within the cap as asked, with no note', async () => {
+    chunksOf(3, 2);
+    const result = await service.executeEtlJob('job-1', { maxRows: 2 }, { internal: true });
+    expect(result.rowLimitApplied).toBeUndefined();
+    expect(result.totalRows).toBe(2);
+  });
+
   it('writes nothing of its own: no run in the log, no file', async () => {
     chunksOf(3, 2);
 

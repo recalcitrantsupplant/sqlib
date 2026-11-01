@@ -51,3 +51,49 @@ export function maxRuleIterations(): number {
 export function etlNodeMaxRows(): number {
   return positiveInteger('SQLIB_ETL_NODE_MAX_ROWS', 1_000_000);
 }
+
+/*
+ * Read-only benchmark runs (`config/readOnly.ts`). A read-only deployment runs a
+ * seeded, frozen benchmark version for any visitor and keeps nothing, so these
+ * bound what one visitor's click may cost the host. They are read only on a
+ * read-only deployment; a writable one runs a version as its plan says.
+ */
+
+/**
+ * `SQLIB_READ_ONLY_BENCH_MAX_REQUESTS`: the most requests one read-only run may
+ * send — measured tasks plus warmups. A version over it is refused before any
+ * request goes out, rather than clamped: a clamped benchmark reports numbers
+ * for a plan nobody saved.
+ */
+export function readOnlyBenchMaxRequests(): number {
+  return positiveInteger('SQLIB_READ_ONLY_BENCH_MAX_REQUESTS', 200);
+}
+
+/** `SQLIB_READ_ONLY_BENCH_MAX_CONCURRENCY`: the most a version's `maxConcurrency` may ask for. */
+export function readOnlyBenchMaxConcurrency(): number {
+  return positiveInteger('SQLIB_READ_ONLY_BENCH_MAX_CONCURRENCY', 2);
+}
+
+/**
+ * `SQLIB_READ_ONLY_BENCH_DEADLINE_MS`: the wall-clock limit for a whole
+ * read-only run. When it passes, no further task starts and each attempt in
+ * flight is aborted; the run reports what it finished.
+ */
+export function readOnlyBenchDeadlineMs(): number {
+  return positiveInteger('SQLIB_READ_ONLY_BENCH_DEADLINE_MS', 60_000);
+}
+
+/** `SQLIB_READ_ONLY_BENCH_CONCURRENT_RUNS`: read-only runs allowed at once on the deployment. */
+export function readOnlyBenchConcurrentRuns(): number {
+  return positiveInteger('SQLIB_READ_ONLY_BENCH_CONCURRENT_RUNS', 1);
+}
+
+/**
+ * `SQLIB_READ_ONLY_ETL_MAX_ROWS`: the most source rows a read-only ETL job run
+ * may read. A request asking for more, or for no limit, gets this many, and the
+ * response says so: a visitor running part of a source is asking for a
+ * sample, so a clamp answers the question they asked.
+ */
+export function readOnlyEtlMaxRows(): number {
+  return positiveInteger('SQLIB_READ_ONLY_ETL_MAX_ROWS', 100_000);
+}
