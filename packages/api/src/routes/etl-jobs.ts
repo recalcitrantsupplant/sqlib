@@ -576,6 +576,7 @@ export default async function etlJobRoutes(fastify: FastifyInstance) {
             totalChunks: { type: 'integer' },
             completedChunks: { type: 'integer' },
             totalRows: { type: 'integer' },
+            rowLimitApplied: { type: 'integer' },
           },
         },
         400: {
