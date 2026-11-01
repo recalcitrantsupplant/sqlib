@@ -94,6 +94,13 @@ export const LIBRARY_SLUG_PATTERN = '^[a-z0-9-]+$';
 export const BACKEND_ARGUMENT = 'backendId';
 
 /**
+ * The caller's identity slots. sqlib fills them from the sign-in, so a tool
+ * never offers them as parameters. The same names as the runtime's
+ * `RESERVED_SLOT_VARIABLES`; this package does not depend on the runtime.
+ */
+export const CALLER_SLOT_VARIABLES: readonly string[] = ['authUser', 'authGroup'];
+
+/**
  * How `/mcp` names a published tool, which lists every library's tools at once.
  *
  * `__` because MCP clients (ChatGPT among them) accept only
@@ -201,6 +208,9 @@ export function checkToolObject(
   const variables = new Set(inputs.tables.flat());
   const pages = new Set([...inputs.limits, ...inputs.offsets]);
   for (const [key, spec] of Object.entries(tool.params ?? {})) {
+    if (CALLER_SLOT_VARIABLES.includes(key)) {
+      return `tool.params.${key}: ?${key} is filled from the caller's sign-in, so a tool cannot offer it as a parameter`;
+    }
     if (options.targetKind === 'query' && key === BACKEND_ARGUMENT) {
       return `tool.params.${key}: "${BACKEND_ARGUMENT}" is reserved for the backend a published query runs on`;
     }
@@ -253,7 +263,9 @@ export function defaultToolObject(
 ): ToolObject {
   const name = safeToolName(entity.name ?? '');
   const params: Record<string, ToolParamSpec> = {};
-  for (const variable of inputs.tables.flat()) params[variable] = { kind: 'term' };
+  for (const variable of inputs.tables.flat()) {
+    if (!CALLER_SLOT_VARIABLES.includes(variable)) params[variable] = { kind: 'term' };
+  }
   for (const page of [...inputs.limits, ...inputs.offsets]) params[page] = { kind: 'integer' };
   return {
     name,

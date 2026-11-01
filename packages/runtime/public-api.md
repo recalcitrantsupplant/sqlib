@@ -6,7 +6,7 @@
      CI fails when this file and the built declarations disagree, so every
      addition, removal or signature change arrives as a reviewable diff. -->
 
-Version `0.1.0`. 3 entry points, 170 exported names.
+Version `0.1.0`. 3 entry points, 188 exported names.
 
 Private and protected class members are omitted: a consumer cannot reach them.
 Doc comments are omitted too — they are in the source, and repeating them here
@@ -14,7 +14,7 @@ would make every wording change a surface diff.
 
 ## `@sparql-query-lib/runtime`
 
-79 exports, from `index.d.ts`.
+88 exports, from `index.d.ts`.
 
 ### `Abbreviation` — interface, from `describe-term`
 
@@ -29,7 +29,7 @@ interface Abbreviation {
 ### `applyTemplateArguments` — function, from `query-template`
 
 ```ts
-declare function applyTemplateArguments(template: QueryTemplate, argumentSets: TemplateArgumentSet[], slotPolicies?: readonly SlotPolicy[]): string;
+declare function applyTemplateArguments(template: QueryTemplate, argumentSets: TemplateArgumentSet[], slotPolicies?: readonly SlotPolicy[], options?: SubstitutionOptions): string;
 ```
 
 ### `ArgumentRow` — type, from `query-template`
@@ -71,6 +71,27 @@ declare function assignArgumentSets<T extends {
 };
 ```
 
+### `AUTH_GROUP_VARIABLE` — const, from `query-template`
+
+```ts
+declare const AUTH_GROUP_VARIABLE = "authGroup";
+```
+
+### `AUTH_USER_VARIABLE` — const, from `query-template`
+
+```ts
+declare const AUTH_USER_VARIABLE = "authUser";
+```
+
+### `CallerIdentity` — interface, from `query-template`
+
+```ts
+interface CallerIdentity {
+    user: string;
+    groups: readonly string[];
+}
+```
+
 ### `CallPayload` — interface, from `library`
 
 ```ts
@@ -85,7 +106,7 @@ interface CallPayload {
 ### `completeArgumentSets` — function, from `query-template`
 
 ```ts
-declare function completeArgumentSets(slotVars: readonly (readonly string[])[], argumentSets: readonly TemplateArgumentSet[], slotPolicies?: readonly SlotPolicy[]): TemplateArgumentSet[];
+declare function completeArgumentSets(slotVars: readonly (readonly string[])[], suppliedSets: readonly TemplateArgumentSet[], slotPolicies?: readonly SlotPolicy[], options?: SubstitutionOptions): TemplateArgumentSet[];
 ```
 
 ### `datasetParameters` — function, from `executor`
@@ -440,6 +461,12 @@ declare class InvalidTermError extends Error {
 declare function iri(value: string): TermValue;
 ```
 
+### `isReservedSlotVariable` — function, from `query-template`
+
+```ts
+declare function isReservedSlotVariable(name: string): boolean;
+```
+
 ### `isSafeVariableName` — function, from `sparql-terms`
 
 ```ts
@@ -465,6 +492,12 @@ declare function literal(value: string, options?: {
     datatype?: string;
     lang?: string;
 }): TermValue;
+```
+
+### `mayDeclareReservedSlot` — function, from `query-template`
+
+```ts
+declare function mayDeclareReservedSlot(queryString: string): boolean;
 ```
 
 ### `normalizeArguments` — function, from `arguments`
@@ -586,6 +619,20 @@ interface RdfPayload {
 declare function renderValuesBlock(vars: string[], rows: Array<Record<string, TermValue | null | undefined>>, argSetIndex: number, prefixes?: PrefixTable): string;
 ```
 
+### `RESERVED_SLOT_VARIABLES` — const, from `query-template`
+
+```ts
+declare const RESERVED_SLOT_VARIABLES: readonly string[];
+```
+
+### `ReservedSlotError` — class, from `query-template`
+
+```ts
+declare class ReservedSlotError extends Error {
+    constructor(message: string);
+}
+```
+
 ### `rewriteLimitOffsetClauses` — function, from `limit-offset`
 
 ```ts
@@ -665,6 +712,15 @@ interface SparqlSelectResults {
 
 ```ts
 declare function substituteLimitOffset(queryString: string, limitParams?: readonly ExecutionParameter[], offsetParams?: readonly ExecutionParameter[]): string;
+```
+
+### `SubstitutionOptions` — interface, from `query-template`
+
+```ts
+interface SubstitutionOptions {
+    caller?: CallerIdentity | null;
+    verifyingTemplate?: boolean;
+}
 ```
 
 ### `TemplateArgumentSet` — interface, from `query-template`
@@ -757,6 +813,12 @@ interface WireArgumentSet {
 }
 ```
 
+### `withCallerArguments` — function, from `query-template`
+
+```ts
+declare function withCallerArguments(slotVars: readonly (readonly string[])[], argumentSets: readonly TemplateArgumentSet[], options: SubstitutionOptions): TemplateArgumentSet[];
+```
+
 ## `@sparql-query-lib/runtime/args-element`
 
 6 exports, from `args-element.d.ts`.
@@ -815,6 +877,6 @@ declare class SqlibArgsElement extends ArgsElementBase {
 
 ## `@sparql-query-lib/runtime/browser`
 
-85 exports, from `browser.d.ts`.
+94 exports, from `browser.d.ts`.
 
-85 of them are re-exported unchanged from an entry point above: `Abbreviation`, `applyTemplateArguments`, `ARGS_ELEMENT_STYLES`, `ArgsElementBase`, `ArgsPayload`, `ArgsSignature`, `ArgumentRow`, `ArgumentSetInput`, `assertPageParameterValue`, `assertValidBundle`, `assignArgumentSets`, `CallPayload`, `completeArgumentSets`, `datasetParameters`, `defineArgsElement`, `describeSlot`, `describeTerm`, `DescribeTermOptions`, `EMPTY_DATASET_GRAPH`, `EmptyArgumentMode`, `escapeLiteralLexical`, `ExecutionParameter`, `ExecutionRequest`, `ExecutionResult`, `Executor`, `ExportBundle`, `ExportedEtlColumn`, `ExportedEtlJob`, `ExportedGroup`, `ExportedGroupEdge`, `ExportedGroupNode`, `ExportedQuery`, `ExportedQueryType`, `ExportedRuleSet`, `findLimitOffsetClauses`, `fromBundle`, `FromBundleOptions`, `GroupCallPayload`, `GroupExternalInput`, `GroupHandle`, `GroupRunResult`, `GroupVariableMapping`, `hashTemplateText`, `httpExecutor`, `HttpExecutorOptions`, `InvalidArgumentError`, `InvalidBundleError`, `InvalidParameterError`, `InvalidTermError`, `iri`, `isSafeVariableName`, `LimitOffsetClause`, `literal`, `normalizeArguments`, `PageParameterSpan`, `ParameterInput`, `PrefixTable`, `prefixTableAbbreviator`, `QueryCallError`, `QueryExample`, `QueryHandle`, `QueryLibrary`, `QueryTemplate`, `RdfPayload`, `renderValuesBlock`, `rewriteLimitOffsetClauses`, `serializeIri`, `serializeTerm`, `serializeVariable`, `SlotPolicy`, `SparqlAskResults`, `SparqlDataset`, `SparqlEndpointError`, `SparqlSelectResults`, `SqlibArgsElement`, `substituteLimitOffset`, `TemplateArgumentSet`, `TemplateSlot`, `TermDescription`, `TermValue`, `toExecutionParameters`, `TypedExportBundle`, `UpdateRequest`, `verifyBundleIntegrity`, `WireArgumentSet`.
+94 of them are re-exported unchanged from an entry point above: `Abbreviation`, `applyTemplateArguments`, `ARGS_ELEMENT_STYLES`, `ArgsElementBase`, `ArgsPayload`, `ArgsSignature`, `ArgumentRow`, `ArgumentSetInput`, `assertPageParameterValue`, `assertValidBundle`, `assignArgumentSets`, `AUTH_GROUP_VARIABLE`, `AUTH_USER_VARIABLE`, `CallerIdentity`, `CallPayload`, `completeArgumentSets`, `datasetParameters`, `defineArgsElement`, `describeSlot`, `describeTerm`, `DescribeTermOptions`, `EMPTY_DATASET_GRAPH`, `EmptyArgumentMode`, `escapeLiteralLexical`, `ExecutionParameter`, `ExecutionRequest`, `ExecutionResult`, `Executor`, `ExportBundle`, `ExportedEtlColumn`, `ExportedEtlJob`, `ExportedGroup`, `ExportedGroupEdge`, `ExportedGroupNode`, `ExportedQuery`, `ExportedQueryType`, `ExportedRuleSet`, `findLimitOffsetClauses`, `fromBundle`, `FromBundleOptions`, `GroupCallPayload`, `GroupExternalInput`, `GroupHandle`, `GroupRunResult`, `GroupVariableMapping`, `hashTemplateText`, `httpExecutor`, `HttpExecutorOptions`, `InvalidArgumentError`, `InvalidBundleError`, `InvalidParameterError`, `InvalidTermError`, `iri`, `isReservedSlotVariable`, `isSafeVariableName`, `LimitOffsetClause`, `literal`, `mayDeclareReservedSlot`, `normalizeArguments`, `PageParameterSpan`, `ParameterInput`, `PrefixTable`, `prefixTableAbbreviator`, `QueryCallError`, `QueryExample`, `QueryHandle`, `QueryLibrary`, `QueryTemplate`, `RdfPayload`, `renderValuesBlock`, `RESERVED_SLOT_VARIABLES`, `ReservedSlotError`, `rewriteLimitOffsetClauses`, `serializeIri`, `serializeTerm`, `serializeVariable`, `SlotPolicy`, `SparqlAskResults`, `SparqlDataset`, `SparqlEndpointError`, `SparqlSelectResults`, `SqlibArgsElement`, `substituteLimitOffset`, `SubstitutionOptions`, `TemplateArgumentSet`, `TemplateSlot`, `TermDescription`, `TermValue`, `toExecutionParameters`, `TypedExportBundle`, `UpdateRequest`, `verifyBundleIntegrity`, `WireArgumentSet`, `withCallerArguments`.

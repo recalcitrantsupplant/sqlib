@@ -1,4 +1,5 @@
 import { ArgumentSetService } from './ArgumentSetService.js';
+import { callerOfScope } from '../auth/caller.js';
 import type { BenchmarkSubjectSpec } from './BenchmarkExperimentService.js';
 import { assertBenchmarkVersionDependencies, parseSubjectSpecs } from './BenchmarkExperimentService.js';
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
@@ -86,6 +87,75 @@ type BenchmarkRunResult = {
   nodeObservations: PersistedBenchmarkNodeObservation[];
   iterationObservations: PersistedBenchmarkIterationObservation[];
 };
+
+/**
+ * Where a run's records go.
+ *
+ * Every record a run makes passes through here, at the point the run makes it,
+ * so a sink that keeps nothing changes what is stored and nothing else: the
+ * scheduling, retries and the result returned are the same either way.
+ */
+export interface BenchmarkRecordSink {
+  insertRun(run: PersistedBenchmarkRun): Promise<void>;
+  updateRun(id: string, patch: Partial<PersistedBenchmarkRun>): Promise<void>;
+  insertNodeRun(run: PersistedBenchmarkNodeRun): Promise<void>;
+  updateNodeRun(id: string, patch: { endedAt: string }): Promise<void>;
+  insertIterationRun(run: PersistedBenchmarkIterationRun): Promise<void>;
+  updateIterationRun(id: string, patch: { endedAt: string }): Promise<void>;
+  insertObservation(observation: PersistedBenchmarkObservation): Promise<void>;
+  insertNodeObservation(observation: PersistedBenchmarkNodeObservation): Promise<void>;
+  insertIterationObservation(observation: PersistedBenchmarkIterationObservation): Promise<void>;
+}
+
+/** The store, as every writable deployment has always recorded a run. */
+export const persistentBenchmarkSink: BenchmarkRecordSink = {
+  insertRun: async (run) => { await BenchmarkRuns.insert({ ...run } as unknown as Parameters<typeof BenchmarkRuns.insert>[0]); },
+  updateRun: async (id, patch) => { await updateBenchmarkRun(id, patch as Parameters<typeof updateBenchmarkRun>[1]); },
+  insertNodeRun: async (run) => { await BenchmarkNodeRuns.insert(run as unknown as Parameters<typeof BenchmarkNodeRuns.insert>[0]); },
+  updateNodeRun: async (id, patch) => { await updateBenchmarkNodeRun(id, patch); },
+  insertIterationRun: async (run) => { await BenchmarkIterationRuns.insert(run as unknown as Parameters<typeof BenchmarkIterationRuns.insert>[0]); },
+  updateIterationRun: async (id, patch) => { await updateBenchmarkIterationRun(id, patch); },
+  insertObservation: async (o) => { await BenchmarkObservations.insert(o as unknown as Parameters<typeof BenchmarkObservations.insert>[0]); },
+  insertNodeObservation: async (o) => { await BenchmarkNodeObservations.insert(o as unknown as Parameters<typeof BenchmarkNodeObservations.insert>[0]); },
+  insertIterationObservation: async (o) => { await BenchmarkIterationObservations.insert(o as unknown as Parameters<typeof BenchmarkIterationObservations.insert>[0]); },
+};
+
+/**
+ * Keeps nothing. A read-only deployment's run: the records still exist, in the
+ * result the runner returns, and nowhere else.
+ */
+export const transientBenchmarkSink: BenchmarkRecordSink = {
+  insertRun: async () => {},
+  updateRun: async () => {},
+  insertNodeRun: async () => {},
+  updateNodeRun: async () => {},
+  insertIterationRun: async () => {},
+  updateIterationRun: async () => {},
+  insertObservation: async () => {},
+  insertNodeObservation: async () => {},
+  insertIterationObservation: async () => {},
+};
+
+export interface BenchmarkRunOptions {
+  /** Where the records go. Defaults to the store. */
+  sink?: BenchmarkRecordSink;
+  /** The most workers, whatever the version's `maxConcurrency` asks for. */
+  maxConcurrency?: number;
+  /**
+   * Wall-clock limit for the whole run, in ms. When it passes, no task starts
+   * and every attempt in flight is aborted. The run ends `Aborted`.
+   */
+  deadlineMs?: number;
+}
+
+/**
+ * How many requests a version's plan sends: every measured task, and the
+ * warmups, which run once per distinct (subject, backend, input, graph).
+ */
+export function countPlannedRequests(tasks: ReadonlyArray<{ subjectId: string; backendId: string; argumentSetId: string; dataGraphId: string | null }>, warmupRuns: number): number {
+  const distinct = new Set(tasks.map((task) => `${task.subjectId}::${task.backendId}::${task.argumentSetId}::${task.dataGraphId ?? ''}`));
+  return tasks.length + distinct.size * Math.max(0, warmupRuns);
+}
 
 /**
  * What one attempt at a task reports back.
@@ -296,7 +366,22 @@ export class BenchmarkRunner {
     return factory;
   }
 
-  async runExperimentVersion(versionId: string): Promise<BenchmarkRunResult> {
+  /**
+   * The tasks a frozen version would run, without running any — for a caller
+   * that must weigh a plan before it starts (a read-only deployment's caps).
+   */
+  planExperimentVersion(versionId: string): { tasks: Array<{ subjectId: string; backendId: string; argumentSetId: string; dataGraphId: string | null }>; warmupRuns: number; maxConcurrency: number } {
+    const version = getCacheCoordinator().get(versionId) as PersistedBenchmarkExperimentVersion | null;
+    if (!version || version['@type'] !== 'BenchmarkExperimentVersion') {
+      throw new Error(`BenchmarkExperimentVersion ${versionId} not found`);
+    }
+    assertBenchmarkVersionDependencies(versionId, version.subjectSpecs);
+    const tasks = this.buildTasks(parseSubjectSpecs(version.subjectSpecs), version.repeats ?? DEFAULT_BENCHMARK_REPEATS);
+    return { tasks, warmupRuns: Math.max(0, version.warmupRuns ?? 0), maxConcurrency: version.maxConcurrency ?? 1 };
+  }
+
+  async runExperimentVersion(versionId: string, options: BenchmarkRunOptions = {}): Promise<BenchmarkRunResult> {
+    const sink = options.sink ?? persistentBenchmarkSink;
     const versionEntity = getCacheCoordinator().get(versionId) as PersistedBenchmarkExperimentVersion | null;
     if (!versionEntity || versionEntity['@type'] !== 'BenchmarkExperimentVersion') {
       throw new Error(`BenchmarkExperimentVersion ${versionId} not found`);
@@ -325,7 +410,7 @@ export class BenchmarkRunner {
       dateCreated: nowIso,
       dateModified: nowIso,
     };
-    await BenchmarkRuns.insert({ ...run } as unknown as Parameters<typeof BenchmarkRuns.insert>[0]);
+    await sink.insertRun(run);
 
     let nodeRun: { $id: string; endedAt?: string | null } | null = null;
     let iterationRun: { $id: string; endedAt?: string | null } | null = null;
@@ -336,6 +421,21 @@ export class BenchmarkRunner {
     const warmupTracker = new Map<string, Promise<void>>();
 
     const abortSignal = { aborted: false };
+    /*
+     * The run's own deadline, where the caller set one. It stops new tasks
+     * through `abortSignal` and aborts the attempts in flight through
+     * `deadlineController`, whose signal every attempt's controller follows.
+     */
+    const deadlineController = new AbortController();
+    let deadlinePassed = false;
+    let deadlineTimer: NodeJS.Timeout | undefined;
+    if (options.deadlineMs && options.deadlineMs > 0) {
+      deadlineTimer = setTimeout(() => {
+        deadlinePassed = true;
+        abortSignal.aborted = true;
+        deadlineController.abort(new Error(`Benchmark run passed its ${options.deadlineMs} ms deadline`));
+      }, options.deadlineMs);
+    }
     const strategy = version.executionStrategy ?? DEFAULT_BENCHMARK_EXECUTION_STRATEGY;
     const timeWindowMs = parseDurationToMs(version.timeWindow ?? null);
     const scheduleStart = Date.now();
@@ -394,7 +494,7 @@ export class BenchmarkRunner {
                 dateCreated: new Date().toISOString(),
               };
               iterationRun = createdIterationRun;
-              await BenchmarkIterationRuns.insert(createdIterationRun as unknown as Parameters<typeof BenchmarkIterationRuns.insert>[0]);
+              await sink.insertIterationRun(createdIterationRun);
             }
             iterationObservationDrafts = buildIterationObservationDrafts(iterationRun.$id, task.runIndex, iterations);
           }
@@ -410,7 +510,7 @@ export class BenchmarkRunner {
               dateCreated: new Date().toISOString(),
             };
             nodeRun = createdNodeRun;
-            await BenchmarkNodeRuns.insert(createdNodeRun as unknown as Parameters<typeof BenchmarkNodeRuns.insert>[0]);
+            await sink.insertNodeRun(createdNodeRun);
           }
 
           const hooks = this.buildNodeHooks(nodeRun.$id, task.runIndex, nodeObservationDrafts);
@@ -475,9 +575,10 @@ export class BenchmarkRunner {
     let tasksCompleted = 0;
     let hasFailures = false;
 
-    await runWithConcurrency(orderedTasks, version.maxConcurrency ?? 1, async (task, index) => {
+    const concurrency = Math.min(version.maxConcurrency ?? 1, options.maxConcurrency ?? Number.POSITIVE_INFINITY);
+    await runWithConcurrency(orderedTasks, concurrency, async (task, index) => {
       if (abortSignal.aborted) return;
-      const outcome = await this.runWithRetries(task, index, version.retryCount, version.retryDelayMs, version.timeoutMs, async (runTask, runIndex, signal) => {
+      const outcome = await this.runWithRetries(task, index, version.retryCount, version.retryDelayMs, version.timeoutMs, deadlineController.signal, async (runTask, runIndex, signal) => {
         await ensureWarmup(runTask);
         return executeOnce(runTask, runIndex, signal);
       });
@@ -505,7 +606,7 @@ export class BenchmarkRunner {
         timestamp: new Date().toISOString(),
       };
       observations.push(observation);
-      await BenchmarkObservations.insert(observation as unknown as Parameters<typeof BenchmarkObservations.insert>[0]);
+      await sink.insertObservation(observation);
 
       for (const nodeObservation of outcome.nodeObservationDrafts ?? []) {
         const finalized: PersistedBenchmarkNodeObservation = {
@@ -513,7 +614,7 @@ export class BenchmarkRunner {
           groupObservation: subjectObservationId,
         };
         nodeObservations.push(finalized);
-        await BenchmarkNodeObservations.insert(finalized as unknown as Parameters<typeof BenchmarkNodeObservations.insert>[0]);
+        await sink.insertNodeObservation(finalized);
       }
 
       for (const iterationObservation of outcome.iterationObservationDrafts ?? []) {
@@ -522,14 +623,14 @@ export class BenchmarkRunner {
           subjectObservation: subjectObservationId,
         };
         iterationObservations.push(finalized);
-        await BenchmarkIterationObservations.insert(finalized as unknown as Parameters<typeof BenchmarkIterationObservations.insert>[0]);
+        await sink.insertIterationObservation(finalized);
       }
 
       tasksCompleted += 1;
       if (!outcome.success) {
         hasFailures = true;
       }
-      await updateBenchmarkRun(runId, {
+      await sink.updateRun(runId, {
         tasksCompleted,
         dateModified: new Date().toISOString(),
       });
@@ -544,8 +645,9 @@ export class BenchmarkRunner {
     }, abortSignal);
 
     const endedAt = new Date().toISOString();
-    const finalStatus = hasFailures ? 'Failed' : 'Completed';
-    await updateBenchmarkRun(runId, {
+    if (deadlineTimer) clearTimeout(deadlineTimer);
+    const finalStatus = deadlinePassed ? 'Aborted' : hasFailures ? 'Failed' : 'Completed';
+    await sink.updateRun(runId, {
       endedAt,
       runStatus: finalStatus,
       tasksCompleted,
@@ -558,13 +660,13 @@ export class BenchmarkRunner {
 
     const finalizedNodeRun = nodeRun as PersistedBenchmarkNodeRun | null;
     if (finalizedNodeRun) {
-      await updateBenchmarkNodeRun(finalizedNodeRun.$id, { endedAt });
+      await sink.updateNodeRun(finalizedNodeRun.$id, { endedAt });
       finalizedNodeRun.endedAt = endedAt;
     }
 
     const finalizedIterationRun = iterationRun as PersistedBenchmarkIterationRun | null;
     if (finalizedIterationRun) {
-      await updateBenchmarkIterationRun(finalizedIterationRun.$id, { endedAt });
+      await sink.updateIterationRun(finalizedIterationRun.$id, { endedAt });
       finalizedIterationRun.endedAt = endedAt;
     }
 
@@ -719,6 +821,7 @@ export class BenchmarkRunner {
     retryCount: number | null | undefined,
     retryDelayMs: number | null | undefined,
     timeoutMs: number | null | undefined,
+    runSignal: AbortSignal,
     handler: (task: BenchmarkTask, index: number, signal?: AbortSignal) => Promise<BenchmarkTaskOutcome>
   ): Promise<BenchmarkTaskOutcome> {
     const attempts = Math.max(0, retryCount ?? 0) + 1;
@@ -733,12 +836,24 @@ export class BenchmarkRunner {
        * measured on. The signal reaches the executor, the rule set's loop and
        * every group node; the timer is cleared however the attempt ends.
        */
+      if (runSignal.aborted) break;
       const controller = new AbortController();
       let timer: NodeJS.Timeout | undefined;
+      // The run's deadline aborts this attempt too, and fails it the way a timeout does.
+      let rejectOnRunAbort: ((reason: unknown) => void) | undefined;
+      const runAborted = new Promise<never>((_, reject) => { rejectOnRunAbort = reject; });
+      runAborted.catch(() => {});
+      const onRunAbort = () => {
+        const reason = runSignal.reason instanceof Error ? runSignal.reason : new Error('Benchmark run aborted');
+        controller.abort(reason);
+        rejectOnRunAbort?.(reason);
+      };
+      runSignal.addEventListener('abort', onRunAbort, { once: true });
       try {
         if (timeoutMs && timeoutMs > 0) {
           lastOutcome = await Promise.race([
             handler(task, index, controller.signal),
+            runAborted,
             new Promise<Awaited<ReturnType<typeof handler>>>((_, reject) => {
               timer = setTimeout(() => {
                 const timedOut = new Error('Benchmark task timed out');
@@ -748,13 +863,14 @@ export class BenchmarkRunner {
             }),
           ]);
         } else {
-          lastOutcome = await handler(task, index, controller.signal);
+          lastOutcome = await Promise.race([handler(task, index, controller.signal), runAborted]);
         }
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
         lastOutcome = null;
       } finally {
         if (timer) clearTimeout(timer);
+        runSignal.removeEventListener('abort', onRunAbort);
       }
 
       if (lastOutcome && lastOutcome.success) {
@@ -800,6 +916,7 @@ export class BenchmarkRunner {
       slotPolicies: versionSlotPolicies(versionEntity),
       signal,
       parser: this.parser,
+      caller: callerOfScope(this.scope),
     });
     return result;
   }

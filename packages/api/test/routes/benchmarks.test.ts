@@ -6,6 +6,8 @@ import * as schemas from '@sparql-query-lib/contracts/schema';
 import type { PersistedEntity } from '../../src/persistence/EntityTypes.js';
 import { overrideRepositoryLenses } from '../../src/persistence/utils/entityRepository.js';
 import { FakePersistenceAdapter } from '../support/fakePersistenceAdapter.js';
+import { resetReadOnly } from '../../src/config/readOnly.js';
+import { ReadOnlyBenchmarkRefusal } from '../../src/lib/readOnlyBenchmarkRun.js';
 
 const hoisted = vi.hoisted(() => ({
   mockList: vi.fn(),
@@ -14,6 +16,12 @@ const hoisted = vi.hoisted(() => ({
   mockUpdate: vi.fn(),
   mockDelete: vi.fn(),
   mockRun: vi.fn(),
+  mockReadOnlyRun: vi.fn(),
+}));
+
+vi.mock('../../src/lib/readOnlyBenchmarkRun.js', async (importActual) => ({
+  ...(await importActual<typeof import('../../src/lib/readOnlyBenchmarkRun.js')>()),
+  runBenchmarkReadOnly: hoisted.mockReadOnlyRun,
 }));
 
 vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
@@ -299,6 +307,56 @@ describe('Benchmark Routes (/benchmark-experiments)', () => {
       iterationObservations: [],
     });
     expect(hoisted.mockRun).toHaveBeenCalledWith(versionEntity.$id);
+  });
+
+  describe('on a read-only deployment', () => {
+    const experimentId = 'urn:sqlib:benchmark-experiment:ro';
+    const versionEntity = {
+      $id: 'urn:sqlib:benchmark-experiment-version:ro',
+      '@type': 'BenchmarkExperimentVersion',
+      isPartOf: experimentId,
+      version: 1,
+      immutable: true,
+      subjectSpecs: JSON.stringify([]),
+    };
+    const url = `/benchmark-experiments/${encodeURIComponent(experimentId)}/versions/1/run`;
+
+    beforeEach(() => {
+      resetReadOnly({ SQLIB_READ_ONLY: 'true' });
+      hoisted.mockList.mockReturnValue([versionEntity]);
+    });
+    afterEach(() => { resetReadOnly({}); });
+
+    it('runs through the read-only path, not the recording runner', async () => {
+      hoisted.mockReadOnlyRun.mockResolvedValue({
+        run: { $id: 'urn:sqlib:benchmark-run:ro', runStatus: 'Completed', tasksTotal: 1, tasksCompleted: 1 },
+        nodeRun: null,
+        iterationRun: null,
+        observations: [],
+        nodeObservations: [],
+        iterationObservations: [],
+      });
+      const res = await app.inject({ method: 'POST', url });
+      expect(res.statusCode).toBe(200);
+      expect(hoisted.mockReadOnlyRun).toHaveBeenCalledWith(expect.anything(), versionEntity.$id);
+      expect(hoisted.mockRun).not.toHaveBeenCalled();
+    });
+
+    it('answers a cap refusal with its status and the cap it hit', async () => {
+      hoisted.mockReadOnlyRun.mockRejectedValue(
+        new ReadOnlyBenchmarkRefusal(422, 'too many', { cap: 'benchMaxRequests', limit: 200, planned: 999999 }),
+      );
+      const res = await app.inject({ method: 'POST', url });
+      expect(res.statusCode).toBe(422);
+      expect(res.json()).toEqual({ error: 'too many', cap: 'benchMaxRequests', limit: 200, planned: 999999 });
+    });
+
+    it('sends Retry-After with a 429', async () => {
+      hoisted.mockReadOnlyRun.mockRejectedValue(new ReadOnlyBenchmarkRefusal(429, 'busy', { cap: 'benchConcurrentRuns', limit: 1 }));
+      const res = await app.inject({ method: 'POST', url });
+      expect(res.statusCode).toBe(429);
+      expect(res.headers['retry-after']).toBe('10');
+    });
   });
 
   it('POST /benchmark-experiments/:id/versions/:version/freeze validates dependencies', async () => {

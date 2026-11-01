@@ -35,8 +35,9 @@
  * grant's question, and an update may write any graph.
  */
 import { LIBRARY_STORAGE_BACKEND_ID } from '@sparql-query-lib/types';
+import { AUTH_GROUP_VARIABLE, AUTH_USER_VARIABLE } from '@sparql-query-lib/runtime';
 import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
-import { applyExecutionArguments, type WireArgumentSet } from '../lib/executionArguments.js';
+import { applyExecutionArguments } from '../lib/executionArguments.js';
 import { SparqlQueryParser } from '../lib/parser.js';
 import { detectSparqlOperation } from '../lib/queryTypeDetector.js';
 import { QueryTypeIri } from '../constants/queryTypes.js';
@@ -46,8 +47,9 @@ import { getAuthConfig } from './config.js';
 import { isGroupPrincipal } from './principals.js';
 import type { AuthContext } from './types.js';
 
-export const AUTH_USER_VARIABLE = 'authUser';
-export const AUTH_GROUP_VARIABLE = 'authGroup';
+// The slot names are the runtime's: every saved query reads the caller through
+// the same two slots (`auth/caller.ts`), and a policy is one such query.
+export { AUTH_GROUP_VARIABLE, AUTH_USER_VARIABLE } from '@sparql-query-lib/runtime';
 
 /** The projected names a policy may use, and the dataset part each one fills. */
 const POLICY_OUTPUTS = {
@@ -163,26 +165,19 @@ export function graphPolicyQueryProblem(queryString: string, parser = new Sparql
   return null;
 }
 
-function iriRows(variable: string, values: readonly string[]): WireArgumentSet {
-  return {
-    head: { vars: [variable] },
-    results: { bindings: values.map(value => ({ [variable]: { type: 'uri', value } })) },
-  };
-}
-
-/** The policy text with its auth slots filled for one subject. */
+/**
+ * The policy text with its auth slots filled for one subject.
+ *
+ * Filled through the same `caller` channel as every saved query, so a policy
+ * and a query read the caller identically. A subject with no groups gets zero
+ * `?authGroup` rows, which match nothing; never an open slot.
+ */
 export function bindPolicySubject(
   queryString: string,
   subject: PolicySubject,
   parser = new SparqlQueryParser(),
 ): string {
-  const declared = new Set(parser.detectInputs(queryString).valuesInputs.flat());
-  const argumentSets: WireArgumentSet[] = [];
-  if (declared.has(AUTH_USER_VARIABLE)) argumentSets.push(iriRows(AUTH_USER_VARIABLE, [subject.user]));
-  // Always sent when declared, even with no groups: an omitted slot would stay
-  // UNDEF and match every group.
-  if (declared.has(AUTH_GROUP_VARIABLE)) argumentSets.push(iriRows(AUTH_GROUP_VARIABLE, subject.groups));
-  return applyExecutionArguments(queryString, { argumentSets }, parser);
+  return applyExecutionArguments(queryString, { caller: { user: subject.user, groups: subject.groups } }, parser);
 }
 
 type Bindings = Array<Record<string, { type?: string; value?: string } | undefined>>;

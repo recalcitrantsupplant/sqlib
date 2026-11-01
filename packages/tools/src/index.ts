@@ -25,6 +25,7 @@ export {
 } from './registry.js';
 export {
   BACKEND_ARGUMENT,
+  CALLER_SLOT_VARIABLES,
   LIBRARY_SLUG_PATTERN,
   PublishedToolArgumentError,
   REFUSAL_KEY_PATTERN,

@@ -170,6 +170,88 @@ A tool without `refusals` answers as before. A query group cannot have
 `refusals`. The check belongs to the version: `POST /execute` on the version
 checks it too, whoever calls.
 
+### The caller: who is calling
+
+A tool often has to know who calls it: "only the owner may approve", "record
+who made this change", "show me my items". Do not take the caller as a
+parameter. A caller can send any value, so `?actor` is only who the caller
+*says* they are.
+
+Declare one or both of these slots instead. sqlib fills them from the
+caller's sign-in, and no caller can set them:
+
+| Slot | Rows |
+|---|---|
+| `VALUES ?authUser { UNDEF }` | one row: the caller's user or client principal IRI |
+| `VALUES ?authGroup { UNDEF }` | one row per group principal IRI; zero rows for no groups |
+
+The values are the principal IRIs that grants use, as `GET /auth/me` returns
+them in `subject` and `principals`. Graph policies read the same two slots.
+
+The rules:
+
+- **No one can set them.** An argument, an argument set or a tool call that
+  names `authUser` or `authGroup` is a `400`. So is a `tool.params` key with
+  either name. A tool does not list the slots in its input schema.
+- **Each slot is on its own.** `VALUES (?authUser ?x) { (UNDEF UNDEF) }` is a
+  `400` at save. An input policy cannot name a slot.
+- **No one signed in is refused.** A run of a query that declares a slot,
+  with no one signed in, answers `401` (`required` mode) or `403` (`disabled`
+  and `anonymous` modes, which have no sign-in). In `dry-run` it runs with
+  both slots empty and logs that it would have refused.
+- **Every door.** `/execute`, `/sparql`, the tool routes, both MCP doors,
+  query groups, saved tests and benchmarks fill the slots from the same
+  caller. The refusal query of an update with `refusals` gets them too.
+- **Nothing stored.** A data graph from a query, and an ETL job, cannot use
+  a query that declares a slot: their result is stored and shared, so it
+  must not depend on who ran it.
+- **Server only.** An exported bundle and the CLI run without a sign-in, so
+  there both slots are empty.
+
+A principal IRI is a hash of the issuer and the subject. Link it to your own
+people in data, for example `ex:alice ex:signsInAs <urn:sqlib:principal:user:…>`.
+An administrator finds the IRI with `GET /auth/me` (as that caller) or
+`GET /auth/principals`. A new issuer URL gives every caller a new IRI, so
+update the links when you change it.
+
+Join to the caller directly, not inside `OPTIONAL`. Then a caller with no link
+gives no solutions, and the update writes nothing. If you want a refusal
+message for "not linked", use `OPTIONAL` and test `BOUND`, as below. Inside
+`EXISTS`, an unbound variable is free: `EXISTS { ?record ex:owner ?actor }`
+with no `?actor` is true for any record that has an owner.
+
+```sparql
+PREFIX ex: <http://example.org/>
+DELETE { ?record ex:state ex:proposed }
+INSERT { ?record ex:state ex:approved ; ex:approvedBy ?actor }
+WHERE {
+  VALUES ?record { UNDEF }
+  VALUES ?authUser { UNDEF }
+  OPTIONAL { ?actor ex:signsInAs ?authUser }
+  BIND(BOUND(?actor) AS ?ok_linked)
+  BIND(EXISTS { ?record ex:state ex:proposed } AS ?ok_proposed)
+  BIND(?ok_linked && EXISTS { ?record ex:owner ?actor } AS ?ok_byOwner)
+  BIND(?ok_linked && ?ok_proposed && ?ok_byOwner AS ?ok)
+  FILTER(?ok)
+}
+```
+
+```json
+{
+  "name": "approve",
+  "description": "Approve a proposed record. Only its owner may.",
+  "params": { "record": { "kind": "iri", "required": true } },
+  "refusals": {
+    "linked": "Refused: your sign-in is not linked to a person.",
+    "proposed": "Refused: {record} is not proposed.",
+    "byOwner": "Refused: only the owner of {record} may approve it."
+  }
+}
+```
+
+A response to a query that declares a slot carries
+`Cache-Control: private, no-store`, because it depends on the caller.
+
 ### Publishing a rule set
 
 A rule set takes the `tool` object at the top level of a version body, on

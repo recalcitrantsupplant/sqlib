@@ -271,6 +271,36 @@ events, and the query runs unnarrowed.
 To try all of this on one machine, with Rauthy issuing the groups, run
 `just demo-graph-access` (see [Deploying](../guides/deploying.md#a-demo-of-graph-access)).
 
+## The caller in saved queries
+
+Grants decide *which* queries a caller may run. They cannot decide *for whom*
+a query runs: a query that takes the caller as a parameter trusts whatever
+value the caller sends. So any saved query may declare the slots a graph
+policy reads, `VALUES ?authUser { UNDEF }` and `VALUES ?authGroup { UNDEF }`,
+and sqlib fills them from the sign-in. The rules are in
+`guides/publishing-tools.md` ("The caller").
+
+The fill happens in `completeArgumentSets` (`packages/runtime`), the one step
+that every substitution takes, on the template path and the AST path alike.
+It takes a three-valued `caller` option:
+
+- an identity fills the slots;
+- `null` means no one, and fills both slots with zero rows;
+- no option at all, for a text that declares a slot, is refused.
+
+The third case is how the design fails closed. A route that forgets the
+caller does not run the slot open, which would match every caller; it fails.
+The API's own wrappers (`applyExecutionArguments`, `invokeCallable`) take the
+caller as a required field, so the compiler lists every call site.
+
+No one is signed in for a full-access context (`disabled` mode, `dry-run`
+without a valid token), for `anonymous` mode, whose one principal identifies
+nobody, and for sqlib's own work. A door refuses such a run (`401` or `403`)
+before it starts; the zero rows are the safety net behind that refusal.
+
+Ad-hoc text on `POST /sparql` is filled too. That gives nothing away: a caller
+who may run ad-hoc text can type any IRI into it.
+
 ## Backend credentials
 
 A `Backend` entity stores an `authEnvKey` — a name, constrained to

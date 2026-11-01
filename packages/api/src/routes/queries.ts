@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { isReservedSlotVariable, mayDeclareReservedSlot } from '@sparql-query-lib/runtime';
 import type { PersistedQuery } from '../persistence/schemas/QuerySchema.js';
 import type { PersistedQueryVersion } from '../persistence/schemas/QueryVersionSchema.js';
 import { expandQueryVersion } from '../lib/QueryVersionResolver.js';
@@ -175,8 +176,34 @@ export default async function (fastify: FastifyInstance) {
         throw new RouteError(400, { error: 'Invalid SPARQL query', details: message });
       }
       refuseUnknownInputPolicies(flat.queryString, flat.inputPolicies as InputPolicy[] | undefined);
+      refuseMisusedCallerSlots(flat.queryString, flat.inputPolicies as InputPolicy[] | undefined);
     }
     return flat;
+  }
+
+  /**
+   * The caller's identity slots (`?authUser`, `?authGroup`) are filled by
+   * sqlib. Each must be a slot of its own, so the caller is never zipped with
+   * other arguments, and no input policy may name one: `unconstrained` on it
+   * would match every caller. Refused at save rather than on every run.
+   */
+  function refuseMisusedCallerSlots(queryString: string, policies: InputPolicy[] | undefined): void {
+    if (!mayDeclareReservedSlot(queryString)) return;
+    for (const vars of parser.detectInputs(queryString).valuesInputs) {
+      const reserved = vars.filter(isReservedSlotVariable);
+      if (reserved.length > 0 && vars.length > 1) {
+        throw new RouteError(400, {
+          error: `?${reserved[0]} is filled from the caller's sign-in, so it must be declared on its own, `
+            + `as VALUES ?${reserved[0]} { UNDEF }, not inside VALUES (${vars.map(v => `?${v}`).join(' ')}).`,
+        });
+      }
+    }
+    const named = (policies ?? []).flatMap(policy => policy.vars.filter(isReservedSlotVariable));
+    if (named.length > 0) {
+      throw new RouteError(400, {
+        error: `inputPolicies name ?${named[0]}, which is filled from the caller's sign-in. It always gets the caller's rows, or none.`,
+      });
+    }
   }
 
   /**

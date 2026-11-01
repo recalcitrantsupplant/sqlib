@@ -1,4 +1,4 @@
-import type { SlotPolicy } from '@sparql-query-lib/runtime';
+import type { CallerIdentity, SlotPolicy } from '@sparql-query-lib/runtime';
 import type { ISparqlExecutor } from '../server/ISparqlExecutor.js';
 import { SparqlQueryParser, type ApplyArgumentSet } from './parser.js';
 import { QueryTypeIri } from '../constants/queryTypes.js';
@@ -34,6 +34,11 @@ export type InvokeCallableOptions = {
    */
   signal?: AbortSignal;
   parser?: SparqlQueryParser;
+  /**
+   * Who fills `?authUser` and `?authGroup`: the caller the run is for, or
+   * `null` for no one. Required, so that no path can leave a slot open.
+   */
+  caller: CallerIdentity | null;
 };
 
 export type InvokeCallableResult = {
@@ -61,7 +66,7 @@ export async function invokeCallable(
   executor: ISparqlExecutor,
   queryString: string,
   queryType: string | null | undefined,
-  options: InvokeCallableOptions = {},
+  options: InvokeCallableOptions,
 ): Promise<InvokeCallableResult> {
   const parser = options.parser ?? defaultParser;
   const limits = options.limits ?? [];
@@ -69,7 +74,9 @@ export async function invokeCallable(
   const paged = limits.length || offsets.length
     ? parser.applyLimitOffsetParameters(queryString, limits, offsets)
     : queryString;
-  const query = parser.applyArguments(paged, options.argumentSets ?? [], options.slotPolicies ?? []);
+  const query = parser.applyArguments(paged, options.argumentSets ?? [], options.slotPolicies ?? [], {
+    caller: options.caller,
+  });
   const signal = options.signal;
   const dataset = hasDataset(options.dataset) ? options.dataset : undefined;
 

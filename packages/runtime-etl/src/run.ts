@@ -77,7 +77,7 @@ export async function runEtl(run: EtlRun): Promise<EtlResult> {
     ? run.query
     : (() => {
         const template = run.query;
-        return (argumentSet: TemplateArgumentSet) => applyTemplateArguments(template, [argumentSet]);
+        return (argumentSet: TemplateArgumentSet) => applyTemplateArguments(template, [argumentSet], [], { caller: null });
       })();
   // The cap under the `fail` policy, or null when there is none to fail on.
   const rowCap = run.maxRowsPolicy === 'fail' ? run.maxRows ?? null : null;
