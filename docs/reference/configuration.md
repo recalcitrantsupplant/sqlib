@@ -329,6 +329,12 @@ and answers 404 when no issuer is configured. Every 401 carries
 `WWW-Authenticate: Bearer resource_metadata="…"`, which is how an MCP client
 finds the authorization server with no client configuration.
 
+## Environments
+
+| Name | Default | Effect |
+| --- | --- | --- |
+| `SQLIB_DEFAULT_ENVIRONMENT` | unset | The environment a run uses when the caller names none, and the one published tools serve. Unset means `latest`, the current version. A library that defines no environments ignores it. See [environments](../explanation/environments.md). |
+
 ## Feature flags
 
 Seventeen `FEATURE_*` variables switch sections of the product on and off, and

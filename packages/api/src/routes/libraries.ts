@@ -23,7 +23,8 @@ import { reposRoute, withReposHandler, validateIfMatch, setEntityConcurrencyHead
 import { RDF_MEDIA_TYPES } from '../types/media-types.js';
 import { RouteError } from './route-helpers.js';
 import { SystemQueryRunner, type SystemQueryRunnerResult } from '../lib/system-queries/SystemQueryRunner.js';
-import { collectLibraryQueries } from '../lib/export/collectLibraryQueries.js';
+import { collectLibraryQueries, type ExportEnvironment } from '../lib/export/collectLibraryQueries.js';
+import { findEnvironment, LATEST_ENVIRONMENT, versionIn } from '../lib/environments.js';
 import {
   collectLibraryGroups,
   type ExportGroupInput,
@@ -349,6 +350,12 @@ export default async function (fastify: FastifyInstance) {
               default: true,
               description: "Carry the library's rule sets, as SRL documents.",
             },
+            environment: {
+              type: 'string',
+              minLength: 1,
+              description:
+                "Export the versions this environment points to (\"prod\"), not the current ones. An entity with no version there is skipped and reported.",
+            },
             format: {
               type: 'string',
               enum: ['json', 'html', 'ipynb'],
@@ -375,6 +382,19 @@ export default async function (fastify: FastifyInstance) {
           });
         }
 
+        // An environment exports what it points to. A name the library does
+        // not define is refused rather than read as "latest": an export for
+        // prod that quietly carried the latest text is the mistake this
+        // option exists to prevent.
+        let environment: ExportEnvironment | undefined;
+        if (request.query.environment && request.query.environment !== LATEST_ENVIRONMENT) {
+          const env = findEnvironment(id, request.query.environment);
+          if (!env) {
+            return reply.status(400).send({ error: `This library has no environment named "${request.query.environment}".` });
+          }
+          environment = { name: env.name, versionOf: entityId => versionIn(env, entityId) };
+        }
+
         const tags = parseTagList(request.query.tag);
         const collected = collectLibraryQueries(
           {
@@ -384,7 +404,7 @@ export default async function (fastify: FastifyInstance) {
             getEntity: (entityId) => getCacheCoordinator().get(entityId),
           },
           id,
-          { tags, match: request.query.match ?? 'any' }
+          { tags, match: request.query.match ?? 'any', environment }
         );
         // Left out on request, a query is not skipped: nothing is reported for it.
         const { queries, skipped } = withQueries === false ? { queries: [], skipped: [] } : collected;
@@ -434,7 +454,7 @@ export default async function (fastify: FastifyInstance) {
                     getCacheCoordinator().get(entityId) as GroupGraphEntity | null,
                 },
                 id,
-                { tags, match: request.query.match ?? 'any' }
+                { tags, match: request.query.match ?? 'any', environment }
               );
           const { exportable, withheld } = partitionByReadableNodes(request, groups);
           const { skipped: skippedGroups } = await attachGroupsToBundle(bundle, exportable);
@@ -448,6 +468,7 @@ export default async function (fastify: FastifyInstance) {
             : await attachRuleSetsToBundle(bundle, ruleSetSource(repos), id, {
               tags,
               match: request.query.match ?? 'any',
+              environment,
             });
 
           const allSkipped = [

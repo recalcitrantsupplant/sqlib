@@ -32,6 +32,7 @@ every other page assumes.
 
 - [explanation/architecture.md](explanation/architecture.md) — what the packages are, what runs in which process and how a request travels.
 - [explanation/versioning-and-immutability.md](explanation/versioning-and-immutability.md) — why entities split into a stable pointer and immutable versions, and what that buys.
+- [explanation/environments.md](explanation/environments.md) — named version pointers (dev, prod) inside a library, how a run resolves them, and who may move them.
 - [explanation/storage-and-caching.md](explanation/storage-and-caching.md) — where the library actually lives, and what the in-memory cache is for.
 - [explanation/security-model.md](explanation/security-model.md) — what the auth layer enforces, what it does not, and why some doors are open.
 - [explanation/rdf-patch.md](explanation/rdf-patch.md) — how an update query's effect is derived before it is applied.

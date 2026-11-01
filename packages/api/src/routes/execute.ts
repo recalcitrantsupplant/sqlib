@@ -33,7 +33,8 @@ import {
 import { oxigraphStoreManager } from '../lib/OxigraphStoreManager.js';
 import { OxigraphSparqlExecutor } from '../server/OxigraphSparqlExecutor.js';
 import { ExecutorFactory } from '../lib/orchestration/ExecutorFactory.js';
-import { AuthorizationError, requireLibraryMode, resolveOwningLibrary } from '../auth/enforce.js';
+import { AuthorizationError, requireLibraryMode, requireVersionExecute, resolveOwningLibrary } from '../auth/enforce.js';
+import { environmentsPointingTo, isEnvironmentVersionType, LATEST_ENVIRONMENT, isPromotableType, requestedEnvironment, resolveVersionIn } from '../lib/environments.js';
 import { resolveQueryDefaultBackend } from '../lib/defaultBackend.js';
 import type { NodeResult, ResolvedNode } from '../lib/orchestration/types.js';
 import * as crypto from 'crypto';
@@ -314,6 +315,7 @@ function describeExecutionRequest(body: ExecutionRequest | undefined) {
     return {
         targetId: body?.targetId,
         backendId: body?.backendId,
+        environment: body?.environment,
         arguments: args.map((arg: { head?: { vars?: unknown }; arguments?: { bindings?: unknown }; results?: { bindings?: unknown } }) => ({
             vars: Array.isArray(arg?.head?.vars) ? arg.head.vars : [],
             rows: Array.isArray(arg?.arguments?.bindings) ? arg.arguments.bindings.length
@@ -369,6 +371,8 @@ export default async function (
         params: {
             targetId: string;
             backendId?: string;
+            /** The environment a stable target resolves in; see `lib/environments.ts`. */
+            environment?: string;
             arguments?: any[];
             limits?: any;
             offsets?: any;
@@ -450,10 +454,39 @@ export default async function (
             }
             targetTypeForError = targetEntity['@type'];
 
-            // Execute on the owning library gates the operation. The backend
-            // needs a grant of its own; library and backend grants are separate.
+            // A query or group named by its stable id runs the version its
+            // environment points to (`lib/environments.ts`): the one named in
+            // the request, else the deployment default, else `latest`. The
+            // rest of this handler reads `currentVersion`, so the resolution
+            // is applied there, on a copy, and the stored entity is untouched.
+            const environmentName = requestedEnvironment(params.environment);
+            let versionToRun: string | null = isEnvironmentVersionType(targetEntity['@type'])
+                ? targetId
+                : (isPromotableType(targetEntity['@type']) && typeof targetEntity.currentVersion === 'string' ? targetEntity.currentVersion : null);
+            if (
+                isPromotableType(targetEntity['@type']) &&
+                targetEntity['@type'] !== 'RuleSet' &&
+                environmentName && environmentName !== LATEST_ENVIRONMENT
+            ) {
+                const resolution = resolveVersionIn(targetEntity, environmentName);
+                if (!resolution.ok) {
+                    return reply.code(resolution.status).send({ error: resolution.error });
+                }
+                targetEntity = { ...targetEntity, currentVersion: resolution.version };
+                versionToRun = resolution.version;
+                if (resolution.environment) reply.header('X-Resolved-Environment', resolution.environment.name);
+            }
+
+            // Execute on the owning library gates the operation, or, for a
+            // caller without it, `execute` on an environment that points at
+            // the version being run. The backend needs a grant of its own;
+            // library and backend grants are separate.
             const targetLibrary = resolveOwningLibrary(targetEntity);
-            requireLibraryMode(request, targetLibrary, 'execute');
+            if (versionToRun) {
+                requireVersionExecute(request, targetLibrary, environmentsPointingTo(versionToRun));
+            } else {
+                requireLibraryMode(request, targetLibrary, 'execute');
+            }
 
             // Every executor for this request — including each query-group leg,
             // which acquires its own through the engine — comes from this
@@ -1360,11 +1393,12 @@ export default async function (
             // Shapes, not values: argument rows are the caller's data.
             request.log.info({ execution: describeExecutionRequest(request.body) }, 'Received /execute POST request');
 
-            const {targetId, backendId, arguments: args, limits, offsets, argumentSetIds, dataGraphs, defaultGraphs, namedGraphs, nodeDetail, draftVersion} = request.body;
+            const {targetId, backendId, environment, arguments: args, limits, offsets, argumentSetIds, dataGraphs, defaultGraphs, namedGraphs, nodeDetail, draftVersion} = request.body;
 
             return executeQuery(request, reply, {
                 targetId,
                 backendId,
+                environment,
                 arguments: args,
                 limits,
                 offsets,
@@ -1403,6 +1437,7 @@ export default async function (
             const {
                 targetId,
                 backendId,
+                environment,
                 arguments: argsString,
                 limits: limitsString,
                 offsets: offsetsString,
@@ -1502,6 +1537,7 @@ export default async function (
             return executeQuery(request, reply, {
                 targetId,
                 backendId,
+                environment,
                 arguments: args,
                 limits,
                 offsets,

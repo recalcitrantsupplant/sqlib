@@ -108,6 +108,10 @@ A backend grants two operations at two levels each:
 `query:saved`. The Access screen shows the two operations as two toggles per
 backend: none, saved or ad hoc.
 
+An environment grants `promote` (move its version pointers) and `execute`
+(run exactly the versions it points to). Library modes never imply them. See
+[environments.md](environments.md).
+
 Library grants and backend grants are separate. `execute` on a library runs its
 saved entities, and every backend they run on needs a backend grant of its own.
 A `defaultBackend`, on a query or a library, is a UI convenience: it picks the

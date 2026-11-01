@@ -38,6 +38,34 @@ export interface CollectOptions {
   tags?: readonly string[];
   /** `any` (the default) keeps a query carrying any listed tag; `all` requires all. */
   match?: 'any' | 'all';
+  /**
+   * Export one environment's versions in place of each entity's current one
+   * (`docs/explanation/environments.md`). An entity the environment has no
+   * version of is skipped and reported.
+   */
+  environment?: ExportEnvironment;
+}
+
+/** An environment as an export sees it: a name, and its pointer per entity. */
+export interface ExportEnvironment {
+  name: string;
+  versionOf(entityId: string): string | null;
+}
+
+/**
+ * The version an export carries for an entity: its current one, or the one an
+ * environment points to. A string is the reason it carries none.
+ */
+export function exportVersionOf(
+  entity: { $id: string; currentVersion?: string | null },
+  environment: ExportEnvironment | undefined,
+  kind: string,
+): { versionId: string } | { reason: string } {
+  if (environment) {
+    const versionId = environment.versionOf(entity.$id);
+    return versionId ? { versionId } : { reason: `The ${kind} has no version in "${environment.name}".` };
+  }
+  return entity.currentVersion ? { versionId: entity.currentVersion } : { reason: `The ${kind} has no current version.` };
 }
 
 /** A query the export could not include, and why — reported, never swallowed. */
@@ -87,16 +115,17 @@ export function collectLibraryQueries(
 
   for (const query of members) {
     const name = query.name ?? query.$id;
-    if (!query.currentVersion) {
-      skipped.push({ id: query.$id, name, reason: 'The query has no current version.' });
+    const picked = exportVersionOf(query, options.environment, 'query');
+    if ('reason' in picked) {
+      skipped.push({ id: query.$id, name, reason: picked.reason });
       continue;
     }
-    const version = source.getQueryVersion(query.currentVersion);
+    const version = source.getQueryVersion(picked.versionId);
     if (!version) {
       skipped.push({
         id: query.$id,
         name,
-        reason: `Its current version ${query.currentVersion} could not be found.`,
+        reason: `Its version ${picked.versionId} could not be found.`,
       });
       continue;
     }

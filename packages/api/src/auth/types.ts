@@ -21,6 +21,17 @@ export type LibraryMode = (typeof LIBRARY_MODES)[number];
 export const BACKEND_MODES = ['query:saved', 'query:adhoc', 'update:saved', 'update:adhoc'] as const;
 export type BackendMode = (typeof BACKEND_MODES)[number];
 
+/**
+ * Modes grantable on an environment.
+ *
+ * `promote` moves the environment's pointers: it is who may approve a
+ * promotion into it. `execute` runs the versions it points to, and only
+ * those: a caller holding `execute` on "prod" and not on the library runs
+ * prod's versions and nothing else (see `docs/explanation/environments.md`).
+ */
+export const ENVIRONMENT_MODES = ['promote', 'execute'] as const;
+export type EnvironmentMode = (typeof ENVIRONMENT_MODES)[number];
+
 /** The SPARQL operation a backend mode allows. */
 export type BackendOperation = 'query' | 'update';
 
@@ -64,6 +75,11 @@ export interface EffectiveGrants {
   backends: ReadonlyMap<string, ReadonlySet<BackendMode>>;
   /** library IRI → granted library modes */
   libraries: ReadonlyMap<string, ReadonlySet<LibraryMode>>;
+  /**
+   * environment IRI → granted environment modes. Optional so that a context
+   * built by hand without environments reads as holding none.
+   */
+  environments?: ReadonlyMap<string, ReadonlySet<EnvironmentMode>>;
 }
 
 export interface AuthContext {
@@ -153,4 +169,8 @@ export function isLibraryMode(value: string): value is LibraryMode {
 
 export function isBackendMode(value: string): value is BackendMode {
   return (BACKEND_MODES as readonly string[]).includes(value);
+}
+
+export function isEnvironmentMode(value: string): value is EnvironmentMode {
+  return (ENVIRONMENT_MODES as readonly string[]).includes(value);
 }

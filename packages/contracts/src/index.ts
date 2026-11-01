@@ -22,6 +22,7 @@ export * from './generated/detection.js';
 export * from './generated/execution.js';
 export * from './generated/sparql.js';
 export * from './generated/playground.js';
+export * from './generated/environment.js';
 
 // Backward compatibility aliases for old naming convention
 export type {
