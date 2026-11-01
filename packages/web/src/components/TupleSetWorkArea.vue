@@ -1427,8 +1427,12 @@ onBeforeUnmount(() => {
   overflow-y: auto;
 }
 
+/*
+ * No width cap on the section: its editor fills the middle column up to the
+ * resizer, as the query and rule set editors do. Only the prose is held to a
+ * reading measure, because a sentence 200 characters wide is hard to follow.
+ */
 .group {
-  max-width: 70ch;
   min-width: 0;
   margin-bottom: var(--space-6);
 }
@@ -1442,6 +1446,7 @@ onBeforeUnmount(() => {
 
 /* Where the hint sits under its section label is the section's fact. */
 .group-hint {
+  max-width: 70ch;
   margin: var(--space-2) 0 var(--space-4);
 }
 
@@ -1539,6 +1544,7 @@ onBeforeUnmount(() => {
 
 /* Margin stays with the parent: where the note sits is this screen's fact. */
 .labels-note {
+  max-width: 70ch;
   margin: var(--space-3) 0 var(--space-2);
 }
 
