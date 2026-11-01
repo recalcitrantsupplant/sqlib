@@ -87,9 +87,14 @@ What each wire can carry:
 - **Rows → a parameter slot** — supported.
 - **Graph → a rule set's base graph** — supported; the triples are sent as
   `dataGraphInline`.
-- **Graph → a query** — *not* supported. A query runs against a store, so RDF
-  only reaches one if it is materialized into a store that query also targets.
-  Save the graph and point a backend at it, or build a query group.
+- **Graph → a query** — supported. Press **Run over a graph** on a query cell
+  and pick a graph value above. The query then runs over the graphs it is
+  given and nothing else: the server loads them into one ephemeral store, and
+  no backend is used. The graphs go into the store's default graph, so two of
+  them give their union, and a `CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }`
+  query merges them into one value. A notebook with such a cell cannot be
+  promoted to a query group, because a group's query node runs against a
+  backend.
 
 Chaining is **by value**: a result comes back to the browser and goes out again
 in the next request. That is fine for the demonstrations a notebook is for, and
@@ -175,6 +180,5 @@ to a value no cell above binds.
 
 - No pass-by-reference: a large value round-trips through the browser rather
   than being captured server-side and passed by id.
-- No materialize cell, so graph → query needs a saved graph and a backend.
 
-These are scoped in [the proposal](../proposals/notebook-cells.md).
+This is scoped in [the proposal](../proposals/notebook-cells.md).

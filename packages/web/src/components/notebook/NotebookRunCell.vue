@@ -114,6 +114,54 @@
           </div>
         </div>
 
+        <!--
+          A query can run over graphs instead of a backend: the graphs are
+          loaded into one ephemeral store, so two of them give their union.
+          Offered once a graph value exists above, or a graph is already wired.
+        -->
+        <div v-if="cell.kind === 'query' && (queryGraphs.length > 0 || graphValueOptions.length > 0)" class="inputs">
+          <div v-for="(graph, graphIndex) in queryGraphs" :key="graphIndex" class="input-row">
+            <SectionLabel as="span">graph {{ graphIndex + 1 }}</SectionLabel>
+            <label class="visually-hidden" :for="`${cell.id}-qgraph-${graphIndex}`">Graph {{ graphIndex + 1 }}</label>
+            <select
+              :id="`${cell.id}-qgraph-${graphIndex}`"
+              class="select"
+              :data-testid="`notebook-query-graph-${cell.id}-${graphIndex}`"
+              :value="graph.from === 'value' ? `@${graph.ref}` : ''"
+              @change="onQueryGraphChange(graphIndex, ($event.target as HTMLSelectElement).value)"
+            >
+              <option v-if="graph.from !== 'value'" value="">A saved data graph</option>
+              <option v-for="option in graphValueOptions" :key="option.name" :value="`@${option.name}`">
+                @{{ option.name }}
+              </option>
+            </select>
+            <InlineNote v-if="queryGraphSummary(graph)" as="span" size="xs">{{ queryGraphSummary(graph) }} · by value</InlineNote>
+            <Button
+              size="sm"
+              variant="ghost"
+              :data-testid="`notebook-query-graph-remove-${cell.id}-${graphIndex}`"
+              @click="removeQueryGraph(graphIndex)"
+            >
+              Remove
+            </Button>
+          </div>
+          <div class="input-row">
+            <Button
+              v-if="graphValueOptions.length > 0"
+              size="sm"
+              variant="outline"
+              :data-testid="`notebook-query-graph-add-${cell.id}`"
+              @click="addQueryGraph"
+            >
+              Run over a graph
+            </Button>
+            <InlineNote v-if="queryGraphs.length > 0" as="span" size="xs">
+              Runs over {{ queryGraphs.length === 1 ? 'this graph' : 'these graphs' }} alone, in an ephemeral store —
+              not against a backend. Several graphs are merged into one.
+            </InlineNote>
+          </div>
+        </div>
+
         <!-- The same builder the library page and the exported page use. -->
         <div v-if="showArgs" class="args">
           <sqlib-args ref="argsEl" @change="onArgsChange"></sqlib-args>
@@ -241,7 +289,7 @@ import SectionLabel from '../shared/SectionLabel.vue';
 import { describeValue, type NotebookValue, type SparqlBindingRow } from '../../lib/notebookValues';
 import { getAllMediaTypeOptions, getMediaTypeChoiceGroups } from '../../lib/mediaTypes';
 import { QueryTypeIri } from '@sparql-query-lib/types';
-import type { RunCell, SlotSource } from '../../lib/notebookFormat';
+import type { GraphSource, RunCell, SlotSource } from '../../lib/notebookFormat';
 import type { CellRunState, NotebookTarget } from '../../composables/useNotebook';
 
 /**
@@ -394,6 +442,33 @@ const graphSourceSummary = computed(() => {
   return props.valueOptions.find((option) => option.name === input.ref)?.summary ?? null;
 });
 
+const queryGraphs = computed<GraphSource[]>(() => (props.cell.kind === 'query' ? props.cell.graphs ?? [] : []));
+
+function writeQueryGraphs(graphs: GraphSource[]) {
+  emit('update', { graphs: graphs.length ? graphs : undefined } as Partial<RunCell>);
+}
+
+function addQueryGraph() {
+  const used = new Set(queryGraphs.value.flatMap((graph) => (graph.from === 'value' ? [graph.ref] : [])));
+  const next = graphValueOptions.value.find((option) => !used.has(option.name)) ?? graphValueOptions.value[0];
+  if (!next) return;
+  writeQueryGraphs([...queryGraphs.value, { from: 'value', ref: next.name }]);
+}
+
+function removeQueryGraph(index: number) {
+  writeQueryGraphs(queryGraphs.value.filter((_graph, at) => at !== index));
+}
+
+function onQueryGraphChange(index: number, selection: string) {
+  if (!selection) return;
+  writeQueryGraphs(queryGraphs.value.map((graph, at) => (at === index ? { from: 'value', ref: selection.slice(1) } : graph)));
+}
+
+function queryGraphSummary(graph: GraphSource): string | null {
+  if (graph.from !== 'value') return null;
+  return props.valueOptions.find((option) => option.name === graph.ref)?.summary ?? null;
+}
+
 function onGraphChange(selection: string) {
   emit('update', {
     inputGraph: selection ? { from: 'value', ref: selection.slice(1) } : undefined,
@@ -493,6 +568,8 @@ const queryTypeForFormats = computed(() => {
 
 const backendChoice = computed(() => {
   if (!props.target || props.target.kind === 'ruleset') return null;
+  // Graphs given, the server makes the store: there is no backend to choose.
+  if (queryGraphs.value.length > 0) return null;
   return {
     value: (props.cell.kind === 'ruleset' ? null : props.cell.backend) ?? props.defaultBackend ?? '',
     options: props.backendOptions ?? [],

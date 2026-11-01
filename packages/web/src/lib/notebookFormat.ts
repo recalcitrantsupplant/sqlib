@@ -95,6 +95,15 @@ export interface QueryCell extends RunCellCommon {
    */
   backend?: string | null;
   accept?: string | null;
+  /**
+   * Graphs the query runs over, instead of a backend.
+   *
+   * Given, the query runs in an ephemeral store holding these graphs and
+   * nothing else, loaded into its default graph — so two graph values give
+   * their union, and `CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }` merges them.
+   * `backend` is ignored while any are given.
+   */
+  graphs?: GraphSource[];
 }
 
 export interface GroupCell extends RunCellCommon {
@@ -202,6 +211,8 @@ export function renameValue(notebook: Notebook, from: string, to: string): Noteb
   if (from === to) return notebook;
   const rewriteSlot = (slot: SlotSource): SlotSource =>
     slot.from === 'value' && slot.ref === from ? { ...slot, ref: to } : slot;
+  const rewriteGraph = (graph: GraphSource): GraphSource =>
+    graph.from === 'value' && graph.ref === from ? { from: 'value', ref: to } : graph;
 
   return {
     ...notebook,
@@ -214,7 +225,11 @@ export function renameValue(notebook: Notebook, from: string, to: string): Noteb
         }
         return renamed;
       }
-      return renamed.slots ? { ...renamed, slots: renamed.slots.map(rewriteSlot) } : renamed;
+      const slotted = renamed.slots ? { ...renamed, slots: renamed.slots.map(rewriteSlot) } : renamed;
+      if (slotted.kind === 'query' && slotted.graphs) {
+        return { ...slotted, graphs: slotted.graphs.map(rewriteGraph) };
+      }
+      return slotted;
     }),
   };
 }
@@ -226,6 +241,9 @@ export function cellReferences(cell: NotebookCell): string[] {
     .filter((slot): slot is Extract<SlotSource, { from: 'value' }> => slot.from === 'value')
     .map((slot) => slot.ref);
   if (cell.kind === 'ruleset' && cell.inputGraph?.from === 'value') refs.push(cell.inputGraph.ref);
+  if (cell.kind === 'query') {
+    for (const graph of cell.graphs ?? []) if (graph.from === 'value') refs.push(graph.ref);
+  }
   return refs;
 }
 
@@ -334,6 +352,16 @@ function parseSlots(raw: unknown, what: string): SlotSource[] | undefined {
   });
 }
 
+function parseGraphSource(raw: unknown, where: string): GraphSource {
+  const graph = asRecord(raw, where);
+  if (graph.from === 'value') return { from: 'value', ref: asString(graph.ref, `${where} ref`) };
+  if (graph.from === 'dataGraph') return { from: 'dataGraph', dataGraphId: asString(graph.dataGraphId, `${where} dataGraphId`) };
+  if (graph.from === 'dataGraphVersion') {
+    return { from: 'dataGraphVersion', dataGraphVersionId: asString(graph.dataGraphVersionId, `${where} dataGraphVersionId`) };
+  }
+  throw new InvalidNotebookError(`${where} has an unknown source.`);
+}
+
 function parseCell(raw: unknown, index: number): NotebookCell {
   const cell = asRecord(raw, `Cell ${index + 1}`);
   const id = typeof cell.id === 'string' && cell.id ? cell.id : mintCellId();
@@ -358,6 +386,9 @@ function parseCell(raw: unknown, index: number): NotebookCell {
         ...(cell.offsets ? { offsets: cell.offsets as Record<string, number> } : {}),
         ...(typeof cell.backend === 'string' ? { backend: cell.backend } : {}),
         ...(typeof cell.accept === 'string' ? { accept: cell.accept } : {}),
+        ...(Array.isArray(cell.graphs) && cell.graphs.length
+          ? { graphs: (cell.graphs as unknown[]).map((graph, at) => parseGraphSource(graph, `Cell ${index + 1} graph ${at + 1}`)) }
+          : {}),
       };
     case 'group':
       return {
