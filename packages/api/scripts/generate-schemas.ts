@@ -1286,21 +1286,35 @@ export const executionDataGraphSchema = z
     dataGraphId: iriString.optional(),
     dataGraphInline: z.string().optional(),
     dataGraphInlineFormat: z.string().min(1).optional(),
+    // A result this server kept for the caller (\`keepResult\`), passed back by handle.
+    resultRef: z.string().min(1).optional(),
   })
   .strict()
   .superRefine((data, ctx) => {
     const hasInline = typeof data.dataGraphInline === 'string' && data.dataGraphInline.trim().length > 0;
-    const supplied = [Boolean(data.dataGraphVersionId), Boolean(data.dataGraphId), hasInline].filter(Boolean).length;
+    const supplied = [Boolean(data.dataGraphVersionId), Boolean(data.dataGraphId), hasInline, Boolean(data.resultRef)].filter(Boolean).length;
     if (supplied !== 1) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['dataGraphVersionId'],
-        message: 'Each data graph needs exactly one of dataGraphVersionId, dataGraphId or dataGraphInline',
+        message: 'Each data graph needs exactly one of dataGraphVersionId, dataGraphId, dataGraphInline or resultRef',
       });
     }
   });
 
 export type ExecutionDataGraph = z.infer<typeof executionDataGraphSchema>;
+
+/** A kept result's rows, renamed column by column to a slot's variables. */
+export const executionArgumentRefSchema = z
+  .object({
+    resultRef: z.string().min(1),
+    columns: z.array(z.object({ from: z.string().min(1), to: z.string().min(1) }).strict()).min(1),
+    // The slot's variables, as the argument's head; the columns' targets when absent.
+    vars: z.array(z.string().min(1)).optional(),
+  })
+  .strict();
+
+export type ExecutionArgumentRef = z.infer<typeof executionArgumentRefSchema>;
 
 export const executionRequestSchema = z
   .object({
@@ -1311,6 +1325,14 @@ export const executionRequestSchema = z
     offsets: z.array(executionOffsetSchema).optional(),
     argumentSetIds: z.array(iriString).optional(),
     dataGraphs: z.array(executionDataGraphSchema).optional(),
+    /*
+     * Arguments passed by reference: a kept result (\`keepResult\`) whose rows
+     * fill a slot, with its columns renamed to the slot's variables. Each is
+     * added to \`arguments\`.
+     */
+    argumentRefs: z.array(executionArgumentRefSchema).optional(),
+    // Keep this run's result for a while and return its handle (Sqlib-Result-Ref).
+    keepResult: z.boolean().optional(),
     // The dataset to run over, in place of the query's FROM / FROM NAMED.
     defaultGraphs: z.array(iriString).optional(),
     namedGraphs: z.array(iriString).optional(),

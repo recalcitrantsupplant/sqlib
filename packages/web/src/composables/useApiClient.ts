@@ -222,11 +222,18 @@ export type ApiResult<T> = {
    * either way.
    */
   status: number;
+  /**
+   * The handle of a result the server kept (`keepResult`), from
+   * `Sqlib-Result-Ref`; null when nothing was kept.
+   */
+  resultRef?: string | null;
 };
 
 type ExecuteTargetResult = {
   body: string;
   contentType: string | null;
+  /** The handle of the kept result, when the run asked for `keepResult`. */
+  resultRef?: string | null;
   timing?: {
     header?: string | null;
     breakdown?: {
@@ -727,6 +734,7 @@ export function useApiClient() {
         etag: normalizeHeaderValue(response.headers.get('etag')),
         lastModified: normalizeHeaderValue(response.headers.get('last-modified')),
         status: response.status,
+        resultRef: normalizeHeaderValue(response.headers.get('sqlib-result-ref')),
       };
       debug('useApiClient', 'request succeeded', {
         url: input.toString(),
@@ -1614,10 +1622,16 @@ export function useApiClient() {
       dataGraphId?: string | null;
       dataGraphInline?: string | null;
       dataGraphInlineFormat?: string | null;
+      /** The base graph by reference: a result the server kept for this caller. */
+      dataGraphResultRef?: string | null;
+      /** Keep the inferred graph; its handle comes back as `resultRef`. */
+      keepResult?: boolean;
     },
   ) => {
     ensureRulesSuiteEnabled();
     const body: Record<string, unknown> = {};
+    if (input?.dataGraphResultRef) body.dataGraphResultRef = input.dataGraphResultRef;
+    if (input?.keepResult) body.keepResult = true;
     if (input?.version !== undefined && input.version !== null) {
       body.version = input.version;
     }
@@ -1633,7 +1647,7 @@ export function useApiClient() {
       body.dataGraphInline = input.dataGraphInline;
       if (input.dataGraphInlineFormat) body.dataGraphInlineFormat = input.dataGraphInlineFormat;
     }
-    return requestData(
+    return request(
       buildUrl(`/rule-sets/${encodeURIComponent(ruleSetId)}/execute`),
       {
         method: 'POST',
@@ -1641,7 +1655,7 @@ export function useApiClient() {
         body: JSON.stringify(body),
       },
       (payload) => ruleSetExecutionResponseSchema.parse(payload),
-    );
+    ).then(({ data, resultRef }) => Object.assign(data, { resultRef: resultRef ?? null }));
   };
 
   const listRuleVersions = (ruleId: string) => {
@@ -2512,6 +2526,7 @@ export function useApiClient() {
         body: text,
         contentType,
         timing,
+        resultRef: normalizeHeaderValue(response.headers.get('sqlib-result-ref')),
       };
     } catch (error) {
       console.error('[useApiClient] executeTarget exception:', {

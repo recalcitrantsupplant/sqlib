@@ -97,9 +97,17 @@ What each wire can carry:
   backend.
 
 Chaining is **by value**: a result comes back to the browser and goes out again
-in the next request. That is fine for the demonstrations a notebook is for, and
-it is the wrong shape for production — a pipeline that matters belongs in a
-query group, which the server runs in one call with no browser in the path.
+in the next request. A large value (64 KiB or more) is the exception. When a
+cell's result is read by a cell below, the run asks the server to keep a copy
+for a short time, and the next request names that copy instead of sending the
+content again. The copy is kept only in the server's memory, only for the user
+who ran the cell, and for 15 minutes after its last use. If the copy has gone,
+for example after a restart, the notebook sends the value by content instead,
+with no action from you.
+
+A notebook is still the wrong shape for production. A pipeline that matters
+belongs in a query group, which the server runs in one call with no browser in
+the path.
 
 Re-running a cell marks the cells below it **stale** rather than re-running
 them. The notebook says the result below came from an older input and leaves the
@@ -178,7 +186,6 @@ to a value no cell above binds.
 
 ## 8. What is not here yet
 
-- No pass-by-reference: a large value round-trips through the browser rather
-  than being captured server-side and passed by id.
+- No `.ipynb` or HTML export rewrite yet.
 
 This is scoped in [the proposal](../proposals/notebook-cells.md).

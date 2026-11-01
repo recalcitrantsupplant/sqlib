@@ -130,6 +130,23 @@ ETL is off by default; see [feature flags](feature-flags.md) and the
 | `ETL_RESPONSE_OUTPUT_MAX_BYTES` | `1048576` | The most RDF a run returns in its response on a read-only deployment, where it writes no file. A run whose output passes it fails, naming the cap, rather than returning part of its output. |
 | `SQLIB_ETL_NODE_MAX_ROWS` | `1000000` | The most rows an ETL node inside a query group may read from its source. A source with more fails the node, naming the cap, rather than handing the rest of the group a truncated result. Running a job directly is not affected. |
 
+## Kept results (pass-by-reference)
+
+A run that sets `keepResult` has its response kept in server memory, and the
+response carries a `Sqlib-Result-Ref` handle. A later request names the handle
+(`argumentRefs` or `dataGraphs[].resultRef` on `/execute`, `dataGraphResultRef`
+on a rule set run) instead of sending the content again. Only responses the
+server produced are kept, and a handle is readable only by the subject that made
+the run. A missing, expired or foreign handle returns `410`.
+
+| Name | Default | Effect |
+| --- | --- | --- |
+| `RESULT_CACHE_MAX_BYTES` | `268435456` (256 MiB) | All kept results together. The oldest are dropped first when a new one would pass it. `0` turns the feature off: nothing is kept, and every handle returns `410`. |
+| `RESULT_CACHE_MAX_BYTES_PER_USER` | `10485760` (10 MiB) | One subject's kept results together. A larger single result is not kept; otherwise the subject's oldest are dropped first. |
+| `RESULT_CACHE_TTL_MS` | `900000` (15 minutes) | Time after its last use at which a kept result is dropped. |
+
+A restart empties the cache.
+
 ## Entity size limits
 
 | Name | Default | Effect |
