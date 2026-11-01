@@ -11,6 +11,7 @@
  * Values live for the session only. The notebook document holds the story; the
  * run is not part of it (`lib/notebookFormat.ts`).
  */
+import { isCsvContentType, isTsvContentType, parseCsv, parseTsv } from './csv-tsv-table-converter';
 import { Parser as N3Parser } from 'n3';
 import type { ExecutionArgument } from '@sparql-query-lib/contracts';
 
@@ -156,6 +157,37 @@ export function rowsValue(
     bindings,
     byteSize: byteLength(rawBody),
   };
+}
+
+/** Whether a response is a SELECT's rows written as CSV or TSV. */
+export function isTabularContentType(contentType: string | null): boolean {
+  return isCsvContentType(contentType) || isTsvContentType(contentType);
+}
+
+/**
+ * A SELECT result asked for as CSV or TSV, as rows.
+ *
+ * TSV writes each term in N-Triples syntax, so it reads back exactly. CSV
+ * writes bare values: an IRI-shaped value reads as an IRI and the rest as plain
+ * literals, so a datatype or language tag does not survive the trip.
+ */
+export function tabularRowsValue(source: ValueSource, content: string, contentType: string | null): RowsValue {
+  const tsv = isTsvContentType(contentType);
+  const header = content.replace(/\r\n?/g, '\n').trim().split('\n')[0] ?? '';
+  const columns = header ? header.split(tsv ? '\t' : ',').map((name) => name.trim().replace(/^\?/, '')) : [];
+  const parsed = header ? (tsv ? parseTsv(content) : parseCsv(content)) : [];
+  const headerNames = header ? header.split(tsv ? '\t' : ',').map((name) => name.trim()) : [];
+  const bindings: SparqlBindingRow[] = parsed.map((row) => {
+    const binding: SparqlBindingRow = {};
+    headerNames.forEach((name, index) => {
+      const cell = row[name];
+      const column = columns[index]!;
+      if (cell === undefined || cell === '') return;
+      binding[column] = (typeof cell === 'string' ? { type: 'literal', value: cell } : cell) as SparqlBindingRow[string];
+    });
+    return binding;
+  });
+  return rowsValue(source, { head: { vars: columns }, results: { bindings } }, content);
 }
 
 export function graphValue(source: ValueSource, content: string, contentType: string | null): GraphValue {

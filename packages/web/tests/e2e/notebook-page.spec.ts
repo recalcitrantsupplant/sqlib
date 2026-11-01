@@ -176,6 +176,33 @@ test.describe('Notebook', () => {
   });
 
   /*
+   * Review bugs 2 and 3: each Add binding click reset the form, leaving a
+   * hidden empty row that failed the run; and a reloaded cell ran with typed
+   * values its form did not show.
+   */
+  test('keeps typed values in the form, sends them, and shows them after a reload', async ({ page }) => {
+    const writes = await mockCallableLibrary(page);
+    await openNotebook(page);
+    await insertFirstQuery(page);
+    const cell = page.locator('[data-testid^="notebook-cell-"]').first();
+
+    await cell.getByRole('button', { name: 'Add binding' }).click();
+    await cell.getByRole('button', { name: 'Add binding' }).click();
+    const values = cell.getByLabel('Value for ?term');
+    await expect(values).toHaveCount(2);
+    await values.nth(1).locator('xpath=ancestor::tr').getByRole('button', { name: 'Remove' }).click();
+    await values.first().fill('lamp');
+
+    await cell.getByTestId('run-bar-run').click();
+    await expect(cell.locator('[data-testid^="notebook-stats-"]')).toBeVisible();
+    const run = writes.filter((write) => write.pathname.endsWith('/execute')).pop();
+    expect(JSON.stringify(run?.body)).toContain('"lamp"');
+
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.getByLabel('Value for ?term')).toHaveValue('lamp');
+  });
+
+  /*
    * Save cuts a version in the library; typing after it is a draft in this
    * browser until the next Save, as on a query.
    */

@@ -237,6 +237,27 @@ describe('running a cell', () => {
     });
   });
 
+  it('refuses to run a cell that reads a value bound below it', async () => {
+    callables.value = [selectCallable('urn:q:people'), selectCallable('urn:q:by-name', [['name']])];
+    executeTarget.mockResolvedValue(rowsResponse(['name'], [{ name: { type: 'literal', value: 'Ada' } }]));
+
+    await runIn(async (nb) => {
+      const producer = queryCell('urn:q:people', 'people');
+      const consumer = queryCell('urn:q:by-name', 'out2', [{ from: 'value', ref: 'people' }]);
+      nb.addCell(producer);
+      nb.addCell(consumer);
+      await nextTick();
+      await nb.run(producer.id);
+      nb.moveCell(consumer.id, -1);
+      await nextTick();
+
+      expect(nb.problemsFor(consumer.id)).toEqual(['@people is not bound by a cell above this one.']);
+      await nb.run(consumer.id);
+      expect(nb.stateFor(consumer.id).status).toBe('error');
+      expect(executeTarget).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it('sends the payload to /execute rather than substituted text', async () => {
     callables.value = [selectCallable('urn:q:people', [['city']])];
     executeTarget.mockResolvedValue(rowsResponse(['name'], []));
@@ -430,6 +451,50 @@ describe('running a cell', () => {
       );
     });
     scope.stop();
+  });
+
+  it('never sends a backend for a group, even one left on the cell', async () => {
+    callables.value = [{ ...selectCallable('urn:g:orders'), type: 'group' }];
+    executeTarget.mockResolvedValue(rowsResponse(['name'], []));
+
+    const scope = effectScope();
+    await scope.run(async () => {
+      const nb = useNotebook(ref(LIBRARY), ref('urn:backend:library-default'));
+      const cell = { kind: 'group' as const, id: mintCellId(), group: 'urn:g:orders', out: 'orders', backend: 'urn:backend:x' };
+      nb.addCell(cell);
+      await nextTick();
+      await nb.run(cell.id);
+
+      expect(executeTarget.mock.calls[0]![0].backendId).toBeUndefined();
+    });
+    scope.stop();
+  });
+
+  it('binds a SELECT asked for as CSV or TSV as rows, not a graph', async () => {
+    callables.value = [selectCallable('urn:q:people')];
+    executeTarget
+      .mockResolvedValueOnce({ body: 'name,home\nAda,http://example.org/london\n', contentType: 'text/csv', timing: null, resultRef: 'urn:sqlib:result:1' })
+      .mockResolvedValueOnce({ body: '?name\n"Ada"@en\n', contentType: 'text/tab-separated-values', timing: null });
+
+    await runIn(async (nb) => {
+      const csv: QueryCell = { ...queryCell('urn:q:people', 'csv'), accept: 'text/csv' };
+      const tsv: QueryCell = { ...queryCell('urn:q:people', 'tsv'), accept: 'text/tab-separated-values' };
+      nb.addCell(csv);
+      nb.addCell(tsv);
+      await nextTick();
+      await nb.runAll();
+
+      const fromCsv = nb.values.value.csv;
+      expect(fromCsv?.type).toBe('rows');
+      expect(fromCsv?.type === 'rows' && fromCsv.columns).toEqual(['name', 'home']);
+      expect(fromCsv?.type === 'rows' && fromCsv.bindings[0]).toEqual({
+        name: { type: 'literal', value: 'Ada' },
+        home: { type: 'uri', value: 'http://example.org/london' },
+      });
+      expect(fromCsv?.resultRef).toBeNull();
+      const fromTsv = nb.values.value.tsv;
+      expect(fromTsv?.type === 'rows' && fromTsv.bindings[0]).toEqual({ name: { type: 'literal', value: 'Ada', 'xml:lang': 'en' } });
+    });
   });
 
   it("prefers the query's own default backend over the library's", async () => {
