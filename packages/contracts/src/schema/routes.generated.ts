@@ -1407,6 +1407,10 @@ export const createQueryVersionSchema = {
                   "type": "string",
                   "minLength": 1
                 }
+              },
+              "dataGraphId": {
+                "type": "string",
+                "minLength": 1
               }
             },
             "required": [
@@ -4257,6 +4261,10 @@ const __createQueryVersionBodySchema = {
                 "type": "string",
                 "minLength": 1
               }
+            },
+            "dataGraphId": {
+              "type": "string",
+              "minLength": 1
             }
           },
           "required": [
@@ -4677,6 +4685,10 @@ const __createQueryGroupVersionBodySchema = {
                 "type": "string",
                 "minLength": 1
               }
+            },
+            "dataGraphId": {
+              "type": "string",
+              "minLength": 1
             }
           },
           "required": [

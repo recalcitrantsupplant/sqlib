@@ -63,8 +63,9 @@ export const EPHEMERAL_BACKEND_CONFIG: JsonShape = {
 };
 
 /**
- * `QueryVersion.tool` and `QueryGroupVersion.tool` — the tool the version
- * publishes as, or `false` to leave it out of a `publishAll` library.
+ * `QueryVersion.tool`, `QueryGroupVersion.tool` and `RuleSetVersion.tool` —
+ * the tool the version publishes as, or `false` to leave it out of a
+ * `publishAll` library.
  *
  * Only the document's shape is here. Whether `params` names inputs the
  * version actually has needs its text, so that is checked when the version is
@@ -98,6 +99,7 @@ export const PUBLISHED_TOOL: JsonShape = {
             propertyNames: { pattern: REFUSAL_KEY_PATTERN },
             additionalProperties: { type: 'string', minLength: 1 },
           },
+          dataGraphId: { type: 'string', minLength: 1 },
         },
         required: ['name', 'description'],
         additionalProperties: false,
@@ -124,6 +126,7 @@ export const PUBLISHED_TOOL: JsonShape = {
           )
           .optional(),
         refusals: z.record(z.string().regex(/${REFUSAL_KEY_PATTERN}/), z.string().min(1)).optional(),
+        dataGraphId: z.string().min(1).optional(),
       })
       .strict(),
     z.literal(false),

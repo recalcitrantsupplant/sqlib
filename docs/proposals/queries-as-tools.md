@@ -3,7 +3,8 @@
 Status: part A implemented 2026-10-29; see
 [guides/publishing-tools.md](../guides/publishing-tools.md) for how to use it
 and [As built](#as-built) for where the build differs from this text. Part B
-implemented 2026-10-30. Design decisions settled 2026-10-27 (see
+implemented 2026-10-30. Rule sets published as a third kind of tool
+2026-11-01. Design decisions settled 2026-10-27 (see
 [Decisions](#decisions)). Written 2026-10-26 against `main` at `6f65c10`.
 
 ## Summary
@@ -426,3 +427,19 @@ Part B was built on 2026-10-30. Where the open points were settled:
 6. **MCP marks every failed published call as an error.** A published tool
    that answers 4xx or 5xx sets `isError`. For a refusal the text is the
    messages, one per line.
+
+Rule sets were added as a third kind of tool on 2026-11-01:
+
+1. **A rule set version carries the `tool` object**, as a query version does,
+   and a save without one copies the previous version's. It has no `params`
+   and no `refusals`. It may name a `dataGraphId`.
+2. **The input is a pinned data graph, or the caller's RDF.** A call takes
+   `data` and `format`. With `data`, the rules run on it. Without it, they run
+   on the `dataGraphId` at the version current at startup, or on their own
+   data blocks when the tool names none.
+3. **The request is `POST /rule-sets/{id}/execute`** with the pinned version
+   number, and the answer is the inferred triples as Turtle. The tool is
+   read-only, but answers `POST` over HTTP, because `data` can be longer than
+   a URL.
+4. **`published` mode keeps that route** and runs only the pinned version on
+   the caller's RDF or the pinned data graph version.

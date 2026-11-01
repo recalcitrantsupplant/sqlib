@@ -5,9 +5,9 @@
  *   built-in tools and every API route — and every library's published tools.
  * - **`catalogue`**: the catalogue only. `/mcp/{slug}` and `/tools/…` are 404.
  * - **`published`**: the published tools only, for a production deployment of
- *   an application. Every authoring route is 404, and `POST /execute` runs
- *   only the pinned versions of published tools, whatever a caller's grants
- *   would otherwise allow.
+ *   an application. Every authoring route is 404, and `POST /execute` and
+ *   `POST /rule-sets/{id}/execute` run only the pinned versions of published
+ *   tools, whatever a caller's grants would otherwise allow.
  *
  * It also decides what an invalid tool at startup costs: in `both` and
  * `catalogue` mode the server logs it and starts without it, so a person
@@ -54,15 +54,19 @@ export function catalogueServed(mode: CatalogueMode = catalogueMode()): boolean 
  * The routes a `published` server keeps. Everything else is an authoring
  * route and answers 404, as though it were never registered.
  *
- * `/execute` stays because every published tool runs through it, from either
- * door; the hook below narrows it to the pinned versions. `/auth` stays
+ * `/execute` stays because every published query and group runs through it,
+ * from either door, and `/rule-sets/:id/execute` because every published rule
+ * set does; the hook below narrows both to the pinned versions. `/auth` stays
  * because who may call the tools is still decided by grants, and
  * `/.well-known` because a client signs in through it.
  */
+const RULE_SET_EXECUTE_ROUTE = '/rule-sets/:id/execute';
+
 export function routeServedWhenPublished(routeUrl: string): boolean {
   const path = normalizeRouteUrl(routeUrl);
   return (
     path === '/execute'
+    || path === RULE_SET_EXECUTE_ROUTE
     || path === '/mcp'
     || path === '/mcp/:slug'
     || path === '/health'
@@ -103,7 +107,17 @@ export async function registerPublishedModePlugin(
 
   app.addHook('preHandler', async (request: FastifyRequest, reply: FastifyReply) => {
     const routeUrl = request.routeOptions?.url;
-    if (!routeUrl || normalizeRouteUrl(withinBase(routeUrl)) !== '/execute') return;
+    if (!routeUrl) return;
+    const path = normalizeRouteUrl(withinBase(routeUrl));
+    if (path === RULE_SET_EXECUTE_ROUTE) {
+      if (pinnedRuleSetCall(request)) return;
+      reply.code(403).send({
+        error: 'This server runs only its published tools. The rule set call is not the pinned version of a published tool, '
+          + 'or names data the tool does not run on.',
+      });
+      return reply;
+    }
+    if (path !== '/execute') return;
     const targetId = (request.body as { targetId?: unknown } | undefined)?.targetId;
     const pinned = getPublishedCatalogue().specs.some(spec => spec.targetId === targetId);
     if (pinned) return;
@@ -112,4 +126,26 @@ export async function registerPublishedModePlugin(
     });
     return reply;
   });
+}
+
+/**
+ * Whether a rule set call is one a published rule set tool makes: its pinned
+ * version, and either the caller's own RDF or the tool's pinned data graph,
+ * never another stored graph and never tuple seeds.
+ */
+function pinnedRuleSetCall(request: FastifyRequest): boolean {
+  const id = (request.params as { id?: unknown } | undefined)?.id;
+  const body = (request.body ?? {}) as {
+    version?: unknown;
+    dataGraphVersionId?: unknown;
+    dataGraphId?: unknown;
+    tuples?: unknown;
+  };
+  if (body.dataGraphId != null || body.tuples != null) return false;
+  return getPublishedCatalogue().specs.some(({ targetKind, ruleSet }) =>
+    targetKind === 'ruleSet'
+    && ruleSet !== undefined
+    && ruleSet.id === id
+    && ruleSet.version === body.version
+    && (body.dataGraphVersionId == null || body.dataGraphVersionId === ruleSet.dataGraphVersionId));
 }

@@ -1,12 +1,13 @@
 /**
  * The published tools, collected once when the server starts.
  *
- * A query or query group is published when its current version carries a
+ * A query, query group or rule set is published when its current version carries a
  * `tool` object, or when its library sets `publishAll` and the version does not
  * say `"tool": false`. Each tool pins the version that was current at startup,
  * and its default backend, so a tool never changes under an agent during a
  * session: a new version, a changed `tool` object or a new published query
- * takes effect at the next start. See `docs/guides/publishing-tools.md`.
+ * takes effect at the next start. A rule set's data graph is pinned the same
+ * way, at the version that was current at startup. See `docs/guides/publishing-tools.md`.
  *
  * What is left to go wrong at startup is little, because the `tool` object was
  * checked when its version was saved: a publishing library with no slug, two
@@ -19,6 +20,7 @@ import {
   type DetectedInputs,
   type PublishedToolSpec,
   type ToolObject,
+  type ToolTargetKind,
 } from '@sparql-query-lib/tools';
 import { EPHEMERAL_BACKEND_ID, LIBRARY_STORAGE_BACKEND_ID } from '@sparql-query-lib/types';
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
@@ -31,6 +33,8 @@ import type { PersistedQuery } from '../persistence/schemas/QuerySchema.js';
 import type { PersistedQueryGroup } from '../persistence/schemas/QueryGroupSchema.js';
 import type { PersistedQueryVersion } from '../persistence/schemas/QueryVersionSchema.js';
 import type { PersistedQueryGroupVersion } from '../persistence/schemas/QueryGroupVersionSchema.js';
+import type { PersistedRuleSet } from '../persistence/schemas/RuleSetSchema.js';
+import type { PersistedRuleSetVersion } from '../persistence/schemas/RuleSetVersionSchema.js';
 
 export type PublishedLibrary = {
   id: string;
@@ -75,7 +79,14 @@ function get<T>(id: unknown): T | null {
   return typeof id === 'string' && id ? (getCacheCoordinator().get(id) as T | null) : null;
 }
 
-function libraryOf(entity: PersistedQuery | PersistedQueryGroup): string | null {
+type PublishedEntity = PersistedQuery | PersistedQueryGroup | PersistedRuleSet;
+type PublishedVersion = PersistedQueryVersion | PersistedQueryGroupVersion | PersistedRuleSetVersion;
+
+const KIND_LABEL: Record<ToolTargetKind, string> = { query: 'Query', group: 'Query group', ruleSet: 'Rule set' };
+
+const NO_INPUTS: DetectedInputs = { tables: [], limits: [], offsets: [] };
+
+function libraryOf(entity: PublishedEntity): string | null {
   const parents = Array.isArray(entity.isPartOf) ? entity.isPartOf : [entity.isPartOf];
   return parents.find((id): id is string => get<Entity>(id)?.['@type'] === 'Library') ?? null;
 }
@@ -140,9 +151,10 @@ export function collectPublishedTools(): PublishedCatalogue {
   const libraries = new Map<string, PublishedLibrary>();
   const librariesWithoutSlug = new Set<string>();
 
-  const entries: Array<{ kind: 'query' | 'group'; entity: PersistedQuery | PersistedQueryGroup }> = [
+  const entries: Array<{ kind: ToolTargetKind; entity: PublishedEntity }> = [
     ...(cache.list('Query') as PersistedQuery[]).map(entity => ({ kind: 'query' as const, entity })),
     ...(cache.list('QueryGroup') as PersistedQueryGroup[]).map(entity => ({ kind: 'group' as const, entity })),
+    ...(cache.list('RuleSet') as PersistedRuleSet[]).map(entity => ({ kind: 'ruleSet' as const, entity })),
   ];
   // Stable across restarts, so which of two same-named tools wins does not
   // depend on the order the store returned them.
@@ -151,14 +163,14 @@ export function collectPublishedTools(): PublishedCatalogue {
   for (const { kind, entity } of entries) {
     const libraryId = libraryOf(entity);
     const library = get<PersistedLibrary>(libraryId);
-    const version = get<PersistedQueryVersion | PersistedQueryGroupVersion>(entity.currentVersion);
+    const version = get<PublishedVersion>(entity.currentVersion);
     if (!library || !version) continue;
 
     const declared = version.tool;
     if (declared === false) continue;
     if (!declared && !library.publishAll) continue;
 
-    const label = `${kind === 'query' ? 'Query' : 'Query group'} "${entity.name}" (${entity.$id})`;
+    const label = `${KIND_LABEL[kind]} "${entity.name}" (${entity.$id})`;
     if (!library.slug) {
       if (!librariesWithoutSlug.has(library.$id)) {
         librariesWithoutSlug.add(library.$id);
@@ -175,7 +187,9 @@ export function collectPublishedTools(): PublishedCatalogue {
 
     const inputs = kind === 'query'
       ? queryVersionInputs(version as PersistedQueryVersion)
-      : groupVersionInputs(version as PersistedQueryGroupVersion);
+      : kind === 'group'
+        ? groupVersionInputs(version as PersistedQueryGroupVersion)
+        : NO_INPUTS;
     const tool: ToolObject = declared || defaultToolObject(entity, inputs);
     const problem = checkToolObject(tool, inputs, { targetKind: kind });
     if (problem) {
@@ -198,6 +212,20 @@ export function collectPublishedTools(): PublishedCatalogue {
       }
     }
 
+    let ruleSet: PublishedToolSpec['ruleSet'];
+    if (kind === 'ruleSet') {
+      let dataGraphVersionId: string | undefined;
+      if (tool.dataGraphId) {
+        const graph = get<{ '@type'?: string; currentVersion?: string | null }>(tool.dataGraphId);
+        dataGraphVersionId = graph?.['@type'] === 'DataGraph' && graph.currentVersion ? graph.currentVersion : undefined;
+        if (!dataGraphVersionId || !get<Entity>(dataGraphVersionId)) {
+          problems.push(`${label}: its data graph ${tool.dataGraphId} does not exist or has no current version.`);
+          continue;
+        }
+      }
+      ruleSet = { id: entity.$id, version: version.version, ...(dataGraphVersionId ? { dataGraphVersionId } : {}) };
+    }
+
     specs.push({
       slug: library.slug,
       libraryId: library.$id,
@@ -205,13 +233,17 @@ export function collectPublishedTools(): PublishedCatalogue {
       description: tool.description,
       targetId: version.$id,
       targetKind: kind,
+      // A rule set's inferences are its answer: nothing is written back.
       readOnly: kind === 'query'
         ? (version as PersistedQueryVersion).queryType !== QueryTypeIri.update
-        : groupReadsOnly(version as PersistedQueryGroupVersion),
+        : kind === 'group'
+          ? groupReadsOnly(version as PersistedQueryGroupVersion)
+          : true,
       params: tool.params ?? {},
       inputs,
       ...(defaultBackendId ? { defaultBackendId } : {}),
       ...(kind === 'query' && tool.refusals ? { refusals: tool.refusals } : {}),
+      ...(ruleSet ? { ruleSet } : {}),
     });
     if (!libraries.has(library.slug)) {
       libraries.set(library.slug, {

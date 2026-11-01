@@ -1,6 +1,6 @@
 # Publishing queries as tools
 
-A library's stored queries and query groups can be published as tools. An
+A library's stored queries, query groups and rule sets can be published as tools. An
 application then calls them by name, with one plain argument per parameter,
 over MCP or over HTTP. It does not need the query's IRI or SPARQL Results JSON,
 and it needs no server of its own in front of sqlib.
@@ -13,14 +13,14 @@ The design and the reasons for it are in
 | | Building a library | Using an application |
 | --- | --- | --- |
 | Who calls | the person who designs queries, or an agent that helps them | the application's agents, pages and scripts |
-| Tools | the catalogue: `libraries_*`, `queries_*`, `execute_run` … | the library's published queries and groups |
+| Tools | the catalogue: `libraries_*`, `queries_*`, `execute_run` … | the library's published queries, groups and rule sets |
 | Arguments | ids and SPARQL Results JSON | plain values, one per parameter |
 | Where | `/mcp` and the API's routes | `/mcp/{slug}` and `/tools/{slug}/{name}` |
 | Changes | at every call | at a restart |
 
-Both surfaces run through `POST /execute`. A published tool keeps every rule
-of an execution: the caller's grants, the argument checks and the backend
-rules.
+Both surfaces run through `POST /execute`, or `POST /rule-sets/{id}/execute`
+for a rule set. A published tool keeps every rule of an execution: the
+caller's grants, the argument checks and the backend rules.
 
 ## 1. Give the library a slug
 
@@ -40,8 +40,8 @@ with the same slug gets `409`.
 Do one of these:
 
 - **Per entry.** Save a version whose body carries a `tool` object.
-- **Per library.** Set `"publishAll": true` on the library. Every query and
-  group in it is then published. An entry whose current version has a `tool`
+- **Per library.** Set `"publishAll": true` on the library. Every query,
+  group and rule set in it is then published. An entry whose current version has a `tool`
   object uses it. An entry whose current version has `"tool": false` is left
   out. Every other entry gets a default tool: its name made safe, its
   description, and every input as an optional `term`.
@@ -64,7 +64,8 @@ POST /queries/{id}/versions
 }
 ```
 
-A query group version takes the same object under `queryGroupVersion`.
+A query group version takes the same object under `queryGroupVersion`. A
+rule set takes it on its own; see [Publishing a rule set](#publishing-a-rule-set).
 
 ### The `tool` object
 
@@ -72,6 +73,7 @@ A query group version takes the same object under `queryGroupVersion`.
 | --- | --- |
 | `name` | `[A-Za-z0-9_-]`, 1 to 64 characters, unique among the library's tools. |
 | `description` | What MCP and the OpenAPI document show. Say when to call the tool. |
+| `dataGraphId` | Optional, rule sets only. The data graph the rules run on when a call sends no `data`. |
 | `refusals` | Optional, published updates only. One message per precondition flag; see [Refusals](#refusals-why-an-update-wrote-nothing). |
 | `params` | One key per input the tool offers. A key is a variable of a table parameter (`VALUES … { UNDEF }`) or the name of a `LIMIT` or `OFFSET` parameter (`LIMIT 0001` is `"1"`). An input with no key is not offered, and is `UNDEF` in every call. |
 
@@ -250,6 +252,40 @@ WHERE {
 A response to a query that declares a slot carries
 `Cache-Control: private, no-store`, because it depends on the caller.
 
+### Publishing a rule set
+
+A rule set takes the `tool` object at the top level of a version body, on
+`POST /rule-sets/{id}/srl` or `POST /rule-sets/{id}/versions`. A save that
+sends no `tool` copies the previous version's, as for a query.
+
+```json
+POST /rule-sets/{id}/srl
+{
+  "srl": "PREFIX ex: <http://example.org/> RULE { ?a ex:neighbour ?b } WHERE { … }",
+  "tool": {
+    "name": "neighbours",
+    "description": "Who lives in the same city as whom.",
+    "dataGraphId": "urn:sqlib:data-graph:…"
+  }
+}
+```
+
+A rule set tool has no `params` and no `refusals`. It takes two arguments:
+
+| Argument | Meaning |
+| --- | --- |
+| `data` | RDF to run the rules on, in place of the data graph. Optional. |
+| `format` | The format of `data`: `text/turtle` (the default), `application/n-triples` or `application/n-quads`. Only with `data`. |
+
+A call with `data` runs the rules on that RDF. A call without it runs them on
+the tool's `dataGraphId`, at the version that was current at startup. A tool
+with no `dataGraphId` runs its rules on their own data blocks only. Either way
+the answer is what `POST /rule-sets/{id}/execute` returns, the inferred triples
+as Turtle. A rule set tool only reads: nothing is written to a store.
+
+The save checks that `dataGraphId` names a data graph. `publishAll` gives a
+rule set with no `tool` a default one, with no data graph.
+
 ## 3. Restart the server
 
 The server collects the published tools when it starts. Each tool runs the
@@ -315,8 +351,8 @@ A session belongs to the endpoint that opened it. A session opened on
 
 | Route | For |
 | --- | --- |
-| `GET /tools/{slug}/{name}` | a tool that only reads (a `SELECT`, `ASK`, `CONSTRUCT` or `DESCRIBE`, or a group of only those). The arguments are in the query string. Repeat a key for a list: `?city=Perth&city=Darwin`. Write a `term` or `langString` object as URL-encoded JSON. |
-| `POST /tools/{slug}/{name}` | a tool backed by an update, or a group that can write. The arguments are a JSON object. |
+| `GET /tools/{slug}/{name}` | a query or group that only reads (a `SELECT`, `ASK`, `CONSTRUCT` or `DESCRIBE`, or a group of only those). The arguments are in the query string. Repeat a key for a list: `?city=Perth&city=Darwin`. Write a `term` or `langString` object as URL-encoded JSON. |
+| `POST /tools/{slug}/{name}` | a tool backed by an update, a group that can write, or a rule set. The arguments are a JSON object. A rule set is `POST` because its `data` can be longer than a URL. |
 | `GET /tools/{slug}/openapi.json` | an OpenAPI 3.1 document with one operation per tool, typed from its parameters. Generate a page's client from it. |
 
 Each route returns what `POST /execute` returns, and forwards the caller's
@@ -334,7 +370,12 @@ client library. Use MCP for agents, analysis and exploration.
 | `catalogue` | the catalogue only | `404` | served | any target the caller's grants allow |
 | `published` | every library's published tools only | served | `404` | only the pinned versions of published tools (`403` otherwise) |
 
-In `published` mode the server keeps `/execute`, `/mcp`, `/mcp/{slug}`,
+In `published` mode `POST /rule-sets/{id}/execute` also runs only the pinned
+version of a published rule set. The call may send its own RDF or name the
+tool's pinned data graph version, and nothing else: another stored graph, or
+tuple seeds, is a `403`.
+
+In `published` mode the server keeps `/execute`, `/rule-sets/{id}/execute`, `/mcp`, `/mcp/{slug}`,
 `/tools/…`, `/auth/…`, `/.well-known/…`, `/health` and `/metrics`. Every other
 route answers `404`. Use it for a production deployment of an application.
 
@@ -344,7 +385,8 @@ The save-time check leaves few problems for startup:
 
 - a publishing library with no slug,
 - two tools with one name in a library,
-- a default backend that no longer exists.
+- a default backend that no longer exists,
+- a rule set's data graph that no longer exists or has no version.
 
 In `both` and `catalogue` mode the server logs each problem, skips that tool
 and starts. In `published` mode it refuses to start, and names each invalid
