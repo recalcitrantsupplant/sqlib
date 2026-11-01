@@ -32,9 +32,11 @@ export {
   applyTemplateArguments,
   assignArgumentSets,
   completeArgumentSets,
+  describeSlot,
   type ArgumentRow,
   type EmptyArgumentMode,
   type QueryTemplate,
+  type SlotPolicy,
   type TemplateArgumentSet,
   type TemplateSlot,
 } from './query-template.js';

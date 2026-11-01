@@ -67,6 +67,7 @@ const store = vi.hoisted(() => ({
   listVersions: vi.fn(),
   fetchVersion: vi.fn(),
   loadRunsForVersion: vi.fn(),
+  clearRuns: vi.fn(),
   getRunObservations: vi.fn(),
   createExperiment: vi.fn(),
   updateExperiment: vi.fn(),

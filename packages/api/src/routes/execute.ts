@@ -42,6 +42,7 @@ import { datasetFromRequest, type SparqlDataset } from '../lib/dataset.js';
 import { abortOnDisconnect, ExecutionAbortedError } from '../lib/cancellation.js';
 import { QueryGroupSignatureService } from '../lib/QueryGroupSignatureService.js';
 import { applyExecutionArguments, normalizeArguments } from '../lib/executionArguments.js';
+import { versionSlotPolicies } from '../lib/slotPolicies.js';
 import type { RuntimeArgumentPayload } from '../lib/ArgumentSetService.js';
 import { resolveDataGraphInput, DataGraphContentError } from '../lib/dataGraphInput.js';
 import type { ExecutionDataGraphInput } from '../lib/orchestration/ExecutionEngine.js';
@@ -382,7 +383,8 @@ export default async function (
             return duration;
         };
         let targetTypeForError: string | undefined;
-        const backendId = params.backendId;
+        // Reassigned once below, for a query given data graphs to run over.
+        let backendId = params.backendId;
         let ephemeralStoreId: string | null = null; // Track ephemeral store for cleanup
         // A caller who disconnects stops paying for the run they left: the
         // signal reaches every backend request and every group node.
@@ -418,6 +420,22 @@ export default async function (
                 request,
                 viaLibrary: targetLibrary,
             });
+
+            // A query handed data graphs runs over those graphs alone, in an
+            // ephemeral store made for this request. Naming the ephemeral
+            // backend is optional, naming any other is refused: the query would
+            // not see that store, and running it there anyway would answer a
+            // different question from the one the caller asked.
+            const queryOverDataGraphs =
+                (targetTypeForError === 'Query' || targetTypeForError === 'QueryVersion')
+                && (dataGraphs?.length ?? 0) > 0;
+            if (queryOverDataGraphs && backendId && backendId !== EPHEMERAL_BACKEND_ID) {
+                return reply.code(400).send({
+                    error: 'A query given dataGraphs runs over those graphs alone, in an ephemeral store. '
+                        + `Leave backendId out, or set it to ${EPHEMERAL_BACKEND_ID}.`,
+                });
+            }
+            if (queryOverDataGraphs) backendId = EPHEMERAL_BACKEND_ID;
 
             // 3. Validate backendId based on target type
             if (targetTypeForError === 'Query' || targetTypeForError === 'QueryVersion') {
@@ -623,20 +641,10 @@ export default async function (
                 }
             }
 
-            // A data graph is a query group's input, supplied through its start
-            // node. A query names its store with `backendId` and a rule set has
-            // its own route, so neither has a start node to hand one to.
+            // A data graph fills a query group's start-node input, or is the
+            // whole store a query runs over (see `queryOverDataGraphs`). The
+            // target types that reach here are those two, so nothing else to refuse.
             const suppliedDataGraphs = dataGraphs ?? [];
-            if (
-                suppliedDataGraphs.length > 0 &&
-                targetTypeForError !== 'QueryGroup' &&
-                targetTypeForError !== 'QueryGroupVersion'
-            ) {
-                return reply.code(400).send({
-                    error: 'dataGraphs are only supported when executing a QueryGroup or QueryGroupVersion: '
-                        + 'they fill the data graph inputs its start node declares.',
-                });
-            }
 
             let initialDataGraphs: ExecutionDataGraphInput[] = [];
             try {
@@ -720,6 +728,7 @@ export default async function (
                             argumentSets: resolveArgumentsForQuery(sparqlQueryString),
                             limits: normalizedLimits,
                             offsets: normalizedOffsets,
+                            slotPolicies: versionSlotPolicies(resolvedQueryVersion),
                         }, parser);
                     } catch (applyError__u: unknown) {
                         const applyError = toError(applyError__u);
@@ -753,6 +762,7 @@ export default async function (
                             argumentSets: resolveArgumentsForQuery(sparqlQueryString),
                             limits: normalizedLimits,
                             offsets: normalizedOffsets,
+                            slotPolicies: versionSlotPolicies(resolvedQueryVersion),
                         }, parser);
                     } catch (applyError__u: unknown) {
                         const applyError = toError(applyError__u);
@@ -918,6 +928,13 @@ export default async function (
                 // Create ephemeral store for this execution
                 ephemeralStoreId = `ephemeral-query-${crypto.randomUUID()}`;
                 const ephemeralStore = oxigraphStoreManager.createEphemeralStore(ephemeralStoreId);
+                for (const graph of initialDataGraphs) {
+                    try {
+                        await oxigraphStoreManager.loadDataFromString(ephemeralStore, graph.content, graph.format);
+                    } catch (loadError__u: unknown) {
+                        return reply.code(400).send({error: toError(loadError__u).message});
+                    }
+                }
                 targetExecutor = new OxigraphSparqlExecutor(ephemeralStore);
                 backendTypeAttr = 'oxigraphEphemeral'; // For metrics
                 request.log.info(`Created ephemeral store ${ephemeralStoreId} for target ${targetId}`);

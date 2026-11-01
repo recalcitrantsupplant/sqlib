@@ -182,6 +182,7 @@ export async function exportBundle(args: Args): Promise<void> {
     {
       listQueries: () => repos.Query.list() as PersistedQuery[],
       getQueryVersion: (id) => repos.QueryVersion.get(id) as PersistedQueryVersion | null,
+      getEntity: (entityId) => getCacheCoordinator().get(entityId),
     },
     args.library!,
     { tags: args.tags, match: args.match },

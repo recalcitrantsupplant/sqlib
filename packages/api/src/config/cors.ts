@@ -58,7 +58,7 @@ export function resolveCorsPolicy(env: NodeJS.ProcessEnv = process.env): CorsPol
  * any route runs, so left to itself it would answer `/mcp`'s preflights with
  * the wrong header list and the MCP route would never see them.
  */
-export const SELF_MANAGED_CORS_ROUTES: readonly string[] = ['/mcp'];
+export const SELF_MANAGED_CORS_ROUTES: readonly string[] = ['/mcp', '/mcp/:slug'];
 
 const API_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'];
 

@@ -60,7 +60,7 @@ describe('SparqlQueryParser - applyArguments', () => {
     expect(() => parser.applyArguments(
       'SELECT ?s WHERE { VALUES (?s) { (UNDEF) } ?s ?p ?o }',
       [{ head: { vars: ['s'] }, results: { bindings: [] }, whenEmpty: 'require' }],
-    )).toThrow('Required input for VALUES clause 1 received no bindings');
+    )).toThrow('Required input for VALUES clause 1 (?s) received no bindings');
 
     // A required input that *was* satisfied is not an error.
     expect(parser.applyArguments(

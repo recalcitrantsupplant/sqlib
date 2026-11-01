@@ -280,6 +280,14 @@ export function deriveFieldZod(entityName: string, key: string, prop: any): stri
   // in its `title`. Looked up rather than derived from the fragment: the zod
   // and the JSON Schema are two emissions of one declaration in `jsonShapes.ts`,
   // and translating one into the other here would be a third.
+  // A union shape (a document or `false`) carries its own `null` branch when
+  // the property is optional, rather than `nullable`; see `inferOpenAPIType`.
+  if (prop.type === undefined && Array.isArray(prop.anyOf) && typeof prop.title === 'string') {
+    const zod = jsonShape(prop.title).zod;
+    const nullable = prop.anyOf.some((branch: { type?: unknown }) => branch?.type === 'null');
+    return nullable ? `${zod}\n  .optional()\n  .nullable()` : zod;
+  }
+
   if (prop.type === 'object') {
     if (typeof prop.title !== 'string') {
       throw new Error(

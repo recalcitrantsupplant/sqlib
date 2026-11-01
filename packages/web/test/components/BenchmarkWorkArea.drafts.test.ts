@@ -44,6 +44,7 @@ const store = vi.hoisted(() => ({
   listVersions: vi.fn(),
   fetchVersion: vi.fn(),
   loadRunsForVersion: vi.fn(),
+  clearRuns: vi.fn(),
   getRunObservations: vi.fn(),
   createExperiment: vi.fn(),
   // A save writes the name and description back to the experiment before it
@@ -323,5 +324,21 @@ describe('BenchmarkWorkArea — drafts', () => {
     expect(drafts.records.get(EXPERIMENT_ID)).toMatchObject({ section: 'bench' });
     expect((drafts.records.get(EXPERIMENT_ID)?.body as { description?: string }).description)
       .toBe('Now also under a cold cache');
+  });
+
+  it('will not run while edits are unsaved, and says why', async () => {
+    // Run executes the saved version, but the run bar describes the draft: a
+    // run started now would use backends and sets the screen no longer shows.
+    const area = await mountSaved();
+    const run = () => area.get('[data-testid="run-bar-run"]');
+    expect(run().attributes('disabled')).toBeUndefined();
+
+    await edit(area, 5);
+    expect(run().attributes('disabled')).toBeDefined();
+    expect(run().attributes('title')).toMatch(/Save or discard/);
+
+    await area.get('[data-testid="discard-draft"]').trigger('click');
+    await flushPromises();
+    expect(run().attributes('disabled')).toBeUndefined();
   });
 });

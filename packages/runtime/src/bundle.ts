@@ -19,7 +19,7 @@
  */
 
 import { isSafeVariableName } from './sparql-terms.js';
-import type { EmptyArgumentMode, QueryTemplate } from './query-template.js';
+import type { EmptyArgumentMode, QueryTemplate, SlotPolicy } from './query-template.js';
 import type { WireArgumentSet } from './arguments.js';
 import type { ExecutionParameter } from './limit-offset.js';
 
@@ -101,6 +101,12 @@ export interface ExportedQuery {
    * call without reading spans out of the template.
    */
   inferredInputs: string[][];
+  /**
+   * The query author's `whenEmpty` per slot, from the version's input tuples.
+   * Absent when no slot has one, and in bundles exported before it existed:
+   * every slot then keeps the built-in reading.
+   */
+  inputPolicies?: SlotPolicy[];
   /** `sha256-<hex>` of `template.text`; see {@link verifyBundleIntegrity}. */
   textHash: string;
   /** The QueryVersion this was compiled from. Provenance only, never resolved. */
@@ -291,6 +297,28 @@ export class InvalidBundleError extends Error {
 }
 
 const QUERY_TYPES = new Set<string>(['SELECT', 'ASK', 'CONSTRUCT', 'DESCRIBE']);
+
+function isEmptyArgumentMode(value: unknown): value is EmptyArgumentMode {
+  return value === 'unconstrained' || value === 'propagateEmpty' || value === 'require';
+}
+
+/** Each policy names a slot the template declares, with a known mode. */
+function assertValidInputPolicies(query: ExportedQuery, where: string): void {
+  if (query.inputPolicies === undefined) return;
+  if (!Array.isArray(query.inputPolicies)) fail(`${where}: inputPolicies must be an array.`);
+  const signature = (vars: readonly string[]) => [...vars].sort().join(' ');
+  const declared = new Set(query.template.slots.map((slot) => signature(slot.vars)));
+  query.inputPolicies.forEach((policy, index) => {
+    const at = `${where} inputPolicies[${index}]`;
+    if (!policy || !Array.isArray(policy.vars) || !policy.vars.every((v) => typeof v === 'string')) {
+      fail(`${at} must name its slot's variables.`);
+    }
+    if (!declared.has(signature(policy.vars))) fail(`${at} names a slot the template does not declare.`);
+    if (!isEmptyArgumentMode(policy.whenEmpty)) {
+      fail(`${at} has an unknown whenEmpty mode '${String(policy.whenEmpty)}'.`);
+    }
+  });
+}
 
 function fail(message: string): never {
   throw new InvalidBundleError(message);
@@ -601,6 +629,7 @@ export function assertValidBundle(bundle: unknown): asserts bundle is ExportBund
     if (typeof query.textHash !== 'string' || !query.textHash.startsWith('sha256-')) {
       fail(`${where}: textHash must be a 'sha256-<hex>' string.`);
     }
+    assertValidInputPolicies(query, where);
     assertValidExamples(query, where);
   }
 

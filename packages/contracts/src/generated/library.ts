@@ -12,6 +12,7 @@ const iriString = z
 const optionalIriString = iriString.optional().nullable();
 const isoDateTime = z.string().datetime({ offset: true }).optional().nullable();
 const nullableString = z.string().optional().nullable();
+const nullableBoolean = z.boolean().optional().nullable();
 // Reusable field definitions for Library entity
 const libraryShape = {
   id: iriString,
@@ -20,6 +21,8 @@ const libraryShape = {
   defaultBackend: optionalIriString,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
+  slug: z.string().regex(/^[a-z0-9-]+$/, 'Must match [a-z0-9-]+').optional().nullable(),
+  publishAll: nullableBoolean,
 };
 // Full Library schema for validation
 export const librarySchema = z.object(libraryShape).strict();

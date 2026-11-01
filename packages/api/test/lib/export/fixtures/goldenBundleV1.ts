@@ -93,6 +93,9 @@ const QUERIES = [
     queryString: PAGED_THINGS,
     sourceQuery: QUERY_PAGED,
     sourceVersion: 'urn:sqlib:query-version:paged-things-1',
+    // So `inputPolicies` is in the fixture. Not `require`: the paged example
+    // runs without a type.
+    inputPolicies: [{ vars: ['type'], whenEmpty: 'propagateEmpty' as const }],
   },
   {
     name: 'Labels',

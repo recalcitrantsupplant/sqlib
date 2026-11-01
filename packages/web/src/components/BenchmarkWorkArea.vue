@@ -614,8 +614,16 @@ onMounted(async () => {
 });
 
 watch(
-  () => props.experimentId,
-  async (id) => {
+  () => [props.experimentId, props.scratchId] as const,
+  async ([id]) => {
+    /*
+     * The runs list lives in a shared store and the selected run in this
+     * component, and both outlive a change of benchmark. Left in place, the
+     * last benchmark's run drew under the next one's name — and under a new
+     * scratch benchmark, which has no runs at all.
+     */
+    clearRunSelection();
+    store.clearRuns();
     if (!id || isScratch.value) return;
     try {
       await loadReferenceData();
@@ -632,12 +640,15 @@ watch(selectedVersionNumber, async (next, previous) => {
   if (!props.experimentId || next == null || next === previous || previous == null) return;
   // Reading another version into the editor is not an edit to this one.
   hydratingRecord.value = true;
+  // Cleared before the new list loads, not after: the list watcher opens the
+  // newest run as soon as it lands, and clearing behind it left that run's
+  // requests on screen under "No run selected".
+  clearRunSelection();
   try {
     await store.fetchVersion(props.experimentId, next);
     await hydratePlanFromVersion(store.selectedVersion.value);
     await store.loadRunsForVersion(props.experimentId, next);
     ensureSelection();
-    clearRunSelection();
   } catch (error: unknown) {
     console.error('[BenchmarkWorkArea] Failed to switch version:', error);
     toast.error(error instanceof Error ? error.message : 'Failed to load version');
@@ -1183,6 +1194,8 @@ async function selectRun(id: string) {
   observationsLoading.value = true;
   try {
     const { observations: loaded, iterationObservations: passes } = await store.getRunObservations(id);
+    // Another run, or another benchmark, was opened while this one loaded.
+    if (selectedRunId.value !== id) return;
     observations.value = (loaded ?? []) as RawObservation[];
     iterationObservations.value = (passes ?? []) as RawIterationObservation[];
     await indexSubjects(observations.value
@@ -1198,9 +1211,14 @@ async function selectRun(id: string) {
   }
 }
 
-/* The newest run is what you want after pressing Run, so it opens itself. */
+/*
+ * The newest run is what you want after pressing Run, so it opens itself — on
+ * either tab, because the plan's per-backend numbers read the run in view too.
+ * Opened only from the Runs tab, a benchmark with runs said "never run" on
+ * the Plan tab until the Runs tab had been visited once.
+ */
 watch(runList, (list) => {
-  if (tab.value === 'runs' && !selectedRunId.value && list.length > 0) void selectRun(list[0].id);
+  if (!selectedRunId.value && list.length > 0) void selectRun(list[0].id);
 });
 
 watch(tab, (next) => {
@@ -1324,7 +1342,26 @@ async function saveVersion() {
   }
 }
 
-const canRun = computed(() => Boolean(props.experimentId && selectedVersionNumber.value != null));
+/** A saved version is on screen, so there is something to run or re-run. */
+const canRerun = computed(() => Boolean(props.experimentId && selectedVersionNumber.value != null));
+
+/*
+ * Run executes the saved version, never the editor's draft, while the run bar
+ * describes the draft. With edits pending the two disagree, so Run waits for
+ * them to be saved or discarded. Re-run repeats a saved run and stays open.
+ */
+const hasUnsavedEdits = computed(() => {
+  void draftsStore.allDrafts.value;
+  return !isScratch.value && isViewingCurrentVersion.value && !matchesSaved();
+});
+
+const canRun = computed(() => canRerun.value && !hasUnsavedEdits.value);
+
+const runTitle = computed(() => {
+  if (!canRerun.value) return 'Save a version before running it';
+  if (hasUnsavedEdits.value) return 'Save or discard your edits first — Run uses the saved version';
+  return 'Run this version now';
+});
 
 /* ------------------------------------------------------------- inspector */
 
@@ -1663,7 +1700,7 @@ const runSubtitle = computed(() => {
       <RunBar
         :running="executionStore.isExecuting.value"
         :run-disabled="!canRun"
-        :run-title="canRun ? 'Run this version now' : 'Save a version before running it'"
+        :run-title="runTitle"
         :inputs="runInputs"
         :backend-picks="runBackendPicks"
         @run="runBenchmark"
@@ -1745,7 +1782,7 @@ const runSubtitle = computed(() => {
       :colour-for="colourFor"
       :selected-key="selectedRequestKey"
       :loading="observationsLoading"
-      :can-rerun="canRun"
+      :can-rerun="canRerun"
       @select-request="selectRequest"
       @rerun="runBenchmark"
     />

@@ -45,6 +45,7 @@ const store = vi.hoisted(() => ({
   listVersions: vi.fn(),
   fetchVersion: vi.fn(),
   loadRunsForVersion: vi.fn(),
+  clearRuns: vi.fn(),
   getRunObservations: vi.fn(),
   createExperiment: vi.fn(),
   updateExperiment: vi.fn(),
@@ -165,6 +166,43 @@ describe('BenchmarkWorkArea — Run', () => {
 
     expect(toast.error).toHaveBeenCalledWith('Benchmark subject urn:x must be frozen');
     expect(execution.executeRun).not.toHaveBeenCalled();
+  });
+});
+
+describe('BenchmarkWorkArea — the run on screen', () => {
+  const RUN = { id: 'urn:sqlib:benchmark-run:r1', runStatus: 'Completed', tasksTotal: 1, tasksCompleted: 1 };
+
+  const plainRuns = store.runs;
+
+  afterEach(() => {
+    store.runs = plainRuns;
+  });
+
+  it('opens the newest run on the Plan tab too, so the plan has its numbers', async () => {
+    useVersion(VERSION);
+    // A reactive list, so the work area sees the runs arrive as the real store's do.
+    const runs = ref<unknown[]>([]);
+    store.runs = runs;
+    store.loadRunsForVersion.mockImplementation(async () => { runs.value = [RUN]; });
+    store.getRunObservations.mockResolvedValue({ observations: [], nodeObservations: [], iterationObservations: [] });
+    await mountSaved();
+
+    expect(store.getRunObservations).toHaveBeenCalledWith(RUN.id);
+  });
+
+  it("forgets the last benchmark's runs when another one opens", async () => {
+    useVersion(VERSION);
+    const area = await mountSaved();
+    store.clearRuns.mockClear();
+
+    await area.setProps({ experimentId: 'urn:sqlib:benchmark:e2' });
+    await flushPromises();
+    expect(store.clearRuns).toHaveBeenCalled();
+
+    store.clearRuns.mockClear();
+    await area.setProps({ experimentId: null, scratchId: 'urn:ui-temp:s1' });
+    await flushPromises();
+    expect(store.clearRuns).toHaveBeenCalled();
   });
 });
 

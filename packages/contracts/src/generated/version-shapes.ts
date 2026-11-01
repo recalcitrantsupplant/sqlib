@@ -66,6 +66,7 @@ export const queryInputTupleShape = {
   memberEntries: iriArray,
   position: nullableInteger,
   variableMappings: nullableString,
+  whenEmpty: nullableString,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
 };
@@ -95,6 +96,30 @@ export const queryVersionShape = {
   inferredOutputs: optionalIriArray,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
+  tool: z.union([
+    z
+      .object({
+        name: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/),
+        description: z.string().min(1),
+        params: z
+          .record(
+            z.string(),
+            z
+              .object({
+                kind: z.enum(["iri", "string", "langString", "integer", "decimal", "boolean", "date", "dateTime", "term"]),
+                required: z.boolean().optional(),
+                list: z.boolean().optional(),
+                description: z.string().optional(),
+              })
+              .strict(),
+          )
+          .optional(),
+      })
+      .strict(),
+    z.literal(false),
+  ])
+    .optional()
+    .nullable(),
   defaultBackend: optionalIriString,
 };
 // StartNode, projected from the entity model
@@ -243,6 +268,30 @@ export const queryGroupVersionShape = {
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
   isPartOf: iriString,
+  tool: z.union([
+    z
+      .object({
+        name: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/),
+        description: z.string().min(1),
+        params: z
+          .record(
+            z.string(),
+            z
+              .object({
+                kind: z.enum(["iri", "string", "langString", "integer", "decimal", "boolean", "date", "dateTime", "term"]),
+                required: z.boolean().optional(),
+                list: z.boolean().optional(),
+                description: z.string().optional(),
+              })
+              .strict(),
+          )
+          .optional(),
+      })
+      .strict(),
+    z.literal(false),
+  ])
+    .optional()
+    .nullable(),
 };
 // RuleVersion, projected from the entity model
 export const ruleVersionShape = {
