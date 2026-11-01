@@ -113,6 +113,43 @@ describe('running a cell', () => {
     });
   });
 
+  /*
+   * The merge: two graph values above, one query over both. The query names no
+   * backend, so the server runs it in an ephemeral store holding the graphs.
+   */
+  it('runs a query over graph values, sent inline, with no backend', async () => {
+    callables.value = [
+      { ...selectCallable('urn:q:a'), resultKind: 'GRAPH' },
+      { ...selectCallable('urn:q:b'), resultKind: 'GRAPH' },
+      { ...selectCallable('urn:q:merge'), resultKind: 'GRAPH' },
+    ];
+    const graphResponse = (triple: string) => ({ body: triple, contentType: 'application/n-triples', timing: null });
+    executeTarget
+      .mockResolvedValueOnce(graphResponse('<urn:a> <urn:p> <urn:b> .\n'))
+      .mockResolvedValueOnce(graphResponse('<urn:c> <urn:p> <urn:d> .\n'))
+      .mockResolvedValueOnce(graphResponse('<urn:a> <urn:p> <urn:b> .\n<urn:c> <urn:p> <urn:d> .\n'));
+
+    await runIn(async (nb) => {
+      const a = queryCell('urn:q:a', 'left');
+      const b = queryCell('urn:q:b', 'right');
+      const merge: QueryCell = { ...queryCell('urn:q:merge', 'both'), graphs: [{ from: 'value', ref: 'left' }, { from: 'value', ref: 'right' }] };
+      nb.addCell(a);
+      nb.addCell(b);
+      nb.addCell(merge);
+      await nextTick();
+      await nb.runAll();
+
+      const request = executeTarget.mock.calls[2]![0];
+      expect(request.backendId).toBeUndefined();
+      expect(request.dataGraphs).toEqual([
+        { dataGraphInline: '<urn:a> <urn:p> <urn:b> .\n', dataGraphInlineFormat: 'application/n-triples' },
+        { dataGraphInline: '<urn:c> <urn:p> <urn:d> .\n', dataGraphInlineFormat: 'application/n-triples' },
+      ]);
+      const merged = nb.values.value.both;
+      expect(merged?.type === 'graph' && merged.tripleCount).toBe(2);
+    });
+  });
+
   it('sends the payload to /execute rather than substituted text', async () => {
     callables.value = [selectCallable('urn:q:people', [['city']])];
     executeTarget.mockResolvedValue(rowsResponse(['name'], []));

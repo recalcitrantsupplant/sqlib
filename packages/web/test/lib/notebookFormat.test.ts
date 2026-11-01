@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   NOTEBOOK_FORMAT,
+  cellReferences,
   dependentCellIds,
   emptyNotebook,
   markdownCell,
@@ -73,6 +74,24 @@ describe('references', () => {
     expect((renamed.cells[0] as QueryCell).out).toBe('candidates');
     expect((renamed.cells[1] as QueryCell).slots?.[0]).toEqual({ from: 'value', ref: 'candidates' });
     expect((renamed.cells[2] as RuleSetCell).inputGraph).toEqual({ from: 'value', ref: 'candidates' });
+  });
+
+  it('reads, renames and checks the graphs a query runs over', () => {
+    const notebook = parseNotebook({
+      format: NOTEBOOK_FORMAT,
+      title: 'Merge',
+      library: null,
+      cells: [
+        { kind: 'query', id: 'a', query: 'urn:q:a', out: 'left' },
+        { kind: 'query', id: 'm', query: 'urn:q:m', out: 'both', graphs: [{ from: 'value', ref: 'left' }, { from: 'dataGraph', dataGraphId: 'urn:dg:1' }] },
+      ],
+    });
+    const merge = notebook.cells[1] as QueryCell;
+    expect(merge.graphs).toHaveLength(2);
+    expect(cellReferences(merge)).toEqual(['left']);
+
+    const renamed = renameValue(notebook, 'left', 'source');
+    expect((renamed.cells[1] as QueryCell).graphs?.[0]).toEqual({ from: 'value', ref: 'source' });
   });
 
   it('reports a reference to a value bound below it', () => {

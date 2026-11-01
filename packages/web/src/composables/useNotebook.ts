@@ -26,7 +26,7 @@
  */
 import { computed, ref, watch, type Ref } from 'vue';
 import { toExecutionParameters } from '@sparql-query-lib/runtime';
-import type { ExecutionArgument } from '@sparql-query-lib/contracts';
+import type { ExecutionArgument, ExecutionDataGraph } from '@sparql-query-lib/contracts';
 import type { Callable } from '../lib/callables';
 import {
   booleanValue,
@@ -47,6 +47,7 @@ import {
   nextValueName,
   renameValue,
   validateNotebook,
+  type GraphSource,
   type NotebookCell,
   type Notebook,
   type RunCell,
@@ -335,6 +336,16 @@ export function useNotebook(
     return toSlotArgument(value as RowsValue, vars);
   }
 
+  /** One graph a query runs over, as `/execute` takes it. */
+  function graphInput(graph: GraphSource): ExecutionDataGraph {
+    if (graph.from === 'dataGraph') return { dataGraphId: graph.dataGraphId };
+    if (graph.from === 'dataGraphVersion') return { dataGraphVersionId: graph.dataGraphVersionId };
+    const value = values.value[graph.ref];
+    if (!value) throw new Error(`@${graph.ref} has not been produced yet — run the cell above first.`);
+    if (value.type !== 'graph') throw new Error(`@${graph.ref} is ${value.type}, and a query reads graphs, not ${value.type}.`);
+    return { dataGraphInline: value.content, dataGraphInlineFormat: value.format };
+  }
+
   async function runQueryLike(cell: RunCell, target: NotebookTarget, started: number): Promise<void> {
     const args: ExecutionArgument[] = [];
     const slots = cellSlots(cell);
@@ -367,13 +378,22 @@ export function useNotebook(
      * fact the notebook shows on the cell, and a request that leaves it out
      * would let the answer change under the reader when a default does.
      */
-    const backendId = (cell.kind === 'ruleset' ? null : cell.backend) ?? defaultBackendFor(cell);
+    /*
+     * A query given graphs runs over them alone, in an ephemeral store the
+     * server makes for the request; it names no backend. Graph values go out
+     * by value, as a rule set's base graph does.
+     */
+    const dataGraphs = cell.kind === 'query' ? (cell.graphs ?? []).map(graphInput) : [];
+    const backendId = dataGraphs.length
+      ? null
+      : (cell.kind === 'ruleset' ? null : cell.backend) ?? defaultBackendFor(cell);
     const accept = cell.kind === 'ruleset' ? null : cell.accept;
 
     const result = await apiClient.executeTarget(
       {
         targetId: cellTargetId(cell),
         ...(backendId ? { backendId } : {}),
+        ...(dataGraphs.length ? { dataGraphs } : {}),
         ...(args.length ? { arguments: args } : {}),
         ...(limits.length ? { limits } : {}),
         ...(offsets.length ? { offsets } : {}),

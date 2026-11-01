@@ -7,8 +7,10 @@ with the user-facing half written up in [the guide](../guides/notebooks.md).
 Step 5, `dataGraphs` on a query target, and step 8, promote-to-query-group
 (`lib/notebookPromote.ts`), are in too, and so is step 1's phase 2: a
 `Notebook` / `NotebookVersion` entity at `/notebooks`, with unsaved edits kept as
-a browser draft as on a query. Still open: pass-by-reference, graph inputs on a
-query cell (the materialize step), and the ipynb and HTML rewrites.
+a browser draft as on a query. A query cell also takes graph inputs, which it
+runs over in an ephemeral store; that replaces the materialize cell, since the
+store a query gets is already the union of the graphs it is given. Still open:
+pass-by-reference, and the ipynb and HTML rewrites.
 
 §8 said the library page would keep a screen of its own. It did not: the
 notebook took that rail entry outright, and `/library` is gone. What was worth
