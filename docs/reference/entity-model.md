@@ -30,6 +30,7 @@ content.
 | `RuleSet` | `RuleSetVersion` | A set of rules and data blocks, with its stratification report. Its content is an SRL document — see [the SRL reference](srl-language.md) |
 | `DataGraph` | `DataGraphVersion` | Reference RDF the library holds, as a serialised document |
 | `TupleSet` | `TupleSetVersion` | A table of RDF terms, as a SPARQL Results JSON document |
+| `Notebook` | `NotebookVersion` | Prose and cells over the library's entities, as a `sqlib-notebook/1` JSON document |
 | `ArgumentSet` | `ArgumentSetVersion` | One call's worth of input for a callable |
 | `Test` | `TestVersion` | A callable, its inputs and what it should produce |
 | `BenchmarkExperiment` | `BenchmarkExperimentVersion` | A measurement plan: subjects, backends, repeats, timing policy |

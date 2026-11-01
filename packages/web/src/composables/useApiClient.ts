@@ -118,6 +118,13 @@ import {
   dataGraphUpdateSchema,
   type DataGraphCreateInput,
   type DataGraphUpdateInput,
+  notebookSchema,
+  notebookCreateSchema,
+  notebookUpdateSchema,
+  notebookVersionSchema,
+  type NotebookCreateInput,
+  type NotebookUpdateInput,
+  type NotebookVersion,
   tupleSetSchema,
   tupleSetCreateSchema,
   tupleSetUpdateSchema,
@@ -336,7 +343,7 @@ export type { TestCaseRunResult, TestRunResult, TaggedTestRun, TagMatchMode };
 /** The callables that carry browser defaults. */
 export type BrowserDefaultsKind = 'query' | 'queryGroup' | 'ruleSet';
 
-export type { RuleVersion, DataBlockVersion, DataGraphVersion, TupleSetVersion };
+export type { RuleVersion, DataBlockVersion, DataGraphVersion, TupleSetVersion, NotebookVersion };
 
 export type { BackendProbe, BackendPrefixCapability, RemotePrefixes, PrefixPushResult, BackendEnv, BackendUsage };
 
@@ -1703,6 +1710,57 @@ export function useApiClient() {
       ruleVersionSchema.parse,
     );
   };
+
+  /*
+   * Notebooks — prose and cells over the library's entities. A version holds
+   * the `sqlib-notebook/1` document as a JSON string; unsaved edits are a
+   * browser draft, as on every other work area.
+   */
+  const listNotebooks = () =>
+    requestData(buildUrl('/notebooks'), { method: 'GET' }, (payload) => notebookSchema.array().parse(payload));
+
+  const getNotebook = (id: string) =>
+    request(buildUrl(`/notebooks/${encodeURIComponent(id)}`), { method: 'GET' }, notebookSchema.parse);
+
+  const createNotebook = (input: NotebookCreateInput) =>
+    request(
+      buildUrl('/notebooks'),
+      { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(notebookCreateSchema.parse(input)) },
+      notebookSchema.parse,
+    );
+
+  const updateNotebook = (id: string, input: NotebookUpdateInput) =>
+    request(
+      buildUrl(`/notebooks/${encodeURIComponent(id)}`),
+      { method: 'PUT', headers: JSON_HEADERS, body: JSON.stringify(notebookUpdateSchema.parse(input)) },
+      notebookSchema.parse,
+    );
+
+  const deleteNotebook = async (id: string) => {
+    await requestData(buildUrl(`/notebooks/${encodeURIComponent(id)}`), { method: 'DELETE' });
+    return true;
+  };
+
+  const listNotebookVersions = (id: string) =>
+    requestData(
+      buildUrl(`/notebooks/${encodeURIComponent(id)}/versions`),
+      { method: 'GET' },
+      (payload) => notebookVersionSchema.array().parse(payload),
+    );
+
+  const getNotebookVersion = (id: string, version: number | string) =>
+    request(
+      buildUrl(`/notebooks/${encodeURIComponent(id)}/versions/${encodeURIComponent(String(version))}`),
+      { method: 'GET' },
+      notebookVersionSchema.parse,
+    );
+
+  const createNotebookVersion = (id: string, input: { contentString: string; comment?: string | null }) =>
+    request(
+      buildUrl(`/notebooks/${encodeURIComponent(id)}/versions`),
+      { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(input) },
+      notebookVersionSchema.parse,
+    );
 
   /*
    * Data graphs — the input a rule set runs against, distinct from its DATA
@@ -3173,6 +3231,14 @@ export function useApiClient() {
     exportTestRun,
     exportTaggedTestRun,
     exportSelectedTestRun,
+    listNotebooks,
+    getNotebook,
+    createNotebook,
+    updateNotebook,
+    deleteNotebook,
+    listNotebookVersions,
+    getNotebookVersion,
+    createNotebookVersion,
     listDataGraphs,
     getDataGraph,
     createDataGraph,

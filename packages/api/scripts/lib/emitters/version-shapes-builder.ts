@@ -133,6 +133,7 @@ export const VERSION_SHAPES: VersionShape[] = [
   // builds the expanded read and the write body on top of these.
   { varName: 'dataGraphVersion', entityExport: 'datagraphversionSchema', typeName: 'DataGraphVersion' },
   { varName: 'tupleSetVersion', entityExport: 'tuplesetversionSchema', typeName: 'TupleSetVersion' },
+  { varName: 'notebookVersion', entityExport: 'notebookversionSchema', typeName: 'NotebookVersion' },
   { varName: 'testCase', entityExport: 'testcaseSchema', typeName: 'TestCase' },
   { varName: 'testVersion', entityExport: 'testversionSchema', typeName: 'TestVersion' },
 ];

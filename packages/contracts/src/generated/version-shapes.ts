@@ -383,6 +383,18 @@ export const tupleSetVersionShape = {
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
 };
+// NotebookVersion, projected from the entity model
+export const notebookVersionShape = {
+  id: iriString,
+  isPartOf: iriString,
+  version: z.number().int(),
+  immutable: nullableBoolean,
+  contentString: z.string().min(1, 'ContentString is required'),
+  byteSize: nullableInteger,
+  comment: nullableString,
+  dateCreated: isoDateTime,
+  dateModified: isoDateTime,
+};
 // TestCase, projected from the entity model
 export const testCaseShape = {
   id: iriString,
@@ -440,6 +452,7 @@ export const dataBlockVersionSchema = z.object(dataBlockVersionShape).strict();
 export const ruleSetVersionSchema = z.object(ruleSetVersionShape).strict();
 export const dataGraphVersionSchema = z.object(dataGraphVersionShape).strict();
 export const tupleSetVersionSchema = z.object(tupleSetVersionShape).strict();
+export const notebookVersionSchema = z.object(notebookVersionShape).strict();
 export const testCaseSchema = z.object(testCaseShape).strict();
 export const testVersionSchema = z.object(testVersionShape).strict();
 // LimitParameter entity type
@@ -490,6 +503,8 @@ export type RuleSetVersion = z.infer<typeof ruleSetVersionSchema>;
 export type DataGraphVersion = z.infer<typeof dataGraphVersionSchema>;
 // TupleSetVersion entity type
 export type TupleSetVersion = z.infer<typeof tupleSetVersionSchema>;
+// NotebookVersion entity type
+export type NotebookVersion = z.infer<typeof notebookVersionSchema>;
 // TestCase entity type
 export type TestCase = z.infer<typeof testCaseSchema>;
 // TestVersion entity type

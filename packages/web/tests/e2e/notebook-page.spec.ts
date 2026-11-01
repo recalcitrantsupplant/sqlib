@@ -175,6 +175,34 @@ test.describe('Notebook', () => {
     await expect(page.locator('[data-testid^="notebook-md-rendered-"]').first()).toContainText('Kept');
   });
 
+  /*
+   * Save cuts a version in the library; typing after it is a draft in this
+   * browser until the next Save, as on a query.
+   */
+  test('saves a notebook to the library as v1, and keeps later edits as unsaved', async ({ page }) => {
+    await openNotebook(page);
+    await page.getByTestId('notebook-add-markdown').click();
+    const editor = page.locator('[data-testid^="notebook-md-editor-"] .cm-content').first();
+    await editor.click();
+    await editor.pressSequentially('## Saved');
+
+    await expect(page.getByTestId('notebook-save')).toHaveText(/Save v1/);
+    await page.getByTestId('notebook-save').click();
+
+    await expect(page.getByTestId('notebook-version')).toHaveText('v1');
+    await expect(page.getByTestId('notebook-save')).toBeDisabled();
+    await expect(page).toHaveURL(/notebook=urn%3Asqlib%3Anotebook%3A1|notebook=urn:sqlib:notebook:1/);
+    await expect(page.getByTestId('entity-list-sidebar')).toContainText('Untitled notebook');
+
+    await page.getByTestId('notebook-add-markdown').click();
+    await expect(page.getByTestId('notebook-unsaved')).toContainText('1 unsaved edit');
+    await expect(page.getByTestId('notebook-save')).toHaveText(/Save v2/);
+
+    await page.getByTestId('notebook-discard').click();
+    await expect(page.getByTestId('notebook-unsaved')).toHaveCount(0);
+    await expect(page.locator('[id^="cell-"]')).toHaveCount(1);
+  });
+
   test('starts a second notebook without disturbing the first', async ({ page }) => {
     await openNotebook(page);
     await page.getByTestId('notebook-add-markdown').click();
