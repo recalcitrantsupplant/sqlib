@@ -144,6 +144,7 @@ const ENTITY_BY_SEGMENT: Record<string, string> = {
   'argument-sets': 'argumentSet',
   'benchmark-experiments': 'benchmarkExperiment',
   'etl-jobs': 'etlJob',
+  notebooks: 'notebook',
 };
 
 /** Response bodies above this are not worth parsing to find an id. */

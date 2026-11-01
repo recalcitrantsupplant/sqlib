@@ -59,6 +59,8 @@ import { TagSchema } from '../persistence/schemas/TagSchema.js';
 import { PatchSchema } from '../persistence/schemas/PatchSchema.js';
 import { TupleSetSchema } from '../persistence/schemas/TupleSetSchema.js';
 import { TupleSetVersionSchema } from '../persistence/schemas/TupleSetVersionSchema.js';
+import { NotebookSchema } from '../persistence/schemas/NotebookSchema.js';
+import { NotebookVersionSchema } from '../persistence/schemas/NotebookVersionSchema.js';
 
 import type { EntityTypeName } from './entityTypeNames.js';
 
@@ -115,4 +117,6 @@ export const SCHEMA_BY_TYPE = {
   Patch: PatchSchema,
   TupleSet: TupleSetSchema,
   TupleSetVersion: TupleSetVersionSchema,
+  Notebook: NotebookSchema,
+  NotebookVersion: NotebookVersionSchema,
 } as const satisfies Record<EntityTypeName, { '@type': string }>;

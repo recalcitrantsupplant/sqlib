@@ -84,6 +84,11 @@ export async function registerApplicationRoutes(
   const dataGraphRoutes = (await import('../routes/data-graphs.js')).default;
   await fastifyApp.register(dataGraphRoutes, { prefix: '/data-graphs' });
 
+  if (featureFlags.notebook) {
+    const notebookRoutes = (await import('../routes/notebooks.js')).default;
+    await fastifyApp.register(notebookRoutes, { prefix: '/notebooks' });
+  }
+
   // Unflagged again, and for a reason of its own: a patch is not a library
   // feature but a *backend* one. Preview is how an agent-driven write is made
   // reviewable, and the log is how any write is made auditable, so gating it on

@@ -3,7 +3,7 @@
  * Do not edit manually - run 'npm run generate-schemas' instead.
  */
 
-import { backendSchema, librarySchema, querySchema, querygroupSchema, queryversionSchema, argumentscalarbindingSchema, argumentsetSchema, argumentsetversionSchema, argumenttuplebindingSchema, benchmarkexperimentSchema, benchmarkexperimentversionSchema, benchmarkiterationobservationSchema, benchmarkiterationrunSchema, benchmarknodeobservationSchema, benchmarknoderunSchema, benchmarkobservationSchema, benchmarkrunSchema, booleanioSchema, browserdefaultdatagraphSchema, datablockSchema, datablockversionSchema, datagraphSchema, datagraphversionSchema, duckdbetlnodeSchema, dynamicquerynodeSchema, endnodeSchema, etlcolumnmappingSchema, etlcolumnmappingversionSchema, etlexecutionSchema, etljobSchema, etljobversionSchema, limitparameterSchema, offsetparameterSchema, patchnodeSchema, patchSchema, queryedgeSchema, querygroupversionSchema, queryidinputSchema, queryinputtupleSchema, queryinputvariableSchema, querynodeSchema, queryoutputtupleSchema, queryoutputvariableSchema, ruleSchema, rulesetnodeSchema, rulesetSchema, rulesetversionSchema, ruleversionSchema, startnodeSchema, tagSchema, testcasedatagraphSchema, testcaseSchema, testruncaseSchema, testrunSchema, testSchema, testversionSchema, triplesquadsioSchema, tuplememberSchema, tuplesetSchema, tuplesetversionSchema } from './entities.generated.js';
+import { backendSchema, librarySchema, querySchema, querygroupSchema, queryversionSchema, argumentscalarbindingSchema, argumentsetSchema, argumentsetversionSchema, argumenttuplebindingSchema, benchmarkexperimentSchema, benchmarkexperimentversionSchema, benchmarkiterationobservationSchema, benchmarkiterationrunSchema, benchmarknodeobservationSchema, benchmarknoderunSchema, benchmarkobservationSchema, benchmarkrunSchema, booleanioSchema, browserdefaultdatagraphSchema, datablockSchema, datablockversionSchema, datagraphSchema, datagraphversionSchema, duckdbetlnodeSchema, dynamicquerynodeSchema, endnodeSchema, etlcolumnmappingSchema, etlcolumnmappingversionSchema, etlexecutionSchema, etljobSchema, etljobversionSchema, limitparameterSchema, notebookSchema, notebookversionSchema, offsetparameterSchema, patchnodeSchema, patchSchema, queryedgeSchema, querygroupversionSchema, queryidinputSchema, queryinputtupleSchema, queryinputvariableSchema, querynodeSchema, queryoutputtupleSchema, queryoutputvariableSchema, ruleSchema, rulesetnodeSchema, rulesetSchema, rulesetversionSchema, ruleversionSchema, startnodeSchema, tagSchema, testcasedatagraphSchema, testcaseSchema, testruncaseSchema, testrunSchema, testSchema, testversionSchema, triplesquadsioSchema, tuplememberSchema, tuplesetSchema, tuplesetversionSchema } from './entities.generated.js';
 
 // Route Validation Schemas
 
@@ -3086,6 +3086,178 @@ export const createEtlJobVersionSchema = {
       "$ref": "etljobversion#"
     },
     "400": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string"
+        }
+      }
+    },
+    "422": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string"
+        }
+      }
+    },
+    "500": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string"
+        }
+      }
+    }
+  }
+} as const;
+
+// Route schemas for Notebook
+export const createNotebookSchema = {
+  "tags": [
+    "Notebook"
+  ],
+  "summary": "Create new notebook",
+  "body": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "format": "iri",
+        "nullable": true
+      },
+      "name": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": {
+        "type": "string",
+        "nullable": true
+      },
+      "currentVersion": {
+        "type": "string",
+        "format": "iri",
+        "nullable": true
+      },
+      "isPartOf": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "format": "iri"
+        },
+        "minItems": 1
+      },
+      "tags": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "format": "iri"
+        },
+        "nullable": true
+      }
+    },
+    "required": [
+      "name",
+      "isPartOf"
+    ],
+    "additionalProperties": false
+  },
+  "response": {
+    "201": {
+      "$ref": "notebook#"
+    },
+    "400": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string"
+        }
+      }
+    },
+    "422": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string"
+        }
+      }
+    },
+    "500": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string"
+        }
+      }
+    }
+  }
+} as const;
+
+export const updateNotebookSchema = {
+  "tags": [
+    "Notebook"
+  ],
+  "summary": "Update notebook",
+  "params": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id"
+    ]
+  },
+  "body": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": {
+        "type": "string",
+        "nullable": true
+      },
+      "currentVersion": {
+        "type": "string",
+        "format": "iri",
+        "nullable": true
+      },
+      "isPartOf": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "format": "iri"
+        },
+        "minItems": 1
+      },
+      "tags": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "format": "iri"
+        },
+        "nullable": true
+      }
+    },
+    "additionalProperties": false,
+    "minProperties": 1
+  },
+  "response": {
+    "200": {
+      "$ref": "notebook#"
+    },
+    "400": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string"
+        }
+      }
+    },
+    "404": {
       "type": "object",
       "properties": {
         "error": {

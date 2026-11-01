@@ -163,6 +163,13 @@ export const ENTITY_CONTRACT_MODELS: EntityContractModel[] = [
     // directly, which is why `ROUTE_CONFIGS.TupleSet` declares no operations.
   },
   {
+    entityName: 'Notebook',
+    varName: 'notebook',
+    schemaId: 'notebook',
+    // Nothing deviates, for the reason DataGraph does not: the document lives
+    // on the version.
+  },
+  {
     entityName: 'Tag',
     varName: 'tag',
     schemaId: 'tag',

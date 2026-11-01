@@ -477,6 +477,11 @@ const ROUTE_CONFIGS: Record<string, RouteConfig> = {
   TupleSet: {
     operations: ['create', 'update']
   },
+  // Same as DataGraph: the document is on the version, whose body the route
+  // declares itself.
+  Notebook: {
+    operations: ['create', 'update']
+  },
   BenchmarkExperiment: {
     operations: [...CRUD_OPERATIONS]
   },
