@@ -4,16 +4,16 @@
  * (plan §1: a nested/array-valued entity is structurally variable).
  *
  * Behaviours reproduced from a live lens, and the one that is not:
- * - `xsd:string` is written as a *plain* literal, with no datatype. LDKit does
- *   the same, and in RDF 1.1 the two are the same term regardless.
+ * - `xsd:string` is written as a *plain* literal, with no datatype. The earlier
+ *   mapping library did the same, and in RDF 1.1 the two are the same term regardless.
  * - `null`/`undefined` produce no triple. This is where the sanitising insert
  *   wrapper’s null-stripping belongs: at the point values
  *   become triples, rather than as a pre-pass over the object graph.
  * - Properties the schema does not declare are ignored, as are `$id`/`@id`/`@type`.
  * - **Divergence:** a `Date` value for an `xsd:dateTime` property is serialised.
- *   LDKit silently writes *no triple* for one — which matters because reads
- *   return `Date`, so a read-modify-write round-trip through LDKit drops the
- *   field. Preserving that would mean reproducing data loss; `EntitySerialiser`
+ *   The earlier mapping library silently wrote *no triple* for one — which
+ *   mattered because its reads returned `Date`, so a read-modify-write round-trip
+ *   dropped the field. Preserving that would mean reproducing data loss; `EntitySerialiser`
  *   writes it, and `createParity` documents the divergence with a test.
  */
 import { describeSchema, type EntityField } from './schemaIntrospection.js';

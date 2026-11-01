@@ -1,12 +1,12 @@
 /**
- * LDKit Schema for ArgumentTupleBinding Entity
+ * Entity schema for ArgumentTupleBinding Entity
  *
  * A VALUES signature (ordered variables) and the sources that fill it:
  * inline rows as SPARQL Results JSON, plus any pinned tuple set versions.
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, sqlib } from '../namespaces.js';
+import { xsd, sqlib } from '../namespaces.js';
 
 export const ArgumentTupleBindingSchema = {
   '@type': sqlib.ArgumentTupleBinding,
@@ -56,18 +56,18 @@ export const ArgumentTupleBindingSchema = {
   tupleSetVersions: {
     '@id': sqlib.tupleSetVersions,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
     '@references': { types: ['TupleSetVersion'] },
   },
   provenanceTupleId: {
     '@id': sqlib.provenanceTupleId,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
 } as const satisfies Schema;
 
-export interface LdkitArgumentTupleBinding {
+export interface PersistedArgumentTupleBinding {
   '$id': string;
   '@type'?: 'ArgumentTupleBinding';
   position?: number | null;

@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for BenchmarkIterationObservation Entity (iteration-level
+ * Entity schema for BenchmarkIterationObservation Entity (iteration-level
  * observation of a rule-set request).
  *
  * The fixpoint loop's counterpart to `BenchmarkNodeObservation`: one row per
@@ -16,13 +16,13 @@
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, qb, sqlib } from '../namespaces.js';
+import { xsd, qb, sqlib } from '../namespaces.js';
 
 export const BenchmarkIterationObservationSchema = {
   '@type': sqlib.BenchmarkIterationObservation,
   dataSet: {
     '@id': qb.dataSet,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
   },
   /**
    * The `BenchmarkObservation` for the request this pass belongs to.
@@ -33,7 +33,7 @@ export const BenchmarkIterationObservationSchema = {
    */
   subjectObservation: {
     '@id': sqlib.refSubjectObservation,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
   },
   runIndex: {
     '@id': sqlib.runIndex,
@@ -86,7 +86,7 @@ export const BenchmarkIterationObservationSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitBenchmarkIterationObservation {
+export interface PersistedBenchmarkIterationObservation {
   $id: string;
   '@type'?: 'BenchmarkIterationObservation';
   dataSet: string;

@@ -1,17 +1,17 @@
 /**
- * LDKit Schema for DataBlockVersion entity.
+ * Entity schema for DataBlockVersion entity.
  *
  * Represents an immutable snapshot of a data block.
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, sqlib, sdo } from '../namespaces.js';
+import { xsd, sqlib, sdo } from '../namespaces.js';
 
 export const DataBlockVersionSchema = {
   '@type': sqlib.DataBlockVersion,
   isPartOf: {
     '@id': sdo.isPartOf,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@references': { types: ['DataBlock'] },
   },
   version: {
@@ -68,7 +68,7 @@ export const DataBlockVersionSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitDataBlockVersion {
+export interface PersistedDataBlockVersion {
   $id: string;
   '@type'?: 'DataBlockVersion';
   isPartOf: string;

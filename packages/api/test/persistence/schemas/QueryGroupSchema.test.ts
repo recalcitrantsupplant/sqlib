@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
 import { QueryGroupSchema } from '../../../src/persistence/schemas/QueryGroupSchema.js';
-import { ldkit, xsd, sqlib, sdo } from '../../../src/persistence/namespaces.js';
+import { xsd, sqlib, sdo } from '../../../src/persistence/namespaces.js';
 
 describe('QueryGroupSchema', () => {
   it('defines correct @type and properties', () => {
@@ -16,7 +16,7 @@ describe('QueryGroupSchema', () => {
 
     expect(QueryGroupSchema).toHaveProperty('currentVersion');
     expect(QueryGroupSchema.currentVersion['@id']).toBe(sqlib.currentVersion);
-    expect(QueryGroupSchema.currentVersion['@type']).toBe(ldkit.IRI);
+    expect(QueryGroupSchema.currentVersion['@type']).toBe(sqlib.IRI);
 
     expect(QueryGroupSchema).toHaveProperty('dateCreated');
     expect(QueryGroupSchema.dateCreated['@id']).toBe(sdo.dateCreated);
@@ -30,6 +30,6 @@ describe('QueryGroupSchema', () => {
 
     expect(QueryGroupSchema).toHaveProperty('isPartOf');
     expect(QueryGroupSchema.isPartOf['@id']).toBe(sdo.isPartOf);
-    expect(QueryGroupSchema.isPartOf['@type']).toBe(ldkit.IRI);
+    expect(QueryGroupSchema.isPartOf['@type']).toBe(sqlib.IRI);
   });
 });

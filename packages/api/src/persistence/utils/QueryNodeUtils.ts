@@ -1,10 +1,10 @@
 /**
- * LDKit utilities for QueryNode entities
+ * entity utilities for QueryNode entities
  */
 
-import { QueryNodeSchema, type LdkitQueryNode } from '../schemas/QueryNodeSchema.js';
+import { QueryNodeSchema, type PersistedQueryNode } from '../schemas/QueryNodeSchema.js';
 import { createRepositoryLens } from './entityRepository.js';
-import { toLdkit } from './id-adapter.js';
+import { toPersisted } from './id-adapter.js';
 import { log } from '../../lib/log.js';
 
 export const QueryNodes = createRepositoryLens(QueryNodeSchema);
@@ -12,33 +12,33 @@ export const QueryNodes = createRepositoryLens(QueryNodeSchema);
 /**
  * Find QueryNodes by queryId (StoredQuery reference)
  */
-export async function findQueryNodesByQuery(queryId: string): Promise<LdkitQueryNode[]> {
+export async function findQueryNodesByQuery(queryId: string): Promise<PersistedQueryNode[]> {
   const allNodes = await QueryNodes.find();
-  return allNodes.filter(node => node.queryId === queryId) as unknown as LdkitQueryNode[];
+  return allNodes.filter(node => node.queryId === queryId) as unknown as PersistedQueryNode[];
 }
 
 /**
  * Find QueryNodes by backendId (Backend reference)
  */
-export async function findQueryNodesByBackend(backendId: string): Promise<LdkitQueryNode[]> {
+export async function findQueryNodesByBackend(backendId: string): Promise<PersistedQueryNode[]> {
   const allNodes = await QueryNodes.find();
-  return allNodes.filter(node => node.backendId === backendId) as unknown as LdkitQueryNode[];
+  return allNodes.filter(node => node.backendId === backendId) as unknown as PersistedQueryNode[];
 }
 
 
 /**
  * Create a QueryNode with validation
  */
-type FlexibleNodeInput = Omit<LdkitQueryNode, '$id' | '@id'> & { '@id'?: string; $id?: string };
+type FlexibleNodeInput = Omit<PersistedQueryNode, '$id' | '@id'> & { '@id'?: string; $id?: string };
 
-export async function createQueryNode(data: FlexibleNodeInput): Promise<LdkitQueryNode> {
+export async function createQueryNode(data: FlexibleNodeInput): Promise<PersistedQueryNode> {
   // Validate required fields
   if (!data.queryId || !data.backendId) {
     throw new Error('QueryNode requires both queryId and backendId');
   }
 
-  // Convert null to undefined for LDKit insert
-  const normalized = toLdkit<LdkitQueryNode>({ ...(data) });
+  // Convert null to undefined before insert
+  const normalized = toPersisted<PersistedQueryNode>({ ...(data) });
   const insertData = {
     ...normalized,
     queryId: normalized.queryId || undefined,
@@ -52,7 +52,7 @@ export async function createQueryNode(data: FlexibleNodeInput): Promise<LdkitQue
 /**
  * Update a QueryNode
  */
-export async function updateQueryNode(nodeId: string, updates: Partial<Omit<LdkitQueryNode, '$id'>>): Promise<LdkitQueryNode | null> {
+export async function updateQueryNode(nodeId: string, updates: Partial<Omit<PersistedQueryNode, '$id'>>): Promise<PersistedQueryNode | null> {
   const existingNode = await QueryNodes.findByIri(nodeId);
   if (!existingNode) {
     return null;
@@ -66,7 +66,7 @@ export async function updateQueryNode(nodeId: string, updates: Partial<Omit<Ldki
 
   await QueryNodes.update(updateData);
   const result = await QueryNodes.findByIri(nodeId);
-  return result ? (result as unknown as LdkitQueryNode) : null;
+  return result ? (result as unknown as PersistedQueryNode) : null;
 }
 
 /**
@@ -85,7 +85,7 @@ export async function deleteQueryNode(nodeId: string): Promise<boolean> {
 /**
  * Find QueryNodes by group ID
  */
-export async function findQueryNodesByGroup(groupId: string): Promise<LdkitQueryNode[]> {
+export async function findQueryNodesByGroup(groupId: string): Promise<PersistedQueryNode[]> {
   // Nodes belong to QueryGroupVersion, not QueryGroup.
   // Load versions for the group and use the latest version's executionNodes array.
   const { listVersionsForGroup } = await import('./QueryGroupVersionUtils.js');
@@ -95,5 +95,5 @@ export async function findQueryNodesByGroup(groupId: string): Promise<LdkitQuery
   const nodeIds = (latest.executionNodes || []).filter(Boolean) as string[];
   if (!nodeIds.length) return [];
   const nodes = await Promise.all(nodeIds.map(id => QueryNodes.findByIri(id)));
-  return nodes.filter(Boolean) as unknown as LdkitQueryNode[];
+  return nodes.filter(Boolean) as unknown as PersistedQueryNode[];
 }

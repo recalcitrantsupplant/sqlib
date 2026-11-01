@@ -1,9 +1,9 @@
 /**
- * LDKit Schema for BenchmarkNodeRun Entity (node-level dataset).
+ * Entity schema for BenchmarkNodeRun Entity (node-level dataset).
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, qb, prov, sqlib, sdo } from '../namespaces.js';
+import { xsd, qb, prov, sqlib, sdo } from '../namespaces.js';
 
 export const BenchmarkNodeRunSchema = {
   '@type': sqlib.BenchmarkNodeRun,
@@ -17,15 +17,15 @@ export const BenchmarkNodeRunSchema = {
   },
   structure: {
     '@id': qb.structure,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
   },
   definedBy: {
     '@id': sqlib.definedBy,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
   },
   isPartOf: {
     '@id': sdo.isPartOf,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
   },
   startedAt: {
     '@id': prov.startedAtTime,
@@ -49,7 +49,7 @@ export const BenchmarkNodeRunSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitBenchmarkNodeRun {
+export interface PersistedBenchmarkNodeRun {
   $id: string;
   '@type'?: 'BenchmarkNodeRun';
   name?: string | null;

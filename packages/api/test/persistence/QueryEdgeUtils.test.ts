@@ -1,5 +1,5 @@
 /**
- * Test QueryEdgeUtils LDKit integration
+ * Test QueryEdgeUtils persistence integration
  */
 
 import * as QueryEdgeUtils from '../../src/persistence/utils/QueryEdgeUtils.js';
@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { log } from '../../src/lib/log.js';
 import { installFakePersistenceAdapter } from '../support/fakePersistenceAdapter.js';
 
-describe('QueryEdgeUtils (LDKit Integration)', () => {
+describe('QueryEdgeUtils (persistence integration)', () => {
   const testEdgeId = 'http://example.org/test-edge';
   const anotherEdgeId = 'http://example.org/another-edge';
   const sourceNodeId = 'http://example.org/from-node';
@@ -26,7 +26,7 @@ describe('QueryEdgeUtils (LDKit Integration)', () => {
   });
 
   it('should create and find a query edge', async () => {
-    // Create using LDKit
+    // Create
     const edge = await QueryEdgeUtils.createQueryEdge({
       $id: testEdgeId,
       sourceNodeId,
@@ -288,7 +288,7 @@ describe('QueryEdgeUtils (LDKit Integration)', () => {
     });
 
     it('should handle errors during deletion of some edges', async () => {
-      // Spy on the LDKit delete function to simulate a failure at a lower level.
+      // Spy on the delete function to simulate a failure at a lower level.
       // This is necessary because deleteEdgesByNode calls deleteQueryEdge within the same module,
       // which can bypass spies on deleteQueryEdge itself.
       const realDelete = QueryEdgeUtils.QueryEdges.delete.bind(QueryEdgeUtils.QueryEdges);

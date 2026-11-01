@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for QueryGroupVersion Entity (Immutable Version)
+ * Entity schema for QueryGroupVersion Entity (Immutable Version)
  * 
  * Represents an immutable version of a query group. Each version has a stable
  * parent QueryGroup and contains snapshots of nodes, edges, and canvas data.
@@ -8,7 +8,7 @@
 
 import type { Schema } from '../schema.js';
 import type { ToolObject as PublishedToolObject } from '@sparql-query-lib/tools';
-import { ldkit, rdf, xsd, sqlib, sdo } from '../namespaces.js';
+import { rdf, xsd, sqlib, sdo } from '../namespaces.js';
 
 export const QueryGroupVersionSchema = {
   '@type': sqlib.QueryGroupVersion,
@@ -23,24 +23,24 @@ export const QueryGroupVersionSchema = {
   },
   startNode: {
     '@id': sqlib.startNode,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   endNode: {
     '@id': sqlib.endNode,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   executionNodes: {
     '@id': sqlib.executionNodes,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   edges: {
     '@id': sqlib.edges,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   canvasData: {
@@ -63,7 +63,7 @@ export const QueryGroupVersionSchema = {
   },
   isPartOf: {
     '@id': sdo.isPartOf,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@references': { types: ['QueryGroup'] },
   },
   /**
@@ -81,7 +81,7 @@ export const QueryGroupVersionSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitQueryGroupVersion {
+export interface PersistedQueryGroupVersion {
   $id: string;
   '@type'?: 'QueryGroupVersion';
   version: number; // 1, 2, 3... (API/UI-friendly numeric version)

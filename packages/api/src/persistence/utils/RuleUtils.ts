@@ -1,7 +1,7 @@
 import { createEntityUtilsWithFields } from './EntityUtils.js';
-import { RuleSchema, type LdkitRule } from '../schemas/RuleSchema.js';
+import { RuleSchema, type PersistedRule } from '../schemas/RuleSchema.js';
 
-const RuleUtils = createEntityUtilsWithFields<LdkitRule>(
+const RuleUtils = createEntityUtilsWithFields<PersistedRule>(
   RuleSchema,
   'Rule'
 );
@@ -13,7 +13,7 @@ export const deleteRule = RuleUtils.delete;
 export const findAllRules = RuleUtils.findAll;
 export const findRuleById = RuleUtils.findById;
 
-export async function findRuleByName(name: string): Promise<LdkitRule | null> {
+export async function findRuleByName(name: string): Promise<PersistedRule | null> {
   const items = await RuleUtils.findBy('name', name);
   return items[0] || null;
 }

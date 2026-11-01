@@ -85,7 +85,7 @@ export const QUERY_VERSION = {
   comment: 'Initial version',
   isPartOf: QUERY.id,
   // The IRI the server stores and returns. It read 'SELECT' until the leaf's
-  // queryType was projected from the entity model, which types it ldkit.IRI —
+  // queryType was projected from the entity model, which types it sqlib.IRI —
   // the fixture had been describing a shape the API never sends.
   queryType: 'https://sparql-query-lib/query-type/select',
   defaultBackend: BACKEND.id,

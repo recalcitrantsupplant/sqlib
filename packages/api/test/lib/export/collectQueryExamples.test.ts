@@ -5,9 +5,9 @@ import {
   type ExampleSource,
   type ResolvedArgumentPayload,
 } from '../../../src/lib/export/collectQueryExamples.js';
-import type { LdkitTest } from '../../../src/persistence/schemas/TestSchema.js';
-import type { LdkitTestVersion } from '../../../src/persistence/schemas/TestVersionSchema.js';
-import type { LdkitTestCase } from '../../../src/persistence/schemas/TestCaseSchema.js';
+import type { PersistedTest } from '../../../src/persistence/schemas/TestSchema.js';
+import type { PersistedTestVersion } from '../../../src/persistence/schemas/TestVersionSchema.js';
+import type { PersistedTestCase } from '../../../src/persistence/schemas/TestCaseSchema.js';
 
 const LIBRARY = 'urn:sqlib:library:main';
 const QUERY = 'urn:sqlib:query:people';
@@ -20,20 +20,20 @@ const PAYLOAD: ResolvedArgumentPayload = {
   offsets: [],
 };
 
-function test(partial: Partial<LdkitTest> & { $id: string; name: string }): LdkitTest {
+function test(partial: Partial<PersistedTest> & { $id: string; name: string }): PersistedTest {
   return {
     subject: QUERY,
     subjectKind: 'query',
     isPartOf: [LIBRARY],
     currentVersion: `${partial.$id}:v1`,
     ...partial,
-  } as LdkitTest;
+  } as PersistedTest;
 }
 
 function source(
-  tests: LdkitTest[],
-  versions: Record<string, LdkitTestVersion>,
-  cases: Record<string, LdkitTestCase>,
+  tests: PersistedTest[],
+  versions: Record<string, PersistedTestVersion>,
+  cases: Record<string, PersistedTestCase>,
   resolve: (id: string) => Promise<ResolvedArgumentPayload> = async () => PAYLOAD,
 ): ExampleSource {
   return {
@@ -46,8 +46,8 @@ function source(
 
 const target = (slotCount = 1) => [{ slug: 'people', queryIri: QUERY, slotCount }];
 
-function oneTest(caseOverrides: Partial<LdkitTestCase>[] = [{}]) {
-  const cases: Record<string, LdkitTestCase> = {};
+function oneTest(caseOverrides: Partial<PersistedTestCase>[] = [{}]) {
+  const cases: Record<string, PersistedTestCase> = {};
   caseOverrides.forEach((overrides, index) => {
     cases[`c${index}`] = {
       $id: `c${index}`,
@@ -55,11 +55,11 @@ function oneTest(caseOverrides: Partial<LdkitTestCase>[] = [{}]) {
       position: index,
       argumentSetVersion: 'as1',
       ...overrides,
-    } as LdkitTestCase;
+    } as PersistedTestCase;
   });
   return source(
     [test({ $id: 't1', name: 'People by city' })],
-    { 't1:v1': { $id: 't1:v1', isPartOf: 't1', version: 1, expectationKind: 'bindings', cases: Object.keys(cases) } as LdkitTestVersion },
+    { 't1:v1': { $id: 't1:v1', isPartOf: 't1', version: 1, expectationKind: 'bindings', cases: Object.keys(cases) } as PersistedTestVersion },
     cases,
   );
 }
@@ -204,8 +204,8 @@ describe('collectQueryExamples', () => {
     it('reports arguments that fail to resolve', async () => {
       const src = source(
         [test({ $id: 't1', name: 'Unresolvable' })],
-        { 't1:v1': { $id: 't1:v1', isPartOf: 't1', version: 1, expectationKind: 'bindings', cases: ['c0'] } as LdkitTestVersion },
-        { c0: { $id: 'c0', isPartOf: 't1:v1', position: 0, argumentSetVersion: 'as1' } as LdkitTestCase },
+        { 't1:v1': { $id: 't1:v1', isPartOf: 't1', version: 1, expectationKind: 'bindings', cases: ['c0'] } as PersistedTestVersion },
+        { c0: { $id: 'c0', isPartOf: 't1:v1', position: 0, argumentSetVersion: 'as1' } as PersistedTestCase },
         async () => {
           throw new Error('argument set version not found');
         },

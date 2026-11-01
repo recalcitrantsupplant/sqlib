@@ -1,12 +1,12 @@
 /**
- * Test BackendUtils LDKit integration
+ * Test BackendUtils persistence integration
  */
 
 import { Backends, findBackendByName, findBackendsByType, createBackend, updateBackend } from '../../src/persistence/utils/BackendUtils.js';
 import { BackendTypeIri } from '../../src/persistence/schemas/BackendSchema.js';
 import { overrideRepositoryLenses } from '../../src/persistence/utils/entityRepository.js';
 
-// In-memory LDKit lens for this suite
+// In-memory entity lens for this suite
 const repositoryLens = (() => {
   const store = new Map<string, any>();
   const lens = {
@@ -40,7 +40,7 @@ overrideRepositoryLenses(() => repositoryLens);
 const SPARQL_ENDPOINT = 'http://localhost:3031/testing123'; // This constant is not used in the mocked environment
 const HTTP_TYPE = BackendTypeIri.http;
 
-describe('BackendUtils (LDKit Integration)', () => {
+describe('BackendUtils (persistence integration)', () => {
   const testBackendId = 'http://example.org/test-backend';
   const anotherBackendId = 'http://example.org/another-backend';
 
@@ -55,7 +55,7 @@ describe('BackendUtils (LDKit Integration)', () => {
   });
 
   it('should create and find a backend', async () => {
-    // Create using LDKit
+    // Create
     await createBackend({
       $id: testBackendId,
       name: 'Test Backend',

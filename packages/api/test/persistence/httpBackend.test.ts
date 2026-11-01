@@ -3,7 +3,7 @@
  *
  * The plan commits to both internal backend modes working (§2), but CI only
  * exercises in-process oxigraph. The parity suites used to be the thing that
- * verified `http` when pointed at one, and they went with LDKit — so this is what
+ * verified `http` when pointed at one, and they went with the old adapter — so this is what
  * is left that actually writes to a network endpoint and reads it back.
  *
  * Skipped unless `INTERNAL_BACKEND_TYPE=http`, which is deliberate: it is a real
@@ -16,7 +16,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { createRepositoryLens } from '../../src/persistence/utils/entityRepository.js';
-import { LibrarySchema, type LdkitLibrary } from '../../src/persistence/schemas/LibrarySchema.js';
+import { LibrarySchema, type PersistedLibrary } from '../../src/persistence/schemas/LibrarySchema.js';
 
 const isHttp = process.env.INTERNAL_BACKEND_TYPE === 'http';
 
@@ -62,12 +62,12 @@ describe.skipIf(!isHttp)('persistence against an http backend', () => {
       name: 'http round-trip',
       description: 'written over http',
       dateCreated: created,
-    } as LdkitLibrary);
+    } as PersistedLibrary);
 
     // The triples are really at the endpoint, not in a local store we fell back to.
     expect(await countTriples()).toBeGreaterThan(baseline);
 
-    const read = (await Libraries.findByIri(id)) as LdkitLibrary | null;
+    const read = (await Libraries.findByIri(id)) as PersistedLibrary | null;
     expect(read?.name).toBe('http round-trip');
     expect(read?.description).toBe('written over http');
     // Datatyped literals have to survive the network round-trip, not just the
@@ -75,9 +75,9 @@ describe.skipIf(!isHttp)('persistence against an http backend', () => {
     expect(read?.dateCreated).toBe(created);
 
     await Libraries.update({ $id: id, name: 'renamed over http' });
-    expect(((await Libraries.findByIri(id)) as LdkitLibrary | null)?.name).toBe('renamed over http');
+    expect(((await Libraries.findByIri(id)) as PersistedLibrary | null)?.name).toBe('renamed over http');
 
-    expect((await Libraries.find()).some((entity) => (entity as LdkitLibrary).$id === id)).toBe(true);
+    expect((await Libraries.find()).some((entity) => (entity as PersistedLibrary).$id === id)).toBe(true);
 
     await Libraries.delete(id);
     expect(await Libraries.findByIri(id)).toBeNull();

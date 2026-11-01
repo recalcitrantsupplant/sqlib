@@ -1,7 +1,7 @@
 import { createEntityUtilsWithFields } from './EntityUtils.js';
-import { TestCaseSchema, type LdkitTestCase } from '../schemas/TestCaseSchema.js';
+import { TestCaseSchema, type PersistedTestCase } from '../schemas/TestCaseSchema.js';
 
-const TestCaseUtils = createEntityUtilsWithFields<LdkitTestCase>(TestCaseSchema, 'TestCase');
+const TestCaseUtils = createEntityUtilsWithFields<PersistedTestCase>(TestCaseSchema, 'TestCase');
 
 export const TestCases = TestCaseUtils.Repository;
 export const createTestCase = TestCaseUtils.create;

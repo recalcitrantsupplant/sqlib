@@ -4,7 +4,7 @@
 
 <https://sparql-query-lib/system/library> a sqlib:Library ;
   sdo:name "System Library" ;
-  sdo:description "Internal LDKit-managed queries for system exports." ;
+  sdo:description "Internal sqlib-managed queries for system exports." ;
   sdo:dateCreated "2025-11-18T00:00:00.000Z"^^xsd:dateTime ;
   sdo:dateModified "2025-11-18T00:00:00.000Z"^^xsd:dateTime .
 

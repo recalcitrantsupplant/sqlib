@@ -18,7 +18,7 @@ describe('SystemStoreLoader', () => {
       $id: SYSTEM_LIBRARY_ID,
       '@type': 'Library',
       name: 'System Library',
-      description: 'Internal LDKit-managed queries for system exports.',
+      description: 'Internal sqlib-managed queries for system exports.',
     });
 
     for (const def of SystemQueryCatalog.listDefinitions()) {

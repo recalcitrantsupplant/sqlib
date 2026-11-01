@@ -8,17 +8,17 @@ import {
   deleteLimitParameter,
   LimitParameters
 } from '../../src/persistence/utils/LimitParameterUtils.js';
-import type { LdkitLimitParameter } from '../../src/persistence/schemas/LimitParameterSchema.js';
+import type { PersistedLimitParameter } from '../../src/persistence/schemas/LimitParameterSchema.js';
 import { log } from '../../src/lib/log.js';
 import { installFakePersistenceAdapter } from '../support/fakePersistenceAdapter.js';
 
 describe('LimitParameterUtils', () => {
-  const stored: LdkitLimitParameter = {
+  const stored: PersistedLimitParameter = {
     '$id': 'urn:test:limit-parameter:1',
     '@type': 'LimitParameter',
     name: 'test-limit'
   };
-  const second: LdkitLimitParameter = { ...stored, '$id': 'urn:test:limit-parameter:2', name: 'test-limit-2' };
+  const second: PersistedLimitParameter = { ...stored, '$id': 'urn:test:limit-parameter:2', name: 'test-limit-2' };
 
   let store: Awaited<ReturnType<typeof installFakePersistenceAdapter>>;
 

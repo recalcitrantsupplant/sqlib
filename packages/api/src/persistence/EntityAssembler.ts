@@ -1,10 +1,9 @@
 /**
  * Materialises `?id ?p ?o` rows into typed entity objects.
  *
- * This is the replacement for LDKit's decoder, and LDKit's observed output is the
- * specification — the parity harness (`test/persistence/readParity.test.ts`) diffs
- * the two against the same store, so any drift in datatype handling shows up as a
- * failing test rather than a subtly wrong entity.
+ * It replaced the decoder of the RDF mapping library sqlib used before, and kept
+ * that decoder's observed output as its specification, so entities already stored
+ * read back unchanged.
  *
  * Conventions it reproduces, each confirmed by probing a real lens rather than
  * read off the schema types (the entity interfaces disagree with the runtime in
@@ -19,7 +18,7 @@
  *   a `Date` here; matching it made an entity's dates depend on which path last
  *   wrote it.
  * - a non-array property with several stored values keeps the first row seen, which
- *   is what LDKit does; the store is not supposed to contain them.
+ *   is what the earlier decoder did; the store is not supposed to contain them.
  */
 import type { SparqlBindingValue } from '@sparql-query-lib/types';
 import { describeSchema, type EntityField, type FieldKind } from './schemaIntrospection.js';

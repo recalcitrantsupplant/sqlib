@@ -7,17 +7,17 @@ import {
   deleteOffsetParameter,
   OffsetParameters
 } from '../../src/persistence/utils/OffsetParameterUtils.js';
-import type { LdkitOffsetParameter } from '../../src/persistence/schemas/OffsetParameterSchema.js';
+import type { PersistedOffsetParameter } from '../../src/persistence/schemas/OffsetParameterSchema.js';
 import { log } from '../../src/lib/log.js';
 import { installFakePersistenceAdapter } from '../support/fakePersistenceAdapter.js';
 
 describe('OffsetParameterUtils', () => {
-  const stored: LdkitOffsetParameter = {
+  const stored: PersistedOffsetParameter = {
     '$id': 'urn:test:offset-parameter:1',
     '@type': 'OffsetParameter',
     name: '1'
   };
-  const second: LdkitOffsetParameter = { ...stored, '$id': 'urn:test:offset-parameter:2', name: 'test-offset-2' };
+  const second: PersistedOffsetParameter = { ...stored, '$id': 'urn:test:offset-parameter:2', name: 'test-offset-2' };
 
   let store: Awaited<ReturnType<typeof installFakePersistenceAdapter>>;
 

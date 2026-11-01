@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
 import { QueryVersionSchema } from '../../../src/persistence/schemas/QueryVersionSchema.js';
-import { ldkit, xsd, sqlib, sdo } from '../../../src/persistence/namespaces.js';
+import { xsd, sqlib, sdo } from '../../../src/persistence/namespaces.js';
 
 describe('QueryVersionSchema', () => {
   it('defines correct @type and properties', () => {
@@ -9,7 +9,7 @@ describe('QueryVersionSchema', () => {
 
     expect(QueryVersionSchema).toHaveProperty('isPartOf');
     expect(QueryVersionSchema.isPartOf['@id']).toBe(sdo.isPartOf);
-    expect(QueryVersionSchema.isPartOf['@type']).toBe(ldkit.IRI);
+    expect(QueryVersionSchema.isPartOf['@type']).toBe(sqlib.IRI);
 
     expect(QueryVersionSchema).toHaveProperty('version');
     expect(QueryVersionSchema.version['@id']).toBe(sdo.version);
@@ -30,25 +30,25 @@ describe('QueryVersionSchema', () => {
     expect(QueryVersionSchema).toHaveProperty('limitParameters');
     expect(QueryVersionSchema.limitParameters['@id']).toBe(sqlib.limitParameters);
     expect(QueryVersionSchema.limitParameters['@array']).toBe(true);
-    expect(QueryVersionSchema.limitParameters['@type']).toBe(ldkit.IRI);
+    expect(QueryVersionSchema.limitParameters['@type']).toBe(sqlib.IRI);
     expect(QueryVersionSchema.limitParameters['@optional']).toBe(true);
 
     expect(QueryVersionSchema).toHaveProperty('offsetParameters');
     expect(QueryVersionSchema.offsetParameters['@id']).toBe(sqlib.offsetParameters);
     expect(QueryVersionSchema.offsetParameters['@array']).toBe(true);
-    expect(QueryVersionSchema.offsetParameters['@type']).toBe(ldkit.IRI);
+    expect(QueryVersionSchema.offsetParameters['@type']).toBe(sqlib.IRI);
     expect(QueryVersionSchema.offsetParameters['@optional']).toBe(true);
 
     expect(QueryVersionSchema).toHaveProperty('inferredInputs');
     expect(QueryVersionSchema.inferredInputs['@id']).toBe(sqlib.inferredInputs);
     expect(QueryVersionSchema.inferredInputs['@array']).toBe(true);
-    expect(QueryVersionSchema.inferredInputs['@type']).toBe(ldkit.IRI);
+    expect(QueryVersionSchema.inferredInputs['@type']).toBe(sqlib.IRI);
     expect(QueryVersionSchema.inferredInputs['@optional']).toBe(true);
 
     expect(QueryVersionSchema).toHaveProperty('inferredOutputs');
     expect(QueryVersionSchema.inferredOutputs['@id']).toBe(sqlib.inferredOutputs);
     expect(QueryVersionSchema.inferredOutputs['@array']).toBe(true);
-    expect(QueryVersionSchema.inferredOutputs['@type']).toBe(ldkit.IRI);
+    expect(QueryVersionSchema.inferredOutputs['@type']).toBe(sqlib.IRI);
     expect(QueryVersionSchema.inferredOutputs['@optional']).toBe(true);
 
     expect(QueryVersionSchema).toHaveProperty('dateCreated');

@@ -33,10 +33,10 @@
  * PersonShape tree never reaches, so it cannot change what the checkers see.
  */
 
-import type { LdkitQuery } from '../../persistence/schemas/QuerySchema.js';
-import type { LdkitQueryGroup } from '../../persistence/schemas/QueryGroupSchema.js';
-import type { LdkitQueryVersion } from '../../persistence/schemas/QueryVersionSchema.js';
-import type { LdkitTest } from '../../persistence/schemas/TestSchema.js';
+import type { PersistedQuery } from '../../persistence/schemas/QuerySchema.js';
+import type { PersistedQueryGroup } from '../../persistence/schemas/QueryGroupSchema.js';
+import type { PersistedQueryVersion } from '../../persistence/schemas/QueryVersionSchema.js';
+import type { PersistedTest } from '../../persistence/schemas/TestSchema.js';
 import { QueryTypeIri } from '../../constants/queryTypes.js';
 import { getEntityRepositories } from '../CacheCoordinatorProvider.js';
 import { createGroupVersionFlat } from '../GroupVersionWriter.js';
@@ -413,17 +413,17 @@ async function ensureMultiInputQuery(
   queryString: string,
   outputNames: string[],
   inputGroups: InputGroupSpec[] = [],
-): Promise<LdkitQueryVersion> {
-  let query = repos().Query.get(id) as LdkitQuery | null;
+): Promise<PersistedQueryVersion> {
+  let query = repos().Query.get(id) as PersistedQuery | null;
   if (!query) {
     query = await repos().Query.create({
       $id: id,
       name,
       description,
       isPartOf: [SHACL_VALIDATION_EXAMPLES_LIBRARY_ID],
-    } as Partial<LdkitQuery> & { $id: string });
+    } as Partial<PersistedQuery> & { $id: string });
   }
-  if (query.currentVersion) return repos().QueryVersion.get(query.currentVersion) as LdkitQueryVersion;
+  if (query.currentVersion) return repos().QueryVersion.get(query.currentVersion) as PersistedQueryVersion;
 
   const stem = id.split(':').pop();
   const outputs = outputNames.map((variableName, index) => ({ id: `urn:ui-temp:${stem}-output-${index}`, variableName }));
@@ -466,20 +466,20 @@ async function ensureMultiInputQuery(
 }
 
 interface FanOutQueries {
-  focus: LdkitQueryVersion;
-  extractMinCount1: LdkitQueryVersion;
-  extractDatatype1: LdkitQueryVersion;
-  extractMinCount2: LdkitQueryVersion;
-  checkMinCount1: LdkitQueryVersion;
-  checkDatatype1: LdkitQueryVersion;
-  checkMinCount2: LdkitQueryVersion;
-  unsupported: LdkitQueryVersion;
-  cycle: LdkitQueryVersion;
-  merge: LdkitQueryVersion;
+  focus: PersistedQueryVersion;
+  extractMinCount1: PersistedQueryVersion;
+  extractDatatype1: PersistedQueryVersion;
+  extractMinCount2: PersistedQueryVersion;
+  checkMinCount1: PersistedQueryVersion;
+  checkDatatype1: PersistedQueryVersion;
+  checkMinCount2: PersistedQueryVersion;
+  unsupported: PersistedQueryVersion;
+  cycle: PersistedQueryVersion;
+  merge: PersistedQueryVersion;
 }
 
 async function ensureFanOutGroup(q: FanOutQueries): Promise<void> {
-  let group = repos().QueryGroup.get(FANOUT_GROUP_ID) as LdkitQueryGroup | null;
+  let group = repos().QueryGroup.get(FANOUT_GROUP_ID) as PersistedQueryGroup | null;
   if (!group) {
     group = await repos().QueryGroup.create({
       $id: FANOUT_GROUP_ID,
@@ -488,7 +488,7 @@ async function ensureFanOutGroup(q: FanOutQueries): Promise<void> {
         'One extraction/checker pair per constraint kind and depth, a shared focus-resolution node, '
         + 'unsupported-constraint and shapes-cycle detectors, and a merge node unioning it all into one report.',
       isPartOf: SHACL_VALIDATION_EXAMPLES_LIBRARY_ID,
-    } as Partial<LdkitQueryGroup> & { $id: string });
+    } as Partial<PersistedQueryGroup> & { $id: string });
   }
   if (groupVersionIsUsable(FANOUT_GROUP_ID, group.currentVersion)) return;
 
@@ -601,7 +601,7 @@ async function ensureFanOutGroup(q: FanOutQueries): Promise<void> {
 }
 
 async function ensureFanOutTest(dataGraphVersion: string): Promise<void> {
-  let test = repos().Test.get(FANOUT_TEST_ID) as LdkitTest | null;
+  let test = repos().Test.get(FANOUT_TEST_ID) as PersistedTest | null;
   if (!test) {
     test = await repos().Test.create({
       $id: FANOUT_TEST_ID,
@@ -610,7 +610,7 @@ async function ensureFanOutTest(dataGraphVersion: string): Promise<void> {
       subject: FANOUT_GROUP_ID,
       subjectKind: 'queryGroup',
       isPartOf: [SHACL_VALIDATION_EXAMPLES_LIBRARY_ID],
-    } as Partial<LdkitTest> & { $id: string });
+    } as Partial<PersistedTest> & { $id: string });
   }
   if (!test.currentVersion) {
     await createTestVersion(FANOUT_TEST_ID, {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { xsd, ldkit as ldkitNs } from '../../src/persistence/namespaces.js';
+import { xsd, sqlib as sqlibNs } from '../../src/persistence/namespaces.js';
 import { inferOpenAPIType, XSD_TO_OPENAPI, FIELD_PATTERNS } from '../../scripts/lib/type-mappings.js';
 
 describe('type-mappings', () => {
@@ -26,8 +26,8 @@ describe('type-mappings', () => {
       });
     });
 
-    it('should map ldkit.IRI to OpenAPI IRI format', () => {
-      const mapping = XSD_TO_OPENAPI.get((ldkitNs as any).IRI);
+    it('should map sqlib.IRI to OpenAPI IRI format', () => {
+      const mapping = XSD_TO_OPENAPI.get((sqlibNs as any).IRI);
       expect(mapping).toEqual({
         type: 'string',
         format: 'iri'
@@ -104,8 +104,8 @@ describe('type-mappings', () => {
         });
       });
 
-      it('should infer IRI from ldkit.IRI', () => {
-        const result = inferOpenAPIType('id', (ldkitNs as any).IRI, undefined);
+      it('should infer IRI from sqlib.IRI', () => {
+        const result = inferOpenAPIType('id', (sqlibNs as any).IRI, undefined);
         expect(result).toEqual({
           type: 'string',
           format: 'iri'
@@ -200,12 +200,12 @@ describe('type-mappings', () => {
     });
 
     describe('with a declared value vocabulary', () => {
-      // The blocker Phase B step 1 removes: `ldkit.IRI` alone yields
+      // The blocker Phase B step 1 removes: `sqlib.IRI` alone yields
       // `format: iri`, which rejects `"http"` — the only thing the endpoint has
       // ever accepted for backendType. `@values` states the wire vocabulary, so
       // the emitted document describes the wire.
       it('should emit the tokens as an enum, not the IRI format', () => {
-        const result = inferOpenAPIType('backendType', ldkitNs.IRI, undefined, {
+        const result = inferOpenAPIType('backendType', sqlibNs.IRI, undefined, {
           values: {
             http: 'https://sparql-query-lib/backendType/http',
             oxigraphEphemeral: 'https://sparql-query-lib/backendType/oxigraphEphemeral',
@@ -221,7 +221,7 @@ describe('type-mappings', () => {
       // keyword, so a `null` reaching `{type: 'string'}` is *coerced* to `''`,
       // which the enum then rejects. The vocabulary has to permit null outright.
       it('should permit null outright when the property is optional', () => {
-        const result = inferOpenAPIType('queryMethod', ldkitNs.IRI, undefined, {
+        const result = inferOpenAPIType('queryMethod', sqlibNs.IRI, undefined, {
           values: { post: 'urn:m:post', get: 'urn:m:get' },
           isOptional: true,
         });

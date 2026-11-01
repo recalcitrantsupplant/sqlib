@@ -1,11 +1,11 @@
 /**
- * LDKit Schema for RuleSet Entity (stable pointer)
+ * Entity schema for RuleSet Entity (stable pointer)
  *
  * A RuleSet is a collection of rules and data blocks.
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, sqlib, sdo } from '../namespaces.js';
+import { xsd, sqlib, sdo } from '../namespaces.js';
 
 export const RuleSetSchema = {
   '@type': sqlib.RuleSet,
@@ -18,7 +18,7 @@ export const RuleSetSchema = {
   },
   currentVersion: {
     '@id': sqlib.currentVersion,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
     '@references': { types: ['RuleSetVersion'] },
     // The number lives on the version; callers listing these want it
@@ -28,13 +28,13 @@ export const RuleSetSchema = {
   isPartOf: {
     '@id': sdo.isPartOf,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@references': { types: ['Library', 'QueryGroup'], exactlyOne: 'Library' },
   },
   tags: {
     '@id': sqlib.hasTag,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
     '@references': { types: ['Tag'] },
   },
@@ -46,7 +46,7 @@ export const RuleSetSchema = {
   browserDefaultDataGraphs: {
     '@id': sqlib.browserDefaultDataGraphs,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
     '@readOnly': true,
     '@references': { types: ['BrowserDefaultDataGraph'] },
@@ -63,7 +63,7 @@ export const RuleSetSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitRuleSet {
+export interface PersistedRuleSet {
   $id: string;
   '@type'?: 'RuleSet';
   name: string;

@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for Patch entity.
+ * Entity schema for Patch entity.
  *
  * A patch is the ground set of quads one write added and removed: a preview
  * before it happens, an audit record after, an undo when reversed, and a
@@ -27,14 +27,14 @@
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, sqlib, sdo } from '../namespaces.js';
+import { xsd, sqlib, sdo } from '../namespaces.js';
 
 export const PatchSchema = {
   '@type': sqlib.Patch,
   /** The backend the patch applies to, and the container it belongs to. */
   isPartOf: {
     '@id': sdo.isPartOf,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@references': { types: ['Backend'] },
   },
   /** Canonical N-Quads. Empty string when the side is empty. */
@@ -76,7 +76,7 @@ export const PatchSchema = {
   /** Named graphs the patch touches. Absent means the default graph only. */
   graphScope: {
     '@id': sqlib.graphScope,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@array': true,
     '@optional': true,
   },
@@ -136,7 +136,7 @@ export const PatchSchema = {
   /** The entity the source refers to, when it is one. */
   sourceRef: {
     '@id': sqlib.sourceRef,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   /** The update this patch was derived from, when it came from one. */
@@ -148,7 +148,7 @@ export const PatchSchema = {
   /** Set on a revert patch: the patch it undoes. */
   inverseOf: {
     '@id': sqlib.inverseOf,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   /** The writer's `x-sqlib-client-id`, mirroring the change feed. */
@@ -189,7 +189,7 @@ export type PatchApplyMode = 'ground-sparql' | 'store' | 'graph-ops';
  */
 export type PatchSourceKind = 'updateString' | 'revert' | 'proxyUpdate';
 
-export interface LdkitPatch {
+export interface PersistedPatch {
   $id: string;
   '@type'?: 'Patch';
   isPartOf: string;

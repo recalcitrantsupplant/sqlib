@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for EtlExecution Entity
+ * Entity schema for EtlExecution Entity
  *
  * Records each execution of an ETL job for audit/history.
  *
@@ -14,17 +14,17 @@
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, sqlib } from '../namespaces.js';
+import { xsd, sqlib } from '../namespaces.js';
 
 export const EtlExecutionSchema = {
   '@type': sqlib.EtlExecution,
   etlJobVersion: {
     '@id': sqlib.etlJobVersion,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
   },
   columnMappingVersion: {
     '@id': sqlib.columnMappingVersion,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
   },
   status: {
     '@id': sqlib.executionStatus,
@@ -72,7 +72,7 @@ export const EtlExecutionSchema = {
   },
   outputTupleSetVersion: {
     '@id': sqlib.outputTupleSetVersion,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   outputReused: {
@@ -88,7 +88,7 @@ export const EtlExecutionSchema = {
 
 export type EtlExecutionStatus = 'pending' | 'running' | 'completed' | 'failed' | 'partial';
 
-export interface LdkitEtlExecution {
+export interface PersistedEtlExecution {
   $id: string;
   '@type'?: 'EtlExecution';
   etlJobVersion: string; // IRI to EtlJobVersion

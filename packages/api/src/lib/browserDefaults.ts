@@ -16,8 +16,8 @@ import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
 import { mintId } from './id.js';
 import { orderByPosition } from '@sparql-query-lib/types';
 import { resolveOwningLibrary } from '../auth/enforce.js';
-import { toLdkit } from '../persistence/utils/id-adapter.js';
-import type { LdkitBrowserDefaultDataGraph } from '../persistence/schemas/BrowserDefaultDataGraphSchema.js';
+import { toPersisted } from '../persistence/utils/id-adapter.js';
+import type { PersistedBrowserDefaultDataGraph } from '../persistence/schemas/BrowserDefaultDataGraphSchema.js';
 
 /** The entity kinds that carry browser defaults. */
 export type BrowserDefaultsOwnerType = 'Query' | 'QueryGroup' | 'RuleSet';
@@ -51,11 +51,11 @@ function toArray(value: string[] | string | null | undefined): string[] {
   return typeof value === 'string' && value ? [value] : [];
 }
 
-function childrenOf(owner: OwnerRecord): LdkitBrowserDefaultDataGraph[] {
+function childrenOf(owner: OwnerRecord): PersistedBrowserDefaultDataGraph[] {
   const cache = getCacheCoordinator();
   return orderByPosition(toArray(owner.browserDefaultDataGraphs)
-    .map(id => cache.get(id) as LdkitBrowserDefaultDataGraph | null)
-    .filter((child): child is LdkitBrowserDefaultDataGraph => !!child && typeof child.dataGraph === 'string'));
+    .map(id => cache.get(id) as PersistedBrowserDefaultDataGraph | null)
+    .filter((child): child is PersistedBrowserDefaultDataGraph => !!child && typeof child.dataGraph === 'string'));
 }
 
 /** The defaults an owner carries, with holes for inputs that have none. */
@@ -151,7 +151,7 @@ export async function writeBrowserDefaults(
   for (const [position, dataGraph] of body.dataGraphs.entries()) {
     if (!dataGraph) continue;
     const id = mintId('browserDefaultDataGraph');
-    await cache.create('BrowserDefaultDataGraph', toLdkit({
+    await cache.create('BrowserDefaultDataGraph', toPersisted({
       $id: id,
       '@type': 'BrowserDefaultDataGraph',
       isPartOf: owner.$id,
@@ -204,7 +204,7 @@ export async function clearBrowserDefaultsNaming(ids: ReadonlySet<string>): Prom
     if (names(owner)) await cache.update('QueryGroup', owner.$id, { browserDefaultArgumentSet: null });
   }
 
-  for (const child of cache.list('BrowserDefaultDataGraph') as LdkitBrowserDefaultDataGraph[]) {
+  for (const child of cache.list('BrowserDefaultDataGraph') as PersistedBrowserDefaultDataGraph[]) {
     if (!ids.has(child.dataGraph)) continue;
     const owner = cache.get(child.isPartOf) as OwnerRecord | null;
     await cache.delete('BrowserDefaultDataGraph', child.$id);

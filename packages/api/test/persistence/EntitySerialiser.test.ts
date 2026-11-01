@@ -1,11 +1,10 @@
 /**
- * Unit coverage for serialisation. The parity suite proves agreement with LDKit
- * against a real store; these pin the term-level details that are easier to read
+ * Unit coverage for serialisation. These pin the term-level details that are easier to read
  * as assertions than as N-Triples diffs.
  */
 import { describe, expect, it } from 'vitest';
 import { serialiseEntity, toNTriples } from '../../src/persistence/EntitySerialiser.js';
-import { LDKIT_IRI_TYPE, RDF_JSON_TYPE } from '../../src/persistence/schemaIntrospection.js';
+import { IRI_REF_TYPE, RDF_JSON_TYPE } from '../../src/persistence/schemaIntrospection.js';
 
 const XSD = 'http://www.w3.org/2001/XMLSchema#';
 const P = 'http://example.org/p';
@@ -19,7 +18,7 @@ const SCHEMA = {
   enabled: { '@id': `${P}/enabled`, '@type': `${XSD}boolean` },
   createdAt: { '@id': `${P}/createdAt`, '@type': `${XSD}dateTime` },
   window: { '@id': `${P}/window`, '@type': `${XSD}duration` },
-  ref: { '@id': `${P}/ref`, '@type': LDKIT_IRI_TYPE },
+  ref: { '@id': `${P}/ref`, '@type': IRI_REF_TYPE },
   tags: { '@id': `${P}/tags`, '@array': true },
   config: { '@id': `${P}/config`, '@type': RDF_JSON_TYPE },
 } as Record<string, unknown>;
@@ -46,7 +45,7 @@ describe('EntitySerialiser', () => {
   });
 
   it('writes plain literals for untyped and xsd:string properties', () => {
-    // LDKit writes both without a datatype, and RDF 1.1 makes them the same term.
+    // Both are stored without a datatype, and RDF 1.1 makes them the same term.
     expect(objectFor({ $id: ID, label: 'a' }, 'label')).toEqual(['"a"']);
     expect(objectFor({ $id: ID, explicitString: 'b' }, 'explicitString')).toEqual(['"b"']);
   });
@@ -71,7 +70,7 @@ describe('EntitySerialiser', () => {
     ]);
   });
 
-  it('serialises a Date, which LDKit drops', () => {
+  it('serialises a Date', () => {
     expect(objectFor({ $id: ID, createdAt: new Date('2026-01-02T03:04:05.456Z') }, 'createdAt')).toEqual([
       `"2026-01-02T03:04:05.456Z"^^<${XSD}dateTime>`,
     ]);

@@ -1,12 +1,12 @@
 import { mintId } from './id.js';
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
 import { allocateVersion, setCurrentVersion } from './versionNumbering.js';
-import type { LdkitTestVersion } from '../persistence/schemas/TestVersionSchema.js';
-import { toLdkit } from '../persistence/utils/id-adapter.js';
+import type { PersistedTestVersion } from '../persistence/schemas/TestVersionSchema.js';
+import { toPersisted } from '../persistence/utils/id-adapter.js';
 import { EXPECTATION_KINDS, isExpectationKind, type ExpectationKind } from './testComparators.js';
 import { isSrlCheck, SRL_CHECKS } from './srlChecks.js';
 import { checkSubjectKindInputs, isSubjectKind } from './subjectKinds.js';
-import type { LdkitTest } from '../persistence/schemas/TestSchema.js';
+import type { PersistedTest } from '../persistence/schemas/TestSchema.js';
 import { ValidationError } from './validationError.js';
 import type { RunnableTestCase } from './testCases.js';
 
@@ -180,7 +180,7 @@ async function writeCases(
     const dataGraphIds: string[] = [];
     for (const [position, graph] of (testCase.dataGraphs ?? []).entries()) {
       const graphId = mintId('testCaseDataGraph');
-      await cacheCoordinator.create('TestCaseDataGraph', toLdkit({
+      await cacheCoordinator.create('TestCaseDataGraph', toPersisted({
         $id: graphId,
         '@type': 'TestCaseDataGraph',
         isPartOf: caseId,
@@ -190,7 +190,7 @@ async function writeCases(
       dataGraphIds.push(graphId);
     }
 
-    await cacheCoordinator.create('TestCase', toLdkit({
+    await cacheCoordinator.create('TestCase', toPersisted({
       $id: caseId,
       '@type': 'TestCase',
       isPartOf: versionId,
@@ -227,7 +227,7 @@ async function writeCases(
  * version of it would be a worse outcome than skipping one rule.
  */
 function validateSubjectKindInputs(testId: string, body: TestVersionInput, cases: TestCaseInput[]): void {
-  const test = getCacheCoordinator().get(testId) as LdkitTest | null;
+  const test = getCacheCoordinator().get(testId) as PersistedTest | null;
   const kind = test?.subjectKind;
   if (!isSubjectKind(kind)) return;
 
@@ -250,7 +250,7 @@ function validateSubjectKindInputs(testId: string, body: TestVersionInput, cases
 
 /** An unsaved version and its cases, held in memory only. */
 export interface DraftTestVersion {
-  version: LdkitTestVersion;
+  version: PersistedTestVersion;
   cases: RunnableTestCase[];
 }
 
@@ -261,7 +261,7 @@ export interface DraftTestVersion {
  * save. Run by `POST /tests/:id/run` with a `draft`, which is how a
  * read-only deployment tries changed inputs: it refuses the save, not the run.
  */
-export function buildDraftTestVersion(test: LdkitTest, body: TestVersionInput): DraftTestVersion {
+export function buildDraftTestVersion(test: PersistedTest, body: TestVersionInput): DraftTestVersion {
   const expectationKind = validateExpectationKind(body.expectationKind);
   const inputs = body.cases?.length ? body.cases : [{}];
   validateSubjectKindInputs(test.$id, body, inputs);
@@ -293,7 +293,7 @@ export function buildDraftTestVersion(test: LdkitTest, body: TestVersionInput): 
     backend: body.backend ?? undefined,
     maxIterations: body.maxIterations ?? undefined,
     timeoutMs: body.timeoutMs ?? undefined,
-  } as unknown as LdkitTestVersion;
+  } as unknown as PersistedTestVersion;
 
   return { version, cases };
 }
@@ -302,11 +302,11 @@ export function buildDraftTestVersion(test: LdkitTest, body: TestVersionInput): 
  * Numbered and pointed at under the parent's version lock (`allocateVersion`),
  * so concurrent saves get consecutive numbers and the last to finish is current.
  */
-export async function createTestVersion(testId: string, body: TestVersionInput): Promise<LdkitTestVersion> {
+export async function createTestVersion(testId: string, body: TestVersionInput): Promise<PersistedTestVersion> {
   return allocateVersion('TestVersion', testId, (nextVersion) => createTestVersionNumbered(testId, body, nextVersion));
 }
 
-async function createTestVersionNumbered(testId: string, body: TestVersionInput, nextVersion: number): Promise<LdkitTestVersion> {
+async function createTestVersionNumbered(testId: string, body: TestVersionInput, nextVersion: number): Promise<PersistedTestVersion> {
   const cacheCoordinator = getCacheCoordinator();
 
   const expectationKind = validateExpectationKind(body.expectationKind);
@@ -342,7 +342,7 @@ async function createTestVersionNumbered(testId: string, body: TestVersionInput,
     comment: body.comment ?? undefined,
   };
 
-  const created = await cacheCoordinator.create('TestVersion', toLdkit(payload));
+  const created = await cacheCoordinator.create('TestVersion', toPersisted(payload));
 
   await setCurrentVersion('Test', testId, versionId);
 
@@ -362,9 +362,9 @@ async function createTestVersionNumbered(testId: string, body: TestVersionInput,
 export async function annotateTestVersion(
   versionId: string,
   body: AnnotateTestVersionInput,
-): Promise<LdkitTestVersion> {
+): Promise<PersistedTestVersion> {
   const cacheCoordinator = getCacheCoordinator();
-  const current = cacheCoordinator.get(versionId) as LdkitTestVersion | null;
+  const current = cacheCoordinator.get(versionId) as PersistedTestVersion | null;
   if (!current || current['@type'] !== 'TestVersion') {
     throw new Error(`TestVersion ${versionId} not found`);
   }

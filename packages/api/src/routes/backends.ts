@@ -8,7 +8,7 @@ import {
   OXIGRAPH_STORE_MODES,
   resolveOxigraphConfig,
   type BackendTypeKey,
-  type LdkitBackend,
+  type PersistedBackend,
   type OxigraphConfig,
 } from '../persistence/schemas/BackendSchema.js';
 import { classifyDataGraphSource } from '../lib/dataGraphHydration.js';
@@ -67,8 +67,8 @@ import {
   patchLogReadMode,
 } from '../auth/graphPolicy.js';
 import { getAuthStore } from '../auth/AuthStore.js';
-import type { LdkitQuery } from '../persistence/schemas/QuerySchema.js';
-import type { LdkitQueryVersion } from '../persistence/schemas/QueryVersionSchema.js';
+import type { PersistedQuery } from '../persistence/schemas/QuerySchema.js';
+import type { PersistedQueryVersion } from '../persistence/schemas/QueryVersionSchema.js';
 import { hasBackendMode, resolveEffectiveGrants } from '../auth/grants.js';
 import { BACKEND_MODES, PRINCIPAL_AUTHENTICATED } from '../auth/types.js';
 import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
@@ -133,7 +133,7 @@ function normalizeDateValue(value: unknown): string | undefined {
   return undefined;
 }
 
-function serializeBackend(entity: LdkitBackend): Backend {
+function serializeBackend(entity: PersistedBackend): Backend {
   const rest = toRestApi<any>(entity);
   delete rest.username;
   delete rest.password;
@@ -247,7 +247,7 @@ function validateOxigraphMemoryConfig(
   }
 }
 
-function buildCreateBackendPayload(input: BackendCreate, generatedId: string): (Partial<LdkitBackend> & { $id: string }) {
+function buildCreateBackendPayload(input: BackendCreate, generatedId: string): (Partial<PersistedBackend> & { $id: string }) {
   const {
     id: _dropId,
     endpoint,
@@ -264,7 +264,7 @@ function buildCreateBackendPayload(input: BackendCreate, generatedId: string): (
   }
   const backendTypeIri = backendTypeKeyToIri(backendTypeKey);
 
-  const payload: Partial<LdkitBackend> & { $id: string } = {
+  const payload: Partial<PersistedBackend> & { $id: string } = {
     $id: generatedId,
     name,
     backendType: backendTypeIri,
@@ -325,11 +325,11 @@ interface GraphPolicySummary {
 }
 
 /** The graph policy fields a create or update body may carry. */
-type GraphPolicyFields = Pick<LdkitBackend, 'authBackend' | 'graphPolicyQueryVersion' | 'graphPolicyBackend'>;
+type GraphPolicyFields = Pick<PersistedBackend, 'authBackend' | 'graphPolicyQueryVersion' | 'graphPolicyBackend'>;
 
 function copyGraphPolicyFields(
   input: { authBackend?: boolean | null; graphPolicyQueryVersion?: string | null; graphPolicyBackend?: string | null },
-  payload: Partial<LdkitBackend>,
+  payload: Partial<PersistedBackend>,
 ): void {
   if (input.authBackend !== undefined) payload.authBackend = input.authBackend;
   if (input.graphPolicyQueryVersion !== undefined) payload.graphPolicyQueryVersion = input.graphPolicyQueryVersion;
@@ -356,7 +356,7 @@ function graphPolicySettingsProblem(repos: EntityRepositories, backendId: string
     return 'A backend cannot run its own graph policy: the policy runs on a separate auth backend.';
   }
   if (policyBackend !== LIBRARY_STORAGE_BACKEND_ID) {
-    const target = repos.Backend.get(policyBackend) as LdkitBackend | null;
+    const target = repos.Backend.get(policyBackend) as PersistedBackend | null;
     if (!target) return `Policy backend ${policyBackend} not found.`;
     if (target.authBackend !== true) {
       return `Backend ${policyBackend} is not marked as an auth backend. Mark it first, so callers cannot query it.`;
@@ -370,8 +370,8 @@ function graphPolicySettingsProblem(repos: EntityRepositories, backendId: string
 }
 
 /** The backends this caller may see — the same rule `GET /` applies. */
-function visibleBackends(repos: EntityRepositories, request: FastifyRequest): LdkitBackend[] {
-  const all = repos.Backend.list() as LdkitBackend[];
+function visibleBackends(repos: EntityRepositories, request: FastifyRequest): PersistedBackend[] {
+  const all = repos.Backend.list() as PersistedBackend[];
   const context = authOf(request);
   if (context.fullAccess || context.grants.admin) {
     return all;
@@ -379,7 +379,7 @@ function visibleBackends(repos: EntityRepositories, request: FastifyRequest): Ld
   return all.filter((backend) => context.grants.backends.has(backend.$id));
 }
 
-function toProbeTarget(backend: LdkitBackend): ProbeTarget {
+function toProbeTarget(backend: PersistedBackend): ProbeTarget {
   const backendTypeKey = backendTypeIriToKey(backend.backendType) ?? 'http';
   return {
     id: backend.$id,
@@ -432,7 +432,7 @@ const prefixPairSchema = {
 type RemotePrefixesReply = Awaited<ReturnType<typeof fetchRemotePrefixes>>;
 type PrefixPushReply = { results: Awaited<ReturnType<typeof pushPrefixes>>; applied: number; failed: number };
 
-function toPrefixTarget(backend: LdkitBackend): PrefixTarget {
+function toPrefixTarget(backend: PersistedBackend): PrefixTarget {
   const backendTypeKey = backendTypeIriToKey(backend.backendType) ?? 'http';
   if (backendTypeKey !== 'http') {
     throw new PrefixServiceError('Prefix sync applies to HTTP backends only', 409);
@@ -529,7 +529,7 @@ function collectBackendUsage(repos: EntityRepositories, backendId: string): Back
   };
 }
 
-function buildUpdateBackendPayload(input: BackendUpdate): Partial<LdkitBackend> {
+function buildUpdateBackendPayload(input: BackendUpdate): Partial<PersistedBackend> {
   const {
     endpoint,
     authEnvKey,
@@ -539,7 +539,7 @@ function buildUpdateBackendPayload(input: BackendUpdate): Partial<LdkitBackend> 
     backendType,
   } = input;
 
-  const payload: Partial<LdkitBackend> = {};
+  const payload: Partial<PersistedBackend> = {};
 
   if (name !== undefined) {
     payload.name = name;
@@ -593,13 +593,13 @@ export default async function (
     ...reposRoute(getBackendsSchema,
     async ({ repos, reply, request }) => {
       // Use memory cache for fast reads
-      const ldkitBackends = repos.Backend.list() as LdkitBackend[];
+      const persistedBackends = repos.Backend.list() as PersistedBackend[];
       // Backends are infrastructure: a caller sees the ones they hold a grant on
       // (which includes anything granted to the authenticated sentinel).
       const context = authOf(request);
       const visible = context.fullAccess || context.grants.admin
-        ? ldkitBackends
-        : ldkitBackends.filter(backend => context.grants.backends.has(backend.$id));
+        ? persistedBackends
+        : persistedBackends.filter(backend => context.grants.backends.has(backend.$id));
       request.log.info(`Successfully fetched ${visible.length} backends from cache`);
       return reply.send(visible.map(serializeBackend));
     })
@@ -616,13 +616,13 @@ export default async function (
       const id = decodeURIComponent(rawId);
 
       // Use memory cache for fast lookup
-      const ldkitBackend = repos.Backend.get(id) as LdkitBackend | null;
+      const persistedBackend = repos.Backend.get(id) as PersistedBackend | null;
 
-      if (!ldkitBackend) {
+      if (!persistedBackend) {
         return reply.status(404).send({ error: 'Backend not found' });
       }
 
-      const payload = serializeBackend(ldkitBackend);
+      const payload = serializeBackend(persistedBackend);
       setEntityConcurrencyHeaders(reply, payload);
       return reply.send(payload);
     })
@@ -640,7 +640,7 @@ export default async function (
 
       const body = request.body;
       const generatedId = body.id ?? mintId('backend');
-      let backendData: Partial<LdkitBackend> & { $id: string };
+      let backendData: Partial<PersistedBackend> & { $id: string };
       try {
         backendData = buildCreateBackendPayload(body, generatedId);
       } catch (error) {
@@ -656,9 +656,9 @@ export default async function (
       }
 
       // Use write-through cache for consistency and performance
-      const createdLdkitBackend = await repos.Backend.create(backendData);
+      const createdPersistedBackend = await repos.Backend.create(backendData);
 
-      const payload = serializeBackend(createdLdkitBackend);
+      const payload = serializeBackend(createdPersistedBackend);
       setEntityConcurrencyHeaders(reply, payload);
       return reply.status(201).send(payload);
     })
@@ -673,7 +673,7 @@ export default async function (
       requireAdmin(request, 'updating backends');
       const { id: rawId } = request.params;
       const id = decodeURIComponent(rawId);
-      let updateData: Partial<LdkitBackend>;
+      let updateData: Partial<PersistedBackend>;
       try {
         updateData = buildUpdateBackendPayload(request.body);
       } catch (error) {
@@ -683,7 +683,7 @@ export default async function (
         throw error;
       }
 
-      const current = repos.Backend.get(id) as LdkitBackend | null;
+      const current = repos.Backend.get(id) as PersistedBackend | null;
       if (!current) {
         return reply.status(404).send({ error: 'Backend not found' });
       }
@@ -711,9 +711,9 @@ export default async function (
       }
 
       // Use write-through cache for consistency and performance
-      const updatedLdkitBackend = await repos.Backend.update(id, updateData);
+      const updatedPersistedBackend = await repos.Backend.update(id, updateData);
 
-      if (!updatedLdkitBackend) {
+      if (!updatedPersistedBackend) {
         return reply.status(404).send({ error: 'Backend not found' });
       }
       // A changed policy, or a backend that stopped being an auth backend,
@@ -729,7 +729,7 @@ export default async function (
         await oxigraphStoreManager.invalidateMemoryStore(id);
       }
 
-      const payload = serializeBackend(updatedLdkitBackend);
+      const payload = serializeBackend(updatedPersistedBackend);
       setEntityConcurrencyHeaders(reply, payload);
       return reply.send(payload);
     })
@@ -787,7 +787,7 @@ export default async function (
       const id = decodeURIComponent(request.params.id);
       requireBackendMode(request, id, 'query:saved');
 
-      const backend = repos.Backend.get(id) as LdkitBackend | null;
+      const backend = repos.Backend.get(id) as PersistedBackend | null;
       if (!backend) {
         return reply.status(404).send({ error: 'Backend not found' });
       }
@@ -854,7 +854,7 @@ export default async function (
       const id = decodeURIComponent(request.params.id);
       requireBackendMode(request, id, 'query:saved');
 
-      const backend = repos.Backend.get(id) as LdkitBackend | null;
+      const backend = repos.Backend.get(id) as PersistedBackend | null;
       if (!backend) {
         return reply.status(404).send({ error: 'Backend not found' });
       }
@@ -920,7 +920,7 @@ export default async function (
       const id = decodeURIComponent(request.params.id);
       requireBackendMode(request, id, 'update:saved');
 
-      const backend = repos.Backend.get(id) as LdkitBackend | null;
+      const backend = repos.Backend.get(id) as PersistedBackend | null;
       if (!backend) {
         return reply.status(404).send({ error: 'Backend not found' });
       }
@@ -985,7 +985,7 @@ export default async function (
       requireAdmin(request, 'reading backend environment variables');
       const id = decodeURIComponent(request.params.id);
 
-      const backend = repos.Backend.get(id) as LdkitBackend | null;
+      const backend = repos.Backend.get(id) as PersistedBackend | null;
       if (!backend) {
         return reply.status(404).send({ error: 'Backend not found' });
       }
@@ -1053,7 +1053,7 @@ export default async function (
     }, async ({ repos, reply, request }) => {
       requireAdmin(request, 'reading graph policies');
       const id = decodeURIComponent(request.params.id);
-      const backend = repos.Backend.get(id) as LdkitBackend | null;
+      const backend = repos.Backend.get(id) as PersistedBackend | null;
       if (!backend) {
         return reply.status(404).send({ error: 'Backend not found' });
       }
@@ -1061,20 +1061,20 @@ export default async function (
       const summary: GraphPolicySummary = { policy, query: null, pinned: null, latest: null };
       if (!policy) return reply.send(summary);
 
-      const view = (version: LdkitQueryVersion): PolicyVersionView => ({
+      const view = (version: PersistedQueryVersion): PolicyVersionView => ({
         id: version.$id,
         version: typeof version.version === 'number' ? version.version : null,
         dateCreated: version.dateCreated ?? null,
       });
-      const pinned = repos.QueryVersion.get(policy.queryVersion) as LdkitQueryVersion | null;
+      const pinned = repos.QueryVersion.get(policy.queryVersion) as PersistedQueryVersion | null;
       if (!pinned) return reply.send(summary);
       summary.pinned = { ...view(pinned), queryString: pinned.queryString ?? null };
 
-      const query = pinned.isPartOf ? repos.Query.get(pinned.isPartOf) as LdkitQuery | null : null;
+      const query = pinned.isPartOf ? repos.Query.get(pinned.isPartOf) as PersistedQuery | null : null;
       if (!query) return reply.send(summary);
       summary.query = { id: query.$id, name: query.name };
       if (query.currentVersion && query.currentVersion !== pinned.$id) {
-        const latest = repos.QueryVersion.get(query.currentVersion) as LdkitQueryVersion | null;
+        const latest = repos.QueryVersion.get(query.currentVersion) as PersistedQueryVersion | null;
         if (latest) summary.latest = view(latest);
       }
       return reply.send(summary);
@@ -1129,7 +1129,7 @@ export default async function (
     }, async ({ repos, reply, request }) => {
       requireAdmin(request, 'testing graph policies');
       const id = decodeURIComponent(request.params.id);
-      const backend = repos.Backend.get(id) as LdkitBackend | null;
+      const backend = repos.Backend.get(id) as PersistedBackend | null;
       if (!backend) {
         return reply.status(404).send({ error: 'Backend not found' });
       }
@@ -1406,13 +1406,13 @@ export default async function (
       requireBackendMode(request, id, 'update:adhoc');
 
       // Get backend from cache
-      const ldkitBackend = repos.Backend.get(id) as LdkitBackend | null;
-      if (!ldkitBackend) {
+      const persistedBackend = repos.Backend.get(id) as PersistedBackend | null;
+      if (!persistedBackend) {
         return reply.status(404).send({ error: 'Backend not found' });
       }
 
       // Verify it's an oxigraph backend
-      const backendTypeKey = backendTypeIriToKey(ldkitBackend.backendType);
+      const backendTypeKey = backendTypeIriToKey(persistedBackend.backendType);
       if (backendTypeKey !== 'oxigraphEphemeral' && backendTypeKey !== 'oxigraphMemory') {
         return reply.status(400).send({ error: 'Backend is not an in-process oxigraph backend' });
       }
@@ -1421,7 +1421,7 @@ export default async function (
       // read-only store is rebuilt from its data graphs, and content loaded
       // into one would disappear at the next reload. Refusing is the honest
       // answer — see `ReadOnlySparqlExecutor` for the same reasoning.
-      const storedConfig = resolveOxigraphConfig(ldkitBackend.oxigraphConfig, id);
+      const storedConfig = resolveOxigraphConfig(persistedBackend.oxigraphConfig, id);
       const storeMode = storedConfig?.mode ?? 'readOnly';
       if (backendTypeKey === 'oxigraphMemory' && storeMode === 'readOnly') {
         return reply.status(403).send({
@@ -1523,13 +1523,13 @@ export default async function (
       requireBackendMode(request, id, 'query:saved');
 
       // Get backend from cache
-      const ldkitBackend = repos.Backend.get(id) as LdkitBackend | null;
-      if (!ldkitBackend) {
+      const persistedBackend = repos.Backend.get(id) as PersistedBackend | null;
+      if (!persistedBackend) {
         return reply.status(404).send({ error: 'Backend not found' });
       }
 
       // Verify it's an oxigraph backend
-      const backendTypeKey = backendTypeIriToKey(ldkitBackend.backendType);
+      const backendTypeKey = backendTypeIriToKey(persistedBackend.backendType);
       if (backendTypeKey !== 'oxigraphEphemeral' && backendTypeKey !== 'oxigraphMemory') {
         return reply.status(400).send({ error: 'Backend is not an in-process oxigraph backend' });
       }
@@ -1574,20 +1574,20 @@ export default async function (
       requireBackendMode(request, id, 'update:adhoc');
 
       // Get backend from cache
-      const ldkitBackend = repos.Backend.get(id) as LdkitBackend | null;
-      if (!ldkitBackend) {
+      const persistedBackend = repos.Backend.get(id) as PersistedBackend | null;
+      if (!persistedBackend) {
         return reply.status(404).send({ error: 'Backend not found' });
       }
 
       // Verify it's an oxigraph backend
-      const backendTypeKey = backendTypeIriToKey(ldkitBackend.backendType);
+      const backendTypeKey = backendTypeIriToKey(persistedBackend.backendType);
       if (backendTypeKey !== 'oxigraphEphemeral' && backendTypeKey !== 'oxigraphMemory') {
         return reply.status(400).send({ error: 'Backend is not an in-process oxigraph backend' });
       }
 
       // Clearing is a write, so a read-only store refuses it for the same
       // reason it refuses an update: the next reload would undo it anyway.
-      const clearMode = resolveOxigraphConfig(ldkitBackend.oxigraphConfig, id)?.mode ?? 'readOnly';
+      const clearMode = resolveOxigraphConfig(persistedBackend.oxigraphConfig, id)?.mode ?? 'readOnly';
       if (backendTypeKey === 'oxigraphMemory' && clearMode === 'readOnly') {
         return reply.status(403).send({
           error: `Backend ${id} is read-only: it is hydrated from data graphs, so clearing it would be undone on the next reload.`,

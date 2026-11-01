@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for QueryInputVariable Entity
+ * Entity schema for QueryInputVariable Entity
  * 
  * Represents individual input variables within input tuples for SPARQL queries.
  * Each input variable has its own IRI for cross-query linking.
@@ -9,7 +9,7 @@
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, sqlib } from '../namespaces.js';
+import { sqlib } from '../namespaces.js';
 
 export const QueryInputVariableSchema = {
   '@type': sqlib.QueryInputVariable,
@@ -19,12 +19,12 @@ export const QueryInputVariableSchema = {
   allowedTypes: {
     '@id': sqlib.allowedTypes,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
 } as const satisfies Schema;
 
-export interface LdkitQueryInputVariable {
+export interface PersistedQueryInputVariable {
   '$id': string;
   '@type'?: 'QueryInputVariable';
   variableName: string;

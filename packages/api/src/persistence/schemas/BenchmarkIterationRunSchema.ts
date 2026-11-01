@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for BenchmarkIterationRun Entity (iteration-level dataset).
+ * Entity schema for BenchmarkIterationRun Entity (iteration-level dataset).
  *
  * The rule-set counterpart of `BenchmarkNodeRun`. Per-iteration observations
  * have their own data structure definition, so they need their own `qb:DataSet`
@@ -9,7 +9,7 @@
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, qb, prov, sqlib, sdo } from '../namespaces.js';
+import { xsd, qb, prov, sqlib, sdo } from '../namespaces.js';
 
 export const BenchmarkIterationRunSchema = {
   '@type': sqlib.BenchmarkIterationRun,
@@ -23,15 +23,15 @@ export const BenchmarkIterationRunSchema = {
   },
   structure: {
     '@id': qb.structure,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
   },
   definedBy: {
     '@id': sqlib.definedBy,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
   },
   isPartOf: {
     '@id': sdo.isPartOf,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
   },
   startedAt: {
     '@id': prov.startedAtTime,
@@ -55,7 +55,7 @@ export const BenchmarkIterationRunSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitBenchmarkIterationRun {
+export interface PersistedBenchmarkIterationRun {
   $id: string;
   '@type'?: 'BenchmarkIterationRun';
   name?: string | null;

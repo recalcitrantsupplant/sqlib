@@ -1,10 +1,10 @@
 /**
- * Reads an LDKit schema object into a neutral field description.
+ * Reads an entity schema object into a neutral field description.
  *
- * The schemas in `persistence/schemas/` are the IR that outlives LDKit
- * (plan §0), but their shape is LDKit's: a `@type` class IRI plus one entry per
+ * The schemas in `persistence/schemas/` are the IR of the persistence layer
+ * (plan §0): a `@type` class IRI plus one entry per
  * property carrying `@id` (predicate), an optional `@type` (datatype IRI or
- * `ldkit:IRI`), and the `@array` / `@optional` flags. Everything downstream of
+ * `sqlib:IRI`), and the `@array` / `@optional` flags. Everything downstream of
  * this module — query generation, entity assembly — works from `EntityField`
  * rather than reaching into schema objects directly, so taking ownership of the
  * format later (consolidation Phase B) touches only this file.
@@ -17,13 +17,13 @@
 import { type EntityTypeName, isEntityTypeName } from './entityTypeNames.js';
 import { SCHEMA_BY_TYPE } from './schemaRegistry.js';
 
-export const LDKIT_IRI_TYPE = 'https://ldkit.io/ontology/IRI';
+export const IRI_REF_TYPE = 'https://sparql-query-lib/IRI';
 const XSD = 'http://www.w3.org/2001/XMLSchema#';
 
 /**
  * The datatype marking a property whose object is a JSON document.
  *
- * The counterpart of `LDKIT_IRI_TYPE`: both are markers saying "this object is
+ * The counterpart of `IRI_REF_TYPE`: both are markers saying "this object is
  * not a plain literal". Without it a structured value reached the serialiser's
  * string fallback and was stored as `String(value)` — the literal
  * `"[object Object]"` — which read back as a string and silently emptied every
@@ -49,7 +49,7 @@ export interface EntityField {
    * The RDF datatype to write literals with, or `null` for an IRI reference or a
    * plain literal. Keeping this separate from `kind` matters: writing
    * `xsd:duration` as a plain literal round-trips through the assembler perfectly
-   * well but is not the triple LDKit writes, and a store that validates typed
+   * well but is not the triple already in the store, and a store that validates typed
    * literals treats the two very differently.
    */
   datatype: string | null;
@@ -142,18 +142,18 @@ export function projectionPredicate(entityClassIri: string, fieldName: string): 
 }
 
 /**
- * LDKit writes `ldkit:IRI` for references; everything else is an xsd datatype,
+ * `sqlib:IRI` marks references; everything else is an xsd datatype,
  * and an absent `@type` means a plain string literal.
  */
 function resolveKind(rawType: string | undefined, property: string, classIri: string): FieldKind {
   if (rawType === undefined) return 'string';
-  if (rawType === LDKIT_IRI_TYPE) return 'iri';
+  if (rawType === IRI_REF_TYPE) return 'iri';
   if (rawType === RDF_JSON_TYPE) return 'json';
 
   if (!rawType.startsWith(XSD)) {
     throw new Error(
       `Unsupported datatype "${rawType}" on ${classIri}.${property}. ` +
-        `Only xsd datatypes, ldkit:IRI and rdf:JSON are supported — see packages/api/src/persistence/schemaIntrospection.ts.`,
+        `Only xsd datatypes, sqlib:IRI and rdf:JSON are supported — see packages/api/src/persistence/schemaIntrospection.ts.`,
     );
   }
 
@@ -172,10 +172,10 @@ function resolveKind(rawType: string | undefined, property: string, classIri: st
       return 'boolean';
     case 'dateTime':
       return 'dateTime';
-    // `anyURI` and `duration` are *literal* datatypes, unlike `ldkit:IRI` which
-    // makes the object an IRI node. LDKit converts only numerics, booleans and
-    // dates; everything else keeps its lexical form, and both are declared
-    // `string` by the entity interfaces. Verified against a live lens.
+    // `anyURI` and `duration` are *literal* datatypes, unlike `sqlib:IRI` which
+    // makes the object an IRI node. Only numerics, booleans and dates are
+    // converted; everything else keeps its lexical form, and both are declared
+    // `string` by the entity interfaces.
     case 'anyURI':
     case 'duration':
       return 'string';
@@ -190,11 +190,11 @@ function resolveKind(rawType: string | undefined, property: string, classIri: st
 /**
  * The datatype literals are written with, or `null` for a plain literal / IRI.
  *
- * `xsd:string` maps to `null` because LDKit writes those as plain literals, and
+ * `xsd:string` maps to `null` because they are stored as plain literals, and
  * RDF 1.1 makes the two the same term regardless.
  */
 function resolveDatatype(rawType: string | undefined): string | null {
-  if (rawType === undefined || rawType === LDKIT_IRI_TYPE || rawType === `${XSD}string`) {
+  if (rawType === undefined || rawType === IRI_REF_TYPE || rawType === `${XSD}string`) {
     return null;
   }
   return rawType;
@@ -363,7 +363,7 @@ function resolveReferences(
   }
   if (!isIri) {
     throw new Error(
-      `${where} declares "@references" but is not an IRI property; only "@type": ldkit.IRI values resolve to entities.`,
+      `${where} declares "@references" but is not an IRI property; only "@type": sqlib.IRI values resolve to entities.`,
     );
   }
 
@@ -437,7 +437,7 @@ export function describeSchema(schema: Record<string, unknown>): EntitySchemaInf
   for (const [name, raw] of Object.entries(schema)) {
     if (name === '@type') continue;
 
-    // A bare `predicate: 'iri'` shorthand is legal LDKit but unused here; rejecting
+    // A bare `predicate: 'iri'` shorthand is unused here; rejecting
     // it keeps one code path rather than two that can drift.
     if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
       throw new Error(

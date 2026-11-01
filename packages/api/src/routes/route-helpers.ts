@@ -71,7 +71,7 @@ export function getIfMatchValue(request: FastifyRequest): string | null {
 }
 
 /**
- * Normalizes a dateModified value (which may be a Date object or string due to LDKit deserialization)
+ * Normalizes a dateModified value (which may be a Date object or string depending on how it was read)
  * to an ISO string for comparison with If-Match headers.
  *
  * @param dateModified - The dateModified value from an entity
@@ -97,7 +97,7 @@ export function normalizeDateModified(dateModified: string | Date | null | undef
 
 /**
  * Validates If-Match precondition for optimistic concurrency control.
- * Handles the fact that LDKit deserializes xsd:dateTime as Date objects at runtime,
+ * Handles xsd:dateTime values that arrive as Date objects at runtime,
  * despite TypeScript interfaces declaring them as strings.
  *
  * @param request - Fastify request object
@@ -117,7 +117,7 @@ export function validateIfMatch(
     return { valid: true, currentTag: null, ifMatch };
   }
 
-  // Normalize the entity's dateModified (handle Date objects from LDKit)
+  // Normalize the entity's dateModified (handle Date objects)
   const currentTag = normalizeDateModified(entity.dateModified);
 
   // Strong comparison (RFC 9110 §8.8.3.2): a weak tag never matches, because

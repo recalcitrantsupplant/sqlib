@@ -2,7 +2,7 @@ import { createRepositoryLens, overrideRepositoryLenses } from '../../src/persis
 import { LibrarySchema } from '../../src/persistence/schemas/LibrarySchema.js';
 import { randomUUID } from 'crypto';
 
-// In-memory LDKit lens for this suite
+// In-memory entity lens for this suite
 const repositoryLens = (() => {
   const store = new Map<string, any>();
   const lens = {

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
 import { EndNodeSchema, isValidMediaType } from '../../../src/persistence/schemas/EndNodeSchema.js';
-import { ldkit, xsd, sqlib, sdo } from '../../../src/persistence/namespaces.js';
+import { xsd, sqlib, sdo } from '../../../src/persistence/namespaces.js';
 import { OUTPUT_MEDIA_TYPE_VALUES } from '../../../src/types/media-types.js';
 
 describe('EndNodeSchema', () => {
@@ -11,7 +11,7 @@ describe('EndNodeSchema', () => {
     expect(EndNodeSchema).toHaveProperty('inputs');
     expect(EndNodeSchema.inputs['@id']).toBe(sqlib.inputs);
     expect(EndNodeSchema.inputs['@array']).toBe(true);
-    expect(EndNodeSchema.inputs['@type']).toBe(ldkit.IRI);
+    expect(EndNodeSchema.inputs['@type']).toBe(sqlib.IRI);
     expect(EndNodeSchema.inputs['@optional']).toBe(true);
 
     expect(EndNodeSchema).toHaveProperty('mediaType');

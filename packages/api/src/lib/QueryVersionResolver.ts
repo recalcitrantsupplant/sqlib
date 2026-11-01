@@ -1,11 +1,11 @@
-import type { LdkitQueryVersion } from '../persistence/schemas/QueryVersionSchema.js';
-import type { LdkitLimitParameter } from '../persistence/schemas/LimitParameterSchema.js';
-import type { LdkitOffsetParameter } from '../persistence/schemas/OffsetParameterSchema.js';
-import type { LdkitQueryInputVariable } from '../persistence/schemas/QueryInputVariableSchema.js';
-import type { LdkitQueryOutputVariable } from '../persistence/schemas/QueryOutputVariableSchema.js';
-import type { LdkitQueryInputTuple } from '../persistence/schemas/QueryInputTupleSchema.js';
-import type { LdkitQueryOutputTuple } from '../persistence/schemas/QueryOutputTupleSchema.js';
-import type { LdkitTupleMember } from '../persistence/schemas/TupleMemberSchema.js';
+import type { PersistedQueryVersion } from '../persistence/schemas/QueryVersionSchema.js';
+import type { PersistedLimitParameter } from '../persistence/schemas/LimitParameterSchema.js';
+import type { PersistedOffsetParameter } from '../persistence/schemas/OffsetParameterSchema.js';
+import type { PersistedQueryInputVariable } from '../persistence/schemas/QueryInputVariableSchema.js';
+import type { PersistedQueryOutputVariable } from '../persistence/schemas/QueryOutputVariableSchema.js';
+import type { PersistedQueryInputTuple } from '../persistence/schemas/QueryInputTupleSchema.js';
+import type { PersistedQueryOutputTuple } from '../persistence/schemas/QueryOutputTupleSchema.js';
+import type { PersistedTupleMember } from '../persistence/schemas/TupleMemberSchema.js';
 import { toRestApi } from '../persistence/utils/id-adapter.js';
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
 import { loadLimitParametersByIds } from '../persistence/utils/LimitParameterUtils.js';
@@ -84,17 +84,17 @@ async function resolveEntities<T>(
 /**
  * Expand a QueryVersion into a flat wrapper with all referenced children as top-level arrays.
  */
-export async function expandQueryVersion(version: LdkitQueryVersion): Promise<{
-  queryVersion: ReturnType<typeof toRestApi<LdkitQueryVersion>>;
-  limitParameters: ReturnType<typeof toRestApi<LdkitLimitParameter>>[];
-  offsetParameters: ReturnType<typeof toRestApi<LdkitOffsetParameter>>[];
-  inputs: ReturnType<typeof toRestApi<LdkitQueryInputVariable>>[];
-  outputs: ReturnType<typeof toRestApi<LdkitQueryOutputVariable>>[];
-  inputTuples: ReturnType<typeof toRestApi<LdkitQueryInputTuple>>[];
-  outputTuples: ReturnType<typeof toRestApi<LdkitQueryOutputTuple>>[];
-  tupleMembers: ReturnType<typeof toRestApi<LdkitTupleMember>>[];
+export async function expandQueryVersion(version: PersistedQueryVersion): Promise<{
+  queryVersion: ReturnType<typeof toRestApi<PersistedQueryVersion>>;
+  limitParameters: ReturnType<typeof toRestApi<PersistedLimitParameter>>[];
+  offsetParameters: ReturnType<typeof toRestApi<PersistedOffsetParameter>>[];
+  inputs: ReturnType<typeof toRestApi<PersistedQueryInputVariable>>[];
+  outputs: ReturnType<typeof toRestApi<PersistedQueryOutputVariable>>[];
+  inputTuples: ReturnType<typeof toRestApi<PersistedQueryInputTuple>>[];
+  outputTuples: ReturnType<typeof toRestApi<PersistedQueryOutputTuple>>[];
+  tupleMembers: ReturnType<typeof toRestApi<PersistedTupleMember>>[];
 }> {
-  const versionApi = toRestApi<LdkitQueryVersion>(version);
+  const versionApi = toRestApi<PersistedQueryVersion>(version);
 
   const limitParamIds = (version.limitParameters || []).filter(Boolean) as string[];
   const offsetParamIds = (version.offsetParameters || []).filter(Boolean) as string[];
@@ -102,9 +102,9 @@ export async function expandQueryVersion(version: LdkitQueryVersion): Promise<{
   const inferredOutputIds = (version.inferredOutputs || []).filter(Boolean) as string[];
 
   const [limitParams, offsetParams, inputTuples] = await Promise.all([
-    resolveEntities<LdkitLimitParameter>(limitParamIds, 'LimitParameter', loadLimitParametersByIds),
-    resolveEntities<LdkitOffsetParameter>(offsetParamIds, 'OffsetParameter', loadOffsetParametersByIds),
-    resolveEntities<LdkitQueryInputTuple>(inputTupleIds, 'QueryInputTuple', loadQueryInputTuplesByIds),
+    resolveEntities<PersistedLimitParameter>(limitParamIds, 'LimitParameter', loadLimitParametersByIds),
+    resolveEntities<PersistedOffsetParameter>(offsetParamIds, 'OffsetParameter', loadOffsetParametersByIds),
+    resolveEntities<PersistedQueryInputTuple>(inputTupleIds, 'QueryInputTuple', loadQueryInputTuplesByIds),
   ]);
 
   // From inputTuples, collect tupleMembers and then inputs
@@ -141,8 +141,8 @@ export async function expandQueryVersion(version: LdkitQueryVersion): Promise<{
 
   // Resolve all the different types of outputs in parallel
   const [inputTupleMembers, outputTuples, triplesQuadsIOs, booleanIOs] = await Promise.all([
-    resolveEntities<LdkitTupleMember>(Array.from(inputTupleMemberIds), 'TupleMember', loadTupleMembersByIds),
-    resolveEntities<LdkitQueryOutputTuple>(Array.from(outputTupleIds), 'QueryOutputTuple', loadQueryOutputTuplesByIds),
+    resolveEntities<PersistedTupleMember>(Array.from(inputTupleMemberIds), 'TupleMember', loadTupleMembersByIds),
+    resolveEntities<PersistedQueryOutputTuple>(Array.from(outputTupleIds), 'QueryOutputTuple', loadQueryOutputTuplesByIds),
     resolveEntities(Array.from(triplesQuadsIOIds), 'TriplesQuadsIO', loadTriplesQuadsIOsByIds),
     resolveEntities(Array.from(booleanIOIds), 'BooleanIO', loadBooleanIOsByIds),
   ]);
@@ -153,10 +153,10 @@ export async function expandQueryVersion(version: LdkitQueryVersion): Promise<{
   }
 
   const outputTupleMembers = outputTupleMemberIds.size
-    ? await resolveEntities<LdkitTupleMember>(Array.from(outputTupleMemberIds), 'TupleMember', loadTupleMembersByIds)
+    ? await resolveEntities<PersistedTupleMember>(Array.from(outputTupleMemberIds), 'TupleMember', loadTupleMembersByIds)
     : [];
 
-  const allTupleMembersMap = new Map<string, LdkitTupleMember>();
+  const allTupleMembersMap = new Map<string, PersistedTupleMember>();
   for (const m of inputTupleMembers) allTupleMembersMap.set(m.$id, m);
   for (const m of outputTupleMembers) allTupleMembersMap.set(m.$id, m);
   const allTupleMembers = Array.from(allTupleMembersMap.values()).sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
@@ -175,18 +175,18 @@ export async function expandQueryVersion(version: LdkitQueryVersion): Promise<{
 
   // Resolve individual input and output entities
   const [inputs, outputs] = await Promise.all([
-    resolveEntities<LdkitQueryInputVariable>(Array.from(inputIds), 'QueryInputVariable', loadQueryInputVariablesByIds),
-    resolveEntities<LdkitQueryOutputVariable>(Array.from(outputIds), 'QueryOutputVariable', loadQueryOutputVariablesByIds),
+    resolveEntities<PersistedQueryInputVariable>(Array.from(inputIds), 'QueryInputVariable', loadQueryInputVariablesByIds),
+    resolveEntities<PersistedQueryOutputVariable>(Array.from(outputIds), 'QueryOutputVariable', loadQueryOutputVariablesByIds),
   ]);
 
   return {
     queryVersion: versionApi,
-    limitParameters: limitParams.map(p => toRestApi<LdkitLimitParameter>(p)),
-    offsetParameters: offsetParams.map(p => toRestApi<LdkitOffsetParameter>(p)),
-    inputs: inputs.map(i => toRestApi<LdkitQueryInputVariable>(i)),
-    outputs: outputs.map(o => toRestApi<LdkitQueryOutputVariable>(o)),
-    inputTuples: inputTuples.map(t => toRestApi<LdkitQueryInputTuple>(t)),
-    outputTuples: outputTuples.map(t => toRestApi<LdkitQueryOutputTuple>(t)),
-    tupleMembers: allTupleMembers.map(m => toRestApi<LdkitTupleMember>(m)),
+    limitParameters: limitParams.map(p => toRestApi<PersistedLimitParameter>(p)),
+    offsetParameters: offsetParams.map(p => toRestApi<PersistedOffsetParameter>(p)),
+    inputs: inputs.map(i => toRestApi<PersistedQueryInputVariable>(i)),
+    outputs: outputs.map(o => toRestApi<PersistedQueryOutputVariable>(o)),
+    inputTuples: inputTuples.map(t => toRestApi<PersistedQueryInputTuple>(t)),
+    outputTuples: outputTuples.map(t => toRestApi<PersistedQueryOutputTuple>(t)),
+    tupleMembers: allTupleMembers.map(m => toRestApi<PersistedTupleMember>(m)),
   };
 }
