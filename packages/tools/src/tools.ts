@@ -113,6 +113,12 @@ export type ToolDefinition = {
    */
   readOnly?: boolean;
   inputSchema: Record<string, unknown>;
+  /**
+   * MCP's tool annotations, published as given. Only published tools set
+   * them (`published.ts`): a stored query's type says whether it writes, so
+   * `readOnlyHint` can be stated rather than guessed.
+   */
+  annotations?: { readOnlyHint?: boolean };
   /** The View that renders this tool's result, when it has one. */
   ui?: ToolUiBinding;
   /**

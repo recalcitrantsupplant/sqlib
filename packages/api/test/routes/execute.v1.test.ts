@@ -236,7 +236,7 @@ describe('Execute route (v1)', () => {
 
     const res = await app.inject({ method: 'POST', url: '/execute/', payload: { targetId: qId, backendId: backend.$id, arguments: args } });
     expect(res.statusCode).toBe(200);
-    expect(MockSparqlQueryParser.prototype.applyArguments).toHaveBeenCalledWith(version.queryString, args);
+    expect(MockSparqlQueryParser.prototype.applyArguments).toHaveBeenCalledWith(version.queryString, args, []);
     expect(executorFactoryInstance.getExecutorForNode).toHaveBeenCalled();
     expect(mockExecutor.selectQueryParsed).toHaveBeenCalledWith(applied, { acceptHeader: 'application/sparql-results+json', signal: expect.any(AbortSignal) });
   });

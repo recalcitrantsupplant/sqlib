@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net';
 import { pathToFileURL } from 'node:url';
 import { isInitializeRequest, type Server } from '@modelcontextprotocol/server';
 import { NodeStreamableHTTPServerTransport } from '@modelcontextprotocol/node';
-import { createMcpServer, type CreateMcpServerOptions } from './index.js';
+import { createMcpServer, publishedSurfaceOf, type CreateMcpServerOptions } from './index.js';
 
 export type StreamableHttpServerOptions = {
   host?: string;
@@ -33,6 +33,8 @@ export type McpHttpSession = {
   shutdown: () => Promise<void>;
   closed: boolean;
   initTimer?: ReturnType<typeof setTimeout>;
+  /** The library slug for a session opened on `/mcp/{slug}`; absent for `/mcp`. */
+  library?: string;
 };
 
 /**
@@ -178,11 +180,12 @@ export async function buildStreamableHttpMcpServer(options: StreamableHttpServer
     await cleanupSession(session);
   };
 
-  const createSession = async (owner: Buffer) => {
+  const createSession = async (owner: Buffer, library: string | undefined) => {
     const { server, shutdown } = await createMcpServer({
       ...options.mcpOptions,
       fastifyInstance: app,
       skipAppSetup: true,
+      ...(library ? { library } : {}),
     });
     const session: McpHttpSession = {
       owner: owner.toString('hex'),
@@ -190,6 +193,7 @@ export async function buildStreamableHttpMcpServer(options: StreamableHttpServer
       transport: null as unknown as NodeStreamableHTTPServerTransport,
       shutdown,
       closed: false,
+      ...(library ? { library } : {}),
     };
 
     const transport = new NodeStreamableHTTPServerTransport({
@@ -228,14 +232,20 @@ export async function buildStreamableHttpMcpServer(options: StreamableHttpServer
    * streamable-HTTP answer that tells a client to re-initialise — and 403 when
    * the session belongs to another caller.
    */
-  const resolveSession = (request: FastifyRequest, reply: FastifyReply): McpHttpSession | undefined => {
+  const resolveSession = (
+    request: FastifyRequest,
+    reply: FastifyReply,
+    library: string | undefined,
+  ): McpHttpSession | undefined => {
     const sessionId = request.headers['mcp-session-id'];
     if (typeof sessionId !== 'string' || !sessionId) {
       reply.code(400).send(jsonRpcError(-32000, 'Bad Request: missing mcp-session-id'));
       return undefined;
     }
     const session = sessions.get(sessionId);
-    if (!session) {
+    // A session belongs to the endpoint that opened it: one opened on
+    // `/mcp/pm` lists pm's tools, and is not found on `/mcp`.
+    if (!session || session.library !== library) {
       reply.code(404).send(jsonRpcError(-32001, 'Session not found'));
       return undefined;
     }
@@ -261,59 +271,84 @@ export async function buildStreamableHttpMcpServer(options: StreamableHttpServer
       return payload;
     });
 
-    mcp.options('/mcp', async (request, reply) => {
-      if (applyMcpCorsHeaders(request, reply)) {
-        reply.header('access-control-allow-methods', MCP_ALLOWED_METHODS);
-        reply.header('access-control-allow-headers', MCP_ALLOWED_HEADERS);
-        reply.header('access-control-max-age', '600');
+    /*
+     * `/mcp` is the catalogue and every library's published tools;
+     * `/mcp/{slug}` is one library's published tools alone, for an
+     * application's agents. A slug that publishes nothing is a 404, as is
+     * every slug when `MCP_CATALOGUE=catalogue`.
+     */
+    const libraryOf = (request: FastifyRequest, reply: FastifyReply): { library?: string } | undefined => {
+      const slug = (request.params as { slug?: string } | undefined)?.slug;
+      if (slug === undefined) return {};
+      const surface = publishedSurfaceOf(app);
+      if (surface.mode === 'catalogue' || !surface.catalogue.libraries.has(slug)) {
+        reply.code(404).send(jsonRpcError(-32001, `No library publishes tools as "${slug}"`));
+        return undefined;
       }
-      reply.code(204).send();
-    });
+      return { library: slug };
+    };
 
-    mcp.post('/mcp', async (request, reply) => {
-      applyMcpCorsHeaders(request, reply);
+    for (const path of ['/mcp', '/mcp/:slug']) {
+      mcp.options(path, async (request, reply) => {
+        if (applyMcpCorsHeaders(request, reply)) {
+          reply.header('access-control-allow-methods', MCP_ALLOWED_METHODS);
+          reply.header('access-control-allow-headers', MCP_ALLOWED_HEADERS);
+          reply.header('access-control-max-age', '600');
+        }
+        reply.code(204).send();
+      });
 
-      if (request.headers['mcp-session-id'] !== undefined) {
-        const session = resolveSession(request, reply);
+      mcp.post(path, async (request, reply) => {
+        applyMcpCorsHeaders(request, reply);
+        const surface = libraryOf(request, reply);
+        if (!surface) return;
+
+        if (request.headers['mcp-session-id'] !== undefined) {
+          const session = resolveSession(request, reply, surface.library);
+          if (!session) return;
+          reply.hijack();
+          await session.transport.handleRequest(request.raw, reply.raw, request.body as any);
+          return;
+        }
+
+        // No session yet: only an initialize may create one, and nothing is
+        // allocated for anything else.
+        if (!isInitializeBody(request.body)) {
+          reply.code(400).send(jsonRpcError(-32000, 'Bad Request: no valid session ID provided'));
+          return;
+        }
+
+        const session = await createSession(callerKey(request), surface.library);
+        reply.hijack();
+        try {
+          await session.transport.handleRequest(request.raw, reply.raw, request.body as any);
+        } finally {
+          // The transport refused the initialize (bad Accept header, invalid
+          // params, ...): it never registered, so close it here.
+          if (!session.id) await disposeSession(session);
+        }
+      });
+
+      mcp.get(path, async (request, reply) => {
+        applyMcpCorsHeaders(request, reply);
+        const surface = libraryOf(request, reply);
+        if (!surface) return;
+        const session = resolveSession(request, reply, surface.library);
         if (!session) return;
         reply.hijack();
-        await session.transport.handleRequest(request.raw, reply.raw, request.body as any);
-        return;
-      }
+        await session.transport.handleRequest(request.raw, reply.raw);
+      });
 
-      // No session yet: only an initialize may create one, and nothing is
-      // allocated for anything else.
-      if (!isInitializeBody(request.body)) {
-        reply.code(400).send(jsonRpcError(-32000, 'Bad Request: no valid session ID provided'));
-        return;
-      }
-
-      const session = await createSession(callerKey(request));
-      reply.hijack();
-      try {
-        await session.transport.handleRequest(request.raw, reply.raw, request.body as any);
-      } finally {
-        // The transport refused the initialize (bad Accept header, invalid
-        // params, ...): it never registered, so close it here.
-        if (!session.id) await disposeSession(session);
-      }
-    });
-
-    mcp.get('/mcp', async (request, reply) => {
-      applyMcpCorsHeaders(request, reply);
-      const session = resolveSession(request, reply);
-      if (!session) return;
-      reply.hijack();
-      await session.transport.handleRequest(request.raw, reply.raw);
-    });
-
-    mcp.delete('/mcp', async (request, reply) => {
-      applyMcpCorsHeaders(request, reply);
-      const session = resolveSession(request, reply);
-      if (!session) return;
-      await disposeSession(session);
-      reply.code(204).send();
-    });
+      mcp.delete(path, async (request, reply) => {
+        applyMcpCorsHeaders(request, reply);
+        const surface = libraryOf(request, reply);
+        if (!surface) return;
+        const session = resolveSession(request, reply, surface.library);
+        if (!session) return;
+        await disposeSession(session);
+        reply.code(204).send();
+      });
+    }
   });
 
   const shutdown = async () => {

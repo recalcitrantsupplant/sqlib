@@ -132,7 +132,7 @@ export const STATELESS_ROUTES: readonly string[] = [
  * reaches its route through `app.inject` and meets this same `onRequest` hook
  * there — the inner route is refused, so the tool call is.
  */
-export const EXTERNAL_STATELESS_ROUTES: readonly string[] = ['/mcp'];
+export const EXTERNAL_STATELESS_ROUTES: readonly string[] = ['/mcp', '/mcp/:slug'];
 
 const allowed = new Set([...STATELESS_ROUTES, ...EXTERNAL_STATELESS_ROUTES]);
 
@@ -161,6 +161,10 @@ export function isRefusedWhenReadOnly(
 ): boolean {
   if (routeConfig?.readOnlyMutating === true) return true;
   if (!MUTATING_METHODS.includes(method.toUpperCase())) return false;
+  // A published tool's route (`server/publishedToolRoutes.ts`) is a call to
+  // `POST /execute` with a pinned target, which is on the list; the routes are
+  // generated from the store at startup, so they are matched by prefix.
+  if (normalizeRouteUrl(routeUrl).startsWith('/tools/')) return false;
   return !allowed.has(normalizeRouteUrl(routeUrl));
 }
 

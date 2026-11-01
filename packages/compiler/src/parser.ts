@@ -22,6 +22,7 @@ import type {
 import {
   applyTemplateArguments,
   completeArgumentSets,
+  describeSlot,
   findLimitOffsetClauses,
   isSafeVariableName,
   rewriteLimitOffsetClauses,
@@ -30,6 +31,7 @@ import {
   substituteLimitOffset,
   type EmptyArgumentMode,
   type QueryTemplate,
+  type SlotPolicy,
   type TemplateArgumentSet,
   type TemplateSlot,
   type TermValue,
@@ -605,16 +607,22 @@ export class SparqlQueryParser {
    * @param queryString The original SPARQL query string.
    * @param argumentSets SPARQL Results JSON documents, already normalised.
    *                     Example: [{ head: { vars: ["var1", "var2"] }, results: { bindings: [{ var1: { type: "literal", value: "a" }, var2: { type: "uri", value: "http://example.com/a" } }] } }]
+   * @param slotPolicies The query author's `whenEmpty` per slot, from the version's input tuples.
+   *                     An omitted slot, or a set with no `whenEmpty` of its own, takes it.
    * @returns The modified query string with arguments applied.
    * @throws Error if an argument set matches no remaining VALUES clause, if a required input
    *         received no rows, or if invalid argument types are provided.
    */
-  applyArguments(queryString: string, argumentSets: ApplyArgumentSet[]): string {
+  applyArguments(
+    queryString: string,
+    argumentSets: ApplyArgumentSet[],
+    slotPolicies: readonly SlotPolicy[] = [],
+  ): string {
     const template = this.getVerifiedTemplate(queryString);
     if (template) {
-      return applyTemplateArguments(template, argumentSets as TemplateArgumentSet[]);
+      return applyTemplateArguments(template, argumentSets as TemplateArgumentSet[], slotPolicies);
     }
-    return this.applyArgumentsViaAst(queryString, argumentSets);
+    return this.applyArgumentsViaAst(queryString, argumentSets, slotPolicies);
   }
 
   /**
@@ -638,7 +646,11 @@ export class SparqlQueryParser {
    * compiler declines (§`buildTemplate`), and it is the oracle the compiler
    * verifies against, so it defines correct behaviour by construction.
    */
-  private applyArgumentsViaAst(queryString: string, argumentSets: ApplyArgumentSet[]): string {
+  private applyArgumentsViaAst(
+    queryString: string,
+    argumentSets: ApplyArgumentSet[],
+    slotPolicies: readonly SlotPolicy[] = [],
+  ): string {
     if (!Array.isArray(argumentSets)) {
       throw new Error("Invalid arguments format: Expected an array of argument sets.");
     }
@@ -665,6 +677,7 @@ export class SparqlQueryParser {
     const ordered = completeArgumentSets(
       undefValuesPatterns.map(({ variables }) => variables),
       argumentSets as TemplateArgumentSet[],
+      slotPolicies,
     ) as ApplyArgumentSet[];
 
     undefValuesPatterns.forEach(({ pattern, variables }, index) => {
@@ -691,7 +704,7 @@ export class SparqlQueryParser {
       if (bindings.length === 0 || isWildcard) {
         const mode = argSet.whenEmpty ?? (isWildcard ? 'unconstrained' : 'propagateEmpty');
         if (mode === 'require') {
-          throw new Error(`Required input for VALUES clause ${index + 1} received no bindings.`);
+          throw new Error(`Required input for VALUES clause ${index + 1} (${describeSlot(variables)}) received no bindings.`);
         }
         if (mode === 'unconstrained') {
           patternsToRemove.add(pattern);

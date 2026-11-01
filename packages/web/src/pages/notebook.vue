@@ -56,6 +56,20 @@
         <Button size="sm" variant="outline" data-testid="notebook-export" @click="exportDocument">
           <Download :size="12" /> Export
         </Button>
+        <!--
+          The one-way door to a query group (proposal §7): the same chain, run
+          by the server in one call, with no browser in the path.
+        -->
+        <Button
+          v-if="isEnabled('queryGroups')"
+          size="sm"
+          variant="outline"
+          :disabled="!hasRunCells"
+          data-testid="notebook-promote"
+          @click="openPromote"
+        >
+          <Workflow :size="12" /> Promote to group
+        </Button>
         <Button size="sm" variant="outline" data-testid="notebook-import" @click="fileInput?.click()">
           <Upload :size="12" /> Import
         </Button>
@@ -77,6 +91,10 @@
       </div>
 
       <p v-if="notice" class="notice notice--error" data-testid="notebook-notice">{{ notice }}</p>
+      <p v-if="promotedGroup" class="notice" data-testid="notebook-promoted">
+        Promoted to the query group
+        <NuxtLink :to="promotedGroup.path">{{ promotedGroup.name }}</NuxtLink>.
+      </p>
 
       <div ref="pageRow" class="page-row" :class="{ resizing: isResizingInspector }">
         <div class="page-body" :style="{ width: inspectorCollapsed ? 'calc(100% - 48px)' : `${documentWidth}%` }">
@@ -219,6 +237,42 @@
       :backend-id="defaultBackendId"
     />
 
+    <Dialog v-model:open="promoteOpen">
+      <DialogContent class="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Promote to a query group</DialogTitle>
+          <DialogDescription>
+            Writes the run cells as one group the server runs in a single call, pinned to the
+            versions they use now. Markdown becomes its description. The notebook is not changed.
+          </DialogDescription>
+        </DialogHeader>
+        <p v-if="!promotePlan" class="promote-note">Checking the cells…</p>
+        <p v-else-if="!promotePlan.ok" class="notice notice--error" data-testid="notebook-promote-refusal">
+          {{ promotePlan.message }}
+        </p>
+        <template v-else>
+          <label class="field">
+            <SectionLabel as="span">Group name</SectionLabel>
+            <input v-model="promoteName" class="field__input" type="text" data-testid="notebook-promote-name" />
+          </label>
+          <ul v-if="promotePlan.notes.length" class="promote-notes" data-testid="notebook-promote-notes">
+            <li v-for="note in promotePlan.notes" :key="note">{{ note }}</li>
+          </ul>
+        </template>
+        <DialogFooter>
+          <Button size="sm" variant="outline" @click="promoteOpen = false">Cancel</Button>
+          <Button
+            size="sm"
+            :disabled="!promotePlan?.ok || promotion.busy.value || !promoteName.trim()"
+            data-testid="notebook-promote-confirm"
+            @click="confirmPromote"
+          >
+            {{ promotion.busy.value ? 'Promoting…' : 'Promote' }}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
     <Dialog v-model:open="saveOpen">
       <DialogContent class="sm:max-w-md">
         <DialogHeader>
@@ -275,6 +329,9 @@ import { useBackendsStore } from '../composables/useBackendsStore';
 import { useLibrariesStore } from '../composables/useLibrariesStore';
 import { useNotebook, type NotebookTarget } from '../composables/useNotebook';
 import { useNotebookDocuments } from '../composables/useNotebookDocuments';
+import { useNotebookPromotion } from '../composables/useNotebookPromotion';
+import type { PromotionPlan } from '../lib/notebookPromote';
+import { sectionPath } from '../lib/sectionRoutes';
 import { usePanelResize } from '../composables/usePanelResize';
 import { useCallableDrafts } from '../composables/useCallableDrafts';
 import { downloadTextFile } from '../lib/downloadFile';
@@ -619,6 +676,39 @@ async function confirmSave() {
   }
 }
 
+const promotion = useNotebookPromotion(nb);
+const promoteOpen = ref(false);
+const promotePlan = ref<PromotionPlan | null>(null);
+const promoteName = ref('');
+const promotedGroup = ref<{ name: string; path: string } | null>(null);
+
+async function openPromote() {
+  promotePlan.value = null;
+  promotedGroup.value = null;
+  promoteName.value = nb.notebook.value.title;
+  promoteOpen.value = true;
+  try {
+    promotePlan.value = await promotion.plan(nb.notebook.value);
+  } catch (cause) {
+    promotePlan.value = { ok: false, cellId: null, message: cause instanceof Error ? cause.message : String(cause) };
+  }
+}
+
+async function confirmPromote() {
+  const planned = promotePlan.value;
+  if (!planned?.ok) return;
+  notice.value = null;
+  const name = promoteName.value.trim();
+  try {
+    const { id } = await promotion.promote(nb.notebook.value, planned, name);
+    promotedGroup.value = { name, path: sectionPath({ section: 'queryGroups', id }) };
+    promoteOpen.value = false;
+  } catch (cause) {
+    promoteOpen.value = false;
+    notice.value = cause instanceof Error ? cause.message : String(cause);
+  }
+}
+
 /** The mark at the head of the rail: back to the splash. */
 function goHome() {
   router.push({ path: '/' });
@@ -858,6 +948,19 @@ watch(libraryId, (id) => {
   border-radius: var(--radius);
   background: var(--surface);
   color: var(--ink);
+  font-size: var(--text-body);
+}
+
+.promote-note {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: var(--text-body);
+}
+
+.promote-notes {
+  margin: 0;
+  padding-left: var(--space-5);
+  color: var(--ink-muted);
   font-size: var(--text-body);
 }
 

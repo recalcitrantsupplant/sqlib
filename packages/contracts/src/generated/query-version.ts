@@ -106,13 +106,29 @@ const tupleMemberInputSchema = z
   })
   .strict();
 
+const whenEmptyModeSchema = z.enum(['unconstrained', 'propagateEmpty', 'require']);
+
 const queryInputTupleInputSchema = z
   .object({
     id: optionalUrn,
     name: nullableString,
     memberEntries: z.array(iriString),
+    whenEmpty: whenEmptyModeSchema.nullable().optional(),
   })
   .strict();
+
+/**
+ * One slot's `whenEmpty`, named by its variables. Slots left out keep the
+ * previous version's mode; `null` clears it (`docs/proposals/required-arguments.md`).
+ */
+const inputPolicySchema = z
+  .object({
+    vars: z.array(z.string()).min(1),
+    whenEmpty: whenEmptyModeSchema.nullable(),
+  })
+  .strict();
+
+export type InputPolicyInput = z.infer<typeof inputPolicySchema>;
 
 const queryOutputTupleInputSchema = z
   .object({
@@ -148,6 +164,7 @@ export const queryVersionForQueryCreateSchema = z
     inferredInputs: z.array(queryInputTupleInputSchema).optional(),
     outputTuples: z.array(queryOutputTupleInputSchema).optional(),
     inferredOutputs: z.array(z.record(z.string(), z.any())).optional(),
+    inputPolicies: z.array(inputPolicySchema).optional(),
   })
   .strict();
 

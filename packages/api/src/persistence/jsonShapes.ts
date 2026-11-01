@@ -15,6 +15,8 @@
  * *contract* that narrows it.
  */
 
+import { REFUSAL_KEY_PATTERN, TOOL_NAME_PATTERN, TOOL_PARAM_KINDS } from '@sparql-query-lib/tools';
+
 /** A named JSON document shape, in both emitted forms. */
 export interface JsonShape {
   /** The JSON Schema fragment, emitted into the OpenAPI document verbatim. */
@@ -60,9 +62,78 @@ export const EPHEMERAL_BACKEND_CONFIG: JsonShape = {
   .strict()`,
 };
 
+/**
+ * `QueryVersion.tool` and `QueryGroupVersion.tool` — the tool the version
+ * publishes as, or `false` to leave it out of a `publishAll` library.
+ *
+ * Only the document's shape is here. Whether `params` names inputs the
+ * version actually has needs its text, so that is checked when the version is
+ * saved (`lib/toolObject.ts`).
+ */
+export const PUBLISHED_TOOL: JsonShape = {
+  jsonSchema: {
+    title: 'PublishedTool',
+    anyOf: [
+      {
+        type: 'object',
+        properties: {
+          name: { type: 'string', pattern: TOOL_NAME_PATTERN },
+          description: { type: 'string', minLength: 1 },
+          params: {
+            type: 'object',
+            additionalProperties: {
+              type: 'object',
+              properties: {
+                kind: { type: 'string', enum: [...TOOL_PARAM_KINDS] },
+                required: { type: 'boolean' },
+                list: { type: 'boolean' },
+                description: { type: 'string' },
+              },
+              required: ['kind'],
+              additionalProperties: false,
+            },
+          },
+          refusals: {
+            type: 'object',
+            propertyNames: { pattern: REFUSAL_KEY_PATTERN },
+            additionalProperties: { type: 'string', minLength: 1 },
+          },
+        },
+        required: ['name', 'description'],
+        additionalProperties: false,
+      },
+      { type: 'boolean', enum: [false] },
+    ],
+  },
+  zod: `z.union([
+    z
+      .object({
+        name: z.string().regex(/${TOOL_NAME_PATTERN}/),
+        description: z.string().min(1),
+        params: z
+          .record(
+            z.string(),
+            z
+              .object({
+                kind: z.enum(${JSON.stringify(TOOL_PARAM_KINDS)}),
+                required: z.boolean().optional(),
+                list: z.boolean().optional(),
+                description: z.string().optional(),
+              })
+              .strict(),
+          )
+          .optional(),
+        refusals: z.record(z.string().regex(/${REFUSAL_KEY_PATTERN}/), z.string().min(1)).optional(),
+      })
+      .strict(),
+    z.literal(false),
+  ])`,
+};
+
 /** Every declared shape, keyed by the name a property's `@jsonShape` names. */
 export const JSON_SHAPES = {
   EphemeralBackendConfig: EPHEMERAL_BACKEND_CONFIG,
+  PublishedTool: PUBLISHED_TOOL,
 } as const;
 
 export type JsonShapeName = keyof typeof JSON_SHAPES;

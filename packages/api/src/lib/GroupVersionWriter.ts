@@ -32,6 +32,8 @@ import type { LdkitQueryVersion } from '../persistence/schemas/QueryVersionSchem
 import type { LdkitQueryGroupVersion } from '../persistence/schemas/QueryGroupVersionSchema.js';
 import type { EphemeralBackendConfig } from '../persistence/schemas/QueryNodeSchema.js';
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
+import { SparqlQueryParser } from './parser.js';
+import { groupInputs, resolveVersionTool } from './toolObject.js';
 import { toLdkit } from '../persistence/utils/id-adapter.js';
 import { WHEN_EMPTY_MODES } from '../persistence/schemas/QueryEdgeSchema.js';
 import type { WhenEmptyMode } from '../persistence/schemas/QueryEdgeSchema.js';
@@ -56,6 +58,9 @@ interface StagedEntity {
 }
 
 const IO_REF: ReferenceRule = { category: 'mintedOrExternal', allowedTypes: IO_REFERENCE_TYPES };
+
+/** Finds the LIMIT and OFFSET parameters a node's query declares, for the tool check. */
+const toolInputParser = new SparqlQueryParser();
 const NODE_REF: ReferenceRule = {
   category: 'mintedOrExternal',
   allowedTypes: NODE_REFERENCE_TYPES,
@@ -81,7 +86,7 @@ async function createGroupVersionFlatNumbered(
   authScope?: { request: FastifyRequest }
 ): Promise<{ created: LdkitQueryGroupVersion; iriMap: Record<string, string> }> {
   const cacheCoordinator = getCacheCoordinator();
-  const { staged, iriMap, startNodeId, endNodeId, nodeIds, edgeIds } =
+  const { staged, iriMap, startNodeId, endNodeId, nodeIds, edgeIds, tool } =
     await stageGroupVersion({ groupId }, body, authScope);
 
   // ---------------------------------------------------------------- flush --
@@ -106,6 +111,7 @@ async function createGroupVersionFlatNumbered(
     endNode: endNodeId,
     executionNodes: nodeIds,
     edges: edgeIds,
+    tool,
   }) as Partial<LdkitQueryGroupVersion> & { $id: string });
 
   await setCurrentVersion('QueryGroup', groupId, versionId);
@@ -176,6 +182,8 @@ type StagedGroupVersion = {
   endNodeId: string;
   nodeIds: string[];
   edgeIds: string[];
+  /** The tool this version publishes as, checked against its inputs. */
+  tool: ReturnType<typeof resolveVersionTool>;
 };
 
 async function stageGroupVersion(
@@ -689,6 +697,28 @@ async function stageGroupVersion(
   // Nothing has been written yet, so this is a clean rejection.
   refs.throwIfFailed();
 
+  // The tool object: the body's, else the previous version's, checked against
+  // what this version's start node and nodes declare. Before anything is
+  // written, so a 400 here leaves nothing behind.
+  const stagedById = new Map(staged.map(({ payload }) => [payload.$id, payload]));
+  const lookup = (id: string) => stagedById.get(id) ?? cacheCoordinator.get(id);
+  const currentVersionId = owner.groupId
+    ? (cacheCoordinator.get(owner.groupId) as LdkitQueryGroup | null)?.currentVersion
+    : undefined;
+  const tool = resolveVersionTool({
+    body,
+    previous: currentVersionId ? (cacheCoordinator.get(currentVersionId) as LdkitQueryGroupVersion | null) : null,
+    inputs: groupInputs({
+      startNodePorts: startNodeOutputs,
+      nodeQueryVersionIds: staged
+        .map(({ payload }) => payload.queryId)
+        .filter((id): id is string => typeof id === 'string' && id.length > 0),
+      lookup,
+      detect: queryString => toolInputParser.detectInputs(queryString),
+    }),
+    targetKind: 'group',
+  });
+
   /*
    * The second entities this body names, and what the caller is doing with
    * them: *running* them.
@@ -741,7 +771,7 @@ async function stageGroupVersion(
     }
   }
 
-  return { staged, iriMap, startNodeId, endNodeId, nodeIds, edgeIds };
+  return { staged, iriMap, startNodeId, endNodeId, nodeIds, edgeIds, tool };
 }
 
 /**

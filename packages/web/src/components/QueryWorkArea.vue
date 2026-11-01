@@ -242,6 +242,8 @@
         :query-text="queryCode"
         :argument-sets-composable="argumentSetsComposable"
         :details="detailsProps"
+        :slot-policies="slotPolicyRows"
+        @update:slot-policy="setSlotPolicy"
         @request-focus="handleFocusRequest"
         @update:details-name="(value) => queryName = value"
         @update:details-description="(value) => queryDescription = value"
@@ -559,6 +561,8 @@ import type { SharePayload, ShareRequest } from '@/lib/shareLink';
 import { isBrowserBackendId, useBrowserBackends } from '@/composables/useBrowserBackends';
 import type { ArgumentScalarBinding, ArgumentTupleBinding } from '@/types/argument-sets';
 import type { QueryTypeValue } from '@sparql-query-lib/types';
+import type { InputPolicyInput } from '@sparql-query-lib/contracts';
+import { slotKey, slotPoliciesFromExpanded, type WhenEmptyMode } from '@/lib/slotPolicies';
 
 interface QueryCreationRequest {
   id: number;
@@ -808,6 +812,7 @@ const {
   swapDiffVersions,
   loadDiffVersions,
   loadedVersionQueryString,
+  loadedSlotPolicies,
 } = useQueryVersions({
   apiClient,
   toast,
@@ -1719,12 +1724,51 @@ const {
   }),
 });
 
+/*
+ * What each VALUES parameter does with no value (`whenEmpty` on its input
+ * tuple). A mode belongs to a version, so a change is held here and sent with
+ * the next Save, as `inputPolicies`.
+ */
+const slotPolicyEdits = ref<Record<string, WhenEmptyMode | null>>({});
+watch(selectedVersion, () => { slotPolicyEdits.value = {}; });
+
+const slotPolicyRows = computed(() =>
+  (detectedInputs.value?.valuesInputs ?? []).map((vars) => {
+    const key = slotKey(vars);
+    const whenEmpty = key in slotPolicyEdits.value
+      ? slotPolicyEdits.value[key]
+      : loadedSlotPolicies.value[key] ?? null;
+    return { vars: [...vars], whenEmpty };
+  }),
+);
+
+const slotPoliciesDirty = computed(() =>
+  Object.entries(slotPolicyEdits.value)
+    .some(([key, mode]) => mode !== (loadedSlotPolicies.value[key] ?? null)),
+);
+
+function setSlotPolicy({ vars, whenEmpty }: { vars: string[]; whenEmpty: WhenEmptyMode | null }) {
+  slotPolicyEdits.value = { ...slotPolicyEdits.value, [slotKey(vars)]: whenEmpty };
+}
+
+/*
+ * Sent only when a mode was changed here. A text-only save leaves the modes to
+ * the server, which carries them forward from the current version, so it can
+ * never fail on a slot list detection has not caught up with yet. When a mode
+ * did change, every slot goes with the mode Details shows.
+ */
+function inputPoliciesForSave(): InputPolicyInput[] {
+  if (!slotPoliciesDirty.value) return [];
+  return slotPolicyRows.value.map(({ vars, whenEmpty }) => ({ vars, whenEmpty }));
+}
+
 const canSave = computed(() => {
   if (!queryCode.value.trim()) return false;
   if (isScratch.value) return true;
   // Saving an unchanged body would mint a version identical to the last
-  // one. Nothing to save is not an error, it is a disabled button.
-  return editCount.value > 0;
+  // one. Nothing to save is not an error, it is a disabled button. A changed
+  // parameter mode is a change, even with the text untouched.
+  return editCount.value > 0 || slotPoliciesDirty.value;
 });
 
 /** Throw the unsaved edits away and go back to the saved version. */
@@ -1937,11 +1981,13 @@ async function saveScratch(name: string) {
    * saying so.
    */
   try {
+    const inputPolicies = inputPoliciesForSave();
     await apiClient.createQueryVersion(created.id, {
       queryVersion: {
         queryString: queryCode.value.trim(),
         comment: null,
       },
+      ...(inputPolicies.length > 0 ? { inputPolicies } : {}),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to save';
@@ -2205,13 +2251,17 @@ const saveNewVersion = async (): Promise<boolean> => {
   try {
     queryState.value = 'saving';
 
+    const inputPolicies = inputPoliciesForSave();
     const result = await apiClient.createQueryVersion(queryId.value, {
       queryVersion: {
         queryString: queryCode.value.trim(),
         comment: versionComment.value.trim() || null,
-      }
+      },
+      ...(inputPolicies.length > 0 ? { inputPolicies } : {}),
     });
 
+    // The new version's modes, before adopting it clears the pending edits.
+    loadedSlotPolicies.value = slotPoliciesFromExpanded(result.data);
     const newVersion = result.data.queryVersion;
     const newVersionNumber = newVersion.version;
     // Local refs, the options list and the route, in one call — they used to

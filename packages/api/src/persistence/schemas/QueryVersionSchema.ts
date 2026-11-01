@@ -7,7 +7,8 @@
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, sqlib, sdo } from '../namespaces.js';
+import type { ToolObject as PublishedToolObject } from '@sparql-query-lib/tools';
+import { ldkit, rdf, xsd, sqlib, sdo } from '../namespaces.js';
 import { QueryTypeIri as QueryTypeIriConst, type QueryTypeKey, type QueryTypeValue } from '../../constants/queryTypes.js';
 
 export const QueryTypeIri = QueryTypeIriConst;
@@ -108,6 +109,19 @@ export const QueryVersionSchema = {
     '@type': xsd.dateTime,
     '@optional': true,
   },
+  /**
+   * The tool this version publishes as (`docs/guides/publishing-tools.md`),
+   * or `false` to leave it out of a `publishAll` library. On the version, not
+   * the entity, because its `params` name this version's inputs: it is checked
+   * against them once, when the version is saved, and a save that sends no
+   * `tool` copies the previous version's.
+   */
+  tool: {
+    '@id': sqlib.tool,
+    '@type': rdf.JSON,
+    '@jsonShape': 'PublishedTool',
+    '@optional': true,
+  },
 } as const satisfies Schema;
 
 export interface LdkitQueryVersion {
@@ -127,4 +141,5 @@ export interface LdkitQueryVersion {
   inferredOutputs?: string[]; // References to inferred/canonical outputs based on query type
   dateCreated?: string | null; // ISO string format for RDF/JSON-LD compatibility
   dateModified?: string | null; // ISO string for optimistic concurrency control
+  tool?: PublishedToolObject | false | null;
 }

@@ -1,3 +1,4 @@
+import type { SlotPolicy } from '@sparql-query-lib/runtime';
 import type { ISparqlExecutor } from '../server/ISparqlExecutor.js';
 import { SparqlQueryParser, type ApplyArgumentSet } from './parser.js';
 import { QueryTypeIri } from '../constants/queryTypes.js';
@@ -12,6 +13,11 @@ export type PageParameter = { name: string; value: number };
 export type InvokeCallableOptions = {
   /** Table arguments, one per VALUES slot the caller has resolved. */
   argumentSets?: ApplyArgumentSet[];
+  /**
+   * The stored version's per-slot `whenEmpty` (`versionSlotPolicies`), so a
+   * slot its author marked `require` is refused here as on `/execute`.
+   */
+  slotPolicies?: readonly SlotPolicy[];
   limits?: PageParameter[];
   offsets?: PageParameter[];
   /** For CONSTRUCT/DESCRIBE: the RDF syntax to ask the backend for. */
@@ -63,7 +69,7 @@ export async function invokeCallable(
   const paged = limits.length || offsets.length
     ? parser.applyLimitOffsetParameters(queryString, limits, offsets)
     : queryString;
-  const query = parser.applyArguments(paged, options.argumentSets ?? []);
+  const query = parser.applyArguments(paged, options.argumentSets ?? [], options.slotPolicies ?? []);
   const signal = options.signal;
   const dataset = hasDataset(options.dataset) ? options.dataset : undefined;
 

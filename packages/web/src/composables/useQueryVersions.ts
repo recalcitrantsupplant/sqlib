@@ -4,6 +4,8 @@ import { usePrefixManager } from '@/composables/usePrefixManager';
 import { routeVersionForSelection } from '@/lib/entityLifecycle';
 import { DRAFT_SIDE, planVersionDiff, versionDiffLabel } from '@/lib/versionDiff';
 import { isQueryTypeIri, type QueryTypeValue } from '@sparql-query-lib/types';
+import type { QueryVersionExpanded } from '@sparql-query-lib/contracts';
+import { slotPoliciesFromExpanded, type WhenEmptyMode } from '@/lib/slotPolicies';
 
 type VersionOption = { value: string; label: string; dateModified?: string | null; comment?: string | null };
 
@@ -28,7 +30,7 @@ type ApiClientLike = {
         comment?: string | null;
         queryType?: string | null;
       };
-    };
+    } & Partial<Pick<QueryVersionExpanded, 'inputTuples' | 'tupleMembers' | 'inputs'>>;
     etag?: string | null;
   }>;
 };
@@ -51,6 +53,8 @@ export function useQueryVersions(deps: UseQueryVersionsDeps) {
   const currentVersionNumberForDisplay = ref<number | null>(null);
   const versionOptions = ref<VersionOption[]>([]);
   const loadedVersionQueryString = ref<string | null>(null);
+  /** The loaded version's per-slot `whenEmpty`, by `slotKey`. */
+  const loadedSlotPolicies = ref<Record<string, WhenEmptyMode>>({});
 
   const showDiff = ref(false);
   const diffLeftVersion = ref<string | null>(null);
@@ -166,6 +170,11 @@ export function useQueryVersions(deps: UseQueryVersionsDeps) {
     const version = result.data.queryVersion;
 
     loadedVersionQueryString.value = version.queryString ?? null;
+    loadedSlotPolicies.value = slotPoliciesFromExpanded({
+      inputTuples: result.data.inputTuples ?? [],
+      tupleMembers: result.data.tupleMembers ?? [],
+      inputs: result.data.inputs ?? [],
+    });
     if (version.queryString) {
       deps.queryCode.value = version.queryString;
       // Auto-discover prefixes from loaded query. Recorded against the query,
@@ -204,6 +213,7 @@ export function useQueryVersions(deps: UseQueryVersionsDeps) {
     currentVersion.value = currentVersionId;
     currentVersionNumberForDisplay.value = currentVersionFromList ? currentVersionFromList.version : null;
     loadedVersionQueryString.value = null;
+    loadedSlotPolicies.value = {};
     suppressVersionWatch.value = true;
     applyCurrentVersionLocalState(currentVersionId);
 
@@ -368,5 +378,6 @@ export function useQueryVersions(deps: UseQueryVersionsDeps) {
     swapDiffVersions,
     loadDiffVersions,
     getLoadedVersionQueryString,
+    loadedSlotPolicies,
   };
 }
