@@ -452,6 +452,11 @@ export const sqlib = createNamespace({
     "sourceExecutedAt",
     "sourceResultHash",
 
+    // Notebooks — prose and cells over the library's entities. The version's
+    // content is the notebook document, as JSON, in `contentString`.
+    "Notebook",
+    "NotebookVersion",
+
     // Tests — an invocation spec plus an expectation.
     "Test",
     "TestVersion",

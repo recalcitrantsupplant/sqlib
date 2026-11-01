@@ -116,6 +116,7 @@ export const queryVersionShape = {
           )
           .optional(),
         refusals: z.record(z.string().regex(/^[A-Za-z0-9_]{1,64}$/), z.string().min(1)).optional(),
+        dataGraphId: z.string().min(1).optional(),
       })
       .strict(),
     z.literal(false),
@@ -290,6 +291,7 @@ export const queryGroupVersionShape = {
           )
           .optional(),
         refusals: z.record(z.string().regex(/^[A-Za-z0-9_]{1,64}$/), z.string().min(1)).optional(),
+        dataGraphId: z.string().min(1).optional(),
       })
       .strict(),
     z.literal(false),
@@ -345,6 +347,32 @@ export const ruleSetVersionShape = {
   createdBy: optionalIriString,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
+  tool: z.union([
+    z
+      .object({
+        name: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/),
+        description: z.string().min(1),
+        params: z
+          .record(
+            z.string(),
+            z
+              .object({
+                kind: z.enum(["iri", "string", "langString", "integer", "decimal", "boolean", "date", "dateTime", "term"]),
+                required: z.boolean().optional(),
+                list: z.boolean().optional(),
+                description: z.string().optional(),
+              })
+              .strict(),
+          )
+          .optional(),
+        refusals: z.record(z.string().regex(/^[A-Za-z0-9_]{1,64}$/), z.string().min(1)).optional(),
+        dataGraphId: z.string().min(1).optional(),
+      })
+      .strict(),
+    z.literal(false),
+  ])
+    .optional()
+    .nullable(),
 };
 // DataGraphVersion, projected from the entity model
 export const dataGraphVersionShape = {
@@ -382,6 +410,18 @@ export const tupleSetVersionShape = {
   sourceColumnMappingVersion: optionalIriString,
   sourceExecutedAt: isoDateTime,
   sourceResultHash: nullableString,
+  comment: nullableString,
+  dateCreated: isoDateTime,
+  dateModified: isoDateTime,
+};
+// NotebookVersion, projected from the entity model
+export const notebookVersionShape = {
+  id: iriString,
+  isPartOf: iriString,
+  version: z.number().int(),
+  immutable: nullableBoolean,
+  contentString: z.string().min(1, 'ContentString is required'),
+  byteSize: nullableInteger,
   comment: nullableString,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
@@ -443,6 +483,7 @@ export const dataBlockVersionSchema = z.object(dataBlockVersionShape).strict();
 export const ruleSetVersionSchema = z.object(ruleSetVersionShape).strict();
 export const dataGraphVersionSchema = z.object(dataGraphVersionShape).strict();
 export const tupleSetVersionSchema = z.object(tupleSetVersionShape).strict();
+export const notebookVersionSchema = z.object(notebookVersionShape).strict();
 export const testCaseSchema = z.object(testCaseShape).strict();
 export const testVersionSchema = z.object(testVersionShape).strict();
 // LimitParameter entity type
@@ -493,6 +534,8 @@ export type RuleSetVersion = z.infer<typeof ruleSetVersionSchema>;
 export type DataGraphVersion = z.infer<typeof dataGraphVersionSchema>;
 // TupleSetVersion entity type
 export type TupleSetVersion = z.infer<typeof tupleSetVersionSchema>;
+// NotebookVersion entity type
+export type NotebookVersion = z.infer<typeof notebookVersionSchema>;
 // TestCase entity type
 export type TestCase = z.infer<typeof testCaseSchema>;
 // TestVersion entity type

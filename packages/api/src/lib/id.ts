@@ -61,6 +61,8 @@ export const NS = {
   patch: 'urn:sqlib:patch:',
   tupleSet: 'urn:sqlib:tuple-set:',
   tupleSetVersion: 'urn:sqlib:tuple-set-version:',
+  notebook: 'urn:sqlib:notebook:',
+  notebookVersion: 'urn:sqlib:notebook-version:',
   // Test runs. `testRun` names two things that are the same thing seen twice:
   // the stored run entity in the library store (issue #179), and the run a
   // report's EARL assertions cite, which lives in whichever backend the caller
@@ -181,6 +183,11 @@ const ALIAS_TO_KIND: Record<string, KnownKind> = {
   'data-graph': 'dataGraph',
   'datagraphversion': 'dataGraphVersion',
   'data-graph-version': 'dataGraphVersion',
+
+  // notebooks
+  'notebook': 'notebook',
+  'notebookversion': 'notebookVersion',
+  'notebook-version': 'notebookVersion',
 
   // tests
   'test': 'test',

@@ -25,6 +25,7 @@
  * that, not a separate path.
  */
 
+import { callerOfScope } from '../auth/caller.js';
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
 import { mintId } from './id.js';
 import { isSubjectKind, type SubjectKind } from './subjectKinds.js';
@@ -694,6 +695,7 @@ export class TestRunner {
         offsets: payload?.offsets ?? [],
         slotPolicies: versionSlotPolicies(version),
         parser: this.parser,
+        caller: callerOfScope(this.scope),
       }),
     );
     return { result, subjectVersionId: version.$id };

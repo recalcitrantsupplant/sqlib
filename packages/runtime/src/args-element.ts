@@ -369,7 +369,8 @@ export class SqlibArgsElement extends ArgsElementBase {
       return;
     }
 
-    if (this.signatureValue.inputs.length === 0) {
+    const hasPages = (this.signatureValue.limits?.length ?? 0) + (this.signatureValue.offsets?.length ?? 0) > 0;
+    if (this.signatureValue.inputs.length === 0 && !hasPages) {
       this.append(el('p', 'sqlib-args__empty', 'This query takes no arguments.'));
     }
     this.slots.forEach((slot, index) => this.append(this.renderSlot(slot, index)));
@@ -486,8 +487,9 @@ export class SqlibArgsElement extends ArgsElementBase {
         el(
           'p',
           'sqlib-args__note',
-          'No bindings: this slot becomes an empty VALUES block, which matches nothing. ' +
-            'For "any value", add a binding and leave every cell UNDEF.',
+          // The form leaves a slot with no rows out of its payload, so the
+          // query runs without that filter: say that, not "matches nothing".
+          'No bindings: this slot is left out, so the query runs without this filter.',
         ),
       );
     }

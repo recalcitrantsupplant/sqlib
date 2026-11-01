@@ -1,4 +1,5 @@
 import {FastifyInstance, FastifyPluginOptions, FastifyReply, FastifyRequest} from 'fastify';
+import { callerOfRequest, callerRefusal, declaredReservedSlots, groupReservedSlots } from '../auth/caller.js';
 import {backendTypeIriToKey, type PersistedBackend} from '../persistence/schemas/BackendSchema.js';
 import { toError } from '../lib/toError.js';
 import type {PersistedQuery} from '../persistence/schemas/QuerySchema.js';
@@ -49,6 +50,10 @@ import { resolveDataGraphInput, DataGraphContentError } from '../lib/dataGraphIn
 import type { ExecutionDataGraphInput } from '../lib/orchestration/ExecutionEngine.js';
 import type { ArgumentSet as RuntimeArgumentSet } from '../lib/query-chaining.js';
 import { log } from '../lib/log.js';
+import { getResultCache } from '../lib/resultCache.js';
+import { resolveRequestRefs, resultOwner, ResultRefError } from '../lib/resultRefs.js';
+import { ValidationError } from '../lib/validationError.js';
+
 import { failedFlags, refusalQuery, refusedBody } from '../lib/refusals.js';
 
 import {
@@ -57,6 +62,9 @@ import {
     negotiateSelectResultsFormat,
     renderSelectResults,
 } from '../lib/sparqlResultsFormats.js';
+
+/** Requests whose result is to be kept (`keepResult`). */
+const keepResultOf = new WeakSet<FastifyRequest>();
 
 /** The refusal messages of a version's `tool` object, when it has any. */
 function toolRefusals(version: { tool?: unknown } | null | undefined): Record<string, string> | null {
@@ -786,6 +794,11 @@ export default async function (
                 resolvedTargetId = version.$id || current;
                 reply.header('X-Resolved-Target', resolvedTargetId);
 
+                const callerSlots = declaredReservedSlots(sparqlQueryString, parser);
+                const noCaller = callerRefusal(request, callerSlots);
+                if (noCaller) return reply.code(noCaller.statusCode).send({error: noCaller.message});
+                if (callerSlots.length > 0) reply.header('Cache-Control', 'private, no-store');
+
                 const detectedInputs = sparqlQueryString ? parser.detectInputs(sparqlQueryString) : null;
                 if (hasArgumentSetIdRefs && runtimePayload && detectedInputs) {
                     const validationError = validateArgumentPayloadAgainstInputs(detectedInputs, runtimePayload);
@@ -804,6 +817,7 @@ export default async function (
                             limits: normalizedLimits,
                             offsets: normalizedOffsets,
                             slotPolicies: versionSlotPolicies(resolvedQueryVersion),
+                            caller: callerOfRequest(request),
                         }, parser);
                     } catch (applyError__u: unknown) {
                         const applyError = toError(applyError__u);
@@ -820,6 +834,11 @@ export default async function (
                 resolvedTargetId = targetEntity.$id;
                 reply.header('X-Resolved-Target', resolvedTargetId);
 
+                const callerSlots = declaredReservedSlots(sparqlQueryString, parser);
+                const noCaller = callerRefusal(request, callerSlots);
+                if (noCaller) return reply.code(noCaller.statusCode).send({error: noCaller.message});
+                if (callerSlots.length > 0) reply.header('Cache-Control', 'private, no-store');
+
                 const detectedInputs = sparqlQueryString ? parser.detectInputs(sparqlQueryString) : null;
                 if (hasArgumentSetIdRefs && runtimePayload && detectedInputs) {
                     const validationError = validateArgumentPayloadAgainstInputs(detectedInputs, runtimePayload);
@@ -838,6 +857,7 @@ export default async function (
                             limits: normalizedLimits,
                             offsets: normalizedOffsets,
                             slotPolicies: versionSlotPolicies(resolvedQueryVersion),
+                            caller: callerOfRequest(request),
                         }, parser);
                     } catch (applyError__u: unknown) {
                         const applyError = toError(applyError__u);
@@ -865,6 +885,10 @@ export default async function (
 
                 const gb = new GraphBuilder();
                 const graph = gb.buildFromGroupVersion(version);
+                const groupCallerSlots = groupReservedSlots([...graph.nodes.values()].map(node => node.queryString));
+                const groupNoCaller = callerRefusal(request, groupCallerSlots);
+                if (groupNoCaller) return reply.code(groupNoCaller.statusCode).send({error: groupNoCaller.message});
+                if (groupCallerSlots.length > 0) reply.header('Cache-Control', 'private, no-store');
                 const engine = new ExecutionEngine(scopedExecutorFactory);
                 const endNode = graph.endNodeIds.length > 0 ? graph.nodes.get(graph.endNodeIds[0]) : null;
                 const endNodeMediaType = (endNode?.raw as { mediaType?: string } | undefined)?.mediaType ?? null;
@@ -928,6 +952,10 @@ export default async function (
 
                 const gb = new GraphBuilder();
                 const graph = gb.buildFromGroupVersion(targetEntity);
+                const groupCallerSlots = groupReservedSlots([...graph.nodes.values()].map(node => node.queryString));
+                const groupNoCaller = callerRefusal(request, groupCallerSlots);
+                if (groupNoCaller) return reply.code(groupNoCaller.statusCode).send({error: groupNoCaller.message});
+                if (groupCallerSlots.length > 0) reply.header('Cache-Control', 'private, no-store');
                 const engine = new ExecutionEngine(scopedExecutorFactory);
                 const endNode = graph.endNodeIds.length > 0 ? graph.nodes.get(graph.endNodeIds[0]) : null;
                 const endNodeMediaType = (endNode?.raw as { mediaType?: string } | undefined)?.mediaType ?? null;
@@ -1232,10 +1260,15 @@ export default async function (
                     const originalText = resolvedQueryVersion?.queryString as string | undefined;
                     if (refusals && originalText) {
                         const argumentTables = resolveArgumentsForQuery(originalText);
+                        // The refusal query runs as the update would: the same
+                        // arguments, slot policies and caller, so a refusal is
+                        // computed for the real caller.
                         const check = applyExecutionArguments(refusalQuery(originalText).text, {
                             argumentSets: argumentTables,
                             limits: normalizedLimits,
                             offsets: normalizedOffsets,
+                            slotPolicies: versionSlotPolicies(resolvedQueryVersion),
+                            caller: callerOfRequest(request),
                         }, parser);
                         const {result} = await targetExecutor.selectQueryParsed(check, {
                             acceptHeader: 'application/sparql-results+json',
@@ -1367,6 +1400,21 @@ export default async function (
         }
     }
 
+    /*
+     * `keepResult`: a successful run's body is kept for a while, and its
+     * handle returned in `Sqlib-Result-Ref`. After serialisation, so what is
+     * kept is exactly what the caller received; a streamed body is not kept.
+     */
+    fastify.addHook('onSend', async (request, reply, payload) => {
+        if (!keepResultOf.has(request) || reply.statusCode !== 200) return payload;
+        const body = typeof payload === 'string' ? payload : Buffer.isBuffer(payload) ? payload.toString('utf8') : null;
+        if (body === null) return payload;
+        const contentType = String(reply.getHeader('content-type') ?? 'application/octet-stream');
+        const handle = getResultCache().put(resultOwner(request), body, contentType);
+        if (handle) reply.header('Sqlib-Result-Ref', handle);
+        return payload;
+    });
+
     // POST route
     fastify.post(
         '/',
@@ -1393,7 +1441,21 @@ export default async function (
             // Shapes, not values: argument rows are the caller's data.
             request.log.info({ execution: describeExecutionRequest(request.body) }, 'Received /execute POST request');
 
-            const {targetId, backendId, environment, arguments: args, limits, offsets, argumentSetIds, dataGraphs, defaultGraphs, namedGraphs, nodeDetail, draftVersion} = request.body;
+            const {targetId, backendId, environment, limits, offsets, argumentSetIds, defaultGraphs, namedGraphs, nodeDetail, draftVersion, keepResult} = request.body;
+
+            // Kept results named by handle become the inline shapes they stand for.
+            let args: ExecutionRequest['arguments'];
+            let dataGraphs: ExecutionRequest['dataGraphs'];
+            try {
+                ({ arguments: args, dataGraphs } = resolveRequestRefs(request, request.body));
+            } catch (refError__u: unknown) {
+                const refError = toError(refError__u);
+                if (refError instanceof ResultRefError || refError instanceof ValidationError) {
+                    return reply.code((refError as ResultRefError | ValidationError).statusCode).send({ error: refError.message });
+                }
+                throw refError;
+            }
+            if (keepResult) keepResultOf.add(request);
 
             return executeQuery(request, reply, {
                 targetId,

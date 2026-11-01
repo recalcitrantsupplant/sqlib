@@ -119,6 +119,13 @@ import {
   dataGraphUpdateSchema,
   type DataGraphCreateInput,
   type DataGraphUpdateInput,
+  notebookSchema,
+  notebookCreateSchema,
+  notebookUpdateSchema,
+  notebookVersionSchema,
+  type NotebookCreateInput,
+  type NotebookUpdateInput,
+  type NotebookVersion,
   tupleSetSchema,
   tupleSetCreateSchema,
   tupleSetUpdateSchema,
@@ -220,11 +227,18 @@ export type ApiResult<T> = {
    * either way.
    */
   status: number;
+  /**
+   * The handle of a result the server kept (`keepResult`), from
+   * `Sqlib-Result-Ref`; null when nothing was kept.
+   */
+  resultRef?: string | null;
 };
 
 type ExecuteTargetResult = {
   body: string;
   contentType: string | null;
+  /** The handle of the kept result, when the run asked for `keepResult`. */
+  resultRef?: string | null;
   timing?: {
     header?: string | null;
     breakdown?: {
@@ -341,7 +355,7 @@ export type { TestCaseRunResult, TestRunResult, TaggedTestRun, TagMatchMode };
 /** The callables that carry browser defaults. */
 export type BrowserDefaultsKind = 'query' | 'queryGroup' | 'ruleSet';
 
-export type { RuleVersion, DataBlockVersion, DataGraphVersion, TupleSetVersion };
+export type { RuleVersion, DataBlockVersion, DataGraphVersion, TupleSetVersion, NotebookVersion };
 
 export type { BackendProbe, BackendPrefixCapability, RemotePrefixes, PrefixPushResult, BackendEnv, BackendUsage };
 
@@ -725,6 +739,7 @@ export function useApiClient() {
         etag: normalizeHeaderValue(response.headers.get('etag')),
         lastModified: normalizeHeaderValue(response.headers.get('last-modified')),
         status: response.status,
+        resultRef: normalizeHeaderValue(response.headers.get('sqlib-result-ref')),
       };
       debug('useApiClient', 'request succeeded', {
         url: input.toString(),
@@ -1612,10 +1627,16 @@ export function useApiClient() {
       dataGraphId?: string | null;
       dataGraphInline?: string | null;
       dataGraphInlineFormat?: string | null;
+      /** The base graph by reference: a result the server kept for this caller. */
+      dataGraphResultRef?: string | null;
+      /** Keep the inferred graph; its handle comes back as `resultRef`. */
+      keepResult?: boolean;
     },
   ) => {
     ensureRulesSuiteEnabled();
     const body: Record<string, unknown> = {};
+    if (input?.dataGraphResultRef) body.dataGraphResultRef = input.dataGraphResultRef;
+    if (input?.keepResult) body.keepResult = true;
     if (input?.version !== undefined && input.version !== null) {
       body.version = input.version;
     }
@@ -1631,7 +1652,7 @@ export function useApiClient() {
       body.dataGraphInline = input.dataGraphInline;
       if (input.dataGraphInlineFormat) body.dataGraphInlineFormat = input.dataGraphInlineFormat;
     }
-    return requestData(
+    return request(
       buildUrl(`/rule-sets/${encodeURIComponent(ruleSetId)}/execute`),
       {
         method: 'POST',
@@ -1639,7 +1660,7 @@ export function useApiClient() {
         body: JSON.stringify(body),
       },
       (payload) => ruleSetExecutionResponseSchema.parse(payload),
-    );
+    ).then(({ data, resultRef }) => Object.assign(data, { resultRef: resultRef ?? null }));
   };
 
   const listRuleVersions = (ruleId: string) => {
@@ -1708,6 +1729,57 @@ export function useApiClient() {
       ruleVersionSchema.parse,
     );
   };
+
+  /*
+   * Notebooks — prose and cells over the library's entities. A version holds
+   * the `sqlib-notebook/1` document as a JSON string; unsaved edits are a
+   * browser draft, as on every other work area.
+   */
+  const listNotebooks = () =>
+    requestData(buildUrl('/notebooks'), { method: 'GET' }, (payload) => notebookSchema.array().parse(payload));
+
+  const getNotebook = (id: string) =>
+    request(buildUrl(`/notebooks/${encodeURIComponent(id)}`), { method: 'GET' }, notebookSchema.parse);
+
+  const createNotebook = (input: NotebookCreateInput) =>
+    request(
+      buildUrl('/notebooks'),
+      { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(notebookCreateSchema.parse(input)) },
+      notebookSchema.parse,
+    );
+
+  const updateNotebook = (id: string, input: NotebookUpdateInput) =>
+    request(
+      buildUrl(`/notebooks/${encodeURIComponent(id)}`),
+      { method: 'PUT', headers: JSON_HEADERS, body: JSON.stringify(notebookUpdateSchema.parse(input)) },
+      notebookSchema.parse,
+    );
+
+  const deleteNotebook = async (id: string) => {
+    await requestData(buildUrl(`/notebooks/${encodeURIComponent(id)}`), { method: 'DELETE' });
+    return true;
+  };
+
+  const listNotebookVersions = (id: string) =>
+    requestData(
+      buildUrl(`/notebooks/${encodeURIComponent(id)}/versions`),
+      { method: 'GET' },
+      (payload) => notebookVersionSchema.array().parse(payload),
+    );
+
+  const getNotebookVersion = (id: string, version: number | string) =>
+    request(
+      buildUrl(`/notebooks/${encodeURIComponent(id)}/versions/${encodeURIComponent(String(version))}`),
+      { method: 'GET' },
+      notebookVersionSchema.parse,
+    );
+
+  const createNotebookVersion = (id: string, input: { contentString: string; comment?: string | null }) =>
+    request(
+      buildUrl(`/notebooks/${encodeURIComponent(id)}/versions`),
+      { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(input) },
+      notebookVersionSchema.parse,
+    );
 
   /*
    * Data graphs — the input a rule set runs against, distinct from its DATA
@@ -2470,6 +2542,7 @@ export function useApiClient() {
         body: text,
         contentType,
         timing,
+        resultRef: normalizeHeaderValue(response.headers.get('sqlib-result-ref')),
       };
     } catch (error) {
       console.error('[useApiClient] executeTarget exception:', {
@@ -3190,6 +3263,14 @@ export function useApiClient() {
     exportTestRun,
     exportTaggedTestRun,
     exportSelectedTestRun,
+    listNotebooks,
+    getNotebook,
+    createNotebook,
+    updateNotebook,
+    deleteNotebook,
+    listNotebookVersions,
+    getNotebookVersion,
+    createNotebookVersion,
     listDataGraphs,
     getDataGraph,
     createDataGraph,

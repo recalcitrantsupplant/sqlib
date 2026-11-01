@@ -37,7 +37,7 @@
  */
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
-import type { BenchmarkExperimentVersion } from '@sparql-query-lib/contracts';
+import type { BenchmarkExperimentVersion, BenchmarkRunResponse } from '@sparql-query-lib/contracts';
 import { useBenchmarksStore } from '@/composables/useBenchmarksStore';
 import { useBenchmarkExecution } from '@/composables/useBenchmarkExecution';
 import { useBackendsStore } from '@/composables/useBackendsStore';
@@ -46,6 +46,8 @@ import { useQueryGroupsStore } from '@/composables/useQueryGroupsStore';
 import { useRuleSetsStore } from '@/composables/useRuleSetsStore';
 import { useTupleSetsStore } from '@/composables/useTupleSetsStore';
 import { useDataGraphsStore } from '@/composables/useDataGraphsStore';
+import { useDeploymentMode } from '@/composables/useDeploymentMode';
+import InlineNote from '@/components/shared/InlineNote.vue';
 import { useFeatureFlags } from '@/composables/useFeatureFlags';
 import { useApiClient } from '@/composables/useApiClient';
 import { useCallableDrafts } from '@/composables/useCallableDrafts';
@@ -86,6 +88,7 @@ import {
   estimateDurationMs,
   expandPlan,
   factorCount,
+  formatCount,
   formatDuration,
   passCountsOf,
   passProfile,
@@ -126,6 +129,16 @@ const dataGraphsStore = useDataGraphsStore();
 const apiClient = useApiClient();
 const draftsStore = useCallableDrafts();
 const { isEnabled: isFeatureEnabled } = useFeatureFlags();
+
+/*
+ * A read-only deployment runs a seeded, frozen version as it was saved and
+ * keeps nothing (the API's `lib/readOnlyBenchmarkRun.ts`). So on one the plan
+ * cannot be edited, Run is offered only on a frozen version, and a run's
+ * result lives here, for this page load, rather than in the runs list.
+ */
+const deployment = useDeploymentMode();
+const isReadOnly = deployment.isReadOnly;
+const planEditable = computed(() => !isReadOnly.value);
 
 /* ------------------------------------------------------------------ *
  * State
@@ -687,7 +700,7 @@ const groups = computed<AxisGroupView[]>(() => {
       name: 'Cases',
       multiplier: `× ${count('cases')}`,
       addLabel: 'case',
-      canAdd: true,
+      canAdd: planEditable.value,
       items: plan.value.cases.map((planCase) => ({
         id: planCase.id,
         name: planCase.subjectName ?? 'Unassigned case',
@@ -699,7 +712,7 @@ const groups = computed<AxisGroupView[]>(() => {
       name: 'Backends',
       multiplier: `× ${count('backends')}`,
       addLabel: 'backend',
-      canAdd: true,
+      canAdd: planEditable.value,
       /*
        * A rule set evaluates in-process, so its spec carries no backends at
        * all. The axis stays drawn — a plan may mix kinds, and then it
@@ -721,7 +734,7 @@ const groups = computed<AxisGroupView[]>(() => {
       name: 'Argument sets',
       multiplier: `× ${count('argument sets')}`,
       addLabel: 'set',
-      canAdd: true,
+      canAdd: planEditable.value,
       hint: 'Each case runs once with each argument set. With none, each case runs once without arguments.',
       items: plan.value.argumentSetIds.map((id) => ({
         id,
@@ -743,7 +756,7 @@ const groups = computed<AxisGroupView[]>(() => {
       name: 'Tuple sets',
       multiplier: `× ${count('tuple sets')}`,
       addLabel: 'tuple set',
-      canAdd: true,
+      canAdd: planEditable.value,
       hint: 'With none, each rule set uses the seeds stored in its version.',
       items: plan.value.tupleSetIds.map((id) => ({
         id,
@@ -756,7 +769,7 @@ const groups = computed<AxisGroupView[]>(() => {
       name: 'Data graphs',
       multiplier: `× ${count('data graphs')}`,
       addLabel: 'graph',
-      canAdd: true,
+      canAdd: planEditable.value,
       hint: 'With none, each rule set runs against an empty graph.',
       items: plan.value.dataGraphIds.map((id) => ({
         id,
@@ -1064,7 +1077,27 @@ watch(shownArgumentSetId, (id) => {
  * Runs
  * ------------------------------------------------------------------ */
 
-const runList = computed(() => (store.runs.value ?? []).map((run) => {
+/**
+ * Runs made on this page that the server did not keep (a read-only
+ * deployment's), newest first, with everything a stored run is read back with.
+ * Keyed by the version they ran, so switching version shows that version's.
+ */
+type TransientRun = BenchmarkRunResponse & { versionNumber: number };
+const transientRuns = ref<TransientRun[]>([]);
+const transientRunsHere = computed(() => transientRuns.value
+  .filter((entry) => entry.versionNumber === selectedVersionNumber.value));
+const transientRunById = (id: string | null) =>
+  transientRunsHere.value.find((entry) => entry.run.id === id) ?? null;
+
+type StoredRun = NonNullable<typeof store.runs.value>[number];
+const allRuns = computed<StoredRun[]>(() => [
+  // The run route answers with the same run record the runs list reads; the
+  // contract types its response loosely, so it is named as the list's type.
+  ...transientRunsHere.value.map((entry) => entry.run as unknown as StoredRun),
+  ...(store.runs.value ?? []),
+]);
+
+const runList = computed(() => allRuns.value.map((run) => {
   const started = run.startedAt ?? run.dateCreated ?? null;
   const ended = run.endedAt ?? null;
   const elapsed = started && ended ? Date.parse(ended) - Date.parse(started) : null;
@@ -1072,12 +1105,13 @@ const runList = computed(() => (store.runs.value ?? []).map((run) => {
     id: run.id,
     when: started ? new Date(started).toLocaleString() : 'Not started',
     duration: elapsed == null ? '—' : formatDuration(elapsed),
-    note: `${run.runStatus} · ${run.tasksCompleted}/${run.tasksTotal} tasks`,
+    note: `${run.runStatus} · ${run.tasksCompleted}/${run.tasksTotal} tasks`
+      + (transientRunById(run.id) ? ' · not kept' : ''),
   };
 }));
 
 const selectedRun = computed(() =>
-  (store.runs.value ?? []).find((run) => run.id === selectedRunId.value) ?? null);
+  allRuns.value.find((run) => run.id === selectedRunId.value) ?? null);
 
 const requests = computed<RequestRow[]>(() => toRequestRows(observations.value, {
   caseLabel: (iri) => subjectIndex.value[iri]?.name ?? 'Unknown case',
@@ -1193,7 +1227,10 @@ async function selectRun(id: string) {
   selectedRequestKey.value = null;
   observationsLoading.value = true;
   try {
-    const { observations: loaded, iterationObservations: passes } = await store.getRunObservations(id);
+    const transient = transientRunById(id);
+    const { observations: loaded, iterationObservations: passes } = transient
+      ? { observations: transient.observations, iterationObservations: transient.iterationObservations }
+      : await store.getRunObservations(id);
     // Another run, or another benchmark, was opened while this one loaded.
     if (selectedRunId.value !== id) return;
     observations.value = (loaded ?? []) as RawObservation[];
@@ -1355,9 +1392,36 @@ const hasUnsavedEdits = computed(() => {
   return !isScratch.value && isViewingCurrentVersion.value && !matchesSaved();
 });
 
-const canRun = computed(() => canRerun.value && !hasUnsavedEdits.value);
+/** A read-only deployment runs only a version frozen before it was deployed. */
+const selectedVersionFrozen = computed(() => {
+  const version = store.selectedVersion.value;
+  return Boolean(version && version.version === selectedVersionNumber.value && version.immutable);
+});
+
+/**
+ * The plan's size against the deployment's request cap. An upper bound for a
+ * plan that mixes kinds (see `expandPlan`), so it warns rather than refuses:
+ * the server counts the plan exactly and has the last word.
+ */
+const plannedRequests = computed(() => {
+  const repeats = Math.max(1, plan.value.settings.repeats ?? 1);
+  const warmups = Math.max(0, plan.value.settings.warmupRuns ?? 0);
+  return expansion.value.requests + (expansion.value.requests / repeats) * warmups;
+});
+const overRequestCap = computed(() => {
+  const limits = deployment.runLimits.value;
+  return Boolean(isReadOnly.value && limits && plannedRequests.value > limits.benchMaxRequests);
+});
+
+const canRun = computed(() => canRerun.value && !hasUnsavedEdits.value
+  && (!isReadOnly.value || selectedVersionFrozen.value));
 
 const runTitle = computed(() => {
+  if (isReadOnly.value) {
+    if (!canRerun.value) return 'This deployment runs only the benchmarks it was deployed with';
+    if (!selectedVersionFrozen.value) return 'This deployment runs only a frozen version';
+    return 'Run this version now. The result is shown here and not kept';
+  }
   if (!canRerun.value) return 'Save a version before running it';
   if (hasUnsavedEdits.value) return 'Save or discard your edits first — Run uses the saved version';
   return 'Run this version now';
@@ -1617,6 +1681,17 @@ async function runBenchmark() {
     // The runner refuses a version that is not frozen, and nothing else here
     // freezes one. A saved version is never edited in place — saving makes the
     // next one — so freezing it on its first run loses nothing.
+    if (isReadOnly.value) {
+      // Nothing to freeze and nothing to reload: the run comes back whole and
+      // the server keeps none of it.
+      if (!selectedVersionFrozen.value) return;
+      const versionNumber = selectedVersionNumber.value;
+      const response = await executionStore.executeRun(props.experimentId, versionNumber);
+      transientRuns.value = [{ ...response, versionNumber }, ...transientRuns.value];
+      tab.value = 'runs';
+      await selectRun(response.run.id);
+      return;
+    }
     const version = store.selectedVersion.value;
     if (!version || version.version !== selectedVersionNumber.value || !version.immutable) {
       try {
@@ -1718,10 +1793,23 @@ const runSubtitle = computed(() => {
         </template>
       </RunBar>
 
+      <InlineNote v-if="isReadOnly" class="read-only-note" data-testid="benchmark-read-only-note">
+        This deployment is read-only. It runs the benchmarks it was deployed with, as they were saved,
+        and keeps no run: a result stays on this page until you leave it.
+        <template v-if="deployment.runLimits.value">
+          A run may send up to {{ formatCount(deployment.runLimits.value.benchMaxRequests) }} requests
+          and take up to {{ formatDuration(deployment.runLimits.value.benchDeadlineMs) }}.
+        </template>
+      </InlineNote>
+      <InlineNote v-if="overRequestCap" tone="danger" class="read-only-note" data-testid="benchmark-over-cap">
+        This plan sends about {{ formatCount(plannedRequests) }} requests, which is more than this deployment allows.
+        The server will refuse it.
+      </InlineNote>
+
       <BenchmarkCaseEditor
         v-if="selectedKind === 'cases' && selectedCase"
         :plan-case="selectedCase"
-        :editable="true"
+        :editable="planEditable"
         :subject-options="queryOptions"
         :group-options="queryGroupOptions"
         :rule-set-options="ruleSetOptions"
@@ -1747,7 +1835,7 @@ const runSubtitle = computed(() => {
         v-else
         :kind="selectedKind"
         :setting-key="selectedKind === 'setting' ? (selectedId as SettingKey) : null"
-        :editable="true"
+        :editable="planEditable"
         :backend-options="backendOptions.map((backend) => ({
           id: backend.id,
           name: backend.name,
@@ -1912,5 +2000,11 @@ const runSubtitle = computed(() => {
   flex-direction: column;
   min-width: 0;
   background: var(--surface);
+}
+
+.read-only-note {
+  margin: 0;
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--border-subtle);
 }
 </style>

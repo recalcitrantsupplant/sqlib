@@ -1,5 +1,5 @@
 /**
- * The `tool` object on a new query or query group version: which one it gets,
+ * The `tool` object on a new query, query group or rule set version: which one it gets,
  * and the check that keeps it true to the version's inputs.
  *
  * A save that sends `tool` sets it (`null` clears it). A save that sends none
@@ -9,7 +9,7 @@
  * a 400 that names the key. A published tool therefore never breaks silently
  * at the next start. See `docs/guides/publishing-tools.md`.
  */
-import { checkToolObject, type DetectedInputs, type ToolObject } from '@sparql-query-lib/tools';
+import { checkToolObject, type DetectedInputs, type ToolObject, type ToolTargetKind } from '@sparql-query-lib/tools';
 import { checkRefusals } from './refusals.js';
 
 /** A `tool` object the version's inputs do not support. Answers 400. */
@@ -31,11 +31,13 @@ export function resolveVersionTool(options: {
   body: Record<string, unknown>;
   previous: { version?: number | null; tool?: StoredTool } | null | undefined;
   inputs: DetectedInputs;
-  targetKind: 'query' | 'group';
+  targetKind: ToolTargetKind;
   /** A query version's text: `refusals` are checked against the flags it binds. */
   queryString?: string;
+  /** A rule set version's check of `dataGraphId`: a message, or null when it names a data graph. */
+  checkDataGraph?: (id: string) => string | null;
 }): ToolObject | false | undefined {
-  const { body, previous, inputs, targetKind, queryString } = options;
+  const { body, previous, inputs, targetKind, queryString, checkDataGraph } = options;
   const sent = Object.prototype.hasOwnProperty.call(body, 'tool');
   const tool: StoredTool = sent ? (body.tool as StoredTool) : previous?.tool;
   if (tool === undefined || tool === null) return undefined;
@@ -43,7 +45,8 @@ export function resolveVersionTool(options: {
 
   const problem =
     checkToolObject(tool, inputs, { targetKind }) ??
-    (tool.refusals && targetKind === 'query' ? checkRefusals(queryString ?? '', tool.refusals) : null);
+    (tool.refusals && targetKind === 'query' ? checkRefusals(queryString ?? '', tool.refusals) : null) ??
+    (tool.dataGraphId && checkDataGraph ? checkDataGraph(tool.dataGraphId) : null);
   if (problem) {
     throw new ToolObjectError(
       sent

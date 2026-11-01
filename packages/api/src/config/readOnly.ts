@@ -78,7 +78,8 @@ export const MUTATING_METHODS: readonly string[] = ['POST', 'PUT', 'PATCH', 'DEL
  * - `POST /etl-jobs/preview` and `POST /playground/etl/execute` take arbitrary
  *   DuckDB SQL, a host filesystem read primitive. Their own flags default off;
  *   this makes turning a flag on insufficient to expose them here too.
- * - The benchmark runs record what they did.
+ * - `POST /benchmark-experiments/:id/versions/:version/freeze` writes the
+ *   version, and a version that is not frozen is still being authored.
  *
  * `POST /tests/run` and `POST /tests/:id/run` are here, and the recording they
  * used to do is skipped instead: `recordTestRuns` returns without writing on a
@@ -86,6 +87,12 @@ export const MUTATING_METHODS: readonly string[] = ['POST', 'PUT', 'PATCH', 'DEL
  * (`routes/tests.ts`), so this is the same separation `?record=patch` draws for
  * SPARQL — executing is compute, keeping the history is a write. A visitor gets
  * the verdict and no run is kept, which is what the refusal already promises.
+ *
+ * `POST /benchmark-experiments/:id/versions/:version/run` is here on the same
+ * terms, and with caps: on a read-only deployment it runs only a version that
+ * is already frozen, refuses a plan over the request cap, holds the run to a
+ * deadline and a concurrency cap, and returns the observations without storing
+ * any (`lib/readOnlyBenchmarkRun.ts`, `config/executionLimits.ts`).
  *
  * `POST /etl-jobs/:id/execute` is here on the same terms. On a writable
  * deployment a run opens an `EtlExecution` and appends its RDF to a file; on a
@@ -117,6 +124,7 @@ export const STATELESS_ROUTES: readonly string[] = [
   '/tests/run',
   '/tests/:id/run',
   '/etl-jobs/:id/execute',
+  '/benchmark-experiments/:id/versions/:version/run',
 ];
 
 /**

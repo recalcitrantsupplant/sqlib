@@ -4,6 +4,7 @@
  * Handles ETL job management, column mapping, and execution orchestration.
  */
 
+import { declaredReservedSlots } from '../auth/caller.js';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { toError } from './toError.js';
@@ -26,6 +27,7 @@ import type { PersistedEtlExecution, EtlExecutionStatus } from '../persistence/s
 import type { SparqlBinding } from './query-chaining.js';
 import { SparqlQueryParser } from './parser.js';
 import { abortReason } from './cancellation.js';
+import { executionDeadlineMs, readOnlyEtlMaxRows } from '../config/executionLimits.js';
 import { toRuntimeExecutor } from '../server/runtimeExecutor.js';
 import { rowsToBindings, runEtl, toLexicalForm } from '@sparql-query-lib/runtime-etl';
 import { ExecutorFactory } from './orchestration/ExecutorFactory.js';
@@ -235,6 +237,12 @@ export interface PreviewOutput extends PreviewResult {
 }
 
 export interface ExecutionResult {
+  /**
+   * On a read-only deployment, the row cap the run was held to when the
+   * request asked for more (or for no limit). Absent when the request's own
+   * `maxRows` was within the cap. See `readOnlyEtlMaxRows`.
+   */
+  rowLimitApplied?: number;
   /**
    * The run's record in the job's log. Absent on a read-only deployment, which
    * keeps no record: see `executeEtlJob`.
@@ -516,6 +524,18 @@ export class EtlService {
     nextVersion: number,
   ): Promise<EtlJobVersionDetail> {
     const cacheCoordinator = getCacheCoordinator();
+    // An ETL run has no signed-in caller, and its output is stored and shared,
+    // so its template cannot read the caller.
+    const callerSlots = declaredReservedSlots(input.sparqlTemplate);
+    if (callerSlots.length > 0) {
+      throw Object.assign(
+        new Error(
+          `The SPARQL template reads the signed-in caller (${callerSlots.map(s => `?${s}`).join(', ')}). `
+            + 'An ETL job has no caller, so its template cannot use these slots.',
+        ),
+        { statusCode: 400 },
+      );
+    }
     const versionId = mintId('etlJobVersion');
     const now = new Date().toISOString();
 
@@ -1078,14 +1098,37 @@ export class EtlService {
     let bytes = 0;
     let outputFormat: string | undefined;
 
-    const { totalRows, completedChunks } = await this.runPipeline({
+    /*
+     * A visitor may ask for part of the source, and may not ask for more than
+     * the deployment's cap: a request over it, or with no `maxRows`, runs that
+     * many rows and the response says so. A clamp is right here where the
+     * benchmark caps refuse instead, because a visitor running part of a source
+     * is asking for a sample, and a sample is what they get.
+     */
+    const rowCap = readOnlyEtlMaxRows();
+    const requested = run.config.maxRows;
+    const maxRows = requested && requested > 0 && requested <= rowCap ? requested : rowCap;
+    const rowLimitApplied = maxRows === requested ? undefined : rowCap;
+
+    // The execution deadline every other run is held to, which the
+    // writable path leaves to the job's own scheduling.
+    const deadline = executionDeadlineMs();
+    const controller = new AbortController();
+    const timer = deadline > 0
+      ? setTimeout(() => controller.abort(new Error(`ETL run passed its ${deadline} ms deadline`)), deadline)
+      : undefined;
+
+    let pipelineResult: EtlPipelineResult;
+    try {
+      pipelineResult = await this.runPipeline({
       sql: run.etlJobVersion.sql,
       sparqlTemplate: run.etlJobVersion.sparqlTemplate,
       columnDefs: run.columnDefs,
       executor,
       chunkSize: run.chunkSize,
-      maxRows: run.config.maxRows,
+      maxRows,
       dryRun: run.config.dryRun,
+      signal: controller.signal,
       onOutput: async (rdf, chunk) => {
         const text = rdf.endsWith('\n') ? rdf : `${rdf}\n`;
         bytes += Buffer.byteLength(text, 'utf8');
@@ -1099,9 +1142,14 @@ export class EtlService {
         outputFormat ??= chunk.contentType;
         chunks.push(text);
       },
-    });
+      });
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+    const { totalRows, completedChunks } = pipelineResult;
 
     return {
+      ...(rowLimitApplied !== undefined ? { rowLimitApplied } : {}),
       status: 'completed',
       outputFormat,
       output: chunks.join(''),

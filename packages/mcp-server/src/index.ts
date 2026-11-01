@@ -123,6 +123,9 @@ function libraryInstructions(surface: PublishedSurface, slug: string): string {
     `These tools are the published queries of the sqlib library "${library?.name ?? slug}".`,
     library?.description ?? '',
     'Each takes plain values, one argument per parameter; a list argument runs the query once per item, row by row.',
+    surface.catalogue.specs.some((spec) => spec.slug === slug && spec.targetKind === 'ruleSet')
+      ? 'A rule set tool runs its rules and answers with the inferred triples as Turtle. It runs on RDF you send as `data`, or on its own data graph when you send none.'
+      : '',
   ];
   return lines.filter(Boolean).join('\n\n');
 }

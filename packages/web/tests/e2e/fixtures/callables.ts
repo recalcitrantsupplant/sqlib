@@ -437,6 +437,8 @@ export interface RecordedWrite {
 
 export async function mockCallableLibrary(page: Page): Promise<RecordedWrite[]> {
   const writes: RecordedWrite[] = [];
+  /** Saved notebooks and their versions, kept for the life of the page. */
+  const notebooks = new Map<string, { entity: Record<string, unknown>; versions: Array<Record<string, unknown>> }>();
 
   const json = (route: Route, payload: unknown) =>
     route.fulfill({
@@ -468,6 +470,32 @@ export async function mockCallableLibrary(page: Page): Promise<RecordedWrite[]> 
         await json(route, EXECUTION_RESULTS);
         return;
       }
+      if (request.method() === 'POST' && /\/notebooks$/.test(pathname)) {
+        const input = body as { name: string; isPartOf: string[] };
+        const id = `urn:sqlib:notebook:${notebooks.size + 1}`;
+        const entity = { id, name: input.name, isPartOf: input.isPartOf, currentVersion: null, currentVersionNumber: null };
+        notebooks.set(id, { entity, versions: [] });
+        await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify(entity) });
+        return;
+      }
+      const notebookVersions = /\/notebooks\/([^/]+)\/versions$/.exec(pathname);
+      if (request.method() === 'POST' && notebookVersions) {
+        const held = notebooks.get(decodeURIComponent(notebookVersions[1]!));
+        if (held) {
+          const number = held.versions.length + 1;
+          const version = {
+            id: `${held.entity.id}:v${number}`,
+            isPartOf: held.entity.id,
+            version: number,
+            immutable: true,
+            contentString: (body as { contentString: string }).contentString,
+          };
+          held.versions.push(version);
+          held.entity = { ...held.entity, currentVersion: version.id, currentVersionNumber: number };
+          await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify(version) });
+          return;
+        }
+      }
       // A saved version comes back as the expanded shape.
       const match = /\/queries\/([^/]+)\/versions$/.exec(pathname);
       if (match) {
@@ -479,6 +507,22 @@ export async function mockCallableLibrary(page: Page): Promise<RecordedWrite[]> 
         return;
       }
       await json(route, {});
+      return;
+    }
+
+    const notebookVersion = /\/notebooks\/([^/]+)\/versions\/(\d+)$/.exec(pathname);
+    if (notebookVersion) {
+      const held = notebooks.get(decodeURIComponent(notebookVersion[1]!));
+      await json(route, held?.versions[Number(notebookVersion[2]) - 1] ?? {});
+      return;
+    }
+    const notebook = /\/notebooks\/([^/]+)$/.exec(pathname);
+    if (notebook) {
+      await json(route, notebooks.get(decodeURIComponent(notebook[1]!))?.entity ?? {});
+      return;
+    }
+    if (/\/notebooks$/.test(pathname)) {
+      await json(route, [...notebooks.values()].map((held) => held.entity));
       return;
     }
 
