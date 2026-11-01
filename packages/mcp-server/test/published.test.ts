@@ -30,6 +30,18 @@ const byCity: PublishedToolSpec = {
   defaultBackendId: 'urn:sqlib:backend:people',
 };
 
+/** An update with refusals; the harness's `/execute` refuses it. */
+const settle: PublishedToolSpec = {
+  ...byCity,
+  name: 'settle',
+  description: 'Agree or decline a proposed item.',
+  targetId: 'urn:sqlib:query-version:settle-1',
+  readOnly: false,
+  params: { item: { kind: 'iri', required: true } },
+  inputs: { tables: [['item']], limits: [], offsets: [] },
+  refusals: { proposed: 'Refused: {item} is not proposed.' },
+};
+
 const running: Array<{ shutdown: () => Promise<void> }> = [];
 afterEach(async () => {
   while (running.length) await running.pop()!.shutdown();
@@ -38,11 +50,17 @@ afterEach(async () => {
 async function startHarness(mode: PublishedSurface['mode']) {
   const app = Fastify({ logger: false });
   const surface: PublishedSurface = {
-    catalogue: { specs: [byCity], libraries: new Map([['people', { name: 'People', description: 'Who lives where.' }]]) },
+    catalogue: { specs: [byCity, settle], libraries: new Map([['people', { name: 'People', description: 'Who lives where.' }]]) },
     mode,
   };
   app.decorate('sqlibPublished', surface);
-  app.post('/execute', async (request) => ({ received: request.body }));
+  app.post('/execute', async (request, reply) =>
+    (request.body as { targetId?: string }).targetId === settle.targetId
+      ? reply.code(409).send({
+          error: 'Refused: urn:x is not proposed.',
+          refused: [{ flag: 'proposed', message: 'Refused: urn:x is not proposed.' }],
+        })
+      : { received: request.body });
 
   const built = await buildStreamableHttpMcpServer({
     fastifyInstance: app,
@@ -125,11 +143,23 @@ describe('published tools over MCP', { timeout: 30_000 }, () => {
   it('lists one library alone on /mcp/{slug}, under the tools\' own names', async () => {
     const base = await startHarness('both');
     const { init, tools, call } = await connect(`${base}/mcp/people`);
-    expect(tools.map((tool) => tool.name)).toEqual(['people-in-city']);
+    expect(tools.map((tool) => tool.name)).toEqual(['people-in-city', 'settle']);
     expect(init.result.instructions).toContain('Who lives where.');
 
     const refused = await call('people-in-city', {});
     expect(refused.error ?? refused.result?.isError).toBeTruthy();
+  });
+
+  it('marks a refused update as an error, its text the refusal messages', async () => {
+    const base = await startHarness('both');
+    const { call } = await connect(`${base}/mcp/people`);
+    const result = await call('settle', { item: 'urn:x' });
+    expect(result.result.isError).toBe(true);
+    expect(result.result.content).toEqual([{ type: 'text', text: 'Refused: urn:x is not proposed.' }]);
+    expect(result.result.structuredContent.statusCode).toBe(409);
+
+    const reading = await call('people-in-city', { city: ['Perth'] });
+    expect(reading.result.isError).toBeUndefined();
   });
 
   it('keeps a session to the endpoint that opened it', async () => {
@@ -156,7 +186,7 @@ describe('published tools over MCP', { timeout: 30_000 }, () => {
   it('serves the published tools alone when MCP_CATALOGUE=published', async () => {
     const base = await startHarness('published');
     const { init, tools } = await connect(`${base}/mcp`);
-    expect(tools.map((tool) => tool.name)).toEqual(['people__people-in-city']);
+    expect(tools.map((tool) => tool.name)).toEqual(['people__people-in-city', 'people__settle']);
     expect(init.result.instructions ?? '').toBe('');
   });
 });

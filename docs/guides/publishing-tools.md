@@ -72,6 +72,7 @@ A query group version takes the same object under `queryGroupVersion`.
 | --- | --- |
 | `name` | `[A-Za-z0-9_-]`, 1 to 64 characters, unique among the library's tools. |
 | `description` | What MCP and the OpenAPI document show. Say when to call the tool. |
+| `refusals` | Optional, published updates only. One message per precondition flag; see [Refusals](#refusals-why-an-update-wrote-nothing). |
 | `params` | One key per input the tool offers. A key is a variable of a table parameter (`VALUES … { UNDEF }`) or the name of a `LIMIT` or `OFFSET` parameter (`LIMIT 0001` is `"1"`). An input with no key is not offered, and is `UNDEF` in every call. |
 
 Each parameter takes:
@@ -106,6 +107,67 @@ to remove the tool.
 A `tool` object is content. To change the name, the description or a kind,
 save a new version. `PATCH` on a version does not change it.
 
+### Refusals: why an update wrote nothing
+
+SPARQL Update cannot fail on purpose. An update whose `WHERE` clause has no
+solution writes nothing, and `/execute` would still answer `204`. To tell the
+caller why, write each precondition as a flag and add `refusals`:
+
+1. Bind each precondition as `?ok_<name>`, true when it holds.
+2. Bind `?ok` as their conjunction.
+3. End the `WHERE` clause with `FILTER(?ok)`.
+
+```sparql
+PREFIX ex: <http://example.org/>
+DELETE { ?item ex:state "proposed" }
+INSERT { ?item ex:state ?verdict }
+WHERE {
+  VALUES (?item ?verdict) { (UNDEF UNDEF) }
+  BIND(COALESCE(?verdict IN ("agree", "decline"), false) AS ?ok_verdictKnown)
+  BIND(EXISTS { ?item ex:state "proposed" } AS ?ok_proposed)
+  BIND(?ok_verdictKnown && ?ok_proposed AS ?ok)
+  FILTER(?ok)
+}
+```
+
+```json
+"refusals": {
+  "verdictKnown": "Refused: the verdict is {verdict}; use agree or decline.",
+  "proposed": "Refused: {item} is not proposed."
+}
+```
+
+Before the update runs, the server runs its `WHERE` clause as `SELECT *`,
+without `FILTER(?ok)`, with the same arguments. A flag that is not true in
+some row failed; an unbound flag failed too. Then:
+
+- **A flag failed**, or the clause has no solution: the update does not run,
+  and the call answers `409`. Over MCP the result has `isError` and the
+  messages as text.
+
+  ```json
+  { "error": "Refused: the verdict is maybe; use agree or decline.",
+    "refused": [{ "flag": "verdictKnown", "message": "Refused: the verdict is maybe; use agree or decline." }] }
+  ```
+
+- **Every flag holds:** the update runs and answers as before.
+
+`{param}` in a message is the call's value of that parameter; a list is
+joined with `, `. With list arguments one failing row refuses the whole call,
+and nothing is written.
+
+The save checks `refusals`: each key must name a flag the text binds, and the
+text must be one `DELETE`/`INSERT … WHERE` ending in `FILTER(?ok)`. Otherwise
+the save is a `400`:
+
+```json
+{ "error": "tool.refusals.byOwner names no flag of this version: it binds no ?ok_byOwner. Its flags are: ?ok_verdictKnown, ?ok_proposed" }
+```
+
+A tool without `refusals` answers as before. A query group cannot have
+`refusals`. The check belongs to the version: `POST /execute` on the version
+checks it too, whoever calls.
+
 ## 3. Restart the server
 
 The server collects the published tools when it starts. Each tool runs the
@@ -134,6 +196,7 @@ table parameter at a time:
   `VALUES` tables.
 - **A missing required parameter**, a value of the wrong kind, or an unknown
   argument is a `400` that names the parameter. Nothing runs.
+- **A failed call** is an MCP result with `isError`.
 
 A published **query** also takes an optional `backendId`. Without it, the
 query runs on its own `defaultBackend`, else its library's. The tool sends that

@@ -57,6 +57,27 @@ describe('published tools, against a real API instance', () => {
     params: { city: { kind: 'string', list: true, required: true }, '1': { kind: 'integer' } },
   };
 
+  // An update whose preconditions are flags, as `docs/guides/publishing-tools.md` describes.
+  const SETTLE = `PREFIX ex: <http://example.org/>
+DELETE { ?item ex:state "proposed" }
+INSERT { ?item ex:state ?verdict }
+WHERE {
+  VALUES (?item ?verdict) { (UNDEF UNDEF) }
+  BIND(COALESCE(?verdict IN ("agree", "decline"), false) AS ?ok_verdictKnown)
+  BIND(EXISTS { ?item ex:state "proposed" } AS ?ok_proposed)
+  BIND(?ok_verdictKnown && ?ok_proposed AS ?ok)
+  FILTER(?ok)
+}`;
+  const settleTool = {
+    name: 'settle',
+    description: 'Agree or decline a proposed item.',
+    params: { item: { kind: 'iri', required: true, list: true }, verdict: { kind: 'string', required: true } },
+    refusals: {
+      verdictKnown: 'Refused: the verdict is {verdict}; use agree or decline.',
+      proposed: 'Refused: {item} is not proposed.',
+    },
+  };
+
   beforeAll(async () => {
     outputDir = await fs.mkdtemp(path.join(os.tmpdir(), 'published-tools-'));
     setEnv('FEATURE_QUERIES', 'true');
@@ -77,7 +98,8 @@ describe('published tools, against a real API instance', () => {
     ids.dataGraph = dataGraph.body.id;
     await send(author, 'POST', `/data-graphs/${encodeURIComponent(ids.dataGraph)}/versions`, {
       contentString:
-        '@prefix ex: <http://example.org/> . ex:alice ex:name "Alice" ; ex:city "Perth" . ex:bob ex:name "Bob" ; ex:city "Darwin" . ex:cara ex:name "Cara" ; ex:city "Perth" .',
+        '@prefix ex: <http://example.org/> . ex:alice ex:name "Alice" ; ex:city "Perth" . ex:bob ex:name "Bob" ; ex:city "Darwin" . ex:cara ex:name "Cara" ; ex:city "Perth" . '
+        + 'ex:req1 ex:state "proposed" . ex:req2 ex:state "proposed" . ex:req3 ex:state "agree" .',
       contentFormat: 'text/turtle',
     });
     const backend = await send(author, 'POST', '/backends', {
@@ -94,6 +116,13 @@ describe('published tools, against a real API instance', () => {
       defaultBackend: ids.backend,
     });
     ids.query = query.body.id;
+
+    const settle = await send(author, 'POST', '/queries', {
+      name: 'Settle',
+      isPartOf: [ids.library],
+      defaultBackend: ids.backend,
+    });
+    ids.settle = settle.body.id;
 
     const unpublished = await send(author, 'POST', '/queries', { name: 'Everyone', isPartOf: [ids.library] });
     ids.unpublished = unpublished.body.id;
@@ -145,6 +174,21 @@ describe('published tools, against a real API instance', () => {
     expect(dropped.body.error).toMatch(/^tool\.params\.city names no input of this version\. Its inputs are: LIMIT 1\. The tool object was copied from version 2/);
   });
 
+  it('checks refusals against the flags the update binds', async () => {
+    const wrong = await saveVersion(ids.settle, {
+      queryString: SETTLE,
+      tool: { ...settleTool, refusals: { byOwner: 'Refused: not the owner.' } },
+    });
+    expect(wrong.status).toBe(400);
+    expect(wrong.body.error).toBe(
+      'tool.refusals.byOwner names no flag of this version: it binds no ?ok_byOwner. Its flags are: ?ok_verdictKnown, ?ok_proposed',
+    );
+
+    const saved = await saveVersion(ids.settle, { queryString: SETTLE, tool: settleTool });
+    expect(saved.status).toBe(201);
+    expect(saved.body.queryVersion.tool).toEqual(settleTool);
+  });
+
   describe('a server started after the tools were saved', () => {
     let server: FastifyInstance;
 
@@ -177,7 +221,7 @@ describe('published tools, against a real API instance', () => {
       const document = await send(server, 'GET', '/tools/people/openapi.json');
       expect(document.status).toBe(200);
       expect(document.body.openapi).toBe('3.1.0');
-      expect(Object.keys(document.body.paths)).toEqual(['/tools/people/people-in-city']);
+      expect(Object.keys(document.body.paths).sort()).toEqual(['/tools/people/people-in-city', '/tools/people/settle']);
       expect(document.body.paths['/tools/people/people-in-city'].get.parameters.map((p: Json) => p.name)).toEqual([
         '1',
         'city',
@@ -188,7 +232,7 @@ describe('published tools, against a real API instance', () => {
     it('decorates the instance with the catalogue for the MCP server', () => {
       const published = (server as unknown as { sqlibPublished: { catalogue: { specs: Json[] }; mode: string } }).sqlibPublished;
       expect(published.mode).toBe('both');
-      expect(published.catalogue.specs).toEqual([
+      expect(published.catalogue.specs.filter((spec: Json) => spec.name === 'people-in-city')).toEqual([
         expect.objectContaining({
           slug: 'people',
           name: 'people-in-city',
@@ -198,6 +242,43 @@ describe('published tools, against a real API instance', () => {
           inputs: { tables: [['city']], limits: ['1'], offsets: [] },
         }),
       ]);
+    });
+
+    it('refuses an update whose preconditions fail, naming each failed flag, and writes otherwise', async () => {
+      const post = (payload: object) => send(server, 'POST', '/tools/people/settle', payload);
+      const ex = 'http://example.org/';
+
+      const badVerdict = await post({ item: [`${ex}req1`], verdict: 'maybe' });
+      expect(badVerdict.status).toBe(409);
+      expect(badVerdict.body.refused).toEqual([
+        { flag: 'verdictKnown', message: 'Refused: the verdict is maybe; use agree or decline.' },
+      ]);
+
+      const notProposed = await post({ item: [`${ex}req3`], verdict: 'agree' });
+      expect(notProposed.status).toBe(409);
+      expect(notProposed.body.refused).toEqual([{ flag: 'proposed', message: `Refused: ${ex}req3 is not proposed.` }]);
+
+      // One item of a list fails, so the whole call is refused and nothing is written.
+      const mixed = await post({ item: [`${ex}req1`, `${ex}req3`], verdict: 'agree' });
+      expect(mixed.status).toBe(409);
+      expect(mixed.body.refused.map((entry: Json) => entry.flag)).toEqual(['proposed']);
+
+      const written = await post({ item: [`${ex}req1`], verdict: 'agree' });
+      expect(written.status).toBe(204);
+
+      const again = await post({ item: [`${ex}req1`], verdict: 'agree' });
+      expect(again.status).toBe(409);
+      expect(again.body.refused.map((entry: Json) => entry.flag)).toEqual(['proposed']);
+    });
+
+    it('lists the 409 in the OpenAPI document of a tool with refusals', async () => {
+      const document = await send(server, 'GET', '/tools/people/openapi.json');
+      const responses = document.body.paths['/tools/people/settle'].post.responses;
+      expect(responses['409'].content['application/json'].schema.properties.refused.items.properties.flag.enum).toEqual([
+        'verdictKnown',
+        'proposed',
+      ]);
+      expect(document.body.paths['/tools/people/people-in-city'].get.responses['409']).toBeUndefined();
     });
 
     it('keeps the authoring routes', async () => {
@@ -220,7 +301,7 @@ describe('published tools, against a real API instance', () => {
 
     it('publishes a default tool for an entry that declares none', async () => {
       const published = (server as unknown as { sqlibPublished: { catalogue: { specs: Json[] } } }).sqlibPublished;
-      expect(published.catalogue.specs.map((spec: Json) => spec.name).sort()).toEqual(['Everyone', 'people-in-city']);
+      expect(published.catalogue.specs.map((spec: Json) => spec.name).sort()).toEqual(['Everyone', 'people-in-city', 'settle']);
     });
 
     it('answers 404 for every authoring route', async () => {

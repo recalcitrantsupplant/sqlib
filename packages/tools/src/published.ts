@@ -42,6 +42,21 @@ export type ToolObject = {
   name: string;
   description: string;
   params?: Record<string, ToolParamSpec>;
+  /**
+   * Published updates only: one message per precondition flag. A key `K`
+   * names the flag the update binds as `?ok_K`; a call whose flag is not true
+   * is refused with that message, `{param}` filled from the call's arguments.
+   */
+  refusals?: Record<string, string>;
+};
+
+/** A refusal key: what follows `?ok_` in a SPARQL variable name. */
+export const REFUSAL_KEY_PATTERN = '^[A-Za-z0-9_]{1,64}$';
+
+/** The body of a call a published update refused: `409`. */
+export type RefusedBody = {
+  error: string;
+  refused: Array<{ flag: string; message: string }>;
 };
 
 /** A tool name: what MCP clients accept, with no `.` (the separator `/mcp` used to need). */
@@ -94,6 +109,8 @@ export type PublishedToolSpec = {
   inputs: DetectedInputs;
   /** The query's default backend, else its library's. Queries only. */
   defaultBackendId?: string;
+  /** The `tool` object's refusal messages, by flag. Published updates only. */
+  refusals?: Record<string, string>;
 };
 
 /** A call the published tool refuses before anything runs. Answers 400. */
@@ -149,6 +166,22 @@ export function checkToolObject(
     }
     if (!variables.has(key) && spec.list) {
       return `tool.params.${key} is a LIMIT or OFFSET parameter, so it cannot be a list`;
+    }
+  }
+  if (tool.refusals !== undefined) {
+    if (options.targetKind === 'group') {
+      return 'tool.refusals: only a published query can have refusals, not a query group';
+    }
+    if (tool.refusals === null || typeof tool.refusals !== 'object' || Array.isArray(tool.refusals)) {
+      return 'tool.refusals must be an object of messages, keyed by flag';
+    }
+    for (const [key, message] of Object.entries(tool.refusals)) {
+      if (!new RegExp(REFUSAL_KEY_PATTERN).test(key)) {
+        return `tool.refusals.${key}: a key is the part of a flag after "?ok_", so it must match ${REFUSAL_KEY_PATTERN}`;
+      }
+      if (typeof message !== 'string' || !message.trim()) {
+        return `tool.refusals.${key} must be a message`;
+      }
     }
   }
   return null;
@@ -535,6 +568,32 @@ export function publishedOpenApiDocument(options: {
     const responses = {
       200: { description: 'What `POST /execute` returns for the pinned version.' },
       400: { description: 'An argument is missing, unknown or of the wrong kind.' },
+      ...(spec.refusals
+        ? {
+            409: {
+              description: 'The update wrote nothing: a precondition failed. `refused` names each failed flag with its message.',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    required: ['error', 'refused'],
+                    properties: {
+                      error: { type: 'string' },
+                      refused: {
+                        type: 'array',
+                        items: {
+                          type: 'object',
+                          required: ['flag', 'message'],
+                          properties: { flag: { enum: Object.keys(spec.refusals) }, message: { type: 'string' } },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          }
+        : {}),
     };
     const operation: Record<string, unknown> = {
       operationId: spec.name,

@@ -202,6 +202,34 @@ describe('checkToolObject', () => {
   });
 });
 
+describe('refusals', () => {
+  const inputs = { tables: [['item']], limits: [], offsets: [] };
+  const base = { name: 'settle', description: 'd', params: { item: { kind: 'iri' as const } } };
+
+  it('takes messages keyed by the part of a flag after ?ok_, on a query only', () => {
+    expect(checkToolObject({ ...base, refusals: { proposed: 'Refused.' } }, inputs, { targetKind: 'query' })).toBeNull();
+    expect(checkToolObject({ ...base, refusals: { 'not-a-flag': 'x' } }, inputs, { targetKind: 'query' })).toMatch(
+      /^tool\.refusals\.not-a-flag: a key is the part of a flag after "\?ok_"/,
+    );
+    expect(checkToolObject({ ...base, refusals: { proposed: ' ' } }, inputs, { targetKind: 'query' })).toBe(
+      'tool.refusals.proposed must be a message',
+    );
+    expect(checkToolObject({ ...base, refusals: { proposed: 'x' } }, inputs, { targetKind: 'group' })).toMatch(
+      /only a published query can have refusals/,
+    );
+  });
+
+  it('documents the 409 only for a tool with refusals', () => {
+    const withRefusals = { ...recordDecision, refusals: { proposed: 'Refused.' } };
+    const document = publishedOpenApiDocument({ slug: 'pm', title: 'pm', specs: [withRefusals] }) as {
+      paths: Record<string, Record<string, { responses: Record<string, unknown> }>>;
+    };
+    expect(Object.keys(document.paths['/tools/pm/record-decision'].post.responses)).toEqual(['200', '400', '409']);
+    const plain = publishedOpenApiDocument({ slug: 'pm', title: 'pm', specs: [recordDecision] }) as typeof document;
+    expect(Object.keys(plain.paths['/tools/pm/record-decision'].post.responses)).toEqual(['200', '400']);
+  });
+});
+
 describe('default tools', () => {
   it('makes a name safe and offers every input as an optional term', () => {
     expect(safeToolName('People in a city!')).toBe('People-in-a-city');

@@ -431,6 +431,16 @@ export const queryversionSchema = {
                 ],
                 "additionalProperties": false
               }
+            },
+            "refusals": {
+              "type": "object",
+              "propertyNames": {
+                "pattern": "^[A-Za-z0-9_]{1,64}$"
+              },
+              "additionalProperties": {
+                "type": "string",
+                "minLength": 1
+              }
             }
           },
           "required": [
@@ -2530,6 +2540,16 @@ export const querygroupversionSchema = {
                   "kind"
                 ],
                 "additionalProperties": false
+              }
+            },
+            "refusals": {
+              "type": "object",
+              "propertyNames": {
+                "pattern": "^[A-Za-z0-9_]{1,64}$"
+              },
+              "additionalProperties": {
+                "type": "string",
+                "minLength": 1
               }
             }
           },

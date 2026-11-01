@@ -211,6 +211,7 @@ export function collectPublishedTools(): PublishedCatalogue {
       params: tool.params ?? {},
       inputs,
       ...(defaultBackendId ? { defaultBackendId } : {}),
+      ...(kind === 'query' && tool.refusals ? { refusals: tool.refusals } : {}),
     });
     if (!libraries.has(library.slug)) {
       libraries.set(library.slug, {
