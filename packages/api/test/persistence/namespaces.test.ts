@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { sdo, sqlib } from '../../src/persistence/namespaces.js';
 
-describe('LDKit namespaces', () => {
+describe('namespaces', () => {
   it('defines Schema.org namespace properties', () => {
     expect(typeof sdo).toBe('object');
     expect(sdo.name).toBeDefined();

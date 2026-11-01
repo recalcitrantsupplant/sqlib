@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { MemoryCacheManager } from '../../src/lib/MemoryCacheManager.js';
-import type { LDKitEntity } from '../../src/persistence/EntityTypes.js';
+import type { PersistedEntity } from '../../src/persistence/EntityTypes.js';
 import { installFakePersistenceAdapter } from '../support/fakePersistenceAdapter.js';
 
 // This suite's subject is cache logic; storage is the in-memory fake, and what
@@ -18,7 +18,7 @@ describe('MemoryCacheManager - Enhanced Memory Statistics', () => {
   let store: Awaited<ReturnType<typeof installFakePersistenceAdapter>>;
 
   /** Puts each entity in the store under its own `@type`. */
-  function seed(entities: Map<string, LDKitEntity>): void {
+  function seed(entities: Map<string, PersistedEntity>): void {
     for (const entity of entities.values()) store.put(String(entity['@type']), entity);
   }
 

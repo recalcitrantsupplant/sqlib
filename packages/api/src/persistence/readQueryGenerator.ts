@@ -9,7 +9,7 @@
  *
  * Only predicates the schema declares are selected. An entity carrying triples the
  * schema does not mention keeps them in the store untouched; they simply do not
- * materialise onto the object, which is LDKit's behaviour too.
+ * materialise onto the object, which is how the earlier mapping library behaved too.
  */
 import {
   describeSchema,
@@ -19,9 +19,9 @@ import { iri, RDF_TYPE } from './sparqlTerms.js';
 
 /**
  * A property the schema declares without `@optional` is a *filter*, not just a
- * value: LDKit's `find()` requires it, so an entity missing one is not returned at
- * all. Reproducing that is what keeps the two adapters agreeing on which entities
- * exist, not merely on their contents.
+ * value: an entity missing one is not returned at all. This reproduces the earlier
+ * mapping library, so the set of entities that exist did not change when it was
+ * replaced.
  *
  * Those required patterns multiply rows when a required property holds several
  * values, so the projection is DISTINCT. RDF holds no duplicate triples, so this

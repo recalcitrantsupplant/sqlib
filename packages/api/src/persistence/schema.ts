@@ -1,7 +1,7 @@
 /**
  * The entity schema format.
  *
- * Local replacement for LDKit's `Schema` type (plan §3 Phase 5). The schema
+ * sqlib's own `Schema` type (plan §3 Phase 5). The schema
  * *objects* in `schemas/` are unchanged — this only takes ownership of the type
  * they are checked against, so `scripts/generate-schemas.ts` and contract
  * generation are unaffected.
@@ -12,19 +12,19 @@
 
 import type { EntityTypeName } from './entityTypeNames.js';
 import type { JsonShapeName } from './jsonShapes.js';
-import type { ldkit, rdf, xsd } from './namespaces.js';
+import type { rdf, sqlib, xsd } from './namespaces.js';
 
 /**
  * The datatypes a property may declare.
  *
- * LDKit accepted every xsd term it knew about, most of which the mapper has no
+ * The earlier mapping library accepted every xsd term it knew about, most of which the mapper has no
  * decoding for and would reject at runtime. This is narrowed to the set
  * `schemaIntrospection.resolveKind` actually supports, so an unsupported
  * datatype is a type error at the schema rather than a throw at boot. Adding one
  * means adding it in both places.
  */
 export type EntityDatatype =
-  | typeof ldkit.IRI
+  | typeof sqlib.IRI
   | typeof rdf.JSON
   | typeof xsd.string
   | typeof xsd.boolean
@@ -88,7 +88,7 @@ export type Property = {
   /**
    * What the IRI is allowed to point at.
    *
-   * `'@type': ldkit.IRI` says a value is an IRI, not what it must resolve to,
+   * `'@type': sqlib.IRI` says a value is an IRI, not what it must resolve to,
    * and that gap is why the reference rules were written out by hand in
    * `lib/groupVersionReferences.ts` and, eight more times, inline in the route
    * handlers ("this `isPartOf` entry must be a `Library`"). Neither form can be

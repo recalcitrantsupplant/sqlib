@@ -26,11 +26,11 @@ import { resolveQueryDefaultBackend } from './defaultBackend.js';
 import { SparqlQueryParser } from './parser.js';
 import { groupInputs } from './toolObject.js';
 import { QueryTypeIri } from '../constants/queryTypes.js';
-import type { LdkitLibrary } from '../persistence/schemas/LibrarySchema.js';
-import type { LdkitQuery } from '../persistence/schemas/QuerySchema.js';
-import type { LdkitQueryGroup } from '../persistence/schemas/QueryGroupSchema.js';
-import type { LdkitQueryVersion } from '../persistence/schemas/QueryVersionSchema.js';
-import type { LdkitQueryGroupVersion } from '../persistence/schemas/QueryGroupVersionSchema.js';
+import type { PersistedLibrary } from '../persistence/schemas/LibrarySchema.js';
+import type { PersistedQuery } from '../persistence/schemas/QuerySchema.js';
+import type { PersistedQueryGroup } from '../persistence/schemas/QueryGroupSchema.js';
+import type { PersistedQueryVersion } from '../persistence/schemas/QueryVersionSchema.js';
+import type { PersistedQueryGroupVersion } from '../persistence/schemas/QueryGroupVersionSchema.js';
 
 export type PublishedLibrary = {
   id: string;
@@ -75,13 +75,13 @@ function get<T>(id: unknown): T | null {
   return typeof id === 'string' && id ? (getCacheCoordinator().get(id) as T | null) : null;
 }
 
-function libraryOf(entity: LdkitQuery | LdkitQueryGroup): string | null {
+function libraryOf(entity: PersistedQuery | PersistedQueryGroup): string | null {
   const parents = Array.isArray(entity.isPartOf) ? entity.isPartOf : [entity.isPartOf];
   return parents.find((id): id is string => get<Entity>(id)?.['@type'] === 'Library') ?? null;
 }
 
 /** A query version's tables, in tuple and member order, and its page parameters. */
-function queryVersionInputs(version: LdkitQueryVersion): DetectedInputs {
+function queryVersionInputs(version: PersistedQueryVersion): DetectedInputs {
   const tables: string[][] = [];
   for (const tupleId of version.inferredInputs ?? []) {
     const tuple = get<{ memberEntries?: string[] | null }>(tupleId);
@@ -101,7 +101,7 @@ function queryVersionInputs(version: LdkitQueryVersion): DetectedInputs {
   return { tables, limits: pageNames(version.limitParameters), offsets: pageNames(version.offsetParameters) };
 }
 
-function groupVersionInputs(version: LdkitQueryGroupVersion): DetectedInputs {
+function groupVersionInputs(version: PersistedQueryGroupVersion): DetectedInputs {
   const startNode = get<{ outputs?: string[] | null }>(version.startNode);
   return groupInputs({
     startNodePorts: startNode?.outputs ?? [],
@@ -118,11 +118,11 @@ function groupVersionInputs(version: LdkitQueryGroupVersion): DetectedInputs {
  * run time, or that applies a patch or runs rules, may write, so the group is
  * treated as one that does.
  */
-function groupReadsOnly(version: LdkitQueryGroupVersion): boolean {
+function groupReadsOnly(version: PersistedQueryGroupVersion): boolean {
   return (version.executionNodes ?? []).every(id => {
     const node = get<{ '@type'?: string; queryId?: string | null }>(id);
     if (node?.['@type'] !== 'QueryNode') return false;
-    const queryVersion = get<LdkitQueryVersion>(node.queryId);
+    const queryVersion = get<PersistedQueryVersion>(node.queryId);
     return Boolean(queryVersion) && queryVersion!.queryType !== QueryTypeIri.update;
   });
 }
@@ -140,9 +140,9 @@ export function collectPublishedTools(): PublishedCatalogue {
   const libraries = new Map<string, PublishedLibrary>();
   const librariesWithoutSlug = new Set<string>();
 
-  const entries: Array<{ kind: 'query' | 'group'; entity: LdkitQuery | LdkitQueryGroup }> = [
-    ...(cache.list('Query') as LdkitQuery[]).map(entity => ({ kind: 'query' as const, entity })),
-    ...(cache.list('QueryGroup') as LdkitQueryGroup[]).map(entity => ({ kind: 'group' as const, entity })),
+  const entries: Array<{ kind: 'query' | 'group'; entity: PersistedQuery | PersistedQueryGroup }> = [
+    ...(cache.list('Query') as PersistedQuery[]).map(entity => ({ kind: 'query' as const, entity })),
+    ...(cache.list('QueryGroup') as PersistedQueryGroup[]).map(entity => ({ kind: 'group' as const, entity })),
   ];
   // Stable across restarts, so which of two same-named tools wins does not
   // depend on the order the store returned them.
@@ -150,8 +150,8 @@ export function collectPublishedTools(): PublishedCatalogue {
 
   for (const { kind, entity } of entries) {
     const libraryId = libraryOf(entity);
-    const library = get<LdkitLibrary>(libraryId);
-    const version = get<LdkitQueryVersion | LdkitQueryGroupVersion>(entity.currentVersion);
+    const library = get<PersistedLibrary>(libraryId);
+    const version = get<PersistedQueryVersion | PersistedQueryGroupVersion>(entity.currentVersion);
     if (!library || !version) continue;
 
     const declared = version.tool;
@@ -174,8 +174,8 @@ export function collectPublishedTools(): PublishedCatalogue {
     }
 
     const inputs = kind === 'query'
-      ? queryVersionInputs(version as LdkitQueryVersion)
-      : groupVersionInputs(version as LdkitQueryGroupVersion);
+      ? queryVersionInputs(version as PersistedQueryVersion)
+      : groupVersionInputs(version as PersistedQueryGroupVersion);
     const tool: ToolObject = declared || defaultToolObject(entity, inputs);
     const problem = checkToolObject(tool, inputs, { targetKind: kind });
     if (problem) {
@@ -206,8 +206,8 @@ export function collectPublishedTools(): PublishedCatalogue {
       targetId: version.$id,
       targetKind: kind,
       readOnly: kind === 'query'
-        ? (version as LdkitQueryVersion).queryType !== QueryTypeIri.update
-        : groupReadsOnly(version as LdkitQueryGroupVersion),
+        ? (version as PersistedQueryVersion).queryType !== QueryTypeIri.update
+        : groupReadsOnly(version as PersistedQueryGroupVersion),
       params: tool.params ?? {},
       inputs,
       ...(defaultBackendId ? { defaultBackendId } : {}),

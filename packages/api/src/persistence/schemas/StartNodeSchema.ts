@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for StartNode Entity
+ * Entity schema for StartNode Entity
  * 
  * StartNode represents the entry point for query execution in a canvas.
  * It provides external input interface for the QueryGroup and passes inputs through to other nodes.
@@ -7,14 +7,14 @@
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, sqlib, sdo } from '../namespaces.js';
+import { xsd, sqlib, sdo } from '../namespaces.js';
 
 export const StartNodeSchema = {
   '@type': sqlib.StartNode,
   outputs: {
     '@id': sqlib.outputs,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   dateCreated: {
@@ -29,7 +29,7 @@ export const StartNodeSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitStartNode {
+export interface PersistedStartNode {
   '$id': string;
   '@type'?: 'StartNode';
   outputs?: string[] | null; // External outputs that become the query group's external inputs - any output entities (QueryOutputTuple, TriplesQuadsIO, etc.)

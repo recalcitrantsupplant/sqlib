@@ -2,12 +2,12 @@
  * Generic entity CRUD factory.
  *
  * Backend-neutral: it composes the repository from `createRepositoryLens`, which
- * now sits on the self-hosted persistence adapter rather than an LDKit lens.
+ * now sits on the self-hosted persistence adapter rather than a library lens.
  */
 
 import type { Property, Schema } from '../schema.js';
 import { createRepositoryLens } from './entityRepository.js';
-import { toLdkit } from './id-adapter.js';
+import { toPersisted } from './id-adapter.js';
 import { cleanNullValues } from './type-conversions.js';
 
 /**
@@ -29,9 +29,9 @@ function requiredFieldsFrom(schema: Schema): string[] {
 }
 
 /**
- * Base interface that all LDKit entities must have
+ * Base interface that all persisted entities must have
  */
-interface BaseLdkitEntity {
+interface BasePersistedEntity {
   $id: string;
   '@type'?: string;
   dateCreated?: string | null; // ISO string format for RDF/JSON-LD compatibility
@@ -40,21 +40,21 @@ interface BaseLdkitEntity {
 
 /**
  * Generic entity utilities factory
- * Generates standardized CRUD operations for any LDKit entity
+ * Generates standardized CRUD operations for any persisted entity
  */
-export function createEntityUtils<T extends BaseLdkitEntity>(
+export function createEntityUtils<T extends BasePersistedEntity>(
   schema: Schema,
   entityName: string,
   requiredFields: (keyof T)[] = requiredFieldsFrom(schema) as (keyof T)[],
-  customPrepareForLdkit?: (entity: any) => any
+  customPrepareForPersistence?: (entity: any) => any
 ) {
   const Repository = createRepositoryLens(schema);
 
   /**
-   * Convert entity to LDKit format (null to undefined)
-   * Can be overridden via customPrepareForLdkit parameter
+   * Convert entity for persistence (null to undefined)
+   * Can be overridden via customPrepareForPersistence parameter
    */
-  const prepareForLdkit = customPrepareForLdkit || ((entity: any): any => {
+  const prepareForPersistence = customPrepareForPersistence || ((entity: any): any => {
     const prepared: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(entity)) {
       if (value === null || value === undefined) {
@@ -67,7 +67,7 @@ export function createEntityUtils<T extends BaseLdkitEntity>(
 
   const self = {
     Repository,
-    prepareForLdkit,
+    prepareForPersistence,
 
     /**
      * Find all entities
@@ -114,12 +114,12 @@ export function createEntityUtils<T extends BaseLdkitEntity>(
       }
 
       const now = new Date().toISOString();
-      const entity = toLdkit<T>({ ...data });
+      const entity = toPersisted<T>({ ...data });
       entity.dateCreated = now;
       entity.dateModified = now;
 
-      // Convert null to undefined for LDKit compatibility
-      const insertData = prepareForLdkit(entity);
+      // Convert null to undefined before writing
+      const insertData = prepareForPersistence(entity);
 
       await Repository.insert(insertData);
     },
@@ -128,10 +128,9 @@ export function createEntityUtils<T extends BaseLdkitEntity>(
      * Update entity with automatic dateModified timestamp
      *
      * NOTE: This function is mostly unused. Routes use MemoryCacheManager.update()
-     * which calls the LDKit Repository.update() directly.
+     * which calls Repository.update() directly.
      *
-     * IMPORTANT: LDKit's update() expects PARTIAL objects (only $id + changed fields).
-     * Passing complete entities with all fields will cause LDKit to generate no UPDATE.
+     * IMPORTANT: Repository.update() expects PARTIAL objects (only $id + changed fields).
      */
     update: async (id: string, updates: Partial<Omit<T, '$id'>>): Promise<void> => {
       // Verify entity exists in backend
@@ -140,15 +139,15 @@ export function createEntityUtils<T extends BaseLdkitEntity>(
         return;
       }
 
-      // Prepare partial update for LDKit ($id + changed fields only)
+      // Prepare partial update ($id + changed fields only)
       const partialUpdate: any = {
         $id: id,
         dateModified: new Date().toISOString(),
         ...updates,
       };
 
-      // Convert null to undefined for LDKit compatibility
-      const updateData = prepareForLdkit(partialUpdate);
+      // Convert null to undefined before writing
+      const updateData = prepareForPersistence(partialUpdate);
 
       await Repository.update(updateData);
     },
@@ -175,7 +174,7 @@ export function createEntityUtils<T extends BaseLdkitEntity>(
  * `config.requiredFields` overrides what the schema says is mandatory; omit it
  * unless the API's create-time contract genuinely differs from the RDF shape.
  */
-export function createEntityUtilsWithFields<T extends BaseLdkitEntity>(
+export function createEntityUtilsWithFields<T extends BasePersistedEntity>(
   schema: Schema,
   entityName: string,
   config: {
@@ -185,7 +184,7 @@ export function createEntityUtilsWithFields<T extends BaseLdkitEntity>(
   /**
    * Field-specific type conversion for entities with mixed field types
    */
-  const prepareForLdkit = (entity: any): any => {
+  const prepareForPersistence = (entity: any): any => {
     const prepared: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(entity)) {
       if (value === null) {
@@ -197,6 +196,6 @@ export function createEntityUtilsWithFields<T extends BaseLdkitEntity>(
     return prepared;
   };
 
-  // Create base utilities with custom prepareForLdkit injected
-  return createEntityUtils<T>(schema, entityName, config.requiredFields, prepareForLdkit);
+  // Create base utilities with custom prepareForPersistence injected
+  return createEntityUtils<T>(schema, entityName, config.requiredFields, prepareForPersistence);
 }

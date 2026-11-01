@@ -1,10 +1,10 @@
 /**
- * Test deleteEntity function - LDKit replacement for EntityManager.delete()
+ * Test deleteEntity function - replacement for EntityManager.delete()
  */
 
-// In-memory LDKit lens and deleteEntity for this suite
+// In-memory entity lens and deleteEntity for this suite
 import { Backends, createBackend } from '../../src/persistence/utils/BackendUtils.js';
-import type { LdkitBackend } from '../../src/persistence/schemas/BackendSchema.js';
+import type { PersistedBackend } from '../../src/persistence/schemas/BackendSchema.js';
 import { overrideRepositoryLenses } from '../../src/persistence/utils/entityRepository.js';
 
 const repositoryLens = (() => {
@@ -27,7 +27,7 @@ async function deleteEntity(_lens: unknown, id: string): Promise<void> {
 }
 
 
-describe('deleteEntity function (LDKit replacement for EntityManager.delete)', () => {
+describe('deleteEntity function (replacement for EntityManager.delete)', () => {
   const testBackendId = 'http://example.org/test-delete-backend';
   
   afterEach(async () => {
@@ -39,9 +39,9 @@ describe('deleteEntity function (LDKit replacement for EntityManager.delete)', (
     }
   });
 
-  it('should delete an existing entity using LDKit', async () => {
+  it('should delete an existing entity', async () => {
     // Create a test backend first
-  const testBackend: Omit<LdkitBackend, 'dateCreated' | 'dateModified'> & { $id: string } = {
+  const testBackend: Omit<PersistedBackend, 'dateCreated' | 'dateModified'> & { $id: string } = {
     $id: testBackendId,
     name: 'Delete Test Backend',
     description: 'A backend for testing delete functionality',
@@ -78,7 +78,7 @@ describe('deleteEntity function (LDKit replacement for EntityManager.delete)', (
   it('should handle malformed IDs gracefully', async () => {
     const malformedId = 'not-a-valid-iri';
     
-    // LDKit is lenient with malformed IDs - it doesn't throw but handles them gracefully
+    // Persistence is lenient with malformed IDs - it doesn't throw but handles them gracefully
     await expect(deleteEntity(Backends, malformedId)).resolves.not.toThrow();
     
     // Verify the malformed ID entity doesn't exist (it never did)
@@ -88,7 +88,7 @@ describe('deleteEntity function (LDKit replacement for EntityManager.delete)', (
 
   it('should work with entities that have complex relationships', async () => {
     // Create a backend with all optional fields populated
-  const complexBackend: Omit<LdkitBackend, 'dateCreated' | 'dateModified'> & { $id: string } = {
+  const complexBackend: Omit<PersistedBackend, 'dateCreated' | 'dateModified'> & { $id: string } = {
     $id: testBackendId,
     name: 'Complex Delete Test Backend',
     description: 'A backend with all fields for testing complex delete functionality',
@@ -112,7 +112,7 @@ describe('deleteEntity function (LDKit replacement for EntityManager.delete)', (
 
   it('should match EntityManager.delete behavior - delete all triples for the entity', async () => {
     // Create backend with timestamp fields
-  const timestampedBackend: Omit<LdkitBackend, 'dateCreated' | 'dateModified'> & { $id: string } = {
+  const timestampedBackend: Omit<PersistedBackend, 'dateCreated' | 'dateModified'> & { $id: string } = {
     $id: testBackendId,
     name: 'Timestamped Delete Test Backend',
     description: 'Testing that timestamps are also deleted',

@@ -1,11 +1,11 @@
 /**
- * LDKit Schema for BenchmarkExperiment Entity
+ * Entity schema for BenchmarkExperiment Entity
  *
  * Stable pointer to the current BenchmarkExperimentVersion.
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, sqlib, sdo } from '../namespaces.js';
+import { xsd, sqlib, sdo } from '../namespaces.js';
 
 export const BenchmarkExperimentSchema = {
   '@type': sqlib.BenchmarkExperiment,
@@ -30,13 +30,13 @@ export const BenchmarkExperimentSchema = {
    */
   isPartOf: {
     '@id': sdo.isPartOf,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
     '@references': { types: ['Library'] },
   },
   currentVersion: {
     '@id': sqlib.currentVersion,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
     '@references': { types: ['BenchmarkExperimentVersion'] },
     // The number lives on the version; callers listing these want it
@@ -55,7 +55,7 @@ export const BenchmarkExperimentSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitBenchmarkExperiment {
+export interface PersistedBenchmarkExperiment {
   $id: string;
   '@type'?: 'BenchmarkExperiment';
   name: string;

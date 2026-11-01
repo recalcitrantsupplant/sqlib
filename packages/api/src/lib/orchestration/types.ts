@@ -1,51 +1,51 @@
-import type { LdkitQueryVersion } from '../../persistence/schemas/QueryVersionSchema.js';
-import type { LdkitQueryNode } from '../../persistence/schemas/QueryNodeSchema.js';
-import type { LdkitDynamicQueryNode } from '../../persistence/schemas/DynamicQueryNodeSchema.js';
-import type { LdkitRuleSetNode } from '../../persistence/schemas/RuleSetNodeSchema.js';
-import type { LdkitPatchNode } from '../../persistence/schemas/PatchNodeSchema.js';
-import type { LdkitDuckDbEtlNode } from '../../persistence/schemas/DuckDbEtlNodeSchema.js';
-import type { LdkitStartNode } from '../../persistence/schemas/StartNodeSchema.js';
-import type { LdkitEndNode } from '../../persistence/schemas/EndNodeSchema.js';
-import type { LdkitQueryEdge, WhenEmptyMode } from '../../persistence/schemas/QueryEdgeSchema.js';
-import type { LdkitQueryGroupVersion } from '../../persistence/schemas/QueryGroupVersionSchema.js';
-import type { LdkitQueryInputVariable } from '../../persistence/schemas/QueryInputVariableSchema.js';
-import type { LdkitQueryOutputVariable } from '../../persistence/schemas/QueryOutputVariableSchema.js';
-import type { LdkitQueryInputTuple } from '../../persistence/schemas/QueryInputTupleSchema.js';
-import type { LdkitQueryOutputTuple } from '../../persistence/schemas/QueryOutputTupleSchema.js';
-import type { LdkitTupleMember } from '../../persistence/schemas/TupleMemberSchema.js';
-import type { LdkitBackend } from '../../persistence/schemas/BackendSchema.js';
-import type { LdkitTriplesQuadsIO } from '../../persistence/schemas/TriplesQuadsIOSchema.js';
-import type { LdkitBooleanIO } from '../../persistence/schemas/BooleanIOSchema.js';
-import type { LdkitQueryIdInput } from '../../persistence/schemas/QueryIdInputSchema.js';
-import type { LdkitRuleSetVersion } from '../../persistence/schemas/RuleSetVersionSchema.js';
-import type { LdkitEtlJobVersion } from '../../persistence/schemas/EtlJobVersionSchema.js';
+import type { PersistedQueryVersion } from '../../persistence/schemas/QueryVersionSchema.js';
+import type { PersistedQueryNode } from '../../persistence/schemas/QueryNodeSchema.js';
+import type { PersistedDynamicQueryNode } from '../../persistence/schemas/DynamicQueryNodeSchema.js';
+import type { PersistedRuleSetNode } from '../../persistence/schemas/RuleSetNodeSchema.js';
+import type { PersistedPatchNode } from '../../persistence/schemas/PatchNodeSchema.js';
+import type { PersistedDuckDbEtlNode } from '../../persistence/schemas/DuckDbEtlNodeSchema.js';
+import type { PersistedStartNode } from '../../persistence/schemas/StartNodeSchema.js';
+import type { PersistedEndNode } from '../../persistence/schemas/EndNodeSchema.js';
+import type { PersistedQueryEdge, WhenEmptyMode } from '../../persistence/schemas/QueryEdgeSchema.js';
+import type { PersistedQueryGroupVersion } from '../../persistence/schemas/QueryGroupVersionSchema.js';
+import type { PersistedQueryInputVariable } from '../../persistence/schemas/QueryInputVariableSchema.js';
+import type { PersistedQueryOutputVariable } from '../../persistence/schemas/QueryOutputVariableSchema.js';
+import type { PersistedQueryInputTuple } from '../../persistence/schemas/QueryInputTupleSchema.js';
+import type { PersistedQueryOutputTuple } from '../../persistence/schemas/QueryOutputTupleSchema.js';
+import type { PersistedTupleMember } from '../../persistence/schemas/TupleMemberSchema.js';
+import type { PersistedBackend } from '../../persistence/schemas/BackendSchema.js';
+import type { PersistedTriplesQuadsIO } from '../../persistence/schemas/TriplesQuadsIOSchema.js';
+import type { PersistedBooleanIO } from '../../persistence/schemas/BooleanIOSchema.js';
+import type { PersistedQueryIdInput } from '../../persistence/schemas/QueryIdInputSchema.js';
+import type { PersistedRuleSetVersion } from '../../persistence/schemas/RuleSetVersionSchema.js';
+import type { PersistedEtlJobVersion } from '../../persistence/schemas/EtlJobVersionSchema.js';
 
 import type { ArgumentSet, SparqlResultsJson } from '../query-chaining.js';
 import type { QueryTypeValue } from '../../constants/queryTypes.js';
 
 // Re-export types with shorter names for orchestration
 export type {
-  LdkitQueryVersion as QueryVersion,
-  LdkitQueryNode as QueryNode,
-  LdkitDynamicQueryNode as DynamicQueryNode,
-  LdkitRuleSetNode as RuleSetNode,
-  LdkitPatchNode as PatchNode,
-  LdkitDuckDbEtlNode as DuckDbEtlNode,
-  LdkitStartNode as StartNode,
-  LdkitEndNode as EndNode,
-  LdkitQueryEdge as QueryEdge,
-  LdkitQueryGroupVersion as QueryGroupVersion,
-  LdkitQueryInputVariable as QueryInputVariable,
-  LdkitQueryOutputVariable as QueryOutputVariable,
-  LdkitQueryInputTuple as QueryInputTuple,
-  LdkitQueryOutputTuple as QueryOutputTuple,
-  LdkitTupleMember as TupleMember,
-  LdkitBackend as Backend,
-  LdkitTriplesQuadsIO as TriplesQuadsIO,
-  LdkitBooleanIO as BooleanIO,
-  LdkitQueryIdInput as QueryIdInput,
-  LdkitRuleSetVersion as RuleSetVersion,
-  LdkitEtlJobVersion as EtlJobVersion,
+  PersistedQueryVersion as QueryVersion,
+  PersistedQueryNode as QueryNode,
+  PersistedDynamicQueryNode as DynamicQueryNode,
+  PersistedRuleSetNode as RuleSetNode,
+  PersistedPatchNode as PatchNode,
+  PersistedDuckDbEtlNode as DuckDbEtlNode,
+  PersistedStartNode as StartNode,
+  PersistedEndNode as EndNode,
+  PersistedQueryEdge as QueryEdge,
+  PersistedQueryGroupVersion as QueryGroupVersion,
+  PersistedQueryInputVariable as QueryInputVariable,
+  PersistedQueryOutputVariable as QueryOutputVariable,
+  PersistedQueryInputTuple as QueryInputTuple,
+  PersistedQueryOutputTuple as QueryOutputTuple,
+  PersistedTupleMember as TupleMember,
+  PersistedBackend as Backend,
+  PersistedTriplesQuadsIO as TriplesQuadsIO,
+  PersistedBooleanIO as BooleanIO,
+  PersistedQueryIdInput as QueryIdInput,
+  PersistedRuleSetVersion as RuleSetVersion,
+  PersistedEtlJobVersion as EtlJobVersion,
   ArgumentSet,
   SparqlResultsJson,
 };
@@ -110,18 +110,18 @@ export function requiresDynamicQueryNode(flowType: EdgeFlowType | null | undefin
  * Output I/O entity types
  */
 export type OutputIOEntity =
-  | LdkitQueryOutputTuple
-  | LdkitTriplesQuadsIO
-  | LdkitBooleanIO;
+  | PersistedQueryOutputTuple
+  | PersistedTriplesQuadsIO
+  | PersistedBooleanIO;
 
 /**
  * Input I/O entity types
  */
 export type InputIOEntity =
-  | LdkitQueryInputTuple
-  | LdkitTriplesQuadsIO
-  | LdkitBooleanIO
-  | LdkitQueryIdInput;
+  | PersistedQueryInputTuple
+  | PersistedTriplesQuadsIO
+  | PersistedBooleanIO
+  | PersistedQueryIdInput;
 
 export const OUTPUT_IO_TYPES = [
   'QueryOutputTuple',
@@ -146,16 +146,16 @@ export interface BackendConfig {
 
 export interface ResolvedNode {
   id: string;
-  raw: LdkitQueryNode | LdkitDynamicQueryNode | LdkitRuleSetNode | LdkitPatchNode | LdkitDuckDbEtlNode | LdkitStartNode | LdkitEndNode | Record<string, any>;
+  raw: PersistedQueryNode | PersistedDynamicQueryNode | PersistedRuleSetNode | PersistedPatchNode | PersistedDuckDbEtlNode | PersistedStartNode | PersistedEndNode | Record<string, any>;
   backendId: string | undefined;
   queryVersionId: string | undefined;
-  queryVersion: LdkitQueryVersion | undefined;
+  queryVersion: PersistedQueryVersion | undefined;
   queryString: string | undefined;
   queryType: QueryTypeValue | undefined | null;
   ruleSetVersionId?: string;
-  ruleSetVersion?: LdkitRuleSetVersion;
+  ruleSetVersion?: PersistedRuleSetVersion;
   etlJobVersionId?: string;
-  etlJobVersion?: LdkitEtlJobVersion;
+  etlJobVersion?: PersistedEtlJobVersion;
   /** PatchNode: the port carrying the quads the update would remove. */
   deletionsOutputId?: string;
   /** PatchNode: the port carrying the quads the update would add. */
@@ -172,7 +172,7 @@ export interface ResolvedNode {
 
 export interface ResolvedEdge {
   id: string;
-  raw: LdkitQueryEdge;
+  raw: PersistedQueryEdge;
   sourceNodeId: string;
   targetNodeId: string;
   dataFlowType?: EdgeFlowType | null;
@@ -185,7 +185,7 @@ export interface ResolvedEdge {
 }
 
 export interface ExecutionGraph {
-  groupVersion: LdkitQueryGroupVersion;
+  groupVersion: PersistedQueryGroupVersion;
   nodes: Map<string, ResolvedNode>;
   edges: ResolvedEdge[];
   incomingEdges: Map<string, ResolvedEdge[]>;

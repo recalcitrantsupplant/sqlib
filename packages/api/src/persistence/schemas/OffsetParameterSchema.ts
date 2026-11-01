@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for OffsetParameter Entity
+ * Entity schema for OffsetParameter Entity
  * 
  * This entity represents offset parameter definitions for queries.
  * Each offset parameter has an identifier used in SPARQL queries.
@@ -25,7 +25,7 @@ export const OffsetParameterSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitOffsetParameter {
+export interface PersistedOffsetParameter {
   '$id': string;
   '@type'?: 'OffsetParameter';
   name: string; // Required - the name used in SPARQL (e.g., "results-offset")

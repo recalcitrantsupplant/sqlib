@@ -722,7 +722,7 @@ export function requestPhases(request: RequestRow): RequestPhase[] {
  *
  * One spelling only, unlike `RawObservation`: both doors onto these rows —
  * `GET /benchmark-experiments/runs/:id/iteration-observations` and the run
- * response — hand back what `toRestApi` made of the LDKit entity, whose
+ * response — hand back what `toRestApi` made of the persisted entity, whose
  * property is `subjectObservation`. Reading a second spelling here would be
  * reading for a shape nothing produces.
  */

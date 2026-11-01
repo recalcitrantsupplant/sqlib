@@ -6,12 +6,12 @@ import * as schemas from '@sparql-query-lib/contracts/schema';
 import { setupValidator } from '../../src/lib/validator-setup.js';
 import { getCacheCoordinator } from '../../src/lib/CacheCoordinatorProvider.js';
 import type { EntityType } from '../../src/lib/EntityRegistry.js';
-import type { LDKitEntity } from '../../src/persistence/EntityTypes.js';
+import type { PersistedEntity } from '../../src/persistence/EntityTypes.js';
 import { installFakePersistenceAdapter } from '../support/fakePersistenceAdapter.js';
 
 /** Writes through the real coordinator, so the store and the cache agree. */
 const cacheManager = {
-  create: (entity: LDKitEntity, type: EntityType) => getCacheCoordinator().create(type, entity as never),
+  create: (entity: PersistedEntity, type: EntityType) => getCacheCoordinator().create(type, entity as never),
   update: (id: string, updates: Record<string, unknown>, type: EntityType) =>
     getCacheCoordinator().update(type, id, updates as never),
 };

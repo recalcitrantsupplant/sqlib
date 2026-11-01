@@ -41,7 +41,7 @@ import { SparqlQueryParser } from '../lib/parser.js';
 import { detectSparqlOperation } from '../lib/queryTypeDetector.js';
 import { QueryTypeIri } from '../constants/queryTypes.js';
 import type { SparqlDataset } from '../server/ISparqlExecutor.js';
-import type { LdkitBackend } from '../persistence/schemas/BackendSchema.js';
+import type { PersistedBackend } from '../persistence/schemas/BackendSchema.js';
 import { getAuthConfig } from './config.js';
 import { isGroupPrincipal } from './principals.js';
 import type { AuthContext } from './types.js';
@@ -94,14 +94,14 @@ export interface GraphPolicySettings {
   backend: string;
 }
 
-export function graphPolicyOf(backend: Partial<LdkitBackend> | null | undefined): GraphPolicySettings | null {
+export function graphPolicyOf(backend: Partial<PersistedBackend> | null | undefined): GraphPolicySettings | null {
   if (!backend?.graphPolicyQueryVersion || !backend.graphPolicyBackend) return null;
   return { queryVersion: backend.graphPolicyQueryVersion, backend: backend.graphPolicyBackend };
 }
 
 /** The graph policy a backend names, read from the entity cache. */
 export function graphPolicyForBackend(backendId: string): GraphPolicySettings | null {
-  return graphPolicyOf(getCacheCoordinator().get(backendId) as LdkitBackend | null);
+  return graphPolicyOf(getCacheCoordinator().get(backendId) as PersistedBackend | null);
 }
 
 /**
@@ -122,7 +122,7 @@ export function patchLogReadMode(backendId: string): 'query:saved' | 'update:sav
 export function isAuthBackend(backendId: string | null | undefined): boolean {
   if (!backendId) return false;
   if (backendId === LIBRARY_STORAGE_BACKEND_ID) return true;
-  const backend = getCacheCoordinator().get(backendId) as LdkitBackend | null;
+  const backend = getCacheCoordinator().get(backendId) as PersistedBackend | null;
   return backend?.authBackend === true;
 }
 

@@ -1,11 +1,11 @@
 /**
- * LDKit Schema for Rule Entity (stable pointer)
+ * Entity schema for Rule Entity (stable pointer)
  *
  * Mirrors the Query schema but dedicated to SHACL rules.
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, sqlib, sdo } from '../namespaces.js';
+import { xsd, sqlib, sdo } from '../namespaces.js';
 
 export const RuleSchema = {
   '@type': sqlib.Rule,
@@ -18,7 +18,7 @@ export const RuleSchema = {
   },
   currentVersion: {
     '@id': sqlib.currentVersion,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
     '@references': { types: ['RuleVersion'] },
     // The number lives on the version; callers listing these want it
@@ -28,13 +28,13 @@ export const RuleSchema = {
   isPartOf: {
     '@id': sdo.isPartOf,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@references': { types: ['Library', 'QueryGroup'], exactlyOne: 'Library' },
   },
   tags: {
     '@id': sqlib.hasTag,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
     '@references': { types: ['Tag'] },
   },
@@ -50,7 +50,7 @@ export const RuleSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitRule {
+export interface PersistedRule {
   $id: string;
   '@type'?: 'Rule';
   name: string;

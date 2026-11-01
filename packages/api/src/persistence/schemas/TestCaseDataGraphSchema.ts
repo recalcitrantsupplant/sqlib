@@ -19,13 +19,13 @@
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, sqlib, sdo } from '../namespaces.js';
+import { xsd, sqlib, sdo } from '../namespaces.js';
 
 export const TestCaseDataGraphSchema = {
   '@type': sqlib.TestCaseDataGraph,
   isPartOf: {
     '@id': sdo.isPartOf,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@references': { types: ['TestCase'] },
   },
   /** 0-based, because RDF arrays carry no order. Same reason as `TupleMember`. */
@@ -35,7 +35,7 @@ export const TestCaseDataGraphSchema = {
   },
   dataGraphVersion: {
     '@id': sqlib.dataGraphVersion,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@references': { types: ['DataGraphVersion'] },
   },
   dateCreated: {
@@ -50,7 +50,7 @@ export const TestCaseDataGraphSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitTestCaseDataGraph {
+export interface PersistedTestCaseDataGraph {
   $id: string;
   '@type'?: 'TestCaseDataGraph';
   isPartOf: string;

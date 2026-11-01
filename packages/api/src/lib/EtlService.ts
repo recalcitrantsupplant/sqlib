@@ -18,11 +18,11 @@ import {
   recordEtlExecutionProgress,
 } from './etlRunLog.js';
 import { duckDbService, mapDuckDbTypeToXsd, type PreviewResult } from './DuckDbService.js';
-import type { LdkitEtlJob } from '../persistence/schemas/EtlJobSchema.js';
-import type { LdkitEtlJobVersion } from '../persistence/schemas/EtlJobVersionSchema.js';
-import type { LdkitEtlColumnMapping } from '../persistence/schemas/EtlColumnMappingSchema.js';
-import type { LdkitEtlColumnMappingVersion, ColumnDefinition } from '../persistence/schemas/EtlColumnMappingVersionSchema.js';
-import type { LdkitEtlExecution, EtlExecutionStatus } from '../persistence/schemas/EtlExecutionSchema.js';
+import type { PersistedEtlJob } from '../persistence/schemas/EtlJobSchema.js';
+import type { PersistedEtlJobVersion } from '../persistence/schemas/EtlJobVersionSchema.js';
+import type { PersistedEtlColumnMapping } from '../persistence/schemas/EtlColumnMappingSchema.js';
+import type { PersistedEtlColumnMappingVersion, ColumnDefinition } from '../persistence/schemas/EtlColumnMappingVersionSchema.js';
+import type { PersistedEtlExecution, EtlExecutionStatus } from '../persistence/schemas/EtlExecutionSchema.js';
 import type { SparqlBinding } from './query-chaining.js';
 import { SparqlQueryParser } from './parser.js';
 import { abortReason } from './cancellation.js';
@@ -427,7 +427,7 @@ export class EtlService {
     const id = mintId('etlJob');
     const now = new Date().toISOString();
 
-    const ldkitEtlJob: LdkitEtlJob = {
+    const persistedEtlJob: PersistedEtlJob = {
       $id: id,
       name: input.name,
       description: input.description,
@@ -437,7 +437,7 @@ export class EtlService {
       dateModified: now,
     };
 
-    await cacheCoordinator.create('EtlJob', ldkitEtlJob);
+    await cacheCoordinator.create('EtlJob', persistedEtlJob);
 
     return {
       id: this.toShortId(id),
@@ -463,13 +463,13 @@ export class EtlService {
   ): Promise<EtlJobDetail | null> {
     const etlJobUrn = this.toUrn(id, 'etlJob');
     const cacheCoordinator = getCacheCoordinator();
-    const existing = cacheCoordinator.get(etlJobUrn) as LdkitEtlJob | null;
+    const existing = cacheCoordinator.get(etlJobUrn) as PersistedEtlJob | null;
     if (!existing) {
       return null;
     }
 
     const now = new Date().toISOString();
-    const patch: Partial<LdkitEtlJob> & { dateModified: string } = { dateModified: now };
+    const patch: Partial<PersistedEtlJob> & { dateModified: string } = { dateModified: now };
     if (input.name !== undefined) patch.name = input.name;
     if (input.description !== undefined) patch.description = input.description ?? undefined;
     // null clears it, which puts the job back on the in-memory store.
@@ -498,7 +498,7 @@ export class EtlService {
   async createEtlJobVersion(etlJobId: string, input: EtlJobVersionInput): Promise<EtlJobVersionDetail> {
     const etlJobUrn = this.toUrn(etlJobId, 'etlJob');
     const cacheCoordinator = getCacheCoordinator();
-    const etlJob = cacheCoordinator.get(etlJobUrn) as LdkitEtlJob | null;
+    const etlJob = cacheCoordinator.get(etlJobUrn) as PersistedEtlJob | null;
     if (!etlJob) {
       throw new Error(`ETL job not found: ${etlJobId}`);
     }
@@ -519,7 +519,7 @@ export class EtlService {
     const versionId = mintId('etlJobVersion');
     const now = new Date().toISOString();
 
-    const ldkitVersion: LdkitEtlJobVersion = {
+    const persistedVersion: PersistedEtlJobVersion = {
       $id: versionId,
       isPartOf: etlJobUrn,
       version: nextVersion,
@@ -535,7 +535,7 @@ export class EtlService {
       dateModified: now,
     };
 
-    await cacheCoordinator.create('EtlJobVersion', ldkitVersion);
+    await cacheCoordinator.create('EtlJobVersion', persistedVersion);
 
     await setCurrentVersion('EtlJob', etlJobUrn, versionId);
 
@@ -560,7 +560,7 @@ export class EtlService {
   async createColumnMapping(etlJobVersionId: string, input: ColumnMappingInput): Promise<ColumnMappingDetail> {
     const etlJobVersionUrn = this.toUrn(etlJobVersionId, 'etlJobVersion');
     const cacheCoordinator = getCacheCoordinator();
-    const etlJobVersion = cacheCoordinator.get(etlJobVersionUrn) as LdkitEtlJobVersion | null;
+    const etlJobVersion = cacheCoordinator.get(etlJobVersionUrn) as PersistedEtlJobVersion | null;
     if (!etlJobVersion) {
       throw new Error(`ETL job version not found: ${etlJobVersionId}`);
     }
@@ -568,7 +568,7 @@ export class EtlService {
     const mappingId = mintId('etlColumnMapping');
     const now = new Date().toISOString();
 
-    const ldkitMapping: LdkitEtlColumnMapping = {
+    const persistedMapping: PersistedEtlColumnMapping = {
       $id: mappingId,
       name: input.name,
       description: input.description,
@@ -577,11 +577,11 @@ export class EtlService {
       dateModified: now,
     };
 
-    await cacheCoordinator.create('EtlColumnMapping', ldkitMapping);
+    await cacheCoordinator.create('EtlColumnMapping', persistedMapping);
 
     // Create initial version
     const versionId = mintId('etlColumnMappingVersion');
-    const ldkitMappingVersion: LdkitEtlColumnMappingVersion = {
+    const persistedMappingVersion: PersistedEtlColumnMappingVersion = {
       $id: versionId,
       isPartOf: mappingId,
       version: 1,
@@ -590,7 +590,7 @@ export class EtlService {
       dateModified: now,
     };
 
-    await cacheCoordinator.create('EtlColumnMappingVersion', ldkitMappingVersion);
+    await cacheCoordinator.create('EtlColumnMappingVersion', persistedMappingVersion);
 
     // Update mapping's currentVersion
     await cacheCoordinator.update('EtlColumnMapping', mappingId, {
@@ -655,19 +655,19 @@ export class EtlService {
    * Left optional because the non-HTTP callers have no request to authorize
    * against; the route supplies it.
    */
-  async listEtlJobs(filter?: (jobs: LdkitEtlJob[]) => LdkitEtlJob[]): Promise<EtlJobDetail[]> {
-    const stored = getCacheCoordinator().list('EtlJob') as LdkitEtlJob[];
+  async listEtlJobs(filter?: (jobs: PersistedEtlJob[]) => PersistedEtlJob[]): Promise<EtlJobDetail[]> {
+    const stored = getCacheCoordinator().list('EtlJob') as PersistedEtlJob[];
     const allJobs = filter ? filter(stored) : stored;
 
-    return allJobs.map((ldkitJob) => ({
-      id: this.toShortId(ldkitJob.$id),
-      name: ldkitJob.name,
-      description: ldkitJob.description || undefined,
-      currentVersionId: ldkitJob.currentVersion ? this.toShortId(ldkitJob.currentVersion) : undefined,
-      defaultBackend: ldkitJob.defaultBackend || undefined,
-      libraryIds: ldkitJob.isPartOf.map((iri) => this.toShortId(iri)),
-      dateCreated: ldkitJob.dateCreated || undefined,
-      dateModified: ldkitJob.dateModified || undefined,
+    return allJobs.map((persistedJob) => ({
+      id: this.toShortId(persistedJob.$id),
+      name: persistedJob.name,
+      description: persistedJob.description || undefined,
+      currentVersionId: persistedJob.currentVersion ? this.toShortId(persistedJob.currentVersion) : undefined,
+      defaultBackend: persistedJob.defaultBackend || undefined,
+      libraryIds: persistedJob.isPartOf.map((iri) => this.toShortId(iri)),
+      dateCreated: persistedJob.dateCreated || undefined,
+      dateModified: persistedJob.dateModified || undefined,
     }));
   }
 
@@ -675,20 +675,20 @@ export class EtlService {
    * Get ETL job by ID
    */
   async getEtlJob(id: string): Promise<EtlJobDetail | null> {
-    const ldkitJob = getCacheCoordinator().get(this.toUrn(id, 'etlJob')) as LdkitEtlJob | null;
-    if (!ldkitJob) {
+    const persistedJob = getCacheCoordinator().get(this.toUrn(id, 'etlJob')) as PersistedEtlJob | null;
+    if (!persistedJob) {
       return null;
     }
 
     return {
       id,
-      name: ldkitJob.name,
-      description: ldkitJob.description || undefined,
-      currentVersionId: ldkitJob.currentVersion ? this.toShortId(ldkitJob.currentVersion) : undefined,
-      defaultBackend: ldkitJob.defaultBackend || undefined,
-      libraryIds: ldkitJob.isPartOf.map((iri) => this.toShortId(iri)),
-      dateCreated: ldkitJob.dateCreated || undefined,
-      dateModified: ldkitJob.dateModified || undefined,
+      name: persistedJob.name,
+      description: persistedJob.description || undefined,
+      currentVersionId: persistedJob.currentVersion ? this.toShortId(persistedJob.currentVersion) : undefined,
+      defaultBackend: persistedJob.defaultBackend || undefined,
+      libraryIds: persistedJob.isPartOf.map((iri) => this.toShortId(iri)),
+      dateCreated: persistedJob.dateCreated || undefined,
+      dateModified: persistedJob.dateModified || undefined,
     };
   }
 
@@ -701,25 +701,25 @@ export class EtlService {
    */
   async listEtlJobVersions(etlJobId: string): Promise<EtlJobVersionDetail[]> {
     const etlJobUrn = this.toUrn(etlJobId, 'etlJob');
-    const allVersions = getCacheCoordinator().list('EtlJobVersion') as LdkitEtlJobVersion[];
+    const allVersions = getCacheCoordinator().list('EtlJobVersion') as PersistedEtlJobVersion[];
     return allVersions
       .filter((version) => version.isPartOf === etlJobUrn)
       .sort((a, b) => b.version - a.version)
-      .map((ldkitVersion) => ({
-        id: this.toShortId(ldkitVersion.$id),
+      .map((persistedVersion) => ({
+        id: this.toShortId(persistedVersion.$id),
         isPartOf: etlJobId,
-        version: ldkitVersion.version,
-        immutable: ldkitVersion.immutable || undefined,
-        sql: ldkitVersion.sql,
-        sparqlTemplate: ldkitVersion.sparqlTemplate,
-        backendId: this.toShortId(ldkitVersion.backendId),
-        currentColumnMappingVersionId: ldkitVersion.currentColumnMappingVersion
-          ? this.toShortId(ldkitVersion.currentColumnMappingVersion)
+        version: persistedVersion.version,
+        immutable: persistedVersion.immutable || undefined,
+        sql: persistedVersion.sql,
+        sparqlTemplate: persistedVersion.sparqlTemplate,
+        backendId: this.toShortId(persistedVersion.backendId),
+        currentColumnMappingVersionId: persistedVersion.currentColumnMappingVersion
+          ? this.toShortId(persistedVersion.currentColumnMappingVersion)
           : undefined,
-        chunkSize: ldkitVersion.chunkSize || undefined,
-        comment: ldkitVersion.comment || undefined,
-        dateCreated: ldkitVersion.dateCreated || undefined,
-        dateModified: ldkitVersion.dateModified || undefined,
+        chunkSize: persistedVersion.chunkSize || undefined,
+        comment: persistedVersion.comment || undefined,
+        dateCreated: persistedVersion.dateCreated || undefined,
+        dateModified: persistedVersion.dateModified || undefined,
       }));
   }
 
@@ -727,26 +727,26 @@ export class EtlService {
    * Get ETL job version by ID
    */
   async getEtlJobVersion(id: string): Promise<EtlJobVersionDetail | null> {
-    const ldkitVersion = getCacheCoordinator().get(this.toUrn(id, 'etlJobVersion')) as LdkitEtlJobVersion | null;
-    if (!ldkitVersion) {
+    const persistedVersion = getCacheCoordinator().get(this.toUrn(id, 'etlJobVersion')) as PersistedEtlJobVersion | null;
+    if (!persistedVersion) {
       return null;
     }
 
     return {
       id,
-      isPartOf: this.toShortId(ldkitVersion.isPartOf),
-      version: ldkitVersion.version,
-      immutable: ldkitVersion.immutable || undefined,
-      sql: ldkitVersion.sql,
-      sparqlTemplate: ldkitVersion.sparqlTemplate,
-      backendId: this.toShortId(ldkitVersion.backendId),
-      currentColumnMappingVersionId: ldkitVersion.currentColumnMappingVersion
-        ? this.toShortId(ldkitVersion.currentColumnMappingVersion)
+      isPartOf: this.toShortId(persistedVersion.isPartOf),
+      version: persistedVersion.version,
+      immutable: persistedVersion.immutable || undefined,
+      sql: persistedVersion.sql,
+      sparqlTemplate: persistedVersion.sparqlTemplate,
+      backendId: this.toShortId(persistedVersion.backendId),
+      currentColumnMappingVersionId: persistedVersion.currentColumnMappingVersion
+        ? this.toShortId(persistedVersion.currentColumnMappingVersion)
         : undefined,
-      chunkSize: ldkitVersion.chunkSize || undefined,
-      comment: ldkitVersion.comment || undefined,
-      dateCreated: ldkitVersion.dateCreated || undefined,
-      dateModified: ldkitVersion.dateModified || undefined,
+      chunkSize: persistedVersion.chunkSize || undefined,
+      comment: persistedVersion.comment || undefined,
+      dateCreated: persistedVersion.dateCreated || undefined,
+      dateModified: persistedVersion.dateModified || undefined,
     };
   }
 
@@ -761,7 +761,7 @@ export class EtlService {
   async annotateEtlJobVersion(id: string, comment: string | null): Promise<EtlJobVersionDetail | null> {
     const versionUrn = this.toUrn(id, 'etlJobVersion');
     const cacheCoordinator = getCacheCoordinator();
-    const existing = cacheCoordinator.get(versionUrn) as LdkitEtlJobVersion | null;
+    const existing = cacheCoordinator.get(versionUrn) as PersistedEtlJobVersion | null;
     if (!existing) {
       return null;
     }
@@ -775,7 +775,7 @@ export class EtlService {
     await cacheCoordinator.update('EtlJobVersion', versionUrn, {
       comment,
       dateModified: now,
-    } as unknown as Partial<LdkitEtlJobVersion>);
+    } as unknown as Partial<PersistedEtlJobVersion>);
 
     return this.getEtlJobVersion(id);
   }
@@ -784,20 +784,20 @@ export class EtlService {
    * Get column mapping version by ID
    */
   async getColumnMappingVersion(id: string): Promise<ColumnMappingVersionDetail | null> {
-    const ldkitVersion = getCacheCoordinator().get(this.toUrn(id, 'etlColumnMappingVersion')) as LdkitEtlColumnMappingVersion | null;
-    if (!ldkitVersion) {
+    const persistedVersion = getCacheCoordinator().get(this.toUrn(id, 'etlColumnMappingVersion')) as PersistedEtlColumnMappingVersion | null;
+    if (!persistedVersion) {
       return null;
     }
 
     return {
       id,
-      isPartOf: this.toShortId(ldkitVersion.isPartOf),
-      version: ldkitVersion.version,
-      immutable: ldkitVersion.immutable || undefined,
-      columns: JSON.parse(ldkitVersion.columns),
-      comment: ldkitVersion.comment || undefined,
-      dateCreated: ldkitVersion.dateCreated || undefined,
-      dateModified: ldkitVersion.dateModified || undefined,
+      isPartOf: this.toShortId(persistedVersion.isPartOf),
+      version: persistedVersion.version,
+      immutable: persistedVersion.immutable || undefined,
+      columns: JSON.parse(persistedVersion.columns),
+      comment: persistedVersion.comment || undefined,
+      dateCreated: persistedVersion.dateCreated || undefined,
+      dateModified: persistedVersion.dateModified || undefined,
     };
   }
 
@@ -820,7 +820,7 @@ export class EtlService {
    * job's run with the columns of a job in a library it holds nothing on.
    */
   resolveColumnMapping(
-    etlJobVersion: LdkitEtlJobVersion,
+    etlJobVersion: PersistedEtlJobVersion,
     columnMappingVersionId?: string,
   ): { versionUrn: string; columns: ColumnDefinition[] } {
     const mappingVersionUrn = columnMappingVersionId
@@ -832,13 +832,13 @@ export class EtlService {
     }
 
     const cacheCoordinator = getCacheCoordinator();
-    const mappingVersion = cacheCoordinator.get(mappingVersionUrn) as LdkitEtlColumnMappingVersion | null;
+    const mappingVersion = cacheCoordinator.get(mappingVersionUrn) as PersistedEtlColumnMappingVersion | null;
     if (!mappingVersion) {
       throw new Error(`Column mapping version not found: ${mappingVersionUrn}`);
     }
 
     if (columnMappingVersionId) {
-      const mapping = cacheCoordinator.get(mappingVersion.isPartOf) as LdkitEtlColumnMapping | null;
+      const mapping = cacheCoordinator.get(mappingVersion.isPartOf) as PersistedEtlColumnMapping | null;
       if (mapping?.etlJobVersion !== etlJobVersion.$id) {
         throw new Error(
           `Column mapping version ${mappingVersionUrn} does not map ETL job version ${etlJobVersion.$id}`,
@@ -905,7 +905,7 @@ export class EtlService {
 
     // 1. Load EtlJobVersion (current or specified)
     const etlJobUrn = this.toUrn(etlJobId, 'etlJob');
-    const etlJob = cacheCoordinator.get(etlJobUrn) as LdkitEtlJob | null;
+    const etlJob = cacheCoordinator.get(etlJobUrn) as PersistedEtlJob | null;
     if (!etlJob) {
       throw new Error(`ETL job not found: ${etlJobId}`);
     }
@@ -918,7 +918,7 @@ export class EtlService {
       throw new Error(`No version specified and ETL job ${etlJobId} has no current version`);
     }
 
-    const etlJobVersion = cacheCoordinator.get(versionUrn) as LdkitEtlJobVersion | null;
+    const etlJobVersion = cacheCoordinator.get(versionUrn) as PersistedEtlJobVersion | null;
     if (!etlJobVersion) {
       throw new Error(`ETL job version not found: ${versionUrn}`);
     }
@@ -1065,7 +1065,7 @@ export class EtlService {
    * a partial result is not the result.
    */
   private async runWithoutRecord(run: {
-    etlJobVersion: LdkitEtlJobVersion;
+    etlJobVersion: PersistedEtlJobVersion;
     columnDefs: ColumnDefinition[];
     executionScope: ExecutionAuthScope | undefined;
     chunkSize: number;
@@ -1120,7 +1120,7 @@ export class EtlService {
    * not exist or wrote no output.
    */
   async getExecutionOutput(id: string): Promise<{ location: string; contentType: string } | null> {
-    const execution = getCacheCoordinator().get(this.toUrn(id, 'etlExecution')) as LdkitEtlExecution | null;
+    const execution = getCacheCoordinator().get(this.toUrn(id, 'etlExecution')) as PersistedEtlExecution | null;
     if (!execution?.outputLocation) {
       return null;
     }
@@ -1139,7 +1139,7 @@ export class EtlService {
    */
   async getExecution(id: string): Promise<ExecutionDetail | null> {
     const executionUrn = this.toUrn(id, 'etlExecution');
-    const execution = getCacheCoordinator().get(executionUrn) as LdkitEtlExecution | null;
+    const execution = getCacheCoordinator().get(executionUrn) as PersistedEtlExecution | null;
     if (!execution) {
       return null;
     }
@@ -1164,12 +1164,12 @@ export class EtlService {
     const cacheCoordinator = getCacheCoordinator();
     const etlJobUrn = this.toUrn(etlJobId, 'etlJob');
     const versionsOfJob = new Set(
-      (cacheCoordinator.list('EtlJobVersion') as LdkitEtlJobVersion[])
+      (cacheCoordinator.list('EtlJobVersion') as PersistedEtlJobVersion[])
         .filter((version) => version.isPartOf === etlJobUrn)
         .map((version) => version.$id),
     );
 
-    return (cacheCoordinator.list('EtlExecution') as LdkitEtlExecution[])
+    return (cacheCoordinator.list('EtlExecution') as PersistedEtlExecution[])
       .filter((execution) => versionsOfJob.has(execution.etlJobVersion))
       .sort((a, b) => (a.startedAt < b.startedAt ? 1 : a.startedAt > b.startedAt ? -1 : 0))
       .slice(0, Math.max(0, limit))
@@ -1185,7 +1185,7 @@ export class EtlService {
    * recorded the field. `outputReused` needs the same care for the same
    * reason, since `false` is the ordinary case.
    */
-  private toExecutionDetail(execution: LdkitEtlExecution): ExecutionDetail {
+  private toExecutionDetail(execution: PersistedEtlExecution): ExecutionDetail {
     return {
       id: this.toShortId(execution.$id),
       etlJobVersionId: this.toShortId(execution.etlJobVersion),

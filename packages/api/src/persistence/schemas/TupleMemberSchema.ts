@@ -1,12 +1,12 @@
 /**
- * LDKit Schema for TupleMember Entity
+ * Entity schema for TupleMember Entity
  * 
  * Represents a single member in an ordered tuple with position and variable IRI.
  * Used by both QueryInputTuple and QueryOutputTuple to maintain order.
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, sqlib } from '../namespaces.js';
+import { xsd, sqlib } from '../namespaces.js';
 
 export const TupleMemberSchema = {
   '@type': sqlib.TupleMember,
@@ -16,11 +16,11 @@ export const TupleMemberSchema = {
   },
   variable: {
     '@id': sqlib.variable,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
   },
 } as const satisfies Schema;
 
-export interface LdkitTupleMember {
+export interface PersistedTupleMember {
   '$id': string;
   '@type'?: 'TupleMember';
   position: number; // 0-based position in the tuple

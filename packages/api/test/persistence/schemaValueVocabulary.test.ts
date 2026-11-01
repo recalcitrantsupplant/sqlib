@@ -8,7 +8,7 @@
  * as a broken schema.
  */
 import { describe, expect, it } from 'vitest';
-import { describeSchema, LDKIT_IRI_TYPE } from '../../src/persistence/schemaIntrospection.js';
+import { describeSchema, IRI_REF_TYPE } from '../../src/persistence/schemaIntrospection.js';
 import { BackendSchema, BackendTypeIri, QueryMethodIri } from '../../src/persistence/schemas/BackendSchema.js';
 
 const CLASS = 'https://sparql-query-lib/Thing';
@@ -16,7 +16,7 @@ const CLASS = 'https://sparql-query-lib/Thing';
 function schemaWithValues(values: unknown): Record<string, unknown> {
   return {
     '@type': CLASS,
-    kind: { '@id': 'https://sparql-query-lib/kind', '@type': LDKIT_IRI_TYPE, '@values': values },
+    kind: { '@id': 'https://sparql-query-lib/kind', '@type': IRI_REF_TYPE, '@values': values },
   };
 }
 

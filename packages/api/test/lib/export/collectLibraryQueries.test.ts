@@ -1,22 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import { collectLibraryQueries, type LibraryQuerySource } from '../../../src/lib/export/collectLibraryQueries.js';
-import type { LdkitQuery } from '../../../src/persistence/schemas/QuerySchema.js';
-import type { LdkitQueryVersion } from '../../../src/persistence/schemas/QueryVersionSchema.js';
+import type { PersistedQuery } from '../../../src/persistence/schemas/QuerySchema.js';
+import type { PersistedQueryVersion } from '../../../src/persistence/schemas/QueryVersionSchema.js';
 
 const LIBRARY = 'urn:sqlib:library:main';
 const OTHER = 'urn:sqlib:library:other';
 
-function query(partial: Partial<LdkitQuery> & { $id: string; name: string }): LdkitQuery {
-  return { isPartOf: [LIBRARY], ...partial } as LdkitQuery;
+function query(partial: Partial<PersistedQuery> & { $id: string; name: string }): PersistedQuery {
+  return { isPartOf: [LIBRARY], ...partial } as PersistedQuery;
 }
 
-function version(id: string, queryString: string): LdkitQueryVersion {
-  return { $id: id, isPartOf: 'q', version: 1, queryString } as LdkitQueryVersion;
+function version(id: string, queryString: string): PersistedQueryVersion {
+  return { $id: id, isPartOf: 'q', version: 1, queryString } as PersistedQueryVersion;
 }
 
 function source(
-  queries: LdkitQuery[],
-  versions: Record<string, LdkitQueryVersion>,
+  queries: PersistedQuery[],
+  versions: Record<string, PersistedQueryVersion>,
 ): LibraryQuerySource {
   return {
     listQueries: () => queries,

@@ -1,7 +1,7 @@
 import { createEntityUtilsWithFields } from './EntityUtils.js';
-import { BenchmarkExperimentSchema, type LdkitBenchmarkExperiment } from '../schemas/BenchmarkExperimentSchema.js';
+import { BenchmarkExperimentSchema, type PersistedBenchmarkExperiment } from '../schemas/BenchmarkExperimentSchema.js';
 
-const BenchmarkExperimentUtils = createEntityUtilsWithFields<LdkitBenchmarkExperiment>(
+const BenchmarkExperimentUtils = createEntityUtilsWithFields<PersistedBenchmarkExperiment>(
   BenchmarkExperimentSchema,
   'BenchmarkExperiment'
 );

@@ -1,5 +1,5 @@
 /**
- * LDKit Schema for DataGraph Entity (stable pointer)
+ * Entity schema for DataGraph Entity (stable pointer)
  *
  * A DataGraph is reference/example RDF registered in the library — the *input*
  * a ruleset runs against (`G0` in the SHACL 1.2 Rules semantics), not part of
@@ -8,7 +8,7 @@
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, sqlib, sdo } from '../namespaces.js';
+import { xsd, sqlib, sdo } from '../namespaces.js';
 
 export const DataGraphSchema = {
   '@type': sqlib.DataGraph,
@@ -21,7 +21,7 @@ export const DataGraphSchema = {
   },
   currentVersion: {
     '@id': sqlib.currentVersion,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
     '@references': { types: ['DataGraphVersion'] },
     // The number lives on the version; callers listing these want it
@@ -31,13 +31,13 @@ export const DataGraphSchema = {
   isPartOf: {
     '@id': sdo.isPartOf,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@references': { types: ['Library'], exactlyOne: 'Library' },
   },
   tags: {
     '@id': sqlib.hasTag,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
     '@references': { types: ['Tag'] },
   },
@@ -53,7 +53,7 @@ export const DataGraphSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitDataGraph {
+export interface PersistedDataGraph {
   $id: string;
   '@type'?: 'DataGraph';
   name: string;

@@ -20,18 +20,18 @@ import {
 } from '@sparql-query-lib/runtime';
 import { TemplateCompileError, compileQueryTemplate } from '@sparql-query-lib/compiler';
 import { SparqlQueryParser } from '../parser.js';
-import type { LdkitEtlJob } from '../../persistence/schemas/EtlJobSchema.js';
-import type { LdkitEtlJobVersion } from '../../persistence/schemas/EtlJobVersionSchema.js';
-import type { LdkitEtlColumnMappingVersion } from '../../persistence/schemas/EtlColumnMappingVersionSchema.js';
+import type { PersistedEtlJob } from '../../persistence/schemas/EtlJobSchema.js';
+import type { PersistedEtlJobVersion } from '../../persistence/schemas/EtlJobVersionSchema.js';
+import type { PersistedEtlColumnMappingVersion } from '../../persistence/schemas/EtlColumnMappingVersionSchema.js';
 import type { EntityRepositories } from '../EntityRepositories.js';
 import type { SkippedQuery } from './collectLibraryQueries.js';
 import { reserveKey } from './queryBundle.js';
 
 /** The entity reads this module needs, so a script can supply them too. */
 export interface LibraryEtlJobSource {
-  listEtlJobs(): LdkitEtlJob[];
-  getEtlJobVersion(id: string): LdkitEtlJobVersion | null;
-  getColumnMappingVersion(id: string): LdkitEtlColumnMappingVersion | null;
+  listEtlJobs(): PersistedEtlJob[];
+  getEtlJobVersion(id: string): PersistedEtlJobVersion | null;
+  getColumnMappingVersion(id: string): PersistedEtlColumnMappingVersion | null;
 }
 
 /** The source over a set of entity repositories: a request's, or a script's. */
@@ -39,10 +39,10 @@ export function etlJobSource(
   repos: Pick<EntityRepositories, 'EtlJob' | 'EtlJobVersion' | 'EtlColumnMappingVersion'>,
 ): LibraryEtlJobSource {
   return {
-    listEtlJobs: () => repos.EtlJob.list() as LdkitEtlJob[],
-    getEtlJobVersion: (id) => repos.EtlJobVersion.get(id) as LdkitEtlJobVersion | null,
+    listEtlJobs: () => repos.EtlJob.list() as PersistedEtlJob[],
+    getEtlJobVersion: (id) => repos.EtlJobVersion.get(id) as PersistedEtlJobVersion | null,
     getColumnMappingVersion: (id) =>
-      repos.EtlColumnMappingVersion.get(id) as LdkitEtlColumnMappingVersion | null,
+      repos.EtlColumnMappingVersion.get(id) as PersistedEtlColumnMappingVersion | null,
   };
 }
 
@@ -58,7 +58,7 @@ export interface AttachEtlJobsOptions {
 class EtlJobExportError extends Error {}
 
 async function compileJob(
-  job: LdkitEtlJob,
+  job: PersistedEtlJob,
   source: LibraryEtlJobSource,
   parser: SparqlQueryParser,
 ): Promise<ExportedEtlJob> {

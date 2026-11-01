@@ -18,8 +18,8 @@ import {
   type ExportBundle,
   type ExportedRuleSet,
 } from '@sparql-query-lib/runtime';
-import type { LdkitRuleSet } from '../../persistence/schemas/RuleSetSchema.js';
-import type { LdkitRuleSetVersion } from '../../persistence/schemas/RuleSetVersionSchema.js';
+import type { PersistedRuleSet } from '../../persistence/schemas/RuleSetSchema.js';
+import type { PersistedRuleSetVersion } from '../../persistence/schemas/RuleSetVersionSchema.js';
 import { buildRuleSetDocument, type RuleSetDocumentRepos } from '../ruleSetDocument.js';
 import { ruleTuplesAllowed } from '../ruleTuples.js';
 import { ruleAggregatesAllowed } from '../ruleAggregates.js';
@@ -29,8 +29,8 @@ import { reserveKey } from './queryBundle.js';
 
 /** The entity reads this module needs, so a script can supply them too. */
 export interface LibraryRuleSetSource extends RuleSetDocumentRepos {
-  listRuleSets(): LdkitRuleSet[];
-  getRuleSetVersion(id: string): LdkitRuleSetVersion | null;
+  listRuleSets(): PersistedRuleSet[];
+  getRuleSetVersion(id: string): PersistedRuleSetVersion | null;
 }
 
 /** The source over a set of entity repositories: a request's, or a script's. */
@@ -38,8 +38,8 @@ export function ruleSetSource(
   repos: Pick<EntityRepositories, 'RuleSet' | 'RuleSetVersion' | 'RuleVersion' | 'DataBlockVersion'>,
 ): LibraryRuleSetSource {
   return {
-    listRuleSets: () => repos.RuleSet.list() as LdkitRuleSet[],
-    getRuleSetVersion: (id) => repos.RuleSetVersion.get(id) as LdkitRuleSetVersion | null,
+    listRuleSets: () => repos.RuleSet.list() as PersistedRuleSet[],
+    getRuleSetVersion: (id) => repos.RuleSetVersion.get(id) as PersistedRuleSetVersion | null,
     RuleVersion: repos.RuleVersion,
     DataBlockVersion: repos.DataBlockVersion,
   };
@@ -51,7 +51,7 @@ export interface AttachRuleSetsOptions {
   match?: 'any' | 'all';
 }
 
-function matchesTags(ruleSet: LdkitRuleSet, tags: readonly string[], match: 'any' | 'all'): boolean {
+function matchesTags(ruleSet: PersistedRuleSet, tags: readonly string[], match: 'any' | 'all'): boolean {
   if (tags.length === 0) return true;
   const carried = ruleSet.tags ?? [];
   return match === 'all'
@@ -61,7 +61,7 @@ function matchesTags(ruleSet: LdkitRuleSet, tags: readonly string[], match: 'any
 
 class RuleSetExportError extends Error {}
 
-async function exportRuleSet(ruleSet: LdkitRuleSet, source: LibraryRuleSetSource): Promise<ExportedRuleSet> {
+async function exportRuleSet(ruleSet: PersistedRuleSet, source: LibraryRuleSetSource): Promise<ExportedRuleSet> {
   if (!ruleSet.currentVersion) throw new RuleSetExportError('The rule set has no current version.');
   const version = source.getRuleSetVersion(ruleSet.currentVersion);
   if (!version) throw new RuleSetExportError(`Its current version ${ruleSet.currentVersion} could not be found.`);

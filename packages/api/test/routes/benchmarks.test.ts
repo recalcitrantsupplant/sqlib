@@ -3,7 +3,7 @@ import Fastify, { FastifyInstance } from 'fastify';
 import benchmarkRoutes from '../../src/routes/benchmarks.js';
 import { setupValidator } from '../../src/lib/validator-setup.js';
 import * as schemas from '@sparql-query-lib/contracts/schema';
-import type { LDKitEntity } from '../../src/persistence/EntityTypes.js';
+import type { PersistedEntity } from '../../src/persistence/EntityTypes.js';
 import { overrideRepositoryLenses } from '../../src/persistence/utils/entityRepository.js';
 import { FakePersistenceAdapter } from '../support/fakePersistenceAdapter.js';
 
@@ -43,7 +43,7 @@ vi.mock('../../src/lib/BenchmarkRunner.js', () => ({
 let store: FakePersistenceAdapter;
 
 /** Puts each entity in the store under its own `@type`. */
-function seed(...entities: LDKitEntity[]): void {
+function seed(...entities: PersistedEntity[]): void {
   for (const entity of entities) store.put(String(entity['@type']), entity);
 }
 

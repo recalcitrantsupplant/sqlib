@@ -1,7 +1,7 @@
 import { log } from '../../lib/log.js';
 /**
  * Centralized ID adapter utilities to bridge API JSON-LD shapes ('@id')
- * and LDKit entity shapes ('$id').
+ * and persisted entity shapes ('$id').
  */
 
 type AnyRecord = Record<string, any>;
@@ -31,60 +31,60 @@ function normalizeApiId(obj: AnyRecord): string {
 }
 
 /**
- * Converts an API-shaped entity into an LDKit-shaped entity.
+ * Converts an API-shaped entity into a persisted-shaped entity.
  * - Ensures both '$id' and '@id' are present and equal.
  * - Leaves the rest of the properties intact.
  */
-export function toLdkit<T extends AnyRecord>(apiEntity: AnyRecord): T {
+export function toPersisted<T extends AnyRecord>(apiEntity: AnyRecord): T {
   const id = normalizeApiId(apiEntity);
   const merged: AnyRecord = { ...apiEntity, id: undefined, '@id': id, $id: id };
   return merged as unknown as T;
 }
 
 /**
- * Converts an LDKit-shaped entity into an API JSON-LD shape.
+ * Converts a persisted-shaped entity into an API JSON-LD shape.
  * - Ensures '@id' is present.
  * - Removes '$id'.
  */
-export function toApi<T extends AnyRecord>(ldkitEntity: AnyRecord): T {
-  const id = normalizeId(ldkitEntity);
-  const { $id: _dropDollar, ...rest } = ldkitEntity;
+export function toApi<T extends AnyRecord>(persistedEntity: AnyRecord): T {
+  const id = normalizeId(persistedEntity);
+  const { $id: _dropDollar, ...rest } = persistedEntity;
   const out: AnyRecord = { '@id': id, ...rest };
   return out as unknown as T;
 }
 
 /**
- * Converts an LDKit-shaped entity into a simplified API shape.
+ * Converts a persisted-shaped entity into a simplified API shape.
  * - Ensures '@id' is present.
  * - Removes '$id' and '@type' (implicit from REST endpoint).
  */
-export function toSimpleApi<T extends AnyRecord>(ldkitEntity: AnyRecord): T {
-  const id = normalizeId(ldkitEntity);
-  const { $id: _dropDollar, ...rest } = ldkitEntity;
+export function toSimpleApi<T extends AnyRecord>(persistedEntity: AnyRecord): T {
+  const id = normalizeId(persistedEntity);
+  const { $id: _dropDollar, ...rest } = persistedEntity;
   const out: AnyRecord = { '@id': id, ...rest };
   return out as unknown as T;
 }
 
 /**
- * Converts an LDKit-shaped entity into a REST API shape for major release.
+ * Converts a persisted-shaped entity into a REST API shape for major release.
  * - Uses plain 'id' field instead of '@id'.
- * - Removes '$id', '@id', '@type', and any existing 'id' (which may be undefined from toLdkit).
+ * - Removes '$id', '@id', '@type', and any existing 'id' (which may be undefined from toPersisted).
  */
-export function toRestApi<T extends AnyRecord>(ldkitEntity: AnyRecord): T {
-  if (!ldkitEntity) {
+export function toRestApi<T extends AnyRecord>(persistedEntity: AnyRecord): T {
+  if (!persistedEntity) {
     log.error('toRestApi called with null/undefined entity');
     return { id: undefined } as unknown as T;
   }
 
-  const entityId = normalizeId(ldkitEntity);
+  const entityId = normalizeId(persistedEntity);
 
-  // Exclude $id, @id, @type, AND id (which toLdkit sets to undefined)
-  const { $id: _dropDollar, '@id': _dropAt, '@type': _dropType, id: _dropId, ...rest } = ldkitEntity;
+  // Exclude $id, @id, @type, AND id (which toPersisted sets to undefined)
+  const { $id: _dropDollar, '@id': _dropAt, '@type': _dropType, id: _dropId, ...rest } = persistedEntity;
 
   // Explicitly remove @type if still present (destructuring may not always work with quoted keys)
   delete rest['@type'];
 
-  // Normalize boolean-like fields that may arrive as strings from LDKit
+  // Normalize boolean-like fields that may arrive as strings from the store
   if (Object.prototype.hasOwnProperty.call(rest, 'immutable')) {
     const val = (rest as AnyRecord).immutable;
     if (val === 'true') (rest as AnyRecord).immutable = true;

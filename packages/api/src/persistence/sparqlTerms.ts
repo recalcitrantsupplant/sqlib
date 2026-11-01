@@ -31,7 +31,7 @@ export function escapeLiteral(value: string): string {
 
 /**
  * Renders a literal term. A plain literal is emitted when no datatype is given,
- * matching what LDKit writes for `xsd:string` — and in RDF 1.1 the two are the
+ * matching how `xsd:string` values are already stored — and in RDF 1.1 the two are the
  * same term anyway.
  */
 export function literal(value: string, datatype: string | null): string {

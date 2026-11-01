@@ -1,7 +1,7 @@
 import { createEntityUtilsWithFields } from './EntityUtils.js';
-import { BenchmarkObservationSchema, type LdkitBenchmarkObservation } from '../schemas/BenchmarkObservationSchema.js';
+import { BenchmarkObservationSchema, type PersistedBenchmarkObservation } from '../schemas/BenchmarkObservationSchema.js';
 
-const BenchmarkObservationUtils = createEntityUtilsWithFields<LdkitBenchmarkObservation>(
+const BenchmarkObservationUtils = createEntityUtilsWithFields<PersistedBenchmarkObservation>(
   BenchmarkObservationSchema,
   'BenchmarkObservation'
 );

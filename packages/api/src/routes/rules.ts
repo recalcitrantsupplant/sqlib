@@ -1,8 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import { maxRuleIterations } from '../config/executionLimits.js';
 import { mintId } from '../lib/id.js';
-import type { LdkitRule } from '../persistence/schemas/RuleSchema.js';
-import type { LdkitRuleVersion } from '../persistence/schemas/RuleVersionSchema.js';
+import type { PersistedRule } from '../persistence/schemas/RuleSchema.js';
+import type { PersistedRuleVersion } from '../persistence/schemas/RuleVersionSchema.js';
 import { createRuleVersion, annotateRuleVersion } from '../lib/RuleVersionWriter.js';
 import { reposRoute, typedRoute, RouteError } from './route-helpers.js';
 import { registerVersionedEntityRoutes, type StoredEntity } from './versionedEntity.js';
@@ -203,7 +203,7 @@ export default async function (fastify: FastifyInstance) {
       },
     }, async ({ repos, reply, request }) => {
     const { id } = request.params;
-    const parent = repos.Rule.get(id) as LdkitRule | null;
+    const parent = repos.Rule.get(id) as PersistedRule | null;
     if (!parent) {
       return reply.status(404).send({ error: 'Rule not found' });
     }
@@ -215,13 +215,13 @@ export default async function (fastify: FastifyInstance) {
       maxRuleIterations(),
     );
 
-    const versions = (repos.RuleVersion.list() as LdkitRuleVersion[])
+    const versions = (repos.RuleVersion.list() as PersistedRuleVersion[])
       .filter(v => v.isPartOf === id);
     if (versions.length === 0) {
       return reply.status(404).send({ error: 'Rule has no versions to execute' });
     }
 
-    let selected: LdkitRuleVersion | undefined;
+    let selected: PersistedRuleVersion | undefined;
     if (requestedVersion !== undefined) {
       selected = versions.find(v => Number(v.version) === requestedVersion);
       if (!selected) {

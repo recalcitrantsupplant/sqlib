@@ -1,11 +1,11 @@
 /**
- * LDKit Schema for Backend Entity
+ * Entity schema for Backend Entity
  * 
  * This entity represents SPARQL endpoint configurations.
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, sqlib, sdo, sqlibBackendType, sqlibQueryMethod } from '../namespaces.js';
+import { xsd, sqlib, sdo, sqlibBackendType, sqlibQueryMethod } from '../namespaces.js';
 
 export const BackendTypeIri = {
   http: sqlibBackendType.http,
@@ -108,7 +108,7 @@ export const BackendSchema = {
   },
   backendType: {
     '@id': sqlib.backendType,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     // The same map the route handlers translate with, read by the generator so
     // the published contract says `enum: ['http', 'oxigraphEphemeral']` rather
     // than `format: iri` — which is what the wire has always carried.
@@ -126,7 +126,7 @@ export const BackendSchema = {
   },
   queryMethod: {
     '@id': sqlib.queryMethod,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@values': QueryMethodIri,
     '@optional': true,
   },
@@ -160,13 +160,13 @@ export const BackendSchema = {
    */
   graphPolicyQueryVersion: {
     '@id': sqlib.graphPolicyQueryVersion,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   /** The auth backend the graph policy runs on. Set with `graphPolicyQueryVersion`. */
   graphPolicyBackend: {
     '@id': sqlib.graphPolicyBackend,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
 } as const satisfies Schema;
@@ -270,7 +270,7 @@ export interface OxigraphConfig {
   persistPath?: string;
 }
 
-export interface LdkitBackend {
+export interface PersistedBackend {
   $id: string;
   '@type'?: 'Backend';
   name: string;

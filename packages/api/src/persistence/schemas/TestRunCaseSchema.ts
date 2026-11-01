@@ -17,14 +17,14 @@
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, sqlib, sdo } from '../namespaces.js';
+import { xsd, sqlib, sdo } from '../namespaces.js';
 
 export const TestRunCaseSchema = {
   '@type': sqlib.TestRunCase,
   /** The run this row belongs to. Cases die with their run — see the store. */
   isPartOf: {
     '@id': sdo.isPartOf,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
   },
   /**
    * The `TestCase` judged.
@@ -35,7 +35,7 @@ export const TestRunCaseSchema = {
    */
   testCase: {
     '@id': sqlib.refTestCase,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   /** The case's label at run time, or `Case N`. Stored, not re-derived. */
@@ -74,20 +74,20 @@ export const TestRunCaseSchema = {
   },
   argumentSetVersion: {
     '@id': sqlib.refArgumentSetVersion,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   /** The first RDF input — the whole truth for every single-graph case. */
   dataGraphVersion: {
     '@id': sqlib.dataGraphVersion,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   /** Every RDF input, for a group case that supplies several (issue #298). */
   dataGraphVersions: {
     '@id': sqlib.dataGraphVersions,
     '@array': true,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   dateCreated: {
@@ -102,7 +102,7 @@ export const TestRunCaseSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitTestRunCase {
+export interface PersistedTestRunCase {
   $id: string;
   '@type'?: 'TestRunCase';
   isPartOf: string;

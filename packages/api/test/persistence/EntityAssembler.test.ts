@@ -1,13 +1,12 @@
 /**
  * Unit coverage for the assembler's edge cases.
  *
- * The parity suite proves agreement with LDKit on real stored data; these tests
- * pin the behaviours that are awkward to provoke through a store — malformed
+ * These tests pin the behaviours that are awkward to provoke through a store — malformed
  * literals, duplicate scalars, undeclared predicates.
  */
 import { describe, expect, it, vi } from 'vitest';
 import { assembleEntities, assembleEntity, type BindingRow } from '../../src/persistence/EntityAssembler.js';
-import { LDKIT_IRI_TYPE, RDF_JSON_TYPE } from '../../src/persistence/schemaIntrospection.js';
+import { IRI_REF_TYPE, RDF_JSON_TYPE } from '../../src/persistence/schemaIntrospection.js';
 import { log } from '../../src/lib/log.js';
 
 const XSD = 'http://www.w3.org/2001/XMLSchema#';
@@ -20,7 +19,7 @@ const SCHEMA = {
   ratio: { '@id': `${P}/ratio`, '@type': `${XSD}decimal`, '@optional': true },
   enabled: { '@id': `${P}/enabled`, '@type': `${XSD}boolean`, '@optional': true },
   createdAt: { '@id': `${P}/createdAt`, '@type': `${XSD}dateTime`, '@optional': true },
-  refs: { '@id': `${P}/refs`, '@type': LDKIT_IRI_TYPE, '@array': true, '@optional': true },
+  refs: { '@id': `${P}/refs`, '@type': IRI_REF_TYPE, '@array': true, '@optional': true },
   tags: { '@id': `${P}/tags`, '@array': true },
   config: { '@id': `${P}/config`, '@type': RDF_JSON_TYPE, '@optional': true },
 } as Record<string, unknown>;

@@ -1,17 +1,17 @@
 /**
- * LDKit Schema for BenchmarkExperimentVersion Entity (Immutable Version)
+ * Entity schema for BenchmarkExperimentVersion Entity (Immutable Version)
  *
  * Represents a versioned benchmark configuration.
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, sqlib, sdo } from '../namespaces.js';
+import { xsd, sqlib, sdo } from '../namespaces.js';
 
 export const BenchmarkExperimentVersionSchema = {
   '@type': sqlib.BenchmarkExperimentVersion,
   isPartOf: {
     '@id': sdo.isPartOf,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@references': { types: ['BenchmarkExperiment'] },
   },
   version: {
@@ -93,7 +93,7 @@ export const BenchmarkExperimentVersionSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitBenchmarkExperimentVersion {
+export interface PersistedBenchmarkExperimentVersion {
   $id: string;
   '@type'?: 'BenchmarkExperimentVersion';
   isPartOf: string;

@@ -7,9 +7,9 @@
 
 import { createNamespace } from './vocabulary.js';
 
-// Standard vocabularies the schemas draw datatypes from. Previously imported
-// from `ldkit/namespaces`; the term lists and IRIs are carried over unchanged so
-// every schema keeps producing the IRIs already stored in the data.
+// Standard vocabularies the schemas draw datatypes from. The term lists and IRIs
+// must not change, so every schema keeps producing the IRIs already stored in
+// the data.
 export const xsd = createNamespace({
   iri: "http://www.w3.org/2001/XMLSchema#",
   prefix: "xsd:",
@@ -58,25 +58,6 @@ export const rdf = createNamespace({
   terms: [
     "type",
     "JSON"
-  ]
-} as const);
-
-/**
- * The LDKit ontology.
- *
- * Retained after LDKit itself was removed because `ldkit:IRI` is the marker the
- * schemas use for "this property's object is an IRI reference, not a literal",
- * and it is written into the schema objects that generate the API contracts.
- * Changing the IRI would be a data-format migration, not a cleanup, so the
- * vocabulary outlives the library it is named after.
- * `schemaIntrospection.LDKIT_IRI_TYPE` is the runtime counterpart.
- */
-export const ldkit = createNamespace({
-  iri: "https://ldkit.io/ontology/",
-  prefix: "ldkit:",
-  terms: [
-    "Resource",
-    "IRI"
   ]
 } as const);
 
@@ -253,6 +234,11 @@ export const sqlib = createNamespace({
   iri: "https://sparql-query-lib/",
   prefix: "sqlib",
   terms: [
+    // Not a class or property: the `@type` a schema property declares when its
+    // object is an IRI reference, not a literal. `schemaIntrospection` resolves
+    // it to the `iri` field kind, and it is never written into the data.
+    // `schemaIntrospection.IRI_REF_TYPE` is the runtime counterpart.
+    "IRI",
     "Backend",
     "backendType",
     "authEnvKey",

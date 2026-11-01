@@ -4,8 +4,8 @@
  *
  * Several cache suites stub the repositories and `loadAllSystemEntities`, then
  * assert on what the cache did with them. They used to pin the coordinator to
- * `LdkitAdapter`, which happened to have exactly this shape; that class is gone
- * with LDKit, so the double is defined here instead of borrowed from production
+ * the library-backed adapter, which happened to have exactly this shape; that
+ * class is gone, so the double is defined here instead of borrowed from production
  * code that no longer works this way.
  *
  * The point of those suites is cache logic, not storage, so routing through the
@@ -13,11 +13,11 @@
  */
 import { loadAllSystemEntities } from '../../src/persistence/utils/entityRepository.js';
 import { getLensForType, type EntityByType, type EntityType } from '../../src/lib/EntityRegistry.js';
-import type { LDKitEntity } from '../../src/persistence/EntityTypes.js';
+import type { PersistedEntity } from '../../src/persistence/EntityTypes.js';
 import type { PersistenceAdapter } from '../../src/persistence/PersistenceAdapter.js';
 
 export const lensBackedAdapter: PersistenceAdapter = {
-  async loadAll(): Promise<Map<string, LDKitEntity>> {
+  async loadAll(): Promise<Map<string, PersistedEntity>> {
     return loadAllSystemEntities();
   },
 

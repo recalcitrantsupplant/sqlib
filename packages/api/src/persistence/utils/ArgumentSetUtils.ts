@@ -1,7 +1,7 @@
-import { ArgumentSetSchema, type LdkitArgumentSet } from '../schemas/ArgumentSetSchema.js';
-import { ArgumentTupleBindingSchema, type LdkitArgumentTupleBinding } from '../schemas/ArgumentTupleBindingSchema.js';
-import { ArgumentScalarBindingSchema, type LdkitArgumentScalarBinding } from '../schemas/ArgumentScalarBindingSchema.js';
-import { ArgumentSetVersionSchema, type LdkitArgumentSetVersion } from '../schemas/ArgumentSetVersionSchema.js';
+import { ArgumentSetSchema, type PersistedArgumentSet } from '../schemas/ArgumentSetSchema.js';
+import { ArgumentTupleBindingSchema, type PersistedArgumentTupleBinding } from '../schemas/ArgumentTupleBindingSchema.js';
+import { ArgumentScalarBindingSchema, type PersistedArgumentScalarBinding } from '../schemas/ArgumentScalarBindingSchema.js';
+import { ArgumentSetVersionSchema, type PersistedArgumentSetVersion } from '../schemas/ArgumentSetVersionSchema.js';
 import { createRepositoryLens } from './entityRepository.js';
 
 export const ArgumentSets = createRepositoryLens(ArgumentSetSchema);
@@ -10,8 +10,8 @@ export const ArgumentTupleBindings = createRepositoryLens(ArgumentTupleBindingSc
 export const ArgumentScalarBindings = createRepositoryLens(ArgumentScalarBindingSchema);
 
 export type {
-  LdkitArgumentSet,
-  LdkitArgumentSetVersion,
-  LdkitArgumentTupleBinding,
-  LdkitArgumentScalarBinding,
+  PersistedArgumentSet,
+  PersistedArgumentSetVersion,
+  PersistedArgumentTupleBinding,
+  PersistedArgumentScalarBinding,
 };

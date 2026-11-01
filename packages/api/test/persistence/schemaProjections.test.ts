@@ -12,7 +12,7 @@
  * to what type the field is.
  */
 import { describe, expect, it } from 'vitest';
-import { describeSchema, LDKIT_IRI_TYPE } from '../../src/persistence/schemaIntrospection.js';
+import { describeSchema, IRI_REF_TYPE } from '../../src/persistence/schemaIntrospection.js';
 import { SCHEMA_BY_TYPE } from '../../src/persistence/schemaRegistry.js';
 
 const CLASS = 'https://sparql-query-lib/Thing';
@@ -26,7 +26,7 @@ function schemaWithProjection(
     '@type': CLASS,
     currentVersion: {
       '@id': CURRENT_VERSION,
-      '@type': LDKIT_IRI_TYPE,
+      '@type': IRI_REF_TYPE,
       '@references': { types: ['QueryVersion'] },
       '@projects': projects,
       ...overrides,
@@ -50,7 +50,7 @@ describe('entity schema projection declarations', () => {
   it('leaves a property without one at null', () => {
     const info = describeSchema({
       '@type': CLASS,
-      currentVersion: { '@id': CURRENT_VERSION, '@type': LDKIT_IRI_TYPE },
+      currentVersion: { '@id': CURRENT_VERSION, '@type': IRI_REF_TYPE },
     });
 
     expect(info.fields[0].projects).toBeNull();

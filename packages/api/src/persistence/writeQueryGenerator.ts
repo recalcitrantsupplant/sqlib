@@ -47,7 +47,7 @@ export function generateDeleteQuery(id: string): string {
  * The shape is one `DELETE`/`INSERT`/`WHERE`, and two details in it are the whole
  * point of this phase:
  *
- * 1. **Every old-value pattern is wrapped in `OPTIONAL`.** LDKit did not do this,
+ * 1. **Every old-value pattern is wrapped in `OPTIONAL`.** The earlier mapping library did not do this,
  *    which is documented bug class #1: a required pattern for a property the entity
  *    does not have yet makes the WHERE match nothing, so the update silently
  *    becomes a no-op while still reporting success. Wrapping means an absent

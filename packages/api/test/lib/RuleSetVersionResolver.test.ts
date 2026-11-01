@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { expandRuleSetVersion } from '../../src/lib/RuleSetVersionResolver.js';
-import type { LdkitRuleSetVersion } from '../../src/persistence/schemas/RuleSetVersionSchema.js';
+import type { PersistedRuleSetVersion } from '../../src/persistence/schemas/RuleSetVersionSchema.js';
 import { installFakePersistenceAdapter } from '../support/fakePersistenceAdapter.js';
 
 describe('RuleSetVersionResolver', () => {
@@ -45,7 +45,7 @@ describe('RuleSetVersionResolver', () => {
       immutable: 'false',
       hasRule: ['urn:sqlib:rule-version:1'],
       hasDataBlock: ['urn:sqlib:data-block-version:1'],
-    } as unknown as LdkitRuleSetVersion;
+    } as unknown as PersistedRuleSetVersion;
 
     const expanded = await expandRuleSetVersion(version);
 

@@ -5,14 +5,14 @@ import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
 import { allocateVersion, setCurrentVersion } from './versionNumbering.js';
 import { requireLibraryMode, resolveOwningLibrary } from '../auth/enforce.js';
 import { isInternalExecution, type InternalExecution } from '../auth/executionScope.js';
-import { toLdkit } from '../persistence/utils/id-adapter.js';
+import { toPersisted } from '../persistence/utils/id-adapter.js';
 import { parseTupleContent, readStoredTupleContent } from './tupleContent.js';
 import { orderByPosition, parameterKeysOf, tableParameterKey, type ParameterKey } from '@sparql-query-lib/types';
-import type { LdkitArgumentSet } from '../persistence/schemas/ArgumentSetSchema.js';
-import type { LdkitArgumentSetVersion } from '../persistence/schemas/ArgumentSetVersionSchema.js';
-import type { LdkitArgumentTupleBinding } from '../persistence/schemas/ArgumentTupleBindingSchema.js';
-import type { LdkitArgumentScalarBinding } from '../persistence/schemas/ArgumentScalarBindingSchema.js';
-import type { LdkitTupleSetVersion } from '../persistence/schemas/TupleSetVersionSchema.js';
+import type { PersistedArgumentSet } from '../persistence/schemas/ArgumentSetSchema.js';
+import type { PersistedArgumentSetVersion } from '../persistence/schemas/ArgumentSetVersionSchema.js';
+import type { PersistedArgumentTupleBinding } from '../persistence/schemas/ArgumentTupleBindingSchema.js';
+import type { PersistedArgumentScalarBinding } from '../persistence/schemas/ArgumentScalarBindingSchema.js';
+import type { PersistedTupleSetVersion } from '../persistence/schemas/TupleSetVersionSchema.js';
 import type { ArgumentSet as RuntimeArgumentSet, SparqlBinding } from './query-chaining.js';
 import { log } from './log.js';
 
@@ -178,7 +178,7 @@ const toArray = <T>(value?: T | T[] | null): T[] => {
 export class ArgumentSetService {
   async listForTarget(targetId: string, scope: ArgumentScope): Promise<ArgumentSetDetail[]> {
     const cacheCoordinator = getCacheCoordinator();
-    const all = (cacheCoordinator.list('ArgumentSet') as LdkitArgumentSet[]) || [];
+    const all = (cacheCoordinator.list('ArgumentSet') as PersistedArgumentSet[]) || [];
     const filtered = all.filter(set => set.targetEntity === targetId && set.argumentScope === scope);
     const expanded = await Promise.all(filtered.map(entity => this.expandArgumentSet(entity)));
     return expanded.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
@@ -194,7 +194,7 @@ export class ArgumentSetService {
    */
   async listForLibrary(libraryId: string): Promise<ArgumentSetDetail[]> {
     const cacheCoordinator = getCacheCoordinator();
-    const all = (cacheCoordinator.list('ArgumentSet') as LdkitArgumentSet[]) || [];
+    const all = (cacheCoordinator.list('ArgumentSet') as PersistedArgumentSet[]) || [];
     const filtered = all.filter(set => set.isPartOf === libraryId);
     const expanded = await Promise.all(filtered.map(entity => this.expandArgumentSet(entity)));
     return expanded.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
@@ -202,7 +202,7 @@ export class ArgumentSetService {
 
   async getById(id: string): Promise<ArgumentSetDetail | null> {
     const cacheCoordinator = getCacheCoordinator();
-    const entity = cacheCoordinator.get(id) as LdkitArgumentSet | null;
+    const entity = cacheCoordinator.get(id) as PersistedArgumentSet | null;
     if (!entity || entity['@type'] !== 'ArgumentSet') return null;
     return this.expandArgumentSet(entity);
   }
@@ -243,7 +243,7 @@ export class ArgumentSetService {
     }
     await cacheCoordinator.update(parentType, targetId, { argumentSets: parentArgumentSets });
 
-    const created = cacheCoordinator.get(setId) as LdkitArgumentSet;
+    const created = cacheCoordinator.get(setId) as PersistedArgumentSet;
     return this.expandArgumentSet(created);
   }
 
@@ -278,7 +278,7 @@ export class ArgumentSetService {
     }
 
     const setId = await this.writeSet(input, { library: input.libraryId, scope, targetId }, authScope);
-    const created = cacheCoordinator.get(setId) as LdkitArgumentSet;
+    const created = cacheCoordinator.get(setId) as PersistedArgumentSet;
     return this.expandArgumentSet(created);
   }
 
@@ -301,7 +301,7 @@ export class ArgumentSetService {
     if (authScope) this.requirePinnedSourcesReadable(input, authScope.request);
 
     const setId = mintId('argumentSet');
-    const record: Partial<LdkitArgumentSet> = {
+    const record: Partial<PersistedArgumentSet> = {
       $id: setId,
       name: input.name,
       description: input.description,
@@ -310,7 +310,7 @@ export class ArgumentSetService {
     if (placement.scope) record.argumentScope = placement.scope;
     if (placement.targetId) record.targetEntity = placement.targetId;
 
-    await cacheCoordinator.create('ArgumentSet', toLdkit({ ...record, '@type': 'ArgumentSet' }));
+    await cacheCoordinator.create('ArgumentSet', toPersisted({ ...record, '@type': 'ArgumentSet' }));
 
     await this.createVersion(setId, {
       tupleBindings: input.tupleBindings,
@@ -335,16 +335,16 @@ export class ArgumentSetService {
     updates: { name?: string; description?: string | null; tags?: string[] | null },
   ): Promise<ArgumentSetDetail | null> {
     const cacheCoordinator = getCacheCoordinator();
-    const entity = cacheCoordinator.get(id) as LdkitArgumentSet | null;
+    const entity = cacheCoordinator.get(id) as PersistedArgumentSet | null;
     if (!entity || entity['@type'] !== 'ArgumentSet') return null;
 
-    const patch: Partial<LdkitArgumentSet> = {};
+    const patch: Partial<PersistedArgumentSet> = {};
     if (updates.name !== undefined) patch.name = updates.name;
     if (updates.description !== undefined) patch.description = updates.description;
     if (updates.tags !== undefined) patch.tags = updates.tags;
 
     await cacheCoordinator.update('ArgumentSet', id, patch);
-    const next = cacheCoordinator.get(id) as LdkitArgumentSet;
+    const next = cacheCoordinator.get(id) as PersistedArgumentSet;
     return this.expandArgumentSet(next);
   }
 
@@ -418,7 +418,7 @@ export class ArgumentSetService {
     options?: { setCurrentVersion?: boolean; authScope?: ArgumentAuthScope }
   ): Promise<ArgumentSetVersionDetail> {
     const cacheCoordinator = getCacheCoordinator();
-    const parent = cacheCoordinator.get(argumentSetId) as LdkitArgumentSet | null;
+    const parent = cacheCoordinator.get(argumentSetId) as PersistedArgumentSet | null;
     if (!parent || parent['@type'] !== 'ArgumentSet') {
       throw new Error(`ArgumentSet ${argumentSetId} not found`);
     }
@@ -449,7 +449,7 @@ export class ArgumentSetService {
       scalarBindingIds.push(scalarId);
     }
 
-    const record: Partial<LdkitArgumentSetVersion> = {
+    const record: Partial<PersistedArgumentSetVersion> = {
       $id: versionId,
       isPartOf: argumentSetId,
       version: nextVersion,
@@ -460,20 +460,20 @@ export class ArgumentSetService {
       scalarBindings: scalarBindingIds,
     };
 
-    await cacheCoordinator.create('ArgumentSetVersion', toLdkit({ ...record, '@type': 'ArgumentSetVersion' }));
+    await cacheCoordinator.create('ArgumentSetVersion', toPersisted({ ...record, '@type': 'ArgumentSetVersion' }));
 
     const shouldSetCurrent = options?.setCurrentVersion ?? true;
     if (shouldSetCurrent) {
       await setCurrentVersion('ArgumentSet', argumentSetId, versionId);
     }
 
-    const created = cacheCoordinator.get(versionId) as LdkitArgumentSetVersion;
+    const created = cacheCoordinator.get(versionId) as PersistedArgumentSetVersion;
     return this.expandArgumentSetVersion(created);
   }
 
   async delete(id: string): Promise<void> {
     const cacheCoordinator = getCacheCoordinator();
-    const entity = cacheCoordinator.get(id) as LdkitArgumentSet | null;
+    const entity = cacheCoordinator.get(id) as PersistedArgumentSet | null;
     if (!entity) return;
 
     const versions = this.findVersionsForSet(id);
@@ -623,7 +623,7 @@ export class ArgumentSetService {
     if (!entity) return { problem: 'not-found' };
     if (entity['@type'] === 'ArgumentSetVersion') return { versionId: id };
     if (entity['@type'] !== 'ArgumentSet') return { problem: 'not-found' };
-    const currentId = (entity as LdkitArgumentSet).currentVersion;
+    const currentId = (entity as PersistedArgumentSet).currentVersion;
     return currentId ? { versionId: currentId } : { problem: 'no-current-version' };
   }
 
@@ -666,7 +666,7 @@ export class ArgumentSetService {
     const document = { head: { vars: sanitizedVariables }, results: { bindings } };
     const parsed = parseTupleContent(JSON.stringify(document), 'sparql-results-json');
 
-    const tupleRecord: Partial<LdkitArgumentTupleBinding> = {
+    const tupleRecord: Partial<PersistedArgumentTupleBinding> = {
       $id: bindingId,
       tupleSignature: binding.tupleSignature || signatureFromVariables(sanitizedVariables),
       // Explicit, because `ArgumentSetVersion.tupleBindings` is an RDF array
@@ -676,7 +676,7 @@ export class ArgumentSetService {
       contentString: parsed.contentString,
       ...(binding.tupleSetVersions?.length ? { tupleSetVersions: binding.tupleSetVersions } : {}),
     };
-    await getCacheCoordinator().create('ArgumentTupleBinding', toLdkit({ ...tupleRecord, '@type': 'ArgumentTupleBinding' }));
+    await getCacheCoordinator().create('ArgumentTupleBinding', toPersisted({ ...tupleRecord, '@type': 'ArgumentTupleBinding' }));
     return bindingId;
   }
 
@@ -690,18 +690,18 @@ export class ArgumentSetService {
   ): Promise<string> {
     const allowProvidedIds = options?.allowProvidedIds ?? true;
     const id = allowProvidedIds && binding.id ? binding.id : mintId('argumentScalarBinding');
-    const record: Partial<LdkitArgumentScalarBinding> = {
+    const record: Partial<PersistedArgumentScalarBinding> = {
       $id: id,
       parameterKind: binding.parameterKind,
       parameterName: binding.parameterName,
       numericValue: binding.numericValue,
       parameterIri: binding.parameterIri,
     };
-    await getCacheCoordinator().create('ArgumentScalarBinding', toLdkit({ ...record, '@type': 'ArgumentScalarBinding' }));
+    await getCacheCoordinator().create('ArgumentScalarBinding', toPersisted({ ...record, '@type': 'ArgumentScalarBinding' }));
     return id;
   }
 
-  private async expandArgumentSet(entity: LdkitArgumentSet): Promise<ArgumentSetDetail> {
+  private async expandArgumentSet(entity: PersistedArgumentSet): Promise<ArgumentSetDetail> {
     const currentVersionId = entity.currentVersion ?? undefined;
     let currentVersion: ArgumentSetVersionDetail | null = null;
     let tupleBindings: ArgumentTupleBindingDetail[] = [];
@@ -733,7 +733,7 @@ export class ArgumentSetService {
     };
   }
 
-  private async expandArgumentSetVersion(entity: LdkitArgumentSetVersion): Promise<ArgumentSetVersionDetail> {
+  private async expandArgumentSetVersion(entity: PersistedArgumentSetVersion): Promise<ArgumentSetVersionDetail> {
     /*
      * Sorted by the stored slot, because `tupleBindings` is an RDF array: what comes back is a set, in whatever order the store
      * chose. A group routes these by position, so the order is load-bearing.
@@ -771,7 +771,7 @@ export class ArgumentSetService {
    */
   private async expandTupleBinding(bindingId: string, fallbackPosition = 0): Promise<ArgumentTupleBindingDetail> {
     const cacheCoordinator = getCacheCoordinator();
-    const binding = cacheCoordinator.get(bindingId) as LdkitArgumentTupleBinding | null;
+    const binding = cacheCoordinator.get(bindingId) as PersistedArgumentTupleBinding | null;
     if (!binding) {
       throw new Error(`ArgumentTupleBinding ${bindingId} not found`);
     }
@@ -820,7 +820,7 @@ export class ArgumentSetService {
     const rows: SparqlBinding[] = [];
 
     for (const versionId of versionIds) {
-      const version = cacheCoordinator.get(versionId) as LdkitTupleSetVersion | null;
+      const version = cacheCoordinator.get(versionId) as PersistedTupleSetVersion | null;
       if (!version || version['@type'] !== 'TupleSetVersion' || !version.contentString) {
         log.warn({ tupleSetVersionId: versionId }, 'ArgumentSetService: TupleSetVersion is missing; skipping its rows');
         continue;
@@ -862,7 +862,7 @@ export class ArgumentSetService {
   }
 
   private async expandScalarBinding(scalarId: string): Promise<ArgumentScalarBindingDetail> {
-    const scalar = getCacheCoordinator().get(scalarId) as LdkitArgumentScalarBinding | null;
+    const scalar = getCacheCoordinator().get(scalarId) as PersistedArgumentScalarBinding | null;
     if (!scalar) {
       throw new Error(`ArgumentScalarBinding ${scalarId} not found`);
     }
@@ -875,30 +875,30 @@ export class ArgumentSetService {
     };
   }
 
-  private findVersionsForSet(argumentSetId: string): LdkitArgumentSetVersion[] {
-    const all = (getCacheCoordinator().list('ArgumentSetVersion') as LdkitArgumentSetVersion[]) || [];
+  private findVersionsForSet(argumentSetId: string): PersistedArgumentSetVersion[] {
+    const all = (getCacheCoordinator().list('ArgumentSetVersion') as PersistedArgumentSetVersion[]) || [];
     return all.filter((version) => {
       const partOf = Array.isArray(version.isPartOf) ? version.isPartOf : [version.isPartOf];
       return partOf.includes(argumentSetId);
     });
   }
 
-  private findVersionByNumber(argumentSetId: string, versionNumber: number): LdkitArgumentSetVersion | null {
+  private findVersionByNumber(argumentSetId: string, versionNumber: number): PersistedArgumentSetVersion | null {
     const versions = this.findVersionsForSet(argumentSetId);
     return versions.find(version => version.version === versionNumber) ?? null;
   }
 
-  private findVersionById(versionId: string): LdkitArgumentSetVersion | null {
+  private findVersionById(versionId: string): PersistedArgumentSetVersion | null {
     const cacheCoordinator = getCacheCoordinator();
-    const entity = cacheCoordinator.get(versionId) as LdkitArgumentSetVersion | null;
+    const entity = cacheCoordinator.get(versionId) as PersistedArgumentSetVersion | null;
     if (entity && entity['@type'] === 'ArgumentSetVersion') {
       return entity;
     }
-    const all = (cacheCoordinator.list('ArgumentSetVersion') as LdkitArgumentSetVersion[]) || [];
+    const all = (cacheCoordinator.list('ArgumentSetVersion') as PersistedArgumentSetVersion[]) || [];
     return all.find(version => version.$id === versionId) ?? null;
   }
 
-  private async deleteVersionBindings(version: LdkitArgumentSetVersion): Promise<void> {
+  private async deleteVersionBindings(version: PersistedArgumentSetVersion): Promise<void> {
     for (const bindingId of toArray(version.tupleBindings)) {
       await this.deleteTupleBinding(bindingId);
     }
@@ -908,7 +908,7 @@ export class ArgumentSetService {
   }
 
   private async rebuildTupleBindings(
-    version: LdkitArgumentSetVersion,
+    version: PersistedArgumentSetVersion,
     bindings: ArgumentTupleBindingPayload[]
   ): Promise<string[]> {
     for (const bindingId of toArray(version.tupleBindings)) {
@@ -923,7 +923,7 @@ export class ArgumentSetService {
   }
 
   private async rebuildScalarBindings(
-    version: LdkitArgumentSetVersion,
+    version: PersistedArgumentSetVersion,
     bindings: ArgumentScalarBindingPayload[]
   ): Promise<string[]> {
     for (const scalarId of toArray(version.scalarBindings)) {
@@ -958,7 +958,7 @@ export class ArgumentSetService {
     }
     if (entity['@type'] === 'ArgumentSetVersion') return id;
     if (entity['@type'] === 'ArgumentSet') {
-      const currentId = (entity as LdkitArgumentSet).currentVersion;
+      const currentId = (entity as PersistedArgumentSet).currentVersion;
       if (!currentId) {
         throw new Error(`ArgumentSet ${id} has no current version`);
       }
@@ -973,7 +973,7 @@ export class ArgumentSetService {
 
   private async resolveVersionDetailForId(id: string): Promise<ArgumentSetVersionDetail> {
     const versionId = this.resolveVersionIdForId(id);
-    const version = getCacheCoordinator().get(versionId) as LdkitArgumentSetVersion | null;
+    const version = getCacheCoordinator().get(versionId) as PersistedArgumentSetVersion | null;
     if (!version) {
       throw new Error(`ArgumentSetVersion ${versionId} not found`);
     }

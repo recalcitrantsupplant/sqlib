@@ -1,11 +1,11 @@
 /**
- * LDKit Schema for EtlColumnMapping Entity (Stable Pointer)
+ * Entity schema for EtlColumnMapping Entity (Stable Pointer)
  *
  * Represents a stable column mapping configuration that points to versioned implementations.
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, sqlib, sdo } from '../namespaces.js';
+import { xsd, sqlib, sdo } from '../namespaces.js';
 
 export const EtlColumnMappingSchema = {
   '@type': sqlib.EtlColumnMapping,
@@ -18,7 +18,7 @@ export const EtlColumnMappingSchema = {
   },
   currentVersion: {
     '@id': sqlib.currentVersion,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
     '@references': { types: ['EtlColumnMappingVersion'] },
     // The number lives on the version; callers listing these want it
@@ -27,7 +27,7 @@ export const EtlColumnMappingSchema = {
   },
   etlJobVersion: {
     '@id': sqlib.etlJobVersion,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
   },
   dateCreated: {
     '@id': sdo.dateCreated,
@@ -41,7 +41,7 @@ export const EtlColumnMappingSchema = {
   },
 } as const satisfies Schema;
 
-export interface LdkitEtlColumnMapping {
+export interface PersistedEtlColumnMapping {
   $id: string;
   '@type'?: 'EtlColumnMapping';
   name: string;

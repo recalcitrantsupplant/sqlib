@@ -27,14 +27,14 @@
  */
 
 import type { Schema } from '../schema.js';
-import { ldkit, xsd, sqlib, sdo } from '../namespaces.js';
+import { xsd, sqlib, sdo } from '../namespaces.js';
 
 export const TestRunSchema = {
   '@type': sqlib.TestRun,
   /** The `Test` this run judged. Points at it; does not belong to it. */
   test: {
     '@id': sqlib.refTest,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
   },
   /**
    * The `TestVersion` that ran.
@@ -45,25 +45,25 @@ export const TestRunSchema = {
    */
   testVersion: {
     '@id': sqlib.testVersion,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   /** `Test.subject` — the callable under test, as the report formats want it. */
   subject: {
     '@id': sqlib.refSubject,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   /** The subject version actually invoked, pinned or resolved at run time. */
   subjectVersion: {
     '@id': sqlib.subjectVersion,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   /** Where it ran, or absent for a hermetic run. */
   backend: {
     '@id': sqlib.refBackend,
-    '@type': ldkit.IRI,
+    '@type': sqlib.IRI,
     '@optional': true,
   },
   /** The suite label the run was asked for under. */
@@ -132,7 +132,7 @@ export const TestRunSchema = {
 /** The outcomes a stored run or case row can carry — `earl:outcome`, narrowed. */
 export type TestRunOutcome = 'passed' | 'failed' | 'cantTell';
 
-export interface LdkitTestRun {
+export interface PersistedTestRun {
   $id: string;
   '@type'?: 'TestRun';
   test: string;

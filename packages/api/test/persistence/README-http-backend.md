@@ -44,7 +44,7 @@ curl -u admin:admin http://localhost:3033/parity/query \
 
 ## Status
 
-**LDKit is gone (#61), and with it the parity harness.** The suites that used to
+**The old library-backed adapter is gone (#61), and with it the parity harness.** The suites that used to
 compare two adapters over HTTP no longer exist, because there is one adapter. What
 replaced them, for the purpose of proving the `http` mode still works:
 
@@ -69,8 +69,8 @@ defaults "when no env vars set" and so fails by construction in a run that sets
 On oxigraph each test file gets its own in-process store, so files are genuinely
 independent. Over HTTP they all share one dataset, and any assertion about store
 *state* is then reading other files' concurrent writes. This is what produced the
-180-of-329 failure once recorded here as a possible LDKit HTTP bug; it was neither
-an LDKit nor an adapter defect.
+180-of-329 failure once recorded here as a possible HTTP bug in the old adapter; it was
+not an adapter defect.
 
 Two suspicions from that investigation turned out not to be the cause, and are
 recorded because they cost time:
@@ -78,7 +78,7 @@ recorded because they cost time:
 - **A shared dataset alone was not the problem.** Residue from an earlier test is
   harmless when the comparison is of deltas — it sits in both before-snapshots
   equally. Only *concurrent* writes break it.
-- **LDKit's single `baseUrl` was not a mismatch.** Fuseki serves query and update
+- **The old adapter's single `baseUrl` was not a mismatch.** Fuseki serves query and update
   at the dataset root as well as at `/query` and `/update`, so both were talking
   to the same dataset.
 
