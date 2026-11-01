@@ -163,6 +163,7 @@
                   :state="nb.stateFor(cell.id)"
                   :value="nb.values.value[cell.out] ?? null"
                   :value-options="valueOptionsAbove(index)"
+                  :problems="nb.problemsFor(cell.id)"
                   :can-write="canWrite"
                   :backend-options="backendOptions"
                   :default-backend="nb.defaultBackendFor(cell)"

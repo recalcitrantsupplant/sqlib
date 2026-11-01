@@ -47,6 +47,16 @@
         </template>
       </PanelHeader>
 
+      <!-- What the document itself gets wrong: a value read before it is bound. -->
+      <p
+        v-for="(problem, problemIndex) in problems"
+        :key="problemIndex"
+        class="notice notice--error"
+        :data-testid="`notebook-problem-${cell.id}`"
+      >
+        {{ problem }}
+      </p>
+
       <p v-if="!target" class="notice notice--error" :data-testid="`notebook-missing-${cell.id}`">
         This cell names something this library no longer holds.
       </p>
@@ -69,6 +79,9 @@
               @change="onSourceChange(slotIndex, ($event.target as HTMLSelectElement).value)"
             >
               <option value="typed">Typed values</option>
+              <option v-if="danglingSlotRef(slotIndex)" :value="`@${danglingSlotRef(slotIndex)}`">
+                @{{ danglingSlotRef(slotIndex) }} — not bound above
+              </option>
               <option v-for="option in rowValueOptions" :key="option.name" :value="`@${option.name}`">
                 @{{ option.name }}
               </option>
@@ -106,6 +119,9 @@
               @change="onGraphChange(($event.target as HTMLSelectElement).value)"
             >
               <option value="">None — the rule set's own DATA blocks</option>
+              <option v-if="dangling(cell.kind === 'ruleset' && cell.inputGraph?.from === 'value' ? cell.inputGraph.ref : undefined)" :value="graphSourceValue">
+                {{ graphSourceValue }} — not bound above
+              </option>
               <option v-for="option in graphValueOptions" :key="option.name" :value="`@${option.name}`">
                 @{{ option.name }}
               </option>
@@ -131,6 +147,9 @@
               @change="onQueryGraphChange(graphIndex, ($event.target as HTMLSelectElement).value)"
             >
               <option v-if="graph.from !== 'value'" value="">A saved data graph</option>
+              <option v-if="graph.from === 'value' && dangling(graph.ref)" :value="`@${graph.ref}`">
+                @{{ graph.ref }} — not bound above
+              </option>
               <option v-for="option in graphValueOptions" :key="option.name" :value="`@${option.name}`">
                 @{{ option.name }}
               </option>
@@ -312,6 +331,8 @@ const props = defineProps<{
   value: NotebookValue | null;
   /** Values bound above this cell, with a rendered summary for the chip. */
   valueOptions: Array<{ name: string; type: NotebookValue['type']; summary: string }>;
+  /** What `validateNotebook` says is wrong with this cell. */
+  problems?: string[];
   /** Whether this reader may write to the library at all. */
   canWrite?: boolean;
   /** Stores this cell may run against, and which one the library defaults to. */
@@ -382,6 +403,20 @@ const slots = computed<SlotSource[]>(() =>
 );
 
 /** Only rows can fill a parameter slot; a graph has nowhere to go in a VALUES block. */
+/**
+ * A reference to a name no cell above binds: the cell moved above its source,
+ * or the source was removed. Kept in the select so it does not read as blank.
+ */
+function dangling(ref: string | undefined): string | null {
+  if (!ref) return null;
+  return props.valueOptions.some((option) => option.name === ref) ? null : ref;
+}
+
+function danglingSlotRef(slotIndex: number): string | null {
+  const slot = slots.value[slotIndex];
+  return slot?.from === 'value' ? dangling(slot.ref) : null;
+}
+
 const rowValueOptions = computed(() => props.valueOptions.filter((option) => option.type === 'rows'));
 const graphValueOptions = computed(() => props.valueOptions.filter((option) => option.type === 'graph'));
 
@@ -495,24 +530,65 @@ const showArgs = computed(() => {
  * The builder is told about the typed slots only. Showing it a slot that a
  * value fills would offer a second way to set the same input, and the two would
  * disagree the moment someone used both.
+ *
+ * Setting `signature` clears the builder's rows, so it is set only when the
+ * signature itself changes (or another cell takes this component), never on
+ * the cell edits the builder's own change events cause. Each time it is set,
+ * the builder is loaded with what the cell holds, so a reloaded notebook shows
+ * the typed values it runs with.
  */
+const argsSignature = computed(() =>
+  props.target
+    ? {
+        inputs: typedSlotIndices.value.map((index) => props.target!.slots[index] ?? []),
+        limits: props.target.limitParameters,
+        offsets: props.target.offsetParameters,
+      }
+    : null,
+);
+const argsKey = computed(() => `${props.cell.id}|${JSON.stringify(argsSignature.value)}`);
+
 watch(
-  [argsEl, typedSlotIndices, () => props.target],
+  [argsEl, argsKey],
   () => {
     const element = argsEl.value;
-    if (!element || !props.target) return;
-    element.signature = {
-      inputs: typedSlotIndices.value.map((index) => props.target!.slots[index] ?? []),
-      limits: props.target.limitParameters,
-      offsets: props.target.offsetParameters,
-    };
+    const signature = argsSignature.value;
+    if (!element || !signature) return;
+    element.signature = signature;
+    element.payload = savedArgsPayload();
   },
   { immediate: true },
 );
 
+/**
+ * The cell's typed values, as the builder's payload. A slot whose only row is
+ * empty is "no filter", which the form spells as a slot left out.
+ */
+function savedArgsPayload() {
+  const target = props.target;
+  const args = typedSlotIndices.value.flatMap((index) => {
+    const slot = slots.value[index];
+    const vars = target?.slots[index] ?? [];
+    if (slot?.from !== 'typed') return [];
+    const rows = slot.bindings.filter((row) => Object.keys(row).length > 0);
+    return rows.length ? [{ head: { vars: [...vars] }, results: { bindings: rows } }] : [];
+  });
+  const cell = props.cell as { limits?: Record<string, number>; offsets?: Record<string, number> };
+  return {
+    arguments: args,
+    ...(cell.limits && Object.keys(cell.limits).length ? { limits: { ...cell.limits } } : {}),
+    ...(cell.offsets && Object.keys(cell.offsets).length ? { offsets: { ...cell.offsets } } : {}),
+  };
+}
+
 function onArgsChange(event: Event) {
   const detail = (event as CustomEvent<{ payload: unknown; valid: boolean }>).detail;
   if (!detail || detail.payload === undefined) return;
+  /*
+   * A row being typed (an IRI not yet filled in) stays in the form, but is not
+   * written to the cell: it would fail the run with a value nobody can see.
+   */
+  if (!detail.valid) return;
   const payload = detail.payload as {
     arguments?: Array<{ head?: { vars?: string[] }; results?: { bindings?: SparqlBindingRow[] } }>;
     limits?: Record<string, number>;
@@ -558,6 +634,11 @@ function onArgsChange(event: Event) {
  */
 const DEFAULT_MEDIA_TYPE = 'application/sparql-results+json';
 
+/** A CONSTRUCT has no results JSON; the server answers it in Turtle. */
+function defaultMediaTypeFor(resultKind: string | null | undefined): string {
+  return resultKind === 'GRAPH' ? 'text/turtle' : DEFAULT_MEDIA_TYPE;
+}
+
 /** The result shape, in the vocabulary the format groups are keyed by. */
 const queryTypeForFormats = computed(() => {
   if (!props.target) return null;
@@ -567,7 +648,9 @@ const queryTypeForFormats = computed(() => {
 });
 
 const backendChoice = computed(() => {
-  if (!props.target || props.target.kind === 'ruleset') return null;
+  // A rule set runs in memory, and each node of a group names its own store
+  // (the server refuses a backend for a group): neither has one to choose.
+  if (!props.target || props.target.kind !== 'query') return null;
   // Graphs given, the server makes the store: there is no backend to choose.
   if (queryGraphs.value.length > 0) return null;
   return {
@@ -582,7 +665,7 @@ const formatChoice = computed(() => {
   if (!props.target || props.target.kind === 'ruleset') return null;
   const accept = props.cell.kind === 'ruleset' ? null : props.cell.accept;
   return {
-    value: accept ?? DEFAULT_MEDIA_TYPE,
+    value: accept ?? defaultMediaTypeFor(props.target.resultKind),
     options: getAllMediaTypeOptions(),
     groups: getMediaTypeChoiceGroups(queryTypeForFormats.value),
     title: 'The format the results come back in',

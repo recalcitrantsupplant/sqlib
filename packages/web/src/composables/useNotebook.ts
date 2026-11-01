@@ -31,8 +31,10 @@ import type { Callable } from '../lib/callables';
 import {
   booleanValue,
   graphValue,
+  isTabularContentType,
   mapColumns,
   rowsValue,
+  tabularRowsValue,
   toSlotArgument,
   type NotebookValue,
   type RowsValue,
@@ -149,6 +151,11 @@ export function useNotebook(
   const lastRun = ref<Record<string, { payload: unknown; result: unknown }>>({});
 
   const problems = computed(() => validateNotebook(notebook.value));
+
+  /** What is wrong with one cell, as the document reads now. */
+  function problemsFor(cellId: string): string[] {
+    return problems.value.filter((problem) => problem.cellId === cellId).map((problem) => problem.message);
+  }
 
   /**
    * Load everything a cell can point at.
@@ -432,7 +439,9 @@ export function useNotebook(
      */
     const backendId = graphs.length
       ? null
-      : (cell.kind === 'ruleset' ? null : cell.backend) ?? defaultBackendFor(cell);
+      : cell.kind === 'query'
+        ? cell.backend ?? defaultBackendFor(cell)
+        : null; // a group's nodes name their own; the server refuses one for a group
     const accept = cell.kind === 'ruleset' ? null : cell.accept;
 
     /*
@@ -481,11 +490,16 @@ export function useNotebook(
           ? booleanValue(source, body.boolean)
           : rowsValue(source, body, result.body);
       lastRun.value = { ...lastRun.value, [cell.id]: { payload, result: body } };
+    } else if (isTabularContentType(result.contentType)) {
+      // A SELECT asked for as CSV or TSV is still rows, not a graph.
+      produced = tabularRowsValue(source, result.body, result.contentType);
+      lastRun.value = { ...lastRun.value, [cell.id]: { payload, result: result.body } };
     } else {
       produced = graphValue(source, result.body, result.contentType);
       lastRun.value = { ...lastRun.value, [cell.id]: { payload, result: result.body } };
     }
-    produced.resultRef = result.resultRef ?? null;
+    // A kept CSV body is no use as an argument: the server reads rows from JSON.
+    produced.resultRef = isTabularContentType(result.contentType) ? null : result.resultRef ?? null;
 
     bind(cell, produced, durationMs);
   }
@@ -572,6 +586,20 @@ export function useNotebook(
           ranAt: null,
           stale: false,
         },
+      };
+      return;
+    }
+
+    /*
+     * A cell reads only what is bound above it. A value bound below, or left
+     * over from a cell since removed, is still in memory, and running with it
+     * would give a result the document does not explain.
+     */
+    const unbound = problemsFor(cellId).find((message) => message.includes('is not bound by a cell above'));
+    if (unbound) {
+      runState.value = {
+        ...runState.value,
+        [cellId]: { status: 'error', error: unbound, durationMs: null, ranAt: null, stale: false },
       };
       return;
     }
@@ -679,6 +707,7 @@ export function useNotebook(
     runState,
     lastRun,
     problems,
+    problemsFor,
     targets,
     targetFor,
     defaultBackendFor,

@@ -14,6 +14,7 @@ import { describe, it, expect } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { defineArgsElement } from '@sparql-query-lib/runtime/args-element';
 import NotebookRunCell from '@/components/notebook/NotebookRunCell.vue';
+import RunBar from '@/components/shared/RunBar.vue';
 import { rowsValue } from '@/lib/notebookValues';
 import type { QueryCell } from '@/lib/notebookFormat';
 
@@ -145,6 +146,52 @@ describe('wiring a slot', () => {
     ]);
   });
 
+  it('loads the typed values the cell holds into the builder', async () => {
+    const city = { asset: { type: 'uri', value: 'urn:asset:1' } };
+    const wrapper = render({ cell: { ...CELL, slots: [{ from: 'typed', bindings: [city] }] } });
+    await wrapper.vm.$nextTick();
+    const element = wrapper.get('sqlib-args').element as HTMLElement & { payload: { arguments: unknown[] } };
+    expect(element.payload.arguments).toEqual([{ head: { vars: ['asset'] }, results: { bindings: [city] } }]);
+  });
+
+  it('keeps the builder rows when the cell takes its own edit back', async () => {
+    const wrapper = render();
+    const element = wrapper.get('sqlib-args').element as HTMLElement & { payload: { arguments: unknown[] } };
+    const asset = { asset: { type: 'uri', value: 'urn:asset:1' } };
+    element.payload = { arguments: [{ head: { vars: ['asset'] }, results: { bindings: [asset] } }] };
+
+    // The parent writes the emitted slots back into the cell, as the page does.
+    await wrapper.setProps({ cell: { ...CELL, slots: [{ from: 'typed', bindings: [asset] }] } });
+
+    expect(element.payload.arguments).toHaveLength(1);
+  });
+
+  it('does not write a row that would not serialise', async () => {
+    const wrapper = render();
+    wrapper.get('sqlib-args').element.dispatchEvent(
+      new CustomEvent('change', {
+        detail: {
+          payload: { arguments: [{ head: { vars: ['asset'] }, results: { bindings: [{ asset: { type: 'uri', value: '' } }] } }] },
+          valid: false,
+        },
+      }),
+    );
+    await wrapper.vm.$nextTick();
+    expect(wrapper.emitted('update')).toBeUndefined();
+  });
+
+  it('keeps a reference to a value not bound above in the select, and says why', () => {
+    const wrapper = render({
+      cell: { ...CELL, slots: [{ from: 'value', ref: 'gone' }] },
+      problems: ['@gone is not bound by a cell above this one.'],
+    });
+
+    const select = wrapper.get('[data-testid="notebook-slot-source-c1-0"]').element as HTMLSelectElement;
+    expect(select.value).toBe('@gone');
+    expect(select.selectedOptions[0]?.textContent).toContain('not bound above');
+    expect(wrapper.get('[data-testid="notebook-problem-c1"]').text()).toContain('@gone is not bound');
+  });
+
   it('shows what a wired slot carries, and that it travels by value', () => {
     const wrapper = render({
       cell: { ...CELL, slots: [{ from: 'value', ref: 'candidates' }] },
@@ -226,3 +273,19 @@ describe('the run sentence', () => {
     expect(wrapper.getComponent({ name: 'RunBar' }).props('backend')).toBeNull();
   });
 });
+
+describe('the run sentence', () => {
+  it('offers no backend for a group, whose nodes name their own', () => {
+    const wrapper = render({
+      cell: { kind: 'group', id: 'g1', group: 'urn:g:1', out: 'out1' },
+      target: { ...TARGET, id: 'urn:g:1', kind: 'group' },
+    });
+    expect(wrapper.find('[data-testid="run-bar-backend"]').exists()).toBe(false);
+  });
+
+  it('names Turtle as what a CONSTRUCT comes back in by default', () => {
+    const wrapper = render({ target: { ...TARGET, resultKind: 'GRAPH' } });
+    expect(wrapper.findComponent(RunBar).props('format')).toMatchObject({ value: 'text/turtle' });
+  });
+});
+

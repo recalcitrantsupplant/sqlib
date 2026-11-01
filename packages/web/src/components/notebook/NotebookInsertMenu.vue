@@ -220,7 +220,8 @@ function chooseMarkdown() {
 }
 
 .list {
-  max-height: var(--space-9);
+  /* Room for a library's worth of entries; it scrolls past that. */
+  max-height: min(50vh, calc(var(--grid-8) * 2));
   min-height: var(--space-9);
   overflow-y: auto;
   display: flex;
