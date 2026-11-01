@@ -35,6 +35,10 @@ export async function registerSwaggerDocs(
     swaggerTags.push({ name: 'QueryGroup', description: 'Routes for managing Query Groups' });
   }
 
+  if (featureFlags.notebook) {
+    swaggerTags.push({ name: 'Notebook', description: 'Routes for managing notebooks' });
+  }
+
   if (featureFlags.benchmarks) {
     swaggerTags.push({ name: 'Benchmark', description: 'Routes for managing benchmarks' });
   }

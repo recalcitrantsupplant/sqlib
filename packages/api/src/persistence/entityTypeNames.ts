@@ -67,6 +67,8 @@ export const ENTITY_TYPE_NAMES = [
   'Patch',
   'TupleSet',
   'TupleSetVersion',
+  'Notebook',
+  'NotebookVersion',
 ] as const;
 
 /** One of the entity types the system stores and resolves. */

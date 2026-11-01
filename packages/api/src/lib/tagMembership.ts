@@ -42,6 +42,7 @@ export const TAGGABLE_TYPES = [
   'Test',
   'ArgumentSet',
   'TupleSet',
+  'Notebook',
 ] as const satisfies readonly EntityType[];
 
 export type TaggableType = (typeof TAGGABLE_TYPES)[number];
