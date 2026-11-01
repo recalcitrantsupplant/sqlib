@@ -2094,6 +2094,10 @@ export const executionRouteSchemas = {
             "timings",
             "results"
           ]
+        },
+        "draftVersion": {
+          "type": "object",
+          "additionalProperties": true
         }
       },
       "required": [

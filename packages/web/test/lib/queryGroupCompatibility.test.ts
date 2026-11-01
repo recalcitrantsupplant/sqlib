@@ -5,6 +5,7 @@ import {
   arityDiagnostics,
   autoBind,
   checkEndpoint,
+  defaultVariablePairing,
   checkNodeKinds,
   isEndNodePassThrough,
   legalSourcePortKinds,
@@ -310,5 +311,17 @@ describe('variable mappings', () => {
 
   it('warns that an unknown arity cannot be checked, rather than treating it as zero', () => {
     expect(arityDiagnostics('src', 'unknownTuple', model).map(d => d.code)).toEqual(['mapping-arity-unknown']);
+  });
+});
+
+describe('defaultVariablePairing', () => {
+  it('pairs same names first, then the leftovers by position, as the engine does', () => {
+    const pairs = defaultVariablePairing(['city', 'name', 'country'], ['country', 'label']);
+    expect([...pairs]).toEqual([['country', 'country'], ['label', 'city']]);
+  });
+
+  it('leaves a target with no source left unpaired', () => {
+    const pairs = defaultVariablePairing(['city'], ['city', 'region']);
+    expect(pairs.has('region')).toBe(false);
   });
 });

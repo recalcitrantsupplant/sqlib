@@ -257,7 +257,7 @@ export interface UseQueryGroupExecutionResult {
   nodeExecutions: Ref<NodeExecutionDetail[]>;
   failedNodeId: Ref<string | null>;
   showBenchmarkDialog: Ref<boolean>;
-  executeQueryGroup: () => Promise<void>;
+  executeQueryGroup: (options?: { draft?: { body: Record<string, unknown>; targetId: string } }) => Promise<void>;
   validateQueryGroup: (options?: { silent?: boolean }) => Promise<{ valid: boolean; issues?: ValidationIssue[] } | null>;
   runBenchmark: () => Promise<void>;
   assignQueryToNode: (nodeId: string, payload: QuerySelectionPayload) => Promise<void>;
@@ -317,6 +317,8 @@ export interface UseQueryGroupVersionsResult {
   concurrencyTokens: Ref<Record<string, string | null>>;
   loadVersionList: (groupId: string, versions?: QueryGroupVersion[]) => Promise<void>;
   loadVersionById: (groupId: string, versionId: string) => Promise<void>;
+  /** Bumped each time a version has been put on the canvas. */
+  loadCount: Ref<number>;
   reloadVersionsAndSelect: (groupId: string, versionId: string | null, versions?: QueryGroupVersion[]) => Promise<void>;
   findVersionIdByNumber: (versionNumber: number | null) => string | null;
   setSelectedVersion: (versionId: string | null) => void;

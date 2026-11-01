@@ -245,6 +245,7 @@ export function useQueryGroupVersions(deps: UseQueryGroupVersionsDeps): UseQuery
 
     io.resetDrafts();
     io.populateFromExpanded(expanded);
+    loadCount.value += 1;
   };
 
   const reloadVersionsAndSelect = async (groupId: string, versionId: string | null, versions?: QueryGroupVersion[]) => {
@@ -270,6 +271,13 @@ export function useQueryGroupVersions(deps: UseQueryGroupVersionsDeps): UseQuery
   const setCurrentVersion = (versionId: string | null) => {
     currentVersionId.value = versionId;
   };
+
+  /**
+   * Bumped each time a version has been put on the canvas. The screen takes
+   * its "nothing changed yet" baseline from here, which is how it tells an
+   * edit from a load.
+   */
+  const loadCount = ref(0);
 
   const setSelectedVersion = (versionId: string | null) => {
     selectedVersionId.value = versionId;
@@ -303,6 +311,7 @@ export function useQueryGroupVersions(deps: UseQueryGroupVersionsDeps): UseQuery
     concurrencyTokens,
     loadVersionList,
     loadVersionById,
+    loadCount,
     reloadVersionsAndSelect,
     findVersionIdByNumber,
     setSelectedVersion,

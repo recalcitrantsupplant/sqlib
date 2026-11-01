@@ -192,8 +192,13 @@
               @update-variable="emit('update-variable', $event)"
             />
             <div class="start-node-actions">
-              <button class="btn-compact btn-primary" type="button" @click="emit('save-start-tuples')">
-                Save Inputs
+              <button
+                class="btn-compact btn-primary"
+                type="button"
+                title="Put these tuples on the canvas. Save the group to keep them."
+                @click="emit('save-start-tuples')"
+              >
+                Apply inputs
               </button>
             </div>
 
@@ -255,6 +260,24 @@
 
             <!-- Show variable badges if we have QueryInputTuple inputs -->
             <TupleVariableBadges :variables="nodeInputVariables" />
+
+            <!-- An input nothing feeds runs unconstrained. One click turns it
+                 into a group input, so the caller can give it values. -->
+            <ul v-if="unboundInputs?.length" class="unbound-inputs" data-testid="unbound-inputs">
+              <li v-for="input in unboundInputs" :key="input.portId">
+                <span class="unbound-input-vars">{{ input.variables.map(displayVariable).join(' ') }}</span>
+                <span class="unbound-input-note">nothing feeds this</span>
+                <button
+                  class="btn-compact"
+                  type="button"
+                  data-testid="expose-input"
+                  :title="`Add a group input for ${input.variables.map(displayVariable).join(' ')} and connect it to this node`"
+                  @click="emit('expose-input', { nodeId: selection.node.id, portId: input.portId })"
+                >
+                  Expose as group input
+                </button>
+              </li>
+            </ul>
 
             <!-- Show port list for non-tuple inputs (like RDF, Boolean, etc.) -->
             <ul v-if="nodeInputPorts.filter(p => p.entityType !== 'QueryInputTuple').length > 0" class="port-list">
@@ -659,6 +682,7 @@ import {
 } from '../../composables/queryGroupIoModel';
 import {
   arityDiagnostics,
+  defaultVariablePairing,
   sourceCandidates,
   targetCandidates,
   validateEdge,
@@ -722,6 +746,8 @@ const props = defineProps<{
   queryOptionsError?: string | null;
   tupleMembers: Record<string, TupleMemberRecord>;
   variables: Record<string, VariableRecord>;
+  /** The selected node's input tuples that no edge feeds. */
+  unboundInputs?: Array<{ portId: string; variables: string[] }>;
 }>();
 
 /** The normalized I/O model, as the shared helpers expect it. */
@@ -756,6 +782,7 @@ const emit = defineEmits<{
   (e: 'select-io-entity', payload: { entityId: string; parentNodeId?: string | null }): void;
   (e: 'delete-node', nodeId: string): void;
   (e: 'delete-edge', edgeId: string): void;
+  (e: 'expose-input', payload: { nodeId: string; portId: string }): void;
 }>();
 
 /**
@@ -1014,6 +1041,13 @@ const nodeIoState = computed<NodeIoState>(() => {
   }
 
   if (node.inputs.length === 0 && node.outputs.length === 0) {
+    // Start and End have no query version; their ports are the group's own.
+    if (node.kind === 'start') {
+      return { status: 'empty', message: 'This group takes no inputs yet. Add an input tuple below to give it a parameter.' };
+    }
+    if (node.kind === 'end') {
+      return { status: 'empty', message: 'Nothing feeds the End node yet. Draw an edge into it from the step that makes the result.' };
+    }
     return { status: 'empty', message: 'This query version declares no inputs or outputs.' };
   }
 
@@ -1230,9 +1264,17 @@ const targetPlaceholder = computed(() => {
 const toTupleInfo = (port: GraphPort): TupleInfo => {
   const entity = props.ioEntities[port.id];
   const memberEntries = Array.isArray(entity?.memberEntries) ? entity.memberEntries : null;
+  // An unnamed tuple is known by its variables; its IRI (a temporary one
+  // until the group is saved) tells the author nothing.
+  const readableLabel = port.label && port.label !== port.id && !/^(urn|https?):/i.test(port.label)
+    ? port.label
+    : null;
+  const variableNames = variablesForPort(port.id, ioModel.value)
+    ?.map((variable) => `?${variable.variableName}`)
+    .join(' ');
   return {
     id: port.id,
-    label: entity?.name ?? port.label ?? port.id,
+    label: entity?.name ?? readableLabel ?? (variableNames || 'Unnamed tuple'),
     // Unknown stays null. It used to collapse to 0, which then matched the
     // "no source selected" branch below and silently changed the filtering.
     arity: tupleArity(entity),
@@ -1354,8 +1396,10 @@ const tupleMapping = computed(() => {
   const targetNames = targetVariables.map((entry) => entry.variableName);
   const configured = new Map<string, string>();
   try { for (const item of JSON.parse(selection.value.edge.variableMappings ?? '[]')) if (typeof item?.source === 'string' && typeof item?.target === 'string') configured.set(item.target, item.source); } catch { /* defaults */ }
-  const remaining = sourceNames.filter(name => !targetNames.includes(name));
-  return targetNames.map((target, index) => ({ target, source: configured.get(target) ?? (sourceNames.includes(target) ? target : remaining[index] ?? null), sourceOptions: sourceNames }));
+  // The engine's rule: written mappings, even an empty list, replace the default pairing.
+  const written = (selection.value.edge.variableMappings ?? '').trim().length > 0;
+  const defaults = written ? new Map<string, string>() : defaultVariablePairing(sourceNames, targetNames);
+  return targetNames.map((target) => ({ target, source: configured.get(target) ?? defaults.get(target) ?? null, sourceOptions: sourceNames }));
 });
 
 /**
@@ -2023,4 +2067,30 @@ textarea.field-textarea {
   margin-top: auto;
 }
 
+.unbound-inputs {
+  list-style: none;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.unbound-inputs li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.unbound-input-vars {
+  font-family: var(--font-mono, monospace);
+  font-size: var(--text-body);
+}
+
+.unbound-input-note {
+  flex: 1;
+  font-size: var(--text-micro);
+  color: var(--warning-ink);
+}
 </style>

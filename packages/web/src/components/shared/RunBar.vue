@@ -408,6 +408,7 @@ const labelOf = (choice: RunBarChoice) =>
   display: flex;
   flex-shrink: 0;
   align-items: center;
+  container-type: inline-size;
   gap: var(--space-4);
   box-sizing: border-box;
   min-height: var(--panel-bar-h);
@@ -624,6 +625,24 @@ const labelOf = (choice: RunBarChoice) =>
   height: 22px;
   margin: 0 var(--space-2);
   background: var(--border-default);
+}
+
+/*
+ * A narrow column drops what the sentence can lose before it wraps: the kind
+ * word in front of a pick ("arguments" in "arguments none" — the joiner and
+ * the icon already say it) and the rule before "create", and tightens the gaps.
+ * At 1280px wide the group screen's canvas column is about this narrow.
+ */
+@container (width < 680px) {
+  .pick-kind,
+  .rule {
+    display: none;
+  }
+
+  .sentence,
+  .clause {
+    gap: var(--space-2);
+  }
 }
 
 .create-group {

@@ -666,11 +666,11 @@ test.describe('Query Version', () => {
 
     const description = page.locator('[data-testid="details-description"]');
     const toggle = page.locator('[data-testid="details-description-toggle"]');
-    await expect(toggle).toHaveText('more');
+    await expect(toggle).toHaveText('Show more');
 
     const clamped = await description.evaluate((element) => element.clientHeight);
     await toggle.click();
-    await expect(toggle).toHaveText('less');
+    await expect(toggle).toHaveText('Show less');
     const opened = await description.evaluate((element) => element.clientHeight);
     expect(opened).toBeGreaterThan(clamped);
 

@@ -66,8 +66,8 @@ describe('useEntityDraft — the lifecycle, per section', () => {
   });
 
   it('finds the sections in the work areas', () => {
-    // Eight versioned work areas draft through the shared lifecycle.
-    expect(SECTIONS).toEqual(['argumentSet', 'bench', 'dataGraph', 'etl', 'query', 'rule', 'test', 'tupleSet']);
+    // Nine versioned work areas draft through the shared lifecycle.
+    expect(SECTIONS).toEqual(['argumentSet', 'bench', 'dataGraph', 'etl', 'group', 'query', 'rule', 'test', 'tupleSet']);
   });
 
   describe.each(SECTIONS)('%s', (section) => {

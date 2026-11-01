@@ -141,10 +141,11 @@ Query groups live behind the `queryGroups` feature flag
    can override it in the edge inspector — an override the endpoints cannot
    carry is refused, visibly, rather than applied.
 4. **Map variables** on a bindings edge, in the edge inspector's grid. It
-   defaults by name — `city` pairs itself, and a target-only `region` is left
-   `UNDEF` rather than guessed at — and writes your choices out as the edge's
-   `variableMappings`. An edge with no mappings at all is paired by the engine
-   instead (§2).
+   shows what the engine will do with no mappings (§2): `city` pairs itself,
+   and a leftover target is fed the first leftover source by position. That
+   guess is marked with a warning, because a positional pair is often wrong;
+   set the target to a source or to `UNDEF` and your choices are written out
+   as the edge's `variableMappings`.
 5. **Save.** The save bar writes a **new version** — versions are immutable
    snapshots, so there is no in-place edit and the version pill advances.
 6. **Run.** The run bar runs the version you have open, falling back to the

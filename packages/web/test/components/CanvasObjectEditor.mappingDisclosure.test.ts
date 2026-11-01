@@ -117,8 +117,9 @@ describe('CanvasObjectEditor variable mapping disclosure', () => {
     expect(summary(wrapper).attributes('data-mapping-state')).toBe('error');
     expect(summary(wrapper).text()).toContain('1 problem');
     // The summary shows the mapping as configured, so the bad source is visible
-    // without opening anything.
-    expect(summaryLine(wrapper)).toBe('?nope ?pop ?area → ?city ?pop ?area');
+    // without opening anything. A written mapping replaces the default pairing
+    // outright, as the engine does, so the targets it leaves out are UNDEF.
+    expect(summaryLine(wrapper)).toBe('?nope UNDEF UNDEF → ?city ?pop ?area');
     expect(wrapper.find('[data-testid="edge-diagnostic"]').text()).toContain('?nope');
   });
 });

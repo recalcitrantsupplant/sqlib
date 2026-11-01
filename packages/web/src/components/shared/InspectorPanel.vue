@@ -105,7 +105,14 @@ watch(
 .inspector-panel {
   display: flex;
   flex-direction: column;
+  min-width: 0;
   height: 100%;
+  /*
+   * `clip`, not `hidden`: a hidden overflow can still be scrolled, and focusing
+   * a tab that sits past the edge scrolled the whole panel sideways and left
+   * it there, its left edge cut off.
+   */
+  overflow-x: clip;
   background: var(--surface);
   border-left: 1px solid var(--border-default);
 }
@@ -152,9 +159,18 @@ watch(
   color: var(--ink);
 }
 
+/* A narrow panel scrolls its tabs, rather than hiding the last ones. */
 .tabs-list {
   display: flex;
+  flex: 1 1 auto;
   gap: 4px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tabs-list::-webkit-scrollbar {
+  display: none;
 }
 
 .header-actions {
@@ -167,6 +183,8 @@ watch(
   position: relative;
   top: 1px;
   display: inline-flex;
+  flex-shrink: 0;
+  white-space: nowrap;
   align-items: center;
   gap: 6px;
   padding: 0 var(--space-6);
