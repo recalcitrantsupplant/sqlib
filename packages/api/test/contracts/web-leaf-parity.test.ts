@@ -57,6 +57,8 @@ import {
   testUpdateSchema,
   tagCreateSchema,
   tagUpdateSchema,
+  environmentCreateSchema,
+  environmentUpdateSchema,
   detectQueryRequestSchema,
   validateRuleDataRequestSchema,
   formatRequestSchema,
@@ -84,6 +86,8 @@ import {
   updateTestSchema,
   createTagSchema,
   updateTagSchema,
+  createEnvironmentSchema,
+  updateEnvironmentSchema,
   createRuleSetSchema,
   updateRuleSetSchema,
   backendSchema as backendEntitySchema,
@@ -97,6 +101,7 @@ import {
   tuplesetSchema as tupleSetEntitySchema,
   testSchema as testEntitySchema,
   tagSchema as tagEntitySchema,
+  environmentSchema as environmentEntitySchema,
 } from '@sparql-query-lib/contracts/schema';
 import {
   detectionRouteSchemas,
@@ -305,6 +310,22 @@ const PAIRS: Pair[] = [
     serverSource: 'contracts/schema → updateTagSchema.body',
     base: { name: 'Tag' },
     entity: tagEntitySchema,
+  },
+  {
+    name: 'environment.create',
+    leaf: environmentCreateSchema,
+    server: createEnvironmentSchema.body,
+    serverSource: 'contracts/schema → createEnvironmentSchema.body',
+    base: { name: 'prod', isPartOf: LIBRARY },
+    entity: environmentEntitySchema,
+  },
+  {
+    name: 'environment.update',
+    leaf: environmentUpdateSchema,
+    server: updateEnvironmentSchema.body,
+    serverSource: 'contracts/schema → updateEnvironmentSchema.body',
+    base: { name: 'prod' },
+    entity: environmentEntitySchema,
   },
   {
     name: 'detection.detectInputs',

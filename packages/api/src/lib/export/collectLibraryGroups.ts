@@ -22,6 +22,7 @@
  * See `docs/guides/static-export.md`.
  */
 
+import { exportVersionOf, type ExportEnvironment } from './collectLibraryQueries.js';
 import type { PersistedQueryGroup } from '../../persistence/schemas/QueryGroupSchema.js';
 import type { PersistedQueryGroupVersion } from '../../persistence/schemas/QueryGroupVersionSchema.js';
 import type { PersistedQueryVersion } from '../../persistence/schemas/QueryVersionSchema.js';
@@ -51,6 +52,12 @@ export interface CollectGroupsOptions {
   tags?: readonly string[];
   /** `any` (the default) keeps a group carrying any listed tag; `all` requires all. */
   match?: 'any' | 'all';
+  /**
+   * Export one environment's versions in place of each entity's current one
+   * (`docs/explanation/environments.md`). An entity the environment has no
+   * version of is skipped and reported.
+   */
+  environment?: ExportEnvironment;
 }
 
 /** A group the export could not include, and why — reported, never swallowed. */
@@ -388,16 +395,17 @@ export function collectLibraryGroups(
 
   for (const group of members) {
     const name = group.name ?? group.$id;
-    if (!group.currentVersion) {
-      skipped.push({ id: group.$id, name, reason: 'The group has no current version.' });
+    const picked = exportVersionOf(group, options.environment, 'group');
+    if ('reason' in picked) {
+      skipped.push({ id: group.$id, name, reason: picked.reason });
       continue;
     }
-    const version = source.getGroupVersion(group.currentVersion);
+    const version = source.getGroupVersion(picked.versionId);
     if (!version) {
       skipped.push({
         id: group.$id,
         name,
-        reason: `Its current version ${group.currentVersion} could not be found.`,
+        reason: `Its version ${picked.versionId} could not be found.`,
       });
       continue;
     }

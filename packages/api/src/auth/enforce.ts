@@ -11,12 +11,13 @@ import type { FastifyRequest } from 'fastify';
 import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
 import { auditDecision } from './audit.js';
 import { getAuthConfig } from './config.js';
-import { hasBackendMode, hasLibraryMode } from './grants.js';
+import { hasBackendMode, hasEnvironmentMode, hasLibraryMode } from './grants.js';
 import {
   createFullAccessContext,
   isEnforcingMode,
   type AuthContext,
   type BackendMode,
+  type EnvironmentMode,
   type LibraryMode,
 } from './types.js';
 
@@ -60,7 +61,7 @@ function decide(
   allowed: boolean,
   event: {
     resource: string | null;
-    resourceKind: 'library' | 'backend' | 'everything' | 'route' | 'session';
+    resourceKind: 'library' | 'backend' | 'environment' | 'everything' | 'route' | 'session';
     mode: string;
     matchedGrant?: string | null;
     message: string;
@@ -256,6 +257,84 @@ export function requireLibraryMode(
     message: libraryIri
       ? `Missing "${mode}" permission on library ${libraryIri}.`
       : `Missing "${mode}" permission: the target library could not be resolved.`,
+  });
+  return context;
+}
+
+/**
+ * The principal to record as the author of what this request saves, or null
+ * when nobody is signed in. A full-access context in `disabled` mode names a
+ * synthetic subject, which is not a person and is not recorded.
+ */
+export function creatorOf(request: FastifyRequest | null | undefined): string | null {
+  if (!request) return null;
+  const context = authOf(request);
+  if (context.fullAccess) return null;
+  return context.subject || null;
+}
+
+/**
+ * Requires that the caller may run one stored version.
+ *
+ * `execute` on the owning library runs any version, as it always has. Without
+ * it, `execute` on an environment runs exactly the versions that environment
+ * points to: `pointingEnvironments` are the environments pointing at this
+ * version (`environmentsPointingTo` in `lib/environments.ts`), passed in so
+ * this module does not depend on the entity layer.
+ */
+export function requireVersionExecute(
+  request: FastifyRequest,
+  libraryIri: string | null | undefined,
+  pointingEnvironments: readonly { $id: string }[],
+): AuthContext {
+  const context = authOf(request);
+  if (context.fullAccess || hasLibraryMode(context.grants, libraryIri, 'execute')) {
+    return requireLibraryMode(request, libraryIri, 'execute');
+  }
+  const via = pointingEnvironments.find(env => hasEnvironmentMode(context.grants, env.$id, 'execute'));
+  if (via) {
+    decide(request, context, true, {
+      resource: via.$id,
+      resourceKind: 'environment',
+      mode: 'execute',
+      message: '',
+    });
+    return context;
+  }
+  // Neither: refuse as the library check always has, so the message and the
+  // audit row read the same as before environments existed.
+  return requireLibraryMode(request, libraryIri, 'execute');
+}
+
+/** Non-throwing check of an environment mode. */
+export function canEnvironment(
+  request: FastifyRequest,
+  environmentIri: string | null | undefined,
+  mode: EnvironmentMode,
+): boolean {
+  const context = authOf(request);
+  if (context.fullAccess) return true;
+  return hasEnvironmentMode(context.grants, environmentIri, mode);
+}
+
+/**
+ * Requires a mode on an environment: `promote` to move its pointers. Holding
+ * `control` on the library is not enough; that defines environments, it does
+ * not approve what goes into them.
+ */
+export function requireEnvironmentMode(
+  request: FastifyRequest,
+  environment: { $id: string; name?: string },
+  mode: EnvironmentMode,
+): AuthContext {
+  const context = authOf(request);
+  const allowed = context.fullAccess || hasEnvironmentMode(context.grants, environment.$id, mode);
+  decide(request, context, allowed, {
+    resource: environment.$id,
+    resourceKind: 'environment',
+    mode,
+    matchedGrant: allowed && context.grants.admin ? 'implicit:admin' : undefined,
+    message: `Missing "${mode}" permission on environment ${environment.name ? `"${environment.name}"` : environment.$id}.`,
   });
   return context;
 }

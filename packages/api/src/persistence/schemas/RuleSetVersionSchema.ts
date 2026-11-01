@@ -9,7 +9,7 @@
  */
 
 import type { Schema } from '../schema.js';
-import { xsd, sqlib, sdo } from '../namespaces.js';
+import { xsd, sqlib, sdo, dct } from '../namespaces.js';
 
 export const RuleSetVersionSchema = {
   '@type': sqlib.RuleSetVersion,
@@ -82,6 +82,18 @@ export const RuleSetVersionSchema = {
     '@type': xsd.boolean,
     '@optional': true,
   },
+  /**
+   * Who saved this version: the caller's principal IRI. Absent when nobody
+   * was signed in (`SQLIB_AUTH_MODE=disabled`) and on versions saved before
+   * it existed. Set by the server, never by the request body. A promotion's
+   * reviewer is checked against it: nobody approves their own version.
+   */
+  createdBy: {
+    '@id': dct.creator,
+    '@type': sqlib.IRI,
+    '@optional': true,
+    '@readOnly': true,
+  },
   dateCreated: {
     '@id': sdo.dateCreated,
     '@type': xsd.dateTime,
@@ -107,6 +119,7 @@ export interface PersistedRuleSetVersion {
   tupleSeeds?: string | null;
   srlDocument?: string | null;
   tuplesEnabled?: boolean | null;
+  createdBy?: string | null;
   dateCreated?: string | null;
   dateModified?: string | null;
 }

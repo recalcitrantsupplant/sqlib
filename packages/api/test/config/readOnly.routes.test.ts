@@ -33,6 +33,7 @@ const PLUGINS: Record<string, string> = {
   '/backends': '../../src/routes/backends.js',
   '/libraries': '../../src/routes/libraries.js',
   '/tags': '../../src/routes/tags.js',
+  '/environments': '../../src/routes/environments.js',
   '/tuple-sets': '../../src/routes/tuple-sets.js',
   '/data-graphs': '../../src/routes/data-graphs.js',
   '/patches': '../../src/routes/patches.js',

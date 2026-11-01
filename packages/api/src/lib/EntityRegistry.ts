@@ -16,6 +16,7 @@ import type { PersistedTestCase } from '../persistence/schemas/TestCaseSchema.js
 import type { PersistedTestCaseDataGraph } from '../persistence/schemas/TestCaseDataGraphSchema.js';
 import type { PersistedBrowserDefaultDataGraph } from '../persistence/schemas/BrowserDefaultDataGraphSchema.js';
 import type { PersistedTag } from '../persistence/schemas/TagSchema.js';
+import type { PersistedEnvironment } from '../persistence/schemas/EnvironmentSchema.js';
 import type { PersistedPatch } from '../persistence/schemas/PatchSchema.js';
 import type { PersistedTupleSet } from '../persistence/schemas/TupleSetSchema.js';
 import type { PersistedTupleSetVersion } from '../persistence/schemas/TupleSetVersionSchema.js';
@@ -102,6 +103,7 @@ import { TestCases } from '../persistence/utils/TestCaseUtils.js';
 import { TestCaseDataGraphs } from '../persistence/utils/TestCaseDataGraphUtils.js';
 import { BrowserDefaultDataGraphs } from '../persistence/utils/BrowserDefaultDataGraphUtils.js';
 import { Tags } from '../persistence/utils/TagUtils.js';
+import { Environments } from '../persistence/utils/EnvironmentUtils.js';
 import { Patches } from '../persistence/utils/PatchUtils.js';
 import { TupleSets, TupleSetVersions } from '../persistence/utils/TupleSetUtils.js';
 import type { EntityTypeName } from '../persistence/entityTypeNames.js';
@@ -156,6 +158,7 @@ export const LENS_BY_TYPE = {
   TestCaseDataGraph: TestCaseDataGraphs,
   BrowserDefaultDataGraph: BrowserDefaultDataGraphs,
   Tag: Tags,
+  Environment: Environments,
   Patch: Patches,
   TupleSet: TupleSets,
   TupleSetVersion: TupleSetVersions,
@@ -213,6 +216,7 @@ export type EntityByType = {
   TestCaseDataGraph: PersistedTestCaseDataGraph;
   BrowserDefaultDataGraph: PersistedBrowserDefaultDataGraph;
   Tag: PersistedTag;
+  Environment: PersistedEnvironment;
   Patch: PersistedPatch;
   TupleSet: PersistedTupleSet;
   TupleSetVersion: PersistedTupleSetVersion;
@@ -247,6 +251,10 @@ export const TTL_MS: Partial<Record<EntityType, number>> = {
   // Long, like Library: tags are named once and then read on every list
   // request that draws a filter row.
   Tag: 120_000,
+  // Short: an environment's pointers move on every promotion, and a run that
+  // resolves "prod" must see the move. Writes go through this process and
+  // update the cache directly; the TTL bounds a write made elsewhere.
+  Environment: 15_000,
   TupleSet: 15_000,
   TupleSetVersion: Number.POSITIVE_INFINITY,
   // A patch is an event: once written, only its status ever changes, and that

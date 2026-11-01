@@ -13,6 +13,7 @@
  * tools with one name, or a pinned backend that is gone. `MCP_CATALOGUE`
  * decides what that costs (`config/catalogueMode.ts`).
  */
+import { requestedEnvironment, resolveVersionIn } from './environments.js';
 import {
   checkToolObject,
   defaultToolObject,
@@ -151,8 +152,15 @@ export function collectPublishedTools(): PublishedCatalogue {
   for (const { kind, entity } of entries) {
     const libraryId = libraryOf(entity);
     const library = get<PersistedLibrary>(libraryId);
-    const version = get<PersistedQueryVersion | PersistedQueryGroupVersion>(entity.currentVersion);
-    if (!library || !version) continue;
+    if (!library) continue;
+    // The version the deployment's environment points to
+    // (`SQLIB_DEFAULT_ENVIRONMENT`), else the current one. An entry with no
+    // version in that environment is not published: a prod server publishes
+    // what was promoted to prod, and nothing else.
+    const resolution = resolveVersionIn(entity as unknown as Parameters<typeof resolveVersionIn>[0], requestedEnvironment(undefined));
+    if (!resolution.ok) continue;
+    const version = get<PersistedQueryVersion | PersistedQueryGroupVersion>(resolution.version);
+    if (!version) continue;
 
     const declared = version.tool;
     if (declared === false) continue;

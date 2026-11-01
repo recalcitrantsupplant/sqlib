@@ -57,6 +57,7 @@ export const NS = {
   testCaseDataGraph: 'urn:sqlib:test-case-data-graph:',
   browserDefaultDataGraph: 'urn:sqlib:browser-default-data-graph:',
   tag: 'urn:sqlib:tag:',
+  environment: 'urn:sqlib:environment:',
   patch: 'urn:sqlib:patch:',
   tupleSet: 'urn:sqlib:tuple-set:',
   tupleSetVersion: 'urn:sqlib:tuple-set-version:',
@@ -202,6 +203,8 @@ const ALIAS_TO_KIND: Record<string, KnownKind> = {
 
   // tags
   'tag': 'tag',
+  // environments
+  'environment': 'environment',
 
   // patches
   'patch': 'patch',
