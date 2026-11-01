@@ -8,6 +8,8 @@ import { loadTupleMembersByIds } from '../persistence/utils/TupleMemberUtils.js'
 import { QueryTypeIri } from '../constants/queryTypes.js';
 import { toQueryTypeIri } from './queryTypes.js';
 import { isSrlImportable, SRL_IMPORT_REVISION } from '@sparql-query-lib/srl';
+import { isWhenEmptyMode, versionSlotPolicies } from './slotPolicies.js';
+import type { WhenEmptyMode } from '../persistence/schemas/QueryEdgeSchema.js';
 
 type AnyRecord = Record<string, any>;
 
@@ -123,6 +125,55 @@ export function srlImportability(
 }
 
 /**
+ * One slot's requested `whenEmpty`, as `POST /queries/:id/versions` takes it:
+ * the slot named by its variables, `null` to clear a mode the previous version
+ * had.
+ */
+export interface InputPolicy {
+  vars: string[];
+  whenEmpty: WhenEmptyMode | null;
+}
+
+/**
+ * Decide each new input tuple's `whenEmpty`.
+ *
+ * A version is immutable, so the mode changes only with a new version, and a
+ * text edit must not silently drop a guard the author set. In order:
+ *
+ * 1. the body's `inputPolicies` entry for the slot's variables, if any;
+ * 2. a `whenEmpty` key on the tuple itself (a client re-saving what it loaded);
+ * 3. the mode of the previous current version's slot with the same variables.
+ *
+ * Slots are matched by variable set, not order, as argument sets are.
+ */
+function inputTupleWhenEmpty(
+  queryId: string,
+  inputPolicies: InputPolicy[] | undefined,
+): (tuple: AnyRecord, memberEntries: string[]) => WhenEmptyMode | undefined {
+  const cacheCoordinator = getCacheCoordinator();
+  const signature = (vars: readonly string[]) => [...vars].sort().join(' ');
+  const requested = new Map((inputPolicies ?? []).map(policy => [signature(policy.vars), policy.whenEmpty]));
+  const parent = cacheCoordinator.get(queryId) as { currentVersion?: string | null } | null;
+  const previousVersion = parent?.currentVersion
+    ? cacheCoordinator.get(parent.currentVersion) as LdkitQueryVersion | null
+    : null;
+  const previous = new Map(versionSlotPolicies(previousVersion).map(policy => [signature(policy.vars), policy.whenEmpty]));
+
+  const memberNames = (memberEntries: string[]): string[] => memberEntries.flatMap(memberId => {
+    const member = cacheCoordinator.get(memberId) as { variable?: string } | null;
+    const variable = member?.variable ? cacheCoordinator.get(member.variable) as { variableName?: string } | null : null;
+    return variable?.variableName ? [variable.variableName] : [];
+  });
+
+  return (tuple, memberEntries) => {
+    const key = signature(memberNames(memberEntries));
+    if (requested.has(key)) return requested.get(key) ?? undefined;
+    if ('whenEmpty' in tuple) return isWhenEmptyMode(tuple.whenEmpty) ? tuple.whenEmpty : undefined;
+    return previous.get(key);
+  };
+}
+
+/**
  * Numbered and pointed at under the parent's version lock (`allocateVersion`),
  * so concurrent saves get consecutive numbers and the last to finish is current.
  */
@@ -232,12 +283,20 @@ async function createQueryVersionFlatNumbered(queryId: string, body: AnyRecord, 
   }
 
   const inputTupleIds: string[] = [];
+  const whenEmptyFor = inputTupleWhenEmpty(queryId, body.inputPolicies as InputPolicy[] | undefined);
   // Support both old and new field names for backwards compatibility
   const inputTupleList = (body.inputTuples as AnyRecord[] | undefined) || (body.inferredInputs as AnyRecord[] | undefined) || [];
   for (const t of inputTupleList) {
     const id = ensureResourceId(t, 'inputTuple');
     const memberEntries = Array.isArray(t.memberEntries) ? t.memberEntries.map((x: string) => resolveRef(x)!) : [];
-    await cacheCoordinator.create('QueryInputTuple', toLdkit({ $id: id, name: t.name, memberEntries, '@type': 'QueryInputTuple' }));
+    const whenEmpty = whenEmptyFor(t, memberEntries);
+    await cacheCoordinator.create('QueryInputTuple', toLdkit({
+      $id: id,
+      name: t.name,
+      memberEntries,
+      ...(whenEmpty ? { whenEmpty } : {}),
+      '@type': 'QueryInputTuple',
+    }));
     inputTupleIds.push(id);
   }
 

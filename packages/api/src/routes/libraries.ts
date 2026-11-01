@@ -381,6 +381,7 @@ export default async function (fastify: FastifyInstance) {
             listQueries: () => repos.Query.list() as LdkitQuery[],
             getQueryVersion: (versionId) =>
               repos.QueryVersion.get(versionId) as LdkitQueryVersion | null,
+            getEntity: (entityId) => getCacheCoordinator().get(entityId),
           },
           id,
           { tags, match: request.query.match ?? 'any' }

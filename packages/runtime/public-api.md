@@ -6,7 +6,7 @@
      CI fails when this file and the built declarations disagree, so every
      addition, removal or signature change arrives as a reviewable diff. -->
 
-Version `0.1.0`. 3 entry points, 166 exported names.
+Version `0.1.0`. 3 entry points, 170 exported names.
 
 Private and protected class members are omitted: a consumer cannot reach them.
 Doc comments are omitted too — they are in the source, and repeating them here
@@ -14,7 +14,7 @@ would make every wording change a surface diff.
 
 ## `@sparql-query-lib/runtime`
 
-77 exports, from `index.d.ts`.
+79 exports, from `index.d.ts`.
 
 ### `Abbreviation` — interface, from `describe-term`
 
@@ -29,7 +29,7 @@ interface Abbreviation {
 ### `applyTemplateArguments` — function, from `query-template`
 
 ```ts
-declare function applyTemplateArguments(template: QueryTemplate, argumentSets: TemplateArgumentSet[]): string;
+declare function applyTemplateArguments(template: QueryTemplate, argumentSets: TemplateArgumentSet[], slotPolicies?: readonly SlotPolicy[]): string;
 ```
 
 ### `ArgumentRow` — type, from `query-template`
@@ -85,13 +85,19 @@ interface CallPayload {
 ### `completeArgumentSets` — function, from `query-template`
 
 ```ts
-declare function completeArgumentSets(slotVars: readonly (readonly string[])[], argumentSets: readonly TemplateArgumentSet[]): TemplateArgumentSet[];
+declare function completeArgumentSets(slotVars: readonly (readonly string[])[], argumentSets: readonly TemplateArgumentSet[], slotPolicies?: readonly SlotPolicy[]): TemplateArgumentSet[];
 ```
 
 ### `datasetParameters` — function, from `executor`
 
 ```ts
 declare function datasetParameters(dataset: SparqlDataset | undefined): Array<[string, string]>;
+```
+
+### `describeSlot` — function, from `query-template`
+
+```ts
+declare function describeSlot(vars: readonly string[]): string;
 ```
 
 ### `describeTerm` — function, from `describe-term`
@@ -257,6 +263,7 @@ interface ExportedQuery {
     offsetParameters: string[];
     pageParameters?: PageParameterSpan[];
     inferredInputs: string[][];
+    inputPolicies?: SlotPolicy[];
     textHash: string;
     sourceVersion?: string;
     sourceQuery?: string;
@@ -603,6 +610,15 @@ declare function serializeTerm(term: TermValue, context: string, prefixes?: Pref
 declare function serializeVariable(name: string): string;
 ```
 
+### `SlotPolicy` — interface, from `query-template`
+
+```ts
+interface SlotPolicy {
+    vars: readonly string[];
+    whenEmpty: EmptyArgumentMode;
+}
+```
+
 ### `SparqlAskResults` — interface, from `executor`
 
 ```ts
@@ -799,6 +815,6 @@ declare class SqlibArgsElement extends ArgsElementBase {
 
 ## `@sparql-query-lib/runtime/browser`
 
-83 exports, from `browser.d.ts`.
+85 exports, from `browser.d.ts`.
 
-83 of them are re-exported unchanged from an entry point above: `Abbreviation`, `applyTemplateArguments`, `ARGS_ELEMENT_STYLES`, `ArgsElementBase`, `ArgsPayload`, `ArgsSignature`, `ArgumentRow`, `ArgumentSetInput`, `assertPageParameterValue`, `assertValidBundle`, `assignArgumentSets`, `CallPayload`, `completeArgumentSets`, `datasetParameters`, `defineArgsElement`, `describeTerm`, `DescribeTermOptions`, `EMPTY_DATASET_GRAPH`, `EmptyArgumentMode`, `escapeLiteralLexical`, `ExecutionParameter`, `ExecutionRequest`, `ExecutionResult`, `Executor`, `ExportBundle`, `ExportedEtlColumn`, `ExportedEtlJob`, `ExportedGroup`, `ExportedGroupEdge`, `ExportedGroupNode`, `ExportedQuery`, `ExportedQueryType`, `ExportedRuleSet`, `findLimitOffsetClauses`, `fromBundle`, `FromBundleOptions`, `GroupCallPayload`, `GroupExternalInput`, `GroupHandle`, `GroupRunResult`, `GroupVariableMapping`, `hashTemplateText`, `httpExecutor`, `HttpExecutorOptions`, `InvalidArgumentError`, `InvalidBundleError`, `InvalidParameterError`, `InvalidTermError`, `iri`, `isSafeVariableName`, `LimitOffsetClause`, `literal`, `normalizeArguments`, `PageParameterSpan`, `ParameterInput`, `PrefixTable`, `prefixTableAbbreviator`, `QueryCallError`, `QueryExample`, `QueryHandle`, `QueryLibrary`, `QueryTemplate`, `RdfPayload`, `renderValuesBlock`, `rewriteLimitOffsetClauses`, `serializeIri`, `serializeTerm`, `serializeVariable`, `SparqlAskResults`, `SparqlDataset`, `SparqlEndpointError`, `SparqlSelectResults`, `SqlibArgsElement`, `substituteLimitOffset`, `TemplateArgumentSet`, `TemplateSlot`, `TermDescription`, `TermValue`, `toExecutionParameters`, `TypedExportBundle`, `UpdateRequest`, `verifyBundleIntegrity`, `WireArgumentSet`.
+85 of them are re-exported unchanged from an entry point above: `Abbreviation`, `applyTemplateArguments`, `ARGS_ELEMENT_STYLES`, `ArgsElementBase`, `ArgsPayload`, `ArgsSignature`, `ArgumentRow`, `ArgumentSetInput`, `assertPageParameterValue`, `assertValidBundle`, `assignArgumentSets`, `CallPayload`, `completeArgumentSets`, `datasetParameters`, `defineArgsElement`, `describeSlot`, `describeTerm`, `DescribeTermOptions`, `EMPTY_DATASET_GRAPH`, `EmptyArgumentMode`, `escapeLiteralLexical`, `ExecutionParameter`, `ExecutionRequest`, `ExecutionResult`, `Executor`, `ExportBundle`, `ExportedEtlColumn`, `ExportedEtlJob`, `ExportedGroup`, `ExportedGroupEdge`, `ExportedGroupNode`, `ExportedQuery`, `ExportedQueryType`, `ExportedRuleSet`, `findLimitOffsetClauses`, `fromBundle`, `FromBundleOptions`, `GroupCallPayload`, `GroupExternalInput`, `GroupHandle`, `GroupRunResult`, `GroupVariableMapping`, `hashTemplateText`, `httpExecutor`, `HttpExecutorOptions`, `InvalidArgumentError`, `InvalidBundleError`, `InvalidParameterError`, `InvalidTermError`, `iri`, `isSafeVariableName`, `LimitOffsetClause`, `literal`, `normalizeArguments`, `PageParameterSpan`, `ParameterInput`, `PrefixTable`, `prefixTableAbbreviator`, `QueryCallError`, `QueryExample`, `QueryHandle`, `QueryLibrary`, `QueryTemplate`, `RdfPayload`, `renderValuesBlock`, `rewriteLimitOffsetClauses`, `serializeIri`, `serializeTerm`, `serializeVariable`, `SlotPolicy`, `SparqlAskResults`, `SparqlDataset`, `SparqlEndpointError`, `SparqlSelectResults`, `SqlibArgsElement`, `substituteLimitOffset`, `TemplateArgumentSet`, `TemplateSlot`, `TermDescription`, `TermValue`, `toExecutionParameters`, `TypedExportBundle`, `UpdateRequest`, `verifyBundleIntegrity`, `WireArgumentSet`.

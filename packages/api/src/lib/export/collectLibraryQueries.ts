@@ -10,11 +10,27 @@
 import type { LdkitQuery } from '../../persistence/schemas/QuerySchema.js';
 import type { LdkitQueryVersion } from '../../persistence/schemas/QueryVersionSchema.js';
 import type { ExportQueryInput } from './queryBundle.js';
+import { slotPoliciesOf } from '../slotPolicies.js';
+
+/** The `inputPolicies` field for an export input, or nothing when it has none. */
+export function inputPoliciesOf(
+  version: LdkitQueryVersion,
+  getEntity: ((id: string) => unknown) | undefined,
+): Pick<ExportQueryInput, 'inputPolicies'> {
+  if (!getEntity) return {};
+  const inputPolicies = slotPoliciesOf(version, getEntity);
+  return inputPolicies.length > 0 ? { inputPolicies } : {};
+}
 
 /** The entity reads this module needs, so a script can supply them too. */
 export interface LibraryQuerySource {
   listQueries(): LdkitQuery[];
   getQueryVersion(id: string): LdkitQueryVersion | null;
+  /**
+   * Any entity by IRI, for the version's input tuples and their `whenEmpty`.
+   * Without it the export carries no slot policies.
+   */
+  getEntity?(id: string): unknown;
 }
 
 export interface CollectOptions {
@@ -96,6 +112,7 @@ export function collectLibraryQueries(
       sourceVersion: version.$id,
       ...(query.tags && query.tags.length > 0 ? { tags: [...query.tags] } : {}),
       ...(query.description ? { description: query.description } : {}),
+      ...inputPoliciesOf(version, source.getEntity),
     });
   }
 

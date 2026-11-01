@@ -28,6 +28,8 @@ import type { LdkitQueryVersion } from '../../persistence/schemas/QueryVersionSc
 import type { LdkitQuery } from '../../persistence/schemas/QuerySchema.js';
 import { WHEN_EMPTY_MODES, type WhenEmptyMode } from '../../persistence/schemas/QueryEdgeSchema.js';
 import { slugify } from './queryBundle.js';
+import { inputPoliciesOf } from './collectLibraryQueries.js';
+import type { SlotPolicy } from '@sparql-query-lib/runtime';
 
 /** Any entity in a group's graph, read as the untyped record a store returns. */
 export type GroupGraphEntity = Record<string, unknown> & { '@type'?: string };
@@ -71,6 +73,8 @@ export interface ExportGroupNodeInput {
   sourceVersion: string;
   tags?: string[];
   description?: string;
+  /** The query version's per-slot `whenEmpty`. */
+  inputPolicies?: SlotPolicy[];
 }
 
 /** One chaining edge, with every name resolved. */
@@ -253,6 +257,7 @@ function reduceGroup(
       sourceVersion: queryVersion.$id,
       ...(stable?.tags && stable.tags.length > 0 ? { tags: [...stable.tags] } : {}),
       ...(stable?.description ? { description: stable.description } : {}),
+      ...inputPoliciesOf(queryVersion, (id) => source.getEntity(id)),
     });
   }
 

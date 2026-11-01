@@ -34,7 +34,7 @@ import type { ExportedGroup, ExportedGroupEdge, ExportedQuery } from './bundle.j
 import { QueryCallError } from './errors.js';
 import type { ExecutionResult, SparqlSelectResults } from './executor.js';
 import { toExecutionParameters, type ExecutionParameter } from './limit-offset.js';
-import type { EmptyArgumentMode, TemplateArgumentSet } from './query-template.js';
+import type { TemplateArgumentSet } from './query-template.js';
 import type { TermValue } from './sparql-terms.js';
 import { substituteCall, type ParameterInput, type QueryHandle } from './library.js';
 
@@ -264,16 +264,19 @@ export class GroupHandle {
     const inbound = this.inboundEdges(node);
     const claimed = new Set<string>();
 
-    return query.template.slots.map((slot) => {
+    // A slot nothing fills is left out, and `completeArgumentSets` fills it
+    // from the query's own slot policy, or runs it open.
+    return query.template.slots.flatMap((slot) => {
       const key = slot.vars.join(' ');
       const edges = claimed.has(key)
         ? []
         : inbound.filter((edge) => sameOrder(edge.targetVars, slot.vars));
       if (edges.length > 0) {
         claimed.add(key);
-        return this.chainedArgumentSet(node, slot.vars, edges, results);
+        return [this.chainedArgumentSet(node, slot.vars, edges, results)];
       }
-      return externalArgumentSet(node, slot.vars, external);
+      const supplied = externalArgumentSet(node, slot.vars, external);
+      return supplied ? [supplied] : [];
     });
   }
 
@@ -331,7 +334,7 @@ export class GroupHandle {
 }
 
 /**
- * The caller's set for a slot no edge fills, or an unconstrained empty one.
+ * The caller's set for a slot no edge fills, or `undefined` when none arrived.
  *
  * Matched on the variables in order, and a same-variables-different-order set is
  * an error rather than a near miss — both are what a group run through the API
@@ -341,7 +344,7 @@ function externalArgumentSet(
   node: string,
   vars: readonly string[],
   external: readonly TemplateArgumentSet[],
-): TemplateArgumentSet {
+): TemplateArgumentSet | undefined {
   const supplied = external.find((set) => sameOrder(set.head.vars, vars));
   if (supplied) return supplied;
 
@@ -352,13 +355,9 @@ function externalArgumentSet(
     );
   }
 
-  // Nothing arrived for this slot. An absent external parameter runs open, which
-  // is the same default the API applies.
-  return {
-    head: { vars: [...vars] },
-    results: { bindings: [] },
-    whenEmpty: 'unconstrained' satisfies EmptyArgumentMode,
-  };
+  // Nothing arrived for this slot. The substitution decides what that means:
+  // the query's slot policy, or open, which is the same default the API applies.
+  return undefined;
 }
 
 /** Page parameters a given query declares — the rest are not its business. */
