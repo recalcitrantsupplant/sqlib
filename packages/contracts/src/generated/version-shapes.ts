@@ -115,6 +115,7 @@ export const queryVersionShape = {
           )
           .optional(),
         refusals: z.record(z.string().regex(/^[A-Za-z0-9_]{1,64}$/), z.string().min(1)).optional(),
+        dataGraphId: z.string().min(1).optional(),
       })
       .strict(),
     z.literal(false),
@@ -288,6 +289,7 @@ export const queryGroupVersionShape = {
           )
           .optional(),
         refusals: z.record(z.string().regex(/^[A-Za-z0-9_]{1,64}$/), z.string().min(1)).optional(),
+        dataGraphId: z.string().min(1).optional(),
       })
       .strict(),
     z.literal(false),
@@ -342,6 +344,32 @@ export const ruleSetVersionShape = {
   tuplesEnabled: nullableBoolean,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
+  tool: z.union([
+    z
+      .object({
+        name: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/),
+        description: z.string().min(1),
+        params: z
+          .record(
+            z.string(),
+            z
+              .object({
+                kind: z.enum(["iri", "string", "langString", "integer", "decimal", "boolean", "date", "dateTime", "term"]),
+                required: z.boolean().optional(),
+                list: z.boolean().optional(),
+                description: z.string().optional(),
+              })
+              .strict(),
+          )
+          .optional(),
+        refusals: z.record(z.string().regex(/^[A-Za-z0-9_]{1,64}$/), z.string().min(1)).optional(),
+        dataGraphId: z.string().min(1).optional(),
+      })
+      .strict(),
+    z.literal(false),
+  ])
+    .optional()
+    .nullable(),
 };
 // DataGraphVersion, projected from the entity model
 export const dataGraphVersionShape = {

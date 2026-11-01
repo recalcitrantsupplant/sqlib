@@ -11,6 +11,7 @@ import type { PersistedDataBlockVersion } from '../persistence/schemas/DataBlock
 import { getFeatureFlags } from '../config/featureFlags.js';
 import { ruleTuplesRefusal, hasSeedText } from './ruleTuples.js';
 import { ValidationError } from './validationError.js';
+import { ToolObjectError, resolveVersionTool } from './toolObject.js';
 
 type AnyRecord = Record<string, any>;
 
@@ -37,7 +38,17 @@ export interface CreateRuleSetVersionInput {
    * a deliberate "keep my broken draft", not a default.
    */
   allowInvalidSave?: boolean;
+  /**
+   * The tool this version publishes as, or `false` to keep it out of a
+   * `publishAll` library; `null` clears it. Left out, the previous version's
+   * carries forward, so re-saving the rules keeps a published rule set
+   * published. See `docs/guides/publishing-tools.md`.
+   */
+  tool?: unknown;
 }
+
+/** A rule set has no parameters: the tool check sees no inputs. */
+const NO_INPUTS = { tables: [], limits: [], offsets: [] };
 
 /**
  * Numbered and pointed at under the parent's version lock (`allocateVersion`),
@@ -127,6 +138,26 @@ async function createRuleSetVersionNumbered(
     throw new ValidationError(`Cannot add invalid DataBlockVersions to RuleSet: ${ids}`);
   }
 
+  const parent = cacheCoordinator.get(ruleSetId) as AnyRecord | null;
+  const previous = typeof parent?.currentVersion === 'string'
+    ? cacheCoordinator.get(parent.currentVersion) as PersistedRuleSetVersion | null
+    : null;
+  let tool: ReturnType<typeof resolveVersionTool>;
+  try {
+    tool = resolveVersionTool({
+      body: Object.prototype.hasOwnProperty.call(body, 'tool') ? { tool: body.tool } : {},
+      previous,
+      inputs: NO_INPUTS,
+      targetKind: 'ruleSet',
+      checkDataGraph: id => (cacheCoordinator.get(id) as AnyRecord | null)?.['@type'] === 'DataGraph'
+        ? null
+        : `tool.dataGraphId: ${id} is not a data graph`,
+    });
+  } catch (error) {
+    if (error instanceof ToolObjectError) throw new ValidationError(error.message);
+    throw error;
+  }
+
   const versionId = mintId('ruleSetVersion');
 
   const payload: AnyRecord = {
@@ -161,6 +192,7 @@ async function createRuleSetVersionNumbered(
   // Verbatim, not trimmed: the point is to read back exactly what was saved.
   // An empty document says nothing a generated one would not.
   if (body.srlDocument != null && body.srlDocument.trim()) payload.srlDocument = body.srlDocument;
+  if (tool !== undefined) payload.tool = tool;
 
   // No stratification for a version that holds a rule the grammar rejected:
   // stratifying needs an AST, and a partial report over the rules that did

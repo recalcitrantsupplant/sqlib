@@ -441,6 +441,10 @@ export const queryversionSchema = {
                 "type": "string",
                 "minLength": 1
               }
+            },
+            "dataGraphId": {
+              "type": "string",
+              "minLength": 1
             }
           },
           "required": [
@@ -2551,6 +2555,10 @@ export const querygroupversionSchema = {
                 "type": "string",
                 "minLength": 1
               }
+            },
+            "dataGraphId": {
+              "type": "string",
+              "minLength": 1
             }
           },
           "required": [
@@ -3040,6 +3048,87 @@ export const rulesetversionSchema = {
       "format": "date-time",
       "readOnly": true,
       "nullable": true
+    },
+    "tool": {
+      "title": "PublishedTool",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            },
+            "description": {
+              "type": "string",
+              "minLength": 1
+            },
+            "params": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "iri",
+                      "string",
+                      "langString",
+                      "integer",
+                      "decimal",
+                      "boolean",
+                      "date",
+                      "dateTime",
+                      "term"
+                    ]
+                  },
+                  "required": {
+                    "type": "boolean"
+                  },
+                  "list": {
+                    "type": "boolean"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "refusals": {
+              "type": "object",
+              "propertyNames": {
+                "pattern": "^[A-Za-z0-9_]{1,64}$"
+              },
+              "additionalProperties": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "dataGraphId": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "name",
+            "description"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "boolean",
+          "enum": [
+            false
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "required": [
@@ -4468,6 +4557,7 @@ export interface RuleSetVersionRestApi {
   tuplesEnabled?: boolean | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  tool?: string;
 }
 
 export interface RuleVersionRestApi {

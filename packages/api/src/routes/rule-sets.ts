@@ -154,6 +154,8 @@ const createRuleSetVersionBodySchema = {
      * then reference. Honoured only under `rulesAllowInvalidSave`.
      */
     allowInvalidSave: { type: 'boolean', nullable: true },
+    /* The tool this version publishes as; left out, the previous version's. */
+    tool: rulesetversionSchema.properties.tool,
   },
   additionalProperties: false,
 } as const;
@@ -362,6 +364,7 @@ export default async function (fastify: FastifyInstance) {
         hasDataBlock: (body.hasDataBlock as string[] | null | undefined) ?? [],
         immutable: (body.immutable as boolean | null | undefined) ?? undefined,
         allowInvalidSave: (body.allowInvalidSave as boolean | null | undefined) ?? undefined,
+        ...(Object.prototype.hasOwnProperty.call(body, 'tool') ? { tool: body.tool } : {}),
       }, { request });
       return { created: created as unknown as StoredEntity };
     },
@@ -767,6 +770,8 @@ export default async function (fastify: FastifyInstance) {
           comment: { type: 'string', nullable: true },
           tuples: { type: 'boolean' },
           tupleSeeds: { type: 'string', nullable: true },
+          /* The tool the new version publishes as; left out, the previous version's. */
+          tool: rulesetversionSchema.properties.tool,
         },
         required: ['srl'],
       }),
@@ -886,6 +891,7 @@ export default async function (fastify: FastifyInstance) {
       tupleSeeds: seedDocument,
       tuplesEnabled: tuples,
       srlDocument: body.srl,
+      ...(Object.prototype.hasOwnProperty.call(body, 'tool') ? { tool: body.tool } : {}),
     }, { request });
 
     return reply.send({

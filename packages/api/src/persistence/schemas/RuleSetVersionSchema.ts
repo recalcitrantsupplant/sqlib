@@ -8,8 +8,9 @@
  * When a parent entity's currentVersion is updated, RuleSets don't automatically change behavior.
  */
 
+import type { ToolObject as PublishedToolObject } from '@sparql-query-lib/tools';
 import type { Schema } from '../schema.js';
-import { xsd, sqlib, sdo } from '../namespaces.js';
+import { xsd, sqlib, sdo, rdf } from '../namespaces.js';
 
 export const RuleSetVersionSchema = {
   '@type': sqlib.RuleSetVersion,
@@ -92,6 +93,17 @@ export const RuleSetVersionSchema = {
     '@type': xsd.dateTime,
     '@optional': true,
   },
+  /**
+   * The tool this version publishes as (`docs/guides/publishing-tools.md`),
+   * or `false` to leave it out of a `publishAll` library. A save that sends
+   * no `tool` copies the previous version's, as for a query version.
+   */
+  tool: {
+    '@id': sqlib.tool,
+    '@type': rdf.JSON,
+    '@jsonShape': 'PublishedTool',
+    '@optional': true,
+  },
 } as const satisfies Schema;
 
 export interface PersistedRuleSetVersion {
@@ -109,4 +121,5 @@ export interface PersistedRuleSetVersion {
   tuplesEnabled?: boolean | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  tool?: PublishedToolObject | false | null;
 }

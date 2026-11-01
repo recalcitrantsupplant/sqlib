@@ -5,7 +5,8 @@
  * query versions that carry `tool` objects, which is where a `tool` object is
  * checked and carried forward. The tools are collected when a server starts,
  * so a second instance over the same store is the one that serves them, and a
- * third runs with `MCP_CATALOGUE=published`.
+ * third runs with `MCP_CATALOGUE=published`. A rule set is published beside
+ * the queries, on the people data graph by default.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import Fastify, { type FastifyInstance } from 'fastify';
@@ -78,6 +79,11 @@ WHERE {
     },
   };
 
+  const NEIGHBOURS = `PREFIX ex: <http://example.org/>
+RULE { ?a ex:neighbour ?b } WHERE { ?a ex:city ?city . ?b ex:city ?city . FILTER(?a != ?b) }`;
+  const saveRules = (payload: object) =>
+    send(author, 'POST', `/rule-sets/${encodeURIComponent(ids.ruleSet)}/srl`, { srl: NEIGHBOURS, ...payload });
+
   beforeAll(async () => {
     outputDir = await fs.mkdtemp(path.join(os.tmpdir(), 'published-tools-'));
     setEnv('FEATURE_QUERIES', 'true');
@@ -123,6 +129,10 @@ WHERE {
       defaultBackend: ids.backend,
     });
     ids.settle = settle.body.id;
+
+    const ruleSet = await send(author, 'POST', '/rule-sets', { name: 'Neighbours', isPartOf: [ids.library] });
+    expect(ruleSet.status).toBe(201);
+    ids.ruleSet = ruleSet.body.id;
 
     const unpublished = await send(author, 'POST', '/queries', { name: 'Everyone', isPartOf: [ids.library] });
     ids.unpublished = unpublished.body.id;
@@ -189,6 +199,34 @@ WHERE {
     expect(saved.body.queryVersion.tool).toEqual(settleTool);
   });
 
+  it('checks a rule set\'s tool object, and carries it to a version that sends none', async () => {
+    const withParams = await saveRules({
+      tool: { name: 'neighbours', description: 'x', params: { city: { kind: 'string' } } },
+    });
+    expect(withParams.status).toBe(400);
+    expect(withParams.body.error).toContain('a published rule set takes no parameters');
+
+    const notAGraph = await saveRules({
+      tool: { name: 'neighbours', description: 'x', dataGraphId: ids.backend },
+    });
+    expect(notAGraph.status).toBe(400);
+    expect(notAGraph.body.error).toBe(`tool.dataGraphId: ${ids.backend} is not a data graph`);
+
+    const neighboursTool = {
+      name: 'neighbours',
+      description: 'Who lives in the same city as whom.',
+      dataGraphId: ids.dataGraph,
+    };
+    const saved = await saveRules({ tool: neighboursTool });
+    expect(saved.status).toBe(200);
+    const resaved = await saveRules({ comment: 'Same rules again' });
+    expect(resaved.status).toBe(200);
+    const version = await send(author, 'GET', `/rule-sets/${encodeURIComponent(ids.ruleSet)}/versions/${resaved.body.version}`);
+    expect(version.body.ruleSetVersion.tool).toEqual(neighboursTool);
+    ids.ruleSetVersion = resaved.body.ruleSetVersionId;
+    ids.ruleSetVersionNumber = String(resaved.body.version);
+  });
+
   describe('a server started after the tools were saved', () => {
     let server: FastifyInstance;
 
@@ -221,7 +259,13 @@ WHERE {
       const document = await send(server, 'GET', '/tools/people/openapi.json');
       expect(document.status).toBe(200);
       expect(document.body.openapi).toBe('3.1.0');
-      expect(Object.keys(document.body.paths).sort()).toEqual(['/tools/people/people-in-city', '/tools/people/settle']);
+      expect(Object.keys(document.body.paths).sort()).toEqual([
+        '/tools/people/neighbours',
+        '/tools/people/people-in-city',
+        '/tools/people/settle',
+      ]);
+      expect(Object.keys(document.body.paths['/tools/people/neighbours'].post.requestBody.content['application/json'].schema.properties))
+        .toEqual(['data', 'format']);
       expect(document.body.paths['/tools/people/people-in-city'].get.parameters.map((p: Json) => p.name)).toEqual([
         '1',
         'city',
@@ -242,6 +286,39 @@ WHERE {
           inputs: { tables: [['city']], limits: ['1'], offsets: [] },
         }),
       ]);
+    });
+
+    it('runs a rule set on its pinned data graph, or on the caller\'s RDF', async () => {
+      const published = (server as unknown as { sqlibPublished: { catalogue: { specs: Json[] } } }).sqlibPublished;
+      const dataGraph = await send(author, 'GET', `/data-graphs/${encodeURIComponent(ids.dataGraph)}`);
+      expect(published.catalogue.specs.filter((spec: Json) => spec.name === 'neighbours')).toEqual([
+        expect.objectContaining({
+          targetKind: 'ruleSet',
+          targetId: ids.ruleSetVersion,
+          readOnly: true,
+          ruleSet: {
+            id: ids.ruleSet,
+            version: Number(ids.ruleSetVersionNumber),
+            dataGraphVersionId: dataGraph.body.currentVersion,
+          },
+        }),
+      ]);
+
+      const pinned = await send(server, 'POST', '/tools/people/neighbours', {});
+      expect(pinned.status).toBe(200);
+      expect(JSON.stringify(pinned.body)).toContain('neighbour');
+      expect(JSON.stringify(pinned.body)).toContain('http://example.org/cara');
+
+      const own = await send(server, 'POST', '/tools/people/neighbours', {
+        data: '<http://example.org/dan> <http://example.org/city> "Hobart" .\n<http://example.org/eve> <http://example.org/city> "Hobart" .',
+        format: 'application/n-triples',
+      });
+      expect(own.status).toBe(200);
+      expect(JSON.stringify(own.body)).toContain('http://example.org/eve');
+      expect(JSON.stringify(own.body)).not.toContain('http://example.org/cara');
+
+      const unknown = await send(server, 'POST', '/tools/people/neighbours', { dataGraphId: ids.dataGraph });
+      expect(unknown.status).toBe(400);
     });
 
     it('refuses an update whose preconditions fail, naming each failed flag, and writes otherwise', async () => {
@@ -301,7 +378,12 @@ WHERE {
 
     it('publishes a default tool for an entry that declares none', async () => {
       const published = (server as unknown as { sqlibPublished: { catalogue: { specs: Json[] } } }).sqlibPublished;
-      expect(published.catalogue.specs.map((spec: Json) => spec.name).sort()).toEqual(['Everyone', 'people-in-city', 'settle']);
+      expect(published.catalogue.specs.map((spec: Json) => spec.name).sort()).toEqual([
+        'Everyone',
+        'neighbours',
+        'people-in-city',
+        'settle',
+      ]);
     });
 
     it('answers 404 for every authoring route', async () => {
@@ -316,6 +398,16 @@ WHERE {
       const tool = await send(server, 'GET', '/tools/people/people-in-city?city=Darwin&1=10');
       expect(tool.status).toBe(200);
       expect(tool.body.results.bindings.map((b: Json) => b.name.value)).toEqual(['Bob']);
+    });
+
+    it('runs only the pinned rule set version, on the caller\'s RDF or the pinned graph', async () => {
+      const url = `/rule-sets/${encodeURIComponent(ids.ruleSet)}/execute`;
+      const version = Number(ids.ruleSetVersionNumber);
+      expect((await send(server, 'POST', url, { version: version - 1 })).status).toBe(403);
+      expect((await send(server, 'POST', url, { version, dataGraphId: ids.dataGraph })).status).toBe(403);
+
+      const tool = await send(server, 'POST', '/tools/people/neighbours', {});
+      expect(tool.status).toBe(200);
     });
   });
 });

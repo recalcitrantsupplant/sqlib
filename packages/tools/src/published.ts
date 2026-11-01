@@ -1,12 +1,13 @@
 /**
- * Published tools: a library's stored queries and groups, offered as tools by
- * name, with one plain argument per parameter.
+ * Published tools: a library's stored queries, groups and rule sets, offered as
+ * tools by name, with one plain argument per parameter.
  *
  * The catalogue in `tools.ts` is for building a library; these are the
  * application that library makes (`docs/guides/publishing-tools.md`). Both
  * kinds are a `ToolDefinition`, so both doors run them through the same
- * registry, and a published tool's request is `POST /execute` with the pinned
- * version as its target, as `execute.run` would send it.
+ * registry. A published query or group's request is `POST /execute` with the
+ * pinned version as its target, as `execute.run` would send it; a published
+ * rule set's is `POST /rule-sets/{id}/execute` with the pinned version number.
  *
  * Nothing here reads the store. The API collects a `PublishedToolSpec` per
  * tool when it starts; this module turns one into a JSON Schema, a request and
@@ -37,7 +38,10 @@ export type ToolParamSpec = {
   description?: string;
 };
 
-/** The `tool` object a query version or query group version carries. */
+/** What a published tool runs. */
+export type ToolTargetKind = 'query' | 'group' | 'ruleSet';
+
+/** The `tool` object a query, query group or rule set version carries. */
 export type ToolObject = {
   name: string;
   description: string;
@@ -48,7 +52,25 @@ export type ToolObject = {
    * is refused with that message, `{param}` filled from the call's arguments.
    */
   refusals?: Record<string, string>;
+  /**
+   * Published rule sets only: the data graph the rules run on when a call
+   * sends no `data` of its own. Its current version is pinned at startup.
+   */
+  dataGraphId?: string;
 };
+
+/**
+ * What a published rule set takes: RDF to run the rules on, in place of its
+ * pinned data graph, and that RDF's format.
+ */
+export const RULE_SET_DATA_ARGUMENT = 'data';
+export const RULE_SET_FORMAT_ARGUMENT = 'format';
+
+/** The formats a published rule set's `data` may be in. The first is the default. */
+export const RULE_SET_DATA_FORMATS = ['text/turtle', 'application/n-triples', 'application/n-quads'] as const;
+
+/** What a published rule set answers with: its inferred triples as Turtle. */
+export const RULE_SET_INFERENCE_FORMAT = 'text/turtle';
 
 /** A refusal key: what follows `?ok_` in a SPARQL variable name. */
 export const REFUSAL_KEY_PATTERN = '^[A-Za-z0-9_]{1,64}$';
@@ -100,10 +122,10 @@ export type PublishedToolSpec = {
   libraryId: string;
   name: string;
   description: string;
-  /** The pinned query version or query group version. */
+  /** The pinned query version, query group version or rule set version. */
   targetId: string;
-  targetKind: 'query' | 'group';
-  /** SELECT, ASK, CONSTRUCT or DESCRIBE, or a group of only those. */
+  targetKind: ToolTargetKind;
+  /** SELECT, ASK, CONSTRUCT or DESCRIBE, or a group of only those. A rule set always. */
   readOnly: boolean;
   params: Record<string, ToolParamSpec>;
   inputs: DetectedInputs;
@@ -111,6 +133,13 @@ export type PublishedToolSpec = {
   defaultBackendId?: string;
   /** The `tool` object's refusal messages, by flag. Published updates only. */
   refusals?: Record<string, string>;
+  /** Rule sets only: the rule set and the number of its pinned version. */
+  ruleSet?: {
+    id: string;
+    version: number;
+    /** The pinned data graph's version at startup, used when a call sends no `data`. */
+    dataGraphVersionId?: string;
+  };
 };
 
 /** A call the published tool refuses before anything runs. Answers 400. */
@@ -147,10 +176,27 @@ const ABSOLUTE_IRI = /^[A-Za-z][A-Za-z0-9+.-]*:[^\s<>"{}|\\^`]*$/;
 export function checkToolObject(
   tool: ToolObject,
   inputs: DetectedInputs,
-  options: { targetKind: 'query' | 'group' },
+  options: { targetKind: ToolTargetKind },
 ): string | null {
   if (!new RegExp(TOOL_NAME_PATTERN).test(tool.name)) {
     return `tool.name "${tool.name}" must match ${TOOL_NAME_PATTERN}: letters, digits, "_" and "-", at most 64`;
+  }
+  if (tool.dataGraphId !== undefined) {
+    if (options.targetKind !== 'ruleSet') {
+      return 'tool.dataGraphId: only a published rule set runs on a data graph';
+    }
+    if (typeof tool.dataGraphId !== 'string' || !tool.dataGraphId.trim()) {
+      return 'tool.dataGraphId must be the id of a data graph';
+    }
+  }
+  if (options.targetKind === 'ruleSet') {
+    if (tool.params && Object.keys(tool.params).length) {
+      return `tool.params: a published rule set takes no parameters, only "${RULE_SET_DATA_ARGUMENT}" and "${RULE_SET_FORMAT_ARGUMENT}"`;
+    }
+    if (tool.refusals !== undefined) {
+      return 'tool.refusals: only a published query can have refusals, not a rule set';
+    }
+    return null;
   }
   const variables = new Set(inputs.tables.flat());
   const pages = new Set([...inputs.limits, ...inputs.offsets]);
@@ -282,9 +328,11 @@ function paramSchema(spec: ToolParamSpec): Record<string, unknown> {
 
 /**
  * The tool's arguments as a JSON Schema: one property per parameter, plus
- * `backendId` for a query. Unknown arguments are refused.
+ * `backendId` for a query. A rule set's are `data` and `format`. Unknown
+ * arguments are refused.
  */
 export function publishedInputSchema(spec: PublishedToolSpec): Record<string, unknown> & { type: 'object' } {
+  if (spec.targetKind === 'ruleSet') return ruleSetInputSchema(spec);
   const properties: Record<string, unknown> = {};
   for (const [key, param] of Object.entries(spec.params)) properties[key] = paramSchema(param);
   if (spec.targetKind === 'query') {
@@ -303,6 +351,27 @@ export function publishedInputSchema(spec: PublishedToolSpec): Record<string, un
     type: 'object',
     properties,
     ...(required.length ? { required } : {}),
+    additionalProperties: false,
+  };
+}
+
+function ruleSetInputSchema(spec: PublishedToolSpec): Record<string, unknown> & { type: 'object' } {
+  const pinned = Boolean(spec.ruleSet?.dataGraphVersionId);
+  return {
+    type: 'object',
+    properties: {
+      [RULE_SET_DATA_ARGUMENT]: {
+        type: 'string',
+        description: pinned
+          ? 'RDF to run the rules on, in place of the data graph this tool runs on by default.'
+          : 'RDF to run the rules on. Without it the rules run on their own data blocks only.',
+      },
+      [RULE_SET_FORMAT_ARGUMENT]: {
+        type: 'string',
+        enum: [...RULE_SET_DATA_FORMATS],
+        description: `The format of "${RULE_SET_DATA_ARGUMENT}". Defaults to ${RULE_SET_DATA_FORMATS[0]}.`,
+      },
+    },
     additionalProperties: false,
   };
 }
@@ -460,8 +529,71 @@ export function buildPublishedExecuteBody(
   return body;
 }
 
+export type PublishedRuleSetBody = {
+  version: number;
+  inferenceFormat: string;
+  dataGraphVersionId?: string;
+  dataGraphInline?: string;
+  dataGraphInlineFormat?: string;
+};
+
+/**
+ * The `POST /rule-sets/{id}/execute` body for a call to a published rule set:
+ * the pinned version, and the caller's `data` if it sent any, else the pinned
+ * data graph, else neither, so the rules run on their own data blocks.
+ */
+export function buildPublishedRuleSetBody(
+  spec: PublishedToolSpec,
+  values: Record<string, unknown>,
+): PublishedRuleSetBody {
+  const ruleSet = spec.ruleSet;
+  if (spec.targetKind !== 'ruleSet' || !ruleSet) {
+    throw new Error(`${spec.name} is not a published rule set`);
+  }
+  for (const key of Object.keys(values)) {
+    if (key === RULE_SET_DATA_ARGUMENT || key === RULE_SET_FORMAT_ARGUMENT) continue;
+    throw new PublishedToolArgumentError(`${key}: this tool takes no such argument`);
+  }
+  const data = values[RULE_SET_DATA_ARGUMENT];
+  const format = values[RULE_SET_FORMAT_ARGUMENT];
+  if (data !== undefined && data !== null && typeof data !== 'string') {
+    throw new PublishedToolArgumentError(`${RULE_SET_DATA_ARGUMENT}: must be RDF text`);
+  }
+  if (format !== undefined && format !== null
+    && !(RULE_SET_DATA_FORMATS as readonly unknown[]).includes(format)) {
+    throw new PublishedToolArgumentError(
+      `${RULE_SET_FORMAT_ARGUMENT}: ${JSON.stringify(format)} is not one of ${RULE_SET_DATA_FORMATS.join(', ')}`,
+    );
+  }
+  if (typeof format === 'string' && typeof data !== 'string') {
+    throw new PublishedToolArgumentError(`${RULE_SET_FORMAT_ARGUMENT}: needs "${RULE_SET_DATA_ARGUMENT}"`);
+  }
+
+  const body: PublishedRuleSetBody = { version: ruleSet.version, inferenceFormat: RULE_SET_INFERENCE_FORMAT };
+  if (typeof data === 'string') {
+    body.dataGraphInline = data;
+    body.dataGraphInlineFormat = typeof format === 'string' ? format : RULE_SET_DATA_FORMATS[0];
+  } else if (ruleSet.dataGraphVersionId) {
+    body.dataGraphVersionId = ruleSet.dataGraphVersionId;
+  }
+  return body;
+}
+
+/** The path a published rule set's call posts to, below any base path. */
+export function publishedRuleSetExecutePath(ruleSetId: string): string {
+  return `/rule-sets/${encodeURIComponent(ruleSetId)}/execute`;
+}
+
 /** The API request a published tool's call makes. */
 export function buildPublishedRequest(spec: PublishedToolSpec, values: Record<string, unknown>): ToolRequest {
+  if (spec.targetKind === 'ruleSet') {
+    return {
+      method: 'POST',
+      url: publishedRuleSetExecutePath(spec.ruleSet!.id),
+      headers: { 'content-type': 'application/json' },
+      payload: buildPublishedRuleSetBody(spec, values),
+    };
+  }
   return {
     method: 'POST',
     url: '/execute',
@@ -487,9 +619,13 @@ export function publishedToolDefinition(spec: PublishedToolSpec, name: string = 
 
 // ------------------------------------------------------------------ HTTP --
 
-/** `GET` for a tool that only reads, `POST` for one that writes. */
+/**
+ * `GET` for a query or group that only reads, `POST` for one that writes. A
+ * rule set is `POST`: it only reads, but its `data` can be far longer than a
+ * URL.
+ */
 export function publishedHttpMethod(spec: PublishedToolSpec): 'GET' | 'POST' {
-  return spec.readOnly ? 'GET' : 'POST';
+  return spec.readOnly && spec.targetKind !== 'ruleSet' ? 'GET' : 'POST';
 }
 
 /**
@@ -566,7 +702,11 @@ export function publishedOpenApiDocument(options: {
     const properties = schema.properties as Record<string, Record<string, unknown>>;
     const required = new Set((schema.required as string[] | undefined) ?? []);
     const responses = {
-      200: { description: 'What `POST /execute` returns for the pinned version.' },
+      200: {
+        description: spec.targetKind === 'ruleSet'
+          ? 'What `POST /rule-sets/{id}/execute` returns for the pinned version, the inferred triples as Turtle.'
+          : 'What `POST /execute` returns for the pinned version.',
+      },
       400: { description: 'An argument is missing, unknown or of the wrong kind.' },
       ...(spec.refusals
         ? {
