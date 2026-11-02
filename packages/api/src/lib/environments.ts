@@ -60,6 +60,39 @@ export function findEnvironment(libraryIri: string, name: string): PersistedEnvi
   return environmentsOf(libraryIri).find(env => env.name === name) ?? null;
 }
 
+/**
+ * The pointers a new environment starts with.
+ *
+ * `latest` copies every promotable entity's `currentVersion` in the library,
+ * except group-only queries, which are never promoted on their own. An
+ * environment id copies that environment's pointers; it must belong to the
+ * same library. Null or undefined starts empty.
+ */
+export function startingVersions(
+  libraryIri: string,
+  startFrom: string | null | undefined,
+): { ok: true; versions: string[] } | { ok: false; error: string } {
+  if (!startFrom) return { ok: true, versions: [] };
+  if (startFrom === LATEST_ENVIRONMENT) {
+    const cache = getCacheCoordinator() as { list?: (type: never) => unknown };
+    if (typeof cache.list !== 'function') return { ok: true, versions: [] };
+    const versions: string[] = [];
+    for (const type of Object.keys(PROMOTABLE_TYPES)) {
+      const entities = (cache.list(type as never) as Entity[] | null) ?? [];
+      for (const entity of entities) {
+        if (entity.groupOnly === true) continue;
+        if (typeof entity.currentVersion !== 'string') continue;
+        if (resolveOwningLibrary(entity) !== libraryIri) continue;
+        versions.push(entity.currentVersion);
+      }
+    }
+    return { ok: true, versions };
+  }
+  const source = environmentsOf(libraryIri).find(env => env.$id === startFrom);
+  if (!source) return { ok: false, error: `${startFrom} is not an environment of this library` };
+  return { ok: true, versions: [...(source.versions ?? [])] };
+}
+
 /** The version of `entityId` that `env` points to, or null. */
 export function versionIn(env: Pick<PersistedEnvironment, 'versions'>, entityId: string): string | null {
   const cache = getCacheCoordinator();

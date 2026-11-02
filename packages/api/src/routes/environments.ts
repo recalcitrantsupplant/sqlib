@@ -29,7 +29,7 @@ import { createEnvironmentSchema, updateEnvironmentSchema } from '@sparql-query-
 import { registerEntityAuthGuard } from '../auth/entityGuard.js';
 import { authOf, filterReadable, requireEnvironmentMode, requireLibraryMode, resolveOwningLibrary } from '../auth/enforce.js';
 import { getAuthStore } from '../auth/AuthStore.js';
-import { isPromotableType, LATEST_ENVIRONMENT, partsBehind, PROMOTABLE_TYPES, versionIn } from '../lib/environments.js';
+import { isPromotableType, LATEST_ENVIRONMENT, partsBehind, PROMOTABLE_TYPES, startingVersions, versionIn } from '../lib/environments.js';
 
 export const environmentResponseSchema = {
   type: 'object',
@@ -98,6 +98,24 @@ const movePointerBodySchema = {
 } as const;
 
 type Entity = Record<string, unknown> & { $id: string; '@type'?: string; name?: string };
+
+/**
+ * The create body, plus `startFrom`: "latest" or an environment of the same
+ * library whose pointers the new one copies. It is a create option, not a
+ * field, so it is added here rather than to the entity schema.
+ *
+ * Seeding at create needs only `control`, the same as creating. The new
+ * environment has no grants yet, so nobody can run or promote through it, and
+ * a person with `control` can already read every version it copies. Moving a
+ * pointer afterwards still needs `promote`.
+ */
+const createEnvironmentBody = {
+  ...createEnvironmentSchema.body,
+  properties: {
+    ...createEnvironmentSchema.body.properties,
+    startFrom: { type: 'string', minLength: 1, nullable: true },
+  },
+} as const;
 
 /** Names are unique per library, compared exactly: "Prod" and "prod" are two. */
 function findNameClash(
@@ -188,7 +206,8 @@ export default async function (fastify: FastifyInstance) {
   fastify.post('/', ...reposRoute({
       tags: ['Environment'],
       summary: 'Create environment',
-      body: createEnvironmentSchema.body,
+      description: 'With `startFrom` ("latest" or an environment id of the same library), the new environment starts with those pointers.',
+      body: createEnvironmentBody,
       response: { 201: environmentResponseSchema, 400: errorResponseSchema, 409: errorResponseSchema },
     }, async ({ repos, reply, request }) => {
     const cacheCoordinator = getCacheCoordinator();
@@ -215,6 +234,9 @@ export default async function (fastify: FastifyInstance) {
       return reply.status(409).send({ error: `An environment named "${name}" already exists in this library` });
     }
 
+    const seed = startingVersions(library, (body as { startFrom?: string | null }).startFrom);
+    if (!seed.ok) return reply.status(400).send({ error: seed.error });
+
     const id = body.id || mintId('environment');
     if (cacheCoordinator.get(id)) {
       return reply.status(409).send({ error: `An entity with id ${id} already exists` });
@@ -227,7 +249,7 @@ export default async function (fastify: FastifyInstance) {
       position: body.position ?? null,
       defaultBackend: body.defaultBackend ?? null,
       isPartOf: library,
-      versions: [],
+      versions: seed.versions,
     } as Partial<PersistedEnvironment> & { $id: string });
 
     setEntityConcurrencyHeaders(reply, created);
