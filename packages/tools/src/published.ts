@@ -140,6 +140,13 @@ export type PublishedToolSpec = {
   defaultBackendId?: string;
   /** The `tool` object's refusal messages, by flag. Published updates only. */
   refusals?: Record<string, string>;
+  /**
+   * Queries that only read, and groups whose start node takes RDF: the tool
+   * also takes `data` and `format`, RDF sent with the call. A query given
+   * `data` runs over it alone, in an ephemeral store, in place of a backend;
+   * a group's `data` fills its start node's first RDF input.
+   */
+  acceptsData?: boolean;
   /** Rule sets only: the rule set and the number of its pinned version. */
   ruleSet?: {
     id: string;
@@ -356,6 +363,7 @@ export function publishedInputSchema(spec: PublishedToolSpec): Record<string, un
         : 'The backend to run on. Required: neither the query nor its library has a default backend.',
     };
   }
+  if (offersData(spec)) Object.assign(properties, dataSchemaProperties(spec));
   const required = Object.entries(spec.params)
     .filter(([, param]) => param.required)
     .map(([key]) => key);
@@ -368,24 +376,56 @@ export function publishedInputSchema(spec: PublishedToolSpec): Record<string, un
 }
 
 function ruleSetInputSchema(spec: PublishedToolSpec): Record<string, unknown> & { type: 'object' } {
-  const pinned = Boolean(spec.ruleSet?.dataGraphVersionId);
+  return { type: 'object', properties: dataSchemaProperties(spec), additionalProperties: false };
+}
+
+/**
+ * Whether a query or group tool takes `data`: it was published to, and no
+ * parameter of its own already has either name.
+ */
+function offersData(spec: PublishedToolSpec): boolean {
+  return spec.targetKind !== 'ruleSet'
+    && spec.acceptsData === true
+    && !(RULE_SET_DATA_ARGUMENT in spec.params)
+    && !(RULE_SET_FORMAT_ARGUMENT in spec.params);
+}
+
+function dataSchemaProperties(spec: PublishedToolSpec): Record<string, unknown> {
+  const description = spec.targetKind === 'ruleSet'
+    ? spec.ruleSet?.dataGraphVersionId
+      ? 'RDF to run the rules on, in place of the data graph this tool runs on by default.'
+      : 'RDF to run the rules on. Without it the rules run on their own data blocks only.'
+    : spec.targetKind === 'query'
+      ? 'RDF to run the query over, alone, in place of a backend. Keep it small: it is loaded for this call only.'
+      : 'RDF for the group\'s data input. Keep it small: it is loaded for this call only.';
   return {
-    type: 'object',
-    properties: {
-      [RULE_SET_DATA_ARGUMENT]: {
-        type: 'string',
-        description: pinned
-          ? 'RDF to run the rules on, in place of the data graph this tool runs on by default.'
-          : 'RDF to run the rules on. Without it the rules run on their own data blocks only.',
-      },
-      [RULE_SET_FORMAT_ARGUMENT]: {
-        type: 'string',
-        enum: [...RULE_SET_DATA_FORMATS],
-        description: `The format of "${RULE_SET_DATA_ARGUMENT}". Defaults to ${RULE_SET_DATA_FORMATS[0]}.`,
-      },
+    [RULE_SET_DATA_ARGUMENT]: { type: 'string', description },
+    [RULE_SET_FORMAT_ARGUMENT]: {
+      type: 'string',
+      enum: [...RULE_SET_DATA_FORMATS],
+      description: `The format of "${RULE_SET_DATA_ARGUMENT}". Defaults to ${RULE_SET_DATA_FORMATS[0]}.`,
     },
-    additionalProperties: false,
   };
+}
+
+/** A call's `data` and `format`, checked, or null when it sent no `data`. */
+function postedData(values: Record<string, unknown>): { content: string; format: string } | null {
+  const data = values[RULE_SET_DATA_ARGUMENT];
+  const format = values[RULE_SET_FORMAT_ARGUMENT];
+  if (data !== undefined && data !== null && typeof data !== 'string') {
+    throw new PublishedToolArgumentError(`${RULE_SET_DATA_ARGUMENT}: must be RDF text`);
+  }
+  if (format !== undefined && format !== null
+    && !(RULE_SET_DATA_FORMATS as readonly unknown[]).includes(format)) {
+    throw new PublishedToolArgumentError(
+      `${RULE_SET_FORMAT_ARGUMENT}: ${JSON.stringify(format)} is not one of ${RULE_SET_DATA_FORMATS.join(', ')}`,
+    );
+  }
+  if (typeof format === 'string' && typeof data !== 'string') {
+    throw new PublishedToolArgumentError(`${RULE_SET_FORMAT_ARGUMENT}: needs "${RULE_SET_DATA_ARGUMENT}"`);
+  }
+  if (typeof data !== 'string') return null;
+  return { content: data, format: typeof format === 'string' ? format : RULE_SET_DATA_FORMATS[0] };
 }
 
 // ------------------------------------------------------------- arguments --
@@ -454,6 +494,7 @@ export type PublishedExecuteBody = {
   targetId: string;
   backendId?: string;
   arguments?: Array<{ head: { vars: string[] }; results: { bindings: Array<Record<string, SparqlTerm>> } }>;
+  dataGraphs?: Array<{ dataGraphInline: string; dataGraphInlineFormat: string }>;
   limits?: Array<{ name: string; value: number }>;
   offsets?: Array<{ name: string; value: number }>;
 };
@@ -471,9 +512,11 @@ export function buildPublishedExecuteBody(
   spec: PublishedToolSpec,
   values: Record<string, unknown>,
 ): PublishedExecuteBody {
+  const takesData = offersData(spec);
   for (const key of Object.keys(values)) {
     if (key in spec.params) continue;
     if (key === BACKEND_ARGUMENT && spec.targetKind === 'query') continue;
+    if (takesData && (key === RULE_SET_DATA_ARGUMENT || key === RULE_SET_FORMAT_ARGUMENT)) continue;
     throw new PublishedToolArgumentError(`${key}: this tool takes no such argument`);
   }
   for (const [key, param] of Object.entries(spec.params)) {
@@ -483,8 +526,18 @@ export function buildPublishedExecuteBody(
   }
 
   const body: PublishedExecuteBody = { targetId: spec.targetId };
+  const data = takesData ? postedData(values) : null;
+  if (data) body.dataGraphs = [{ dataGraphInline: data.content, dataGraphInlineFormat: data.format }];
 
-  if (spec.targetKind === 'query') {
+  // A query given `data` runs over it alone; `/execute` picks the ephemeral store.
+  if (spec.targetKind === 'query' && data) {
+    const sent = values[BACKEND_ARGUMENT];
+    if (sent !== undefined && sent !== null) {
+      throw new PublishedToolArgumentError(
+        `${BACKEND_ARGUMENT}: a call that sends "${RULE_SET_DATA_ARGUMENT}" runs over that RDF alone, so it names no backend`,
+      );
+    }
+  } else if (spec.targetKind === 'query') {
     const backendId = values[BACKEND_ARGUMENT] ?? spec.defaultBackendId;
     if (typeof backendId !== 'string' || !backendId) {
       throw new PublishedToolArgumentError(
@@ -566,25 +619,12 @@ export function buildPublishedRuleSetBody(
     if (key === RULE_SET_DATA_ARGUMENT || key === RULE_SET_FORMAT_ARGUMENT) continue;
     throw new PublishedToolArgumentError(`${key}: this tool takes no such argument`);
   }
-  const data = values[RULE_SET_DATA_ARGUMENT];
-  const format = values[RULE_SET_FORMAT_ARGUMENT];
-  if (data !== undefined && data !== null && typeof data !== 'string') {
-    throw new PublishedToolArgumentError(`${RULE_SET_DATA_ARGUMENT}: must be RDF text`);
-  }
-  if (format !== undefined && format !== null
-    && !(RULE_SET_DATA_FORMATS as readonly unknown[]).includes(format)) {
-    throw new PublishedToolArgumentError(
-      `${RULE_SET_FORMAT_ARGUMENT}: ${JSON.stringify(format)} is not one of ${RULE_SET_DATA_FORMATS.join(', ')}`,
-    );
-  }
-  if (typeof format === 'string' && typeof data !== 'string') {
-    throw new PublishedToolArgumentError(`${RULE_SET_FORMAT_ARGUMENT}: needs "${RULE_SET_DATA_ARGUMENT}"`);
-  }
+  const data = postedData(values);
 
   const body: PublishedRuleSetBody = { version: ruleSet.version, inferenceFormat: RULE_SET_INFERENCE_FORMAT };
-  if (typeof data === 'string') {
-    body.dataGraphInline = data;
-    body.dataGraphInlineFormat = typeof format === 'string' ? format : RULE_SET_DATA_FORMATS[0];
+  if (data) {
+    body.dataGraphInline = data.content;
+    body.dataGraphInlineFormat = data.format;
   } else if (ruleSet.dataGraphVersionId) {
     body.dataGraphVersionId = ruleSet.dataGraphVersionId;
   }
@@ -638,6 +678,14 @@ export function publishedToolDefinition(spec: PublishedToolSpec, name: string = 
  */
 export function publishedHttpMethod(spec: PublishedToolSpec): 'GET' | 'POST' {
   return spec.readOnly && spec.targetKind !== 'ruleSet' ? 'GET' : 'POST';
+}
+
+/**
+ * Whether a `GET` tool also answers `POST`, its arguments as a JSON object:
+ * a query or group that takes `data`, which can be longer than a URL.
+ */
+export function publishedAcceptsPost(spec: PublishedToolSpec): boolean {
+  return publishedHttpMethod(spec) === 'GET' && offersData(spec);
 }
 
 /**
@@ -754,7 +802,8 @@ export function publishedOpenApiDocument(options: {
       responses,
     };
     if (publishedHttpMethod(spec) === 'GET') {
-      operation.parameters = Object.entries(properties).map(([name, property]) => {
+      const dataKeys: string[] = offersData(spec) ? [RULE_SET_DATA_ARGUMENT, RULE_SET_FORMAT_ARGUMENT] : [];
+      operation.parameters = Object.entries(properties).filter(([name]) => !dataKeys.includes(name)).map(([name, property]) => {
         const objectValued = JSON.stringify(property).includes('"type":"object"');
         return {
           name,
@@ -766,7 +815,18 @@ export function publishedOpenApiDocument(options: {
             : { schema: property, ...(property.type === 'array' ? { explode: true } : {}) }),
         };
       });
-      paths[publishedToolPath(options.slug, spec.name)] = { get: operation };
+      paths[publishedToolPath(options.slug, spec.name)] = publishedAcceptsPost(spec)
+        ? {
+            get: operation,
+            post: {
+              ...operation,
+              operationId: `${spec.name}WithData`,
+              summary: `${spec.name}, with RDF in the body`,
+              parameters: undefined,
+              requestBody: { required: true, content: { 'application/json': { schema } } },
+            },
+          }
+        : { get: operation };
     } else {
       operation.requestBody = { required: true, content: { 'application/json': { schema } } };
       paths[publishedToolPath(options.slug, spec.name)] = { post: operation };

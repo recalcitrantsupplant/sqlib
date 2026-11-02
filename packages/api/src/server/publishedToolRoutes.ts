@@ -6,7 +6,8 @@
  *   query string. A list is the key repeated; a `term` or `langString` object
  *   is its JSON spelling.
  * - `POST /tools/{slug}/{name}` for a tool backed by an update, or by a rule
- *   set, its arguments as a JSON object.
+ *   set, its arguments as a JSON object. A reading tool that takes `data`
+ *   answers both, so RDF longer than a URL can go in the body.
  * - `GET /tools/{slug}/openapi.json`: OpenAPI 3.1, one operation per tool.
  *
  * A route per tool, not one route with the tool as a parameter, is what lets
@@ -28,6 +29,7 @@ import {
   PublishedToolArgumentError,
   buildPublishedRequest,
   formatValidationErrors,
+  publishedAcceptsPost,
   publishedHttpMethod,
   publishedInputSchema,
   publishedOpenApiDocument,
@@ -75,6 +77,7 @@ export async function registerPublishedToolRoutes(
     const url = publishedToolPath(spec.slug, spec.name);
     if (publishedHttpMethod(spec) === 'GET') {
       app.get(url, { schema: { hide: true } }, handler);
+      if (publishedAcceptsPost(spec)) app.post(url, { schema: { hide: true } }, handler);
     } else {
       app.post(url, { schema: { hide: true } }, handler);
     }

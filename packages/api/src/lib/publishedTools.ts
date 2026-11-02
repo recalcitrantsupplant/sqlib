@@ -138,6 +138,12 @@ function groupReadsOnly(version: PersistedQueryGroupVersion): boolean {
   });
 }
 
+/** Whether a group's start node takes RDF: a `TriplesQuadsIO` output the run fills. */
+function groupTakesData(version: PersistedQueryGroupVersion): boolean {
+  const startNode = get<{ outputs?: string[] | null }>(version.startNode);
+  return (startNode?.outputs ?? []).some(id => get<Entity>(id)?.['@type'] === 'TriplesQuadsIO');
+}
+
 function backendExists(id: string): boolean {
   if (id === EPHEMERAL_BACKEND_ID || id === LIBRARY_STORAGE_BACKEND_ID) return true;
   return get<Entity>(id)?.['@type'] === 'Backend';
@@ -226,6 +232,17 @@ export function collectPublishedTools(): PublishedCatalogue {
       ruleSet = { id: entity.$id, version: version.version, ...(dataGraphVersionId ? { dataGraphVersionId } : {}) };
     }
 
+    const readOnly = kind === 'query'
+      ? (version as PersistedQueryVersion).queryType !== QueryTypeIri.update
+      : kind === 'group'
+        ? groupReadsOnly(version as PersistedQueryGroupVersion)
+        : true;
+    // A query that only reads can run over RDF the caller sends instead of a
+    // backend; an update could only write into a store that is then dropped.
+    const acceptsData = kind === 'query'
+      ? readOnly
+      : kind === 'group' && groupTakesData(version as PersistedQueryGroupVersion);
+
     specs.push({
       slug: library.slug,
       libraryId: library.$id,
@@ -234,11 +251,8 @@ export function collectPublishedTools(): PublishedCatalogue {
       targetId: version.$id,
       targetKind: kind,
       // A rule set's inferences are its answer: nothing is written back.
-      readOnly: kind === 'query'
-        ? (version as PersistedQueryVersion).queryType !== QueryTypeIri.update
-        : kind === 'group'
-          ? groupReadsOnly(version as PersistedQueryGroupVersion)
-          : true,
+      readOnly,
+      ...(acceptsData ? { acceptsData } : {}),
       params: tool.params ?? {},
       inputs,
       ...(defaultBackendId ? { defaultBackendId } : {}),

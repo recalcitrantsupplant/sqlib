@@ -118,11 +118,19 @@ export async function registerPublishedModePlugin(
       return reply;
     }
     if (path !== '/execute') return;
-    const targetId = (request.body as { targetId?: unknown } | undefined)?.targetId;
+    const body = request.body as { targetId?: unknown; dataGraphs?: unknown } | undefined;
+    const targetId = body?.targetId;
     const pinned = getPublishedCatalogue().specs.some(spec => spec.targetId === targetId);
-    if (pinned) return;
+    // A published tool's `data` is RDF sent with the call; a stored graph named
+    // by id is another entity, which the tool never reads.
+    const onlyPostedData = body?.dataGraphs == null
+      || (Array.isArray(body.dataGraphs) && body.dataGraphs.every(entry =>
+        entry !== null && typeof entry === 'object'
+        && Object.keys(entry).every(key => key === 'dataGraphInline' || key === 'dataGraphInlineFormat')));
+    if (pinned && onlyPostedData) return;
     reply.code(403).send({
-      error: 'This server runs only its published tools. The target is not the pinned version of a published tool.',
+      error: 'This server runs only its published tools. The target is not the pinned version of a published tool, '
+        + 'or the call names a stored data graph.',
     });
     return reply;
   });

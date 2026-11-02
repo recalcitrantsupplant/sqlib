@@ -286,6 +286,23 @@ as Turtle. A rule set tool only reads: nothing is written to a store.
 The save checks that `dataGraphId` names a data graph. `publishAll` gives a
 rule set with no `tool` a default one, with no data graph.
 
+### Running on RDF the caller sends
+
+A published query that only reads, and a published group whose start node
+takes RDF, also take `data` and `format`, as a rule set does:
+
+- **A query** given `data` runs over that RDF alone, in an ephemeral store,
+  in place of a backend. A call that sends both `data` and `backendId` is a
+  `400`. Without `data`, the query runs on its backend, as before.
+- **A group** given `data` fills its start node's first RDF input. Its nodes
+  still run on their own backends.
+- **An update** takes no `data`: it would write into a store that is then
+  dropped.
+
+Keep `data` small. It is loaded for the one call, and the request body limit
+applies. A tool whose own parameters are named `data` or `format` does not get
+these arguments.
+
 ## 3. Restart the server
 
 The server collects the published tools when it starts. Each tool runs the
@@ -353,6 +370,7 @@ A session belongs to the endpoint that opened it. A session opened on
 | --- | --- |
 | `GET /tools/{slug}/{name}` | a query or group that only reads (a `SELECT`, `ASK`, `CONSTRUCT` or `DESCRIBE`, or a group of only those). The arguments are in the query string. Repeat a key for a list: `?city=Perth&city=Darwin`. Write a `term` or `langString` object as URL-encoded JSON. |
 | `POST /tools/{slug}/{name}` | a tool backed by an update, a group that can write, or a rule set. The arguments are a JSON object. A rule set is `POST` because its `data` can be longer than a URL. |
+| `POST /tools/{slug}/{name}` on a reading tool | the same tool, its arguments as a JSON object, for a query or group that takes `data`. RDF can be longer than a URL. |
 | `GET /tools/{slug}/openapi.json` | an OpenAPI 3.1 document with one operation per tool, typed from its parameters. Generate a page's client from it. |
 
 Each route returns what `POST /execute` returns, and forwards the caller's
@@ -373,7 +391,8 @@ client library. Use MCP for agents, analysis and exploration.
 In `published` mode `POST /rule-sets/{id}/execute` also runs only the pinned
 version of a published rule set. The call may send its own RDF or name the
 tool's pinned data graph version, and nothing else: another stored graph, or
-tuple seeds, is a `403`.
+tuple seeds, is a `403`. In the same way, `POST /execute` takes `dataGraphs`
+only as RDF in the request, never a stored graph by id.
 
 In `published` mode the server keeps `/execute`, `/rule-sets/{id}/execute`, `/mcp`, `/mcp/{slug}`,
 `/tools/…`, `/auth/…`, `/.well-known/…`, `/health` and `/metrics`. Every other
