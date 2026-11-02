@@ -37,6 +37,11 @@
       cells is a rail you learn about by accident.
     -->
     <main class="page">
+      <!--
+        The same bar every other work area opens with: the name, the scratch,
+        version and unsaved chips, Discard and Save vN, and Delete under the
+        ⋮ menu. The name is edited in the Details tab, as on a query.
+      -->
       <header class="page-header">
         <Button
           class="phone-only"
@@ -48,94 +53,73 @@
         >
           <PanelLeft :size="14" />
         </Button>
-        <label class="visually-hidden" for="notebook-title">Notebook title</label>
-        <input
-          id="notebook-title"
-          class="title"
-          type="text"
-          :value="nb.notebook.value.title"
-          data-testid="notebook-title"
-          @change="setTitle(($event.target as HTMLInputElement).value)"
-        />
-        <span v-if="activeLibrary" class="chip">{{ activeLibrary.name }}</span>
-        <span v-if="documents.openKind.value === 'scratch'" class="chip chip--quiet" data-testid="notebook-scratch-chip">scratch · this browser only</span>
-        <span v-else-if="documents.versionNumber.value" class="chip" data-testid="notebook-version">v{{ documents.versionNumber.value }}</span>
-        <span v-if="documents.editCount.value > 0" class="chip chip--quiet" data-testid="notebook-unsaved">
-          {{ documents.editCount.value }} unsaved {{ documents.editCount.value === 1 ? 'edit' : 'edits' }}
-        </span>
-
-        <span class="page-header__spacer"></span>
-
-        <!--
-          Save cuts a version; typing never does. Until then the edits are a
-          draft in this browser, as they are on a query.
-        -->
-        <Button
-          v-if="documents.isSaved.value && documents.editCount.value > 0"
-          size="sm"
-          variant="ghost"
-          data-testid="notebook-discard"
-          @click="documents.discard()"
+        <SaveBar
+          class="page-save-bar"
+          :title="nb.notebook.value.title"
+          noun="notebook"
+          :is-scratch="documents.openKind.value !== 'saved'"
+          :current-version-number="documents.versionNumber.value ?? null"
+          :edit-count="documents.isSaved.value ? documents.editCount.value : 0"
+          :saving="documents.saving.value"
+          :can-save="canSaveDocument"
+          :needs-name="nb.notebook.value.title === UNTITLED_NOTEBOOK"
+          :show-format="false"
+          :show-diff="false"
+          :show-edit="false"
+          :show-more="documents.isSaved.value"
+          @save="saveDocument"
+          @needs-name="showDetails(true)"
+          @discard="documents.discard()"
+          @delete="deleteOpen = true"
         >
-          Discard
-        </Button>
-        <Button
-          size="sm"
-          :disabled="!canSaveDocument"
-          :title="saveTitle"
-          data-testid="notebook-save"
-          @click="saveDocument"
-        >
-          <Save :size="12" />
-          {{ documents.saving.value ? 'Saving…' : `Save v${(documents.versionNumber.value ?? 0) + 1}` }}
-        </Button>
-
-        <Button size="sm" :disabled="!hasRunCells || running" data-testid="notebook-run-all" @click="runAll">
-          <Play :size="12" />
-          {{ running ? 'Running…' : 'Run all' }}
-        </Button>
-        <!--
-          The notebook's own file. The library's exports, the bundle and the
-          runnable page, are on the main page, beside the library they are of.
-        -->
-        <Button size="sm" variant="outline" data-testid="notebook-export" @click="exportDocument">
-          <Download :size="12" /> Export
-        </Button>
-        <!--
-          The one-way door to a query group (proposal §7): the same chain, run
-          by the server in one call, with no browser in the path.
-        -->
-        <Button
-          v-if="isEnabled('queryGroups')"
-          size="sm"
-          variant="outline"
-          :disabled="!hasRunCells"
-          data-testid="notebook-promote"
-          @click="openPromote"
-        >
-          <Workflow :size="12" /> Promote to group
-        </Button>
-        <Button size="sm" variant="outline" data-testid="notebook-import" @click="fileInput?.click()">
-          <Upload :size="12" /> Import
-        </Button>
-        <Button
-          v-if="documents.isSaved.value"
-          size="sm"
-          variant="ghost"
-          data-testid="notebook-delete"
-          @click="deleteOpen = true"
-        >
-          <Trash2 :size="12" /> Delete
-        </Button>
-        <input
-          ref="fileInput"
-          class="visually-hidden"
-          type="file"
-          accept=".sqlibnb,application/json"
-          aria-label="Open a notebook file"
-          @change="importDocument"
-        />
+          <template #status>
+            <span v-if="activeLibrary" class="chip" data-testid="notebook-library-chip">{{ activeLibrary.name }}</span>
+          </template>
+        </SaveBar>
       </header>
+
+      <!--
+        Run all at the head of the row under the bar, where Run sits on every
+        other screen; what the notebook can become or be read from follows it.
+      -->
+      <RunBar
+        class="page-run-bar"
+        run-label="Run all"
+        :running="running"
+        :run-disabled="!hasRunCells"
+        run-title="Run every cell from the top, stopping at the first that fails"
+        data-testid="notebook-run-row"
+        @run="runAll"
+      >
+        <template #trailing>
+          <div class="page-actions">
+            <button type="button" class="btn-compact" data-testid="notebook-export" @click="exportDocument">
+              <Download :size="12" /> Export
+            </button>
+            <button
+              v-if="isEnabled('queryGroups')"
+              type="button"
+              class="btn-compact"
+              :disabled="!hasRunCells"
+              data-testid="notebook-promote"
+              @click="openPromote"
+            >
+              <Workflow :size="12" /> Promote to group
+            </button>
+            <button type="button" class="btn-compact" data-testid="notebook-import" @click="fileInput?.click()">
+              <Upload :size="12" /> Import
+            </button>
+          </div>
+        </template>
+      </RunBar>
+      <input
+        ref="fileInput"
+        class="visually-hidden"
+        type="file"
+        accept=".sqlibnb,application/json"
+        aria-label="Open a notebook file"
+        @change="importDocument"
+      />
 
       <div class="page-strip">
         <span v-if="backendLabel">Runs go to <strong>{{ backendLabel }}</strong> — library default</span>
@@ -296,6 +280,27 @@
           :tabs="inspectorTabs"
           testid="notebook-inspector"
         >
+          <template #details>
+            <!-- The name lives here, as a query's does, not in the bar above. -->
+            <div class="details" data-testid="notebook-details">
+              <label class="details__label" for="notebook-title">Name</label>
+              <input
+                id="notebook-title"
+                ref="titleInput"
+                class="details__input"
+                type="text"
+                :value="nb.notebook.value.title"
+                data-testid="notebook-title"
+                @change="setTitle(($event.target as HTMLInputElement).value)"
+              />
+              <span class="details__label">Library</span>
+              <span class="details__value">{{ activeLibrary?.name ?? '—' }}</span>
+              <span class="details__label">Kept</span>
+              <span class="details__value" data-testid="notebook-kept">
+                {{ documents.isSaved.value ? `in the library, v${documents.versionNumber.value ?? 1}` : 'in this browser only (scratch)' }}
+              </span>
+            </div>
+          </template>
           <template #outline>
             <NotebookRail :entries="outlineEntries" />
           </template>
@@ -405,7 +410,7 @@
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 // @ts-ignore - Nuxt auto-import
 import { useRoute, useRouter } from '#imports';
-import { Download, FileText, GripVertical, PanelLeft, Play, Save, Scale, Search, Trash2, Upload, Workflow } from '@lucide/vue';
+import { Download, FileText, GripVertical, PanelLeft, Scale, Search, Upload, Workflow } from '@lucide/vue';
 import { defineArgsElement } from '@sparql-query-lib/runtime/args-element';
 import AppNavRail from '../components/AppNavRail.vue';
 import EntityListSidebar, { type SidebarSelection } from '../components/EntityListSidebar.vue';
@@ -413,6 +418,8 @@ import SaveAsTestDialog from '../components/notebook/SaveAsTestDialog.vue';
 import NotebookRail from '../components/notebook/NotebookRail.vue';
 import NotebookValuesPanel from '../components/notebook/NotebookValuesPanel.vue';
 import InspectorPanel from '../components/shared/InspectorPanel.vue';
+import SaveBar from '../components/shared/SaveBar.vue';
+import RunBar from '../components/shared/RunBar.vue';
 import NotebookMarkdownCell from '../components/notebook/NotebookMarkdownCell.vue';
 import NotebookRunCell from '../components/notebook/NotebookRunCell.vue';
 import NotebookInsertMenu from '../components/notebook/NotebookInsertMenu.vue';
@@ -549,6 +556,7 @@ const {
  * have I made" are both questions about the document beside you.
  */
 const inspectorTabs = computed(() => [
+  { id: 'details', label: 'Details' },
   { id: 'outline', label: 'Outline', count: nb.notebook.value.cells.length },
   { id: 'values', label: 'Values', count: boundValues.value.length },
 ]);
@@ -666,15 +674,24 @@ function syncAddress() {
   router.replace({ path: '/notebook', query });
 }
 
-/** A new notebook starts with its title selected, so naming it is the first keystroke. */
+/** A new notebook opens its Details with the name selected, so naming it is the first keystroke. */
 async function createDocument() {
   const created = documents.create();
   nb.setNotebook(created.notebook);
   syncAddress();
+  await showDetails(true);
+}
+
+const titleInput = ref<HTMLInputElement | null>(null);
+
+/** Open the Details tab; with `focusName`, put the cursor in the name with it selected. */
+async function showDetails(focusName = false) {
+  inspectorTab.value = 'details';
+  inspectorCollapsed.value = false;
+  if (!focusName) return;
   await nextTick();
-  const title = document.getElementById('notebook-title') as HTMLInputElement | null;
-  title?.focus();
-  title?.select();
+  titleInput.value?.focus();
+  titleInput.value?.select();
 }
 
 /*
@@ -716,16 +733,6 @@ const canSaveDocument = computed(() => {
   if (documents.saving.value || !libraryId.value) return false;
   if (documents.isSaved.value) return documents.editCount.value > 0;
   return nb.notebook.value.cells.length > 0;
-});
-
-const saveTitle = computed(() => {
-  if (!libraryId.value) return 'Choose a library first';
-  if (documents.isSaved.value) {
-    return documents.editCount.value > 0 ? 'Save these edits as the next version' : 'No unsaved edits';
-  }
-  return nb.notebook.value.cells.length > 0
-    ? 'Save it into the current library as v1'
-    : 'Add a cell first — there is nothing to save yet';
 });
 
 const deleteOpen = ref(false);
@@ -1095,12 +1102,7 @@ watch(libraryId, () => {
     background: var(--overlay, rgb(0 0 0 / 30%));
   }
 
-  .page-header {
-    flex-wrap: wrap;
-    padding: var(--space-3);
-  }
-
-  .title { width: auto; flex: 1 1 60%; min-width: 0; }
+  .page-actions { flex-wrap: wrap; }
 
   .page-row { flex-direction: column; overflow-y: auto; }
 
@@ -1131,33 +1133,62 @@ watch(libraryId, () => {
 .page-header {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-4) var(--space-5);
-  border-bottom: 1px solid var(--border-default);
+  background: var(--surface-subtle);
+}
+
+.page-save-bar {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.page-run-bar {
+  flex-shrink: 0;
+}
+
+.page-actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+.details {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+  padding: var(--space-4);
+}
+
+.details__label {
+  font-size: var(--text-body);
+  color: var(--ink-muted);
+}
+
+.details__value {
+  font-size: var(--text-body);
+  color: var(--ink-secondary);
+}
+
+.details__input {
+  height: var(--control-h);
+  box-sizing: border-box;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--text-body);
+}
+
+.details__input:focus-visible {
+  border-color: var(--action);
+  outline: none;
 }
 
 .page-header__spacer {
   flex-grow: 1;
 }
 
-.title {
-  width: var(--grid-8);
-  height: var(--control-h);
-  box-sizing: border-box;
-  padding: 0 var(--space-3);
-  border: 1px solid transparent;
-  border-radius: var(--radius);
-  background: transparent;
-  color: var(--ink);
-  font-size: var(--text-title);
-  font-weight: var(--weight-semibold);
-}
-
-.title:hover,
-.title:focus-visible {
-  border-color: var(--border-default);
-  background: var(--surface);
-}
 
 .chip {
   height: var(--control-h-sm);
@@ -1170,12 +1201,6 @@ watch(libraryId, () => {
   color: var(--ink-secondary);
   white-space: nowrap;
   flex-shrink: 0;
-}
-
-.chip--quiet {
-  background: transparent;
-  border: 1px solid var(--border-subtle);
-  color: var(--ink-muted);
 }
 
 .page-strip {

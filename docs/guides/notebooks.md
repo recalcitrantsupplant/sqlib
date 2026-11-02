@@ -40,7 +40,7 @@ A run cell carries the same run sentence the query screen writes, minus its
 warehouse and then reasoning over an ephemeral copy is the ordinary case. A rule
 set has neither; it runs in process over the graph it is handed.
 
-A new notebook opens with its title selected, so you can name it first. If
+A new notebook opens the Details tab with its name selected, so you can name it first. If
 you do not, it takes the first heading of its first markdown cell as its name.
 
 Working with cells:
