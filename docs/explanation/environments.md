@@ -28,6 +28,15 @@ has: its `currentVersion`. A library cannot define an environment named
 
 Environments are opt-in. A library that defines none has only `latest`.
 
+A new environment starts empty, unless `POST /environments` names
+`startFrom`: `latest` copies the current version of every query, group and rule
+set in the library (group-only queries excepted), and an environment id copies
+that environment's pointers. Seeding needs only `control`, the same as
+creating: the new environment has no grants yet, so nobody can run or promote
+through it. The web app starts new environments from `latest` by default. An
+empty environment is allowed; a run that names it gets 409 until something is
+promoted.
+
 Why the pointers live on the environment, not on the query:
 
 - The `Query`, `QueryGroup` and `RuleSet` schemas do not change.
@@ -80,7 +89,23 @@ entity, the old and new version and the caller.
 `GET /environments/:id/pointers` lists the pointers with the entity name and the
 version number.
 
-Today an administrator, or a holder of `promote`, moves a pointer directly. The
+Today an administrator, or a holder of `promote`, moves a pointer directly.
+
+## In the web app
+
+The Library page (`/library`) holds a library's environments. The library
+switcher ("Manage environments…"), the environment badge on the rail and the
+"Manage" button on each homepage library row open it.
+
+- **Environments tab.** The chain, `latest` first. A `control` holder adds,
+  edits, reorders and deletes environments, or creates a whole chain at once
+  for a library with none. Below the chain, a board shows each query, group
+  and rule set against each environment. A cell is amber when it holds an
+  older version than the environment to its left. A `promote` holder clicks a
+  cell to move the pointer; the move always sends `from`.
+- **Access tab.** For `control` holders, with auth on: library roles and Run
+  or Promote per environment, for each person and group. It writes the same
+  grants as the admin Access screen. The
 review flow (promotion requests, reviewers on each step of the chain, evidence
 from test runs) builds on this route and is designed separately.
 

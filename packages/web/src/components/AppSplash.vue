@@ -102,6 +102,17 @@
                 {{ library.description }}
               </span>
             </button>
+            <div class="library-actions">
+              <button
+                type="button"
+                class="row-action"
+                :title="`Manage ${library.name}`"
+                :data-testid="`splash-library-manage-${library.id}`"
+                @click="manageLibrary(library.id)"
+              >
+                <Settings2 :size="13" />
+              </button>
+            </div>
             <div v-if="!isReadOnly" class="library-actions">
               <button
                 type="button"
@@ -210,7 +221,8 @@
  * be: zero is a fact about a library, "not in this deployment" is not.
  */
 import { computed, onMounted, ref, watch } from 'vue';
-import { Check, Library, Pencil, Plus, Search, Trash2 } from '@lucide/vue';
+import { Check, Library, Pencil, Plus, Search, Settings2, Trash2 } from '@lucide/vue';
+import { useRouter } from '#imports';
 import { toast } from 'vue-sonner';
 import { EPHEMERAL_BACKEND_ID } from '@sparql-query-lib/types';
 import SectionLabel from './shared/SectionLabel.vue';
@@ -254,6 +266,13 @@ const emit = defineEmits<{
   (e: 'edit-library', payload: { libraryId: string; libraryName: string }): void;
   (e: 'delete-library', payload: { libraryId: string; libraryName: string }): void;
 }>();
+
+const router = useRouter();
+
+/** The Library page for one library, which becomes the active one. */
+function manageLibrary(id: string) {
+  void router?.push({ path: '/library', query: { library: id } });
+}
 
 const { isEnabled } = useFeatureFlags();
 const { libraries, activeLibraryId, activeLibraryName, setActiveLibrary, ensureLoaded } = useActiveLibrary();

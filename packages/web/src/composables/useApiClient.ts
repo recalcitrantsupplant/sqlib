@@ -215,6 +215,39 @@ function exportSearch(options: ExportBundleOptions): URLSearchParams {
 
 const JSON_HEADERS = { 'Content-Type': 'application/json' } as const;
 
+function parsePartsBehind(value: string | null): number | null {
+  if (value === null) return null;
+  const count = Number.parseInt(value, 10);
+  return Number.isFinite(count) ? count : null;
+}
+
+/** One row of `GET /environments/:id/pointers`. */
+export const environmentPointerSchema = z.object({
+  entity: z.string(),
+  entityType: z.enum(['Query', 'QueryGroup', 'RuleSet']),
+  entityName: z.string().nullable().optional(),
+  version: z.string(),
+  versionNumber: z.number().nullable().optional(),
+});
+export type EnvironmentPointer = z.infer<typeof environmentPointerSchema>;
+
+/** Create an environment; `startFrom` ("latest" or an environment id) seeds its pointers. */
+export type EnvironmentCreateRequest = {
+  name: string;
+  isPartOf: string;
+  description?: string | null;
+  position?: number | null;
+  defaultBackend?: string | null;
+  startFrom?: string | null;
+};
+
+export type EnvironmentUpdateRequest = {
+  name?: string;
+  description?: string | null;
+  position?: number | null;
+  defaultBackend?: string | null;
+};
+
 export type ApiResult<T> = {
   data: T;
   etag: string | null;
@@ -232,6 +265,12 @@ export type ApiResult<T> = {
    * `Sqlib-Result-Ref`; null when nothing was kept.
    */
   resultRef?: string | null;
+  /**
+   * After a group pointer moves, how many of the group's parts the
+   * environment holds at another version than the group pins
+   * (`X-Parts-Behind`); null on every other response.
+   */
+  partsBehind?: number | null;
 };
 
 type ExecuteTargetResult = {
@@ -622,7 +661,7 @@ type IdResponse = {
 export const grantSchema = z.object({
   id: z.string(),
   principal: z.string(),
-  resourceKind: z.enum(['library', 'backend', 'everything']),
+  resourceKind: z.enum(['library', 'backend', 'environment', 'everything']),
   resource: z.string(),
   modes: z.array(z.string()),
   grantedBy: z.string().optional(),
@@ -740,6 +779,7 @@ export function useApiClient() {
         lastModified: normalizeHeaderValue(response.headers.get('last-modified')),
         status: response.status,
         resultRef: normalizeHeaderValue(response.headers.get('sqlib-result-ref')),
+        partsBehind: parsePartsBehind(response.headers.get('x-parts-behind')),
       };
       debug('useApiClient', 'request succeeded', {
         url: input.toString(),
@@ -913,14 +953,14 @@ export function useApiClient() {
    * rest. Untyped responses are parsed by these small schemas rather than the
    * generated contracts, which do not describe the `/auth` routes.
    */
-  const listGrants = (filter: { library?: string; backend?: string; principal?: string } = {}) => {
+  const listGrants = (filter: { library?: string; backend?: string; environment?: string; principal?: string } = {}) => {
     const params = new URLSearchParams();
     for (const [key, value] of Object.entries(filter)) if (value) params.set(key, value);
     const query = params.toString();
     return requestData(buildUrl(`/auth/grants${query ? `?${query}` : ''}`), { method: 'GET' }, (payload) => grantSchema.array().parse(payload));
   };
 
-  const createGrant = (input: { principal: string; resourceKind: 'library' | 'backend' | 'everything'; resource?: string; modes: string[] }) =>
+  const createGrant = (input: { principal: string; resourceKind: 'library' | 'backend' | 'environment' | 'everything'; resource?: string; modes: string[] }) =>
     requestData(
       buildUrl('/auth/grants'),
       { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(input) },
@@ -2150,6 +2190,49 @@ export function useApiClient() {
       (payload) => environmentSchema.array().parse(payload),
     );
 
+  const createEnvironment = (input: EnvironmentCreateRequest) =>
+    request(
+      buildUrl('/environments'),
+      { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(input) },
+      environmentSchema.parse,
+    );
+
+  const getEnvironment = (id: string) =>
+    request(buildUrl(`/environments/${encodeURIComponent(id)}`), { method: 'GET' }, environmentSchema.parse);
+
+  const updateEnvironment = (id: string, input: EnvironmentUpdateRequest, options?: { ifMatch?: string | null }) => {
+    const headers: Record<string, string> = { ...JSON_HEADERS };
+    applyIfMatchHeader(headers, options?.ifMatch ?? null);
+    return request(
+      buildUrl(`/environments/${encodeURIComponent(id)}`),
+      { method: 'PUT', headers, body: JSON.stringify(input) },
+      environmentSchema.parse,
+    );
+  };
+
+  const deleteEnvironment = async (id: string) => {
+    await requestData(buildUrl(`/environments/${encodeURIComponent(id)}`), { method: 'DELETE' });
+    return true;
+  };
+
+  const listEnvironmentPointers = (id: string) =>
+    requestData(
+      buildUrl(`/environments/${encodeURIComponent(id)}/pointers`),
+      { method: 'GET' },
+      (payload) => environmentPointerSchema.array().parse(payload),
+    );
+
+  /**
+   * Move one pointer. `from` is the version the caller saw (null for none):
+   * the server refuses with 409 and the `current` version when it differs.
+   */
+  const moveEnvironmentPointer = (id: string, input: { entity: string; version: string | null; from: string | null }) =>
+    request(
+      buildUrl(`/environments/${encodeURIComponent(id)}/pointers`),
+      { method: 'PUT', headers: JSON_HEADERS, body: JSON.stringify(input) },
+      environmentSchema.parse,
+    );
+
   const getTag = (id: string) => request(buildUrl(`/tags/${encodeURIComponent(id)}`), { method: 'GET' }, tagSchema.parse);
 
   const createTag = (input: TagCreateInput) =>
@@ -3190,6 +3273,12 @@ export function useApiClient() {
     getBackendEnv,
     getBackendUsage,
     deleteBackend,
+    createEnvironment,
+    getEnvironment,
+    updateEnvironment,
+    deleteEnvironment,
+    listEnvironmentPointers,
+    moveEnvironmentPointer,
     listGrants,
     createGrant,
     deleteGrant,

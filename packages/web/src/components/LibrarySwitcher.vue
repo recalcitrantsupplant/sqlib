@@ -43,12 +43,14 @@
           Library<ChevronsUpDown :size="9" class="mark-chevron" />
         </button>
       </DropdownMenuTrigger>
-    <span
+    <button
       v-if="activeEnvironmentName !== LATEST_ENVIRONMENT"
+      type="button"
       class="environment-badge"
       data-testid="active-environment"
       :title="`Runs use the versions in ${activeEnvironmentName}`"
-    >{{ activeEnvironmentName }}</span>
+      @click="openEnvironments"
+    >{{ activeEnvironmentName }}</button>
     <!--
       Width in utilities rather than in the scoped block below: the menu is
       teleported, so it carries this component's class but not its scope
@@ -100,6 +102,27 @@
           </span>
           <Check :size="12" :class="['option-check', { hidden: name !== activeEnvironmentName }]" />
         </DropdownMenuItem>
+        <DropdownMenuItem
+          class="library-menu-item"
+          data-testid="environment-manage"
+          @select="openEnvironments"
+        >
+          <span class="option-text">
+            <span class="option-name option-link">Manage environments…</span>
+          </span>
+        </DropdownMenuItem>
+      </template>
+      <template v-else-if="activeLibraryId && !isReadOnly && canControl">
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          class="library-menu-item"
+          data-testid="environment-setup-link"
+          @select="openEnvironments"
+        >
+          <span class="option-text">
+            <span class="option-name option-link">Set up environments…</span>
+          </span>
+        </DropdownMenuItem>
       </template>
 
       <!--
@@ -141,6 +164,8 @@ import {
 import { useActiveLibrary } from '../composables/useActiveLibrary';
 import { useDeploymentMode } from '../composables/useDeploymentMode';
 import { LATEST_ENVIRONMENT, useActiveEnvironment } from '../composables/useActiveEnvironment';
+import { useAuth } from '../composables/useAuth';
+import { useRouter } from '#imports';
 
 const emit = defineEmits<{
   (e: 'create-library'): void;
@@ -152,6 +177,15 @@ const { libraries, activeLibraryId, activeLibraryName, setActiveLibrary, ensureL
   useActiveLibrary();
 const { isReadOnly, ensureLoaded: ensureDeploymentMode } = useDeploymentMode();
 const { environments, activeEnvironmentName, setActiveEnvironment } = useActiveEnvironment();
+
+const auth = useAuth();
+const router = useRouter();
+const canControl = computed(() => !!activeLibraryId.value && auth.canLibrary(activeLibraryId.value, 'control'));
+
+/** The Library page, on its Environments tab. */
+function openEnvironments() {
+  void router?.push({ path: '/library', query: { library: activeLibraryId.value ?? undefined, tab: 'environments' } });
+}
 
 const environmentNames = computed(() => [LATEST_ENVIRONMENT, ...environments.value.map((env) => env.name)]);
 const switcherLabel = computed(() =>
@@ -174,8 +208,15 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.option-link {
+  color: var(--action-ink);
+}
+
 .environment-badge {
   max-width: 44px;
+  border: none;
+  font-family: inherit;
+  cursor: pointer;
   overflow: hidden;
   padding: 0 var(--space-1);
   border-radius: var(--radius-panel);
