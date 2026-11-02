@@ -1,5 +1,5 @@
 <template>
-  <div class="diff-pane" data-testid="query-diff-pane">
+  <div class="diff-pane" :data-testid="testid">
     <!--
       The row the run strip is not drawing while this is up: same height, same
       chrome, so moving between the editor and the diff does not move the code
@@ -87,6 +87,7 @@
         :right-query="rightQuery"
         :left-label="leftLabel"
         :right-label="rightLabel"
+        :content-type="contentType"
         height="100%"
       />
 
@@ -135,8 +136,13 @@ withDefaults(defineProps<{
   rightQuery: string | null;
   leftLabel: string;
   rightLabel: string;
+  /** The language both sides are highlighted as: SPARQL, or an RDF format. */
+  contentType?: string;
+  testid?: string;
 }>(), {
   hasDraftEdits: false,
+  contentType: 'application/sparql-query',
+  testid: 'query-diff-pane',
 });
 
 defineEmits<{

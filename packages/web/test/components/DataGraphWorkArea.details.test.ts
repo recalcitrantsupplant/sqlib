@@ -265,4 +265,55 @@ describe('DataGraphWorkArea — Details', () => {
 
     expect(area.get('[data-testid="version-row"]').text()).toContain('added the second edge');
   });
+
+  describe('comparing versions', () => {
+    const diffPane = async (area: Awaited<ReturnType<typeof mountSaved>>) => {
+      await flushPromises();
+      const QueryDiffPane = (await import('@/components/query-work-area/QueryDiffPane.vue')).default;
+      return area.findComponent(QueryDiffPane);
+    };
+
+    it('names the pair on the Diff button and opens it in the pop-out', async () => {
+      const area = await mountSaved();
+      const button = area.get('[data-testid="data-graph-diff"]');
+
+      expect(button.attributes('title')).toBe('Diff v1 → v2 (current)');
+      expect(button.attributes('disabled')).toBeUndefined();
+
+      await button.trigger('click');
+      const pane = await diffPane(area);
+
+      expect(pane.exists()).toBe(true);
+      expect(pane.props('leftQuery')).toBe(V1_BODY);
+      expect(pane.props('rightQuery')).toBe(V2_BODY);
+      expect(pane.props('leftLabel')).toBe('v1');
+      expect(pane.props('rightLabel')).toBe('v2 (current)');
+      expect(pane.props('contentType')).toBe('text/turtle');
+    });
+
+    it('compares a version row with the current version', async () => {
+      const area = await mountSaved();
+      await area.get('[data-testid="toggle-version-history"]').trigger('click');
+
+      await area.get('[data-testid="compare-version"]').trigger('click');
+      const pane = await diffPane(area);
+
+      expect(pane.props('leftVersion')).toBe(V1);
+      expect(pane.props('rightVersion')).toBe(V2);
+    });
+
+    it('compares unsaved edits with the version they were made on', async () => {
+      const area = await mountSaved();
+      await area.get('[data-testid="data-graph-content"]').setValue(`${V2_BODY}\n:c :edge :d .`);
+      await flushPromises();
+
+      const button = area.get('[data-testid="data-graph-diff"]');
+      expect(button.attributes('title')).toBe('Diff v2 (current) → Draft');
+
+      await button.trigger('click');
+      const pane = await diffPane(area);
+      expect(pane.props('rightLabel')).toBe('Draft');
+      expect(pane.props('rightQuery')).toContain(':c :edge :d .');
+    });
+  });
 });
