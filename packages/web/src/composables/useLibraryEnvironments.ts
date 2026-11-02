@@ -185,7 +185,8 @@ export function useLibraryEnvironments(libraryId: () => string | null) {
   async function movePointer(environment: string, entity: string, version: string | null, from: string | null): Promise<MoveOutcome> {
     try {
       const result = await api.moveEnvironmentPointer(environment, { entity, version, from });
-      await loadPointers();
+      // The editors read each environment's versions from the switcher's list.
+      await Promise.all([loadPointers(), activeEnvironment.reload()]);
       return { ok: true, partsBehind: result.partsBehind ?? 0 };
     } catch (error) {
       const status = (error as { statusCode?: number }).statusCode;

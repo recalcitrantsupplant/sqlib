@@ -177,6 +177,15 @@
             @keydown.space.prevent="emit('select-version', option.value)"
           >
             <span class="version-name">v{{ option.label }}</span>
+            <span v-if="option.environments?.length" class="version-envs">
+              <span
+                v-for="name in option.environments"
+                :key="name"
+                class="env-tag"
+                :title="`${name} runs v${option.label}`"
+                data-testid="version-environment-tag"
+              >{{ name }}</span>
+            </span>
             <!--
               The note, written where it is read. A version's comment is the
               only reason this list is worth reading, and it is optional, so it
@@ -395,6 +404,8 @@ export interface DetailsVersionOption {
    */
   summary?: string | null;
   dateModified?: string | null;
+  /** The environments that point at this version, in chain order. */
+  environments?: readonly string[];
 }
 
 export interface DetailsBackendOption {
@@ -661,6 +672,7 @@ const visibleVersions = computed(() => {
   if (historyOpen.value) return props.versionOptions;
   const kept = props.versionOptions.filter((option) => (
     option.value === props.currentVersion
+    || (option.environments?.length ?? 0) > 0
     || (!props.draftSelected && option.value === props.selectedVersion)
   ));
   // Nothing is current and nothing is selected — a version list still has to
@@ -978,6 +990,24 @@ const outputKind = computed<'variables' | 'boolean' | 'graph' | 'none'>(() => {
   flex-shrink: 0;
   color: var(--ink-secondary);
   font-size: var(--text-body);
+  font-weight: var(--weight-semibold);
+}
+
+.version-envs {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: var(--space-2);
+}
+
+.env-tag {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-full);
+  color: var(--ink-secondary);
+  font-size: var(--text-micro);
   font-weight: var(--weight-semibold);
 }
 

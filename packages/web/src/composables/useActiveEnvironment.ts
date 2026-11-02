@@ -106,3 +106,40 @@ export function useActiveEnvironment() {
     reload: () => load(libraryId.value),
   };
 }
+
+/**
+ * The environments that point at each version, and the version the active
+ * environment points at, for an editor that lists one entity's versions.
+ *
+ * Read from the environments the switcher already loaded: each environment
+ * lists the version ids it points to, so no extra request is needed.
+ */
+export function useEnvironmentVersions(versionIds: () => readonly string[]) {
+  const { environments, activeEnvironment, activeEnvironmentName } = useActiveEnvironment();
+
+  /** Version id to the names of the environments that point at it, in chain order. */
+  const environmentsByVersion = computed(() => {
+    const ids = new Set(versionIds());
+    const result: Record<string, string[]> = {};
+    for (const env of environments.value) {
+      for (const version of env.versions ?? []) {
+        if (!ids.has(version)) continue;
+        (result[version] ??= []).push(env.name);
+      }
+    }
+    return result;
+  });
+
+  /**
+   * The version the active environment points at, or null: null for
+   * `latest`, and null when this entity is not in the active environment.
+   */
+  const activeEnvironmentVersion = computed(() => {
+    const env = activeEnvironment.value;
+    if (!env) return null;
+    const ids = new Set(versionIds());
+    return (env.versions ?? []).find((version) => ids.has(version)) ?? null;
+  });
+
+  return { environmentsByVersion, activeEnvironment, activeEnvironmentVersion, activeEnvironmentName };
+}

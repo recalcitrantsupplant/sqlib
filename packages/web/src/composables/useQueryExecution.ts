@@ -73,6 +73,12 @@ export interface UseQueryExecutionDeps {
   getDataset?: () => { defaultGraphs?: string[]; namedGraphs?: string[] } | null;
   isDirty?: Ref<boolean>;
   queryCode?: Ref<string>;
+  /**
+   * The version a run by the query's id executes (the active environment's,
+   * or the current one). Null when the query is not in the active
+   * environment, so the shown version always runs by its own id.
+   */
+  preferredVersion?: Ref<string | null>;
 }
 
 export function useQueryExecution(deps: UseQueryExecutionDeps) {
@@ -81,6 +87,13 @@ export function useQueryExecution(deps: UseQueryExecutionDeps) {
   const noneBackendId = deps.noneBackendId ?? 'none';
 
   const resolveTargetId = () => {
+    // Run what the editor shows. The query's id runs the version the active
+    // environment resolves to, so it is sent only when that is the one shown.
+    if (deps.preferredVersion) {
+      const shown = deps.selectedVersion.value;
+      if (shown && shown !== deps.preferredVersion.value) return shown;
+      return deps.queryId.value;
+    }
     if (
       deps.selectedVersion.value &&
       deps.selectedVersion.value !== deps.currentVersion.value
