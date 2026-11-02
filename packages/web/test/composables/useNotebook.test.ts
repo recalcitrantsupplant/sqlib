@@ -179,6 +179,29 @@ describe('running a cell', () => {
     });
   });
 
+  it('sends the column the author chose, by handle and by content alike', async () => {
+    callables.value = [selectCallable('urn:q:people'), selectCallable('urn:q:by-name', [['name']])];
+    const many = Array.from({ length: 3000 }, (_, i) => ({
+      name: { type: 'literal', value: `person number ${i}` },
+      nick: { type: 'literal', value: `nick ${i}` },
+    }));
+    executeTarget
+      .mockResolvedValueOnce({ ...rowsResponse(['name', 'nick'], many), resultRef: 'urn:sqlib:result:1' })
+      .mockResolvedValueOnce(rowsResponse(['name'], []));
+
+    await runIn(async (nb) => {
+      nb.addCell(queryCell('urn:q:people', 'people'));
+      nb.addCell(queryCell('urn:q:by-name', 'out2', [{ from: 'value', ref: 'people', columns: { name: 'nick' } }]));
+      await nextTick();
+      await nb.runAll();
+
+      const second = executeTarget.mock.calls[1]![0];
+      expect(second.argumentRefs).toEqual([
+        { resultRef: 'urn:sqlib:result:1', columns: [{ from: 'nick', to: 'name' }], vars: ['name'] },
+      ]);
+    });
+  });
+
   it('sends a small value by content even when the server kept it', async () => {
     callables.value = [selectCallable('urn:q:people'), selectCallable('urn:q:by-name', [['name']])];
     executeTarget

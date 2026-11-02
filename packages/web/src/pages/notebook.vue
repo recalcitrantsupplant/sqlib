@@ -647,12 +647,20 @@ function valueOptionsAbove(index: number) {
     .filter(isRunCell)
     .map((cell) => {
       const value = nb.values.value[cell.out];
-      if (value) return { name: cell.out, type: value.type, summary: describeValue(value) };
+      if (value) {
+        return {
+          name: cell.out, type: value.type, summary: describeValue(value),
+          columns: value.type === 'rows' ? value.columns : [],
+        };
+      }
       const target = nb.targetFor(cell);
       return {
         name: cell.out,
         type: VALUE_TYPE_BY_RESULT[target?.resultKind ?? 'BINDINGS'],
         summary: 'not run yet',
+        // Before a run, the columns the library records for the query: enough
+        // to show and choose the pairing without running anything first.
+        columns: target?.outputs ?? [],
       };
     });
 }

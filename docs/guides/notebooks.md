@@ -109,6 +109,17 @@ variables by name where the names match and by position otherwise — the same
 rule a [query group](query-groups.md) edge uses, so a chain means the same thing
 in both places.
 
+Under a wired slot, the cell shows the pairing: one row per slot variable, for
+example `?s ← @out1.?s`. A note lists the columns that no variable takes (`not
+passed: ?p ?o`). These columns stop at this cell.
+
+To change the pairing, pick another column for a variable. Any column can fill
+any variable, so `?s` can take `@out1.?o`. Pick **nothing (unbound)** to leave
+the variable unbound. The choice is saved in the slot as `columns`, keyed by the
+slot variable. **Match by name** removes the choices. Before the upstream cell
+runs, the control lists the columns its query projects. A promoted group keeps
+the chosen pairing, but it refuses a variable left unbound.
+
 Set what happens when the upstream is empty: skip this cell (the default), run
 with no rows, or stop.
 

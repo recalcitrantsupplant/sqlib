@@ -109,6 +109,33 @@ test.describe('Notebook', () => {
     await expect(second.getByTestId('run-bar-run')).toContainText('Re-run');
   });
 
+  test('shows which column fills each slot variable, and lets you pick another', async ({ page }) => {
+    const writes = await mockCallableLibrary(page);
+    await openNotebook(page);
+    await insertFirstQuery(page);
+    await page.getByTestId('notebook-add-cell').click();
+    await page.getByTestId('notebook-insert-urn:sqlib:query:product-graph').click();
+
+    const second = page.locator('[data-testid^="notebook-cell-"]').nth(1);
+    await second.locator('[data-testid^="notebook-slot-source-"]').first().selectOption('@out1');
+
+    // Before a run, the pairing comes from the columns the query projects.
+    const column = second.locator('[data-testid$="-0-product"][data-testid^="notebook-slot-column-"]');
+    await expect(column).toHaveValue('product');
+    await expect(second.locator('[data-testid^="notebook-slot-unpassed-"]')).toHaveText('not passed: ?title ?price');
+
+    await column.selectOption('title');
+    await expect(second.locator('[data-testid^="notebook-slot-unpassed-"]')).toHaveText('not passed: ?product ?price');
+
+    await page.getByTestId('notebook-run-row').getByTestId('run-bar-run').click();
+    await expect(second.locator('[data-testid^="notebook-status-"]')).toContainText('ran');
+    const run = writes.filter((write) => write.pathname.endsWith('/execute')).pop();
+    expect(JSON.stringify(run?.body)).toContain('"product":{"type":"literal","value":"Wool jumper"}');
+
+    await second.locator('[data-testid^="notebook-slot-mapping-reset-"]').click();
+    await expect(column).toHaveValue('product');
+  });
+
   test('writes prose between the runs', async ({ page }) => {
     await openNotebook(page);
     await page.getByTestId('notebook-add-markdown').click();

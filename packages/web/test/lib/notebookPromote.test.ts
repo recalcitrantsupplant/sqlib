@@ -73,6 +73,30 @@ describe('planPromotion', () => {
     expect(edgesOf(plan)[1]).toMatchObject({ variableMappings: JSON.stringify([{ source: 'x', target: 'place' }]) });
   });
 
+  it('pairs the columns the author chose, not the default', () => {
+    const notebook = notebookOf(
+      cell('a', 'a'),
+      cell('b', 'b', [{ from: 'value', ref: 'a', columns: { s: 'o' } }]),
+    );
+    const plan = planPromotion(notebook, new Map([
+      ['a', select('a', ['s', 'p', 'o'])],
+      ['b', select('b', ['y'], [['s']])],
+    ]));
+    expect(edgesOf(plan)[1]).toMatchObject({ variableMappings: JSON.stringify([{ source: 'o', target: 's' }]) });
+  });
+
+  it('refuses a slot variable the author left unbound, which an edge cannot express', () => {
+    const notebook = notebookOf(
+      cell('a', 'a'),
+      cell('b', 'b', [{ from: 'value', ref: 'a', columns: { s: null } }]),
+    );
+    const plan = planPromotion(notebook, new Map([
+      ['a', select('a', ['s'])],
+      ['b', select('b', ['y'], [['s']])],
+    ]));
+    expect(plan).toMatchObject({ ok: false, cellId: 'b' });
+  });
+
   it('refuses a run cell that does not feed the last one, naming it', () => {
     const notebook = notebookOf(cell('a', 'a'), cell('b', 'b'));
     const plan = planPromotion(notebook, new Map([['a', select('a', ['x'])], ['b', select('b', ['y'])]]));

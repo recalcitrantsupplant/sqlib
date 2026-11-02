@@ -38,6 +38,12 @@ describe('notebook document', () => {
     expect(parseNotebookJson(serializeNotebook(notebook))).toEqual(notebook);
   });
 
+  it('keeps a slot\'s chosen column mapping, unbound choices included', () => {
+    const chained = { ...queryCell('out2', 'out1'), slots: [{ from: 'value' as const, ref: 'out1', columns: { s: 'o', p: null } }] };
+    const notebook = notebookOf(queryCell('out1'), chained);
+    expect(parseNotebookJson(serializeNotebook(notebook))).toEqual(notebook);
+  });
+
   it('refuses a document written in a format it does not know', () => {
     expect(() => parseNotebook({ format: 'sqlib-notebook/9', cells: [] })).toThrow(/Unsupported/);
   });

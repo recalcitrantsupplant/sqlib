@@ -250,6 +250,46 @@ export function mapColumns(sourceColumns: string[], targetVars: string[]): Array
     .filter((entry): entry is { source: string; target: string } => Boolean(entry));
 }
 
+/** One slot variable and the column that fills it; `source` null when nothing does. */
+export interface SlotColumnPairing {
+  target: string;
+  source: string | null;
+  /** True when the author chose this pairing rather than the default rule. */
+  chosen: boolean;
+}
+
+/**
+ * The pairing a slot actually uses: the author's choices where they made one
+ * and it still names a column the value has, `mapColumns` for the rest.
+ *
+ * A choice that names a column the value no longer has falls back to the
+ * default rather than silently sending nothing; the cell shows the fallback.
+ */
+export function slotPairings(
+  sourceColumns: string[],
+  targetVars: string[],
+  chosen?: Record<string, string | null>,
+): SlotColumnPairing[] {
+  const defaults = mapColumns(sourceColumns, targetVars);
+  return targetVars.map((target) => {
+    const choice = chosen?.[target];
+    if (choice === null) return { target, source: null, chosen: true };
+    if (typeof choice === 'string' && sourceColumns.includes(choice)) return { target, source: choice, chosen: true };
+    return { target, source: defaults.find((entry) => entry.target === target)?.source ?? null, chosen: false };
+  });
+}
+
+/** The pairings that send something, in the `{ source, target }` shape the callers take. */
+export function slotMappings(
+  sourceColumns: string[],
+  targetVars: string[],
+  chosen?: Record<string, string | null>,
+): Array<{ source: string; target: string }> {
+  return slotPairings(sourceColumns, targetVars, chosen)
+    .filter((entry): entry is SlotColumnPairing & { source: string } => entry.source !== null)
+    .map(({ source, target }) => ({ source, target }));
+}
+
 /**
  * A rows value, as the `arguments` entry `/execute` splices into one slot.
  *
@@ -260,8 +300,9 @@ export function mapColumns(sourceColumns: string[], targetVars: string[]): Array
 export function toSlotArgument(
   value: RowsValue,
   targetVars: string[],
+  chosen?: Record<string, string | null>,
 ): ExecutionArgument {
-  const mappings = mapColumns(value.columns, targetVars);
+  const mappings = slotMappings(value.columns, targetVars, chosen);
   const bindings = value.bindings.map((row) => {
     const mapped: SparqlBindingRow = {};
     for (const { source, target } of mappings) {

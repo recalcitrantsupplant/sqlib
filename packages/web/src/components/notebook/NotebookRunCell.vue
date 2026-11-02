@@ -73,7 +73,8 @@
       <template v-else>
         <!-- One row per parameter slot: where it comes from, and what that means. -->
         <div v-if="target.slots.length > 0" class="inputs">
-          <div v-for="(vars, slotIndex) in target.slots" :key="slotIndex" class="input-row">
+          <template v-for="(vars, slotIndex) in target.slots" :key="slotIndex">
+          <div class="input-row">
             <SectionLabel as="span">slot {{ slotIndex + 1 }}</SectionLabel>
             <span class="input-row__vars">{{ vars.map((name) => `?${name}`).join(' ') }}</span>
 
@@ -113,6 +114,59 @@
               </select>
             </template>
           </div>
+
+          <!--
+            Which column of the value fills which variable of the slot. Without
+            this a chain hides that only the names it shares are passed on.
+          -->
+          <div
+            v-if="wiredValue(slotIndex)"
+            class="input-row input-row--mapping"
+            :data-testid="`notebook-slot-mapping-${cell.id}-${slotIndex}`"
+          >
+            <template v-if="sourceColumns(slotIndex).length > 0">
+              <span v-for="pairing in pairings(slotIndex)" :key="pairing.target" class="mapping">
+                <code class="mapping__var">?{{ pairing.target }}</code>
+                <span class="mapping__arrow" aria-hidden="true">←</span>
+                <label class="visually-hidden" :for="`${cell.id}-col-${slotIndex}-${pairing.target}`">
+                  Column of @{{ wiredValue(slotIndex)?.name }} that fills ?{{ pairing.target }}
+                </label>
+                <select
+                  :id="`${cell.id}-col-${slotIndex}-${pairing.target}`"
+                  class="select"
+                  :data-testid="`notebook-slot-column-${cell.id}-${slotIndex}-${pairing.target}`"
+                  :value="pairing.source ?? ''"
+                  @change="onColumnChange(slotIndex, pairing.target, ($event.target as HTMLSelectElement).value)"
+                >
+                  <option v-for="column in sourceColumns(slotIndex)" :key="column" :value="column">
+                    @{{ wiredValue(slotIndex)?.name }}.?{{ column }}
+                  </option>
+                  <option value="">nothing (unbound)</option>
+                </select>
+              </span>
+              <InlineNote
+                v-if="unpassedColumns(slotIndex).length > 0"
+                as="span"
+                size="xs"
+                :data-testid="`notebook-slot-unpassed-${cell.id}-${slotIndex}`"
+              >
+                not passed: {{ unpassedColumns(slotIndex).map((column) => `?${column}`).join(' ') }}
+              </InlineNote>
+              <button
+                v-if="hasChosenColumns(slotIndex)"
+                type="button"
+                class="btn-compact"
+                :data-testid="`notebook-slot-mapping-reset-${cell.id}-${slotIndex}`"
+                @click="resetColumns(slotIndex)"
+              >
+                Match by name
+              </button>
+            </template>
+            <InlineNote v-else as="span" size="xs">
+              The columns of @{{ wiredValue(slotIndex)?.name }} are known after it runs.
+            </InlineNote>
+          </div>
+          </template>
         </div>
 
         <!-- A rule set takes a graph rather than rows: its one input is G0. -->
@@ -333,7 +387,7 @@ import RunBar from '../shared/RunBar.vue';
 import InlineNote from '../shared/InlineNote.vue';
 import PanelHeader from '../shared/PanelHeader.vue';
 import SectionLabel from '../shared/SectionLabel.vue';
-import { describeValue, type NotebookValue, type SparqlBindingRow } from '../../lib/notebookValues';
+import { describeValue, slotPairings, type NotebookValue, type SparqlBindingRow } from '../../lib/notebookValues';
 import { getAllMediaTypeOptions, getMediaTypeChoiceGroups } from '../../lib/mediaTypes';
 import { QueryTypeIri } from '@sparql-query-lib/types';
 import type { GraphSource, RunCell, SlotSource } from '../../lib/notebookFormat';
@@ -358,7 +412,7 @@ const props = defineProps<{
   state: CellRunState;
   value: NotebookValue | null;
   /** Values bound above this cell, with a rendered summary for the chip. */
-  valueOptions: Array<{ name: string; type: NotebookValue['type']; summary: string }>;
+  valueOptions: Array<{ name: string; type: NotebookValue['type']; summary: string; columns?: string[] }>;
   /** The library's saved data graphs, offered as a rule set's base graph. */
   dataGraphOptions?: Array<{ id: string; name: string }>;
   /** Why a name cannot be this cell's value name, or null. */
@@ -488,6 +542,47 @@ function emptyMode(index: number): string {
 
 function writeSlots(next: SlotSource[]) {
   emit('update', { slots: next } as Partial<RunCell>);
+}
+
+/** The columns of the value a slot reads: its own once run, the query's projection before. */
+function sourceColumns(index: number): string[] {
+  return wiredValue(index)?.columns ?? [];
+}
+
+function pairings(index: number) {
+  const slot = slots.value[index];
+  const vars = props.target?.slots[index] ?? [];
+  return slotPairings(sourceColumns(index), vars, slot?.from === 'value' ? slot.columns : undefined);
+}
+
+/** Columns of the value that no variable of the slot takes: they stop here. */
+function unpassedColumns(index: number): string[] {
+  const used = new Set(pairings(index).map((pairing) => pairing.source));
+  return sourceColumns(index).filter((column) => !used.has(column));
+}
+
+function hasChosenColumns(index: number): boolean {
+  const slot = slots.value[index];
+  return slot?.from === 'value' && Object.keys(slot.columns ?? {}).length > 0;
+}
+
+/**
+ * Pin one variable to a column, or to nothing. Every other variable keeps what
+ * it shows now, chosen or not, so picking one never reshuffles the rest.
+ */
+function onColumnChange(index: number, target: string, column: string) {
+  const slot = slots.value[index];
+  if (slot?.from !== 'value') return;
+  const columns: Record<string, string | null> = { ...(slot.columns ?? {}) };
+  columns[target] = column === '' ? null : column;
+  writeSlots(slotsWith(index, { ...slot, columns }));
+}
+
+function resetColumns(index: number) {
+  const slot = slots.value[index];
+  if (slot?.from !== 'value') return;
+  const { columns: _dropped, ...rest } = slot;
+  writeSlots(slotsWith(index, rest));
 }
 
 function slotsWith(index: number, slot: SlotSource | undefined): SlotSource[] {
@@ -834,6 +929,26 @@ function cellText(row: Record<string, unknown>, column: string): string {
   align-items: center;
   gap: var(--space-3);
   flex-wrap: wrap;
+}
+
+.input-row--mapping {
+  padding-left: var(--space-6);
+}
+
+.mapping {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.mapping__var {
+  font-family: var(--font-mono);
+  font-size: var(--text-body);
+  color: var(--ink-secondary);
+}
+
+.mapping__arrow {
+  color: var(--ink-muted);
 }
 
 

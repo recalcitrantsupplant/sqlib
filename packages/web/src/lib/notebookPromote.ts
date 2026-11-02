@@ -15,7 +15,7 @@
  * `composables/useNotebookPromotion.ts`.
  */
 import type { QueryGroupVersionForGroupCreateInput } from '@sparql-query-lib/contracts';
-import { mapColumns } from './notebookValues';
+import { slotMappings } from './notebookValues';
 import {
   cellSlots,
   isRunCell,
@@ -213,12 +213,15 @@ export function planPromotion(
           return refusal(cell.id, `${label(cell)} fills a slot from @${slot.ref}, which is not rows.`);
         }
 
-        // The notebook paired columns with mapColumns; the group must pair the
+        // The notebook paired columns with slotMappings; the group must pair the
         // same ones. A tuple of exactly those columns, declared on the
         // upstream node, makes the arities equal — which an edge requires —
         // and the explicit mapping pins the pairing rather than trusting the
         // engine's own name-then-position rule to land on the same answer.
-        const mappings = mapColumns(sourceTarget.outputVars, vars);
+        const mappings = slotMappings(sourceTarget.outputVars, vars, slot.columns);
+        if (Object.values(slot.columns ?? {}).includes(null)) {
+          return refusal(cell.id, `${label(cell)}: a group edge fills every variable of a slot, and this one leaves some of ${vars.map((v) => `?${v}`).join(' ')} unbound.`);
+        }
         if (mappings.length !== vars.length) {
           return refusal(cell.id, `${label(cell)}: @${slot.ref} has too few columns to fill ${vars.map((v) => `?${v}`).join(' ')}.`);
         }

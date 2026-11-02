@@ -200,6 +200,48 @@ describe('wiring a slot', () => {
 
     expect(wrapper.text()).toContain('1,204 rows · 4 cols · 88 KB · by value');
   });
+
+  it('shows which column fills each slot variable, and which columns stop here', () => {
+    const wrapper = render({
+      target: { ...TARGET, slots: [['s']] },
+      cell: { ...CELL, slots: [{ from: 'value', ref: 'out1' }] },
+      valueOptions: [{ name: 'out1', type: 'rows', summary: 'not run yet', columns: ['s', 'p', 'o'] }],
+    });
+
+    const select = wrapper.get('[data-testid="notebook-slot-column-c1-0-s"]').element as HTMLSelectElement;
+    expect(select.value).toBe('s');
+    expect([...select.options].map((option) => option.textContent?.trim()))
+      .toEqual(['@out1.?s', '@out1.?p', '@out1.?o', 'nothing (unbound)']);
+    expect(wrapper.get('[data-testid="notebook-slot-unpassed-c1-0"]').text()).toBe('not passed: ?p ?o');
+  });
+
+  it('emits the chosen column, and drops the choice on Match by name', async () => {
+    const wrapper = render({
+      target: { ...TARGET, slots: [['s']] },
+      cell: { ...CELL, slots: [{ from: 'value', ref: 'out1', whenEmpty: 'skip' }] },
+      valueOptions: [{ name: 'out1', type: 'rows', summary: '1 row', columns: ['s', 'p', 'o'] }],
+    });
+
+    await wrapper.get('[data-testid="notebook-slot-column-c1-0-s"]').setValue('o');
+    expect(wrapper.emitted('update')?.[0]).toEqual([
+      { slots: [{ from: 'value', ref: 'out1', whenEmpty: 'skip', columns: { s: 'o' } }] },
+    ]);
+
+    await wrapper.setProps({ cell: { ...CELL, slots: [{ from: 'value', ref: 'out1', whenEmpty: 'skip', columns: { s: 'o' } }] } });
+    expect(wrapper.get('[data-testid="notebook-slot-unpassed-c1-0"]').text()).toBe('not passed: ?s ?p');
+    await wrapper.get('[data-testid="notebook-slot-mapping-reset-c1-0"]').trigger('click');
+    expect(wrapper.emitted('update')?.[1]).toEqual([
+      { slots: [{ from: 'value', ref: 'out1', whenEmpty: 'skip' }] },
+    ]);
+  });
+
+  it('says the columns come with the run when nothing knows them yet', () => {
+    const wrapper = render({
+      cell: { ...CELL, slots: [{ from: 'value', ref: 'out1' }] },
+      valueOptions: [{ name: 'out1', type: 'rows', summary: 'not run yet', columns: [] }],
+    });
+    expect(wrapper.get('[data-testid="notebook-slot-mapping-c1-0"]').text()).toContain('known after it runs');
+  });
 });
 
 describe('a cell whose target is gone', () => {

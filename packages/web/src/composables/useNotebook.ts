@@ -32,7 +32,7 @@ import {
   booleanValue,
   graphValue,
   isTabularContentType,
-  mapColumns,
+  slotMappings,
   rowsValue,
   tabularRowsValue,
   toSlotArgument,
@@ -83,6 +83,8 @@ export interface NotebookTarget {
   version: number | null;
   /** The query's text, where it has one: what the cell shows it will run. */
   queryString: string | null;
+  /** The columns a SELECT projects, as far as the library knows them before a run. */
+  outputs?: string[];
 }
 
 export type CellStatus = 'idle' | 'running' | 'ok' | 'error' | 'skipped';
@@ -124,6 +126,7 @@ function targetFromCallable(callable: Callable): NotebookTarget {
     offsetParameters: callable.offsetParameters.map((parameter) => parameter.name),
     version: callable.version,
     queryString: callable.queryString ?? null,
+    outputs: callable.outputs.map((output) => output.variableName.replace(/^[?$]/, '')),
   };
 }
 
@@ -379,10 +382,10 @@ export function useNotebook(
       if (slot.whenEmpty === 'stop') return `@${slot.ref} is empty.`;
     }
     if (byReference && sendsByReference(value)) {
-      const columns = mapColumns(value.columns, vars).map(({ source, target }) => ({ from: source, to: target }));
+      const columns = slotMappings(value.columns, vars, slot.columns).map(({ source, target }) => ({ from: source, to: target }));
       if (columns.length) return { ref: { resultRef: value.resultRef!, columns, vars: [...vars] } };
     }
-    return toSlotArgument(value as RowsValue, vars);
+    return toSlotArgument(value as RowsValue, vars, slot.columns);
   }
 
   /**

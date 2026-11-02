@@ -7,6 +7,7 @@ import {
   graphValue,
   mapColumns,
   rowsValue,
+  slotPairings,
   toSlotArgument,
   type RowsValue,
 } from '@/lib/notebookValues';
@@ -78,6 +79,40 @@ describe('column mapping', () => {
 
   it('leaves a target with no partner unfilled rather than guessing', () => {
     expect(mapColumns(['only'], ['first', 'second'])).toEqual([{ source: 'only', target: 'first' }]);
+  });
+});
+
+describe('a chosen column mapping', () => {
+  it('shows the default pairing, and that nothing chose it', () => {
+    expect(slotPairings(['s', 'p', 'o'], ['s'])).toEqual([{ target: 's', source: 's', chosen: false }]);
+  });
+
+  it('lets any column fill a variable, whatever its name', () => {
+    expect(slotPairings(['s', 'p', 'o'], ['s'], { s: 'o' })).toEqual([{ target: 's', source: 'o', chosen: true }]);
+  });
+
+  it('leaves a variable unbound when the author says so', () => {
+    expect(slotPairings(['s'], ['s'], { s: null })).toEqual([{ target: 's', source: null, chosen: true }]);
+  });
+
+  it('falls back to the default when the chosen column is gone', () => {
+    expect(slotPairings(['s', 'p'], ['s'], { s: 'o' })).toEqual([{ target: 's', source: 's', chosen: false }]);
+  });
+
+  it('sends the chosen column under the slot variable', () => {
+    const value = rows(['s', 'p', 'o'], [{
+      s: { type: 'uri', value: 'urn:s' },
+      p: { type: 'uri', value: 'urn:p' },
+      o: { type: 'uri', value: 'urn:o' },
+    }]);
+    expect(toSlotArgument(value, ['s'], { s: 'p' })).toEqual({
+      head: { vars: ['s'] },
+      results: { bindings: [{ s: { type: 'uri', value: 'urn:p' } }] },
+    });
+    expect(toSlotArgument(value, ['s'], { s: null })).toEqual({
+      head: { vars: ['s'] },
+      results: { bindings: [{}] },
+    });
   });
 });
 
