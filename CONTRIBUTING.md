@@ -43,6 +43,9 @@ likely to use:
 | --- | --- |
 | `just run-local-memory` | API + MCP on port 3005, durable Oxigraph store under `packages/api/tmp/library-store`, assistant flag on |
 | `just clean-local-memory` | Delete that store |
+| `just dev-auth` | API, MCP and SPA with every feature flag on, in `required` auth mode behind a local Rauthy on port 8080, with an administrator and three test people; see [a dev stack behind Rauthy](docs/guides/deploying.md#a-dev-stack-behind-rauthy) |
+| `just rauthy-up` / `just rauthy-down` / `just clean-rauthy` | Start, stop or throw away that Rauthy on its own |
+| `just clean-dev-auth` | Delete `dev-auth`'s library store and grants |
 | `just run-frontend [API_URL]` | Nuxt dev server on port 3001, pointed at `http://localhost:3005` by default |
 | `just run-local-rules-tests` | API as a rules workbench with the W3C SHACL 1.2 Rules suite seeded as runnable Tests, in its own store |
 | `just run-frontend-rules` | The SPA with the matching feature flags — the API and the SPA read their own environments, so both halves must be set |

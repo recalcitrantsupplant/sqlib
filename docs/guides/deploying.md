@@ -348,6 +348,47 @@ clients and leaves existing providers alone. Rauthy reads the API key
 definition only when it first creates its database. To start again, remove
 the `rauthy-data` volume.
 
+### A dev stack behind Rauthy
+
+`just dev-auth` runs sqlib as `just dev` does, with every feature flag on, but
+in `required` mode behind a local Rauthy. Use it to try grants, the Access
+screen and anything else that depends on who is calling. It needs Docker,
+`openssl` and `jq`.
+
+```bash
+just dev-auth
+```
+
+1. It starts Rauthy (`just rauthy-up`) in Docker on `http://localhost:8080`,
+   from `docker-compose.auth-demo.yml`. `rauthy/setup.sh` creates the
+   clients, and `rauthy/demo-users.sh` creates the test people.
+2. It starts the API on `:3005` and the SPA on `:3001`, which sends you to
+   Rauthy to sign in.
+3. It prints the passwords. The first run writes them, with fresh secrets, to
+   `tmp/auth-demo/.env` (ignored by git), and later runs keep them.
+
+| Sign in as | Rauthy group | In sqlib |
+| --- | --- | --- |
+| `admin@localhost` | `admin` | an administrator: sees **Access** |
+| `alice@localhost` | `analysts` | no grants until you give some |
+| `bob@localhost` | `hr` | no grants until you give some |
+| `carol@localhost` | none | no grants until you give some |
+
+To see two people at once, sign in as the administrator in one window and as
+alice in a private window. As the administrator, grant alice or the
+`analysts` group some access, then reload alice's window.
+
+`dev-auth` keeps its own stores, so the data of `just dev` stays as it is:
+the library in `packages/api/tmp/dev-auth-store` and the grants in
+`packages/api/tmp/dev-auth-auth`.
+
+| Command | What it does |
+| --- | --- |
+| Ctrl-C | Stops the API and the SPA. Rauthy stays up. |
+| `just rauthy-down` | Stops Rauthy and keeps its people and clients. |
+| `just clean-dev-auth` | Deletes the library store and the grants of `dev-auth`. |
+| `just clean-rauthy` | Deletes Rauthy's volume and the secrets. The next run makes new passwords. |
+
 ### A demo of graph access
 
 `just demo-graph-access` runs the whole access model on one machine, with
@@ -355,9 +396,9 @@ Rauthy in front. It needs Docker, `openssl` and `jq`.
 
 - Rauthy runs in Docker on `http://localhost:8080`, from
   `docker-compose.auth-demo.yml`: its own project and volume, separate from the
-  `auth` profile above. `rauthy/setup.sh` creates the clients, and
-  `rauthy/demo-users.sh` creates the groups `analysts` and `hr` and three
-  people.
+  `auth` profile above, and the same Rauthy that `just dev-auth` uses.
+  `rauthy/setup.sh` creates the clients, and `rauthy/demo-users.sh` creates
+  the groups `analysts` and `hr` and three people.
 - sqlib runs on the host in `required` mode: the API on `:3005`, seeded with
   the "Graph access demo" library, and the SPA on `:3001`.
 
