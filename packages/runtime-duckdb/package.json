@@ -44,7 +44,7 @@
     "@duckdb/node-api": "2.0.0-r.1"
   },
   "devDependencies": {
-    "@types/node": "^26.6.2",
+    "@types/node": "^26.6.6",
     "typescript": "^7.0.2",
     "vitest": "^5.0.2"
   }
