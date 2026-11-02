@@ -102,13 +102,14 @@ test.describe('Library Edit - Backend Selection', () => {
   /*
    * Drives the real UI. Rename moved to the library's row on the splash when
    * the artifact tree was removed; the button is drawn rather than revealed on
-   * hover, so there is no hover step left.
+   * hover, so there is no hover step left. The row also has a Manage button,
+   * so the rename button is found by its test id, not by position.
    */
   async function openLibraryEditDialog(page: Page) {
     await openSplashLibraries(page);
     const row = splashLibraryRow(page, 'Library Without Backend').first();
     await expect(row).toBeVisible();
-    await row.locator('.row-action').first().click();
+    await row.locator('[data-testid^="splash-library-edit-"]').click();
     await expect(page.getByRole('dialog')).toBeVisible();
   }
 
