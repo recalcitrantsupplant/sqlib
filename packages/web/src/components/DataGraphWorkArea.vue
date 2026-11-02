@@ -99,6 +99,27 @@
                 :content-type="contentFormat"
                 @update:code="(value: string) => (contentString = value)"
               />
+              <!--
+                Diff, beside Expand: it opens in the pop-out, and like the
+                other buttons on this row it acts on the whole document. The
+                same rule as the query and rule set editors decides the pair
+                (`planVersionDiff`), and the title names it. A graph with
+                one version and no edits has nothing to compare, so the button
+                stays disabled and says so.
+              -->
+              <button
+                v-if="!isScratch"
+                type="button"
+                class="icon-control"
+                :class="{ 'icon-control--active': showDiff }"
+                data-testid="data-graph-diff"
+                :disabled="!diffPlan"
+                :title="diffButtonTitle"
+                :aria-label="diffButtonTitle"
+                @click="toggleDiff"
+              >
+                <GitCompare :size="16" />
+              </button>
               <ExpandButton
                 v-if="!contentExpanded"
                 subject="this data graph"
@@ -113,7 +134,31 @@
             the author picked: a data graph is Turtle or N-Triples like everything
             else here, and a plain textarea was the odd one out.
           -->
-          <ExpandableEditor :id="CONTENT_REGION_ID" title="Data Graph" testid="data-graph-expand">
+          <ExpandableEditor
+            :id="CONTENT_REGION_ID"
+            title="Data Graph"
+            testid="data-graph-expand"
+            :layer-open="showDiff"
+            @update:expanded="onExpandedChange"
+          >
+            <template #layer>
+              <QueryDiffPane
+                :version-options="versionOptions"
+                :has-draft-edits="hasDraftEdits"
+                :left-version="diffLeftVersion"
+                :right-version="diffRightVersion"
+                :left-query="diffLeftText"
+                :right-query="diffRightText"
+                :left-label="diffLeftLabel"
+                :right-label="diffRightLabel"
+                :content-type="diffContentType"
+                testid="data-graph-diff-pane"
+                @update-left-version="(value) => (diffLeftVersion = value)"
+                @update-right-version="(value) => (diffRightVersion = value)"
+                @swap-versions="swapDiffSides"
+                @close="showDiff = false"
+              />
+            </template>
             <EditableRdfViewer
               v-model="contentString"
               class="content-editor"
@@ -161,6 +206,7 @@
             @update:name="graphName = $event"
             @update:description="description = $event"
             @select-version="selectVersion"
+            @compare-version="compareWithCurrent"
             @set-current-version="setCurrentVersion"
             @annotate-version="annotateVersion"
             @select-draft="selectDraft"
@@ -198,7 +244,9 @@
  */
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { toast } from 'vue-sonner';
-import { Upload } from '@lucide/vue';
+import { GitCompare, Upload } from '@lucide/vue';
+import QueryDiffPane from './query-work-area/QueryDiffPane.vue';
+import { DRAFT_SIDE, NOTHING_TO_DIFF, planVersionDiff, versionDiffLabel } from '@/lib/versionDiff';
 import InlineNote from './shared/InlineNote.vue';
 import SaveBar from './shared/SaveBar.vue';
 import EditableRdfViewer from './EditableRdfViewer.vue';
@@ -316,6 +364,105 @@ const currentVersionNumber = computed(
   () => versions.value.find((version) => version.id === currentVersionId.value)?.version ?? null,
 );
 
+/* ------------------------------------------------------------------ diff */
+
+/*
+ * Two versions of the graph's text side by side, in the editor's pop-out —
+ * the same view, and the same rule for which pair, as the query editor. A
+ * text diff, not a graph one: it shows what the author changed in the file,
+ * so reordering lines or renaming a prefix shows up even where the triples
+ * are the same.
+ *
+ * Every version already carries its content, so a side is read from the list
+ * rather than fetched.
+ */
+const showDiff = ref(false);
+/** A version id, or `DRAFT_SIDE` for what is in the editor now. */
+const diffLeftVersion = ref<string | null>(null);
+const diffRightVersion = ref<string | null>(null);
+
+/** Whether the editor holds edits the version it was loaded from does not. */
+const hasDraftEdits = computed(
+  () => contentString.value.trim() !== loadedVersionContent.value.trim(),
+);
+
+const diffPlan = computed(() => {
+  if (isScratch.value) return null;
+  const open = versions.value.find((version) => version.id === loadedVersionId.value)?.version ?? null;
+  return planVersionDiff({
+    hasEdits: hasDraftEdits.value,
+    open,
+    current: currentVersionNumber.value,
+    versions: versions.value.map((version) => version.version),
+  });
+});
+
+const diffButtonTitle = computed(() =>
+  diffPlan.value ? `Diff ${diffPlan.value.left.label} → ${diffPlan.value.right.label}` : NOTHING_TO_DIFF,
+);
+
+function versionById(id: string | null) {
+  return versions.value.find((version) => version.id === id) ?? null;
+}
+
+function sideText(side: string | null): string | null {
+  if (side === DRAFT_SIDE) return contentString.value;
+  return versionById(side)?.contentString ?? null;
+}
+
+function sideLabel(side: string | null): string {
+  if (side === DRAFT_SIDE) return 'Draft';
+  const version = versionById(side);
+  return version ? versionDiffLabel(version.version, currentVersionNumber.value) : '';
+}
+
+const diffLeftText = computed(() => sideText(diffLeftVersion.value));
+const diffRightText = computed(() => sideText(diffRightVersion.value));
+const diffLeftLabel = computed(() => sideLabel(diffLeftVersion.value));
+const diffRightLabel = computed(() => sideLabel(diffRightVersion.value));
+
+/** Highlighted as the newer side is written; the draft is the editor's format. */
+const diffContentType = computed(() => {
+  const side = diffRightVersion.value;
+  if (side === DRAFT_SIDE) return contentFormat.value;
+  return versionById(side)?.contentFormat ?? contentFormat.value;
+});
+
+function openDiff(left: string | null, right: string | null) {
+  if (!left || !right) return;
+  diffLeftVersion.value = left;
+  diffRightVersion.value = right;
+  showDiff.value = true;
+  editorExpand.expand(CONTENT_REGION_ID);
+}
+
+function toggleDiff() {
+  if (showDiff.value) {
+    showDiff.value = false;
+    return;
+  }
+  const plan = diffPlan.value;
+  if (!plan) return;
+  const sideId = (side: typeof plan.left) =>
+    side.draft ? DRAFT_SIDE : versions.value.find((version) => version.version === side.version)?.id ?? null;
+  openDiff(sideId(plan.left), sideId(plan.right));
+}
+
+/** The version row's compare button: that version against current. */
+function compareWithCurrent(versionId: string) {
+  if (!currentVersionId.value || versionId === currentVersionId.value) return;
+  openDiff(versionId, currentVersionId.value);
+}
+
+function swapDiffSides() {
+  [diffLeftVersion.value, diffRightVersion.value] = [diffRightVersion.value, diffLeftVersion.value];
+}
+
+/** The diff lives in the pop-out; closing the pop-out closes it too. */
+function onExpandedChange(value: boolean) {
+  if (!value) showDiff.value = false;
+}
+
 /* ------------------------------------------------------------- inspector */
 
 /*
@@ -375,6 +522,7 @@ const detailsProps = computed(() => ({
   // A scratch graph has no server entity to point at anything.
   canSetCurrentVersion: !isScratch.value,
   canAnnotateVersions: !isScratch.value && !!graphId.value,
+  canCompareVersions: !isScratch.value && versions.value.length > 1,
   editCount: editCount.value,
   draftSavedAt: locallySavedAt.value,
   // The editor is showing the draft whenever its text has diverged from the
