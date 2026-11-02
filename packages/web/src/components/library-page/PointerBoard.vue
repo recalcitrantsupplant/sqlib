@@ -1,7 +1,7 @@
 <template>
   <section class="board-section" data-testid="pointer-board">
     <div class="board-tools">
-      <input v-model="text" class="filter" placeholder="Filter by name" aria-label="Filter by name" data-testid="board-filter" />
+      <FilterBox v-model="text" class="board-filter" placeholder="Filter by name" test-id="board-filter" />
       <SegmentedToggle v-model="filter" :options="filterOptions" group-label="Show" />
       <span class="spacer" />
       <label v-if="groupOnlyCount > 0" class="toggle" title="Queries used only inside groups. They move with their group.">
@@ -9,11 +9,6 @@
         Group-only ({{ groupOnlyCount }})
       </label>
     </div>
-
-    <p v-if="notice" class="notice" :class="`notice--${notice.tone}`" data-testid="board-notice">
-      <span>{{ notice.text }}</span>
-      <button type="button" class="notice-close" title="Dismiss" aria-label="Dismiss" @click="emit('dismiss')"><X :size="12" /></button>
-    </p>
 
     <div class="table-wrap">
       <table class="board">
@@ -99,8 +94,8 @@
 
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue';
-import { X } from '@lucide/vue';
 import type { Environment } from '@sparql-query-lib/contracts';
+import FilterBox from '@/components/shared/FilterBox.vue';
 import SegmentedToggle from '@/components/shared/SegmentedToggle.vue';
 import {
   DropdownMenu,
@@ -128,12 +123,10 @@ const props = defineProps<{
   rows: readonly BoardRow[];
   canPromote: (environment: string) => boolean;
   versionsOf: (entity: PromotableEntity) => Promise<Array<{ id: string; version: number }>>;
-  notice: { tone: 'warning' | 'danger'; text: string } | null;
 }>();
 
 const emit = defineEmits<{
   (e: 'move', value: { environment: string; entity: PromotableEntity; version: string | null; from: string | null }): void;
-  (e: 'dismiss'): void;
 }>();
 
 const text = ref('');
@@ -199,16 +192,10 @@ function emitMove(row: BoardRow, column: number, version: string | null) {
   gap: var(--space-3);
 }
 
-.filter {
-  width: var(--grid-6);
-  height: var(--control-h-sm);
-  padding: 0 var(--space-3);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius);
-  background: var(--surface);
-  color: var(--ink);
-  font: inherit;
-  font-size: var(--text-body);
+
+.board-filter {
+  flex: 0 1 var(--grid-6);
+  min-width: var(--grid-6);
 }
 
 .spacer {
@@ -223,46 +210,17 @@ function emitMove(row: BoardRow, column: number, version: string | null) {
   font-size: var(--text-label);
 }
 
-.notice {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  margin: 0;
-  padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius);
-  font-size: var(--text-body);
-}
-
-.notice--warning {
-  background: var(--warning-surface);
-  color: var(--warning-ink);
-}
-
-.notice--danger {
-  background: var(--danger-surface);
-  color: var(--danger-ink);
-}
-
-.notice span {
-  flex: 1;
-}
-
-.notice-close {
-  display: inline-flex;
-  border: none;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-}
 
 .table-wrap {
+  align-self: flex-start;
+  max-width: 100%;
   overflow-x: auto;
   border: 1px solid var(--border-default);
   border-radius: var(--radius-panel);
 }
 
 .board {
-  width: 100%;
+  width: auto;
   border-collapse: collapse;
   font-size: var(--text-body);
 }
@@ -305,7 +263,9 @@ function emitMove(row: BoardRow, column: number, version: string | null) {
 
 .cell {
   display: inline-flex;
+  align-items: center;
   min-width: var(--grid-1);
+  height: var(--control-h-sm);
   justify-content: center;
   padding: 0 var(--space-2);
   border: 1px solid var(--border-default);
@@ -313,7 +273,7 @@ function emitMove(row: BoardRow, column: number, version: string | null) {
   background: var(--surface);
   color: var(--ink-secondary);
   font-family: var(--font-mono);
-  font-size: var(--text-code);
+  font-size: var(--text-body);
   font-variant-numeric: tabular-nums;
 }
 

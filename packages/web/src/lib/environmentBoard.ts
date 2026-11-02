@@ -121,3 +121,34 @@ export const KIND_LABELS: Record<PromotableKind, string> = {
   QueryGroup: 'group',
   RuleSet: 'rule set',
 };
+
+/** The column of an environment on the board: `latest` is 0. */
+export function columnOf(rows: readonly BoardRow[], environment: string): number {
+  return rows[0]?.cells.findIndex((cell) => cell.environment === environment) ?? -1;
+}
+
+/**
+ * One environment against the one before it in the chain: the rows a move
+ * would change, and the rest. Group-only queries move with their group, so
+ * they are in neither list.
+ */
+export function environmentView(rows: readonly BoardRow[], column: number): { differing: BoardRow[]; inStep: BoardRow[] } {
+  const differing: BoardRow[] = [];
+  const inStep: BoardRow[] = [];
+  for (const row of rows) {
+    if (row.entity.groupOnly) continue;
+    (catchUpTarget(row, column) ? differing : inStep).push(row);
+  }
+  return { differing, inStep };
+}
+
+/** The Library page's selection for the whole board rather than one environment. */
+export const COMPARE_ALL = 'compare';
+
+/** One pointer move, with `from` the version the screen showed (compare-and-set). */
+export interface PointerMove {
+  environment: string;
+  entity: PromotableEntity;
+  version: string | null;
+  from: string | null;
+}

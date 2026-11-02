@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   buildBoard,
   catchUpTarget,
+  columnOf,
+  environmentView,
   countBoard,
   filterBoard,
   holdsCount,
@@ -66,5 +68,18 @@ describe('environmentBoard', () => {
     expect(catchUpTarget(rows[1], 2)).toBeNull();
     expect(catchUpTarget(rows[2], 1)?.versionNumber).toBe(1);
     expect(catchUpTarget(rows[0], 0)).toBeNull();
+  });
+
+  it('splits one environment into what differs from the one before it, and the rest', () => {
+    const withGroupOnly = buildBoard(
+      [query('a', 3), query('b', 2), query('c', 1), query('d', 1, { groupOnly: true })],
+      environments,
+      indexPointers({ dev: [pointer('a', 3), pointer('b', 2), pointer('c', 1)], prod: [pointer('a', 1), pointer('b', 2)] }),
+    );
+    const column = columnOf(withGroupOnly, 'prod');
+    const view = environmentView(withGroupOnly, column);
+    expect(column).toBe(2);
+    expect(view.differing.map((row) => row.entity.id)).toEqual(['a', 'c']);
+    expect(view.inStep.map((row) => row.entity.id)).toEqual(['b']);
   });
 });

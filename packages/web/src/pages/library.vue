@@ -12,10 +12,59 @@
 
       <TabStrip v-model="tab" :tabs="tabs" group-label="Library" variant="pane" />
 
-      <div class="body">
-        <p v-if="!libraryId" class="muted">No library.</p>
+      <div v-if="!libraryId" class="body"><p class="muted">No library.</p></div>
 
-        <section v-else-if="tab === 'overview'" class="overview" data-testid="library-overview">
+      <div v-else-if="tab === 'environments'" class="env-tab">
+        <p v-if="envs.loadError.value || chainError" class="error env-error" data-testid="chain-error">{{ envs.loadError.value ?? chainError }}</p>
+        <div v-if="envs.environments.value.length === 0" class="body">
+          <EnvironmentSetup v-if="!envs.loading.value" :can-control="canControl" :busy="busy" @setup="setUp" />
+        </div>
+        <div v-else class="env-split">
+          <EnvironmentList
+            :environments="envs.environments.value"
+            :rows="envs.rows.value"
+            :selected="selectedEnv"
+            :can-control="canControl"
+            @select="selectEnv"
+            @add="openAdd"
+          />
+          <div v-if="selectedEnv === COMPARE_ALL" class="compare">
+            <InlineNote v-if="notice" :tone="notice.tone === 'danger' ? 'danger' : 'muted'" data-testid="board-notice">{{ notice.text }}</InlineNote>
+            <PointerBoard
+              :environments="envs.environments.value"
+              :rows="envs.rows.value"
+              :can-promote="canPromote"
+              :versions-of="envs.versionsOf"
+              @move="movePointer"
+            />
+          </div>
+          <EnvironmentDetail
+            v-else-if="selectedEnvironment"
+            :environment="selectedEnvironment"
+            :column="selectedIndex + 1"
+            :previous-name="selectedIndex === 0 ? 'latest' : envs.environments.value[selectedIndex - 1].name"
+            :rows="envs.rows.value"
+            :backends="backends"
+            :holders="grants.holders.value[selectedEnvironment.id] ?? null"
+            :can-control="canControl"
+            :may-promote="canPromote(selectedEnvironment.id)"
+            :is-first="selectedIndex === 0"
+            :is-last="selectedIndex === envs.environments.value.length - 1"
+            :busy="busy"
+            :notice="notice"
+            :versions-of="envs.versionsOf"
+            @edit="openEdit(selectedEnvironment)"
+            @reorder="(by) => moveEnvironment(selectedEnvironment!, by)"
+            @delete="askDelete(selectedEnvironment)"
+            @move="movePointer"
+            @move-all="moveAll"
+            @dismiss="notice = null"
+          />
+        </div>
+      </div>
+
+      <div v-else class="body">
+        <section v-if="tab === 'overview'" class="overview" data-testid="library-overview">
           <p v-if="library?.description" class="description">{{ library.description }}</p>
           <dl class="facts">
             <dt>Queries</dt><dd>{{ countOf('Query') }}</dd>
@@ -30,36 +79,8 @@
           </dl>
         </section>
 
-        <template v-else-if="tab === 'environments'">
-          <p v-if="envs.loadError.value" class="error">{{ envs.loadError.value }}</p>
-          <EnvironmentChain
-            :environments="envs.environments.value"
-            :rows="envs.rows.value"
-            :backends="backends"
-            :can-control="canControl"
-            :holders="grants.holders.value"
-            :busy="busy"
-            @add="openAdd"
-            @edit="openEdit"
-            @move="moveEnvironment"
-            @delete="askDelete"
-            @setup="setUp"
-          />
-          <p v-if="chainError" class="error" data-testid="chain-error">{{ chainError }}</p>
-          <PointerBoard
-            v-if="envs.environments.value.length > 0"
-            :environments="envs.environments.value"
-            :rows="envs.rows.value"
-            :can-promote="canPromote"
-            :versions-of="envs.versionsOf"
-            :notice="notice"
-            @move="movePointer"
-            @dismiss="notice = null"
-          />
-        </template>
-
         <LibraryAccessTab
-          v-else-if="tab === 'access' && libraryId"
+          v-else-if="tab === 'access'"
           :library-id="libraryId"
           :environments="envs.environments.value"
           :grants="grants"
@@ -130,7 +151,10 @@ import type { Backend, Environment } from '@sparql-query-lib/contracts';
 import AppNavRail from '@/components/AppNavRail.vue';
 import TabStrip from '@/components/shared/TabStrip.vue';
 import LibraryExportDialog from '@/components/LibraryExportDialog.vue';
-import EnvironmentChain from '@/components/library-page/EnvironmentChain.vue';
+import EnvironmentDetail from '@/components/library-page/EnvironmentDetail.vue';
+import EnvironmentList from '@/components/library-page/EnvironmentList.vue';
+import EnvironmentSetup from '@/components/library-page/EnvironmentSetup.vue';
+import InlineNote from '@/components/shared/InlineNote.vue';
 import EnvironmentDialog from '@/components/library-page/EnvironmentDialog.vue';
 import PointerBoard from '@/components/library-page/PointerBoard.vue';
 import LibraryAccessTab from '@/components/library-page/LibraryAccessTab.vue';
@@ -149,7 +173,7 @@ import { useAuth } from '@/composables/useAuth';
 import { useDeploymentMode } from '@/composables/useDeploymentMode';
 import { useLibraryEnvironments } from '@/composables/useLibraryEnvironments';
 import { useLibraryGrants } from '@/composables/useLibraryGrants';
-import type { PromotableEntity, PromotableKind } from '@/lib/environmentBoard';
+import { COMPARE_ALL, environmentView, type PointerMove, type PromotableKind } from '@/lib/environmentBoard';
 import { isScreenSection, SCREEN_SECTION_PATHS, type RailSection } from '@/lib/railSections';
 
 type LibraryTab = 'overview' | 'environments' | 'access';
@@ -194,6 +218,29 @@ watch(tab, (value) => {
   if (route.query.tab !== value) router.replace({ query: { ...route.query, tab: value } });
 });
 watch(() => route.query.tab, () => { tab.value = tabFromRoute(); });
+
+/*
+ * The environment shown beside the list, kept in `?env=` by name. With none
+ * named, the first one with something behind, else the first in the chain.
+ */
+const selectedEnv = computed<string | null>(() => {
+  const list = envs.environments.value;
+  const wanted = route.query.env;
+  if (wanted === COMPARE_ALL) return COMPARE_ALL;
+  const named = typeof wanted === 'string' ? list.find((env) => env.name === wanted) : null;
+  if (named) return named.id;
+  const waiting = list.find((_, index) => environmentView(envs.rows.value, index + 1).differing.length > 0);
+  return (waiting ?? list[0])?.id ?? null;
+});
+
+const selectedIndex = computed(() => envs.environments.value.findIndex((env) => env.id === selectedEnv.value));
+const selectedEnvironment = computed(() => envs.environments.value[selectedIndex.value] ?? null);
+
+function selectEnv(value: string) {
+  notice.value = null;
+  const name = value === COMPARE_ALL ? COMPARE_ALL : envs.environments.value.find((env) => env.id === value)?.name;
+  if (name) router.replace({ query: { ...route.query, env: name } });
+}
 
 function countOf(kind: PromotableKind): number {
   return envs.entities.value.filter((entity) => entity.kind === kind).length;
@@ -305,8 +352,18 @@ async function confirmDelete() {
 
 const notice = ref<{ tone: 'warning' | 'danger'; text: string } | null>(null);
 
-async function movePointer(value: { environment: string; entity: PromotableEntity; version: string | null; from: string | null }) {
+async function moveAll(moves: PointerMove[]) {
+  busy.value = true;
   notice.value = null;
+  for (const move of moves) {
+    if (!(await movePointer(move))) break;
+  }
+  busy.value = false;
+}
+
+/** Returns whether the move landed. */
+async function movePointer(value: PointerMove): Promise<boolean> {
+  if (!busy.value) notice.value = null;
   const env = envs.environments.value.find((candidate) => candidate.id === value.environment);
   const outcome = await envs.movePointer(value.environment, value.entity.id, value.version, value.from);
   if (outcome.conflict) {
@@ -317,6 +374,7 @@ async function movePointer(value: { environment: string; entity: PromotableEntit
     const parts = outcome.partsBehind === 1 ? '1 query' : `${outcome.partsBehind} queries`;
     notice.value = { tone: 'warning', text: `${value.entity.name} runs ${parts} at other versions than ${env?.name} has.` };
   }
+  return outcome.ok;
 }
 
 function handleRailSelect(section: RailSection) {
@@ -375,6 +433,33 @@ function handleRailSelect(section: RailSection) {
   gap: var(--space-7);
   padding: var(--space-6);
   min-width: 0;
+}
+
+.env-tab {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.env-error {
+  padding: var(--space-4) var(--space-6) 0;
+}
+
+.env-split {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.compare {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--space-6) var(--space-7);
+  overflow: auto;
 }
 
 .muted {

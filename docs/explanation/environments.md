@@ -97,17 +97,29 @@ The Library page (`/library`) holds a library's environments. The library
 switcher ("Manage environments…"), the environment badge on the rail and the
 "Manage" button on each homepage library row open it.
 
-- **Environments tab.** The chain, `latest` first. A `control` holder adds,
-  edits, reorders and deletes environments, or creates a whole chain at once
-  for a library with none. Below the chain, a board shows each query, group
-  and rule set against each environment. A cell is amber when it holds an
-  older version than the environment to its left. A `promote` holder clicks a
-  cell to move the pointer; the move always sends `from`.
+- **Environments tab.** A list of the chain, `latest` first, beside one
+  environment's detail. Each row in the list counts what that environment is
+  behind the one before it. The detail shows the environment's backend and
+  who may promote to or run in it, then each query, group and rule set that
+  differs from the environment before it, with Move (or Add) per row and
+  Move all. The rest folds into one "in step" line. Each row's menu moves the
+  pointer to any version or removes it; every move sends `from`. "Compare
+  all" shows every entity against every environment in one table. A
+  `control` holder adds, edits, reorders and deletes environments, or creates
+  a whole chain at once for a library with none. `?env=` keeps the selection.
 - **Access tab.** For `control` holders, with auth on: library roles and Run
   or Promote per environment, for each person and group. It writes the same
-  grants as the admin Access screen. The
-review flow (promotion requests, reviewers on each step of the chain, evidence
-from test runs) builds on this route and is designed separately.
+  grants as the admin Access screen.
+- **Query editor.** With an environment picked, the editor opens on the
+  version that environment runs, and Run runs the version on screen. A
+  version named in the URL, or unsaved edits, keep their place when the
+  environment changes. The save bar shows the environment and its version,
+  and each version row in the Details tab shows the environments that point
+  at it. Query groups and rule sets do not do this yet.
+
+The review flow (promotion requests, reviewers on each step of the chain,
+evidence from test runs) builds on the pointer route and is designed
+separately.
 
 ## Groups and their parts
 
