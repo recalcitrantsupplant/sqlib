@@ -224,6 +224,37 @@ describe('Environments', () => {
     expect(move.json().error).toContain('Promote the group');
   });
 
+  it('starts a new environment from latest or from another environment', async () => {
+    const fromLatest = await context.app.inject({
+      method: 'POST', url: '/environments/',
+      payload: { name: 'seeded-latest', isPartOf: context.libraryId, startFrom: 'latest' },
+    });
+    expect(fromLatest.statusCode, fromLatest.payload).toBe(201);
+    const latestPointers = fromLatest.json().versions as string[];
+    expect(latestPointers).toContain(versions[2]);
+    expect(latestPointers).toContain(otherVersion);
+    expect(latestPointers).not.toContain(versions[0]);
+
+    const fromProd = await context.app.inject({
+      method: 'POST', url: '/environments/',
+      payload: { name: 'seeded-prod', isPartOf: context.libraryId, startFrom: prodId },
+    });
+    expect(fromProd.statusCode, fromProd.payload).toBe(201);
+    expect(fromProd.json().versions).toEqual((await context.app.inject({
+      method: 'GET', url: `/environments/${encodeURIComponent(prodId)}`,
+    })).json().versions);
+
+    const unknown = await context.app.inject({
+      method: 'POST', url: '/environments/',
+      payload: { name: 'seeded-unknown', isPartOf: context.libraryId, startFrom: 'urn:sqlib:environment:missing' },
+    });
+    expect(unknown.statusCode).toBe(400);
+
+    for (const created of [fromLatest, fromProd]) {
+      await context.app.inject({ method: 'DELETE', url: `/environments/${encodeURIComponent(created.json().id)}` });
+    }
+  });
+
   it('clears a pointer and deletes an environment', async () => {
     expect((await point(devId, queryId, null)).statusCode).toBe(200);
     expect((await run('dev')).statusCode).toBe(409);
