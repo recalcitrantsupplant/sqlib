@@ -443,3 +443,10 @@ Rule sets were added as a third kind of tool on 2026-11-01:
    a URL.
 4. **`published` mode keeps that route** and runs only the pinned version on
    the caller's RDF or the pinned data graph version.
+
+Posted RDF for queries and groups was added on 2026-11-02. A reading query
+and a group whose start node takes RDF take `data` and `format` too. A query
+runs over the RDF alone in an ephemeral store, through `/execute`'s
+`dataGraphs`, in place of a backend; a group's RDF fills its start node's
+first RDF input. A reading tool that takes `data` answers `POST` as well as
+`GET`. Updates take no `data`.

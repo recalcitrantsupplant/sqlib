@@ -323,3 +323,58 @@ describe('rule sets', () => {
       .toMatch(/^tool\.dataGraphId/);
   });
 });
+
+describe('posted data on queries and groups', () => {
+  const byCity: PublishedToolSpec = {
+    slug: 'people',
+    libraryId: 'urn:sqlib:library:people',
+    name: 'people-in-city',
+    description: 'The people who live in a city.',
+    targetId: 'urn:sqlib:query-version:by-city-2',
+    targetKind: 'query',
+    readOnly: true,
+    params: { city: { kind: 'string' } },
+    inputs: { tables: [['city']], limits: [], offsets: [] },
+    defaultBackendId: 'urn:sqlib:backend:people',
+    acceptsData: true,
+  };
+  const TTL = '<urn:a> <urn:p> "x" .';
+
+  it('runs a query over posted RDF in place of a backend, and refuses both at once', () => {
+    expect(buildPublishedExecuteBody(byCity, { city: 'Perth', data: TTL })).toEqual({
+      targetId: byCity.targetId,
+      dataGraphs: [{ dataGraphInline: TTL, dataGraphInlineFormat: 'text/turtle' }],
+      arguments: [{ head: { vars: ['city'] }, results: { bindings: [{ city: { type: 'literal', value: 'Perth' } }] } }],
+    });
+    expect(buildPublishedExecuteBody(byCity, { city: 'Perth' }).backendId).toBe('urn:sqlib:backend:people');
+    expect(() => buildPublishedExecuteBody(byCity, { data: TTL, backendId: 'urn:b' })).toThrow(/names no backend/);
+    expect(() => buildPublishedExecuteBody(byCity, { format: 'text/turtle' })).toThrow(/needs "data"/);
+  });
+
+  it('offers data only where the spec says so, and not over a parameter of that name', () => {
+    expect(Object.keys(publishedInputSchema(byCity).properties as object)).toEqual(['city', 'backendId', 'data', 'format']);
+    const update = { ...byCity, readOnly: false, acceptsData: undefined };
+    expect(() => buildPublishedExecuteBody(update, { data: TTL })).toThrow(/no such argument/);
+    const clash = { ...byCity, params: { data: { kind: 'string' as const } }, inputs: { tables: [['data']], limits: [], offsets: [] } };
+    expect(Object.keys(publishedInputSchema(clash).properties as object)).toEqual(['data', 'backendId']);
+  });
+
+  it('fills a group\'s RDF input, and lists a GET tool\'s POST in the OpenAPI document', () => {
+    const group: PublishedToolSpec = {
+      ...byCity,
+      name: 'report',
+      targetKind: 'group',
+      targetId: 'urn:sqlib:query-group-version:report-1',
+      defaultBackendId: undefined,
+    };
+    expect(buildPublishedExecuteBody(group, { data: TTL, format: 'application/n-triples' }).dataGraphs).toEqual([
+      { dataGraphInline: TTL, dataGraphInlineFormat: 'application/n-triples' },
+    ]);
+    const document = publishedOpenApiDocument({ slug: 'people', title: 'People', specs: [byCity] }) as {
+      paths: Record<string, { get: { parameters: Array<{ name: string }> }; post: { operationId: string } }>;
+    };
+    const path = document.paths['/tools/people/people-in-city'];
+    expect(path.get.parameters.map(p => p.name)).toEqual(['city', 'backendId']);
+    expect(path.post.operationId).toBe('people-in-cityWithData');
+  });
+});

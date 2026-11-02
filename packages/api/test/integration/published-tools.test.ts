@@ -246,6 +246,21 @@ RULE { ?a ex:neighbour ?b } WHERE { ?a ex:city ?city . ?b ex:city ?city . FILTER
       expect(limited.body.results.bindings).toHaveLength(1);
     });
 
+    it('runs a reading query over RDF the caller posts, in place of its backend', async () => {
+      const data = '@prefix ex: <http://example.org/> . ex:dan ex:name "Dan" ; ex:city "Hobart" . ex:eve ex:name "Eve" ; ex:city "Perth" .';
+      const posted = await send(server, 'POST', '/tools/people/people-in-city', { city: ['Perth'], '1': 10, data });
+      expect(posted.status).toBe(200);
+      expect(posted.body.results.bindings.map((b: Json) => b.name.value)).toEqual(['Eve']);
+
+      const both = await send(server, 'POST', '/tools/people/people-in-city', { city: ['Perth'], data, backendId: ids.backend });
+      expect(both.status).toBe(400);
+      expect(both.body.error).toContain('names no backend');
+
+      // An update takes no data: it would write into a store that is then dropped.
+      const update = await send(server, 'POST', '/tools/people/settle', { item: ['http://example.org/req2'], verdict: 'agree', data });
+      expect(update.status).toBe(400);
+    });
+
     it('refuses a missing required parameter and an unknown one before anything runs', async () => {
       const missing = await send(server, 'GET', '/tools/people/people-in-city');
       expect(missing.status).toBe(400);
@@ -271,6 +286,15 @@ RULE { ?a ex:neighbour ?b } WHERE { ?a ex:city ?city . ?b ex:city ?city . FILTER
         'city',
         'backendId',
       ]);
+      const withData = document.body.paths['/tools/people/people-in-city'].post;
+      expect(Object.keys(withData.requestBody.content['application/json'].schema.properties)).toEqual([
+        '1',
+        'city',
+        'backendId',
+        'data',
+        'format',
+      ]);
+      expect(document.body.paths['/tools/people/settle'].get).toBeUndefined();
     });
 
     it('decorates the instance with the catalogue for the MCP server', () => {
@@ -284,8 +308,10 @@ RULE { ?a ex:neighbour ?b } WHERE { ?a ex:city ?city . ?b ex:city ?city . FILTER
           readOnly: true,
           defaultBackendId: ids.backend,
           inputs: { tables: [['city']], limits: ['1'], offsets: [] },
+          acceptsData: true,
         }),
       ]);
+      expect(published.catalogue.specs.find((spec: Json) => spec.name === 'settle').acceptsData).toBeUndefined();
     });
 
     it('runs a rule set on its pinned data graph, or on the caller\'s RDF', async () => {
@@ -394,6 +420,19 @@ RULE { ?a ex:neighbour ?b } WHERE { ?a ex:city ?city . ?b ex:city ?city . FILTER
     it('runs only the pinned versions through /execute', async () => {
       const unpinned = await send(server, 'POST', '/execute', { targetId: ids.query, backendId: ids.backend });
       expect(unpinned.status).toBe(403);
+
+      const pinnedId = (server as unknown as { sqlibPublished: { catalogue: { specs: Json[] } } }).sqlibPublished
+        .catalogue.specs.find((spec: Json) => spec.name === 'people-in-city').targetId;
+      const storedGraph = await send(server, 'POST', '/execute', { targetId: pinnedId, dataGraphs: [{ dataGraphId: ids.dataGraph }] });
+      expect(storedGraph.status).toBe(403);
+      const posted = await send(server, 'POST', '/tools/people/people-in-city', {
+        city: ['Hobart'],
+        '1': 10,
+        data: '<http://example.org/dan> <http://example.org/name> "Dan" .\n<http://example.org/dan> <http://example.org/city> "Hobart" .',
+        format: 'application/n-triples',
+      });
+      expect(posted.status).toBe(200);
+      expect(posted.body.results.bindings.map((b: Json) => b.name.value)).toEqual(['Dan']);
 
       const tool = await send(server, 'GET', '/tools/people/people-in-city?city=Darwin&1=10');
       expect(tool.status).toBe(200);

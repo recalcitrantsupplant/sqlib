@@ -41,6 +41,7 @@ export {
   checkToolObject,
   defaultToolObject,
   prefixedToolName,
+  publishedAcceptsPost,
   publishedHttpMethod,
   publishedInputSchema,
   publishedOpenApiDocument,
