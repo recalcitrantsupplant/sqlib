@@ -220,7 +220,8 @@
         :input-editor-extensions="inputExtensions"
         :tuple-editor-extensions="tupleExtensions"
         :rule-set-id="isScratch ? null : ruleSetIdValue"
-        :code-request="codeRequest"
+        :code-variants="codeVariants"
+        :code-default-variant-id="codeDefaultVariantId"
         :code-draft-note="codeDraftNote"
         :code-unavailable="codeUnavailable"
         :can-delete="!isScratch && !!ruleSetIdValue"
@@ -290,7 +291,7 @@ import {
 } from '../composables/useApiClient';
 import { compactReason } from '../lib/srlDependencyDisplay';
 import { useRuntimeConfig } from '#imports';
-import type { SnippetRequest } from '@/lib/codeSnippets';
+import type { CodeSnippetVariant } from '@/components/shared/CodeSnippetPanel.vue';
 import { usePanelResize } from '../composables/usePanelResize';
 import { usePrefixManager } from '../composables/usePrefixManager';
 import { useActiveLibrary } from '../composables/useActiveLibrary';
@@ -1872,24 +1873,62 @@ const prefixSource = computed(() =>
 /*
  * The Code tab.
  *
- * `POST /rule-sets/{id}/execute`, carrying the same fields Run sends:
- * the version on screen, the inference format, and whichever data graph is
- * selected — a saved version or inline RDF, never both, because the route
- * rejects a request naming both.
+ * `POST /rule-sets/{id}/execute`, carrying the same fields Run sends: the
+ * version on screen and the inference format. The base graph is the caller's
+ * choice, not the screen's, so the tab offers both ways the route takes one —
+ * RDF sent with the call, or a saved data graph named by IRI — never both,
+ * because the route rejects a request naming both. Without either the rules
+ * run on their own data blocks alone, which is rarely what a caller wants, so
+ * neither variant leaves the graph out: each fills in what the run bar has, or
+ * a placeholder to replace.
  */
-const codeRequest = computed<SnippetRequest>(() => {
+const INLINE_DATA_PLACEHOLDER = '# The RDF to run the rules on, in the format below.';
+const SAVED_GRAPH_PLACEHOLDER = '<data-graph-id>';
+
+const codeVariants = computed<CodeSnippetVariant[]>(() => {
   const apiBaseUrl = String(config.public.apiBaseUrl).replace(/\/$/, '');
   const id = ruleSetIdValue.value || '<rule-set-id>';
-  const body: Record<string, unknown> = { inferenceFormat: inferenceFormat.value };
-  if (selectedVersionNumber.value !== null) body.version = selectedVersionNumber.value;
-  Object.assign(body, dataGraphRunInput());
+  const url = `${apiBaseUrl}/rule-sets/${encodeURIComponent(id)}/execute`;
+  const base: Record<string, unknown> = { inferenceFormat: inferenceFormat.value };
+  if (selectedVersionNumber.value !== null) base.version = selectedVersionNumber.value;
 
-  return {
-    method: 'POST',
-    url: `${apiBaseUrl}/rule-sets/${encodeURIComponent(id)}/execute`,
-    body,
-  };
+  const inline = dataSource.value === 'inline' ? dataGraphInline.value.trim() : '';
+  const savedGraph = dataGraphOptions.value.find((option) => option.versionId === dataGraphVersionId.value) ?? null;
+
+  return [
+    {
+      id: 'inline',
+      label: 'RDF in the request',
+      note: inline
+        ? 'Sends the RDF with the call. Nothing is saved, so the caller can run the rules on any data.'
+        : 'Sends the RDF with the call. Replace the placeholder with the data to run the rules on.',
+      request: {
+        method: 'POST',
+        url,
+        body: {
+          ...base,
+          dataGraphInline: inline || INLINE_DATA_PLACEHOLDER,
+          dataGraphInlineFormat: dataGraphInlineFormat.value,
+        },
+      },
+    },
+    {
+      id: 'saved',
+      label: 'Saved data graph',
+      note: savedGraph
+        ? `Runs on "${savedGraph.name}" by IRI, at its current version when the call is made. To pin a version, send dataGraphVersionId instead.`
+        : 'Runs on a data graph saved in the library, by IRI, at its current version. Pick one in the run bar, or replace the placeholder.',
+      request: {
+        method: 'POST',
+        url,
+        body: { ...base, dataGraphId: savedGraph?.graphId ?? SAVED_GRAPH_PLACEHOLDER },
+      },
+    },
+  ];
 });
+
+/** Opens on whichever way Run is currently getting its data. */
+const codeDefaultVariantId = computed(() => (dataSource.value === 'saved' ? 'saved' : 'inline'));
 
 const codeUnavailable = computed(() =>
   isScratch.value || !ruleSetIdValue.value
