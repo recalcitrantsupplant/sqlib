@@ -289,3 +289,44 @@ describe('the run sentence', () => {
   });
 });
 
+describe('the value name', () => {
+  it('says why a name cannot be used, and does not apply it', async () => {
+    const wrapper = render({ nameProblem: (name: string) => (name === 'taken' ? '@taken is already used by another cell.' : null) });
+    const input = wrapper.get('[data-testid="notebook-out-c1"]');
+    await input.setValue('taken');
+    await input.trigger('change');
+
+    expect(wrapper.get('[data-testid="notebook-out-error-c1"]').text()).toContain('already used');
+    expect(wrapper.emitted('rename')).toBeUndefined();
+  });
+
+  it('applies a usable name', async () => {
+    const wrapper = render({ nameProblem: () => null });
+    const input = wrapper.get('[data-testid="notebook-out-c1"]');
+    await input.setValue('people');
+    await input.trigger('change');
+    expect(wrapper.emitted('rename')?.[0]).toEqual(['people']);
+  });
+});
+
+describe('a rule set cell', () => {
+  const RULES = { kind: 'ruleset' as const, id: 'r1', ruleSet: 'urn:rs:1', out: 'closure' };
+  const RULESET_TARGET = { ...TARGET, id: 'urn:rs:1', kind: 'ruleset' as const, resultKind: 'GRAPH' as const, slots: [] };
+
+  it('says its value holds only the inferred triples', () => {
+    const wrapper = render({ cell: RULES, target: RULESET_TARGET });
+    expect(wrapper.get('[data-testid="notebook-ruleset-output-r1"]').text()).toContain('without the base graph');
+  });
+
+  it('offers the library saved data graphs as its base graph', async () => {
+    const wrapper = render({ cell: RULES, target: RULESET_TARGET, dataGraphOptions: [{ id: 'urn:dg:1', name: 'People' }] });
+    await wrapper.get('[data-testid="notebook-graph-source-r1"]').setValue('dg:urn:dg:1');
+    expect(wrapper.emitted('update')?.[0]).toEqual([{ inputGraph: { from: 'dataGraph', dataGraphId: 'urn:dg:1' } }]);
+  });
+
+  it('shows the warning of a run that did not converge', () => {
+    const wrapper = render({ cell: RULES, target: RULESET_TARGET, state: { ...IDLE, status: 'ok', warning: 'stopped at its iteration limit' } });
+    expect(wrapper.get('[data-testid="notebook-warning-r1"]').text()).toContain('iteration limit');
+  });
+});
+

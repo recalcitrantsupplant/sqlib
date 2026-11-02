@@ -258,6 +258,53 @@ describe('running a cell', () => {
     });
   });
 
+  it('runs every cell down to the one asked for, and none below it', async () => {
+    callables.value = [selectCallable('urn:q:people')];
+    executeTarget.mockResolvedValue(rowsResponse(['name'], []));
+
+    await runIn(async (nb) => {
+      const cells = ['a', 'b', 'c'].map((name) => queryCell('urn:q:people', name));
+      cells.forEach((cell) => nb.addCell(cell));
+      await nextTick();
+      await nb.runUpTo(cells[1]!.id);
+
+      expect(executeTarget).toHaveBeenCalledTimes(2);
+      expect(nb.stateFor(cells[2]!.id).status).toBe('idle');
+    });
+  });
+
+  it('binds a rule set that stopped at its iteration limit, warns, and stops Run all there', async () => {
+    callables.value = [selectCallable('urn:q:people')];
+    ruleSets.value = [{ id: 'urn:rs:1', name: 'closure', description: null, isPartOf: [LIBRARY], currentVersionNumber: 1 }];
+    executeRuleSet.mockResolvedValue({ status: 'maxIterations', iterations: [], dataBlocks: [], finalGraphNQuads: '<urn:a> <urn:p> <urn:b> .' });
+    executeTarget.mockResolvedValue(rowsResponse(['name'], []));
+
+    await runIn(async (nb) => {
+      const rules: RuleSetCell = { kind: 'ruleset', id: mintCellId(), ruleSet: 'urn:rs:1', out: 'closure' };
+      const after = queryCell('urn:q:people', 'after');
+      nb.addCell(rules);
+      nb.addCell(after);
+      await nextTick();
+      await nb.runAll();
+
+      expect(nb.values.value.closure?.type).toBe('graph');
+      expect(nb.stateFor(rules.id).warning).toContain('iteration limit');
+      expect(executeTarget).not.toHaveBeenCalled();
+    });
+  });
+
+  it('moves a cell to a position, as a drag ends', async () => {
+    await runIn(async (nb) => {
+      const cells = ['a', 'b', 'c'].map((name) => queryCell('urn:q:people', name));
+      cells.forEach((cell) => nb.addCell(cell));
+      await nextTick();
+      nb.moveCellTo(cells[0]!.id, 2);
+      expect(nb.notebook.value.cells.map((cell) => (cell as QueryCell).out)).toEqual(['b', 'c', 'a']);
+      nb.moveCellTo(cells[0]!.id, 0);
+      expect(nb.notebook.value.cells.map((cell) => (cell as QueryCell).out)).toEqual(['a', 'b', 'c']);
+    });
+  });
+
   it('sends the payload to /execute rather than substituted text', async () => {
     callables.value = [selectCallable('urn:q:people', [['city']])];
     executeTarget.mockResolvedValue(rowsResponse(['name'], []));
@@ -593,7 +640,7 @@ describe('editing the document', () => {
       nb.addCell(second);
       await nextTick();
 
-      expect(nb.renameOutput(second.id, 'out1')).toContain('already bound');
+      expect(nb.renameOutput(second.id, 'out1')).toContain('already used');
     });
   });
 

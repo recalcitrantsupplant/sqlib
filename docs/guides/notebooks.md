@@ -40,6 +40,36 @@ A run cell carries the same run sentence the query screen writes, minus its
 warehouse and then reasoning over an ephemeral copy is the ordinary case. A rule
 set has neither; it runs in process over the graph it is handed.
 
+A new notebook opens with its title selected, so you can name it first. If
+you do not, it takes the first heading of its first markdown cell as its name.
+
+Working with cells:
+
+- **Move a cell:** drag the handle to the left of the cell. With the keyboard,
+  focus the handle and press the arrow keys, or press Alt+Up or Alt+Down
+  anywhere in the cell outside a text editor.
+- **Finish a markdown cell:** press Done, Esc or Ctrl+Enter, or click outside
+  the cell.
+- **Rebuild values after a reload:** values are not kept across a reload.
+  Choose **Run all cells up to here** in a cell's menu to run every cell from
+  the top down to that one.
+- **Name a value:** a name that is not usable, or that another cell uses, is
+  refused with a message beside the box. Esc puts the old name back.
+- **LIMIT and OFFSET:** a parameter is named by the digits written in the
+  query (`LIMIT 0001` is parameter 1). An empty box runs that number.
+- **Run status:** the outline shows each cell as ran, stale, incomplete,
+  failed or skipped.
+
+A rule-set cell takes its base graph from a graph value above it or from a
+saved data graph in the library. Its value is the triples the rules infer,
+without the base graph; to keep both, merge them in a query cell that runs
+over the two graphs (§3). A rule set that stops at its iteration limit or on
+a cycle still binds its value, but the cell shows a warning and **Run all**
+stops there.
+
+On a phone, the notebook list opens from the button at the left of the header,
+and the outline and values sit below the document.
+
 Everything runs through the REST API, which is why a rule-set cell works here
 and cannot exist in an [export bundle](static-export.md): the bundle is for
 calling a triplestore with no sqlib in the request path, so it carries compiled

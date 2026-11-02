@@ -9,6 +9,12 @@
       >
         <span class="entry__index">{{ entry.index }}</span>
         <span class="entry__name" :class="{ 'entry__name--prose': entry.prose }">{{ entry.label }}</span>
+        <span
+          v-if="entry.status"
+          class="entry__status"
+          :class="`entry__status--${entry.status}`"
+          :data-testid="`notebook-outline-status-${entry.id}`"
+        >{{ entry.status }}</span>
         <Badge v-if="entry.badge" variant="secondary" class="entry__badge">{{ entry.badge }}</Badge>
       </a>
       <InlineNote v-if="entries.length === 0" size="xs" class="empty-note">No cells yet</InlineNote>
@@ -18,6 +24,7 @@
 <script setup lang="ts">
 import { Badge } from '../ui/badge';
 import InlineNote from '../shared/InlineNote.vue';
+import type { OutlineStatus } from '../../composables/useNotebook';
 
 /**
  * The notebook's contents: one row per cell, in document order.
@@ -28,7 +35,15 @@ import InlineNote from '../shared/InlineNote.vue';
  * you ask about a document you are not currently reading.
  */
 defineProps<{
-  entries: Array<{ id: string; index: number; label: string; badge: string | null; prose: boolean }>;
+  entries: Array<{
+    id: string;
+    index: number;
+    label: string;
+    badge: string | null;
+    prose: boolean;
+    /** How the cell's last run went; null for prose and for a cell not run yet. */
+    status: OutlineStatus | null;
+  }>;
 }>();
 </script>
 
@@ -73,6 +88,17 @@ defineProps<{
   font-family: var(--font-mono);
   font-size: var(--text-body);
 }
+
+.entry__status {
+  flex-shrink: 0;
+  font-size: var(--text-micro);
+  color: var(--ink-muted);
+}
+
+.entry__status--failed { color: var(--danger-ink); }
+.entry__status--stale,
+.entry__status--incomplete { color: var(--warning-ink); }
+.entry__status--ran { color: var(--success-ink); }
 
 .entry__name--prose {
   font-family: var(--font-sans);

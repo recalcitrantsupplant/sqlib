@@ -168,6 +168,18 @@ export function mintCellId(prefix = 'c'): string {
   return `${prefix}${idCounter}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+export const UNTITLED_NOTEBOOK = 'Untitled notebook';
+
+/**
+ * A title for a notebook still called "Untitled notebook": the text of the
+ * first heading in its first markdown cell. Null when it has no such heading.
+ */
+export function titleFromHeading(notebook: Notebook): string | null {
+  const first = notebook.cells.find((cell) => cell.kind === 'markdown') as MarkdownCell | undefined;
+  const match = first?.source.match(/^\s*#{1,6}\s+(.+?)\s*#*\s*$/m);
+  return match?.[1]?.trim() || null;
+}
+
 export function emptyNotebook(library: string | null, title = 'Untitled notebook'): Notebook {
   return { format: NOTEBOOK_FORMAT, title, library, cells: [] };
 }

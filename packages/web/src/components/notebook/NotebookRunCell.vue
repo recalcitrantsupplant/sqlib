@@ -36,6 +36,11 @@
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                v-if="index > 1"
+                :data-testid="`notebook-run-up-to-${cell.id}`"
+                @select="$emit('run-up-to')"
+              >Run all cells up to here</DropdownMenuItem>
               <DropdownMenuItem @select="$emit('move', -1)">Move up</DropdownMenuItem>
               <DropdownMenuItem @select="$emit('move', 1)">Move down</DropdownMenuItem>
               <DropdownMenuItem
@@ -55,6 +60,10 @@
         :data-testid="`notebook-problem-${cell.id}`"
       >
         {{ problem }}
+      </p>
+
+      <p v-if="state.warning" class="notice notice--warning" :data-testid="`notebook-warning-${cell.id}`">
+        {{ state.warning }}
       </p>
 
       <p v-if="!target" class="notice notice--error" :data-testid="`notebook-missing-${cell.id}`">
@@ -125,9 +134,18 @@
               <option v-for="option in graphValueOptions" :key="option.name" :value="`@${option.name}`">
                 @{{ option.name }}
               </option>
+              <optgroup v-if="savedGraphChoices.length" label="Saved data graphs">
+                <option v-for="graph in savedGraphChoices" :key="graph.id" :value="`dg:${graph.id}`">
+                  {{ graph.name }}
+                </option>
+              </optgroup>
             </select>
             <InlineNote v-if="graphSourceSummary" as="span" size="xs">{{ graphSourceSummary }} · by value</InlineNote>
           </div>
+          <InlineNote size="xs" :data-testid="`notebook-ruleset-output-${cell.id}`">
+            The value is the triples the rules infer, without the base graph. To keep both, merge them in a
+            query cell that runs over the two graphs.
+          </InlineNote>
         </div>
 
         <!--
@@ -232,12 +250,22 @@
         <label class="visually-hidden" :for="`${cell.id}-out`">Value name</label>
         <input
           :id="`${cell.id}-out`"
+          v-model="nameDraft"
           class="out-name"
           type="text"
-          :value="cell.out"
+          :aria-invalid="nameError ? 'true' : undefined"
+          :aria-describedby="nameError ? `${cell.id}-out-error` : undefined"
           :data-testid="`notebook-out-${cell.id}`"
-          @change="$emit('rename', ($event.target as HTMLInputElement).value)"
+          @change="commitName"
+          @keydown.escape="nameDraft = cell.out"
         />
+        <span
+          v-if="nameError"
+          :id="`${cell.id}-out-error`"
+          class="out-name__error"
+          role="alert"
+          :data-testid="`notebook-out-error-${cell.id}`"
+        >{{ nameError }} Esc puts the old name back.</span>
         <span v-if="value" class="chip" :data-testid="`notebook-stats-${cell.id}`">{{ describeValue(value) }}</span>
         <Button
           v-if="value && value.type !== 'boolean'"
@@ -331,6 +359,10 @@ const props = defineProps<{
   value: NotebookValue | null;
   /** Values bound above this cell, with a rendered summary for the chip. */
   valueOptions: Array<{ name: string; type: NotebookValue['type']; summary: string }>;
+  /** The library's saved data graphs, offered as a rule set's base graph. */
+  dataGraphOptions?: Array<{ id: string; name: string }>;
+  /** Why a name cannot be this cell's value name, or null. */
+  nameProblem?: (name: string) => string | null;
   /** What `validateNotebook` says is wrong with this cell. */
   problems?: string[];
   /** Whether this reader may write to the library at all. */
@@ -344,6 +376,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'run'): void;
   (e: 'remove'): void;
+  (e: 'run-up-to'): void;
   (e: 'move', delta: -1 | 1): void;
   (e: 'rename', name: string): void;
   (e: 'update', patch: Partial<RunCell>): void;
@@ -358,6 +391,23 @@ interface ArgsElement extends HTMLElement {
 }
 
 const argsEl = ref<ArgsElement | null>(null);
+
+/*
+ * The value name as typed. It is applied only when it is usable; until then
+ * the box keeps what was typed and says why, rather than reverting silently.
+ */
+const nameDraft = ref(props.cell.out);
+watch(() => props.cell.out, (out) => { nameDraft.value = out; });
+const nameError = computed(() => {
+  const name = nameDraft.value.trim();
+  return name === props.cell.out ? null : props.nameProblem?.(name) ?? null;
+});
+
+function commitName() {
+  const name = nameDraft.value.trim();
+  if (name === props.cell.out || nameError.value) return;
+  emit('rename', name);
+}
 
 const KIND_LABELS: Record<string, string> = {
   BINDINGS: 'SELECT',
@@ -467,7 +517,22 @@ function onEmptyChange(index: number, mode: string) {
 const graphSourceValue = computed(() => {
   if (props.cell.kind !== 'ruleset') return '';
   const input = props.cell.inputGraph;
-  return input?.from === 'value' ? `@${input.ref}` : '';
+  if (input?.from === 'value') return `@${input.ref}`;
+  if (input?.from === 'dataGraph') return `dg:${input.dataGraphId}`;
+  return '';
+});
+
+/**
+ * The saved graphs to offer. One the cell already names stays in the list
+ * even while the list is loading or has lost it, so the select never blanks.
+ */
+const savedGraphChoices = computed(() => {
+  const options = props.dataGraphOptions ?? [];
+  const input = props.cell.kind === 'ruleset' ? props.cell.inputGraph : undefined;
+  if (input?.from === 'dataGraph' && !options.some((graph) => graph.id === input.dataGraphId)) {
+    return [...options, { id: input.dataGraphId, name: input.dataGraphId }];
+  }
+  return options;
 });
 
 const graphSourceSummary = computed(() => {
@@ -505,9 +570,12 @@ function queryGraphSummary(graph: GraphSource): string | null {
 }
 
 function onGraphChange(selection: string) {
-  emit('update', {
-    inputGraph: selection ? { from: 'value', ref: selection.slice(1) } : undefined,
-  } as Partial<RunCell>);
+  const inputGraph = selection.startsWith('dg:')
+    ? { from: 'dataGraph', dataGraphId: selection.slice(3) }
+    : selection
+      ? { from: 'value', ref: selection.slice(1) }
+      : undefined;
+  emit('update', { inputGraph } as Partial<RunCell>);
 }
 
 /** Which slots the builder is responsible for — the ones not fed by a value. */
@@ -678,6 +746,7 @@ const statusLine = computed(() => {
   if (props.state.status === 'skipped') return 'skipped';
   if (props.state.status === 'ok') {
     const duration = props.state.durationMs === null ? '' : ` · ${props.state.durationMs} ms`;
+    if (props.state.warning) return `stopped before converging${duration}`;
     return props.state.stale ? `ran against an older input${duration}` : `ran${duration}`;
   }
   return 'not run yet';
@@ -818,6 +887,13 @@ function cellText(row: Record<string, unknown>, column: string): string {
  * Tinted like the reference chips a downstream cell shows, because it is the
  * same name seen from the other end: this is where `@candidates` comes from.
  */
+.out-name__error {
+  font-size: var(--text-label);
+  color: var(--danger-ink);
+}
+
+.out-name[aria-invalid='true'] { border-color: var(--danger-ink); }
+
 .out-name {
   width: var(--grid-4);
   height: var(--control-h-sm);
@@ -860,6 +936,11 @@ function cellText(row: Record<string, unknown>, column: string): string {
 .notice--error {
   color: var(--danger-ink);
   background: var(--danger-surface);
+}
+
+.notice--warning {
+  color: var(--warning-ink);
+  background: var(--warning-surface);
 }
 
 .result {

@@ -202,6 +202,47 @@ test.describe('Notebook', () => {
     await expect(page.getByLabel('Value for ?term')).toHaveValue('lamp');
   });
 
+  test('reorders cells with the keyboard, and shows run status in the outline', async ({ page }) => {
+    await openNotebook(page);
+    await page.getByTestId('notebook-add-markdown').click();
+    const editor = page.locator('[data-testid^="notebook-md-editor-"] .cm-content').first();
+    await editor.click();
+    await editor.pressSequentially('# Product tour');
+    await expect(page.getByTestId('notebook-title')).toHaveValue('Product tour');
+
+    await insertFirstQuery(page);
+    const cell = page.locator('[data-testid^="notebook-cell-"]').first();
+    await cell.getByTestId('run-bar-run').click();
+    await expect(page.locator('[data-testid^="notebook-outline-status-"]')).toHaveText(['ran']);
+
+    const handle = page.locator('[data-testid^="notebook-drag-"]').nth(1);
+    await handle.focus();
+    await handle.press('ArrowUp');
+    await expect(page.locator('.slot').first()).toHaveAttribute('id', /cell-/);
+    await expect(page.locator('.slot').first().locator('[data-testid^="notebook-cell-"]')).toHaveCount(1);
+  });
+
+  test('says why a value name is refused, and keeps the old one', async ({ page }) => {
+    await openNotebook(page);
+    await insertFirstQuery(page);
+    const cell = page.locator('[data-testid^="notebook-cell-"]').first();
+    const name = cell.locator('[data-testid^="notebook-out-"]').first();
+    await name.fill('bad name');
+    await expect(cell.locator('[data-testid^="notebook-out-error-"]')).toContainText('Start with a letter');
+    await name.press('Escape');
+    await expect(name).toHaveValue('out1');
+  });
+
+  test('fits a phone: the list is a drawer and the document keeps the width', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openNotebook(page);
+    await expect(page.getByTestId('notebook-list-pane')).toBeHidden();
+    const width = await page.locator('.page-body').evaluate((el) => el.getBoundingClientRect().width);
+    expect(width).toBeGreaterThan(300);
+    await page.getByTestId('notebook-phone-list').click();
+    await expect(page.getByTestId('notebook-list-pane')).toBeVisible();
+  });
+
   /*
    * Save cuts a version in the library; typing after it is a draft in this
    * browser until the next Save, as on a query.
@@ -219,7 +260,8 @@ test.describe('Notebook', () => {
     await expect(page.getByTestId('notebook-version')).toHaveText('v1');
     await expect(page.getByTestId('notebook-save')).toBeDisabled();
     await expect(page).toHaveURL(/notebook=urn%3Asqlib%3Anotebook%3A1|notebook=urn:sqlib:notebook:1/);
-    await expect(page.getByTestId('entity-list-sidebar')).toContainText('Untitled notebook');
+    // Never named, it took its first heading as its name.
+    await expect(page.getByTestId('entity-list-sidebar').getByText('Saved', { exact: true }).last()).toBeVisible();
 
     await page.getByTestId('notebook-add-markdown').click();
     await expect(page.getByTestId('notebook-unsaved')).toContainText('1 unsaved edit');
