@@ -38,7 +38,7 @@ import type { Extension } from '@codemirror/state';
 import InspectorPanel, { type InspectorTab } from '../shared/InspectorPanel.vue';
 import CodeSnippetPanel from '../shared/CodeSnippetPanel.vue';
 import SectionLabel from '../shared/SectionLabel.vue';
-import type { SnippetRequest } from '@/lib/codeSnippets';
+import type { CodeSnippetVariant } from '@/components/shared/CodeSnippetPanel.vue';
 import EntityDetailsPanel, { type DetailsVersionOption } from '../shared/EntityDetailsPanel.vue';
 import RuleSetExecutionResults from '../RuleSetExecutionResults.vue';
 import SubjectTestsPanel from '../tests/SubjectTestsPanel.vue';
@@ -100,10 +100,12 @@ const props = withDefaults(defineProps<{
   /** The saved rule set's id, or null on a scratch document. */
   ruleSetId?: string | null;
   /**
-   * The execute call for the Code tab, built by the work area from the same
-   * fields Run sends — the panel only renders it.
+   * The execute calls for the Code tab, one per way of giving the base graph,
+   * built by the work area from the same fields Run sends — the panel only
+   * renders them.
    */
-  codeRequest: SnippetRequest;
+  codeVariants: CodeSnippetVariant[];
+  codeDefaultVariantId?: string | null;
   codeDraftNote?: string | null;
   codeUnavailable?: string | null;
 }>(), {
@@ -114,6 +116,7 @@ const props = withDefaults(defineProps<{
   testDisabledReason: null,
   executionResult: null,
   ruleSetId: null,
+  codeDefaultVariantId: null,
   codeDraftNote: null,
   codeUnavailable: null,
   executedAt: null,
@@ -372,7 +375,8 @@ const onTuplesChange = async (event: Event) => {
     <!-- Code -->
     <template #code>
       <CodeSnippetPanel
-        :request="codeRequest"
+        :variants="codeVariants"
+        :default-variant-id="codeDefaultVariantId"
         :draft-note="codeDraftNote"
         :unavailable="codeUnavailable"
       />
