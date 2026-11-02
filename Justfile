@@ -1,3 +1,6 @@
+# Every feature flag on, for `dev` and `dev-auth`
+all_features := "FEATURE_NOTEBOOK=true FEATURE_QUERIES=true FEATURE_QUERY_GROUPS=true FEATURE_RULES_SUITE=true FEATURE_BENCHMARKS=true FEATURE_TESTS=true FEATURE_DATA_GRAPHS=true FEATURE_TUPLE_SETS=true FEATURE_ARGUMENT_SETS=true FEATURE_MCP=true FEATURE_ETL=true FEATURE_BACKENDS=true FEATURE_SETTINGS=true FEATURE_RULES_ALLOW_INVALID_SAVE=true FEATURE_RULE_TUPLES=true FEATURE_RULE_AGGREGATES=true FEATURE_PLAYGROUND_QUERIES=true FEATURE_PLAYGROUND_RULES=true FEATURE_PLAYGROUND_ETL=true FEATURE_ASSISTANT=true"
+
 # The default recipe: API, MCP and frontend together, every feature flag on,
 # writes allowed
 #
@@ -24,7 +27,31 @@
 # API:  http://localhost:3005
 # MCP:  http://localhost:3005/mcp
 # Web:  http://localhost:3001
-dev:
+dev: _free-dev-ports
+    #!/usr/bin/env bash
+    set -euo pipefail
+    pnpm --filter "@sparql-query-lib/tools..." --filter "@sparql-query-lib/rdf-delta..." --filter "@sparql-query-lib/mcp-app..." build
+    export {{all_features}}
+    export SQLIB_READ_ONLY=false MCP_READ_ONLY=false
+    INTERNAL_BACKEND_TYPE="oxigraph-persistent" \
+    LIBRARY_STORAGE_DIR="./tmp/library-store" \
+    INTERNAL_OXIGRAPH_STORE_ID="library-store" \
+    INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS="60000" \
+    NODE_ENV="development" \
+    OTEL_ENABLED="false" \
+    MCP_TRANSPORT="dual-http" \
+    HTTP_PORT=3005 \
+        pnpm --filter @sparql-query-lib/api exec tsx watch ../mcp-server/src/cli.ts &
+    api_pid=$!
+    NUXT_PUBLIC_API_BASE_URL="http://localhost:3005" \
+        pnpm --filter @sparql-query-lib/web dev &
+    web_pid=$!
+    trap 'kill "$api_pid" "$web_pid" 2>/dev/null || true' INT TERM EXIT
+    wait -n "$api_pid" "$web_pid"
+
+# Free ports 3005 and 3001 if this checkout holds them, for `dev` and `dev-auth`
+# (see `dev` for the rules)
+_free-dev-ports:
     #!/usr/bin/env bash
     set -euo pipefail
     repo="{{justfile_directory()}}"
@@ -54,30 +81,6 @@ dev:
             exit 1
         fi
     done
-    pnpm --filter "@sparql-query-lib/tools..." --filter "@sparql-query-lib/rdf-delta..." --filter "@sparql-query-lib/mcp-app..." build
-    export FEATURE_NOTEBOOK=true FEATURE_QUERIES=true FEATURE_QUERY_GROUPS=true \
-        FEATURE_RULES_SUITE=true FEATURE_BENCHMARKS=true FEATURE_TESTS=true \
-        FEATURE_DATA_GRAPHS=true FEATURE_TUPLE_SETS=true FEATURE_ARGUMENT_SETS=true \
-        FEATURE_MCP=true FEATURE_ETL=true FEATURE_BACKENDS=true FEATURE_SETTINGS=true \
-        FEATURE_RULES_ALLOW_INVALID_SAVE=true FEATURE_RULE_TUPLES=true \
-        FEATURE_RULE_AGGREGATES=true FEATURE_PLAYGROUND_QUERIES=true \
-        FEATURE_PLAYGROUND_RULES=true FEATURE_PLAYGROUND_ETL=true FEATURE_ASSISTANT=true
-    export SQLIB_READ_ONLY=false MCP_READ_ONLY=false
-    INTERNAL_BACKEND_TYPE="oxigraph-persistent" \
-    LIBRARY_STORAGE_DIR="./tmp/library-store" \
-    INTERNAL_OXIGRAPH_STORE_ID="library-store" \
-    INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS="60000" \
-    NODE_ENV="development" \
-    OTEL_ENABLED="false" \
-    MCP_TRANSPORT="dual-http" \
-    HTTP_PORT=3005 \
-        pnpm --filter @sparql-query-lib/api exec tsx watch ../mcp-server/src/cli.ts &
-    api_pid=$!
-    NUXT_PUBLIC_API_BASE_URL="http://localhost:3005" \
-        pnpm --filter @sparql-query-lib/web dev &
-    web_pid=$!
-    trap 'kill "$api_pid" "$web_pid" 2>/dev/null || true' INT TERM EXIT
-    wait -n "$api_pid" "$web_pid"
 
 # Run the API with the Oxigraph persistent in-memory backend, with MCP at /mcp
 #
@@ -421,32 +424,10 @@ clean-local-patch-demo:
 # builds, and why the trailing `...`: see run-local-memory.
 #
 # Run the graph access demo: sqlib in required auth mode behind Rauthy
-demo-graph-access:
+demo-graph-access: rauthy-up
     #!/usr/bin/env bash
     set -euo pipefail
-    env_file=tmp/auth-demo/.env
-    if [ ! -f "$env_file" ]; then
-        mkdir -p tmp/auth-demo
-        key_id=$(openssl rand -hex 4)
-        {
-            echo "RAUTHY_SECRET_RAFT=$(openssl rand -hex 16)"
-            echo "RAUTHY_SECRET_API=$(openssl rand -hex 16)"
-            echo "RAUTHY_ENC_KEY=$key_id/$(openssl rand -base64 32)"
-            echo "RAUTHY_ENC_KEY_ID=$key_id"
-            echo "RAUTHY_ADMIN_PASSWORD=Admin-$(openssl rand -hex 8)-Aa1!"
-            echo "RAUTHY_API_KEY_SECRET=$(openssl rand -hex 32)"
-            echo "DEMO_USER_PASSWORD=Demo-$(openssl rand -hex 6)-Aa1!"
-            echo "SQLIB_AUTH_RESOURCE=http://localhost:3005/mcp"
-            echo "SQLIB_WEB_ORIGINS=http://localhost:3001"
-        } > "$env_file"
-        chmod 600 "$env_file"
-        echo "Wrote fresh secrets to $env_file"
-    fi
-    set -a; . "$env_file"; set +a
-    compose="docker compose -f docker-compose.auth-demo.yml --env-file $env_file"
-    $compose up -d rauthy
-    $compose run --rm rauthy-setup
-    $compose run --rm rauthy-demo-users
+    set -a; . tmp/auth-demo/.env; set +a
     pnpm --filter "@sparql-query-lib/tools..." --filter "@sparql-query-lib/rdf-delta..." --filter "@sparql-query-lib/mcp-app..." build
     SEED_GRAPH_ACCESS_DEMO="true" \
     SQLIB_AUTH_MODE="required" \
@@ -487,13 +468,138 @@ demo-graph-access:
     wait "$api_pid" "$web_pid"
 
 # Stop the demo's Rauthy, keeping its users and clients
-demo-graph-access-down:
-    docker compose -f docker-compose.auth-demo.yml --env-file tmp/auth-demo/.env down
+demo-graph-access-down: rauthy-down
 
 # Throw the graph access demo away: sqlib's store, Rauthy's volume and the secrets
-clean-graph-access-demo:
+clean-graph-access-demo: clean-rauthy
+    rm -rf packages/api/tmp/graph-access-demo-store packages/api/tmp/graph-access-demo-auth
+
+# Start the local dev Rauthy on :8080, with sqlib's clients and the test people
+#
+# The reference broker in Docker (docker-compose.auth-demo.yml), set up for a
+# sqlib API on :3005 and an SPA on :3001. `dev-auth` and `demo-graph-access`
+# both start it, and share it. Safe to run again: it starts what is stopped
+# and updates the clients and the people.
+#
+# The first run writes tmp/auth-demo/.env with fresh secrets and passwords and
+# keeps it, so the passwords stay the same between runs. It prints them at the
+# end. Needs Docker, openssl and jq.
+#
+#   admin@localhost   Rauthy group admin: a sqlib administrator
+#   alice@localhost   group analysts
+#   bob@localhost     group hr
+#   carol@localhost   no group
+#
+# Rauthy's admin UI: http://localhost:8080/auth/v1/admin (as admin@localhost)
+#
+# Start the local dev Rauthy, with sqlib's clients and the test people
+rauthy-up:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    env_file=tmp/auth-demo/.env
+    if [ ! -f "$env_file" ]; then
+        mkdir -p tmp/auth-demo
+        key_id=$(openssl rand -hex 4)
+        {
+            echo "RAUTHY_SECRET_RAFT=$(openssl rand -hex 16)"
+            echo "RAUTHY_SECRET_API=$(openssl rand -hex 16)"
+            echo "RAUTHY_ENC_KEY=$key_id/$(openssl rand -base64 32)"
+            echo "RAUTHY_ENC_KEY_ID=$key_id"
+            echo "RAUTHY_ADMIN_PASSWORD=Admin-$(openssl rand -hex 8)-Aa1!"
+            echo "RAUTHY_API_KEY_SECRET=$(openssl rand -hex 32)"
+            echo "DEMO_USER_PASSWORD=Demo-$(openssl rand -hex 6)-Aa1!"
+            echo "SQLIB_AUTH_RESOURCE=http://localhost:3005/mcp"
+            echo "SQLIB_WEB_ORIGINS=http://localhost:3001"
+        } > "$env_file"
+        chmod 600 "$env_file"
+        echo "Wrote fresh secrets to $env_file"
+    fi
+    set -a; . "$env_file"; set +a
+    compose="docker compose -f docker-compose.auth-demo.yml --env-file $env_file"
+    $compose up -d rauthy
+    $compose run --rm rauthy-setup
+    $compose run --rm rauthy-demo-users
+    echo
+    echo "Rauthy is up on http://localhost:8080 (admin UI: /auth/v1/admin)"
+    echo "  admin@localhost  password: $RAUTHY_ADMIN_PASSWORD"
+    echo "  alice@localhost, bob@localhost, carol@localhost  password: $DEMO_USER_PASSWORD"
+    echo
+
+# Stop the local dev Rauthy, keeping its users and clients
+rauthy-down:
+    docker compose -f docker-compose.auth-demo.yml --env-file tmp/auth-demo/.env down
+
+# Throw the local dev Rauthy away: its volume and tmp/auth-demo's secrets
+clean-rauthy:
     -docker compose -f docker-compose.auth-demo.yml --env-file tmp/auth-demo/.env down -v
-    rm -rf packages/api/tmp/graph-access-demo-store packages/api/tmp/graph-access-demo-auth tmp/auth-demo
+    rm -rf tmp/auth-demo
+
+# Run `dev` behind Rauthy: every feature flag on, in `required` auth mode
+#
+# Starts the local dev Rauthy first (see rauthy-up), then the API and the SPA
+# as `dev` does, but every request needs a token and the SPA signs you in
+# through Rauthy. Use it to try grants, the Access screen and anything else
+# that depends on who is calling.
+#
+# Sign in as admin@localhost to administer: Rauthy puts that user in the
+# `admin` group, which SQLIB_AUTH_ADMIN_PRINCIPALS below makes a sqlib
+# administrator. Sign in as alice, bob or carol in a private window to see what
+# a person without grants sees, then grant them (or their group) access as the
+# administrator. The recipe prints the passwords when it starts; they are also
+# in tmp/auth-demo/.env.
+#
+# Its stores are its own, so `dev`'s data stays as it is: the library store in
+# packages/api/tmp/dev-auth-store and the grants in
+# packages/api/tmp/dev-auth-auth. `just clean-dev-auth` resets both.
+# Ctrl-C stops sqlib; `just rauthy-down` stops Rauthy.
+#
+# API:    http://localhost:3005
+# MCP:    http://localhost:3005/mcp
+# Web:    http://localhost:3001
+# Rauthy: http://localhost:8080/auth/v1/admin
+#
+# Run dev behind Rauthy: every feature flag on, in required auth mode
+dev-auth: _free-dev-ports rauthy-up
+    #!/usr/bin/env bash
+    set -euo pipefail
+    set -a; . tmp/auth-demo/.env; set +a
+    pnpm --filter "@sparql-query-lib/tools..." --filter "@sparql-query-lib/rdf-delta..." --filter "@sparql-query-lib/mcp-app..." build
+    export {{all_features}}
+    export SQLIB_READ_ONLY=false MCP_READ_ONLY=false
+    SQLIB_AUTH_MODE="required" \
+    SQLIB_AUTH_ISSUER="http://localhost:8080/auth/v1/" \
+    SQLIB_AUTH_JWKS_URI="http://localhost:8080/auth/v1/oidc/certs" \
+    SQLIB_AUTH_AUDIENCE="$SQLIB_AUTH_RESOURCE" \
+    SQLIB_AUTH_CLAIM_GROUPS="groups" \
+    SQLIB_AUTH_ADMIN_PRINCIPALS="http://localhost:8080/auth/v1/|group:admin" \
+    SQLIB_CORS_ORIGINS="$SQLIB_WEB_ORIGINS" \
+    INTERNAL_BACKEND_TYPE="oxigraph-persistent" \
+    LIBRARY_STORAGE_DIR="./tmp/dev-auth-store" \
+    INTERNAL_OXIGRAPH_STORE_ID="dev-auth-store" \
+    SQLIB_AUTH_STORE_DIR="./tmp/dev-auth-auth" \
+    INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS="60000" \
+    NODE_ENV="development" \
+    OTEL_ENABLED="false" \
+    MCP_TRANSPORT="dual-http" \
+    HTTP_PORT=3005 \
+        pnpm --filter @sparql-query-lib/api exec tsx watch ../mcp-server/src/cli.ts &
+    api_pid=$!
+    NUXT_PUBLIC_API_BASE_URL="http://localhost:3005" \
+    NUXT_PUBLIC_AUTH_CLIENT_ID="sqlib-web" \
+    NUXT_PUBLIC_AUTH_SCOPE="openid profile email groups" \
+        pnpm --filter @sparql-query-lib/web dev &
+    web_pid=$!
+    trap 'kill "$api_pid" "$web_pid" 2>/dev/null || true' INT TERM EXIT
+    echo
+    echo "sqlib behind Rauthy: open http://localhost:3001"
+    echo "  admin@localhost  password: $RAUTHY_ADMIN_PASSWORD"
+    echo "  alice@localhost, bob@localhost, carol@localhost  password: $DEMO_USER_PASSWORD"
+    echo
+    wait -n "$api_pid" "$web_pid"
+
+# Reset `dev-auth`'s library store and grants (Rauthy keeps its people; see clean-rauthy)
+clean-dev-auth:
+    rm -rf packages/api/tmp/dev-auth-store packages/api/tmp/dev-auth-auth
 
 # Run locally without Docker, matching run-docker-local behavior with persistence and 60s checkpoints
 run-local-like-docker:
