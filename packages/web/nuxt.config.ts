@@ -7,6 +7,7 @@ import tailwindcss from '@tailwindcss/vite';
 import { buildFeatureFlags } from '../types/src/featureFlags';
 import { normaliseBase, withBase } from './src/lib/basePath';
 import { ROUTED_SECTIONS } from './src/lib/sectionRoutes';
+import { DARK_THEMES, LIGHT_THEMES } from './src/lib/themes';
 
 const currentDir = fileURLToPath(new URL('.', import.meta.url));
 
@@ -140,6 +141,7 @@ export default defineNuxtConfig({
   css: [
     '~/assets/css/inter-font.css',
     '~/assets/css/tailwind.css',
+    '~/assets/css/themes.css',
     '~/assets/css/compact-buttons.css',
     '~/assets/css/codemirror-theme.css',
     '@vue-flow/core/dist/style.css',
@@ -425,8 +427,13 @@ export default defineNuxtConfig({
         {
           // Applies the stored theme before first paint. Without this the app
           // renders light for a frame and then flips, because the class is set
-          // from the settings composable after hydration.
-          innerHTML: `(function(){try{var s=JSON.parse(localStorage.getItem('sparql-query-lib-settings')||'{}');var t=s.theme||'system';var d=t==='dark'||(t==='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.toggle('dark',d);document.documentElement.style.colorScheme=d?'dark':'light';}catch(e){}})();`,
+          // from the settings composable after hydration. The colour theme is
+          // set here too, and only if it names a theme of the active base —
+          // the same check useSettings makes on load.
+          innerHTML: `(function(){try{var s=JSON.parse(localStorage.getItem('sparql-query-lib-settings')||'{}');var t=s.theme||'system';var d=t==='dark'||(t==='system'&&window.matchMedia('(prefers-color-scheme: dark)').matches);var r=document.documentElement;r.classList.toggle('dark',d);r.style.colorScheme=d?'dark':'light';var ok=${JSON.stringify({
+            light: LIGHT_THEMES.map((theme) => theme.id).filter((id) => id !== 'default'),
+            dark: DARK_THEMES.map((theme) => theme.id).filter((id) => id !== 'default'),
+          })};var id=d?s.darkTheme:s.lightTheme;if((d?ok.dark:ok.light).indexOf(id)>=0)r.setAttribute('data-theme',id);}catch(e){}})();`,
           type: 'text/javascript',
           tagPosition: 'head',
         },

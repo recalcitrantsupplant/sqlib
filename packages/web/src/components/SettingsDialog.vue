@@ -12,7 +12,7 @@
           <SectionLabel as="h3">Appearance</SectionLabel>
           <div class="setting-row">
             <div class="setting-text">
-              <span class="setting-label">Theme</span>
+              <span class="setting-label">Mode</span>
               <span class="setting-description">System follows your OS.</span>
             </div>
             <div class="theme-options" role="radiogroup" aria-label="Theme">
@@ -28,6 +28,42 @@
               >
                 <component :is="option.icon" :size="13" />
                 {{ option.label }}
+              </button>
+            </div>
+          </div>
+          <div
+            v-for="group in themeGroups"
+            :key="group.base"
+            class="setting-row"
+            :class="{ 'theme-row-idle': group.idle }"
+          >
+            <span class="setting-label theme-row-label">{{ group.label }}</span>
+            <div class="theme-swatches" role="radiogroup" :aria-label="group.label">
+              <button
+                v-for="theme in group.themes"
+                :key="theme.id"
+                type="button"
+                role="radio"
+                :aria-checked="group.selected === theme.id"
+                :data-testid="`theme-${group.base}-${theme.id}`"
+                class="theme-swatch"
+                :class="{ active: group.selected === theme.id }"
+                @click="group.select(theme.id)"
+              >
+                <span
+                  class="theme-swatch-preview"
+                  :style="{ background: theme.swatch.surface }"
+                  aria-hidden="true"
+                >
+                  <span :style="{ background: theme.swatch.rail }" />
+                  <span class="theme-swatch-body">
+                    <span class="theme-swatch-button" :style="{ background: theme.swatch.action }" />
+                    <span class="theme-swatch-line long" :style="{ background: theme.swatch.ink }" />
+                    <span class="theme-swatch-line short" :style="{ background: theme.swatch.iri }" />
+                    <span class="theme-swatch-line mid" :style="{ background: theme.swatch.literal }" />
+                  </span>
+                </span>
+                <span class="theme-swatch-name">{{ theme.name }}</span>
               </button>
             </div>
           </div>
@@ -135,6 +171,7 @@ import { useDeploymentMode } from '../composables/useDeploymentMode';
 import { useBuildInfo } from '../composables/useBuildInfo';
 import { useTheme } from '../composables/useTheme';
 import { usePrefixManager } from '../composables/usePrefixManager';
+import { DARK_THEMES, LIGHT_THEMES, type ThemeBase, type ThemeDefinition } from '../lib/themes';
 
 const props = defineProps<{
   open: boolean;
@@ -147,7 +184,7 @@ const emit = defineEmits<{
 
 const isOpen = ref(props.open);
 const { settings, setHofstadterMode, setPrefixAbbreviationEnabled } = useSettings();
-const { preference, setTheme } = useTheme();
+const { preference, isDark, lightTheme, darkTheme, setTheme, setLightTheme, setDarkTheme } = useTheme();
 const { prefixSettings } = usePrefixManager();
 /*
  * A read-only deployment has no System Library worth looking at — nothing
@@ -169,6 +206,36 @@ const themeOptions: { value: ThemePreference; label: string; icon: unknown }[] =
   { value: 'light', label: 'Light', icon: Sun },
   { value: 'dark', label: 'Dark', icon: Moon },
 ];
+
+/*
+ * One picker per base. The mode decides which one is in use; the other is
+ * dimmed but stays live, so a user can set up the other side ahead of time.
+ */
+const themeGroups = computed<{
+  base: ThemeBase;
+  label: string;
+  themes: readonly ThemeDefinition[];
+  selected: string;
+  idle: boolean;
+  select: (id: string) => void;
+}[]>(() => [
+  {
+    base: 'light',
+    label: 'Light theme',
+    themes: LIGHT_THEMES,
+    selected: lightTheme.value,
+    idle: preference.value !== 'system' && isDark.value,
+    select: setLightTheme,
+  },
+  {
+    base: 'dark',
+    label: 'Dark theme',
+    themes: DARK_THEMES,
+    selected: darkTheme.value,
+    idle: preference.value !== 'system' && !isDark.value,
+    select: setDarkTheme,
+  },
+]);
 
 const prefixSummary = computed(() => {
   const count = prefixSettings.value.mappings.length;
@@ -327,6 +394,100 @@ function handleClose() {
 .theme-option:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring);
   outline-offset: -2px;
+}
+
+.theme-row-label {
+  padding-top: var(--space-3);
+}
+
+.theme-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-4);
+}
+
+.theme-row-idle .theme-swatches {
+  opacity: 0.5;
+}
+
+.theme-row-idle .theme-swatches:hover,
+.theme-row-idle .theme-swatches:focus-within {
+  opacity: 1;
+}
+
+.theme-swatch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.theme-swatch-preview {
+  display: grid;
+  grid-template-columns: var(--space-5) 1fr;
+  width: var(--grid-2);
+  height: var(--space-9);
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-panel);
+  transition: border-color var(--duration);
+}
+
+.theme-swatch:hover .theme-swatch-preview {
+  border-color: var(--border-hover);
+}
+
+.theme-swatch.active .theme-swatch-preview {
+  border-color: transparent;
+  outline: var(--focus-ring-width) solid var(--action);
+  outline-offset: 2px;
+}
+
+.theme-swatch:focus-visible {
+  outline: none;
+}
+
+.theme-swatch:focus-visible .theme-swatch-preview {
+  outline: var(--focus-ring-width) solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.theme-swatch-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+}
+
+.theme-swatch-button {
+  width: 40%;
+  height: var(--space-4);
+  border-radius: var(--radius-sm);
+}
+
+.theme-swatch-line {
+  height: var(--space-1);
+  border-radius: var(--radius-full);
+}
+
+.theme-swatch-line.long { width: 85%; }
+.theme-swatch-line.mid { width: 70%; }
+.theme-swatch-line.short { width: 55%; }
+
+.theme-swatch-name {
+  font-size: var(--text-body);
+  color: var(--ink-secondary);
+}
+
+.theme-swatch.active .theme-swatch-name {
+  font-weight: var(--weight-medium);
+  color: var(--ink);
 }
 
 .settings-footer {

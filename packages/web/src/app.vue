@@ -48,9 +48,9 @@ void useDeploymentMode().ensureLoaded()
 @import './assets/css/format-dropdown.css';
 @import './assets/css/results-chrome.css';
 
-/* Global font: Inter with fallbacks */
+/* Global font, from the design tokens */
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -71,6 +71,6 @@ body {
 
 :deep([data-sonner-toast]) {
   pointer-events: auto;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-family: var(--font-sans);
 }
 </style>

@@ -45,6 +45,7 @@
   },
   "ignoreFiles": [
     "src/assets/css/tokens.css",
+    "src/assets/css/themes.css",
     "dist/**",
     ".output/**",
     ".nuxt/**",
