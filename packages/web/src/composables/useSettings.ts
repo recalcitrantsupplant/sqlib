@@ -1,4 +1,5 @@
 import { ref, watch } from 'vue';
+import { DEFAULT_THEME_ID, resolveThemeId } from '../lib/themes';
 
 export type ThemePreference = 'system' | 'light' | 'dark';
 
@@ -28,6 +29,10 @@ interface Settings {
   hofstadterMode: boolean;
   prefixAbbreviationEnabled: boolean;
   theme: ThemePreference;
+  /** The colour theme used in light mode; an id from LIGHT_THEMES. */
+  lightTheme: string;
+  /** The colour theme used in dark mode; an id from DARK_THEMES. */
+  darkTheme: string;
   /** Row height in the section sidebars: 26px names, or name plus description. */
   entityListDensity: EntityListDensity;
   /** Whether the Saved cluster is grouped, and by what. */
@@ -49,6 +54,8 @@ const DEFAULT_SETTINGS: Settings = {
   hofstadterMode: false, // System library hidden by default
   prefixAbbreviationEnabled: true, // Prefix abbreviation enabled by default
   theme: 'system', // Follow the OS preference unless the user picks a side
+  lightTheme: DEFAULT_THEME_ID,
+  darkTheme: DEFAULT_THEME_ID,
   entityListDensity: 'compact', // As drawn: more of the library on screen at once
   entityListGrouping: 'tag', // Grouped by tag; a library with no tags reads as flat
   settingsVersion: SETTINGS_VERSION,
@@ -70,6 +77,9 @@ function loadSettings(): Settings {
       const parsed = JSON.parse(stored);
       if ((parsed.settingsVersion ?? 1) < 2) delete parsed.entityListGrouping;
       parsed.settingsVersion = SETTINGS_VERSION;
+      // A theme that was removed, or a light id in the dark slot, falls back.
+      parsed.lightTheme = resolveThemeId('light', parsed.lightTheme);
+      parsed.darkTheme = resolveThemeId('dark', parsed.darkTheme);
       // Merge with defaults to handle missing keys
       return { ...DEFAULT_SETTINGS, ...parsed };
     }
@@ -125,6 +135,14 @@ export function useSettings() {
     settings.value.theme = value;
   }
 
+  function setLightTheme(id: string): void {
+    settings.value.lightTheme = resolveThemeId('light', id);
+  }
+
+  function setDarkTheme(id: string): void {
+    settings.value.darkTheme = resolveThemeId('dark', id);
+  }
+
   function setEntityListDensity(value: EntityListDensity): void {
     settings.value.entityListDensity = value;
   }
@@ -138,6 +156,8 @@ export function useSettings() {
     setHofstadterMode,
     setPrefixAbbreviationEnabled,
     setTheme,
+    setLightTheme,
+    setDarkTheme,
     setEntityListDensity,
     setEntityListGrouping,
   };

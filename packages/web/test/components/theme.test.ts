@@ -92,6 +92,83 @@ describe('useTheme', () => {
   });
 });
 
+describe('useTheme colour themes', () => {
+  beforeEach(() => {
+    document.documentElement.className = '';
+    document.documentElement.removeAttribute('data-theme');
+  });
+
+  /** Back to the default pair, so the shared settings store is clean for the next test. */
+  async function reset(set: { setLightTheme: (id: string) => void; setDarkTheme: (id: string) => void }) {
+    set.setLightTheme('default');
+    set.setDarkTheme('default');
+    await nextTick();
+  }
+
+  it('sets data-theme to the dark theme in dark mode and the light theme in light mode', async () => {
+    const { useTheme } = await import('../../src/composables/useTheme');
+    const theme = useTheme();
+
+    theme.setLightTheme('paper');
+    theme.setDarkTheme('ember');
+    theme.setTheme('dark');
+    await nextTick();
+    expect(document.documentElement.getAttribute('data-theme')).toBe('ember');
+    expect(document.documentElement.classList.contains('dark')).toBe(true);
+    expect(theme.activeTheme.value).toBe('ember');
+
+    theme.setTheme('light');
+    await nextTick();
+    expect(document.documentElement.getAttribute('data-theme')).toBe('paper');
+    expect(document.documentElement.classList.contains('dark')).toBe(false);
+    await reset(theme);
+  });
+
+  it('sets no data-theme for the default theme', async () => {
+    const { useTheme } = await import('../../src/composables/useTheme');
+    const theme = useTheme();
+    theme.setTheme('light');
+    theme.setLightTheme('paper');
+    await nextTick();
+    expect(document.documentElement.getAttribute('data-theme')).toBe('paper');
+    await reset(theme);
+    expect(document.documentElement.hasAttribute('data-theme')).toBe(false);
+  });
+
+  it('switches theme with the OS when the mode is system', async () => {
+    const { useTheme } = await import('../../src/composables/useTheme');
+    const theme = useTheme();
+    theme.setLightTheme('contrast');
+    theme.setDarkTheme('fjord');
+    theme.setTheme('system');
+    setSystemDark(true);
+    await nextTick();
+    expect(document.documentElement.getAttribute('data-theme')).toBe('fjord');
+    setSystemDark(false);
+    await nextTick();
+    expect(document.documentElement.getAttribute('data-theme')).toBe('contrast');
+    await reset(theme);
+  });
+
+  it('refuses a theme of the wrong base', async () => {
+    const { useTheme } = await import('../../src/composables/useTheme');
+    const theme = useTheme();
+    theme.setDarkTheme('paper');
+    expect(theme.darkTheme.value).toBe('default');
+  });
+
+  it('persists both theme picks through the settings store', async () => {
+    const { useTheme } = await import('../../src/composables/useTheme');
+    const theme = useTheme();
+    theme.setLightTheme('paper');
+    theme.setDarkTheme('console');
+    await nextTick();
+    const stored = JSON.parse(store['sparql-query-lib-settings']);
+    expect([stored.lightTheme, stored.darkTheme]).toEqual(['paper', 'console']);
+    await reset(theme);
+  });
+});
+
 describe('theme hygiene', () => {
   it('has no colour keywords left in component styles', () => {
     // `color: white` is not hex, so color-no-hex never caught it, and it is

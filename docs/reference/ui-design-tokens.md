@@ -143,6 +143,55 @@ Weights are `--weight-normal` (400), `--weight-medium` (500) and
 popovers), `--radius-xl` 12px (large modals), `--radius-full` 9999px (pills,
 avatars).
 
+## Colour themes
+
+A colour theme is a skin over the design system. It is not a change to the
+design system.
+
+The user picks one light theme and one dark theme in Settings. The mode
+(System, Light or Dark) chooses which one is in use, so System keeps following
+the OS.
+
+How it works:
+
+- `src/lib/themes.ts` lists the themes. Each has an `id`, a `name`, a `base`
+  (`light` or `dark`) and swatch colours for the picker.
+- `src/assets/css/themes.css` holds one block per theme, scoped to
+  `:root[data-theme="<id>"]`. Like `tokens.css`, it may hold literal colours,
+  so stylelint ignores it.
+- `useTheme` sets `.dark` for the base and `data-theme` for the theme. The
+  default theme of each base sets no `data-theme`.
+- A dark theme also gets `.dark`, so it inherits the `.dark` block and every
+  component rule under `.dark`. It restates only what it changes.
+  `:root[data-theme]` outranks `.dark`, so the theme wins.
+- The pre-paint script in `nuxt.config.ts` applies both before first paint.
+
+A theme may change:
+
+- Semantic colour tokens (surface, ink, border, action, status, RDF terms,
+  syntax, code, series, brand mark).
+- The radius scale (`--radius-*`) and shadows (`--shadow-*`).
+- The focus ring colour and width.
+
+A theme may not change:
+
+- Spacing, the grid, control and icon sizes, the type scale, weights or line
+  heights.
+- The font. A wider font wraps dense toolbars, which is a layout change.
+- Primitives (`--gray-500` and so on). A theme sets semantics directly.
+- `--tag-*`. A tag stores its hex in the RDF.
+
+To add a theme:
+
+1. Add an entry to `LIGHT_THEMES` or `DARK_THEMES` in `src/lib/themes.ts`.
+2. Add its block to `themes.css`.
+3. Run `test/components/themeCatalogue.test.ts`. It checks that the block
+   exists, that the swatch matches the block, that the block touches only
+   allowed tokens, and that the text inks, action and RDF term colours clear
+   AA on the theme's surface.
+
+Each theme costs about 1 KB of CSS, or about 0.5 KB gzipped.
+
 ## Density
 
 Density is a user setting for how much each row in an entity list carries, not a

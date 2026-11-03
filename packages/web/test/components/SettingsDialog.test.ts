@@ -87,6 +87,37 @@ describe('SettingsDialog', () => {
     expect(dark.getAttribute('aria-checked')).toBe('true');
   });
 
+  it('picks a light theme and a dark theme from their swatches', async () => {
+    const { settings } = await open({ theme: 'system' });
+
+    const paper = query('[data-testid="theme-light-paper"]');
+    await click(paper);
+    expect(settings.settings.value.lightTheme).toBe('paper');
+    expect(paper.getAttribute('aria-checked')).toBe('true');
+    expect(query('[data-testid="theme-light-default"]').getAttribute('aria-checked')).toBe('false');
+
+    await click(query('[data-testid="theme-dark-ember"]'));
+    expect(settings.settings.value.darkTheme).toBe('ember');
+  });
+
+  it('dims the picker the mode does not use, and neither under System', async () => {
+    await open({ theme: 'light' });
+    const rows = () => Array.from(document.querySelectorAll('.theme-swatches'))
+      .map((group) => group.closest('.setting-row')!.classList.contains('theme-row-idle'));
+    expect(rows()).toEqual([false, true]);
+
+    const system = Array.from(document.querySelectorAll<HTMLElement>('.theme-option'))
+      .find((b) => b.textContent?.trim() === 'System')!;
+    await click(system);
+    expect(rows()).toEqual([false, false]);
+  });
+
+  it('drops a stored theme that no longer exists', async () => {
+    const { settings } = await open({ lightTheme: 'retired', darkTheme: 'paper' });
+    expect(settings.settings.value.lightTheme).toBe('default');
+    expect(settings.settings.value.darkTheme).toBe('default');
+  });
+
   it('reaches the Prefix Manager from the row under the toggle that depends on it', async () => {
     const { wrapper } = await open();
     const row = query('.nav-row');

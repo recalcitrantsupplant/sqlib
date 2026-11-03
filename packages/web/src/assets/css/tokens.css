@@ -1,6 +1,7 @@
 /*
- * DESIGN TOKENS — the only file in the web package permitted to contain
- * literal colour, size, or radius values.
+ * DESIGN TOKENS — with themes.css, the only file in the web package
+ * permitted to contain literal colour, size, or radius values. themes.css
+ * holds the colour themes, which override the semantic layer below.
  *
  * See docs/reference/ui-design-tokens.md for the rationale.
  *
@@ -462,8 +463,7 @@
  * Only the semantic layer is redefined — primitives stay fixed. Because every
  * component references semantics, this block is the entire dark theme.
  *
- * NOTE: no theme toggle is wired up yet; this block is currently unreachable
- * at runtime and is unverified visually. See the design doc's open questions.
+ * This is also the base every dark theme in themes.css builds on.
  */
 .dark {
   --surface: var(--gray-950);
