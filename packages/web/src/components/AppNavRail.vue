@@ -34,6 +34,7 @@
       >
         <Settings :size="16" />
       </button>
+      <AccountMenu />
     </div>
 
     <SettingsDialog
@@ -50,6 +51,7 @@ import { computed, ref } from 'vue';
 import { Settings } from '@lucide/vue';
 import LibrarySwitcher from './LibrarySwitcher.vue';
 import SettingsDialog from './SettingsDialog.vue';
+import AccountMenu from './account/AccountMenu.vue';
 import PrefixMappingsEditor from './PrefixMappingsEditor.vue';
 import PrefixManagerIcon from './icons/PrefixManagerIcon.vue';
 import { useFeatureFlags } from '../composables/useFeatureFlags';

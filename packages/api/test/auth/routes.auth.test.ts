@@ -73,6 +73,21 @@ describe('GET /auth/me', () => {
     await app.close();
   });
 
+  it('names the caller and their groups from what sign-in recorded', async () => {
+    const analysts = 'urn:sqlib:principal:group:analysts';
+    const unrecorded = 'urn:sqlib:principal:group:unrecorded';
+    await store.recordPrincipal(ALICE, 'alice-sub', 'user', 'alice@example.com');
+    await store.recordPrincipal(analysts, 'analysts', 'group');
+    const app = await appAs([ALICE, analysts, unrecorded, 'urn:sqlib:principal:authenticated']);
+
+    const body = (await app.inject({ method: 'GET', url: '/auth/me' })).json();
+
+    expect(body.label).toBe('alice@example.com');
+    expect(typeof body.seenAt).toBe('string');
+    expect(body.groups).toEqual([{ iri: analysts, name: 'analysts' }, { iri: unrecorded }]);
+    await app.close();
+  });
+
   it('reports full access when no context was attached', async () => {
     const app = await appAs(null);
     const body = (await app.inject({ method: 'GET', url: '/auth/me' })).json();

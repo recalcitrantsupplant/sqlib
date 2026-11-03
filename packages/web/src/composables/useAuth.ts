@@ -17,6 +17,7 @@
 import { computed, ref, useRuntimeConfig } from '#imports';
 import { InMemoryWebStorage, User, UserManager, WebStorageStateStore } from 'oidc-client-ts';
 import { withBase } from '../lib/basePath';
+import { accountStateOf, identityFrom, type AccountIdentity } from '../lib/account';
 
 export type AuthMode = 'disabled' | 'dry-run' | 'required' | 'anonymous';
 
@@ -27,6 +28,12 @@ export interface AuthMe {
   issuer: string | null;
   tokenType: string;
   principals: string[];
+  /** Group principals with the names their tokens carried, where the server has them. */
+  groups?: Array<{ iri: string; name?: string }>;
+  /** The caller's email, username or name as the server last recorded it. */
+  label?: string;
+  /** When the server first recorded the caller. */
+  seenAt?: string;
   admin: boolean;
   libraries: Record<string, string[]>;
   backends: Record<string, string[]>;
@@ -36,6 +43,8 @@ export interface AuthMe {
 
 const mode = ref<AuthMode>('disabled');
 const user = ref<User | null>(null);
+/** Who was signed in before the token lapsed, so the rail can offer to sign in again. */
+const lapsed = ref<AccountIdentity | null>(null);
 const me = ref<AuthMe | null>(null);
 const initialized = ref(false);
 const initializing = ref<Promise<void> | null>(null);
@@ -218,7 +227,10 @@ export function useAuth() {
       }
 
       user.value = await manager.getUser();
-      if (user.value?.expired) user.value = null;
+      if (user.value?.expired) {
+        lapsed.value = identityFrom(user.value.profile);
+        user.value = null;
+      }
       await refreshMe();
       initialized.value = true;
     })();
@@ -236,12 +248,14 @@ export function useAuth() {
     manager ??= buildManager();
     if (!manager) return;
     user.value = await manager.signinRedirectCallback();
+    lapsed.value = null;
     await refreshMe();
   };
 
   const logout = async (): Promise<void> => {
     await manager?.signoutRedirect();
     user.value = null;
+    lapsed.value = null;
     me.value = null;
   };
 
@@ -251,6 +265,7 @@ export function useAuth() {
     if (!user.value || user.value.expired) {
       manager ??= buildManager();
       const renewed = await manager?.getUser();
+      if (user.value && !(renewed && !renewed.expired)) lapsed.value = identityFrom(user.value.profile);
       user.value = renewed && !renewed.expired ? renewed : null;
     }
     return user.value?.access_token ?? null;
@@ -263,6 +278,13 @@ export function useAuth() {
     isAuthenticated: computed(() => Boolean(user.value)),
     isAdmin: computed(() => me.value?.admin ?? mode.value === 'disabled'),
     me: computed(() => me.value),
+    /** What the account button at the foot of the rail shows. */
+    account: computed(() => ({
+      state: accountStateOf({ mode: mode.value, signedIn: Boolean(user.value), lapsed: Boolean(lapsed.value) }),
+      identity: user.value
+        ? identityFrom(user.value.profile as Record<string, unknown>, me.value?.label)
+        : (lapsed.value ?? { name: null, email: null }),
+    })),
     initialize,
     login,
     completeLogin,

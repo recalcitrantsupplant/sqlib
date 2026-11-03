@@ -1781,6 +1781,7 @@ describe('StatusBadge adoption', () => {
     'components/BackendWorkArea.vue: .attach-button': 'a button — dashed "add" affordance, hover is its whole state',
     'components/backends/MemorySourcesEditor.vue: .add-source-button': 'a button — the same dashed affordance',
     'components/rules/RuleSetEditorFooter.vue: .strata-chip': 'a button — opens the Stratification tab; sits beside the badge this pass converted',
+    'components/shared/Avatar.vue: .avatar': 'a person’s initials, not a state; the warning tone rings a lapsed session on the account button',
     'components/shared/ResultsFooter.vue: .footer-pill': 'a button in its --menu form, and a plain pill otherwise',
 
     /*
