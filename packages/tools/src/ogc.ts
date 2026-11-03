@@ -323,7 +323,12 @@ const QUERYABLE_KIND: Record<OgcQueryableType, ToolParamKind> = {
 export type OgcCollectionSpec = {
   slug: string;
   libraryId: string;
+  /** The library's name and description, for the service's landing page. */
+  libraryName: string;
+  libraryDescription?: string | null;
   ogc: OgcObject;
+  /** cql2 mode: the pinned version of `cql.configQuery`, which lists the index fields. */
+  configTargetId?: string;
   /** The synthesized tool: pinned target, backend, inputs and one param per variable the `ogc` object fills. */
   tool: PublishedToolSpec;
 };
@@ -500,4 +505,290 @@ export function combineCql(clauses: Cql2[]): Cql2 | null {
   if (clauses.length === 0) return null;
   if (clauses.length === 1) return clauses[0]!;
   return { op: 'and', args: clauses };
+}
+
+// --------------------------------------------------------------- documents --
+
+export const CRS84_URI = 'http://www.opengis.net/def/crs/OGC/1.3/CRS84';
+
+export const OGC_CORE_CONFORMANCE = [
+  'http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/core',
+  'http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/geojson',
+  'http://www.opengis.net/spec/ogcapi-features-1/1.0/conf/oas30',
+] as const;
+
+export const OGC_FILTER_CONFORMANCE = [
+  'http://www.opengis.net/spec/ogcapi-features-3/1.0/conf/queryables',
+  'http://www.opengis.net/spec/ogcapi-features-3/1.0/conf/queryables-query-parameters',
+  'http://www.opengis.net/spec/ogcapi-features-3/1.0/conf/filter',
+  'http://www.opengis.net/spec/ogcapi-features-3/1.0/conf/features-filter',
+  'http://www.opengis.net/spec/cql2/1.0/conf/cql2-json',
+  'http://www.opengis.net/spec/cql2/1.0/conf/basic-cql2',
+  'http://www.opengis.net/spec/cql2/1.0/conf/basic-spatial-functions',
+] as const;
+
+/** The conformance classes a service declares: Part 1 always, Part 3 and CQL2 when a collection filters. */
+export function ogcConformance(collections: OgcObject[]): string[] {
+  const filters = collections.some(ogc => ogc.mode === 'cql2');
+  return [...OGC_CORE_CONFORMANCE, ...(filters ? OGC_FILTER_CONFORMANCE : [])];
+}
+
+/** The query parameters an `items` call on this collection takes. Any other answers 400. */
+export function ogcItemsParameters(ogc: OgcObject): string[] {
+  const p = ogc.params ?? {};
+  const names = ['f', 'limit', 'bbox', 'datetime'];
+  if (p.skipGeometry) names.push('skipGeometry');
+  if (ogc.mode === 'values') {
+    if (p.offset) names.push('offset');
+  } else {
+    names.push('filter', 'filter-lang', 'filter-crs');
+    if (p.offset) names.push('offset');
+    if (p.cursor) names.push('cursor');
+  }
+  names.push(...Object.keys(ogc.queryables ?? {}));
+  return names;
+}
+
+type OpenApiParameter = Record<string, unknown>;
+
+const QUERYABLE_SCHEMA: Record<OgcQueryableType, Record<string, unknown>> = {
+  string: { type: 'string' },
+  uri: { type: 'string', format: 'uri' },
+  number: { type: 'number' },
+  integer: { type: 'integer' },
+  boolean: { type: 'boolean' },
+  'date-time': { type: 'string', format: 'date-time' },
+};
+
+const JSON_RESPONSE = (description: string) => ({
+  description,
+  content: { 'application/json': { schema: { type: 'object' } } },
+});
+const GEOJSON_RESPONSE = (description: string) => ({
+  description,
+  content: { 'application/geo+json': { schema: { type: 'object' } } },
+});
+const ERROR_RESPONSES = {
+  '400': JSON_RESPONSE('The request is not valid.'),
+  '404': JSON_RESPONSE('Not found.'),
+};
+
+/**
+ * The service's API document: OpenAPI 3.0.3, as the `oas30` class requires.
+ * One `items` path per collection, so each lists its own parameters.
+ */
+export function ogcOpenApiDocument(options: {
+  title: string;
+  description?: string | null;
+  /** The service's absolute URL, `…/ogc/{slug}`. */
+  serviceUrl: string;
+  collections: OgcObject[];
+}): Record<string, unknown> {
+  const { title, description, serviceUrl, collections } = options;
+  const parameters: Record<string, OpenApiParameter> = {
+    f: { name: 'f', in: 'query', required: false, schema: { type: 'string', enum: ['json', 'geojson'] }, style: 'form', explode: false },
+    bbox: {
+      name: 'bbox',
+      in: 'query',
+      required: false,
+      schema: { type: 'array', minItems: 4, maxItems: 4, items: { type: 'number' } },
+      style: 'form',
+      explode: false,
+    },
+    datetime: { name: 'datetime', in: 'query', required: false, schema: { type: 'string' }, style: 'form', explode: false },
+    offset: { name: 'offset', in: 'query', required: false, schema: { type: 'integer', minimum: 0, default: 0 }, style: 'form', explode: false },
+    cursor: { name: 'cursor', in: 'query', required: false, schema: { type: 'string' }, style: 'form', explode: false },
+    skipGeometry: { name: 'skipGeometry', in: 'query', required: false, schema: { type: 'boolean', default: false }, style: 'form', explode: false },
+    filter: { name: 'filter', in: 'query', required: false, schema: { type: 'string' }, style: 'form', explode: false },
+    'filter-lang': {
+      name: 'filter-lang',
+      in: 'query',
+      required: false,
+      schema: { type: 'string', enum: ['cql2-json'], default: 'cql2-json' },
+      style: 'form',
+      explode: false,
+    },
+    'filter-crs': {
+      name: 'filter-crs',
+      in: 'query',
+      required: false,
+      schema: { type: 'string', format: 'uri', enum: [CRS84_URI] },
+      style: 'form',
+      explode: false,
+    },
+    collectionId: { name: 'collectionId', in: 'path', required: true, schema: { type: 'string' } },
+    featureId: { name: 'featureId', in: 'path', required: true, schema: { type: 'string' } },
+  };
+  const ref = (name: string) => ({ $ref: `#/components/parameters/${name}` });
+
+  const paths: Record<string, unknown> = {
+    '/': { get: { operationId: 'getLandingPage', summary: 'Landing page', responses: { '200': JSON_RESPONSE('The landing page.') } } },
+    '/conformance': {
+      get: { operationId: 'getConformance', summary: 'Conformance classes', responses: { '200': JSON_RESPONSE('The conformance classes.') } },
+    },
+    '/api': {
+      get: {
+        operationId: 'getApi',
+        summary: 'This document',
+        responses: { '200': { description: 'The API document.', content: { 'application/vnd.oai.openapi+json;version=3.0': { schema: { type: 'object' } } } } },
+      },
+    },
+    '/collections': {
+      get: { operationId: 'getCollections', summary: 'Collections', responses: { '200': JSON_RESPONSE('The collections.') } },
+    },
+  };
+
+  for (const ogc of collections) {
+    const id = ogc.collectionId;
+    const pageSize = ogc.pageSize ?? {};
+    const limit = {
+      name: 'limit',
+      in: 'query',
+      required: false,
+      schema: { type: 'integer', minimum: 1, maximum: pageSize.max ?? OGC_MAX_PAGE_SIZE, default: pageSize.default ?? 10 },
+      style: 'form',
+      explode: false,
+    };
+    const itemParams: unknown[] = [];
+    for (const name of ogcItemsParameters(ogc)) {
+      if (name === 'limit') itemParams.push(limit);
+      else if (parameters[name]) itemParams.push(ref(name));
+      else {
+        const queryable = ogc.queryables?.[name] ?? {};
+        itemParams.push({
+          name,
+          in: 'query',
+          required: false,
+          schema: QUERYABLE_SCHEMA[queryable.type ?? 'string'],
+          style: 'form',
+          explode: false,
+          ...(queryable.description ? { description: queryable.description } : {}),
+        });
+      }
+    }
+    paths[`/collections/${id}`] = {
+      get: { operationId: `describeCollection_${id}`, summary: ogc.title, responses: { '200': JSON_RESPONSE('The collection.'), ...ERROR_RESPONSES } },
+    };
+    paths[`/collections/${id}/queryables`] = {
+      get: {
+        operationId: `getQueryables_${id}`,
+        summary: `${ogc.title}: queryables`,
+        responses: {
+          '200': { description: 'The queryables.', content: { 'application/schema+json': { schema: { type: 'object' } } } },
+          ...ERROR_RESPONSES,
+        },
+      },
+    };
+    paths[`/collections/${id}/items`] = {
+      get: {
+        operationId: `getFeatures_${id}`,
+        summary: `${ogc.title}: features`,
+        parameters: itemParams,
+        responses: { '200': GEOJSON_RESPONSE('The features.'), ...ERROR_RESPONSES },
+      },
+    };
+    paths[`/collections/${id}/items/{featureId}`] = {
+      get: {
+        operationId: `getFeature_${id}`,
+        summary: `${ogc.title}: one feature`,
+        parameters: [ref('featureId'), ref('f')],
+        responses: { '200': GEOJSON_RESPONSE('The feature.'), ...ERROR_RESPONSES },
+      },
+    };
+  }
+
+  return {
+    openapi: '3.0.3',
+    info: { title, version: '1.0.0', ...(description ? { description } : {}) },
+    servers: [{ url: serviceUrl }],
+    paths,
+    components: { parameters },
+  };
+}
+
+/** The collection document's body, without its links. */
+export function ogcCollectionBody(ogc: OgcObject): Record<string, unknown> {
+  const body: Record<string, unknown> = {
+    id: ogc.collectionId,
+    title: ogc.title,
+    ...(ogc.description ? { description: ogc.description } : {}),
+    itemType: 'feature',
+    crs: [CRS84_URI],
+  };
+  const extent: Record<string, unknown> = {};
+  if (ogc.extent?.spatial?.length) extent.spatial = { bbox: ogc.extent.spatial, crs: CRS84_URI };
+  if (ogc.extent?.temporal?.length) {
+    extent.temporal = { interval: ogc.extent.temporal, trs: 'http://www.opengis.net/def/uom/ISO-8601/0/Gregorian' };
+  }
+  if (Object.keys(extent).length) body.extent = extent;
+  return body;
+}
+
+/** A queryable's JSON Schema, from the `ogc` object. */
+export function queryableSchema(queryable: OgcQueryable): Record<string, unknown> {
+  return {
+    ...QUERYABLE_SCHEMA[queryable.type ?? 'string'],
+    ...(queryable.title ? { title: queryable.title } : {}),
+    ...(queryable.description ? { description: queryable.description } : {}),
+  };
+}
+
+// --------------------------------------------------- index fields (cql2) --
+
+/** One field of the Kurrawong index, as `luc:config` lists it. */
+export type IndexField = {
+  /** The field IRI. */
+  iri: string;
+  /** The local name of the field IRI: the name a filter or a queryable uses. */
+  name: string;
+  /** The local name of `idx:fieldType`: `KeywordField`, `LatLonField`, … */
+  type: string;
+};
+
+/** The last segment of an IRI, after `#`, `/` or `:`. */
+export function localName(iri: string): string {
+  const match = /[^#/:]*$/.exec(iri);
+  return match?.[0] || iri;
+}
+
+/** The JSON Schema a queryable of an index field type gets. */
+export function indexFieldSchema(type: string): Record<string, unknown> {
+  switch (type) {
+    case 'IntField':
+    case 'LongField':
+      return { type: 'integer' };
+    case 'DoubleField':
+    case 'FloatField':
+      return { type: 'number' };
+    case 'TemporalField':
+      return { type: 'string', format: 'date-time' };
+    case 'LatLonField':
+      return { format: 'geometry-any' };
+    default:
+      return { type: 'string' };
+  }
+}
+
+const RANGE_OPS = new Set(['<', '>', '<=', '>=', 'between']);
+const TEXT_OPS = new Set(['like', 'text_query', 'casei', 'accenti']);
+const TEXT_TYPES = new Set(['KeywordField', 'TextField']);
+
+/**
+ * The index's own refusals, checked before the call: a property that is not
+ * a field, a range on a text field, a text match on any other, a spatial
+ * operator on anything but a `LatLonField`. Returns a message, or null.
+ * The properties are field IRIs by now.
+ */
+export function checkCqlAgainstFields(filter: Cql2, fields: IndexField[]): string | null {
+  const byIri = new Map(fields.map(field => [field.iri, field]));
+  for (const { op, property } of cqlComparisons(filter)) {
+    const field = byIri.get(property);
+    if (!field) return `filter: "${property}" is not a field of the index`;
+    const name = field.name;
+    if (RANGE_OPS.has(op) && TEXT_TYPES.has(field.type)) return `filter: "${op}" does not apply to ${name}, a text field`;
+    if (TEXT_OPS.has(op) && !TEXT_TYPES.has(field.type)) return `filter: "${op}" applies to text fields only, not ${name}`;
+    if (op.startsWith('s_') && field.type !== 'LatLonField') return `filter: "${op}" applies to the geometry field only, not ${name}`;
+    if (field.type === 'LatLonField' && !op.startsWith('s_')) return `filter: ${name} is a geometry field; use a spatial operator`;
+  }
+  return null;
 }

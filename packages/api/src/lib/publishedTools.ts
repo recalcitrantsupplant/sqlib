@@ -351,10 +351,25 @@ export function collectOgcCollections(problems: string[]): OgcCollectionSpec[] {
       problems.push(`${label}: the collection "${ogc.collectionId}" needs a default backend that exists.`);
       continue;
     }
+    let configTargetId: string | undefined;
+    if (ogc.mode === 'cql2' && ogc.cql?.configQuery) {
+      const configQuery = get<PersistedQuery>(ogc.cql.configQuery);
+      const configResolution = configQuery?.['@type'] === 'Query'
+        ? resolveVersionIn(configQuery as unknown as Parameters<typeof resolveVersionIn>[0], requestedEnvironment(undefined))
+        : null;
+      if (!configResolution?.ok || libraryOf(configQuery!) !== library.$id) {
+        problems.push(`${label}: ogc.cql.configQuery ${ogc.cql.configQuery} is not a query with a version in library "${library.slug}".`);
+        continue;
+      }
+      configTargetId = configResolution.version;
+    }
     collections.push({
       slug: library.slug,
       libraryId: library.$id,
+      libraryName: library.name,
+      libraryDescription: library.description,
       ogc,
+      ...(configTargetId ? { configTargetId } : {}),
       tool: {
         slug: library.slug,
         libraryId: library.$id,
