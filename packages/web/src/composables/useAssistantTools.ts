@@ -16,6 +16,7 @@
  */
 import { ref } from 'vue';
 import { useRuntimeConfig } from '#imports';
+import { authorizedFetch } from './authorizedFetch';
 
 type ToolInfo = { name: string; title: string | null; description: string | null };
 
@@ -30,7 +31,7 @@ export function useAssistantTools() {
     if (inFlight) return inFlight;
     inFlight = (async () => {
       try {
-        const response = await fetch(`${baseUrl}/assistant/tools`);
+        const response = await authorizedFetch(`${baseUrl}/assistant/tools`);
         if (!response.ok) return;
         const payload = (await response.json()) as { tools?: ToolInfo[] };
         const next: Record<string, string> = {};
