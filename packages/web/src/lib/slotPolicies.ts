@@ -12,10 +12,10 @@ export type WhenEmptyMode = 'unconstrained' | 'propagateEmpty' | 'require';
 
 /** Worded as the group edge editor words the same modes. */
 export const WHEN_EMPTY_OPTIONS: ReadonlyArray<{ value: WhenEmptyMode | ''; label: string }> = [
-  { value: '', label: 'Run without this filter (default)' },
+  { value: '', label: 'Run without this argument (default)' },
   { value: 'propagateEmpty', label: 'Return no results' },
   { value: 'require', label: 'Fail the run' },
-  { value: 'unconstrained', label: 'Always run without this filter' },
+  { value: 'unconstrained', label: 'Always run without this argument' },
 ];
 
 /** A slot's key: its variables, sorted, as slots and argument sets are matched. */

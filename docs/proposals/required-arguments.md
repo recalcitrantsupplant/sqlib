@@ -152,7 +152,7 @@ today.
 ### Web
 
 - The Details tab of the query editor gets one control per slot, under "If a
-  parameter gets no value". The labels are the ones the group edge editor uses.
+  parameter gets no argument". The labels are the ones the group edge editor uses.
   A change is saved with the next version, like an edit to the text, and Save
   sends the mode of every slot.
 
