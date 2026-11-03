@@ -341,11 +341,60 @@ its paging as arguments, and adds the pushdown settings:
   "nextCursor": "cursor"                  // a column; the last kept row's value goes in the next link
 },
 "cql": {
-  "geometryField": "location",            // the index field that bbox and the "geometry" queryable name
-  "datetimeField": "observed",            // optional; without it, datetime is a 400
-  "fields": { "height": "buildingHeight" }  // queryable name → index field, when they differ
+  "configQuery": "urn:…:query/ogc-index-fields",  // optional: a stored query over luc:config, see below
+  "geometryField": "urn:jena:lucene:field#location",  // optional with configQuery: the one LatLonField
+  "datetimeField": "urn:jena:lucene:field#observed",  // optional; without it, datetime is a 400
+  "fields": { "height": "urn:jena:lucene:field#buildingHeight" }  // queryable name → field IRI, when they differ
 }
 ```
+
+Field references are field IRIs, as the Kurrawong API prefers. The index
+also accepts an `idx:fieldName`, but that is its internal Lucene name.
+
+#### Fields from `luc:config`
+
+The Kurrawong index has a `luc:config` property function. With
+`text:exposeConfig true` on the index, it returns the index configuration as
+triples: every field IRI, its `idx:fieldType`, and whether it is facetable.
+So a `cql2` collection does not need to repeat the index's fields in its
+`ogc` object.
+
+`cql.configQuery` names a stored SELECT in the same library that reads it.
+The starter set ships this one:
+
+```sparql
+PREFIX luc: <urn:jena:lucene:index#>
+PREFIX idx: <urn:jena:lucene:index#>
+SELECT ?field ?type ?facetable WHERE {
+  (?field idx:fieldType ?type) luc:config ("default") .
+  OPTIONAL { (?field idx:facetable ?facetable) luc:config ("default") }
+}
+```
+
+The plugin runs it on the first request that needs it, through `/execute`
+with that caller's `Authorization`, and keeps the result for the life of the
+process. A failed run is not kept, so the next request tries again. The
+plugin uses the result for three things:
+
+1. **Queryables.** One property per field. The type follows `idx:fieldType`:
+   `KeywordField` and `TextField` are `string`, `IntField` and `LongField`
+   are `integer`, `DoubleField` is `number`, `TemporalField` is `string`
+   with `format: date-time`, and `LatLonField` is `geometry`, with
+   `format: geometry-any`. The property name is the field IRI's local name.
+   When the `ogc` object also has `queryables`, that list is an allowlist
+   and gives titles: only those fields are shown and accepted.
+2. **Geometry field.** When `cql.geometryField` is absent and the index has
+   exactly one `LatLonField`, that field is used. Zero or two answers `500`
+   on a `bbox` call, with a message that says to set `cql.geometryField`.
+3. **A check before the call.** The plugin walks the filter and checks each
+   `property` against the field list, and each operator against the field
+   type, using the index's own rules (no range on a `KeywordField`, no
+   `like` or `text_query` on a numeric, temporal or spatial field). A
+   mismatch answers `400` naming the clause, before Fuseki runs anything.
+   See [Errors from the index](#errors-from-the-index) for why.
+
+Without `configQuery`, queryables come from `queryables` alone and the
+check before the call is skipped.
 
 ### The check when a version is saved
 
@@ -513,9 +562,10 @@ v1. A computed extent is in [Later work](#later-work).
 
 A JSON Schema (2020-12) document built from `queryables`, with
 `"$id"` set to the route's URL, `"type": "object"` and one property per
-queryable. In `cql2` mode it also lists `geometry`, with
-`"format": "geometry-any"`. Every collection serves it, but only `cql2`
-collections accept `filter`.
+queryable. In `cql2` mode the list comes from `luc:config` (see
+[Fields from `luc:config`](#fields-from-lucconfig)) and includes the geometry
+field. Every collection serves it, but only `cql2` collections accept
+`filter`.
 
 #### Items
 
@@ -600,26 +650,47 @@ the parsed JSON tree.
 2. **`filter-crs`.** CRS84, or absent. Anything else answers `400`.
 3. **`filter`.** Parse it as JSON. A parse error answers `400`.
 4. **Rename fields.** Walk the tree. For each `{"property": name}`:
-   `geometry` becomes `cql.geometryField`, a name in `cql.fields` becomes its
-   field, and any other name is kept. A name that is not a queryable is kept
-   too: the index refuses an unknown field, and its message reaches the
-   caller.
+   `geometry` becomes the geometry field, a name in `cql.fields` or a
+   queryable from `luc:config` becomes its field IRI, and a name that is
+   already a field IRI is kept. Any other name answers `400`, naming it.
+   Without `configQuery`, an unknown name is kept and the index refuses it.
 5. **Add `bbox`.** `{"op":"s_intersects","args":[{"property":"<geometryField>"},{"bbox":[minx,miny,maxx,maxy]}]}`.
-6. **Add `datetime`.** `{"op":"t_intersects","args":[{"property":"<datetimeField>"},{"interval":["a","b"]}]}`,
-   with `".."` for an open end.
+6. **Add `datetime`.** The index documents `=` and ranges on a
+   `TemporalField`, not the CQL2 `t_` operators. So an interval becomes
+   `{"op":">=","args":[{"property":"<datetimeField>"},{"timestamp":"a"}]}`
+   and the matching `<=` clause, with no clause for an open end. An instant
+   becomes one `=` clause. The literal form the index takes for a time value
+   is one of the checks below.
 7. **Add queryables given as parameters.** `{"op":"=","args":[{"property":"<field>"},value]}`.
 8. **Combine.** One clause stays as it is. More than one becomes
    `{"op":"and","args":[…]}`. No clause leaves the `filter` variable unbound.
-9. **Bind.** `filter` gets the serialized JSON, `limit` gets **limit + 1**,
-   `offset` gets the request's offset or 0, and `cursor` gets the request's
-   `cursor` if any.
+9. **Bind.** Every `luc:query` argument is bound, because its parsing is
+   fixed-arity and an unused filter is `""`, not unbound. `filter` gets the
+   serialized JSON or `""`, `limit` gets **limit + 1**, `offset` gets the
+   request's offset or 0, and `cursor` gets the request's `cursor`, or `"*"`
+   for the first page.
 
-The index refuses any clause it cannot push down. `luc:query` then fails, and
-Fuseki answers the query with an error. `/execute` returns that as a `502` or
-`400` with the endpoint's message. The plugin turns it into a `400` with the
-index's message, because the cause is the filter. The plugin finds that case
-by a marker in the message, which the Kurrawong index must document. This is
-one of the open checks.
+#### Errors from the index
+
+The index applies a filter in full or refuses the query, naming the clause.
+Through Fuseki, every `luc:query` error is an HTTP `500` with a `text/plain`
+body. Only three errors carry a fixed marker:
+`[LUC_CURSOR_MALFORMED]`, `[LUC_CURSOR_OTHER_SORT]` and
+`[LUC_ENTITY_SORT_NEEDS_REBUILD]`. A refused filter clause has no marker.
+
+So the plugin maps errors like this:
+
+| Index error | Plugin answer |
+| --- | --- |
+| `[LUC_CURSOR_MALFORMED]`, `[LUC_CURSOR_OTHER_SORT]` | `400`: the `cursor` parameter is not valid |
+| `[LUC_ENTITY_SORT_NEEDS_REBUILD]` | `500`: the index needs a rebuild |
+| A field or operator problem the check before the call finds | `400`, before the call |
+| Any other error | passed through from `/execute`, with the index's message |
+
+The check before the call catches the refusals the Kurrawong docs list. A
+marker on filter refusals, such as `[LUC_FILTER_REFUSED]`, would let the
+plugin drop its own copy of those rules. That is a small request to make of
+the index.
 
 `numberMatched` is the value of `outputs.numberMatched` in the first row
 (the index's `?totalHits`). `next` carries `cursor=<last kept row's outputs.nextCursor>`
@@ -711,6 +782,7 @@ PREFIX geo: <http://www.opengis.net/ont/geosparql#>
 PREFIX ex:  <https://example.org/ns#>
 SELECT ?feature ?geom ?name ?height ?numberMatched ?cursor WHERE {
   VALUES (?cql ?limit ?offset ?after) { (UNDEF UNDEF UNDEF UNDEF) }
+  # indexSelector fieldSpec queryString cqlFilter sortSpec limit offset after
   (?hit ?feature ?score ?numberMatched ?rank ?cursor)
     luc:query ("default" "default" "" ?cql "" ?limit ?offset ?after) .
   ?feature geo:hasGeometry/geo:asWKT ?geom ;
@@ -727,20 +799,23 @@ ORDER BY ?rank
   "geometry": "geom",
   "params": { "filter": "cql", "limit": "limit", "offset": "offset", "cursor": "after" },
   "outputs": { "numberMatched": "numberMatched", "nextCursor": "cursor" },
-  "cql": { "geometryField": "location", "fields": { "height": "buildingHeight" } },
-  "queryables": { "name": { "type": "string" }, "height": { "type": "number" } },
+  "cql": { "configQuery": "urn:…:query/ogc-index-fields" },
+  "queryables": { "name": { "title": "Name" }, "height": { "title": "Height (m)" } },
   "pageSize": { "default": 10, "max": 1000 }
 }
 ```
 
-The argument positions of `luc:query` and its output order are taken from
-the Kurrawong `docs/02-sparql-api.md` and `09-spatial.md`, as read on
-2026-11-03. Check them against the deployed index before the starter set is
-written.
+The argument positions and the subject list follow the Kurrawong
+`docs/02-sparql-api.md`, as read on 2026-11-03: eight arguments, with
+`after` last, and six subject slots, `(?hit ?entity ?score ?totalHits ?rank ?cursor)`.
+The query reads `?totalHits` into `?numberMatched`. A sort is left as `""`,
+so the order is relevance order, and the cursor stays valid across pages.
 
-`luc:facet` is not used. It could later fill the `enum` values of
-`/queryables` for keyword fields, and it is the natural backend for a later
-facets endpoint.
+The starter set also ships the `luc:config` query from
+[Fields from `luc:config`](#fields-from-lucconfig). The demo index sets
+`text:exposeConfig true`.
+
+`luc:facet` is not used in v1. See [Later work](#later-work).
 
 ### The two sets compared
 
@@ -748,10 +823,11 @@ facets endpoint.
 | --- | --- | --- |
 | Runs on | any backend, Oxigraph included | Fuseki with the Kurrawong `jena-text` index |
 | `bbox` | envelope `FILTER`, full scan | `s_intersects` clause, spatial index |
-| `datetime` | `FILTER` on a date property | `t_intersects` clause, if the index has a date field |
+| `datetime` | `FILTER` on a date property | range clauses on a `TemporalField` |
 | `filter` (Part 3) | not offered, `400` | CQL2-JSON, pushdown only |
 | Paging | `LIMIT`/`OFFSET`, `prev` and `next` | `after` cursor, `next` only |
 | `numberMatched` | left out | from the index, no extra query |
+| Queryables | from the `ogc` object | from `luc:config`, filtered by the `ogc` object |
 | Conformance | core, geojson, oas30 | the same, plus Part 3 and CQL2 classes |
 
 ## Changes by package
@@ -785,8 +861,9 @@ Each step is one pull request. Each leaves `main` working.
    Oxigraph fixture with the plain starter query.
 5. **Plain starter set** in `sqlib-demo`, then a QGIS check and a CITE run
    (`ets-ogcapi-features10`) against the demo. Fix what CITE finds.
-6. **`cql2` mode.** The filter rewrite, cursor paging, `numberMatched`, the
-   index-refusal mapping, Part 3 conformance. Test the rewrite as pure
+6. **`cql2` mode.** The filter rewrite, the `luc:config` fields and the
+   check before the call, cursor paging, `numberMatched`, the error mapping,
+   Part 3 conformance. Test the rewrite as pure
    functions; test the route against a recorded Fuseki response.
 7. **Jena starter set** in `sqlib-demo`, checked against a Fuseki with the
    Kurrawong index.
@@ -807,31 +884,33 @@ URL", before any OGC work lands.
 - **Collections change only at restart**, like published tools.
 - **CITE may find gaps** in link relations or the API document that this
   design does not foresee. Step 5 is there to find them before the Jena work.
-- **The index refusal message is not a contract.** If Kurrawong changes it,
-  refusals reach the caller as `502` instead of `400`.
+- **The plugin copies the index's filter rules.** Its check before the call
+  follows the refusal table in the Kurrawong docs. If the index adds a rule,
+  that refusal reaches the caller as an error passed through from the
+  backend, not as a clean `400`, until the plugin is updated. A marker on
+  filter refusals removes this risk.
 
 ## Open questions
 
-These need David's answer. The build can start without them, using the
-default in brackets.
+Answered by David on 2026-11-03:
 
-1. Should the metadata routes (landing, collections, queryables, API) of a
-   library be readable without sign-in, when its `items` are not?
-   [Yes, as `/tools/{slug}/openapi.json` is today. The `items` call is the
-   one that checks grants.]
-2. Is there a first target client (QGIS, a web map, a harvester) that sets
-   the first test case? [QGIS.]
+1. The metadata routes (landing, conformance, collections, queryables, API)
+   of a library are readable without sign-in, even when its `items` are not.
+   The `items` call is the one that checks grants. The `luc:config` read
+   behind queryables runs with the first caller's grants and is then served
+   to everyone, so an operator who sets `configQuery` publishes the index's
+   field list.
+2. QGIS is the first target client. Step 5 tests in QGIS before CITE.
 
 These are checks to make while building, not decisions:
 
 - `luc:query` takes variables bound by `VALUES` for its filter, limit,
   offset and `after` arguments. David expects it does. Run one query in the
   demo before step 7.
-- The argument positions and output order of `luc:query`, and the marker in
-  its refusal message.
-- Whether the Kurrawong index has a date field type for `t_intersects`.
-- How the Jena starter query finds one item: by binding `?feature` before
-  `luc:query`, or by an `id` filter.
+- The literal form for a time value in a range clause on a `TemporalField`.
+- How the Jena starter query finds one item: by binding `?feature` in the
+  `?entity` slot of `luc:query`, which the index treats as an IRI filter, or
+  by an `entityIri` `=` clause.
 - The final CQL2 conformance class URIs.
 
 ## Later work
@@ -842,7 +921,13 @@ These are checks to make while building, not decisions:
   first request and cached.
 - Keyset paging in `values` mode (`?feature > ?last`).
 - Part 2: `crs` and `bbox-crs`, with real reprojection.
-- `luc:facet` behind the `enum` of queryables.
+- `luc:facet` behind the `enum` of queryables, for keyword fields.
+- A facets route, `GET /ogc/{slug}/collections/{id}/facets?field=…`, that
+  takes the same `bbox`, `datetime` and `filter` as `items` and returns value
+  counts from `luc:facet`, for example "house: 120, shed: 40". A map UI uses
+  it to show filter options with counts that match the current view. OGC
+  API Features has no standard route for this, so it is an extension outside
+  the conformance classes. `luc:stats` could add field-level counts beside it.
 - An `ogc` section in the query editor, and a map view of GeoJSON results in
   the web app. Each needs its own mock.
 - GeoJSON-LD output for CONSTRUCT.
@@ -863,3 +948,4 @@ These are checks to make while building, not decisions:
 | `500` for duplicate ids and serializer failures in OGC | The cause is the collection's setup, not the request |
 | CQL2-JSON only, edited as a JSON tree, never translated | David's decision: pushdown only, no CQL2 parser and no CQL2-to-SPARQL converter |
 | One OGC service per library slug | Reuses the slug that published tools already require |
+| Queryables and the geometry field from `luc:config` | The index already knows its fields and their types, so the `ogc` object does not repeat them |
