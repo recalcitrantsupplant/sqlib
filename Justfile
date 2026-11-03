@@ -1,12 +1,24 @@
+# The addresses the Rauthy recipes serve sqlib on, for `rauthy-up`, `dev-auth`,
+# `demo-graph-access` and the recipes that stop Rauthy. They are set here rather than read from
+# tmp/auth-demo/.env, which an older run may have written with other ports.
+rauthy_addresses := "SQLIB_AUTH_RESOURCE=http://localhost:3005/mcp SQLIB_WEB_ORIGINS=http://localhost:3001"
+
 # Every feature flag on, for `dev` and `dev-auth`
 all_features := "FEATURE_NOTEBOOK=true FEATURE_QUERIES=true FEATURE_QUERY_GROUPS=true FEATURE_RULES_SUITE=true FEATURE_BENCHMARKS=true FEATURE_TESTS=true FEATURE_DATA_GRAPHS=true FEATURE_TUPLE_SETS=true FEATURE_ARGUMENT_SETS=true FEATURE_MCP=true FEATURE_ETL=true FEATURE_BACKENDS=true FEATURE_SETTINGS=true FEATURE_RULES_ALLOW_INVALID_SAVE=true FEATURE_RULE_TUPLES=true FEATURE_RULE_AGGREGATES=true FEATURE_PLAYGROUND_QUERIES=true FEATURE_PLAYGROUND_RULES=true FEATURE_PLAYGROUND_ETL=true FEATURE_ASSISTANT=true"
 
 # The default recipe: API, MCP and frontend together, every feature flag on,
 # writes allowed
 #
-# The library store is the persistent Oxigraph one run-local-memory uses, in
-# packages/api/tmp/library-store, so the two recipes share their data and
-# `just clean-local-memory` resets both. The flags are exported once and both
+# The library store is SQLite, in packages/api/tmp/library-store/library.sqlite.
+# run-local-memory keeps its Oxigraph snapshot in the same directory, so
+# `just clean-local-memory` resets both, but the two recipes do not share data.
+# To copy the Oxigraph snapshot into the SQLite store, run this from
+# packages/api with the API stopped:
+#
+#     INTERNAL_BACKEND_TYPE=sqlite LIBRARY_STORAGE_DIR=./tmp/library-store \
+#         pnpm import:library-store --file ./tmp/library-store/library_store.nq
+#
+# The flags are exported once and both
 # processes read them: the API reads FEATURE_*, and nuxt.config.ts falls back to
 # FEATURE_* when NUXT_PUBLIC_FEATURE_* is unset.
 #
@@ -22,6 +34,11 @@ all_features := "FEATURE_NOTEBOOK=true FEATURE_QUERIES=true FEATURE_QUERY_GROUPS
 # on those ports — another checkout, or a container (named by its compose
 # working directory) — stops the recipe with the holder named.
 #
+# The web app runs with --strictPort. Without it, Nuxt moves to another port
+# when 3001 is busy, and the API's CORS allowlist only names 3001, so every
+# API call from the page fails its CORS check. `dev-auth` and
+# `demo-graph-access` start it the same way.
+#
 # What the build line builds, and why the trailing `...`: see run-local-memory.
 #
 # API:  http://localhost:3005
@@ -33,10 +50,8 @@ dev: _free-dev-ports
     pnpm --filter "@sparql-query-lib/tools..." --filter "@sparql-query-lib/rdf-delta..." --filter "@sparql-query-lib/mcp-app..." build
     export {{all_features}}
     export SQLIB_READ_ONLY=false MCP_READ_ONLY=false
-    INTERNAL_BACKEND_TYPE="oxigraph-persistent" \
+    INTERNAL_BACKEND_TYPE="sqlite" \
     LIBRARY_STORAGE_DIR="./tmp/library-store" \
-    INTERNAL_OXIGRAPH_STORE_ID="library-store" \
-    INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS="60000" \
     NODE_ENV="development" \
     OTEL_ENABLED="false" \
     MCP_TRANSPORT="dual-http" \
@@ -44,7 +59,7 @@ dev: _free-dev-ports
         pnpm --filter @sparql-query-lib/api exec tsx watch ../mcp-server/src/cli.ts &
     api_pid=$!
     NUXT_PUBLIC_API_BASE_URL="http://localhost:3005" \
-        pnpm --filter @sparql-query-lib/web dev &
+        pnpm --filter @sparql-query-lib/web exec nuxt dev --port 3001 --strictPort &
     web_pid=$!
     trap 'kill "$api_pid" "$web_pid" 2>/dev/null || true' INT TERM EXIT
     wait -n "$api_pid" "$web_pid"
@@ -428,6 +443,7 @@ demo-graph-access: rauthy-up
     #!/usr/bin/env bash
     set -euo pipefail
     set -a; . tmp/auth-demo/.env; set +a
+    export {{rauthy_addresses}}
     pnpm --filter "@sparql-query-lib/tools..." --filter "@sparql-query-lib/rdf-delta..." --filter "@sparql-query-lib/mcp-app..." build
     SEED_GRAPH_ACCESS_DEMO="true" \
     SQLIB_AUTH_MODE="required" \
@@ -457,7 +473,7 @@ demo-graph-access: rauthy-up
     NUXT_PUBLIC_FEATURE_QUERIES="true" \
     NUXT_PUBLIC_FEATURE_BACKENDS="true" \
     NUXT_PUBLIC_FEATURE_DATA_GRAPHS="true" \
-        pnpm --filter @sparql-query-lib/web dev &
+        pnpm --filter @sparql-query-lib/web exec nuxt dev --port 3001 --strictPort &
     web_pid=$!
     trap 'kill "$api_pid" "$web_pid" 2>/dev/null || true' INT TERM EXIT
     echo
@@ -508,13 +524,15 @@ rauthy-up:
             echo "RAUTHY_ADMIN_PASSWORD=Admin-$(openssl rand -hex 8)-Aa1!"
             echo "RAUTHY_API_KEY_SECRET=$(openssl rand -hex 32)"
             echo "DEMO_USER_PASSWORD=Demo-$(openssl rand -hex 6)-Aa1!"
-            echo "SQLIB_AUTH_RESOURCE=http://localhost:3005/mcp"
-            echo "SQLIB_WEB_ORIGINS=http://localhost:3001"
         } > "$env_file"
         chmod 600 "$env_file"
         echo "Wrote fresh secrets to $env_file"
     fi
     set -a; . "$env_file"; set +a
+    # Set after the env file, so a file written when the demo used other ports
+    # cannot point Rauthy's redirects and resource at an address nothing serves.
+    # Docker Compose prefers these shell values to the env file's.
+    export {{rauthy_addresses}}
     compose="docker compose -f docker-compose.auth-demo.yml --env-file $env_file"
     $compose up -d rauthy
     $compose run --rm rauthy-setup
@@ -527,11 +545,11 @@ rauthy-up:
 
 # Stop the local dev Rauthy, keeping its users and clients
 rauthy-down:
-    docker compose -f docker-compose.auth-demo.yml --env-file tmp/auth-demo/.env down
+    {{rauthy_addresses}} docker compose -f docker-compose.auth-demo.yml --env-file tmp/auth-demo/.env down
 
 # Throw the local dev Rauthy away: its volume and tmp/auth-demo's secrets
 clean-rauthy:
-    -docker compose -f docker-compose.auth-demo.yml --env-file tmp/auth-demo/.env down -v
+    -{{rauthy_addresses}} docker compose -f docker-compose.auth-demo.yml --env-file tmp/auth-demo/.env down -v
     rm -rf tmp/auth-demo
 
 # Run `dev` behind Rauthy: every feature flag on, in `required` auth mode
@@ -563,6 +581,7 @@ dev-auth: _free-dev-ports rauthy-up
     #!/usr/bin/env bash
     set -euo pipefail
     set -a; . tmp/auth-demo/.env; set +a
+    export {{rauthy_addresses}}
     pnpm --filter "@sparql-query-lib/tools..." --filter "@sparql-query-lib/rdf-delta..." --filter "@sparql-query-lib/mcp-app..." build
     export {{all_features}}
     export SQLIB_READ_ONLY=false MCP_READ_ONLY=false
@@ -587,7 +606,7 @@ dev-auth: _free-dev-ports rauthy-up
     NUXT_PUBLIC_API_BASE_URL="http://localhost:3005" \
     NUXT_PUBLIC_AUTH_CLIENT_ID="sqlib-web" \
     NUXT_PUBLIC_AUTH_SCOPE="openid profile email groups" \
-        pnpm --filter @sparql-query-lib/web dev &
+        pnpm --filter @sparql-query-lib/web exec nuxt dev --port 3001 --strictPort &
     web_pid=$!
     trap 'kill "$api_pid" "$web_pid" 2>/dev/null || true' INT TERM EXIT
     echo

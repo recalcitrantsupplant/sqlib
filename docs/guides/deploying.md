@@ -363,7 +363,9 @@ just dev-auth
    from `docker-compose.auth-demo.yml`. `rauthy/setup.sh` creates the
    clients, and `rauthy/demo-users.sh` creates the test people.
 2. It starts the API on `:3005` and the SPA on `:3001`, which sends you to
-   Rauthy to sign in.
+   Rauthy to sign in. Rauthy and the API accept only those two addresses, so
+   if another program holds `:3001`, the recipe stops instead of serving the
+   SPA on another port.
 3. It prints the passwords. The first run writes them, with fresh secrets, to
    `tmp/auth-demo/.env` (ignored by git), and later runs keep them.
 
