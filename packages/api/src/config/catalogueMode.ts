@@ -73,6 +73,7 @@ export function routeServedWhenPublished(routeUrl: string): boolean {
     || path === '/metrics'
     || path === '/tools'
     || path.startsWith('/tools/')
+    || path.startsWith('/ogc/')
     || path === '/auth'
     || path.startsWith('/auth/')
     || path.startsWith('/.well-known/')
@@ -120,7 +121,9 @@ export async function registerPublishedModePlugin(
     if (path !== '/execute') return;
     const body = request.body as { targetId?: unknown; dataGraphs?: unknown } | undefined;
     const targetId = body?.targetId;
-    const pinned = getPublishedCatalogue().specs.some(spec => spec.targetId === targetId);
+    const catalogue = getPublishedCatalogue();
+    const pinned = catalogue.specs.some(spec => spec.targetId === targetId)
+      || catalogue.collections.some(collection => collection.tool.targetId === targetId);
     // A published tool's `data` is RDF sent with the call; a stored graph named
     // by id is another entity, which the tool never reads.
     const onlyPostedData = body?.dataGraphs == null

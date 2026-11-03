@@ -34,6 +34,7 @@
     { "path": "../types" },
     { "path": "../contracts" },
     { "path": "../srl" },
+    { "path": "../geojson" },
     { "path": "../runtime" },
     { "path": "../compiler" },
     { "path": "../runtime-duckdb" },
