@@ -202,6 +202,11 @@ describe('checkToolObject', () => {
     ).toMatch(/^tool\.params\.1 is a LIMIT or OFFSET parameter/);
     expect(checkToolObject({ name: 'pm.by-city', description: 'd' }, inputs, { targetKind: 'query' })).toMatch(/^tool\.name/);
   });
+  it('reserves "f" for the response format', () => {
+    const withF = { tables: [['f']], limits: [], offsets: [] };
+    expect(checkToolObject({ name: 'n', description: 'd', params: { f: { kind: 'string' } } }, withF, { targetKind: 'group' }))
+      .toBe('tool.params.f: "f" is reserved for the response format of a GET call');
+  });
 });
 
 describe('refusals', () => {
@@ -374,7 +379,7 @@ describe('posted data on queries and groups', () => {
       paths: Record<string, { get: { parameters: Array<{ name: string }> }; post: { operationId: string } }>;
     };
     const path = document.paths['/tools/people/people-in-city'];
-    expect(path.get.parameters.map(p => p.name)).toEqual(['city', 'backendId']);
+    expect(path.get.parameters.map(p => p.name)).toEqual(['city', 'backendId', 'f']);
     expect(path.post.operationId).toBe('people-in-cityWithData');
   });
 });

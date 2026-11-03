@@ -25,6 +25,8 @@ export {
 } from './registry.js';
 export {
   BACKEND_ARGUMENT,
+  FORMAT_ARGUMENT,
+  FORMAT_MEDIA_TYPES,
   CALLER_SLOT_VARIABLES,
   LIBRARY_SLUG_PATTERN,
   PublishedToolArgumentError,

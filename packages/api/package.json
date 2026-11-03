@@ -71,6 +71,7 @@
     "@opentelemetry/sdk-trace": "^3.0.0",
     "@sparql-query-lib/compiler": "workspace:*",
     "@sparql-query-lib/contracts": "workspace:*",
+    "@sparql-query-lib/geojson": "workspace:*",
     "@sparql-query-lib/rdf-delta": "workspace:*",
     "@sparql-query-lib/runtime": "workspace:*",
     "@sparql-query-lib/runtime-duckdb": "workspace:*",
