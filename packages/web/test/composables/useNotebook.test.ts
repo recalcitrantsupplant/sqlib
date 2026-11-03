@@ -179,6 +179,29 @@ describe('running a cell', () => {
     });
   });
 
+  it('sends the column the author chose, by handle and by content alike', async () => {
+    callables.value = [selectCallable('urn:q:people'), selectCallable('urn:q:by-name', [['name']])];
+    const many = Array.from({ length: 3000 }, (_, i) => ({
+      name: { type: 'literal', value: `person number ${i}` },
+      nick: { type: 'literal', value: `nick ${i}` },
+    }));
+    executeTarget
+      .mockResolvedValueOnce({ ...rowsResponse(['name', 'nick'], many), resultRef: 'urn:sqlib:result:1' })
+      .mockResolvedValueOnce(rowsResponse(['name'], []));
+
+    await runIn(async (nb) => {
+      nb.addCell(queryCell('urn:q:people', 'people'));
+      nb.addCell(queryCell('urn:q:by-name', 'out2', [{ from: 'value', ref: 'people', columns: { name: 'nick' } }]));
+      await nextTick();
+      await nb.runAll();
+
+      const second = executeTarget.mock.calls[1]![0];
+      expect(second.argumentRefs).toEqual([
+        { resultRef: 'urn:sqlib:result:1', columns: [{ from: 'nick', to: 'name' }], vars: ['name'] },
+      ]);
+    });
+  });
+
   it('sends a small value by content even when the server kept it', async () => {
     callables.value = [selectCallable('urn:q:people'), selectCallable('urn:q:by-name', [['name']])];
     executeTarget
@@ -255,6 +278,53 @@ describe('running a cell', () => {
       await nb.run(consumer.id);
       expect(nb.stateFor(consumer.id).status).toBe('error');
       expect(executeTarget).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('runs every cell down to the one asked for, and none below it', async () => {
+    callables.value = [selectCallable('urn:q:people')];
+    executeTarget.mockResolvedValue(rowsResponse(['name'], []));
+
+    await runIn(async (nb) => {
+      const cells = ['a', 'b', 'c'].map((name) => queryCell('urn:q:people', name));
+      cells.forEach((cell) => nb.addCell(cell));
+      await nextTick();
+      await nb.runUpTo(cells[1]!.id);
+
+      expect(executeTarget).toHaveBeenCalledTimes(2);
+      expect(nb.stateFor(cells[2]!.id).status).toBe('idle');
+    });
+  });
+
+  it('binds a rule set that stopped at its iteration limit, warns, and stops Run all there', async () => {
+    callables.value = [selectCallable('urn:q:people')];
+    ruleSets.value = [{ id: 'urn:rs:1', name: 'closure', description: null, isPartOf: [LIBRARY], currentVersionNumber: 1 }];
+    executeRuleSet.mockResolvedValue({ status: 'maxIterations', iterations: [], dataBlocks: [], finalGraphNQuads: '<urn:a> <urn:p> <urn:b> .' });
+    executeTarget.mockResolvedValue(rowsResponse(['name'], []));
+
+    await runIn(async (nb) => {
+      const rules: RuleSetCell = { kind: 'ruleset', id: mintCellId(), ruleSet: 'urn:rs:1', out: 'closure' };
+      const after = queryCell('urn:q:people', 'after');
+      nb.addCell(rules);
+      nb.addCell(after);
+      await nextTick();
+      await nb.runAll();
+
+      expect(nb.values.value.closure?.type).toBe('graph');
+      expect(nb.stateFor(rules.id).warning).toContain('iteration limit');
+      expect(executeTarget).not.toHaveBeenCalled();
+    });
+  });
+
+  it('moves a cell to a position, as a drag ends', async () => {
+    await runIn(async (nb) => {
+      const cells = ['a', 'b', 'c'].map((name) => queryCell('urn:q:people', name));
+      cells.forEach((cell) => nb.addCell(cell));
+      await nextTick();
+      nb.moveCellTo(cells[0]!.id, 2);
+      expect(nb.notebook.value.cells.map((cell) => (cell as QueryCell).out)).toEqual(['b', 'c', 'a']);
+      nb.moveCellTo(cells[0]!.id, 0);
+      expect(nb.notebook.value.cells.map((cell) => (cell as QueryCell).out)).toEqual(['a', 'b', 'c']);
     });
   });
 
@@ -593,7 +663,7 @@ describe('editing the document', () => {
       nb.addCell(second);
       await nextTick();
 
-      expect(nb.renameOutput(second.id, 'out1')).toContain('already bound');
+      expect(nb.renameOutput(second.id, 'out1')).toContain('already used');
     });
   });
 

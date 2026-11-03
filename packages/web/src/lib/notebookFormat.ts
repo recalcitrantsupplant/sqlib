@@ -52,7 +52,17 @@ export interface MarkdownCell {
  */
 export type SlotSource =
   | { from: 'typed'; bindings: SparqlBindingRow[] }
-  | { from: 'value'; ref: string; whenEmpty?: NotebookEmptyMode };
+  | { from: 'value'; ref: string; whenEmpty?: NotebookEmptyMode; columns?: SlotColumnMap };
+
+/**
+ * Which source column fills which slot variable, where the author chose it.
+ *
+ * Keyed by the slot's variable. A string names a column of the referenced
+ * value; `null` leaves the variable unbound. A variable not listed takes the
+ * default pairing (by name, then by position), so a notebook written before
+ * this field existed means what it meant then.
+ */
+export type SlotColumnMap = Record<string, string | null>;
 
 /** The policy when a referenced value has no rows. Mirrors a group edge's. */
 export type NotebookEmptyMode = 'skip' | 'empty' | 'stop';
@@ -166,6 +176,18 @@ let idCounter = 0;
 export function mintCellId(prefix = 'c'): string {
   idCounter += 1;
   return `${prefix}${idCounter}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export const UNTITLED_NOTEBOOK = 'Untitled notebook';
+
+/**
+ * A title for a notebook still called "Untitled notebook": the text of the
+ * first heading in its first markdown cell. Null when it has no such heading.
+ */
+export function titleFromHeading(notebook: Notebook): string | null {
+  const first = notebook.cells.find((cell) => cell.kind === 'markdown') as MarkdownCell | undefined;
+  const match = first?.source.match(/^\s*#{1,6}\s+(.+?)\s*#*\s*$/m);
+  return match?.[1]?.trim() || null;
 }
 
 export function emptyNotebook(library: string | null, title = 'Untitled notebook'): Notebook {
@@ -343,6 +365,7 @@ function parseSlots(raw: unknown, what: string): SlotSource[] | undefined {
         ...(typeof slot.whenEmpty === 'string'
           ? { whenEmpty: slot.whenEmpty as NotebookEmptyMode }
           : {}),
+        ...parseColumnMap(slot.columns),
       };
     }
     return {
@@ -350,6 +373,15 @@ function parseSlots(raw: unknown, what: string): SlotSource[] | undefined {
       bindings: Array.isArray(slot.bindings) ? (slot.bindings as SparqlBindingRow[]) : [],
     };
   });
+}
+
+function parseColumnMap(raw: unknown): { columns?: SlotColumnMap } {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const columns: SlotColumnMap = {};
+  for (const [target, source] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof source === 'string' || source === null) columns[target] = source;
+  }
+  return Object.keys(columns).length ? { columns } : {};
 }
 
 function parseGraphSource(raw: unknown, where: string): GraphSource {

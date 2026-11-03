@@ -32,7 +32,7 @@ import {
   booleanValue,
   graphValue,
   isTabularContentType,
-  mapColumns,
+  slotMappings,
   rowsValue,
   tabularRowsValue,
   toSlotArgument,
@@ -83,9 +83,14 @@ export interface NotebookTarget {
   version: number | null;
   /** The query's text, where it has one: what the cell shows it will run. */
   queryString: string | null;
+  /** The columns a SELECT projects, as far as the library knows them before a run. */
+  outputs?: string[];
 }
 
 export type CellStatus = 'idle' | 'running' | 'ok' | 'error' | 'skipped';
+
+/** How a cell's last run went, in the outline's words. */
+export type OutlineStatus = 'running' | 'ran' | 'stale' | 'incomplete' | 'failed' | 'skipped';
 
 export interface CellRunState {
   status: CellStatus;
@@ -94,6 +99,11 @@ export interface CellRunState {
   ranAt: string | null;
   /** An upstream value was rebound after this cell ran. */
   stale: boolean;
+  /**
+   * The run finished, but not cleanly: a rule set that stopped at its
+   * iteration cap or on a cycle. The value is bound; Run all stops here.
+   */
+  warning?: string | null;
 }
 
 /**
@@ -116,6 +126,7 @@ function targetFromCallable(callable: Callable): NotebookTarget {
     offsetParameters: callable.offsetParameters.map((parameter) => parameter.name),
     version: callable.version,
     queryString: callable.queryString ?? null,
+    outputs: callable.outputs.map((output) => output.variableName.replace(/^[?$]/, '')),
   };
 }
 
@@ -267,6 +278,18 @@ export function useNotebook(
     notebook.value = { ...notebook.value, cells };
   }
 
+  /** Move a cell to a position in the document, as a drag ends. */
+  function moveCellTo(cellId: string, toIndex: number): void {
+    const cells = [...notebook.value.cells];
+    const from = cells.findIndex((entry) => entry.id === cellId);
+    if (from < 0) return;
+    const [moved] = cells.splice(from, 1);
+    const at = Math.max(0, Math.min(cells.length, toIndex));
+    if (at === from) return;
+    cells.splice(at, 0, moved!);
+    notebook.value = { ...notebook.value, cells };
+  }
+
   function updateCell<T extends NotebookCell>(cellId: string, patch: Partial<T>): void {
     notebook.value = {
       ...notebook.value,
@@ -282,14 +305,24 @@ export function useNotebook(
    * Returns an error message rather than throwing: this is driven by an input
    * field, and a half-typed name is a normal state rather than a fault.
    */
-  function renameOutput(cellId: string, name: string): string | null {
+  /** Why a cell cannot take a name, or null when it can. */
+  function outputNameProblem(cellId: string, name: string): string | null {
     const cell = notebook.value.cells.find((entry) => entry.id === cellId);
     if (!cell || !isRunCell(cell)) return 'That cell binds no value.';
     if (cell.out === name) return null;
-    if (!isValidValueName(name)) return 'A value name starts with a letter and holds letters, digits or _.';
-    if (notebook.value.cells.some((entry) => isRunCell(entry) && entry.out === name)) {
-      return `@${name} is already bound by another cell.`;
+    if (!name) return 'A value needs a name.';
+    if (!isValidValueName(name)) return 'Start with a letter; use only letters, digits and _.';
+    if (notebook.value.cells.some((entry) => entry.id !== cellId && isRunCell(entry) && entry.out === name)) {
+      return `@${name} is already used by another cell.`;
     }
+    return null;
+  }
+
+  function renameOutput(cellId: string, name: string): string | null {
+    const problem = outputNameProblem(cellId, name);
+    if (problem) return problem;
+    const cell = notebook.value.cells.find((entry) => entry.id === cellId);
+    if (!cell || !isRunCell(cell) || cell.out === name) return null;
 
     const previous = cell.out;
     notebook.value = renameValue(notebook.value, previous, name);
@@ -342,17 +375,17 @@ export function useNotebook(
     }
 
     const value = values.value[slot.ref];
-    if (!value) return `@${slot.ref} has not been produced yet — run the cell above first.`;
+    if (!value) return `@${slot.ref} has not been produced yet. Run the cell above first, or choose "Run all cells up to here" in this cell's menu.`;
     if (value.type !== 'rows') return `@${slot.ref} is ${value.type}, and a parameter slot takes rows.`;
     if (value.bindings.length === 0) {
       if ((slot.whenEmpty ?? 'skip') === 'skip') return 'skip';
       if (slot.whenEmpty === 'stop') return `@${slot.ref} is empty.`;
     }
     if (byReference && sendsByReference(value)) {
-      const columns = mapColumns(value.columns, vars).map(({ source, target }) => ({ from: source, to: target }));
+      const columns = slotMappings(value.columns, vars, slot.columns).map(({ source, target }) => ({ from: source, to: target }));
       if (columns.length) return { ref: { resultRef: value.resultRef!, columns, vars: [...vars] } };
     }
-    return toSlotArgument(value as RowsValue, vars);
+    return toSlotArgument(value as RowsValue, vars, slot.columns);
   }
 
   /**
@@ -391,7 +424,7 @@ export function useNotebook(
     if (graph.from === 'dataGraph') return { dataGraphId: graph.dataGraphId };
     if (graph.from === 'dataGraphVersion') return { dataGraphVersionId: graph.dataGraphVersionId };
     const value = values.value[graph.ref];
-    if (!value) throw new Error(`@${graph.ref} has not been produced yet — run the cell above first.`);
+    if (!value) throw new Error(`@${graph.ref} has not been produced yet. Run the cell above first, or choose "Run all cells up to here" in this cell's menu.`);
     if (value.type !== 'graph') throw new Error(`@${graph.ref} is ${value.type}, and a query reads graphs, not ${value.type}.`);
     if (byReference && sendsByReference(value)) return { resultRef: value.resultRef! };
     return { dataGraphInline: value.content, dataGraphInlineFormat: value.format };
@@ -511,7 +544,7 @@ export function useNotebook(
       const request: Parameters<typeof apiClient.executeRuleSet>[1] = {};
       if (input?.from === 'value') {
         const value = values.value[input.ref];
-        if (!value) throw new Error(`@${input.ref} has not been produced yet — run the cell above first.`);
+        if (!value) throw new Error(`@${input.ref} has not been produced yet. Run the cell above first, or choose "Run all cells up to here" in this cell's menu.`);
         if (value.type !== 'graph') throw new Error(`@${input.ref} is ${value.type}, and a base graph takes RDF.`);
         // A large graph the server kept goes back by its handle; anything
         // else goes back by content, in the request that needs it.
@@ -541,6 +574,14 @@ export function useNotebook(
     const produced = graphValue({ name: cell.out, cellId: cell.id, durationMs }, content, contentType);
     produced.resultRef = response.resultRef ?? null;
     bind(cell, produced, durationMs);
+
+    const warning =
+      response.status === 'maxIterations'
+        ? 'The rule set stopped at its iteration limit before it converged, so this graph may be incomplete.'
+        : response.status === 'cycle'
+          ? 'The rule set stopped on a cycle: its rules keep changing the graph, so this graph may be incomplete.'
+          : null;
+    if (warning) runState.value = { ...runState.value, [cell.id]: { ...stateFor(cell.id), warning } };
   }
 
   /** Bind a value and mark everything downstream of it stale. */
@@ -604,7 +645,7 @@ export function useNotebook(
       return;
     }
 
-    runState.value = { ...runState.value, [cellId]: { ...stateFor(cellId), status: 'running', error: null } };
+    runState.value = { ...runState.value, [cellId]: { ...stateFor(cellId), status: 'running', error: null, warning: null } };
     const started = performance.now();
 
     try {
@@ -632,10 +673,24 @@ export function useNotebook(
    * exactly the dependency the notebook exists to express.
    */
   async function runAll(): Promise<void> {
-    for (const cell of notebook.value.cells) {
+    await runCells(notebook.value.cells.length);
+  }
+
+  /**
+   * Run every cell from the top down to this one, inclusive. A reload loses
+   * the values; this rebuilds the ones a cell needs in one action.
+   */
+  async function runUpTo(cellId: string): Promise<void> {
+    const index = notebook.value.cells.findIndex((cell) => cell.id === cellId);
+    if (index >= 0) await runCells(index + 1);
+  }
+
+  async function runCells(count: number): Promise<void> {
+    for (const cell of notebook.value.cells.slice(0, count)) {
       if (!isRunCell(cell)) continue;
       await run(cell.id);
-      if (stateFor(cell.id).status === 'error') return;
+      // A rule set that did not converge bound a value, but not one to build on unseen.
+      if (stateFor(cell.id).status === 'error' || stateFor(cell.id).warning) return;
     }
   }
 
@@ -708,6 +763,9 @@ export function useNotebook(
     lastRun,
     problems,
     problemsFor,
+    moveCellTo,
+    runUpTo,
+    outputNameProblem,
     targets,
     targetFor,
     defaultBackendFor,

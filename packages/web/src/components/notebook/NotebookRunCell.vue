@@ -36,6 +36,11 @@
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                v-if="index > 1"
+                :data-testid="`notebook-run-up-to-${cell.id}`"
+                @select="$emit('run-up-to')"
+              >Run all cells up to here</DropdownMenuItem>
               <DropdownMenuItem @select="$emit('move', -1)">Move up</DropdownMenuItem>
               <DropdownMenuItem @select="$emit('move', 1)">Move down</DropdownMenuItem>
               <DropdownMenuItem
@@ -57,6 +62,10 @@
         {{ problem }}
       </p>
 
+      <p v-if="state.warning" class="notice notice--warning" :data-testid="`notebook-warning-${cell.id}`">
+        {{ state.warning }}
+      </p>
+
       <p v-if="!target" class="notice notice--error" :data-testid="`notebook-missing-${cell.id}`">
         This cell names something this library no longer holds.
       </p>
@@ -64,7 +73,8 @@
       <template v-else>
         <!-- One row per parameter slot: where it comes from, and what that means. -->
         <div v-if="target.slots.length > 0" class="inputs">
-          <div v-for="(vars, slotIndex) in target.slots" :key="slotIndex" class="input-row">
+          <template v-for="(vars, slotIndex) in target.slots" :key="slotIndex">
+          <div class="input-row">
             <SectionLabel as="span">slot {{ slotIndex + 1 }}</SectionLabel>
             <span class="input-row__vars">{{ vars.map((name) => `?${name}`).join(' ') }}</span>
 
@@ -104,6 +114,59 @@
               </select>
             </template>
           </div>
+
+          <!--
+            Which column of the value fills which variable of the slot. Without
+            this a chain hides that only the names it shares are passed on.
+          -->
+          <div
+            v-if="wiredValue(slotIndex)"
+            class="input-row input-row--mapping"
+            :data-testid="`notebook-slot-mapping-${cell.id}-${slotIndex}`"
+          >
+            <template v-if="sourceColumns(slotIndex).length > 0">
+              <span v-for="pairing in pairings(slotIndex)" :key="pairing.target" class="mapping">
+                <code class="mapping__var">?{{ pairing.target }}</code>
+                <span class="mapping__arrow" aria-hidden="true">←</span>
+                <label class="visually-hidden" :for="`${cell.id}-col-${slotIndex}-${pairing.target}`">
+                  Column of @{{ wiredValue(slotIndex)?.name }} that fills ?{{ pairing.target }}
+                </label>
+                <select
+                  :id="`${cell.id}-col-${slotIndex}-${pairing.target}`"
+                  class="select"
+                  :data-testid="`notebook-slot-column-${cell.id}-${slotIndex}-${pairing.target}`"
+                  :value="pairing.source ?? ''"
+                  @change="onColumnChange(slotIndex, pairing.target, ($event.target as HTMLSelectElement).value)"
+                >
+                  <option v-for="column in sourceColumns(slotIndex)" :key="column" :value="column">
+                    @{{ wiredValue(slotIndex)?.name }}.?{{ column }}
+                  </option>
+                  <option value="">nothing (unbound)</option>
+                </select>
+              </span>
+              <InlineNote
+                v-if="unpassedColumns(slotIndex).length > 0"
+                as="span"
+                size="xs"
+                :data-testid="`notebook-slot-unpassed-${cell.id}-${slotIndex}`"
+              >
+                not passed: {{ unpassedColumns(slotIndex).map((column) => `?${column}`).join(' ') }}
+              </InlineNote>
+              <button
+                v-if="hasChosenColumns(slotIndex)"
+                type="button"
+                class="btn-compact"
+                :data-testid="`notebook-slot-mapping-reset-${cell.id}-${slotIndex}`"
+                @click="resetColumns(slotIndex)"
+              >
+                Match by name
+              </button>
+            </template>
+            <InlineNote v-else as="span" size="xs">
+              The columns of @{{ wiredValue(slotIndex)?.name }} are known after it runs.
+            </InlineNote>
+          </div>
+          </template>
         </div>
 
         <!-- A rule set takes a graph rather than rows: its one input is G0. -->
@@ -125,9 +188,18 @@
               <option v-for="option in graphValueOptions" :key="option.name" :value="`@${option.name}`">
                 @{{ option.name }}
               </option>
+              <optgroup v-if="savedGraphChoices.length" label="Saved data graphs">
+                <option v-for="graph in savedGraphChoices" :key="graph.id" :value="`dg:${graph.id}`">
+                  {{ graph.name }}
+                </option>
+              </optgroup>
             </select>
             <InlineNote v-if="graphSourceSummary" as="span" size="xs">{{ graphSourceSummary }} · by value</InlineNote>
           </div>
+          <InlineNote size="xs" :data-testid="`notebook-ruleset-output-${cell.id}`">
+            The value is the triples the rules infer, without the base graph. To keep both, merge them in a
+            query cell that runs over the two graphs.
+          </InlineNote>
         </div>
 
         <!--
@@ -232,12 +304,22 @@
         <label class="visually-hidden" :for="`${cell.id}-out`">Value name</label>
         <input
           :id="`${cell.id}-out`"
+          v-model="nameDraft"
           class="out-name"
           type="text"
-          :value="cell.out"
+          :aria-invalid="nameError ? 'true' : undefined"
+          :aria-describedby="nameError ? `${cell.id}-out-error` : undefined"
           :data-testid="`notebook-out-${cell.id}`"
-          @change="$emit('rename', ($event.target as HTMLInputElement).value)"
+          @change="commitName"
+          @keydown.escape="nameDraft = cell.out"
         />
+        <span
+          v-if="nameError"
+          :id="`${cell.id}-out-error`"
+          class="out-name__error"
+          role="alert"
+          :data-testid="`notebook-out-error-${cell.id}`"
+        >{{ nameError }} Esc puts the old name back.</span>
         <span v-if="value" class="chip" :data-testid="`notebook-stats-${cell.id}`">{{ describeValue(value) }}</span>
         <Button
           v-if="value && value.type !== 'boolean'"
@@ -305,7 +387,7 @@ import RunBar from '../shared/RunBar.vue';
 import InlineNote from '../shared/InlineNote.vue';
 import PanelHeader from '../shared/PanelHeader.vue';
 import SectionLabel from '../shared/SectionLabel.vue';
-import { describeValue, type NotebookValue, type SparqlBindingRow } from '../../lib/notebookValues';
+import { describeValue, slotPairings, type NotebookValue, type SparqlBindingRow } from '../../lib/notebookValues';
 import { getAllMediaTypeOptions, getMediaTypeChoiceGroups } from '../../lib/mediaTypes';
 import { QueryTypeIri } from '@sparql-query-lib/types';
 import type { GraphSource, RunCell, SlotSource } from '../../lib/notebookFormat';
@@ -330,7 +412,11 @@ const props = defineProps<{
   state: CellRunState;
   value: NotebookValue | null;
   /** Values bound above this cell, with a rendered summary for the chip. */
-  valueOptions: Array<{ name: string; type: NotebookValue['type']; summary: string }>;
+  valueOptions: Array<{ name: string; type: NotebookValue['type']; summary: string; columns?: string[] }>;
+  /** The library's saved data graphs, offered as a rule set's base graph. */
+  dataGraphOptions?: Array<{ id: string; name: string }>;
+  /** Why a name cannot be this cell's value name, or null. */
+  nameProblem?: (name: string) => string | null;
   /** What `validateNotebook` says is wrong with this cell. */
   problems?: string[];
   /** Whether this reader may write to the library at all. */
@@ -344,6 +430,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'run'): void;
   (e: 'remove'): void;
+  (e: 'run-up-to'): void;
   (e: 'move', delta: -1 | 1): void;
   (e: 'rename', name: string): void;
   (e: 'update', patch: Partial<RunCell>): void;
@@ -358,6 +445,23 @@ interface ArgsElement extends HTMLElement {
 }
 
 const argsEl = ref<ArgsElement | null>(null);
+
+/*
+ * The value name as typed. It is applied only when it is usable; until then
+ * the box keeps what was typed and says why, rather than reverting silently.
+ */
+const nameDraft = ref(props.cell.out);
+watch(() => props.cell.out, (out) => { nameDraft.value = out; });
+const nameError = computed(() => {
+  const name = nameDraft.value.trim();
+  return name === props.cell.out ? null : props.nameProblem?.(name) ?? null;
+});
+
+function commitName() {
+  const name = nameDraft.value.trim();
+  if (name === props.cell.out || nameError.value) return;
+  emit('rename', name);
+}
 
 const KIND_LABELS: Record<string, string> = {
   BINDINGS: 'SELECT',
@@ -440,6 +544,47 @@ function writeSlots(next: SlotSource[]) {
   emit('update', { slots: next } as Partial<RunCell>);
 }
 
+/** The columns of the value a slot reads: its own once run, the query's projection before. */
+function sourceColumns(index: number): string[] {
+  return wiredValue(index)?.columns ?? [];
+}
+
+function pairings(index: number) {
+  const slot = slots.value[index];
+  const vars = props.target?.slots[index] ?? [];
+  return slotPairings(sourceColumns(index), vars, slot?.from === 'value' ? slot.columns : undefined);
+}
+
+/** Columns of the value that no variable of the slot takes: they stop here. */
+function unpassedColumns(index: number): string[] {
+  const used = new Set(pairings(index).map((pairing) => pairing.source));
+  return sourceColumns(index).filter((column) => !used.has(column));
+}
+
+function hasChosenColumns(index: number): boolean {
+  const slot = slots.value[index];
+  return slot?.from === 'value' && Object.keys(slot.columns ?? {}).length > 0;
+}
+
+/**
+ * Pin one variable to a column, or to nothing. Every other variable keeps what
+ * it shows now, chosen or not, so picking one never reshuffles the rest.
+ */
+function onColumnChange(index: number, target: string, column: string) {
+  const slot = slots.value[index];
+  if (slot?.from !== 'value') return;
+  const columns: Record<string, string | null> = { ...(slot.columns ?? {}) };
+  columns[target] = column === '' ? null : column;
+  writeSlots(slotsWith(index, { ...slot, columns }));
+}
+
+function resetColumns(index: number) {
+  const slot = slots.value[index];
+  if (slot?.from !== 'value') return;
+  const { columns: _dropped, ...rest } = slot;
+  writeSlots(slotsWith(index, rest));
+}
+
 function slotsWith(index: number, slot: SlotSource | undefined): SlotSource[] {
   const width = props.target?.slots.length ?? slots.value.length;
   const next: SlotSource[] = [];
@@ -467,7 +612,22 @@ function onEmptyChange(index: number, mode: string) {
 const graphSourceValue = computed(() => {
   if (props.cell.kind !== 'ruleset') return '';
   const input = props.cell.inputGraph;
-  return input?.from === 'value' ? `@${input.ref}` : '';
+  if (input?.from === 'value') return `@${input.ref}`;
+  if (input?.from === 'dataGraph') return `dg:${input.dataGraphId}`;
+  return '';
+});
+
+/**
+ * The saved graphs to offer. One the cell already names stays in the list
+ * even while the list is loading or has lost it, so the select never blanks.
+ */
+const savedGraphChoices = computed(() => {
+  const options = props.dataGraphOptions ?? [];
+  const input = props.cell.kind === 'ruleset' ? props.cell.inputGraph : undefined;
+  if (input?.from === 'dataGraph' && !options.some((graph) => graph.id === input.dataGraphId)) {
+    return [...options, { id: input.dataGraphId, name: input.dataGraphId }];
+  }
+  return options;
 });
 
 const graphSourceSummary = computed(() => {
@@ -505,9 +665,12 @@ function queryGraphSummary(graph: GraphSource): string | null {
 }
 
 function onGraphChange(selection: string) {
-  emit('update', {
-    inputGraph: selection ? { from: 'value', ref: selection.slice(1) } : undefined,
-  } as Partial<RunCell>);
+  const inputGraph = selection.startsWith('dg:')
+    ? { from: 'dataGraph', dataGraphId: selection.slice(3) }
+    : selection
+      ? { from: 'value', ref: selection.slice(1) }
+      : undefined;
+  emit('update', { inputGraph } as Partial<RunCell>);
 }
 
 /** Which slots the builder is responsible for — the ones not fed by a value. */
@@ -678,6 +841,7 @@ const statusLine = computed(() => {
   if (props.state.status === 'skipped') return 'skipped';
   if (props.state.status === 'ok') {
     const duration = props.state.durationMs === null ? '' : ` · ${props.state.durationMs} ms`;
+    if (props.state.warning) return `stopped before converging${duration}`;
     return props.state.stale ? `ran against an older input${duration}` : `ran${duration}`;
   }
   return 'not run yet';
@@ -767,6 +931,26 @@ function cellText(row: Record<string, unknown>, column: string): string {
   flex-wrap: wrap;
 }
 
+.input-row--mapping {
+  padding-left: var(--space-6);
+}
+
+.mapping {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.mapping__var {
+  font-family: var(--font-mono);
+  font-size: var(--text-body);
+  color: var(--ink-secondary);
+}
+
+.mapping__arrow {
+  color: var(--ink-muted);
+}
+
 
 .input-row__vars {
   font-family: var(--font-mono);
@@ -818,6 +1002,13 @@ function cellText(row: Record<string, unknown>, column: string): string {
  * Tinted like the reference chips a downstream cell shows, because it is the
  * same name seen from the other end: this is where `@candidates` comes from.
  */
+.out-name__error {
+  font-size: var(--text-label);
+  color: var(--danger-ink);
+}
+
+.out-name[aria-invalid='true'] { border-color: var(--danger-ink); }
+
 .out-name {
   width: var(--grid-4);
   height: var(--control-h-sm);
@@ -860,6 +1051,11 @@ function cellText(row: Record<string, unknown>, column: string): string {
 .notice--error {
   color: var(--danger-ink);
   background: var(--danger-surface);
+}
+
+.notice--warning {
+  color: var(--warning-ink);
+  background: var(--warning-surface);
 }
 
 .result {

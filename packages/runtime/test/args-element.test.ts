@@ -69,8 +69,10 @@ describe('building a form from the signature', () => {
 
   it('offers a numeric input per page parameter', () => {
     const element = mount({ inputs: [], limits: ['1'], offsets: ['2'] });
-    expect(element.querySelector('input[aria-label="limit 1"]')).not.toBeNull();
-    expect(element.querySelector('input[aria-label="offset 2"]')).not.toBeNull();
+    expect(element.querySelector('input[aria-label="LIMIT parameter 1"]')).not.toBeNull();
+    expect(element.querySelector('input[aria-label="OFFSET parameter 2"]')).not.toBeNull();
+    // The written number is what runs when the box is empty, so it is the placeholder.
+    expect(element.querySelector<HTMLInputElement>('input[aria-label="LIMIT parameter 1"]')?.placeholder).toBe('1');
   });
 });
 

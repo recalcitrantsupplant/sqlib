@@ -1,5 +1,13 @@
 <template>
-  <section class="cell" :data-testid="`notebook-md-${cell.id}`">
+  <section
+    ref="root"
+    class="cell"
+    :class="{ 'cell--editing': editing }"
+    :data-testid="`notebook-md-${cell.id}`"
+    @keydown.ctrl.enter.prevent="finishEditing"
+    @keydown.meta.enter.prevent="finishEditing"
+    @keydown.escape="finishEditing"
+  >
     <div class="cell__gutter">
       <span class="cell__index">{{ index }}</span>
     </div>
@@ -37,7 +45,13 @@
       />
 
       <div class="cell__actions">
-        <Button size="sm" variant="ghost" :data-testid="`notebook-md-edit-${cell.id}`" @click="toggleEdit">
+        <Button
+          size="sm"
+          :variant="editing ? 'outline' : 'ghost'"
+          :data-testid="`notebook-md-edit-${cell.id}`"
+          :title="editing ? 'Done (Esc, or Ctrl+Enter, or click outside the cell)' : 'Edit (or double-click the text)'"
+          @click="toggleEdit"
+        >
           {{ editing ? 'Done' : 'Edit' }}
         </Button>
         <Button size="sm" variant="ghost" aria-label="Move cell up" @click="$emit('move', -1)">
@@ -55,7 +69,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { ChevronDown, ChevronUp } from '@lucide/vue';
 import { Button } from '../ui/button';
 import CodeEditor from '../shared/CodeEditor.vue';
@@ -92,6 +106,39 @@ const html = computed(() =>
 function toggleEdit() {
   editing.value = !editing.value;
 }
+
+const root = ref<HTMLElement | null>(null);
+
+/** Leave edit mode, unless that would hide an empty cell behind its placeholder. */
+function finishEditing() {
+  if (props.cell.source.trim().length > 0) editing.value = false;
+}
+
+/*
+ * A click anywhere outside the cell ends editing, as it does in any document
+ * editor. On click, not pointerdown: the cell shrinks from editor to prose as
+ * it closes, and closing on pointerdown moved the button being pressed out
+ * from under the pointer before its click landed. The listener lives only
+ * while the cell is being edited.
+ */
+function onClickOutside(event: MouseEvent) {
+  const target = event.target as Node | null;
+  if (target && root.value && !root.value.contains(target)) finishEditing();
+}
+
+watch(
+  editing,
+  (now) => {
+    if (typeof document === 'undefined') return;
+    if (now) document.addEventListener('click', onClickOutside, true);
+    else document.removeEventListener('click', onClickOutside, true);
+  },
+  { immediate: true },
+);
+
+onBeforeUnmount(() => {
+  if (typeof document !== 'undefined') document.removeEventListener('click', onClickOutside, true);
+});
 </script>
 
 <style scoped>
@@ -126,7 +173,8 @@ function toggleEdit() {
 }
 
 .cell:hover .cell__actions,
-.cell:focus-within .cell__actions {
+.cell:focus-within .cell__actions,
+.cell--editing .cell__actions {
   opacity: 1;
 }
 

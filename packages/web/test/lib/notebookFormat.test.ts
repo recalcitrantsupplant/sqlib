@@ -11,6 +11,7 @@ import {
   parseNotebookJson,
   renameValue,
   serializeNotebook,
+  titleFromHeading,
   validateNotebook,
   type Notebook,
   type QueryCell,
@@ -34,6 +35,12 @@ function notebookOf(...cells: Notebook['cells']): Notebook {
 describe('notebook document', () => {
   it('round-trips through serialise and parse', () => {
     const notebook = notebookOf(markdownCell('# Hello'), queryCell('out1'));
+    expect(parseNotebookJson(serializeNotebook(notebook))).toEqual(notebook);
+  });
+
+  it('keeps a slot\'s chosen column mapping, unbound choices included', () => {
+    const chained = { ...queryCell('out2', 'out1'), slots: [{ from: 'value' as const, ref: 'out1', columns: { s: 'o', p: null } }] };
+    const notebook = notebookOf(queryCell('out1'), chained);
     expect(parseNotebookJson(serializeNotebook(notebook))).toEqual(notebook);
   });
 
@@ -128,3 +135,15 @@ describe('staleness', () => {
     expect(dependentCellIds(notebookOf(first, second), second.id)).toEqual([]);
   });
 });
+
+describe('a title from the first heading', () => {
+  it('takes the first heading of the first markdown cell', () => {
+    const notebook = notebookOf(queryCell('out1'), markdownCell('Intro\n\n## People by city ##\n# Later'));
+    expect(titleFromHeading(notebook)).toBe('People by city');
+  });
+
+  it('gives nothing when there is no heading', () => {
+    expect(titleFromHeading(notebookOf(markdownCell('just prose')))).toBeNull();
+  });
+});
+

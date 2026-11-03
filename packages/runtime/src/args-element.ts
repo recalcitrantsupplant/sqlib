@@ -590,14 +590,27 @@ export class SqlibArgsElement extends ArgsElementBase {
     const wrap = el('div', 'sqlib-args__limits');
     const add = (name: string, kind: 'limit' | 'offset') => {
       const store = kind === 'limit' ? this.limitValues : this.offsetValues;
+      /*
+       * A LIMIT/OFFSET parameter is named by the digits written in the query
+       * (`LIMIT 0001` is parameter "1"), and those digits are also what runs
+       * when the box is empty. Shown as "limit 1", the name read as a value;
+       * so the keyword is the label and the written number is the placeholder.
+       */
+      const keyword = kind === 'limit' ? 'LIMIT' : 'OFFSET';
+      const written = /^\d+$/.test(name) ? String(Number(name)) : null;
       const label = el('label', 'sqlib-args__limit');
-      label.append(document.createTextNode(`${kind} ${name}`));
+      label.append(document.createTextNode(keyword));
       const input = el('input');
       input.type = 'number';
       input.min = '0';
       input.step = '1';
       input.value = store[name] === undefined ? '' : String(store[name]);
-      input.setAttribute('aria-label', `${kind} ${name}`);
+      if (written !== null) input.placeholder = written;
+      input.title =
+        written !== null
+          ? `${keyword} parameter ${name}. Left empty, the query uses ${written}, as written.`
+          : `${keyword} parameter ${name}.`;
+      input.setAttribute('aria-label', `${keyword} parameter ${name}`);
       input.addEventListener('input', () => {
         if (input.value === '') delete store[name];
         else store[name] = Number(input.value);

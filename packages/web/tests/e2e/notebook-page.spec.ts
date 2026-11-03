@@ -19,7 +19,7 @@ async function openNotebook(page: Page) {
   await page.goto(`/notebook?library=${encodeURIComponent(LIBRARY.id)}`, {
     waitUntil: 'domcontentloaded',
   });
-  await expect(page.getByTestId('notebook-title')).toBeVisible();
+  await expect(page.getByTestId('save-bar')).toBeVisible();
 }
 
 async function insertFirstQuery(page: Page) {
@@ -109,6 +109,33 @@ test.describe('Notebook', () => {
     await expect(second.getByTestId('run-bar-run')).toContainText('Re-run');
   });
 
+  test('shows which column fills each slot variable, and lets you pick another', async ({ page }) => {
+    const writes = await mockCallableLibrary(page);
+    await openNotebook(page);
+    await insertFirstQuery(page);
+    await page.getByTestId('notebook-add-cell').click();
+    await page.getByTestId('notebook-insert-urn:sqlib:query:product-graph').click();
+
+    const second = page.locator('[data-testid^="notebook-cell-"]').nth(1);
+    await second.locator('[data-testid^="notebook-slot-source-"]').first().selectOption('@out1');
+
+    // Before a run, the pairing comes from the columns the query projects.
+    const column = second.locator('[data-testid$="-0-product"][data-testid^="notebook-slot-column-"]');
+    await expect(column).toHaveValue('product');
+    await expect(second.locator('[data-testid^="notebook-slot-unpassed-"]')).toHaveText('not passed: ?title ?price');
+
+    await column.selectOption('title');
+    await expect(second.locator('[data-testid^="notebook-slot-unpassed-"]')).toHaveText('not passed: ?product ?price');
+
+    await page.getByTestId('notebook-run-row').getByTestId('run-bar-run').click();
+    await expect(second.locator('[data-testid^="notebook-status-"]')).toContainText('ran');
+    const run = writes.filter((write) => write.pathname.endsWith('/execute')).pop();
+    expect(JSON.stringify(run?.body)).toContain('"product":{"type":"literal","value":"Wool jumper"}');
+
+    await second.locator('[data-testid^="notebook-slot-mapping-reset-"]').click();
+    await expect(column).toHaveValue('product');
+  });
+
   test('writes prose between the runs', async ({ page }) => {
     await openNotebook(page);
     await page.getByTestId('notebook-add-markdown').click();
@@ -137,7 +164,7 @@ test.describe('Notebook', () => {
     await source.selectOption('@out1');
     await expect(second).toContainText('not run yet');
 
-    await page.getByTestId('notebook-run-all').click();
+    await page.getByTestId('notebook-run-row').getByTestId('run-bar-run').click();
 
     await expect(second.locator('[data-testid^="notebook-status-"]')).toContainText('ran');
     await page.getByTestId('values-tab').click();
@@ -202,6 +229,66 @@ test.describe('Notebook', () => {
     await expect(page.getByLabel('Value for ?term')).toHaveValue('lamp');
   });
 
+  test('reorders cells with the keyboard, and shows run status in the outline', async ({ page }) => {
+    await openNotebook(page);
+    await page.getByTestId('notebook-add-markdown').click();
+    const editor = page.locator('[data-testid^="notebook-md-editor-"] .cm-content').first();
+    await editor.click();
+    await editor.pressSequentially('# Product tour');
+    await expect(page.getByTestId('save-bar')).toContainText('Product tour');
+
+    await insertFirstQuery(page);
+    const cell = page.locator('[data-testid^="notebook-cell-"]').first();
+    await cell.getByTestId('run-bar-run').click();
+    await expect(page.locator('[data-testid^="notebook-outline-status-"]')).toHaveText(['ran']);
+
+    const handle = page.locator('[data-testid^="notebook-drag-"]').nth(1);
+    await handle.focus();
+    await handle.press('ArrowUp');
+    await expect(page.locator('.slot').first()).toHaveAttribute('id', /cell-/);
+    await expect(page.locator('.slot').first().locator('[data-testid^="notebook-cell-"]')).toHaveCount(1);
+  });
+
+  test('uses the app bars: Save in the save bar, Run all in the run row, the name in Details', async ({ page }) => {
+    await openNotebook(page);
+    await page.getByTestId('new-scratch').click();
+    await expect(page.getByTestId('notebook-title')).toBeFocused();
+
+    await insertFirstQuery(page);
+    const save = page.getByTestId('save-bar').getByTestId('save');
+    await expect(save).toHaveCSS('height', '28px');
+    await expect(page.getByTestId('notebook-run-row').getByTestId('run-bar-run')).toHaveCSS('height', '28px');
+
+    // An unnamed notebook asks for its name rather than saving as "Untitled".
+    await page.getByTestId('outline-tab').click().catch(() => undefined);
+    await save.click();
+    await expect(page.getByTestId('notebook-title')).toBeFocused();
+    await page.getByTestId('notebook-title').fill('Stock check');
+    await page.getByTestId('notebook-title').press('Enter');
+    await expect(page.getByTestId('save-bar')).toContainText('Stock check');
+  });
+
+  test('says why a value name is refused, and keeps the old one', async ({ page }) => {
+    await openNotebook(page);
+    await insertFirstQuery(page);
+    const cell = page.locator('[data-testid^="notebook-cell-"]').first();
+    const name = cell.locator('[data-testid^="notebook-out-"]').first();
+    await name.fill('bad name');
+    await expect(cell.locator('[data-testid^="notebook-out-error-"]')).toContainText('Start with a letter');
+    await name.press('Escape');
+    await expect(name).toHaveValue('out1');
+  });
+
+  test('fits a phone: the list is a drawer and the document keeps the width', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openNotebook(page);
+    await expect(page.getByTestId('notebook-list-pane')).toBeHidden();
+    const width = await page.locator('.page-body').evaluate((el) => el.getBoundingClientRect().width);
+    expect(width).toBeGreaterThan(300);
+    await page.getByTestId('notebook-phone-list').click();
+    await expect(page.getByTestId('notebook-list-pane')).toBeVisible();
+  });
+
   /*
    * Save cuts a version in the library; typing after it is a draft in this
    * browser until the next Save, as on a query.
@@ -213,20 +300,21 @@ test.describe('Notebook', () => {
     await editor.click();
     await editor.pressSequentially('## Saved');
 
-    await expect(page.getByTestId('notebook-save')).toHaveText(/Save v1/);
-    await page.getByTestId('notebook-save').click();
+    await expect(page.getByTestId('save-bar').getByTestId('save')).toHaveText(/Save v1/);
+    await page.getByTestId('save-bar').getByTestId('save').click();
 
-    await expect(page.getByTestId('notebook-version')).toHaveText('v1');
-    await expect(page.getByTestId('notebook-save')).toBeDisabled();
+    await expect(page.getByTestId('version-pill')).toContainText('v1');
+    await expect(page.getByTestId('save-bar').getByTestId('save')).toBeDisabled();
     await expect(page).toHaveURL(/notebook=urn%3Asqlib%3Anotebook%3A1|notebook=urn:sqlib:notebook:1/);
-    await expect(page.getByTestId('entity-list-sidebar')).toContainText('Untitled notebook');
+    // Never named, it took its first heading as its name.
+    await expect(page.getByTestId('entity-list-sidebar').getByText('Saved', { exact: true }).last()).toBeVisible();
 
     await page.getByTestId('notebook-add-markdown').click();
-    await expect(page.getByTestId('notebook-unsaved')).toContainText('1 unsaved edit');
-    await expect(page.getByTestId('notebook-save')).toHaveText(/Save v2/);
+    await expect(page.getByTestId('draft-pill')).toContainText('1 unsaved edit');
+    await expect(page.getByTestId('save-bar').getByTestId('save')).toHaveText(/Save v2/);
 
-    await page.getByTestId('notebook-discard').click();
-    await expect(page.getByTestId('notebook-unsaved')).toHaveCount(0);
+    await page.getByTestId('discard-draft').click();
+    await expect(page.getByTestId('draft-pill')).toHaveCount(0);
     await expect(page.locator('[id^="cell-"]')).toHaveCount(1);
   });
 

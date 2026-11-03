@@ -57,3 +57,28 @@ describe('markdown cell', () => {
     expect(wrapper.findComponent({ name: 'CodeEditor' }).props('contentType')).toBe('text/markdown');
   });
 });
+
+describe('leaving edit mode', () => {
+  it('ends editing on a click outside the cell', async () => {
+    const wrapper = mount(NotebookMarkdownCell, {
+      props: { cell: { kind: 'markdown', id: 'md1', source: '## Note' }, index: 1 },
+      attachTo: document.body,
+    });
+    await wrapper.get('[data-testid="notebook-md-edit-md1"]').trigger('click');
+    expect(wrapper.find('[data-testid="notebook-md-rendered-md1"]').exists()).toBe(false);
+
+    document.body.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.find('[data-testid="notebook-md-rendered-md1"]').exists()).toBe(true);
+    wrapper.unmount();
+  });
+
+  it('ends editing on Escape', async () => {
+    const wrapper = render('## Note');
+    await wrapper.get('[data-testid="notebook-md-edit-md1"]').trigger('click');
+    await wrapper.get('[data-testid="notebook-md-md1"]').trigger('keydown', { key: 'Escape' });
+    expect(wrapper.find('[data-testid="notebook-md-rendered-md1"]').exists()).toBe(true);
+  });
+});
+

@@ -200,6 +200,48 @@ describe('wiring a slot', () => {
 
     expect(wrapper.text()).toContain('1,204 rows · 4 cols · 88 KB · by value');
   });
+
+  it('shows which column fills each slot variable, and which columns stop here', () => {
+    const wrapper = render({
+      target: { ...TARGET, slots: [['s']] },
+      cell: { ...CELL, slots: [{ from: 'value', ref: 'out1' }] },
+      valueOptions: [{ name: 'out1', type: 'rows', summary: 'not run yet', columns: ['s', 'p', 'o'] }],
+    });
+
+    const select = wrapper.get('[data-testid="notebook-slot-column-c1-0-s"]').element as HTMLSelectElement;
+    expect(select.value).toBe('s');
+    expect([...select.options].map((option) => option.textContent?.trim()))
+      .toEqual(['@out1.?s', '@out1.?p', '@out1.?o', 'nothing (unbound)']);
+    expect(wrapper.get('[data-testid="notebook-slot-unpassed-c1-0"]').text()).toBe('not passed: ?p ?o');
+  });
+
+  it('emits the chosen column, and drops the choice on Match by name', async () => {
+    const wrapper = render({
+      target: { ...TARGET, slots: [['s']] },
+      cell: { ...CELL, slots: [{ from: 'value', ref: 'out1', whenEmpty: 'skip' }] },
+      valueOptions: [{ name: 'out1', type: 'rows', summary: '1 row', columns: ['s', 'p', 'o'] }],
+    });
+
+    await wrapper.get('[data-testid="notebook-slot-column-c1-0-s"]').setValue('o');
+    expect(wrapper.emitted('update')?.[0]).toEqual([
+      { slots: [{ from: 'value', ref: 'out1', whenEmpty: 'skip', columns: { s: 'o' } }] },
+    ]);
+
+    await wrapper.setProps({ cell: { ...CELL, slots: [{ from: 'value', ref: 'out1', whenEmpty: 'skip', columns: { s: 'o' } }] } });
+    expect(wrapper.get('[data-testid="notebook-slot-unpassed-c1-0"]').text()).toBe('not passed: ?s ?p');
+    await wrapper.get('[data-testid="notebook-slot-mapping-reset-c1-0"]').trigger('click');
+    expect(wrapper.emitted('update')?.[1]).toEqual([
+      { slots: [{ from: 'value', ref: 'out1', whenEmpty: 'skip' }] },
+    ]);
+  });
+
+  it('says the columns come with the run when nothing knows them yet', () => {
+    const wrapper = render({
+      cell: { ...CELL, slots: [{ from: 'value', ref: 'out1' }] },
+      valueOptions: [{ name: 'out1', type: 'rows', summary: 'not run yet', columns: [] }],
+    });
+    expect(wrapper.get('[data-testid="notebook-slot-mapping-c1-0"]').text()).toContain('known after it runs');
+  });
 });
 
 describe('a cell whose target is gone', () => {
@@ -286,6 +328,47 @@ describe('the run sentence', () => {
   it('names Turtle as what a CONSTRUCT comes back in by default', () => {
     const wrapper = render({ target: { ...TARGET, resultKind: 'GRAPH' } });
     expect(wrapper.findComponent(RunBar).props('format')).toMatchObject({ value: 'text/turtle' });
+  });
+});
+
+describe('the value name', () => {
+  it('says why a name cannot be used, and does not apply it', async () => {
+    const wrapper = render({ nameProblem: (name: string) => (name === 'taken' ? '@taken is already used by another cell.' : null) });
+    const input = wrapper.get('[data-testid="notebook-out-c1"]');
+    await input.setValue('taken');
+    await input.trigger('change');
+
+    expect(wrapper.get('[data-testid="notebook-out-error-c1"]').text()).toContain('already used');
+    expect(wrapper.emitted('rename')).toBeUndefined();
+  });
+
+  it('applies a usable name', async () => {
+    const wrapper = render({ nameProblem: () => null });
+    const input = wrapper.get('[data-testid="notebook-out-c1"]');
+    await input.setValue('people');
+    await input.trigger('change');
+    expect(wrapper.emitted('rename')?.[0]).toEqual(['people']);
+  });
+});
+
+describe('a rule set cell', () => {
+  const RULES = { kind: 'ruleset' as const, id: 'r1', ruleSet: 'urn:rs:1', out: 'closure' };
+  const RULESET_TARGET = { ...TARGET, id: 'urn:rs:1', kind: 'ruleset' as const, resultKind: 'GRAPH' as const, slots: [] };
+
+  it('says its value holds only the inferred triples', () => {
+    const wrapper = render({ cell: RULES, target: RULESET_TARGET });
+    expect(wrapper.get('[data-testid="notebook-ruleset-output-r1"]').text()).toContain('without the base graph');
+  });
+
+  it('offers the library saved data graphs as its base graph', async () => {
+    const wrapper = render({ cell: RULES, target: RULESET_TARGET, dataGraphOptions: [{ id: 'urn:dg:1', name: 'People' }] });
+    await wrapper.get('[data-testid="notebook-graph-source-r1"]').setValue('dg:urn:dg:1');
+    expect(wrapper.emitted('update')?.[0]).toEqual([{ inputGraph: { from: 'dataGraph', dataGraphId: 'urn:dg:1' } }]);
+  });
+
+  it('shows the warning of a run that did not converge', () => {
+    const wrapper = render({ cell: RULES, target: RULESET_TARGET, state: { ...IDLE, status: 'ok', warning: 'stopped at its iteration limit' } });
+    expect(wrapper.get('[data-testid="notebook-warning-r1"]').text()).toContain('iteration limit');
   });
 });
 

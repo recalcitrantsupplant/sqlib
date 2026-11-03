@@ -7,6 +7,11 @@
       opened from the same list component the other sections use: saved
       notebooks from the library, and scratch ones this browser holds.
     -->
+    <!--
+      On a phone the list is a drawer, opened from the header, so the document
+      keeps the width. On a wider screen the wrapper takes no box of its own.
+    -->
+    <div class="list-pane" :class="{ 'list-pane--open': phoneListOpen }" data-testid="notebook-list-pane">
     <EntityListSidebar
       section="notebooks"
       section-label="Notebooks"
@@ -22,6 +27,8 @@
       @create-scratch="createDocument"
       @discard-scratch="documents.remove"
     />
+    </div>
+    <div v-if="phoneListOpen" class="list-scrim" aria-hidden="true" @click="phoneListOpen = false"></div>
 
     <!--
       Kept beside the document even when it is empty, the way the mockup has
@@ -30,95 +37,89 @@
       cells is a rail you learn about by accident.
     -->
     <main class="page">
+      <!--
+        The same bar every other work area opens with: the name, the scratch,
+        version and unsaved chips, Discard and Save vN, and Delete under the
+        ⋮ menu. The name is edited in the Details tab, as on a query.
+      -->
       <header class="page-header">
-        <label class="visually-hidden" for="notebook-title">Notebook title</label>
-        <input
-          id="notebook-title"
-          class="title"
-          type="text"
-          :value="nb.notebook.value.title"
-          data-testid="notebook-title"
-          @change="setTitle(($event.target as HTMLInputElement).value)"
-        />
-        <span v-if="activeLibrary" class="chip">{{ activeLibrary.name }}</span>
-        <span v-if="documents.openKind.value === 'scratch'" class="chip chip--quiet" data-testid="notebook-scratch-chip">scratch · this browser only</span>
-        <span v-else-if="documents.versionNumber.value" class="chip" data-testid="notebook-version">v{{ documents.versionNumber.value }}</span>
-        <span v-if="documents.editCount.value > 0" class="chip chip--quiet" data-testid="notebook-unsaved">
-          {{ documents.editCount.value }} unsaved {{ documents.editCount.value === 1 ? 'edit' : 'edits' }}
-        </span>
-
-        <span class="page-header__spacer"></span>
-
-        <!--
-          Save cuts a version; typing never does. Until then the edits are a
-          draft in this browser, as they are on a query.
-        -->
         <Button
-          v-if="documents.isSaved.value && documents.editCount.value > 0"
-          size="sm"
+          class="phone-only"
+          size="icon-sm"
           variant="ghost"
-          data-testid="notebook-discard"
-          @click="documents.discard()"
+          aria-label="Notebooks"
+          data-testid="notebook-phone-list"
+          @click="phoneListOpen = !phoneListOpen"
         >
-          Discard
+          <PanelLeft :size="14" />
         </Button>
-        <Button
-          size="sm"
-          :disabled="!canSaveDocument"
-          :title="saveTitle"
-          data-testid="notebook-save"
-          @click="saveDocument"
+        <SaveBar
+          class="page-save-bar"
+          :title="nb.notebook.value.title"
+          noun="notebook"
+          :is-scratch="documents.openKind.value !== 'saved'"
+          :current-version-number="documents.versionNumber.value ?? null"
+          :edit-count="documents.isSaved.value ? documents.editCount.value : 0"
+          :saving="documents.saving.value"
+          :can-save="canSaveDocument"
+          :needs-name="nb.notebook.value.title === UNTITLED_NOTEBOOK"
+          :show-format="false"
+          :show-diff="false"
+          :show-edit="false"
+          :show-more="documents.isSaved.value"
+          @save="saveDocument"
+          @needs-name="showDetails(true)"
+          @discard="documents.discard()"
+          @delete="deleteOpen = true"
         >
-          <Save :size="12" />
-          {{ documents.saving.value ? 'Saving…' : `Save v${(documents.versionNumber.value ?? 0) + 1}` }}
-        </Button>
-
-        <Button size="sm" :disabled="!hasRunCells || running" data-testid="notebook-run-all" @click="runAll">
-          <Play :size="12" />
-          {{ running ? 'Running…' : 'Run all' }}
-        </Button>
-        <!--
-          The notebook's own file. The library's exports, the bundle and the
-          runnable page, are on the main page, beside the library they are of.
-        -->
-        <Button size="sm" variant="outline" data-testid="notebook-export" @click="exportDocument">
-          <Download :size="12" /> Export
-        </Button>
-        <!--
-          The one-way door to a query group (proposal §7): the same chain, run
-          by the server in one call, with no browser in the path.
-        -->
-        <Button
-          v-if="isEnabled('queryGroups')"
-          size="sm"
-          variant="outline"
-          :disabled="!hasRunCells"
-          data-testid="notebook-promote"
-          @click="openPromote"
-        >
-          <Workflow :size="12" /> Promote to group
-        </Button>
-        <Button size="sm" variant="outline" data-testid="notebook-import" @click="fileInput?.click()">
-          <Upload :size="12" /> Import
-        </Button>
-        <Button
-          v-if="documents.isSaved.value"
-          size="sm"
-          variant="ghost"
-          data-testid="notebook-delete"
-          @click="deleteOpen = true"
-        >
-          <Trash2 :size="12" /> Delete
-        </Button>
-        <input
-          ref="fileInput"
-          class="visually-hidden"
-          type="file"
-          accept=".sqlibnb,application/json"
-          aria-label="Open a notebook file"
-          @change="importDocument"
-        />
+          <template #status>
+            <span v-if="activeLibrary" class="chip" data-testid="notebook-library-chip">{{ activeLibrary.name }}</span>
+          </template>
+        </SaveBar>
       </header>
+
+      <!--
+        Run all at the head of the row under the bar, where Run sits on every
+        other screen; what the notebook can become or be read from follows it.
+      -->
+      <RunBar
+        class="page-run-bar"
+        run-label="Run all"
+        :running="running"
+        :run-disabled="!hasRunCells"
+        run-title="Run every cell from the top, stopping at the first that fails"
+        data-testid="notebook-run-row"
+        @run="runAll"
+      >
+        <template #trailing>
+          <div class="page-actions">
+            <button type="button" class="btn-compact" data-testid="notebook-export" @click="exportDocument">
+              <Download :size="12" /> Export
+            </button>
+            <button
+              v-if="isEnabled('queryGroups')"
+              type="button"
+              class="btn-compact"
+              :disabled="!hasRunCells"
+              data-testid="notebook-promote"
+              @click="openPromote"
+            >
+              <Workflow :size="12" /> Promote to group
+            </button>
+            <button type="button" class="btn-compact" data-testid="notebook-import" @click="fileInput?.click()">
+              <Upload :size="12" /> Import
+            </button>
+          </div>
+        </template>
+      </RunBar>
+      <input
+        ref="fileInput"
+        class="visually-hidden"
+        type="file"
+        accept=".sqlibnb,application/json"
+        aria-label="Open a notebook file"
+        @change="importDocument"
+      />
 
       <div class="page-strip">
         <span v-if="backendLabel">Runs go to <strong>{{ backendLabel }}</strong> — library default</span>
@@ -146,7 +147,34 @@
                 :id="`cell-${cell.id}`"
                 :key="cell.id"
                 class="slot"
+                :class="{
+                  'slot--dragging': draggingId === cell.id,
+                  'slot--drop-above': dropIndex === index && draggingIndex !== null && index < draggingIndex,
+                  'slot--drop-below': dropIndex === index && draggingIndex !== null && index > draggingIndex,
+                }"
+                @dragover="onDragOver($event, index)"
+                @drop="onDrop($event, index)"
+                @keydown.alt.up="onMoveKey($event, cell.id, -1)"
+                @keydown.alt.down="onMoveKey($event, cell.id, 1)"
               >
+                <!--
+                  Drag to reorder; the handle also takes the arrow keys, and
+                  Alt+Up / Alt+Down move the cell that has focus.
+                -->
+                <button
+                  type="button"
+                  class="slot__handle"
+                  draggable="true"
+                  :aria-label="`Move cell ${index + 1}. Drag, or use the arrow keys.`"
+                  title="Drag to move. Arrow keys, or Alt+Up / Alt+Down in the cell, also move it."
+                  :data-testid="`notebook-drag-${cell.id}`"
+                  @dragstart="onDragStart($event, cell.id)"
+                  @dragend="onDragEnd"
+                  @keydown.up.prevent="moveAndFocus(cell.id, -1)"
+                  @keydown.down.prevent="moveAndFocus(cell.id, 1)"
+                >
+                  <GripVertical :size="12" />
+                </button>
                 <NotebookMarkdownCell
                   v-if="cell.kind === 'markdown'"
                   :cell="cell"
@@ -164,11 +192,14 @@
                   :value="nb.values.value[cell.out] ?? null"
                   :value-options="valueOptionsAbove(index)"
                   :problems="nb.problemsFor(cell.id)"
+                  :data-graph-options="dataGraphOptions"
+                  :name-problem="(name: string) => nb.outputNameProblem(cell.id, name)"
                   :can-write="canWrite"
                   :backend-options="backendOptions"
                   :default-backend="nb.defaultBackendFor(cell)"
                   :backends-loading="backendsStore.loading.value"
                   @run="nb.run(cell.id)"
+                  @run-up-to="runUpTo(cell.id)"
                   @remove="nb.removeCell(cell.id)"
                   @move="nb.moveCell(cell.id, $event)"
                   @rename="rename(cell.id, $event)"
@@ -249,6 +280,27 @@
           :tabs="inspectorTabs"
           testid="notebook-inspector"
         >
+          <template #details>
+            <!-- The name lives here, as a query's does, not in the bar above. -->
+            <div class="details" data-testid="notebook-details">
+              <label class="details__label" for="notebook-title">Name</label>
+              <input
+                id="notebook-title"
+                ref="titleInput"
+                class="details__input"
+                type="text"
+                :value="nb.notebook.value.title"
+                data-testid="notebook-title"
+                @change="setTitle(($event.target as HTMLInputElement).value)"
+              />
+              <span class="details__label">Library</span>
+              <span class="details__value">{{ activeLibrary?.name ?? '—' }}</span>
+              <span class="details__label">Kept</span>
+              <span class="details__value" data-testid="notebook-kept">
+                {{ documents.isSaved.value ? `in the library, v${documents.versionNumber.value ?? 1}` : 'in this browser only (scratch)' }}
+              </span>
+            </div>
+          </template>
           <template #outline>
             <NotebookRail :entries="outlineEntries" />
           </template>
@@ -358,7 +410,7 @@
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 // @ts-ignore - Nuxt auto-import
 import { useRoute, useRouter } from '#imports';
-import { Download, FileText, Play, Save, Scale, Search, Trash2, Upload, Workflow } from '@lucide/vue';
+import { Download, FileText, GripVertical, PanelLeft, Scale, Search, Upload, Workflow } from '@lucide/vue';
 import { defineArgsElement } from '@sparql-query-lib/runtime/args-element';
 import AppNavRail from '../components/AppNavRail.vue';
 import EntityListSidebar, { type SidebarSelection } from '../components/EntityListSidebar.vue';
@@ -366,6 +418,8 @@ import SaveAsTestDialog from '../components/notebook/SaveAsTestDialog.vue';
 import NotebookRail from '../components/notebook/NotebookRail.vue';
 import NotebookValuesPanel from '../components/notebook/NotebookValuesPanel.vue';
 import InspectorPanel from '../components/shared/InspectorPanel.vue';
+import SaveBar from '../components/shared/SaveBar.vue';
+import RunBar from '../components/shared/RunBar.vue';
 import NotebookMarkdownCell from '../components/notebook/NotebookMarkdownCell.vue';
 import NotebookRunCell from '../components/notebook/NotebookRunCell.vue';
 import NotebookInsertMenu from '../components/notebook/NotebookInsertMenu.vue';
@@ -385,7 +439,8 @@ import { useActiveLibrary } from '../composables/useActiveLibrary';
 import { EPHEMERAL_BACKEND_ID } from '@sparql-query-lib/types';
 import { useBackendsStore } from '../composables/useBackendsStore';
 import { useLibrariesStore } from '../composables/useLibrariesStore';
-import { useNotebook, type NotebookTarget } from '../composables/useNotebook';
+import { useDataGraphsStore } from '../composables/useDataGraphsStore';
+import { useNotebook, type CellRunState, type NotebookTarget, type OutlineStatus } from '../composables/useNotebook';
 import { useNotebookDocuments } from '../composables/useNotebookDocuments';
 import { useNotebookPromotion } from '../composables/useNotebookPromotion';
 import type { PromotionPlan } from '../lib/notebookPromote';
@@ -396,6 +451,8 @@ import { downloadTextFile } from '../lib/downloadFile';
 import { markdownTitle } from '../lib/markdown';
 import {
   emptyNotebook,
+  titleFromHeading,
+  UNTITLED_NOTEBOOK,
   markdownCell,
   mintCellId,
   parseNotebookJson,
@@ -499,6 +556,7 @@ const {
  * have I made" are both questions about the document beside you.
  */
 const inspectorTabs = computed(() => [
+  { id: 'details', label: 'Details' },
   { id: 'outline', label: 'Outline', count: nb.notebook.value.cells.length },
   { id: 'values', label: 'Values', count: boundValues.value.length },
 ]);
@@ -527,10 +585,28 @@ const staleValueNames = computed(() =>
     .map((cell) => cell.out),
 );
 
+const dataGraphsStore = useDataGraphsStore();
+
+/** The library's saved data graphs, which a rule set can take as its base graph. */
+const dataGraphOptions = computed(() =>
+  dataGraphsStore.dataGraphs.value
+    .filter((graph) => graph.isPartOf.includes(libraryId.value ?? ''))
+    .map((graph) => ({ id: graph.id, name: graph.name })),
+);
+
+/** One word for how a cell's last run went, for the outline. Null when it has not run. */
+function outlineStatus(state: CellRunState): OutlineStatus | null {
+  if (state.status === 'running') return 'running';
+  if (state.status === 'error') return 'failed';
+  if (state.status === 'skipped') return 'skipped';
+  if (state.status === 'ok') return state.warning ? 'incomplete' : state.stale ? 'stale' : 'ran';
+  return null;
+}
+
 const outlineEntries = computed(() =>
   nb.notebook.value.cells.map((cell, index) => {
     if (cell.kind === 'markdown') {
-      return { id: cell.id, index: index + 1, label: markdownTitle(cell.source), badge: null, prose: true };
+      return { id: cell.id, index: index + 1, label: markdownTitle(cell.source), badge: null, prose: true, status: null };
     }
     const target = nb.targetFor(cell);
     return {
@@ -539,6 +615,7 @@ const outlineEntries = computed(() =>
       label: target?.name ?? cell.label ?? 'Missing',
       badge: target?.kind === 'ruleset' ? 'RUL' : target?.kind === 'group' ? 'GRP' : 'QRY',
       prose: false,
+      status: outlineStatus(nb.stateFor(cell.id)),
     };
   }),
 );
@@ -570,12 +647,20 @@ function valueOptionsAbove(index: number) {
     .filter(isRunCell)
     .map((cell) => {
       const value = nb.values.value[cell.out];
-      if (value) return { name: cell.out, type: value.type, summary: describeValue(value) };
+      if (value) {
+        return {
+          name: cell.out, type: value.type, summary: describeValue(value),
+          columns: value.type === 'rows' ? value.columns : [],
+        };
+      }
       const target = nb.targetFor(cell);
       return {
         name: cell.out,
         type: VALUE_TYPE_BY_RESULT[target?.resultKind ?? 'BINDINGS'],
         summary: 'not run yet',
+        // Before a run, the columns the library records for the query: enough
+        // to show and choose the pairing without running anything first.
+        columns: target?.outputs ?? [],
       };
     });
 }
@@ -597,11 +682,45 @@ function syncAddress() {
   router.replace({ path: '/notebook', query });
 }
 
-function createDocument() {
+/** A new notebook opens its Details with the name selected, so naming it is the first keystroke. */
+async function createDocument() {
   const created = documents.create();
   nb.setNotebook(created.notebook);
   syncAddress();
+  await showDetails(true);
 }
+
+const titleInput = ref<HTMLInputElement | null>(null);
+
+/** Open the Details tab; with `focusName`, put the cursor in the name with it selected. */
+async function showDetails(focusName = false) {
+  inspectorTab.value = 'details';
+  inspectorCollapsed.value = false;
+  if (!focusName) return;
+  await nextTick();
+  titleInput.value?.focus();
+  titleInput.value?.select();
+}
+
+/*
+ * A notebook nobody named takes the first heading it is given, so the list
+ * does not fill with rows that all read "Untitled notebook".
+ */
+/*
+ * It follows the heading while it is typed, and stops the moment someone
+ * types a title of their own.
+ */
+let titleFromHeadingLast: string | null = null;
+watch(
+  () => nb.notebook.value,
+  (notebook) => {
+    if (notebook.title !== UNTITLED_NOTEBOOK && notebook.title !== titleFromHeadingLast) return;
+    const heading = titleFromHeading(notebook);
+    if (!heading || heading === notebook.title) return;
+    titleFromHeadingLast = heading;
+    setTitle(heading);
+  },
+);
 
 function openDocument(id: string) {
   documents.open(id);
@@ -622,16 +741,6 @@ const canSaveDocument = computed(() => {
   if (documents.saving.value || !libraryId.value) return false;
   if (documents.isSaved.value) return documents.editCount.value > 0;
   return nb.notebook.value.cells.length > 0;
-});
-
-const saveTitle = computed(() => {
-  if (!libraryId.value) return 'Choose a library first';
-  if (documents.isSaved.value) {
-    return documents.editCount.value > 0 ? 'Save these edits as the next version' : 'No unsaved edits';
-  }
-  return nb.notebook.value.cells.length > 0
-    ? 'Save it into the current library as v1'
-    : 'Add a cell first — there is nothing to save yet';
 });
 
 const deleteOpen = ref(false);
@@ -714,9 +823,74 @@ function startFromLibrary() {
   for (const target of queryTargets.value) insertTarget(target);
 }
 
+/** The cell checks the name as it is typed and says why; this only applies it. */
 function rename(cellId: string, name: string) {
-  const problem = nb.renameOutput(cellId, name);
-  notice.value = problem;
+  nb.renameOutput(cellId, name);
+}
+
+/** The notebook list, as a drawer on a phone. Choosing a notebook closes it. */
+const phoneListOpen = ref(false);
+watch(() => documents.openId.value, () => { phoneListOpen.value = false; });
+
+/* Reordering by drag, and by keyboard for anyone not using a pointer. */
+const draggingId = ref<string | null>(null);
+const dropIndex = ref<number | null>(null);
+/*
+ * A cell dropped on one above it lands before that cell; dropped on one below,
+ * after it. The line drawn on the target says which.
+ */
+const draggingIndex = computed(() =>
+  draggingId.value ? nb.notebook.value.cells.findIndex((cell) => cell.id === draggingId.value) : null,
+);
+
+function onDragStart(event: DragEvent, cellId: string) {
+  draggingId.value = cellId;
+  event.dataTransfer?.setData('text/plain', cellId);
+  if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+  const slot = document.getElementById(`cell-${cellId}`);
+  if (slot) event.dataTransfer?.setDragImage(slot, 16, 16);
+}
+
+function onDragOver(event: DragEvent, index: number) {
+  if (!draggingId.value) return;
+  event.preventDefault();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+  dropIndex.value = index;
+}
+
+function onDrop(event: DragEvent, index: number) {
+  const cellId = draggingId.value;
+  if (!cellId) return;
+  event.preventDefault();
+  nb.moveCellTo(cellId, index);
+  onDragEnd();
+}
+
+function onDragEnd() {
+  draggingId.value = null;
+  dropIndex.value = null;
+}
+
+async function moveAndFocus(cellId: string, delta: -1 | 1) {
+  nb.moveCell(cellId, delta);
+  await nextTick();
+  document.querySelector<HTMLElement>(`[data-testid="notebook-drag-${cellId}"]`)?.focus();
+}
+
+function onMoveKey(event: KeyboardEvent, cellId: string, delta: -1 | 1) {
+  // The text editor has its own Alt+arrow (move line); leave it there.
+  if ((event.target as HTMLElement | null)?.closest('.cm-editor')) return;
+  event.preventDefault();
+  void moveAndFocus(cellId, delta);
+}
+
+async function runUpTo(cellId: string) {
+  running.value = true;
+  try {
+    await nb.runUpTo(cellId);
+  } finally {
+    running.value = false;
+  }
 }
 
 async function runAll() {
@@ -861,6 +1035,8 @@ function handleRailSelect(section: RailSection) {
 defineArgsElement();
 
 onMounted(async () => {
+  // Offered as a rule set's base graph; a list that fails to load only hides them.
+  void dataGraphsStore.loadDataGraphs().catch(() => undefined);
   await Promise.all([librariesStore.loadLibraries(), backendsStore.loadBackends()]);
   if (requestedLibraryId && requestedLibraryId !== libraryId.value) setActiveLibrary(requestedLibraryId);
   /*
@@ -898,6 +1074,62 @@ watch(libraryId, () => {
   background: var(--surface);
 }
 
+.list-pane { display: contents; }
+
+.phone-only,
+.list-scrim { display: none; }
+
+/*
+ * A phone: the list becomes a drawer, the document takes the full width, and
+ * the inspector (outline and values) sits below it rather than beside it.
+ */
+@media (max-width: 720px) {
+  .phone-only { display: inline-flex; }
+
+  .list-pane {
+    display: none;
+  }
+
+  .list-pane--open {
+    display: flex;
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 30;
+    width: min(85vw, 320px);
+    background: var(--surface);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .list-pane--open > * { flex: 1; width: 100%; }
+
+  .list-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 29;
+    background: var(--overlay, rgb(0 0 0 / 30%));
+  }
+
+  .page-actions { flex-wrap: wrap; }
+
+  .page-row { flex-direction: column; overflow-y: auto; }
+
+  .page-body {
+    width: 100% !important;
+    overflow-y: visible;
+    padding: var(--space-4) var(--space-3) var(--space-6);
+  }
+
+  .vertical-resizer { display: none; }
+
+  .right-panel {
+    width: 100%;
+    flex: none;
+    max-height: 50vh;
+    border-top: 1px solid var(--border-default);
+  }
+}
+
 .page {
   flex: 1;
   min-width: 0;
@@ -909,33 +1141,62 @@ watch(libraryId, () => {
 .page-header {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-4) var(--space-5);
-  border-bottom: 1px solid var(--border-default);
+  background: var(--surface-subtle);
+}
+
+.page-save-bar {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.page-run-bar {
+  flex-shrink: 0;
+}
+
+.page-actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
+.details {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+  padding: var(--space-4);
+}
+
+.details__label {
+  font-size: var(--text-body);
+  color: var(--ink-muted);
+}
+
+.details__value {
+  font-size: var(--text-body);
+  color: var(--ink-secondary);
+}
+
+.details__input {
+  height: var(--control-h);
+  box-sizing: border-box;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--text-body);
+}
+
+.details__input:focus-visible {
+  border-color: var(--action);
+  outline: none;
 }
 
 .page-header__spacer {
   flex-grow: 1;
 }
 
-.title {
-  width: var(--grid-8);
-  height: var(--control-h);
-  box-sizing: border-box;
-  padding: 0 var(--space-3);
-  border: 1px solid transparent;
-  border-radius: var(--radius);
-  background: transparent;
-  color: var(--ink);
-  font-size: var(--text-title);
-  font-weight: var(--weight-semibold);
-}
-
-.title:hover,
-.title:focus-visible {
-  border-color: var(--border-default);
-  background: var(--surface);
-}
 
 .chip {
   height: var(--control-h-sm);
@@ -948,12 +1209,6 @@ watch(libraryId, () => {
   color: var(--ink-secondary);
   white-space: nowrap;
   flex-shrink: 0;
-}
-
-.chip--quiet {
-  background: transparent;
-  border: 1px solid var(--border-subtle);
-  color: var(--ink-muted);
 }
 
 .page-strip {
@@ -1049,8 +1304,37 @@ watch(libraryId, () => {
 }
 
 .slot {
+  position: relative;
   scroll-margin-top: var(--space-7);
 }
+
+.slot__handle {
+  position: absolute;
+  top: var(--space-1);
+  left: 0;
+  display: inline-flex;
+  padding: var(--space-1);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: grab;
+  opacity: 0;
+  transition: opacity var(--duration-fast);
+}
+
+.slot:hover .slot__handle,
+.slot__handle:focus-visible {
+  opacity: 1;
+}
+
+.slot__handle:focus-visible { outline: 2px solid var(--action); }
+
+.slot--dragging { opacity: 0.5; }
+
+.slot--drop-above { box-shadow: 0 -2px 0 var(--action); }
+
+.slot--drop-below { box-shadow: 0 2px 0 var(--action); }
 
 .add-row {
   display: flex;
