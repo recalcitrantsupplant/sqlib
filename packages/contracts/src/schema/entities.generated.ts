@@ -184,6 +184,10 @@ export const querySchema = {
       },
       "nullable": true
     },
+    "groupOnly": {
+      "type": "boolean",
+      "nullable": true
+    },
     "browserDefaultArgumentSet": {
       "type": "string",
       "format": "iri",
@@ -370,6 +374,12 @@ export const queryversionSchema = {
         "format": "iri"
       },
       "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
     },
     "dateCreated": {
       "type": "string",
@@ -1808,6 +1818,64 @@ export const endnodeSchema = {
   ]
 } as const;
 
+export const environmentSchema = {
+  "$id": "environment",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "iri"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string",
+      "nullable": true
+    },
+    "position": {
+      "type": "integer",
+      "nullable": true
+    },
+    "defaultBackend": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true
+    },
+    "isPartOf": {
+      "type": "string",
+      "format": "iri"
+    },
+    "versions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "iri"
+      },
+      "nullable": true,
+      "readOnly": true
+    },
+    "dateCreated": {
+      "type": "string",
+      "format": "date-time",
+      "readOnly": true,
+      "nullable": true
+    },
+    "dateModified": {
+      "type": "string",
+      "format": "date-time",
+      "readOnly": true,
+      "nullable": true
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "isPartOf"
+  ]
+} as const;
+
 export const etlcolumnmappingSchema = {
   "$id": "etlcolumnmapping",
   "type": "object",
@@ -2595,6 +2663,12 @@ export const querygroupversionSchema = {
       "type": "string",
       "nullable": true
     },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
     "dateCreated": {
       "type": "string",
       "format": "date-time",
@@ -3150,6 +3224,12 @@ export const rulesetversionSchema = {
     "tuplesEnabled": {
       "type": "boolean",
       "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
     },
     "dateCreated": {
       "type": "string",
@@ -4106,6 +4186,7 @@ export interface QueryRestApi {
   defaultBackend?: string | null;
   isPartOf: string[];
   tags?: string[] | null;
+  groupOnly?: boolean | null;
   browserDefaultArgumentSet?: string | null;
   dateCreated?: string | null;
   dateModified?: string | null;
@@ -4141,6 +4222,7 @@ export interface QueryVersionRestApi {
   offsetParameters?: string[] | null;
   inferredInputs?: string[] | null;
   inferredOutputs?: string[] | null;
+  createdBy?: string | null;
   dateCreated?: string | null;
   dateModified?: string | null;
   tool?: string;
@@ -4425,6 +4507,18 @@ export interface EndNodeRestApi {
   dateModified?: string | null;
 }
 
+export interface EnvironmentRestApi {
+  id: string;
+  name: string;
+  description?: string | null;
+  position?: number | null;
+  defaultBackend?: string | null;
+  isPartOf: string;
+  versions?: string[] | null;
+  dateCreated?: string | null;
+  dateModified?: string | null;
+}
+
 export interface EtlColumnMappingRestApi {
   id: string;
   name: string;
@@ -4595,6 +4689,7 @@ export interface QueryGroupVersionRestApi {
   edges?: string[] | null;
   canvasData?: string | null;
   comment?: string | null;
+  createdBy?: string | null;
   dateCreated?: string | null;
   dateModified?: string | null;
   isPartOf: string;
@@ -4693,6 +4788,7 @@ export interface RuleSetVersionRestApi {
   tupleSeeds?: string | null;
   srlDocument?: string | null;
   tuplesEnabled?: boolean | null;
+  createdBy?: string | null;
   dateCreated?: string | null;
   dateModified?: string | null;
   tool?: string;

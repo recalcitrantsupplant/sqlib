@@ -8,7 +8,7 @@
  */
 import { getAuthStore } from './AuthStore.js';
 import type { AuthStore } from './AuthStore.js';
-import { modesSatisfying, type BackendMode, type EffectiveGrants, type LibraryMode } from './types.js';
+import { modesSatisfying, type BackendMode, type EffectiveGrants, type EnvironmentMode, type LibraryMode } from './types.js';
 
 export function resolveEffectiveGrants(
   principals: readonly string[],
@@ -16,6 +16,7 @@ export function resolveEffectiveGrants(
 ): EffectiveGrants {
   const backends = new Map<string, Set<BackendMode>>();
   const libraries = new Map<string, Set<LibraryMode>>();
+  const environments = new Map<string, Set<EnvironmentMode>>();
 
   for (const grant of store.grantsForPrincipals(principals)) {
     if (grant.resourceKind === 'library') {
@@ -26,6 +27,10 @@ export function resolveEffectiveGrants(
       const existing = backends.get(grant.resource) ?? new Set<BackendMode>();
       for (const mode of grant.modes) existing.add(mode as BackendMode);
       backends.set(grant.resource, existing);
+    } else if (grant.resourceKind === 'environment') {
+      const existing = environments.get(grant.resource) ?? new Set<EnvironmentMode>();
+      for (const mode of grant.modes) existing.add(mode as EnvironmentMode);
+      environments.set(grant.resource, existing);
     }
   }
 
@@ -33,6 +38,7 @@ export function resolveEffectiveGrants(
     admin: store.isAdmin(principals),
     backends,
     libraries,
+    environments,
   };
 }
 
@@ -64,4 +70,19 @@ export function hasAnyBackendMode(grants: EffectiveGrants, backendIri: string | 
   if (grants.admin) return true;
   if (!backendIri) return false;
   return (grants.backends.get(backendIri)?.size ?? 0) > 0;
+}
+
+/**
+ * Whether the grants hold `mode` on an environment. Administrators hold every
+ * mode. Library modes do not imply environment modes: `control` on a library
+ * lets a person define environments, not approve promotions into them.
+ */
+export function hasEnvironmentMode(
+  grants: EffectiveGrants,
+  environmentIri: string | null | undefined,
+  mode: EnvironmentMode
+): boolean {
+  if (grants.admin) return true;
+  if (!environmentIri) return false;
+  return grants.environments?.get(environmentIri)?.has(mode) ?? false;
 }

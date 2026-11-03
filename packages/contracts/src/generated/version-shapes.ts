@@ -94,6 +94,7 @@ export const queryVersionShape = {
   offsetParameters: optionalIriArray,
   inferredInputs: optionalIriArray,
   inferredOutputs: optionalIriArray,
+  createdBy: optionalIriString,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
   tool: z.union([
@@ -267,6 +268,7 @@ export const queryGroupVersionShape = {
   edges: optionalIriArray,
   canvasData: nullableString,
   comment: nullableString,
+  createdBy: optionalIriString,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
   isPartOf: iriString,
@@ -342,6 +344,7 @@ export const ruleSetVersionShape = {
   tupleSeeds: nullableString,
   srlDocument: nullableString,
   tuplesEnabled: nullableBoolean,
+  createdBy: optionalIriString,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
   tool: z.union([

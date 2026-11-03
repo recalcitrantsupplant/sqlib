@@ -1,7 +1,7 @@
 import type { FastifyRequest } from 'fastify';
 import { mintId } from './id.js';
 import { allocateVersion, setCurrentVersion } from './versionNumbering.js';
-import { AuthorizationError, requireLibraryMode, resolveOwningLibrary } from '../auth/enforce.js';
+import { AuthorizationError, creatorOf, requireLibraryMode, resolveOwningLibrary } from '../auth/enforce.js';
 import { getCacheCoordinator } from './CacheCoordinatorProvider.js';
 import type { PersistedRuleSetVersion } from '../persistence/schemas/RuleSetVersionSchema.js';
 import { toPersisted } from '../persistence/utils/id-adapter.js';
@@ -173,6 +173,7 @@ async function createRuleSetVersionNumbered(
     comment: body.comment ?? undefined,
     hasRule: body.hasRule ?? [],
     hasDataBlock: body.hasDataBlock ?? [],
+    createdBy: creatorOf(authScope?.request) ?? undefined,
   };
 
   /*

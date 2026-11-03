@@ -178,4 +178,12 @@ export const ENTITY_CONTRACT_MODELS: EntityContractModel[] = [
     // *entity being tagged*, not about the tag, so it is enforced where those
     // writes happen (`lib/tagMembership.ts`).
   },
+  {
+    entityName: 'Environment',
+    varName: 'environment',
+    schemaId: 'environment',
+    // Nothing deviates. `versions` is `@readOnly`, so the generated create and
+    // update bodies leave it out: a pointer moves only through
+    // `PUT /environments/:id/pointers` (`routes/environments.ts`).
+  },
 ];

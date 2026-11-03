@@ -30,6 +30,8 @@ export interface AuthMe {
   admin: boolean;
   libraries: Record<string, string[]>;
   backends: Record<string, string[]>;
+  /** Environment IRI to the modes held on it (`promote`, `execute`). */
+  environments?: Record<string, string[]>;
 }
 
 const mode = ref<AuthMode>('disabled');
@@ -274,6 +276,14 @@ export function useAuth() {
       if (!current) return false;
       if (current.admin) return true;
       return current.libraries[libraryIri]?.includes(libraryMode) ?? false;
+    },
+    /** UI convenience: does the caller hold `mode` on this environment? Library modes never imply it. */
+    canEnvironment: (environmentIri: string, environmentMode: string): boolean => {
+      if (mode.value === 'disabled') return true;
+      const current = me.value;
+      if (!current) return false;
+      if (current.admin) return true;
+      return current.environments?.[environmentIri]?.includes(environmentMode) ?? false;
     },
   };
 }

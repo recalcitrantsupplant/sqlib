@@ -13,11 +13,12 @@ import { useQueryVersions } from '@/composables/useQueryVersions';
 import { savedWith, routeVersionFor } from '@/lib/entityLifecycle';
 import type { QueryTypeValue } from '@sparql-query-lib/types';
 
-function setup() {
+function setup(preferredVersionId?: () => string | null) {
   const emitted: Array<number | null> = [];
   const apiClient = {
     listQueryVersions: vi.fn(async () => [
       { id: 'urn:sqlib:queryVersion:1', version: 1, dateModified: '2026-08-01T00:00:00.000Z' },
+      { id: 'urn:sqlib:queryVersion:2', version: 2, dateModified: '2026-08-02T00:00:00.000Z' },
     ]),
     getQueryVersion: vi.fn(async (_queryId: string, versionNumber: number) => ({
       data: {
@@ -41,6 +42,7 @@ function setup() {
     queryType: ref<QueryTypeValue | null>(null),
     queryConcurrency: ref<string | null>(null),
     emitVersionNumber: (version) => emitted.push(version),
+    preferredVersionId,
   });
 
   return { versions, emitted, apiClient };
@@ -126,5 +128,34 @@ describe('useQueryVersions', () => {
     };
     expect(routeVersionFor(viewingOlder)).toBe(1);
     expect(emitted.at(-1)).toBe(1);
+  });
+
+  describe('with an active environment', () => {
+    it('opens on the environment version, not the current one', async () => {
+      const { versions, emitted } = setup(() => 'urn:sqlib:queryVersion:1');
+
+      await versions.loadVersionsForQuery('urn:sqlib:query:1', 'urn:sqlib:queryVersion:2');
+
+      expect(versions.selectedVersion.value).toBe('urn:sqlib:queryVersion:1');
+      expect(emitted).toEqual([]);
+    });
+
+    it('an explicit version in the route still wins', async () => {
+      const { versions } = setup(() => 'urn:sqlib:queryVersion:1');
+
+      await versions.loadVersionsForQuery('urn:sqlib:query:1', 'urn:sqlib:queryVersion:2', { versionOverride: 2 });
+
+      expect(versions.selectedVersion.value).toBe('urn:sqlib:queryVersion:2');
+    });
+
+    it('names the current version in the route, since it is not the default any more', async () => {
+      const { versions, emitted } = setup(() => 'urn:sqlib:queryVersion:1');
+
+      await versions.loadVersionsForQuery('urn:sqlib:query:1', 'urn:sqlib:queryVersion:2');
+      versions.selectedVersion.value = 'urn:sqlib:queryVersion:2';
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(emitted).toEqual([2]);
+    });
   });
 });

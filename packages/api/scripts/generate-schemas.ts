@@ -467,6 +467,11 @@ const ROUTE_CONFIGS: Record<string, RouteConfig> = {
   Tag: {
     operations: ['create', 'update']
   },
+  // Same as Tag: `routes/environments.ts` registers its own list, get, delete
+  // and pointer schemas, so only the write bodies are projected here.
+  Environment: {
+    operations: ['create', 'update']
+  },
   // Same as DataGraph/Test/Tag: the write bodies are projected here, the rest
   // of `routes/tuple-sets.ts` registers its own schemas. It is the *version*
   // create body that is not a projection of any entity — content arrives in one
@@ -1320,6 +1325,13 @@ export const executionRequestSchema = z
   .object({
     targetId: iriString,
     backendId: iriString.optional(),
+    /*
+     * For a query or group named by its stable id: the environment whose
+     * version runs ("prod"). Left out, the deployment's
+     * SQLIB_DEFAULT_ENVIRONMENT, else the current version. Ignored for a
+     * version id, which is already exact. See docs/explanation/environments.md.
+     */
+    environment: z.string().min(1).optional(),
     arguments: z.array(executionArgumentSchema).optional(),
     limits: z.array(executionLimitSchema).optional(),
     offsets: z.array(executionOffsetSchema).optional(),
@@ -1359,6 +1371,7 @@ export const executionQuerystringSchema = z
   .object({
     targetId: iriString,
     backendId: iriString.optional(),
+    environment: z.string().min(1).optional(),
     arguments: z.string().optional(),
     limits: z.string().optional(),
     offsets: z.string().optional(),

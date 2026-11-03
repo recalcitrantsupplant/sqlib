@@ -176,7 +176,7 @@ export function createAccessData() {
   function copyGrants(source: string, target: string) {
     const resources = new Map<string, { kind: 'library' | 'backend'; modes: string[] }>();
     for (const grant of [...grantsOf(source), ...grantsOf(target)]) {
-      if (grant.resourceKind === 'everything') continue;
+      if (grant.resourceKind !== 'library' && grant.resourceKind !== 'backend') continue;
       resources.set(grant.resource, { kind: grant.resourceKind, modes: [...modesOn(source, grant.resource)] });
     }
     for (const [resource, { kind, modes }] of resources) replaceModes(target, kind, resource, modes);

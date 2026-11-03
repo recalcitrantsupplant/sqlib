@@ -166,4 +166,47 @@ describe('useQueryExecution', () => {
       expect.anything(),
     );
   });
+
+  /**
+   * With environments, a run by the query's id executes the active
+   * environment's version. The editor may show another, so Run names the
+   * shown version unless it is the one the id resolves to.
+   */
+  describe('with an active environment', () => {
+    it('runs by the query id when the editor shows the environment version', async () => {
+      const { execution, executeTarget } = harness({
+        selectedVersion: ref('urn:query-version:3'),
+        currentVersion: ref('urn:query-version:4'),
+        preferredVersion: ref('urn:query-version:3'),
+      });
+
+      await execution.executeQuery();
+
+      expect(executeTarget).toHaveBeenCalledWith(expect.objectContaining({ targetId: 'urn:query:1' }), expect.anything());
+    });
+
+    it('runs the shown version when it is not the environment version', async () => {
+      const { execution, executeTarget } = harness({
+        selectedVersion: ref('urn:query-version:4'),
+        currentVersion: ref('urn:query-version:4'),
+        preferredVersion: ref('urn:query-version:3'),
+      });
+
+      await execution.executeQuery();
+
+      expect(executeTarget).toHaveBeenCalledWith(expect.objectContaining({ targetId: 'urn:query-version:4' }), expect.anything());
+    });
+
+    it('runs the shown version when the query is not in the environment', async () => {
+      const { execution, executeTarget } = harness({
+        selectedVersion: ref('urn:query-version:4'),
+        currentVersion: ref('urn:query-version:4'),
+        preferredVersion: ref(null),
+      });
+
+      await execution.executeQuery();
+
+      expect(executeTarget).toHaveBeenCalledWith(expect.objectContaining({ targetId: 'urn:query-version:4' }), expect.anything());
+    });
+  });
 });

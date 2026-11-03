@@ -4,7 +4,7 @@
  * Modeled on W3C WAC (`acl:`) but with the modes this system needs: WAC folds
  * delete into Write and has no Execute, and the r/w/x/d split is the point.
  */
-import type { BackendMode, LibraryMode } from './types.js';
+import type { BackendMode, EnvironmentMode, LibraryMode } from './types.js';
 
 export const AUTH_NS = 'https://sparql-query-lib/auth#';
 
@@ -19,6 +19,7 @@ export const auth = {
   principal: `${AUTH_NS}principal`,
   onLibrary: `${AUTH_NS}onLibrary`,
   onBackend: `${AUTH_NS}onBackend`,
+  onEnvironment: `${AUTH_NS}onEnvironment`,
   onEverything: `${AUTH_NS}onEverything`,
   mode: `${AUTH_NS}mode`,
   grantedBy: `${AUTH_NS}grantedBy`,
@@ -51,6 +52,24 @@ export const BACKEND_MODE_IRIS: Record<BackendMode, string> = {
   'update:saved': `${AUTH_NS}UpdateSaved`,
   'update:adhoc': `${AUTH_NS}UpdateAdhoc`,
 };
+
+/**
+ * Environment modes as IRIs. `execute` reuses the library's `auth:Execute`:
+ * the word means the same thing, and the grant's `onEnvironment` says what it
+ * applies to.
+ */
+export const ENVIRONMENT_MODE_IRIS: Record<EnvironmentMode, string> = {
+  promote: `${AUTH_NS}Promote`,
+  execute: `${AUTH_NS}Execute`,
+};
+
+const ENVIRONMENT_MODE_BY_IRI = new Map<string, EnvironmentMode>(
+  Object.entries(ENVIRONMENT_MODE_IRIS).map(([mode, iri]) => [iri, mode as EnvironmentMode])
+);
+
+export function environmentModeFromIri(iri: string): EnvironmentMode | undefined {
+  return ENVIRONMENT_MODE_BY_IRI.get(iri);
+}
 
 const LIBRARY_MODE_BY_IRI = new Map<string, LibraryMode>(
   Object.entries(LIBRARY_MODE_IRIS).map(([mode, iri]) => [iri, mode as LibraryMode])

@@ -3,7 +3,7 @@
  * Do not edit manually - run 'npm run generate-schemas' instead.
  */
 
-import { backendSchema, librarySchema, querySchema, querygroupSchema, queryversionSchema, argumentscalarbindingSchema, argumentsetSchema, argumentsetversionSchema, argumenttuplebindingSchema, benchmarkexperimentSchema, benchmarkexperimentversionSchema, benchmarkiterationobservationSchema, benchmarkiterationrunSchema, benchmarknodeobservationSchema, benchmarknoderunSchema, benchmarkobservationSchema, benchmarkrunSchema, booleanioSchema, browserdefaultdatagraphSchema, datablockSchema, datablockversionSchema, datagraphSchema, datagraphversionSchema, duckdbetlnodeSchema, dynamicquerynodeSchema, endnodeSchema, etlcolumnmappingSchema, etlcolumnmappingversionSchema, etlexecutionSchema, etljobSchema, etljobversionSchema, limitparameterSchema, notebookSchema, notebookversionSchema, offsetparameterSchema, patchnodeSchema, patchSchema, queryedgeSchema, querygroupversionSchema, queryidinputSchema, queryinputtupleSchema, queryinputvariableSchema, querynodeSchema, queryoutputtupleSchema, queryoutputvariableSchema, ruleSchema, rulesetnodeSchema, rulesetSchema, rulesetversionSchema, ruleversionSchema, startnodeSchema, tagSchema, testcasedatagraphSchema, testcaseSchema, testruncaseSchema, testrunSchema, testSchema, testversionSchema, triplesquadsioSchema, tuplememberSchema, tuplesetSchema, tuplesetversionSchema } from './entities.generated.js';
+import { backendSchema, librarySchema, querySchema, querygroupSchema, queryversionSchema, argumentscalarbindingSchema, argumentsetSchema, argumentsetversionSchema, argumenttuplebindingSchema, benchmarkexperimentSchema, benchmarkexperimentversionSchema, benchmarkiterationobservationSchema, benchmarkiterationrunSchema, benchmarknodeobservationSchema, benchmarknoderunSchema, benchmarkobservationSchema, benchmarkrunSchema, booleanioSchema, browserdefaultdatagraphSchema, datablockSchema, datablockversionSchema, datagraphSchema, datagraphversionSchema, duckdbetlnodeSchema, dynamicquerynodeSchema, endnodeSchema, environmentSchema, etlcolumnmappingSchema, etlcolumnmappingversionSchema, etlexecutionSchema, etljobSchema, etljobversionSchema, limitparameterSchema, notebookSchema, notebookversionSchema, offsetparameterSchema, patchnodeSchema, patchSchema, queryedgeSchema, querygroupversionSchema, queryidinputSchema, queryinputtupleSchema, queryinputvariableSchema, querynodeSchema, queryoutputtupleSchema, queryoutputvariableSchema, ruleSchema, rulesetnodeSchema, rulesetSchema, rulesetversionSchema, ruleversionSchema, startnodeSchema, tagSchema, testcasedatagraphSchema, testcaseSchema, testruncaseSchema, testrunSchema, testSchema, testversionSchema, triplesquadsioSchema, tuplememberSchema, tuplesetSchema, tuplesetversionSchema } from './entities.generated.js';
 
 // Route Validation Schemas
 
@@ -717,6 +717,10 @@ export const createQuerySchema = {
         },
         "nullable": true
       },
+      "groupOnly": {
+        "type": "boolean",
+        "nullable": true
+      },
       "argumentSets": {
         "type": "array",
         "items": {
@@ -828,6 +832,10 @@ export const updateQuerySchema = {
           "type": "string",
           "format": "iri"
         },
+        "nullable": true
+      },
+      "groupOnly": {
+        "type": "boolean",
         "nullable": true
       },
       "argumentSets": {
@@ -2684,6 +2692,162 @@ export const updateDataGraphSchema = {
   }
 } as const;
 
+// Route schemas for Environment
+export const createEnvironmentSchema = {
+  "tags": [
+    "Environment"
+  ],
+  "summary": "Create new environment",
+  "body": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "format": "iri",
+        "nullable": true
+      },
+      "name": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": {
+        "type": "string",
+        "nullable": true
+      },
+      "position": {
+        "type": "integer",
+        "nullable": true
+      },
+      "defaultBackend": {
+        "type": "string",
+        "format": "iri",
+        "nullable": true
+      },
+      "isPartOf": {
+        "type": "string",
+        "format": "iri"
+      }
+    },
+    "required": [
+      "name",
+      "isPartOf"
+    ],
+    "additionalProperties": false
+  },
+  "response": {
+    "201": {
+      "$ref": "environment#"
+    },
+    "400": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string"
+        }
+      }
+    },
+    "422": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string"
+        }
+      }
+    },
+    "500": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string"
+        }
+      }
+    }
+  }
+} as const;
+
+export const updateEnvironmentSchema = {
+  "tags": [
+    "Environment"
+  ],
+  "summary": "Update environment",
+  "params": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id"
+    ]
+  },
+  "body": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": {
+        "type": "string",
+        "nullable": true
+      },
+      "position": {
+        "type": "integer",
+        "nullable": true
+      },
+      "defaultBackend": {
+        "type": "string",
+        "format": "iri",
+        "nullable": true
+      },
+      "isPartOf": {
+        "type": "string",
+        "format": "iri"
+      }
+    },
+    "additionalProperties": false,
+    "minProperties": 1
+  },
+  "response": {
+    "200": {
+      "$ref": "environment#"
+    },
+    "400": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string"
+        }
+      }
+    },
+    "404": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string"
+        }
+      }
+    },
+    "422": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string"
+        }
+      }
+    },
+    "500": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string"
+        }
+      }
+    }
+  }
+} as const;
+
 // Route schemas for EtlJob
 export const getEtlJobsSchema = {
   "tags": [
@@ -4369,6 +4533,12 @@ const __createQueryVersionBodySchema = {
       },
       "nullable": true
     },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
     "dateModified": {
       "type": "string",
       "format": "date-time",
@@ -4792,6 +4962,12 @@ const __createQueryGroupVersionBodySchema = {
     "comment": {
       "type": "string",
       "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
     },
     "dateModified": {
       "type": "string",

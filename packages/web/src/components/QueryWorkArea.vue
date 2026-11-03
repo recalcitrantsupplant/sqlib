@@ -13,6 +13,7 @@
         :title="queryName"
         :is-scratch="isScratch"
         :current-version-number="currentVersionNumberForDisplay"
+        :environment="environmentPill"
         :edit-count="editCount"
         :draft-not-kept="draftNotKept"
         :saving="isSavingVersion"
@@ -537,6 +538,7 @@ import { toast } from 'vue-sonner';
 import { useQueriesStore } from '../composables/useQueriesStore';
 import { useBackendsStore } from '../composables/useBackendsStore';
 import { useApiClient } from '../composables/useApiClient';
+import { useEnvironmentVersions } from '../composables/useActiveEnvironment';
 import { getAllMediaTypeOptions, getMediaTypeChoiceGroups } from '@/lib/mediaTypes';
 import { OUTPUT_MEDIA_TYPES, isGraphQueryType, isResultSetQueryType, isUpdateQueryType, getQueryTypeKeyFromIri } from '@sparql-query-lib/types';
 import { usePanelResize } from '../composables/usePanelResize';
@@ -822,6 +824,38 @@ const {
   queryType,
   queryConcurrency,
   emitVersionNumber: (version) => emit('update:versionNumber', version),
+  preferredVersionId: () => preferredVersion.value,
+});
+
+/*
+ * The active environment's version of this query. A run by the query's id
+ * executes it, so the editor opens on it; under `latest` it is the current
+ * version. Null when an environment is picked that does not hold the query.
+ */
+const {
+  environmentsByVersion,
+  activeEnvironment,
+  activeEnvironmentVersion,
+} = useEnvironmentVersions(() => versionOptions.value.map((option) => option.value));
+const preferredVersion = computed(() => (
+  activeEnvironment.value ? activeEnvironmentVersion.value : currentVersion.value
+));
+
+const environmentPill = computed(() => {
+  const env = activeEnvironment.value;
+  if (!env || isScratch.value) return null;
+  const option = versionOptions.value.find((o) => o.value === activeEnvironmentVersion.value);
+  return { name: env.name, versionNumber: option ? parseInt(option.label, 10) : null };
+});
+
+/*
+ * Picking another environment shows its version, unless the route names a
+ * version or the editor holds unsaved edits: a deliberate choice wins.
+ */
+watch(preferredVersion, (next) => {
+  if (isScratch.value || queryLoading.value || props.versionNumber != null || isDirty.value) return;
+  const target = next ?? currentVersion.value;
+  if (target && target !== selectedVersion.value) selectedVersion.value = target;
 });
 
 /*
@@ -875,6 +909,7 @@ const { executionResult, isExecuting, executeQuery: executeQueryOriginal } = use
   selectedMediaType,
   selectedVersion,
   currentVersion,
+  preferredVersion,
   activeResultsTab,
   queryType,
   noneBackendId: NONE_BACKEND,
@@ -1820,6 +1855,7 @@ const detailsProps = computed(() => ({
     label: option.label,
     comment: option.comment ?? null,
     dateModified: option.dateModified,
+    environments: environmentsByVersion.value[option.value] ?? [],
   })),
   selectedVersion: selectedVersion.value,
   currentVersion: currentVersion.value,

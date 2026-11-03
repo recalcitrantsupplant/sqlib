@@ -69,6 +69,11 @@ export async function registerApplicationRoutes(
   const tagRoutes = (await import('../routes/tags.js')).default;
   await fastifyApp.register(tagRoutes, { prefix: '/tags' });
 
+  // Unflagged too: every float in a library that defines environments
+  // resolves through them, whichever section the entity belongs to.
+  const environmentRoutes = (await import('../routes/environments.js')).default;
+  await fastifyApp.register(environmentRoutes, { prefix: '/environments' });
+
   // Also unflagged, and for the same reason as tags: a tuple set feeds a query's
   // VALUES clause and a ruleset's TUPLE declaration alike, so it is not any one
   // section's feature. Gating it would leave argument sets referencing versions

@@ -178,6 +178,11 @@ export const dct = createNamespace({
     // no `sqlib:` terms to say it with.
     "description",
     "hasVersion",
+    // Who saved a version: the caller's principal IRI. Standard Dublin Core
+    // rather than a `sqlib:` term, because "who made this" is exactly what
+    // `dct:creator` says, and a version exported as RDF should say it in words
+    // a reader already knows.
+    "creator",
   ]
 } as const);
 
@@ -523,6 +528,15 @@ export const sqlib = createNamespace({
     "Tag",
     "hasTag",
     "color",
+
+    // Environments — named pointers to versions inside one library ("dev",
+    // "test", "prod"). `environmentVersion` names a version the environment
+    // points to; the version's own `isPartOf` says which entity it is a
+    // version of, so one predicate serves every promotable kind.
+    "Environment",
+    "environmentVersion",
+    // A query that only a group uses: never promoted on its own.
+    "groupOnly",
 
     // Patches — the ground quad diff of one write, kept as an event rather
     // than a version: what changed, on which backend, derived from what, and

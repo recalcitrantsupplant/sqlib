@@ -23,6 +23,7 @@ import {
 } from '../auth/enforce.js';
 import { RESOURCE_EVERYTHING, type AuthContext } from '../auth/types.js';
 import { typedRoute } from './route-helpers.js';
+import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
 
 const errorResponseSchema = {
   type: 'object',
@@ -36,7 +37,7 @@ const grantSchema = {
   properties: {
     id: { type: 'string' },
     principal: { type: 'string' },
-    resourceKind: { type: 'string', enum: ['library', 'backend', 'everything'] },
+    resourceKind: { type: 'string', enum: ['library', 'backend', 'environment', 'everything'] },
     resource: { type: 'string' },
     modes: { type: 'array', items: { type: 'string' } },
     grantedBy: { type: 'string' },
@@ -68,6 +69,10 @@ const meSchema = {
           type: 'object',
           additionalProperties: { type: 'array', items: { type: 'string' } },
         },
+        environments: {
+          type: 'object',
+          additionalProperties: { type: 'array', items: { type: 'string' } },
+        },
       },
       required: ['authMode', 'authenticated', 'subject', 'principals', 'admin', 'libraries', 'backends'],
       additionalProperties: false,
@@ -83,6 +88,7 @@ const listGrantsSchema = {
     properties: {
       library: { type: 'string' },
       backend: { type: 'string' },
+      environment: { type: 'string' },
       principal: { type: 'string' },
     },
     additionalProperties: false,
@@ -100,7 +106,7 @@ const createGrantSchema = {
     type: 'object',
     properties: {
       principal: { type: 'string', minLength: 1 },
-      resourceKind: { type: 'string', enum: ['library', 'backend', 'everything'] },
+      resourceKind: { type: 'string', enum: ['library', 'backend', 'environment', 'everything'] },
       resource: { type: 'string' },
       modes: { type: 'array', items: { type: 'string' }, minItems: 1 },
     },
@@ -214,20 +220,30 @@ function assertMayAdministerGrant(
 ): void {
   const context = authOf(request);
   const standing = standingOf(context, write ? isOpenDeployment(context) : context.fullAccess);
-  const onLibrary = resourceKind === 'library';
+  // An environment's grants are its library's to share: Control on the
+  // library lets a person say who may promote into its environments.
+  const library = resourceKind === 'library' ? resource : resourceKind === 'environment' ? libraryOfEnvironment(resource) : undefined;
+  const onLibrary = library !== undefined;
 
   requireAuthGraphDecision(
     request,
-    standing.admin || (onLibrary && standing.controls(resource)),
+    standing.admin || (onLibrary && standing.controls(library)),
     {
-      resource: onLibrary ? resource ?? null : null,
+      resource: onLibrary ? library ?? null : null,
       resourceKind: onLibrary ? 'library' : 'everything',
       mode: onLibrary ? 'control' : 'admin',
       message: onLibrary
-        ? `Missing "control" permission on library ${resource ?? '(unspecified)'}.`
+        ? `Missing "control" permission on library ${library ?? '(unspecified)'}.`
         : 'Administrator access is required to administer this grant.',
     }
   );
+}
+
+/** The library an environment belongs to, if it resolves. */
+function libraryOfEnvironment(environment: string | undefined): string | undefined {
+  if (!environment) return undefined;
+  const record = getCacheCoordinator().get(environment) as { '@type'?: string; isPartOf?: string } | null;
+  return record?.['@type'] === 'Environment' && typeof record.isPartOf === 'string' ? record.isPartOf : undefined;
 }
 
 /**
@@ -260,6 +276,11 @@ export default async function (fastify: FastifyInstance) {
       backends[iri] = [...modes].sort();
     }
 
+    const environments: Record<string, string[]> = {};
+    for (const [iri, modes] of context.grants.environments ?? []) {
+      environments[iri] = [...modes].sort();
+    }
+
     return reply.send({
       authMode: context.mode,
       authenticated: !context.fullAccess,
@@ -270,16 +291,21 @@ export default async function (fastify: FastifyInstance) {
       admin: context.fullAccess || context.grants.admin,
       libraries,
       backends,
+      environments,
     });
   }));
 
   fastify.get('/grants', ...typedRoute(listGrantsSchema, async (request, reply) => {
-    const { library, backend, principal } = request.query;
+    const { library, backend, environment, principal } = request.query;
     const store = getAuthStore();
 
     if (library) {
       assertMayAdministerGrant(request, 'library', library, { write: false });
       return reply.send(store.listGrants({ library }).map(serializeGrant));
+    }
+    if (environment) {
+      assertMayAdministerGrant(request, 'environment', environment, { write: false });
+      return reply.send(store.listGrants({ environment }).map(serializeGrant));
     }
 
     // Unchanged, and the one asymmetry left in this file: listing the whole
@@ -297,6 +323,9 @@ export default async function (fastify: FastifyInstance) {
 
     if (resourceKind !== 'everything' && !resource) {
       return reply.status(400).send({ error: `A ${resourceKind} grant requires a "resource" IRI.` });
+    }
+    if (resourceKind === 'environment' && !libraryOfEnvironment(resource)) {
+      return reply.status(400).send({ error: `${resource} is not an environment.` });
     }
     // Only an admin can mint another admin — Control on a library must never be
     // a path to Control over everything.

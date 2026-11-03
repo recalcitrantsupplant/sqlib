@@ -37,7 +37,7 @@ export interface VersionPin {
   holderName: string;
 }
 
-type HolderType = 'ArgumentSetVersion' | 'RuleSetVersion' | 'QueryGroupVersion' | 'TestVersion';
+type HolderType = 'ArgumentSetVersion' | 'RuleSetVersion' | 'QueryGroupVersion' | 'TestVersion' | 'Environment';
 
 type Entity = Record<string, unknown> & { $id: string; '@type'?: string };
 
@@ -46,6 +46,7 @@ const HOLDER_LABELS: Record<HolderType, [singular: string, plural: string]> = {
   RuleSetVersion: ['rule set', 'rule sets'],
   QueryGroupVersion: ['query group', 'query groups'],
   TestVersion: ['test', 'tests'],
+  Environment: ['environment', 'environments'],
 };
 
 function idsOf(value: unknown): string[] {
@@ -102,6 +103,15 @@ function* holdings(): Generator<{ heldBy: Entity; heldByType: HolderType; pinned
     if (!version) continue;
     for (const pinned of idsOf(graph.dataGraphVersion)) yield { heldBy: version, heldByType: 'TestVersion', pinned };
   }
+
+  // An environment pointing at a version holds it the same way: deleting the
+  // version would leave "prod" naming content that is gone. The environment is
+  // not frozen, so the way out is to move or clear the pointer first.
+  for (const environment of list('Environment')) {
+    for (const pinned of idsOf(environment.versions)) {
+      yield { heldBy: environment, heldByType: 'Environment', pinned };
+    }
+  }
 }
 
 /**
@@ -123,7 +133,10 @@ export function pinsOn(versionIds: Iterable<string>): VersionPin[] {
     const key = `${heldBy.$id} ${pinned}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    const holder = String(heldBy.isPartOf ?? heldBy.$id);
+    // A version's holder is the stable entity it is a version of. An
+    // environment is its own holder: naming its library would read as if the
+    // library pinned the version.
+    const holder = heldByType === 'Environment' ? heldBy.$id : String(heldBy.isPartOf ?? heldBy.$id);
     const holderEntity = cache.get(holder) as { name?: string } | null;
     pins.push({
       version: pinned,
