@@ -4375,6 +4375,18 @@ const __createQueryVersionBodySchema = {
       "readOnly": true,
       "nullable": true
     },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
     "tool": {
       "title": "PublishedTool",
       "anyOf": [
@@ -4799,6 +4811,18 @@ const __createQueryGroupVersionBodySchema = {
       "readOnly": true,
       "nullable": true
     },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
     "tool": {
       "title": "PublishedTool",
       "anyOf": [
@@ -4925,6 +4949,16 @@ export const createQueryGroupVersionForGroupFlatSchema = {
                   "type": "string",
                   "format": "date-time",
                   "nullable": true
+            },
+            "createdBy": {
+                  "type": "string",
+                  "format": "iri",
+                  "nullable": true
+            },
+            "modifiedBy": {
+                  "type": "string",
+                  "format": "iri",
+                  "nullable": true
             }
       },
       "required": []
@@ -4958,6 +4992,16 @@ export const createQueryGroupVersionForGroupFlatSchema = {
             "dateModified": {
                   "type": "string",
                   "format": "date-time",
+                  "nullable": true
+            },
+            "createdBy": {
+                  "type": "string",
+                  "format": "iri",
+                  "nullable": true
+            },
+            "modifiedBy": {
+                  "type": "string",
+                  "format": "iri",
                   "nullable": true
             }
       },
@@ -5028,6 +5072,16 @@ export const createQueryGroupVersionForGroupFlatSchema = {
             "dateModified": {
                   "type": "string",
                   "format": "date-time",
+                  "nullable": true
+            },
+            "createdBy": {
+                  "type": "string",
+                  "format": "iri",
+                  "nullable": true
+            },
+            "modifiedBy": {
+                  "type": "string",
+                  "format": "iri",
                   "nullable": true
             },
             "nodeType": {
@@ -5465,6 +5519,16 @@ export const createQueryGroupVersionForGroupFlatSchema = {
                   "type": "string",
                   "format": "date-time",
                   "nullable": true
+            },
+            "createdBy": {
+                  "type": "string",
+                  "format": "iri",
+                  "nullable": true
+            },
+            "modifiedBy": {
+                  "type": "string",
+                  "format": "iri",
+                  "nullable": true
             }
       },
       "required": []
@@ -5503,6 +5567,16 @@ export const createQueryGroupVersionForGroupFlatSchema = {
                   "type": "string",
                   "format": "date-time",
                   "nullable": true
+            },
+            "createdBy": {
+                  "type": "string",
+                  "format": "iri",
+                  "nullable": true
+            },
+            "modifiedBy": {
+                  "type": "string",
+                  "format": "iri",
+                  "nullable": true
             }
       },
       "required": []
@@ -5532,6 +5606,16 @@ export const createQueryGroupVersionForGroupFlatSchema = {
             "dateModified": {
                   "type": "string",
                   "format": "date-time",
+                  "nullable": true
+            },
+            "createdBy": {
+                  "type": "string",
+                  "format": "iri",
+                  "nullable": true
+            },
+            "modifiedBy": {
+                  "type": "string",
+                  "format": "iri",
                   "nullable": true
             }
       },

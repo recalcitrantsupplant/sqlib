@@ -16,6 +16,7 @@
 
 import type { Schema } from '../schema.js';
 import { xsd, sqlib, sdo } from '../namespaces.js';
+import { AUTHORSHIP_PROPERTIES } from '../authorship.js';
 
 export const TupleSetSchema = {
   '@type': sqlib.TupleSet,
@@ -73,6 +74,7 @@ export const TupleSetSchema = {
     '@type': xsd.dateTime,
     '@optional': true,
   },
+  ...AUTHORSHIP_PROPERTIES,
 } as const satisfies Schema;
 
 export interface PersistedTupleSet {
@@ -87,4 +89,6 @@ export interface PersistedTupleSet {
   tags?: string[] | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }

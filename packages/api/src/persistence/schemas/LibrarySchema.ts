@@ -6,6 +6,7 @@
 
 import type { Schema } from '../schema.js';
 import { xsd, sqlib, sdo } from '../namespaces.js';
+import { AUTHORSHIP_PROPERTIES } from '../authorship.js';
 
 export const LibrarySchema = {
   '@type': sqlib.Library,
@@ -31,6 +32,7 @@ export const LibrarySchema = {
     '@type': xsd.dateTime,
     '@optional': true,
   },
+  ...AUTHORSHIP_PROPERTIES,
   /**
    * The library's name in URLs: `/mcp/{slug}` and `/tools/{slug}/{name}`.
    *
@@ -64,6 +66,8 @@ export interface PersistedLibrary {
   defaultBackend?: string | null;
   dateCreated?: string | null; // ISO string format for RDF/JSON-LD compatibility
   dateModified?: string | null; // ISO string format for RDF/JSON-LD compatibility
+  createdBy?: string | null;
+  modifiedBy?: string | null;
   slug?: string | null;
   publishAll?: boolean | null;
 }

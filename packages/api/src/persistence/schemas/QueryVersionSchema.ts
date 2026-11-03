@@ -10,6 +10,7 @@ import type { Schema } from '../schema.js';
 import type { ToolObject as PublishedToolObject } from '@sparql-query-lib/tools';
 import { rdf, xsd, sqlib, sdo } from '../namespaces.js';
 import { QueryTypeIri as QueryTypeIriConst, type QueryTypeKey, type QueryTypeValue } from '../../constants/queryTypes.js';
+import { AUTHORSHIP_PROPERTIES } from '../authorship.js';
 
 export const QueryTypeIri = QueryTypeIriConst;
 export type { QueryTypeKey, QueryTypeValue };
@@ -109,6 +110,7 @@ export const QueryVersionSchema = {
     '@type': xsd.dateTime,
     '@optional': true,
   },
+  ...AUTHORSHIP_PROPERTIES,
   /**
    * The tool this version publishes as (`docs/guides/publishing-tools.md`),
    * or `false` to leave it out of a `publishAll` library. On the version, not
@@ -141,5 +143,7 @@ export interface PersistedQueryVersion {
   inferredOutputs?: string[]; // References to inferred/canonical outputs based on query type
   dateCreated?: string | null; // ISO string format for RDF/JSON-LD compatibility
   dateModified?: string | null; // ISO string for optimistic concurrency control
+  createdBy?: string | null;
+  modifiedBy?: string | null;
   tool?: PublishedToolObject | false | null;
 }

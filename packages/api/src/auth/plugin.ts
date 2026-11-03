@@ -19,6 +19,7 @@ import {
 } from './resourceMetadata.js';
 import { TokenError, TokenVerifier, getTokenVerifier } from './tokenVerifier.js';
 import { PRINCIPAL_ANONYMOUS, createAnonymousContext, createFullAccessContext, type AuthContext } from './types.js';
+import { registerWriteActorHooks } from './writeActor.js';
 
 /**
  * Routes that never require a token, regardless of mode: `/` (a redirect to the
@@ -118,6 +119,10 @@ export async function registerAuthPlugin(
   const basePath = options.basePath ?? '';
 
   app.decorateRequest('authContext', undefined);
+
+  // First, so the auth hook below and every handler run inside the request's
+  // write scope: what a request saves is stamped with its caller.
+  registerWriteActorHooks(app);
 
   registerProtectedResourceMetadataRoutes(app, config, basePath);
 

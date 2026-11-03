@@ -10,6 +10,7 @@
 import type { Schema } from '../schema.js';
 import type { EphemeralBackendConfig } from './QueryNodeSchema.js';
 import { rdf, xsd, sqlib, sdo } from '../namespaces.js';
+import { AUTHORSHIP_PROPERTIES } from '../authorship.js';
 
 export const DynamicQueryNodeSchema = {
   '@type': sqlib.DynamicQueryNode,
@@ -60,6 +61,7 @@ export const DynamicQueryNodeSchema = {
     '@type': xsd.dateTime,
     '@optional': true,
   },
+  ...AUTHORSHIP_PROPERTIES,
   nodeType: {
     '@id': sqlib.nodeType,
     '@optional': true,
@@ -76,5 +78,7 @@ export interface PersistedDynamicQueryNode {
   outputs?: string[] | null; // References to individual QueryOutput entities
   dateCreated?: string | null; // ISO string format for RDF/JSON-LD compatibility
   dateModified?: string | null; // ISO string format for RDF/JSON-LD compatibility
+  createdBy?: string | null;
+  modifiedBy?: string | null;
   nodeType?: string; // Explicit node type field for REST API discrimination
 }

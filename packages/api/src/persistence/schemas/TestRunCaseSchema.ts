@@ -18,6 +18,7 @@
 
 import type { Schema } from '../schema.js';
 import { xsd, sqlib, sdo } from '../namespaces.js';
+import { AUTHORSHIP_PROPERTIES } from '../authorship.js';
 
 export const TestRunCaseSchema = {
   '@type': sqlib.TestRunCase,
@@ -100,6 +101,7 @@ export const TestRunCaseSchema = {
     '@type': xsd.dateTime,
     '@optional': true,
   },
+  ...AUTHORSHIP_PROPERTIES,
 } as const satisfies Schema;
 
 export interface PersistedTestRunCase {
@@ -118,4 +120,6 @@ export interface PersistedTestRunCase {
   dataGraphVersions?: string[] | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }

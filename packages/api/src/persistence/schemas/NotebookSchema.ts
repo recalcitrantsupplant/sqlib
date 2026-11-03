@@ -9,6 +9,7 @@
 
 import type { Schema } from '../schema.js';
 import { xsd, sqlib, sdo } from '../namespaces.js';
+import { AUTHORSHIP_PROPERTIES } from '../authorship.js';
 
 export const NotebookSchema = {
   '@type': sqlib.Notebook,
@@ -49,6 +50,7 @@ export const NotebookSchema = {
     '@type': xsd.dateTime,
     '@optional': true,
   },
+  ...AUTHORSHIP_PROPERTIES,
 } as const satisfies Schema;
 
 export interface PersistedNotebook {
@@ -61,4 +63,6 @@ export interface PersistedNotebook {
   tags?: string[] | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }

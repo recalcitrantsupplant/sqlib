@@ -8,6 +8,7 @@
 
 import type { Schema } from '../schema.js';
 import { xsd, sqlib, sdo } from '../namespaces.js';
+import { AUTHORSHIP_PROPERTIES } from '../authorship.js';
 
 export const BooleanIOSchema = {
   '@type': sqlib.BooleanIO,
@@ -37,6 +38,7 @@ export const BooleanIOSchema = {
     '@type': xsd.dateTime,
     '@optional': true,
   },
+  ...AUTHORSHIP_PROPERTIES,
 } as const satisfies Schema;
 
 export interface PersistedBooleanIO {
@@ -48,4 +50,6 @@ export interface PersistedBooleanIO {
   outputType?: 'outputTuple' | 'RDFGraph' | 'Boolean' | null; // Type of output data
   dateCreated?: string | null; // ISO string format for RDF/JSON-LD compatibility
   dateModified?: string | null; // ISO string format for RDF/JSON-LD compatibility
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }

@@ -6,6 +6,7 @@
 
 import type { Schema } from '../schema.js';
 import { xsd, sqlib, sdo, sqlibBackendType, sqlibQueryMethod } from '../namespaces.js';
+import { AUTHORSHIP_PROPERTIES } from '../authorship.js';
 
 export const BackendTypeIri = {
   http: sqlibBackendType.http,
@@ -140,6 +141,7 @@ export const BackendSchema = {
     '@type': xsd.dateTime,
     '@optional': true,
   },
+  ...AUTHORSHIP_PROPERTIES,
   oxigraphConfig: {
     '@id': sqlib.oxigraphConfig,
     '@optional': true,
@@ -297,6 +299,8 @@ export interface PersistedBackend {
   oxigraphConfig?: OxigraphConfig | string | null;
   dateCreated?: string | null; // ISO string format for RDF/JSON-LD compatibility
   dateModified?: string | null; // ISO string format for RDF/JSON-LD compatibility
+  createdBy?: string | null;
+  modifiedBy?: string | null;
   /** Holds authorization data; administrators only (see `BackendSchema.authBackend`). */
   authBackend?: boolean | null;
   /** The pinned graph policy query version (`auth/graphPolicy.ts`). */

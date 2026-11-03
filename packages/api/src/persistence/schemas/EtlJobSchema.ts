@@ -7,6 +7,7 @@
 
 import type { Schema } from '../schema.js';
 import { xsd, sqlib, sdo } from '../namespaces.js';
+import { AUTHORSHIP_PROPERTIES } from '../authorship.js';
 
 export const EtlJobSchema = {
   '@type': sqlib.EtlJob,
@@ -49,6 +50,7 @@ export const EtlJobSchema = {
     '@type': xsd.dateTime,
     '@optional': true,
   },
+  ...AUTHORSHIP_PROPERTIES,
   argumentSets: {
     '@id': sqlib.argumentSets,
     '@array': true,
@@ -67,5 +69,7 @@ export interface PersistedEtlJob {
   isPartOf: string[]; // IRIs - can include libraries
   dateCreated?: string | null; // ISO string format for RDF/JSON-LD compatibility
   dateModified?: string | null; // ISO string format for RDF/JSON-LD compatibility
+  createdBy?: string | null;
+  modifiedBy?: string | null;
   argumentSets?: string[] | null;
 }

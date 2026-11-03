@@ -9,6 +9,7 @@
 import type { Schema } from '../schema.js';
 import type { ToolObject as PublishedToolObject } from '@sparql-query-lib/tools';
 import { rdf, xsd, sqlib, sdo } from '../namespaces.js';
+import { AUTHORSHIP_PROPERTIES } from '../authorship.js';
 
 export const QueryGroupVersionSchema = {
   '@type': sqlib.QueryGroupVersion,
@@ -61,6 +62,7 @@ export const QueryGroupVersionSchema = {
     '@type': xsd.dateTime,
     '@optional': true,
   },
+  ...AUTHORSHIP_PROPERTIES,
   isPartOf: {
     '@id': sdo.isPartOf,
     '@type': sqlib.IRI,
@@ -94,6 +96,8 @@ export interface PersistedQueryGroupVersion {
   comment?: string | null; // Optional free-form notes (sdo:comment)
   dateCreated?: string | null; // ISO string format for RDF/JSON-LD compatibility
   dateModified?: string | null; // ISO string for optimistic concurrency control
+  createdBy?: string | null;
+  modifiedBy?: string | null;
   isPartOf: string; // IRI back to stable QueryGroup (required)
   // Multiplicity: A QueryGroupVersion belongs to exactly one QueryGroup
   tool?: PublishedToolObject | false | null;

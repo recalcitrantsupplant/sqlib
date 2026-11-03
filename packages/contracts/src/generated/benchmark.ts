@@ -49,6 +49,8 @@ const benchmarkExperimentShape = {
   currentVersionNumber: nullableInteger,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
+  createdBy: optionalIriString,
+  modifiedBy: optionalIriString,
 };
 // Subject spec shape for BenchmarkExperimentVersion
 const benchmarkSubjectSpecShape = {
@@ -77,6 +79,8 @@ const benchmarkExperimentVersionShape = {
   abortOnError: z.boolean().optional().nullable(),
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
+  createdBy: optionalIriString,
+  modifiedBy: optionalIriString,
 };
 // Reusable field definitions for BenchmarkRun
 const benchmarkRunShape = {
@@ -93,6 +97,8 @@ const benchmarkRunShape = {
   endedAt: isoDateTime,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
+  createdBy: optionalIriString,
+  modifiedBy: optionalIriString,
 };
 // Reusable field definitions for BenchmarkObservation
 const benchmarkObservationShape = {
@@ -156,7 +162,7 @@ export const benchmarkExperimentCreateSchema = z.object({
   id: iriString.optional(),
 }).strict();
 // BenchmarkExperiment update schema
-export const benchmarkExperimentUpdateSchema = z.object(benchmarkExperimentShape).partial().omit({ id: true, isPartOf: true, currentVersionNumber: true, dateCreated: true, dateModified: true }).strict()
+export const benchmarkExperimentUpdateSchema = z.object(benchmarkExperimentShape).partial().omit({ id: true, isPartOf: true, currentVersionNumber: true, dateCreated: true, dateModified: true, createdBy: true, modifiedBy: true }).strict()
   .refine((data) => Object.keys(data).length > 0, {
     message: 'Update must include at least one field',
     path: [],

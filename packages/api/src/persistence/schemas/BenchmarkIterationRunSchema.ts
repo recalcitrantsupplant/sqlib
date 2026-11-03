@@ -10,6 +10,7 @@
 
 import type { Schema } from '../schema.js';
 import { xsd, qb, prov, sqlib, sdo } from '../namespaces.js';
+import { AUTHORSHIP_PROPERTIES } from '../authorship.js';
 
 export const BenchmarkIterationRunSchema = {
   '@type': sqlib.BenchmarkIterationRun,
@@ -53,6 +54,7 @@ export const BenchmarkIterationRunSchema = {
     '@type': xsd.dateTime,
     '@optional': true,
   },
+  ...AUTHORSHIP_PROPERTIES,
 } as const satisfies Schema;
 
 export interface PersistedBenchmarkIterationRun {
@@ -67,4 +69,6 @@ export interface PersistedBenchmarkIterationRun {
   endedAt?: string | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }

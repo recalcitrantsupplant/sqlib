@@ -25,6 +25,8 @@ const queryGroupShape = {
   browserDefaultDataGraphs: optionalIriArray,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
+  createdBy: optionalIriString,
+  modifiedBy: optionalIriString,
   isPartOf: iriString,
   tags: optionalIriArray,
   argumentSets: optionalIriArray,
@@ -35,9 +37,9 @@ export const queryGroupSchema = z.object(queryGroupShape).strict();
 export const queryGroupCreateSchema = z.object({
   ...queryGroupShape,
   id: iriString.or(z.string().regex(/^urn:temp:/, 'Temporary URN must start with urn:temp:')).optional().nullable(),
-}).omit({ currentVersionNumber: true, browserDefaultArgumentSet: true, browserDefaultDataGraphs: true, dateCreated: true, dateModified: true }).strict();
+}).omit({ currentVersionNumber: true, browserDefaultArgumentSet: true, browserDefaultDataGraphs: true, dateCreated: true, dateModified: true, createdBy: true, modifiedBy: true }).strict();
 // Update schema - all fields optional except id, excludes read-only fields
-export const queryGroupUpdateSchema = z.object(queryGroupShape).partial().omit({ id: true, currentVersionNumber: true, browserDefaultArgumentSet: true, browserDefaultDataGraphs: true, dateCreated: true, dateModified: true }).strict()
+export const queryGroupUpdateSchema = z.object(queryGroupShape).partial().omit({ id: true, currentVersionNumber: true, browserDefaultArgumentSet: true, browserDefaultDataGraphs: true, dateCreated: true, dateModified: true, createdBy: true, modifiedBy: true }).strict()
   .refine((data) => Object.keys(data).length > 0, {
     message: 'Update must include at least one field',
     path: [],

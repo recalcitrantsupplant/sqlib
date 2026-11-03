@@ -62,6 +62,18 @@ export const backendSchema = {
       "readOnly": true,
       "nullable": true
     },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
     "oxigraphConfig": {
       "type": "string",
       "nullable": true
@@ -120,6 +132,18 @@ export const librarySchema = {
       "format": "date-time",
       "readOnly": true,
       "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
     },
     "slug": {
       "type": "string",
@@ -202,6 +226,18 @@ export const querySchema = {
       "readOnly": true,
       "nullable": true
     },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
     "argumentSets": {
       "type": "array",
       "items": {
@@ -270,6 +306,18 @@ export const querygroupSchema = {
       "format": "date-time",
       "readOnly": true,
       "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
     },
     "isPartOf": {
       "type": "string",
@@ -382,6 +430,18 @@ export const queryversionSchema = {
       "format": "date-time",
       "readOnly": true,
       "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
     },
     "tool": {
       "title": "PublishedTool",
@@ -584,6 +644,18 @@ export const argumentsetSchema = {
       "format": "date-time",
       "readOnly": true,
       "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
     }
   },
   "required": [
@@ -635,6 +707,18 @@ export const argumentsetversionSchema = {
       "format": "date-time",
       "readOnly": true,
       "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
     }
   },
   "required": [
@@ -738,6 +822,18 @@ export const benchmarkexperimentSchema = {
       "format": "date-time",
       "readOnly": true,
       "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
     }
   },
   "required": [
@@ -860,6 +956,18 @@ export const benchmarkexperimentversionSchema = {
       "format": "date-time",
       "readOnly": true,
       "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
     }
   },
   "required": [
@@ -983,6 +1091,18 @@ export const benchmarkiterationrunSchema = {
       "format": "date-time",
       "readOnly": true,
       "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
     }
   },
   "required": [
@@ -1112,6 +1232,18 @@ export const benchmarknoderunSchema = {
       "format": "date-time",
       "readOnly": true,
       "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
     }
   },
   "required": [
@@ -1273,6 +1405,18 @@ export const benchmarkrunSchema = {
       "format": "date-time",
       "readOnly": true,
       "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
     }
   },
   "required": [
@@ -1320,6 +1464,18 @@ export const booleanioSchema = {
       "format": "date-time",
       "readOnly": true,
       "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
     }
   },
   "required": [
@@ -1357,6 +1513,18 @@ export const browserdefaultdatagraphSchema = {
       "format": "date-time",
       "readOnly": true,
       "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
     }
   },
   "required": [
@@ -1420,6 +1588,18 @@ export const datablockSchema = {
       "format": "date-time",
       "readOnly": true,
       "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
     }
   },
   "required": [
@@ -1487,6 +1667,18 @@ export const datablockversionSchema = {
       "format": "date-time",
       "readOnly": true,
       "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
     }
   },
   "required": [
@@ -1550,6 +1742,18 @@ export const datagraphSchema = {
       "format": "date-time",
       "readOnly": true,
       "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
     }
   },
   "required": [
@@ -1642,6 +1846,18 @@ export const datagraphversionSchema = {
       "format": "date-time",
       "readOnly": true,
       "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
     }
   },
   "required": [
@@ -1760,6 +1976,18 @@ export const dynamicquerynodeSchema = {
       "readOnly": true,
       "nullable": true
     },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
     "nodeType": {
       "type": "string",
       "nullable": true
@@ -1801,6 +2029,18 @@ export const endnodeSchema = {
       "format": "date-time",
       "readOnly": true,
       "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
     }
   },
   "required": [
@@ -1849,6 +2089,18 @@ export const etlcolumnmappingSchema = {
       "format": "date-time",
       "readOnly": true,
       "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
     }
   },
   "required": [
@@ -1896,6 +2148,18 @@ export const etlcolumnmappingversionSchema = {
       "format": "date-time",
       "readOnly": true,
       "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
     }
   },
   "required": [
@@ -2038,6 +2302,18 @@ export const etljobSchema = {
       "readOnly": true,
       "nullable": true
     },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
     "argumentSets": {
       "type": "array",
       "items": {
@@ -2109,6 +2385,18 @@ export const etljobversionSchema = {
       "format": "date-time",
       "readOnly": true,
       "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
     }
   },
   "required": [
@@ -2201,6 +2489,18 @@ export const notebookSchema = {
       "format": "date-time",
       "readOnly": true,
       "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
     }
   },
   "required": [
@@ -2252,6 +2552,18 @@ export const notebookversionSchema = {
       "format": "date-time",
       "readOnly": true,
       "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
     }
   },
   "required": [
@@ -2468,6 +2780,18 @@ export const patchSchema = {
       "readOnly": true,
       "nullable": true
     },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
     "dateApplied": {
       "type": "string",
       "format": "date-time",
@@ -2607,6 +2931,18 @@ export const querygroupversionSchema = {
       "readOnly": true,
       "nullable": true
     },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
     "isPartOf": {
       "type": "string",
       "format": "iri"
@@ -2731,6 +3067,18 @@ export const queryidinputSchema = {
       "format": "date-time",
       "readOnly": true,
       "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
     }
   },
   "required": [
@@ -2977,6 +3325,18 @@ export const ruleSchema = {
       "format": "date-time",
       "readOnly": true,
       "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
     }
   },
   "required": [
@@ -3087,6 +3447,18 @@ export const rulesetSchema = {
       "format": "date-time",
       "readOnly": true,
       "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
     }
   },
   "required": [
@@ -3162,6 +3534,18 @@ export const rulesetversionSchema = {
       "format": "date-time",
       "readOnly": true,
       "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
     },
     "tool": {
       "title": "PublishedTool",
@@ -3310,6 +3694,18 @@ export const ruleversionSchema = {
       "format": "date-time",
       "readOnly": true,
       "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
     }
   },
   "required": [
@@ -3347,6 +3743,18 @@ export const startnodeSchema = {
       "format": "date-time",
       "readOnly": true,
       "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
     }
   },
   "required": [
@@ -3390,6 +3798,18 @@ export const tagSchema = {
       "format": "date-time",
       "readOnly": true,
       "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
     }
   },
   "required": [
@@ -3429,6 +3849,18 @@ export const testcasedatagraphSchema = {
       "format": "date-time",
       "readOnly": true,
       "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
     }
   },
   "required": [
@@ -3507,6 +3939,18 @@ export const testcaseSchema = {
       "format": "date-time",
       "readOnly": true,
       "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
     }
   },
   "required": [
@@ -3586,6 +4030,18 @@ export const testruncaseSchema = {
       "format": "date-time",
       "readOnly": true,
       "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
     }
   },
   "required": [
@@ -3675,6 +4131,18 @@ export const testrunSchema = {
       "format": "date-time",
       "readOnly": true,
       "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
     }
   },
   "required": [
@@ -3752,6 +4220,18 @@ export const testSchema = {
       "format": "date-time",
       "readOnly": true,
       "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
     }
   },
   "required": [
@@ -3827,6 +4307,18 @@ export const testversionSchema = {
       "format": "date-time",
       "readOnly": true,
       "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
     }
   },
   "required": [
@@ -3885,6 +4377,18 @@ export const triplesquadsioSchema = {
       "format": "date-time",
       "readOnly": true,
       "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
     }
   },
   "required": [
@@ -3973,6 +4477,18 @@ export const tuplesetSchema = {
       "format": "date-time",
       "readOnly": true,
       "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
     }
   },
   "required": [
@@ -4059,6 +4575,18 @@ export const tuplesetversionSchema = {
       "format": "date-time",
       "readOnly": true,
       "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
     }
   },
   "required": [
@@ -4080,6 +4608,8 @@ export interface BackendRestApi {
   queryMethod?: string | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
   oxigraphConfig?: string | null;
   authBackend?: boolean | null;
   graphPolicyQueryVersion?: string | null;
@@ -4093,6 +4623,8 @@ export interface LibraryRestApi {
   defaultBackend?: string | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
   slug?: string | null;
   publishAll?: boolean | null;
 }
@@ -4109,6 +4641,8 @@ export interface QueryRestApi {
   browserDefaultArgumentSet?: string | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
   argumentSets?: string[] | null;
 }
 
@@ -4122,6 +4656,8 @@ export interface QueryGroupRestApi {
   browserDefaultDataGraphs?: string[] | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
   isPartOf: string;
   tags?: string[] | null;
   argumentSets?: string[] | null;
@@ -4143,6 +4679,8 @@ export interface QueryVersionRestApi {
   inferredOutputs?: string[] | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
   tool?: string;
 }
 
@@ -4169,6 +4707,8 @@ export interface ArgumentSetRestApi {
   tupleSignature?: string | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }
 
 export interface ArgumentSetVersionRestApi {
@@ -4179,6 +4719,8 @@ export interface ArgumentSetVersionRestApi {
   scalarBindings?: string[] | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }
 
 export interface ArgumentTupleBindingRestApi {
@@ -4201,6 +4743,8 @@ export interface BenchmarkExperimentRestApi {
   currentVersionNumber?: number | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }
 
 export interface BenchmarkExperimentVersionRestApi {
@@ -4222,6 +4766,8 @@ export interface BenchmarkExperimentVersionRestApi {
   abortOnError?: boolean | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }
 
 export interface BenchmarkIterationObservationRestApi {
@@ -4250,6 +4796,8 @@ export interface BenchmarkIterationRunRestApi {
   endedAt?: string | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }
 
 export interface BenchmarkNodeObservationRestApi {
@@ -4279,6 +4827,8 @@ export interface BenchmarkNodeRunRestApi {
   endedAt?: string | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }
 
 export interface BenchmarkObservationRestApi {
@@ -4315,6 +4865,8 @@ export interface BenchmarkRunRestApi {
   endedAt?: string | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }
 
 export interface BooleanIORestApi {
@@ -4325,6 +4877,8 @@ export interface BooleanIORestApi {
   outputType?: string | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }
 
 export interface BrowserDefaultDataGraphRestApi {
@@ -4334,6 +4888,8 @@ export interface BrowserDefaultDataGraphRestApi {
   dataGraph: string;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }
 
 export interface DataBlockRestApi {
@@ -4346,6 +4902,8 @@ export interface DataBlockRestApi {
   tags?: string[] | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }
 
 export interface DataBlockVersionRestApi {
@@ -4362,6 +4920,8 @@ export interface DataBlockVersionRestApi {
   grammarValidations?: string | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }
 
 export interface DataGraphRestApi {
@@ -4374,6 +4934,8 @@ export interface DataGraphRestApi {
   tags?: string[] | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }
 
 export interface DataGraphVersionRestApi {
@@ -4395,6 +4957,8 @@ export interface DataGraphVersionRestApi {
   comment?: string | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }
 
 export interface DuckDbEtlNodeRestApi {
@@ -4414,6 +4978,8 @@ export interface DynamicQueryNodeRestApi {
   outputs?: string[] | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
   nodeType?: string | null;
 }
 
@@ -4423,6 +4989,8 @@ export interface EndNodeRestApi {
   mediaType?: string | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }
 
 export interface EtlColumnMappingRestApi {
@@ -4434,6 +5002,8 @@ export interface EtlColumnMappingRestApi {
   etlJobVersion: string;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }
 
 export interface EtlColumnMappingVersionRestApi {
@@ -4445,6 +5015,8 @@ export interface EtlColumnMappingVersionRestApi {
   comment?: string | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }
 
 export interface EtlExecutionRestApi {
@@ -4476,6 +5048,8 @@ export interface EtlJobRestApi {
   isPartOf: string[];
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
   argumentSets?: string[] | null;
 }
 
@@ -4492,6 +5066,8 @@ export interface EtlJobVersionRestApi {
   comment?: string | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }
 
 export interface LimitParameterRestApi {
@@ -4511,6 +5087,8 @@ export interface NotebookRestApi {
   tags?: string[] | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }
 
 export interface NotebookVersionRestApi {
@@ -4523,6 +5101,8 @@ export interface NotebookVersionRestApi {
   comment?: string | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }
 
 export interface OffsetParameterRestApi {
@@ -4568,6 +5148,8 @@ export interface PatchRestApi {
   origin?: string | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
   dateApplied?: string | null;
 }
 
@@ -4597,6 +5179,8 @@ export interface QueryGroupVersionRestApi {
   comment?: string | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
   isPartOf: string;
   tool?: string;
 }
@@ -4608,6 +5192,8 @@ export interface QueryIdInputRestApi {
   isPartOf: string;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }
 
 export interface QueryInputTupleRestApi {
@@ -4658,6 +5244,8 @@ export interface RuleRestApi {
   tags?: string[] | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }
 
 export interface RuleSetNodeRestApi {
@@ -4679,6 +5267,8 @@ export interface RuleSetRestApi {
   browserDefaultDataGraphs?: string[] | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }
 
 export interface RuleSetVersionRestApi {
@@ -4695,6 +5285,8 @@ export interface RuleSetVersionRestApi {
   tuplesEnabled?: boolean | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
   tool?: string;
 }
 
@@ -4712,6 +5304,8 @@ export interface RuleVersionRestApi {
   grammarValidations?: string | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }
 
 export interface StartNodeRestApi {
@@ -4719,6 +5313,8 @@ export interface StartNodeRestApi {
   outputs?: string[] | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }
 
 export interface TagRestApi {
@@ -4729,6 +5325,8 @@ export interface TagRestApi {
   isPartOf: string;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }
 
 export interface TestCaseDataGraphRestApi {
@@ -4738,6 +5336,8 @@ export interface TestCaseDataGraphRestApi {
   dataGraphVersion: string;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }
 
 export interface TestCaseRestApi {
@@ -4755,6 +5355,8 @@ export interface TestCaseRestApi {
   ordered?: boolean | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }
 
 export interface TestRunCaseRestApi {
@@ -4772,6 +5374,8 @@ export interface TestRunCaseRestApi {
   dataGraphVersions?: string[] | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }
 
 export interface TestRunRestApi {
@@ -4792,6 +5396,8 @@ export interface TestRunRestApi {
   ranAt: string;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }
 
 export interface TestRestApi {
@@ -4807,6 +5413,8 @@ export interface TestRestApi {
   tags?: string[] | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }
 
 export interface TestVersionRestApi {
@@ -4823,6 +5431,8 @@ export interface TestVersionRestApi {
   comment?: string | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }
 
 export interface TriplesQuadsIORestApi {
@@ -4836,6 +5446,8 @@ export interface TriplesQuadsIORestApi {
   position?: number | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }
 
 export interface TupleMemberRestApi {
@@ -4855,6 +5467,8 @@ export interface TupleSetRestApi {
   tags?: string[] | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }
 
 export interface TupleSetVersionRestApi {
@@ -4874,4 +5488,6 @@ export interface TupleSetVersionRestApi {
   comment?: string | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }

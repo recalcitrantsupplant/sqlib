@@ -32,6 +32,8 @@ export const ruleResponseSchema = {
     },
     dateCreated: { type: 'string', format: 'date-time', nullable: true },
     dateModified: { type: 'string', format: 'date-time', nullable: true },
+    createdBy: { type: 'string', nullable: true },
+    modifiedBy: { type: 'string', nullable: true },
     tags: {
       type: 'array',
       items: { type: 'string' },
@@ -57,6 +59,8 @@ const ruleVersionResponseSchema = {
     validationError: { type: 'string', nullable: true },
     dateCreated: { type: 'string', format: 'date-time', nullable: true },
     dateModified: { type: 'string', format: 'date-time', nullable: true },
+    createdBy: { type: 'string', nullable: true },
+    modifiedBy: { type: 'string', nullable: true },
   },
   required: ['id', 'isPartOf', 'version', 'ruleString'],
   additionalProperties: false,

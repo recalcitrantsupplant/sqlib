@@ -8,6 +8,7 @@
 import type { Schema } from '../schema.js';
 import { xsd, sqlib, sdo } from '../namespaces.js';
 import { OutputMediaType, OUTPUT_MEDIA_TYPE_VALUES } from '../../types/media-types.js';
+import { AUTHORSHIP_PROPERTIES } from '../authorship.js';
 
 export const EndNodeSchema = {
   '@type': sqlib.EndNode,
@@ -31,6 +32,7 @@ export const EndNodeSchema = {
     '@type': xsd.dateTime,
     '@optional': true,
   },
+  ...AUTHORSHIP_PROPERTIES,
 } as const satisfies Schema;
 
 export interface PersistedEndNode {
@@ -40,6 +42,8 @@ export interface PersistedEndNode {
   mediaType?: OutputMediaType | null; // One of OUTPUT_MEDIA_TYPE_VALUES
   dateCreated?: string | null; // ISO string format for RDF/JSON-LD compatibility
   dateModified?: string | null; // ISO string format for RDF/JSON-LD compatibility
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }
 
 // Schema validation helper for mediaType

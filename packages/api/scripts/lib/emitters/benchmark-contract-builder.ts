@@ -37,6 +37,8 @@ export function buildBenchmarkContractDefinition(
   currentVersionNumber: nullableInteger,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
+  createdBy: optionalIriString,
+  modifiedBy: optionalIriString,
 }`,
     /*
      * This shape is a string literal rather than a projection of the entity
@@ -81,6 +83,8 @@ export function buildBenchmarkContractDefinition(
   abortOnError: z.boolean().optional().nullable(),
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
+  createdBy: optionalIriString,
+  modifiedBy: optionalIriString,
 }`,
     comment: 'Reusable field definitions for BenchmarkExperimentVersion',
   });
@@ -101,6 +105,8 @@ export function buildBenchmarkContractDefinition(
   endedAt: isoDateTime,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
+  createdBy: optionalIriString,
+  modifiedBy: optionalIriString,
 }`,
     /*
      * `structure`, `name` and `description` are on the wire — the run route's
@@ -218,7 +224,7 @@ export function buildBenchmarkContractDefinition(
       fields: [
         {
           name: '',
-          zodType: `z.object(benchmarkExperimentShape).partial().omit({ id: true, isPartOf: true, currentVersionNumber: true, dateCreated: true, dateModified: true })`,
+          zodType: `z.object(benchmarkExperimentShape).partial().omit({ id: true, isPartOf: true, currentVersionNumber: true, dateCreated: true, dateModified: true, createdBy: true, modifiedBy: true })`,
           required: true,
         },
       ],

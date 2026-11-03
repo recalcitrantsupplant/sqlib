@@ -7,6 +7,7 @@
 
 import type { Schema } from '../schema.js';
 import { xsd, sqlib, sdo } from '../namespaces.js';
+import { AUTHORSHIP_PROPERTIES } from '../authorship.js';
 
 export const QuerySchema = {
   '@type': sqlib.Query,
@@ -68,6 +69,7 @@ export const QuerySchema = {
     '@type': xsd.dateTime,
     '@optional': true,
   },
+  ...AUTHORSHIP_PROPERTIES,
   argumentSets: {
     '@id': sqlib.argumentSets,
     '@array': true,
@@ -88,5 +90,7 @@ export interface PersistedQuery {
   browserDefaultArgumentSet?: string | null;
   dateCreated?: string | null; // ISO string format for RDF/JSON-LD compatibility
   dateModified?: string | null; // ISO string format for RDF/JSON-LD compatibility
+  createdBy?: string | null;
+  modifiedBy?: string | null;
   argumentSets?: string[] | null;
 }

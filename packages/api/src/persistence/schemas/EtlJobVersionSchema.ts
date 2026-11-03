@@ -7,6 +7,7 @@
 
 import type { Schema } from '../schema.js';
 import { xsd, sqlib, sdo } from '../namespaces.js';
+import { AUTHORSHIP_PROPERTIES } from '../authorship.js';
 
 export const EtlJobVersionSchema = {
   '@type': sqlib.EtlJobVersion,
@@ -60,6 +61,7 @@ export const EtlJobVersionSchema = {
     '@type': xsd.dateTime,
     '@optional': true,
   },
+  ...AUTHORSHIP_PROPERTIES,
 } as const satisfies Schema;
 
 export interface PersistedEtlJobVersion {
@@ -76,4 +78,6 @@ export interface PersistedEtlJobVersion {
   comment?: string | null;
   dateCreated?: string | null; // ISO string format
   dateModified?: string | null; // ISO string for optimistic concurrency control
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }

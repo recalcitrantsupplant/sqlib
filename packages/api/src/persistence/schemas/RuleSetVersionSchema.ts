@@ -11,6 +11,7 @@
 import type { ToolObject as PublishedToolObject } from '@sparql-query-lib/tools';
 import type { Schema } from '../schema.js';
 import { xsd, sqlib, sdo, rdf } from '../namespaces.js';
+import { AUTHORSHIP_PROPERTIES } from '../authorship.js';
 
 export const RuleSetVersionSchema = {
   '@type': sqlib.RuleSetVersion,
@@ -93,6 +94,7 @@ export const RuleSetVersionSchema = {
     '@type': xsd.dateTime,
     '@optional': true,
   },
+  ...AUTHORSHIP_PROPERTIES,
   /**
    * The tool this version publishes as (`docs/guides/publishing-tools.md`),
    * or `false` to leave it out of a `publishAll` library. A save that sends
@@ -121,5 +123,7 @@ export interface PersistedRuleSetVersion {
   tuplesEnabled?: boolean | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
   tool?: PublishedToolObject | false | null;
 }

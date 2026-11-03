@@ -29,6 +29,8 @@ const ruleSetShape = {
   browserDefaultDataGraphs: optionalIriArray,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
+  createdBy: optionalIriString,
+  modifiedBy: optionalIriString,
 };
 // Full RuleSet schema for validation
 export const ruleSetSchema = z.object(ruleSetShape).strict();
@@ -40,7 +42,7 @@ export const ruleSetCreateSchema = z.object({
     (val) => (typeof val === 'string' ? [val] : val),
     iriArray.min(1, 'isPartOf must contain at least one library')
   ),
-}).omit({ currentVersionNumber: true, browserDefaultDataGraphs: true, dateCreated: true, dateModified: true }).strict();
+}).omit({ currentVersionNumber: true, browserDefaultDataGraphs: true, dateCreated: true, dateModified: true, createdBy: true, modifiedBy: true }).strict();
 // Update schema - all fields optional except id, excludes read-only fields, normalizes isPartOf
 export const ruleSetUpdateSchema = z.preprocess(
   (data: unknown) => {
@@ -52,7 +54,7 @@ export const ruleSetUpdateSchema = z.preprocess(
     }
     return data;
   },
-  z.object(ruleSetShape).partial().omit({ id: true, currentVersionNumber: true, browserDefaultDataGraphs: true, dateCreated: true, dateModified: true }).strict()
+  z.object(ruleSetShape).partial().omit({ id: true, currentVersionNumber: true, browserDefaultDataGraphs: true, dateCreated: true, dateModified: true, createdBy: true, modifiedBy: true }).strict()
 )
   .refine((data) => Object.keys(data).length > 0, {
     message: 'Update must include at least one field',

@@ -28,6 +28,7 @@
 
 import type { Schema } from '../schema.js';
 import { xsd, sqlib, sdo } from '../namespaces.js';
+import { AUTHORSHIP_PROPERTIES } from '../authorship.js';
 
 export const PatchSchema = {
   '@type': sqlib.Patch,
@@ -167,6 +168,7 @@ export const PatchSchema = {
     '@type': xsd.dateTime,
     '@optional': true,
   },
+  ...AUTHORSHIP_PROPERTIES,
   dateApplied: {
     '@id': sqlib.dateApplied,
     '@type': xsd.dateTime,
@@ -214,5 +216,7 @@ export interface PersistedPatch {
   origin?: string | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
   dateApplied?: string | null;
 }

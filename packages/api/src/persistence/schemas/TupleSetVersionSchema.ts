@@ -31,6 +31,7 @@ import { xsd, sqlib, sdo } from '../namespaces.js';
  */
 export { TUPLE_SOURCE_FORMATS, type TupleSourceFormat } from '@sparql-query-lib/contracts';
 import type { TupleSourceFormat } from '@sparql-query-lib/contracts';
+import { AUTHORSHIP_PROPERTIES } from '../authorship.js';
 
 export const TupleSetVersionSchema = {
   '@type': sqlib.TupleSetVersion,
@@ -122,6 +123,7 @@ export const TupleSetVersionSchema = {
     '@type': xsd.dateTime,
     '@optional': true,
   },
+  ...AUTHORSHIP_PROPERTIES,
 } as const satisfies Schema;
 
 export interface PersistedTupleSetVersion {
@@ -142,4 +144,6 @@ export interface PersistedTupleSetVersion {
   comment?: string | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }

@@ -8,6 +8,7 @@
 
 import type { Schema } from '../schema.js';
 import { xsd, sqlib, sdo } from '../namespaces.js';
+import { AUTHORSHIP_PROPERTIES } from '../authorship.js';
 
 export const QueryIdInputSchema = {
   '@type': sqlib.QueryIdInput,
@@ -33,6 +34,7 @@ export const QueryIdInputSchema = {
     '@type': xsd.dateTime,
     '@optional': true,
   },
+  ...AUTHORSHIP_PROPERTIES,
 } as const satisfies Schema;
 
 export interface PersistedQueryIdInput {
@@ -43,4 +45,6 @@ export interface PersistedQueryIdInput {
   isPartOf: string;            // IRI of the DynamicQueryNode
   dateCreated?: string | null; // ISO string format for RDF/JSON-LD compatibility
   dateModified?: string | null; // ISO string format for RDF/JSON-LD compatibility
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }

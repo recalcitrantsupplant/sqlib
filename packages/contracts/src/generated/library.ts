@@ -21,6 +21,8 @@ const libraryShape = {
   defaultBackend: optionalIriString,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
+  createdBy: optionalIriString,
+  modifiedBy: optionalIriString,
   slug: z.string().regex(/^[a-z0-9-]+$/, 'Must match [a-z0-9-]+').optional().nullable(),
   publishAll: nullableBoolean,
 };
@@ -30,9 +32,9 @@ export const librarySchema = z.object(libraryShape).strict();
 export const libraryCreateSchema = z.object({
   ...libraryShape,
   id: iriString.or(z.string().regex(/^urn:temp:/, 'Temporary URN must start with urn:temp:')).optional().nullable(),
-}).omit({ dateCreated: true, dateModified: true }).strict();
+}).omit({ dateCreated: true, dateModified: true, createdBy: true, modifiedBy: true }).strict();
 // Update schema - all fields optional except id, excludes read-only fields
-export const libraryUpdateSchema = z.object(libraryShape).partial().omit({ id: true, dateCreated: true, dateModified: true }).strict()
+export const libraryUpdateSchema = z.object(libraryShape).partial().omit({ id: true, dateCreated: true, dateModified: true, createdBy: true, modifiedBy: true }).strict()
   .refine((data) => Object.keys(data).length > 0, {
     message: 'Update must include at least one field',
     path: [],

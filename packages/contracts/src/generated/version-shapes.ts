@@ -96,6 +96,8 @@ export const queryVersionShape = {
   inferredOutputs: optionalIriArray,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
+  createdBy: optionalIriString,
+  modifiedBy: optionalIriString,
   tool: z.union([
     z
       .object({
@@ -130,6 +132,8 @@ export const startNodeShape = {
   outputs: optionalIriArray,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
+  createdBy: optionalIriString,
+  modifiedBy: optionalIriString,
   nodeType: nullableString,
 };
 // EndNode, projected from the entity model
@@ -139,6 +143,8 @@ export const endNodeShape = {
   mediaType: nullableString,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
+  createdBy: optionalIriString,
+  modifiedBy: optionalIriString,
   nodeType: nullableString,
 };
 // DynamicQueryNode, projected from the entity model
@@ -158,6 +164,8 @@ export const dynamicQueryNodeShape = {
   outputs: optionalIriArray,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
+  createdBy: optionalIriString,
+  modifiedBy: optionalIriString,
   nodeType: nullableString,
 };
 // RuleSetNode, projected from the entity model
@@ -236,6 +244,8 @@ export const triplesQuadsIOShape = {
   position: nullableInteger,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
+  createdBy: optionalIriString,
+  modifiedBy: optionalIriString,
 };
 // BooleanIO, projected from the entity model
 export const booleanIOShape = {
@@ -246,6 +256,8 @@ export const booleanIOShape = {
   outputType: nullableString,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
+  createdBy: optionalIriString,
+  modifiedBy: optionalIriString,
 };
 // QueryIdInput, projected from the entity model
 export const queryIdInputShape = {
@@ -255,6 +267,8 @@ export const queryIdInputShape = {
   isPartOf: iriString,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
+  createdBy: optionalIriString,
+  modifiedBy: optionalIriString,
 };
 // QueryGroupVersion, projected from the entity model
 export const queryGroupVersionShape = {
@@ -269,6 +283,8 @@ export const queryGroupVersionShape = {
   comment: nullableString,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
+  createdBy: optionalIriString,
+  modifiedBy: optionalIriString,
   isPartOf: iriString,
   tool: z.union([
     z
@@ -312,6 +328,8 @@ export const ruleVersionShape = {
   grammarValidations: nullableString,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
+  createdBy: optionalIriString,
+  modifiedBy: optionalIriString,
 };
 // DataBlockVersion, projected from the entity model
 export const dataBlockVersionShape = {
@@ -328,6 +346,8 @@ export const dataBlockVersionShape = {
   grammarValidations: nullableString,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
+  createdBy: optionalIriString,
+  modifiedBy: optionalIriString,
 };
 // RuleSetVersion, projected from the entity model
 export const ruleSetVersionShape = {
@@ -344,6 +364,8 @@ export const ruleSetVersionShape = {
   tuplesEnabled: nullableBoolean,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
+  createdBy: optionalIriString,
+  modifiedBy: optionalIriString,
   tool: z.union([
     z
       .object({
@@ -391,6 +413,8 @@ export const dataGraphVersionShape = {
   comment: nullableString,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
+  createdBy: optionalIriString,
+  modifiedBy: optionalIriString,
 };
 // TupleSetVersion, projected from the entity model
 export const tupleSetVersionShape = {
@@ -410,6 +434,8 @@ export const tupleSetVersionShape = {
   comment: nullableString,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
+  createdBy: optionalIriString,
+  modifiedBy: optionalIriString,
 };
 // NotebookVersion, projected from the entity model
 export const notebookVersionShape = {
@@ -422,6 +448,8 @@ export const notebookVersionShape = {
   comment: nullableString,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
+  createdBy: optionalIriString,
+  modifiedBy: optionalIriString,
 };
 // TestCase, projected from the entity model
 export const testCaseShape = {
@@ -439,6 +467,8 @@ export const testCaseShape = {
   ordered: nullableBoolean,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
+  createdBy: optionalIriString,
+  modifiedBy: optionalIriString,
 };
 // TestVersion, projected from the entity model
 export const testVersionShape = {
@@ -455,6 +485,8 @@ export const testVersionShape = {
   comment: nullableString,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
+  createdBy: optionalIriString,
+  modifiedBy: optionalIriString,
 };
 export const limitParameterSchema = z.object(limitParameterShape).strict();
 export const offsetParameterSchema = z.object(offsetParameterShape).strict();
