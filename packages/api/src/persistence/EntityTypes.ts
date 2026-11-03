@@ -15,6 +15,10 @@ export interface BaseEntity {
   '@type'?: string;
   dateCreated?: string;
   dateModified?: string;
+  /** Principal IRI of whoever created the entity (`persistence/authorship.ts`). */
+  createdBy?: string | null;
+  /** Principal IRI of whoever made the write `dateModified` dates. */
+  modifiedBy?: string | null;
 }
 
 /**

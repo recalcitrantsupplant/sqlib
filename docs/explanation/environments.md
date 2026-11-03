@@ -160,9 +160,11 @@ left out and reported. `latest` exports the current versions.
 
 ## Who made a version
 
-Query, query group and rule set versions record `createdBy` (`dct:creator`):
-the signed-in principal that saved them. A deployment with auth disabled records
-nobody. A client cannot set the field.
+Every version records `createdBy` (`dct:creator`): the signed-in principal
+that saved it. A deployment with auth disabled, or in anonymous mode, records
+nobody. A client cannot set the field. Every other entity records it too,
+with `modifiedBy` for the last change. See
+[who created and changed an entity](../reference/entity-model.md#who-created-and-changed-an-entity).
 
 ## What is not covered yet
 

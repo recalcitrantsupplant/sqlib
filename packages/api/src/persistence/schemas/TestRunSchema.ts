@@ -28,6 +28,7 @@
 
 import type { Schema } from '../schema.js';
 import { xsd, sqlib, sdo } from '../namespaces.js';
+import { AUTHORSHIP_PROPERTIES } from '../authorship.js';
 
 export const TestRunSchema = {
   '@type': sqlib.TestRun,
@@ -127,6 +128,7 @@ export const TestRunSchema = {
     '@type': xsd.dateTime,
     '@optional': true,
   },
+  ...AUTHORSHIP_PROPERTIES,
 } as const satisfies Schema;
 
 /** The outcomes a stored run or case row can carry — `earl:outcome`, narrowed. */
@@ -151,4 +153,6 @@ export interface PersistedTestRun {
   ranAt: string;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }

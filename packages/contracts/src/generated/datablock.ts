@@ -27,6 +27,8 @@ const dataBlockShape = {
   tags: optionalIriArray,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
+  createdBy: optionalIriString,
+  modifiedBy: optionalIriString,
 };
 // Full DataBlock schema for validation
 export const dataBlockSchema = z.object(dataBlockShape).strict();
@@ -38,7 +40,7 @@ export const dataBlockCreateSchema = z.object({
     (val) => (typeof val === 'string' ? [val] : val),
     iriArray.min(1, 'isPartOf must contain at least one library')
   ),
-}).omit({ currentVersionNumber: true, dateCreated: true, dateModified: true }).strict();
+}).omit({ currentVersionNumber: true, dateCreated: true, dateModified: true, createdBy: true, modifiedBy: true }).strict();
 // Update schema - all fields optional except id, excludes read-only fields, normalizes isPartOf
 export const dataBlockUpdateSchema = z.preprocess(
   (data: unknown) => {
@@ -50,7 +52,7 @@ export const dataBlockUpdateSchema = z.preprocess(
     }
     return data;
   },
-  z.object(dataBlockShape).partial().omit({ id: true, currentVersionNumber: true, dateCreated: true, dateModified: true }).strict()
+  z.object(dataBlockShape).partial().omit({ id: true, currentVersionNumber: true, dateCreated: true, dateModified: true, createdBy: true, modifiedBy: true }).strict()
 )
   .refine((data) => Object.keys(data).length > 0, {
     message: 'Update must include at least one field',

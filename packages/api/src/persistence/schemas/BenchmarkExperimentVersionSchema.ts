@@ -6,6 +6,7 @@
 
 import type { Schema } from '../schema.js';
 import { xsd, sqlib, sdo } from '../namespaces.js';
+import { AUTHORSHIP_PROPERTIES } from '../authorship.js';
 
 export const BenchmarkExperimentVersionSchema = {
   '@type': sqlib.BenchmarkExperimentVersion,
@@ -91,6 +92,7 @@ export const BenchmarkExperimentVersionSchema = {
     '@type': xsd.dateTime,
     '@optional': true,
   },
+  ...AUTHORSHIP_PROPERTIES,
 } as const satisfies Schema;
 
 export interface PersistedBenchmarkExperimentVersion {
@@ -113,4 +115,6 @@ export interface PersistedBenchmarkExperimentVersion {
   abortOnError?: boolean | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }

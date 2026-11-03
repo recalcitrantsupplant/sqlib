@@ -262,18 +262,6 @@ export function requireLibraryMode(
 }
 
 /**
- * The principal to record as the author of what this request saves, or null
- * when nobody is signed in. A full-access context in `disabled` mode names a
- * synthetic subject, which is not a person and is not recorded.
- */
-export function creatorOf(request: FastifyRequest | null | undefined): string | null {
-  if (!request) return null;
-  const context = authOf(request);
-  if (context.fullAccess) return null;
-  return context.subject || null;
-}
-
-/**
  * Requires that the caller may run one stored version.
  *
  * `execute` on the owning library runs any version, as it always has. Without

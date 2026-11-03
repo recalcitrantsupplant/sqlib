@@ -8,8 +8,9 @@
 
 import type { Schema } from '../schema.js';
 import type { ToolObject as PublishedToolObject } from '@sparql-query-lib/tools';
-import { rdf, xsd, sqlib, sdo, dct } from '../namespaces.js';
+import { rdf, xsd, sqlib, sdo } from '../namespaces.js';
 import { QueryTypeIri as QueryTypeIriConst, type QueryTypeKey, type QueryTypeValue } from '../../constants/queryTypes.js';
+import { AUTHORSHIP_PROPERTIES } from '../authorship.js';
 
 export const QueryTypeIri = QueryTypeIriConst;
 export type { QueryTypeKey, QueryTypeValue };
@@ -99,18 +100,6 @@ export const QueryVersionSchema = {
     '@type': sqlib.IRI,
     '@optional': true,
   },
-  /**
-   * Who saved this version: the caller's principal IRI. Absent when nobody
-   * was signed in (`SQLIB_AUTH_MODE=disabled`) and on versions saved before
-   * it existed. Set by the server, never by the request body. A promotion's
-   * reviewer is checked against it: nobody approves their own version.
-   */
-  createdBy: {
-    '@id': dct.creator,
-    '@type': sqlib.IRI,
-    '@optional': true,
-    '@readOnly': true,
-  },
   dateCreated: {
     '@id': sdo.dateCreated,
     '@type': xsd.dateTime,
@@ -121,6 +110,7 @@ export const QueryVersionSchema = {
     '@type': xsd.dateTime,
     '@optional': true,
   },
+  ...AUTHORSHIP_PROPERTIES,
   /**
    * The tool this version publishes as (`docs/guides/publishing-tools.md`),
    * or `false` to leave it out of a `publishAll` library. On the version, not
@@ -151,8 +141,9 @@ export interface PersistedQueryVersion {
   offsetParameters?: string[];
   inferredInputs?: string[]; // References to inferred QueryInputTuple entities (from VALUES clauses)
   inferredOutputs?: string[]; // References to inferred/canonical outputs based on query type
-  createdBy?: string | null;
   dateCreated?: string | null; // ISO string format for RDF/JSON-LD compatibility
   dateModified?: string | null; // ISO string for optimistic concurrency control
+  createdBy?: string | null;
+  modifiedBy?: string | null;
   tool?: PublishedToolObject | false | null;
 }

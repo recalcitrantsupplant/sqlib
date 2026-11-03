@@ -10,7 +10,7 @@ import { toRestApi } from '../persistence/utils/id-adapter.js';
 import { deleteWithOwned, QUERY_VERSION_OWNED } from '../lib/ownedEntities.js';
 import { reposRoute, setEntityConcurrencyHeaders, RouteError } from './route-helpers.js';
 import { registerVersionedEntityRoutes, type StoredEntity } from './versionedEntity.js';
-import { creatorOf, requireEntityMode } from '../auth/enforce.js';
+import { requireEntityMode } from '../auth/enforce.js';
 import { QueryTypeIri } from '../constants/queryTypes.js';
 import { toQueryTypeIri } from '../lib/queryTypes.js';
 import { ArgumentSetService } from '../lib/ArgumentSetService.js';
@@ -88,12 +88,9 @@ export default async function (fastify: FastifyInstance) {
       ...(body.defaultBackend !== undefined ? { defaultBackend: body.defaultBackend } : {}),
       ...(typeof body.groupOnly === 'boolean' ? { groupOnly: body.groupOnly } : {}),
     }),
-    createVersion: async ({ request, parent, body: rawBody }) => {
+    createVersion: async ({ parent, body: rawBody }) => {
       const body = rawBody as { queryVersion?: Record<string, unknown> } & Record<string, unknown>;
       const flat = flattenVersionBody(body);
-      delete flat.createdBy;
-      const creator = creatorOf(request);
-      if (creator) flat.createdBy = creator;
       // The previous version is the one the parent points at: what the
       // author was editing. Its `tool` object carries forward unless the body
       // sends one, and is checked against this version's inputs either way.

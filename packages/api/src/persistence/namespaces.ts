@@ -178,10 +178,9 @@ export const dct = createNamespace({
     // no `sqlib:` terms to say it with.
     "description",
     "hasVersion",
-    // Who saved a version: the caller's principal IRI. Standard Dublin Core
-    // rather than a `sqlib:` term, because "who made this" is exactly what
-    // `dct:creator` says, and a version exported as RDF should say it in words
-    // a reader already knows.
+    // Who created an entity: the signed-in principal's IRI. Standard Dublin
+    // Core, because "who made this" is what `dct:creator` says, and an entity
+    // exported as RDF should say it in words a reader already knows.
     "creator",
   ]
 } as const);
@@ -244,6 +243,9 @@ export const sqlib = createNamespace({
     // it to the `iri` field kind, and it is never written into the data.
     // `schemaIntrospection.IRI_REF_TYPE` is the runtime counterpart.
     "IRI",
+    // Who last changed an entity (its `dateModified` write). Dublin Core has
+    // no single-valued "last modified by", so this is a `sqlib:` term.
+    "modifiedBy",
     "Backend",
     "backendType",
     "authEnvKey",

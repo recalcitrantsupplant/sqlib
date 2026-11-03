@@ -25,7 +25,7 @@
 import type { FastifyRequest } from 'fastify';
 import { mintId } from './id.js';
 import { allocateVersion, setCurrentVersion } from './versionNumbering.js';
-import { AuthorizationError, creatorOf, requireLibraryMode, resolveOwningLibrary } from '../auth/enforce.js';
+import { AuthorizationError, requireLibraryMode, resolveOwningLibrary } from '../auth/enforce.js';
 import type { PersistedQueryGroup } from '../persistence/schemas/QueryGroupSchema.js';
 import type { PersistedLibrary } from '../persistence/schemas/LibrarySchema.js';
 import type { PersistedQueryVersion } from '../persistence/schemas/QueryVersionSchema.js';
@@ -112,7 +112,6 @@ async function createGroupVersionFlatNumbered(
     executionNodes: nodeIds,
     edges: edgeIds,
     tool,
-    createdBy: creatorOf(authScope?.request) ?? undefined,
   }) as Partial<PersistedQueryGroupVersion> & { $id: string });
 
   await setCurrentVersion('QueryGroup', groupId, versionId);

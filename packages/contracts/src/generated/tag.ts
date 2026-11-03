@@ -21,6 +21,8 @@ const tagShape = {
   isPartOf: iriString,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
+  createdBy: optionalIriString,
+  modifiedBy: optionalIriString,
 };
 // Full Tag schema for validation
 export const tagSchema = z.object(tagShape).strict();
@@ -28,9 +30,9 @@ export const tagSchema = z.object(tagShape).strict();
 export const tagCreateSchema = z.object({
   ...tagShape,
   id: iriString.or(z.string().regex(/^urn:temp:/, 'Temporary URN must start with urn:temp:')).optional().nullable(),
-}).omit({ dateCreated: true, dateModified: true }).strict();
+}).omit({ dateCreated: true, dateModified: true, createdBy: true, modifiedBy: true }).strict();
 // Update schema - all fields optional except id, excludes read-only fields
-export const tagUpdateSchema = z.object(tagShape).partial().omit({ id: true, dateCreated: true, dateModified: true }).strict()
+export const tagUpdateSchema = z.object(tagShape).partial().omit({ id: true, dateCreated: true, dateModified: true, createdBy: true, modifiedBy: true }).strict()
   .refine((data) => Object.keys(data).length > 0, {
     message: 'Update must include at least one field',
     path: [],

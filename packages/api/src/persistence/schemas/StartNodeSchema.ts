@@ -8,6 +8,7 @@
 
 import type { Schema } from '../schema.js';
 import { xsd, sqlib, sdo } from '../namespaces.js';
+import { AUTHORSHIP_PROPERTIES } from '../authorship.js';
 
 export const StartNodeSchema = {
   '@type': sqlib.StartNode,
@@ -27,6 +28,7 @@ export const StartNodeSchema = {
     '@type': xsd.dateTime,
     '@optional': true,
   },
+  ...AUTHORSHIP_PROPERTIES,
 } as const satisfies Schema;
 
 export interface PersistedStartNode {
@@ -35,4 +37,6 @@ export interface PersistedStartNode {
   outputs?: string[] | null; // External outputs that become the query group's external inputs - any output entities (QueryOutputTuple, TriplesQuadsIO, etc.)
   dateCreated?: string | null; // ISO string format for RDF/JSON-LD compatibility
   dateModified?: string | null; // ISO string format for RDF/JSON-LD compatibility
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }

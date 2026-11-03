@@ -26,6 +26,8 @@ const backendShape = {
   queryMethod: queryMethodEnum.optional().nullable(),
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
+  createdBy: optionalIriString,
+  modifiedBy: optionalIriString,
   oxigraphConfig: nullableString,
   authBackend: nullableBoolean,
   graphPolicyQueryVersion: optionalIriString,
@@ -37,7 +39,7 @@ export const backendSchema = z.object(backendShape).strict();
 export const backendCreateSchema = z.object({
   ...backendShape,
   id: iriString.or(z.string().regex(/^urn:temp:/, 'Temporary URN must start with urn:temp:')).optional().nullable(),
-}).omit({ dateCreated: true, dateModified: true }).strict()
+}).omit({ dateCreated: true, dateModified: true, createdBy: true, modifiedBy: true }).strict()
   .superRefine((value, ctx) => {
     if (value.backendType === 'http' && (!value.endpoint || value.endpoint.length === 0)) {
       ctx.addIssue({
@@ -48,7 +50,7 @@ export const backendCreateSchema = z.object({
     }
   });
 // Update schema - all fields optional except id, excludes read-only fields
-export const backendUpdateSchema = z.object(backendShape).partial().omit({ id: true, dateCreated: true, dateModified: true }).strict()
+export const backendUpdateSchema = z.object(backendShape).partial().omit({ id: true, dateCreated: true, dateModified: true, createdBy: true, modifiedBy: true }).strict()
   .refine((data) => Object.keys(data).length > 0, {
     message: 'Update must include at least one field',
     path: [],

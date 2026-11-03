@@ -26,6 +26,8 @@ const dataGraphShape = {
   tags: optionalIriArray,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
+  createdBy: optionalIriString,
+  modifiedBy: optionalIriString,
 };
 // Full DataGraph schema for validation
 export const dataGraphSchema = z.object(dataGraphShape).strict();
@@ -37,7 +39,7 @@ export const dataGraphCreateSchema = z.object({
     (val) => (typeof val === 'string' ? [val] : val),
     iriArray.min(1, 'isPartOf must contain at least one library')
   ),
-}).omit({ currentVersionNumber: true, dateCreated: true, dateModified: true }).strict();
+}).omit({ currentVersionNumber: true, dateCreated: true, dateModified: true, createdBy: true, modifiedBy: true }).strict();
 // Update schema - all fields optional except id, excludes read-only fields, normalizes isPartOf
 export const dataGraphUpdateSchema = z.preprocess(
   (data: unknown) => {
@@ -49,7 +51,7 @@ export const dataGraphUpdateSchema = z.preprocess(
     }
     return data;
   },
-  z.object(dataGraphShape).partial().omit({ id: true, currentVersionNumber: true, dateCreated: true, dateModified: true }).strict()
+  z.object(dataGraphShape).partial().omit({ id: true, currentVersionNumber: true, dateCreated: true, dateModified: true, createdBy: true, modifiedBy: true }).strict()
 )
   .refine((data) => Object.keys(data).length > 0, {
     message: 'Update must include at least one field',

@@ -146,6 +146,8 @@ export const argumentSetVersionResponseSchema = {
     },
     dateCreated: { type: 'string' },
     dateModified: { type: 'string' },
+    createdBy: { type: 'string', nullable: true },
+    modifiedBy: { type: 'string', nullable: true },
   },
   required: ['id', 'isPartOf', 'version', 'tupleBindings', 'scalarBindings'],
   additionalProperties: false,
@@ -174,6 +176,8 @@ export const argumentSetResponseSchema = {
     },
     dateCreated: { type: 'string' },
     dateModified: { type: 'string' },
+    createdBy: { type: 'string', nullable: true },
+    modifiedBy: { type: 'string', nullable: true },
   },
   /*
    * `scope` and `targetId` left out: they are nullable now, and a required

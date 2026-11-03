@@ -4533,17 +4533,23 @@ const __createQueryVersionBodySchema = {
       },
       "nullable": true
     },
+    "dateModified": {
+      "type": "string",
+      "format": "date-time",
+      "readOnly": true,
+      "nullable": true
+    },
     "createdBy": {
       "type": "string",
       "format": "iri",
       "nullable": true,
       "readOnly": true
     },
-    "dateModified": {
+    "modifiedBy": {
       "type": "string",
-      "format": "date-time",
-      "readOnly": true,
-      "nullable": true
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
     },
     "tool": {
       "title": "PublishedTool",
@@ -4963,17 +4969,23 @@ const __createQueryGroupVersionBodySchema = {
       "type": "string",
       "nullable": true
     },
+    "dateModified": {
+      "type": "string",
+      "format": "date-time",
+      "readOnly": true,
+      "nullable": true
+    },
     "createdBy": {
       "type": "string",
       "format": "iri",
       "nullable": true,
       "readOnly": true
     },
-    "dateModified": {
+    "modifiedBy": {
       "type": "string",
-      "format": "date-time",
-      "readOnly": true,
-      "nullable": true
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
     },
     "tool": {
       "title": "PublishedTool",
@@ -5101,6 +5113,16 @@ export const createQueryGroupVersionForGroupFlatSchema = {
                   "type": "string",
                   "format": "date-time",
                   "nullable": true
+            },
+            "createdBy": {
+                  "type": "string",
+                  "format": "iri",
+                  "nullable": true
+            },
+            "modifiedBy": {
+                  "type": "string",
+                  "format": "iri",
+                  "nullable": true
             }
       },
       "required": []
@@ -5134,6 +5156,16 @@ export const createQueryGroupVersionForGroupFlatSchema = {
             "dateModified": {
                   "type": "string",
                   "format": "date-time",
+                  "nullable": true
+            },
+            "createdBy": {
+                  "type": "string",
+                  "format": "iri",
+                  "nullable": true
+            },
+            "modifiedBy": {
+                  "type": "string",
+                  "format": "iri",
                   "nullable": true
             }
       },
@@ -5204,6 +5236,16 @@ export const createQueryGroupVersionForGroupFlatSchema = {
             "dateModified": {
                   "type": "string",
                   "format": "date-time",
+                  "nullable": true
+            },
+            "createdBy": {
+                  "type": "string",
+                  "format": "iri",
+                  "nullable": true
+            },
+            "modifiedBy": {
+                  "type": "string",
+                  "format": "iri",
                   "nullable": true
             },
             "nodeType": {
@@ -5641,6 +5683,16 @@ export const createQueryGroupVersionForGroupFlatSchema = {
                   "type": "string",
                   "format": "date-time",
                   "nullable": true
+            },
+            "createdBy": {
+                  "type": "string",
+                  "format": "iri",
+                  "nullable": true
+            },
+            "modifiedBy": {
+                  "type": "string",
+                  "format": "iri",
+                  "nullable": true
             }
       },
       "required": []
@@ -5679,6 +5731,16 @@ export const createQueryGroupVersionForGroupFlatSchema = {
                   "type": "string",
                   "format": "date-time",
                   "nullable": true
+            },
+            "createdBy": {
+                  "type": "string",
+                  "format": "iri",
+                  "nullable": true
+            },
+            "modifiedBy": {
+                  "type": "string",
+                  "format": "iri",
+                  "nullable": true
             }
       },
       "required": []
@@ -5708,6 +5770,16 @@ export const createQueryGroupVersionForGroupFlatSchema = {
             "dateModified": {
                   "type": "string",
                   "format": "date-time",
+                  "nullable": true
+            },
+            "createdBy": {
+                  "type": "string",
+                  "format": "iri",
+                  "nullable": true
+            },
+            "modifiedBy": {
+                  "type": "string",
+                  "format": "iri",
                   "nullable": true
             }
       },

@@ -6,6 +6,7 @@
 
 import type { Schema } from '../schema.js';
 import { xsd, sqlib, sdo } from '../namespaces.js';
+import { AUTHORSHIP_PROPERTIES } from '../authorship.js';
 
 export const EtlColumnMappingSchema = {
   '@type': sqlib.EtlColumnMapping,
@@ -39,6 +40,7 @@ export const EtlColumnMappingSchema = {
     '@type': xsd.dateTime,
     '@optional': true,
   },
+  ...AUTHORSHIP_PROPERTIES,
 } as const satisfies Schema;
 
 export interface PersistedEtlColumnMapping {
@@ -50,4 +52,6 @@ export interface PersistedEtlColumnMapping {
   etlJobVersion: string; // IRI to parent EtlJobVersion
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }

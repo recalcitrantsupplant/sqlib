@@ -14,6 +14,7 @@
 
 import type { Schema } from '../schema.js';
 import { xsd, sqlib, sdo } from '../namespaces.js';
+import { AUTHORSHIP_PROPERTIES } from '../authorship.js';
 
 export const DataGraphVersionSchema = {
   '@type': sqlib.DataGraphVersion,
@@ -108,6 +109,7 @@ export const DataGraphVersionSchema = {
     '@type': xsd.dateTime,
     '@optional': true,
   },
+  ...AUTHORSHIP_PROPERTIES,
 } as const satisfies Schema;
 
 export interface PersistedDataGraphVersion {
@@ -131,4 +133,6 @@ export interface PersistedDataGraphVersion {
   comment?: string | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }

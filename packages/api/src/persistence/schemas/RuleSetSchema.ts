@@ -6,6 +6,7 @@
 
 import type { Schema } from '../schema.js';
 import { xsd, sqlib, sdo } from '../namespaces.js';
+import { AUTHORSHIP_PROPERTIES } from '../authorship.js';
 
 export const RuleSetSchema = {
   '@type': sqlib.RuleSet,
@@ -61,6 +62,7 @@ export const RuleSetSchema = {
     '@type': xsd.dateTime,
     '@optional': true,
   },
+  ...AUTHORSHIP_PROPERTIES,
 } as const satisfies Schema;
 
 export interface PersistedRuleSet {
@@ -74,4 +76,6 @@ export interface PersistedRuleSet {
   browserDefaultDataGraphs?: string[] | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }

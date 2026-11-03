@@ -14,6 +14,7 @@
 
 import type { Schema } from '../schema.js';
 import { xsd, sqlib, sdo } from '../namespaces.js';
+import { AUTHORSHIP_PROPERTIES } from '../authorship.js';
 
 export const BrowserDefaultDataGraphSchema = {
   '@type': sqlib.BrowserDefaultDataGraph,
@@ -43,6 +44,7 @@ export const BrowserDefaultDataGraphSchema = {
     '@type': xsd.dateTime,
     '@optional': true,
   },
+  ...AUTHORSHIP_PROPERTIES,
 } as const satisfies Schema;
 
 export interface PersistedBrowserDefaultDataGraph {
@@ -53,4 +55,6 @@ export interface PersistedBrowserDefaultDataGraph {
   dataGraph: string;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }

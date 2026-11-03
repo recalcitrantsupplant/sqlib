@@ -8,7 +8,8 @@
 
 import type { Schema } from '../schema.js';
 import type { ToolObject as PublishedToolObject } from '@sparql-query-lib/tools';
-import { rdf, xsd, sqlib, sdo, dct } from '../namespaces.js';
+import { rdf, xsd, sqlib, sdo } from '../namespaces.js';
+import { AUTHORSHIP_PROPERTIES } from '../authorship.js';
 
 export const QueryGroupVersionSchema = {
   '@type': sqlib.QueryGroupVersion,
@@ -51,18 +52,6 @@ export const QueryGroupVersionSchema = {
     '@id': sdo.comment,
     '@optional': true,
   },
-  /**
-   * Who saved this version: the caller's principal IRI. Absent when nobody
-   * was signed in (`SQLIB_AUTH_MODE=disabled`) and on versions saved before
-   * it existed. Set by the server, never by the request body. A promotion's
-   * reviewer is checked against it: nobody approves their own version.
-   */
-  createdBy: {
-    '@id': dct.creator,
-    '@type': sqlib.IRI,
-    '@optional': true,
-    '@readOnly': true,
-  },
   dateCreated: {
     '@id': sdo.dateCreated,
     '@type': xsd.dateTime,
@@ -73,6 +62,7 @@ export const QueryGroupVersionSchema = {
     '@type': xsd.dateTime,
     '@optional': true,
   },
+  ...AUTHORSHIP_PROPERTIES,
   isPartOf: {
     '@id': sdo.isPartOf,
     '@type': sqlib.IRI,
@@ -104,9 +94,10 @@ export interface PersistedQueryGroupVersion {
   edges?: string[] | null; // Snapshot of QueryEdge IRIs
   canvasData?: string | null; // Vue Flow serialized canvas state snapshot
   comment?: string | null; // Optional free-form notes (sdo:comment)
-  createdBy?: string | null;
   dateCreated?: string | null; // ISO string format for RDF/JSON-LD compatibility
   dateModified?: string | null; // ISO string for optimistic concurrency control
+  createdBy?: string | null;
+  modifiedBy?: string | null;
   isPartOf: string; // IRI back to stable QueryGroup (required)
   // Multiplicity: A QueryGroupVersion belongs to exactly one QueryGroup
   tool?: PublishedToolObject | false | null;

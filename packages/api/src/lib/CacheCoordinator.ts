@@ -4,6 +4,7 @@ import { getKnownSystemEntityIds, loadSystemStore } from '../system-store/System
 import { assertMutableEntity } from './immutability.js';
 import { EntityByType, EntityType, getLensForType, getTtlForType } from './EntityRegistry.js';
 import { log } from './log.js';
+import { currentWriteActor, NO_REQUEST } from '../auth/writeActor.js';
 
 type CacheErrorMode = 'log' | 'throw';
 
@@ -24,6 +25,52 @@ export function nextDateModified(previous: unknown, now: Date = new Date()): str
     : Number.NaN;
   const nowMs = now.getTime();
   return new Date(Number.isNaN(previousMs) || nowMs > previousMs ? nowMs : previousMs + 1).toISOString();
+}
+
+/** A write's actor, as `currentWriteActor` answers. */
+type WriteActor = string | null | typeof NO_REQUEST;
+
+/**
+ * Set `createdBy` and `modifiedBy` on an entity about to be created
+ * (`persistence/authorship.ts`).
+ *
+ * Inside a request the caller decides both, and a value the entity already
+ * carries is dropped: a client cannot name someone else as the author. Outside
+ * a request the write is sqlib's own (an import, a seed), and what the entity
+ * carries is kept.
+ */
+export function stampCreateAuthorship(entity: Record<string, unknown>, actor: WriteActor): void {
+  if (actor === NO_REQUEST) return;
+  delete entity.createdBy;
+  delete entity.modifiedBy;
+  if (actor) {
+    entity.createdBy = actor;
+    entity.modifiedBy = actor;
+  }
+}
+
+/**
+ * Set `modifiedBy` on an update, and keep `createdBy` out of it.
+ *
+ * Inside a request `createdBy` never changes and `modifiedBy` names the
+ * caller. A request that identifies no one clears a `modifiedBy` the entity
+ * has (`null` is the update generator's clear), so the field never names
+ * someone who did not make the write `dateModified` dates. Outside a request
+ * the updates are applied as given.
+ */
+export function stampUpdateAuthorship(
+  updates: Record<string, unknown>,
+  existing: Record<string, unknown>,
+  actor: WriteActor,
+): void {
+  if (actor === NO_REQUEST) return;
+  delete updates.createdBy;
+  delete updates.modifiedBy;
+  if (actor) {
+    updates.modifiedBy = actor;
+  } else if (existing.modifiedBy != null) {
+    updates.modifiedBy = null;
+  }
 }
 
 /** A create named an id that already belongs to an entity. Routes answer 409. */
@@ -364,6 +411,7 @@ export class CacheCoordinator {
     const base = toInsert as unknown as BaseEntity;
     if (base.dateCreated == null) base.dateCreated = nowIso;
     base.dateModified = nowIso;
+    stampCreateAuthorship(toInsert as Record<string, unknown>, currentWriteActor());
 
     const { config } = await import('../server/config.js');
     if (config.cacheWriteThroughEnabled) {
@@ -427,6 +475,13 @@ export class CacheCoordinator {
     }
 
     if (!canonical) return null;
+    // A copy: the caller's object is theirs, and the stamp is the coordinator's.
+    updates = { ...updates };
+    stampUpdateAuthorship(
+      updates as Record<string, unknown>,
+      canonical as unknown as Record<string, unknown>,
+      currentWriteActor(),
+    );
     assertMutableEntity(type, canonical as unknown as Record<string, unknown>, updates as Record<string, unknown>);
 
     const effectiveDateModified = (updates as unknown as BaseEntity).dateModified

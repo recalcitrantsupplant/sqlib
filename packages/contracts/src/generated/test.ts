@@ -29,6 +29,8 @@ const testShape = {
   tags: optionalIriArray,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
+  createdBy: optionalIriString,
+  modifiedBy: optionalIriString,
 };
 // Full Test schema for validation
 export const testSchema = z.object(testShape).strict();
@@ -40,7 +42,7 @@ export const testCreateSchema = z.object({
     (val) => (typeof val === 'string' ? [val] : val),
     iriArray.min(1, 'isPartOf must contain at least one library')
   ),
-}).omit({ currentVersionNumber: true, dateCreated: true, dateModified: true }).strict();
+}).omit({ currentVersionNumber: true, dateCreated: true, dateModified: true, createdBy: true, modifiedBy: true }).strict();
 // Update schema - all fields optional except id, excludes read-only fields, normalizes isPartOf
 export const testUpdateSchema = z.preprocess(
   (data: unknown) => {
@@ -52,7 +54,7 @@ export const testUpdateSchema = z.preprocess(
     }
     return data;
   },
-  z.object(testShape).partial().omit({ id: true, currentVersionNumber: true, dateCreated: true, dateModified: true }).strict()
+  z.object(testShape).partial().omit({ id: true, currentVersionNumber: true, dateCreated: true, dateModified: true, createdBy: true, modifiedBy: true }).strict()
 )
   .refine((data) => Object.keys(data).length > 0, {
     message: 'Update must include at least one field',

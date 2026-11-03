@@ -20,6 +20,7 @@
 
 import type { Schema } from '../schema.js';
 import { xsd, sqlib, sdo } from '../namespaces.js';
+import { AUTHORSHIP_PROPERTIES } from '../authorship.js';
 
 export const TestCaseDataGraphSchema = {
   '@type': sqlib.TestCaseDataGraph,
@@ -48,6 +49,7 @@ export const TestCaseDataGraphSchema = {
     '@type': xsd.dateTime,
     '@optional': true,
   },
+  ...AUTHORSHIP_PROPERTIES,
 } as const satisfies Schema;
 
 export interface PersistedTestCaseDataGraph {
@@ -58,4 +60,6 @@ export interface PersistedTestCaseDataGraph {
   dataGraphVersion: string;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }

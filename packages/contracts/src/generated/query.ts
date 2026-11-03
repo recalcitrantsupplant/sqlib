@@ -30,6 +30,8 @@ const queryShape = {
   browserDefaultArgumentSet: optionalIriString,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
+  createdBy: optionalIriString,
+  modifiedBy: optionalIriString,
   argumentSets: optionalIriArray,
 };
 // Full Query schema for validation
@@ -42,7 +44,7 @@ export const queryCreateSchema = z.object({
     (val) => (typeof val === 'string' ? [val] : val),
     iriArray.min(1, 'isPartOf must contain at least one library')
   ),
-}).omit({ currentVersionNumber: true, browserDefaultArgumentSet: true, dateCreated: true, dateModified: true }).strict();
+}).omit({ currentVersionNumber: true, browserDefaultArgumentSet: true, dateCreated: true, dateModified: true, createdBy: true, modifiedBy: true }).strict();
 // Update schema - all fields optional except id, excludes read-only fields, normalizes isPartOf
 export const queryUpdateSchema = z.preprocess(
   (data: unknown) => {
@@ -54,7 +56,7 @@ export const queryUpdateSchema = z.preprocess(
     }
     return data;
   },
-  z.object(queryShape).partial().omit({ id: true, currentVersionNumber: true, browserDefaultArgumentSet: true, dateCreated: true, dateModified: true }).strict()
+  z.object(queryShape).partial().omit({ id: true, currentVersionNumber: true, browserDefaultArgumentSet: true, dateCreated: true, dateModified: true, createdBy: true, modifiedBy: true }).strict()
 )
   .refine((data) => Object.keys(data).length > 0, {
     message: 'Update must include at least one field',

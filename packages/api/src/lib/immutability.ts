@@ -79,8 +79,11 @@ export function assertMutableEntity(
   throw new ImmutableEntityError(entityType, entity['$id'] as string | undefined);
 }
 
-/** `dateModified` rides along on every write, so it is not evidence of a content change. */
-const WRITE_METADATA_KEYS = new Set(['dateModified']);
+/**
+ * `dateModified` and `modifiedBy` ride along on every write, so they are not
+ * evidence of a content change.
+ */
+const WRITE_METADATA_KEYS = new Set(['dateModified', 'modifiedBy']);
 
 function isAnnotationOnly(entityType: string, updates: Record<string, unknown>): boolean {
   const movable = MOVABLE_POINTERS[entityType];

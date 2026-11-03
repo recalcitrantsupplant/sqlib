@@ -7,6 +7,7 @@
 
 import type { Schema } from '../schema.js';
 import { xsd, sqlib, sdo } from '../namespaces.js';
+import { AUTHORSHIP_PROPERTIES } from '../authorship.js';
 
 export const QueryGroupSchema = {
   '@type': sqlib.QueryGroup,
@@ -62,6 +63,7 @@ export const QueryGroupSchema = {
     '@type': xsd.dateTime,
     '@optional': true,
   },
+  ...AUTHORSHIP_PROPERTIES,
   isPartOf: {
     '@id': sdo.isPartOf,
     '@type': sqlib.IRI,
@@ -92,6 +94,8 @@ export interface PersistedQueryGroup {
   browserDefaultDataGraphs?: string[] | null;
   dateCreated?: string | null; // ISO string format for RDF/JSON-LD compatibility
   dateModified?: string | null; // ISO string format for RDF/JSON-LD compatibility
+  createdBy?: string | null;
+  modifiedBy?: string | null;
   isPartOf: string; // Reference to Library (required)
   tags?: string[] | null;
   argumentSets?: string[] | null;

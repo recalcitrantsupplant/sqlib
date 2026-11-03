@@ -415,8 +415,6 @@ async function createQueryVersionFlatNumbered(queryId: string, body: AnyRecord, 
     immutable: true,
     queryString: body.queryString,
     comment: body.comment,
-    // Set by the route from the caller (`creatorOf`), never from the body.
-    createdBy: typeof body.createdBy === 'string' ? body.createdBy : undefined,
     queryType: body.queryType,
     ...srlImportability(body.queryString, resolvedQueryType),
     limitParameters: limitParamIds.length ? limitParamIds : undefined,

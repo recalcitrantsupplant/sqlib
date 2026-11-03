@@ -10,7 +10,6 @@ import { hasEnvironmentMode, resolveEffectiveGrants } from '../../src/auth/grant
 import {
   AuthorizationError,
   canEnvironment,
-  creatorOf,
   requireEnvironmentMode,
   requireVersionExecute,
 } from '../../src/auth/enforce.js';
@@ -138,10 +137,3 @@ describe('requireVersionExecute', () => {
   });
 });
 
-describe('creatorOf', () => {
-  it('records the subject, and nobody under full access', () => {
-    expect(creatorOf(requestFor(contextFor([ALICE])))).toBe(ALICE);
-    expect(creatorOf(requestFor(contextFor([ALICE], true)))).toBeNull();
-    expect(creatorOf(null)).toBeNull();
-  });
-});

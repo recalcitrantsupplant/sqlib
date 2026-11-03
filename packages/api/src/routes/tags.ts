@@ -39,6 +39,8 @@ export const tagResponseSchema = {
     isPartOf: { type: 'string' },
     dateCreated: { type: 'string', format: 'date-time', nullable: true },
     dateModified: { type: 'string', format: 'date-time', nullable: true },
+    createdBy: { type: 'string', nullable: true },
+    modifiedBy: { type: 'string', nullable: true },
   },
   required: ['id', 'name', 'isPartOf'],
   additionalProperties: false,

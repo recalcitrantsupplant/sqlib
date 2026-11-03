@@ -19,6 +19,7 @@
 
 import type { Schema } from '../schema.js';
 import { xsd, sqlib, sdo } from '../namespaces.js';
+import { AUTHORSHIP_PROPERTIES } from '../authorship.js';
 
 /** The version kinds an environment may point to. */
 export const ENVIRONMENT_VERSION_TYPES = ['QueryVersion', 'QueryGroupVersion', 'RuleSetVersion'] as const;
@@ -85,6 +86,7 @@ export const EnvironmentSchema = {
     '@type': xsd.dateTime,
     '@optional': true,
   },
+  ...AUTHORSHIP_PROPERTIES,
 } as const satisfies Schema;
 
 export interface PersistedEnvironment {
@@ -98,4 +100,6 @@ export interface PersistedEnvironment {
   versions?: string[] | null;
   dateCreated?: string | null;
   dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
 }

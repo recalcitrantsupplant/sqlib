@@ -25,6 +25,8 @@ const environmentShape = {
   versions: optionalIriArray,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
+  createdBy: optionalIriString,
+  modifiedBy: optionalIriString,
 };
 // Full Environment schema for validation
 export const environmentSchema = z.object(environmentShape).strict();
@@ -32,9 +34,9 @@ export const environmentSchema = z.object(environmentShape).strict();
 export const environmentCreateSchema = z.object({
   ...environmentShape,
   id: iriString.or(z.string().regex(/^urn:temp:/, 'Temporary URN must start with urn:temp:')).optional().nullable(),
-}).omit({ versions: true, dateCreated: true, dateModified: true }).strict();
+}).omit({ versions: true, dateCreated: true, dateModified: true, createdBy: true, modifiedBy: true }).strict();
 // Update schema - all fields optional except id, excludes read-only fields
-export const environmentUpdateSchema = z.object(environmentShape).partial().omit({ id: true, versions: true, dateCreated: true, dateModified: true }).strict()
+export const environmentUpdateSchema = z.object(environmentShape).partial().omit({ id: true, versions: true, dateCreated: true, dateModified: true, createdBy: true, modifiedBy: true }).strict()
   .refine((data) => Object.keys(data).length > 0, {
     message: 'Update must include at least one field',
     path: [],

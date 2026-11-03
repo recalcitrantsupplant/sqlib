@@ -175,6 +175,35 @@ accepted as a strong tag, as clients have always sent it.
 See [versioning and immutability](../explanation/versioning-and-immutability.md)
 for why the model is shaped this way.
 
+### Who created and changed an entity
+
+Every entity with `dateCreated` and `dateModified` also has two authorship
+fields. Each holds the principal IRI of a signed-in caller
+(`urn:sqlib:principal:user:…`).
+
+| Field | Predicate | Set |
+| --- | --- | --- |
+| `createdBy` | `dct:creator` | Once, when the entity is created. It never changes. |
+| `modifiedBy` | `sqlib:modifiedBy` | On create and on every update. It names the author of the write that `dateModified` dates. |
+
+The server sets both, in the same place as the timestamps
+(`CacheCoordinator`). A client cannot set them: create and update bodies
+leave them out. The rules:
+
+- A signed-in caller is recorded. This follows the same rule as the
+  `?authUser` identity slot.
+- A request that identifies no one records no one. That is `disabled` and
+  `anonymous` mode, a system token, and `dry-run` without a token. An update
+  of this kind clears `modifiedBy`, so the field never names someone who did
+  not make the last write.
+- A write outside any request (startup, a seed, an import script) keeps the
+  values the entity already carries.
+- A run that continues after its response (a test or benchmark run) records
+  the caller who started it.
+
+Entities saved before these fields existed, or while auth was disabled, have
+neither field.
+
 ## Containment
 
 Containment is `sdo:isPartOf`. What the predicate points at differs by kind:
@@ -222,7 +251,8 @@ query group.
 
 Entity properties map to RDF predicates from schema.org (`sdo:name`,
 `sdo:description`, `sdo:isPartOf`, `sdo:version`, `sdo:dateCreated`,
-`sdo:dateModified`), from XSD for datatypes, and from `sqlib:`
+`sdo:dateModified`), from Dublin Core for `dct:creator`, from XSD for
+datatypes, and from `sqlib:`
 (`https://sparql-query-lib/`) for everything specific to this system. Test
 reports are written in W3C EARL, with DOAP, FOAF and Dublin Core terms for the
 subject and the assertor, so a conformance submission and an ordinary library

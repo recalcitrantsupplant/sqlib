@@ -52,6 +52,8 @@ export default async function etlJobRoutes(fastify: FastifyInstance) {
       libraryIds: { type: 'array', items: { type: 'string' } },
       dateCreated: { type: 'string' },
       dateModified: { type: 'string' },
+      createdBy: { type: 'string', nullable: true },
+      modifiedBy: { type: 'string', nullable: true },
     },
     required: ['id', 'name', 'libraryIds'],
     additionalProperties: false,
@@ -78,6 +80,8 @@ export default async function etlJobRoutes(fastify: FastifyInstance) {
       comment: { type: 'string' },
       dateCreated: { type: 'string' },
       dateModified: { type: 'string' },
+      createdBy: { type: 'string', nullable: true },
+      modifiedBy: { type: 'string', nullable: true },
     },
   } as const;
 
@@ -271,6 +275,8 @@ export default async function etlJobRoutes(fastify: FastifyInstance) {
             comment: { type: 'string' },
             dateCreated: { type: 'string' },
             dateModified: { type: 'string' },
+            createdBy: { type: 'string', nullable: true },
+            modifiedBy: { type: 'string', nullable: true },
           },
         },
       },
@@ -332,6 +338,8 @@ export default async function etlJobRoutes(fastify: FastifyInstance) {
             comment: { type: 'string' },
             dateCreated: { type: 'string' },
             dateModified: { type: 'string' },
+            createdBy: { type: 'string', nullable: true },
+            modifiedBy: { type: 'string', nullable: true },
           },
         },
         404: {
@@ -387,6 +395,8 @@ export default async function etlJobRoutes(fastify: FastifyInstance) {
             comment: { type: 'string' },
             dateCreated: { type: 'string' },
             dateModified: { type: 'string' },
+            createdBy: { type: 'string', nullable: true },
+            modifiedBy: { type: 'string', nullable: true },
           },
         },
         404: {
@@ -451,6 +461,8 @@ export default async function etlJobRoutes(fastify: FastifyInstance) {
             etlJobVersionId: { type: 'string' },
             dateCreated: { type: 'string' },
             dateModified: { type: 'string' },
+            createdBy: { type: 'string', nullable: true },
+            modifiedBy: { type: 'string', nullable: true },
           },
         },
       },
@@ -755,6 +767,8 @@ export default async function etlJobRoutes(fastify: FastifyInstance) {
             comment: { type: 'string' },
             dateCreated: { type: 'string' },
             dateModified: { type: 'string' },
+            createdBy: { type: 'string', nullable: true },
+            modifiedBy: { type: 'string', nullable: true },
           },
         },
         404: {
