@@ -7,10 +7,19 @@
     "declarationMap": true,
     "noEmit": false,
     "skipLibCheck": true,
-    "lib": ["ES2024"],
-    "types": []
+    "lib": [
+      "ES2024"
+    ],
+    "types": [],
+    "composite": true,
+    "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo"
   },
   "include": [
     "src"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "test"
   ]
 }

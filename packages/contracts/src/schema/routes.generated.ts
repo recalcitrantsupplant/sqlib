@@ -1437,6 +1437,164 @@ export const createQueryVersionSchema = {
             "type": "null"
           }
         ]
+      },
+      "ogc": {
+        "title": "OgcCollection",
+        "type": "object",
+        "properties": {
+          "collectionId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "values",
+              "cql2"
+            ]
+          },
+          "feature": {
+            "type": "object",
+            "properties": {
+              "var": {
+                "type": "string",
+                "minLength": 1
+              },
+              "base": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "var",
+              "base"
+            ],
+            "additionalProperties": false
+          },
+          "geometry": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "point": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "geometrySources": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "href": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "href"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "params": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "outputs": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "cql": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "queryables": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "var": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "string",
+                    "number",
+                    "integer",
+                    "boolean",
+                    "date-time",
+                    "uri"
+                  ]
+                },
+                "title": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "pageSize": {
+            "type": "object",
+            "properties": {
+              "default": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "max": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "additionalProperties": false
+          },
+          "extent": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "omit": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "collectionId",
+          "title",
+          "mode",
+          "feature"
+        ],
+        "additionalProperties": false,
+        "nullable": true
       }
     },
     "required": [
@@ -4631,6 +4789,164 @@ const __createQueryVersionBodySchema = {
           "type": "null"
         }
       ]
+    },
+    "ogc": {
+      "title": "OgcCollection",
+      "type": "object",
+      "properties": {
+        "collectionId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "values",
+            "cql2"
+          ]
+        },
+        "feature": {
+          "type": "object",
+          "properties": {
+            "var": {
+              "type": "string",
+              "minLength": 1
+            },
+            "base": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "var",
+            "base"
+          ],
+          "additionalProperties": false
+        },
+        "geometry": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "point": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "geometrySources": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "href": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "href"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "params": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "outputs": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "cql": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "queryables": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "var": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "string",
+                  "number",
+                  "integer",
+                  "boolean",
+                  "date-time",
+                  "uri"
+                ]
+              },
+              "title": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "pageSize": {
+          "type": "object",
+          "properties": {
+            "default": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "max": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        "extent": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "omit": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "collectionId",
+        "title",
+        "mode",
+        "feature"
+      ],
+      "additionalProperties": false,
+      "nullable": true
     }
   },
   "required": [

@@ -87,8 +87,8 @@ describe('index bootstrap', () => {
     // above never fills; an empty catalogue is what an empty store gives.
     vi.doMock('../src/lib/publishedTools.js', () => ({
       __esModule: true,
-      loadPublishedCatalogue: () => ({ specs: [], libraries: new Map(), problems: [] }),
-      getPublishedCatalogue: () => ({ specs: [], libraries: new Map(), problems: [] }),
+      loadPublishedCatalogue: () => ({ specs: [], collections: [], libraries: new Map(), problems: [] }),
+      getPublishedCatalogue: () => ({ specs: [], collections: [], libraries: new Map(), problems: [] }),
     }));
     vi.doMock('../src/routes/backends.js', () => ({ __esModule: true, default: hoisted.backendRoutes }));
     vi.doMock('../src/routes/queries.js', () => ({ __esModule: true, default: hoisted.queryRoutes }));

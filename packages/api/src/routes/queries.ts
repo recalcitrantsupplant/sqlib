@@ -34,7 +34,8 @@ import { registerEntityAuthGuard } from '../auth/entityGuard.js';
 import { registerBrowserDefaultsRoutes } from './browser-defaults.js';
 import { clearBrowserDefaultsIfMoved } from '../lib/browserDefaults.js';
 import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
-import { queryBodyInputs, resolveVersionTool } from '../lib/toolObject.js';
+import { queryBodyInputs, resolveVersionOgc, resolveVersionTool } from '../lib/toolObject.js';
+import type { OgcCheckContext } from '@sparql-query-lib/tools';
 
 /**
  * `/queries` — the reference module for `registerVersionedEntityRoutes`.
@@ -107,6 +108,9 @@ export default async function (fastify: FastifyInstance) {
       });
       delete flat.tool;
       if (tool !== undefined) flat.tool = tool;
+      const ogc = resolveVersionOgc({ body: flat, previous, context: ogcContext(flat.queryString) });
+      delete flat.ogc;
+      if (ogc !== undefined) flat.ogc = ogc;
       const { created, iriMap } = await createQueryVersionFlat(parent.$id, flat);
       const expanded = await expandQueryVersion(created);
       return { created: created as unknown as StoredEntity, body: { ...expanded, iriMap } };
@@ -114,6 +118,26 @@ export default async function (fastify: FastifyInstance) {
     deleteVersion: version => deleteWithOwned(version, 'QueryVersion', QUERY_VERSION_OWNED),
     afterUpdate: ({ before, updated }) => clearBrowserDefaultsIfMoved('Query', before, updated),
   });
+
+  /** What an `ogc` object is checked against: the text's VALUES tables, LIMIT and OFFSET names, and projection. */
+  function ogcContext(queryString: unknown): OgcCheckContext | null {
+    if (typeof queryString !== 'string') return null;
+    try {
+      const parsed = parser.parseQuery(queryString) as { type?: string; subType?: string } | null;
+      const detected = parser.detectInputs(queryString);
+      return {
+        isSelect: parsed?.type === 'query' && String(parsed.subType).toLowerCase() === 'select',
+        inputs: {
+          tables: detected.valuesInputs,
+          limits: detected.limitParameters,
+          offsets: detected.offsetParameters,
+        },
+        outputs: parser.detectQueryOutputs(queryString) ?? [],
+      };
+    } catch {
+      return null;
+    }
+  }
 
   /**
    * The wire body is `{ queryVersion: { … }, ...children }`; the writer takes
