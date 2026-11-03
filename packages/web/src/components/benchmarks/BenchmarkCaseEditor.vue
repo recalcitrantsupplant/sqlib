@@ -10,6 +10,7 @@
 import { computed } from 'vue';
 import { Link, TriangleAlert } from '@lucide/vue';
 import InfoHint from '../shared/InfoHint.vue';
+import MediaTypeCodeViewer from '../MediaTypeCodeViewer.vue';
 import InlineNote from '../shared/InlineNote.vue';
 import SearchSelect from '../shared/SearchSelect.vue';
 import Select from '../ui/select/Select.vue';
@@ -220,7 +221,14 @@ const failedRows = computed(() => props.support.filter((row) => row.failed > 0))
           </span>
         </InlineNote>
       </div>
-      <pre v-if="queryString" class="code-block">{{ queryString }}</pre>
+      <MediaTypeCodeViewer
+        v-if="queryString"
+        class="code-block"
+        data-testid="benchmark-case-query"
+        :content="queryString"
+        :content-type="isRuleSet ? 'application/srl' : 'application/sparql-query'"
+        min-height="0"
+      />
       <InlineNote v-else-if="queryLoading">
         Loading the {{ isRuleSet ? 'rule set' : 'query' }}…
       </InlineNote>
@@ -410,21 +418,14 @@ const failedRows = computed(() => props.support.filter((row) => row.failed > 0))
   color: var(--warning-ink);
 }
 
+/*
+ * The query is drawn by the same read-only CodeMirror viewer the results use,
+ * so it is highlighted the way the query editor highlights it. The block takes
+ * the rest of the column and scrolls inside itself.
+ */
 .code-block {
   flex: 1;
-  box-sizing: border-box;
   min-height: 0;
-  margin: 0;
-  padding: var(--space-5);
-  overflow: auto;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  background: var(--surface-subtle);
-  color: var(--ink);
-  font-family: var(--font-mono);
-  font-size: var(--text-body);
-  line-height: 1.7;
-  white-space: pre;
 }
 
 .warning-strip {
