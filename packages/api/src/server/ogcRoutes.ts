@@ -55,6 +55,8 @@ const OPENAPI_TYPE = 'application/vnd.oai.openapi+json;version=3.0';
 const SCHEMA_TYPE = 'application/schema+json';
 const SPARQL_JSON = 'application/sparql-results+json';
 const QUERYABLES_REL = 'http://www.opengis.net/def/rel/ogc/1.0/queryables';
+/** The index's field for a hit's entity IRI, which finds one feature in cql2 mode. */
+const ENTITY_IRI_FIELD = 'entityIri';
 const CRS84_SPELLINGS = new Set([CRS84_URI, CRS84_URI.replace('http://', 'https://')]);
 
 /** Headers worth passing back from `/execute`. */
@@ -375,7 +377,7 @@ export async function registerOgcRoutes(
         const problem = checkCqlAgainstFields(combined, fields);
         if (problem) throw new OgcAnswer(400, problem);
       }
-      const withId = featureIri ? combineCql([...(combined ? [combined] : []), cqlEqualsClause('id', featureIri)]) : combined;
+      const withId = featureIri ? combineCql([...(combined ? [combined] : []), cqlEqualsClause(ENTITY_IRI_FIELD, featureIri)]) : combined;
       values[p.filter!] = withId ? JSON.stringify(withId) : '';
       values[p.limit!] = limit + 1;
       if (p.offset) values[p.offset] = offset;
