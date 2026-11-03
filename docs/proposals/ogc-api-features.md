@@ -112,6 +112,8 @@ export type GeoJsonOptions = {
   geometryVar?: string;
   /** Two numeric columns that make a Point, longitude first. */
   pointVars?: [lonVar: string, latVar: string];
+  /** Every feature gets `"geometry": null`, and no geometry column is looked for. */
+  noGeometry?: boolean;
   /** Columns left out of `properties` (control columns such as a cursor). */
   omitVars?: string[];
   /** Turn a feature IRI into the id the caller sees. Default: the IRI itself. */
@@ -303,12 +305,18 @@ a tool, or both. Both need the library's `slug`.
   },
   "geometry": "geom",                     // a WKT or geoJSON literal column
   // or: "point": ["lon", "lat"]
+  // or: "geometry": null                 // no geometry: every feature has "geometry": null
+
+  "geometrySources": [                    // optional: where a map gets the shapes instead
+    { "href": "https://tiles.example.org/buildings.pmtiles", "type": "application/vnd.pmtiles", "title": "Building footprints" }
+  ],
 
   "params": {
     "limit": "1",                         // values mode: a LIMIT parameter name
     "offset": "2",                        // values mode: an OFFSET parameter name
     "bbox": ["minx", "miny", "maxx", "maxy"],  // values mode: four variables of one VALUES tuple
-    "datetime": ["start", "end"]          // values mode: two variables of one VALUES tuple
+    "datetime": ["start", "end"],         // values mode: two variables of one VALUES tuple
+    "skipGeometry": "skip"                // optional: a VALUES variable, kind boolean
   },
 
   "queryables": {
@@ -410,7 +418,10 @@ It checks:
 - `feature.var` is a result variable, and a `VALUES` variable of the version.
   `feature.base` is an absolute IRI.
 - Exactly one of `geometry` and `point` is given, and each names a result
-  variable. Result variables come from the parsed projection. A `SELECT *`
+  variable, or `geometry` is `null`. With `geometry: null`,
+  `params.skipGeometry` is refused, since there is nothing to skip.
+- `params.skipGeometry`, when given, is a `VALUES` variable on its own
+  in its tuple. Result variables come from the parsed projection. A `SELECT *`
   is accepted, and only the `VALUES` checks apply to it.
 - Every name in `params` exists in the version's inputs, in the right place:
   - `values` mode: `limit` in `inputs.limits`, `offset` in `inputs.offsets`.
@@ -427,7 +438,7 @@ It checks:
   queryables only describe the index fields.
 - No `queryables` key is a reserved OGC parameter name: `f`, `bbox`,
   `datetime`, `limit`, `offset`, `cursor`, `filter`, `filter-lang`,
-  `filter-crs`, `crs`, `bbox-crs`, `properties`, `sortby`.
+  `filter-crs`, `crs`, `bbox-crs`, `properties`, `sortby`, `skipGeometry`.
 - `pageSize.default` ≤ `pageSize.max` ≤ 10000.
 - A version slot that `params` uses is not marked `whenEmpty: require`
   (`docs/proposals/required-arguments.md`). The OGC parameters are all
@@ -573,7 +584,8 @@ The request handling, in order:
 
 1. **Unknown parameters.** Any query parameter that is not in this
    collection's list answers `400`, naming it. Core requires this. The list
-   is: `f`, `limit`, `bbox`, `datetime`, the queryable names, and per mode
+   is: `f`, `limit`, `bbox`, `datetime`, `skipGeometry` (when the collection
+   maps it), the queryable names, and per mode
    `offset` (values) or `filter`, `filter-lang`, `filter-crs`, `cursor`
    (cql2). `offset` and `cursor` are what the `next` links carry. They are in
    the API document, so clients may send them.
@@ -696,6 +708,60 @@ the index.
 (the index's `?totalHits`). `next` carries `cursor=<last kept row's outputs.nextCursor>`
 and drops `offset`. There is no `prev` link in cursor mode.
 
+### Features without geometry
+
+Geometry is often most of a response's size and most of the backend's work:
+a WKT polygon is read, sent and parsed for every feature. A map that draws
+its shapes from PMTiles, vector tiles or a COG needs only ids and
+properties from sqlib. GeoJSON allows `"geometry": null`, so a feature
+without its geometry is still a valid feature, and the OGC Core and GeoJSON
+classes still pass.
+
+There are two ways to leave geometry out.
+
+**Per request: `skipGeometry=true`.** This name is not in OGC Features
+Part 1, but pygeoapi and other servers use it, so clients know it. It is in
+the collection's API document, so the unknown-parameter rule does not refuse
+it. The value is `true` or `false`, and anything else answers `400`.
+
+Leaving the geometry out of the JSON is not enough, because the backend has
+already read it. So the collection maps `params.skipGeometry` to a `VALUES`
+variable, and the query reads the geometry only when the flag is not true:
+
+```sparql
+VALUES ?skip { UNDEF }
+OPTIONAL {
+  ?feature geo:hasGeometry/geo:asWKT ?geom .
+  FILTER(!BOUND(?skip) || !?skip)
+}
+```
+
+A `FILTER` at the top level of an `OPTIONAL` is the condition of the left
+join, so it can see `?skip` from outside, and the store does not read the
+WKT for a skipped call. The plugin binds `?skip` only when the request says
+`skipGeometry=true`. The serializer is then called with `noGeometry`, so a
+query that reads the geometry anyway still answers without it.
+
+The `OPTIONAL` changes one thing: a feature with no geometry at all is now
+returned, with `"geometry": null`, where a required pattern dropped it. The
+guide states this.
+
+**Per collection: `"geometry": null`.** The query has no geometry column, and
+every feature has `"geometry": null`. This suits a collection that exists
+only to serve attributes for a tile layer.
+
+**Where the shapes are.** `geometrySources` adds one link per source to the
+collection document, with `rel: "alternate"` and the given `type`, so a
+client can find the PMTiles or COG for the collection. sqlib does not read
+or check these URLs.
+
+**Joining tiles to features.** A map joins a tile feature to an OGC feature
+by id. The tile's feature id, or the property the map joins on, must hold
+the same value as the OGC `featureId`, which is the IRI minus `feature.base`.
+The guide says to build the tiles with that id. `bbox` filtering does not
+need the geometry: in `values` mode it reads the stored envelope, and in
+`cql2` mode the index.
+
 ### Auth
 
 The plugin adds no auth rule of its own. Every `items` call is a `/execute`
@@ -736,10 +802,14 @@ SELECT ?feature ?geom ?name ?height WHERE {
   VALUES (?minx ?miny ?maxx ?maxy) { (UNDEF UNDEF UNDEF UNDEF) }
   VALUES (?start ?end) { (UNDEF UNDEF) }
   VALUES ?name { UNDEF }
+  VALUES ?skip { UNDEF }
   ?feature a ex:Building ;
            ex:name ?name ;
-           geo:hasGeometry/geo:asWKT ?geom ;
            ex:minLon ?x0 ; ex:minLat ?y0 ; ex:maxLon ?x1 ; ex:maxLat ?y1 .
+  OPTIONAL {
+    ?feature geo:hasGeometry/geo:asWKT ?geom .
+    FILTER(!BOUND(?skip) || !?skip)
+  }
   OPTIONAL { ?feature ex:height ?height }
   OPTIONAL { ?feature ex:surveyed ?when }
   FILTER(!BOUND(?minx) || (?x1 >= ?minx && ?x0 <= ?maxx && ?y1 >= ?miny && ?y0 <= ?maxy))
@@ -756,7 +826,7 @@ OFFSET 0002
   "collectionId": "buildings", "title": "Buildings", "mode": "values",
   "feature": { "var": "feature", "base": "https://example.org/building/" },
   "geometry": "geom",
-  "params": { "limit": "1", "offset": "2", "bbox": ["minx","miny","maxx","maxy"], "datetime": ["start","end"] },
+  "params": { "limit": "1", "offset": "2", "bbox": ["minx","miny","maxx","maxy"], "datetime": ["start","end"], "skipGeometry": "skip" },
   "queryables": { "name": { "var": "name", "type": "string" } },
   "pageSize": { "default": 10, "max": 500 }
 }
@@ -782,11 +852,15 @@ PREFIX geo: <http://www.opengis.net/ont/geosparql#>
 PREFIX ex:  <https://example.org/ns#>
 SELECT ?feature ?geom ?name ?height ?numberMatched ?cursor WHERE {
   VALUES (?cql ?limit ?offset ?after) { (UNDEF UNDEF UNDEF UNDEF) }
+  VALUES ?skip { UNDEF }
   # indexSelector fieldSpec queryString cqlFilter sortSpec limit offset after
   (?hit ?feature ?score ?numberMatched ?rank ?cursor)
     luc:query ("default" "default" "" ?cql "" ?limit ?offset ?after) .
-  ?feature geo:hasGeometry/geo:asWKT ?geom ;
-           ex:name ?name .
+  ?feature ex:name ?name .
+  OPTIONAL {
+    ?feature geo:hasGeometry/geo:asWKT ?geom .
+    FILTER(!BOUND(?skip) || !?skip)
+  }
   OPTIONAL { ?feature ex:height ?height }
 }
 ORDER BY ?rank
@@ -797,7 +871,7 @@ ORDER BY ?rank
   "collectionId": "buildings", "title": "Buildings", "mode": "cql2",
   "feature": { "var": "feature", "base": "https://example.org/building/" },
   "geometry": "geom",
-  "params": { "filter": "cql", "limit": "limit", "offset": "offset", "cursor": "after" },
+  "params": { "filter": "cql", "limit": "limit", "offset": "offset", "cursor": "after", "skipGeometry": "skip" },
   "outputs": { "numberMatched": "numberMatched", "nextCursor": "cursor" },
   "cql": { "configQuery": "urn:…:query/ogc-index-fields" },
   "queryables": { "name": { "title": "Name" }, "height": { "title": "Height (m)" } },
@@ -828,6 +902,7 @@ The starter set also ships the `luc:config` query from
 | Paging | `LIMIT`/`OFFSET`, `prev` and `next` | `after` cursor, `next` only |
 | `numberMatched` | left out | from the index, no extra query |
 | Queryables | from the `ogc` object | from `luc:config`, filtered by the `ogc` object |
+| `skipGeometry=true` | the store skips the WKT read | the same |
 | Conformance | core, geojson, oas30 | the same, plus Part 3 and CQL2 classes |
 
 ## Changes by package
@@ -948,4 +1023,5 @@ These are checks to make while building, not decisions:
 | `500` for duplicate ids and serializer failures in OGC | The cause is the collection's setup, not the request |
 | CQL2-JSON only, edited as a JSON tree, never translated | David's decision: pushdown only, no CQL2 parser and no CQL2-to-SPARQL converter |
 | One OGC service per library slug | Reuses the slug that published tools already require |
+| `skipGeometry` as a `VALUES` flag the query reads, not only a JSON edit | The backend skips the WKT read, which is where the time goes |
 | Queryables and the geometry field from `luc:config` | The index already knows its fields and their types, so the `ogc` object does not repeat them |
