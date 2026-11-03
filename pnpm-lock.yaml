@@ -86,6 +86,9 @@ importers:
       '@sparql-query-lib/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@sparql-query-lib/geojson':
+        specifier: workspace:*
+        version: link:../geojson
       '@sparql-query-lib/rdf-delta':
         specifier: workspace:*
         version: link:../rdf-delta
