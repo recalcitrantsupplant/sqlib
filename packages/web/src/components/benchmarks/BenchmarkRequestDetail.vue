@@ -20,6 +20,7 @@
 import { computed } from 'vue';
 import { Crosshair, TriangleAlert } from '@lucide/vue';
 import InfoHint from '../shared/InfoHint.vue';
+import MediaTypeCodeViewer from '../MediaTypeCodeViewer.vue';
 import InlineNote from '../shared/InlineNote.vue';
 import {
   formatCount,
@@ -280,7 +281,14 @@ const passTitle = (pass: PassProfile['passes'][number]) => {
             Sent
             <InfoHint label="sent query">The query as stored, before argument values are substituted.</InfoHint>
           </span>
-          <pre v-if="sent" class="code-block">{{ sent }}</pre>
+          <MediaTypeCodeViewer
+            v-if="sent"
+            class="code-block"
+            data-testid="benchmark-request-sent"
+            :content="sent"
+            content-type="application/sparql-query"
+            min-height="0"
+          />
           <InlineNote v-else>The query text for this case is not loaded.</InlineNote>
         </section>
 
@@ -544,20 +552,13 @@ const passTitle = (pass: PassProfile['passes'][number]) => {
 }
 
 
-.code-block {
-  box-sizing: border-box;
+/*
+ * The sent query is drawn by the shared read-only CodeMirror viewer. The
+ * editor itself carries the height cap, so it scrolls inside the frame rather
+ * than being clipped by it.
+ */
+.code-block :deep(.cm-editor) {
   max-height: 220px;
-  margin: 0;
-  padding: var(--space-4) var(--space-5);
-  overflow: auto;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-panel);
-  background: var(--surface-subtle);
-  color: var(--ink);
-  font-family: var(--font-mono);
-  font-size: var(--text-label);
-  line-height: 1.65;
-  white-space: pre;
 }
 
 .warning-strip {
