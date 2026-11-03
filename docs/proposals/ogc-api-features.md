@@ -847,21 +847,23 @@ Notes for the guide:
 ### Jena with the Kurrawong Lucene index (`cql2` mode)
 
 ```sparql
-PREFIX luc: <urn:jena:lucene:index#>
-PREFIX geo: <http://www.opengis.net/ont/geosparql#>
-PREFIX ex:  <https://example.org/ns#>
+PREFIX luc:   <urn:jena:lucene:index#>
+PREFIX field: <urn:jena:lucene:field#>
+PREFIX geo:   <http://www.opengis.net/ont/geosparql#>
 SELECT ?feature ?geom ?name ?height ?numberMatched ?cursor WHERE {
   VALUES (?cql ?limit ?offset ?after) { (UNDEF UNDEF UNDEF UNDEF) }
   VALUES ?skip { UNDEF }
   # indexSelector fieldSpec queryString cqlFilter sortSpec limit offset after
   (?hit ?feature ?score ?numberMatched ?rank ?cursor)
     luc:query ("default" "default" "" ?cql "" ?limit ?offset ?after) .
-  ?feature ex:name ?name .
+  # Properties from stored index fields: no join to the graph.
+  (?hit field:name ?name) luc:fields () .
+  OPTIONAL { (?hit field:buildingHeight ?height) luc:fields () }
+  # The geometry from the graph, unless the call skips it.
   OPTIONAL {
     ?feature geo:hasGeometry/geo:asWKT ?geom .
     FILTER(!BOUND(?skip) || !?skip)
   }
-  OPTIONAL { ?feature ex:height ?height }
 }
 ORDER BY ?rank
 ```
@@ -884,6 +886,25 @@ The argument positions and the subject list follow the Kurrawong
 `after` last, and six subject slots, `(?hit ?entity ?score ?totalHits ?rank ?cursor)`.
 The query reads `?totalHits` into `?numberMatched`. A sort is left as `""`,
 so the order is relevance order, and the cursor stays valid across pages.
+
+**Properties from `luc:fields`.** `luc:fields` returns stored field values
+for each hit from the index, joined on `?hit`, with no join to the graph. It
+reads a field for every hit in one pass and caches it. For a page of many
+features this replaces one graph lookup per feature and property. With
+`skipGeometry=true`, the whole call then stays in the index. Its limits
+shape the starter set:
+
+- Only fields with `idx:stored true` on the shape itself are returned, not
+  fields inside an `idx:nested` block.
+- `LatLonField` values are not returned. The geometry still comes from the
+  graph. An index that also stores the WKT in a stored field can read it
+  with `luc:fields` too, and skip the graph entirely.
+- A multi-valued field gives one row per value, which splits a feature across
+  rows. The starter set reads only single-valued fields. For a multi-valued
+  one, wrap the query in `GROUP BY ?feature` with `GROUP_CONCAT`.
+- An unknown or unstored field is a query error on the first call. The
+  `luc:config` check before the call does not cover `luc:fields`: the field
+  names are in the stored query, not in the request.
 
 The starter set also ships the `luc:config` query from
 [Fields from `luc:config`](#fields-from-lucconfig). The demo index sets
