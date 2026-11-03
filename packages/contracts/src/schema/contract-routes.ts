@@ -2137,6 +2137,11 @@ export const executionRouteSchemas = {
           "minLength": 1,
           "format": "iri"
         },
+        "environment": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Run the version this environment of the target's library points to (\"prod\"). Omitted, or \"latest\", runs the current version."
+        },
         "arguments": executionArgumentsJsonSchema,
         "limits": executionParametersJsonSchema,
         "offsets": executionParametersJsonSchema,
@@ -2351,6 +2356,11 @@ export const executionRouteSchemas = {
           "type": "string",
           "minLength": 1,
           "format": "iri"
+        },
+        "environment": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Run the version this environment of the target's library points to (\"prod\"). Omitted, or \"latest\", runs the current version."
         },
         "arguments": {
           "type": "string"

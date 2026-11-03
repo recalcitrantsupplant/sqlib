@@ -531,6 +531,15 @@ export const sqlib = createNamespace({
     "hasTag",
     "color",
 
+    // Environments — named pointers to versions inside one library ("dev",
+    // "test", "prod"). `environmentVersion` names a version the environment
+    // points to; the version's own `isPartOf` says which entity it is a
+    // version of, so one predicate serves every promotable kind.
+    "Environment",
+    "environmentVersion",
+    // A query that only a group uses: never promoted on its own.
+    "groupOnly",
+
     // Patches — the ground quad diff of one write, kept as an event rather
     // than a version: what changed, on which backend, derived from what, and
     // whether it can be undone. `additions`/`deletions` hold canonical

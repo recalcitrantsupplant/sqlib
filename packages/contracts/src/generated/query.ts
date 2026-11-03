@@ -15,6 +15,7 @@ const nullableString = z.string().optional().nullable();
 const iriArray = z.array(iriString);
 const optionalIriArray = z.array(iriString).optional().nullable();
 const nullableInteger = z.number().int().optional().nullable();
+const nullableBoolean = z.boolean().optional().nullable();
 // Reusable field definitions for Query entity
 const queryShape = {
   id: iriString,
@@ -25,6 +26,7 @@ const queryShape = {
   defaultBackend: optionalIriString,
   isPartOf: iriArray.min(1, 'isPartOf must contain at least one library'),
   tags: optionalIriArray,
+  groupOnly: nullableBoolean,
   browserDefaultArgumentSet: optionalIriString,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,

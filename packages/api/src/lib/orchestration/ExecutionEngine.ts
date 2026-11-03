@@ -10,7 +10,8 @@ import type { SparqlBinding, SparqlValue } from '../query-chaining.js';
 import { getCacheCoordinator } from '../CacheCoordinatorProvider.js';
 import { oxigraphStoreManager } from '../OxigraphStoreManager.js';
 import { QueryTypeIri, getQueryTypeKeyFromIri, type QueryTypeValue } from '../../constants/queryTypes.js';
-import { requireLibraryMode, resolveOwningLibrary } from '../../auth/enforce.js';
+import { requireVersionExecute, resolveOwningLibrary } from '../../auth/enforce.js';
+import { environmentsPointingTo } from '../environments.js';
 import { toQueryTypeIri } from '../queryTypes.js';
 import { RuleSetExecutor } from '../RuleSetExecutor.js';
 import { etlService } from '../EtlService.js';
@@ -1465,9 +1466,15 @@ export class ExecutionEngine {
     const groupLibrary = resolveOwningLibrary(graph.groupVersion) ?? scope?.viaLibrary ?? null;
     const queryLibrary = resolveOwningLibrary(resolved);
 
-    if (groupLibrary && queryLibrary === groupLibrary) return;
+    if (groupLibrary && queryLibrary === groupLibrary) {
+      // Same library: a caller who may execute the library may run it. A
+      // caller who runs this group only through an environment grant may run
+      // only versions an environment of theirs points to, here as at /execute.
+      if (scope) requireVersionExecute(scope.request, queryLibrary, environmentsPointingTo(queryVersionId));
+      return;
+    }
     if (scope) {
-      requireLibraryMode(scope.request, queryLibrary, 'execute');
+      requireVersionExecute(scope.request, queryLibrary, environmentsPointingTo(queryVersionId));
       return;
     }
     if (!groupLibrary) return;

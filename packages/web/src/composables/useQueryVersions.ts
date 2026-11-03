@@ -44,6 +44,12 @@ export interface UseQueryVersionsDeps {
   queryType: Ref<QueryTypeValue | null>;
   queryConcurrency: Ref<string | null>;
   emitVersionNumber?: (version: number | null) => void;
+  /**
+   * The version a run by the query's id executes: the active environment's
+   * version when one is picked. The editor opens on it, and `?version=` names
+   * only a version other than it. Absent or null means the current version.
+   */
+  preferredVersionId?: () => string | null;
 }
 
 export function useQueryVersions(deps: UseQueryVersionsDeps) {
@@ -217,7 +223,10 @@ export function useQueryVersions(deps: UseQueryVersionsDeps) {
     suppressVersionWatch.value = true;
     applyCurrentVersionLocalState(currentVersionId);
 
-    let targetVersion = currentVersionFromList ?? null;
+    const preferredId = deps.preferredVersionId?.() ?? null;
+    let targetVersion = (preferredId ? versions.find((v) => v.id === preferredId) : null)
+      ?? currentVersionFromList
+      ?? null;
 
     if (options?.versionOverride != null) {
       const overrideVersion = versions.find((v) => v.version === options.versionOverride);
@@ -303,6 +312,13 @@ export function useQueryVersions(deps: UseQueryVersionsDeps) {
     await loadDiffVersions();
   };
 
+  /** The number of the version the route leaves unnamed. */
+  const preferredVersionNumber = (): number | null => {
+    const preferredId = deps.preferredVersionId?.() ?? null;
+    const option = preferredId ? versionOptions.value.find((opt) => opt.value === preferredId) : null;
+    return option ? parseInt(option.label, 10) : currentVersionNumberForDisplay.value;
+  };
+
   watch(
     () => selectedVersion.value,
     async (newVersionId, oldVersionId) => {
@@ -339,7 +355,7 @@ export function useQueryVersions(deps: UseQueryVersionsDeps) {
         // it rather than restating the comparison — which is how the two ended
         // up disagreeing about what `?version=` means in the first place.
         deps.emitVersionNumber?.(
-          routeVersionForSelection(versionNumber, currentVersionNumberForDisplay.value)
+          routeVersionForSelection(versionNumber, preferredVersionNumber())
         );
       } catch (error) {
         console.error('[useQueryVersions] Failed to load selected version:', error);

@@ -103,7 +103,8 @@ export function effectiveAccess(principals: readonly string[], grants: readonly 
   const entries = new Map<string, EffectiveEntry>();
   for (const principal of principals) {
     for (const grant of grants) {
-      if (grant.principal !== principal || grant.resourceKind === 'everything') continue;
+      // Environment grants are edited on the Library page, not here.
+      if (grant.principal !== principal || (grant.resourceKind !== 'library' && grant.resourceKind !== 'backend')) continue;
       const entry = entries.get(grant.resource)
         ?? { resource: grant.resource, resourceKind: grant.resourceKind, modes: new Set<string>(), from: [] };
       for (const mode of grant.modes) entry.modes.add(mode);

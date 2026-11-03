@@ -12,6 +12,7 @@
  * reason. Carrying it without the data block would run different rules.
  */
 
+import { exportVersionOf, type ExportEnvironment } from './collectLibraryQueries.js';
 import { expandIris, parseRuleSet } from '@sparql-query-lib/srl';
 import {
   hashTemplateText,
@@ -49,6 +50,8 @@ export interface AttachRuleSetsOptions {
   /** Tag IRIs to filter by. Empty means every rule set in the library. */
   tags?: readonly string[];
   match?: 'any' | 'all';
+  /** Export one environment's versions; see `collectLibraryQueries.ts`. */
+  environment?: ExportEnvironment;
 }
 
 function matchesTags(ruleSet: PersistedRuleSet, tags: readonly string[], match: 'any' | 'all'): boolean {
@@ -61,10 +64,15 @@ function matchesTags(ruleSet: PersistedRuleSet, tags: readonly string[], match: 
 
 class RuleSetExportError extends Error {}
 
-async function exportRuleSet(ruleSet: PersistedRuleSet, source: LibraryRuleSetSource): Promise<ExportedRuleSet> {
-  if (!ruleSet.currentVersion) throw new RuleSetExportError('The rule set has no current version.');
-  const version = source.getRuleSetVersion(ruleSet.currentVersion);
-  if (!version) throw new RuleSetExportError(`Its current version ${ruleSet.currentVersion} could not be found.`);
+async function exportRuleSet(
+  ruleSet: PersistedRuleSet,
+  source: LibraryRuleSetSource,
+  environment?: ExportEnvironment,
+): Promise<ExportedRuleSet> {
+  const picked = exportVersionOf(ruleSet, environment, 'rule set');
+  if ('reason' in picked) throw new RuleSetExportError(picked.reason);
+  const version = source.getRuleSetVersion(picked.versionId);
+  if (!version) throw new RuleSetExportError(`Its version ${picked.versionId} could not be found.`);
 
   const document = buildRuleSetDocument(source, version);
   if (document.warnings.length > 0) throw new RuleSetExportError(document.warnings.join(' '));
@@ -122,7 +130,7 @@ export async function attachRuleSetsToBundle(
   for (const ruleSet of ruleSets) {
     const name = ruleSet.name ?? ruleSet.$id;
     try {
-      exported[reserveKey(name, keys)] = await exportRuleSet(ruleSet, source);
+      exported[reserveKey(name, keys)] = await exportRuleSet(ruleSet, source, options.environment);
     } catch (error) {
       if (error instanceof RuleSetExportError) {
         skipped.push({ id: ruleSet.$id, name, reason: error.message });

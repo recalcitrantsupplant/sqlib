@@ -1,5 +1,13 @@
 import { test, expect } from '@playwright/test';
-import { mockEntityApi, BACKEND, BENCHMARK_EXPERIMENT } from './fixtures/entities';
+import {
+  mockEntityApi,
+  BACKEND,
+  BENCHMARK_EXPERIMENT,
+  BENCHMARK_OBSERVATIONS,
+  BENCHMARK_VERSION,
+  QUERY_VERSION,
+  type MockOptions,
+} from './fixtures/entities';
 
 /**
  * The Plan and Runs screens.
@@ -11,10 +19,30 @@ import { mockEntityApi, BACKEND, BENCHMARK_EXPERIMENT } from './fixtures/entitie
 
 const OBSERVATION_COUNT = 3;
 
+/*
+ * The default fixture names the query entity rather than a version, so the
+ * plan has no query text to show. These routes pin the case and its requests
+ * to the query's version, which carries the text.
+ */
+const fulfill = (route: import('@playwright/test').Route, body: unknown) =>
+  route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
+const PINNED_VERSION = {
+  ...BENCHMARK_VERSION,
+  subjectSpecs: BENCHMARK_VERSION.subjectSpecs.map((spec) => ({ ...spec, subject: QUERY_VERSION.id })),
+};
+const PINNED: MockOptions = {
+  extraRoutes: [
+    [/\/benchmark-experiments\/runs\/[^/]+\/observations$/, (r) =>
+      fulfill(r, BENCHMARK_OBSERVATIONS.map((o) => ({ ...o, subject: QUERY_VERSION.id })))],
+    [/\/benchmark-experiments\/[^/]+\/versions\/\d+$/, (r) => fulfill(r, PINNED_VERSION)],
+    [/\/benchmark-experiments\/[^/]+\/versions$/, (r) => fulfill(r, [PINNED_VERSION])],
+  ],
+};
+
 test.use({ viewport: { width: 1600, height: 900 } });
 
-async function openBenchmark(page: import('@playwright/test').Page) {
-  await mockEntityApi(page);
+async function openBenchmark(page: import('@playwright/test').Page, options: MockOptions = {}) {
+  await mockEntityApi(page, options);
   await page.goto(`/?section=benchmarks&benchmark=${encodeURIComponent(BENCHMARK_EXPERIMENT.id)}`, {
     waitUntil: 'domcontentloaded',
   });
@@ -55,6 +83,15 @@ test.describe('Benchmark plan', () => {
     const editor = page.locator('[data-testid="benchmark-case-editor"]');
     await expect(editor).toBeVisible();
     await expect(editor).toContainText('Backends');
+  });
+
+  // The case's query is drawn by the app's CodeMirror viewer, read-only.
+  test('shows the case query in a read-only CodeMirror viewer', async ({ page }) => {
+    await openBenchmark(page, PINNED);
+
+    const query = page.locator('[data-testid="benchmark-case-query"]');
+    await expect(query.locator('.cm-editor')).toBeVisible();
+    await expect(query.locator('.cm-content')).toHaveAttribute('contenteditable', 'false');
   });
 
   test('the expansion follows the backends axis', async ({ page }) => {
@@ -104,5 +141,17 @@ test.describe('Benchmark runs', () => {
     const detail = page.locator('[data-testid="benchmark-request-detail"]');
     await expect(detail).toContainText('Waiting on the store');
     await expect(detail).toContainText('Response');
+  });
+
+  // The sent query is drawn by the app's CodeMirror viewer, read-only.
+  test('shows the sent query in a read-only CodeMirror viewer', async ({ page }) => {
+    await openBenchmark(page, PINNED);
+    await page.locator('[data-testid="benchmark-tab-runs"]').click();
+    await page.locator('[data-testid="benchmark-request-row"]').first().click();
+
+    const sent = page.locator('[data-testid="benchmark-request-sent"]');
+    await expect(sent.locator('.cm-editor')).toBeVisible();
+    await expect(sent.locator('.cm-content')).toHaveAttribute('contenteditable', 'false');
+    await expect(sent).toContainText('SELECT ?country');
   });
 });

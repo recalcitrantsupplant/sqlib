@@ -84,7 +84,10 @@ export default async function (fastify: FastifyInstance) {
     // tuples inline rather than as IRIs.
     presentVersion: version => expandQueryVersion(version as unknown as PersistedQueryVersion),
     presentVersionInList: version => toRestApi(version),
-    beforeCreate: ({ body }) => (body.defaultBackend !== undefined ? { defaultBackend: body.defaultBackend } : {}),
+    beforeCreate: ({ body }) => ({
+      ...(body.defaultBackend !== undefined ? { defaultBackend: body.defaultBackend } : {}),
+      ...(typeof body.groupOnly === 'boolean' ? { groupOnly: body.groupOnly } : {}),
+    }),
     createVersion: async ({ parent, body: rawBody }) => {
       const body = rawBody as { queryVersion?: Record<string, unknown> } & Record<string, unknown>;
       const flat = flattenVersionBody(body);

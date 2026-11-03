@@ -573,6 +573,22 @@ const MANIFEST: Record<string, Protection> = {
   'DELETE /tags/:id': 'delete',
 
   /*
+   * Environments: the guard requires the path mode on the owning library, and
+   * the handlers then require `control` for defining one. The two pointer
+   * routes are exempt from the guard because the mode that matters is on the
+   * environment, not the library: `GET` requires Read on the library in the
+   * handler, and `PUT` requires `promote` on the environment, which a reviewer
+   * may hold without Write on the library.
+   */
+  'GET /environments': 'readable-listing',
+  'POST /environments': 'write-from-body',
+  'GET /environments/:id': 'read',
+  'GET /environments/:id/pointers': 'handler',
+  'PUT /environments/:id': 'write',
+  'PUT /environments/:id/pointers': 'handler',
+  'DELETE /environments/:id': 'delete',
+
+  /*
    * The SPARQL proxy: two routes that take a query the caller wrote and run it
    * against a backend the caller names. No entity, no library, so the plugin
    * registers no guard and each handler asks `requireBackendMode` — with the
@@ -825,6 +841,7 @@ const PLUGINS: ReadonlyArray<[specifier: string, prefix: string]> = [
   ['../../src/routes/argument-sets.js', '/argument-sets'],
   ['../../src/routes/patches.js', '/patches'],
   ['../../src/routes/tags.js', '/tags'],
+  ['../../src/routes/environments.js', '/environments'],
   ['../../src/routes/playground.js', '/playground'],
   // Mounted at the root in `index.ts`, and it declares `/sparql` itself, so
   // the prefix here is the empty one the server uses rather than a tidier

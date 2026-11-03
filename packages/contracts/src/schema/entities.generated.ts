@@ -208,6 +208,10 @@ export const querySchema = {
       },
       "nullable": true
     },
+    "groupOnly": {
+      "type": "boolean",
+      "nullable": true
+    },
     "browserDefaultArgumentSet": {
       "type": "string",
       "format": "iri",
@@ -2045,6 +2049,76 @@ export const endnodeSchema = {
   },
   "required": [
     "id"
+  ]
+} as const;
+
+export const environmentSchema = {
+  "$id": "environment",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "iri"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string",
+      "nullable": true
+    },
+    "position": {
+      "type": "integer",
+      "nullable": true
+    },
+    "defaultBackend": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true
+    },
+    "isPartOf": {
+      "type": "string",
+      "format": "iri"
+    },
+    "versions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "iri"
+      },
+      "nullable": true,
+      "readOnly": true
+    },
+    "dateCreated": {
+      "type": "string",
+      "format": "date-time",
+      "readOnly": true,
+      "nullable": true
+    },
+    "dateModified": {
+      "type": "string",
+      "format": "date-time",
+      "readOnly": true,
+      "nullable": true
+    },
+    "createdBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    },
+    "modifiedBy": {
+      "type": "string",
+      "format": "iri",
+      "nullable": true,
+      "readOnly": true
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "isPartOf"
   ]
 } as const;
 
@@ -4638,6 +4712,7 @@ export interface QueryRestApi {
   defaultBackend?: string | null;
   isPartOf: string[];
   tags?: string[] | null;
+  groupOnly?: boolean | null;
   browserDefaultArgumentSet?: string | null;
   dateCreated?: string | null;
   dateModified?: string | null;
@@ -4987,6 +5062,20 @@ export interface EndNodeRestApi {
   id: string;
   inputs?: string[] | null;
   mediaType?: string | null;
+  dateCreated?: string | null;
+  dateModified?: string | null;
+  createdBy?: string | null;
+  modifiedBy?: string | null;
+}
+
+export interface EnvironmentRestApi {
+  id: string;
+  name: string;
+  description?: string | null;
+  position?: number | null;
+  defaultBackend?: string | null;
+  isPartOf: string;
+  versions?: string[] | null;
   dateCreated?: string | null;
   dateModified?: string | null;
   createdBy?: string | null;

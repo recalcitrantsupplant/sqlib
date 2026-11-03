@@ -13,16 +13,18 @@
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import * as oxigraph from 'oxigraph';
-import type { BackendMode, LibraryMode } from './types.js';
-import { RESOURCE_EVERYTHING, isBackendMode, isLibraryMode } from './types.js';
+import type { BackendMode, EnvironmentMode, LibraryMode } from './types.js';
+import { RESOURCE_EVERYTHING, isBackendMode, isEnvironmentMode, isLibraryMode } from './types.js';
 import {
   AUTH_GRAPH_IRI,
   BACKEND_MODE_IRIS,
+  ENVIRONMENT_MODE_IRIS,
   LIBRARY_MODE_IRIS,
   RDF_TYPE,
   XSD_DATETIME,
   auth,
   backendModeFromIri,
+  environmentModeFromIri,
   libraryModeFromIri,
 } from './vocabulary.js';
 
@@ -35,13 +37,13 @@ const SEED_MARKER_IRI = 'urn:sqlib:auth:seed-state';
 /** Stands for "seen, with no groups" in `auth:memberOf`; never a real group. */
 const NO_GROUPS_IRI = 'urn:sqlib:auth:no-groups';
 
-export type GrantResourceKind = 'library' | 'backend' | 'everything';
+export type GrantResourceKind = 'library' | 'backend' | 'environment' | 'everything';
 
 export interface Grant {
   id: string;
   principal: string;
   resourceKind: GrantResourceKind;
-  /** Library IRI, backend IRI, or the `auth:Everything` sentinel. */
+  /** Library IRI, backend IRI, environment IRI, or the `auth:Everything` sentinel. */
   resource: string;
   modes: ReadonlySet<string>;
   grantedBy?: string;
@@ -109,6 +111,7 @@ function iriTerm(value: string): oxigraph.NamedNode {
 }
 
 function modeIriFor(resourceKind: GrantResourceKind, mode: string): string {
+  if (resourceKind === 'environment') return ENVIRONMENT_MODE_IRIS[mode as EnvironmentMode];
   if (resourceKind === 'backend') {
     return BACKEND_MODE_IRIS[mode as BackendMode] ?? LIBRARY_MODE_IRIS[mode as LibraryMode];
   }
@@ -126,7 +129,9 @@ export function validateModes(resourceKind: GrantResourceKind, modes: readonly s
         ? isBackendMode(mode)
         : resourceKind === 'library'
           ? isLibraryMode(mode)
-          : isLibraryMode(mode) || isBackendMode(mode);
+          : resourceKind === 'environment'
+            ? isEnvironmentMode(mode)
+            : isLibraryMode(mode) || isBackendMode(mode);
     if (!valid) {
       throw Object.assign(
         new Error(`Invalid mode "${mode}" for ${resourceKind} grant.`),
@@ -143,6 +148,7 @@ export class AuthStore {
   private byPrincipal = new Map<string, Grant[]>();
   private byLibrary = new Map<string, Grant[]>();
   private byBackend = new Map<string, Grant[]>();
+  private byEnvironment = new Map<string, Grant[]>();
   private adminPrincipals = new Set<string>();
   private principalRecords = new Map<string, PrincipalRecord>();
   private groupsByUser = new Map<string, string[]>();
@@ -233,6 +239,7 @@ export class AuthStore {
     this.byPrincipal = new Map();
     this.byLibrary = new Map();
     this.byBackend = new Map();
+    this.byEnvironment = new Map();
     this.adminPrincipals = new Set(this.bootstrapAdmins);
     this.principalRecords = new Map();
     this.groupsByUser = new Map();
@@ -278,6 +285,7 @@ export class AuthStore {
 
     const library = this.objectsOf(id, auth.onLibrary)[0];
     const backend = this.objectsOf(id, auth.onBackend)[0];
+    const environment = this.objectsOf(id, auth.onEnvironment)[0];
     const everything = this.objectsOf(id, auth.onEverything)[0];
 
     if (library) {
@@ -286,6 +294,9 @@ export class AuthStore {
     } else if (backend) {
       resourceKind = 'backend';
       resource = backend;
+    } else if (environment) {
+      resourceKind = 'environment';
+      resource = environment;
     } else if (everything) {
       resourceKind = 'everything';
       resource = RESOURCE_EVERYTHING;
@@ -296,9 +307,11 @@ export class AuthStore {
     const modes = new Set<string>();
     for (const modeIri of this.objectsOf(id, auth.mode)) {
       const mode =
-        resourceKind === 'backend'
-          ? (backendModeFromIri(modeIri) ?? libraryModeFromIri(modeIri))
-          : (libraryModeFromIri(modeIri) ?? backendModeFromIri(modeIri));
+        resourceKind === 'environment'
+          ? environmentModeFromIri(modeIri)
+          : resourceKind === 'backend'
+            ? (backendModeFromIri(modeIri) ?? libraryModeFromIri(modeIri))
+            : (libraryModeFromIri(modeIri) ?? backendModeFromIri(modeIri));
       if (mode) modes.add(mode);
     }
     if (modes.size === 0) return null;
@@ -341,6 +354,10 @@ export class AuthStore {
       const forBackend = this.byBackend.get(grant.resource) ?? [];
       forBackend.push(grant);
       this.byBackend.set(grant.resource, forBackend);
+    } else if (grant.resourceKind === 'environment') {
+      const forEnvironment = this.byEnvironment.get(grant.resource) ?? [];
+      forEnvironment.push(grant);
+      this.byEnvironment.set(grant.resource, forEnvironment);
     } else if (grant.modes.has('control')) {
       this.adminPrincipals.add(grant.principal);
     }
@@ -363,9 +380,10 @@ export class AuthStore {
     return this.grants.get(id) ?? null;
   }
 
-  listGrants(filter: { library?: string; backend?: string; principal?: string } = {}): Grant[] {
+  listGrants(filter: { library?: string; backend?: string; environment?: string; principal?: string } = {}): Grant[] {
     if (filter.library) return [...(this.byLibrary.get(filter.library) ?? [])];
     if (filter.backend) return [...(this.byBackend.get(filter.backend) ?? [])];
+    if (filter.environment) return [...(this.byEnvironment.get(filter.environment) ?? [])];
     if (filter.principal) return [...(this.byPrincipal.get(filter.principal) ?? [])];
     return [...this.grants.values()];
   }
@@ -403,6 +421,8 @@ export class AuthStore {
       quads.push(oxigraph.quad(subject, iriTerm(auth.onLibrary), iriTerm(input.resource), graph));
     } else if (input.resourceKind === 'backend') {
       quads.push(oxigraph.quad(subject, iriTerm(auth.onBackend), iriTerm(input.resource), graph));
+    } else if (input.resourceKind === 'environment') {
+      quads.push(oxigraph.quad(subject, iriTerm(auth.onEnvironment), iriTerm(input.resource), graph));
     } else {
       quads.push(oxigraph.quad(subject, iriTerm(auth.onEverything), iriTerm(RESOURCE_EVERYTHING), graph));
     }
@@ -453,6 +473,16 @@ export class AuthStore {
   /** Removes every grant naming a backend. Called when the backend is deleted. */
   async deleteGrantsForBackend(backendIri: string): Promise<number> {
     const grants = this.byBackend.get(backendIri) ?? [];
+    let removed = 0;
+    for (const grant of [...grants]) {
+      if (await this.deleteGrant(grant.id)) removed += 1;
+    }
+    return removed;
+  }
+
+  /** Removes every grant naming an environment. Called when the environment is deleted. */
+  async deleteGrantsForEnvironment(environmentIri: string): Promise<number> {
+    const grants = this.byEnvironment.get(environmentIri) ?? [];
     let removed = 0;
     for (const grant of [...grants]) {
       if (await this.deleteGrant(grant.id)) removed += 1;

@@ -19,6 +19,17 @@
       <span v-if="currentVersionNumber" class="chip chip-version" data-testid="version-pill">
         v{{ currentVersionNumber }}<span class="chip-sub">current</span>
       </span>
+      <span
+        v-if="environment"
+        class="chip"
+        :class="environment.versionNumber === null ? 'chip-env-missing' : 'chip-env'"
+        :title="environment.versionNumber === null ? `Not in ${environment.name}` : `${environment.name} runs v${environment.versionNumber}`"
+        data-testid="environment-pill"
+      >
+        <Layers :size="11" />
+        <template v-if="environment.versionNumber === null">not in {{ environment.name }}</template>
+        <template v-else>{{ environment.name }}<span class="chip-sub">v{{ environment.versionNumber }}</span></template>
+      </span>
       <!--
         "Unsaved" rather than "Draft": beside a button reading Save v2 the word
         that matters is whether these edits are in a version yet, and one
@@ -187,6 +198,7 @@
 import { computed, useSlots } from 'vue';
 import {
   FlaskConical,
+  Layers,
   PencilLine,
   EllipsisVertical,
   FileInput,
@@ -221,6 +233,11 @@ const props = withDefaults(defineProps<{
   showEdit?: boolean;
   /** The saved entity's current version number; null before v1 exists. */
   currentVersionNumber: number | null;
+  /**
+   * The active environment and the version it points at; versionNumber is
+   * null when the item is not in it. Null or absent under `latest`.
+   */
+  environment?: { name: string; versionNumber: number | null } | null;
   /** Autosaves held in the browser and not yet saved. */
   editCount: number;
   /** True when the browser could not store the draft, so a reload would lose it. */
@@ -379,6 +396,18 @@ const saveTitle = computed(() => {
   background: var(--action-surface);
   border: 1px solid var(--action-border);
   color: var(--action-ink);
+}
+
+.chip-env {
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  color: var(--ink-secondary);
+}
+
+.chip-env-missing {
+  background: var(--surface);
+  border: 1px dashed var(--border-strong);
+  color: var(--ink-muted);
 }
 
 .chip-draft {
