@@ -26,6 +26,7 @@ import { buildCorsOptions, resolveCorsPolicy } from './config/cors.js';
 import { catalogueMode, publishedToolsServed, registerPublishedModePlugin } from './config/catalogueMode.js';
 import { loadPublishedCatalogue } from './lib/publishedTools.js';
 import { registerPublishedToolRoutes } from './server/publishedToolRoutes.js';
+import { registerOgcRoutes } from './server/ogcRoutes.js';
 import { registerChangeFeedHook } from './lib/changeEvents.js';
 import { registerNoStoreHook } from './lib/httpCaching.js';
 import * as schemas from '@sparql-query-lib/contracts/schema';
@@ -295,6 +296,17 @@ async function configureApp(fastifyApp: typeof app, options: ConfigureOptions = 
     await fastifyApp.register(
       async (scopedApp) => {
         await registerPublishedToolRoutes(scopedApp, { catalogue: publishedCatalogue, basePath, publicBasePath });
+      },
+      { prefix: basePath },
+    );
+  }
+
+  // OGC API Features, from the same catalogue: each `items` call is a
+  // `/execute` call. See `docs/proposals/ogc-api-features.md`.
+  if (featureFlags.ogc && publishedToolsServed(mode) && featureFlags.queries) {
+    await fastifyApp.register(
+      async (scopedApp) => {
+        await registerOgcRoutes(scopedApp, { catalogue: publishedCatalogue, basePath, publicBasePath });
       },
       { prefix: basePath },
     );

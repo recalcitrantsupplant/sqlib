@@ -1,0 +1,30 @@
+@prefix ex:  <https://example.org/ns#> .
+@prefix geo: <http://www.opengis.net/ont/geosparql#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# Five buildings. Each has a stored envelope (ex:minLon … ex:maxLat), which
+# the bbox filter reads, and a WKT footprint in CRS84.
+
+<https://example.org/building/perth-hall> a ex:Building ;
+  ex:name "Perth Hall" ; ex:height 12.5 ; ex:surveyed "2025-02-10T00:00:00Z"^^xsd:dateTime ;
+  ex:minLon 115.85 ; ex:minLat -31.96 ; ex:maxLon 115.87 ; ex:maxLat -31.94 ;
+  geo:hasGeometry [ geo:asWKT "POLYGON((115.85 -31.96, 115.87 -31.96, 115.87 -31.94, 115.85 -31.94, 115.85 -31.96))"^^geo:wktLiteral ] .
+
+<https://example.org/building/darwin-depot> a ex:Building ;
+  ex:name "Darwin Depot" ; ex:height 6 ; ex:surveyed "2025-03-01T00:00:00Z"^^xsd:dateTime ;
+  ex:minLon 130.83 ; ex:minLat -12.47 ; ex:maxLon 130.85 ; ex:maxLat -12.45 ;
+  geo:hasGeometry [ geo:asWKT "POLYGON((130.83 -12.47, 130.85 -12.47, 130.85 -12.45, 130.83 -12.45, 130.83 -12.47))"^^geo:wktLiteral ] .
+
+<https://example.org/building/sydney-store> a ex:Building ;
+  ex:name "Sydney Store" ; ex:height 30 ;
+  ex:minLon 151.20 ; ex:minLat -33.88 ; ex:maxLon 151.22 ; ex:maxLat -33.86 ;
+  geo:hasGeometry [ geo:asWKT "POLYGON((151.20 -33.88, 151.22 -33.88, 151.22 -33.86, 151.20 -33.86, 151.20 -33.88))"^^geo:wktLiteral ] .
+
+<https://example.org/building/hobart-mill> a ex:Building ;
+  ex:name "Hobart Mill" ; ex:surveyed "2026-01-15T00:00:00Z"^^xsd:dateTime ;
+  ex:minLon 147.32 ; ex:minLat -42.89 ; ex:maxLon 147.34 ; ex:maxLat -42.87 ;
+  geo:hasGeometry [ geo:asWKT "<http://www.opengis.net/def/crs/EPSG/0/4326> POINT(-42.88 147.33)"^^geo:wktLiteral ] .
+
+<https://example.org/building/alice-shed> a ex:Building ;
+  ex:name "Alice Shed" ; ex:height 4 ;
+  ex:minLon 133.87 ; ex:minLat -23.71 ; ex:maxLon 133.89 ; ex:maxLat -23.69 .

@@ -123,7 +123,7 @@ export async function registerPublishedModePlugin(
     const targetId = body?.targetId;
     const catalogue = getPublishedCatalogue();
     const pinned = catalogue.specs.some(spec => spec.targetId === targetId)
-      || catalogue.collections.some(collection => collection.tool.targetId === targetId);
+      || catalogue.collections.some(c => c.tool.targetId === targetId || c.configTargetId === targetId);
     // A published tool's `data` is RDF sent with the call; a stored graph named
     // by id is another entity, which the tool never reads.
     const onlyPostedData = body?.dataGraphs == null

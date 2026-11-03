@@ -94,6 +94,22 @@ jobs:
       - run: bash scripts/ci/install.sh
       - run: bash scripts/ci/test.sh
 
+  # OGC API Features Part 1, with the OGC's own CITE suite in Docker, against
+  # the plain starter set. See scripts/ci/ogc-cite.sh.
+  ogc-cite:
+    runs-on: ${{ github.event.pull_request.head.repo.fork
+      && fromJSON('["ubuntu-latest"]')
+      || fromJSON('["self-hosted","Linux","X64"]') }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - run: bash scripts/ci/pnpm-store.sh
+      - run: bash scripts/ci/install.sh
+      - run: bash scripts/ci/ogc-cite.sh
+
   # Build the release image without pushing. The node 24 -> 26 bump (e9b49db)
   # merged itself green and broke every publish afterwards, because nothing in
   # the PR pipeline built the image — `verify` and `test` never touch the

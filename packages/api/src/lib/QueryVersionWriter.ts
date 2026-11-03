@@ -423,6 +423,7 @@ async function createQueryVersionFlatNumbered(queryId: string, body: AnyRecord, 
     inferredOutputs: inferredOutputIds.length ? inferredOutputIds : undefined,
     // Already resolved and checked by the route (`lib/toolObject.ts`).
     tool: body.tool,
+    ogc: body.ogc,
   };
 
   const created = await cacheCoordinator.create('QueryVersion', toCreate);
