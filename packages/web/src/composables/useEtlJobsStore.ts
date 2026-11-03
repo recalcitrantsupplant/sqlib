@@ -16,6 +16,7 @@ import { computed, reactive } from 'vue';
 // @ts-ignore - Nuxt auto-imports
 import { useRuntimeConfig } from '#imports';
 import { deriveIfMatchToken, sendGuarded } from './createVersionedEntityStore';
+import { authorizedFetch } from './authorizedFetch';
 
 /** A column of the SQL result, and the RDF term it becomes. */
 export interface EtlColumnMapping {
@@ -88,7 +89,7 @@ export interface EtlJobRunResult {
 }
 
 async function requestWithEtag<T>(url: string, init?: RequestInit): Promise<{ data: T; etag: string | null }> {
-  const response = await fetch(url, {
+  const response = await authorizedFetch(url, {
     ...init,
     headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
   });

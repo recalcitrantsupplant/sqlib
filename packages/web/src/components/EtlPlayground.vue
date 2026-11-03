@@ -491,6 +491,7 @@ import {
 import { getLastBackend, resolveEtlBackend, setLastBackend } from '../lib/backendDefaults';
 import { useFeatureFlags } from '../composables/useFeatureFlags';
 import { useDeploymentMode } from '../composables/useDeploymentMode';
+import { authorizedFetch } from '../composables/authorizedFetch';
 import { useTestsSurface } from '../composables/useTestsSurface';
 import { usePanelResize } from '../composables/usePanelResize';
 import { useBackendsStore } from '../composables/useBackendsStore';
@@ -1490,7 +1491,7 @@ const executePreview = async () => {
   isExecuting.value = true;
   try {
     const apiBaseUrl = config.public.apiBaseUrl.replace(/\/$/, '');
-    const response = await fetch(`${apiBaseUrl}/etl-jobs/preview`, {
+    const response = await authorizedFetch(`${apiBaseUrl}/etl-jobs/preview`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sql: sqlQuery.value, limit: 10 }),
@@ -1538,7 +1539,7 @@ const peekSqlResults = async () => {
 
   try {
     const apiBaseUrl = config.public.apiBaseUrl.replace(/\/$/, '');
-    const response = await fetch(`${apiBaseUrl}/etl-jobs/preview`, {
+    const response = await authorizedFetch(`${apiBaseUrl}/etl-jobs/preview`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sql: sqlQuery.value, limit: 10 }),
@@ -1646,7 +1647,7 @@ const executeEtl = async () => {
 
   try {
     const apiBaseUrl = config.public.apiBaseUrl.replace(/\/$/, '');
-    const response = await fetch(`${apiBaseUrl}/playground/etl/execute`, {
+    const response = await authorizedFetch(`${apiBaseUrl}/playground/etl/execute`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
