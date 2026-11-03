@@ -388,6 +388,11 @@ export class AuthStore {
     return [...this.grants.values()];
   }
 
+  /** One principal as it was last seen, or null when it has never signed in. */
+  principalRecord(iri: string): PrincipalRecord | null {
+    return this.principalRecords.get(iri) ?? null;
+  }
+
   listPrincipals(query?: string): PrincipalRecord[] {
     const records = [...this.principalRecords.values()].map(record => {
       const groups = this.lastSeenGroups(record.iri);
@@ -504,6 +509,7 @@ export class AuthStore {
 
     const graph = iriTerm(AUTH_GRAPH_IRI);
     const subject = iriTerm(iri);
+    const seenAt = new Date().toISOString();
     const quads = [
       oxigraph.quad(subject, iriTerm(RDF_TYPE), iriTerm(auth.Principal), graph),
       oxigraph.quad(subject, iriTerm(auth.rawClaim), oxigraph.literal(rawClaim), graph),
@@ -511,7 +517,7 @@ export class AuthStore {
       oxigraph.quad(
         subject,
         iriTerm(auth.seenAt),
-        oxigraph.literal(new Date().toISOString(), iriTerm(XSD_DATETIME)),
+        oxigraph.literal(seenAt, iriTerm(XSD_DATETIME)),
         graph
       ),
     ];
@@ -520,7 +526,7 @@ export class AuthStore {
 
     await this.persistence.apply({ insert: quads.map(quad => this.serializeQuad(quad)).join('\n') });
     for (const quad of quads) this.store.add(quad);
-    this.principalRecords.set(iri, { iri, rawClaim, kind, ...(label ? { label } : {}) });
+    this.principalRecords.set(iri, { iri, rawClaim, kind, seenAt, ...(label ? { label } : {}) });
   }
 
   private async relabelPrincipal(record: PrincipalRecord, label: string): Promise<void> {

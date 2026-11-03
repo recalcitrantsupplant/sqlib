@@ -1,7 +1,9 @@
 #!/bin/sh
 # Demo people for `just demo-graph-access`: three users and the two groups the
 # graph access demo's rules name. Safe to run again: it creates what is
-# missing and resets each user's groups and password to the values below.
+# missing and resets each user's groups to the values below. It sets each
+# password to DEMO_USER_PASSWORD unless Rauthy reports that password as
+# recently used, in which case the user keeps their current password.
 #
 #   alice@localhost   group analysts   reads public + finance
 #   bob@localhost     group hr         reads public + finance + hr
@@ -65,8 +67,24 @@ user() {
       '{email: $e, given_name: $n, language: "en", roles: [], groups: $g}')" | jq -r .id)
   fi
   log "setting groups and password for $email"
-  call PUT "/users/$id" "$(jq -nc --arg e "$email" --arg n "$name" --argjson g "$groups" --arg p "$DEMO_USER_PASSWORD" \
-    '{email: $e, given_name: $n, language: "en", password: $p, roles: [], groups: $g, enabled: true, email_verified: true}')" >/dev/null
+  body=$(jq -nc --arg e "$email" --arg n "$name" --argjson g "$groups" \
+    '{email: $e, given_name: $n, language: "en", roles: [], groups: $g, enabled: true, email_verified: true}')
+  with_password=$(printf '%s' "$body" | jq -c --arg p "$DEMO_USER_PASSWORD" '. + {password: $p}')
+  # Rauthy refuses a password that is one of the user's last three. On a
+  # second run that is DEMO_USER_PASSWORD itself, so keep the password and
+  # update the rest.
+  if ! err=$(call PUT "/users/$id" "$with_password" 2>&1 >/dev/null); then
+    case $err in
+      *"last 3 used passwords"*)
+        log "password for $email was used before; keeping the current one"
+        call PUT "/users/$id" "$body" >/dev/null
+        ;;
+      *)
+        printf '%s\n' "$err" >&2
+        return 1
+        ;;
+    esac
+  fi
 }
 
 user alice@localhost Alice '["analysts"]'

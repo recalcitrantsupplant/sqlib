@@ -15,6 +15,7 @@ import { getAuthStore, type Grant, type GrantResourceKind } from '../auth/AuthSt
 import { auditGrantMutation } from '../auth/audit.js';
 import { getAuthConfig } from '../auth/config.js';
 import { hasLibraryMode } from '../auth/grants.js';
+import { isGroupPrincipal } from '../auth/principals.js';
 import {
   authOf,
   isOpenDeployment,
@@ -60,6 +61,24 @@ const meSchema = {
         issuer: { type: 'string', nullable: true },
         tokenType: { type: 'string' },
         principals: { type: 'array', items: { type: 'string' } },
+        /**
+         * The caller's group principals with the names their tokens carried,
+         * which `principals` hides behind hashed IRIs. A group the store has
+         * not recorded yet comes without a name.
+         */
+        groups: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: { iri: { type: 'string' }, name: { type: 'string' } },
+            required: ['iri'],
+            additionalProperties: false,
+          },
+        },
+        /** The caller's email, username or name from their last token. */
+        label: { type: 'string' },
+        /** When the caller was first recorded. */
+        seenAt: { type: 'string' },
         admin: { type: 'boolean' },
         libraries: {
           type: 'object',
@@ -74,7 +93,7 @@ const meSchema = {
           additionalProperties: { type: 'array', items: { type: 'string' } },
         },
       },
-      required: ['authMode', 'authenticated', 'subject', 'principals', 'admin', 'libraries', 'backends'],
+      required: ['authMode', 'authenticated', 'subject', 'principals', 'groups', 'admin', 'libraries', 'backends'],
       additionalProperties: false,
     },
   },
@@ -281,6 +300,15 @@ export default async function (fastify: FastifyInstance) {
       environments[iri] = [...modes].sort();
     }
 
+    // What the account menu shows. Read from the records the auth plugin
+    // writes on sign-in, so it is only ever what this caller's own tokens said.
+    const store = getAuthStore();
+    const self = store.principalRecord(context.subject);
+    const groups = context.principals.filter(isGroupPrincipal).map(iri => {
+      const name = store.principalRecord(iri)?.rawClaim;
+      return name ? { iri, name } : { iri };
+    });
+
     return reply.send({
       authMode: context.mode,
       authenticated: !context.fullAccess,
@@ -288,6 +316,9 @@ export default async function (fastify: FastifyInstance) {
       issuer: context.issuer,
       tokenType: context.tokenType,
       principals: [...context.principals],
+      groups,
+      ...(self?.label ? { label: self.label } : {}),
+      ...(self?.seenAt ? { seenAt: self.seenAt } : {}),
       admin: context.fullAccess || context.grants.admin,
       libraries,
       backends,
