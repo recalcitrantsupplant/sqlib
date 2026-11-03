@@ -1,0 +1,6 @@
+PREFIX luc: <urn:jena:lucene:index#>
+PREFIX idx: <urn:jena:lucene:index#>
+SELECT ?field ?type ?facetable WHERE {
+  (?field idx:fieldType ?type) luc:config ("default") .
+  OPTIONAL { (?field idx:facetable ?facetable) luc:config ("default") }
+}

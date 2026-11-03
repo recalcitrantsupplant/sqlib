@@ -177,7 +177,7 @@ describe('OGC routes in cql2 mode', () => {
     expect(text.body.description).toContain('cql2-json');
   });
 
-  it('finds one feature by an id clause', async () => {
+  it('finds one feature by an entityIri clause', async () => {
     answer = {
       status: 200,
       body: { head: { vars: ['feature', 'geom', 'name'] }, results: { bindings: [featureRow('b2', 'c1')] } },
@@ -186,7 +186,7 @@ describe('OGC routes in cql2 mode', () => {
     answer = null;
     expect(one.status).toBe(200);
     expect(one.body.id).toBe('b2');
-    expect(JSON.parse(lastArguments().cql)).toEqual({ op: '=', args: [{ property: 'id' }, 'https://example.org/building/b2'] });
+    expect(JSON.parse(lastArguments().cql)).toEqual({ op: '=', args: [{ property: 'entityIri' }, 'https://example.org/building/b2'] });
     expect(lastArguments().feature).toBe('https://example.org/building/b2');
   });
 

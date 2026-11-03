@@ -1,0 +1,13 @@
+{
+  "collectionId": "buildings",
+  "title": "Buildings",
+  "description": "Building footprints, filtered and paged by the Lucene index.",
+  "mode": "cql2",
+  "feature": { "var": "feature", "base": "https://example.org/building/" },
+  "geometry": "geom",
+  "params": { "filter": "cql", "limit": "limit", "offset": "offset", "cursor": "after", "skipGeometry": "skip" },
+  "outputs": { "numberMatched": "numberMatched", "nextCursor": "cursor" },
+  "cql": { "configQuery": "REPLACE-WITH-THE-ID-OF-index-fields.rq" },
+  "queryables": { "name": { "title": "Name" }, "buildingHeight": { "title": "Height (m)" } },
+  "pageSize": { "default": 10, "max": 1000 }
+}

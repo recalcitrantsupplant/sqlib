@@ -644,7 +644,7 @@ the same id answers `500`, as above. One feature answers that `Feature`,
 with `self` and `collection` links.
 
 In `cql2` mode the item is found with the filter
-`{"op":"=","args":[{"property":"id"},"<IRI>"]}`, unless the starter query
+`{"op":"=","args":[{"property":"entityIri"},"<IRI>"]}`, unless the starter query
 binds `?feature` before `luc:query`, in which case the `VALUES` row is
 enough. The starter set chooses one; see the open check below.
 
@@ -966,6 +966,29 @@ Each step is one pull request. Each leaves `main` working.
 
 Steps 1 and 2 are useful alone, for maps and for QGIS "add vector layer from
 URL", before any OGC work lands.
+
+### Build status (2026-11-03)
+
+All seven steps are on one pull request (sqlib #144), with the demo change in
+sqlib-demo. Steps 6 and 7 are built and tested without a Fuseki. These
+points differ from the text above:
+
+- **Shared `VALUES` clause in `cql2` mode.** `filter`, `limit`, `offset` and
+  `cursor` may share one `VALUES` clause, as the Jena starter query has them.
+  Every call binds all of them, so they never need to be bound alone.
+- **One item in `cql2` mode** binds `?feature` and also sends an
+  `entityIri` `=` clause. The check against a real index is still open.
+- **Empty pages.** A page with no rows is an empty collection, even when the
+  store leaves unbound columns out of `head.vars`.
+- **Conformance** also declares Part 3 `queryables-query-parameters`, since
+  every collection takes its queryables as parameters.
+- **CITE.** `scripts/ci/ogc-cite.sh` runs `ets-ogcapi-features10` (image tag
+  `1.8-teamengine-5.7`) in CI against the plain starter set. There is no
+  CITE suite for Part 3: the OGC publishes suites for Features Part 1 and
+  Part 2 only. The `cql2` mode is tested against a stand-in `/execute`.
+- **Starter sets** are in `docs/examples/ogc/plain` and
+  `docs/examples/ogc/jena`. The demo serves the plain set at `/ogc/demo`.
+  The Jena set is not in the demo, because the demo has no Fuseki.
 
 ## Risks
 
