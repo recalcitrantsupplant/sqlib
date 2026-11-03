@@ -47,22 +47,22 @@ export const TUPLE_IMPORT_FORMATS: Array<{
   {
     value: 'csv',
     label: 'CSV',
-    hint: 'Comma-separated. Every cell becomes a plain string literal — a CSV carries no types.',
+    hint: 'Every cell is a plain string.',
   },
   {
     value: 'tsv',
     label: 'TSV (plain)',
-    hint: 'Tab-separated. Every cell becomes a plain string literal, exactly as CSV.',
+    hint: 'Every cell is a plain string.',
   },
   {
     value: 'sparql-results-tsv',
     label: 'TSV (SPARQL results)',
-    hint: 'Tab-separated with ?vars in the header and Turtle terms in the cells — <iri>, "lit"@en, "lit"^^<dt>. A cell that will not parse is an error, not a string.',
+    hint: '?vars header; cells are Turtle terms: <iri>, "lit"@en, "lit"^^<dt>.',
   },
   {
     value: 'sparql-results-json',
     label: 'SPARQL Results JSON',
-    hint: 'A full results document. Validated and stored as-is.',
+    hint: 'Stored as-is.',
   },
 ];
 

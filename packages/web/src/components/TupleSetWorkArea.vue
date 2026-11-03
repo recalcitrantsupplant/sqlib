@@ -32,15 +32,6 @@
       <div class="body">
         <section class="group group-grow">
           <SectionLabel as="h3" size="md">Rows</SectionLabel>
-          <InlineNote class="group-hint">
-            Named rows, registered in this library. They fill a query's VALUES
-            clause or a rule set's TUPLE(…) declaration — spliced in at execution
-            and consumed. A data graph is the store something runs against; these
-            are the parameters it runs with. Stored as SPARQL Results JSON, so a
-            version means the same thing forever: build the rows here, or bring
-            them in from a file — either way the server's parser decides what a
-            cell is, and what you see below is what will execute.
-          </InlineNote>
 
           <div class="mode-toggle" role="group" aria-label="How to enter rows">
             <button
@@ -66,18 +57,6 @@
             <InlineNote v-if="converting" as="span">Reading the rows…</InlineNote>
           </div>
 
-          <!--
-            Said where the labels are edited, because this is the screen that
-            would otherwise imply they are identifiers. They are kept — names
-            are useful for reading a table, diffing two versions, surviving a
-            CSV import and pre-filling a conversion — and they are never read
-            when this set fills a parameter.
-          -->
-          <InlineNote v-if="mode === 'build'" class="labels-note" data-testid="tuple-set-labels-note">
-            <strong>Column names are labels.</strong>
-            A <code>TUPLE(…)</code> is matched by arity and position; these names are never read when this
-            tuple set fills a parameter. They are here so you can read the table.
-          </InlineNote>
 
           <TupleRowsBuilder
             v-if="mode === 'build'"
@@ -163,8 +142,7 @@
             {{ previewColumns.length }}
             {{ previewColumns.length === 1 ? 'column' : 'columns' }},
             {{ previewRowCount }} {{ previewRowCount === 1 ? 'row' : 'rows' }} —
-            parsed as {{ labelFor(sourceFormat) }}. A blank cell is UNDEF, which
-            binds nothing.
+            parsed as {{ labelFor(sourceFormat) }}
           </InlineNote>
 
           <!--
@@ -1539,12 +1517,6 @@ onBeforeUnmount(() => {
 }
 
 .format-hint {
-  margin: var(--space-3) 0 var(--space-2);
-}
-
-/* Margin stays with the parent: where the note sits is this screen's fact. */
-.labels-note {
-  max-width: 70ch;
   margin: var(--space-3) 0 var(--space-2);
 }
 
