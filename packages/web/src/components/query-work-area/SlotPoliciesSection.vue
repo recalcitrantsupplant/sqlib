@@ -1,11 +1,11 @@
 <template>
   <!--
     One row per VALUES parameter: what the query does when a run supplies no
-    value for it. The mode belongs to the version, so a change here is saved
+    argument for it. The mode belongs to the version, so a change here is saved
     with the next version, like an edit to the text.
   -->
   <section v-if="slots.length > 0" class="slot-policies" data-testid="slot-policies">
-    <SectionLabel>If a parameter gets no value</SectionLabel>
+    <SectionLabel>If a parameter gets no argument</SectionLabel>
     <div
       v-for="slot in slots"
       :key="slot.vars.join(' ')"
@@ -17,7 +17,7 @@
       </span>
       <select
         class="slot-select"
-        :aria-label="`If ${slot.vars.join(', ')} gets no value`"
+        :aria-label="`If ${slot.vars.join(', ')} gets no argument`"
         :value="slot.whenEmpty ?? ''"
         data-testid="slot-policy-select"
         @change="onChange(slot.vars, ($event.target as HTMLSelectElement).value)"
@@ -27,16 +27,11 @@
         </option>
       </select>
     </div>
-    <InlineNote>
-      "Fail the run" stops a run that would scan every value of the parameter.
-      Saved with the next version.
-    </InlineNote>
   </section>
 </template>
 
 <script setup lang="ts">
 import SectionLabel from '../shared/SectionLabel.vue';
-import InlineNote from '../shared/InlineNote.vue';
 import { WHEN_EMPTY_OPTIONS, isWhenEmptyMode, type WhenEmptyMode } from '@/lib/slotPolicies';
 
 defineProps<{

@@ -46,8 +46,7 @@
     </div>
 
     <InlineNote v-if="columns.length === 0" data-testid="builder-empty">
-      No columns yet. A tuple set is one relation — name its columns, then fill
-      in rows. Columns are the variables a VALUES clause will bind.
+      No columns yet.
     </InlineNote>
 
     <ValuesGrid
@@ -151,9 +150,7 @@
     </ol>
 
     <InlineNote v-if="columns.length > 0">
-      A blank cell binds UNDEF — it is left out of the saved rows rather than
-      stored as an empty value, which would bind the empty literal and match
-      nothing.
+      A blank cell is UNDEF.
     </InlineNote>
   </div>
 </template>

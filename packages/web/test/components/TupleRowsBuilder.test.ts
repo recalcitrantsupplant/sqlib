@@ -26,9 +26,9 @@ function latest<T>(builder: ReturnType<typeof mountBuilder>, event: string): T {
 }
 
 describe('TupleRowsBuilder — columns', () => {
-  it('starts empty and says what a column is for', () => {
+  it('starts empty', () => {
     const builder = mountBuilder();
-    expect(builder.get('[data-testid="builder-empty"]').text()).toContain('one relation');
+    expect(builder.get('[data-testid="builder-empty"]').text()).toBe('No columns yet.');
   });
 
   it('will not add a row before there is a column to put it in', () => {
