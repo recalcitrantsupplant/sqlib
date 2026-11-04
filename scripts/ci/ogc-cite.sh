@@ -43,15 +43,34 @@ curl -sf "http://localhost:$PORT/ogc/survey/conformance" >/dev/null || { cat "$O
 log "ogc-cite: starting $ETS_IMAGE on port $TE_PORT"
 docker run -d --name "$NAME" -p "$TE_PORT:8080" --add-host=host.docker.internal:host-gateway "$ETS_IMAGE" >/dev/null
 for _ in $(seq 1 120); do
-  curl -sf -u ogctest:ogctest "http://localhost:$TE_PORT/teamengine/rest/suites" >/dev/null && break
+  curl -sf --max-time 10 -u ogctest:ogctest "http://localhost:$TE_PORT/teamengine/rest/suites" >/dev/null && break
   sleep 2
 done
+curl -sf --max-time 10 -u ogctest:ogctest "http://localhost:$TE_PORT/teamengine/rest/suites" >/dev/null || {
+  warn "ogc-cite: TEAM Engine did not start"
+  docker logs --tail 100 "$NAME" || true
+  exit 1
+}
+
+# The suite reaches the server through host.docker.internal; check that route
+# from inside the container before running anything.
+if ! docker exec "$NAME" curl -sf --max-time 10 "http://host.docker.internal:$PORT/ogc/survey/conformance" >/dev/null 2>&1; then
+  warn "ogc-cite: the container cannot reach http://host.docker.internal:$PORT (or has no curl)"
+fi
 
 IUT="http://host.docker.internal:$PORT/ogc/survey"
 log "ogc-cite: running the suite against $IUT"
-curl -sf -u ogctest:ogctest -H 'Accept: application/xml' \
+status="$(curl -s --max-time 1800 -u ogctest:ogctest -H 'Accept: application/xml' \
   "http://localhost:$TE_PORT/teamengine/rest/suites/ogcapi-features-1.0/run?iut=$(node -p 'encodeURIComponent(process.argv[1])' "$IUT")" \
-  -o "$OUT/results.xml"
+  -o "$OUT/results.xml" -w '%{http_code}')"
+if [ "$status" != "200" ]; then
+  warn "ogc-cite: the suite answered HTTP $status"
+  head -c 4000 "$OUT/results.xml" || true
+  echo
+  docker logs --tail 100 "$NAME" || true
+  tail -50 "$OUT/server.log" || true
+  exit 1
+fi
 
 # TestNG's summary: <testng-results ... failed="N" passed="N" skipped="N">.
 summary="$(grep -o '<testng-results[^>]*>' "$OUT/results.xml" | head -1)"
