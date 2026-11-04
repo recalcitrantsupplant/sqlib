@@ -509,10 +509,13 @@ Two things about the store matter more than any of that:
 **An in-memory store is empty on every cold start.**
 `INTERNAL_BACKEND_TYPE=oxigraph-memory` keeps nothing between runs, so a
 scale-to-zero deployment that uses it comes back with an empty library every
-time. Use `oxigraph-persistent` with the snapshot on a volume that survives the
+time. Use the default `sqlite` store with
+[backup to blob storage](#backup-to-blob-storage): the file lives on the
+container's own disk, and each cold start restores it from the replica. Or use
+`oxigraph-persistent` with the snapshot on a volume that survives the
 container — it is the same in-memory Oxigraph, with a `.nq` snapshot restored at
-boot and written on a timer. The restore is the one part of startup that grows
-with your data: roughly one second per 180,000 quads.
+boot and written on a timer. Either restore is the one part of startup that
+grows with your data: roughly one second per 180,000 quads for the snapshot.
 
 **A container killed without warning loses everything since the last
 checkpoint.** The snapshot is written every
@@ -521,3 +524,200 @@ the platform stops idle instances by killing them, or its shutdown grace period
 is shorter than the dump takes, up to a checkpoint interval of writes is gone.
 Shorten the interval if writes matter, and check that your platform sends
 `SIGTERM` and waits for the process to exit.
+
+## Backup to blob storage
+
+The `sqlite` store is one file on local disk. On a container platform the
+container's own disk is fast but is lost with the container, and a network
+volume (Azure Files, EFS) is slow and makes SQLite's locking unreliable. Backup
+to blob storage puts the file on the container's own disk and copies every
+committed change to S3, Azure Blob Storage or Google Cloud Storage within about
+a second, with [Litestream](https://litestream.io). A new container restores
+the file before the server starts.
+
+Set `SQLIB_SQLITE_REPLICA_URL` and the cloud's credentials. Nothing else is
+needed; every setting is in the
+[configuration reference](../reference/configuration.md#backup-to-blob-storage).
+
+```
+docker run \
+  -e SQLIB_SQLITE_REPLICA_URL=s3://acme-sqlib-backup/prod \
+  -e AWS_REGION=eu-west-1 \
+  ghcr.io/recalcitrantsupplant/sqlib:latest
+```
+
+### What happens at start and stop
+
+1. The image's entrypoint sees the URL and runs the server under a supervisor
+   (`packages/api/src/replication/`).
+2. The supervisor writes a Litestream config for the SQLite files this
+   configuration uses: `library.sqlite`, and `auth.sqlite` when auth is on with
+   the `sqlite` store. No credential is written into it.
+3. It takes the lease at `PATH/lease` (see [one writer](#one-writer-the-lease)).
+4. It restores each file to `<file>.restoring` and moves it into place. With no
+   replica yet, the server starts on the local file or an empty one. Any other
+   failure — wrong credentials, no network — stops the start: a server that
+   started empty would upload that empty state as the newest.
+5. It runs `litestream replicate -exec <server command>`.
+6. On `SIGTERM`, Litestream passes the signal to the server, waits for it to
+   exit, syncs once more, and the supervisor releases the lease.
+
+A container killed without `SIGTERM` loses at most the last sync interval
+(`SQLIB_SQLITE_REPLICA_SYNC_INTERVAL`, default 1s). Give the platform a grace
+period of 30s or more.
+
+Litestream uploads only when the file changes, so an idle server costs
+nothing but storage. A busy one uploads at most once a second per file.
+
+### One writer: the lease
+
+Litestream assumes one process writes one replica. Platforms that start the new
+instance before they stop the old one — Azure Container Apps revisions, App
+Runner deploys — would otherwise have two for the length of the overlap.
+
+The supervisor takes a lease object next to the replica, with a conditional
+write, before it restores. A second instance waits until the first releases it
+(after its last sync on `SIGTERM`) or until it expires (TTL 30s, plus 5s for
+clock skew), then restores. A holder that cannot renew for a whole TTL stops its
+server. A deploy therefore waits for the old instance to shut down, and no write
+is lost in the handover.
+
+Turn the lease off (`SQLIB_SQLITE_REPLICA_LEASE=off`) only on platforms that
+never overlap: ECS with `minimumHealthyPercent: 0`, Kubernetes with
+`strategy: Recreate`. It needs no permission beyond the replica's own.
+
+Never point two environments at one path.
+
+### Credentials
+
+The config never holds a secret. Litestream and the lease read the cloud's own
+credential chain, so one identity serves both. Prefer, in order: a platform
+identity with no stored secret, a short-lived token, a stored key.
+
+**AWS.** The AWS SDK chain: environment keys, a web identity token (EKS IRSA),
+container credentials (ECS task role, EKS Pod Identity, App Runner instance
+role), instance metadata. Use the ECS *task* role, not the execution role. The
+least the role needs, for one environment's prefix:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["s3:ListBucket"],
+      "Resource": "arn:aws:s3:::acme-sqlib-backup",
+      "Condition": { "StringLike": { "s3:prefix": ["prod", "prod/*"] } }
+    },
+    { "Effect": "Allow", "Action": ["s3:GetBucketLocation"], "Resource": "arn:aws:s3:::acme-sqlib-backup" },
+    {
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"],
+      "Resource": "arn:aws:s3:::acme-sqlib-backup/prod/*"
+    }
+  ]
+}
+```
+
+Add `kms:GenerateDataKey` and `kms:Decrypt` on the key for SSE-KMS. A restore-only
+role for operators needs `s3:ListBucket`, `s3:GetBucketLocation` and
+`s3:GetObject`. Outside AWS, use an IAM user's keys in the platform's secret
+store, scoped the same way. Cloudflare R2: an R2 API token with Object Read &
+Write on the one bucket, as `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`, with
+`SQLIB_SQLITE_REPLICA_ENDPOINT=https://ACCOUNT_ID.r2.cloudflarestorage.com` and
+`SQLIB_SQLITE_REPLICA_REGION=auto`.
+
+**Azure.** A managed identity, through Azure's default credential chain. For a
+user-assigned identity, set `AZURE_CLIENT_ID` to its client ID. Assign it
+**Storage Blob Data Contributor** on the container — Owner and Contributor do
+not reach blob data — and use one container per environment. Then set
+`allowSharedKeyAccess: false` on the account, so no account key or service SAS
+can reach the data. Outside Azure: a service principal (`AZURE_TENANT_ID`,
+`AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`), a SAS token
+(`SQLIB_SQLITE_REPLICA_AZURE_SAS`, which must be renewed before it expires), or
+as a last resort the account key (`LITESTREAM_AZURE_ACCOUNT_KEY`), which
+controls the whole account.
+
+**Google Cloud.** The workload's service account (GKE Workload Identity, Cloud
+Run), or a key file in `GOOGLE_APPLICATION_CREDENTIALS`. Grant
+`roles/storage.objectUser` on the bucket, with an IAM condition on the object
+name prefix to scope one environment.
+
+### Networks
+
+Litestream and the lease only call out, on 443, to the store's endpoint. The
+credential endpoints they use on ECS, EKS and Container Apps are local to the
+platform and need no egress rule. Whatever you lock down, keep what sqlib
+itself calls open: the SPARQL endpoints its backends name, ETL sources, and the
+token issuer.
+
+**AWS.** Run tasks in private subnets with an **S3 gateway VPC endpoint** on
+their route tables: it is free, and S3 traffic then needs no NAT gateway. Allow
+egress on 443 to the S3 prefix list (`com.amazonaws.<region>.s3`). To keep the
+bucket reachable only from there, deny in the bucket policy unless
+`aws:SourceVpce` is the endpoint — with an exception for an admin role, or
+nobody can restore from outside. A bucket in another region does not go
+through the endpoint. On App Runner, egress is public by default; with a VPC
+connector all of it goes through the VPC, which then needs the gateway endpoint
+for S3 and a NAT gateway for everything else.
+
+**Azure Container Apps.** Choose one:
+
+| | Environment | Storage account network |
+| --- | --- | --- |
+| Public endpoint | Any | Public access on. Protected by the managed identity and `allowSharedKeyAccess: false`. |
+| Service endpoint | Workload profiles, custom VNet | "Selected networks": the environment's subnet, with the `Microsoft.Storage` service endpoint on it. |
+| Private endpoint (production) | Workload profiles, custom VNet | Public access off. A private endpoint for `blob` in the VNet, and the zone `privatelink.blob.core.windows.net` linked to it. |
+
+A Consumption-only environment has no fixed egress address, so a storage
+firewall IP rule does not work there. "Allow trusted Microsoft services" does
+not include Container Apps.
+
+**Baseline for any store.** Block public access (S3), turn off anonymous blob
+access (Azure), require TLS, and set encryption as the bucket's or account's
+default: SSE-S3 or SSE-KMS on S3, a customer-managed key on the Azure account
+if you need one, CMEK on the GCS bucket. Litestream deletes old files itself, so
+do not put Object Lock or an immutability policy on the path; turn on
+versioning with a noncurrent-version expiry (S3) or soft delete (Azure) instead.
+
+### Platforms
+
+| | Azure Container Apps | AWS ECS on Fargate | AWS App Runner | Kubernetes |
+| --- | --- | --- | --- | --- |
+| Identity | User-assigned managed identity, `AZURE_CLIENT_ID` | Task role | Instance role | Pod Identity, IRSA, AKS workload identity |
+| Instances | `minReplicas` 0 or 1, `maxReplicas: 1` | `desiredCount: 1` | min 1, max 1 | `replicas: 1` |
+| Overlap on deploy | Yes: keep the lease on | None with `minimumHealthyPercent: 0`, `maximumPercent: 100` | Yes: keep the lease on | None with `strategy: Recreate` |
+| Grace period | `terminationGracePeriodSeconds` ≥ 30 | `stopTimeout` ≥ 30 | — | `terminationGracePeriodSeconds` ≥ 30 |
+| Storage path | The container's own disk; no Azure Files volume | Ephemeral storage | Instance storage | `emptyDir`, not a network volume |
+
+Allow time for the restore in the startup probe. A few-MB library restores in
+about a second from the same region.
+
+`infrastructure/main.bicep` (Container Apps) and `infrastructure/aws/` (ECS on
+Fargate, Terraform) set all of this up.
+
+### Restoring by hand
+
+With the restore-only identity and the same Litestream release as the image:
+
+```
+litestream restore -o library.sqlite s3://acme-sqlib-backup/prod/library
+litestream restore -timestamp 2026-11-04T06:00:00Z -o library.sqlite s3://acme-sqlib-backup/prod/library
+```
+
+To move a deployment that uses a volume: start it once with the volume and the
+replica URL, so Litestream uploads a first snapshot, then remove the volume. To
+copy one environment into another, restore from the source path, start the
+target with that file, `SQLIB_SQLITE_RESTORE=local` and its own new path.
+
+### What the emulator test cannot check
+
+`scripts/ci/litestream-it.sh` runs every start, stop, lease and failure case
+against MinIO, Azurite and fake-gcs-server. Platform identities, KMS and private
+networks are not in any emulator. Check these once on a real account before
+relying on them, and again when the Litestream version in the image changes:
+
+- The platform identity syncs and restores, with no key set.
+- The store's public access is off and sqlib still syncs.
+- SSE-KMS or the customer-managed key is applied to new objects.
+- A deploy under steady writes loses none of them.

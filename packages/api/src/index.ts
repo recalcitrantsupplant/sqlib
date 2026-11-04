@@ -31,6 +31,7 @@ import { registerNoStoreHook } from './lib/httpCaching.js';
 import * as schemas from '@sparql-query-lib/contracts/schema';
 import { registerErrorHandler } from './server/errorHandler.js';
 import { closeLibraryDatabase, LIBRARY_SQLITE_FILE } from './persistence/sqliteEntityStore.js';
+import { getAuthStore } from './auth/AuthStore.js';
 import { registerApplicationRoutes } from './server/registerRoutes.js';
 import { seedGraphAccessDemoLibrary, seedPatchDemoLibrary, seedRulesConformanceSuite } from './server/seed.js';
 
@@ -308,8 +309,9 @@ async function configureApp(fastifyApp: typeof app, options: ConfigureOptions = 
     }
     await oxigraphStoreManager.shutdown();
     await fastifyApp.close();
-    // After the server, so no request is left writing to it.
+    // After the server, so no request is left writing to them.
     closeLibraryDatabase();
+    getAuthStore().closePersistence();
   };
 
   return { featureFlags, teardown };
