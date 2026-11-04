@@ -88,6 +88,7 @@ export {
   ogcOpenApiDocument,
   ogcParamKinds,
   parseBbox,
+  splitBbox,
   parseBoolean,
   parseCql2Json,
   parseDatetime,

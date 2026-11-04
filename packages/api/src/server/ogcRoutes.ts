@@ -35,6 +35,7 @@ import {
   ogcItemsParameters,
   ogcOpenApiDocument,
   parseBbox,
+  splitBbox,
   parseBoolean,
   parseCql2Json,
   parseDatetime,
@@ -337,7 +338,9 @@ export async function registerOgcRoutes(
     if (ogc.mode === 'values') {
       if (bbox) {
         if (!p.bbox) throw new OgcAnswer(400, 'bbox: this collection is not filtered by bbox.');
-        p.bbox.forEach((name, index) => (values[name] = bbox[index]));
+        // A box across the antimeridian goes as two rows, east part and west part.
+        const boxes = splitBbox(bbox);
+        p.bbox.forEach((name, index) => (values[name] = boxes.map(box => box[index])));
       }
       if (datetime) {
         if (!p.datetime) throw new OgcAnswer(400, 'datetime: this collection is not filtered by time.');
@@ -407,11 +410,14 @@ export async function registerOgcRoutes(
       ...paramVariables(ogc),
     ];
     const base = ogc.feature.base;
+    // When no row binds the geometry, some stores leave its column out of
+    // `head.vars`: those features have no geometry.
+    const geometryColumnAbsent = typeof ogc.geometry === 'string' && !results.head.vars.includes(ogc.geometry);
     const serialized = toFeatureCollection(results, {
       idVar: ogc.feature.var,
       ...(typeof ogc.geometry === 'string' ? { geometryVar: ogc.geometry } : {}),
       ...(ogc.point ? { pointVars: ogc.point } : {}),
-      noGeometry: ogc.geometry === null || skipGeometry,
+      noGeometry: ogc.geometry === null || skipGeometry || geometryColumnAbsent,
       omitVars: controlVars,
       idFromIri: iri => (base && iri.startsWith(base) && iri.length > base.length ? iri.slice(base.length) : iri),
     });
@@ -419,15 +425,18 @@ export async function registerOgcRoutes(
     if (!serialized.ok && results.results.bindings.length > 0) {
       throw new OgcAnswer(500, `The collection's query result is not features: ${serialized.detail}`);
     }
-    const features = serialized.ok ? serialized.collection.features : [];
+    // A bbox sent as two rows (across the antimeridian) can match a feature twice.
+    const twoBoxes = ogc.mode === 'values' && bbox !== null && splitBbox(bbox).length > 1;
     const seen = new Set<string | number>();
-    for (const feature of features) {
-      if (feature.id === undefined) continue;
+    const features = (serialized.ok ? serialized.collection.features : []).filter(feature => {
+      if (feature.id === undefined) return true;
       if (seen.has(feature.id)) {
+        if (twoBoxes) return false;
         throw new OgcAnswer(500, `The query returns feature ${feature.id} more than once; it must return one row per feature.`);
       }
       seen.add(feature.id);
-    }
+      return true;
+    });
 
     const root = `${serviceUrl(request, service.slug)}/collections/${ogc.collectionId}`;
     const featureLinks = (feature: Feature): Link[] => [

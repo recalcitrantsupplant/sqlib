@@ -295,7 +295,8 @@ export function ogcParamKinds(ogc: OgcObject): Record<string, ToolParamSpec> {
   };
   set(ogc.feature.var, 'iri');
   const p = ogc.params ?? {};
-  for (const name of p.bbox ?? []) set(name, 'decimal');
+  // A list, so that a box across the antimeridian can be sent as two rows.
+  for (const name of p.bbox ?? []) params[name] = { kind: 'decimal', list: true };
   for (const name of p.datetime ?? []) set(name, 'dateTime');
   set(p.limit, 'integer');
   set(p.offset, 'integer');
@@ -347,16 +348,29 @@ export class OgcRequestError extends Error {
 /** `bbox=minx,miny,maxx,maxy` in CRS84. Six numbers, and a box across the antimeridian, are refused in v1. */
 export function parseBbox(raw: string): [number, number, number, number] {
   const parts = raw.split(',').map(part => part.trim());
-  if (parts.length === 6) throw new OgcRequestError('bbox: a 3D bbox (six numbers) is not supported; give four');
-  if (parts.length !== 4) throw new OgcRequestError('bbox must be four numbers: minx,miny,maxx,maxy');
+  const usage = 'bbox must be four numbers (minx,miny,maxx,maxy) or six (minx,miny,minz,maxx,maxy,maxz)';
+  if (parts.length !== 4 && parts.length !== 6) throw new OgcRequestError(usage);
   const numbers = parts.map(Number);
-  if (parts.some(part => part === '') || !numbers.every(Number.isFinite)) {
-    throw new OgcRequestError('bbox must be four numbers: minx,miny,maxx,maxy');
-  }
-  const [minx, miny, maxx, maxy] = numbers as [number, number, number, number];
+  if (parts.some(part => part === '') || !numbers.every(Number.isFinite)) throw new OgcRequestError(usage);
+  // A 3D box filters on its 2D footprint: the heights are dropped.
+  const [minx, miny, maxx, maxy] = (
+    numbers.length === 6 ? [numbers[0], numbers[1], numbers[3], numbers[4]] : numbers
+  ) as [number, number, number, number];
   if (miny < -90 || maxy > 90 || miny > maxy) throw new OgcRequestError('bbox: the latitudes must be within -90..90, south first');
-  if (minx > maxx) throw new OgcRequestError('bbox: a box that crosses the antimeridian is not supported; split it in two');
   return [minx, miny, maxx, maxy];
+}
+
+/**
+ * The bbox as boxes that do not cross the antimeridian: itself, or, when
+ * `minx > maxx`, its east part up to 180 and its west part from -180.
+ */
+export function splitBbox(bbox: [number, number, number, number]): Array<[number, number, number, number]> {
+  const [minx, miny, maxx, maxy] = bbox;
+  if (minx <= maxx) return [bbox];
+  return [
+    [minx, miny, 180, maxy],
+    [-180, miny, maxx, maxy],
+  ];
 }
 
 const RFC3339 = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/i;
@@ -482,7 +496,8 @@ export function cqlComparisons(node: Cql2): Array<{ op: string; property: string
 }
 
 export function cqlBboxClause(field: string, bbox: [number, number, number, number]): Cql2 {
-  return { op: 's_intersects', args: [{ property: field }, { bbox }] };
+  const boxes = splitBbox(bbox).map((box): Cql2 => ({ op: 's_intersects', args: [{ property: field }, { bbox: box }] }));
+  return boxes.length === 1 ? boxes[0]! : { op: 'or', args: boxes };
 }
 
 /** Range clauses on a temporal field: `>=` the start and `<=` the end, as the index documents. */
@@ -591,7 +606,7 @@ export function ogcOpenApiDocument(options: {
       name: 'bbox',
       in: 'query',
       required: false,
-      schema: { type: 'array', minItems: 4, maxItems: 4, items: { type: 'number' } },
+      schema: { type: 'array', minItems: 4, maxItems: 6, items: { type: 'number' } },
       style: 'form',
       explode: false,
     },

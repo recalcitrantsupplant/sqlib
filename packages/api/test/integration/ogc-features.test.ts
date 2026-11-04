@@ -228,6 +228,10 @@ describe('OGC API Features, against a real API instance', () => {
     it('filters by bbox, datetime and a queryable', async () => {
       const bbox = await get('/ogc/survey/collections/buildings/items?bbox=150,-35,153,-30');
       expect(bbox.body.features.map((f: { id: string }) => f.id)).toEqual(['c3']);
+      const across = await get('/ogc/survey/collections/buildings/items?bbox=150,-35,-170,-30');
+      expect(across.body.features.map((f: { id: string }) => f.id)).toEqual(['c3']);
+      const threeD = await get('/ogc/survey/collections/buildings/items?bbox=150,-35,0,153,-30,100');
+      expect(threeD.body.features.map((f: { id: string }) => f.id)).toEqual(['c3']);
       const datetime = await get('/ogc/survey/collections/buildings/items?datetime=2025-01-01T00:00:00Z/..');
       expect(datetime.body.features.map((f: { id: string }) => f.id)).toEqual(['b2']);
       const name = await get('/ogc/survey/collections/buildings/items?name=Perth%20Hall');

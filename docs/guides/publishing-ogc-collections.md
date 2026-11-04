@@ -185,8 +185,14 @@ A collection that cannot be served is skipped, and the server logs why. With
 | `filter`, `filter-lang`, `filter-crs` | `cql2` mode only |
 | `f` | `geojson` or `json` |
 
-Any other parameter answers `400`, naming it. A `bbox` across the
-antimeridian and a 3D `bbox` also answer `400`; split the box in two.
+Any other parameter answers `400`, naming it.
+
+A 3D `bbox` (six numbers) filters on its 2D footprint. A `bbox` with
+`minx > maxx` crosses the antimeridian. In `values` mode it is sent as two
+rows of the bbox `VALUES` clause, east part and west part, and a feature
+that both parts match is returned once. The query's `LIMIT` counts such a
+feature twice, so that page can hold one feature less. In `cql2` mode the
+two parts are joined with `or`.
 
 Each call runs the pinned version through `POST /execute` with the caller's
 own `Authorization` header. The caller's grants, graph policies and caller
