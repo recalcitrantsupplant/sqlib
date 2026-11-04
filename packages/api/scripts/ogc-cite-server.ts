@@ -8,7 +8,7 @@
  * the one that serves them, as after a restart.
  *
  *   OGC_CITE_PORT=7740 SQLIB_OGC_BASE_URL=http://host.docker.internal:7740 \
- *     pnpm --filter @sparql-query-lib/api exec tsx scripts/ogc-cite-server.ts
+ *     pnpm --filter @sparql-query-lib/api run ogc-cite-server
  */
 import Fastify, { type FastifyInstance } from 'fastify';
 import * as fs from 'node:fs/promises';

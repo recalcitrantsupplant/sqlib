@@ -32,7 +32,7 @@ pnpm --filter '@sparql-query-lib/api^...' run build
 
 log "ogc-cite: starting the server on port $PORT"
 OGC_CITE_PORT="$PORT" SQLIB_OGC_BASE_URL="http://host.docker.internal:$PORT" \
-  pnpm --filter @sparql-query-lib/api exec tsx scripts/ogc-cite-server.ts > "$OUT/server.log" 2>&1 &
+  pnpm --filter @sparql-query-lib/api run ogc-cite-server > "$OUT/server.log" 2>&1 &
 SERVER_PID=$!
 for _ in $(seq 1 120); do
   curl -sf "http://localhost:$PORT/ogc/survey/conformance" >/dev/null && break
