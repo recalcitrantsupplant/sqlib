@@ -592,8 +592,9 @@ The request handling, in order:
 2. **`f`.** `geojson` or `json`, or absent. Anything else answers `400`.
 3. **`limit`.** An integer ≥ 1. Absent: `pageSize.default`. Above
    `pageSize.max`: use the maximum. Core says this is not an error.
-4. **`bbox`.** Four comma-separated numbers. Six numbers (3D) answer `400`
-   in v1. `minx > maxx` (it crosses the antimeridian) answers `400` in v1.
+4. **`bbox`.** Four comma-separated numbers, or six (3D), which filter on
+   their 2D footprint. `minx > maxx` crosses the antimeridian: the box is
+   split at 180 into two, sent as two `VALUES` rows (or a CQL2 `or`).
    Latitudes outside −90..90 answer `400`.
 5. **`datetime`.** An RFC 3339 instant, or an interval `a/b` where either
    end may be `..` or empty. An instant fills both variables. An open end is

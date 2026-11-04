@@ -8,9 +8,9 @@ source "$(dirname "$0")/lib.sh"
 # There is no CITE suite for Part 3 (filtering) yet, so the cql2 mode is
 # covered by packages/api/test/server/ogcRoutes.cql2.test.ts only.
 #
-# Needs Docker. The suite runs in a container and reaches the server on the
-# host through host.docker.internal, so every link the server writes uses
-# that name (SQLIB_OGC_BASE_URL).
+# Needs Docker. The container shares the host's network, because a host
+# firewall can drop traffic from the Docker bridge to the host. Tomcat's
+# ports are moved to free ones, since the runner is shared.
 
 ETS_IMAGE="${ETS_IMAGE:-ogccite/ets-ogcapi-features10:1.8-teamengine-5.7}"
 # The runner is shared, so take free ports rather than fixed ones.
@@ -32,7 +32,7 @@ log "ogc-cite: building the api's workspace dependencies"
 pnpm --filter '@sparql-query-lib/api^...' run build
 
 log "ogc-cite: starting the server on port $PORT"
-OGC_CITE_PORT="$PORT" SQLIB_OGC_BASE_URL="http://host.docker.internal:$PORT" \
+OGC_CITE_PORT="$PORT" SQLIB_OGC_BASE_URL="http://localhost:$PORT" \
   pnpm --filter @sparql-query-lib/api run ogc-cite-server > "$OUT/server.log" 2>&1 &
 SERVER_PID=$!
 for _ in $(seq 1 120); do
@@ -41,10 +41,14 @@ for _ in $(seq 1 120); do
 done
 curl -sf "http://localhost:$PORT/ogc/survey/conformance" >/dev/null || { cat "$OUT/server.log"; exit 1; }
 
-log "ogc-cite: starting $ETS_IMAGE"
-docker run -d --name "$NAME" -p 127.0.0.1::8080 --add-host=host.docker.internal:host-gateway "$ETS_IMAGE" >/dev/null
-TE_PORT="$(docker port "$NAME" 8080/tcp | head -1 | sed 's/.*://')"
-log "ogc-cite: TEAM Engine on port $TE_PORT"
+TE_PORT="$(free_port)"
+TE_SHUTDOWN="$(free_port)"
+TE_AJP="$(free_port)"
+log "ogc-cite: starting $ETS_IMAGE on port $TE_PORT"
+docker run -d --name "$NAME" --network host "$ETS_IMAGE" sh -c "sed -i \
+  -e 's/port=\"8080\"/port=\"$TE_PORT\"/' \
+  -e 's/port=\"8005\"/port=\"$TE_SHUTDOWN\"/' \
+  -e 's/port=\"8009\"/port=\"$TE_AJP\"/' conf/server.xml && exec catalina.sh run" >/dev/null
 for _ in $(seq 1 120); do
   curl -sf --max-time 10 -u ogctest:ogctest "http://localhost:$TE_PORT/teamengine/rest/suites" >/dev/null && break
   sleep 2
@@ -55,13 +59,7 @@ curl -sf --max-time 10 -u ogctest:ogctest "http://localhost:$TE_PORT/teamengine/
   exit 1
 }
 
-# The suite reaches the server through host.docker.internal; check that route
-# from inside the container before running anything.
-if ! docker exec "$NAME" curl -sf --max-time 10 "http://host.docker.internal:$PORT/ogc/survey/conformance" >/dev/null 2>&1; then
-  warn "ogc-cite: the container cannot reach http://host.docker.internal:$PORT (or has no curl)"
-fi
-
-IUT="http://host.docker.internal:$PORT/ogc/survey"
+IUT="http://localhost:$PORT/ogc/survey"
 log "ogc-cite: running the suite against $IUT"
 status="$(curl -s --max-time 1800 -u ogctest:ogctest -H 'Accept: application/xml' \
   "http://localhost:$TE_PORT/teamengine/rest/suites/ogcapi-features-1.0/run?iut=$(node -p 'encodeURIComponent(process.argv[1])' "$IUT")" \
@@ -88,8 +86,11 @@ if [ "$failed" != "0" ]; then
   # Name each failed test and its message.
   node -e '
     const xml = require("fs").readFileSync(process.argv[1], "utf8");
-    for (const m of xml.matchAll(/<test-method[^>]*status="FAIL"[^>]*name="([^"]*)"[\s\S]*?<message>\s*<!\[CDATA\[([\s\S]*?)\]\]>/g)) {
-      console.log(`FAIL ${m[1]}: ${m[2].trim().split("\n")[0]}`);
+    for (const m of xml.matchAll(/<test-method\b([^>]*)>([\s\S]*?)<\/test-method>/g)) {
+      if (!/status="FAIL"/.test(m[1])) continue;
+      const name = (m[1].match(/name="([^"]*)"/) || [])[1];
+      const message = ((m[2].match(/<message>([\s\S]*?)<\/message>/) || [])[1] || "").replace(/<!\[CDATA\[|\]\]>/g, "");
+      console.log(`FAIL ${name}: ${message.trim().replace(/\s+/g, " ").slice(0, 300)}`);
     }' "$OUT/results.xml"
   exit 1
 fi

@@ -9,6 +9,7 @@ import {
   cqlProperties,
   ogcParamKinds,
   parseBbox,
+  splitBbox,
   parseCql2Json,
   parseDatetime,
   parseLimit,
@@ -116,10 +117,10 @@ describe('ogcParamKinds', () => {
   it('gives each filled variable its kind', () => {
     expect(ogcParamKinds(valuesOgc)).toEqual({
       feature: { kind: 'iri' },
-      minx: { kind: 'decimal' },
-      miny: { kind: 'decimal' },
-      maxx: { kind: 'decimal' },
-      maxy: { kind: 'decimal' },
+      minx: { kind: 'decimal', list: true },
+      miny: { kind: 'decimal', list: true },
+      maxx: { kind: 'decimal', list: true },
+      maxy: { kind: 'decimal', list: true },
       start: { kind: 'dateTime' },
       end: { kind: 'dateTime' },
       '1': { kind: 'integer' },
@@ -138,8 +139,13 @@ describe('OGC parameters', () => {
   it('reads a bbox', () => {
     expect(parseBbox('110,-45, 155,-10')).toEqual([110, -45, 155, -10]);
     expect(() => parseBbox('1,2,3')).toThrow(OgcRequestError);
-    expect(() => parseBbox('1,2,3,4,5,6')).toThrow(/3D/);
-    expect(() => parseBbox('170,0,-170,10')).toThrow(/antimeridian/);
+    expect(parseBbox('1,2,0,3,4,9')).toEqual([1, 2, 3, 4]);
+    expect(parseBbox('170,0,-170,10')).toEqual([170, 0, -170, 10]);
+    expect(splitBbox([170, 0, -170, 10])).toEqual([
+      [170, 0, 180, 10],
+      [-180, 0, -170, 10],
+    ]);
+    expect(splitBbox([1, 2, 3, 4])).toEqual([[1, 2, 3, 4]]);
     expect(() => parseBbox('0,10,1,5')).toThrow(/latitudes/);
   });
 
@@ -184,6 +190,13 @@ describe('CQL2-JSON', () => {
 
   it('builds bbox, datetime and combined clauses', () => {
     expect(cqlBboxClause('g', [1, 2, 3, 4])).toEqual({ op: 's_intersects', args: [{ property: 'g' }, { bbox: [1, 2, 3, 4] }] });
+    expect(cqlBboxClause('g', [170, 0, -170, 10])).toEqual({
+      op: 'or',
+      args: [
+        { op: 's_intersects', args: [{ property: 'g' }, { bbox: [170, 0, 180, 10] }] },
+        { op: 's_intersects', args: [{ property: 'g' }, { bbox: [-180, 0, -170, 10] }] },
+      ],
+    });
     expect(cqlDatetimeClauses('t', { start: 'a', end: null })).toEqual([{ op: '>=', args: [{ property: 't' }, { timestamp: 'a' }] }]);
     expect(cqlDatetimeClauses('t', { start: 'a', end: 'a' })).toEqual([{ op: '=', args: [{ property: 't' }, { timestamp: 'a' }] }]);
     expect(combineCql([])).toBeNull();
