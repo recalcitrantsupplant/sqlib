@@ -54,7 +54,7 @@ jobs:
       # the binaries are cached in ~/.cache/sqlib-it after that.
       - uses: actions/setup-go@v6
         with:
-          go-version: '1.24'
+          go-version: '1.26'
           cache: false
       - run: bash scripts/ci/pnpm-store.sh
       - run: bash scripts/ci/install.sh

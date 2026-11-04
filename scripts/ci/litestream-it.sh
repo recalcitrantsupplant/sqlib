@@ -10,7 +10,7 @@
 # cannot `docker run` (see scripts/ci/docker-build-push.sh), and processes start
 # faster anyway.
 #
-# Needs: a built API (`pnpm --filter "@sparql-query-lib/api..." build`), Go 1.24+
+# Needs: a built API (`pnpm --filter "@sparql-query-lib/api..." build`), Go 1.26+
 # (to build MinIO and fake-gcs-server at pinned versions), curl, tar, sha256sum.
 # Binaries are cached in $SQLIB_IT_CACHE (default ~/.cache/sqlib-it), so only the
 # first run builds them. Point MINIO_BIN, FAKE_GCS_BIN or LITESTREAM_BIN at an
