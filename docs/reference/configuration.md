@@ -78,6 +78,43 @@ that these bindings cannot open; serialisation goes to `LIBRARY_STORAGE_DIR`.
 See [storage and caching](../explanation/storage-and-caching.md) for how the
 store and the in-memory cache relate.
 
+## Backup to blob storage
+
+Continuous backup of the SQLite stores (`library.sqlite`, and `auth.sqlite`
+when auth is on) to S3, Azure Blob Storage or Google Cloud Storage, with
+[Litestream](https://litestream.io). Off unless `SQLIB_SQLITE_REPLICA_URL` or
+`SQLIB_LITESTREAM_CONFIG` is set. The published image carries Litestream; see
+[backup to blob storage](../guides/deploying.md#backup-to-blob-storage) for
+credentials, networks and platforms.
+
+| Name | Default | Effect |
+| --- | --- | --- |
+| `SQLIB_SQLITE_REPLICA_URL` | unset | Base URL of the replica: `s3://BUCKET/PATH`, `abs://ACCOUNT@CONTAINER/PATH` or `gs://BUCKET/PATH`. Each database is replicated under it, to `PATH/library` and `PATH/auth`, with the lease at `PATH/lease`. Use one path per environment. |
+| `SQLIB_SQLITE_REPLICA_ENDPOINT` | unset | Endpoint of an S3-compatible store (`https://ACCOUNT_ID.r2.cloudflarestorage.com`, MinIO), or of a non-default Azure endpoint (sovereign cloud, Azurite). |
+| `SQLIB_SQLITE_REPLICA_REGION` | unset | S3 region. Some S3-compatible stores need it (R2: `auto`). |
+| `SQLIB_SQLITE_REPLICA_SYNC_INTERVAL` | `1s` | How often changed pages are uploaded. The most a container killed without warning can lose. |
+| `SQLIB_SQLITE_REPLICA_SNAPSHOT_INTERVAL` | `6h` | How often a full snapshot is written. Shorter makes a restore faster and costs more storage. |
+| `SQLIB_SQLITE_REPLICA_RETENTION` | `72h` | How long snapshots and changes are kept: how far back a point-in-time restore can go. |
+| `SQLIB_SQLITE_REPLICA_SHUTDOWN_TIMEOUT` | `10s` | How long the last sync on `SIGTERM` may take. Keep the platform's grace period longer than this plus the server's own shutdown. |
+| `SQLIB_SQLITE_REPLICA_KMS_KEY_ID` | unset | `s3://` only. The AWS KMS key for SSE-KMS. Setting the key as the bucket's default encryption does the same for every writer. |
+| `SQLIB_SQLITE_REPLICA_AZURE_SAS` | unset | `abs://` only. A SAS token for the container. Litestream reads it from the environment; it is never written to a file. |
+| `SQLIB_SQLITE_REPLICA_METRICS_ADDR` | unset | Address for Litestream's Prometheus metrics, such as `:9090`. Keep it off the public ingress. |
+| `SQLIB_SQLITE_RESTORE` | `replica` | At start: `replica` restores each file whenever a replica exists, replacing any local file (a file baked into the image, or left by an earlier run). `local` restores only when the local file is missing or empty. `never` does not restore. |
+| `SQLIB_SQLITE_REPLICA_LEASE` | `on` | Take a lease at `PATH/lease` before restoring, so two instances never write one replica. `off` for platforms that stop the old instance before starting the new one (ECS with `minimumHealthyPercent: 0`, Kubernetes `Recreate`). |
+| `SQLIB_SQLITE_REPLICA_LEASE_TTL` | `30s` | How long a lease lasts without renewal. A holder that cannot renew for this long stops. |
+| `SQLIB_SQLITE_REPLICA_LEASE_RENEW` | `10s` | How often the holder renews. At most half the TTL. |
+| `SQLIB_SQLITE_REPLICA_LEASE_WAIT` | `120s` | How long a starting instance waits for a held lease before it exits. The platform then restarts it. |
+| `SQLIB_LITESTREAM_CONFIG` | unset | Path to a complete `litestream.yml` to use instead of the generated one, for Litestream options not listed here. It must name the same database paths the server opens. The lease is off unless `SQLIB_SQLITE_REPLICA_URL` is also set. |
+| `SQLIB_LITESTREAM_BIN` | `litestream` | The Litestream binary. The image has it on `PATH`. |
+
+Credentials are not sqlib settings. Litestream and the lease read each cloud's
+own: the AWS SDK chain (`AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`, a task,
+instance or pod role, web identity), Azure (`AZURE_CLIENT_ID` for a
+user-assigned managed identity, `AZURE_TENANT_ID`/`AZURE_CLIENT_ID`/`AZURE_CLIENT_SECRET`
+for a service principal, `LITESTREAM_AZURE_ACCOUNT_KEY`, or the SAS above), and
+Google (`GOOGLE_APPLICATION_CREDENTIALS` or the workload's service account).
+Leave `AWS_CA_BUNDLE` unset: Litestream's S3 client fails to load while it is set.
+
 ## Execution backend credentials
 
 A `Backend` entity does not store credentials. It stores an `authEnvKey`, and

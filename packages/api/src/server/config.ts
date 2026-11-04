@@ -62,13 +62,18 @@ export interface Config {
   cachePreloadEnabled: boolean;
 }
 
-// Function to determine backend config from environment variables or defaults
-function getInternalBackendConfig(): InternalBackendConfig {
-  const backendType = process.env.INTERNAL_BACKEND_TYPE || 'sqlite';
+/**
+ * The library store from environment variables or defaults.
+ *
+ * Exported for `replication/litestreamConfig.ts`, which must name the same
+ * SQLite file the server opens.
+ */
+export function getInternalBackendConfig(env: NodeJS.ProcessEnv = process.env): InternalBackendConfig {
+  const backendType = env.INTERNAL_BACKEND_TYPE || 'sqlite';
 
   if (backendType === 'sqlite') {
     // `:memory:` keeps the database in the process, for tests.
-    const dir = process.env.LIBRARY_STORAGE_DIR || './storage/library-store';
+    const dir = env.LIBRARY_STORAGE_DIR || './storage/library-store';
     return { type: 'sqlite', storageDir: dir === ':memory:' ? dir : path.resolve(dir) };
   }
 
@@ -77,16 +82,16 @@ function getInternalBackendConfig(): InternalBackendConfig {
   }
 
   if (backendType === 'oxigraph-persistent') {
-    const storageDir = path.resolve(process.env.LIBRARY_STORAGE_DIR || './storage/library-store');
+    const storageDir = path.resolve(env.LIBRARY_STORAGE_DIR || './storage/library-store');
 
     const allowedLoadMethods = new Set(['file', 'remote-sparql', 'remote-file', 'none']);
-    const requestedLoadMethod = (process.env.INTERNAL_OXIGRAPH_LOAD_METHOD || 'none').toLowerCase();
+    const requestedLoadMethod = (env.INTERNAL_OXIGRAPH_LOAD_METHOD || 'none').toLowerCase();
     const loadMethod = allowedLoadMethods.has(requestedLoadMethod)
       ? (requestedLoadMethod as OxigraphPersistentConfig['loadMethod'])
       : 'none';
 
     let sourceConfig: OxigraphSourceConfig | undefined;
-    const bootstrapSource = process.env.INTERNAL_OXIGRAPH_BOOTSTRAP_SOURCE;
+    const bootstrapSource = env.INTERNAL_OXIGRAPH_BOOTSTRAP_SOURCE;
     if (bootstrapSource) {
       try {
         const parsed = JSON.parse(bootstrapSource);
@@ -100,12 +105,12 @@ function getInternalBackendConfig(): InternalBackendConfig {
 
     return {
       type: 'oxigraph-persistent',
-      storeId: process.env.INTERNAL_OXIGRAPH_STORE_ID || 'library-store',
+      storeId: env.INTERNAL_OXIGRAPH_STORE_ID || 'library-store',
       loadMethod,
       sourceConfig,
       storageDir,
-      checkpointIntervalMs: process.env.INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS ?
-        parseInt(process.env.INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS, 10) : 60000, // 1 min default
+      checkpointIntervalMs: env.INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS ?
+        parseInt(env.INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS, 10) : 60000, // 1 min default
     };
   }
 
@@ -121,11 +126,11 @@ function getInternalBackendConfig(): InternalBackendConfig {
    * rather than reaching out to whatever host a default once named. Set
    * LIBRARY_STORAGE_SPARQL_ENDPOINT to point at the store you mean.
    */
-  const endpoint = process.env.LIBRARY_STORAGE_SPARQL_ENDPOINT || 'http://localhost:3030/sqlib/';
-  const queryUrl = process.env.LIBRARY_STORAGE_SPARQL_QUERY_ENDPOINT || endpoint;
-  const updateUrl = process.env.LIBRARY_STORAGE_SPARQL_UPDATE_ENDPOINT || endpoint;
-  const username = process.env.LIBRARY_STORAGE_SPARQL_USERNAME; // Optional username
-  const password = process.env.LIBRARY_STORAGE_SPARQL_PASSWORD; // Optional password
+  const endpoint = env.LIBRARY_STORAGE_SPARQL_ENDPOINT || 'http://localhost:3030/sqlib/';
+  const queryUrl = env.LIBRARY_STORAGE_SPARQL_QUERY_ENDPOINT || endpoint;
+  const updateUrl = env.LIBRARY_STORAGE_SPARQL_UPDATE_ENDPOINT || endpoint;
+  const username = env.LIBRARY_STORAGE_SPARQL_USERNAME; // Optional username
+  const password = env.LIBRARY_STORAGE_SPARQL_PASSWORD; // Optional password
 
   return {
     type: 'http',
