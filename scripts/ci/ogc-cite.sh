@@ -13,8 +13,9 @@ source "$(dirname "$0")/lib.sh"
 # that name (SQLIB_OGC_BASE_URL).
 
 ETS_IMAGE="${ETS_IMAGE:-ogccite/ets-ogcapi-features10:1.8-teamengine-5.7}"
-PORT="${OGC_CITE_PORT:-7740}"
-TE_PORT="${OGC_CITE_TE_PORT:-7741}"
+# The runner is shared, so take free ports rather than fixed ones.
+free_port() { node -e 'const s=require("net").createServer().listen(0,()=>{console.log(s.address().port);s.close()})'; }
+PORT="${OGC_CITE_PORT:-$(free_port)}"
 NAME="sqlib-ogc-cite-$$"
 OUT="${RUNNER_TEMP:-/tmp}/ogc-cite-$$"
 mkdir -p "$OUT"
@@ -40,8 +41,10 @@ for _ in $(seq 1 120); do
 done
 curl -sf "http://localhost:$PORT/ogc/survey/conformance" >/dev/null || { cat "$OUT/server.log"; exit 1; }
 
-log "ogc-cite: starting $ETS_IMAGE on port $TE_PORT"
-docker run -d --name "$NAME" -p "$TE_PORT:8080" --add-host=host.docker.internal:host-gateway "$ETS_IMAGE" >/dev/null
+log "ogc-cite: starting $ETS_IMAGE"
+docker run -d --name "$NAME" -p 127.0.0.1::8080 --add-host=host.docker.internal:host-gateway "$ETS_IMAGE" >/dev/null
+TE_PORT="$(docker port "$NAME" 8080/tcp | head -1 | sed 's/.*://')"
+log "ogc-cite: TEAM Engine on port $TE_PORT"
 for _ in $(seq 1 120); do
   curl -sf --max-time 10 -u ogctest:ogctest "http://localhost:$TE_PORT/teamengine/rest/suites" >/dev/null && break
   sleep 2
