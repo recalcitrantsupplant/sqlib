@@ -19,6 +19,7 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "generate-schemas": "tsx scripts/generate-schemas.ts",
+    "ogc-cite-server": "tsx scripts/ogc-cite-server.ts",
     "smoke:provider": "tsx scripts/assistant-provider-smoke.ts",
     "smoke:etl-extensions": "tsx scripts/etl-extension-smoke.ts",
     "smoke:storage": "tsx scripts/storage-writability-smoke.ts",
