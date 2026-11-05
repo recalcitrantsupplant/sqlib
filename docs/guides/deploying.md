@@ -486,11 +486,11 @@ the entire library is in the container's memory and on its disk. Without a
 volume mounted at the storage path, everything is lost when the container is
 replaced.
 
-**Observability.** OpenTelemetry is initialised whenever the API is loaded, and
-`OTEL_ENABLED` defaults to on. OTLP export happens only when
-`NODE_ENV=development`, to `OTEL_EXPORTER_OTLP_ENDPOINT` (default
-`http://localhost:4318`); otherwise traces and metrics go to the console. Set
-`OTEL_ENABLED=false` if you want neither.
+**Observability.** Telemetry is off unless an OTLP endpoint is set. Set
+`OTEL_EXPORTER_OTLP_ENDPOINT` (and `OTEL_EXPORTER_OTLP_HEADERS` for a hosted
+service) to send traces, metrics and logs; on Azure Container Apps the managed
+OpenTelemetry agent sets the endpoint for you. Slow runs are logged either way.
+See [observability](observability.md).
 
 ## Scaling to zero
 
@@ -500,8 +500,9 @@ latency someone waits for. The image is set up for this: response serialisers
 compile on first use rather than at boot, the SPARQL grammars and the DuckDB
 binding are built on first use, and a V8 compile cache ships in the image so the
 first container to start is already warm. Turning off the
-[feature flags](../reference/configuration.md#feature-flags) you do not serve and
-setting `OTEL_ENABLED=false` are the two things left worth doing yourself; see
+[feature flags](../reference/configuration.md#feature-flags) you do not serve is
+the thing left worth doing yourself (telemetry is already off unless you
+configure it); see
 [startup time](../reference/configuration.md#startup-time).
 
 Two things about the store matter more than any of that:

@@ -19,6 +19,7 @@ every other page assumes.
 - [guides/etl.md](guides/etl.md) — how do I build RDF from tabular sources with DuckDB SQL?
 - [guides/prefixes.md](guides/prefixes.md) — how do I manage namespace prefixes across a library?
 - [guides/deploying.md](guides/deploying.md) — how do I run the container image and the static web app for real?
+- [guides/observability.md](guides/observability.md) — how do I send traces, metrics and logs somewhere, and find slow queries?
 
 ## Reference — looking something up
 

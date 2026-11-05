@@ -1,44 +1,8 @@
-// The logs API is part of @opentelemetry/api from 1.10 (the line sdk-logs 3.0
-// targets), so the separate @opentelemetry/api-logs dependency is gone.
-import { metrics, SeverityNumber } from '@opentelemetry/api'; // Import metrics API
-import { LoggerProvider, SimpleLogRecordProcessor, ConsoleLogRecordExporter } from '@opentelemetry/sdk-logs';
-import { log } from './log.js';
+import { metrics } from '@opentelemetry/api';
 
-export const meter = metrics.getMeter('sparql-query-lib', '1.0.0'); // Application name, version
-
-// Same switch otel-setup.ts uses, plus an off-by-default under vitest: the console
-// exporter dumps ~28 lines per log record, which is 2.7k records / 77k lines of
-// stdout for one api test run. That buries real failures in the CI log.
-const OTEL_LOGGING_ENABLED =
-  process.env.OTEL_ENABLED !== 'false' && !process.env.VITEST && process.env.NODE_ENV !== 'test';
-
-// @opentelemetry/sdk-logs 0.221 removed `addLogRecordProcessor`: processors are
-// supplied to the constructor, and SimpleLogRecordProcessor now takes an options
-// object rather than a bare exporter.
-const loggerProvider = new LoggerProvider({
-  processors: OTEL_LOGGING_ENABLED
-    ? [new SimpleLogRecordProcessor({ exporter: new ConsoleLogRecordExporter() })]
-    : [],
-});
-
-// Set the global logger provider (optional, but allows getting logger via logs.getLogger globally)
-// Note: The @opentelemetry/api 'logs' object for direct logging is not the standard way for sdk-logs.
-// Instead, we get a logger instance from the provider.
-// logs.setGlobalLoggerProvider(loggerProvider); // This line might be unnecessary/incorrect with sdk-logs
-
-// Get a logger instance for the application
-// We export this instance for use in other modules.
-export const logger = loggerProvider.getLogger('sparql-query-lib', '1.0.0'); // Application name, version
-
-// Export SeverityNumber for use elsewhere
-export { SeverityNumber };
-
-// Optional: Graceful shutdown for logging
-// NodeSDK in otel-setup.ts handles shutdown for metrics and traces.
-process.on('SIGTERM', () => {
-  loggerProvider.shutdown()
-    .then(() => log.info('OTEL logging terminated'))
-    .catch((error) => log.error({ err: error }, 'Error terminating OTEL logging'))
-    // Let the SDK shutdown handle process exit
-    // .finally(() => process.exit(0));
-});
+// The application meter. With telemetry off (see otel-setup.ts) the global
+// meter provider is the API's no-op one, so recording costs next to nothing.
+//
+// Log lines go through pino (`lib/log.ts`), which forwards them to
+// OpenTelemetry when log export is on; there is no separate OTel logger here.
+export const meter = metrics.getMeter('sparql-query-lib', '1.0.0');

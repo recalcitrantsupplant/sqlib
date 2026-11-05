@@ -3,6 +3,8 @@
 import './server/bootstrap.js';
 
 import { toError } from './lib/toError.js';
+import { shutdownTelemetry } from './otel-setup.js';
+import { fastifyLoggerOptions } from './lib/log.js';
 import Fastify from 'fastify';
 import fastifyMultipart from '@fastify/multipart';
 import fastifyCors from '@fastify/cors';
@@ -36,7 +38,8 @@ import { seedGraphAccessDemoLibrary, seedPatchDemoLibrary, seedRulesConformanceS
 
 // Create the Fastify instance outside the start function
 const app = Fastify({
-  logger: true,
+  // Same trace ids and destination as `lib/log.ts`.
+  logger: fastifyLoggerOptions(),
   bodyLimit: 100 * 1024 * 1024, // 100MB limit
   // Teaches the response serialiser the `iri` format the contracts emit; without
   // it fast-json-stringify logs `unknown format "iri" ignored` for every such
@@ -310,6 +313,8 @@ async function configureApp(fastifyApp: typeof app, options: ConfigureOptions = 
     await fastifyApp.close();
     // After the server, so no request is left writing to it.
     closeLibraryDatabase();
+    // Last, so the spans and log lines of the final requests are flushed.
+    await shutdownTelemetry();
   };
 
   return { featureFlags, teardown };
@@ -359,6 +364,8 @@ const start = async (fastifyApp: typeof app) => {
 
 // Export the app instance and the start function
 export { app, start, configureApp, normalizeBasePath };
+// For Fastify instances built outside this package (the MCP server's dual-http mode).
+export { fastifyLoggerOptions } from './lib/log.js';
 // Re-exported for in-process consumers that must validate exactly as this server
 // does — `packages/mcp-server` compiles its tool schemas with it (Phase C2,
 // issue #65). `coerceTypes`/`useDefaults` change what a handler receives, so a

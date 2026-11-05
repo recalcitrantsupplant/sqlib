@@ -14,6 +14,7 @@ import { getQueryTypeKeyFromIri, isQueryTypeIri, toQueryTypeIri } from '../lib/q
 import * as fs from 'fs';
 import * as path from 'path';
 import {meter} from '../lib/logger.js';
+import {recordQueryRun} from '../lib/slowQueryLog.js';
 import {ValueType} from '@opentelemetry/api';
 import {OUTPUT_MEDIA_TYPE_VALUES, PATCH_MEDIA_TYPES, RDF_MEDIA_TYPES} from '../types/media-types.js';
 import {previewUpdate, PatchTargetError, toRdfPatchDocument} from '../lib/patchService.js';
@@ -440,6 +441,12 @@ export default async function (
         // Reassigned once below, for a query given data graphs to run over.
         let backendId = params.backendId;
         let ephemeralStoreId: string | null = null; // Track ephemeral store for cleanup
+        // What the run leaves for observability (`lib/slowQueryLog.ts`), filled
+        // in as the target resolves.
+        let runVersionId: string | null = null;
+        let runEnvironment: string | null = null;
+        let runQueryText: string | undefined;
+        let runRowCount: number | undefined;
         // A caller who disconnects stops paying for the run they left: the
         // signal reaches every backend request and every group node.
         const disconnect = abortOnDisconnect(reply.raw);
@@ -483,7 +490,9 @@ export default async function (
                 targetEntity = { ...targetEntity, currentVersion: resolution.version };
                 versionToRun = resolution.version;
                 if (resolution.environment) reply.header('X-Resolved-Environment', resolution.environment.name);
+                runEnvironment = resolution.environment?.name ?? null;
             }
+            runVersionId = versionToRun;
 
             // Execute on the owning library gates the operation, or, for a
             // caller without it, `execute` on an environment that points at
@@ -1118,6 +1127,9 @@ export default async function (
                 throw new Error("Internal error: sparqlQueryString became undefined before execution.");
             }
 
+            runVersionId = resolvedTargetId;
+            runQueryText = typeof resolvedQueryVersion?.queryString === 'string' ? resolvedQueryVersion.queryString : undefined;
+
             // Ensure targetExecutor is not null (should only be null for query groups which exit earlier)
             if (!targetExecutor) {
                 throw new Error("Internal error: targetExecutor is null but required for query execution.");
@@ -1129,6 +1141,8 @@ export default async function (
                     const {result, duration, contentType} = await targetExecutor.selectQueryParsed(sparqlQueryString, {acceptHeader: finalAcceptHeader, signal, dataset});
                     dbDuration = duration;
                     executionStatus = 'success';
+                    const bindings = (result as { results?: { bindings?: unknown[] } } | null)?.results?.bindings;
+                    if (Array.isArray(bindings)) runRowCount = bindings.length;
                     const rendered = renderRequestedSelectFormat(result, finalAcceptHeader);
                     if (rendered) {
                         reply.header('Content-Type', rendered.contentType);
@@ -1339,6 +1353,21 @@ export default async function (
             queryExecutionDuration.record(duration, attributes);
             queryExecutionCounter.add(1, attributes);
             request.log.info({duration, attributes}, `Recorded execution metrics for query ${targetId}`);
+            recordQueryRun(request.log, {
+                targetId,
+                targetType: targetTypeForError,
+                versionId: runVersionId,
+                environment: runEnvironment,
+                backendId: backendId ?? null,
+                backendType: backendTypeAttr ?? null,
+                status: executionStatus,
+                durationMs: duration,
+                backendDurationMs: dbDuration > 0 ? dbDuration : undefined,
+                rowCount: runRowCount,
+                queryText: runQueryText,
+                arguments: rawInlineArgs,
+                argumentSetIds,
+            });
         }
     }
 

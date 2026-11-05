@@ -171,14 +171,31 @@ A value that does not parse as an integer falls back to the default.
 
 ## Telemetry
 
+Telemetry is off unless something says where to send it. With it off the
+OpenTelemetry SDK is not loaded at all. See
+[observability](../guides/observability.md) for recipes and the local stack.
+
 | Name | Default | Effect |
 | --- | --- | --- |
-| `OTEL_ENABLED` | `true` | Set to exactly `false` to skip OpenTelemetry SDK startup and OpenTelemetry log export. Any other value leaves it on. With it off the SDK is not imported at all, which is worth about 220ms of startup. |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://localhost:4318` | OTLP HTTP collector base URL. Traces go to `/v1/traces` and metrics to `/v1/metrics`. |
+| `OTEL_ENABLED` | unset | `false` turns telemetry off, whatever else is set. `true` turns it on; with no endpoint the SDK sends OTLP to `http://localhost:4318`. |
+| `OTEL_SDK_DISABLED` | unset | The standard off switch. `true` turns telemetry off. |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | unset | OTLP base URL. Setting it, or a per-signal `OTEL_EXPORTER_OTLP_{TRACES,METRICS,LOGS}_ENDPOINT`, turns telemetry on. |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | `http/protobuf` | `http/protobuf`, `http/json` or `grpc`. |
+| `OTEL_EXPORTER_OTLP_HEADERS` | unset | Headers on every export, for an API key: `x-honeycomb-team=<key>`. |
+| `OTEL_TRACES_EXPORTER`, `OTEL_METRICS_EXPORTER`, `OTEL_LOGS_EXPORTER` | `otlp` | `otlp`, `console` or `none` per signal. A value other than `none` turns telemetry on, so `OTEL_TRACES_EXPORTER=console` works for a quick look. |
+| `OTEL_SERVICE_NAME` | `sqlib` | The `service.name` on everything sent. |
+| `OTEL_RESOURCE_ATTRIBUTES` | unset | Extra resource attributes, such as `deployment.environment.name=prod`. |
+| `OTEL_TRACES_SAMPLER`, `OTEL_TRACES_SAMPLER_ARG` | `parentbased_always_on` | Head sampling, such as `parentbased_traceidratio` and `0.2`. |
+| `OTEL_METRIC_EXPORT_INTERVAL` | `60000` | Milliseconds between metric exports. |
+| `SQLIB_SLOW_QUERY_MS` | `1000` | A run of `/execute` that takes at least this long writes one `sqlib.query.slow` log line. `0` logs every run; `off` turns the line off. Works with telemetry off too: the line is a normal log line. |
+| `SQLIB_TELEMETRY_DETAIL` | `ids` | What the slow line carries beyond ids. `text` adds the saved query text; `text+args` also adds the arguments the caller sent, which can hold private values. |
 
-OTLP export only happens when `NODE_ENV=development`. In any other environment
-the SDK starts with console exporters, which means an endpoint set in production
-is not used. Metrics are exported every 30 seconds.
+Every other `OTEL_*` variable the OpenTelemetry Node SDK reads works as
+documented for it, because sqlib passes no exporter of its own.
+
+With telemetry on, log lines still go to stdout, and also go out as OTLP log
+records unless `OTEL_LOGS_EXPORTER=none`. Lines logged inside a request carry
+`trace_id` and `span_id`.
 
 ## Startup time
 
@@ -200,8 +217,8 @@ instance that would rather pay the whole bill before it accepts traffic.
 
 Two other things help and are ordinary configuration rather than switches:
 turning off [feature flags](feature-flags.md) you do not serve removes their
-routes, and each route is worth roughly 10ms of startup; and `OTEL_ENABLED=false`
-avoids loading the OpenTelemetry SDK.
+routes, and each route is worth roughly 10ms of startup; and leaving telemetry
+unconfigured (the default) avoids loading the OpenTelemetry SDK.
 
 What does *not* help much is anything about Oxigraph itself: the WASM module
 instantiates in about 25ms. The data-dependent part of startup is the snapshot,
