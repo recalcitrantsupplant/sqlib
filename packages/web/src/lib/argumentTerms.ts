@@ -6,7 +6,8 @@
  * grid, and the clause view — so the strings they show it with live here
  * rather than three times over.
  */
-import { XSD_DATATYPES, type SparqlValue } from '@/types/argument-sets';
+import { RDF_JSON, XSD_DATATYPES, type SparqlValue } from '@/types/argument-sets';
+import { parseJson } from './jsonText';
 
 /** A blank lexical form binds UNDEF; that is a value, not an unfinished one. */
 export function isUndef(value: SparqlValue | undefined): boolean {
@@ -27,6 +28,7 @@ export function termTypeLabel(value: SparqlValue): string {
 export function termPlaceholder(value: SparqlValue): string {
   if (value.type === 'uri') return 'http://example.org/resource';
   const datatype = value.datatype ?? '';
+  if (datatype === RDF_JSON) return '{"op": "=", "args": []}';
   if (datatype.includes('integer')) return '123';
   if (datatype.includes('decimal') || datatype.includes('double') || datatype.includes('float')) return '123.45';
   if (datatype.includes('boolean')) return 'true';
@@ -78,6 +80,11 @@ export function inferTerm(text: string): SparqlValue {
   }
   if (/^(true|false)$/i.test(trimmed)) {
     return { type: 'literal', value: trimmed.toLowerCase(), datatype: 'http://www.w3.org/2001/XMLSchema#boolean' };
+  }
+  // Only an object or an array: a bare `"x"` or `3` is JSON too, and reading
+  // every quoted string as rdf:JSON would retype prose.
+  if (/^[[{]/.test(trimmed) && parseJson(trimmed).ok) {
+    return { type: 'literal', value: trimmed, datatype: RDF_JSON };
   }
   return { type: 'literal', value: text };
 }

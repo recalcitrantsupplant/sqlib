@@ -38,7 +38,7 @@
  */
 import { computed } from 'vue';
 import { Codemirror } from 'vue-codemirror';
-import type { Extension } from '@codemirror/state';
+import { EditorState, type Extension } from '@codemirror/state';
 import { EditorView, placeholder as placeholderExtension } from '@codemirror/view';
 import { rdfSyntaxHighlighting } from '@/lib/codemirrorHighlight';
 import { languageExtensionsFor } from '@/lib/codeLanguage';
@@ -70,6 +70,10 @@ const props = withDefaults(
      * boxes holding something that is not RDF at all.
      */
     prefixSource?: string | null;
+    /** Shows the text without letting it be changed, as a disabled input does. */
+    readOnly?: boolean;
+    /** Off where the layout is the point, as in pretty-printed JSON. */
+    wrap?: boolean;
   }>(),
   {
     contentType: 'text/turtle',
@@ -80,6 +84,8 @@ const props = withDefaults(
     showLineNumbers: true,
     expanded: false,
     prefixSource: undefined,
+    readOnly: false,
+    wrap: true,
   },
 );
 
@@ -115,11 +121,12 @@ const shellStyle = computed(() =>
 const extensions = computed<Extension[]>(() => [
   ...languageExtensionsFor(props.contentType),
   rdfSyntaxHighlighting,
-  EditorView.lineWrapping,
+  ...(props.wrap ? [EditorView.lineWrapping] : []),
   ...(props.placeholder ? [placeholderExtension(props.placeholder)] : []),
   ...(props.showLineNumbers
     ? []
     : [EditorView.theme({ '.cm-gutters': { display: 'none' } })]),
+  ...(props.readOnly ? [EditorState.readOnly.of(true), EditorView.editable.of(false)] : []),
 ]);
 </script>
 
