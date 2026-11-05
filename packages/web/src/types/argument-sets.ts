@@ -183,7 +183,13 @@ export const XSD_DATATYPES = [
   { value: 'http://www.w3.org/2001/XMLSchema#time', label: 'xsd:time' },
   { value: 'http://www.w3.org/2001/XMLSchema#double', label: 'xsd:double' },
   { value: 'http://www.w3.org/2001/XMLSchema#float', label: 'xsd:float' },
+  // Not XSD, but the datatype RDF 1.2 gives a JSON value, and the one a CQL2
+  // filter or any other structured argument is passed as.
+  { value: 'http://www.w3.org/1999/02/22-rdf-syntax-ns#JSON', label: 'rdf:JSON' },
 ] as const
+
+/** `rdf:JSON`: the literal is a JSON text, edited as JSON rather than as a line. */
+export const RDF_JSON = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#JSON'
 
 export const NODE_KINDS = [
   { value: 'uri', label: 'IRI' },
