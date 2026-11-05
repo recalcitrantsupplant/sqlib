@@ -8,7 +8,7 @@
  * silently.
  */
 import { describe, expect, it } from 'vitest';
-import { buildTestRunSummary, formatRunDuration, type TestRunScope } from '@/lib/testRunSummary';
+import { buildTestRunSummary, formatRunDuration, verdictOf, type TestRunScope } from '@/lib/testRunSummary';
 import type { TestRunResult } from '@/composables/useApiClient';
 
 const scope = (testIds: string[], answeredIds: string[] = testIds): TestRunScope => ({
@@ -37,6 +37,7 @@ function verdict(overrides: Partial<TestRunResult> & { testId: string }): TestRu
     cases: [],
     passedCount: 1,
     failedCount: 0,
+    slowCount: 0,
     ...overrides,
   };
 }
@@ -59,6 +60,28 @@ const tags = {
 };
 
 describe('buildTestRunSummary', () => {
+  it('counts a correct case over its budget as slow, apart from a wrong one', () => {
+    const slow = { ...caseResult('slow', false, 'Correct, but took 900 ms; the budget is 500 ms'), detail: null, slow: true, maxDurationMs: 500 };
+    const summary = buildTestRunSummary({
+      scope: scope(['t1']),
+      tests: [{ id: 't1', name: 'first', tags: [], currentVersion: 't1/v/1' }],
+      results: {
+        t1: verdict({
+          testId: 't1',
+          passed: false,
+          cases: [caseResult('ok', true), slow, caseResult('wrong', false, 'one row missing')],
+          passedCount: 1,
+          failedCount: 1,
+          slowCount: 1,
+        }),
+      },
+      tags,
+    });
+
+    expect(summary.tallies).toMatchObject({ cases: 3, passed: 1, failed: 1, slow: 1 });
+    expect(summary.failures.map((row) => row.status)).toEqual(['slow', 'fail']);
+  });
+
   it('counts a test the scope named but that never ran as excluded', () => {
     const summary = buildTestRunSummary({
       scope: scope(['t1', 't2'], ['t1']),
@@ -261,4 +284,12 @@ describe('formatRunDuration', () => {
     expect(formatRunDuration(125_000)).toBe('2m 5s');
   });
 
+});
+
+describe('verdictOf', () => {
+  it('reads slow only when nothing was wrong', () => {
+    expect(verdictOf({ passed: true, failedCount: 0, slowCount: 0 })).toBe('pass');
+    expect(verdictOf({ passed: false, failedCount: 0, slowCount: 2 })).toBe('slow');
+    expect(verdictOf({ passed: false, failedCount: 1, slowCount: 1 })).toBe('fail');
+  });
 });

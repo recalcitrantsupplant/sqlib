@@ -465,6 +465,7 @@ export const testCaseShape = {
   expected: nullableString,
   expectedFormat: nullableString,
   ordered: nullableBoolean,
+  maxDurationMs: nullableInteger,
   dateCreated: isoDateTime,
   dateModified: isoDateTime,
   createdBy: optionalIriString,

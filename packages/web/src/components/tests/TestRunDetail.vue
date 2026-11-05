@@ -6,6 +6,7 @@
     -->
     <header class="detail-head">
       <CircleCheck v-if="run?.passed" :size="14" class="ink-pass" />
+      <Timer v-else-if="run && verdict === 'slow'" :size="14" class="ink-slow" />
       <CircleX v-else-if="run" :size="14" class="ink-fail" />
       <ListChecks v-else :size="14" class="head-icon" />
       <h2 class="detail-title">{{ testName || 'Test' }}</h2>
@@ -42,9 +43,9 @@
       />
 
       <template v-else>
-        <div class="verdict" :class="run.passed ? 'verdict-pass' : 'verdict-fail'" data-testid="test-verdict">
-          <component :is="run.passed ? CircleCheck : CircleX" :size="15" />
-          <span class="verdict-text">{{ run.passed ? 'Passed' : 'Failed' }}</span>
+        <div class="verdict" :class="`verdict-${verdict}`" data-testid="test-verdict">
+          <component :is="VERDICT_ICON[verdict]" :size="15" />
+          <span class="verdict-text">{{ VERDICT_LABEL[verdict] }}</span>
           <span class="verdict-meta">{{ verdictMeta }}</span>
         </div>
 
@@ -64,7 +65,14 @@
               :data-testid="`test-case-result-${index}`"
               @click="selectedCaseIndex = index"
             >
-              <span class="case-dot" :class="caseResult.passed ? 'case-dot-pass' : 'case-dot-fail'"></span>
+              <span
+                class="case-dot"
+                :class="{
+                  'case-dot-pass': caseResult.passed,
+                  'case-dot-slow': !caseResult.passed && caseResult.slow,
+                  'case-dot-fail': !caseResult.passed && !caseResult.slow,
+                }"
+              ></span>
               <span class="case-result-name">{{ caseResult.name }}</span>
               <span class="case-result-message">{{ caseResult.passed ? '' : caseResult.message }}</span>
             </button>
@@ -153,12 +161,13 @@
  * runs; `rerun` goes back to the page, which owns the run scope.
  */
 import { computed, ref, watch } from 'vue';
-import { CircleCheck, CircleX, ListChecks, RefreshCw, Settings2 } from '@lucide/vue';
+import { CircleCheck, CircleX, ListChecks, RefreshCw, Settings2, Timer } from '@lucide/vue';
 import CodePeek from '../shared/CodePeek.vue';
 import EmptyState from '../shared/EmptyState.vue';
 import InfoHint from '../shared/InfoHint.vue';
 import SectionLabel from '../shared/SectionLabel.vue';
 import { testDiffFooter, testDiffLines } from '../../lib/testCaseDiff';
+import { verdictOf } from '../../lib/testRunSummary';
 import { formatRelativeTime } from '../../lib/time';
 import { useTestsStore } from '../../composables/useTestsStore';
 import type { TestRunResult, TestVersion } from '../../composables/useApiClient';
@@ -189,6 +198,10 @@ const selectedCaseIndex = ref(0);
 watch(() => [props.testId, props.run?.ranAt], () => { selectedCaseIndex.value = 0; });
 
 const runCase = computed(() => props.run?.cases[selectedCaseIndex.value] ?? null);
+
+const VERDICT_ICON = { pass: CircleCheck, slow: Timer, fail: CircleX } as const;
+const VERDICT_LABEL = { pass: 'Passed', slow: 'Slow', fail: 'Failed' } as const;
+const verdict = computed(() => (props.run ? verdictOf(props.run) : 'fail'));
 
 const verdictMeta = computed(() => {
   const run = props.run;
@@ -311,6 +324,10 @@ const expectedMeta = computed(() => {
   color: var(--success-ink);
 }
 
+.ink-slow {
+  color: var(--warning-ink);
+}
+
 .ink-fail {
   color: var(--danger-ink);
 }
@@ -402,6 +419,12 @@ const expectedMeta = computed(() => {
   color: var(--danger-ink);
 }
 
+.verdict-slow {
+  border-color: var(--warning-border);
+  background: var(--warning-surface);
+  color: var(--warning-ink);
+}
+
 .verdict-text {
   font-weight: var(--weight-semibold);
 }
@@ -466,6 +489,10 @@ const expectedMeta = computed(() => {
 
 .case-dot-fail {
   background: var(--state-invalid);
+}
+
+.case-dot-slow {
+  background: var(--warning);
 }
 
 .diff {

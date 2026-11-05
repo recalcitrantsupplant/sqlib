@@ -90,7 +90,7 @@ function caseElement(row: TestReportRow): string {
     ? 'failure'
     : row.outcome === 'cantTell' ? 'error' : 'skipped';
   const body = truncate([row.message, row.detail].filter(Boolean).join('\n\n'));
-  const inner = `      <${tag} ${attrs([['message', firstLine(row.message)], ['type', row.outcome]])}>`
+  const inner = `      <${tag} ${attrs([['message', firstLine(row.message)], ['type', row.slow ? 'slow' : row.outcome]])}>`
     + `${cdata(body)}</${tag}>`;
   return `${open}>\n${inner}\n    </testcase>`;
 }

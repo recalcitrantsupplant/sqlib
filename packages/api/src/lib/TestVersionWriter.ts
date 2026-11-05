@@ -42,6 +42,8 @@ export interface TestCaseInput {
   expected?: string | null;
   expectedFormat?: string | null;
   ordered?: boolean | null;
+  /** The most time, in ms, a correct run may take before it is reported as slow. */
+  maxDurationMs?: number | null;
 }
 
 export interface AnnotateTestVersionInput {
@@ -118,6 +120,11 @@ function validateCase(kind: ExpectationKind, testCase: TestCaseInput, index: num
     if (!graph?.dataGraphVersion?.trim()) {
       throw new TestVersionError(`${where}: dataGraphs[${position}] needs a dataGraphVersion`);
     }
+  }
+
+  const budget = testCase.maxDurationMs;
+  if (budget !== null && budget !== undefined && (!Number.isInteger(budget) || budget < 1)) {
+    throw new TestVersionError(`${where}: maxDurationMs must be a whole number of milliseconds, 1 or more`);
   }
 
   if (kind !== 'smoke' && !expected?.trim()) {
@@ -206,6 +213,7 @@ async function writeCases(
       expected: kind === 'smoke' ? undefined : testCase.expected ?? undefined,
       expectedFormat: testCase.expectedFormat ?? undefined,
       ordered: testCase.ordered ?? undefined,
+      maxDurationMs: testCase.maxDurationMs ?? undefined,
     } as Record<string, unknown>));
     ids.push(caseId);
   }
@@ -282,6 +290,7 @@ export function buildDraftTestVersion(test: PersistedTest, body: TestVersionInpu
       expected: expectationKind === 'smoke' ? undefined : testCase.expected ?? undefined,
       expectedFormat: testCase.expectedFormat ?? undefined,
       ordered: testCase.ordered ?? undefined,
+      maxDurationMs: testCase.maxDurationMs ?? undefined,
     } as RunnableTestCase;
   });
 

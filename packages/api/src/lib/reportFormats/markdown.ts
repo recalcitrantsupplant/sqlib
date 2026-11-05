@@ -62,7 +62,10 @@ function row(reportRow: TestReportRow): string {
   const name = reportRow.caseName === NOT_RUN_CASE_NAME
     ? `_${reportRow.caseName}_`
     : cell(reportRow.caseName);
-  return `| ${OUTCOME_ICON[reportRow.outcome] ?? ''} ${reportRow.outcome} `
+  const outcome = reportRow.slow
+    ? '⏱️ slow'
+    : `${OUTCOME_ICON[reportRow.outcome] ?? ''} ${reportRow.outcome}`;
+  return `| ${outcome} `
     + `| \`${shortIri(reportRow.testId)}\` | ${name} | ${cell(shortIri(reportRow.backend))} `
     + `| ${reportRow.durationMs} | ${cell(shortMessage(reportRow.message))} |`;
 }
@@ -85,9 +88,10 @@ export function toJobSummaryMarkdown(input: TestReportInput): string {
     `**${totals.casesPassed}/${totals.cases}** cases passed across **${totals.tests}** `
       + `test${totals.tests === 1 ? '' : 's'} in ${(totals.durationMs / 1000).toFixed(2)}s.`,
     '',
-    `| Passed | Failed | Could not run | Tests | Suite |`,
-    `| --- | --- | --- | --- | --- |`,
-    `| ${totals.casesPassed} | ${totals.casesFailed} | ${totals.casesCantTell} `
+    `| Passed | Failed | Slow | Could not run | Tests | Suite |`,
+    `| --- | --- | --- | --- | --- | --- |`,
+    `| ${totals.casesPassed} | ${totals.casesFailed - totals.casesSlow} | ${totals.casesSlow} `
+      + `| ${totals.casesCantTell} `
       + `| ${totals.tests} | ${cell(input.suite)} |`,
     '',
   ];

@@ -220,7 +220,11 @@
               <span
                 v-if="lastRun?.cases[index]"
                 class="case-dot"
-                :class="lastRun.cases[index].passed ? 'case-dot-pass' : 'case-dot-fail'"
+                :class="{
+                  'case-dot-pass': lastRun.cases[index].passed,
+                  'case-dot-slow': !lastRun.cases[index].passed && lastRun.cases[index].slow,
+                  'case-dot-fail': !lastRun.cases[index].passed && !lastRun.cases[index].slow,
+                }"
               ></span>
               {{ caseLabel(testCase, index) }}
               <span
@@ -521,6 +525,18 @@
                   @change="(event) => (ordered = (event.target as HTMLInputElement).checked)"
                 />
               </FormField>
+              <FormField label="Max ms" inline>
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  class="control control-budget"
+                  data-testid="test-max-duration"
+                  title="A correct result slower than this counts as slow"
+                  :value="maxDurationMs ?? ''"
+                  @change="(event) => (maxDurationMs = parseBudget((event.target as HTMLInputElement).value))"
+                />
+              </FormField>
               <select
                 class="control control-auto"
                 data-testid="test-expectation-kind"
@@ -717,6 +733,7 @@ import { downloadTextFile } from '../lib/downloadFile';
 import { useTestRunScope } from '../composables/useTestRunScope';
 import { usePanelResize } from '../composables/usePanelResize';
 import { useFeatureFlags } from '../composables/useFeatureFlags';
+import { verdictOf } from '../lib/testRunSummary';
 import { TEST_REPORT_FORMATS } from '../lib/testReportFormats';
 import type { TestReportFormat } from '../lib/testReportFormats';
 import type { TestCaseGraphInput } from '@sparql-query-lib/contracts';
@@ -910,6 +927,8 @@ interface CaseDraft {
    */
   expectedFormat: string | null;
   ordered: boolean;
+  /** The case's time budget in ms. Over it, a correct result is reported as slow. */
+  maxDurationMs: number | null;
 }
 
 function emptyCase(): CaseDraft {
@@ -923,6 +942,7 @@ function emptyCase(): CaseDraft {
     expected: '',
     expectedFormat: null,
     ordered: false,
+    maxDurationMs: null,
   };
 }
 
@@ -963,6 +983,15 @@ const sqlFixture = caseField('sqlFixture');
 const expected = caseField('expected');
 
 const ordered = caseField('ordered');
+const maxDurationMs = caseField('maxDurationMs');
+
+const VERDICT_TOAST = { pass: 'success', slow: 'warning', fail: 'error' } as const;
+
+/** A whole number of ms, 1 or more; anything else clears the budget. */
+function parseBudget(value: string): number | null {
+  const parsed = Number(value);
+  return value.trim() && Number.isInteger(parsed) && parsed >= 1 ? parsed : null;
+}
 
 function addCase() {
   // Seeded from the case in view rather than empty: a second case usually
@@ -1735,6 +1764,7 @@ function bodyOfVersion(version: TestVersion): TestDraftBody {
       expected: testCase.expected ?? '',
       expectedFormat: testCase.expectedFormat ?? null,
       ordered: testCase.ordered ?? false,
+      maxDurationMs: testCase.maxDurationMs ?? null,
     })),
   };
 }
@@ -1889,6 +1919,8 @@ function versionBody() {
       expected: expectationKind.value === 'smoke' ? null : testCase.expected,
       expectedFormat: testCase.expectedFormat,
       ordered: expectationKind.value === 'bindings' ? testCase.ordered : null,
+      // `?? null`: a draft kept from before budgets existed has no such field.
+      maxDurationMs: testCase.maxDurationMs ?? null,
       ...savedCaseInputs(testCase),
     })),
   };
@@ -1978,8 +2010,9 @@ async function runDraft() {
     draftRun.value = result;
     const firstFailure = result.cases.findIndex(testCase => !testCase.passed);
     if (firstFailure >= 0) selectedCaseIndex.value = firstFailure;
-    toast[result.passed ? 'success' : 'error'](
-      result.passed ? 'Unsaved edits passed' : `Unsaved edits failed: ${result.message}`,
+    const verdict = verdictOf(result);
+    toast[VERDICT_TOAST[verdict]](
+      verdict === 'pass' ? 'Unsaved edits passed' : `Unsaved edits ${verdict === 'slow' ? 'were slow' : 'failed'}: ${result.message}`,
     );
   } catch (error) {
     draftRun.value = null;
@@ -2011,8 +2044,9 @@ async function run() {
     // what the run was for, and hunting for it is the work this saves.
     const firstFailure = result.cases.findIndex(testCase => !testCase.passed);
     if (firstFailure >= 0) selectedCaseIndex.value = firstFailure;
-    toast[result.passed ? 'success' : 'error'](
-      result.passed ? 'Test passed' : `Test failed: ${result.message}`,
+    const verdict = verdictOf(result);
+    toast[VERDICT_TOAST[verdict]](
+      verdict === 'pass' ? 'Test passed' : `Test ${verdict === 'slow' ? 'was slow' : 'failed'}: ${result.message}`,
     );
   } catch (error) {
     // A test that *cannot* run is not a failing test, and saying so is the
@@ -2662,6 +2696,10 @@ watch([argumentSetVersion, argumentSetOptions], () => {
   background: var(--state-invalid);
 }
 
+.case-dot-slow {
+  background: var(--warning);
+}
+
 .ghost-button {
   display: inline-flex;
   align-items: center;
@@ -2691,6 +2729,10 @@ watch([argumentSetVersion, argumentSetOptions], () => {
 
 .control-auto {
   width: auto;
+}
+
+.control-budget {
+  width: 7em;
 }
 
 .control:disabled {

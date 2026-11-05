@@ -107,6 +107,12 @@ export const TestRunSchema = {
     '@type': xsd.integer,
     '@optional': true,
   },
+  /** Cases that were correct but over their time budget. Not in `failedCount`. */
+  slowCount: {
+    '@id': sqlib.slowCount,
+    '@type': xsd.integer,
+    '@optional': true,
+  },
   /**
    * When the run happened, as the *server* stamped it.
    *
@@ -150,6 +156,7 @@ export interface PersistedTestRun {
   durationMs?: number | null;
   passedCount?: number | null;
   failedCount?: number | null;
+  slowCount?: number | null;
   ranAt: string;
   dateCreated?: string | null;
   dateModified?: string | null;

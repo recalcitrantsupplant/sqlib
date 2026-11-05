@@ -73,6 +73,22 @@ export const TestRunCaseSchema = {
     '@type': xsd.decimal,
     '@optional': true,
   },
+  /** The case's time budget at run time, when it had one. */
+  maxDurationMs: {
+    '@id': sqlib.maxDurationMs,
+    '@type': xsd.integer,
+    '@optional': true,
+  },
+  /**
+   * Correct, but slower than `maxDurationMs`. The `outcome` of such a row is
+   * `failed`, because EARL has no third verdict; this flag is what keeps a slow
+   * row apart from a wrong one.
+   */
+  slow: {
+    '@id': sqlib.slow,
+    '@type': xsd.boolean,
+    '@optional': true,
+  },
   argumentSetVersion: {
     '@id': sqlib.refArgumentSetVersion,
     '@type': sqlib.IRI,
@@ -115,6 +131,8 @@ export interface PersistedTestRunCase {
   message?: string | null;
   detail?: string | null;
   durationMs?: number | null;
+  maxDurationMs?: number | null;
+  slow?: boolean | null;
   argumentSetVersion?: string | null;
   dataGraphVersion?: string | null;
   dataGraphVersions?: string[] | null;

@@ -318,6 +318,38 @@ describe('reading history back', () => {
     expect(toJUnitXml(rendered)).toEqual(toJUnitXml(live));
   });
 
+  it('keeps a slow case apart from a wrong one, through storage and back', async () => {
+    const result = verdict({
+      passed: false,
+      message: 'Correct, but took 900 ms; the budget is 500 ms',
+      passedCount: 0,
+      failedCount: 0,
+      slowCount: 1,
+      cases: [
+        {
+          caseId: 'urn:sqlib:test-case:c1',
+          name: 'Case 1',
+          position: 0,
+          passed: false,
+          slow: true,
+          maxDurationMs: 500,
+          message: 'Correct, but took 900 ms; the budget is 500 ms',
+          inputs: { argumentSetVersion: null, dataGraphVersion: null, dataGraphVersions: [] },
+          durationMs: 900,
+        },
+      ],
+    });
+
+    const written = await recordTestRun({ result, suite: TEST_ID });
+    expect(written).toMatchObject({ outcome: 'failed', failedCount: 0, slowCount: 1 });
+    expect(storedCases()[0]).toMatchObject({ outcome: 'failed', slow: true, maxDurationMs: 500 });
+
+    const entry = toReportEntry((await getTestRun(written!.$id))!);
+    expect(entry.result.cases[0]).toMatchObject({ passed: false, slow: true, maxDurationMs: 500 });
+    expect(entry.result.slowCount).toBe(1);
+    expect(toJUnitXml({ suite: TEST_ID, entries: [entry] })).toContain('type="slow"');
+  });
+
   it('answers null for a run id that names nothing', async () => {
     expect(await getTestRun('urn:sqlib:test-run:missing')).toBeNull();
   });

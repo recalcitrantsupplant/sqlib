@@ -125,6 +125,10 @@ export const testCaseRunResultSchema = z
       .strict()
       .optional(),
     durationMs: z.number(),
+    /** The case's time budget in ms, when it has one. */
+    maxDurationMs: z.number().int().nullable().optional(),
+    /** Correct, but over `maxDurationMs`. `passed` is false on such a case. */
+    slow: z.boolean().nullable().optional(),
   })
   .strict();
 
@@ -145,6 +149,8 @@ export const testRunResultSchema = z
     cases: z.array(testCaseRunResultSchema).default([]),
     passedCount: z.number().int().default(0),
     failedCount: z.number().int().default(0),
+    /** Correct but over budget. Apart from `failedCount`. */
+    slowCount: z.number().int().default(0),
   })
   .strict();
 
