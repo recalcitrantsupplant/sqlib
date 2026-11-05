@@ -256,3 +256,47 @@ describe('an SRL editor given a GROUP aggregate', () => {
     }
   });
 });
+
+/**
+ * `LATERAL` (SPARQL 1.2, SEP-0006) saves on the server, but the grammar
+ * package has no rule for it yet. The editor drops the one error the grammar
+ * reports for the keyword, and nothing else.
+ */
+describe('a SPARQL editor given LATERAL', () => {
+  async function lintSparql(doc: string): Promise<string[]> {
+    const view = new EditorView({
+      state: EditorState.create({ doc, extensions: languageExtensionsFor('application/sparql-query') }),
+      parent: document.body,
+    });
+    try {
+      forceLinting(view);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const found: string[] = [];
+      forEachDiagnostic(view.state, (diagnostic) => found.push(diagnostic.message));
+      return found;
+    } finally {
+      view.destroy();
+    }
+  }
+
+  it('does not flag a valid LATERAL query', async () => {
+    const query = [
+      'PREFIX text: <http://jena.apache.org/text#>',
+      'SELECT * WHERE {',
+      '  VALUES ?q { UNDEF }',
+      '  BIND(COALESCE(?q, "granite") AS ?q1)',
+      '  lateral # one search per row',
+      '  { ?s text:query (?q1) . }',
+      '}',
+    ].join('\n');
+    expect(await lintSparql(query)).toEqual([]);
+  });
+
+  it('still flags LATERAL with no group after it', async () => {
+    expect(await lintSparql('SELECT * WHERE { ?s ?p ?o LATERAL ?x }')).not.toEqual([]);
+  });
+
+  it('still flags an error inside the LATERAL group', async () => {
+    expect(await lintSparql('SELECT * WHERE { ?s ?p ?o LATERAL { ?s ?p } }')).not.toEqual([]);
+  });
+});

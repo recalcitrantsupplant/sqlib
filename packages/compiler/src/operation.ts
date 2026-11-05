@@ -1,4 +1,4 @@
-import { Parser } from '@traqula/parser-sparql-1-2';
+import { Parser } from './sparql12.js';
 
 /** The top-level form of a SPARQL text: one of the four query forms, or an update. */
 export type SparqlOperation = 'SELECT' | 'ASK' | 'CONSTRUCT' | 'DESCRIBE' | 'UPDATE';

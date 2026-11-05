@@ -42,8 +42,10 @@
   },
   "dependencies": {
     "@sparql-query-lib/runtime": "workspace:*",
+    "@traqula/core": "1.3.0",
     "@traqula/generator-sparql-1-2": "1.4.0",
     "@traqula/parser-sparql-1-2": "1.4.0",
+    "@traqula/rules-sparql-1-1": "1.4.0",
     "@traqula/rules-sparql-1-2": "1.4.0"
   },
   "devDependencies": {
