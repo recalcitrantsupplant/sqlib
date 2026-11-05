@@ -185,6 +185,39 @@ export interface TestCaseResult {
     dataGraphVersions: string[];
   };
   durationMs: number;
+  /** The case's time budget in ms, when it has one. */
+  maxDurationMs?: number;
+  /**
+   * Correct, but `durationMs` went over `maxDurationMs`.
+   *
+   * `passed` is false on such a case, so every reader that only knows pass and
+   * fail still treats a blown budget as a failure. This flag is what lets a
+   * report show "slow" apart from "wrong". A case that is wrong and also slow
+   * is wrong: the diff is the more useful thing to show.
+   */
+  slow?: boolean;
+}
+
+/**
+ * Apply a case's time budget to a verdict on correctness.
+ *
+ * Pure, and exported for the tests. Only a correct case can be slow: a wrong
+ * one keeps its diff message, which says more than the clock does.
+ */
+export function judgeBudget(
+  comparison: ComparisonResult,
+  durationMs: number,
+  maxDurationMs: number | null | undefined,
+): { passed: boolean; message: string; slow?: boolean } {
+  if (!comparison.passed) return { passed: false, message: comparison.message };
+  if (typeof maxDurationMs !== 'number' || durationMs <= maxDurationMs) {
+    return { passed: true, message: '' };
+  }
+  return {
+    passed: false,
+    slow: true,
+    message: `Correct, but took ${Math.round(durationMs)} ms; the budget is ${maxDurationMs} ms`,
+  };
 }
 
 export interface TestRunResult {
@@ -203,7 +236,10 @@ export interface TestRunResult {
   ranAt: string;
   cases: TestCaseResult[];
   passedCount: number;
+  /** Wrong results. A slow but correct case is counted in `slowCount` instead. */
   failedCount: number;
+  /** Correct, but over the case's time budget. */
+  slowCount: number;
 }
 
 export class TestNotRunnableError extends Error {
@@ -359,21 +395,30 @@ export class TestRunner {
        * having used another. Ids only — the content is resolved at invocation.
        */
       const caseDataGraphVersions = this.caseDataGraphVersionIds(testCase);
-      const finishCase = (comparison: ComparisonResult): TestCaseResult => ({
-        ...renderResult(produced),
-        caseId: testCase.$id,
-        name: testCase.name?.trim() || `Case ${index + 1}`,
-        position: typeof testCase.position === 'number' ? testCase.position : index,
-        passed: comparison.passed,
-        message: comparison.passed ? '' : comparison.message,
-        detail: comparison.detail,
-        inputs: {
-          argumentSetVersion: testCase.argumentSetVersion ?? null,
-          dataGraphVersion: caseDataGraphVersions[0] ?? null,
-          dataGraphVersions: caseDataGraphVersions,
-        },
-        durationMs: Date.now() - caseStartedAt,
-      });
+      const budget = typeof testCase.maxDurationMs === 'number' ? testCase.maxDurationMs : undefined;
+      const finishCase = (comparison: ComparisonResult): TestCaseResult => {
+        // The whole case is timed — loading its data, running, comparing —
+        // because that is the duration every report already shows beside it.
+        const durationMs = Date.now() - caseStartedAt;
+        const verdict = judgeBudget(comparison, durationMs, budget);
+        return {
+          ...renderResult(produced),
+          caseId: testCase.$id,
+          name: testCase.name?.trim() || `Case ${index + 1}`,
+          position: typeof testCase.position === 'number' ? testCase.position : index,
+          passed: verdict.passed,
+          message: verdict.message,
+          detail: comparison.detail,
+          inputs: {
+            argumentSetVersion: testCase.argumentSetVersion ?? null,
+            dataGraphVersion: caseDataGraphVersions[0] ?? null,
+            dataGraphVersions: caseDataGraphVersions,
+          },
+          durationMs,
+          ...(budget === undefined ? {} : { maxDurationMs: budget }),
+          ...(verdict.slow ? { slow: true } : {}),
+        };
+      };
 
       let produced: unknown;
       try {
@@ -415,6 +460,7 @@ export class TestRunner {
     }
 
     const failed = results.filter(result => !result.passed);
+    const slowCount = failed.filter(result => result.slow).length;
     return {
       testId: test.$id,
       testVersionId: testVersion.$id,
@@ -427,7 +473,8 @@ export class TestRunner {
       ranAt: new Date().toISOString(),
       cases: results,
       passedCount: results.length - failed.length,
-      failedCount: failed.length,
+      failedCount: failed.length - slowCount,
+      slowCount,
     };
   }
 
@@ -440,7 +487,11 @@ export class TestRunner {
     if (failed.length === 0) return '';
     if (results.length === 1) return failed[0].message;
     if (failed.length === 1) return `${failed[0].name}: ${failed[0].message}`;
-    return `${failed.length} of ${results.length} cases failed`;
+    const slow = failed.filter(result => result.slow).length;
+    const wrong = failed.length - slow;
+    if (slow === 0) return `${wrong} of ${results.length} cases failed`;
+    if (wrong === 0) return `${slow} of ${results.length} cases were over their time budget`;
+    return `${wrong} of ${results.length} cases failed; ${slow} more were over their time budget`;
   }
 
   /** Run every current version in a set of tests, in order, collecting verdicts. */

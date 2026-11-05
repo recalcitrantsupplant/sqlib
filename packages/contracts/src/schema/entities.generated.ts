@@ -4002,6 +4002,10 @@ export const testcaseSchema = {
       "type": "boolean",
       "nullable": true
     },
+    "maxDurationMs": {
+      "type": "integer",
+      "nullable": true
+    },
     "dateCreated": {
       "type": "string",
       "format": "date-time",
@@ -4073,6 +4077,14 @@ export const testruncaseSchema = {
     },
     "durationMs": {
       "type": "number",
+      "nullable": true
+    },
+    "maxDurationMs": {
+      "type": "integer",
+      "nullable": true
+    },
+    "slow": {
+      "type": "boolean",
       "nullable": true
     },
     "argumentSetVersion": {
@@ -4186,6 +4198,10 @@ export const testrunSchema = {
       "nullable": true
     },
     "failedCount": {
+      "type": "integer",
+      "nullable": true
+    },
+    "slowCount": {
       "type": "integer",
       "nullable": true
     },
@@ -5442,6 +5458,7 @@ export interface TestCaseRestApi {
   expected?: string | null;
   expectedFormat?: string | null;
   ordered?: boolean | null;
+  maxDurationMs?: number | null;
   dateCreated?: string | null;
   dateModified?: string | null;
   createdBy?: string | null;
@@ -5458,6 +5475,8 @@ export interface TestRunCaseRestApi {
   message?: string | null;
   detail?: string | null;
   durationMs?: string | null;
+  maxDurationMs?: number | null;
+  slow?: boolean | null;
   argumentSetVersion?: string | null;
   dataGraphVersion?: string | null;
   dataGraphVersions?: string[] | null;
@@ -5482,6 +5501,7 @@ export interface TestRunRestApi {
   durationMs?: string | null;
   passedCount?: number | null;
   failedCount?: number | null;
+  slowCount?: number | null;
   ranAt: string;
   dateCreated?: string | null;
   dateModified?: string | null;

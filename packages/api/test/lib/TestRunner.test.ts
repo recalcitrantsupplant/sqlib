@@ -24,7 +24,7 @@ overrideCacheCoordinatorProvider({
   }),
 });
 
-const { TestRunner, TestNotRunnableError } = await import('../../src/lib/TestRunner.js');
+const { TestRunner, TestNotRunnableError, judgeBudget } = await import('../../src/lib/TestRunner.js');
 
 const PREFIX = 'PREFIX : <http://ex/>';
 
@@ -437,6 +437,74 @@ describe('TestRunner — rule set subjects', () => {
  * against a store that exists only for that case, so the assertions here are
  * about real SPARQL results rather than a mocked executor.
  */
+describe('TestRunner — time budgets', () => {
+  const EDGE = '@prefix : <http://ex/> . :a :edge :b .';
+  const REACHES = '<http://ex/a> <http://ex/reaches> <http://ex/b> .';
+
+  /** A clock that moves `step` ms on every read, so a case takes as long as the test says. */
+  function slowClock(step: number) {
+    let now = 1_000_000;
+    return vi.spyOn(Date, 'now').mockImplementation(() => (now += step));
+  }
+
+  it('reports a correct case over its budget as slow, apart from wrong', async () => {
+    reachabilityRuleSet();
+    const testVersionId = test({ expectationKind: 'graph' }, [
+      { name: 'slow', dataGraphVersion: dataGraph(EDGE, 'text/turtle', 'one'), expected: REACHES, maxDurationMs: 50 },
+      { name: 'wrong', dataGraphVersion: dataGraph(EDGE, 'text/turtle', 'two'), expected: '<http://ex/a> <http://ex/reaches> <http://ex/zzz> .', maxDurationMs: 50 },
+      { name: 'no budget', dataGraphVersion: dataGraph(EDGE, 'text/turtle', 'three'), expected: REACHES },
+    ]);
+
+    const clock = slowClock(1000);
+    try {
+      const result = await new TestRunner({ internal: true }).runTestVersion(testVersionId);
+      const [slow, wrong, unbudgeted] = result.cases;
+
+      expect(slow.passed).toBe(false);
+      expect(slow.slow).toBe(true);
+      expect(slow.maxDurationMs).toBe(50);
+      expect(slow.message).toMatch(/^Correct, but took \d+ ms; the budget is 50 ms$/);
+
+      // Wrong and slow is wrong: the diff says more than the clock.
+      expect(wrong.passed).toBe(false);
+      expect(wrong.slow).toBeUndefined();
+      expect(wrong.detail).toBeDefined();
+
+      expect(unbudgeted.passed).toBe(true);
+      expect(unbudgeted.maxDurationMs).toBeUndefined();
+
+      expect(result.passed).toBe(false);
+      expect(result.passedCount).toBe(1);
+      expect(result.failedCount).toBe(1);
+      expect(result.slowCount).toBe(1);
+      expect(result.message).toBe('1 of 3 cases failed; 1 more were over their time budget');
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
+  it('passes a correct case inside its budget and carries the budget on the result', async () => {
+    reachabilityRuleSet();
+    const testVersionId = test({ expectationKind: 'graph' }, [
+      { dataGraphVersion: dataGraph(EDGE), expected: REACHES, maxDurationMs: 60_000 },
+    ]);
+
+    const result = await new TestRunner({ internal: true }).runTestVersion(testVersionId);
+
+    expect(result.passed).toBe(true);
+    expect(result.slowCount).toBe(0);
+    expect(result.cases[0].maxDurationMs).toBe(60_000);
+    expect(result.cases[0].slow).toBeUndefined();
+  });
+
+  it('judges the budget only after correctness', () => {
+    expect(judgeBudget({ passed: true, message: '' }, 10, 10)).toEqual({ passed: true, message: '' });
+    expect(judgeBudget({ passed: true, message: '' }, 11, 10)).toMatchObject({ passed: false, slow: true });
+    expect(judgeBudget({ passed: false, message: 'diff' }, 11, 10)).toEqual({ passed: false, message: 'diff' });
+    expect(judgeBudget({ passed: true, message: '' }, 1e9, null)).toEqual({ passed: true, message: '' });
+  });
+});
+
 describe('TestRunner — query subjects, hermetic', () => {
   it('runs a SELECT against the case data graph and judges the bindings', async () => {
     const testVersionId = queryTest(

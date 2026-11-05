@@ -118,6 +118,20 @@ export const TestCaseSchema = {
     '@type': xsd.boolean,
     '@optional': true,
   },
+  /**
+   * The most time, in milliseconds, a correct run of this case may take.
+   *
+   * Judged after correctness, on every run, against whatever backend that run
+   * reached. A correct result that took longer is reported as slow, apart from
+   * a wrong one. Per case because two inputs to one subject can cost very
+   * different amounts. Not a timeout: the case still runs to the end, so a
+   * slow result is still checked for correctness.
+   */
+  maxDurationMs: {
+    '@id': sqlib.maxDurationMs,
+    '@type': xsd.integer,
+    '@optional': true,
+  },
   dateCreated: {
     '@id': sdo.dateCreated,
     '@type': xsd.dateTime,
@@ -145,6 +159,7 @@ export interface PersistedTestCase {
   expected?: string | null;
   expectedFormat?: string | null;
   ordered?: boolean | null;
+  maxDurationMs?: number | null;
   dateCreated?: string | null;
   dateModified?: string | null;
   createdBy?: string | null;

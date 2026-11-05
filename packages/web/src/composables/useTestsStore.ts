@@ -217,6 +217,7 @@ export function useTestsStore() {
             cases: [],
             passedCount: 0,
             failedCount: 0,
+            slowCount: 0,
           });
         }
       }

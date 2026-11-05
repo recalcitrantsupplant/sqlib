@@ -45,9 +45,25 @@ A **TestCase** pairs the inputs with the expectation, because changing the
 arguments changes what is correct. It holds `position` and an optional `name`, the
 `argumentSetVersion` that supplies the arguments, the `dataGraphVersion` or
 `dataGraphs` that seed the store, `tupleSeeds`, `sqlFixture`, `expected` and
-`expectedFormat`, and `ordered`. One case is an ordinary test; several cases are a
-parametrised one. A null `expected` with kind `smoke` is a smoke test: it runs,
-converges, and does not error.
+`expectedFormat`, `ordered`, and `maxDurationMs`. One case is an ordinary test;
+several cases are a parametrised one. A null `expected` with kind `smoke` is a smoke
+test: it runs, converges, and does not error.
+
+### Time budgets
+
+`maxDurationMs` is an optional time budget for one case, in whole milliseconds.
+
+- The runner times the whole case: load its data, run the subject, compare.
+- It checks correctness first. A wrong result stays wrong, with its diff.
+- A correct result that took longer than the budget is **slow**. The case gets
+  `passed: false` and `slow: true`, so the test is red in CI.
+- The run counts slow cases in `slowCount`, apart from `failedCount`.
+- The budget does not stop the run. A slow case still runs to the end, so it is
+  still judged on correctness.
+
+The budget is judged on each run, against the backend that run reached. The run
+history records that backend, so you can compare one case across stores.
+`TestVersion.timeoutMs` is different: it stops a run that takes too long.
 
 The `analysis` kind asserts something about the subject document rather than about
 its output, which is how a test that a document *must be rejected* is expressible —
@@ -130,6 +146,11 @@ a test that *failed*.
 | every case passed | `earl:passed` | bare `<testcase>` | `passed` |
 | comparator mismatch, or the subject threw | `earl:failed` | `<failure>` | `failed` |
 | `TestNotRunnableError`, `TestVersionError` | `earl:cantTell` | `<error>` | `cantTell` |
+
+A slow case (correct, but over its `maxDurationMs`) is `earl:failed`, because EARL
+has no third verdict for a run that happened. The extended EARL report adds
+`sqlib:slow true` to its result, JUnit writes `<failure type="slow">`, and the
+job summary shows it in a Slow column.
 
 ### Examples
 

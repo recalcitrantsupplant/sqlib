@@ -15,6 +15,14 @@
       >
         {{ summary.tallies.failed }} failed
       </StatusBadge>
+      <StatusBadge
+        v-if="summary.tallies.slow"
+        tone="warning"
+        :dot="false"
+        data-testid="test-run-slow-pill"
+      >
+        {{ summary.tallies.slow }} slow
+      </StatusBadge>
       <span v-if="summary.tallies.pending" class="pending-note">
         {{ summary.tallies.pending }} still to run
       </span>
@@ -23,7 +31,7 @@
           type="button"
           class="head-button"
           data-testid="test-run-rerun-failed"
-          :disabled="busy || summary.tallies.failed === 0"
+          :disabled="busy || summary.tallies.failed + summary.tallies.slow === 0"
           title="Run only the tests that failed in this run"
           @click="emit('rerun-failed')"
         >
@@ -48,7 +56,7 @@
         :style="{ width: selectedFailure && !maximised ? `${bodyWidthPercent}%` : '100%' }"
       >
         <!--
-          Five tiles, equal columns. Deltas render only when there is a previous
+          One tile per figure, equal columns; Slow only when a case was. Deltas render only when there is a previous
           run of the same scope to diff against; with nothing to compare, the row
           is omitted rather than drawn as a dash.
         -->
@@ -91,6 +99,7 @@
         <section class="failures" data-testid="test-run-failures">
           <header class="failures-head">
             <CircleX v-if="summary.tallies.failed" :size="13" class="ink-fail" />
+            <Timer v-else-if="summary.tallies.slow" :size="13" class="ink-slow" />
             <CircleCheck v-else :size="13" class="ink-pass" />
             <SectionLabel as="h3" size="sm">Failures</SectionLabel>
             <span class="failures-count">{{ failuresCaption }}</span>
@@ -107,7 +116,7 @@
             over it. The breakdowns stay — they are how you see that every group
             and every store took part.
           -->
-          <p v-if="visibleFailures.length === 0 && summary.tallies.failed === 0" class="all-passed">
+          <p v-if="visibleFailures.length === 0 && summary.tallies.failed + summary.tallies.slow === 0" class="all-passed">
             All {{ summary.tallies.cases }} cases passed.
           </p>
           <p v-else-if="visibleFailures.length === 0" class="all-passed">
@@ -124,9 +133,9 @@
             @click="select(failure)"
           >
             <component
-              :is="failure.status === 'excluded' ? MinusCircle : CircleX"
+              :is="FAILURE_ICON[failure.status]"
               :size="13"
-              :class="failure.status === 'excluded' ? 'ink-muted' : 'ink-fail'"
+              :class="FAILURE_INK[failure.status]"
             />
             <span class="failure-test">{{ failure.testName }}</span>
             <span class="failure-coords">
@@ -181,6 +190,7 @@
           :coordinates="selectedFailure.coordinates"
           :fallback-message="selectedFailure.reason"
           :passed="false"
+          :slow="selectedFailure.status === 'slow'"
           :duration-ms="selectedFailure.durationMs"
           :maximised="maximised"
           @close="clearSelection"
@@ -215,7 +225,7 @@
  */
 import { computed, ref, watch } from 'vue';
 import { usePanelResize } from '../../composables/usePanelResize';
-import { CircleCheck, CircleX, Database, GitCompare, ListChecks, MinusCircle, RefreshCw, Tags } from '@lucide/vue';
+import { CircleCheck, CircleX, Database, GitCompare, ListChecks, MinusCircle, RefreshCw, Tags, Timer } from '@lucide/vue';
 import SectionLabel from '../shared/SectionLabel.vue';
 import SegmentedToggle, { type SegmentedOption } from '../shared/SegmentedToggle.vue';
 import StatusBadge from '../shared/StatusBadge.vue';
@@ -261,6 +271,9 @@ const FAILURE_VIEWS: readonly SegmentedOption[] = [
   { value: 'all', label: 'All', testId: 'test-run-view-all' },
 ];
 
+const FAILURE_ICON = { fail: CircleX, slow: Timer, excluded: MinusCircle } as const;
+const FAILURE_INK = { fail: 'ink-fail', slow: 'ink-slow', excluded: 'ink-muted' } as const;
+
 const failureView = ref('failed');
 const groupFilter = ref<string | null>(null);
 const backendFilter = ref<string | null>(null);
@@ -297,7 +310,7 @@ function setFilter(axis: 'group' | 'backend', key: string | null) {
 const rowsById = computed(() => new Map(props.summary.rows.map((row) => [row.id, row])));
 
 const visibleFailures = computed(() => props.summary.failures.filter((failure) => {
-  if (failureView.value === 'failed' && failure.status !== 'fail') return false;
+  if (failureView.value === 'failed' && failure.status === 'excluded') return false;
   if (failureView.value === 'excluded' && failure.status !== 'excluded') return false;
   const row = rowsById.value.get(failure.testId);
   if (groupFilter.value && row?.groupKey !== groupFilter.value) return false;
@@ -348,6 +361,9 @@ const tiles = computed(() => {
     { key: 'cases', label: 'Cases', value: String(tallies.cases), delta: delta(tallies.cases, before?.cases), note: `${tallies.tests} tests`, danger: false },
     { key: 'passed', label: 'Passed', value: String(tallies.passed), delta: delta(tallies.passed, before?.passed), note: '', danger: false },
     { key: 'failed', label: 'Failed', value: String(tallies.failed), delta: delta(tallies.failed, before?.failed), note: '', danger: tallies.failed > 0 },
+    ...(tallies.slow > 0
+      ? [{ key: 'slow', label: 'Slow', value: String(tallies.slow), delta: delta(tallies.slow, before?.slow), note: '', danger: false }]
+      : []),
     { key: 'excluded', label: 'Excluded', value: String(tallies.excluded), delta: delta(tallies.excluded, before?.excluded), note: '', danger: false },
     { key: 'duration', label: 'Duration', value: formatRunDuration(props.summary.scope.wallMs || tallies.durationMs), delta: '', note: 'wall clock', danger: false },
   ];
@@ -458,7 +474,8 @@ const footerFacts = computed(() => {
 
 .tiles {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius);
   background: var(--surface);
@@ -702,6 +719,10 @@ const footerFacts = computed(() => {
 
 .ink-fail {
   color: var(--danger);
+}
+
+.ink-slow {
+  color: var(--warning);
 }
 
 .ink-muted {

@@ -79,6 +79,11 @@ export interface TestReportRow {
    * reading two different flattenings of the same run.
    */
   detail?: string;
+  /**
+   * Correct, but over the case's time budget. `outcome` is `failed` on such a
+   * row, because EARL has no third verdict; this is what tells it from wrong.
+   */
+  slow?: true;
 }
 
 /**
@@ -141,6 +146,7 @@ export function toRows(input: TestReportInput): TestReportRow[] {
         dataGraphVersion: testCase.inputs?.dataGraphVersion ?? null,
         message: testCase.message,
         ...(testCase.detail === undefined ? {} : { detail: JSON.stringify(testCase.detail) }),
+        ...(testCase.slow ? { slow: true as const } : {}),
       });
     }
   }
@@ -156,7 +162,10 @@ export interface TestReportTotals {
   testsNotRun: number;
   cases: number;
   casesPassed: number;
+  /** Every `failed` row, slow ones included. */
   casesFailed: number;
+  /** The `failed` rows that were correct but over budget. A subset of `casesFailed`. */
+  casesSlow: number;
   casesCantTell: number;
   durationMs: number;
 }
@@ -173,6 +182,7 @@ export function totalsFor(input: TestReportInput, rows: TestReportRow[]): TestRe
     cases: rows.length,
     casesPassed: rows.filter(row => row.outcome === 'passed').length,
     casesFailed: rows.filter(row => row.outcome === 'failed').length,
+    casesSlow: rows.filter(row => row.slow).length,
     casesCantTell: rows.filter(row => row.outcome === 'cantTell').length,
     durationMs: results.reduce((sum, result) => sum + (result.durationMs ?? 0), 0),
   };
