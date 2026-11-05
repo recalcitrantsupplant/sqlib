@@ -351,7 +351,7 @@ function onPopOut(expanded: boolean) {
 }
 
 .json-editor :deep(.cm-content) {
-  padding: 3px 0;
+  padding: var(--space-1) 0;
   font-family: var(--font-mono);
   font-size: var(--text-body);
 }
