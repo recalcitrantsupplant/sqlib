@@ -17,6 +17,7 @@
       :id="regionId"
       :title="`?${variable} · rdf:JSON`"
       testid="argument-json-expand"
+      :run-strip="false"
       @update:expanded="onPopOut"
     >
       <template #default="{ expanded }">
