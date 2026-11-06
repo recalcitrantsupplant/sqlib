@@ -7,7 +7,13 @@ type ConfigureAppFn = (
   options?: { enableCacheMonitoring?: boolean; registerSwagger?: boolean },
 ) => Promise<{ teardown: () => Promise<void> }>;
 
-async function loadConfigureApp(): Promise<ConfigureAppFn> {
+interface ApiModule {
+  configureApp: ConfigureAppFn;
+  /** Absent from an API build older than this server. */
+  fastifyLoggerOptions?: () => Record<string, unknown>;
+}
+
+async function loadApiModule(): Promise<ApiModule> {
   const devModulePath = new URL('../../api/src/index.ts', import.meta.url).href;
 
   // Outside production, prefer the API's TypeScript source. `packages/api/dist`
@@ -16,7 +22,7 @@ async function loadConfigureApp(): Promise<ConfigureAppFn> {
   // server from a dev runner (`just run-local-memory`).
   if (process.env.NODE_ENV !== 'production') {
     try {
-      return (await import(devModulePath)).configureApp as ConfigureAppFn;
+      return (await import(devModulePath)) as ApiModule;
     } catch (error) {
       // Installed as a package, with no source checkout beside us. Said out
       // loud rather than swallowed: when the source *is* there, a failure here
@@ -33,19 +39,22 @@ async function loadConfigureApp(): Promise<ConfigureAppFn> {
   }
 
   try {
-    return (await import('@sparql-query-lib/api')).configureApp as ConfigureAppFn;
+    return (await import('@sparql-query-lib/api')) as ApiModule;
   } catch {
-    return (await import(devModulePath)).configureApp as ConfigureAppFn;
+    return (await import(devModulePath)) as ApiModule;
   }
 }
 
 export async function startDualHttpServer(options: { host?: string; port?: number } = {}) {
+  // The API module first: its bootstrap starts OpenTelemetry when `cli.ts` has
+  // not already, and the Fastify instrumentation only sees instances built
+  // after that.
+  const { configureApp, fastifyLoggerOptions } = await loadApiModule();
   const app = Fastify({
-    logger: true,
+    logger: fastifyLoggerOptions ? fastifyLoggerOptions() : true,
     bodyLimit: 100 * 1024 * 1024,
   });
 
-  const configureApp = await loadConfigureApp();
   const { teardown: apiTeardown } = await configureApp(app, {
     enableCacheMonitoring: true,
     registerSwagger: true,

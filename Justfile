@@ -53,7 +53,6 @@ dev: _free-dev-ports
     INTERNAL_BACKEND_TYPE="sqlite" \
     LIBRARY_STORAGE_DIR="./tmp/library-store" \
     NODE_ENV="development" \
-    OTEL_ENABLED="false" \
     MCP_TRANSPORT="dual-http" \
     HTTP_PORT=3005 \
         pnpm --filter @sparql-query-lib/api exec tsx watch ../mcp-server/src/cli.ts &
@@ -63,6 +62,39 @@ dev: _free-dev-ports
     web_pid=$!
     trap 'kill "$api_pid" "$web_pid" 2>/dev/null || true' INT TERM EXIT
     wait -n "$api_pid" "$web_pid"
+
+# Start the local observability stack (grafana/otel-lgtm): Grafana on
+# http://localhost:3030, OTLP on 4318 (HTTP) and 4317 (gRPC). See
+# docs/guides/observability.md.
+lgtm-up:
+    docker compose -f docker-compose.dev.yml up -d lgtm
+
+# Stop the local observability stack. Its data is in memory and is lost.
+lgtm-down:
+    docker compose -f docker-compose.dev.yml down
+
+# Grafana Explore on the lgtm stack's Tempo, opened at one trace.
+lgtm_trace_url := 'http://localhost:3030/explore?schemaVersion=1&panes=%7B%22a%22%3A%7B%22datasource%22%3A%22tempo%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22datasource%22%3A%7B%22type%22%3A%22tempo%22%2C%22uid%22%3A%22tempo%22%7D%2C%22queryType%22%3A%22traceql%22%2C%22query%22%3A%22{traceId}%22%7D%5D%2C%22range%22%3A%7B%22from%22%3A%22now-1h%22%2C%22to%22%3A%22now%22%7D%7D%7D'
+
+# `dev`, with telemetry sent to the local observability stack
+#
+# Telemetry is off unless an OTLP endpoint is set, so plain `dev` sends
+# nothing. This recipe starts grafana/otel-lgtm and sets the endpoint. In dev
+# the slow query log takes runs of 200 ms and over and carries the query text
+# and arguments; set SQLIB_SLOW_QUERY_MS or SQLIB_TELEMETRY_DETAIL to change
+# that.
+#
+# Grafana: http://localhost:3030 (dashboard "sqlib"). Settings links to the
+# dashboard, and each run result links to its trace.
+dev-otel: lgtm-up
+    trace_url='{{lgtm_trace_url}}'; \
+    OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:4318" \
+    OTEL_SERVICE_NAME="${OTEL_SERVICE_NAME:-sqlib-dev}" \
+    SQLIB_SLOW_QUERY_MS="${SQLIB_SLOW_QUERY_MS:-200}" \
+    SQLIB_TELEMETRY_DETAIL="${SQLIB_TELEMETRY_DETAIL:-text+args}" \
+    SQLIB_OBSERVABILITY_URL="${SQLIB_OBSERVABILITY_URL:-http://localhost:3030/d/sqlib/sqlib}" \
+    SQLIB_TRACE_URL_TEMPLATE="${SQLIB_TRACE_URL_TEMPLATE:-$trace_url}" \
+        just dev
 
 # Free ports 3005 and 3001 if this checkout holds them, for `dev` and `dev-auth`
 # (see `dev` for the rules)

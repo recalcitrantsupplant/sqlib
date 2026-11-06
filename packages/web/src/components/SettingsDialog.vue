@@ -132,6 +132,10 @@
             </div>
           </section>
         </template>
+        <template v-if="isOpen && isAdmin">
+          <div class="settings-divider" />
+          <TelemetryStatusSection />
+        </template>
       </div>
 
       <DialogFooter class="settings-footer">
@@ -165,6 +169,8 @@ import { Dialog, DialogContent, DialogFooter } from './ui/dialog';
 import { Switch } from './ui/switch';
 import SectionLabel from './shared/SectionLabel.vue';
 import DialogTitleBar from './shared/DialogTitleBar.vue';
+import TelemetryStatusSection from './settings/TelemetryStatusSection.vue';
+import { useAuth } from '../composables/useAuth';
 import { Monitor, Sun, Moon, ChevronRightIcon } from '@lucide/vue';
 import { useSettings, type ThemePreference } from '../composables/useSettings';
 import { useDeploymentMode } from '../composables/useDeploymentMode';
@@ -186,6 +192,9 @@ const isOpen = ref(props.open);
 const { settings, setHofstadterMode, setPrefixAbbreviationEnabled } = useSettings();
 const { preference, isDark, lightTheme, darkTheme, setTheme, setLightTheme, setDarkTheme } = useTheme();
 const { prefixSettings } = usePrefixManager();
+// The server's telemetry, for administrators; mounted each time Settings opens
+// so the state is current.
+const { isAdmin } = useAuth();
 /*
  * A read-only deployment has no System Library worth looking at — nothing
  * writes it — so the section that reveals it is absent there. Settings itself

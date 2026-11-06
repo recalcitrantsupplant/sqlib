@@ -71,6 +71,7 @@ export function routeServedWhenPublished(routeUrl: string): boolean {
     || path === '/mcp/:slug'
     || path === '/health'
     || path === '/metrics'
+    || path === '/telemetry'
     || path === '/tools'
     || path.startsWith('/tools/')
     || path === '/auth'
