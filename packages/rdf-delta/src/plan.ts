@@ -25,8 +25,8 @@
  *   `FROM <g>` would have quietly broken.
  */
 
-import { Parser } from '@traqula/parser-sparql-1-2';
-import { sparql12GeneratorBuilder } from '@traqula/generator-sparql-1-2';
+// Traqula's SPARQL 1.2 parser and generator, with LATERAL added.
+import { Parser, sqlibGeneratorBuilder } from '@sparql-query-lib/compiler';
 import { completeGeneratorContext } from '@traqula/rules-sparql-1-2';
 import { UnsupportedUpdateError } from './errors.js';
 
@@ -96,7 +96,7 @@ interface UpdateAst {
 type RuleGenerator = Record<string, (ast: unknown, context: unknown) => string>;
 
 const parser = new Parser();
-const generator = sparql12GeneratorBuilder.build() as unknown as RuleGenerator;
+const generator = sqlibGeneratorBuilder.build() as unknown as RuleGenerator;
 const generatorContext = completeGeneratorContext({});
 
 function serialize(rule: string, ast: unknown): string {

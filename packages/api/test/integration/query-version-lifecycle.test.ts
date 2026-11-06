@@ -330,6 +330,31 @@ describe('query + version lifecycle invariants', () => {
     expect(checkInvariants(queryId)).toEqual([]);
   });
 
+  /*
+   * LATERAL (SPARQL 1.2, SEP-0006) is how a VALUES parameter reaches a Jena
+   * property function's arguments. Traqula has no rule for it, so this was
+   * refused at save with "unexpected character: ->L<-".
+   */
+  it('a query that uses LATERAL saves as a version, with its parameters', async () => {
+    const queryId = await createQuery('Text search');
+    const queryString = [
+      'PREFIX text: <http://jena.apache.org/text#>',
+      'SELECT ?s WHERE {',
+      '  VALUES ?q { UNDEF }',
+      '  BIND(COALESCE(?q, "granite") AS ?q1)',
+      '  LATERAL { VALUES ?field { UNDEF } ?s text:query (?field ?q1) . }',
+      '}',
+    ].join('\n');
+    const response = await createVersion(queryId, queryString);
+    expect(response.statusCode, response.payload).toBe(201);
+
+    const created = versionOf(response.payload) as { id: string; queryString?: string };
+    const stored = store?.get(created.id) as { queryString?: string; inferredInputs?: unknown[] } | undefined;
+    expect(stored?.queryString).toContain('LATERAL');
+    // One input tuple for ?q, outside LATERAL, and one for ?field, inside it.
+    expect(stored?.inferredInputs).toHaveLength(2);
+  });
+
   it('a version can be fetched by the number the create call reported', async () => {
     // The editor addresses versions by number, not IRI — `?version=2` and the
     // `GET /:id/versions/:version` behind it — so the number a save reports has to

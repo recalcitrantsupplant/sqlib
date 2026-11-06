@@ -1,12 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { sparqlLanguage } from '@kurrawongai/codemirror-lang-sparql12';
+import { sparqlLateralLanguage } from '@kurrawongai/codemirror-lang-sparql12';
 import { srlLanguage } from '@kurrawongai/codemirror-lang-srl';
 import { turtleLanguage } from '@kurrawongai/codemirror-lang-turtle12';
 import { toPrefixedNames, toFullIris, readDeclaredPrefixes, addDeclarations } from '@/lib/prefixRewrite';
 import { prefixGrammarFor } from '@/lib/codeLanguage';
 import type { PrefixPair } from '@/lib/curie';
 
-const SPARQL = sparqlLanguage.parser;
+// The dialect the app's SPARQL editors use: SPARQL 1.2 with LATERAL.
+const SPARQL = sparqlLateralLanguage.parser;
 const TURTLE = turtleLanguage.parser;
 const SRL = srlLanguage.parser;
 

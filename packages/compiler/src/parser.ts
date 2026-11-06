@@ -3,8 +3,8 @@
  * and compile verified templates. Moved from `packages/api/src/lib/parser.ts`;
  * the API now wraps it to forward diagnostics to OpenTelemetry.
  */
-import { Parser } from '@traqula/parser-sparql-1-2';
-import { Generator } from '@traqula/generator-sparql-1-2';
+// Traqula's SPARQL 1.2 parser and generator, with LATERAL added (./sparql12.ts).
+import { Parser, Generator } from './sparql12.js';
 import { AstFactory } from '@traqula/rules-sparql-1-2';
 import type {
   SparqlQuery,
@@ -252,7 +252,7 @@ export class SparqlQueryParser {
   /**
    * Walk the pattern tree of a group/where clause, invoking `onValues` for every
    * VALUES pattern encountered (recursing through groups, unions, optionals, graphs,
-   * services, minus, FILTER EXISTS/NOT EXISTS and nested sub-SELECTs).
+   * services, minus, LATERAL, FILTER EXISTS/NOT EXISTS and nested sub-SELECTs).
    */
   private walkPatternsForValues(
     patterns: unknown[] | undefined,
@@ -280,7 +280,7 @@ export class SparqlQueryParser {
           }
           return;
         }
-        // group / optional / union / minus / graph / service all expose a `patterns` array.
+        // group / optional / union / minus / lateral / graph / service all expose a `patterns` array.
         if (Array.isArray(node.patterns)) {
           visitGroup(node.patterns, scope);
         }
@@ -452,7 +452,7 @@ export class SparqlQueryParser {
           case 'values':
             this.valuesVariableNames(pattern).forEach(v => variables.add(v));
             break;
-          // group / optional / graph / service / minus / union expose nested patterns.
+          // group / optional / graph / service / minus / lateral / union expose nested patterns.
           // Sub-SELECT variables are locally scoped, so (as before) we don't descend into them.
           default:
             if (Array.isArray(pattern.patterns)) {
