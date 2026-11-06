@@ -11,6 +11,7 @@
  */
 import { trace, type Attributes } from '@opentelemetry/api';
 import { slowQueryThresholdMs, telemetryDetail } from './telemetryConfig.js';
+import { noteSlowRun } from './telemetryStatus.js';
 
 export const SLOW_QUERY_EVENT = 'sqlib.query.slow';
 
@@ -92,6 +93,7 @@ export function recordQueryRun(logger: WarnLogger, run: QueryRunRecord, env = pr
     if (run.arguments !== undefined) line.arguments = run.arguments;
     if (run.argumentSetIds?.length) line.argumentSetIds = run.argumentSetIds;
   }
+  noteSlowRun();
   logger.warn(line, `Slow query run: ${run.targetId} took ${Math.round(run.durationMs)} ms`);
   return true;
 }

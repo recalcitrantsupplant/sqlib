@@ -12,6 +12,7 @@
  * under the table now (`DataTable`), where the rows it moves through are.
  */
 import { computed } from 'vue';
+import { WaypointsIcon } from '@lucide/vue';
 import type { DataTableState } from '@/composables/useDataTable';
 import { formatRelativeTime } from '@/lib/time';
 
@@ -38,6 +39,8 @@ const props = withDefaults(
     durationMs?: number | null;
     /** The breakdown behind that number, on hover. */
     durationTitle?: string | null;
+    /** The run's trace, in the deployment's observability tool. */
+    traceUrl?: string | null;
   }>(),
   {
     table: null,
@@ -47,6 +50,7 @@ const props = withDefaults(
     mediaRelation: 'rendered from',
     durationMs: null,
     durationTitle: null,
+    traceUrl: null,
   },
 );
 
@@ -69,7 +73,8 @@ const durationLabel = computed(() => {
 });
 
 const hasAnything = computed(
-  () => !!props.table || !!executedRelative.value || !!props.mediaType || !!durationLabel.value,
+  () =>
+    !!props.table || !!executedRelative.value || !!props.mediaType || !!durationLabel.value || !!props.traceUrl,
 );
 </script>
 
@@ -104,6 +109,19 @@ const hasAnything = computed(
     >
       {{ durationLabel }}
     </span>
+    <a
+      v-if="traceUrl"
+      :href="traceUrl"
+      target="_blank"
+      rel="noopener noreferrer"
+      class="footer-trace"
+      :class="{ 'footer-trace-alone': !durationLabel }"
+      data-testid="results-trace-link"
+      title="Open trace"
+      aria-label="Open trace"
+    >
+      <WaypointsIcon :size="13" />
+    </a>
   </div>
 </template>
 
@@ -155,6 +173,23 @@ const hasAnything = computed(
   font-size: var(--text-micro);
   color: var(--ink-muted);
   font-variant-numeric: tabular-nums;
+}
+
+.footer-trace {
+  display: inline-flex;
+  align-items: center;
+  color: var(--ink-muted);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1);
+}
+
+.footer-trace:hover {
+  color: var(--action);
+  background: var(--action-surface);
+}
+
+.footer-trace-alone {
+  margin-left: auto;
 }
 
 /* Dark rules hang off the .dark class the theme switch sets, not the OS

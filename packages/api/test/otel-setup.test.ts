@@ -113,6 +113,25 @@ describe('otel-setup', () => {
     expect(hoisted.diag.setLogger).not.toHaveBeenCalled();
   });
 
+  it('notes an SDK error as the last export error, for the status in Settings', async () => {
+    process.env.OTEL_ENABLED = 'true';
+    await import('../src/otel-setup.js');
+    const { telemetryStatus, resetTelemetryStatus } = await import('../src/lib/telemetryStatus.js');
+    resetTelemetryStatus();
+    const logger = hoisted.diag.setLogger.mock.calls[0][0] as { error: (m: string, ...a: unknown[]) => void };
+    logger.error('{"message":"connect ECONNREFUSED 127.0.0.1:4318","code":"ECONNREFUSED"}');
+    const status = telemetryStatus();
+    expect(status.state).toBe('failing');
+    expect(status.lastExportError?.message).toBe('connect ECONNREFUSED 127.0.0.1:4318');
+  });
+
+  it('diagMessage reads the message out of a serialised error, and adds an Error argument', async () => {
+    const { diagMessage } = await import('../src/otel-setup.js');
+    expect(diagMessage('{"message":"timeout"}')).toBe('timeout');
+    expect(diagMessage('export failed', [new Error('socket hang up')])).toBe('export failed: socket hang up');
+    expect(diagMessage('plain text', ['not an error'])).toBe('plain text');
+  });
+
   it('registers no signal handler of its own, and shutdownTelemetry flushes once', async () => {
     process.env.OTEL_ENABLED = 'true';
     const { shutdownTelemetry } = await import('../src/otel-setup.js');

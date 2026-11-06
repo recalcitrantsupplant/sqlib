@@ -30,6 +30,7 @@ import { loadPublishedCatalogue } from './lib/publishedTools.js';
 import { registerPublishedToolRoutes } from './server/publishedToolRoutes.js';
 import { registerChangeFeedHook } from './lib/changeEvents.js';
 import { registerNoStoreHook } from './lib/httpCaching.js';
+import { registerTraceLinkHook } from './server/traceLink.js';
 import * as schemas from '@sparql-query-lib/contracts/schema';
 import { registerErrorHandler } from './server/errorHandler.js';
 import { closeLibraryDatabase, LIBRARY_SQLITE_FILE } from './persistence/sqliteEntityStore.js';
@@ -270,6 +271,7 @@ async function configureApp(fastifyApp: typeof app, options: ConfigureOptions = 
   // no `Cache-Control` is what let a browser serve a saved-over query from its
   // own cache. See `registerNoStoreHook`.
   registerNoStoreHook(fastifyApp);
+  registerTraceLinkHook(fastifyApp);
 
   const publicBasePath = normalizeBasePath(process.env.APP_PUBLIC_BASE_PATH) || basePath;
 

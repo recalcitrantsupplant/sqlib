@@ -116,6 +116,35 @@ container stops.
 The same container works next to a self-hosted sqlib: run it beside the sqlib
 container and set `OTEL_EXPORTER_OTLP_ENDPOINT=http://<lgtm host>:4318` on sqlib.
 
+## In the app
+
+Administrators see a Telemetry section at the end of Settings. It shows:
+
+- the state: Off, Exporting, or Failing when an export failed in the last five
+  minutes (with the last error);
+- the service name and the OTLP endpoint host;
+- the slow runs since the server started, and when the last one was;
+- an "Open dashboard" link, when `SQLIB_OBSERVABILITY_URL` is set.
+
+The same data is at `GET /telemetry`, admin only. The counts are per process
+and start again at zero on a restart; the log store has the full history.
+
+With `SQLIB_TRACE_URL_TEMPLATE` set, each run result in the app has a trace icon
+that opens that run's trace. The server fills `{traceId}` and sends the link in
+the `Sqlib-Trace-Url` response header, so other clients can use it too.
+Examples:
+
+```bash
+# Grafana with a Tempo datasource whose uid is "tempo" (the lgtm stack)
+SQLIB_TRACE_URL_TEMPLATE='https://grafana.example/explore?schemaVersion=1&panes=%7B%22a%22%3A%7B%22datasource%22%3A%22tempo%22%2C%22queries%22%3A%5B%7B%22refId%22%3A%22A%22%2C%22datasource%22%3A%7B%22type%22%3A%22tempo%22%2C%22uid%22%3A%22tempo%22%7D%2C%22queryType%22%3A%22traceql%22%2C%22query%22%3A%22{traceId}%22%7D%5D%7D%7D'
+# Jaeger
+SQLIB_TRACE_URL_TEMPLATE='https://jaeger.example/trace/{traceId}'
+# Honeycomb
+SQLIB_TRACE_URL_TEMPLATE='https://ui.honeycomb.io/<team>/environments/<env>/trace?trace_id={traceId}'
+```
+
+`just dev-otel` sets both for the local stack.
+
 ## Recipes
 
 Every recipe is configuration only.

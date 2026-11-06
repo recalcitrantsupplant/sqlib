@@ -189,6 +189,8 @@ OpenTelemetry SDK is not loaded at all. See
 | `OTEL_METRIC_EXPORT_INTERVAL` | `60000` | Milliseconds between metric exports. |
 | `SQLIB_SLOW_QUERY_MS` | `1000` | A run of `/execute` that takes at least this long writes one `sqlib.query.slow` log line. `0` logs every run; `off` turns the line off. Works with telemetry off too: the line is a normal log line. |
 | `SQLIB_TELEMETRY_DETAIL` | `ids` | What the slow line carries beyond ids. `text` adds the saved query text; `text+args` also adds the arguments the caller sent, which can hold private values. |
+| `SQLIB_OBSERVABILITY_URL` | unset | Where people look at the telemetry, such as a Grafana dashboard. Administrators get an "Open dashboard" link in Settings. Only `http` and `https` URLs are used. |
+| `SQLIB_TRACE_URL_TEMPLATE` | unset | A URL with `{traceId}` in it, such as a Grafana Explore or App Insights transaction link. With telemetry on, each response carries `Sqlib-Trace-Url` with the request's trace id filled in, and the web app shows a trace icon on run results. |
 
 Every other `OTEL_*` variable the OpenTelemetry Node SDK reads works as
 documented for it, because sqlib passes no exporter of its own.

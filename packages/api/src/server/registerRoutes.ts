@@ -23,7 +23,7 @@ import playgroundRoutes from '../routes/playground.js';
 import benchmarkRoutes from '../routes/benchmarks.js';
 import { registerSwaggerDocs } from './swagger.js';
 import { registerHealthRoute } from './health.js';
-import { registerMetricsRoute } from './metrics.js';
+import { registerMetricsRoute, registerTelemetryRoute } from './metrics.js';
 
 export interface RegisterRoutesOptions {
   featureFlags: FeatureFlags;
@@ -57,6 +57,7 @@ export async function registerApplicationRoutes(
 
   registerHealthRoute(fastifyApp);
   registerMetricsRoute(fastifyApp);
+  registerTelemetryRoute(fastifyApp);
 
   await fastifyApp.register(eventRoutes, { prefix: '/events' });
   await fastifyApp.register(authRoutes, { prefix: '/auth' });

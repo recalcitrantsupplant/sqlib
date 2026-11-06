@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { trace } from '@opentelemetry/api';
 import { recordQueryRun, SLOW_QUERY_EVENT, type QueryRunRecord } from '../../src/lib/slowQueryLog.js';
+import { resetTelemetryStatus, telemetryStatus } from '../../src/lib/telemetryStatus.js';
 
 const run: QueryRunRecord = {
   targetId: 'urn:sqlib:query:q',
@@ -29,6 +30,13 @@ describe('recordQueryRun', () => {
     const log = logger();
     expect(recordQueryRun(log, { ...run, durationMs: 999 }, {})).toBe(false);
     expect(log.warn).not.toHaveBeenCalled();
+  });
+
+  it('counts each slow line for the status in Settings', () => {
+    resetTelemetryStatus();
+    recordQueryRun(logger(), { ...run, durationMs: 10 }, {});
+    recordQueryRun(logger(), run, {});
+    expect(telemetryStatus({}).slowRuns.count).toBe(1);
   });
 
   it('writes ids only by default', () => {

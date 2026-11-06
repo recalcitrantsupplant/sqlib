@@ -104,3 +104,13 @@ export function defaultServiceName(env: Env = process.env): string | undefined {
   if (attributes.split(',').some((pair) => pair.split('=')[0]?.trim() === 'service.name')) return undefined;
   return 'sqlib';
 }
+
+/** The service name telemetry goes out under, as the SDK resolves it. */
+export function serviceName(env: Env = process.env): string {
+  if (isSet(env.OTEL_SERVICE_NAME)) return env.OTEL_SERVICE_NAME.trim();
+  for (const pair of (env.OTEL_RESOURCE_ATTRIBUTES ?? '').split(',')) {
+    const [key, ...value] = pair.split('=');
+    if (key?.trim() === 'service.name' && value.join('=').trim()) return decodeURIComponent(value.join('=').trim());
+  }
+  return 'sqlib';
+}

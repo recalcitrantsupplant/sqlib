@@ -28,6 +28,7 @@
 import { log } from './lib/log.js';
 import { defaultServiceName, telemetryEnabled } from './lib/telemetryConfig.js';
 import { stopOtelLogBridge } from './lib/otelLogBridge.js';
+import { noteExportError, TELEMETRY_HANDLE_KEY } from './lib/telemetryStatus.js';
 
 interface TelemetryHandle {
   shutdown(): Promise<void>;
@@ -36,8 +37,25 @@ interface TelemetryHandle {
 // One SDK per process. The MCP server's `cli.ts` and the API's bootstrap both
 // import this module; when they resolve to the same file that is one module
 // instance anyway, and this guard covers the case where they do not.
-const HANDLE_KEY = Symbol.for('sqlib.telemetry');
+const HANDLE_KEY = TELEMETRY_HANDLE_KEY;
 const globalStore = globalThis as typeof globalThis & { [HANDLE_KEY]?: TelemetryHandle | null };
+
+// The SDK reports a failed export either as a sentence ("metrics export timed
+// out after 3000ms") or as the error serialised to JSON; from the JSON, the
+// error's own message is the part worth showing.
+export function diagMessage(message: string, args: unknown[] = []): string {
+  let text = message;
+  try {
+    const parsed: unknown = JSON.parse(message);
+    if (parsed && typeof parsed === 'object' && typeof (parsed as { message?: unknown }).message === 'string') {
+      text = (parsed as { message: string }).message;
+    }
+  } catch {
+    // A sentence, not JSON.
+  }
+  const detail = args.find((arg): arg is Error => arg instanceof Error)?.message;
+  return detail ? `${text}: ${detail}` : text;
+}
 
 async function startTelemetry(): Promise<TelemetryHandle | null> {
   if (!telemetryEnabled()) return null;
@@ -58,13 +76,17 @@ async function startTelemetry(): Promise<TelemetryHandle | null> {
 
   // The SDK's own warnings (an endpoint that refuses, a bad protocol value) go
   // to the service log. `otel_diag` marks them so the log bridge does not send
-  // an export failure back through the exporter that failed. With
+  // an export failure back through the exporter that failed. An error is also
+  // kept as the last export error, which `GET /telemetry` reports. With
   // OTEL_LOG_LEVEL set, the SDK installs its own console logger instead.
   if (!process.env.OTEL_LOG_LEVEL) {
     const diagLog = log.child({ otel_diag: true });
     diag.setLogger(
       {
-        error: (message, ...args) => diagLog.error({ args }, message),
+        error: (message, ...args) => {
+          noteExportError(diagMessage(message, args));
+          diagLog.error({ args }, message);
+        },
         warn: (message, ...args) => diagLog.warn({ args }, message),
         info: (message, ...args) => diagLog.info({ args }, message),
         debug: (message, ...args) => diagLog.debug({ args }, message),
