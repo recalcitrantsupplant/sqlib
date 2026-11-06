@@ -10,13 +10,17 @@ They assert the semantics of
 [w3c/data-shapes#1377](https://github.com/w3c/data-shapes/pull/1377): every
 earlier variable stays bound after the `GROUP`; a `BY` variable may come from
 before the `GROUP` or from its pattern; a key whose pattern has no solutions
-forms no group, so its row is dropped whatever the functions are; a pattern
+forms no group, so its row is dropped whatever the functions are; a `GROUP`
+with no `BY` always has one group, even when its pattern has no solutions; an
+error in any assignment drops the group; a pattern
 variable that is not a `BY` variable is local to the `GROUP`, whatever is bound
 before or after it. Assignments are separated by commas, as in
 [w3c/data-shapes#1375](https://github.com/w3c/data-shapes/pull/1375).
 
 Until #1377, these cases gave `COUNT` and `SUM` of an empty group the value 0.
-The evaluation cases that depended on that now expect no row instead.
+The evaluation cases with `BY` that depended on that now expect no row instead.
+Without `BY`, #1377 as merged keeps the implicit group, so `COUNT` and `SUM`
+of no solutions are 0 again there.
 
 The syntax and semantics are described in
 [the SRL reference](../../../../docs/reference/srl-language.md#aggregation-group).
@@ -123,7 +127,7 @@ triples with `<name>-results.ttl`.
 | `eval-group-agg-10` | The GROUP counts :childOf only after the rule deriving it is complete, so Bob gets 3 and no partial count. |
 | `eval-group-agg-11` | WHERE DATA counts only the given graph: the derived :childOf triples are not counted. |
 | `eval-group-agg-12` | An aggregation error drops the row: SUM over strings has no value, SUM over numbers does. |
-| `eval-group-agg-13` | On an empty graph a GROUP with no BY forms no group, so neither COUNT nor MAX gives a value. |
+| `eval-group-agg-13` | On an empty graph a GROUP with no BY still has one group: COUNT gives 0, and MAX fails, so it gives no value. |
 | `eval-group-agg-14` | A FILTER on the result after the GROUP keeps only people with more than one child. |
 | `eval-group-agg-15` | Two GROUPs in one rule; the second lists the first one's result as a key. Each person has an empty group in one of them, so nothing is inferred. |
 | `eval-group-agg-16` | SET in the pattern: each child's age next year, summed. |
@@ -136,3 +140,9 @@ triples with `<name>-results.ttl`.
 | `eval-group-agg-23` | A second GROUP keeps the first one's result without listing it. |
 | `eval-group-agg-24` | A pattern variable used again after the GROUP is a new variable (#690). |
 | `eval-group-agg-25` | A pattern variable with the name of one bound before the GROUP is a new variable. |
+| `eval-group-agg-26` | A key bound before the GROUP with no solutions forms no group: no row, even for COUNT(*). |
+| `eval-group-agg-27` | A GROUP with no BY always has one group: COUNT(*), COUNT(?v), COUNT(DISTINCT ?v) and SUM of no solutions give 0. |
+| `eval-group-agg-28` | MIN and MAX fail on the empty implicit group, so each rule infers nothing. |
+| `eval-group-agg-29` | An empty block keeps the implicit group: one row for a pattern with no solutions. |
+| `eval-group-agg-30` | MAX fails on the empty group, so the group is dropped and COUNT(*) gives no value either. |
+| `eval-group-agg-31` | A GROUP with no BY adds its one group to every earlier row, also when its pattern has no solutions. |

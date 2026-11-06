@@ -1,0 +1,5 @@
+PREFIX : <http://example/>
+
+# A GROUP with no BY adds its one group to every earlier row, also when its
+# pattern has no solutions.
+RULE { ?x :pets ?n } WHERE { ?x a :Person . GROUP { ?p :petOf ?q } [ ?n := COUNT(*) ] }

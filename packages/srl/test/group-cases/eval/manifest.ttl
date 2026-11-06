@@ -37,6 +37,12 @@ PREFIX srlt:   <http://www.w3.org/ns/sparql-rl-tests#>
         :eval-group-agg-23
         :eval-group-agg-24
         :eval-group-agg-25
+        :eval-group-agg-26
+        :eval-group-agg-27
+        :eval-group-agg-28
+        :eval-group-agg-29
+        :eval-group-agg-30
+        :eval-group-agg-31
     ) .
 
 # COUNT per person: a person with no children forms no group and gets no count.
@@ -148,7 +154,7 @@ PREFIX srlt:   <http://www.w3.org/ns/sparql-rl-tests#>
     mf:result  <eval-group-agg-12-results.ttl>
     .
 
-# On an empty graph a GROUP with no BY forms no group, so neither COUNT nor MAX gives a value.
+# On an empty graph a GROUP with no BY still has one group: COUNT gives 0, and MAX fails, so it gives no value.
 :eval-group-agg-13 rdf:type srlt:RulesEvalTest ;
     mf:name "eval-group-agg-13";
     mf:action
@@ -271,4 +277,58 @@ PREFIX srlt:   <http://www.w3.org/ns/sparql-rl-tests#>
          [ srlt:ruleset  <eval-group-agg-25.srl> ;
            srlt:data     <data-people.ttl> ] ;
     mf:result  <eval-group-agg-25-results.ttl>
+    .
+
+# A key bound before the GROUP with no solutions forms no group: no row, even for COUNT(*).
+:eval-group-agg-26 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-agg-26";
+    mf:action
+         [ srlt:ruleset  <eval-group-agg-26.srl> ;
+           srlt:data     <data-family.ttl> ] ;
+    mf:result  <eval-group-agg-26-results.ttl>
+    .
+
+# A GROUP with no BY always has one group: COUNT and SUM of no solutions give 0.
+:eval-group-agg-27 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-agg-27";
+    mf:action
+         [ srlt:ruleset  <eval-group-agg-27.srl> ;
+           srlt:data     <data-family.ttl> ] ;
+    mf:result  <eval-group-agg-27-results.ttl>
+    .
+
+# MIN and MAX fail on the empty implicit group, so each rule infers nothing.
+:eval-group-agg-28 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-agg-28";
+    mf:action
+         [ srlt:ruleset  <eval-group-agg-28.srl> ;
+           srlt:data     <data-family.ttl> ] ;
+    mf:result  <eval-group-agg-28-results.ttl>
+    .
+
+# An empty block keeps the implicit group: one row for a pattern with no solutions.
+:eval-group-agg-29 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-agg-29";
+    mf:action
+         [ srlt:ruleset  <eval-group-agg-29.srl> ;
+           srlt:data     <data-family.ttl> ] ;
+    mf:result  <eval-group-agg-29-results.ttl>
+    .
+
+# MAX fails on the empty group, so the group is dropped and COUNT(*) gives no value either.
+:eval-group-agg-30 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-agg-30";
+    mf:action
+         [ srlt:ruleset  <eval-group-agg-30.srl> ;
+           srlt:data     <data-family.ttl> ] ;
+    mf:result  <eval-group-agg-30-results.ttl>
+    .
+
+# A GROUP with no BY adds its one group to every earlier row, also when its pattern has no solutions.
+:eval-group-agg-31 rdf:type srlt:RulesEvalTest ;
+    mf:name "eval-group-agg-31";
+    mf:action
+         [ srlt:ruleset  <eval-group-agg-31.srl> ;
+           srlt:data     <data-family.ttl> ] ;
+    mf:result  <eval-group-agg-31-results.ttl>
     .

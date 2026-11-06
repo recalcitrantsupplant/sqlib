@@ -1,36 +1,39 @@
 W3C SPARQL-RL test suite — vendored snapshot
 Source: https://github.com/w3c/data-shapes/tree/srl-group-tests/shacl12-test-suite/tests/sparql-rl
 Branch: srl-group-tests
-Commit: 87514ecb410bedb6cd0640b980b4b7bc10f2f411
-Plus:   the test files of branch srl-aggregation-comma at
-        a3eac70d93f94007f23d99c328f667c0e6a0b271
-PRs:    srl-group-tests is w3c/data-shapes#1380; srl-aggregation-comma is #1375
-Base:   gh-pages at a6ed26f7385d6e03eeb8441d72d3c172d27657c7; #1380 is not behind it
+Commit: 643cf6a7ce95e63457b7b293c1c22819af1cbb71
+PR:     srl-group-tests is w3c/data-shapes#1380
+Base:   gh-pages at 3bb77ff31f9674f7f561c34a1c75b09adec7f586; #1380 is not behind it
 Dirs:   syntax/ wellformed/ stratification/ eval/ eval2/ examples/
 
-This pin assumes two open pull requests merge. #1380 adds the GROUP tests for
-every category. #1375 puts a comma between aggregation assignments. #1380 is
-written as if #1375 has merged, and both are written against #1376 and #1377,
-which change only the specification text: #1377 defines the well-formedness
-conditions and evaluation of GROUP.
+This pin assumes that #1380 merges as it is. #1380 adds the GROUP tests for
+every category. Its base, gh-pages at 3bb77ff3, already holds the merged
+#1375 (a comma between aggregation assignments), #1376 (the example) and
+#1377 (the well-formedness conditions and evaluation of GROUP).
 
-How the snapshot was made:
+How the snapshot was made: every directory above, README.md and
+manifest-sparql-rl.ttl were taken unchanged from #1380 at 643cf6a7. There is
+no local change.
 
-  1. Every directory above, README.md and manifest-sparql-rl.ttl were taken
-     unchanged from #1380 at 87514ecb. That commit contains gh-pages at
-     a6ed26f7, so the snapshot is current gh-pages plus #1380.
-  2. From #1375 at a3eac70d: syntax-rule-elements-group-14.srl (now with a
-     comma) and the new syntax-rule-elements-group-bad-09.srl and -bad-10.srl.
-  3. Their two entries were added to syntax/manifest.ttl as :test_172 and
-     :test_173. #1380 leaves those two numbers unused. #1375 numbers them
-     :test_151 and :test_152 and renumbers the entries after them, which would
-     conflict with #1380; the names and files are what matter, and both are
-     unchanged.
+If #1380 changes before it merges, refresh from its new head. After it
+merges, refresh from gh-pages.
 
-If either pull request changes before it merges, refresh from its new head.
-After both merge, refresh from gh-pages and drop the composition above.
+What this refresh changed, relative to the previous pin, #1380 at 87514ecb
+plus the test files of #1375 at a3eac70d:
 
-What this refresh changed, relative to the previous pin, gh-pages at 9c863967:
+  #1375 merged, so its files come from #1380 now. Their syntax entries take
+  the upstream numbers :test_151 and :test_152, and the entries after them
+  move up by two. The names and files are unchanged.
+
+  #1377 merged with an implicit group for a GROUP with no BY. eval-group-02
+  now expects :all :count 0 for a pattern with no solutions. eval-group-01
+  and -18 still expect no row for a bound key with no match. The new
+  eval-group-25 .. -30 test empty groups with and without BY, and an
+  aggregate that fails beside one that succeeds.
+
+  Entries: eval 59 -> 65. 342 in all.
+
+What the refresh before that changed, relative to gh-pages at 9c863967:
 
   GROUP. #1347 (merged) added syntax-rule-elements-group-01 .. -16 and -bad-01
   .. -08; #1380 adds 39 more syntax entries and all the GROUP entries in the
@@ -60,7 +63,8 @@ section that is a closed dependency on itself, and the rule set is not
 stratifiable, so it has no inference graph to compare. sqlib refuses it. The
 test needs WHERE DATA, or a constant predicate in the head, in #1380.
 
-Previous pins, for reference: 9c863967bceaef1a87c24e4dd761eda763823120
+Previous pins, for reference: 87514ecb410bedb6cd0640b980b4b7bc10f2f411
+(#1380, with #1375 at a3eac70d), 9c863967bceaef1a87c24e4dd761eda763823120
 (gh-pages, before #1347 merged), 628cef6f5d0da8cc3fa8d8e97d015e854fbae37b (head
 of PR #1175, the rename), daf91b75edeca5d4a85a641a97e6f3b223485d9b (branch
 srl-tests, PR #1154 — where the evaluation tests were written), and before that
