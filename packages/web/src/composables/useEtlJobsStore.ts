@@ -109,6 +109,20 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   return (await requestWithEtag<T>(url, init)).data;
 }
 
+const LIBRARY_IRI_PREFIX = 'urn:sqlib:library:';
+
+/**
+ * The API names a job's libraries by short id on reads and echoes the caller's
+ * spelling on create. Every other entity, and the active library, uses the
+ * full IRI, so a job is brought to that spelling once, here, before any list
+ * compares it.
+ */
+export function withLibraryIris(job: EtlJob): EtlJob {
+  const libraryIds = (job.libraryIds ?? []).map((id) =>
+    id.startsWith('urn:') ? id : `${LIBRARY_IRI_PREFIX}${id}`);
+  return { ...job, libraryIds };
+}
+
 export function useEtlJobsStore() {
   const config = useRuntimeConfig();
   const base = () => `${config.public.apiBaseUrl}/etl-jobs`;
@@ -117,7 +131,7 @@ export function useEtlJobsStore() {
     state.loading = true;
     state.error = null;
     try {
-      state.items = await request<EtlJob[]>(base());
+      state.items = (await request<EtlJob[]>(base())).map(withLibraryIris);
       return state.items;
     } catch (error) {
       state.error = error instanceof Error ? error.message : 'Failed to load pipelines';
@@ -130,11 +144,11 @@ export function useEtlJobsStore() {
   async function fetchEtlJob(id: string): Promise<EtlJob> {
     const { data, etag } = await requestWithEtag<EtlJob>(`${base()}/${encodeURIComponent(id)}`);
     state.concurrency[id] = deriveIfMatchToken(etag, data);
-    return data;
+    return withLibraryIris(data);
   }
 
   async function createEtlJob(input: { name: string; description?: string | null; libraryId: string }): Promise<EtlJob> {
-    const created = await request<EtlJob>(base(), {
+    const created = withLibraryIris(await request<EtlJob>(base(), {
       method: 'POST',
       body: JSON.stringify({
         name: input.name,
@@ -143,7 +157,7 @@ export function useEtlJobsStore() {
         ...(input.description ? { description: input.description } : {}),
         libraryId: input.libraryId,
       }),
-    });
+    }));
     state.items = [...state.items.filter((job) => job.id !== created.id), created];
     return created;
   }
@@ -171,7 +185,7 @@ export function useEtlJobsStore() {
         return { data, etag, lastModified: null, status: 200 };
       },
       onToken: (token) => { state.concurrency[id] = token; },
-    });
+    }).then(withLibraryIris);
     state.items = state.items.map((job) => (job.id === id ? updated : job));
     return updated;
   }

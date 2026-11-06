@@ -83,10 +83,17 @@ const props = withDefaults(defineProps<{
   testid?: string;
   /** Whether the `layer` slot covers the body. Ignored while collapsed. */
   layerOpen?: boolean;
+  /**
+   * Whether the run strip moves into the pop-out. Off for a box that is not
+   * the query itself, such as one argument value: running from there reads
+   * as running that value.
+   */
+  runStrip?: boolean;
 }>(), {
   id: '',
   testid: '',
   layerOpen: false,
+  runStrip: true,
 });
 
 const emit = defineEmits<{ (e: 'update:expanded', value: boolean): void }>();
@@ -100,7 +107,9 @@ const toggle = () => expand.toggle(regionId);
 const collapse = () => expand.collapse();
 
 const runHostEl = ref<HTMLElement | null>(null);
-onMounted(() => expand.registerRunHost(regionId, runHostEl.value));
+onMounted(() => {
+  if (props.runStrip) expand.registerRunHost(regionId, runHostEl.value);
+});
 onBeforeUnmount(() => expand.releaseRegion(regionId));
 
 watch(expanded, (value) => emit('update:expanded', value));
