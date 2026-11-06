@@ -21,9 +21,8 @@
  * `lib/codemirrorHighlight.ts`, both driven by the same design tokens. This
  * file answers one question and returns extensions that answer nothing else.
  */
-import type { EditorState, Extension } from '@codemirror/state';
-import { LanguageSupport, StreamLanguage, type Language } from '@codemirror/language';
-import { linter } from '@codemirror/lint';
+import type { Extension } from '@codemirror/state';
+import { StreamLanguage, type Language } from '@codemirror/language';
 import type { PrefixGrammar } from '@/lib/prefixRewrite';
 import { json } from '@codemirror/lang-json';
 import { markdown } from '@codemirror/lang-markdown';
@@ -37,12 +36,7 @@ import {
   turtleLanguage,
   trigLanguage,
 } from '@kurrawongai/codemirror-lang-turtle12';
-import {
-  parseErrors,
-  sparqlCompletionSource,
-  sparqlLanguage,
-  type ParseError,
-} from '@kurrawongai/codemirror-lang-sparql12';
+import { sparql, sparqlLateralLanguage } from '@kurrawongai/codemirror-lang-sparql12';
 import { srl, srlLanguage } from '@kurrawongai/codemirror-lang-srl';
 
 /** `text/turtle; charset=utf-8` and `text/turtle` are the same language. */
@@ -100,37 +94,6 @@ export interface LanguageOptions {
 }
 
 /**
- * True when a parse error is only the word `LATERAL` before a `{`.
- *
- * `A LATERAL { B }` is SPARQL 1.2 (SEP-0006), and sqlib's server parser
- * accepts it (`packages/compiler/src/sparql12.ts`). The CodeMirror grammar,
- * `@kurrawongai/codemirror-lang-sparql12` 0.6.0, does not have it yet. Its
- * parser recovers by skipping the one word, and then reads `{ B }` as an
- * ordinary group, so the keyword is the only error the query has. That error
- * alone is dropped. Any other error near it is still reported.
- */
-export function isLateralKeywordError(state: EditorState, error: ParseError): boolean {
-  if (!/^lateral$/i.test(state.sliceDoc(error.from, error.to))) return false;
-  return /^(?:\s|#[^\n]*\n)*\{/.test(state.sliceDoc(error.to, Math.min(state.doc.length, error.to + 200)));
-}
-
-/**
- * SPARQL 1.2, as `sparql()` from the grammar package builds it, with a linter
- * that accepts `LATERAL` (see {@link isLateralKeywordError}). Delete this and
- * go back to `sparql()` when the grammar has a `LATERAL` rule.
- */
-function sparqlWithLateral(): LanguageSupport {
-  return new LanguageSupport(sparqlLanguage, [
-    sparqlLanguage.data.of({ autocomplete: sparqlCompletionSource({ dialect: 'sparql' }) }),
-    linter((view) =>
-      parseErrors(view.state)
-        .filter((error) => !isLateralKeywordError(view.state, error))
-        .map((error) => ({ ...error, severity: 'error' as const })),
-    ),
-  ]);
-}
-
-/**
  * The language extensions for a media type, or none when it is unknown.
  *
  * An unknown type gets an empty array rather than a guess: plain text with no
@@ -156,7 +119,14 @@ export function languageExtensionsFor(
   if (type === 'application/trig') return [trig()];
   if (type === 'application/n-triples') return [ntriples()];
   if (type === 'application/n-quads') return [nquads()];
-  if (type === 'application/sparql-query' || type === 'application/sparql-update') return [sparqlWithLateral()];
+  if (type === 'application/sparql-query' || type === 'application/sparql-update') {
+    /*
+     * `A LATERAL { B }` (SEP-0006) is not in the SPARQL 1.2 draft, so the
+     * grammar has it as an opt-in dialect. sqlib's server parser accepts it
+     * (`packages/compiler/src/sparql12.ts`), so the editor does too.
+     */
+    return [sparql({ lateral: true })];
+  }
   /*
    * SRL has a grammar of its own — `@kurrawongai/codemirror-lang-srl`, which is
    * the SPARQL 1.2 grammar entered at `SrlUnit` rather than a second grammar,
@@ -221,7 +191,7 @@ export function prefixGrammarFor(contentType?: string | null): PrefixGrammar | n
    */
   if (type === 'application/trig') return trigLanguage.parser;
   if (type === 'application/sparql-query' || type === 'application/sparql-update') {
-    return sparqlLanguage.parser;
+    return sparqlLateralLanguage.parser;
   }
   /*
    * SRL's own grammar, for the same reason TriG has its own: it is the one that

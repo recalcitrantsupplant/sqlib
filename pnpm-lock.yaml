@@ -629,11 +629,11 @@ importers:
         specifier: ^6.43.15
         version: 6.43.15
       '@kurrawongai/codemirror-lang-sparql12':
-        specifier: 0.6.0
-        version: 0.6.0
+        specifier: 0.7.0
+        version: 0.7.0
       '@kurrawongai/codemirror-lang-srl':
-        specifier: 0.6.0
-        version: 0.6.0
+        specifier: 0.7.0
+        version: 0.7.0
       '@kurrawongai/codemirror-lang-turtle12':
         specifier: 0.3.0
         version: 0.3.0
@@ -1996,8 +1996,14 @@ packages:
   '@kurrawongai/codemirror-lang-sparql12@0.6.0':
     resolution: {integrity: sha512-BSxqFA8ZqVIJSTSBseySq5e504Tr8qauCgezqUkBdKc9nONF597WQqAixl2T7VzTk8Yw0YPGdMr+5aNzLTMwgA==}
 
+  '@kurrawongai/codemirror-lang-sparql12@0.7.0':
+    resolution: {integrity: sha512-dz4CKnVAhe9V8AkkJMQtrgrOmcStsr4vQbngLvbnYM8Y5cvr6imBnaOjgKnLDpCHZbsLVRrADX+z+FriUqS/pg==}
+
   '@kurrawongai/codemirror-lang-srl@0.6.0':
     resolution: {integrity: sha512-SwOXo7h5v17tH9/vn4qX0ov4KBXgQ1NiPMsFse1nxmTfsl87dqKEh32JZBus+fsFPkTyPYr7MjN5wcnJ7pI9PA==}
+
+  '@kurrawongai/codemirror-lang-srl@0.7.0':
+    resolution: {integrity: sha512-pHXJ06pvl7Lw1SV5LaWNls/cvssOABgu2pUBd/xJsqOrilqvTYcEC1mJu2IDtgbU8TgNROXFIqFLumLQrKdeIw==}
 
   '@kurrawongai/codemirror-lang-turtle12@0.3.0':
     resolution: {integrity: sha512-MxYpvKndgMpoOM7/gNqFETeB8gxdjImuZe7kLWqRnoGYRERieD/SlfqKIeYxLkNcqXuGU82dF3tbV7411CvySg==}
@@ -9051,6 +9057,16 @@ snapshots:
       '@lezer/highlight': 1.2.5
       '@lezer/lr': 1.4.12
 
+  '@kurrawongai/codemirror-lang-sparql12@0.7.0':
+    dependencies:
+      '@codemirror/autocomplete': 6.20.4
+      '@codemirror/language': 6.13.1
+      '@codemirror/lint': 6.9.7
+      '@codemirror/state': 6.7.6
+      '@lezer/common': 1.5.5
+      '@lezer/highlight': 1.2.5
+      '@lezer/lr': 1.4.12
+
   '@kurrawongai/codemirror-lang-srl@0.6.0':
     dependencies:
       '@codemirror/autocomplete': 6.20.4
@@ -9058,6 +9074,17 @@ snapshots:
       '@codemirror/lint': 6.9.7
       '@codemirror/state': 6.7.6
       '@kurrawongai/codemirror-lang-sparql12': 0.6.0
+      '@lezer/common': 1.5.5
+      '@lezer/highlight': 1.2.5
+      '@lezer/lr': 1.4.12
+
+  '@kurrawongai/codemirror-lang-srl@0.7.0':
+    dependencies:
+      '@codemirror/autocomplete': 6.20.4
+      '@codemirror/language': 6.13.1
+      '@codemirror/lint': 6.9.7
+      '@codemirror/state': 6.7.6
+      '@kurrawongai/codemirror-lang-sparql12': 0.7.0
       '@lezer/common': 1.5.5
       '@lezer/highlight': 1.2.5
       '@lezer/lr': 1.4.12

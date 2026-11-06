@@ -258,9 +258,8 @@ describe('an SRL editor given a GROUP aggregate', () => {
 });
 
 /**
- * `LATERAL` (SPARQL 1.2, SEP-0006) saves on the server, but the grammar
- * package has no rule for it yet. The editor drops the one error the grammar
- * reports for the keyword, and nothing else.
+ * `LATERAL` (SEP-0006) saves on the server. The grammar has it as an opt-in
+ * dialect since 0.7.0, and a SPARQL editor opts in.
  */
 describe('a SPARQL editor given LATERAL', () => {
   async function lintSparql(doc: string): Promise<string[]> {
@@ -294,6 +293,15 @@ describe('a SPARQL editor given LATERAL', () => {
 
   it('still flags LATERAL with no group after it', async () => {
     expect(await lintSparql('SELECT * WHERE { ?s ?p ?o LATERAL ?x }')).not.toEqual([]);
+  });
+
+  it('rewrites prefixes with a grammar that reads LATERAL', () => {
+    const grammar = prefixGrammarFor('application/sparql-query') as { parse: (text: string) => { iterate: (spec: { enter: (node: { type: { isError: boolean } }) => void }) => void } };
+    let errors = 0;
+    grammar.parse('SELECT * WHERE { ?s ?p ?o LATERAL { ?o ?q ?r } }').iterate({
+      enter: (node) => { if (node.type.isError) errors++; },
+    });
+    expect(errors).toBe(0);
   });
 
   it('still flags an error inside the LATERAL group', async () => {
