@@ -141,14 +141,14 @@ describe('W3C SPARQL-RL conformance, as library Tests', () => {
     const perCategory: Record<string, number> = {};
     for (const verdict of verdicts) perCategory[verdict.category] = (perCategory[verdict.category] ?? 0) + 1;
     expect(perCategory).toEqual({
-      eval: 59,
+      eval: 65,
       eval2: 6,
       examples: 5,
       syntax: 212,
       wellformed: 33,
       stratification: 21,
     });
-    expect(seededCounts.tests).toBe(336);
+    expect(seededCounts.tests).toBe(342);
     expect(skipped, `entries the library could not express: ${JSON.stringify(skipped)}`).toEqual([]);
   });
 
@@ -214,10 +214,10 @@ describe('W3C SPARQL-RL conformance, as library Tests', () => {
     expect(untagged, 'every seeded test carries at least its kind tag').toEqual([]);
 
     // The two axes the tags exist to add, spot-checked against the counts the
-    // suite's own shape fixes: 70 entries evaluate, 266 check a document.
+    // suite's own shape fixes: 76 entries evaluate, 266 check a document.
     const carrying = (slug: string) =>
       tests.filter(test => (test.tags ?? []).includes(tagIdFor(slug))).length;
-    expect(carrying('evaluation')).toBe(70);
+    expect(carrying('evaluation')).toBe(76);
     expect(carrying('document-check')).toBe(266);
     expect(carrying('must-reject')).toBe(95);
   });

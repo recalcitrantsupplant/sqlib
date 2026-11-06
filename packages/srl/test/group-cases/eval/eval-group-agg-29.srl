@@ -1,0 +1,5 @@
+PREFIX : <http://example/>
+
+# An empty block keeps the implicit group of a GROUP with no BY, so one row
+# survives although the pattern has no solutions.
+RULE { :amy :checked true } WHERE { GROUP { ?c :childOf :amy } [] }

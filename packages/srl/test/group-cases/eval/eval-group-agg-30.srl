@@ -1,0 +1,6 @@
+PREFIX : <http://example/>
+
+# Every assignment must succeed. MAX fails on the empty group, so the group is
+# dropped, and COUNT(*) gives no value either. SPARQL would keep the count.
+RULE { :amy :children ?n ; :oldest ?hi }
+WHERE { GROUP { ?c :childOf :amy ; :age ?a } [ ?n := COUNT(*) , ?hi := MAX(?a) ] }

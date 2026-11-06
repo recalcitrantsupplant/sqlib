@@ -88,7 +88,7 @@ describe('GROUP cases — the manifests', () => {
     expect(syntaxSuite.entries).toHaveLength(25);
     expect(wellformedSuite.entries).toHaveLength(22);
     expect(stratificationSuite.entries).toHaveLength(6);
-    expect(evalSuite.entries).toHaveLength(25);
+    expect(evalSuite.entries).toHaveLength(31);
   });
 });
 

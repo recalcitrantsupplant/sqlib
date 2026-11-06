@@ -55,7 +55,7 @@ describe('W3C rules suite tags', () => {
 
   it('gives every entry a kind and at least one feature', async () => {
     const rows = await tagged();
-    expect(rows.length).toBe(336);
+    expect(rows.length).toBe(342);
 
     const featureless = rows.filter(row => row.tags.every(tag => NON_FEATURE.has(tag)));
     expect(
