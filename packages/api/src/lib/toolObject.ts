@@ -9,7 +9,15 @@
  * a 400 that names the key. A published tool therefore never breaks silently
  * at the next start. See `docs/guides/publishing-tools.md`.
  */
-import { checkToolObject, type DetectedInputs, type ToolObject, type ToolTargetKind } from '@sparql-query-lib/tools';
+import {
+  checkOgcObject,
+  checkToolObject,
+  type DetectedInputs,
+  type OgcCheckContext,
+  type OgcObject,
+  type ToolObject,
+  type ToolTargetKind,
+} from '@sparql-query-lib/tools';
 import { checkRefusals } from './refusals.js';
 
 /** A `tool` object the version's inputs do not support. Answers 400. */
@@ -130,4 +138,34 @@ export function groupInputs(options: {
     }
   }
   return { tables, limits: [...limits], offsets: [...offsets] };
+}
+
+type StoredOgc = OgcObject | null | undefined;
+
+/**
+ * The `ogc` object the new query version stores: the body's, else the
+ * previous version's. `undefined` stores none. Checked against what the
+ * version's text declares and returns, so a collection never breaks silently
+ * at the next start. See `docs/proposals/ogc-api-features.md`.
+ */
+export function resolveVersionOgc(options: {
+  body: Record<string, unknown>;
+  previous: { version?: number | null; ogc?: StoredOgc } | null | undefined;
+  /** What the version's text declares and returns, or null when it does not parse. */
+  context: OgcCheckContext | null;
+}): OgcObject | undefined {
+  const { body, previous, context } = options;
+  const sent = Object.prototype.hasOwnProperty.call(body, 'ogc');
+  const ogc: StoredOgc = sent ? (body.ogc as StoredOgc) : previous?.ogc;
+  if (ogc === undefined || ogc === null) return undefined;
+  const problem = context ? checkOgcObject(ogc, context) : 'ogc: the query text does not parse';
+  if (problem) {
+    throw new ToolObjectError(
+      sent
+        ? problem
+        : `${problem}. The ogc object was copied from version ${previous?.version ?? 'the previous version'}; ` +
+            'send a corrected ogc object, or "ogc": null, with the new text.',
+    );
+  }
+  return ogc;
 }

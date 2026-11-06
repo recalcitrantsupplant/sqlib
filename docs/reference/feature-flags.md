@@ -1,6 +1,6 @@
 # Feature flags
 
-Twenty boolean flags decide which sections of the product a build offers. A
+Twenty-one boolean flags decide which sections of the product a build offers. A
 flag is read on the server, where it decides whether routes are registered, and
 again in the browser build, where it decides whether a section and the controls
 leading to it are drawn. The two read separate environments, so a deployment
@@ -41,6 +41,7 @@ A flag's value is parsed leniently, case-insensitively, after trimming:
 | `playgroundRules` | `FEATURE_PLAYGROUND_RULES` | on | The unsaved rules playground; `POST /playground/rules/execute` |
 | `playgroundEtl` | `FEATURE_PLAYGROUND_ETL` | **off** | The ETL rail section; `POST /playground/etl/execute` |
 | `assistant` | `FEATURE_ASSISTANT` | **off** | The in-app build assistant; the `/assistant` routes |
+| `ogc` | `FEATURE_OGC` | **off** | OGC API Features: the `/ogc/{slug}` routes. See [publishing OGC collections](../guides/publishing-ogc-collections.md) |
 
 Route-level refusal is a `404 Not Found`: a request to a route behind a flag
 that is off reaches nothing, which is the same answer a route that was never

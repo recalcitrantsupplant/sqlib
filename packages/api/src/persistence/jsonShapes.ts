@@ -15,7 +15,13 @@
  * *contract* that narrows it.
  */
 
-import { REFUSAL_KEY_PATTERN, TOOL_NAME_PATTERN, TOOL_PARAM_KINDS } from '@sparql-query-lib/tools';
+import {
+  OGC_COLLECTION_ID_PATTERN,
+  OGC_QUERYABLE_TYPES,
+  REFUSAL_KEY_PATTERN,
+  TOOL_NAME_PATTERN,
+  TOOL_PARAM_KINDS,
+} from '@sparql-query-lib/tools';
 
 /** A named JSON document shape, in both emitted forms. */
 export interface JsonShape {
@@ -133,10 +139,106 @@ export const PUBLISHED_TOOL: JsonShape = {
   ])`,
 };
 
+/**
+ * `QueryVersion.ogc` — the OGC API Features collection the version serves as.
+ *
+ * Only the outer shape is here: which keys a mode takes, and whether the
+ * variables they name are this version's, is checked when the version is
+ * saved (`checkOgcObject`).
+ */
+export const OGC_COLLECTION: JsonShape = {
+  jsonSchema: {
+    title: 'OgcCollection',
+    type: 'object',
+    properties: {
+      collectionId: { type: 'string', pattern: OGC_COLLECTION_ID_PATTERN },
+      title: { type: 'string', minLength: 1 },
+      description: { type: 'string' },
+      mode: { type: 'string', enum: ['values', 'cql2'] },
+      feature: {
+        type: 'object',
+        properties: { var: { type: 'string', minLength: 1 }, base: { type: 'string', minLength: 1 } },
+        required: ['var', 'base'],
+        additionalProperties: false,
+      },
+      geometry: { anyOf: [{ type: 'string', minLength: 1 }, { type: 'null' }] },
+      point: { type: 'array', items: { type: 'string', minLength: 1 }, minItems: 2, maxItems: 2 },
+      geometrySources: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: { href: { type: 'string' }, type: { type: 'string' }, title: { type: 'string' } },
+          required: ['href'],
+          additionalProperties: false,
+        },
+      },
+      params: { type: 'object', additionalProperties: true },
+      outputs: { type: 'object', additionalProperties: { type: 'string' } },
+      cql: { type: 'object', additionalProperties: true },
+      queryables: {
+        type: 'object',
+        additionalProperties: {
+          type: 'object',
+          properties: {
+            var: { type: 'string' },
+            type: { type: 'string', enum: [...OGC_QUERYABLE_TYPES] },
+            title: { type: 'string' },
+            description: { type: 'string' },
+          },
+          additionalProperties: false,
+        },
+      },
+      pageSize: {
+        type: 'object',
+        properties: { default: { type: 'integer', minimum: 1 }, max: { type: 'integer', minimum: 1 } },
+        additionalProperties: false,
+      },
+      extent: { type: 'object', additionalProperties: true },
+      omit: { type: 'array', items: { type: 'string' } },
+    },
+    required: ['collectionId', 'title', 'mode', 'feature'],
+    additionalProperties: false,
+  },
+  zod: `z
+  .object({
+    collectionId: z.string().regex(/${OGC_COLLECTION_ID_PATTERN}/),
+    title: z.string().min(1),
+    description: z.string().optional(),
+    mode: z.enum(['values', 'cql2']),
+    feature: z.object({ var: z.string().min(1), base: z.string().min(1) }).strict(),
+    geometry: z.string().min(1).nullable().optional(),
+    point: z.tuple([z.string().min(1), z.string().min(1)]).optional(),
+    geometrySources: z
+      .array(z.object({ href: z.string(), type: z.string().optional(), title: z.string().optional() }).strict())
+      .optional(),
+    params: z.record(z.string(), z.unknown()).optional(),
+    outputs: z.record(z.string(), z.string()).optional(),
+    cql: z.record(z.string(), z.unknown()).optional(),
+    queryables: z
+      .record(
+        z.string(),
+        z
+          .object({
+            var: z.string().optional(),
+            type: z.enum(${JSON.stringify(OGC_QUERYABLE_TYPES)}).optional(),
+            title: z.string().optional(),
+            description: z.string().optional(),
+          })
+          .strict(),
+      )
+      .optional(),
+    pageSize: z.object({ default: z.number().int().min(1).optional(), max: z.number().int().min(1).optional() }).strict().optional(),
+    extent: z.record(z.string(), z.unknown()).optional(),
+    omit: z.array(z.string()).optional(),
+  })
+  .strict()`,
+};
+
 /** Every declared shape, keyed by the name a property's `@jsonShape` names. */
 export const JSON_SHAPES = {
   EphemeralBackendConfig: EPHEMERAL_BACKEND_CONFIG,
   PublishedTool: PUBLISHED_TOOL,
+  OgcCollection: OGC_COLLECTION,
 } as const;
 
 export type JsonShapeName = keyof typeof JSON_SHAPES;
