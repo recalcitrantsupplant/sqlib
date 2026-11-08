@@ -2,8 +2,10 @@
 
 sqlib keeps its library — every query, version, rule set, tag, argument set and
 test — as RDF, by default in one SQLite file, and keeps a copy of all of it in
-memory so that reads are synchronous. This page explains what that store can be, what each
-choice costs, and what the in-memory cache does and does not guarantee.
+memory so that reads are synchronous. Grants and principals, when auth is on,
+are in a second SQLite file by default. This page explains what those stores can
+be, what each choice costs, how the backends that queries run against compare,
+and what the in-memory cache does and does not guarantee.
 
 Backends you create in the UI are a different thing from the store the library
 itself lives in. A `Backend` entity is a place your *queries* run. The library
@@ -160,6 +162,92 @@ For a library that survives a restart use `sqlite`.
 `sqlite` is the right answer for one instance. Read-only replicas can each run on
 their own copy of the file. An external HTTP endpoint is the right answer when
 several instances must write, or the library is larger than memory.
+
+## Where grants live: the auth store
+
+Principals, grants and per-backend policies are kept apart from the library, in
+an auth store of their own. `SQLIB_AUTH_STORE_TYPE` chooses it, and it is read
+only when `SQLIB_AUTH_MODE` is not `disabled`.
+
+| `SQLIB_AUTH_STORE_TYPE` | Where | Written |
+| --- | --- | --- |
+| `sqlite` (the default) | `auth.sqlite` in `SQLIB_AUTH_STORE_DIR` (default `./storage/auth`) | per change, one row per quad, in one transaction; an `auth_events` table records what each change added and removed |
+| `file` | `auth.nq` in the same directory | the whole file on each change, renamed into place |
+| `sparql` (the default when `SQLIB_AUTH_SPARQL_ENDPOINT` is set) | the `urn:sqlib:auth` graph of a SPARQL dataset of its own | per change, over HTTP |
+
+So a default deployment with auth on keeps all of its durable state in two
+SQLite files: `library.sqlite` and `auth.sqlite`. They live in different
+directories and are copied the same way, with `sqlite3 <file> ".backup copy"`.
+The same disk rules apply to both: local disk or a block volume, not a network
+file share. See [security-model.md](security-model.md) for what the store
+holds.
+
+## Where queries run: backends
+
+The stores above hold sqlib's own entities. A query runs against a `Backend`
+entity, which is created at runtime (`POST /backends`) and lives in the library.
+A server can have any number of backends, of three types.
+
+| | `http` | `oxigraphMemory` | `oxigraphEphemeral` |
+| --- | --- | --- | --- |
+| What it is | any SPARQL 1.1 endpoint: Fuseki, GraphDB, an Oxigraph server | an Oxigraph store inside the sqlib process | an empty Oxigraph store inside the sqlib process |
+| Data comes from | the endpoint | data graphs in the library, pinned or tracked; or a seed (below) | uploads and SPARQL updates |
+| Modes | — | `readOnly` (the default), `ephemeral`, `durable` | — |
+| Writes | the endpoint's rules | refused in `readOnly`; kept in memory in `ephemeral`; kept and saved in `durable` | kept in memory |
+| Survives a restart | yes | `readOnly` and `ephemeral` are rebuilt from their sources; `durable` restores its `.nq` snapshot | no |
+| Checkpoint | the endpoint's own | `durable` only: a `.nq` file under `OXIGRAPH_STORAGE_DIR`, on the checkpoint timer and on shutdown | none |
+| Size limit | the endpoint's | process memory | process memory |
+| Extra process | yes | no | no |
+
+`oxigraphEphemeral` is the older in-process type. For new work use
+`oxigraphMemory` with `mode: "ephemeral"`, which can also be seeded.
+
+A query group or rule set can also run on a scratch Oxigraph store that exists
+only for one execution. That store is not a `Backend` entity.
+
+### A read-only dataset needs no external store
+
+For data that nobody writes, register an `oxigraphMemory` backend in
+`readOnly` mode. No SPARQL server runs beside sqlib. Oxigraph is still the
+query engine, but it runs inside the sqlib process, from its npm package.
+
+The store is filled from an RDF serialisation at load time, in one of two ways:
+
+- **Data graphs** (`sources`). The RDF is saved as data graph versions in the
+  library, so it sits in `library.sqlite` with everything else. A source with
+  `dataGraphVersionId` is pinned. A source with `dataGraphId` follows the
+  graph's current version. Saving a new version drops the store, and the next
+  query rebuilds it.
+- **A seed** (`loadMethod` and `sourceConfig`). `file` reads a local file
+  (`filePath`, with `format` one of `turtle`, `ntriples`, `rdfxml`,
+  `jsonld`). `remote-file` fetches a file from `remoteFileUrl`. `remote-sparql`
+  runs `importQuery` against `remoteEndpoint`.
+
+```json
+{
+  "name": "Reference data",
+  "backendType": "oxigraphMemory",
+  "oxigraphConfig": "{\"mode\":\"readOnly\",\"sources\":[{\"dataGraphVersionId\":\"urn:...\"}]}"
+}
+```
+
+A SPARQL update or an upload to a `readOnly` backend is refused with 403, by
+`ReadOnlySparqlExecutor`. The store is built on first use, so the first query
+pays the load. Each restart loads it again.
+
+With the data in data graphs, one SQLite file is the whole deployment. Ship
+`library.sqlite`, start sqlib with `SQLIB_READ_ONLY=true`, and every query runs
+against data held in that file.
+
+There is no backend that reads RDF straight from a SQLite file, and no query
+engine other than Oxigraph for in-process SPARQL. Admin SPARQL over the library
+itself (the library storage backend) is the one exception: it runs on an
+Oxigraph copy built from `library.sqlite` rows, and it holds sqlib's entities,
+not your data.
+
+Outside the server, the `sqlib` CLI does the same without a backend at all:
+`sqlib query --data people.ttl` loads the files into an in-process Oxigraph
+store for one run. See [cli.md](../guides/cli.md).
 
 ## The entity cache
 

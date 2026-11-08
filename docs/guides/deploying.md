@@ -47,12 +47,18 @@ One image serves every runtime mode. `APP_MODE` selects:
 ```bash
 docker run -p 3000:3000 \
   -e APP_MODE=dual-http \
-  -e INTERNAL_BACKEND_TYPE=oxigraph-persistent \
   -e LIBRARY_STORAGE_DIR=/app/packages/api/storage/library-store \
-  -e INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS=60000 \
+  -e SQLIB_AUTH_STORE_DIR=/app/packages/api/storage/auth \
   -v sqlib-storage:/app/packages/api/storage \
   <image>:<tag>
 ```
+
+The library store is the default, `sqlite`: `library.sqlite` in
+`LIBRARY_STORAGE_DIR`. With auth on, grants go to `auth.sqlite` in
+`SQLIB_AUTH_STORE_DIR`. Set both directories to absolute paths under the
+volume. Their defaults are relative to the working directory, and in the
+`dual-http` and `mcp-http` modes that is `/app/packages/mcp-server`, which is
+not on the volume.
 
 `/app/packages/api/storage` is declared as a volume and created in the image
 owned by `node` (uid 1000), so a fresh Docker volume is writable. A host bind
@@ -61,10 +67,10 @@ already has and must be chowned to `1000:1000` — otherwise the first write
 fails with `EACCES`.
 
 Choosing where the library lives, and what queries execute against, is covered
-in [running and configuring](running-and-configuring.md). For a store larger
-than a few million triples, or where losing the writes since the last
-checkpoint is unacceptable, run a SPARQL server and set
-`INTERNAL_BACKEND_TYPE=http`.
+in [running and configuring](running-and-configuring.md), and the options are
+compared in [storage and caching](../explanation/storage-and-caching.md). For a
+library larger than process memory, or one that more than one sqlib instance
+writes, run a SPARQL server and set `INTERNAL_BACKEND_TYPE=http`.
 
 The image is built on Debian rather than Alpine, deliberately: DuckDB community
 extensions — which ETL loads — are not published for musl at the DuckDB version
@@ -481,10 +487,13 @@ is not writable, and
 `pnpm --filter @sparql-query-lib/api smoke:storage` asks the same question
 inside a container without booting the server.
 
-**Persistence is a volume.** With `INTERNAL_BACKEND_TYPE=oxigraph-persistent`
-the entire library is in the container's memory and on its disk. Without a
+**Persistence is a volume.** With the default `sqlite` store, the library and
+the auth store are files on the container's disk. With
+`INTERNAL_BACKEND_TYPE=oxigraph-persistent` the entire library is in the
+container's memory and in a `.nq` snapshot on its disk. Either way, without a
 volume mounted at the storage path, everything is lost when the container is
-replaced.
+replaced. Put a SQLite store on a block volume, not on a network file share
+(Azure Files, EFS): SQLite's locking is not reliable there.
 
 **Observability.** Telemetry is off unless an OTLP endpoint is set. Set
 `OTEL_EXPORTER_OTLP_ENDPOINT` (and `OTEL_EXPORTER_OTLP_HEADERS` for a hosted

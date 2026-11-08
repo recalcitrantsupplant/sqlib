@@ -4,7 +4,9 @@ sqlib (`sparql-query-lib`) is a self-hostable server, web UI and MCP server for
 authoring, versioning, parameterising, composing, testing, benchmarking and
 exporting SPARQL queries and SHACL 1.2 inference rules. It runs them against any
 SPARQL endpoint you configure as a backend, or against an in-process Oxigraph
-store.
+store. By default it keeps its own state in SQLite files on local disk: the
+library in `library.sqlite`, and grants in `auth.sqlite` when auth is on. No
+database server is needed.
 
 ## Prerequisites
 
@@ -34,7 +36,9 @@ their built entry points, so an unbuilt tree fails to start.
 
 `just run-local-memory` starts the API and the MCP server on one Fastify
 instance on port 3005, backed by an Oxigraph library store under
-`packages/api/tmp/library-store`.
+`packages/api/tmp/library-store`. `just dev` runs the same server, with the web
+UI and every feature flag on, on the default SQLite store
+(`packages/api/tmp/library-store/library.sqlite`).
 
 ### What you should see
 
