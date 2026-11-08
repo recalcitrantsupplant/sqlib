@@ -36,7 +36,7 @@ import {
   turtleLanguage,
   trigLanguage,
 } from '@kurrawongai/codemirror-lang-turtle12';
-import { sparql, sparqlLanguage } from '@kurrawongai/codemirror-lang-sparql12';
+import { sparql, sparqlLateralLanguage } from '@kurrawongai/codemirror-lang-sparql12';
 import { srl, srlLanguage } from '@kurrawongai/codemirror-lang-srl';
 
 /** `text/turtle; charset=utf-8` and `text/turtle` are the same language. */
@@ -119,7 +119,14 @@ export function languageExtensionsFor(
   if (type === 'application/trig') return [trig()];
   if (type === 'application/n-triples') return [ntriples()];
   if (type === 'application/n-quads') return [nquads()];
-  if (type === 'application/sparql-query' || type === 'application/sparql-update') return [sparql()];
+  if (type === 'application/sparql-query' || type === 'application/sparql-update') {
+    /*
+     * `A LATERAL { B }` (SEP-0006) is not in the SPARQL 1.2 draft, so the
+     * grammar has it as an opt-in dialect. sqlib's server parser accepts it
+     * (`packages/compiler/src/sparql12.ts`), so the editor does too.
+     */
+    return [sparql({ lateral: true })];
+  }
   /*
    * SRL has a grammar of its own — `@kurrawongai/codemirror-lang-srl`, which is
    * the SPARQL 1.2 grammar entered at `SrlUnit` rather than a second grammar,
@@ -184,7 +191,7 @@ export function prefixGrammarFor(contentType?: string | null): PrefixGrammar | n
    */
   if (type === 'application/trig') return trigLanguage.parser;
   if (type === 'application/sparql-query' || type === 'application/sparql-update') {
-    return sparqlLanguage.parser;
+    return sparqlLateralLanguage.parser;
   }
   /*
    * SRL's own grammar, for the same reason TriG has its own: it is the one that

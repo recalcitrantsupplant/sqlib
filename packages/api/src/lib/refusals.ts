@@ -17,8 +17,7 @@
  * client between the two can make them disagree, which on a single-writer
  * store does not arise.
  */
-import { Parser } from '@traqula/parser-sparql-1-2';
-import { Generator } from '@traqula/generator-sparql-1-2';
+import { Generator, Parser } from '@sparql-query-lib/compiler';
 import type { RefusedBody } from '@sparql-query-lib/tools';
 
 /** An update text that cannot carry refusals. Answers 400. */

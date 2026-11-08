@@ -24,6 +24,7 @@
     "poc:patch-log": "tsx poc/run.ts"
   },
   "dependencies": {
+    "@sparql-query-lib/compiler": "workspace:*",
     "@traqula/generator-sparql-1-2": "1.4.0",
     "@traqula/parser-sparql-1-2": "1.4.0",
     "@traqula/rules-sparql-1-2": "1.4.0"

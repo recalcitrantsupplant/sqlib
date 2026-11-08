@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-import { Parser } from '@traqula/parser-sparql-1-2';
-import { Generator } from '@traqula/generator-sparql-1-2';
+// sqlib's Traqula parser and generator: Traqula's own, plus LATERAL.
+import { Generator, Parser } from '../src/sparql12.js';
 import { SparqlQueryParser } from '../src/parser.js';
 
 /**
@@ -103,6 +103,12 @@ const QUERIES = {
   authorData:
     'SELECT * WHERE { VALUES (?fixed) { (<http://example.org/keep>) } VALUES (?s) { (UNDEF) } ?s ?p ?fixed . }',
   noSlots: 'SELECT * WHERE { ?s ?p ?o . }',
+  // A parameter before LATERAL feeds a property function inside it; a second
+  // parameter sits inside the LATERAL block itself.
+  lateral:
+    'PREFIX text: <http://jena.apache.org/text#> SELECT * WHERE { VALUES (?q) { (UNDEF) } '
+    + 'BIND(COALESCE(?q, "default") AS ?q1) '
+    + 'LATERAL { VALUES (?field) { (UNDEF) } ?s text:query (?field ?q1) . } }',
 };
 
 const uri = (value: string): ArgValue => ({ type: 'uri', value });
@@ -159,6 +165,20 @@ describe('template/AST equivalence', () => {
   it('agrees when the query declares prefixes', () => {
     expectAgreement(QUERIES.withPrefix, [
       { head: { vars: ['s'] }, results: { bindings: [{ s: uri('http://example.org/thing') }] } },
+    ]);
+  });
+
+  it('agrees on slots before and inside a LATERAL block', () => {
+    expectAgreement(QUERIES.lateral, [
+      { head: { vars: ['q'] }, results: { bindings: [{ q: lit('granite') }] } },
+      { head: { vars: ['field'] }, results: { bindings: [{ field: uri('http://example.org/label') }] } },
+    ]);
+  });
+
+  it('agrees on a LATERAL query whose caller sends no arguments', () => {
+    expectAgreement(QUERIES.lateral, [
+      { head: { vars: ['q'] }, results: { bindings: [] }, whenEmpty: 'unconstrained' },
+      { head: { vars: ['field'] }, results: { bindings: [] }, whenEmpty: 'unconstrained' },
     ]);
   });
 

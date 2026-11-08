@@ -6,7 +6,7 @@
      CI fails when this file and the built declarations disagree, so every
      addition, removal or signature change arrives as a reviewable diff. -->
 
-Version `0.1.0`. 1 entry point, 14 exported names.
+Version `0.1.0`. 1 entry point, 19 exported names.
 
 Private and protected class members are omitted: a consumer cannot reach them.
 Doc comments are omitted too — they are in the source, and repeating them here
@@ -14,7 +14,7 @@ would make every wording change a surface diff.
 
 ## `@sparql-query-lib/compiler`
 
-14 exports, from `index.d.ts`.
+19 exports, from `index.d.ts`.
 
 ### `ApplyArgumentSet` — interface, from `parser`
 
@@ -95,10 +95,36 @@ interface DetectedParameters {
 declare function detectSparqlOperation(queryString: string): SparqlOperation;
 ```
 
+### `Generator` — class, from `sparql12`
+
+```ts
+declare class Generator {
+    constructor(defaultContext?: Partial<SparqlGeneratorContext>);
+    generate(ast: SparqlQuery, context?: Partial<SparqlGeneratorContext>): string;
+}
+```
+
+### `isPatternLateral` — function, from `sparql12`
+
+```ts
+declare function isPatternLateral(node: unknown): node is PatternLateral;
+```
+
 ### `ParsedSparql` — type, from `parser`
 
 ```ts
 type ParsedSparql = SparqlQuery;
+```
+
+### `Parser` — class, from `sparql12`
+
+```ts
+declare class Parser {
+    constructor(args?: {
+        defaultContext?: Partial<SparqlContext>;
+    });
+    parse(query: string, context?: Partial<SparqlContext>): SparqlQuery;
+}
 ```
 
 ### `ParserDiagnostic` — interface, from `parser`
@@ -109,6 +135,15 @@ interface ParserDiagnostic {
     message: string;
     attributes?: Record<string, string>;
 }
+```
+
+### `PatternLateral` — type, from `sparql12`
+
+```ts
+type PatternLateral = PatternBase & {
+    subType: 'lateral';
+    patterns: Pattern[];
+};
 ```
 
 ### `SparqlOperation` — type, from `operation`
@@ -145,6 +180,12 @@ declare class SparqlQueryParser {
 interface SparqlQueryParserOptions {
     diagnostics?: (diagnostic: ParserDiagnostic) => void;
 }
+```
+
+### `sqlibGeneratorBuilder` — const, from `sparql12`
+
+```ts
+declare const sqlibGeneratorBuilder: typeof sparql12GeneratorBuilder;
 ```
 
 ### `TemplateCompileError` — class, from `compileTemplate`

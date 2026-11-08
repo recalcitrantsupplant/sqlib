@@ -256,3 +256,55 @@ describe('an SRL editor given a GROUP aggregate', () => {
     }
   });
 });
+
+/**
+ * `LATERAL` (SEP-0006) saves on the server. The grammar has it as an opt-in
+ * dialect since 0.7.0, and a SPARQL editor opts in.
+ */
+describe('a SPARQL editor given LATERAL', () => {
+  async function lintSparql(doc: string): Promise<string[]> {
+    const view = new EditorView({
+      state: EditorState.create({ doc, extensions: languageExtensionsFor('application/sparql-query') }),
+      parent: document.body,
+    });
+    try {
+      forceLinting(view);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const found: string[] = [];
+      forEachDiagnostic(view.state, (diagnostic) => found.push(diagnostic.message));
+      return found;
+    } finally {
+      view.destroy();
+    }
+  }
+
+  it('does not flag a valid LATERAL query', async () => {
+    const query = [
+      'PREFIX text: <http://jena.apache.org/text#>',
+      'SELECT * WHERE {',
+      '  VALUES ?q { UNDEF }',
+      '  BIND(COALESCE(?q, "granite") AS ?q1)',
+      '  lateral # one search per row',
+      '  { ?s text:query (?q1) . }',
+      '}',
+    ].join('\n');
+    expect(await lintSparql(query)).toEqual([]);
+  });
+
+  it('still flags LATERAL with no group after it', async () => {
+    expect(await lintSparql('SELECT * WHERE { ?s ?p ?o LATERAL ?x }')).not.toEqual([]);
+  });
+
+  it('rewrites prefixes with a grammar that reads LATERAL', () => {
+    const grammar = prefixGrammarFor('application/sparql-query') as { parse: (text: string) => { iterate: (spec: { enter: (node: { type: { isError: boolean } }) => void }) => void } };
+    let errors = 0;
+    grammar.parse('SELECT * WHERE { ?s ?p ?o LATERAL { ?o ?q ?r } }').iterate({
+      enter: (node) => { if (node.type.isError) errors++; },
+    });
+    expect(errors).toBe(0);
+  });
+
+  it('still flags an error inside the LATERAL group', async () => {
+    expect(await lintSparql('SELECT * WHERE { ?s ?p ?o LATERAL { ?s ?p } }')).not.toEqual([]);
+  });
+});
