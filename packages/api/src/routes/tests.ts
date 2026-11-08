@@ -120,6 +120,7 @@ export const testCaseResponseSchema = {
     expected: { type: 'string', nullable: true },
     expectedFormat: { type: 'string', nullable: true },
     ordered: { type: 'boolean', nullable: true },
+    maxDurationMs: { type: 'integer', nullable: true },
     dateCreated: { type: 'string', format: 'date-time', nullable: true },
     dateModified: { type: 'string', format: 'date-time', nullable: true },
     createdBy: { type: 'string', nullable: true },
@@ -183,6 +184,8 @@ const testCaseBodySchema = {
     expected: { type: 'string', nullable: true },
     expectedFormat: { type: 'string', nullable: true },
     ordered: { type: 'boolean', nullable: true },
+    /** Over this, a correct case is reported as slow rather than passed. */
+    maxDurationMs: { type: 'integer', minimum: 1, nullable: true },
   },
   additionalProperties: false,
 } as const;
@@ -255,6 +258,10 @@ export const testCaseRunResponseSchema = {
       additionalProperties: false,
     },
     durationMs: { type: 'number' },
+    /** The case's time budget, when it has one. */
+    maxDurationMs: { type: 'integer', nullable: true },
+    /** Correct, but over `maxDurationMs`. `passed` is false on such a case. */
+    slow: { type: 'boolean', nullable: true },
   },
   required: ['caseId', 'name', 'position', 'passed', 'message', 'durationMs'],
   additionalProperties: false,
@@ -282,6 +289,8 @@ export const testRunResponseSchema = {
     cases: { type: 'array', items: testCaseRunResponseSchema },
     passedCount: { type: 'integer' },
     failedCount: { type: 'integer' },
+    /** Correct but over budget. Apart from `failedCount`; the three add up to the cases. */
+    slowCount: { type: 'integer' },
   },
   required: [
     'testId', 'testVersionId', 'passed', 'message', 'expectationKind', 'hermetic',
@@ -317,6 +326,7 @@ const storedRunResponseSchema = {
     durationMs: { type: 'number', nullable: true },
     passedCount: { type: 'integer', nullable: true },
     failedCount: { type: 'integer', nullable: true },
+    slowCount: { type: 'integer', nullable: true },
     ranAt: { type: 'string' },
     dateCreated: { type: 'string', format: 'date-time', nullable: true },
     dateModified: { type: 'string', format: 'date-time', nullable: true },
@@ -340,6 +350,8 @@ const storedRunCaseResponseSchema = {
     /** The comparator diff, as the JSON string the exports carry. */
     detail: { type: 'string', nullable: true },
     durationMs: { type: 'number', nullable: true },
+    maxDurationMs: { type: 'integer', nullable: true },
+    slow: { type: 'boolean', nullable: true },
     argumentSetVersion: { type: 'string', nullable: true },
     dataGraphVersion: { type: 'string', nullable: true },
     dataGraphVersions: { type: 'array', items: { type: 'string' }, nullable: true },
@@ -525,6 +537,7 @@ function notRunResult(
     cases: [],
     passedCount: 0,
     failedCount: 0,
+    slowCount: 0,
   };
 }
 

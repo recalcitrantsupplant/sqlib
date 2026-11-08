@@ -99,6 +99,16 @@ describe('createTestVersion', () => {
       .resolves.toBeDefined();
   });
 
+  it('stores a time budget on the case, and refuses one that is not a whole positive number', async () => {
+    await createTestVersion(TEST_ID, { expectationKind: 'smoke', cases: [{ maxDurationMs: 250 }] });
+    expect(cases()[0]).toMatchObject({ maxDurationMs: 250 });
+
+    await expect(createTestVersion(TEST_ID, { expectationKind: 'smoke', cases: [{ maxDurationMs: 0 }] }))
+      .rejects.toThrow(/Case 1: maxDurationMs must be a whole number/);
+    await expect(createTestVersion(TEST_ID, { expectationKind: 'smoke', cases: [{ maxDurationMs: 1.5 }] }))
+      .rejects.toThrow(TestVersionError);
+  });
+
   it('refuses bindings that are not a JSON document', async () => {
     await expect(createTestVersion(TEST_ID, { expectationKind: 'bindings', cases: [{ expected: 'not json' }] }))
       .rejects.toThrow(/SPARQL JSON results document/);

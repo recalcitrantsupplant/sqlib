@@ -102,6 +102,8 @@ function caseRow(runId: string, testCase: TestCaseResult): PersistedTestRunCase 
     message: testCase.message || null,
     detail: testCase.detail === undefined ? null : JSON.stringify(testCase.detail),
     durationMs: testCase.durationMs,
+    maxDurationMs: testCase.maxDurationMs ?? null,
+    slow: testCase.slow ? true : null,
     argumentSetVersion: testCase.inputs?.argumentSetVersion ?? null,
     dataGraphVersion: testCase.inputs?.dataGraphVersion ?? null,
     dataGraphVersions: graphs.length > 0 ? graphs : null,
@@ -127,6 +129,7 @@ function runRow(record: TestRunRecord): PersistedTestRun {
     durationMs: result.durationMs,
     passedCount: result.passedCount,
     failedCount: result.failedCount,
+    slowCount: result.slowCount,
     ranAt: result.ranAt,
     dateCreated: now,
     dateModified: now,
@@ -284,9 +287,12 @@ export function toReportEntry({ run, cases }: StoredTestRun): TestReportEntry {
         dataGraphVersions: row.dataGraphVersions ?? [],
       },
       durationMs: row.durationMs ?? 0,
+      ...(typeof row.maxDurationMs === 'number' ? { maxDurationMs: row.maxDurationMs } : {}),
+      ...(row.slow ? { slow: true } : {}),
     })),
     passedCount: run.passedCount ?? cases.filter(row => row.outcome === 'passed').length,
-    failedCount: run.failedCount ?? cases.filter(row => row.outcome !== 'passed').length,
+    failedCount: run.failedCount ?? cases.filter(row => row.outcome !== 'passed' && !row.slow).length,
+    slowCount: run.slowCount ?? cases.filter(row => row.slow).length,
   };
   return { result, subject: run.subject ?? null, backend: run.backend ?? null };
 }
