@@ -1,0 +1,4 @@
+PREFIX : <http://example/>
+
+:bob :pets 0 .
+:amy :pets 0 .

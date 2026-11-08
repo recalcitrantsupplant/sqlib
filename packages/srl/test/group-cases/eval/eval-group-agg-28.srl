@@ -1,0 +1,5 @@
+PREFIX : <http://example/>
+
+# MIN and MAX fail on the empty implicit group, so each drops its row.
+RULE { :amy :youngest ?lo } WHERE { GROUP { ?c :childOf :amy ; :age ?a } [ ?lo := MIN(?a) ] }
+RULE { :amy :oldest ?hi } WHERE { GROUP { ?c :childOf :amy ; :age ?a } [ ?hi := MAX(?a) ] }

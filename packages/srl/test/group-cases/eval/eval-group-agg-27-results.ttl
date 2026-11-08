@@ -1,0 +1,3 @@
+PREFIX : <http://example/>
+
+:amy :children 0 ; :aged 0 ; :ages 0 ; :ageTotal 0 .

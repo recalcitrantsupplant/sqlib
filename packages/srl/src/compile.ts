@@ -227,12 +227,18 @@ function compileBody(items: SrlBodyItem[], context: CompileContext, outerBound: 
  *   included, so the only variables the subquery shares with `P` are the keys.
  *   A pattern variable is local to the `GROUP`: one of the same name before
  *   or after it is a different variable.
- * - **A key with no solutions forms no group**, so its row of `P` is dropped:
- *   the subquery is joined, not made `OPTIONAL`. With no keys, SPARQL still
- *   returns one row for an empty pattern result (a `COUNT` of 0), so a hidden
- *   `COUNT(*)` is projected and the row is kept only when it is above 0.
- * - **An aggregate that fails drops its group.** SPARQL leaves the result
- *   unbound, and the `BOUND` test removes the row, as an error in `SET` does.
+ * - **Group existence.** With keys, a key with no solutions forms no group,
+ *   so its row of `P` is dropped: the subquery is joined, not made `OPTIONAL`.
+ *   With no keys there is always one implicit group, even when the pattern
+ *   has no solutions. SPARQL does the same: an aggregate query without
+ *   `GROUP BY` returns one row, so `COUNT` and `SUM` give 0. A hidden
+ *   `COUNT(*)` is projected for this group, so that the subquery still
+ *   projects a variable when the block is empty (`[]`).
+ * - **Aggregate success.** Every assignment must succeed, or the group is
+ *   dropped. SPARQL leaves a failed result unbound, such as `MIN` over no
+ *   solutions, and the `BOUND` test over all the results removes the row, as
+ *   an error in `SET` does. SPARQL alone would keep the row with that one
+ *   variable unbound.
  * - **Grouping the pattern alone** means the multiplicity of `P` never reaches
  *   a count: a person with two names and three children counts three.
  *
@@ -266,7 +272,8 @@ function compileAggregate(
     aggregate: renameVars(structuredClone(a.aggregate), renames),
   }));
 
-  // Only a GROUP without keys can see an empty pattern result as a row.
+  // A GROUP without keys always has its one implicit group. The hidden count
+  // keeps the projection non-empty for an empty block.
   const count = keys.length === 0 ? fresh('count') : undefined;
   const values = assignments.map((_, j) => fresh(`v${j}`));
   const keyList = keys.map((k) => `?${k}`).join(' ');
@@ -289,7 +296,6 @@ function compileAggregate(
   const subquery = `{\n  SELECT ${projection} WHERE {\n  ${seed}${inner}\n}${groupBy}\n}`;
 
   const after: string[] = [];
-  if (count) after.push(`FILTER(?${count} > 0)`);
   assignments.forEach((a, j) => after.push(`BIND(?${values[j]} AS ?${a.variable})`));
   if (assignments.length > 0) {
     after.push(`FILTER(${assignments.map((a) => `BOUND(?${a.variable})`).join(' && ')})`);

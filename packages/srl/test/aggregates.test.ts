@@ -310,10 +310,17 @@ describe('GROUP — compile', () => {
     expect(program).toContain('FILTER(BOUND(?n))');
   });
 
-  it('keeps a GROUP without keys only when its pattern has a solution', () => {
+  it('keeps the implicit group of a GROUP without keys, even when its pattern has no solution', () => {
     const { program } = compile('RULE { :all :n ?n } WHERE { GROUP { ?s ?p ?o } [ ?n := COUNT(*) ] }');
     expect(program).toContain('SELECT (COUNT(*) AS ?_agg0_count) (COUNT( * ) AS ?_agg0_v0) WHERE {');
-    expect(program).toContain('FILTER(?_agg0_count > 0)');
+    expect(program).not.toContain('?_agg0_count >');
+    expect(program).toContain('FILTER(BOUND(?n))');
+  });
+
+  it('tests every result of a GROUP without keys together, so one failure drops the group', () => {
+    const { program } = compile('RULE { :all :n ?n ; :max ?m } WHERE { GROUP { ?s :p ?o } [ ?n := COUNT(*) , ?m := MAX(?o) ] }');
+    expect(program).not.toContain('?_agg0_count >');
+    expect(program).toContain('FILTER(BOUND(?n) && BOUND(?m))');
   });
 
   it('renames a SET target in the pattern with the other pattern variables', () => {
@@ -340,10 +347,11 @@ describe('GROUP — compile', () => {
     expect(program).not.toContain('SELECT DISTINCT');
   });
 
-  it('gives one row when there are neither keys nor results, if the pattern matches', () => {
+  it('gives one row when there are neither keys nor results, whether or not the pattern matches', () => {
     const { program } = compile('RULE { :all :seen true } WHERE { GROUP { ?s ?p ?o } [] }');
     expect(program).toContain('{\n  SELECT (COUNT(*) AS ?_agg0_count) WHERE {');
-    expect(program).toContain('FILTER(?_agg0_count > 0)');
+    expect(program).not.toContain('?_agg0_count >');
+    expect(program).not.toContain('FILTER(BOUND');
   });
 
   it('keeps generated names clear of the author\'s', () => {
