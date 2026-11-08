@@ -62,7 +62,7 @@ describe('the route table per flag combination', () => {
     expect(routes.has('POST /validate-rule-data')).toBe(true);
     expect(routes.has('POST /format')).toBe(true);
 
-    for (const prefix of ['/health', '/metrics', '/events', '/auth', '/backends', '/libraries', '/tags', '/tuple-sets', '/data-graphs', '/patches']) {
+    for (const prefix of ['/health', '/metrics', '/telemetry', '/events', '/auth', '/backends', '/libraries', '/tags', '/tuple-sets', '/data-graphs', '/patches']) {
       expect(under(routes, prefix), prefix).toBe(true);
     }
     for (const prefix of ['/queries', '/execute', '/sparql', '/detect-', '/query-groups', '/rules', '/rule-sets', '/data-blocks', '/tests', '/argument-sets', '/playground', '/benchmark-experiments', '/etl-jobs', '/assistant']) {

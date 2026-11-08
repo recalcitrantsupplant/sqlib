@@ -280,6 +280,8 @@ type ExecuteTargetResult = {
   resultRef?: string | null;
   timing?: {
     header?: string | null;
+    /** The request's trace, when the server is set up to link to traces. */
+    traceUrl?: string | null;
     breakdown?: {
       backendMs?: number;
       appMs?: number;
@@ -338,6 +340,12 @@ function normalizeHeaderValue(value: string | null): string | null {
   }
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+/** Adds the `Sqlib-Trace-Url` the server sends when it links runs to traces. */
+function withTraceUrl<T extends object>(timing: T, response: Response): T & { traceUrl?: string } {
+  const traceUrl = normalizeHeaderValue(response.headers.get('sqlib-trace-url'));
+  return traceUrl && /^https?:\/\//i.test(traceUrl) ? { ...timing, traceUrl } : timing;
 }
 
 function parseServerTiming(
@@ -658,6 +666,24 @@ type IdResponse = {
   id: string;
 };
 
+/** `GET /telemetry`: whether OpenTelemetry is on and exporting. Administrators only. */
+export const telemetryStatusSchema = z.object({
+  state: z.enum(['off', 'exporting', 'failing']),
+  serviceName: z.string().nullable(),
+  endpoint: z.string().nullable(),
+  protocol: z.string().nullable(),
+  lastExportError: z.object({ at: z.string(), message: z.string() }).nullable(),
+  slowRuns: z.object({
+    count: z.number(),
+    lastAt: z.string().nullable(),
+    thresholdMs: z.number().nullable(),
+  }),
+  detail: z.enum(['ids', 'text', 'text+args']),
+  dashboardUrl: z.string().nullable(),
+  traceLinks: z.boolean(),
+});
+export type TelemetryStatus = z.infer<typeof telemetryStatusSchema>;
+
 export const grantSchema = z.object({
   id: z.string(),
   principal: z.string(),
@@ -946,6 +972,9 @@ export function useApiClient() {
       backendReferencesSchema.parse,
     );
   };
+
+  const getTelemetryStatus = (): Promise<TelemetryStatus> =>
+    requestData(buildUrl('/telemetry'), { method: 'GET' }, (payload) => telemetryStatusSchema.parse(payload));
 
   /*
    * Access administration: grants, the principals sqlib has seen, and `Test as`
@@ -2585,7 +2614,7 @@ export function useApiClient() {
       const contentType = normalizeHeaderValue(response.headers.get('content-type'));
       const serverTimingHeader = normalizeHeaderValue(response.headers.get('server-timing'));
       const text = await response.text();
-      const timing = parseServerTiming(serverTimingHeader, clientTotalMs);
+      const timing = withTraceUrl(parseServerTiming(serverTimingHeader, clientTotalMs), response);
 
       debug('useApiClient', 'executeTarget response', {
         status: response.status,
@@ -2675,7 +2704,7 @@ export function useApiClient() {
       const contentType = normalizeHeaderValue(response.headers.get('content-type'));
       const serverTimingHeader = normalizeHeaderValue(response.headers.get('server-timing'));
       const text = await response.text();
-      const timing = parseServerTiming(serverTimingHeader, clientTotalMs);
+      const timing = withTraceUrl(parseServerTiming(serverTimingHeader, clientTotalMs), response);
 
       debug('useApiClient', `${label} response`, {
         status: response.status,
@@ -3257,6 +3286,7 @@ export function useApiClient() {
   };
 
   return {
+    getTelemetryStatus,
     getLibraryExportBundle,
     getLibraryExportHtml,
     listBackends,

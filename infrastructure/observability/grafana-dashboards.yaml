@@ -1,0 +1,10 @@
+# Grafana provisioning for the sqlib dashboard in grafana/otel-lgtm.
+# Mounted by docker-compose.dev.yml.
+apiVersion: 1
+
+providers:
+  - name: "sqlib"
+    type: file
+    options:
+      path: /otel-lgtm/sqlib-dashboard.json
+      foldersFromFilesStructure: false

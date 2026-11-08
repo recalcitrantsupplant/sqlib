@@ -647,6 +647,7 @@ defineExpose({
       :media-relation="activeTab === 'table' ? 'rendered from' : 'as'"
       :duration-ms="durationMs"
       :duration-title="durationTitle"
+      :trace-url="timing?.traceUrl ?? null"
     />
   </div>
 </template>

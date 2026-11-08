@@ -17,8 +17,10 @@ vi.mock('../../src/lib/OxigraphStoreManager.js', () => ({
   }
 }));
 
-// Mock OpenTelemetry
-vi.mock('@opentelemetry/api', () => ({
+// Mock the OpenTelemetry meter. The rest of the API stays real: lib/log.ts
+// reads the active span and the log bridge's severity numbers from it.
+vi.mock('@opentelemetry/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@opentelemetry/api')>()),
   metrics: {
     getMeter: vi.fn(() => ({
       createGauge: vi.fn(() => ({

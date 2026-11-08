@@ -17,6 +17,8 @@ export type QueryExecutionResultPayload = {
   contentType: string | null;
   timing?: {
     header?: string | null;
+    /** The request's trace, when the server is set up to link to traces. */
+    traceUrl?: string | null;
     breakdown?: {
       backendMs?: number;
       appMs?: number;
