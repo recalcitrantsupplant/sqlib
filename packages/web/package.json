@@ -27,7 +27,7 @@
     "lint:css:fix": "stylelint \"src/**/*.{vue,css}\" --fix"
   },
   "devDependencies": {
-    "@playwright/test": "^1.64.0",
+    "@playwright/test": "^1.65.0",
     "@types/dagre": "^0.7.54",
     "@types/n3": "^1.26.6",
     "@vitejs/plugin-vue": "^6.0.10",
@@ -38,7 +38,7 @@
     "stylelint": "^17.16.0",
     "stylelint-config-standard": "^40.0.0",
     "typescript": "^6.0.3",
-    "vitest": "^5.0.3",
+    "vitest": "^5.1.0",
     "vue-tsc": "^3.3.14"
   },
   "dependencies": {
