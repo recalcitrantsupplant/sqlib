@@ -420,7 +420,7 @@ client finds the authorization server with no client configuration.
 
 ## Feature flags
 
-Seventeen `FEATURE_*` variables turn sections of the product on and off. For
+Twenty `FEATURE_*` variables turn sections of the product on and off. For
 some of them, the API also removes the routes. [Feature flags](feature-flags.md)
 lists each key, its variable, its default, and what is removed when it is off.
 
