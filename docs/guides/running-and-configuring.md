@@ -1,12 +1,11 @@
 # Running sqlib locally and pointing it at a store
 
-This guide covers starting the API, the MCP endpoint and the web UI from a
-checkout, and choosing where the library's own data lives and what queries run
-against.
+This guide tells you how to start the API, the MCP endpoint and the web UI from
+a checkout. It also tells you how to choose where the library is stored and what
+queries run against.
 
-The full list of environment variables, with defaults, is in
-[configuration reference](../reference/configuration.md). This page explains the
-choices; that page is the lookup table.
+The [configuration reference](../reference/configuration.md) lists each
+environment variable with its default. This page explains the choices.
 
 ## Prerequisites
 
@@ -27,9 +26,9 @@ pnpm build
 ```
 
 `pnpm build` builds `types`, `contracts`, `runtime`, `compiler`, `runtime-duckdb`, `runtime-etl`, `tools`, `srl`, `runtime-srl`,
-`rdf-delta` and `api`, in that order. The recipes below rebuild individual
-packages where they depend on a fresh build of one, but they do not substitute
-for this first pass.
+`rdf-delta` and `api`, in that order. Some recipes below build one package again
+when they need a fresh build of it. They do not build the whole workspace, so
+run `pnpm build` first.
 
 ## The Justfile recipes
 
@@ -45,7 +44,7 @@ for this first pass.
 | `clean-local-rules-tests` | Deletes the rules-test store |
 | `run-local-patch-demo` | API on `http://localhost:3005` seeded with a demo library of update queries, for reading RDF Patch previews |
 | `run-frontend-patch-demo` | The web UI with the matching flags |
-| `uat-patch-demo` | Drives that demo end to end in a browser against a running API and UI; it starts neither |
+| `uat-patch-demo` | Runs that demo from start to end in a browser, against an API and a UI that are already running. It starts neither. |
 | `clean-local-patch-demo` | Deletes the patch-demo store |
 | `run-local-like-docker` | The API alone (no MCP) on port 3000, with the same persistence settings `run-docker-local` uses |
 | `build-docker TAG` | `docker build -t sparql-query-lib:TAG .` |
@@ -62,37 +61,37 @@ so each serves the REST API and the MCP endpoint from one process and one port.
 `run-local-like-docker` runs the API's own entry point instead, so it has no
 `/mcp`.
 
-The three feature-flag-heavy recipes come in pairs. The API and the web UI are
-separate processes that each read their own environment, so
-`run-frontend-rules` and `run-frontend-patch-demo` set `NUXT_PUBLIC_FEATURE_*`
-variables matching the `FEATURE_*` variables their API half sets. Starting the
-plain `run-frontend` against one of those APIs leaves the navigation rail
-offering sections the server no longer serves.
+The recipes that set many feature flags come in pairs. The API and the web UI
+are separate processes, and each reads its own environment. `run-frontend-rules`
+and `run-frontend-patch-demo` therefore set the `NUXT_PUBLIC_FEATURE_*`
+variables to match the `FEATURE_*` variables of their API recipe. If you start
+the plain `run-frontend` against one of those APIs, the navigation rail shows
+sections that the server does not serve.
 
 ## The two storage axes
 
-Storage means two independent things in sqlib, configured in different places.
+In sqlib, storage means two separate things, configured in different places.
 
-**Where the library's own metadata lives** — libraries, queries, query
-versions, rule sets, tests, backends, everything the application owns — is a
-process-level setting, `INTERNAL_BACKEND_TYPE`, read at boot from the
-environment (`packages/api/src/server/config.ts`). One server has exactly one
-of these.
+**Where the library is stored.** This is the metadata that sqlib owns:
+libraries, queries, query versions, rule sets, tests, backends and the other
+entities. It is a process-level setting, `INTERNAL_BACKEND_TYPE`, read from the
+environment at start (`packages/api/src/server/config.ts`). One server has
+exactly one library store.
 
-**What a query executes against** is a `Backend` entity, registered through
-`POST /backends` and stored in the library like any other entity. A backend is
-either an HTTP SPARQL endpoint or an in-process Oxigraph store hydrated from
-data graphs. A server can have any number of them, and every execution names
-one.
+**What a query executes against.** This is a `Backend` entity, registered
+through `POST /backends` and stored in the library like any other entity. A
+backend is an HTTP SPARQL endpoint, or an Oxigraph store in the server process,
+loaded from data graphs. A server can have any number of backends, and each
+execution names one.
 
-The two are unrelated: a server can keep its library in an in-process store and
-run queries against a remote endpoint, or the reverse.
+The two settings are independent. A server can keep its library in an
+in-process store and run queries against a remote endpoint, or the reverse.
 
 A third store holds grants and principals when auth is on. It is also SQLite by
-default (`auth.sqlite` in `SQLIB_AUTH_STORE_DIR`, default `./storage/auth`); see
+default (`auth.sqlite` in `SQLIB_AUTH_STORE_DIR`, default `./storage/auth`). See
 [the auth store](../explanation/storage-and-caching.md#where-grants-live-the-auth-store).
-With the defaults, a server's durable state is `library.sqlite` and
-`auth.sqlite`, and nothing else needs to run beside it.
+With the defaults, the durable state of a server is `library.sqlite` and
+`auth.sqlite`, and no other process needs to run next to it.
 
 ### Where the library lives: `INTERNAL_BACKEND_TYPE`
 
@@ -105,7 +104,8 @@ change to disk before it returns:
 | --- | --- |
 | `LIBRARY_STORAGE_DIR` | `./storage/library-store`, resolved from the working directory |
 
-Keep the directory on local disk or a block volume, not a network file share.
+Keep the directory on a local disk or a block volume. Do not use a network file
+share.
 [Storage and caching](../explanation/storage-and-caching.md#sqlite-the-default)
 gives the detail and compares the four options.
 
@@ -120,9 +120,9 @@ query and update:
 | `LIBRARY_STORAGE_SPARQL_USERNAME` | unset |
 | `LIBRARY_STORAGE_SPARQL_PASSWORD` | unset |
 
-The default points at a local Fuseki on its conventional port, so an
-unconfigured server fails against localhost rather than reaching a host a
-default once named.
+The default is a local Fuseki on its usual port. A server with no configuration
+therefore fails against localhost, and does not connect to a host that an old
+default named.
 
 **`oxigraph-persistent`** keeps the library in an in-process Oxigraph store and
 writes it to disk as N-Quads:
@@ -135,46 +135,47 @@ writes it to disk as N-Quads:
 | `INTERNAL_OXIGRAPH_LOAD_METHOD` | `none`; also `file`, `remote-sparql`, `remote-file` |
 | `INTERNAL_OXIGRAPH_BOOTSTRAP_SOURCE` | unset; JSON describing the source for a load method other than `none` |
 
-The snapshot is a single `.nq` file in `LIBRARY_STORAGE_DIR`, named after the
-store id with every non-alphanumeric character replaced by an underscore. It is
-restored at boot when it exists, rewritten on the checkpoint interval, and
-written again on a clean shutdown. An initial load method applies only on a
-first boot with no snapshot to restore.
+The snapshot is one `.nq` file in `LIBRARY_STORAGE_DIR`. Its name is the store
+id, with each non-alphanumeric character changed to an underscore. sqlib
+restores it at start if it exists, writes it again at each checkpoint interval,
+and writes it at a clean shutdown. An initial load method applies only at a
+first start with no snapshot to restore.
 
-This is not RocksDB, and not disk-backed in the sense the Oxigraph Rust and
-Python bindings mean. The JavaScript/WebAssembly bindings support in-memory
-stores only, so `oxigraph-persistent` is an in-memory store serialised to
-N-Quads (`INTERNAL_OXIGRAPH_DB_PATH` is not read). Two consequences worth knowing before choosing it:
+The JavaScript/WebAssembly bindings of Oxigraph support in-memory stores only.
+The RocksDB disk store of the Rust and Python bindings is not available.
+`oxigraph-persistent` is therefore an in-memory store that sqlib writes to
+N-Quads. sqlib does not read `INTERNAL_OXIGRAPH_DB_PATH`. Before you choose this
+option, note two effects:
 
 - A process killed between checkpoints loses the writes since the last one.
-- The whole library is in the process's address space. The npm `oxigraph`
-  build is wasm32, so 4 GB is a hard ceiling and the practical ceiling is
-  lower, because the store keeps several index permutations. For a library
+- The whole library is in the address space of the process. The npm `oxigraph`
+  build is wasm32, so 4 GB is a hard limit. The practical limit is lower,
+  because the store keeps several index permutations. For a library
   larger than that, run a SPARQL server and use `INTERNAL_BACKEND_TYPE=http`.
 
-**`oxigraph-memory`** is for tests and short-lived development. The library
-store is created empty on first use and never touches disk: nothing is
-restored at boot and nothing is written at shutdown, so every start is a
-fresh, empty library.
+**`oxigraph-memory`** is for tests and short development sessions. sqlib
+creates the store empty at first use, and never writes it to disk. Nothing is
+restored at start and nothing is written at shutdown, so each start has an
+empty library.
 
 ### What queries execute against: backends
 
-A `Backend` is an entity, so it is created at runtime rather than configured in
-the environment. Two kinds are in use, and a third is kept for older libraries:
+A `Backend` is an entity, so you create it at runtime. The environment does not
+configure it. Two types are in use, and a third is kept for older libraries:
 
-- `http` — a SPARQL endpoint, with an optional separate update URL and
-  optional basic-auth credentials.
-- `oxigraphMemory` — an in-process store hydrated from data graph versions in
-  the same library, with a `mode` of `readOnly` (the default), `ephemeral`
-  (writable, never serialised) or `durable` (writable, serialised under
-  `OXIGRAPH_STORAGE_DIR`). Its `oxigraphConfig` is a JSON **string**, not a
-  nested object.
+- `http`: a SPARQL endpoint, with an optional separate update URL and optional
+  basic-auth credentials.
+- `oxigraphMemory`: an in-process store loaded from data graph versions in the
+  same library. Its `mode` is `readOnly` (the default), `ephemeral` (writable,
+  never written to disk) or `durable` (writable, written under
+  `OXIGRAPH_STORAGE_DIR`). Its `oxigraphConfig` is a JSON **string**. A nested
+  object is refused.
 
-A source entry naming a `dataGraphId` tracks that graph's current version and
-the store is reloaded when a new version is saved; one naming a
-`dataGraphVersionId` pins immutable content. Writes to a `readOnly` backend are
-refused with 403 at the executor, because Oxigraph's store has no read-only
-flag of its own.
+A source entry that names a `dataGraphId` follows the current version of that
+graph, and sqlib loads the store again when a new version is saved. A source
+entry that names a `dataGraphVersionId` pins immutable content. The executor
+refuses writes to a `readOnly` backend with 403, because the Oxigraph store has
+no read-only setting of its own.
 
 An `oxigraphMemory` backend can also be seeded from an RDF file, a file URL or
 a SPARQL endpoint (`loadMethod` and `sourceConfig` in its `oxigraphConfig`).
@@ -187,16 +188,16 @@ a query against it.
 
 ### ETL output
 
-An ETL job execution writes its RDF to a file rather than returning it in the
-response. `ETL_OUTPUT_DIR` (default `./storage/etl-output`) says where. The
-directory has to be writable by the user the process runs as; the image runs as
-`node` (uid 1000). With `FEATURE_ETL=true` the server checks this at boot and
-logs either that the directory is ready or an error naming the fix, and
-`pnpm --filter @sparql-query-lib/api smoke:storage` asks the same question
-without booting the server.
+An ETL job execution writes its RDF to a file. The response does not contain
+the RDF. `ETL_OUTPUT_DIR` (default `./storage/etl-output`) sets the directory.
+The user that the process runs as must be able to write to it. The image runs as
+`node` (uid 1000). With `FEATURE_ETL=true`, the server checks the directory at
+start. It logs that the directory is ready, or it logs an error that names the
+fix. `pnpm --filter @sparql-query-lib/api smoke:storage` does the same check
+without a server start.
 
-ETL is off by default. See [feature flags](../reference/feature-flags.md) for
-why.
+ETL is off by default. [Feature flags](../reference/feature-flags.md) gives the
+reason.
 
 ## Running the Docker image
 
@@ -221,14 +222,14 @@ interval.
 | `mcp-http` | MCP alone | `MCP_HTTP_PORT`, default 3333 |
 
 The image declares `/app/packages/api/storage` as a volume and creates it owned
-by `node`, so a fresh Docker volume is writable. A host bind mount, or a named
-volume seeded by an older image, keeps the ownership it already has and must be
-chowned to `1000:1000`.
+by `node`, so a new Docker volume is writable. A host bind mount, or a named
+volume made by an older image, keeps its existing owner. Change its owner to
+`1000:1000` with `chown`.
 
-In `api` mode the server binds `FASTIFY_ADDRESS` (default `0.0.0.0`) and reads
-`PORT`; in the two MCP modes it reads `HTTP_HOST`/`HTTP_PORT` or
-`MCP_HTTP_HOST`/`MCP_HTTP_PORT`. The image sets all four, so publishing the port
-is the only thing a plain `docker run` needs.
+In `api` mode, the server binds `FASTIFY_ADDRESS` (default `0.0.0.0`) and reads
+`PORT`. In the two MCP modes, it reads `HTTP_HOST`/`HTTP_PORT` or
+`MCP_HTTP_HOST`/`MCP_HTTP_PORT`. The image sets all four, so a plain
+`docker run` needs only the published port.
 
 ## Running the web UI
 
@@ -241,16 +242,16 @@ just run-frontend http://localhost:3000  # against an API started another way
 ```
 
 That recipe sets `NUXT_PUBLIC_API_BASE_URL`, whose build-time default is
-`http://localhost:3000`. Feature flags come from `NUXT_PUBLIC_FEATURE_*`
-variables, falling back to the unprefixed `FEATURE_*` names; a UI whose flags
-disagree with its API's will draw sections that return 404. For a built
-deployment the same settings can be supplied at runtime instead — see
-[deploying](deploying.md).
+`http://localhost:3000`. Feature flags come from the `NUXT_PUBLIC_FEATURE_*`
+variables. If one is not set, the UI reads the `FEATURE_*` name without the
+prefix. If the flags of the UI differ from those of its API, the UI shows
+sections that return 404. A built deployment can supply the same settings at
+runtime. See [deploying](deploying.md).
 
 ## Local HTTPS
 
-Some MCP clients require an HTTPS origin. Two recipes cover that without a
-public certificate:
+Some MCP clients require an HTTPS origin. Two recipes give one without a public
+certificate:
 
 ```bash
 just setup-local-https   # once: mkcert -install, then certificates into certs/
@@ -260,16 +261,16 @@ just run-local-https     # app on :3300, Traefik terminating TLS on :3443
 `run-local-https` starts the dual-mode app from source and a Traefik container
 that proxies `https://localhost:3443` to `http://127.0.0.1:3300`, so the API is
 at `https://localhost:3443/` and MCP at `https://localhost:3443/mcp`.
-`run-docker-https` does the same for the built image, adding a Fuseki container
-that the app uses as its library store, and needs an image tagged
+`run-docker-https` does the same for the built image. It adds a Fuseki container
+that the app uses as its library store. It needs an image tagged
 `sparql-query-lib:aca-local`.
 
-See [connecting an MCP client](mcp-clients.md) for what to point at those URLs,
-including the fact that `/mcp` requires no credentials.
+[Connecting an MCP client](mcp-clients.md) tells you how to connect a client to
+those URLs. `/mcp` requires no credentials.
 
-## Checking that it came up
+## Check that the server started
 
 - `GET /health` returns status, uptime, the auth mode and cache statistics.
 - `GET /docs` serves the OpenAPI UI, and `GET /` redirects to it.
 
-Both are served in every mode that runs the API.
+Each mode that runs the API serves both.
