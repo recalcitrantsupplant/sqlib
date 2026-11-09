@@ -232,7 +232,7 @@ workspace root project from its CI run.
 In tests, internal packages resolve to source through a vitest `alias`, so a
 test run needs no build.
 
-## Gotchas
+## Known problems
 
 **pnpm 11 ignores `pnpm.overrides` in `package.json`.** It reads overrides only
 from `pnpm-workspace.yaml`. The problem:

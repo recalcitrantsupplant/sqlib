@@ -60,7 +60,7 @@ against. Those backends are entities that you make through the API.
 | `ENABLE_OXIGRAPH` | `false` | Set to `true` to initialise the Oxigraph store manager even when the library is not in Oxigraph, so that Oxigraph-backed backend entities work. It is initialised unconditionally when `INTERNAL_BACKEND_TYPE=oxigraph-persistent`. |
 | `DEBUG_OXIGRAPH` | `false` | Set to `true` to log every SPARQL operation the in-process Oxigraph executor runs. |
 
-### What `oxigraph-persistent` actually does
+### How `oxigraph-persistent` stores data
 
 The Oxigraph JavaScript/WebAssembly bindings support only in-memory stores.
 They have no RocksDB-backed store, which the Rust and Python bindings have.
@@ -235,7 +235,7 @@ part of startup that depends on data is the snapshot, which loads at about
 180,000 quads per second, and the cache preload. A library of a few thousand
 entities adds very little time. A library of a few hundred thousand quads adds
 seconds. See
-[what `oxigraph-persistent` actually does](#what-oxigraph-persistent-actually-does).
+[how `oxigraph-persistent` stores data](#how-oxigraph-persistent-stores-data).
 
 ## Read-only deployments
 

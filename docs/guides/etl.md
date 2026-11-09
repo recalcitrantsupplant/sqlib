@@ -13,7 +13,7 @@ the feature, and it is also the risk. This page states:
 > do not trust each other. ETL is for an operator: one team, with its own
 > instance and its own data.
 
-## The short version
+## Defaults
 
 By default, all ETL capabilities are off.
 
@@ -69,7 +69,7 @@ builds one `DuckDBInstance` from the profile. The service is in
 environment variables itself. Each connection comes from that instance. No code
 makes an unconfigured instance.
 
-### What actually enforces something
+### Measured enforcement
 
 These results were measured against `@duckdb/node-api` 1.4.3-r.3 (DuckDB
 v1.4.3). They were measured again on 1.5.5-r.4 and 2.0.0-r.1, with no change.
@@ -88,7 +88,7 @@ v1.4.3). They were measured again on 1.5.5-r.4 and 2.0.0-r.1, with no change.
   SQL. It blocks each later `SET`, also from a second connection on the same
   instance. Without it, submitted SQL can change the profile at run time.
 
-### What is intentionally not offered
+### Settings that sqlib does not offer
 
 sqlib has no directory allowlist. This binding rejects `allowed_directories` and
 `allowed_paths` in the instance config ("Failed to set config"). Over SQL, it
@@ -110,7 +110,7 @@ network. `ETL_DUCKDB_ALLOW_HTTP=true` therefore also grants filesystem access.
 `resolveDuckDbCapabilities` shows this in the resolved profile, because the
 engine has no separate switches.
 
-### The escape hatch
+### Unrestricted mode
 
 `ETL_DUCKDB_UNRESTRICTED=true` makes connections as needed, with no
 configuration and no lock. At startup, sqlib logs a warning that names the
@@ -239,7 +239,7 @@ The routes that take SQL, `POST /etl-jobs/preview` and
 stored SQL runs with the DuckDB capabilities of the deployment. Give a read-only
 deployment only the capabilities that its stored jobs need.
 
-### It has to be writable by the user the container runs as
+### Write access for the container user
 
 The image runs as `USER node` (uid 1000). The default output directory is under
 the declared volume `/app/packages/api/storage`. With this combination, the
@@ -280,7 +280,7 @@ or an error that names the path, the failure and the fix. The check never stops
 the server: a deployment that cannot write ETL output still serves all other
 routes. Search the startup log for the message before you run a job.
 
-### Asking the mount directly, without booting anything
+### Checking a mount with no server
 
 `packages/api/scripts/storage-writability-smoke.ts` runs the same check alone.
 Use it for a case that the image fix cannot reach: a volume or bind mount that
@@ -430,7 +430,7 @@ is already in the extension directory of the image loads with
 configuration locked. To install an extension from the registry, you need the
 capabilities above, because this is a network fetch.
 
-### Checking before an ingestion finds out
+### Checking extensions before an ingestion
 
 `packages/api/scripts/etl-extension-smoke.ts` asks the runtime directly. Use it
 in a container smoke test:
