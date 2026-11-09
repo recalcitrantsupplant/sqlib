@@ -186,6 +186,9 @@ parse gets no version bump and no changelog entry.
 
 Each change merges to `main` through a pull request.
 
+Write commit messages, pull requests, comments and documentation to
+[docs/writing-style.md](docs/writing-style.md).
+
 ## Packages and tests
 
 There are sixteen packages under `packages/*`. Eight are `private: true`. Eight

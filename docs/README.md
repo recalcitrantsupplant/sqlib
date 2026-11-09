@@ -60,6 +60,9 @@ Each guide covers one task.
 - [examples/sudoku-solver-ruleset.md](examples/sudoku-solver-ruleset.md): a
   rule set that solves a Sudoku by inference, from start to end.
 
+[writing-style.md](writing-style.md) gives the rules for the prose of these
+pages, the package READMEs, commit messages and code comments.
+
 [CONTRIBUTING.md](../CONTRIBUTING.md) gives contributor setup, the CI checks and
 the commit conventions. [SECURITY.md](../SECURITY.md) tells you how to report a
 vulnerability, and describes the security posture of a deployment.
