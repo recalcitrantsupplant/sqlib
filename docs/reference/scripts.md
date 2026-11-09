@@ -1,18 +1,19 @@
 # Scripts reference
 
-The commands a maintainer runs: the `Justfile` recipes, the workspace and
-per-package `pnpm` scripts, and the checks under `scripts/`.
+This page lists the commands that a maintainer runs: the `Justfile` recipes, the
+`pnpm` scripts of the workspace and of each package, and the checks under
+`scripts/`.
 
 `Taskfile.yml` no longer exists. The `Justfile` is the only task runner in the
 repository.
 
-Contributor setup and the commit conventions are in
-[CONTRIBUTING.md](../../CONTRIBUTING.md). What each environment variable a
-recipe sets does is in [configuration](configuration.md).
+[CONTRIBUTING.md](../../CONTRIBUTING.md) gives the contributor setup and the
+commit conventions. [Configuration](configuration.md) gives the effect of each
+environment variable that a recipe sets.
 
 ## Justfile recipes
 
-`just <recipe>`. Recipes taking a parameter show its default.
+Run `just <recipe>`. A recipe that takes a parameter shows its default.
 
 | Recipe | What it does |
 | --- | --- |
@@ -21,12 +22,12 @@ recipe sets does is in [configuration](configuration.md).
 | `setup-local-https` | One-time: installs the mkcert root and writes `certs/localhost.pem` and `certs/localhost-key.pem`. Fails if mkcert is not installed |
 | `run-local-https` | The same dual API+MCP process on port 3300, plus a Traefik container terminating TLS on `https://localhost:3443`. Requires the certificates |
 | `run-docker-https` | The built image plus Fuseki behind Traefik on `https://localhost:3443`, with no host pnpm process. Needs an image tagged `sparql-query-lib:aca-local` and the certificates |
-| `run-local-rules-tests` | API on `http://localhost:3005` in its own store, seeded with the W3C SHACL 1.2 Rules suite as runnable tests. Queries, groups, rules, data graphs and tests on; benchmarks and ETL off; invalid save on, because a third of the suite's documents are meant not to parse. Seeding is idempotent |
+| `run-local-rules-tests` | API on `http://localhost:3005` in its own store, seeded with the W3C SHACL 1.2 Rules suite as runnable tests. Queries, groups, rules, data graphs and tests on. Benchmarks and ETL off. Invalid save on, because a third of the documents in the suite must not parse. Seeding is idempotent |
 | `run-frontend-rules API_URL=http://localhost:3005` | The web UI with the `NUXT_PUBLIC_FEATURE_*` flags matching that API |
 | `clean-local-rules-tests` | Deletes `packages/api/tmp/rules-tests-store` |
-| `run-local-patch-demo` | API on `http://localhost:3005` in its own store, seeded with a demo library of update queries for reading RDF patch previews. Queries, backends and data graphs on; everything else off |
+| `run-local-patch-demo` | API on `http://localhost:3005` in its own store, seeded with a demo library of update queries for reading RDF patch previews. Queries, backends and data graphs on. All other features off |
 | `run-frontend-patch-demo API_URL=http://localhost:3005` | The web UI with the matching flags |
-| `uat-patch-demo API_URL=http://localhost:3005 WEB_URL=http://localhost:3001` | Drives that demo end to end in a real browser against a real API. Starts neither: run the two recipes above first |
+| `uat-patch-demo API_URL=http://localhost:3005 WEB_URL=http://localhost:3001` | Runs that demo from start to end in a real browser, against a real API. It starts neither. Run the two recipes above first |
 | `clean-local-patch-demo` | Deletes `packages/api/tmp/patch-demo-store` |
 | `run-local-like-docker` | The API alone, no MCP, with the persistence settings `run-docker-local` uses |
 | `build-docker TAG=latest` | `docker build --network=host -t sparql-query-lib:<TAG> .` |
@@ -34,14 +35,14 @@ recipe sets does is in [configuration](configuration.md).
 | `run-docker-persistent TAG=latest` | The same image in `APP_MODE=api` on port 3000 |
 | `run-frontend API_URL=http://localhost:3005` | The web UI against any API URL |
 
-The frontend recipes exist as separate commands because the API and the SPA are
-separate processes reading separate environments. Setting feature flags only on
-the API leaves the rail showing sections the API no longer serves; see
+The frontend recipes are separate commands, because the API and the SPA are
+separate processes that read separate environments. If you set feature flags on
+the API only, the rail shows sections that the API does not serve. See
 [feature flags](feature-flags.md).
 
 Three recipes export `FEATURE_QUERIES_ENABLED`, `FEATURE_RULES_ENABLED` and
-`FEATURE_ETL_ENABLED`. Nothing reads those names — the real ones have no
-`_ENABLED` suffix — so those recipes run with the default flags.
+`FEATURE_ETL_ENABLED`. No code reads those names, because the real names have no
+`_ENABLED` suffix. Those recipes therefore run with the default flags.
 
 ## Workspace scripts
 
@@ -50,14 +51,14 @@ Run from the repository root.
 | Script | What it runs |
 | --- | --- |
 | `pnpm build` | Builds `types`, `contracts`, `runtime`, `compiler`, `runtime-duckdb`, `runtime-etl`, `tools`, `srl`, `runtime-srl`, `rdf-delta` and `api`, in that order |
-| `pnpm test` | The API package's vitest suite |
-| `pnpm dev` | The API package's dev server |
+| `pnpm test` | The vitest suite of the API package |
+| `pnpm dev` | The dev server of the API package |
 | `pnpm dev:observability` | Brings up `docker-compose.dev.yml` (`grafana/otel-lgtm`: collector, Tempo, Loki, Prometheus, Grafana) |
 | `pnpm dev:full` | `dev:observability`, then `dev` sending telemetry to it |
 | `pnpm dev:stop` | Takes `docker-compose.dev.yml` down |
-| `pnpm generate-schemas` | Regenerates the API's JSON schemas |
-| `pnpm any:count` / `pnpm any:update` | The `any` ratchet, and re-recording its baseline |
-| `pnpm ci` | `bash scripts/ci/all.sh` — the whole required pipeline |
+| `pnpm generate-schemas` | Generates the JSON schemas of the API again |
+| `pnpm any:count` / `pnpm any:update` | The `any` ratchet, and a new record of its baseline |
+| `pnpm ci` | `bash scripts/ci/all.sh`: the whole required pipeline |
 
 ## Package scripts
 
@@ -70,19 +71,19 @@ Run one with `pnpm --filter @sparql-query-lib/<pkg> <script>`.
 | `build` | Generates schemas, then `tsc` against `tsconfig.build.json` |
 | `dev` | `tsx watch src/index.ts` in development, telemetry off |
 | `test`, `test:watch` | vitest |
-| `test:clean` | Clears the vite cache first — for when a stale transform is suspected |
+| `test:clean` | Clears the vite cache first. Use it when you suspect an old transform |
 | `generate-schemas` | `tsx scripts/generate-schemas.ts`, the JSON Schema and contract generator |
 | `seed:system-library` | `tsx scripts/seed-system-library.ts` |
 | `export:bundle` | Compiles a library to a static export bundle |
-| `export:library-store` / `import:library-store` | Moves a whole library store in and out as RDF |
+| `export:library-store` / `import:library-store` | Moves a whole library store out or in as RDF |
 | `migrate:grammar-type` | Rewrites stored grammar-type values to SRL |
-| `backfill:srl-importable` | Recomputes the `srlImportable` hint on stored query versions whose `srlImportRevision` is behind |
-| `smoke:provider` | Checks the assistant's model provider is reachable |
-| `smoke:etl-extensions` | Checks DuckDB community extensions install on this platform |
-| `smoke:storage` | Checks the storage directory is writable by this process |
-| `clean`, `clean:test`, `clean:scripts` | Remove `dist` and any stray compiled `.js` beside the TypeScript sources |
+| `backfill:srl-importable` | Calculates the `srlImportable` hint again on stored query versions whose `srlImportRevision` is old |
+| `smoke:provider` | Checks that the model provider of the assistant is reachable |
+| `smoke:etl-extensions` | Checks that DuckDB community extensions install on this platform |
+| `smoke:storage` | Checks that this process can write to the storage directory |
+| `clean`, `clean:test`, `clean:scripts` | Remove `dist`, and any compiled `.js` file next to the TypeScript sources |
 
-The smoke scripts need a running service or network and are not part of the CI
+The smoke scripts need a running service or a network, and are not part of the CI
 pipeline.
 
 ### `web`
@@ -94,101 +95,103 @@ pipeline.
 | `preview` | Serves the built output on `WEB_PORT`, default 3001 |
 | `lint`, `lint:css`, `lint:css:fix` | stylelint over `src/**/*.{vue,css}` |
 | `typecheck` | `nuxi typecheck` |
-| `test`, `test:watch` | vitest — unit tests only |
+| `test`, `test:watch` | vitest, unit tests only |
 | `test:e2e` | Playwright, excluding `@perf` |
-| `test:e2e:ci` | Playwright, excluding `@visual` and `@perf` — what CI runs |
-| `test:e2e:visual` | The visual regression specs. A local gate: their baselines are rasterised with the authoring machine's fonts, and a CI runner renders text differently |
+| `test:e2e:ci` | Playwright, excluding `@visual` and `@perf`. CI runs this |
+| `test:e2e:visual` | The visual regression specs. Run them locally only: their baselines are rendered with the fonts of the author's computer, and a CI runner renders text differently |
 | `test:e2e:uat` | The patch-demo UAT run against a live API and UI |
 | `test:perf`, `test:perf:report` | The performance budget and layout-shift specs, and the diagnostic pair |
 | `build:srl-parser` | Rebuilds the browser-side SRL parser bundle |
 
 ### Other packages
 
-`contracts`, `types`, `runtime` and `runtime-oxigraph` build with tsup plus a
-declaration-only `tsc`; the two runtime packages then run
+`contracts`, `types`, `runtime` and `runtime-oxigraph` build with tsup, and a
+`tsc` run for declarations only. The two runtime packages then run
 `scripts/emit-cjs-declarations.mjs` over `dist`. `mcp-server`, `srl`, `tools`,
-`compiler`, `runtime-duckdb`, `runtime-etl`, `runtime-srl` and `rdf-delta` build with `tsc`. All of them except `contracts` and `types`
-have a vitest `test`.
+`compiler`, `runtime-duckdb`, `runtime-etl`, `runtime-srl` and `rdf-delta` build
+with `tsc`. All of them, except `contracts` and `types`, have a vitest `test`.
 
 `mcp-server` also has `dev` (stdio), `dev:http`, `dev:dual-http`,
 `dev:debug-http` and the matching `start*` scripts, which set `MCP_TRANSPORT`
 and run the built output.
 
 `rdf-delta` has `poc:blob-snapshot` and `poc:patch-log`, two proof-of-concept
-runners kept beside the package.
+runners in the package.
 
-Nine of the ten packages define `lint` as `echo "TODO: add lint"`. The only
-real linting in the repository is stylelint over `packages/web`. `pnpm -r
---if-present lint` therefore passes without reading a line of TypeScript, and
-`scripts/ci/lint.sh` prints a warning naming the packages whose green tick means
-an echo succeeded.
+Nine of the ten packages define `lint` as `echo "TODO: add lint"`. The only real
+linting in the repository is stylelint over `packages/web`. `pnpm -r
+--if-present lint` therefore passes without a read of any TypeScript.
+`scripts/ci/lint.sh` prints a warning that names the packages whose lint is only
+an echo.
 
 ## The CI pipeline
 
-All CI logic is in `scripts/ci/`, so every step runs locally with plain `bash
-scripts/ci/<step>.sh`. The GitHub Actions workflow is a dispatcher. `bash
-scripts/ci/all.sh` runs the required sequence:
+All CI logic is in `scripts/ci/`, so you can run each step locally with
+`bash scripts/ci/<step>.sh`. The GitHub Actions workflow only calls these
+scripts. `bash scripts/ci/all.sh` runs the required sequence:
 
-1. `install.sh` — `pnpm install --frozen-lockfile`
-2. `lint.sh` — `pnpm -r --if-present lint`, then `check-doc-links.mjs`
-3. `ratchet-selftest.sh` — proves the ratchets still fail when they should
-4. `any-ratchet.sh` — `count-any.mjs`
-5. `orphan-ratchet.sh` — `check-orphans.mjs`
-6. `typecheck.sh` — `nuxi typecheck` over `packages/web`, against a baseline
-7. `build.sh` — `pnpm -r build` in topological order, which also typechecks every other package
-8. `publish-check.sh` — four checks on the publishable packages
-9. `test.sh` — vitest across the affected packages
+1. `install.sh`: `pnpm install --frozen-lockfile`.
+2. `lint.sh`: `pnpm -r --if-present lint`, then `check-doc-links.mjs`.
+3. `ratchet-selftest.sh`: checks that the ratchets still fail when they must.
+4. `any-ratchet.sh`: `count-any.mjs`.
+5. `orphan-ratchet.sh`: `check-orphans.mjs`.
+6. `typecheck.sh`: `nuxi typecheck` over `packages/web`, against a baseline.
+7. `build.sh`: `pnpm -r build` in topological order. This also typechecks each
+   other package.
+8. `publish-check.sh`: four checks on the publishable packages.
+9. `test.sh`: vitest across the affected packages.
 
 Steps outside that sequence:
 
-- `e2e.sh` — Playwright against the production preview build, with the API
-  mocked at the network layer. No API server is started. It runs on
-  `workflow_dispatch`, not as a required gate. `WEB_PORT` defaults to 3701 in CI
-  so a locally running preview on 3001 cannot red out a job.
-- `commitlint.sh` — conventional commits, **warn only**. It never fails a build;
-  making it blocking means changing its final `exit 0` to `exit "$status"`.
-- `fuzz-nightly.sh` — the query group property harness at `PHASE2_FUZZ_RUNS`
-  (default 1000) and a clock-derived seed, over `test/phase2/` and `test/web/`.
-  The PR suite runs the same files at a fixed seed and about 50 cases. The seed
-  is printed before the run, so a red nightly reproduces with
+- `e2e.sh`: Playwright against the production preview build, with the API
+  mocked at the network layer. No API server starts. It runs on
+  `workflow_dispatch`, and is not a required gate. In CI, `WEB_PORT` defaults to
+  3701, so a local preview on 3001 cannot fail a job.
+- `commitlint.sh`: conventional commits, **warning only**. It never fails a
+  build. To make it blocking, change its final `exit 0` to `exit "$status"`.
+- `fuzz-nightly.sh`: the query group property harness, at `PHASE2_FUZZ_RUNS`
+  (default 1000) and a seed from the clock, over `test/phase2/` and
+  `test/web/`. The PR suite runs the same files with a fixed seed and about 50
+  cases. The script prints the seed before the run. To reproduce a failed
+  nightly run, use
   `PHASE2_FUZZ_SEED=<seed> PHASE2_FUZZ_RUNS=<n> bash scripts/ci/fuzz-nightly.sh`.
-- `docker-build-push.sh` — builds the server image from the root `Dockerfile`
-  and tags it `sha-<short>`, plus `latest` on trunk and `X.Y.Z` when building a
-  `vX.Y.Z` tag or when `RELEASE_VERSION` is set. It only pushes when
-  `PUSH=true`, so running it locally builds and stops. Login is the caller's
-  job.
-- `docker-build-push-web.sh` — the same, for the web UI bundle image built from
-  `Dockerfile.web` and tagged under `ghcr.io/<owner>/sqlib-web`. That image
-  carries the static site at `/site` and runs nothing; see
-  [deploying](../guides/deploying.md#the-bundle-image). It passes the commit,
-  version and build time in as build arguments, which become the image's OCI
-  labels and its `/bundle-info.json`.
-- `dependabot-automerge.sh` — merges Dependabot bumps whose CI is green. The
-  calling job's `needs` list is the only gate, `image` and `web-image` included,
-  because a base image bump once merged itself green and broke every publish
-  afterwards.
+- `docker-build-push.sh`: builds the server image from the root `Dockerfile`,
+  and tags it `sha-<short>`. It also adds `latest` on trunk, and `X.Y.Z` for a
+  `vX.Y.Z` tag or when `RELEASE_VERSION` is set. It pushes only when
+  `PUSH=true`, so a local run builds and stops. The caller must log in.
+- `docker-build-push-web.sh`: the same, for the web UI bundle image, built from
+  `Dockerfile.web` and tagged under `ghcr.io/<owner>/sqlib-web`. That image holds
+  the static site at `/site`, and runs nothing. See
+  [deploying](../guides/deploying.md#the-bundle-image). The script passes the
+  commit, version and build time as build arguments. They become the OCI labels
+  of the image, and its `/bundle-info.json`.
+- `dependabot-automerge.sh`: merges Dependabot updates whose CI passes. The only
+  gate is the `needs` list of the calling job, with `image` and `web-image`. A
+  base image update once merged itself after CI passed, and broke each later
+  publish.
 
-`lib.sh` is sourced by each script. It sets `set -euo pipefail`, changes to the
-repository root, and times the step. `scripts/ci/budgets.txt` gives per-step
-budgets in seconds; exceeding one raises a warning annotation and never fails
-the step, because wall-clock time is too variable to gate on.
+Each script sources `lib.sh`. It sets `set -euo pipefail`, changes to the
+repository root, and times the step. `scripts/ci/budgets.txt` gives a time
+budget in seconds for each step. A step over its budget gets a warning
+annotation, and never fails, because wall-clock time varies too much for a
+gate.
 
 ## The ratchets
 
-Three checks compare the tree against a recorded baseline rather than against
-zero, so a cleanup can land incrementally while the number cannot regress.
+Three checks compare the tree with a recorded baseline. A cleanup can therefore
+merge in steps, and the number cannot increase.
 
-### `any` — `scripts/count-any.mjs`
+### `any`: `scripts/count-any.mjs`
 
 Counts `as any`, `: any` and `catch (x: any)` in TypeScript under `packages/`,
 excluding `node_modules`, `dist`, `*.d.ts` and `*.generated.ts`, split into
 source and test totals. The baseline is `scripts/any-baseline.json`.
 
-Two different promises:
+The check has two rules:
 
 - **Whole repo**: only an *increase* over `srcTotal` or `testTotal` fails.
-- **Strict zone** (`packages/api/src/`): any `as any` or `catch (x: any)` is an
-  outright failure, not merely an increase. `: any` is not in the strict zone.
+- **Strict zone** (`packages/api/src/`): each `as any` or `catch (x: any)` is a
+  failure, also with no increase. `: any` is not in the strict zone.
 
 | Command | Effect |
 | --- | --- |
@@ -196,20 +199,24 @@ Two different promises:
 | `node scripts/count-any.mjs --update` | Rewrite the baseline to the current counts |
 | `node scripts/count-any.mjs --json` | Machine-readable output |
 
-**When it trips:** a strict-zone violation names the file; remove the `as any`.
-A rise names the amount; remove the new occurrences, or if they are justified,
-run `--update` in the same change so the new number is reviewable in the diff.
-When counts *drop*, the script says so and asks you to run `--update` — an
-unlowered baseline is slack that absorbs the next regression silently.
+**When it fails:** a strict-zone violation names the file. Remove the `as any`.
+An increase names the amount. Remove the new occurrences. If they are necessary,
+run `--update` in the same change, so that a reviewer sees the new number in the
+diff. When the counts *decrease*, the script says so, and asks you to run
+`--update`. A baseline that stays high would hide the next increase.
 
-### Orphan modules — `scripts/check-orphans.mjs`
+### Orphan modules: `scripts/check-orphans.mjs`
 
-Reports source files nothing can reach. Roots are package entry points (`main`,
-`module`, `exports`, `bin`), files named in package scripts, tests, tool
-configs, and Nuxt's convention directories, since a page or component is reached
-by the router rather than by an import. The baseline is
-`scripts/orphan-baseline.json`, and it lists **paths**, not a count: an entry is
-a claim that a human looked at that specific file and decided it stays.
+Reports source files that nothing can reach. The roots are:
+
+- package entry points (`main`, `module`, `exports`, `bin`);
+- files named in package scripts;
+- tests and tool configs;
+- the convention directories of Nuxt, because the router reaches a page or
+  component with no import.
+
+The baseline is `scripts/orphan-baseline.json`. It lists **paths**, and no count.
+Each entry states that a person read that file and decided to keep it.
 
 | Command | Effect |
 | --- | --- |
@@ -217,67 +224,71 @@ a claim that a human looked at that specific file and decided it stays.
 | `node scripts/check-orphans.mjs --update` | Rewrite the baseline |
 | `node scripts/check-orphans.mjs --json` | Machine-readable output |
 
-**When it trips:** it names the unreachable files. Either delete the file, wire
-it up, or — if it is deliberately kept, as the benchmark and debug scripts under
-`packages/api/scripts/` are — accept it with `--update` so the addition appears
-in review. When a baseline entry is no longer an orphan the script says so and
-asks you to run `--update` to lower it.
+**When it fails:** it names the unreachable files. Delete the file, or import it.
+If you must keep it, as for the benchmark and debug scripts under
+`packages/api/scripts/`, accept it with `--update`. The addition then shows in
+review. When a baseline entry is no longer an orphan, the script says so, and
+asks you to run `--update` to remove it.
 
-### Web type errors — `scripts/ci/typecheck.sh`
+### Web type errors: `scripts/ci/typecheck.sh`
 
-Counts `error TS` lines from `nuxi typecheck` in `packages/web` and compares
-against `packages/web/.typecheck-baseline`, a file holding a plain integer. It
-is currently `0`.
+Counts the `error TS` lines from `nuxi typecheck` in `packages/web`, and
+compares the count with `packages/web/.typecheck-baseline`, a file that holds a
+plain integer. The value is now `0`.
 
-**When it trips:** it prints the errors. Fix them, or — if the count went down —
-lower the baseline with `echo <count> > packages/web/.typecheck-baseline`.
+**When it fails:** it prints the errors. Fix them. If the count decreased, lower
+the baseline with `echo <count> > packages/web/.typecheck-baseline`.
 
-The script also fails when it cannot measure. A missing baseline file, a
-baseline that is not a plain integer, and a checker that exits non-zero while
-printing nothing countable are each a hard failure rather than a zero, because a
-crashed checker and a clean run both produce no `error TS` lines. `TYPECHECK_CMD`
-and `TYPECHECK_BASELINE_FILE` exist so the self-test can exercise those guards
-against a stub.
+The script also fails when it cannot measure. Each of these is a failure, and
+not a zero:
+
+- a missing baseline file;
+- a baseline that is not a plain integer;
+- a checker that exits non-zero and prints nothing to count.
+
+A crashed checker and a clean run both give no `error TS` lines, so a zero
+would hide a crash. `TYPECHECK_CMD` and `TYPECHECK_BASELINE_FILE` let the
+self-test run those guards against a stub.
 
 ### `scripts/ci/ratchet-selftest.sh`
 
-Every gate that counts something reports the same number when it measured
-nothing as when everything is fine. The guards that close that gap only fire in
-situations a healthy CI run never reaches, so nothing would notice them rotting.
-This script gives each guard a sandbox reproducing its failure, asserts the
-script exits non-zero, and asserts a matching healthy case still passes. It runs
-in about a second and needs no install.
+A gate that counts reports the same number when it measured nothing as when all
+is correct. The guards for this case fire only in situations that a healthy CI
+run never reaches. Without a test, nobody would see a guard that stopped
+working. This script gives each guard a sandbox that reproduces its failure. It
+checks that the script exits non-zero, and that a matching healthy case still
+passes. It runs in about one second, and needs no install.
 
 ## The publish lane
 
 `scripts/ci/publish-check.sh` runs four checks over the packages that are not
-`private: true`: `runtime`, `runtime-oxigraph`, and the six the CLI is built
-from (`compiler`, `srl`, `runtime-duckdb`, `runtime-etl`, `runtime-srl`, `cli`).
-It publishes nothing and
-needs no token. It runs after `build.sh`, because what it checks is built
-output. Each asks a different question:
+`private: true`: `runtime`, `runtime-oxigraph`, and the six packages of the CLI
+(`compiler`, `srl`, `runtime-duckdb`, `runtime-etl`, `runtime-srl`, `cli`). It
+publishes nothing, and needs no token. It runs after `build.sh`, because it
+checks built output. Each check asks a different question:
 
 | Script | Question |
 | --- | --- |
-| `check-publishable.mjs` | Is the manifest right? Required metadata and `publishConfig.access`; every `exports` target exists and is covered by `files`; a `types` condition beside every JS condition, `.d.cts` for `require` and `.d.ts` for `import`; no dependency on a package that stays private; `workspace:^` rather than `workspace:*` for peer ranges |
-| `check-public-api.mjs` | What is in it? Derives the surface from the built declarations and compares it against `packages/<pkg>/public-api.md`, so every addition, removal, rename or signature change arrives as a readable diff in the same change. It also reports unnameable types: a public signature whose parameter or return type is exported by no entry point |
-| `check-installable.mjs` | Does the tarball install? Packs each package, unpacks it into a sandbox `node_modules`, writes a consumer project against it, and compiles under nodenext-ESM, nodenext-CJS and bundler resolution, then loads every entry point in plain Node. A package its consumer entry marks `esmOnly` skips the CommonJS consumer and `require()`, and must have no `require` condition at all |
-| `check-generated-typings.mjs` | Does the declaration `sqlib export --typings` writes compile? Builds a consumer-shaped project around the frozen bundle and the generated declaration and runs `tsc` over it, in both directions: the usage files must compile clean with every `@ts-expect-error` line actually erroring, and a canary run over a deliberately mutated declaration must fail |
+| `check-publishable.mjs` | Is the manifest correct? Required metadata and `publishConfig.access`. Each `exports` target exists, and `files` covers it. A `types` condition next to each JS condition: `.d.cts` for `require` and `.d.ts` for `import`. No dependency on a package that stays private. `workspace:^`, and not `workspace:*`, for peer ranges |
+| `check-public-api.mjs` | What does it contain? Derives the surface from the built declarations, and compares it with `packages/<pkg>/public-api.md`. Each addition, removal, rename or signature change therefore shows as a readable diff in the same change. It also reports types that cannot be named: a public signature whose parameter or return type no entry point exports |
+| `check-installable.mjs` | Does the tarball install? Packs each package, unpacks it into a sandbox `node_modules`, writes a consumer project for it, and compiles under nodenext-ESM, nodenext-CJS and bundler resolution. Then loads each entry point in plain Node. A package that its consumer entry marks `esmOnly` skips the CommonJS consumer and `require()`, and must have no `require` condition |
+| `check-generated-typings.mjs` | Does the declaration from `sqlib export --typings` compile? Builds a project like a consumer's, around the frozen bundle and the generated declaration, and runs `tsc` over it in two directions. The usage files must compile with no errors, and each `@ts-expect-error` line must give an error. A canary run over an intentionally changed declaration must fail |
 
-The first three read the working tree or the tarball; the fourth reads an
-artefact that exists only in someone else's project. All four are invisible from
-inside the workspace, where every import resolves through pnpm's symlinks.
+The first three read the working tree or the tarball. The fourth reads an
+artefact that exists only in a consumer project. Inside the workspace, each
+import resolves through the pnpm symlinks, so none of these problems shows
+there.
 
-**When one trips:** each names the package and the specific expectation. For
-`check-public-api.mjs` the fix is usually to regenerate or edit
-`packages/<pkg>/public-api.md` in the same change as the surface change, which
-is the point of the file.
+**When one fails:** each check names the package and the expectation. For
+`check-public-api.mjs`, the usual fix is to generate or edit
+`packages/<pkg>/public-api.md` in the same change as the surface change. That is
+the purpose of the file.
 
 ## Other scripts
 
 | Script | What it does |
 | --- | --- |
-| `scripts/check-doc-links.mjs` | Every relative markdown link in a tracked `.md` file resolves to a file that exists. A link with an anchor is checked as far as the file. Absolute URLs, `mailto:` and in-page anchors are out of scope. Runs in the lint step |
-| `scripts/emit-cjs-declarations.mjs` | Copies each `.d.ts` in a `dist` directory to `.d.cts`, rewriting relative `.js` specifiers to `.cjs` so a `.d.cts` only ever reaches other `.d.cts` files. Without it a CommonJS consumer gets `TS7016` from a package that ships declarations. Usage: `node scripts/emit-cjs-declarations.mjs <dist-dir>` |
-| `scripts/codemod-*.mjs` | One-off codemods kept for reference. Not part of any pipeline |
-| `scripts/release/export-orphan.sh` | Exports the current tree as a fresh single-commit repository at a destination directory, optionally adding a remote. It never pushes, and refuses to run on a dirty tree or when the tree still matches its sweep list |
+| `scripts/check-doc-links.mjs` | Checks that each relative Markdown link in a tracked `.md` file resolves to a file that exists. For a link with an anchor, it checks the file only. It does not check absolute URLs, `mailto:` or in-page anchors. Runs in the lint step |
+| `scripts/emit-cjs-declarations.mjs` | Copies each `.d.ts` in a `dist` directory to `.d.cts`, and changes relative `.js` specifiers to `.cjs`, so a `.d.cts` only reaches other `.d.cts` files. Without it, a CommonJS consumer gets `TS7016` from a package that ships declarations. Usage: `node scripts/emit-cjs-declarations.mjs <dist-dir>` |
+| `scripts/codemod-*.mjs` | One-off codemods, kept for reference. Not part of a pipeline |
+| `scripts/release/export-orphan.sh` | Exports the current tree as a new repository with one commit, in a destination directory, and can add a remote. It never pushes. It refuses to run on a dirty tree, or when the tree still matches its sweep list |
