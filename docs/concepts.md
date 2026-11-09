@@ -1,43 +1,45 @@
 # Concepts
 
-This page defines the vocabulary the rest of the documentation uses, and the
-relationships between the things it names. Read it before the guides: several
-words in sqlib, "tuple" above all, name more than one thing.
+This page defines the terms that the rest of the documentation uses, and the
+relationships between the things they name. Read it before the guides. Some
+words in sqlib name more than one thing. "Tuple" names three.
 
 ## Library
 
-A **Library** is the container everything else belongs to. A query, a query
-group, a rule set, a data graph, a tuple set, an argument set, a test, a
-benchmark and an ETL job each belong to exactly one library. A library may name
-a `defaultBackend`, the backend its queries run on when no other is chosen. One server holds many libraries, and a library is
-the unit you export, import and copy.
+A **Library** contains all other entities. Each query, query group, rule set,
+data graph, tuple set, argument set, test, benchmark and ETL job belongs to one
+library. A library can name a `defaultBackend`: the backend its queries run on
+when the call names no other. One server holds many libraries. You export,
+import and copy a library as one unit.
 
 ## Stable pointers and immutable versions
 
-Almost every entity comes in two parts. A **stable pointer** — `Query`,
-`RuleSet`, `DataGraph`, `TupleSet`, `ArgumentSet`, `Test`, `EtlJob`,
-`BenchmarkExperiment` — carries the name, description, tags and a
-`currentVersion` link, and its IRI never changes. An **immutable version** —
-`QueryVersion`, `RuleSetVersion`, and so on — carries the content and a numeric
-`version`, and is never modified in place once saved.
+Most entities have two parts:
 
-Execution always names a version, so a run is reproducible. Two ways of
-referring to content follow: a **pin** is a version IRI and always means the same
-content; a **float** is a parent IRI and means whatever that entity's current
-version is at the time of the call.
+- A **stable pointer** (`Query`, `RuleSet`, `DataGraph`, `TupleSet`,
+  `ArgumentSet`, `Test`, `EtlJob`, `BenchmarkExperiment`) holds the name,
+  description, tags and a `currentVersion` link. Its IRI does not change.
+- An **immutable version** (`QueryVersion`, `RuleSetVersion` and so on) holds
+  the content and a numeric `version`. After it is saved, nothing changes it.
+
+An execution always names a version, so you can run it again and get the same
+result. There are two ways to refer to content:
+
+- A **pin** is a version IRI. It always means the same content.
+- A **float** is the IRI of the stable pointer. It means the current version of
+  that entity at the time of the call.
 
 ## Query and QueryVersion
 
-A **Query** is a stable, named pointer, optionally naming a `defaultBackend`. A
-**QueryVersion** holds the SPARQL text (`queryString`), its query type, the
-parameters detected in it, and the inputs and outputs inferred from it. A query
-version is *callable*: it declares parameters, and you invoke it with
+A **Query** is a stable, named pointer. It can name a `defaultBackend`. A
+**QueryVersion** holds the SPARQL text (`queryString`), the query type, the
+parameters found in the text, and the inputs and outputs inferred from it. A
+query version is *callable*: it declares parameters, and you call it with
 arguments.
 
 ## Parameters
 
-Parameters are declared **in the query text itself**, not in metadata beside it.
-There are two forms.
+A query declares its parameters in the query text. There are two forms.
 
 **A table parameter is a `VALUES` clause whose only row is all `UNDEF`.**
 
@@ -48,227 +50,242 @@ SELECT ?city ?pop WHERE {
 }
 ```
 
-That clause declares one parameter with the signature `(?city)`. The reserved
-row must be the clause's only row; a block that merely *contains* an all-UNDEF
-row alongside bound rows is not a parameter. Three such clauses declare three
-table parameters, matched in order of appearance.
+This clause declares one parameter with the signature `(?city)`. The all-`UNDEF`
+row must be the only row in the clause. A `VALUES` block that has an all-`UNDEF`
+row and also bound rows is plain data. Three such clauses declare three table
+parameters, in the order they appear.
 
-**A named number is `LIMIT 000n` or `OFFSET 000n`.** In `LIMIT 00010` the
-parameter's name is `10` — the digits after the `000`. Names are digits only:
-detection matches `/\bLIMIT\s+000(\d+)\b/i` against the query's code, so the same
-text in a comment or a string literal declares nothing. The literal value is what the query
-runs with when no argument is supplied, so an unparameterised run still
-executes.
+**A named number is `LIMIT 000n` or `OFFSET 000n`.** In `LIMIT 00010` the name
+of the parameter is `10`: the digits after `000`. Names are digits only.
+Detection matches `/\bLIMIT\s+000(\d+)\b/i` against the code of the query, so
+the same text in a comment or a string literal declares nothing. When no
+argument is supplied, the query runs with the literal value. A run without
+arguments therefore still executes.
 
 **How values are applied.** Each argument for a table parameter is a **SPARQL
-Query Results JSON** document, the shape a SELECT returns:
+Query Results JSON** document, which is the form a SELECT returns:
 
 ```json
 { "head": { "vars": ["city"] },
   "results": { "bindings": [ { "city": { "type": "uri", "value": "http://example.org/Perth" } } ] } }
 ```
 
-So a query's output, a stored tuple set, or another endpoint's response can be
-passed as an argument without being edited. Arguments are matched to `VALUES`
-clauses by the variables in `head.vars`, not by position, and a request carries
-at most one per clause. Blank nodes are refused, because a blank node label only
-means something inside the document it came from. The legacy `typed-literal`
-spelling is read as a `literal` with its datatype.
+You can pass the output of a query, a stored tuple set, or the response of
+another endpoint as an argument, with no edits. sqlib matches each argument to a
+`VALUES` clause by the variables in `head.vars`, and a request carries at most
+one argument per clause. sqlib refuses blank nodes, because a blank node label
+has meaning only inside its own document. The old `typed-literal` form is read
+as a `literal` with its datatype.
 
-At execution the query is parsed and the reserved all-UNDEF row is replaced by
-the supplied rows inside the parsed structure; a named limit or offset has its
-number substituted. Argument values are never concatenated into query text. A
-supplied row may bind only some of a clause's variables — an unbound cell stays
-`UNDEF`, matching anything — but an all-UNDEF row cannot be mixed with bound
-rows in one argument.
+At execution, sqlib parses the query and puts the supplied rows in place of the
+all-`UNDEF` row, in the parsed structure. It puts the supplied number in place
+of a named limit or offset. sqlib does not concatenate argument values into
+query text. A supplied row can bind some of the variables of a clause. A cell
+with no value stays `UNDEF` and matches anything. One argument cannot mix an
+all-`UNDEF` row with bound rows.
 
-**Empty input.** A caller says two different things with the same table:
+**Empty input.** A caller can send two different signals with the same table:
 
 | The request | Means | The clause becomes |
 | --- | --- | --- |
-| leaves the parameter out | nothing arrived, so do not filter | removed |
-| supplies it with zero rows | the empty set arrived, so match nothing | `VALUES` with zero rows |
+| leaves the parameter out | no input, so do not filter | removed |
+| supplies it with zero rows | the empty set, so match nothing | `VALUES` with zero rows |
 
-An argument that fits no clause is refused, naming its variables and the
-clauses the query declares. Inside a query group, the edge feeding a clause may
-also carry a `whenEmpty` policy for when its upstream produces no rows:
-`unconstrained` drops the clause, `propagateEmpty` keeps the zero-row block, and
-`require` refuses the run. That policy is the author's, so it lives on the edge
-and never in a request.
+sqlib refuses an argument that fits no clause. The error names the variables of
+the argument and the clauses that the query declares.
 
-The query's author can set the same policy on the clause itself, on the
-version's input tuple. A clause marked `require` refuses a run that leaves it
-out, sends one all-`UNDEF` row, or sends zero rows, so a query that must start
-from a value never scans the whole graph. A group edge can choose another
-closed mode for that clause, but cannot set `unconstrained`. See
+In a query group, the edge into a clause can have a `whenEmpty` policy. It
+applies when the upstream node produces no rows:
+
+- `unconstrained` removes the clause.
+- `propagateEmpty` keeps the zero-row block.
+- `require` refuses the run.
+
+The policy belongs to the author of the group, so it is set on the edge. A
+request cannot set it.
+
+The author of a query can set the same policy on the clause itself, on the
+input tuple of the version. A clause marked `require` refuses a run that leaves
+it out, sends one all-`UNDEF` row, or sends zero rows. A query that must start
+from a value therefore never scans the whole graph. A group edge can choose a
+different closed mode for that clause, but it cannot set `unconstrained`. See
 [required arguments](proposals/required-arguments.md).
 
 ## ArgumentSet
 
-An **ArgumentSet** is the values for a callable's SPARQL parameters: a table per
-`VALUES` clause and a number per named limit or offset. Each table's rows are
-stored as one SPARQL Results JSON string, which is exactly the document a run
-takes inline.
+An **ArgumentSet** holds the values for the SPARQL parameters of a callable: one
+table for each `VALUES` clause and one number for each named limit or offset.
+The rows of each table are stored as one SPARQL Results JSON string. This is the
+same document that a run accepts inline.
 
-An argument set holds no graphs. A query group's data graphs are a separate
-input, sent in the run's `dataGraphs[]` beside its argument sets, as a rule
-set's data graph is. See
+An argument set holds no graphs. The data graphs of a query group are a separate
+input. A run sends them in `dataGraphs[]`, next to its argument sets, in the same
+way as the data graph of a rule set. See
 [argument sets without graphs](proposals/argument-sets-without-graphs.md).
 
-Argument sets belong to a library and are listed library-wide. They record where
-they were made as provenance, not as a fence: a set made on one query can be
-offered to another, and the server judges it `fits`, `partial` or `mismatch`
-against that callable's signature. A version is immutable, so a test or an MCP
-call that pins one is reproducible. A run may supply inline values for parameters
-a named set leaves open; supplying both for the same parameter is refused by
-name. Argument set versions live under `/argument-sets/:id/versions`, the same
-path segment every versioned entity uses.
+Argument sets belong to a library, and the library lists all of them. Each set
+records the callable it was made on, as provenance. You can offer a set made on
+one query to another query. The server compares the set with the signature of
+that callable and returns `fits`, `partial` or `mismatch`.
+
+A version is immutable, so a test or an MCP call that pins one gives the same
+result each time. A run can supply inline values for parameters that a named set
+does not fill. If a run supplies both for the same parameter, sqlib refuses it
+and names the parameter. Argument set versions are under
+`/argument-sets/:id/versions`, the same path segment that each versioned entity
+uses.
 
 ## Browser defaults
 
-A query and a query group may name a default argument set, and a query group
-and a rule set may name a default data graph for each data graph input. The web
-app selects them when the callable opens and nothing else is picked. They are
-stored on the server, so everyone using the library gets them.
+A query and a query group can name a default argument set. A query group and a
+rule set can name a default data graph for each data graph input. The web app
+selects these defaults when you open the callable and nothing else is selected.
+The server stores them, so each user of the library gets the same defaults.
 
-**Execution never applies a browser default.** `/execute`, rule set execute,
-tests, benchmarks and MCP run with exactly the inputs the caller sends: an empty
-call means "no arguments", and a default changed in the web app must not change
-what a script computes. A caller that wants the default reads
+**Execution never applies a browser default.** `/execute`, rule set execution,
+tests, benchmarks and MCP use only the inputs that the caller sends. An empty
+call means "no arguments". A default changed in the web app must not change
+what a script calculates. To use the default, a caller reads
 `GET /…/:id/browser-defaults` and sends it. See
 [browser defaults](proposals/browser-defaults.md).
 
 ## QueryGroup
 
-A **QueryGroup** is a directed acyclic graph of execution steps — the canvas.
-A **QueryGroupVersion** snapshots its nodes, its edges and the canvas layout.
+A **QueryGroup** is a directed acyclic graph of execution steps. The web app
+shows it on the canvas. A **QueryGroupVersion** stores a snapshot of its nodes,
+its edges and the canvas layout.
 
-Node types are `StartNode`, `EndNode`, `QueryNode` (a pinned query version),
+The node types are `StartNode`, `EndNode`, `QueryNode` (a pinned query version),
 `DynamicQueryNode` (a query chosen at execution time), `RuleSetNode`,
-`PatchNode` and `DuckDbEtlNode`. A **`QueryEdge`** connects one node's output to
-another's input, and its `dataFlowType` says what travels along it:
+`PatchNode` and `DuckDbEtlNode`. A **`QueryEdge`** connects the output of one
+node to the input of another. Its `dataFlowType` sets what moves along it:
 
-| `dataFlowType` | Carries | Source I/O → target I/O |
+| `dataFlowType` | Carries | Source I/O to target I/O |
 | --- | --- | --- |
-| `CONTROL_FLOW` | nothing; an ordering dependency only | none — an edge of this type with I/O references is refused |
-| `VARIABLE_BINDINGS` | a solution sequence | `QueryOutputTuple` → `QueryInputTuple` |
-| `RDF_GRAPH` | triples or quads | `TriplesQuadsIO` → `TriplesQuadsIO` |
-| `BOOLEAN` | an ASK result | `BooleanIO` → `BooleanIO` |
-| `QUERY_ID` | a single column naming a query to run | `QueryOutputTuple` → `QueryIdInput` |
-| `DATASET` | a single column of graph IRIs, used as the target's dataset | `QueryOutputTuple` → the target query's `FROM` / `FROM NAMED` (no input port) |
+| `CONTROL_FLOW` | nothing; an order dependency only | none; sqlib refuses an edge of this type that has I/O references |
+| `VARIABLE_BINDINGS` | a solution sequence | `QueryOutputTuple` to `QueryInputTuple` |
+| `RDF_GRAPH` | triples or quads | `TriplesQuadsIO` to `TriplesQuadsIO` |
+| `BOOLEAN` | an ASK result | `BooleanIO` to `BooleanIO` |
+| `QUERY_ID` | one column that names a query to run | `QueryOutputTuple` to `QueryIdInput` |
+| `DATASET` | one column of graph IRIs, used as the dataset of the target | `QueryOutputTuple` to the `FROM` / `FROM NAMED` of the target query (no input port) |
 
-Variables are lined up across an edge by `variableMappings`, a
-`{ source, target }[]` list of variable *names*. Unset, the default pairs exact
-names first and the remainder by position.
+`variableMappings` pairs the variables across an edge. It is a
+`{ source, target }[]` list of variable *names*. If it is not set, sqlib pairs
+equal names first, then pairs the rest by position.
 
-The **start node's** outputs are the group's own parameters: one port per table
-input, plus any graph ports. A group also takes `LIMIT` and `OFFSET` parameters,
-which are the union of the named numbers its member query versions declare — a
-value for `pageSize` reaches every node whose query names `pageSize`, so two
-nodes sharing a name share the value and a node that must page independently
-renames its parameter.
+The outputs of the **start node** are the parameters of the group: one port for
+each table input, and any graph ports. A group also takes `LIMIT` and `OFFSET`
+parameters. These are the union of the named numbers that its query versions
+declare. A value for `pageSize` goes to each node whose query names `pageSize`.
+Two nodes with the same name therefore get the same value. To page a node on its
+own, give its parameter a different name.
 
 ## DataGraph
 
 A **DataGraph** is reference RDF registered in a library. A `DataGraphVersion`
-stores the serialisation verbatim (Turtle, N-Triples, and so on) with a triple
+stores the serialisation as written (Turtle, N-Triples and so on), with a triple
 count and a byte size.
 
-A data graph is *input that goes in and does not come out*. It seeds the store a
-rule set or a hermetic query test runs against, fills a query group's graph port,
-or hydrates a backend. It is not part of a rule set, so it never appears in an
-inference graph.
+A data graph is input only. It fills the store that a rule set or a hermetic
+query test runs against, fills a graph port of a query group, or loads a
+backend. It is not part of a rule set, so its triples are never in an inference
+graph.
 
 ## TupleSet
 
-A **TupleSet** is a named, versioned table of RDF terms — a solution sequence —
-stored in a library. A `TupleSetVersion` stores its content as a standard SPARQL
-Results JSON document, along with `columns`, `rowCount`, `byteSize` and the
-`sourceFormat` it was imported from (CSV, TSV, SPARQL Results TSV, SPARQL
-Results JSON, or saved query results).
+A **TupleSet** is a named, versioned table of RDF terms (a solution sequence)
+stored in a library. A `TupleSetVersion` stores the content as a SPARQL Results
+JSON document, with `columns`, `rowCount`, `byteSize` and the `sourceFormat` it
+was imported from: CSV, TSV, SPARQL Results TSV, SPARQL Results JSON, or saved
+query results.
 
-A tuple set is *tabular input*. It is never loaded into a store: it is spliced
-into a query's `VALUES` clause, or matched against a rule set's `TUPLE( … )`
-declaration, and consumed. Untyped sources (CSV, plain TSV) import as plain
-string literals unless column types are chosen at import. Blank nodes are
-rejected at import, because a blank node label is document-scoped and can join
-with nothing in the target store.
+A tuple set is tabular input. sqlib never loads it into a store. sqlib puts it
+into the `VALUES` clause of a query, or matches it against a `TUPLE( … )`
+declaration in a rule set. Sources without types (CSV, plain TSV) import as
+plain string literals, unless you choose column types at import. Import refuses
+blank nodes, because a blank node label belongs to one document and cannot join
+with anything in the target store.
 
 ### Graphs and tuples compared
 
 | | DataGraph | TupleSet |
 | --- | --- | --- |
 | Content | an RDF graph | a table of RDF terms |
-| Stored as | the original serialisation, verbatim | normalised SPARQL Results JSON |
+| Stored as | the original serialisation, as written | normalised SPARQL Results JSON |
 | Version records | `tripleCount`, `byteSize` | `rowCount`, `byteSize`, `columns` |
-| At execution | loaded into a store | spliced into a `VALUES` clause or a `TUPLE( … )` |
-| Consumed by | rule sets, group graph ports, backends, test fixtures | queries and rule sets |
+| At execution | loaded into a store | put into a `VALUES` clause or a `TUPLE( … )` |
+| Used by | rule sets, group graph ports, backends, test fixtures | queries and rule sets |
 
-That difference is why tabular input is a *parameter* and RDF input is *data*.
+For this reason, tabular input is a *parameter* and RDF input is *data*.
 
 ## Rule, DataBlock and RuleSet
 
-sqlib authors SHACL 1.2 inference rules in **SRL** (Shape Rules Language), a
-textual syntax parsed, compiled and stratified by `packages/srl`.
+sqlib writes SHACL 1.2 inference rules in **SRL** (Shape Rules Language). SRL is
+a text syntax. `packages/srl` parses, compiles and stratifies it.
 
 - A **Rule** is one inference rule: a head and a body. Its version stores the
-  rule text, the grammar it was written in (`srl` or `sparql`), whether it
-  parsed, and the normalised `INSERT` it compiles to.
-- A **DataBlock** is a set of triples that are part of the rule set. It compiles
-  to `INSERT DATA`, and its triples *do* appear in the inference graph — which
-  is what distinguishes it from a data graph.
-- A **RuleSet** groups them. A `RuleSetVersion` holds `hasRule` and
-  `hasDataBlock` as lists of *version* IRIs, never parent IRIs, so a rule set's
-  behaviour cannot change because some rule got a new current version. It also
-  stores a stratification report: the dependency structure the stratifier found,
-  and whether it could order the rules.
+  rule text, the grammar it uses (`srl` or `sparql`), whether it parsed, and the
+  normalised `INSERT` it compiles to.
+- A **DataBlock** is a set of triples that belong to the rule set. It compiles
+  to `INSERT DATA`. Its triples appear in the inference graph. The triples of a
+  data graph do not.
+- A **RuleSet** groups rules and data blocks. A `RuleSetVersion` holds `hasRule`
+  and `hasDataBlock` as lists of *version* IRIs. A new current version of a rule
+  therefore cannot change what a saved rule set does. The version also stores a
+  stratification report: the dependency structure that the stratifier found,
+  and whether it could put the rules in order.
 
-A rule set runs in-process against a base graph, which is a `DataGraph`. It has
-no backend to name: fetching data from a live endpoint and then running rules
-over it is a query group, not a rule set with an endpoint.
+A rule set runs in the server process against a base graph, which is a
+`DataGraph`. A rule set names no backend. To fetch data from a live endpoint and
+then run rules on it, build a query group.
 
 ## The three things called "tuple"
 
-Three distinct concepts share the word.
-
 | Name | What it is | Where it appears |
 | --- | --- | --- |
-| **TupleSet** | a library entity: a saved table of RDF terms | the Tuples rail; fills a query's `VALUES` clause or a rule set's `TUPLE( … )` |
-| **SRL rule tuples** | a language extension: `TUPLE( … )` declarations in an SRL document, with a rule set version's `tuplesEnabled` toggle and `tupleSeeds` | inside rule text; gated by the `ruleTuples` feature flag (`FEATURE_RULE_TUPLES`, default off) |
-| **`QueryInputTuple` / `QueryOutputTuple`** | internal I/O entities: the declared signature of one `VALUES` clause or one result shape | query versions' `inferredInputs` / `inferredOutputs`, and the canvas's node ports |
+| **TupleSet** | a library entity: a saved table of RDF terms | the Tuples rail; fills the `VALUES` clause of a query or a `TUPLE( … )` in a rule set |
+| **SRL rule tuples** | a language extension: `TUPLE( … )` declarations in an SRL document, with the `tuplesEnabled` switch and `tupleSeeds` of a rule set version | in rule text; controlled by the `ruleTuples` feature flag (`FEATURE_RULE_TUPLES`, default off) |
+| **`QueryInputTuple` / `QueryOutputTuple`** | internal I/O entities: the declared signature of one `VALUES` clause or one result shape | `inferredInputs` / `inferredOutputs` of a query version, and the node ports on the canvas |
 
-They interact but are not each other. A tuple set can *fill* an SRL `TUPLE( … )`
-parameter, and it can *fill* the parameter a `QueryInputTuple` describes, but it
-is neither of them. The `ruleTuples` feature flag gates only the middle row: with
-it off the server refuses `TUPLE( … )` syntax, `tuplesEnabled` and `tupleSeeds`,
-and the UI draws no control mentioning the extension. The `TupleSet` entity, the
-Tuples rail and argument sets are unaffected by it. Tuple *seeds* are a fourth
-spelling of that middle row: an SRL text document of ground `TUPLE( … )` rows
-supplied per run rather than a reference to a stored table.
+A tuple set can fill an SRL `TUPLE( … )` parameter. It can also fill the
+parameter that a `QueryInputTuple` describes. It is a separate thing from both.
+
+The `ruleTuples` feature flag controls the middle row only. When the flag is
+off, the server refuses `TUPLE( … )` syntax, `tuplesEnabled` and `tupleSeeds`,
+and the UI shows no control for the extension. The flag has no effect on the
+`TupleSet` entity, the Tuples rail or argument sets. Tuple *seeds* are a fourth
+form of the middle row: an SRL text document of ground `TUPLE( … )` rows,
+supplied with each run. A seed holds the rows itself, where a tuple set is a
+stored table.
 
 ## Backend
 
-A **Backend** is where a query executes. Three types: `http`, a remote SPARQL
-endpoint; `oxigraphMemory`, an in-process Oxigraph store held in memory whose
-`mode` says whether its contents are serialised to disk on a checkpoint interval
-and on shutdown; and `oxigraphEphemeral`, an in-process store that is never
-serialised and dies with the process.
+A **Backend** is where a query executes. There are three types:
 
-A backend stores an `authEnvKey`, the *name* of an environment variable group
-rather than a credential. Credentials are read from
-`SQLIB_BACKEND_<KEY>_USERNAME` / `_PASSWORD`, or
-`SQLIB_BACKEND_<KEY>_AUTH_HEADER`, in the server's own environment, so they never
-enter the library. Which backend a run uses is resolved by precedence: the one
-named on the call, then the query's `defaultBackend`, then the library's.
+- `http`: a remote SPARQL endpoint.
+- `oxigraphMemory`: an Oxigraph store in the server process, held in memory.
+  Its `mode` sets whether sqlib writes its contents to disk at a checkpoint
+  interval and at shutdown.
+- `oxigraphEphemeral`: a store in the server process that sqlib never writes to
+  disk. It is lost when the process stops.
+
+A backend stores an `authEnvKey`. This is the *name* of a group of environment
+variables. sqlib reads the credentials from `SQLIB_BACKEND_<KEY>_USERNAME` and
+`_PASSWORD`, or from `SQLIB_BACKEND_<KEY>_AUTH_HEADER`, in the environment of
+the server. Credentials are therefore never in the library. sqlib chooses the
+backend for a run in this order: the backend named on the call, then the
+`defaultBackend` of the query, then that of the library.
 
 ## Test
 
-A **Test** is an invocation plus an expectation, run once, judged pass or fail.
-Its `subject` is a `Query`, a `QueryGroup` or a `RuleSet`, and its `subjectKind`
-names which; a `TestVersion` holds the inputs and the expectation. A test may
-also record a `criterion`, an external manifest entry IRI, for tests seeded from
-a conformance suite. Which inputs it may supply depends on its subject's kind,
-and the rules are stated once, in `packages/types/src/subjectKinds.ts`:
+A **Test** is a call and an expected result. sqlib runs it once and records pass
+or fail. Its `subject` is a `Query`, a `QueryGroup` or a `RuleSet`, and its
+`subjectKind` says which. A `TestVersion` holds the inputs and the expected
+result. A test can also record a `criterion`: the IRI of an entry in an external
+manifest, for tests made from a conformance suite.
+
+The inputs that a test can supply depend on the kind of its subject.
+`packages/types/src/subjectKinds.ts` defines the rules:
 
 | Subject | Backend on the version | Data graph per case | Argument set per case | Tuple seeds | SQL fixture |
 | --- | --- | --- | --- | --- | --- |
@@ -277,31 +294,33 @@ and the rules are stated once, in `packages/types/src/subjectKinds.ts`:
 | Rule set | no | yes | no | yes | no |
 | ETL job | no | yes | no | no | yes |
 
-A query is the one kind with an exclusive store: it names a backend *or* gives
-every case a data graph to run against hermetically, never both and never
-neither. A query group's nodes name their own backends, so its test has none to
-name.
+A query test must use exactly one store. It names a backend, or it gives each
+case a data graph to run against hermetically. The nodes of a query group name
+their own backends, so a query group test names none.
 
 ## Benchmark
 
-A **BenchmarkExperiment** measures a callable rather than judging it. Its
-version holds one or more subject specs, which have the same "a callable plus
-its inputs" shape as a test's invocation half. A run produces iterations,
-per-node runs and observations, so timings can be read per node as well as per
-call.
+A **BenchmarkExperiment** measures the time a callable takes. Its version holds
+one or more subject specs. A subject spec has the same form as the call part of
+a test: a callable and its inputs. A run produces iterations, runs per node and
+observations, so you can read timings for each node and for the whole call.
 
 ## ETL pipeline
 
-An **EtlJob** builds RDF from tabular sources. Its version holds DuckDB `sql`, a
-`sparqlTemplate` that constructs triples from the rows that SQL returns, the
-target `backendId`, a chunk size, and a pointer to a column-mapping version; an
-`EtlExecution` records a run.
+An **EtlJob** builds RDF from tabular sources. Its version holds:
 
-An ETL job declares no parameters: its tabular input is the rows its SQL reads.
-That is why an ETL test supplies a SQL fixture — DuckDB statements run on the
-job's own connection, against a database that exists only for that case — rather
-than an argument set.
+- DuckDB `sql`.
+- A `sparqlTemplate` that constructs triples from the rows the SQL returns.
+- The target `backendId`.
+- A chunk size.
+- A pointer to a column-mapping version.
 
-ETL is off by default (`FEATURE_ETL`, `FEATURE_PLAYGROUND_ETL`), because
-arbitrary DuckDB SQL is a host filesystem read primitive and, with the httpfs
-extension, an outbound request primitive.
+An `EtlExecution` records a run.
+
+An ETL job declares no parameters. Its tabular input is the rows its SQL reads.
+An ETL test therefore supplies a SQL fixture: DuckDB statements that run on the
+connection of the job, against a database that exists only for that test case.
+
+ETL is off by default (`FEATURE_ETL`, `FEATURE_PLAYGROUND_ETL`). DuckDB SQL can
+read any file on the host, and with the httpfs extension it can send outbound
+requests.
