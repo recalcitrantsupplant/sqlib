@@ -18,12 +18,12 @@ design-system test enforces.
 | Semantic | `--ink-muted`, `--surface-subtle` | Named by role. This is what components use. |
 | Component | `--control-h`, `--focus-ring-width` | Only where a component needs its own knob. |
 
-Dark mode is the `.dark` block at the end of `tokens.css`. It redefines only the
-semantic layer — primitives stay fixed — so a component that consumes semantics
-gets the dark theme with no rule of its own. `src/composables/useTheme.ts`
+Dark mode is the `.dark` block at the end of `tokens.css`. It defines the
+semantic layer again, and the primitives stay the same. A component that uses
+semantic tokens therefore gets the dark theme with no rule of its own. `src/composables/useTheme.ts`
 toggles `.dark` on `<html>` from the `theme` setting (`system`, `light`,
-`dark`; default `system`), and `nuxt.config.ts` inlines a head script that
-applies the same class before first paint to avoid a flash.
+`dark`; default `system`), and `nuxt.config.ts` adds a head script that
+applies the same class before the first paint, to prevent a flash.
 
 ## Token groups
 
@@ -37,7 +37,7 @@ applies the same class before first paint to avoid a flash.
 | Focus | `--focus-ring`, `--focus-ring-width` (2px) | `outline` on `:focus-visible` |
 | Domain | `--rdf-*`, `--syntax-*`, `--code-*`, `--graph-*`, `--kind-*`, `--state-*` | RDF terms, editors, canvas, result kinds, execution state |
 | Categorical | `--stratum-1…8` + `--stratum-none`, `--series-1…6` + `--series-unknown`, `--tag-1…8` + `--tag-none` | Palettes assigned by index, not by meaning |
-| Family | `--family-definition`, `--family-input`, `--family-evidence`, each with a `-surface` | What a rail section holds — what the library defines, takes in, or is judged by. Named after what they mark, unlike the categorical palettes above |
+| Family | `--family-definition`, `--family-input`, `--family-evidence`, each with a `-surface` | What a rail section holds: what the library defines, takes in, or is judged by. These tokens have the name of what they mark. The categorical palettes above do not |
 | Named chrome | `--segment-selected(-ink)`, `--tooltip-surface`/`--tooltip-ink`, `--draft-surface`, `--brand-mark(-ink)`, `--brand-1…3` | Intents that would otherwise be spelled `var(--ink)` and read as a bug |
 | Density | `--grid-unit`, `--grid-gap`, `--grid-1…8`, `--control-h-sm`/`--control-h`/`--control-h-lg`, `--space-1…9` | Control heights, aligned widths, spacing |
 | Radius | `--radius-sm`, `--radius`, `--radius-panel`, `--radius-lg`, `--radius-xl`, `--radius-full` | Corners |
@@ -68,8 +68,8 @@ maps its `status` prop onto them.
 
 ### Button sizes
 
-Every button stands on one of the three control heights, picked by where it
-sits rather than by the button:
+Each button uses one of the three control heights. Its location sets the
+height:
 
 - `--control-h` (28px) in any toolbar, header, action bar, composer or dialog
   footer. This is the default.
@@ -210,9 +210,9 @@ To respect the setting, a list component does three things:
    then `const density = computed(() => settings.value.entityListDensity)`.
 2. Render `<DensityToggle :model-value="density" @update:model-value="setEntityListDensity" />`
    in its header, so the control is where the rows are.
-3. Draw the second line only in `comfortable` — `v-if="density === 'comfortable'"`
-   on the description element — and put the extra row height behind a
-   `density-comfortable` class rather than in the base rule.
+3. Draw the second line only in `comfortable`, with
+   `v-if="density === 'comfortable'"` on the description element. Put the extra
+   row height in a `density-comfortable` class, and not in the base rule.
 
 `EntityListSidebar.vue` and `library-notebook/NotebookContents.vue` are the two
 implementations to copy from. Comfortable buys the description line and nothing
@@ -230,17 +230,19 @@ Run it with `pnpm --filter @sparql-query-lib/web lint` (also `lint:css`, and
 
 | Rule | Rejects | Write instead |
 | --- | --- | --- |
-| `color-no-hex` | Any hex literal, in any property | A colour token: `var(--ink-muted)`, `var(--danger-surface)`. If no token fits the role, add one to `tokens.css` rather than inlining the hex. |
+| `color-no-hex` | Any hex literal, in any property | A colour token: `var(--ink-muted)`, `var(--danger-surface)`. If no token fits the role, add one to `tokens.css`. Do not put the hex inline. |
 | `color-named` | Colour keywords such as `white`, `black`, `red` | The token for the role. `color: white` is not a hex, and is equally broken in dark mode; `var(--ink-inverse)` or `var(--action-fg)` is usually what was meant. |
 | `declaration-property-unit-allowed-list` | Any unit on `font-size` except `vw` | A `--text-*` token. `vw` is permitted so a `clamp()` display size can be expressed; the responsive hero already exists as `--text-hero-fluid`. |
 | `declaration-property-value-disallowed-list` | A `border-radius` value beginning with an integer length in `px`, `rem` or `em` | A `--radius*` token. `0`, `50%` and `100%` are allowed. |
-| `declaration-property-unit-disallowed-list` | `px` or `rem` on any `padding-*` or `margin-*` | A `--space-*` token. `0` is allowed, and so is any length relative to something other than the scale: `vh`, `vw`, `em`, `%`, or `calc()` over another token. A fixed offset that aligns with chrome rather than the scale belongs in a named custom property, not inline. |
+| `declaration-property-unit-disallowed-list` | `px` or `rem` on any `padding-*` or `margin-*` | A `--space-*` token. `0` is allowed, and so is any length relative to something other than the scale: `vh`, `vw`, `em`, `%`, or `calc()` over another token. A fixed offset that aligns with chrome, and not with the scale, goes in a named custom property. |
 
-Two limits worth knowing. The rules match literal syntax, so `rgba(…)` colours
-and a fractional radius such as `0.5rem` are not caught by the pattern above
-even though they break the same way; treat them as the same defect. And the
-lint says nothing about *which* token you picked — a semantically wrong token
-passes.
+The lint has two limits:
+
+- The rules match literal syntax. The patterns above do not find `rgba(…)`
+  colours, or a fractional radius such as `0.5rem`, but these cause the same
+  problem. Treat them as the same defect.
+- The lint does not check *which* token you selected. A token with the wrong
+  meaning passes.
 
 ## What the test enforces
 
@@ -273,8 +275,9 @@ It asserts, among other things:
 - **Scoped CSS.** No component keeps a scoped rule that nothing it renders can
   match.
 - **Stratum palette.** `useStratumPalette` returns `var(--stratum-N)`
-  references rather than literals, and wraps around the eight values.
+  references, and no literals. After the eighth value, it starts again at the
+  first.
 
-If a change trips one of these, the fix is normally to use the primitive rather
-than to extend the exception list; the lists exist to record what has been
-examined and deliberately left alone.
+If a change fails one of these checks, the usual fix is to use the primitive.
+Do not add to the exception list. The lists record what a person examined and
+decided to keep.

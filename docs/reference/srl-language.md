@@ -8,9 +8,10 @@ writing and running rules, see
 [rules and SRL](../guides/rules-and-srl.md); for a worked set, see
 [the Sudoku solver](../examples/sudoku-solver-ruleset.md).
 
-The parser is built on the Traqula SPARQL 1.2 parser, so the leaves of a rule —
-terms, triple patterns, expressions — are SPARQL 1.2. Everything in RDF 1.2 that
-SPARQL 1.2 accepts is accepted here, including triple terms and reifiers.
+The parser is built on the Traqula SPARQL 1.2 parser. The leaves of a rule
+(terms, triple patterns and expressions) are therefore SPARQL 1.2. This parser
+accepts each RDF 1.2 construct that SPARQL 1.2 accepts, including triple terms
+and reifiers.
 
 ## Document shape
 
@@ -48,10 +49,10 @@ one where editing a named rule revises it.
 The head is a set of triple templates. Every variable in the head must be bound
 by the body.
 
-`WHERE DATA` makes the whole body match the *ground* graph — the base graph plus
-every `DATA` block, as it stood before any rule ran — instead of the evaluation
-graph. Such a rule reads only what was given and never what has been inferred,
-and so depends on no other rule.
+`WHERE DATA` makes the whole body match the *ground* graph, and ignore the
+evaluation graph. The ground graph is the base graph and each `DATA` block, as
+they were before any rule ran. Such a rule reads only the given data, and never
+an inferred triple, so it depends on no other rule.
 
 ### `DATA`
 
@@ -72,9 +73,9 @@ same triples reuse the same stored block.
 
 ## What a rule body admits
 
-A body is a sequence of items. Order matters — SRL evaluates a body
-sequentially, unlike SPARQL, where `FILTER` is scoped to its whole group. A `.`
-between items is optional.
+A body is a sequence of items. The order is important: SRL evaluates a body in
+sequence. In SPARQL, a `FILTER` applies to its whole group. A `.` between items
+is optional.
 
 | Construct | Form |
 | --- | --- |
@@ -83,7 +84,7 @@ between items is optional.
 | Negation | `NOT { … }` |
 | Ground negation | `NOT DATA { … }` |
 | Assignment | `SET ( ?v := expr )` |
-| Named tuples | `TUPLE( … )` — extension, off by default; see below |
+| Named tuples | `TUPLE( … )`: an extension, off by default. See below |
 
 `NOT { … }` sees only the variables bound before it. A variable it shares with
 the body but that is bound only *after* it is free inside the negation, so
@@ -121,18 +122,22 @@ error naming the offending token.
 | `MINUS` | `Parse error Expecting --> } <-- but found --> 'MINUS' <--` |
 | `GRAPH` | `Parse error Expecting --> } <-- but found --> 'GRAPH' <--` |
 
-`BIND` has `SET` in its place, and `FILTER EXISTS` / `FILTER NOT EXISTS` —
-rejected with `NOT EXISTS is not part of SRL — write the negation as NOT { … }`
-— have `NOT` in theirs; the SRL forms carry the sequential-evaluation semantics
-the compiler relies on. The rest have no SRL equivalent.
+SRL has its own forms for some of these:
 
-An earlier `IF … THEN` spelling and a `FOR ?v IN :Shape` clause are both
-rejected: neither is in the language.
+- `SET` replaces `BIND`.
+- `NOT` replaces `FILTER EXISTS` and `FILTER NOT EXISTS`. The parser rejects
+  those with `NOT EXISTS is not part of SRL — write the negation as NOT { … }`.
 
-One further source-level check runs before parsing. A directional language tag's
-base direction must be exactly `ltr` or `rtl` in lower case — the tag itself is
-case-insensitive, and the parser normalises the direction, so an invalid
-uppercase direction has to be caught in the text:
+The SRL forms have the semantics of sequential evaluation, which the compiler
+needs. The other constructs have no SRL equivalent.
+
+The parser rejects an earlier `IF … THEN` form and a `FOR ?v IN :Shape` clause.
+Neither is in the language.
+
+One more check runs on the source text before the parse. The base direction of
+a directional language tag must be exactly `ltr` or `rtl`, in lower case. The
+tag itself ignores case, and the parser normalises the direction. An invalid
+upper-case direction must therefore be found in the text:
 
 ```
 SRL syntax error: invalid base direction '--LTR' (expected '--ltr' or '--rtl')
@@ -150,9 +155,9 @@ and a message. An empty list means no issues.
 | `set-rebinds` | `SET` targets a variable the body already binds, or two `SET`s target the same variable | `SET (?y := …) re-binds a variable already bound in the body` |
 | `use-before-bind` | A `FILTER` or `SET` expression references a variable not yet bound at that point | `?y is used by a FILTER before it is bound` |
 
-Variables introduced inside `NOT { … }` are existentially quantified within the
-negated pattern and are deliberately not required to be bound outside it. They
-also do not count as binding a head variable. A `FILTER` or `SET` *inside* a
+Variables first used inside `NOT { … }` are existentially quantified in the
+negated pattern. By design, they need not be bound outside it. They also do not
+bind a head variable. A `FILTER` or `SET` *inside* a
 `NOT` is held to the same order rule: it may use the variables bound before the
 `NOT` and those the negated pattern binds ahead of it, and nothing bound later
 in the outer body.
@@ -238,11 +243,11 @@ INSERT {
 }
 ```
 
-Passing `{ flavour: 'construct' }` emits `CONSTRUCT { … } WHERE { … }` from the
-same head and body: one pass of the rule, returning the triples instead of
-writing them. Nothing executes that form; it is there so a reader can paste one
-pass into any endpoint and see what it would add. Neither form is stored — both
-are computed on demand from the document.
+With `{ flavour: 'construct' }`, the compiler gives `CONSTRUCT { … } WHERE { … }`
+from the same head and body. This is one pass of the rule. It returns the
+triples, and writes nothing. sqlib never runs this form. A reader can paste one
+pass into any endpoint, to see what the rule would add. sqlib stores neither
+form. It calculates both from the document when asked.
 
 Body items translate as follows:
 
@@ -255,12 +260,12 @@ Body items translate as follows:
 | `WHERE DATA { B }` | The whole body wrapped in `GRAPH <urn:sqlib:srl:ground> { B }` |
 | `SET ( ?v := E )` | `BIND(E AS ?v) FILTER(BOUND(?v))`, with everything up to and including the assignment wrapped in a group |
 
-A `NOT` that mentions a variable bound only after it also closes a group: see
+A `NOT` that names a variable bound only after it also closes a group. See
 [The order of `NOT`](#the-order-of-not) below.
 
-`urn:sqlib:srl:ground` is the named graph the executor keeps the ground data
-in — the base graph plus every `DATA` block, as it stood before any rule ran.
-The compiler and the executor agree on that IRI; it is exported as
+`urn:sqlib:srl:ground` is the named graph where the executor keeps the ground
+data: the base graph and each `DATA` block, as they were before any rule ran.
+The compiler and the executor use the same IRI, exported as
 `GROUND_GRAPH_IRI`.
 
 The `SET` translation is the specification's own: a SPARQL expression either
@@ -279,8 +284,8 @@ solution the `SET` should have killed comes back. Wrapping gives
 { BIND(1/0 AS ?x) FILTER(BOUND(?x)) } :s ?p ?x
 ```
 
-which keeps the test scoped to the point it was written at while still letting
-the expression see the variables bound before it.
+The test then applies at the point where it was written, and the expression
+still sees the variables bound before it.
 
 If SRL ever gains an `OPTIONAL`-like construct, or an expression that can
 legitimately yield unbound, the `BOUND` test needs revisiting.
@@ -315,22 +320,22 @@ infer different triples; its README lists both answers.
 
 ## Canonical form and identity
 
-`expandIris` rewrites prefixed names to full IRIs throughout the AST, and
-`generateRuleSet` serialises back to SRL *from the AST* rather than from source
-slices. Together these make canonical text independent of how the author spelled
-their prefixes, so a prefix-only edit is provably not a content change. The
-verbatim `headText`, `bodyText` and `prologueText` slices are kept beside the
-AST for display and are not affected by expansion.
+`expandIris` changes prefixed names to full IRIs in the whole AST.
+`generateRuleSet` writes SRL *from the AST*, and does not copy slices of the
+source. The canonical text therefore does not depend on the prefixes that the
+author used. An edit that changes only prefixes is not a content change. The
+verbatim `headText`, `bodyText` and `prologueText` slices stay next to the AST,
+for display. Expansion does not change them.
 
-A rule's canonical form carries no prologue: prefixes are presentation, owned by
-the rule set.
+The canonical form of a rule has no prologue. Prefixes are presentation, and
+the rule set owns them.
 
 ## The rule-tuples extension
 
-**This is not conformant SHACL 1.2 Rules.** `TUPLE( … )` is an extension to the
-language, gated by the `ruleTuples` feature flag (`FEATURE_RULE_TUPLES`), which
-is **off by default**. A document written with it on cannot be read by other
-SHACL 1.2 Rules tooling.
+**This extension is not part of SHACL 1.2 Rules.** `TUPLE( … )` is an extension
+to the language. The `ruleTuples` feature flag (`FEATURE_RULE_TUPLES`) controls
+it, and is **off by default**. Other SHACL 1.2 Rules tools cannot read a
+document that uses it.
 
 With the extension off, `TUPLE` is a syntax error:
 
@@ -338,10 +343,10 @@ With the extension off, `TUPLE` is a syntax error:
 SRL syntax error: TUPLE requires the rule-tuples extension (parse with { tuples: true })
 ```
 
-The parser reports that rather than a bare token error, so an author is told
-which extension the document needs. What a caller sees from the API — and what
-the flag does and does not cover — is in
-[feature flags](feature-flags.md#ruletuples-the-srl-rule-tuples-extension).
+The parser gives this message, and not a plain token error, so that the author
+knows which extension the document needs.
+[Feature flags](feature-flags.md#ruletuples-the-srl-rule-tuples-extension)
+describes what a caller sees from the API, and what the flag covers.
 
 A **tuple** here is an ordered list of terms with no relation name. The store is
 keyed by arity, and within an arity terms unify slot by slot: a constant must be
@@ -372,8 +377,9 @@ tuple templates, not both; a rule that mixes them is refused:
 A rule head may contain either triple templates or tuple templates, not both
 ```
 
-The `construct` flavour is ignored for a tuple-producing rule — a `SELECT` has
-no `CONSTRUCT` form — and the same `SELECT` comes back either way.
+For a rule that makes tuples, the compiler ignores the `construct` flavour,
+because a `SELECT` has no `CONSTRUCT` form. It returns the same `SELECT` in both
+cases.
 
 ### In a body
 
@@ -410,11 +416,11 @@ TUPLE(:reach, :a, :b)
 TUPLE(:reach, :b, ?target)
 ```
 
-A row whose slots are all constants is a value the store starts with. A row
-carrying a variable declares an input a caller is expected to fill — the tuple
-analogue of an all-`UNDEF` `VALUES` row in a query. Blank nodes are rejected: a
-blank node is existential, which is meaningless as an input and unmatchable as a
-store row.
+A row with only constants is a value in the store at the start. A row with a
+variable declares an input for a caller to fill. It is the tuple form of an
+all-`UNDEF` `VALUES` row in a query. The parser rejects blank nodes. A blank
+node is existential, so it has no meaning as an input, and cannot match a store
+row.
 
 IRIs in a seed document are expanded against that document's own prologue. A
 caller that wants the rule set's prefixes to apply prepends the rule set
@@ -502,7 +508,7 @@ Two rules decide whether a row survives.
 **Group existence.** With `BY`, a group exists only for a key that the
 pattern's solutions supply. A row whose key has no solutions forms no group, so
 it is dropped, whatever the functions are. A person with no children gets no
-`COUNT` row rather than a count of 0. Without `BY`, there is always one
+`COUNT` row. It does not get a count of 0. Without `BY`, there is always one
 implicit group, even when the pattern has no solutions. Over that empty group,
 `COUNT(*)`, `COUNT(?v)` and `SUM(?v)` give 0. An empty pattern, `GROUP { }`,
 has one solution, so its group has one solution.
