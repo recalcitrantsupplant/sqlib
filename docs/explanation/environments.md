@@ -154,9 +154,9 @@ approving what goes into them are separate jobs.
 
 ## Export
 
-`GET /libraries/:id/export-bundle?environment=prod` exports the versions prod
-points to instead of the current ones. An entity with no version in prod is
-left out and reported. `latest` exports the current versions.
+`GET /libraries/:id/export-bundle?environment=prod` exports the versions that
+prod points to. The export leaves out each entity with no version in prod, and
+reports it. `latest` exports the current versions.
 
 ## Who made a version
 
