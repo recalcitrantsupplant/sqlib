@@ -39,7 +39,7 @@
     "@sparql-query-lib/tools": "workspace:*",
     "@sparql-query-lib/types": "workspace:*",
     "dotenv": "^18.0.9",
-    "fastify": "^5.12.7"
+    "fastify": "^5.12.8"
   },
   "devDependencies": {
     "json-schema-to-ts": "^3.1.1",
