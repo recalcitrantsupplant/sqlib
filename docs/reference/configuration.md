@@ -1,17 +1,19 @@
 # Configuration reference
 
-Every environment variable the server reads, with the default that applies when
-it is unset and what setting it changes. Defaults here are taken from the code
-that reads each variable.
+This page lists each environment variable that the server reads, with its
+default and its effect. The defaults come from the code that reads each
+variable.
 
-Two processes read this environment and they are not the same process. The API
-(`packages/api`) reads `PORT` and `FASTIFY_ADDRESS`; the MCP runtime
-(`packages/mcp-server`), which mounts the API in-process, reads `HTTP_PORT`,
-`HTTP_HOST` and the `MCP_*` variables. The container starts one of them
-according to `APP_MODE`. The web app is a separate static build with its own
-`NUXT_PUBLIC_*` variables, listed at the end.
+Two different processes read this environment:
 
-For the reasoning behind these choices rather than their values, see
+- The API (`packages/api`) reads `PORT` and `FASTIFY_ADDRESS`.
+- The MCP runtime (`packages/mcp-server`) mounts the API in its process, and
+  reads `HTTP_PORT`, `HTTP_HOST` and the `MCP_*` variables.
+
+The container starts one of them, as `APP_MODE` sets. The web app is a separate
+static build, with its own `NUXT_PUBLIC_*` variables, listed at the end.
+
+For the reasons behind these settings, see
 [running and configuring](../guides/running-and-configuring.md) and
 [deploying](../guides/deploying.md).
 
@@ -37,14 +39,14 @@ For the reasoning behind these choices rather than their values, see
 
 ## Library storage
 
-The library — every entity you author — lives in a store chosen by
-`INTERNAL_BACKEND_TYPE`. This is separate from the backends your queries run
-against, which are entities you create through the API.
+The library holds each entity that you author. `INTERNAL_BACKEND_TYPE` selects
+its store. This store is separate from the backends that your queries run
+against. Those backends are entities that you make through the API.
 
 | Name | Default | Effect |
 | --- | --- | --- |
 | `INTERNAL_BACKEND_TYPE` | `sqlite` | `sqlite`, `http`, `oxigraph-memory` or `oxigraph-persistent`. Unset or empty means `sqlite`. Any other value throws at startup. |
-| `LIBRARY_STORAGE_SPARQL_ENDPOINT` | `http://localhost:3030/sqlib/` | With `INTERNAL_BACKEND_TYPE=http`, the SPARQL endpoint holding the library. The default is a local Fuseki on its conventional port, so an unconfigured server fails against localhost rather than reaching an external host. |
+| `LIBRARY_STORAGE_SPARQL_ENDPOINT` | `http://localhost:3030/sqlib/` | With `INTERNAL_BACKEND_TYPE=http`, the SPARQL endpoint holding the library. The default is a local Fuseki on its usual port. An unconfigured server therefore fails against localhost, and never reaches an external host. |
 | `LIBRARY_STORAGE_SPARQL_QUERY_ENDPOINT` | value of `LIBRARY_STORAGE_SPARQL_ENDPOINT` | Query URL, when the store separates query from update. |
 | `LIBRARY_STORAGE_SPARQL_UPDATE_ENDPOINT` | value of `LIBRARY_STORAGE_SPARQL_ENDPOINT` | Update URL, when the store separates query from update. |
 | `LIBRARY_STORAGE_SPARQL_USERNAME` | unset | Basic-auth username for the library endpoint. |
@@ -54,35 +56,36 @@ against, which are entities you create through the API.
 | `INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS` | `60000` | How often the in-memory store is written back to `.nq`. |
 | `INTERNAL_OXIGRAPH_LOAD_METHOD` | `none` | How the store is populated at boot: `file`, `remote-sparql`, `remote-file` or `none`. An unrecognised value falls back to `none`. |
 | `INTERNAL_OXIGRAPH_BOOTSTRAP_SOURCE` | unset | A JSON object describing the source for that load method. Invalid JSON is logged as a warning and ignored. |
-| `OXIGRAPH_STORAGE_DIR` | `./storage/oxigraph` | Directory for in-process Oxigraph backends you create as entities — the stores behind `oxigraphEphemeral` and `oxigraphMemory` backends. It is not where the library lives unless `INTERNAL_BACKEND_TYPE=oxigraph-persistent`, in which case `LIBRARY_STORAGE_DIR` takes over for the library store. |
+| `OXIGRAPH_STORAGE_DIR` | `./storage/oxigraph` | Directory for the in-process Oxigraph backends that you make as entities: the stores behind `oxigraphEphemeral` and `oxigraphMemory` backends. The library is not stored here. With `INTERNAL_BACKEND_TYPE=oxigraph-persistent`, the library store is in `LIBRARY_STORAGE_DIR`. |
 | `ENABLE_OXIGRAPH` | `false` | Set to `true` to initialise the Oxigraph store manager even when the library is not in Oxigraph, so that Oxigraph-backed backend entities work. It is initialised unconditionally when `INTERNAL_BACKEND_TYPE=oxigraph-persistent`. |
 | `DEBUG_OXIGRAPH` | `false` | Set to `true` to log every SPARQL operation the in-process Oxigraph executor runs. |
 
 ### What `oxigraph-persistent` actually does
 
-The Oxigraph JavaScript/WebAssembly bindings support in-memory stores only.
-There is no RocksDB-backed store as there is in the Rust and Python bindings.
-`oxigraph-persistent` is an in-memory store that is serialised to `.nq` files
-in `LIBRARY_STORAGE_DIR` on shutdown and every
-`INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS` milliseconds, and restored from those
-files at startup. A process killed between checkpoints loses the writes made
-since the last one. `oxigraph-memory` keeps nothing.
+The Oxigraph JavaScript/WebAssembly bindings support only in-memory stores.
+They have no RocksDB-backed store, which the Rust and Python bindings have.
+`oxigraph-persistent` is an in-memory store. sqlib writes it to `.nq` files in
+`LIBRARY_STORAGE_DIR` on shutdown and each
+`INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS` milliseconds, and reads those files
+at startup. A process killed between checkpoints loses the writes made since
+the last checkpoint. `oxigraph-memory` keeps nothing.
 
-For a store that is durable in the usual sense, use the default `sqlite`, or run
-a SPARQL server such as Oxigraph's own or Fuseki alongside and use
-`INTERNAL_BACKEND_TYPE=http`.
+For a durable store, use the default `sqlite`. Or run a SPARQL server, such as
+the Oxigraph server or Fuseki, and use `INTERNAL_BACKEND_TYPE=http`.
 
-`INTERNAL_OXIGRAPH_DB_PATH` is no longer read. It named a RocksDB directory
-that these bindings cannot open; serialisation goes to `LIBRARY_STORAGE_DIR`.
+sqlib no longer reads `INTERNAL_OXIGRAPH_DB_PATH`. It named a RocksDB directory
+that these bindings cannot open. The serialisation goes to
+`LIBRARY_STORAGE_DIR`.
 
-See [storage and caching](../explanation/storage-and-caching.md) for how the
-store and the in-memory cache relate.
+[Storage and caching](../explanation/storage-and-caching.md) describes how the
+store and the in-memory cache work together.
 
 ## Execution backend credentials
 
 A `Backend` entity does not store credentials. It stores an `authEnvKey`, and
-the server looks up the credentials in the environment under that key. This
-keeps secrets out of the library store, which is exported, imported and copied.
+the server reads the credentials from the environment under that key. Secrets
+therefore stay out of the library store, which is exported, imported and
+copied.
 
 `authEnvKey` must match `^[A-Z0-9_]+$`. For a backend whose `authEnvKey` is
 `<KEY>`, the server reads, in this order:
@@ -114,30 +117,32 @@ sends no credentials.
 | `CACHE_PRELOAD` | `true` | Load every entity into the cache at startup. Set to `false` (case-insensitive) to skip the preload; with it off, background per-type refreshes are also skipped. |
 | `ENABLE_TIMING_LOGS` | `true`, and not changeable | Intended to switch per-request timing logs. The expression that reads it is `process.env.ENABLE_TIMING_LOGS === 'true' \|\| true`, so `config.enableTimingLogs` is always `true` and setting the variable has no effect. |
 
-Entity time-to-live in the cache is not configurable by environment: it is set
-per entity type in `packages/api/src/lib/EntityRegistry.ts`, where immutable
-versions are held indefinitely. See
+No environment variable sets the time-to-live of entities in the cache.
+`packages/api/src/lib/EntityRegistry.ts` sets it for each entity type, and keeps
+immutable versions with no time limit. See
 [storage and caching](../explanation/storage-and-caching.md).
 
 ## ETL
 
-ETL is off by default; see [feature flags](feature-flags.md) and the
+ETL is off by default. See [feature flags](feature-flags.md) and the
 [ETL guide](../guides/etl.md).
 
 | Name | Default | Effect |
 | --- | --- | --- |
 | `ETL_OUTPUT_DIR` | `./storage/etl-output`, resolved against the process working directory | Where an ETL execution writes its RDF output files. The container creates this path with the right ownership, so it is writable on a fresh volume. Not written on a read-only deployment. |
-| `ETL_RESPONSE_OUTPUT_MAX_BYTES` | `1048576` | The most RDF a run returns in its response on a read-only deployment, where it writes no file. A run whose output passes it fails, naming the cap, rather than returning part of its output. |
-| `SQLIB_ETL_NODE_MAX_ROWS` | `1000000` | The most rows an ETL node inside a query group may read from its source. A source with more fails the node, naming the cap, rather than handing the rest of the group a truncated result. Running a job directly is not affected. |
+| `ETL_RESPONSE_OUTPUT_MAX_BYTES` | `1048576` | The most RDF a run returns in its response on a read-only deployment, where it writes no file. A run whose output goes over the limit fails, and names the limit. It does not return part of its output. |
+| `SQLIB_ETL_NODE_MAX_ROWS` | `1000000` | The most rows an ETL node inside a query group may read from its source. A source with more rows fails the node, and the error names the limit. The rest of the group never gets a truncated result. A direct run of a job has no such limit. |
 
 ## Kept results (pass-by-reference)
 
-A run that sets `keepResult` has its response kept in server memory, and the
-response carries a `Sqlib-Result-Ref` handle. A later request names the handle
-(`argumentRefs` or `dataGraphs[].resultRef` on `/execute`, `dataGraphResultRef`
-on a rule set run) instead of sending the content again. Only responses the
-server produced are kept, and a handle is readable only by the subject that made
-the run. A missing, expired or foreign handle returns `410`.
+When a run sets `keepResult`, the server keeps its response in memory, and the
+response has a `Sqlib-Result-Ref` handle. A later request can name the handle,
+and need not send the content again. The fields are `argumentRefs` or
+`dataGraphs[].resultRef` on `/execute`, and `dataGraphResultRef` on a rule set
+run.
+
+The server keeps only responses that it produced. Only the subject that made the
+run can read a handle. A missing, expired or foreign handle returns `410`.
 
 | Name | Default | Effect |
 | --- | --- | --- |
@@ -171,8 +176,8 @@ A value that does not parse as an integer falls back to the default.
 
 ## Telemetry
 
-Telemetry is off unless something says where to send it. With it off the
-OpenTelemetry SDK is not loaded at all. See
+Telemetry is off until a setting gives a destination. With telemetry off,
+sqlib does not load the OpenTelemetry SDK. See
 [observability](../guides/observability.md) for recipes and the local stack.
 
 | Name | Default | Effect |
@@ -192,164 +197,184 @@ OpenTelemetry SDK is not loaded at all. See
 | `SQLIB_OBSERVABILITY_URL` | unset | Where people look at the telemetry, such as a Grafana dashboard. Administrators get an "Open dashboard" link in Settings. Only `http` and `https` URLs are used. |
 | `SQLIB_TRACE_URL_TEMPLATE` | unset | A URL with `{traceId}` in it, such as a Grafana Explore or App Insights transaction link. With telemetry on, each response carries `Sqlib-Trace-Url` with the request's trace id filled in, and the web app shows a trace icon on run results. |
 
-Every other `OTEL_*` variable the OpenTelemetry Node SDK reads works as
-documented for it, because sqlib passes no exporter of its own.
+Each other `OTEL_*` variable that the OpenTelemetry Node SDK reads works as its
+documentation states, because sqlib passes no exporter of its own.
 
-With telemetry on, log lines still go to stdout, and also go out as OTLP log
-records unless `OTEL_LOGS_EXPORTER=none`. Lines logged inside a request carry
+With telemetry on, log lines still go to stdout. They also go out as OTLP log
+records, unless `OTEL_LOGS_EXPORTER=none`. Lines logged in a request have
 `trace_id` and `span_id`.
 
 ## Startup time
 
-Relevant to a deployment that scales to zero, where a cold start sits in front
-of a user request rather than happening once a week.
+These settings are for a deployment that scales to zero. There, a cold start
+occurs before a user request, and can occur many times each day.
 
 | Name | Default | Effect |
 | --- | --- | --- |
-| `SQLIB_EAGER_SERIALIZERS` | unset (lazy) | Set to exactly `true` to compile every route's response serialiser while the server starts, instead of on that route's first response. |
-| `NODE_COMPILE_CACHE` | unset in a local run, `/app/.v8-compile-cache` in the container | Node's own variable: a directory where it caches compiled module bytecode and reuses it next boot. The image ships a populated cache, so the first container to start is already warm. |
+| `SQLIB_EAGER_SERIALIZERS` | unset (lazy) | Set to exactly `true` to compile the response serialiser of each route when the server starts. By default, each serialiser compiles on the first response of its route. |
+| `NODE_COMPILE_CACHE` | unset in a local run, `/app/.v8-compile-cache` in the container | A Node variable: a directory where Node caches compiled module bytecode, for use at the next start. The image includes a full cache, so the first container to start is already warm. |
 
-Response-schema compilation is the largest single term in startup and it scales
-with the number of routes, not with the amount of data: on a 135-route instance
-it was ~890ms of a ~1.4s `ready()`, whether or not anything ever called those
-routes. Compiling each route's serialiser on its first response instead moves
-that off the boot path for ~2ms on that first response, which is why it is the
-default. `SQLIB_EAGER_SERIALIZERS=true` is the way back for a long-lived
-instance that would rather pay the whole bill before it accepts traffic.
+Response-schema compilation is the largest single part of startup. Its time
+increases with the number of routes, and does not depend on the amount of data.
+On an instance with 135 routes, it took about 890ms of a `ready()` of about
+1.4s, whether or not any caller used those routes. When each serialiser
+compiles on the first response of its route, startup does not include this
+time, and the first response takes about 2ms more. This is the default.
+`SQLIB_EAGER_SERIALIZERS=true` restores compilation at startup, for a
+long-lived instance that must do all the work before it accepts traffic.
 
-Two other things help and are ordinary configuration rather than switches:
-turning off [feature flags](feature-flags.md) you do not serve removes their
-routes, and each route is worth roughly 10ms of startup; and leaving telemetry
-unconfigured (the default) avoids loading the OpenTelemetry SDK.
+Two ordinary settings also help:
 
-What does *not* help much is anything about Oxigraph itself: the WASM module
-instantiates in about 25ms. The data-dependent part of startup is the snapshot,
-which loads at roughly 180,000 quads per second, plus the cache preload — so a
-library of a few thousand entities is lost in the noise and one of a few hundred
-thousand quads is not. See [what `oxigraph-persistent` actually
-does](#what-oxigraph-persistent-actually-does).
+- Turn off the [feature flags](feature-flags.md) that you do not serve. This
+  removes their routes. Each route adds about 10ms to startup.
+- Leave telemetry unconfigured (the default). sqlib then does not load the
+  OpenTelemetry SDK.
+
+Oxigraph itself has little effect: the WASM module starts in about 25ms. The
+part of startup that depends on data is the snapshot, which loads at about
+180,000 quads per second, and the cache preload. A library of a few thousand
+entities adds very little time. A library of a few hundred thousand quads adds
+seconds. See
+[what `oxigraph-persistent` actually does](#what-oxigraph-persistent-actually-does).
 
 ## Read-only deployments
 
-`SQLIB_READ_ONLY=true` turns sqlib into a compute service: it still parses,
-validates, formats and executes, but it refuses every write to its own state.
-The catalogue changes by redeployment, and anything a visitor authors is kept in
-their browser instead. It is what a public demo site runs.
+`SQLIB_READ_ONLY=true` makes sqlib a compute service. It still parses,
+validates, formats and executes, and it refuses each write to its own state.
+The catalogue changes only with a new deployment. The browser of a visitor keeps
+what the visitor authors. A public demo site uses this mode.
 
 | Name | Default | Effect |
 | --- | --- | --- |
 | `SQLIB_READ_ONLY` | `false` | Exactly `true` turns it on; any other value, including unset, leaves it off. |
 
-It is not an auth mode and does not need one. An auth mode answers "who is this,
-and what may they reach", which needs principals, grants and an issuer; this
-answers "may this deployment's own state change at all", which gives every
-caller the same answer. The two compose — a public site runs
-`SQLIB_AUTH_MODE=disabled` beside this, and the full-access context that mode
-mints still cannot write, because the gate consults no context.
+Read-only is a separate setting from the auth mode, and needs no auth mode:
 
-The gate refuses every mutating method and then names its exceptions, so a route
-added later is refused until someone decides otherwise. A route that writes on a
-safe method declares it with `config: { readOnlyMutating: true }` in its route
-options, and is refused like an unlisted `POST`. The exceptions are the
-routes that compute an answer and store nothing: `/detect-inputs`,
+- An auth mode decides who the caller is, and what the caller can reach. It
+  needs principals, grants and an issuer.
+- Read-only decides whether the state of the deployment can change. The answer
+  is the same for each caller.
+
+You can use both together. A public site runs `SQLIB_AUTH_MODE=disabled` with
+read-only. The full-access context of that auth mode still cannot write, because
+the read-only gate reads no context.
+
+The gate refuses each mutating method, and then lists its exceptions. A new
+route is therefore refused until a person adds it to the list. A route that
+writes on a safe method declares this with `config: { readOnlyMutating: true }`
+in its route options, and is refused like an unlisted `POST`. The exceptions are
+the routes that calculate an answer and store nothing: `/detect-inputs`,
 `/detect-outputs`, `/validate`, `/validate-rule-data`, `/format`, `/substitute`,
 `/execute`, `/sparql`, the SRL compile, analyse and preview routes, the rule and
 rule-set execution routes, the tuple-set preview, the two test-run routes,
-`POST /etl-jobs/:id/execute`, `POST /benchmark-experiments/:id/versions/:version/run`, and `/mcp`. The list lives in `packages/api/src/config/readOnly.ts`, and a test
-fails on an entry that names no registered route, on a mutating route that is
-neither listed nor refused, and on one of these exceptions losing its way back.
+`POST /etl-jobs/:id/execute`, `POST /benchmark-experiments/:id/versions/:version/run`, and `/mcp`. The list is in `packages/api/src/config/readOnly.ts`. A test fails in these
+cases:
 
-Four of those exceptions are worth their own sentence:
+- an entry names no registered route;
+- a mutating route is not listed and not refused;
+- one of these exceptions is refused.
 
-- **Running a test is compute; its history is the write.** `POST /tests/run`
-  and `POST /tests/:id/run` answer with a verdict, and `recordTestRuns` files
-  nothing on a read-only deployment, so no run history accumulates — the same
-  line `?record=patch` draws for SPARQL.
-- **Running a stored ETL job is compute; its record and its file are the
-  write.** On a read-only deployment `POST /etl-jobs/:id/execute` opens no
-  `EtlExecution` and writes no output file, and returns the RDF in the response
-  as `output`, up to `ETL_RESPONSE_OUTPUT_MAX_BYTES`. What runs is the job
-  version's stored SQL; the request carries none. The run reads at most
-  `SQLIB_READ_ONLY_ETL_MAX_ROWS` source rows, and when the request asked for
-  more (or for no limit) the response says so in `rowLimitApplied`.
-- **Running a frozen benchmark version is compute; its runs and observations
-  are the write.** On a read-only deployment the run route accepts only a
-  version that is already frozen (it does not freeze one), returns the run and
-  its observations in the response, and stores none of them. A plan over the
-  request cap is refused with 422, naming the cap; a second run while one is in
-  flight gets 429 with `Retry-After`. The freeze route stays refused.
+Four exceptions need more detail:
 
-The caps on those runs, read only on a read-only deployment and reported by
-`/health` as `readOnlyRunLimits`:
+- **A test run is computation. Its history is a write.** `POST /tests/run` and
+  `POST /tests/:id/run` answer with a verdict. On a read-only deployment,
+  `recordTestRuns` stores nothing, so no run history accumulates. `?record=patch`
+  follows the same rule for SPARQL.
+- **A run of a stored ETL job is computation. Its record and its file are
+  writes.** On a read-only deployment, `POST /etl-jobs/:id/execute` makes no
+  `EtlExecution` and writes no output file. It returns the RDF in the response
+  as `output`, up to `ETL_RESPONSE_OUTPUT_MAX_BYTES`. The stored SQL of the job
+  version runs. The request contains no SQL. The run reads at most
+  `SQLIB_READ_ONLY_ETL_MAX_ROWS` source rows. When the request asked for more,
+  or for no limit, the response says so in `rowLimitApplied`.
+- **A run of a frozen benchmark version is computation. Its runs and
+  observations are writes.** On a read-only deployment, the run route accepts
+  only a version that is already frozen, and does not freeze one. It returns the
+  run and its observations in the response, and stores none of them. A plan
+  over the request limit gets 422, which names the limit. A second run while one
+  is in progress gets 429 with `Retry-After`. The freeze route stays refused.
+
+The limits on those runs apply only on a read-only deployment. `/health`
+reports them as `readOnlyRunLimits`:
 
 | Name | Default | Effect |
 | --- | --- | --- |
-| `SQLIB_READ_ONLY_BENCH_MAX_REQUESTS` | `200` | The most requests one benchmark run may send: measured tasks plus warmups. A version over it is refused, not clamped, because a clamped benchmark reports numbers for a plan nobody saved. |
+| `SQLIB_READ_ONLY_BENCH_MAX_REQUESTS` | `200` | The most requests one benchmark run may send: measured tasks plus warmups. A version over the limit is refused. A reduced benchmark would report numbers for a plan that nobody saved. |
 | `SQLIB_READ_ONLY_BENCH_MAX_CONCURRENCY` | `2` | The most a version's `maxConcurrency` may ask for. |
 | `SQLIB_READ_ONLY_BENCH_DEADLINE_MS` | `60000` | The wall-clock limit for a whole benchmark run. When it passes, no task starts, the attempts in flight are aborted, and the run ends `Aborted` with what it finished. |
 | `SQLIB_READ_ONLY_BENCH_CONCURRENT_RUNS` | `1` | Benchmark runs allowed at once on the deployment. `disabled` auth gives no client identity, so the count is deployment-wide. |
-| `SQLIB_READ_ONLY_ETL_MAX_ROWS` | `100000` | The most source rows one ETL job run may read. A clamp rather than a refusal: a visitor running part of a source is asking for a sample. |
-- **`/mcp` is all POST**, so refusing it would take every tool, reads included,
-  off a read-only deployment. Admitting it opens no write path: a tool call
-  reaches its route through `app.inject` and meets the same hook there, so a
-  mutation tool is refused at the inner route.
+| `SQLIB_READ_ONLY_ETL_MAX_ROWS` | `100000` | The most source rows one ETL job run may read. A request for more rows is reduced to this limit, and is not refused. A visitor who runs part of a source wants a sample. |
+- **`/mcp` uses only POST.** If the gate refused it, a read-only deployment
+  would lose each tool, including the tools that read. Its admission opens no
+  write path. A tool call reaches its route through `app.inject`, and the same
+  hook applies there. The inner route therefore refuses a tool that writes.
 
-Three things it deliberately does **not** do:
+Read-only intentionally does **not** do three things:
 
 - **It does not refuse SPARQL against a registered backend.** `POST /sparql`
-  with a `backendId` passes through, UPDATEs included. A bare `endpoint` is
-  refused with `405`, for the reason `/backends/probes` is: a public server
-  that fetches a URL the caller chose is a request forgery primitive. Which
-  SPARQL a visitor may run is a grant, not this flag: `SQLIB_AUTH_MODE=anonymous`
-  with `query:saved` on a backend admits the seeded queries and nothing typed. Whether a store accepts a write is the store's answer:
-  sqlib's own read-only backends refuse through `ReadOnlySparqlExecutor`, and
-  an endpoint somebody else owns refuses, or does not, on its own terms. What
-  it does refuse is `?record=patch`, on `GET` and `POST` alike, because
-  recording a patch writes sqlib's state. (`GET /sparql` refuses an UPDATE with
-  405 on every deployment, read-only or not: a GET must not change anything.)
-- **It does not enable anything.** `FEATURE_ETL`, `FEATURE_PLAYGROUND_ETL` and
-  `FEATURE_ASSISTANT` are still off by default, and the ETL routes that take SQL
-  in the request — `POST /etl-jobs/preview` and `POST /playground/etl/execute`
-  — are absent from the exceptions above, as is every route that would store a
-  job version. Turning a flag on is not enough to let a visitor's own SQL run on
-  a read-only deployment.
-- **It does not authenticate.** Every visitor is the same anonymous caller.
+  with a `backendId` passes through, with UPDATEs.
+  - A bare `endpoint` gets `405`, for the same reason as `/backends/probes`: a
+    public server that fetches a URL chosen by the caller allows request
+    forgery.
+  - A grant sets which SPARQL a visitor can run. This flag does not.
+    `SQLIB_AUTH_MODE=anonymous` with `query:saved` on a backend allows the
+    seeded queries, and no typed query.
+  - The store decides whether it accepts a write. The read-only backends of
+    sqlib refuse through `ReadOnlySparqlExecutor`. An endpoint that a different
+    party owns applies its own rules.
+  - Read-only refuses `?record=patch`, on `GET` and `POST`, because a recorded
+    patch writes the state of sqlib.
+  - `GET /sparql` refuses an UPDATE with 405 on each deployment, read-only or
+    not, because a GET must not change anything.
+- **It does not turn on any feature.** `FEATURE_ETL`, `FEATURE_PLAYGROUND_ETL`
+  and `FEATURE_ASSISTANT` are still off by default. The ETL routes that take SQL
+  in the request, `POST /etl-jobs/preview` and `POST /playground/etl/execute`,
+  are not in the exceptions above. Each route that would store a job version is
+  also not in the list. A flag alone therefore cannot let the SQL of a visitor
+  run on a read-only deployment.
+- **It does not authenticate.** Each visitor is the same anonymous caller.
 
-`/health` reports it as `readOnly`, beside the auth mode, so the SPA can offer
-browser-local authoring rather than a button the server will refuse.
+`/health` reports it as `readOnly`, next to the auth mode. The SPA then offers
+authoring in the browser, and shows no button that the server would refuse.
 
-The SPA draws no control whose only outcome is a refusal. Save and the entity ⋮
-go from every work area, the `benchmark` and `test` chips go from the run bar,
-`Save to Tuples`, `Save to Data` and `Save as test` go from a rule set's Inputs
-tab, and the tag controls go from the Details panel — absent rather than
-disabled, the rule the rail already follows for a switched-off section.
-Everything acting on the browser's own copy stays: scratch queries, rule sets
-and argument sets, the values in them, Discard, and the inline data a rule set
-runs against. A parameterised query is authored and run the same way it is on a
-writable deployment, with the values sent inline to `POST /sparql`.
+The SPA shows no control whose only result is a refusal:
 
-A visitor's own SPARQL endpoint is registered the same way. The backend picker
-in the run sentence takes a URL pasted straight into it — `+ SPARQL endpoint…`
-at the foot of the menu — and keeps it as a **browser backend**: stored in that
-browser, named after its own URL, and never posted to the server. Renaming one,
-or changing its query method, is done under **Backends** like any other, and
-writes to the browser rather than to the server. Queries against it run from the browser to the
-endpoint, so the address, any headers and the results do not pass through
-sqlib. Browser backends are not a read-only feature — they work on any
-deployment — but they are what makes a read-only one usable against data it was
-not seeded with.
+- Save and the entity ⋮ menu are removed from each work area.
+- The `benchmark` and `test` chips are removed from the run bar.
+- `Save to Tuples`, `Save to Data` and `Save as test` are removed from the
+  Inputs tab of a rule set.
+- The tag controls are removed from the Details panel.
 
-Before `/health` answers, and if it cannot be reached, the SPA assumes it may
-write. That direction is deliberate: a client that wrongly believes it may write
-shows a button and surfaces the server's refusal, while one that wrongly
-believes it may not hides a working feature and looks broken.
+These controls are removed, and not disabled. The rail follows the same rule
+for a section that is turned off. Each control that acts on the copy in the
+browser stays: scratch queries, rule sets and argument sets, their values,
+Discard, and the inline data that a rule set runs against. You author and run a
+parameterised query as on a writable deployment, and the values go inline to
+`POST /sparql`.
+
+A visitor can also add their own SPARQL endpoint in the browser. Paste a URL
+into the backend picker of the run sentence, with `+ SPARQL endpoint…` at the
+end of the menu. The SPA keeps it as a **browser backend**: stored in that
+browser, named after its URL, and never sent to the server. To rename it, or to
+change its query method, use **Backends**, as for any backend. The change is
+written to the browser.
+
+Queries against a browser backend go from the browser to the endpoint. The
+address, any headers and the results do not pass through sqlib. Browser backends
+work on each deployment. On a read-only deployment, they let a visitor query
+data that was not seeded.
+
+Before `/health` answers, and when it cannot be reached, the SPA assumes that it
+can write. This is intentional. A client that wrongly assumes it can write shows
+a button, and then shows the refusal from the server. A client that wrongly
+assumes it cannot write hides a working feature, and appears broken.
 
 ## Authentication
 
-Auth is off unless `SQLIB_AUTH_MODE` says otherwise. An invalid value for any of
-these throws at startup rather than falling back. See
-[the security model](../explanation/security-model.md) for what the layer does
-and does not cover.
+Auth is off until `SQLIB_AUTH_MODE` turns it on. An invalid value for any of
+these variables throws at startup. There is no fallback. See
+[the security model](../explanation/security-model.md) for what the auth layer
+covers.
 
 | Name | Default | Effect |
 | --- | --- | --- |
@@ -375,14 +400,17 @@ and does not cover.
 | `SQLIB_AUTH_POLICY_CACHE_SECONDS` | `60` | How long a backend graph policy's result is kept per backend and caller. `0` evaluates the policy on every read. A change to the policy, or any update to an auth backend, clears the cache. A negative or non-numeric value throws. |
 | `SQLIB_AUTH_SCOPES` | empty | Space- or comma-separated scopes. Published as `scopes_supported` in the metadata and as `scope` in the 401 challenge. Empty leaves both out. |
 
-The API serves OAuth 2.0 Protected Resource Metadata (RFC 9728) at
-`/.well-known/oauth-protected-resource`, at every path-suffixed form of it
-(`/.well-known/oauth-protected-resource/mcp`), and, under `APP_BASE_PATH`, at
-`<base path>/.well-known/oauth-protected-resource` too. The document lists
-the configured issuers as `authorization_servers`. It is public in every mode,
-and answers 404 when no issuer is configured. Every 401 carries
-`WWW-Authenticate: Bearer resource_metadata="…"`, which is how an MCP client
-finds the authorization server with no client configuration.
+The API serves OAuth 2.0 Protected Resource Metadata (RFC 9728) at:
+
+- `/.well-known/oauth-protected-resource`;
+- each form of it with a path suffix, such as
+  `/.well-known/oauth-protected-resource/mcp`;
+- `<base path>/.well-known/oauth-protected-resource`, under `APP_BASE_PATH`.
+
+The document lists the configured issuers as `authorization_servers`. It is
+public in each mode, and answers 404 when no issuer is configured. Each 401 has
+`WWW-Authenticate: Bearer resource_metadata="…"`. With this header, an MCP
+client finds the authorization server with no client configuration.
 
 ## Environments
 
@@ -392,14 +420,14 @@ finds the authorization server with no client configuration.
 
 ## Feature flags
 
-Seventeen `FEATURE_*` variables switch sections of the product on and off, and
-the API unregisters the routes behind some of them. They have their own page:
-[feature flags](feature-flags.md), which lists each key, its variable, its
-default and what disappears when it is off.
+Seventeen `FEATURE_*` variables turn sections of the product on and off. For
+some of them, the API also removes the routes. [Feature flags](feature-flags.md)
+lists each key, its variable, its default, and what is removed when it is off.
 
 ## Development and seeding
 
-These are read by development recipes and seeders, not by a normal deployment.
+Development recipes and seeders read these variables. A normal deployment does
+not.
 
 | Name | Default | Effect |
 | --- | --- | --- |
@@ -411,8 +439,8 @@ These are read by development recipes and seeders, not by a normal deployment.
 
 ## The web application
 
-`packages/web` is a Nuxt SPA built ahead of time (`ssr: false`), so these are
-read at **build** time and baked into the bundle.
+`packages/web` is a Nuxt SPA built ahead of time (`ssr: false`). The build reads
+these variables at **build** time, and puts their values into the bundle.
 
 | Name | Default | Effect |
 | --- | --- | --- |
@@ -429,15 +457,15 @@ read at **build** time and baked into the bundle.
 | `NUXT_PUBLIC_APP_COMMIT` | `git rev-parse --short HEAD`, or empty | The commit reported beside the version. Shortened to seven characters. |
 | `NUXT_PUBLIC_BUILD_TIME` | the moment of the build | ISO timestamp shown in the version's tooltip. |
 
-The three build-stamp variables exist for builds that cannot work the values
-out for themselves: an image built from a source copy with no `.git` directory
-finds no commit, and one built outside the repo finds no manifest. Pass what
-the build system knows.
+The three build-stamp variables are for builds that cannot find the values
+themselves. An image built from a source copy with no `.git` directory finds no
+commit. A build outside the repository finds no manifest. Pass the values that
+the build system has.
 
-A deployed static build can be re-pointed without rebuilding by serving a
-`/config.json` beside it. The client plugin
-`packages/web/src/plugins/runtime-config.client.ts` fetches it at startup and
-overrides `apiBaseUrl`, the four `auth*` values and any subset of
-`featureFlags`. A missing file, a non-JSON response or a parse failure logs a
-warning and leaves the build-time values in place. See
+To point a deployed static build at a different API without a rebuild, serve a
+`/config.json` next to it. The client plugin
+`packages/web/src/plugins/runtime-config.client.ts` fetches it at startup. Its
+values override `apiBaseUrl`, the four `auth*` values, and any subset of
+`featureFlags`. A missing file, a response that is not JSON, or a parse failure
+logs a warning, and the build-time values stay. See
 [deploying](../guides/deploying.md).
