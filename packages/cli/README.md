@@ -13,12 +13,15 @@ sqlib check queries/*.rq rules/*.srl
 See [`docs/guides/cli.md`](../../docs/guides/cli.md) for every command and
 option, the job file format, the DuckDB defaults and the example images.
 
-The commands are thin. Compiling is `@sparql-query-lib/compiler`, the query
-splice is `@sparql-query-lib/runtime`, the ETL loop is
-`@sparql-query-lib/runtime-etl`, the rule runner is `@sparql-query-lib/runtime-srl`,
-and the sandboxed DuckDB is `@sparql-query-lib/runtime-duckdb`: the code the
-server runs.
+The commands contain little code of their own. They use the same packages as
+the server:
+
+- `@sparql-query-lib/compiler` compiles queries;
+- `@sparql-query-lib/runtime` applies arguments;
+- `@sparql-query-lib/runtime-etl` runs the ETL loop;
+- `@sparql-query-lib/runtime-srl` runs rules;
+- `@sparql-query-lib/runtime-duckdb` is the sandboxed DuckDB.
 
 ## Status
 
-Private to the workspace until its packages are published.
+To do: publish to npm. Until then, the package is private to the workspace.
