@@ -1,8 +1,8 @@
 # Observability
 
 sqlib sends traces, metrics and logs with OpenTelemetry, over OTLP. It has no
-exporter of its own for any vendor: point it at any OTLP receiver with the
-standard `OTEL_*` variables. Telemetry is off until you do.
+exporter for a specific vendor. To send telemetry, set the standard `OTEL_*`
+variables to an OTLP receiver. Until you do this, telemetry is off.
 
 ```mermaid
 flowchart LR
@@ -21,25 +21,25 @@ The variables are listed in the
 **Traces.** One trace per HTTP request:
 
 - the server span, and the Fastify spans under it (route, hooks, handler);
-- a client span for every call to a SPARQL backend, with `url.full` and the
+- a client span for each call to a SPARQL backend, with `url.full` and the
   status code;
 - on `/execute`, the handler span carries the run: `sqlib.target.id`,
   `sqlib.version.id`, `sqlib.environment`, `sqlib.backend.id`,
   `sqlib.backend.type`, `sqlib.result.rows` and `sqlib.run.status`.
 
-An incoming `traceparent` header is honoured, so a caller's trace continues
-into sqlib.
+sqlib uses an incoming `traceparent` header, so the trace of a caller
+continues into sqlib.
 
 **Metrics.** HTTP server and client request duration (OpenTelemetry semantic
 conventions), `query.execution.count` and `query.execution.duration` by
 backend and status, `authz.decision.count`, and the cache and Oxigraph gauges.
 
-**Logs.** Every log line still goes to stdout. With telemetry on it also goes
-out as an OTLP log record, unless `OTEL_LOGS_EXPORTER=none`. A line logged
-inside a request carries `trace_id` and `span_id`, on stdout too.
+**Logs.** Each log line goes to stdout. With telemetry on, it also goes out as
+an OTLP log record, unless `OTEL_LOGS_EXPORTER=none`. A line logged in a
+request has `trace_id` and `span_id`, also on stdout.
 
-Query text and argument values are not sent unless `SQLIB_TELEMETRY_DETAIL`
-says so.
+sqlib sends query text and argument values only when `SQLIB_TELEMETRY_DETAIL`
+allows it.
 
 ## Slow query log
 
@@ -66,8 +66,8 @@ writes one warning line with `event: "sqlib.query.slow"`:
 }
 ```
 
-The line is an ordinary log line, so it is there with telemetry off as well.
-Find the slow runs with one filter:
+The line is an ordinary log line, so it is also written when telemetry is off.
+One filter finds the slow runs:
 
 | Where the logs are | Query |
 | --- | --- |
@@ -75,20 +75,23 @@ Find the slow runs with one filter:
 | Application Insights / Log Analytics (OTLP logs) | `traces \| where customDimensions.event == "sqlib.query.slow"` |
 | Container stdout in Log Analytics | `ContainerAppConsoleLogs_CL \| where Log_s has "sqlib.query.slow"` |
 
-`SQLIB_TELEMETRY_DETAIL` decides what else the line carries:
+`SQLIB_TELEMETRY_DETAIL` sets what else the line contains:
 
 | Value | Adds |
 | --- | --- |
-| `ids` (default) | Nothing. The version IRI is enough to fetch the text from sqlib, with the caller's own access. |
+| `ids` (default) | Nothing. With the version IRI, a reader can fetch the text from sqlib, with the access of that reader. |
 | `text` | `queryText`: the saved text, before arguments are bound. |
 | `text+args` | Also `arguments` and `argumentSetIds`, as the caller sent them. These can hold private values. |
 
-A common split is `text+args` in development and `ids` in production.
+A common configuration is `text+args` in development and `ids` in production.
 
-To have an assistant analyse slow runs, give it the log store and sqlib: it
-reads the slow lines, fetches each version's text through the sqlib MCP server,
-opens the trace for the backend timing, and can re-run the query in the Bench
-with the same arguments.
+An assistant can analyse slow runs. Give it access to the log store and to
+sqlib. It can then:
+
+1. read the slow lines;
+2. fetch the text of each version through the sqlib MCP server;
+3. open the trace for the backend timing;
+4. run the query again in the Bench, with the same arguments.
 
 ## Local: grafana/otel-lgtm
 
@@ -104,17 +107,23 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318 just dev
 just lgtm-down
 ```
 
-Grafana is on <http://localhost:3030>, with no login. The dashboard shows
-request rate and latency by route, query runs and their duration by backend,
-SPARQL backend call latency, cache memory, the slow query lines, recent
-`/execute` traces and error lines. Data is in memory and is lost when the
-container stops.
+Grafana is at <http://localhost:3030>, with no login. The dashboard shows:
+
+- request rate and latency by route;
+- query runs and their duration by backend;
+- SPARQL backend call latency;
+- cache memory;
+- the slow query lines;
+- recent `/execute` traces, and error lines.
+
+The data is in memory, and is lost when the container stops.
 
 `just dev-otel` sets `SQLIB_SLOW_QUERY_MS=200` and
-`SQLIB_TELEMETRY_DETAIL=text+args` unless you set them.
+`SQLIB_TELEMETRY_DETAIL=text+args`, unless you set them yourself.
 
-The same container works next to a self-hosted sqlib: run it beside the sqlib
-container and set `OTEL_EXPORTER_OTLP_ENDPOINT=http://<lgtm host>:4318` on sqlib.
+The same container works with a self-hosted sqlib. Run it next to the sqlib
+container, and set `OTEL_EXPORTER_OTLP_ENDPOINT=http://<lgtm host>:4318` on
+sqlib.
 
 ## In the app
 
@@ -126,13 +135,14 @@ Administrators see a Telemetry section at the end of Settings. It shows:
 - the slow runs since the server started, and when the last one was;
 - an "Open dashboard" link, when `SQLIB_OBSERVABILITY_URL` is set.
 
-The same data is at `GET /telemetry`, admin only. The counts are per process
-and start again at zero on a restart; the log store has the full history.
+`GET /telemetry` gives the same data, to administrators only. The counts are
+for one process, and start again at zero on a restart. The log store has the
+full history.
 
-With `SQLIB_TRACE_URL_TEMPLATE` set, each run result in the app has a trace icon
-that opens that run's trace. The server fills `{traceId}` and sends the link in
-the `Sqlib-Trace-Url` response header, so other clients can use it too.
-Examples:
+When `SQLIB_TRACE_URL_TEMPLATE` is set, each run result in the app has a trace
+icon that opens the trace of that run. The server fills in `{traceId}`, and
+sends the link in the `Sqlib-Trace-Url` response header, so other clients can
+also use it. Examples:
 
 ```bash
 # Grafana with a Tempo datasource whose uid is "tempo" (the lgtm stack)
@@ -147,13 +157,13 @@ SQLIB_TRACE_URL_TEMPLATE='https://ui.honeycomb.io/<team>/environments/<env>/trac
 
 ## Recipes
 
-Every recipe is configuration only.
+Each recipe is configuration only.
 
-**Azure Container Apps.** Configure the environment's managed OpenTelemetry
-agent with a destination (Application Insights takes traces and logs, not
-metrics; Datadog and OTLP endpoints take all three). The agent injects the
-`OTEL_EXPORTER_OTLP_*` variables into each app. On the app, set
-`OTEL_SERVICE_NAME` and leave `OTEL_ENABLED` unset or `true`.
+**Azure Container Apps.** Configure the managed OpenTelemetry agent of the
+environment with a destination. Application Insights takes traces and logs,
+and no metrics. Datadog and OTLP endpoints take all three. The agent adds the
+`OTEL_EXPORTER_OTLP_*` variables to each app. On the app, set
+`OTEL_SERVICE_NAME`, and leave `OTEL_ENABLED` unset or `true`.
 
 **Grafana Cloud.**
 
@@ -169,30 +179,32 @@ OTEL_EXPORTER_OTLP_ENDPOINT=https://api.honeycomb.io
 OTEL_EXPORTER_OTLP_HEADERS="x-honeycomb-team=<api key>"
 ```
 
-**Jaeger, or another receiver without logs.** Turn log export off, or each
-export logs a warning:
+**Jaeger, or another receiver without logs.** Turn log export off. Otherwise,
+each export logs a warning:
 
 ```bash
 OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
 OTEL_LOGS_EXPORTER=none
 ```
 
-**Your own Collector.** Point sqlib at it and do fan-out, sampling or attribute
-redaction there.
+**Your own Collector.** Send sqlib telemetry to it, and do fan-out, sampling or
+attribute redaction there.
 
 ## Cost
 
-Volume comes from traces and logs, not metrics. To keep it down:
+Most of the volume comes from traces and logs. Metrics add little. To reduce
+the volume:
 
 - sample traces: `OTEL_TRACES_SAMPLER=parentbased_traceidratio`,
   `OTEL_TRACES_SAMPLER_ARG=0.2`;
-- send logs one way only: on a platform that already collects stdout, set
-  `OTEL_LOGS_EXPORTER=none`, or keep OTLP logs and stop collecting stdout;
+- send logs by one path only. On a platform that already collects stdout, set
+  `OTEL_LOGS_EXPORTER=none`, or keep OTLP logs and stop the collection of
+  stdout;
 - leave `SQLIB_TELEMETRY_DETAIL` at `ids`.
 
 ## Startup
 
-With telemetry off the SDK is not imported, which saves about 220ms of a cold
-start. With it on, the MCP server's `cli.ts` starts the SDK before any server
-module loads, so the Fastify and HTTP instrumentation see the app in every
-transport mode.
+With telemetry off, sqlib does not import the SDK. This saves about 220ms of a
+cold start. With telemetry on, `cli.ts` of the MCP server starts the SDK before
+any server module loads. The Fastify and HTTP instrumentation therefore see the
+app in each transport mode.
