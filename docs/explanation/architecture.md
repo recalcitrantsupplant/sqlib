@@ -16,7 +16,7 @@ it, or code that runs without it.
 | `web` | The Nuxt 4 single-page application | `types`, `runtime` (and `contracts` by path alias) |
 | `mcp-server` | An MCP server that mounts the Fastify app in its own process | `api`, `contracts`, `tools`, `types` |
 | `contracts` | Generated JSON Schema and zod schemas for each entity and route | none |
-| `tools` | The MCP tool catalogue: 89 tool definitions and a registry | `contracts` |
+| `tools` | The MCP tool catalogue: 107 tool definitions and a registry | `contracts` |
 | `types` | Shared constants and types, including the feature-flag table | none |
 | `srl` | The SHACL 1.2 Shape Rules Language parser, compiler and stratifier | none |
 | `rdf-delta` | Calculates what a SPARQL update would add and remove, without running it | none |
