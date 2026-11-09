@@ -118,11 +118,10 @@ and run the built output.
 `rdf-delta` has `poc:blob-snapshot` and `poc:patch-log`, two proof-of-concept
 runners in the package.
 
-Nine of the ten packages define `lint` as `echo "TODO: add lint"`. The only real
-linting in the repository is stylelint over `packages/web`. `pnpm -r
---if-present lint` therefore passes without a read of any TypeScript.
-`scripts/ci/lint.sh` prints a warning that names the packages whose lint is only
-an echo.
+Only `packages/web` defines a `lint` script: stylelint over
+`src/**/*.{vue,css}`. ESLint covers the TypeScript of each package through the
+ratchet in `scripts/lint-ratchet.mjs`. See
+[CONTRIBUTING.md](../../CONTRIBUTING.md#the-ratchets).
 
 ## The CI pipeline
 
@@ -131,7 +130,8 @@ All CI logic is in `scripts/ci/`, so you can run each step locally with
 scripts. `bash scripts/ci/all.sh` runs the required sequence:
 
 1. `install.sh`: `pnpm install --frozen-lockfile`.
-2. `lint.sh`: `pnpm -r --if-present lint`, then `check-doc-links.mjs`.
+2. `lint.sh`: `pnpm -r --if-present lint`, the ESLint ratchet
+   (`lint-ratchet.mjs`), then `check-doc-links.mjs`.
 3. `ratchet-selftest.sh`: checks that the ratchets still fail when they must.
 4. `any-ratchet.sh`: `count-any.mjs`.
 5. `orphan-ratchet.sh`: `check-orphans.mjs`.
@@ -144,11 +144,12 @@ scripts. `bash scripts/ci/all.sh` runs the required sequence:
 Steps outside that sequence:
 
 - `e2e.sh`: Playwright against the production preview build, with the API
-  mocked at the network layer. No API server starts. It runs on
-  `workflow_dispatch`, and is not a required gate. In CI, `WEB_PORT` defaults to
-  3701, so a local preview on 3001 cannot fail a job.
-- `commitlint.sh`: conventional commits, **warning only**. It never fails a
-  build. To make it blocking, change its final `exit 0` to `exit "$status"`.
+  mocked at the network layer. No API server starts. The `e2e` job runs on each
+  pull request and push, and `dependabot-automerge.sh` waits for it. In CI,
+  `WEB_PORT` defaults to 3701, so a local preview on 3001 cannot fail a job.
+- `commitlint.sh`: conventional commits, **blocking**, on pull requests only. A
+  commit that release-please cannot parse gets no version bump and no changelog
+  entry, so the check fails the job.
 - `fuzz-nightly.sh`: the query group property harness, at `PHASE2_FUZZ_RUNS`
   (default 1000) and a seed from the clock, over `test/phase2/` and
   `test/web/`. The PR suite runs the same files with a fixed seed and about 50
@@ -178,7 +179,8 @@ gate.
 
 ## The ratchets
 
-Three checks compare the tree with a recorded baseline. A cleanup can therefore
+Four checks compare the tree with a recorded baseline: the ESLint ratchet (see
+[CONTRIBUTING.md](../../CONTRIBUTING.md#the-ratchets)) and the three below. A cleanup can therefore
 merge in steps, and the number cannot increase.
 
 ### `any`: `scripts/count-any.mjs`
