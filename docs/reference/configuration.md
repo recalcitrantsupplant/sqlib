@@ -28,7 +28,7 @@ For the reasons behind these settings, see
 | `MCP_HTTP_PORT` | `3333` | Listening port in `streamable-http` mode (MCP only, at `/mcp`). |
 | `MCP_HTTP_HOST` | `0.0.0.0` | Listening address in `streamable-http` mode. |
 | `MCP_CATALOGUE` | `both` | Which surfaces the server offers: `both`, `catalogue` or `published`. `catalogue` serves no published tools (`/mcp/{slug}` and `/tools/…` are 404). `published` serves only the published tools: `/mcp` lists them alone, every authoring route is 404, `POST /execute` runs only their pinned versions, and an invalid published tool stops the server at startup instead of being skipped. Anything else throws. See [publishing tools](../guides/publishing-tools.md). |
-| `SQLIB_OGC_BASE_URL` | unset | The absolute URL that OGC API Features links start with, such as `https://maps.example.org`. Unset: the request's scheme and host, and `APP_PUBLIC_BASE_PATH`. See [publishing OGC collections](../guides/publishing-ogc-collections.md). |
+| `SQLIB_OGC_BASE_URL` | unset | The absolute URL at the start of each OGC API Features link, such as `https://maps.example.org`. If it is not set, links use the scheme and host of the request, and `APP_PUBLIC_BASE_PATH`. See [publishing OGC collections](../guides/publishing-ogc-collections.md). |
 | `SQLIB_CORS_ORIGINS` | unset: `http://localhost:3001,http://127.0.0.1:3001` (the SPA dev server) when `NODE_ENV=development`, otherwise none | Browser origins allowed to read API and `/mcp` responses, comma-separated. A listed origin is echoed in `access-control-allow-origin` with `access-control-allow-credentials: true`; `*` allows every origin and never sends credentials; an origin not on the list gets no CORS headers, and its preflight gets 404. Set to the empty string to allow none even in development. A production deployment whose SPA is served from another origin than the API must list that origin. The API (`packages/api/src/config/cors.ts`) and the MCP transport read it the same way, since in `dual-http` and `streamable-http` modes they share one instance; `/mcp` answers its own `OPTIONS /mcp` preflight, with the MCP headers, and the API's plugin leaves that path alone. |
 | `PORT` | `3000` | Listening port when `packages/api` is started directly (`APP_MODE=api`). A value that does not parse as a number falls back to 3000. |
 | `FASTIFY_ADDRESS` | `0.0.0.0` | Listening address when `packages/api` is started directly. |
@@ -83,12 +83,13 @@ store and the in-memory cache work together.
 
 ## Backup to blob storage
 
-Continuous backup of the SQLite stores (`library.sqlite`, and `auth.sqlite`
-when auth is on) to S3, Azure Blob Storage or Google Cloud Storage, with
-[Litestream](https://litestream.io). Off unless `SQLIB_SQLITE_REPLICA_URL` or
-`SQLIB_LITESTREAM_CONFIG` is set. The published image carries Litestream; see
-[backup to blob storage](../guides/deploying.md#backup-to-blob-storage) for
-credentials, networks and platforms.
+These settings control the continuous backup of the SQLite stores
+(`library.sqlite`, and `auth.sqlite` when auth is on) to S3, Azure Blob Storage
+or Google Cloud Storage, with [Litestream](https://litestream.io). The backup is
+off until you set `SQLIB_SQLITE_REPLICA_URL` or `SQLIB_LITESTREAM_CONFIG`. The
+published image contains Litestream.
+[Backup to blob storage](../guides/deploying.md#backup-to-blob-storage) gives
+the credentials, networks and platforms.
 
 | Name | Default | Effect |
 | --- | --- | --- |
@@ -107,16 +108,22 @@ credentials, networks and platforms.
 | `SQLIB_SQLITE_REPLICA_LEASE_TTL` | `30s` | How long a lease lasts without renewal. A holder that cannot renew for this long stops. |
 | `SQLIB_SQLITE_REPLICA_LEASE_RENEW` | `10s` | How often the holder renews. At most half the TTL. |
 | `SQLIB_SQLITE_REPLICA_LEASE_WAIT` | `120s` | How long a starting instance waits for a held lease before it exits. The platform then restarts it. |
-| `SQLIB_LITESTREAM_CONFIG` | unset | Path to a complete `litestream.yml` to use instead of the generated one, for Litestream options not listed here. It must name the same database paths the server opens. The lease is off unless `SQLIB_SQLITE_REPLICA_URL` is also set. |
+| `SQLIB_LITESTREAM_CONFIG` | unset | Path to a complete `litestream.yml`, which replaces the generated one. Use it for Litestream options that this table does not list. It must name the same database paths the server opens. The lease is off unless `SQLIB_SQLITE_REPLICA_URL` is also set. |
 | `SQLIB_LITESTREAM_BIN` | `litestream` | The Litestream binary. The image has it on `PATH`. |
 
-Credentials are not sqlib settings. Litestream and the lease read each cloud's
-own: the AWS SDK chain (`AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`, a task,
-instance or pod role, web identity), Azure (`AZURE_CLIENT_ID` for a
-user-assigned managed identity, `AZURE_TENANT_ID`/`AZURE_CLIENT_ID`/`AZURE_CLIENT_SECRET`
-for a service principal, `LITESTREAM_AZURE_ACCOUNT_KEY`, or the SAS above), and
-Google (`GOOGLE_APPLICATION_CREDENTIALS` or the workload's service account).
-Leave `AWS_CA_BUNDLE` unset: Litestream's S3 client fails to load while it is set.
+sqlib has no credential settings for the backup. Litestream and the lease read
+the credentials of each cloud:
+
+- AWS: the AWS SDK chain (`AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`, a
+  task, instance or pod role, or a web identity);
+- Azure: `AZURE_CLIENT_ID` for a user-assigned managed identity;
+  `AZURE_TENANT_ID`, `AZURE_CLIENT_ID` and `AZURE_CLIENT_SECRET` for a service
+  principal; `LITESTREAM_AZURE_ACCOUNT_KEY`; or the SAS above;
+- Google: `GOOGLE_APPLICATION_CREDENTIALS`, or the service account of the
+  workload.
+
+Do not set `AWS_CA_BUNDLE`. The S3 client of Litestream does not load while it
+is set.
 
 ## Execution backend credentials
 

@@ -121,24 +121,27 @@ SELECT ?entity WHERE {
 }
 ```
 
-It is filled like any table parameter, but it takes exactly one bound value:
-zero rows, two rows, an `UNDEF` cell or an omitted argument is refused, naming
-the parameter. The filled `VALUES` row stays, and the same term is also
-written into the triple patterns in the reach of the clause: the group that
-holds it, and groups nested in it through plain groups, `GRAPH` and `SERVICE`
-bodies and `UNION` branches. So an engine that needs a constant when it plans
-the query, such as QLever text search, gets one, and the answer is that of a
-plain `VALUES` run. Every other occurrence keeps the variable. Detection
-reports the occurrences where the answer can then differ (`OPTIONAL`,
-`MINUS`, `EXISTS`, a sub-`SELECT`, `BIND`, a nested `FILTER`, a `GRAPH` or
-`SERVICE` name) as `constantWarnings`; the query still saves and runs. A
-query with a constant takes the parser path and is not exported. See
+You fill it in the same way as a table parameter, but it takes exactly one
+bound value. sqlib refuses zero rows, two rows, an `UNDEF` cell and an omitted
+argument, and names the parameter.
+
+The filled `VALUES` row stays. sqlib also writes the same term into the triple
+patterns in the scope of the clause. The scope is the group that holds the
+clause, and the groups nested in it through plain groups, `GRAPH` and `SERVICE`
+bodies and `UNION` branches. An engine that needs a constant to plan the query,
+such as QLever text search, therefore gets one. The answer is the same as for a
+plain `VALUES` run. Each other occurrence keeps the variable.
+
+At some occurrences, the answer can then differ: `OPTIONAL`, `MINUS`, `EXISTS`,
+a sub-`SELECT`, `BIND`, a nested `FILTER`, and a `GRAPH` or `SERVICE` name.
+Detection reports these as `constantWarnings`. The query still saves and runs.
+A query with a constant uses the parser path, and cannot be exported. See
 [constant substitution](proposals/constant-substitution.md).
 
-**A value pattern** on a slot's input tuple (`valuePattern`, set through
-`inputPolicies` when a version is saved) is a regular expression that every
-bound value of the slot must match. It limits what an engine reads inside a
-literal, such as a short `*` search word that would match too much.
+**A value pattern** is a regular expression on the input tuple of a slot
+(`valuePattern`, set through `inputPolicies` when you save a version). Each
+bound value of the slot must match it. It limits what an engine reads in a
+literal, for example a short `*` search word that matches too much.
 
 ## ArgumentSet
 

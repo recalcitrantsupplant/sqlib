@@ -82,22 +82,24 @@ az deployment group show \
   - External HTTPS ingress (auto TLS)
   - Fixed scale (1 replica)
   - Environment variables and secrets management
-- **SQLite backup to blob storage** (optional, `enableSqliteBackup`) - see
-  [backup to blob storage](../docs/guides/deploying.md#backup-to-blob-storage):
+- **SQLite backup to blob storage** (optional, `enableSqliteBackup`). See
+  [backup to blob storage](../docs/guides/deploying.md#backup-to-blob-storage).
+  It creates:
   - A user-assigned managed identity for the app
   - A storage account with TLS 1.2, no anonymous access, no shared keys and
     7-day soft delete (or an existing account, with `createBackupStorage: false`)
   - A blob container, with Storage Blob Data Contributor for the identity on
     that container only
-  - Optionally a private endpoint, the `privatelink.blob` DNS zone and its VNet
-    link (`backupPrivateEndpointSubnetId`, `backupPrivateDnsVnetId`); the
-    account's public access is then off. Needs a VNet-integrated environment.
+  - Optionally, a private endpoint, the `privatelink.blob` DNS zone and its
+    VNet link (`backupPrivateEndpointSubnetId`, `backupPrivateDnsVnetId`). The
+    public access of the account is then off. This needs a VNet-integrated
+    environment.
   - `SQLIB_SQLITE_REPLICA_URL` and `AZURE_CLIENT_ID` on the container, a startup
     probe that allows for the restore and the replica lease, and a 30s grace
     period
 
-  The store then lives on the container's own disk: mount no volume at the
-  storage path. Scale stays at one replica; the replica lease covers the
+  The store is then on the disk of the container. Do not mount a volume at the
+  storage path. Scale stays at one replica. The replica lease covers the
   overlap while a new revision starts.
 
 ### Parameters
@@ -110,8 +112,8 @@ az deployment group show \
 | `createBackupStorage` | No | Create the account, or use an existing one in this resource group | `true` |
 | `backupStorageSku` | No | Redundancy of a created account | `Standard_LRS` |
 | `backupContainerName` | No | Blob container | `sqlib-backup` |
-| `backupPath` | No | Path in the container; one per deployment | container app name |
-| `backupPrivateEndpointSubnetId` | No | Subnet for a private endpoint; empty keeps the public endpoint | - |
+| `backupPath` | No | Path in the container. Use one for each deployment | container app name |
+| `backupPrivateEndpointSubnetId` | No | Subnet for a private endpoint. If empty, the public endpoint stays | - |
 | `backupPrivateDnsVnetId` | With a private endpoint | VNet to link the DNS zone to | - |
 | `terminationGracePeriodSeconds` | No | Wait after SIGTERM | `30` |
 | `environmentName` | Yes | Environment name (dev/staging/prod) | - |

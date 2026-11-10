@@ -8,6 +8,9 @@ Runs on Jena Fuseki with the Kurrawong Lucene index.
 | `buildings.ogc.json` | The version's `ogc` object |
 | `index-fields.rq` | The `luc:config` query that lists the index fields |
 
-Set `text:exposeConfig true` on the index, save `index-fields.rq` in the same
-library, and put its id in `cql.configQuery`. See
+1. Set `text:exposeConfig true` on the index.
+2. Save `index-fields.rq` in the same library.
+3. Put its id in `cql.configQuery`.
+
+See
 [guides/publishing-ogc-collections.md](../../../guides/publishing-ogc-collections.md).
