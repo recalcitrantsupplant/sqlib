@@ -71,4 +71,31 @@ describe('slot policies in a bundle', () => {
       'Required input for VALUES clause 1 (?whole) received no bindings',
     );
   });
+
+  it('refuses a bound value that does not match the value pattern, and runs one that does', async () => {
+    const lib = fromBundle(await bundleOf({
+      parts: await exportedQuery(PARTS(), {
+        inputPolicies: [{ vars: ['whole'], valuePattern: '^http://example\\.org/book\\d+$' }],
+      }),
+    }));
+    expect(lib.query('parts').text({
+      arguments: [{ bindings: [{ whole: iri('http://example.org/book1') }] }],
+    })).toContain('<http://example.org/book1>');
+    expect(() => lib.query('parts').text({
+      arguments: [{ bindings: [{ whole: iri('http://example.org/film1') }] }],
+    })).toThrow(/does not match the pattern/);
+    // The pattern acts on bound values only; an omitted slot keeps its reading.
+    expect(lib.query('parts').text()).not.toContain('VALUES');
+  });
+
+  it('refuses a value pattern that does not compile, and a policy that sets nothing', async () => {
+    const bad = await bundleOf({
+      parts: await exportedQuery(PARTS(), { inputPolicies: [{ vars: ['whole'], valuePattern: '([a-z' }] }),
+    });
+    expect(() => assertValidBundle(bad)).toThrow(/is not a valid regular expression/);
+    const empty = await bundleOf({
+      parts: await exportedQuery(PARTS(), { inputPolicies: [{ vars: ['whole'] }] }),
+    });
+    expect(() => assertValidBundle(empty)).toThrow(/sets neither whenEmpty nor valuePattern/);
+  });
 });

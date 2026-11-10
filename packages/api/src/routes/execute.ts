@@ -14,6 +14,7 @@ import { getQueryTypeKeyFromIri, isQueryTypeIri, toQueryTypeIri } from '../lib/q
 import * as fs from 'fs';
 import * as path from 'path';
 import {meter} from '../lib/logger.js';
+import {recordQueryRun} from '../lib/slowQueryLog.js';
 import {ValueType} from '@opentelemetry/api';
 import {OUTPUT_MEDIA_TYPE_VALUES, PATCH_MEDIA_TYPES, RDF_MEDIA_TYPES} from '../types/media-types.js';
 import {previewUpdate, PatchTargetError, toRdfPatchDocument} from '../lib/patchService.js';
@@ -57,9 +58,11 @@ import { ValidationError } from '../lib/validationError.js';
 import { failedFlags, refusalQuery, refusedBody } from '../lib/refusals.js';
 
 import {
+    GEOJSON_MEDIA_TYPE,
     contentTypeForSelectResults,
     isSelectResults,
     negotiateSelectResultsFormat,
+    renderGeoJson,
     renderSelectResults,
 } from '../lib/sparqlResultsFormats.js';
 
@@ -259,14 +262,27 @@ const rdfStringMediaType = (preferred?: string | null): string =>
 const renderRequestedSelectFormat = (
     result: unknown,
     acceptHeader: string | undefined,
-): { body: string; contentType: string } | undefined => {
+): { body: string; contentType: string } | { status: 406; error: string } | undefined => {
     const mediaType = negotiateSelectResultsFormat(acceptHeader);
+    if (mediaType === GEOJSON_MEDIA_TYPE) {
+        // Asked for by name, so a result it cannot be made from is refused, not sent as JSON.
+        if (!isSelectResults(result)) {
+            return { status: 406, error: 'GeoJSON is given for SELECT results only.' };
+        }
+        const geo = renderGeoJson(result);
+        if ('error' in geo) return { status: 406, error: geo.error };
+        return { body: geo.body, contentType: contentTypeForSelectResults(mediaType) };
+    }
     if (!mediaType || mediaType === 'application/sparql-results+json' || !isSelectResults(result)) return undefined;
     return {
         body: renderSelectResults(result, mediaType) as string,
         contentType: contentTypeForSelectResults(mediaType),
     };
 };
+
+/** Whether the caller's Accept prefers GeoJSON over every other results format. */
+const wantsGeoJson = (acceptHeader: string | undefined | null): boolean =>
+    negotiateSelectResultsFormat(acceptHeader) === GEOJSON_MEDIA_TYPE;
 
 function validateArgumentPayloadAgainstInputs(
     detected: ReturnType<SparqlQueryParser['detectInputs']>,
@@ -440,6 +456,12 @@ export default async function (
         // Reassigned once below, for a query given data graphs to run over.
         let backendId = params.backendId;
         let ephemeralStoreId: string | null = null; // Track ephemeral store for cleanup
+        // What the run leaves for observability (`lib/slowQueryLog.ts`), filled
+        // in as the target resolves.
+        let runVersionId: string | null = null;
+        let runEnvironment: string | null = null;
+        let runQueryText: string | undefined;
+        let runRowCount: number | undefined;
         // A caller who disconnects stops paying for the run they left: the
         // signal reaches every backend request and every group node.
         const disconnect = abortOnDisconnect(reply.raw);
@@ -483,7 +505,9 @@ export default async function (
                 targetEntity = { ...targetEntity, currentVersion: resolution.version };
                 versionToRun = resolution.version;
                 if (resolution.environment) reply.header('X-Resolved-Environment', resolution.environment.name);
+                runEnvironment = resolution.environment?.name ?? null;
             }
+            runVersionId = versionToRun;
 
             // Execute on the owning library gates the operation, or, for a
             // caller without it, `execute` on an environment that points at
@@ -923,6 +947,7 @@ export default async function (
                 }
 
                 const rendered = renderRequestedSelectFormat(result, request.headers.accept);
+                if (rendered && 'error' in rendered) return reply.code(rendered.status).send({error: rendered.error});
                 if (rendered) {
                     reply.header('Content-Type', rendered.contentType);
                     return reply.send(rendered.body);
@@ -990,6 +1015,7 @@ export default async function (
                 }
 
                 const rendered = renderRequestedSelectFormat(result, request.headers.accept);
+                if (rendered && 'error' in rendered) return reply.code(rendered.status).send({error: rendered.error});
                 if (rendered) {
                     reply.header('Content-Type', rendered.contentType);
                     return reply.send(rendered.body);
@@ -1106,8 +1132,16 @@ export default async function (
             defaultAcceptHeader = undefined;
     }
 
+            // GeoJSON is rendered here from SPARQL JSON; no backend speaks it.
+            const geoJson = wantsGeoJson(acceptHeader);
+            if (geoJson && resolvedType !== QueryTypeIri.select) {
+                return reply.code(406).send({error: 'GeoJSON is given for SELECT results only.'});
+            }
             // Use provided header if it exists and is specific, otherwise use default
-            const finalAcceptHeader = (acceptHeader && acceptHeader !== '*/*') ? acceptHeader : defaultAcceptHeader;
+            const finalAcceptHeader = geoJson
+                ? GEOJSON_MEDIA_TYPE
+                : (acceptHeader && acceptHeader !== '*/*') ? acceptHeader : defaultAcceptHeader;
+            const backendAcceptHeader = geoJson ? defaultAcceptHeader : finalAcceptHeader;
             request.log.info(`Using Accept header: ${finalAcceptHeader || 'None (default behavior)'}`);
 
             // 5. Execute the query, passing the determined Accept header
@@ -1118,6 +1152,9 @@ export default async function (
                 throw new Error("Internal error: sparqlQueryString became undefined before execution.");
             }
 
+            runVersionId = resolvedTargetId;
+            runQueryText = typeof resolvedQueryVersion?.queryString === 'string' ? resolvedQueryVersion.queryString : undefined;
+
             // Ensure targetExecutor is not null (should only be null for query groups which exit earlier)
             if (!targetExecutor) {
                 throw new Error("Internal error: targetExecutor is null but required for query execution.");
@@ -1126,10 +1163,16 @@ export default async function (
             // Pass finalAcceptHeader to executor methods
             switch (resolvedType) {
                 case QueryTypeIri.select: {
-                    const {result, duration, contentType} = await targetExecutor.selectQueryParsed(sparqlQueryString, {acceptHeader: finalAcceptHeader, signal, dataset});
+                    const {result, duration, contentType} = await targetExecutor.selectQueryParsed(sparqlQueryString, {acceptHeader: backendAcceptHeader, signal, dataset});
                     dbDuration = duration;
                     executionStatus = 'success';
+                    const bindings = (result as { results?: { bindings?: unknown[] } } | null)?.results?.bindings;
+                    if (Array.isArray(bindings)) runRowCount = bindings.length;
                     const rendered = renderRequestedSelectFormat(result, finalAcceptHeader);
+                    if (rendered && 'error' in rendered) {
+                        setTimingHeader();
+                        return reply.code(rendered.status).send({error: rendered.error});
+                    }
                     if (rendered) {
                         reply.header('Content-Type', rendered.contentType);
                         setTimingHeader();
@@ -1339,6 +1382,21 @@ export default async function (
             queryExecutionDuration.record(duration, attributes);
             queryExecutionCounter.add(1, attributes);
             request.log.info({duration, attributes}, `Recorded execution metrics for query ${targetId}`);
+            recordQueryRun(request.log, {
+                targetId,
+                targetType: targetTypeForError,
+                versionId: runVersionId,
+                environment: runEnvironment,
+                backendId: backendId ?? null,
+                backendType: backendTypeAttr ?? null,
+                status: executionStatus,
+                durationMs: duration,
+                backendDurationMs: dbDuration > 0 ? dbDuration : undefined,
+                rowCount: runRowCount,
+                queryText: runQueryText,
+                arguments: rawInlineArgs,
+                argumentSetIds,
+            });
         }
     }
 

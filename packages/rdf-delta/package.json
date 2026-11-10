@@ -24,6 +24,7 @@
     "poc:patch-log": "tsx poc/run.ts"
   },
   "dependencies": {
+    "@sparql-query-lib/compiler": "workspace:*",
     "@traqula/generator-sparql-1-2": "1.4.0",
     "@traqula/parser-sparql-1-2": "1.4.0",
     "@traqula/rules-sparql-1-2": "1.4.0"
@@ -35,6 +36,6 @@
     "rdf-canonize": "^5.0.0",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.3"
+    "vitest": "^5.1.0"
   }
 }

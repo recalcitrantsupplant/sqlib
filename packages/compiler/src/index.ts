@@ -18,6 +18,12 @@ export {
   type SparqlQueryParserOptions,
 } from './parser.js';
 
+export {
+  CONSTANT_PREFIX,
+  isConstantVariable,
+  type ConstantWarning,
+} from './constantSlots.js';
+
 export { detectSparqlOperation, type SparqlOperation } from './operation.js';
 
 export {
@@ -26,3 +32,13 @@ export {
   type CompileQueryOptions,
   type CompiledQuery,
 } from './compileTemplate.js';
+
+// Traqula's SPARQL 1.2 parser and generator with LATERAL added. Every package
+// that reads a stored query's text uses these, so what saves also parses.
+export {
+  Generator,
+  Parser,
+  isPatternLateral,
+  sqlibGeneratorBuilder,
+  type PatternLateral,
+} from './sparql12.js';

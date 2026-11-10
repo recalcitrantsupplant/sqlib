@@ -52,8 +52,8 @@ Run from the repository root.
 | `pnpm build` | Builds `types`, `contracts`, `runtime`, `compiler`, `runtime-duckdb`, `runtime-etl`, `tools`, `srl`, `runtime-srl`, `rdf-delta` and `api`, in that order |
 | `pnpm test` | The API package's vitest suite |
 | `pnpm dev` | The API package's dev server |
-| `pnpm dev:observability` | Brings up `docker-compose.dev.yml` (the local collector) |
-| `pnpm dev:full` | `dev:observability` then `dev` |
+| `pnpm dev:observability` | Brings up `docker-compose.dev.yml` (`grafana/otel-lgtm`: collector, Tempo, Loki, Prometheus, Grafana) |
+| `pnpm dev:full` | `dev:observability`, then `dev` sending telemetry to it |
 | `pnpm dev:stop` | Takes `docker-compose.dev.yml` down |
 | `pnpm generate-schemas` | Regenerates the API's JSON schemas |
 | `pnpm any:count` / `pnpm any:update` | The `any` ratchet, and re-recording its baseline |

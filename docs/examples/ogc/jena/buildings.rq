@@ -1,0 +1,20 @@
+PREFIX luc:   <urn:jena:lucene:index#>
+PREFIX field: <urn:jena:lucene:field#>
+PREFIX geo:   <http://www.opengis.net/ont/geosparql#>
+SELECT ?feature ?geom ?name ?height ?numberMatched ?cursor WHERE {
+  VALUES ?feature { UNDEF }
+  VALUES (?cql ?limit ?offset ?after) { (UNDEF UNDEF UNDEF UNDEF) }
+  VALUES ?skip { UNDEF }
+  # indexSelector fieldSpec queryString cqlFilter sortSpec limit offset after
+  (?hit ?feature ?score ?numberMatched ?rank ?cursor)
+    luc:query ("default" "default" "" ?cql "" ?limit ?offset ?after) .
+  # Properties from stored index fields: no join to the graph.
+  (?hit field:name ?name) luc:fields () .
+  OPTIONAL { (?hit field:buildingHeight ?height) luc:fields () }
+  # The geometry from the graph, unless the call skips it.
+  OPTIONAL {
+    ?feature geo:hasGeometry/geo:asWKT ?geom .
+    FILTER(!BOUND(?skip) || !?skip)
+  }
+}
+ORDER BY ?rank

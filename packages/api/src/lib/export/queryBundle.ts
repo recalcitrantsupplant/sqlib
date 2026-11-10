@@ -129,7 +129,13 @@ export async function compileExportQuery(
     ...(pageParameters.length > 0 ? { pageParameters } : {}),
     inferredInputs: compiled.inferredInputs,
     ...(input.inputPolicies && input.inputPolicies.length > 0
-      ? { inputPolicies: input.inputPolicies.map((policy) => ({ vars: [...policy.vars], whenEmpty: policy.whenEmpty })) }
+      ? {
+          inputPolicies: input.inputPolicies.map((policy) => ({
+            vars: [...policy.vars],
+            ...(policy.whenEmpty ? { whenEmpty: policy.whenEmpty } : {}),
+            ...(policy.valuePattern ? { valuePattern: policy.valuePattern } : {}),
+          })),
+        }
       : {}),
     textHash: await hashTemplateText(template.text),
     ...(input.tags && input.tags.length > 0 ? { tags: input.tags } : {}),

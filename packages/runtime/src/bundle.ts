@@ -19,7 +19,7 @@
  */
 
 import { isSafeVariableName } from './sparql-terms.js';
-import type { EmptyArgumentMode, QueryTemplate, SlotPolicy } from './query-template.js';
+import { compileValuePattern, type EmptyArgumentMode, type QueryTemplate, type SlotPolicy } from './query-template.js';
 import type { WireArgumentSet } from './arguments.js';
 import type { ExecutionParameter } from './limit-offset.js';
 
@@ -314,8 +314,18 @@ function assertValidInputPolicies(query: ExportedQuery, where: string): void {
       fail(`${at} must name its slot's variables.`);
     }
     if (!declared.has(signature(policy.vars))) fail(`${at} names a slot the template does not declare.`);
-    if (!isEmptyArgumentMode(policy.whenEmpty)) {
+    if (policy.whenEmpty === undefined && policy.valuePattern === undefined) {
+      fail(`${at} sets neither whenEmpty nor valuePattern.`);
+    }
+    if (policy.whenEmpty !== undefined && !isEmptyArgumentMode(policy.whenEmpty)) {
       fail(`${at} has an unknown whenEmpty mode '${String(policy.whenEmpty)}'.`);
+    }
+    if (policy.valuePattern !== undefined) {
+      try {
+        compileValuePattern(policy.valuePattern);
+      } catch (error) {
+        fail(`${at}: ${(error as Error).message}`);
+      }
     }
   });
 }

@@ -188,6 +188,18 @@ export function assertionTriples(input: EarlAssertionInput): SerialisedTriple[] 
   if (testCase.message) {
     triples.push({ subject: r, predicate: iri(earl.info), object: literal(testCase.message, null) });
   }
+  // EARL has no "correct but too slow"; the outcome is `earl:failed` and this
+  // is what tells the two apart for a reader who queries the report.
+  if (typeof testCase.maxDurationMs === 'number') {
+    triples.push({
+      subject: s,
+      predicate: iri(sqlib.maxDurationMs),
+      object: literal(String(testCase.maxDurationMs), xsd.integer),
+    });
+  }
+  if (testCase.slow) {
+    triples.push({ subject: r, predicate: iri(sqlib.slow), object: literal('true', xsd.boolean) });
+  }
   if (testCase.detail) {
     triples.push({
       subject: r,

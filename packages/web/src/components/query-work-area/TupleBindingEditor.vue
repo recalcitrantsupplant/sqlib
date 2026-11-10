@@ -733,11 +733,13 @@ function setCell(rowIndex: number, name: string, value: SparqlValue) {
 .field {
   display: grid;
   grid-template-columns: 88px minmax(0, 1fr);
-  align-items: center;
+  /* Top, not centre: a JSON cell can be many lines tall. */
+  align-items: start;
   gap: 8px;
 }
 
 .field-label {
+  line-height: 26px;
   font-family: var(--font-mono);
   font-size: var(--text-micro);
   color: var(--ink-muted);

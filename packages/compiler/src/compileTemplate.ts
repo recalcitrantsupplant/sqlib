@@ -203,6 +203,13 @@ export function compileQueryTemplate(queryString: string, options: CompileQueryO
   }
 
   const detected = parser.detectInputs(queryString);
+  if (detected.constantInputs.length > 0) {
+    // The browser has no parser to find the triple patterns a constant is
+    // written into (docs/proposals/constant-substitution.md, "Paths").
+    throw new TemplateCompileError(
+      `Query '${name}' has the constant parameter ${detected.constantInputs.map(n => `?${n}`).join(', ')}, which the static export path does not carry yet. It can still be run through the API.`,
+    );
+  }
   const paginated = detected.limitParameters.length > 0 || detected.offsetParameters.length > 0;
 
   const compiled = paginated

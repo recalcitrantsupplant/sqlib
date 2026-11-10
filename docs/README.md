@@ -13,12 +13,14 @@ every other page assumes.
 - [guides/rules-and-srl.md](guides/rules-and-srl.md) — how do I write SHACL 1.2 inference rules and run them against a graph?
 - [guides/mcp-clients.md](guides/mcp-clients.md) — how do I point an MCP client at the server and what can it then do?
 - [guides/publishing-tools.md](guides/publishing-tools.md) — how do I publish a library's queries as an application's MCP tools and HTTP routes?
+- [guides/publishing-ogc-collections.md](guides/publishing-ogc-collections.md) — how do I serve a query as an OGC API Features collection for QGIS and other map clients?
 - [guides/mcp-app.md](guides/mcp-app.md) — how do I edit, run and save a query from inside a chat client, how do I teach SPARQL rules there with a library laid out as lessons, and how do I test that locally?
 - [guides/static-export.md](guides/static-export.md) — how do I export a library as a self-contained page that runs without the server?
 - [guides/testing-and-conformance.md](guides/testing-and-conformance.md) — how do I attach tests to a query or rule set and run a conformance suite?
 - [guides/etl.md](guides/etl.md) — how do I build RDF from tabular sources with DuckDB SQL?
 - [guides/prefixes.md](guides/prefixes.md) — how do I manage namespace prefixes across a library?
 - [guides/deploying.md](guides/deploying.md) — how do I run the container image and the static web app for real?
+- [guides/observability.md](guides/observability.md) — how do I send traces, metrics and logs somewhere, and find slow queries?
 
 ## Reference — looking something up
 
@@ -33,7 +35,7 @@ every other page assumes.
 - [explanation/architecture.md](explanation/architecture.md) — what the packages are, what runs in which process and how a request travels.
 - [explanation/versioning-and-immutability.md](explanation/versioning-and-immutability.md) — why entities split into a stable pointer and immutable versions, and what that buys.
 - [explanation/environments.md](explanation/environments.md) — named version pointers (dev, prod) inside a library, how a run resolves them, and who may move them.
-- [explanation/storage-and-caching.md](explanation/storage-and-caching.md) — where the library actually lives, and what the in-memory cache is for.
+- [explanation/storage-and-caching.md](explanation/storage-and-caching.md) — where the library and the auth store live (SQLite by default), how the query backends compare, and what the in-memory cache is for.
 - [explanation/security-model.md](explanation/security-model.md) — what the auth layer enforces, what it does not, and why some doors are open.
 - [explanation/rdf-patch.md](explanation/rdf-patch.md) — how an update query's effect is derived before it is applied.
 - [explanation/inline-inputs-and-the-rail.md](explanation/inline-inputs-and-the-rail.md) — where a saved input lives, why pasting a graph into a call saves it as a graph, and what the rail shows about where things came from.

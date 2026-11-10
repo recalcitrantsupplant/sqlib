@@ -1,4 +1,4 @@
-export const FEATURE_FLAG_KEYS = ['notebook', 'queries', 'queryGroups', 'rulesSuite', 'benchmarks', 'tests', 'dataGraphs', 'tupleSets', 'argumentSets', 'mcp', 'etl', 'backends', 'settings', 'rulesAllowInvalidSave', 'ruleTuples', 'ruleAggregates', 'playgroundQueries', 'playgroundRules', 'playgroundEtl', 'assistant'] as const;
+export const FEATURE_FLAG_KEYS = ['notebook', 'queries', 'queryGroups', 'rulesSuite', 'benchmarks', 'tests', 'dataGraphs', 'tupleSets', 'argumentSets', 'mcp', 'etl', 'backends', 'settings', 'rulesAllowInvalidSave', 'ruleTuples', 'ruleAggregates', 'playgroundQueries', 'playgroundRules', 'playgroundEtl', 'assistant', 'ogc'] as const;
 
 export type FeatureFlagKey = typeof FEATURE_FLAG_KEYS[number];
 
@@ -25,6 +25,7 @@ export const FEATURE_FLAG_ENV_VARS: Record<FeatureFlagKey, string> = {
   playgroundRules: 'FEATURE_PLAYGROUND_RULES',
   playgroundEtl: 'FEATURE_PLAYGROUND_ETL',
   assistant: 'FEATURE_ASSISTANT',
+  ogc: 'FEATURE_OGC',
 };
 
 const FALSE_LITERALS = new Set(['0', 'false', 'off', 'no', 'disabled']);
@@ -140,6 +141,13 @@ export function buildFeatureFlags(
      * those three properties should not appear because someone upgraded.
      */
     assistant: false,
+    /*
+     * Off unless asked for. The OGC API Features routes serve query versions
+     * that carry an `ogc` object to map clients such as QGIS, and their
+     * metadata routes are public. A deployment opts in to that surface.
+     * See `docs/proposals/ogc-api-features.md`.
+     */
+    ogc: false,
   },
 ): FeatureFlags {
   const flags: FeatureFlags = {
@@ -163,6 +171,7 @@ export function buildFeatureFlags(
     playgroundRules: coerceFeatureFlagValue(env[FEATURE_FLAG_ENV_VARS.playgroundRules], defaults.playgroundRules),
     playgroundEtl: coerceFeatureFlagValue(env[FEATURE_FLAG_ENV_VARS.playgroundEtl], defaults.playgroundEtl),
     assistant: coerceFeatureFlagValue(env[FEATURE_FLAG_ENV_VARS.assistant], defaults.assistant),
+    ogc: coerceFeatureFlagValue(env[FEATURE_FLAG_ENV_VARS.ogc], defaults.ogc),
   };
 
   return {
@@ -193,5 +202,6 @@ export function featureFlagLabels(): Record<FeatureFlagKey, string> {
     playgroundRules: 'Playground: Rules',
     playgroundEtl: 'Playground: ETL',
     assistant: 'Build assistant (in-app)',
+    ogc: 'OGC API Features',
   };
 }

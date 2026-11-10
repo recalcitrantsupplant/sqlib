@@ -75,11 +75,18 @@ async function checkFile(io: Io, file: string, parser: SparqlQueryParser): Promi
       ...inputs.limitParameters.map(name => `LIMIT ${name}`),
       ...inputs.offsetParameters.map(name => `OFFSET ${name}`),
     ];
-    const warnings = inputs.correlatedExistsInputs.map(
-      input => `warning: [${input.parameters.join(', ')}] inside FILTER EXISTS shares ${input.correlatedVariables.join(', ')} with its scope, which endpoints evaluate differently`,
-    );
+    const warnings = [
+      ...inputs.correlatedExistsInputs.map(
+        input => `warning: [${input.parameters.join(', ')}] inside FILTER EXISTS shares ${input.correlatedVariables.join(', ')} with its scope, which endpoints evaluate differently`,
+      ),
+      ...inputs.constantWarnings.map(
+        warning => `warning: constant ?${warning.parameter} keeps its variable in a ${warning.position}, so the answer can differ from a plain VALUES run`,
+      ),
+    ];
     let template = '';
-    if (form !== 'UPDATE') {
+    if (inputs.constantInputs.length > 0) {
+      template = '; has a constant parameter, so its arguments need the parser path';
+    } else if (form !== 'UPDATE') {
       try {
         compileQueryTemplate(text, { name: file, parser });
       } catch (error) {

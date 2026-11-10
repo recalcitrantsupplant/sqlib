@@ -1,0 +1,6 @@
+PREFIX : <http://example/>
+
+# A GROUP with no BY always has one group, even when its pattern has no
+# solutions, so COUNT and SUM give 0 (w3c/data-shapes#1377).
+RULE { :amy :children ?n ; :aged ?na ; :ages ?nd ; :ageTotal ?t }
+WHERE { GROUP { ?c :childOf :amy ; :age ?a } [ ?n := COUNT(*) , ?na := COUNT(?a) , ?nd := COUNT(DISTINCT ?a) , ?t := SUM(?a) ] }

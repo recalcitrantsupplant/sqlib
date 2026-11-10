@@ -527,6 +527,164 @@ export const queryversionSchema = {
           "type": "null"
         }
       ]
+    },
+    "ogc": {
+      "title": "OgcCollection",
+      "type": "object",
+      "properties": {
+        "collectionId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "values",
+            "cql2"
+          ]
+        },
+        "feature": {
+          "type": "object",
+          "properties": {
+            "var": {
+              "type": "string",
+              "minLength": 1
+            },
+            "base": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "var",
+            "base"
+          ],
+          "additionalProperties": false
+        },
+        "geometry": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "point": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "geometrySources": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "href": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "href"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "params": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "outputs": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "cql": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "queryables": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "var": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "string",
+                  "number",
+                  "integer",
+                  "boolean",
+                  "date-time",
+                  "uri"
+                ]
+              },
+              "title": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "pageSize": {
+          "type": "object",
+          "properties": {
+            "default": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "max": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        "extent": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "omit": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "collectionId",
+        "title",
+        "mode",
+        "feature"
+      ],
+      "additionalProperties": false,
+      "nullable": true
     }
   },
   "required": [
@@ -3191,6 +3349,10 @@ export const queryinputtupleSchema = {
     "whenEmpty": {
       "type": "string",
       "nullable": true
+    },
+    "valuePattern": {
+      "type": "string",
+      "nullable": true
     }
   },
   "required": [
@@ -4002,6 +4164,10 @@ export const testcaseSchema = {
       "type": "boolean",
       "nullable": true
     },
+    "maxDurationMs": {
+      "type": "integer",
+      "nullable": true
+    },
     "dateCreated": {
       "type": "string",
       "format": "date-time",
@@ -4073,6 +4239,14 @@ export const testruncaseSchema = {
     },
     "durationMs": {
       "type": "number",
+      "nullable": true
+    },
+    "maxDurationMs": {
+      "type": "integer",
+      "nullable": true
+    },
+    "slow": {
+      "type": "boolean",
       "nullable": true
     },
     "argumentSetVersion": {
@@ -4186,6 +4360,10 @@ export const testrunSchema = {
       "nullable": true
     },
     "failedCount": {
+      "type": "integer",
+      "nullable": true
+    },
+    "slowCount": {
       "type": "integer",
       "nullable": true
     },
@@ -4757,6 +4935,7 @@ export interface QueryVersionRestApi {
   createdBy?: string | null;
   modifiedBy?: string | null;
   tool?: string;
+  ogc?: string | null;
 }
 
 export interface ArgumentScalarBindingRestApi {
@@ -5292,6 +5471,7 @@ export interface QueryInputTupleRestApi {
   position?: number | null;
   variableMappings?: string | null;
   whenEmpty?: string | null;
+  valuePattern?: string | null;
 }
 
 export interface QueryInputVariableRestApi {
@@ -5442,6 +5622,7 @@ export interface TestCaseRestApi {
   expected?: string | null;
   expectedFormat?: string | null;
   ordered?: boolean | null;
+  maxDurationMs?: number | null;
   dateCreated?: string | null;
   dateModified?: string | null;
   createdBy?: string | null;
@@ -5458,6 +5639,8 @@ export interface TestRunCaseRestApi {
   message?: string | null;
   detail?: string | null;
   durationMs?: string | null;
+  maxDurationMs?: number | null;
+  slow?: boolean | null;
   argumentSetVersion?: string | null;
   dataGraphVersion?: string | null;
   dataGraphVersions?: string[] | null;
@@ -5482,6 +5665,7 @@ export interface TestRunRestApi {
   durationMs?: string | null;
   passedCount?: number | null;
   failedCount?: number | null;
+  slowCount?: number | null;
   ranAt: string;
   dateCreated?: string | null;
   dateModified?: string | null;

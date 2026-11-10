@@ -118,7 +118,7 @@ vi.mock('@/composables/useCallableDrafts', () => ({
   }),
   UNASSIGNED_LIBRARY_ID: 'unassigned',
 }));
-vi.mock('vue-sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
+vi.mock('vue-sonner', () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() } }));
 // The expectation and named-tuples boxes are CodeMirror instances; what these
 // specs are about is the text they hold, so a textarea stands in for each.
 vi.mock('vue-codemirror', () => ({
@@ -256,6 +256,43 @@ describe('TestWorkArea — drafts', () => {
     // The verdict answers for the editor, not for the saved test the rail shows.
     expect(store.lastRunByTest.value[TEST_ID]).toBeUndefined();
     expect(area.get('[data-testid="test-case-tab-0"]').exists()).toBe(true);
+  });
+
+  it('reads a case time budget, sends an edit of it, and marks a slow case apart', async () => {
+    store.loadVersions.mockResolvedValue([{
+      id: 'urn:sqlib:test-version:v1',
+      version: 1,
+      expectationKind: 'graph',
+      subjectVersion: null,
+      backend: null,
+      cases: [{ name: null, expected: SAVED_EXPECTED, expectedFormat: 'text/turtle', ordered: null, maxDurationMs: 500 }],
+    }]);
+    api.runTestDraft.mockResolvedValue({
+      testId: TEST_ID, testVersionId: `${TEST_ID}#draft`, passed: false,
+      message: 'Correct, but took 900 ms; the budget is 250 ms', expectationKind: 'graph',
+      hermetic: true, durationMs: 900, subjectVersionId: null, ranAt: '2026-10-19T00:00:00.000Z',
+      cases: [{
+        caseId: 'c0', name: 'Case 1', position: 0, passed: false, slow: true, maxDurationMs: 250,
+        message: 'Correct, but took 900 ms; the budget is 250 ms', durationMs: 900,
+      }],
+      passedCount: 0, failedCount: 0, slowCount: 1,
+    });
+    const area = await mountSaved();
+
+    const budget = area.get('[data-testid="test-max-duration"]');
+    expect((budget.element as HTMLInputElement).value).toBe('500');
+    await budget.setValue('250');
+    await budget.trigger('change');
+    vi.advanceTimersByTime(600);
+    await flushPromises();
+
+    await (area.vm as unknown as { run: () => Promise<void> }).run();
+    await flushPromises();
+
+    expect(api.runTestDraft).toHaveBeenCalledWith(TEST_ID, expect.objectContaining({
+      cases: [expect.objectContaining({ maxDurationMs: 250 })],
+    }));
+    expect(area.get('[data-testid="test-case-tab-0"] .case-dot').classes()).toContain('case-dot-slow');
   });
 
   it('runs the saved version when there are no unsaved edits', async () => {

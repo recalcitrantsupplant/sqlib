@@ -88,9 +88,26 @@ one.
 The two are unrelated: a server can keep its library in an in-process store and
 run queries against a remote endpoint, or the reverse.
 
+A third store holds grants and principals when auth is on. It is also SQLite by
+default (`auth.sqlite` in `SQLIB_AUTH_STORE_DIR`, default `./storage/auth`); see
+[the auth store](../explanation/storage-and-caching.md#where-grants-live-the-auth-store).
+With the defaults, a server's durable state is `library.sqlite` and
+`auth.sqlite`, and nothing else needs to run beside it.
+
 ### Where the library lives: `INTERNAL_BACKEND_TYPE`
 
-`http` (the default), `oxigraph-memory`, or `oxigraph-persistent`.
+`sqlite` (the default), `http`, `oxigraph-persistent`, or `oxigraph-memory`.
+
+**`sqlite`** keeps the library in one file, `library.sqlite`, and writes each
+change to disk before it returns:
+
+| Variable | Default |
+| --- | --- |
+| `LIBRARY_STORAGE_DIR` | `./storage/library-store`, resolved from the working directory |
+
+Keep the directory on local disk or a block volume, not a network file share.
+[Storage and caching](../explanation/storage-and-caching.md#sqlite-the-default)
+gives the detail and compares the four options.
 
 **`http`** persists the library to an external SPARQL endpoint that accepts
 query and update:
@@ -143,7 +160,7 @@ fresh, empty library.
 ### What queries execute against: backends
 
 A `Backend` is an entity, so it is created at runtime rather than configured in
-the environment. Two kinds:
+the environment. Two kinds are in use, and a third is kept for older libraries:
 
 - `http` — a SPARQL endpoint, with an optional separate update URL and
   optional basic-auth credentials.
@@ -158,6 +175,12 @@ the store is reloaded when a new version is saved; one naming a
 `dataGraphVersionId` pins immutable content. Writes to a `readOnly` backend are
 refused with 403 at the executor, because Oxigraph's store has no read-only
 flag of its own.
+
+An `oxigraphMemory` backend can also be seeded from an RDF file, a file URL or
+a SPARQL endpoint (`loadMethod` and `sourceConfig` in its `oxigraphConfig`).
+`oxigraphEphemeral`, the older type, is an empty writable store that lasts until
+the process stops. [Storage and caching](../explanation/storage-and-caching.md#where-queries-run-backends)
+compares the three, and shows how to serve read-only data with no SPARQL server.
 
 [The REST walkthrough](rest-api-walkthrough.md) registers one of these and runs
 a query against it.

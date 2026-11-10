@@ -1,19 +1,23 @@
-version: '3.8'
-
+# Local observability for development: one container with an OpenTelemetry
+# Collector, Tempo (traces), Loki (logs), Prometheus (metrics) and Grafana.
+#
+#   just lgtm-up      start it
+#   just dev-otel     start it, then run `just dev` sending telemetry to it
+#   just lgtm-down    stop it
+#
+# Grafana:   http://localhost:3030 (no login), dashboard "sqlib"
+# OTLP:      http://localhost:4318 (HTTP), localhost:4317 (gRPC)
+#
+# Data is kept in memory and lost when the container stops.
+# See docs/guides/observability.md.
 services:
-  jaeger:
-    image: jaegertracing/all-in-one:1.60
-    container_name: sparql-jaeger
-    environment:
-      - COLLECTOR_OTLP_ENABLED=true
+  lgtm:
+    image: grafana/otel-lgtm:0.37.0
+    container_name: sqlib-lgtm
     ports:
-      - "16686:16686"   # Jaeger UI
-      - "14268:14268"   # Jaeger HTTP collector
-      - "4317:4317"     # OTLP gRPC receiver
-      - "4318:4318"     # OTLP HTTP receiver
-    networks:
-      - observability
-
-networks:
-  observability:
-    driver: bridge
+      - "3030:3000"   # Grafana
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+    volumes:
+      - ./infrastructure/observability/grafana-dashboards.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/sqlib.yaml:ro
+      - ./infrastructure/observability/sqlib-dashboard.json:/otel-lgtm/sqlib-dashboard.json:ro

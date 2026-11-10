@@ -26,6 +26,7 @@ For the reasoning behind these choices rather than their values, see
 | `MCP_HTTP_PORT` | `3333` | Listening port in `streamable-http` mode (MCP only, at `/mcp`). |
 | `MCP_HTTP_HOST` | `0.0.0.0` | Listening address in `streamable-http` mode. |
 | `MCP_CATALOGUE` | `both` | Which surfaces the server offers: `both`, `catalogue` or `published`. `catalogue` serves no published tools (`/mcp/{slug}` and `/tools/…` are 404). `published` serves only the published tools: `/mcp` lists them alone, every authoring route is 404, `POST /execute` runs only their pinned versions, and an invalid published tool stops the server at startup instead of being skipped. Anything else throws. See [publishing tools](../guides/publishing-tools.md). |
+| `SQLIB_OGC_BASE_URL` | unset | The absolute URL that OGC API Features links start with, such as `https://maps.example.org`. Unset: the request's scheme and host, and `APP_PUBLIC_BASE_PATH`. See [publishing OGC collections](../guides/publishing-ogc-collections.md). |
 | `SQLIB_CORS_ORIGINS` | unset: `http://localhost:3001,http://127.0.0.1:3001` (the SPA dev server) when `NODE_ENV=development`, otherwise none | Browser origins allowed to read API and `/mcp` responses, comma-separated. A listed origin is echoed in `access-control-allow-origin` with `access-control-allow-credentials: true`; `*` allows every origin and never sends credentials; an origin not on the list gets no CORS headers, and its preflight gets 404. Set to the empty string to allow none even in development. A production deployment whose SPA is served from another origin than the API must list that origin. The API (`packages/api/src/config/cors.ts`) and the MCP transport read it the same way, since in `dual-http` and `streamable-http` modes they share one instance; `/mcp` answers its own `OPTIONS /mcp` preflight, with the MCP headers, and the API's plugin leaves that path alone. |
 | `PORT` | `3000` | Listening port when `packages/api` is started directly (`APP_MODE=api`). A value that does not parse as a number falls back to 3000. |
 | `FASTIFY_ADDRESS` | `0.0.0.0` | Listening address when `packages/api` is started directly. |
@@ -208,14 +209,33 @@ A value that does not parse as an integer falls back to the default.
 
 ## Telemetry
 
+Telemetry is off unless something says where to send it. With it off the
+OpenTelemetry SDK is not loaded at all. See
+[observability](../guides/observability.md) for recipes and the local stack.
+
 | Name | Default | Effect |
 | --- | --- | --- |
-| `OTEL_ENABLED` | `true` | Set to exactly `false` to skip OpenTelemetry SDK startup and OpenTelemetry log export. Any other value leaves it on. With it off the SDK is not imported at all, which is worth about 220ms of startup. |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://localhost:4318` | OTLP HTTP collector base URL. Traces go to `/v1/traces` and metrics to `/v1/metrics`. |
+| `OTEL_ENABLED` | unset | `false` turns telemetry off, whatever else is set. `true` turns it on; with no endpoint the SDK sends OTLP to `http://localhost:4318`. |
+| `OTEL_SDK_DISABLED` | unset | The standard off switch. `true` turns telemetry off. |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | unset | OTLP base URL. Setting it, or a per-signal `OTEL_EXPORTER_OTLP_{TRACES,METRICS,LOGS}_ENDPOINT`, turns telemetry on. |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | `http/protobuf` | `http/protobuf`, `http/json` or `grpc`. |
+| `OTEL_EXPORTER_OTLP_HEADERS` | unset | Headers on every export, for an API key: `x-honeycomb-team=<key>`. |
+| `OTEL_TRACES_EXPORTER`, `OTEL_METRICS_EXPORTER`, `OTEL_LOGS_EXPORTER` | `otlp` | `otlp`, `console` or `none` per signal. A value other than `none` turns telemetry on, so `OTEL_TRACES_EXPORTER=console` works for a quick look. |
+| `OTEL_SERVICE_NAME` | `sqlib` | The `service.name` on everything sent. |
+| `OTEL_RESOURCE_ATTRIBUTES` | unset | Extra resource attributes, such as `deployment.environment.name=prod`. |
+| `OTEL_TRACES_SAMPLER`, `OTEL_TRACES_SAMPLER_ARG` | `parentbased_always_on` | Head sampling, such as `parentbased_traceidratio` and `0.2`. |
+| `OTEL_METRIC_EXPORT_INTERVAL` | `60000` | Milliseconds between metric exports. |
+| `SQLIB_SLOW_QUERY_MS` | `1000` | A run of `/execute` that takes at least this long writes one `sqlib.query.slow` log line. `0` logs every run; `off` turns the line off. Works with telemetry off too: the line is a normal log line. |
+| `SQLIB_TELEMETRY_DETAIL` | `ids` | What the slow line carries beyond ids. `text` adds the saved query text; `text+args` also adds the arguments the caller sent, which can hold private values. |
+| `SQLIB_OBSERVABILITY_URL` | unset | Where people look at the telemetry, such as a Grafana dashboard. Administrators get an "Open dashboard" link in Settings. Only `http` and `https` URLs are used. |
+| `SQLIB_TRACE_URL_TEMPLATE` | unset | A URL with `{traceId}` in it, such as a Grafana Explore or App Insights transaction link. With telemetry on, each response carries `Sqlib-Trace-Url` with the request's trace id filled in, and the web app shows a trace icon on run results. |
 
-OTLP export only happens when `NODE_ENV=development`. In any other environment
-the SDK starts with console exporters, which means an endpoint set in production
-is not used. Metrics are exported every 30 seconds.
+Every other `OTEL_*` variable the OpenTelemetry Node SDK reads works as
+documented for it, because sqlib passes no exporter of its own.
+
+With telemetry on, log lines still go to stdout, and also go out as OTLP log
+records unless `OTEL_LOGS_EXPORTER=none`. Lines logged inside a request carry
+`trace_id` and `span_id`.
 
 ## Startup time
 
@@ -237,8 +257,8 @@ instance that would rather pay the whole bill before it accepts traffic.
 
 Two other things help and are ordinary configuration rather than switches:
 turning off [feature flags](feature-flags.md) you do not serve removes their
-routes, and each route is worth roughly 10ms of startup; and `OTEL_ENABLED=false`
-avoids loading the OpenTelemetry SDK.
+routes, and each route is worth roughly 10ms of startup; and leaving telemetry
+unconfigured (the default) avoids loading the OpenTelemetry SDK.
 
 What does *not* help much is anything about Oxigraph itself: the WASM module
 instantiates in about 25ms. The data-dependent part of startup is the snapshot,

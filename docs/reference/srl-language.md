@@ -431,7 +431,7 @@ SRL syntax error: tuple seed rows require the rule-tuples extension (parse with 
 [w3c/data-shapes#1344](https://github.com/w3c/data-shapes/issues/1344), with
 the grammar of
 [w3c/data-shapes#1347](https://github.com/w3c/data-shapes/pull/1347). sqlib
-also follows three open pull requests as if they were merged:
+also follows three merged pull requests:
 [#1375](https://github.com/w3c/data-shapes/pull/1375) puts a comma between
 assignments, [#1377](https://github.com/w3c/data-shapes/pull/1377) defines the
 well-formedness conditions and `evalAggregate`, and
@@ -497,14 +497,23 @@ the results to the rows it receives and keeps every variable they bind.
 4. Every row keeps what it had, and gains the `BY` variables and the results.
    The pattern's other variables stay inside the `GROUP`.
 
-A row whose pattern has no solutions forms no group, so it is dropped, whatever
-the functions are. A person with no children gets no `COUNT` row rather than a
-count of 0. A `GROUP` with no `BY` whose pattern has no solutions gives no row
-either. An empty pattern, `GROUP { }`, has one solution, so it gives one group.
+Two rules decide whether a row survives.
 
-An error in any assignment, such as `SUM` over a string, drops the group, as an
-error in `SET` drops a row. An empty block, `[]`, keeps the rows whose pattern
-has at least one solution.
+**Group existence.** With `BY`, a group exists only for a key that the
+pattern's solutions supply. A row whose key has no solutions forms no group, so
+it is dropped, whatever the functions are. A person with no children gets no
+`COUNT` row rather than a count of 0. Without `BY`, there is always one
+implicit group, even when the pattern has no solutions. Over that empty group,
+`COUNT(*)`, `COUNT(?v)` and `SUM(?v)` give 0. An empty pattern, `GROUP { }`,
+has one solution, so its group has one solution.
+
+**Aggregate success.** Every assignment must succeed for the row to survive.
+An error in any assignment drops the whole group, as an error in `SET` drops a
+row. `SUM` over a string is an error, and so are `MIN` and `MAX` over an empty
+group. So `[ ?n := COUNT(*) , ?m := MAX(?v) ]` over no solutions gives no row,
+where SPARQL would keep the row with `?m` unbound. An empty block, `[]`, has
+nothing to fail: with `BY` it keeps the rows that have a group, and without
+`BY` it keeps every row.
 
 `COUNT(?v)` counts the solutions in which `?v` is bound, and every pattern
 variable is bound in every solution, so it equals `COUNT(*)`. To count distinct
@@ -632,9 +641,11 @@ GROUP BY ?x
 ```
 
 A failed aggregate leaves its subquery variable unbound, and `FILTER(BOUND(?n))`
-drops the row. A `GROUP` with no `BY` also projects a hidden `COUNT(*)` and
-keeps its row only when that is above 0, because SPARQL returns one row for an
-aggregate over no solutions. When a `BY` variable bound before the `GROUP` is
+drops the row. The `BOUND` test covers every result at once, so one failed
+aggregate drops the group. A `GROUP` with no `BY` keeps its subquery's one row
+even when the pattern has no solutions, as SPARQL does for an aggregate query
+without `GROUP BY`. It also projects a hidden `COUNT(*)`, so that the subquery
+projects a variable when the block is empty. When a `BY` variable bound before the `GROUP` is
 not bound by the pattern, as `?score` is in the rank example, the subquery
 cannot compute it, since SPARQL evaluates a subquery without the outer
 bindings. The subquery is then seeded with the distinct key values from the
@@ -643,8 +654,8 @@ elements before the `GROUP`, which repeats those elements inside it.
 ### Test cases
 
 The W3C suite's `GROUP` tests are in the vendored snapshot,
-`packages/srl/test/w3c/`, which takes them from w3c/data-shapes#1380 and
-#1375 as if both were merged; its `SOURCE` file says how. Both conformance
+`packages/srl/test/w3c/`, which takes them from w3c/data-shapes#1380 as if
+it were merged; its `SOURCE` file says how. Both conformance
 harnesses run them with `GROUP` on.
 
 sqlib's own cases, in the suite's format, are in `packages/srl/test/group-cases/`

@@ -2027,7 +2027,11 @@ const {
   endRun: endTestRun,
 } = useTestRunSummary();
 
-const testCount = computed(() => testsStore.tests.value.length);
+/*
+ * The same rows the list under the tab holds: this library's saved tests and
+ * the scratch ones. The store holds every library's tests.
+ */
+const testCount = computed(() => savedFor('tests').length + scratchFor('test').length);
 
 const testSidebarTabs = computed<Tab[]>(() => [
   { value: 'tests', label: 'Tests', count: testCount.value, icon: CircleCheck, testId: 'tests-tab-tests' },

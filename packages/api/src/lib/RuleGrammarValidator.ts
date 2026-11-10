@@ -11,7 +11,7 @@
  *      as-is (already normalized). This preserves the previous lenient
  *      behaviour where callers may supply plain SPARQL.
  */
-import { Parser as SparqlParser } from '@traqula/parser-sparql-1-2';
+import { Parser as SparqlParser } from '@sparql-query-lib/compiler';
 import { compileRule, formatRuleSet, parseRuleSet } from '@sparql-query-lib/srl';
 
 import { ruleTuplesAllowed } from './ruleTuples.js';

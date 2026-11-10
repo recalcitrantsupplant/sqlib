@@ -101,7 +101,10 @@ export interface TestRunTestRow {
   /** How many cases the test expanded to. `> 1` is a parametrised test. */
   caseCount: number;
   passedCases: number;
+  /** Every case that did not pass, slow ones included. */
   failedCases: number;
+  /** Cases that were correct but over their time budget. Part of `failedCases`. */
+  slowCases: number;
   durationMs: number;
   groupKey: string;
   groupLabel: string;
@@ -161,7 +164,8 @@ export interface TestRunFailureRow {
   testId: string;
   testName: string;
   caseIndex: number;
-  status: 'fail' | 'excluded';
+  /** `slow`: the result was correct, but over the case's time budget. */
+  status: 'fail' | 'slow' | 'excluded';
   coordinates: TestRunCoordinate[];
   reason: string;
   durationMs: number;
@@ -171,7 +175,9 @@ export interface TestRunTallies {
   tests: number;
   cases: number;
   passed: number;
+  /** Wrong results. Slow but correct cases are in `slow`, not here. */
   failed: number;
+  slow: number;
   excluded: number;
   /** Named by the scope, still to answer. Only non-zero while a run is going. */
   pending: number;
@@ -279,6 +285,7 @@ export function buildTestRunSummary(input: TestRunSummaryInput): TestRunSummary 
     const failedCases = result
       ? (result.cases.length > 0 ? result.cases.filter((one) => !one.passed).length : (result.passed ? 0 : 1))
       : 0;
+    const slowCases = result ? result.cases.filter((one) => one.slow).length : 0;
     rows.push({
       id: test.id,
       name: test.name,
@@ -286,6 +293,7 @@ export function buildTestRunSummary(input: TestRunSummaryInput): TestRunSummary 
       caseCount,
       passedCases: caseCount - failedCases,
       failedCases,
+      slowCases,
       durationMs: result?.durationMs ?? 0,
       groupKey: group.key,
       groupLabel: group.label,
@@ -378,7 +386,7 @@ export function buildTestRunSummary(input: TestRunSummaryInput): TestRunSummary 
         testId: row.id,
         testName: row.name,
         caseIndex: index,
-        status: 'fail',
+        status: caseResult.slow ? 'slow' : 'fail',
         coordinates: coordinatesFor(row, caseResult.name || `Case ${index + 1}`),
         reason: caseResult.message || result.message || 'Failed',
         durationMs: caseResult.durationMs,
@@ -392,11 +400,12 @@ export function buildTestRunSummary(input: TestRunSummaryInput): TestRunSummary 
     // running it can say.
     cases: total.cases + (row.status === 'pending' ? 0 : Math.max(row.caseCount, 1)),
     passed: total.passed + (row.status === 'pass' || row.status === 'fail' ? row.passedCases : 0),
-    failed: total.failed + row.failedCases,
+    failed: total.failed + row.failedCases - row.slowCases,
+    slow: total.slow + row.slowCases,
     excluded: total.excluded + (row.status === 'excluded' ? 1 : 0),
     pending: total.pending + (row.status === 'pending' ? 1 : 0),
     durationMs: total.durationMs + row.durationMs,
-  }), { tests: 0, cases: 0, passed: 0, failed: 0, excluded: 0, pending: 0, durationMs: 0 });
+  }), { tests: 0, cases: 0, passed: 0, failed: 0, slow: 0, excluded: 0, pending: 0, durationMs: 0 });
 
   return {
     scope,
@@ -418,6 +427,15 @@ function coordinatesFor(row: TestRunTestRow, caseName: string | null): TestRunCo
     chips.push({ label: row.backendLabel, kind: 'backend', color: null });
   }
   return chips;
+}
+
+/**
+ * A test's verdict in three words: `slow` when nothing was wrong but at least
+ * one case went over its time budget.
+ */
+export function verdictOf(result: Pick<TestRunResult, 'passed' | 'failedCount' | 'slowCount'>): 'pass' | 'slow' | 'fail' {
+  if (result.passed) return 'pass';
+  return (result.slowCount ?? 0) > 0 && (result.failedCount ?? 0) === 0 ? 'slow' : 'fail';
 }
 
 /**

@@ -1,0 +1,21 @@
+{
+  "collectionId": "buildings",
+  "title": "Buildings",
+  "description": "Building footprints, with a name and a height.",
+  "mode": "values",
+  "feature": { "var": "feature", "base": "https://example.org/building/" },
+  "geometry": "geom",
+  "params": {
+    "limit": "1",
+    "offset": "2",
+    "bbox": ["minx", "miny", "maxx", "maxy"],
+    "datetime": ["start", "end"],
+    "skipGeometry": "skip"
+  },
+  "queryables": { "name": { "var": "name", "type": "string", "title": "Name" } },
+  "pageSize": { "default": 10, "max": 500 },
+  "extent": {
+    "spatial": [[115.8, -42.9, 151.3, -12.4]],
+    "temporal": [["2025-01-01T00:00:00Z", null]]
+  }
+}

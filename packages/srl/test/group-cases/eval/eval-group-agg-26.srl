@@ -1,0 +1,5 @@
+PREFIX : <http://example/>
+
+# A key bound before the GROUP with no solutions forms no group, so even
+# COUNT(*) gives no row (w3c/data-shapes#1377).
+RULE { ?x :pets ?n } WHERE { ?x a :Person . GROUP BY ?x { ?p :petOf ?x } [ ?n := COUNT(*) ] }

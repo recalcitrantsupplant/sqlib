@@ -3,6 +3,8 @@
 import './server/bootstrap.js';
 
 import { toError } from './lib/toError.js';
+import { shutdownTelemetry } from './otel-setup.js';
+import { fastifyLoggerOptions } from './lib/log.js';
 import Fastify from 'fastify';
 import fastifyMultipart from '@fastify/multipart';
 import fastifyCors from '@fastify/cors';
@@ -26,8 +28,10 @@ import { buildCorsOptions, resolveCorsPolicy } from './config/cors.js';
 import { catalogueMode, publishedToolsServed, registerPublishedModePlugin } from './config/catalogueMode.js';
 import { loadPublishedCatalogue } from './lib/publishedTools.js';
 import { registerPublishedToolRoutes } from './server/publishedToolRoutes.js';
+import { registerOgcRoutes } from './server/ogcRoutes.js';
 import { registerChangeFeedHook } from './lib/changeEvents.js';
 import { registerNoStoreHook } from './lib/httpCaching.js';
+import { registerTraceLinkHook } from './server/traceLink.js';
 import * as schemas from '@sparql-query-lib/contracts/schema';
 import { registerErrorHandler } from './server/errorHandler.js';
 import { closeLibraryDatabase, LIBRARY_SQLITE_FILE } from './persistence/sqliteEntityStore.js';
@@ -37,7 +41,8 @@ import { seedGraphAccessDemoLibrary, seedPatchDemoLibrary, seedRulesConformanceS
 
 // Create the Fastify instance outside the start function
 const app = Fastify({
-  logger: true,
+  // Same trace ids and destination as `lib/log.ts`.
+  logger: fastifyLoggerOptions(),
   bodyLimit: 100 * 1024 * 1024, // 100MB limit
   // Teaches the response serialiser the `iri` format the contracts emit; without
   // it fast-json-stringify logs `unknown format "iri" ignored` for every such
@@ -268,6 +273,7 @@ async function configureApp(fastifyApp: typeof app, options: ConfigureOptions = 
   // no `Cache-Control` is what let a browser serve a saved-over query from its
   // own cache. See `registerNoStoreHook`.
   registerNoStoreHook(fastifyApp);
+  registerTraceLinkHook(fastifyApp);
 
   const publicBasePath = normalizeBasePath(process.env.APP_PUBLIC_BASE_PATH) || basePath;
 
@@ -301,6 +307,17 @@ async function configureApp(fastifyApp: typeof app, options: ConfigureOptions = 
     );
   }
 
+  // OGC API Features, from the same catalogue: each `items` call is a
+  // `/execute` call. See `docs/proposals/ogc-api-features.md`.
+  if (featureFlags.ogc && publishedToolsServed(mode) && featureFlags.queries) {
+    await fastifyApp.register(
+      async (scopedApp) => {
+        await registerOgcRoutes(scopedApp, { catalogue: publishedCatalogue, basePath, publicBasePath });
+      },
+      { prefix: basePath },
+    );
+  }
+
   fastifyApp.log.info('Server setup complete with feature flag configuration applied.');
 
   const teardown = async () => {
@@ -312,6 +329,8 @@ async function configureApp(fastifyApp: typeof app, options: ConfigureOptions = 
     // After the server, so no request is left writing to them.
     closeLibraryDatabase();
     getAuthStore().closePersistence();
+    // Last, so the spans and log lines of the final requests are flushed.
+    await shutdownTelemetry();
   };
 
   return { featureFlags, teardown };
@@ -361,6 +380,8 @@ const start = async (fastifyApp: typeof app) => {
 
 // Export the app instance and the start function
 export { app, start, configureApp, normalizeBasePath };
+// For Fastify instances built outside this package (the MCP server's dual-http mode).
+export { fastifyLoggerOptions } from './lib/log.js';
 // Re-exported for in-process consumers that must validate exactly as this server
 // does — `packages/mcp-server` compiles its tool schemas with it (Phase C2,
 // issue #65). `coerceTypes`/`useDefaults` change what a handler receives, so a

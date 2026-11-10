@@ -320,6 +320,7 @@ export const sqlib = createNamespace({
 
     "memberEntries",
     "whenEmpty",
+    "valuePattern",
     "datasetPart",
     "Library",
     "Query",
@@ -481,6 +482,9 @@ export const sqlib = createNamespace({
     "expected",
     "expectedFormat",
     "ordered",
+    // A case's time budget. A run that is correct but slower than this is
+    // reported as slow, apart from a wrong result.
+    "maxDurationMs",
     "maxIterations",
 
     // Test reports. EARL covers the assertion itself; these carry what it has
@@ -522,6 +526,9 @@ export const sqlib = createNamespace({
     "suite",
     "passedCount",
     "failedCount",
+    // Correct but over its case's `maxDurationMs`. Counted apart from failures.
+    "slow",
+    "slowCount",
     "dataGraphVersions",
 
     // Tags — classification within a library, distinct from the containment
@@ -643,7 +650,10 @@ export const sqlib = createNamespace({
     // and the tool a query or group version publishes as
     "slug",
     "publishAll",
-    "tool"
+    "tool",
+
+    // The OGC API Features collection a query version serves as
+    "ogc"
   ]
 } as const);
 

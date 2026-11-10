@@ -52,7 +52,7 @@ browser-side apply and worker-side apply are then the same code, and where the
 patch log eventually lives becomes a choice of sink rather than a rewrite.
 `compiler` follows the same line: the parser, input detection and template
 compilation run in the API and in the command-line tool, so neither carries a
-copy. The API wraps it only to send its diagnostics to OpenTelemetry.
+copy. The API wraps it only to send its diagnostics to the service log.
 `runtime-duckdb` follows the same line: the API and the command-line tool
 read ETL sources through one sandbox. The API supplies a profile read from the
 environment; the tool supplies one from its flags. `runtime-etl` holds the loop

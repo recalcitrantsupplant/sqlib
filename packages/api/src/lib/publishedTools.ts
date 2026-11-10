@@ -16,9 +16,12 @@
  */
 import { requestedEnvironment, resolveVersionIn } from './environments.js';
 import {
+  checkOgcObject,
   checkToolObject,
   defaultToolObject,
+  ogcParamKinds,
   type DetectedInputs,
+  type OgcCollectionSpec,
   type PublishedToolSpec,
   type ToolObject,
   type ToolTargetKind,
@@ -46,13 +49,18 @@ export type PublishedLibrary = {
 
 export type PublishedCatalogue = {
   specs: PublishedToolSpec[];
+  /**
+   * The OGC API Features collections: query versions that carry an `ogc`
+   * object, pinned the same way. See `docs/proposals/ogc-api-features.md`.
+   */
+  collections: OgcCollectionSpec[];
   /** The libraries that publish at least one tool, by slug. */
   libraries: Map<string, PublishedLibrary>;
   /** One line per tool that could not be published, naming it. */
   problems: string[];
 };
 
-const EMPTY: PublishedCatalogue = { specs: [], libraries: new Map(), problems: [] };
+const EMPTY: PublishedCatalogue = { specs: [], collections: [], libraries: new Map(), problems: [] };
 
 let current: PublishedCatalogue = EMPTY;
 
@@ -279,5 +287,117 @@ export function collectPublishedTools(): PublishedCatalogue {
     }
   }
 
-  return { specs, libraries, problems };
+  const collections = collectOgcCollections(problems);
+  return { specs, collections, libraries, problems };
+}
+
+/**
+ * Every OGC collection in the store: the query versions, current in the
+ * deployment's environment, that carry an `ogc` object. Each becomes a tool
+ * spec the `items` route runs through `/execute`, with one param per variable
+ * the `ogc` object fills. A collection is served under its library's slug, so
+ * a library with none, or two collections with one id, is a problem.
+ */
+export function collectOgcCollections(problems: string[]): OgcCollectionSpec[] {
+  const cache = getCacheCoordinator();
+  const collections: OgcCollectionSpec[] = [];
+  const queries = (cache.list('Query') as PersistedQuery[]).slice().sort((a, b) => a.$id.localeCompare(b.$id));
+  for (const query of queries) {
+    const libraryId = libraryOf(query);
+    const library = get<PersistedLibrary>(libraryId);
+    if (!library) continue;
+    const resolution = resolveVersionIn(query as unknown as Parameters<typeof resolveVersionIn>[0], requestedEnvironment(undefined));
+    if (!resolution.ok) continue;
+    const version = get<PersistedQueryVersion>(resolution.version);
+    const ogc = version?.ogc;
+    if (!version || !ogc) continue;
+
+    const label = `Query "${query.name}" (${query.$id}), version ${version.version}`;
+    if (!library.slug) {
+      problems.push(`${label}: its library "${library.name}" has no slug, so its OGC collection "${ogc.collectionId}" has no URL.`);
+      continue;
+    }
+    const inputs = queryVersionInputs(version);
+    let outputs: string[] = [];
+    try {
+      outputs = parser.detectQueryOutputs(version.queryString) ?? [];
+    } catch {
+      // checkOgcObject reports the missing outputs.
+    }
+    const problem = checkOgcObject(ogc, {
+      inputs,
+      outputs,
+      isSelect: version.queryType === QueryTypeIri.select,
+    });
+    if (problem) {
+      problems.push(`${label}: ${problem}`);
+      continue;
+    }
+    const closed = closedSlots(version);
+    if (closed.length) {
+      problems.push(
+        `${label}: an OGC collection runs with its slots open, but ${closed.map(name => `?${name}`).join(', ')} ` +
+          'must not run open (whenEmpty "require" or "propagateEmpty").',
+      );
+      continue;
+    }
+    const clash = collections.find(c => c.slug === library.slug && c.ogc.collectionId === ogc.collectionId);
+    if (clash) {
+      problems.push(`${label}: library "${library.slug}" already has a collection "${ogc.collectionId}" (${clash.tool.targetId}).`);
+      continue;
+    }
+    const defaultBackendId = resolveQueryDefaultBackend(version, id => cache.get(id))?.backendId;
+    if (!defaultBackendId || !backendExists(defaultBackendId)) {
+      problems.push(`${label}: the collection "${ogc.collectionId}" needs a default backend that exists.`);
+      continue;
+    }
+    let configTargetId: string | undefined;
+    if (ogc.mode === 'cql2' && ogc.cql?.configQuery) {
+      const configQuery = get<PersistedQuery>(ogc.cql.configQuery);
+      const configResolution = configQuery?.['@type'] === 'Query'
+        ? resolveVersionIn(configQuery as unknown as Parameters<typeof resolveVersionIn>[0], requestedEnvironment(undefined))
+        : null;
+      if (!configResolution?.ok || libraryOf(configQuery!) !== library.$id) {
+        problems.push(`${label}: ogc.cql.configQuery ${ogc.cql.configQuery} is not a query with a version in library "${library.slug}".`);
+        continue;
+      }
+      configTargetId = configResolution.version;
+    }
+    collections.push({
+      slug: library.slug,
+      libraryId: library.$id,
+      libraryName: library.name,
+      libraryDescription: library.description,
+      ogc,
+      ...(configTargetId ? { configTargetId } : {}),
+      tool: {
+        slug: library.slug,
+        libraryId: library.$id,
+        name: `ogc-${ogc.collectionId}`,
+        description: ogc.title,
+        targetId: version.$id,
+        targetKind: 'query',
+        readOnly: true,
+        params: ogcParamKinds(ogc),
+        inputs,
+        defaultBackendId,
+      },
+    });
+  }
+  return collections;
+}
+
+/** The variables of a query version's slots that may not run open. */
+function closedSlots(version: PersistedQueryVersion): string[] {
+  const names: string[] = [];
+  for (const tupleId of version.inferredInputs ?? []) {
+    const tuple = get<{ whenEmpty?: string | null; memberEntries?: string[] | null }>(tupleId);
+    if (tuple?.whenEmpty !== 'require' && tuple?.whenEmpty !== 'propagateEmpty') continue;
+    for (const memberId of tuple.memberEntries ?? []) {
+      const member = get<{ variable?: string | null }>(memberId);
+      const name = get<{ variableName?: string | null }>(member?.variable)?.variableName;
+      if (name) names.push(name);
+    }
+  }
+  return names;
 }

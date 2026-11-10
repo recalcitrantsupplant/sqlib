@@ -10,6 +10,11 @@ import { nextTick } from 'vue';
  * re-imports it.
  */
 
+// The telemetry section reads the server; it has tests of its own.
+vi.mock('@/components/settings/TelemetryStatusSection.vue', () => ({
+  default: { name: 'TelemetryStatusSection', render: () => null },
+}));
+
 const mockLocalStorage: Record<string, string> = {};
 vi.stubGlobal('localStorage', {
   getItem: vi.fn((key: string) => mockLocalStorage[key] ?? null),

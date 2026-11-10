@@ -28,10 +28,12 @@
         order is the question being asked: what happened, to which cell, and how
         far off was it.
       -->
-      <div class="outcome" :class="passed ? 'outcome-pass' : 'outcome-fail'">
-        <component :is="passed ? CircleCheck : CircleX" :size="14" />
+      <div class="outcome" :class="outcomeClass" data-testid="test-case-detail-outcome">
+        <component :is="passed ? CircleCheck : isSlow ? Timer : CircleX" :size="14" />
         <span class="outcome-text">{{ outcomeText }}</span>
-        <span class="outcome-duration">{{ formatRunDuration(durationMs) }}</span>
+        <span class="outcome-duration">
+          {{ formatRunDuration(durationMs) }}<template v-if="budgetMs !== null"> / {{ formatRunDuration(budgetMs) }}</template>
+        </span>
       </div>
 
       <div v-if="coordinates.length" class="coordinates">
@@ -77,7 +79,7 @@
         </div>
       </div>
 
-      <p v-else-if="!passed" class="detail-message muted">
+      <p v-else-if="!passed && !isSlow" class="detail-message muted">
         No diff was recorded for this failure.
       </p>
     </div>
@@ -98,7 +100,7 @@
  * selection survive the promotion.
  */
 import { computed } from 'vue';
-import { Braces, CircleCheck, CircleX, Maximize2, Minimize2, X } from '@lucide/vue';
+import { Braces, CircleCheck, CircleX, Maximize2, Minimize2, Timer, X } from '@lucide/vue';
 import { testDiffFooter, testDiffLines, testDiffSummary } from '../../lib/testCaseDiff';
 import { formatRunDuration, type TestRunCoordinate } from '../../lib/testRunSummary';
 import type { TestCaseRunResult } from '../../composables/useApiClient';
@@ -111,6 +113,8 @@ const props = withDefaults(defineProps<{
   /** What the row said, when there is no case-level message. */
   fallbackMessage?: string;
   passed?: boolean;
+  /** Correct, but over the case's time budget. */
+  slow?: boolean;
   durationMs?: number;
   maximised?: boolean;
   /** Lines shown before the diff asks for the room it needs. */
@@ -118,6 +122,7 @@ const props = withDefaults(defineProps<{
 }>(), {
   fallbackMessage: '',
   passed: false,
+  slow: false,
   durationMs: 0,
   maximised: false,
   maxLines: 12,
@@ -135,8 +140,16 @@ const boundedLines = computed(() =>
 
 const message = computed(() => props.caseResult?.message || props.fallbackMessage);
 
+const isSlow = computed(() => !props.passed && (props.slow || props.caseResult?.slow === true));
+const budgetMs = computed(() => props.caseResult?.maxDurationMs ?? null);
+const outcomeClass = computed(() => {
+  if (props.passed) return 'outcome-pass';
+  return isSlow.value ? 'outcome-slow' : 'outcome-fail';
+});
+
 const outcomeText = computed(() => {
   if (props.passed) return 'Passed';
+  if (isSlow.value) return 'Correct, but slow';
   const counts = diffCounts.value;
   return counts ? `Failed — ${counts}` : 'Failed';
 });
@@ -221,6 +234,12 @@ const outcomeText = computed(() => {
   border-color: var(--danger-border);
   background: var(--danger-surface);
   color: var(--danger-ink);
+}
+
+.outcome-slow {
+  border-color: var(--warning-border);
+  background: var(--warning-surface);
+  color: var(--warning-ink);
 }
 
 .outcome-text {

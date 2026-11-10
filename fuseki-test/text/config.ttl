@@ -1,0 +1,40 @@
+# A Fuseki dataset with a Lucene text index, for the LATERAL integration test
+# (packages/compiler/test/lateral.jena.test.ts). Everything is in memory, so a
+# restart starts empty; the test loads its own data.
+#
+#   java -jar jena-fuseki-server-5.5.0.jar --port=3030 --config=fuseki-test/text/config.ttl
+#   SQLIB_TEST_JENA_URL=http://localhost:3030/text pnpm --filter @sparql-query-lib/compiler test
+
+PREFIX :        <#>
+PREFIX fuseki:  <http://jena.apache.org/fuseki#>
+PREFIX ja:      <http://jena.hpl.hp.com/2005/11/Assembler#>
+PREFIX rdf:     <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX rdfs:    <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX text:    <http://jena.apache.org/text#>
+
+:service a fuseki:Service ;
+  fuseki:name "text" ;
+  fuseki:endpoint [ fuseki:operation fuseki:query ] ;
+  fuseki:endpoint [ fuseki:operation fuseki:query ; fuseki:name "query" ] ;
+  fuseki:endpoint [ fuseki:operation fuseki:update ; fuseki:name "update" ] ;
+  fuseki:dataset :textDataset .
+
+:textDataset a text:TextDataset ;
+  text:dataset :base ;
+  text:index :index .
+
+:base a ja:MemoryDataset .
+
+:index a text:TextIndexLucene ;
+  text:directory "mem" ;
+  text:entityMap :entities .
+
+:entities a text:EntityMap ;
+  text:entityField "uri" ;
+  # Lets a DELETE remove the index entry, so the test can reload its data.
+  text:uidField "uid" ;
+  text:defaultField "label" ;
+  text:map (
+    [ text:field "label" ; text:predicate rdfs:label ]
+    [ text:field "comment" ; text:predicate rdfs:comment ]
+  ) .

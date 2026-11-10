@@ -94,6 +94,22 @@ export const LIBRARY_SLUG_PATTERN = '^[a-z0-9-]+$';
 export const BACKEND_ARGUMENT = 'backendId';
 
 /**
+ * The `GET` query-string argument that picks the response format, as OGC APIs
+ * spell it: `?f=geojson`. A link in a browser, or a GIS client's "add layer
+ * from URL", cannot set an Accept header. Reserved, so no parameter may use it.
+ */
+export const FORMAT_ARGUMENT = 'f';
+
+/** What each `f` value asks `/execute` for. */
+export const FORMAT_MEDIA_TYPES: Readonly<Record<string, string>> = {
+  json: 'application/sparql-results+json',
+  geojson: 'application/geo+json',
+  csv: 'text/csv',
+  tsv: 'text/tab-separated-values',
+  xml: 'application/sparql-results+xml',
+};
+
+/**
  * The caller's identity slots. sqlib fills them from the sign-in, so a tool
  * never offers them as parameters. The same names as the runtime's
  * `RESERVED_SLOT_VARIABLES`; this package does not depend on the runtime.
@@ -220,6 +236,9 @@ export function checkToolObject(
     }
     if (options.targetKind === 'query' && key === BACKEND_ARGUMENT) {
       return `tool.params.${key}: "${BACKEND_ARGUMENT}" is reserved for the backend a published query runs on`;
+    }
+    if (key === FORMAT_ARGUMENT) {
+      return `tool.params.${key}: "${FORMAT_ARGUMENT}" is reserved for the response format of a GET call`;
     }
     if (!variables.has(key) && !pages.has(key)) {
       return `tool.params.${key} names no input of this version. Its inputs are: ${describeInputs(inputs)}`;
@@ -801,9 +820,25 @@ export function publishedOpenApiDocument(options: {
       description: spec.description,
       responses,
     };
+    if (spec.targetKind !== 'ruleSet' && spec.readOnly) {
+      (responses[200] as Record<string, unknown>).content = {
+        'application/sparql-results+json': {},
+        'application/geo+json': {},
+        'text/csv': {},
+      };
+    }
     if (publishedHttpMethod(spec) === 'GET') {
       const dataKeys: string[] = offersData(spec) ? [RULE_SET_DATA_ARGUMENT, RULE_SET_FORMAT_ARGUMENT] : [];
-      operation.parameters = Object.entries(properties).filter(([name]) => !dataKeys.includes(name)).map(([name, property]) => {
+      const formatParameter = spec.targetKind === 'ruleSet'
+        ? []
+        : [{
+            name: FORMAT_ARGUMENT,
+            in: 'query',
+            required: false,
+            description: 'The response format, in place of an Accept header.',
+            schema: { enum: Object.keys(FORMAT_MEDIA_TYPES) },
+          }];
+      operation.parameters = [...Object.entries(properties).filter(([name]) => !dataKeys.includes(name)).map(([name, property]) => {
         const objectValued = JSON.stringify(property).includes('"type":"object"');
         return {
           name,
@@ -814,7 +849,7 @@ export function publishedOpenApiDocument(options: {
             ? { content: { 'application/json': { schema: property } } }
             : { schema: property, ...(property.type === 'array' ? { explode: true } : {}) }),
         };
-      });
+      }), ...formatParameter];
       paths[publishedToolPath(options.slug, spec.name)] = publishedAcceptsPost(spec)
         ? {
             get: operation,

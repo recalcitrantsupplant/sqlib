@@ -102,6 +102,10 @@ export default defineConfig({
         replacement: path.resolve(__dirname, '../srl/src/index.ts'),
       },
       {
+        find: '@sparql-query-lib/geojson',
+        replacement: path.resolve(__dirname, '../geojson/src/index.ts'),
+      },
+      {
         find: '@sparql-query-lib/tools',
         replacement: path.resolve(__dirname, '../tools/src/index.ts'),
       },
