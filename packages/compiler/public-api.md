@@ -6,7 +6,7 @@
      CI fails when this file and the built declarations disagree, so every
      addition, removal or signature change arrives as a reviewable diff. -->
 
-Version `0.1.0`. 1 entry point, 19 exported names.
+Version `0.1.0`. 1 entry point, 22 exported names.
 
 Private and protected class members are omitted: a consumer cannot reach them.
 Doc comments are omitted too — they are in the source, and repeating them here
@@ -14,7 +14,7 @@ would make every wording change a surface diff.
 
 ## `@sparql-query-lib/compiler`
 
-19 exports, from `index.d.ts`.
+22 exports, from `index.d.ts`.
 
 ### `ApplyArgumentSet` — interface, from `parser`
 
@@ -69,6 +69,21 @@ interface CompileQueryOptions {
 declare function compileQueryTemplate(queryString: string, options: CompileQueryOptions): CompiledQuery;
 ```
 
+### `CONSTANT_PREFIX` — const, from `constantSlots`
+
+```ts
+declare const CONSTANT_PREFIX = "000";
+```
+
+### `ConstantWarning` — interface, from `constantSlots`
+
+```ts
+interface ConstantWarning {
+    parameter: string;
+    position: string;
+}
+```
+
 ### `CorrelatedExistsInput` — interface, from `parser`
 
 ```ts
@@ -86,6 +101,8 @@ interface DetectedParameters {
     limitParameters: string[];
     offsetParameters: string[];
     correlatedExistsInputs: CorrelatedExistsInput[];
+    constantInputs: string[];
+    constantWarnings: ConstantWarning[];
 }
 ```
 
@@ -102,6 +119,12 @@ declare class Generator {
     constructor(defaultContext?: Partial<SparqlGeneratorContext>);
     generate(ast: SparqlQuery, context?: Partial<SparqlGeneratorContext>): string;
 }
+```
+
+### `isConstantVariable` — function, from `constantSlots`
+
+```ts
+declare function isConstantVariable(name: string): boolean;
 ```
 
 ### `isPatternLateral` — function, from `sparql12`

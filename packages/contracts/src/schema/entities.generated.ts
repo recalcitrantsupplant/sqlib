@@ -3349,6 +3349,10 @@ export const queryinputtupleSchema = {
     "whenEmpty": {
       "type": "string",
       "nullable": true
+    },
+    "valuePattern": {
+      "type": "string",
+      "nullable": true
     }
   },
   "required": [
@@ -5467,6 +5471,7 @@ export interface QueryInputTupleRestApi {
   position?: number | null;
   variableMappings?: string | null;
   whenEmpty?: string | null;
+  valuePattern?: string | null;
 }
 
 export interface QueryInputVariableRestApi {

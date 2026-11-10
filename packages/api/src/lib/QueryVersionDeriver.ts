@@ -1,4 +1,4 @@
-import type { CorrelatedExistsInput, SparqlQueryParser } from './parser.js';
+import type { ConstantWarning, CorrelatedExistsInput, SparqlQueryParser } from './parser.js';
 import { log } from './log.js';
 
 const TEMP_ID_PREFIX = 'urn:ui-temp:';
@@ -49,6 +49,8 @@ export interface QueryVersionDerivation {
     offsetParameters: string[];
     valuesInputs: string[][];
     correlatedExistsInputs: CorrelatedExistsInput[];
+    constantInputs: string[];
+    constantWarnings: ConstantWarning[];
   };
 }
 
@@ -74,7 +76,14 @@ export function deriveQueryVersionMetadata(parser: SparqlQueryParser, queryStrin
   try {
     rawParams = parser.detectInputs(queryString);
   } catch {
-    rawParams = { valuesInputs: [], limitParameters: [], offsetParameters: [], correlatedExistsInputs: [] };
+    rawParams = {
+      valuesInputs: [],
+      limitParameters: [],
+      offsetParameters: [],
+      correlatedExistsInputs: [],
+      constantInputs: [],
+      constantWarnings: [],
+    };
   }
 
   const outputs: DerivedOutput[] = [];
@@ -186,6 +195,8 @@ export function deriveQueryVersionMetadata(parser: SparqlQueryParser, queryStrin
       offsetParameters: rawParams.offsetParameters || [],
       valuesInputs: rawParams.valuesInputs || [],
       correlatedExistsInputs: rawParams.correlatedExistsInputs || [],
+      constantInputs: rawParams.constantInputs || [],
+      constantWarnings: rawParams.constantWarnings || [],
     },
   };
 }

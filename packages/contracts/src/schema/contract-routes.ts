@@ -1463,13 +1463,42 @@ export const detectionRouteSchemas = {
               ],
               "additionalProperties": false
             }
+          },
+          "constantInputs": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "constantWarnings": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "parameter": {
+                  "type": "string"
+                },
+                "position": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "parameter",
+                "position"
+              ],
+              "additionalProperties": false
+            }
           }
         },
         "required": [
           "valuesInputs",
           "limitParameters",
           "offsetParameters",
-          "correlatedExistsInputs"
+          "correlatedExistsInputs",
+          "constantInputs",
+          "constantWarnings"
         ],
         "additionalProperties": false,
         "$id": "detection.inputs.response"
@@ -1563,13 +1592,42 @@ export const detectionRouteSchemas = {
               ],
               "additionalProperties": false
             }
+          },
+          "constantInputs": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "constantWarnings": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "parameter": {
+                  "type": "string"
+                },
+                "position": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "parameter",
+                "position"
+              ],
+              "additionalProperties": false
+            }
           }
         },
         "required": [
           "valuesInputs",
           "limitParameters",
           "offsetParameters",
-          "correlatedExistsInputs"
+          "correlatedExistsInputs",
+          "constantInputs",
+          "constantWarnings"
         ],
         "additionalProperties": false,
         "$id": "detection.inputs.response"

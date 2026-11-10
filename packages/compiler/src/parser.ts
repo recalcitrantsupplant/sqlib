@@ -37,6 +37,13 @@ import {
   type TemplateSlot,
   type TermValue,
 } from '@sparql-query-lib/runtime';
+import {
+  CONSTANT_PREFIX,
+  constantWarnings,
+  isConstantVariable,
+  writeConstant,
+  type ConstantWarning,
+} from './constantSlots.js';
 
 // The Traqula parse result (a SPARQL 1.2 query or update AST).
 export type ParsedSparql = SparqlQuery;
@@ -92,6 +99,17 @@ export interface DetectedParameters { // Add export keyword
   offsetParameters: string[]; // Stores all full matched placeholders, e.g., ["OFFSET 002"]
   /** Advisory portability warnings; empty for the overwhelming majority of queries. */
   correlatedExistsInputs: CorrelatedExistsInput[];
+  /**
+   * Constant parameters (`VALUES ?000word { UNDEF }`), by variable name. Each
+   * also appears in `valuesInputs` as a one-variable group. A run must give it
+   * exactly one bound value.
+   */
+  constantInputs: string[];
+  /**
+   * Occurrences of a constant parameter that keep the variable where the answer
+   * can differ from a plain VALUES run. Advisory: the query still saves and runs.
+   */
+  constantWarnings: ConstantWarning[];
   // havingParameters?: string[]; // Placeholder for future implementation
 }
 
@@ -190,6 +208,25 @@ export class SparqlQueryParser {
   private isAllUndefRow(row: ValuePatternRow): boolean {
     const vals = Object.values(row);
     return vals.length > 0 && vals.every(value => value === undefined);
+  }
+
+  /**
+   * The constant parameter a slot declares, or `null` for an ordinary slot.
+   *
+   * A constant must be the only variable of its clause: a multi-variable row
+   * has no single term to write, so such a clause is refused here, for
+   * detection and substitution alike.
+   */
+  private constantVariableOf(pattern: ValuesPattern): string | null {
+    const names = this.valuesVariableNames(pattern);
+    const constants = names.filter(isConstantVariable);
+    if (constants.length === 0) return null;
+    if (names.length > 1) {
+      throw new Error(
+        `VALUES (${names.map(name => `?${name}`).join(' ')}) declares the constant parameter ?${constants[0]} beside other variables. A constant parameter (a name that starts with ${CONSTANT_PREFIX}) must be the only variable of its VALUES clause.`,
+      );
+    }
+    return constants[0];
   }
 
   /** Variable names (bare, without `?`) declared by a VALUES pattern. */
@@ -345,6 +382,8 @@ export class SparqlQueryParser {
       limitParameters: [],
       offsetParameters: [],
       correlatedExistsInputs: [],
+      constantInputs: [],
+      constantWarnings: [],
     };
 
     // --- Detect parameterized LIMIT/OFFSET ---
@@ -371,6 +410,19 @@ export class SparqlQueryParser {
         if (parameters.length > 0) {
           this.report({ level: 'debug', message: 'Found VALUES inputs:', attributes: { parameters: parameters.join(', ') } });
           result.valuesInputs.push(parameters);
+
+          const constant = this.constantVariableOf(pattern);
+          if (constant) {
+            result.constantInputs.push(constant);
+            for (const warning of constantWarnings(parsedQuery, pattern, constant)) {
+              result.constantWarnings.push(warning);
+              this.report({
+                level: 'warn',
+                message: `Constant parameter ?${constant} occurs in a ${warning.position} and keeps its variable there, so the answer can differ from a plain VALUES run.`,
+                attributes: { parameter: constant, position: warning.position },
+              });
+            }
+          }
 
           // A parameter group inside EXISTS that reuses an enclosing variable lands in the
           // territory SEP-0007 calls undefined; warn rather than reject, since real endpoints
@@ -687,8 +739,16 @@ export class SparqlQueryParser {
       options,
     ) as ApplyArgumentSet[];
 
+    const constants: Array<{ pattern: ValuesPattern; name: string }> = [];
+
     undefValuesPatterns.forEach(({ pattern, variables }, index) => {
       const argSet = ordered[index];
+
+      const constant = this.constantVariableOf(pattern);
+      if (constant) {
+        this.checkConstantArgument(constant, argSet);
+        constants.push({ pattern, name: constant });
+      }
 
       const patternVars = [...variables].sort();
       const argVars = [...argSet.head.vars].sort() as string[]; // Sort copies for comparison
@@ -756,8 +816,44 @@ export class SparqlQueryParser {
       }
     });
 
+    // Constants last: each writes the term its VALUES row now holds, so the
+    // value is serialised once, by the same code as every other cell.
+    for (const { pattern, name } of constants) {
+      writeConstant(parsedQuery, pattern, name, pattern.values[0][name] as object);
+    }
+
     // Generate the modified query string
-    return this.generator.generate(parsedQuery);
+    const text = this.generator.generate(parsedQuery);
+    if (constants.length > 0) {
+      // The constant moved a caller's value into new positions. Parse the text
+      // the engine will get, so a structural surprise fails here, not there.
+      try {
+        this.parseQuery(text);
+      } catch (error) {
+        throw new Error(`Writing a constant parameter produced invalid SPARQL: ${(error as Error).message}`, { cause: error });
+      }
+    }
+    return text;
+  }
+
+  /**
+   * A constant parameter takes exactly one row with its one cell bound. Zero
+   * rows, more rows, an UNDEF cell and an omitted argument are each refused:
+   * there is then no single term to write, and an open variable in a position
+   * that needs a constant fails at the engine anyway.
+   */
+  private checkConstantArgument(name: string, argSet: ApplyArgumentSet): void {
+    const bindings = argSet.results.bindings;
+    const prefix = `Constant parameter ?${name} needs exactly one value`;
+    if (bindings.length === 0) {
+      throw new Error(`${prefix}, and the arguments give none.`);
+    }
+    if (bindings.length > 1) {
+      throw new Error(`${prefix}, and the arguments give ${bindings.length} rows.`);
+    }
+    if (bindings[0]?.[name] == null) {
+      throw new Error(`${prefix}, and the argument leaves it UNDEF.`);
+    }
   }
 
   /**
@@ -824,6 +920,11 @@ export class SparqlQueryParser {
       // parse. `applyArguments` will reject a non-empty argument list on arity.
       return { text: this.generator.generate(parsed), slots: [], prefixes };
     }
+
+    // A constant parameter is written into triple patterns as well as its
+    // VALUES row. The splice knows only the row, so such a query takes the AST
+    // path, which finds the triple patterns on every run.
+    if (slots.some(slot => slot.vars.some(isConstantVariable))) return null;
 
     // A slot must declare variables we can re-emit verbatim; anything exotic
     // (unicode variable names) drops to the AST path rather than risking a rename.
