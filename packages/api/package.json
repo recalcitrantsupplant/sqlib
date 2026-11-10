@@ -23,6 +23,7 @@
     "smoke:provider": "tsx scripts/assistant-provider-smoke.ts",
     "smoke:etl-extensions": "tsx scripts/etl-extension-smoke.ts",
     "smoke:storage": "tsx scripts/storage-writability-smoke.ts",
+    "it:replication-buckets": "tsx scripts/replication-it-buckets.ts",
     "build": "tsx scripts/generate-schemas.ts && tsc --project tsconfig.build.json",
     "export:bundle": "tsx scripts/export-bundle.ts",
     "export:library-store": "tsx scripts/export-library-store.ts",
@@ -114,6 +115,10 @@
     "@ai-sdk/anthropic": "^4.0.98",
     "@ai-sdk/groq": "^4.0.77",
     "@ai-sdk/openai": "^4.0.110",
+    "@aws-sdk/client-s3": "^3.1161.0",
+    "@azure/identity": "^4.14.1",
+    "@azure/storage-blob": "^12.34.0",
+    "@google-cloud/storage": "^8.4.0",
     "ai": "^7.0.164"
   }
 }

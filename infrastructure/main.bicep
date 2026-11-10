@@ -54,6 +54,40 @@ param secrets array = []
 @description('Tags to apply to all resources')
 param tags object = {}
 
+// --- SQLite backup to blob storage (docs/guides/deploying.md, "Backup to blob storage")
+
+@description('Back up the SQLite store to Azure Blob Storage with Litestream, through a managed identity. The store then lives on the container\'s own disk.')
+param enableSqliteBackup bool = false
+
+@description('Storage account for the backup. Created when createBackupStorage is true; otherwise it must exist in this resource group.')
+param backupStorageAccountName string = ''
+
+@description('Create the storage account (true) or use an existing one (false)')
+param createBackupStorage bool = true
+
+@description('Redundancy of a created storage account')
+@allowed(['Standard_LRS', 'Standard_ZRS', 'Standard_GRS', 'Standard_RAGRS'])
+param backupStorageSku string = 'Standard_LRS'
+
+@description('Blob container for the backup. Use one per environment.')
+param backupContainerName string = 'sqlib-backup'
+
+@description('Path inside the container. Never share one between two deployments.')
+param backupPath string = containerAppName
+
+@description('Subnet for a private endpoint to the storage account. Empty keeps the public endpoint (protected by Entra ID only, no shared keys). Set it only with a VNet-integrated environment.')
+param backupPrivateEndpointSubnetId string = ''
+
+@description('VNet to link the privatelink.blob DNS zone to (required with backupPrivateEndpointSubnetId)')
+param backupPrivateDnsVnetId string = ''
+
+@description('Seconds the platform waits after SIGTERM: covers the server shutdown and Litestream\'s last sync')
+param terminationGracePeriodSeconds int = 30
+
+var backupPrivate = enableSqliteBackup && !empty(backupPrivateEndpointSubnetId)
+// Storage Blob Data Contributor
+var blobDataContributorRoleId = 'ba92f5b4-2d11-453d-a403-e96b0029c9fe'
+
 // Reference to existing Container Apps Environment (if using existing)
 resource existingEnvironment 'Microsoft.App/managedEnvironments@2023-05-01' existing = if (useExistingEnvironment) {
   name: existingEnvironmentName
@@ -89,14 +123,183 @@ resource newEnvironment 'Microsoft.App/managedEnvironments@2023-05-01' = if (!us
   }
 }
 
+// Identity the container uses for the backup. User-assigned, so its role can be
+// granted before the app exists and survives the app being re-created.
+resource backupIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = if (enableSqliteBackup) {
+  name: '${containerAppName}-backup'
+  location: location
+  tags: tags
+}
+
+// The account baseline: TLS 1.2, no anonymous blob access, and no shared keys,
+// so only an Entra ID identity can reach the data. Soft delete covers a
+// mistaken delete; no immutability policy, since Litestream deletes old files.
+resource backupStorage 'Microsoft.Storage/storageAccounts@2023-05-01' = if (enableSqliteBackup && createBackupStorage) {
+  name: backupStorageAccountName
+  location: location
+  tags: tags
+  sku: {
+    name: backupStorageSku
+  }
+  kind: 'StorageV2'
+  properties: {
+    minimumTlsVersion: 'TLS1_2'
+    supportsHttpsTrafficOnly: true
+    allowBlobPublicAccess: false
+    allowSharedKeyAccess: false
+    publicNetworkAccess: backupPrivate ? 'Disabled' : 'Enabled'
+    networkAcls: {
+      defaultAction: backupPrivate ? 'Deny' : 'Allow'
+      bypass: 'None'
+    }
+    encryption: {
+      services: {
+        blob: {
+          enabled: true
+        }
+      }
+      keySource: 'Microsoft.Storage'
+    }
+  }
+}
+
+resource backupBlobService 'Microsoft.Storage/storageAccounts/blobServices@2023-05-01' = if (enableSqliteBackup && createBackupStorage) {
+  parent: backupStorage
+  name: 'default'
+  properties: {
+    deleteRetentionPolicy: {
+      enabled: true
+      days: 7
+    }
+    containerDeleteRetentionPolicy: {
+      enabled: true
+      days: 7
+    }
+  }
+}
+
+resource backupContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = if (enableSqliteBackup) {
+  name: '${backupStorageAccountName}/default/${backupContainerName}'
+  properties: {
+    publicAccess: 'None'
+  }
+  dependsOn: [
+    backupBlobService
+  ]
+}
+
+// Write access to this one container, nothing else in the account.
+resource backupRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (enableSqliteBackup) {
+  scope: backupContainer
+  name: guid(resourceGroup().id, backupStorageAccountName, backupContainerName, containerAppName, blobDataContributorRoleId)
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', blobDataContributorRoleId)
+    principalId: backupIdentity!.properties.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+resource backupDnsZone 'Microsoft.Network/privateDnsZones@2020-06-01' = if (backupPrivate) {
+  name: 'privatelink.blob.${environment().suffixes.storage}'
+  location: 'global'
+  tags: tags
+}
+
+resource backupDnsLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2020-06-01' = if (backupPrivate) {
+  parent: backupDnsZone
+  name: '${containerAppName}-backup'
+  location: 'global'
+  properties: {
+    registrationEnabled: false
+    virtualNetwork: {
+      id: backupPrivateDnsVnetId
+    }
+  }
+}
+
+resource backupPrivateEndpoint 'Microsoft.Network/privateEndpoints@2023-11-01' = if (backupPrivate) {
+  name: '${backupStorageAccountName}-blob-pe'
+  location: location
+  tags: tags
+  properties: {
+    subnet: {
+      id: backupPrivateEndpointSubnetId
+    }
+    privateLinkServiceConnections: [
+      {
+        name: 'blob'
+        properties: {
+          privateLinkServiceId: resourceId('Microsoft.Storage/storageAccounts', backupStorageAccountName)
+          groupIds: [
+            'blob'
+          ]
+        }
+      }
+    ]
+  }
+  dependsOn: [
+    backupStorage
+  ]
+}
+
+resource backupDnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2023-11-01' = if (backupPrivate) {
+  parent: backupPrivateEndpoint
+  name: 'default'
+  properties: {
+    privateDnsZoneConfigs: [
+      {
+        name: 'blob'
+        properties: {
+          privateDnsZoneId: backupDnsZone.id
+        }
+      }
+    ]
+  }
+}
+
+var backupEnvironmentVariables = enableSqliteBackup ? [
+  {
+    name: 'SQLIB_SQLITE_REPLICA_URL'
+    value: 'abs://${backupStorageAccountName}@${backupContainerName}/${backupPath}'
+  }
+  {
+    // Picks the user-assigned identity for both Litestream and the lease.
+    name: 'AZURE_CLIENT_ID'
+    value: backupIdentity!.properties.clientId
+  }
+] : []
+
+// Container Apps starts a new revision before it stops the old one; the
+// replica lease makes the new one wait. The startup probe allows for that wait
+// (up to SQLIB_SQLITE_REPLICA_LEASE_WAIT, 120s) plus the restore.
+var backupProbes = enableSqliteBackup ? [
+  {
+    type: 'Startup'
+    httpGet: {
+      path: '/health'
+      port: targetPort
+    }
+    periodSeconds: 5
+    failureThreshold: 40
+  }
+] : []
+
 // Get the environment ID based on which path we're using
 var environmentId = useExistingEnvironment ? existingEnvironment.id : newEnvironment.id
 
 // Container App
-resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
+resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
   name: containerAppName
   location: location
   tags: tags
+  identity: enableSqliteBackup ? {
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${backupIdentity!.id}': {}
+    }
+  } : {
+    type: 'None'
+  }
   properties: {
     managedEnvironmentId: environmentId
     configuration: {
@@ -134,9 +337,11 @@ resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
             cpu: json(cpuCores)
             memory: '${memorySize}Gi'
           }
-          env: environmentVariables
+          env: concat(environmentVariables, backupEnvironmentVariables)
+          probes: backupProbes
         }
       ]
+      terminationGracePeriodSeconds: terminationGracePeriodSeconds
       scale: {
         minReplicas: 1
         maxReplicas: 1
@@ -150,3 +355,4 @@ output containerAppFQDN string = containerApp.properties.configuration.ingress.f
 output containerAppUrl string = 'https://${containerApp.properties.configuration.ingress.fqdn}'
 output logAnalyticsWorkspaceId string = useExistingEnvironment ? '' : logAnalytics.id
 output containerAppEnvironmentId string = environmentId
+output backupReplicaUrl string = enableSqliteBackup ? 'abs://${backupStorageAccountName}@${backupContainerName}/${backupPath}' : ''

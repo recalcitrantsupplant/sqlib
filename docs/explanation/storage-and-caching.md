@@ -42,6 +42,13 @@ reliable on network file shares (NFS, SMB), and WAL mode needs every process
 that opens the file on one host. Copy a live file with
 `sqlite3 library.sqlite ".backup copy.sqlite"`, not `cp`.
 
+On a container platform, where the container's own disk is lost with the
+container and a network volume is slow, set `SQLIB_SQLITE_REPLICA_URL`: the
+file stays on local disk, Litestream copies each change to S3, Azure Blob
+Storage or Google Cloud Storage within about a second, and a new container
+restores it before the server starts. See
+[backup to blob storage](../guides/deploying.md#backup-to-blob-storage).
+
 To move a library from another mode, export it there and import it here:
 
 ```
@@ -151,6 +158,7 @@ For a library that survives a restart use `sqlite`.
 | | `sqlite` | `http` | `oxigraph-persistent` |
 | --- | --- | --- | --- |
 | Library survives a crash | yes, every committed write | yes, to the store's own guarantees | to the last checkpoint |
+| Library survives losing the container | with a volume, or to about 1s with backup to blob storage | yes | with a volume, to the last checkpoint |
 | Pauses the server | no | no | for each checkpoint |
 | Size limit | the cache: process memory | the store's | process memory; dumps stop at 512 MiB of N-Quads |
 | More than one writing sqlib instance | no | yes | no |

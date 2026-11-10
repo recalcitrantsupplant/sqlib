@@ -717,3 +717,11 @@ extract-web-bundle TAG="latest" DEST="tmp/web-bundle":
 run-frontend API_URL="http://localhost:3005":
     NUXT_PUBLIC_API_BASE_URL="{{API_URL}}" \
     pnpm --filter @sparql-query-lib/web dev
+
+# The SQLite backup integration test, against local emulators: MinIO (S3),
+# Azurite (Azure Blob) and fake-gcs-server (GCS). Builds the API first. Needs Go
+# on the first run, to build the emulators; they are cached after that.
+# `just test-replication s3` runs one store.
+test-replication stores="s3 abs gs":
+    pnpm --filter "@sparql-query-lib/api..." build
+    STORES="{{stores}}" bash scripts/ci/litestream-it.sh
