@@ -1,6 +1,6 @@
 # @sparql-query-lib/compiler
 
-The half of sqlib that needs a SPARQL parser.
+The part of sqlib that needs a SPARQL parser.
 
 - `SparqlQueryParser` parses and formats SPARQL 1.2, detects parameters
   (`VALUES … { UNDEF }` slots and `LIMIT 000n` / `OFFSET 000n` placeholders),
@@ -15,13 +15,13 @@ The half of sqlib that needs a SPARQL parser.
 ## Why it is a package
 
 Two hosts run it. The API runs it on its request path and at export time. The
-command-line tool runs it on query text read from a file. Both then hand the
-compiled template to the same runtime splice, so a query compiled from text
-runs exactly the way an exported one does. See
+command-line tool runs it on query text from a file. Both give the compiled
+template to the same runtime splice. A query compiled from text therefore runs
+in the same way as an exported one. See
 [`docs/explanation/architecture.md`](../../docs/explanation/architecture.md).
 
-The browser runtime does not depend on this package. That keeps a static page
-free of the parser.
+The browser runtime does not depend on this package, so a static page does not
+load the parser.
 
 ## Diagnostics
 
@@ -44,4 +44,5 @@ levels to OpenTelemetry.
 
 ## Status
 
-Private to the workspace. It becomes publishable with the command-line tool.
+To do: publish to npm, with the command-line tool. Until then, the package is
+private to the workspace.

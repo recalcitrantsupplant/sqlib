@@ -1,313 +1,312 @@
 # Architecture
 
-This page explains how sqlib is put together: what the packages are, what runs
-in which process, how a request to execute a query travels, and why a few of
-the load-bearing decisions were made the way they were. It assumes the
-vocabulary in [concepts.md](../concepts.md).
+This page describes how sqlib is built: the packages, the process that runs
+each one, the path of a request to execute a query, and the reasons for some
+main design decisions. It uses the terms in [concepts.md](../concepts.md).
 
 ## The shape of the system
 
-sqlib is a pnpm monorepo. One package is a Fastify server that owns all
-behaviour; the rest are either things the server depends on, things that wrap
-it, or things that run without it.
+sqlib is a pnpm monorepo. One package, `api`, is a Fastify server that holds all
+behaviour. The other packages are dependencies of the server, wrappers around
+it, or code that runs without it.
 
 | Package | What it is | Depends on |
 | --- | --- | --- |
 | `api` | The Fastify server: routes, persistence, execution, auth, cache | `contracts`, `types`, `tools`, `srl`, `rdf-delta`, `runtime`, `compiler`, `runtime-duckdb`, `runtime-etl`, `runtime-srl` |
 | `web` | The Nuxt 4 single-page application | `types`, `runtime` (and `contracts` by path alias) |
-| `mcp-server` | An MCP server that mounts the Fastify app in process | `api`, `contracts`, `tools`, `types` |
-| `contracts` | Generated JSON Schema and zod schemas for every entity and route | — |
-| `tools` | The MCP tool catalogue: 89 tool definitions and a registry | `contracts` |
-| `types` | Shared constants and types, including the feature-flag table | — |
-| `srl` | The SHACL 1.2 Shape Rules Language parser, compiler and stratifier | — |
-| `rdf-delta` | Derives what a SPARQL update would add and remove, without running it | — |
+| `mcp-server` | An MCP server that mounts the Fastify app in its own process | `api`, `contracts`, `tools`, `types` |
+| `contracts` | Generated JSON Schema and zod schemas for each entity and route | none |
+| `tools` | The MCP tool catalogue: 107 tool definitions and a registry | `contracts` |
+| `types` | Shared constants and types, including the feature-flag table | none |
+| `srl` | The SHACL 1.2 Shape Rules Language parser, compiler and stratifier | none |
+| `rdf-delta` | Calculates what a SPARQL update would add and remove, without running it | none |
 | `compiler` | The SPARQL parser: parse, detect parameters, apply arguments, compile verified templates | `runtime` |
-| `runtime` | The parser-free runtime a static export bundle runs on | — |
-| `runtime-oxigraph` | An Oxigraph-backed executor for that runtime | — |
-| `runtime-duckdb` | The sandboxed DuckDB that reads ETL sources, under a profile the host supplies | — |
-| `runtime-etl` | The ETL loop: rows in chunks, mapped to bindings, spliced into a CONSTRUCT, RDF to a sink | `runtime` |
+| `runtime` | The parser-free runtime that a static export bundle runs on | none |
+| `runtime-oxigraph` | An Oxigraph executor for that runtime | none |
+| `runtime-duckdb` | The sandboxed DuckDB that reads ETL sources, under a profile from the host | none |
+| `runtime-etl` | The ETL loop: rows in chunks, mapped to bindings, put into a CONSTRUCT, RDF sent to a sink | `runtime` |
 | `runtime-srl` | The rule set runner: DATA blocks, then each stratum to its fixpoint, on an Oxigraph store | `srl` |
-| `cli` | The `sqlib` command line: queries, ETL jobs and rule sets in one process, no server | `compiler`, `runtime`, `runtime-oxigraph`, `runtime-duckdb`, `runtime-etl`, `runtime-srl`, `srl` |
+| `cli` | The `sqlib` command line: queries, ETL jobs and rule sets in one process, with no server | `compiler`, `runtime`, `runtime-oxigraph`, `runtime-duckdb`, `runtime-etl`, `runtime-srl`, `srl` |
 
-Eight packages are publishable, that is, not `private: true`: `runtime` and
-`runtime-oxigraph`, which a static export loads in a browser or in Node, and
-`compiler`, `srl`, `runtime-duckdb`, `runtime-etl`, `runtime-srl` and `cli`,
-which the `sqlib` command line is built from. The first two ship CommonJS and
-ESM; the other six run in Node only and ship ESM. Everything else is internal
-to the repository.
+Eight packages are publishable (they are not `private: true`):
 
-### Why the split is where it is
+- `runtime` and `runtime-oxigraph`. A static export loads them in a browser or
+  in Node. They ship CommonJS and ESM.
+- `compiler`, `srl`, `runtime-duckdb`, `runtime-etl`, `runtime-srl` and `cli`.
+  The `sqlib` command line is built from them. They run in Node only and ship
+  ESM.
 
-The split follows three lines, and each one is a dependency direction somebody
-needed rather than a tidiness exercise.
+All other packages are internal to the repository.
 
-**A package exists where a second host needs the same code.** `runtime` holds
-the argument-application code — `serializeTerm`, `alignArgumentSets`,
-`substituteLimitOffset` — and `compiler`, which holds the parser, imports it rather
-than reimplementing it. The comment at that import states the reason: importing
-rather than copying is what makes "the client substitutes exactly as the server
-does" true by construction. The same argument produced `rdf-delta` as a package
-with no Fastify, no `fs` and no network dependency: server-side apply,
-browser-side apply and worker-side apply are then the same code, and where the
-patch log eventually lives becomes a choice of sink rather than a rewrite.
-`compiler` follows the same line: the parser, input detection and template
-compilation run in the API and in the command-line tool, so neither carries a
-copy. The API wraps it only to send its diagnostics to the service log.
-`runtime-duckdb` follows the same line: the API and the command-line tool
-read ETL sources through one sandbox. The API supplies a profile read from the
-environment; the tool supplies one from its flags. `runtime-etl` holds the loop
-those rows go through, so a job gives the same RDF in either host;
-`packages/api/test/lib/etlParity.test.ts` holds the two to that. `runtime-srl`
-does the same for rule sets: the API's `RuleSetExecutor` is now the host that
-loads, validates and stratifies stored versions, and the runner evaluates them.
+### Why the packages are split this way
+
+Three rules decide where a package boundary is. Each rule comes from a
+dependency that a second consumer needed.
+
+**A package exists where a second host needs the same code.**
+
+- `runtime` holds the code that applies arguments: `serializeTerm`,
+  `alignArgumentSets`, `substituteLimitOffset`. `compiler` holds the parser and
+  imports this code. The comment at that import gives the reason: with one copy
+  of the code, the client applies arguments in the same way as the server.
+- `rdf-delta` has no Fastify, `fs` or network dependency. The server, the
+  browser and a worker can therefore apply a patch with the same code. A later
+  move of the patch log to a different place is then a change of sink only.
+- `compiler` runs the parser, input detection and template compilation in the
+  API and in the command-line tool, so neither host has its own copy. The API
+  wraps it only to send its diagnostics to the service log.
+- `runtime-duckdb` gives the API and the command-line tool one sandbox for
+  reading ETL sources. The API supplies a profile read from the environment.
+  The tool supplies a profile from its flags.
+- `runtime-etl` holds the loop that the rows go through, so a job gives the same
+  RDF in each host. `packages/api/test/lib/etlParity.test.ts` checks this.
+- `runtime-srl` does the same for rule sets. The `RuleSetExecutor` of the API
+  loads, validates and stratifies stored versions, and the runner evaluates
+  them.
 
 **A package exists where two consumers must agree about a document.**
-`contracts` holds the generated schemas, and `tools` holds the MCP catalogue
-that imports them. See [Generated schemas](#generated-schemas-one-source-three-consumers)
+`contracts` holds the generated schemas. `tools` holds the MCP catalogue that
+imports them. See [Generated schemas](#generated-schemas-one-source-three-consumers)
 below.
 
-**A package exists where the thing has its own grammar.** `srl` is a parser,
-compiler and stratifier for a language, with no knowledge of libraries, HTTP or
-storage.
+**A package exists where the code has its own grammar.** `srl` is a parser,
+compiler and stratifier for a language. It knows nothing about libraries, HTTP
+or storage.
 
-The split that is deliberately *not* made is `api` itself. Persistence,
-execution, orchestration, auth and the cache all live in one package, because
-they are mutually recursive: the entity store executes SPARQL through the same
-executor factory that runs a user's query, and the executor factory reads
-backend entities out of the cache the entity store populates. Splitting them
-would need an interface at every point in that cycle for no change in
-behaviour.
+`api` itself stays one package. Persistence, execution, orchestration, auth and
+the cache call each other in a cycle. The entity store executes SPARQL through
+the same executor factory that runs the query of a user. The executor factory
+reads backend entities from the cache that the entity store fills. A split would
+need an interface at each point in that cycle, and the behaviour would not
+change.
 
 ## The two deployables
 
-**A container image**, built from the repository-root `Dockerfile`. One image,
-three modes, selected by `APP_MODE`:
+**A container image**, built from the `Dockerfile` at the repository root. One
+image has three modes. `APP_MODE` selects the mode:
 
-- `api` — the Fastify server alone.
-- `mcp-http` — the MCP server over streamable HTTP, which boots the Fastify app
+- `api`: the Fastify server only.
+- `mcp-http`: the MCP server over streamable HTTP. It starts the Fastify app
   inside itself and registers `/mcp` on it.
-- `dual-http` (the image default) — the same Fastify instance serving both the
-  REST API and `/mcp` on one port.
+- `dual-http` (the image default): one Fastify instance serves the REST API and
+  `/mcp` on one port.
 
 **A static site**, `packages/web`, built by Nuxt with `ssr: false`. It is a
-browser application that talks to the API over HTTP; there is no Nuxt server in
-a deployment. It reads `/health` at boot to discover the API's auth mode and
-skips its login flow when auth is disabled, so the same bundle works on both
-sides of that setting.
+browser application that calls the API over HTTP. A deployment has no Nuxt
+server. At start, the site reads `/health` to find the auth mode of the API. When
+auth is disabled, it skips its login flow. The same bundle therefore works with
+auth on and with auth off.
 
-A third artifact is not a deployable in the same sense: `GET
-/libraries/:id/export-bundle` compiles a library into a self-contained bundle
-that `packages/runtime` executes in a browser with no sqlib server present. See
+A third output is not deployed in the same way. `GET
+/libraries/:id/export-bundle` compiles a library into a self-contained bundle.
+`packages/runtime` executes the bundle in a browser, with no sqlib server. See
 [guides/static-export.md](../guides/static-export.md).
 
 ## The request path for executing a query
 
-`POST /execute` with a target IRI is the path most of the system participates
-in. In order:
+Most of the system takes part in `POST /execute` with a target IRI. The steps
+are:
 
-1. **The auth plugin's `onRequest` hook** builds an `AuthContext` for the
-   request. In `disabled` mode — the default — it is a synthetic full-access
-   context, so every later enforcement point exists and passes. In `dry-run`
-   and `required` modes it verifies the bearer token against a configured OIDC
-   issuer and resolves the caller's grants.
+1. **The `onRequest` hook of the auth plugin** builds an `AuthContext` for the
+   request. In `disabled` mode (the default) the context gives full access, so
+   each later check runs and passes. In `dry-run` and `required` modes, the hook
+   verifies the bearer token against the configured OIDC issuer and loads the
+   grants of the caller.
 2. **Route validation** against the generated JSON Schema for `/execute`.
 3. **Target resolution from the cache.** `cacheCoordinator.get(targetId)`
    returns the `Query`, `QueryVersion`, `QueryGroup` or `QueryGroupVersion`
-   synchronously from memory. A stable pointer is resolved to its
-   `currentVersion`; a version IRI is used as given.
-4. **Authorization on the owning library.** `requireLibraryMode(request,
-   targetLibrary, 'execute')`. Execute is a mode of its own, independent of
-   read.
-5. **An `ExecutorFactory` scoped to this request.** Every executor used for the
-   request — including each leg of a query group, which acquires its own
-   through the execution engine — comes from this one factory, which calls
-   `assertBackendAccess` before handing one out. The comment on its constructor
-   states the reason: a query group leg cannot run against a backend the caller
-   may not reach, and the property holds by construction rather than by
-   remembering to check in each orchestrator.
-6. **Argument application.** `applyExecutionArguments` substitutes named
-   `LIMIT`/`OFFSET` parameters first, then binds the `VALUES` arguments.
-   `VALUES` binding operates on the parsed query. Page parameters are found and
-   substituted on the query's tokens — comments, string literals and IRIs are
-   skipped, so text that only reads like `LIMIT 0001` is never a parameter —
-   because the parser does not keep the `000` lexeme that names one. The same function
-   serves `POST /sparql`, which is what makes an unsaved query in the editor run
-   the way a saved one does rather than approximately so.
-7. **Execution** through an `ISparqlExecutor` — HTTP with credentials resolved
-   from the environment, or an in-process Oxigraph store.
-8. **Response**, with a `Server-Timing` header splitting database time from
-   application time, and per-node timings for a query group.
+   from memory, synchronously. A stable pointer resolves to its
+   `currentVersion`. A version IRI is used as given.
+4. **Authorization on the library that owns the target.**
+   `requireLibraryMode(request, targetLibrary, 'execute')`. Execute is a
+   separate mode from read.
+5. **An `ExecutorFactory` for this request.** Each executor that the request
+   uses comes from this one factory, including the executor for each leg of a
+   query group. The factory calls `assertBackendAccess` before it returns an
+   executor. As the comment on its constructor says, a query group leg therefore
+   cannot run against a backend that the caller has no access to. No
+   orchestrator has to add its own check.
+6. **Argument application.** `applyExecutionArguments` puts in the named
+   `LIMIT`/`OFFSET` values first, then binds the `VALUES` arguments. `VALUES`
+   binding works on the parsed query. Page parameters are found and replaced on
+   the tokens of the query, because the parser does not keep the `000` lexeme
+   that names a parameter. Comments, string literals and IRIs are skipped, so
+   text that only looks like `LIMIT 0001` is never a parameter. `POST /sparql`
+   uses the same function, so an unsaved query in the editor runs in the same
+   way as a saved one.
+7. **Execution** through an `ISparqlExecutor`: over HTTP with credentials from
+   the environment, or on an Oxigraph store in the server process.
+8. **Response**, with a `Server-Timing` header that gives database time and
+   application time separately, and timings for each node of a query group.
 
-A query group replaces steps 6–8 with the orchestration engine, which resolves
-the node graph, executes nodes in dependency order and carries each node's
-output along its outgoing edges as the next node's argument.
+For a query group, the orchestration engine does steps 6 to 8. It resolves the
+node graph, executes the nodes in dependency order, and sends the output of each
+node along its outgoing edges as an argument to the next node.
 
 ## Generated schemas: one source, three consumers
 
-The entity schemas under `packages/api/src/persistence/schemas/` are the
-intermediate representation for the whole data model. `packages/api/scripts/generate-schemas.ts`
-reads them and writes:
+The entity schemas in `packages/api/src/persistence/schemas/` describe the
+whole data model. `packages/api/scripts/generate-schemas.ts` reads them and
+writes:
 
-- `packages/contracts/src/schema/entities.generated.ts` — a JSON Schema per
+- `packages/contracts/src/schema/entities.generated.ts`: a JSON Schema for each
   entity type.
-- `packages/contracts/src/schema/routes.generated.ts` — a JSON Schema per route,
-  built from those entity schemas.
-- `packages/contracts/src/generated/*.ts` — zod schemas and TypeScript types per
-  entity.
+- `packages/contracts/src/schema/routes.generated.ts`: a JSON Schema for each
+  route, built from the entity schemas.
+- `packages/contracts/src/generated/*.ts`: zod schemas and TypeScript types for
+  each entity.
 
-Three consumers read the result, and none of them regenerates it:
+Three consumers read the output. None of them generates it again:
 
 1. **The API.** `packages/api/src/index.ts` imports `* as schemas from
-   '@sparql-query-lib/contracts/schema'` and registers every document that
-   carries an `$id` with Fastify. Those same documents are what `@fastify/swagger`
-   renders at `/docs`, so the OpenAPI description is the validation, not a
-   description of it.
-2. **The MCP tool catalogue.** `packages/tools/src/tool-schemas.ts` imports
+   '@sparql-query-lib/contracts/schema'` and registers with Fastify each
+   document that has an `$id`. `@fastify/swagger` renders the same documents at
+   `/docs`, so the OpenAPI description and the validation are one document.
+2. **The MCP tool catalogue.** `packages/tools/src/tool-schemas.ts` imports the
    route schemas from `@sparql-query-lib/contracts/schema/routes` and uses them
-   directly as tool `inputSchema`s. Its own comment states the consequence: MCP
-   and HTTP cannot disagree about what a valid payload is, because there is only
-   one document. The tools that take path or query arguments rather than a body
-   — `id`, `version`, `accept` — have nothing in contracts to correspond to, so
-   eleven argument shapes are written out once in that file and shared across
-   the catalogue.
+   as the `inputSchema` of each tool. MCP and HTTP therefore accept the same
+   payloads. Some tools take path or query arguments (`id`, `version`,
+   `accept`) and no body. Contracts has no schema for these, so that file
+   defines eleven argument shapes once and the catalogue shares them.
 3. **The web application.** It imports zod schemas and types from
    `@sparql-query-lib/contracts` through a Nuxt path alias that resolves to the
-   package source, so `pnpm dev` does not depend on the package having been
-   built.
+   package source. `pnpm dev` therefore works before the package is built.
 
-There is a fourth reader of one narrow part: the MCP server compiles its tool
-validators with `createValidatorAjv`, re-exported from the API's own entry
-point. The comment there gives the reason: `coerceTypes` and `useDefaults`
-change what a handler receives, so an MCP server building its own ajv would be a
-second validator configuration free to drift from the server's.
+A fourth consumer reads one part. The MCP server compiles its tool validators
+with `createValidatorAjv`, which the API exports from its own entry point. The
+comment there gives the reason. `coerceTypes` and `useDefaults` change what a
+handler receives. An MCP server with its own ajv would have a second validator
+configuration, which could drift from that of the server.
 
-The pipeline is run by `pnpm --filter @sparql-query-lib/api generate-schemas`,
-and the API's `build` script runs it before compiling. Editing a generated file
-by hand is undone by the next build; the entity schema is what changes.
+`pnpm --filter @sparql-query-lib/api generate-schemas` runs the pipeline. The
+`build` script of the API runs it before it compiles. The next build overwrites
+a hand edit to a generated file, so change the entity schema.
 
 ## Why the MCP server mounts the Fastify app in process
 
-`packages/mcp-server` does not speak HTTP to the API. It calls `configureApp` to
-build a Fastify instance and then dispatches every tool call through
-`app.inject`:
+`packages/mcp-server` calls `configureApp` to build a Fastify instance. It then
+sends each tool call to that instance through `app.inject`, with no HTTP
+connection:
 
 ```ts
 const response = await app.inject(withAuth as InjectOptions);
 ```
 
-Three consequences follow, and each is relied on somewhere.
+Three results follow, and other code depends on each one.
 
-**One implementation of every operation.** A tool is a request the API already
-serves. Nothing in `packages/tools` reimplements a route's behaviour; it builds
-a request and reads a response. The catalogue's schemas are the routes' schemas,
-so a payload accepted over HTTP is accepted over MCP.
+**One implementation of each operation.** A tool is a request that the API
+already serves. `packages/tools` builds a request and reads a response. The
+schemas of the catalogue are the schemas of the routes, so MCP accepts each
+payload that HTTP accepts.
 
-**Every hook runs.** The change-feed hook (`registerChangeFeedHook`) is a single
-`onSend` hook on mutating responses. Because an MCP write arrives through
-`app.inject`, it passes that hook exactly as the web application's own HTTP
-write does, and no MCP-specific code has to remember to announce a change. The
-same holds for the auth plugin's `onRequest` hook and for the `no-store` hook
-that keeps browsers from serving a saved-over entity from their own cache.
+**Each hook runs.** The change-feed hook (`registerChangeFeedHook`) is one
+`onSend` hook on responses that change data. An MCP write arrives through
+`app.inject`, so it goes through that hook in the same way as an HTTP write from
+the web application. No MCP code has to announce a change. The same is true for
+the `onRequest` hook of the auth plugin, and for the `no-store` hook that stops
+browsers from serving an old copy of an entity from their own cache.
 
-**The caller's token rides along.** `injectCaller` merges the inbound
-`Authorization` header into the injected request, so a tool runs under the
-caller's grants rather than an ambient service identity. Its comment states the
-position plainly: the MCP server enforces nothing — it is a client.
+**The token of the caller goes with the call.** `injectCaller` copies the
+inbound `Authorization` header into the injected request, so a tool runs with
+the grants of the caller. As its comment says, the MCP server enforces nothing
+itself. It is a client.
 
-The cost is that the change feed is a module-level emitter and therefore reaches
-subscribers in the same process only. Under `dual-http` the API and `/mcp` are
-one Fastify instance, which is what the feed needs. Under the `stdio` transport
-the MCP server boots its own API instance in its own process, so a write there
-is not heard by a browser subscribed to a different process. This is recorded in
-`changeEvents.ts` rather than worked around.
+The change feed is a module-level emitter, so it reaches subscribers in the same
+process only. Under `dual-http`, the API and `/mcp` are one Fastify instance, so
+the feed works. Under the `stdio` transport, the MCP server starts its own API
+instance in its own process. A browser subscribed to a different process does
+not get the events for a write there. `changeEvents.ts` records this limit.
 
 ## Persistence and the entity cache
 
-sqlib stores its own entities as RDF, in a SPARQL store, through its own query
-execution path.
+sqlib stores its own entities as RDF, through its own query execution path.
 
-The layer was originally built on an RDF mapping library, since removed. What
-replaced it is:
+The layer was first built on an RDF mapping library, which was later removed.
+The current layer is:
 
-- `packages/api/src/persistence/EntityStore.ts` — the engine. It is keyed on the
-  *schema* rather than on an entity-type name, generates the SELECT, INSERT,
-  DELETE and UPDATE for that schema, and executes them through the executor
-  resolved for `LIBRARY_STORAGE_BACKEND_ID`. That indirection is what makes the
-  RDF storage modes work without this file knowing which is configured. In the
-  default `sqlite` mode each function hands over to
-  `packages/api/src/persistence/sqliteEntityStore.ts`, which returns the rows
-  the SELECT would.
-- `packages/api/src/persistence/SelfHostedAdapter.ts` — the type-keyed facade
-  the cache talks to. It maps an entity type to its schema through
-  `SCHEMA_BY_TYPE` and hands off to `EntityStore`.
-- `packages/api/src/lib/EntityRegistry.ts` — `LENS_BY_TYPE`, the per-entity
-  repositories (52 entity types), and `TTL_MS`, the per-type cache lifetime.
+- `packages/api/src/persistence/EntityStore.ts`: the engine. It is keyed on the
+  *schema* of an entity type. It generates the SELECT, INSERT, DELETE and UPDATE
+  for that schema, and executes them through the executor for
+  `LIBRARY_STORAGE_BACKEND_ID`. Because of this indirection, the file does not
+  need to know which RDF storage mode is configured. In the default `sqlite`
+  mode, each function calls `packages/api/src/persistence/sqliteEntityStore.ts`,
+  which returns the rows that the SELECT would return.
+- `packages/api/src/persistence/SelfHostedAdapter.ts`: the facade that the cache
+  calls, keyed by entity type. It maps an entity type to its schema through
+  `SCHEMA_BY_TYPE` and calls `EntityStore`.
+- `packages/api/src/lib/EntityRegistry.ts`: `LENS_BY_TYPE`, the repository for
+  each entity type (52 types), and `TTL_MS`, the cache lifetime for each type.
 
-The name `LENS` survives in the registry; the implementation behind it does
-not. The entity interfaces are named `Persisted*` (`PersistedQuery`,
-`PersistedBackend`, ...). Any older material describing library lenses,
-a `persistPath` RocksDB store, or seven route modules is describing a system
-that no longer exists.
+The name `LENS` is still in the registry, but the lens implementation is gone.
+The entity interfaces are named `Persisted*` (`PersistedQuery`,
+`PersistedBackend`, ...). Older material about library lenses, a `persistPath`
+RocksDB store, or seven route modules describes a previous system.
 
-Reads are served synchronously from an in-memory cache; writes go to the store
-first and then update the cache. The details — why versions never expire, what
-`CACHE_PRELOAD` and `CACHE_WRITE_THROUGH` do, and what the four
-`INTERNAL_BACKEND_TYPE` choices cost — are in
-[storage-and-caching.md](storage-and-caching.md).
+Reads come from an in-memory cache, synchronously. Writes go to the store first,
+then update the cache. [storage-and-caching.md](storage-and-caching.md) gives
+the detail: why versions never expire, what `CACHE_PRELOAD` and
+`CACHE_WRITE_THROUGH` do, and the cost of each `INTERNAL_BACKEND_TYPE` choice.
 
 ## The API surface
 
-`packages/api/src/routes/` holds twenty-five files: twenty-three route plugins,
-`route-helpers.ts` (shared handler scaffolding and the one error answer) and
-`versionedEntity.ts`, the router that produces the ten CRUD routes every
-versioned entity shares — list, create, get, update, delete, and the same five
-under `/:id/versions`. Queries, query groups, rules, rule sets, data blocks,
-data graphs, tuple sets and tests register through it; their modules hold only
-what is theirs (schemas, how a version is written and shown, entity-specific
-routes). The rules it applies — status codes, If-Match, pinned deletes — are in
-[versioning-and-immutability.md](versioning-and-immutability.md).
-Grouped by what they are for:
+`packages/api/src/routes/` holds twenty-five files:
+
+- Twenty-three route plugins.
+- `route-helpers.ts`: shared handler code and the single error response.
+- `versionedEntity.ts`: the router that makes the ten CRUD routes that each
+  versioned entity has. These are list, create, get, update and delete, and the
+  same five under `/:id/versions`.
+
+Queries, query groups, rules, rule sets, data blocks, data graphs, tuple sets
+and tests register through `versionedEntity.ts`. Their own modules hold only
+what is specific to them: schemas, how a version is written and shown, and
+routes for that entity. [versioning-and-immutability.md](versioning-and-immutability.md)
+gives the rules that the router applies (status codes, If-Match, deletes of
+pinned versions).
+
+The route plugins, by purpose:
 
 - **Containers and classification.** `libraries`, `tags`.
 - **Callables and their versions.** `queries`, `query-groups`, `rules`,
   `rule-sets`, `data-blocks`.
 - **Inputs.** `argument-sets`, `argument-set-schemas`, `tuple-sets`,
   `data-graphs`.
-- **Running things.** `execute` (saved callables), `sparql` (a proxy for
-  arbitrary query text), `playground` (unsaved rules and ETL, executed against
-  ephemeral entities), `detection` (parse a query for its parameters and
-  outputs, validate, format).
-- **Judging things.** `tests`, `benchmarks`.
+- **Execution.** `execute` (saved callables), `sparql` (a proxy for any query
+  text), `playground` (unsaved rules and ETL, run against temporary entities),
+  `detection` (parse a query for its parameters and outputs, validate, format).
+- **Tests and measurement.** `tests`, `benchmarks`.
 - **Backends and writes to them.** `backends`, `patches`.
 - **Operations.** `auth` (identity introspection and grant administration),
   `events` (the change feed as Server-Sent Events), `etl-jobs`, `assistant`.
 
-Outside the route modules, `src/server/` holds the startup pieces `index.ts`
-composes: `bootstrap.ts` (crash handlers, `.env`, OpenTelemetry — imported
-first), `swagger.ts`, `health.ts`, `metrics.ts`, `errorHandler.ts`, `seed.ts`
-and `registerRoutes.ts`, which registers `/` (a redirect to the docs UI),
-`/health`, `/metrics` and every route plugin.
+`src/server/` holds the startup modules that `index.ts` puts together:
 
-Registration is gated by feature flags. `queries` off means `/queries`,
-`/execute`, `/sparql` and `/detect-*` are never registered at all, not that they
-answer 403; each playground route has its own flag. Four route groups are
-deliberately *not* gated, and `registerRoutes.ts` records why in each case:
-tags, tuple sets and data graphs because they are inputs to more than one
-section and gating them would leave entities referencing versions nothing could
-resolve; patches because a patch is a property of a backend rather than of a
-library section. The flag table itself is in
-[reference/feature-flags.md](../reference/feature-flags.md).
+- `bootstrap.ts`: crash handlers, `.env`, OpenTelemetry. It is imported first.
+- `swagger.ts`, `health.ts`, `metrics.ts`, `errorHandler.ts`, `seed.ts`.
+- `registerRoutes.ts`: registers `/` (a redirect to the docs UI), `/health`,
+  `/metrics` and each route plugin.
+
+Feature flags control route registration. When `queries` is off, the server does
+not register `/queries`, `/execute`, `/sparql` or `/detect-*` at all. Each
+playground route has its own flag. Four route groups have no flag, and
+`registerRoutes.ts` gives the reason for each:
+
+- Tags, tuple sets and data graphs are inputs to more than one section. A flag on
+  them would leave entities that reference versions that nothing can resolve.
+- A patch belongs to a backend, and a flag is per library section.
+
+[reference/feature-flags.md](../reference/feature-flags.md) has the flag table.
 
 ## Related
 
-- [versioning-and-immutability.md](versioning-and-immutability.md) — why an
-  entity splits into a stable pointer and frozen versions.
-- [storage-and-caching.md](storage-and-caching.md) — where the library lives and
-  what the cache guarantees.
-- [security-model.md](security-model.md) — what is authenticated and what is not.
-- [rdf-patch.md](rdf-patch.md) — how `rdf-delta` derives an update's effect
-  before applying it.
-- [guides/deploying.md](../guides/deploying.md) — running the image and the web
-  app.
-- [reference/configuration.md](../reference/configuration.md) — every
-  environment variable.
+- [versioning-and-immutability.md](versioning-and-immutability.md): why an
+  entity has a stable pointer and immutable versions.
+- [storage-and-caching.md](storage-and-caching.md): where the library lives,
+  and what the cache guarantees.
+- [security-model.md](security-model.md): what needs authentication and what
+  does not.
+- [rdf-patch.md](rdf-patch.md): how `rdf-delta` calculates the effect of an
+  update before it is applied.
+- [guides/deploying.md](../guides/deploying.md): run the image and the web app.
+- [reference/configuration.md](../reference/configuration.md): each environment
+  variable.

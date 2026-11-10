@@ -34,12 +34,14 @@ console.log(result.status, result.finalGraphNQuads);
 
 ## The host prepares; the runner evaluates
 
-A `RuleSetSource` is what the host knows and the runner does not. Its
-`prepareRules` returns the rules already validated, stratified and in run order;
-its `prepareDataBlocks` returns the DATA blocks. The runner calls each once, at
-the point the run reaches it, and a source refuses the run by throwing. So a
-refusal lands at the same moment, with the same result, whichever host runs
-the set.
+A `RuleSetSource` holds what the host knows and the runner does not:
+
+- `prepareRules` returns the rules, validated, stratified and in run order;
+- `prepareDataBlocks` returns the DATA blocks.
+
+The runner calls each once, when the run gets to it. To refuse the run, a
+source throws. A refusal therefore occurs at the same point, with the same
+result, on each host.
 
 - **The API's source** reads rule and DATA block versions from its entity
   cache, refuses invalid ones, and stratifies with its `RuleStratifier`. It
@@ -57,4 +59,5 @@ the set.
 
 ## Status
 
-Private to the workspace. It becomes publishable with the command-line tool.
+To do: publish to npm, with the command-line tool. Until then, the package is
+private to the workspace.

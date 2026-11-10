@@ -1,548 +1,576 @@
 # Security model
 
-This page describes what sqlib actually enforces, what it deliberately does not,
-and why the defaults are where they are. Where a protection is designed but not
-shipped, it says so.
+This page describes what sqlib enforces, what it leaves to the deployment, and
+the reasons for the defaults. Where a protection is designed but not built, the
+page says so.
 
-For reporting a vulnerability and for the short deployment summary, see
-[SECURITY.md](../../SECURITY.md).
+To report a vulnerability, and for a short summary of the deployment posture,
+see [SECURITY.md](../../SECURITY.md).
 
 ## The two authentication legs
 
-sqlib sits between callers and triplestores, so there are two separate questions
-and they have separate answers.
+sqlib is between callers and triplestores, so authentication has two separate
+legs.
 
 **sqlib to a triplestore.** Service credentials, supplied by environment
-variable, resolved per backend. Shipped and in use.
+variables and resolved for each backend. This is built and in use.
 
-**A caller to sqlib.** Identity and authorization. OIDC bearer token validation
-with per-library and per-backend grants is enforced at the routes. A backend's
-graph policy then scopes which of its graphs a caller may read (see
-[Backend graph policies](#backend-graph-policies)). A per-query ASK gate is
-designed and not shipped.
+**A caller to sqlib.** Identity and authorization. The routes enforce OIDC
+bearer token validation, with grants for each library and each backend. The
+graph policy of a backend then limits which of its graphs a caller can read
+(see [Backend graph policies](#backend-graph-policies)). A per-query ASK gate is
+designed but not built.
 
 ## What `SQLIB_AUTH_MODE` does
 
-Four values. **The default is `disabled`.**
+There are four values. **The default is `disabled`.**
 
 | Mode | Token required | Effect |
 | --- | --- | --- |
-| `disabled` (default) | no | Every request gets a synthetic full-access context. Every check exists and passes. |
-| `dry-run` | no | A token, if presented, is verified and grants resolved; a request that would be denied is logged as `would-deny` and served anyway. |
-| `required` | yes | A request without a valid token gets `401` (or `503` if the JWKS endpoint cannot be fetched, because that failure is the server's, not the caller's). A token whose `kid` is not in the published key set is a `401`; an unknown `kid` refetches the key set at most once per 30-second cooldown. |
-| `anonymous` | no, and none is read | Every request is the one principal `urn:sqlib:principal:anonymous`, with the grants on that principal and nothing else. Enforced like `required`: a check that fails is refused, a graph policy narrows, a listing hides. No issuer is needed, nobody is an administrator, and nothing is recorded at request time. |
+| `disabled` (default) | no | Each request gets a full-access context. Each check runs and passes. |
+| `dry-run` | no | If a token is sent, sqlib verifies it and resolves the grants. sqlib logs a request that would be denied as `would-deny`, and serves it. |
+| `required` | yes | A request without a valid token gets `401`. If sqlib cannot fetch the JWKS endpoint, the request gets `503`, because the failure is on the server side. A token whose `kid` is not in the published key set gets `401`. For an unknown `kid`, sqlib fetches the key set again at most once in each 30-second period. |
+| `anonymous` | no, and sqlib reads none | Each request is the one principal `urn:sqlib:principal:anonymous`, with the grants of that principal only. Enforcement is the same as in `required`: a failed check is refused, a graph policy narrows, a listing hides. No issuer is needed, nobody is an administrator, and nothing is recorded at request time. |
 
-`anonymous` is the mode for a public deployment: beside
-`SQLIB_READ_ONLY=true`, a grant of `execute` on a library and `query:saved` on
-its backends lets every visitor run the seeded queries and refuses any SPARQL
-they typed themselves, on `/sparql`, in a draft, or through MCP. A grant of
-`query:adhoc` on one backend opens that backend to ad-hoc text and no other.
-Grants are seeded with `SQLIB_AUTH_SEED_GRANTS` or written by an administrator
-on a writable instance of the same auth store. Because every caller is one
-principal, `SQLIB_AUTH_ALLOW_LIBRARY_CREATE=all` would let anyone create a
-library on a writable deployment; set it to `admin` unless that is intended.
-The anonymous principal is not the authenticated sentinel, so a grant to
-"everyone signed in" does not reach a visitor.
+`anonymous` is the mode for a public deployment. Use it with
+`SQLIB_READ_ONLY=true`, and grant `execute` on a library and `query:saved` on
+its backends. Each visitor can then run the seeded queries. sqlib refuses SPARQL
+that a visitor types, on `/sparql`, in a draft or through MCP. A grant of
+`query:adhoc` on one backend allows ad-hoc text on that backend only.
 
-Setting `dry-run` or `required` without configuring an issuer is a startup
-error, not a silent fallback. So is an issuer without an audience, unless
-`SQLIB_AUTH_AUDIENCE_UNCHECKED=true` says it is deliberate: with no audience the
-`aud` claim goes unchecked and a token the issuer minted for any other
-application is accepted.
+Seed grants with `SQLIB_AUTH_SEED_GRANTS`, or have an administrator write them
+on a writable instance of the same auth store. In this mode each caller is the
+same principal. `SQLIB_AUTH_ALLOW_LIBRARY_CREATE=all` would therefore let anyone
+create a library on a writable deployment. Set it to `admin` unless you want
+that. The anonymous principal is a different principal from the authenticated
+sentinel, so a grant to "everyone signed in" does not reach a visitor.
 
-The design decision behind all four is that the request path is the same shape
-in every mode. The auth plugin is registered as an `onRequest` hook before any
-route, and `disabled` mode decorates a full-access `AuthContext` rather than
-skipping the decoration. Nothing downstream branches on "is auth on", so an
-enforcement point cannot be accidentally absent in one mode and present in
-another.
+`dry-run` or `required` without an issuer stops the server at start. An issuer
+without an audience also stops the server, unless
+`SQLIB_AUTH_AUDIENCE_UNCHECKED=true` is set. With no audience, sqlib does not
+check the `aud` claim, and it accepts a token that the issuer made for any other
+application.
+
+The request path has the same form in each mode. The auth plugin is an
+`onRequest` hook, registered before any route. In `disabled` mode it adds a
+full-access `AuthContext` to the request. No later code checks whether auth is
+on, so an enforcement point is present in every mode.
 
 `/health`, `/` and the protected-resource metadata
-(`/.well-known/oauth-protected-resource` and its path-suffixed forms) are
-public in every mode. Every 401 names that metadata in
-`WWW-Authenticate: Bearer resource_metadata="…"`, which is how a client finds
-the authorization server (RFC 9728). `/docs` and the routes under it are
-public unless `SQLIB_AUTH_PROTECT_DOCS=true`. Public routes are matched by the
-route pattern Fastify registered (after `APP_BASE_PATH`), not by the raw URL, so
-a route such as `/backends/:id/health` is not public because of its last
-segment.
+(`/.well-known/oauth-protected-resource` and its path-suffixed forms) are public
+in each mode. Each 401 names that metadata in
+`WWW-Authenticate: Bearer resource_metadata="…"`, so a client can find the
+authorization server (RFC 9728). `/docs` and the routes under it are public
+unless `SQLIB_AUTH_PROTECT_DOCS=true`. sqlib matches public routes by the route
+pattern that Fastify registered (after `APP_BASE_PATH`). It does not match the
+raw URL, so a route such as `/backends/:id/health` is not public because of its
+last segment.
 
 ### What is verified
 
-`tokenVerifier.ts` validates JWTs against issuers you configure. sqlib is a
-resource server only: it never issues, stores or resets a credential. Only
-asymmetric algorithms are accepted (`RS*`, `PS*`, `ES256`, `ES384`, `EdDSA`);
-`HS*` is excluded so that a leaked public key cannot mint tokens. The key set
-comes from `SQLIB_AUTH_JWKS_URI`, or else from the issuer's OIDC discovery
-document, which must name the same issuer.
+`tokenVerifier.ts` validates JWTs against the issuers you configure. sqlib is a
+resource server only. It never issues, stores or resets a credential. It accepts
+asymmetric algorithms only (`RS*`, `PS*`, `ES256`, `ES384`, `EdDSA`). It refuses
+`HS*`, so a leaked public key cannot be used to make tokens. The key set comes
+from `SQLIB_AUTH_JWKS_URI`. If that is not set, it comes from the OIDC discovery
+document of the issuer, which must name the same issuer.
 
 Claims become principals: the subject, each value of the configured group claim,
-and a sentinel matching every authenticated caller.
+and a sentinel that matches each authenticated caller.
 
-A person is always their issuer and `sub`, which never change. For display
-only, sqlib also keeps a label from the token: `email`, else
-`preferred_username`, else `name`, and the Access screen shows it in place of
+sqlib identifies a person by their issuer and `sub`, which do not change. For
+display only, sqlib also keeps a label from the token: `email`, else
+`preferred_username`, else `name`. The Access screen shows the label in place of
 the subject. These are standard OIDC claims, but an access token carries them
-only when the identity provider puts them there, usually when the client asks
-for the `email` or `profile` scope. With none of them, the screen shows the
-subject. A label never decides access: emails and usernames can change or be
-reused, so grants stay on the subject.
+only if the identity provider adds them, usually when the client asks for the
+`email` or `profile` scope. With none of them, the screen shows the subject. A
+label never decides access. An email or username can change or be given to a
+different person, so grants stay on the subject.
 
 ### What is authorized
 
-Grants are `(principal, resource, modes)` over two resource kinds. A library
-grants `read`, `write`, `execute`, `delete` and `control`. Execute is
-deliberately independent of read, so "may run the library's saved queries" and
-"may read their text" are separable.
+A grant is `(principal, resource, modes)`. There are two resource kinds.
 
-A backend grants two operations at two levels each:
+A library grants `read`, `write`, `execute`, `delete` and `control`. `execute`
+is separate from `read`, so you can let a caller run the saved queries of a
+library without letting them read the query text.
+
+A backend grants two operations, each at two levels:
 
 | Mode | Allows |
 | --- | --- |
 | `query:saved` | Run saved queries (a stored version) against the backend, and read its metadata. |
-| `query:adhoc` | Also run query text the caller writes, on `/sparql` or as a draft. |
+| `query:adhoc` | Also run query text that the caller writes, on `/sparql` or as a draft. |
 | `update:saved` | Run saved updates, and revert a patch. |
-| `update:adhoc` | Also run update text the caller writes, upload data, apply a patch and clear the store. |
+| `update:adhoc` | Also run update text that the caller writes, upload data, apply a patch and clear the store. |
 
-`adhoc` includes `saved`, so a grant of `query:adhoc` satisfies a check for
-`query:saved`. The Access screen shows the two operations as two toggles per
-backend: none, saved or ad hoc.
+`adhoc` includes `saved`, so a grant of `query:adhoc` passes a check for
+`query:saved`. The Access screen shows two controls for each backend, one for
+each operation, with three values: none, saved, ad hoc.
 
-An environment grants `promote` (move its version pointers) and `execute`
-(run exactly the versions it points to). Library modes never imply them. See
+An environment grants `promote` (move its version pointers) and `execute` (run
+only the versions it points to). Library modes never include them. See
 [environments.md](environments.md).
 
 Library grants and backend grants are separate. `execute` on a library runs its
-saved entities, and every backend they run on needs a backend grant of its own.
-A `defaultBackend`, on a query or a library, is a UI convenience: it picks the
-backend a client offers first, and it grants nothing. `/execute` never falls back
-to it. A query run must name its `backendId`. Every check happens in one place, `GuardedSparqlExecutor`, which
-wraps every executor a caller's request obtains, so a saved update reached
-through `/execute` needs `update:saved` like any other.
+saved entities, and each backend they run on needs its own backend grant. A
+`defaultBackend`, on a query or a library, is for the UI only. It chooses the
+backend that a client offers first, and it grants nothing. `/execute` never uses
+it as a fallback. A query run must name its `backendId`. All backend checks
+happen in `GuardedSparqlExecutor`, which wraps each executor that a request
+gets. A saved update reached through `/execute` therefore needs `update:saved`,
+the same as any other route.
 
-Resolution is additive: the effective grant set is the union over all of a
-caller's principals. There is no ordering, no precedence and no deny rule.
-Composition can only widen access, which is what keeps a grant set auditable.
+Resolution is additive. The effective grant set is the union of the grants of
+all principals of the caller. There is no order, no precedence and no deny rule.
+More grants can only give more access, so a grant set is easy to audit.
 
-Enforcement is a plugin-scoped `preHandler` registered on twelve entity route
-plugins rather than a check written into each handler. The comment on
-`entityGuard.ts` gives the reason: a per-handler check is only as good as the
-next handler somebody adds, whereas a plugin-scoped guard covers routes that do
-not exist yet. Handlers still add explicit checks where the rule is not "the
-entity named in the path" — creation from a request body, execution, and
-anything reaching a second entity.
+Enforcement is a plugin-scoped `preHandler` on twelve entity route plugins. The
+comment on `entityGuard.ts` gives the reason: a check in each handler fails when
+someone adds a new handler and forgets it, and a plugin-scoped guard also covers
+routes added later. Handlers add their own checks where the rule is about an
+entity other than the one in the path: creation from a request body, execution,
+and any access to a second entity.
 
-Every allow, deny and would-deny is logged as an audit event with the decision,
-the resource, the mode and the grant that produced it. Token claims are never
-serialised into the log.
+sqlib logs each allow, deny and would-deny as an audit event, with the decision,
+the resource, the mode and the grant that gave the result. Token claims are
+never written to the log.
 
 ## What is not authenticated
 
-**`/mcp` has no authentication of its own.** The MCP endpoint is registered on
-the same Fastify instance as the API, so the auth plugin's `onRequest` hook does
-cover it: under `required`, a request with no bearer token is refused before the
-transport sees it, and a token that is present is forwarded onto every
-`app.inject` call so tools run under that caller's grants. Each MCP session is
-bound to the caller that created it (a digest of the `Authorization` header, or
-of the verified token's issuer and subject), and a request on that session from
-anyone else gets 403, so a leaked session id does not hand over the session.
-What does not exist is per-tool authorization, and under the default `disabled`
-mode no token is checked at all: callers are told apart only by whatever
-`Authorization` header they send. `packages/mcp-server/test/http-server.test.ts`
-pins that `/mcp` refuses a request with no bearer under `required`.
+**`/mcp` has no authorization for each tool.** The MCP endpoint is on the same
+Fastify instance as the API, so the `onRequest` hook of the auth plugin covers
+it. Under `required`, sqlib refuses a request with no bearer token before the
+transport sees it. A token that is present goes with each `app.inject` call, so
+tools run with the grants of the caller.
+
+Each MCP session belongs to the caller that created it: a digest of the
+`Authorization` header, or of the issuer and subject of the verified token. A
+request on that session from a different caller gets 403, so a leaked session id
+does not give access to the session. sqlib has no per-tool authorization. Under
+the default `disabled` mode, sqlib checks no token, and it identifies callers
+only by the `Authorization` header they send.
+`packages/mcp-server/test/http-server.test.ts` checks that `/mcp` refuses a
+request with no bearer token under `required`.
 
 **The in-app assistant has no authorization of its own.** Its route module
-registers no entity guard and calls no enforcement helper. Its own header states
-the position:
+registers no entity guard and calls no enforcement helper. Its header says:
 
 > Unauthenticated, like `/mcp` beside it. That is not an oversight, it is the
 > gap the plan names: both doors are blocked on the caller-authorization model,
 > and until then this is a single-tenant, local-or-trusted-network feature.
 
-The practical reading for an operator: in a default deployment, anyone who can
-reach the port can use both doors, and network reachability is the only access
-control they have. Put the server behind something that enforces your own.
+For an operator: in a default deployment, anyone who can reach the port can use
+both routes, and network access is their only access control. Put the server
+behind a layer that enforces your own access control.
 
-The assistant does have a capability boundary of a different kind. Its tool
-allowlist is read-only by construction: every catalogue tool that mutates server
-state is absent rather than disabled, its writes go through draft tools that
-stage into the session for a human to save, and `sparql.proxyQuery` is excluded
-at any setting because `/sparql` executes UPDATEs and that would be a write
-channel to the user's triplestore around the draft gate. A list of forbidden
-name patterns exists so a newly added catalogue tool cannot quietly become
-assistant-reachable. `execute.run` is allowed, on the argument that it runs an
-artifact a human already saved.
+The assistant does have a limit on what it can do. Its tool allowlist is
+read-only:
 
-Note the interaction with prompt injection: the assistant's context is fed by
-user-writable entity content — query text, descriptions, results — so the
-allowlist is what bounds the damage an instruction hidden in that content can
-do.
+- Each catalogue tool that changes server state is absent from the list.
+- Its writes go through draft tools, which put the change in the session for a
+  person to save.
+- `sparql.proxyQuery` is always excluded. `/sparql` executes UPDATEs, so this
+  tool would let the assistant write to the triplestore of the user without the
+  draft step.
+- A list of forbidden name patterns stops a new catalogue tool from becoming
+  available to the assistant without a decision.
+- `execute.run` is allowed, because it runs an entity that a person already
+  saved.
+
+This allowlist also limits prompt injection. The context of the assistant
+contains entity content that users can write: query text, descriptions and
+results. The allowlist limits what an instruction hidden in that content can do.
 
 ## Backend graph policies
 
-A backend can carry a graph policy: a saved SELECT that decides, per caller,
-which graphs of that backend the caller may read. It is the second of the three
-tiers the original design named. Tier 1, a grant on the backend, decides whether
-a caller may run anything at all; the policy then narrows what a query reads.
-Tier 3, a policy graph with an ASK gate per query, is not implemented.
+A backend can have a graph policy: a saved SELECT that decides, for each caller,
+which graphs of that backend the caller can read. The original design named
+three tiers, and the policy is the second:
+
+1. A grant on the backend decides whether a caller can run anything on it.
+2. The policy then limits what a query reads.
+3. A policy graph with an ASK gate for each query. This tier is not built.
 
 ### How a policy is set
 
 An administrator sets two fields on the backend, together:
 
 - `graphPolicyQueryVersion`: a query version, pinned. Later edits to the query
-  change nothing until the administrator pins the new version.
+  have no effect until the administrator pins the new version.
 - `graphPolicyBackend`: the backend the policy runs on. It must be an *auth
-  backend* (`authBackend: true`), or the library store.
+  backend* (`authBackend: true`) or the library store.
 
-Saving checks the policy once, so a policy that could never run is refused with
-a 400 instead of failing every request later. The policy must be a SELECT. It
-may project only `?graph`, `?defaultGraph` and `?namedGraph`. It may declare
-only the two single-variable slots `VALUES ?authUser { UNDEF }` and
-`VALUES ?authGroup { UNDEF }`, and no LIMIT or OFFSET parameters. A backend
-cannot be its own policy backend, and an auth backend cannot have a policy.
+sqlib checks the policy when it is saved. A policy that could never run gets 400
+at save time, so it does not fail each later request. The rules:
 
-An auth backend holds access data. Only administrators may query it, through
-any route, so the rules that decide access are not themselves readable.
+- The policy must be a SELECT.
+- It can project only `?graph`, `?defaultGraph` and `?namedGraph`.
+- It can declare only the two single-variable slots
+  `VALUES ?authUser { UNDEF }` and `VALUES ?authGroup { UNDEF }`, and no LIMIT
+  or OFFSET parameters.
+- A backend cannot be its own policy backend.
+- An auth backend cannot have a policy.
+
+An auth backend holds access data. Only administrators can query it, through any
+route, so nobody else can read the rules that decide access.
 
 ### How a policy is applied
 
-For each read, sqlib runs the policy on the auth backend with the caller bound
-in: `?authUser` to the caller's user principal IRI, and `?authGroup` to one row
-per group principal IRI the token carried (zero rows for no groups, so a group
-rule matches nothing). The result becomes a dataset:
+For each read, sqlib runs the policy on the auth backend with the caller bound:
+
+- `?authUser` gets the user principal IRI of the caller.
+- `?authGroup` gets one row for each group principal IRI in the token. With no
+  groups it gets zero rows, so a group rule matches nothing.
+
+The result becomes a dataset:
 
 - `?graph` fills both the default graphs and the named graphs.
 - `?defaultGraph` and `?namedGraph` fill one part each.
-- A part the policy does not project is empty: the caller reads no graphs
+- A part that the policy does not project is empty. The caller reads no graphs
   there.
 
-That dataset is intersected with any dataset the caller asked for (the graph
-picker, `defaultGraphs`/`namedGraphs` on `/sparql` and `/execute`) and with
-dataset edges in a query group. The intersection is sent as the SPARQL protocol
-parameters `default-graph-uri` and `named-graph-uri`, or as Oxigraph's dataset
-options, which override `FROM` and `FROM NAMED` in the query text. An empty part
-is sent as `urn:sqlib:empty-dataset`, a graph that names nothing, because no
-parameter would mean "the endpoint's whole dataset".
+sqlib intersects that dataset with any dataset that the caller asked for (the
+graph picker, `defaultGraphs`/`namedGraphs` on `/sparql` and `/execute`) and
+with dataset edges in a query group. It sends the intersection as the SPARQL
+protocol parameters `default-graph-uri` and `named-graph-uri`, or as the dataset
+options of Oxigraph. These override `FROM` and `FROM NAMED` in the query text.
+sqlib sends an empty part as `urn:sqlib:empty-dataset`, a graph that contains
+nothing. With no parameter, the endpoint would use its whole dataset.
 
-Results are cached per backend and caller for `SQLIB_AUTH_POLICY_CACHE_SECONDS`
-(default 60). A policy change on the backend clears the cache, and so does any
-update to an auth backend through sqlib. Any other change to the access data,
-such as an edit to a data graph the auth backend is hydrated from, takes effect
-within the cache time.
+sqlib caches results for each backend and caller for
+`SQLIB_AUTH_POLICY_CACHE_SECONDS` (default 60). A change to the policy on the
+backend clears the cache. So does an update to an auth backend through sqlib.
+Other changes to the access data, such as an edit to a data graph that loads the
+auth backend, take effect within the cache time.
 
 ### Who is not policed
 
-- **Administrators and sqlib itself.** A caller with full access (any caller in
-  `disabled` mode) or the administrator grant is not narrowed. Neither are
-  sqlib's own internal queries (`{ internal: true }`). Use `Test as` on the
-  Access screen to see what a person would read.
+- **Administrators and sqlib itself.** sqlib does not narrow a caller with full
+  access (each caller in `disabled` mode) or with the administrator grant. It
+  also does not narrow its own internal queries (`{ internal: true }`). To see
+  what a person would read, use `Test as` on the Access screen.
 - **Updates.** The policy narrows reads only. An update names its target graphs
-  in its own text, and the dataset parameters scope only an update's `WHERE`
-  clause. The `update:*` modes therefore mean "may write any graph of this
-  backend", and the `WHERE` of an update is not narrowed either. Grant update
-  modes only to callers who may read and write the whole backend.
+  in its own text, and the dataset parameters limit only the `WHERE` clause of
+  an update. sqlib does not narrow that `WHERE` clause either. The `update:*`
+  modes therefore allow writes to any graph of the backend. Give update modes
+  only to callers who can read and write the whole backend.
 - **Browser backends and exported bundles.** These send queries from the
-  browser straight to the endpoint, so sqlib never sees them.
-- **Data graphs.** An in-process backend hydrated from data graphs is only as
-  private as the libraries holding those graphs: anyone with `read` on such a
-  library reads the graph through the Data graphs routes. Keep them in a
-  library only administrators may read.
-- **The patch log.** A patch holds what an update wrote, in every graph. On a
-  policed backend, reading the patch log needs `update:saved`, not
-  `query:saved`.
+  browser directly to the endpoint, so sqlib never sees them.
+- **Data graphs.** An in-process backend loaded from data graphs has the same
+  privacy as the libraries that hold those graphs. Anyone with `read` on such a
+  library can read the graph through the Data graphs routes. Keep these graphs
+  in a library that only administrators can read.
+- **The patch log.** A patch holds what an update wrote, in each graph. On a
+  policed backend, a read of the patch log needs `update:saved`. `query:saved`
+  is not sufficient.
 
 ### Fail closed
 
-In `required` mode every failure to evaluate a policy refuses the request with
-a 503 and a generic message: an unknown version, an unreachable auth backend, a
-policy that no longer passes the checks, or a result that is not SPARQL JSON.
-In `dry-run` mode the failure and the narrowing are logged as would-deny audit
-events, and the query runs unnarrowed.
+In `required` mode, each failure to evaluate a policy refuses the request with
+503 and a generic message. Failures include an unknown version, an auth backend
+that sqlib cannot reach, a policy that no longer passes the checks, and a
+result that is not SPARQL JSON. In `dry-run` mode, sqlib logs the failure and
+the narrowing as would-deny audit events, and runs the query without narrowing.
 
-### What stays the deployment's job
+### What stays the job of the deployment
 
-- **`SERVICE` is not stripped.** A query that names `SERVICE` on a policed
+- **sqlib does not remove `SERVICE`.** A query with `SERVICE` on a policed
   backend runs, with a warning (the `X-Sqlib-Warning` header on `/sparql`),
-  because the dataset does not narrow the remote endpoint. On an in-process backend
-  there is nothing to reach: Oxigraph's Node build has no service handler, so
-  any `SERVICE` clause fails the query. On an HTTP backend, turn federation off
-  in the store if the policy must hold.
+  because the dataset does not limit the remote endpoint. On an in-process
+  backend, there is nothing to reach: the Node build of Oxigraph has no service
+  handler, so a `SERVICE` clause fails the query. On an HTTP backend, turn
+  federation off in the store if the policy must hold.
 - **sqlib must be the only path to the store.** If callers can reach the SPARQL
   endpoint directly, the policy does not apply to them. Keep a policed store on
   a private network.
 
-To try all of this on one machine, with Rauthy issuing the groups, run
+To try this on one machine, with Rauthy as the source of the groups, run
 `just demo-graph-access` (see [Deploying](../guides/deploying.md#a-demo-of-graph-access)).
 
 ## The caller in saved queries
 
-Grants decide *which* queries a caller may run. They cannot decide *for whom*
-a query runs: a query that takes the caller as a parameter trusts whatever
-value the caller sends. So any saved query may declare the slots a graph
-policy reads, `VALUES ?authUser { UNDEF }` and `VALUES ?authGroup { UNDEF }`,
-and sqlib fills them from the sign-in. The rules are in
+Grants decide *which* queries a caller can run. They cannot decide *for whom* a
+query runs. If a query takes the caller as a parameter, it trusts the value that
+the caller sends. Any saved query can therefore declare the slots that a graph
+policy reads, `VALUES ?authUser { UNDEF }` and `VALUES ?authGroup { UNDEF }`, and
+sqlib fills them from the sign-in. The rules are in
 `guides/publishing-tools.md` ("The caller").
 
-The fill happens in `completeArgumentSets` (`packages/runtime`), the one step
-that every substitution takes, on the template path and the AST path alike.
-It takes a three-valued `caller` option:
+`completeArgumentSets` (`packages/runtime`) fills the slots. Each substitution
+goes through this step, on the template path and on the AST path. It takes a
+`caller` option with three states:
 
-- an identity fills the slots;
-- `null` means no one, and fills both slots with zero rows;
-- no option at all, for a text that declares a slot, is refused.
+- An identity fills the slots.
+- `null` means no caller, and fills both slots with zero rows.
+- No option, for a text that declares a slot, is refused.
 
-The third case is how the design fails closed. A route that forgets the
-caller does not run the slot open, which would match every caller; it fails.
-The API's own wrappers (`applyExecutionArguments`, `invokeCallable`) take the
-caller as a required field, so the compiler lists every call site.
+The third state makes the design fail closed. If a route does not pass the
+caller, the slot does not run open (which would match each caller). The run
+fails. The wrappers of the API (`applyExecutionArguments`, `invokeCallable`)
+take the caller as a required field, so the compiler lists each call site.
 
-No one is signed in for a full-access context (`disabled` mode, `dry-run`
-without a valid token), for `anonymous` mode, whose one principal identifies
-nobody, and for sqlib's own work. A door refuses such a run (`401` or `403`)
-before it starts; the zero rows are the safety net behind that refusal.
+No caller is signed in for a full-access context (`disabled` mode, or `dry-run`
+without a valid token), for `anonymous` mode (its one principal identifies
+nobody), and for the internal work of sqlib. A route refuses such a run with
+`401` or `403` before it starts. The zero rows are a second protection behind
+that refusal.
 
-Ad-hoc text on `POST /sparql` is filled too. That gives nothing away: a caller
-who may run ad-hoc text can type any IRI into it.
+sqlib also fills the slots in ad-hoc text on `POST /sparql`. This gives the
+caller nothing new, because a caller who can run ad-hoc text can type any IRI
+into it.
 
 ## Backend credentials
 
-A `Backend` entity stores an `authEnvKey` — a name, constrained to
-`^[A-Z0-9_]+$`. It stores no secret. The legacy `username` and `password` fields
-were removed from the data model, and a request carrying them is rejected by
-schema validation.
+A `Backend` entity stores an `authEnvKey`: a name that matches `^[A-Z0-9_]+$`.
+It stores no secret. The old `username` and `password` fields are removed from
+the data model, and schema validation refuses a request that has them.
 
-At execution, `backendAuth.ts` reads from the server's own environment:
+At execution, `backendAuth.ts` reads from the environment of the server:
 
 ```
 SQLIB_BACKEND_<KEY>_USERNAME + SQLIB_BACKEND_<KEY>_PASSWORD   → Basic
 SQLIB_BACKEND_<KEY>_AUTH_HEADER                               → used verbatim
 ```
 
-Basic takes precedence over a header; absent both, the request goes out
-unauthenticated. One function builds the header for every server-side caller —
-the executor, the capability probe, the prefix service — because a second copy
-is a second place for a store to start answering 401.
+Basic has precedence over a header. With neither, the request goes out without
+credentials. One function builds the header for each caller on the server side:
+the executor, the capability probe and the prefix service. A second copy of the
+function would be a second place where a store could start to return 401.
 
-Three properties follow. Exporting a library, copying its `.nq` snapshot or
-dumping its triplestore carries no credentials. Rotating a credential is an
-environment change and a restart, with no entity edit. And anyone who can
-execute against a backend is using those credentials, which is exactly why the
-unauthenticated doors above matter: the library does not hold the secret, but it
-holds the ability to spend it.
+This has three results:
 
-Two adjacent notes. The library storage backend is reserved for administrators
-even when a caller holds grants elsewhere, because reading it directly would
-bypass the entity layer.
+- An export of a library, a copy of its `.nq` snapshot, or a dump of its
+  triplestore contains no credentials.
+- To rotate a credential, change the environment and restart. No entity changes.
+- Anyone who can execute against a backend uses those credentials. For this
+  reason the routes without authentication (above) are important. The library
+  does not hold the secret, but it holds the ability to use it.
 
-Grants and principals are not in the library store. They live in the
-`urn:sqlib:auth` graph of an auth store of their own: one SQLite file by
-default, one N-Quads file, or a SPARQL dataset of its own
-(`SQLIB_AUTH_STORE_TYPE`). The SQLite store also keeps an audit trail: each
-change's added and removed quads, with the time, in `auth_events`. A backup,
-restore or reset of the library store leaves access control alone, and no
-export or library-store query reaches it. Deleting a library or a backend
-removes the grants that name it. And the static export
-bundle carries no authorization of its own: an exported bundle grants whatever
-the endpoint grants its caller, so a query whose safety depended on server-side
-scoping should not be exported.
+The library storage backend is for administrators only, even when a caller has
+grants on other backends, because a direct read of it goes around the entity
+layer.
 
-## Why ETL and the assistant default off
+Grants and principals are not in the library store. They are in the
+`urn:sqlib:auth` graph of a separate auth store: one SQLite file by default, one
+N-Quads file, or a separate SPARQL dataset (`SQLIB_AUTH_STORE_TYPE`). The SQLite
+store also keeps an audit trail in `auth_events`: the quads that each change
+added and removed, with the time. As a result:
 
-Both defaults are capability grants, not maturity judgements. The flag comments
-state it in those terms.
+- A backup, restore or reset of the library store does not change access
+  control.
+- No export or library-store query reaches the auth store.
+- When you delete a library or a backend, sqlib removes the grants that name it.
+- The static export bundle carries no authorization. An exported bundle gets
+  what the endpoint gives its caller. Do not export a query whose safety depends
+  on scoping on the server.
 
-**ETL.** `FEATURE_ETL` and `FEATURE_PLAYGROUND_ETL` default false. ETL accepts
-arbitrary DuckDB SQL, which is a host filesystem read primitive and, with the
-httpfs extension, an outbound request primitive. That is the feature — a
-pipeline that cannot express its own extraction is not an ETL tool — and it is
-the risk. A capability with that blast radius should not appear because somebody
-upgraded.
+## Why ETL and the assistant are off by default
 
-Underneath the flag, the DuckDB instance is configured with every capability off
-and locked. What actually enforces something, measured against the binding in
-use rather than taken from documentation:
+Both defaults limit capability. They say nothing about maturity. The comments on
+the flags give the same reason.
+
+**ETL.** `FEATURE_ETL` and `FEATURE_PLAYGROUND_ETL` are false by default. ETL
+accepts any DuckDB SQL. DuckDB SQL can read any file on the host, and with the
+httpfs extension it can send outbound requests. An ETL tool needs this to read
+its sources, and it is also the risk. A capability this wide must not appear
+after an upgrade without a decision.
+
+Under the flag, the DuckDB instance starts with each capability off and locked.
+These settings enforce limits. Each was measured against the binding in use:
 
 - `enable_external_access=false` at instance creation blocks file reads, network
-  reads and `INSTALL`, and cannot be re-enabled on a running database. This is
-  the one hard boundary available.
-- Disabling autoinstall and autoload stops extensions appearing on demand.
-- `lock_configuration=true`, applied on a boot connection before any caller SQL
-  runs, blocks every later `SET`, including from another connection on the same
-  instance. Without it, submitted SQL rewrites its own profile.
+  reads and `INSTALL`. A running database cannot turn it on again. This is the
+  only hard boundary.
+- Autoinstall and autoload are off, so extensions do not load on demand.
+- `lock_configuration=true`, set on a boot connection before any SQL from a
+  caller runs, blocks each later `SET`, also from another connection to the same
+  instance. Without it, submitted SQL can change its own profile.
 
-A directory allowlist is deliberately not offered, because it does not work:
-`allowed_directories` is rejected by the binding's instance config, and when set
-over SQL it is accepted and enforces nothing — with it set and the configuration
-locked, `read_csv('/etc/passwd')` still returns rows. A knob that appears to
-confine ETL to a directory but does not is worse than no knob, so filesystem
-access is all-or-nothing. `ETL_DUCKDB_ALLOW_HTTP` implies filesystem access,
-because DuckDB gates both on one setting. Deadlines and a memory limit are on by
+sqlib offers no directory allowlist, because DuckDB does not enforce one. The
+instance config of the binding refuses `allowed_directories`. Set over SQL, it is
+accepted and enforces nothing. With it set and the configuration locked,
+`read_csv('/etc/passwd')` still returns rows. A setting that appears to limit ETL
+to a directory, and does not, would give a false sense of safety. File access is
+therefore all or nothing. `ETL_DUCKDB_ALLOW_HTTP` also turns on file access,
+because one DuckDB setting controls both. Deadlines and a memory limit are on by
 default.
 
-Under `required`, every route that stores or runs ETL SQL needs administrator
-access rather than a library grant: `POST /etl-jobs/preview` through
-`adminSuffixes` on its route plugin, and `POST /etl-jobs/:id/versions`,
-`POST /etl-jobs/:id/execute` and `POST /playground/etl/execute` through an
-explicit `requireAdmin` in the handler (a suffix would match every method on
-the path, reads included). Storing a version counts, because a stored version
-is SQL that a later run executes. A library grant answers the wrong question —
-"may do anything to my own queries" is not "may read the host filesystem", and
-the blast radius of submitted SQL is the process and its host, not an entity.
-Those routes are checked by a test that mounts the real route plugins and
-requires a principal holding every library mode, and not administrator, to be
-refused — both a route added without a guard and a guard deleted from a route
-fail it.
+Under `required`, each route that stores or runs ETL SQL needs administrator
+access. A library grant is not sufficient:
 
-Under the default `disabled` mode there is no principal and every request
-carries full access, so those checks are no-ops. **The flag, not the
-authorization check, is what protects a default deployment.**
+- `POST /etl-jobs/preview`, through `adminSuffixes` on its route plugin.
+- `POST /etl-jobs/:id/versions`, `POST /etl-jobs/:id/execute` and
+  `POST /playground/etl/execute`, through a `requireAdmin` call in the handler.
+  A suffix would match each method on the path, reads included.
 
-No `etl.*` tools exist in the MCP catalogue, so neither an MCP client nor the
-assistant can reach ETL at all.
+A stored version counts, because a later run executes its SQL. A library grant
+lets a caller change their own queries. It does not mean that they can read the
+file system of the host, and the reach of submitted SQL is the process and its
+host. A test mounts the real route plugins and checks that a principal with each
+library mode, but without administrator access, is refused. A route added
+without a guard fails it, and so does a route whose guard is removed.
 
-**The assistant.** `FEATURE_ASSISTANT` defaults false for three reasons stated
-together: it is unauthenticated, it calls a paid third-party provider, and it
-can reach a configured backend. The provider key is supplied by the caller per
-request precisely so the server does not hold one.
+Under the default `disabled` mode there is no principal and each request has full
+access, so those checks do nothing. **In a default deployment, the flag is the
+protection.** The authorization check is not.
+
+The MCP catalogue has no `etl.*` tools, so neither an MCP client nor the
+assistant can reach ETL.
+
+**The assistant.** `FEATURE_ASSISTANT` is false by default for three reasons: it
+has no authentication, it calls a paid third-party provider, and it can reach a
+configured backend. The caller supplies the provider key with each request, so
+the server holds no key.
 
 ## How caller values reach SPARQL
 
-Argument values are never concatenated into query text.
+sqlib never concatenates argument values into query text.
 
-Two paths exist and both go through the same validation. The AST path parses the
-query, finds the `VALUES` clauses whose only row is all `UNDEF`, and replaces
-that row with term nodes built from the supplied bindings. The template path,
-shared with the exported runtime, splices serialised terms into recorded offsets
-in the query text.
+There are two paths, and both use the same validation:
 
-The security property is provided by `packages/runtime/src/sparql-terms.ts`, and
-its own header states the contract:
+- The AST path parses the query, finds the `VALUES` clauses whose only row is
+  all `UNDEF`, and replaces that row with term nodes built from the supplied
+  bindings.
+- The template path, shared with the exported runtime, puts serialised terms
+  at recorded offsets in the query text.
+
+`packages/runtime/src/sparql-terms.ts` gives the security property. Its header
+states the contract:
 
 > **The security contract is validation, not sanitisation.** Every value is
 > either provably inside its SPARQL terminal production or rejected. We never
 > try to make a dangerous value safe by rewriting it, except for the one
 > production where the grammar defines an escape mechanism (string literals).
 
-Concretely: an IRI is rejected if it contains any character `IRIREF` forbids
-between the angle brackets (`< > " { } | ^ \` and everything below U+0021); a
-language tag must match `LANGTAG` exactly, because language tags have no escape
-mechanism; a string literal's four reserved characters are escaped, and nothing
-else is touched, so the round trip is byte-exact.
+In detail:
 
-The AST path validates through the same serialiser and discards the string, so
-there is one definition of "is this value representable" and the two paths
-cannot drift into accepting different inputs.
+- An IRI is refused if it contains a character that `IRIREF` forbids between the
+  angle brackets: `< > " { } | ^ \` and each character below U+0021.
+- A language tag must match `LANGTAG` exactly, because language tags have no
+  escape mechanism.
+- In a string literal, the four reserved characters are escaped and nothing else
+  changes, so the round trip is byte-exact.
 
-This is a fix for a real hole rather than a precaution. The parser's generator
-escapes string literals but emits IRIs and language tags verbatim, so
-`<` + rawIri + `>` was enough to add terms to a `VALUES` block:
+The AST path validates through the same serialiser and discards the string.
+There is one definition of a valid value, so the two paths always accept the
+same inputs.
+
+This fixed a real defect. The generator of the parser escapes string literals
+but writes IRIs and language tags as given, so `<` + rawIri + `>` could add terms
+to a `VALUES` block:
 
 ```
 { type: 'uri', value: 'http://e/a> <http://e/b' }
 → VALUES ?l { <http://e/a> <http://e/b> }     // two rows, valid SPARQL
 ```
 
-The caller chose which rows a parameterised filter matched.
-`packages/compiler/test/parser.injection.test.ts` pins the fix in two ways: a
-table of hostile values that must be rejected, and a property-based test
-asserting that every string surviving validation yields exactly one row in the
-resulting query, counted by re-parsing the output with an independent parser.
+The caller could choose which rows a parameterised filter matched.
+`packages/compiler/test/parser.injection.test.ts` checks the fix in two ways: a
+table of hostile values that must be refused, and a property-based test. The
+property-based test checks that each string that passes validation gives exactly
+one row in the query. It counts the rows by parsing the output again with a
+separate parser.
 
-**What this prevents.** A supplied argument cannot terminate its own production
-and reach the surrounding query structure. It cannot add rows, add clauses,
-close a graph pattern or append an update.
+**What this prevents.** A supplied argument cannot end its own production and
+reach the query structure around it. It cannot add rows or clauses, close a
+graph pattern, or add an update.
 
-**What it does not prevent.** It says nothing about what the query itself is
-allowed to do. A saved query containing `SERVICE` federates; a saved update
-writes. `POST /sparql` takes arbitrary query text, subject only to a backend
-grant. Parameter values are safe; the query that consumes them is whatever
-somebody with write access to the library put there. An update goes over POST
-only: `GET /sparql` answers an UPDATE with 405, because any page a visitor opens
-can make their browser send a GET (a link, an image, a prefetch), and CORS stops
-the page reading the answer, not the request running.
+**What it does not prevent.** It does not limit what the query itself does. A
+saved query with `SERVICE` federates. A saved update writes. `POST /sparql`
+takes any query text, with only a backend grant as a check. Parameter values are
+safe. The query that uses them is what a person with write access to the library
+wrote.
+
+An update must use POST. `GET /sparql` returns 405 for an UPDATE. A page that a
+visitor opens can make their browser send a GET (a link, an image, a prefetch).
+CORS stops the page from reading the response, but the request still runs.
 
 ## A read-only deployment
 
-`SQLIB_READ_ONLY=true` refuses every write to sqlib's own state: the catalogue
-changes by redeployment, and anything a visitor authors is kept in their
-browser. It is a separate axis from `SQLIB_AUTH_MODE` and needs no principal —
-see [configuration](../reference/configuration.md#read-only-deployments) for the
+`SQLIB_READ_ONLY=true` refuses each write to the state of sqlib. The catalogue
+changes only when you redeploy, and the browser keeps what a visitor writes. The
+setting is separate from `SQLIB_AUTH_MODE` and needs no principal. See
+[configuration](../reference/configuration.md#read-only-deployments) for the
 gate and its exceptions.
 
-It is worth stating what it is and is not, because "read-only" invites a reading
-it does not support. It stops sqlib storing what a visitor sends. It does not
-authenticate anybody, it does not stop a visitor reading the whole catalogue,
-and it does not decide whether a *backend* accepts a write — `POST /sparql`
-still passes an update through, and the store refuses it or does not, on its own
-terms. A deployment that wants its own stores immutable configures those stores
-read-only; the flag is not a substitute for that.
+The setting has a narrow effect:
+
+- It stops sqlib from storing what a visitor sends.
+- It authenticates nobody.
+- It does not stop a visitor from reading the whole catalogue.
+- It does not decide whether a *backend* accepts a write. `POST /sparql` still
+  sends an update to the store, and the store applies its own rules.
+
+To make your stores immutable, configure those stores as read-only.
 
 **Browser backends.** The SPA lets a visitor register a SPARQL endpoint in their
-own browser (`localStorage`), and runs those queries from the tab rather than
-through sqlib. Neither the endpoint, the query text, any header the visitor
-attached, nor the results reach the server. This is a stronger position than the
-inline-endpoint field it replaces, which posted the endpoint to sqlib and made
-the server fetch it — on a public site, a server that fetches a caller-supplied
-URL is a request forgery primitive pointed at whatever the host can reach. It is
-also why `POST /backends/probes` is absent from the read-only exceptions: it is
-that primitive by another name.
+own browser (`localStorage`). The tab runs those queries directly. The endpoint,
+the query text, any header that the visitor adds, and the results never reach
+the server.
 
-The cost is CORS. A browser can only read an endpoint that sends
-`Access-Control-Allow-Origin`, so an endpoint that answers curl can still be
-unreachable from the page; the SPA says so specifically rather than reporting a
-generic network failure.
+This replaces an inline-endpoint field, which sent the endpoint to sqlib and made
+the server fetch it. On a public site, a server that fetches a URL from a caller
+can be used for request forgery against any host it can reach. For the same
+reason, `POST /backends/probes` is not one of the read-only exceptions: it would
+be the same risk.
 
-## Before you expose this
+The cost is CORS. A browser can read an endpoint only if the endpoint sends
+`Access-Control-Allow-Origin`. An endpoint that answers curl can therefore fail
+from the page. The SPA reports this case with its own message, and does not show
+a generic network failure.
 
-1. **Decide what `SQLIB_AUTH_MODE` is.** The default is `disabled`, which means
-   no authentication. Set an issuer and use `dry-run` to see what would be
-   denied before switching to `required`.
+## Before you expose sqlib
+
+1. **Choose a value for `SQLIB_AUTH_MODE`.** The default is `disabled`, which
+   means no authentication. Set an issuer, and use `dry-run` to see what would
+   be denied before you change to `required`.
 2. **Do not expose `/mcp` or the assistant to a network you do not control.**
-   Neither has authorization of its own. If the API is reachable, so are they.
-3. **If it is a demo, set `SQLIB_READ_ONLY=true`.** Authorization is not what
-   keeps a public deployment's catalogue intact; refusing writes is. Under
-   `disabled` mode every visitor holds full access, so without this flag a
-   public site is one where anybody may edit or delete anything.
-4. **Make sqlib the only path to your stores.** Firewall the SPARQL endpoints to
-   sqlib. Any bypass path voids every authorization decision sqlib makes.
-5. **Leave `FEATURE_ETL`, `FEATURE_PLAYGROUND_ETL` and `FEATURE_ASSISTANT` off**
-   unless you have decided the deployment can carry them. If you turn ETL on,
-   grant no DuckDB capability you do not need, and confine the process with the
-   container rather than with a directory allowlist that does not work.
-6. **Turn off the sections you are not using.** A feature flag that is off means
-   the routes are never registered, which is a stronger statement than a 403.
+   Neither has its own authorization. If the API is reachable, so are they.
+3. **For a demo, set `SQLIB_READ_ONLY=true`.** On a public deployment, refusing
+   writes is what keeps the catalogue intact. Under `disabled` mode each visitor
+   has full access, so without this flag anyone can edit or delete anything.
+4. **Make sqlib the only path to your stores.** Put a firewall between the
+   SPARQL endpoints and everything except sqlib. A path around sqlib cancels
+   each authorization decision that sqlib makes.
+5. **Keep `FEATURE_ETL`, `FEATURE_PLAYGROUND_ETL` and `FEATURE_ASSISTANT` off**
+   until you decide that the deployment can accept them. If you turn ETL on,
+   give DuckDB only the capabilities you need, and use the container to confine
+   the process.
+6. **Turn off the sections you do not use.** When a feature flag is off, its
+   routes are not registered. A request gets no route at all, which is stronger
+   than 403.
 7. **Check `SQLIB_AUTH_PROTECT_DOCS` and `SQLIB_AUTH_ALLOW_LIBRARY_CREATE`.**
-   `/docs` is public by default, and library creation is open to any
-   authenticated principal by default.
+   By default, `/docs` is public, and any authenticated principal can create a
+   library.
 8. **Keep backend credentials in the environment.** Never put a secret in an
-   entity field. Confirm `authEnvKey` names the key you think it does.
-9. **Do not run two sqlib processes against one library store.** Each holds its
-   own cache and neither is told when the other writes. Back up the auth store
-   (`SQLIB_AUTH_STORE_DIR`, or its SPARQL dataset) as well as the library store:
-   they are separate. Copy a live SQLite store with `sqlite3 auth.sqlite
-   ".backup copy.sqlite"`, not `cp`, so the copy includes its WAL.
-10. **Review what you export.** A static bundle carries no authorization, and
-   updates are not exportable — read queries only.
-11. **List the browser origins that may call the API in `SQLIB_CORS_ORIGINS`.**
-    Unset, a production deployment allows none, which is right when the SPA is
-    served from the API's own origin. A listed origin gets credentialed access;
-    `*` allows any origin without credentials. See
+   entity field. Make sure that `authEnvKey` names the key you expect.
+9. **Do not run two sqlib processes against one library store.** Each process
+   has its own cache, and neither is told when the other writes. Back up the
+   auth store (`SQLIB_AUTH_STORE_DIR`, or its SPARQL dataset) and the library
+   store, because they are separate. Copy a live SQLite store with
+   `sqlite3 auth.sqlite ".backup copy.sqlite"`, so the copy includes its WAL.
+10. **Review what you export.** A static bundle carries no authorization. Only
+    read queries can be exported. Updates cannot.
+11. **List the browser origins that can call the API in `SQLIB_CORS_ORIGINS`.**
+    If it is not set, a production deployment allows no origin. This is correct
+    when the API serves the SPA from its own origin. A listed origin gets
+    credentialed access. `*` allows any origin without credentials. See
     [configuration](../reference/configuration.md#server-and-transport).
-12. **A hosted multi-tenant deployment cannot enable ETL on shared
-    infrastructure.** There is no setting that makes arbitrary SQL safe to offer
-    to tenants who do not trust one another.
+12. **A hosted multi-tenant deployment on shared infrastructure must keep ETL
+    off.** No setting makes any SQL safe to offer to tenants who do not trust
+    each other.
 
 ## Related
 
-- [SECURITY.md](../../SECURITY.md) — reporting, scope and the short posture
+- [SECURITY.md](../../SECURITY.md): reporting, scope and the short posture
   summary.
-- [architecture.md](architecture.md) — where the auth plugin sits in the request
+- [architecture.md](architecture.md): where the auth plugin is in the request
   path.
-- [guides/etl.md](../guides/etl.md) — what enabling ETL grants, in full.
-- [guides/deploying.md](../guides/deploying.md) — running the image.
-- [guides/static-export.md](../guides/static-export.md) — what a bundle carries.
-- [reference/feature-flags.md](../reference/feature-flags.md) — every flag and
-  its default.
-- [reference/configuration.md](../reference/configuration.md) — every
+- [guides/etl.md](../guides/etl.md): what ETL gives a caller when you turn it on.
+- [guides/deploying.md](../guides/deploying.md): run the image.
+- [guides/static-export.md](../guides/static-export.md): what a bundle carries.
+- [reference/feature-flags.md](../reference/feature-flags.md): each flag and its
+  default.
+- [reference/configuration.md](../reference/configuration.md): each
   `SQLIB_AUTH_*` and `ETL_DUCKDB_*` variable.

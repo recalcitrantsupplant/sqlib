@@ -1,69 +1,70 @@
 # Interaction performance
 
-Measures how long a panel takes to open and whether it opens *smoothly*, and
-fails the build when either regresses. `layout-shift.spec.ts` covers the other
-half — what a screen does with no click at all.
+These specs measure how long a panel takes to open, and if it opens
+*smoothly*. The build fails when either gets worse. `layout-shift.spec.ts`
+measures what a screen does with no click.
 
 ```bash
 pnpm --filter @sparql-query-lib/web test:perf          # assert budgets
 pnpm --filter @sparql-query-lib/web test:perf:report   # print numbers, assert nothing
 ```
 
-Perf specs are tagged `@perf` and excluded from `test:e2e` / `test:e2e:ci`,
-because they are slow and their numbers depend on machine speed.
+Perf specs have the tag `@perf`. `test:e2e` and `test:e2e:ci` do not run them,
+because they are slow and their numbers change with machine speed.
 
-## Why "how long did the click take" was the wrong question
+## Why click duration was the wrong metric
 
-The obvious metric — click to element on screen — said the editor overlay
-opened in 35ms, which contradicted it visibly feeling slower than the sidebar
-dialogs. The metric was wrong: an element gets a layout box at the *start* of
-its 300ms slide-in animation, so the measurement stopped before the part the
-user was actually watching.
+The first metric was the time from click to element on screen. It said that
+the editor overlay opened in 35ms. The overlay felt slower than the sidebar
+dialogs. The metric stopped too early: an element gets a layout box at the
+*start* of its 300ms slide-in animation, before the part that the user sees.
 
-`timeToSettled` (click until every CSS animation in the subtree has finished)
-plus `jankyFrames` (frames over 32ms in that window) reproduced the complaint
-immediately:
+Two metrics together showed the problem immediately:
+
+- `timeToSettled`: the time from the click until each CSS animation in the
+  subtree is finished;
+- `jankyFrames`: the frames over 32ms in that time.
 
 | interaction | settled | janky frames |
 | --- | --- | --- |
 | sidebar Add Library dialog | 240ms | 1 |
 | editor focus overlay (before) | 353ms | 9 |
 
-Same order of magnitude in duration, but the overlay rendered 14 frames where
-removing the blur rendered 23 over the same span — it was animating at roughly
-half framerate. That stutter was the "clunk", and no duration-only metric
-would have caught it.
+The durations are of the same order. The overlay rendered 14 frames in that
+time, and 23 with the blur removed. It animated at about half the frame rate.
+That stutter was the problem, and a metric of duration only cannot find it.
 
 ## Metrics
 
-Recorded per click by `measure.ts`:
+`measure.ts` records these for each click:
 
 | field | meaning |
 | --- | --- |
-| `inputDelay` / `processing` / `presentation` | Event Timing breakdown — the INP value for the click |
+| `inputDelay` / `processing` / `presentation` | Event Timing breakdown: the INP value for the click |
 | `timeToVisible` | click to the target having a layout box |
 | `timeToSettled` | click to all animations in the subtree finishing |
 | `frames` / `worstFrameGap` / `jankyFrames` | frame health during the open |
 | `blockingTime` / `longestTask` | main-thread long tasks in the window |
 
-Reading them together is what localises a problem: high `processing` is too
-much synchronous work in the handler; low `processing` with high
-`timeToSettled` is animation or async work; low `processing` with high
-`jankyFrames` is expensive paint/compositing, which is what
-`backdrop-filter` was doing.
+Read them together to find the cause:
 
-Event Timing only fires for **trusted** events, so every measurement goes
-through a real Playwright click. `el.click()` from `page.evaluate` silently
-produces no entry.
+- High `processing`: too much synchronous work in the handler.
+- Low `processing` and high `timeToSettled`: animation or async work.
+- Low `processing` and high `jankyFrames`: expensive paint or compositing. The
+  overlay had this, from `backdrop-filter`.
 
-## Methodology
+Event Timing records **trusted** events only. Each measurement therefore uses
+a real Playwright click. `el.click()` from `page.evaluate` gives no entry, and
+no error.
 
-- The first (cold) open is always discarded; budgets assert the **median** of
-  the warm repeats. Single samples are far too noisy to gate on.
-- Setup runs unthrottled and only the measured click runs at `PERF_CPU`
-  (default 4x), so page load cost never leaks into the measurement.
-- Budgets carry roughly 2x headroom over measured values. They are tripwires
-  for "someone made this much worse", not precise targets.
+## Method
+
+- The specs discard the first (cold) open. Budgets assert the **median** of
+  the warm repeats. One sample has too much noise for a gate.
+- Setup runs with no throttle. Only the measured click runs at `PERF_CPU`
+  (default 4x), so the cost of the page load is not in the measurement.
+- Each budget is about 2x the measured value. A budget detects a large
+  regression. It is not a precise target.
 
 ## Environment variables
 
@@ -75,55 +76,60 @@ produces no entry.
 
 ## Specs
 
-- `budget.spec.ts` — the guard. Asserts `timeToSettled`, `jankyFrames` and
-  `processing` per interaction in `interactions.ts`.
-- `layout-shift.spec.ts` — the other guard: per-screen CLS budgets for the
-  load, plus "nothing may move after 2s". See below.
-- `diagnose.spec.ts` — prints cold vs warm for every interaction.
-- `ablation.spec.ts` — re-measures the overlay with CSS overrides injected, to
-  attribute cost to a specific property.
-- `loaded.spec.ts` — scales result rows and query size to test whether cost
-  grows with content.
+- `budget.spec.ts`: the gate for clicks. It asserts `timeToSettled`,
+  `jankyFrames` and `processing` for each interaction in `interactions.ts`.
+- `layout-shift.spec.ts`: the gate for loads. It asserts a CLS budget for each
+  screen, and that nothing moves after 2s. See [Layout shift](#layout-shift).
+- `diagnose.spec.ts`: prints cold and warm values for each interaction.
+- `ablation.spec.ts`: measures the overlay again with CSS overrides, to find
+  the property that causes a cost.
+- `loaded.spec.ts`: increases the result rows and the query size, to test if
+  the cost increases with content.
 
 ## Adding an interaction
 
-Append to `interactions.ts`. `reset` must return the app to the pre-click
-state so the open can be repeated, and `settleRoot` should be the outermost
-animating element (the backdrop and the container animate separately with
-different durations).
+Add it to `interactions.ts`:
 
-## Was it the dev server?
+- `reset` must put the app back in the state before the click, so the open can
+  repeat.
+- `settleRoot` must be the outermost element that animates. The backdrop and
+  the container animate separately, with different durations.
 
-No — checked first, since Vite compiles dynamic imports on demand and that
-inflates first-open timings. Dev and the production build measured within
-noise of each other, so the cost was real application behaviour.
+## The dev server is not the cause
+
+Vite compiles dynamic imports on demand, and this makes the first open slower.
+We measured the dev server and the production build first. The values were the
+same, within noise. The cost was in the application.
 
 ## Layout shift
 
-`layout-shift.spec.ts` loads each screen, moves nothing, and watches. It
-asserts two things per screen:
+`layout-shift.spec.ts` loads each screen, does nothing, and watches. It asserts
+two things for each screen:
 
-- **CLS for the load** against a per-screen budget. Content arriving and
-  pushing what is on screen out of the way. Every screen is far below the 0.1
-  that counts as "good"; the budgets are there to keep it that way, and each
-  carries roughly 2x headroom over the measured value.
-- **Nothing moves after 2s.** A screen still relaying itself out two seconds
-  in is not loading, it is looping — and a total-only metric hides that, since
-  one big first-load shift and a small one repeating forever can add up the
-  same.
+- **CLS for the load**, against a budget for the screen. This measures content
+  that arrives and pushes other content away. Each screen is far below 0.1, the
+  limit for "good". The budgets keep it there, each at about 2x the measured
+  value.
+- **Nothing moves after 2s.** A screen that still changes its layout after two
+  seconds is in a loop. A total metric does not show this. One large shift at
+  load and a small shift that repeats can give the same total.
 
-The late-shift assertion is the one that earns its keep. Build measured CLS
-0.14 with shifts still arriving every second for as long as the tab stayed
-open: the change feed reconnected once a second against a server that ended
-the stream immediately, each reconnect reloaded the callable list, and
-`loading` swapped the whole table for a one-line message and back. Nothing
-else in the suite could see it.
+The second assertion found a real fault. The Build screen measured CLS 0.14,
+with a new shift each second while the tab was open:
 
-Failures print the moved elements and their before/after rectangles, taken
-from the `sources` of each `layout-shift` entry, which is usually enough to
-identify the cause without reproducing by hand.
+1. The change feed connected again each second, because the server ended the
+   stream immediately.
+2. Each connection loaded the callable list again.
+3. `loading` replaced the whole table with a one-line message, and then put
+   the table back.
 
-Two things it deliberately does not do: it never clicks (shifts within 500ms
-of a real interaction are the interaction, not a fault, and the browser
-excludes them from CLS anyway), and it runs unthrottled, because a shift is
-geometry rather than timing and does not need a slow CPU to show up.
+No other test in the suite found it.
+
+A failure prints each element that moved, with its rectangles before and
+after. These come from the `sources` of each `layout-shift` entry. They are
+usually enough to find the cause with no manual reproduction.
+
+The spec does not click. A shift within 500ms of a real interaction is part of
+the interaction, and the browser does not count it in CLS. The spec also runs
+with no throttle. A shift is a change of geometry, so a slow CPU is not
+necessary to show it.

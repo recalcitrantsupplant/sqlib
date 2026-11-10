@@ -1,6 +1,8 @@
 # Azure Infrastructure Templates
 
-This directory contains Bicep templates and deployment scripts for deploying the SPARQL Query Library to Azure.
+This directory has Bicep templates and scripts that deploy sqlib to Azure. They
+are one example of a deployment. See
+[deploying](../docs/guides/deploying.md#one-worked-deployment-example).
 
 ## Structure
 
@@ -25,19 +27,20 @@ infrastructure/
 
 ### 1. Create a parameters file
 
-Copy the example parameters file and customize for your environment:
+Copy the example parameters file, and change it for your environment:
 
 ```bash
 cp main.parameters.example.json main.parameters.dev.json
 ```
 
-Edit `main.parameters.dev.json` with your actual values:
+Put your values in `main.parameters.dev.json`:
 - ACR details (server, username, password)
 - Container image name and tag
 - Environment variables specific to your deployment
 - Secrets (SPARQL credentials, API keys, etc.)
 
-**Important:** Keep your parameters files secure and **do not commit them to version control**. Add `*.parameters.*.json` to `.gitignore`.
+Keep your parameters files secure, and **do not commit them to version
+control**. Add `*.parameters.*.json` to `.gitignore`.
 
 ### 2. Create a resource group (if needed)
 
@@ -58,7 +61,7 @@ az deployment group create \
 
 ### 4. Get the application URL
 
-After deployment completes, retrieve the URL:
+When the deployment is complete, get the URL:
 
 ```bash
 az deployment group show \
@@ -72,9 +75,9 @@ az deployment group show \
 
 ### Resources Created
 
-- **Log Analytics Workspace** - Centralized logging for Container App
-- **Container App Environment** - Managed environment for Container Apps
-- **Container App** - Your API application with:
+- **Log Analytics Workspace**: central logging for the Container App.
+- **Container App Environment**: the managed environment for Container Apps.
+- **Container App**: the API application, with:
   - ACR integration for private image pull
   - External HTTPS ingress (auto TLS)
   - Fixed scale (1 replica)
@@ -101,7 +104,7 @@ az deployment group show \
 
 ### Environment Variables
 
-Environment variables can reference secrets using `secretRef`:
+An environment variable can refer to a secret with `secretRef`:
 
 ```json
 {
@@ -110,7 +113,7 @@ Environment variables can reference secrets using `secretRef`:
 }
 ```
 
-Or be plain values:
+Or it can have a plain value:
 
 ```json
 {
@@ -121,7 +124,7 @@ Or be plain values:
 
 ### Secrets
 
-Secrets are stored securely in Container Apps and referenced by environment variables:
+Container Apps stores the secrets. Environment variables refer to them:
 
 ```json
 {
@@ -134,7 +137,7 @@ Secrets are stored securely in Container Apps and referenced by environment vari
 
 ### Update the container image
 
-After pushing a new image to ACR, update the Container App:
+After you push a new image to ACR, update the Container App:
 
 ```bash
 az containerapp update \
@@ -163,7 +166,7 @@ az containerapp update \
   --set-env-vars "LOG_LEVEL=debug"
 ```
 
-### Scale replicas (if needed)
+### Scale replicas
 
 ```bash
 az containerapp update \
@@ -175,7 +178,7 @@ az containerapp update \
 
 ## Multiple Environments
 
-Create separate parameter files for each environment:
+Make a separate parameters file for each environment:
 
 ```
 infrastructure/
@@ -186,7 +189,7 @@ infrastructure/
 └── main.parameters.prod.json
 ```
 
-Deploy to different resource groups:
+Deploy each to its own resource group:
 
 ```bash
 # Development
@@ -202,20 +205,21 @@ az deployment group create \
   --parameters main.parameters.prod.json
 ```
 
-## Security Best Practices
+## Security
 
-1. **Use Azure Key Vault** for production secrets (future enhancement)
-2. **Rotate ACR credentials** regularly
-3. **Use managed identities** where possible (ACR supports this)
-4. **Keep parameters files secure** - never commit them with real credentials
-5. **Use RBAC** to control who can deploy and manage resources
-6. **Enable diagnostic settings** on Container Apps for audit logs
+1. **Use Azure Key Vault** for production secrets. The templates do not do this
+   yet.
+2. **Rotate ACR credentials** at regular intervals.
+3. **Use managed identities** where possible. ACR supports them.
+4. **Keep parameters files secure.** Never commit them with real credentials.
+5. **Use RBAC** to control who can deploy and manage resources.
+6. **Turn on diagnostic settings** on Container Apps, for audit logs.
 
 ## Troubleshooting
 
 ### Container fails to start
 
-Check logs:
+Read the logs:
 ```bash
 az containerapp logs show \
   --name sparql-query-lib-api \
@@ -225,7 +229,7 @@ az containerapp logs show \
 
 ### Cannot pull image from ACR
 
-Verify ACR credentials:
+Check the ACR credentials:
 ```bash
 az acr login --name myregistry
 docker pull myregistry.azurecr.io/sparql-query-lib-api:latest
@@ -233,7 +237,7 @@ docker pull myregistry.azurecr.io/sparql-query-lib-api:latest
 
 ### Deployment validation errors
 
-Validate template before deploying:
+Validate the template before you deploy:
 ```bash
 az deployment group validate \
   --resource-group rg-sparql-query-lib-dev \
@@ -241,21 +245,23 @@ az deployment group validate \
   --parameters main.parameters.dev.json
 ```
 
-## Cost Optimization
+## Cost
 
-Current configuration (1 replica, 0.5 CPU, 1GB RAM) is minimal. Estimated costs:
+The current configuration (1 replica, 0.5 CPU, 1GB RAM) is the minimum. Estimated
+costs:
 - Container Apps consumption: ~$30-50/month
 - Log Analytics: ~$5-20/month (depending on log volume)
 
-To reduce costs further:
-- Use scaling to zero for dev environments (set `minReplicas: 0`)
-- Reduce Log Analytics retention to 7 days
-- Use shared Container App Environment across multiple apps
+To reduce costs:
 
-## Next Steps
+- Scale dev environments to zero (set `minReplicas: 0`).
+- Reduce Log Analytics retention to 7 days.
+- Share one Container App Environment between several apps.
 
-- Set up a CI/CD pipeline for automated deployments
-- Implement managed identity for ACR (remove password dependency)
-- Add Azure Key Vault integration for secrets management
-- Configure custom domains and SSL certificates
+## To do
+
+- A CI/CD pipeline for automated deployments.
+- A managed identity for ACR, to remove the password.
+- Azure Key Vault for secrets.
+- Custom domains and TLS certificates.
 - Set up Application Insights for advanced monitoring

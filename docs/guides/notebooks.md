@@ -1,26 +1,26 @@
 # Notebooks: prose, cells and named results
 
-A **notebook** is a document you write about a library: prose interleaved with
-runs, in the order that makes sense, with each run's result bound to a name the
-cells below can use. It is the library's front page — the first entry on the
-rail, at `/notebook` — and it replaced a screen that rendered every query in the
-library as a cell whether or not anyone had asked for it. The contents of the
-library are what you import here; what you write around them is the point.
+A **notebook** is a document that you write about a library. It has prose and
+runs, in the order you choose, and binds the result of each run to a name that
+the cells below can use. It is the front page of the library: the first entry on
+the rail, at `/notebook`. It replaced a screen that showed each query of the
+library as a cell, whether or not anyone asked for it. You import entities from
+the library, and write prose around them.
 
-Notebooks are listed in the sidebar like every other asset the rail holds, and
-they are kept the way a query is:
+The sidebar lists notebooks, as it lists the other entries of the rail. sqlib
+stores them in the same way as a query:
 
 - **Scratch.** **+ New** makes a notebook that lives only in this browser and
   autosaves as you type. **Save** writes it to the library as v1.
 - **Saved.** A `Notebook` in the library, with immutable numbered versions
-  (`/notebooks` in the API). Typing autosaves a draft in this browser on top
-  of the saved version and never cuts a version; **Save** does, and
-  **Discard** puts the saved version back. The address carries the notebook
-  (`/notebook?library=…&notebook=…`), so a saved notebook can be linked to.
-  Who can read, save or delete it is decided by its library's grants, as for
-  every other library entity.
+  (`/notebooks` in the API). When you type, the browser saves a draft over the
+  saved version. It never makes a version. **Save** makes a version, and
+  **Discard** restores the saved version. The address names the notebook
+  (`/notebook?library=…&notebook=…`), so you can link to a saved notebook. The
+  grants of its library decide who can read, save or delete it, as for each
+  other library entity.
 
-A notebook also travels as a file — see §4.
+You can also move a notebook as a file. See section 4.
 
 ## 1. What a cell is
 
@@ -33,15 +33,21 @@ A notebook starts empty. **Add** offers four kinds:
 | Query group | a group reference | `POST /execute` |
 | Rule set | a rule set reference, plus a base graph | `POST /rule-sets/:id/execute` |
 
-A run cell carries the same run sentence the query screen writes, minus its
-"with" clause — a notebook's arguments are the cells above it. What is left is
-**against** (the store this cell runs against, defaulting to the library's) and
-**as** (the format the result comes back in), both per cell: pulling from a
-warehouse and then reasoning over an ephemeral copy is the ordinary case. A rule
-set has neither; it runs in process over the graph it is handed.
+A run cell has the same run sentence as the query screen, without the "with"
+clause, because the arguments of a notebook are the cells above. Two parts
+remain, and each cell sets them:
 
-A new notebook opens the Details tab with its name selected, so you can name it first. If
-you do not, it takes the first heading of its first markdown cell as its name.
+- **against**: the store this cell runs against. The default is the store of
+  the library.
+- **as**: the format of the result.
+
+A usual notebook reads from a warehouse in one cell, then reasons over an
+ephemeral copy in the next. A rule set cell has neither part. It runs in the
+server process over the graph it receives.
+
+A new notebook opens the Details tab with its name selected, so you can name it
+first. If you do not, it uses the first heading of its first markdown cell as its
+name.
 
 Working with cells:
 
@@ -50,41 +56,40 @@ Working with cells:
   anywhere in the cell outside a text editor.
 - **Finish a markdown cell:** press Done, Esc or Ctrl+Enter, or click outside
   the cell.
-- **Rebuild values after a reload:** values are not kept across a reload.
-  Choose **Run all cells up to here** in a cell's menu to run every cell from
-  the top down to that one.
-- **Name a value:** a name that is not usable, or that another cell uses, is
-  refused with a message beside the box. Esc puts the old name back.
+- **Rebuild values after a reload:** a reload clears the values. Choose
+  **Run all cells up to here** in the menu of a cell to run each cell from the
+  top down to that one.
+- **Name a value:** the notebook refuses a name that is not valid or that
+  another cell uses, with a message next to the box. Esc restores the old name.
 - **LIMIT and OFFSET:** a parameter is named by the digits written in the
   query (`LIMIT 0001` is parameter 1). An empty box runs that number.
 - **Run status:** the outline shows each cell as ran, stale, incomplete,
   failed or skipped.
 
-A rule-set cell takes its base graph from a graph value above it or from a
-saved data graph in the library. Its value is the triples the rules infer,
-without the base graph; to keep both, merge them in a query cell that runs
-over the two graphs (§3). A rule set that stops at its iteration limit or on
-a cycle still binds its value, but the cell shows a warning and **Run all**
-stops there.
+A rule-set cell takes its base graph from a graph value above it, or from a
+saved data graph in the library. Its value is the triples that the rules infer,
+without the base graph. To keep both, merge them in a query cell that runs over
+the two graphs (section 3). A rule set that stops at its iteration limit or on a
+cycle still binds its value. The cell shows a warning, and **Run all** stops
+there.
 
-On a phone, the notebook list opens from the button at the left of the header,
-and the outline and values sit below the document.
+On a phone, the button at the left of the header opens the notebook list. The
+outline and the values are below the document.
 
-Everything runs through the REST API, which is why a rule-set cell works here
-and cannot exist in an [export bundle](static-export.md): the bundle is for
-calling a triplestore with no sqlib in the request path, so it carries compiled
-queries and SELECT-chaining groups and nothing else. The two are different
-artefacts with different jobs.
+Each cell runs through the REST API. A rule-set cell therefore works here, but
+an [export bundle](static-export.md) cannot contain one. A bundle calls a
+triplestore with no sqlib in the request path, so it contains only compiled
+queries and groups that chain SELECTs.
 
-A cell **references** an entity — it never holds a copy of a query's text — and
-tracks that entity's current version. Editing is a link back to the editor, so a
-notebook is safe to hand to someone who cannot write to the library.
+A cell **references** an entity, and follows its current version. It never
+holds a copy of the query text. Edit is a link to the editor, so you can give a
+notebook to a person who cannot write to the library.
 
 ## 2. Values
 
-Every run binds its result to a name: `out1`, `out2`, … , renameable in the cell
-(renaming rewrites the references). A value is one of three types, and the type
-decides where it can go next:
+Each run binds its result to a name: `out1`, `out2`, and so on. You can rename
+it in the cell, and the notebook updates the references. A value has one of
+three types, and the type decides where it can go next:
 
 | Type | From | Stat chip |
 | --- | --- | --- |
@@ -92,77 +97,74 @@ decides where it can go next:
 | Graph | CONSTRUCT, DESCRIBE, a rule set | `18,332 triples · 2.1 MB` |
 | Boolean | ASK | `true` |
 
-Values live in the browser session. The document is the story, not the run, so a
-notebook you re-open shows cells that have not run — the same contract a Jupyter
-notebook with cleared outputs offers.
+Values are kept in the browser session only. The notebook stores the document
+and no results, so when you open it again, its cells have not run. A Jupyter
+notebook with cleared outputs works in the same way.
 
-**Save** promotes a value to a real library entity: a graph becomes a
-[data graph](../concepts.md) version, rows become a tuple set version (source
-format `query-results`). That is the upgrade path from "I was poking at this" to
-"this is an input other things use".
+**Save** turns a value into a library entity. A graph becomes a
+[data graph](../concepts.md) version. Rows become a tuple set version (source
+format `query-results`). Use this when a value from an experiment becomes an
+input that other entities use.
 
 ## 3. Chaining
 
-A cell's parameter slot can be filled from a value bound **above** it. Pick the
-value in the slot's source control; the columns are paired with the slot's
-variables by name where the names match and by position otherwise — the same
-rule a [query group](query-groups.md) edge uses, so a chain means the same thing
-in both places.
+A value bound **above** a cell can fill a parameter slot of that cell. Pick the
+value in the source control of the slot. The notebook pairs the columns with the
+variables of the slot by name where the names are equal, and by position for
+the rest. A [query group](query-groups.md) edge uses the same rule, so a chain
+has the same meaning in both places.
 
-Under a wired slot, the cell shows the pairing: one row per slot variable, for
-example `?s ← @out1.?s`. A note lists the columns that no variable takes (`not
-passed: ?p ?o`). These columns stop at this cell.
+Under a connected slot, the cell shows the pairing: one row for each variable of
+the slot, for example `?s ← @out1.?s`. A note lists the columns that no variable
+takes (`not passed: ?p ?o`). These columns go no further than this cell.
 
 To change the pairing, pick another column for a variable. Any column can fill
 any variable, so `?s` can take `@out1.?o`. Pick **nothing (unbound)** to leave
-the variable unbound. The choice is saved in the slot as `columns`, keyed by the
-slot variable. **Match by name** removes the choices. Before the upstream cell
-runs, the control lists the columns its query projects. A promoted group keeps
-the chosen pairing, but it refuses a variable left unbound.
+the variable unbound. The slot saves the choices as `columns`, keyed by the
+variable. **Match by name** removes the choices. Before the upstream cell runs,
+the control lists the columns that its query projects. A group made with
+Promote keeps the pairing, but refuses a variable left unbound.
 
 Set what happens when the upstream is empty: skip this cell (the default), run
 with no rows, or stop.
 
-What each wire can carry:
+What each connection can carry:
 
-- **Rows → a parameter slot** — supported.
-- **Graph → a rule set's base graph** — supported; the triples are sent as
-  `dataGraphInline`.
-- **Graph → a query** — supported. Press **Run over a graph** on a query cell
-  and pick a graph value above. The query then runs over the graphs it is
-  given and nothing else: the server loads them into one ephemeral store, and
-  no backend is used. The graphs go into the store's default graph, so two of
-  them give their union, and a `CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }`
-  query merges them into one value. A notebook with such a cell cannot be
-  promoted to a query group, because a group's query node runs against a
-  backend.
+- **Rows to a parameter slot.** Supported.
+- **Graph to the base graph of a rule set.** Supported. The notebook sends the
+  triples as `dataGraphInline`.
+- **Graph to a query.** Supported. Press **Run over a graph** on a query cell,
+  and pick a graph value above. The query then runs over those graphs only. The
+  server loads them into one ephemeral store, and uses no backend. The graphs go
+  into the default graph of the store, so two graphs give their union, and a
+  `CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }` query merges them into one value.
+  A notebook with such a cell cannot become a query group, because the query
+  node of a group runs against a backend.
 
-Chaining is **by value**: a result comes back to the browser and goes out again
-in the next request. A large value (64 KiB or more) is the exception. When a
-cell's result is read by a cell below, the run asks the server to keep a copy
-for a short time, and the next request names that copy instead of sending the
-content again. The copy is kept only in the server's memory, only for the user
-who ran the cell, and for 15 minutes after its last use. If the copy has gone,
-for example after a restart, the notebook sends the value by content instead,
-with no action from you.
+Chaining is **by value**. A result comes back to the browser, and the browser
+sends it in the next request. A large value (64 KiB or more) works differently.
+When a cell below reads the result of a cell, the run asks the server to keep a
+copy for a short time. The next request names that copy, and does not send the
+content again. The server keeps the copy in memory only, for the user who ran
+the cell only, for 15 minutes after its last use. If the copy is gone, for
+example after a restart, the notebook sends the content, with no action from
+you.
 
-A notebook is still the wrong shape for production. A pipeline that matters
-belongs in a query group, which the server runs in one call with no browser in
-the path.
+Do not use a notebook for production. Put a pipeline that others depend on in a
+query group. The server runs a group in one call, with no browser in the path.
 
-Re-running a cell marks the cells below it **stale** rather than re-running
-them. The notebook says the result below came from an older input and leaves the
-decision to you.
+When you run a cell again, the notebook marks the cells below it **stale**. It
+does not run them. The mark tells you that their results came from an older
+input, and you decide what to run.
 
 ## 4. Sharing a notebook
 
 A saved notebook is shared by its link. Anyone who can read the library opens
 it at its current version.
 
-**Export** writes a `.sqlibnb` file: a small JSON document of the title, the
-library it names, and the cells. No results — it is the story, not the run. It
-is small enough to keep in git beside the library, and a changed argument is a
-one-line diff.
+**Export** writes a `.sqlibnb` file: a small JSON document with the title, the
+library it names, and the cells. It contains no results. You can keep it in git
+next to the library, and a changed argument is a one-line diff.
 
 ```jsonc
 {
@@ -180,53 +182,58 @@ one-line diff.
 
 **Import** reads one back and switches to the library it names.
 
-The boundary is worth stating plainly: **the notebook travels, the entities it
-names do not**. Sending someone a file works when they have the library — the
-same server, a replica, or an instance holding the same library. A cell whose
-entity is missing renders as a broken reference rather than vanishing.
+**The file contains the notebook only.** The entities it names stay in the
+library. A file therefore works for a person who has the library: on the same
+server, a replica, or an instance with the same library. A cell whose entity is
+missing shows as a broken reference.
 
 ## 5. Versions
 
-A cell floats to its entity's current version by default, so a notebook tracks
-the library it documents. A document may pin a version instead (`"version": 3`
-on the cell), which is what you want for a notebook attached to a release.
+By default, a cell follows the current version of its entity, so a notebook
+stays current with its library. A cell can pin a version (`"version": 3` on the
+cell). Use a pin for a notebook that belongs to a release.
 
 ## 6. Exports
 
-**Export** saves the notebook's own file (`.sqlibnb`). The library's exports,
-the bundle the [`sqlib` CLI](cli.md) runs and the runnable page, are on the
-main page: see [Exporting a library](static-export.md#from-the-web-app).
+**Export** saves the file of the notebook (`.sqlibnb`). The exports of the
+library (the bundle that the [`sqlib` CLI](cli.md) runs, and the runnable page)
+are on the main page. See [Exporting a library](static-export.md#from-the-web-app).
 
-A cell that has run also offers **Save as test…**: hold a query, its arguments
-and a result and you are holding a test case. It records the call that *ran* —
-a slot fed from a value was filled with rows the cell no longer shows.
+A cell that has run also offers **Save as test…**. A query, its arguments and a
+result make a test case. The test records the call that *ran*, including the
+rows that a value put into a slot, which the cell no longer shows.
 
 ## 7. Promote to a query group
 
-**Promote to group** writes the notebook's run cells as one
-[query group](query-groups.md): the same chain, run by the server in one call
-with no browser in the path. It is the way out when a notebook has become a
-pipeline someone depends on.
+**Promote to group** writes the run cells of the notebook as one
+[query group](query-groups.md): the same chain, which the server runs in one
+call with no browser in the path. Use it when other people start to depend on a
+notebook as a pipeline.
 
-- Every cell is pinned to the version it uses now. Markdown cells become the
-  group's description. The notebook itself is not changed.
-- A wire from a value to a slot becomes a `VARIABLE_BINDINGS` edge that carries
-  exactly the columns the notebook paired, so the group pairs them the same way.
-  A graph handed to a rule set becomes an `RDF_GRAPH` edge.
-- The last run cell's result is the group's result.
+- Each cell is pinned to the version it uses now. Markdown cells become the
+  description of the group. The notebook does not change.
+- A connection from a value to a slot becomes a `VARIABLE_BINDINGS` edge that
+  carries the columns that the notebook paired, so the group pairs them in the
+  same way. A graph sent to a rule set becomes an `RDF_GRAPH` edge.
+- The result of the last run cell is the result of the group.
 
-The dialog says what does not carry over before you confirm: typed values (the
-slot becomes a parameter of the group, filled when it is run), LIMIT and OFFSET
-values, and "skip this cell if empty", which becomes "match nothing" because a
-group node always runs.
+Before you confirm, the dialog lists what the group does not keep:
 
-A notebook that does not have the shape of a group is refused, naming the cell:
-a run cell whose value nothing below uses (a group returns one result), a group
-cell (groups do not nest), a rule set reading a saved data graph, or a reference
-to a value no cell above binds.
+- Typed values. The slot becomes a parameter of the group, filled at each run.
+- LIMIT and OFFSET values.
+- "Skip this cell if empty". It becomes "match nothing", because a group node
+  always runs.
 
-## 8. What is not here yet
+Promote refuses a notebook that cannot be a group, and names the cell. The
+causes are:
 
-- No `.ipynb` or HTML export rewrite yet.
+- a run cell whose value no cell below uses (a group returns one result);
+- a group cell (groups do not nest);
+- a rule set that reads a saved data graph;
+- a reference to a value that no cell above binds.
 
-This is scoped in [the proposal](../proposals/notebook-cells.md).
+## 8. Not built yet
+
+- `.ipynb` and HTML export.
+
+[The proposal](../proposals/notebook-cells.md) describes the scope.

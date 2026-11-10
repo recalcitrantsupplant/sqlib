@@ -1,22 +1,26 @@
 # Deploying the server image and the web UI
 
-A deployment has two parts: one container image serving the API and the MCP
-endpoint, and a static build of the web UI served from anywhere that serves
-files. The web build is published as an image too — as a
-[bundle to copy out](#the-bundle-image), not as something to run. They are independent — the UI is configured at load time with the URL of
-whichever API it should talk to.
+A deployment has two parts:
 
-Read [before you expose it](#before-you-expose-it) before putting either on a
-network you do not control. The defaults are development defaults.
+- one container image that serves the API and the MCP endpoint;
+- a static build of the web UI, which any file server can serve.
+
+The web build is also published as an image, as a
+[bundle to copy out](#the-bundle-image). The image does not run a server. The
+two parts are independent. At load time, the UI reads the URL of the API that it
+must use.
+
+Read [before you expose it](#before-you-expose-it) before you put either part on
+a network that you do not control. The defaults are for development.
 
 ## The published image
 
-`.github/workflows/publish-image.yml` builds the repository-root `Dockerfile`
-and pushes to GHCR (in a second job it does the same for `Dockerfile.web`, the
-UI bundle described below), authenticating with the workflow's own `GITHUB_TOKEN`
-(`packages: write`); no registry secret is configured. The image reference
-defaults to `ghcr.io/<repository owner, lower-cased>/sqlib` — named for the
-repository — and can be overridden with the `IMAGE` environment variable.
+`.github/workflows/publish-image.yml` builds the `Dockerfile` at the root of the
+repository, and pushes it to GHCR. A second job does the same for
+`Dockerfile.web`, the UI bundle described below. The workflow authenticates with
+its own `GITHUB_TOKEN` (`packages: write`), so no registry secret is configured.
+The default image reference is `ghcr.io/<repository owner, lower-cased>/sqlib`.
+The `IMAGE` environment variable overrides it.
 
 `scripts/ci/docker-build-push.sh` decides the tags:
 
@@ -26,15 +30,17 @@ repository — and can be overridden with the `IMAGE` environment variable.
 | `latest` | when the ref being built is the trunk branch |
 | `<X.Y.Z>` | when building a `vX.Y.Z` git tag, or when `RELEASE_VERSION` is set |
 
-So a push to the trunk branch publishes `sha-…` and `latest`; pushing a
-`v0.1.0` tag publishes `0.1.0`; and running the workflow manually with a version
-input publishes `0.1.0` and also creates the git tag and a GitHub Release.
+For example:
 
-The same script builds without pushing when `PUSH` is not `true`, which is what
-running it locally does. `just build-docker TAG` is the shorter route to a local
-image.
+- A push to the trunk branch publishes `sha-…` and `latest`.
+- A push of the tag `v0.1.0` publishes `0.1.0`.
+- A manual run of the workflow with a version input publishes `0.1.0`, and also
+  makes the git tag and a GitHub Release.
 
-One image serves every runtime mode. `APP_MODE` selects:
+When `PUSH` is not `true`, the script builds and does not push. A local run
+does this. `just build-docker TAG` is a shorter way to build a local image.
+
+One image serves each runtime mode. `APP_MODE` selects the mode:
 
 | `APP_MODE` | Serves | Port |
 | --- | --- | --- |
@@ -55,47 +61,44 @@ docker run -p 3000:3000 \
 
 The library store is the default, `sqlite`: `library.sqlite` in
 `LIBRARY_STORAGE_DIR`. With auth on, grants go to `auth.sqlite` in
-`SQLIB_AUTH_STORE_DIR`. Set both directories to absolute paths under the
-volume. Their defaults are relative to the working directory, and in the
-`dual-http` and `mcp-http` modes that is `/app/packages/mcp-server`, which is
+`SQLIB_AUTH_STORE_DIR`. Set both directories to absolute paths on the volume.
+Their defaults are relative to the working directory. In the `dual-http` and
+`mcp-http` modes, the working directory is `/app/packages/mcp-server`, which is
 not on the volume.
 
-`/app/packages/api/storage` is declared as a volume and created in the image
-owned by `node` (uid 1000), so a fresh Docker volume is writable. A host bind
-mount, or a named volume seeded by an older image, keeps the ownership it
-already has and must be chowned to `1000:1000` — otherwise the first write
-fails with `EACCES`.
+The image declares `/app/packages/api/storage` as a volume, and makes it with
+the owner `node` (uid 1000). A new Docker volume is therefore writable. A host
+bind mount, or a named volume from an older image, keeps its existing
+ownership. Change its owner to `1000:1000`, or the first write fails with
+`EACCES`.
 
-Choosing where the library lives, and what queries execute against, is covered
-in [running and configuring](running-and-configuring.md), and the options are
-compared in [storage and caching](../explanation/storage-and-caching.md). For a
-library larger than process memory, or one that more than one sqlib instance
-writes, run a SPARQL server and set `INTERNAL_BACKEND_TYPE=http`.
+[Running and configuring](running-and-configuring.md) tells you how to choose
+where the library is stored, and what queries run against.
+[Storage and caching](../explanation/storage-and-caching.md) compares the
+options. For a library larger than the process memory, or one that more than one
+sqlib instance writes, run a SPARQL server and set `INTERNAL_BACKEND_TYPE=http`.
 
-The image is built on Debian rather than Alpine, deliberately: DuckDB community
-extensions — which ETL loads — are not published for musl at the DuckDB version
-this repository runs. The image build asserts its own libc and fails if that
-ever changes.
+The image is built on Debian. Alpine is not suitable, because DuckDB community
+extensions, which ETL loads, are not published for musl at the DuckDB version of
+this repository. The image build checks its own libc, and fails if it changes.
 
 ## The web UI
 
 `packages/web` is a Nuxt 4 application with `ssr: false`.
-`pnpm --filter @sparql-query-lib/web generate` produces a static site under the
-package's Nuxt output directory, which any static host can serve.
-`nuxt build` instead produces a Nitro server, which is the right output only if
-you intend to run Node in front of the files.
+`pnpm --filter @sparql-query-lib/web generate` makes a static site in the Nuxt
+output directory of the package. Any static host can serve it. `nuxt build`
+makes a Nitro server. Use it only if you will run Node in front of the files.
 
 ### The bundle image
 
 The same static build is also published as a container image,
-`ghcr.io/<owner>/sqlib-web`, tagged in step with the server image
-(`sha-<short>` on every trunk push, `latest` on trunk, `X.Y.Z` on a release).
+`ghcr.io/<owner>/sqlib-web`. Its tags follow the server image: `sha-<short>` on
+each trunk push, `latest` on trunk, and `X.Y.Z` on a release.
 
-It is a carrier, not a runtime. There is no server in it: the files sit at
-`/site` on a busybox base, and the image exists so that a particular build of
-the UI has a name you can pin, pull, diff and roll back to — `sqlib-web:0.4.1`
-rather than "the zip somebody built on their laptop". A deployment pipeline
-that already knows how to pull images needs nothing new to fetch a UI build.
+The image only carries the files. It has no server: the files are at `/site` on
+a busybox base. With the image, each build of the UI has a name that you can
+pin, pull, compare and roll back to, for example `sqlib-web:0.4.1`. A deployment
+pipeline that can pull images needs nothing new to fetch a UI build.
 
 Three ways to get the files out:
 
@@ -111,54 +114,62 @@ docker run --rm ghcr.io/<owner>/sqlib-web:<tag> tar -C /site -cf - . | tar -xf -
 COPY --from=ghcr.io/<owner>/sqlib-web:<tag> /site /usr/share/nginx/html
 ```
 
-`./dist` is then what you upload — `swa deploy ./dist`, `az storage blob upload-batch`,
-`aws s3 sync`, an nginx image, whatever the host takes. Locally,
-`just build-web-image <tag>` builds it and `just extract-web-bundle <tag> <dest>`
-runs the first recipe above.
+Then upload `./dist` with the tool that the host takes: `swa deploy ./dist`,
+`az storage blob upload-batch`, `aws s3 sync`, or an nginx image. Locally,
+`just build-web-image <tag>` builds the image, and
+`just extract-web-bundle <tag> <dest>` runs the first recipe above.
 
 `docker run` with no command prints those recipes and the contents of
-`/bundle-info.json`, which records the version, the commit and the build time —
-the same values as the image's OCI labels, kept as a file because the labels do
-not survive `docker cp`.
+`/bundle-info.json`. That file records the version, the commit and the build
+time. These are the same values as the OCI labels of the image. They are also in
+a file, because the labels are lost on `docker cp`.
 
-Nothing environment-specific is baked in. The bundle is built with no
-`NUXT_PUBLIC_*` values set, so one image serves every environment and the
-deployment supplies `/config.json` beside `index.html`, as below.
+The bundle contains no settings for an environment. It is built with no
+`NUXT_PUBLIC_*` values, so one image serves each environment. The deployment
+supplies `/config.json` next to `index.html`, as described below.
 
-The one exception is the path the site is served from. Nuxt writes it into
-every page's asset links when the bundle is generated, so the published image
-works only at the root of a host. To serve the UI under a path on a site that
-belongs to something else, build the bundle for that path:
+The one exception is the path that the site is served from. When Nuxt generates
+the bundle, it writes this path into the asset links of each page. The published
+image therefore works only at the root of a host. To serve the UI under a path
+on a site that belongs to a different application, build the bundle for that
+path:
 
 ```sh
 docker build -f Dockerfile.web --build-arg NUXT_APP_BASE_URL=/dev-console/sqlib/ -t sqlib-web:dev-console .
 ```
 
-That bundle works at `/dev-console/sqlib/` and nowhere else. It reads its
-`config.json` from beside its own `index.html`, at
-`/dev-console/sqlib/config.json`, and its sign-in callback is
-`/dev-console/sqlib/auth/callback`, which is the redirect URI to register with
-the identity provider. The host's SPA fallback for a record link is then that
-path's `200.html`.
+That bundle works only at `/dev-console/sqlib/`:
 
-A host that serves a directory of files serves this unchanged: `nuxt generate`
-prerenders an `index.html` per page and per workspace section (`/queries`,
-`/rules`, `/backends`, …), so those links resolve without a rewrite rule. A
-link to one record — `/queries/<id>` — carries the record's id and cannot be
-prerendered, so it needs the host's SPA fallback: serve `200.html` for a path
-with no file (nginx: `try_files $uri $uri/ /200.html;`; Azure Static Web Apps:
-`navigationFallback` in `staticwebapp.config.json`, which the deployment adds
-beside `/config.json` — it is deployment configuration, not part of the
-bundle). A host with no fallback rule at all serves `404.html` for such a path,
-which loads the app all the same, with a 404 status.
+- It reads `config.json` from next to its own `index.html`, at
+  `/dev-console/sqlib/config.json`.
+- Its sign-in callback is `/dev-console/sqlib/auth/callback`. Register this
+  redirect URI with the identity provider.
+- The SPA fallback of the host for a record link is `200.html` in that path.
+
+A host that serves a directory of files serves the bundle with no change.
+`nuxt generate` prerenders an `index.html` for each page and each workspace
+section (`/queries`, `/rules`, `/backends`, …), so those links resolve without
+a rewrite rule.
+
+A link to one record, such as `/queries/<id>`, has the id of the record, and
+cannot be prerendered. It needs the SPA fallback of the host: serve `200.html`
+for a path with no file.
+
+- nginx: `try_files $uri $uri/ /200.html;`
+- Azure Static Web Apps: `navigationFallback` in `staticwebapp.config.json`.
+  The deployment adds this file next to `/config.json`. It is deployment
+  configuration, and is not part of the bundle.
+
+A host with no fallback rule serves `404.html` for such a path. This page also
+loads the app, with a 404 status.
 
 ### Runtime configuration through `/config.json`
 
-The build bakes in defaults from `NUXT_PUBLIC_*` variables — `apiBaseUrl`
-defaults to `http://localhost:3000` — but a client-side plugin
-(`packages/web/src/plugins/runtime-config.client.ts`) fetches `/config.json`
-before the app starts and overrides them. That is what lets one build serve
-several environments.
+The build includes defaults from the `NUXT_PUBLIC_*` variables. For example,
+`apiBaseUrl` defaults to `http://localhost:3000`. Before the app starts, a
+client-side plugin (`packages/web/src/plugins/runtime-config.client.ts`)
+fetches `/config.json`, and its values override the defaults. One build can
+therefore serve several environments.
 
 ```json
 {
@@ -171,79 +182,96 @@ several environments.
 }
 ```
 
-The recognised keys are `apiBaseUrl`, `featureFlags` (merged over the built-in
-flags, so a partial object is fine), the OIDC settings (`authIssuer`,
-`authClientId`, `authAudience`, `authScope`, `authTokenStorage`), and
-`authRequireLogin`. Against an API with auth on, `authClientId` is the only
-OIDC setting the file needs: the app reads the issuer and the resource from
-the API's protected-resource metadata, and sends `resource` on its
-authorization request and code exchange. `authIssuer` overrides the issuer the API
-names. `authAudience` is sent as an `audience` parameter, for a broker that
-wants one. `authTokenStorage` is `memory` by default; see
-[configuration](../reference/configuration.md#the-web-application). The file is not in the repository: the deployment places it
-beside `index.html`.
+The recognised keys:
 
-The UI signs in only when the API's `/health` reports an enforcing auth mode.
-`authRequireLogin: true` makes it sign in whatever the API reports. That is for
-an API whose authentication is done by a gateway in front of it: the API runs
-`SQLIB_AUTH_MODE=disabled`, the gateway refuses a request without a valid bearer
-token, and the UI gets a token from the OIDC settings above and sends it on
-every request. The gateway has to let `/health` through without a token, or the
-UI cannot read the API's mode. A missing file, a non-2xx response, or a response that is not
-`application/json` leaves the build-time defaults in place and logs a warning to
-the browser console — so a typo in the path degrades to "the UI talks to
-`localhost`" rather than to a blank page.
+- `apiBaseUrl`;
+- `featureFlags`, merged over the built-in flags, so a partial object is
+  correct;
+- the OIDC settings: `authIssuer`, `authClientId`, `authAudience`, `authScope`
+  and `authTokenStorage`;
+- `authRequireLogin`.
 
-Host-level application settings are not a substitute. A static site's server
-settings never reach a client-side bundle; `/config.json` is a file the browser
-fetches, which is why it works.
+Against an API with auth on, the file needs only one OIDC setting,
+`authClientId`. The app reads the issuer and the resource from the
+protected-resource metadata of the API. It sends `resource` on its
+authorization request and its code exchange.
 
-The flags a UI shows and the flags its API serves are set independently. A UI
-whose flags exceed its API's will draw sections whose routes are unregistered.
+- `authIssuer` overrides the issuer that the API names.
+- `authAudience` is sent as an `audience` parameter, for a broker that needs
+  one.
+- `authTokenStorage` is `memory` by default. See
+  [configuration](../reference/configuration.md#the-web-application).
+
+The file is not in the repository. The deployment puts it next to `index.html`.
+
+The UI signs in only when `/health` of the API reports an enforcing auth mode.
+With `authRequireLogin: true`, the UI always signs in. Use this for an API
+behind a gateway that does the authentication:
+
+- The API runs with `SQLIB_AUTH_MODE=disabled`.
+- The gateway refuses a request without a valid bearer token.
+- The UI gets a token with the OIDC settings above, and sends it on each
+  request.
+
+The gateway must let `/health` through without a token. If not, the UI cannot
+read the mode of the API.
+
+If the file is missing, the response is not 2xx, or the response is not
+`application/json`, the UI keeps the build-time defaults and logs a warning to
+the browser console. A typing error in the path therefore gives a UI that talks
+to `localhost`, and does not give a blank page.
+
+Application settings on the host do not replace `/config.json`. The server
+settings of a static site never reach a client-side bundle. `/config.json` works
+because the browser fetches it.
+
+The flags of a UI and the flags of its API are set separately. If the UI has
+flags on that the API does not, it shows sections whose routes do not exist.
 
 ## One worked deployment example
 
-`infrastructure/` holds generic Bicep templates for one way to host the two
-parts on Azure. They are an example, not the recommended path — the image runs
-anywhere a container runs, and the UI anywhere static files are served.
+`infrastructure/` has generic Bicep templates for one way to host the two parts
+on Azure. They are an example. The image runs on any container platform, and
+the UI on any static file host.
 
 - `main.bicep` deploys the image to Azure Container Apps: a Log Analytics
   workspace, a Container App environment (or an existing one), and a Container
-  App with external HTTPS ingress. Its parameters cover the registry login,
+  App with external HTTPS ingress. Its parameters are the registry login, the
   image name and tag, `targetPort` (default 3000), CPU and memory (default 0.5
-  cores, 1.0 GB), and arrays of environment variables and secrets — an
-  environment variable references a secret by `secretRef`. It outputs the
+  cores, 1.0 GB), and arrays of environment variables and secrets. An
+  environment variable refers to a secret by `secretRef`. The output is the
   application URL.
-- `swa.bicep` deploys the UI to Azure Static Web Apps and sets application
-  settings. Those settings do not reach the browser, so `/config.json` above is
-  still what points the SPA at its API.
+- `swa.bicep` deploys the UI to Azure Static Web Apps, and sets application
+  settings. Those settings do not reach the browser, so the SPA still gets the
+  URL of its API from `/config.json`.
 - `main.parameters.example.json` and `swa.parameters.example.json` are the
-  shapes to copy. A real parameters file contains registry passwords and
-  backend credentials; keep it out of version control.
+  shapes to copy. A real parameters file contains the registry password and
+  the SPARQL store password. Do not put it in version control.
 
 ## Authentication: one broker in front
 
-sqlib is a resource server. It verifies a JWT access token and never signs
+sqlib is a resource server. It verifies a JWT access token, and never signs
 anyone in. The sign-in, the identity providers and the tokens come from one
-authorization server (the "broker") that the deployment chooses.
-[The auth design](../design/auth-architecture.md) says why.
+authorization server, the "broker", that the deployment chooses.
+[The auth design](../design/auth-architecture.md) gives the reasons.
 
-Self-hosters get the full auth stack and bring their own broker.
+A self-hosted deployment gets the full auth stack, and supplies its own broker.
 
 ### What sqlib needs from the broker
 
-Three settings, whichever broker it is:
+sqlib needs three settings, for any broker:
 
-1. `SQLIB_AUTH_ISSUER`: the broker's issuer URL, exactly as tokens carry it in
-   `iss`. sqlib finds the keys through the issuer's OIDC discovery document.
-2. `SQLIB_AUTH_AUDIENCE`: the value the broker puts in `aud` for sqlib. Set
+1. `SQLIB_AUTH_ISSUER`: the issuer URL of the broker, exactly as tokens carry it
+   in `iss`. sqlib finds the keys through the OIDC discovery document of the
+   issuer.
+2. `SQLIB_AUTH_AUDIENCE`: the value that the broker puts in `aud` for sqlib. Set
    `SQLIB_AUTH_RESOURCE` to the same value: the canonical URL of `/mcp`, for
    example `https://sqlib.example.org/mcp`. MCP clients ask for a token for
    that value.
 3. `SQLIB_AUTH_CLAIM_GROUPS`: the dot-path to the claim with group or role
    membership.
 
-The SPA needs one more value, the client id the broker gave it
+The SPA needs one more value: the client id that the broker gave it
 (`authClientId` in `/config.json`). Register `<SPA origin>/auth/callback` as
 its redirect URL.
 
@@ -255,8 +283,8 @@ Two facts decide most choices:
   Cognito cannot federate to GitHub.
 - **Self-registering MCP clients need CIMD or dynamic client registration.**
   Rauthy, Keycloak (behind feature flags) and Auth0 have them. Entra External
-  ID and Cognito have neither, so each MCP client must be registered by hand,
-  and the person connecting it must enter that client id.
+  ID and Cognito have neither. With them, you must register each MCP client
+  manually, and the person who connects it must enter that client id.
 
 | Broker | `SQLIB_AUTH_ISSUER` | `SQLIB_AUTH_AUDIENCE` | `SQLIB_AUTH_CLAIM_GROUPS` | Caveats |
 | --- | --- | --- | --- | --- |
@@ -266,22 +294,21 @@ Two facts decide most choices:
 | A customer's Keycloak | `https://<host>/realms/<realm>` | The client scope's audience mapper value | `realm_access.roles`, or `groups` with a group mapper | Turn on the CIMD and resource-indicator feature flags for MCP clients. |
 | A customer's Entra workforce tenant | `https://login.microsoftonline.com/<tenant id>/v2.0` | The API's application ID URI | `roles` or `groups` | Request v2 access tokens (`accessTokenAcceptedVersion: 2`) so `iss` matches. |
 
-AAF is an identity source, not a broker: federate the broker to it as a
-generic OIDC provider. Use `eduperson_entitlement` or
-`eduperson_scoped_affiliation` as the group claim if the broker passes it
-through.
+AAF is an identity source, and cannot be the broker. Federate the broker to it
+as a generic OIDC provider. If the broker passes it through, use
+`eduperson_entitlement` or `eduperson_scoped_affiliation` as the group claim.
 
-A partner whose Entra tenant already mints tokens with sqlib's audience can be
-trusted directly beside the broker, with `SQLIB_AUTH_ISSUERS_JSON`. The
-protected-resource metadata then lists both issuers. The SPA signs in against
-the first one.
+A partner whose Entra tenant already makes tokens with the audience of sqlib can
+be trusted directly, next to the broker, with `SQLIB_AUTH_ISSUERS_JSON`. The
+protected-resource metadata then lists both issuers. The SPA signs in with the
+first one.
 
 ### Machines and applications
 
 - **An application acting as itself** uses the client-credentials grant with
-  its own confidential client. sqlib sees a `client` principal, which you grant
-  modes like any other. Cache the token for its lifetime; do not fetch one per
-  call.
+  its own confidential client. sqlib sees a `client` principal. Grant it modes
+  as for any other principal. Cache the token for its lifetime. Do not fetch a
+  new token for each call.
 - **An application acting for a signed-in person** uses token exchange
   (RFC 8693) at the broker, and calls sqlib with the exchanged token. sqlib sees
   the person. Do not share one person's long-lived token with an application.
@@ -290,8 +317,8 @@ the first one.
 
 `docker-compose.mcp-https-image.yml` has an `auth` profile: Rauthy 0.37.2 on
 `http://localhost:8080`, and a one-shot `rauthy-setup` service that configures
-it through Rauthy's admin API (`rauthy/setup.sh`). It is for trying the full
-stack on one machine. It uses plain HTTP and an insecure cookie mode, so do
+it through the admin API of Rauthy (`rauthy/setup.sh`). Use it to try the full
+stack on one computer. It uses plain HTTP and an insecure cookie mode, so do
 not expose it.
 
 1. Copy `.env.auth.example` to `.env`. Fill in the Rauthy secrets as its
@@ -304,7 +331,7 @@ not expose it.
    docker compose -f docker-compose.mcp-https-image.yml --profile auth up
    ```
 
-4. Read the machine client's secret from the setup log. It is printed once,
+4. Read the secret of the machine client from the setup log. It is printed once,
    when the client is created:
 
    ```bash
@@ -345,21 +372,21 @@ not expose it.
   provider.
 
 Rauthy also has CIMD and dynamic client registration on, with the resource
-allowed, so an MCP client can connect to `https://localhost:3443/mcp` with no
-configuration.
+allowed. An MCP client can therefore connect to `https://localhost:3443/mcp`
+with no configuration.
 
-The setup is safe to run again (`docker compose -f
-docker-compose.mcp-https-image.yml run --rm rauthy-setup`): it updates the
-clients and leaves existing providers alone. Rauthy reads the API key
-definition only when it first creates its database. To start again, remove
-the `rauthy-data` volume.
+You can run the setup again safely (`docker compose -f
+docker-compose.mcp-https-image.yml run --rm rauthy-setup`). It updates the
+clients, and does not change existing providers. Rauthy reads the API key
+definition only when it first makes its database. To start again, remove the
+`rauthy-data` volume.
 
 ### A dev stack behind Rauthy
 
-`just dev-auth` runs sqlib as `just dev` does, with every feature flag on, but
-in `required` mode behind a local Rauthy. Use it to try grants, the Access
-screen and anything else that depends on who is calling. It needs Docker,
-`openssl` and `jq`.
+`just dev-auth` runs sqlib as `just dev` does, with each feature flag on, in
+`required` mode behind a local Rauthy. Use it to try grants, the Access screen,
+and other functions that depend on the caller. It needs Docker, `openssl` and
+`jq`.
 
 ```bash
 just dev-auth
@@ -368,12 +395,12 @@ just dev-auth
 1. It starts Rauthy (`just rauthy-up`) in Docker on `http://localhost:8080`,
    from `docker-compose.auth-demo.yml`. `rauthy/setup.sh` creates the
    clients, and `rauthy/demo-users.sh` creates the test people.
-2. It starts the API on `:3005` and the SPA on `:3001`, which sends you to
-   Rauthy to sign in. Rauthy and the API accept only those two addresses, so
-   if another program holds `:3001`, the recipe stops instead of serving the
-   SPA on another port.
-3. It prints the passwords. The first run writes them, with fresh secrets, to
-   `tmp/auth-demo/.env` (ignored by git), and later runs keep them.
+2. It starts the API on `:3005` and the SPA on `:3001`. The SPA sends you to
+   Rauthy to sign in. Rauthy and the API accept only those two addresses. If a
+   different program uses `:3001`, the recipe stops, and does not serve the SPA
+   on a different port.
+3. It prints the passwords. The first run writes them, with new secrets, to
+   `tmp/auth-demo/.env` (ignored by git). Later runs keep them.
 
 | Sign in as | Rauthy group | In sqlib |
 | --- | --- | --- |
@@ -382,12 +409,12 @@ just dev-auth
 | `bob@localhost` | `hr` | no grants until you give some |
 | `carol@localhost` | none | no grants until you give some |
 
-To see two people at once, sign in as the administrator in one window and as
-alice in a private window. As the administrator, grant alice or the
-`analysts` group some access, then reload alice's window.
+To see two people at the same time, sign in as the administrator in one window,
+and as alice in a private window. As the administrator, grant some access to
+alice or to the `analysts` group. Then reload the window of alice.
 
-`dev-auth` keeps its own stores, so the data of `just dev` stays as it is:
-the library in `packages/api/tmp/dev-auth-store` and the grants in
+`dev-auth` keeps its own stores, so the data of `just dev` does not change. The
+library is in `packages/api/tmp/dev-auth-store`, and the grants are in
 `packages/api/tmp/dev-auth-auth`.
 
 | Command | What it does |
@@ -395,23 +422,24 @@ the library in `packages/api/tmp/dev-auth-store` and the grants in
 | Ctrl-C | Stops the API and the SPA. Rauthy stays up. |
 | `just rauthy-down` | Stops Rauthy and keeps its people and clients. |
 | `just clean-dev-auth` | Deletes the library store and the grants of `dev-auth`. |
-| `just clean-rauthy` | Deletes Rauthy's volume and the secrets. The next run makes new passwords. |
+| `just clean-rauthy` | Deletes the Rauthy volume and the secrets. The next run makes new passwords. |
 
 ### A demo of graph access
 
-`just demo-graph-access` runs the whole access model on one machine, with
+`just demo-graph-access` runs the whole access model on one computer, with
 Rauthy in front. It needs Docker, `openssl` and `jq`.
 
 - Rauthy runs in Docker on `http://localhost:8080`, from
-  `docker-compose.auth-demo.yml`: its own project and volume, separate from the
-  `auth` profile above, and the same Rauthy that `just dev-auth` uses.
+  `docker-compose.auth-demo.yml`. It has its own project and volume, separate
+  from the `auth` profile above. It is the same Rauthy that `just dev-auth`
+  uses.
   `rauthy/setup.sh` creates the clients, and `rauthy/demo-users.sh` creates
   the groups `analysts` and `hr` and three people.
 - sqlib runs on the host in `required` mode: the API on `:3005`, seeded with
   the "Graph access demo" library, and the SPA on `:3001`.
 
-The first run writes fresh secrets and passwords to `tmp/auth-demo/.env`
-(ignored by git) and keeps them. The recipe prints the passwords when it
+The first run writes new secrets and passwords to `tmp/auth-demo/.env` (ignored
+by git), and later runs keep them. The recipe prints the passwords when it
 starts.
 
 | Sign in as | Groups | Reads | Backend modes |
@@ -421,113 +449,126 @@ starts.
 | `bob@localhost` | `hr` | public, finance, hr | `query:saved` |
 | `carol@localhost` | none | public | `query:saved` |
 
-Open the library and run "Everything I can see" as each person. The run bar's
-"reading" clause shows how many graphs each person may read; open it to pick
-some of them. Then sign in as the administrator and open **Access**:
+Open the library, and run "Everything I can see" as each person. The "reading"
+clause of the run bar shows how many graphs each person can read. Open it to
+select some of them. Then sign in as the administrator, and open **Access**:
 
-- **People & groups** shows each group's grants, and for a person, what they
-  end up with and which group each part comes from.
-- **Backends** shows "Company data" with its graph policy, who may use it, and
-  `Test as` beside them. Save a new version of the policy query to see the
-  backend offer to test and pin it.
+- **People & groups** shows the grants of each group. For a person, it shows
+  the resulting access, and the group that gives each part.
+- **Backends** shows "Company data" with its graph policy, the people who can
+  use it, and `Test as` next to each. Save a new version of the policy query.
+  The backend then offers to test and pin it.
 
-Stop Rauthy with `just demo-graph-access-down`. Throw both stores and the
-secrets away with `just clean-graph-access-demo`.
+Stop Rauthy with `just demo-graph-access-down`. Delete both stores and the
+secrets with `just clean-graph-access-demo`.
 
 ## Before you expose it
 
-This repository is pre-1.0 and source-available for review (see `LICENSE`). No
-release has been published. Settle each of the following before a deployment is
-reachable by anyone but you.
+This repository is pre-1.0, and its source is available for review (see
+`LICENSE`). No release is published. Before other people can reach a
+deployment, decide each item below.
 
-**Authentication is off by default.** `SQLIB_AUTH_MODE` defaults to `disabled`,
-which gives every request full access. `dry-run` validates tokens and logs what
-would have happened without refusing anything; `required` refuses. An enforcing
-mode needs at least one issuer — `SQLIB_AUTH_ISSUER` with `SQLIB_AUTH_AUDIENCE`,
-or `SQLIB_AUTH_ISSUERS_JSON` for several — and refuses to start without one. It
-also refuses an issuer with no audience, because without one any token that
-issuer minted for any application would be accepted; set
-`SQLIB_AUTH_AUDIENCE_UNCHECKED=true` only if that is really what you want.
+**Authentication is off by default.** The default `SQLIB_AUTH_MODE` is
+`disabled`, which gives each request full access. The other modes:
+
+- `dry-run` validates tokens, and logs the result that enforcement would give.
+  It refuses nothing.
+- `required` refuses.
+
+An enforcing mode needs at least one issuer: `SQLIB_AUTH_ISSUER` with
+`SQLIB_AUTH_AUDIENCE`, or `SQLIB_AUTH_ISSUERS_JSON` for several. Without one,
+the server does not start. The server also refuses an issuer with no audience.
+Without an audience, sqlib would accept any token from that issuer, for any
+application. Set `SQLIB_AUTH_AUDIENCE_UNCHECKED=true` only if you need this.
 `SQLIB_AUTH_ADMIN_PRINCIPALS` names the principals that are administrators at
-boot. [Authentication: one broker in front](#authentication-one-broker-in-front)
-says what to put in front.
+startup. [Authentication: one broker in front](#authentication-one-broker-in-front)
+tells you what to put in front.
 
-**`/mcp` is unauthenticated in the default mode**, like the rest of the API, and
-it is a complete tool surface over every library and backend on the server. If
-the deployment serves `dual-http` or `mcp-http`, either enforce authentication
-or do not publish that path. See [connecting an MCP client](mcp-clients.md).
+**`/mcp` has no authentication in the default mode**, as for the rest of the
+API. It gives a full set of tools over each library and backend on the server.
+If the deployment serves `dual-http` or `mcp-http`, enforce authentication, or
+do not publish that path. See [connecting an MCP client](mcp-clients.md).
 
 **CORS allows no browser origin by default.** `SQLIB_CORS_ORIGINS` lists the
-origins that may read the API and `/mcp` (comma-separated). Unset, a production
-deployment allows none, which is what you want when the SPA and the API share an
-origin; if the SPA is served from another one, list it. A listed origin gets
-credentialed access; `*` allows every origin and never sends credentials. See
-[configuration](../reference/configuration.md#server-and-transport).
+origins that can read the API and `/mcp`, separated by commas. When it is not
+set, a production deployment allows no origin. This is correct when the SPA and
+the API share an origin. If the SPA has a different origin, list it. A listed
+origin gets credentialed access. `*` allows each origin, and never sends
+credentials. See [configuration](../reference/configuration.md#server-and-transport).
 
-**Check the feature flags.** `etl`, `playgroundEtl` and `assistant` default off
-for stated reasons: ETL takes arbitrary DuckDB SQL, which is a host filesystem
-read primitive and, with the httpfs extension, an outbound request primitive;
-the assistant is unauthenticated, calls a paid provider, and can reach a
-configured backend. Turning any of them on is a deliberate decision about what
-the deployment's callers may do. `ruleTuples` is off because the extension it
-enables is not conformant SHACL 1.2 Rules. The full list, with defaults, is in
-[feature flags](../reference/feature-flags.md).
+**Check the feature flags.** `etl`, `playgroundEtl` and `assistant` are off by
+default, for these reasons:
 
-**Backend credentials are entity data.** A registered HTTP backend can carry a
-username and password, and the library store holds them. Treat the store as
-containing secrets: give it a volume with restricted access, and supply the
-library's own endpoint credentials (`LIBRARY_STORAGE_SPARQL_USERNAME` /
-`_PASSWORD`) through the platform's secret mechanism rather than a plain
-environment variable.
+- ETL takes arbitrary DuckDB SQL. This SQL can read the host filesystem, and,
+  with the httpfs extension, make outbound requests.
+- The assistant has no authentication, calls a paid provider, and can reach a
+  configured backend.
 
-**ETL output is a filesystem write.** If ETL is on, `ETL_OUTPUT_DIR` must exist
-and be writable by uid 1000, and it accumulates one file per execution with no
-retention policy. The server checks the directory at boot and logs the fix if it
-is not writable, and
-`pnpm --filter @sparql-query-lib/api smoke:storage` asks the same question
-inside a container without booting the server.
+To turn on any of them is a decision about what the callers of the deployment
+can do. `ruleTuples` is off, because its extension is not part of SHACL 1.2
+Rules. [Feature flags](../reference/feature-flags.md) gives the full list, with
+defaults.
 
-**Persistence is a volume.** With the default `sqlite` store, the library and
-the auth store are files on the container's disk. With
-`INTERNAL_BACKEND_TYPE=oxigraph-persistent` the entire library is in the
-container's memory and in a `.nq` snapshot on its disk. Either way, without a
-volume mounted at the storage path, everything is lost when the container is
-replaced. Put a SQLite store on a block volume, not on a network file share
-(Azure Files, EFS): SQLite's locking is not reliable there.
+**Backend credentials come from the environment.** A registered backend
+stores an `authEnvKey`, which is a name and not a secret. At execution, the
+server reads `SQLIB_BACKEND_<KEY>_USERNAME` and `SQLIB_BACKEND_<KEY>_PASSWORD`,
+or `SQLIB_BACKEND_<KEY>_AUTH_HEADER`, from its own environment
+(`packages/api/src/lib/backendAuth.ts`). The library store therefore holds no
+backend credentials. Supply these variables, and the endpoint credentials of
+the library (`LIBRARY_STORAGE_SPARQL_USERNAME` / `_PASSWORD`), through the
+secret mechanism of the platform. Do not use a plain environment variable.
 
-**Observability.** Telemetry is off unless an OTLP endpoint is set. Set
-`OTEL_EXPORTER_OTLP_ENDPOINT` (and `OTEL_EXPORTER_OTLP_HEADERS` for a hosted
-service) to send traces, metrics and logs; on Azure Container Apps the managed
-OpenTelemetry agent sets the endpoint for you. Slow runs are logged either way.
-See [observability](observability.md).
+**ETL output is a filesystem write.** If ETL is on, `ETL_OUTPUT_DIR` must exist,
+and uid 1000 must be able to write to it. It gets one file for each execution,
+with no retention policy. The server checks the directory at startup, and logs
+the fix if it is not writable.
+`pnpm --filter @sparql-query-lib/api smoke:storage` does the same check in a
+container, without a server start.
+
+**Persistence needs a volume.** With the default `sqlite` store, the library and
+the auth store are files on the disk of the container. With
+`INTERNAL_BACKEND_TYPE=oxigraph-persistent`, the whole library is in the memory
+of the container, and in a `.nq` snapshot on its disk. In both cases, without a
+volume at the storage path, all data is lost when the container is replaced.
+Put a SQLite store on a block volume. Do not use a network file share (Azure
+Files, EFS), because SQLite locking is not reliable there.
+
+**Observability.** Telemetry is off until you set an OTLP endpoint. To send
+traces, metrics and logs, set `OTEL_EXPORTER_OTLP_ENDPOINT`, and
+`OTEL_EXPORTER_OTLP_HEADERS` for a hosted service. On Azure Container Apps, the
+managed OpenTelemetry agent sets the endpoint. sqlib logs slow runs in both
+cases. See [observability](observability.md).
 
 ## Scaling to zero
 
-An instance that is stopped when idle and started on the next request pays its
-startup on that request, so startup stops being a deployment detail and becomes
-latency someone waits for. The image is set up for this: response serialisers
-compile on first use rather than at boot, the SPARQL grammars and the DuckDB
-binding are built on first use, and a V8 compile cache ships in the image so the
-first container to start is already warm. Turning off the
-[feature flags](../reference/configuration.md#feature-flags) you do not serve is
-the thing left worth doing yourself (telemetry is already off unless you
-configure it); see
+An instance that stops when idle, and starts on the next request, adds its
+startup time to that request. A person waits for it. The image is configured
+for this:
+
+- Response serialisers compile on first use.
+- The SPARQL grammars and the DuckDB binding are built on first use.
+- The image has a V8 compile cache, so the first container to start is already
+  warm.
+
+You can also turn off the
+[feature flags](../reference/configuration.md#feature-flags) that you do not
+serve. Telemetry is already off until you configure it. See
 [startup time](../reference/configuration.md#startup-time).
 
-Two things about the store matter more than any of that:
+Two properties of the store have a larger effect:
 
-**An in-memory store is empty on every cold start.**
-`INTERNAL_BACKEND_TYPE=oxigraph-memory` keeps nothing between runs, so a
-scale-to-zero deployment that uses it comes back with an empty library every
-time. Use `oxigraph-persistent` with the snapshot on a volume that survives the
-container — it is the same in-memory Oxigraph, with a `.nq` snapshot restored at
-boot and written on a timer. The restore is the one part of startup that grows
-with your data: roughly one second per 180,000 quads.
+**An in-memory store is empty on each cold start.**
+`INTERNAL_BACKEND_TYPE=oxigraph-memory` keeps nothing between runs. A
+scale-to-zero deployment that uses it starts with an empty library each time.
+Use `oxigraph-persistent`, with the snapshot on a volume that survives the
+container. This is the same in-memory Oxigraph, with a `.nq` snapshot restored
+at startup and written on a timer. The restore is the only part of startup that
+increases with your data: about one second for each 180,000 quads.
 
-**A container killed without warning loses everything since the last
-checkpoint.** The snapshot is written every
-`INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS` (default 60s) and on `SIGTERM`. If
-the platform stops idle instances by killing them, or its shutdown grace period
-is shorter than the dump takes, up to a checkpoint interval of writes is gone.
-Shorten the interval if writes matter, and check that your platform sends
-`SIGTERM` and waits for the process to exit.
+**A container that is killed without warning loses all writes since the last
+checkpoint.** The snapshot is written each
+`INTERNAL_OXIGRAPH_CHECKPOINT_INTERVAL_MS` (default 60s), and on `SIGTERM`. If
+the platform kills idle instances, or its shutdown grace period is shorter than
+the dump, up to one checkpoint interval of writes is lost. If the writes are
+important, make the interval shorter. Check that your platform sends `SIGTERM`
+and waits for the process to exit.

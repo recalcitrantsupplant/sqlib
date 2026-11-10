@@ -1,7 +1,7 @@
 # RDF Patch: what an update would do
 
-`@sparql-query-lib/rdf-delta` derives what a SPARQL update would add and remove,
-without running it.
+`@sparql-query-lib/rdf-delta` calculates what a SPARQL update would add and
+remove, without running it.
 
 ```ts
 import { derivePatch, oxigraphDeltaStore, patchToRdfPatch } from '@sparql-query-lib/rdf-delta';
@@ -16,67 +16,69 @@ patch.additionCount; // 3
 patchToRdfPatch(patch);
 ```
 
-What comes back is simultaneously a preview, an audit record, an undo (apply the
+You can use the result as a preview, an audit record, an undo (apply the
 inverse) and a replication unit.
 
-## Why two CONSTRUCTs are the definition, not an approximation
+## Why two CONSTRUCTs give the exact result
 
-SPARQL Update instantiates the DELETE and INSERT templates against the state of
-the graph store *before* the operation. So `CONSTRUCT { D } WHERE { W }` and
-`CONSTRUCT { I } WHERE { W }`, evaluated against the store as it stands, are the
-definition of `DELETE { D } INSERT { I } WHERE { W }` minus the mutation. Two
-read-only queries yield the exact ground delta.
+SPARQL Update fills the DELETE and INSERT templates against the state of the
+graph store *before* the operation. `CONSTRUCT { D } WHERE { W }` and
+`CONSTRUCT { I } WHERE { W }`, evaluated against the current store, are
+therefore exactly what `DELETE { D } INSERT { I } WHERE { W }` would delete and
+insert. Two read-only queries give the exact ground delta.
 
-That is why the derivation is not a heuristic that happens to be usually right.
-The only ways it can diverge are named and bounded: a graph-management operation
-whose contents were counted rather than enumerated, a `LOAD` whose document lies
-outside the dataset, and a store that cannot be asked about a quad containing a
-blank node. Each is reported on the patch rather than folded silently into the
-counts.
+The result can differ from the real update in three known cases. sqlib reports
+each case on the patch, and keeps it out of the counts:
 
-Per form, the rewrite is:
+- A graph-management operation whose contents were counted and not listed.
+- A `LOAD`, whose document is outside the dataset.
+- A store that cannot answer whether it holds a quad that contains a blank node.
+
+For each form, the rewrite is:
 
 | Update form | Deletions come from | Additions come from |
 | --- | --- | --- |
 | `INSERT DATA { G }` | none | `G`, already ground; no query needed |
-| `DELETE DATA { G }` | `G`, filtered to the triples actually present | none |
-| `DELETE { D } WHERE { W }`, `DELETE WHERE { P }` | `CONSTRUCT { D } WHERE { W }` (for the shorthand, `D = W = P`) | none |
+| `DELETE DATA { G }` | `G`, filtered to the triples that are present | none |
+| `DELETE { D } WHERE { W }`, `DELETE WHERE { P }` | `CONSTRUCT { D } WHERE { W }` (for the short form, `D = W = P`) | none |
 | `INSERT { I } WHERE { W }` | none | `CONSTRUCT { I } WHERE { W }` |
 | `DELETE { D } INSERT { I } WHERE { W }` | `CONSTRUCT { D } WHERE { W }` | `CONSTRUCT { I } WHERE { W }` |
 
-`USING` and `USING NAMED` map onto the CONSTRUCT's `FROM` / `FROM NAMED` dataset
-clause, and `WITH` onto `GRAPH` wrapping.
+`USING` and `USING NAMED` become the `FROM` / `FROM NAMED` dataset clause of the
+CONSTRUCT. `WITH` becomes a `GRAPH` wrapper.
 
-CONSTRUCT produces triples rather than quads, so a template containing `GRAPH`
-blocks is decomposed by graph context: the default-graph portion and each
-`GRAPH g { … }` block become separate CONSTRUCTs sharing the same WHERE, and the
-assembler stamps each result set with its graph before merging. Against an
-in-process Oxigraph store the derivation skips SPARQL text entirely, evaluating
-the WHERE clause once and instantiating the templates over the solution sequence
-in JavaScript. That path is both exact and cheap, and it is the one the test suite
-treats as the reference implementation.
+CONSTRUCT produces triples, and a patch needs quads. sqlib therefore splits a
+template that contains `GRAPH` blocks by graph. The default-graph part and each
+`GRAPH g { … }` block become separate CONSTRUCTs with the same WHERE. The
+assembler adds the graph to each result set, then merges them.
+
+Against an Oxigraph store in the same process, the derivation uses no SPARQL
+text. It evaluates the WHERE clause once, and fills the templates from the
+solution sequence in JavaScript. This path is exact and fast. The test suite
+uses it as the reference implementation.
 
 ## Net effect
 
-The raw template instantiations overstate the change. Deleting an absent triple
-and inserting a present one are both no-ops, and a triple deleted and re-inserted
-by the same operation never goes away. With `S` the store and `D*` / `I*` the
-instantiated templates, the post-state is `S' = (S \ D*) ∪ I*`, so the net patch
-is
+The raw template results are larger than the real change. A delete of an absent
+triple does nothing. So does an insert of a triple that is already present. A
+triple that the same operation deletes and inserts again stays in the store. If
+`S` is the store and `D*` / `I*` are the filled templates, the state after the
+update is `S' = (S \ D*) ∪ I*`. The net patch is therefore:
 
 ```
 deletions = (S ∩ D*) \ I*
 additions = I* \ S
 ```
 
-The raw counts survive as `rawDeleteCount` and `rawInsertCount`, because "you
-asked to delete 12, 9 existed" is the interesting half of a preview.
+The raw counts are kept as `rawDeleteCount` and `rawInsertCount`. A preview can
+then show, for example, that you asked to delete 12 triples and 9 of them
+existed.
 
-These set operations run in the deriving process rather than in SPARQL: both
-CONSTRUCT results are materialised as quad arrays, and membership tests against
-the store are batched into chunked existence queries. Set membership uses RDF term
-equality on parsed terms, never string equality on rendered ones — `:rel` and
-`<http://…/rel>` are the same IRI, and a set keyed on source text would see two.
+These set operations run in the process that calculates the patch. Both
+CONSTRUCT results become quad arrays, and the membership tests against the store
+are sent in batches of existence queries. Membership uses RDF term equality on
+parsed terms. `:rel` and `<http://…/rel>` are the same IRI, and a comparison of
+source text would count them as two.
 
 ## What it covers
 
@@ -87,33 +89,33 @@ equality on parsed terms, never string equality on rendered ones — `:rel` and
 | `INSERT … WHERE`, `DELETE … WHERE`, `DELETE … INSERT … WHERE` | yes |
 | `WITH`, `USING`, `USING NAMED` | yes |
 | `GRAPH <g>` and `GRAPH ?var` in templates | yes |
-| Multi-operation programs, every operation ground | yes |
-| Multi-operation programs where one reads what another wrote | yes, on a store that can `fork` |
+| Programs of several operations, each one ground | yes |
+| Programs of several operations, where one reads what another wrote | yes, on a store that can `fork` |
 | `CLEAR`, `DROP`, `COPY`, `MOVE`, `ADD` | counted; exact with `enumerateGraphOps` |
-| `CREATE` | yes — it moves no triples |
-| `LOAD` | recorded, never derived |
+| `CREATE` | yes; it moves no triples |
+| `LOAD` | recorded, never calculated |
 
-An unsupported form throws `UnsupportedUpdateError` naming the operation. A
-preview that is quietly wrong is worse than no preview.
+An unsupported form throws `UnsupportedUpdateError`, which names the operation.
+sqlib gives no preview where it cannot give a correct one.
 
 ### Graph-management operations
 
-`CLEAR GRAPH <g>` names a graph, not triples, and what that graph holds is a
-separate question with a separate cost. So by default it is counted — one
-`SELECT (COUNT(*) …)` — and the patch says outright that its quads are not the
-whole update:
+`CLEAR GRAPH <g>` names a graph. To find the triples in that graph is a separate
+query, with its own cost. By default, sqlib therefore counts them with one
+`SELECT (COUNT(*) …)`, and the patch states that its quads are not the whole
+update:
 
 ```ts
 const patch = await derivePatch('DROP GRAPH <http://ex/g>', store);
 patch.graphOps;   // [{ form: 'drop', destination: {…}, affectedCount: 4200, enumerated: false }]
-patch.applyMode;  // 'graph-ops' — a preview and an audit record, not a diff to apply
+patch.applyMode;  // 'graph-ops': a preview and an audit record, which cannot be applied as a diff
 patch.revertible; // false
 ```
 
-Pass `enumerateGraphOps` and the operation becomes ordinary quads, flowing through
-the same net-effect arithmetic as everything else, so the patch is applicable,
-revertible and hashable like any other. `enumerationCap` bounds it; over the cap it
-throws `EnumerationCapExceededError` carrying what it would have cost.
+With `enumerateGraphOps`, the operation becomes ordinary quads. They go through
+the same net-effect calculation as other forms, so you can apply, revert and
+hash the patch. `enumerationCap` sets a limit. Above the limit, sqlib throws
+`EnumerationCapExceededError` with the size it would have listed.
 
 ```ts
 await derivePatch('DROP GRAPH <http://ex/g>', store, {
@@ -122,28 +124,29 @@ await derivePatch('DROP GRAPH <http://ex/g>', store, {
 });
 ```
 
-`LOAD` is the exception no option rescues: its document is outside the dataset, so
-no query against the store can say what it holds.
+No option helps with `LOAD`. Its document is outside the dataset, so no query
+against the store can show its contents.
 
-The `graphOps` records are kept even when the operations were enumerated. "These
-quads went because the graph was dropped" is a different fact from "these quads
-were deleted", and an empty graph created or removed leaves no quad at all, so the
-record is the only place that survives.
+sqlib keeps the `graphOps` records also when it lists the quads. A record that
+quads were removed because their graph was dropped is a different fact from a
+record that they were deleted. An empty graph that was created or removed leaves
+no quad, so the record is the only trace of it.
 
-### Multi-operation programs
+### Programs of several operations
 
-Operation *N* has to be derived against the state operations 1…*N−1* left. When
-every operation is ground — a sequence of `INSERT DATA` and `DELETE DATA` — that
-needs nothing special, because composition is set arithmetic. Otherwise the program
-is simulated: the store is forked, each operation derived against the copy and then
-replayed on it before the next.
+sqlib must calculate operation *N* against the state that operations 1 to *N−1*
+left. When each operation is ground (a series of `INSERT DATA` and
+`DELETE DATA`), this needs nothing special, because the composition is set
+arithmetic. Otherwise sqlib simulates the program. It forks the store,
+calculates each operation against the copy, and then runs the operation on the
+copy before the next one.
 
-Replaying the operation *as written*, rather than the diff just derived, is what
-makes this faithful for every form. Only the original text carries the effects the
-diff deliberately leaves out, such as a counted graph operation.
+sqlib runs each operation on the copy *as written*. The diff it just calculated
+leaves out some effects, such as a counted graph operation, and only the
+original text has them. This makes the simulation correct for each form.
 
-Forking is a capability, not an assumption. `DeltaStore.fork` is optional, and a
-store without it keeps the refusal, naming the offending operation:
+A store must support forking. `DeltaStore.fork` is optional. A store without it
+refuses such a program, and names the operation that needs it:
 
 ```ts
 // In-process Oxigraph can fork, given a factory for empty stores.
@@ -152,67 +155,67 @@ oxigraphDeltaStore(store, { createStore: () => new oxigraph.Store() });
 
 ## Blank nodes
 
-A blank node in a WHERE clause behaves as a variable and raises no difficulty. A
-blank node in a *template* is minted fresh per solution, and that is where the
-caveats come from.
+A blank node in a WHERE clause acts as a variable and causes no problem. A blank
+node in a *template* is a new node for each solution, and this causes four
+limits:
 
-- **A patch is apply-once.** It captures the concrete nodes from this
-  instantiation, so re-applying it re-adds the same nodes rather than minting fresh
-  ones. The patch records `containsBnodes`.
-- **A deletion carrying blank nodes cannot be applied as ground SPARQL text**,
-  because `DELETE DATA` forbids them. Such a patch reports `applyMode: 'store'` and
-  `revertible: false`: it has to go through a store API rather than through SPARQL
-  text.
-- **Membership can be inexact.** A store that can only be asked SPARQL cannot be
-  asked whether it holds a quad containing a blank node, since no SPARQL text can
-  name one. Those candidates are kept — they were matched out of the store a moment
-  earlier, so the end state is right — and the patch reports
-  `netEffectExact: false`. Give the store a `has` method, which in-process Oxigraph
-  has, and the answer is exact.
-- **Simulation refuses one case outright**: a multi-operation program whose patch
-  would carry blank nodes. A fork relabels them, so a deletion would name a node in
-  the copy rather than in the store.
+- **A patch can be applied once only.** It holds the nodes made in this run. A
+  second application adds the same nodes again, and makes no new ones. The patch
+  records `containsBnodes`.
+- **A deletion with blank nodes cannot be applied as ground SPARQL text**,
+  because `DELETE DATA` forbids blank nodes. Such a patch reports
+  `applyMode: 'store'` and `revertible: false`. It must be applied through a
+  store API.
+- **Membership can be inexact.** A store that answers only SPARQL cannot say
+  whether it holds a quad with a blank node, because no SPARQL text can name a
+  blank node. sqlib keeps those candidates, because they were matched from the
+  store a moment earlier, so the end state is correct. The patch reports
+  `netEffectExact: false`. If the store has a `has` method (in-process Oxigraph
+  does), the answer is exact.
+- **Simulation refuses one case**: a program of several operations whose patch
+  would have blank nodes. A fork gives the blank nodes new labels, so a deletion
+  would name a node in the copy, and not in the store.
 
-## What the package is, and is not
+## What the package contains
 
-No Fastify, no `fs`, no network: pure functions over quad arrays and an abstract
-store, so server-side, browser-side and worker-side derivation are the same code,
-and where patches get stored stays a separate decision.
+The package has no Fastify, `fs` or network dependency. It is pure functions
+over quad arrays and an abstract store. The server, the browser and a worker
+therefore use the same code, and the place where patches are stored is a
+separate decision.
 
-It is also not a transaction manager. The window between deriving a patch and
-applying it is open unless the store closes it. In-process Oxigraph can close it
-under its own lock; an HTTP endpoint cannot, so applying against one carries an
-optimistic guard — the deletion-existence check is re-run and compared against the
-patch's content hash, and a mismatch is a 409 with a fresh preview.
+The package does not manage transactions. Between the calculation and the
+application of a patch, the store can change, unless the store prevents this.
+In-process Oxigraph can prevent it with its own lock. An HTTP endpoint cannot,
+so sqlib applies a patch to one with an optimistic check. It runs the
+deletion-existence check again and compares it with the content hash of the
+patch. A mismatch gives 409 with a new preview.
 
-The derivation has an oracle, and the test suite is built on it: apply the update
-to store A, apply the derived patch to an identical store B, canonicalise both,
-assert isomorphism. Every supported form runs through it three times — against a
-populated store with exact membership, through the SPARQL-only path an HTTP backend
-takes, and over an empty store — and a harness test checks that the oracle itself
-can fail.
+The test suite uses an oracle. It applies the update to store A, applies the
+calculated patch to an identical store B, canonicalises both, and checks that
+they are isomorphic. Each supported form goes through the oracle three times:
+against a populated store with exact membership, through the SPARQL-only path
+that an HTTP backend uses, and against an empty store. A harness test checks
+that the oracle itself can fail.
 
 ```sh
 pnpm --filter @sparql-query-lib/rdf-delta test
 ```
 
-`packages/rdf-delta` is `private: true` and is not published to npm. It is consumed
-inside the monorepo through the pnpm workspace.
+`packages/rdf-delta` is `private: true`, and is not published to npm. Packages
+in the monorepo use it through the pnpm workspace.
 
-## Where it surfaces in the product
+## Where it appears in the product
 
-### An update query's output format
+### The output format of an update query
 
-`text/rdf-patch` is the one output media type an update query has, and asking for
-it is what turns an execution into a derivation. In the web app, picking **RDF
-Patch** as the output format for an update query is the one thing that turns Run
-into a preview instead of a write: nothing is executed, the store is left as it
-was, and applying the diff is a separate, deliberate act.
+`text/rdf-patch` is the only output media type of an update query. A request for
+it turns an execution into a calculation. In the web app, choose **RDF Patch** as
+the output format of an update query, and Run shows a preview. Nothing is
+executed and the store does not change. Applying the diff is a separate action.
 
-It has to be asked for explicitly. An update with no `Accept` header still runs,
-because `/execute` is what a scheduled job, an MCP tool or a query group calls, and
-silently turning every one of those into a dry run would be a worse surprise than
-having to name the format you want.
+You must ask for this format. An update with no `Accept` header runs. `/execute`
+is what a scheduled job, an MCP tool or a query group calls, and each of these
+expects an update to run.
 
 ```bash
 # a saved update query, by its id
@@ -222,8 +225,8 @@ curl -sS -X POST "$SQLIB/execute" \
   -d '{"targetId":"urn:sqlib:query:q1","backendId":"urn:sqlib:backend:b1"}'
 ```
 
-A draft that has no saved version to name asks for the derivation directly, which
-is what the web app does for an unsaved query:
+A draft has no saved version to name, so it asks for the calculation directly.
+The web app does this for an unsaved query:
 
 ```bash
 curl -sS -X POST "$SQLIB/patches/preview" \
@@ -232,31 +235,36 @@ curl -sS -X POST "$SQLIB/patches/preview" \
   -d '{"updateString":"DELETE { … } INSERT { … } WHERE { … }","backendId":"urn:sqlib:backend:b1"}'
 ```
 
-Deriving a patch needs a registered backend to derive it against; without one the
-request is a 400. The `/execute` response carries the patch id in
-`X-Sqlib-Patch-Id`. An
-update performing a graph-management operation that was counted rather than
-enumerated is a 422, because RDF Patch has rows for quads and nothing else — such a
-document would show an empty or partial change and read as the whole truth. The
-JSON view of the patch carries `graphOps`, so that is where such a preview is
-answered.
+The calculation needs a registered backend to run against. Without one, the
+request gets 400. The `/execute` response gives the patch id in
+`X-Sqlib-Patch-Id`.
+
+An update with a graph-management operation that was counted, and not listed,
+gets 422. RDF Patch has rows for quads only, so such a document would show an
+empty or partial change as if it were complete. The JSON view of the patch has
+`graphOps`, so use it for such a preview.
 
 ### Stored patches
 
-A patch is an entity in its own right, minted as `urn:sqlib:patch:…` and
-deliberately not versioned: a patch is an event, and a stable/version split would be
-noise. It records the target backend, the graph scope, the canonical N-Quads of its
-additions and deletions, the net and raw counts, any `graphOps`, where it came from,
-its status, `applyMode`, `revertible`, `containsBnodes` and a content hash over the
-canonical sides. Canonicalisation is what makes the hash stable enough to use for
-deduplication and for an optimistic precondition on apply.
+A patch is an entity, with an id of the form `urn:sqlib:patch:…`. It has no
+versions, because a patch records one event. It records:
 
-`GET /patches/:id` returns the entity as JSON by default, or the RDF Patch document
-when the caller asks for `text/rdf-patch`. Both that route and an update query's
-output serialise through the same function, so a diff does not render differently
-depending on which door it came through.
+- the target backend and the graph scope,
+- the canonical N-Quads of its additions and deletions,
+- the net and raw counts, and any `graphOps`,
+- where it came from, and its status,
+- `applyMode`, `revertible` and `containsBnodes`,
+- a content hash over the canonical sides.
 
-The RDF Patch serialisation is the dialect [RDF-Delta
-uses](https://afs.github.io/rdf-delta/rdf-patch.html) — `A` and `D` rows for quads,
-`H` headers carrying the id and the prior patch id — so a consumer that already
-speaks it needs no sqlib-specific parser.
+Canonicalisation makes the hash stable, so sqlib can use it to find duplicates
+and as an optimistic precondition when it applies a patch.
+
+`GET /patches/:id` returns the entity as JSON by default, or the RDF Patch
+document when the caller asks for `text/rdf-patch`. That route and the output of
+an update query use the same serialiser, so a diff looks the same on both
+routes.
+
+The RDF Patch serialisation is the dialect that [RDF-Delta
+uses](https://afs.github.io/rdf-delta/rdf-patch.html): `A` and `D` rows for
+quads, and `H` headers with the id and the id of the previous patch. A consumer
+that already reads this format needs no parser specific to sqlib.

@@ -1,144 +1,146 @@
 # Inline inputs and the rail
 
-Where a saved input lives, and why each kind lives where it does.
+This page describes where each kind of saved input is stored, and the reasons.
 
-## Inline is a door, not a storage class
+## Inline input and storage
 
-A graph pasted into a call and a graph stored in the library are the same bytes,
-in the same serialisation, under the same size ceiling, consumed by the same
-loader. The only thing that used to differ was which screen they were typed on.
+A graph pasted into a call and a graph stored in the library are the same
+bytes, in the same serialisation, under the same size limit, read by the same
+loader. Earlier, the only difference was the screen where you typed them.
 
-So a graph has one storage class: a `DataGraphVersion`. An argument set holds
-no graphs at all (see
+A graph therefore has one storage form: a `DataGraphVersion`. An argument set
+holds no graphs (see
 [argument sets without graphs](../proposals/argument-sets-without-graphs.md)).
-A rule set or a query group names its graphs beside its arguments. Pasted RDF
-that is worth keeping becomes a data graph: on the Graphs screen, or with
+A rule set or a query group names its graphs next to its arguments. To keep
+pasted RDF, save it as a data graph: on the Graphs screen, or with
 **Save to Data** on the rule set screen.
 
-One counter-rule keeps this honest, and it is the whole boundary:
+One rule sets the boundary:
 
-> **Running is not saving.** Inline content in an execute request mints
-> nothing. `/execute` and `/sparql` keep taking inline graphs, tables and
-> numbers as transport, and an ad-hoc run leaves no trace in any rail.
+> **Running is not saving.** Inline content in an execute request creates no
+> entity. `/execute` and `/sparql` accept inline graphs, tables and numbers as
+> transport, and an ad-hoc run leaves nothing in any rail.
 
-## One storage class per input kind
+## One storage form for each kind of input
 
-| Kind | Where the content lives when saved | Rail entry | Why |
+| Kind | Where the content is stored when saved | Rail entry | Reason |
 | --- | --- | --- | --- |
-| **Graph** | `DataGraphVersion`, named beside the argument set by the run or the test case | Graphs | RDF content is what a `DataGraph` *is*. An argument set holding RDF duplicated an entity that already exists, and gave a group two ways to receive the same graph. |
-| **Table** | `ArgumentTupleBinding.contentString` (SRJ) on the argument set version | Argument sets | The argument set is already the entity, already in the rail, already versioned and pinnable. There is no second home to need. |
-| **Number** | `ArgumentScalarBinding` on the argument set version | Argument sets | Trivially the same. |
+| **Graph** | `DataGraphVersion`, named next to the argument set by the run or the test case | Graphs | A `DataGraph` holds RDF content. When an argument set held RDF, it repeated an existing entity, and a group had two ways to receive the same graph. |
+| **Table** | `ArgumentTupleBinding.contentString` (SRJ) on the argument set version | Argument sets | The argument set is an entity, in the rail, versioned and pinnable. No second place is needed. |
+| **Number** | `ArgumentScalarBinding` on the argument set version | Argument sets | Same as a table. |
 
-Read the middle column as the answer to "if I save this, where does it end up?"
-and the design is one sentence: **every saved input is stored exactly once, in
-the entity whose job it is to hold that kind of content, and that entity is in a
-rail.**
+The middle column tells you where a saved input goes. The rule is: **each saved
+input is stored once, in the entity that holds that kind of content, and that
+entity is in a rail.**
 
-The test is not "was this typed inline?" but:
+To decide where content goes, ask whether an entity already holds that kind of
+content:
 
-> **Is there already an entity whose job is to hold this content?** For RDF,
-> yes, and it is not the argument set — so the graph is named beside it. For
-> rows supplied to a `VALUES` clause, yes, and it *is* the argument set — so
-> they stay put.
+- For RDF, the `DataGraph` does. The run or test case names the graph next to
+  the argument set.
+- For rows supplied to a `VALUES` clause, the argument set does. The rows stay
+  in it.
 
-Minting a tuple set from a saved `VALUES` table would not remove a second-class
-copy. It would *create* a second entity, in a section governed by a different
-matching discipline, holding the same rows for no reuse that a person asked for.
+If sqlib made a tuple set from a saved `VALUES` table, it would make a second
+entity with the same rows. That entity would be in a section with different
+matching rules, and nobody asked to reuse it.
 
 ## Deleting a graph
 
-Deleting a `DataGraph` is refused while a saved test version pins one of its
-versions, as for any pinned entity (`lib/versionPins.ts`). Argument sets no
-longer pin graphs, because they hold none. A browser default that names the graph or
-one of its versions is cleared, because a default is a starting selection, not
-a pin: losing one costs a pick and breaks no run.
+sqlib refuses to delete a `DataGraph` while a saved test version pins one of
+its versions, as for any pinned entity (`lib/versionPins.ts`). Argument sets do
+not pin graphs, because they hold none. A browser default that names the graph
+or one of its versions is cleared. A default only sets the first selection, so
+when it is cleared, a person picks again and no run breaks.
 
 ## Tuple set column names are labels
 
-A tuple set fills a rule set's `TUPLE(…)` declarations. Matching is
-**positional** — arity plus any ground terms in the declaration — and column
-names are ignored, exactly as rule-to-rule tuple flow works.
+A tuple set fills the `TUPLE(…)` declarations of a rule set. Matching is
+**by position**: the arity, and any ground terms in the declaration. Column
+names have no effect. Tuples that flow from one rule to another match in the
+same way.
 
-A `TupleSetVersion` carries `columns` and keeps carrying them, because names are
-genuinely useful for reading a table, diffing two versions, surviving a CSV
-import, and pre-filling a conversion. They are simply **labels**, not
-identifiers, and the page says so where the labels are edited.
+A `TupleSetVersion` has `columns`. Names help you read a table, compare two
+versions, keep the headers of a CSV import, and pre-fill a conversion. They are
+**labels** only, and the screen where you edit them says so.
 
-- **Never make a label load-bearing.** No matching, no verdict and no execution
-  path reads `columns`. A label that quietly acquires meaning is worse than no
-  label, because it teaches a rule that only holds sometimes.
-- **The bind-time notice is the only place names have any consequence**, and the
-  consequence is a sentence: arity mismatch is an error; an info line notes that
-  matching is positional and the labels are ignored; it escalates to a warning
-  only when labels exist and **collide** — the set's columns read `y | x`
-  against a declaration reading `?x ?y` — because that is exactly where someone
-  believes name-matching is happening.
+- **No code reads `columns`** for matching, for a verdict, or for execution. If
+  a label had an effect in some cases only, users would learn a rule that is
+  not always true.
+- **The bind-time notice is the only place where names have an effect**, and
+  the effect is a message:
+  - An arity mismatch is an error.
+  - An info line says that matching is by position and that labels have no
+    effect.
+  - The info line becomes a warning only when labels exist and are in a
+    different order from the declaration. For example, the columns of the set
+    are `y | x` and the declaration is `?x ?y`. A person who sees this probably
+    expects matching by name.
 
-## Conversions between the two table shapes
+## Conversions between the two table forms
 
-Both shapes are SPARQL Results JSON, so each direction is a projection plus one
-question. Both are explicit, user-invoked, and record `copiedFrom` where a new
-entity is created, so "used by" can be answered loosely without pins.
+Both forms are SPARQL Results JSON, so each conversion is a projection and one
+question. A person starts each conversion. When a conversion creates a new
+entity, it records `copiedFrom`, so "used by" can be answered without pins.
 
-**Tuple set → argument table.** The dialog asks for the variable name each
-column fills, pre-filled from the tuple set's labels and marked as unverified —
-they are labels, so a pre-fill is a guess, and the person confirms it. The
-existing `fits / partial / mismatch` verdict judges the result. Second question,
-easy to forget: a rule-set table may lead with a ground term
-(`TUPLE(:seed, ?x, ?y)`), so **strip the leading fixed column** is offered.
+**Tuple set to argument table.** The dialog asks which variable each column
+fills. It pre-fills the names from the labels of the tuple set, and marks them
+as unverified, because a label is a guess. The person confirms each one. The
+`fits / partial / mismatch` verdict then checks the result. A second option: a
+rule-set table can start with a ground term (`TUPLE(:seed, ?x, ?y)`), so the
+dialog offers **strip the leading fixed column**.
 
-**Argument table → tuple set.** The names are kept — as labels. The honest
-warning is not "we will drop your names" but that rule sets match by arity and
-position, the names are kept so you can read the table, and they are never used
-when it fills a `TUPLE(…)`. And the mirror question: **prepend a fixed IRI**,
-for a declaration that leads with a ground term.
+**Argument table to tuple set.** The names are kept, as labels. The dialog says
+that rule sets match by arity and position, that the names are kept so you can
+read the table, and that a `TUPLE(…)` never uses them. The second option is the
+reverse of the one above: **prepend a fixed IRI**, for a declaration that starts
+with a ground term.
 
-Neither direction is a link. A conversion is a copy, taken once, and the two
-entities go their own ways afterwards — which is the whole reason this is safe
-where a save-time side effect was not.
+A conversion makes a copy, once. After it, the two entities change separately,
+and neither has a link to the other. For this reason a conversion is safe. An
+automatic copy at save time was not.
 
-## What the rail shows: origin, not tags
+## Origin in the rail
 
-What was missing was the ability to tell at a glance where something came
-from. The section sidebar's grouping control offers a third mode, **Origin**:
+The grouping control of the section sidebar has a mode that shows where each
+entry came from, **Origin**:
 
-- *Composed here* — made with `+ New` on the rail.
-- *From queries* / *From groups* — an argument set born on a callable's screen,
-  read off its `targetEntity`.
+- *Composed here*: made with `+ New` on the rail.
+- *From queries* / *From groups*: an argument set made on the screen of a
+  callable, read from its `targetEntity`.
 
-A graph is always *Composed here*: no callable mints one.
+A graph is always *Composed here*, because no callable makes one.
 
-Bucket by kind of origin, not one cluster per callable, or a real library
-shatters into dozens of single-row clusters. The callable stays in the subtitle.
+The groups are by kind of origin. One group for each callable would split a real
+library into dozens of groups with one row each. The subtitle of each row names
+the callable.
 
-**Not tags.** Tags are user-authored and library-wide. Auto-tagging by
-provenance makes a tag mean both *I decided this* and *the system asserted
-this*, which destroys the one job tags do well. Origin is how you **find**
-things; tags are how you **mean** things.
+Origin is separate from tags. A person writes tags, and tags apply across the
+library. If sqlib added tags for provenance, a tag could mean a decision by a
+person or a fact from the system, and a reader could not tell which. Use Origin
+to **find** an entry, and tags to **classify** it.
 
-And origin is deliberately a weak organiser: a set made on one query is
-legitimately what another wants. Scope is provenance, not a fence — which is why the
-argument set switcher computes a fits/partial/mismatch verdict at all.
+Origin does not limit use. A set made on one query can be correct for another
+query. For this reason the argument set switcher calculates a
+fits/partial/mismatch verdict.
 
-## One browser-local draft store, keyed by section
+## One draft store in the browser, keyed by section
 
-Unsaved argument sets used to live in a store of their own, kept separate so
-that argument sets would stay out of the nav rail. That reason was retired the
-day an argument set became a rail entity, and the split outlived it: the query
-screen wrote to one key and the rail read another, so a set made on a query
-never reached the rail in that session, appeared after a reload — which made a
-missing write read as a caching glitch — and could lose its edits to the next
-one.
+Unsaved argument sets were once in a separate store, so that argument sets did
+not show in the nav rail. When an argument set became a rail entity, that reason
+ended, but the separate store stayed. The query screen wrote to one key and the
+rail read another. A set made on a query therefore did not reach the rail in the
+same session. It appeared after a reload, so a missing write looked like a cache
+problem. The next set could also overwrite its edits.
 
-There is one browser-local draft store, keyed by section
-(`useCallableDrafts`), and `useArgumentSetDrafts` is a view over its
-`argumentSet` section rather than a second store.
+The browser now has one draft store, keyed by section (`useCallableDrafts`).
+`useArgumentSetDrafts` is a view of its `argumentSet` section.
 
-## Still open
+## Open items
 
-- **Ad-hoc runs and the size ceiling.** Running is not saving, so a big pasted
-  graph can be executed repeatedly without ever becoming an entity. That is
-  correct, and it means the "this call carries 40 MB of RDF, save it as a graph"
-  nudge belongs on the run path, not only on save.
-- **`immutable` outlived the freeze vocabulary.** The flag carries no
-  information now that versions are created frozen.
+- **Ad-hoc runs and the size limit.** Running is not saving, so you can run a
+  large pasted graph many times and it never becomes an entity. This is correct.
+  It means that a prompt such as "this call carries 40 MB of RDF, save it as a
+  graph" must be on the run path as well as on save.
+- **`immutable` is no longer needed.** Versions are created frozen, so the flag
+  carries no information.
