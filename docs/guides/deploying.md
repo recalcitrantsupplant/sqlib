@@ -245,8 +245,8 @@ the UI on any static file host.
   settings. Those settings do not reach the browser, so the SPA still gets the
   URL of its API from `/config.json`.
 - `main.parameters.example.json` and `swa.parameters.example.json` are the
-  shapes to copy. A real parameters file contains registry passwords and
-  backend credentials. Do not put it in version control.
+  shapes to copy. A real parameters file contains the registry password and
+  the SPARQL store password. Do not put it in version control.
 
 ## Authentication: one broker in front
 
@@ -509,12 +509,14 @@ can do. `ruleTuples` is off, because its extension is not part of SHACL 1.2
 Rules. [Feature flags](../reference/feature-flags.md) gives the full list, with
 defaults.
 
-**Backend credentials are entity data.** A registered HTTP backend can have a
-username and password, and the library store holds them. The store therefore
-contains secrets. Give it a volume with restricted access. Supply the endpoint
-credentials of the library (`LIBRARY_STORAGE_SPARQL_USERNAME` / `_PASSWORD`)
-through the secret mechanism of the platform. Do not use a plain environment
-variable.
+**Backend credentials come from the environment.** A registered backend
+stores an `authEnvKey`, which is a name and not a secret. At execution, the
+server reads `SQLIB_BACKEND_<KEY>_USERNAME` and `SQLIB_BACKEND_<KEY>_PASSWORD`,
+or `SQLIB_BACKEND_<KEY>_AUTH_HEADER`, from its own environment
+(`packages/api/src/lib/backendAuth.ts`). The library store therefore holds no
+backend credentials. Supply these variables, and the endpoint credentials of
+the library (`LIBRARY_STORAGE_SPARQL_USERNAME` / `_PASSWORD`), through the
+secret mechanism of the platform. Do not use a plain environment variable.
 
 **ETL output is a filesystem write.** If ETL is on, `ETL_OUTPUT_DIR` must exist,
 and uid 1000 must be able to write to it. It gets one file for each execution,
