@@ -124,6 +124,41 @@ export const queryVersionShape = {
   ])
     .optional()
     .nullable(),
+  ogc: z
+    .object({
+      collectionId: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/),
+      title: z.string().min(1),
+      description: z.string().optional(),
+      mode: z.enum(['values', 'cql2']),
+      feature: z.object({ var: z.string().min(1), base: z.string().min(1) }).strict(),
+      geometry: z.string().min(1).nullable().optional(),
+      point: z.tuple([z.string().min(1), z.string().min(1)]).optional(),
+      geometrySources: z
+        .array(z.object({ href: z.string(), type: z.string().optional(), title: z.string().optional() }).strict())
+        .optional(),
+      params: z.record(z.string(), z.unknown()).optional(),
+      outputs: z.record(z.string(), z.string()).optional(),
+      cql: z.record(z.string(), z.unknown()).optional(),
+      queryables: z
+        .record(
+          z.string(),
+          z
+            .object({
+              var: z.string().optional(),
+              type: z.enum(["string", "number", "integer", "boolean", "date-time", "uri"]).optional(),
+              title: z.string().optional(),
+              description: z.string().optional(),
+            })
+            .strict(),
+        )
+        .optional(),
+      pageSize: z.object({ default: z.number().int().min(1).optional(), max: z.number().int().min(1).optional() }).strict().optional(),
+      extent: z.record(z.string(), z.unknown()).optional(),
+      omit: z.array(z.string()).optional(),
+    })
+    .strict()
+    .optional()
+    .nullable(),
   defaultBackend: optionalIriString,
 };
 // StartNode, projected from the entity model

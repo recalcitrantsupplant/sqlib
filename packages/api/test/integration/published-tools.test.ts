@@ -261,6 +261,22 @@ RULE { ?a ex:neighbour ?b } WHERE { ?a ex:city ?city . ?b ex:city ?city . FILTER
       expect(update.status).toBe(400);
     });
 
+    it('picks the response format from f, in place of Accept', async () => {
+      const csv = await server.inject({ method: 'GET', url: '/tools/people/people-in-city?city=Perth&1=10&f=csv' });
+      expect(csv.statusCode).toBe(200);
+      expect(csv.headers['content-type']).toContain('text/csv');
+      expect(csv.body).toBe('name\r\nCara\r\nAlice\r\n');
+
+      // The people have no geometry, so GeoJSON is refused with the reason.
+      const geojson = await send(server, 'GET', '/tools/people/people-in-city?city=Perth&f=geojson');
+      expect(geojson.status).toBe(406);
+      expect(geojson.body.error).toContain('GeoJSON');
+
+      const unknown = await send(server, 'GET', '/tools/people/people-in-city?city=Perth&f=shapefile');
+      expect(unknown.status).toBe(400);
+      expect(unknown.body.error).toContain('f: "shapefile" is not a format');
+    });
+
     it('refuses a missing required parameter and an unknown one before anything runs', async () => {
       const missing = await send(server, 'GET', '/tools/people/people-in-city');
       expect(missing.status).toBe(400);
@@ -285,6 +301,7 @@ RULE { ?a ex:neighbour ?b } WHERE { ?a ex:city ?city . ?b ex:city ?city . FILTER
         '1',
         'city',
         'backendId',
+        'f',
       ]);
       const withData = document.body.paths['/tools/people/people-in-city'].post;
       expect(Object.keys(withData.requestBody.content['application/json'].schema.properties)).toEqual([

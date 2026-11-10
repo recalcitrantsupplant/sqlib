@@ -1,0 +1,24 @@
+PREFIX geo: <http://www.opengis.net/ont/geosparql#>
+PREFIX ex:  <https://example.org/ns#>
+SELECT ?feature ?geom ?name ?height WHERE {
+  VALUES ?feature { UNDEF }
+  VALUES (?minx ?miny ?maxx ?maxy) { (UNDEF UNDEF UNDEF UNDEF) }
+  VALUES (?start ?end) { (UNDEF UNDEF) }
+  VALUES ?name { UNDEF }
+  VALUES ?skip { UNDEF }
+  ?feature a ex:Building ;
+           ex:name ?name ;
+           ex:minLon ?x0 ; ex:minLat ?y0 ; ex:maxLon ?x1 ; ex:maxLat ?y1 .
+  OPTIONAL {
+    ?feature geo:hasGeometry/geo:asWKT ?geom .
+    FILTER(!BOUND(?skip) || !?skip)
+  }
+  OPTIONAL { ?feature ex:height ?height }
+  OPTIONAL { ?feature ex:surveyed ?when }
+  FILTER(!BOUND(?minx) || (?x1 >= ?minx && ?x0 <= ?maxx && ?y1 >= ?miny && ?y0 <= ?maxy))
+  FILTER(!BOUND(?start) || (BOUND(?when) && ?when >= ?start))
+  FILTER(!BOUND(?end)   || (BOUND(?when) && ?when <= ?end))
+}
+ORDER BY ?feature
+LIMIT 0001
+OFFSET 0002
