@@ -2,72 +2,90 @@
 
 ## Reporting a vulnerability
 
-Email **dcchabgood@gmail.com** with a description of the issue, the version or
-commit you tested, and the steps to reproduce it.
+Email **dcchabgood@gmail.com**. Give a description of the issue, the version or
+commit that you tested, and the steps to reproduce it.
 
-Do not open a public issue for a suspected vulnerability. Use the email address
-above first, and give us a chance to respond before disclosing.
+Do not open a public issue for a suspected vulnerability. Send an email first,
+and give us time to respond before you disclose it.
 
-sqlib is a pre-1.0 project maintained by a very small team. We will acknowledge
-your report and tell you what we intend to do about it, but we do not offer a
-response-time commitment, a fix deadline, or a bounty.
+sqlib is a pre-1.0 project with a very small team. We will acknowledge your
+report, and tell you what we will do about it. We do not offer a response time,
+a fix deadline, or a bounty.
 
 ## Scope
 
-In scope: the server (`packages/api`, `packages/mcp-server`) and its REST and
-MCP surfaces; the Nuxt web application (`packages/web`); the SRL parser and
-compiler (`packages/srl`); the static-export runtime (`packages/runtime`,
-`packages/runtime-oxigraph`); the container image built from the repository-root
-`Dockerfile`; and the build and release scripts under `scripts/`.
+In scope:
 
-Out of scope: the known posture described below, which is documented rather than
-accidental; findings that depend on a feature the operator has deliberately
-enabled (ETL and the assistant, both off by default); SPARQL endpoints you
-configure as backends, which are third-party systems; and vulnerabilities in
-third-party dependencies, which should go to the upstream project, though we
-want to hear if sqlib's use of one makes it exploitable where it otherwise
-would not be.
+- the server (`packages/api`, `packages/mcp-server`) and its REST and MCP
+  interfaces;
+- the Nuxt web application (`packages/web`);
+- the SRL parser and compiler (`packages/srl`);
+- the static-export runtime (`packages/runtime`, `packages/runtime-oxigraph`);
+- the container image built from the `Dockerfile` at the root of the
+  repository;
+- the build and release scripts under `scripts/`.
 
-## Posture you need to know before deploying
+Out of scope:
 
-**`/mcp` and the in-app assistant perform no caller authorization.** Both are
-documented in the code as blocked on a caller-authorization model that has been
-designed but not shipped. Anyone who can reach `/mcp` can call the MCP tools,
-which read and write the library and execute queries against its backends.
-Anyone who can reach the assistant endpoint can do the same through it. Treat
-network reachability as the only access control these two doors have, and place
-the server behind something that enforces your own.
+- the known security properties described below, which are documented
+  intentionally;
+- findings that depend on a feature that the operator turned on intentionally
+  (ETL and the assistant, both off by default);
+- SPARQL endpoints that you configure as backends, which are third-party
+  systems;
+- vulnerabilities in third-party dependencies. Report these to the upstream
+  project. Tell us if the way sqlib uses a dependency makes it exploitable
+  where it otherwise would not be.
 
-The REST API has an auth layer (`SQLIB_AUTH_MODE`, with modes `disabled`,
-`dry-run` and `required`, plus JWT issuers and per-library and per-backend
-grants), but it defaults to `disabled`, in which every request is given a
-full-access context. `/health` and the root path are always public, and the
-OpenAPI browser at `/docs` is public unless `protectDocs` is turned on.
+## What to know before you deploy
 
-**ETL and the assistant are off by default, for stated reasons.** ETL
-(`FEATURE_ETL`, `FEATURE_PLAYGROUND_ETL`) executes arbitrary DuckDB SQL, which
-is a read primitive against the host filesystem and, with the httpfs extension,
-an outbound request primitive. The assistant (`FEATURE_ASSISTANT`) is
-unauthenticated, calls a third-party model provider, and can reach any
-configured backend. None of the three should be turned on because an upgrade
-made them available; turn one on when you have decided your deployment can carry
+**Authentication is off by default.** The REST API has an auth layer:
+`SQLIB_AUTH_MODE`, with the modes `disabled`, `dry-run`, `required` and
+`anonymous`, JWT issuers, and grants for each library and backend. The default
+is `disabled`, which gives each request a full-access context. `/health` and the
+root path are always public. The OpenAPI browser at `/docs` is public unless
+`SQLIB_AUTH_PROTECT_DOCS=true`.
+
+**`/mcp` has no authentication of its own.** It is on the same Fastify instance
+as the API, so the API auth mode applies to it. Under `required`, sqlib refuses
+a request with no bearer token, and each tool runs with the grants of the
+caller. Under the default `disabled` mode, any person who can reach `/mcp` can
+call the MCP tools. These tools read and write the library, and run queries
+against its backends.
+
+**The in-app assistant has no authorization.** Any person who can reach the
+assistant endpoint can use it to do the same as through `/mcp`. In a default
+deployment, network access is the only access control for these two routes. Put
+the server behind a layer that enforces your own access control. See
+[the security model](docs/explanation/security-model.md).
+
+**ETL and the assistant are off by default.**
+
+- ETL (`FEATURE_ETL`, `FEATURE_PLAYGROUND_ETL`) runs arbitrary DuckDB SQL. This
+  SQL can read the host filesystem, and, with the httpfs extension, make
+  outbound requests.
+- The assistant (`FEATURE_ASSISTANT`) has no authentication, calls a
+  third-party model provider, and can reach any configured backend.
+
+Do not turn on any of the three because an upgrade made it available. Turn one
+on only when you have decided that your deployment can accept the risk.
+
+**Backend credentials come from the environment.** A `Backend` entity stores an
+`authEnvKey`, which is a name and not a secret. At execution, the server reads
+`SQLIB_BACKEND_<KEY>_USERNAME` and `SQLIB_BACKEND_<KEY>_PASSWORD`, or
+`SQLIB_BACKEND_<KEY>_AUTH_HEADER`, from its own environment, and builds the
+`Authorization` header from them (`packages/api/src/lib/backendAuth.ts`). sqlib
+writes no username, password or header value to the library store. An export of
+a library, or a copy of its store, therefore has no credentials. A person who
+can run a query against a backend does use those credentials. For this reason,
+the routes without authorization above are important.
+
+**Query parameters are spliced into the parsed query.** sqlib inserts the values
+supplied at execution as `VALUES` blocks into the parsed query. It never joins
+them into the query text as strings. sqlib also writes a constant parameter
+(`VALUES ?000word { UNDEF }`) into the triple patterns in the scope of its
+clause, as the same term node. It then parses the result again before it sends
 it.
 
-**Backend credentials come from the environment, not from the library.** A
-`Backend` entity stores an `authEnvKey` — a name, not a secret. At execution the
-server reads `SQLIB_BACKEND_<KEY>_USERNAME` and `SQLIB_BACKEND_<KEY>_PASSWORD`,
-or `SQLIB_BACKEND_<KEY>_AUTH_HEADER`, from its own environment and builds the
-`Authorization` header from them (`packages/api/src/lib/backendAuth.ts`). No
-username, password or header value is written to the library store, so exporting
-a library or copying its store does not carry credentials with it. Anyone who
-can execute a query against a backend is, however, using those credentials —
-which is the reason the unauthenticated doors above matter.
-
-**Query parameters are spliced, not concatenated.** Values supplied at execution
-are inserted as `VALUES` blocks into the parsed query, rather than being
-substituted into query text. A constant parameter (`VALUES ?000word { UNDEF }`)
-is also written, as the same term node, into the triple patterns in the reach of
-its clause, and the result is parsed again before it is sent.
-
-**Nothing has been released.** No published artifact exists to patch, and there
-is no supported-versions table. Fixes land on `main`.
+**Fixes go to `main`.** Releases are tagged, but there is no table of supported
+versions. Fixes merge to `main`.

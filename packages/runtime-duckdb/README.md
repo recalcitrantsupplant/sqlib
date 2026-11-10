@@ -45,4 +45,5 @@ message. The API passes its pino logger. Omit the option to stay silent.
 
 ## Status
 
-Private to the workspace. It becomes publishable with the command-line tool.
+To do: publish to npm, with the command-line tool. Until then, the package is
+private to the workspace.

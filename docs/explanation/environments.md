@@ -20,7 +20,7 @@ per entity.
 | --- | --- |
 | Query, query group, rule set | Yes |
 | Data graph, tuple set | No. They are inputs, and a test case ties inputs to versions. |
-| Test, benchmark | No. They are evidence for a promotion, not things to promote. |
+| Test, benchmark | No. They give evidence for a promotion. |
 
 The name `latest` is reserved. It is the implicit environment that every entity
 has: its `currentVersion`. A library cannot define an environment named
@@ -30,14 +30,14 @@ Environments are opt-in. A library that defines none has only `latest`.
 
 A new environment starts empty, unless `POST /environments` names
 `startFrom`: `latest` copies the current version of every query, group and rule
-set in the library (group-only queries excepted), and an environment id copies
-that environment's pointers. Seeding needs only `control`, the same as
-creating: the new environment has no grants yet, so nobody can run or promote
+set in the library, except group-only queries. An environment id copies the
+pointers of that environment. Seeding needs only `control`, the same as
+creating. The new environment has no grants yet, so nobody can run or promote
 through it. The web app starts new environments from `latest` by default. An
-empty environment is allowed; a run that names it gets 409 until something is
+empty environment is allowed. A run that names it gets 409 until something is
 promoted.
 
-Why the pointers live on the environment, not on the query:
+The pointers are on the environment, and the query holds none. This has four results:
 
 - The `Query`, `QueryGroup` and `RuleSet` schemas do not change.
 - Deleting an environment removes all its pointers in one step.
@@ -70,7 +70,7 @@ Published tools use it too. An explicit name, `latest` included, always wins.
 A library with no environments ignores the default, so a server set to `prod`
 does not break those libraries.
 
-A backend is never chosen by the environment. `defaultBackend` on an
+The environment never chooses the backend. `defaultBackend` on an
 environment is a suggestion for clients, the same as on a query or a library.
 
 ## Moving a pointer
@@ -103,7 +103,7 @@ switcher ("Manage environments…"), the environment badge on the rail and the
   who may promote to or run in it, then each query, group and rule set that
   differs from the environment before it, with Move (or Add) per row and
   Move all. The rest folds into one "in step" line. Each row's menu moves the
-  pointer to any version or removes it; every move sends `from`. "Compare
+  pointer to any version or removes it. Each move sends `from`. "Compare
   all" shows every entity against every environment in one table. A
   `control` holder adds, edits, reorders and deletes environments, or creates
   a whole chain at once for a library with none. `?env=` keeps the selection.
@@ -141,9 +141,9 @@ Environments add one grant resource kind, `environment`, with two modes.
 
 | Grant | Allows |
 | --- | --- |
-| `control` on the library | Create, rename and delete its environments, and administer their grants. It does not move pointers. |
+| `control` on the library | Create, rename and delete its environments, and administer their grants. Moving pointers needs `promote`. |
 | `promote` on an environment | Move that environment's pointers. Nothing else. |
-| `execute` on an environment | Run exactly the versions that environment points to. Not the current version, not ad hoc text, not edits. |
+| `execute` on an environment | Run only the versions that environment points to. The current version, ad hoc text and unsaved edits are refused. |
 | `execute` on the library | Run any version, as before. |
 
 So "may run what is in prod, and nothing else" is `read` on the library plus
@@ -154,9 +154,9 @@ approving what goes into them are separate jobs.
 
 ## Export
 
-`GET /libraries/:id/export-bundle?environment=prod` exports the versions prod
-points to instead of the current ones. An entity with no version in prod is
-left out and reported. `latest` exports the current versions.
+`GET /libraries/:id/export-bundle?environment=prod` exports the versions that
+prod points to. The export leaves out each entity with no version in prod, and
+reports it. `latest` exports the current versions.
 
 ## Who made a version
 
@@ -171,6 +171,6 @@ with `modifiedBy` for the last change. See
 - Tests, benchmarks and ETL jobs that run versions use the library `execute`
   rule. They do not apply the environment `execute` rule.
 - A dynamic query node picks its query at run time. It runs that query's
-  current version, not the version the environment points to.
+  current version, and ignores the version that the environment points to.
 - Releases (a named snapshot of one environment) and `publishEnvironment` (the
   environment a library's published tools serve) are deferred.

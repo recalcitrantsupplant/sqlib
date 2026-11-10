@@ -1,8 +1,9 @@
 # UI Components Guide
 
-This document provides an overview of all installed shadcn/ui components and how to use them in your SPARQL Query Library UI.
+The shadcn/ui components in `src/components/ui/`, the shared pickers and filters
+built on them, and how to use each one in the sqlib UI.
 
-## 🎨 Installed Components (18 Total)
+## Installed components (18)
 
 ### Form Components
 
@@ -101,15 +102,19 @@ import {
 </template>
 ```
 
-#### **SearchSelect** — the app's entity picker
+#### **SearchSelect**: the entity picker
 Location: `src/components/shared/SearchSelect.vue`
 
-Prefer this over `Select` and over a native `<select>` **whenever the options
-are named entities** — backends, data graphs, tuple sets, argument sets,
-queries, libraries. It is a text box you type into: options are fuzzy-filtered
-and ranked (`src/lib/fuzzy.ts`), matched characters highlighted, arrows and
-Enter to choose. A short fixed vocabulary (a format, a sort order, a flow type)
-stays a plain `<select>` or a `SegmentedToggle` — there is nothing to spell.
+Use this for each choice of a **named entity**: backends, data graphs, tuple
+sets, argument sets, queries and libraries. Do not use `Select` or a native
+`<select>` for these. SearchSelect is a text box:
+
+- it filters and ranks the options with fuzzy matching (`src/lib/fuzzy.ts`);
+- it highlights the matched characters;
+- the arrow keys and Enter choose an option.
+
+For a short fixed vocabulary, such as a format, a sort order or a flow type,
+use a plain `<select>` or a `SegmentedToggle`. The user has nothing to type.
 
 ```vue
 <script setup>
@@ -129,35 +134,38 @@ import SearchSelect from '@/components/shared/SearchSelect.vue'
 </template>
 ```
 
-`variant="bare"` drops the box for callers that already draw one (a header
-strip). Choosing the empty row emits `''`, which is what a caller reading a
-`<select>`'s `value` already handled.
+`variant="bare"` removes the border, for a caller that draws its own, such as
+a header strip. The empty row emits `''`. This is the same value as the `value`
+of an empty `<select>`, so existing callers handle it.
 
-In tests: click the field, then click a row — `tests/e2e/search-select.ts` has
-`chooseSearchOption(page, testId, label)` for Playwright; unit tests click
-`[data-testid="<testId>-option"]`.
+In tests, click the field, then click a row:
+
+- Playwright: `chooseSearchOption(page, testId, label)` in
+  `tests/e2e/search-select.ts`;
+- unit tests: click `[data-testid="<testId>-option"]`.
 
 #### **Filtering a pane that keeps its own order**
 `fuzzyMatches(query, name, ...details)` from `src/lib/fuzzy.ts`
 
-The sidebars, trees and tables that filter in place — the section list, the
-navigation tree, backends, callables, the notebook, prefix rows — use the
-predicate rather than `fuzzyFilter`, because their order is already decided
-(clustered by kind or tag, sorted by name) and a filter should remove rows, not
-shuffle them. Fuzzy on the name; a description, endpoint or namespace passed
-after it is a plain substring test, since a subsequence spread across prose or
-a URL matches nearly everything.
+Some sidebars, trees and tables filter in place: the section list, the
+navigation tree, backends, callables, the notebook and the prefix rows. They
+use this predicate, and not `fuzzyFilter`. Their order is already set, by kind
+or tag and then by name. A filter must remove rows, and keep the order.
 
-`useDataTable` is the one filter that stays substring throughout: it searches
-result *values*, where a literal fragment of an IRI is what you mean.
+The predicate uses fuzzy matching on the name only. For a description, an
+endpoint or a namespace after it, it uses a plain substring test. A fuzzy
+subsequence matches almost all prose and URLs.
 
-#### **FilterBox** — the same idea over a list
+`useDataTable` is the only filter that uses substring tests for all fields. It
+searches result *values*, where a user types a literal part of an IRI.
+
+#### **FilterBox**: a filter for a list
 Location: `src/components/shared/FilterBox.vue`
 
-For lists that are already on screen (a selector dialog, a picker panel, an
-axis of checkboxes): the box is shared, the filtering stays in the caller
-through `fuzzyFilter`, and it appears only once a list is long enough that
-reading it is the slow part.
+Use it for a list that is already on screen, such as a selector dialog, a
+picker panel or an axis of checkboxes. The box is shared. The caller does the
+filtering, with `fuzzyFilter`. The box appears only when the list is too long
+to read quickly.
 
 #### **Checkbox**
 Location: `src/components/ui/checkbox/Checkbox.vue`
@@ -551,7 +559,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 
 ---
 
-## 🎯 Common Use Cases for SPARQL Query Library
+## Common use cases
 
 ### 1. Query Editor Page
 
@@ -678,9 +686,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 
 ---
 
-## 🚀 Quick Reference
+## Quick reference
 
-### Import Patterns
+### Import patterns
 
 ```typescript
 // Single component
@@ -715,7 +723,7 @@ const isActive = ref(true)
 
 ---
 
-## 📚 Additional Resources
+## Further resources
 
 - **shadcn/ui Vue Docs**: https://shadcn-vue.com
 - **Reka UI Docs**: https://reka-ui.com
@@ -724,12 +732,12 @@ const isActive = ref(true)
 
 ---
 
-## 💡 Tips
+## Tips
 
-1. **Use `as-child` prop** when you need to pass custom components to trigger slots
-2. **Toast notifications** work great for save confirmations and error messages
-3. **Combine Dialog + Form** components for create/edit modals
-4. **Use Skeleton** components while loading data
-5. **DropdownMenu** is perfect for row actions in tables
-6. **Tabs** are ideal for query editor, results, and history views
-7. **Accordion** works well for collapsible sidebar navigation
+- Use the `as-child` prop to pass a custom component to a trigger slot.
+- Use a toast for a save confirmation or an error message.
+- Use a Dialog with form components for a create or edit modal.
+- Show a Skeleton while data loads.
+- Use a DropdownMenu for the actions of a table row.
+- Use Tabs for the query editor, results and history views.
+- Use an Accordion for collapsible sidebar navigation.

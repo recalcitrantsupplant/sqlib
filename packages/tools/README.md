@@ -1,38 +1,37 @@
 # @sparql-query-lib/tools
 
-The tool catalogue: 89 tools covering backends, libraries, queries, query
-groups, execution, raw SPARQL, patches, input/output detection, argument sets,
-data blocks, rules and rule sets. 48 of them are marked read-only. Each tool is
-a name, a description, a JSON Schema for its arguments, and the REST request it
-maps onto.
+The tool catalogue. It has 107 tools for backends, libraries, queries, query
+groups, execution, raw SPARQL, patches, input and output detection, argument
+sets, data blocks, rules and rule sets. 65 of them are marked read-only. Each
+tool has a name, a description, a JSON Schema for its arguments, and the REST
+request that it maps to.
 
-`private: true`; not published.
+The package is `private: true`, and is not published.
 
 ## How it is used
 
-`packages/mcp-server` wraps this catalogue as MCP tools, and the API's in-app
-assistant drives the same registry directly. Nothing here is MCP-specific: the
-package defines the tools and the registry that validates arguments, calls the
-API and hands back the result, and each consumer supplies the two pieces the
-registry does not own.
+`packages/mcp-server` publishes this catalogue as MCP tools. The in-app
+assistant of the API uses the same registry directly. The package has no MCP
+code. It defines the tools, and a registry that validates arguments, calls the
+API and returns the result. Each consumer supplies two parts that the registry
+does not own:
 
-- `callApi` — how to reach the routes. In practice `app.inject`, in the same
-  process, for both consumers.
-- `compile` — the ajv instance to validate arguments with. The API's own, so
-  that `coerceTypes` and `useDefaults` behave exactly as they do in production.
+- `callApi`: how to reach the routes. Both consumers use `app.inject`, in the
+  same process.
+- `compile`: the ajv instance that validates arguments. This is the instance of
+  the API, so `coerceTypes` and `useDefaults` work as they do in production.
 
-Injecting both is what keeps this package free of a dependency on
-`packages/api`. Its only workspace dependency is
-`@sparql-query-lib/contracts`, whose generated schemas the tool definitions
-reuse.
+Because the consumers supply both parts, this package does not depend on
+`packages/api`. Its only workspace dependency is `@sparql-query-lib/contracts`.
+The tool definitions use its generated schemas.
 
 ## Files
 
-- `src/tools.ts` — the catalogue, one `defineTool` call per tool.
-- `src/tool-schemas.ts` — argument schemas.
-- `src/registry.ts` — validation, dispatch, name rewriting, error formatting.
-- `src/guide.ts` — the server-level instructions string an MCP client puts in
-  the model's prompt before it sees any tool.
+- `src/tools.ts`: the catalogue, with one `defineTool` call for each tool.
+- `src/tool-schemas.ts`: the argument schemas.
+- `src/registry.ts`: validation, dispatch, name rewriting and error formatting.
+- `src/guide.ts`: the server instructions. An MCP client puts them in the
+  prompt of the model, before the model sees a tool.
 
 ## Build and test
 
@@ -41,5 +40,5 @@ pnpm --filter @sparql-query-lib/tools build
 pnpm --filter @sparql-query-lib/tools test
 ```
 
-Adding or renaming a tool changes what every MCP client sees, so run the MCP
-server's tests as well.
+A new or renamed tool changes what each MCP client sees. Run the tests of the
+MCP server also.

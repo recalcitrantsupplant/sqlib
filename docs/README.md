@@ -1,65 +1,69 @@
 # sqlib documentation
 
-Start with [concepts.md](concepts.md). It defines Library, Query, QueryGroup,
-DataGraph, TupleSet, ArgumentSet, RuleSet and the rest of the vocabulary that
-every other page assumes.
+Read [concepts.md](concepts.md) first. It defines Library, Query, QueryGroup,
+DataGraph, TupleSet, ArgumentSet, RuleSet and the other terms that the rest of
+the pages use.
 
-## Guides — doing something
+## Guides
 
-- [guides/running-and-configuring.md](guides/running-and-configuring.md) — how do I start a server, and which knobs decide what it does?
-- [guides/rest-api-walkthrough.md](guides/rest-api-walkthrough.md) — how do I create a library, save a parameterised query and run it over HTTP?
-- [guides/query-groups.md](guides/query-groups.md) — how do I chain queries on the canvas and feed one's results into the next?
-- [guides/notebooks.md](guides/notebooks.md) — how do I write a runnable story about a library, with prose between the queries and each result named?
-- [guides/rules-and-srl.md](guides/rules-and-srl.md) — how do I write SHACL 1.2 inference rules and run them against a graph?
-- [guides/mcp-clients.md](guides/mcp-clients.md) — how do I point an MCP client at the server and what can it then do?
-- [guides/publishing-tools.md](guides/publishing-tools.md) — how do I publish a library's queries as an application's MCP tools and HTTP routes?
-- [guides/publishing-ogc-collections.md](guides/publishing-ogc-collections.md) — how do I serve a query as an OGC API Features collection for QGIS and other map clients?
-- [guides/mcp-app.md](guides/mcp-app.md) — how do I edit, run and save a query from inside a chat client, how do I teach SPARQL rules there with a library laid out as lessons, and how do I test that locally?
-- [guides/static-export.md](guides/static-export.md) — how do I export a library as a self-contained page that runs without the server?
-- [guides/testing-and-conformance.md](guides/testing-and-conformance.md) — how do I attach tests to a query or rule set and run a conformance suite?
-- [guides/etl.md](guides/etl.md) — how do I build RDF from tabular sources with DuckDB SQL?
-- [guides/prefixes.md](guides/prefixes.md) — how do I manage namespace prefixes across a library?
-- [guides/deploying.md](guides/deploying.md) — how do I run the container image and the static web app for real?
-- [guides/observability.md](guides/observability.md) — how do I send traces, metrics and logs somewhere, and find slow queries?
+Each guide covers one task.
 
-## Reference — looking something up
+- [guides/running-and-configuring.md](guides/running-and-configuring.md): start a server, and choose where the library lives and what queries run against.
+- [guides/rest-api-walkthrough.md](guides/rest-api-walkthrough.md): create a library, save a parameterised query and run it over HTTP.
+- [guides/query-groups.md](guides/query-groups.md): chain queries on the canvas, and send the results of one query into the next.
+- [guides/notebooks.md](guides/notebooks.md): write a runnable notebook about a library, with prose between the queries and a name for each result.
+- [guides/rules-and-srl.md](guides/rules-and-srl.md): write SHACL 1.2 inference rules and run them against a graph.
+- [guides/mcp-clients.md](guides/mcp-clients.md): connect an MCP client to the server, and see which tools it gets.
+- [guides/publishing-tools.md](guides/publishing-tools.md): publish the queries of a library as MCP tools and HTTP routes for an application.
+- [guides/publishing-ogc-collections.md](guides/publishing-ogc-collections.md): serve a query as an OGC API Features collection for QGIS and other map clients.
+- [guides/mcp-app.md](guides/mcp-app.md): edit, run and save a query inside a chat client, teach SPARQL rules there with a lesson library, and test this locally.
+- [guides/static-export.md](guides/static-export.md): export a library as a self-contained page that runs without the server.
+- [guides/testing-and-conformance.md](guides/testing-and-conformance.md): attach tests to a query or rule set, and run a conformance suite.
+- [guides/etl.md](guides/etl.md): build RDF from tabular sources with DuckDB SQL.
+- [guides/prefixes.md](guides/prefixes.md): manage namespace prefixes across a library.
+- [guides/deploying.md](guides/deploying.md): run the container image and the static web app in production.
+- [guides/observability.md](guides/observability.md): send traces, metrics and logs to a collector, and find slow queries.
 
-- [reference/configuration.md](reference/configuration.md) — every environment variable, its default and its effect.
-- [reference/feature-flags.md](reference/feature-flags.md) — the feature flags, their env vars, defaults and what each turns off.
-- [reference/entity-model.md](reference/entity-model.md) — every entity type, its fields and its relationships.
-- [reference/srl-language.md](reference/srl-language.md) — SRL syntax, its constructs and its constraints.
-- [reference/scripts.md](reference/scripts.md) — the package scripts and the scripts under `scripts/`, and what each one runs.
+## Reference
 
-## Explanation — understanding why
+- [reference/configuration.md](reference/configuration.md): each environment variable, its default and its effect.
+- [reference/feature-flags.md](reference/feature-flags.md): each feature flag, its environment variable, its default and what it turns off.
+- [reference/entity-model.md](reference/entity-model.md): each entity type, its fields and its relationships.
+- [reference/srl-language.md](reference/srl-language.md): SRL syntax, constructs and constraints.
+- [reference/scripts.md](reference/scripts.md): the package scripts and the scripts under `scripts/`, and what each one runs.
 
-- [explanation/architecture.md](explanation/architecture.md) — what the packages are, what runs in which process and how a request travels.
-- [explanation/versioning-and-immutability.md](explanation/versioning-and-immutability.md) — why entities split into a stable pointer and immutable versions, and what that buys.
-- [explanation/environments.md](explanation/environments.md) — named version pointers (dev, prod) inside a library, how a run resolves them, and who may move them.
-- [explanation/storage-and-caching.md](explanation/storage-and-caching.md) — where the library and the auth store live (SQLite by default), how the query backends compare, and what the in-memory cache is for.
-- [explanation/security-model.md](explanation/security-model.md) — what the auth layer enforces, what it does not, and why some doors are open.
-- [explanation/rdf-patch.md](explanation/rdf-patch.md) — how an update query's effect is derived before it is applied.
-- [explanation/inline-inputs-and-the-rail.md](explanation/inline-inputs-and-the-rail.md) — where a saved input lives, why pasting a graph into a call saves it as a graph, and what the rail shows about where things came from.
+## Explanation
 
-## Design proposals — not built yet
+- [explanation/architecture.md](explanation/architecture.md): the packages, the process that runs each one, and the path of a request.
+- [explanation/versioning-and-immutability.md](explanation/versioning-and-immutability.md): why each entity has a stable pointer and immutable versions, and what this gives you.
+- [explanation/environments.md](explanation/environments.md): named version pointers (dev, prod) in a library, how a run resolves them, and who can move them.
+- [explanation/storage-and-caching.md](explanation/storage-and-caching.md): where the library and the auth store live (SQLite by default), how the query backends compare, and what the in-memory cache does.
+- [explanation/security-model.md](explanation/security-model.md): what the auth layer enforces, what it leaves open, and the reasons.
+- [explanation/rdf-patch.md](explanation/rdf-patch.md): how sqlib calculates the effect of an update query before it applies it.
+- [explanation/inline-inputs-and-the-rail.md](explanation/inline-inputs-and-the-rail.md): where a saved input lives, why a graph pasted into a call is saved as a data graph, and what the rail shows about the source of each input.
 
-- [design/mcp-app.md](design/mcp-app.md) — a query bench rendered inline in a
-  chat client (MCP Apps / SEP-1865), where a session's queries are persisted as
-  ordinary library entities. The MVP is built; see
-  [guides/mcp-app.md](guides/mcp-app.md).
-- [design/assistant-surfaces.md](design/assistant-surfaces.md) — where a Claude
-  conversation can run (MCP connector, in-app with a user's key, hosted on
-  sqlib's key, local on a user's subscription), why hosted-plus-subscription is
-  not one of them, and which code serves each.
-- [design/auth-architecture.md](design/auth-architecture.md) — one
-  authorization server in front of sqlib as a pure resource server: how people,
-  MCP clients and unattended applications each get a token, why Google and
-  GitHub need a broker, and why auth stays free and in core.
+## Design records
+
+- [design/mcp-app.md](design/mcp-app.md): a query bench that a chat client
+  shows inline (MCP Apps, SEP-1865). The queries of a session are saved as
+  library entities. The MVP is built; see [guides/mcp-app.md](guides/mcp-app.md).
+- [design/assistant-surfaces.md](design/assistant-surfaces.md): the places
+  where a Claude conversation can run (MCP connector, in the app with the key of
+  a user, hosted on the sqlib key, local on the subscription of a user), why the
+  hosted surface does not use a subscription, and which code serves each one.
+- [design/auth-architecture.md](design/auth-architecture.md): one
+  authorization server in front of sqlib, with sqlib as a resource server only.
+  It covers how people, MCP clients and unattended applications get a token, why
+  Google and GitHub sign-in need a broker, and why auth is free and in core.
 
 ## Examples
 
-- [examples/sudoku-solver-ruleset.md](examples/sudoku-solver-ruleset.md) — a
-  worked rule set that solves a Sudoku by inference, end to end.
+- [examples/sudoku-solver-ruleset.md](examples/sudoku-solver-ruleset.md): a
+  rule set that solves a Sudoku by inference, from start to end.
 
-Contributor setup, the CI checks and commit conventions are in
-[CONTRIBUTING.md](../CONTRIBUTING.md). Reporting a vulnerability and the
-deployment security posture are in [SECURITY.md](../SECURITY.md).
+[writing-style.md](writing-style.md) gives the rules for the prose of these
+pages, the package READMEs, commit messages and code comments.
+
+[CONTRIBUTING.md](../CONTRIBUTING.md) gives contributor setup, the CI checks and
+the commit conventions. [SECURITY.md](../SECURITY.md) tells you how to report a
+vulnerability, and describes the security posture of a deployment.

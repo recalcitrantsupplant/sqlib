@@ -1,13 +1,12 @@
 # @sparql-query-lib/runtime-oxigraph
 
 An [Oxigraph](https://github.com/oxigraph/oxigraph) executor for
-[`@sparql-query-lib/runtime`](../runtime): run exported sqlib queries against an
-in-process store, with no SPARQL endpoint anywhere.
+[`@sparql-query-lib/runtime`](../runtime). It runs exported sqlib queries
+against a store in the same process, with no SPARQL endpoint.
 
-Separate from the runtime on purpose — this pulls in ~960 KiB of WebAssembly,
-two orders of magnitude more than the runtime itself. Import it lazily so an app
-that talks to an endpoint never pays for it, and a page that does need it still
-paints first:
+It is a separate package because it adds about 960 KiB of WebAssembly. That is
+two orders of magnitude more than the runtime. Import it lazily. An app that
+uses an endpoint then does not load it, and a page that uses it paints first:
 
 ```ts
 import { fromBundle } from '@sparql-query-lib/runtime';
@@ -20,36 +19,46 @@ const lib = fromBundle(bundle, { executor });
 const { results } = await lib.query('people-by-city').select({ arguments: [...] });
 ```
 
-`data` takes a Turtle string, or `{ content, format, baseIri }`, or an array of
-them. Pass `store` instead to reuse a store you already loaded, and `rdfFormat`
-to choose what CONSTRUCT and DESCRIBE return (default `text/turtle`).
+Options:
 
-Results come back in the same serialisations an HTTP endpoint returns — Oxigraph
-is asked to produce them — so this executor and `httpExecutor` are
-interchangeable behind the `Executor` interface.
+- `data` takes a Turtle string, `{ content, format, baseIri }`, or an array of
+  them.
+- `store` uses a store that you already loaded, in place of `data`.
+- `rdfFormat` sets the format of CONSTRUCT and DESCRIBE results. The default is
+  `text/turtle`.
+
+Oxigraph serialises the results in the same formats as an HTTP endpoint. This
+executor and `httpExecutor` are therefore interchangeable behind the `Executor`
+interface.
 
 The executor also has `update({ updateText })`, which runs a SPARQL UPDATE on
-the store. It is there whenever the store has an `update` method, which the
-real `Store` always does.
+the store. It is available when the store has an `update` method. The Oxigraph
+`Store` always has one.
 
-## The store you pass, and the one you get back
+## The store
 
-`store` is typed `OxigraphStore`: `query`, `load`, `size` and an optional `update`, which is all of
-Oxigraph's `Store` this package touches. It is a structural subset rather than a
-re-export, so nothing you write has to name Oxigraph's own types — and an
-Oxigraph `Store` satisfies it, checked by this package's build rather than left
-to hold. `executor.store` hands the store back, whether it was yours or the one
-made for `data`, so a second executor can share it.
+`store` has the type `OxigraphStore`: `query`, `load`, `size` and an optional
+`update`. These are the only parts of the Oxigraph `Store` that this package
+uses. The type is a structural subset, and not a re-export, so your code does
+not name the Oxigraph types. The build of this package checks that an Oxigraph
+`Store` fits the type.
+
+`executor.store` returns the store: yours, or the one made for `data`. A second
+executor can then share it.
 
 ## When to use it
 
-Ship the engine when the alternative is no answer at all, not merely a slower
-one: there is no endpoint to reach, the data must not leave the browser, or the
-page must work offline. Skip it when a reachable endpoint already holds the data,
-especially when that data is far too large to ship.
+Use it when there is no other way to get an answer:
 
-It is the same engine the sqlib API runs — the API's Oxigraph has always been the
-WebAssembly build — so results agree with the server's by construction.
+- there is no endpoint to reach;
+- the data must stay in the browser;
+- the page must work offline.
 
-Queries run on the calling thread. A heavy query will block the page; a Web
-Worker is the answer, and nothing here prevents one.
+Do not use it when an endpoint that you can reach holds the data. This applies
+most when the data is too large to send to the page.
+
+The sqlib API runs the same engine, because its Oxigraph is the WebAssembly
+build. Results are therefore the same as on the server.
+
+Queries run on the calling thread, so a heavy query blocks the page. To prevent
+this, run the executor in a Web Worker.

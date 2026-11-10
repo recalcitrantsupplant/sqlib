@@ -1,15 +1,15 @@
 # @sparql-query-lib/web
 
-The sqlib web UI: a Nuxt 4 application with `ssr: false`, served as a
-single-page app that talks to `@sparql-query-lib/api` over HTTP. It is a
-separate deployable from the server image.
+The sqlib web UI. It is a Nuxt 4 application with `ssr: false`, served as a
+single-page app. It calls `@sparql-query-lib/api` over HTTP. You deploy it
+separately from the server image.
 
-`private: true`; not published.
+The package is `private: true`, and is not published.
 
 ## Running it
 
-The SPA needs an API to talk to. Start one first (`just run-local-memory`
-serves on port 3005), then:
+The SPA needs an API. Start one first: `just run-local-memory` serves on port
+3005. Then run one of these:
 
 ```bash
 just run-frontend                 # dev server on :3001, against :3005
@@ -17,44 +17,46 @@ just run-frontend                 # dev server on :3001, against :3005
 NUXT_PUBLIC_API_BASE_URL=http://localhost:3000 pnpm --filter @sparql-query-lib/web dev
 ```
 
-`pnpm build` produces a Nitro server build that renders the SPA shell per
-request; `pnpm preview` serves it on `WEB_PORT` (default 3001). `pnpm generate`
-produces a static build.
+The build commands:
+
+- `pnpm build` makes a Nitro server build that renders the SPA shell for each
+  request.
+- `pnpm preview` serves that build on `WEB_PORT` (default 3001).
+- `pnpm generate` makes a static build.
 
 ## Runtime configuration
 
-Everything configurable is read in `nuxt.config.ts` and exposed through
+`nuxt.config.ts` reads each setting, and exposes it through
 `runtimeConfig.public`:
 
-- `NUXT_PUBLIC_API_BASE_URL` — the API to call. Default
+- `NUXT_PUBLIC_API_BASE_URL`: the API to call. The default is
   `http://localhost:3000`.
-- `NUXT_PUBLIC_FEATURE_*` (falling back to the unprefixed `FEATURE_*`) — the
-  feature flags, parsed by `buildFeatureFlags` from
-  `@sparql-query-lib/types`. The SPA and the API each read their own
-  environment, so a flag set only on the server still leaves the section
-  visible here; set both.
-- `NUXT_PUBLIC_AUTH_ISSUER`, `_CLIENT_ID`, `_AUDIENCE`, `_SCOPE` — OIDC
-  settings. Empty by default: the app asks the API for its auth mode at boot
-  and only reaches for these when it reports an enforcing one.
+- `NUXT_PUBLIC_FEATURE_*`, or the unprefixed `FEATURE_*` if that is not set:
+  the feature flags. `buildFeatureFlags` from `@sparql-query-lib/types` parses
+  them. The SPA and the API each read their own environment. A flag set only on
+  the server therefore leaves the section visible in the SPA. Set both.
+- `NUXT_PUBLIC_AUTH_ISSUER`, `_CLIENT_ID`, `_AUDIENCE`, `_SCOPE`: the OIDC
+  settings. They are empty by default. At boot, the app asks the API for its
+  auth mode. It uses these settings only when the mode enforces
+  authentication.
 
-These are evaluated when the app is built or the dev server starts, not per
-request, so changing a flag means restarting.
+The app reads these values when it is built or when the dev server starts. A
+change to a flag therefore needs a restart.
 
 ## Before you edit
 
 - `src/` is the Nuxt source directory (`app.vue`, `pages/`, `components/`,
-  `composables/`, `lib/`). `components/ui/` is shadcn-nuxt's directory.
+  `composables/`, `lib/`). `components/ui/` is the directory of shadcn-nuxt.
 - `@sparql-query-lib/contracts`, `/types` and `/runtime` are aliased to their
-  TypeScript sources rather than resolved through their exports maps, so `dev`
-  does not depend on those packages having been built.
-- New bare imports that only a page pulls in must be added to
-  `vite.optimizeDeps.include` in `nuxt.config.ts`; the reason is documented
-  there.
-- `src/lib/srlLanguage/*.generated.ts` is generated from `srl.grammar` by
-  `pnpm build:srl-parser` and committed. `test/lib/srlLanguage.test.ts` fails
-  if what is on disk has drifted from the grammar.
-- A service worker is configured under `pwa` in `nuxt.config.ts` and is
-  disabled in dev. Its caching rules and the kill switch are documented inline.
+  TypeScript sources. The app does not resolve them through their exports
+  maps, so `dev` does not need a build of those packages.
+- Add a new bare import that only a page uses to `vite.optimizeDeps.include`
+  in `nuxt.config.ts`. The comment there gives the reason.
+- `pnpm build:srl-parser` generates `src/lib/srlLanguage/*.generated.ts` from
+  `srl.grammar`. The generated files are committed.
+  `test/lib/srlLanguage.test.ts` fails if they do not match the grammar.
+- `pwa` in `nuxt.config.ts` configures a service worker. It is off in dev. The
+  comments there describe its caching rules and the kill switch.
 
 ## Checks
 
