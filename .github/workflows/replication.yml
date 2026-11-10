@@ -1,0 +1,62 @@
+# Integration test for SQLite backup to blob storage, against local emulators
+# (MinIO, Azurite, fake-gcs-server). See scripts/ci/litestream-it.sh.
+#
+# Runs only when the replication code, the SQLite stores, the test or the image
+# changes, plus by hand before a release. No schedule: nothing else can break it.
+#
+# Not a required check on purpose. A required check from a path-filtered
+# workflow that did not run stays "expected" forever and blocks every other PR.
+#
+# Same runner rule as ci.yml: pushes and same-repo PRs on the self-hosted box,
+# fork PRs on a GitHub-hosted runner.
+name: Replication
+
+on:
+  pull_request:
+    paths:
+      - packages/api/src/replication/**
+      - packages/api/test/replication/**
+      - packages/api/scripts/replication-it-buckets.ts
+      - packages/api/src/persistence/sqliteEntityStore.ts
+      - packages/api/src/auth/sqlitePersistence.ts
+      - scripts/ci/litestream-it.sh
+      - docker/entrypoint.sh
+      - Dockerfile
+      - .github/workflows/replication.yml
+  push:
+    branches: [main]
+    paths:
+      - packages/api/src/replication/**
+      - packages/api/src/persistence/sqliteEntityStore.ts
+      - packages/api/src/auth/sqlitePersistence.ts
+      - scripts/ci/litestream-it.sh
+      - docker/entrypoint.sh
+      - Dockerfile
+  workflow_dispatch:
+
+concurrency:
+  group: replication-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  emulators:
+    runs-on: ${{ github.event.pull_request.head.repo.fork
+      && fromJSON('["ubuntu-latest"]')
+      || fromJSON('["self-hosted","Linux","X64"]') }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      # Builds MinIO and fake-gcs-server at pinned versions on the first run;
+      # the binaries are cached in ~/.cache/sqlib-it after that.
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.26'
+          cache: false
+      - run: bash scripts/ci/pnpm-store.sh
+      - run: bash scripts/ci/install.sh
+      - run: pnpm --filter "@sparql-query-lib/api..." build
+      - run: bash scripts/ci/litestream-it.sh

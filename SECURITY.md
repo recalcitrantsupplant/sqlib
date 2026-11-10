@@ -82,7 +82,10 @@ the routes without authorization above are important.
 
 **Query parameters are spliced into the parsed query.** sqlib inserts the values
 supplied at execution as `VALUES` blocks into the parsed query. It never joins
-them into the query text as strings.
+them into the query text as strings. sqlib also writes a constant parameter
+(`VALUES ?000word { UNDEF }`) into the triple patterns in the scope of its
+clause, as the same term node. It then parses the result again before it sends
+it.
 
 **Fixes go to `main`.** Releases are tagged, but there is no table of supported
 versions. Fixes merge to `main`.

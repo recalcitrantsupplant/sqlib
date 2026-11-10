@@ -5,8 +5,9 @@ import { WHEN_EMPTY_MODES, type WhenEmptyMode } from '../persistence/schemas/Que
 type VersionInputs = { inferredInputs?: readonly (string | null | undefined)[] | null } | null | undefined;
 
 /**
- * The query author's empty-input policy for each of a version's parameter
- * slots, read from its input tuples (`QueryInputTuple.whenEmpty`).
+ * The query author's rules for each of a version's parameter slots, read from
+ * its input tuples: the empty-input policy (`QueryInputTuple.whenEmpty`) and
+ * the value pattern (`QueryInputTuple.valuePattern`).
  *
  * Every path that runs a stored version hands these to the parser, so a slot
  * marked `require` is refused the same way from `/execute`, a test, a
@@ -22,9 +23,14 @@ export function slotPoliciesOf(version: VersionInputs, getEntity: (id: string) =
   const policies: SlotPolicy[] = [];
   for (const tupleId of version?.inferredInputs ?? []) {
     if (!tupleId) continue;
-    const tuple = getEntity(tupleId) as { whenEmpty?: string | null; memberEntries?: string[] | null } | null;
-    const mode = tuple?.whenEmpty;
-    if (!isWhenEmptyMode(mode)) continue;
+    const tuple = getEntity(tupleId) as {
+      whenEmpty?: string | null;
+      valuePattern?: string | null;
+      memberEntries?: string[] | null;
+    } | null;
+    const mode = isWhenEmptyMode(tuple?.whenEmpty) ? tuple.whenEmpty : undefined;
+    const valuePattern = typeof tuple?.valuePattern === 'string' && tuple.valuePattern.length > 0 ? tuple.valuePattern : undefined;
+    if (!mode && !valuePattern) continue;
     const members: Array<{ position: number; name: string }> = [];
     for (const memberId of tuple?.memberEntries ?? []) {
       const member = getEntity(memberId) as { variable?: string; position?: number } | null;
@@ -32,7 +38,13 @@ export function slotPoliciesOf(version: VersionInputs, getEntity: (id: string) =
       if (variable?.variableName) members.push({ position: member?.position ?? 0, name: variable.variableName });
     }
     members.sort((a, b) => a.position - b.position);
-    if (members.length > 0) policies.push({ vars: members.map(member => member.name), whenEmpty: mode });
+    if (members.length > 0) {
+      policies.push({
+        vars: members.map(member => member.name),
+        ...(mode ? { whenEmpty: mode } : {}),
+        ...(valuePattern ? { valuePattern } : {}),
+      });
+    }
   }
   return policies;
 }

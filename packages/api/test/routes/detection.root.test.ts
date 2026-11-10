@@ -4,7 +4,7 @@ import { setupValidator } from '../../src/lib/validator-setup.js';
 
 // Hoist mock fns for use in vi.mock factory
 const hoisted = vi.hoisted(() => ({
-  mockDetectInputs: vi.fn().mockReturnValue({ valuesInputs: [], limitParameters: [], offsetParameters: [], correlatedExistsInputs: [] }),
+  mockDetectInputs: vi.fn().mockReturnValue({ valuesInputs: [], limitParameters: [], offsetParameters: [], correlatedExistsInputs: [], constantInputs: [], constantWarnings: [] }),
   mockDetectOutputs: vi.fn().mockReturnValue(['s', 'o']),
   mockParseQuery: vi.fn().mockReturnValue({}),
 }));
@@ -44,14 +44,14 @@ describe('Detection Routes (root)', () => {
   it('POST /detect-inputs returns detection object', async () => {
     const res = await app.inject({ method: 'POST', url: '/detect-inputs', payload: { query: 'SELECT * WHERE { ?s ?p ?o }' } });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ valuesInputs: [], limitParameters: [], offsetParameters: [], correlatedExistsInputs: [] });
+    expect(res.json()).toEqual({ valuesInputs: [], limitParameters: [], offsetParameters: [], correlatedExistsInputs: [], constantInputs: [], constantWarnings: [] });
     expect(hoisted.mockDetectInputs).toHaveBeenCalledTimes(1);
   });
 
   it('GET /detect-inputs returns detection object', async () => {
     const res = await app.inject({ method: 'GET', url: '/detect-inputs?query=SELECT%20*%20WHERE%20%7B%20%3Fs%20%3Fp%20%3Fo%20%7D' });
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ valuesInputs: [], limitParameters: [], offsetParameters: [], correlatedExistsInputs: [] });
+    expect(res.json()).toEqual({ valuesInputs: [], limitParameters: [], offsetParameters: [], correlatedExistsInputs: [], constantInputs: [], constantWarnings: [] });
     expect(hoisted.mockDetectInputs).toHaveBeenCalledTimes(1);
   });
 

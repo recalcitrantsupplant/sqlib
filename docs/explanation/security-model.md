@@ -550,6 +550,9 @@ a generic network failure.
    auth store (`SQLIB_AUTH_STORE_DIR`, or its SPARQL dataset) and the library
    store, because they are separate. Copy a live SQLite store with
    `sqlite3 auth.sqlite ".backup copy.sqlite"`, so the copy includes its WAL.
+   With [backup to blob storage](../guides/deploying.md#backup-to-blob-storage)
+   on, the bucket holds both stores, with the grants. Keep it private and
+   encrypted, and let only the sqlib identity write to it.
 10. **Review what you export.** A static bundle carries no authorization. Only
     read queries can be exported. Updates cannot.
 11. **List the browser origins that can call the API in `SQLIB_CORS_ORIGINS`.**

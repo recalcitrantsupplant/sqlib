@@ -82,12 +82,38 @@ az deployment group show \
   - External HTTPS ingress (auto TLS)
   - Fixed scale (1 replica)
   - Environment variables and secrets management
+- **SQLite backup to blob storage** (optional, `enableSqliteBackup`) - see
+  [backup to blob storage](../docs/guides/deploying.md#backup-to-blob-storage):
+  - A user-assigned managed identity for the app
+  - A storage account with TLS 1.2, no anonymous access, no shared keys and
+    7-day soft delete (or an existing account, with `createBackupStorage: false`)
+  - A blob container, with Storage Blob Data Contributor for the identity on
+    that container only
+  - Optionally a private endpoint, the `privatelink.blob` DNS zone and its VNet
+    link (`backupPrivateEndpointSubnetId`, `backupPrivateDnsVnetId`); the
+    account's public access is then off. Needs a VNet-integrated environment.
+  - `SQLIB_SQLITE_REPLICA_URL` and `AZURE_CLIENT_ID` on the container, a startup
+    probe that allows for the restore and the replica lease, and a 30s grace
+    period
+
+  The store then lives on the container's own disk: mount no volume at the
+  storage path. Scale stays at one replica; the replica lease covers the
+  overlap while a new revision starts.
 
 ### Parameters
 
 | Parameter | Required | Description | Default |
 |-----------|----------|-------------|---------|
 | `location` | No | Azure region | Resource group location |
+| `enableSqliteBackup` | No | Back up the SQLite store to Blob Storage | `false` |
+| `backupStorageAccountName` | With backup | Storage account for the backup | - |
+| `createBackupStorage` | No | Create the account, or use an existing one in this resource group | `true` |
+| `backupStorageSku` | No | Redundancy of a created account | `Standard_LRS` |
+| `backupContainerName` | No | Blob container | `sqlib-backup` |
+| `backupPath` | No | Path in the container; one per deployment | container app name |
+| `backupPrivateEndpointSubnetId` | No | Subnet for a private endpoint; empty keeps the public endpoint | - |
+| `backupPrivateDnsVnetId` | With a private endpoint | VNet to link the DNS zone to | - |
+| `terminationGracePeriodSeconds` | No | Wait after SIGTERM | `30` |
 | `environmentName` | Yes | Environment name (dev/staging/prod) | - |
 | `containerAppName` | Yes | Name of the Container App | - |
 | `acrLoginServer` | Yes | ACR server (e.g., myregistry.azurecr.io) | - |

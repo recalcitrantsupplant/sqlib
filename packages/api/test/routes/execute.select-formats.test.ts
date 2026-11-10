@@ -161,4 +161,63 @@ describe('POST /execute — SELECT results formats', () => {
     expect(res.headers['content-type']).toBe('text/csv');
     expect(res.body).toBe(endpointCsv);
   });
+
+  describe('GeoJSON', () => {
+    const GEO_ROWS = {
+      head: { vars: ['feature', 'geom', 'name'] },
+      results: {
+        bindings: [
+          {
+            feature: { type: 'uri', value: 'http://example.org/b/1' },
+            geom: { type: 'literal', value: 'POINT (115.86 -31.95)', datatype: 'http://www.opengis.net/ont/geosparql#wktLiteral' },
+            name: { type: 'literal', value: 'Tower' },
+          },
+        ],
+      },
+    };
+
+    it.each([['a query', QUERY], ['a query group', GROUP]])('answers a FeatureCollection for %s', async (_label, targetId) => {
+      selectQueryParsed.mockResolvedValue({ result: GEO_ROWS, duration: 1, contentType: 'application/sparql-results+json' });
+      groupExecution.execute.mockResolvedValue({ result: GEO_ROWS, resultNodeId: null });
+
+      const res = await run(targetId, 'application/geo+json');
+
+      expect(res.statusCode).toBe(200);
+      expect(res.headers['content-type']).toMatch(/^application\/geo\+json/);
+      expect(res.json()).toEqual({
+        type: 'FeatureCollection',
+        features: [{
+          type: 'Feature',
+          id: 'http://example.org/b/1',
+          geometry: { type: 'Point', coordinates: [115.86, -31.95] },
+          properties: { name: 'Tower' },
+        }],
+      });
+    });
+
+    it('asks the backend for SPARQL JSON, not GeoJSON', async () => {
+      selectQueryParsed.mockResolvedValue({ result: GEO_ROWS, duration: 1, contentType: 'application/sparql-results+json' });
+      await run(QUERY, 'application/geo+json');
+      expect(selectQueryParsed.mock.calls[0]?.[1]?.acceptHeader).toBe('application/sparql-results+json');
+    });
+
+    it('answers 406 when the result has no geometry column', async () => {
+      const res = await run(QUERY, 'application/geo+json');
+      expect(res.statusCode).toBe(406);
+      expect(res.json().error).toContain('no longitude and latitude columns');
+    });
+
+    it('answers 406 for a query that is not a SELECT', async () => {
+      store.set(QUERY_VERSION, { ...store.get(QUERY_VERSION), queryString: 'ASK { ?s ?p ?o }', queryType: QueryTypeIri.ask });
+      const res = await run(QUERY, 'application/geo+json');
+      expect(res.statusCode).toBe(406);
+      expect(res.json().error).toBe('GeoJSON is given for SELECT results only.');
+    });
+
+    it('prefers a format with a higher q', async () => {
+      selectQueryParsed.mockResolvedValue({ result: GEO_ROWS, duration: 1, contentType: 'application/sparql-results+json' });
+      const res = await run(QUERY, 'application/geo+json;q=0.5, text/csv');
+      expect(res.headers['content-type']).toBe('text/csv; charset=utf-8');
+    });
+  });
 });

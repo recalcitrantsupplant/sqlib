@@ -46,6 +46,8 @@ COPY packages/runtime-etl/package.json packages/runtime-etl/package.json
 COPY packages/runtime-etl/tsconfig.json packages/runtime-etl/tsconfig.json
 COPY packages/runtime-srl/package.json packages/runtime-srl/package.json
 COPY packages/runtime-srl/tsconfig.json packages/runtime-srl/tsconfig.json
+COPY packages/geojson/package.json packages/geojson/package.json
+COPY packages/geojson/tsconfig.json packages/geojson/tsconfig.json
 COPY packages/srl/package.json packages/srl/package.json
 COPY packages/srl/tsconfig.json packages/srl/tsconfig.json
 COPY packages/tools/package.json packages/tools/package.json
@@ -72,6 +74,7 @@ COPY packages/compiler ./packages/compiler
 COPY packages/runtime-duckdb ./packages/runtime-duckdb
 COPY packages/runtime-etl ./packages/runtime-etl
 COPY packages/runtime-srl ./packages/runtime-srl
+COPY packages/geojson ./packages/geojson
 COPY packages/srl ./packages/srl
 COPY packages/tools ./packages/tools
 COPY packages/api ./packages/api
@@ -94,6 +97,26 @@ RUN if [ -f packages/api/src/otel-setup.js ]; then \
 
 # Verify the API build output exists
 RUN ls -la packages/api/dist
+
+# Stage: Litestream, for SQLite backup to blob storage (docs/guides/deploying.md,
+# "Backup to blob storage"). A pinned release, checked against its SHA-256 per
+# architecture. The release binary is static, so it runs on the Debian base.
+# Fetched with Node because the slim base has no curl. scripts/ci/litestream-it.sh
+# pins the same version; change both together.
+FROM node:26-bookworm-slim AS litestream
+ARG TARGETARCH
+RUN set -eu; \
+    version=0.5.17; \
+    case "${TARGETARCH:-amd64}" in \
+      amd64) arch=x86_64; sha=cfb371176d164437ae869f8351cfde49bd1804ae71c61923f75c9cba9c9c006d ;; \
+      arm64) arch=arm64;  sha=f8ca4a050095c1efbda2c4365172e61bf9d955ea0d9ac42f448b52e51819baa5 ;; \
+      *) echo "No pinned Litestream for ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    url="https://github.com/benbjohnson/litestream/releases/download/v${version}/litestream-${version}-linux-${arch}.tar.gz"; \
+    node -e "fetch(process.argv[1]).then(async r => { if (!r.ok) throw new Error(r.status + ' ' + r.url); require('fs').writeFileSync('/tmp/litestream.tar.gz', Buffer.from(await r.arrayBuffer())); })" "$url"; \
+    echo "${sha}  /tmp/litestream.tar.gz" | sha256sum -c -; \
+    tar -xzf /tmp/litestream.tar.gz -C /usr/local/bin litestream; \
+    /usr/local/bin/litestream version
 
 # Stage 2: Production image. Debian (glibc) for the reason given on the builder.
 FROM node:26-bookworm-slim AS production
@@ -127,6 +150,8 @@ COPY --from=builder /app/packages/runtime-etl/package.json ./packages/runtime-et
 COPY --from=builder /app/packages/runtime-etl/dist ./packages/runtime-etl/dist
 COPY --from=builder /app/packages/runtime-srl/package.json ./packages/runtime-srl/package.json
 COPY --from=builder /app/packages/runtime-srl/dist ./packages/runtime-srl/dist
+COPY --from=builder /app/packages/geojson/package.json ./packages/geojson/package.json
+COPY --from=builder /app/packages/geojson/dist ./packages/geojson/dist
 COPY --from=builder /app/packages/srl/package.json ./packages/srl/package.json
 COPY --from=builder /app/packages/srl/dist ./packages/srl/dist
 COPY --from=builder /app/packages/tools/package.json ./packages/tools/package.json
@@ -179,6 +204,12 @@ if (platform.includes('musl')) { \
   process.exit(1); \
 }"
 
+# Litestream and the entrypoint that runs the server under it when
+# SQLIB_SQLITE_REPLICA_URL is set. Unset, the entrypoint runs CMD as before.
+COPY --from=litestream /usr/local/bin/litestream /usr/local/bin/litestream
+COPY docker/entrypoint.sh /app/docker/entrypoint.sh
+RUN litestream version && test -f /app/packages/api/dist/replication/main.js
+
 # Remove pnpm files to reduce image size
 RUN rm -rf pnpm-lock.yaml pnpm-workspace.yaml
 
@@ -206,7 +237,9 @@ ENV MCP_HTTP_PORT=3333
 RUN mkdir -p /app/packages/api/storage/etl-output \
     && chown -R node:node /app/packages/api/storage
 
-# Create volume mount point for persistent storage
+# Create volume mount point for persistent storage. With SQLite backup to blob
+# storage on, no volume is needed: the store lives on the container's own disk
+# and is restored from the replica at start.
 VOLUME /app/packages/api/storage
 
 # Bake a V8 compile cache into the image.
@@ -251,4 +284,5 @@ USER node
 # `dist/index.js` imports that module itself, so the flag was only ever a second
 # route to the same side effect, and the module now uses top-level await (to skip
 # loading the SDK when telemetry is off) which `--require` cannot load.
+ENTRYPOINT ["/app/docker/entrypoint.sh"]
 CMD ["sh", "-c", "case \"${APP_MODE:-dual-http}\" in api) cd /app/packages/api && exec node dist/index.js ;; mcp-http) cd /app/packages/mcp-server && MCP_TRANSPORT=streamable-http NODE_ENV=production exec node dist/cli.js ;; dual-http|*) cd /app/packages/mcp-server && MCP_TRANSPORT=dual-http NODE_ENV=production exec node dist/cli.js ;; esac"]

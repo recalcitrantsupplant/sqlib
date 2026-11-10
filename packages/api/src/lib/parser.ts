@@ -15,6 +15,7 @@ import { log } from './log.js';
 
 export type {
   ApplyArgumentSet,
+  ConstantWarning,
   CorrelatedExistsInput,
   DetectedParameters,
   ParsedSparql,

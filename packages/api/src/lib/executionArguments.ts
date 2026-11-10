@@ -1,4 +1,5 @@
 import {
+  mayDeclareConstantSlot,
   mayDeclareReservedSlot,
   normalizeArguments as normalizeRuntimeArguments,
   type CallerIdentity,
@@ -118,9 +119,10 @@ export function applyExecutionArguments(
   // A slot policy acts on what is *not* supplied, so a version that has one
   // is substituted even when the payload is empty. So is a text that may read
   // the caller: left unsubstituted, its `VALUES ?authUser { UNDEF }` would
-  // match every caller.
+  // match every caller. And so is a text that may declare a constant, which
+  // refuses a run that gives it no value.
   const slotPolicies = payload.slotPolicies ?? [];
-  if (argumentSets.length > 0 || slotPolicies.length > 0 || mayDeclareReservedSlot(result)) {
+  if (argumentSets.length > 0 || slotPolicies.length > 0 || mayDeclareReservedSlot(result) || mayDeclareConstantSlot(result)) {
     try {
       result = parser.applyArguments(result, argumentSets, slotPolicies, { caller: payload.caller });
     } catch (error) {

@@ -15,6 +15,7 @@ Each guide covers one task.
 - [guides/rules-and-srl.md](guides/rules-and-srl.md): write SHACL 1.2 inference rules and run them against a graph.
 - [guides/mcp-clients.md](guides/mcp-clients.md): connect an MCP client to the server, and see which tools it gets.
 - [guides/publishing-tools.md](guides/publishing-tools.md): publish the queries of a library as MCP tools and HTTP routes for an application.
+- [guides/publishing-ogc-collections.md](guides/publishing-ogc-collections.md): serve a query as an OGC API Features collection for QGIS and other map clients.
 - [guides/mcp-app.md](guides/mcp-app.md): edit, run and save a query inside a chat client, teach SPARQL rules there with a lesson library, and test this locally.
 - [guides/static-export.md](guides/static-export.md): export a library as a self-contained page that runs without the server.
 - [guides/testing-and-conformance.md](guides/testing-and-conformance.md): attach tests to a query or rule set, and run a conformance suite.

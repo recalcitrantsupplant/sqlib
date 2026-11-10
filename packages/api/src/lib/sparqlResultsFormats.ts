@@ -12,10 +12,14 @@
  * - CSV and TSV: https://www.w3.org/TR/sparql11-results-csv-tsv/
  */
 
+import { GEOJSON_MEDIA_TYPE, toFeatureCollection } from '@sparql-query-lib/geojson';
 import { SPARQL_RESULTS_MEDIA_TYPES } from '../types/media-types.js';
 
 export type SparqlResultsMediaType =
-  (typeof SPARQL_RESULTS_MEDIA_TYPES)[keyof typeof SPARQL_RESULTS_MEDIA_TYPES];
+  | (typeof SPARQL_RESULTS_MEDIA_TYPES)[keyof typeof SPARQL_RESULTS_MEDIA_TYPES]
+  | typeof GEOJSON_MEDIA_TYPE;
+
+export { GEOJSON_MEDIA_TYPE };
 
 /** One RDF term in a binding, as SPARQL JSON spells it. */
 type ResultTerm = {
@@ -44,7 +48,7 @@ const ALIASES: Record<string, SparqlResultsMediaType> = {
   'text/tsv': SPARQL_RESULTS_MEDIA_TYPES.TSV,
 };
 
-const MEDIA_TYPES = Object.values(SPARQL_RESULTS_MEDIA_TYPES) as string[];
+const MEDIA_TYPES = [...Object.values(SPARQL_RESULTS_MEDIA_TYPES), GEOJSON_MEDIA_TYPE] as string[];
 
 /**
  * Which SELECT results format an `Accept` header asks for.
@@ -77,7 +81,23 @@ export function negotiateSelectResultsFormat(header: string | undefined | null):
 
 /** The `Content-Type` a rendered result is sent with. */
 export function contentTypeForSelectResults(mediaType: SparqlResultsMediaType): string {
-  return mediaType === SPARQL_RESULTS_MEDIA_TYPES.JSON ? mediaType : `${mediaType}; charset=utf-8`;
+  return mediaType === SPARQL_RESULTS_MEDIA_TYPES.JSON || mediaType === GEOJSON_MEDIA_TYPE
+    ? mediaType
+    : `${mediaType}; charset=utf-8`;
+}
+
+/**
+ * The result as GeoJSON (RFC 7946), one feature per row, or why it cannot be.
+ *
+ * Unlike the other formats this one can fail: a result with no geometry
+ * column, or geometry in a CRS sqlib does not convert. The caller asked for it
+ * by name, so the failure is a 406 with this reason rather than a silent fall
+ * back to SPARQL JSON, which a map would read as broken.
+ */
+export function renderGeoJson(results: SelectResults): { body: string } | { error: string } {
+  const rendered = toFeatureCollection(results);
+  if (!rendered.ok) return { error: `The result cannot be given as GeoJSON: ${rendered.detail}` };
+  return { body: JSON.stringify(rendered.collection) };
 }
 
 /**
@@ -86,7 +106,10 @@ export function contentTypeForSelectResults(mediaType: SparqlResultsMediaType): 
  * JSON is returned as the object itself, so Fastify serialises it as it did
  * before; the other formats are strings.
  */
-export function renderSelectResults(results: SelectResults, mediaType: SparqlResultsMediaType): SelectResults | string {
+export function renderSelectResults(
+  results: SelectResults,
+  mediaType: Exclude<SparqlResultsMediaType, typeof GEOJSON_MEDIA_TYPE>,
+): SelectResults | string {
   switch (mediaType) {
     case SPARQL_RESULTS_MEDIA_TYPES.CSV:
       return toCsv(results);

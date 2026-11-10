@@ -82,6 +82,8 @@ export interface AuthGraphPersistence {
   load(): Promise<string>;
   /** Applies an insert/delete of concrete quads, serialized as N-Quads. */
   apply(params: { insert?: string; delete?: string }): Promise<void>;
+  /** Releases a file handle, for persistence that holds one. Called at shutdown. */
+  close?(): void;
 }
 
 /** Persistence that keeps nothing. Used in `disabled` mode and unit tests. */
@@ -159,6 +161,14 @@ export class AuthStore {
 
   setPersistence(persistence: AuthGraphPersistence): void {
     this.persistence = persistence;
+  }
+
+  /**
+   * Closes the persistence's file, if it holds one. At shutdown, so the SQLite
+   * store is checkpointed and closed before a replicator takes its last sync.
+   */
+  closePersistence(): void {
+    this.persistence.close?.();
   }
 
   isLoaded(): boolean {

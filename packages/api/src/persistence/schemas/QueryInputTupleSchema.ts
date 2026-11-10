@@ -65,6 +65,16 @@ export const QueryInputTupleSchema = {
     '@id': sqlib.whenEmpty,
     '@optional': true,
   },
+  /**
+   * A regular expression (Unicode mode) that every bound value of this slot
+   * must match. Set only on a query version's `inferredInputs`. It limits what
+   * an engine reads inside a literal, such as QLever's `*` in a text-search
+   * word; see `docs/proposals/constant-substitution.md`.
+   */
+  valuePattern: {
+    '@id': sqlib.valuePattern,
+    '@optional': true,
+  },
 } as const satisfies Schema;
 
 export interface PersistedQueryInputTuple {
@@ -75,4 +85,5 @@ export interface PersistedQueryInputTuple {
   position?: number | null; // Start-node ports only: declaration ordinal
   variableMappings?: string | null; // Start-node ports only: JSON { source, target }[]
   whenEmpty?: string | null; // Query version inputs only: "unconstrained" | "propagateEmpty" | "require"
+  valuePattern?: string | null; // Query version inputs only: a regular expression every bound value must match
 }

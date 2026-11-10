@@ -111,6 +111,35 @@ from a value therefore never scans the whole graph. A group edge can choose a
 different closed mode for that clause, but it cannot set `unconstrained`. See
 [required arguments](proposals/required-arguments.md).
 
+**A constant parameter is a one-variable slot whose name starts with `000`.**
+
+```sparql
+PREFIX ts: <https://qlever.cs.uni-freiburg.de/textSearch/>
+SELECT ?entity WHERE {
+  VALUES ?000word { UNDEF }
+  SERVICE ts: { ?t ts:contains [ ts:word ?000word ] ; ts:contains [ ts:entity ?entity ] }
+}
+```
+
+It is filled like any table parameter, but it takes exactly one bound value:
+zero rows, two rows, an `UNDEF` cell or an omitted argument is refused, naming
+the parameter. The filled `VALUES` row stays, and the same term is also
+written into the triple patterns in the reach of the clause: the group that
+holds it, and groups nested in it through plain groups, `GRAPH` and `SERVICE`
+bodies and `UNION` branches. So an engine that needs a constant when it plans
+the query, such as QLever text search, gets one, and the answer is that of a
+plain `VALUES` run. Every other occurrence keeps the variable. Detection
+reports the occurrences where the answer can then differ (`OPTIONAL`,
+`MINUS`, `EXISTS`, a sub-`SELECT`, `BIND`, a nested `FILTER`, a `GRAPH` or
+`SERVICE` name) as `constantWarnings`; the query still saves and runs. A
+query with a constant takes the parser path and is not exported. See
+[constant substitution](proposals/constant-substitution.md).
+
+**A value pattern** on a slot's input tuple (`valuePattern`, set through
+`inputPolicies` when a version is saved) is a regular expression that every
+bound value of the slot must match. It limits what an engine reads inside a
+literal, such as a short `*` search word that would match too much.
+
 ## ArgumentSet
 
 An **ArgumentSet** holds the values for the SPARQL parameters of a callable: one

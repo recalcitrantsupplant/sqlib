@@ -45,6 +45,8 @@ export default async function (
             limitParameters: derived.raw.limitParameters,
             offsetParameters: derived.raw.offsetParameters,
             correlatedExistsInputs: derived.raw.correlatedExistsInputs,
+            constantInputs: derived.raw.constantInputs,
+            constantWarnings: derived.raw.constantWarnings,
           });
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Invalid SPARQL query';
@@ -65,6 +67,8 @@ export default async function (
             limitParameters: derived.raw.limitParameters,
             offsetParameters: derived.raw.offsetParameters,
             correlatedExistsInputs: derived.raw.correlatedExistsInputs,
+            constantInputs: derived.raw.constantInputs,
+            constantWarnings: derived.raw.constantWarnings,
           });
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Invalid SPARQL query';

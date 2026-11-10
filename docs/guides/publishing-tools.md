@@ -385,6 +385,28 @@ Each route returns what `POST /execute` returns. Each route sends on the
 `Authorization` header of the caller. A published tool therefore grants nothing
 that `/execute` on the same version would not grant.
 
+A `GET` takes the response format from `f` in the query string. A link in a
+browser, or the "add layer from URL" of a GIS client, cannot set an `Accept`
+header, so `f` sets the format:
+
+- `f=json`: SPARQL JSON, the default;
+- `f=geojson`;
+- `f=csv`;
+- `f=tsv`;
+- `f=xml`.
+
+`f` is reserved, so no parameter can have that name.
+
+`f=geojson` gives a GeoJSON `FeatureCollection`, with one feature for each row:
+
+- The geometry comes from the first `geo:wktLiteral` or `geo:geoJSONLiteral`
+  column. If there is none, it comes from `lat` and `lon` columns (or `long`,
+  `lng`, `latitude`, `longitude`).
+- The id comes from `?feature`, from `?id`, or from the first IRI column.
+
+A result with no geometry gets `406`, with the reason. So does a result with
+geometry in a CRS other than CRS84, EPSG:4326, EPSG:4283 or EPSG:7844.
+
 Use HTTP for a production page or a script. A `GET` can be cached and needs no
 client library. Use MCP for agents, analysis and exploration.
 

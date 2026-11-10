@@ -1,6 +1,6 @@
 # Feature flags
 
-Twenty boolean flags decide which sections of the product a build offers. Two
+Twenty-one boolean flags decide which sections of the product a build offers. Two
 processes read each flag:
 
 - The server reads it to decide whether to register routes.
@@ -45,6 +45,7 @@ sqlib trims the value of a flag, and parses it without regard to case:
 | `playgroundRules` | `FEATURE_PLAYGROUND_RULES` | on | The unsaved rules playground; `POST /playground/rules/execute` |
 | `playgroundEtl` | `FEATURE_PLAYGROUND_ETL` | **off** | The ETL rail section; `POST /playground/etl/execute` |
 | `assistant` | `FEATURE_ASSISTANT` | **off** | The in-app build assistant; the `/assistant` routes |
+| `ogc` | `FEATURE_OGC` | **off** | OGC API Features: the `/ogc/{slug}` routes. See [publishing OGC collections](../guides/publishing-ogc-collections.md) |
 
 A route behind a flag that is off answers `404 Not Found`. This is the same
 answer as for a route that does not exist.

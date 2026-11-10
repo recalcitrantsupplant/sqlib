@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { isReservedSlotVariable, mayDeclareReservedSlot } from '@sparql-query-lib/runtime';
+import { compileValuePattern, isReservedSlotVariable, mayDeclareReservedSlot } from '@sparql-query-lib/runtime';
 import type { PersistedQuery } from '../persistence/schemas/QuerySchema.js';
 import type { PersistedQueryVersion } from '../persistence/schemas/QueryVersionSchema.js';
 import { expandQueryVersion } from '../lib/QueryVersionResolver.js';
@@ -34,7 +34,8 @@ import { registerEntityAuthGuard } from '../auth/entityGuard.js';
 import { registerBrowserDefaultsRoutes } from './browser-defaults.js';
 import { clearBrowserDefaultsIfMoved } from '../lib/browserDefaults.js';
 import { getCacheCoordinator } from '../lib/CacheCoordinatorProvider.js';
-import { queryBodyInputs, resolveVersionTool } from '../lib/toolObject.js';
+import { queryBodyInputs, resolveVersionOgc, resolveVersionTool } from '../lib/toolObject.js';
+import type { OgcCheckContext } from '@sparql-query-lib/tools';
 
 /**
  * `/queries` — the reference module for `registerVersionedEntityRoutes`.
@@ -107,6 +108,9 @@ export default async function (fastify: FastifyInstance) {
       });
       delete flat.tool;
       if (tool !== undefined) flat.tool = tool;
+      const ogc = resolveVersionOgc({ body: flat, previous, context: ogcContext(flat.queryString) });
+      delete flat.ogc;
+      if (ogc !== undefined) flat.ogc = ogc;
       const { created, iriMap } = await createQueryVersionFlat(parent.$id, flat);
       const expanded = await expandQueryVersion(created);
       return { created: created as unknown as StoredEntity, body: { ...expanded, iriMap } };
@@ -114,6 +118,26 @@ export default async function (fastify: FastifyInstance) {
     deleteVersion: version => deleteWithOwned(version, 'QueryVersion', QUERY_VERSION_OWNED),
     afterUpdate: ({ before, updated }) => clearBrowserDefaultsIfMoved('Query', before, updated),
   });
+
+  /** What an `ogc` object is checked against: the text's VALUES tables, LIMIT and OFFSET names, and projection. */
+  function ogcContext(queryString: unknown): OgcCheckContext | null {
+    if (typeof queryString !== 'string') return null;
+    try {
+      const parsed = parser.parseQuery(queryString) as { type?: string; subType?: string } | null;
+      const detected = parser.detectInputs(queryString);
+      return {
+        isSelect: parsed?.type === 'query' && String(parsed.subType).toLowerCase() === 'select',
+        inputs: {
+          tables: detected.valuesInputs,
+          limits: detected.limitParameters,
+          offsets: detected.offsetParameters,
+        },
+        outputs: parser.detectQueryOutputs(queryString) ?? [],
+      };
+    } catch {
+      return null;
+    }
+  }
 
   /**
    * The wire body is `{ queryVersion: { … }, ...children }`; the writer takes
@@ -178,7 +202,9 @@ export default async function (fastify: FastifyInstance) {
         const message = error instanceof Error ? error.message : String(error);
         throw new RouteError(400, { error: 'Invalid SPARQL query', details: message });
       }
+      refuseMisdeclaredConstants(flat.queryString);
       refuseUnknownInputPolicies(flat.queryString, flat.inputPolicies as InputPolicy[] | undefined);
+      refuseInvalidValuePatterns(flat.inputPolicies as InputPolicy[] | undefined);
       refuseMisusedCallerSlots(flat.queryString, flat.inputPolicies as InputPolicy[] | undefined);
     }
     return flat;
@@ -206,6 +232,33 @@ export default async function (fastify: FastifyInstance) {
       throw new RouteError(400, {
         error: `inputPolicies name ?${named[0]}, which is filled from the caller's sign-in. It always gets the caller's rows, or none.`,
       });
+    }
+  }
+
+  /**
+   * A constant parameter (`?000word`) must be the only variable of its VALUES
+   * clause. Detection refuses any other shape; metadata derivation swallows
+   * detection errors, so the refusal is made here, at save.
+   */
+  function refuseMisdeclaredConstants(queryString: string): void {
+    try {
+      parser.detectInputs(queryString);
+    } catch (error) {
+      throw new RouteError(400, { error: error instanceof Error ? error.message : String(error) });
+    }
+  }
+
+  /** A value pattern must compile, so a bad one fails at save and not on every run. */
+  function refuseInvalidValuePatterns(policies: InputPolicy[] | undefined): void {
+    for (const policy of policies ?? []) {
+      if (policy.valuePattern == null) continue;
+      try {
+        compileValuePattern(policy.valuePattern);
+      } catch (error) {
+        throw new RouteError(400, {
+          error: `inputPolicies [${policy.vars.join(', ')}]: ${error instanceof Error ? error.message : String(error)}`,
+        });
+      }
     }
   }
 

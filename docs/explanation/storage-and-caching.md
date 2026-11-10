@@ -47,6 +47,16 @@ the file to be on one host. To copy a live file, use
 `sqlite3 library.sqlite ".backup copy.sqlite"`. A plain `cp` can copy a file in
 the middle of a write.
 
+On a container platform, the disk of the container is lost with the container,
+and a network volume is slow. There, set `SQLIB_SQLITE_REPLICA_URL`:
+
+1. The file stays on local disk.
+2. Litestream copies each change to S3, Azure Blob Storage or Google Cloud
+   Storage, in about one second.
+3. A new container restores the file before the server starts.
+
+See [backup to blob storage](../guides/deploying.md#backup-to-blob-storage).
+
 To move a library from another mode, export it from that mode and import it
 into this one:
 
@@ -151,6 +161,7 @@ development server. For a library that must survive a restart, use `sqlite`.
 | | `sqlite` | `http` | `oxigraph-persistent` |
 | --- | --- | --- | --- |
 | Library survives a crash | yes, each committed write | yes, as the store guarantees | up to the last checkpoint |
+| Library survives the loss of the container | with a volume, or up to about 1s with backup to blob storage | yes | with a volume, up to the last checkpoint |
 | Pauses the server | no | no | at each checkpoint |
 | Size limit | the cache: process memory | the store's own | process memory; dumps stop at 512 MiB of N-Quads |
 | More than one sqlib instance writes | no | yes | no |

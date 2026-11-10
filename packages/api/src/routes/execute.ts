@@ -58,9 +58,11 @@ import { ValidationError } from '../lib/validationError.js';
 import { failedFlags, refusalQuery, refusedBody } from '../lib/refusals.js';
 
 import {
+    GEOJSON_MEDIA_TYPE,
     contentTypeForSelectResults,
     isSelectResults,
     negotiateSelectResultsFormat,
+    renderGeoJson,
     renderSelectResults,
 } from '../lib/sparqlResultsFormats.js';
 
@@ -260,14 +262,27 @@ const rdfStringMediaType = (preferred?: string | null): string =>
 const renderRequestedSelectFormat = (
     result: unknown,
     acceptHeader: string | undefined,
-): { body: string; contentType: string } | undefined => {
+): { body: string; contentType: string } | { status: 406; error: string } | undefined => {
     const mediaType = negotiateSelectResultsFormat(acceptHeader);
+    if (mediaType === GEOJSON_MEDIA_TYPE) {
+        // Asked for by name, so a result it cannot be made from is refused, not sent as JSON.
+        if (!isSelectResults(result)) {
+            return { status: 406, error: 'GeoJSON is given for SELECT results only.' };
+        }
+        const geo = renderGeoJson(result);
+        if ('error' in geo) return { status: 406, error: geo.error };
+        return { body: geo.body, contentType: contentTypeForSelectResults(mediaType) };
+    }
     if (!mediaType || mediaType === 'application/sparql-results+json' || !isSelectResults(result)) return undefined;
     return {
         body: renderSelectResults(result, mediaType) as string,
         contentType: contentTypeForSelectResults(mediaType),
     };
 };
+
+/** Whether the caller's Accept prefers GeoJSON over every other results format. */
+const wantsGeoJson = (acceptHeader: string | undefined | null): boolean =>
+    negotiateSelectResultsFormat(acceptHeader) === GEOJSON_MEDIA_TYPE;
 
 function validateArgumentPayloadAgainstInputs(
     detected: ReturnType<SparqlQueryParser['detectInputs']>,
@@ -932,6 +947,7 @@ export default async function (
                 }
 
                 const rendered = renderRequestedSelectFormat(result, request.headers.accept);
+                if (rendered && 'error' in rendered) return reply.code(rendered.status).send({error: rendered.error});
                 if (rendered) {
                     reply.header('Content-Type', rendered.contentType);
                     return reply.send(rendered.body);
@@ -999,6 +1015,7 @@ export default async function (
                 }
 
                 const rendered = renderRequestedSelectFormat(result, request.headers.accept);
+                if (rendered && 'error' in rendered) return reply.code(rendered.status).send({error: rendered.error});
                 if (rendered) {
                     reply.header('Content-Type', rendered.contentType);
                     return reply.send(rendered.body);
@@ -1115,8 +1132,16 @@ export default async function (
             defaultAcceptHeader = undefined;
     }
 
+            // GeoJSON is rendered here from SPARQL JSON; no backend speaks it.
+            const geoJson = wantsGeoJson(acceptHeader);
+            if (geoJson && resolvedType !== QueryTypeIri.select) {
+                return reply.code(406).send({error: 'GeoJSON is given for SELECT results only.'});
+            }
             // Use provided header if it exists and is specific, otherwise use default
-            const finalAcceptHeader = (acceptHeader && acceptHeader !== '*/*') ? acceptHeader : defaultAcceptHeader;
+            const finalAcceptHeader = geoJson
+                ? GEOJSON_MEDIA_TYPE
+                : (acceptHeader && acceptHeader !== '*/*') ? acceptHeader : defaultAcceptHeader;
+            const backendAcceptHeader = geoJson ? defaultAcceptHeader : finalAcceptHeader;
             request.log.info(`Using Accept header: ${finalAcceptHeader || 'None (default behavior)'}`);
 
             // 5. Execute the query, passing the determined Accept header
@@ -1138,12 +1163,16 @@ export default async function (
             // Pass finalAcceptHeader to executor methods
             switch (resolvedType) {
                 case QueryTypeIri.select: {
-                    const {result, duration, contentType} = await targetExecutor.selectQueryParsed(sparqlQueryString, {acceptHeader: finalAcceptHeader, signal, dataset});
+                    const {result, duration, contentType} = await targetExecutor.selectQueryParsed(sparqlQueryString, {acceptHeader: backendAcceptHeader, signal, dataset});
                     dbDuration = duration;
                     executionStatus = 'success';
                     const bindings = (result as { results?: { bindings?: unknown[] } } | null)?.results?.bindings;
                     if (Array.isArray(bindings)) runRowCount = bindings.length;
                     const rendered = renderRequestedSelectFormat(result, finalAcceptHeader);
+                    if (rendered && 'error' in rendered) {
+                        setTimingHeader();
+                        return reply.code(rendered.status).send({error: rendered.error});
+                    }
                     if (rendered) {
                         reply.header('Content-Type', rendered.contentType);
                         setTimingHeader();

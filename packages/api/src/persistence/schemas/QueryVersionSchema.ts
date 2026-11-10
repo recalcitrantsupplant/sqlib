@@ -7,7 +7,7 @@
  */
 
 import type { Schema } from '../schema.js';
-import type { ToolObject as PublishedToolObject } from '@sparql-query-lib/tools';
+import type { OgcObject, ToolObject as PublishedToolObject } from '@sparql-query-lib/tools';
 import { rdf, xsd, sqlib, sdo } from '../namespaces.js';
 import { QueryTypeIri as QueryTypeIriConst, type QueryTypeKey, type QueryTypeValue } from '../../constants/queryTypes.js';
 import { AUTHORSHIP_PROPERTIES } from '../authorship.js';
@@ -124,6 +124,18 @@ export const QueryVersionSchema = {
     '@jsonShape': 'PublishedTool',
     '@optional': true,
   },
+  /**
+   * The OGC API Features collection this version serves as
+   * (`docs/proposals/ogc-api-features.md`). Checked against the version's
+   * inputs and outputs when it is saved; a save that sends no `ogc` copies the
+   * previous version's, as `tool` does.
+   */
+  ogc: {
+    '@id': sqlib.ogc,
+    '@type': rdf.JSON,
+    '@jsonShape': 'OgcCollection',
+    '@optional': true,
+  },
 } as const satisfies Schema;
 
 export interface PersistedQueryVersion {
@@ -146,4 +158,5 @@ export interface PersistedQueryVersion {
   createdBy?: string | null;
   modifiedBy?: string | null;
   tool?: PublishedToolObject | false | null;
+  ogc?: OgcObject | null;
 }

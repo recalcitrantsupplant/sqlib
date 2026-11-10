@@ -320,6 +320,7 @@ export const sqlib = createNamespace({
 
     "memberEntries",
     "whenEmpty",
+    "valuePattern",
     "datasetPart",
     "Library",
     "Query",
@@ -649,7 +650,10 @@ export const sqlib = createNamespace({
     // and the tool a query or group version publishes as
     "slug",
     "publishAll",
-    "tool"
+    "tool",
+
+    // The OGC API Features collection a query version serves as
+    "ogc"
   ]
 } as const);
 

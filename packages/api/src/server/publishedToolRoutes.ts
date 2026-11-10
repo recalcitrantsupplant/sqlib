@@ -26,6 +26,8 @@
  */
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import {
+  FORMAT_ARGUMENT,
+  FORMAT_MEDIA_TYPES,
   PublishedToolArgumentError,
   buildPublishedRequest,
   formatValidationErrors,
@@ -93,9 +95,23 @@ async function callPublishedTool(
   reply: FastifyReply,
 ) {
   let built;
+  let formatAccept: string | undefined;
   try {
+    let query = request.query as Record<string, string | string[] | undefined>;
+    if (request.method === 'GET' && spec.targetKind !== 'ruleSet' && query[FORMAT_ARGUMENT] !== undefined) {
+      const raw = query[FORMAT_ARGUMENT];
+      const format = Array.isArray(raw) ? raw[raw.length - 1]! : raw!;
+      formatAccept = FORMAT_MEDIA_TYPES[format];
+      if (!formatAccept) {
+        return reply.code(400).send({
+          error: `${FORMAT_ARGUMENT}: "${format}" is not a format. Use one of ${Object.keys(FORMAT_MEDIA_TYPES).join(', ')}.`,
+        });
+      }
+      query = { ...query };
+      delete query[FORMAT_ARGUMENT];
+    }
     const values = request.method === 'GET'
-      ? valuesFromQueryString(spec, request.query as Record<string, string | string[] | undefined>)
+      ? valuesFromQueryString(spec, query)
       : structuredClone((request.body ?? {}) as Record<string, unknown>);
     if (!values || typeof values !== 'object' || Array.isArray(values)) {
       return reply.code(400).send({ error: 'The arguments must be a JSON object.' });
@@ -115,7 +131,8 @@ async function callPublishedTool(
 
   const headers: Record<string, string> = { 'content-type': 'application/json' };
   if (typeof request.headers.authorization === 'string') headers.authorization = request.headers.authorization;
-  if (typeof request.headers.accept === 'string') headers.accept = request.headers.accept;
+  if (formatAccept) headers.accept = formatAccept;
+  else if (typeof request.headers.accept === 'string') headers.accept = request.headers.accept;
 
   const response = await app.inject({ method: 'POST', url: `${basePath}${built.url}`, headers, payload: built.payload as object });
   for (const name of FORWARDED_HEADERS) {

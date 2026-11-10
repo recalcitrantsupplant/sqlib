@@ -28,12 +28,14 @@ import { buildCorsOptions, resolveCorsPolicy } from './config/cors.js';
 import { catalogueMode, publishedToolsServed, registerPublishedModePlugin } from './config/catalogueMode.js';
 import { loadPublishedCatalogue } from './lib/publishedTools.js';
 import { registerPublishedToolRoutes } from './server/publishedToolRoutes.js';
+import { registerOgcRoutes } from './server/ogcRoutes.js';
 import { registerChangeFeedHook } from './lib/changeEvents.js';
 import { registerNoStoreHook } from './lib/httpCaching.js';
 import { registerTraceLinkHook } from './server/traceLink.js';
 import * as schemas from '@sparql-query-lib/contracts/schema';
 import { registerErrorHandler } from './server/errorHandler.js';
 import { closeLibraryDatabase, LIBRARY_SQLITE_FILE } from './persistence/sqliteEntityStore.js';
+import { getAuthStore } from './auth/AuthStore.js';
 import { registerApplicationRoutes } from './server/registerRoutes.js';
 import { seedGraphAccessDemoLibrary, seedPatchDemoLibrary, seedRulesConformanceSuite } from './server/seed.js';
 
@@ -305,6 +307,17 @@ async function configureApp(fastifyApp: typeof app, options: ConfigureOptions = 
     );
   }
 
+  // OGC API Features, from the same catalogue: each `items` call is a
+  // `/execute` call. See `docs/proposals/ogc-api-features.md`.
+  if (featureFlags.ogc && publishedToolsServed(mode) && featureFlags.queries) {
+    await fastifyApp.register(
+      async (scopedApp) => {
+        await registerOgcRoutes(scopedApp, { catalogue: publishedCatalogue, basePath, publicBasePath });
+      },
+      { prefix: basePath },
+    );
+  }
+
   fastifyApp.log.info('Server setup complete with feature flag configuration applied.');
 
   const teardown = async () => {
@@ -313,8 +326,9 @@ async function configureApp(fastifyApp: typeof app, options: ConfigureOptions = 
     }
     await oxigraphStoreManager.shutdown();
     await fastifyApp.close();
-    // After the server, so no request is left writing to it.
+    // After the server, so no request is left writing to them.
     closeLibraryDatabase();
+    getAuthStore().closePersistence();
     // Last, so the spans and log lines of the final requests are flushed.
     await shutdownTelemetry();
   };

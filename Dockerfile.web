@@ -65,6 +65,7 @@ COPY tsconfig.json tsconfig.base.json ./
 COPY packages/api/package.json packages/api/tsconfig.json packages/api/
 COPY packages/compiler/package.json packages/compiler/tsconfig.json packages/compiler/
 COPY packages/contracts/package.json packages/contracts/tsconfig.json packages/contracts/
+COPY packages/geojson/package.json packages/geojson/tsconfig.json packages/geojson/
 COPY packages/mcp-server/package.json packages/mcp-server/tsconfig.json packages/mcp-server/
 COPY packages/rdf-delta/package.json packages/rdf-delta/tsconfig.json packages/rdf-delta/
 COPY packages/runtime/package.json packages/runtime/tsconfig.json packages/runtime/
