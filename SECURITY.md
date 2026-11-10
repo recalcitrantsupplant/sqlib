@@ -65,7 +65,9 @@ which is the reason the unauthenticated doors above matter.
 
 **Query parameters are spliced, not concatenated.** Values supplied at execution
 are inserted as `VALUES` blocks into the parsed query, rather than being
-substituted into query text.
+substituted into query text. A constant parameter (`VALUES ?000word { UNDEF }`)
+is also written, as the same term node, into the triple patterns in the reach of
+its clause, and the result is parsed again before it is sent.
 
 **Nothing has been released.** No published artifact exists to patch, and there
 is no supported-versions table. Fixes land on `main`.

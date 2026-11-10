@@ -114,17 +114,20 @@ const queryInputTupleInputSchema = z
     name: nullableString,
     memberEntries: z.array(iriString),
     whenEmpty: whenEmptyModeSchema.nullable().optional(),
+    valuePattern: z.string().min(1).max(200).nullable().optional(),
   })
   .strict();
 
 /**
- * One slot's `whenEmpty`, named by its variables. Slots left out keep the
- * previous version's mode; `null` clears it (`docs/proposals/required-arguments.md`).
+ * One slot's `whenEmpty` and `valuePattern`, named by its variables. A field
+ * left out keeps the previous version's value; `null` clears it
+ * (`docs/proposals/required-arguments.md`, `docs/proposals/constant-substitution.md`).
  */
 const inputPolicySchema = z
   .object({
     vars: z.array(z.string()).min(1),
-    whenEmpty: whenEmptyModeSchema.nullable(),
+    whenEmpty: whenEmptyModeSchema.nullable().optional(),
+    valuePattern: z.string().min(1).max(200).nullable().optional(),
   })
   .strict();
 

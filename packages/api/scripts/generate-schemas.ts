@@ -321,6 +321,21 @@ export const detectInputsResponseSchema = z
           .strict()
       )
       .default([]),
+    // Constant parameters (VALUES ?000word { UNDEF }): each takes exactly one
+    // value, which is also written into the triple patterns in reach of its clause.
+    constantInputs: z.array(z.string()).default([]),
+    // Advisory only: occurrences of a constant that keep the variable where the
+    // answer can differ from a plain VALUES run (docs/proposals/constant-substitution.md).
+    constantWarnings: z
+      .array(
+        z
+          .object({
+            parameter: z.string(),
+            position: z.string(),
+          })
+          .strict()
+      )
+      .default([]),
   })
   .strict();
 

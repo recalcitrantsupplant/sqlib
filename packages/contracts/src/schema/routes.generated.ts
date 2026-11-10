@@ -4799,6 +4799,10 @@ export const createQueryVersionForQuerySchema = {
             "whenEmpty": {
                   "type": "string",
                   "nullable": true
+            },
+            "valuePattern": {
+                  "type": "string",
+                  "nullable": true
             }
       },
       "required": [
@@ -4837,14 +4841,15 @@ export const createQueryVersionForQuerySchema = {
 } },
       inputPolicies: {
         type: 'array',
-        description: 'What each VALUES parameter means when it receives no bound rows, named by its variables. Unset slots keep the mode of the previous version; null clears it. require refuses a run that leaves the slot open.',
+        description: 'Per-slot rules, named by the slot variables. whenEmpty is what the slot means when it receives no bound rows; require refuses a run that leaves the slot open. valuePattern is a regular expression every bound value must match. A field left out keeps the value of the previous version; null clears it.',
         items: {
           type: 'object', additionalProperties: false,
           properties: {
             vars: { type: 'array', items: { type: 'string' }, minItems: 1 },
-            whenEmpty: { type: ['string', 'null'], enum: ['unconstrained', 'propagateEmpty', 'require', null] }
+            whenEmpty: { type: ['string', 'null'], enum: ['unconstrained', 'propagateEmpty', 'require', null] },
+            valuePattern: { type: ['string', 'null'], minLength: 1, maxLength: 200 }
           },
-          required: ['vars', 'whenEmpty']
+          required: ['vars']
         }
       }
     },
@@ -5550,6 +5555,10 @@ export const createQueryGroupVersionForGroupFlatSchema = {
                   "nullable": true
             },
             "whenEmpty": {
+                  "type": "string",
+                  "nullable": true
+            },
+            "valuePattern": {
                   "type": "string",
                   "nullable": true
             }

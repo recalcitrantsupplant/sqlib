@@ -6,7 +6,7 @@
      CI fails when this file and the built declarations disagree, so every
      addition, removal or signature change arrives as a reviewable diff. -->
 
-Version `0.1.0`. 3 entry points, 188 exported names.
+Version `0.1.0`. 3 entry points, 194 exported names.
 
 Private and protected class members are omitted: a consumer cannot reach them.
 Doc comments are omitted too — they are in the source, and repeating them here
@@ -14,7 +14,7 @@ would make every wording change a surface diff.
 
 ## `@sparql-query-lib/runtime`
 
-88 exports, from `index.d.ts`.
+91 exports, from `index.d.ts`.
 
 ### `Abbreviation` — interface, from `describe-term`
 
@@ -101,6 +101,12 @@ interface CallPayload {
     offsets?: ParameterInput;
     signal?: AbortSignal;
 }
+```
+
+### `compileValuePattern` — function, from `query-template`
+
+```ts
+declare function compileValuePattern(pattern: string): RegExp;
 ```
 
 ### `completeArgumentSets` — function, from `query-template`
@@ -494,6 +500,18 @@ declare function literal(value: string, options?: {
 }): TermValue;
 ```
 
+### `MAX_VALUE_PATTERN_LENGTH` — const, from `query-template`
+
+```ts
+declare const MAX_VALUE_PATTERN_LENGTH = 200;
+```
+
+### `mayDeclareConstantSlot` — function, from `query-template`
+
+```ts
+declare function mayDeclareConstantSlot(queryString: string): boolean;
+```
+
 ### `mayDeclareReservedSlot` — function, from `query-template`
 
 ```ts
@@ -662,7 +680,8 @@ declare function serializeVariable(name: string): string;
 ```ts
 interface SlotPolicy {
     vars: readonly string[];
-    whenEmpty: EmptyArgumentMode;
+    whenEmpty?: EmptyArgumentMode;
+    valuePattern?: string;
 }
 ```
 
@@ -877,6 +896,6 @@ declare class SqlibArgsElement extends ArgsElementBase {
 
 ## `@sparql-query-lib/runtime/browser`
 
-94 exports, from `browser.d.ts`.
+97 exports, from `browser.d.ts`.
 
-94 of them are re-exported unchanged from an entry point above: `Abbreviation`, `applyTemplateArguments`, `ARGS_ELEMENT_STYLES`, `ArgsElementBase`, `ArgsPayload`, `ArgsSignature`, `ArgumentRow`, `ArgumentSetInput`, `assertPageParameterValue`, `assertValidBundle`, `assignArgumentSets`, `AUTH_GROUP_VARIABLE`, `AUTH_USER_VARIABLE`, `CallerIdentity`, `CallPayload`, `completeArgumentSets`, `datasetParameters`, `defineArgsElement`, `describeSlot`, `describeTerm`, `DescribeTermOptions`, `EMPTY_DATASET_GRAPH`, `EmptyArgumentMode`, `escapeLiteralLexical`, `ExecutionParameter`, `ExecutionRequest`, `ExecutionResult`, `Executor`, `ExportBundle`, `ExportedEtlColumn`, `ExportedEtlJob`, `ExportedGroup`, `ExportedGroupEdge`, `ExportedGroupNode`, `ExportedQuery`, `ExportedQueryType`, `ExportedRuleSet`, `findLimitOffsetClauses`, `fromBundle`, `FromBundleOptions`, `GroupCallPayload`, `GroupExternalInput`, `GroupHandle`, `GroupRunResult`, `GroupVariableMapping`, `hashTemplateText`, `httpExecutor`, `HttpExecutorOptions`, `InvalidArgumentError`, `InvalidBundleError`, `InvalidParameterError`, `InvalidTermError`, `iri`, `isReservedSlotVariable`, `isSafeVariableName`, `LimitOffsetClause`, `literal`, `mayDeclareReservedSlot`, `normalizeArguments`, `PageParameterSpan`, `ParameterInput`, `PrefixTable`, `prefixTableAbbreviator`, `QueryCallError`, `QueryExample`, `QueryHandle`, `QueryLibrary`, `QueryTemplate`, `RdfPayload`, `renderValuesBlock`, `RESERVED_SLOT_VARIABLES`, `ReservedSlotError`, `rewriteLimitOffsetClauses`, `serializeIri`, `serializeTerm`, `serializeVariable`, `SlotPolicy`, `SparqlAskResults`, `SparqlDataset`, `SparqlEndpointError`, `SparqlSelectResults`, `SqlibArgsElement`, `substituteLimitOffset`, `SubstitutionOptions`, `TemplateArgumentSet`, `TemplateSlot`, `TermDescription`, `TermValue`, `toExecutionParameters`, `TypedExportBundle`, `UpdateRequest`, `verifyBundleIntegrity`, `WireArgumentSet`, `withCallerArguments`.
+97 of them are re-exported unchanged from an entry point above: `Abbreviation`, `applyTemplateArguments`, `ARGS_ELEMENT_STYLES`, `ArgsElementBase`, `ArgsPayload`, `ArgsSignature`, `ArgumentRow`, `ArgumentSetInput`, `assertPageParameterValue`, `assertValidBundle`, `assignArgumentSets`, `AUTH_GROUP_VARIABLE`, `AUTH_USER_VARIABLE`, `CallerIdentity`, `CallPayload`, `compileValuePattern`, `completeArgumentSets`, `datasetParameters`, `defineArgsElement`, `describeSlot`, `describeTerm`, `DescribeTermOptions`, `EMPTY_DATASET_GRAPH`, `EmptyArgumentMode`, `escapeLiteralLexical`, `ExecutionParameter`, `ExecutionRequest`, `ExecutionResult`, `Executor`, `ExportBundle`, `ExportedEtlColumn`, `ExportedEtlJob`, `ExportedGroup`, `ExportedGroupEdge`, `ExportedGroupNode`, `ExportedQuery`, `ExportedQueryType`, `ExportedRuleSet`, `findLimitOffsetClauses`, `fromBundle`, `FromBundleOptions`, `GroupCallPayload`, `GroupExternalInput`, `GroupHandle`, `GroupRunResult`, `GroupVariableMapping`, `hashTemplateText`, `httpExecutor`, `HttpExecutorOptions`, `InvalidArgumentError`, `InvalidBundleError`, `InvalidParameterError`, `InvalidTermError`, `iri`, `isReservedSlotVariable`, `isSafeVariableName`, `LimitOffsetClause`, `literal`, `MAX_VALUE_PATTERN_LENGTH`, `mayDeclareConstantSlot`, `mayDeclareReservedSlot`, `normalizeArguments`, `PageParameterSpan`, `ParameterInput`, `PrefixTable`, `prefixTableAbbreviator`, `QueryCallError`, `QueryExample`, `QueryHandle`, `QueryLibrary`, `QueryTemplate`, `RdfPayload`, `renderValuesBlock`, `RESERVED_SLOT_VARIABLES`, `ReservedSlotError`, `rewriteLimitOffsetClauses`, `serializeIri`, `serializeTerm`, `serializeVariable`, `SlotPolicy`, `SparqlAskResults`, `SparqlDataset`, `SparqlEndpointError`, `SparqlSelectResults`, `SqlibArgsElement`, `substituteLimitOffset`, `SubstitutionOptions`, `TemplateArgumentSet`, `TemplateSlot`, `TermDescription`, `TermValue`, `toExecutionParameters`, `TypedExportBundle`, `UpdateRequest`, `verifyBundleIntegrity`, `WireArgumentSet`, `withCallerArguments`.

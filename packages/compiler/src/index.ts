@@ -18,6 +18,12 @@ export {
   type SparqlQueryParserOptions,
 } from './parser.js';
 
+export {
+  CONSTANT_PREFIX,
+  isConstantVariable,
+  type ConstantWarning,
+} from './constantSlots.js';
+
 export { detectSparqlOperation, type SparqlOperation } from './operation.js';
 
 export {

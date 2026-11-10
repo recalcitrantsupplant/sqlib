@@ -320,6 +320,7 @@ export const sqlib = createNamespace({
 
     "memberEntries",
     "whenEmpty",
+    "valuePattern",
     "datasetPart",
     "Library",
     "Query",

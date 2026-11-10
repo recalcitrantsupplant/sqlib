@@ -97,7 +97,57 @@ export interface TemplateArgumentSet {
  */
 export interface SlotPolicy {
   vars: readonly string[];
-  whenEmpty: EmptyArgumentMode;
+  /** Unset keeps the built-in reading. */
+  whenEmpty?: EmptyArgumentMode;
+  /**
+   * A regular expression (Unicode mode) that every bound value of the slot must
+   * match, read against the value's lexical form or IRI. A value that does not
+   * match is refused before anything runs.
+   *
+   * It does not make a value safe as SPARQL: the term serialiser does that for
+   * every value. It limits what an engine reads *inside* a literal, such as
+   * QLever's `*` in a text-search word, so a public query cannot be asked for a
+   * search too broad to finish.
+   */
+  valuePattern?: string;
+}
+
+/** The longest value pattern a slot may carry. */
+export const MAX_VALUE_PATTERN_LENGTH = 200;
+
+/**
+ * Compile a slot's value pattern, or throw an error that names the problem.
+ * Anchors are the author's: `^` and `$` are not added.
+ */
+export function compileValuePattern(pattern: string): RegExp {
+  if (typeof pattern !== 'string' || pattern.length === 0) {
+    throw new Error('A value pattern must be a non-empty regular expression.');
+  }
+  if (pattern.length > MAX_VALUE_PATTERN_LENGTH) {
+    throw new Error(`A value pattern can be at most ${MAX_VALUE_PATTERN_LENGTH} characters.`);
+  }
+  try {
+    return new RegExp(pattern, 'u');
+  } catch (error) {
+    throw new Error(`Value pattern ${JSON.stringify(pattern)} is not a valid regular expression: ${(error as Error).message}`, { cause: error });
+  }
+}
+
+/** Refuse a bound value that does not match its slot's value pattern. */
+function checkValuePatterns(slotVars: readonly string[], set: TemplateArgumentSet, pattern: string): void {
+  const regex = compileValuePattern(pattern);
+  for (const row of set.results.bindings) {
+    if (!row) continue;
+    for (const name of slotVars) {
+      const cell = row[name];
+      if (cell == null) continue;
+      if (!regex.test(cell.value)) {
+        throw new Error(
+          `Value ${JSON.stringify(cell.value)} for ?${name} does not match the pattern ${pattern} that the query sets for it.`,
+        );
+      }
+    }
+  }
 }
 
 /**
@@ -159,6 +209,15 @@ export class ReservedSlotError extends Error {
  */
 export function mayDeclareReservedSlot(queryString: string): boolean {
   return /[?$]auth(?:User|Group)\b/.test(queryString);
+}
+
+/**
+ * True when a text may declare a constant parameter (`?000word`). The same
+ * kind of cheap test: a constant must be substituted even when no argument
+ * arrives, so that the run is refused rather than sent with an open variable.
+ */
+export function mayDeclareConstantSlot(queryString: string): boolean {
+  return /[?$]000/.test(queryString);
 }
 
 /**
@@ -307,6 +366,13 @@ export function completeArgumentSets(
   }
   const policyKey = (vars: readonly string[]) => [...vars].sort().join(' ');
   const policies = new Map(slotPolicies.map((policy) => [policyKey(policy.vars), policy.whenEmpty]));
+  const patterns = new Map(
+    slotPolicies.flatMap((policy) => (policy.valuePattern ? [[policyKey(policy.vars), policy.valuePattern] as const] : [])),
+  );
+  slots.forEach((set, index) => {
+    const pattern = patterns.get(policyKey(slotVars[index]));
+    if (set && pattern) checkValuePatterns(slotVars[index], set, pattern);
+  });
   return slots.map((set, index) => {
     const policy = policies.get(policyKey(slotVars[index]));
     if (!set) {
