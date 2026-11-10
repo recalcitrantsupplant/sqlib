@@ -46,19 +46,26 @@ One image serves every runtime mode. `APP_MODE` selects:
 
 ```bash
 docker run -p 3000:3000 \
-  -e APP_MODE=dual-http \
-  -e LIBRARY_STORAGE_DIR=/app/packages/api/storage/library-store \
-  -e SQLIB_AUTH_STORE_DIR=/app/packages/api/storage/auth \
   -v sqlib-storage:/app/packages/api/storage \
   <image>:<tag>
 ```
 
-The library store is the default, `sqlite`: `library.sqlite` in
-`LIBRARY_STORAGE_DIR`. With auth on, grants go to `auth.sqlite` in
-`SQLIB_AUTH_STORE_DIR`. Set both directories to absolute paths under the
-volume. Their defaults are relative to the working directory, and in the
-`dual-http` and `mcp-http` modes that is `/app/packages/mcp-server`, which is
-not on the volume.
+The image's `ENV` sets the defaults of a local `just` run: the SQLite library
+store, every feature flag on, and `SQLIB_AUTH_MODE=disabled`. Those defaults
+suit a trial on one machine. A deployment overrides them with its own
+environment:
+
+- Set `SQLIB_AUTH_MODE` and the issuer settings ([authentication](#authentication-one-broker-in-front)).
+- Set every `FEATURE_*` variable it wants off to `false`. A flag that the
+  deployment leaves unset is on, including `FEATURE_ETL`, `FEATURE_ASSISTANT`
+  and `FEATURE_OGC`.
+
+The library store is `sqlite`: `library.sqlite` in `LIBRARY_STORAGE_DIR`. With
+auth on, grants go to `auth.sqlite` in `SQLIB_AUTH_STORE_DIR`. The image sets
+both, and `OXIGRAPH_STORAGE_DIR` and `ETL_OUTPUT_DIR`, to directories under
+the volume. Their code defaults are relative to the working directory, and in
+the `dual-http` and `mcp-http` modes that is `/app/packages/mcp-server`, which
+is not on the volume and is not writable by `node`.
 
 `/app/packages/api/storage` is declared as a volume and created in the image
 owned by `node` (uid 1000), so a fresh Docker volume is writable. A host bind
@@ -451,6 +458,10 @@ issuer minted for any application would be accepted; set
 `SQLIB_AUTH_ADMIN_PRINCIPALS` names the principals that are administrators at
 boot. [Authentication: one broker in front](#authentication-one-broker-in-front)
 says what to put in front.
+
+**The image turns every feature flag on.** That includes ETL, which runs
+arbitrary DuckDB SQL. Set each `FEATURE_*` variable the deployment wants off to
+`false`; see [feature flags](../reference/feature-flags.md).
 
 **`/mcp` is unauthenticated in the default mode**, like the rest of the API, and
 it is a complete tool surface over every library and backend on the server. If

@@ -9,6 +9,17 @@ sets both.
 The list, the environment variable names and the defaults live in
 `packages/types/src/featureFlags.ts`, which both halves import.
 
+The Default column below is the code's default. Two ways of running sqlib set
+every flag to `true` instead:
+
+- `just` (the `dev` recipe), through the Justfile's `all_features`.
+- The server image, through `ENV` in the `Dockerfile`. A deployment of the
+  image that leaves a flag unset gets it on. Set each flag the deployment wants
+  off to `false`.
+
+`packages/api/test/deployment/dockerfileDefaults.test.ts` fails when either
+list leaves out a flag.
+
 ## Values
 
 A flag's value is parsed leniently, case-insensitively, after trimming:

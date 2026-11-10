@@ -8,73 +8,94 @@ store. By default it keeps its own state in SQLite files on local disk: the
 library in `library.sqlite`, and grants in `auth.sqlite` when auth is on. No
 database server is needed.
 
-## Prerequisites
+## Quick start
+
+From a clone, with Node 26, pnpm 11.1.2 and [`just`](https://github.com/casey/just)
+1.27 or later:
+
+```bash
+just
+```
+
+Open <http://localhost:3001>. The first run installs the dependencies and
+builds the packages the API needs, which takes a few minutes.
+
+With Docker only, build the image and run it:
+
+```bash
+docker build -t sqlib .
+docker run --rm -p 127.0.0.1:3000:3000 sqlib
+```
+
+The API is then on <http://localhost:3000> and MCP on
+<http://localhost:3000/mcp>. The image has no web UI; to use it, run
+`just run-frontend http://localhost:3000` from a clone.
+
+Both routes start sqlib with the same defaults:
+
+| Setting | Default |
+| --- | --- |
+| Library store | SQLite (`library.sqlite`) |
+| Feature flags | All on, including ETL, the assistant and OGC API Features |
+| Auth | Disabled: every caller may read and write |
+
+With auth disabled and ETL on, any caller can run arbitrary DuckDB SQL in the
+server process. Publish the port on `127.0.0.1` or on a network you control
+only. [SECURITY.md](SECURITY.md) describes the posture of a deployment.
+
+### Prerequisites
 
 - Node 26 (the version in [`.nvmrc`](.nvmrc), which CI and both Docker images
   use).
-- pnpm 11.1.2 (pinned by `packageManager` in [`package.json`](package.json);
-  `npm install --global pnpm@11.1.2` — Node 25 and later ship without
-  corepack).
-- [`just`](https://github.com/casey/just) — the Justfile is the only task
-  runner in this repo.
-- Docker, only if you want to build or run the container image. The route below
-  does not need it.
+- pnpm 11.1.2 (pinned by `packageManager` in [`package.json`](package.json)).
+  Install it with `npm install --global pnpm@11.1.2`, because Node 25 and later
+  ship without corepack.
+- [`just`](https://github.com/casey/just) 1.27 or later. The Justfile is the
+  only task runner in this repository.
+- Docker, only to build or run the container image.
 
-## First run
+### What `just` starts
 
-From the repository root:
+`just` runs the `dev` recipe:
 
-```bash
-pnpm install
-pnpm build
-just run-local-memory
-```
+| Address | What |
+| --- | --- |
+| <http://localhost:3001> | The web UI |
+| <http://localhost:3005> | The REST API. `/` redirects to the OpenAPI browser at `/docs/`, and `GET /health` reports status and auth mode |
+| <http://localhost:3005/mcp> | The MCP endpoint, streamable HTTP |
 
-`pnpm build` is required before the first run: the API imports the workspace's
-`types`, `contracts`, `srl`, `tools`, `rdf-delta`, `runtime`, `compiler`, `runtime-duckdb`, `runtime-etl` and `runtime-srl` packages through
-their built entry points, so an unbuilt tree fails to start.
+The library is in `packages/api/tmp/library-store/library.sqlite`. It survives
+a restart; `just clean-local-memory` deletes it. Ctrl-C stops both processes.
 
-`just run-local-memory` starts the API and the MCP server on one Fastify
-instance on port 3005, backed by an Oxigraph library store under
-`packages/api/tmp/library-store`. `just dev` runs the same server, with the web
-UI and every feature flag on, on the default SQLite store
-(`packages/api/tmp/library-store/library.sqlite`).
+`just --list` shows the other recipes by group: other stores, auth behind a
+local Rauthy, demos, HTTPS, Docker and observability.
+[docs/reference/scripts.md](docs/reference/scripts.md) describes each one.
 
-### What you should see
+### Keeping data in Docker
 
-The terminal reports a dual HTTP server listening on port 3005. Open
-<http://localhost:3005/> — it redirects to <http://localhost:3005/docs/>, the
-OpenAPI (Swagger UI) browser for every route the server registered under the
-feature flags currently in effect. `GET /health` returns the server's status,
-uptime and auth mode.
-
-The MCP endpoint is <http://localhost:3005/mcp>, streamable HTTP, the same
-transport used in a container deployment.
-
-The store survives a restart: the library's contents are written to disk on a
-60-second checkpoint interval and on shutdown. To discard it, run
-`just clean-local-memory`.
-
-### The web UI is a separate process
-
-The Nuxt SPA is not served by the API. Start it in a second terminal:
+The image keeps all of its state under `/app/packages/api/storage`. Without a
+volume, the data is lost when the container is removed. Mount a named volume
+there to keep it:
 
 ```bash
-just run-frontend
+docker run --rm -p 127.0.0.1:3000:3000 -v sqlib-data:/app/packages/api/storage sqlib
 ```
 
-It listens on <http://localhost:3001> and talks to `http://localhost:3005` by
-default. Pass another base URL as an argument to point it elsewhere:
-`just run-frontend https://example.org/`.
+`just build-docker` and `just run-docker` do the same with the image tag
+`sparql-query-lib:latest`, on port 3005. A deployment sets its own
+environment, which overrides these defaults: see
+[deploying](docs/guides/deploying.md).
 
 ## Limitations to know before you rely on it
 
 - `/mcp` and the in-app assistant perform no caller authorization. Do not expose
   either to a network you do not control. See [SECURITY.md](SECURITY.md).
-- ETL and the assistant are off by default (`FEATURE_ETL`, `FEATURE_PLAYGROUND_ETL`,
-  `FEATURE_ASSISTANT`), because ETL runs arbitrary DuckDB SQL. The recipe above
-  sets `FEATURE_ASSISTANT=true`; the assistant still does nothing until a caller
-  supplies a model provider, model and API key with the request.
+- ETL, the assistant and OGC API Features are off in the code's own defaults,
+  because ETL runs arbitrary DuckDB SQL. `just` and the image turn them on. A
+  deployment of the image that leaves a `FEATURE_*` variable unset gets that
+  feature on.
+  The assistant does nothing until a caller supplies a model provider, model
+  and API key with the request.
 - The `oxigraph-persistent` backend type is an in-memory store serialised to
   N-Quads on a checkpoint interval and on shutdown, not a disk-resident
   database. Its working set must fit in memory.
