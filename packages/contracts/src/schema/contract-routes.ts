@@ -2252,6 +2252,9 @@ export const executionRouteSchemas = {
           "error": {
             "type": "string"
           },
+          "code": {
+            "type": "string"
+          },
           "failedNodeId": {
             "type": "string"
           },
@@ -2980,6 +2983,9 @@ export const patchPreviewJsonSchema = {
     enumerateGraphOps: { type: 'boolean' },
     /* Refuse rather than enumerate past this many triples per operation. */
     enumerationCap: { type: 'integer', minimum: 0 },
+    /* The graphs the update's WHERE clauses read, as on `POST /sparql`. */
+    defaultGraphs: datasetGraphsJsonSchema,
+    namedGraphs: datasetGraphsJsonSchema,
   },
   required: ['updateString', 'backendId'],
   additionalProperties: false,

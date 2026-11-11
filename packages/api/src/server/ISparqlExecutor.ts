@@ -61,9 +61,9 @@ export type SparqlUpdateOptions = {
    * The dataset that the `WHERE` clause of each `DELETE/INSERT` operation
    * reads, in place of `USING` / `USING NAMED` (SPARQL 1.1 Protocol §2.2.3).
    * It does not change the graphs the update writes to. An HTTP backend gets
-   * `using-graph-uri` and `using-named-graph-uri`, and Oxigraph gets `USING`
-   * clauses in the text (see `lib/updateDataset.ts`). Refused for an update
-   * whose text has `USING`, `USING NAMED` or `WITH`.
+   * `using-graph-uri` and `using-named-graph-uri`, and Oxigraph gets the
+   * dataset options of `Store.update` (see `lib/updateDataset.ts`). An
+   * executor with `supportsUpdateDataset: false` throws when given one.
    */
   dataset?: SparqlDataset;
 };
@@ -87,6 +87,12 @@ export type SparqlExecutionResult<T> = {
  * Supports both parsed results and raw streaming for SELECT and CONSTRUCT queries.
  */
 export interface ISparqlExecutor {
+  /**
+   * False when this executor cannot apply `SparqlUpdateOptions.dataset`.
+   * Routes check it before they run an update with a dataset.
+   */
+  readonly supportsUpdateDataset: boolean;
+
   /**
    * Executes a SPARQL SELECT query and returns the parsed JSON output object.
    * When a non-JSON Accept header is provided, returns the response as a string.

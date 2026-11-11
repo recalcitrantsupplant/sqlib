@@ -22,9 +22,25 @@
 
 import type { QuadLike, TermLike } from './terms.js';
 
+/**
+ * A run-time dataset: the graphs `FROM` / `FROM NAMED` (on a read) or
+ * `USING` / `USING NAMED` (on an update) would name. An absent part of a
+ * dataset that gives the other part has no graphs (SPARQL 1.1 Query §13.2).
+ */
+export interface DeltaDataset {
+  defaultGraphs?: string[];
+  namedGraphs?: string[];
+}
+
+/** Options of a derived read. */
+export interface DeltaReadOptions {
+  /** The update's dataset, applied to a read derived from its `WHERE` clause. */
+  dataset?: DeltaDataset;
+}
+
 export interface DeltaStore {
-  construct(sparql: string): Promise<QuadLike[]>;
-  select(sparql: string): Promise<Array<Record<string, TermLike>>>;
+  construct(sparql: string, options?: DeltaReadOptions): Promise<QuadLike[]>;
+  select(sparql: string, options?: DeltaReadOptions): Promise<Array<Record<string, TermLike>>>;
   /** Exact membership, including for quads carrying blank nodes. */
   has?(quad: QuadLike): Promise<boolean> | boolean;
   /** A private, mutable copy of this store, for simulating a program. */
@@ -40,7 +56,9 @@ export interface DeltaStore {
  * afterwards so nothing it does is observable.
  */
 export interface SimulationStore extends DeltaStore {
-  update(sparql: string): Promise<void> | void;
+  update(sparql: string, options?: { dataset?: DeltaDataset }): Promise<void> | void;
+  /** True when `update` applies `options.dataset`. A dataset is refused otherwise. */
+  supportsUpdateDataset?: boolean;
   /** Release whatever the copy holds. Called even when derivation throws. */
   close?(): Promise<void> | void;
 }

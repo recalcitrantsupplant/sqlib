@@ -29,12 +29,13 @@ import { isReadOnlyDeployment } from '../config/readOnly.js';
 import { UnsupportedUpdateError } from '@sparql-query-lib/rdf-delta';
 import { clientId, toPatchView } from './patches.js';
 import { datasetFromRequest, type SparqlDataset } from '../lib/dataset.js';
-import { assertUpdateTakesDataset, UpdateDatasetConflictError, withUsingClauses } from '../lib/updateDataset.js';
-import { GuardedSparqlExecutor } from '../auth/GuardedSparqlExecutor.js';
+import { assertUpdateTakesDataset, assertUpdateTextTakesDataset, UpdateDatasetError } from '../lib/updateDataset.js';
+import { GraphPolicyUpdateError, GuardedSparqlExecutor } from '../auth/GuardedSparqlExecutor.js';
 
 const errorResponseSchema = {
   type: 'object',
-  properties: { error: { type: 'string' } },
+  // `code` names a refusal a client can act on, such as UPDATE_DATASET_CONFLICT.
+  properties: { error: { type: 'string' }, code: { type: 'string' } },
   required: ['error'],
   additionalProperties: false,
 } as const;
@@ -232,9 +233,9 @@ export default async function (
 
     const patch = await recordPassthroughUpdate({
       backendId,
-      // The derivation reads the text, so it gets the dataset as USING
-      // clauses, and the record shows the update that ran.
-      updateString: withUsingClauses(updateString, dataset),
+      updateString,
+      // The derived reads take the update's dataset as a read dataset.
+      dataset,
       origin: clientId(request),
       run: async () => {
         ({ duration } = await executor.update(updateString, { dataset }));
@@ -352,12 +353,13 @@ export default async function (
       const dataset = datasetFromRequest(params.dataset);
       // For an update, the dataset is what its WHERE clause reads, sent as
       // `using-graph-uri` (Protocol §2.2.3). The protocol refuses it with
-      // USING or WITH in the text, and so does this route.
+      // USING or WITH in the text, and so does this route. Whether the
+      // backend can apply it is checked once the executor is known.
       if (dataset && operation === QueryTypeIri.update) {
         try {
-          assertUpdateTakesDataset(query, dataset);
+          assertUpdateTextTakesDataset(query, dataset);
         } catch (error) {
-          if (error instanceof UpdateDatasetConflictError) return reply.code(400).send({ error: error.message });
+          if (error instanceof UpdateDatasetError) return reply.code(400).send({ error: error.message, code: error.code });
           throw error;
         }
       }
@@ -456,6 +458,7 @@ export default async function (
           return reply.send(askResult);
         }
         case QueryTypeIri.update: {
+          assertUpdateTakesDataset(executedQuery, dataset, executor, backendId ?? undefined);
           if (recordPatch) {
             return await runRecordedUpdate({
               request,
@@ -486,7 +489,10 @@ export default async function (
         // An update form the derivation cannot express is the caller's SPARQL,
         // not a proxy failure — and with `record=patch` it stops the write.
         : error instanceof UnsupportedUpdateError ? 400 : 500;
-      return reply.code(statusCode).send({ error: error?.message || 'Internal server error' });
+      const code = error__u instanceof UpdateDatasetError || error__u instanceof GraphPolicyUpdateError
+        ? { code: error__u.code }
+        : {};
+      return reply.code(statusCode).send({ error: error?.message || 'Internal server error', ...code });
     } finally {
       if (ephemeralStoreId) {
         oxigraphStoreManager.destroyEphemeralStore(ephemeralStoreId);

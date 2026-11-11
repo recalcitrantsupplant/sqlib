@@ -58,7 +58,8 @@ vi.mock('../../src/lib/CacheCoordinatorProvider.js', () => ({
   }),
 }));
 
-const createMockExecutor = () => ({
+const createMockExecutor = (supportsUpdateDataset = true) => ({
+  supportsUpdateDataset,
   selectQueryParsed: vi.fn(),
   constructQueryParsed: vi.fn(),
   askQuery: vi.fn(),
@@ -624,6 +625,50 @@ describe('Execute route (v1)', () => {
       });
 
       expect(res.statusCode).toBe(400);
+      expect(mockExecutor.update).not.toHaveBeenCalled();
+    });
+
+    it('refuses a dataset on DELETE WHERE, with 400 and its code', async () => {
+      const vId = 'urn:sqlib:query-version:delete-where';
+      const version = { $id: vId, '@type': 'QueryVersion', queryString: 'DELETE WHERE { ?s <http://example.org/p> ?o }', queryType: QueryTypeIri.update };
+
+      hoisted.mockGet
+        .mockReturnValueOnce(version)
+        .mockReturnValueOnce(backend);
+
+      const mockExecutor = createMockExecutor();
+      executorFactoryInstance.getExecutorForNode.mockResolvedValue(mockExecutor);
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/execute/',
+        payload: { targetId: vId, backendId: backend.$id, defaultGraphs: ['http://example.org/g1'] },
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.json().code).toBe('UPDATE_DATASET_DELETE_WHERE');
+      expect(mockExecutor.update).not.toHaveBeenCalled();
+    });
+
+    it('refuses a dataset on an UPDATE when the backend cannot apply it, with 400 and its code', async () => {
+      const vId = 'urn:sqlib:query-version:unsupported';
+      const version = { $id: vId, '@type': 'QueryVersion', queryString: 'INSERT { ?s <http://example.org/q> ?o } WHERE { ?s <http://example.org/p> ?o }', queryType: QueryTypeIri.update };
+
+      hoisted.mockGet
+        .mockReturnValueOnce(version)
+        .mockReturnValueOnce(backend);
+
+      const mockExecutor = createMockExecutor(false);
+      executorFactoryInstance.getExecutorForNode.mockResolvedValue(mockExecutor);
+
+      const res = await app.inject({
+        method: 'POST',
+        url: '/execute/',
+        payload: { targetId: vId, backendId: backend.$id, defaultGraphs: ['http://example.org/g1'] },
+      });
+
+      expect(res.statusCode).toBe(400);
+      expect(res.json().code).toBe('UPDATE_DATASET_UNSUPPORTED');
       expect(mockExecutor.update).not.toHaveBeenCalled();
     });
 

@@ -252,10 +252,17 @@ auth backend, take effect within the cache time.
   what a person would read, use `Test as` on the Access screen.
 - **Updates.** The policy narrows the `WHERE` clause of an update, as it
   narrows a read. sqlib sends the narrowed dataset as `using-graph-uri` and
-  `using-named-graph-uri`, or as `USING` clauses for an Oxigraph backend.
-  sqlib refuses with `403` a policed update whose text has `USING`,
-  `USING NAMED` or `WITH`, because the protocol does not let a dataset replace
-  those clauses. The policy does not limit the graphs an update writes to: an
+  `using-named-graph-uri`, and does not change the update text. sqlib refuses
+  with `403` a policed update in these cases:
+  - The text has `USING`, `USING NAMED` or `WITH`, because the protocol does
+    not let a dataset replace those clauses
+    (`GRAPH_POLICY_UPDATE_NAMES_GRAPHS`).
+  - The text has `DELETE WHERE`, which cannot take a dataset
+    (`GRAPH_POLICY_UPDATE_DELETE_WHERE`).
+  - The backend cannot apply an update dataset, as with an in-process Oxigraph
+    0.5.13 store (`GRAPH_POLICY_UPDATE_UNSUPPORTED`).
+
+  The policy does not limit the graphs an update writes to: an
   update names them in its own text. The `update:*` modes therefore allow
   writes to any graph of the backend. Give update modes only to callers who can
   write the whole backend.

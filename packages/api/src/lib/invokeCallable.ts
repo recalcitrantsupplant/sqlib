@@ -88,9 +88,10 @@ export async function invokeCallable(
   }
   if (type === QueryTypeIri.update) {
     // The dataset is what the update's WHERE clause reads (`using-graph-uri`).
-    // Refused when the text names its own: dropping either would run the
-    // update over graphs the caller did not choose.
-    assertUpdateTakesDataset(query, dataset);
+    // Refused when the text names its own graphs, is DELETE WHERE, or the
+    // backend cannot apply it: dropping the dataset would run the update over
+    // graphs the caller did not choose.
+    assertUpdateTakesDataset(query, dataset, executor);
     await executor.update(query, { dataset });
     return { result: { success: true } };
   }

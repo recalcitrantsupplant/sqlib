@@ -121,8 +121,13 @@ export async function executeOnBrowserBackend(
   const isUpdate = (request.operation ?? (looksLikeUpdate(query) ? 'update' : 'query')) === 'update';
   const started = Date.now();
 
-  // A direct POST carries the dataset in the URL, for a query and an update alike.
-  const datasetParams = datasetProtocolParams(request.dataset, isUpdate ? 'update' : 'query').toString();
+  // A query's dataset rides in the URL. An update's goes in a form body
+  // (`update=` plus `using-graph-uri` pairs), which has no URL length limit.
+  const datasetParams = isUpdate ? '' : datasetProtocolParams(request.dataset).toString();
+  const updateDataset = isUpdate ? datasetProtocolParams(request.dataset, 'update') : null;
+  const updateForm = updateDataset && [...updateDataset.keys()].length > 0
+    ? new URLSearchParams([['update', query], ...updateDataset]).toString()
+    : null;
   const join = (url: string, params: string) => (params ? `${url}${url.includes('?') ? '&' : '?'}${params}` : url);
   const postUrl = join(endpoint, datasetParams);
   const getUrl = join(endpoint, [`query=${encodeURIComponent(query)}`, datasetParams].filter(Boolean).join('&'));
@@ -144,14 +149,13 @@ export async function executeOnBrowserBackend(
         signal,
       });
     } else {
+      const contentType = updateForm
+        ? 'application/x-www-form-urlencoded'
+        : isUpdate ? 'application/sparql-update' : 'application/sparql-query';
       response = await fetchImpl(postUrl, {
         method: 'POST',
-        headers: {
-          Accept: accept,
-          'Content-Type': isUpdate ? 'application/sparql-update' : 'application/sparql-query',
-          ...backend.headers,
-        },
-        body: query,
+        headers: { Accept: accept, 'Content-Type': contentType, ...backend.headers },
+        body: updateForm ?? query,
         signal,
       });
     }

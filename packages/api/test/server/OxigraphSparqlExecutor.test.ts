@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { setOxigraphUpdateDatasetSupport } from '../../src/lib/oxigraphUpdateDataset.js';
 import { OxigraphSparqlExecutor } from '../../src/server/OxigraphSparqlExecutor.js';
 import { SparqlSelectJsonOutput } from '../../src/server/ISparqlExecutor.js';
 import * as oxigraph from 'oxigraph';
@@ -340,34 +341,38 @@ describe('OxigraphSparqlExecutor', () => {
         describe('on an update', () => {
             const COPY = 'INSERT { GRAPH <http://example.org/out> { ?s <http://example.org/copied> ?o } } '
                 + 'WHERE { ?s <http://example.org/p> ?o }';
-            const copied = () => values(
-                'SELECT ?o WHERE { GRAPH <http://example.org/out> { ?s <http://example.org/copied> ?o } }',
-                { namedGraphs: ['http://example.org/out'], defaultGraphs: [] },
-            ).then(() => store.match(null, oxigraph.namedNode('http://example.org/copied'), null, oxigraph.namedNode('http://example.org/out'))
-                .map((quad) => quad.object.value).sort());
 
-            it('reads the WHERE clause over the given default graphs', async () => {
-                await executor.update(COPY, { dataset: { defaultGraphs: [g2.value] } });
-                expect(await copied()).toEqual(['two']);
+            afterEach(() => setOxigraphUpdateDatasetSupport(undefined));
+
+            it('refuses a dataset when the binding cannot apply it, and writes nothing', async () => {
+                // Oxigraph 0.5.13 ignores dataset options on Store.update.
+                expect(executor.supportsUpdateDataset).toBe(false);
+                const before = store.size;
+                await expect(executor.update(COPY, { dataset: { defaultGraphs: [g2.value] } }))
+                    .rejects.toMatchObject({ code: 'UPDATE_DATASET_UNSUPPORTED', statusCode: 400 });
+                expect(store.size).toBe(before);
             });
 
-            it('reads named graphs from the dataset, with DELETE WHERE too', async () => {
-                await executor.update(
-                    'DELETE WHERE { GRAPH ?g { ?s <http://example.org/p> ?o } }',
-                    { dataset: { namedGraphs: [g1.value] } },
-                );
-                expect(store.match(null, p, null, null).map((quad) => quad.object.value)).toEqual(['two']);
+            it('runs an update with no dataset as written', async () => {
+                await executor.update(COPY);
+                expect(store.match(null, oxigraph.namedNode('http://example.org/copied'), null, null)).toHaveLength(0);
+                await executor.update('INSERT DATA { <http://example.org/s9> <http://example.org/p> "nine" }');
+                expect(store.match(oxigraph.namedNode('http://example.org/s9'), null, null, null)).toHaveLength(1);
             });
 
-            it('reads nothing over an empty dataset', async () => {
-                await executor.update(COPY, { dataset: { defaultGraphs: [] } });
-                expect(await copied()).toEqual([]);
-            });
+            it('passes the dataset as Store.update options when the binding applies them', async () => {
+                setOxigraphUpdateDatasetSupport(true);
+                const calls: Array<{ text: string; options: unknown }> = [];
+                const fake = { size: 0, update: (text: string, options: unknown) => { calls.push({ text, options }); } };
+                const supported = new OxigraphSparqlExecutor(fake as unknown as oxigraph.Store);
+                expect(supported.supportsUpdateDataset).toBe(true);
 
-            it('refuses a dataset with USING or WITH in the text', async () => {
-                const withGraph = 'WITH <http://example.org/g1> INSERT { ?s <http://example.org/copied> ?o } WHERE { ?s ?p ?o }';
-                await expect(executor.update(withGraph, { dataset: { defaultGraphs: [g2.value] } }))
-                    .rejects.toThrow(/USING, USING NAMED or WITH/);
+                await supported.update(COPY, { dataset: { namedGraphs: [g1.value] } });
+                expect(calls[0].text).toBe(COPY);
+                const options = calls[0].options as { default_graph: Array<{ value: string }>; named_graphs: Array<{ value: string }> };
+                // SPARQL 1.1 Query §13.2: named graphs alone give an empty default graph.
+                expect(options.default_graph).toEqual([]);
+                expect(options.named_graphs.map((node) => node.value)).toEqual([g1.value]);
             });
         });
     });

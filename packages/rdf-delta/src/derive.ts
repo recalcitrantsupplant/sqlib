@@ -34,7 +34,7 @@ import {
 } from './terms.js';
 import { planUpdate, type OperationPlan, type QuadOperationPlan, type TemplatePart } from './plan.js';
 import { graphOperationEffect, type GraphOperationRecord } from './graphOps.js';
-import type { DeltaStore, SimulationStore } from './deltaStore.js';
+import type { DeltaDataset, DeltaStore, SimulationStore } from './deltaStore.js';
 
 export type { DeltaStore, SimulationStore } from './deltaStore.js';
 
@@ -77,6 +77,13 @@ export interface DeriveOptions {
   enumerateGraphOps?: boolean;
   /** Refuse rather than enumerate more than this many triples per operation. */
   enumerationCap?: number;
+  /**
+   * The dataset the update's `WHERE` clauses read (`using-graph-uri`). The
+   * reads derived from a `WHERE` clause take it as a read dataset. The checks
+   * of what the store holds run without it, because a write acts on the store.
+   * The update text must not name its own graphs (`USING`, `WITH`).
+   */
+  dataset?: DeltaDataset;
 }
 
 const EXISTENCE_CHUNK = 500;
@@ -100,9 +107,19 @@ export async function derivePatch(
     cap: options.enumerationCap ?? DEFAULT_ENUMERATION_CAP,
   };
 
+  const dataset = options.dataset && (options.dataset.defaultGraphs !== undefined || options.dataset.namedGraphs !== undefined)
+    ? options.dataset
+    : undefined;
+
   const simulation = await simulationFor(operations, store);
   try {
-    return await run(operations, simulation ?? store, simulation, graphOptions);
+    if (simulation && dataset && !simulation.supportsUpdateDataset) {
+      throw new UnsupportedUpdateError(
+        'This program has to be simulated on a copy of the store, and the copy cannot apply a dataset '
+          + 'to an update. Run it without defaultGraphs and namedGraphs, or split it into one operation per request.',
+      );
+    }
+    return await run(operations, simulation ?? store, simulation, graphOptions, dataset);
   } finally {
     await simulation?.close?.();
   }
@@ -145,6 +162,7 @@ async function run(
   store: DeltaStore,
   simulation: SimulationStore | undefined,
   graphOptions: { enumerate: boolean; cap: number },
+  dataset: DeltaDataset | undefined,
 ): Promise<Patch> {
   const additions = new QuadSet();
   const deletions = new QuadSet();
@@ -169,8 +187,8 @@ async function run(
       rawInserts = effect.rawInserts;
       deletesKnownPresent = effect.record.enumerated;
     } else {
-      rawDeletes = await instantiate(operation, operation.deleteParts, store);
-      rawInserts = await instantiate(operation, operation.insertParts, store);
+      rawDeletes = await instantiate(operation, operation.deleteParts, store, dataset);
+      rawInserts = await instantiate(operation, operation.insertParts, store, dataset);
     }
 
     rawDeleteCount += rawDeletes.length;
@@ -209,7 +227,7 @@ async function run(
     // written, not the diff just derived: only the original text carries the
     // effects the diff deliberately leaves out — an empty graph created, a
     // graph operation that was counted rather than enumerated.
-    if (simulation) await simulation.update(operation.text);
+    if (simulation) await simulation.update(operation.text, dataset ? { dataset } : undefined);
   }
 
   const additionQuads = additions.values();
@@ -268,8 +286,10 @@ async function instantiate(
   operation: QuadOperationPlan,
   parts: readonly TemplatePart[],
   store: DeltaStore,
+  dataset: DeltaDataset | undefined,
 ): Promise<QuadLike[]> {
   const quads: QuadLike[] = [];
+  const readOptions = dataset ? { dataset } : undefined;
 
   for (const part of parts) {
     if (part.graph.kind === 'variable') {
@@ -280,18 +300,19 @@ async function instantiate(
       const variable = part.graph.value;
       const rows = await store.select(
         `${operation.prologue}\nSELECT DISTINCT ?${variable}${operation.datasetText}\nWHERE ${operation.whereText}`,
+        readOptions,
       );
       for (const row of rows) {
         const value = row[variable];
         if (!value || value.termType !== 'NamedNode') continue;
         const pinned = `{ VALUES ?${variable} { <${value.value}> } ${operation.whereText} }`;
-        const constructed = await store.construct(constructQuery(operation, part.text, pinned));
+        const constructed = await store.construct(constructQuery(operation, part.text, pinned), readOptions);
         for (const quad of constructed) quads.push(withGraph(quad, value.value));
       }
       continue;
     }
 
-    const constructed = await store.construct(constructQuery(operation, part.text, operation.whereText));
+    const constructed = await store.construct(constructQuery(operation, part.text, operation.whereText), readOptions);
     const graph = part.graph.kind === 'iri' ? part.graph.value : undefined;
     for (const quad of constructed) quads.push(withGraph(quad, graph));
   }

@@ -12,6 +12,7 @@ const hoisted = vi.hoisted(() => {
     selectQueryStream: vi.fn(),
     constructQueryStream: vi.fn(),
     executorConfig: {},
+    supportsUpdateDataset: true,
   });
 
   return {

@@ -68,7 +68,7 @@ export interface OxigraphStore {
    * written before it existed still fits; the real `Store` has it, and the
    * executor offers `update` only when the store does.
    */
-  update?(update: string, options?: { base_iri?: string }): void;
+  update?(update: string, options?: { base_iri?: string } & OxigraphDatasetOptions): void;
   readonly size: number;
 }
 
@@ -145,6 +145,35 @@ async function datasetOptions(dataset: SparqlDataset): Promise<OxigraphDatasetOp
   };
 }
 
+let updateDatasetSupport: Promise<boolean> | undefined;
+
+/**
+ * Whether the loaded binding applies `default_graph` and `named_graphs` on
+ * `Store.update`. Oxigraph 0.5.13 does not. Probed once: on a store with one
+ * quad, an `INSERT … WHERE` over an empty default graph inserts nothing.
+ */
+export function supportsUpdateDataset(): Promise<boolean> {
+  updateDatasetSupport ??= (async () => {
+    try {
+      const { Store, namedNode, quad } = await loadOxigraph() as unknown as {
+        Store: new () => OxigraphStore & { add(q: unknown): void };
+        namedNode(iri: string): OxigraphNamedNode;
+        quad(s: unknown, p: unknown, o: unknown): unknown;
+      };
+      const store = new Store();
+      store.add(quad(namedNode('urn:sqlib:probe:s'), namedNode('urn:sqlib:probe:p'), namedNode('urn:sqlib:probe:o')));
+      store.update!(
+        'INSERT { <urn:sqlib:probe:s2> <urn:sqlib:probe:p> <urn:sqlib:probe:o> } WHERE { ?s ?p ?o }',
+        { default_graph: [], named_graphs: [] },
+      );
+      return store.size === 1;
+    } catch {
+      return false;
+    }
+  })();
+  return updateDatasetSupport;
+}
+
 function toDocuments(data: OxigraphExecutorOptions['data']): SeedDocument[] {
   if (data === undefined) return [];
   if (typeof data === 'string') return [{ content: data }];
@@ -188,9 +217,18 @@ export async function oxigraphExecutor(
 
   // Synchronous underneath, like a query: the signal can stop an update that
   // has not started, never one that has.
-  const update = async ({ updateText, signal }: UpdateRequest): Promise<void> => {
+  const update = async ({ updateText, signal, dataset }: UpdateRequest): Promise<void> => {
     signal?.throwIfAborted();
-    resolved.update!(updateText);
+    if (!dataset || (dataset.defaultGraphs === undefined && dataset.namedGraphs === undefined)) {
+      resolved.update!(updateText);
+      return;
+    }
+    // The binding ignores dataset options it does not know, with no error, so
+    // a dataset is applied only when a probe shows the binding honours it.
+    if (!(await supportsUpdateDataset())) {
+      throw new Error('This Oxigraph build cannot limit the graphs an update reads. Run it without a dataset.');
+    }
+    resolved.update!(updateText, await datasetOptions(dataset));
   };
 
   return {

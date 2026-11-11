@@ -37,6 +37,10 @@ describe('GraphBuilder: DATASET edges', () => {
     put({ $id: 'urn:node:source', '@type': 'QueryNode', backendId: 'urn:backend', queryId: 'urn:qv:graphs', outputs: ['urn:tuple:g', 'urn:tuple:gh'] });
     put({ $id: 'urn:node:target', '@type': 'QueryNode', backendId: 'urn:backend', queryId: 'urn:qv:read' });
     put({ $id: 'urn:node:update', '@type': 'QueryNode', backendId: 'urn:backend', queryId: 'urn:qv:update' });
+    put({ $id: 'urn:qv:copy', '@type': 'QueryVersion', queryString: 'INSERT { ?s <urn:q> ?o } WHERE { ?s <urn:p> ?o }', queryType: QueryTypeIri.update });
+    put({ $id: 'urn:qv:with', '@type': 'QueryVersion', queryString: 'WITH <urn:g> INSERT { ?s <urn:q> ?o } WHERE { ?s <urn:p> ?o }', queryType: QueryTypeIri.update });
+    put({ $id: 'urn:node:copy', '@type': 'QueryNode', backendId: 'urn:backend', queryId: 'urn:qv:copy' });
+    put({ $id: 'urn:node:with', '@type': 'QueryNode', backendId: 'urn:backend', queryId: 'urn:qv:with' });
   });
 
   const build = (edges: Array<Record<string, unknown>>, target = 'urn:node:target') => {
@@ -80,8 +84,19 @@ describe('GraphBuilder: DATASET edges', () => {
     expect(() => build([{ targetInputId: 'urn:tuple:g' }])).toThrow(/remove targetInputId/);
   });
 
-  it('refuses an UPDATE target', () => {
-    expect(() => build([{}], 'urn:node:update')).toThrow(/UPDATE node/);
+  it('accepts an UPDATE target: the dataset sets what its WHERE clause reads', () => {
+    expect(build([{}], 'urn:node:copy').edges[0].dataFlowType).toBe('DATASET');
+  });
+
+  it('refuses an UPDATE target whose text is DELETE WHERE or names its graphs', () => {
+    for (const target of ['urn:node:update', 'urn:node:with']) {
+      try {
+        build([{}], target);
+        expect.unreachable(`expected ${target} to be refused`);
+      } catch (error) {
+        expect((error as { code?: string }).code).toBe('EDGE_DATASET_UPDATE_NAMES_GRAPHS');
+      }
+    }
   });
 
   it('refuses whenEmpty unconstrained', () => {

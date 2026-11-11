@@ -401,10 +401,20 @@ dataset of its backend.
 - For an UPDATE, the dataset sets the graphs that its `WHERE` clause reads, as
   `USING` and `USING NAMED` do. It does not change the graphs the update writes
   to. Over HTTP, sqlib sends it as the `using-graph-uri` and
-  `using-named-graph-uri` parameters (SPARQL 1.1 Protocol §2.2.3). For an
-  Oxigraph backend, sqlib adds `USING` clauses to the update text.
+  `using-named-graph-uri` parameters (SPARQL 1.1 Protocol §2.2.3). sqlib does
+  not change the update text.
+- An in-process Oxigraph backend applies an update dataset only when its
+  binding supports the dataset options of `Store.update`. sqlib tests this
+  once at load. Oxigraph 0.5.13 does not support them, so sqlib refuses the
+  update with `400` and code `UPDATE_DATASET_UNSUPPORTED`. Run the update
+  without a dataset, or use an HTTP backend.
 - sqlib refuses with `400` a dataset on an UPDATE whose text has `USING`,
-  `USING NAMED` or `WITH`, as the protocol requires.
+  `USING NAMED` or `WITH`, as the protocol requires (code
+  `UPDATE_DATASET_CONFLICT`). It also refuses a dataset on `DELETE WHERE`
+  (code `UPDATE_DATASET_DELETE_WHERE`), because backends do not agree on what
+  it reads. Write it as `DELETE { … } WHERE { … }`.
+- `POST /patches/preview` takes the same two fields. The patch stores the
+  dataset, and an apply derives the patch again over the same graphs.
 - `POST /sparql` takes the same two fields. `GET /sparql` takes the protocol
   parameters `default-graph-uri` and `named-graph-uri`, once for each graph.
 

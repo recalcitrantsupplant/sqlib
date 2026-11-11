@@ -166,6 +166,8 @@ async function checkHttpResponseStatus(response: Dispatcher.ResponseData): Promi
  */
 export class HttpSparqlExecutor implements ISparqlExecutor {
   private executorConfig: HttpExecutorConfig; // Store the simpler config
+  /** Sent as `using-graph-uri` and `using-named-graph-uri`. */
+  readonly supportsUpdateDataset = true;
 
   constructor(executorConfig: HttpExecutorConfig) { // Accept simpler config
     // Validate the configuration

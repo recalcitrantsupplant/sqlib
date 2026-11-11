@@ -42,7 +42,7 @@ import type { NodeResult, ResolvedNode } from '../lib/orchestration/types.js';
 import * as crypto from 'crypto';
 import { ArgumentSetService } from '../lib/ArgumentSetService.js';
 import { datasetFromRequest, type SparqlDataset } from '../lib/dataset.js';
-import { assertUpdateTakesDataset, UpdateDatasetConflictError, withUsingClauses } from '../lib/updateDataset.js';
+import { assertUpdateTakesDataset, assertUpdateTextTakesDataset, UpdateDatasetError } from '../lib/updateDataset.js';
 import { GraphPolicyUpdateError } from '../auth/GuardedSparqlExecutor.js';
 import { abortOnDisconnect, ExecutionAbortedError } from '../lib/cancellation.js';
 import { QueryGroupSignatureService } from '../lib/QueryGroupSignatureService.js';
@@ -1238,13 +1238,14 @@ export default async function (
                      * For an update, the dataset is what its WHERE clause
                      * reads, sent as `using-graph-uri` (Protocol §2.2.3). The
                      * protocol refuses it with USING or WITH in the text, and
-                     * so does this route.
+                     * so does this route. A patch preview only reads, so it
+                     * does not need a backend that applies update datasets.
                      */
                     try {
-                        assertUpdateTakesDataset(sparqlQueryString, dataset);
+                        assertUpdateTextTakesDataset(sparqlQueryString, dataset);
                     } catch (error__u: unknown) {
-                        if (error__u instanceof UpdateDatasetConflictError) {
-                            return reply.code(400).send({error: error__u.message});
+                        if (error__u instanceof UpdateDatasetError) {
+                            return reply.code(400).send({error: error__u.message, code: error__u.code});
                         }
                         throw error__u;
                     }
@@ -1264,9 +1265,9 @@ export default async function (
                         try {
                             const patch = await previewUpdate({
                                 backendId,
-                                // The derivation reads the text, so it gets
-                                // the dataset as USING clauses.
-                                updateString: withUsingClauses(sparqlQueryString, dataset),
+                                updateString: sparqlQueryString,
+                                // The derived reads take the update's dataset.
+                                dataset,
                                 origin: clientIdOf(request),
                             });
                             if (patch.applyMode === 'graph-ops') {
@@ -1339,10 +1340,11 @@ export default async function (
                     }
                     let duration: number;
                     try {
+                        assertUpdateTakesDataset(sparqlQueryString, dataset, targetExecutor, backendId ?? undefined);
                         ({duration} = await targetExecutor.update(sparqlQueryString, {dataset}));
                     } catch (error__u: unknown) {
-                        if (error__u instanceof GraphPolicyUpdateError) {
-                            return reply.code(error__u.statusCode).send({error: error__u.message});
+                        if (error__u instanceof GraphPolicyUpdateError || error__u instanceof UpdateDatasetError) {
+                            return reply.code(error__u.statusCode).send({error: error__u.message, code: error__u.code});
                         }
                         throw error__u;
                     }

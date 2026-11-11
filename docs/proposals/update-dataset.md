@@ -1,8 +1,9 @@
 # Graph selection for updates
 
-Status: proposed. Not implemented. Supersedes the in-process part of
-[#165](https://github.com/recalcitrantsupplant/sqlib/pull/165), which adds
-`USING` clauses to the update text.
+Status: implemented in
+[#165](https://github.com/recalcitrantsupplant/sqlib/pull/165). An earlier
+version of #165 added `USING` clauses to the update text. This proposal
+replaced that design, and #165 now follows it.
 
 ## Decision
 

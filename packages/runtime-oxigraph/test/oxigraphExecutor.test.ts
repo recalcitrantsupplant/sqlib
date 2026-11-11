@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { fromBundle, hashTemplateText, iri, type ExportBundle } from '@sparql-query-lib/runtime';
-import { oxigraphExecutor } from '../src/index.js';
+import { oxigraphExecutor, supportsUpdateDataset } from '../src/index.js';
 
 const DATA = `
 @prefix ex: <http://example.org/> .
@@ -162,6 +162,17 @@ describe('oxigraphExecutor updates', () => {
     controller.abort(new Error('stop'));
 
     await expect(executor.update!({ updateText: 'CLEAR ALL', signal: controller.signal })).rejects.toThrow('stop');
+  });
+
+  it('refuses an update with a dataset when the binding cannot apply it', async () => {
+    const executor = await oxigraphExecutor();
+    if (await supportsUpdateDataset()) return;
+
+    await expect(executor.update!({
+      updateText: 'INSERT { ?s <http://example.org/q> ?o } WHERE { ?s ?p ?o }',
+      dataset: { defaultGraphs: ['http://example.org/g1'] },
+    })).rejects.toThrow('cannot limit the graphs an update reads');
+    expect(executor.store.size).toBe(0);
   });
 
   it('has no update method over a store that cannot write', async () => {
