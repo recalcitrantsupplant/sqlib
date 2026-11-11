@@ -1,7 +1,7 @@
 # OGC API Features starter sets
 
 Two collections with the same features and columns
-(`?feature ?geom ?name ?height`), one per mode. See
+(`?feature ?geom ?name ?height`), one for each mode. See
 [guides/publishing-ogc-collections.md](../../guides/publishing-ogc-collections.md).
 
 | Folder | Mode | Runs on |

@@ -1,6 +1,6 @@
 # `@sparql-query-lib/rdf-delta`
 
-What a SPARQL update *would* do, without doing it.
+Calculates the effect of a SPARQL update, and does not apply it.
 
 ```ts
 import { derivePatch, oxigraphDeltaStore, patchToRdfPatch } from '@sparql-query-lib/rdf-delta';
@@ -15,29 +15,36 @@ patch.additionCount; // 3
 patchToRdfPatch(patch);
 ```
 
-## Why this works
+## How it works
 
-SPARQL Update instantiates the DELETE and INSERT templates against the state of
-the graph store *before* the operation. So `CONSTRUCT { D } WHERE { W }` and
-`CONSTRUCT { I } WHERE { W }`, evaluated against the store as it stands, are not
-an approximation of `DELETE { D } INSERT { I } WHERE { W }` — they are its
-definition, minus the mutation. Two read-only queries yield the exact ground
-delta.
+SPARQL Update fills the DELETE and INSERT templates from the state of the graph
+store *before* the operation. Two read-only queries against the current store
+are therefore the definition of `DELETE { D } INSERT { I } WHERE { W }`, with no
+write:
 
-What comes back is simultaneously a preview, an audit record, an undo (apply the
-inverse) and a replication unit.
+- `CONSTRUCT { D } WHERE { W }`;
+- `CONSTRUCT { I } WHERE { W }`.
 
-## What it is not
+Together they give the exact ground delta.
 
-No Fastify, no `fs`, no network: pure functions over quad arrays and an abstract
-store, so server-side, browser-side and worker-side derivation are the same
-code, and where patches get *stored* stays a separate, later decision.
+You can use the result in four ways:
 
-It is also not a transaction manager. The window between deriving a patch and
-applying it is open unless the store closes it; in-process Oxigraph can do that
-under its own lock, an HTTP endpoint cannot.
+- as a preview;
+- as an audit record;
+- as an undo, when you apply the inverse;
+- as a unit of replication.
 
-## What it covers today
+## Scope
+
+The package has no Fastify, no `fs` and no network. It has pure functions over
+quad arrays and an abstract store. A server, a browser and a worker therefore
+run the same code. Where to store patches is a separate decision.
+
+The package does not manage transactions. A write can occur between the
+derivation of a patch and its application, unless the store prevents it.
+In-process Oxigraph can prevent it under its own lock. An HTTP endpoint cannot.
+
+## Supported forms
 
 | Form | Supported |
 | --- | --- |
@@ -46,34 +53,33 @@ under its own lock, an HTTP endpoint cannot.
 | `INSERT … WHERE`, `DELETE … WHERE`, `DELETE … INSERT … WHERE` | ✅ |
 | `WITH`, `USING`, `USING NAMED` | ✅ |
 | `GRAPH <g>` and `GRAPH ?var` in templates | ✅ |
-| Multi-operation programs, every operation ground | ✅ |
-| Multi-operation programs where one reads what another wrote | ✅ on a store that can `fork` |
+| Multi-operation programs, each operation ground | ✅ |
+| Multi-operation programs where one operation reads what another wrote | ✅ on a store that can `fork` |
 | `CLEAR`, `DROP`, `COPY`, `MOVE`, `ADD` | ✅ counted; exact with `enumerateGraphOps` |
 | `CREATE` | ✅ (it moves no triples) |
 | `LOAD` | ⚠️ recorded, never derived |
 
-Unsupported forms throw `UnsupportedUpdateError` naming the operation. A preview
-that is quietly wrong is worse than no preview.
+An unsupported form throws `UnsupportedUpdateError`, which names the operation.
+A preview that is wrong with no error is worse than no preview.
 
 ## Graph-management operations
 
-`CLEAR GRAPH <g>` names a graph, not triples, and what that graph holds is a
-separate question with a separate cost. So by default it is **counted** — one
-`SELECT (COUNT(*) …)` — and the patch says outright that its quads are not the
-whole update:
+`CLEAR GRAPH <g>` names a graph. To know its triples needs a separate query,
+with a separate cost. By default, the package therefore **counts** them with one
+`SELECT (COUNT(*) …)`. The patch then says that its quads are not the whole
+update:
 
 ```ts
 const patch = await derivePatch('DROP GRAPH <http://ex/g>', store);
 patch.graphOps;   // [{ form: 'drop', destination: {…}, affectedCount: 4200, enumerated: false }]
-patch.applyMode;  // 'graph-ops' — a preview and an audit record, not a diff to apply
+patch.applyMode;  // 'graph-ops': a preview and an audit record, not a diff to apply
 patch.revertible; // false
 ```
 
-Pass `enumerateGraphOps` and the operation becomes ordinary quads, flowing
-through the same net-effect arithmetic as everything else — so the patch is
-applicable, revertible and hashable like any other. `enumerationCap` bounds it;
-over the cap it throws `EnumerationCapExceededError` carrying what it would have
-cost.
+With `enumerateGraphOps`, the operation becomes ordinary quads. These go through
+the same net-effect calculation as all other quads. The patch can then be
+applied, reverted and hashed. `enumerationCap` sets a limit. Above the limit,
+`derivePatch` throws `EnumerationCapExceededError`, with the cost that it found.
 
 ```ts
 await derivePatch('DROP GRAPH <http://ex/g>', store, {
@@ -82,79 +88,89 @@ await derivePatch('DROP GRAPH <http://ex/g>', store, {
 });
 ```
 
-`LOAD` is the exception no option rescues: its document is outside the dataset,
-so no query against the store can say what it holds.
+No option makes `LOAD` exact. Its document is outside the dataset, so no query
+against the store can read it.
 
-The `graphOps` records are kept even when the operations *were* enumerated.
-"These quads went because the graph was dropped" is a different fact from "these
-quads were deleted" — and an empty graph created or removed leaves no quad at
-all, so the record is the only place that survives.
+The patch keeps the `graphOps` records after an enumeration also. A quad removed
+by a dropped graph and a deleted quad are different facts. Also, the creation
+or removal of an empty graph changes no quad, so the record is the only trace.
 
 ## Multi-operation programs
 
-Operation *N* has to be derived against the state operations 1…*N−1* left. When
-every operation is ground (`INSERT DATA` / `DELETE DATA` sequences) that needs
-nothing special — composition is set arithmetic. Otherwise the program is
-**simulated**: the store is forked, each operation derived against the copy and
-then replayed on it before the next.
+Operation *N* must be derived against the state that operations 1 to *N−1*
+left. When each operation is ground (a sequence of `INSERT DATA` and
+`DELETE DATA`), this is set arithmetic.
 
-Replaying the operation *as written*, rather than the diff just derived, is what
-makes this faithful for every form — only the original text carries the effects
-the diff deliberately leaves out, such as a counted graph operation.
+For other programs, the package **simulates** the program:
 
-Forking is a capability, not an assumption. `DeltaStore.fork` is optional, and a
-store without it keeps the refusal, naming the offending operation:
+1. It forks the store.
+2. It derives each operation against the copy.
+3. It runs the operation on the copy before the next one.
+
+Step 3 runs the operation text, and not the derived diff. The diff omits some
+effects on purpose, for example a counted graph operation. Only the text has
+all of them, so the simulation is correct for each form.
+
+A store can fork only if it says so. `DeltaStore.fork` is optional. For a store
+without it, the package refuses the program, and names the operation:
 
 ```ts
 // In-process Oxigraph can fork, given a factory for empty stores.
 oxigraphDeltaStore(store, { createStore: () => new oxigraph.Store() });
 ```
 
-Simulation refuses one case outright: a program whose patch would carry blank
-nodes. A copy relabels them, so a deletion would name a node in the copy rather
-than in the store.
+Simulation refuses one case: a program whose patch has blank nodes. A copy
+gives blank nodes new labels, so a deletion would name a node in the copy, and
+not in the store.
 
 ## Net effect
 
-The raw template instantiations overstate the change: deleting an absent triple
-and inserting a present one are both no-ops, and a triple deleted and re-inserted
-by the same operation never goes away. With `S` the store and `D*`/`I*` the
-instantiated templates, the patch is
+The raw template results overstate the change. A deletion of an absent triple
+does nothing, and so does an insertion of a present one. A triple that one
+operation deletes and inserts again stays. With `S` the store, and `D*` and
+`I*` the filled templates, the patch is:
 
 ```
 deletions = (S ∩ D*) \ I*
 additions = I* \ S
 ```
 
-The raw counts survive as `rawDeleteCount` / `rawInsertCount`, because "you asked
-to delete 12, 9 existed" is the interesting half of a preview.
+The patch keeps the raw counts as `rawDeleteCount` and `rawInsertCount`. A
+preview that says "you asked to delete 12, and 9 existed" is useful.
 
-Set membership uses RDF term equality on parsed terms, never string equality on
-rendered ones: `:rel` and `<http://…/rel>` are the same IRI, and a set keyed on
-source text would see two (issue #165).
+Set membership uses RDF term equality on parsed terms. It does not compare
+serialised strings. `:rel` and `<http://…/rel>` are the same IRI, and a set
+keyed on source text sees two (issue #165).
 
 ## Blank nodes
 
-A template blank node is minted fresh per solution, so a patch captures the
-concrete nodes from *our* instantiation and is apply-once. `DELETE DATA` forbids
-blank nodes, so a patch whose deletions carry them reports
-`applyMode: 'store'` and `revertible: false` — it has to go through a store API
-rather than ground SPARQL text.
+An update makes a new blank node in a template for each solution. A patch
+records the nodes of one instantiation, so you can apply it once only.
+`DELETE DATA` does not allow blank nodes. A patch with blank nodes in its
+deletions therefore has `applyMode: 'store'` and `revertible: false`. It must
+go through a store API. Ground SPARQL text cannot apply it.
 
-A store that can only be asked SPARQL cannot be asked whether it holds a quad
-containing a blank node, since no SPARQL text can name one. Such candidates are
-kept (they were matched out of the store a moment earlier, so the end state is
-right) and the patch reports `netEffectExact: false`. Give the store a `has`
-— in-process Oxigraph has one — and the answer is exact.
+No SPARQL text can name a blank node. A store that only answers SPARQL cannot
+say if it holds a quad with a blank node. The package keeps such candidates,
+because they came from the store a moment before, so the end state is correct.
+The patch then has `netEffectExact: false`. Give the store a `has` method to
+make the result exact. In-process Oxigraph has one.
 
 ## Testing
 
-The rewrite has an oracle, and the suite is built on it: apply the update to
-store A, apply the derived patch to an identical store B, canonicalise both,
-assert isomorphism. Every supported form runs through it three times — against a
-populated store with exact membership, through the SPARQL-only path an HTTP
-backend takes, and over an empty store — and `test/harness.test.ts` checks the
-oracle itself can fail.
+The suite uses an oracle:
+
+1. Apply the update to store A.
+2. Apply the derived patch to an identical store B.
+3. Canonicalise both stores, and check that they are isomorphic.
+
+Each supported form goes through the oracle three times:
+
+- against a populated store with exact membership;
+- through the SPARQL-only path that an HTTP backend uses;
+- against an empty store.
+
+`test/harness.test.ts` checks that the oracle can fail.
 
 ```
 pnpm --filter @sparql-query-lib/rdf-delta test
@@ -162,6 +178,6 @@ pnpm --filter @sparql-query-lib/rdf-delta test
 
 ## Design
 
-`docs/explanation/rdf-patch.md` covers what a patch is, how one is derived,
-which update forms are supported, and why this lives in a package of its own
-rather than inside the API.
+`docs/explanation/rdf-patch.md` explains what a patch is, how the package
+derives one, which update forms it supports, and why it is a separate package
+from the API.

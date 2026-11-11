@@ -29,6 +29,7 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setupValidator } from '../../src/lib/validator-setup.js';
+import { resetReadOnly } from '../../src/config/readOnly.js';
 import * as schemas from '@sparql-query-lib/contracts/schema';
 import type { AuthContext } from '../../src/auth/types.js';
 
@@ -240,6 +241,33 @@ describe('the SQL-taking routes the ETL guide names', () => {
       // The flag, not the authorization check, is what protects a default
       // deployment — which is why ETL ships off.
       expect(response.statusCode, `${route} refused a request in disabled mode`).not.toBe(403);
+    }
+  });
+
+  /*
+   * The one exception the guide states. On a read-only deployment the stored
+   * SQL changes only by redeployment, so running a saved job is running what
+   * the operator shipped; the entity guard still requires Execute on the job's
+   * library. Every route that takes SQL from the request stays administrator-only.
+   */
+  it('admits a non-administrator to run a stored job on a read-only deployment, and nothing else', async () => {
+    resetReadOnly({ SQLIB_READ_ONLY: 'true' } as NodeJS.ProcessEnv);
+    try {
+      const run = 'POST /etl-jobs/:id/execute';
+      const app = await appFor(run, grantedButNotAdmin);
+      const response = await app.inject({ method: 'POST', url: '/etl-jobs/:id/execute', payload: BODIES[run] });
+      await app.close();
+      expect(response.statusCode, `${run} refused a library executor on a read-only deployment`).not.toBe(403);
+
+      for (const route of ['POST /etl-jobs/preview', 'POST /playground/etl/execute']) {
+        const [method, url] = route.split(' ');
+        const other = await appFor(route, grantedButNotAdmin);
+        const refused = await other.inject({ method: method as 'POST', url, payload: BODIES[route] });
+        await other.close();
+        expect(refused.statusCode, `${route} admitted a non-administrator on a read-only deployment`).toBe(403);
+      }
+    } finally {
+      resetReadOnly({} as NodeJS.ProcessEnv);
     }
   });
 });

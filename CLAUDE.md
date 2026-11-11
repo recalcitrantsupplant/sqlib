@@ -1,5 +1,10 @@
 # Instructions for agents
 
+## Documentation and other prose
+
+Write documentation, READMEs, commit messages, pull requests and code comments
+to [docs/writing-style.md](docs/writing-style.md).
+
 ## On-screen text in the web app and in mocks
 
 These rules apply to every screen in `packages/web` and to every mock or

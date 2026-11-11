@@ -88,38 +88,37 @@ environment, which overrides these defaults: see
 
 ## Limitations to know before you rely on it
 
-- `/mcp` and the in-app assistant perform no caller authorization. Do not expose
-  either to a network you do not control. See [SECURITY.md](SECURITY.md).
+- In the default auth mode, `/mcp` and the in-app assistant do no caller
+  authorization. Do not expose either to a network that you do not control. See
+  [SECURITY.md](SECURITY.md).
 - ETL, the assistant and OGC API Features are off in the code's own defaults,
   because ETL runs arbitrary DuckDB SQL. `just` and the image turn them on. A
   deployment of the image that leaves a `FEATURE_*` variable unset gets that
-  feature on.
-  The assistant does nothing until a caller supplies a model provider, model
-  and API key with the request.
-- The `oxigraph-persistent` backend type is an in-memory store serialised to
-  N-Quads on a checkpoint interval and on shutdown, not a disk-resident
-  database. Its working set must fit in memory.
-- The static-export runtime covers SELECT-chained query groups only.
-- The repository is pre-1.0. Releases are tagged (`v0.1.0` is the first, with
-  its server image on GHCR; see [CHANGELOG.md](CHANGELOG.md)), but no
-  compatibility guarantee applies to the REST API, the entity model or the SRL
-  syntax, and no package has been published to npm.
+  feature on. The assistant does nothing until a caller supplies a model
+  provider, a model and an API key with the request.
+- The `oxigraph-persistent` backend type is an in-memory store. sqlib writes it
+  to N-Quads at each checkpoint and on shutdown. Its working set must fit in
+  memory.
+- The static-export runtime supports only query groups that chain SELECT rows.
+- The repository is pre-1.0. Releases are tagged: `v0.1.0` is the first, with
+  its server image on GHCR. See [CHANGELOG.md](CHANGELOG.md). No compatibility
+  guarantee applies to the REST API, the entity model or the SRL syntax. No
+  package is published to npm.
 
 ## Documentation
 
-- [docs/README.md](docs/README.md) — guides, reference and explanation, indexed
-  by what you are trying to do.
-- [docs/concepts.md](docs/concepts.md) — the vocabulary (Library, Query,
-  QueryGroup, DataGraph, TupleSet, ArgumentSet, RuleSet) the rest of the
-  documentation assumes.
-- [CONTRIBUTING.md](CONTRIBUTING.md) — local setup, the checks CI runs, commit
-  conventions.
-- [SECURITY.md](SECURITY.md) — reporting a vulnerability, and the security
-  posture of a deployment.
+- [docs/README.md](docs/README.md): guides, reference and explanation, indexed
+  by task.
+- [docs/concepts.md](docs/concepts.md): the terms (Library, Query, QueryGroup,
+  DataGraph, TupleSet, ArgumentSet, RuleSet) that the other pages use.
+- [CONTRIBUTING.md](CONTRIBUTING.md): local setup, the checks that CI runs, and
+  commit conventions.
+- [SECURITY.md](SECURITY.md): how to report a vulnerability, and the security
+  of a deployment.
 
 ## Licence
 
-sqlib is pre-1.0 and source-available for review only. See [LICENSE](LICENSE)
-for the terms; it does not grant production use or redistribution. An open
-source licence is planned for the public release. For an integrated deployment
-before then, get in touch.
+sqlib is pre-1.0, and its source is available for review only. See
+[LICENSE](LICENSE) for the terms. The licence does not grant production use or
+redistribution. An open source licence is planned for the public release. For
+an integrated deployment before then, contact the maintainer.

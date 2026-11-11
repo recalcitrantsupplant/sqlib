@@ -1,11 +1,10 @@
 # @sparql-query-lib/srl
 
 A parser, generator, SPARQL compiler and stratifier for the SHACL 1.2 Shape
-Rules Language (SRL), written from scratch as a grammar extension on top of
-[Traqula](https://www.npmjs.com/package/@traqula/core)'s SPARQL 1.2 parser and
-generator.
+Rules Language (SRL). It is a grammar extension of the SPARQL 1.2 parser and
+generator of [Traqula](https://www.npmjs.com/package/@traqula/core).
 
-An SRL document is a prologue, zero or more ground `DATA { … }` blocks, and a
+An SRL document has a prologue, zero or more ground `DATA { … }` blocks, and a
 sequence of rules:
 
 ```
@@ -15,45 +14,48 @@ RULE :base { ?x :ancestor ?y } WHERE { ?x :parent ?y }
 RULE :step { ?x :ancestor ?z } WHERE { ?x :parent ?y . ?y :ancestor ?z }
 ```
 
-The package parses that into an AST, checks its well-formedness, works out in
-which order the rules may be evaluated, and compiles each rule to a standalone
-SPARQL program. It does not evaluate anything: there is no store and no
-executor here. `packages/api` supplies both.
+The package does these steps:
 
-The package is `private: true` and is not published to npm. It is consumed by
-`@sparql-query-lib/api` as a workspace dependency.
+1. It parses the document into an AST.
+2. It checks that the document is well formed.
+3. It calculates the order in which the rules can run.
+4. It compiles each rule to a standalone SPARQL program.
+
+It does not evaluate rules. It has no store and no executor. `packages/api`
+supplies both.
+
+The package is `private: true`, and is not published to npm.
+`@sparql-query-lib/api` uses it as a workspace dependency.
 
 ## What the language adds to SPARQL
 
-Rule bodies are SPARQL group patterns plus three SRL constructs, all handled by
-this package:
+A rule body is a SPARQL group pattern, plus three SRL constructs:
 
-- `NOT { … }` — negation, compiled to `FILTER NOT EXISTS`.
-- `NOT DATA { … }` and `WHERE DATA { … }` — match the *ground* graph (the base
-  graph plus every `DATA` block, as it stood before any rule ran) rather than
-  the growing evaluation graph. Both compile to a `GRAPH <urn:sqlib:srl:ground>`
-  block; the IRI is exported as `GROUND_GRAPH_IRI` so the executor and the
-  compiler agree on the name.
-- `SET ( ?v := expr )` — assignment. Compiled to
-  `BIND(expr AS ?v) FILTER(BOUND(?v))`, wrapped in a group so that a pattern
-  later in the body cannot rebind `?v` and revive a solution the assignment's
-  evaluation error should have dropped.
+- `NOT { … }` is negation. It compiles to `FILTER NOT EXISTS`.
+- `NOT DATA { … }` and `WHERE DATA { … }` match the *ground* graph. This is the
+  base graph plus each `DATA` block, before any rule ran. Both compile to a
+  `GRAPH <urn:sqlib:srl:ground>` block. The package exports the IRI as
+  `GROUND_GRAPH_IRI`, so the executor and the compiler use the same name.
+- `SET ( ?v := expr )` is assignment. It compiles to
+  `BIND(expr AS ?v) FILTER(BOUND(?v))`, in a group. The group stops a later
+  pattern in the body from binding `?v` again. Without it, such a pattern could
+  restore a solution that an evaluation error in the assignment removed.
 
 ## Installation and build
 
-Inside the monorepo:
+In the monorepo:
 
 ```bash
 pnpm install
 pnpm --filter @sparql-query-lib/srl build
 ```
 
-The package ships ESM only. Its only runtime dependencies are the five
+The package is ESM only. Its only runtime dependencies are the five
 `@traqula/*` packages.
 
 ## Example
 
-Parse a document, stratify it, and compile one rule to SPARQL:
+This parses a document, stratifies it, and compiles one rule to SPARQL:
 
 ```ts
 import { parseRuleSet, expandIris, stratify, compileRule } from '@sparql-query-lib/srl';
@@ -94,51 +96,59 @@ INSERT {
 }
 ```
 
-`:unrelated` lands one stratum above the two rules that derive `:ancestor`,
-because it negates over what they produce.
+`:unrelated` is one stratum above the two rules that derive `:ancestor`. It
+negates what they produce.
 
 ## Main exports
 
 ```ts
 parseRuleSet(text: string, opts?: ParseOptions): SrlRuleSet
 ```
-Parse a document. Throws on a syntax error. `opts.tuples` enables the
-rule-tuples extension (see below); it is off by default.
+Parses a document, and throws on a syntax error. `opts.tuples` turns on the
+rule-tuples extension, and `opts.aggregates` turns on `GROUP`. Both are off by
+default. See below.
 
 ```ts
 expandIris(ruleSet: SrlRuleSet): SrlRuleSet
 expandTerms(nodes: unknown, prologue: unknown): void
 ```
-Rewrite prefixed names to full IRIs throughout the AST, in place. Expanded IRIs
-are the canonical form; run this before stratifying, splitting or comparing.
+Rewrites prefixed names to full IRIs in the whole AST, in place. Expanded IRIs
+are the canonical form. Run this before you stratify, split or compare.
 
 ```ts
 checkWellFormed(ruleSet: SrlRuleSet): WellFormednessIssue[]
 ```
-Report the SRL well-formedness conditions separately from syntax: a head
-variable never bound in the body (`unbound-head`), a `SET` targeting a variable
-the body already binds (`set-rebinds`), and a `FILTER` or `SET` expression
-referring to a variable not yet bound at that point in the body
-(`use-before-bind`). Variables introduced inside `NOT { … }` are exempt: they
-are existentially quantified within the negated pattern.
+Reports the SRL well-formedness conditions. These are separate from syntax:
+
+- `unbound-head`: a head variable that the body does not bind;
+- `set-rebinds`: a `SET` on a variable that the body already binds;
+- `use-before-bind`: a `FILTER` or `SET` expression that uses a variable before
+  the body binds it.
+
+Variables inside `NOT { … }` are exempt. They are existentially quantified in
+the negated pattern.
 
 ```ts
 stratify(rules: Array<{ id: string; ast: SrlRule }>): StratificationReport
 ```
-Assign each rule a stratum, and report the dependency edges, per-rule
-monotonicity, run-once flags, and any issues. See below.
+Gives each rule a stratum. The report also has the dependency edges, the
+monotonicity of each rule, the run-once flags, and the issues. See
+[Stratification](#stratification).
 
 ```ts
 compileRule(rule: SrlRule, prologueText?: string, options?: CompileOptions): CompiledRule
 ```
-Compile one rule to a standalone SPARQL program, with the document prologue
-prepended so prefixes resolve. `options.flavour` is `'insert'` (default), which
-emits `INSERT { head } WHERE { body }` — what the executor runs — or
-`'construct'`, which emits `CONSTRUCT { head } WHERE { body }`: one pass of the
-same rule, returning the triples instead of writing them, for a reader who wants
-to paste it into any endpoint and see what it would add. The result is parsed
-back with the SPARQL 1.2 parser before it is returned, so a program that comes
-out of this function is syntactically valid.
+Compiles one rule to a standalone SPARQL program. The document prologue is put
+first, so prefixes resolve. `options.flavour` has two values:
+
+- `'insert'` (the default) gives `INSERT { head } WHERE { body }`. The executor
+  runs this.
+- `'construct'` gives `CONSTRUCT { head } WHERE { body }`. This is one pass of
+  the same rule, and returns the triples with no write. Paste it into an
+  endpoint to see what the rule adds.
+
+The function parses the program again with the SPARQL 1.2 parser before it
+returns it. Each program that it returns is therefore syntactically valid.
 
 ```ts
 generateRule(rule: SrlRule): string
@@ -147,25 +157,28 @@ generateHead(rule: SrlRule): string
 generateBody(rule: SrlRule): string
 generateDataBlock(block: SrlDataBlock): string
 ```
-Serialise back to SRL text from the AST rather than from source slices, one rule
-to a line. After `expandIris`, the generated text is the same however the author
-spelled their prefixes, which is what makes a prefix-only edit provably not a
-content change.
+Serialise the AST to SRL text, one rule on each line. The text comes from the
+AST, and not from slices of the source. After `expandIris`, the text does not
+change with the prefixes that the author used. An edit to prefixes only
+therefore gives the same text, and is not a content change.
 
 ```ts
 formatRuleSet(ruleSet: SrlRuleSet, options?: FormatOptions): string
 formatRule(rule: SrlRule, options?: FormatOptions): string
 formatDataBlock(block: SrlDataBlock, options?: FormatOptions): string
 ```
-Pretty-print the same ASTs for a human: one pattern per line, nested `NOT`
-blocks indented (`options.indent`, two spaces by default), the prologue
-normalised to one declaration per line, and a blank line between blocks. This is
-what `POST /format` serves an SRL document, as the SPARQL generator serves a
-query. Formatting is idempotent and meaning-preserving — what it emits parses
-back to the same rules — so it is the author-facing counterpart to the
-single-line canonical generator above, not a replacement for it: identity still
-comes from `canonicalRuleText`, which is whitespace-insensitive and so agrees
-with both.
+Print the same ASTs for a person to read:
+
+- one pattern on each line;
+- nested `NOT` blocks indented (`options.indent`, two spaces by default);
+- one prologue declaration on each line;
+- a blank line between blocks.
+
+`POST /format` uses this for an SRL document, as it uses the SPARQL generator
+for a query. Formatting is idempotent, and keeps the meaning: its output parses
+to the same rules. The single-line generator above stays the canonical form.
+Identity comes from `canonicalRuleText`, which ignores whitespace, so it gives
+the same result for both.
 
 ```ts
 splitRuleSet(ruleSet: SrlRuleSet): SrlRuleDocument[]
@@ -175,42 +188,42 @@ reconcileRuleSet(docs, existing, identityOf, textOf): ReconcileResult
 canonicalRuleText(rule: SrlRule): string
 abbreviateIris(text: string, prologueText?: string): string
 ```
-Decompose a document into individually addressable rules and data blocks and
-put it back together again. Each piece gets an identity: the explicit IRI from
-`RULE <iri>` when it has one, otherwise `hash:<sha256>` over its canonical text.
-This is what lets a ruleset be edited as one text box and stored as separate
+Split a document into rules and data blocks that each have an address, and join
+them again. Each piece has an identity. This is the IRI from `RULE <iri>` if
+the rule has one. If not, it is `hash:<sha256>` of the canonical text. With
+this, a person edits a rule set as one text box, and the server stores separate
 versioned rules.
 
 ```ts
 sparqlToRule(query: string, options?: SparqlImportOptions): SparqlImportResult
 isSrlImportable(query: string): boolean
 ```
-Convert a `CONSTRUCT` query or an `INSERT … WHERE` update into a single SRL
-rule. The result is a verdict rather than a throw: an unconvertible query comes
-back with `rule: null` and every reason it was rejected.
-`SRL_IMPORT_REVISION` versions that accept/reject decision, so a stored
-importability flag can be told apart from a stale one.
+Convert a `CONSTRUCT` query or an `INSERT … WHERE` update into one SRL rule.
+The function does not throw for a query that it cannot convert. It returns
+`rule: null` and each reason for the refusal. `SRL_IMPORT_REVISION` is the
+version of the accept and refuse logic. With it, a stored importability flag
+that is out of date can be found.
 
 ## Stratification
 
-`stratify` builds a dependency graph over the rules. Rule R depends on rule S
-when a body triple pattern of R can match a head triple template of S. An edge
-is:
+`stratify` makes a dependency graph of the rules. Rule R depends on rule S when
+a body triple pattern of R can match a head triple template of S. An edge has
+one of three kinds:
 
-- `positive` when the body pattern sits outside any negation;
-- `negative` when it sits under a `NOT`;
-- `closed` when R is a run-once rule.
+- `positive`: the body pattern is outside each negation;
+- `negative`: the body pattern is in a `NOT`;
+- `closed`: R is a run-once rule.
 
-A rule is run-once when its head mints a blank node or its body contains a `SET`.
-Either makes the rule produce a fresh answer on every firing, so iterating it has
-no fixpoint; it has to be evaluated exactly once, after everything it reads is
-complete. That is the same ordering constraint negation imposes, which is why
-its positive dependencies are promoted to `closed`.
+A rule is run-once when its head makes a blank node, or its body has a `SET`.
+Each firing of such a rule gives a new answer, so iteration has no fixpoint.
+The rule must run once only, after each rule that it reads is complete.
+Negation has the same constraint on order. For this reason, `stratify` changes
+the positive dependencies of a run-once rule to `closed`.
 
-Positive edges permit rules to share a stratum, so recursion through them (`:step`
-above depends on itself) is fine. Negative and closed edges demand a strictly
-higher stratum. A dependency cycle containing a negative or closed edge therefore
-has no consistent assignment, and the document is rejected:
+Rules joined by positive edges can share a stratum. Recursion through positive
+edges is therefore valid: `:step` above depends on itself. A negative or closed
+edge needs a higher stratum. A dependency cycle with a negative or closed edge
+has no valid assignment, and `stratify` refuses the document:
 
 ```ts
 stratify(/* RULE :a { ?x :p ?y } WHERE { ?x :q ?y . NOT { ?x :r ?y } }
@@ -218,69 +231,67 @@ stratify(/* RULE :a { ?x :p ?y } WHERE { ?x :q ?y . NOT { ?x :r ?y } }
 // issues: [ 'Non-stratifiable cycle involving: http://example/b, http://example/a' ]
 ```
 
-Such a document has no well-defined answer: `:a` fires only where `:r` is
-absent, and `:b` derives `:r` from what `:a` produced, so what comes out depends
-on which rule ran first. A
-`WHERE DATA` rule reads only the ground graph, so it contributes no edges at all
-and never takes part in a cycle.
+Such a document has no defined answer. `:a` fires only where `:r` is absent.
+`:b` derives `:r` from the output of `:a`. The result therefore depends on the
+rule that runs first.
+
+A `WHERE DATA` rule reads only the ground graph. It adds no edges, and is never
+part of a cycle.
 
 ## Limitations
 
-- **No aggregation.** The vendored parser this package replaced supported
-  aggregation in rules; it was dropped deliberately and not reimplemented. This
-  is why the monotonicity classification has only two values, `monotone` and
-  `negation`.
-- **No evaluation.** Nothing here executes a rule or holds a graph. Compilation
-  emits SPARQL for someone else to run.
-- **`FOR ?var IN <shape>` and the `IF … THEN` rule form are rejected**, not
-  parsed. Both were removed from the upstream grammar (the changelog entry of
-  2026-08-12 for `FOR`, and w3c/data-shapes#1191 for the leftovers of both), so
-  accepting them would let through a document no conforming processor reads.
-  There is one rule production: `RULE iri? HeadTemplate 'WHERE' 'DATA'?
-  BodyPattern`.
-- **The spec is in development.** The vendored W3C test snapshot under
-  `test/w3c/` is pinned to a commit, and a refresh has changed the language
-  under this package before. `test/w3c/SOURCE` records the pin and what the last
-  refresh changed.
+- **No evaluation.** The package does not run rules or hold a graph. It
+  compiles SPARQL for another component to run.
+- **`FOR ?var IN <shape>` and the `IF … THEN` rule form are refused.** The
+  parser does not read them. The upstream grammar removed both: see the
+  changelog entry of 2026-08-12 for `FOR`, and w3c/data-shapes#1191 for the
+  rest. A conforming processor does not read such a document, so this package
+  does not either. There is one rule production:
+  `RULE iri? HeadTemplate 'WHERE' 'DATA'? BodyPattern`.
+- **The specification is in development.** The W3C test snapshot in
+  `test/w3c/` is pinned to a commit. A past refresh changed the language under
+  this package. `test/w3c/SOURCE` records the pin, and what the last refresh
+  changed.
 
 ## The rule-tuples extension
 
-`parseRuleSet(text, { tuples: true })` enables `TUPLE( … )` in rule heads and
-bodies, and `parseTupleSeeds` for a ruleset's initial rows. This is a
-**non-conformant extension** to the language: it tracks the proposal in
+`parseRuleSet(text, { tuples: true })` turns on `TUPLE( … )` in rule heads and
+bodies, and `parseTupleSeeds` for the initial rows of a rule set. This extension
+does **not conform** to the specification. It follows the proposal in
 w3c/data-shapes#752, which the specification does not include. It is off by
-default.
-Without the flag, a document using `TUPLE` is a syntax error rather than
-silently-ignored input:
+default. Without the option, a document that uses `TUPLE` is a syntax error:
 
 ```
 SRL syntax error: TUPLE requires the rule-tuples extension (parse with { tuples: true })
 ```
 
-A tuple is an ordered list of terms with no relation name. The store is keyed by
-arity, and within an arity terms unify position by position. By convention, not
-by enforcement, an identifying IRI goes in the first slot: `TUPLE(:reach, ?x, ?y)`.
-A rule whose head writes tuples compiles to a `SELECT DISTINCT` over the body
-rather than an `INSERT`, and the executor captures each solution row as a
-grounded tuple. A rule head may carry triple templates or tuple templates, not
-both.
+A tuple is an ordered list of terms, with no relation name. The store keys
+tuples by arity. In one arity, terms unify position by position. The
+convention is to put an identifying IRI in the first slot, for example
+`TUPLE(:reach, ?x, ?y)`. The parser does not enforce this.
 
-The server gates this behind the `ruleTuples` feature flag
-(`FEATURE_RULE_TUPLES`, default `false`), which is what it passes as
-`{ tuples: … }` — see `packages/api/src/lib/ruleTuples.ts`. With the flag off,
-the API refuses a rule set version that sets `tuplesEnabled` or carries
-`tupleSeeds`, and the web UI draws no control mentioning the extension.
+A rule with tuples in its head compiles to a `SELECT DISTINCT` over the body.
+The executor stores each solution row as a ground tuple. A rule head has triple
+templates or tuple templates. It cannot have both.
 
-These tuples are unrelated to the `TupleSet` entity and the "Tuples" section of
-the web UI, which are a saved table of RDF terms that fills a query's `VALUES`
-clause.
+The server controls this with the `ruleTuples` feature flag
+(`FEATURE_RULE_TUPLES`, default `false`). It passes the flag as `{ tuples: … }`.
+See `packages/api/src/lib/ruleTuples.ts`. When the flag is off:
+
+- the API refuses a rule set version that sets `tuplesEnabled` or has
+  `tupleSeeds`;
+- the web UI shows no control for the extension.
+
+These tuples have no relation to the `TupleSet` entity, or to the "Tuples"
+section of the web UI. A tuple set is a saved table of RDF terms that fills the
+`VALUES` clause of a query.
 
 ## Aggregation: `GROUP`
 
-`parseRuleSet(text, { aggregates: true })` enables the `GROUP` body element,
-with the grammar proposed in w3c/data-shapes#1347. The pull request is not
-merged yet, so this is off by default, and without the option a document using
-`GROUP` is a syntax error:
+`parseRuleSet(text, { aggregates: true })` turns on the `GROUP` body element.
+The grammar is the one proposed in w3c/data-shapes#1347. That pull request is
+not merged yet, so the option is off by default. Without it, a document that
+uses `GROUP` is a syntax error:
 
 ```
 SRL syntax error: GROUP requires the rule-aggregates extension (parse with { aggregates: true })
@@ -291,22 +302,25 @@ RULE { ?x :numChildren ?n }
 WHERE { ?x a :Person . GROUP BY ?x { ?y :childOf ?x } [ ?n := COUNT(*) ] }
 ```
 
-The server gates this behind the `ruleAggregates` feature flag
-(`FEATURE_RULE_AGGREGATES`, default `false`); see
-`packages/api/src/lib/ruleAggregates.ts`. The syntax, evaluation,
-well-formedness rules and compilation are in
-[the SRL reference](../../docs/reference/srl-language.md#aggregation-group).
+The server controls this with the `ruleAggregates` feature flag
+(`FEATURE_RULE_AGGREGATES`, default `false`). See
+`packages/api/src/lib/ruleAggregates.ts`. A rule with `GROUP` has the
+monotonicity `aggregation`. The other two values are `monotone` and `negation`.
+[The SRL reference](../../docs/reference/srl-language.md#aggregation-group) gives
+the syntax, evaluation, well-formedness rules and compilation.
 
 ## Conformance testing
 
-`test/w3c/` holds a pinned snapshot of the W3C SPARQL-RL test suite, and
-`test/w3c.harness.test.ts` runs the three categories a parser-and-analyses
-package can answer — `syntax/`, `wellformed/` and `stratification/` — against
-the baseline in `test/w3c/expected-pass.json`. The current scores are recorded
-in `test/w3c/scoreboard.json`. The evaluation categories need a store and graph
-comparison, so they are driven from `packages/api` instead
-(`test/lib/w3cRulesSuite.harness.test.ts`), which writes its baseline back into
-this directory so every category's score is read in one place.
+`test/w3c/` holds a pinned snapshot of the W3C SPARQL-RL test suite.
+`test/w3c.harness.test.ts` runs the three categories that a parser can answer:
+`syntax/`, `wellformed/` and `stratification/`. It compares them with the
+baseline in `test/w3c/expected-pass.json`. `test/w3c/scoreboard.json` records
+the current scores.
+
+The evaluation categories need a store and a graph comparison.
+`packages/api` runs them, in `test/lib/w3cRulesSuite.harness.test.ts`. That
+test writes its baseline into this directory, so the scores of all categories
+are in one place.
 
 ```bash
 pnpm --filter @sparql-query-lib/srl test
@@ -320,13 +334,15 @@ pnpm --filter @sparql-query-lib/srl test
 
 ## Origin
 
-Before this package existed, the rules engine ran on a vendored fork of
-`sparqljs` 3.7.3, kept as a tarball in a `vendor/` directory of this repository.
-Its Jison grammars had been extended by hand to cover SHACL rules, aggregation
-and negation. That fork has been removed, and this package replaces it: the
-rules engine was re-implemented against the current SHACL 1.2 Rules draft as a
-Traqula grammar extension, and `packages/api` depends on this package instead —
-`src/lib/RuleStratifier.ts` and `src/lib/RuleGrammarValidator.ts` are the two
-entry points. Aggregation was intentionally dropped in the move. RDF-star now
-comes from the standardized SPARQL 1.2 syntax (`<<( )>>`, `{| |}`) in Traqula's
-grammar rather than from local grammar patches.
+Before this package, the rules engine ran on a vendored fork of `sparqljs`
+3.7.3. The fork was a tarball in a `vendor/` directory of this repository. Its
+Jison grammars had manual extensions for SHACL rules, aggregation and negation.
+
+This package replaced the fork, which is now removed. The rules engine was
+written again against the current SHACL 1.2 Rules draft, as a Traqula grammar
+extension. `packages/api` uses this package through two entry points:
+`src/lib/RuleStratifier.ts` and `src/lib/RuleGrammarValidator.ts`.
+
+The move dropped the aggregation of the fork. Aggregation is now the `GROUP`
+extension above. RDF-star comes from the standard SPARQL 1.2 syntax in the
+Traqula grammar (`<<( )>>`, `{| |}`), with no local grammar patches.

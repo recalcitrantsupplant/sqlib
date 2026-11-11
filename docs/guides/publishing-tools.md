@@ -1,31 +1,31 @@
 # Publishing queries as tools
 
-A library's stored queries, query groups and rule sets can be published as tools. An
-application then calls them by name, with one plain argument per parameter,
-over MCP or over HTTP. It does not need the query's IRI or SPARQL Results JSON,
-and it needs no server of its own in front of sqlib.
+You can publish the stored queries, query groups and rule sets of a library as
+tools. An application then calls each tool by name, over MCP or HTTP, with one
+plain argument for each parameter. The application needs no query IRI, no
+SPARQL Results JSON, and no server of its own in front of sqlib.
 
-The design and the reasons for it are in
-[proposals/queries-as-tools.md](../proposals/queries-as-tools.md).
+[proposals/queries-as-tools.md](../proposals/queries-as-tools.md) gives the
+design and its reasons.
 
 ## Two surfaces
 
 | | Building a library | Using an application |
 | --- | --- | --- |
-| Who calls | the person who designs queries, or an agent that helps them | the application's agents, pages and scripts |
-| Tools | the catalogue: `libraries_*`, `queries_*`, `execute_run` … | the library's published queries, groups and rule sets |
-| Arguments | ids and SPARQL Results JSON | plain values, one per parameter |
-| Where | `/mcp` and the API's routes | `/mcp/{slug}` and `/tools/{slug}/{name}` |
-| Changes | at every call | at a restart |
+| Who calls | the person who designs queries, or an agent that helps them | the agents, pages and scripts of the application |
+| Tools | the catalogue: `libraries_*`, `queries_*`, `execute_run` … | the published queries, groups and rule sets of the library |
+| Arguments | ids and SPARQL Results JSON | plain values, one for each parameter |
+| Where | `/mcp` and the API routes | `/mcp/{slug}` and `/tools/{slug}/{name}` |
+| Changes | at each call | at a restart |
 
 Both surfaces run through `POST /execute`, or `POST /rule-sets/{id}/execute`
-for a rule set. A published tool keeps every rule of an execution: the
-caller's grants, the argument checks and the backend rules.
+for a rule set. A published tool keeps each rule of an execution: the grants of
+the caller, the argument checks and the backend rules.
 
 ## 1. Give the library a slug
 
-The slug is the library's name in URLs. Set it yourself; the server never
-derives it from `name`, because a rename would then break every client URL.
+The slug is the name of the library in URLs. You must set it. The server does
+not make it from `name`, because a rename would then break each client URL.
 
 ```json
 PUT /libraries/{id}
@@ -39,12 +39,13 @@ with the same slug gets `409`.
 
 Do one of these:
 
-- **Per entry.** Save a version whose body carries a `tool` object.
-- **Per library.** Set `"publishAll": true` on the library. Every query,
-  group and rule set in it is then published. An entry whose current version has a `tool`
-  object uses it. An entry whose current version has `"tool": false` is left
-  out. Every other entry gets a default tool: its name made safe, its
-  description, and every input as an optional `term`.
+- **For one entry.** Save a version with a `tool` object in its body.
+- **For a library.** Set `"publishAll": true` on the library. sqlib then
+  publishes each query, group and rule set in it:
+  - An entry whose current version has a `tool` object uses that object.
+  - An entry whose current version has `"tool": false` is not published.
+  - Each other entry gets a default tool: its name made safe, its description,
+    and each input as an optional `term`.
 
 ```json
 POST /queries/{id}/versions
@@ -64,18 +65,18 @@ POST /queries/{id}/versions
 }
 ```
 
-A query group version takes the same object under `queryGroupVersion`. A
-rule set takes it on its own; see [Publishing a rule set](#publishing-a-rule-set).
+A query group version takes the same object under `queryGroupVersion`. A rule
+set takes it at the top level. See [Publishing a rule set](#publishing-a-rule-set).
 
 ### The `tool` object
 
 | Field | Rule |
 | --- | --- |
-| `name` | `[A-Za-z0-9_-]`, 1 to 64 characters, unique among the library's tools. |
-| `description` | What MCP and the OpenAPI document show. Say when to call the tool. |
-| `dataGraphId` | Optional, rule sets only. The data graph the rules run on when a call sends no `data`. |
-| `refusals` | Optional, published updates only. One message per precondition flag; see [Refusals](#refusals-why-an-update-wrote-nothing). |
-| `params` | One key per input the tool offers. A key is a variable of a table parameter (`VALUES … { UNDEF }`) or the name of a `LIMIT` or `OFFSET` parameter (`LIMIT 0001` is `"1"`). An input with no key is not offered, and is `UNDEF` in every call. |
+| `name` | `[A-Za-z0-9_-]`, 1 to 64 characters, unique among the tools of the library. |
+| `description` | The text that MCP and the OpenAPI document show. Say when to call the tool. |
+| `dataGraphId` | Optional, rule sets only. The data graph that the rules run on when a call sends no `data`. |
+| `refusals` | Optional, published updates only. One message for each precondition flag. See [Refusals](#refusals-why-an-update-wrote-nothing). |
+| `params` | One key for each input that the tool offers. A key is a variable of a table parameter (`VALUES … { UNDEF }`), or the name of a `LIMIT` or `OFFSET` parameter (`LIMIT 0001` is `"1"`). An input with no key is not offered, and is `UNDEF` in each call. |
 
 Each parameter takes:
 
@@ -87,33 +88,33 @@ Each parameter takes:
 | `description` | text | none |
 
 A `LIMIT` or `OFFSET` parameter takes `integer` only, and is never a list. A
-published query cannot have a parameter named `backendId`, because that is the
-argument that picks the backend.
+published query cannot have a parameter named `backendId`, because that
+argument selects the backend.
 
 ### The check when you save
 
-The server checks the `tool` object against the version's inputs when it saves
-the version. A key that names no input is a `400` that names the key and lists
-the inputs there are:
+When the server saves a version, it checks the `tool` object against the inputs
+of the version. A key that names no input gives a `400`. The error names the key
+and lists the inputs:
 
 ```json
 { "error": "tool.params.town names no input of this version. Its inputs are: ?city, LIMIT 1" }
 ```
 
-A save that sends no `tool` field copies the previous version's `tool` object
-(or its `false`). Edit the text, and the tool stays published. If the new text
-drops an input the copied object names, the save is a `400` too. Send a
-corrected `tool` object, or `"tool": false`, with the text. Send `"tool": null`
-to remove the tool.
+A save with no `tool` field copies the `tool` object (or the `false`) of the
+previous version. If you edit the text, the tool stays published. If the new
+text removes an input that the copied object names, the save also gives a
+`400`. Send a corrected `tool` object, or `"tool": false`, with the text. To
+remove the tool, send `"tool": null`.
 
-A `tool` object is content. To change the name, the description or a kind,
-save a new version. `PATCH` on a version does not change it.
+A `tool` object is content. To change the name, the description or a kind, save
+a new version. `PATCH` on a version does not change it.
 
 ### Refusals: why an update wrote nothing
 
-SPARQL Update cannot fail on purpose. An update whose `WHERE` clause has no
-solution writes nothing, and `/execute` would still answer `204`. To tell the
-caller why, write each precondition as a flag and add `refusals`:
+SPARQL Update has no way to fail intentionally. An update whose `WHERE` clause
+has no solution writes nothing, and `/execute` answers `204`. To tell the caller
+the reason, write each precondition as a flag, and add `refusals`:
 
 1. Bind each precondition as `?ok_<name>`, true when it holds.
 2. Bind `?ok` as their conjunction.
@@ -139,86 +140,87 @@ WHERE {
 }
 ```
 
-Before the update runs, the server runs its `WHERE` clause as `SELECT *`,
-without `FILTER(?ok)`, with the same arguments. A flag that is not true in
-some row failed; an unbound flag failed too. Then:
+Before the update runs, the server runs its `WHERE` clause as `SELECT *`, with
+the same arguments and without `FILTER(?ok)`. A flag fails when it is not true
+in a row, or when it is unbound. Then:
 
-- **A flag failed**, or the clause has no solution: the update does not run,
-  and the call answers `409`. Over MCP the result has `isError` and the
-  messages as text.
+- **A flag failed**, or the clause has no solution. The update does not run, and
+  the call answers `409`. Over MCP, the result has `isError` and the messages as
+  text.
 
   ```json
   { "error": "Refused: the verdict is maybe; use agree or decline.",
     "refused": [{ "flag": "verdictKnown", "message": "Refused: the verdict is maybe; use agree or decline." }] }
   ```
 
-- **Every flag holds:** the update runs and answers as before.
+- **Each flag holds.** The update runs and answers as usual.
 
-`{param}` in a message is the call's value of that parameter; a list is
-joined with `, `. With list arguments one failing row refuses the whole call,
+In a message, `{param}` is the value of that parameter in the call. A list is
+joined with `, `. With list arguments, one failed row refuses the whole call,
 and nothing is written.
 
-The save checks `refusals`: each key must name a flag the text binds, and the
-text must be one `DELETE`/`INSERT … WHERE` ending in `FILTER(?ok)`. Otherwise
-the save is a `400`:
+The save checks `refusals`. Each key must name a flag that the text binds. The
+text must be one `DELETE`/`INSERT … WHERE` that ends in `FILTER(?ok)`. If not,
+the save gives a `400`:
 
 ```json
 { "error": "tool.refusals.byOwner names no flag of this version: it binds no ?ok_byOwner. Its flags are: ?ok_verdictKnown, ?ok_proposed" }
 ```
 
-A tool without `refusals` answers as before. A query group cannot have
-`refusals`. The check belongs to the version: `POST /execute` on the version
-checks it too, whoever calls.
+A tool without `refusals` answers as usual. A query group cannot have
+`refusals`. The check belongs to the version, so `POST /execute` on the version
+also checks it, for each caller.
 
 ### The caller: who is calling
 
-A tool often has to know who calls it: "only the owner may approve", "record
-who made this change", "show me my items". Do not take the caller as a
-parameter. A caller can send any value, so `?actor` is only who the caller
-*says* they are.
+A tool often must know its caller, for example to let only the owner approve,
+to record who made a change, or to show the items of the caller. A parameter
+such as `?actor` cannot do this, because a caller can send any value. It gives
+only the identity that the caller states.
 
-Declare one or both of these slots instead. sqlib fills them from the
-caller's sign-in, and no caller can set them:
+Declare one or both of these slots. sqlib fills them from the sign-in of the
+caller, and no caller can set them:
 
 | Slot | Rows |
 |---|---|
-| `VALUES ?authUser { UNDEF }` | one row: the caller's user or client principal IRI |
-| `VALUES ?authGroup { UNDEF }` | one row per group principal IRI; zero rows for no groups |
+| `VALUES ?authUser { UNDEF }` | one row: the user or client principal IRI of the caller |
+| `VALUES ?authGroup { UNDEF }` | one row for each group principal IRI; zero rows when the caller is in no group |
 
-The values are the principal IRIs that grants use, as `GET /auth/me` returns
-them in `subject` and `principals`. Graph policies read the same two slots.
+The values are the principal IRIs that grants use. `GET /auth/me` returns them
+in `subject` and `principals`. Graph policies read the same two slots.
 
 The rules:
 
 - **No one can set them.** An argument, an argument set or a tool call that
-  names `authUser` or `authGroup` is a `400`. So is a `tool.params` key with
-  either name. A tool does not list the slots in its input schema.
-- **Each slot is on its own.** `VALUES (?authUser ?x) { (UNDEF UNDEF) }` is a
-  `400` at save. An input policy cannot name a slot.
-- **No one signed in is refused.** A run of a query that declares a slot,
-  with no one signed in, answers `401` (`required` mode) or `403` (`disabled`
-  and `anonymous` modes, which have no sign-in). In `dry-run` it runs with
-  both slots empty and logs that it would have refused.
-- **Every door.** `/execute`, `/sparql`, the tool routes, both MCP doors,
-  query groups, saved tests and benchmarks fill the slots from the same
-  caller. The refusal query of an update with `refusals` gets them too.
-- **Nothing stored.** A data graph from a query, and an ETL job, cannot use
-  a query that declares a slot: their result is stored and shared, so it
-  must not depend on who ran it.
-- **Server only.** An exported bundle and the CLI run without a sign-in, so
-  there both slots are empty.
+  names `authUser` or `authGroup` gives a `400`. So does a `tool.params` key
+  with either name. The input schema of a tool does not list the slots.
+- **Each slot is alone in its table.** `VALUES (?authUser ?x) { (UNDEF UNDEF) }`
+  gives a `400` at save. An input policy cannot name a slot.
+- **A caller who is not signed in is refused.** A run of a query that declares a
+  slot, with no sign-in, answers `401` in `required` mode. It answers `403` in
+  `disabled` and `anonymous` modes, which have no sign-in. In `dry-run` mode,
+  the query runs with both slots empty, and the server logs that it would have
+  refused.
+- **All routes fill them.** `/execute`, `/sparql`, the tool routes, both MCP
+  endpoints, query groups, saved tests and benchmarks fill the slots from the
+  same caller. The refusal query of an update with `refusals` also gets them.
+- **Stored results cannot use them.** A data graph from a query, and an ETL job,
+  cannot use a query that declares a slot. Their result is stored and shared, so
+  it must not depend on the person who ran it.
+- **Only the server fills them.** An exported bundle and the CLI run without a
+  sign-in, so both slots are empty there.
 
 A principal IRI is a hash of the issuer and the subject. Link it to your own
 people in data, for example `ex:alice ex:signsInAs <urn:sqlib:principal:user:…>`.
 An administrator finds the IRI with `GET /auth/me` (as that caller) or
-`GET /auth/principals`. A new issuer URL gives every caller a new IRI, so
-update the links when you change it.
+`GET /auth/principals`. A new issuer URL gives each caller a new IRI, so update
+the links when you change the issuer.
 
-Join to the caller directly, not inside `OPTIONAL`. Then a caller with no link
-gives no solutions, and the update writes nothing. If you want a refusal
-message for "not linked", use `OPTIONAL` and test `BOUND`, as below. Inside
-`EXISTS`, an unbound variable is free: `EXISTS { ?record ex:owner ?actor }`
-with no `?actor` is true for any record that has an owner.
+Join to the caller directly, outside `OPTIONAL`. A caller with no link then
+gives no solutions, and the update writes nothing. For a refusal message when the caller has no link, use `OPTIONAL` and
+test `BOUND`, as in the example below. Inside `EXISTS`, an unbound variable is
+free. `EXISTS { ?record ex:owner ?actor }` with no `?actor` is true for each
+record that has an owner.
 
 ```sparql
 PREFIX ex: <http://example.org/>
@@ -249,14 +251,14 @@ WHERE {
 }
 ```
 
-A response to a query that declares a slot carries
+The response to a query that declares a slot has
 `Cache-Control: private, no-store`, because it depends on the caller.
 
 ### Publishing a rule set
 
 A rule set takes the `tool` object at the top level of a version body, on
-`POST /rule-sets/{id}/srl` or `POST /rule-sets/{id}/versions`. A save that
-sends no `tool` copies the previous version's, as for a query.
+`POST /rule-sets/{id}/srl` or `POST /rule-sets/{id}/versions`. A save with no
+`tool` copies the object of the previous version, as for a query.
 
 ```json
 POST /rule-sets/{id}/srl
@@ -274,150 +276,168 @@ A rule set tool has no `params` and no `refusals`. It takes two arguments:
 
 | Argument | Meaning |
 | --- | --- |
-| `data` | RDF to run the rules on, in place of the data graph. Optional. |
+| `data` | Optional. RDF for the rules to run on. When given, the data graph is not used. |
 | `format` | The format of `data`: `text/turtle` (the default), `application/n-triples` or `application/n-quads`. Only with `data`. |
 
-A call with `data` runs the rules on that RDF. A call without it runs them on
-the tool's `dataGraphId`, at the version that was current at startup. A tool
-with no `dataGraphId` runs its rules on their own data blocks only. Either way
-the answer is what `POST /rule-sets/{id}/execute` returns, the inferred triples
-as Turtle. A rule set tool only reads: nothing is written to a store.
+The rules run on:
+
+- the RDF in `data`, when the call sends it;
+- else the `dataGraphId` of the tool, at the version that was current at
+  startup;
+- else only the data blocks of the rule set, when the tool has no
+  `dataGraphId`.
+
+The answer is what `POST /rule-sets/{id}/execute` returns: the inferred triples
+as Turtle. A rule set tool only reads. It writes nothing to a store.
 
 The save checks that `dataGraphId` names a data graph. `publishAll` gives a
-rule set with no `tool` a default one, with no data graph.
+default tool, with no data graph, to a rule set that has no `tool`.
 
 ### Running on RDF the caller sends
 
-A published query that only reads, and a published group whose start node
-takes RDF, also take `data` and `format`, as a rule set does:
+Two more kinds of tool take `data` and `format`, as a rule set does: a published
+query that only reads, and a published group whose start node takes RDF.
 
-- **A query** given `data` runs over that RDF alone, in an ephemeral store,
-  in place of a backend. A call that sends both `data` and `backendId` is a
-  `400`. Without `data`, the query runs on its backend, as before.
-- **A group** given `data` fills its start node's first RDF input. Its nodes
+- **A query** with `data` runs only over that RDF, in a temporary store, and
+  uses no backend. A call that sends both `data` and `backendId` gives a `400`.
+  Without `data`, the query runs on its backend.
+- **A group** with `data` fills the first RDF input of its start node. Its nodes
   still run on their own backends.
-- **An update** takes no `data`: it would write into a store that is then
-  dropped.
+- **An update** takes no `data`. It would write into a store that sqlib then
+  deletes.
 
-Keep `data` small. It is loaded for the one call, and the request body limit
-applies. A tool whose own parameters are named `data` or `format` does not get
-these arguments.
+Keep `data` small. sqlib loads it for one call, and the limit on the request
+body applies. When a tool has its own parameters named `data` or `format`, it
+does not get these arguments.
 
 ## 3. Restart the server
 
 The server collects the published tools when it starts. Each tool runs the
-version that was current at that moment. A new version, a changed `tool`
-object or a new published query takes effect at the next start. A tool
-therefore never changes under an agent during a session.
+version that was current at that time. A new version, a changed `tool` object
+or a newly published query takes effect at the next start. A tool therefore
+never changes during the session of an agent.
 
 ## How a call becomes a run
 
-The server builds the arguments of `POST /execute` from the plain values, one
+The server makes the arguments of `POST /execute` from the plain values, one
 table parameter at a time:
 
-- **A single value** becomes a term of the parameter's kind. An `iri` must be
-  an absolute IRI. A `langString` is `{ "value": "…", "lang": "en" }`. The
+- **A single value** becomes a term of the kind of the parameter. An `iri` must
+  be an absolute IRI. A `langString` is `{ "value": "…", "lang": "en" }`. The
   number, boolean and date kinds become typed literals. A `string` is a plain
   literal.
-- **A `term`** takes any of these spellings: a string (a plain literal),
+- **A `term`** takes one of these forms: a string (a plain literal),
   `{ "iri": "…" }`, `{ "value": "…", "lang": "en" }`, or
   `{ "value": "…", "datatype": "…" }`.
-- **A value left out** is `UNDEF`. A table that gets no value at all runs
-  unconstrained.
-- **A list** spreads over rows. The table has as many rows as its longest
-  list. Row *i* takes item *i* of each list, or `UNDEF` past the end of a list.
-  Every single value repeats in each row. Two lists in one table are zipped by
-  position, not crossed. For every combination, declare them in separate
-  `VALUES` tables.
+- **An omitted value** is `UNDEF`. A table that gets no value runs with no
+  constraint.
+- **A list** spreads over rows. The table has as many rows as its longest list.
+  Row *i* takes item *i* of each list, or `UNDEF` after the end of a list. Each
+  single value repeats in each row. Two lists in one table are zipped by
+  position. To get each combination, declare them in separate `VALUES` tables.
 - **A missing required parameter**, a value of the wrong kind, or an unknown
-  argument is a `400` that names the parameter. Nothing runs.
+  argument gives a `400` that names the parameter. Nothing runs.
 - **A failed call** is an MCP result with `isError`.
 
-A published **query** also takes an optional `backendId`. Without it, the
-query runs on its own `defaultBackend`, else its library's. The tool sends that
-backend to `/execute` by name, so the caller still needs a grant on it. With no
-default, a call without `backendId` is a `400`. A published **group** takes no
-`backendId`: each of its nodes names its own.
+A published **query** also takes an optional `backendId`. Without it, the query
+runs on its `defaultBackend`, or on the default backend of its library. The tool
+sends that backend to `/execute` by name, so the caller still needs a grant on
+it. If there is no default, a call without `backendId` gives a `400`. A
+published **group** takes no `backendId`, because each of its nodes names its
+own.
 
-A group is published with the parameters of its start node, one table per
-variable port, and the `LIMIT` and `OFFSET` parameters of the queries its nodes
-run.
+A published group has these parameters:
 
-## The MCP door
+- the parameters of its start node, one table for each variable port;
+- the `LIMIT` and `OFFSET` parameters of the queries that its nodes run.
+
+## The MCP endpoints
 
 | Endpoint | Lists |
 | --- | --- |
-| `/mcp/{slug}` | that library's published tools, under their own names, and nothing else. An application's agents connect here. |
-| `/mcp` | the catalogue, and every library's published tools as `{slug}__{name}`, such as `pm__record-decision`. |
+| `/mcp/{slug}` | the published tools of that library, under their own names, and nothing else. Connect the agents of an application here. |
+| `/mcp` | the catalogue, and the published tools of each library as `{slug}__{name}`, for example `pm__record-decision`. |
 
-The `__` separator keeps names inside `^[A-Za-z0-9_-]+$`, which some MCP
-clients enforce. A slug has no `_` and no built-in tool has `__`, so a prefixed
-name collides with nothing.
+The `__` separator keeps names inside `^[A-Za-z0-9_-]+$`, which some MCP clients
+enforce. A slug has no `_`, and no built-in tool has `__`, so a prefixed name
+cannot be the same as another name.
 
-Each tool's `inputSchema` has one property per parameter, with its JSON type,
-its `format` (`iri`, `date`, `date-time`) and its description. A list is an
-`array`. `additionalProperties` is `false`. A tool that only reads carries
-`readOnlyHint: true`; a tool backed by an update carries `readOnlyHint: false`.
-Under `MCP_READ_ONLY=1`, published updates are left out, as catalogue writes
-are.
+The `inputSchema` of each tool has one property for each parameter, with its
+JSON type, its `format` (`iri`, `date`, `date-time`) and its description. A list
+is an `array`. `additionalProperties` is `false`. A tool that only reads has
+`readOnlyHint: true`. A tool that runs an update has `readOnlyHint: false`. With
+`MCP_READ_ONLY=1`, sqlib does not list published updates, and does not list
+catalogue writes.
 
-A session belongs to the endpoint that opened it. A session opened on
-`/mcp/pm` is not found on `/mcp`.
+A session belongs to the endpoint that opened it. A session opened on `/mcp/pm`
+is not found on `/mcp`.
 
-## The HTTP door
+## The HTTP routes
 
 | Route | For |
 | --- | --- |
-| `GET /tools/{slug}/{name}` | a query or group that only reads (a `SELECT`, `ASK`, `CONSTRUCT` or `DESCRIBE`, or a group of only those). The arguments are in the query string. Repeat a key for a list: `?city=Perth&city=Darwin`. Write a `term` or `langString` object as URL-encoded JSON. |
-| `POST /tools/{slug}/{name}` | a tool backed by an update, a group that can write, or a rule set. The arguments are a JSON object. A rule set is `POST` because its `data` can be longer than a URL. |
-| `POST /tools/{slug}/{name}` on a reading tool | the same tool, its arguments as a JSON object, for a query or group that takes `data`. RDF can be longer than a URL. |
-| `GET /tools/{slug}/openapi.json` | an OpenAPI 3.1 document with one operation per tool, typed from its parameters. Generate a page's client from it. |
+| `GET /tools/{slug}/{name}` | a query or group that only reads: a `SELECT`, `ASK`, `CONSTRUCT` or `DESCRIBE`, or a group of only those. The arguments are in the query string. For a list, repeat the key: `?city=Perth&city=Darwin`. Write a `term` or `langString` object as URL-encoded JSON. |
+| `POST /tools/{slug}/{name}` | a tool that runs an update, a group that can write, or a rule set. The arguments are a JSON object. A rule set uses `POST`, because its `data` can be longer than a URL. |
+| `POST /tools/{slug}/{name}` on a tool that reads | the same tool, with its arguments as a JSON object. Use it for a query or group that takes `data`, because RDF can be longer than a URL. |
+| `GET /tools/{slug}/openapi.json` | an OpenAPI 3.1 document with one operation for each tool, typed from its parameters. Generate the client of a page from it. |
 
-Each route returns what `POST /execute` returns, and forwards the caller's
-`Authorization` header, so a published tool grants nothing that `/execute` on
-the same version would not.
+Each route returns what `POST /execute` returns. Each route sends on the
+`Authorization` header of the caller. A published tool therefore grants nothing
+that `/execute` on the same version would not grant.
 
-A `GET` takes the response format from `f` in the query string, in place of
-an `Accept` header, because a link in a browser or a GIS client's "add layer
-from URL" cannot set one: `f=json` (SPARQL JSON, the default), `f=geojson`,
-`f=csv`, `f=tsv` or `f=xml`. `f` is reserved, so no parameter may use the
-name. `f=geojson` gives a GeoJSON `FeatureCollection`, one feature per row:
-the geometry comes from the first `geo:wktLiteral` or `geo:geoJSONLiteral`
-column, or from `lat` and `lon` (or `long`, `lng`, `latitude`, `longitude`)
-columns, and the id from `?feature`, `?id` or the first IRI column. A result
-with no geometry, or with geometry in a CRS other than CRS84, EPSG:4326,
-EPSG:4283 or EPSG:7844, answers `406` with the reason.
+A `GET` takes the response format from `f` in the query string. A link in a
+browser, or the "add layer from URL" of a GIS client, cannot set an `Accept`
+header, so `f` sets the format:
 
-Use HTTP for a production page or a script: a `GET` can be cached and needs no
+- `f=json`: SPARQL JSON, the default;
+- `f=geojson`;
+- `f=csv`;
+- `f=tsv`;
+- `f=xml`.
+
+`f` is reserved, so no parameter can have that name.
+
+`f=geojson` gives a GeoJSON `FeatureCollection`, with one feature for each row:
+
+- The geometry comes from the first `geo:wktLiteral` or `geo:geoJSONLiteral`
+  column. If there is none, it comes from `lat` and `lon` columns (or `long`,
+  `lng`, `latitude`, `longitude`).
+- The id comes from `?feature`, from `?id`, or from the first IRI column.
+
+A result with no geometry gets `406`, with the reason. So does a result with
+geometry in a CRS other than CRS84, EPSG:4326, EPSG:4283 or EPSG:7844.
+
+Use HTTP for a production page or a script. A `GET` can be cached and needs no
 client library. Use MCP for agents, analysis and exploration.
 
 ## `MCP_CATALOGUE`
 
 | Value | `/mcp` lists | `/mcp/{slug}` and `/tools/…` | Authoring routes | `POST /execute` |
 | --- | --- | --- | --- | --- |
-| `both` (default) | the catalogue and every library's published tools | served | served | any target the caller's grants allow |
-| `catalogue` | the catalogue only | `404` | served | any target the caller's grants allow |
-| `published` | every library's published tools only | served | `404` | only the pinned versions of published tools (`403` otherwise) |
+| `both` (default) | the catalogue and the published tools of each library | served | served | any target that the grants of the caller allow |
+| `catalogue` | the catalogue only | `404` | served | any target that the grants of the caller allow |
+| `published` | the published tools of each library only | served | `404` | only the pinned versions of published tools (`403` for others) |
 
-In `published` mode `POST /rule-sets/{id}/execute` also runs only the pinned
-version of a published rule set. The call may send its own RDF or name the
-tool's pinned data graph version, and nothing else: another stored graph, or
-tuple seeds, is a `403`. In the same way, `POST /execute` takes `dataGraphs`
-only as RDF in the request, never a stored graph by id.
+In `published` mode, `POST /rule-sets/{id}/execute` also runs only the pinned
+version of a published rule set. The call can send its own RDF, or name the
+pinned data graph version of the tool. Any other stored graph, or tuple seeds,
+gives a `403`. In the same way, `POST /execute` takes `dataGraphs` only as RDF in
+the request. It refuses a stored graph by id.
 
-In `published` mode the server keeps `/execute`, `/rule-sets/{id}/execute`, `/mcp`, `/mcp/{slug}`,
-`/tools/…`, `/auth/…`, `/.well-known/…`, `/health` and `/metrics`. Every other
-route answers `404`. Use it for a production deployment of an application.
+In `published` mode, the server keeps these routes: `/execute`,
+`/rule-sets/{id}/execute`, `/mcp`, `/mcp/{slug}`, `/tools/…`, `/auth/…`,
+`/.well-known/…`, `/health` and `/metrics`. Each other route answers `404`. Use
+this mode for a production deployment of an application.
 
 ## When a tool is invalid at startup
 
-The save-time check leaves few problems for startup:
+The check at save time finds most problems. These problems remain for startup:
 
-- a publishing library with no slug,
-- two tools with one name in a library,
+- a library that publishes tools and has no slug,
+- two tools with the same name in one library,
 - a default backend that no longer exists,
-- a rule set's data graph that no longer exists or has no version.
+- a data graph of a rule set that no longer exists or has no version.
 
-In `both` and `catalogue` mode the server logs each problem, skips that tool
-and starts. In `published` mode it refuses to start, and names each invalid
+In `both` and `catalogue` mode, the server logs each problem, skips that tool
+and starts. In `published` mode, it does not start, and it names each invalid
 tool.

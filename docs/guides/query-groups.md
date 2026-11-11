@@ -1,213 +1,220 @@
 # Query groups: chaining queries
 
 A query group runs several callables in dependency order and passes results
-between them. This guide covers what a group is, how to author one on the
-canvas, how to build and run one over HTTP, and where the edges are.
+between them. This guide describes what a group is, how to build one on the
+canvas, how to build and run one over HTTP, and its known limits.
 
 ## 1. What a query group is
 
 A **query** runs one SPARQL string against one store. A **query group** runs
-several callables in dependency order and passes results between them: the rows
-one node returns become the `VALUES` rows the next node runs with, an RDF graph
-one node builds becomes the graph a rule set reasons over, and one node's single
-column can even name *which query* the next node runs.
+several callables in dependency order and passes results between them:
 
-A group is a DAG. You wire the data rather than writing an order: the engine
-takes the nodes in topological order (Kahn, `ExecutionEngine.execute`) and runs
-them one at a time. Execution is sequential, so parallel branches — a legal DAG
-shape — are executed one after another. That is a performance property rather
-than a semantic one.
+- The rows that one node returns become the `VALUES` rows of the next node.
+- An RDF graph that one node builds becomes the graph that a rule set reasons
+  over.
+- One column from a node can name the query that the next node runs.
 
-Reach for a group when:
+A group is a DAG. You connect the data, and the engine sets the order. It takes
+the nodes in topological order (Kahn, `ExecutionEngine.execute`) and runs them
+one at a time. Parallel branches are valid in a DAG, but the engine runs them
+one after another. This affects speed only. The results are the same.
 
-- a query needs rows a *different* store or query produced;
-- a pipeline is worth saving, versioning and re-running as one unit;
-- rules need to run over a graph that a `CONSTRUCT` builds first;
-- the same shape should run with different parameters (an argument set).
+Use a group when:
 
-Reach for something else when a single parameterised query would do — a group's
-smallest useful form is still four entities and three edges.
+- a query needs rows that a *different* store or query produced;
+- you want to save, version and run a pipeline again as one unit;
+- rules must run over a graph that a `CONSTRUCT` builds first;
+- the same pipeline must run with different parameters (an argument set).
 
-## 2. The moving parts
+If one parameterised query is sufficient, do not use a group. The smallest
+useful group has four entities and three edges.
+
+## 2. The parts
 
 ### Nodes
 
 | Kind | Runs | Gets its work from |
 | --- | --- | --- |
-| **Start node** | nothing | The group's own inputs: it *is* the boundary. One per group, minted for you. |
+| **Start node** | nothing | The inputs of the group. It marks the boundary. One per group, created for you. |
 | **Query node** (`QueryNode`) | one query version against one backend | `queryId` (a query version IRI) + `backendId` |
 | **Dynamic query node** (`DynamicQueryNode`) | a query version chosen at run time | a `QueryIdInput` port fed by a `QUERY_ID` edge |
-| **Rule set node** (`RuleSetNode`) | a rule set, in process, over the RDF handed to it | `ruleSetVersion` |
-| **End node** | nothing | The group's result: whichever node's output is wired into it. |
+| **Rule set node** (`RuleSetNode`) | a rule set, in process, over the RDF it receives | `ruleSetVersion` |
+| **End node** | nothing | The result of the group: the output of the node connected to it. |
 
-Start and End are canvas nodes but not executable ones — the engine treats them
-as control-flow markers, seeding the start node's declared outputs from what the
-caller supplied and reading the group's result off the end node's inputs.
+Start and End are canvas nodes, but the engine does not execute them. It uses
+them as control-flow markers. It fills the declared outputs of the start node
+from the caller's input, and reads the result of the group from the inputs of
+the end node.
 
 `DuckDbEtlNode` exists in the schemas and the engine, but nothing can create
-one: the flat writer mints `QueryNode`, `DynamicQueryNode` and `RuleSetNode`
-and nothing else (`GroupVersionWriter.ts`). ETL pipelines are their own rail,
-outside query groups.
+one. The flat writer creates `QueryNode`, `DynamicQueryNode` and `RuleSetNode`
+only (`GroupVersionWriter.ts`). ETL pipelines have their own rail, outside query
+groups.
 
 ### Ports
 
-A node does not connect to a node — a *port* connects to a port. Ports are
-first-class entities, and which kind you have decides which edges are legal:
+Edges connect ports. A node has ports, and an edge goes from a port on one node
+to a port on another. Ports are entities, and the kind of port sets which edges
+are valid:
 
-- `QueryInputTuple` / `QueryOutputTuple` — an ordered list of variables (its
-  `TupleMember`s carry `position`), the shape SELECT rows travel in.
-- `TriplesQuadsIO` — an RDF graph, in or out.
-- `BooleanIO` — an ASK answer.
-- `QueryIdInput` — the one port only a dynamic query node has.
+- `QueryInputTuple` / `QueryOutputTuple`: an ordered list of variables (each
+  `TupleMember` has a `position`). SELECT rows travel in this form.
+- `TriplesQuadsIO`: an RDF graph, in or out.
+- `BooleanIO`: an ASK result.
+- `QueryIdInput`: the port that only a dynamic query node has.
 
-For a query node you rarely declare ports by hand: the writer merges the query
-version's `inferredInputs` / `inferredOutputs` into whatever the payload names,
-so assigning a query version is what gives a node its ports. A rule set node
-gets one `TriplesQuadsIO` in each direction from its assignment.
+For a query node, you seldom declare ports yourself. The writer merges the
+`inferredInputs` / `inferredOutputs` of the query version into the ports that
+the payload names. When you assign a query version to a node, the node gets its
+ports. A rule set node gets one `TriplesQuadsIO` in each direction when you
+assign a rule set.
 
-An input tuple belongs to the *query version*, not to the group — every group
-using that query shares it. That is why a per-edge policy like `whenEmpty` lives
-on the edge (§5) rather than on the port.
+An input tuple belongs to the *query version*, and each group that uses that
+query shares it. For this reason, a policy for one edge, such as `whenEmpty`, is
+set on the edge (section 5). The port cannot hold it.
 
 ### Edges and flow types
 
-`packages/api/src/lib/orchestration/types.ts` defines six:
+`packages/api/src/lib/orchestration/types.ts` defines six flow types:
 
-| `dataFlowType` | Carries | Legal between |
+| `dataFlowType` | Carries | Valid between |
 | --- | --- | --- |
-| `CONTROL_FLOW` | nothing — ordering only | any two nodes; the edge must name no ports |
-| `VARIABLE_BINDINGS` | SELECT rows | output tuple → input tuple |
-| `RDF_GRAPH` | triples/quads | `TriplesQuadsIO` → `TriplesQuadsIO` |
-| `BOOLEAN` | an ASK answer | `BooleanIO` → `BooleanIO` |
-| `QUERY_ID` | a one-column tuple naming a query version | output tuple (arity 1) → a dynamic node's `QueryIdInput` |
-| `DATASET` | a one-column tuple of graph IRIs | SELECT output tuple (arity 1) → a query node's dataset; the edge names no `targetInputId` |
+| `CONTROL_FLOW` | nothing; order only | any two nodes; the edge must name no ports |
+| `VARIABLE_BINDINGS` | SELECT rows | output tuple to input tuple |
+| `RDF_GRAPH` | triples/quads | `TriplesQuadsIO` to `TriplesQuadsIO` |
+| `BOOLEAN` | an ASK result | `BooleanIO` to `BooleanIO` |
+| `QUERY_ID` | a one-column tuple that names a query version | output tuple (arity 1) to the `QueryIdInput` of a dynamic node |
+| `DATASET` | a one-column tuple of graph IRIs | SELECT output tuple (arity 1) to the dataset of a query node; the edge names no `targetInputId` |
 
-Two rules about `RDF_GRAPH` are worth knowing before you draw one, because both
-are refused rather than silently ignored (`GraphBuilder.validateGraph`):
+Two rules apply to `RDF_GRAPH`. The validator refuses an edge that breaks
+either rule (`GraphBuilder.validateGraph`):
 
-- A rule set node and the end node can be handed RDF directly.
-- A **SPARQL** node cannot — a query runs against a store, so RDF only reaches
-  one if it is materialized into an ephemeral store that node also queries.
-  Without an ephemeral `backendConfig` on the right node, the edge is rejected
-  with `EDGE_RDF_GRAPH_TARGET_CANNOT_CONSUME` rather than transferring nothing
-  and letting the node quietly query its own backend.
+- A rule set node and the end node can receive RDF directly.
+- A **SPARQL** node cannot. A query runs against a store, so RDF reaches a
+  query node only if sqlib loads it into an ephemeral store that the node also
+  queries. Without an ephemeral `backendConfig` on the target node, the edge
+  gets `EDGE_RDF_GRAPH_TARGET_CANNOT_CONSUME`. Otherwise the edge would send
+  nothing, and the node would query its own backend with no warning.
 
 A `DATASET` edge gives its target the graphs that `FROM` and `FROM NAMED` would
-name, at run time, without rewriting the query text. `datasetPart` says which
-part it fills: `default` (the default graph is the merge of the selected
-graphs), `named` (only those graphs match a `GRAPH` pattern), or `both`, the
-default. A node takes at most one edge per part (`EDGE_DATASET_DUPLICATE_PART`).
-The target must be a `QueryNode` or `DynamicQueryNode` that is not an UPDATE.
-Only IRIs count; an unbound row or a literal is skipped. An empty selection
-means no graphs, not every graph, so `whenEmpty` may be `propagateEmpty` (the
-default) or `require` but never `unconstrained`. Over HTTP the dataset goes as
-the SPARQL 1.1 Protocol's `default-graph-uri` / `named-graph-uri` parameters,
-and an empty part is sent as the graph `urn:sqlib:empty-dataset`, which names
-nothing. Export bundles and the canvas do not support `DATASET` edges yet.
+name, at run time, with no change to the query text:
 
-A `VARIABLE_BINDINGS` edge between two tuples must have **equal arity** — the
-validator refuses anything else with `EDGE_TUPLE_ARITY_MISMATCH`
-(`GraphBuilder`). The one exception is a `BooleanIO`
-source, which must feed a one-variable input tuple
-(`EDGE_BOOLEAN_TARGET_ARITY`).
+- `datasetPart` sets the part it fills: `default` (the default graph is the
+  merge of the selected graphs), `named` (only those graphs match a `GRAPH`
+  pattern), or `both` (the default).
+- A node takes at most one edge for each part (`EDGE_DATASET_DUPLICATE_PART`).
+- The target must be a `QueryNode` or `DynamicQueryNode` that is not an UPDATE.
+- Only IRIs count. sqlib skips an unbound row or a literal.
+- An empty selection means no graphs. It does not mean all graphs. `whenEmpty`
+  can therefore be `propagateEmpty` (the default) or `require`, but never
+  `unconstrained`.
+- Over HTTP, sqlib sends the dataset as the `default-graph-uri` /
+  `named-graph-uri` parameters of the SPARQL 1.1 Protocol. It sends an empty
+  part as the graph `urn:sqlib:empty-dataset`, which contains nothing.
+- Export bundles and the canvas do not support `DATASET` edges yet.
 
-*Which* source variable fills *which* target variable is a separate question,
-and you usually do not have to answer it. With no `variableMappings` the engine
-pairs same-named variables first and then the leftovers by position — so
-`?person ?skill` → `VALUES (?p ?s)` works untouched, and a rename on one side
-does not shuffle the rest. Set `variableMappings` (a JSON array of
-`{source, target}`, by *variable name* so it survives IRI remapping) to choose
-the pairing yourself; it may be partial, and a target named twice keeps only its
-first mapping. A target left unmapped is `UNDEF` for that row rather than
-guessed at.
+A `VARIABLE_BINDINGS` edge between two tuples must have **equal arity**. The
+validator refuses other edges with `EDGE_TUPLE_ARITY_MISMATCH` (`GraphBuilder`).
+There is one exception: a `BooleanIO` source must feed an input tuple with one
+variable (`EDGE_BOOLEAN_TARGET_ARITY`).
 
-## 3. Authoring one on the canvas
+You usually do not need to say which source variable fills which target
+variable. With no `variableMappings`, the engine pairs variables with equal
+names first, and then pairs the rest by position. `?person ?skill` to
+`VALUES (?p ?s)` therefore works with no mapping, and a renamed variable on one
+side does not change the other pairs.
 
-Query groups live behind the `queryGroups` feature flag
-(`FEATURE_QUERY_GROUPS`, default on — see
-[feature flags](../reference/feature-flags.md)), in the build screen's rail.
+To choose the pairs yourself, set `variableMappings`: a JSON array of
+`{source, target}`, by *variable name*, so it stays correct when IRIs change. It
+can be partial. If a target is named twice, only its first mapping counts. A
+target with no mapping is `UNDEF` for that row. The engine does not guess a
+value for it.
 
-1. **Create the group** from the rail's add button. A fresh canvas is a start
-   node and an end node and nothing else — the boundary, waiting for a middle.
-   Add nodes from the canvas toolbar: *Query*, *Dynamic Query*, *Ruleset*.
-2. **Assign a query version.** Select the node (click clear of its toggle — a
-   collapsed node is mostly its own toggle button) and use *Edit Assignment* in
-   the inspector's **Editor** tab. The assignment mints the node's ports from
-   the query version's declared inputs and outputs. A rule set node takes
-   *Assign Ruleset* the same way, and a dynamic node adds its one *Query ID
-   Input* from the same panel.
+## 3. Build a group on the canvas
+
+The `queryGroups` feature flag controls query groups (`FEATURE_QUERY_GROUPS`,
+default on; see [feature flags](../reference/feature-flags.md)). They are in
+the rail of the build screen.
+
+1. **Create the group** with the add button of the rail. A new canvas has a
+   start node and an end node only. Add nodes from the canvas toolbar:
+   *Query*, *Dynamic Query*, *Ruleset*.
+2. **Assign a query version.** Select the node, and use *Edit Assignment* in
+   the **Editor** tab of the inspector. A collapsed node is mostly its toggle
+   button, so click away from the toggle. The assignment creates the ports of
+   the node from the declared inputs and outputs of the query version. For a
+   rule set node, use *Assign Ruleset* in the same way. For a dynamic node, add
+   its *Query ID Input* from the same panel.
 3. **Connect.** Drag from a source handle to a target handle. The canvas
-   recommends a flow type for the pair (`edge-flow-type-defaults.json`) and you
-   can override it in the edge inspector — an override the endpoints cannot
-   carry is refused, visibly, rather than applied.
-4. **Map variables** on a bindings edge, in the edge inspector's grid. It
-   shows what the engine will do with no mappings (§2): `city` pairs itself,
-   and a leftover target is fed the first leftover source by position. That
-   guess is marked with a warning, because a positional pair is often wrong;
-   set the target to a source or to `UNDEF` and your choices are written out
-   as the edge's `variableMappings`.
-5. **Save.** The save bar writes a **new version** — versions are immutable
-   snapshots, so there is no in-place edit and the version pill advances.
-6. **Run.** The run bar runs the version you have open, falling back to the
-   group itself — and so to its `currentVersion` — when none is selected; the inspector
-   switches to its **Results** tab, each node shows status, duration and a row
-   or triple count, and the slowest node is marked. A failed node carries its
+   suggests a flow type for the pair (`edge-flow-type-defaults.json`). You can
+   change it in the edge inspector. If the ports cannot carry the type you
+   choose, the canvas refuses it and shows why.
+4. **Map variables** on a bindings edge, in the grid of the edge inspector. It
+   shows what the engine does with no mappings (section 2). `city` pairs with
+   `city`, and a remaining target gets the first remaining source by position.
+   The grid marks that guess with a warning, because a pair by position is
+   often wrong. Set the target to a source or to `UNDEF`, and the grid writes
+   your choices to the `variableMappings` of the edge.
+5. **Save.** The save bar writes a **new version**. Versions are immutable, so
+   the version pill moves to the next number.
+6. **Run.** The run bar runs the version that you have open. If no version is
+   selected, it runs the group, which means its `currentVersion`. The inspector
+   changes to its **Results** tab. Each node shows its status, duration, and a
+   row or triple count, and the slowest node is marked. A failed node shows the
    reason in its title.
 
-Parameters are authored in the arguments panel beside the run bar: the group's
-signature comes from what its **start node** declares, not from `VALUES` blocks
-detected in member queries. A saved argument set runs by version id; a scratch
-one runs its values inline. The **Code** tab shows whichever call Execute would
-make.
+Set parameters in the arguments panel next to the run bar. The signature of the
+group comes from what its **start node** declares. `VALUES` blocks in member
+queries do not add to it. A saved argument set runs by version id. A scratch set
+runs its values inline. The **Code** tab shows the call that Execute would make.
 
-## 4. Building one over HTTP
+## 4. Build a group over HTTP
 
 ### The flat write
 
-There is exactly one way to write a group's content:
+There is one way to write the content of a group:
 
 ```
 POST /query-groups/:id/versions
 ```
 
-One request carries the whole graph. There are no incremental write endpoints
-for a group's parts: a second write path would skip the immutability guard and
-the `If-Match` check.
+One request carries the whole graph. The parts of a group have no separate write
+endpoints, because a second write path would skip the immutability guard and the
+`If-Match` check.
 
 The other endpoints:
 
 | Method | Path | Does |
 | --- | --- | --- |
 | `GET` `POST` | `/query-groups` | list, create the group entity |
-| `GET` `PUT` `DELETE` | `/query-groups/:id` | read, update (this is how `currentVersion` is set), delete |
+| `GET` `PUT` `DELETE` | `/query-groups/:id` | read, update (this sets `currentVersion`), delete |
 | `GET` | `/query-groups/:id/versions` | list versions |
 | `POST` | `/query-groups/:id/versions` | **create the next version** (flat write) |
 | `GET` | `/query-groups/:id/versions/:version` | read one version, expanded |
 | `PATCH` | `/query-groups/:id/versions/:version` | annotate (`comment`) or freeze (`immutable: true`, one direction only) |
-| `GET` | `/query-groups/:id/versions/:version/validate` | structural check, without running anything |
-| `GET` `POST` | `/query-groups/:id/argument-sets` | the sets that fill this group's parameters |
+| `GET` | `/query-groups/:id/versions/:version/validate` | check the structure, without running anything |
+| `GET` `POST` | `/query-groups/:id/argument-sets` | the sets that fill the parameters of this group |
 
 ### Temporary ids
 
-A payload mints entities that do not exist yet, so it needs to refer to them
-before they have IRIs. Any id beginning `urn:ui-temp:` (`TEMP_ID_PREFIX`) is a
-placeholder the writer replaces with a minted IRI, and the response's `iriMap`
-maps every placeholder to what it became. Two aliases are reserved:
-`urn:__START__` and `urn:__END__` name the start and end nodes without your
-having to declare them.
+A payload creates entities that do not exist yet, so it must refer to them
+before they have IRIs. An id that starts with `urn:ui-temp:` (`TEMP_ID_PREFIX`)
+is a placeholder. The writer replaces it with a new IRI, and the `iriMap` of the
+response maps each placeholder to its IRI. Two aliases are reserved:
+`urn:__START__` and `urn:__END__` name the start and end nodes, so you do not
+need to declare them.
 
-Referring to a `urn:ui-temp:` id that nothing in the payload declares is an
-error, not a silent skip: the write is staged in full before anything is
-written, every failure is accumulated, and the request comes back `422` with a
-`references` array naming each bad field. Nothing partial is stored — the
-version row is written last, so a group version never lists children that do not
-exist.
+A reference to a `urn:ui-temp:` id that the payload does not declare is an
+error. The writer prepares the whole write before it stores anything, and
+collects each failure. The request returns `422` with a `references` array that
+names each bad field. Nothing is stored. The writer writes the version row last,
+so a group version never lists children that do not exist.
 
-### A worked two-node chain
+### Example: a chain of two nodes
 
-Both query versions already exist. Query 1 selects `?person ?skill`; query 2
-opens with `VALUES (?p ?s) { (UNDEF UNDEF) }` — the reserved all-`UNDEF` row that
-marks a parameter slot.
+Both query versions already exist. Query 1 selects `?person ?skill`. Query 2
+starts with `VALUES (?p ?s) { (UNDEF UNDEF) }`, the all-`UNDEF` row that marks a
+parameter slot.
 
 ```jsonc
 POST /query-groups/urn:sqlib:group:people-skills/versions
@@ -258,21 +265,20 @@ POST /query-groups/urn:sqlib:group:people-skills/versions
 }
 ```
 
-`201` comes back with the expanded version plus `iriMap`. Point the group at it
-(`PUT /query-groups/:id` with `currentVersion`) and it is runnable.
+The response is `201` with the expanded version and `iriMap`. Set it as the
+current version of the group (`PUT /query-groups/:id` with `currentVersion`),
+and you can run it.
 
-This is not an invented example: it is
-`packages/api/test/scenarios/query-groups/03-select-to-select-chain.test.ts`,
-which builds exactly this and asserts the rows come back. Fifteen further
-scenarios beside it cover parallel branches, diamonds, three-node chains,
-multiple end outputs, external parameters, the `whenEmpty` policy and start-node
-data graphs — `README-TEST-SCENARIOS.md` in that directory is the index, and
-they are the most reliable examples in the repository because CI runs them.
+`packages/api/test/scenarios/query-groups/03-select-to-select-chain.test.ts`
+builds this group and checks the rows that it returns. Fifteen more scenarios in
+the same directory cover parallel branches, diamonds, chains of three nodes,
+several end outputs, external parameters, the `whenEmpty` policy and start-node
+data graphs. `README-TEST-SCENARIOS.md` in that directory lists them. CI runs
+them, so they are the most reliable examples in the repository.
 
-The full write contract, field by field, is
-`packages/contracts/src/generated/query-group-version.ts`
-(`queryGroupVersionForGroupCreateSchema` for writes,
-`queryGroupVersionExpandedSchema` for reads).
+`packages/contracts/src/generated/query-group-version.ts` gives the full write
+contract, field by field: `queryGroupVersionForGroupCreateSchema` for writes,
+and `queryGroupVersionExpandedSchema` for reads.
 
 ## 5. Parameters
 
@@ -283,7 +289,7 @@ POST /execute
 { "targetId": "<group IRI>", "argumentSetIds": ["<argument set version IRI>"] }
 ```
 
-or inline, one SPARQL Results JSON document per parameter to fill:
+Or inline, one SPARQL Results JSON document for each parameter to fill:
 
 ```jsonc
 {
@@ -300,51 +306,55 @@ or inline, one SPARQL Results JSON document per parameter to fill:
 }
 ```
 
-A group's run carries the same argument sets to every node, and each node takes
-only the ones whose variables match a `VALUES` group it actually declares. The
-match is on the set of variables, not their order: cells are keyed by name, so
-a table listing `[s, p]` fills a `VALUES (?p ?s)` clause exactly as it would on
-`/execute` for the query alone.
+A group run sends the same argument sets to each node. Each node takes only the
+sets whose variables match a `VALUES` group that it declares. The match uses the
+set of variables, in any order. Cells are keyed by name, so a table that lists
+`[s, p]` fills a `VALUES (?p ?s)` clause, as it does on `/execute` for the query
+alone.
 
-Between nodes, a row the upstream query left with nothing bound in the columns
-an edge maps — what an `OPTIONAL` produces when it matched nothing — carries no
-constraint and is dropped rather than passed on as an all-`UNDEF` row. If every
-row is dropped, the input is empty and the edge's `whenEmpty` decides. An edge
-whose variable mapping maps *no* columns at all is a broken edge, and a run that
-reaches it fails naming the edge.
+Between nodes, an upstream row can have no value in the columns that an edge
+maps. An `OPTIONAL` that matched nothing gives such a row. The row carries no
+constraint, so sqlib drops it. It does not send it as an all-`UNDEF` row. If
+sqlib drops each row, the input is empty, and the `whenEmpty` of the edge
+decides. An edge whose variable mapping maps *no* columns is broken, and a run
+that reaches it fails with an error that names the edge.
 
 ### `whenEmpty`
 
-Every parameter slot is rewritten before dispatch — bound rows, clause removed,
-or a zero-row `VALUES`. What happens when an edge delivers **no** bound rows is
-the one genuine choice, and it is a property of the edge that feeds the slot:
+sqlib rewrites each parameter slot before it sends the query: with bound rows,
+with the clause removed, or as a zero-row `VALUES`. When an edge delivers **no**
+bound rows, the edge that feeds the slot decides what happens:
 
 | Mode | Rewrite | Means |
 | --- | --- | --- |
-| `unconstrained` | the `VALUES` clause is removed | optional enrichment: no filter arrived, so do not filter |
-| `propagateEmpty` | `VALUES` with zero rows | faithful substitution: the empty set arrived, so match nothing |
-| `require` | the run fails | this input is mandatory |
+| `unconstrained` | the `VALUES` clause is removed | optional input: no filter arrived, so do not filter |
+| `propagateEmpty` | `VALUES` with zero rows | exact substitution: the empty set arrived, so match nothing |
+| `require` | the run fails | the input is mandatory |
 
-Unset, an empty upstream result (zero rows) is `propagateEmpty`, and the pure
-singleton wildcard row is `unconstrained`. An all-`UNDEF` row mixed with bound
-rows is rejected outright.
+If `whenEmpty` is not set, an empty upstream result (zero rows) is
+`propagateEmpty`, and a single all-`UNDEF` row is `unconstrained`. sqlib refuses
+an all-`UNDEF` row mixed with bound rows.
 
-A run's own `arguments` carry no policy. A caller says the two things it can
-mean by the shape of the argument: leaving a slot out is "nothing arrived" and
-runs it `unconstrained` unless the edge says `require`; supplying it with zero
-rows is "the empty set arrived". `require` is only ever the author's.
+The `arguments` of a run carry no policy. A caller gives one of two signals by
+the form of the argument:
+
+- Leave a slot out: no input arrived. The slot runs `unconstrained`, unless the
+  edge says `require`.
+- Supply the slot with zero rows: the empty set arrived.
+
+Only the author of the group can set `require`.
 
 ### `LIMIT` / `OFFSET`
 
-A group's expanded response carries `limitParameters` and `offsetParameters`:
-the union of the placeholder names its member queries declare, computed
-server-side so the fields the screen offers and the names `/execute` accepts
-cannot disagree. Pass them as `limits` / `offsets`; each node receives only the
-names it declared.
+The expanded response of a group has `limitParameters` and `offsetParameters`.
+These are the union of the placeholder names that its member queries declare,
+calculated on the server. The fields that the screen offers and the names that
+`/execute` accepts are therefore the same. Pass them as `limits` / `offsets`.
+Each node receives only the names it declared.
 
 ### Data graphs
 
-A start node can declare RDF inputs as well as tuples, filled per run:
+A start node can declare RDF inputs as well as tuples. Each run fills them:
 
 ```jsonc
 {
@@ -353,102 +363,111 @@ A start node can declare RDF inputs as well as tuples, filled per run:
 }
 ```
 
-`dataGraphId` and `dataGraphInline` are the other two forms. Where such a
-graph may then flow is the `RDF_GRAPH` rule in §2.
+The other two forms are `dataGraphId` and `dataGraphInline`. The `RDF_GRAPH`
+rule in section 2 sets where such a graph can then go.
 
-A single query takes `dataGraphs` too, with a different meaning: it has no
-ports, so the graphs become the whole store it runs over — loaded into an
-ephemeral store made for that request and dropped after it. Leave `backendId`
-out (or name the ephemeral backend); naming any other backend beside
-`dataGraphs` is a `400`, because the query would not see it.
+A single query also takes `dataGraphs`, with a different meaning. A query has no
+ports, so the graphs become the whole store it runs over. sqlib loads them into
+an ephemeral store for that request, and drops the store after it. Leave
+`backendId` out, or name the ephemeral backend. If you name any other backend
+with `dataGraphs`, the request gets `400`, because the query would not see that
+backend.
 
-## 6. Running one
+## 6. Run a group
 
 ```
 POST /execute   { "targetId": "<group IRI>" }
 ```
 
-`targetId` may be the group (it runs `currentVersion`) or a group version
-directly. The response is the end node's result, typed the ordinary way:
-`application/sparql-results+json` for bindings and a boolean, an RDF media type
-for triples (negotiated from the `Accept` header and the end node's
-`mediaType`). Two headers say what actually ran: `X-Resolved-Target` names the
-version, `X-Result-Node` the node the result came from.
+`targetId` can be the group (it runs `currentVersion`) or a group version. The
+response is the result of the end node, with the usual type:
+`application/sparql-results+json` for bindings and a boolean, and an RDF media
+type for triples (chosen from the `Accept` header and the `mediaType` of the end
+node). Two headers say what ran: `X-Resolved-Target` names the version, and
+`X-Result-Node` names the node that gave the result.
 
 **Dataset.** Add `defaultGraphs` and/or `namedGraphs` (arrays of IRIs) to run
-every query node over those graphs instead of the backend's default dataset. A
-part you leave out is not restricted; an empty array means no graphs. Where a
-node also has a `DATASET` edge, the two restrictions intersect part by part, so
-a caller can narrow what the group author chose but not widen it. An UPDATE is
-refused with `400` when a dataset is given. `POST /sparql` takes the same two
-fields, and `GET /sparql` takes the protocol's own `default-graph-uri` and
-`named-graph-uri`, repeated once per graph.
+each query node over those graphs. Without them, a node uses the default
+dataset of its backend.
 
-**Per-node detail.** Add `nodeDetail: "timings"` or `nodeDetail: "results"` and
-the reply becomes a JSON envelope whatever the result's own type:
+- A part you leave out has no limit. An empty array means no graphs.
+- Where a node also has a `DATASET` edge, sqlib intersects the two limits for
+  each part. A caller can narrow the choice of the group author, but cannot
+  widen it.
+- sqlib refuses an UPDATE with `400` when a dataset is given.
+- `POST /sparql` takes the same two fields. `GET /sparql` takes the protocol
+  parameters `default-graph-uri` and `named-graph-uri`, once for each graph.
+
+**Detail for each node.** Add `nodeDetail: "timings"` or
+`nodeDetail: "results"`, and the response becomes a JSON envelope, whatever the
+type of the result:
 
 ```jsonc
 { "result": …, "nodes": [ { "nodeId": …, "status": …, "durationMs": …, … } ],
   "resultContentType": "application/n-triples" }
 ```
 
-The envelope's own `Content-Type` describes the envelope, so `resultContentType`
-is how a client knows what is *inside* it. The group screen sets
-`nodeDetail: "results"` on every run.
+The `Content-Type` of the response describes the envelope. `resultContentType`
+tells a client the type of the result *inside* it. The group screen sets
+`nodeDetail: "results"` on each run.
 
-**Failure.** A node that throws fails the run with `400`, and the body names the
-node — `error`, `failedNodeId`, `failedNodeName`, plus `nodes` if node detail was
-asked for. The canvas marks that node from `failedNodeId` even when the node
-never reported a status of its own.
+**Failure.** A node that throws an error fails the run with `400`. The body
+names the node: `error`, `failedNodeId`, `failedNodeName`, and `nodes` if you
+asked for node detail. The canvas marks that node from `failedNodeId`, also when
+the node reported no status of its own.
 
-**Validation before running.** `GET /query-groups/:id/versions/:version/validate`
-returns `{ errors, warnings, issues }`, each issue carrying a stable `code`, an
-`entityType` and an `entityId` so a client can highlight the offending node or
-edge rather than parse prose. The codes are the enum in
-`packages/api/src/lib/orchestration/GraphValidationError.ts`, grouped as:
-whole-graph shape (`GRAPH_CYCLE`, `GRAPH_NO_EXECUTABLE_NODE`,
-`END_NODE_MIXED_RESULT_TYPES`, `END_NODE_NO_DATA_INPUT`), edge wiring
-(`EDGE_FLOW_TYPE_UNSUPPORTED`, `EDGE_CONTROL_FLOW_HAS_IO`,
-`EDGE_DATA_FLOW_MISSING_IO`, …), port compatibility (`EDGE_SOURCE_PORT_TYPE`,
-`EDGE_QUERY_ID_ARITY`, `EDGE_RDF_GRAPH_TARGET_CANNOT_CONSUME`, …), tuple shape,
-and node/query agreement (`NODE_VALUES_GROUP_MISSING`,
-`NODE_RULESET_INBOUND_FLOW_TYPE`, …).
+**Validation before a run.** `GET /query-groups/:id/versions/:version/validate`
+returns `{ errors, warnings, issues }`. Each issue has a stable `code`, an
+`entityType` and an `entityId`, so a client can mark the node or edge with the
+problem without parsing a message. The codes are the enum in
+`packages/api/src/lib/orchestration/GraphValidationError.ts`, in these groups:
+
+- Shape of the whole graph: `GRAPH_CYCLE`, `GRAPH_NO_EXECUTABLE_NODE`,
+  `END_NODE_MIXED_RESULT_TYPES`, `END_NODE_NO_DATA_INPUT`.
+- Edge connections: `EDGE_FLOW_TYPE_UNSUPPORTED`, `EDGE_CONTROL_FLOW_HAS_IO`,
+  `EDGE_DATA_FLOW_MISSING_IO`, …
+- Port compatibility: `EDGE_SOURCE_PORT_TYPE`, `EDGE_QUERY_ID_ARITY`,
+  `EDGE_RDF_GRAPH_TARGET_CANNOT_CONSUME`, …
+- Tuple shape.
+- Agreement between a node and its query: `NODE_VALUES_GROUP_MISSING`,
+  `NODE_RULESET_INBOUND_FLOW_TYPE`, …
 
 ## 7. Versions
 
-A query group version is an immutable snapshot. `POST …/versions` mints the next one
-and is the only way to write content; `PATCH …/versions/:version` accepts a `comment`
-and `immutable: true` (never `false`), and enforces `If-Match`. Running a group
-by its group IRI runs whatever `currentVersion` points at, so promoting a
-version is a `PUT` on the group.
+A query group version is an immutable snapshot. `POST …/versions` creates the
+next version, and is the only way to write content. `PATCH …/versions/:version`
+accepts a `comment` and `immutable: true` (never `false`), and enforces
+`If-Match`. A run by the group IRI runs the version that `currentVersion` names,
+so to promote a version, send a `PUT` on the group.
 
-This is why the canvas has no "save" that overwrites: every edit that reaches
-the server is a new version, and the version pill is the honest indicator of
-which one you are looking at.
+For this reason, Save on the canvas never overwrites. Each edit that reaches the
+server is a new version, and the version pill shows which version you are
+looking at.
 
-## 8. Known edges
+## 8. Known limits
 
-- **Sequential execution.** Parallel DAG branches run one after another;
-  nothing executes concurrently.
-- **An end node with several data inputs merges RDF only.** One predecessor
-  returns its result as-is; several RDF predecessors are concatenated;
-  bindings or booleans from more than one predecessor fail the run with
-  "Support for merging bindings/booleans is not yet implemented"
-  (`ExecutionEngine`). Mixed result types are refused earlier, at validation,
-  as `END_NODE_MIXED_RESULT_TYPES`.
-- **`DuckDbEtlNode` in a group** is unreachable — see §2.
-- **A node's own rows are fetched and not shown.** `nodeDetail: "results"`
-  parses each node's result and the canvas displays status, duration and counts
-  only; the rows themselves are not shown anywhere.
-- **Visual regression on canvas states** is a local gate (`@visual`), excluded
-  from CI, so canvas rendering changes are reviewed on a developer machine.
+- **Sequential execution.** Parallel DAG branches run one after another.
+  Nothing runs at the same time.
+- **An end node with several data inputs merges RDF only.** With one
+  predecessor, the end node returns its result as it is. With several RDF
+  predecessors, it concatenates them. Bindings or booleans from more than one
+  predecessor fail the run with "Support for merging bindings/booleans is not
+  yet implemented" (`ExecutionEngine`). Validation refuses mixed result types
+  earlier, as `END_NODE_MIXED_RESULT_TYPES`.
+- **`DuckDbEtlNode` in a group** cannot be created. See section 2.
+- **The rows of a node are fetched, but not shown.** `nodeDetail: "results"`
+  parses the result of each node, and the canvas shows only status, duration
+  and counts.
+- **Visual regression tests of canvas states** run locally only (`@visual`).
+  CI excludes them, so a developer reviews changes to canvas rendering on their
+  own machine.
 
 ## 9. Further reading
 
-- `packages/api/test/scenarios/query-groups/` — sixteen executable examples,
-  indexed by `README-TEST-SCENARIOS.md` in that directory.
-- `packages/contracts/src/generated/query-group-version.ts` — the write and read
+- `packages/api/test/scenarios/query-groups/`: sixteen executable examples,
+  listed in `README-TEST-SCENARIOS.md` in that directory.
+- `packages/contracts/src/generated/query-group-version.ts`: the write and read
   contracts, field by field.
-- [Running and configuring](running-and-configuring.md) — starting a server with
-  query groups enabled.
-- [Authoring and running rules](rules-and-srl.md) — what a rule set node runs.
+- [Running and configuring](running-and-configuring.md): start a server with
+  query groups on.
+- [Authoring and running rules](rules-and-srl.md): what a rule set node runs.

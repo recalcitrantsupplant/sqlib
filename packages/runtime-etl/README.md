@@ -2,10 +2,14 @@
 
 The sqlib ETL loop, with no server.
 
-`runEtl` reads source rows a chunk at a time. It maps each row to a SPARQL
-binding with a column mapping, splices the chunk into a CONSTRUCT as one
-`VALUES` block, runs it on any runtime `Executor`, and hands the RDF to a sink.
-It keeps no output of its own, so a run holds one chunk's RDF at a time.
+`runEtl` does these steps for each chunk of source rows:
+
+1. It maps each row to a SPARQL binding, with a column mapping.
+2. It puts the chunk into a CONSTRUCT as one `VALUES` block.
+3. It runs the CONSTRUCT on a runtime `Executor`.
+4. It gives the RDF to a sink.
+
+It keeps no output, so a run holds the RDF of one chunk at a time.
 
 ```ts
 import { compileQueryTemplate } from '@sparql-query-lib/compiler';
@@ -32,8 +36,8 @@ await runEtl({
 - **`maxRows`**, **`maxRowsPolicy`**, **`dryRun`** and **`signal`** stop a run
   as `POST /etl-jobs/:id/execute` does.
 
-`rowsToBindings` and `toLexicalForm` are exported too: the tabular sink in the
-API maps rows without running a CONSTRUCT.
+The package also exports `rowsToBindings` and `toLexicalForm`. The tabular sink
+in the API uses them to map rows with no CONSTRUCT.
 
 ## One job, two hosts
 
@@ -43,4 +47,5 @@ requires the same RDF from both.
 
 ## Status
 
-Private to the workspace. It becomes publishable with the command-line tool.
+To do: publish to npm, with the command-line tool. Until then, the package is
+private to the workspace.

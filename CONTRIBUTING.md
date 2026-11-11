@@ -2,15 +2,14 @@
 
 ## External pull requests are not being accepted before 1.0
 
-sqlib is published under a review-only licence (see [LICENSE](LICENSE)) while it
-is pre-1.0, and that licence does not let us take contributed code. Pull
-requests from outside the project will be closed unmerged, whatever their
-quality. Issues, bug reports, questions and design discussion are welcome and
-are the useful way to engage with the project right now.
+Before 1.0, sqlib uses a review-only licence (see [LICENSE](LICENSE)). That
+licence does not let us accept contributed code. We close pull requests from
+outside the project without a merge, whatever their quality. Issues, bug
+reports, questions and design discussion are welcome.
 
-The rest of this page documents how the repository is built and checked. It
-applies to anyone working in a fork for their own review purposes, and it is the
-reference the maintainers work from.
+The rest of this page describes how the repository is built and checked. It
+applies to a person who works in a fork for review, and the maintainers use it
+as their reference.
 
 ## Local setup
 
@@ -20,14 +19,15 @@ pnpm install
 pnpm build
 ```
 
-Node 26 (`.nvmrc`, the same major as the Docker images) and pnpm 11.1.2
-(`packageManager` in the root `package.json`). `pnpm build` runs `pnpm -r build` in topological order, so
-`types` and `contracts` are built before the packages that import them. Nothing
-in the workspace resolves internal packages from source at runtime, so an
-unbuilt tree will not start. `just` alone also works on a fresh clone: it runs
-`pnpm install` and builds the packages its dev server cannot run from source.
+You need Node 26 (`.nvmrc`, the same major version as the Docker images) and
+pnpm 11.1.2 (`packageManager` in the root `package.json`). `pnpm build` runs
+`pnpm -r build` in topological order, so `types` and `contracts` build before the
+packages that import them. At run time, no package resolves internal packages
+from source, so a tree with no build does not start. `just` alone also works on
+a fresh clone: it runs `pnpm install` and builds the packages its dev server
+cannot run from source.
 
-Per-package work uses pnpm filters:
+For work on one package, use pnpm filters:
 
 ```bash
 pnpm --filter @sparql-query-lib/api dev          # API only, watch mode
@@ -37,23 +37,23 @@ pnpm --filter @sparql-query-lib/api test:watch
 
 ### Justfile recipes
 
-The Justfile is the only task runner; there is no Taskfile. The recipes you are
-likely to use:
+The Justfile is the only task runner. There is no Taskfile. The recipes that you
+will probably use:
 
 | Recipe | What it does |
 | --- | --- |
 | `just` | Runs `dev`: API + MCP on port 3005 and the SPA on port 3001, SQLite store under `packages/api/tmp/library-store`, every feature flag on, auth disabled |
 | `just run-local-memory` | API + MCP on port 3005, durable Oxigraph store under `packages/api/tmp/library-store`, assistant flag on |
 | `just clean-local-memory` | Delete that store |
-| `just dev-auth` | API, MCP and SPA with every feature flag on, in `required` auth mode behind a local Rauthy on port 8080, with an administrator and three test people; see [a dev stack behind Rauthy](docs/guides/deploying.md#a-dev-stack-behind-rauthy) |
-| `just rauthy-up` / `just rauthy-down` / `just clean-rauthy` | Start, stop or throw away that Rauthy on its own |
-| `just clean-dev-auth` | Delete `dev-auth`'s library store and grants |
+| `just dev-auth` | API, MCP and SPA with each feature flag on, in `required` auth mode behind a local Rauthy on port 8080, with an administrator and three test people. See [a dev stack behind Rauthy](docs/guides/deploying.md#a-dev-stack-behind-rauthy) |
+| `just rauthy-up` / `just rauthy-down` / `just clean-rauthy` | Start, stop or delete that Rauthy alone |
+| `just clean-dev-auth` | Delete the library store and grants of `dev-auth` |
 | `just run-frontend [API_URL]` | Nuxt dev server on port 3001, pointed at `http://localhost:3005` by default |
 | `just run-local-rules-tests` | API as a rules workbench with the W3C SHACL 1.2 Rules suite seeded as runnable Tests, in its own store |
-| `just run-frontend-rules` | The SPA with the matching feature flags — the API and the SPA read their own environments, so both halves must be set |
+| `just run-frontend-rules` | The SPA with the matching feature flags. The API and the SPA read separate environments, so you must set both |
 | `just clean-local-rules-tests` | Delete the rules-test store |
 | `just run-local-patch-demo` / `just run-frontend-patch-demo` | The RDF Patch demo library and its SPA |
-| `just uat-patch-demo` | Drive that demo in a real browser against a running API and SPA (start both first) |
+| `just uat-patch-demo` | Run that demo in a real browser, against a running API and SPA. Start both first |
 | `just clean-local-patch-demo` | Delete the patch-demo store |
 | `just build-docker [TAG]` | Build the server image |
 | `just run-docker [TAG] [PORT]` | Run that image with its defaults and the `sqlib-data` volume |
@@ -67,66 +67,76 @@ likely to use:
 bash scripts/ci/all.sh
 ```
 
-`pnpm ci` is an alias for the same script. `.github/workflows/ci.yml` is a thin
-dispatcher: every CI step is one `bash scripts/ci/<name>.sh`, so the whole
-required pipeline is reproducible locally with no GitHub Actions involved.
-`all.sh` runs, in order: `install.sh`, `lint.sh`, `ratchet-selftest.sh`,
+`pnpm ci` runs the same script. `.github/workflows/ci.yml` only calls scripts:
+each CI step is one `bash scripts/ci/<name>.sh`. You can therefore run the whole
+required pipeline locally, without GitHub Actions. `all.sh` runs, in order: `install.sh`, `lint.sh`, `ratchet-selftest.sh`,
 `any-ratchet.sh`, `orphan-ratchet.sh`, `typecheck.sh`, `build.sh`,
 `publish-check.sh`, `test.sh`.
 
-What each one actually does:
+What each script does:
 
-- **`install.sh`** — `pnpm install --frozen-lockfile`.
-- **`lint.sh`** — three things. `pnpm -r --if-present lint`, which is
-  stylelint over `packages/web/**/*.{vue,css}` (the design tokens: colour, font
-  size, radius, and `padding`/`margin` on the `--space-*` scale); the ESLint
-  ratchet (`scripts/lint-ratchet.mjs`, below) over every package's TypeScript;
-  and the documentation link check.
-- **`typecheck.sh`** — `nuxi typecheck` over `packages/web`, compared against
+- **`install.sh`**: `pnpm install --frozen-lockfile`.
+- **`lint.sh`**: three checks.
+  - `pnpm -r --if-present lint`: stylelint over
+    `packages/web/**/*.{vue,css}`, for the design tokens (colour, font size,
+    radius, and `padding`/`margin` on the `--space-*` scale).
+  - The ESLint ratchet (`scripts/lint-ratchet.mjs`, below), over the TypeScript
+    of each package.
+  - The documentation link check.
+- **`typecheck.sh`**: `nuxi typecheck` over `packages/web`, compared with
   `packages/web/.typecheck-baseline`. The other packages typecheck as part of
-  their build. It fails if the checker exits non-zero without printing a single
-  `error TS` line, because a crashed checker and a clean tree both count zero.
-- **`build.sh`** — `pnpm -r build`, topological. This doubles as the typecheck
-  for every package except `web`.
-- **`publish-check.sh`** — publish readiness for the packages that are not
-  `private: true`. It checks the manifests (`scripts/check-publishable.mjs`),
-  that each package's `public-api.md` still matches its built declarations
-  (`check-public-api.mjs`), that the packed tarball installs, compiles under
-  three module resolutions and loads in plain Node (`check-installable.mjs`),
-  and that the declaration `sqlib export --typings` writes compiles in a
-  consumer-shaped project (`check-generated-typings.mjs`). It publishes nothing
-  and needs no token.
-- **`test.sh`** — vitest, affected-aware. On a PR it runs the packages changed
-  since the base branch plus their dependents; on a trunk push, or with
-  `CI_TEST_MODE=full`, everything. It invokes vitest through
-  `pnpm --filter X exec` rather than each package's `test` script, because pnpm
-  11 does not forward trailing arguments to run-scripts. `SHARD=n/N` shards a
-  run.
-- **`commitlint.sh`** — runs on PRs only, and fails the job on a commit that is
-  not a Conventional Commit.
-- **`e2e.sh`** — Playwright. Not part of `all.sh`, because it needs a browser
-  and a production build; the e2e job runs on every pull request and push, and
-  Dependabot's auto-merge waits on it as it does on the other jobs. It runs the web functional specs
-  against a production preview build with the API mocked at the network layer,
-  plus the `packages/api` demo-page suite. The `@visual` specs are excluded,
-  because their baselines are rasterised with the authoring machine's fonts;
-  run those locally with
+  their build. It fails if the checker exits non-zero and prints no `error TS`
+  line, because a crashed checker and a clean tree both count zero.
+- **`build.sh`**: `pnpm -r build`, in topological order. This is also the
+  typecheck for each package except `web`.
+- **`publish-check.sh`**: publish readiness for the packages that are not
+  `private: true`. It checks:
+  - the manifests (`scripts/check-publishable.mjs`);
+  - that the `public-api.md` of each package still matches its built
+    declarations (`check-public-api.mjs`);
+  - that the packed tarball installs, compiles under three module resolutions,
+    and loads in plain Node (`check-installable.mjs`);
+  - that the declaration from `sqlib export --typings` compiles in a project
+    like a consumer's (`check-generated-typings.mjs`).
+
+  It publishes nothing, and needs no token.
+- **`test.sh`**: vitest, for the affected packages. On a PR, it runs the packages
+  changed since the base branch, and their dependents. On a trunk push, or with
+  `CI_TEST_MODE=full`, it runs all packages. It calls vitest through
+  `pnpm --filter X exec`, and not through the `test` script of each package,
+  because pnpm 11 does not pass trailing arguments to run-scripts. `SHARD=n/N`
+  shards a run.
+- **`commitlint.sh`**: runs on PRs only. It fails the job on a commit that is not
+  a Conventional Commit.
+- **`e2e.sh`**: Playwright. It is not part of `all.sh`, because it needs a
+  browser and a production build. The e2e job runs on each pull request and
+  push, and the Dependabot auto-merge waits for it, as for the other jobs. It
+  runs the web functional specs against a production preview build, with the
+  API mocked at the network layer, and the `packages/api` demo-page suite. The
+  `@visual` specs are excluded, because their baselines are rendered with the
+  fonts of the author's computer. Run them locally with
   `pnpm --filter @sparql-query-lib/web test:e2e:visual`.
 
 ## The ratchets
 
-Three gates measure the tree rather than a run, and all three are baselines
-rather than hard zeros so cleanup can land incrementally.
+Three gates measure the tree, and not a run. All three compare with a baseline,
+and not with zero, so a cleanup can merge in steps.
 
 **`lint.sh`** runs `scripts/lint-ratchet.mjs`: ESLint with the root
-`eslint.config.mjs` (`typescript-eslint`'s recommended rules, unused imports and
-variables, `no-explicit-any`, and `no-console` outside scripts, tests and CLI
-entry points — `packages/web/src` may still `console.warn` and `console.error`;
-its commentary goes through `debug()` from `src/lib/debug.ts`, and the API's
-through the logger in `packages/api/src/lib/log.ts`). Problems are counted per
-package and rule against `scripts/lint-baseline.json`, and a count that rises
-fails. A package/rule pair the baseline does not name is held at zero. To see
-the problems behind a count, and to fix unused imports automatically:
+`eslint.config.mjs`. The rules are:
+
+- the recommended rules of `typescript-eslint`;
+- unused imports and variables;
+- `no-explicit-any`;
+- `no-console` outside scripts, tests and CLI entry points.
+  `packages/web/src` can still use `console.warn` and `console.error`. Other
+  web output goes through `debug()` from `src/lib/debug.ts`. API output goes
+  through the logger in `packages/api/src/lib/log.ts`.
+
+The ratchet counts problems for each package and rule, and compares the count
+with `scripts/lint-baseline.json`. A count that increases fails. A package and
+rule pair that the baseline does not name must stay at zero. To see the
+problems behind a count, and to fix unused imports automatically:
 
 ```bash
 pnpm exec eslint packages/api            # list them
@@ -134,33 +144,36 @@ pnpm exec eslint --fix packages/api      # fix what is fixable
 pnpm lint:update                         # record a lower count
 ```
 
-The root pins TypeScript 6 for ESLint alone: `typescript-eslint` cannot parse
-with TypeScript 7, which every package but `web` builds with.
+The root pins TypeScript 6 for ESLint only. `typescript-eslint` cannot parse
+with TypeScript 7, and each package except `web` builds with TypeScript 7.
 
-**`any-ratchet.sh`** runs `scripts/count-any.mjs`. It makes two different
-promises: `packages/api/src` is a strict zone where any occurrence of `as any`
-or `catch (x: any)` fails, and the whole-repo count — `: any` annotations
-included, in `packages/api/src` as everywhere else — may fall but never rise.
-When a legitimate cleanup lowers the count, record it:
+**`any-ratchet.sh`** runs `scripts/count-any.mjs`. It has two rules:
+
+- `packages/api/src` is a strict zone. Each `as any` or `catch (x: any)` there
+  fails.
+- The count for the whole repository can decrease, and never increase. This
+  count includes `: any` annotations, in `packages/api/src` and elsewhere.
+
+When a cleanup lowers the count, record it:
 
 ```bash
 node scripts/count-any.mjs --update
 ```
 
-**`orphan-ratchet.sh`** runs `scripts/check-orphans.mjs`. A source file nothing
-can reach — not an entry point, not a test, not a config, not Nuxt's routing —
-fails the build unless it is named in `scripts/orphan-baseline.json`. The
-baseline names files rather than counting them, because an accepted orphan is a
-claim that someone looked at that specific file and decided it stays.
+**`orphan-ratchet.sh`** runs `scripts/check-orphans.mjs`. A source file that
+nothing can reach fails the build, unless `scripts/orphan-baseline.json` names
+it. Entry points, tests, configs and the routing of Nuxt can each reach a file.
+The baseline names files, and does not count them. Each accepted orphan states
+that a person read that file and decided to keep it.
 
-**When a ratchet trips**, the fix is the code, not the baseline. Remove the
-`any` or delete the unreachable module. Adding an entry to
-`scripts/orphan-baseline.json`, or raising the `any` or lint baseline, is a
-decision to be explained in the pull request, not a way past a red build.
+**When a ratchet fails**, fix the code. Remove the `any`, or delete the
+unreachable module. A new entry in `scripts/orphan-baseline.json`, or a higher
+`any` or lint baseline, is a decision. Explain it in the pull request.
 
-**`ratchet-selftest.sh`** guards the `any` and orphan ratchets: it checks that each still fails
-when it measures nothing, since a crashed checker and a moved scan directory
-both score as clean. It runs in about a second and needs no install.
+**`ratchet-selftest.sh`** guards the `any` and orphan ratchets. It checks that
+each still fails when it measures nothing, because a crashed checker and a
+moved scan directory both count as clean. It runs in about one second, and
+needs no install.
 
 ## Commits
 
@@ -168,73 +181,96 @@ Conventional Commits: `feat:`, `fix:`, `chore:`, `test:`, `ci:`, `docs:`, and
 `feat!:` or a `BREAKING CHANGE:` footer for a breaking change. The configuration
 is `commitlint.config.cjs`, extending `@commitlint/config-conventional`.
 
-`scripts/ci/commitlint.sh` is **blocking** on pull requests: a non-conforming
-commit fails the `verify` job. Releases are cut by release-please from these
-messages (`v0.1.0` is the first, see `CHANGELOG.md`), so a commit it cannot
+`scripts/ci/commitlint.sh` is **blocking** on pull requests. A commit that does
+not conform fails the `verify` job. release-please makes releases from these
+messages (`v0.1.0` is the first; see `CHANGELOG.md`). A commit that it cannot
 parse gets no version bump and no changelog entry.
 
-All changes land on `main` through a pull request.
+Each change merges to `main` through a pull request.
+
+Write commit messages, pull requests, comments and documentation to
+[docs/writing-style.md](docs/writing-style.md).
 
 ## Packages and tests
 
-Sixteen packages under `packages/*`. Eight are `private: true`. Eight are not:
-`runtime` and `runtime-oxigraph`, the parser-free static-export runtime that a
-generated export loads as a dependency, and `compiler`, `srl`,
-`runtime-duckdb`, `runtime-etl`, `runtime-srl` and `cli`, which make up the
-`sqlib` command line. All eight are packaging-complete and gated by
-`publish-check.sh`, and none has been published yet. The CLI's six are ESM only.
+There are sixteen packages under `packages/*`. Eight are `private: true`. Eight
+are not:
 
-Test layout, per package:
+- `runtime` and `runtime-oxigraph`: the static-export runtime, with no parser.
+  A generated export loads it as a dependency.
+- `compiler`, `srl`, `runtime-duckdb`, `runtime-etl`, `runtime-srl` and `cli`:
+  the `sqlib` command line. These six are ESM only.
+
+Status of these eight:
+
+- Done: each is ready to package, and `publish-check.sh` checks it.
+- To do: publish them.
+
+The test layout of each package:
 
 | Package | Unit tests | Notes |
 | --- | --- | --- |
 | `api` | `packages/api/test/` | The large suite. Subdirectories by area: `routes/`, `scenarios/`, `persistence/`, `lib/`, `server/`, `integration/`, `auth/`, `system-store/`, and others. `packages/api/tests/` holds the Playwright demo-page specs. |
-| `web` | `packages/web/test/` | vitest with happy-dom. Playwright specs live in `packages/web/tests/e2e/` and are excluded from the unit run. |
+| `web` | `packages/web/test/` | vitest with happy-dom. The Playwright specs are in `packages/web/tests/e2e/`, and the unit run excludes them. |
 | `srl` | `packages/srl/test/` | Includes the W3C SHACL 1.2 Rules harness (`w3c.harness.test.ts` and `w3c/`). |
 | `runtime`, `runtime-oxigraph`, `compiler`, `runtime-duckdb`, `runtime-etl`, `runtime-srl`, `cli`, `rdf-delta`, `tools`, `mcp-server` | `packages/<name>/test/` | |
-| `types`, `contracts` | none | Their `test` script is a placeholder, and `test.sh` selects only packages whose `test` script mentions vitest. |
+| `types`, `contracts` | none | Their `test` script is a placeholder. `test.sh` selects only packages whose `test` script names vitest. |
 
-`packages/api/test/README-TESTING-PATTERNS.md` describes the three shapes an API
-test takes and when each applies: scenario tests that configure the global
-`oxigraphStoreManager` and `MemoryCacheManager` singletons and register the real
-Fastify app; dependency-injected unit tests that construct their own store
-manager against a temporary directory; and mocked unit tests that stub
-`CacheCoordinatorProvider` to exercise validation logic alone. Most of the
-existing suite is the first shape. Read that file before adding a test that
-touches storage — two suites sharing one on-disk Oxigraph store is a known
-source of cross-test failures, and is why `test.sh` excludes the workspace root
-project from its CI run.
+`packages/api/test/README-TESTING-PATTERNS.md` describes the three shapes of an
+API test, and when to use each:
 
-Internal packages resolve to source in tests through a vitest `alias`, so a test
-run needs no build.
+- scenario tests, which configure the global `oxigraphStoreManager` and
+  `MemoryCacheManager` singletons, and register the real Fastify app;
+- unit tests with dependency injection, which make their own store manager
+  against a temporary directory;
+- mocked unit tests, which stub `CacheCoordinatorProvider` to test validation
+  logic alone.
 
-## Gotchas
+Most of the current suite uses the first shape. Read that file before you add a
+test that uses storage. When two suites share one Oxigraph store on disk, tests
+can fail because of each other. For this reason, `test.sh` excludes the
+workspace root project from its CI run.
+
+In tests, internal packages resolve to source through a vitest `alias`, so a
+test run needs no build.
+
+## Known problems
 
 **pnpm 11 ignores `pnpm.overrides` in `package.json`.** It reads overrides only
-from `pnpm-workspace.yaml`. A local install with an older pnpm writes an
-`overrides` section into the lockfile; pnpm 11 in Docker reads no overrides,
-sees the lockfile carrying some, and fails `pnpm install --frozen-lockfile`
-with `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH`. Moving the overrides into
-`pnpm-workspace.yaml` hits the opposite pnpm bug, where the overrides are
-stripped from the lockfile instead. Before adding an override, check whether it
-is needed at all — `grep '<pkg>@' pnpm-lock.yaml | sort -u` — and drop it if
-only one version already resolves. If Docker still appears to be reusing a stale
-lockfile layer, rebuild with `--no-cache`.
+from `pnpm-workspace.yaml`. The problem:
 
-**Generated schemas are checked in.**
-`packages/contracts/src/schema/*.generated.ts` are tracked despite being
-generated; regenerate them with
-`pnpm --filter @sparql-query-lib/api generate-schemas`. Build artifacts —
-`dist/`, `*.tsbuildinfo`, `.nuxt/`, `.output/` — are not.
+1. A local install with an older pnpm writes an `overrides` section into the
+   lockfile.
+2. pnpm 11 in Docker reads no overrides, but finds some in the lockfile.
+3. `pnpm install --frozen-lockfile` fails with
+   `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH`.
 
-**A dirty incremental rebuild can skip declaration emit** (`composite: true`
-with tsup's `--clean false`). CI always builds clean, so this only bites
-locally. If types look stale, run
-`rm -rf packages/*/dist packages/*/*.tsbuildinfo` and rebuild.
+If you move the overrides into `pnpm-workspace.yaml`, a different pnpm bug
+removes them from the lockfile. Before you add an override, check whether it is
+necessary, with `grep '<pkg>@' pnpm-lock.yaml | sort -u`. If only one version
+already resolves, do not add it. If Docker still uses an old lockfile layer,
+rebuild with `--no-cache`.
+
+**Generated schemas are checked in.** Git tracks
+`packages/contracts/src/schema/*.generated.ts`, although they are generated.
+Generate them again with `pnpm --filter @sparql-query-lib/api generate-schemas`.
+Git does not track build artifacts: `dist/`, `*.tsbuildinfo`, `.nuxt/` and
+`.output/`.
+
+**An incremental rebuild on a dirty tree can skip the declaration output**
+(`composite: true` with `--clean false` in tsup). CI always builds from clean,
+so this occurs only locally. If types look old, run
+`rm -rf packages/*/dist packages/*/*.tsbuildinfo`, and build again.
 
 **Cross-package dependencies use `workspace:*`**, never `file:../`.
 
-**Adding a package**: create it under `packages/*` with `build` and `test`
-scripts (the root ESLint configuration covers its TypeScript without one), depend on internal packages with `workspace:*`, and add a vitest
-config aliasing internal dependencies to `src` if it has tests. The dependency
-graph and affected-aware testing pick it up without further wiring.
+**To add a package:**
+
+1. Make it under `packages/*`, with `build` and `test` scripts. It needs no
+   `lint` script, because the root ESLint configuration covers its TypeScript.
+2. Depend on internal packages with `workspace:*`.
+3. If it has tests, add a vitest config that aliases internal dependencies to
+   `src`.
+
+The dependency graph and the affected-package tests then include it with no
+more configuration.
