@@ -21,6 +21,8 @@ const state = {
 };
 const login = vi.fn();
 const logout = vi.fn();
+const signedIn = ref(false);
+const freshAccessToken = vi.fn();
 
 vi.mock('@/composables/useAuth', () => ({
   useAuth: () => ({
@@ -28,6 +30,8 @@ vi.mock('@/composables/useAuth', () => ({
     me: computed(() => state.me.value),
     login,
     logout,
+    isAuthenticated: computed(() => signedIn.value),
+    freshAccessToken,
   }),
 }));
 vi.mock('@/composables/useActiveLibrary', () => ({
@@ -63,6 +67,8 @@ async function open() {
 beforeEach(() => {
   login.mockClear();
   logout.mockClear();
+  signedIn.value = false;
+  freshAccessToken.mockReset();
   document.body.innerHTML = '';
 });
 
@@ -114,6 +120,38 @@ describe('AccountMenu', () => {
     expect(menu.querySelector('[data-testid="account-access"]')!.textContent).toContain('Finance queries');
     expect(menu.querySelector('[data-testid="account-sign-out"]')).toBeNull();
     expect(menu.querySelector('[data-testid="account-sign-in"]')).toBeNull();
+    wrapper.unmount();
+  });
+
+  it('copies the token as an export line, and shows its expiry the next time it opens', async () => {
+    state.account.value = { state: 'signed-in', identity: { name: 'Priya Shah', email: null } };
+    state.me.value = me();
+    signedIn.value = true;
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+    freshAccessToken.mockResolvedValue({ token: 'aaa.bbb.ccc', expiresAt });
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+
+    const wrapper = await open();
+    const item = document.body.querySelector<HTMLElement>('[data-testid="account-copy-token"]')!;
+    expect(item.textContent).toContain('Copy API token');
+    expect(document.body.querySelector('[data-testid="account-token-expiry"]')).toBeNull();
+    item.click();
+    await vi.waitFor(() => expect(writeText).toHaveBeenCalledWith("export SQLIB_TOKEN='aaa.bbb.ccc'"));
+    wrapper.unmount();
+
+    document.body.innerHTML = '';
+    const again = await open();
+    expect(document.body.querySelector('[data-testid="account-token-expiry"]')!.textContent).toContain('until');
+    again.unmount();
+  });
+
+  it('offers no token after the session lapsed', async () => {
+    state.account.value = { state: 'expired', identity: { name: 'Priya Shah', email: null } };
+    state.me.value = null;
+    signedIn.value = false;
+    const wrapper = await open();
+    expect(document.body.querySelector('[data-testid="account-copy-token"]')).toBeNull();
     wrapper.unmount();
   });
 });

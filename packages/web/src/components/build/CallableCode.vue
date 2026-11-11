@@ -28,6 +28,8 @@
         draft — save to call this
       </StatusBadge>
 
+      <CopyTokenButton class="toolbar-token" />
+
       <button type="button" class="copy-button" @click="copy">
         <Check v-if="copied" :size="11" />
         <Copy v-else :size="11" />
@@ -49,6 +51,7 @@ import {
 } from '@/lib/codeSnippets';
 import { inputVariableNames, type Callable } from '../../lib/callables';
 import StatusBadge from '../shared/StatusBadge.vue';
+import CopyTokenButton from '../shared/CopyTokenButton.vue';
 
 const props = defineProps<{
   callable: Callable;
@@ -136,6 +139,15 @@ async function copy() {
   background: var(--segment-selected);
   font-weight: var(--weight-semibold);
   color: var(--segment-selected-ink);
+}
+
+.toolbar-token {
+  margin-left: auto;
+}
+
+/* The token button, when shown, takes the free space; Copy sits beside it. */
+.toolbar-token + .copy-button {
+  margin-left: 0;
 }
 
 .copy-button {

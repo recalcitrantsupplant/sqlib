@@ -36,7 +36,7 @@ export interface SnippetRequest {
 }
 
 /** The token is read from the environment, never inlined into a snippet. */
-const TOKEN_ENV = 'SQLIB_TOKEN';
+export const TOKEN_ENV = 'SQLIB_TOKEN';
 
 const jsonHeaders = (request: SnippetRequest): Array<[string, string]> => {
   const headers: Array<[string, string]> = [['Authorization', `Bearer $${TOKEN_ENV}`]];
