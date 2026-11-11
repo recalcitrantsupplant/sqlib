@@ -117,6 +117,7 @@ export const createBackendSchema = {
         "enum": [
           "post",
           "get",
+          "query",
           null
         ],
         "nullable": true
@@ -239,6 +240,7 @@ export const updateBackendSchema = {
         "enum": [
           "post",
           "get",
+          "query",
           null
         ],
         "nullable": true

@@ -96,7 +96,7 @@ export default async function (
   const resolveExecutor = async (params: {
     backendId?: string | null;
     endpoint?: string | null;
-    queryMethod?: 'post' | 'get' | null;
+    queryMethod?: 'post' | 'get' | 'query' | null;
     request: FastifyRequest;
     isUpdate: boolean;
   }): Promise<{ executor: ISparqlExecutor; ephemeralStoreId: string | null }> => {
@@ -114,7 +114,7 @@ export default async function (
           'Executing against an arbitrary endpoint requires administrator access; use a registered backendId.'
         );
       }
-      const method: 'post' | 'get' = queryMethod === 'get' ? 'get' : 'post';
+      const method: 'post' | 'get' | 'query' = queryMethod === 'get' || queryMethod === 'query' ? queryMethod : 'post';
       return {
         executor: new HttpSparqlExecutor({
           queryUrl: endpoint,
@@ -285,7 +285,7 @@ export default async function (
     query: string;
     backendId?: string | null;
     endpoint?: string | null;
-    queryMethod?: 'post' | 'get' | null;
+    queryMethod?: 'post' | 'get' | 'query' | null;
     payload: Parameters<typeof resolveExecutionPayload>[0];
     /** The request's dataset fields, validated below. */
     dataset: { defaultGraphs?: unknown; namedGraphs?: unknown };

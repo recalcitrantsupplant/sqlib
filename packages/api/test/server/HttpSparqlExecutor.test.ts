@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
-import { HttpSparqlExecutor } from '../../src/server/HttpSparqlExecutor.js';
+import { HttpSparqlExecutor, QUERY_METHOD_MAX_URL_LENGTH, resetQueryMethodRefusals } from '../../src/server/HttpSparqlExecutor.js';
 import { Dispatcher } from 'undici';
 
 // Mock undici to control HTTP responses
@@ -703,6 +703,90 @@ describe('HttpSparqlExecutor', () => {
             );
         });
     });
+    describe('QUERY method (RFC 10008)', () => {
+        const json = { 'content-type': 'application/sparql-results+json' };
+        const empty = { head: { vars: [] }, results: { bindings: [] } };
+
+        beforeEach(() => resetQueryMethodRefusals());
+
+        it('sends a read as QUERY with the query as an application/sparql-query body', async () => {
+            const executor = new HttpSparqlExecutor({ queryUrl: defaultQueryUrl, queryMethod: 'query' });
+            mockUndiciAgentRequest.mockResolvedValue(createMockResponse(200, empty, json));
+
+            await executor.selectQueryParsed('SELECT * WHERE { ?s ?p ?o }');
+
+            expect(mockUndiciAgentRequest).toHaveBeenCalledTimes(1);
+            const call = mockUndiciAgentRequest.mock.calls[0][0];
+            expect(call.method).toBe('QUERY');
+            expect(call.path).toBe('/sparql');
+            expect(call.headers['Content-Type']).toBe('application/sparql-query');
+            expect(call.body).toBe('SELECT * WHERE { ?s ?p ?o }');
+        });
+
+        it('puts a dataset in the QUERY URL', async () => {
+            const executor = new HttpSparqlExecutor({ queryUrl: defaultQueryUrl, queryMethod: 'query' });
+            mockUndiciAgentRequest.mockResolvedValue(createMockResponse(200, empty, json));
+
+            await executor.selectQueryParsed('SELECT * WHERE { ?s ?p ?o }', {
+                dataset: { defaultGraphs: ['http://example.org/a'], namedGraphs: [] },
+            });
+
+            const call = mockUndiciAgentRequest.mock.calls[0][0];
+            expect(call.method).toBe('QUERY');
+            const params = new URL(call.path, 'http://localhost').searchParams;
+            expect(params.getAll('default-graph-uri')).toEqual(['http://example.org/a']);
+            expect(params.getAll('named-graph-uri')).toEqual(['urn:sqlib:empty-dataset']);
+        });
+
+        it('sends a POST form when the dataset makes the URL too long', async () => {
+            const executor = new HttpSparqlExecutor({ queryUrl: defaultQueryUrl, queryMethod: 'query' });
+            mockUndiciAgentRequest.mockResolvedValue(createMockResponse(200, empty, json));
+            const graphs = Array.from({ length: 100 }, (_, i) => `http://example.org/graph/${i}`);
+            expect(graphs.join('').length).toBeGreaterThan(QUERY_METHOD_MAX_URL_LENGTH);
+
+            await executor.selectQueryParsed('SELECT * WHERE { ?s ?p ?o }', { dataset: { defaultGraphs: graphs } });
+
+            expect(mockUndiciAgentRequest).toHaveBeenCalledTimes(1);
+            const call = mockUndiciAgentRequest.mock.calls[0][0];
+            expect(call.method).toBe('POST');
+            expect(call.headers['Content-Type']).toBe('application/x-www-form-urlencoded');
+            expect(call.body).toContain('default-graph-uri=');
+        });
+
+        it.each([405, 501])('retries as POST after a %i, and sends POST next time', async (status) => {
+            const executor = new HttpSparqlExecutor({ queryUrl: defaultQueryUrl, queryMethod: 'query' });
+            mockUndiciAgentRequest
+                .mockResolvedValueOnce(createMockResponse(status, 'Method Not Allowed'))
+                .mockResolvedValue(createMockResponse(200, empty, json));
+
+            const { result } = await executor.selectQueryParsed('SELECT * WHERE { ?s ?p ?o }');
+            expect(result).toEqual(empty);
+            expect(mockUndiciAgentRequest.mock.calls.map((c: Array<{ method: string }>) => c[0].method)).toEqual(['QUERY', 'POST']);
+
+            await executor.selectQueryParsed('SELECT * WHERE { ?s ?p ?o }');
+            expect(mockUndiciAgentRequest.mock.calls.map((c: Array<{ method: string }>) => c[0].method)).toEqual(['QUERY', 'POST', 'POST']);
+        });
+
+        it('does not retry after a 400, which can be a syntax error', async () => {
+            const executor = new HttpSparqlExecutor({ queryUrl: defaultQueryUrl, queryMethod: 'query' });
+            mockUndiciAgentRequest.mockResolvedValue(createMockResponse(400, 'Parse error'));
+
+            await expect(executor.selectQueryParsed('SELECT * WHERE {')).rejects.toThrow('status 400');
+            expect(mockUndiciAgentRequest).toHaveBeenCalledTimes(1);
+        });
+
+        it('sends an update as POST', async () => {
+            const executor = new HttpSparqlExecutor({ queryUrl: defaultQueryUrl, queryMethod: 'query' });
+            mockUndiciAgentRequest.mockResolvedValue(createMockResponse(204, ''));
+
+            await executor.update('INSERT DATA { <urn:s> <urn:p> <urn:o> }');
+
+            const call = mockUndiciAgentRequest.mock.calls[0][0];
+            expect(call.method).toBe('POST');
+            expect(call.body).toMatch(/^update=/);
+        });
+    });
+
     describe('dataset', () => {
         const results = { head: { vars: ['s'] }, results: { bindings: [] } };
         const sentForm = () => new URLSearchParams(mockUndiciAgentRequest.mock.calls[0][0].body);

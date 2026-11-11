@@ -694,6 +694,7 @@ export const sqlibQueryMethod = createNamespace({
   prefix: "sqlibQueryMethod",
   terms: [
     "post",
-    "get"
+    "get",
+    "query"
   ]
 } as const);
