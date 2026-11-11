@@ -586,7 +586,7 @@ describe('Execute route (v1)', () => {
 
     it('passes a dataset on an UPDATE to the executor, as using-graph-uri', async () => {
       const vId = 'urn:sqlib:query-version:copy';
-      const version = { $id: vId, '@type': 'QueryVersion', queryString: 'INSERT { ?s <http://example.org/q> ?o } WHERE { ?s <http://example.org/p> ?o }', queryType: QueryTypeIri.update } as any;
+      const version = { $id: vId, '@type': 'QueryVersion', queryString: 'INSERT { ?s <http://example.org/q> ?o } WHERE { ?s <http://example.org/p> ?o }', queryType: QueryTypeIri.update };
 
       hoisted.mockGet
         .mockReturnValueOnce(version)
@@ -608,7 +608,7 @@ describe('Execute route (v1)', () => {
 
     it('refuses a dataset on an UPDATE that has WITH, with 400', async () => {
       const vId = 'urn:sqlib:query-version:with';
-      const version = { $id: vId, '@type': 'QueryVersion', queryString: 'WITH <http://example.org/g2> INSERT { ?s <http://example.org/q> ?o } WHERE { ?s <http://example.org/p> ?o }', queryType: QueryTypeIri.update } as any;
+      const version = { $id: vId, '@type': 'QueryVersion', queryString: 'WITH <http://example.org/g2> INSERT { ?s <http://example.org/q> ?o } WHERE { ?s <http://example.org/p> ?o }', queryType: QueryTypeIri.update };
 
       hoisted.mockGet
         .mockReturnValueOnce(version)
